@@ -1,0 +1,37 @@
+appId: com.codechroma.desktop
+productName: CodeChroma
+directories:
+  output: dist
+  buildResources: build
+
+files:
+  - out/**/*
+  - launcher/**/*
+  - tabbar/**/*
+  - package.json
+
+# The PyInstaller one-dir bundle, kept outside the asar so its executable stays executable.
+extraResources:
+  - from: ../dist/codechroma-bridge
+    to: bridge/codechroma-bridge
+
+mac:
+  target:
+    - target: dmg
+      arch: [arm64]
+  category: public.app-category.developer-tools
+  # Unsigned by design for now -- recipients right-click -> Open on first launch. To sign later,
+  # drop these two lines and supply CSC_LINK / CSC_KEY_PASSWORD plus a notarize block.
+  identity: null
+
+dmg:
+  title: CodeChroma
+
+win:
+  target:
+    - nsis
+  artifactName: CodeChroma-${version}-Setup.${ext}
+
+nsis:
+  oneClick: false
+  allowToChangeInstallationDirectory: true

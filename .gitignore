@@ -1,0 +1,45 @@
+# Secrets
+.env
+.env.*
+!.env.example
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+venv/
+dist/
+build/
+*.egg-info/
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+uv.lock
+
+# codechroma persisted graphs
+.codechroma/
+
+# Skills the bridge syncs into examples/ when it is dogfooded as an analyzed repo
+examples/.claude/
+
+# Desktop app (Electron): compiled main process is generated, but the icon art is source
+desktop/out/
+!desktop/build/
+!desktop/build/icon.png
+
+# Node.js (web/)
+node_modules/
+playwright-report/
+test-results/
+*.tsbuildinfo
+
+# IDE
+.idea/
+.DS_Store
+
+# Claude Code harness runtime state (session-specific, not project source)
+.claude/scheduled_tasks.lock
+
+# Per-checkout active-feature pointer for /speckit-* commands -- diverges per branch/worktree,
+# not shared repo state, so tracking it just produces merge conflicts.
+.specify/feature.json

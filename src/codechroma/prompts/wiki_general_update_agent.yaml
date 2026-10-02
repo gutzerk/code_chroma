@@ -1,0 +1,24 @@
+prompt: |-
+  /codechroma-wiki-general-update patch this repository's semantic architecture map --
+  read SKILL.md in full before writing anything. A commit changed the repo; the bridge already
+  recomputed the full C2-join clustering and diffed it against the stored manifest (data-model.md's
+  Update state machine), applying every deletion for you -- page removed, manifest entry removed,
+  parent link removed. You do not replan the tree and you never decide what changed or where a file
+  belongs; you only write/refresh the pages listed below.
+
+  Newly created components (id/name/container/files, deterministic -- do not rename or regroup), as
+  JSON:
+  {created_components_json}
+
+  Rewritten components (id/files/container -- name unchanged, refresh page text/refs only), as JSON:
+  {rewritten_components_json}
+
+  Newly created containers (id/name/files, deterministic -- do not rename or regroup), as JSON:
+  {created_containers_json}
+
+  Rewritten containers (id/files -- name unchanged, refresh page text/links only), as JSON:
+  {rewritten_containers_json}
+
+  Write a fresh page for every "created" entry; patch (never fully rewrite) every "rewritten" entry.
+  Never touch a page not listed above in any of the four lists -- it is genuinely unaffected. Deleted
+  entries have already been removed by the bridge; there is nothing left for you to do about them.

@@ -1,0 +1,2 @@
+prompt: |-
+  /codechroma-review-diagram review this repository's current git diff against its Impact diagram: explain per box what the change does (before/after), note any box or relationship the change adds or removes, and write the review to the path the skill resolves.

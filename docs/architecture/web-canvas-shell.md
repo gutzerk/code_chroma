@@ -1,0 +1,360 @@
+# Web canvas shell (`web/src/canvas/`)
+
+Has grown well past the "minimal canvas + navigation base" the docs in `web/README.md` and
+`web/QUICKSTART.md` still describe — those files understate the current feature set and shouldn't be
+trusted as-is (see caveat in [`web-engine-client.md`](web-engine-client.md)).
+
+Everything is one continuous in-memory DOM/CSS canvas — no per-node routing; expand/collapse state
+resets on reload (deliberate, per FR-018). A pluggable-camera pan/zoom system now sits on top of
+that canvas (wheel-zoom toward cursor, drag-to-pan, zoom in/out/reset buttons, per-block "Center"
+focus, and a "Fit All" that fits the whole expanded tree) — see `CanvasViewport.tsx` and
+`web/e2e/pan-zoom.spec.ts`.
+
+- **`src/canvas/`** — `RootCanvas` composes the whole app shell. 🔴 **As of
+  016-single-canvas-dashboard Stage 4, there is only ever one renderer: `canvas/doc/CanvasDocView`.**
+  The old `CanvasView` union (`"hierarchy" | DiagramViewId`) and its `canvas/diagramViews.tsx`
+  registry are gone, along with `C1View`/`PatternsView`/`ImpactView`/`CustomDiagramView`/`EpicsView`
+  and the rail's per-kind toggle buttons — see [`single-canvas.md`](single-canvas.md) for the
+  document model and its Stage 4 section for exactly what survived the cut and why (`c1ChangesStore`/
+  `c1PlanStore`/`C1InspectorContext`/`C1PlanPanel` turned out to be core hierarchy chrome, not
+  C1-view-only, and stayed at the time — `c1PlanStore`/`C1PlanPanel` were later removed outright with
+  the Plan overlay's retirement, see `change-cards.md`; `c1ChangesStore`/`C1InspectorContext` remain;
+  `canvas/epics/brief/` stayed too, reachable from an "epic" canvas element
+  via a small standalone `EpicBriefPanel` instead of the deleted `EpicsView`). `RootCanvas` now always
+  renders `CanvasDocView` inside its `CanvasViewport`, passing it only the resolved `strategy.id` (as
+  the render fallback for elements carrying no `meta.strategy` of their own). The client no longer
+  seeds anything: the bridge guarantees every document already holds its root block — see
+  [`single-canvas.md`](single-canvas.md)'s "The seeded root block".
+  `DrawDiagramButton` (the rail's "Draw…" control, replacing the five per-kind toggle buttons and,
+  since the diagram-management unification, `RecipeMenu`'s own dropdown — see
+  [`diagram-skills.md`](diagram-skills.md)) and
+  `LayerStrip` (the layer-visibility chips, docked in `.canvas-chrome`) both live in `canvas/doc/`
+  alongside it. `ConnectionsOverlay`/`ChangeConnectionsOverlay`/`TraceFlowOverlay` are unconditional
+  now (they used to be gated on `isHierarchy`, and there used to be a fourth, `PlanConnectionsOverlay`,
+  before the Plan overlay's retirement) since the
+  hierarchy is always potentially present as a canvas element rather than one of several mutually
+  exclusive views; `UndoManager`'s `activeKind` is hardcoded to `"hierarchy"` for the same reason —
+  it, `useSavedLayoutAndFitLoop.ts` and the whole `collision/` multi-select/group-drag system remain
+  exactly as they were, still load-bearing for `strategies/boxes/TopLevelChildren.tsx`'s own top-level
+  box dragging. 🔴 **`canvas/doc/CanvasNodeBox.tsx` (the one box every recipe-authored element
+  renders through) deliberately does not join that collision/multi-select system** — a canvas-doc
+  element's position is the document's own absolute truth, committed straight through
+  `update_element`. `web/e2e/multi-select.spec.ts` and `web/e2e/block-collision.spec.ts` (both
+  originally written against the old C1 view's boxes) have already been ported onto the hierarchy's
+  `boxes` strategy instead (`strategies/boxes/TopLevelChildren.tsx`'s `hierarchy-top-box` testid),
+  the one surface that still exercises the real collision/multi-select mechanism end to end — see
+  `single-canvas.md`'s Stage 4 section for the porting detail. 🔴 `CanvasNodeBox`'s inline style pins
+  a real, fixed `width` (not just `minWidth`) equal to `element.size?.w ?? DEFAULT_WIDTH` — its own
+  box classes (`.custom-node-box`/`.pattern-node-box`/`.impact-node-box`/the C1 `.block`) declare no
+  CSS `width` of their own, so a `minWidth`-only box shrink-to-fits against `.canvas-content`'s own
+  auto-computed extent, which is unconstrained once nothing sits nearby — that let an isolated box
+  grow wider and wider until its description resolved onto one line (the reported "drag a block far
+  away and it stretches" bug). The matching `descClass` (`.block-description`/`.pattern-node-box-desc`/
+  `.impact-node-box-desc`/`.custom-node-box-desc`) is `-webkit-line-clamp`-d to 4 lines with an
+  ellipsis instead, so the box can still grow taller for a longer description but never wider, and
+  never past that line cap. The "?" button next to a description (`canvas-node-box-desc-button`)
+  opens `DescriptionPopup.tsx` — a small backdrop+modal (`descriptionPopupStore.ts`, an
+  `epicBriefPanelStore`-style single-entry store) showing the full, untruncated text — deliberately
+  separate from the box's own click, which still opens the InspectorPanel as before. 🔴 A second,
+  independent bug had the name and description visually colliding for a C1 box specifically:
+  `nodeStyles.tsx`'s `c1` entry's `headerClass` (`.block-header`) is a row-direction flex container
+  (mirroring `Block.tsx`'s own title-column-beside-buttons header), but `CanvasNodeBox` rendered the
+  name-row and description as two direct siblings of that header rather than nesting them inside
+  `Block.tsx`'s own `.block-title` column wrapper — so for `c1` boxes only, the two sat side by side
+  as two more row items instead of stacking. `pattern`/`impact`/`custom` didn't show *this* bug
+  because their own `headerClass` was column-direction at the time — fixed by a new, optional
+  `NodeStyleEntry.titleWrapClass` (set only on the `c1` entry, to `"block-title"`) that
+  `CanvasNodeBox` wrapped the name-row + description pair in when present. 🔴 **That column-direction
+  header for pattern/impact/custom/epic turned out to be its own, separate bug**: `headerClass` also
+  carried the literal class `block-header` (for no real reason), whose `justify-content:
+  space-between` leaked into the column layout once the header stretched to the box's full height —
+  pushing the copy/desc buttons to the *bottom* of the block instead of beside the title. Fixed by
+  making every kind's header row-direction and self-contained, `titleWrapClass` now required on every
+  `NodeStyleEntry` (`.diagram-node-box-title-wrap` for the shared four, `.block-title` for C1) — see
+  `single-canvas.md`'s "Copy-context button" section for the detail. Two hooks
+  still own what used to be inline:
+  `useCanvasCamera` (the retry-until-mounted `frameFitTo` plus the auto-fit suppression lock — a
+  memoized object, so an effect may depend on it) and `useDiffToggle` (owns its toggle, its
+  pre-toggle expansion snapshot, and its live-ping reconciler) — it is called with its old
+  C1/overlay-view flag hardcoded to `false` now, since there is only ever one view to special-case
+  around. (A sibling `usePlanToggle` existed here too, fetching/populating the by-then-permanently-
+  empty `c1PlanStore` as harmless dead weight — both were deleted outright with the Plan overlay's
+  retirement rather than trimmed in place.) 🔴 `useDiffToggle` returns
+  `{ toggle, isPending }`, not a bare function: `isDiffActive` (`diffOverlayStore.getIsActive()`)
+  only flips once `refreshDiffs()`'s whole fetch/reveal chain has resolved, so on a large diff (many
+  changed files, or a freshly-activated PR workspace still reanalyzing) the button could sit unpressed
+  and inert for several seconds with zero feedback that the click landed. `isPending` is local state
+  set the instant the "turn on" branch starts and cleared in a `finally`, independent of the store —
+  `RootCanvas.tsx`'s `diff-toggle-button` uses it to swap its icon for a `.diff-toggle-spinner`
+  while the fetch is in flight. Turning diff mode off is synchronous, so it never sets `isPending`.
+  🔵 The Diff, "Show AI plan", and Replay rail buttons are currently pulled from `RootCanvas`'s
+  `<nav className="app-rail">` (their logic — `useDiffToggle`/`usePlanToggle`/`traceStore` — still
+  runs unchanged, just with no button wired to it); re-adding a button is a small JSX change, not a
+  logic change.
+  ⚠ That spinner (and `.workspace-banner-spinner`, which shares the one `@keyframes spin`) is held
+  still under `@media (prefers-reduced-motion: reduce)` — it can run for the whole length of a slow
+  fetch, which is exactly the moving content WCAG 2.2.2 is about. Held rather than hidden: the ring
+  is still the "busy" signal, and the button's `aria-label` already carries the state in words
+  ("Loading diff… click to cancel").
+  🔴 The button must **not** be `disabled` while pending, and it originally was: nothing in
+  `EngineClient` had a timeout or an abort, so an activation that never settled left Diff dead for
+  the rest of the session (with `camera.suppress()` stuck on with it) — reload-only recovery, and
+  the reported "the diff never finishes" bug.
+
+  🔴 **That gap is now closed in `EngineClient` itself, not worked around here.** Every request goes
+  through one of two `fetch()` calls (`fetchJson`/`fetchJsonOrNull`) and both carry
+  `requestSignal(init, caller)` — the caller's own signal, plus, **for a GET only**, a
+  `READ_TIMEOUT_MS` (30s) ceiling, combined with `AbortSignal.any` so whichever fires first wins. (A
+  write gets no blanket timeout; see [`web-engine-client.md`](web-engine-client.md) for why.)
+  `activationRef` is now simply an `AbortController`:
+  a click during activation is the **cancel** gesture, and `cancelActivation()` aborts it, which
+  really stops the in-flight `getDiff`/`getChangeCards`/`getNode` storm rather than merely declining
+  to publish its result. `refreshDiffs(client, signal)` resolves to `null` on abort instead of
+  rejecting, so callers treat "cancelled" exactly like "nothing to frame". The old
+  `ACTIVATION_WATCHDOG_MS` timer, the `cancelled`/`busy` token pair and the `shouldAbort` callback
+  are all deleted — one platform mechanism replaced three hand-rolled ones.
+
+  🔴 **Cancelling also puts the expansion back.** A reveal that got partway through has already
+  expanded real blocks, so `cancelActivation()` calls the same `restorePreDiffSnapshot()` the second
+  ("turn off") click uses — one helper shared by both exits, rather than the snapshot being restored
+  on only one of them. Without it those expansions survived the cancel *and* the next activation then
+  snapshotted the polluted state as its own baseline, so they could never be undone at all. Order
+  matters: abort first, then restore, because `revealNode` re-checks `signal.aborted` immediately
+  before it expands — otherwise a walk whose last `getNode` landed a tick before the click would
+  re-expand a block the restore had just collapsed. Covered by
+  `useDiffToggle.test.ts`'s cancel cases (that the cancel click really aborts the signal
+  the client saw rather than just the publish, and that it restores exactly what the reveal added
+  while leaving what the user had open before the click alone) and `RootCanvas.test.tsx`'s "render
+  strategy" describe block and `useCanvasCamera.test.ts`/`useSavedLayoutAndFitLoop.test.ts`. The shell
+  is laid out IDE-style as one horizontal row: a 48px icon **rail** (`.app-rail`, zoom then the
+  terminal/research/code-view/diff/plan/trace toggles then `DrawDiagramButton`, split by one
+  `.app-rail-separator` — `RailButton.tsx` wraps each control, `RailIcon.tsx` supplies the glyphs),
+  then the canvas area, then the **inspector** panel (plus the standalone `EpicBriefPanel`, mounted
+  unconditionally beside it, rendering nothing while closed). There is no file-tree/Explorer
+  panel or agents toggle on this rail — both were removed; agent launch buttons ("Run agent"/"Add
+  agent here") now live in `.canvas-chrome`, the context bar atop the canvas area, alongside the
+  branch switcher and, on a PR workspace, a `PR #<number> · <head_ref>` label (see
+  [`web-panels.md`](web-panels.md) for why that replaced the old node-path breadcrumb there, and
+  [`parallel-agents.md`](parallel-agents.md) for the branch switcher). ⚠ The terminal is no longer a
+  sibling in that row: it moved *inside* `.canvas-area`, below `.canvas-stage`, as a **bottom** dock
+  (`height: 280px`, top-edge `ns-resize` handle) — that is what lets the inspector be full viewport
+  height while the terminal spans only the canvas's own width. `useResizableSize` gained
+  `axis: "y"` / `edge: "top"` / `minHeight` for it, and `CanvasViewport`'s re-centering
+  `ResizeObserver` now pans **both** axes by `delta/2` (the inspector shrinks the canvas from the
+  right, the terminal from the bottom). `.canvas-area` itself is `.canvas-chrome` (the context bar)
+  stacked over `.canvas-main-row`, a flex row of `.canvas-stage` (the pan/zoom viewport) plus
+  `AgentRail`'s own full-height panel beside it — one card per agent (title, status/branch caption,
+  bigger and two-line, not the icon-only rail items the name might suggest), dimmed for an agent whose
+  branch main doesn't currently have checked out (see [`parallel-agents.md`](parallel-agents.md) for
+  the branch-scoping rules), plus a second "Diagrams" tab for collapsing/expanding a diagram layer on
+  the canvas without deleting it (also in `parallel-agents.md`). That panel renders nothing (and the
+  canvas stays full width) only when there are neither agents nor diagrams. Since the left rail is
+  icon-only, `RailButton` renders the control's name as a real
+  `.rail-tooltip` span shown on hover after a 300ms delay — deliberately not a `title` attribute
+  (native tooltips are ~1s late, OS-styled, and untestable), `aria-hidden` because `aria-label`
+  already names the button, and `visibility: hidden` rather than just transparent so Playwright and
+  hit-testing both treat it as absent. It's absolutely positioned out over the panel to its right, so
+  it never widens the rail. `web/e2e/rail-tooltips.spec.ts` covers it. The
+  context bar is a thin strip *inside* `.canvas-area` spanning the canvas only, and still carries
+  `data-testid="app-chrome"` (`e2e/pan-zoom.spec.ts` asserts that strip never moves under
+  Ctrl+wheel). ⚠ `.canvas-stage` wraps the viewport plus Fit All / `DeletedDiffOverlay` /
+  `TraceControls` for a reason: those three are absolutely positioned, and without it they'd anchor
+  to the canvas *plus* the context strip and render behind it. Two independent Strategy-pattern
+  subsystems live here:
+  - **`strategies/`** — `CanvasRenderStrategy` (`resolveStrategy(id)` in `registry.ts`) picks how
+    the hierarchy renders: `tree` (`strategies/tree/TreeNode.tsx`, an indented tree, **default**) or
+    `boxes` (`strategies/boxes/Block.tsx`, the nested-block renderer). Chosen once at startup, from
+    `?strategy=` first and `VITE_CANVAS_STRATEGY` second; falls back to `tree` for unset or
+    unrecognized values. 🔴 `?strategy=` exists for the e2e suite: a spec that asserts one renderer's
+    DOM (`[data-testid="block"]` vs `[data-testid="tree-node"]`) must pin it via
+    `gotoApp(page, { strategy: "boxes" })`, because it cannot get its own dev server. Flipping
+    `DEFAULT_STRATEGY_ID` from `boxes` to `tree` without this broke six specs at once and left them
+    red for the rest of the branch — pin the renderer rather than relying on the default. Covered by
+    `RootCanvas.test.tsx`'s "RootCanvas render strategy". Both renderers must stay interchangeable at
+    any node regardless of strategy — everything they share already lives in `useNodeChrome` /
+    `nodeChrome`, and expansion state is global per `node_id`, so neither may hold local state. In the
+    `boxes` strategy, the root's direct children (Systems) render through
+    `strategies/boxes/TopLevelChildren.tsx` instead of the ordinary flow-grid `block-children`
+    container every deeper level still uses — a row-major grid (`gridLayout`) sized via the shared
+    `canvas/useMeasuredSizes.ts` hook, each box independently draggable and group-draggable
+    (`useSelectionAwareDrag`), top-rank-only. Nested levels are
+    unaffected: still plain `Block`, flow-laid-out, no drag. Covered by
+    `strategies/boxes/TopLevelChildren.test.tsx`.
+  - **`highlighting/`** — `getHighlighter(language)` (analogous to `AnalyzerRegistry.for_file()`)
+    picks a `LanguageHighlighter`; each `<lang>Highlighter.ts` wraps one Prism.js component
+    (python, go, yaml, java, typescript, javascript, jsx, tsx, c, cpp, csharp, ruby, rust, swift,
+    kotlin, json, css, markdown, sql, bash, toml), `plainTextHighlighter.ts` is the no-op fallback.
+    The registry maps backend `language` strings plus common aliases (`ts`/`js`/`c++`/`c#`/`rs`/…)
+    onto them. This is static syntax coloring for already-fetched source shown in `CodePopup`, not
+    a live-sync-with-a-running-process feature.
+  - `CodePopup.tsx` — full-viewport overlay showing a function's source (opened instead of
+    expanding a function-level block, since functions have no further boxes to drill into). This
+    popup view and rendering the source inline in the block itself (`Block.tsx`) share the same
+    `CodeView.tsx` component and read/write the mode via `codeViewModeStore.ts`, an
+    `ExpansionStore`-style in-memory store (no persistence across reload). 🔵 The rail button that
+    used to switch this mode was repurposed into the code-tree show/hide toggle below (mode is now
+    fixed at whatever it last was, with no rail UI to flip it).
+  - `ConnectionsOverlay.tsx` — draws call/reference connection lines between currently-visible
+    blocks, resolving each endpoint to its nearest visible ancestor when the real endpoint is
+    collapsed. Routes through `connectors/` like every other arrow renderer, so its lines steer
+    around the blocks they don't attach to. ⚠ Blocks here are nested DOM — a parent's rect contains
+    its children's anchors — which only works because `obstacleRouter` skips any obstacle containing
+    an endpoint's anchor. Read that rule before changing what this passes as `obstacles`.
+    Its per-node `getConnections` fan-out is bounded (`util/mapWithConcurrency.ts`, allSettled
+    semantics — one failed node no longer discards every other's result), and the block
+    row/header selectors overlays walk the DOM with are the shared
+    `canvasOverlay.BLOCK_ROW_SELECTOR`/`BLOCK_HEADER_SELECTOR` constants (also used by
+    `ChangeConnectionsOverlay` and `TraceFlowOverlay`, whose border-to-border segment math is the
+    shared `canvasOverlay.borderSegment`). Node ids in attribute selectors go through
+    `CSS.escape()` everywhere — epic titles and custom type ids can carry selector-breaking
+    characters. All three overlay `<svg>`s (`ConnectionsOverlay`,
+    `ChangeConnectionsOverlay`, `TraceFlowOverlay`) carry `role="img"` and a live `aria-label`
+    (e.g. "3 connections between nodes", "No plan steps") so a screen reader announces one
+    description instead of raw path data or silence.
+  - `RouteProbeOverlay.tsx` + `RouteProbeTrigger.tsx` (019-route-probing-and-label-clearance) —
+    select exactly two nodes (`state/selectionStore.ts`'s `useSelectedIds()`), click "Trace route",
+    and `EngineClient.getRoute(fromId, toId)` asks `GET /repos/{repo_id}/route?from=&to=` for the
+    dependency path between them (`src/codechroma/bridge/routes/graph.py`'s `get_route`: a fresh
+    `DependencyIndex` off `ws.engine.snapshot()`, callee-direction BFS first, caller-direction
+    fallback, 12-hop cap, `{"path": null}` on no route/unknown id rather than an error).
+    `state/routeProbeStore.ts` holds `{fromId, toId, path, isLoading}`; the overlay renders the path
+    as `.route-probe-edge` segments, modeled on `ConnectionsOverlay`.
+  - `LabelClearanceMonitor.tsx` (019-route-probing-and-label-clearance) — dev-only, renders
+    nothing. On settle it DOM-queries `.connector-label-chip` (`connectors/EdgeLabel.tsx`) and
+    `BLOCK_HEADER_SELECTOR` boxes, runs the pure `connectors/labelClearance.ts#findOverlaps`
+    (pairwise AABB test), and `console.warn`s any clashing pairs. Detection only in v1 — no
+    auto-reposition, no chrome badge. Re-checks on `canvasLayoutStore` version bumps and resize.
+  - `connectors/` — the one shared arrow-geometry module set, used by every diagram view.
+    `orthogonalRoute.ts` is the two-body solver (border anchors, stubs, rounded elbows, per-pair
+    lanes). An anchor's point along its side defaults to the midpoint but takes an arbitrary
+    `laneOffset` (`anchorOf`); `routeEdges.ts` feeds it a real one per endpoint via `assignPorts`,
+    grouped by the exact box+side (`chooseSides`), not by which pair the arrow joins — so several
+    unrelated arrows into the same side of a busy box spread across it instead of all landing on that
+    side's exact midpoint. `obstacleRouter.ts` wraps it with an A\* search that avoids every *other* box;
+    `RelationshipEdge.tsx` is the rendered arrow (casing + stroke + hit-stroke + caption) and
+    `EdgeLabel.tsx` its measured, opaque caption chip. Three further shared pieces replaced per-view
+    copies: `diagramLayout.ts`'s `layoutBoxes()` — the stable adapter surface every diagram view
+    reaches through `autoLayout.ts`'s `layoutNewElements()` — delegates its body to
+    `layeredLayout.ts#computeLayeredLayout()` (051-directed-layered-diagram-layout; replaced
+    024-degree-priority-diagram-layout's degree-priority, hub-centered radial/BFS layout, which
+    itself had replaced the original dagre-backed `createDiagramGraph()`/`diagramSizeOf()` —
+    `bfsLayout.ts` and its `@dagrejs/dagre`-era predecessor are both gone). `layeredLayout.ts` is a
+    directed, ranked (Sugiyama-style) layout, not a hub-centered one: for every one-directional edge
+    A→B (no matching reverse edge), A's box always ends up strictly above B's, so the diagram reads
+    top-to-bottom in data/process-flow order — this deliberately gives up 024's "most-connected node
+    at the visual center" guarantee in exchange for direction being visible at a glance. Per
+    connected component (BFS/union-find; a zero-degree node is its own singleton): duplicate
+    same-direction edges collapse to one structural edge and self-loops are dropped before ranking
+    (they still render); a deterministic DFS (node order sorted by id) marks back-edges, i.e. the
+    edges that close a cycle (feedback-arc-set-via-DFS) — a true two-way relationship has no single
+    flow direction, so its edges are excluded from ranking but still render normally. Rank is then
+    longest-path layering over the resulting DAG via Kahn's algorithm
+    (`rank(node) = max(rank(parent)) + 1`, ready nodes always processed in id order for determinism)
+    — this is already height-minimal (provably, by induction over any valid rank assignment), so no
+    separate "tightening" pass runs on top of it. Within a rank, nodes sort by the average X of their
+    already-placed parents (a single top-down barycenter pass, not an iterative sweep), falling back
+    to (degree desc, id asc) for rank 0 or for a node with no positioned parent (e.g. its only edge
+    was cut as a back-edge); this keeps a branch's children roughly under it instead of interleaving
+    with an unrelated sibling branch's. Every edge kind (`uses`/`implements`/`extends`/`wraps`/
+    `notifies`/`registers`) reads the same way — source above target, no per-kind inversion — a
+    decision confirmed explicitly rather than assumed. Components are packed largest-first,
+    left-to-right with `NODE_SEP` gaps, wrapping past a `MAX_ROW_WIDTH` — singleton components pack
+    through the exact same path, no special-case code. Final overlap correction reuses
+    `resolveDrop()` from `collision/resolveDrop.ts` (the same solver manual drag-and-drop uses),
+    processing boxes ordered by rank (top ranks first, ties by X then id) so a downstream box can
+    never bump an upstream one out of its intended row. 🔴 Known gap: the directional guarantee holds
+    only *within* one `layoutBoxes()` call (typically a first draw) — `autoLayout.ts`'s
+    `layoutNewElements()` only considers edges where both endpoints are in the new batch and stacks
+    the whole batch below existing content by a flat Y-offset, so an incrementally-added node with an
+    edge into an already-placed one is not ranked relative to it. **054-diagram-flow-order:** a box
+    carrying an authored `meta.order` (`LayoutBoxSpec.order`, threaded from `element.meta.order` by
+    `autoLayout.ts` via the shared `stringMeta()` helper, `doc/elementMeta.ts`) gets its rank straight
+    from the leading digit run of that string (`parseOrderRank()`, 0-indexed to match a parentless
+    box's default rank 0, clamped at 0 so a stray `order: "0"` can't go negative — logs a
+    `console.warn` and collides onto the same rank as `"1"` when that happens) instead of
+    `max(rank(parent)) + 1` — order is authoritative when present, not a tiebreaker, so it can
+    override what topology alone implies (see
+    [ADR 0002](../adr/0002-order-on-box-overrides-rank.md)). An order-less box in the same diagram is
+    unaffected: its rank still comes from its real parents, whether those parents are order-pinned or
+    not, which is what reconciles both onto one rank scale. `compressRanks()` then maps each
+    component's resulting rank values onto a dense `0..k-1` scale before layout — an authored
+    `order` of `"1"` and `"100"` would otherwise leave ~98 empty rank rows of dead vertical space
+    between them; only relative order ever matters downstream, never the raw authored number.
+    Rendered as a small badge on the box
+    itself (`OrderBadge`, `doc/nodeAccent.tsx`, wired into `CanvasNodeBox.tsx`;
+    `.canvas-node-order-badge` in styles.css) — inherits the same known gap above (only ranks within
+    one `layoutBoxes()` call). **`Lane`/`Concurrency island`** (the other two 054 terms, CONTEXT.md):
+    within one rank, `orderRank()`'s barycenter/degree/id ordering feeds through `clusterByLane()`,
+    which pulls every box sharing a `meta.lane` value adjacent — a lane's spot is its earliest
+    member's position in that ordering, every other member moves up next to it, and a lane-less box
+    (or an entirely lane-less diagram) passes through unchanged, since `Array.prototype.sort`'s
+    stability makes this a no-op when there's nothing to cluster. Both are rendered, not laid out,
+    as their own soft-tinted background areas — `LaneArea`/`ConcurrencyIslandArea` (`doc/`) — computed
+    purely off `CanvasDocView.tsx`'s `renderableElements` (bucketed by `meta.lane`, and separately by
+    the leading digit run of `meta.order` via the shared `leadingOrderDigits()`, `doc/elementMeta.ts`;
+    a digit bucket with only one member is dropped before rendering, since a lone numbered step has
+    nothing to be concurrent with), not off any layout-time grouping — neither is a real document
+    element, unlike `GroupFrame`'s `group`. All three (`GroupFrame`, `LaneArea`,
+    `ConcurrencyIslandArea`) share one bounding-box calculation, `doc/boundingBox.ts#unionBoundsOf()`,
+    but each area picks its color from its own hash/palette (`groupColor.ts`/`laneColor.ts`/
+    `concurrencyIslandColor.ts`) so a box in all three groupings at once still reads as three distinct
+    colors — deliberately never a shared hash, since a real structural group, a Lane, and a
+    Concurrency island are independent, non-exclusive concepts that can freely overlap on one box.
+    `routeEdges.ts` — the
+    lanes→router→map idiom (lanes *and* ports assigned across EVERY item first — pairs via
+    `assignLanes`, box+sides via `assignPorts` — one router per pass in input order, unresolvable
+    items skipped but still consuming a lane/port). Each end's `assignPorts` group is fed *sorted*
+    by the far box's centre along the exit side (060-connector-port-ordering): the pool's exit/entry
+    points rise monotonically with the direction the arrow turns, so two arrows out of one busy side
+    order by target position instead of by input order and stop crossing at the junction; and
+    `ArrowMarkerDefs.tsx` — the
+    `<defs><marker>` arrowhead block (`markers` must be a module-level constant, or Safari drops
+    arrowheads referencing a re-created marker; `size`/`refX` stay props, but `refX` now defaults to
+    `size` — the triangle's own tip — so the head lands exactly on `anchorOf`'s border point instead
+    of poking past it into the box. The old per-view tuning (C1 boxes 8, epics/patterns 9, C1's
+    internal overlay 7) was every view's own guess at compensating for that overshoot, not a value
+    anyone had a reason to prefer; only `TraceFlowOverlay`'s trace arrow still overrides it, and only
+    because its `orient="auto-start-reverse"` variant needs its own head anchored on the source end).
+    🔴 `.c1-relationship-path`/`.c1-relationship-casing` (styles.css) use `stroke-linecap: butt`, not
+    `round` — corner rounding already comes from `roundedPath`'s explicit `Q` curves, so `round` would
+    only bulge the two open ends (half the casing's 5px stroke width) past the border into whichever
+    box the arrow touches. `labelPointOf` (orthogonalRoute.ts) takes an `avoid: Rect[]` of the arrow's
+    own two endpoint boxes and skips any candidate segment whose midpoint falls inside one, so a
+    caption never lands on top of the block its own arrow connects to — it still does no
+    collision-avoidance against any *other* box or label (that stays `LabelClearanceMonitor`'s
+    dev-only warning, per docs/planning/019). Full routing notes, including the load-bearing rules,
+    live in [`c1-diagram.md`](c1-diagram.md)'s arrow-routing bullets.
+
+Panel plumbing lives in `canvas/panelStore.ts`: `PanelStore` is the shared open/closed store the
+research, chat, wizard and terminal stores are (or extend — terminal adds agent selection), and
+`useLatchedMount(isOpen)` is the once-open-stays-mounted latch RootCanvas applies to all five dock
+panels (terminal/research/wizard/inspector) instead of hand-copied effects. Adding a panel is now: a
+`new PanelStore()`, one `useLatchedMount` line, one render slot, one rail button — the now-removed
+canvas chat panel (016-single-canvas-dashboard Stage 5, since retired by 008-unify-agent-diagrams;
+see [`single-canvas.md`](single-canvas.md)) followed exactly this recipe, reusing `ResearchPanel`'s
+bottom-dock CSS shell rather than inventing a new one.
+
+Failure visibility: `main.tsx` wraps the app in `AppErrorBoundary.tsx` (a render-time throw shows a
+reload panel instead of blanking the app) and installs `util/reportError.ts`'s global
+`unhandledrejection` reporter; every read-path fetch hook (`useNodeChildren`, `useDiagramGeneration`, `useSkillOutput`,
+RootCanvas's root fetch and auto-expand) catches into `reportAsyncError` instead of leaving an
+unhandled rejection and a permanently-stuck loading state.
+
+See [`web-collision-drag.md`](web-collision-drag.md) for the `collision/` subsystem, which lives in
+this same `src/canvas/` directory but is documented separately given its size.
+
+### Theming (`src/styles.css`)
+
+All visual style lives in `src/styles.css`. Its single `:root` block at the very top is the design
+token vocabulary — semantic surfaces (`--surface-0`…`--surface-4`), borders, text tones, accent and
+per-view status colors (`--added`, `--trace`, `--c1`, `--patterns`; `--plan` is the purple token too
+— named for the now-retired Plan overlay it originally colored, it's since been repurposed for the
+C1 person-actor box and the multi-select outline, so don't read the name as still meaning "plan"),
+the icon-control
+gray trio (`--control-*`), radius, shadow, and type steps. Rules reference `var(--token)` instead
+of literal hex, so one edit re-themes the whole app.
+
+Two conventions when touching it: use a token for any value that repeats more than once (add a new
+token rather than a new hex), and keep every font size at or above `--text-2xs` (0.68rem) — nothing
+renders smaller. A global `:focus-visible` accent ring is defined at the top too, so interactive
+elements get one consistent focus treatment.

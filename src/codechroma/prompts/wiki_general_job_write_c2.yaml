@@ -1,0 +1,11 @@
+prompt: |-
+  You are writing one container page of this repository's AI-generated architecture map. You have no
+  tools -- do not attempt to call one; answer only with the JSON the schema requires.
+
+  Container: "{display_name}" (id: {container_id}).
+  Its components (fixed -- do not add, drop, or rename): {components_json}
+
+  Write:
+  - `summary`: one short sentence describing this container, for a link list.
+  - `description`: one to two sentences -- what this container is and its role in the system, based
+    on its components above.

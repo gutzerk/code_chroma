@@ -1,0 +1,2 @@
+prompt: |-
+  /codechroma-draw-diagram type: c1 — read references/type-c1.md and references/drawing-rules.md before writing anything — (re)generate the C1 (system-context) diagram for this repository as a multi-layer decomposition: split each box into sub-blocks and recurse until every leaf names a repo path you verified, then write it to the path the skill resolves.

@@ -1,0 +1,107 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta
+      http-equiv="Content-Security-Policy"
+      content="default-src 'none'; style-src 'unsafe-inline'; script-src 'self' file:"
+    />
+    <title>CodeChroma Tabs</title>
+    <style>
+      :root {
+        color-scheme: dark;
+        --bg: #191d28;
+        --line: #2a3040;
+        --text: #e6e9f0;
+        --muted: #8b93a7;
+        --accent: #6c8cff;
+      }
+      * {
+        box-sizing: border-box;
+      }
+      html,
+      body {
+        margin: 0;
+        height: 100%;
+        overflow: hidden;
+        background: var(--bg);
+        font: 12px/1.4 -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+        -webkit-user-select: none;
+      }
+      #strip {
+        display: flex;
+        align-items: stretch;
+        height: 100%;
+        border-bottom: 1px solid var(--line);
+        /* Leaves room on the left for the traffic-light window controls on macOS. */
+        padding-left: 76px;
+        -webkit-app-region: drag;
+      }
+      #tabs {
+        display: flex;
+        align-items: stretch;
+        overflow: hidden;
+      }
+      .tab {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        max-width: 220px;
+        min-width: 100px;
+        padding: 0 8px 0 12px;
+        border-right: 1px solid var(--line);
+        color: var(--muted);
+        cursor: pointer;
+        -webkit-app-region: no-drag;
+      }
+      .tab.active {
+        color: var(--text);
+        background: #11131a;
+      }
+      .tab .title {
+        flex: 1;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+      .tab .close {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        width: 16px;
+        height: 16px;
+        border-radius: 4px;
+        color: inherit;
+        font-size: 13px;
+        line-height: 1;
+        background: transparent;
+        border: 0;
+      }
+      .tab .close:hover {
+        background: var(--line);
+        color: var(--text);
+      }
+      #new-tab {
+        -webkit-app-region: no-drag;
+        width: 32px;
+        border: 0;
+        border-right: 1px solid var(--line);
+        background: transparent;
+        color: var(--muted);
+        font-size: 16px;
+        cursor: pointer;
+      }
+      #new-tab:hover {
+        color: var(--accent);
+      }
+    </style>
+  </head>
+  <body>
+    <div id="strip">
+      <div id="tabs"></div>
+      <button id="new-tab" title="New tab">+</button>
+    </div>
+
+    <script type="module" src="./tabbar.js"></script>
+  </body>
+</html>

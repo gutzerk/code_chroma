@@ -1,0 +1,3 @@
+[tool.poetry]
+name = "c0-import-resolution-fixture"
+packages = [{ include = "pkg", from = "src" }]

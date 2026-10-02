@@ -1,0 +1,5 @@
+prompt: |-
+  /codechroma-research answer this question about the repository: "{query}" -- your
+  job_key for this run is {job_key}. Fetch your search hits and the path to write from the bridge
+  (see the skill for the exact routes), cite only node ids those hits listed, and write your
+  synthesized answer to the resolved path.

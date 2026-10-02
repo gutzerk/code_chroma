@@ -1,0 +1,5 @@
+  Select a model for this session
+
+  ❯ 1. Default (recommended)
+    2. Opus
+    3. Sonnet

@@ -1,0 +1,149 @@
+{
+  "graph_shape": {
+    "nodes": [
+      {
+        "aliases": [],
+        "children": [],
+        "dedup_id": null,
+        "description": "",
+        "group": null,
+        "key": "shared/text_utils.py::function::slugify",
+        "label": "slugify",
+        "meta": {
+          "status": "modified"
+        },
+        "node_id": "shared/text_utils.py::function::slugify",
+        "render": "impact",
+        "style": null
+      },
+      {
+        "aliases": [],
+        "children": [],
+        "dedup_id": null,
+        "description": "",
+        "group": null,
+        "key": "text_utils_component",
+        "label": "text_utils.py",
+        "meta": {
+          "status": "context"
+        },
+        "node_id": "component::shared/text_utils.py",
+        "render": "impact",
+        "style": null
+      },
+      {
+        "aliases": [],
+        "children": [],
+        "dedup_id": null,
+        "description": "",
+        "group": null,
+        "key": "bad-node",
+        "label": "Bad",
+        "meta": {
+          "status": null
+        },
+        "node_id": "not-a-real-node-id",
+        "render": "impact",
+        "style": null
+      }
+    ],
+    "relations": [
+      {
+        "from": "shared/text_utils.py::function::slugify",
+        "label": "defined in",
+        "to": "text_utils_component"
+      }
+    ]
+  },
+  "input": {
+    "fingerprint": "authored-fp-0001",
+    "generated_at": "2026-01-01T00:00:00Z",
+    "nodes": [
+      {
+        "id": "shared/text_utils.py::function::slugify",
+        "name": "slugify",
+        "node_id": "shared/text_utils.py::function::slugify",
+        "seed": true,
+        "status": "modified"
+      },
+      {
+        "id": "text_utils_component",
+        "name": "text_utils.py",
+        "node_id": "component::shared/text_utils.py",
+        "seed": true,
+        "status": "context"
+      },
+      {
+        "id": "bad-node",
+        "name": "Bad",
+        "node_id": "not-a-real-node-id",
+        "seed": true,
+        "status": "bogus"
+      }
+    ],
+    "relations": [
+      {
+        "from": "shared/text_utils.py::function::slugify",
+        "label": "defined in",
+        "to": "text_utils_component"
+      }
+    ],
+    "source": "diff"
+  },
+  "note": "billing_service_component id kept for reference, unused in this fixed input: component::billing/service.py",
+  "resolved": {
+    "diagnostics": {
+      "dropped": [
+        {
+          "detail": "bogus",
+          "id": "bad-node",
+          "reason": "status_coerced",
+          "what": "node"
+        }
+      ],
+      "dropped_count": 1,
+      "shown": 1,
+      "truncated": false
+    },
+    "feature": null,
+    "fingerprint": "28417146bab3451c38475d1e57c93c9914c4a599",
+    "generated_at": "2026-01-01T00:00:00Z",
+    "has_diagram": true,
+    "node_count": 3,
+    "nodes": [
+      {
+        "id": "shared/text_utils.py::function::slugify",
+        "name": "slugify",
+        "node_id": "shared/text_utils.py::function::slugify",
+        "seed": true,
+        "status": "modified"
+      },
+      {
+        "id": "text_utils_component",
+        "name": "text_utils.py",
+        "node_id": "component::shared/text_utils.py",
+        "seed": true,
+        "status": "context"
+      },
+      {
+        "id": "bad-node",
+        "name": "Bad",
+        "node_id": "not-a-real-node-id",
+        "seed": true,
+        "status": null
+      }
+    ],
+    "relations": [
+      {
+        "from": "shared/text_utils.py::function::slugify",
+        "label": "defined in",
+        "to": "text_utils_component"
+      }
+    ],
+    "reviewed_fingerprint": "authored-fp-0001",
+    "seed_count": 0,
+    "source": "diff",
+    "stale": true,
+    "truncated": false
+  }
+}

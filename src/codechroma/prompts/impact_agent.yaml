@@ -1,0 +1,17 @@
+prompt: |-
+  /codechroma-draw-diagram type: impact — read references/type-impact.md and
+  references/drawing-rules.md before writing anything — (re)generate the Impact diagram for this
+  repository's current
+  change ({source}: "diff" = the git diff, "plan" = the feature spec's code paths). Read the matching
+  slice context the bridge exposes (impact/context?source={source}; for a plan, add &feature=<path> to
+  name the feature directory whose spec files seed the slice, e.g. the value {feature}), decide the
+  slice's final boxes — the changed/planned nodes plus the one-hop callers/callees that matter,
+  collapsing the untouched background into a few context boxes — and write it to the path the skill
+  resolves. For a plan diagram, record the same "feature" in impact.json alongside "source" so
+  staleness compares like-for-like. For a plan diagram, judge from the feature's spec files (spec.md,
+  plan.md, tasks.md) how each box is touched and mark every node's "status": "new" (the plan creates
+  it), "modified" (an existing entity the plan changes), or "context" (unchanged background/neighbour)
+  — never derive it from git, the feature is not written yet. Shorten capturing: put a concise "label"
+  on the arrows that matter ("builds X", "calls Y()") so the reader sees the call relationship, like a
+  C1 diagram. Preserve the existing impact.json's structure when regenerating; only the slice moved on
+  should change.

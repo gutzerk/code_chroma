@@ -1,0 +1,3 @@
+user: |-
+  In one or two sentences, summarize the responsibility of this {node_level} named `{node_name}`. Structural context:
+  {context}

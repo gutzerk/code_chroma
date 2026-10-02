@@ -1,0 +1,95 @@
+[project]
+name = "codechroma"
+version = "0.1.0"
+description = ""
+authors = [
+    {name = "dmitriiushakov",email = "spartaxgboostspartaxgboost@gmail.com"}
+]
+readme = "README.md"
+requires-python = ">=3.14,<4.0"
+dependencies = [
+    "tree-sitter (>=0.26.0,<0.27.0)",
+    "tree-sitter-python (>=0.25.0,<0.26.0)",
+    "tree-sitter-typescript (>=0.23.2,<0.24.0)",
+    "anthropic (>=0.116.0,<0.117.0)",
+    "python-dotenv (>=1.2.2,<2.0.0)",
+    "fastapi (>=0.121.0,<0.122.0)",
+    "uvicorn[standard] (>=0.38.0,<0.39.0)",
+    "watchfiles (>=1.0.0,<2.0.0)",
+    "tree-sitter-go (>=0.23.0,<0.26.0)",
+    "websockets (>=13.0,<16.0)",
+    "pyte (>=0.8.2,<0.9.0)",
+    "pydantic (>=2.13.4,<3.0.0)",
+    "pyyaml (>=6.0.3,<7.0.0)",
+    "tree-sitter-java (>=0.23.0,<0.24.0)",
+    "tree-sitter-rust (>=0.24.0,<0.25.0)",
+    "tree-sitter-php (>=0.24.0,<0.25.0)",
+    "tree-sitter-ruby (>=0.23.0,<0.24.0)",
+    "tree-sitter-c-sharp (>=0.23.0,<0.24.0)",
+    "tree-sitter-c (>=0.24.0,<0.25.0)",
+    "tree-sitter-cpp (>=0.23.0,<0.24.0)",
+    "pathspec (>=1.1.1,<2.0.0)",
+    "filelock>=4.0.3",
+    "pywinpty>=3.0.5; sys_platform == 'win32'",
+]
+
+[project.scripts]
+codechroma-live = "codechroma.bridge.launch:main"
+codechroma-trace = "codechroma.trace.run:main"
+
+
+[tool.poetry]
+packages = [{ include = "codechroma", from = "src" }]
+
+[build-system]
+requires = ["poetry-core>=2.0.0,<3.0.0"]
+build-backend = "poetry.core.masonry.api"
+
+[dependency-groups]
+dev = [
+    "pytest (>=9.1.1,<10.0.0)",
+    "pytest-xdist (>=3.6.1,<4.0.0)",
+    "ruff (>=0.15.20,<0.16.0)",
+    "httpx (>=0.28.0,<0.29.0)",
+    "mypy (>=1.18.0,<2.0.0)",
+    # Marker, not a version bump: pyinstaller caps itself at <3.16, which otherwise makes the
+    # whole lock unresolvable against this project's >=3.14,<4.0 range.
+    "pyinstaller (>=6.21.0,<7.0.0) ; python_version < '3.16'",
+    "types-pyyaml (>=6.0.12.20260906,<7.0.0.0)"
+]
+
+[tool.ruff]
+line-length = 100
+target-version = "py314"
+src = ["src", "tests"]
+# examples/shadow-app is the synthetic repo the engine analyzes in tests, not product code.
+extend-exclude = ["examples"]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B"]
+
+[tool.mypy]
+python_version = "3.14"
+mypy_path = "src"
+warn_redundant_casts = true
+warn_unused_ignores = true
+warn_unreachable = true
+no_implicit_optional = true
+strict_equality = true
+check_untyped_defs = true
+# examples/ is analysis fixture data; tests are exercised by pytest, not the typechecker.
+exclude = ["^examples/", "^tests/", "^web/"]
+
+# The core is already fully hinted, so it can hold the stricter bar today; widen module by module.
+[[tool.mypy.overrides]]
+module = ["codechroma.config", "codechroma.errors", "codechroma.graph.*", "codechroma.analyzers.*"]
+disallow_untyped_defs = true
+disallow_incomplete_defs = true
+
+[tool.pytest.ini_options]
+pythonpath = ["src"]
+testpaths = ["tests"]
+addopts = ["--strict-markers"]
+markers = [
+    "slow: needs a real git repository on disk; deselect with -m 'not slow'",
+]

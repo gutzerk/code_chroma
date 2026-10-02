@@ -1,0 +1,89 @@
+{
+  "graph_shape": {
+    "nodes": [
+      {
+        "aliases": [],
+        "children": [],
+        "dedup_id": null,
+        "description": "",
+        "group": null,
+        "key": "infra-db",
+        "label": "PostgreSQL",
+        "meta": {
+          "kind": "infra"
+        },
+        "node_id": null,
+        "render": "pattern",
+        "style": null
+      }
+    ],
+    "relations": [
+      {
+        "from": "infra-db",
+        "kind": "reads",
+        "to": "infra-db"
+      }
+    ]
+  },
+  "input": {
+    "fingerprint": "authored-fp-0001",
+    "generated_at": "2026-01-01T00:00:00Z",
+    "nodes": [
+      {
+        "id": "infra-db",
+        "kind": "infra",
+        "name": "PostgreSQL"
+      },
+      {
+        "id": "bad-node",
+        "kind": "not-a-real-kind",
+        "name": "Bad"
+      }
+    ],
+    "patterns": [],
+    "relations": [
+      {
+        "from": "infra-db",
+        "kind": "reads",
+        "to": "infra-db"
+      }
+    ],
+    "unconfirmed": []
+  },
+  "pattern_candidate_count_from_sample_repo": 0,
+  "resolved": {
+    "diagnostics": {
+      "dropped": [
+        {
+          "detail": "not-a-real-kind",
+          "id": "bad-node",
+          "reason": "unknown_kind",
+          "what": "node"
+        }
+      ],
+      "dropped_count": 1,
+      "shown": 1,
+      "truncated": false
+    },
+    "fingerprint": "da39a3ee5e6b4b0d3255bfef95601890afd80709",
+    "generated_at": "2026-01-01T00:00:00Z",
+    "has_diagram": true,
+    "instances": [],
+    "nodes": [
+      {
+        "id": "infra-db",
+        "kind": "infra",
+        "name": "PostgreSQL"
+      }
+    ],
+    "relations": [
+      {
+        "from": "infra-db",
+        "kind": "reads",
+        "to": "infra-db"
+      }
+    ],
+    "reviewed_fingerprint": "authored-fp-0001",
+    "stale": true
+  }
+}

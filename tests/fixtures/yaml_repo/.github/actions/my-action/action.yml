@@ -1,0 +1,7 @@
+name: My Action
+description: Resolve the pinned contracts/ submodule
+runs:
+  using: composite
+  steps:
+    - name: Resolve pinned contracts/ submodule
+      run: git submodule update --init contracts

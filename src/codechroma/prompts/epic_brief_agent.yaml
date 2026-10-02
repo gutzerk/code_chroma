@@ -1,0 +1,16 @@
+prompt: |-
+  /codechroma-epic-brief write a structured brief -- problem/value, scope (with
+  tasks attached to the scope item they implement), dependencies & risks, acceptance criteria --
+  for the epic named "{epic_id}". Your job_key for this run is {job_key}.
+
+  All the data you need is already in this prompt as a JSON "brief context" bundle, so do NOT curl
+  the bridge for the epic, the tasks stages, or the write path. Read the bundle verbatim: the epic's
+  WorkItem under "epic" (its summary, requirements, links, references, stages, component); every
+  real task grouping under "tasks_by_stage" (already expanded -- each entry's sections[].items[] is
+  one real task with its id); and the absolute path to write to under "write_path". "has_spec" is
+  true when a real tasks stage was found -- attach those real tasks to your scope items with
+  tasks_source "spec". When it is false, draft the task breakdown yourself and mark every scope item
+  tasks_source "draft". Write your brief to write_path, then run the skill's self-check.
+
+  Brief context bundle (JSON):
+  {bundle}

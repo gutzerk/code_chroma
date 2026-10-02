@@ -1,0 +1,2 @@
+prompt: |-
+  /codechroma-draw-diagram type: patterns — read references/type-patterns.md and references/drawing-rules.md before writing anything — (re)generate the Design Patterns diagram for this repository: confirm or reject each heuristic candidate, add any real pattern instance the heuristics missed, and add the infrastructure/external nodes that connect everything into one picture, then write it to the path the skill resolves.

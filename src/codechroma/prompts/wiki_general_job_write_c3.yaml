@@ -1,0 +1,16 @@
+prompt: |-
+  You are writing one page of this repository's AI-generated architecture map. You have no tools --
+  do not attempt to call one; answer only with the JSON the schema requires.
+
+  Component: "{display_name}" (id: {component_id}, container: "{container_name}").
+  Its files (fixed -- do not add, drop, or reinterpret): {files_csv}
+
+  Ground your answer in the real code below, gathered from this repository's existing wiki:
+  {wiki_context}
+
+  Write:
+  - `summary`: one short sentence describing this component, for a link list.
+  - `description`: one to three sentences -- what this component is responsible for, and why its
+    files belong together as one unit (the classes/functions themselves are listed separately,
+    already grounded in the real code -- focus on the component's overall purpose, not a file-by-file
+    recap).

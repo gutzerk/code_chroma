@@ -1,0 +1,5741 @@
+/* Design tokens — the single vocabulary for every surface, border, text, accent, radius, shadow
+   and type step in this file. Colors are semantic (surface-*, text-*, --border-*) rather than
+   literal hex, so one change here re-themes the whole app. The kind/status hues (diff/plan/trace/
+   c1/patterns) are intentionally named so each view's color story stays stable and editable in one
+   place. Radii/shadows/type map the values already in use onto shared steps. */
+:root {
+  /* Surfaces — darkest (app background) to most-elevated (dropdowns/menus). */
+  --surface-0: #1b1d23; /* window / canvas background */
+  --surface-1: #16181d; /* rail, docked panels, agent task rail */
+  --surface-2: #22252e; /* blocks, cards, tiles, epic-brief blocks */
+  --surface-3: #2b2f3a; /* dropdowns, tooltips, menus, lifted tiles */
+  --surface-4: #23262e; /* window title bars */
+  --surface-inset: #131519; /* logs, terminal wells, skill output */
+  --surface-code: #1b1e26; /* text inputs, search boxes */
+
+  /* Borders — faint → strong. */
+  --border: #3a3f4b;
+  --border-strong: #444;
+  --border-subtle: #333;
+  --border-faint: #3a3d47;
+
+  /* Text. */
+  --text-1: #e6e6e6; /* primary labels */
+  --text-2: #9aa0a6; /* secondary / muted */
+  --text-3: #6b7280; /* tertiary / de-emphasised */
+  --text-invert: #0d0f14; /* text sitting on a filled accent */
+  --text-strong: #c7cbd6; /* slightly dimmer-than-1 emphasis */
+
+  /* Accent / primary actions. */
+  --accent: #8ab4f8;
+  --accent-muted: #60a5fa;
+  --primary: #2f6feb;
+  --link: #6ea8fe;
+
+  /* Status / kind hues — the per-view vocabulary (see .canvas-chrome aria-pressed rules). */
+  --added: #6fcf97; /* diff added */
+  --plan: #c48af8; /* purple accent — C1 person-actor box, multi-select outline, shared card chrome
+     (name predates the retired Plan overlay it originally colored) */
+  --trace: #f0a500; /* execution trace */
+  --c1: #4fc3f7; /* system-context view */
+  --patterns: #60a5fa; /* design-patterns view */
+  --impact: #fb923c; /* change-impact view */
+  --epics: #34d399; /* epics view */
+  --games: #4ade80; /* games control — matches the snake body color, stands out from the rest of the chrome */
+  --danger: #dc2626;
+  --warning: #eab308;
+  --inspector: #2dd4bf; /* block currently shown in the inspector panel */
+
+  /* Icon-button controls on blocks/tree rows (focus/code/close buttons) — the recurring gray
+     trio that otherwise repeats inline. */
+  --control-bg: transparent;
+  --control-border: #555;
+  --control-idle: #aaa; /* glyph color */
+  --control-hover: #fff; /* glyph color on hover */
+  --control-hover-border: #888;
+
+  /* Radius scale. */
+  --radius-xs: 3px;
+  --radius-sm: 4px;
+  --radius-md: 6px;
+  --radius-lg: 8px;
+  --radius-full: 999px;
+
+  /* Elevation shadows. */
+  --shadow-1: 0 2px 8px rgba(0, 0, 0, 0.45); /* tooltips, small lists */
+  --shadow-2: 0 10px 28px rgba(0, 0, 0, 0.45); /* dropdowns, menus */
+  --shadow-3: 0 12px 32px rgba(0, 0, 0, 0.45); /* windows, dialogs, popups */
+
+  /* Type scale — the app's working text range (0.68…1.05rem); nothing renders smaller. */
+  --text-2xs: 0.68rem;
+  --text-xs: 0.75rem;
+  --text-sm: 0.8rem;
+  --text-md: 0.85rem;
+  --text-base: 0.9rem;
+  --text-lg: 1.05rem;
+
+  /* Font stacks. */
+  --font-ui: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --font-mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+  margin: 0;
+}
+
+body {
+  font-family: var(--font-ui);
+  background: var(--surface-0);
+  color: var(--text-1);
+}
+
+/* One visible focus ring for the whole app — accent-colored, slightly outside the element so it
+   never competes with a tile's own border. `:focus-visible` keeps it mouse-agnostic. */
+:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.app-root {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+}
+
+/* The agents toggle is the context bar's one "tonal primary" call-to-action, matching the design
+   handoff's "New agent task" button — a labeled pill, not an icon-only square like the rest of the
+   bar's controls. It opens/closes the whole parallel-agents panel. Scoped under .canvas-chrome so
+   it outranks the plain `.canvas-chrome button` base rule (one class + one type beats one class). */
+.canvas-chrome .agents-toggle-button {
+  width: auto;
+  height: 34px;
+  gap: 8px;
+  padding: 0 14px;
+  background: rgba(138, 180, 248, 0.16);
+  border-color: rgba(138, 180, 248, 0.4);
+  color: var(--accent);
+  font-weight: 600;
+  font-size: 0.8rem;
+  white-space: nowrap;
+}
+
+.canvas-chrome .agents-toggle-button:hover {
+  background: rgba(138, 180, 248, 0.24);
+}
+
+.agents-toggle-button .rail-icon {
+  width: 18px;
+  height: 18px;
+  flex-shrink: 0;
+}
+
+/* IDE activity bar: every view/zoom control, icon-only, always visible at the window's left edge. */
+.app-rail {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.3rem;
+  flex-shrink: 0;
+  width: 48px;
+  padding: 0.4rem 0;
+  border-right: 1px solid var(--border-subtle);
+  background: var(--surface-1);
+}
+
+.app-rail button {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  height: 34px;
+  padding: 0;
+  background: var(--surface-2);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-sm);
+  color: var(--text-1);
+  cursor: pointer;
+  font-size: var(--text-sm);
+  transition: background 120ms ease, border-color 120ms ease, color 120ms ease;
+}
+
+.app-rail button:hover:not(:disabled) {
+  background: var(--surface-3);
+  border-color: var(--control-hover-border);
+}
+
+.app-rail .rail-icon {
+  display: block;
+}
+
+.app-rail button:disabled {
+  opacity: 0.35;
+  cursor: default;
+}
+
+/* Hover label, IDE-style: escapes the 48px rail and floats over whatever is to its right, so it
+   needs no space of its own. `visibility` (not just opacity) carries the hidden state so it stays
+   out of hit-testing and out of the accessibility/visibility tree until hovered. */
+.rail-tooltip {
+  position: absolute;
+  left: calc(100% + 10px);
+  top: 50%;
+  transform: translateY(-50%);
+  z-index: 60;
+  padding: 0.25rem 0.5rem;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  background: var(--surface-3);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.45);
+  color: var(--text-1);
+  font-size: 0.75rem;
+  line-height: 1.3;
+  white-space: nowrap;
+  pointer-events: none;
+  opacity: 0;
+  visibility: hidden;
+  transition:
+    opacity 90ms ease-out,
+    visibility 90ms;
+}
+
+/* Short delay on show only (none on hide) so sweeping down the rail doesn't flash every label. */
+.app-rail button:hover .rail-tooltip,
+.app-rail button:focus-visible .rail-tooltip {
+  opacity: 1;
+  visibility: visible;
+  transition-delay: 300ms;
+}
+
+.app-rail-separator {
+  width: 22px;
+  height: 1px;
+  margin: 0.2rem 0;
+  background: var(--border-subtle);
+}
+
+/* Deliberately quieter than a control: the dot is the content, so the tile itself recedes. Scoped
+   under .app-rail to outrank the `.app-rail button` base, which is otherwise more specific. */
+.app-rail .agent-rail-item {
+  background: transparent;
+  border-color: var(--border-subtle);
+}
+
+.app-rail .agent-rail-item:hover {
+  border-color: #5a6070;
+}
+
+/* Outranks the hover rule above, so hovering an open agent doesn't wash out its accent. */
+.app-rail .agent-rail-item[aria-pressed="true"] {
+  border-color: var(--accent);
+}
+
+/* Bigger than the 9px base: the card itself is now bigger, and the dot is its only non-text content. */
+.agent-rail-item .agent-led {
+  width: 12px;
+  height: 12px;
+  flex-shrink: 0;
+}
+
+.branch-switcher {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+/* The current branch name beside the branch icon button — PyCharm's "Git: <branch>". Stays
+   fixed-size (no shrink/ellipsis) like the agent controls, since the breadcrumb is the only
+   shrinkable element in the bar. */
+.canvas-chrome .branch-switcher-name {
+  flex-shrink: 0;
+  font-size: var(--text-xs);
+  color: var(--text-2);
+  font-family: var(--font-mono);
+  white-space: nowrap;
+}
+
+.branch-switcher-list {
+  position: absolute;
+  left: 0;
+  top: calc(100% + 6px);
+  z-index: 61;
+  width: 200px;
+  max-height: 260px;
+  overflow-y: auto;
+  margin: 0;
+  padding: 0.3rem;
+  list-style: none;
+  background: var(--surface-3);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  box-shadow: 0 10px 28px rgba(0, 0, 0, 0.45);
+}
+
+/* Scoped under .canvas-chrome so it outranks the plain `.canvas-chrome button` base rule (one class
+   + one type beats one class) — same specificity trap as .agents-toggle-button above. Without this,
+   every branch button collapses to the rail's 28x28 icon-square sizing and its text overlaps the
+   next item's. */
+.canvas-chrome .branch-switcher-item {
+  display: block;
+  width: 100%;
+  height: auto;
+  padding: 0.3rem 0.5rem;
+  border: none;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--text-1);
+  font-size: 0.78rem;
+  text-align: left;
+  cursor: pointer;
+}
+
+.canvas-chrome .branch-switcher-item:hover {
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.canvas-chrome .branch-switcher-item[aria-current="true"] {
+  color: var(--accent);
+  font-weight: 600;
+}
+
+/* The Update action — a separator above the branch list, like PyCharm's Update Project. */
+.canvas-chrome .branch-switcher-update {
+  display: flex;
+  align-items: center;
+  width: 100%;
+  padding: 0.35rem 0.5rem;
+  margin-bottom: 0.3rem;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  background: transparent;
+  color: var(--text-1);
+  font-size: 0.78rem;
+  text-align: left;
+  cursor: pointer;
+}
+
+.canvas-chrome .branch-switcher-update:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.canvas-chrome .branch-switcher-update:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.branch-switcher-empty {
+  padding: 0.3rem 0.5rem;
+  font-size: 0.75rem;
+  color: var(--text-2);
+}
+
+/* The rail's "Draw…" button (RecipeMenu's old dropdown, shrunk to a single always-clickable action
+   by the diagram-management unification — every diagram is now shown/managed from AgentRail's
+   Diagrams tab instead). `position: relative` only still matters for the inline error message. */
+.draw-diagram-button-wrap {
+  position: relative;
+}
+
+.draw-diagram-button-error {
+  position: absolute;
+  left: 0;
+  top: calc(100% + 6px);
+  z-index: 61;
+  width: 220px;
+  margin: 0;
+  padding: 0.3rem 0.5rem;
+  font-size: 0.75rem;
+  color: #e57373;
+  background: var(--surface-3);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  box-shadow: 0 10px 28px rgba(0, 0, 0, 0.45);
+}
+
+/* The top bar's "Games" dropdown — its own trigger+list shape and classes, unrelated to diagrams.
+   Lives in .canvas-chrome (right side, next to PrRailButton/SettingsRailButton) rather than
+   .app-rail, so the list hangs from the right edge of the trigger instead of running off-screen. */
+.games-menu {
+  position: relative;
+}
+
+.games-menu-list {
+  position: absolute;
+  right: 0;
+  top: calc(100% + 6px);
+  z-index: 61;
+  width: 160px;
+  margin: 0;
+  padding: 0.3rem;
+  list-style: none;
+  background: var(--surface-3);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  box-shadow: 0 10px 28px rgba(0, 0, 0, 0.45);
+}
+
+.canvas-chrome .games-menu-item {
+  display: block;
+  width: 100%;
+  height: auto;
+  padding: 0.3rem 0.5rem;
+  border: none;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--text-1);
+  font-size: 0.78rem;
+  text-align: left;
+  cursor: pointer;
+}
+
+.canvas-chrome .games-menu-item:hover {
+  background: rgba(255, 255, 255, 0.08);
+}
+
+/* The floating game window — a fixed size, no drag/resize, just a title bar with minimize/close. */
+.game-window {
+  width: auto;
+  padding: 0.75rem;
+}
+
+/* Minimized: kept mounted (off-screen, not display:none) so the tick loop and canvas keep running
+   in the background instead of resetting when the window is restored. */
+.game-window-minimized {
+  position: absolute;
+  width: 0;
+  height: 0;
+  overflow: hidden;
+}
+
+.game-window-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 0.5rem;
+}
+
+.game-window-header h2 {
+  margin: 0;
+  font-size: 0.9rem;
+}
+
+.game-window-actions {
+  display: flex;
+  gap: 0.2rem;
+}
+
+.game-window-minimize,
+.game-window-close {
+  padding: 0.1rem 0.5rem;
+  border: none;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--text-2);
+  font-size: 1rem;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.game-window-minimize:hover,
+.game-window-close:hover {
+  background: rgba(255, 255, 255, 0.08);
+  color: var(--text-1);
+}
+
+.snake-game {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.snake-game-score {
+  align-self: flex-start;
+  font-size: 0.8rem;
+  color: var(--text-2);
+}
+
+.snake-game-canvas {
+  border: 1px solid var(--border);
+  border-radius: 4px;
+}
+
+.snake-game-over,
+.snake-game-paused {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  background: rgba(0, 0, 0, 0.75);
+  border-radius: 6px;
+  color: var(--text-1);
+}
+
+.snake-game-over p,
+.snake-game-paused p {
+  margin: 0;
+  font-size: 0.9rem;
+}
+
+.snake-restart {
+  padding: 0.3rem 0.8rem;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  background: var(--surface-3);
+  color: var(--text-1);
+  cursor: pointer;
+}
+
+.snake-restart:hover {
+  background: rgba(255, 255, 255, 0.1);
+}
+
+/* Context bar over the canvas only — the rail and Explorer reach the window's top edge. The active
+   PR (if any) plus the branch chip sit on the left, agent controls on the right, one row. */
+.canvas-chrome {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-shrink: 0;
+  min-height: 1.9rem;
+  padding: 0.25rem 0.75rem;
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+/* The PR label is the only element allowed to shrink/ellipsis (a PR title can run long); everything
+   else in the bar (branch chip, agent controls) stays fixed-size. No node-path breadcrumb here
+   anymore — it read as unrelated structure on top of the PR/branch identity. */
+.canvas-chrome-workspace-label {
+  flex: 0 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  font-size: var(--text-xs);
+  color: var(--text-2);
+  font-family: var(--font-mono);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.canvas-chrome-spacer {
+  flex: 1 1 auto;
+}
+
+/* Vertical rule between the Games control and the PR/settings group — .canvas-chrome is a
+   horizontal row, so this is the row equivalent of .app-rail-separator's horizontal line. */
+.canvas-chrome-separator {
+  width: 1px;
+  height: 18px;
+  flex-shrink: 0;
+  background: var(--border-subtle);
+}
+
+.canvas-chrome button {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  background: var(--surface-2);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-sm);
+  color: var(--text-1);
+  cursor: pointer;
+  font-size: var(--text-sm);
+  flex-shrink: 0;
+  transition: background 120ms ease, border-color 120ms ease, color 120ms ease;
+}
+
+.canvas-chrome button:hover:not(:disabled) {
+  background: var(--surface-3);
+  border-color: var(--control-hover-border);
+}
+
+.canvas-chrome .rail-icon {
+  display: block;
+}
+
+.canvas-chrome button:disabled {
+  opacity: 0.35;
+  cursor: default;
+}
+
+.canvas-chrome button:hover .rail-tooltip,
+.canvas-chrome button:focus-visible .rail-tooltip {
+  opacity: 1;
+  visibility: visible;
+  transition-delay: 300ms;
+}
+
+/* Tooltips in the context bar drop straight down instead of flying sideways — flying right off the
+   rightmost control (or left off the branch chip) would push the label off-screen. */
+.canvas-chrome .rail-tooltip {
+  left: 50%;
+  top: calc(100% + 8px);
+  transform: translateX(-50%);
+}
+
+/* Cards carry their title+status as visible text already, but the tooltip still names the exact
+   action (minimize vs. switch branch). Same show/hide wiring as .app-rail/.canvas-chrome buttons,
+   and dropped straight down rather than flying right, since the panel sits at the viewport's edge.
+   🔴 `top` only drops below the button while actually shown: a `visibility:hidden` box still
+   occupies layout space, and parked at `calc(100% + 6px)` at all times it stuck out past the last
+   card and inflated `.agent-task-rail-body`'s scrollHeight — a permanent scrollbar even with a
+   single agent. Parked at `top: 0` (inside the button's own box) while hidden, it can't do that. */
+.agent-task-rail button:hover .rail-tooltip,
+.agent-task-rail button:focus-visible .rail-tooltip {
+  top: calc(100% + 6px);
+  opacity: 1;
+  visibility: visible;
+  transition-delay: 300ms;
+}
+
+.agent-task-rail .rail-tooltip {
+  left: auto;
+  right: 0;
+  top: 0;
+  transform: none;
+}
+
+/* Full-height dock beside the canvas (sibling in .canvas-main-row, not a .canvas-chrome toolbar
+   item) — same right-panel treatment as .inspector-panel: hairline border, matching background. */
+.agent-task-rail {
+  display: flex;
+  flex-direction: column;
+  width: 240px;
+  flex-shrink: 0;
+  border-left: 1px solid var(--border-subtle);
+  background: var(--surface-1);
+}
+
+/* Agents / Diagrams switch above the header -- same underline-tab shape as .llm-settings-tabs,
+   kept separate since this panel has its own nesting/theme (a full-height dock, not a modal). */
+.agent-task-rail-tabs {
+  display: flex;
+  flex: 0 0 auto;
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+.agent-task-rail-tab {
+  flex: 1 1 auto;
+  appearance: none;
+  padding: 0.4rem 0.5rem;
+  background: none;
+  border: none;
+  border-bottom: 2px solid transparent;
+  color: var(--text-2);
+  cursor: pointer;
+  font: inherit;
+  font-size: 0.7rem;
+  font-weight: 600;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+}
+
+.agent-task-rail-tab:hover {
+  color: var(--text-1);
+}
+
+.agent-task-rail-tab[aria-selected="true"] {
+  border-bottom-color: var(--accent);
+  color: var(--text-1);
+}
+
+/* `display: contents` so grouping the header+body per tab in one semantic tabpanel element doesn't
+   change how .agent-task-rail's own flex-column layout sizes its (former direct) children. */
+.agent-task-rail-tabpanel {
+  display: contents;
+}
+
+.agent-task-rail-empty {
+  padding: 0.6rem;
+  color: var(--text-2);
+  font-size: 0.78rem;
+}
+
+.diagram-rail-chevron {
+  flex: 0 0 auto;
+  width: 14px;
+  text-align: center;
+  color: var(--text-2);
+  font-size: 0.7rem;
+}
+
+.agent-task-rail-header {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.5rem 0.6rem;
+  border-bottom: 1px solid var(--border-subtle);
+  flex-shrink: 0;
+}
+
+.agent-task-rail-label {
+  flex: 1;
+  min-width: 0;
+  font-size: 0.7rem;
+  font-weight: 600;
+  color: var(--text-2);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.agent-task-rail-count {
+  padding: 0.05rem 0.45rem;
+  border: 1px solid var(--border-strong);
+  border-radius: 999px;
+  color: var(--text-1);
+  font-size: 0.7rem;
+  flex-shrink: 0;
+}
+
+.agent-task-rail-body {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  padding: 0.5rem;
+  overflow-y: auto;
+  scrollbar-width: thin;
+  scrollbar-color: #444a57 transparent;
+}
+
+.agent-task-rail-body::-webkit-scrollbar {
+  width: 8px;
+}
+
+.agent-task-rail-body::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.agent-task-rail-body::-webkit-scrollbar-thumb {
+  background-color: #444a57;
+  border-radius: 999px;
+  border: 2px solid var(--surface-1);
+}
+
+.agent-task-rail-body::-webkit-scrollbar-thumb:hover {
+  background-color: #5a6070;
+}
+
+/* Wraps one agent card plus its off-branch close button (only rendered for that state) — a plain
+   div, not a button, since a `<button>` can never nest another interactive `<button>` inside it. */
+.agent-rail-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+/* One agent card. No longer an icon-square rail button — a full-width block since it now lives in
+   its own panel rather than squeezed into the .canvas-chrome toolbar row. */
+.agent-rail-item {
+  position: relative;
+  display: flex;
+  align-items: center;
+  flex: 1 1 auto;
+  min-width: 0;
+  gap: 10px;
+  padding: 10px 12px;
+  background: #1e2128;
+  border: 1px solid var(--border-subtle);
+  border-radius: 6px;
+  color: var(--text-1);
+  cursor: pointer;
+  text-align: left;
+}
+
+/* Closing an off-branch agent must never require its stuck "switch back to my branch" checkout to
+   succeed first — see AgentRail.tsx's own comment on why this exists beside, not inside, the card.
+   `.diagram-rail-remove` (soft, keeps the artifact) and `.diagram-rail-delete` (hard, removes it
+   too — a diagram row's own sibling controls, same comment) share this box. */
+.agent-rail-close,
+.diagram-rail-remove,
+.diagram-rail-delete {
+  flex-shrink: 0;
+  width: 22px;
+  height: 22px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+  border: 1px solid var(--border-subtle);
+  border-radius: 4px;
+  color: var(--text-2);
+  cursor: pointer;
+  font-size: var(--text-sm);
+  line-height: 1;
+}
+
+.agent-rail-close:hover,
+.diagram-rail-remove:hover:not(:disabled),
+.diagram-rail-delete:hover:not(:disabled) {
+  background: var(--surface-3);
+  color: var(--text-1);
+  border-color: var(--control-hover-border);
+}
+
+.diagram-rail-remove:disabled,
+.diagram-rail-delete:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+/* The Diagrams tab's "Available to add" section — every generated diagram not currently placed,
+   below the "on canvas" rows it's visually distinguished from by this small label only (same row
+   shape otherwise, so an available row still reads as a diagram, not a different kind of control). */
+.agent-task-rail-section {
+  margin-top: 0.6rem;
+  padding-top: 0.6rem;
+  border-top: 1px solid var(--border-subtle);
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+
+.agent-task-rail-subheader {
+  font-size: 0.68rem;
+  font-weight: 600;
+  color: var(--text-2);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.agent-rail-item:hover {
+  border-color: #5a6070;
+}
+
+.agent-rail-item[aria-pressed="true"] {
+  border-color: var(--accent);
+}
+
+/* An agent belonging to another branch: still listed and still clickable (the click checks its branch
+   back out), but visibly not part of what's on screen right now. */
+.agent-rail-item-off-branch {
+  opacity: 0.55;
+}
+
+.agent-rail-item-off-branch:hover {
+  opacity: 1;
+}
+
+.agent-rail-preview {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  min-width: 0;
+  line-height: 1.3;
+  overflow: hidden;
+}
+
+.agent-rail-title {
+  max-width: 100%;
+  overflow: hidden;
+  color: var(--text-1);
+  font-size: 0.85rem;
+  font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.agent-rail-status {
+  max-width: 100%;
+  overflow: hidden;
+  color: var(--text-2);
+  font-size: 0.75rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* This agent drew a diagram in its OWN forked worktree, which the canvas is not showing. The only
+   on-screen cue that the result exists at all; cleared the moment the row is clicked. */
+.agent-rail-diagram-badge {
+  flex: 0 0 auto;
+  width: 8px;
+  height: 8px;
+  margin-left: auto;
+  border-radius: 50%;
+  background: var(--accent);
+}
+
+.agents-launch-error {
+  color: #f28b82;
+  font-size: 0.72rem;
+  white-space: nowrap;
+}
+
+.terminal-toggle-button[aria-pressed="true"] {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.agents-toggle-button[aria-pressed="true"] {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.hierarchy-toggle-button[aria-pressed="true"] {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.diff-toggle-button[aria-pressed="true"] {
+  border-color: var(--added);
+  color: var(--added);
+}
+
+/* Feedback for the gap between the click and diffOverlayStore actually flipping isDiffActive — on a
+   PR with many changed files that fetch/reveal chain can take several seconds, and aria-pressed
+   can't move until it's done, so this is the only sign a click landed at all. */
+/* Dimmed but not disabled on purpose: a click during activation is the cancel gesture, and
+   .app-rail button already sets cursor: pointer. */
+.diff-toggle-button--pending {
+  opacity: 0.85;
+}
+
+.diff-toggle-spinner {
+  display: inline-block;
+  width: 12px;
+  height: 12px;
+  border: 2px solid var(--text-2);
+  border-top-color: transparent;
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+
+/* The one spin keyframe, shared by every spinner (diff toggle, workspace banner). */
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* A spinner can run for the whole length of a slow fetch, which is exactly the "moving content"
+   WCAG 2.2.2 is about. Held still rather than hidden: the ring is still the "busy" signal, and the
+   button's own aria-label already carries the state in words. */
+@media (prefers-reduced-motion: reduce) {
+  .diff-toggle-spinner,
+  .workspace-banner-spinner,
+  .wiki-general-spinner,
+  .wiki-general-progress-bar {
+    animation: none;
+  }
+}
+
+.trace-toggle-button[aria-pressed="true"] {
+  border-color: var(--trace);
+  color: var(--trace);
+}
+
+/* The icon is green even idle, so the Games control stands out from the rest of the grey chrome
+   row at a glance. The border stays neutral until a game is actually open/running — aria-pressed
+   below lights that up too — so idle vs. running still reads as a clear on/off, not one flat look. */
+.canvas-chrome .games-menu-button {
+  color: var(--games);
+}
+
+.canvas-chrome .games-menu-button:hover:not(:disabled) {
+  border-color: var(--games);
+}
+
+.games-menu-button[aria-pressed="true"] {
+  border-color: var(--games);
+  background: rgba(74, 222, 128, 0.16);
+}
+
+/* Bottom-left, so it can never sit under the change-review card the Diff toggle parks at top-left.
+   Rendered outside .canvas-content (RootCanvas, beside .fit-all-button), so pan/zoom never moves or
+   scales it — `bottom` against a content-sized, camera-transformed box would drift down every time a
+   block was expanded. Same rule as .fit-all-button above. */
+.c1-coverage-note {
+  position: absolute;
+  left: 1rem;
+  bottom: 1rem;
+  max-width: 32rem;
+  padding: 0.4rem 0.6rem;
+  border: 1px solid var(--border);
+  border-left: 3px solid #e5c07b;
+  border-radius: 6px;
+  background: rgba(24, 26, 32, 0.94);
+  color: #c8ccd4;
+  font-size: 0.75rem;
+  line-height: 1.4;
+  z-index: 40;
+}
+
+.c1-coverage-note strong {
+  color: #e5c07b;
+  font-weight: 600;
+}
+
+/* Sits above .c1-coverage-note, same screen-fixed chrome contract (outside CanvasViewport, so it
+   neither zooms with the camera nor drifts as blocks expand). Silent unless something was lost. */
+.diagram-health-note {
+  position: absolute;
+  left: 1rem;
+  bottom: 4rem;
+  display: flex;
+  max-width: 32rem;
+  flex-direction: column;
+  gap: 0.3rem;
+  padding: 0.4rem 0.6rem;
+  border: 1px solid var(--border);
+  border-left: 3px solid #d19a66;
+  border-radius: 6px;
+  background: rgba(24, 26, 32, 0.94);
+  color: #c8ccd4;
+  font-size: 0.75rem;
+  line-height: 1.4;
+  z-index: 40;
+}
+
+.diagram-health-row {
+  display: flex;
+  align-items: baseline;
+  gap: 0.5rem;
+  justify-content: space-between;
+}
+
+.diagram-health-row strong {
+  color: #d19a66;
+  font-weight: 600;
+}
+
+.diagram-health-error {
+  color: #f0b2b2;
+}
+
+.diagram-health-dismiss {
+  flex: 0 0 auto;
+  padding: 0 0.25rem;
+  border: none;
+  background: none;
+  color: var(--text-2);
+  cursor: pointer;
+  font-size: 0.9rem;
+  line-height: 1;
+}
+
+.diagram-health-dismiss:hover {
+  color: var(--text-1);
+}
+
+/* Third in the bottom-left column, above .c1-coverage-note/.diagram-health-note (same screen-fixed
+   chrome contract: outside CanvasViewport, in RootCanvas, so it neither zooms nor drifts). */
+.wiki-general-notice {
+  position: absolute;
+  left: 1rem;
+  bottom: 7rem;
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  max-width: 32rem;
+  padding: 0.4rem 0.6rem;
+  border: 1px solid var(--border);
+  border-left: 3px solid #61afef;
+  border-radius: 6px;
+  background: rgba(24, 26, 32, 0.94);
+  color: #c8ccd4;
+  font-size: 0.75rem;
+  line-height: 1.4;
+  z-index: 40;
+}
+
+/* The generating row grows tall once the output feed is showing -- top-align instead of the
+   idle row's vertical centering, and give the spinner/button a nudge so they sit level with the
+   first text line rather than the whole (now much taller) row. */
+.wiki-general-notice:has(.wiki-general-generating-body) {
+  align-items: flex-start;
+}
+
+.wiki-general-notice:has(.wiki-general-generating-body) .wiki-general-spinner,
+.wiki-general-notice:has(.wiki-general-generating-body) .generating-stop-button {
+  margin-top: 0.1rem;
+}
+
+.wiki-general-generate-button {
+  flex: 0 0 auto;
+  padding: 0.3rem 0.9rem;
+  font-size: 0.78rem;
+  color: #cfe6ff;
+  background: #1f2a33;
+  border: 1px solid #4a7fa8;
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+.wiki-general-generate-button:hover {
+  background: #26374a;
+}
+
+/* Motion cue on the generating row so a multi-minute run reads as "working", not "stuck" --
+ * a spinning ring plus a sweeping progress bar, both indeterminate since there's no percent to show. */
+.wiki-general-spinner {
+  flex: 0 0 auto;
+  width: 1rem;
+  height: 1rem;
+  border-radius: 50%;
+  border: 2px solid rgba(97, 175, 239, 0.25);
+  border-top-color: #61afef;
+  animation: spin 0.8s linear infinite;
+}
+
+.wiki-general-generating-body {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  min-width: 0;
+  flex: 1 1 auto;
+}
+
+/* Corner notice, not a full diagram panel -- keep the shared .skill-output-feed's log shorter. */
+.wiki-general-generating-body .skill-output-feed {
+  margin-top: 0;
+  max-height: 8rem;
+}
+
+.wiki-general-progress {
+  position: relative;
+  width: 100%;
+  height: 8px;
+  border-radius: 4px;
+  background: rgba(97, 175, 239, 0.15);
+  overflow: hidden;
+}
+
+.wiki-general-progress-bar {
+  position: absolute;
+  top: 0;
+  left: 0;
+  height: 100%;
+  width: 35%;
+  border-radius: 4px;
+  background: linear-gradient(90deg, transparent, #61afef, transparent);
+  /* transform, not left -- compositor-only, so this doesn't force layout/paint every frame for the
+   * whole length of a multi-minute run. */
+  animation: wiki-general-progress-sweep 1.4s ease-in-out infinite;
+}
+
+@keyframes wiki-general-progress-sweep {
+  0% {
+    transform: translateX(-100%);
+  }
+  100% {
+    transform: translateX(285%);
+  }
+}
+
+/* Once the pipeline's own "N/M" progress lines arrive (058), the bar reflects real completion
+ * instead of sweeping indefinitely -- static width/background, no animation, smooth on updates. */
+.wiki-general-progress-bar--determinate {
+  animation: none;
+  background: #61afef;
+  transition: width 0.3s ease;
+}
+
+/* The "Stop" affordance on every generating panel (DiagramGeneratingPanel) and the change-review
+ * card (ImpactChangeSummary): a clear, destructive action the user hits to cancel a multi-minute run. */
+.generating-stop-row {
+  margin-top: 0.9rem;
+}
+
+.generating-stop-button {
+  padding: 0.35rem 1.1rem;
+  font-size: 0.82rem;
+  color: #f0b2b2;
+  background: #2a1f21;
+  border: 1px solid #b05555;
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+.generating-stop-button:hover {
+  background: #3a2a2a;
+}
+
+.impact-change-summary-stop {
+  margin: 0.6rem 0 0.2rem;
+  padding: 0.3rem 0.9rem;
+  font-size: 0.78rem;
+  color: #f0b2b2;
+  background: #2a1f21;
+  border: 1px solid #b05555;
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+.impact-change-summary-stop:hover {
+  background: #3a2a2a;
+}
+
+/* Read-only log of a headless skill run (SkillOutputFeed). Left-aligned against the panel it sits
+ * in, and capped so a long run can't grow the panel down the whole canvas. */
+.skill-output-feed {
+  margin-top: 0.75rem;
+  max-height: 14rem;
+  overflow-y: auto;
+  padding: 0.5rem 0.6rem;
+  border: 1px solid var(--border-subtle);
+  border-radius: 4px;
+  background: var(--surface-inset);
+  color: #9aa4b2;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 0.72rem;
+  line-height: 1.5;
+  text-align: left;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.skill-output-line:last-child {
+  color: #d7dde5;
+}
+
+/* The "nothing rendered yet" placeholder, printed until the run's first real line arrives. */
+.skill-output-line--muted {
+  font-style: italic;
+  opacity: 0.7;
+}
+
+.c1-relationship-path {
+  fill: none;
+  /* An authored edge color lands on the `<g>` as the inheriting custom property `--edge-color`
+     (RelationshipEdge.tsx); it paints the line by falling back when unset, exactly like the nodes'
+     inline `style` needs no flag to tint a box. No `--edge-color` on an unstyled edge → `--text-3`. */
+  stroke: var(--edge-color, var(--text-3));
+  stroke-width: 1.5;
+  /* Rounded elbows for the orthogonal routing in connectors/orthogonalRoute.ts. linecap stays
+     "butt": the two open ends already sit exactly on the boxes' borders (anchorOf), and a round
+     cap would bulge past that point into whichever box the arrow touches. */
+  stroke-linejoin: round;
+  stroke-linecap: butt;
+}
+
+/* pr-lens-style hero-edge emphasis (Impact diagram only, `relations[].hero`): the 1-2 relations the
+   drawing skill judged as best explaining a PR, made to stand out from the rest -- no muting of
+   other edges, that's a separate, larger feature not built here (see RelationshipEdge's `isHero`). */
+.c1-relationship-path--hero {
+  stroke: var(--accent);
+  stroke-width: 3;
+}
+
+.c1-relationship-label--hero {
+  fill: var(--accent);
+  font-weight: 600;
+}
+
+/* Background-coloured stroke drawn under each arrow (connectors/RelationshipEdge.tsx), the same
+   trick .connector-label-chip uses behind captions. Two purposes: a crossing reads as one line
+   passing over another instead of the two merging into an X of ambiguous ownership, and a line
+   forced over a box stays legible against the box's own fill. */
+.c1-relationship-casing {
+  fill: none;
+  stroke: var(--surface-0);
+  stroke-width: 5;
+  stroke-linejoin: round;
+  /* butt, not round: see .c1-relationship-path — this halo is 5px wide, so a round cap would have
+     bulged 2.5px past the border into the box on every arrow. */
+  stroke-linecap: butt;
+}
+
+.c1-relationship-label {
+  /* Same inheritable authored `--edge-color` as the path above carries the label too. */
+  fill: var(--edge-color, var(--text-2));
+  font-size: 0.7rem;
+  text-anchor: middle;
+  dominant-baseline: central;
+}
+
+/* Opaque plate behind a connector caption (connectors/EdgeLabel.tsx), so a label stays readable
+   where it lands on a box or crosses another arrow's caption. */
+.connector-label-chip {
+  fill: var(--surface-0);
+  stroke: none;
+}
+
+/* Positioning-only anchor for each C1 box's real Block — Block supplies its own background/
+ * border/chrome via .block, this places it at the dagre coordinates plus any drag displacement. */
+/* width:max-content is load-bearing for deep decompositions: an absolutely-positioned box otherwise
+   shrink-to-fits against .canvas-content's width, so once nested children need more than that the
+   grid squeezes every track to an equal share and the inner rows spill over the neighbouring box,
+   swallowing its clicks. Sizing to content lets the box grow instead of overflow. */
+.c1-node-anchor {
+  position: absolute;
+  width: max-content;
+}
+
+/* The true root's own children (top-level Systems), positioned by TopLevelChildren.tsx's grid
+   layout and freely draggable — mirrors .c1-node-anchor's max-content rule for the same reason: an
+   absolutely-positioned box must shrink-to-fit rather than stretch to .hierarchy-top-level's width. */
+.hierarchy-top-box {
+  position: absolute;
+  width: max-content;
+}
+
+.hierarchy-top-level {
+  padding: 0 0.6rem 0.6rem 1rem;
+}
+
+/* The projected landing shown while a block is being dragged (collision/DropGhost.tsx). Portalled
+   into .canvas-content, so these coordinates are the boxes' own — it tracks pan and zoom for free.
+   pointer-events:none is load-bearing: the ghost is drawn under the pointer that is drawing it, and
+   must never intercept that gesture. */
+.drop-ghost {
+  position: absolute;
+  pointer-events: none;
+  z-index: 3;
+  /* border-box so the outline's footprint is the block's own, not 4px wider than it. */
+  box-sizing: border-box;
+  border: 2px dashed var(--accent);
+  border-radius: 8px;
+  background: rgba(138, 180, 248, 0.08);
+}
+
+/* The solver found nowhere free: say so instead of pretending the overlap was solved. */
+.drop-ghost--blocked {
+  border-style: dotted;
+  border-color: #8b9099;
+  background: transparent;
+  opacity: 0.5;
+}
+
+.c1-node-anchor--dragging,
+.c1-node-anchor--dragging .block {
+  cursor: grabbing;
+  user-select: none;
+}
+
+/* While dagre catches up with a just-expanded box, paint it above its neighbors. */
+.c1-node-anchor:hover,
+.c1-node-anchor:has(.block-expanded) {
+  z-index: 5;
+}
+
+/* The system-under-description box — cyan to match the C1 toggle, distinct from both actor kinds. */
+.block-c1-system {
+  background: #22303a;
+  border: 2px solid var(--c1);
+}
+
+.block-actor--person {
+  background: #2f2b3a;
+  border: 2px solid var(--plan);
+}
+
+.block-actor--external_system {
+  background: #2a2f2b;
+  border: 2px solid var(--added);
+}
+
+/* 🔴 The three rules above carry each box kind's identity colour, but they are declared *before*
+   `.block`, whose `border: 1px solid var(--border-strong)` therefore won the cascade on equal specificity — so every
+   C1 box actually painted the same grey and the cyan/purple/green vocabulary existed only in this
+   file. These two-class selectors outrank it wherever they sit. Border only, deliberately: the
+   translucent `.block-expanded` background is its own intentional treatment. */
+.block.block-c1-system {
+  border: 2px solid var(--c1);
+}
+
+.block.block-actor--person {
+  border: 2px solid var(--plan);
+}
+
+.block.block-actor--external_system {
+  border: 2px solid var(--added);
+}
+
+/* Group tinting. C1View publishes each box's --group-accent (an "R, G, B" triple) on its anchor, and
+   the box's whole interior — authored sub-blocks, "+N more", ghosts, and the real dir/file/class/
+   function hierarchy below them — inherits it. Without this every row under any box is the same
+   var(--surface-2) and a five-layer decomposition reads as one grey mass; with it, depth still reads as
+   "inside the payments actor". Scoped under .c1-node-anchor, so the main canvas's tree strategy is
+   untouched, and expressed as rgba() over a var rather than color-mix() — the packaged desktop
+   shell's Chromium predates it. */
+.c1-node-anchor .tree-node > .tree-node-main-row > .tree-node-row {
+  border-left: 2px solid rgba(var(--group-accent, 107, 114, 128), 0.4);
+  padding-left: 0.3rem;
+}
+
+/* The indent guide of each nested level, quieter than the rows themselves so the hairlines don't
+   compete with the labels they're organising. */
+.c1-node-anchor .tree-node-children {
+  border-left: 1px solid rgba(var(--group-accent, 107, 114, 128), 0.16);
+}
+
+/* A changed row already carries a 3px status bar on its .tree-node-main-row wrapper, so the group tint
+   on the inner row would draw a second stripe right beside it. The status wins — where a row lives is
+   background information, what the diff did to it is not. (Unresolved needs no such rule: its
+   treatment is a dashed outline on the label, not a left bar.) */
+.c1-node-anchor .tree-node.block-change--added > .tree-node-main-row > .tree-node-row,
+.c1-node-anchor .tree-node.block-change--modified > .tree-node-main-row > .tree-node-row,
+.c1-node-anchor .tree-node.block-change--removed > .tree-node-main-row > .tree-node-row {
+  border-left-color: transparent;
+}
+
+/* One filled arrowhead for every custom arrow — must stay visible on the grey box fills, unlike the
+   default black SVG head CustomConnections would otherwise draw unauthored. */
+.custom-arrowhead {
+  fill: var(--text-2);
+}
+
+/* Shared box shell for every non-c1 diagram kind (pattern/impact/custom/epic) --
+   036-shared-diagram-style-catalog: one set of classes instead of five near-identical per-kind
+   families (see nodeStyles.tsx's DIAGRAM_NODE_BASE). c1 keeps its own .block-* classes (mirrors
+   Block.tsx); `group` doesn't reach this shell at all — see .canvas-group-frame below. */
+.diagram-node-box {
+  z-index: 1;
+  box-sizing: border-box;
+  display: flex;
+  border: 1px solid var(--custom-accent, var(--border-strong));
+  border-radius: 8px;
+  background: var(--surface-2);
+  color: var(--text-1);
+  overflow: visible;
+}
+
+.diagram-node-box--dragging {
+  opacity: 0.85;
+}
+
+/* Planned block (055-diagram-feature-plan): meta.plan_kind gets a dashed border, colored by role,
+   reusing the app's existing add/modify/delete palette (same tokens as .plan-step--*/
+   .node-change-badge--*) -- plus an explicit text chip (plan-kind-chip below), since a prototype
+   comparing color-only vs text-labeled treatments showed the role needs to read as text, not color
+   alone. Compound selectors (two classes) so this reliably outranks the base box border regardless
+   of source order; .block variants cover c1, whose box shell is its own .block-* family. */
+.diagram-node-box.plan-kind-add,
+.diagram-node-box.plan-kind-create,
+.block.plan-kind-add,
+.block.plan-kind-create {
+  border-style: dashed;
+  border-color: var(--added);
+}
+
+.diagram-node-box.plan-kind-modify,
+.block.plan-kind-modify {
+  border-style: dashed;
+  border-color: var(--accent);
+}
+
+.diagram-node-box.plan-kind-delete,
+.block.plan-kind-delete {
+  border-style: dashed;
+  border-color: #e06c75;
+}
+
+/* Shared floating top-right pill shape for every labeled meta-field chip (nodeAccent.tsx's
+   `LabeledChip`) -- `.plan-kind-chip`/`.impact-status-chip` below are pure color-variant prefixes,
+   not their own shape rule, so a third field's chip only ever needs its own three color lines. */
+.status-chip {
+  position: absolute;
+  top: -9px;
+  right: 8px;
+  z-index: 2;
+  padding: 1px 6px;
+  border-radius: 999px;
+  font-size: 0.62rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  color: var(--text-invert);
+  white-space: nowrap;
+}
+
+.plan-kind-chip--add,
+.plan-kind-chip--create {
+  background: var(--added);
+}
+
+.plan-kind-chip--modify {
+  background: var(--accent);
+}
+
+.plan-kind-chip--delete {
+  background: #e06c75;
+}
+
+/* Impact's authored `meta.status` (type-impact.md) as its own ADD/MODIFY/DELETE text chip -- same
+   `.status-chip` shape and add/modify/delete palette as the `.plan-kind-chip` variants above. */
+.impact-status-chip--new {
+  background: var(--added);
+}
+
+.impact-status-chip--modified {
+  background: var(--accent);
+}
+
+.impact-status-chip--deleted {
+  background: #e06c75;
+}
+
+.diagram-node-box-row {
+  display: flex;
+  width: 100%;
+  min-width: 0;
+}
+
+/* The copy/desc-info buttons' own stack inside a CanvasNodeBox header -- a column, not a row, so the
+ * "?" button sits directly under the copy button rather than beside it, then the whole stack becomes
+ * a second flex item pushed to the header's far side by its own `justify-content: space-between`
+ * (every render kind's headerClass is row-direction, title column beside the buttons -- mirroring
+ * Block.tsx; see nodeStyles.tsx's DIAGRAM_NODE_BASE doc comment). */
+.canvas-node-box-buttons {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 0.3rem;
+}
+
+.diagram-node-box-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  width: 100%;
+  min-width: 0;
+  flex: 1 1 auto;
+  padding: 0.5rem 0.7rem;
+  cursor: pointer;
+}
+
+.diagram-node-box-title-wrap {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  min-width: 0;
+}
+
+.diagram-node-box-title-row {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  min-width: 0;
+}
+
+.diagram-node-box-name {
+  font-size: 0.85rem;
+  font-weight: 500;
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+
+/* Line-clamped like .block-description above — see that comment. */
+.diagram-node-box-desc {
+  color: #8b93a7;
+  font-size: 0.7rem;
+  max-width: 32rem;
+  white-space: normal;
+  overflow-wrap: anywhere;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 4;
+  overflow: hidden;
+}
+
+/* nodeAccent.tsx's pattern category accent -- a left border so infra/external reads at a glance. */
+.pattern-node-kind-infra {
+  border-left: 3px solid var(--text-3);
+}
+
+.pattern-node-kind-external {
+  border-left: 3px solid var(--warning);
+}
+
+/* A user-defined custom diagram's box (boxes-arrows style) now shares .diagram-node-box's shell,
+   which already reads the same --custom-accent var (set by BoxesArrowsRenderer from the diagram's
+   group order) for its border -- ungrouped boxes keep the neutral frame with no extra rule needed. */
+
+/* nodeAccent.tsx's per-group accent for CanvasNodeBox -- a small fixed palette a group name hashes
+   into (groupColor.ts's groupColorIndex, shared with GroupFrame's own canvas-group-frame-color-<n>
+   below), distinct from BoxesArrowsRenderer's own --custom-accent mechanism above. */
+.custom-node-group-0 {
+  border-left: 3px solid #6366f1;
+}
+
+.custom-node-group-1 {
+  border-left: 3px solid #34d399;
+}
+
+.custom-node-group-2 {
+  border-left: 3px solid #f59e0b;
+}
+
+.custom-node-group-3 {
+  border-left: 3px solid #f472b6;
+}
+
+.custom-node-group-4 {
+  border-left: 3px solid #a78bfa;
+}
+
+.custom-node-group-5 {
+  border-left: 3px solid #22d3ee;
+}
+
+.epic-stage-item-glyph {
+  flex-shrink: 0;
+  color: #a78bfa;
+}
+
+.epic-stage-item-text {
+  overflow-wrap: anywhere;
+  white-space: pre-line;
+  font-size: 0.76rem;
+}
+
+.epic-stage-item-story {
+  flex-shrink: 0;
+  font-size: 0.65rem;
+  color: #8b93a7;
+  background: rgba(139, 147, 167, 0.15);
+  padding: 0.05rem 0.4rem;
+  border-radius: 8px;
+}
+
+/* Shared empty/generating panel for the AI-brief slot -- same class either way, only the testid
+   tells them apart (DiagramStatusPanel's own convention). */
+.epic-brief-empty-state {
+  position: relative;
+  z-index: 5;
+  max-width: 26rem;
+  margin: 4.5rem auto;
+  padding: 1.25rem 1.5rem;
+  color: #8b93a7;
+  font-size: 0.85rem;
+  text-align: center;
+}
+
+.app-body {
+  display: flex;
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.canvas-area {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+}
+
+/* Row for the canvas plus the agent task panel beside it, so the panel spans the canvas's full
+   height rather than being squeezed into the .canvas-chrome toolbar row above. */
+.canvas-main-row {
+  display: flex;
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+}
+
+/* The visible canvas box: positioning context for Fit All, the deleted-diff overlay and the trace
+   controls, so the breadcrumb strip above never shifts what they anchor to. */
+.canvas-stage {
+  position: relative;
+  display: flex;
+  flex: 1;
+  min-height: 0;
+}
+
+/* The whiteboard dot grid. Painted here rather than on .canvas-content because that box only spans
+   the blocks in it — a background there would stop at the tree's edge instead of covering the whole
+   canvas. CanvasViewport supplies the three vars: --canvas-grid-size carries the zoom (stepped to stay
+   legible, see gridStep) and --canvas-grid-{x,y} carry the pan, so the grid tracks the camera and a
+   drag over empty space finally shows that something moved. The fallbacks keep it painting if the
+   component ever renders without them. */
+.canvas-viewport {
+  position: relative;
+  flex: 1;
+  overflow: hidden;
+  touch-action: none;
+  background-image: radial-gradient(circle, #2f333f 1px, transparent 1.2px);
+  background-size: var(--canvas-grid-size, 28px) var(--canvas-grid-size, 28px);
+  background-position: var(--canvas-grid-x, 0px) var(--canvas-grid-y, 0px);
+}
+
+/* Applied only while a drag-pan is in progress: grabbing cursor + no text selection so panning
+   over a block's name/header doesn't select its label. */
+.canvas-viewport--panning {
+  cursor: grabbing;
+  user-select: none;
+}
+
+/* Shift-drag marquee selection rectangle — position: fixed (set inline), so its left/top/width/
+   height are plain client coordinates with no pan/zoom conversion needed. */
+.canvas-marquee {
+  z-index: 5;
+  border: 1px solid var(--accent-muted);
+  background: rgba(96, 165, 250, 0.15);
+  pointer-events: none;
+}
+
+/* Sits over the canvas viewport, outside `.canvas-content`, so pan/zoom never moves it. */
+.fit-all-button {
+  position: absolute;
+  bottom: 1.5rem;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 5;
+  padding: 0.9rem 2.2rem;
+  border: 1px solid var(--border-strong);
+  border-radius: 999px;
+  background: var(--surface-2);
+  color: var(--text-1);
+  cursor: pointer;
+  font-size: 1.1rem;
+  font-weight: 600;
+}
+
+.fit-all-button:hover {
+  border-color: var(--control-hover-border);
+}
+
+/* Same screen-fixed chrome contract as .fit-all-button (sits over the viewport, outside
+   .canvas-content, so pan/zoom never moves it) -- this rule was simply missing, which left the
+   button as a bare, unstyled flex item of .canvas-stage: squeezed in beside .canvas-viewport
+   instead of floating over it, showing up as a stray white browser-default button on the right
+   whenever exactly two blocks were selected. Bottom-right so it never collides with
+   .c1-coverage-note/.diagram-health-note (bottom-left) or .fit-all-button (bottom-center). */
+.route-probe-trigger-button {
+  position: absolute;
+  right: 1rem;
+  bottom: 1.5rem;
+  z-index: 5;
+  padding: 0.5rem 1rem;
+  border: 1px solid var(--border-strong);
+  border-radius: 8px;
+  background: var(--surface-2);
+  color: var(--text-1);
+  cursor: pointer;
+  font-size: 0.8rem;
+}
+
+.route-probe-trigger-button:hover {
+  border-color: var(--control-hover-border);
+}
+
+.canvas-content {
+  position: absolute;
+  top: 0;
+  left: 0;
+  transform-origin: 0 0;
+  will-change: transform;
+  padding: 1rem;
+}
+
+.canvas-content--animated {
+  transition: transform 550ms ease-in-out;
+}
+
+.block {
+  position: relative;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-md);
+  background: var(--surface-2);
+  margin: 0.4rem;
+  min-width: var(--block-min-width, 240px);
+  min-height: var(--block-min-height, 64px);
+  cursor: pointer;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.25);
+  transition: box-shadow 140ms ease, border-color 140ms ease;
+}
+
+.block:hover {
+  border-color: var(--control-hover-border);
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.35);
+}
+
+/* max-width only caps collapsed blocks — an expanded block must be free to grow so a row of
+   children isn't forced to wrap just because the parent itself is width-capped. */
+.block-collapsed {
+  max-width: var(--block-max-width, 480px);
+}
+
+/* Header plus any inline code/card panels lay out side by side in this row, in normal flow — so a
+   panel flies out to the right of the block/row and grows the block's own footprint (surrounding
+   grid columns / tree indentation reflow around it instead of the panel overlapping siblings).
+   Children, when shown, stack below this row. */
+.block-row,
+.tree-node-main-row {
+  display: flex;
+  flex-direction: row;
+  align-items: flex-start;
+  gap: 0.6rem;
+}
+
+/* The header fills the row when it's alone (so its space-between button layout still works), but
+   yields its natural width to any panel flown out beside it, which keeps its own size. */
+.block-row > .block-header,
+.tree-node-main-row > .tree-node-row {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+/* When a card panel is shown, the header must shrink-wrap its own name + buttons (not stretch to the
+   block's full width) so the frame drawn around it hugs the block instead of ballooning over
+   neighbours. Delivers the "yields its natural width" behaviour the comment above intends. */
+.block:has(.change-cards-panel) > .block-row > .block-header,
+.tree-node:has(.change-cards-panel) > .tree-node-main-row > .tree-node-row {
+  flex-grow: 0;
+}
+
+.block-row > .block-code-view,
+.tree-node-main-row > .block-code-view {
+  flex-shrink: 0;
+}
+
+/* A block holding an inline code or card panel (both carry .block-code-view--inline) must grow
+   past the collapsed max-width cap so the panel isn't squeezed. */
+.block:has(.block-code-view--inline) {
+  max-width: none;
+}
+
+/* Inside a C1 box the "child renderer" is an unrelated file/folder tree (Block.tsx's
+   ChildRenderer), not this block's own recursive children — so a plan/change panel here must
+   float over the header instead of stretching the row and pushing that tree down. */
+.block-row--panel-overlay {
+  position: relative;
+}
+
+.block-row--panel-overlay > .block-code-view--inline {
+  position: absolute;
+  top: 0;
+  right: 0;
+  z-index: 2;
+}
+
+.block-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  padding: 0.4rem 0.6rem;
+  cursor: pointer;
+}
+
+.block-title {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  min-width: 0;
+}
+
+.block-name-row {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  min-width: 0;
+}
+
+.block-name {
+  font-weight: 600;
+  font-size: 0.85rem;
+}
+
+.block-name-class {
+  color: #7fb0ff;
+}
+
+.block-name-function {
+  color: #c792ea;
+}
+
+.block-params {
+  font-size: 0.72rem;
+  color: var(--text-2);
+  font-family: monospace;
+}
+
+/* Grows the box up to 4 lines, then clips with an ellipsis instead of forcing the box wider to fit
+   the whole description on one line (the "?" button next to the box's name opens the full text in
+   DescriptionPopup — see descriptionPopupStore.ts). */
+.block-description {
+  font-size: 0.75rem;
+  color: var(--text-2);
+  max-width: 32rem;
+  white-space: normal;
+  overflow-wrap: anywhere;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 4;
+  overflow: hidden;
+}
+
+.block-class {
+  border-color: #3b82f6;
+}
+
+.block-function {
+  border-color: #8b5cf6;
+}
+
+.block-doc-only {
+  border-color: var(--text-3);
+  background: #2a2c33;
+}
+
+/* A C1 sub-block whose authored path matched no graph node — reads as broken, not as content. */
+.block-unresolved {
+  border-color: #b45309;
+  border-style: dashed;
+  background: #302722;
+}
+
+.block-unresolved .block-description {
+  color: #fbbf24;
+}
+
+/* A tree row has no border or background of its own, so the shared class's box treatment lands on
+   the label instead — and the box background is neutralised so it can't tint the whole subtree. */
+.tree-node.block-unresolved {
+  background: transparent;
+}
+
+.tree-node.block-unresolved > .tree-node-main-row .tree-node-label {
+  border: 1px dashed #b45309;
+  background: #302722;
+}
+
+.tree-node.block-unresolved .tree-node-description {
+  color: #fbbf24;
+}
+
+/* A block/tree-row that's part of the active multi-selection (Miro-style click/marquee select) —
+   an outline rather than a border-color swap, so it layers cleanly over change/unresolved accents.
+   🔴 Was `var(--accent-muted)` (#60a5fa), nearly indistinguishable from a C1 box's own always-on
+   border (`--c1` #4fc3f7) -- both light blues, so a "selected" C1 box looked unchanged at a glance,
+   especially in a canvas with dozens of boxes all sharing that same blue border. The selection worked
+   correctly (selectionStore/click handling were never the bug); it just wasn't visible. --plan
+   (purple) isn't used as any box's own border color anywhere, so it reads as "selected" regardless
+   of the box kind underneath -- the glow doubles the footprint so it's still obvious even where the
+   2px outline itself gets clipped by a tight screenshot/viewport edge. */
+.block-selected {
+  outline: 3px solid var(--plan);
+  outline-offset: 2px;
+  box-shadow: 0 0 0 1px var(--plan), 0 0 14px 2px rgba(196, 138, 248, 0.55);
+}
+
+.tree-node.block-selected > .tree-node-main-row .tree-node-label {
+  outline: 2px solid var(--accent-muted);
+  outline-offset: 1px;
+}
+
+/* The block whose content the right-side inspector panel is currently showing — a teal outline,
+   distinct from the purple multi-select outline above and from the blue hovered-edge-endpoint accent,
+   so all three states stay readable when they overlap. */
+.block-inspector-target {
+  outline: 3px solid var(--inspector);
+  outline-offset: 2px;
+  box-shadow: 0 0 0 1px var(--inspector), 0 0 14px 2px rgba(45, 212, 191, 0.5);
+}
+
+.tree-node.block-inspector-target > .tree-node-main-row .tree-node-label {
+  outline: 2px solid var(--inspector);
+  outline-offset: 1px;
+}
+
+.node-icon {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.node-icon-folder {
+  color: #dcb67a;
+}
+
+.node-icon-file {
+  color: #7c93a8;
+}
+
+.node-icon-badge {
+  width: 14px;
+  height: 14px;
+  border-radius: 4px;
+  font-size: 0.6rem;
+  font-weight: 700;
+  line-height: 14px;
+  font-family: monospace;
+  color: var(--text-invert);
+  text-align: center;
+}
+
+.node-icon-class {
+  background: #7fb0ff;
+}
+
+.node-icon-function {
+  background: #c792ea;
+}
+
+.node-icon-code {
+  background: var(--text-2);
+}
+
+.c1-block-icon {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* Same hues as C1View's GROUP_ACCENTS, so a box's icon matches its own border/wash. */
+.c1-block-icon-system {
+  color: var(--c1);
+}
+
+.c1-block-icon-person {
+  color: var(--plan);
+}
+
+.c1-block-icon-external_system {
+  color: var(--added);
+}
+
+.c1-block-icon-api {
+  color: #f2b880;
+}
+
+.c1-block-icon-ui {
+  color: #7fb0ff;
+}
+
+.c1-block-icon-service {
+  color: #c792ea;
+}
+
+.c1-block-icon-database {
+  color: var(--added);
+}
+
+.c1-block-icon-queue {
+  color: #f2c94c;
+}
+
+.c1-block-icon-cache {
+  color: #4fd1c5;
+}
+
+.c1-block-icon-worker {
+  color: #f28fad;
+}
+
+.c1-block-icon-auth {
+  color: #ffb703;
+}
+
+/* Real brand logos carry their own color inline (fill="#hex"), unlike the abstract kind glyphs
+ * above — no per-slug color rule needed here, only shared sizing. */
+.c1-brand-icon {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.block-focus-button,
+.block-copy-button,
+.canvas-node-box-copy-button,
+.canvas-node-box-desc-button {
+  flex-shrink: 0;
+  width: 1.4rem;
+  height: 1.4rem;
+  line-height: 1;
+  padding: 0;
+  border: 1px solid var(--control-border);
+  border-radius: 4px;
+  background: transparent;
+  color: var(--control-idle);
+  cursor: pointer;
+}
+
+.block-focus-button:hover,
+.block-copy-button:hover,
+.canvas-node-box-copy-button:hover,
+.canvas-node-box-desc-button:hover {
+  color: #fff;
+  border-color: var(--control-hover-border);
+}
+
+.block-code-button {
+  flex-shrink: 0;
+  height: 1.4rem;
+  line-height: 1;
+  padding: 0 0.4rem;
+  border: 1px solid var(--control-border);
+  border-radius: 4px;
+  background: transparent;
+  color: var(--control-idle);
+  cursor: pointer;
+  font-size: 0.7rem;
+  white-space: nowrap;
+}
+
+.block-code-button:hover {
+  color: #fff;
+  border-color: var(--control-hover-border);
+}
+
+.block-expanded {
+  background: rgba(43, 47, 58, 0.55);
+  backdrop-filter: blur(6px);
+}
+
+.block-children {
+  padding: 0 0.6rem 0.6rem 1rem;
+  display: flex;
+  gap: var(--block-child-gap, 12px);
+}
+
+/* Grid, not flex-wrap: flex-wrap only wraps once the container hits a bounded width, which
+   .canvas-content never has (it sizes to fit its content). A fixed 5-column grid always wraps
+   after every 5 items regardless of container width. */
+.block-children-row {
+  display: grid;
+  grid-template-columns: repeat(
+    var(--block-child-columns, 5),
+    minmax(var(--block-min-width, 240px), max-content)
+  );
+  grid-auto-rows: max-content;
+}
+
+.block-children-column {
+  flex-direction: column;
+}
+
+/* A foreign child renderer (the C1 view's tree rows) indents itself, so this container only stacks:
+   no grid, no per-column min-width, and less left padding since the rows carry their own. */
+.block-children-tree {
+  flex-direction: column;
+  gap: var(--tree-row-gap, 2px);
+  padding: 0 0.6rem 0.6rem 0.8rem;
+}
+
+.tree-strategy-root {
+  padding: 0.5rem;
+  font-size: 0.9rem;
+}
+
+.tree-node {
+  position: relative;
+}
+
+.tree-node-row {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  border-radius: 4px;
+}
+
+/* Centering the buttons against a two-line title reads as misaligned, so top-align once a
+   description is showing. */
+.tree-node-row:has(.tree-node-description) {
+  align-items: flex-start;
+}
+
+.tree-node-title {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.tree-node-description {
+  padding: 0 0.4rem 0.2rem 1.75rem;
+  color: var(--text-2);
+  font-size: 0.85rem;
+  line-height: 1.35;
+  max-width: 32rem;
+}
+
+.tree-node-label {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.25rem 0.4rem;
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+.tree-node-label:hover {
+  background: rgba(255, 255, 255, 0.06);
+}
+
+/* Pushes the action buttons and the disclosure arrow to the row's right edge, regardless of label
+   width — .tree-node-row has no other element claiming the trailing space. */
+.tree-node-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  margin-left: auto;
+}
+
+.tree-node-toggle {
+  width: 1em;
+  display: inline-block;
+  text-align: center;
+  opacity: 0.7;
+  /* Independently clickable now (arrow expands/collapses; the rest of the row opens the inspector),
+     so it needs its own comfortable hit area rather than relying on the label's larger box. */
+  cursor: pointer;
+  padding: 0.15rem 0.25rem;
+  margin: -0.15rem -0.25rem;
+  border-radius: 3px;
+}
+
+.tree-node-toggle:hover {
+  opacity: 1;
+  background: rgba(255, 255, 255, 0.12);
+}
+
+.tree-node-name {
+  font-weight: 600;
+  font-size: 0.85rem;
+}
+
+.tree-node-name-class {
+  color: #7fb0ff;
+}
+
+.tree-node-name-function {
+  color: #c792ea;
+}
+
+.tree-node-params {
+  font-size: 0.72rem;
+  color: var(--text-2);
+  font-family: monospace;
+}
+
+.tree-node-doc-only > .tree-node-main-row > .tree-node-row {
+  background: #2a2c33;
+}
+
+.tree-node-doc-only > .tree-node-main-row > .tree-node-row .tree-node-name {
+  color: var(--text-3);
+}
+
+.tree-node-focus-button,
+.tree-node-copy-button {
+  flex-shrink: 0;
+  width: 1.4rem;
+  height: 1.4rem;
+  line-height: 1;
+  padding: 0;
+  border: 1px solid var(--control-border);
+  border-radius: 4px;
+  background: transparent;
+  color: var(--control-idle);
+  cursor: pointer;
+}
+
+.tree-node-focus-button:hover,
+.tree-node-copy-button:hover {
+  color: #fff;
+  border-color: var(--control-hover-border);
+}
+
+.block-copy-button.is-copied,
+.tree-node-copy-button.is-copied,
+.canvas-node-box-copy-button.is-copied {
+  color: #6ec46e;
+  border-color: #6ec46e;
+}
+
+.block-copy-button.is-failed,
+.tree-node-copy-button.is-failed,
+.canvas-node-box-copy-button.is-failed {
+  color: #d97070;
+  border-color: #d97070;
+}
+
+.tree-node-code-button {
+  flex-shrink: 0;
+  height: 1.4rem;
+  line-height: 1;
+  padding: 0 0.4rem;
+  border: 1px solid var(--control-border);
+  border-radius: 4px;
+  background: transparent;
+  color: var(--control-idle);
+  cursor: pointer;
+  font-size: 0.7rem;
+  white-space: nowrap;
+}
+
+.tree-node-code-button:hover {
+  color: #fff;
+  border-color: var(--control-hover-border);
+}
+
+.tree-node-children {
+  padding-left: var(--tree-indent, 20px);
+  display: flex;
+  flex-direction: column;
+  gap: var(--tree-row-gap, 2px);
+}
+
+.connections-overlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+  pointer-events: none;
+}
+
+.connection-path {
+  fill: none;
+  stroke: var(--accent);
+  stroke-width: 1.5;
+  /* Orthogonal routing (connectors/orthogonalRoute.ts) draws elbows — round them off and keep the
+     stub ends square so an arrow reads as one continuous run into the block's side. */
+  stroke-linejoin: round;
+  stroke-linecap: round;
+}
+
+.connection-path-bundled {
+  stroke-dasharray: 4 3;
+  opacity: 0.6;
+}
+
+/* Card-panel connector overlay (currently just the change-cards layer) — same in-content SVG trick
+   as .connections-overlay, kept as its own class so its lines never inherit the blue reference-line
+   styling. Class name predates the Plan overlay's removal; shared with CardPanel's markup. */
+.plan-connections-overlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+  pointer-events: none;
+}
+
+.plan-connection-path {
+  fill: none;
+  stroke: var(--plan);
+  stroke-width: 1.5;
+}
+
+.plan-connection-frame {
+  fill: none;
+  stroke: var(--plan);
+  stroke-width: 2;
+}
+
+/* Diff-style frame + line accents: new code green, changes blue, deletions red. */
+.plan-connection-frame--new,
+.plan-connection-path--new {
+  stroke: var(--added);
+}
+
+.plan-connection-frame--change,
+.plan-connection-path--change {
+  stroke: var(--accent);
+}
+
+.plan-connection-frame--delete,
+.plan-connection-path--delete {
+  stroke: #e06c75;
+}
+
+/* Execution-trace playback overlay: animated call-path edges + pulsing active node, red on error. */
+.trace-flow-overlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+  pointer-events: none;
+}
+
+.trace-flow-edge {
+  fill: none;
+  stroke: var(--trace);
+  stroke-width: 1.5;
+  opacity: 0.45;
+}
+
+.trace-flow-edge--active {
+  stroke-width: 2.5;
+  opacity: 1;
+  stroke-dasharray: 6 4;
+  animation: trace-flow-dash 0.6s linear infinite;
+}
+
+.trace-flow-edge--error {
+  stroke: #e06c75;
+  stroke-dasharray: 4 4;
+}
+
+.trace-arrow-head {
+  fill: var(--trace);
+}
+
+.trace-arrow-head--error {
+  fill: #e06c75;
+}
+
+.trace-node-frame--error {
+  stroke: #e06c75;
+}
+
+.trace-node-frame {
+  fill: none;
+  stroke: var(--trace);
+  stroke-width: 2;
+  opacity: 0.4;
+}
+
+.trace-node-frame--active {
+  opacity: 1;
+  animation: trace-node-pulse 1s ease-in-out infinite;
+}
+
+.trace-node-frame--error {
+  fill: rgba(224, 108, 117, 0.08);
+  opacity: 1;
+}
+
+@keyframes trace-flow-dash {
+  to {
+    stroke-dashoffset: -20;
+  }
+}
+
+@keyframes trace-node-pulse {
+  0%,
+  100% {
+    stroke-width: 2;
+  }
+  50% {
+    stroke-width: 4;
+  }
+}
+
+/* Trace control bar: docked bottom-center over the canvas, above the terminal toggle. */
+.trace-controls {
+  position: absolute;
+  bottom: 1rem;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 5;
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  padding: 0.6rem 0.8rem;
+  min-width: 32rem;
+  max-width: 90%;
+  background: rgba(24, 26, 32, 0.94);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  font-size: 0.85rem;
+}
+
+.trace-controls-row {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.trace-controls-row button,
+.trace-controls-row select {
+  background: #262a33;
+  color: inherit;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 0.15rem 0.5rem;
+  cursor: pointer;
+}
+
+.trace-controls-row button:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+.trace-picker {
+  flex: 1;
+  min-width: 8rem;
+}
+
+.trace-step-counter {
+  font-variant-numeric: tabular-nums;
+  opacity: 0.8;
+}
+
+.trace-scrub-row {
+  position: relative;
+}
+
+.trace-scrub {
+  flex: 1;
+}
+
+.trace-timeline-markers {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 0;
+  height: 100%;
+  pointer-events: none;
+}
+
+.trace-error-marker {
+  position: absolute;
+  top: 50%;
+  width: 8px;
+  height: 8px;
+  margin-left: -4px;
+  transform: translateY(-50%);
+  padding: 0;
+  border: none;
+  border-radius: 50%;
+  background: #e06c75;
+  pointer-events: auto;
+  cursor: pointer;
+}
+
+.trace-current-node {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.trace-current-node--error {
+  color: #e06c75;
+}
+
+.trace-follow-toggle {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+}
+
+.trace-error-plaque {
+  padding: 0.3rem 0.5rem;
+  background: rgba(224, 108, 117, 0.15);
+  border: 1px solid #e06c75;
+  border-radius: 6px;
+  color: #f2a6ac;
+}
+
+.trace-callstack {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  max-height: 8rem;
+  overflow-y: auto;
+  font-family: var(--mono, monospace);
+  font-size: 0.78rem;
+  opacity: 0.85;
+}
+
+.trace-callstack li {
+  padding: 0.05rem 0;
+}
+
+.breadcrumb {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+  font-size: 0.85rem;
+}
+
+.breadcrumb-item button {
+  background: none;
+  border: none;
+  color: var(--accent);
+  cursor: pointer;
+  font-size: 0.85rem;
+}
+
+.breadcrumb-current {
+  font-weight: 600;
+}
+
+.code-popup-backdrop {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: rgba(0, 0, 0, 0.55);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 1rem;
+  z-index: 100;
+}
+
+.code-popup {
+  position: relative;
+  background: var(--surface-code);
+  border: 1px solid var(--border-strong);
+  border-radius: 8px;
+  max-width: 95vw;
+  max-height: 95vh;
+  min-width: 320px;
+  /* min() against max-height so the floor can never exceed the ceiling on short viewports — a
+     plain 200px min-height would force the popup taller than 95vh and off-screen (the backdrop
+     doesn't scroll), with min-height winning the conflict per the CSS spec. */
+  min-height: min(200px, 95vh);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+/* Bottom-right corner drag handle — the popup already opens content-sized up to 95% of the
+   viewport, so this just lets the user fine-tune (shrink or nudge) that window afterward. */
+.code-popup-resize-handle {
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  width: 16px;
+  height: 16px;
+  cursor: nwse-resize;
+  touch-action: none;
+  background: linear-gradient(
+    135deg,
+    transparent 0%,
+    transparent 45%,
+    #6b7180 45%,
+    #6b7180 55%,
+    transparent 55%,
+    transparent 100%
+  );
+  z-index: 1;
+}
+
+.code-popup-resizing {
+  user-select: none;
+}
+
+/* The title bar is the drag handle — full width across the top so it reads like a real window
+   title bar. cursor: grab signals it; grabbing + no-select apply while a drag is in progress. */
+.code-popup-titlebar {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.5rem 0.6rem;
+  border-bottom: 1px solid var(--border-strong);
+  background: var(--surface-4);
+  cursor: grab;
+  user-select: none;
+  touch-action: none;
+}
+
+.code-popup-dragging .code-popup-titlebar {
+  cursor: grabbing;
+}
+
+.code-popup-grip {
+  color: #6b7180;
+  font-size: 0.9rem;
+  line-height: 1;
+}
+
+.code-popup-title {
+  font-weight: 600;
+  font-size: 0.95rem;
+}
+
+.code-popup-title-params {
+  font-size: 0.8rem;
+  color: var(--text-2);
+  font-family: monospace;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* The node name/params now live in the title bar, so CodeView's own header is redundant here. */
+.code-popup .block-code-view-header {
+  display: none;
+}
+
+/* DiffView's header carries Apply/Discard, which the popup's titlebar has no equivalent for, so
+   it stays visible there — only its redundant name label is hidden. */
+.code-popup .diff-view-header {
+  display: flex;
+}
+
+.code-popup .diff-view-header .block-code-view-name {
+  display: none;
+}
+
+.code-popup-close {
+  flex-shrink: 0;
+  margin-left: auto;
+  width: 1.6rem;
+  height: 1.6rem;
+  line-height: 1;
+  padding: 0;
+  border: 1px solid var(--control-border);
+  border-radius: 4px;
+  background: var(--surface-code);
+  color: var(--control-idle);
+  cursor: pointer;
+}
+
+.code-popup-close:hover {
+  color: #fff;
+  border-color: var(--control-hover-border);
+}
+
+/* DescriptionPopup — a small modal for a block's full, untruncated description (opened by the "?"
+   button next to a line-clamped .block-description/.diagram-node-box-desc). Deliberately simpler
+   than .code-popup: no drag, no resize, just text. */
+.description-popup-backdrop {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: rgba(0, 0, 0, 0.55);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 100;
+}
+
+.description-popup {
+  background: var(--surface-code);
+  border: 1px solid var(--border-strong);
+  border-radius: 8px;
+  width: 28rem;
+  max-width: 90vw;
+  max-height: 80vh;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.description-popup-titlebar {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.5rem 0.6rem;
+  border-bottom: 1px solid var(--border-strong);
+  background: var(--surface-4);
+}
+
+.description-popup-title {
+  font-weight: 600;
+  font-size: 0.95rem;
+  overflow-wrap: anywhere;
+}
+
+.description-popup-close {
+  flex-shrink: 0;
+  margin-left: auto;
+  width: 1.6rem;
+  height: 1.6rem;
+  line-height: 1;
+  padding: 0;
+  border: 1px solid var(--control-border);
+  border-radius: 4px;
+  background: var(--surface-code);
+  color: var(--control-idle);
+  cursor: pointer;
+}
+
+.description-popup-close:hover {
+  color: #fff;
+  border-color: var(--control-hover-border);
+}
+
+.description-popup-body {
+  padding: 0.8rem 0.9rem;
+  overflow-y: auto;
+  white-space: normal;
+  overflow-wrap: anywhere;
+  color: var(--text-1);
+  font-size: 0.85rem;
+  line-height: 1.5;
+}
+
+.block-code-view {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+/* Inline mode flies the code out to the right of its block/row instead of stacking below it, with
+   its own solid frame so it reads as a distinct panel rather than more of the block underneath. */
+.block-code-view--inline {
+  flex-shrink: 0;
+  min-width: 320px;
+  min-height: 200px;
+  /* No max cap — the panel grows to fit the whole file/function so nothing hides behind an inner
+     scrollbar. A card panel (e.g. .change-cards-panel) keeps its own tighter cap. */
+  border: 2px solid var(--accent);
+  border-radius: 8px;
+  background: var(--surface-code);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.45);
+  /* Stacking context so a panel dragged over sibling blocks paints above them. */
+  position: relative;
+  z-index: 1;
+}
+
+/* Bottom-right corner drag handle — the inline panel already opens sized to its full content, so
+   this just lets the user fine-tune (shrink or nudge) that window afterward.
+   Mirrors .code-popup-resize-handle (see near .code-popup). */
+.block-code-view-resize-handle {
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  width: 16px;
+  height: 16px;
+  cursor: nwse-resize;
+  touch-action: none;
+  background: linear-gradient(
+    135deg,
+    transparent 0%,
+    transparent 45%,
+    var(--accent) 45%,
+    var(--accent) 55%,
+    transparent 55%,
+    transparent 100%
+  );
+  z-index: 1;
+}
+
+.block-code-view--resizing {
+  user-select: none;
+}
+
+/* backdrop-filter on .block-expanded makes every expanded block its own stacking context, so the
+   panel's z-index above can't escape its block — raise the whole ancestor chain of an open panel
+   so it paints (and hit-tests) above later sibling blocks it overflows into or is dragged over. */
+.block:has(.block-code-view--inline),
+.tree-node:has(.block-code-view--inline) {
+  z-index: 1;
+}
+
+.block-code-view--inline .block-code-view-header {
+  cursor: grab;
+  user-select: none;
+  touch-action: none;
+}
+
+.block-code-view--inline.block-code-view--dragging .block-code-view-header {
+  cursor: grabbing;
+}
+
+.block-code-view-grip {
+  color: var(--text-2);
+  font-size: 0.85rem;
+}
+
+.block-code-view-header {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.6rem 0.8rem;
+  border-bottom: 1px solid var(--border-strong);
+  flex-shrink: 0;
+}
+
+.block-code-view-name {
+  font-weight: 600;
+  font-size: 0.95rem;
+  margin-right: 0.5rem;
+}
+
+.block-code-view-params {
+  font-size: 0.8rem;
+  color: var(--text-2);
+  font-family: monospace;
+}
+
+.block-code-view-source {
+  margin: 0;
+  padding: 0.8rem;
+  overflow: auto;
+  font-family: monospace;
+  font-size: 0.85rem;
+  line-height: 1.5;
+  color: #d4d8de;
+}
+
+.token-plain {
+  color: #d4d8de;
+}
+
+.token-keyword {
+  color: #c792ea;
+}
+
+.token-string {
+  color: #c3e88d;
+}
+
+.token-comment {
+  color: #676e95;
+  font-style: italic;
+}
+
+.token-number {
+  color: #f78c6c;
+}
+
+.diff-view-header {
+  flex-wrap: wrap;
+}
+
+.diff-accept-button {
+  margin-left: auto;
+  flex-shrink: 0;
+  padding: 0.3rem 0.7rem;
+  font-size: 0.8rem;
+  font-weight: 600;
+  border: 1px solid var(--added);
+  border-radius: 4px;
+  background: transparent;
+  color: var(--added);
+  cursor: pointer;
+}
+
+.diff-accept-button:hover:not(:disabled) {
+  background: rgba(111, 207, 151, 0.15);
+}
+
+.diff-accept-button:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.diff-accept-error {
+  flex-basis: 100%;
+  font-size: 0.75rem;
+  color: #e06c75;
+}
+
+.diff-line {
+  display: block;
+}
+
+.diff-line-marker {
+  display: inline-block;
+  width: 1.2em;
+  color: #676e95;
+  user-select: none;
+}
+
+.diff-line-add {
+  background: rgba(111, 207, 151, 0.12);
+}
+
+.diff-line-remove {
+  background: rgba(224, 108, 117, 0.12);
+}
+
+/* Floating stack of deleted-function panels, shown over the canvas while diff mode is active. */
+.deleted-diff-overlay {
+  position: absolute;
+  top: 1rem;
+  right: 1rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  max-height: calc(100% - 2rem);
+  overflow-y: auto;
+  z-index: 30;
+  pointer-events: none;
+}
+
+.deleted-diff-overlay .diff-view {
+  pointer-events: auto;
+}
+
+/* A deleted function no longer exists on disk, so its source is shown blurred + struck out. */
+.diff-view--deleted .diff-view-source {
+  filter: blur(2px);
+  opacity: 0.65;
+  text-decoration: line-through;
+}
+
+.diff-view-deleted-badge {
+  margin-left: 0.4rem;
+  padding: 0 0.35rem;
+  border-radius: 3px;
+  font-size: 0.7rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: #fff;
+  background: #e06c75;
+}
+
+.plan-panel-body {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+  gap: 0.3rem;
+  padding: 0.5rem;
+  overflow: auto;
+}
+
+.plan-step {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  padding: 0.3rem 0.5rem;
+  border-left: 3px solid var(--plan);
+  border-radius: 4px;
+  background: rgba(196, 138, 248, 0.1);
+  font-size: 0.78rem;
+  line-height: 1.3;
+}
+
+.plan-step-preview {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0.35rem;
+}
+
+.plan-step--expandable .plan-step-preview {
+  cursor: pointer;
+}
+
+.plan-step--expandable .plan-step-preview:hover .plan-step-text {
+  color: #fff;
+}
+
+.plan-step-chevron {
+  font-size: 0.66rem;
+  color: var(--text-2);
+}
+
+.plan-step-details {
+  padding: 0.3rem 0.4rem 0.2rem 0.9rem;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+  color: var(--text-strong);
+  white-space: pre-wrap;
+}
+
+/* Card accents mirror the frame scheme: new code (create/add) green, changes blue, deletions red. */
+.plan-step--create,
+.plan-step--add {
+  border-left-color: var(--added);
+  background: rgba(111, 207, 151, 0.1);
+}
+
+.plan-step--modify {
+  border-left-color: var(--accent);
+  background: rgba(138, 180, 248, 0.1);
+}
+
+.plan-step--delete {
+  border-left-color: #e06c75;
+  background: rgba(224, 108, 117, 0.1);
+}
+
+.plan-step-kind {
+  padding: 0 0.3rem;
+  border-radius: 3px;
+  font-size: 0.66rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: #ddd;
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.plan-step-text {
+  color: #eaeaea;
+}
+
+.plan-step-hint {
+  font-size: 0.66rem;
+  font-style: italic;
+  color: var(--text-2);
+}
+
+/* Where the change happened, always visible under the card's label — the card's whole context. */
+.plan-step-meta {
+  font-family: "SFMono-Regular", "Menlo", monospace;
+  font-size: 0.66rem;
+  color: var(--text-2);
+  overflow-wrap: anywhere;
+}
+
+/* Change-card panel — the shared card chrome (.plan-panel-body/.plan-step*, one CSS block, one
+   visual language for the cards themselves), amber-framed. Same size cap as the inline code view:
+   a code panel plus a card panel in one .block-row widens the block a lot. */
+.change-cards-panel.block-code-view--inline {
+  border-color: #f2c14e;
+  min-width: 260px;
+  min-height: 100px;
+  max-width: 420px;
+  max-height: 360px;
+}
+
+.change-cards-panel .block-code-view-header {
+  border-bottom-color: #f2c14e;
+}
+
+.change-cards-panel .block-code-view-resize-handle {
+  background: linear-gradient(
+    135deg,
+    transparent 0%,
+    transparent 45%,
+    #f2c14e 45%,
+    #f2c14e 55%,
+    transparent 55%,
+    transparent 100%
+  );
+}
+
+/* The change layer's connector frame is dashed, so where both layers frame one block the outer
+   (change) frame reads as the annotation and the inner (plan) one as the plan. */
+.change-connections-overlay .plan-connection-frame {
+  stroke-dasharray: 4 3;
+}
+
+.token-function {
+  color: #82aaff;
+}
+
+.token-operator,
+.token-punctuation {
+  color: #89ddff;
+}
+
+/* Bottom dock, inside .canvas-area — it used to sit beside the canvas, but the C1 inspector needs
+   the full-height right edge, so the terminal moved under the canvas and resizes by height. */
+.terminal-panel {
+  position: relative;
+  height: 280px;
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  border-top: 1px solid var(--border-subtle);
+  background: var(--surface-1);
+}
+
+/* Closed panel: removed from the flex row but kept in the React tree, so the xterm buffer,
+   WebSocket, and backend PTY session survive close/reopen instead of being torn down. */
+.terminal-panel-hidden {
+  display: none;
+}
+
+/* Top-edge drag handle — the panel is anchored to the bottom, so dragging up makes it taller, up to
+   60% of the viewport (min stays at 160px). The container's ResizeObserver refits xterm on the
+   resulting box change. */
+.terminal-panel-resize-handle {
+  position: absolute;
+  top: -3px;
+  left: 0;
+  right: 0;
+  height: 6px;
+  cursor: ns-resize;
+  touch-action: none;
+  z-index: 1;
+}
+
+.terminal-panel-resizing {
+  user-select: none;
+}
+
+.terminal-panel-container {
+  flex: 1;
+  min-height: 0;
+  padding: 0.4rem;
+}
+
+/* Bottom dock beside the terminal panel — a plain ask-a-question box, not a diagram, so no
+   resize handle: its content is a short answer, not a scrolling session. */
+.research-panel {
+  position: relative;
+  max-height: 280px;
+  overflow-y: auto;
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  padding: 0.75rem;
+  border-top: 1px solid var(--border-subtle);
+  background: var(--surface-1);
+}
+
+.research-panel-hidden {
+  display: none;
+}
+
+.research-panel-form {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.research-panel-input {
+  flex: 1;
+  padding: 0.4rem 0.6rem;
+  background: #1e2128;
+  border: 1px solid var(--border-faint);
+  border-radius: 4px;
+  color: inherit;
+}
+
+.research-panel-ask {
+  padding: 0.4rem 0.8rem;
+}
+
+.research-panel-status {
+  color: var(--text-2);
+  font-size: 0.9em;
+}
+
+.research-panel-error {
+  color: #e06c75;
+}
+
+.research-panel-badge {
+  display: inline-block;
+  padding: 0.15rem 0.5rem;
+  border-radius: 999px;
+  background: var(--border-faint);
+  color: #d7dae0;
+  font-size: 0.8em;
+}
+
+.research-panel-answer-text {
+  white-space: pre-wrap;
+}
+
+.research-panel-citations {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+
+.research-panel-citation {
+  text-align: left;
+  background: none;
+  border: none;
+  color: #61afef;
+  cursor: pointer;
+  padding: 0;
+}
+
+/* ── C1 code inspector ────────────────────────────────────────────────────────────────────────
+   Full-height right dock everything below the C1 code boundary opens into, instead of expanding
+   inside a diagram box and re-ranking dagre around the box's new size. A direct .app-body child, so
+   it spans the whole window top to bottom; the terminal is docked under the canvas rather than
+   beside it precisely so this can be true. 30vw by default, draggable to half the screen (the
+   ceiling lives in InspectorPanel's maxViewportFraction, max-width just matches it before the first
+   drag sets an inline width). */
+.inspector-panel {
+  position: relative;
+  width: 30vw;
+  min-width: 320px;
+  max-width: 50vw;
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  border-left: 1px solid var(--border-subtle);
+  background: var(--surface-1);
+}
+
+/* Closed panel: dropped from the flex row but kept in the React tree, so the dragged width survives
+   close/reopen (same trick as .terminal-panel-hidden). */
+.inspector-panel-hidden {
+  display: none;
+}
+
+.inspector-panel-resizing {
+  user-select: none;
+}
+
+/* Left-edge drag handle — the panel is anchored to the right, so dragging left widens it. */
+.inspector-panel-resize-handle {
+  position: absolute;
+  left: -3px;
+  top: 0;
+  bottom: 0;
+  width: 6px;
+  cursor: ew-resize;
+  touch-action: none;
+  z-index: 1;
+}
+
+.inspector-panel-header {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.5rem 0.6rem;
+  border-bottom: 1px solid var(--border-subtle);
+  flex-shrink: 0;
+}
+
+.inspector-panel-title {
+  flex: 1;
+  min-width: 0;
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: #e8eaed;
+  overflow-wrap: anywhere;
+}
+
+.inspector-panel-back,
+.inspector-panel-close {
+  background: none;
+  border: none;
+  color: var(--text-2);
+  cursor: pointer;
+  font-size: 1rem;
+  line-height: 1;
+  padding: 0.1rem 0.3rem;
+  border-radius: 3px;
+  flex-shrink: 0;
+}
+
+.inspector-panel-back:hover,
+.inspector-panel-close:hover {
+  color: #e8eaed;
+  background: #23262d;
+}
+
+.inspector-panel-body {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+}
+
+/* Tab row for a multi-node level (a Patterns merged box's openMany) — one tab per real node, the
+   active tab's code renders beneath. */
+.inspector-tabs {
+  display: flex;
+  gap: 0.25rem;
+  padding: 0.4rem 0.6rem;
+  border-bottom: 1px solid var(--border-subtle);
+  flex-wrap: wrap;
+  flex-shrink: 0;
+}
+
+.inspector-tab--active {
+  background: #2f343d;
+  border-color: #5b6472;
+  color: #e8eaed;
+}
+
+.inspector-tab-label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  display: block;
+}
+
+.inspector-panel-note {
+  margin: 0;
+  padding: 0.8rem 0.7rem;
+  font-size: 0.75rem;
+  color: var(--text-2);
+}
+
+/* Show File / Show Class toggle for a level that has both source and children — a real file carries
+   its whole text and its classes, and neither may hide the other. */
+.inspector-level-actions {
+  padding: 0.4rem 0.6rem 0;
+}
+
+.inspector-code-button {
+  background: #23262d;
+  border: 1px solid #3a3f47;
+  border-radius: 3px;
+  color: #d5d8dc;
+  cursor: pointer;
+  font-size: 0.7rem;
+  padding: 0.2rem 0.45rem;
+}
+
+.inspector-code-button:hover {
+  border-color: var(--c1);
+  color: #e8eaed;
+}
+
+.inspector-panel-error-text {
+  margin: 0 0 0.5rem;
+  color: var(--danger);
+}
+
+.inspector-list {
+  list-style: none;
+  margin: 0;
+  padding: 0.3rem 0;
+}
+
+.inspector-row {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  width: 100%;
+  padding: 0.35rem 0.6rem;
+  background: none;
+  border: none;
+  color: #d5d8dc;
+  font-size: 0.76rem;
+  text-align: left;
+  cursor: pointer;
+}
+
+.inspector-row:hover:not(:disabled) {
+  background: #23262d;
+}
+
+.inspector-row--leaf {
+  cursor: default;
+  color: var(--text-2);
+}
+
+.inspector-row-name {
+  flex: 1;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.inspector-row-name-function,
+.inspector-row-name-class {
+  font-family: "SFMono-Regular", "Menlo", monospace;
+}
+
+.inspector-row-params {
+  font-family: "SFMono-Regular", "Menlo", monospace;
+  font-size: 0.68rem;
+  color: #7f858d;
+}
+
+.inspector-row-chevron {
+  color: #7f858d;
+  flex-shrink: 0;
+}
+
+/* The panel owns the geometry, so the code/diff view fills it instead of being a draggable,
+   resizable window the way the inline (--inline) variant is on the canvas. */
+.block-code-view--inspector {
+  height: 100%;
+  border: none;
+  border-radius: 0;
+  min-width: 0;
+  max-width: none;
+  max-height: none;
+}
+
+/* ── C1 change review ─────────────────────────────────────────────────────────────────────────
+   Active while the C1 view and the Diff toggle are both on. Colors follow the plan panel's
+   established scheme so the three overlays read as one family: new code green, changes blue,
+   removals red/grey. */
+
+/* Count chip on a block the current diff touches; sits inline with the block/row name. */
+.node-change-badge {
+  margin-left: 0.35rem;
+  padding: 0 0.3rem;
+  border-radius: 3px;
+  font-size: 0.66rem;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  white-space: nowrap;
+  color: var(--surface-0);
+}
+
+.node-change-badge--added {
+  background: var(--added);
+}
+
+.node-change-badge--modified {
+  background: var(--accent);
+}
+
+.node-change-badge--removed {
+  background: #e06c75;
+}
+
+/* 054-diagram-flow-order: the authored step number, pinned to the box's own top-right corner
+   (CanvasNodeBox.tsx renders it as a direct child of the absolutely-positioned box, alongside
+   .plan-kind-chip) instead of sitting inline in the title row -- inline put it right after the name
+   text, which (a) fought the row's own `gap` for spacing and (b) moved every time the name's length
+   changed, instead of landing in the same corner every reader learns to glance at. Offset further in
+   than .plan-kind-chip's top:-9px/right:8px (which hangs above the box) so the two never collide on
+   a box that has both. Background/text swapped from --border-strong/--surface-0 (near-black text on
+   dark gray -- unreadable against the equally dark canvas) to --warning/--text-invert, the same
+   high-contrast filled-chip pairing already used by .plan-kind-chip/.node-change-badge's variants. */
+.canvas-node-order-badge {
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  z-index: 2;
+  padding: 0 0.3rem;
+  border-radius: 3px;
+  font-size: 0.66rem;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  white-space: nowrap;
+  color: var(--text-invert);
+  background: var(--warning);
+}
+
+/* Status accent on the block itself — a left edge, so it never competes with the diff/change frames.
+   Impact's authored `new` status aliases to `added` in nodeAccent.tsx, so no rule for it is needed
+   here; `deleted` is NOT aliased to `removed` below -- see its own `.block-change--deleted` rule
+   further down, which skips the ghost/strikethrough treatment. */
+.block-change--added > .block-row,
+.block-change--modified > .block-row,
+.block-change--removed > .block-row,
+.block-change--deleted > .block-row {
+  border-left-width: 3px;
+  border-left-style: solid;
+}
+
+.block-change--added > .block-row {
+  border-left-color: var(--added);
+}
+
+.block-change--modified > .block-row {
+  border-left-color: var(--accent);
+}
+
+/* A removed block is a ghost: it no longer exists in the diagram, so it reads as struck-through and
+   faded rather than as something you can still drill into (reusing the deleted-diff treatment). */
+.block-change--removed > .block-row {
+  border-left-color: #e06c75;
+}
+
+.block-change--removed .block-name,
+.block-change--removed .tree-node-name {
+  text-decoration: line-through;
+  opacity: 0.7;
+}
+
+/* A context block is unchanged background the slice pulled in for orientation only -- muted, not
+   accented, so it recedes behind the real seed/status boxes (no left-edge colour, unlike above). */
+.block-change--context > .block-row,
+.tree-node.block-change--context > .tree-node-main-row {
+  opacity: 0.65;
+}
+
+/* Impact's authored `meta.status: "deleted"` -- unlike `.block-change--removed` above, this box still
+   exists (it's a surviving file/dir ancestor a deleted symbol got re-pinned onto), so it shares the
+   width/style rule above but never the ghost/strikethrough treatment. */
+.block-change--deleted > .block-row {
+  border-left-color: #e06c75;
+}
+
+.tree-node.block-change--added > .tree-node-main-row {
+  border-left: 3px solid var(--added);
+}
+
+.tree-node.block-change--modified > .tree-node-main-row {
+  border-left: 3px solid var(--accent);
+}
+
+.tree-node.block-change--removed > .tree-node-main-row {
+  border-left: 3px solid #e06c75;
+}
+
+/* Relationship arrows the change added (dashed) or removed (grey ghost). */
+.c1-relationship--added .c1-relationship-path {
+  stroke: var(--added);
+  stroke-dasharray: 6 4;
+}
+
+.c1-relationship--added .c1-relationship-label {
+  fill: var(--added);
+}
+
+.c1-relationship--removed .c1-relationship-path {
+  stroke: var(--text-3);
+  stroke-dasharray: 2 5;
+  opacity: 0.6;
+}
+
+.c1-relationship--removed .c1-relationship-label {
+  fill: var(--text-3);
+  opacity: 0.7;
+  text-decoration: line-through;
+}
+
+/* Arrow hover, deliberately placed after the change-review rules above so it outranks them: hovering
+   an added/removed arrow must still highlight it, and thickening is a change the diff colors don't
+   contradict. The hue is only claimed for an arrow the review has nothing to say about — an added
+   arrow stays green while hovered, since that is information the highlight must not overwrite. */
+.c1-relationship--active .c1-relationship-path {
+  stroke-width: 2.5;
+}
+
+.c1-relationship--active:not([data-change-status]) .c1-relationship-path {
+  stroke: var(--accent);
+}
+
+.c1-relationship--active:not([data-change-status]) .c1-relationship-label {
+  fill: #dbe6f8;
+}
+
+/* Every arrow that isn't the hovered one — both renderers at once, since they read the same store.
+   Dimmed rather than hidden: the diagram's shape has to survive the highlight, otherwise hovering an
+   arrow costs the context that makes it worth reading. */
+/* The casing dims alongside its own stroke — left at full opacity it would keep punching an opaque
+   background-coloured hole through whichever arrow the user is actually trying to follow. */
+.c1-relationship--dimmed .c1-relationship-path,
+.c1-relationship--dimmed .c1-relationship-casing,
+.c1-relationship--dimmed .c1-relationship-label {
+  opacity: 0.3;
+}
+
+/* The active arrow's casing widens with its stroke, so the highlighted line keeps a clean gap where
+   it crosses the dimmed ones. */
+.c1-relationship--active .c1-relationship-casing {
+  stroke-width: 6.5;
+}
+
+/* The wide transparent hit-stroke that makes an arrow hoverable at all. Both overlays are
+   pointer-events:none so they can lie over the blocks without eating their clicks; this path re-enables
+   hit-testing on itself alone. `stroke` (not `all`) so only the band along the line responds, never the
+   area a route's elbows happen to enclose. It is NOT in PAN_IGNORE_SELECTOR: a drag that starts on an
+   arrow should still pan the canvas, exactly like a drag on empty space. */
+.c1-relationship-hit {
+  fill: none;
+  stroke: transparent;
+  stroke-width: 14;
+  pointer-events: stroke;
+  cursor: pointer;
+}
+
+/* The two blocks a hovered arrow lands on, so an arrow and its endpoints read as one thing. Needed in
+   both strategies: a C1 arrow may end on a box (Block) or, once bundled up out of a collapsed subtree,
+   on a nested tree row (TreeNode). Outranks .block-c1-system / .block-actor--* on specificity. */
+.node-edge-endpoint.block {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 1px var(--accent);
+}
+
+.tree-node.node-edge-endpoint > .tree-node-main-row > .tree-node-row {
+  background: rgba(138, 180, 248, 0.14);
+  box-shadow: inset 0 0 0 1px rgba(138, 180, 248, 0.45);
+}
+
+/* Third strategy: any diagram-node-box leaf (pattern/impact/custom/epic/group -- previously only
+   pattern and custom had this rule; folding it onto the shared class extends the same "arrow
+   endpoint reads as accented" treatment to every kind, not a visual change for the two that had it).
+   Outranks the confirmed/unresolved/kind modifiers that also set border-color, so a hovered arrow's
+   endpoint reads the same here as on a C1 block. Also resets --custom-accent, so a custom box's own
+   group tint doesn't silently override the accent border/shadow. */
+.diagram-node-box.node-edge-endpoint {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 1px var(--accent);
+  --custom-accent: var(--accent);
+}
+
+/* Per-block review, rendered at the top of an inspector level rather than a floating panel — no
+   drag/resize chrome of its own, since the inspector dock already handles sizing. Status accent
+   lives on the bottom border, echoing the badge/border accent the block itself carries on canvas. */
+.impact-change-review {
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
+  padding: 0.5rem 0.6rem;
+  border-bottom: 3px solid #4b5563;
+  font-size: 0.78rem;
+  line-height: 1.35;
+}
+
+.impact-change-review--added {
+  border-bottom-color: var(--added);
+}
+
+.impact-change-review--modified {
+  border-bottom-color: var(--accent);
+}
+
+.impact-change-review--removed {
+  border-bottom-color: #e06c75;
+}
+
+.impact-change-review-header {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.impact-change-review-name {
+  font-weight: 600;
+  color: #e8eaed;
+}
+
+.impact-change-badge {
+  margin-left: auto;
+  padding: 0 0.35rem;
+  border-radius: 3px;
+  font-size: 0.66rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: #ddd;
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.impact-change-section {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  padding: 0.3rem 0.5rem;
+  border-left: 3px solid #4b5563;
+  border-radius: 4px;
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.impact-change-section--before {
+  border-left-color: #e06c75;
+  background: rgba(224, 108, 117, 0.08);
+}
+
+.impact-change-section--after {
+  border-left-color: var(--added);
+  background: rgba(111, 207, 151, 0.08);
+}
+
+.impact-change-section--why {
+  border-left-color: var(--accent);
+  background: rgba(138, 180, 248, 0.08);
+}
+
+.impact-change-section-label {
+  font-size: 0.64rem;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--text-2);
+}
+
+.impact-change-section-text {
+  margin: 0;
+  color: #eaeaea;
+  white-space: pre-wrap;
+}
+
+.impact-change-unreviewed {
+  margin: 0;
+  font-style: italic;
+  color: var(--text-2);
+}
+
+.impact-change-files {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+  padding-top: 0.35rem;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.impact-change-file-row {
+  display: flex;
+  align-items: baseline;
+  gap: 0.35rem;
+}
+
+.impact-change-file-status {
+  padding: 0 0.3rem;
+  border-radius: 3px;
+  font-size: 0.62rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: #ddd;
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.impact-change-file-path {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 0.7rem;
+  color: var(--text-strong);
+  overflow-wrap: anywhere;
+}
+
+/* Clicking a changed file opens it (diffs included) in the code inspector dock instead of growing
+   the review panel with an inline diff — this just needs to read as clickable. */
+.impact-change-file {
+  border-radius: 4px;
+  margin: 0 -0.3rem;
+  padding: 0.1rem 0.3rem;
+  cursor: pointer;
+}
+
+.impact-change-file:hover,
+.impact-change-file:focus-visible {
+  background: rgba(255, 255, 255, 0.07);
+}
+
+/* Inline PR review comments attributed to this block's own files — the per-block counterpart of
+   .impact-change-summary-comments, which only carries general/pathless PR discussion. */
+.impact-change-comments {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+  padding-top: 0.35rem;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.impact-change-comment {
+  display: flex;
+  flex-direction: column;
+  gap: 0.1rem;
+  padding: 0.3rem 0.5rem;
+  border-left: 3px solid var(--text-2);
+  border-radius: 4px;
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.impact-change-comment-meta {
+  font-size: 0.62rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--text-2);
+}
+
+.impact-change-comment-body {
+  margin: 0;
+  color: #eaeaea;
+  white-space: pre-wrap;
+  font-size: 0.78rem;
+}
+
+/* The review's header card — a mode control surface outside the pan/zoom camera, like TraceControls. */
+.impact-change-summary {
+  position: absolute;
+  left: 1rem;
+  top: 1rem;
+  width: 28rem;
+  padding: 0.6rem 0.75rem;
+  border: 1px solid var(--border);
+  border-left: 3px solid var(--accent);
+  border-radius: 6px;
+  background: rgba(24, 26, 32, 0.94);
+  font-size: 0.8rem;
+  line-height: 1.4;
+  z-index: 40;
+}
+
+.impact-change-summary--stale {
+  border-left-color: #e5c07b;
+}
+
+.impact-change-summary--dragging {
+  cursor: grabbing;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.45);
+}
+
+.impact-change-summary-header {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  cursor: grab;
+}
+
+.impact-change-summary-title {
+  font-weight: 600;
+  color: #eaeaea;
+}
+
+.impact-change-summary-counts {
+  font-size: 0.7rem;
+  color: var(--text-2);
+}
+
+.impact-change-summary-rereview {
+  margin-left: auto;
+  padding: 0.2rem 0.55rem;
+  font-size: 0.72rem;
+  color: #ddd;
+  background: #2a2a2a;
+  border: 1px solid var(--border-strong);
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+.impact-change-summary-rereview:hover:not(:disabled) {
+  background: var(--border-subtle);
+}
+
+.impact-change-summary-rereview:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
+.impact-change-summary-text {
+  margin: 0.4rem 0 0;
+  color: #d5d8dd;
+}
+
+.impact-change-summary-note {
+  margin: 0.35rem 0 0;
+  font-size: 0.72rem;
+  color: var(--text-2);
+}
+
+.impact-change-summary-error {
+  margin: 0.35rem 0 0;
+  font-size: 0.72rem;
+  color: var(--danger);
+}
+
+/* The itemized, diff-stat-style file list — grouped by the block each file landed on, plus an
+   unassigned group for files no block on the diagram covers. Replaces a single "N files" line
+   with the actual per-file changes, same +/~/- vocabulary as DiffView's line markers. */
+.impact-change-summary-files {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  margin-top: 0.4rem;
+  padding-top: 0.35rem;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+
+.impact-change-summary-file-group {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+}
+
+.impact-change-summary-file-group-label {
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  font-size: 0.66rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--text-2);
+}
+
+.impact-change-summary-file-group--unassigned .impact-change-summary-file-group-label {
+  color: #e5c07b;
+}
+
+.impact-change-summary-file {
+  display: flex;
+  align-items: baseline;
+  gap: 0.4rem;
+  padding-left: 0.1rem;
+  font-size: 0.72rem;
+}
+
+.impact-change-summary-file-marker {
+  width: 1ch;
+  font-weight: 700;
+}
+
+.impact-change-summary-file-marker--added {
+  color: var(--added);
+}
+
+.impact-change-summary-file-marker--modified {
+  color: var(--accent);
+}
+
+.impact-change-summary-file-marker--removed,
+.impact-change-summary-file-marker--deleted {
+  color: #e06c75;
+}
+
+.impact-change-summary-file-path {
+  color: var(--text-strong);
+  overflow-wrap: anywhere;
+}
+
+/* General/issue-level PR comments — not tied to a file, so they land in the summary rather than a
+   block's own review in the inspector (see .impact-change-comments for that per-block equivalent). */
+.impact-change-summary-comments {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  margin-top: 0.4rem;
+  padding-top: 0.35rem;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.impact-change-summary-comment {
+  display: flex;
+  flex-direction: column;
+  gap: 0.1rem;
+  padding: 0.3rem 0.5rem;
+  border-left: 3px solid var(--text-2);
+  border-radius: 4px;
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.impact-change-summary-comment-author {
+  font-size: 0.64rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--text-2);
+}
+
+.impact-change-summary-comment-body {
+  margin: 0;
+  color: #eaeaea;
+  white-space: pre-wrap;
+  font-size: 0.78rem;
+}
+
+/* A comment whose line resolved to a real function/class opens it in the inspector on click. */
+.impact-change-comment--linked,
+.impact-change-summary-comment--linked {
+  cursor: pointer;
+}
+
+.impact-change-comment--linked:hover,
+.impact-change-comment--linked:focus-visible,
+.impact-change-summary-comment--linked:hover,
+.impact-change-summary-comment--linked:focus-visible {
+  background: rgba(255, 255, 255, 0.09);
+}
+
+/* --- Parallel agent windows (feature 001) ------------------------------------------------------
+   Everything here lives in SCREEN coordinates, above .canvas-stage: an agent window must not scale
+   with canvas zoom or it stops being readable. The layer itself is inert so the canvas underneath
+   keeps receiving pointer events; only the windows and the panel take them. */
+
+.agent-layer {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 40;
+}
+
+.agent-layer > * {
+  pointer-events: auto;
+}
+
+/* The one place each status colour is defined — the rail, the panel and the window title bar all
+   read it, rather than each carrying its own copy of the palette. */
+.agent-led {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  flex: 0 0 auto;
+  background: var(--text-3);
+  box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.35);
+}
+
+.agent-led-stopped {
+  background: var(--text-3);
+}
+
+.agent-led-running,
+.agent-led-idle {
+  background: #22c55e;
+}
+
+.agent-led-blocked {
+  background: var(--warning);
+}
+
+.agent-led-working {
+  background: #3b82f6;
+}
+
+.agent-led-exited {
+  background: var(--danger);
+}
+
+/* Nothing is known right now, so the last colour is held — rendered as the dot it already had. */
+.agent-led-foreign {
+  background: var(--text-2);
+}
+
+.agent-window {
+  position: fixed;
+  display: flex;
+  flex-direction: column;
+  min-width: 360px;
+  min-height: 200px;
+  background: var(--surface-0);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.45);
+  overflow: hidden;
+}
+
+/* display:none, not unmount — the xterm scrollback dies with the DOM node. */
+.agent-window-hidden {
+  display: none;
+}
+
+.agent-window-moving {
+  user-select: none;
+}
+
+.agent-window-title {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.35rem 0.5rem;
+  background: var(--surface-4);
+  border-bottom: 1px solid var(--border);
+  cursor: grab;
+  font-size: 0.78rem;
+  color: #d5d8dd;
+}
+
+.agent-window-name {
+  font-weight: 600;
+}
+
+.agent-window-branch,
+.agent-window-cli {
+  color: #8b909a;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 0.7rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.agent-window-branch {
+  flex: 1;
+}
+
+.agent-window-cli {
+  margin-right: 0.5rem;
+}
+
+.agent-window-button {
+  background: none;
+  border: none;
+  color: var(--text-2);
+  cursor: pointer;
+  font-size: 0.95rem;
+  line-height: 1;
+  padding: 0 0.25rem;
+}
+
+.agent-window-button:hover {
+  color: #ffffff;
+}
+
+.agent-window-pr-button {
+  background: none;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  color: var(--text-2);
+  cursor: pointer;
+  font-size: 0.68rem;
+  padding: 0.1rem 0.4rem;
+  white-space: nowrap;
+}
+
+.agent-window-pr-button:hover {
+  color: #ffffff;
+  border-color: var(--link);
+}
+
+.agent-window-pr-button:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.agent-window-pr-link {
+  color: var(--link);
+  font-size: 0.7rem;
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+.agent-window-terminal {
+  flex: 1;
+  min-height: 0;
+  padding: 0.25rem;
+}
+
+.agent-window-idle {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1rem;
+  color: var(--text-2);
+  font-size: 0.8rem;
+  text-align: center;
+}
+
+.agent-window-resize-handle {
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  width: 14px;
+  height: 14px;
+  cursor: nwse-resize;
+}
+
+/* Shared by PrDialog's lost-worktree row and AgentWindow's own — outlived the panel it was written for. */
+.agent-panel-warning {
+  color: var(--warning);
+  font-size: 0.68rem;
+}
+
+/* Portalled to <body> by ModalDialog, so this number only has to beat the other top-level overlays
+   (.code-popup-backdrop is 100) — never an agent window's unbounded bringToFront counter.
+   pointer-events are re-declared because a dialog may also be rendered under an inert layer. */
+.agent-dialog-backdrop {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.55);
+  pointer-events: auto;
+  z-index: 200;
+}
+
+.agent-dialog {
+  width: 420px;
+  max-height: 80vh;
+  overflow-y: auto;
+  padding: 1rem;
+  background: var(--surface-0);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  color: #d5d8dd;
+  font-size: 0.8rem;
+}
+
+.agent-dialog-wide {
+  width: 560px;
+}
+
+.agent-dialog-title {
+  margin: 0 0 0.6rem;
+  font-size: 0.95rem;
+}
+
+.agent-dialog-body {
+  margin: 0 0 0.6rem;
+  color: #b6bac1;
+}
+
+/* The regenerate-note input on the custom-diagram dialog. */
+.agent-dialog-textarea {
+  width: 100%;
+  min-height: 5.5rem;
+  resize: vertical;
+  box-sizing: border-box;
+  padding: 0.5rem 0.6rem;
+  font: inherit;
+  font-size: 0.85rem;
+  color: var(--text-strong);
+  background: var(--surface-code);
+  border: 1px solid var(--border-strong);
+  border-radius: 6px;
+}
+
+.agent-dialog-steps {
+  margin: 0 0 0.6rem;
+  padding-left: 1.2rem;
+  color: #b6bac1;
+}
+
+.agent-dialog-suspicious ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.agent-dialog-suspicious li {
+  padding: 0.2rem 0;
+}
+
+.agent-dialog-reason {
+  margin-left: 0.5rem;
+  color: #8b909a;
+  font-size: 0.72rem;
+}
+
+.agent-dialog-check {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.2rem 0;
+}
+
+.agent-dialog-error {
+  margin: 0.5rem 0 0;
+  color: var(--danger);
+  font-size: 0.74rem;
+}
+
+.agent-dialog-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.5rem;
+  margin-top: 0.9rem;
+}
+
+.agent-dialog-actions button {
+  background: var(--surface-3);
+  border: 1px solid var(--border);
+  border-radius: 3px;
+  color: #d5d8dd;
+  cursor: pointer;
+  padding: 0.3rem 0.6rem;
+}
+
+.agent-dialog-primary {
+  background: var(--primary);
+  border-color: var(--primary);
+  color: #ffffff;
+}
+
+.agent-dialog-danger {
+  background: var(--danger);
+  border-color: var(--danger);
+  color: #ffffff;
+}
+
+.agent-dialog-actions button:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+/* Pull-request dialog. Its rows deliberately reuse .agent-panel-row's button vocabulary, so opening
+   a PR reads as the same kind of act as making an agent active — both just move the canvas. */
+.pr-dialog-input-row {
+  display: flex;
+  gap: 0.5rem;
+  margin-top: 0.8rem;
+}
+
+.pr-dialog-select {
+  flex: 1 1 auto;
+  min-width: 0;
+  background: var(--surface-code);
+  border: 1px solid var(--border);
+  border-radius: 3px;
+  color: #d5d8dd;
+  font-family: inherit;
+  padding: 0.3rem 0.5rem;
+}
+
+.pr-dialog-select:disabled {
+  opacity: 0.5;
+}
+
+.pr-dialog-input-row .agent-dialog-primary {
+  border: 1px solid var(--primary);
+  border-radius: 3px;
+  cursor: pointer;
+  padding: 0.3rem 0.7rem;
+  white-space: nowrap;
+}
+
+.pr-dialog-input-row .agent-dialog-primary:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.pr-dialog-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  list-style: none;
+  margin: 0.9rem 0 0;
+  padding: 0;
+}
+
+.pr-dialog-row {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  align-items: center;
+  gap: 0.15rem 0.6rem;
+  background: var(--surface-2);
+  border: 1px solid #32363f;
+  border-radius: 4px;
+  padding: 0.4rem 0.6rem;
+}
+
+.pr-dialog-row-title {
+  color: #eaeaea;
+  font-size: 0.82rem;
+  overflow-wrap: anywhere;
+}
+
+.pr-dialog-row-refs {
+  grid-column: 1;
+  color: var(--text-2);
+  font-family: "SFMono-Regular", "Menlo", monospace;
+  font-size: 0.68rem;
+  overflow-wrap: anywhere;
+}
+
+/* Same slot as the lost-worktree warning, but neutral: a refresh outcome is news, not a problem. */
+.pr-dialog-row-notice {
+  grid-column: 1;
+  color: var(--text-2);
+  font-size: 0.68rem;
+}
+
+.pr-dialog-row-actions {
+  grid-column: 2;
+  grid-row: 1 / span 2;
+  display: flex;
+  gap: 0.3rem;
+}
+
+.pr-dialog-row-actions button {
+  background: var(--surface-3);
+  border: 1px solid var(--border);
+  border-radius: 3px;
+  color: #d5d8dd;
+  cursor: pointer;
+  font-size: 0.72rem;
+  padding: 0.2rem 0.45rem;
+}
+
+.pr-dialog-row-actions button:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.pr-dialog-row-active {
+  color: var(--added);
+  font-size: 0.72rem;
+  align-self: center;
+}
+
+.workspace-banner {
+  position: fixed;
+  top: 12px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.4rem 0.8rem;
+  background: var(--surface-4);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  color: #d5d8dd;
+  font-size: 0.78rem;
+  z-index: 45;
+}
+
+.workspace-banner-error {
+  border-color: var(--danger);
+  color: #f4b4b4;
+}
+
+.workspace-banner-spinner {
+  width: 10px;
+  height: 10px;
+  border: 2px solid #3b82f6;
+  border-top-color: transparent;
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+
+.agent-panel-pr-link {
+  color: var(--link);
+  font-size: 0.7rem;
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+.agent-dialog-files {
+  list-style: none;
+  margin: 0 0 0.6rem;
+  padding: 0;
+  max-height: 160px;
+  overflow-y: auto;
+  font-size: 0.74rem;
+}
+
+/* 008-epics-ai-brief: a scrollable DOM-flow document, not dagre boxes -- see EpicBriefView.tsx.
+   Reuses the same color language as .epic-box (var(--surface-2)/#8b93a7/var(--accent-muted)/var(--border-faint)) so it reads as part
+   of the same app, not a second design system. */
+.epic-brief-view {
+  position: relative;
+  z-index: 5;
+  max-width: 76rem;
+  margin: 4.5rem auto 4rem;
+  padding: 0 1.5rem;
+  display: flex;
+  flex-direction: column;
+  gap: 1.75rem;
+  color: var(--text-1);
+}
+
+.epic-brief-frame {
+  position: relative;
+  border: 2px dashed var(--epic-brief-accent, var(--accent-muted));
+  border-radius: 12px;
+  background: #1a1c23;
+  padding: 1.5rem 1.25rem 1.1rem;
+}
+
+.epic-brief-frame--problem {
+  --epic-brief-accent: var(--accent-muted);
+}
+
+.epic-brief-frame--scope {
+  --epic-brief-accent: #34d399;
+  /* Stretch this one frame edge-to-edge, like .epic-brief-frame--spokes-wide -- the brief view
+     is centered at max-width 76rem, and the negative margin compensates that centering so the
+     scope cards get the full viewport width instead of being squeezed into the column. */
+  margin-right: calc(50% - 50vw + 1.5rem);
+}
+
+.epic-brief-frame--deps {
+  --epic-brief-accent: #f59e0b;
+}
+
+.epic-brief-frame--acceptance {
+  --epic-brief-accent: #a78bfa;
+}
+
+.epic-brief-frame--specs {
+  --epic-brief-accent: #f472b6;
+}
+
+.epic-brief-frame-label {
+  position: absolute;
+  top: -0.8rem;
+  left: 1.1rem;
+  background: var(--epic-brief-accent, var(--accent-muted));
+  color: var(--text-invert);
+  font-size: 0.65rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  padding: 0.15rem 0.65rem;
+  border-radius: 6px;
+}
+
+.epic-brief-regenerate-button {
+  position: absolute;
+  top: -0.8rem;
+  right: 1.1rem;
+  background: transparent;
+  color: var(--epic-brief-accent, var(--accent-muted));
+  border: 1px solid var(--epic-brief-accent, var(--accent-muted));
+  font-size: 0.65rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  padding: 0.15rem 0.65rem;
+  border-radius: 6px;
+  cursor: pointer;
+}
+
+.epic-brief-regenerate-button:hover {
+  background: var(--epic-brief-accent, var(--accent-muted));
+  color: var(--text-invert);
+}
+
+.epic-brief-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.7rem;
+}
+
+.epic-brief-block {
+  position: relative;
+  background: var(--surface-2);
+  border: 1px solid var(--border-faint);
+  border-radius: 8px;
+  padding: 0.65rem 0.8rem;
+  font-size: 0.78rem;
+  line-height: 1.45;
+  max-width: 22rem;
+  flex: 1 1 15rem;
+  margin: 0;
+}
+
+/* Spokes frame with fewer than 10 spokes: render each block at natural width (no shrink)
+   and stretch the frame to the full available width instead of squeezing blocks to fit. */
+.epic-brief-frame--spokes-wide {
+  margin-right: calc(50% - 50vw + 1.5rem);
+}
+
+.epic-brief-row--spokes-wide .epic-brief-block {
+  flex: 0 1 auto;
+}
+
+.epic-brief-block b {
+  display: block;
+  font-size: 0.68rem;
+  color: var(--epic-brief-accent, var(--accent-muted));
+  margin-bottom: 0.25rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+}
+
+.epic-brief-prep-strip {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.6rem;
+  font-size: 0.7rem;
+  color: #8b93a7;
+  background: var(--surface-code);
+  border: 1px dashed var(--border-faint);
+  border-radius: 8px;
+  padding: 0.5rem 0.75rem;
+  margin-bottom: 1rem;
+}
+
+.epic-brief-prep-strip b {
+  color: var(--text-1);
+  font-weight: 600;
+  flex-shrink: 0;
+}
+
+.epic-brief-subgroup-label {
+  font-size: 0.68rem;
+  font-weight: 700;
+  color: #8b93a7;
+  margin-bottom: 0.6rem;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.epic-brief-subgroup-label--out {
+  color: var(--text-3);
+  margin-top: 1rem;
+}
+
+.epic-brief-subgroup-label--testing {
+  color: #4ade80;
+  margin-top: 1rem;
+}
+
+/* The pooled "Testing" subgroup's chip row -- chips wrap here (unlike the feature-card rows) so
+   test tasks from many scope items flow into one labeled block without a hard single-row cap. */
+.epic-brief-testing-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+  align-items: center;
+  padding-bottom: 0.4rem;
+}
+
+/* Always one row, never scrolls -- cards divide the (full-viewport-width) frame evenly and shrink
+   together as more are added instead of wrapping or scrolling. */
+.epic-brief-scope-stack {
+  display: flex;
+  flex-direction: row;
+  flex-wrap: nowrap;
+  gap: 0.75rem;
+  align-items: flex-start;
+  padding-bottom: 0.4rem;
+}
+
+.epic-brief-scope-item {
+  position: relative;
+  background: var(--surface-2);
+  border: 1px solid var(--border-faint);
+  border-left: 5px solid var(--scope-item, #8b93a7);
+  border-radius: 10px;
+  padding: 0.8rem 1rem;
+  flex: 1 1 0;
+  min-width: 0;
+}
+
+/* Dashed, same honesty convention as Patterns' confirmed: null -- a guess never looks like ground
+   truth (Decisions table). */
+.epic-brief-scope-item--draft {
+  border-style: dashed;
+}
+
+.epic-brief-scope-item-head {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.epic-brief-scope-item-title {
+  font-size: 0.82rem;
+  font-weight: 700;
+  color: var(--text-1);
+}
+
+.epic-brief-scope-item-count {
+  font-size: 0.65rem;
+  color: var(--scope-item, #8b93a7);
+  font-weight: 700;
+  background: color-mix(in srgb, var(--scope-item, #8b93a7) 18%, transparent);
+  padding: 0.1rem 0.5rem;
+  border-radius: 10px;
+  flex-shrink: 0;
+  align-self: flex-start;
+}
+
+.epic-brief-scope-item-desc {
+  font-size: 0.74rem;
+  color: #8b93a7;
+  margin: 0.25rem 0 0.6rem;
+  line-height: 1.4;
+}
+
+.epic-brief-task-row {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.epic-brief-task-chip {
+  position: relative;
+  display: inline-block;
+  font-family: "SF Mono", Menlo, Consolas, monospace;
+  font-size: 0.68rem;
+  background: var(--surface-code);
+  border: 1px solid var(--border-faint);
+  border-radius: 6px;
+  padding: 0.15rem 1.4rem 0.15rem 0.5rem;
+  color: var(--text-strong);
+  /* Mono task text carries long identifiers like `WorkloadSource.Workload` -- break them inside
+     the chip so they wrap to the card's edge instead of spilling past the card border. */
+  overflow-wrap: anywhere;
+}
+
+.epic-brief-task-chip .epic-brief-copy-button {
+  position: absolute;
+  top: 0.2rem;
+  right: 0.3rem;
+  opacity: 0;
+  transition: opacity 0.12s ease;
+}
+
+.epic-brief-task-chip:hover .epic-brief-copy-button {
+  opacity: 1;
+}
+
+.epic-brief-task-pflag {
+  color: #fbbf24;
+  font-weight: 700;
+}
+
+.epic-brief-task-repo {
+  color: #8cc6ff;
+  font-weight: 700;
+  margin-right: 0.3rem;
+}
+
+/* Same single-row rule as .epic-brief-scope-stack -- out-of-scope cards never wrap, never scroll. */
+.epic-brief-out-row {
+  display: flex;
+  flex-wrap: nowrap;
+  gap: 0.6rem;
+  padding-bottom: 0.4rem;
+}
+
+.epic-brief-out-block {
+  border: 1px dashed var(--text-3);
+  border-radius: 9px;
+  padding: 0.55rem 0.75rem;
+  font-size: 0.74rem;
+  opacity: 0.6;
+  background: #20222a;
+  flex: 1 1 0;
+  min-width: 0;
+}
+
+.epic-brief-out-block-title {
+  display: block;
+  color: var(--text-3);
+  font-size: 0.68rem;
+  margin-bottom: 0.2rem;
+}
+
+.epic-brief-tag {
+  display: inline-block;
+  font-size: 0.65rem;
+  padding: 0.05rem 0.45rem;
+  border-radius: 10px;
+  background: rgba(139, 147, 167, 0.15);
+  color: #8b93a7;
+  margin-top: 0.35rem;
+  font-weight: 600;
+}
+
+/* 010-epic-specs-on-canvas: the brief's own "Спецификация (SpecKit)" frame -- same stage/section/
+   item chips the box-graph uses, just a flat clickable row instead of dagre boxes. */
+.epic-brief-specs-row {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.epic-brief-specs-stage,
+.epic-brief-specs-section {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+
+.epic-brief-specs-chip {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 0.35rem;
+  align-self: flex-start;
+  background: var(--surface-2);
+  border: 1px solid var(--border-faint);
+  border-radius: 8px;
+  padding: 0.35rem 0.7rem;
+  font-size: 0.76rem;
+  color: var(--text-1);
+  cursor: pointer;
+}
+
+.epic-brief-specs-chip--section {
+  margin-left: 1.2rem;
+  color: var(--text-strong);
+}
+
+.epic-brief-specs-chip-toggle {
+  flex-shrink: 0;
+  color: var(--text-3);
+  font-size: 0.7rem;
+}
+
+.epic-brief-specs-sections,
+.epic-brief-specs-items {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.epic-brief-specs-item {
+  position: relative;
+  display: flex;
+  align-items: baseline;
+  gap: 0.4rem;
+  margin-left: 2.4rem;
+  /* Space for the copy button that appears on the left on hover -- the text itself never shifts. */
+  padding-left: 1.4rem;
+  font-size: 0.74rem;
+  color: var(--text-strong);
+}
+
+.epic-brief-specs-item .epic-brief-copy-button {
+  /* Overlay the done-glyph zone at the row's left edge on hover -- the item's text keeps its
+     placement and the button just fades in ahead of it. */
+  position: absolute;
+  top: 0.1rem;
+  left: 0;
+  opacity: 0;
+  transition: opacity 0.12s ease;
+}
+
+.epic-brief-specs-item:hover .epic-brief-copy-button {
+  opacity: 1;
+}
+
+.epic-brief-ac-block {
+  position: relative;
+}
+
+.epic-brief-ac-glyph {
+  font-size: 0.85rem;
+  margin-right: 0.35rem;
+}
+
+.epic-brief-ac-text {
+  font-size: 0.78rem;
+}
+
+/* Red gap badge (closes_scope_id: null) is the most visible signal a criterion has nothing
+   implementing it (Risks: "surfaces the most damaging failure mode automatically"). */
+.epic-brief-ac-block--gap {
+  border-color: #f87171;
+}
+
+.epic-brief-ac-block--gap .epic-brief-ac-text {
+  color: #f87171;
+}
+
+.epic-brief-trace-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  font-size: 0.65rem;
+  font-weight: 700;
+  padding: 0.1rem 0.5rem;
+  border-radius: 20px;
+  margin-top: 0.5rem;
+  background: color-mix(in srgb, var(--ac-badge, #8b93a7) 15%, transparent);
+  color: var(--ac-badge, #8b93a7);
+}
+
+.epic-brief-trace-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--ac-badge, #8b93a7);
+  display: inline-block;
+}
+
+.epic-brief-empty-copy {
+  margin: 0 0 0.75rem;
+}
+
+.epic-brief-generation-error {
+  color: #f87171;
+  font-size: 0.78rem;
+  margin-bottom: 0.5rem;
+}
+
+.epic-brief-generate-button {
+  border: 1px solid #34d399;
+  border-radius: 6px;
+  background: rgba(52, 211, 153, 0.12);
+  color: #34d399;
+  font-size: 0.78rem;
+  padding: 0.3rem 0.8rem;
+  cursor: pointer;
+}
+
+/* Copy button on each content block of the epic brief -- same small square and idle/copied/
+   failed glyph flash the hierarchy diagrams use (cf. .block-copy-button), so a click gives the
+   same ✓/✕ confirmation. */
+.epic-brief-block .epic-brief-copy-button,
+.epic-brief-scope-item-title .epic-brief-copy-button,
+.epic-brief-ac-text .epic-brief-copy-button,
+.epic-brief-task-chip .epic-brief-copy-button,
+.epic-brief-specs-item .epic-brief-copy-button {
+  flex-shrink: 0;
+  width: 1.2rem;
+  height: 1.2rem;
+  line-height: 1;
+  padding: 0;
+  border: 1px solid var(--control-border);
+  border-radius: 4px;
+  background: transparent;
+  color: var(--control-idle);
+  cursor: pointer;
+}
+
+.epic-brief-block .epic-brief-copy-button:hover,
+.epic-brief-scope-item-title .epic-brief-copy-button:hover,
+.epic-brief-ac-text .epic-brief-copy-button:hover,
+.epic-brief-task-chip .epic-brief-copy-button:hover,
+.epic-brief-specs-item .epic-brief-copy-button:hover {
+  color: #fff;
+  border-color: var(--control-hover-border);
+}
+
+.epic-brief-copy-button.is-copied {
+  color: #6ec46e;
+  border-color: #6ec46e;
+}
+
+.epic-brief-copy-button.is-failed {
+  color: #d97070;
+  border-color: #d97070;
+}
+
+/* Pin the copy button to a block's top-right corner instead of sitting inline in the flow; a
+   hover/active tint echoes the hierarchy blocks' reveal-on-hover affordance. Task chips and spec
+   items get their own (non-pinned) inline placement instead -- see the rules beside their bases. */
+.epic-brief-block .epic-brief-copy-button,
+.epic-brief-scope-item-title .epic-brief-copy-button,
+.epic-brief-ac-text .epic-brief-copy-button {
+  position: absolute;
+  top: 0.4rem;
+  right: 0.5rem;
+  opacity: 0;
+  transition: opacity 0.12s ease;
+}
+
+.epic-brief-block:hover .epic-brief-copy-button,
+.epic-brief-scope-item-title:hover .epic-brief-copy-button,
+.epic-brief-ac-text:hover .epic-brief-copy-button {
+  opacity: 1;
+}
+
+
+/* Last-resort render-crash panel (AppErrorBoundary.tsx). */
+.app-error-boundary {
+  padding: 24px;
+  font-family: var(--font-ui, system-ui, sans-serif);
+  color: #b91c1c;
+}
+.app-error-boundary pre {
+  white-space: pre-wrap;
+  color: #7f1d1d;
+  font-size: 12px;
+}
+
+/* Settings — one gear (web/src/assistant/SettingsRailButton.tsx) opens a category home
+   (SettingsDialog.tsx); the LLM row swaps it for the tabbed LLM dialog
+   (web/src/llm-settings/LlmSettingsPanel.tsx). Never both at once: two live ModalDialogs each bind a
+   capturing document keydown listener, so Escape in the child would dismiss the parent too. */
+.settings-home-dialog {
+  width: 440px;
+  box-shadow: var(--shadow-3);
+}
+
+.settings-home-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.settings-home-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.75rem;
+  width: 100%;
+  box-sizing: border-box;
+  padding: 0.8rem 0.9rem;
+  text-align: left;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  color: var(--text-1);
+  cursor: pointer;
+  font: inherit;
+  transition: background 120ms ease, border-color 120ms ease;
+}
+.settings-home-row:hover {
+  background: var(--surface-3);
+  border-color: var(--border-strong);
+}
+.settings-home-row-icon {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: center;
+  width: 1.9rem;
+  height: 1.9rem;
+  background: var(--surface-0);
+  border-radius: var(--radius-md);
+  color: var(--accent);
+}
+.settings-home-row-text {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  gap: 0.15rem;
+  min-width: 0;
+}
+.settings-home-row-title {
+  font-size: var(--text-base);
+  font-weight: 600;
+}
+.settings-home-row-desc {
+  color: var(--text-2);
+  font-size: var(--text-xs);
+  line-height: 1.45;
+}
+.settings-home-row-summary {
+  color: var(--text-3);
+  font-size: var(--text-2xs);
+}
+.settings-home-row-chevron {
+  flex: 0 0 auto;
+  color: var(--text-3);
+  font-size: 1.15rem;
+  line-height: 1.5;
+}
+
+/* The tabbed LLM dialog. Header and tab bar stay put; only the active tab's panel scrolls. */
+.llm-settings-panel {
+  display: flex;
+  flex-direction: column;
+  width: min(880px, 94vw);
+  max-height: 86vh;
+  padding: 0;
+  overflow: hidden;
+  box-shadow: var(--shadow-3);
+}
+
+.llm-dialog-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  margin: 0 0 0.85rem;
+}
+.llm-dialog-header h2 {
+  margin: 0;
+  color: var(--text-1);
+  font-size: var(--text-lg);
+  font-weight: 600;
+}
+.llm-settings-panel .llm-dialog-header {
+  flex: 0 0 auto;
+  margin: 0;
+  padding: 0.85rem 1.1rem 0.7rem;
+}
+.llm-dialog-close {
+  background: none;
+  border: none;
+  border-radius: var(--radius-sm);
+  color: var(--text-3);
+  cursor: pointer;
+  font: inherit;
+  font-size: var(--text-md);
+  line-height: 1;
+  padding: 0.25rem 0.4rem;
+}
+.llm-dialog-close:hover {
+  background: var(--surface-3);
+  color: var(--text-1);
+}
+
+.llm-dialog-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.5rem;
+  margin-top: 0.9rem;
+}
+
+/* Underline tabs, not boxed buttons — the tab bar doubles as the panel's top rule. */
+.llm-settings-tabs {
+  display: flex;
+  flex: 0 0 auto;
+  gap: 0.1rem;
+  padding: 0 1.1rem;
+  border-bottom: 1px solid var(--border);
+}
+.llm-settings-tabs button {
+  appearance: none;
+  margin-bottom: -1px;
+  padding: 0.45rem 0.7rem;
+  background: none;
+  border: none;
+  border-bottom: 2px solid transparent;
+  color: var(--text-2);
+  cursor: pointer;
+  font: inherit;
+  font-size: var(--text-md);
+}
+.llm-settings-tabs button:hover {
+  color: var(--text-1);
+}
+.llm-settings-tabs button[aria-selected="true"] {
+  border-bottom-color: var(--accent);
+  color: var(--text-1);
+  font-weight: 600;
+}
+
+.llm-settings-tabpanel {
+  flex: 1 1 auto;
+  min-height: 0;
+  padding: 0.9rem 1.1rem 1.1rem;
+  overflow-y: auto;
+}
+
+.llm-tab-body {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+.llm-tab-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+}
+.llm-tab-hint {
+  margin: 0;
+  max-width: 52ch;
+  color: var(--text-2);
+  font-size: var(--text-xs);
+  line-height: 1.45;
+}
+
+/* The "?" marker; its explanation bubble is portalled to <body> and positioned in JS (see
+   HelpHint.tsx) so a bottom-row marker's bubble is never clipped by the scrolling tab panel. */
+.llm-help {
+  position: relative;
+  display: inline-flex;
+  flex: 0 0 auto;
+}
+.llm-help-marker {
+  width: 1.15rem;
+  height: 1.15rem;
+  padding: 0;
+  background: var(--surface-3);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-full);
+  color: var(--text-2);
+  cursor: help;
+  font: inherit;
+  font-size: var(--text-2xs);
+  font-weight: 600;
+  line-height: 1;
+}
+.llm-help-marker:hover,
+.llm-help-marker:focus-visible {
+  border-color: var(--accent);
+  color: var(--text-1);
+}
+.llm-help-bubble {
+  z-index: 220;
+  width: 24rem;
+  max-width: 70vw;
+  padding: 0.6rem 0.7rem;
+  background: var(--surface-3);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-2);
+  color: var(--text-1);
+  font-size: var(--text-2xs);
+  line-height: 1.5;
+  text-align: left;
+  pointer-events: none;
+}
+.llm-help-bubble p {
+  margin: 0;
+}
+.llm-help-bubble .llm-help-foot {
+  margin-top: 0.35rem;
+  color: var(--text-2);
+}
+.llm-help-bubble ul {
+  margin: 0.35rem 0 0;
+  padding-left: 1.1rem;
+}
+.llm-help-bubble li + li {
+  margin-top: 0.3rem;
+}
+
+/* Buttons — one primary (the commit action) and one ghost (everything else) per surface. */
+.llm-button-primary,
+.llm-button-ghost {
+  padding: 0.35rem 0.7rem;
+  border-radius: var(--radius-md);
+  cursor: pointer;
+  font: inherit;
+  font-size: var(--text-xs);
+  white-space: nowrap;
+  transition: background 120ms ease, border-color 120ms ease, color 120ms ease;
+}
+.llm-button-primary {
+  background: var(--primary);
+  border: 1px solid var(--primary);
+  color: #ffffff;
+  font-weight: 600;
+}
+.llm-button-primary:hover:not(:disabled) {
+  background: var(--accent-muted);
+  border-color: var(--accent-muted);
+}
+.llm-button-ghost {
+  background: transparent;
+  border: 1px solid var(--border);
+  color: var(--text-strong);
+}
+.llm-button-ghost:hover:not(:disabled) {
+  background: var(--surface-3);
+  border-color: var(--border-strong);
+  color: var(--text-1);
+}
+.llm-button-danger:hover:not(:disabled) {
+  background: transparent;
+  border-color: var(--danger);
+  color: #f87171;
+}
+.llm-button-primary:disabled,
+.llm-button-ghost:disabled {
+  cursor: default;
+  opacity: 0.45;
+}
+
+.llm-card {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+  padding: 0.75rem 0.85rem;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+}
+.llm-card-title {
+  margin: 0;
+  color: var(--text-1);
+  font-size: var(--text-md);
+  font-weight: 600;
+}
+.llm-card-footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.45rem;
+}
+.llm-provider-form {
+  border-color: var(--border-strong);
+}
+
+.llm-providers-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.llm-provider-card-main {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+}
+.llm-provider-identity {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  min-width: 0;
+}
+.llm-provider-name {
+  color: var(--text-1);
+  font-size: var(--text-md);
+  font-weight: 600;
+}
+.llm-provider-sub {
+  color: var(--text-2);
+  font-size: var(--text-2xs);
+  overflow-wrap: anywhere;
+}
+.llm-provider-actions {
+  display: flex;
+  flex: 0 0 auto;
+  gap: 0.35rem;
+}
+
+/* Pills — the provider's kind/state and a call site's current route read as the same vocabulary. */
+.llm-tag-row {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+}
+.llm-tag {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.1rem 0.45rem;
+  background: var(--surface-0);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-full);
+  color: var(--text-2);
+  font-size: var(--text-2xs);
+  white-space: nowrap;
+}
+.llm-tag-good {
+  border-color: rgba(111, 207, 151, 0.4);
+  color: var(--added);
+}
+.llm-tag-warn {
+  border-color: rgba(234, 179, 8, 0.4);
+  color: var(--warning);
+}
+.llm-tag-quiet {
+  color: var(--text-3);
+}
+
+.llm-field-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.6rem 0.7rem;
+}
+.llm-field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  min-width: 0;
+}
+.llm-field-label {
+  color: var(--text-2);
+  font-size: var(--text-2xs);
+  font-weight: 600;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+}
+.llm-field-hint {
+  grid-column: 1 / -1;
+  margin: 0;
+  color: var(--text-2);
+  font-size: var(--text-2xs);
+  line-height: 1.45;
+}
+.llm-field input,
+.llm-field select,
+.llm-call-site-controls input,
+.llm-call-site-controls select {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 0.35rem 0.5rem;
+  background: var(--surface-code);
+  border: 1px solid var(--border-faint);
+  border-radius: var(--radius-sm);
+  color: var(--text-1);
+  font: inherit;
+  font-size: var(--text-xs);
+}
+.llm-field input:focus-visible,
+.llm-field select:focus-visible,
+.llm-call-site-controls input:focus-visible,
+.llm-call-site-controls select:focus-visible {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 2px rgba(138, 180, 248, 0.18);
+  outline: none;
+}
+.llm-check {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  min-height: 1.85rem;
+  color: var(--text-strong);
+  font-size: var(--text-xs);
+}
+.llm-check input {
+  flex: 0 0 auto;
+  width: auto;
+  accent-color: var(--primary);
+  margin: 0;
+}
+
+.llm-empty {
+  padding: 1.4rem 1rem;
+  border: 1px dashed var(--border);
+  border-radius: var(--radius-lg);
+  text-align: center;
+}
+.llm-empty p {
+  margin: 0;
+  color: var(--text-1);
+  font-size: var(--text-md);
+}
+.llm-empty .llm-empty-hint {
+  margin-top: 0.35rem;
+  color: var(--text-2);
+  font-size: var(--text-xs);
+}
+
+.llm-tab-subhead {
+  margin: 0.4rem 0 -0.2rem;
+  color: var(--text-3);
+  font-size: var(--text-2xs);
+  font-weight: 600;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+}
+
+.llm-call-sites-table {
+  width: 100%;
+  border-collapse: collapse;
+  table-layout: fixed;
+}
+.llm-call-site-group-members {
+  display: block;
+  color: var(--text-3);
+  font-size: var(--text-2xs);
+  font-weight: 400;
+}
+.llm-call-sites-table th:nth-child(1) {
+  width: 22%;
+}
+.llm-call-sites-table th:nth-child(2) {
+  width: 20%;
+}
+.llm-call-sites-table th {
+  padding: 0 0.5rem 0.4rem;
+  border-bottom: 1px solid var(--border);
+  color: var(--text-3);
+  font-size: var(--text-2xs);
+  font-weight: 600;
+  letter-spacing: 0.03em;
+  text-align: left;
+  text-transform: uppercase;
+}
+.llm-call-sites-table td {
+  padding: 0.55rem 0.5rem;
+  border-bottom: 1px solid var(--border-subtle);
+  vertical-align: top;
+}
+.llm-call-sites-table tbody tr:last-child td {
+  border-bottom: none;
+}
+.llm-call-site-name {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  margin-bottom: 0.25rem;
+  color: var(--text-1);
+  font-size: var(--text-xs);
+  font-weight: 600;
+}
+.llm-call-site-controls {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+}
+.llm-call-site-controls select {
+  width: auto;
+  min-width: 7rem;
+  max-width: 10rem;
+}
+/* The capability/mode toggle only ever holds "API" or "CLI", so it does not need list width. */
+.llm-call-site-controls .llm-mode-select {
+  min-width: 0;
+  width: 4.6rem;
+}
+.llm-call-site-controls input {
+  width: 7rem;
+}
+
+.llm-status-ok {
+  margin: 0;
+  color: var(--added);
+  font-size: var(--text-xs);
+}
+.llm-status-fail {
+  margin: 0;
+  color: #f87171;
+  font-size: var(--text-xs);
+}
+
+.llm-billing-warning {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.1rem 0.45rem;
+  background: rgba(234, 179, 8, 0.1);
+  border: 1px solid rgba(234, 179, 8, 0.4);
+  border-radius: var(--radius-full);
+  color: var(--warning);
+  font-size: var(--text-2xs);
+}
+
+.assistant-nobridge {
+  color: var(--text-2);
+  margin-bottom: 0.6rem;
+}
+.assistant-nobridge code {
+  background: var(--surface-code);
+  padding: 0 0.25rem;
+  border-radius: var(--radius-xs);
+}
+
+/* 016-single-canvas-dashboard, Stage 2 — the one canvas-document view (behind ?canvas=doc). A
+   display:contents layout no-op: this element is never itself styled, its children are what
+   actually sits in the canvas camera. */
+.canvas-doc-view {
+  display: contents;
+}
+
+.canvas-doc-relationships {
+  position: absolute;
+  top: 0;
+  left: 0;
+  z-index: 2;
+  pointer-events: none;
+  overflow: visible;
+}
+
+.canvas-hierarchy-element {
+  z-index: 1;
+}
+
+.canvas-hierarchy-element--dragging {
+  opacity: 0.85;
+}
+
+/* A group's frame — a background rect sized to enclose its current members (GroupFrame.tsx
+   recomputes left/top/width/height every render), not a styled box of its own like the other
+   render kinds. z-index 0 keeps it behind every box (all z-index 1) regardless of DOM order; no
+   pointer-events so it never steals a click/drag from a box it encloses. Border/background/label
+   color all read one "R, G, B" custom property (mirrors the `--group-accent` idiom above) set by
+   whichever `.canvas-group-frame-color-<n>` class GroupFrame paired with this same class -- so the
+   6-hex palette itself lives in exactly one place instead of being repeated per property. */
+.canvas-group-frame {
+  z-index: 0;
+  box-sizing: border-box;
+  border: 2px dashed rgb(var(--group-frame-rgb, 148, 163, 184));
+  border-radius: 12px;
+  background: rgba(var(--group-frame-rgb, 148, 163, 184), 0.06);
+  pointer-events: none;
+}
+
+.canvas-group-frame-label {
+  position: absolute;
+  top: 12px;
+  left: 16px;
+  font-weight: 600;
+  color: rgb(var(--group-frame-rgb, 148, 163, 184));
+}
+
+/* GroupFrame's own per-group color -- same 6-hex palette and hash (groupColorIndex) as
+   nodeAccent.tsx's `custom-node-group-<n>`, so a group's frame and any per-box `meta.group` accent
+   with the same name agree. */
+.canvas-group-frame-color-0 { --group-frame-rgb: 99, 102, 241; }
+.canvas-group-frame-color-1 { --group-frame-rgb: 52, 211, 153; }
+.canvas-group-frame-color-2 { --group-frame-rgb: 245, 158, 11; }
+.canvas-group-frame-color-3 { --group-frame-rgb: 244, 114, 182; }
+.canvas-group-frame-color-4 { --group-frame-rgb: 167, 139, 250; }
+.canvas-group-frame-color-5 { --group-frame-rgb: 34, 211, 238; }
+
+/* 054-diagram-flow-order: a Lane's soft background area (LaneArea.tsx) -- deliberately borderless,
+   unlike .canvas-group-frame's dashed rectangle above, so a dense process diagram doesn't gain a
+   second kind of hard outline to read; the tint alone (a higher alpha than the group frame's 0.06,
+   since there's no border to also carry the signal) is what says "same performer". Own palette
+   (laneColor.ts) -- never the same hash as the group frame or the concurrency island below, so a box
+   in a real group AND a Lane AND an island always shows three distinguishable colors. */
+.canvas-lane-area {
+  z-index: 0;
+  box-sizing: border-box;
+  border-radius: 16px;
+  background: rgba(var(--lane-area-rgb, 148, 163, 184), 0.12);
+  pointer-events: none;
+}
+
+.canvas-lane-area-label {
+  position: absolute;
+  top: 10px;
+  left: 14px;
+  font-weight: 600;
+  font-size: 0.78rem;
+  color: rgb(var(--lane-area-rgb, 148, 163, 184));
+}
+
+/* Every value below is also the label's text color (see .canvas-lane-area-label) against the
+   --surface-0 canvas background -- each is chosen to clear WCAG 2.1 AA's 4.5:1 minimum for normal
+   text with a margin (>=5:1); re-check contrast before changing any of them. */
+.canvas-lane-area-color-0 { --lane-area-rgb: 56, 189, 248; }
+.canvas-lane-area-color-1 { --lane-area-rgb: 250, 204, 21; }
+.canvas-lane-area-color-2 { --lane-area-rgb: 192, 132, 252; }
+.canvas-lane-area-color-3 { --lane-area-rgb: 74, 222, 128; }
+.canvas-lane-area-color-4 { --lane-area-rgb: 251, 146, 60; }
+.canvas-lane-area-color-5 { --lane-area-rgb: 245, 80, 108; }
+
+/* 054-diagram-flow-order: a Concurrency island's soft background area (ConcurrencyIslandArea.tsx) --
+   boxes sharing a leading `order` digit (e.g. "2a"/"2b"), purely derived, never authored directly.
+   Same borderless-tint treatment as .canvas-lane-area above (own palette, concurrencyIslandColor.ts)
+   so it never coincides in color with a Lane or a real structural group, even though all three can
+   overlap on one box at once. */
+.canvas-concurrency-island {
+  z-index: 0;
+  box-sizing: border-box;
+  border-radius: 16px;
+  background: rgba(var(--concurrency-island-rgb, 148, 163, 184), 0.12);
+  pointer-events: none;
+}
+
+.canvas-concurrency-island-label {
+  position: absolute;
+  bottom: 8px;
+  right: 14px;
+  font-weight: 600;
+  font-size: 0.72rem;
+  color: rgb(var(--concurrency-island-rgb, 148, 163, 184));
+}
+
+/* Every value below is also the label's text color (see .canvas-concurrency-island-label) against
+   the --surface-0 canvas background -- each is chosen to clear WCAG 2.1 AA's 4.5:1 minimum for
+   normal text with a margin (>=5:1); re-check contrast before changing any of them. */
+.canvas-concurrency-island-color-0 { --concurrency-island-rgb: 237, 80, 158; }
+.canvas-concurrency-island-color-1 { --concurrency-island-rgb: 45, 212, 191; }
+.canvas-concurrency-island-color-2 { --concurrency-island-rgb: 179, 106, 248; }
+.canvas-concurrency-island-color-3 { --concurrency-island-rgb: 132, 204, 22; }
+.canvas-concurrency-island-color-4 { --concurrency-island-rgb: 251, 191, 36; }
+.canvas-concurrency-island-color-5 { --concurrency-island-rgb: 96, 165, 250; }
+
+/* A whole diagram's frame (DiagramFrame.tsx) -- a dashed rectangle enclosing every element on one
+   canvas layer, like .canvas-group-frame above, but genuinely interactive: the frame itself is a
+   drag handle (see DiagramFrame's own doc comment for why that keeps it out of the GroupFrame/
+   LaneArea/ConcurrencyIslandArea family instead of becoming a fourth entry there). z-index 0, same
+   as the other three background areas -- every box stays z-index 1 above it, so a box's own click/
+   drag is unaffected; the frame only ever catches a pointer in the gaps around/between boxes.
+   `cursor: grab`/`grabbing` is the one visual hint that the background itself, not just a box, can
+   be dragged. Color comes from one `--diagram-frame-color` custom property, set per diagram kind by
+   whichever `.canvas-diagram-frame-<kind>`/`-color-<n>` class DiagramFrame paired with this class --
+   see diagramFrameColor.ts. */
+.canvas-diagram-frame {
+  z-index: 0;
+  box-sizing: border-box;
+  border: 2px dashed var(--diagram-frame-color, #94a3b8);
+  border-radius: 14px;
+  background: color-mix(in srgb, var(--diagram-frame-color, #94a3b8) 6%, transparent);
+  cursor: grab;
+}
+
+.canvas-diagram-frame--dragging {
+  cursor: grabbing;
+  background: color-mix(in srgb, var(--diagram-frame-color, #94a3b8) 12%, transparent);
+}
+
+.canvas-diagram-frame-label {
+  position: absolute;
+  top: 12px;
+  left: 16px;
+  font-weight: 600;
+  font-size: 0.85rem;
+  color: var(--diagram-frame-color, #94a3b8);
+  pointer-events: none;
+}
+
+/* The four builtin recipe kinds each get their own fixed hue (styles.css's "Status / kind hues"
+   tokens, so this stays one edit away from ever re-theming). Everything else -- a custom type's
+   `custom/<id>`, or a one-off skill-authored layer -- falls through to the indexed palette below. */
+.canvas-diagram-frame-c1 { --diagram-frame-color: var(--c1); }
+.canvas-diagram-frame-patterns { --diagram-frame-color: var(--patterns); }
+.canvas-diagram-frame-impact { --diagram-frame-color: var(--impact); }
+.canvas-diagram-frame-epics { --diagram-frame-color: var(--epics); }
+
+/* groupColorIndex hashes a non-builtin layer key (a custom type's `custom/<id>`, or a one-off
+   skill-authored layer) into one of these 6 -- its own distinct set of hex values, same reasoning as
+   .canvas-lane-area-color-<n>/.canvas-concurrency-island-color-<n> each keeping their own palette
+   rather than reusing .canvas-group-frame-color-<n>'s: a box that happens to sit in a real group AND
+   have its diagram's frame hashed onto the same index must still read as two distinguishable colors,
+   not a coincidental match. Chosen to clear WCAG 2.1 AA's 4.5:1 contrast minimum against --surface-0,
+   same as the other three palettes -- re-check contrast before changing any of them. */
+.canvas-diagram-frame-color-0 { --diagram-frame-color: #f43f5e; }
+.canvas-diagram-frame-color-1 { --diagram-frame-color: #06b6d4; }
+.canvas-diagram-frame-color-2 { --diagram-frame-color: #a3e635; }
+.canvas-diagram-frame-color-3 { --diagram-frame-color: #fde047; }
+.canvas-diagram-frame-color-4 { --diagram-frame-color: #818cf8; }
+.canvas-diagram-frame-color-5 { --diagram-frame-color: #e879f9; }
+
+/* A free-text sticky note — also new UI, styled plainly rather than mimicking any recipe kind. */
+.canvas-note-box {
+  z-index: 1;
+  box-sizing: border-box;
+  display: flex;
+  border: 1px solid var(--border-strong);
+  border-radius: 8px;
+  background: #fef9c3;
+  color: #1f2937;
+  padding: 0.5rem;
+}
+
+.canvas-note-box--dragging {
+  opacity: 0.85;
+}
+
+.canvas-note-box-text {
+  white-space: pre-wrap;
+  cursor: text;
+  width: 100%;
+}
+
+.canvas-note-box-input {
+  width: 100%;
+  height: 100%;
+  resize: none;
+  border: none;
+  background: transparent;
+  font: inherit;
+  color: inherit;
+}

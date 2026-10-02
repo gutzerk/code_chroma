@@ -1,0 +1,161 @@
+{
+  "definition": {
+    "grouping": {
+      "enabled": true
+    },
+    "style": "dependency-graph"
+  },
+  "graph_shape": {
+    "nodes": [
+      {
+        "aliases": [],
+        "children": [],
+        "dedup_id": null,
+        "description": "",
+        "group": "billing",
+        "key": "svc",
+        "label": "BillingService",
+        "meta": {
+          "group": "billing"
+        },
+        "node_id": "component::billing/service.py",
+        "render": "custom",
+        "style": null
+      },
+      {
+        "aliases": [],
+        "children": [],
+        "dedup_id": null,
+        "description": "",
+        "group": "shared",
+        "key": "utils",
+        "label": "TextUtils",
+        "meta": {
+          "group": "shared"
+        },
+        "node_id": "component::shared/text_utils.py",
+        "render": "custom",
+        "style": null
+      },
+      {
+        "aliases": [],
+        "children": [],
+        "dedup_id": null,
+        "description": "",
+        "group": "shared",
+        "key": "ghost",
+        "label": "Ghost",
+        "meta": {
+          "group": "shared"
+        },
+        "node_id": null,
+        "render": "custom",
+        "style": null
+      }
+    ],
+    "relations": [
+      {
+        "from": "svc",
+        "kind": "uses",
+        "to": "utils"
+      },
+      {
+        "from": "svc",
+        "kind": "uses",
+        "to": "svc"
+      }
+    ]
+  },
+  "input": {
+    "generated_at": "2026-01-01T00:00:00Z",
+    "nodes": [
+      {
+        "group": "billing",
+        "id": "svc",
+        "name": "BillingService",
+        "path": "billing/service.py"
+      },
+      {
+        "group": "shared",
+        "id": "utils",
+        "name": "TextUtils",
+        "path": "shared/text_utils.py"
+      },
+      {
+        "group": "shared",
+        "id": "ghost",
+        "name": "Ghost",
+        "path": "shared/missing.py"
+      }
+    ],
+    "relations": [
+      {
+        "from": "svc",
+        "kind": "uses",
+        "to": "utils"
+      },
+      {
+        "from": "svc",
+        "kind": "uses",
+        "to": "svc"
+      }
+    ]
+  },
+  "resolved": {
+    "diagnostics": {
+      "dropped": [
+        {
+          "detail": "shared/missing.py",
+          "id": "ghost",
+          "reason": "unresolved_path",
+          "what": "node"
+        }
+      ],
+      "dropped_count": 1,
+      "shown": 1,
+      "truncated": false
+    },
+    "generated_at": "2026-01-01T00:00:00Z",
+    "groups": [
+      "billing",
+      "shared"
+    ],
+    "has_diagram": true,
+    "nodes": [
+      {
+        "group": "billing",
+        "id": "svc",
+        "name": "BillingService",
+        "node_id": "component::billing/service.py",
+        "path": "billing/service.py"
+      },
+      {
+        "group": "shared",
+        "id": "utils",
+        "name": "TextUtils",
+        "node_id": "component::shared/text_utils.py",
+        "path": "shared/text_utils.py"
+      },
+      {
+        "group": "shared",
+        "id": "ghost",
+        "name": "Ghost",
+        "node_id": null,
+        "path": "shared/missing.py"
+      }
+    ],
+    "relations": [
+      {
+        "from": "svc",
+        "kind": "uses",
+        "to": "utils"
+      },
+      {
+        "from": "svc",
+        "kind": "uses",
+        "to": "svc"
+      }
+    ],
+    "style": "dependency-graph"
+  }
+}

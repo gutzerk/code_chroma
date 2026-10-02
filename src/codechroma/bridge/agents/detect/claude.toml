@@ -1,0 +1,32 @@
+# Status rules for the `claude` CLI. Data, not code, on purpose: a Claude TUI change is a fix here,
+# not a patch to status.py — and a second agent kind is a second file plus an ALLOWED_AGENTS entry.
+name = "claude"
+process = ["claude", "claude-code", "node"]
+tail_lines = 8
+
+[working]
+title_regex = ["[⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏]"]     # braille spinner in the title
+osc_progress = ["running"]
+# Second signal for terminals where the title never reaches us: the spinner line's own suffix.
+screen_regex = ["\\besc to interrupt\\b"]
+
+[blocked]
+screen_regex = [
+  "Do you want to proceed\\?",
+  "waiting for permission",
+  "\\bEnter to select\\b",
+  "\\bEsc to cancel\\b",
+  "^\\s*❯?\\s*\\d+\\.\\s+(Yes|No)\\b",
+]
+
+[idle]
+screen_regex = ["^\\s*❯\\s*$"]
+osc_progress = ["idle", "none"]
+
+# Transient full-screen modes: hold the previous status, don't fall back to idle.
+[transient]
+screen_regex = [
+  "Select a model",
+  "Conversation transcript",
+  "^\\s*/\\w+.*\\(esc to (cancel|exit)\\)",
+]

@@ -1,0 +1,274 @@
+{
+  "graph_shape": {
+    "nodes": [
+      {
+        "aliases": [],
+        "children": [
+          {
+            "aliases": [],
+            "children": [
+              {
+                "aliases": [],
+                "children": [],
+                "dedup_id": "svc",
+                "description": "",
+                "group": null,
+                "key": "c1-sub::system/billing/svc",
+                "label": "Service",
+                "meta": {
+                  "icon": null,
+                  "kind": null,
+                  "trail": "system/billing/svc"
+                },
+                "node_id": "component::billing/service.py",
+                "render": "c1",
+                "style": null
+              },
+              {
+                "aliases": [],
+                "children": [],
+                "dedup_id": "models",
+                "description": "",
+                "group": null,
+                "key": "c1-sub::system/billing/models",
+                "label": "Models",
+                "meta": {
+                  "icon": null,
+                  "kind": null,
+                  "trail": "system/billing/models"
+                },
+                "node_id": "dir::billing/models",
+                "render": "c1",
+                "style": null
+              }
+            ],
+            "dedup_id": "billing",
+            "description": "",
+            "group": null,
+            "key": "c1-sub::system/billing",
+            "label": "Billing",
+            "meta": {
+              "icon": null,
+              "kind": null,
+              "trail": "system/billing"
+            },
+            "node_id": "dir::billing",
+            "render": "c1",
+            "style": null
+          },
+          {
+            "aliases": [],
+            "children": [],
+            "dedup_id": "utils",
+            "description": "",
+            "group": null,
+            "key": "c1-sub::system/utils",
+            "label": "Utils",
+            "meta": {
+              "icon": null,
+              "kind": null,
+              "trail": "system/utils"
+            },
+            "node_id": "component::shared/text_utils.py",
+            "render": "c1",
+            "style": null
+          }
+        ],
+        "dedup_id": null,
+        "description": "The sample billing system",
+        "group": null,
+        "key": "c1-system",
+        "label": "Sample",
+        "meta": {},
+        "node_id": null,
+        "render": "c1",
+        "style": null
+      },
+      {
+        "aliases": [],
+        "children": [
+          {
+            "aliases": [],
+            "children": [],
+            "dedup_id": "client",
+            "description": "",
+            "group": null,
+            "key": "c1-sub::db/client",
+            "label": "Client",
+            "meta": {
+              "icon": null,
+              "kind": null,
+              "trail": "db/client"
+            },
+            "node_id": "dir::users",
+            "render": "c1",
+            "style": null
+          }
+        ],
+        "dedup_id": null,
+        "description": "",
+        "group": null,
+        "key": "c1-actor::db",
+        "label": "DB",
+        "meta": {},
+        "node_id": null,
+        "render": "c1",
+        "style": null
+      }
+    ],
+    "relations": [
+      {
+        "from": "c1-system",
+        "kind": null,
+        "label": "Reads",
+        "to": "c1-actor::db"
+      },
+      {
+        "from": "c1-sub::system/billing/svc",
+        "kind": null,
+        "label": "Uses",
+        "to": "c1-sub::system/utils"
+      }
+    ]
+  },
+  "input": {
+    "actors": [
+      {
+        "children": [
+          {
+            "id": "client",
+            "name": "Client",
+            "path": "users"
+          }
+        ],
+        "id": "db",
+        "name": "DB",
+        "type": "external_system"
+      }
+    ],
+    "relationships": [
+      {
+        "from": "system",
+        "label": "Reads",
+        "to": "db"
+      },
+      {
+        "from": "svc",
+        "label": "Uses",
+        "to": "utils"
+      }
+    ],
+    "system": {
+      "children": [
+        {
+          "children": [
+            {
+              "id": "svc",
+              "name": "Service",
+              "path": "billing/service.py"
+            },
+            {
+              "id": "models",
+              "name": "Models",
+              "path": "billing/models"
+            }
+          ],
+          "id": "billing",
+          "name": "Billing",
+          "path": "billing"
+        },
+        {
+          "id": "utils",
+          "name": "Utils",
+          "path": "shared/text_utils.py"
+        }
+      ],
+      "description": "The sample billing system",
+      "name": "Sample"
+    }
+  },
+  "resolved": {
+    "actors": [
+      {
+        "children": [
+          {
+            "id": "client",
+            "name": "Client",
+            "node_id": "dir::users",
+            "path": "users"
+          }
+        ],
+        "id": "db",
+        "name": "DB",
+        "type": "external_system"
+      }
+    ],
+    "diagnostics": {
+      "dropped": [],
+      "dropped_count": 0,
+      "shown": 0,
+      "truncated": false
+    },
+    "relationships": [
+      {
+        "from": "system",
+        "from_node_id": "c1-system",
+        "label": "Reads",
+        "scope": "box",
+        "to": "db",
+        "to_node_id": "c1-actor::db"
+      },
+      {
+        "from": "svc",
+        "from_node_id": "c1-sub::system/billing/svc",
+        "label": "Uses",
+        "scope": "internal",
+        "to": "utils",
+        "to_node_id": "c1-sub::system/utils"
+      }
+    ],
+    "system": {
+      "children": [
+        {
+          "children": [
+            {
+              "id": "svc",
+              "name": "Service",
+              "node_id": "component::billing/service.py",
+              "path": "billing/service.py"
+            },
+            {
+              "id": "models",
+              "name": "Models",
+              "node_id": "dir::billing/models",
+              "path": "billing/models"
+            }
+          ],
+          "id": "billing",
+          "name": "Billing",
+          "node_id": "dir::billing",
+          "path": "billing",
+          "unmapped_ids": [
+            "component::billing/reporter.go"
+          ]
+        },
+        {
+          "id": "utils",
+          "name": "Utils",
+          "node_id": "component::shared/text_utils.py",
+          "path": "shared/text_utils.py"
+        }
+      ],
+      "description": "The sample billing system",
+      "name": "Sample"
+    },
+    "unmapped": [
+      {
+        "level": "folder",
+        "name": "web",
+        "node_id": "dir::web",
+        "path": "web"
+      }
+    ]
+  }
+}

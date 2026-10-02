@@ -1,0 +1,13 @@
+prompt: |-
+  This repository's architecture map grouped every file into a component except the ones below,
+  which sit on a boundary. You have no tools -- do not attempt to call one; answer only with the
+  JSON the schema requires.
+
+  For each file, pick the single best-fitting component id from its own list of real candidates --
+  never invent a new id, and never leave a file unassigned; pick the closest candidate even if it's
+  an imperfect fit.
+
+  {files_with_candidates_json}
+
+  Ground your choice in the real code below, gathered from this repository's existing wiki:
+  {wiki_context}

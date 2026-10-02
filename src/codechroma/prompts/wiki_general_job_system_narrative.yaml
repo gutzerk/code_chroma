@@ -1,0 +1,8 @@
+prompt: |-
+  This repository's AI-generated architecture map is otherwise finished. You have no tools -- do not
+  attempt to call one; answer only with the JSON the schema requires.
+
+  Its containers: {containers_json}
+
+  Write `narrative`: one to three sentences describing what this system is, for someone who has
+  never seen it, based on the containers above.

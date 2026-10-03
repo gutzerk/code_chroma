@@ -196,7 +196,14 @@ jobs:
       # SHA-256 sidecar for the Setup.exe, verified by install_desktop.ps1 before it's launched.
       - name: Hash the Setup.exe
         shell: pwsh
-        run: Get-FileHash desktop/dist/CodeChroma-*-Setup.exe -Algorithm SHA256 | ForEach-Object { "$($_.Hash.ToLowerInvariant())  $($_.Path | Split-Path -Leaf)" } | Set-Content desktop/dist/CodeChroma-*-Setup.exe.sha256
+        run: |
+          $installers = @(Get-ChildItem -Path "desktop/dist/CodeChroma-*-Setup.exe" -File)
+          if ($installers.Count -ne 1) {
+            throw "Expected exactly one Setup.exe, found $($installers.Count)."
+          }
+          $installer = $installers[0]
+          $hash = (Get-FileHash $installer.FullName -Algorithm SHA256).Hash.ToLowerInvariant()
+          "$hash  $($installer.Name)" | Set-Content "$($installer.FullName).sha256"
 
       # Signs the Setup.exe with a short-lived OIDC identity for the in-app updater's provenance check.
       - name: Attest the Setup.exe
@@ -272,8 +279,20 @@ jobs:
       # updater for the AppImage) before install.
       - name: Hash the Linux installers
         run: |
-          sha256sum desktop/dist/CodeChroma-*-x64.deb > desktop/dist/CodeChroma-*-x64.deb.sha256
-          sha256sum desktop/dist/CodeChroma-*-x64.AppImage > desktop/dist/CodeChroma-*-x64.AppImage.sha256
+          shopt -s nullglob
+          debs=(desktop/dist/CodeChroma-*-x64.deb)
+          appimages=(desktop/dist/CodeChroma-*-x64.AppImage)
+          if (( ${#debs[@]} != 1 )); then
+            echo "Expected exactly one x64 deb, found ${#debs[@]}." >&2
+            exit 1
+          fi
+          if (( ${#appimages[@]} != 1 )); then
+            echo "Expected exactly one x64 AppImage, found ${#appimages[@]}." >&2
+            exit 1
+          fi
+          for installer in "${debs[@]}" "${appimages[@]}"; do
+            sha256sum "$installer" > "$installer.sha256"
+          done
 
       # Sign both Linux installers with a short-lived OIDC identity for provenance verification; each
       # matched file gets its own attestation.

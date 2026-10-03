@@ -52,7 +52,7 @@ jobs:
         run: poetry run mypy src/codechroma
         continue-on-error: true
 
-      - run: poetry run pytest -q
+      - run: poetry run pytest -n auto -q
 
   web:
     name: Web canvas

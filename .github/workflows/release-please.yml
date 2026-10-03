@@ -336,15 +336,21 @@ jobs:
       - name: Build and upload latest.json
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          RELEASE_TAG: ${{ needs.release.outputs.tag_name }}
+          REPO: ${{ github.repository }}
         run: |
-          TAG="${{ needs.release.outputs.tag_name }}"
-          VERSION="${TAG#v}"
-          REPO="${{ github.repository }}"
-          python3 - "$REPO" "$VERSION" <<'PY'
-          import json, os, sys, urllib.request
+          python3 - <<'PY'
+          import json, os, re, urllib.request
 
-          repo, version = sys.argv[1], sys.argv[2]
-          base = f"https://github.com/{repo}/releases/download/v{version}"
+          repo, tag = os.environ["REPO"], os.environ["RELEASE_TAG"]
+          match = re.fullmatch(
+              r"(?:[A-Za-z0-9._-]+-)?v(?P<version>\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?)",
+              tag,
+          )
+          if not match:
+              raise SystemExit(f"Unexpected release tag format: {tag!r}")
+          version = match.group("version")
+          base = f"https://github.com/{repo}/releases/download/{tag}"
           targets = ["macos-arm64", "macos-x64", "windows-x64", "linux-x64", "linux-appimage"]
           names = {
               "macos-arm64":   f"CodeChroma-{version}-arm64.dmg",

@@ -18,9 +18,11 @@ installers. The desktop package declares its homepage and author email, and the 
 declares the Debian maintainer; electron-builder requires all three when building `.deb` packages.
 The Linux artifact names use `x64` explicitly because electron-builder expands its Linux `x64`
 architecture to `amd64`, while the release workflow and install manifest use `x64`. The release
-workflow writes each SHA-256 sidecar beside its exact versioned installer;
-the electron-builder targets and names are explicit so they match the install manifest. `python -m
-codechroma.bridge.launch` remains the browser/dev path and is unaffected.
+workflow writes each SHA-256 sidecar beside its exact versioned installer; the manifest uses
+release-please's exact tag (for example, `codechroma-v0.2.0`) for download URLs and the semantic
+version for installer filenames. The electron-builder targets and names are explicit so they match
+the install manifest. `python -m codechroma.bridge.launch` remains the browser/dev path and is
+unaffected.
 
 End users can install the latest release with [`install.sh`](../../install.sh) on macOS/Linux
 or [`install.ps1`](../../install.ps1) on Windows. Both scripts read

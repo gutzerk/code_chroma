@@ -4,6 +4,8 @@ directories:
   output: dist
   buildResources: build
 
+icon: build/icon.png
+
 files:
   - out/**/*
   - launcher/**/*

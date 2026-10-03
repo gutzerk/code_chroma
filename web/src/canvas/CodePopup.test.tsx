@@ -22,7 +22,7 @@ afterEach(() => {
 
 describe("CodePopup", () => {
   it("renders a diff instead of plain source once a diff exists for the node", () => {
-    diffOverlayStore.setDiffs([
+    diffOverlayStore.write([
       {
         node_id: NODE.node_id,
         original_source: NODE.source ?? "",

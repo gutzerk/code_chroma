@@ -117,4 +117,96 @@ describe("routeEdges", () => {
     const toAnchor = routed.route.points[routed.route.points.length - 1];
     expect(toAnchor).toEqual({ x: 400, y: 30 });
   });
+
+  it("centres a single port on the side's midpoint and steps pairs out symmetrically", () => {
+    // Three distinct sources all to the left of C, so all three arrows enter C's left side as three
+    // different pairs (no assignLanes interference) -- odd count, so one arrow sits exactly on the
+    // midpoint (y=150 for a 100-tall box) and the other two step out ±portGap each.
+    const boxes: Record<string, Rect> = {
+      a: { left: 0, top: 60, width: 100, height: 60 },
+      b: { left: 0, top: 130, width: 100, height: 60 },
+      c: { left: 400, top: 100, width: 100, height: 100 },
+    };
+    const relations: Relation[] = [
+      { from: "a", to: "c" },
+      { from: "b", to: "c" },
+    ];
+
+    const routed = routeEdges(
+      relations,
+      (relation) => pairKeyOf(relation.from, relation.to),
+      endpointsOf(boxes),
+      Object.values(boxes),
+    );
+
+    const toAnchors = routed.map((edge) => edge.route.points[edge.route.points.length - 1]);
+    expect(toAnchors[0].x).toBe(400);
+    expect(toAnchors[1].x).toBe(400);
+    expect(toAnchors[1].y).not.toBe(toAnchors[0].y);
+    // Even count: no centre port -- the pair sits symmetric around the midpoint at ±portGap/2.
+    const mid = (toAnchors[0].y + toAnchors[1].y) / 2;
+    expect(mid).toBe(150);
+    expect(Math.abs(toAnchors[1].y - toAnchors[0].y)).toBe(26);
+  });
+
+  it("keeps arrows spread when the same box is measured at slightly different rects per edge", () => {
+    // ConnectionsOverlay measures each edge's endpoint boxes separately; subpixel rounding can give
+    // the SAME logical box two rects (300.6x72.4 vs 299.4x72.6 here). Without a stable id the
+    // rect-derived grouping key would split C into two groups and fuse both arrows near its centre.
+    // Passing fromId/toId keeps them grouped by the box, not its drifting geometry.
+    const a: Rect = { left: 0, top: 0, width: 100, height: 60 };
+    const b: Rect = { left: 0, top: 200, width: 100, height: 60 };
+    const c1: Rect = { left: 400, top: 100, width: 300.6, height: 72.4 };
+    const c2: Rect = { left: 400, top: 100, width: 299.4, height: 72.6 };
+
+    const routed = routeEdges(
+      [{ who: "1" }, { who: "2" }],
+      (i) => i.who,
+      (i) =>
+        i.who === "1"
+          ? { from: a, to: c1, fromId: "a", toId: "c" }
+          : { from: b, to: c2, fromId: "b", toId: "c" },
+      [a, b, c1, c2],
+    );
+
+    // Both on C's right edge (x=400) at symmetric heights around the midpoint: the pair spreads and
+    // neither sits on the other's spot despite the two rects differing by subpixels.
+    const toAnchors = routed.map((edge) => edge.route.points[edge.route.points.length - 1]);
+    expect(toAnchors[0].x).toBe(400);
+    expect(toAnchors[1].x).toBe(400);
+    expect(toAnchors[1].y).not.toBe(toAnchors[0].y);
+    expect(Math.abs(toAnchors[1].y - toAnchors[0].y)).toBeCloseTo(26, 0);
+  });
+
+  it("spreads an out-arrow and an in-arrow that share one box side", () => {
+    // The "one exits, one enters the same edge" case: C->A leaves C's right side and B->C enters that
+    // same right side. Before ports were pooled across both directions, the exit was alone in its from-
+    // pool and the enter alone in its to-pool, so each landed on the side's midpoint -- two arrows
+    // fusing into one point at C's border. A shared from+to pool must spread them together.
+    const c: Rect = { left: 400, top: 100, width: 300, height: 150 }; // right edge x=700
+    const a: Rect = { left: 900, top: 50, width: 200, height: 120 }; // right of c, up
+    const b: Rect = { left: 900, top: 400, width: 200, height: 120 }; // right of c, down
+
+    const routed = routeEdges(
+      [
+        { who: "out" },
+        { who: "in" },
+      ],
+      (i) => i.who,
+      (i) =>
+        i.who === "out"
+          ? { from: c, to: a, fromId: "c", toId: "a" }
+          : { from: b, to: c, fromId: "b", toId: "c" },
+      [c, a, b],
+    );
+
+    // The out-arrow's first point (exits C) and the in-arrow's last point (enters C) both sit on
+    // C's right edge (x=700) at symmetric heights around the midpoint (y=175): ±portGap/2 = 162/188.
+    const outExit = routed[0].route.points[0];
+    const inEnter = routed[1].route.points[routed[1].route.points.length - 1];
+    expect(outExit.x).toBe(700);
+    expect(inEnter.x).toBe(700);
+    expect(outExit.y).not.toBe(inEnter.y);
+    expect(Math.abs(outExit.y - inEnter.y)).toBe(26);
+  });
 });

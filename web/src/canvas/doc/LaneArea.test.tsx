@@ -36,11 +36,11 @@ describe("LaneArea", () => {
     render(<LaneArea lane="Frontend" members={members} sizes={new Map()} />);
 
     const area = screen.getByTestId("canvas-lane-area");
-    // m1: left=-10..210, top=64..136. m2: left=390..610, top=264..336.
-    // Union: left=-10, top=64, right=610, bottom=336 (width 620, height 272). Padding: side=24, top=40, bottom=24.
-    expect(area.style.left).toBe("-34px");
+    // m1: left=-50..150, top=64..136. m2: left=350..650, top=264..336.
+    // Union: left=-50, top=64, right=650, bottom=336 (width 700, height 272). Padding: side=24, top=40, bottom=24.
+    expect(area.style.left).toBe("-74px");
     expect(area.style.top).toBe("24px");
-    expect(area.style.width).toBe("668px");
+    expect(area.style.width).toBe("748px");
     expect(area.style.height).toBe("336px");
     expect(screen.getByText("Frontend")).toBeInTheDocument();
   });

@@ -52,14 +52,9 @@ def test_a_hang_leaves_nothing_behind(tmp_path, bin_dir):
         git_long.run_git_long(tmp_path, "fetch", "origin", timeout=1)
 
     child_pid = int(marker.read_text().strip())
-    process_stat = Path(f"/proc/{child_pid}/stat")
-    if process_stat.exists():
-        # A killed orphan can remain a zombie until the container's init reaps it.
-        state = process_stat.read_text().rsplit(")", 1)[1].split()[0]
-        assert state == "Z"
-    else:
-        with pytest.raises(OSError):
-            os.kill(child_pid, 0)
+    with pytest.raises(OSError):
+        # The whole process group is killed, so what git spawned is not still sleeping.
+        os.kill(child_pid, 0)
 
 
 def test_a_missing_binary_is_distinct_from_a_hang(tmp_path, monkeypatch):

@@ -110,12 +110,9 @@ beforeEach(() => {
 afterEach(cleanup);
 
 describe("the rail's agent strip", () => {
-  it("still offers Epics (always available, no generation gate) with no agents and no diagrams", async () => {
+  it("always mounts, even with neither agents nor on-canvas diagrams", () => {
     renderRail();
 
-    await waitFor(() =>
-      expect(screen.getByTestId("diagram-add-epics")).toBeInTheDocument(),
-    );
     expect(screen.getByTestId("agent-task-rail")).toBeInTheDocument();
   });
 
@@ -136,7 +133,7 @@ describe("the rail's agent strip", () => {
     renderRail();
 
     expect(screen.getByTestId("agent-rail-refund-flow").querySelector(".rail-tooltip")).toHaveTextContent(
-      "refund flow — Idle — waiting for you",
+      "refund flow — Idle",
     );
   });
 
@@ -148,7 +145,7 @@ describe("the rail's agent strip", () => {
 
     expect(screen.getByTestId("agent-rail-refund-flow")).toHaveAttribute(
       "aria-label",
-      "refund flow — Idle — waiting for you",
+      "refund flow — Idle",
     );
   });
 
@@ -273,7 +270,7 @@ describe("the rail's agent strip", () => {
 
     const entry = screen.getByTestId("agent-rail-refund-flow");
     expect(entry.querySelector(".agent-rail-title")).toHaveTextContent("refund flow");
-    expect(entry.querySelector(".agent-rail-status")).toHaveTextContent("Waiting for your answer");
+    expect(entry.querySelector(".agent-rail-status")).toHaveTextContent("Blocked");
   });
 
   it("badges an agent that drew a diagram in its own, unvisited workspace", () => {
@@ -380,23 +377,13 @@ describe("the rail's Diagrams tab", () => {
     expect(collapsedLayersStore.isCollapsed("c1")).toBe(false);
   });
 
-  it("re-runs the layer's recipe when a collapsed diagram is expanded again", async () => {
+  it("re-expands a collapsed diagram without re-running its recipe", async () => {
     const docWithC1 = { ...canvasDocStore.getDoc(), elements: { c1a: diagramElement("c1a", "c1") } };
     canvasDocStore.setDoc(docWithC1);
     collapsedLayersStore.collapse("c1");
-    const runRecipe = vi.fn(async () => ({
-      ok: true as const,
-      batch_id: "b1",
-      id_map: {},
-      affected: [],
-    }));
-    // The real bridge's GET /canvas would still return the c1 diagram here -- expanding never
-    // deletes anything, unlike the row's own "remove from canvas" button -- so the stub must too,
-    // or the refresh's own re-fetch would (wrongly, only in this stub) wipe the layer out from
-    // under it.
-    const getCanvas = async () => docWithC1;
+    const runRecipe = vi.fn();
 
-    renderRail([], [], [], { runRecipe, getCanvas });
+    renderRail([], [], [], { runRecipe });
     fireEvent.click(screen.getByTestId("agent-task-rail-tab-diagrams"));
     const row = screen.getByTestId("diagram-rail-c1");
     expect(row).toHaveAttribute("aria-pressed", "false");
@@ -406,7 +393,7 @@ describe("the rail's Diagrams tab", () => {
     });
 
     expect(row).toHaveAttribute("aria-pressed", "true");
-    expect(runRecipe).toHaveBeenCalledWith("c1");
+    expect(runRecipe).not.toHaveBeenCalled();
   });
 
   it("does not re-run the recipe when collapsing a diagram", async () => {
@@ -453,34 +440,13 @@ describe("the rail's Diagrams tab", () => {
     expect(screen.queryByTestId("diagram-rail-error")).toBeNull();
   });
 
-  it("surfaces a hard failure from the expand-refresh inline", async () => {
-    canvasDocStore.setDoc({
-      ...canvasDocStore.getDoc(),
-      elements: { c1a: diagramElement("c1a", "c1") },
-    });
-    collapsedLayersStore.collapse("c1");
-    const runRecipe = vi.fn(async () => ({
-      ok: false as const,
-      errors: [{ op_index: 0, code: "recipe_failed", message: "recipe run failed" }],
-    }));
-
-    renderRail([], [], [], { runRecipe });
-    fireEvent.click(screen.getByTestId("agent-task-rail-tab-diagrams"));
-    fireEvent.click(screen.getByTestId("diagram-rail-c1"));
-
-    await waitFor(() => expect(screen.getByTestId("diagram-rail-error")).toBeInTheDocument());
-  });
-
-  it("offers Epics under Available to add instead of an empty on-canvas list", async () => {
+  it("shows the empty state in the Diagrams tab with no on-canvas layers", async () => {
     agentStore.upsert(record());
     renderRail();
 
     fireEvent.click(screen.getByTestId("agent-task-rail-tab-diagrams"));
 
-    await waitFor(() =>
-      expect(screen.getByTestId("diagram-add-epics")).toBeInTheDocument(),
-    );
-    expect(screen.queryByText(/No diagrams yet/)).toBeNull();
+    await waitFor(() => expect(screen.getByText(/No diagrams yet/)).toBeInTheDocument());
   });
 
   it("opens a confirm dialog naming the diagram, and does nothing on Cancel", () => {
@@ -545,50 +511,5 @@ describe("the rail's Diagrams tab", () => {
 
     expect(screen.getByTestId("delete-diagram-dialog")).toHaveTextContent("disk error");
     expect(canvasDocStore.getDoc().elements.c1a).toBeDefined();
-  });
-
-  it("removes a diagram from the canvas without deleting its artifact, no confirm needed", async () => {
-    canvasDocStore.setDoc({
-      ...canvasDocStore.getDoc(),
-      elements: { c1a: diagramElement("c1a", "c1") },
-    });
-    const deleteDiagram = vi.fn();
-    const patchCanvas = vi.fn(async () => ({
-      ok: true as const,
-      batch_id: "b1",
-      id_map: {},
-      affected: [],
-    }));
-    renderRail([], [], [], { deleteDiagram, patchCanvas });
-    fireEvent.click(screen.getByTestId("agent-task-rail-tab-diagrams"));
-
-    await act(async () => {
-      fireEvent.click(screen.getByTestId("diagram-remove-c1"));
-    });
-
-    expect(deleteDiagram).not.toHaveBeenCalled();
-    expect(patchCanvas).toHaveBeenCalled();
-    expect(screen.queryByTestId("delete-diagram-dialog")).toBeNull();
-  });
-
-  it("adds a ready-but-not-placed diagram back onto the canvas from Available to add", async () => {
-    const runRecipe = vi.fn(async () => ({
-      ok: true as const,
-      batch_id: "b1",
-      id_map: {},
-      affected: [],
-    }));
-    const getDiagramsStatus = async () => ({
-      c1: { ready: true, fingerprint: "fp" },
-    });
-
-    renderRail([], [], [], { runRecipe, getDiagramsStatus });
-    fireEvent.click(screen.getByTestId("agent-task-rail-tab-diagrams"));
-
-    await act(async () => {
-      fireEvent.click(await screen.findByTestId("diagram-add-c1"));
-    });
-
-    expect(runRecipe).toHaveBeenCalledWith("c1");
   });
 });

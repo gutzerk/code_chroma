@@ -23,7 +23,7 @@ function formatTestResult(result: ProviderTestResult): { ok: boolean; text: stri
 }
 
 const CLI_ADAPTERS = ["claude", "codex", "kimi-cli"];
-const TRANSPORTS: Transport[] = ["anthropic", "openai-compatible"];
+const TRANSPORTS: Transport[] = ["anthropic", "gemini", "openai-compatible"];
 
 interface FormDraft {
   label: string;
@@ -90,17 +90,21 @@ function toPayload(draft: FormDraft): ProviderDraft {
       verify_ssl: usesEndpoint ? !draft.skipTls : true,
     };
   }
+  const isGemini = draft.transport === "gemini";
+  const usesBaseUrl = isGemini || draft.transport === "openai-compatible";
   return {
     ...base,
     adapter: null,
     transport: draft.transport,
-    base_url: draft.transport === "openai-compatible" ? draft.baseUrl : null,
+    base_url: usesBaseUrl ? draft.baseUrl || null : null,
     // Untouched + previously set: omit api_key and keep api_key_set so the store leaves it as-is.
     ...(keyUntouched ? { api_key_set: true } : { api_key: draft.apiKey || null, api_key_set: false }),
     api_key_path: null,
     is_local: draft.isLocal,
-    test_model: draft.transport === "openai-compatible" ? draft.testModel || null : null,
-    verify_ssl: draft.transport === "openai-compatible" ? !draft.skipTls : true,
+    // Only openai-compatible takes a test_model / TLS toggle; gemini uses its own probe model
+    // and its own always-verified Google endpoint.
+    test_model: isGemini ? null : draft.testModel || null,
+    verify_ssl: isGemini ? true : !draft.skipTls,
   };
 }
 
@@ -112,6 +116,7 @@ function subtitleOf(provider: Provider): string {
       : `Runs the ${provider.adapter} command-line tool`;
   }
   if (provider.transport === "anthropic") return "Anthropic API";
+  if (provider.transport === "gemini") return provider.base_url || "Gemini API";
   return provider.base_url || "openai-compatible endpoint";
 }
 
@@ -215,6 +220,11 @@ export function ProvidersSection() {
   };
 
   const rows = providers ?? [];
+
+  // Runtime-parametric over transport: gemini and openai-compatible carry a base_url; only
+  // openai-compatible takes a test_model / TLS toggle.
+  const isGemini = draft.transport === "gemini";
+  const usesBaseUrl = isGemini || draft.transport === "openai-compatible";
 
   return (
     <div className="llm-tab-body" data-testid="llm-providers-section">
@@ -443,17 +453,25 @@ export function ProvidersSection() {
                     ))}
                   </select>
                 </label>
+                {usesBaseUrl && (
+                  <label className="llm-field">
+                    <span className="llm-field-label">
+                      {isGemini ? "Base URL (optional)" : "Base URL"}
+                    </span>
+                    <input
+                      data-testid="llm-provider-base-url"
+                      placeholder={
+                        isGemini
+                          ? "https://generativelanguage.googleapis.com"
+                          : "http://localhost:11434/v1"
+                      }
+                      value={draft.baseUrl}
+                      onChange={(e) => set("baseUrl", e.target.value)}
+                    />
+                  </label>
+                )}
                 {draft.transport === "openai-compatible" && (
                   <>
-                    <label className="llm-field">
-                      <span className="llm-field-label">Base URL</span>
-                      <input
-                        data-testid="llm-provider-base-url"
-                        placeholder="http://localhost:11434/v1"
-                        value={draft.baseUrl}
-                        onChange={(e) => set("baseUrl", e.target.value)}
-                      />
-                    </label>
                     <label className="llm-field">
                       <span className="llm-field-label">Test model</span>
                       <input

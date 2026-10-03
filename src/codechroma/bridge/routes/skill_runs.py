@@ -1,10 +1,10 @@
 """Generic registration for the one skill-run route every composite kind serves identically.
 
-Every composite skill-run kind (research, epic-brief) has an *output* route that is byte-identical
+Every composite skill-run kind (epic-brief) has an *output* route that is byte-identical
 -- `{"lines": agent.get_output(key)}` -- differing only in the route path and how its job key (and
-agent) resolve from the path params. That one route is written here once. (The custom-diagram and
-diagram-type composite kinds this once also covered are both retired -- see `skill_spec.py`'s own
-docstring.)
+agent) resolve from the path params. That one route is written here once. (The custom-diagram,
+diagram-type and research composite kinds this once also covered are all retired -- see
+`skill_spec.py`'s own docstring.)
 
 The generators/start/status/`-path`/cancel/save routes are deliberately NOT here. Each kind's start
 carries bespoke prompt building (digest / bundle) and its cancel returns a distinct response shape

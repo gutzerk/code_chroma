@@ -16,14 +16,16 @@ def _with_requirements_fixture(repo: Path) -> None:
 
 
 def test_index_payload_has_no_body_fields(make_bridge, make_repo):
+    # The portfolio index now lives at /epics/context (epics is a diagram kind; GET /epics serves
+    # the resolved diagram). Its shape and lazy no-body guarantee are unchanged.
     repo = make_repo(prepare=_with_requirements_fixture)
     client = TestClient(make_bridge(repo).app)
 
-    response = client.get("/repos/main/epics")
+    response = client.get("/repos/main/epics/context")
 
     body = response.json()
     assert response.status_code == 200
-    for item in body["items"]:
+    for item in body["generation_data"]["items"]:
         assert "requirements" not in item
         assert "children" not in item
         assert "stages" not in item
@@ -33,10 +35,10 @@ def test_missing_source_directory_returns_200_with_empty_items(make_bridge, make
     repo = make_repo()
     client = TestClient(make_bridge(repo).app)
 
-    response = client.get("/repos/main/epics")
+    response = client.get("/repos/main/epics/context")
 
     assert response.status_code == 200
-    assert response.json()["items"] == []
+    assert response.json()["generation_data"]["items"] == []
 
 
 def test_unknown_item_id_returns_404(make_bridge, make_repo):
@@ -98,3 +100,28 @@ def test_item_route_matches_id_case_insensitively(make_bridge, make_repo):
 
     assert response.status_code == 200
     assert response.json()["id"] == "EP-A-01"
+
+
+def test_epic_diagram_path_points_at_the_per_epic_artifact(make_bridge, make_repo):
+    repo = make_repo(prepare=_with_requirements_fixture)
+    client = TestClient(make_bridge(repo).app)
+
+    response = client.get("/repos/main/epics/EP-A-01/diagram-path")
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["repo_root"] == str(repo)
+    assert body["diagram_path"].endswith(
+        ".codechroma/diagrams/epics/EP-A-01/EP-A-01.json"
+    )
+
+
+def test_epic_diagram_path_rejects_an_id_that_would_escape_the_epics_dir(make_bridge, make_repo):
+    """`item_id` names a path segment on disk -- a `..`-laced id must 404 rather than resolve
+    outside `.codechroma/diagrams/epics/`, mirroring the registry's own filesystem-safety check."""
+    repo = make_repo(prepare=_with_requirements_fixture)
+    client = TestClient(make_bridge(repo).app)
+
+    response = client.get("/repos/main/epics/EP!4/diagram-path")
+
+    assert response.status_code == 404

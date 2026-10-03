@@ -1,44 +1,109 @@
 # Desktop app (`desktop/`)
 
 ```bash
-./scripts/build_desktop.sh          # SPA bundle -> frozen bridge -> host-architecture desktop/dist/CodeChroma-*.dmg
+./scripts/dev/build_desktop.sh       # developer build: SPA -> frozen bridge -> desktop/dist/CodeChroma-*.dmg (macOS arm64)
+./scripts/dev/build_desktop.sh --install  # build, then replace /Applications/CodeChroma.app (quit running app + index refresh)
 npm --prefix desktop start          # run the shell against dist/codechroma-bridge (build the bridge first)
 npm --prefix desktop start -- --repo /path/to/repo   # skip the launcher screen
 npm --prefix desktop test           # vitest (recentRepos, shellPath, bridgeProcess)
-npm --prefix desktop run generate-icon              # regenerate desktop/build/icon.png from the SVG
-./scripts/reinstall_desktop.sh       # build_desktop.sh, then quit + replace /Applications/CodeChroma.app
+poetry run python scripts/make_desktop_icon.py       # regenerate desktop/build/icon.png
+./scripts/install_desktop.sh         # clean-macOS installer (see below)
+./scripts/install_desktop.ps1        # clean-Windows installer (see below)
+curl -fsSL https://raw.githubusercontent.com/gutzerk/code-chroma/main/distribution/install.sh | sh   # end-user install (macOS arm64/x64 / Linux x64) from latest Release via manifest
+python3 scripts/gen_distribution_manifest.py 9.9.9 --build-dir desktop/dist   # reproduce latest.json locally
 ```
+
+`scripts/dev/build_desktop.sh` runs the three shared stages — SPA bundle → frozen Python bridge
+(`packaging/bridge.spec`) → electron-builder (`electron-builder.yml`, mac `dmg` target). It is
+macOS-only: the `--install` step (and the quit/index-refresh it triggers) shells out to Apple tools
+(`hdiutil`, `osascript`, `killall Dock`, `mdimport`). The equivalent build stages for Windows run
+inside `install_desktop.ps1` (npm → pyinstaller → electron-builder `win`/`nsis`), since there is no
+bash on Windows.
+
+**Releases run on GitHub, not locally.** `.github/workflows/release-please.yml` is the release path:
+`release-please` bumps the version + writes CHANGELOG + tags `vX.Y.Z` and opens a Release on merge;
+then four platform builds (macOS `macos-14` arm64 and `macos-15-intel` x64, Windows
+`windows-latest` x64, and Linux x64) run the same three stages here and upload the installers to that
+Release. The release-please action uses the `code_pat_release` repository secret so its Release PR
+triggers the follow-on release workflow when merged; configure that secret in repository settings
+with repository Contents and Pull requests write access.
+The author version lives in `desktop/package.json` (electron-builder reads it for the artifact name);
+`release-please-config.json` syncs `web/package.json` and `pyproject.toml` from it. See the plan in
+`.claude/plans/release-versioning.md` for the design.
+Pull-request CI also runs the desktop Vitest suites and TypeScript build.
+
+**End-user installs go through `distribution/` (the herdr-style manifest installers).** One
+`distribution/latest.json` manifest is published to every Release (built by the `manifest` CI job after
+all platform builds) and lists a download URL + SHA-256 per platform target. Each OS picks its target
+from it:
+- macOS arm64/x64 / Linux x64: `distribution/install.sh` — `curl -fsSL
+  https://raw.githubusercontent.com/gutzerk/code-chroma/main/distribution/install.sh | sh`. Detects
+  OS/arch, downloads the matching `.dmg`/`.deb`, verifies SHA-256, installs into `/Applications` (mac,
+  via `hdiutil`) or via `apt` (Linux). This is the recommended end-user path — no checkout, no build.
+- Windows x64: `distribution/install.cmd` (thin bootstrap) → `distribution/install.ps1` — reads the same
+  manifest, downloads `Setup.exe`, verifies SHA-256, runs the NSIS wizard.
+The manifest is served from each Release (`.../releases/latest/download/latest.json`), so no custom
+domain is required; `CODECROMA_MANIFEST_URL` overrides the source. `scripts/gen_distribution_manifest.py`
+reproduces the same manifest locally (e.g. for smoke-testing `install.sh` against a non-release build).
+The root `scripts/install_*.sh/.ps1` are legacy direct-release downloaders; they are not
+build-from-source installers. `distribution/` is the recommended manifest-based download path.
+
+`./scripts/install_desktop.sh` is a **one-command installer for a clean Mac with no local checkout**:
+it detects Apple Silicon or Intel, downloads that architecture's latest DMG and checksum, verifies
+the download, then copies the app into `/Applications`. It needs `curl`, `python3`, `hdiutil`, and
+`sudo`, but does not build the app. Run with
+`curl -fsSL https://<host>/install_desktop.sh | bash` (or `bash scripts/install_desktop.sh`).
+
+`./scripts/install_desktop.ps1` is the Windows x64 installer: it resolves the latest `Setup.exe`,
+verifies its published checksum, and launches the interactive NSIS installer. It downloads the
+prebuilt release and does not clone or build the repository. Run with
+`curl -fsSL https://<host>/install_desktop.ps1 | powershell -ExecutionPolicy Bypass -` (or
+`powershell -ExecutionPolicy Bypass -File scripts/install_desktop.ps1`).
+
+**Updates are checked in-app and installed from GitHub, not in place.** On startup the main
+process (`desktop/src/updater.ts`) queries the latest GitHub Release against `app.getVersion()`; if a
+newer version exists it raises a native Notification ("Update to vX.Y.Z available") plus a
+File → "Check for Updates…" menu item. The startup check only runs for packaged installs
+(`app.isPackaged`) so a dev run never hits the API. Clicking either opens a confirm dialog, then
+downloads the correct per-platform artifact and runs it: on macOS `hdiutil -plist` mounts the `.dmg`
+(the mount point is parsed from XML, so space-y volume names can't break the path) and `ditto` copies
+the new `.app` over `/Applications/CodeChroma.app` (via `osascript` when elevation is needed); on
+Windows it launches the `-Setup.exe` (NSIS shows its own UAC/overwrite prompt); on Linux it
+atomically replaces the running AppImage in place. The download streams to a `.part` sibling while
+hashing SHA-256 in one pass (aborting and discarding anything past 1 GiB), is verified against the
+release's published `.sha256` sidecar, then **provenance-checked** before it's renamed into place:
+`desktop/src/attestation.ts` fetches the artifact's signed attestation from GitHub
+(`/repos/UshakovDV/code-chroma/attestations/sha256:<hex>`) and verifies it with `sigstore-js`,
+pinning the OIDC issuer and workflow identity of `release-please.yml` — so the signed attestation,
+not the release's own sidecar, is the authority binding the artifact to this repo's release pipeline.
+A release that publishes no attestation refuses to update (it would be an unverified install), and
+one whose installer has no reachable `sha256` digest surfaces the update but asks the user to install
+manually instead of silently pretending to be current. Asset names are sanitized to
+`[A-Za-z0-9._-]` before they become local paths (`safeAssetPath` in the updater, `safe_name` in the
+shell installers). The AppImage replacement renames a PID-suffixed temp sibling over the running
+file. After install the app either
+relaunches (`app.relaunch()`, macOS/Linux) or lets the installer take over (Windows). It connects to
+`api.github.com/repos/UshakovDV/code-chroma/releases/latest` using Node's built-in `fetch` — no
+runtime dependency. The one-command installers (`install_desktop.sh`, `install_linux.sh`,
+`install_desktop.ps1`) reuse the same model: fetch the sidecar first, verify before mounting/running
+under elevation, and redownload once if a stale cached copy fails its checksum — only a second
+mismatch is treated as tampering.
+⚠ On **unsigned macOS**, Gatekeeper shows the standard "unverified publisher"
+warning for the freshly copied `.app`; the update still works, it just can't be silent/delta (that
+is the trade-off for not having a paid Developer ID). Release workflow actions are pinned to commit
+SHAs (kept current by Dependabot). The release pipeline attests every installer with
+`actions/attest-build-provenance` (short-lived OIDC identity, Sigstore/SLSA provenance), and the
+in-app updater verifies that signed attestation (see above) — so the in-app path is protected
+against a compromised release pipeline, not just corruption. ⚠ **The one-command shell installers**
+(`install_*.sh`/`.ps1`) still verify only the same-release `.sha256` sidecar, so they guard against
+corruption but not against a compromised pipeline; extending them to `gh attestation verify` is
+future work. The in-app check is advisory: it never downloads or installs without user consent.
 
 `CodeChroma.app` is a double-click app with no Python or Node on the user's machine: an Electron
 shell that shows a recents/"Open folder…" launcher, then spawns a **PyInstaller-frozen bridge** on a
-free port and loads `http://127.0.0.1:<port>` in the same window. macOS releases include arm64 and
-Intel x64 DMGs, built on matching native runners so the frozen Python bridge matches the host
-architecture. Windows builds target an NSIS installer, and Linux builds x64 `.deb` and AppImage
-installers. The desktop package declares its homepage and author email, and the Linux builder config
-declares the Debian maintainer; electron-builder requires all three when building `.deb` packages.
-The Linux artifact names use `x64` explicitly because electron-builder expands its Linux `x64`
-architecture to `amd64`, while the release workflow and install manifest use `x64`. The release
-workflow writes each SHA-256 sidecar beside its exact versioned installer; the manifest uses
-release-please's exact tag (for example, `codechroma-v0.2.0`) for download URLs and the semantic
-version for installer filenames. The manifest job retries transient GitHub errors while fetching
-newly uploaded checksum sidecars. The electron-builder targets and names are explicit so they
-match the install manifest. The manifest job creates its generated `distribution/` output
-directory before writing `latest.json`. The bridge resolver includes `.exe` on Windows because
-PyInstaller adds that suffix to the frozen executable. `python -m codechroma.bridge.launch`
-remains the browser/dev path and is unaffected.
-
-End users can install the latest release with [`install.sh`](../../install.sh) on macOS/Linux
-or [`install.ps1`](../../install.ps1) on Windows. Both scripts read
-`https://github.com/gutzerk/code_chroma/releases/latest/download/latest.json`, download only
-prebuilt release installers, and verify the manifest's SHA-256 before installing. The shell script
-uses the matching macOS DMG, chooses the Debian package on Debian-based systems, and otherwise
-installs the Linux x64 AppImage under `~/.local/bin/codechroma`. The Windows script runs the x64
-Setup.exe wizard. The scripts are at repository root for static hosting to publish as
-`/install.sh` and `/install.ps1`; this repository does not contain the `codechroma.dev` website
-deployment configuration.
-
-The intended website commands are `curl -fsSL https://codechroma.dev/install.sh | sh` and
-`powershell -ExecutionPolicy Bypass -c "irm https://codechroma.dev/install.ps1 | iex"`.
+free port and loads `http://127.0.0.1:<port>` in the same window. macOS builds target arm64 and x64 DMGs;
+Windows builds target an NSIS installer. `python -m codechroma.bridge.launch` remains the
+browser/dev path and is unaffected.
 
 Things worth knowing before touching it:
 
@@ -51,7 +116,7 @@ Things worth knowing before touching it:
 - ⚠ **A terminal-panel agent has no browser, so it can't read `window.location.origin`.**
   `bridge_main.py` exports `codechroma_BRIDGE_URL=http://<host>:<port>` into `os.environ` right after
   it resolves the free port; `_terminal_env()` inherits it into every PTY spawned for the terminal
-  panel. The `codechroma-*` skills (`draw-diagram`/`review-diagram`/`plan`/`research`/`diagram-type`)
+  panel. The `codechroma-*` skills (`draw-diagram`/`review-diagram`/`plan`/`diagram-type`)
   read this env var first and fall back to `http://localhost:8000` (the dev-launcher default) only
   when it's unset — without it, a skill run from the packaged app's terminal panel hits a dead port
   and can't write.
@@ -74,7 +139,7 @@ Things worth knowing before touching it:
 - `desktop/launcher/` is deliberately plain HTML/JS outside the tsc build: it renders *before* any
   bridge exists, so it cannot be part of the served SPA. Its typed contract is `preload.ts`'s
   `LauncherApi`. Recents live in `app.getPath('userData')/recent.json`.
-- `desktop/build/codechroma.svg` is the source app icon; `npm --prefix desktop run generate-icon`
-  renders the 1024×1024 `desktop/build/icon.png` used by electron-builder for all desktop targets.
+- `desktop/build/icon.png` is generated by `scripts/make_desktop_icon.py` (pure-stdlib PNG writer) and
+  committed; `.gitignore` un-ignores it against the global `build/` rule.
 - Tests: `tests/unit/test_resources.py`, `tests/unit/test_bridge_spa_mount.py`,
-  `web/src/engine-client/sameOrigin.test.ts`, and the suites in `desktop/src/*.test.ts`.
+  `web/src/engine-client/sameOrigin.test.ts`, and the Vitest suites in `desktop/src/*.test.ts`.

@@ -6,7 +6,7 @@ import { expansionStore } from "./expansionState";
 import { hierarchyChangesStore } from "./hierarchyChangesStore";
 import type { EngineClient } from "../engine-client/EngineClient";
 import type { ChangeCard, ChangeCardSet, FunctionDiff, HierarchyNodeRef } from "./types";
-import { EPICS_STUB, RESEARCH_STUB, EPIC_BRIEF_STUB, IMPACT_CHANGES_STUB, EMPTY_CHANGE_CARDS, PATTERNS_STUB } from "../engine-client/stubEngineClient";
+import { EPICS_STUB, EPIC_BRIEF_STUB, IMPACT_CHANGES_STUB, EMPTY_CHANGE_CARDS, PATTERNS_STUB } from "../engine-client/stubEngineClient";
 
 afterEach(() => {
   diffOverlayStore.reset();
@@ -82,7 +82,6 @@ function clientWith(diffs: FunctionDiff[], options: ClientOptions = {}): EngineC
   return {
     ...IMPACT_CHANGES_STUB,
     ...EPICS_STUB,
-    ...RESEARCH_STUB,
     ...EPIC_BRIEF_STUB,
     ...PATTERNS_STUB,
     getNode: vi.fn(async (nodeId: string) => nodesById[nodeId] ?? null),

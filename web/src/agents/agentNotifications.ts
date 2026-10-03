@@ -12,7 +12,7 @@ const TITLES: Record<StatusSoundKind, (agent: AgentRecord) => string> = {
 };
 
 const BODIES: Record<StatusSoundKind, string> = {
-  blocked: "Waiting for your answer",
+  blocked: "Agent is blocked",
   idle: "Agent is idle",
   exited: "Agent process exited",
 };

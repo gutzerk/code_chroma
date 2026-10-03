@@ -24,8 +24,13 @@ export interface LayoutEdge {
 /** Outer canvas margin. */
 const MARGIN = 40;
 
-/** Row width a packed run of components wraps at. */
-const MAX_ROW_WIDTH = 2400;
+/** Row width a packed run of components wraps at. Sized so a row holds ~5 default (300x72) boxes
+ * (5 * 300 + 4 * NODE_SEP = 1940) and a 6th wraps onto the next row -- the old 2400 let almost the
+ * whole diagram spill into one 2000px+ horizontal band (the "new diagram spreads blocks far apart"
+ * bug: multi-component batches never wrapped, so every block sat in a single endless row). A single
+ * connected diagram is one component and is laid out by ranks regardless, so lowering this only
+ * tightens how separate components pack side by side, never how one diagram's rows are ranked. */
+const MAX_ROW_WIDTH = 2000;
 
 interface DirectedEdge {
   from: string;

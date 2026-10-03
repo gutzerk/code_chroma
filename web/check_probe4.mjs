@@ -1,0 +1,21 @@
+import { chromium } from 'playwright';
+const b = await chromium.launch({ headless: true });
+const page = await b.newPage();
+const errs=[]; const calls=[];
+page.on('console', m => { if(m.type()==='error' && !m.text().includes('WebSocket')) errs.push(m.text().slice(0,200)); });
+page.on('pageerror', e => errs.push('PAGEERROR: '+e.message.slice(0,200)));
+page.on('response', r => { if(r.url().includes('/source?')) calls.push('RESP '+r.status()+' '+decodeURIComponent(r.url())); });
+await page.goto('http://localhost:5173', { waitUntil:'networkidle' });
+await page.waitForTimeout(3000);
+await page.getByText('T004 · Implement the in-memory preferences').first().click({timeout:5000});
+await page.waitForTimeout(2000);
+const srcText = await page.evaluate(() => {
+  const s=document.querySelector('[data-testid="epic-block-panel-source"]');
+  return s? s.innerText.slice(0,200):null;
+});
+const errShown = await page.evaluate(() => document.body.innerText.includes("Couldn't read the linked file"));
+console.log('SOURCE TEXT:', JSON.stringify(srcText));
+console.log('ERROR SHOWN:', errShown);
+console.log('CALLS:', JSON.stringify(calls,null,2));
+console.log('ERRORS:', JSON.stringify(errs,null,2));
+await b.close();

@@ -1,8 +1,10 @@
 import { afterEach, describe, expect, it } from "vitest";
 import { expansionStore } from "./expansionState";
+import { clearExpansionSnapshot, writeExpansionSnapshot } from "./expansionPersistence";
 
 afterEach(() => {
   expansionStore.reset();
+  clearExpansionSnapshot();
 });
 
 describe("ExpansionStore", () => {
@@ -165,5 +167,36 @@ describe("ExpansionStore", () => {
 
   it("returns null for a node it has never cached at all", () => {
     expect(expansionStore.getCachedAncestorPath("unknown")).toBeNull();
+  });
+
+  it("reports hasRestoredExpansion only when a snapshot was seeded from storage", () => {
+    expect(expansionStore.hasRestoredExpansion()).toBe(false);
+
+    writeExpansionSnapshot({ expanded: ["a"], codeVisible: [] });
+    expansionStore.load();
+
+    expect(expansionStore.hasRestoredExpansion()).toBe(true);
+    expect(expansionStore.getExpandedNodeIdsByOrder()).toEqual(["a"]);
+  });
+
+  it("load() ingests an empty snapshot as not-restored, so a blank workspace still auto-expands", () => {
+    expansionStore.load();
+
+    expect(expansionStore.hasRestoredExpansion()).toBe(false);
+    expect(expansionStore.getExpandedNodeIdsByOrder()).toEqual([]);
+  });
+
+  it("reset() returns the store to the not-restored baseline without clearing the snapshot itself", () => {
+    writeExpansionSnapshot({ expanded: ["a"], codeVisible: [] });
+    expansionStore.load();
+    expect(expansionStore.hasRestoredExpansion()).toBe(true);
+
+    expansionStore.reset();
+
+    expect(expansionStore.hasRestoredExpansion()).toBe(false);
+    expect(expansionStore.getExpandedNodeIdsByOrder()).toEqual([]);
+    // The snapshot survives reset -- a later load() picks it back up, as a workspace switch does.
+    expansionStore.load();
+    expect(expansionStore.hasRestoredExpansion()).toBe(true);
   });
 });

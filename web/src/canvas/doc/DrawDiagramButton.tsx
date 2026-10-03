@@ -13,22 +13,21 @@ import {
   useCustomDiagramTypes,
   WATCHED_DIAGRAM_EVENT_KINDS,
 } from "./diagramCatalog";
-import { consume, markRequested } from "./pendingDrawRequests";
 import { readCachedDiagramsStatus, writeCachedDiagramsStatus } from "./diagramStatusCache";
 
-/** Builds the agent's actionable first message for "Draw…" -- naming only what's still missing, so
- * an agent opened after some diagrams already exist doesn't re-offer those. When nothing is missing
- * (every built-in and saved type is already drawn), there's nothing to enumerate -- the agent is
- * told to just ask what new diagram the user wants instead.
+/** Builds the agent's actionable first message for "Draw…" -- it always names every diagram type,
+ * whether or not one is already drawn, so the user gets the full menu every time and never has to
+ * remove an existing diagram to redraw it. ("Draw…" is a fresh-draw launcher; whether a diagram
+ * already sits on the canvas is irrelevant to what the user may draw again.)
  *
- * `missingLabels` has no upper bound (every missing built-in plus every missing custom type), but
- * a multiple-choice tool call caps out at 4 options -- asking the agent to offer more than that as
- * a single such call fails with a schema-validation error the user just sees as "Invalid tool
- * parameters", with no diagram drawn and the agent stuck. Past 4, the prompt tells it to ask in
- * plain text instead, so the option count never collides with that cap. */
-export function buildDrawDiagramTask(missingLabels: string[], anyAlreadyReady: boolean): string {
+ * `labels` has no upper bound (every built-in plus every saved custom type), but a multiple-choice
+ * tool call caps out at 4 options -- asking the agent to offer more than that as a single such call
+ * fails with a schema-validation error the user just sees as "Invalid tool parameters", with no
+ * diagram drawn and the agent stuck. Past 4, the prompt tells it to ask in plain text instead, so
+ * the option count never collides with that cap. */
+export function buildDrawDiagramTask(labels: string[], anyAlreadyReady: boolean): string {
   const article = anyAlreadyReady ? "another" : "a";
-  if (missingLabels.length === 0) {
+  if (labels.length === 0) {
     return (
       `The user wants ${article} diagram of this project. Every built-in and saved diagram type is ` +
       "already drawn -- ask what new diagram they'd like (redrawing something existing, or a fresh " +
@@ -36,12 +35,12 @@ export function buildDrawDiagramTask(missingLabels: string[], anyAlreadyReady: b
     );
   }
   const askHint =
-    missingLabels.length > 4
+    labels.length > 4
       ? " (more than 4 -- list them in your reply as plain text, not a multiple-choice tool call)"
       : "";
   return (
     `The user wants ${article} diagram of this project. Ask which kind they'd like${askHint} -- ` +
-    `${missingLabels.join(", ")} -- then use the codechroma-draw-diagram skill and pick the ` +
+    `${labels.join(", ")} -- then use the codechroma-draw-diagram skill and pick the ` +
     `matching type from its router table to draw it.`
   );
 }
@@ -54,10 +53,10 @@ export function buildDrawDiagramTask(missingLabels: string[], anyAlreadyReady: b
  * exists, ready or already placed, is shown and managed from `AgentRail`'s Diagrams tab instead;
  * this button's only job is starting a new draw.
  *
- * Still tracks readiness in the background, for two reasons that have nothing to do with any menu:
- * it needs `missingLabels`/`missingKinds` to word the agent's task prompt (`buildDrawDiagramTask`),
- * and it drives the auto-add-when-ready effect below (`pendingDrawRequests`) that places a diagram
- * on the canvas the moment the agent it launched finishes drawing it.
+ * Still tracks readiness in the background — `buildDrawDiagramTask` always enumerates every type
+ * regardless of readiness, and `refetchStatus` below auto-adds any kind that becomes ready (whoever
+ * drew it), so a diagram this button launched, or one an agent-window/terminal run wrote, appears on
+ * the canvas without a reload.
  */
 export function DrawDiagramButton() {
   const engineClient = useEngineClient();
@@ -79,16 +78,18 @@ export function DrawDiagramButton() {
   const lastStatusRef = useRef<DiagramsStatus | null>(readCachedDiagramsStatus());
 
   /**
-   * Refetches the per-kind readiness map, then auto-adds every kind that just became ready AND was
-   * asked for through "Draw…" -- plus re-runs the recipe for a kind already on the canvas whose
-   * content fingerprint just changed (an in-place edit of an already-drawn diagram). The one place
-   * status is fetched, shared by the mount effect and the per-kind watcher subscriptions.
+   * Refetches the per-kind readiness map, then auto-adds every kind that just became ready and is
+   * not yet on the canvas -- plus re-runs the recipe for a kind already on the canvas whose content
+   * fingerprint just changed (an in-place edit of an already-drawn diagram). The one place status is
+   * fetched, shared by the mount effect and the per-kind watcher subscriptions.
    *
-   * The pending-request gate applies only to a brand-new draw: without it, any artifact change (a
-   * live reanalyze, an unrelated agent, a branch switch) would silently add a diagram nobody asked
-   * for. A fingerprint change on a diagram already placed needs no such gate -- it can only ever
-   * update content fields (never position/size, see recipes.py), so refreshing it is never a
-   * surprise, just the picture catching up with what is already on disk.
+   * The add is unconditional (no pending-request gate): a diagram that exists on disk and is ready
+   * but not placed should appear, whoever wrote it -- the "Draw…" button, a terminal/agent-window
+   * run, another agent on the same workspace. Ping scoping (`isForAnotherWorkspace`) and the
+   * `!placed.has(kind)` check keep it from reacting to unrelated artifacts, and the `before === null`
+   * guard means a first-ever visit adds nothing. A fingerprint change on a diagram already placed
+   * needs no gate either -- it only updates content fields (never position/size, see recipes.py), so
+   * refreshing is never a surprise, just the picture catching up with what is already on disk.
    */
   const refetchStatus = useCallback(async () => {
     let next: DiagramsStatus;
@@ -123,7 +124,6 @@ export function DrawDiagramButton() {
       if (!result.ok) setError(result.error);
     };
     for (const kind of arrived) {
-      if (!consume(kind)) continue;
       await runAndReport(kind);
     }
     for (const kind of stale) {
@@ -158,22 +158,23 @@ export function DrawDiagramButton() {
     };
   }, [engineClient, scheduleRefetch]);
 
-  const { missingLabels, missingKinds, anyGeneratedReady } = useMemo(
+  const { allLabels, anyGeneratedReady } = useMemo(
     () => computeReadyDiagrams(status, customTypes, activeLayers),
     [status, customTypes, activeLayers],
   );
 
   const onDrawDiagram = () => {
     setError(null);
-    // Marked before the agent starts: its skill may finish before any later render observes this.
-    markRequested(missingKinds);
+    // A ready-but-unplaced diagram is added automatically regardless of who wrote it — the "Draw…"
+    // button included — so there is no pending-request set to mark here (the old `pendingDrawRequests`
+    // gate, removed).
     // attachAgent guards its own re-entry (a second click while one is in flight silently no-ops),
     // so no local "launching" flag is needed for *correctness* -- but the click still needs some
     // visible feedback while `attachAgent` awaits gitPreflight/create/start (a real few seconds),
     // or the button reads as unresponsive/delayed. `isLaunchingAgent` is the same store field
     // RootCanvas.tsx's own "Run agent" button already disables on, kept in sync here so both
     // agent-launch buttons agree on what "busy" means.
-    void attachAgent(agentClient, null, buildDrawDiagramTask(missingLabels, anyGeneratedReady)).catch(
+    void attachAgent(agentClient, null, buildDrawDiagramTask(allLabels, anyGeneratedReady)).catch(
       (err: unknown) => setError(err instanceof Error ? err.message : "couldn't open an agent"),
     );
   };

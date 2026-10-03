@@ -201,4 +201,27 @@ describe("RelationshipEdge", () => {
 
     expect(groupFor("one").getAttribute("style")).toBeNull();
   });
+
+  it("passes the authored transport through to the edge's label", () => {
+    render(
+      <svg>
+        <RelationshipEdge
+          edgeKey="mcp"
+          d="M 0 0 L 50 0"
+          label="Sends tool calls"
+          transport="mcp"
+          labelX={25}
+          labelY={0}
+          markerId="c1-arrowhead"
+          fromNodeId="c1-system"
+          toNodeId="c1-actor::mcp"
+          testId="c1-relationship"
+        />
+      </svg>,
+    );
+
+    expect(groupFor("mcp").querySelector(".c1-relationship-label__transport")).toHaveTextContent(
+      "mcp",
+    );
+  });
 });

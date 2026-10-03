@@ -9,7 +9,7 @@ import { undoStore } from "../../state/undoStore";
 import { canvasDocStore, useCanvasDoc } from "./canvasDocStore";
 import { dragOffsetStore } from "./dragOffsetStore";
 import { descriptionPopupStore } from "./descriptionPopupStore";
-import { IMPACT_CHANGES_STUB, EPICS_STUB, EPIC_BRIEF_STUB, RESEARCH_STUB, PATTERNS_STUB, CANVAS_STUB } from "../../engine-client/stubEngineClient";
+import { IMPACT_CHANGES_STUB, EPICS_STUB, EPIC_BRIEF_STUB, PATTERNS_STUB, CANVAS_STUB } from "../../engine-client/stubEngineClient";
 import type { EngineClient } from "../../engine-client/EngineClient";
 import { EMPTY_CANVAS_DOC, type ImpactChanges, type CanvasElement } from "../../state/types";
 
@@ -32,7 +32,6 @@ function element(overrides: Partial<CanvasElement> & { id: string }): CanvasElem
 const client = {
   ...IMPACT_CHANGES_STUB,
   ...EPICS_STUB,
-  ...RESEARCH_STUB,
   ...EPIC_BRIEF_STUB,
   ...PATTERNS_STUB,
   ...CANVAS_STUB,
@@ -298,6 +297,122 @@ describe("CanvasNodeBox — title/description layout", () => {
       "canvas-node-box-buttons",
     );
   });
+
+  it("renders an Acceptance block's `\\n`-separated criteria as separate rows, not one paragraph", () => {
+    // The epic brief's acceptance card is a structured list (one criterion per row). An authored
+    // `meta.acceptance` box mirrors that: each `\n` line becomes its own `<li>` with a dot marker,
+    // instead of the plain single-paragraph description used everywhere else.
+    const criteria = "Settings exposes pickers.\nStyle engine applies the theme.\nChoices persist.";
+    const { container } = renderBox(
+      element({
+        id: "e1",
+        render: "epic",
+        description: criteria,
+        meta: { acceptance: "true" },
+      }),
+    );
+
+    const list = container.querySelector(".diagram-node-box-criteria");
+    expect(list).not.toBeNull();
+    const rows = container.querySelectorAll(".diagram-node-box-criteria li");
+    expect(rows).toHaveLength(3);
+    expect(rows[0]).toHaveTextContent("Settings exposes pickers.");
+    expect(rows[1]).toHaveTextContent("Style engine applies the theme.");
+    expect(rows[2]).toHaveTextContent("Choices persist.");
+    expect(screen.getByTestId("canvas-node-box-description").tagName).toBe("UL");
+  });
+
+  it("renders a task box's P (parallel) and US# tags in color", () => {
+    const { container } = renderBox(
+      element({
+        id: "T011",
+        render: "task",
+        label: "T011 · Choose canvas appearance",
+        description: "Add &quot;Canvas appearance&quot; section to SettingsDialog.tsx",
+        meta: { us: "US1", parallel: "true" },
+      }),
+    );
+
+    const box = container.querySelector(".diagram-node-box");
+    expect(box).toHaveClass("diagram-node-box--task");
+    const tags = container.querySelectorAll(".task-tag");
+    expect(tags).toHaveLength(2);
+    // The parallel flag is a green [P] tag; the story membership is a blue [US#] tag.
+    const p = container.querySelector(".task-tag--p");
+    const us = container.querySelector(".task-tag--us");
+    expect(p).not.toBeNull();
+    expect(p).toHaveTextContent("P");
+    expect(us).not.toBeNull();
+    expect(us).toHaveTextContent("US1");
+    // The task's own text still renders alongside the tags.
+    expect(screen.getByTestId("canvas-node-box-description")).toHaveTextContent("Canvas appearance");
+  });
+
+  it("renders a task box with no tags as plain text", () => {
+    const { container } = renderBox(
+      element({ id: "T001", render: "task", description: "Confirm web runs & bridge reachable" }),
+    );
+    expect(container.querySelectorAll(".task-tag")).toHaveLength(0);
+    expect(screen.getByTestId("canvas-node-box-description")).toHaveTextContent("Confirm web runs");
+  });
+
+  it("marks an epics-layer box so its title is styled more prominently", () => {
+    const { container } = renderBox(
+      element({ id: "EP-4", render: "epic", label: "EP-4 · canvas customization" }),
+    );
+    const box = container.querySelector(".diagram-node-box");
+    expect(box).toHaveClass("diagram-node-box--epic");
+    // A bare epic title box is the column's structural header (not a content card), so it also gets
+    // the root marker; a Summary/Acceptance/Спеки content card only gets the shared `--epic` marker.
+    expect(box).toHaveClass("diagram-node-box--epic-root");
+    const { container: card } = renderBox(
+      element({ id: "s", render: "epic", meta: { summary: "true" } }),
+    );
+    const cardBox = card.querySelector(".diagram-node-box");
+    expect(cardBox).toHaveClass("diagram-node-box--epic");
+    expect(cardBox).not.toHaveClass("diagram-node-box--epic-root");
+  });
+
+  it("renders a «Спеки» block's User Stories as cards with name, why and numbered criteria", () => {
+    // The epic brief's specs card is one card per user story, each with a title+priority line, a
+    // muted why line, and a numbered criteria list. An authored `meta.specs` box mirrors that.
+    const desc = [
+      "User Story — приоритизированные.",
+      "",
+      "US1 · Choose canvas appearance (P1 · MVP)",
+      "Ядро эпика: дать контроль над внешним видом.",
+      "1. Background color → применяется сразу.",
+      "2. Arrow color → все связи в новом цвете.",
+      "",
+      "US2 · Set maximum element count (P2)",
+      "Лимит элементов ниже числа на карте.",
+      "1. Кол-во элементов не превышает лимит.",
+    ].join("\n");
+    const { container } = renderBox(
+      element({
+        id: "e1",
+        render: "epic",
+        description: desc,
+        meta: { specs: "true" },
+      }),
+    );
+
+    const stories = container.querySelectorAll(".diagram-node-box-story");
+    expect(stories).toHaveLength(2);
+    expect(stories[0].querySelector(".diagram-node-box-story-name")).toHaveTextContent(
+      "US1 · Choose canvas appearance",
+    );
+    expect(stories[0].querySelector(".diagram-node-box-story-prio")).toHaveTextContent("P1 · MVP");
+    expect(stories[0].querySelector(".diagram-node-box-story-why")).toHaveTextContent(
+      "Ядро эпика: дать контроль над внешним видом.",
+    );
+    const criteria = stories[0].querySelectorAll(".diagram-node-box-story-criteria li");
+    expect(criteria).toHaveLength(2);
+    expect(criteria[1]).toHaveTextContent("Arrow color → все связи в новом цвете.");
+    expect(container.querySelector(".diagram-node-box-stories-intro")).toHaveTextContent(
+      "User Story — приоритизированные.",
+    );
+  });
 });
 
 describe("CanvasNodeBox — box sizing", () => {
@@ -335,6 +450,36 @@ describe("CanvasNodeBox — change review chrome (Impact) and plan chrome (C1)",
     expect(screen.getByTestId("canvas-node-box").className).toContain("block-change--modified");
   });
 
+  it("shows one badge per distinct status when a box's files mix change types", () => {
+    setChangesSnapshot({
+      ...CHANGES,
+      blocks: [
+        {
+          ...CHANGES.blocks[0],
+          status: "modified",
+          change_count: 3,
+          files: [
+            { path: "auth/add.go", status: "added" },
+            { path: "auth/edit.go", status: "modified" },
+            { path: "auth/removed.go", status: "deleted" },
+          ],
+        },
+      ],
+    });
+
+    renderBox(element({ id: "e1", render: "impact", meta: { recipe_key: "auth" } }));
+
+    const badges = screen.getAllByTestId("node-change-badge");
+    // One chip per distinct status: added (+1), modified (~1), removed folds deleted (−1).
+    expect(badges).toHaveLength(3);
+    expect(badges[0]).toHaveTextContent("+1");
+    expect(badges[1]).toHaveTextContent("~1");
+    expect(badges[2]).toHaveTextContent("−1");
+    expect(badges[0]).toHaveClass("node-change-badge--added");
+    expect(badges[1]).toHaveClass("node-change-badge--modified");
+    expect(badges[2]).toHaveClass("node-change-badge--removed");
+  });
+
   it("shows no badge for an Impact box the review doesn't touch", () => {
     setChangesSnapshot(CHANGES);
 
@@ -352,7 +497,7 @@ describe("CanvasNodeBox — change review chrome (Impact) and plan chrome (C1)",
   });
 });
 
-// 054-diagram-flow-order: end-to-end through the real box, not just OrderBadge in isolation.
+// 054-diagram-flow-order: end-to-end through the real box, not just NodeTopBand in isolation.
 describe("CanvasNodeBox — order badge", () => {
   it("shows the order badge for a box with an authored order", () => {
     renderBox(element({ id: "e1", meta: { order: "3" } }));
@@ -368,22 +513,22 @@ describe("CanvasNodeBox — order badge", () => {
 });
 
 describe("CanvasNodeBox — Planned block (meta.plan_kind)", () => {
-  it("shows an explicit chip naming the plan_kind role", () => {
+  it("shows an explicit band segment naming the plan_kind role", () => {
     renderBox(element({ id: "e1", meta: { plan_kind: "add" } }));
 
-    expect(screen.getByTestId("plan-kind-chip")).toHaveTextContent("ADD");
+    expect(screen.getByTestId("canvas-node-top-band-plan")).toHaveTextContent("ADD");
   });
 
-  it("shows no chip when meta.plan_kind is absent", () => {
+  it("shows no top band when meta.plan_kind and meta.order are both absent", () => {
     renderBox(element({ id: "e1" }));
 
-    expect(screen.queryByTestId("plan-kind-chip")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("canvas-node-top-band")).not.toBeInTheDocument();
   });
 
-  it("applies a dashed-border accent class per plan_kind value", () => {
+  it("no longer applies a border accent class for plan_kind -- the band is its only trace now", () => {
     renderBox(element({ id: "e1", render: "custom", meta: { plan_kind: "modify" } }));
 
-    expect(screen.getByTestId("canvas-node-box").className).toContain("plan-kind-modify");
+    expect(screen.getByTestId("canvas-node-box").className).not.toContain("plan-kind-modify");
   });
 
   it("opens the description popup on click for an add/create Planned block, not the Inspector", () => {
@@ -430,12 +575,73 @@ describe("CanvasNodeBox — Planned block (meta.plan_kind)", () => {
   });
 });
 
+// diagram_resolver.py's _stamp_no_code_reason: a resolver-computed reason a box has no node_id.
+describe("CanvasNodeBox — no-code box (meta.no_code_reason)", () => {
+  it("opens the description popup with a conceptual message, not the Inspector", () => {
+    renderBox(
+      element({
+        id: "e1", node_id: null, label: "Skill authors diagram JSON", description: "",
+        meta: { no_code_reason: "conceptual" },
+      }),
+    );
+
+    fireEvent.click(screen.getByTestId("canvas-node-box-header"));
+
+    expect(descriptionPopupStore.getEntry()).toEqual({
+      title: "Skill authors diagram JSON",
+      description: "This box stands for a concept, not a specific piece of code — there's nothing to open.",
+    });
+    expect(inspectorStore.getStack()).toEqual([]);
+  });
+
+  it("opens the description popup with the failed path for an unresolved box", () => {
+    renderBox(
+      element({
+        id: "e1", node_id: null, label: "Old helper", description: "",
+        meta: { no_code_reason: "unresolved", no_code_detail: "src/old_helper.py" },
+      }),
+    );
+
+    fireEvent.click(screen.getByTestId("canvas-node-box-header"));
+
+    expect(descriptionPopupStore.getEntry()?.description).toContain("src/old_helper.py");
+    expect(inspectorStore.getStack()).toEqual([]);
+  });
+
+  it("prefers an authored description over the stock no-code message", () => {
+    renderBox(
+      element({
+        id: "e1", node_id: null, label: "Auth actor", description: "The end user signing in.",
+        meta: { no_code_reason: "conceptual" },
+      }),
+    );
+
+    fireEvent.click(screen.getByTestId("canvas-node-box-header"));
+
+    expect(descriptionPopupStore.getEntry()).toEqual({
+      title: "Auth actor",
+      description: "The end user signing in.",
+    });
+  });
+
+  it("still opens the Inspector as usual for a box with a real node_id", () => {
+    renderBox(element({ id: "e1", node_id: "fn:auth.py:issue" }));
+
+    fireEvent.click(screen.getByTestId("canvas-node-box-header"));
+
+    expect(inspectorStore.getStack()).toEqual([
+      { id: "fn:auth.py:issue", name: "Auth service", sourceId: "e1" },
+    ]);
+    expect(descriptionPopupStore.getEntry()).toBeNull();
+  });
+});
+
 // type-impact.md: the ADD/MODIFY/DELETE chip driven by an Impact box's authored meta.status.
 describe("CanvasNodeBox — Impact status chip (meta.status)", () => {
-  it("shows an explicit chip naming the status role", () => {
-    renderBox(element({ id: "e1", render: "impact", meta: { status: "deleted" } }));
+  it("shows a mark plus the status role (form: '~ MODIFY'), not the bare label", () => {
+    renderBox(element({ id: "e1", render: "impact", meta: { status: "modified" } }));
 
-    expect(screen.getByTestId("impact-status-chip")).toHaveTextContent("DELETE");
+    expect(screen.getByTestId("impact-status-chip")).toHaveTextContent("~ MODIFY");
   });
 
   it("shows no chip when meta.status is absent", () => {
@@ -448,6 +654,25 @@ describe("CanvasNodeBox — Impact status chip (meta.status)", () => {
     renderBox(element({ id: "e1", render: "impact", meta: { status: "context" } }));
 
     expect(screen.queryByTestId("impact-status-chip")).not.toBeInTheDocument();
+  });
+});
+
+// data/Форма для задачи: meta chips sit between the title and the description, not below both.
+describe("CanvasNodeBox — meta row sits between title and description", () => {
+  it("renders the impact chip before the description", () => {
+    const { container } = renderBox(
+      element({
+        id: "e1", render: "impact", meta: { status: "deleted" },
+        description: "Handles charges, refunds.",
+      }),
+    );
+
+    const chip = screen.getByTestId("impact-status-chip");
+    const desc = container.querySelector(".diagram-node-box-desc");
+
+    expect(chip.compareDocumentPosition(desc as Node)).toBe(
+      Node.DOCUMENT_POSITION_FOLLOWING, // chip appears before desc
+    );
   });
 });
 
@@ -476,6 +701,52 @@ describe("CanvasNodeBox — nodeAccent", () => {
 
     expect(container.querySelector(".c1-block-icon")).not.toBeInTheDocument();
     expect(screen.getByTestId("canvas-node-box").className).not.toContain("undefined");
+  });
+});
+
+describe("CanvasNodeBox — locked layout (010-epics-tree-render Part 4)", () => {
+  afterEach(() => {
+    selectionStore.reset();
+    canvasDocStore.reset();
+    dragOffsetStore.reset();
+    undoStore.reset();
+  });
+
+  it("does not start a drag on a locked-layout epic box", () => {
+    const epic = element({ id: "EP-3", render: "epic", position: { x: 100, y: 100 } });
+    setDoc([epic]);
+    renderBox(epic);
+    const box = screen.getByTestId("canvas-node-box");
+
+    fireEvent.pointerDown(box, { button: 0, pointerId: 1, clientX: 0, clientY: 0 });
+    fireEvent.pointerMove(document, { pointerId: 1, clientX: 40, clientY: 30 });
+    fireEvent.pointerUp(document, { pointerId: 1, clientX: 40, clientY: 30 });
+
+    // No drag ever began: the box never registered as a collision participant, never wrote a live
+    // offset, and its position was never committed.
+    expect(dragOffsetStore.getAll()).toEqual({});
+    expect(canvasDocStore.getDoc().elements["EP-3"].position).toEqual({ x: 100, y: 100 });
+  });
+
+  it("a spec box click opens the Inspector on its epic's brief (spec_of), not its own id", () => {
+    const spec = element({
+      id: "EP-3::unify-logging",
+      render: "spec",
+      label: "US1 · Unify logging",
+      meta: { recipe_key: "EP-3", spec_of: "EP-3" },
+    });
+    setDoc([spec]);
+    renderBox(spec);
+
+    fireEvent.click(screen.getByTestId("canvas-node-box-header"));
+
+    // The spec box has no work item of its own -- the click resolves `spec_of` (the epic) so the
+    // inspector opens the epic's work item, whose stages hold this spec and its tasks. openId falls
+    // back to the resolved work item id, exactly as an epic box's click does, so a spec click shows
+    // the epic brief rather than a nonexistent per-spec work item.
+    expect(inspectorStore.getStack()).toEqual([
+      { id: "EP-3", name: "US1 · Unify logging", sourceId: "EP-3::unify-logging", workItemId: "EP-3" },
+    ]);
   });
 });
 
@@ -619,10 +890,10 @@ describe("CanvasNodeBox — group drag", () => {
     });
 
     const boxA = document.querySelector('[data-select-id="a"]') as HTMLElement;
-    // Real (committed) position is (130, 120), width 220 -> left = 130 - 110 = 20, top = 120 - 36 =
-    // 84. A leftover 30/20 offset would instead show left = 50, top = 104 -- the exact "jumps to a
+    // Real (committed) position is (130, 120), width 300 -> left = 130 - 150 = -20, top = 120 - 36 =
+    // 84. A leftover 30/20 offset would instead show left = 10, top = 104 -- the exact "jumps to a
     // different position" the moment the box is reselected, no drag involved.
-    expect(boxA.style.left).toBe("20px");
+    expect(boxA.style.left).toBe("-20px");
     expect(boxA.style.top).toBe("84px");
   });
 
@@ -659,7 +930,7 @@ describe("CanvasNodeBox — group drag", () => {
     });
 
     const boxA = document.querySelector('[data-select-id="a"]') as HTMLElement;
-    expect(boxA.style.left).toBe(`${140 - 110}px`);
+    expect(boxA.style.left).toBe(`${140 - 150}px`);
     expect(boxA.style.top).toBe(`${130 - 36}px`);
   });
 
@@ -679,5 +950,156 @@ describe("CanvasNodeBox — group drag", () => {
     fireEvent.pointerUp(document, { pointerId: 1, clientX: 30, clientY: 20 });
 
     expect(canvasDocStore.getDoc().elements.a.position).toEqual({ x: 130, y: 120 });
+  });
+
+  it("shows a drop ghost when the solo drag collides with a neighbour", async () => {
+    const a = element({ id: "a", label: "A", position: { x: 100, y: 100 } });
+    const b = element({ id: "b", label: "B", position: { x: 115, y: 100 } });
+    setDoc([a, b]);
+
+    // jsdom rects are all 0×0; a real canvas measures blocks, so stub real geometry. The two boxes
+    // sit near-overlapping, so dragging `a` onto `b` produces a correction the ghost should preview.
+    const orig = Element.prototype.getBoundingClientRect;
+    vi.spyOn(Element.prototype, "getBoundingClientRect").mockImplementation(function (this: Element) {
+      if ((this as HTMLElement).classList?.contains("canvas-content")) {
+        return { left: 0, top: 0, width: 1000, height: 1000, right: 1000, bottom: 1000 } as DOMRect;
+      }
+      const id = (this as HTMLElement).dataset?.selectId;
+      if (id === "a") return { left: 0, top: 0, width: 100, height: 50, right: 100, bottom: 50 } as DOMRect;
+      if (id === "b") return { left: 115, top: 0, width: 100, height: 50, right: 215, bottom: 50 } as DOMRect;
+      return orig.call(this);
+    });
+
+    const { container } = render(
+      <EngineClientProvider repoId="default" client={client}>
+        <div className="canvas-content">
+          <CanvasNodeBox element={a} />
+          <CanvasNodeBox element={b} />
+        </div>
+      </EngineClientProvider>,
+    );
+    const boxA = screen.getAllByTestId("canvas-node-box")[0];
+
+    fireEvent.pointerDown(boxA, { button: 0, pointerId: 1, clientX: 0, clientY: 0 });
+    // Drag far enough right that `a` fully slides over `b` — the solver must correct it.
+    fireEvent.pointerMove(document, { pointerId: 1, clientX: 150, clientY: 5 });
+
+    // The preview is rAF-throttled, so the mid-drag update needs a frame to flush.
+    await act(async () => {
+      await new Promise((resolve) => requestAnimationFrame(() => resolve(null)));
+    });
+
+    expect(container.querySelector("[data-testid='drop-ghost']")).not.toBeNull();
+
+    fireEvent.pointerUp(document, { pointerId: 1, clientX: 150, clientY: 5 });
+    vi.restoreAllMocks();
+  });
+
+  it("settles a solo drag beside a neighbour instead of landing on top of it", async () => {
+    const a = element({ id: "a", label: "A", position: { x: 100, y: 100 } });
+    const b = element({ id: "b", label: "B", position: { x: 115, y: 100 } });
+    setDoc([a, b]);
+
+    const orig = Element.prototype.getBoundingClientRect;
+    vi.spyOn(Element.prototype, "getBoundingClientRect").mockImplementation(function (this: Element) {
+      if ((this as HTMLElement).classList?.contains("canvas-content")) {
+        return { left: 0, top: 0, width: 1000, height: 1000, right: 1000, bottom: 1000 } as DOMRect;
+      }
+      const id = (this as HTMLElement).dataset?.selectId;
+      if (id === "a") return { left: 0, top: 0, width: 100, height: 50, right: 100, bottom: 50 } as DOMRect;
+      if (id === "b") return { left: 115, top: 0, width: 100, height: 50, right: 215, bottom: 50 } as DOMRect;
+      return orig.call(this);
+    });
+
+    render(
+      <EngineClientProvider repoId="default" client={client}>
+        <div className="canvas-content">
+          <CanvasNodeBox element={a} />
+          <CanvasNodeBox element={b} />
+        </div>
+      </EngineClientProvider>,
+    );
+    const boxA = screen.getAllByTestId("canvas-node-box")[0];
+
+    fireEvent.pointerDown(boxA, { button: 0, pointerId: 1, clientX: 0, clientY: 0 });
+    // Drag straight onto `b` — the raw release point would leave `a` overlapping it.
+    fireEvent.pointerMove(document, { pointerId: 1, clientX: 150, clientY: 5 });
+    await act(async () => {
+      await new Promise((resolve) => requestAnimationFrame(() => resolve(null)));
+    });
+    fireEvent.pointerUp(document, { pointerId: 1, clientX: 150, clientY: 5 });
+
+    // The corrected landing animates in via a transition (SETTLE_MS) with a timeout fallback; jsdom
+    // never fires transitionend, so wait out the fallback before reading the committed position.
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 250));
+    });
+
+    const committed = canvasDocStore.getDoc().elements.a.position;
+    // Raw release would commit x = 100 + 150 = 250, still overlapping b's right edge (215) by the
+    // NODE_SEP gap — the solver must have shifted the landing well past that.
+    expect(committed.x).toBeGreaterThan(250);
+
+    vi.restoreAllMocks();
+  });
+
+  it("keeps a multi-box group move free of collision settling even when boxes overlap", () => {
+    const a = element({ id: "a", label: "A", position: { x: 100, y: 100 } });
+    const b = element({ id: "b", label: "B", position: { x: 105, y: 100 } });
+    setDoc([a, b]);
+    selectionStore.replace(["a", "b"]);
+
+    render(
+      <EngineClientProvider repoId="default" client={client}>
+        <div className="canvas-content">
+          <CanvasNodeBox element={a} />
+          <CanvasNodeBox element={b} />
+        </div>
+      </EngineClientProvider>,
+    );
+    const boxA = screen.getAllByTestId("canvas-node-box")[0];
+
+    fireEvent.pointerDown(boxA, { button: 0, pointerId: 1, clientX: 0, clientY: 0 });
+    // Drag right by 40px: `a` ends up overlapping `b`, yet both boxes must move by exactly the raw
+    // pointer delta — a group move never consults the collision solver.
+    fireEvent.pointerMove(document, { pointerId: 1, clientX: 40, clientY: 0 });
+    fireEvent.pointerUp(document, { pointerId: 1, clientX: 40, clientY: 0 });
+
+    expect(canvasDocStore.getDoc().elements.a.position).toEqual({ x: 140, y: 100 });
+    expect(canvasDocStore.getDoc().elements.b.position).toEqual({ x: 145, y: 100 });
+  });
+
+  it("keeps the arrows following a solo drag by publishing the live offset to dragOffsetStore", async () => {
+    // Regression: the old solo `useDragOffset` passed `onPreview -> dragOffsetStore.set`, which is
+    // what CanvasEdges reads (via CanvasDocView's visibleDoc) to keep an arrow anchored to the block
+    // while it moves. useCollisionAvoidance swallows the onPreview slot to drive its own ghost, so
+    // without the composedPreview wiring here a solo drag moved only the box -- the arrows froze at
+    // the pre-drag spot and jumped into place on release.
+    const a = element({ id: "a", label: "A", position: { x: 100, y: 100 } });
+    const b = element({ id: "b", label: "B", position: { x: 400, y: 100 } });
+    setDoc([a, b]);
+
+    render(
+      <EngineClientProvider repoId="default" client={client}>
+        <div className="canvas-content">
+          <CanvasNodeBox element={a} />
+          <CanvasNodeBox element={b} />
+        </div>
+      </EngineClientProvider>,
+    );
+    const boxA = screen.getAllByTestId("canvas-node-box")[0];
+
+    fireEvent.pointerDown(boxA, { button: 0, pointerId: 1, clientX: 0, clientY: 0 });
+    fireEvent.pointerMove(document, { pointerId: 1, clientX: 30, clientY: 20 });
+    await act(async () => {
+      await new Promise((resolve) => requestAnimationFrame(() => resolve(null)));
+    });
+
+    // Mid-drag: the live offset channel has A's raw delta -- the arrows route off this the same way
+    // they do for a group drag (see the group test above).
+    expect(dragOffsetStore.getAll()).toEqual({ a: { x: 30, y: 20 } });
+
+    fireEvent.pointerUp(document, { pointerId: 1, clientX: 30, clientY: 20 });
+    expect(dragOffsetStore.getAll()).toEqual({});
   });
 });

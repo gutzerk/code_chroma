@@ -146,8 +146,17 @@ def test_stop_watchers_is_safe_before_start_and_idempotent(tmp_path):
     workspace.stop_watchers()
     workspace.stop_watchers()
 
-    # repo/trace/custom/feature-plan/3 kinds/3 projections/impact-changes/canvas-core/wiki-general.
-    assert len(workspace.watchers) == 13
+    # repo/trace/custom/feature-plan/N kinds/N projections/impact-changes/canvas-core/wiki-general
+    # (N kinds with both a diagram + projection FileWatcher each, per diagram_registry.DIAGRAMS).
+    from codechroma.bridge import epics_resolver
+    from codechroma.bridge.diagram_registry import DIAGRAMS
+
+    expected = (
+        7  # repo, trace, custom, feature-plan, impact-changes, canvas-core, wiki-general
+        + 2 * len(DIAGRAMS)  # diagram + projection per registered kind
+        + len(epics_resolver.external_watch_paths(workspace.root))
+    )
+    assert len(workspace.watchers) == expected
 
 
 def test_watchers_start_and_stop_only_their_owned_watcher_kinds(tmp_path):

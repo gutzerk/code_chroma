@@ -89,7 +89,7 @@ class SkillAgentConfig(_Config):
 
 
 class SkillAgentTimeoutsConfig(_Config):
-    """bridge/{c1,patterns,impact_review,research,epic-brief,custom_diagram,canvas_chat,wiki_general,wiki_general_update}_agent."""
+    """bridge/{c1,patterns,impact_review,epic-brief,custom_diagram,canvas_chat,wiki_general,wiki_general_update}_agent."""
 
     model: str = "haiku"
     default_timeout_seconds: int = 600
@@ -97,7 +97,6 @@ class SkillAgentTimeoutsConfig(_Config):
         "c1": 600,
         "patterns": 600,
         "impact-changes": 300,
-        "research": 180,
         "epic-brief": 300,
         "custom": 600,
         "canvas-chat": 180,
@@ -107,19 +106,6 @@ class SkillAgentTimeoutsConfig(_Config):
 
     def seconds_for(self, kind: str) -> int:
         return self.timeout_seconds.get(kind, self.default_timeout_seconds)
-
-
-class EmbeddingsProviderConfig(_Config):
-    """research/embeddings_provider.py: the Voyage AI call, mirrors AnthropicClientConfig."""
-
-    model: str = "voyage-3-lite"
-    request_timeout_seconds: float = 20.0
-
-
-class ResearchConfig(_Config):
-    """research/search.py + research/indexer.py: the natural-language research feature."""
-
-    top_k: int = 8
 
 
 class BridgeAppConfig(_Config):
@@ -281,8 +267,6 @@ class Settings(_Config):
     terminal: TerminalConfig = TerminalConfig()
     bootstrap: BootstrapConfig = BootstrapConfig()
     requirements: RequirementsConfig = RequirementsConfig()
-    embeddings_provider: EmbeddingsProviderConfig = EmbeddingsProviderConfig()
-    research: ResearchConfig = ResearchConfig()
     custom_diagrams: CustomDiagramsConfig = CustomDiagramsConfig()
     diagram_diagnostics: DiagramDiagnosticsConfig = DiagramDiagnosticsConfig()
     wiki_generator: WikiGeneratorConfig = WikiGeneratorConfig()

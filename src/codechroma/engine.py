@@ -5,7 +5,6 @@ from __future__ import annotations
 import hashlib
 import logging
 import os
-import threading
 import uuid
 from collections import Counter, defaultdict
 from collections.abc import Iterable
@@ -16,7 +15,7 @@ import pathspec
 
 from codechroma.analyzers.registry import AnalyzerRegistry, LanguageAnalyzer
 from codechroma.dependencies.digest import build_dependency_digest, write_dependency_digest
-from codechroma.graph.builder import GraphBuilder
+from codechroma.graph.builder import GraphBuilder, symbol_origin
 from codechroma.graph.models import (
     AISummary,
     AnalysisRun,
@@ -32,8 +31,6 @@ from codechroma.graph.models import (
 )
 from codechroma.graph.store import GraphStore, SqliteGraphStore
 from codechroma.patterns.detector import detect_candidates
-from codechroma.research.embeddings_provider import embeddings_provider_from_env
-from codechroma.research.indexer import embed_node_summaries
 from codechroma.skills import is_synced_skill_path
 from codechroma.summarize.ai_summarizer import AISummarizer
 from codechroma.wiki.generator import generate_wiki
@@ -151,25 +148,6 @@ def _write_dependency_digest(repo_root: Path, graph: Graph, repo_id: str) -> Non
         write_dependency_digest(repo_root, build_dependency_digest(graph, repo_root))
     except Exception:
         logger.exception("dependency digest build/write failed for repo %s", repo_id)
-
-
-def _embed_research_index(repo_root: Path, graph: Graph, repo_id: str) -> None:
-    """Only runs if an embeddings provider is configured; a failure never fails the analysis run."""
-    provider = embeddings_provider_from_env()
-    if provider is None:
-        return
-    try:
-        embed_node_summaries(graph, repo_root, provider)
-    except Exception:
-        logger.exception("research index embed failed for repo %s", repo_id)
-
-
-def _embed_research_index_async(repo_root: Path, graph: Graph, repo_id: str) -> None:
-    """Fire-and-forget: the embedding call is blocking HTTP, must not stall the watcher thread."""
-    thread = threading.Thread(
-        target=_embed_research_index, args=(repo_root, graph, repo_id), daemon=True
-    )
-    thread.start()
 
 
 def _node_context(node: HierarchyNode, all_symbols: dict[str, Symbol]) -> str:
@@ -332,7 +310,6 @@ class GraphEngine:
         self._repository = repository
         self._graph = after
         _write_dependency_digest(repo_root, after, repo_id)
-        _embed_research_index_async(repo_root, after, repo_id)
         return AnalysisRunResult(status=run.status.value, diff=diff)
 
     def analyze(self, repo_path: str) -> AnalysisRunResult:
@@ -449,7 +426,6 @@ class GraphEngine:
         )
         self._graph.pattern_candidates = detect_candidates(self._graph)
         _write_dependency_digest(repo_root, self._graph, repo_id)
-        _embed_research_index_async(repo_root, self._graph, repo_id)
         return True
 
     def get_node(self, node_id: str) -> HierarchyNode | None:
@@ -471,6 +447,10 @@ class GraphEngine:
 
     def get_symbol(self, node_id: str) -> Symbol | None:
         return self._graph.symbols.get(node_id)
+
+    def edge_origin(self, from_id: str) -> str | None:
+        """`file:line` of an edge's caller -- where a click on the arrow should land."""
+        return symbol_origin(self._graph.symbols.get(from_id))
 
     def iter_symbols(self) -> Iterable[Symbol]:
         """Every symbol in the current graph; the trace mapper indexes these into node ids."""

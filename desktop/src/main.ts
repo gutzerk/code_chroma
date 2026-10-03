@@ -4,6 +4,7 @@ import {
   dialog,
   ipcMain,
   Menu,
+  Notification,
   shell as electronShell,
   WebContentsView,
   type WebContents,
@@ -15,6 +16,7 @@ import { addRecent, readRecents, recentsStorePath } from "./recentRepos";
 import { repairProcessPath } from "./shellPath";
 import { TabManager, type Tab } from "./tabManager";
 import type { TabsChangedPayload } from "./tabbarPreload";
+import { checkForUpdates, downloadAsset, installAsset, type UpdateInfo } from "./updater";
 
 const LAUNCHER_PAGE = join(__dirname, "..", "launcher", "index.html");
 const TABBAR_PAGE = join(__dirname, "..", "tabbar", "index.html");
@@ -111,6 +113,9 @@ async function createShell(): Promise<Shell> {
     minHeight: 600,
     title: "CodeChroma",
     backgroundColor: "#11131a",
+    // Opens full-screen (true full-screen mode, F11/Ctrl+Cmd+F toggles back). The title bar and
+    // tab strip render over the screen edge-to-edge, like a maximized IDE.
+    fullscreen: true,
   });
 
   const tabBar = new WebContentsView({
@@ -289,6 +294,98 @@ function frontShell(): Shell | undefined {
   return shellForWindow(BrowserWindow.getFocusedWindow()) ?? [...shells][0];
 }
 
+/** Guards check/install so a notification-click and the File menu can't double-fire osascript mounts. */
+let updateBusy = false;
+
+/** Latest newer-than-`app.getVersion()` release, or null. `checkForUpdates` defaults to this process's
+ * platform/arch, so callers stay terse. */
+function latest(): Promise<UpdateInfo | null> {
+  return checkForUpdates(app.getVersion());
+}
+
+/** Background check at startup: never prompts, offline must not break launch. Only for packaged
+ * installs -- a dev run (`npm start`) hitting the real GitHub API would just be noise. */
+async function checkAndNotify(): Promise<void> {
+  if (!app.isPackaged) return;
+  try {
+    const info = await latest();
+    if (info) notifyUpdateAvailable(info);
+  } catch {
+    /* offline or API unreachable -- the File menu item still re-checks on demand. */
+  }
+}
+
+/** Runs the update flow; `info` skips the API re-check, the menu item passes none to re-check.
+ * The `updateBusy` gate is taken before the first await so a notification-click and the File menu
+ * can't both drive the (privileged) install. */
+async function runUpdateFlow(infoArg?: UpdateInfo): Promise<void> {
+  if (updateBusy) return;
+  updateBusy = true;
+  try {
+    let info: UpdateInfo | null = infoArg ?? null;
+    if (!info) {
+      try {
+        info = await latest();
+      } catch {
+        dialog.showErrorBox("Check for updates", "Couldn't reach GitHub. Check your connection and try again.");
+        return;
+      }
+    }
+    if (!info) return;
+
+    // A newer release whose installer has no reachable SHA-256 digest can't be verified: tell the
+    // user rather than silently claiming the app is current.
+    if (!info.sha256) {
+      dialog.showErrorBox(
+        "Check for updates",
+        `CodeChroma ${info.version} is available but its installer has no checksum to verify against. Please install manually from GitHub.`,
+      );
+      return;
+    }
+
+    const shell = frontShell();
+    const confirm = shell
+      ? await dialog.showMessageBox(shell.window, {
+          type: "info",
+          buttons: ["Update", "Later"],
+          defaultId: 0,
+          cancelId: 1,
+          message: `An update to CodeChroma ${info.version} is available.`,
+          detail: `Install ${info.version} now? You'll need to relaunch CodeChroma.`,
+        })
+      : { response: 1 };
+    if (confirm.response !== 0) return;
+
+    await downloadAsset(info);
+    if (await installAsset(info)) {
+      await dialog.showMessageBox({
+        type: "info",
+        message: `CodeChroma ${info.version} installed.`,
+        detail: "Relaunch to use the new version.",
+        buttons: ["Relaunch"],
+      });
+      app.relaunch();
+      app.quit();
+    }
+  } catch (error) {
+    // A failed install and an unreachable GitHub are different failures to the user; keep the
+    // offline case honest instead of lumping it into "Update failed".
+    dialog.showErrorBox("Update failed", (error as Error).message);
+  } finally {
+    updateBusy = false;
+  }
+}
+
+/** Alerts on a newer release; clicking it starts the update using the `info` already fetched. */
+function notifyUpdateAvailable(info: UpdateInfo): void {
+  const notification = new Notification({
+    title: `CodeChroma ${info.version} available`,
+    body: "Click to update.",
+  });
+  notification.on("click", () => void runUpdateFlow(info));
+  notification.show();
+}
+
 function buildMenu(): void {
   const template: Electron.MenuItemConstructorOptions[] = [
     { role: "appMenu" },
@@ -337,6 +434,11 @@ function buildMenu(): void {
           label: "New Window",
           accelerator: "CmdOrCtrl+Shift+N",
           click: () => void createShell(),
+        },
+        { type: "separator" },
+        {
+          label: "Check for Updates…",
+          click: () => void runUpdateFlow(),
         },
       ],
     },
@@ -404,6 +506,7 @@ app.whenReady().then(async () => {
   buildMenu();
   registerIpc();
   const initialShell = await createShell();
+  void checkAndNotify();
   const preselected = repoFromArgv(process.argv);
   if (preselected !== null) {
     await openRepo(initialShell, resolve(preselected), null);

@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import pytest
+
 from codechroma.canvas.apply_batch import (
     MASS_DELETE_GUARD,
     MAX_EXPLANATION_CHARS,
@@ -57,6 +59,36 @@ def test_add_element_sanitizes_style_to_the_allowed_keys():
     assert element.style == {"background": "var(--accent)"}
 
 
+def test_add_element_without_a_position_cascades_instead_of_piling_at_origin():
+    doc = CanvasDoc()
+
+    result = apply_batch(doc, [
+        {"op": "add_element", "temp_id": "a", "render": "c1", "label": "A"},
+        {"op": "add_element", "temp_id": "b", "render": "c1", "label": "B"},
+    ])
+
+    assert result.ok
+    pos_a = result.doc.elements[result.id_map["a"]].position
+    pos_b = result.doc.elements[result.id_map["b"]].position
+    # Position-less adds spread down-right (routes/canvas.py path), never piling
+    # at (0,0) or stacking on each other.
+    assert (pos_a.x, pos_a.y) != (0.0, 0.0)
+    assert (pos_b.x, pos_b.y) != (0.0, 0.0)
+    assert pos_b.x > pos_a.x
+
+
+def test_explicit_position_still_wins_over_the_default_cascade():
+    doc = CanvasDoc()
+
+    result = apply_batch(doc, [
+        {"op": "add_element", "temp_id": "a", "render": "c1", "label": "A",
+         "position": {"x": 5, "y": 5}},
+    ])
+
+    assert result.ok
+    assert result.doc.elements[result.id_map["a"]].position.x == 5
+
+
 def test_add_edge_resolves_temp_ids_from_the_same_batch():
     doc = CanvasDoc()
     ops = [
@@ -71,6 +103,23 @@ def test_add_edge_resolves_temp_ids_from_the_same_batch():
     edge = result.doc.edges[result.id_map["e"]]
     assert edge.from_ == result.id_map["a"]
     assert edge.to == result.id_map["b"]
+
+
+def test_add_edge_carries_the_authored_transport():
+    doc = CanvasDoc()
+    ops = [
+        {"op": "add_element", "temp_id": "a", "render": "c1", "label": "A"},
+        {"op": "add_element", "temp_id": "b", "render": "c1", "label": "B"},
+        {
+            "op": "add_edge", "temp_id": "e", "from": "a", "to": "b",
+            "label": "calls", "transport": "mcp",
+        },
+    ]
+
+    result = apply_batch(doc, ops)
+
+    assert result.ok
+    assert result.doc.edges[result.id_map["e"]].transport == "mcp"
 
 
 def test_add_edge_sanitizes_style_to_the_allowed_keys():
@@ -300,23 +349,15 @@ def test_an_unknown_render_kind_is_rejected():
     assert result.errors[0].code == "invalid_field"
 
 
-def test_a_note_with_a_node_id_is_rejected():
+@pytest.mark.parametrize(
+    "op,label",
+    [("add_note", "step 1"), ("add_group", "Persistence")],
+    ids=["note", "group"],
+)
+def test_a_note_or_group_with_a_node_id_is_rejected(op, label):
     doc = CanvasDoc()
 
-    result = apply_batch(
-        doc, [{"op": "add_note", "label": "step 1", "node_id": "component::a.py"}]
-    )
-
-    assert not result.ok
-    assert result.errors[0].code == "invalid_field"
-
-
-def test_a_group_with_a_node_id_is_rejected():
-    doc = CanvasDoc()
-
-    result = apply_batch(
-        doc, [{"op": "add_group", "label": "Persistence", "node_id": "component::a.py"}]
-    )
+    result = apply_batch(doc, [{"op": op, "label": label, "node_id": "component::a.py"}])
 
     assert not result.ok
     assert result.errors[0].code == "invalid_field"

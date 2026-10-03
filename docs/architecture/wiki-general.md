@@ -440,7 +440,7 @@ subscription.
   restore/`has_artifact()` shape as the subprocess path, just wrapping `self.run_body(...)` instead of
   spawning one `claude` process. `SkillAgent.start()` grew an optional `workspace: Workspace | None`
   parameter threaded through to `run_body` for this reason — every other call site (c1/patterns/
-  research/epic-brief/custom/diagram-type/canvas-chat) still omits it and is unaffected.
+  epic-brief/custom/diagram-type/canvas-chat) still omits it and is unaffected.
   `SkillAgent.job_procs: dict[str, set[Process]]` (alongside the existing single-process-per-repo
   `self.procs`) lets a `run_body` register many concurrent worker subprocesses per repo id
   (`register_job_proc`/`unregister_job_proc`); `stop()`/`cancel()` kill everything in both dicts, so

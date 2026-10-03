@@ -1,6 +1,6 @@
 """Shared plumbing for routes that drive a SkillAgent job.
 
-Every skill-run family (diagrams, epic briefs, research) used to hand-write the same
+Every skill-run family (diagrams, epic briefs) used to hand-write the same
 `{kind}-status`/`{kind}-output` callback pair and the same cancel-then-ping body. This module is
 that lifecycle written once; a route keeps only what is genuinely its own (validation, caching,
 prompt building).

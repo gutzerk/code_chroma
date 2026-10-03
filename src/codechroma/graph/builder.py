@@ -313,3 +313,10 @@ class GraphBuilder:
             dep_ids = {t for t in targets if t in nodes}
             if dep_ids:
                 nodes[symbol_id].depends_on_ids = sorted(dep_ids)
+
+
+def symbol_origin(symbol: Symbol) -> str | None:
+    """`file:line` of a symbol -- where a click on one of its edges lands; None if none."""
+    if symbol is None:
+        return None
+    return f"{symbol.file_path}:{symbol.start_line}"

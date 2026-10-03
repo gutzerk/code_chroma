@@ -34,6 +34,8 @@ def test_empty_repo_reports_nothing_ready(server_module):
         "c1": {"ready": False, "fingerprint": None},
         "patterns": {"ready": False, "fingerprint": None},
         "impact": {"ready": False, "fingerprint": None},
+        "epics": {"ready": False, "fingerprint": None},
+        "sequence": {"ready": False, "fingerprint": None},
     }
 
 

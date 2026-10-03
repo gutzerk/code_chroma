@@ -9,7 +9,10 @@ import type {
   DiagramTypeSummary,
 } from "../../state/types";
 import { recipeChromeKey } from "../../state/useSidecar";
+import { stringMeta } from "./elementMeta";
 import { layoutNewElements } from "./autoLayout";
+import { isEpicsLayerName, parentEpicKey } from "./epicsLayout";
+import { BLOCK_RULES } from "./elementRules";
 import { canvasDocStore, collectActiveLayers, patchCanvasDoc } from "./canvasDocStore";
 import { captureLayerPositions, takeCachedPosition } from "./layerPositionCache";
 
@@ -19,8 +22,7 @@ export interface BuiltinRecipe {
   /** Screen-reader accessible name, when `label` alone is too terse to stand on its own (e.g. "C1"
    * assumes C4-model familiarity) — falls back to `label` when unset. */
   accessibleName?: string;
-  /** Whether this recipe draws a generated artifact, i.e. whether `DiagramsStatus` gates it at all.
-   * False for a recipe with no "generated or not" concept (Epics reads requirements files directly). */
+  /** Whether this recipe draws a generated artifact, i.e. whether `DiagramsStatus` gates it at all. */
   generated?: boolean;
 }
 
@@ -32,7 +34,8 @@ export const BUILTIN_RECIPES: BuiltinRecipe[] = [
   { name: "c1", label: "C1", accessibleName: "C1 — system context diagram", generated: true },
   { name: "patterns", label: "Design patterns", generated: true },
   { name: "impact", label: "Change impact", generated: true },
-  { name: "epics", label: "Epics" },
+  { name: "epics", label: "Epics", generated: true },
+  { name: "sequence", label: "Sequence", accessibleName: "Sequence — порядок вызовов", generated: true },
 ];
 
 /** The only two layer names that are never a diagram: the seeded hierarchy tree, and
@@ -41,7 +44,7 @@ const NON_DIAGRAM_LAYERS = new Set(["hierarchy", "default"]);
 
 /** Every "<prefix>/<id>" layer kind that's lazily synthesized rather than a `BUILTIN_RECIPES` entry
  * (mirrors `canvas/recipes.py`'s `_SYNTHESIZED_PREFIXES`) — extend this, not `isRecipeBackedLayer`. */
-const SYNTHESIZED_LAYER_PREFIXES = ["custom/", "feature-plan/"];
+const SYNTHESIZED_LAYER_PREFIXES = ["custom/", "feature-plan/", "epics/"];
 
 /** Every diagram layer currently on the canvas, excluding `NON_DIAGRAM_LAYERS` -- deliberately a
  * deny-list, not an allow-list of builtin/`custom/<id>` names: `PATCH /repos/{id}/canvas` accepts
@@ -62,15 +65,45 @@ export function isDiagramLayer(layer: string): boolean {
   return !NON_DIAGRAM_LAYERS.has(layer);
 }
 
-/** Resolves a diagram layer key to its display label, for a builtin, a custom type, or a feature's
- * own Feature-plan diagram (055-diagram-feature-plan); falls back to the raw layer key for a custom
- * type whose title hasn't loaded yet. */
-export function labelForDiagramLayer(layer: string, customTypes: DiagramTypeSummary[]): string {
+/** The short title of a per-EP box label, e.g. `EP-1 · Zoomable semantic map` -> `Zoomable semantic
+ * map`. Used so the Diagrams tab can name an epics layer by its epic instead of the generic "Epics".
+ * Falls back to the raw label when it lacks the `EP-x · ` prefix (a plain-title story). */
+function shortEpicTitle(label: string): string {
+  return label.replace(/^EP-\d+ ·\s*/, "");
+}
+
+/** The short title of the first top-level epic box on an epics layer (`EP-A-01 · Foundation` ->
+ * `Foundation`), or null when the layer has no top-level epic to name it by — the Diagrams tab's
+ * epics-row label falls back to the layer's own `epics/<id>` id in that case. First top-level epic
+ * is the one whose recipe_key equals itself (`parentEpicKey(id) === id`), i.e. not a nested story. */
+export function epicsLayerShortTitle(doc: CanvasDoc, layer: string): string | null {
+  const epic = Object.values(doc.elements).find(
+    (element) =>
+      element.layer === layer && parentEpicKey(stringMeta(element, "recipe_key") || element.id) === (stringMeta(element, "recipe_key") || element.id),
+  );
+  return epic ? shortEpicTitle(epic.label) : null;
+}
+
+/** Resolves a diagram layer key to its display label, for a builtin, a custom type, a feature's own
+ * Feature-plan diagram (055-diagram-feature-plan), or a per-epic diagram (`epics/<id>`); falls back
+ * to the raw layer key for a custom type whose title hasn't loaded yet. An optional `doc` lets an
+ * epics layer name itself by its first top-level epic's short title (e.g. "Zoomable semantic map")
+ * instead of the raw `epics/<id>` key. */
+export function labelForDiagramLayer(
+  layer: string,
+  customTypes: DiagramTypeSummary[],
+  doc?: CanvasDoc,
+): string {
+  if (isEpicsLayerName(layer) && doc) {
+    const shortTitle = epicsLayerShortTitle(doc, layer);
+    if (shortTitle) return shortTitle;
+  }
   const builtin = BUILTIN_RECIPES.find((recipe) => recipe.name === layer);
   if (builtin) return builtin.label;
   const custom = customTypes.find((type) => `custom/${type.id}` === layer);
   if (custom) return custom.title;
   if (layer.startsWith("feature-plan/")) return `Feature plan: ${layer.slice("feature-plan/".length)}`;
+  if (layer.startsWith("epics/")) return layer.slice("epics/".length);
   return layer;
 }
 
@@ -87,11 +120,11 @@ export function isRecipeBackedLayer(layer: string): boolean {
   );
 }
 
-/** Whether `layer` has an on-disk artifact a delete action should also remove -- false for `epics`
- * (reads requirements files directly, nothing generated to delete) and for a freeform layer a
- * skill/agent PATCHed straight onto the canvas with no backing route. Deleting one of those layers
- * still removes it from the canvas via `removeLayerAndRefresh`; it just skips the file-delete call
- * that would otherwise 404. */
+/** Whether `layer` has an on-disk artifact a delete action should also remove -- every generated
+ * built-in (`c1`/`patterns`/`impact`/`epics` — epics is skill-generated now) and every synthesized
+ * layer; false for a freeform layer a skill/agent PATCHed straight onto the canvas with no backing
+ * route. Deleting one of those layers still removes it from the canvas via `removeLayerAndRefresh`;
+ * it just skips the file-delete call that would otherwise 404. */
 export function hasDeletableDiagramArtifact(layer: string): boolean {
   const builtin = BUILTIN_RECIPES.find((recipe) => recipe.name === layer);
   // No builtin match means isRecipeBackedLayer's own builtin check is already false, so it
@@ -120,14 +153,16 @@ export function useCustomDiagramTypes(engineClient: EngineClient): DiagramTypeSu
 /** The channels a newly-written diagram arrives on. Bare `"custom"` is one coarse ping shared by
  * every saved type (`workspaces.py`'s `on_custom_change`), so a `"custom"` ping also means "refetch
  * the type list", not just "refetch status" -- both `DrawDiagramButton` and `useDiagramsStatus` below
- * watch the same set so they never disagree about what counts as a diagram ping. */
-export const WATCHED_DIAGRAM_EVENT_KINDS: DiagramEventKind[] = ["c1", "patterns", "impact", "custom"];
+ * watch the same set so they never disagree about what counts as a diagram ping. `epics` is in here
+ * (unlike the status fetch alone, which already covers it) so a freshly written `epics.json` also
+ * drives the auto-place-the-layer flow, not just the readiness map. */
+export const WATCHED_DIAGRAM_EVENT_KINDS: DiagramEventKind[] = ["c1", "epics", "patterns", "impact", "sequence", "custom"];
 
 /** Fetches `GET /repos/{id}/diagrams/status` once, then keeps it fresh on every diagram ping -- the
  * Diagrams tab's own copy of the readiness map `DrawDiagramButton` keeps for its own task text,
- * same duplication `useCustomDiagramTypes` above already accepts. Unlike that button, this hook does
- * not drive the auto-add-when-ready behavior (`pendingDrawRequests`) -- that stays a `DrawDiagramButton`
- * concern, since it's tied to a request *that button* made. */
+ * same duplication `useCustomDiagramTypes` above already accepts. This hook only refreshes the
+ * readiness map; auto-adding a ready-but-unplaced diagram is `DrawDiagramButton`'s `refetchStatus`
+ * (since that's the mounted component with the status subscriptions), not this hook's concern. */
 export function useDiagramsStatus(engineClient: EngineClient): DiagramsStatus | null {
   const [status, setStatus] = useState<DiagramsStatus | null>(null);
 
@@ -153,8 +188,9 @@ export interface ReadyDiagrams {
   readyCustomTypes: DiagramTypeSummary[];
   /** What the drawing agent's task prompt reads. */
   missingLabels: string[];
-  /** What `pendingDrawRequests`'s auto-add matches on. */
-  missingKinds: string[];
+  /** Every built-in + saved custom type label, regardless of what's already drawn -- so "Draw…"
+   * always offers the full menu and the user never has to remove a diagram to see it again. */
+  allLabels: string[];
   anyGeneratedReady: boolean;
 }
 
@@ -187,10 +223,7 @@ export function computeReadyDiagrams(
     readyBuiltins,
     readyCustomTypes,
     missingLabels: [...missingBuiltins.map((r) => r.label), ...missingCustom.map((t) => t.title)],
-    missingKinds: [
-      ...missingBuiltins.map((r) => r.name),
-      ...missingCustom.map((t) => `custom/${t.id}`),
-    ],
+    allLabels: [...BUILTIN_RECIPES.map((r) => r.label), ...customTypes.map((t) => t.title)],
     anyGeneratedReady: readyBuiltins.some((r) => r.generated) || readyCustomTypes.length > 0,
   };
 }
@@ -206,38 +239,88 @@ export function computeReadyDiagrams(
  * `layerPositionCache` -- a hit means this same recipe key sat on the canvas before a
  * `removeLayerAndRefresh` deleted it, so its old spot is restored instead of a new one being
  * computed, which is what makes remove-then-re-add via the rail keep a user's dragged layout. */
+
+/** Whether a recipe run's ids belong to a hard-layout layer — a structure the canvas never
+ * user-drags (epics columns, sequence participants/messages), so a refresh re-runs its whole
+ * deterministic layout instead of only the brand-new elements. Reads `BLOCK_RULES[render].lockedLayout`
+ * (the single source of truth for "hard layout": a stale sequence column re-spreads, a future locked
+ * kind picks this up from its own flag, not another `||` clause here). `render === "group"` is folded
+ * in explicitly: an epics frame is a hard, non-draggable shell (its own `add_group` op, no
+ * `lockedLayout` since it isn't a node-box), so a run that reconciles only group shells still counts —
+ * matching the original `isEpicsLayer`'s epic-or-group gate. */
+function isHardLayoutLayer(doc: CanvasDoc, ids: readonly string[]): boolean {
+  return ids.some((id) => {
+    const element = doc.elements[id];
+    return Boolean(
+      element && (BLOCK_RULES[element.render].lockedLayout || element.render === "group"),
+    );
+  });
+}
+
 export async function runRecipeAndLayout(
   engineClient: EngineClient,
   name: string,
 ): Promise<{ ok: true } | { ok: false; error: string }> {
-  const result = await engineClient.runRecipe(name);
-  if (!result.ok) {
-    return { ok: false, error: result.errors[0]?.message ?? "recipe run failed" };
+  // Withhold this layer's transient (0,0) snapshot (the recipe's own commit broadcasts it before
+  // the layout pass below has run) so the canvas never flashes the pile -- fetchAndApplyCanvasDoc
+  // holds off on any snapshot while at least one layer is mid-layout, and releaseLayout below
+  // releases it once the laid-out positions are committed.
+  canvasDocStore.deferLayout(name);
+  try {
+    const result = await engineClient.runRecipe(name);
+    if (!result.ok) {
+      return { ok: false, error: result.errors[0]?.message ?? "recipe run failed" };
+    }
+    // Soft: the batch already committed, so this only records what to say beside the drawn diagram.
+    diagramHealthStore.set(name, result.diagnostics);
+    const doc = await engineClient.getCanvas();
+    const newIds = Object.values(result.id_map).filter((id) => doc.elements[id]);
+    // A hard-layout layer (epics or sequence) is never user-dragged, so a refresh re-arranges its
+    // whole structure rather than only the brand-new boxes -- otherwise an already-placed layer would
+    // keep stale positions (a sequence layer drawn before a colW change keeps its old narrow columns)
+    // and never pick up the current deterministic layout. Other layers keep the "only new elements"
+    // rule so a refresh never moves a box the user dragged.
+    const hardLayout = doc && isHardLayoutLayer(doc, newIds) ? true : false;
+    const layoutIds = hardLayout
+      ? Object.values(doc.elements)
+          .filter((element) => element.layer === name)
+          .map((element) => element.id)
+      : newIds;
+    const restored: Record<string, CanvasPosition> = {};
+    const toLayout: string[] = [];
+    for (const id of layoutIds) {
+      const element = doc.elements[id];
+      const recipeKey = element ? recipeChromeKey(element) : "";
+      const cached = recipeKey ? takeCachedPosition(name, recipeKey) : undefined;
+      if (cached) restored[id] = cached;
+      else toLayout.push(id);
+    }
+    const { positions, sizes } = layoutNewElements(doc, toLayout);
+    // Fold any derived sizes (a content-fit epics width) in with the positions; `update_element`
+    // carries both, so a box that auto-sized to its text keeps that width once persisted.
+    const layout = { ...restored, ...positions };
+    const ops = Object.entries(layout).map(([id, position]) => ({
+      op: "update_element" as const,
+      id,
+      position,
+      ...(sizes?.[id] ? { size: sizes[id] } : {}),
+    }));
+    if (ops.length > 0) {
+      // patchCanvasDoc's own post-write refetch applies the laid-out doc through the shared
+      // fetchAndApplyCanvasDoc path: the content check there passes now that these boxes are no
+      // longer origin-piled, so the canvas shows the finished spread in one step.
+      await patchCanvasDoc(engineClient, ops, {
+        layer: name,
+        explanation: "auto-layout new elements",
+      });
+    }
+    return { ok: true };
+  } finally {
+    // Release just this withheld layer; its layout PATCH has committed by now, so its next snapshot
+    // (already applied above, or the existing doc if there was nothing to lay out) is the real one.
+    // Per-layer so a concurrent layout for another layer stays withheld until it finishes too.
+    canvasDocStore.releaseLayout(name);
   }
-  // Soft: the batch already committed, so this only records what to say beside the drawn diagram.
-  diagramHealthStore.set(name, result.diagnostics);
-  const doc = await engineClient.getCanvas();
-  canvasDocStore.setDoc(doc);
-  const newIds = Object.values(result.id_map).filter((id) => doc.elements[id]);
-  const restored: Record<string, CanvasPosition> = {};
-  const toLayout: string[] = [];
-  for (const id of newIds) {
-    const element = doc.elements[id];
-    const recipeKey = element ? recipeChromeKey(element) : "";
-    const cached = recipeKey ? takeCachedPosition(name, recipeKey) : undefined;
-    if (cached) restored[id] = cached;
-    else toLayout.push(id);
-  }
-  const positions = { ...restored, ...layoutNewElements(doc, toLayout) };
-  const ops = Object.entries(positions).map(([id, position]) => ({
-    op: "update_element" as const,
-    id,
-    position,
-  }));
-  if (ops.length > 0) {
-    await patchCanvasDoc(engineClient, ops, { layer: name, explanation: "auto-layout new elements" });
-  }
-  return { ok: true };
 }
 
 /** Deletes every element (and any edge tagged with `layer` that survives that cascade — see

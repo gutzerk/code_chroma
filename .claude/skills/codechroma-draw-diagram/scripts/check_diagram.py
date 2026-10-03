@@ -20,14 +20,19 @@ where the skill's rules say it should, repeats an id, strands a node, or is too 
 --shape-advisory demotes the whole shape tier to advisory, for the case where you can tell the user
 why a finding cannot apply.
 
-Advisory findings print but never change the exit code: COVERAGE, DEPTH, NESTING-EDGE, BADKIND,
-BADICON, UNLABELED, DROPPED, NOSTATUS, BADSTATUS. COVERAGE is advisory by construction, not by
+Advisory findings print but never change the exit code: COVERAGE, DEPTH, NESTING-EDGE, CYCLES,
+ARTICULATION, BADKIND, BADICON, UNLABELED, DROPPED, NOSTATUS, BADSTATUS. COVERAGE is advisory by
+construction, not
+by
 concession -- the bridge hangs everything no block names off the system box as an "Unmapped code"
 remainder, so uncovered code is always reachable and the finding is only about how much of the
 repo has no *name*; it also counts every file equally, so a repo whose tests and docs outnumber its
 can sit under the threshold with every line of real code named. DEPTH is advisory because the bridge
-already drops what is past the cap, NESTING-EDGE because it is a judgement call, and BADKIND/BADICON
-because an unrecognized `kind`/`icon` degrades to no icon rather than to a broken block. DROPPED
+already drops what is past the cap, NESTING-EDGE because it is a judgement call, CYCLES because a
+cycle is often legitimate (state-machine, retry-loop) and only ever worth flagging, ARTICULATION
+because a single fragile connexion is a judgement call too, and BADKIND/BADICON because an
+unrecognized `kind`/`icon` degrades to no icon rather than to a broken
+block. DROPPED
 just
 relays the bridge's own resolve-time diagnostics. NOSTATUS/BADSTATUS relay an Impact box whose
 `meta.status` is missing or not one of the four values the skill/canvas expect.
@@ -80,6 +85,8 @@ MIN_COVERAGE_RATIO = 0.15
 MIN_CLASSES_FOR_SPARSE_CHECK = 8
 # Below this, it's a single unconnected id (ORPHAN's job for nodes[]), not an isolated cluster.
 MIN_ISLAND_SIZE = 2
+# A hub is a node wired to at least this many distinct neighbors (drawing-rules.md's "hub").
+ARTICULATION_HUB_DEGREE = 4
 
 KNOWN_KINDS = frozenset(
     {"api", "ui", "service", "database", "queue", "cache", "worker", "auth"}
@@ -115,9 +122,23 @@ _C1_ISLAND_HINT = (
     "add the missing arrow to `system` (or another actor already wired to it), or drop it"
 )
 _IMPACT_ISLAND_HINT = "wire it into the rest of the slice, or drop the cluster"
+_EPICS_ISLAND_HINT = (
+    "wire it to its epic's parent box or a cross-epic dependency link, or drop the cluster"
+)
 _CUSTOM_BUDGET = {
     "max_nodes": 60, "max_relations": 100, "max_name_chars": 40, "max_edge_label_chars": 50,
 }
+# Mirrored from src/codechroma/diagrams/registry.py _EPICS_BUDGET -- keep the two in sync.
+_EPICS_BUDGET = {
+    "max_nodes": 60, "max_relations": 60, "max_name_chars": 60, "max_edge_label_chars": 50,
+}
+# Mirrored from src/codechroma/diagrams/registry.py _SEQUENCE_BUDGET -- keep the two in sync.
+_SEQUENCE_BUDGET = {
+    "max_nodes": 24, "max_relations": 60, "max_name_chars": 40, "max_edge_label_chars": 60,
+}
+_SEQUENCE_ISLAND_HINT = (
+    "wire it with a message to (or from) the rest of the participants, or drop the participant"
+)
 
 # Mirrored from src/codechroma/diagrams/registry.py's BUILTIN_TYPES -- keep the two in sync.
 _BUILTIN_CHECKS = {
@@ -166,6 +187,39 @@ _BUILTIN_CHECKS = {
         "membership_source": {"ancestor_prefixes": ["dir::", "component::"]},
         "allow_self": False,
         "check_islands": {"hint": _IMPACT_ISLAND_HINT},
+    },
+    "epics": {
+        # Every epics diagram is one focused epic's flat brief -- epic + spec + task boxes.
+        # Its hierarchy nests via meta.recipe_key/group frames, NOT relations[] (relations carry
+        # only cross-epic dependency edges, usually none) -- so the per-box ORPHAN and cluster
+        # ISLAND connectivity checks are always spurious: a full-graph epic with ~36 boxes and 0
+        # relations is correct, not a disconnected stub.
+        "shape": "flat",
+        "budgets": _EPICS_BUDGET,
+        "min_depth": None,
+        "unlabeled": "advisory",
+        "coverage_source": None,
+        "density_source": None,
+        "required_meta": [],
+        "membership_source": None,
+        "allow_self": False,
+        "check_orphans": False,
+        "check_islands": None,
+    },
+    "sequence": {
+        # Flat shape: participants are nodes[], messages are relations[]. Both must resolve to
+        # real entries; the ORPHAN check runs on participants (a message has no `path`/node_id so
+        # `_note_flat_entry` never orphans on it). Every participant ought to take part in the flow.
+        "shape": "flat",
+        "budgets": _SEQUENCE_BUDGET,
+        "min_depth": None,
+        "unlabeled": "advisory",
+        "coverage_source": None,
+        "density_source": None,
+        "required_meta": [],
+        "membership_source": None,
+        "allow_self": True,
+        "check_islands": {"hint": _SEQUENCE_ISLAND_HINT},
     },
 }
 
@@ -474,6 +528,31 @@ def _check_c1_islands(nodes: list[dict], diagram: dict, report: _Report, hint: s
         )
 
 
+def _check_bare_pattern_markers(nodes: list, touched: set[str], report: _Report) -> None:
+    """A confirmed pattern-instance box must take part in the graph through a relation.
+
+    `_inspect_flat` routes every `pattern-instance` out of `free_nodes`, so `_check_orphans`
+    never sees one. An instance's relations author edges between its *participants*, never on
+    the instance box itself -- so a box that lacks an edge is dead weight the canvas reads as
+    unrelated code. Participants under it do not rescue it: require a relation on the box.
+    `touched` is the caller's endpoint-id set (built by `_collect_relation`).
+    """
+    for node in nodes:
+        if not isinstance(node, dict):
+            continue
+        meta = node.get("meta") if isinstance(node.get("meta"), dict) else {}
+        if node.get("kind") != _INSTANCE_KIND or not meta.get("confirmed"):
+            continue
+        node_id = node.get("id")
+        if not isinstance(node_id, str) or not node_id:
+            continue
+        if node_id not in touched:
+            report.shape.append(
+                f"ORPHAN {node_id!r} is a {meta.get('type', 'pattern')} instance with no "
+                f"relation of its own -- wire the box to a realizing participant or drop it"
+            )
+
+
 def _check_orphans(nodes: object, touched: set[str], report: _Report) -> None:
     """A free-standing node with no relation connects to nothing on the canvas."""
     for node in nodes if isinstance(nodes, list) else []:
@@ -509,6 +588,192 @@ def _connected_components(ids: set[str], endpoints: list[tuple[str, str]]) -> li
         seen |= component
         components.append(component)
     return components
+
+
+def _cycle_path(members: set[str], adjacency: dict[str, list[str]]) -> list[str]:
+    """One real directed cycle inside an SCC: a sequence where each `->` is an actual edge.
+
+    Sorting the SCC's members would print a chain that isn't traversable -- an SCC is a cycle set,
+    not a single path -- so walk the subgraph to recover a genuine closed loop a user can act on.
+    Only SCCs of size >= 2 reach here."""
+    start = sorted(members)[0]
+    path: list[str] = [start]
+    on_path: set[str] = {start}
+
+    def walk(node: str) -> list[str] | None:
+        for neighbor in adjacency.get(node, ()):
+            if neighbor not in members:
+                continue
+            if neighbor in on_path:
+                return path[path.index(neighbor):] + [neighbor]
+            on_path.add(neighbor)
+            path.append(neighbor)
+            found = walk(neighbor)
+            if found is not None:
+                return found
+            on_path.discard(neighbor)
+            path.pop()
+        return None
+
+    return walk(start) or [start]
+
+
+def _tarjan_scc(adjacency: dict[str, list[str]]) -> list[list[str]]:
+    """Tarjan SCC: the strongly-connected components as lists of node ids. Recursion depth is
+    bounded by the node count, itself capped by the relation budgets (40-100), so no iterative
+    rewrite is needed. Shared by `_check_cycles` and `articulation_labels` (the mirrored
+    `src/codechroma/diagrams/articulation.py` stays in sync with this logic)."""
+    index: dict[str, int] = {}
+    lowlink: dict[str, int] = {}
+    on_stack: set[str] = set()
+    stack: list[str] = []
+    components: list[list[str]] = []
+    counter = 0
+
+    def strongconnect(node: str) -> None:
+        nonlocal counter
+        index[node] = lowlink[node] = counter
+        counter += 1
+        stack.append(node)
+        on_stack.add(node)
+        for neighbor in adjacency.get(node, ()):
+            if neighbor not in index:
+                strongconnect(neighbor)
+                lowlink[node] = min(lowlink[node], lowlink[neighbor])
+            elif neighbor in on_stack:
+                lowlink[node] = min(lowlink[node], index[neighbor])
+        if lowlink[node] == index[node]:
+            members: list[str] = []
+            while True:
+                member = stack.pop()
+                on_stack.discard(member)
+                members.append(member)
+                if member == node:
+                    break
+            components.append(members)
+
+    for node in adjacency:
+        if node not in index:
+            strongconnect(node)
+    return components
+
+
+def _check_cycles(
+    endpoints: list[tuple[str, str]], report: _Report, allowed_self: bool
+) -> None:
+    """Flags directed cycles in the relation graph as an advisory (from drawio-skill's "cycles"
+    architecture rule). A cycle is often legitimate (state-machine, retry-loop), so it is a
+    CYCLES-advisory, never a failure. A self-loop is only signal when the kind permits self-edges
+    (dependency-graph, where `_check_relations` lets it through) -- report it there once."""
+    adjacency: dict[str, list[str]] = {}
+    for source, target in endpoints:
+        if source == target:
+            if allowed_self:
+                report.advisories.append(f"CYCLES {source!r} -> {source!r}")
+            continue
+        adjacency.setdefault(source, []).append(target)
+
+    # A component of size > 1 is a genuine directed cycle.
+    for members in _tarjan_scc(adjacency):
+        if len(members) < 2:
+            continue
+        cycle = _cycle_path(set(members), adjacency)
+        pair = " -> ".join(repr(member) for member in cycle)
+        report.advisories.append(f"CYCLES {pair}")
+
+
+def _articulation_points_undirected(neighbors: dict[str, set[str]]) -> set[str]:
+    """Tarjan articulation points on an undirected graph (`neighbors` is symmetric) -- the nodes
+    whose removal disconnects the component. Standard low-link DFS; recursion depth is bounded by
+    the number of distinct nodes, itself capped by max_relations, so no iterative rewrite needed."""
+    index: dict[str, int] = {}
+    low: dict[str, int] = {}
+    ap: set[str] = set()
+    counter = 0
+
+    def dfs(node: str, parent: str | None) -> None:
+        nonlocal counter
+        index[node] = low[node] = counter
+        counter += 1
+        children = 0
+        for neighbor in neighbors.get(node, ()):
+            if neighbor not in index:
+                children += 1
+                dfs(neighbor, node)
+                low[node] = min(low[node], low[neighbor])
+                if parent is None and children > 1:
+                    ap.add(node)
+                elif parent is not None and low[neighbor] >= index[node]:
+                    ap.add(node)
+            elif neighbor != parent:
+                low[node] = min(low[node], index[neighbor])
+
+    for node in neighbors:
+        if node not in index:
+            dfs(node, None)
+    return ap
+
+
+def articulation_labels(endpoints: list[tuple[str, str]]) -> dict[str, str]:
+    """Node id -> `bridge`/`hub` for every "critical" node, else absent, over the relation graph.
+
+    A **bridge** is a single-node SCC whose component is an articulation point of the *undirected
+    condensation*: removing it disconnects the diagram (a member of a >1 SCC is never one, since the
+    rest of its cycle stays connected). A **hub** is a node wired to at least
+    `ARTICULATION_HUB_DEGREE` distinct neighbors that isn't itself a bridge. Same contract the
+    resolver (`diagram_resolver.py`) satisfies -- kept in sync by matching tests."""
+    directed: dict[str, list[str]] = {}
+    undirected: dict[str, set[str]] = {}
+    for source, target in endpoints:
+        if source == target:
+            continue
+        directed.setdefault(source, []).append(target)
+        directed.setdefault(target, [])
+        undirected.setdefault(source, set()).add(target)
+        undirected.setdefault(target, set()).add(source)
+
+    scc_of: dict[str, int] = {}
+    scc_size: dict[int, int] = {}
+    for scc_index, members in enumerate(_tarjan_scc(directed)):
+        scc_size[scc_index] = len(members)
+        for member in members:
+            scc_of[member] = scc_index
+
+    # The condensation: one node per SCC, undirected edges between different SCCs.
+    cond_edges: list[tuple[int, int]] = []
+    for source, targets in directed.items():
+        for target in targets:
+            si, ti = scc_of[source], scc_of[target]
+            if si != ti:
+                cond_edges.append((si, ti))
+    cond_adj: dict[int, set[int]] = {i: set() for i in scc_size}
+    for si, ti in cond_edges:
+        cond_adj.setdefault(si, set()).add(ti)
+        cond_adj.setdefault(ti, set()).add(si)
+
+    cond_ap = _articulation_points_undirected(cond_adj)
+
+    labels: dict[str, str] = {}
+    for node, scc_index in scc_of.items():
+        if scc_size[scc_index] != 1:
+            continue
+        if scc_index in cond_ap:
+            labels[node] = "bridge"
+    for node in scc_of:
+        if node in labels:
+            continue
+        if len(undirected.get(node, ())) >= ARTICULATION_HUB_DEGREE:
+            labels[node] = "hub"
+    return labels
+
+
+def _check_articulation(endpoints: list[tuple[str, str]], report: _Report) -> None:
+    """Flags critical nodes (`bridge`/`hub`) as an advisory -- they never change the exit code."""
+    # Same drawio-skill "articulation points" idea as `CYCLES`: real, worth flagging, never a fail.
+    for node, label in sorted(articulation_labels(endpoints).items()):
+        report.advisories.append(
+            f"ARTICULATION {node!r} is a {label}: removing it breaks the diagram"
+        )
 
 
 def _check_islands(endpoints: list[tuple[str, str]], report: _Report, hint: str) -> None:
@@ -712,6 +977,7 @@ def _check_c1_relations(relations: object, by_id: dict[str, dict], report: _Repo
     """Same endpoint rules as any flat kind, plus c1's own nesting-edge/no-arrows checks."""
     edges = relations if isinstance(relations, list) else []
     internal = 0
+    endpoints: list[tuple[str, str]] = []
     for edge in edges:
         if not isinstance(edge, dict):
             report.broken.append("BROKEN relations contains a non-object entry")
@@ -729,6 +995,7 @@ def _check_c1_relations(relations: object, by_id: dict[str, dict], report: _Repo
         if source == target:
             report.broken.append(f"SELF {pair} connects a block to itself")
             continue
+        endpoints.append((source, target))
         report.touched.add(source)
         report.touched.add(target)
         source_node, target_node = by_id.get(source), by_id.get(target)
@@ -745,6 +1012,8 @@ def _check_c1_relations(relations: object, by_id: dict[str, dict], report: _Repo
             report.advisories.append(
                 f"NESTING-EDGE {pair} only restates the nesting the box already shows"
             )
+    _check_cycles(endpoints, report, allowed_self=False)
+    _check_articulation(endpoints, report)
     is_substantial = report.depth >= NOARROWS_MIN_DEPTH and report.blocks >= NOARROWS_MIN_BLOCKS
     if is_substantial and internal == 0:
         report.shape.append(
@@ -807,13 +1076,18 @@ def _walk_hierarchical(
         if child.get("node_id"):
             report.leaves += 1
             _check_leaf(child, child_id, report, probe)
-        elif _plan_kind(child) in ("add", "create"):
-            report.leaves += 1
-        elif "node_id" in child or not child.get("path"):
-            # An explicit node_id: null (bridge tried and failed) or no path at all is broken.
-            report.broken.append(f"BROKEN {child_id} path={child.get('path') or '<none>'}")
         else:
-            report.leaves += 1
+            reason = _no_code_reason(child)
+            if reason is not None:
+                is_broken = reason == "unresolved"
+            elif _plan_kind(child) in ("add", "create"):
+                is_broken = False  # fallback: this diagram never went through resolve_diagram()
+            else:
+                is_broken = "node_id" in child or not child.get("path")
+            if is_broken:
+                report.broken.append(f"BROKEN {child_id} path={child.get('path') or '<none>'}")
+            else:
+                report.leaves += 1
     if enumerated >= LISTING_CHILD_COUNT:
         report.shape.append(
             f"LISTING {trail} re-lists {enumerated} files already shown by its own {parent_path}"
@@ -856,11 +1130,21 @@ def _check_kind(child: dict, trail: str, report: _Report) -> None:
         report.advisories.append(f"BADKIND {trail} kind={kind!r} is not a recognized icon kind")
 
 
+def _meta_str(node: dict, key: str) -> str | None:
+    """A string `meta[key]`, or `None` if `meta` is missing, not a dict, or not a string there."""
+    meta = node.get("meta")
+    value = meta.get(key) if isinstance(meta, dict) else None
+    return value if isinstance(value, str) else None
+
+
 def _plan_kind(node: dict) -> str | None:
     """`meta.plan_kind` (add/create/modify/delete) marks a Planned block, distinct from `kind`."""
-    meta = node.get("meta")
-    value = meta.get("plan_kind") if isinstance(meta, dict) else None
-    return value if isinstance(value, str) else None
+    return _meta_str(node, "plan_kind")
+
+
+def _no_code_reason(node: dict) -> str | None:
+    """`meta.no_code_reason` from diagram_resolver.py, or `None` if never resolved live."""
+    return _meta_str(node, "no_code_reason")
 
 
 def _check_icon(block: dict, trail: str, report: _Report) -> None:
@@ -952,28 +1236,42 @@ def _inspect_flat(diagram: object, checks: dict, args: argparse.Namespace) -> _R
     nodes = diagram.get("nodes")
     nodes = [node for node in nodes if isinstance(node, dict)] if isinstance(nodes, list) else []
     required_meta = checks.get("required_meta") or []
-    # ORPHAN only ever applies to a free-standing connective node, never an instance/participant.
-    free_nodes = []
+    # parent-id -> kind: a participant under a `pattern-instance` connects via its instance box
+    # (guarded by _check_bare_pattern_markers), so it is never an orphan here -- and an instance box
+    # itself is never a generic orphan either; that marker check owns its diagnostics.
+    parent_kind = {n.get("id"): n.get("kind") for n in nodes}
+    # A `parent`-only block draws NO canvas frame (only `group` does) -- without a group or an edge
+    # of its own it detaches exactly like a free-standing node, so it orphans too.
+    orphan_candidates = []
     for node in nodes:
         _note_flat_entry(node, report, "node", allow_node_ids=True)
-        if required_meta and node.get("kind") == _INSTANCE_KIND:
-            meta = node.get("meta") if isinstance(node.get("meta"), dict) else {}
-            if any(meta.get(field) is None for field in required_meta) and isinstance(
-                node.get("id"), str
-            ):
-                report.unreviewed.append(node["id"])
-        elif node.get("parent") is None:
-            free_nodes.append(node)
+        if node.get("kind") == _INSTANCE_KIND:
+            if required_meta:
+                meta = node.get("meta") if isinstance(node.get("meta"), dict) else {}
+                if any(meta.get(field) is None for field in required_meta) and isinstance(
+                    node.get("id"), str
+                ):
+                    report.unreviewed.append(node["id"])
+        elif node.get("parent") is None or (
+            node.get("group") is None
+            and parent_kind.get(node.get("parent")) != _INSTANCE_KIND
+        ):
+            orphan_candidates.append(node)
     endpoints: list[tuple[str, str]] = []
     touched: set[str] = set()
     for relation in diagram.get("relations") or []:
         _collect_relation(relation, endpoints, touched, report)
     _check_duplicates(report, "nodes")
     _check_relations(endpoints, report, bool(checks.get("allow_self")), "node")
-    _check_orphans(free_nodes, touched, report)
+    _check_cycles(endpoints, report, bool(checks.get("allow_self")))
+    _check_articulation(endpoints, report)
+    # epics turns `check_orphans` off: its connectivity lives in recipe_key/group frames, not edges.
+    if checks.get("check_orphans", True):
+        _check_orphans(orphan_candidates, touched, report)
     check_islands = checks.get("check_islands")
     if check_islands:
         _check_islands(endpoints, report, check_islands["hint"])
+    _check_bare_pattern_markers(nodes, touched, report)
     if required_meta:
         _check_unreviewed(report)
     _check_unlabeled(checks["unlabeled"], report)

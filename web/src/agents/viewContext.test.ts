@@ -8,7 +8,7 @@ function base(overrides: Partial<ViewContextInput>): ViewContextInput {
 describe("buildViewContext", () => {
   it("describes the epics AI brief with the epic title and source", () => {
     const input = base({
-      view: "epics",
+      view: "epic",
       epics: { focusedId: "EP-A-01", showAiBrief: true } as ViewContextInput["epics"],
       epicTitle: "Alpha foundation",
       epicSource: "plan/epics/EP-A-01.md",
@@ -24,7 +24,7 @@ describe("buildViewContext", () => {
   it("falls back to the epic id when the title isn't loaded", () => {
     const result = buildViewContext(
       base({
-        view: "epics",
+        view: "epic",
         epics: { focusedId: "EP-A-01", showAiBrief: false } as ViewContextInput["epics"],
       }),
     );
@@ -42,7 +42,7 @@ describe("buildViewContext", () => {
   });
 
   it("describes patterns with a count", () => {
-    const result = buildViewContext(base({ view: "patterns", patternsCount: 4 }));
+    const result = buildViewContext(base({ view: "pattern", patternsCount: 4 }));
     expect(result?.description).toContain("4 patterns");
   });
 
@@ -57,7 +57,7 @@ describe("buildViewContext", () => {
   });
 
   it("never returns null for a known view", () => {
-    for (const view of ["hierarchy", "c1", "patterns", "epics", "custom"] as const) {
+    for (const view of ["hierarchy", "c1", "pattern", "epic", "custom"] as const) {
       expect(buildViewContext(base({ view }))).not.toBeNull();
     }
   });

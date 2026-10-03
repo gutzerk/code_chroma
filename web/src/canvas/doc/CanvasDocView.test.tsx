@@ -11,7 +11,6 @@ import {
   EPIC_BRIEF_STUB,
   EPICS_STUB,
   PATTERNS_STUB,
-  RESEARCH_STUB,
 } from "../../engine-client/stubEngineClient";
 import type { EngineClient } from "../../engine-client/EngineClient";
 import type {
@@ -60,7 +59,6 @@ function client(
   return {
     ...IMPACT_CHANGES_STUB,
     ...EPICS_STUB,
-    ...RESEARCH_STUB,
     ...EPIC_BRIEF_STUB,
     ...PATTERNS_STUB,
     getNode: async () => null,
@@ -175,9 +173,9 @@ describe("CanvasDocView", () => {
     fireEvent.pointerMove(box, { pointerId: 1, clientX: 50, clientY: 30 });
     fireEvent.pointerUp(box, { pointerId: 1, clientX: 50, clientY: 30 });
 
-    // Element started at (100, 100), box width 220 -> centered left is x - 110.
+    // Element started at (100, 100), box width 300 -> centered left is x - 150.
     // Correct post-drag position is (150, 130); the bug would render at (200, 160) instead.
-    expect(box.style.left).toBe("40px");
+    expect(box.style.left).toBe("0px");
     expect(box.style.top).toBe("94px");
   });
 
@@ -309,7 +307,7 @@ describe("CanvasDocView", () => {
     expect(screen.getAllByTestId("canvas-node-box")).toHaveLength(2);
     expect(screen.getAllByText("External integrations")).toHaveLength(1);
     const frame = screen.getByTestId("canvas-group-frame");
-    expect(frame.style.left).toBe("-42px");
+    expect(frame.style.left).toBe("-82px");
     expect(frame.style.top).toBe("16px");
   });
 
@@ -368,8 +366,8 @@ describe("CanvasDocView", () => {
 
     await waitFor(() => expect(screen.getByTestId("canvas-diagram-frame")).toBeInTheDocument());
     const frame = screen.getByTestId("canvas-diagram-frame");
-    expect(frame.style.left).toBe("-50px");
-    expect(frame.style.width).toBe("500px");
+    expect(frame.style.left).toBe("-90px");
+    expect(frame.style.width).toBe("580px");
   });
 
   it("sizes off real boxes on ANY diagram layer, not just c1 -- the fix keys off render, not layer name", async () => {
@@ -388,8 +386,8 @@ describe("CanvasDocView", () => {
 
     await waitFor(() => expect(screen.getByTestId("canvas-diagram-frame")).toBeInTheDocument());
     const frame = screen.getByTestId("canvas-diagram-frame");
-    expect(frame.style.left).toBe("-50px");
-    expect(frame.style.width).toBe("500px");
+    expect(frame.style.left).toBe("-90px");
+    expect(frame.style.width).toBe("580px");
   });
 
   it("hides a diagram's frame the moment its layer is collapsed", async () => {
@@ -495,6 +493,48 @@ describe("CanvasDocView", () => {
 
     await waitFor(() => expect(screen.getByTestId("canvas-concurrency-island")).toBeInTheDocument());
     expect(screen.getAllByTestId("canvas-concurrency-island")).toHaveLength(1);
+  });
+
+  it("does not merge a Lane shared by boxes in different diagrams into one area", async () => {
+    // Two boxes both carrying meta.lane: "Frontend" but on different layers (different diagrams). A
+    // single Lane area merging them would bound boxes hundreds of px apart across two diagrams' dashed
+    // frames, so the area must stay scoped to its own layer -- exactly two areas, one per diagram.
+    const doc = docWith([
+      elementOf({ id: "m1", render: "custom", label: "A", layer: "c1", meta: { lane: "Frontend" }, position: { x: 100, y: 100 } }),
+      elementOf({ id: "m2", render: "custom", label: "B", layer: "c1", meta: { lane: "Frontend" }, position: { x: 500, y: 300 } }),
+      elementOf({ id: "m3", render: "custom", label: "C", layer: "patterns", meta: { lane: "Frontend" }, position: { x: 100, y: 100 } }),
+      elementOf({ id: "m4", render: "custom", label: "D", layer: "patterns", meta: { lane: "Frontend" }, position: { x: 500, y: 300 } }),
+    ]);
+    const engineClient = client(doc);
+
+    render(
+      <EngineClientProvider repoId="default" client={engineClient}>
+        <CanvasDocView />
+      </EngineClientProvider>,
+    );
+
+    await waitFor(() => expect(screen.getAllByTestId("canvas-lane-area")).toHaveLength(2));
+  });
+
+  it("does not merge a shared leading order digit across different diagrams into one island", async () => {
+    // Regression: a Concurrency island used to bucket on the leading order digit alone, so boxes in
+    // two different diagrams both ordering "2a"/"2b" collapsed into a single island bounding boxes
+    // from both diagrams at once. It must stay scoped to its own layer -- two islands, one per diagram.
+    const doc = docWith([
+      elementOf({ id: "m1", render: "custom", label: "A", layer: "c1", meta: { order: "2a" }, position: { x: 100, y: 100 } }),
+      elementOf({ id: "m2", render: "custom", label: "B", layer: "c1", meta: { order: "2b" }, position: { x: 500, y: 300 } }),
+      elementOf({ id: "m3", render: "custom", label: "C", layer: "patterns", meta: { order: "2a" }, position: { x: 100, y: 100 } }),
+      elementOf({ id: "m4", render: "custom", label: "D", layer: "patterns", meta: { order: "2b" }, position: { x: 500, y: 300 } }),
+    ]);
+    const engineClient = client(doc);
+
+    render(
+      <EngineClientProvider repoId="default" client={engineClient}>
+        <CanvasDocView />
+      </EngineClientProvider>,
+    );
+
+    await waitFor(() => expect(screen.getAllByTestId("canvas-concurrency-island")).toHaveLength(2));
   });
 
   it("renders a real group, a Lane, and a Concurrency island together on the same box", async () => {

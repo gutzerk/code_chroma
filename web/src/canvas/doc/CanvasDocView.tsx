@@ -4,16 +4,19 @@ import { useEngineClient } from "../../engine-client/EngineClientContext";
 import { DiagramRelationshipsSvg } from "../DiagramSurface";
 import { useMeasuredSizes } from "../useMeasuredSizes";
 import { CanvasEdges } from "./CanvasEdges";
+import { openOrigin } from "../openOrigin";
 import { CanvasNodeBox } from "./CanvasNodeBox";
 import { ConcurrencyIslandArea } from "./ConcurrencyIslandArea";
 import { DiagramFrame } from "./DiagramFrame";
 import { isDiagramLayer, labelForDiagramLayer, useCustomDiagramTypes } from "./diagramCatalog";
+import { BLOCK_RULES } from "./elementRules";
 import { elementRect } from "./elementRect";
 import { leadingOrderDigits, stringMeta } from "./elementMeta";
 import { GroupFrame } from "./GroupFrame";
 import { HierarchyElement } from "./HierarchyElement";
 import { LaneArea } from "./LaneArea";
 import { NoteElement } from "./NoteElement";
+import { SequenceDiagram } from "./SequenceDiagram";
 import {
   applyCanvasPositions,
   useCanvasDoc,
@@ -22,17 +25,13 @@ import {
 } from "./canvasDocStore";
 import { useCollapsedLayers } from "./collapsedLayersStore";
 import { useLiveDragOffsets } from "./dragOffsetStore";
+import { useReflowEpics } from "./useReflowEpics";
+import { useReflowSequence } from "./useReflowSequence";
+import { useEpicsContentSizes } from "./epicsContentSizeStore";
 import { UNDO_EVENT, type UndoEventDetail } from "../UndoManager";
 
 const CANVAS_MARGIN = 400;
 
-export interface CanvasDocViewProps {
-  /** Fallback for an element whose own `meta.strategy` is unset — RootCanvas's resolved `?strategy=`
-   * / VITE_CANVAS_STRATEGY. The seeded root block carries no strategy of its own (the server writes
-   * it, and the render choice is a client-side, per-page-load concern), so this is what picks the
-   * renderer for it. An element that does carry one still wins. */
-  strategyName?: string;
-}
 
 /** Resolves a group/Lane/Concurrency-island's member ids against `visibleDoc`'s live-drag-adjusted
  * elements, dropping any id no longer present -- shared by all three area renderers below so a
@@ -42,6 +41,42 @@ function resolveMembers(ids: readonly string[], elements: Record<string, CanvasE
   return ids
     .map((id) => elements[id])
     .filter((member): member is CanvasElement => member !== undefined);
+}
+
+/** A derived per-diagram grouping (Lane/Concurrency island, 054-diagram-flow-order): one entry per
+ * distinct `<layer>|<value>` pair. The flat list carries the owning `layer` so the render loop can
+ * key its React elements uniquely -- without it, two diagrams sharing a lane name would collide in a
+ * single LaneArea array. */
+type LayeredValueBucket = { layer: string; value: string; ids: string[] };
+
+/** Buckets box ids by `valueOf`, partitioned by diagram `layer` so two identical values on *different*
+ * layers never merge into one group spanning diagram frames (the layer-scoping `memberIdsByLayer`
+ * gives `DiagramFrame`). `valueOf` returns `undefined` for a box that has no grouping value. When
+ * `keepSingletons` is false a value seen on only one box is dropped (a lone numbered step has nothing
+ * to be concurrent with). Shared by the Lane and Concurrency island builders, whose only differences
+ * -- the value extractor and the singleton rule -- are both parameters. */
+function bucketPerLayer(
+  elements: readonly CanvasElement[],
+  valueOf: (element: CanvasElement) => string | undefined,
+  keepSingletons: boolean,
+): LayeredValueBucket[] {
+  const layers = new Map<string, Map<string, string[]>>();
+  for (const element of elements) {
+    const value = valueOf(element);
+    if (value === undefined) continue;
+    let values = layers.get(element.layer);
+    if (!values) layers.set(element.layer, (values = new Map()));
+    const ids = values.get(value);
+    if (ids) ids.push(element.id);
+    else values.set(value, [element.id]);
+  }
+  const buckets: LayeredValueBucket[] = [];
+  for (const [layer, values] of layers) {
+    for (const [value, ids] of values) {
+      if (keepSingletons || ids.length >= 2) buckets.push({ layer, value, ids });
+    }
+  }
+  return buckets;
 }
 
 /** Restores whatever positions Ctrl/Cmd+Z popped for the "canvas" undo kind (see UndoManager,
@@ -90,7 +125,7 @@ function useCanvasUndo(engineClient: ReturnType<typeof useEngineClient>): void {
  * Mounted unconditionally by RootCanvas as of Stage 4 — no InspectorPanel/rail/breadcrumb chrome
  * here, that all lives in RootCanvas and wraps this view the same way it wrapped the old six.
  */
-export function CanvasDocView({ strategyName }: CanvasDocViewProps) {
+export function CanvasDocView() {
   const engineClient = useEngineClient();
   useLoadCanvasDoc(engineClient);
   const doc = useCanvasDoc();
@@ -119,6 +154,18 @@ export function CanvasDocView({ strategyName }: CanvasDocViewProps) {
   // Real rendered box sizes, once each box's own ResizeObserver reports one — see CanvasEdges'
   // `sizes` prop and CanvasNodeBox's `onMeasure` for why routing needs this instead of `element.size`.
   const { sizes: measuredSizes, observe } = useMeasuredSizes();
+
+  // The natural content height of each epics box (see epicsContentSizeStore) — feeds the once-post-
+  // mount reflow below. It is measured off the box's own header element, which is not constrained by
+  // `minHeight`, so an over-reserved box reports its true (shorter) content and can shrink.
+  const contentSizes = useEpicsContentSizes();
+
+  // Once-post-mount reflow: an epics box whose content height disagrees with its persisted size —
+  // an underestimating card grows UP over the box above (epics boxes are bottom-left positioned with
+  // minHeight + overflow), an over-reserving box leaves an empty dark band below. Re-fit the box to
+  // its measured content height and persist the corrected size/position.
+  useReflowEpics(engineClient, doc, contentSizes);
+  useReflowSequence(engineClient, doc);
 
   const dragOffsets = useLiveDragOffsets();
 
@@ -171,20 +218,14 @@ export function CanvasDocView({ strategyName }: CanvasDocViewProps) {
 
   // Lane/Concurrency island (054-diagram-flow-order) are derived purely from `meta.lane`/`meta.order`
   // -- unlike `group`, neither is a real document element, so there's no `render` kind to dispatch on;
-  // this just buckets ids off the same structural pass `memberIdsByGroup` uses. A digit run with only
-  // one member isn't dropped as "empty" -- it just never formed a group in the first place, since a
-  // lone numbered step has nothing to be concurrent with.
-  const memberIdsByLane = useMemo(() => {
-    const map = new Map<string, string[]>();
-    for (const element of Object.values(renderableElements)) {
-      const lane = stringMeta(element, "lane");
-      if (!lane) continue;
-      const ids = map.get(lane);
-      if (ids) ids.push(element.id);
-      else map.set(lane, [element.id]);
-    }
-    return map;
-  }, [renderableElements]);
+  // this just buckets ids through `bucketPerLayer`, partitioned by diagram layer so a value shared by
+  // boxes in *different* diagrams never collapses their areas into one spanning the whole canvas --
+  // same layer-scoping `memberIdsByLayer` gives `DiagramFrame`. A digit run with only one member is
+  // dropped (keepSingletons=false): a lone numbered step has nothing to be concurrent with.
+  const laneBuckets = useMemo(
+    () => bucketPerLayer(Object.values(renderableElements), (el) => stringMeta(el, "lane"), true),
+    [renderableElements],
+  );
 
   // Which elements belong to which diagram, for DiagramFrame's own whole-diagram frame+drag below --
   // structural like `memberIdsByGroup` (not rebuilt on every drag-offset tick), bucketed by
@@ -199,7 +240,7 @@ export function CanvasDocView({ strategyName }: CanvasDocViewProps) {
   const memberIdsByLayer = useMemo(() => {
     const map = new Map<string, string[]>();
     for (const element of Object.values(renderableElements)) {
-      if (!isDiagramLayer(element.layer) || element.render === "group") continue;
+      if (!isDiagramLayer(element.layer) || BLOCK_RULES[element.render].renderer === "group") continue;
       const ids = map.get(element.layer);
       if (ids) ids.push(element.id);
       else map.set(element.layer, [element.id]);
@@ -207,20 +248,30 @@ export function CanvasDocView({ strategyName }: CanvasDocViewProps) {
     return map;
   }, [renderableElements]);
 
-  const memberIdsByConcurrencyDigits = useMemo(() => {
+  // Sequence layers render as one own-component per whole layer (SequenceDiagram), not per-element
+  // boxes: every element with `render: "sequence"` is collected up (by its owning layer) so that
+  // component can lay the participants/messages out from meta alone. Membership is whitellisted by
+  // the render kind's own-component renderer, the same signal `memberIdsByLayer` filters `group` on.
+  const sequenceMemberIdsByLayer = useMemo(() => {
     const map = new Map<string, string[]>();
     for (const element of Object.values(renderableElements)) {
-      const digits = leadingOrderDigits(stringMeta(element, "order"));
-      if (digits === undefined) continue;
-      const ids = map.get(digits);
+      if (BLOCK_RULES[element.render].renderer !== "sequence") continue;
+      const ids = map.get(element.layer);
       if (ids) ids.push(element.id);
-      else map.set(digits, [element.id]);
-    }
-    for (const [digits, ids] of map) {
-      if (ids.length < 2) map.delete(digits);
+      else map.set(element.layer, [element.id]);
     }
     return map;
   }, [renderableElements]);
+
+  const concurrencyBuckets = useMemo(
+    () =>
+      bucketPerLayer(
+        Object.values(renderableElements),
+        (el) => leadingOrderDigits(stringMeta(el, "order")),
+        false,
+      ),
+    [renderableElements],
+  );
 
   const bounds = useMemo(() => {
     const maxX = Math.max(
@@ -245,7 +296,11 @@ export function CanvasDocView({ strategyName }: CanvasDocViewProps) {
       {loaded && (
         <>
           <DiagramRelationshipsSvg kind="canvas-doc" width={bounds.width} height={bounds.height}>
-            <CanvasEdges doc={visibleDoc} sizes={measuredSizes} />
+            <CanvasEdges
+              doc={visibleDoc}
+              sizes={measuredSizes}
+              onOpenOrigin={(origin) => void openOrigin(origin, engineClient)}
+            />
           </DiagramRelationshipsSvg>
           {[...memberIdsByLayer.entries()].map(([layer, memberIds]) => (
             <DiagramFrame
@@ -256,44 +311,51 @@ export function CanvasDocView({ strategyName }: CanvasDocViewProps) {
               sizes={measuredSizes}
             />
           ))}
-          {[...memberIdsByLane.entries()].map(([lane, memberIds]) => (
+          {laneBuckets.map(({ layer, value, ids }) => (
             <LaneArea
-              key={`lane-${lane}`}
-              lane={lane}
-              members={resolveMembers(memberIds, visibleDoc.elements)}
+              key={`lane-${layer}-${value}`}
+              lane={value}
+              members={resolveMembers(ids, visibleDoc.elements)}
               sizes={measuredSizes}
             />
           ))}
-          {[...memberIdsByConcurrencyDigits.entries()].map(([digits, memberIds]) => (
+          {concurrencyBuckets.map(({ layer, value, ids }) => (
             <ConcurrencyIslandArea
-              key={`island-${digits}`}
-              digits={digits}
-              members={resolveMembers(memberIds, visibleDoc.elements)}
+              key={`island-${layer}-${value}`}
+              digits={value}
+              members={resolveMembers(ids, visibleDoc.elements)}
               sizes={measuredSizes}
+            />
+          ))}
+          {[...sequenceMemberIdsByLayer.entries()].map(([layer, memberIds]) => (
+            <SequenceDiagram
+              key={`sequence-${layer}`}
+              layer={layer}
+              elements={resolveMembers(memberIds, visibleDoc.elements)}
             />
           ))}
           {visibleElements.map((element) => {
-            if (element.render === "hierarchy") {
-              return (
-                <HierarchyElement
-                  key={element.id}
-                  element={element}
-                  fallbackStrategy={strategyName}
-                />
-              );
+            switch (BLOCK_RULES[element.render].renderer) {
+              case "hierarchy":
+                return <HierarchyElement key={element.id} element={element} />;
+              case "note":
+                return <NoteElement key={element.id} element={element} />;
+              case "group":
+                // `.canvas-group-frame`'s own z-index (0, below every box's 1) is what keeps it
+                // behind its members -- not DOM order -- so this needs no separate earlier pass.
+                {
+                  const members = resolveMembers(memberIdsByGroup.get(element.id) ?? [], visibleDoc.elements);
+                  return (
+                    <GroupFrame key={element.id} element={element} members={members} sizes={measuredSizes} />
+                  );
+                }
+              case "sequence":
+                // A `sequence` layer's members render through the per-layer SequenceDiagram above,
+                // never here as individual boxes.
+                return null;
+              default:
+                return <CanvasNodeBox key={element.id} element={element} onMeasure={observe} />;
             }
-            if (element.render === "note") {
-              return <NoteElement key={element.id} element={element} />;
-            }
-            if (element.render === "group") {
-              // `.canvas-group-frame`'s own z-index (0, below every box's 1) is what keeps it
-              // behind its members -- not DOM order -- so this needs no separate earlier pass.
-              const members = resolveMembers(memberIdsByGroup.get(element.id) ?? [], visibleDoc.elements);
-              return (
-                <GroupFrame key={element.id} element={element} members={members} sizes={measuredSizes} />
-              );
-            }
-            return <CanvasNodeBox key={element.id} element={element} onMeasure={observe} />;
           })}
         </>
       )}

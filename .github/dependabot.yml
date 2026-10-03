@@ -1,0 +1,12 @@
+# Actions are pinned to commit SHAs in .github/workflows/*.yml. Dependabot keeps those pins
+# current; each PR it opens must be merged intentionally, and only vetted versions applied.
+version: 2
+updates:
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    groups:
+      actions-minor:
+        applies-to: version-updates
+        update-types: ["patch", "minor"]

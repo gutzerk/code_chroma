@@ -20,7 +20,6 @@ parallel-agent startup — a plain `claude` agent record takes the fallback path
 | `ai_summarizer` | simple | — | `summarize/ai_summarizer.py` | `build_provider(assignment)` |
 | `initial_diagram_bootstrap` | simple | — | `context/patterns_generator.py` | `build_provider(assignment)` |
 | `c1_agent`, `patterns_agent`, `impact-changes_review_agent`, `impact_agent` | agentic | `diagrams` | `bridge/skill_agent.py` `_run_cli` | its group's assignment (mode is always `cli`) |
-| `research_agent` | agentic | `research` | `bridge/skill_agent.py` `_run_cli` | its group's assignment |
 | `epic_brief_agent`, `wiki_general_agent`, `wiki_general_update_agent` | agentic | `planning` | `bridge/skill_agent.py` `_run_cli` | its group's assignment |
 | `parallel_agents` | agentic | `agents` | `terminal/agents.py` `agent_cli` → `llm/resolve_cli.py` | its group's assignment, else `effective_cli` |
 
@@ -74,10 +73,11 @@ functions), not pydantic — matching the existing convention for a small, hand-
   for `kind="cli"`, `adapter="claude"` only (validated if given: `base_url` non-empty, `api_key`/
   `api_key_path` mutually exclusive; rejected outright on any other adapter) — see "A `claude`
   provider's own endpoint" below for what reads them. `kind="api"`
-  requires a `transport` (`anthropic` | `openai-compatible`), a `base_url` when openai-compatible,
-  and either `api_key`/`api_key_path` unless `is_local=true`. An optional `test_model` names the
-  model `POST .../test` probes with for an
-  `openai-compatible` transport (an `anthropic` transport always probes `PROBE_MODEL`) — without one,
+  requires a `transport` (`anthropic` | `gemini` | `openai-compatible`), a `base_url` when
+  openai-compatible, and either `api_key`/`api_key_path` unless `is_local=true`. An optional
+  `test_model` names the model `POST .../test` probes with for an
+  `openai-compatible` transport (an `anthropic` transport always probes `PROBE_MODEL`, a `gemini`
+  one `GEMINI_PROBE_MODEL`) — without one,
   the test route returns a clear "set a test model" failure instead of guessing a model name most
   real endpoints would reject. `masked()` replaces `api_key` with `api_key_set: bool`, exactly like
   `AssistantSettings.masked()`. `verify_ssl` (default `true`, `openai-compatible` only) controls TLS
@@ -91,7 +91,7 @@ functions), not pydantic — matching the existing convention for a small, hand-
     `agentic` id outright (pointing the caller at the group route instead of the old FR-008
     api-mode check, which no longer applies since agentic ids can't reach `validate()` at all).
   - `group_assignments`: one `GroupAssignment` (`provider_id`, `model`, no `mode` — always `cli`)
-    per **group** id (`diagrams`/`research`/`planning`). `validate_group()` requires a `kind="cli"`
+    per **group** id (`diagrams`/`planning`). `validate_group()` requires a `kind="cli"`
     provider. `save_group_assignment`/`clear_group_assignment` mirror the simple-side functions.
   - `load_assignment(call_site_id)` is the one function every caller still uses regardless of
     capability: for a `simple` id it reads `assignments` directly; for an `agentic` id it resolves
@@ -111,7 +111,12 @@ functions), not pydantic — matching the existing convention for a small, hand-
   `OpenAICompatibleProvider` (a raw `httpx` POST to `{base_url}/chat/completions` — no `openai` SDK,
   since the point of "openai-compatible" is arbitrary endpoints). Its constructor takes `verify_ssl`
   (default `true`), passed straight through as httpx's `verify=` kwarg — `provider_to_llm()` wires it
-  from the stored `Provider.verify_ssl`. `build_provider(assignment)` picks the implementation
+  from the stored `Provider.verify_ssl`. `GeminiProvider` (`transport="gemini"`) is a sibling raw
+  `httpx` adapter for Gemini's **native** `generateContent` API — `POST
+  {base_url}/v1beta/models/{model}:generateContent`, authenticating with an `x-goog-api-key` header
+  (no Bearer token) and capping output via `generationConfig.maxOutputTokens` (gemini has no
+  `max_tokens`); `base_url` defaults to `https://generativelanguage.googleapis.com` when unset.
+  `build_provider(assignment)` picks the implementation
   matching the assignment's provider `transport`, else falls back to today's `provider_from_env()`.
   It only acts on `mode="api"` assignments — a `simple` call site assigned `mode="cli"` has no
   direct-API path in this feature; `build_provider` returns `None` for it and the caller falls back
@@ -288,6 +293,10 @@ recognize before the request ever reaches the proxy). Returns
   already posts `/chat/completions` against. Unsupported (no call) when `base_url` is unset.
 - `kind="api"`, `transport="anthropic"`: `GET {base_url or "https://api.anthropic.com"}/v1/models`
   with `x-api-key`/`anthropic-version` headers (Anthropic Models API shape,
+- `kind="api"`, `transport="gemini"`: `GET {base_url or "https://generativelanguage.googleapis.com"}/v1beta/models`
+  with an `x-goog-api-key` header — Gemini's own models-list shape, where the id lives in each
+  item's `name` as `models/<id>` (stripped) and the label in `displayName`. Unsupported (no call)
+  when no key resolves.
   `{"data": [{"id", "display_name"}, ...]}` — `display_name` becomes each model's `label`).
   Unsupported (no call) when no key resolves via `resolve_provider_key()`.
 - `kind="cli"`, `adapter="claude"`, `base_url` set: the same Anthropic-shape `GET .../v1/models`
@@ -323,7 +332,8 @@ server-side trace.
   shape later. Before this, a present `claude` binary alone reported `ok=true` regardless of
   `base_url`, so a broken proxy address or bad key never surfaced. `kind="api"`: one real, cheap
   (`max_tokens=1`) completion through `build_provider`,
-  using `PROBE_MODEL` for `anthropic` or the provider's own `test_model` for `openai-compatible` (a
+  using `PROBE_MODEL` for `anthropic`, `GEMINI_PROBE_MODEL` for `gemini`, or the provider's own
+  `test_model` for `openai-compatible` (a
   clear `ok=false` "set a test model" reply if that field is empty, rather than guessing a model
   name). Mirrors `/assistant/settings/test`'s shape; never a non-2xx for a reachability failure.
 - `POST /llm/providers/test` — the same test, run on a not-yet-saved draft (the Add/Edit form's own
@@ -381,7 +391,10 @@ One gear, one dialog, three tabs — no second rail button:
   key-set/billing tags) plus add/edit/delete, a kind-branching form (CLI adapter picker vs. API
   transport/`base_url`/key-or-local toggle), an openai-compatible-only `test_model` field feeding the
   per-row Test button, and the billing warning (`billingWarning.ts`'s `shouldWarnBilling`) shown live
-  as the form's `kind`/`is_local` change. `adapter === "claude"` also reveals optional "Base URL"/
+  as the form's `kind`/`is_local` change. A `gemini` transport shows only the (optional) Base URL
+  field alongside the key — no `test_model` (it uses `GEMINI_PROBE_MODEL`) and no TLS toggle (its
+  own Google endpoint doesn't need one); openai-compatible keeps `test_model` + TLS.
+  `adapter === "claude"` also reveals optional "Base URL"/
   "API key" fields (`llm-provider-cli-base-url`/`llm-provider-cli-api-key`) — see "A `claude`
   provider's own endpoint" above; `toPayload()` clears both for any other adapter, and `subtitleOf()`
   shows `adapter → base_url` on the saved card once one's set. The Add/Edit form itself also has its own Test button
@@ -394,7 +407,7 @@ One gear, one dialog, three tabs — no second rail button:
   on the saved card (`llm-provider-insecure-tls-{id}`) so the setting stays visible outside the form.
 - `CallSitesSection.tsx` (Model routing tab) — **two tables**. "Features": the 3 `simple` call
   sites, one row each, unchanged from before this addendum (mode toggle, provider/model picker,
-  Apply once dirty, Reset). "Model routing": one row **per group** (`diagrams`/`research`/
+  Apply once dirty, Reset). "Model routing": one row **per group** (`diagrams`/
   `planning`), not per call site — the row shows the group label, an inline comma-joined list of
   its member skill labels, and a single provider/model picker pre-filtered to `kind="cli"`
   providers (no mode toggle at all — a group is always CLI). Applying assigns every member at
@@ -442,14 +455,10 @@ One gear, one dialog, three tabs — no second rail button:
   member since `diagram_type_agent`'s retirement), `EpicBriefView.tsx`'s Generate/Regenerate buttons (group
   `"planning"`) — see [`epics-view.md`](epics-view.md) — and `WikiGeneralNotice.tsx`'s
   Generate/Update buttons (also group `"planning"`, alongside `epic_brief_agent`) — see
-  [`wiki-general.md`](wiki-general.md). Deliberately **not** wired into
-  `ResearchPanel.tsx`'s Ask button: research already degrades to a non-LLM keyword answer whenever
-  no embeddings index exists (see [`research-endpoint.md`](research-endpoint.md)), so disabling Ask
-  on a missing CLI would block a button that still produces a useful answer in the common case. Also
-  not applicable to `c1_agent`/`patterns_agent`/`impact_agent` (also group `"diagrams"`): today
-  there's no direct web button for those three — regeneration runs inside an attached interactive
-  agent window via the `codechroma-draw-diagram` skill, not a plain request to the group's assigned
-  CLI.
+  [`wiki-general.md`](wiki-general.md). Not applicable to `c1_agent`/`patterns_agent`/`impact_agent`
+  (also group `"diagrams"`): today there's no direct web button for those three — regeneration runs
+  inside an attached interactive agent window via the `codechroma-draw-diagram` skill, not a plain
+  request to the group's assigned CLI.
 
 ## Tests
 
@@ -457,10 +466,14 @@ One gear, one dialog, three tabs — no second rail button:
   `test_llm_call_site_settings.py` (includes the "every agentic id is in exactly one group"
   coverage guard and group-assignment/`load_assignment` delegation tests), `test_llm_cli_adapters.py`,
   `test_llm_provider_openai_compatible.py` (mocked HTTP endpoint, incl. `verify_ssl` forwarded to
-  `httpx.post`'s `verify=`), `test_llm_model_catalog.py` (mocked `httpx.get` per
-  kind/transport/adapter branch, incl. the unsupported-vs-network-error distinction),
+  `httpx.post`'s `verify=`), `test_llm_provider_gemini.py` (mocked `generateContent` endpoint: URL,
+  the `x-goog-api-key` header, `contents`/`systemInstruction`/`generationConfig` body, `verify_ssl`
+  forwarding), `test_llm_model_catalog.py` (mocked `httpx.get` per
+  kind/transport/adapter branch, incl. the gemini `name`-stripping and the
+  unsupported-vs-network-error distinction),
   `test_bridge_llm_settings_route.py` (incl. `PUT /llm/call-site-groups/{id}`,
-  the draft `POST /llm/providers/test` route, `verify_ssl=false` forwarded end-to-end, and
+  the draft `POST /llm/providers/test` route, `verify_ssl=false` forwarded end-to-end, the `gemini`
+  provider's probe-model test, and
   `GET /llm/providers/{id}/models` delegating to a mocked `model_catalog.fetch_models`).
 - `tests/unit/test_skill_agent.py::test_resolve_cli_uses_the_agentic_call_sites_group_assignment`
   — proves `_resolve_cli()` needed no change: it still resolves via `self.name`, and

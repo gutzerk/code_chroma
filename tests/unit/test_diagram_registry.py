@@ -43,11 +43,12 @@ def test_services_build_one_runner_per_skill_run_kind():
         "c1",
         "patterns",
         "impact",
+        "epics",
         "impact-changes",
-        "research",
         "epic-brief",
         "wiki-general",
         "wiki-general-update",
+        "sequence",
     }
 
 
@@ -94,7 +95,7 @@ def test_iteration_stays_on_builtins_no_matter_what_the_library_holds():
     # A saved custom type must never leak into the build-time iteration (bootstrap/seed/watchers).
     library.save_type(_definition("data-flow"))
 
-    assert set(DIAGRAMS.keys()) == {"c1", "patterns", "impact"}
+    assert set(DIAGRAMS.keys()) == {"c1", "epics", "patterns", "impact", "sequence"}
 
 
 @pytest.mark.parametrize("kind", ["no-such-kind", "feature-plan/../../etc"])
@@ -147,9 +148,60 @@ def test_feature_plan_rejects_a_slug_that_would_escape_its_directory():
 def test_feature_plan_kinds_stay_out_of_the_build_time_iteration():
     # Same guarantee as custom's own test above: a synthesized spec never leaks into the iteration.
     assert DIAGRAMS.get("feature-plan/token-auth") is not None
-    assert set(DIAGRAMS.keys()) == {"c1", "patterns", "impact"}
+    assert set(DIAGRAMS.keys()) == {"c1", "epics", "patterns", "impact", "sequence"}
 
 
 def test_getitem_misses_on_an_unsafe_feature_plan_slug():
     with pytest.raises(KeyError):
         DIAGRAMS["feature-plan/../../etc"]
+
+
+# --- epics/<epic_id>: one epic = one diagram file/layer ---
+
+
+def test_epics_dir_is_the_registry_owned_epics_directory():
+    expected = Path("/r") / ".codechroma" / "diagrams" / "epics"
+
+    assert DiagramRegistry.epics_dir(Path("/r")) == expected
+
+
+def test_get_synthesizes_an_epics_spec_for_any_epic_id_with_no_saved_definition():
+    reg = DiagramRegistry({})
+
+    spec = reg.get("epics/EP-4")
+
+    assert spec is not None
+    assert spec.kind == "epics/EP-4"
+    assert spec.has_bootstrap is False
+    assert spec.has_generate is False
+
+
+def test_an_epics_artifact_lands_under_its_own_diagram_directory():
+    reg = DiagramRegistry({})
+
+    spec = reg.get("epics/EP-4")
+
+    assert spec.artifact_path(Path("/tmp/some-repo")) == (
+        Path("/tmp/some-repo")
+        / ".codechroma"
+        / "diagrams"
+        / "epics"
+        / "EP-4"
+        / "EP-4.json"
+    )
+
+
+def test_epics_rejects_an_id_that_would_escape_its_directory():
+    reg = DiagramRegistry({})
+
+    assert reg.get("epics/../../etc") is None
+
+
+def test_epics_kinds_stay_out_of_the_build_time_iteration():
+    assert DIAGRAMS.get("epics/EP-4") is not None
+    assert set(DIAGRAMS.keys()) == {"c1", "epics", "patterns", "impact", "sequence"}
+
+
+def test_getitem_misses_on_an_unsafe_epics_id():
+    with pytest.raises(KeyError):
+        DIAGRAMS["epics/../../etc"]

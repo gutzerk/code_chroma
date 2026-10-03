@@ -66,6 +66,18 @@ def test_impact_context_has_generation_data_but_no_coverage_or_staleness(server_
     assert "nodes" in payload["generation_data"]
 
 
+def test_sequence_context_has_a_generation_data_scaffold_with_no_trace(server_module):
+    """With no recorded trace, the sequence envelope still carries the (empty) traces list."""
+    bridge, _repo = server_module
+
+    with TestClient(bridge.app) as client:
+        payload = client.get("/repos/default/sequence/context").json()
+
+    assert payload["coverage"] is None
+    assert payload["staleness"] is None
+    assert payload["generation_data"]["traces"] == []
+
+
 def test_unknown_kind_context_is_a_404(server_module):
     bridge, _repo = server_module
 

@@ -24,7 +24,6 @@ from codechroma.bridge.diagram_registry import DIAGRAMS
 from codechroma.bridge.live import ConnectionManager
 from codechroma.bridge.prs import importer as pr_importer
 from codechroma.bridge.prs.manager import PrManager
-from codechroma.bridge.research_agent import ResearchQueryLog
 from codechroma.bridge.review import REVIEW_AGENT_FACTORIES
 from codechroma.bridge.skill_agent import SkillAgent
 from codechroma.bridge.skill_spec import COMPOSITE_SPECS
@@ -71,7 +70,6 @@ class BridgeServices:
     agent_sessions: AgentSessionRegistry
     # Per-app runners: two apps in one process never share job state or leak cancels across.
     skill_agents: dict[str, SkillAgent] = field(default_factory=_build_skill_agents)
-    research_queries: ResearchQueryLog = field(default_factory=ResearchQueryLog)
     # Held so shutdown can cancel a poll still waiting on a transcript that may never appear.
     session_id_tasks: set[asyncio.Task] = field(default_factory=set)
 

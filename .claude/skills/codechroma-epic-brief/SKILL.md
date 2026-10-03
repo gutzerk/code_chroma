@@ -5,8 +5,7 @@ description: Generate a structured AI brief for one epic -- problem/value, scope
 
 Write one epic's brief: problem/value, scope items (each carrying the tasks that implement it,
 never a separate top-level "tasks" tier), dependencies & risks, and acceptance criteria. You are
-the only step in this run -- there is no deterministic half that ran before you, unlike
-`codechroma-research`.
+the only step in this run -- there is no deterministic half that ran before you.
 
 **The prompt that invoked you already carries two facts: the epic's id (`epic_id`) and this run's
 `job_key`.** Use them exactly as given -- never guess a `job_key`, never rename the epic.

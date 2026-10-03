@@ -107,11 +107,19 @@ what changed since.
 - `canvas/doc/layerStore.ts` — which layers are hidden; local UI state, never written to
   `canvas.json` itself. No `LayerStrip` toggle yet (that's Stage 4's rail wiring) — Stage 2 only
   needs the store to exist and be honored by `CanvasDocView`'s render loop.
-- `canvas/doc/nodeStyles.tsx` — the style-parity registry: one `NodeStyleEntry` (box/row/header/
-  title-row/name/desc/dragging class names) per real recipe kind (`c1`/`pattern`/`impact`/`epic`/
-  `custom`), each copied verbatim from the old per-view `*NodeBox` component it replaces —
-  `nodeStyles.test.tsx` asserts the literal strings, so a future rename of e.g. `.impact-node-box` in
-  `styles.css` without updating this registry fails loudly instead of silently drifting.
+- `canvas/doc/elementRules.ts` — **the per-kind element registry** (`BLOCK_RULES`), single source for
+  both behavior and box styles, absorbing the retired `nodeStyles.tsx`: which component renders an
+  element (`renderer`: hierarchy/note/group/node-box), which sidecar overlay feeds it (`overlay:
+  "impact"`), whether its meta row shows the status chip (`statusChip: "impact"`), what click/Enter
+  activate does (`activation: inspector | epic-brief`), and each node-box kind's `style`
+  (`NodeStyleEntry`: box/row/header/title-row/name/desc/dragging class names, copied verbatim from the
+  old per-view `*NodeBox`). The one place CanvasDocView's render dispatch, CanvasNodeBox's activate
+  branch, useSidecar's overlay gate, nodeAccent's status chip, and CanvasNodeBox's style lookup read
+  their per-kind deltas from — replacing the `render ===` comparisons and the parallel style registry
+  those used to carry. Derived `NODE_STYLES` (`web/src/canvas/doc/elementRules.ts`) exposes just the
+  node-box kinds to CanvasNodeBox, so the style strings live in one place; `elementRules.test.ts`
+  asserts them (it now holds the old `nodeStyles.test.tsx` guards too, so a future rename of e.g.
+  `.impact-node-box` in `styles.css` fails loudly instead of silently drifting).
   🔴 **`c1` is the one acknowledged gap, still open after Stage 4**: the deleted C1 view rendered
   through the shared hierarchy `Block` component (`.block.block-c1-system`), not a bespoke NodeBox, so
   this entry only approximates the outer shell — a C1 box on the one canvas visually differs from the
@@ -120,19 +128,28 @@ what changed since.
   (a C1 box's `meta.kind`/`meta.icon` now render via `C1BlockIcon`/`BrandIcon`, same glyphs as the old
   view) — what's left is layout/spacing parity with the old `Block` shell, not a functional gap.
 - `canvas/doc/CanvasNodeBox.tsx` — the one box component for every styled kind above. `group` never
-  reaches it (see `GroupFrame.tsx` below). Drag is a plain `useDragOffset` (zoom-aware, threshold,
-  click-suppress) committing straight to `update_element` on drop — deliberately **not** the
-  collision/multi-select system the six old views' boxes used (`useSelectionAwareDrag`): a canvas-doc
-  element's position is the document's own absolute truth, so there's no separate saved-layout store
-  to reconcile against. Click opens the shared `InspectorPanel` via `inspectorStore.open` when the
-  element carries a `node_id`.
+  reaches it (see `GroupFrame.tsx` below). A **solo** drag runs through the collision system
+  (`collision/useCollisionAvoidance.ts`) — the box follows the cursor honestly but settles into the
+  nearest free spot beside a neighbour instead of landing on top of it, previewing a `DropGhost`
+  outline (`canvas/collision/DropGhost.tsx`) while the button is held, and registering itself as a
+  participant/obstacle via `useCollisionParticipant`. Commit is unchanged: the (possibly corrected)
+  landing is folded into `element.position` and written straight to `update_element` on drop. A
+  **2+ multi-select group drag** stays a free `useGroupDrag` move with no solving — the same split
+  as `useSelectionAwareDrag` on the hierarchy's own boxes. Note the canvas-doc box reuses this system
+  but still commits position as the document's own absolute truth (no separate saved-layout store to
+  reconcile against), so `useCollisionAvoidance`'s returned `resetOffset` is load-bearing here: the
+  box zeroes its own hook offset at commit (see the double-count regression notes below). Click opens
+  the shared `InspectorPanel` via `inspectorStore.open` when the element carries a `node_id`.
 - `canvas/doc/NoteElement.tsx` — a free-text sticky note; click to edit, blur commits the label.
   New UI, no old-view equivalent.
 - `canvas/doc/elementRect.ts` — `elementRect(element, sizes) -> Rect`: an element's on-screen
-  left/top/width/height, `element.size` (or the shared `DEFAULT_ELEMENT_SIZE`, 220×72) centered on
+  left/top/width/height, `element.size` (or the shared `DEFAULT_ELEMENT_SIZE`, 300×72) centered on
   `position`, refined by `useMeasuredSizes`' real DOM box once one's measured. The one place this
   formula lives — `CanvasEdges` (arrow routing), `CanvasDocView`'s own `bounds` (page extent), and
   `GroupFrame` (member bounds, below) all call it instead of each carrying its own copy.
+  🔴 `useMeasuredSizes` also snapshots each box's size **synchronously in its ref callback** (not
+  just on the async ResizeObserver), so arrows/frames/page-bounds receive the box's true footprint
+  before first paint instead of lagging a frame behind on the model default.
 - `canvas/doc/GroupFrame.tsx` — a group's visual frame. `group_id` was always persisted on a
   member (`document.py`'s `Element.group_id`, set by `recipes.py`'s `build_batch_ops` off
   `RecipeNode.group`) but for a long stretch nothing *rendered* it: `render: "group"` elements went
@@ -177,7 +194,17 @@ what changed since.
   through, and `RelationshipEdge` renders `style.color` onto the stroke + label via `data-auth-color`
   + `currentColor` (`authoredStyle.ts`'s `authoredEdgeStyle`, same allow-list as the nodes) — the
   arrowhead itself stays uncoloured (a per-edge marker would need dynamic `<marker>`s, which
-  `ArrowMarkerDefs` forbids for Safari).
+  `ArrowMarkerDefs` forbids for Safari). `layoutDiagramEdges` also carries each edge's authored
+  `transport` token (`relations[].transport`) through to `EdgeLabel`, which renders it as a second,
+  quieter line under the label's divider — the token survives end-to-end like `hero`: `RecipeEdge`
+  (`canvas/recipes.py`) → `add_edge`/`update_edge` op → backend `Edge.transport`
+  (`canvas/document.py`, applied in `apply_batch.py`) → `doc.edges` → `CanvasEdge.transport` →
+  `RelationshipEdge` → `EdgeLabel`. The same chain carries an edge's caller provenance
+  (`relations[].meta.origin`, `file:line`) through as `Edge.origin` → `CanvasEdge.origin` →
+  `RelationshipEdge.origin`/`onOpenOrigin`; when set, `EdgeLabel` renders the caption as a clickable
+  link that opens that code location in the code sidebar via `canvas/openOrigin.ts`. The `build_batch_ops`
+  convergence rule treats `origin` like the other optional edge fields: a now-`None` value is never
+  shipped, so an unrelated re-run can't clear it and `update_edge` converges.
 - `canvas/doc/autoLayout.ts` — `layoutNewElements(doc, newIds)`: one dagre pass over just the new
   subgraph, then the whole result is shifted below the document's existing content. Its first real
   caller landed in Stage 4: `RecipeMenu.runRecipeAndLayout`.
@@ -186,6 +213,22 @@ what changed since.
   entirely above y=0 also computes ≤ 0, so its offset silently collapsed to 0 and the next diagram
   landed unshifted, on top of it. Fixed to check `existingElements.length === 0` instead of the
   clamped value; regression test: `autoLayout.test.ts`.
+  🔴 Hard-layout layers (epics columns, sequence participants/messages) are never user-dragged, so a
+  refresh re-runs their whole deterministic layout (`diagramCatalog.isHardLayoutLayer` — `isEpicsLayer`
+  or `render === "sequence"`) instead of only the brand-new elements. Without this a sequence layer
+  drawn before a `SEQUENCE_LAYOUT.colW` change keeps its stale narrow participant columns and never
+  re-spreads to the current gap.
+  Sequence geometry: `SEQUENCE_LAYOUT` (`colW` wider than `headW` so heads never touch; `rowH` is
+  centre-to-centre message spacing; `headGap` pushes the first line below the participant heads; the
+  gap below the last line is `DiagramFrame`'s own `PADDING.bottom` — never fatten a message's
+  `size.h` to fake vertical margins, that pokes the outer rows up into the heads and pinches the
+  bottom arrow). Because sequence positions are pure derivations of these constants yet persisted,
+  `useReflowSequence` re-runs `layoutSequence` on mount for any sequence layer whose geometry has
+  drifted, so a constant change reaches every reloaded diagram, not just freshly-drawn ones.
+  Message `return`/`async` flags are read through `elementMeta.flagMeta` (truthiness-aware): the
+  backend emits them as JSON booleans (`bool(...)` in `recipes.py`) while authored/mock files use a
+  `"true"` string, and only a flag-read that accepts both survives either path — `stringMeta` would
+  silently drop the boolean form.
 - `canvas/doc/CanvasDocView.tsx` — the single view: iterates `doc.elements`, filters out hidden
   layers before mapping (so they don't mount, not just CSS-hide), dispatches `hierarchy` →
   `HierarchyElement`, `note` → `NoteElement`, `group` → `GroupFrame`, everything else →
@@ -194,7 +237,8 @@ what changed since.
   `InspectorPanel` chrome around it is inherited from `RootCanvas`, which now mounts it
   unconditionally.
 
-Tests: `canvas/doc/nodeStyles.test.tsx` (the style-parity guard), `canvas/doc/CanvasDocView.test.tsx`
+Tests: `canvas/doc/elementRules.test.ts` (the style-parity + behavior registry guard, home of the old
+`nodeStyles.test.tsx`), `canvas/doc/CanvasDocView.test.tsx`
 (renders every element kind, a hidden layer doesn't mount, a drag writes one `update_element` op, a
 group's frame appears/disappears with its members, a Lane area/Concurrency island appear and disappear
 with their own `meta.lane`/shared-`order`-digit membership), `canvas/doc/GroupFrame.test.tsx` (the
@@ -285,11 +329,11 @@ re-projects whatever is already on disk.
   (`c1_reshape`, `patterns_reshape`, `impact_reshape`/`custom_reshape` via `_flat_reshape`,
   `epics_reshape`) plus one shared `graph_to_ops(shape) -> RecipeResult`. 🔴 **`c1_reshape` /
   `patterns_reshape` / `impact_reshape` / `custom_reshape` no longer exist at all** —
-  036-shared-diagram-style-catalog replaced all four (`epics_reshape` is unrelated and unaffected;
-  epics has its own non-diagram source, see below) with **one** `reshape(resolved, render) ->
-  GraphShape`, possible only because every diagram type now authors and resolves to the same flat
-  `nodes[]`/`relations[]` shape (`bridge/diagram_resolver.py::resolve_diagram()` — see
-  [`diagram-skills.md`](diagram-skills.md)). `GraphNode` lost the fields that existed only for c1's
+  036-shared-diagram-style-catalog replaced all five — including `epics_reshape`, now that a skill
+  writes `epics.json` in the same flat shape (a registered diagram kind, see below) — with **one**
+  `reshape(resolved, render) -> GraphShape`, possible only because every diagram type now authors and
+  resolves to the same flat `nodes[]`/`relations[]` shape
+  (`bridge/diagram_resolver.py::resolve_diagram()` — see [`diagram-skills.md`](diagram-skills.md)). `GraphNode` lost the fields that existed only for c1's
   old nested tree — `aliases`/`dedup_id`/`children` are gone, since a flat, file-wide-unique id needs
   no alias list and no per-branch dedup — and now carries `style`/`meta` (with `kind`/`icon`/`status`/
   `group`/`parent` folded into `meta` for `nodeAccent.tsx` to read) for every type uniformly.
@@ -325,11 +369,12 @@ re-projects whatever is already on disk.
   so a bad op still rejects the whole batch exactly like a hand-authored `PATCH`.
 - `bridge/routes/recipes.py` — `POST /repos/{repo_id}/recipes/{recipe:path}/run` (the `:path`
   converter is what lets `recipe` be `custom/<id>`, a two-segment string). `_resolved_for` fetches the
-  payload: `epics_resolver.epics_index(ws.root)` for `"epics"` (no `DIAGRAMS` entry to route through),
-  `routes/diagrams.py`'s `resolve_diagram(ws, name)` for everything else (which itself already 404s on
-  an unknown kind). The commit path (`CanvasDoc.load` → `apply_batch` → save + `ws.emit`) is shared
-  with `PATCH /repos/{id}/canvas` via the new `routes/_canvas_write.commit_canvas_batch` — both routes
-  now return the exact same `{ok, batch_id, id_map, affected}`/`{ok: false, errors}` shape.
+  payload for *every* kind, epics included, through `routes/diagrams.py`'s `resolve_diagram(ws, name)`
+  (which 404s on an unknown kind). This is true since `epics` became a registered diagram kind — a
+  skill writes `epics.json` and the recipe re-projects it — no more `epics_index(ws.root)` special
+  case. The commit path (`CanvasDoc.load` → `apply_batch` → save + `ws.emit`) is shared with
+  `PATCH /repos/{id}/canvas` via the new `routes/_canvas_write.commit_canvas_batch` — both routes now
+  return the exact same `{ok, batch_id, id_map, affected}`/`{ok: false, errors}` shape.
 - Both gaps above are closed in Stage 4: `RecipeMenu` is the rail button that starts a run, and its
   `runRecipeAndLayout` is what finally calls `autoLayout.layoutNewElements` for the ids a run's own
   `id_map` names as new.
@@ -416,11 +461,13 @@ built-in recipes (`c1`/`patterns`/`impact`/`epics`, hardcoded name+label pairs �
 listed entry called `runRecipeAndLayout(engineClient, name)`: `POST`s the recipe, `getCanvas()`s the
 result into `canvasDocStore`, then folds `autoLayout.layoutNewElements`'s positions for the batch's
 own `id_map` values into one more `update_element` batch — new boxes never land on top of old ones.
-This part is unchanged today, just called from `AgentRail`'s "Available to add" rows instead of a
-dropdown item. 🔵 `getRecipeStatus`/`cancelRecipe`/`getRecipeOutput` from the plan's original
-EngineClient-collapse list were never added: a recipe run is a synchronous re-projection of an
-already-generated artifact (see the Python section above), not a background skill job, so there is
-nothing for those three methods to poll/cancel/stream.
+This part is unchanged today, just called from `AgentRail`'s Diagrams tab's expand-refresh instead of
+a dropdown item (the "Available to add" section that used to live there was removed — a soft-removed
+diagram is redrawn via Draw…, see `AgentRail`'s docstring). 🔵
+`getRecipeStatus`/`cancelRecipe`/`getRecipeOutput` from the plan's original EngineClient-collapse list
+were never added: a recipe run is a synchronous re-projection of an already-generated artifact (see
+the Python section above), not a background skill job, so there is nothing for those three methods to
+poll/cancel/stream.
 
 Three later additions, all covered in [`diagram-skills.md`](diagram-skills.md), still live in
 `DrawDiagramButton.tsx` (it still needs readiness to word its task prompt and to drive auto-add):
@@ -430,10 +477,12 @@ Three later additions, all covered in [`diagram-skills.md`](diagram-skills.md), 
   subscription per kind (`diagramCatalog.ts`'s `WATCHED_DIAGRAM_EVENT_KINDS`). ⚠ Custom sends one
   coarse `{"type": "custom"}` ping (never `custom/<id>`), so that branch also refetches
   `listDiagramTypes()`; `DiagramEventKind` carries the bare `"custom"` literal for it.
-- **It auto-adds — but only what was asked for.** `doc/pendingDrawRequests.ts` records the kinds
-  behind a "Draw…" launch; when one flips not-ready → ready, `runRecipeAndLayout` fires for it.
-  ⚠ Gating on that set is load-bearing: an unconditional auto-add would redraw the canvas on any
-  artifact change from any cause (a live reanalyze, an unrelated agent, a branch switch).
+- **It auto-adds any kind that becomes ready.** When a kind flips not-ready → ready and isn't yet on
+  the canvas, `refetchStatus` fires `runRecipeAndLayout` for it — no pending-request set (`doc/
+  pendingDrawRequests.ts` was removed), so a diagram written by *any* path appears: the "Draw…"
+  button, a terminal/agent-window run, another agent on the workspace. It stays safe because pings are
+  scoped per-workspace and the add only fires on a ready transition for a kind `!placed.has(kind)`, so
+  an unrelated artifact change never redraws the canvas.
 - **It records what could not be drawn.** `runRecipeAndLayout` writes the run's `diagnostics` into
   `state/diagramHealthStore.ts`, which `doc/DiagramHealthNote.tsx` renders beside `C1CoverageNote`;
   `removeLayerAndRefresh` clears that layer's entry. Soft by design — the batch has already
@@ -444,7 +493,11 @@ Three later additions, all covered in [`diagram-skills.md`](diagram-skills.md), 
 endpoints survive (an edge with either endpoint inside the deleted set is already dropped by
 `apply_batch.py`'s own cascade, so re-deleting it would fail as `unknown_target`). Always sends
 `confirm_mass_delete: true` — the click that reaches this function already is the confirmation, and a
-real diagram routinely exceeds the unconfirmed mass-delete guard (`MASS_DELETE_GUARD = 20`). No
+real diagram routinely exceeds the unconfirmed mass-delete guard (`MASS_DELETE_GUARD = 20`). The
+recipe-reconcile route (`routes/recipes.py`'s `POST .../run`) likewise always confirms: its
+`build_batch_ops` deletes only AI-owned elements in its own layer, so a refresh that must swap out
+many stale boxes/edges to rebuild a large layer is a deliberate replacement, not a suspicious mass
+delete — without this a big real diagram was falsely blocked on refresh. No
 `window.confirm` either (tried once, dropped — a browser confirm dialog on a normal in-app action read
 as broken/intrusive, not protective); a soft remove isn't undoable — this batch delete still doesn't
 write to `undoStore`, unlike a `CanvasNodeBox` drag, which does now (see the "Group-drag jump /
@@ -461,7 +514,7 @@ re-added silently landed back at its auto-computed layout, not wherever the user
 same key `build_batch_ops` reconciles by) right before deleting, and `runRecipeAndLayout` checks that
 cache for each freshly-added element before handing it to `layoutNewElements` — a hit restores the old
 spot; only an unmatched (genuinely new) element still gets a fresh dagre position. Module-level and
-consumed-on-read, same discipline as `pendingDrawRequests.ts`; it survives only within the page's own
+consumed-on-read, same discipline as the canvas-doc stores; it survives only within the page's own
 lifetime; a full reload still re-projects at a fresh layout, same as `scripts/migrate_canvas.py`'s
 still-deferred gap. Test: `canvas/doc/diagramCatalog.test.ts`.
 
@@ -490,9 +543,8 @@ already-generated file; with none, it just returns an empty batch — no error, 
 the menu used to fetch `GET /repos/{id}/diagrams/status` (`bridge/routes/diagrams.py::get_diagrams_status`)
 alongside `listDiagramTypes()` and only list an entry once ready. 🔴 **The unification changed what
 that gate does, not how it works.** `diagramCatalog.ts`'s `computeReadyDiagrams(status, customTypes,
-activeLayers)` is the one shared split both `DrawDiagramButton` (to word its task prompt) and
-`AgentRail` (to build its "Available to add" rows) now read — same `isReady` fails-open rule as
-before: `status === null` means "the route hasn't answered, or couldn't", treated as ready rather
+activeLayers)` is the one shared split `DrawDiagramButton` reads (to word its task prompt) — same
+`isReady` fails-open rule as before: `status === null` means "the route hasn't answered, or couldn't", treated as ready rather
 than hidden, since erasing every generated diagram from view on one failed fetch (with no error shown
 and no way back) was worse than briefly over-showing. The payload is a flat
 `Record<string, {ready: boolean; fingerprint?: string | null}>` keyed by the **same name the canvas
@@ -527,7 +579,7 @@ tagged `context_kind: "task"`).
 A `Store`-based `{itemId: string | null}` — `open(itemId)`/`close()` — plus a panel component reusing
 the `.inspector-panel` CSS shell (header/close button/body) around `EpicBriefView`. Mounted
 unconditionally in `RootCanvas` beside `InspectorPanel`; renders `null` while closed, so it needs no
-latched-mount handling the way the terminal/research/wizard panels do (nothing in it needs to survive
+latched-mount handling the way the terminal/wizard panels do (nothing in it needs to survive
 close/reopen).
 
 ### The seeded root block — one invariant, enforced server-side
@@ -566,12 +618,10 @@ any drag, layout save or `removeLayerAndRefresh("hierarchy")` against it failed)
 and a client-identity reset effect. `get_canvas` is now two lines and has no `read_only` case;
 `CanvasDocView` seeds nothing, lost its `rootNode` prop entirely, and renders whatever it is served.
 
-**`?strategy=` now works on every load, not just the first.** The seeded element carries no
-`meta.strategy` (the server writes it, and which renderer to use is a per-page-load client concern),
-so `HierarchyElement` takes a `fallbackStrategy` prop — `RootCanvas`'s resolved
-`?strategy=`/`VITE_CANVAS_STRATEGY`, threaded through `CanvasDocView`'s `strategyName`. An element
-that *does* carry `meta.strategy` still wins. This fixes the old Stage 4 gotcha where the query param
-was baked in at seed time and silently ignored on every later visit to an already-seeded repo.
+**The strategy selector is gone.** The hierarchy always renders as nested boxes (`strategies/boxes/
+Block.tsx`, via `BoxesRenderer`); the former `?strategy=` / `VITE_CANVAS_STRATEGY` switch and the
+`strategyName` threading through `CanvasDocView` were removed (see `strategies/types.ts` /
+`web-canvas-shell.md`).
 
 Tests: `tests/unit/test_canvas_document_seed.py` (every row of the table above),
 `tests/unit/test_bridge_canvas_route.py` (a fresh repo already serves the block; it is real on
@@ -670,7 +720,7 @@ no such measurement dependency and keeps the original single call, unchanged.
   {kind}-layout.json` drag positions instead of a fresh dagre pass. Deferred as a nice-to-have, not
   required for the feature to work.
 - **C1's own change-review/coverage-note/plan-badge chrome was not folded into the one canvas** — see
-  the 🔴 note under Stage 2's `nodeStyles.tsx` bullet above and `c1-diagram.md`'s own banner. The plan's
+  the 🔴 note under Stage 2's `elementRules.ts` bullet above and `c1-diagram.md`'s own banner. The plan's
   Risks section already called this out as large enough to be its own sub-stage.
 - **The Impact review's per-box severity highlight** was later ported onto `CanvasNodeBox` (037
   US2), then removed again along with the rest of the judgmental review sidecar (038 follow-up) — an
@@ -749,7 +799,7 @@ side of this rename.
   can reuse it (`Block.tsx`/`TreeNode.tsx` updated to the new prop, unchanged behavior). The outer
   box gets a `block-change--{status}` class exactly like a hierarchy `Block` does — `styles.css`'s
   `.block-change--* > .block-row` rules already target `.block-row` generically, and a C1 box's own
-  `nodeStyles.tsx` entry already uses `.block`/`.block-row`, so no new CSS was needed.
+  `elementRules.ts` entry already uses `.block`/`.block-row`, so no new CSS was needed.
 - **Plan panel** (🔴 superseded — this bullet describes a feature since deleted with the Plan
   overlay's retirement; kept for the *why* of the `block-code-view--inline` convention it reused):
   `C1PlanPanel`, then kept and real, rendered as a sibling inside the box, populated by
@@ -821,6 +871,50 @@ Tests: `web/src/canvas/doc/CanvasNodeBox.test.tsx`'s "change review chrome (Impa
 with a matching key), `web/src/canvas/ImpactChangeSummary.test.tsx`,
 `web/src/state/useImpactChangesSidecar.test.ts`, `web/src/state/impactChangesSidecarStore.test.ts`.
 
+## Impact always-on diff data (no global Diff toggle needed)
+
+The Impact diagram is *about* changes, so its blocks show diff + change-colored file/function lists
+with the global Diff toggle **off**. `web/src/state/useSidecar.ts`'s `useImpactDiffSync`
+(`RootCanvas.tsx`, gated on `useHasCanvasLayer("impact")`) refills `diffOverlayStore` and
+`hierarchyChangesStore` from the same deterministic GETs (`getDiff`/`getChangeCards`'s
+`by_node_status`) that the Diff toggle's `refreshDiffs` uses — so `DiffView` in the inspector/popup
+renders for impact nodes and `InspectorRow` tints its list by status.
+
+Two load-bearing details:
+
+- **It must not "turn Diff on".** `DiffOverlayStore.write(entries, setActive)` is the single writer:
+  the global Diff toggle calls `write(entries, true)` (raises `isActiveState`) while the impact
+  path calls `write(entries)` — it writes the diff map + deleted snapshot + emits, but never sets
+  `isActiveState`. Setting `isActive` would raise `DeletedDiffOverlay`/`ChangeConnectionsOverlay`/
+  `ImpactChangeSummary` chrome the user didn't ask for. Impact's own deleted blocks stay on the
+  review/ghost path — the deleted snapshot is populated but `DeletedDiffOverlay` is gated on
+  `isActive`, so it stays hidden. A single emit after both writes means a subscriber observing
+  `isActive` sees a real transition rather than a no-op intermediate.
+- **It refills after Diff turns off.** The Diff toggle's off-path calls `clear()`, which wipes this
+  impact fill too. `useImpactDiffSync` subscribes to `diffOverlayStore` and re-syncs on the
+  active-fell transition (tracked, not bare re-check — `write`'s emit would otherwise loop). The
+  always-on fetch is single-flight (one run in flight, one coalesced rerun) so a changed-ping storm
+  can't stack N concurrent `getDiff`+`getChangeCards` pairs, and it re-checks `getIsActive()`
+  post-await so a run that straddles a Diff turn-on can't clobber the reveal's data.
+- **Status inherits up to every nesting level.** `InspectorRow` resolves a row's status as its own
+  diff/change-card status, else the status of the enclosing `component::<file>` (which the whole-file
+  diff entry in `git_diff.py` supplies). A function/class/`service::…::functions` container row with
+  no status of its own inherits its file's, so the always-on color reaches deep levels — not just
+  the leaves the pull-down diff happened to name (see `InspectorPanel.tsx`'s `componentOf`).
+- **A block carries one badge chip per distinct status.** `NodeChangeBadge` counts `change.files`
+  by their `status` (`deleted` folds into `removed`) instead of trusting the single aggregate
+  `change.status`, and renders one chip per status in a fixed order (`added`, `modified`, `removed`)
+  — so a block whose subtree mixes added *and* modified files shows `+1 ~2` side by side rather than
+  hiding one behind the other. When `files` is empty it falls back to one chip from the aggregate
+  `status`/`change_count` (see `nodeChrome.tsx`).
+
+Gating on the impact layer's presence means with no impact layer these GETs stay idle (same rule as
+`useImpactChangesSidecar`'s review fetch). Tests:
+`web/src/state/useImpactDiffSync.test.ts` (fills without `isActive`, idle when layer absent,
+re-syncs on ping and on Diff-off), `web/src/state/diffOverlayStore.test.ts` (`fillDiffs` doesn't
+flip active), `web/src/canvas/InspectorPanel.test.tsx` (row tint from diff status and from
+change-card status).
+
 ## Impact review — ported onto the one canvas, then removed (038 follow-up)
 
 A post-Stage-4 follow-up once ported the Impact review's per-box severity badge/accent onto
@@ -835,7 +929,7 @@ diagram kind including Impact.
 ## Copy-context button, restored on `CanvasNodeBox` (post-Stage-4 follow-up)
 
 The old C1 view rendered its System/Actor boxes through the shared hierarchy `Block` component
-(`nodeStyles.tsx`'s own comment flagged this as "the one deliberate gap"), so every C1 box carried
+(`elementRules.ts`'s own comment flagged this as "the one deliberate gap"), so every C1 box carried
 `NodeButtons`' copy button for free. `CanvasNodeBox` never got an equivalent — a real regression, not
 a scoped-out gap, since users had relied on it to grab a block's path/name for pasting into an AI
 chat as context.
@@ -859,7 +953,7 @@ chat as context.
   `.tree-node-copy-button` in every shared rule (idle/hover/is-copied/is-failed), plus a new
   `.canvas-node-box-buttons` row, pushed to the header's far side by `justify-content: space-between`
   — every render kind's `headerClass` is row-direction with its own title-wrap column beside it (see
-  `nodeStyles.tsx`'s `DIAGRAM_NODE_BASE`/`titleWrapClass`), the same shape as C1's `.block-header`/
+  `elementRules.ts`'s `DIAGRAM_NODE_BASE`/`titleWrapClass`), the same shape as C1's `.block-header`/
   `.block-title`. 🔴 **This used to be two different layouts, and the mismatch was a real bug**:
   `.diagram-node-box-header` (pattern/impact/custom/epic) was column-direction, but its `headerClass`
   string also carried the literal class `block-header` for no real reason. `.block-header`'s

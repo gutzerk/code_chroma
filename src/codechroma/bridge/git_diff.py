@@ -103,6 +103,25 @@ def _diffs_for_present_file(
             old_containers_by_id, existed, has_func=bool(results),
         )
     )
+    # A present, changed file gets its own file-level diff entry so the file's canvas block (the
+    # impact diagram's merged `component::<path>` box, or a file node under Diff) shows a diff of
+    # its whole text, not just per-function diffs keyed at function node_ids the file box never
+    # owns. `compute_function_diffs` returns only function/class entries; without this the box a
+    # user actually clicks carries no diff and renders plain code. Appended after the container
+    # pass so this file entry never counts as a "function diff" that suppresses a class-level
+    # `modified` entry (`has_func` gates that). The entry is `modified` (an existing thing that
+    # changed); a brand-new file's `added` entry comes from `_container_diffs`.
+    if existed and current_text != old_text:
+        results.append(
+            _entry(
+                f"component::{file_path}",
+                Path(file_path).name,
+                "modified",
+                old_text,
+                current_text,
+                "file",
+            )
+        )
     return results
 
 

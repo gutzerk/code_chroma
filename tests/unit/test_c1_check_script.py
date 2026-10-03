@@ -74,22 +74,20 @@ def test_clean_diagram_exits_zero_with_an_ok_line(tmp_path):
     assert "OK: 1 leaves resolved" in result.stdout
 
 
-def test_unresolved_leaf_is_reported_and_exits_nonzero(tmp_path):
-    children = [{"id": "ghost", "name": "Ghost", "path": "src/gone.py", "node_id": None}]
-
-    result = _run(tmp_path, _diagram(children))
-
-    assert result.returncode == 1
-    assert "BROKEN ghost path=src/gone.py" in result.stdout
-
-
-def test_pathless_leaf_is_reported_as_broken(tmp_path):
-    children = [{"id": "orphan", "name": "Orphan", "node_id": None}]
-
-    result = _run(tmp_path, _diagram(children))
+@pytest.mark.parametrize(
+    "child,expected",
+    [
+        ({"id": "ghost", "name": "Ghost", "path": "src/gone.py", "node_id": None},
+         "BROKEN ghost path=src/gone.py"),
+        ({"id": "orphan", "name": "Orphan", "node_id": None}, "BROKEN orphan path=<none>"),
+    ],
+    ids=["unresolved", "pathless"],
+)
+def test_broken_leaf_is_reported_and_exits_nonzero(tmp_path, child, expected):
+    result = _run(tmp_path, _diagram([child]))
 
     assert result.returncode == 1
-    assert "BROKEN orphan path=<none>" in result.stdout
+    assert expected in result.stdout
 
 
 def test_planned_add_leaf_without_path_is_not_broken(tmp_path):
@@ -102,6 +100,33 @@ def test_planned_add_leaf_without_path_is_not_broken(tmp_path):
 
     assert result.returncode == 0
     assert "BROKEN" not in result.stdout
+
+
+def test_conceptual_leaf_with_no_code_reason_is_not_broken(tmp_path):
+    # diagram_resolver.py's _stamp_no_code_reason: a resolver-stamped conceptual box.
+    children = [
+        {"id": "concept_leaf", "name": "concept_leaf", "meta": {"no_code_reason": "conceptual"}},
+        _leaf(1),
+    ]
+
+    result = _run(tmp_path, _diagram(children), "--shape-advisory")
+
+    assert result.returncode == 0
+    assert "BROKEN" not in result.stdout
+
+
+def test_unresolved_leaf_with_no_code_reason_is_still_broken(tmp_path):
+    children = [
+        {
+            "id": "bad_leaf", "name": "bad_leaf",
+            "meta": {"no_code_reason": "unresolved", "no_code_detail": "src/gone.py"},
+        }
+    ]
+
+    result = _run(tmp_path, _diagram(children))
+
+    assert result.returncode == 1
+    assert "BROKEN bad_leaf" in result.stdout
 
 
 def test_planned_modify_leaf_with_unresolved_path_is_still_broken(tmp_path):
@@ -442,6 +467,20 @@ def test_edge_restating_parent_child_nesting_is_advisory(tmp_path):
     result = _run(tmp_path, _wired(_ladder(), edges))
 
     assert "NESTING-EDGE 'routes' -> 'leaf-1' only restates the nesting" in result.stdout
+
+
+def test_a_directed_cycle_between_blocks_is_an_advisory_not_a_failure(tmp_path):
+    edges = [
+        {"from": "leaf-1", "to": "leaf-2", "label": "a"},
+        {"from": "leaf-2", "to": "leaf-3", "label": "b"},
+        {"from": "leaf-3", "to": "leaf-1", "label": "c"},
+    ]
+
+    result = _run(tmp_path, _wired(_ladder(), edges))
+
+    # The cycle prints as an advisory -- it never pushes the run to the broken tier (returncode 1).
+    assert result.returncode != 1
+    assert "CYCLES 'leaf-1' -> 'leaf-2' -> 'leaf-3' -> 'leaf-1'" in result.stdout
 
 
 def test_id_reused_across_branches_is_reported_as_duplicate(tmp_path):

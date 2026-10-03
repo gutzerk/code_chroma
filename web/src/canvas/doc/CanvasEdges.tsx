@@ -8,7 +8,7 @@ import { elementRect } from "./elementRect";
 
 const CANVAS_ARROW_MARKER_ID = "canvas-doc-arrowhead";
 
-// Reuses the custom-diagram arrowhead styling as a neutral default (see nodeStyles.tsx's own note
+// Reuses the custom-diagram arrowhead styling as a neutral default (see elementRules.ts's own note
 // on the c1 gap) — module-level so the <defs> block stays stable (Safari drops markers otherwise).
 const CANVAS_ARROW_MARKERS = [{ id: CANVAS_ARROW_MARKER_ID, className: "custom-arrowhead" }];
 
@@ -26,6 +26,9 @@ export interface CanvasEdgesProps {
    * it. Missing until the first ResizeObserver callback lands, so every lookup falls back to the
    * assumed size and zero margin regardless. */
   sizes?: ReadonlyMap<string, MeasuredBoxSize>;
+  /** Opens the code at a resolved edge's caller — passed to every edge that carries an `origin`,
+   * wiring the label click to the code sidebar (see openOrigin). */
+  onOpenOrigin: (origin: string) => void;
 }
 
 /**
@@ -34,7 +37,7 @@ export interface CanvasEdgesProps {
  * document's own truth, this just obstacle-routes a line between whatever they already are. Mirrors
  * CustomConnections/ImpactConnections's shape (ArrowMarkerDefs + RelationshipEdge per edge).
  */
-export function CanvasEdges({ doc, sizes }: CanvasEdgesProps) {
+export function CanvasEdges({ doc, sizes, onOpenOrigin }: CanvasEdgesProps) {
   const rectByKey = new Map<string, Rect>(
     Object.values(doc.elements).map((element) => [element.id, elementRect(element, sizes)]),
   );
@@ -49,6 +52,7 @@ export function CanvasEdges({ doc, sizes }: CanvasEdgesProps) {
           edgeKey={edge.key}
           d={edge.d}
           label={edge.label || edge.kind || ""}
+          transport={edge.transport}
           labelX={edge.labelX}
           labelY={edge.labelY}
           markerId={CANVAS_ARROW_MARKER_ID}
@@ -57,6 +61,8 @@ export function CanvasEdges({ doc, sizes }: CanvasEdgesProps) {
           variantSuffix=" --custom"
           isHero={edge.hero}
           style={edge.style}
+          origin={edge.origin}
+          onOpenOrigin={onOpenOrigin}
           testId="canvas-doc-relationship"
         />
       ))}

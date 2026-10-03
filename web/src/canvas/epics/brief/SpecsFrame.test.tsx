@@ -3,7 +3,7 @@ import { act, fireEvent, render, screen, waitFor } from "@testing-library/react"
 import { SpecsFrame } from "./SpecsFrame";
 import { EpicsDiagramClient } from "../../../engine-client/epicsDiagramClient";
 import { stageNodeId } from "../specStageHelpers";
-import { IMPACT_CHANGES_STUB, EPICS_STUB, RESEARCH_STUB, EPIC_BRIEF_STUB } from "../../../engine-client/stubEngineClient";
+import { IMPACT_CHANGES_STUB, EPICS_STUB, EPIC_BRIEF_STUB } from "../../../engine-client/stubEngineClient";
 import type { EngineClient } from "../../../engine-client/EngineClient";
 import type { EpicWorkItem } from "../../../state/types";
 
@@ -61,7 +61,6 @@ function innerClient(getEpicsItem: EngineClient["getEpicsItem"]): EngineClient {
   return {
     ...IMPACT_CHANGES_STUB,
     ...EPICS_STUB,
-    ...RESEARCH_STUB,
     ...EPIC_BRIEF_STUB,
     getNode: async () => null,
     getChildren: async () => [],

@@ -1,5 +1,6 @@
 import { useSyncExternalStore } from "react";
 import type { EngineClient } from "../engine-client/EngineClient";
+import type { CanvasElement } from "../state/types";
 import { Store } from "../state/createStore";
 
 /** One level of the inspector's drill path. The id is the authority (so a live re-fetch always reads
@@ -17,6 +18,16 @@ export interface InspectorEntry {
    * entries opened without a specific box in mind (a citation, a change-review row), where falling
    * back to the old node_id match is still the right call -- there is no "the one box" to prefer. */
   sourceId?: string;
+  /** Set for an epic/story work-item box (010-epics-tree-render Part 5): the entry resolves the
+   * `WorkItem` with this id (via an EpicsDiagramClient) and renders its full text (summary, criteria,
+   * description, links) instead of a hierarchy node -- an epic box has no real `node_id`. The AI-brief
+   * button lives inside that level. */
+  workItemId?: string;
+  /** Set for any other epics-layer box (a task, phase header or content card that isn't itself a
+   * resolvable work item): the panel renders the block's full text + its place in the epic straight
+   * from the canvas element, instead of a code node. Carries the whole layer doc so neighbours
+   * (a phase's tasks, a task's parent) can be shown. */
+  epicBlock?: { element: CanvasElement; doc: { elements: Record<string, CanvasElement> } };
 }
 
 const EMPTY_STACK: InspectorEntry[] = [];
@@ -39,11 +50,6 @@ class InspectorStore extends Store {
 
   getIsOpen = (): boolean => this.stackState.length > 0;
 
-  /** The entry currently on top of the drill stack — the one the panel actually renders — or null
-   * when the panel is closed. Same array reference between calls unless the stack itself changed, so
-   * this is a safe useSyncExternalStore snapshot. */
-  getTopEntry = (): InspectorEntry | null => this.stackState[this.stackState.length - 1] ?? null;
-
   /** Publishes the C1 view's client so the panel can resolve `c1-more::` ids as well as real ones. */
   bindClient = (client: EngineClient | null): void => {
     if (this.clientState === client) return;
@@ -52,9 +58,17 @@ class InspectorStore extends Store {
   };
 
   /** Opens the panel on one node, discarding any previous drill path. `sourceId` is the specific
-   * canvas box that was clicked, when the caller has one -- see `InspectorEntry.sourceId`. */
-  open = (id: string, name: string, sourceId?: string): void => {
-    this.stackState = [{ id, name, sourceId }];
+   * canvas box that was clicked, when the caller has one -- see `InspectorEntry.sourceId`. Pass
+   * `workItemId` for an epic/story box to render its full WorkItem text rather than a code node,
+   * or `epicBlock` for any other epics-layer box to render that block's details. */
+  open = (
+    id: string,
+    name: string,
+    sourceId?: string,
+    workItemId?: string,
+    epicBlock?: { element: CanvasElement; doc: { elements: Record<string, CanvasElement> } },
+  ): void => {
+    this.stackState = [{ id, name, sourceId, workItemId, epicBlock }];
     this.emit();
   };
 
@@ -107,14 +121,21 @@ export function useIsInspectorOpen(): boolean {
   return useSyncExternalStore(inspectorStore.subscribe, inspectorStore.getIsOpen);
 }
 
-/** True while `nodeId` is the block currently shown in the inspector panel — including as one of a
- * merged group's tabs — so the canvas can highlight it. When the caller also passes its own box id
- * (`sourceId`, e.g. a `CanvasElement.id`) and the open entry recorded one too, matching narrows to
- * that exact box instead of every box sharing the same `nodeId` — see `InspectorEntry.sourceId`. */
-export function useIsInspectorTarget(nodeId: string, sourceId?: string): boolean {
-  const entry = useSyncExternalStore(inspectorStore.subscribe, inspectorStore.getTopEntry);
-  if (!entry) return false;
+/** True while `nodeId` is a block on the inspector's current drill path — the whole stack, not just
+ * the node currently rendered at the top — so the canvas keeps the originally-opened block
+ * highlighted while the user drills into its files/functions and views code. It only clears when the
+ * user opens a *different* block (which resets the stack) or closes the panel (empty stack). Includes
+ * merged-group tabs. When the caller also passes its own box id (`sourceId`, e.g. a
+ * `CanvasElement.id`) and an open entry recorded one too, matching narrows to that exact box instead
+ * of every box sharing the same `nodeId` — see `InspectorEntry.sourceId`. */
+function entryMatches(entry: InspectorEntry, nodeId: string, sourceId?: string): boolean {
   if (entry.group) return entry.group.ids.includes(nodeId);
   if (entry.sourceId !== undefined && sourceId !== undefined) return entry.sourceId === sourceId;
   return entry.id === nodeId;
+}
+
+export function useIsInspectorTarget(nodeId: string, sourceId?: string): boolean {
+  const stack = useSyncExternalStore(inspectorStore.subscribe, inspectorStore.getStack);
+  // The stack reference is stable between emits, so this snapshot is safe for useSyncExternalStore.
+  return stack.some((entry) => entryMatches(entry, nodeId, sourceId));
 }

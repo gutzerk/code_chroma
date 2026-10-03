@@ -242,15 +242,33 @@ a true system-context view that should take seconds).
   two blocks drew as one stroke with their two captions stacked — which is the whole reason the module
   exists. `anchorOf`'s border point defaults to the side's midpoint but takes an arbitrary
   `laneOffset`, and `routeEdges.ts` (the shared lanes → router → map pipeline every view calls into)
-  now feeds it a real one via `assignPorts`, grouped by the exact box+side each endpoint resolves to
-  through `chooseSides` — *not* by which pair the arrow joins. `assignLanes` only ever separates two
-  arrows on the *same* pair; a box with several unrelated arrows into one side (A→C and B→C both
-  hitting C's left edge) used to funnel all of them onto that side's exact midpoint regardless, which
-  read as arrows fusing at the box border even when the obstacle router kept their paths apart further
-  out. `assignPorts` fixes that at the source: every arrow touching a given box+side gets its own point
-  along it. Anchors clamp back onto the side (`sidePad`), so a short block's outer ports still land on
-  it. Sides whose stubs face away from each other route **around** the nearer outer edge rather than
-  doubling back through both boxes. `simplify` prunes duplicate and collinear corners, so a route that
+  now feeds it a real one via `displacePorts` (per side edge), grouped by the exact box+side each
+  endpoint resolves to through `chooseSides` — *not* by which pair the arrow joins. `chooseSides` is a
+  single dominant-axis rule: it compares the centres' X/Y deltas and routes horizontally (left/right)
+  when X dominates, vertically (top/bottom) otherwise — applied uniformly to adjacent, stacked, and
+  diagonal placements. It deliberately has no separate gap threshold, so a box being dragged flips its
+  sides only where the centres' deltas actually cross, never jitters on a moving gap boundary. `assignLanes` only
+  ever separates two arrows on the *same* pair; a box with several unrelated arrows into one side (A→C
+  and B→C both hitting C's left edge) used to funnel all of them onto that side's exact midpoint
+  regardless, which read as arrows fusing at the box border even when the obstacle router kept their
+  paths apart further out. `displacePorts` fixes that at the source: every arrow touching a given
+  box+side gets its own point **stepped symmetrically out from the side's midpoint** by `portGap`
+  each — an odd count leaves one arrow dead on the centre with the rest paired out either side, an
+  even count sits entirely off-centre as symmetric pairs — hugging the middle and only pushing toward
+  the corners on a genuinely crowded side (anchors clamp back onto the edge via `anchorOf`'s `sidePad`,
+  so ports never run off the box). Port groups are keyed by the box's **stable id**
+  when the caller supplies one (`routeEdges`'s `fromId`/`toId`, which `CanvasEdges` and the
+  `ConnectionsOverlay` pipeline both pass) rather than by `rectKeyOf`'s rounded geometry — otherwise
+  two overlays measuring the same box a frame apart (subpixel drift in `getBoundingClientRect` +
+  transform) could round it to different sizes and split one box+side into two groups, each falling
+  back to its own centre point and fusing the arrows at the border. The pool also mixes **both
+  directions** of every arrow, not just like-sided ones: an arrow exiting a box's side and an arrow
+  entering that same side were previously spread in separate from/to pools, so each saw itself as the
+  only port there and both landed on the side's midpoint — one stroke out and one in, fused into one
+  point on the edge. Grouping every port on a box+side together spreads exit and entry together too.
+  Anchors clamp back onto the side
+  (`sidePad`), so a short block's outer ports still land on it. Sides whose stubs face away from each
+  other route **around** the nearer outer edge rather than doubling back through both boxes. `simplify` prunes duplicate and collinear corners, so a route that
   happens to be straight is one `L` segment (and every jsdom geometry assertion stays readable).
   `ConnectionsOverlay` (main canvas) uses the same router; the two panel overlays
   (`ChangeConnectionsOverlay`, `TraceFlowOverlay`) deliberately do not — a panel connector is a short
@@ -381,10 +399,6 @@ a true system-context view that should take seconds).
   `DiagramTypeDefinition`, and `bridge/review.py`'s `build_review_agent(...)` does the same for the
   review side. One `cancel_skill_agents()` pass (each `agent.cancel()`) still kills them all, since
   every one is still a plain `SkillAgent`.
-  🔵 A fourth configuration, `bridge/research_agent.py`, widened `artifact` to
-  `Callable[[Path, str], Path]` and `start()` to take an optional per-run `prompt` override — see
-  [`research-endpoint.md`](research-endpoint.md) for why (one artifact per question, not per repo)
-  and confirmation the other three configurations are unaffected.
   🔴 A finished run drops its own task (`SkillAgent._forget_task`); without that, `cancel()` awaits a
   task from an already-closed loop and shutdown raises.
 - 🔴 **Generation never starts on its own — only the user's explicit Retry click may start it.**

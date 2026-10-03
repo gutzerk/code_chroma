@@ -1,6 +1,6 @@
 /** The active canvas view, mirroring RootCanvas's `CanvasView` union without importing it (RootCanvas
  *  doesn't export the type). */
-export type CanvasViewId = "hierarchy" | "c1" | "patterns" | "epics" | "custom" | "impact";
+export type CanvasViewId = "hierarchy" | "c1" | "pattern" | "epic" | "custom" | "impact";
 
 /** The two fields of EpicsFocusState a view description reads; an object that is already a full
  *  EpicsFocusState (RootCanvas) or a minimal {focusedId, showAiBrief} partial (EpicsView) both fit. */
@@ -40,7 +40,7 @@ export interface ViewContextInput {
 export function buildViewContext(input: ViewContextInput): ViewContext | null {
   let description: string | undefined;
   switch (input.view) {
-    case "epics": {
+    case "epic": {
       const focusedId = input.epics?.focusedId ?? null;
       if (!focusedId) {
         description = "the Epics requirements view, with no epic focused yet";
@@ -64,7 +64,7 @@ export function buildViewContext(input: ViewContextInput): ViewContext | null {
       }
       break;
     }
-    case "patterns":
+    case "pattern":
       description =
         input.patternsCount === undefined
           ? "the design-patterns diagram"

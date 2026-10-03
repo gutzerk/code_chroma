@@ -73,8 +73,9 @@
   only `getEpicsItem`, and the cancel methods live in `C1_CHANGES_STUB`/`EPIC_BRIEF_STUB` and are
   forwarded by `DelegatingEngineClient`.
 - **`src/state/`** — `ExpansionStore` (`expansionState.ts`) is the single in-memory store for every
-  block's expand/collapse state and the derived breadcrumb path. Nothing here persists or hits the
-  URL. `createStore.ts` owns the store plumbing every store used to re-type by hand: a `Store` base
+  block's expand/collapse state and the derived breadcrumb path. Never reflected in the URL; it *does*
+  persist (the `persist()` write to `web/src/state/expansionPersistence.ts`) so a reload returns to
+  the same open tree together with the saved camera (see `web-canvas-shell.md`). `createStore.ts` owns the store plumbing every store used to re-type by hand: a `Store` base
   class (one listener set, a `subscribe` shaped for `useSyncExternalStore`, protected `emit()`) that
   registers itself **workspace-scoped in its constructor** (its `reset()` is declared abstract, so a
   store that wants to be resettable must say how), and `resetWorkspaceStores()` (called from
@@ -83,7 +84,7 @@
   Registration is now automatic — the opt-out is `markGlobalStore()`, chained at the export site for
   the few that must survive a switch: `agentStore` / `workspaceStore` / `branchStore` / `prStore`
   span every workspace (resetting `agentStore` would undo the very switch that triggered the reset),
-  and `codeViewModeStore` and the panel-open stores (`researchPanelStore`, `terminalPanelStore`) are
+  and `codeViewModeStore` and the panel-open stores (`terminalPanelStore`) are
   user chrome that survives a switch (`diagramWizardStore` was a member here too, before the
   diagram-management unification deleted it). `undoStore` is also marked global
   (its undo history should survive a diagram/workspace change). `collision/collisionStore`'s

@@ -36,11 +36,11 @@ describe("ConcurrencyIslandArea", () => {
     render(<ConcurrencyIslandArea digits="2" members={members} sizes={new Map()} />);
 
     const island = screen.getByTestId("canvas-concurrency-island");
-    // m1: left=-10..210, top=64..136. m2: left=390..610, top=264..336.
-    // Union: left=-10, top=64, right=610, bottom=336 (width 620, height 272). Padding: side=16, top=32, bottom=16.
-    expect(island.style.left).toBe("-26px");
+    // m1: left=-50..150, top=64..136. m2: left=350..650, top=264..336.
+    // Union: left=-50, top=64, right=650, bottom=336 (width 700, height 272). Padding: side=16, top=32, bottom=16.
+    expect(island.style.left).toBe("-66px");
     expect(island.style.top).toBe("32px");
-    expect(island.style.width).toBe("652px");
+    expect(island.style.width).toBe("732px");
     expect(island.style.height).toBe("320px");
     expect(screen.getByText("Concurrent: 2")).toBeInTheDocument();
   });

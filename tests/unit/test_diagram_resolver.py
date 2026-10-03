@@ -46,20 +46,20 @@ def test_empty_diagram_still_produces_a_full_stable_shape(engine):
     assert resolved["diagnostics"]["dropped_count"] == 0
 
 
-def test_path_resolves_to_its_component_node(engine):
-    data = _diagram(nodes=[{"id": "a", "name": "A", "path": "shared/text_utils.py"}])
+@pytest.mark.parametrize(
+    "path,expected",
+    [
+        ("shared/text_utils.py", "component::shared/text_utils.py"),
+        ("shared", "dir::shared"),
+    ],
+    ids=["component", "dir"],
+)
+def test_path_resolves(engine, path, expected):
+    data = _diagram(nodes=[{"id": "a", "name": "A", "path": path}])
 
     resolved = resolve_diagram(engine, data)
 
-    assert resolved["nodes"][0]["node_id"] == "component::shared/text_utils.py"
-
-
-def test_directory_path_resolves_to_its_dir_node(engine):
-    data = _diagram(nodes=[{"id": "a", "name": "A", "path": "shared"}])
-
-    resolved = resolve_diagram(engine, data)
-
-    assert resolved["nodes"][0]["node_id"] == "dir::shared"
+    assert resolved["nodes"][0]["node_id"] == expected
 
 
 def test_unknown_path_resolves_to_none_with_a_diagnostic(engine):
@@ -250,7 +250,9 @@ def test_meta_is_passed_through_untouched(engine):
 
     resolved = resolve_diagram(engine, data)
 
-    assert resolved["nodes"][0]["meta"] == {"status": "modified", "junk": 1}
+    assert resolved["nodes"][0]["meta"] == {
+        "status": "modified", "junk": 1, "no_code_reason": "conceptual"
+    }
 
 
 def test_planned_block_without_a_path_resolves_cleanly_with_no_diagnostic(engine):
@@ -261,6 +263,44 @@ def test_planned_block_without_a_path_resolves_cleanly_with_no_diagnostic(engine
 
     assert resolved["nodes"][0].get("node_id") is None
     assert resolved["diagnostics"]["dropped_count"] == 0
+    assert resolved["nodes"][0]["meta"] == {"plan_kind": "add", "no_code_reason": "planned"}
+
+
+def test_pathless_node_with_no_meta_is_stamped_conceptual(engine):
+    data = _diagram(nodes=[{"id": "a", "name": "A"}])
+
+    resolved = resolve_diagram(engine, data)
+
+    assert resolved["nodes"][0]["meta"] == {"no_code_reason": "conceptual"}
+
+
+def test_unresolved_path_is_stamped_with_the_failed_path_as_detail(engine):
+    data = _diagram(nodes=[{"id": "a", "name": "A", "path": "shared/missing.py"}])
+
+    resolved = resolve_diagram(engine, data)
+
+    assert resolved["nodes"][0]["meta"] == {
+        "no_code_reason": "unresolved", "no_code_detail": "shared/missing.py"
+    }
+
+
+def test_modify_plan_kind_with_unresolved_path_is_unresolved_not_planned(engine):
+    # modify/delete point at real, already-existing code -- planned only covers add/create.
+    node = {"id": "a", "name": "A", "path": "shared/missing.py", "meta": {"plan_kind": "modify"}}
+    data = _diagram(nodes=[node])
+
+    resolved = resolve_diagram(engine, data)
+
+    assert resolved["nodes"][0]["meta"]["no_code_reason"] == "unresolved"
+
+
+def test_resolved_node_gets_no_no_code_reason_key(engine):
+    node = {"id": "a", "name": "A", "path": "shared/text_utils.py", "meta": {"x": 1}}
+    data = _diagram(nodes=[node])
+
+    resolved = resolve_diagram(engine, data)
+
+    assert "no_code_reason" not in resolved["nodes"][0]["meta"]
 
 
 def test_attach_coverage_lists_uncovered_top_level_directories(engine):
@@ -313,3 +353,39 @@ def test_merge_by_id_leaves_an_unmatched_item_untouched():
 
     assert merged[0]["confirmed"] is None
     assert matched == set()
+
+
+class _OriginEngine:
+    def __init__(self, origins_by_node):
+        self._origins = origins_by_node
+
+    def edge_origin(self, from_id):
+        return self._origins.get(from_id)
+
+
+def test_attach_origins_stamps_meta_origin_on_matching_relations():
+    # Origin is per-source-node: both a->b and a->c share a's origin (crucial for capturing the
+    # "closing over a dynamic variable" class of bugs, and they also genuinely share the caller).
+    engine = _OriginEngine({"component::a.py": "a.py:12"})
+    resolved = {
+        "nodes": [
+            {"id": "a", "node_id": "component::a.py"},
+            {"id": "b", "node_id": "component::b.py"},
+            {"id": "c", "node_id": "component::c.py"},
+        ],
+        "relations": [
+            {"from": "a", "to": "b", "kind": "uses"},
+            {"from": "b", "to": "c", "kind": "uses"},
+            {"from": "a", "to": "c", "kind": "uses"},
+        ],
+    }
+    from codechroma.bridge.diagram_resolver import attach_origins
+
+    out = attach_origins(engine, resolved)
+
+    by_pair = {(rel["from"], rel["to"]): rel.get("meta") for rel in out["relations"]}
+    # a is the source of a->b and a->c -- both get a's origin.
+    assert by_pair[("a", "b")]["origin"] == "a.py:12"
+    assert by_pair[("a", "c")]["origin"] == "a.py:12"
+    # b has no origin in the engine: its meta stays untouched (absent).
+    assert by_pair[("b", "c")] is None

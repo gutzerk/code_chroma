@@ -86,6 +86,13 @@ export interface DragOffsetOptions {
   /** Starting offset, read once on mount — lets a consumer restore a previously-saved position
    * (the C1 box anchors seed this from .codechroma/c1-layout.json). */
   initialOffset?: Offset;
+  /** Explicit canvas zoom to divide drag deltas by, instead of measuring it from the drag handle via
+   * `measureScale`. For a drag handle that `measureScale` can't size (an SVG element has no
+   * `offsetWidth`), so it would read scale 1 and the element would outrun/underrun the cursor at any
+   * zoom other than 1 — the exact wrong behaviour for the canvas arrow labels, which live inside the
+   * scaled `.canvas-content` like the blocks do. A function is evaluated fresh at each gesture start
+   * (like `measureScale`, which reads the live DOM), so a zoom change between gestures is honoured. */
+  scale?: number | (() => number);
   /** Fired once when a real drag (past the threshold) ends, with the final offset — the
    * commit-on-drop hook, so a consumer persists once per drag rather than on every pointer move. */
   onEnd?: (offset: Offset) => void;
@@ -132,6 +139,7 @@ export interface DragOffset {
 export function useDragOffset({
   suppressClickAfterDrag = false,
   initialOffset,
+  scale: scaleOverride,
   onEnd: onDragEnd,
   onPreview,
   resolveFinal,
@@ -161,7 +169,7 @@ export function useDragOffset({
       startClientY: event.clientY,
       startOffsetX: startOffset.x,
       startOffsetY: startOffset.y,
-      scale: measureScale(event.currentTarget),
+      scale: typeof scaleOverride === "function" ? scaleOverride() : scaleOverride ?? measureScale(event.currentTarget),
       moved: false,
     };
 

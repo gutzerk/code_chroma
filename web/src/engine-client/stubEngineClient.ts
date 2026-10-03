@@ -22,7 +22,6 @@ import {
   type EpicBriefJobState,
   type EpicsIndex,
   type EpicWorkItem,
-  type ResearchJobState,
   type WikiGeneralStatus,
 } from "../state/types";
 
@@ -177,19 +176,6 @@ export const EPICS_STUB = {
   getEpicsItem: async (itemId: string): Promise<EpicWorkItem> => {
     throw new Error(`EPICS_STUB: no item stubbed for ${itemId}`);
   },
-};
-
-const IDLE_RESEARCH_JOB: ResearchJobState = {
-  job_key: "",
-  state: "idle",
-  error: null,
-  answer: null,
-};
-
-/** Inert defaults for the research slice, spread the same way as IMPACT_CHANGES_STUB. */
-export const RESEARCH_STUB = {
-  askResearch: async (): Promise<ResearchJobState> => IDLE_RESEARCH_JOB,
-  getResearchAnswer: async (): Promise<ResearchJobState> => IDLE_RESEARCH_JOB,
 };
 
 const IDLE_EPIC_BRIEF_JOB: EpicBriefJobState = {

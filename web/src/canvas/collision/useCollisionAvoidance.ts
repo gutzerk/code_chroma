@@ -33,6 +33,12 @@ export interface CollisionAvoidanceOptions extends DragOffsetOptions {
   targetRef?: RefObject<HTMLElement | null>;
   /** Off switch for a consumer rendered non-draggable — falls back to plain useDragOffset. */
   enabled?: boolean;
+  /** Fired on the same synchronous clock the returned `offset` renders from while a solo drag is in
+   * flight — the live-offset path for consumers that must move OTHER things (frames, arrows) in
+   * lockstep with the box. Separate from `onPreview`, which is this hook's own rAF-throttled ghost
+   * solve: a consumer that needs the box's true render-position must read it here, not in the
+   * throttle, or it chases the box a frame behind. */
+  onLiveOffset?: (offset: Offset) => void;
 }
 
 export interface CollisionAvoidance extends DragOffset {
@@ -81,6 +87,7 @@ export function useCollisionAvoidance({
   targetRef,
   enabled = true,
   onEnd,
+  onLiveOffset,
   ...dragOptions
 }: CollisionAvoidanceOptions): CollisionAvoidance {
   const [ghost, setGhost] = useState<DropGhostGeometry | null>(null);
@@ -201,9 +208,23 @@ export function useCollisionAvoidance({
   const drag = useDragOffset({
     ...dragOptions,
     onEnd: handleEnd,
+    // `onPreview` is this hook's own rAF-throttled ghost solve and nothing else — it IS the
+    // `onLiveOffset` slot for the raw live offset, which gets its own synchronous channel below.
     onPreview: enabled ? handlePreview : undefined,
     resolveFinal: enabled ? handleResolveFinal : undefined,
   });
+
+  // The live-offset path, mirroring `useGroupDrag`'s own render-clock publish: fire on the same
+  // synchronous tick `drag.offset` becomes `drag.isDragging`, so a consumer moving other things off
+  // this offset (frames, arrows) stays in lockstep with the box instead of chasing it a frame late.
+  // Read through a ref so the effect does not restart when the caller passes a fresh closure each
+  // render (every caller does -- it closes over the id in scope).
+  const onLiveOffsetRef = useRef(onLiveOffset);
+  onLiveOffsetRef.current = onLiveOffset;
+  useEffect(() => {
+    if (!drag.isDragging) return;
+    onLiveOffsetRef.current?.(drag.offset);
+  }, [drag.isDragging, drag.offset]);
 
   const handlePointerDown = useCallback(
     (event: ReactPointerEvent<HTMLElement>) => {
@@ -255,6 +276,7 @@ export function useCollisionAvoidance({
     handleProps: { onPointerDown: handlePointerDown },
     ghost: drag.isDragging ? ghost : null,
     blocked: ghost?.blocked ?? false,
+    resetOffset: drag.resetOffset,
   };
 }
 

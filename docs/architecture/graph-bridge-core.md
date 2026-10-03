@@ -8,7 +8,7 @@ used to be `server.py`: 1058 lines of routes over module globals assembled at *m
 made "point the bridge at another repo" mean `importlib.reload`. Now `BridgeServices.create`
 (`services.py`) builds the registry/agent-manager/PR-manager bundle, `create_app` hangs it on
 `app.state.services`, and each route reads it through the `Services`/`Ws` dependencies in `deps.py`.
-Routes live in `routes/{graph,diffs,diagrams,custom_diagrams,epics,research,traces,
+Routes live in `routes/{graph,diffs,diagrams,custom_diagrams,epics,traces,
 workspaces,prs,agents,events}.py`, one `APIRouter` each, included in that order by
 `routes/__init__.py`'s `ROUTERS`. `server.py` survives as
 a 22-line shim (`app = create_app()`) because `launch.py`'s uvicorn command line and
@@ -27,17 +27,16 @@ lookups.
 
 🔴 **Every headless skill runner is owned by `BridgeServices`, never by a module.**
 `services.skill_agents` is a dict keyed by skill-run kind (`"c1"`, `"patterns"`, `"impact-changes"`,
-`"research"`, `"epic-brief"`), built by `_build_skill_agents()` from three sources — `DIAGRAMS`
+`"epic-brief"`, `"wiki-general"`, `"wiki-general-update"`), built by `_build_skill_agents()` from three sources — `DIAGRAMS`
 (`diagram_registry.py`, the generate-side closures, still built from `diagrams/registry.py`'s
 `BUILTIN_TYPES`), `COMPOSITE_SPECS` (`skill_spec.py`), and each built-in's own `review.agent_factory`
 looked up in `bridge/review.py`'s `REVIEW_AGENT_FACTORIES` (037-total-diagram-unification, US3 —
 `impact-changes` is the only one registered today, moved there from `c1-changes` in the 038
 follow-up; C1's judgmental review was removed rather than left half-wired in that same pass, so `c1`
 has no `review` config at all).
-⚠ Two composite kinds this section used to list here — `custom` (removed in 034) and `diagram-type`
-(removed in the diagram-management unification) — are gone; only `research`/`epic-brief` remain.
-Both surviving composite kinds
-(`research`, `epic-brief`) subclass one `CompositeKeyAgentSpec`
+⚠ Three composite kinds this section used to list here — `custom` (removed in 034), `diagram-type`
+(removed in the diagram-management unification), and `research` (removed wholesale) — are gone; only
+`epic-brief` remains. It subclasses one `CompositeKeyAgentSpec`
 (`composite_agent.py`), which owns `job_key()`, the key→artifact path, and `build_agent()`; each
 subclass keeps only its prompt/validate/artifact-dir/names. The per-kind modules hold no instances —
 each `build_agent()` is one call to `skill_agent.build_skill_agent(kind, ...)`, which owns the
@@ -46,15 +45,12 @@ settings-derived model/timeout plumbing, and the composite-key modules share
 `services.skill_agents[kind]` per request, shutdown is `services.cancel_skill_agents()`
 (`app.py`'s lifespan), and deleting an agent/PR workspace calls `services.forget_workspace_runs(id)`
 — so two apps in one process never share job state, and `cancel` in one can't kill the other's run.
-The research query log is a thin alias (`ResearchQueryLog`) over one capped LRU primitive
-`RememberedStore` (`remembered.py`) — the diagram-type transcript journal (`DraftTranscripts`) that
-used to share it was retired alongside the interview it served.
 🔴 `SkillAgent.forget(repo_id)` has prefix semantics: it also drops every composite
-`f"{repo_id}:..."` job key (research questions, epic briefs), or those entries would outlive the
+`f"{repo_id}:..."` job key (epic briefs), or those entries would outlive the
 deleted workspace for the process lifetime.
 The `{kind}-status`/`{kind}-output` callback pair and the cancel-then-ping body are written once in
 `routes/_skill_jobs.py` (`job_callbacks`, `stop_and_notify`, accepting both `ws.emit` and the async
-`connections.broadcast`); the diagram, epics and research routes wire through it (the custom-diagram
+`connections.broadcast`); the diagram and epics routes wire through it (the custom-diagram
 generate/status/output/cancel trio this used to include is gone -- see custom-diagrams.md), and the
 byte-identical `{kind}/output` GET is registered generically by `routes/skill_runs.py`
 (`register_output_route`).
@@ -68,15 +64,15 @@ and the per-epic `POST /repos/{id}/epics/{item_id}/brief/cancel` route<!-- (see
 🔵 **Debug-only raw-stream logging.** `SkillAgent`'s progress buffer (`self.output`, above) is
 in-memory only and bounded (`output_lines`/`output_tail_chars`) — nothing about a run persists past
 the process lifetime or the buffer's own eviction, by design. Setting `codechroma_SKILL_LOG_DIR` to a
-directory makes every `SkillAgent` run (any kind — c1/patterns/research/wiki-general/etc., they all
+directory makes every `SkillAgent` run (any kind — c1/patterns/wiki-general/etc., they all
 go through `skill_agent.py`'s `_run_cli`) also write its raw, unbounded stdout/stderr stream to
 `<dir>/<name>-<repo_id>-<timestamp>.log`, closed when the run ends. Unset by default; a
 misconfigured/unwritable dir logs a warning and disables itself for that run rather than failing it.
 Tests: `test_skill_agent_stream.py`'s `test_debug_log_dir_writes_the_raw_stream_to_disk`/
 `test_without_the_env_var_nothing_is_written_to_disk`.
-The research query log moved with it (`services.research_queries`, a `ResearchQueryLog`). Per-kind
-timeouts live in one `config.py` dict (`skill_agent_timeouts.seconds_for(kind)`, unknown kinds get
-`default_timeout_seconds`), not one field per kind. Generic file IO (`write_json`/`load_json`/
+Skill-agent timeouts live in one `config.py` dict (`skill_agent_timeouts.seconds_for(kind)`,
+unknown kinds get `default_timeout_seconds`), not one field per kind. Generic file IO
+(`write_json`/`load_json`/
 `read_text`/`slice_lines`) lives in core `codechroma/io.py` — the old `bridge/atomic_write.py` and
 `bridge/source_text.py` are gone, and nothing under the core packages imports `bridge/` anymore
 (the engine is importable as a plain library).
@@ -216,7 +212,11 @@ Supporting modules:
   `Workspace.divergent_files` and `agents/publish.dirty_files`.
 - `git_diff.py` — `compute_function_diffs`: every FUNCTION added/modified/**deleted** vs a
   comparison `base`, each tagged with `status` (deletions carry empty `proposed_source` + the old
-  `name`, and render as blurred floating panels in the canvas since their node is gone). 🔴 `base`
+  `name`, and render as blurred floating panels in the canvas since their node is gone). A present,
+  changed file additionally emits one whole-file **`modified` entry keyed at its
+  `component::<path>` node** so a file's canvas box (an impact diagram's merged `component::` block,
+  or any file node under Diff) carries a diff of its own text — otherwise only function-level
+  entries existed and the file box itself never matched a diff by node_id. 🔴 `base`
   is an **argument**, not `HEAD`: `"HEAD"` (uncommitted-only) for `main`, and
   `Workspace.diff_base()` = `git merge-base <main> HEAD` for an agent worktree — without that, an
   agent's change layer empties out the moment it commits. `git_cmd.working_tree_status` takes the
@@ -280,7 +280,7 @@ Supporting modules:
   (`packaging/bridge_main.py`), a plain `uvicorn codechroma.bridge.server:app`, and `launch.py` itself
   — installs/refreshes every skill in `skill_sync.SKILL_NAMES` into the target repo's
   `.claude/skills/` (source of truth: this repo's own `.claude/skills/`) so agents running inside
-  that repo write plans, diagrams, change reviews, pattern diagrams and research answers in the
+  that repo write plans, diagrams, change reviews, pattern diagrams and epic briefs in the
   current format; skipped when the target is this repo itself. 🔴 `SKILL_NAMES` is the **single**
   per-skill list — `sync_skill(root, name)` is generic, `SKILL_EXCLUDE_PATTERNS` is derived from it,
   and `launch.py`'s "installed X at Y" print lines loop over it; a new skill is one name in that

@@ -190,6 +190,41 @@ describe("ProvidersSection", () => {
     );
   });
 
+  it("saves a gemini provider with its api key and default base url", async () => {
+    listProviders.mockResolvedValue([]);
+    createProvider.mockResolvedValue({
+      id: "p2", label: "Gemini", kind: "api", adapter: null, transport: "gemini",
+      base_url: null, api_key_set: true, api_key_path: null, is_local: false,
+      test_model: null, verify_ssl: true,
+    });
+
+    render(<ProvidersSection />);
+    await waitFor(() => expect(screen.getByTestId("llm-provider-add")).toBeTruthy());
+    fireEvent.click(screen.getByTestId("llm-provider-add"));
+    fireEvent.change(screen.getByTestId("llm-provider-kind"), { target: { value: "api" } });
+    fireEvent.change(screen.getByTestId("llm-provider-transport"), {
+      target: { value: "gemini" },
+    });
+    // gemini shows the (optional) base url field but no test-model / TLS fields.
+    expect(screen.getByTestId("llm-provider-base-url")).toBeTruthy();
+    expect(screen.queryByTestId("llm-provider-test-model")).toBeNull();
+    expect(screen.queryByTestId("llm-provider-verify-ssl")).toBeNull();
+    fireEvent.change(screen.getByTestId("llm-provider-api-key"), {
+      target: { value: "AIza-gemini" },
+    });
+    await waitFor(() => fireEvent.click(screen.getByTestId("llm-provider-save")));
+
+    expect(createProvider).toHaveBeenCalledWith(
+      expect.objectContaining({
+        transport: "gemini",
+        api_key: "AIza-gemini",
+        api_key_set: false,
+        test_model: null,
+        base_url: null,
+      }),
+    );
+  });
+
   it("checking 'skip certificate verification' sends verify_ssl: false", async () => {
     listProviders.mockResolvedValue([]);
     createProvider.mockResolvedValue({

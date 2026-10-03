@@ -31,6 +31,9 @@ export const CONNECTOR = {
   stub: 18,
   /** Perpendicular separation between two arrows joining the same pair of blocks. */
   laneGap: 14,
+  /** Keep arrow tips that join a busy side clearly apart even on large boxes -- larger than laneGap
+     so several arrows into one side of a tall/wide block read as distinct points, not one smear. */
+  portGap: 26,
   /** Elbow radius. */
   corner: 8,
   /** Keeps a lane-shifted anchor off the side's own corners. */
@@ -91,7 +94,11 @@ export function assignLanes<T>(
 }
 
 /** Identity key for a box's rect — there is no real box id at this layer, so the rounded geometry
- * itself is what "the same box" means here (as `createRouter`'s own obstacle dedup already does). */
+ * itself is what "the same box" means here (as `createRouter`'s own obstacle dedup already does).
+ * 🔴 Port grouping (routeEdges.ts) deliberately prefers a stable `fromId`/`toId` over this when one is
+ * available, because subpixel rect drift can round the same box to two keys and split one side into
+ * two port groups — obstacle dedup keeps this geometry key on purpose: a drifted duplicate only costs
+ * obstacle-budget headroom (`MAX_OBSTACLES`), never a wrong visual. */
 export function rectKeyOf(rect: Rect): string {
   return `${Math.round(rect.left)},${Math.round(rect.top)},${Math.round(rect.width)},${Math.round(rect.height)}`;
 }
@@ -103,7 +110,7 @@ export function rectKeyOf(rect: Rect): string {
  * spreading by box+side instead means every arrow touching a given side gets its own point along it,
  * wherever it is on the border, regardless of which other box is on the far end. Reuses `assignLanes`'
  * own counting pass (each key is its own group) and keeps only the offset half of its result. */
-export function assignPorts(keys: readonly string[], gap: number = CONNECTOR.laneGap): number[] {
+export function assignPorts(keys: readonly string[], gap: number = CONNECTOR.portGap): number[] {
   return assignLanes(keys, (key) => key, gap).map((lane) => lane.offset);
 }
 
@@ -274,20 +281,45 @@ function pointInRect(point: Point, rect: Rect): boolean {
   );
 }
 
-/** Midpoint of the longest segment whose midpoint clears `avoid` (the arrow's own two endpoint
- * boxes) — a caption there clears the elbows, the boxes' own text, and never sits on top of either
- * block the arrow connects. Falls back to the single longest segment if every one of them is blocked
- * (a degenerate, very short route), so this never regresses the common case. */
+/** Underlying-length of each segment of a polyline. Routes are axis-aligned (`elbowPoints` only ever
+ * emits orthogonal corners, and `simplify` drops collinear points), so every segment has dx or dy = 0
+ * and the Euclidean length `hypot(dx, dy)` equals the Manhattan `abs(dx) + abs(dy)` — the cheap form
+ * is exact here, but only while that orthogonality invariant holds. */
+function segmentLengths(path: readonly Point[]): number[] {
+  return path.slice(0, -1).map((point, index) => {
+    const next = path[index + 1];
+    return Math.abs(next.x - point.x) + Math.abs(next.y - point.y);
+  });
+}
+
+/** The point halfway along the whole polyline by arc length. Routes are axis-aligned, so this is the
+ * label where a caption's block "centers on the line's middle". */
+function midpointOf(path: readonly Point[]): Point {
+  const lengths = segmentLengths(path);
+  const total = lengths.reduce((sum, length) => sum + length, 0);
+  let remaining = total / 2;
+  for (let index = 0; index < lengths.length; index++) {
+    if (remaining <= lengths[index]) return towards(path[index], path[index + 1], remaining);
+    remaining -= lengths[index];
+  }
+  return path[path.length - 1];
+}
+
+/** True arc-length midpoint of the whole line — this is where a caption "centers on the line's
+ * middle". If that midpoint would land inside an `avoid` box (a short route, or one whose midpoint
+ * falls on a block), falls back to the midpoint of the longest segment that clears `avoid` — a
+ * caption there clears the elbows, the boxes' own text, and never sits on top of either block the
+ * arrow connects. */
 export function labelPointOf(points: readonly Point[], avoid: readonly Rect[] = []): Point {
   const path = simplify(points);
   if (path.length < 2) return path[0] ?? { x: 0, y: 0 };
-  const segments = path.slice(0, -1).map((point, index) => {
-    const next = path[index + 1];
-    return {
-      length: Math.hypot(next.x - point.x, next.y - point.y),
-      mid: { x: round((point.x + next.x) / 2), y: round((point.y + next.y) / 2) },
-    };
-  });
+  const mid = midpointOf(path);
+  if (!avoid.some((rect) => pointInRect(mid, rect))) return mid;
+  const lengths = segmentLengths(path);
+  const segments = lengths.map((length, index) => ({
+    length,
+    mid: { x: round((path[index].x + path[index + 1].x) / 2), y: round((path[index].y + path[index + 1].y) / 2) },
+  }));
   segments.sort((a, b) => b.length - a.length);
   const clear = segments.find((segment) => !avoid.some((rect) => pointInRect(segment.mid, rect)));
   return (clear ?? segments[0]).mid;

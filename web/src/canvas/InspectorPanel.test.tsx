@@ -3,9 +3,10 @@ import { act, fireEvent, render, screen, waitFor } from "@testing-library/react"
 import { InspectorPanel } from "./InspectorPanel";
 import { inspectorStore } from "./inspectorStore";
 import { diffOverlayStore } from "../state/diffOverlayStore";
+import { hierarchyChangesStore } from "../state/hierarchyChangesStore";
 import { liveStore } from "../state/liveStore";
 import { EngineClientProvider } from "../engine-client/EngineClientContext";
-import { EPICS_STUB, RESEARCH_STUB, EPIC_BRIEF_STUB, IMPACT_CHANGES_STUB, PATTERNS_STUB, diagramStub } from "../engine-client/stubEngineClient";
+import { EPICS_STUB, EPIC_BRIEF_STUB, IMPACT_CHANGES_STUB, PATTERNS_STUB, diagramStub } from "../engine-client/stubEngineClient";
 import type { EngineClient } from "../engine-client/EngineClient";
 import type { Diagram, FunctionDiff, HierarchyNodeRef } from "../state/types";
 
@@ -62,9 +63,21 @@ const LOGGING_LOGGER: HierarchyNodeRef = {
   source: "func newLogger(w io.Writer, serviceName string, level slog.Level) *slog.Logger {\n",
 };
 
+const SLUGIFY_FN: HierarchyNodeRef = {
+  node_id: "src/graph/builder.py::function::slugify",
+  name: "slugify",
+  level: "function",
+  parent_id: BUILDER_FILE.node_id,
+  has_children: false,
+  child_count: 0,
+  language: "python",
+  source: "def slugify(s):\n    return str(s).lower()\n",
+};
+
 const NODES: Record<string, HierarchyNodeRef> = {
   [GRAPH_DIR.node_id]: GRAPH_DIR,
   [BUILDER_FILE.node_id]: BUILDER_FILE,
+  [SLUGIFY_FN.node_id]: SLUGIFY_FN,
   [LOGGING_NEW.node_id]: LOGGING_NEW,
   [LOGGING_LOGGER.node_id]: LOGGING_LOGGER,
 };
@@ -73,11 +86,15 @@ function client(overrides: Partial<EngineClient> = {}): EngineClient {
   return {
     ...IMPACT_CHANGES_STUB,
     ...EPICS_STUB,
-    ...RESEARCH_STUB,
     ...EPIC_BRIEF_STUB,
     ...PATTERNS_STUB,
     getNode: async (nodeId: string) => NODES[nodeId] ?? null,
-    getChildren: async (nodeId: string) => (nodeId === GRAPH_DIR.node_id ? [BUILDER_FILE] : []),
+    getChildren: async (nodeId: string) =>
+      nodeId === GRAPH_DIR.node_id
+        ? [BUILDER_FILE]
+        : nodeId === BUILDER_FILE.node_id
+          ? [SLUGIFY_FN]
+          : [],
     getConnections: async () => [],
     getDiff: async () => [],
     acceptDiff: async () => {},
@@ -114,6 +131,7 @@ function renderPanel(engineClient: EngineClient = client()) {
 afterEach(() => {
   inspectorStore.reset();
   diffOverlayStore.reset();
+  hierarchyChangesStore.reset();
   liveStore.reset();
 });
 
@@ -156,7 +174,7 @@ describe("InspectorPanel", () => {
 
   it("renders the diff instead of plain source when the node has one", async () => {
     act(() => {
-      diffOverlayStore.setDiffs([BUILDER_DIFF]);
+      diffOverlayStore.write([BUILDER_DIFF], true);
       inspectorStore.open(BUILDER_FILE.node_id, "builder.py");
     });
 
@@ -329,5 +347,64 @@ describe("InspectorPanel", () => {
 
     await waitFor(() => expect(screen.getByTestId("inspector-panel-error")).toBeInTheDocument());
     expect(screen.getByText(/no longer exists/)).toBeInTheDocument();
+  });
+
+  it("tints a child row by its function diff status (modified)", async () => {
+    act(() => {
+      // Same as the impact-layout path (useImpactDiffSync) populating from getDiff: the row reads
+      // its status off the diff, without the global Diff toggle being on.
+      diffOverlayStore.write([BUILDER_DIFF]); // no active flag: impact always-on path
+      inspectorStore.open(GRAPH_DIR.node_id, "Graph model");
+    });
+
+    renderPanel();
+
+    await waitFor(() => expect(screen.getByText("builder.py")).toBeInTheDocument());
+    const row = screen.getByTestId("inspector-row");
+    expect(row).toHaveClass("inspector-row--modified");
+    expect(row).toHaveAttribute("data-change-status", "modified");
+  });
+
+  it("tints a child row by its change-card status (added, no per-function diff)", async () => {
+    act(() => {
+      inspectorStore.open(GRAPH_DIR.node_id, "Graph model");
+    });
+
+    renderPanel();
+
+    await waitFor(() => expect(screen.getByText("builder.py")).toBeInTheDocument());
+    act(() => {
+      hierarchyChangesStore.setStatuses({ [BUILDER_FILE.node_id]: "added" });
+    });
+    expect(screen.getByTestId("inspector-row")).toHaveClass("inspector-row--added");
+  });
+
+  it("inherits a file's whole-diff status onto its function rows (color reaches all nesting levels)", async () => {
+    // The file lists a function child; the function has no status of its own, only the file does.
+    const fileWithChildren: HierarchyNodeRef = {
+      ...BUILDER_FILE,
+      has_children: true,
+      child_count: 1,
+    };
+    const inheritClient = client({
+      getNode: async (nodeId: string) =>
+        nodeId === BUILDER_FILE.node_id ? fileWithChildren : NODES[nodeId] ?? null,
+      getChildren: async (nodeId: string) =>
+        nodeId === BUILDER_FILE.node_id ? [SLUGIFY_FN] : [],
+    });
+
+    act(() => {
+      inspectorStore.open(BUILDER_FILE.node_id, "builder.py");
+    });
+    renderPanel(inheritClient);
+
+    await waitFor(() => expect(screen.getByText("slugify")).toBeInTheDocument());
+    act(() => {
+      // Only the file carries a status (e.g. from git_diff's whole-file component:: entry).
+      hierarchyChangesStore.setStatuses({ [BUILDER_FILE.node_id]: "modified" });
+    });
+    const row = screen.getByText("slugify").closest("[data-testid='inspector-row']");
+    expect(row).toHaveClass("inspector-row--modified");
+    expect(row).toHaveAttribute("data-change-status", "modified");
   });
 });

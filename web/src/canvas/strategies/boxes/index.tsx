@@ -1,9 +1,16 @@
 import type { CSSProperties } from "react";
-import type { CanvasNodeRendererProps, CanvasRenderStrategy } from "../types";
+import type { HierarchyNodeRef } from "../../../state/types";
 import { Block } from "./Block";
 import { BLOCK_LAYOUT } from "./layoutConfig";
 
-function BoxesNodeRenderer({ node }: CanvasNodeRendererProps) {
+export interface BoxesRendererProps {
+  node: HierarchyNodeRef;
+}
+
+/** The hierarchy's renderer — fixed to nested boxes (there is no boxes-vs-tree choice anymore).
+ * Wraps `Block` in the strategy-root div that feeds it the block layout sizing vars, exactly as the
+ * former `boxesStrategy.NodeRenderer` did. */
+export function BoxesRenderer({ node }: BoxesRendererProps) {
   const style = {
     "--block-min-width": `${BLOCK_LAYOUT.minWidth}px`,
     "--block-max-width": `${BLOCK_LAYOUT.maxWidth}px`,
@@ -17,9 +24,3 @@ function BoxesNodeRenderer({ node }: CanvasNodeRendererProps) {
     </div>
   );
 }
-
-export const boxesStrategy: CanvasRenderStrategy = {
-  id: "boxes",
-  label: "Nested Boxes",
-  NodeRenderer: BoxesNodeRenderer,
-};

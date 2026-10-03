@@ -9,6 +9,9 @@ export interface RelationshipEdgeProps {
   edgeKey: string;
   d: string;
   label: string;
+  /** Type of call/transport (`call`, `https`, `mcp`, ...) — rendered as a second line under the
+   * `label` divider; omitted renders a single-line label exactly as before. */
+  transport?: string;
   labelX: number;
   labelY: number;
   /** `id` of the `<marker>` this renderer defines for its arrowheads. */
@@ -29,6 +32,11 @@ export interface RelationshipEdgeProps {
   /** Optional authored inline style — an edge only meaningfully carries `color`, surfaced as the
    * inheritable `--edge-color` custom property the base stroke/label rules read; see `authoredStyle.ts`. */
   style?: Record<string, string> | null;
+  /** `file:line` of the edge's caller (provenance) — when set, the label becomes clickable and
+   * invokes `onOpenOrigin` to open that code location. */
+  origin?: string;
+  /** Opens the code at `origin` (called from a label click); a no-op when `origin` is unset. */
+  onOpenOrigin?: (origin: string) => void;
   testId: string;
 }
 
@@ -49,6 +57,7 @@ export function RelationshipEdge({
   edgeKey,
   d,
   label,
+  transport,
   labelX,
   labelY,
   markerId,
@@ -58,6 +67,8 @@ export function RelationshipEdge({
   changeStatus,
   isHero = false,
   style,
+  origin,
+  onOpenOrigin,
   testId,
 }: RelationshipEdgeProps) {
   const isActive = useIsActiveEdge(edgeKey, fromNodeId, toNodeId);
@@ -109,6 +120,9 @@ export function RelationshipEdge({
         x={labelX}
         y={labelY}
         text={label}
+        transport={transport}
+        origin={origin}
+        onOpenOrigin={onOpenOrigin}
       />
     </g>
   );

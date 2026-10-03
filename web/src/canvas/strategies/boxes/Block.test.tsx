@@ -382,7 +382,7 @@ describe("Block", () => {
     await navigateToCalculateTotal();
 
     act(() => {
-      diffOverlayStore.setDiffs([
+      diffOverlayStore.write([
         {
           node_id: "function::calculate_total",
           original_source: FIXTURE_NODES["function::calculate_total"].source ?? "",
@@ -406,7 +406,7 @@ describe("Block", () => {
 
     const acceptSpy = vi.spyOn(MockBridgeEngineClient.prototype, "acceptDiff");
     act(() => {
-      diffOverlayStore.setDiffs([
+      diffOverlayStore.write([
         {
           node_id: "function::calculate_total",
           original_source: FIXTURE_NODES["function::calculate_total"].source ?? "",
@@ -439,7 +439,7 @@ describe("Block", () => {
       workspaceStore.setStatus({
         id: "pr-7", state: "ready", progress: "", error: null, read_only: true,
       });
-      diffOverlayStore.setDiffs([
+      diffOverlayStore.write([
         {
           node_id: "function::calculate_total",
           original_source: FIXTURE_NODES["function::calculate_total"].source ?? "",
@@ -467,7 +467,7 @@ describe("Block", () => {
       .spyOn(MockBridgeEngineClient.prototype, "acceptDiff")
       .mockRejectedValueOnce(new Error("boom"));
     act(() => {
-      diffOverlayStore.setDiffs([
+      diffOverlayStore.write([
         {
           node_id: "function::calculate_total",
           original_source: FIXTURE_NODES["function::calculate_total"].source ?? "",
@@ -508,7 +508,7 @@ describe("Block", () => {
     // Simulate the diff reveal: the file is expanded (not code-shown) and the class shows its
     // added source — exactly what revealDiffEntry does for level "file" vs "class".
     act(() => {
-      diffOverlayStore.setDiffs([
+      diffOverlayStore.write([
         {
           node_id: "class::EmailClient",
           status: "added",

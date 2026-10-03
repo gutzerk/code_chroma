@@ -20,7 +20,7 @@ PROVIDERS_ENV = "codechroma_LLM_PROVIDERS_FILE"
 SCHEMA_VERSION = 1
 
 KINDS = ("cli", "api")
-TRANSPORTS = ("anthropic", "openai-compatible")
+TRANSPORTS = ("anthropic", "gemini", "openai-compatible")
 
 
 def store_path(env_var: str, default_filename: str) -> Path:

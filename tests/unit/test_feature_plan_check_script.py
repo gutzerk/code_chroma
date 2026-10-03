@@ -67,5 +67,72 @@ def test_density_budgets_match_customs_defaults(tmp_path):
     nodes = [{"id": f"n{i}", "name": f"N{i}", "meta": {"plan_kind": "add"}} for i in range(61)]
 
     result = _run(tmp_path, {"nodes": nodes, "relations": []}, "--shape-advisory")
-
     assert "CROWDED" in result.stdout
+
+
+def test_parent_without_group_and_without_relation_is_orphan(tmp_path):
+    """A `parent`-only block draws no canvas frame (only `group` does) -- without either it
+    detaches like a free-standing node. This is the C2 `parent`-vs-`group` trap."""
+    diagram = {
+        "nodes": [
+            {"id": "web", "name": "Web", "group": "UI"},
+            {"id": "web-src", "name": "Src", "parent": "web"},
+        ],
+        "relations": [],
+    }
+
+    result = _run(tmp_path, diagram)
+
+    assert result.returncode == 3
+    assert "ORPHAN 'web-src'" in result.stdout
+
+
+def test_parent_block_with_a_group_of_its_own_is_not_orphan(tmp_path):
+    """`group` on the inner box is the legit way to nest it on the canvas -- parent alone is not."""
+    diagram = {
+        "nodes": [
+            {"id": "web", "name": "Web", "group": "UI"},
+            {"id": "web-src", "name": "Src", "parent": "web", "group": "Web"},
+            {"id": "api", "name": "API"},
+        ],
+        "relations": [{"from": "web", "to": "api", "kind": "uses"}],
+    }
+
+    result = _run(tmp_path, diagram)
+
+    assert result.returncode == 0
+    assert "ORPHAN" not in result.stdout
+
+
+def test_parent_block_with_an_edge_of_its_own_is_not_orphan(tmp_path):
+    """A parent-under block that participates in a relation is connected -- not bare."""
+    diagram = {
+        "nodes": [
+            {"id": "web", "name": "Web", "group": "UI"},
+            {"id": "web-src", "name": "Src", "parent": "web"},
+        ],
+        "relations": [{"from": "web-src", "to": "web", "kind": "uses"}],
+    }
+
+    result = _run(tmp_path, diagram)
+
+    assert result.returncode == 0
+    assert "ORPHAN" not in result.stdout
+
+
+def test_participant_under_a_pattern_instance_is_not_orphan(tmp_path):
+    """A box nested under a `pattern-instance` parent connects via its instance box -- the C2
+    orphan rule would otherwise flag it. An instance box is never a generic orphan either: its
+    diagnostics are owned by the patterns marker check, not this rule."""
+    diagram = {
+        "nodes": [
+            {"id": "pattern::adapter", "name": "Adapter", "kind": "pattern-instance"},
+            {"id": "adapter::s3", "name": "S3Client", "parent": "pattern::adapter"},
+        ],
+        "relations": [],
+    }
+
+    result = _run(tmp_path, diagram)
+
+    assert "ORPHAN 'adapter::s3'" not in result.stdout
+    assert "ORPHAN 'pattern::adapter'" not in result.stdout

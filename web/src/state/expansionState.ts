@@ -1,6 +1,7 @@
 import { useSyncExternalStore } from "react";
 import { ROOT_NODE_ID, type BlockView, type HierarchyNodeRef } from "./types";
 import { arraysEqual, Store } from "./createStore";
+import { readExpansionSnapshot, writeExpansionSnapshot } from "./expansionPersistence";
 
 const DEFAULT_BLOCK_VIEW: BlockView = {
   node_id: "",
@@ -20,6 +21,58 @@ class ExpansionStore extends Store {
   private codeVisibleOrder: string[] = [];
   private parentLinks = new Map<string, string | null>();
   private names = new Map<string, string>();
+  private restored = false;
+
+  // Seed from localStorage at construction, before any component mounts: the block renderers read
+  // the store synchronously and fetch children off the reconstructed expandedOrder, so the restore
+  // must be in place before they first render. This also runs *on a workspace switch's reset* path?
+  // No -- reset() below reloads, so the first-construction seed is the only place this runs per
+  // page load. Any subsequent switch goes through load().
+  constructor() {
+    super();
+    // Seed from localStorage before any component mounts (the block renderers read the store
+    // synchronously and fetch children off the reconstructed expandedOrder); load() clears the
+    // (empty) fresh state, ingests, and notifies — the same work this constructor used to inline.
+    this.load();
+  }
+
+  /** True only when a persisted tree-expansion was restored at construction (vs. born collapsed).
+   * RootCanvas uses this to skip the first-load auto-expand -- re-running it on a restored tree
+   * re-layouts the canvas off its saved spot. */
+  hasRestoredExpansion = (): boolean => this.restored;
+
+  private ingest(snapshot: import("./expansionPersistence").ExpansionSnapshot): void {
+    for (const nodeId of snapshot.expanded) {
+      this.expandedOrder.push(nodeId);
+      this.setBlockView(nodeId, { expand_state: "expanded" });
+    }
+    for (const nodeId of snapshot.codeVisible) {
+      if (!this.codeVisibleOrder.includes(nodeId)) this.codeVisibleOrder.push(nodeId);
+      this.setBlockView(nodeId, { code_visible: true });
+    }
+  }
+
+  /** Writes the current open-set back to localStorage under the active workspace. The parent/node
+   * cache is deliberately NOT persisted -- it's a fetch-derived cache that rebuilds as blocks
+   * re-fetch their children (the persisted expandedOrder drives those same lazy fetches). */
+  private persist(): void {
+    writeExpansionSnapshot({ expanded: [...this.expandedOrder], codeVisible: [...this.codeVisibleOrder] });
+  }
+
+  /** Loads the active workspace's persisted snapshot into memory (and re-derives the cache from it
+   * is NOT done -- parentLinks/names stay as fetched; the expandedOrder re-drives fetches). Called at
+   * app workspace-switch, after reset() wiped the in-memory state for the previous worktree. Sets
+   * `restored` off the freshly-read snapshot so a switch onto a restored workspace also skips the
+   * first-load auto-expand (which must not re-layout a restored tree). */
+  load = (): void => {
+    const snapshot = readExpansionSnapshot();
+    this.restored = snapshot !== null;
+    this.blockViews.clear();
+    this.expandedOrder = [];
+    this.codeVisibleOrder = [];
+    this.ingest(snapshot ?? { expanded: [], codeVisible: [] });
+    this.notify();
+  };
 
   // useSyncExternalStore requires getSnapshot to return a stable (===) reference between
   // notifications — these cache the derived array snapshots, refreshed once per notify() rather
@@ -100,12 +153,14 @@ class ExpansionStore extends Store {
     if (this.getBlockView(nodeId).expand_state === "expanded") return;
     if (!this.expandedOrder.includes(nodeId)) this.expandedOrder.push(nodeId);
     this.setBlockView(nodeId, { expand_state: "expanded" });
+    this.persist();
     this.notify();
   };
 
   /** Collapses a block — clears its expand state and evicts it from the expanded order. */
   collapse = (nodeId: string): void => {
     this.collapseInternal(nodeId);
+    this.persist();
     this.notify();
   };
 
@@ -121,6 +176,7 @@ class ExpansionStore extends Store {
   showCode = (nodeId: string): void => {
     if (!this.codeVisibleOrder.includes(nodeId)) this.codeVisibleOrder.push(nodeId);
     this.setBlockView(nodeId, { code_visible: true });
+    this.persist();
     this.notify();
   };
 
@@ -128,6 +184,7 @@ class ExpansionStore extends Store {
   hideCode = (nodeId: string): void => {
     this.removeFromCodeVisibleOrder(nodeId);
     this.setBlockView(nodeId, { code_visible: false });
+    this.persist();
     this.notify();
   };
 
@@ -215,8 +272,13 @@ class ExpansionStore extends Store {
   /** Root-first path of node ids from the deepest currently-expanded entry up to its root. */
   getDeepestExpandedPath = (): string[] => this.deepestExpandedPathSnapshot;
 
-  /** Full reset — tests and workspace switches (resetWorkspaceStores). */
+  /** Full reset — tests and workspace switches (resetWorkspaceStores). Clears the in-memory state
+   * only; the persisted snapshot is left in localStorage and re-read by the next load() (workspace
+   * switches go straight back through load(), which re-seeds `restored`). `restored` is reset to
+   * false here too, so tests that reset() then exercise first-load behavior start from the
+   * not-restored baseline. */
   reset = (): void => {
+    this.restored = false;
     this.blockViews.clear();
     this.expandedOrder = [];
     this.codeVisibleOrder = [];

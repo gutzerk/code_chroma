@@ -14,7 +14,7 @@ from fastapi import APIRouter, HTTPException, Request
 
 from codechroma.assistant import load_assistant_settings
 from codechroma.bridge.routes._body import json_body
-from codechroma.context.llm_provider import PROBE_MODEL, provider_to_llm
+from codechroma.context.llm_provider import probe_model_for, provider_to_llm
 from codechroma.llm import model_catalog, providers_store
 from codechroma.llm.call_site_settings import (
     GroupAssignment,
@@ -121,11 +121,8 @@ def _test_api_provider(provider_id: str | None, provider: providers_store.Provid
     if llm is None:
         error = "provider is not fully configured"
         return {"ok": False, "provider_id": provider_id, "error": error}
-    if provider.transport == "anthropic":
-        model = PROBE_MODEL
-    elif provider.test_model:
-        model = provider.test_model
-    else:
+    model = probe_model_for(provider.transport) or provider.test_model
+    if not model:
         error = "set a test model for this provider before testing"
         return {"ok": False, "provider_id": provider_id, "error": error}
     try:

@@ -181,6 +181,27 @@ def test_test_openai_compatible_provider_with_test_model_attempts_the_call(clien
     assert "test model" not in response.json()["error"]
 
 
+def test_test_gemini_provider_uses_the_gemini_probe_model(client, monkeypatch):
+    created = client.post("/llm/providers", json={
+        "label": "Gemini", "kind": "api", "transport": "gemini", "api_key": "g-key",
+    }).json()
+    captured = {}
+
+    def fake_post(url, json, headers, timeout, verify=True):
+        captured["url"] = url
+        captured["verify"] = verify
+        raise ConnectionError("boom")
+
+    monkeypatch.setattr("codechroma.context.llm_provider.httpx.post", fake_post)
+
+    response = client.post(f"/llm/providers/{created['id']}/test")
+
+    # The probe model is embedded in the endpoint path: .../models/<model>:generateContent.
+    assert captured["url"].split("/v1beta/models/")[1].split(":")[0] == "gemini-2.5-flash"
+    assert captured["verify"] is True
+    assert response.json()["ok"] is False
+
+
 def test_test_provider_forwards_verify_ssl_false_for_a_self_signed_endpoint(client, monkeypatch):
     created = _make_api_provider(client)
     client.put(f"/llm/providers/{created['id']}", json={
@@ -402,7 +423,7 @@ def test_put_call_site_clears_assignment(client):
 def test_put_call_site_rejects_agentic_call_site(client):
     created = _make_cli_provider(client)
 
-    response = client.put("/llm/call-sites/research_agent", json={
+    response = client.put("/llm/call-sites/epic_brief_agent", json={
         "provider_id": created["id"], "model": "m", "mode": "cli",
     })
 
@@ -464,7 +485,7 @@ def test_put_call_site_group_clears_assignment(client):
 def test_put_call_site_group_rejects_api_provider(client):
     created = _make_api_provider(client)
 
-    response = client.put("/llm/call-site-groups/research", json={
+    response = client.put("/llm/call-site-groups/planning", json={
         "provider_id": created["id"], "model": "m",
     })
 

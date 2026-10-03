@@ -68,14 +68,14 @@ describe("DiagramFrame", () => {
     renderFrame("c1", "C1", members);
 
     const frame = screen.getByTestId("canvas-diagram-frame");
-    // m1: left=-10..210, top=64..136. m2: left=390..610, top=264..336.
-    // Union: left=-10, top=64, right=610, bottom=336. Padding: side=40, top=93, bottom=40
+    // m1: left=-50..150, top=64..136. m2: left=350..650, top=264..336.
+    // Union: left=-50, top=64, right=650, bottom=336. Padding: side=40, top=93, bottom=40
     // (GroupFrame's own padding + NESTED_GAP, so a group's frame at this diagram's edge stays
     // inside it with room to spare, instead of touching or poking past it, plus this frame's own
     // title label's rendered height + 15% buffer, so it never crowds a plain topmost member's title).
-    expect(frame.style.left).toBe("-50px");
+    expect(frame.style.left).toBe("-90px");
     expect(frame.style.top).toBe("-29px");
-    expect(frame.style.width).toBe("700px");
+    expect(frame.style.width).toBe("780px");
     expect(frame.style.height).toBe("405px");
     expect(screen.getByText("C1")).toBeInTheDocument();
   });

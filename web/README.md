@@ -1,15 +1,10 @@
-# CodeChroma — Nested Expand-in-Place Code Canvas
+# CodeChroma — Architecture Canvas
 
-The frontend half of CodeChroma's architecture canvas: the codebase renders as a recursive tree of
-nested blocks (Folder → File → Class → Function → Code) on one continuous DOM/CSS canvas. Clicking
-a block expands it in place — any number of siblings and arbitrary simultaneous depths can be
-expanded at once, each with its own backdrop blur. A breadcrumb across the top tracks the deepest
-currently-expanded path. There is no camera, no zoom transitions, and no per-node URL — everything
-is in-memory, reset on reload.
-
-This is a minimal base: canvas rendering and breadcrumb navigation only. Features like
-auto-grouping large child sets, search, function source drill-down, call/raise connection lines,
-and live-sync highlighting have been stripped out and will be rebuilt on top of this base.
+The frontend half of CodeChroma's architecture canvas: the codebase renders as a zoomable map of
+nested blocks on one continuous DOM/CSS canvas. The code hierarchy (System → … → Code) is shown as
+an indented **Project tree** side panel, while the canvas renders that hierarchy plus every diagram
+(C1, Design Patterns, Epics, Sequence, trace, custom) as a layer on the same surface — expand
+blocks in place at any depth, pan and zoom, and toggle diagram layers from the **Diagrams** tab.
 
 ## Dev setup
 
@@ -21,7 +16,7 @@ npm run dev
 Opens at `http://localhost:5173`. By default the app talks to a fixture-backed **mock bridge**
 (`src/engine-client/mockBridge.ts`) — no separate backend process is required to explore the UI.
 
-To point at a real bridge instead (once one exists, per `contracts/canvas-bridge-api.md`), set:
+To point at the real bridge instead, set:
 
 ```bash
 VITE_ENGINE_BRIDGE_URL=http://localhost:8000 npm run dev
@@ -33,11 +28,11 @@ VITE_ENGINE_BRIDGE_URL=http://localhost:8000 npm run dev
   lazily fetches its children via `EngineClient` on first expand.
 - **`src/breadcrumb/`** — `Breadcrumb` renders the deepest currently-expanded path, derived from
   `ExpansionStore`; clicking a crumb scrolls that already-expanded ancestor into view.
-- **`src/engine-client/`** — `EngineClient` is a **Facade** over the bridge's HTTP API
-  (`contracts/canvas-bridge-api.md`); `mockBridge.ts` is a fixture-backed stand-in used until the
-  real bridge exists. `fixtures.ts` is generated, not hand-written — it's the real
-  `GraphEngine.analyze()` output over `../examples/shadow-app`, reshaped by
-  `scripts/export_shadow_app_fixture.py` (repo root). Regenerate it after editing that example.
+- **`src/engine-client/`** — `EngineClient` is a **Facade** over the bridge's HTTP API.
+  `mockBridge.ts` is a fixture-backed stand-in used when no real bridge is configured.
+  `fixtures.ts` is generated, not hand-written — the real `GraphEngine.analyze()` output over
+  `../examples/shadow-app`, reshaped by `scripts/export_shadow_app_fixture.py` (repo root).
+  Regenerate it after editing that example.
 - **`src/state/`** — `ExpansionStore` (`expansionState.ts`) is the single in-memory store for every
   block's expand/collapse state and the derived breadcrumb path. Nothing here is persisted or
   URL-encoded.

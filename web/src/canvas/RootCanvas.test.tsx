@@ -5,10 +5,12 @@ import { AgentClientProvider } from "../agents/AgentClientContext";
 import { MockAgentClient } from "../agents/mockAgentClient";
 import { EngineClientProvider } from "../engine-client/EngineClientContext";
 import { TerminalClientProvider } from "../terminal/TerminalClientContext";
-import { EPICS_STUB, RESEARCH_STUB, EPIC_BRIEF_STUB, IMPACT_CHANGES_STUB, PATTERNS_STUB, diagramStub } from "../engine-client/stubEngineClient";
+import { EPICS_STUB, EPIC_BRIEF_STUB, IMPACT_CHANGES_STUB, PATTERNS_STUB, diagramStub } from "../engine-client/stubEngineClient";
 import { agentStore } from "../agents/agentStore";
 import { expansionStore } from "../state/expansionState";
 import { diffOverlayStore } from "../state/diffOverlayStore";
+import { projectTreePanelStore } from "./projectTreePanelStore";
+import { collapsedLayersStore } from "./doc/collapsedLayersStore";
 import type { EngineClient } from "../engine-client/EngineClient";
 import { SEEDED_CANVAS_DOC } from "../state/types";
 import type { CanvasBatch, CanvasBatchResult, CanvasDoc, CanvasElement, HierarchyNodeRef } from "../state/types";
@@ -75,7 +77,6 @@ function client(overrides: Partial<EngineClient> = {}): EngineClient {
   return {
     ...IMPACT_CHANGES_STUB,
     ...EPICS_STUB,
-    ...RESEARCH_STUB,
     ...EPIC_BRIEF_STUB,
     ...PATTERNS_STUB,
     getNode: async () => ROOT,
@@ -125,40 +126,81 @@ afterEach(() => {
   expansionStore.reset();
   diffOverlayStore.clear();
   agentStore.reset();
+  projectTreePanelStore.reset();
+  collapsedLayersStore.reset();
   vi.restoreAllMocks();
 });
 
-/** Which renderer draws the hierarchy. `?strategy=` exists so an e2e spec can pin the renderer its
- * assertions are written against, instead of silently inheriting whatever the default happens to
- * be — flipping that default is exactly what broke six specs at once. */
+/** How the seeded hierarchy renders once expanded onto the canvas. The boxes-vs-tree *choice* is
+ * gone — the hierarchy always renders as nested boxes (`block` inside a `canvas-hierarchy-element`),
+ * and the old `?strategy=` param no longer selects anything (see `strategies/types.ts`). */
 describe("RootCanvas render strategy", () => {
   afterEach(() => window.history.replaceState({}, "", "/"));
 
-  it("renders the indented tree, the app's default", async () => {
-    renderCanvas();
+  // The seeded hierarchy layer on the canvas is collapsed by default; these tests expand it back
+  // onto the canvas, then assert the nested-box renderer that draws it.
+  const showCanvasTree = () => act(() => collapsedLayersStore.expand("hierarchy"));
 
-    await waitFor(() => expect(screen.getByTestId("tree-node")).toBeTruthy());
-    expect(screen.queryByTestId("block")).toBeNull();
+  it("renders the hierarchy on the canvas as nested boxes by default", async () => {
+    renderCanvas();
+    await waitFor(() => expect(screen.getByTestId("app-root")).toBeTruthy());
+    showCanvasTree();
+
+    await waitFor(() => expect(screen.getByTestId("canvas-hierarchy-element")).toBeTruthy());
+    expect(screen.getByTestId("block")).toBeTruthy();
   });
 
-  it("renders nested boxes instead when the query param pins them", async () => {
+  it("ignores the legacy ?strategy= param and still renders nested boxes", async () => {
     window.history.replaceState({}, "", "/?strategy=boxes");
 
     renderCanvas();
+    await waitFor(() => expect(screen.getByTestId("app-root")).toBeTruthy());
+    showCanvasTree();
 
-    await waitFor(() => expect(screen.getByTestId("block")).toBeTruthy());
-    expect(screen.queryByTestId("tree-node")).toBeNull();
-  });
-
-  it("falls back to the default for an unknown value rather than rendering nothing", async () => {
-    window.history.replaceState({}, "", "/?strategy=nonsense");
-
-    renderCanvas();
-
-    await waitFor(() => expect(screen.getByTestId("tree-node")).toBeTruthy());
+    await waitFor(() => expect(screen.getByTestId("canvas-hierarchy-element")).toBeTruthy());
+    expect(screen.getByTestId("block")).toBeTruthy();
   });
 });
 
+describe("RootCanvas project tree panel", () => {
+  // The singleton starts open by default in production (PanelStore(true)); afterEach resets it to
+  // closed, so each test re-opens it to model a fresh load before rendering.
+  const openPanel = () => act(() => projectTreePanelStore.open());
+
+  it("renders the open panel with the tree, and its rail toggle closes it", async () => {
+    openPanel();
+    renderCanvas();
+
+    // The open project-tree panel holds the tree.
+    await waitFor(() => expect(screen.getByTestId("project-tree-panel")).toBeTruthy());
+    expect(
+      screen.getByTestId("project-tree-panel").querySelectorAll("[data-testid='tree-node']").length,
+    ).toBeGreaterThan(0);
+
+    // Its rail toggle closes it (latched mount keeps it in the DOM, hidden).
+    const toggle = screen.getByLabelText("Close project tree panel");
+    act(() => toggle.click());
+    expect(screen.getByTestId("project-tree-panel").closest("[hidden]")).not.toBeNull();
+  });
+
+  it("renders the hierarchy root inside the panel", async () => {
+    openPanel();
+    renderCanvas({ getNode: async () => ROOT });
+
+    const panel = await screen.findByTestId("project-tree-panel");
+    waitFor(() => expect(panel.textContent).toContain("repo"));
+  });
+
+  it("hides the tree from the canvas by default", async () => {
+    openPanel();
+    renderCanvas();
+
+    // The canvas shows no tree rows -- the seeded hierarchy layer is collapsed at load.
+    await waitFor(() => expect(screen.getByTestId("project-tree-panel")).toBeTruthy());
+    const canvas = screen.getByTestId("canvas-doc-view");
+    expect(canvas.querySelectorAll("[data-testid='tree-node']").length).toBe(0);
+  });
+});
 describe("RootCanvas agent launch error", () => {
   it("announces a blocked/failed launch to screen readers, not just visually", async () => {
     renderCanvas();

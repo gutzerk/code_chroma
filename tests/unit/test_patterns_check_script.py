@@ -26,8 +26,13 @@ def _run(tmp_path, diagram, *extra_args):
     )
 
 
-def _chain(prefix, members, confirmed=True):
-    """036: one instance node plus its participant nodes (parent set), flat, not nested."""
+def _chain(prefix, members, confirmed=True, wire_instance=True):
+    """036: one instance node plus its participant nodes (parent set), flat, not nested.
+
+    A confirmed instance box participates in the graph: a relation links the box to its first
+    participant (`wire_instance=True`), so the container is not dead weight the canvas reads
+    as an unrelated block (see _check_bare_pattern_markers).
+    """
     instance_id = f"pattern::{prefix}"
     participants = [
         {"id": f"{prefix}::{m}", "parent": instance_id, "name": m, "meta": {"role": "role"}}
@@ -37,6 +42,8 @@ def _chain(prefix, members, confirmed=True):
         {"from": participants[i]["id"], "to": participants[i + 1]["id"], "kind": "uses"}
         for i in range(len(participants) - 1)
     ]
+    if wire_instance:
+        relations.append({"from": instance_id, "to": participants[0]["id"], "kind": "uses"})
     instance = {
         "id": instance_id, "name": prefix, "kind": "pattern-instance",
         "meta": {"type": "strategy", "confirmed": confirmed},
@@ -125,7 +132,9 @@ def test_two_equal_size_disconnected_components_flags_exactly_one(tmp_path):
     assert result.returncode == 3
     assert result.stdout.count("ISLAND") == 1
     assert "'beta::b1'" in result.stdout
-    assert "alpha::a1" not in result.stdout
+    # Both instance boxes are wired to a participant, so the container guard never flags them.
+    assert "ORPHAN 'pattern::alpha'" not in result.stdout
+    assert "ORPHAN 'pattern::beta'" not in result.stdout
 
 
 def test_single_small_pattern_instance_does_not_false_positive(tmp_path):
@@ -195,3 +204,30 @@ def test_a_participant_with_no_relation_of_its_own_is_never_orphan(tmp_path):
     result = _run(tmp_path, diagram, "--shape-advisory")
 
     assert "ORPHAN 'lonely::only_member'" not in result.stdout
+
+
+def test_confirmed_instance_box_with_no_relation_of_its_own_is_orphaned(tmp_path):
+    """A container box with participants but no edge of its own reads as dead weight."""
+    chain = _chain("facade", ["gateway", "store"])
+    diagram = {
+        "nodes": chain["nodes"],
+        # Instance box never appears in a relation -- only its participants do.
+        "relations": [r for r in chain["relations"] if r["from"] != "pattern::facade"],
+    }
+
+    result = _run(tmp_path, diagram)
+
+    assert result.returncode == 3
+    assert "ORPHAN 'pattern::facade'" in result.stdout
+    assert "with no relation of its own" in result.stdout
+
+
+def test_confirmed_instance_box_wired_to_participant_is_not_orphaned(tmp_path):
+    """Once the box is linked to a participant it participates -- the guard stays quiet."""
+    chain = _chain("facade", ["gateway", "store"])
+
+    result = _run(tmp_path, chain)
+
+    assert result.returncode == 0
+    assert "ORPHAN 'pattern::facade'" not in result.stdout
+    assert "OK:" in result.stdout

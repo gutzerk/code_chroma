@@ -11,6 +11,7 @@ import { RouteProbeTrigger } from "./RouteProbeTrigger";
 import { LabelClearanceMonitor } from "./LabelClearanceMonitor";
 import { TraceControls } from "./TraceControls";
 import { CanvasViewport, type CanvasViewportHandle } from "./CanvasViewport";
+import { readSavedCameraView } from "./canvasCameraStore";
 import { CanvasFocusContext } from "./CanvasFocusContext";
 import { CanvasDocView } from "./doc/CanvasDocView";
 import { DiagramHealthNote } from "./doc/DiagramHealthNote";
@@ -23,11 +24,15 @@ import { GamesMenu } from "../games/GamesMenu";
 import { useHasCanvasLayer } from "./doc/canvasDocStore";
 import { CodePopupContext } from "./CodePopupContext";
 import { CodePopup } from "./CodePopup";
-import { collapsedLayersStore, useIsLayerCollapsed } from "./doc/collapsedLayersStore";
+import { collapsedLayersStore } from "./doc/collapsedLayersStore";
 import { InspectorPanel } from "./InspectorPanel";
 import { useIsInspectorOpen } from "./inspectorStore";
-import { ResearchPanel } from "./ResearchPanel";
-import { researchPanelStore, useIsResearchPanelOpen } from "./researchPanelStore";
+import { ProjectTreePanel } from "./ProjectTreePanel";
+import { CodeSidebar } from "./CodeSidebar";
+import {
+  projectTreePanelStore,
+  useIsProjectTreePanelOpen,
+} from "./projectTreePanelStore";
 import { useLatchedMount } from "./panelStore";
 import { RailIcon } from "../icons/RailIcon";
 import { RailButton } from "./RailButton";
@@ -57,7 +62,7 @@ import { viewContextStore, useCurrentViewContext } from "../state/viewContextSto
 import { buildViewContext } from "../agents/viewContext";
 import { DeletedDiffOverlay } from "./DeletedDiffOverlay";
 import { ImpactChangeSummary } from "./ImpactChangeSummary";
-import { useImpactChangesSidecar } from "../state/useSidecar";
+import { useImpactChangesSidecar, useImpactDiffSync } from "../state/useSidecar";
 import { useSkillOutput } from "../state/useSkillOutput";
 import { useIsWorkspaceReadOnly } from "../agents/workspaceStore";
 import {
@@ -66,8 +71,6 @@ import {
   useDeepestExpandedPath,
   useExpandedNodeIdsByOrder,
 } from "../state/expansionState";
-import type { CanvasRenderStrategy } from "./strategies/types";
-import { resolveStrategy } from "./strategies/registry";
 import { useCanvasCamera } from "./useCanvasCamera";
 import { useDiffToggle } from "./useDiffToggle";
 
@@ -87,7 +90,7 @@ const UNDO_KINDS: readonly LayoutKind[] = ["hierarchy", "canvas"];
 
 /** Mounts the root Block for the default repository (FR-002) — there is exactly one page, no
  * per-node URL (FR-018). */
-export function RootCanvas({ strategy: strategyOverride }: { strategy?: CanvasRenderStrategy } = {}) {
+export function RootCanvas() {
   const engineClient = useEngineClient();
   const [rootNode, setRootNode] = useState<HierarchyNodeRef | null>(null);
   const [codePopupNode, setCodePopupNode] = useState<HierarchyNodeRef | null>(null);
@@ -95,7 +98,6 @@ export function RootCanvas({ strategy: strategyOverride }: { strategy?: CanvasRe
   const expandedNodeIds = useExpandedNodeIdsByOrder();
   const codeVisibleNodeIds = useCodeVisibleNodeIdsByOrder();
   const isTerminalPanelOpen = useIsTerminalPanelOpen();
-  const isResearchPanelOpen = useIsResearchPanelOpen();
   const agentClient = useAgentClient();
   const workspaceId = useActiveWorkspace();
   const prWorkspaces = usePrWorkspaces();
@@ -113,12 +115,12 @@ export function RootCanvas({ strategy: strategyOverride }: { strategy?: CanvasRe
   const maxAgents = useMaxAgents();
   const launchError = useLaunchError();
   const isInspectorOpen = useIsInspectorOpen();
-  // Latched: each panel stays mounted (hidden via CSS) after its first open, so PTY scrollback,
-  // an in-progress question/interview, or a dragged width survives close/reopen.
+  const isProjectTreePanelOpen = useIsProjectTreePanelOpen();
+  // Latched: each panel stays mounted (hidden via CSS) after its first open, so PTY scrollback
+  // and a dragged panel width survive close/reopen.
   const terminalMounted = useLatchedMount(isTerminalPanelOpen);
-  const researchMounted = useLatchedMount(isResearchPanelOpen);
   const inspectorMounted = useLatchedMount(isInspectorOpen);
-  const isHierarchyVisible = !useIsLayerCollapsed("hierarchy");
+  const projectTreeMounted = useLatchedMount(isProjectTreePanelOpen);
   const isDiffActive = useIsDiffActive();
   const isReadOnly = useIsWorkspaceReadOnly();
   // The "impact" recipe's layer is the one-canvas model's replacement for the old "view is open"
@@ -129,17 +131,28 @@ export function RootCanvas({ strategy: strategyOverride }: { strategy?: CanvasRe
   // block unconditionally (see single-canvas.md), so disabling the fetch here would silently kill
   // hierarchy diff badges for anyone who hasn't added the Impact diagram to their canvas.
   const hasImpactLayer = useHasCanvasLayer("impact");
+  // Always-on diff + status data for the Impact layer: its blocks show diffs and color their
+  // file/function lists by status even with the global Diff toggle off (see useSidecar.ts). Gated
+  // on the impact layer's presence, like useImpactChangesSidecar's review fetch below — with no
+  // impact layer there's nothing to annotate, so the deterministic diff/status GETs stay idle.
+  useImpactDiffSync(engineClient, hasImpactLayer);
   const impactReview = useImpactChangesSidecar(engineClient, isDiffActive, !isReadOnly);
   const impactReviewOutput = useSkillOutput(engineClient, "impact-changes", impactReview.state);
   const traceState = useTraceState();
   const isTraceActive = traceState.isActive;
   const liveVersion = useLiveVersion();
   const viewportRef = useRef<CanvasViewportHandle | null>(null);
-  const previousExpandedCountRef = useRef(0);
+  // Seed the count-change auto-fit baselines from the RESTORED expansion: when the store comes
+  // back with N expanded/CV nodes already mounted (a reload restoring persisted state), the first
+  // render sees length 0->N and would otherwise trigger the "expansion/code count changed" auto-fit
+  // on every restored block — drifting the camera off the saved position by one frame-fit on each
+  // reload. Initializing the refs to the restored counts makes that transition a no-op. Reads the
+  // snapshot directly (not the hook), so it's the same value the very first render will see.
+  const previousExpandedCountRef = useRef(expansionStore.getExpandedNodeIdsByOrder().length);
   // Guards the first-load auto-expand so live re-renders / reconnects never re-trigger it (and never
   // fight a user's manual collapses).
   const autoExpandDoneRef = useRef(false);
-  const previousCodeVisibleCountRef = useRef(0);
+  const previousCodeVisibleCountRef = useRef(expansionStore.getCodeVisibleNodeIdsByOrder().length);
   // Latest codePopupNode, read by the live-refresh effect without depending on it (getNode returns
   // a fresh object each call, so a dep would loop: refetch → setState → refetch).
   const codePopupNodeRef = useRef<HierarchyNodeRef | null>(null);
@@ -148,16 +161,16 @@ export function RootCanvas({ strategy: strategyOverride }: { strategy?: CanvasRe
   const camera = useCanvasCamera(viewportRef);
   const { frameFitTo } = camera;
 
+  // The tree lives in the ProjectTree sidebar, so the canvas opens diagrams-only — collapse the
+  // seeded hierarchy layer on load. Runs per load; collapsedLayersStore is workspace-scoped, so a
+  // workspace switch re-collapses it to the same diagrams-first default.
+  useEffect(() => {
+    collapsedLayersStore.collapse("hierarchy");
+  }, [engineClient]);
+
   // Read once at startup only, never during interaction: these pick initial state, they are not
   // deep-linking or per-node routing, which FR-018 explicitly drops. The app never writes them.
   const params = new URLSearchParams(window.location.search);
-  // `?strategy=` outranks VITE_CANVAS_STRATEGY so an e2e spec can pin the renderer it asserts
-  // against without booting a second dev server — the same job `?autoexpand=off` already does.
-  const strategy =
-    strategyOverride ??
-    resolveStrategy(
-      params.get("strategy") ?? (import.meta.env.VITE_CANVAS_STRATEGY as string | undefined),
-    );
   // Which fixture to load at initial page load.
   const rootNodeId = params.get("root") ?? ROOT_NODE_ID;
   // First-load auto-expand is on by default; `?autoexpand=off` disables it (used by e2e specs that
@@ -189,44 +202,87 @@ export function RootCanvas({ strategy: strategyOverride }: { strategy?: CanvasRe
   useEffect(() => {
     if (!rootNode || autoExpandDoneRef.current) return;
     autoExpandDoneRef.current = true;
+    // Read the restored-camera flag deterministically from the store rather than through
+    // viewportRef.current: this effect can run BEFORE the viewport's imperative handle is mounted
+    // (the handle registers in its own render/effect), in which case `viewportRef.current` is null
+    // and hasRestoredView() reads false — making a restored camera look like a fresh origin and
+    // spuriously re-running auto-expand/fit, which drifts the view sideways on every reload.
+    const restoredView = readSavedCameraView() !== null;
+    const restoredExpansion = expansionStore.hasRestoredExpansion();
     const id = rootNode.node_id;
-    if (!autoExpandEnabled) {
-      // Retries until centerOnNode actually finds and centers the element, not just a fixed number
-      // of blind calls -- the boxes strategy also needs a frame or two for its later top-level boxes'
-      // x position to settle (useMeasuredSizes' ResizeObserver, async relative to rAF), on top of the
-      // mount race documented on CAMERA_RECENTER_MAX_FRAMES above. Stopping the instant it succeeds
-      // (rather than always spending the full cap) keeps this from fighting a quick user gesture, e.g.
-      // toggling Diff right after a workspace switch remounts this effect.
-      let frame = 0;
-      let cancelled = false;
-      const recenter = () => {
-        if (cancelled) return;
-        const centered = viewportRef.current?.centerOnNode(id) ?? false;
-        frame += 1;
-        if (!centered && frame < CAMERA_RECENTER_MAX_FRAMES) requestAnimationFrame(recenter);
-      };
+
+    // A full return-to-place: BOTH the persisted camera and the persisted tree expansion were
+    // restored, so the canvas is exactly where the user left it — re-running auto-expand would
+    // re-layout the already-restored tree (shifting it off the saved camera), and re-framing would
+    // snap off the saved position. Neither should run.
+    if (restoredView && restoredExpansion) return;
+
+    // Retries until centerOnNode actually finds and centers the element, not just a fixed number
+    // of blind calls -- the boxes strategy also needs a frame or two for its later top-level boxes'
+    // x position to settle (useMeasuredSizes' ResizeObserver, async relative to rAF), on top of the
+    // mount race documented on CAMERA_RECENTER_MAX_FRAMES above. Stopping the instant it succeeds
+    // (rather than always spending the full cap) keeps this from fighting a quick user gesture, e.g.
+    // toggling Diff right after a workspace switch remounts this effect.
+    let frame = 0;
+    let cancelled = false;
+    const recenter = () => {
+      if (cancelled) return;
+      const centered = viewportRef.current?.centerOnNode(id) ?? false;
+      frame += 1;
+      if (!centered && frame < CAMERA_RECENTER_MAX_FRAMES) requestAnimationFrame(recenter);
+    };
+
+    // A workspace switch onto a restored tree with no saved camera (e.g. its camera was cleared or
+    // is at the reset origin), or a tree with auto-expand disabled: the expansion is already in its
+    // saved state, so no auto-expand — just center the root on the blank view.
+    if (restoredExpansion || !autoExpandEnabled) {
       requestAnimationFrame(recenter);
       return () => {
         cancelled = true;
       };
     }
+
     camera.suppress();
     autoExpandInitial(rootNode, engineClient)
       .then((revealedIds) => {
-        // Fit to the whole revealed set, not just root — root's rect is still the bare header until
-        // its descendants paint.
+        // A restored camera keeps the user's spot; otherwise fit to the whole revealed set, not just
+        // root — root's rect is still the bare header until its descendants paint.
+        if (restoredView) {
+          // frameFitTo (below) is what releases the suppress() taken above once it finishes framing;
+          // with a restored camera there is no frame to run, so release the lock by hand — otherwise
+          // every later manual expand/collapse would be wrongly frozen out of auto-fitting.
+          camera.release();
+          return;
+        }
         frameFitTo(revealedIds.length > 0 ? revealedIds : [id]);
       })
       .catch((cause: unknown) => {
         // Still frame the root: a half-failed auto-expand must not leave the camera suppressed.
         reportAsyncError("initial auto-expand", cause);
-        frameFitTo([id]);
+        if (restoredView) camera.release();
+        else frameFitTo([id]);
       });
-  }, [rootNode, engineClient, autoExpandEnabled, frameFitTo, camera, strategy.id]);
+  }, [rootNode, engineClient, autoExpandEnabled, frameFitTo, camera]);
 
   // View-agnostic on purpose: the C1 view renders no root block, so targeting rootNode here was a
   // silent no-op there. fitToAllNodes unions whatever is actually mounted in either view.
   const fitAll = useCallback(() => viewportRef.current?.fitToAllNodes(), []);
+
+  // A click on a row in the ProjectTree sidebar: reveal the node's ancestors (expand the canvas
+  // tree down to it) then frame the block once it's mounted. navigateTreeTo is the concrete "focus
+  // the canvas on this node" the panel calls on every activation. It frames via camera.frameFitTo
+  // (not a single rAF) because each revealed ancestor's children mount asynchronously — a deeply
+  // nested target needs several fetches, so one frame can fire before the block exists; frameFitTo
+  // retries until the block mounts (bounded by FIT_MAX_FRAMES), the same mechanism the initial
+  // auto-expand and diff reveals use.
+  const navigateTreeTo = useCallback(
+    (nodeId: string) => {
+      void revealNode(nodeId, engineClient).then(() => {
+        camera.frameFitTo([nodeId]);
+      });
+    },
+    [engineClient, camera],
+  );
 
   // Reports a base "current view" context so the agent-launch buttons always have something to hand
   // the fresh agent. Kept out of the render path (an effect) so reporting never re-renders the tree.
@@ -336,6 +392,10 @@ export function RootCanvas({ strategy: strategyOverride }: { strategy?: CanvasRe
     if (
       !camera.isSuppressed() &&
       !isTraceActive &&
+      // On a restore the whole tree is present before first render, so a transient 0->N count jump
+      // (previousExpandedCountRef seeded from 0 until the restored snapshot lands) must not trigger
+      // a re-fit that slides the camera off the saved position.
+      !expansionStore.hasRestoredExpansion() &&
       expandedNodeIds.length !== previousExpandedCountRef.current
     ) {
       const targetId = expandedNodeIds[expandedNodeIds.length - 1] ?? rootNode?.node_id;
@@ -396,18 +456,10 @@ export function RootCanvas({ strategy: strategyOverride }: { strategy?: CanvasRe
             <RailIcon name="terminal" />
           </RailButton>
           <RailButton
-            className="research-toggle-button"
-            label={isResearchPanelOpen ? "Close research panel" : "Ask a question about this codebase"}
-            pressed={isResearchPanelOpen}
-            onClick={researchPanelStore.toggle}
-          >
-            <RailIcon name="research" />
-          </RailButton>
-          <RailButton
-            className="hierarchy-toggle-button"
-            label="Code tree"
-            pressed={isHierarchyVisible}
-            onClick={() => collapsedLayersStore.toggle("hierarchy")}
+            className="project-tree-toggle-button"
+            label={isProjectTreePanelOpen ? "Close project tree panel" : "Open project tree panel"}
+            pressed={isProjectTreePanelOpen}
+            onClick={projectTreePanelStore.toggle}
           >
             <RailIcon name="hierarchy" />
           </RailButton>
@@ -415,10 +467,6 @@ export function RootCanvas({ strategy: strategyOverride }: { strategy?: CanvasRe
           <DrawDiagramButton />
         </nav>
         <div className="canvas-area" data-testid="canvas-area">
-          {/* Context bar: current PR/branch chip on the left, agent controls on the right — same
-              row, part of the main column (not a full-width bar over the nav rail too). No node-path
-              breadcrumb here anymore: it read as unrelated structure on top of the PR/branch chip
-              instead of saying which workspace is open. */}
           <div className="canvas-chrome" data-testid="app-chrome">
             {activePr && (
               <span className="canvas-chrome-workspace-label" data-testid="active-pr-label">
@@ -454,6 +502,14 @@ export function RootCanvas({ strategy: strategyOverride }: { strategy?: CanvasRe
           {/* Row for the canvas plus the agent task panel beside it — a full-height sibling of the
               canvas, not a toolbar item, so cards have room to be more than an icon and a tooltip. */}
           <div className="canvas-main-row">
+            {projectTreeMounted && rootNode && (
+              <ProjectTreePanel
+                rootNode={rootNode}
+                hidden={!isProjectTreePanelOpen}
+                onActivate={navigateTreeTo}
+              />
+            )}
+            <CodeSidebar hidden={!isProjectTreePanelOpen} />
             {/* Own positioning context so the absolutely-positioned overlays below keep anchoring to
                 the visible canvas, not to the canvas plus the breadcrumb strip above it. */}
             <div className="canvas-stage">
@@ -462,7 +518,7 @@ export function RootCanvas({ strategy: strategyOverride }: { strategy?: CanvasRe
                   value={(nodeId) => viewportRef.current?.focusOnNode(nodeId)}
                 >
                   <CodePopupContext.Provider value={setCodePopupNode}>
-                    <CanvasDocView strategyName={strategy.id} />
+                    <CanvasDocView />
                   </CodePopupContext.Provider>
                 </CanvasFocusContext.Provider>
                 {rootNode && <ConnectionsOverlay />}
@@ -501,7 +557,6 @@ export function RootCanvas({ strategy: strategyOverride }: { strategy?: CanvasRe
           {/* Docked under the canvas, inside .canvas-area, so the inspector to the right of it stays
               full viewport height and the terminal spans only the canvas's own width. */}
           {terminalMounted && <TerminalPanel hidden={!isTerminalPanelOpen} />}
-          {researchMounted && <ResearchPanel hidden={!isResearchPanelOpen} />}
         </div>
         {inspectorMounted && <InspectorPanel hidden={!isInspectorOpen} />}
         <EpicBriefPanel />

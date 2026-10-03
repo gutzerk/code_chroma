@@ -5,6 +5,7 @@ import type { EngineClient } from "../../engine-client/EngineClient";
 import { canvasDocStore } from "./canvasDocStore";
 import { reset as resetLayerPositionCache } from "./layerPositionCache";
 import {
+  WATCHED_DIAGRAM_EVENT_KINDS,
   computeReadyDiagrams,
   deleteDiagramAndRefresh,
   isDiagramLayer,
@@ -14,6 +15,7 @@ import {
   removeLayerAndRefresh,
   runRecipeAndLayout,
 } from "./diagramCatalog";
+import { patchCanvasDoc } from "./canvasDocStore";
 
 function element(id: string, layer: string, overrides: Partial<CanvasElement> = {}): CanvasElement {
   return {
@@ -109,6 +111,31 @@ describe("labelForDiagramLayer", () => {
   it("labels a feature-plan/<slug> layer with its slug", () => {
     expect(labelForDiagramLayer("feature-plan/token-auth", [])).toBe("Feature plan: token-auth");
   });
+
+  it("names the epics layer by its first top-level epic's short title when a doc is supplied", () => {
+    const doc = docWith([
+      element("a", "epics", { render: "epic", label: "EP-1 · Zoomable semantic map", meta: { recipe_key: "EP-1" } }),
+      element("b", "epics", { render: "epic", label: "Settings: theme controls", meta: { recipe_key: "EP-3-01" } }),
+    ]);
+    // First top-level epic (EP-1) wins; its short title drops the "EP-1 · " prefix.
+    expect(labelForDiagramLayer("epics", [], doc)).toBe("Zoomable semantic map");
+  });
+
+  it("falls back to the generic builtin label when the epics layer has no top-level epic", () => {
+    const doc = docWith([element("story-only", "epics", { render: "epic", meta: { recipe_key: "EP-3-01" } })]);
+    expect(labelForDiagramLayer("epics", [], doc)).toBe("Epics");
+  });
+
+  it("labels a per-epic epics/<id> layer by its short epic title", () => {
+    const doc = docWith([
+      element("a", "epics/EP-2", { render: "epic", label: "EP-2 · Patterns hub", meta: { recipe_key: "EP-2" } }),
+    ]);
+    expect(labelForDiagramLayer("epics/EP-2", [], doc)).toBe("Patterns hub");
+  });
+
+  it("falls back to the epic id when a per-epic layer has no top-level epic box", () => {
+    expect(labelForDiagramLayer("epics/EP-2", [])).toBe("EP-2");
+  });
 });
 
 describe("isRecipeBackedLayer", () => {
@@ -122,6 +149,10 @@ describe("isRecipeBackedLayer", () => {
 
   it("is true for any feature-plan/<slug> layer", () => {
     expect(isRecipeBackedLayer("feature-plan/token-auth")).toBe(true);
+  });
+
+  it("is true for any per-epic epics/<id> layer", () => {
+    expect(isRecipeBackedLayer("epics/EP-2")).toBe(true);
   });
 
   it("is false for a freeform, non-recipe-backed layer", () => {
@@ -221,6 +252,82 @@ describe("remove-then-re-add position preservation", () => {
   });
 });
 
+describe("runRecipeAndLayout defers the transient (0,0) snapshot", () => {
+  it("applies the laid-out doc, never piling at (0,0) mid-run", async () => {
+    // A fresh draw: the recipe commits its boxes at (0,0), then the layout pass repositions them.
+    // The store must end up with the laid-out positions -- the transient (0,0) snapshot the recipe
+    // run itself broadcasts must not surface as a pile.
+    const patchCalls: unknown[] = [];
+    let canvasCalls = 0;
+    const client = {
+      runRecipe: async () => ({
+        ok: true as const,
+        batch_id: "b1",
+        id_map: { temp1: "e1", temp2: "e2" },
+        affected: ["e1", "e2"],
+      }),
+      patchCanvas: async (batch: unknown) => {
+        patchCalls.push(batch);
+        return { ok: true, batch_id: "b2", id_map: {}, affected: [] };
+      },
+      // First fetch sees the boxes at (0,0) (the recipe's just-committed state); the post-layout
+      // fetch returns them laid out.
+      getCanvas: async () => {
+        canvasCalls += 1;
+        const atOrigin = canvasCalls === 1;
+        return docWith([
+          element("e1", "c1", {
+            render: "c1",
+            position: atOrigin ? { x: 0, y: 0 } : { x: 100, y: 120 },
+            meta: { recipe_key: "n1" },
+          }),
+          element("e2", "c1", {
+            render: "c1",
+            position: atOrigin ? { x: 0, y: 0 } : { x: 460, y: 120 },
+            meta: { recipe_key: "n2" },
+          }),
+        ]);
+      },
+    } as unknown as EngineClient;
+
+    const added = await runRecipeAndLayout(client, "c1");
+
+    expect(added.ok).toBe(true);
+    // The layout pass sent one batch of update_element position ops.
+    expect(patchCalls.length).toBe(1);
+    expect((patchCalls[0] as { ops: unknown[] }).ops.length).toBe(2);
+    // The store finally holds the laid-out doc, not the origin pile. These are the mock's
+    // post-layout values (its second getCanvas()), not a layout algorithm's output -- this test
+    // pins the defer/release flow, not the (separately-covered) layout calculation.
+    expect(canvasDocStore.getDoc().elements.e1.position).toEqual({ x: 100, y: 120 });
+    expect(canvasDocStore.getDoc().elements.e2.position).toEqual({ x: 460, y: 120 });
+  });
+
+  it("withholds an out-of-band refetch that still shows a deferred layer piled at (0,0)", async () => {
+    // The live-ping path: a "changed" socket ping refetches the canvas while a layer is still
+    // mid-layout, and the server's floor snapshot still has every box at (0,0). The content guard in
+    // fetchAndApplyCanvasDoc must drop that snapshot -- the prior doc (what the user last saw) stays.
+    const prior = docWith([element("e0", "c1", { position: { x: 30, y: 40 } })]);
+    canvasDocStore.setDoc(prior);
+    const client = {
+      patchCanvas: async () => ({ ok: true as const, batch_id: "b2", id_map: {}, affected: [] }),
+      // The post-write refetch swaps in the origin-piled recipe commit -- only a real (non-deferred)
+      // fetch should surface it; while "c1" is deferred the guard keeps the prior doc.
+      getCanvas: async () =>
+        docWith([element("e1", "c1", { position: { x: 0, y: 0 }, meta: { recipe_key: "n1" } })]),
+    } as unknown as EngineClient;
+
+    // Simulate the recipe run having put the layer mid-layout, then an unrelated write's refetch.
+    canvasDocStore.deferLayout("c1");
+    await patchCanvasDoc(client, [{ op: "update_element", id: "e0", position: { x: 30, y: 40 } }]);
+    canvasDocStore.releaseLayout("c1");
+
+    // The origin-piled snapshot never flashed; the user's prior view is untouched.
+    expect(canvasDocStore.getDoc().elements.e0.position).toEqual({ x: 30, y: 40 });
+    expect(canvasDocStore.getDoc().elements.e1).toBeUndefined();
+  });
+});
+
 describe("deleteDiagramAndRefresh", () => {
   it("deletes the file first, then removes the layer from the canvas", async () => {
     canvasDocStore.setDoc(docWithElement("e1", DRAGGED_POSITION));
@@ -263,7 +370,9 @@ describe("deleteDiagramAndRefresh", () => {
     expect(patched).toBe(false);
   });
 
-  it("skips the file-delete call for a layer with no on-disk artifact (e.g. epics)", async () => {
+  it("skips the file-delete call for a freeform layer with no backing recipe", async () => {
+    // A diagram a skill/agent PATCHed straight onto the canvas under a freeform layer name has no
+    // on-disk artifact for an `engineClient.deleteDiagram` call to remove (it isn't a recipe).
     canvasDocStore.setDoc(EMPTY_CANVAS_DOC);
     const calls: string[] = [];
     const client = {
@@ -275,7 +384,7 @@ describe("deleteDiagramAndRefresh", () => {
       getCanvas: async () => EMPTY_CANVAS_DOC,
     } as unknown as EngineClient;
 
-    const result = await deleteDiagramAndRefresh(client, "epics");
+    const result = await deleteDiagramAndRefresh(client, "auth-lens");
 
     expect(result.ok).toBe(true);
     expect(calls).toEqual([]);
@@ -291,13 +400,17 @@ describe("computeReadyDiagrams", () => {
     const result = computeReadyDiagrams(null, customTypes, new Set());
 
     expect(result.readyBuiltins.map((r) => r.name).sort()).toEqual(
-      ["c1", "epics", "impact", "patterns"].sort(),
+      ["c1", "epics", "impact", "patterns", "sequence"].sort(),
     );
     expect(result.readyCustomTypes).toEqual(customTypes);
     expect(result.missingLabels).toEqual([]);
   });
 
-  it("splits ready vs. missing off the status map, epics always ready", () => {
+  it("lists epics among the watched diagram event channels so a written epics.json auto-places", () => {
+    expect(WATCHED_DIAGRAM_EVENT_KINDS).toContain("epics");
+  });
+
+  it("splits ready vs. missing off the status map, epics generated like the rest", () => {
     const status: DiagramsStatus = {
       c1: { ready: true, fingerprint: "fp" },
       patterns: { ready: false, fingerprint: null },
@@ -305,13 +418,38 @@ describe("computeReadyDiagrams", () => {
 
     const result = computeReadyDiagrams(status, [], new Set());
 
-    expect(result.readyBuiltins.map((r) => r.name).sort()).toEqual(["c1", "epics"]);
-    expect(result.missingLabels).toEqual(["Design patterns", "Change impact"]);
+    expect(result.readyBuiltins.map((r) => r.name).sort()).toEqual(["c1"]);
+    expect(result.missingLabels.sort()).toEqual([
+      "Change impact", "Design patterns", "Epics", "Sequence",
+    ]);
   });
 
   it("falls back to on-canvas placement for a kind status has no entry for", () => {
     const result = computeReadyDiagrams({}, [], new Set(["impact"]));
 
     expect(result.readyBuiltins.map((r) => r.name)).toContain("impact");
+  });
+
+  it("always lists every type in allLabels, even when all are already drawn", () => {
+    const status: DiagramsStatus = {
+      c1: { ready: true, fingerprint: "fp" },
+      epics: { ready: true, fingerprint: "fp" },
+      patterns: { ready: true, fingerprint: "fp" },
+      impact: { ready: true, fingerprint: "fp" },
+      sequence: { ready: true, fingerprint: "fp" },
+      "custom/my-type": { ready: true, fingerprint: "fp" },
+    };
+    const customTypes: DiagramTypeSummary[] = [
+      { id: "my-type", title: "My Type", description: "", style: "" },
+    ];
+
+    const result = computeReadyDiagrams(status, customTypes, new Set());
+
+    // None are "missing", yet the draw prompt must still offer every type -- "Draw…" is a full
+    // menu regardless of what's already on the canvas.
+    expect(result.missingLabels).toEqual([]);
+    expect(result.allLabels.sort()).toEqual(
+      ["C1", "Change impact", "Design patterns", "Epics", "My Type", "Sequence"].sort(),
+    );
   });
 });

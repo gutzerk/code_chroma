@@ -1,6 +1,7 @@
 """Unit tests for model_catalog.fetch_models against mocked HTTP model-list endpoints."""
 
 import httpx
+import pytest
 
 from codechroma.llm.model_catalog import fetch_models
 from codechroma.llm.providers_store import Provider
@@ -19,9 +20,24 @@ class _FakeResponse:
         return self._payload
 
 
-def test_openai_compatible_without_base_url_is_unsupported():
-    provider = Provider(id="p", label="l", kind="api", transport="openai-compatible")
-
+@pytest.mark.parametrize(
+    "provider",
+    [
+        Provider(id="p", label="l", kind="api", transport="openai-compatible"),
+        Provider(id="p", label="l", kind="api", transport="anthropic"),
+        Provider(id="p", label="l", kind="api", transport="gemini"),
+        Provider(id="p", label="l", kind="cli", adapter="claude"),
+        Provider(id="p", label="l", kind="cli", adapter="codex", base_url="http://x"),
+    ],
+    ids=[
+        "openai_compatible_without_base_url",
+        "anthropic_without_key",
+        "gemini_without_key",
+        "cli_claude_without_base_url",
+        "cli_non_claude_adapter",
+    ],
+)
+def test_unsupported_provider(provider):
     result = fetch_models(provider)
 
     assert result == {"supported": False, "models": [], "error": None}
@@ -46,14 +62,6 @@ def test_openai_compatible_parses_data_list(monkeypatch):
     }
 
 
-def test_anthropic_transport_without_key_is_unsupported():
-    provider = Provider(id="p", label="l", kind="api", transport="anthropic")
-
-    result = fetch_models(provider)
-
-    assert result == {"supported": False, "models": [], "error": None}
-
-
 def test_anthropic_transport_parses_display_name_as_label(monkeypatch):
     captured = {}
 
@@ -76,6 +84,67 @@ def test_anthropic_transport_parses_display_name_as_label(monkeypatch):
         "models": [{"id": "claude-opus-5", "label": "Claude Opus 5"}],
         "error": None,
     }
+
+
+def test_anthropic_transport_forwards_verify_ssl(monkeypatch):
+    captured = {}
+
+    def fake_get(url, headers, timeout, verify=True):
+        captured["url"] = url
+        captured["verify"] = verify
+        return _FakeResponse({"data": [{"id": "claude-opus-5"}]})
+
+    monkeypatch.setattr("codechroma.llm.model_catalog.httpx.get", fake_get)
+
+    provider = Provider(
+        id="p", label="l", kind="api", transport="anthropic", api_key="sk-x",
+        verify_ssl=False,
+    )
+    fetch_models(provider)
+
+    assert captured["url"] == "https://api.anthropic.com/v1/models"
+    assert captured["verify"] is False
+
+
+def test_gemini_transport_parses_display_name_as_label(monkeypatch):
+    captured = {}
+
+    def fake_get(url, headers, timeout, verify=True):
+        captured["url"] = url
+        captured["headers"] = headers
+        return _FakeResponse(
+            {"models": [{"name": "models/gemini-2.5-flash", "displayName": "Gemini 2.5 Flash"}]}
+        )
+
+    monkeypatch.setattr("codechroma.llm.model_catalog.httpx.get", fake_get)
+
+    provider = Provider(id="p", label="l", kind="api", transport="gemini", api_key="g-key")
+    result = fetch_models(provider)
+
+    assert captured["url"] == "https://generativelanguage.googleapis.com/v1beta/models"
+    assert captured["headers"]["x-goog-api-key"] == "g-key"
+    assert result == {
+        "supported": True,
+        "models": [{"id": "gemini-2.5-flash", "label": "Gemini 2.5 Flash"}],
+        "error": None,
+    }
+
+
+def test_gemini_transport_honors_base_url(monkeypatch):
+    captured = {}
+
+    def fake_get(url, headers, timeout, verify=True):
+        captured["url"] = url
+        return _FakeResponse({"models": []})
+
+    monkeypatch.setattr("codechroma.llm.model_catalog.httpx.get", fake_get)
+
+    provider = Provider(
+        id="p", label="l", kind="api", transport="gemini", api_key="g-key", base_url="https://gm.example"
+    )
+    fetch_models(provider)
+
+    assert captured["url"] == "https://gm.example/v1beta/models"
 
 
 def test_cli_claude_with_base_url_is_supported(monkeypatch):
@@ -103,24 +172,6 @@ def test_cli_claude_with_base_url_is_supported(monkeypatch):
         "models": [{"id": "deepseek-v4-pro", "label": None}],
         "error": None,
     }
-
-
-def test_cli_claude_without_base_url_is_unsupported():
-    provider = Provider(id="p", label="l", kind="cli", adapter="claude")
-
-    result = fetch_models(provider)
-
-    assert result == {"supported": False, "models": [], "error": None}
-
-
-def test_cli_non_claude_adapter_is_unsupported():
-    provider = Provider(
-        id="p", label="l", kind="cli", adapter="codex", base_url="http://x"
-    )
-
-    result = fetch_models(provider)
-
-    assert result == {"supported": False, "models": [], "error": None}
 
 
 def test_network_error_reports_supported_with_error_message(monkeypatch):

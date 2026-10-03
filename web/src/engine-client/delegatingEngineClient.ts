@@ -17,7 +17,6 @@ import type {
   FunctionDiff,
   HierarchyNodeRef,
   LayoutKind,
-  ResearchJobState,
   Trace,
   TraceStreamMessage,
   TraceSummary,
@@ -152,12 +151,6 @@ export abstract class DelegatingEngineClient implements EngineClient {
   }
   getEpicsItem(itemId: string, expand?: string): Promise<EpicWorkItem> {
     return this.inner.getEpicsItem(itemId, expand);
-  }
-  askResearch(query: string): Promise<ResearchJobState> {
-    return this.inner.askResearch(query);
-  }
-  getResearchAnswer(jobKey: string): Promise<ResearchJobState> {
-    return this.inner.getResearchAnswer(jobKey);
   }
   generateEpicBrief(itemId: string, force?: boolean): Promise<EpicBriefJobState> {
     return this.inner.generateEpicBrief(itemId, force);

@@ -28,6 +28,7 @@ def test_render_for_maps_every_diagrams_kind():
     assert render_for("patterns") == "pattern"
     assert render_for("impact") == "impact"
     assert render_for("epics") == "epic"
+    assert render_for("sequence") == "sequence"
 
 
 def test_render_for_maps_any_custom_type_to_custom():
@@ -36,6 +37,16 @@ def test_render_for_maps_any_custom_type_to_custom():
 
 def test_render_for_maps_any_feature_plan_slug_to_custom():
     assert render_for("feature-plan/token-auth") == "custom"
+
+
+def test_render_for_maps_any_epic_id_to_epic():
+    assert render_for("epics/EP-4") == "epic"
+    assert render_for("epics/EP-4-01") == "epic"
+
+
+def test_recipe_for_rejects_a_bare_epics_prefix():
+    with pytest.raises(KeyError):
+        recipe_for("epics/")
 
 
 def test_reshape_flattens_nodes_and_resolves_edges_by_id():
@@ -117,6 +128,23 @@ def test_reshape_falls_back_to_title_then_id_for_the_epics_index():
     assert result.edges == []
 
 
+def test_reshape_per_node_render_override_mixes_epic_and_spec_boxes():
+    """The epics brief: one node's `render` can force `spec` while the kind-level falls back to
+    `epic`, so one epics.json draws the epic box and its user-story/spec boxes differently."""
+    resolved = {
+        "nodes": [
+            {"id": "EP-3", "name": "EP-3", "render": "epic", "group": "settings"},
+            {"id": "EP-3::logging", "name": "US1", "render": "spec", "group": "EP-3"},
+            {"id": "EP-3::config", "name": "US2", "group": "EP-3"},  # no override -> kind default
+        ]
+    }
+
+    result = _to_ops(resolved, "epic")
+
+    assert [node.render for node in result.nodes] == ["epic", "spec", "epic"]
+    assert [node.key for node in result.nodes] == ["EP-3", "EP-3::logging", "EP-3::config"]
+
+
 def test_reshape_relationship_kind_reaches_the_edge():
     resolved = {
         "nodes": [{"id": "a", "name": "A"}, {"id": "b", "name": "B"}],
@@ -139,12 +167,67 @@ def test_reshape_edge_style_reaches_the_recipe_edge():
     assert result.edges[0].style == {"color": "blue"}
 
 
-def test_recipe_for_maps_any_custom_type_to_the_shared_recipe():
-    recipe = recipe_for("custom/my-type")
+def test_reshape_relation_transport_reaches_the_recipe_edge():
+    resolved = {
+        "nodes": [{"id": "a", "name": "A"}, {"id": "b", "name": "B"}],
+        "relations": [{"from": "a", "to": "b", "transport": "https"}],
+    }
 
-    resolved = {"nodes": [{"id": "n1", "name": "Box"}], "relations": []}
-    assert recipe.layer == "custom/my-type"
-    assert recipe.to_ops(resolved).nodes[0].render == "custom"
+    result = _to_ops(resolved, "custom")
+
+    assert result.edges[0].transport == "https"
+
+
+def test_relation_without_transport_leaves_the_edge_transport_unset():
+    resolved = {
+        "nodes": [{"id": "a", "name": "A"}, {"id": "b", "name": "B"}],
+        "relations": [{"from": "a", "to": "b", "label": "calls"}],
+    }
+
+    result = _to_ops(resolved, "custom")
+
+    assert result.edges[0].transport is None
+
+
+def test_sequence_reshape_turns_relations_into_message_elements():
+    """A sequence diagram's relations are dedicated elements, not edges."""
+    resolved = {
+        "nodes": [
+            {"id": "p1", "name": "Client"},
+            {"id": "p2", "name": "API"},
+        ],
+        "relations": [
+            {"id": "m1", "from": "p1", "to": "p2", "label": "GET /x", "order": "1"},
+            {"id": "m2", "from": "p2", "to": "p1", "label": "200", "order": "2", "return": True},
+        ],
+    }
+
+    result = _to_ops(resolved, "sequence")
+
+    # Participants become participant elements; messages become message elements -- no edges.
+    roles = [node.meta["role"] for node in result.nodes]
+    assert roles == ["participant", "participant", "message", "message"]
+    assert result.edges == []
+    msg1 = result.nodes[2]
+    assert msg1.render == "sequence"
+    assert msg1.meta["from"] == "p1"
+    assert msg1.meta["to"] == "p2"
+    assert msg1.meta["order"] == "1"
+    assert msg1.meta["return"] is False
+    assert result.nodes[3].meta["return"] is True
+
+
+def test_sequence_reshape_drops_a_message_naming_no_participant():
+    resolved = {
+        "nodes": [{"id": "p1", "name": "Only"}],
+        "relations": [{"id": "m1", "from": "p1", "to": "ghost", "label": "call", "order": "1"}],
+    }
+
+    result = _to_ops(resolved, "sequence")
+
+    # graph_to_ops drops a relation whose endpoint matches no node -- just like every other type.
+    assert [n.key for n in result.nodes] == ["p1"]
+    assert result.edges == []
 
 
 def test_recipe_for_rejects_a_bare_custom_prefix():
@@ -152,12 +235,21 @@ def test_recipe_for_rejects_a_bare_custom_prefix():
         recipe_for("custom/")
 
 
-def test_recipe_for_maps_any_feature_plan_slug_to_the_shared_recipe():
-    recipe = recipe_for("feature-plan/token-auth")
+@pytest.mark.parametrize(
+    "layer,render",
+    [
+        ("epics/EP-4", "epic"),
+        ("custom/my-type", "custom"),
+        ("sequence", "sequence"),
+        ("feature-plan/token-auth", "custom"),
+    ],
+)
+def test_recipe_for_maps_to_the_shared_recipe(layer, render):
+    recipe = recipe_for(layer)
 
     resolved = {"nodes": [{"id": "n1", "name": "Box"}], "relations": []}
-    assert recipe.layer == "feature-plan/token-auth"
-    assert recipe.to_ops(resolved).nodes[0].render == "custom"
+    assert recipe.layer == layer
+    assert recipe.to_ops(resolved).nodes[0].render == render
 
 
 def test_recipe_for_rejects_a_bare_feature_plan_prefix():
@@ -176,6 +268,30 @@ def test_build_batch_ops_adds_new_ai_elements_on_first_run():
         "label": "Auth", "description": "", "node_id": None, "group_id": None,
         "meta": {"recipe_key": "n1"}, "created_by": "ai",
     }]
+
+
+def test_build_batch_ops_groups_stories_into_their_epic_and_epics_into_the_domain():
+    """010-epics-tree-render: a story's `group` is its parent epic's id, an epic's `group` is its
+    domain -- so build_batch_ops must mint one group element per distinct group
+    string and point each node at it, producing the nested frames (domain -> epic
+    -> stories) the canvas renders."""
+    result = RecipeResult(nodes=[
+        RecipeNode(key="EP-3", render="epic", label="EP-3", group="settings"),
+        RecipeNode(key="EP-3-01", render="epic", label="s1", group="EP-3"),
+        RecipeNode(key="EP-3-02", render="epic", label="s2", group="EP-3"),
+    ])
+
+    ops = build_batch_ops(CanvasDoc(), "epics", result)
+
+    group_ops = [op for op in ops if op["op"] == "add_group"]
+    assert [op["label"] for op in group_ops] == ["EP-3", "settings"]
+    # Groups resolve in sorted order ('EP-3' < 'settings'), so EP-3's group element is temp 'g0' and
+    # settings' is 'g1'.
+    by_label = {op["label"]: op["temp_id"] for op in group_ops}
+    node_by_key = {op["meta"]["recipe_key"]: op for op in ops if op["op"] == "add_element"}
+    assert node_by_key["EP-3"]["group_id"] == by_label["settings"]
+    assert node_by_key["EP-3-01"]["group_id"] == by_label["EP-3"]
+    assert node_by_key["EP-3-02"]["group_id"] == by_label["EP-3"]
 
 
 def test_build_batch_ops_updates_a_kept_element_without_touching_its_position():
@@ -284,6 +400,37 @@ def test_build_batch_ops_reconciles_an_edges_style():
 
     edge_op = next(op for op in ops if op["op"] == "update_edge")
     assert edge_op["style"] == {"color": "red"}
+
+
+def test_build_batch_ops_does_not_reemit_an_edge_whose_optional_field_went_absent():
+    # A doc edge carrying a stale origin, re-run with no origin, must converge -- a field that is
+    # now None is never shipped, so it must not flip `changed` and re-emit `update_edge` forever.
+    element_a = Element(
+        id="a", render="impact", layer="impact", meta={"recipe_key": "n1"}, created_by="ai",
+    )
+    element_b = Element(
+        id="b", render="impact", layer="impact", meta={"recipe_key": "n2"}, created_by="ai",
+    )
+    doc = CanvasDoc(
+        elements={"a": element_a, "b": element_b},
+        edges={
+            "e1": Edge(
+                id="e1", **{"from": "a"}, to="b", label="", origin="src/a.py:1",
+                layer="impact",
+            ),
+        },
+    )
+    result = RecipeResult(
+        nodes=[
+            RecipeNode(key="n1", render="impact", label=""),
+            RecipeNode(key="n2", render="impact", label=""),
+        ],
+        edges=[RecipeEdge("n1", "n2")],
+    )
+
+    ops = build_batch_ops(doc, "impact", result)
+
+    assert [op for op in ops if op["op"] == "update_edge"] == []
 
 
 def test_run_recipe_round_trips_through_apply_batch():

@@ -46,6 +46,17 @@
   --warning: #eab308;
   --inspector: #2dd4bf; /* block currently shown in the inspector panel */
 
+  /* Node-box kind palette -- the add/create/modify/delete + conceptual/unresolved hues from
+     data/Форма для задачи (CanvasNodeBox Anatomy), given their own semantic tokens so a diagram
+     box's accents match the form without borrowing the app's generic --accent/--added hues (which
+     the same diagram also uses for the diff overlay and other chrome). */
+  --kind-add: #6fcf97;        /* add / new — diff green */
+  --kind-create: #4fc3f7;     /* create — cyan */
+  --kind-modify: #f0a500;     /* modify / modified — amber */
+  --kind-delete: #e06c75;     /* delete / deleted — red */
+  --kind-conceptual: #c48af8; /* conceptual — purple */
+  --kind-unresolved: #9aa0a6; /* unresolved — grey */
+
   /* Icon-button controls on blocks/tree rows (focus/code/close buttons) — the recurring gray
      trio that otherwise repeats inline. */
   --control-bg: transparent;
@@ -606,6 +617,12 @@ body {
   transform: none;
 }
 
+/* Diagram rows carry their status as visible text in the row, so the hover tooltip (which drops as
+   a strip under the row) is pure noise — suppress it. Agent rows keep theirs. */
+.agent-task-rail button:has(.diagram-rail-chevron) .rail-tooltip {
+  display: none;
+}
+
 /* Full-height dock beside the canvas (sibling in .canvas-main-row, not a .canvas-chrome toolbar
    item) — same right-panel treatment as .inspector-panel: hairline border, matching background. */
 .agent-task-rail {
@@ -754,10 +771,9 @@ body {
 
 /* Closing an off-branch agent must never require its stuck "switch back to my branch" checkout to
    succeed first — see AgentRail.tsx's own comment on why this exists beside, not inside, the card.
-   `.diagram-rail-remove` (soft, keeps the artifact) and `.diagram-rail-delete` (hard, removes it
-   too — a diagram row's own sibling controls, same comment) share this box. */
+   `.diagram-rail-delete` (hard, removes the artifact too — a diagram row's own sibling control,
+   same comment) shares this box. */
 .agent-rail-close,
-.diagram-rail-remove,
 .diagram-rail-delete {
   flex-shrink: 0;
   width: 22px;
@@ -775,37 +791,15 @@ body {
 }
 
 .agent-rail-close:hover,
-.diagram-rail-remove:hover:not(:disabled),
 .diagram-rail-delete:hover:not(:disabled) {
   background: var(--surface-3);
   color: var(--text-1);
   border-color: var(--control-hover-border);
 }
 
-.diagram-rail-remove:disabled,
 .diagram-rail-delete:disabled {
   opacity: 0.5;
   cursor: default;
-}
-
-/* The Diagrams tab's "Available to add" section — every generated diagram not currently placed,
-   below the "on canvas" rows it's visually distinguished from by this small label only (same row
-   shape otherwise, so an available row still reads as a diagram, not a different kind of control). */
-.agent-task-rail-section {
-  margin-top: 0.6rem;
-  padding-top: 0.6rem;
-  border-top: 1px solid var(--border-subtle);
-  display: flex;
-  flex-direction: column;
-  gap: 0.4rem;
-}
-
-.agent-task-rail-subheader {
-  font-size: 0.68rem;
-  font-weight: 600;
-  color: var(--text-2);
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
 }
 
 .agent-rail-item:hover {
@@ -876,12 +870,14 @@ body {
   color: var(--accent);
 }
 
-.agents-toggle-button[aria-pressed="true"] {
+/* The project-tree toggle highlights when the sidebar (and with it the code sidebar) is open — an
+   IDE-style "explorer's open" accent. Mirrors terminal's panel-open treatment. */
+.project-tree-toggle-button[aria-pressed="true"] {
   border-color: var(--accent);
   color: var(--accent);
 }
 
-.hierarchy-toggle-button[aria-pressed="true"] {
+.agents-toggle-button[aria-pressed="true"] {
   border-color: var(--accent);
   color: var(--accent);
 }
@@ -1227,7 +1223,7 @@ body {
 }
 
 .c1-relationship-label--hero {
-  fill: var(--accent);
+  fill: #ffffff;
   font-weight: 600;
 }
 
@@ -1246,18 +1242,56 @@ body {
 }
 
 .c1-relationship-label {
-  /* Same inheritable authored `--edge-color` as the path above carries the label too. */
-  fill: var(--edge-color, var(--text-2));
+  /* White caption text on the grey-green chip frame, so it reads against the dark canvas. */
+  fill: #ffffff;
   font-size: 0.7rem;
   text-anchor: middle;
   dominant-baseline: central;
 }
 
+/* Second-line transport caption under an arrow label (connectors/EdgeLabel.tsx) — the transport
+   token itself is rendered a touch smaller and quieter so the verb phrase stays the visual subject.
+   `text-anchor: middle` is explicit (not just inherited) so the row stays centred on the same point
+   as the label above it, matching the label's alignment. */
+.c1-relationship-label__transport {
+  fill: #d9ded9;
+  font-size: 0.58rem;
+  text-anchor: middle;
+}
+
+/* The hairline between the label and the transport row — a real SVG `<line>` spanning the caption's
+   inner width, styled like the block-description dividers (`.diagram-node-box-desc`'s top hairline):
+   one subtle stroke that separates the prose from the chrome instead of a text dash. */
+.c1-relationship-label__divider {
+  stroke: color-mix(in oklab, var(--text-2) 35%, transparent);
+  stroke-width: 1;
+}
+
 /* Opaque plate behind a connector caption (connectors/EdgeLabel.tsx), so a label stays readable
-   where it lands on a box or crosses another arrow's caption. */
+   where it lands on a box or crosses another arrow's caption. The stroke turns it into a frame with
+   strongly rounded sides (`rx` set inline in EdgeLabel.tsx); only the outline is grey-green, the
+   fill stays the neutral surface so the green reads as a border, not a background. */
 .connector-label-chip {
   fill: var(--surface-0);
-  stroke: none;
+  stroke: var(--edge-color, #7ee09b);
+  stroke-width: 1;
+}
+
+/* An edge label with a caller `origin` is a clickable link (connectors/EdgeLabel.tsx) — signal the
+   affordance with a pointer cursor and a focus ring the keyboard can land on. The underline is
+   omitted so the label keeps reading as a caption, not a text link. */
+.connector-label--link {
+  cursor: pointer;
+}
+/* High-contrast focus ring: stroke the chip behind the label (SVG draws strokes in engines that
+   skip `outline` on SVG, e.g. Safari). A fixed colour independent of --edge-color, which can be a
+   low-contrast stroke; #0a2540 at 2px holds >= 3:1 on both light and dark surfaces. */
+.connector-label--link:focus-visible {
+  outline: none;
+}
+.connector-label--link:focus-visible .connector-label-chip {
+  stroke: #0a2540;
+  stroke-width: 2;
 }
 
 /* Positioning-only anchor for each C1 box's real Block — Block supplies its own background/
@@ -1269,6 +1303,15 @@ body {
 .c1-node-anchor {
   position: absolute;
   width: max-content;
+}
+
+/* C1 canvas boxes stack name → meta chips → description (with its divider) in the title column, so
+   the copy/desc buttons must fit to the top of the header (name row, above the divider) instead of
+   centering to full header height — mirrors .diagram-node-box-header's top alignment. Scoped under
+   .c1-node-anchor so the hierarchy's own tree .block-header layout is untouched. */
+.c1-node-anchor .block-header {
+  align-items: flex-start;
+  padding: 0.6rem 0.6rem;
 }
 
 /* The true root's own children (top-level Systems), positioned by TopLevelChildren.tsx's grid
@@ -1387,12 +1430,13 @@ body {
 
 /* Shared box shell for every non-c1 diagram kind (pattern/impact/custom/epic) --
    036-shared-diagram-style-catalog: one set of classes instead of five near-identical per-kind
-   families (see nodeStyles.tsx's DIAGRAM_NODE_BASE). c1 keeps its own .block-* classes (mirrors
+   families (see elementRules.ts's DIAGRAM_NODE_BASE). c1 keeps its own .block-* classes (mirrors
    Block.tsx); `group` doesn't reach this shell at all — see .canvas-group-frame below. */
 .diagram-node-box {
   z-index: 1;
   box-sizing: border-box;
   display: flex;
+  flex-direction: column;
   border: 1px solid var(--custom-accent, var(--border-strong));
   border-radius: 8px;
   background: var(--surface-2);
@@ -1400,78 +1444,283 @@ body {
   overflow: visible;
 }
 
+/* The one own-component that renders an entire sequence layer (SequenceDiagram.tsx): participant
+   columns + time-ordered message arrows, all derived from meta -- no box shell, no user drag.
+
+   Colour model: each participant hashes into the shared 6-colour palette (`--group-frame-rgb-<n>`,
+   `groupColor.ts`'s groupColorIndex) and gets a per-participant CSS variable `--seq-accent-rgb`.
+   The participant's own head and lifeline tint from it, and a message tints from its SENDER's
+   participant colour -- so every arrow reads as "from whom" at a glance, and return arrows
+   (`--return`) recede to a neutral --text-3 rather than re-colouring by receiver. */
+.sequence-diagram {
+  box-sizing: border-box;
+  pointer-events: none;
+  --seq-accent-rgb: 160, 165, 175;
+}
+
+/* One participant head/lifeline gets its own palette index so a message can tint by sender. The
+   component sets the exact (centered) box footprint in its inline width/height, so this needs no
+   translateX trick -- the head fills it and the lifeline sits at its centre. */
+.sequence-participant {
+  position: absolute;
+  top: 0;
+  box-sizing: border-box;
+}
+
+.sequence-participant-lane {
+  position: absolute;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 0;
+  border-left: 1.5px dashed rgb(var(--seq-accent-rgb));
+  opacity: 0.55;
+}
+
+.sequence-participant-head {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 100%;
+  height: 100%;
+  box-sizing: border-box;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 12px;
+  border: 1px solid rgb(var(--seq-accent-rgb));
+  border-radius: 6px;
+  background: color-mix(in oklab, rgb(var(--seq-accent-rgb)) 12%, var(--surface-2));
+  color: var(--text-1);
+  font-size: 12px;
+  font-weight: 600;
+  pointer-events: auto;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.sequence-participant-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* A horizontal message: a label centered on a left-to-right arrow (line). Positioned by the
+   component's inline left/top/width; the line is right-anchored and grows leftward from the
+   arrowhead on the right. Return arrows flip via scaleX. */
+.sequence-message {
+  position: absolute;
+  height: 20px;
+  pointer-events: auto;
+  cursor: pointer;
+  --seq-accent-rgb: 160, 165, 175;
+}
+
+.sequence-message-label {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  font-size: 0.6rem;
+  color: #ffffff;
+  background: var(--surface-0);
+  border: 1px solid rgb(var(--seq-accent-rgb));
+  border-radius: 8px;
+  padding: 1px 5px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  z-index: 1;
+}
+
+.sequence-message-line {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 50%;
+  height: 1.5px;
+  background: rgb(var(--seq-accent-rgb));
+  transform-origin: right center;
+}
+
+/* The arrowhead at the receiving end: a small right-pointing triangle whose tip lands right ON the
+   receiver's lifeline (the line's right edge is that lifeline, so `right: 0` puts the tip exactly
+   at it — no poking past). Return arrows curl leftward via scaleX(-1), which flips the head to point
+   back at the original caller. */
+.sequence-message-line::after {
+  content: "";
+  position: absolute;
+  right: 0;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 0;
+  height: 0;
+  border-top: 4px solid transparent;
+  border-bottom: 4px solid transparent;
+  border-left: 6px solid rgb(var(--seq-accent-rgb));
+}
+
+.sequence-message--async .sequence-message-line {
+  border-top: 1.5px dashed rgb(var(--seq-accent-rgb));
+  background: none;
+}
+
+.sequence-message--async .sequence-message-line::after {
+  border-left-color: rgb(var(--seq-accent-rgb));
+}
+
+.sequence-message--return .sequence-message-line {
+  background: var(--text-3);
+}
+
+.sequence-message--return .sequence-message-line::after {
+  border-left-color: var(--text-3);
+}
+
+.sequence-message--return .sequence-message-label {
+  color: var(--text-3);
+  border-color: var(--text-3);
+}
+
 .diagram-node-box--dragging {
   opacity: 0.85;
 }
 
-/* Planned block (055-diagram-feature-plan): meta.plan_kind gets a dashed border, colored by role,
-   reusing the app's existing add/modify/delete palette (same tokens as .plan-step--*/
-   .node-change-badge--*) -- plus an explicit text chip (plan-kind-chip below), since a prototype
-   comparing color-only vs text-labeled treatments showed the role needs to read as text, not color
-   alone. Compound selectors (two classes) so this reliably outranks the base box border regardless
-   of source order; .block variants cover c1, whose box shell is its own .block-* family. */
-.diagram-node-box.plan-kind-add,
-.diagram-node-box.plan-kind-create,
-.block.plan-kind-add,
-.block.plan-kind-create {
-  border-style: dashed;
-  border-color: var(--added);
+/* "Band + meta row, ghost no-code" box format (data/Форма для задачи): a no-code box
+   (meta.no_code_reason, diagram_resolver.py) gets a solid colored frame plus a transparent ("ghost")
+   fill and an italic title, since a box with no real code behind it should read as hollow rather
+   than a normal filled block -- distinct from `NodeTopBand`'s plan/step treatment, which no longer
+   touches the border at all. conceptual (no path ever authored, by design) and unresolved (an
+   authored path that failed to resolve -- worth fixing) use the node-box kind palette (purple /
+   grey) rather than the app's generic accent/warning hues. When the box is ALSO an impact box, its
+   impact frame rule below wins the border color and only the ghost fill/italic remain here.
+   Compound selectors (two classes) so this reliably outranks the base box border regardless of
+   source order; .block variants cover c1, whose box shell is its own .block-* family. */
+/* Conceptual/unresolved boxes do NOT recolor the box itself — its frame/fill stay whatever the
+   authoring agent gave it. The no-code read comes from the italic title below and the
+   `∅ CONCEPTUAL`/`∅ UNRESOLVED` meta chip (NoCodeChip), not from swapping the border. */
+/* Conceptual/unresolved boxes do NOT recolor the box itself -- its frame/fill stay whatever the
+   authoring agent gave it. The no-code read comes from the italic title (rule below) plus the
+   `∅ CONCEPTUAL`/`∅ UNRESOLVED` meta chip (NoCodeChip), not from swapping the border or fill. */
+
+.diagram-node-box.no-code-conceptual .diagram-node-box-name,
+.diagram-node-box.no-code-unresolved .diagram-node-box-name,
+.block.no-code-conceptual .block-name,
+.block.no-code-unresolved .block-name {
+  font-style: italic;
 }
 
-.diagram-node-box.plan-kind-modify,
-.block.plan-kind-modify {
-  border-style: dashed;
-  border-color: var(--accent);
-}
-
-.diagram-node-box.plan-kind-delete,
-.block.plan-kind-delete {
-  border-style: dashed;
-  border-color: #e06c75;
-}
-
-/* Shared floating top-right pill shape for every labeled meta-field chip (nodeAccent.tsx's
-   `LabeledChip`) -- `.plan-kind-chip`/`.impact-status-chip` below are pure color-variant prefixes,
-   not their own shape rule, so a third field's chip only ever needs its own three color lines. */
-.status-chip {
-  position: absolute;
-  top: -9px;
-  right: 8px;
-  z-index: 2;
-  padding: 1px 6px;
-  border-radius: 999px;
+/* The box's top band (NodeTopBand, nodeAccent.tsx) -- holds meta.plan_kind and meta.order, the
+   box's own "intent" (what will/should happen to it, and in what step), separate from the meta row's
+   "facts" below. A plan segment tints the whole band via an inline `background` (nodeAccent.tsx's
+   PLAN_KIND_COLOR_VARS); with no plan (order alone) it keeps this neutral fallback. Rounded only on
+   its top two corners so it reads as the box's own header strip rather than a separate floating tag. */
+.canvas-node-top-band {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  padding: 0.3rem 0.7rem;
+  border-radius: 6px 6px 0 0;
+  background: var(--surface-3);
+  color: var(--text-1);
+  font-family: monospace;
   font-size: 0.62rem;
   font-weight: 700;
-  letter-spacing: 0.04em;
+  letter-spacing: 0.06em;
+}
+
+.canvas-node-top-band--plan-add,
+.canvas-node-top-band--plan-create,
+.canvas-node-top-band--plan-modify,
+.canvas-node-top-band--plan-delete {
   color: var(--text-invert);
+}
+
+/* Now an inline tag inside `.canvas-node-top-band` (right side), not an absolutely-positioned corner
+   badge -- 054-diagram-flow-order. */
+.canvas-node-order-badge {
   white-space: nowrap;
 }
 
-.plan-kind-chip--add,
-.plan-kind-chip--create {
-  background: var(--added);
+/* The box's inline meta row (NodeMetaRow, nodeAccent.tsx) -- impact status and no-code reason,
+   both plain in-flow chips below the title/description instead of the old floating top-right pill
+   and left-edge strip. */
+.canvas-node-meta-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  /* No left pad: the meta row sits inside the header's own title-wrap column (which already holds
+     the header's 0.7rem left pad), so a chip here must start at the same left edge as the name --
+     an extra 0.7rem used to shove it right of the title. The chips now sit ABOVE the name (first
+     row of the title column); a little air above them and a touch more below, separating them from
+     the (already redundant) title-wrap gap. */
+  margin-top: 0;
+  padding: 0.25rem 0 0.5rem;
 }
 
-.plan-kind-chip--modify {
-  background: var(--accent);
+/* Shared rectangular shape for every meta-row chip -- `.node-meta-chip--impact-*`/`--no-code-*`
+   below are pure color-variant prefixes, not their own shape rule. Slightly rounded corners (6px),
+   deliberately NOT a full pill (999px): the "MODIFY"/"∅ CONCEPTUAL" chips read as small labeled
+   blocks, matching the nodemap form, not as pill buttons. */
+.node-meta-chip {
+  display: inline-flex;
+  padding: 1px 6px;
+  border: 1.5px solid transparent;
+  border-radius: 6px;
+  font-size: 0.62rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  white-space: nowrap;
 }
 
-.plan-kind-chip--delete {
-  background: #e06c75;
+/* Impact's authored `meta.status` (type-impact.md) as a filled ADD/MODIFY/DELETE chip -- hues from
+   the node-box kind palette. */
+.node-meta-chip--impact-new {
+  border-color: var(--kind-add);
+  background: var(--kind-add);
+  color: var(--text-invert);
 }
 
-/* Impact's authored `meta.status` (type-impact.md) as its own ADD/MODIFY/DELETE text chip -- same
-   `.status-chip` shape and add/modify/delete palette as the `.plan-kind-chip` variants above. */
-.impact-status-chip--new {
-  background: var(--added);
+.node-meta-chip--impact-modified {
+  border-color: var(--kind-modify);
+  background: var(--kind-modify);
+  color: var(--text-invert);
 }
 
-.impact-status-chip--modified {
-  background: var(--accent);
+.node-meta-chip--impact-deleted {
+  border-color: var(--kind-delete);
+  background: var(--kind-delete);
+  color: var(--text-invert);
 }
 
-.impact-status-chip--deleted {
-  background: #e06c75;
+/* meta.no_code_reason as an outlined, tinted chip -- distinct from the impact chip's filled shape,
+   so a no-code box's reason reads as "different kind of fact", not just another status. */
+.node-meta-chip--no-code-conceptual {
+  border-color: var(--kind-conceptual);
+  background: color-mix(in oklab, var(--kind-conceptual) 20%, transparent);
+  color: var(--kind-conceptual);
+}
+
+.node-meta-chip--no-code-unresolved {
+  border-color: var(--kind-unresolved);
+  background: color-mix(in oklab, var(--kind-unresolved) 20%, transparent);
+  color: var(--kind-unresolved);
+}
+
+/* Epic brief's authored meta tags (status / priority / group / depends_on) -- outlined chips
+   mirroring the epics-brief reference diagram's badge line. Docs: docs/architecture/epics-view.md. */
+.node-meta-chip--epic-status {
+  color: var(--text-2);
+  border-color: var(--border);
+}
+.node-meta-chip--epic-priority,
+.node-meta-chip--epic-group {
+  color: color-mix(in oklab, #c98a3d 85%, var(--text-1));
+  border-color: #c98a3d;
+}
+.node-meta-chip--epic-depends-on {
+  color: var(--accent);
+  border-color: var(--accent);
 }
 
 .diagram-node-box-row {
@@ -1484,31 +1733,42 @@ body {
  * "?" button sits directly under the copy button rather than beside it, then the whole stack becomes
  * a second flex item pushed to the header's far side by its own `justify-content: space-between`
  * (every render kind's headerClass is row-direction, title column beside the buttons -- mirroring
- * Block.tsx; see nodeStyles.tsx's DIAGRAM_NODE_BASE doc comment). */
+ * Block.tsx; see elementRules.ts's DIAGRAM_NODE_BASE doc comment). */
 .canvas-node-box-buttons {
   display: flex;
   flex-direction: column;
   align-items: flex-end;
   gap: 0.3rem;
+  /* Pin the button stack to the TOP of the header row, so ⧉/? stay level with the name regardless
+     of which render kind's header align-items wins (some kinds reset it to center) -- the buttons
+     must never drift down level with the meta chips or description divider. */
+  align-self: flex-start;
 }
 
 .diagram-node-box-header {
   display: flex;
-  align-items: center;
+  /* Top-aligned (not centered): the copy/desc buttons live in their own column beside the title
+     column, and the title column stacks meta chips then a description below the name -- centered
+     used to drag the buttons down level with those lower rows. Fitting them to the top keeps them
+     in the name row, above the meta chips and the description's divider hairline. */
+  align-items: flex-start;
   justify-content: space-between;
   gap: 0.5rem;
   width: 100%;
   min-width: 0;
   flex: 1 1 auto;
-  padding: 0.5rem 0.7rem;
+  padding: 0.6rem 0.7rem;
   cursor: pointer;
 }
 
 .diagram-node-box-title-wrap {
   display: flex;
   flex-direction: column;
-  gap: 0.15rem;
+  gap: 0.7rem;
   min-width: 0;
+  /* Fill the box's full width so the description row stretches across the free space instead of
+     collapsing to the title's longest word (the header's other flex item is the buttons column). */
+  flex: 1 1 auto;
 }
 
 .diagram-node-box-title-row {
@@ -1519,23 +1779,221 @@ body {
 }
 
 .diagram-node-box-name {
-  font-size: 0.85rem;
-  font-weight: 500;
+  font-size: 1.05rem;
+  font-weight: 600;
   white-space: normal;
   overflow-wrap: anywhere;
 }
 
-/* Line-clamped like .block-description above — see that comment. */
+/* An epics-layer box (epic title, Summary/Acceptance/Спеки content card) has a more prominent name:
+   larger, bolder, with the accent color and a touch of letter-spacing -- the epic's title and its
+   content cards should read as the diagram's own labeled blocks, not generic boxes. */
+.diagram-node-box--epic .diagram-node-box-title-row {
+  gap: 0.5rem;
+}
+
+.diagram-node-box--epic .diagram-node-box-name {
+  font-size: 1.2rem;
+  font-weight: 700;
+  color: var(--text-1);
+  letter-spacing: 0.01em;
+}
+
+/* A content card's name carries the accent under a subtle tinted strip -- the same treatment the root
+   epic title's accent name already gets, scoped to the name (not the whole block, per the summary/
+   acceptance/specs cards the user wanted to match EP-4). The root epic itself keeps its stronger
+   accent name on a full-header band (--epic-root below), so it's excluded here. */
+.diagram-node-box--epic:not(.diagram-node-box--epic-root) .diagram-node-box-name {
+  color: var(--accent);
+  background: color-mix(in oklab, var(--accent) 10%, transparent);
+  border-radius: 5px;
+  padding: 0.05rem 0.35rem;
+}
+
+/* The epic title box (render "epic") -- as opposed to its content cards -- is the diagram's structural
+   header, so it gets the sharpest treatment: the accent-colored title sits on a subtly tinted header
+   band so the top of each EP column reads at a glance. */
+.diagram-node-box--epic.diagram-node-box--epic-root .diagram-node-box-header {
+  background: color-mix(in oklab, var(--accent) 8%, transparent);
+}
+
+/* Line-clamped like .block-description above — see that comment. The description is the last row
+   of the box, so a top hairline separates it (the free-text prose) from the chrome above (title,
+   meta chips) and lets the prose read as its own section. */
 .diagram-node-box-desc {
   color: #8b93a7;
   font-size: 0.7rem;
-  max-width: 32rem;
   white-space: normal;
   overflow-wrap: anywhere;
   display: -webkit-box;
   -webkit-box-orient: vertical;
   -webkit-line-clamp: 4;
   overflow: hidden;
+  border-top: 1px solid color-mix(in oklab, var(--text-2) 25%, transparent);
+  padding-top: 0.5rem;
+  margin-top: 0.15rem;
+}
+
+/* Content cards (Summary prose, Acceptance list, Спеки stories) all show their full text -- no
+   line-clamp, no collapsing -- unlike a clamped metadata description. Only the Summary card adds the
+   prose styling (type size + hairline) below; Acceptance/Спеки keep just the shared un-clamp. */
+.diagram-node-box--summary .diagram-node-box-desc,
+.diagram-node-box--acceptance .diagram-node-box-desc,
+.diagram-node-box--specs .diagram-node-box-desc {
+  display: block;
+  -webkit-line-clamp: unset;
+  overflow: visible;
+}
+/* A `meta.summary` box (the epics diagram's Summary card under the epic title) reads as prose, not a
+   metadata row, but keeps the same hairline between title and text as every other description block. */
+.diagram-node-box--summary .diagram-node-box-desc {
+  color: var(--text-1);
+  font-size: 0.85rem;
+  line-height: 1.5;
+  border-top: 1px solid color-mix(in oklab, var(--text-2) 25%, transparent);
+  padding-top: 0.5rem;
+  margin-top: 0.15rem;
+}
+
+/* An Acceptance-criteria block (authored `meta.acceptance`) renders each `\n`-separated criterion as
+   its own row in a divider list (no checkbox squares), mirroring the epic brief's acceptance card
+   structure without the checkmarks. */
+.diagram-node-box-criteria {
+  list-style: none;
+  margin: 0.5rem 0 0;
+  padding: 0;
+  color: var(--text-1);
+  font-size: 0.85rem;
+  line-height: 1.5;
+}
+
+.diagram-node-box-criteria li {
+  display: flex;
+  align-items: baseline;
+  gap: 0.55rem;
+  padding: 0.45rem 0;
+  border-bottom: 1px solid color-mix(in oklab, var(--text-2) 20%, transparent);
+}
+
+.diagram-node-box-criteria li:last-child {
+  border-bottom: none;
+}
+
+/* The plain dot marker (a filled circle in place of the brief's empty checkbox square). */
+.diagram-node-box-criteria-mark {
+  flex: 0 0 8px;
+  width: 8px;
+  height: 8px;
+  margin-top: 0.5em;
+  border-radius: 50%;
+  background: var(--accent);
+}
+
+/* A «Спеки» (User Stories) block (authored `meta.specs`) renders one bordered story card per
+   `US# · … (P# · …)` group, each with a why line and a numbered criteria list. Deeper than the
+   Acceptance list: each story is its own small card. Its un-clamp desc holds via the shared
+   `.diagram-node-box--* .diagram-node-box-desc` rule above. */
+.diagram-node-box-stories {
+  color: var(--text-1);
+  font-size: 0.85rem;
+  line-height: 1.5;
+}
+
+.diagram-node-box-stories-intro {
+  margin: 0 0 0.75rem;
+  color: var(--muted);
+  font-size: 0.8rem;
+}
+
+.diagram-node-box-story {
+  border: 1px solid color-mix(in oklab, var(--text-2) 22%, transparent);
+  border-radius: 10px;
+  padding: 0.6rem 0.75rem;
+  margin-bottom: 0.6rem;
+}
+
+.diagram-node-box-story:last-child {
+  margin-bottom: 0;
+}
+
+.diagram-node-box-story-head {
+  display: flex;
+  align-items: baseline;
+  gap: 0.5rem;
+}
+
+.diagram-node-box-story-name {
+  font-weight: 600;
+  font-size: 0.85rem;
+}
+
+.diagram-node-box-story-prio {
+  font-size: 0.72rem;
+  padding: 1px 8px;
+  border-radius: 10px;
+  border: 1px solid color-mix(in oklab, var(--ok) 55%, transparent);
+  color: var(--ok);
+  flex: 0 0 auto;
+}
+
+.diagram-node-box-story-why {
+  margin: 0.3rem 0 0;
+  color: var(--muted);
+  font-size: 0.8rem;
+}
+
+.diagram-node-box-story-criteria {
+  margin: 0.4rem 0 0;
+  padding-left: 1.25rem;
+  font-size: 0.82rem;
+}
+
+.diagram-node-box-story-criteria li {
+  padding: 0.15rem 0;
+}
+
+/* A task box (the full EP task graph: epic → phase-spec → task): shows its one-line task text
+   with the P (parallel) and US# story tags from the prototype, preserving the structure and colors
+   (`#5fbe7e` ok / `#57a9ff` accent) of the epic brief's tasks card. */
+.diagram-node-box--task .diagram-node-box-desc {
+  -webkit-line-clamp: unset;
+  overflow: visible;
+}
+
+.diagram-node-box-task {
+  display: flex;
+  align-items: baseline;
+  gap: 0.5rem;
+  font-size: 0.82rem;
+  line-height: 1.4;
+}
+
+.diagram-node-box-task-tags {
+  display: flex;
+  gap: 0.3rem;
+  flex: 0 0 auto;
+}
+
+.task-tag {
+  font-size: 0.7rem;
+  padding: 1px 7px;
+  border-radius: 10px;
+  border: 1px solid var(--line);
+  color: var(--muted);
+}
+
+.task-tag--p {
+  border-color: var(--ok);
+  color: var(--ok);
+}
+
+.task-tag--us {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.diagram-node-box-task-text {
+  color: var(--text-1);
 }
 
 /* nodeAccent.tsx's pattern category accent -- a left border so infra/external reads at a glance. */
@@ -1824,8 +2282,11 @@ body {
 .block-title {
   display: flex;
   flex-direction: column;
-  gap: 0.15rem;
+  gap: 0.7rem;
   min-width: 0;
+  /* Same as .diagram-node-box-title-wrap — stretch the title column across the box so the
+     description row fills the free width instead of collapsing to the name's content width. */
+  flex: 1 1 auto;
 }
 
 .block-name-row {
@@ -1837,7 +2298,7 @@ body {
 
 .block-name {
   font-weight: 600;
-  font-size: 0.85rem;
+  font-size: 1.05rem;
 }
 
 .block-name-class {
@@ -1860,13 +2321,17 @@ body {
 .block-description {
   font-size: 0.75rem;
   color: var(--text-2);
-  max-width: 32rem;
   white-space: normal;
   overflow-wrap: anywhere;
   display: -webkit-box;
   -webkit-box-orient: vertical;
   -webkit-line-clamp: 4;
   overflow: hidden;
+  /* Same description/data hairline as .diagram-node-box-desc — the C1 box's description is its last
+     row too, so a top hairlime separates the prose from the chrome above (see that rule's comment). */
+  border-top: 1px solid color-mix(in oklab, var(--text-2) 25%, transparent);
+  padding-top: 0.5rem;
+  margin-top: 0.15rem;
 }
 
 .block-class {
@@ -2864,10 +3329,23 @@ body {
   margin: 0;
   padding: 0.8rem;
   overflow: auto;
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
   font-family: monospace;
   font-size: 0.85rem;
   line-height: 1.5;
   color: #d4d8de;
+}
+
+/* One rendered line of a source slice in an epics block's "Linked file" view. `display: block`
+   keeps each line on its own row inside the `<pre>`; the `--in-range` tint marks the narrowed
+   [start, end] slice the scribe stamped (vs. the whole file, untinted). */
+.epic-source-line {
+  display: block;
+}
+
+.epic-source-line--in-range {
+  background: rgba(111, 207, 151, 0.12);
 }
 
 .token-plain {
@@ -3156,83 +3634,6 @@ body {
   padding: 0.4rem;
 }
 
-/* Bottom dock beside the terminal panel — a plain ask-a-question box, not a diagram, so no
-   resize handle: its content is a short answer, not a scrolling session. */
-.research-panel {
-  position: relative;
-  max-height: 280px;
-  overflow-y: auto;
-  flex-shrink: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 0.5rem;
-  padding: 0.75rem;
-  border-top: 1px solid var(--border-subtle);
-  background: var(--surface-1);
-}
-
-.research-panel-hidden {
-  display: none;
-}
-
-.research-panel-form {
-  display: flex;
-  gap: 0.5rem;
-}
-
-.research-panel-input {
-  flex: 1;
-  padding: 0.4rem 0.6rem;
-  background: #1e2128;
-  border: 1px solid var(--border-faint);
-  border-radius: 4px;
-  color: inherit;
-}
-
-.research-panel-ask {
-  padding: 0.4rem 0.8rem;
-}
-
-.research-panel-status {
-  color: var(--text-2);
-  font-size: 0.9em;
-}
-
-.research-panel-error {
-  color: #e06c75;
-}
-
-.research-panel-badge {
-  display: inline-block;
-  padding: 0.15rem 0.5rem;
-  border-radius: 999px;
-  background: var(--border-faint);
-  color: #d7dae0;
-  font-size: 0.8em;
-}
-
-.research-panel-answer-text {
-  white-space: pre-wrap;
-}
-
-.research-panel-citations {
-  display: flex;
-  flex-direction: column;
-  gap: 0.25rem;
-  list-style: none;
-  padding: 0;
-  margin: 0;
-}
-
-.research-panel-citation {
-  text-align: left;
-  background: none;
-  border: none;
-  color: #61afef;
-  cursor: pointer;
-  padding: 0;
-}
-
 /* ── C1 code inspector ────────────────────────────────────────────────────────────────────────
    Full-height right dock everything below the C1 code boundary opens into, instead of expanding
    inside a diagram box and re-ranking dagre around the box's new size. A direct .app-body child, so
@@ -3369,6 +3770,62 @@ body {
   color: #e8eaed;
 }
 
+/* Inspecting a work item (epic/story) -- 010-epics-tree-render Part 5: the item's full text rendered
+   in the inspector instead of a code tree, an AI-brief button up top. */
+.inspector-work-item {
+  padding: 0.6rem 0.7rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+}
+
+.inspector-work-item > .inspector-code-button {
+  align-self: flex-start;
+}
+
+.inspector-work-item-status {
+  margin: 0;
+  font-size: 0.7rem;
+  color: var(--text-2);
+}
+
+.inspector-work-item-heading {
+  margin: 0.2rem 0 0.3rem;
+  font-size: 0.7rem;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--text-2);
+}
+
+.inspector-work-item-body {
+  margin: 0;
+  font-size: 0.75rem;
+  color: var(--text-1);
+  white-space: pre-wrap;
+}
+
+.inspector-work-item-list {
+  margin: 0;
+  padding-left: 1.1rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.inspector-work-item-listitem {
+  font-size: 0.75rem;
+  color: var(--text-1);
+}
+
+.inspector-work-item-nested {
+  margin: 0.15rem 0 0.2rem;
+  padding-left: 1rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  list-style: none;
+}
+
 .inspector-panel-error-text {
   margin: 0 0 0.5rem;
   color: var(--danger);
@@ -3401,6 +3858,27 @@ body {
 .inspector-row--leaf {
   cursor: default;
   color: var(--text-2);
+}
+
+/* Change-status tint on a block's file/function list (Impact layer): each row recolors to match its
+   diff status — green for added, amber for modified, red for removed — so a list reads as a change
+   set without opening each one. Name only (not the whole row): a tinted background competes with
+   hover and makes the many-row case noisy, while a colored label keeps the status scannable. */
+.inspector-row--added .inspector-row-name {
+  color: var(--added);
+}
+
+.inspector-row--modified .inspector-row-name {
+  color: #f0a500;
+}
+
+.inspector-row--removed .inspector-row-name {
+  color: #e06c75;
+  text-decoration: line-through;
+}
+
+.inspector-row--removed.inspector-row--leaf {
+  opacity: 0.7;
 }
 
 .inspector-row-name {
@@ -3463,30 +3941,6 @@ body {
 
 .node-change-badge--removed {
   background: #e06c75;
-}
-
-/* 054-diagram-flow-order: the authored step number, pinned to the box's own top-right corner
-   (CanvasNodeBox.tsx renders it as a direct child of the absolutely-positioned box, alongside
-   .plan-kind-chip) instead of sitting inline in the title row -- inline put it right after the name
-   text, which (a) fought the row's own `gap` for spacing and (b) moved every time the name's length
-   changed, instead of landing in the same corner every reader learns to glance at. Offset further in
-   than .plan-kind-chip's top:-9px/right:8px (which hangs above the box) so the two never collide on
-   a box that has both. Background/text swapped from --border-strong/--surface-0 (near-black text on
-   dark gray -- unreadable against the equally dark canvas) to --warning/--text-invert, the same
-   high-contrast filled-chip pairing already used by .plan-kind-chip/.node-change-badge's variants. */
-.canvas-node-order-badge {
-  position: absolute;
-  top: 4px;
-  right: 4px;
-  z-index: 2;
-  padding: 0 0.3rem;
-  border-radius: 3px;
-  font-size: 0.66rem;
-  font-weight: 600;
-  letter-spacing: 0.02em;
-  white-space: nowrap;
-  color: var(--text-invert);
-  background: var(--warning);
 }
 
 /* Status accent on the block itself — a left edge, so it never competes with the diff/change frames.
@@ -4026,30 +4480,15 @@ body {
   box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.35);
 }
 
-.agent-led-stopped {
-  background: var(--text-3);
-}
-
+/* Status detection is intentionally disabled for now: the LED is always green. */
+.agent-led-stopped,
 .agent-led-running,
-.agent-led-idle {
-  background: #22c55e;
-}
-
-.agent-led-blocked {
-  background: var(--warning);
-}
-
-.agent-led-working {
-  background: #3b82f6;
-}
-
-.agent-led-exited {
-  background: var(--danger);
-}
-
-/* Nothing is known right now, so the last colour is held — rendered as the dot it already had. */
+.agent-led-idle,
+.agent-led-blocked,
+.agent-led-working,
+.agent-led-exited,
 .agent-led-foreign {
-  background: var(--text-2);
+  background: #22c55e;
 }
 
 .agent-window {
@@ -5626,7 +6065,6 @@ body {
    so it never coincides in color with a Lane or a real structural group, even though all three can
    overlap on one box at once. */
 .canvas-concurrency-island {
-  z-index: 0;
   box-sizing: border-box;
   border-radius: 16px;
   background: rgba(var(--concurrency-island-rgb, 148, 163, 184), 0.12);
@@ -5637,6 +6075,13 @@ body {
   position: absolute;
   bottom: 8px;
   right: 14px;
+  /* The label sits at bottom-right -- exactly where a `.diagram-node-box` inside the island (z-index
+     1) is most likely to overlap it. The island frame itself has no z-index, so it does not create a
+     stacking context and its children (this label) participate in the canvas's context directly; a
+     plain `z-index: 0` on the frame would trap them instead, so a box painted over the label. Raising
+     this above the boxes keeps the tint behind them (background painted regardless) while the caption
+     stays legible. */
+  z-index: 2;
   font-weight: 600;
   font-size: 0.72rem;
   color: rgb(var(--concurrency-island-rgb, 148, 163, 184));
@@ -5738,4 +6183,274 @@ body {
   background: transparent;
   font: inherit;
   color: inherit;
+}
+
+/* IDE-style project-tree side panel — a full-height, scrollable sidebar beside the canvas, below
+   the context bar (it lives inside .canvas-main-row, next to .canvas-stage). Width comes from the
+   resizable size (default DEFAULT_WIDTH in ProjectTreePanel.tsx); the right-edge handle widens it
+   to reveal more of a row's name or its inline code. */
+.project-tree-panel {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  flex-shrink: 0;
+  overflow-y: auto;
+  /* Hide the horizontal scrollbar strip at the panel's bottom — rows already ellipsize, so a wide
+     tree must not draw a scroll track padding under the content. */
+  overflow-x: hidden;
+  padding: 0.4rem 0.25rem 0.6rem 0.35rem;
+  border-right: 1px solid var(--border);
+  background: var(--surface-1);
+}
+
+.project-tree-panel--resizing {
+  user-select: none;
+}
+
+/* Right-edge drag handle — the panel anchors left, so dragging right widens it. Mirrors the
+   inspector's left-edge handle (the inspector anchors right), same ew-resize affordance. */
+.project-tree-panel-resize-handle {
+  position: absolute;
+  right: -3px;
+  top: 0;
+  bottom: 0;
+  width: 6px;
+  cursor: ew-resize;
+  touch-action: none;
+  z-index: 1;
+}
+
+/* The on-canvas .tree-node rows are styled for a wide drag-to-rearrange canvas; in the narrow
+   sidebar they borrow the row styling but need tighter padding and a text-ellipsis name so long
+   paths don't blow the panel's fixed width. */
+.project-tree-panel .tree-node-row {
+  padding: 0.1rem 0.25rem;
+}
+
+.project-tree-panel .tree-node-name {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.project-tree-panel .tree-node-children {
+  --tree-indent: 14px;
+}
+
+/* Every row whose file is open in the code sidebar is marked "open" (a subtle persistent highlight);
+   the currently-active one additionally gets a stronger accent + the green marker dot, so the user
+   can see at a glance which files are open and which tab is live. Scoped to the panel; the on-canvas
+   tree never carries these classes. */
+.project-tree-panel .tree-node.tree-node-open-file {
+  background: rgba(63, 185, 123, 0.1);
+  border-radius: 4px;
+}
+
+.project-tree-panel .tree-node.tree-node-active {
+  background: rgba(63, 185, 123, 0.2);
+  outline: 1px solid rgba(63, 185, 123, 0.5);
+  border-radius: 4px;
+}
+
+.project-tree-panel .tree-node.tree-node-active .tree-node-name {
+  color: var(--text-1);
+}
+
+.project-tree-panel .tree-node.tree-node-active .tree-node-label::after {
+  content: "●";
+  margin-left: auto;
+  color: var(--added);
+  font-size: 0.6rem;
+}
+
+/* `hidden` must win over the display:flex above (CSS specificity: attribute selector is enough) —
+   useLatchedMount keeps the panel mounted but hidden when closed. */
+.project-tree-panel[hidden] {
+  display: none;
+}
+
+/* Code sidebar (variant A) — a resizable panel right beside the project tree showing source for
+   every opened file. Sits in .canvas-main-row after the tree panel; tabs run most-recently-viewed
+   with an overflow "▾" dropdown once more files are open than fit, and the active file renders
+   through the shared CodeView. Anchored left, so its left-edge handle widens it toward the canvas. */
+.code-sidebar {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  flex-shrink: 0;
+  min-width: 0;
+  border-right: 1px solid var(--border);
+  background: var(--surface-1);
+}
+
+.code-sidebar--resizing {
+  user-select: none;
+}
+
+/* `hidden` must win over the display:flex above (same gotcha as .project-tree-panel[hidden]) —
+   collapsing the project tree also hides the code sidebar via RootCanvas. */
+.code-sidebar[hidden] {
+  display: none;
+}
+
+.code-sidebar-resize-handle {
+  position: absolute;
+  right: -3px;
+  top: 0;
+  bottom: 0;
+  width: 6px;
+  cursor: ew-resize;
+  touch-action: none;
+  z-index: 1;
+}
+
+.code-sidebar-tabs {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  padding: 4px 4px 0;
+  overflow: hidden;
+  border-bottom: 1px solid var(--border);
+  background: var(--surface-2);
+  flex-shrink: 0;
+}
+
+.code-sidebar-tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 8px;
+  font-size: 0.75rem;
+  color: var(--text-2);
+  border: 1px solid transparent;
+  border-bottom: none;
+  border-radius: 6px 6px 0 0;
+  cursor: pointer;
+  white-space: nowrap;
+  max-width: 11rem;
+  min-width: 0;
+}
+
+.code-sidebar-tab:hover {
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.code-sidebar-tab.is-active {
+  background: var(--surface-1);
+  color: var(--text-1);
+  border-color: var(--border);
+}
+
+.code-sidebar-tab-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.code-sidebar-tab-close {
+  color: var(--text-3);
+  cursor: pointer;
+  line-height: 1;
+}
+
+.code-sidebar-tab-close:hover {
+  color: #ff7b7b;
+}
+
+.code-sidebar-tabs-overflow {
+  position: relative;
+  margin-left: auto;
+}
+
+.code-sidebar-overflow-button {
+  border: none;
+  background: transparent;
+  color: var(--text-2);
+  cursor: pointer;
+  padding: 2px 6px;
+  font-size: 0.8rem;
+}
+
+.code-sidebar-overflow-button:hover {
+  color: var(--text-1);
+}
+
+.code-sidebar-overflow-menu {
+  position: absolute;
+  top: 100%;
+  right: 0;
+  z-index: 20;
+  min-width: 14rem;
+  max-height: 20rem;
+  overflow-y: auto;
+  margin-top: 2px;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
+  padding: 4px;
+  list-style: none;
+  margin: 2px 0 0;
+}
+
+.code-sidebar-overflow-menu li {
+  margin: 0;
+  padding: 0;
+}
+
+.code-sidebar-overflow-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 4px 8px;
+  border: none;
+  background: transparent;
+  color: var(--text-2);
+  font-size: 0.8rem;
+  text-align: left;
+  cursor: pointer;
+  border-radius: 4px;
+}
+
+.code-sidebar-overflow-item:hover {
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.code-sidebar-overflow-item.is-active {
+  color: var(--text-1);
+  background: rgba(79, 140, 255, 0.14);
+}
+
+.code-sidebar-overflow-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  flex: 1;
+}
+
+.code-sidebar-overflow-close {
+  color: var(--text-3);
+  cursor: pointer;
+  line-height: 1;
+}
+
+.code-sidebar-overflow-close:hover {
+  color: #ff7b7b;
+}
+
+.code-sidebar-body {
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.code-sidebar-body .block-code-view {
+  height: 100%;
+  max-height: none;
+  border: none;
+}
+
+.code-sidebar-empty {
+  padding: 1rem;
+  color: var(--text-3);
+  font-size: 0.8rem;
 }

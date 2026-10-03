@@ -125,6 +125,30 @@ def test_tags_added_and_modified_status_on_each_entry(tmp_path):
     assert by_name["brand_new"] == "added"
 
 
+def test_reports_a_file_level_modified_entry_for_a_changed_existing_file(tmp_path):
+    repo = tmp_path / "repo"
+    shutil.copytree(FIXTURE_REPO, repo)
+    _init_repo(repo)
+    slugify_path = repo / "shared" / "text_utils.py"
+    slugify_path.write_text(
+        slugify_path.read_text().replace(
+            'return text.strip().lower().replace(" ", "-")', 'return "patched"'
+        )
+    )
+    engine = _engine_for(repo, tmp_path)
+
+    diffs = compute_function_diffs(engine, repo)
+
+    # The changed file also emits a whole-file diff at its component node_id, so the file's canvas
+    # block (an impact diagram's merged `component::<path>` box) carries a diff of its own text.
+    file_entry = [d for d in diffs if d["node_id"] == "component::shared/text_utils.py"]
+    assert len(file_entry) == 1
+    assert file_entry[0]["status"] == "modified"
+    assert file_entry[0]["level"] == "file"
+    assert "patched" in file_entry[0]["proposed_source"]
+    assert "patched" not in file_entry[0]["original_source"]
+
+
 def test_returns_nothing_for_files_with_no_git_changes(tmp_path):
     repo = tmp_path / "repo"
     shutil.copytree(FIXTURE_REPO, repo)

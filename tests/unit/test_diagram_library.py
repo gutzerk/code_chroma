@@ -143,19 +143,17 @@ def test_load_type_malformed_file_returns_none(tmp_path):
     assert library.load_type("broken") is None
 
 
-def test_save_type_rejects_invalid_id():
-    with pytest.raises(ValueError, match="id"):
-        library.save_type(_definition("../etc"))
-
-
-def test_save_type_rejects_missing_instructions():
-    with pytest.raises(ValueError, match="instructions"):
-        library.save_type({**_definition(), "instructions": ""})
-
-
-def test_save_type_rejects_unknown_style():
-    with pytest.raises(ValueError, match="style"):
-        library.save_type({**_definition(), "style": "not-a-style"})
+@pytest.mark.parametrize(
+    "definition,match",
+    [
+        (_definition("../etc"), "id"),
+        ({**_definition(), "instructions": ""}, "instructions"),
+        ({**_definition(), "style": "not-a-style"}, "style"),
+    ],
+)
+def test_save_type_rejects_invalid_definition(definition, match):
+    with pytest.raises(ValueError, match=match):
+        library.save_type(definition)
 
 
 def test_validate_definition_accepts_an_inline_style_dict():

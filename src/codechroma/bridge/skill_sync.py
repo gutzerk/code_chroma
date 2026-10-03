@@ -26,7 +26,6 @@ __all__ = [
 SKILL_NAMES = (
     "codechroma-draw-diagram",
     "codechroma-review-diagram",
-    "codechroma-research",
     "codechroma-epic-brief",
     "codechroma-wiki-general-update",
 )
@@ -40,6 +39,8 @@ RETIRED_SKILL_NAMES = (
     "codechroma-c1-review",
     "codechroma-impact-review",
     "codechroma-plan",
+    # research feature removed wholesale; prune any skill an earlier version installed.
+    "codechroma-research",
     # 058: the deterministic pipeline (run_body) replaced this skill's self-orchestrating claude -p.
     "codechroma-wiki-general",
     # diagram-management unification: the in-app custom-diagram-type interview is retired.

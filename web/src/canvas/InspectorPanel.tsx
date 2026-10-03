@@ -1,8 +1,10 @@
-import { useEffect, useRef, useState, type ReactNode } from "react";
+import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { EngineClientProvider, useEngineClient } from "../engine-client/EngineClientContext";
+import { EpicsDiagramClient } from "../engine-client/epicsDiagramClient";
 import { NodeKindIcon } from "../icons/NodeKindIcon";
 import { useImpactChange } from "../state/useSidecar";
 import { useDiff } from "../state/diffOverlayStore";
+import { useHierarchyChangeStatus } from "../state/hierarchyChangesStore";
 import { useLiveVersion } from "../state/liveStore";
 import { useNodeChildren } from "../state/useNodeChildren";
 import { useAcceptDiff } from "../state/useAcceptDiff";
@@ -11,6 +13,8 @@ import { DiffView } from "./DiffView";
 import { PanelCloseButton } from "./PanelCloseButton";
 import { InspectorChangeReview } from "./InspectorChangeReview";
 import { inspectorStore, useInspectorClient, useInspectorStack, type InspectorEntry } from "./inspectorStore";
+import { InspectorWorkItem } from "./epics/InspectorWorkItem";
+import { EpicBlockContent } from "./doc/EpicBlockPanel";
 import { codeButtonWord, codeNoun } from "./strategies/codeLabels";
 import { useResizableSize } from "./useResizableSize";
 import type { HierarchyNodeRef } from "../state/types";
@@ -77,6 +81,10 @@ export function InspectorPanel({ hidden = false }: { hidden?: boolean }) {
 function InspectorBody() {
   const stack = useInspectorStack();
   const current = stack[stack.length - 1];
+  // One client for the whole panel's life, not per open work item: InspectorWorkItem remounts on each
+  // drill (keyed by workItemId), so a client created there would discard its item cache on every stop.
+  const engineClient = useEngineClient();
+  const epicsClient = useMemo(() => new EpicsDiagramClient(engineClient), [engineClient]);
 
   return (
     <>
@@ -101,7 +109,7 @@ function InspectorBody() {
         />
       </header>
       <div className="inspector-panel-body" data-testid="inspector-panel-body">
-        {current ? <InspectorLevelFor current={current} /> : null}
+        {current ? <InspectorLevelFor current={current} epicsClient={epicsClient} /> : null}
       </div>
     </>
   );
@@ -109,9 +117,28 @@ function InspectorBody() {
 
 /** Renders one drill level — a single node directly, or a multi-node group as tabs. A group (from a
  * Patterns merged box's openMany) shows one tab per real node and swaps which node's code is shown. */
-function InspectorLevelFor({ current }: { current: InspectorEntry }) {
+function InspectorLevelFor({
+  current,
+  epicsClient,
+}: {
+  current: InspectorEntry;
+  epicsClient: EpicsDiagramClient;
+}) {
+  const engineClient = useEngineClient();
   if (current.group) {
     return <InspectorGroupTabs group={current.group} />;
+  }
+  if (current.epicBlock) {
+    return (
+      <EpicBlockContent
+        element={current.epicBlock.element}
+        doc={current.epicBlock.doc}
+        client={engineClient}
+      />
+    );
+  }
+  if (current.workItemId) {
+    return <InspectorWorkItem key={current.workItemId} itemId={current.workItemId} client={epicsClient} />;
   }
   return <InspectorLevel entryId={current.id} />;
 }
@@ -262,7 +289,7 @@ function InspectorChildren({
   );
 }
 
-function InspectorNote({ children, testId }: { children: ReactNode; testId?: string }) {
+export function InspectorNote({ children, testId }: { children: ReactNode; testId?: string }) {
   return (
     <p className="inspector-panel-note" data-testid={testId}>
       {children}
@@ -270,19 +297,55 @@ function InspectorNote({ children, testId }: { children: ReactNode; testId?: str
   );
 }
 
+/** The `component::<file>` ancestor id a symbol/container node_id lives under — used to inherit its
+ * status. Symbol ids look like `<file>::function::<name>` / `<file>::class::<name>`; a container id
+ * looks like `service::<file>::functions`. In every form the file is the `<file>` part, and the
+ * whole-file `component::` entry (see git_diff) holds the change status the impact layer paints a
+ * file box with. A deeper row with no status of its own inherits the file's — that is what makes the
+ * always-on color reach every nesting level, not just the leaves the pull-down diff happened to
+ * name. */
+function componentOf(nodeId: string): string | undefined {
+  let file = nodeId;
+  if (file.startsWith("service::")) file = file.slice("service::".length);
+  const sepFunc = file.indexOf("::function::");
+  const sepClass = file.indexOf("::class::");
+  const sepCtr = file.indexOf("::functions");
+  const at = [sepFunc, sepClass, sepCtr].filter((i) => i !== -1).reduce((a, b) => Math.min(a, b), Number.POSITIVE_INFINITY);
+  if (at === Number.POSITIVE_INFINITY) return undefined;
+  return `component::${file.slice(0, at)}`;
+}
+
 /** One child row: drilling in is the only interaction — code, if the child has any, is the next
- * level rather than an inline panel. */
+ * level rather than an inline panel. When the Impact layer has marked this node's change status
+ * (added/modified/removed vs the diff base), the row is tinted to match — the always-on impact diff
+ * data (useImpactDiffSync) colors a block's file/function list by change type without the global
+ * Diff toggle. A row with no status of its own inherits its file's whole-diff status, so the color
+ * propagates to every level of nesting, not only to the functions the pull-down diff named. */
 function InspectorRow({ node }: { node: HierarchyNodeRef }) {
   const drillable = Boolean(node.has_children || node.source);
+  const diffStatus = useDiff(node.node_id)?.status;
+  const cardStatus = useHierarchyChangeStatus(node.node_id);
+  // Always call hooks unconditionally: `componentOf(node.node_id)` is a deterministic derivation,
+  // not a conditional hook trigger, so passing a stable (possibly empty) id keeps hook order fixed.
+  const fileId = componentOf(node.node_id);
+  const fileDiffStatus = useDiff(fileId ?? "")?.status;
+  const fileCardStatus = useHierarchyChangeStatus(fileId ?? "");
+  // A row's own status is authoritative when the layer diffed this exact node; otherwise inherit
+  // the status of the enclosing file (which the whole-file `component::` entry supplies) so the
+  // change color reaches deep nesting levels, not just the leaves the diff named.
+  const status = diffStatus ?? cardStatus ?? fileDiffStatus ?? fileCardStatus;
 
   return (
     <li className="inspector-list-item">
       <button
         type="button"
-        className={`inspector-row${drillable ? "" : " inspector-row--leaf"}`}
+        className={`inspector-row${drillable ? "" : " inspector-row--leaf"}${
+          status ? ` inspector-row--${status}` : ""
+        }`}
         data-testid="inspector-row"
         data-inspector-node-id={node.node_id}
         data-level={node.level}
+        data-change-status={status ?? undefined}
         disabled={!drillable}
         onClick={() => inspectorStore.push(node.node_id, node.name)}
       >

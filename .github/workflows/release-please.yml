@@ -1,19 +1,13 @@
 name: Release
 
-# Features accumulate on the `stage` branch (merged feature PRs land there, nothing is built or
-# released). Releasing is a deliberate two-step merge pushed to `main`:
-#   1. merge `stage` -> `main`. That push runs release-please, which computes the next version from
-#      conventional commits since the last tag, opens/updates a Release PR (version bumps in
-#      desktop/web/package.json + pyproject.toml and a CHANGELOG entry).
-#   2. merge the Release PR. That bumps the version, tags vX.Y.Z and drafts a GitHub Release; then
-#      the build jobs below (macOS arm64 + x64 / Windows x64 / Linux x64) assemble the desktop
-#      installers and upload them to it.
-# Pushing straight to `main` (a feature with no stage gate) also works -- it just opens the same
-# Release PR -- but the intended path is through `stage` so several features ship in one release.
+# Creates/updates a Release PR on every push to main (version bump + CHANGELOG via conventional
+# commits). Merging that PR bumps the version, tags vX.Y.Z and drafts a GitHub Release; then
+# build jobs (macOS arm64 and x64 / Windows x64 / Linux x64) assemble the desktop installers and
+# upload them to it.
 on:
   push:
     branches: [main]
-  workflow_dispatch: # manual "release now" button: version bump + tag + release in one run
+  workflow_dispatch: # manual "release now" button
 
 permissions:
   contents: write
@@ -38,15 +32,15 @@ jobs:
       release_created: ${{ steps.release.outputs.release_created }}
       tag_name: ${{ steps.release.outputs.tag_name }}
     steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
       - id: release
-        uses: googleapis/release-please-action@5c625bfb5d1ff62eadeeb3772007f7f66fdcf071 # v4
+        uses: googleapis/release-please-action@8b8fd2cc23b2e18957157a9d923d75aa0c6f6ad5 # v4
         with:
           token: ${{ secrets.code_pat_release }}
           manifest-file: .release-please-manifest.json
           config-file: release-please-config.json
 
-  # Each installer shares the same three stages as scripts/dev/build_desktop.sh:
+  # The installers share the same three stages as scripts/dev/build_desktop.sh:
   # web SPA bundle (same-origin) -> PyInstaller-frozen bridge -> electron-builder.
   macos:
     name: Build macOS installer (${{ matrix.arch }})
@@ -64,19 +58,19 @@ jobs:
     if: needs.release.outputs.release_created == 'true'
     timeout-minutes: 40
     steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
 
-      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
         with:
           python-version: "3.14"
 
       # One setup-node per npm project so each gets its own cache key from its own lockfile.
-      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: "22"
           cache: npm
           cache-dependency-path: web/package-lock.json
-      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: "22"
           cache: npm
@@ -99,7 +93,7 @@ jobs:
           poetry install --no-interaction
 
       - name: Generate app icon
-        run: npm --prefix desktop run generate-icon
+        run: poetry run python scripts/make_desktop_icon.py
 
       - name: Build canvas bundle (same-origin)
         env:
@@ -138,7 +132,7 @@ jobs:
       # glob files are expanded by the action itself (not the shell), so a missing match is a
       # visible error, never a silent no-op.
       - name: Upload DMG to release
-        uses: softprops/action-gh-release@efb35369e0ad2afab669f228072c1b0d510eae64 # v3.0.3
+        uses: softprops/action-gh-release@3bb12739c298aeb8a4eeaf626c5b8d85266b0e65 # v2
         with:
           tag_name: ${{ needs.release.outputs.tag_name }}
           files: |
@@ -154,18 +148,18 @@ jobs:
     if: needs.release.outputs.release_created == 'true'
     timeout-minutes: 40
     steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
 
-      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
         with:
           python-version: "3.14"
 
-      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: "22"
           cache: npm
           cache-dependency-path: web/package-lock.json
-      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: "22"
           cache: npm
@@ -181,9 +175,6 @@ jobs:
       - name: Install desktop deps
         working-directory: desktop
         run: npm ci
-
-      - name: Generate app icon
-        run: npm --prefix desktop run generate-icon
 
       - name: Install Python deps
         run: |
@@ -205,14 +196,7 @@ jobs:
       # SHA-256 sidecar for the Setup.exe, verified by install_desktop.ps1 before it's launched.
       - name: Hash the Setup.exe
         shell: pwsh
-        run: |
-          $installers = @(Get-ChildItem -Path desktop/dist -Filter 'CodeChroma-*-Setup.exe' -File)
-          if ($installers.Count -ne 1) {
-            throw "Expected exactly one Windows Setup.exe, found $($installers.Count)."
-          }
-          $installer = $installers[0]
-          $hash = (Get-FileHash -LiteralPath $installer.FullName -Algorithm SHA256).Hash.ToLowerInvariant()
-          "$hash  $($installer.Name)" | Set-Content -LiteralPath "$($installer.FullName).sha256" -Encoding ascii
+        run: Get-FileHash desktop/dist/CodeChroma-*-Setup.exe -Algorithm SHA256 | ForEach-Object { "$($_.Hash.ToLowerInvariant())  $($_.Path | Split-Path -Leaf)" } | Set-Content desktop/dist/CodeChroma-*-Setup.exe.sha256
 
       # Signs the Setup.exe with a short-lived OIDC identity for the in-app updater's provenance check.
       - name: Attest the Setup.exe
@@ -221,7 +205,7 @@ jobs:
           subject-path: desktop/dist/CodeChroma-*-Setup.exe
 
       - name: Upload Setup to release
-        uses: softprops/action-gh-release@efb35369e0ad2afab669f228072c1b0d510eae64 # v3.0.3
+        uses: softprops/action-gh-release@3bb12739c298aeb8a4eeaf626c5b8d85266b0e65 # v2
         with:
           tag_name: ${{ needs.release.outputs.tag_name }}
           files: |
@@ -237,18 +221,18 @@ jobs:
     if: needs.release.outputs.release_created == 'true'
     timeout-minutes: 40
     steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
 
-      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
         with:
           python-version: "3.14"
 
-      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: "22"
           cache: npm
           cache-dependency-path: web/package-lock.json
-      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: "22"
           cache: npm
@@ -264,9 +248,6 @@ jobs:
       - name: Install desktop deps
         working-directory: desktop
         run: npm ci
-
-      - name: Generate app icon
-        run: npm --prefix desktop run generate-icon
 
       - name: Install Python deps
         run: |
@@ -291,19 +272,8 @@ jobs:
       # updater for the AppImage) before install.
       - name: Hash the Linux installers
         run: |
-          shopt -s nullglob
-          debs=(desktop/dist/CodeChroma-*-x64.deb)
-          appimages=(desktop/dist/CodeChroma-*-x64.AppImage)
-          if (( ${#debs[@]} != 1 )); then
-            echo "Expected exactly one x64 Debian package, found ${#debs[@]}." >&2
-            exit 1
-          fi
-          if (( ${#appimages[@]} != 1 )); then
-            echo "Expected exactly one x64 AppImage, found ${#appimages[@]}." >&2
-            exit 1
-          fi
-          sha256sum "${debs[0]}" > "${debs[0]}.sha256"
-          sha256sum "${appimages[0]}" > "${appimages[0]}.sha256"
+          sha256sum desktop/dist/CodeChroma-*-x64.deb > desktop/dist/CodeChroma-*-x64.deb.sha256
+          sha256sum desktop/dist/CodeChroma-*-x64.AppImage > desktop/dist/CodeChroma-*-x64.AppImage.sha256
 
       # Sign both Linux installers with a short-lived OIDC identity for provenance verification; each
       # matched file gets its own attestation.
@@ -315,7 +285,7 @@ jobs:
             desktop/dist/CodeChroma-*-x64.AppImage
 
       - name: Upload installers to release
-        uses: softprops/action-gh-release@efb35369e0ad2afab669f228072c1b0d510eae64 # v3.0.3
+        uses: softprops/action-gh-release@3bb12739c298aeb8a4eeaf626c5b8d85266b0e65 # v2
         with:
           tag_name: ${{ needs.release.outputs.tag_name }}
           files: |
@@ -327,10 +297,10 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
   # Assembles and publishes distribution/latest.json -- the single install manifest that
-  # install.sh (macOS/Linux) and install.ps1 (Windows) read. Runs after all three
-  # installers are built and their .sha256 sidecars uploaded, then uploads the manifest to the same
-  # Release so it's reachable at .../releases/latest/download/latest.json. The asset URLs and
-  # checksums are deterministic from the tag + the released sidecars, so no artifacts are needed here.
+  # distribution/install.sh (macOS/Linux) and install.ps1 (Windows) read. It runs after the macOS,
+  # Windows, and Linux build jobs complete and their .sha256 sidecars are uploaded, then publishes
+  # the manifest to that Release so it's reachable at .../releases/latest/download/latest.json.
+  # Asset URLs and checksums are deterministic from the tag + released sidecars.
   manifest:
     name: Publish install manifest (latest.json)
     runs-on: ubuntu-latest

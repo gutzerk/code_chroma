@@ -104,8 +104,11 @@ def test_a_deleted_module_level_function_lands_on_its_file(repo, engine):
     payload = build_change_cards(engine, repo)
 
     on_file = _cards_for(payload, "component::users/service.py")
-    assert [card["name"] for card in on_file] == ["list_active_users"]
-    assert on_file[0]["resolution"] == "parent"
+    # The deleted module-level function pins onto its file, and the file itself (which changed by
+    # the removal) now carries its own modified file card too — so the file box shows both.
+    assert "service.py" in [card["name"] for card in on_file]
+    deleted = [card for card in on_file if card["name"] == "list_active_users"]
+    assert deleted and deleted[0]["resolution"] == "parent"
 
 
 def test_a_deleted_function_is_named_and_marked_delete(repo, engine):

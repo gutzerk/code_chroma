@@ -1,0 +1,340 @@
+name: Release
+
+# Features accumulate on the `stage` branch (merged feature PRs land there, nothing is built or
+# released). Releasing is a deliberate two-step merge pushed to `main`:
+#   1. merge `stage` -> `main`. That push runs release-please, which computes the next version from
+#      conventional commits since the last tag, opens/updates a Release PR (version bumps in
+#      desktop/web/package.json + pyproject.toml and a CHANGELOG entry).
+#   2. merge the Release PR. That bumps the version, tags vX.Y.Z and drafts a GitHub Release; then
+#      the three build jobs below (macOS arm64 / Windows x64 / Linux x64) assemble the desktop
+#      installers and upload them to it.
+# Pushing straight to `main` (a feature with no stage gate) also works -- it just opens the same
+# Release PR -- but the intended path is through `stage` so several features ship in one release.
+on:
+  push:
+    branches: [main]
+  workflow_dispatch: # manual "release now" button: version bump + tag + release in one run
+
+permissions:
+  contents: write
+  pull-requests: write
+  # attest-build-provenance needs these to sign each artifact with a short-lived OIDC identity.
+  attestations: write
+  id-token: write
+
+# cancel-in-progress: false on purpose -- a release build (macOS installer takes 20-40 min) must
+# never be killed by a later push to main; a fresh Release PR/diff landing mid-build should just
+# wait its turn rather than aborting an upload mid-way.
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  release:
+    name: Version + CHANGELOG + Release
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    outputs:
+      release_created: ${{ steps.release.outputs.release_created }}
+      tag_name: ${{ steps.release.outputs.tag_name }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - id: release
+        uses: googleapis/release-please-action@5c625bfb5d1ff62eadeeb3772007f7f66fdcf071 # v4
+        with:
+          token: ${{ secrets.PAT }}
+          manifest-file: .release-please-manifest.json
+          config-file: release-please-config.json
+
+  # Each installer shares the same three stages as scripts/dev/build_desktop.sh:
+  # web SPA bundle (same-origin) -> PyInstaller-frozen bridge -> electron-builder.
+  macos:
+    name: Build macOS installer (arm64)
+    runs-on: macos-14
+    needs: release
+    if: needs.release.outputs.release_created == 'true'
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.14"
+
+      # One setup-node per npm project so each gets its own cache key from its own lockfile.
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: desktop/package-lock.json
+
+      - name: Install Poetry
+        run: pipx install poetry==2.5.1
+
+      - name: Install web deps
+        working-directory: web
+        run: npm ci
+
+      - name: Install desktop deps
+        working-directory: desktop
+        run: npm ci
+
+      - name: Install Python deps
+        run: |
+          poetry config virtualenvs.in-project true
+          poetry install --no-interaction
+
+      - name: Generate app icon
+        run: poetry run python scripts/make_desktop_icon.py
+
+      - name: Build canvas bundle (same-origin)
+        env:
+          VITE_ENGINE_BRIDGE_URL: same-origin
+          VITE_TERMINAL_BRIDGE_URL: same-origin
+        run: npm --prefix web run build
+
+      - name: Freeze the bridge (PyInstaller)
+        run: poetry run pyinstaller packaging/bridge.spec --noconfirm --clean
+
+      - name: Package the Electron app (dmg)
+        run: npm --prefix desktop run dist
+
+      # Publish a SHA-256 sidecar for the dmg so both the in-app updater and install_desktop.sh can
+      # verify the download before it's mounted or copied into /Applications.
+      - name: Hash the DMG
+        run: shasum -a 256 desktop/dist/CodeChroma-*-arm64.dmg > desktop/dist/CodeChroma-*-arm64.dmg.sha256
+
+      # Signs the dmg with a short-lived OIDC identity (Sigstore/attestations) so the in-app updater
+      # can verify provenance against GitHub Actions instead of trusting the release's own sidecar.
+      - name: Attest the DMG
+        uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
+        with:
+          subject-path: desktop/dist/CodeChroma-*-arm64.dmg
+
+      # softprops/action-gh-release appends assets to the tag/Release release-please already made;
+      # glob files are expanded by the action itself (not the shell), so a missing match is a
+      # visible error, never a silent no-op.
+      - name: Upload DMG to release
+        uses: softprops/action-gh-release@efb35369e0ad2afab669f228072c1b0d510eae64 # v3.0.3
+        with:
+          tag_name: ${{ needs.release.outputs.tag_name }}
+          files: |
+            desktop/dist/CodeChroma-*-arm64.dmg
+            desktop/dist/CodeChroma-*-arm64.dmg.sha256
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  windows:
+    name: Build Windows installer (x64)
+    runs-on: windows-latest
+    needs: release
+    if: needs.release.outputs.release_created == 'true'
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.14"
+
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: desktop/package-lock.json
+
+      - name: Install Poetry
+        run: pipx install poetry==2.5.1
+
+      - name: Install web deps
+        working-directory: web
+        run: npm ci
+
+      - name: Install desktop deps
+        working-directory: desktop
+        run: npm ci
+
+      - name: Install Python deps
+        run: |
+          poetry config virtualenvs.in-project true
+          poetry install --no-interaction
+
+      - name: Build canvas bundle (same-origin)
+        env:
+          VITE_ENGINE_BRIDGE_URL: same-origin
+          VITE_TERMINAL_BRIDGE_URL: same-origin
+        run: npm --prefix web run build
+
+      - name: Freeze the bridge (PyInstaller)
+        run: poetry run pyinstaller packaging/bridge.spec --noconfirm --clean
+
+      - name: Package the Electron app (nsis)
+        run: npm --prefix desktop run dist
+
+      # SHA-256 sidecar for the Setup.exe, verified by install_desktop.ps1 before it's launched.
+      - name: Hash the Setup.exe
+        shell: pwsh
+        run: Get-FileHash desktop/dist/CodeChroma-*-Setup.exe -Algorithm SHA256 | ForEach-Object { "$($_.Hash.ToLowerInvariant())  $($_.Path | Split-Path -Leaf)" } | Set-Content desktop/dist/CodeChroma-*-Setup.exe.sha256
+
+      # Signs the Setup.exe with a short-lived OIDC identity for the in-app updater's provenance check.
+      - name: Attest the Setup.exe
+        uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
+        with:
+          subject-path: desktop/dist/CodeChroma-*-Setup.exe
+
+      - name: Upload Setup to release
+        uses: softprops/action-gh-release@efb35369e0ad2afab669f228072c1b0d510eae64 # v3.0.3
+        with:
+          tag_name: ${{ needs.release.outputs.tag_name }}
+          files: |
+            desktop/dist/CodeChroma-*-Setup.exe
+            desktop/dist/CodeChroma-*-Setup.exe.sha256
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  linux:
+    name: Build Linux installers (x64)
+    runs-on: ubuntu-22.04
+    needs: release
+    if: needs.release.outputs.release_created == 'true'
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.14"
+
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: desktop/package-lock.json
+
+      - name: Install Poetry
+        run: pipx install poetry==2.5.1
+
+      - name: Install web deps
+        working-directory: web
+        run: npm ci
+
+      - name: Install desktop deps
+        working-directory: desktop
+        run: npm ci
+
+      - name: Install Python deps
+        run: |
+          poetry config virtualenvs.in-project true
+          poetry install --no-interaction
+
+      # setup-python above already puts 3.14 on PATH; the venv poetry builds uses it directly,
+      # so no system-python bootstrap is needed here (as on the macos/windows jobs).
+      - name: Build canvas bundle (same-origin)
+        env:
+          VITE_ENGINE_BRIDGE_URL: same-origin
+          VITE_TERMINAL_BRIDGE_URL: same-origin
+        run: npm --prefix web run build
+
+      - name: Freeze the bridge (PyInstaller)
+        run: poetry run pyinstaller packaging/bridge.spec --noconfirm --clean
+
+      - name: Package the Electron app (deb + AppImage)
+        run: npm --prefix desktop run dist
+
+      # SHA-256 sidecars for the deb and AppImage, verified by install_linux.sh (and the in-app
+      # updater for the AppImage) before install.
+      - name: Hash the Linux installers
+        run: |
+          sha256sum desktop/dist/CodeChroma-*-x64.deb > desktop/dist/CodeChroma-*-x64.deb.sha256
+          sha256sum desktop/dist/CodeChroma-*-x64.AppImage > desktop/dist/CodeChroma-*-x64.AppImage.sha256
+
+      # Sign both Linux installers with a short-lived OIDC identity for provenance verification; each
+      # matched file gets its own attestation.
+      - name: Attest the Linux installers
+        uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
+        with:
+          subject-path: |
+            desktop/dist/CodeChroma-*-x64.deb
+            desktop/dist/CodeChroma-*-x64.AppImage
+
+      - name: Upload installers to release
+        uses: softprops/action-gh-release@efb35369e0ad2afab669f228072c1b0d510eae64 # v3.0.3
+        with:
+          tag_name: ${{ needs.release.outputs.tag_name }}
+          files: |
+            desktop/dist/CodeChroma-*-x64.deb
+            desktop/dist/CodeChroma-*-x64.AppImage
+            desktop/dist/CodeChroma-*-x64.deb.sha256
+            desktop/dist/CodeChroma-*-x64.AppImage.sha256
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  # Assembles and publishes distribution/latest.json -- the single install manifest that
+  # distribution/install.sh (macOS/Linux) and install.ps1 (Windows) read. Runs after all three
+  # installers are built and their .sha256 sidecars uploaded, then uploads the manifest to the same
+  # Release so it's reachable at .../releases/latest/download/latest.json. The asset URLs and
+  # checksums are deterministic from the tag + the released sidecars, so no artifacts are needed here.
+  manifest:
+    name: Publish install manifest (latest.json)
+    runs-on: ubuntu-latest
+    needs: [release, macos, windows, linux]
+    if: needs.release.outputs.release_created == 'true'
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - name: Build and upload latest.json
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          TAG="${{ needs.release.outputs.tag_name }}"
+          VERSION="${TAG#v}"
+          REPO="${{ github.repository }}"
+          python3 - "$REPO" "$VERSION" <<'PY'
+          import json, os, sys, urllib.request
+
+          repo, version = sys.argv[1], sys.argv[2]
+          base = f"https://github.com/{repo}/releases/download/v{version}"
+          targets = ["macos-arm64", "windows-x64", "linux-x64", "linux-appimage"]
+          names = {
+              "macos-arm64":   f"CodeChroma-{version}-arm64.dmg",
+              "windows-x64":   f"CodeChroma-{version}-Setup.exe",
+              "linux-x64":     f"CodeChroma-{version}-x64.deb",
+              "linux-appimage":f"CodeChroma-{version}-x64.AppImage",
+          }
+          assets, sha = {}, {}
+          for t in targets:
+              n = names[t]
+              # fetch the released .sha256 sidecar (first token, e.g. "<hex>  <name>")
+              with urllib.request.urlopen(f"{base}/{n}.sha256", timeout=30) as r:
+                  digest = r.read().decode().strip().split()[0].lower()
+              assets[t] = f"{base}/{n}"
+              sha[t] = digest
+          manifest = {"version": version, "assets": assets, "sha256": sha}
+          with open("distribution/latest.json", "w") as f:
+              json.dump(manifest, f, indent=2)
+              f.write("\n")
+          PY
+          echo "=== latest.json ==="
+          cat distribution/latest.json
+      - name: Upload manifest to release
+        uses: softprops/action-gh-release@3bb12739c298aeb8a4eeaf626c5b8d85266b0e65 # v2
+        with:
+          tag_name: ${{ needs.release.outputs.tag_name }}
+          files: distribution/latest.json
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

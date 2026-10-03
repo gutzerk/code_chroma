@@ -1,5 +1,19 @@
 # Changelog
 
+## [0.2.0](https://github.com/gutzerk/code_chroma/compare/codechroma-v0.1.3...codechroma-v0.2.0) (2026-10-03)
+
+
+### Features
+
+* add production install scripts ([5014f14](https://github.com/gutzerk/code_chroma/commit/5014f14e8367471778e61405dbd08ed9bd6a3309))
+* add production install scripts ([6b8c92e](https://github.com/gutzerk/code_chroma/commit/6b8c92eb3df4abc2d63bdeff4fa746b7cdbca506))
+
+
+### Bug Fixes
+
+* **desktop:** align Linux artifact naming ([f37eed2](https://github.com/gutzerk/code_chroma/commit/f37eed258c03bce8b95ec98192f06789472ff77d))
+* **desktop:** align Linux artifact naming ([38d8868](https://github.com/gutzerk/code_chroma/commit/38d886897e846177e5360805b96d5aef165c9b0b))
+
 ## [0.1.3](https://github.com/gutzerk/code_chroma/compare/codechroma-v0.1.2...codechroma-v0.1.3) (2026-10-03)
 
 

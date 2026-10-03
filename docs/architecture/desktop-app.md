@@ -22,6 +22,19 @@ workflow writes each SHA-256 sidecar beside its exact versioned installer;
 the electron-builder targets and names are explicit so they match the install manifest. `python -m
 codechroma.bridge.launch` remains the browser/dev path and is unaffected.
 
+End users can install the latest release with [`install.sh`](../../install.sh) on macOS/Linux
+or [`install.ps1`](../../install.ps1) on Windows. Both scripts read
+`https://github.com/gutzerk/code_chroma/releases/latest/download/latest.json`, download only
+prebuilt release installers, and verify the manifest's SHA-256 before installing. The shell script
+uses the matching macOS DMG, chooses the Debian package on Debian-based systems, and otherwise
+installs the Linux x64 AppImage under `~/.local/bin/codechroma`. The Windows script runs the x64
+Setup.exe wizard. The scripts are at repository root for static hosting to publish as
+`/install.sh` and `/install.ps1`; this repository does not contain the `codechroma.dev` website
+deployment configuration.
+
+The intended website commands are `curl -fsSL https://codechroma.dev/install.sh | sh` and
+`powershell -ExecutionPolicy Bypass -c "irm https://codechroma.dev/install.ps1 | iex"`.
+
 Things worth knowing before touching it:
 
 - **The bridge serves the SPA**, so there is no `file://` origin and no CORS in the desktop path:

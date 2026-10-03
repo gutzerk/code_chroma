@@ -321,7 +321,7 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
   # Assembles and publishes distribution/latest.json -- the single install manifest that
-  # distribution/install.sh (macOS/Linux) and install.ps1 (Windows) read. Runs after all three
+  # install.sh (macOS/Linux) and install.ps1 (Windows) read. Runs after all three
   # installers are built and their .sha256 sidecars uploaded, then uploads the manifest to the same
   # Release so it's reachable at .../releases/latest/download/latest.json. The asset URLs and
   # checksums are deterministic from the tag + the released sidecars, so no artifacts are needed here.

@@ -99,7 +99,7 @@ jobs:
           poetry install --no-interaction
 
       - name: Generate app icon
-        run: poetry run python scripts/make_desktop_icon.py
+        run: npm --prefix desktop run generate-icon
 
       - name: Build canvas bundle (same-origin)
         env:
@@ -182,6 +182,9 @@ jobs:
         working-directory: desktop
         run: npm ci
 
+      - name: Generate app icon
+        run: npm --prefix desktop run generate-icon
+
       - name: Install Python deps
         run: |
           poetry config virtualenvs.in-project true
@@ -261,6 +264,9 @@ jobs:
       - name: Install desktop deps
         working-directory: desktop
         run: npm ci
+
+      - name: Generate app icon
+        run: npm --prefix desktop run generate-icon
 
       - name: Install Python deps
         run: |

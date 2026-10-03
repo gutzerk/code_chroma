@@ -5,10 +5,8 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$ROOT"
 
-if [[ ! -f desktop/build/icon.png ]]; then
-  echo "==> generating the app icon"
-  poetry run python scripts/make_desktop_icon.py
-fi
+echo "==> generating the app icon from SVG"
+npm --prefix desktop run generate-icon
 
 echo "==> 1/3 building the canvas bundle (same-origin: the bridge will serve it)"
 VITE_ENGINE_BRIDGE_URL=same-origin \

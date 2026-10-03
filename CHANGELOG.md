@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.2.1](https://github.com/gutzerk/code_chroma/compare/codechroma-v0.2.0...codechroma-v0.2.1) (2026-10-03)
+
+
+### Bug Fixes
+
+* correct Windows bridge packaging and refresh desktop icon ([55b5729](https://github.com/gutzerk/code_chroma/commit/55b57292068f78fe2eef283f5c02e08798195e8e))
+* correct Windows bridge packaging and refresh desktop icon ([304fc23](https://github.com/gutzerk/code_chroma/commit/304fc23c458d9c87c9873f02f4e023bdbda89467))
+
 ## [0.2.0](https://github.com/gutzerk/code_chroma/compare/codechroma-v0.1.3...codechroma-v0.2.0) (2026-10-03)
 
 

@@ -14,7 +14,9 @@ shell that shows a recents/"Open folder…" launcher, then spawns a **PyInstalle
 free port and loads `http://127.0.0.1:<port>` in the same window. macOS releases include arm64 and
 Intel x64 DMGs, built on matching native runners so the frozen Python bridge matches the host
 architecture. Windows builds target an NSIS installer, and Linux builds x64 `.deb` and AppImage
-installers. The release workflow writes each SHA-256 sidecar beside its exact versioned installer;
+installers. The desktop package declares its homepage and author email, and the Linux builder config
+declares the Debian maintainer; electron-builder requires all three when building `.deb` packages.
+The release workflow writes each SHA-256 sidecar beside its exact versioned installer;
 the electron-builder targets and names are explicit so they match the install manifest. `python -m
 codechroma.bridge.launch` remains the browser/dev path and is unaffected.
 

@@ -4,6 +4,11 @@
   "version": "0.1.2",
   "productName": "CodeChroma",
   "description": "CodeChroma desktop shell: opens a repo and hosts the canvas in its own window",
+  "homepage": "https://github.com/gutzerk/code_chroma",
+  "author": {
+    "name": "dmitriiushakov",
+    "email": "spartaxgboostspartaxgboost@gmail.com"
+  },
   "main": "out/main.js",
   "scripts": {
     "build": "rm -rf out tsconfig.tsbuildinfo && tsc -b",

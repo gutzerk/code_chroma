@@ -37,6 +37,7 @@ nsis:
   allowToChangeInstallationDirectory: true
 
 linux:
+  maintainer: "dmitriiushakov <spartaxgboostspartaxgboost@gmail.com>"
   target:
     - target: deb
       arch: [x64]

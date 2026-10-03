@@ -340,7 +340,7 @@ jobs:
           REPO: ${{ github.repository }}
         run: |
           python3 - <<'PY'
-          import json, os, re, urllib.request
+          import json, os, re, time, urllib.error, urllib.request
 
           repo, tag = os.environ["REPO"], os.environ["RELEASE_TAG"]
           match = re.fullmatch(
@@ -363,8 +363,18 @@ jobs:
           for t in targets:
               n = names[t]
               # fetch the released .sha256 sidecar (first token, e.g. "<hex>  <name>")
-              with urllib.request.urlopen(f"{base}/{n}.sha256", timeout=30) as r:
-                  digest = r.read().decode().strip().split()[0].lower()
+              sidecar_url = f"{base}/{n}.sha256"
+              for attempt in range(6):
+                  try:
+                      with urllib.request.urlopen(sidecar_url, timeout=30) as r:
+                          digest = r.read().decode().strip().split()[0].lower()
+                      break
+                  except urllib.error.HTTPError as error:
+                      if error.code not in (404, 429, 500, 502, 503, 504) or attempt == 5:
+                          raise
+                      delay = 2 ** attempt
+                      print(f"Retrying {sidecar_url} after HTTP {error.code} in {delay}s.")
+                      time.sleep(delay)
               assets[t] = f"{base}/{n}"
               sha[t] = digest
           manifest = {"version": version, "assets": assets, "sha256": sha}

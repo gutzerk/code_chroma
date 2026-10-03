@@ -1,6 +1,6 @@
 [project]
 name = "codechroma"
-version = "0.1.1"
+version = "0.1.2"
 description = ""
 authors = [
     {name = "dmitriiushakov",email = "spartaxgboostspartaxgboost@gmail.com"}

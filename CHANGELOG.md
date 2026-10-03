@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.1.3](https://github.com/gutzerk/code_chroma/compare/codechroma-v0.1.2...codechroma-v0.1.3) (2026-10-03)
+
+
+### Bug Fixes
+
+* **desktop:** add Linux package metadata ([5a9ecc8](https://github.com/gutzerk/code_chroma/commit/5a9ecc83d1c065cde6282a7c8511fdcd5ad8d681))
+* **desktop:** add Linux package metadata ([15dc854](https://github.com/gutzerk/code_chroma/commit/15dc854fddf145dbb15712576c9822bf61a32f7b))
+
 ## [0.1.2](https://github.com/gutzerk/code_chroma/compare/codechroma-v0.1.1...codechroma-v0.1.2) (2026-10-03)
 
 

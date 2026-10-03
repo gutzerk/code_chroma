@@ -1,7 +1,7 @@
 # Desktop app (`desktop/`)
 
 ```bash
-./scripts/build_desktop.sh          # SPA bundle -> frozen bridge -> desktop/dist/CodeChroma-*.dmg
+./scripts/build_desktop.sh          # SPA bundle -> frozen bridge -> host-architecture desktop/dist/CodeChroma-*.dmg
 npm --prefix desktop start          # run the shell against dist/codechroma-bridge (build the bridge first)
 npm --prefix desktop start -- --repo /path/to/repo   # skip the launcher screen
 npm --prefix desktop test           # vitest (recentRepos, shellPath, bridgeProcess)
@@ -11,9 +11,12 @@ poetry run python scripts/make_desktop_icon.py       # regenerate desktop/build/
 
 `CodeChroma.app` is a double-click app with no Python or Node on the user's machine: an Electron
 shell that shows a recents/"Open folder…" launcher, then spawns a **PyInstaller-frozen bridge** on a
-free port and loads `http://127.0.0.1:<port>` in the same window. macOS builds target arm64 DMG;
-Windows builds target an NSIS installer. `python -m codechroma.bridge.launch` remains the
-browser/dev path and is unaffected.
+free port and loads `http://127.0.0.1:<port>` in the same window. macOS releases include arm64 and
+Intel x64 DMGs, built on matching native runners so the frozen Python bridge matches the host
+architecture. Windows builds target an NSIS installer, and Linux builds x64 `.deb` and AppImage
+installers. The release workflow writes each SHA-256 sidecar beside its exact versioned installer;
+the electron-builder targets and names are explicit so they match the install manifest. `python -m
+codechroma.bridge.launch` remains the browser/dev path and is unaffected.
 
 Things worth knowing before touching it:
 

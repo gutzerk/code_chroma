@@ -1,4 +1,5 @@
 # PyInstaller spec for the frozen graph bridge shipped inside the Electron desktop app.
+import os
 import sys
 from pathlib import Path
 
@@ -65,7 +66,7 @@ exe = EXE(
     exclude_binaries=True,
     name="codechroma-bridge",
     console=True,
-    target_arch="arm64" if sys.platform == "darwin" else None,
+    target_arch=os.environ.get("CODECHROMA_PYINSTALLER_TARGET_ARCH"),
 )
 COLLECT(
     exe,

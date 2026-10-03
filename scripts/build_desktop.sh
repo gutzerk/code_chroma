@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Builds CodeChroma.app: SPA bundle -> frozen Python bridge -> Electron DMG (macOS arm64, unsigned).
+# Builds CodeChroma.app for the host architecture: SPA bundle -> frozen bridge -> unsigned DMG.
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"

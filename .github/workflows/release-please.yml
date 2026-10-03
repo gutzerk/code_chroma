@@ -6,7 +6,7 @@ name: Release
 #      conventional commits since the last tag, opens/updates a Release PR (version bumps in
 #      desktop/web/package.json + pyproject.toml and a CHANGELOG entry).
 #   2. merge the Release PR. That bumps the version, tags vX.Y.Z and drafts a GitHub Release; then
-#      the three build jobs below (macOS arm64 / Windows x64 / Linux x64) assemble the desktop
+#      the build jobs below (macOS arm64 + x64 / Windows x64 / Linux x64) assemble the desktop
 #      installers and upload them to it.
 # Pushing straight to `main` (a feature with no stage gate) also works -- it just opens the same
 # Release PR -- but the intended path is through `stage` so several features ship in one release.
@@ -49,8 +49,17 @@ jobs:
   # Each installer shares the same three stages as scripts/dev/build_desktop.sh:
   # web SPA bundle (same-origin) -> PyInstaller-frozen bridge -> electron-builder.
   macos:
-    name: Build macOS installer (arm64)
-    runs-on: macos-14
+    name: Build macOS installer (${{ matrix.arch }})
+    strategy:
+      matrix:
+        include:
+          - arch: arm64
+            runner: macos-14
+            bridge_arch: arm64
+          - arch: x64
+            runner: macos-15-intel
+            bridge_arch: x86_64
+    runs-on: ${{ matrix.runner }}
     needs: release
     if: needs.release.outputs.release_created == 'true'
     timeout-minutes: 40
@@ -99,22 +108,31 @@ jobs:
         run: npm --prefix web run build
 
       - name: Freeze the bridge (PyInstaller)
+        env:
+          CODECHROMA_PYINSTALLER_TARGET_ARCH: ${{ matrix.bridge_arch }}
         run: poetry run pyinstaller packaging/bridge.spec --noconfirm --clean
 
       - name: Package the Electron app (dmg)
-        run: npm --prefix desktop run dist
+        run: npm --prefix desktop run dist -- --${{ matrix.arch }}
 
       # Publish a SHA-256 sidecar for the dmg so both the in-app updater and install_desktop.sh can
       # verify the download before it's mounted or copied into /Applications.
       - name: Hash the DMG
-        run: shasum -a 256 desktop/dist/CodeChroma-*-arm64.dmg > desktop/dist/CodeChroma-*-arm64.dmg.sha256
+        run: |
+          shopt -s nullglob
+          installers=(desktop/dist/CodeChroma-*-${{ matrix.arch }}.dmg)
+          if (( ${#installers[@]} != 1 )); then
+            echo "Expected exactly one ${{ matrix.arch }} DMG, found ${#installers[@]}." >&2
+            exit 1
+          fi
+          shasum -a 256 "${installers[0]}" > "${installers[0]}.sha256"
 
       # Signs the dmg with a short-lived OIDC identity (Sigstore/attestations) so the in-app updater
       # can verify provenance against GitHub Actions instead of trusting the release's own sidecar.
       - name: Attest the DMG
         uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
         with:
-          subject-path: desktop/dist/CodeChroma-*-arm64.dmg
+          subject-path: desktop/dist/CodeChroma-*-${{ matrix.arch }}.dmg
 
       # softprops/action-gh-release appends assets to the tag/Release release-please already made;
       # glob files are expanded by the action itself (not the shell), so a missing match is a
@@ -124,8 +142,8 @@ jobs:
         with:
           tag_name: ${{ needs.release.outputs.tag_name }}
           files: |
-            desktop/dist/CodeChroma-*-arm64.dmg
-            desktop/dist/CodeChroma-*-arm64.dmg.sha256
+            desktop/dist/CodeChroma-*-${{ matrix.arch }}.dmg
+            desktop/dist/CodeChroma-*-${{ matrix.arch }}.dmg.sha256
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
@@ -184,7 +202,14 @@ jobs:
       # SHA-256 sidecar for the Setup.exe, verified by install_desktop.ps1 before it's launched.
       - name: Hash the Setup.exe
         shell: pwsh
-        run: Get-FileHash desktop/dist/CodeChroma-*-Setup.exe -Algorithm SHA256 | ForEach-Object { "$($_.Hash.ToLowerInvariant())  $($_.Path | Split-Path -Leaf)" } | Set-Content desktop/dist/CodeChroma-*-Setup.exe.sha256
+        run: |
+          $installers = @(Get-ChildItem -Path desktop/dist -Filter 'CodeChroma-*-Setup.exe' -File)
+          if ($installers.Count -ne 1) {
+            throw "Expected exactly one Windows Setup.exe, found $($installers.Count)."
+          }
+          $installer = $installers[0]
+          $hash = (Get-FileHash -LiteralPath $installer.FullName -Algorithm SHA256).Hash.ToLowerInvariant()
+          "$hash  $($installer.Name)" | Set-Content -LiteralPath "$($installer.FullName).sha256" -Encoding ascii
 
       # Signs the Setup.exe with a short-lived OIDC identity for the in-app updater's provenance check.
       - name: Attest the Setup.exe
@@ -260,8 +285,19 @@ jobs:
       # updater for the AppImage) before install.
       - name: Hash the Linux installers
         run: |
-          sha256sum desktop/dist/CodeChroma-*-x64.deb > desktop/dist/CodeChroma-*-x64.deb.sha256
-          sha256sum desktop/dist/CodeChroma-*-x64.AppImage > desktop/dist/CodeChroma-*-x64.AppImage.sha256
+          shopt -s nullglob
+          debs=(desktop/dist/CodeChroma-*-x64.deb)
+          appimages=(desktop/dist/CodeChroma-*-x64.AppImage)
+          if (( ${#debs[@]} != 1 )); then
+            echo "Expected exactly one x64 Debian package, found ${#debs[@]}." >&2
+            exit 1
+          fi
+          if (( ${#appimages[@]} != 1 )); then
+            echo "Expected exactly one x64 AppImage, found ${#appimages[@]}." >&2
+            exit 1
+          fi
+          sha256sum "${debs[0]}" > "${debs[0]}.sha256"
+          sha256sum "${appimages[0]}" > "${appimages[0]}.sha256"
 
       # Sign both Linux installers with a short-lived OIDC identity for provenance verification; each
       # matched file gets its own attestation.
@@ -309,9 +345,10 @@ jobs:
 
           repo, version = sys.argv[1], sys.argv[2]
           base = f"https://github.com/{repo}/releases/download/v{version}"
-          targets = ["macos-arm64", "windows-x64", "linux-x64", "linux-appimage"]
+          targets = ["macos-arm64", "macos-x64", "windows-x64", "linux-x64", "linux-appimage"]
           names = {
               "macos-arm64":   f"CodeChroma-{version}-arm64.dmg",
+              "macos-x64":     f"CodeChroma-{version}-x64.dmg",
               "windows-x64":   f"CodeChroma-{version}-Setup.exe",
               "linux-x64":     f"CodeChroma-{version}-x64.deb",
               "linux-appimage":f"CodeChroma-{version}-x64.AppImage",

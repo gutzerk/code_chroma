@@ -20,7 +20,7 @@ not fetch or read whatever is currently on disk/canvas first.
 | `custom` | `.codechroma/diagrams/custom/<type-id>/<type-id>.json` (`GET /repos/{id}/custom/<type-id>-path`) | a **saved, user-authored diagram type** whose rules live in its own definition, not in this skill — "generate the data-flow diagram", "regenerate the ownership map", "deepen the layering diagram", or any run that was handed a `type_id` | `references/type-custom.md` | `check_diagram.py --kind custom --type <type-id>` |
 
 > Pick exactly one row. Read that row's reference file in full before you write anything. Do not
-> carry a rule from one row into another — the four schemas are different shapes on purpose.
+> carry a rule from one row into another — the five schemas are different shapes on purpose.
 
 > If the message that started this run already names a `references/type-*.md` file, that file wins
 > over this table.
@@ -39,7 +39,7 @@ not fetch or read whatever is currently on disk/canvas first.
 
 The request is to *explain, show, or trace a process* on a diagram already on the canvas
 ("show me how a request gets saved to the database"), not to draw or regenerate one. This is not
-one of the four `type id` rows above — it edits boxes already on the canvas instead of writing a
+one of the five `type id` rows above — it edits boxes already on the canvas instead of writing a
 new `.codechroma/diagrams/<kind>/<kind>.json`. Read `references/highlight-process.md`.
 
 ## Drawing a Feature plan for work not yet done (not a new diagram either)
@@ -47,7 +47,7 @@ new `.codechroma/diagrams/<kind>/<kind>.json`. Read `references/highlight-proces
 The request describes a **future feature** — the user's own words, or an arbitrary `.md` document
 (a spec, a design doc, not necessarily `docs/planning/`) — and asks for a diagram of it: "draw a plan
 for token auth", "show me what the checkout redesign will add", "add the planned rate limiter to this
-diagram". This is not one of the four `type id` rows above either: you are authoring **Planned
+diagram". This is not one of the five `type id` rows above either: you are authoring **Planned
 blocks** (boxes for code that doesn't exist yet) into a diagram file dedicated to this one feature,
 not into `c1`/`patterns`/`impact`/`custom`. Read `references/feature-plan-mode.md`.
 

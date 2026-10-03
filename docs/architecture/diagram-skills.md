@@ -30,9 +30,10 @@ Three things had drifted, all of them consequences of "one skill per diagram typ
                                   #       system-context authoring only, decomposition removed
     type-patterns.md             # 226
     type-impact.md               # 172
-    type-custom.md               # 173
+    type-sequence.md               # ordered-call flow from trace scaffold or code context
+    type-custom.md                 # 173
   scripts/
-    check_diagram.py             # 917 — one self-check, --kind {c1,patterns,impact,custom,epics}
+    check_diagram.py               # one self-check, including --kind sequence
 ```
 
 ⚠ **The source of truth is the repo root's `.claude/skills/`**, resolved by

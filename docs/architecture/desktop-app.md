@@ -16,7 +16,9 @@ Intel x64 DMGs, built on matching native runners so the frozen Python bridge mat
 architecture. Windows builds target an NSIS installer, and Linux builds x64 `.deb` and AppImage
 installers. The desktop package declares its homepage and author email, and the Linux builder config
 declares the Debian maintainer; electron-builder requires all three when building `.deb` packages.
-The release workflow writes each SHA-256 sidecar beside its exact versioned installer;
+The Linux artifact names use `x64` explicitly because electron-builder expands its Linux `x64`
+architecture to `amd64`, while the release workflow and install manifest use `x64`. The release
+workflow writes each SHA-256 sidecar beside its exact versioned installer;
 the electron-builder targets and names are explicit so they match the install manifest. `python -m
 codechroma.bridge.launch` remains the browser/dev path and is unaffected.
 

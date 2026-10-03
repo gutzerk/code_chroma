@@ -132,7 +132,7 @@ jobs:
       # glob files are expanded by the action itself (not the shell), so a missing match is a
       # visible error, never a silent no-op.
       - name: Upload DMG to release
-        uses: softprops/action-gh-release@3bb12739c298aeb8a4eeaf626c5b8d85266b0e65 # v2
+        uses: softprops/action-gh-release@efb35369e0ad2afab669f228072c1b0d510eae64 # v3.0.3
         with:
           tag_name: ${{ needs.release.outputs.tag_name }}
           files: |
@@ -205,7 +205,7 @@ jobs:
           subject-path: desktop/dist/CodeChroma-*-Setup.exe
 
       - name: Upload Setup to release
-        uses: softprops/action-gh-release@3bb12739c298aeb8a4eeaf626c5b8d85266b0e65 # v2
+        uses: softprops/action-gh-release@efb35369e0ad2afab669f228072c1b0d510eae64 # v3.0.3
         with:
           tag_name: ${{ needs.release.outputs.tag_name }}
           files: |
@@ -285,7 +285,7 @@ jobs:
             desktop/dist/CodeChroma-*-x64.AppImage
 
       - name: Upload installers to release
-        uses: softprops/action-gh-release@3bb12739c298aeb8a4eeaf626c5b8d85266b0e65 # v2
+        uses: softprops/action-gh-release@efb35369e0ad2afab669f228072c1b0d510eae64 # v3.0.3
         with:
           tag_name: ${{ needs.release.outputs.tag_name }}
           files: |
@@ -362,7 +362,7 @@ jobs:
           echo "=== latest.json ==="
           cat distribution/latest.json
       - name: Upload manifest to release
-        uses: softprops/action-gh-release@3bb12739c298aeb8a4eeaf626c5b8d85266b0e65 # v2
+        uses: softprops/action-gh-release@efb35369e0ad2afab669f228072c1b0d510eae64 # v3.0.3
         with:
           tag_name: ${{ needs.release.outputs.tag_name }}
           files: distribution/latest.json

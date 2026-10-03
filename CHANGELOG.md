@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.2.2](https://github.com/gutzerk/code_chroma/compare/codechroma-v0.2.1...codechroma-v0.2.2) (2026-10-03)
+
+
+### Bug Fixes
+
+* **release:** create manifest output directory ([068cd90](https://github.com/gutzerk/code_chroma/commit/068cd90c708f850f47989ca42d2a673efb43e69a))
+* **release:** create manifest output directory ([a492b23](https://github.com/gutzerk/code_chroma/commit/a492b2336dbf479e66717dbd586ba97b9701b855))
+
 ## [0.2.1](https://github.com/gutzerk/code_chroma/compare/codechroma-v0.2.0...codechroma-v0.2.1) (2026-10-03)
 
 

@@ -384,6 +384,7 @@ jobs:
               assets[t] = f"{base}/{n}"
               sha[t] = digest
           manifest = {"version": version, "assets": assets, "sha256": sha}
+          os.makedirs("distribution", exist_ok=True)
           with open("distribution/latest.json", "w") as f:
               json.dump(manifest, f, indent=2)
               f.write("\n")

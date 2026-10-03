@@ -22,9 +22,10 @@ workflow writes each SHA-256 sidecar beside its exact versioned installer; the m
 release-please's exact tag (for example, `codechroma-v0.2.0`) for download URLs and the semantic
 version for installer filenames. The manifest job retries transient GitHub errors while fetching
 newly uploaded checksum sidecars. The electron-builder targets and names are explicit so they
-match the install manifest. The bridge resolver includes `.exe` on Windows because PyInstaller
-adds that suffix to the frozen executable. `python -m codechroma.bridge.launch` remains the
-browser/dev path and is unaffected.
+match the install manifest. The manifest job creates its generated `distribution/` output
+directory before writing `latest.json`. The bridge resolver includes `.exe` on Windows because
+PyInstaller adds that suffix to the frozen executable. `python -m codechroma.bridge.launch`
+remains the browser/dev path and is unaffected.
 
 End users can install the latest release with [`install.sh`](../../install.sh) on macOS/Linux
 or [`install.ps1`](../../install.ps1) on Windows. Both scripts read

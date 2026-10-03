@@ -76,6 +76,16 @@ STYLES: dict[str, DiagramStyle] = {
         ),
         overrides={"allow_self_relations": True},
     ),
+    "sequence": DiagramStyle(
+        id="sequence",
+        label="Sequence",
+        description=(
+            "A UML-style sequence view: participants arranged left-to-right, ordered messages "
+            "flowing between them top-to-bottom. Authored relations become dedicated message "
+            "elements laid out by time, not plain edges."
+        ),
+        overrides={"supports_groups": False, "allow_self_relations": True},
+    ),
 }
 
 

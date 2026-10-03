@@ -23,6 +23,7 @@ add-ons (`attach_coverage`/`attach_staleness`) each closure calls when its type 
 from __future__ import annotations
 
 import json
+import re
 from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
@@ -56,6 +57,14 @@ def _digest_fingerprint(ws: Workspace) -> str:
     """A stable hash of the repo's own dependency digest -- custom's staleness signal (FR-005)."""
     digest = ws.load_dependency_digest()
     return hash_lines([json.dumps(digest, sort_keys=True, default=str)])
+
+
+def valid_epic_id(epic_id: str) -> bool:
+    """An epic id is one filesystem-safe path segment -- `EP-4`, `EP-4-01`, a slug, whatever the
+    portfolio names -- but never anything that could escape the per-epic diagrams dir (no `/`, no
+    `..`, no empty). Less strict than the custom-type slug: epic ids routinely carry `-` and
+    digits."""
+    return bool(re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9_-]{0,127}", epic_id))
 
 
 def _never_generates_spec(
@@ -96,6 +105,24 @@ def _resolve_c1(ws: Workspace) -> dict:
     return attach_coverage(resolved, ws.engine)
 
 
+def _resolve_epics(ws: Workspace) -> dict:
+    """Epics now resolves from the authored epics.json (a skill writes it), not the portfolio."""
+    data = ws.load_diagram("epics")
+    resolved = resolve_diagram(ws.engine, data)
+    resolved["has_diagram"] = bool(data)
+    return resolved
+
+
+def _resolve_sequence(ws: Workspace) -> dict:
+    """Sequence resolves from the authored sequence.json (a skill writes a trace-based scaffold)."""
+    data = ws.load_diagram("sequence")
+    if not data:
+        return {}
+    resolved = resolve_diagram(ws.engine, {**data, "type": "sequence"})
+    resolved["has_diagram"] = bool(data)
+    return resolved
+
+
 class DiagramRegistry(dict):
     """dict of built-in specs; `get` also synthesizes a custom-type spec from the library."""
 
@@ -107,6 +134,10 @@ class DiagramRegistry(dict):
         if kind.startswith("feature-plan/"):
             slug = kind[len("feature-plan/"):]
             synthesized = self._synthesize_feature_plan(slug) if slug else None
+            return synthesized if synthesized is not None else default
+        if kind.startswith("epics/"):
+            epic_id = kind[len("epics/"):]
+            synthesized = self._synthesize_epics(epic_id) if epic_id else None
             return synthesized if synthesized is not None else default
         type_id = kind[len("custom/"):] if kind.startswith("custom/") else kind
         synthesized = self._synthesize_custom(type_id) if type_id else None
@@ -190,6 +221,42 @@ class DiagramRegistry(dict):
         """The directory every feature's own Feature-plan subfolder lives under, one per task."""
         return root / ".codechroma" / "diagrams" / "feature-plan"
 
+    def _synthesize_epics(self, epic_id: str) -> DiagramSpec | None:
+        """A spec for one epic's own diagram, keyed by epic id -- a per-epic artifact/layer.
+
+        Mirrors `_synthesize_feature_plan`: one file per epic under `diagrams/epics/<epic_id>/`,
+        synthesized on demand (no saved type), never auto-generated -- the skill/agent writes the
+        epic's `<epic_id>.json` on command. This is what turns one epic into its own canvas layer
+        (`epics/<epic_id>`) and its own row in the Diagrams tab. `epic_id` is a path segment on
+        disk, so it's validated filesystem-safe, but need not satisfy the custom-type slug grammar
+        (epic ids carry `-`, e.g. `EP-4-01`).
+        """
+        if not valid_epic_id(epic_id):
+            return None
+        kind = f"epics/{epic_id}"
+
+        def resolve(ws: Workspace) -> dict:
+            data = ws.load_diagram(kind)
+            resolved = resolve_diagram(ws.engine, data)
+            resolved["has_diagram"] = bool(data)
+            return resolved
+
+        # Same reasoning as feature-plan/custom: never auto-generates, always user/agent-initiated.
+        return _never_generates_spec(
+            kind,
+            lambda root: DiagramRegistry._keyed_artifact_path(
+                DiagramRegistry.epics_dir(root), epic_id
+            ),
+            resolve,
+            agent_error="epics diagrams have no live generate agent",
+            has_generate=False,
+        )
+
+    @staticmethod
+    def epics_dir(root: Path) -> Path:
+        """The directory every epic's own subfolder lives under, one per epic."""
+        return root / ".codechroma" / "diagrams" / "epics"
+
 
 @dataclass(frozen=True)
 class DiagramSpec:
@@ -268,5 +335,38 @@ DIAGRAMS: DiagramRegistry = DiagramRegistry({
         supports_only_if_missing=False,
         # The skill reads a diff or plan slice, so the generate run carries the chosen sponsor.
         prompt_for=prompt_for("impact"),
+    ),
+    "epics": DiagramSpec(
+        kind="epics",
+        # Like c1/patterns/impact: a skill now writes epics.json.
+        agent_factory=lambda: build_skill_agent_for(BUILTIN_TYPES["epics"]),
+        root_for=lambda ws: ws.root,
+        artifact_path=lambda root: root / BUILTIN_TYPES["epics"].artifact,
+        resolve=_resolve_epics,
+        # Reads only the authored epics.json, so skip the generic pre-resolve sync (like impact).
+        sync_before_resolve=False,
+        has_generate=False,
+        has_bootstrap=False,
+        bootstrap_context=None,
+        generate=None,
+        provider_from_env=None,
+        supports_only_if_missing=False,
+    ),
+    "sequence": DiagramSpec(
+        kind="sequence",
+        # Like patterns/impact: a skill writes sequence.json from the trace scaffold.
+        agent_factory=lambda: build_skill_agent_for(BUILTIN_TYPES["sequence"]),
+        root_for=lambda ws: ws.root,
+        artifact_path=lambda root: root / BUILTIN_TYPES["sequence"].artifact,
+        # Sequence resolves through the shared resolver (flat nodes[]/relations[] are participants/
+        # messages) — it never re-derives from the live graph, only from the authored file.
+        resolve=_resolve_sequence,
+        sync_before_resolve=False,
+        has_generate=False,
+        has_bootstrap=False,
+        bootstrap_context=None,
+        generate=None,
+        provider_from_env=None,
+        supports_only_if_missing=False,
     ),
 })

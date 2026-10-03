@@ -19,10 +19,16 @@ class DiffOverlayStore extends Store {
    * floating blurred panels. Cached as a stable array so useSyncExternalStore doesn't loop. */
   getDeletedDiffs = (): FunctionDiff[] => this.deletedSnapshot;
 
-  setDiffs = (entries: FunctionDiff[]): void => {
+  /** Fills the diff map + deleted snapshot and emits once. `setActive` controls whether this also
+   * raises the visual Diff-mode flag, which is the one difference between the two producers: the
+   * global Diff toggle (`write(entries, true)`) sets it, the impact layer's always-on sync
+   * (`write(entries)`) must not (that would raise DeletedDiffOverlay/ChangeConnectionsOverlay/
+   * ImpactChangeSummary chrome). A single emit after both writes means a subscriber observing the
+   * active flag sees a transition rather than a no-op intermediate. */
+  write = (entries: FunctionDiff[], setActive = false): void => {
     this.diffs = new Map(entries.map((entry) => [entry.node_id, entry]));
     this.deletedSnapshot = entries.filter((entry) => entry.status === "deleted");
-    this.isActiveState = true;
+    if (setActive) this.isActiveState = true;
     this.emit();
   };
 

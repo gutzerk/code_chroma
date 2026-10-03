@@ -95,3 +95,24 @@ describe("canvasDocStore fetch race", () => {
     expect(canvasDocStore.getDoc().elements.a.label).toBe("patched");
   });
 });
+
+describe("deferred layout layers", () => {
+  it("releaseLayout drops only its own layer, keeping a concurrent one withheld", () => {
+    canvasDocStore.deferLayout("epics");
+    canvasDocStore.deferLayout("c1");
+
+    canvasDocStore.releaseLayout("epics");
+
+    // The other layer is still mid-layout, so fetchAndApplyCanvasDoc must keep withholding it.
+    expect(canvasDocStore.layersMidLayout()).toEqual(["c1"]);
+  });
+
+  it("releasing a layer never deferred is a no-op", () => {
+    canvasDocStore.deferLayout("c1");
+
+    canvasDocStore.releaseLayout("epics");
+    canvasDocStore.releaseLayout("c1");
+
+    expect(canvasDocStore.layersMidLayout()).toEqual([]);
+  });
+});

@@ -19,6 +19,43 @@ export interface UseMeasuredSizesOptions {
   onResize?: () => void;
 }
 
+// One element's current real border-box size (with its CSS margins), or null when the box isn't
+// laid out yet (offsetWidth/Height can be 0 right after insertion) or has no real layout at all
+// (jsdom returns 0 for both -- unit tests keep falling back to the model, as documented).
+function measureNow(target: HTMLElement): MeasuredBoxSize | null {
+  const width = target.offsetWidth;
+  const height = target.offsetHeight;
+  if (width === 0 || height === 0) return null;
+  const style = getComputedStyle(target);
+  return {
+    width,
+    height,
+    marginLeft: Math.round(parseFloat(style.marginLeft) || 0),
+    marginTop: Math.round(parseFloat(style.marginTop) || 0),
+  };
+}
+
+// Merges one freshly-measured box into `sizes`, skipping it when nothing changed. Shared by the
+// ResizeObserver callback (the async, later path) and the ref-callback's synchronous snapshot, so
+// the same no-op filtering governs both.
+function commitMeasurement<T extends MeasuredBoxSize>(
+  previous: ReadonlyMap<string, T>,
+  id: string,
+  measured: MeasuredBoxSize,
+): ReadonlyMap<string, T> {
+  const current = previous.get(id);
+  if (
+    current?.width === measured.width &&
+    current?.height === measured.height &&
+    current?.marginLeft === measured.marginLeft &&
+    current?.marginTop === measured.marginTop
+  )
+    return previous;
+  const next = new Map(previous);
+  next.set(id, measured as T);
+  return next;
+}
+
 /** One shared ResizeObserver over a set of rendered boxes: reports each box's real border-box size
  * (immune to the camera's zoom scale) so a dagre layout can re-rank around a box's actual footprint
  * instead of a fixed default. No-op size updates are filtered, so dragging a box never triggers a
@@ -57,41 +94,44 @@ export function useMeasuredSizes<T extends MeasuredBoxSize = MeasuredBoxSize>(
         cancelAnimationFrame(bumpFrameRef.current);
         bumpFrameRef.current = requestAnimationFrame(onResize);
       }
-      setSizes((previous) => {
-        let next: Map<string, T> | null = null;
+      setSizes((stale) => {
+        let next: ReadonlyMap<string, T> = stale;
         for (const entry of entries) {
           const entryId = idByElement.current.get(entry.target);
           if (!entryId) continue;
           const borderBox = entry.borderBoxSize?.[0];
           const target = entry.target as HTMLElement;
-          const size = borderBox
-            ? { width: Math.round(borderBox.inlineSize), height: Math.round(borderBox.blockSize) }
-            : { width: target.offsetWidth, height: target.offsetHeight };
-          if (size.width === 0 || size.height === 0) continue;
-          const style = getComputedStyle(target);
-          const measured = {
-            ...size,
-            marginLeft: Math.round(parseFloat(style.marginLeft) || 0),
-            marginTop: Math.round(parseFloat(style.marginTop) || 0),
+          // A helper that folds margin into a plain width/height, so `getComputedStyle` runs exactly
+          // once per box per path (the fallback below reuses `measureNow`'s own margin read).
+          const withMargins = (size: { width: number; height: number }) => {
+            const style = getComputedStyle(target);
+            return {
+              ...size,
+              marginLeft: Math.round(parseFloat(style.marginLeft) || 0),
+              marginTop: Math.round(parseFloat(style.marginTop) || 0),
+            };
           };
-          const current = previous.get(entryId);
-          if (
-            current?.width === measured.width &&
-            current?.height === measured.height &&
-            current?.marginLeft === measured.marginLeft &&
-            current?.marginTop === measured.marginTop
-          )
-            continue;
-          next ??= new Map(previous);
-          next.set(entryId, measured as T);
+          const measured = borderBox
+            ? withMargins({ width: Math.round(borderBox.inlineSize), height: Math.round(borderBox.blockSize) })
+            : measureNow(target);
+          if (!measured) continue;
+          next = commitMeasurement(next, entryId, measured);
         }
-        return next ?? previous;
+        return next;
       });
     });
     if (element) {
       idByElement.current.set(element, id);
       elementById.current.set(id, element);
       observerRef.current.observe(element);
+      // Synchronous first measurement: a ref callback runs after the browser has applied CSS and
+      // computed layout (before paint), so a box's real offsetWidth/Height are available here on the
+      // same frame it mounts. Recording them now -- instead of waiting for the ResizeObserver's
+      // async callback -- means arrows, group/lane/island frames and the page bounds all receive the
+      // box's true footprint before the first paint, so nothing dressed-off-the-model lags for a
+      // frame. jsdom's 0s are filtered by `measureNow`, leaving tests on the model fallback as ever.
+      const immediate = measureNow(element);
+      if (immediate) setSizes((previous) => commitMeasurement(previous, id, immediate));
     }
   }, []);
 

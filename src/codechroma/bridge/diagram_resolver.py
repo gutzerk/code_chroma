@@ -25,7 +25,8 @@ from codechroma.diagrams.styles import resolve_style_overrides
 from codechroma.engine import GraphEngine
 
 __all__ = [
-    "attach_coverage", "attach_staleness", "authored_paths", "merge_by_id", "resolve_diagram",
+    "attach_coverage", "attach_origins", "attach_staleness",
+    "authored_paths", "merge_by_id", "resolve_diagram",
 ]
 
 
@@ -34,17 +35,35 @@ def _valid_node(item: object) -> bool:
 
 
 def _resolve_node(engine: GraphEngine, item: dict, notes: Diagnostics) -> dict:
-    """A copy of `item` with `node_id` filled from `path` -- an already-present `node_id` wins."""
+    """A copy of `item`, `node_id` filled from `path`, plus `meta.no_code_reason` if still None."""
     existing = item.get("node_id")
     if isinstance(existing, str) and existing:
         return dict(item)
     path = item.get("path")
     if not (isinstance(path, str) and path):
-        return dict(item)
+        return _stamp_no_code_reason(dict(item), path=None)
     node_id = resolve_path_node(engine, path)
     if node_id is None:
         notes.drop("node", item["id"], "unresolved_path", path)
+        return _stamp_no_code_reason({**item, "node_id": node_id}, path=path)
     return {**item, "node_id": node_id}
+
+
+def _stamp_no_code_reason(node: dict, *, path: str | None) -> dict:
+    """Why a no-`node_id` node lacks one: `"planned"` > `"unresolved"` > `"conceptual"`."""
+    meta = node.get("meta")
+    plan_kind = meta.get("plan_kind") if isinstance(meta, dict) else None
+    if plan_kind in ("add", "create"):
+        reason, detail = "planned", None
+    elif path:
+        reason, detail = "unresolved", path
+    else:
+        reason, detail = "conceptual", None
+    base_meta = meta if isinstance(meta, dict) else {}
+    new_meta = {**base_meta, "no_code_reason": reason}
+    if detail is not None:
+        new_meta["no_code_detail"] = detail
+    return {**node, "meta": new_meta}
 
 
 def _keep_parent(node: dict, node_ids: set[str], notes: Diagnostics) -> dict:
@@ -107,13 +126,14 @@ def resolve_diagram(engine: GraphEngine, data: dict, *, style_source: object = N
         assert isinstance(item, dict)
         relations.append({**item, "style": _relation_style(item, edge_style)})
 
-    return {
+    resolved = {
         **data,
         "nodes": nodes,
         "relations": relations,
         "groups": _groups_of(nodes, overrides),
         "diagnostics": notes.as_payload(),
     }
+    return attach_origins(engine, resolved)
 
 
 def authored_paths(data: dict) -> set[str]:
@@ -128,6 +148,49 @@ def authored_paths(data: dict) -> set[str]:
 def attach_coverage(resolved: dict, engine: GraphEngine) -> dict:
     """Adds `unmapped` (c1_coverage's blind spots) from every node's own `path` (FR-006)."""
     return {**resolved, "unmapped": uncovered_roots(engine, authored_paths(resolved)).entries}
+
+
+def attach_origins(engine: GraphEngine, resolved: dict) -> dict:
+    """Stamps `meta.origin` (`file:line`) on each relation whose source endpoint maps to a node.
+
+    Origin answers "where in code does this dependency come from" -- a click on the edge lands
+    there. It is a property of the *source* (calling) node, derived on demand from that node's
+    symbol via `engine.edge_origin(from_id)`; there is no persisted edge map to desync. A relation
+    stays as-is when its source endpoint has no `node_id` (conceptual, planned) or the engine has
+    no symbol for it. Merges into existing `meta`, never clobbers.
+    """
+    edge_origin = getattr(engine, "edge_origin", None)
+    if edge_origin is None:
+        return resolved
+    node_id_by_author_id: dict[str, str] = {
+        node["id"]: node["node_id"]
+        for node in resolved.get("nodes") or []
+        if isinstance(node, dict)
+        and isinstance(node.get("id"), str)
+        and isinstance(node.get("node_id"), str)
+    }
+    if not node_id_by_author_id:
+        return resolved
+
+    relations = []
+    for rel in resolved.get("relations") or []:
+        if not (
+            isinstance(rel, dict)
+            and isinstance(rel.get("from"), str)
+            and isinstance(rel.get("to"), str)
+        ):
+            relations.append(rel)
+            continue
+        from_node = node_id_by_author_id.get(rel["from"])
+        origin = edge_origin(from_node) if from_node else None
+        if origin is None:
+            relations.append(rel)
+            continue
+        meta = rel.get("meta")
+        relations.append(
+            {**rel, "meta": {**(meta if isinstance(meta, dict) else {}), "origin": origin}}
+        )
+    return {**resolved, "relations": relations}
 
 
 def attach_staleness(

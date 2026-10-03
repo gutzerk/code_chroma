@@ -44,6 +44,7 @@ export function NoteElement({ element }: NoteElementProps) {
     <div
       className={`canvas-note-box${isDragging ? " canvas-note-box--dragging" : ""}`}
       data-testid="canvas-note-box"
+      data-canvas-element
       style={{
         position: "absolute",
         left: element.position.x - width / 2 + offset.x,

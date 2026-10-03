@@ -12,12 +12,17 @@ export function useLatchedMount(isOpen: boolean): boolean {
   return mounted;
 }
 
-/** The open/closed half every dock-panel store used to re-type (research, wizard, terminal,
- * inspector all carried the same 20 lines). In-memory only, resets on reload; its singletons are
- * marked global (markGlobalStore) so panel chrome survives a workspace switch (see createStore's
+/** The open/closed half every dock-panel store used to re-type (wizard, terminal, inspector all
+ * carried the same 20 lines). In-memory only, resets on reload; its singletons are marked global
+ * (markGlobalStore) so panel chrome survives a workspace switch (see createStore's
  * doc). */
 export class PanelStore extends Store {
-  private isOpenState = false;
+  private isOpenState: boolean;
+
+  constructor(defaultOpen = false) {
+    super();
+    this.isOpenState = defaultOpen;
+  }
 
   getIsOpen = (): boolean => this.isOpenState;
 

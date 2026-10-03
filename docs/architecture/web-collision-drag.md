@@ -16,7 +16,9 @@ given its size.
   `PanelResizeHandle` markup both used to duplicate; `CodePopup` still calls the bare hook
   directly). Participants today are the C1 box anchors, the Patterns view's nodes, the Epics view's
   work-item boxes, the hierarchy view's top-level System boxes (`TopLevelChildren.tsx`), `PlanPanel`
-  and `C1ChangePanel`, each a mover *and* an obstacle; boxes below the top level still use flow
+  and `C1ChangePanel`, and the one-canvas recipe boxes (`CanvasNodeBox`, solo drag only — its 2+
+  multi-select group drag stays a free `useGroupDrag` move; see [`single-canvas.md`](single-canvas.md)),
+  each a mover *and* an obstacle; boxes below the top level still use flow
   layout and are out of scope, and there is deliberately **no** bulk "Arrange" (it would move blocks the user never touched,
   with no undo) — existing overlaps in a saved `c1-layout.json` resolve as blocks get dragged.
   ⚠ Box placement staying manual is *why* edge routing is not: since nothing may reposition a box to
@@ -33,7 +35,12 @@ given its size.
   `.canvas-content` rather than rendered in place: the panels clip their overflow. On release the
   element gets a `SETTLE_MS` transition and `onEnd` fires on `transitionend` (with a timeout
   fallback, since it can fail to fire) so what reaches `c1-layout.json` is the corrected landing,
-  then one `canvasLayoutStore` bump recomputes the arrows.
+  then one `canvasLayoutStore` bump recomputes the arrows. ⚠ `useCollisionAvoidance` owns `onPreview`
+  itself (it drives the ghost), so a caller that also needs the raw live offset — e.g.
+  `CanvasNodeBox`, which pushes it into `dragOffsetStore` so the canvas arrows (and the group/diagram
+  frames, `CanvasEdges`) keep following the block — reaches it through the hook's separate, synchronous
+  `onLiveOffset` option instead, which fires on the same render clock the block's own `offset` moves on
+  (unlike the rAF-throttled `onPreview` ghost solve, which would trail the box a frame behind).
 
   A second, independent drag mode sits alongside solo collision-avoidance: Miro-style multi-select
   + group drag. `state/selectionStore.ts` tracks the current selection (shift/ctrl-click toggle,
@@ -56,13 +63,13 @@ given its size.
   settle-beside-a-neighbour behavior. C1's `DraggableAnchor` keeps
   its own copy since its dagre box id and canvas node id are separate namespaces, needing
   `useSelectionAwareDrag`'s `dragId`/`dragIdForSelectionId` remapping that the plain case doesn't.
-  ⚠ The hierarchy strategies' own `useNodeChrome` (shared by `strategies/boxes/Block.tsx` and
-  `strategies/tree/TreeNode.tsx`) used to wire shift/ctrl-click selection onto every node at every
-  depth in both strategies, using the same global `selectionStore` — even though only the top-level
-  boxes `TopLevelChildren.tsx` renders are ever a real group-drag participant (the tree strategy has
-  no draggable participant at all). That let a click anywhere in the tree/code view join
-  `selectionStore`, visibly highlighting a non-participant row and polluting a real group drag with
-  ids no drag ever moves. `useNodeChrome` now takes a `selectable` flag (default `false`); only
+  ⚠ The hierarchy's `useNodeChrome` (shared by `strategies/boxes/Block.tsx` and `TreeNode.tsx`,
+  the latter used as a Block interior for e.g. the C1 view) used to wire shift/ctrl-click selection
+  onto every node at every depth, using the same global `selectionStore` — even though only the
+  top-level boxes `TopLevelChildren.tsx` renders are ever a real group-drag participant. That let a
+  click anywhere in the tree/code view join `selectionStore`, visibly highlighting a non-participant
+  row and polluting a real group drag with ids no drag ever moves. `useNodeChrome` now takes a
+  `selectable` flag (default `false`); only
   `TopLevelChildren.tsx`'s `Block` instance passes `selectable` — every other node, at any depth in
   either strategy, ignores shift/ctrl-click's selection semantics entirely (falls through to its
   normal click action instead) and can never carry `block-selected`.

@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { reportAsyncError } from "../util/reportError";
 import { listCallSites, type CallSitesResponse } from "./llmSettingsClient";
 
-export type CallSiteGroupId = "diagrams" | "research" | "planning";
+export type CallSiteGroupId = "diagrams" | "planning";
 
 // Several gated buttons can mount at once (ImpactChangeSummary, WikiGeneralNotice, the diagram/epic-brief
 // wizards) -- one shared in-flight request instead of one per consumer. Cleared once it settles, so

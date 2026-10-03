@@ -53,6 +53,12 @@ export async function refreshDiffs(
   await Promise.all([
     ...entries
       .filter((entry) => entry.status !== "deleted")
+      // A whole-file `level: "file"` entry exists so the Impact layer's merged `component::<path>`
+      // box carries a diff; Diff mode must not also reveal/expand it. Its changed functions are
+      // already separate entries that reveal the same ancestor chain and show their own code, so
+      // walking + expanding the file container again would only duplicate the reveal (and for a
+      // file with no parseable functions, the change-cards `_file_cards` path covers it).
+      .filter((entry) => entry.level !== "file")
       .map(async (entry) => {
         await revealNode(entry.node_id, engineClient, nodeRefs, signal);
         revealDiffEntry(entry);
@@ -144,7 +150,7 @@ function publish(
   cards: ChangeCard[],
   byNodeStatus: Record<string, string> | null,
 ): void {
-  diffOverlayStore.setDiffs(diffs);
+  diffOverlayStore.write(diffs, true);
   changeCardStore.setSteps(cards);
   if (byNodeStatus) hierarchyChangesStore.setStatuses(byNodeStatus);
   else hierarchyChangesStore.clear();

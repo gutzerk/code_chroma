@@ -46,6 +46,7 @@ export function SoftAreaFrame({
     <div
       className={className}
       data-testid={testId}
+      data-canvas-element
       style={{
         position: "absolute",
         left: left - padding.side,

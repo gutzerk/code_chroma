@@ -14,10 +14,9 @@ No backend process, database, or API key is required. The app talks to a fixture
 bridge** (`src/engine-client/mockBridge.ts`) instead of a real engine, so this works entirely
 offline.
 
-> The mock bridge stands in for the real HTTP+WebSocket bridge described in
-> `contracts/canvas-bridge-api.md`, which doesn't exist yet. Pointing the canvas at your own real
-> codebase isn't possible until that bridge is built — this quickstart is about exploring the UI
-> itself.
+> This quickstart explores the UI against the fixture mock, fully offline. The mock stands in for
+> the real HTTP+WebSocket bridge (`src/codechroma/bridge/`) — point the canvas at your own codebase
+> following the root [`QUICKSTART.md`](../QUICKSTART.md#3-start-the-canvas-on-your-repo-one-command).
 
 ## 1. Prerequisites
 
@@ -87,10 +86,9 @@ toolbar (default: Inline):
 
 ## 5. See what changed since your last commit (Diff)
 
-The **Diff** button in the top toolbar reveals every function whose source differs from git HEAD:
-it expands each changed function in place, shows a before/after diff in its box, and frames all of
-them on screen at once. Click **Diff** again to collapse those boxes back and return to the view
-you had before.
+The **Diff** toggle reveals every function whose source differs from git HEAD: it marks each
+changed function, shows a before/after diff, and frames all of them at once. Toggle it off again to
+collapse those back to your previous view.
 
 By default this runs against the fixture mock, so it always shows two canned changes. To diff a
 **real** git working tree, point the canvas at the bridge backend (run from the repo root):
@@ -107,21 +105,22 @@ different tree with `codechroma_BRIDGE_REPO_PATH=/path/to/repo` (must be inside 
 
 ## 6. System-context diagram (C1)
 
-The **C1** button in the top toolbar switches from the hierarchy canvas to a system-context view:
-the project as one box, with the people/external systems it talks to around it and labeled
-relationship arrows between them. Against this fixture demo it shows a canned diagram (a developer
-actor and a payment-provider external system); against a real bridge it reads
-`.codechroma/c1.json`, which the bridge can bootstrap-generate via Claude on first launch (if
-`ANTHROPIC_API_KEY` is set) or which an AI assistant writes on request via the `codechroma-c1` skill
-— see the root [`QUICKSTART.md`](../QUICKSTART.md#4a-system-context-diagram-c1) for the full flow.
+The **C1** layer is a system-context view on the canvas: the project as one box, with the
+people/external systems it talks to around it and labeled relationship arrows between them.
+Diagrams (C1, Design Patterns, Epics, Sequence, trace, custom) are layers of the one canvas, shown
+over the hierarchy and toggled from the **Diagrams** tab. Against this fixture demo it shows a
+canned diagram (a developer actor and a payment-provider external system); against a real bridge it
+reads `.codechroma/c1.json`, which the bridge can bootstrap-generate via Claude on first launch (if
+`ANTHROPIC_API_KEY` is set) or which an AI assistant writes on request via the `codechroma-c1`
+skill — see the root [`QUICKSTART.md`](../QUICKSTART.md#4a-system-context-diagram-c1) for the full
+flow.
 
 C1 boxes expand in place: click the system box or an actor to reveal its agent-authored sub-blocks
 (e.g. the payment provider opens into its payment client), and a sub-block whose path resolved to a
 real graph node drills straight into the actual hierarchy — folders, files, classes, down to source
-code — exactly like the main canvas. Try it in the fixture demo: expand **Payment Provider** →
-**Payment client** → `payment_client.py` → `PaymentClient` → **Show code**. A sub-block whose path
-no longer exists shows a "Path not found" note instead. Click **C1** again to return to the
-hierarchy canvas.
+code. Try it in the fixture demo: expand **Payment Provider** → **Payment client** →
+`payment_client.py` → `PaymentClient` → **Show code**. A sub-block whose path no longer exists
+shows a "Path not found" note instead.
 
 ## 7. What's *not* in this demo
 
@@ -133,17 +132,11 @@ function/file code view above, and the C1 system-context view — is live in thi
 Nothing you do here modifies real code — this whole demo is read-only, in-memory fixture data, and
 nothing is persisted or reflected in the URL — reloading the page resets everything.
 
-## 8. Try a different rendering strategy
+## 8. Where the hierarchy and the diagrams live
 
-How the hierarchy is drawn (nested boxes, or an indented tree; pie/graph etc. later) is chosen once
-at startup via `VITE_CANVAS_STRATEGY` — it can't be switched while the app is running:
-
-```bash
-VITE_CANVAS_STRATEGY=boxes npm run dev   # nested boxes
-VITE_CANVAS_STRATEGY=tree npm run dev    # indented tree (default)
-```
-
-An unset or unrecognized value falls back to `tree`.
+There is no rendering-strategy switch — `VITE_CANVAS_STRATEGY`/`?strategy=` was removed. The code
+hierarchy (System → … → Code) is shown as an indented **Project tree** panel, while the main canvas
+renders diagram layers (C1, Design Patterns, Epics, Sequence, trace, custom) as nested boxes.
 
 ## Next steps
 

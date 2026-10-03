@@ -307,6 +307,60 @@ def test_c1_lone_disconnected_actor_stays_orphan_not_island():
     assert not any(line.startswith("ISLAND") for line in report.shape)
 
 
+# --- articulation points (bridge/hub advisories) ---
+
+
+def test_a_bridge_node_is_reported_as_an_articulation_advisory():
+    diagram = _flat_diagram(
+        [{"id": f"n{i}", "name": f"N{i}"} for i in range(3)],
+        relations=[
+            {"from": "n0", "to": "n1", "label": "a"},
+            {"from": "n1", "to": "n2", "label": "b"},
+        ],
+    )
+
+    report = inspect(diagram, CheckConfig(shape="flat"))
+
+    assert any("'n1' is a bridge" in line for line in report.advisories)
+
+
+def test_a_two_node_edge_has_no_bridge():
+    diagram = _flat_diagram(
+        [{"id": f"n{i}", "name": f"N{i}"} for i in range(2)],
+        relations=[{"from": "n0", "to": "n1", "label": "a"}],
+    )
+
+    report = inspect(diagram, CheckConfig(shape="flat"))
+
+    assert not any(line.startswith("ARTICULATION") for line in report.advisories)
+
+
+def test_a_node_inside_a_cycle_is_never_a_bridge():
+    diagram = _flat_diagram(
+        [{"id": f"n{i}", "name": f"N{i}"} for i in range(3)],
+        relations=[
+            {"from": "n0", "to": "n1", "label": "a"},
+            {"from": "n1", "to": "n2", "label": "b"},
+            {"from": "n2", "to": "n0", "label": "c"},
+        ],
+    )
+
+    report = inspect(diagram, CheckConfig(shape="flat"))
+
+    assert not any(line.startswith("ARTICULATION") for line in report.advisories)
+
+
+def test_a_complete_k5_every_node_is_a_hub_but_never_a_bridge():
+    nodes = [{"id": f"n{i}", "name": f"N{i}"} for i in range(5)]
+    relations = [{"from": f"n{i}", "to": f"n{j}", "label": "a"}
+                 for i in range(5) for j in range(i + 1, 5)]
+
+    report = inspect(_flat_diagram(nodes, relations), CheckConfig(shape="flat"))
+
+    assert any("'n0' is a hub" in line for line in report.advisories)
+    assert not any("is a bridge" in line for line in report.advisories)
+
+
 def test_c1_nested_leaves_count_as_connected_via_containment():
     diagram = _hierarchical_diagram(
         [
@@ -401,6 +455,41 @@ def test_hierarchical_unwired_planned_leaf_is_still_an_orphan():
     report = inspect(diagram, CheckConfig(shape="hierarchical"))
 
     assert any(line.startswith("ORPHAN 'new_fn'") for line in report.shape)
+
+
+def test_hierarchical_conceptual_leaf_is_not_broken():
+    # diagram_resolver.py's _stamp_no_code_reason: a real conceptual box, resolver-stamped.
+    diagram = _hierarchical_diagram(
+        [
+            {"id": "system", "name": "Sys"},
+            {"id": "a", "name": "A", "kind": "external_system"},
+            {
+                "id": "concept_leaf", "name": "concept_leaf", "parent": "a",
+                "meta": {"no_code_reason": "conceptual"},
+            },
+        ]
+    )
+
+    report = inspect(diagram, CheckConfig(shape="hierarchical"))
+
+    assert not any(line.startswith("BROKEN") for line in report.broken)
+
+
+def test_hierarchical_unresolved_leaf_is_still_broken():
+    diagram = _hierarchical_diagram(
+        [
+            {"id": "system", "name": "Sys"},
+            {"id": "a", "name": "A", "kind": "external_system"},
+            {
+                "id": "bad_leaf", "name": "bad_leaf", "parent": "a",
+                "meta": {"no_code_reason": "unresolved", "no_code_detail": "src/gone.py"},
+            },
+        ]
+    )
+
+    report = inspect(diagram, CheckConfig(shape="hierarchical"))
+
+    assert any(line.startswith("BROKEN bad_leaf") for line in report.broken)
 
 
 def test_hierarchical_modify_leaf_with_unresolved_path_is_still_broken():

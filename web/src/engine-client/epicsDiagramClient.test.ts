@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import { EpicsDiagramClient } from "./epicsDiagramClient";
-import { IMPACT_CHANGES_STUB, EPICS_STUB, RESEARCH_STUB, EPIC_BRIEF_STUB } from "./stubEngineClient";
+import { IMPACT_CHANGES_STUB, EPICS_STUB, EPIC_BRIEF_STUB } from "./stubEngineClient";
 import type { EngineClient } from "./EngineClient";
 import type { EpicStage, EpicWorkItem } from "../state/types";
 
@@ -27,7 +27,6 @@ function innerClient(getEpicsItem = vi.fn(async () => ITEM)): EngineClient {
   return {
     ...IMPACT_CHANGES_STUB,
     ...EPICS_STUB,
-    ...RESEARCH_STUB,
     ...EPIC_BRIEF_STUB,
     getNode: vi.fn(async () => null),
     getChildren: vi.fn(async () => []),

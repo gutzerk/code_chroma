@@ -72,9 +72,8 @@ already explains it:
 2. **Still open? Grep/read the source directly** for that one path — cheap, and often enough once
    Wiki-first already narrowed down where to look.
 
-🔴 **Never call `POST /repos/{id}/research` from this skill.** That route backs the standalone
-Research panel, not a Draw pass. If docs and source still don't answer the question after both steps
-above, note the gap in your final message rather than reaching for search.
+If docs and source still don't answer the question after both steps above, note the gap in your
+final message rather than reaching for search.
 
 This is a docs pass, not a replacement for the Wiki-first fetch order above — do the Step 0/1
 wiki checks first for what you already know you need; this is only for what those two steps didn't
@@ -105,6 +104,16 @@ you used**:
 
 A `FileWatcher` on that exact path (a `DirWatcher` on `.codechroma/diagrams/custom/`) pushes a live update to
 the canvas — wrong path, nothing appears, no error.
+
+**Never overwrite an existing diagram silently.** Before writing the file, check whether an artifact
+for this kind already exists at the resolved path (`ls` the exact absolute path, or `[ -f ... ]`). If it
+does, do **not** replace it on your own — the canvas shows one diagram per layer, and replacing it
+destroys the previous one with no undo (`.codechroma/` is gitignored). Instead:
+- If the request is to *draw a fresh/new* diagram and one already exists, **stop and ask the user**
+  whether to replace the existing one (names/participants are unlikely to survive the overwrite).
+- If the request is to *update/redraw* an existing diagram, proceed, but say so explicitly in your
+  final report ("replaced the existing `<kind>` diagram with a new one").
+Only skip the check when the endpoint's response (or your own `ls`) shows no file yet.
 
 **Report your own progress (`c1` only — no other kind has a `.../status` route).** A headless
 `/generate` run flips its own "generating" status automatically; your interactive run does the same
@@ -144,7 +153,12 @@ numbers in ordinary use. Treat these as the wall, never the goal.
 | c1 | 60 | 60 | 40 | 50 |
 | patterns | 45 | 70 | 40 | 50 |
 | impact | 25 | 40 | 40 | 40 |
+| epics | 60 | 60 | 60 | 50 |
 | custom | 60 | 100 | 40 | 50 |
+| sequence | 24 | 60 | 40 | 60 |
+
+`sequence`'s "nodes" are its participants (kept tight at 24 — a readable diagram has a handful of
+boxes across the top), and its "relations" are its messages (the real story, capped higher at 60).
 
 `impact`'s 25 is low **on purpose**: its slice is one-hop by construction, so a big impact diagram
 means you dumped the repo instead of judging the slice. `patterns` has the opposite failure mode —
@@ -206,14 +220,20 @@ identity *is* a specific named product. One of the recognized slugs below; set i
 confident the box genuinely *is* that product — never guess a slug to decorate a generic box, and
 never invent one that isn't in this list:
 
-`anthropic, apachekafka, auth0, bitbucket, circleci, cloudflare, confluence, datadog,
-digitalocean, docker, elastic, elasticsearch, figma, firebase, github, githubactions, gitlab,
-googlecloud, grafana, hubspot, influxdb, jira, kubernetes, mariadb, mongodb, mysql, netlify,
-newrelic, nginx, okta, pagerduty, paypal, postgresql, prometheus, rabbitmq, redis, render,
-sentry, sqlite, stripe, supabase, terraform, vercel, zendesk`.
+`anthropic, apachekafka, auth0, bedrock, bitbucket, circleci, claude, claudecode, cloudflare,
+confluence, datadog, digitalocean, docker, elastic, elasticsearch, figma, firebase, gemini,
+github, githubactions, gitlab, googlecloud, grafana, hubspot, influxdb, jira, kubernetes,
+langchain, mariadb, mistral, mongodb, mysql, netlify, newrelic, nginx, okta, ollama, openai,
+pagerduty, paypal, postgresql, prometheus, rabbitmq, redis, render, sentry, sqlite, stripe,
+supabase, terraform, vercel, zendesk`.
 
-⚠ Some well-known brands (AWS, Azure, Slack, OpenAI, Twilio, SendGrid) are **not** in this list —
-they were withdrawn from the underlying icon set on trademark request, not omitted by mistake. Don't
+The set is sourced from two places: `web/src/icons/brands.generated.ts` (simple-icons, includes
+`anthropic`) plus `web/src/icons/brandLobe.ts` (lobe-icons, MIT) for the LLM/AI marks simple-icons
+withdrew on trademark request — `claude`, `claudecode`, `openai`, `gemini`, `langchain`, `mistral`,
+`ollama`, `bedrock`.
+
+⚠ Some well-known brands (AWS, Azure, Slack, Twilio, SendGrid) are still **not** in this list —
+they were withdrawn from the underlying icon sets on trademark request, not omitted by mistake. Don't
 substitute a lookalike slug for one of these; leave `icon` unset and let `kind` (or nothing) carry
 it. An unrecognized slug renders exactly like an unset one — a silent, harmless fallback — but still
 only use a slug from this list.
@@ -232,7 +252,12 @@ only use a slug from this list.
 One command shape, run from the repo the bridge serves:
 
 ```bash
-python3 .claude/skills/codechroma-draw-diagram/scripts/check_diagram.py --kind <c1|patterns|impact|custom> [--type <type-id>] [--source=diff|plan] [--feature=<dir>]
+python3 .claude/skills/codechroma-draw-diagram/scripts/check_diagram.py --kind <c1|patterns|impact|custom|epics> [--type <type-id>] [--source=diff|plan] [--feature=<dir>] [--json <file>]
+```
+
+`epics` reads the bridge's resolved `epics.json` when given no `--json`; a per-epic diagram
+(`epics/<epic_id>`, no resolved-GET route) is checked by pointing `--json` at the file it was written
+to (`type-epics.md`).
 ```
 
 It fetches the bridge's resolved diagram, prints one line per finding, and exits non-zero unless
@@ -303,7 +328,9 @@ the only per-type variation, nothing else in the shape differs (see
   relation follows the same allow-listed CSS properties.
 - `meta` — an open bag for type-specific fields (`status`, `confirmed`, `confidence`, `order`,
   `lane`, ...), never read by the shared resolver/renderer. Put anything that isn't one of the fields
-  above here.
+  above here. There is **no** `critically` field anymore — the `bridge`/`hub` meta-stamp and its
+  canvas chip were removed as dead weight (a bridge/hub box already visibly converges arrows).
+  Fragility is surfaced only by the self-check's `ARTICULATION` advisory; never author it.
 - `meta.order` — an authored, optional step number (`"1"`, `"2"`, `"2a"`/`"2b"` for two things
   happening at once) recording a box's place in a process the diagram describes (CONTEXT.md's
   "Order"). Only meaningful for a diagram that actually shows a process/flow (most custom diagrams);
@@ -395,18 +422,22 @@ The user wants a diagram none of the four rows covers. In this order:
    - Exact pixel placement doesn't matter; landing outside every existing diagram's box does.
    🔴 **Resolve a real `node_id` for every box whose description names an actual file, before you
    write the `add_element` op — never leave it `null` "because there's no function-level graph".**
-   This path has no self-check to catch a missed one, and a path-less box isn't a neutral "this is
-   conceptual" signal here: clicking it opens `InspectorPanel`, not the description popup
-   (`highlight-process.md`'s Planned-block popup route only applies to `meta.plan_kind`), so it
-   fails with "This node no longer exists" the moment a real user clicks — a real, observed incident
-   (a process-trace diagram authored with every `node_id` left `null`, even for boxes whose
+   This path has no self-check to catch a missed one, and a path-less box needs its own explicit
+   signal here: it never runs through `resolve_diagram()` (`diagram_resolver.py`'s
+   `_stamp_no_code_reason`), the one place `meta.no_code_reason` gets computed automatically for
+   every other diagram type. Without it, clicking the box opens `InspectorPanel`, not the description
+   popup, and fails with "This node no longer exists" the moment a real user clicks — a real, observed
+   incident (a process-trace diagram authored with every `node_id` left `null`, even for boxes whose
    description literally named the source file). `GET /structure?root=dir::<pkg>&depth=1` gives you
    file-level `node_id`s (`component::<path>`) even when the graph has no function-level nodes — use
    the file it lives in, never `null`, for any box that maps to real code. **If you're copying the
    shape of an existing freeform diagram as a starting template, re-verify its `node_id`s are real
    too — don't propagate a `null` you're copying from one diagram into the next one.** Leave `node_id`
    unset only for a genuinely conceptual box with no owning file (an external actor, a decision gate
-   that isn't itself a line of code).
+   that isn't itself a line of code) — and when you do, also set
+   `"meta": {"no_code_reason": "conceptual"}` on the `add_element` op itself. The canvas honors it
+   exactly like a resolver-computed one: a dotted border, a CONCEPTUAL chip, and a click opens the
+   description popup with your box's own `description` instead of the Inspector's misleading message.
 5. **Obey the density budgets above, using the `custom` row** (60 nodes / 100 relations / 40-char
    names / 50-char edge labels), and every anti-pattern in this file still applies.
 

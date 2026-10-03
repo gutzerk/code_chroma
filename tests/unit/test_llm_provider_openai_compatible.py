@@ -100,7 +100,12 @@ def test_base_url_trailing_slash_is_stripped(monkeypatch):
     assert captured["url"] == "http://x/v1/chat/completions"
 
 
-def test_verify_ssl_defaults_to_true(monkeypatch):
+@pytest.mark.parametrize(
+    "verify_ssl,expect_verify",
+    [(None, True), (False, False)],
+    ids=["defaults_to_true", "false_is_passed_through"],
+)
+def test_verify_ssl(monkeypatch, verify_ssl, expect_verify):
     captured = {}
 
     def fake_post(url, json, headers, timeout, verify=True):
@@ -109,24 +114,9 @@ def test_verify_ssl_defaults_to_true(monkeypatch):
 
     monkeypatch.setattr("codechroma.context.llm_provider.httpx.post", fake_post)
 
-    OpenAICompatibleProvider(base_url="http://x/v1", api_key=None).complete(
+    kwargs = {"verify_ssl": verify_ssl} if verify_ssl is not None else {}
+    OpenAICompatibleProvider(base_url="http://x/v1", api_key=None, **kwargs).complete(
         user="hi", model="m", max_tokens=10
     )
 
-    assert captured["verify"] is True
-
-
-def test_verify_ssl_false_is_passed_through_to_httpx(monkeypatch):
-    captured = {}
-
-    def fake_post(url, json, headers, timeout, verify=True):
-        captured["verify"] = verify
-        return _FakeResponse({"choices": [{"message": {"content": "ok"}}]})
-
-    monkeypatch.setattr("codechroma.context.llm_provider.httpx.post", fake_post)
-
-    OpenAICompatibleProvider(base_url="http://x/v1", api_key=None, verify_ssl=False).complete(
-        user="hi", model="m", max_tokens=10
-    )
-
-    assert captured["verify"] is False
+    assert captured["verify"] is expect_verify

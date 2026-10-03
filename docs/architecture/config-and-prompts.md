@@ -50,8 +50,8 @@ mutating `settings` — every model is frozen.
 `prompts/<name>.yaml` holds the prompt(s) for the module of the same name (`ai_summarizer.yaml`,
 `patterns_generator.yaml`, `c1_agent.yaml`, `patterns_agent.yaml`,
 `impact_review_agent.yaml` (the review axis moved here from `c1_review_agent.yaml` post-038), plus
-one per composite/bare skill runner added since — `research_agent.yaml`, `epic_brief_agent.yaml`,
-…), keyed `system:`/`user:`/`prompt:`.
+one per composite/bare skill runner added since — `epic_brief_agent.yaml`, …), keyed
+`system:`/`user:`/`prompt:`.
 `prompts/__init__.py`'s
 `render_prompt(name, key="prompt", **variables)` reads it back (cached via `functools.cache`) and,
 **only if `variables` are passed**, `.format(**variables)`s the template.

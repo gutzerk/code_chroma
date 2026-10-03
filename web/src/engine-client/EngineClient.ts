@@ -22,7 +22,7 @@ import type {
   HierarchyNodeRef,
   ImpactChanges,
   LayoutKind,
-  ResearchJobState,
+  SourceFragment,
   Trace,
   TraceStreamMessage,
   TraceSummary,
@@ -204,12 +204,13 @@ export interface EngineClient {
   /** One fully-loaded work item (GET /repos/{id}/epics/items/{id}); `expand` names one stage node
    * id to populate its sections. Rejects with a readable message on 404. */
   getEpicsItem(itemId: string, expand?: string): Promise<EpicWorkItem>;
-  /** Asks a natural-language question (POST /repos/{id}/research?q=...) — answers inline if
-   * degraded or already cached, else starts (or attaches to) a background synthesis job. */
-  askResearch(query: string): Promise<ResearchJobState>;
-  /** Polls one question's job (GET /repos/{id}/research/{jobKey}) for its state and, once done,
-   * its answer. */
-  getResearchAnswer(jobKey: string): Promise<ResearchJobState>;
+  /** A slice of a workspace file (GET /repos/{id}/source?path=..&start=..&end=..) — the backing
+   * text an epics block links to. Both line bounds optional; absent means the whole file. Optional
+   * on the interface so minimal test stubs don't all need it; callers guard with `?.`. */
+  getSourceFragment?(
+    path: string,
+    range?: { start?: number; end?: number },
+  ): Promise<SourceFragment>;
   /** Starts (or attaches to) an epic's AI-brief generation (POST /repos/{id}/epics/{itemId}/brief)
    * — a cached brief is returned inline without re-running the skill. `force` skips that cache and
    * regenerates the brief, even one already on disk. Rejects with a readable message on 404
@@ -601,12 +602,14 @@ export class HttpEngineClient implements EngineClient {
     return this.getJson<EpicWorkItem>(`/epics/items/${encodeURIComponent(itemId)}${query}`);
   }
 
-  askResearch(query: string): Promise<ResearchJobState> {
-    return this.postJson<ResearchJobState>(`/research?q=${encodeURIComponent(query)}`);
-  }
-
-  getResearchAnswer(jobKey: string): Promise<ResearchJobState> {
-    return this.getJson<ResearchJobState>(`/research/${encodeURIComponent(jobKey)}`);
+  async getSourceFragment(
+    path: string,
+    range?: { start?: number; end?: number },
+  ): Promise<SourceFragment> {
+    const params = new URLSearchParams({ path });
+    if (range?.start != null) params.set("start", String(range.start));
+    if (range?.end != null) params.set("end", String(range.end));
+    return this.getJson<SourceFragment>(`/source?${params}`);
   }
 
   generateEpicBrief(itemId: string, force?: boolean): Promise<EpicBriefJobState> {

@@ -1,0 +1,21 @@
+prompt: |-
+  /codechroma-draw-diagram type: epics — read references/type-epics.md and
+  references/drawing-rules.md before writing anything — draw ONE epic (the one the user named, or
+  the currently focused epic) as a brief drill-down diagram: the epic's content cards, plus a group
+  frame and one "spec" box per phase, and under each spec box ONE box per task (one box per task,
+  not a rolled-up counter — a real epic like EP-4 is epic → phase clusters → spec boxes → per-task
+  boxes). Do NOT draw the whole work-item portfolio.
+  Resolve the chosen epic's id from epics/context, then fetch its detail via
+  GET /repos/{id}/epics/items/{id}; if the user named no epic, ask which one first.
+  Write a fresh single-epic file to that epic's OWN path — ask the bridge for it via
+  GET /repos/{id}/epics/{epic_id}/diagram-path (the per-epic `epics/<epic_id>` diagram, one file per
+  epic, each its own canvas layer) — never overwrite a shared epics.json. The epic box's `render` is
+  "epic", each phase box's `render` is "spec", each task box's `render` is "task" — every spec/task
+  box carries meta.spec_of = the epic id.
+  🔴 Stamp each task box with meta.source_ref (the repo-root-relative `tasks.md` path it came from)
+  plus meta.line_start/meta.line_end (1-based inclusive — its OWN line range in that file, e.g.
+  31–31 for T001; several tasks share one tasks.md but each keeps only its own slice, never the
+  whole file) so the inspector's Linked file panel opens exactly that task's lines.
+  The epic's `group` is its business domain. Never give every block of the epic the same group that
+  wraps them all into one enclosing frame — the epic's blocks are not bound by a common frame — and
+  never draw a parent→child arrow for intra-epic nesting.

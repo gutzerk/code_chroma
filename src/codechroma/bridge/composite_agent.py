@@ -1,5 +1,5 @@
-"""The shared base behind the research and epic-brief runners (the custom-diagram and diagram-type
-composite kinds this once also covered are both retired -- see `skill_spec.py`'s own docstring).
+"""The shared base behind the epic-brief runner (the custom-diagram, diagram-type and research
+composite kinds this once also covered are all retired -- see `skill_spec.py`'s own docstring).
 
 Each composite-keyed kind builds a `SkillAgent` the same way: a `job_key` that is `{scope}:{item}`
 rather than a bare repo id, an artifact path that is the key's item half under a kind-specific dir,

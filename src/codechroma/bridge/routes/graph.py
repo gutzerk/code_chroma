@@ -15,7 +15,7 @@ from codechroma.context.digest import build_context_digest
 from codechroma.dependencies.digest import build_dependency_index, find_route
 from codechroma.engine import ROOT_SENTINEL
 from codechroma.graph.models import HierarchyLevel, HierarchyNode
-from codechroma.io import read_text, slice_lines
+from codechroma.io import read_text, safe_read_within, slice_lines
 
 router = APIRouter()
 
@@ -45,6 +45,9 @@ _LANGUAGE_BY_SUFFIX = _language_by_suffix()
 
 
 def language_for(file_path: str) -> str | None:
+    # .md isn't analyzable but has a highlighter, so tag it (others come from _LANGUAGE_BY_SUFFIX).
+    if Path(file_path).suffix in (".md", ".markdown"):
+        return "markdown"
     return _LANGUAGE_BY_SUFFIX.get(Path(file_path).suffix)
 
 
@@ -159,8 +162,21 @@ def get_children(ws: Ws, node_id: str) -> list[dict]:
 def get_connections(ws: Ws, node_id: str) -> list[dict]:
     dependencies = ws.engine.get_dependencies(node_id)
     dependents = ws.engine.get_dependents(node_id)
-    connections = [{"from_id": node_id, "to_id": dep.id} for dep in dependencies]
-    connections += [{"from_id": dep.id, "to_id": node_id} for dep in dependents]
+    # The caller's origin is the node itself — identical for every outgoing edge.
+    origin = ws.engine.edge_origin(node_id)
+    connections = [
+        {"from_id": node_id, "to_id": dep.id, "from_to": "depends_on", "origin": origin}
+        for dep in dependencies
+    ]
+    connections += [
+        {
+            "from_id": dep.id,
+            "to_id": node_id,
+            "from_to": "depended_on_by",
+            "origin": ws.engine.edge_origin(dep.id),
+        }
+        for dep in dependents
+    ]
     return connections
 
 
@@ -182,3 +198,22 @@ def get_node(ws: Ws, node_id: str) -> dict:
     if node is None or node.level == HierarchyLevel.CODE:
         raise HTTPException(status_code=404, detail=f"unknown node: {node_id}")
     return to_ref(ws, node, {})
+
+
+@router.get("/repos/{repo_id}/source")
+def get_source_fragment(
+    ws: Ws, path: str, start: int | None = None, end: int | None = None
+) -> dict:
+    """A file slice by 1-based inclusive `[start, end]` line range (both optional — absent is the
+    whole file). Serves an epics block's source links with the same `read_text`/`slice_lines` path
+    the node inspector uses; the path is confined to the workspace root."""
+    text = safe_read_within(ws.root, ws.root / path)
+    if text is None:
+        raise HTTPException(status_code=404, detail=f"unknown file: {path}")
+    if start is None and end is None:
+        content = text
+    else:
+        # `end` is optional: slice_lines' `splitlines()[a:b]` closes on its own when `end` is None,
+        # so no separate line count is needed here.
+        content = slice_lines(text, start or 1, end)
+    return {"path": path, "content": content, "language": language_for(path)}

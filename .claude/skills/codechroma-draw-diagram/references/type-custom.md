@@ -125,6 +125,14 @@ though the schema allows it. Follow the definition's `instructions` to keep the 
 - **When `grouping.enabled` is true, group genuinely distinct things.** Don't leave most boxes
   `group: null` — assign each one a real group the `instructions` calls for (layer, concern, ...).
   A type that says "organize by layer" should have every box in a layer, not a few stragglers.
+- **Use `group`, not `parent`, to nest a box on the canvas.** In the flat/custom pipeline `parent`
+  only folds into the node's metadata and does **not** draw a container frame — only `group` produces
+  a visible `GroupFrame`. A box that has `parent` but no `group` and no relation of its own renders
+  as a detached block: `check_diagram` flags it as `ORPHAN`. So a C2-style "components under a
+  container" box needs both `parent` (semantic nesting) **and** `group` (canvas grouping) — or a
+  relation — to stay connected. (The one carve-out: a box whose `parent` is a `pattern-instance` is a
+  *participant* — it connects via its instance box and is guarded by its own check, so it is not an
+  orphan.)
 - **Every box gets a real `description`** (one sentence explaining what it is in this diagram's
   terms), not empty or one word.
 - **Don't drop to a bare chain unless the type really is one.** Most flow/architecture types want

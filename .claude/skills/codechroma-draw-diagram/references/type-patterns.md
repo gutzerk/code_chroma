@@ -117,7 +117,10 @@ Rules:
   reuses `PatternRelationKind` — don't invent new values. `meta.confirmed: true` → renders solid; a
   heuristic candidate never yet reviewed (`meta.confirmed` absent/`null`) renders dashed with a
   Confirm prompt; `meta.confirmed: false` (rejected) never renders at all — see "Rejecting a
-  candidate" below.
+  candidate" below. **The instance box itself must appear as an endpoint of at least one
+  `relations[]` entry** (wire it to a realizing participant or a free-standing node). A confirmed
+  container with no edge of its own reads on canvas as an unrelated dead block, and the self-check
+  flags it (`ORPHAN ... no relation of its own`) — participants nested under it do not rescue it.
 - **A participant** — `parent` set to its instance's own `id`, plus `node_id`/`path` copied verbatim
   from `patterns/context`; never invent a class that doesn't exist. **Give every participant its own
   short `description`, not just the instance.** The heuristic never sets one (only your pass does),

@@ -23,8 +23,15 @@ from codechroma.io import is_within_dir, load_json, load_json_or_none, write_jso
 
 SCHEMA_VERSION = 1
 
-# `render` values a v1 element may carry; each maps to one entry in the web's `nodeStyles.tsx`.
-RENDER_KINDS = ("hierarchy", "c1", "pattern", "impact", "epic", "custom", "group", "note")
+# `render` values a v1 element may carry; each maps to one entry in the web's `nodeStyles.tsx`
+# (`web/src/canvas/doc/elementRules.ts`). `spec` is the story/user-story box of an epics brief —
+# `recipes.py`'s per-node render override authors it alongside the `epic` box, and the web styles it
+# (`elementRules.ts`'s `spec`), so it belongs in the allow-list even though no front-nodeStyle host
+# predates it.
+RENDER_KINDS = (
+    "hierarchy", "c1", "pattern", "impact", "epic", "spec", "task", "custom", "group", "note",
+    "sequence",
+)
 
 # Layers with no diagram of their own; must match diagramCatalog.ts's `NON_DIAGRAM_LAYERS` by hand.
 NON_DIAGRAM_LAYERS = frozenset({"default", "hierarchy"})
@@ -80,6 +87,12 @@ class Edge(BaseModel):
     style: dict[str, str] | None = None
     # pr-lens-style emphasis (Impact only, authored `relations[].hero`).
     hero: bool = False
+    # Call/transport token (`call`, `https`, `mcp`, ...) authored on `relations[].transport` --
+    # rendered as a second line under the arrow's label (see EdgeLabel).
+    transport: str | None = None
+    # `file:line` of the edge's caller (provenance), resolver-stamped from the source symbol --
+    # a click on the edge's label opens that code location.
+    origin: str | None = None
 
     model_config = {"populate_by_name": True}
 

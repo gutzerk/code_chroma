@@ -18,7 +18,7 @@ selection = the platform's default `claude` CLI, so FR-012's default is preserve
 
 | Surface | File | Effective setting |
 |---|---|---|
-| Skill-agent (diagram generation, research) | `bridge/skill_agent.py` `_run_claude` | the saved `cli` binary + `model` flag |
+| Skill-agent (diagram generation, epic briefs) | `bridge/skill_agent.py` `_run_claude` | the saved `cli` binary + `model` flag |
 | Parallel-agent windows (interactive PTY) | `terminal/agents.py` `agent_cli` | the saved `cli` binary; 061's `agent` kind routes through the LLM provider store instead |
 | One-shot C1/patterns generators | `context/llm_provider.py` `provider_from_env` | the saved API key (or key file) |
 

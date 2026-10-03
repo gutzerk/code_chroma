@@ -5,8 +5,8 @@ const LABELS: Record<AgentStatus, string> = {
   stopped: "Stopped",
   running: "Running",
   exited: "Crashed",
-  idle: "Idle — waiting for you",
-  blocked: "Waiting for your answer",
+  idle: "Idle",
+  blocked: "Blocked",
   working: "Working",
   foreign: "Running something else",
 };

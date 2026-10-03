@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import type { CanvasElement, HierarchyNodeRef } from "../../state/types";
 import { useEngineClient } from "../../engine-client/EngineClientContext";
 import { elementDragPointerDown } from "../useDragOffset";
-import { resolveStrategy } from "../strategies/registry";
+import { BoxesRenderer } from "../strategies/boxes";
 import { expansionStore } from "../../state/expansionState";
 import { useCanvasElementDrag } from "./useCanvasElementDrag";
 
@@ -11,18 +11,15 @@ const DEFAULT_HEIGHT = 96;
 
 export interface HierarchyElementProps {
   element: CanvasElement;
-  /** Used when the element carries no `meta.strategy` of its own; see the component's own doc. */
-  fallbackStrategy?: string;
 }
 
 /**
  * A hierarchy subtree pinned onto the one canvas ("Pin to canvas" in the plan's scenarios) — wraps
- * the existing boxes/tree strategy renderer at an (x, y) instead of drawing its own box, so
- * `Block.tsx`/`TreeNode.tsx`, `expansionState.ts` and lazy child fetch stay completely untouched (the
- * plan's own Decision: "the tree just gains an (x, y)"). `element.meta.strategy` picks boxes vs tree
- * (defaults to the app's own default via resolveStrategy(undefined)).
+ * the Boxes renderer at an (x, y) instead of drawing its own box, so `Block.tsx`, `expansionState.ts`
+ * and lazy child fetch stay completely untouched (the plan's own Decision: "the tree just gains an
+ * (x, y)"). The hierarchy always renders as nested boxes — there is no boxes-vs-tree choice anymore.
  */
-export function HierarchyElement({ element, fallbackStrategy }: HierarchyElementProps) {
+export function HierarchyElement({ element }: HierarchyElementProps) {
   const engineClient = useEngineClient();
   const [node, setNode] = useState<HierarchyNodeRef | null>(null);
   const nodeId = element.node_id;
@@ -45,9 +42,6 @@ export function HierarchyElement({ element, fallbackStrategy }: HierarchyElement
   );
 
   if (!node) return null;
-  const authored = typeof element.meta.strategy === "string" ? element.meta.strategy : undefined;
-  const strategy = resolveStrategy(authored ?? fallbackStrategy);
-  const NodeRenderer = strategy.NodeRenderer;
 
   return (
     <div
@@ -66,7 +60,7 @@ export function HierarchyElement({ element, fallbackStrategy }: HierarchyElement
       // shift-drag started anywhere inside it silently moves the pinned element instead.
       onPointerDown={elementDragPointerDown(handleProps)}
     >
-      <NodeRenderer node={node} />
+      <BoxesRenderer node={node} />
     </div>
   );
 }

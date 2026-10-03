@@ -11,7 +11,6 @@ export type RailIconName =
   | "patterns"
   | "branch"
   | "epics"
-  | "research"
   | "custom"
   | "impact"
   | "settings"
@@ -149,19 +148,6 @@ const PATHS: Record<RailIconName, ReactElement> = {
       <path fill="none" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" d="M7.4 8.45h5" />
       <rect x="3.3" y="10.9" width="1.9" height="1.9" fill="none" stroke="currentColor" strokeWidth="1" />
       <path fill="none" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" d="M7.4 11.85h5" />
-    </>
-  ),
-  // A magnifying glass — ask a question, get a cited answer.
-  research: (
-    <>
-      <circle cx="6.6" cy="6.6" r="4" fill="none" stroke="currentColor" strokeWidth="1.4" />
-      <path
-        fill="none"
-        stroke="currentColor"
-        strokeWidth="1.6"
-        strokeLinecap="round"
-        d="m9.7 9.7 3.5 3.5"
-      />
     </>
   ),
   // A gear — the assistant/settings control on the rail.

@@ -18,6 +18,12 @@ class DragOffsetStore extends Store {
   getAll = (): Record<string, LiveDragOffset> => this.offsets;
 
   set(id: string, offset: LiveDragOffset): void {
+    // Same-value no-op: solo drags now write on the render clock (see useCollisionAvoidance's
+    // onLiveOffset), and multiple raw pointermoves can map to the same offset before any frame
+    // is painted -- a broadcast without a value change is pure wasted re-render for every
+    // subscriber (frames, arrows, and the box itself).
+    const existing = this.offsets[id];
+    if (existing && existing.x === offset.x && existing.y === offset.y) return;
     this.offsets = { ...this.offsets, [id]: offset };
     this.emit();
   }

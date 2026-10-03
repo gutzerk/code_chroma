@@ -194,11 +194,24 @@ def resolve_patterns_diagram(engine: GraphEngine, graph: Graph, patterns_json: d
     leftovers = [item for item in leftovers if _keep_free_node(item, kind_notes)]
     all_nodes = _drop_rejected(merged + leftovers)
 
+    # A rejected instance's participants are dropped from nodes[] above, so any relation from a
+    # candidate (or authored entry) that references a dropped box is noise too -- dropping only the
+    # box would leave a dangling-endpoint relation that the resolver flags as "not drawn". Keep only
+    # relations whose both endpoints survive the node set.
+    surviving_ids = {node["id"] for node in all_nodes}
+    kept_relations = [
+        rel
+        for rel in candidate_relations + (authored.get("relations") or [])
+        if isinstance(rel, dict)
+        and rel.get("from") in surviving_ids
+        and rel.get("to") in surviving_ids
+    ]
+
     data = {
         "type": "patterns",
         "style": authored.get("style"),
         "nodes": all_nodes,
-        "relations": candidate_relations + (authored.get("relations") or []),
+        "relations": kept_relations,
         "generated_at": authored.get("generated_at"),
     }
     # Patterns has always allowed self-relations (e.g. a recursive call) regardless of style.

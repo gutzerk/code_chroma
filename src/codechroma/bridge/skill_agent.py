@@ -274,7 +274,7 @@ class SkillAgent:
 
     async def forget(self, repo_id: str) -> None:
         """Cancels and drops all of repo_id's state, including composite `{repo_id}:*` job keys."""
-        # Research/epic-brief/custom key jobs per item; unmatched, those entries leak forever.
+        # Epic-brief/custom key jobs per item; unmatched, those entries leak forever.
         prefix = f"{repo_id}:"
         keys = {
             key

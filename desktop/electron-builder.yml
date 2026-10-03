@@ -4,8 +4,6 @@ directories:
   output: dist
   buildResources: build
 
-icon: build/icon.png
-
 files:
   - out/**/*
   - launcher/**/*
@@ -20,7 +18,7 @@ extraResources:
 mac:
   target:
     - target: dmg
-  artifactName: CodeChroma-${version}-${arch}.${ext}
+      arch: [arm64, x64]
   category: public.app-category.developer-tools
   # Unsigned by design for now -- recipients right-click -> Open on first launch. To sign later,
   # drop these two lines and supply CSC_LINK / CSC_KEY_PASSWORD plus a notarize block.
@@ -39,10 +37,15 @@ nsis:
   allowToChangeInstallationDirectory: true
 
 linux:
-  maintainer: "dmitriiushakov <spartaxgboostspartaxgboost@gmail.com>"
   target:
     - target: deb
       arch: [x64]
     - target: AppImage
       arch: [x64]
+  # Unsigned by design -- the .deb/.AppImage install fine, Ubuntu just shows the standard
+  # "unverified publisher" prompt. Signing would need a paid OSS Maintainer key.
+  # Note: keep ${arch} literal as "x64" -- electron-builder's built-in arch mapping would emit
+  # "amd64" (deb) / "x86_64" (AppImage), which breaks the release-please.yml glob and the
+  # install_linux.sh asset filter, both of which match "-x64".
+  category: Development
   artifactName: CodeChroma-${version}-x64.${ext}

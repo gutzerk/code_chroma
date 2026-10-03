@@ -33,8 +33,19 @@ _PATTERNS_BUDGET = {
 _IMPACT_BUDGET = {
     "max_nodes": 25, "max_relations": 40, "max_name_chars": 40, "max_edge_label_chars": 40,
 }
+# Sized for one focused epic (not a portfolio) -- but a full-graph epic (EP-4 canvas customization)
+# nests epic → 5 spec clusters → 26 tasks, ~33 nodes, so the cap is generous enough for that too.
+_EPICS_BUDGET = {
+    "max_nodes": 60, "max_relations": 60, "max_name_chars": 60, "max_edge_label_chars": 50,
+}
 CUSTOM_BUDGET = {
     "max_nodes": 60, "max_relations": 100, "max_name_chars": 40, "max_edge_label_chars": 50,
+}
+# A sequence diagram's "nodes" are its participants (few) and its "relations" are its messages
+# (many) -- so the node side stays tight while the relation side is the story. Sized for one
+# focused flow: a handful of participants, up to a couple dozen ordered messages.
+_SEQUENCE_BUDGET = {
+    "max_nodes": 24, "max_relations": 60, "max_name_chars": 40, "max_edge_label_chars": 60,
 }
 # Same wiring hints every built-in/custom type has always gotten (pre-037's `_*_ISLAND_HINT`s).
 PATTERNS_ISLAND_HINT = (
@@ -48,6 +59,12 @@ C1_ISLAND_HINT = (
     "add the missing arrow to `system` (or another actor already wired to it), or drop it"
 )
 IMPACT_ISLAND_HINT = "wire it into the rest of the slice, or drop the cluster"
+EPICS_ISLAND_HINT = (
+    "wire it to its epic's parent box or a cross-epic dependency link, or drop the cluster"
+)
+SEQUENCE_ISLAND_HINT = (
+    "wire it with a message to (or from) the rest of the participants, or drop the participant"
+)
 
 
 @dataclass(frozen=True)
@@ -150,6 +167,39 @@ BUILTIN_TYPES: dict[str, DiagramTypeDefinition] = {
             shape="flat", budgets=_IMPACT_BUDGET,
             membership_source={"ancestor_prefixes": ["dir::", "component::"]},
             check_islands={"hint": IMPACT_ISLAND_HINT}, max_hero_edges=2,
+        ),
+    ),
+    "epics": DiagramTypeDefinition(
+        id="epics",
+        title="Epics",
+        style="boxes-arrows",
+        instructions=render_prompt("epics_agent"),
+        artifact=".codechroma/diagrams/epics/epics.json",
+        context="epics",
+        addons={"coverage": False, "staleness": False, "grouping": False},
+        overlays=[],
+        review=None,
+        checks=CheckConfig(
+            shape="flat", budgets=_EPICS_BUDGET,
+            check_islands={"hint": EPICS_ISLAND_HINT},
+        ),
+    ),
+    "sequence": DiagramTypeDefinition(
+        id="sequence",
+        title="Sequence",
+        style="sequence",
+        instructions=render_prompt("sequence_agent"),
+        artifact=".codechroma/diagrams/sequence/sequence.json",
+        context="sequence",
+        # A sequence diagram's messages are dedicated elements (the renderer lays them out by time),
+        # not plain relational edges -- so grouping/staleness/coverage don't apply the usual way.
+        addons={"coverage": False, "staleness": False, "grouping": False},
+        overlays=[],
+        review=None,
+        checks=CheckConfig(
+            shape="flat", budgets=_SEQUENCE_BUDGET,
+            # Every participant must take part in the message flow -- no standalone boxes.
+            check_islands={"hint": SEQUENCE_ISLAND_HINT},
         ),
     ),
 }

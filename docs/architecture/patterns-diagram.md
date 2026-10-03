@@ -47,7 +47,10 @@ Both are gone, replaced by the same skill-agent generation model as C1:
   `/patterns/context` and `/structure`, writes to the path from `GET /repos/{id}/patterns-path`, and
   self-checks via `.claude/skills/codechroma-draw-diagram/scripts/check_diagram.py --kind patterns` — the same validation
   vocabulary as c1's own kind (`BROKEN`/`DUPLICATE`/`DANGLING`/`SELF`/`ORPHAN`/`ISLAND`) plus
-  patterns-specific `SPARSE` and `UNREVIEWED`.
+  patterns-specific `SPARSE` and `UNREVIEWED`. A confirmed `pattern-instance` box with no
+  `relations[]` edge of its own is flagged `ORPHAN ... no relation of its own` — the canvas doesn't
+  nest by `parent`, so an all-participant edges-only box reads as an unrelated dead block; wire it to
+  a realizing participant or a free-standing node (`_check_bare_pattern_markers`, shape tier).
 - **Wiki-first (029-wiki-driven-diagrams, plus 049's wiki-general step ahead of it):**
   `type-patterns.md` follows `docs/architecture/diagram-skills.md`'s "Wiki-first fetch order" before
   `/patterns/context`'s per-class detail — Step 0 (`GET /repos/{id}/wiki-general-context`) for the

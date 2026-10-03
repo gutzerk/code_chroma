@@ -333,19 +333,13 @@ branch through an agent attached to it (`_guard_shared_worktree`, keyed off `Age
     `collapsedLayersStore.toggle(layer)` (`canvas/doc/collapsedLayersStore.ts`) instead of opening a
     window: collapsed hides that layer's elements/edges from `CanvasDocView` without deleting anything
     from `CanvasDoc`, so re-expanding is instant and keeps whatever position the diagram was laid out
-    or dragged to. Each row also carries two of its own buttons: a soft "remove from canvas"
-    (`removeLayerAndRefresh` — keeps the underlying artifact, so it reappears in "Available to add"
-    below) and a hard delete (`deleteDiagramAndRefresh`, behind `DeleteDiagramDialog`'s confirm — also
-    deletes the on-disk artifact). Collapse hides, remove destroys the canvas placement, delete
-    destroys the artifact too — three distinct, all reachable from one row.
-  - **Available to add** — every generated diagram (built-in or saved custom type) not currently
-    placed, via `diagramCatalog.ts`'s `computeReadyDiagrams` (the same split `DrawDiagramButton` uses
-    for its own task prompt). Clicking a row calls `runRecipeAndLayout` to place it back, restoring
-    its last position via `layerPositionCache.ts` rather than a fresh layout.
+    or dragged to. Each row also carries one button: a hard delete (`deleteDiagramAndRefresh`, behind
+    `DeleteDiagramDialog`'s confirm — also deletes the on-disk artifact). Collapse hides, delete
+    destroys the artifact — both reachable from one row.
 
-  🔴 The mount guard covers all three lists: `AgentRail` returns `null` only when `agents.length ===
-  0 && diagramLayers.length === 0 && availableDiagrams.length === 0`, so a workspace with a generated
-  but not-yet-placed diagram and no agents still shows the panel (defaulting to the Diagrams tab).
+  🔴 The mount guard covers both lists: `AgentRail` returns `null` only when `agents.length === 0 &&
+  diagramLayers.length === 0`, so a workspace with an on-canvas diagram and no agents still shows the
+  panel (defaulting to the Diagrams tab).
 - 🔴 Minimize/restore lives in `agents/windowActions.ts`, not at the call sites. Restore used to be
   store-only in the panel while minimize persisted through `PATCH /agents/{id}/window`, so reopening a
   window and reloading brought it back minimized. All three call sites (window title bar, rail, panel)

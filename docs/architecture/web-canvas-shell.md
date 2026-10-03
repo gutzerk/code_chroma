@@ -4,11 +4,25 @@ Has grown well past the "minimal canvas + navigation base" the docs in `web/READ
 `web/QUICKSTART.md` still describe — those files understate the current feature set and shouldn't be
 trusted as-is (see caveat in [`web-engine-client.md`](web-engine-client.md)).
 
-Everything is one continuous in-memory DOM/CSS canvas — no per-node routing; expand/collapse state
-resets on reload (deliberate, per FR-018). A pluggable-camera pan/zoom system now sits on top of
-that canvas (wheel-zoom toward cursor, drag-to-pan, zoom in/out/reset buttons, per-block "Center"
-focus, and a "Fit All" that fits the whole expanded tree) — see `CanvasViewport.tsx` and
-`web/e2e/pan-zoom.spec.ts`.
+Everything is one continuous in-memory DOM/CSS canvas — no per-node routing. A pluggable-camera
+pan/zoom system sits on top of that canvas (wheel-zoom toward cursor, drag-to-pan, zoom in/out/reset
+buttons, per-block "Center" focus, and a "Fit All" that fits the whole canvas) — see
+`CanvasViewport.tsx` and `web/e2e/pan-zoom.spec.ts`. 🔴 **A reload returns to the exact saved spot —
+both the camera and the tree's expansion persist per workspace.** The camera's `view {x, y, scale}`
+is persisted to `localStorage` per workspace (`web/src/canvas/canvasCameraStore.ts`, same
+`codechroma.*.<workspace>` namespace as `collapsedLayersStore`) on every pan/zoom; which blocks are
+open (`expanded` + `codeVisible`) persists the same way (`web/src/state/expansionPersistence.ts`,
+written by `ExpansionStore.persist()`). At mount both are restored before first render, and
+`RootCanvas`'s first-load auto-expand/auto-frame is skipped when **both** a saved camera and a saved
+expansion came back — so a refresh/workspace switch lands exactly where the user left off instead of
+auto-expanding a fresh tree (which used to re-layout content off the saved camera and slide it
+rightward on every reload). `ExpansionStore.load()` (invoked on workspace switch in `App.tsx`, like
+`collapsedLayersStore.load()`) re-reads the now-active workspace's snapshot and re-seeds `restored`,
+so a switch onto a restored tree also skips auto-expand. 🔴 `fitToAllNodes` unions both
+`[data-node-id]` (hierarchy `Block`/
+`TreeNode` and any code-backed box) **and** `[data-canvas-element]` (every canvas-doc box/note/group/
+lane/frame — stamped on `CanvasNodeBox`/`NoteElement`/`SoftAreaFrame`), so a fit-all covers the whole
+canvas instead of collapsing onto whichever diagram happened to carry code-backed `node_id`s.
 
 - **`src/canvas/`** — `RootCanvas` composes the whole app shell. 🔴 **As of
   016-single-canvas-dashboard Stage 4, there is only ever one renderer: `canvas/doc/CanvasDocView`.**
@@ -57,7 +71,7 @@ focus, and a "Fit All" that fits the whole expanded tree) — see `CanvasViewpor
   `epicBriefPanelStore`-style single-entry store) showing the full, untruncated text — deliberately
   separate from the box's own click, which still opens the InspectorPanel as before. 🔴 A second,
   independent bug had the name and description visually colliding for a C1 box specifically:
-  `nodeStyles.tsx`'s `c1` entry's `headerClass` (`.block-header`) is a row-direction flex container
+  `elementRules.ts`'s `c1` entry's `headerClass` (`.block-header`) is a row-direction flex container
   (mirroring `Block.tsx`'s own title-column-beside-buttons header), but `CanvasNodeBox` rendered the
   name-row and description as two direct siblings of that header rather than nesting them inside
   `Block.tsx`'s own `.block-title` column wrapper — so for `c1` boxes only, the two sat side by side
@@ -127,13 +141,16 @@ focus, and a "Fit All" that fits the whole expanded tree) — see `CanvasViewpor
   while leaving what the user had open before the click alone) and `RootCanvas.test.tsx`'s "render
   strategy" describe block and `useCanvasCamera.test.ts`/`useSavedLayoutAndFitLoop.test.ts`. The shell
   is laid out IDE-style as one horizontal row: a 48px icon **rail** (`.app-rail`, zoom then the
-  terminal/research/code-view/diff/plan/trace toggles then `DrawDiagramButton`, split by one
+  terminal/code-view/diff/plan/trace toggles then `DrawDiagramButton`, split by one
   `.app-rail-separator` — `RailButton.tsx` wraps each control, `RailIcon.tsx` supplies the glyphs),
+  then an optional **project-tree panel** (`ProjectTreePanel.tsx` + `projectTreePanelStore.ts`, a
+  togglable IDE-style sidebar between the rail and the canvas, latched and closed by default —
+  see `web-canvas-shell.md`'s "Project tree panel" note below for how it reuses the canvas tree),
   then the canvas area, then the **inspector** panel (plus the standalone `EpicBriefPanel`, mounted
-  unconditionally beside it, rendering nothing while closed). There is no file-tree/Explorer
-  panel or agents toggle on this rail — both were removed; agent launch buttons ("Run agent"/"Add
-  agent here") now live in `.canvas-chrome`, the context bar atop the canvas area, alongside the
-  branch switcher and, on a PR workspace, a `PR #<number> · <head_ref>` label (see
+  unconditionally beside it, rendering nothing while closed). There is no agents toggle on this
+  rail — the agent launch buttons ("Run agent"/"Add agent here") live in `.canvas-chrome`, the
+  context bar atop the canvas area, alongside the branch switcher and, on a PR workspace, a
+  `PR #<number> · <head_ref>` label (see
   [`web-panels.md`](web-panels.md) for why that replaced the old node-path breadcrumb there, and
   [`parallel-agents.md`](parallel-agents.md) for the branch switcher). ⚠ The terminal is no longer a
   sibling in that row: it moved *inside* `.canvas-area`, below `.canvas-stage`, as a **bottom** dock
@@ -141,14 +158,24 @@ focus, and a "Fit All" that fits the whole expanded tree) — see `CanvasViewpor
   height while the terminal spans only the canvas's own width. `useResizableSize` gained
   `axis: "y"` / `edge: "top"` / `minHeight` for it, and `CanvasViewport`'s re-centering
   `ResizeObserver` now pans **both** axes by `delta/2` (the inspector shrinks the canvas from the
-  right, the terminal from the bottom). `.canvas-area` itself is `.canvas-chrome` (the context bar)
-  stacked over `.canvas-main-row`, a flex row of `.canvas-stage` (the pan/zoom viewport) plus
+  right, the terminal from the bottom). ⚠ That re-centering is debounced behind a settle gate
+  (`VIEW_SETTLE_MS`, ~300ms of resize-quiet before it re-arms): on a reload that restores a saved
+  camera, the side panels (project tree + code sidebar) mount a frame or two *after* the viewport, so
+  it briefly paints at full width then shrinks to final — treating that startup settle as a real
+  resize would re-center the restored camera off its saved spot (the accumulated ~-125px reload
+  drift, see `web/e2e/camera-persist.spec.ts`). Any resize (incl. the settle-shrink) defers arming,
+  so a slow settle just keeps resetting the timer instead of racing a wall-clock window; only once
+  layout is still do later window/panel resizes re-center.
+
+  `.canvas-area` itself is `.canvas-chrome` (the context bar) stacked over `.canvas-main-row`, a flex
+  row of `.canvas-stage` (the pan/zoom viewport) plus
   `AgentRail`'s own full-height panel beside it — one card per agent (title, status/branch caption,
   bigger and two-line, not the icon-only rail items the name might suggest), dimmed for an agent whose
   branch main doesn't currently have checked out (see [`parallel-agents.md`](parallel-agents.md) for
   the branch-scoping rules), plus a second "Diagrams" tab for collapsing/expanding a diagram layer on
-  the canvas without deleting it (also in `parallel-agents.md`). That panel renders nothing (and the
-  canvas stays full width) only when there are neither agents nor diagrams. Since the left rail is
+  the canvas without deleting it (also in `parallel-agents.md`). The panel always renders — even with
+  neither agents nor diagrams it stays mounted (empty tabs + zero counts) so the UI never loses the
+  strip that lets the user get an agent or diagram started. Since the left rail is
   icon-only, `RailButton` renders the control's name as a real
   `.rail-tooltip` span shown on hover after a 300ms delay — deliberately not a `title` attribute
   (native tooltips are ~1s late, OS-styled, and untestable), `aria-hidden` because `aria-label`
@@ -161,25 +188,20 @@ focus, and a "Fit All" that fits the whole expanded tree) — see `CanvasViewpor
   `TraceControls` for a reason: those three are absolutely positioned, and without it they'd anchor
   to the canvas *plus* the context strip and render behind it. Two independent Strategy-pattern
   subsystems live here:
-  - **`strategies/`** — `CanvasRenderStrategy` (`resolveStrategy(id)` in `registry.ts`) picks how
-    the hierarchy renders: `tree` (`strategies/tree/TreeNode.tsx`, an indented tree, **default**) or
-    `boxes` (`strategies/boxes/Block.tsx`, the nested-block renderer). Chosen once at startup, from
-    `?strategy=` first and `VITE_CANVAS_STRATEGY` second; falls back to `tree` for unset or
-    unrecognized values. 🔴 `?strategy=` exists for the e2e suite: a spec that asserts one renderer's
-    DOM (`[data-testid="block"]` vs `[data-testid="tree-node"]`) must pin it via
-    `gotoApp(page, { strategy: "boxes" })`, because it cannot get its own dev server. Flipping
-    `DEFAULT_STRATEGY_ID` from `boxes` to `tree` without this broke six specs at once and left them
-    red for the rest of the branch — pin the renderer rather than relying on the default. Covered by
-    `RootCanvas.test.tsx`'s "RootCanvas render strategy". Both renderers must stay interchangeable at
-    any node regardless of strategy — everything they share already lives in `useNodeChrome` /
-    `nodeChrome`, and expansion state is global per `node_id`, so neither may hold local state. In the
-    `boxes` strategy, the root's direct children (Systems) render through
-    `strategies/boxes/TopLevelChildren.tsx` instead of the ordinary flow-grid `block-children`
-    container every deeper level still uses — a row-major grid (`gridLayout`) sized via the shared
-    `canvas/useMeasuredSizes.ts` hook, each box independently draggable and group-draggable
-    (`useSelectionAwareDrag`), top-rank-only. Nested levels are
-    unaffected: still plain `Block`, flow-laid-out, no drag. Covered by
-    `strategies/boxes/TopLevelChildren.test.tsx`.
+  - **`strategies/`** — the hierarchy always renders as nested boxes (`strategies/boxes/Block.tsx`,
+    via `BoxesRenderer`). There is no boxes-vs-tree *choice* anymore: the former
+    `strategies/registry.ts` (`resolveStrategy`), the `tree` strategy wrapper, and the
+    `?strategy=` / `VITE_CANVAS_STRATEGY` startup switch were all removed. `TreeNode.tsx` survives
+    only as `Block`'s interior `ChildRenderer` (e.g. the C1 view), and the shared node shape
+    `CanvasNodeRendererProps` in `strategies/types.ts` is what `Block.ChildRenderer` stays
+    interchangeable over — it must stamp `data-node-id={node.node_id}` on a real positioned element
+    (CanvasViewport/ConnectionsOverlay rely on it). The root's direct children (Systems) render
+    through `strategies/boxes/TopLevelChildren.tsx` instead of the ordinary flow-grid
+    `block-children` container every deeper level still uses — a row-major grid (`gridLayout`) sized
+    via the shared `canvas/useMeasuredSizes.ts` hook, each box independently draggable and
+    group-draggable (`useSelectionAwareDrag`), top-rank-only. Nested levels are unaffected: still
+    plain `Block`, flow-laid-out, no drag. Covered by `RootCanvas.test.tsx`'s "RootCanvas render
+    strategy" describe and `strategies/boxes/TopLevelChildren.test.tsx`.
   - **`highlighting/`** — `getHighlighter(language)` (analogous to `AnalyzerRegistry.for_file()`)
     picks a `LanguageHighlighter`; each `<lang>Highlighter.ts` wraps one Prism.js component
     (python, go, yaml, java, typescript, javascript, jsx, tsx, c, cpp, csharp, ruby, rust, swift,
@@ -280,20 +302,37 @@ focus, and a "Fit All" that fits the whole expanded tree) — see `CanvasViewpor
     component's resulting rank values onto a dense `0..k-1` scale before layout — an authored
     `order` of `"1"` and `"100"` would otherwise leave ~98 empty rank rows of dead vertical space
     between them; only relative order ever matters downstream, never the raw authored number.
-    Rendered as a small badge on the box
-    itself (`OrderBadge`, `doc/nodeAccent.tsx`, wired into `CanvasNodeBox.tsx`;
-    `.canvas-node-order-badge` in styles.css) — inherits the same known gap above (only ranks within
-    one `layoutBoxes()` call). **`Lane`/`Concurrency island`** (the other two 054 terms, CONTEXT.md):
+    Rendered as a "STEP n" tag inside the box's own top band
+    (`NodeTopBand`, `doc/nodeAccent.tsx`, wired into `CanvasNodeBox.tsx`;
+    `.canvas-node-top-band`/`.canvas-node-order-badge` in styles.css — see that file's "Band + meta
+    row, ghost no-code" box-format section) — inherits the same known gap above (only ranks within
+    one `layoutBoxes()` call). 🔵 **Box format ("Band + meta row, ghost no-code"):** `CanvasNodeBox`'s
+    meta chrome (plan_kind, order, impact status, no_code_reason) is no longer a set of floating
+    corner pills/badges/strips — `NodeTopBand` (`doc/nodeAccent.tsx`) renders an in-flow strip above
+    the header holding `meta.plan_kind` (tinted by role) and `meta.order` ("STEP n"), and
+    `NodeMetaRow` renders an in-flow row between the title and the description holding an Impact
+    `meta.status` chip (`render === "impact"` only) and a `meta.no_code_reason` chip side by side — no
+    mutual exclusion between the two the old floating layout needed. The impact chip carries a mark
+    (`+ ~ −`) and the box's real attributed change count (`~ MODIFY · 2`) from the same
+    `useNodeOverlays` sidecar as `NodeChangeBadge`, matching the form's `~ MODIFY · 17`. A no-code box (`no-code-conceptual`/
+    `no-code-unresolved`, `accentFor`'s `noCodeReasonClassName`) gets a solid 3px frame in the reason's
+    color plus a transparent ("ghost") fill and an italic title (styles.css); `meta.plan_kind` no
+    longer drives a border accent at all, only the top band. **`Lane`/`Concurrency island`** (the other two 054 terms, CONTEXT.md):
     within one rank, `orderRank()`'s barycenter/degree/id ordering feeds through `clusterByLane()`,
     which pulls every box sharing a `meta.lane` value adjacent — a lane's spot is its earliest
     member's position in that ordering, every other member moves up next to it, and a lane-less box
     (or an entirely lane-less diagram) passes through unchanged, since `Array.prototype.sort`'s
     stability makes this a no-op when there's nothing to cluster. Both are rendered, not laid out,
     as their own soft-tinted background areas — `LaneArea`/`ConcurrencyIslandArea` (`doc/`) — computed
-    purely off `CanvasDocView.tsx`'s `renderableElements` (bucketed by `meta.lane`, and separately by
-    the leading digit run of `meta.order` via the shared `leadingOrderDigits()`, `doc/elementMeta.ts`;
-    a digit bucket with only one member is dropped before rendering, since a lone numbered step has
-    nothing to be concurrent with), not off any layout-time grouping — neither is a real document
+    purely off `CanvasDocView.tsx`'s `renderableElements` through one shared `bucketPerLayer()`
+    helper: it partitions box ids by diagram `layer`, and within each layer by `meta.lane` — and
+    separately by the leading digit run of `meta.order` via the shared `leadingOrderDigits()`,
+    `doc/elementMeta.ts` — so a Lane or leading digit shared by boxes in *different* diagrams never
+    collapses their areas into one spanning the whole canvas (the same layer-scoping
+    `memberIdsByLayer` gives `DiagramFrame`);
+    a digit bucket with only one member is dropped before rendering (keepSingletons=false), since a
+    lone numbered step has nothing to be concurrent with), not off any layout-time grouping — neither
+    is a real document
     element, unlike `GroupFrame`'s `group`. All three (`GroupFrame`, `LaneArea`,
     `ConcurrencyIslandArea`) share one bounding-box calculation, `doc/boundingBox.ts#unionBoundsOf()`,
     but each area picks its color from its own hash/palette (`groupColor.ts`/`laneColor.ts`/
@@ -302,8 +341,8 @@ focus, and a "Fit All" that fits the whole expanded tree) — see `CanvasViewpor
     Concurrency island are independent, non-exclusive concepts that can freely overlap on one box.
     `routeEdges.ts` — the
     lanes→router→map idiom (lanes *and* ports assigned across EVERY item first — pairs via
-    `assignLanes`, box+sides via `assignPorts` — one router per pass in input order, unresolvable
-    items skipped but still consuming a lane/port). Each end's `assignPorts` group is fed *sorted*
+    `assignLanes`, box+sides via `displacePorts` — one router per pass in input order, unresolvable
+    items skipped but still consuming a lane/port). Each end's `displacePorts` group is fed *sorted*
     by the far box's centre along the exit side (060-connector-port-ordering): the pool's exit/entry
     points rise monotonically with the direction the arrow turns, so two arrows out of one busy side
     order by target position instead of by input order and stop crossing at the junction; and
@@ -318,7 +357,9 @@ focus, and a "Fit All" that fits the whole expanded tree) — see `CanvasViewpor
     🔴 `.c1-relationship-path`/`.c1-relationship-casing` (styles.css) use `stroke-linecap: butt`, not
     `round` — corner rounding already comes from `roundedPath`'s explicit `Q` curves, so `round` would
     only bulge the two open ends (half the casing's 5px stroke width) past the border into whichever
-    box the arrow touches. `labelPointOf` (orthogonalRoute.ts) takes an `avoid: Rect[]` of the arrow's
+    box the arrow touches. Captions sit at the line's true arc-length midpoint, so a label block's
+    centre lands on the middle of the connection even for an elbow route; `labelPointOf`
+    (orthogonalRoute.ts) takes an `avoid: Rect[]` of the arrow's
     own two endpoint boxes and skips any candidate segment whose midpoint falls inside one, so a
     caption never lands on top of the block its own arrow connects to — it still does no
     collision-avoidance against any *other* box or label (that stays `LabelClearanceMonitor`'s
@@ -326,13 +367,13 @@ focus, and a "Fit All" that fits the whole expanded tree) — see `CanvasViewpor
     live in [`c1-diagram.md`](c1-diagram.md)'s arrow-routing bullets.
 
 Panel plumbing lives in `canvas/panelStore.ts`: `PanelStore` is the shared open/closed store the
-research, chat, wizard and terminal stores are (or extend — terminal adds agent selection), and
-`useLatchedMount(isOpen)` is the once-open-stays-mounted latch RootCanvas applies to all five dock
-panels (terminal/research/wizard/inspector) instead of hand-copied effects. Adding a panel is now: a
+chat, wizard and terminal stores are (or extend — terminal adds agent selection), and
+`useLatchedMount(isOpen)` is the once-open-stays-mounted latch RootCanvas applies to all four dock
+panels (terminal/wizard/inspector) instead of hand-copied effects. Adding a panel is now: a
 `new PanelStore()`, one `useLatchedMount` line, one render slot, one rail button — the now-removed
 canvas chat panel (016-single-canvas-dashboard Stage 5, since retired by 008-unify-agent-diagrams;
-see [`single-canvas.md`](single-canvas.md)) followed exactly this recipe, reusing `ResearchPanel`'s
-bottom-dock CSS shell rather than inventing a new one.
+see [`single-canvas.md`](single-canvas.md)) followed exactly this recipe, reusing the bottom-dock
+CSS shell rather than inventing a new one.
 
 Failure visibility: `main.tsx` wraps the app in `AppErrorBoundary.tsx` (a render-time throw shows a
 reload panel instead of blanking the app) and installs `util/reportError.ts`'s global
@@ -342,6 +383,84 @@ unhandled rejection and a permanently-stuck loading state.
 
 See [`web-collision-drag.md`](web-collision-drag.md) for the `collision/` subsystem, which lives in
 this same `src/canvas/` directory but is documented separately given its size.
+
+### Project tree panel (`src/canvas/ProjectTreePanel.tsx`)
+
+The tree now lives in this sidebar rather than on the canvas: `RootCanvas` collapses the seeded
+`hierarchy` layer on load (`collapsedLayersStore.collapse("hierarchy")`), so the canvas opens
+diagrams-only, and the panel — the sole tree surface — is **open by default**
+(`projectTreePanelStore = new PanelStore(true)`). The old "Code tree" rail toggle (which flipped the
+hierarchy layer on/off the canvas) was removed as redundant with the panel.
+
+Layout: the panel sits inside `.canvas-main-row` beside `.canvas-stage` and **below** the
+`.canvas-chrome` context bar (branch switcher), so it reads as an IDE explorer under the toolbar.
+It is **resizable** — as is the code sidebar, both through the shared `ResizableRail`
+(`web/src/canvas/ResizableRail.tsx`), a left-anchored, right-edge `useResizableSize` (`axis: "x"`,
+`edge: "right"`) aside+handle skeleton the two side panels reuse instead of re-implementing. Dragging
+it wider reveals more of a row's name or its inline code.
+
+It deliberately **reuses the canvas's own hierarchy renderer** rather than inventing a filesystem
+explorer: `ProjectTreePanel` mounts the same `TreeNode` (via `strategies/tree/TreeNode.tsx`) over
+the hierarchy root, so — because `TreeNode` reads/writes the shared global `expansionStore` and
+fetches children lazily through `useNodeChildren` (which already re-fetches on live pings) — the
+sidebar and the canvas tree remain one source of truth (expanding here expands on any canvas tree
+still shown and vice versa), and on-disk edits appear in the sidebar without reload.
+
+The panel passes `TreeNode` panel-only flags: `openCodeOnActivate` (a row with code opens that code
+on click — via the shared `chrome.toggleCode`, respecting the global inline-vs-popup mode — instead
+of expanding) and `hideCodeButton` (drops the redundant Show/Hide-code button from the row, since the
+click already reveals the source). Both are scoped to the panel: the canvas tree and C1 views leave
+them unset, so their rows keep the explicit Show-code button and plain expand.
+
+The open-file highlight is not a per-row subscription: `ProjectTreePanel` subscribes to the
+open-files store **once**, builds an `openFileIds` `Set` + `activeFileId`, and threads them down the
+tree as props — so `TreeNode` never subscribes to the sidebar's store (keeping the canvas/C1 trees
+decoupled from it) and each row's lookup is O(1) instead of an O(n) scan. A tab change still
+reconciles the expanded tree (the shared row is unmemoized and `activeFileId` is a global prop it
+receives), but it fires one store render rather than one per row. Open rows get
+`.tree-node-open-file` (subtle highlight); the active row additionally gets
+`.tree-node-active` (stronger accent + green marker dot).
+
+`RootCanvas` owns the on-canvas framing, so it passes `onActivate` (a callback on `TreeNode` that
+fires after a row's own expand/inspector default) down as `navigateTreeTo`: `revealNode(nodeId)` to
+expand the ancestors, then `camera.frameFitTo([nodeId])` — the same retry-until-mounted framing the
+initial auto-expand and diff reveals use — because each revealed ancestor's children mount
+asynchronously, so a deeply nested target needs several fetches before its block exists.
+`TreeNode`'s label is keyboard-accessible (`tabIndex` + Enter/Space, with `aria-expanded` on rows
+that expand) and only *navigates* on a grow-the-view gesture: an expand or a leaf click. A collapse
+("put it away") does not re-frame the camera. The panel is latched (`useLatchedMount`); its
+`.project-tree-panel` CSS is a full-height scrollable column whose `[hidden]` override wins over
+`display:flex`.
+
+🔴 Because the tree is hidden from the canvas by default, the canvas-drawn overlays — the diff
+`ChangeConnectionsOverlay`, `TraceFlowOverlay`, `ConnectionsOverlay` — resolve their endpoints
+against `[data-node-id]` blocks in the canvas DOM, so with the tree off-canvas they render nothing.
+This is accepted for now (see the "tree to the sidebar" decision): the overlays reappear if the
+hierarchy layer is expanded back onto the canvas (`collapsedLayersStore.expand("hierarchy")`). A
+full port of those overlays to the sidebar's scroll coordinates is out of scope.
+
+### Code sidebar (`src/canvas/CodeSidebar.tsx` + `openFilesStore.ts`)
+
+A second resizable panel right beside the project tree (variant A) showing the source of every file
+opened there. Clicking a code-capable row in the tree calls `TreeNode`'s `onOpenCode` (set only by
+the ProjectTreePanel, via `openFilesStore.toggle(node)`) instead of the shared inline/popup toggle —
+which is why the panel's rows also hide the Show/Hide-code button (its `openCodeOnActivate` flag
+prefers `onOpenCode` when both are passed). Re-clicking the active row closes it (toggle).
+
+- `openFilesStore` is a global `Store` holding open `HierarchyNodeRef`s in **most-recently-viewed
+  (MRU) order**: `open(node)` moves the node to the front and activates it, `toggle(node)` opens (or
+  re-activates) a not-current file and closes the active one on re-click, `activate(id)` re-marks
+  active without reordering (used by the overflow dropdown), `close(id)` removes it and activates
+  the next-most-recent neighbour. Resets on reload, same as `ExpansionStore`.
+- `CodeSidebar` renders a tab strip from that MRU list (first tab = most recent) with a ✕ per tab,
+  plus the active file's source through the shared `CodeView`. Once more than `MAX_TABS` (8) files
+  are open, the surplus collapse behind a trailing "▾" that opens a dropdown listing **all** open
+  files; picking one activates it — the dropdown reuses the shared `useDisclosureMenu` (outside-click
+  and Escape-to-close, same as BranchSwitcher/GamesMenu). The panel is resizable via the shared
+  `ResizableRail` (right-edge `useResizableSize`), like the tree panel. Mounted unconditionally in
+  `.canvas-main-row` after `ProjectTreePanel`; it renders nothing while no file is open (`return
+  null`), and its `[hidden]` override ties it to the tree panel's open state (collapsing the tree
+  collapses the code panel too).
 
 ### Theming (`src/styles.css`)
 

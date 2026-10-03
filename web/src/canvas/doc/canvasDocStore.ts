@@ -11,6 +11,10 @@ import { undoStore } from "../../state/undoStore";
 class CanvasDocStore extends Store {
   private _doc: CanvasDoc = EMPTY_CANVAS_DOC;
   private _loaded = false;
+  // Diagram layers mid auto-layout (runRecipeAndLayout): a server snapshot whose elements for one of
+  // these layers are all still at (0,0) is the recipe's own transient commit, not a real move, so
+  // fetchAndApplyCanvasDoc withholds it rather than flash the pile -- see its content check below.
+  private _deferredLayers = new Set<string>();
   // Every getCanvas() call (a "changed" ping's refetch, patchCanvasDoc's own post-write refetch)
   // bumps this so whichever response is genuinely the newest always wins -- see
   // fetchAndApplyCanvasDoc's own comment. Lives on the store, not a module-level `let`, so the
@@ -22,6 +26,19 @@ class CanvasDocStore extends Store {
 
   getDoc = (): CanvasDoc => this._doc;
   isLoaded = (): boolean => this._loaded;
+
+  deferLayout(layer: string): void {
+    this._deferredLayers.add(layer);
+  }
+
+  /** The layers whose auto-layout is still in flight (runRecipeAndLayout hasn't released them). */
+  layersMidLayout = (): string[] => [...this._deferredLayers];
+
+  /** Releases just this layer once its layout is committed (runRecipeAndLayout's finally) — not the
+   * whole set, so a concurrent layout for another layer stays withheld until it finishes too. */
+  releaseLayout(layer: string): void {
+    this._deferredLayers.delete(layer);
+  }
 
   setDoc(doc: CanvasDoc): void {
     this._doc = doc;
@@ -108,6 +125,15 @@ async function fetchAndApplyCanvasDoc(
 ): Promise<void> {
   const seq = canvasDocStore.nextFetchSeq();
   const doc = await engineClient.getCanvas();
+  // A deferred layer's recipe commit broadcasts its boxes at (0,0) before the layout pass has run.
+  // Withhold only that transient state -- a snapshot whose every element for a deferred layer is at
+  // (0,0) -- so the pile never flashes, while any real move (a drag, an edit on another layer) still
+  // applies. The layout PATCH that follows lands the laid-out positions and applies normally.
+  const transientPile = [...canvasDocStore.layersMidLayout()].some((layer) => {
+    const layouts = Object.values(doc.elements).filter((element) => element.layer === layer);
+    return layouts.length > 0 && layouts.every((element) => element.position.x === 0 && element.position.y === 0);
+  });
+  if (transientPile) return;
   if (canvasDocStore.isLatestFetchSeq(seq) && !isStale()) canvasDocStore.setDoc(doc);
 }
 

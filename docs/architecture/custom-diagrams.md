@@ -92,7 +92,7 @@ a custom definition never authors an inline overrides dict) turns into the effec
 Since the 016-single-canvas-dashboard migration, **a style that stays inside "boxes connected by
 arrows" needs no web change at all** — `web/src/canvas/doc/CanvasNodeBox.tsx` renders every element
 kind generically via `styleFor(element.render)` → `NODE_STYLES[render]`
-(`web/src/canvas/doc/nodeStyles.tsx`), and `render` is always `"custom"` regardless of which library
+(`web/src/canvas/doc/elementRules.ts`), and `render` is always `"custom"` regardless of which library
 style produced the data (`canvas/recipes.py`'s shared `reshape()`). `tests/unit/test_diagram_styles.py`
 only checks a legacy web mirror (`web/src/canvas/custom/styles/registry.ts`) when that path still
 exists — it doesn't anymore, so the check is a no-op survivor from before the migration. A **new
@@ -207,7 +207,7 @@ so nothing style-specific was needed to keep those. The generator skill's self-c
 renders through the one canvas document's generic pipeline: `canvas/recipes.py`'s shared `reshape()`
 turns the resolved `{nodes, relations}` into `RecipeNode`/`RecipeEdge` objects with `render:
 "custom"`, `web/src/canvas/doc/CanvasNodeBox.tsx` draws them via `styleFor("custom")` →
-`NODE_STYLES.custom` (`web/src/canvas/doc/nodeStyles.tsx`), and `web/src/canvas/doc/autoLayout.ts`
+`NODE_STYLES.custom` (`web/src/canvas/doc/elementRules.ts`), and `web/src/canvas/doc/autoLayout.ts`
 runs dagre once over newly-added elements, persisting the result as the document's own position. The
 rail's draw entry is `canvas/doc/DrawDiagramButton.tsx` (always launches the drawing agent, no
 listing of saved types); `AgentRail`'s Diagrams tab is what lists every saved library type's

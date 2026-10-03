@@ -1,8 +1,14 @@
-"""The Epics routes: the index, one item (with optional stage expansion), and the AI-brief trio
-(start/attach, poll, progress) -- a bespoke per-epic SkillAgent, not a DIAGRAMS kind (see
-epic_brief_agent.py). The index/item pair is also not a DIAGRAMS kind -- derived from the
-requirements/delivery sources, nothing to generate. Its saved-layout pair was dropped in 016 Stage 6
--- epic positions live on canvas.json now, so no route reads/writes an "epics" layout file anymore.
+"""The Epics routes: one item (with optional stage expansion) and the AI-brief trio (start/attach,
+poll, progress) -- a bespoke per-epic SkillAgent, not a DIAGRAMS kind (see epic_brief_agent.py).
+The portfolio index moved out of this router: `epics` is a registered diagram kind now (a skill
+writes epics.json, `diagram_registry.py`'s DIAGRAMS["epics"] resolves it), so the bare
+`GET /repos/{id}/epics` serves the resolved diagram, and the requirements summary lives at
+`GET /repos/{id}/epics/context` (via the `"epics"` context provider). The item/brief routes below
+are independent of how the canvas diagram is drawn -- the brief reads a single work item directly.
+
+The index/item pair is not a diagram-kind -- derived from the requirements/delivery sources,
+nothing to generate. Its saved-layout pair was dropped in 016 Stage 6 -- epic positions live on
+canvas.json now, so no route reads/writes an "epics" layout file anymore.
 """
 
 from __future__ import annotations
@@ -14,6 +20,7 @@ from fastapi import APIRouter, HTTPException
 
 from codechroma.bridge import epic_brief_agent, epic_brief_resolver, epics_resolver
 from codechroma.bridge.deps import Services, WritableWs, Ws
+from codechroma.bridge.diagram_registry import valid_epic_id
 from codechroma.bridge.routes._skill_jobs import job_callbacks, stop_and_notify
 from codechroma.bridge.routes.skill_runs import register_output_route
 from codechroma.bridge.workspaces import Workspace
@@ -31,12 +38,6 @@ def _read_brief(ws: Workspace, key: str, epic: dict | None) -> EpicBrief | None:
     if epic is not None:
         data = epic_brief_resolver.resolve_brief(data, ws.root, epic)
     return EpicBrief.from_dict(data)
-
-
-@router.get("/repos/{repo_id}/epics")
-def get_epics_index(ws: Ws) -> dict:
-    """The requirements portfolio's summaries only -- never a 4xx/5xx, even with no source dir."""
-    return epics_resolver.epics_index(ws.root)
 
 
 @router.get("/repos/{repo_id}/epics/items/{item_id}")
@@ -134,3 +135,19 @@ def get_epic_brief_path(item_id: str, ws: Ws) -> dict:
     key = epic_brief_agent.job_key(ws.id, item_id)
     path = epic_brief_agent.epic_brief_path(ws.root, key)
     return {"repo_root": str(ws.root), "brief_path": str(path)}
+
+
+@router.get("/repos/{repo_id}/epics/{item_id}/diagram-path")
+def get_epic_diagram_path(item_id: str, ws: Ws) -> dict:
+    """Absolute location the skill writes this epic's own diagram to (one file per epic).
+
+    Since each epic is its own synthesized diagram kind (`epics/<epic_id>`, see
+    `diagram_registry.py`), this is `ws.diagram_artifact_path` on that kind -- the per-epic
+    `.codechroma/diagrams/epics/<epic_id>/<epic_id>.json` the draw-diagram skill overwrites.
+    The id names a path segment on disk, so it must pass the same filesystem-safety check as
+    `_synthesize_epics` -- otherwise a `..`-laced id would resolve outside the epics dir.
+    """
+    if not valid_epic_id(item_id):
+        raise HTTPException(status_code=404, detail=f"unknown work item: {item_id!r}")
+    path = ws.diagram_artifact_path(f"epics/{item_id}")
+    return {"repo_root": str(ws.root), "diagram_path": str(path)}

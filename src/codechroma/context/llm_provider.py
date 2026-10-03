@@ -22,6 +22,48 @@ if TYPE_CHECKING:
 
 # The one cheap model every connectivity probe (assistant + per-provider) uses for its test call.
 PROBE_MODEL = "claude-3-5-haiku-latest"
+# Gemini's equivalent probe model for the same connectivity-probe role.
+GEMINI_PROBE_MODEL = "gemini-2.5-flash"
+# Gemini's native API default, when a gemini provider carries no base_url.
+GEMINI_DEFAULT_BASE_URL = "https://generativelanguage.googleapis.com"
+
+
+def probe_model_for(transport: str) -> str | None:
+    """A transport's default probe model, or None (callers then fall back to test_model)."""
+    return {"anthropic": PROBE_MODEL, "gemini": GEMINI_PROBE_MODEL}.get(transport)
+
+
+def _httpx_post_json(url: str, body: dict, headers: dict, verify: bool) -> dict:
+    """Verified JSON POST returning parsed JSON; raises on a non-2xx response."""
+    response = httpx.post(
+        url,
+        json=body,
+        headers=headers,
+        timeout=settings.anthropic_client.request_timeout_seconds,
+        verify=verify,
+    )
+    response.raise_for_status()
+    return response.json()
+
+
+def _extract_openai_text(data: object) -> str:
+    """The completion text from OpenAI's `choices[0].message.content`; never a raw KeyError."""
+    choices = data["choices"] if isinstance(data, dict) else None
+    content = choices[0]["message"]["content"] if choices else None
+    if isinstance(content, str) and content.strip():
+        return content.strip()
+    raise ValueError(f"empty or malformed completion response: {data!r}")
+
+
+def _extract_gemini_text(data: object) -> str:
+    """The first text part from Gemini's `candidates[0].content.parts`; never a raw KeyError."""
+    candidates = data["candidates"] if isinstance(data, dict) else None
+    parts = candidates[0]["content"]["parts"] if candidates else None
+    if isinstance(parts, list) and parts and isinstance(parts[0], dict):
+        text = parts[0].get("text")
+        if isinstance(text, str) and text.strip():
+            return text.strip()
+    raise ValueError(f"empty or malformed completion response: {data!r}")
 
 
 class LLMProvider(Protocol):
@@ -135,17 +177,49 @@ class OpenAICompatibleProvider:
         headers = {"Content-Type": "application/json"}
         if self._api_key:
             headers["Authorization"] = f"Bearer {self._api_key}"
-        timeout = settings.anthropic_client.request_timeout_seconds
-        response = httpx.post(
+        data = _httpx_post_json(
             f"{self._base_url}/chat/completions",
-            json={"model": model, "messages": messages, "max_tokens": max_tokens},
-            headers=headers,
-            timeout=timeout,
-            verify=self._verify_ssl,
+            {"model": model, "messages": messages, "max_tokens": max_tokens},
+            headers,
+            self._verify_ssl,
         )
-        response.raise_for_status()
-        data = response.json()
-        return data["choices"][0]["message"]["content"].strip()
+        return _extract_openai_text(data)
+
+
+class GeminiProvider:
+    """Adapts Gemini's native `generateContent` REST API to `LLMProvider`.
+
+    Unlike the openai-compatible and anthropic shapes, Gemini authenticates with an
+    `x-goog-api-key` header and caps output via `generationConfig.maxOutputTokens`
+    (there is no `max_tokens`). The key is sent, never a Bearer token.
+    """
+
+    def __init__(
+        self, base_url: str, api_key: str | None, verify_ssl: bool = True
+    ) -> None:
+        self._base_url = base_url.rstrip("/")
+        self._api_key = api_key
+        self._verify_ssl = verify_ssl
+
+    def complete(
+        self, *, user: str, model: str, max_tokens: int, system: str | None = None
+    ) -> str:
+        body: dict = {
+            "contents": [{"role": "user", "parts": [{"text": user}]}],
+            "generationConfig": {"maxOutputTokens": max_tokens},
+        }
+        if system is not None:
+            body["systemInstruction"] = {"parts": [{"text": system}]}
+        headers = {"Content-Type": "application/json"}
+        if self._api_key:
+            headers["x-goog-api-key"] = self._api_key
+        data = _httpx_post_json(
+            f"{self._base_url}/v1beta/models/{model}:generateContent",
+            body,
+            headers,
+            self._verify_ssl,
+        )
+        return _extract_gemini_text(data)
 
 
 def resolve_provider_key(provider: Provider) -> str | None:
@@ -163,6 +237,14 @@ def provider_to_llm(provider: Provider) -> LLMProvider | None:
             return None
         return OpenAICompatibleProvider(
             base_url=provider.base_url, api_key=api_key, verify_ssl=provider.verify_ssl
+        )
+    if provider.transport == "gemini":
+        if not api_key:
+            return None
+        return GeminiProvider(
+            base_url=provider.base_url or GEMINI_DEFAULT_BASE_URL,
+            api_key=api_key,
+            verify_ssl=provider.verify_ssl,
         )
     # transport == "anthropic"
     if not api_key:

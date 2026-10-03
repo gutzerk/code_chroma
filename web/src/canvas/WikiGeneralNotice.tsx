@@ -98,7 +98,7 @@ export function WikiGeneralNotice() {
       ) : status.has_wiki_general ? (
         <>
           <span>
-            Architecture wiki may be out of date
+            Architecture wiki is outdated
             {status.state === "error" && status.error ? ` — ${status.error}` : ""}
           </span>
           <button

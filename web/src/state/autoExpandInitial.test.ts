@@ -3,7 +3,7 @@ import { autoExpandInitial } from "./autoExpandInitial";
 import { expansionStore } from "./expansionState";
 import type { EngineClient } from "../engine-client/EngineClient";
 import type { HierarchyNodeRef } from "./types";
-import { EPICS_STUB, RESEARCH_STUB, EPIC_BRIEF_STUB, IMPACT_CHANGES_STUB, PATTERNS_STUB } from "../engine-client/stubEngineClient";
+import { EPICS_STUB, EPIC_BRIEF_STUB, IMPACT_CHANGES_STUB, PATTERNS_STUB } from "../engine-client/stubEngineClient";
 
 afterEach(() => {
   expansionStore.reset();
@@ -28,7 +28,6 @@ function clientFor(childrenById: Record<string, HierarchyNodeRef[]>): EngineClie
   return {
     ...IMPACT_CHANGES_STUB,
     ...EPICS_STUB,
-    ...RESEARCH_STUB,
     ...EPIC_BRIEF_STUB,
     ...PATTERNS_STUB,
     getNode: vi.fn(),

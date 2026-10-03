@@ -38,8 +38,7 @@ import {
   type FunctionDiff,
   type HierarchyNodeRef,
   type LayoutKind,
-  type ResearchAnswer,
-  type ResearchJobState,
+  type SourceFragment,
   type AgentEvent,
   type Trace,
   type TraceStreamMessage,
@@ -863,31 +862,6 @@ const MOCK_EPICS_INDEX: EpicsIndex = {
   generated_at: "2026-01-01T00:00:00Z",
 };
 
-const MOCK_RESEARCH_ANSWER: ResearchAnswer = {
-  query: "where is the discount applied",
-  answer:
-    "The discount is applied in `apply_discount` [1], which the order-creation flow calls before totals are formatted.",
-  citations: [
-    { node_id: "function::apply_discount", path: "billing/service.py", symbol: "apply_discount" },
-  ],
-  degraded: false,
-  generated_at: "2026-01-01T00:00:00Z",
-};
-
-const MOCK_RESEARCH_NO_MATCH: ResearchAnswer = {
-  query: "",
-  answer: "No relevant match was found for this question in the analyzed repository.",
-  citations: [],
-  degraded: false,
-  generated_at: "2026-01-01T00:00:00Z",
-};
-
-function mockResearchAnswerFor(query: string): ResearchAnswer {
-  const normalized = query.trim().toLowerCase();
-  if (normalized.includes("discount")) return { ...MOCK_RESEARCH_ANSWER, query };
-  return { ...MOCK_RESEARCH_NO_MATCH, query };
-}
-
 const MOCK_EPIC_BRIEF: EpicBrief = {
   epic_id: "EP-A-01",
   generated_at: "2026-01-01T00:00:00Z",
@@ -1159,6 +1133,7 @@ const mockLayouts: Record<LayoutKind, DiagramLayout> = {
   hierarchy: {},
   epics: {},
   impact: {},
+  sequence: {},
   // "canvas" has no saved-layout GET/POST route (a CanvasNodeBox's position lives on canvas.json,
   // not here) -- present only so this literal stays exhaustive over LayoutKind like every other
   // non-live kind already does (see the type's own comment in state/types.ts).
@@ -1244,6 +1219,7 @@ function applyMockCanvasBatch(
           label: op.label ?? "",
           kind: op.kind ?? "uses",
           layer: op.layer ?? "default",
+          ...(op.transport !== undefined ? { transport: op.transport } : {}),
           ...(op.style !== undefined ? { style: sanitizeMockStyle(op.style) } : {}),
         };
         edges[id] = edge;
@@ -1284,6 +1260,7 @@ function applyMockCanvasBatch(
           ...(op.label !== undefined ? { label: op.label } : {}),
           ...(op.kind !== undefined ? { kind: op.kind } : {}),
           ...(op.layer !== undefined ? { layer: op.layer } : {}),
+          ...(op.transport !== undefined ? { transport: op.transport } : {}),
           // Replaced, not merged -- matches apply_batch.py; `style: null` clears an override.
           ...(op.style !== undefined ? { style: sanitizeMockStyle(op.style) } : {}),
         };
@@ -1503,6 +1480,32 @@ function epicsRecipeResult(index: EpicsIndex): MockRecipeResult {
   return { nodes, edges: [] };
 }
 
+/** A canned sequence diagram for mock-mode demo: participants + messages (each message a mock node
+ * carrying `meta.role: "message"` plus from/to/order, exactly what SequenceDiagram.tsx reads). The
+ * authored participants use string ids (`client`/`api`/`db`) and messages reference them by id --
+ * the same wiring the real bridge's sequence reshape emits. */
+function sequenceRecipeResult(): MockRecipeResult {
+  const participants: MockRecipeNode[] = [
+    { key: "client", render: "sequence", label: "Client", node_id: "component::web/app.ts",
+      meta: { role: "participant" } },
+    { key: "api", render: "sequence", label: "API", node_id: "component::src/api/main.py",
+      meta: { role: "participant" } },
+    { key: "db", render: "sequence", label: "DB", node_id: "component::src/db/pg.py",
+      meta: { role: "participant" } },
+  ];
+  const messages: MockRecipeNode[] = [
+    { key: "m1", render: "sequence", label: "POST /checkout",
+      description: "POST /checkout with {cartId, items[], total} — the browser sends the cart to charge.",
+      meta: { role: "message", from: "client", to: "api", order: "1" } },
+    { key: "m2", render: "sequence", label: "SELECT orders",
+      description: "Brings back the user's open orders from PostgreSQL.",
+      meta: { role: "message", from: "api", to: "db", order: "2" } },
+    { key: "m3", render: "sequence", label: "200 OK",
+      meta: { role: "message", from: "api", to: "client", order: "3", return: "true" } },
+  ];
+  return { nodes: [...participants, ...messages], edges: [] };
+}
+
 export class MockBridgeEngineClient implements EngineClient {
   // Tracks which mock diff entries have been "accepted" so a later getDiff() omits them, since
   // there's no real git repo here to actually commit against.
@@ -1695,6 +1698,7 @@ export class MockBridgeEngineClient implements EngineClient {
     else if (recipe === "patterns") built = diagramRecipeResult(MOCK_PATTERNS, "pattern");
     else if (recipe === "impact") built = diagramRecipeResult(MOCK_IMPACT, "impact");
     else if (recipe === "epics") built = epicsRecipeResult(MOCK_EPICS_INDEX);
+    else if (recipe === "sequence") built = sequenceRecipeResult();
     else if (recipe.startsWith("custom/")) {
       const typeId = recipe.slice("custom/".length);
       built = diagramRecipeResult(mockCustomDiagrams.get(typeId) ?? EMPTY_DIAGRAM, "custom");
@@ -1724,6 +1728,7 @@ export class MockBridgeEngineClient implements EngineClient {
       c1: { ready: hasLayer("c1") },
       patterns: { ready: hasLayer("patterns") },
       impact: { ready: hasLayer("impact") },
+      sequence: { ready: hasLayer("sequence") },
       ...Object.fromEntries(
         [...mockDiagramTypes.keys()].map((id) => [
           `custom/${id}`,
@@ -1759,23 +1764,15 @@ export class MockBridgeEngineClient implements EngineClient {
     return item;
   }
 
+  async getSourceFragment(path: string): Promise<SourceFragment> {
+    return { path, content: "", language: "markdown" };
+  }
+
   async getTrace(traceId: string): Promise<Trace> {
     await delay(300);
     const trace = MOCK_TRACES.find((t) => t.id === traceId);
     if (!trace) throw new Error(`unknown trace: ${traceId}`);
     return trace;
-  }
-
-  async askResearch(query: string): Promise<ResearchJobState> {
-    await delay(300);
-    const answer = mockResearchAnswerFor(query);
-    return { job_key: `mock:${query}`, state: "done", error: null, answer };
-  }
-
-  async getResearchAnswer(jobKey: string): Promise<ResearchJobState> {
-    await delay(300);
-    const query = jobKey.startsWith("mock:") ? jobKey.slice("mock:".length) : "";
-    return { job_key: jobKey, state: "done", error: null, answer: mockResearchAnswerFor(query) };
   }
 
   /** Starts (or attaches to) a mock brief run -- a cached brief returns inline, otherwise this

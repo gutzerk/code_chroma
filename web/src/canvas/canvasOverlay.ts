@@ -140,7 +140,7 @@ export function measureAndRouteEdges<T extends { fromId: string; toId: string }>
   return routeEdges(
     measured,
     (m) => pairKeyOf(m.item.fromId, m.item.toId),
-    (m) => ({ from: m.from, to: m.to }),
+    (m) => ({ from: m.from, to: m.to, fromId: m.item.fromId, toId: m.item.toId }),
     measured.flatMap((m) => [m.from, m.to]),
   ).map(({ item, route }) => ({ item: item.item, d: route.d }));
 }

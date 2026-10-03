@@ -6,7 +6,6 @@ import type { DiagramGenerationStatus, WikiGeneralStatus } from "./types";
 import {
   DIAGRAM_STUB,
   EPICS_STUB,
-  RESEARCH_STUB,
   EPIC_BRIEF_STUB,
 } from "../engine-client/stubEngineClient";
 
@@ -36,7 +35,6 @@ function clientWith(overrides: Partial<EngineClient>): EngineClient {
   return {
     ...DIAGRAM_STUB,
     ...EPICS_STUB,
-    ...RESEARCH_STUB,
     ...EPIC_BRIEF_STUB,
     getNode: async () => null,
     getChildren: async () => [],

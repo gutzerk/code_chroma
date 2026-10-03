@@ -37,9 +37,9 @@ const CLI_PROVIDER = {
   verify_ssl: true,
 };
 
-const RESEARCH_GROUP = {
-  id: "research", label: "Research",
-  members: [{ id: "research_agent", label: "Research skill", description: "what it does" }],
+const PLANNING_GROUP = {
+  id: "planning", label: "Planning",
+  members: [{ id: "epic_brief_agent", label: "Epic-brief skill", description: "what it does" }],
   assignment: null,
   cli_available: true,
 };
@@ -50,15 +50,15 @@ describe("CallSitesSection", () => {
       simple: [
         { id: "ai_summarizer", label: "AI summarizer", capability: "simple", description: "what it does", assignment: null },
       ],
-      groups: [RESEARCH_GROUP],
+      groups: [PLANNING_GROUP],
     });
     listProviders.mockResolvedValue([]);
 
     render(<CallSitesSection />);
 
     await waitFor(() => expect(screen.getByText("AI summarizer")).toBeTruthy());
-    expect(screen.getByText("Research")).toBeTruthy();
-    expect(screen.getByText("Research skill")).toBeTruthy();
+    expect(screen.getByText("Planning")).toBeTruthy();
+    expect(screen.getByText("Epic-brief skill")).toBeTruthy();
   });
 
   it("shows the mode toggle only for a simple call site, never for a group", async () => {
@@ -66,7 +66,7 @@ describe("CallSitesSection", () => {
       simple: [
         { id: "ai_summarizer", label: "AI summarizer", capability: "simple", description: "what it does", assignment: null },
       ],
-      groups: [RESEARCH_GROUP],
+      groups: [PLANNING_GROUP],
     });
     listProviders.mockResolvedValue([]);
 
@@ -75,17 +75,17 @@ describe("CallSitesSection", () => {
     await waitFor(() =>
       expect(screen.getByTestId("llm-call-site-mode-ai_summarizer")).toBeTruthy(),
     );
-    expect(screen.queryByTestId("llm-call-site-group-mode-research")).toBeNull();
+    expect(screen.queryByTestId("llm-call-site-group-mode-planning")).toBeNull();
   });
 
   it("only offers cli providers for a group", async () => {
-    listCallSites.mockResolvedValue({ simple: [], groups: [RESEARCH_GROUP] });
+    listCallSites.mockResolvedValue({ simple: [], groups: [PLANNING_GROUP] });
     listProviders.mockResolvedValue([API_PROVIDER, CLI_PROVIDER]);
 
     render(<CallSitesSection />);
-    await waitFor(() => expect(screen.getByText("Research")).toBeTruthy());
+    await waitFor(() => expect(screen.getByText("Planning")).toBeTruthy());
 
-    const select = screen.getByTestId("llm-call-site-group-provider-research") as HTMLSelectElement;
+    const select = screen.getByTestId("llm-call-site-group-provider-planning") as HTMLSelectElement;
     const options = Array.from(select.options).map((o) => o.textContent);
     expect(options).toContain("Claude CLI");
     expect(options).not.toContain("Local Ollama");

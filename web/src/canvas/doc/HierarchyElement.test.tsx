@@ -9,7 +9,6 @@ import {
   EPIC_BRIEF_STUB,
   EPICS_STUB,
   PATTERNS_STUB,
-  RESEARCH_STUB,
 } from "../../engine-client/stubEngineClient";
 import type { EngineClient } from "../../engine-client/EngineClient";
 import type { CanvasElement, HierarchyNodeRef } from "../../state/types";
@@ -47,7 +46,6 @@ function client(overrides: Partial<EngineClient> = {}): EngineClient {
   return {
     ...IMPACT_CHANGES_STUB,
     ...EPICS_STUB,
-    ...RESEARCH_STUB,
     ...EPIC_BRIEF_STUB,
     ...PATTERNS_STUB,
     getNode: async () => null,
@@ -76,11 +74,12 @@ afterEach(() => {
   selectionStore.clear();
 });
 
-/** Untouched-by-construction: HierarchyElement wraps the real strategy renderer (TreeNode by
- * default), so these are the same behaviors Block/TreeNode always had — just proven to still work
- * once the row sits inside HierarchyElement's positioned/draggable wrapper. */
+/** Untouched-by-construction: HierarchyElement wraps the Boxes renderer (Block, the only hierarchy
+ * renderer — there is no boxes-vs-tree choice anymore), so these are the same behaviors Block always
+ * had — just proven to still work once the box sits inside HierarchyElement's positioned/draggable
+ * wrapper. */
 describe("HierarchyElement", () => {
-  it("fetches the pinned node and renders it through the real tree strategy", async () => {
+  it("fetches the pinned node and renders it as a box", async () => {
     const root = node("root", { name: "Root" });
     const engineClient = client({ getNode: async () => root });
 
@@ -90,7 +89,7 @@ describe("HierarchyElement", () => {
       </EngineClientProvider>,
     );
 
-    await waitFor(() => expect(screen.getByTestId("tree-node")).toHaveAttribute("data-node-id", "root"));
+    await waitFor(() => expect(screen.getByTestId("block")).toHaveAttribute("data-node-id", "root"));
     expect(screen.getByText("Root")).toBeInTheDocument();
   });
 
@@ -107,8 +106,8 @@ describe("HierarchyElement", () => {
         <HierarchyElement element={element()} />
       </EngineClientProvider>,
     );
-    await waitFor(() => expect(screen.getByTestId("tree-node-toggle")).toBeInTheDocument());
-    fireEvent.click(screen.getByTestId("tree-node-toggle"));
+    await waitFor(() => expect(screen.getByTestId("block")).toBeInTheDocument());
+    fireEvent.click(screen.getByTestId("block"));
 
     await waitFor(() => expect(screen.getByText("Child")).toBeInTheDocument());
   });

@@ -1,5 +1,32 @@
 import "@testing-library/jest-dom/vitest";
 
+/** jsdom here ships a placeholder `window.localStorage` object with no methods, but the canvas's
+ * collapsed-layers store persists to it. Back it with a real in-memory implementation so both that
+ * store and its tests get the standard getItem/setItem/removeItem/clear contract. */
+if (typeof window.localStorage?.setItem !== "function") {
+  const backing = new Map<string, string>();
+  Object.defineProperty(window, "localStorage", {
+    configurable: true,
+    value: {
+      getItem: (key: string): string | null => backing.get(key) ?? null,
+      setItem: (key: string, value: string): void => {
+        backing.set(key, String(value));
+      },
+      removeItem: (key: string): void => {
+        backing.delete(key);
+      },
+      clear: (): void => {
+        backing.clear();
+      },
+      key: (index: number): string | null => [...backing.keys()][index] ?? null,
+      get length(): number {
+        return backing.size;
+      },
+    },
+  });
+}
+
+
 /** jsdom has no ResizeObserver — stub it so components that observe container size can mount. */
 class ResizeObserverStub {
   observe(): void {}

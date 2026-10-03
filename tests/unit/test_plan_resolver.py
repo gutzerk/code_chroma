@@ -21,39 +21,24 @@ def engine(tmp_path):
     return graph_engine
 
 
-def test_existing_function_resolves_exactly(engine):
-    node_id, resolution = resolve_target(engine, "shared/text_utils.py", "slugify")
+@pytest.mark.parametrize(
+    "source_file,symbol,expected_id,expected_resolution",
+    [
+        ("shared/text_utils.py", "slugify", "shared/text_utils.py::function::slugify", "exact"),
+        ("shared/text_utils.py", "truncate", "component::shared/text_utils.py", "parent"),
+        (
+            "users/service.py", "UserService.delete_user",
+            "users/service.py::class::UserService", "parent",
+        ),
+        ("users/tokens.py", "validate_token", "dir::users", "ancestor"),
+        ("billing/service.py", None, "component::billing/service.py", "exact"),
+    ],
+)
+def test_resolve_target(engine, source_file, symbol, expected_id, expected_resolution):
+    node_id, resolution = resolve_target(engine, source_file, symbol)
 
-    assert node_id == "shared/text_utils.py::function::slugify"
-    assert resolution == "exact"
-
-
-def test_missing_symbol_in_existing_file_resolves_to_the_component(engine):
-    node_id, resolution = resolve_target(engine, "shared/text_utils.py", "truncate")
-
-    assert node_id == "component::shared/text_utils.py"
-    assert resolution == "parent"
-
-
-def test_new_method_resolves_to_the_existing_class(engine):
-    node_id, resolution = resolve_target(engine, "users/service.py", "UserService.delete_user")
-
-    assert node_id == "users/service.py::class::UserService"
-    assert resolution == "parent"
-
-
-def test_new_file_in_existing_dir_resolves_to_the_directory(engine):
-    node_id, resolution = resolve_target(engine, "users/tokens.py", "validate_token")
-
-    assert node_id == "dir::users"
-    assert resolution == "ancestor"
-
-
-def test_file_only_target_resolves_exactly_to_its_component(engine):
-    node_id, resolution = resolve_target(engine, "billing/service.py", None)
-
-    assert node_id == "component::billing/service.py"
-    assert resolution == "exact"
+    assert node_id == expected_id
+    assert resolution == expected_resolution
 
 
 def test_brand_new_top_level_path_falls_back_to_a_root_node(engine):

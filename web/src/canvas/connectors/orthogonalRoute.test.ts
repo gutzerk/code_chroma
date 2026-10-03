@@ -5,6 +5,7 @@ import {
   assignLanes,
   assignPorts,
   chooseSides,
+  labelPointOf,
   pairKeyOf,
   rectFromBox,
   roundedPath,
@@ -215,9 +216,11 @@ describe("routeConnector", () => {
     expect(a.d).not.toBe(b.d);
   });
 
-  it("lands its caption on the longest segment rather than on an elbow", () => {
+  it("centers its caption on the line's true arc-length midpoint, not the longest segment's", () => {
     const route = routeConnector(rect(0, 0), rect(300, 200), { offset: 20, rank: 0 });
-    expect(route.label).toEqual({ x: 220, y: 150 });
+    // Total path is 400 units (18 + 102 + 200 + 62 + 18); the halfway point falls mid-run at y=130,
+    // not at the middle of the longest (vertical) segment which would sit lower at y=150.
+    expect(route.label).toEqual({ x: 220, y: 130 });
   });
 
   it("reads a dagre box's centre-based coordinates as a rect", () => {
@@ -232,5 +235,29 @@ describe("routeConnector", () => {
   it("leaves a stub before the first turn so the arrow meets the box at a right angle", () => {
     const route = routeConnector(rect(0, 0), rect(300, 200));
     expect(route.points[1]).toEqual({ x: 100 + CONNECTOR.stub, y: 30 });
+  });
+});
+
+describe("labelPointOf", () => {
+  it("returns the true arc-length midpoint of a multi-segment line", () => {
+    const points = [
+      { x: 0, y: 0 },
+      { x: 100, y: 0 },
+      { x: 100, y: 200 },
+      { x: 300, y: 200 },
+    ];
+    // Total length 500; the halfway point (250 units in) lands three-quarters down the vertical run.
+    expect(labelPointOf(points)).toEqual({ x: 100, y: 150 });
+  });
+
+  it("returns the midpoint of the longest clear segment when the true midpoint sits on a box", () => {
+    const points = [
+      { x: 0, y: 0 },
+      { x: 100, y: 0 },
+      { x: 100, y: 200 },
+    ];
+    // The true midpoint (100,50) sits on the avoid box, so fall back to the longest clear segment's
+    // midpoint — the vertical run (100,0)→(100,200), whose midpoint (100,100) clears the box.
+    expect(labelPointOf(points, [rect(80, 30, 40, 40)])).toEqual({ x: 100, y: 100 });
   });
 });

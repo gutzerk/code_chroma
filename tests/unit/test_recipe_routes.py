@@ -67,6 +67,27 @@ def test_run_recipe_deletes_an_ai_node_no_longer_in_the_resolved_slice(bridge):
     assert _impact_elements(after) == {}
 
 
+def test_run_recipe_can_reconcile_a_refresh_larger_than_the_mass_delete_guard(bridge):
+    # A real diagram routinely exceeds MASS_DELETE_GUARD (20) on refresh: rebuilding a large layer
+    # deletes many stale AI elements + their cascaded edges. The reconcile only ever touches its own
+    # AI-owned layer, so it confirms the delete internally -- swapping out more than 20 items on
+    # refresh is deliberate replacement, not a suspicious mass delete.
+    before = [{"id": f"n{i}", "name": f"Node {i}", "node_id": "component::src"} for i in range(25)]
+    _write_impact(bridge.repo, before, [])
+
+    with TestClient(bridge.app) as client:
+        first = client.post("/repos/default/recipes/impact/run")
+        assert first.json()["ok"] is True
+
+        # Same run again deletes nothing (keys match); shrink it instead to force >20 deletes.
+        _write_impact(bridge.repo, before[:2], [])
+        second = client.post("/repos/default/recipes/impact/run")
+        assert second.json()["ok"] is True
+        assert second.status_code == 200
+        leftover = _impact_elements(client.get("/repos/default/canvas").json())
+        assert len(leftover) == 2
+
+
 def test_run_recipe_reports_what_it_could_not_draw_without_failing_the_run(bridge):
     # 🔴 Soft mode: the diagram still renders; the drop is reported beside it, never as an error.
     _write_impact(

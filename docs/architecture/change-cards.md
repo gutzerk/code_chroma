@@ -7,7 +7,10 @@ belongs to. (An older, now-retired "Plan overlay" also shared this ladder — se
 on one block is the normal case and the point: two deleted methods both
 resolve to their class node, and `by_node` is the count a collapsed parent badges with. Two passes:
 `compute_function_diffs` for code, then `working_tree_status` for every changed path the analyzers
-couldn't see (without it a Markdown-only PR renders an empty layer). Paths under `engine.IGNORED_DIRS`
+couldn't see (without it a Markdown-only PR renders an empty layer). The code pass also yields a
+single whole-file `modified` card per changed present file (the file's own `component::` diff entry,
+see `graph-bridge-core.md`), so a changed file's block reads `modified` rather than leaning on the
+deleted-function aggregation. Paths under `engine.IGNORED_DIRS`
 are dropped rather than reported — our own `graph.db` and `node_modules` are out of scope by design,
 not changes we failed to place. 🔴 `base_resolved` exists because `working_tree_status` reports
 *nothing* for an unreachable base, which would otherwise render as an honest-looking empty change set;

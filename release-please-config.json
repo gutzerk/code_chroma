@@ -1,40 +1,11 @@
 {
-  "$schema": "https://raw.githubusercontent.com/googleapis/release-please/main/schemas/config.json",
-  "release-type": "python",
   "packages": {
     ".": {
-      "package-name": "codechroma",
+      "release-type": "simple",
       "extra-files": [
-        {
-          "type": "json",
-          "path": "web/package.json",
-          "jsonpath": "$.version"
-        },
-        {
-          "type": "json",
-          "path": "desktop/package.json",
-          "jsonpath": "$.version"
-        },
-        {
-          "type": "json",
-          "path": "web/package-lock.json",
-          "jsonpath": "$.version"
-        },
-        {
-          "type": "json",
-          "path": "web/package-lock.json",
-          "jsonpath": "$['packages']['']['version']"
-        },
-        {
-          "type": "json",
-          "path": "desktop/package-lock.json",
-          "jsonpath": "$.version"
-        },
-        {
-          "type": "json",
-          "path": "desktop/package-lock.json",
-          "jsonpath": "$['packages']['']['version']"
-        }
+        { "type": "json", "path": "desktop/package.json", "jsonpath": "$.version" },
+        { "type": "json", "path": "web/package.json", "jsonpath": "$.version" },
+        { "type": "toml", "path": "pyproject.toml", "key": "project.version" }
       ]
     }
   }

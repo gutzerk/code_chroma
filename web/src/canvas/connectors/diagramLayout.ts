@@ -43,8 +43,10 @@ export function layoutDiagramEdges<
     to: string;
     kind?: string;
     label?: string;
+    transport?: string;
     hero?: boolean;
     style?: Record<string, string> | null;
+    origin?: string;
   },
 >(
   relations: readonly T[],
@@ -52,7 +54,7 @@ export function layoutDiagramEdges<
   // Optional: a caller with authored edge keys (epics) keeps them instead of the computed default.
   keyOf?: (relation: T, index: number) => string,
 ): Array<
-  Pick<T, "from" | "to" | "kind" | "label" | "hero" | "style"> & {
+  Pick<T, "from" | "to" | "kind" | "label" | "transport" | "hero" | "style" | "origin"> & {
     key: string;
     d: string;
     labelX: number;
@@ -65,7 +67,7 @@ export function layoutDiagramEdges<
     (relation) => {
       const from = rectByKey.get(relation.from);
       const to = rectByKey.get(relation.to);
-      return from && to ? { from, to } : null;
+      return from && to ? { from, to, fromId: relation.from, toId: relation.to } : null;
     },
     [...rectByKey.values()],
   ).map(({ item, route }) => ({
@@ -74,8 +76,10 @@ export function layoutDiagramEdges<
     to: item.to,
     kind: item.kind,
     label: item.label,
+    transport: item.transport,
     hero: item.hero,
     style: item.style,
+    origin: item.origin,
     d: route.d,
     labelX: route.label.x,
     labelY: route.label.y,

@@ -48,7 +48,11 @@ def _flat(node_count, *, relations=None, label="uses"):
 
 def _markdown_budgets():
     """The budget table in drawing-rules.md, parsed back into the shape `_BUDGETS` has."""
-    rows = re.findall(r"^\|\s*(c1|patterns|impact|custom)\s*\|(.+)\|\s*$", RULES.read_text(), re.M)
+    rows = re.findall(
+        r"^\|\s*(c1|patterns|impact|epics|custom|sequence)\s*\|(.+)\|\s*$",
+        RULES.read_text(),
+        re.M,
+    )
     columns = ("max_nodes", "max_relations", "max_name_chars", "max_edge_label_chars")
     return {
         kind: dict(
@@ -107,6 +111,45 @@ def test_a_diagram_inside_its_budget_says_nothing_about_density(tmp_path):
     assert "EDGEBOMB" not in result.stdout
 
 
+def test_epics_group_connectivity_is_never_flagged_an_orphan_or_island(tmp_path):
+    """Epics hierarchy nests via meta.recipe_key/group frames, not `relations[]` (they carry only
+    cross-epic dependency edges, usually none) -- so ORPHAN/ISLAND connectivity checks are disabled
+    for this kind. A lone epic, a framed story set, and a full-graph epic pass with zero edges."""
+    diagram = {
+        "nodes": [
+            {"id": "EP-1", "name": "EP-1", "group": "platform"},
+            {"id": "EP-1-01", "name": "s1", "group": "EP-1",
+             "meta": {"recipe_key": "EP-1::phase-1::s1"}},
+            {"id": "EP-1-02", "name": "s2", "group": "EP-1",
+             "meta": {"recipe_key": "EP-1::phase-1::s2"}},
+        ],
+        "relations": [],
+    }
+
+    result = _run(tmp_path, "epics", diagram)
+
+    assert result.returncode == 0
+    assert "ORPHAN" not in result.stdout
+    assert "ISLAND" not in result.stdout
+
+
+def test_epics_lone_epic_with_no_relations_is_not_an_orphan(tmp_path):
+    """A single bare epic with no cross-epic edges is a legal diagram, not a disconnected stub --
+    the ORPHAN/ISLAND checks that would flag it apply to edge-connected kinds only."""
+    diagram = {
+        "nodes": [
+            {"id": "EP-1", "name": "EP-1"},
+            {"id": "EP-2", "name": "EP-2", "group": "planning"},
+        ],
+        "relations": [],
+    }
+
+    result = _run(tmp_path, "epics", diagram)
+
+    assert result.returncode == 0
+    assert "ORPHAN" not in result.stdout
+
+
 def test_too_many_hero_relations_is_advisory_and_never_fails_the_run(tmp_path):
     diagram = _flat(
         4,
@@ -158,6 +201,112 @@ def test_unlabeled_relations_are_summarized_on_one_line_not_one_per_edge(tmp_pat
 
     assert result.stdout.count("UNLABELED") == 1
     assert "3 of 3" in result.stdout
+
+
+def test_a_directed_cycle_is_reported_as_an_advisory_not_a_failure(tmp_path):
+    # n0 -> n1 -> n2 -> n0 is a genuine directed cycle -- flagged, but the run still passes.
+    diagram = _flat(
+        3,
+        relations=[
+            {"from": "n0", "to": "n1", "label": "a"},
+            {"from": "n1", "to": "n2", "label": "b"},
+            {"from": "n2", "to": "n0", "label": "c"},
+        ],
+    )
+
+    result = _run(tmp_path, "impact", diagram)
+
+    assert result.returncode == 0
+    assert "CYCLES 'n0' -> 'n1' -> 'n2' -> 'n0'" in result.stdout
+
+
+def test_a_chain_has_no_cycle_finding(tmp_path):
+    diagram = _flat(4)
+
+    result = _run(tmp_path, "impact", diagram)
+
+    assert "CYCLES" not in result.stdout
+
+
+def test_a_self_loop_is_only_a_CYCLES_finding_when_self_edges_are_allowed(tmp_path):
+    # `impact` forbids self-edges -- `_check_relations` already reports SELF, not a cycle.
+    diagram = _flat(1, relations=[{"from": "n0", "to": "n0", "label": "self"}])
+
+    result = _run(tmp_path, "impact", diagram)
+
+    assert result.returncode == 1
+    assert "CYCLES" not in result.stdout
+    assert "SELF 'n0' -> 'n0'" in result.stdout
+
+
+def test_a_self_loop_in_a_dependency_graph_is_a_cycle_finding(tmp_path):
+    # `dependency-graph` style allows self-edges -- the loop shows up as a 1-edge cycle advisory.
+    diagram = {
+        **_flat(1, relations=[{"from": "n0", "to": "n0", "label": "self"}]),
+        "style": "dependency-graph",
+    }
+
+    result = _run(tmp_path, "custom", diagram)
+
+    assert result.returncode == 0
+    assert "CYCLES 'n0' -> 'n0'" in result.stdout
+
+
+def test_a_bridge_node_is_reported_as_an_articulation_advisory(tmp_path):
+    # n0 -> n1 -> n2: removing n1 severs n0 and n2 -- a bridge the advisory should name.
+    diagram = _flat(
+        3,
+        relations=[
+            {"from": "n0", "to": "n1", "label": "a"},
+            {"from": "n1", "to": "n2", "label": "b"},
+        ],
+    )
+
+    result = _run(tmp_path, "impact", diagram)
+
+    assert result.returncode == 0
+    assert "ARTICULATION 'n1' is a bridge" in result.stdout
+
+
+def test_a_chain_without_a_bridge_is_quiet(tmp_path):
+    # n0 -> n1 (a two-node edge): no interior node whose removal disconnects anything.
+    diagram = _flat(2)
+
+    result = _run(tmp_path, "impact", diagram)
+
+    assert "ARTICULATION" not in result.stdout
+
+
+def test_a_node_inside_a_cycle_is_never_a_bridge(tmp_path):
+    # n0 <-> n1 <-> n2: every node is in a >1 SCC, so none is a single fragile connexion.
+    diagram = _flat(
+        3,
+        relations=[
+            {"from": "n0", "to": "n1", "label": "a"},
+            {"from": "n1", "to": "n2", "label": "b"},
+            {"from": "n2", "to": "n0", "label": "c"},
+        ],
+    )
+
+    result = _run(tmp_path, "impact", diagram)
+
+    assert "ARTICULATION" not in result.stdout
+
+
+def test_a_high_degree_node_is_a_hub_but_not_a_bridge(tmp_path):
+    # A complete graph K5: every node has degree 4, yet no single removal disconnects it -- so each
+    # is a hub (high-connectedness), never a bridge (no articulation point).
+    diagram = _flat(
+        5,
+        relations=[{"from": f"n{i}", "to": f"n{j}", "label": "a"}
+                   for i in range(5) for j in range(i + 1, 5)],
+    )
+
+    result = _run(tmp_path, "impact", diagram)
+
+    assert result.returncode == 0
+    assert "ARTICULATION 'n0' is a hub" in result.stdout
+    assert "is a bridge" not in result.stdout
 
 
 def test_a_dependency_graph_custom_diagram_is_exempt_from_the_density_budgets(tmp_path):

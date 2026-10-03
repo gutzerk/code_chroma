@@ -135,6 +135,19 @@ def test_validate_requires_credentials_unless_local():
     })
 
 
+def test_validate_accepts_gemini_transport_with_key():
+    assert not validate({"label": "x", "kind": "api", "transport": "gemini", "api_key": "g-key"})
+
+
+def test_validate_requires_credentials_for_gemini_unless_local():
+    problems = validate({"label": "x", "kind": "api", "transport": "gemini"})
+
+    assert problems
+    assert not validate({
+        "label": "x", "kind": "api", "transport": "gemini", "is_local": True,
+    })
+
+
 def test_validate_rejects_empty_label():
     assert validate({"label": "", "kind": "cli", "adapter": "claude"})
 

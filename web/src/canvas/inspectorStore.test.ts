@@ -114,4 +114,28 @@ describe("inspectorStore", () => {
     expect(result.current).toBe(false);
     unmount();
   });
+
+  it("keeps the originally-opened block highlighted while drilling deeper, and clears on open/close", () => {
+    inspectorStore.open("component::web/src/canvas/doc/EpicBlockPanel.tsx", "EpicBlockPanel.tsx");
+    inspectorStore.push("service::web/src/canvas/doc/EpicBlockPanel.tsx::functions", "Module Functions");
+    inspectorStore.push(
+      "web/src/canvas/doc/EpicBlockPanel.tsx::function::findChildren",
+      "findChildren",
+    );
+
+    // The whole drill path stays highlighted — not just the top entry being rendered.
+    const { result: deeper, unmount: unmountPath } = renderHook(() =>
+      useIsInspectorTarget("component::web/src/canvas/doc/EpicBlockPanel.tsx"),
+    );
+    expect(deeper.current).toBe(true);
+    unmountPath();
+
+    // Opening a different block resets the path, so the old block's highlight clears.
+    inspectorStore.open("component::web/src/canvas/RootCanvas.tsx", "RootCanvas.tsx");
+    const { result: switched, unmount } = renderHook(() =>
+      useIsInspectorTarget("component::web/src/canvas/doc/EpicBlockPanel.tsx"),
+    );
+    expect(switched.current).toBe(false);
+    unmount();
+  });
 });

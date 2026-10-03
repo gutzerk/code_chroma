@@ -4,25 +4,21 @@
   "version": "0.1.0",
   "productName": "CodeChroma",
   "description": "CodeChroma desktop shell: opens a repo and hosts the canvas in its own window",
-  "homepage": "https://github.com/gutzerk/code_chroma",
-  "author": {
-    "name": "dmitriiushakov",
-    "email": "spartaxgboostspartaxgboost@gmail.com"
-  },
   "main": "out/main.js",
   "scripts": {
-    "build": "rm -rf out tsconfig.tsbuildinfo && tsc -b",
+    "build": "node scripts/clean.cjs && tsc -b",
     "start": "npm run build && electron .",
     "dist": "npm run build && electron-builder --config electron-builder.yml",
-    "generate-icon": "node scripts/generate-icon.cjs",
     "test": "vitest run"
   },
   "devDependencies": {
     "@types/node": "^26.1.1",
     "electron": "^33.2.0",
     "electron-builder": "^25.1.8",
-    "sharp": "^0.35.5",
     "typescript": "^5.6.3",
     "vitest": "^2.1.5"
+  },
+  "dependencies": {
+    "sigstore": "5.0.0"
   }
 }

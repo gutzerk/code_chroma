@@ -101,7 +101,7 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
         services.agent_sessions.stop_all()
         services.cancel_session_id_tasks()
         services.mark_all_agents_stopped()
-        # Covers every headless runner (diagrams + review + research) this app owns.
+        # Covers every headless runner (diagrams + review + epic-brief) this app owns.
         await services.cancel_skill_agents()
 
 

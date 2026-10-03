@@ -210,6 +210,9 @@ export interface DiagramRelation {
   to: string;
   kind?: string;
   label?: string;
+  /** Type of call/transport between the two boxes (`call`, `https`, `mcp`, `rpc`, ...) — optional.
+   * When set, the renderer shows it as a second line under the `label` divider. */
+  transport?: string;
   /** Item override wins over the diagram's own resolved `edge_style`, else no style at all. */
   style?: Record<string, string> | null;
 }
@@ -273,7 +276,7 @@ export interface C1Coverage {
  * `` `custom/${typeId}` `` is a whole family, not one member — feature 011's user-defined types are
  * data, not code, so a new one needs no new union member, only a new `.codechroma/diagram-types/*`
  * file. */
-export type DiagramKind = "c1" | "patterns" | "impact" | `custom/${string}`;
+export type DiagramKind = "c1" | "patterns" | "impact" | "sequence" | `custom/${string}`;
 
 /** Every kind `getDiagram(kind)` can fetch: every DiagramKind, plus "epics" — its index shares the
  * same GET /repos/{id}/{kind} shape but is assembled from the requirements source, never
@@ -761,28 +764,11 @@ export interface EpicWorkItem {
   stages: EpicStage[];
 }
 
-/** A pointer from part of a research answer's prose to one real, resolvable node. */
-export interface ResearchCitation {
-  node_id: string;
-  path: string | null;
-  symbol: string | null;
-}
-
-/** The synthesized (or templated, if degraded) response to one research question. */
-export interface ResearchAnswer {
-  query: string;
-  answer: string;
-  citations: ResearchCitation[];
-  degraded: boolean;
-  generated_at: string;
-}
-
-/** GET/POST /repos/{id}/research(/{job_key}) — one question's job state plus its answer once done. */
-export interface ResearchJobState {
-  job_key: string;
-  state: "idle" | "generating" | "done" | "error";
-  error: string | null;
-  answer: ResearchAnswer | null;
+/** A slice of a workspace file, as served for an epics block's source link. */
+export interface SourceFragment {
+  path: string;
+  content: string;
+  language: string | null;
 }
 
 /** One task attached to a scope item (or to the epic-level "prep" bucket) — 008-epics-ai-brief. */
@@ -848,7 +834,7 @@ export interface EpicBrief {
 }
 
 /** GET/POST /repos/{id}/epics/{item_id}/brief — one epic's brief job state plus its brief once
- * done. Unlike research, there is no inline/degraded path, so "done" never occurs here. */
+ * done. There is no inline/degraded path, so "done" never occurs here. */
 export interface EpicBriefJobState {
   job_key: string;
   state: "idle" | "generating" | "error";
@@ -911,16 +897,19 @@ export interface DiagramTypeSummary {
 
 // --- 016-single-canvas-dashboard: the one canvas document (GET/PATCH /repos/{id}/canvas) ---
 
-/** What `nodeStyles.tsx` (web/src/canvas/doc/) keys its per-kind CSS classes off. */
+/** What `elementRules.ts` (web/src/canvas/doc/) keys its per-kind CSS classes off. */
 export type CanvasRenderKind =
   | "hierarchy"
   | "c1"
   | "pattern"
   | "impact"
   | "epic"
+  | "spec"
+  | "task"
   | "custom"
   | "group"
-  | "note";
+  | "note"
+  | "sequence";
 
 export interface CanvasPosition {
   x: number;
@@ -957,11 +946,17 @@ export interface CanvasEdge {
   label: string;
   kind: string;
   layer: string;
+  /** Type of call/transport (`call`, `https`, `mcp`, ...) — rendered as a second line under the
+   * `label` divider; omitted renders single-line. */
+  transport?: string;
   /** pr-lens-style emphasis, impact only: the 1-2 relations the drawing skill judged as best
    * explaining this PR, rendered bolder than the rest (see RelationshipEdge's `isHero`). */
   hero?: boolean;
   /** Optional allow-listed inline style (color/stroke only for an edge; see `authoredStyle.ts`). */
   style?: Record<string, string> | null;
+  /** `file:line` of the edge's caller (provenance, resolver-stamped) — clicking the edge's label
+   * opens that code location in the code sidebar. */
+  origin?: string;
 }
 
 /** GET /repos/{id}/canvas's whole payload — `CanvasDoc.model_dump(by_alias=True)` verbatim. */
@@ -1047,6 +1042,8 @@ export interface CanvasOp {
   layer?: string;
   /** pr-lens-style emphasis (Impact only) — see `CanvasEdge.hero`/`RelationshipEdge`'s `isHero`. */
   hero?: boolean;
+  /** Call/transport token (`call`, `https`, `mcp`, ...) — see `CanvasEdge.transport`. */
+  transport?: string;
 }
 
 export interface CanvasBatch {

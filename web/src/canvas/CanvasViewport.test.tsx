@@ -4,8 +4,14 @@ import { act, fireEvent, render, screen } from "@testing-library/react";
 import { CanvasViewport, type CanvasViewportHandle } from "./CanvasViewport";
 import { selectionStore } from "../state/selectionStore";
 import { gridStep } from "./canvasGrid";
+import { clearSavedCameraView } from "./canvasCameraStore";
 
-afterEach(() => selectionStore.clear());
+afterEach(() => {
+  selectionStore.clear();
+  // The camera persist feature restores the previous test's panned/zoomed view on the next mount;
+  // clear it so each test starts from the reset origin.
+  clearSavedCameraView();
+});
 
 function mockRect(el: Element, rect: { left: number; top: number; width: number; height: number }) {
   el.getBoundingClientRect = () =>
@@ -267,6 +273,53 @@ describe("CanvasViewport focusOnNode", () => {
     fireEvent.pointerUp(panel, { pointerId: 1, clientX: 300, clientY: 300 });
 
     expect(readTransform()).toEqual(initialTransform);
+  });
+});
+
+describe("CanvasViewport fitToAllNodes", () => {
+  it("unions canvas-doc elements that carry data-canvas-element but no data-node-id", () => {
+    const ref = createRef<CanvasViewportHandle>();
+    render(
+      <CanvasViewport ref={ref}>
+        {/* A synthetic/canvas-doc box: no data-node-id, only data-canvas-element */}
+        <div data-canvas-element data-testid="box" />
+        {/* A hierarchy block: data-node-id, no data-canvas-element */}
+        <div data-node-id="hblock" data-testid="hblock" />
+      </CanvasViewport>,
+    );
+
+    mockRect(screen.getByTestId("app-canvas"), { left: 0, top: 0, width: 1000, height: 800 });
+    mockRect(screen.getByTestId("box"), { left: 100, top: 100, width: 400, height: 300 });
+    mockRect(screen.getByTestId("hblock"), { left: 600, top: 500, width: 200, height: 100 });
+
+    act(() => ref.current?.fitToAllNodes());
+
+    // The union spans both elements: left=100..800 across, top=100..600 down, so the fit must
+    // account for that full extent rather than collapsing onto one of them.
+    const { scale } = readTransform();
+    const unionWidth = 800 - 100;
+    const unionHeight = 600 - 100;
+    // fitScale = min(1000/unionW, 800/unionH) * 0.7 — comfortably under FOCUS_MAX_SCALE here.
+    const expectedScale = Math.min(1000 / unionWidth, 800 / unionHeight) * 0.7;
+    expect(scale).toBeCloseTo(expectedScale, 5);
+  });
+
+  it("still fits when only data-canvas-element elements are present", () => {
+    const ref = createRef<CanvasViewportHandle>();
+    render(
+      <CanvasViewport ref={ref}>
+        <div data-canvas-element data-testid="note" />
+      </CanvasViewport>,
+    );
+
+    mockRect(screen.getByTestId("app-canvas"), { left: 0, top: 0, width: 1000, height: 800 });
+    mockRect(screen.getByTestId("note"), { left: 200, top: 200, width: 500, height: 400 });
+
+    act(() => ref.current?.fitToAllNodes());
+
+    const { scale } = readTransform();
+    const expectedScale = Math.min(1000 / 500, 800 / 400) * 0.7;
+    expect(scale).toBeCloseTo(expectedScale, 5);
   });
 });
 

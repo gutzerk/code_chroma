@@ -16,6 +16,7 @@ from __future__ import annotations
 from collections.abc import Callable, Sequence
 from dataclasses import dataclass, field
 
+from codechroma.diagrams.articulation import articulation_labels
 from codechroma.diagrams.registry import CheckConfig
 from codechroma.patterns.serialize import INSTANCE_KIND
 
@@ -254,6 +255,14 @@ def _check_islands(endpoints: list[tuple[str, str]], report: Report, hint: str) 
         )
 
 
+def _check_articulation(endpoints: list[tuple[str, str]], report: Report) -> None:
+    """Flags critical nodes (`bridge`/`hub`) as an advisory -- they never change the exit code."""
+    for node, label in sorted(articulation_labels(endpoints).items()):
+        report.advisories.append(
+            f"ARTICULATION {node!r} is a {label}: removing it breaks the diagram"
+        )
+
+
 def _check_unlabeled(unlabeled_severity: str, report: Report) -> None:
     total = report.relation_count
     unlabeled = total - len(report.edge_labels)
@@ -296,11 +305,21 @@ def _check_kind(child: dict, trail: str, report: Report) -> None:
         report.advisories.append(f"BADKIND {trail} kind={kind!r} is not a recognized icon kind")
 
 
+def _meta_str(node: dict, key: str) -> str | None:
+    """A string `meta[key]`, or `None` if `meta` is missing, not a dict, or not a string there."""
+    meta = node.get("meta")
+    value = meta.get(key) if isinstance(meta, dict) else None
+    return value if isinstance(value, str) else None
+
+
 def _plan_kind(node: dict) -> str | None:
     """`meta.plan_kind` (add/create/modify/delete) marks a Planned block, distinct from `kind`."""
-    meta = node.get("meta")
-    value = meta.get("plan_kind") if isinstance(meta, dict) else None
-    return value if isinstance(value, str) else None
+    return _meta_str(node, "plan_kind")
+
+
+def _no_code_reason(node: dict) -> str | None:
+    """`meta.no_code_reason` from diagram_resolver.py, or `None` if never resolved live."""
+    return _meta_str(node, "no_code_reason")
 
 
 def _check_name(child: dict, trail: str, report: Report) -> None:
@@ -327,6 +346,7 @@ class FlatInspector(Inspector):
         noun = "entry" if spec.required_meta else "node"
         _check_duplicates(report, "nodes")
         _check_relations(endpoints, report, spec.allow_self, noun)
+        _check_articulation(endpoints, report)
         _check_orphans(free_nodes, touched, report)
         if spec.check_islands:
             _check_islands(endpoints, report, spec.check_islands["hint"])
@@ -487,6 +507,7 @@ class HierarchicalInspector(Inspector):
     def _check_relations(self, relations: object, by_id: dict[str, dict], report: Report) -> None:
         edges = relations if isinstance(relations, list) else []
         internal = 0
+        endpoints: list[tuple[str, str]] = []
         for edge in edges:
             if not isinstance(edge, dict):
                 report.broken.append("BROKEN relations contains a non-object entry")
@@ -504,6 +525,7 @@ class HierarchicalInspector(Inspector):
             if source == target:
                 report.broken.append(f"SELF {pair} connects a block to itself")
                 continue
+            endpoints.append((source, target))
             report.touched.add(source)
             report.touched.add(target)
             source_node, target_node = by_id.get(source), by_id.get(target)
@@ -518,6 +540,7 @@ class HierarchicalInspector(Inspector):
                 report.advisories.append(
                     f"NESTING-EDGE {pair} only restates the nesting the box already shows"
                 )
+        _check_articulation(endpoints, report)
         is_substantial = report.depth >= NOARROWS_MIN_DEPTH and report.blocks >= NOARROWS_MIN_BLOCKS
         if is_substantial and internal == 0:
             report.shape.append(
@@ -580,10 +603,16 @@ class HierarchicalInspector(Inspector):
                 enumerated += 1
             if child.get("node_id"):
                 self._check_leaf(child, child_id, report, context)
-            elif _plan_kind(child) in ("add", "create"):
-                pass
-            elif "node_id" in child or not child.get("path"):
-                report.broken.append(f"BROKEN {child_id} path={child.get('path') or '<none>'}")
+            else:
+                reason = _no_code_reason(child)
+                if reason is not None:
+                    is_broken = reason == "unresolved"
+                elif _plan_kind(child) in ("add", "create"):
+                    is_broken = False  # fallback: this diagram never went through resolve_diagram()
+                else:
+                    is_broken = "node_id" in child or not child.get("path")
+                if is_broken:
+                    report.broken.append(f"BROKEN {child_id} path={child.get('path') or '<none>'}")
         if enumerated >= LISTING_CHILD_COUNT:
             report.shape.append(
                 f"LISTING {trail} re-lists {enumerated} files already shown by {parent_path}"

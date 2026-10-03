@@ -227,6 +227,39 @@ def test_a_rejected_instance_and_its_participants_are_dropped():
     assert diagram["nodes"] == []
 
 
+def test_a_rejected_instances_relations_are_dropped_with_its_participants():
+    """Rejecting an instance drops its attr-participant boxes AND the relations that pointed at
+    them -- otherwise the resolver reports 'points at a box that isn't there' endpooints."""
+    from codechroma.graph.models import PatternRelation, PatternRelationKind
+
+    attr_participant = PatternParticipant(
+        id="attr::class::Foo::field", role=PatternRole.IMPLEMENTATION, name="field",
+        qualified_name="field",
+    )
+    candidate = PatternInstance(
+        id="strategy::Foo", type=PatternType.STRATEGY, name="Strategy — Foo dispatch",
+        participants=[_PARTICIPANT, attr_participant],
+        relations=[
+            PatternRelation(
+                from_id="class::Foo", to_id="attr::class::Foo::field",
+                kind=PatternRelationKind.USES,
+            )
+        ],
+    )
+    graph = Graph(pattern_candidates=[candidate])
+    persisted = {
+        "nodes": [{"id": "strategy::Foo", "kind": "pattern-instance", "meta": {"confirmed": False}}]
+    }
+
+    diagram = resolve_patterns_diagram(ENGINE, graph, persisted)
+
+    assert diagram["nodes"] == []
+    # The relation's only endpoint (the attr box) was dropped with the instance, so the relation
+    # must not survive either -- a dangling endpoint would be flagged as "not drawn".
+    assert all(rel["from"] != "class::Foo" for rel in diagram["relations"])
+    assert diagram["diagnostics"]["dropped_count"] == 0
+
+
 def test_instance_internal_relations_surface_as_shared_relations():
     from codechroma.graph.models import PatternRelation, PatternRelationKind
 

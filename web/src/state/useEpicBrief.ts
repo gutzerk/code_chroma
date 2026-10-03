@@ -8,9 +8,9 @@ const IDLE: EpicBriefJobState = { job_key: "", state: "idle", error: null, brief
 /** Tracks one epic's AI-brief job, bound to `itemId` -- fetches its current state on mount/itemId
  * change (a brief from an earlier session, or a job another tab already started), polls both job
  * state and progress lines on one shared timer while generating, and exposes `generate()` to start
- * a fresh run explicitly. Modeled on useResearch.ts, not useDiagramGeneration.ts (that hook assumes
- * a per-repo kind; a brief is keyed per epic). No websocket push: generating a brief is a one-off
- * action the user starts explicitly, not a status watched continuously like a diagram generation. */
+ * a fresh run explicitly. A brief is keyed per epic, unlike diagram generation's per-repo kind. No
+ * websocket push: generating a brief is a one-off action the user starts explicitly, not a status
+ * watched continuously like a diagram generation. */
 export function useEpicBrief(
   engineClient: EngineClient,
   itemId: string | null,

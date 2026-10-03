@@ -56,7 +56,7 @@ python -m codechroma.bridge.launch --repo-path /path/to/repo     # one command: 
 ```
 
 The launcher analyzes `--repo-path` with the live bridge, waits for the initial analyze, then starts
-Vite pointed at it (any `VITE_*` env vars like `VITE_CANVAS_STRATEGY=tree` are forwarded). Ctrl-C
+Vite pointed at it (any `VITE_*` env vars are forwarded). Ctrl-C
 tears down both. The bridge watches the repo and pushes changes to the canvas in real time.
 
 ### Web canvas (`web/`)
@@ -75,14 +75,26 @@ To point the canvas at the real graph bridge: `VITE_ENGINE_BRIDGE_URL=http://loc
 (or just use the `codechroma.bridge.launch` one-command launcher above, which wires this for you). The
 canvas then live-updates as the repo changes — new/edited/deleted functions appear without reload,
 and the diff overlay refreshes in place. The terminal panel targets `ws://localhost:8000` by default
-(`VITE_TERMINAL_BRIDGE_URL` to override). Rendering strategy defaults to the indented tree;
-`VITE_CANVAS_STRATEGY=boxes npm run dev` switches to the nested-box view, and `?strategy=boxes` in
-the URL does the same for one page load (which is how e2e specs pin a renderer).
+(`VITE_TERMINAL_BRIDGE_URL` to override). The hierarchy always renders as nested boxes — there is no
+boxes-vs-tree selector (the old `?strategy=` / `VITE_CANVAS_STRATEGY` switch was removed).
 
 ### Desktop app (`desktop/`)
 
 Build/run commands and architecture notes both live in
-[`docs/architecture/desktop-app.md`](docs/architecture/desktop-app.md).
+[`docs/architecture/desktop-app.md`](docs/architecture/desktop-app.md). End-user install is
+`curl -fsSL https://raw.githubusercontent.com/gutzerk/code-chroma/main/distribution/install.sh | sh`
+(macOS arm64/x64 / Linux x64) or `distribution/install.cmd` (Windows): each reads the published
+`distribution/latest.json` manifest and downloads the platform's prebuilt installer from the latest
+GitHub Release.
+
+**Releases ship via GitHub, not local builds.** `.github/workflows/release-please.yml` runs
+`release-please` (using the `code_pat_release` repository secret so merging its Release PR triggers
+the release build) on every push to `main`: it bumps the version, writes CHANGELOG, tags `vX.Y.Z`
+and opens a Release PR. Merging it triggers builds for macOS arm64/x64, Windows x64, and Linux x64.
+Author version is
+`desktop/package.json`; `release-please-config.json` syncs it with `web/package.json` and
+`pyproject.toml`. Files are versioned with Conventional Commits (`feat:`/`fix:`/`BREAKING CHANGE:`),
+since that's what release-please parses.
 
 ## Documentation map
 
@@ -101,7 +113,6 @@ Open the relevant file before making a non-trivial change in that area.
 | [`docs/architecture/c1-diagram.md`](docs/architecture/c1-diagram.md) | C1 system-context view: generation, resolver, relationships, arrow rendering, change review |
 | [`docs/architecture/patterns-diagram.md`](docs/architecture/patterns-diagram.md) | Design Patterns diagram: heuristic detection, skill-agent generation, dagre clustering |
 | [`docs/architecture/epics-view.md`](docs/architecture/epics-view.md) | Epics & requirements view: `RequirementsSource`/`DeliverySource` ports, the markdown adapters, the four routes, the `epic-*` node-id namespace, and the opt-in AI-brief path (`epic_brief_agent.py`, the `codechroma-epic-brief` skill, `EpicBriefView`) |
-| [`docs/architecture/research-endpoint.md`](docs/architecture/research-endpoint.md) | Natural-language research: embeddings indexer, semantic/keyword search degrade, the 4th `SkillAgent` (per-question job keys), `routes/research.py`, `ResearchPanel.tsx` |
 | [`docs/architecture/trace.md`](docs/architecture/trace.md) | Execution trace playback: `src/codechroma/trace/` (`Tracer`'s `sys.monitoring`/`settrace` capture, `FrameMapper`, the `codechroma-trace` CLI), `.codechroma/traces/*.json` storage, the `trace-ingest`/`trace-stream` live-relay sockets, `traceStore.ts`/`TraceFlowOverlay.tsx`/`TraceControls.tsx` |
 | [`docs/architecture/custom-diagrams.md`](docs/architecture/custom-diagrams.md) | User-defined custom diagrams: the cross-project `~/.codechroma/diagram-types` library, the style registry, the definition-driven generator (`codechroma-draw-diagram`, custom type), `routes/custom_diagrams.py` — the in-app authoring interview (`codechroma-diagram-type`, `DiagramTypeWizardPanel.tsx`) is retired; see the doc's own retirement note |
 | [`docs/architecture/change-cards.md`](docs/architecture/change-cards.md) | Change cards — the deterministic half of the Diff toggle |
@@ -179,13 +190,23 @@ import graph by grep when it's present.
   described in `CLAUDE.md`" — i.e. upstream of this file, not a duplicate of it. Its own index has
   already drifted from the per-feature READMEs it lists (a status shown in one place doesn't always
   match the other) — treat the index as a pointer, not as ground truth.
-- **Keep `docs/architecture/*.md` in sync with every change.** After modifying a subsystem covered by
-  one of the files in the Documentation map above, update that file in the same change — new
-  behavior, new file paths, corrected gotchas, whatever changed. If the change introduces a genuinely
-  new subsystem that doesn't fit an existing file, create a new `docs/architecture/<name>.md` and add
-  its row to this file's Documentation map. This is a written policy, not hook-enforced — same trust
-  model this repo already uses for `docs/planning/`'s own hand-off rule. Do not let detail pile back
-  up into this file — `CLAUDE.md` stays a short front door.
+- **Keep ALL documentation in sync with every change — always update docs after edits when needed.**
+  This is the default, not an opt-in: before you finish any change, check whether it alters what
+  any user-facing or maintainer-facing doc describes — `README.md`, `QUICKSTART.md`,
+  `web/QUICKSTART.md`, the `docs/architecture/*.md` files covered by the Documentation map above,
+  `CONTEXT.md`, or `CLAUDE.md` itself — and update the affected files **in the same change**, not in
+  a follow-up. Update with the new behavior, new file paths, corrected gotchas, whatever changed.
+  Concretely:
+  - Rewrite a feature's UI, an env var, a command, or a file's role → update the README/QUICKSTART
+    section that documents it.
+  - Modify a subsystem covered by one of the `docs/architecture/*.md` files → update that file.
+  - Introduce a genuinely new subsystem that doesn't fit an existing file → create
+    `docs/architecture/<name>.md` and add its row to this file's Documentation map.
+  - The repository is actively evolving, so drift is real: when a task touches code whose docs you
+    suspect are stale, check and correct the surrounding docs — do not assume they are current.
+  This is a written policy, not hook-enforced — same trust model this repo already uses for
+  `docs/planning/`'s own hand-off rule. Do not let detail pile back up into this file — `CLAUDE.md`
+  stays a short front door.
 
 ## Agent skills
 

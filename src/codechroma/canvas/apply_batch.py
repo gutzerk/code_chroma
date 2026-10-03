@@ -19,6 +19,11 @@ MAX_EXPLANATION_CHARS = 1000
 # A batch deleting more elements/edges than this needs the caller's explicit confirmation.
 MASS_DELETE_GUARD = 20
 
+# A position-less add_element cascades down-right from the doc extent instead of
+# piling every box at (0,0) -- a sane default for the direct PATCH /canvas path.
+_DEFAULT_ADD_STEP_X = 340.0
+_DEFAULT_ADD_STEP_Y = 120.0
+
 _ADD_ELEMENT_OPS = {"add_element", "add_group", "add_note"}
 _DELETE_OPS = {"delete_element", "delete_edge"}
 VALID_OPS = _ADD_ELEMENT_OPS | {
@@ -124,13 +129,21 @@ def _apply_add_element(
     group_id = op.get("group_id")
     if group_id is not None:
         group_id = _resolve_element_ref(doc, id_map, group_id)
+    if not position:
+        # Cascade from the current doc extent so a position-less add leaves (0,0)
+        # instead of sharing it with every other.
+        max_x = max_y = 0.0
+        for existing in doc.elements.values():
+            max_x = max(max_x, existing.position.x)
+            max_y = max(max_y, existing.position.y)
+        position = {"x": max_x + _DEFAULT_ADD_STEP_X, "y": max_y + _DEFAULT_ADD_STEP_Y}
     element = Element(
         render=render,
         layer=op.get("layer", layer),
         label=op.get("label", ""),
         description=op.get("description", ""),
         node_id=node_id,
-        position=_coerce(Position, position, "position") if position else Position(),
+        position=_coerce(Position, position, "position"),
         size=_coerce(Size, size, "size") if size else None,
         group_id=group_id,
         meta=meta,
@@ -157,6 +170,8 @@ def _apply_add_edge(
         layer=op.get("layer", layer),
         style=_sanitize_style(op.get("style")),
         hero=bool(op.get("hero", False)),
+        transport=op.get("transport"),
+        origin=op.get("origin"),
     )
     doc.edges[edge.id] = edge
     temp_id = op.get("temp_id")
@@ -225,7 +240,7 @@ def _apply_update_edge(
     if "style" in op:
         # Replaced, not merged -- `style: null` is how a caller clears an edge's own override.
         edge.style = _sanitize_style(op["style"])
-    for field_name in ("label", "kind", "layer", "hero"):
+    for field_name in ("label", "kind", "layer", "hero", "transport", "origin"):
         if field_name in op:
             setattr(edge, field_name, op[field_name])
     affected.append(edge_id)

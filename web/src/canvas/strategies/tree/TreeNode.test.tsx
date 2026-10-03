@@ -257,7 +257,7 @@ describe("TreeNode", () => {
     await navigateToCalculateTotal();
 
     act(() => {
-      diffOverlayStore.setDiffs([
+      diffOverlayStore.write([
         {
           node_id: "function::calculate_total",
           original_source: FIXTURE_NODES["function::calculate_total"].source ?? "",
@@ -281,7 +281,7 @@ describe("TreeNode", () => {
 
     const acceptSpy = vi.spyOn(MockBridgeEngineClient.prototype, "acceptDiff");
     act(() => {
-      diffOverlayStore.setDiffs([
+      diffOverlayStore.write([
         {
           node_id: "function::calculate_total",
           original_source: FIXTURE_NODES["function::calculate_total"].source ?? "",
@@ -313,7 +313,7 @@ describe("TreeNode", () => {
       .spyOn(MockBridgeEngineClient.prototype, "acceptDiff")
       .mockRejectedValueOnce(new Error("boom"));
     act(() => {
-      diffOverlayStore.setDiffs([
+      diffOverlayStore.write([
         {
           node_id: "function::calculate_total",
           original_source: FIXTURE_NODES["function::calculate_total"].source ?? "",
@@ -352,7 +352,7 @@ describe("TreeNode", () => {
     await waitFor(() => screen.getByText("EmailClient"));
 
     act(() => {
-      diffOverlayStore.setDiffs([
+      diffOverlayStore.write([
         {
           node_id: "class::EmailClient",
           status: "added",

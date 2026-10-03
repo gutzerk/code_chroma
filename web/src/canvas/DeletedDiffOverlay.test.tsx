@@ -23,7 +23,7 @@ function renderOverlay() {
 
 describe("DeletedDiffOverlay", () => {
   it("renders a blurred panel per deleted diff and nothing for non-deleted", () => {
-    diffOverlayStore.setDiffs([
+    diffOverlayStore.write([
       { node_id: "f::gone", name: "gone", status: "deleted", original_source: "def gone(): ...", proposed_source: "" },
       { node_id: "f::kept", name: "kept", status: "modified", original_source: "a", proposed_source: "b" },
     ]);
@@ -38,7 +38,7 @@ describe("DeletedDiffOverlay", () => {
   });
 
   it("renders nothing when there are no deletions", () => {
-    diffOverlayStore.setDiffs([
+    diffOverlayStore.write([
       { node_id: "f::kept", name: "kept", status: "modified", original_source: "a", proposed_source: "b" },
     ]);
 
@@ -48,7 +48,7 @@ describe("DeletedDiffOverlay", () => {
   });
 
   it("commits a deleted diff via acceptDiff when its panel's Accept button is clicked", async () => {
-    diffOverlayStore.setDiffs([
+    diffOverlayStore.write([
       { node_id: "f::gone", name: "gone", status: "deleted", original_source: "def gone(): ...", proposed_source: "" },
     ]);
     const acceptSpy = vi.spyOn(MockBridgeEngineClient.prototype, "acceptDiff");
@@ -63,7 +63,7 @@ describe("DeletedDiffOverlay", () => {
   });
 
   it("offers no Accept in a read-only workspace", () => {
-    diffOverlayStore.setDiffs([
+    diffOverlayStore.write([
       { node_id: "f::gone", name: "gone", status: "deleted", original_source: "def gone(): ...", proposed_source: "" },
     ]);
     agentStore.setActiveWorkspace("pr-7");

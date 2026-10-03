@@ -7,7 +7,7 @@ import { liveStore } from "./liveStore";
 import { EngineClientProvider } from "../engine-client/EngineClientContext";
 import type { EngineClient } from "../engine-client/EngineClient";
 import type { HierarchyNodeRef } from "./types";
-import { EPICS_STUB, RESEARCH_STUB, EPIC_BRIEF_STUB, IMPACT_CHANGES_STUB, PATTERNS_STUB, diagramStub } from "../engine-client/stubEngineClient";
+import { EPICS_STUB, EPIC_BRIEF_STUB, IMPACT_CHANGES_STUB, PATTERNS_STUB, diagramStub } from "../engine-client/stubEngineClient";
 
 function child(id: string, level: HierarchyNodeRef["level"] = "function"): HierarchyNodeRef {
   return {
@@ -25,7 +25,6 @@ function clientYielding(sequence: HierarchyNodeRef[][]): EngineClient {
   return {
     ...IMPACT_CHANGES_STUB,
     ...EPICS_STUB,
-    ...RESEARCH_STUB,
     ...EPIC_BRIEF_STUB,
     ...PATTERNS_STUB,
     getNode: async () => null,

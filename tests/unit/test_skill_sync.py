@@ -25,20 +25,20 @@ def test_installs_a_skill_into_a_repo_without_one(tmp_path, source_dir):
     repo = tmp_path / "repo"
     repo.mkdir()
 
-    target = sync_skill(repo, "codechroma-research", source=source_dir)
+    target = sync_skill(repo, "codechroma-epic-brief", source=source_dir)
 
-    assert target == repo / ".claude" / "skills" / "codechroma-research"
+    assert target == repo / ".claude" / "skills" / "codechroma-epic-brief"
     assert (target / "SKILL.md").read_text() == "updated skill body with details field"
 
 
 def test_replaces_an_existing_stale_copy(tmp_path, source_dir):
     repo = tmp_path / "repo"
-    stale = repo / ".claude" / "skills" / "codechroma-research"
+    stale = repo / ".claude" / "skills" / "codechroma-epic-brief"
     stale.mkdir(parents=True)
     (stale / "SKILL.md").write_text("old skill without details")
     (stale / "leftover.md").write_text("stale extra file")
 
-    target = sync_skill(repo, "codechroma-research", source=source_dir)
+    target = sync_skill(repo, "codechroma-epic-brief", source=source_dir)
 
     assert (target / "SKILL.md").read_text() == "updated skill body with details field"
     assert not (target / "leftover.md").exists()
@@ -48,13 +48,13 @@ def test_skips_when_the_source_is_missing(tmp_path):
     repo = tmp_path / "repo"
     repo.mkdir()
 
-    target = sync_skill(repo, "codechroma-research", source=tmp_path / "does-not-exist")
+    target = sync_skill(repo, "codechroma-epic-brief", source=tmp_path / "does-not-exist")
 
     assert target is None
     assert not (repo / ".claude").exists()
 
 
-@pytest.mark.parametrize("name", ["codechroma-research", "codechroma-draw-diagram"])
+@pytest.mark.parametrize("name", ["codechroma-epic-brief", "codechroma-draw-diagram"])
 def test_skips_when_the_target_repo_is_this_project(name):
     project_root = skill_source(name).parents[2]
 
@@ -76,6 +76,7 @@ def test_the_draw_diagram_router_names_every_type_it_routes_to():
         ("type-patterns.md", "instances"),
         ("type-impact.md", "status"),
         ("type-custom.md", "instructions"),
+        ("type-sequence.md", "order"),
         ("drawing-rules.md", "max_nodes"),
         ("feature-plan-mode.md", "plan_kind"),
     ],
@@ -127,7 +128,7 @@ def test_launcher_installs_the_skills_before_booting(tmp_path, source_dir, monke
 
     launch.main(["--repo-path", str(repo)])
 
-    assert (repo / ".claude" / "skills" / "codechroma-research" / "SKILL.md").exists()
+    assert (repo / ".claude" / "skills" / "codechroma-epic-brief" / "SKILL.md").exists()
 
 
 def _exited_process():

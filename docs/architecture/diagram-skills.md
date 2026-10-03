@@ -32,7 +32,7 @@ Three things had drifted, all of them consequences of "one skill per diagram typ
     type-impact.md               # 172
     type-custom.md               # 173
   scripts/
-    check_diagram.py             # 917 — one self-check, --kind {c1,patterns,impact,custom}
+    check_diagram.py             # 917 — one self-check, --kind {c1,patterns,impact,custom,epics}
 ```
 
 ⚠ **The source of truth is the repo root's `.claude/skills/`**, resolved by
@@ -89,7 +89,7 @@ style-catalog (see `specs/036-shared-diagram-style-catalog/`) unifies that remai
 {"type": "c1", "style": "boxes-arrows",
  "nodes": [{"id", "name", "description", "parent", "path", "node_id", "group", "kind", "icon",
             "style", "meta"}],
- "relations": [{"from", "to", "kind", "label", "style"}]}
+ "relations": [{"from", "to", "kind", "label", "transport", "style"}]}
 ```
 
 `parent` (another node's own `id`) replaces every type's previous nesting: c1's `system`/`children`
@@ -107,7 +107,27 @@ validation, `path`→`node_id` resolution, dangling-relation drop, and style-pri
 now one implementation every `DiagramSpec.resolve` closure (`bridge/diagram_registry.py`) calls.
 Coverage (`attach_coverage`) and staleness (`attach_staleness`) live in the same module as opt-in
 add-ons any type's closure can call — `custom/<id>` gaining both, which it had neither of before, is
-the concrete proof they generalize (`DiagramRegistry._synthesize_custom`).
+the concrete proof they generalize (`DiagramRegistry._synthesize_custom`). The `meta.critically`
+(`bridge`/`hub`) stamp and its canvas chip were **removed** as dead weight — a bridge/hub box already
+visibly converges arrows. Fragility is surfaced only by the self-check's `ARTICULATION` advisory:
+`diagrams/articulation.articulation_labels` is a neutral graph module used by `inspect.py` (for the
+`ARTICULATION` advisory) and mirrored in `check_diagram.py`, so the two can't drift.
+
+**Edge provenance (`meta.origin`) — 012 Provenance**: every dependency edge now knows where in
+code it comes from, so clicking an arrow can jump to the caller. Origin is a property of the
+*source* (calling) node, not a persisted edge map: `GraphEngine.edge_origin(from_id)` derives
+`file:line` on demand from that node's `Symbol` (`graph/builder.symbol_origin` — file + start line,
+both fields `Symbol` already holds), so there is nothing to persist, recompute, or desync.
+`GET /repos/{id}/nodes/{node}/connections` adds an `origin` field to each connection (additive to
+`from_to`). `resolve_diagram` then stamps `meta.origin` on each relation whose source endpoint
+resolves to a graph node via `attach_origins` — an opt-in stamp merged into existing `meta`, left
+absent when the source is conceptual/planned or the engine has no symbol for it. The same
+`engine.edge_origin` method serves both the route and the resolver, so the two can't drift.
+Known precision limit: origin points at the *caller's symbol* (its file + start line), the same
+value for every edge out of one node — not the exact call site. That granularity matches the
+"click the arrow, land on the caller" contract and needs no per-call line tracking; the web
+consumer splits `file:line` on the **last** `:` so Windows drive letters (`C:`) don't break the
+jump.
 
 **The style catalog** (`diagrams/styles.py`): `DiagramStyle.overrides` is an open
 `dict[str, object]` now, not fixed `supports_groups`/`allow_self_relations`/`schema_hint` fields.
@@ -122,11 +142,18 @@ over the diagram's resolved overrides, which win over no override at all.
 `Diagram`/`DiagramNode`/`DiagramRelation` replace four per-kind type families, and
 `canvas/doc/nodeAccent.tsx`'s one `accentFor()` replaces four `*Accent` functions behind a switch —
 patterns/impact/custom render icon-by-`kind` and status/group classes now, a capability gain, not
-just a refactor. `canvas/doc/nodeStyles.tsx`'s `NODE_STYLES` collapsed to one shared
+just a refactor. `canvas/doc/elementRules.ts`'s `NODE_STYLES` collapsed to one shared
 `DIAGRAM_NODE_BASE` entry (pattern/impact/custom/epic reuse it; c1 stays its own approximation) and
 `styles.css`'s per-kind box/row/header/title-row/name/desc rules collapsed into one
 `.diagram-node-box*` family, with genuine per-kind modifiers (seed/problem accents, infra/external
 left-borders, group's dashed frame, epic's meta row) layered on top.
+
+A node's `meta.icon` brand logo resolves through two vocabularies merged
+(`web/src/icons/brands.ts`'s `ALL_BRAND_ICONS`): `web/src/icons/brands.generated.ts` (simple-icons, includes
+`anthropic`) plus `web/src/icons/brandLobe.ts` (lobe-icons, MIT) for the LLM/AI marks simple-icons
+withdrew on trademark request — `claude`, `claudecode`, `openai`, `gemini`, `langchain`, `mistral`,
+`ollama`, `bedrock`. Both feed the same `accentFor`/`NodeKindGlyph` chain, so a lobe slug renders
+and auto-contrasts exactly like a simple-icons one.
 
 `check_diagram.py` reads whatever `GET /repos/{id}/{kind}` actually resolves to, so it had to move
 with this: `_inspect_c1`/`_inspect_patterns` used to read the pre-036 nested `system`/`instances`
@@ -146,8 +173,22 @@ file-wide unique, which is also why `AMBIGUOUS` and `SIBLING` were retired (see 
 | `3` | shape: it resolves, but the diagram is not doing its job — overridable with `--shape-advisory` |
 | `2` | the diagram could not be read at all |
 
-Advisory (print, never gate): `COVERAGE`, `DEPTH`, `NESTING-EDGE`, `BADKIND`, `BADICON`,
-`UNLABELED`, `DROPPED`.
+Advisory (print, never gate): `COVERAGE`, `DEPTH`, `NESTING-EDGE`, `CYCLES`, `ARTICULATION`,
+`BADKIND`, `BADICON`, `UNLABELED`, `DROPPED`.
+
+`CYCLES` (011-draw-relations-borrow): a directed cycle in `relations[]` — found by `_check_cycles`
+(Tarjan SCC) in both the flat and hierarchical strategies. Advisory because a cycle is often
+legitimate (state-machine, retry-loop); only a permitted self-loop (custom `dependency-graph`) is
+reported as a 1-edge `CYCLES <id> -> <id>`.
+
+`ARTICULATION` (012-draw-borrow-backlog, task C): flags a critical node. `_check_articulation` /
+`diagrams/articulation.articulation_labels` (used by `bridge/inspect.py`'s `FlatInspector` + c1
+`_check_relations`, mirrored in `check_diagram.py`) labels each node `bridge` when a single-node SCC
+is an articulation point of the undirected condensation (removing it disconnects the graph), or
+`hub` when it wires to `4+` neighbors and isn't a bridge. This is **advisory only** — the labels are
+reported by `bridge/inspect.py`'s `ARTICULATION` self-check advisory; there is no `meta.critically`
+stamp or canvas chip (removed as dead weight). `check_diagram.py` keeps its own stdlib-only copy of
+the label logic because it cannot import the package.
 
 Three deliberate behaviour changes from the merge:
 - impact's `ORPHAN` moved from exit 1 to exit 3 and became overridable — a shape problem, not a dead
@@ -451,11 +492,9 @@ fetch order above (Steps 0/1) — those for paths and topics already known, Docs
 they didn't cover.
 
 ⚠ **This section used to fall through to a raw search endpoint as a third step** (the research
-endpoint's search core, see [`docs/architecture/research-endpoint.md`](research-endpoint.md)) for
-whatever docs and source still didn't answer. Removed at the user's request — a real run burned
-several `curl` round-trips on it for one custom diagram, and the skill now just notes the gap in its
-final message instead. The 🔴 "never call `POST /repos/{id}/research`" line stays regardless — that
-route is for the standalone Research panel, not a Draw pass.
+endpoint's search core) for whatever docs and source still didn't answer. Removed at the user's
+request — a real run burned several `curl` round-trips on it for one custom diagram, and the skill
+now just notes the gap in its final message instead.
 
 ## Reporting generation status from an interactive run
 
@@ -488,8 +527,7 @@ against the same artifact; whichever finished with a failing exit code/`has_arti
 `manifest.json` — see its own doc's "Open items"). Fixed: every route in `routes/diagrams.py`,
 `routes/wiki_general.py`, and `routes/epics.py`'s output-key resolver now passes `ws.id` (the
 resolved workspace's own canonical id) into `agent.start/mark_generating/mark_done/get_state/
-get_output`, never the raw path param. `routes/research.py` already built its job key from `ws.id`
-and needed no change.
+get_output`, never the raw path param.
 
 ## Self-check probe parallelism and the C1 fan-out option
 
@@ -606,13 +644,12 @@ icon-selection vocabulary — `api`/`ui`/`service`/`database`/`queue`/`cache`/`w
 by the self-check's `BADKIND` rule); the two live in different fields precisely so a Planned block
 never collides with an ordinary icon-kind node.
 
-- `add`/`create` — code that doesn't exist yet: authored with **no** `path`. `resolve_diagram()`
-  needs no change (a path-less node already passes through untouched, `diagram_resolver.py`'s
-  `_resolve_node`), but both self-check copies (`bridge/inspect.py`'s `HierarchicalInspector._walk`
-  and its synced `check_diagram.py` twin — a `_plan_kind()` helper duplicated in each, same idiom as
-  `_check_c1_islands` above) needed a real fix: c1's tree-walk used to unconditionally flag a
-  path-less nested leaf `BROKEN`, which is exactly what an `add`/`create` node looks like. The
-  exemption applies **only** to `add`/`create` — density (`CROWDED`/`EDGEBOMB`) and connectivity
+- `add`/`create` — code that doesn't exist yet: authored with **no** `path`.
+  `diagram_resolver.py`'s `_resolve_node` now also stamps `meta.no_code_reason: "planned"` on it
+  (see "No-code boxes" below) — the self-check exemption generalizes to any `no_code_reason`, not
+  just a `_plan_kind()` check, but the c1 tree-walk fix this originally required (a path-less nested
+  leaf used to be unconditionally flagged `BROKEN`) still traces back to this effort. The exemption
+  applies **only** to `add`/`create` — density (`CROWDED`/`EDGEBOMB`) and connectivity
   (`ORPHAN`/`ISLAND`/`DANGLING`) still apply unchanged, since a Planned block is not exempt from
   those, just from the "must resolve to real code" check.
 - `modify`/`delete` — existing code the plan will touch: authored **with** a real `path`/`node_id`,
@@ -641,6 +678,86 @@ mode) is fixed in `CONTEXT.md`'s "Feature-plan diagrams" section — this is del
 from `impact`'s existing `source=plan` mode (untouched by this effort) and the older Plan overlay
 (`.codechroma/plan.json`, `plan_resolver.py`'s now-removed `resolve_plan`), which was untouched by
 this effort but has since been retired outright — see `change-cards.md`.
+
+## No-code boxes (`meta.no_code_reason`) — unifying "why is node_id null"
+
+Generalizes the Planned block's `add`/`create` exemption above to every box with no resolved
+`node_id`, across every diagram type, not just Feature-plan. `diagram_resolver.py`'s `_resolve_node`
+(shared by every `DiagramSpec.resolve`) stamps `meta.no_code_reason` on any node that ends up
+without a `node_id`, via a new `_stamp_no_code_reason` helper:
+
+- `"planned"` — `meta.plan_kind ∈ {add, create}` (wins over the two buckets below).
+- `"unresolved"` — an authored `path` that failed to resolve; `meta.no_code_detail` carries the
+  path. The same `unresolved_path` diagnostic still fires, unchanged.
+- `"conceptual"` — no `path` authored at all (a C1 actor/system, a Patterns infra/external node, or
+  a Custom conceptual box — see drawing-rules.md's "leave null for a purely conceptual box").
+
+Authors never set this themselves for a diagram authored through the normal JSON + resolve flow —
+it's computed automatically from `path`/`plan_kind`, the same way `node_id` is. A `CanvasElement`
+(`web/src/state/types.ts`) drops `path` entirely once a diagram is spliced onto the canvas, so this
+is the only point in the pipeline where "never had a path" vs. "had one that failed" can still be
+told apart.
+
+**Self-check**: `bridge/inspect.py`'s `HierarchicalInspector._walk` and its synced `check_diagram.py`
+twin (`_walk_hierarchical`) both gained a `_no_code_reason()` reader next to `_plan_kind()`, and key
+their nested-leaf `BROKEN` check off it: `"unresolved"` stays `BROKEN`, `"planned"`/`"conceptual"`
+don't, and an absent value (a `--json`-loaded raw file, or any hand-built diagram that never went
+through the live resolver) falls back to the previous `path`/`node_id`/`plan_kind` heuristic
+unchanged. This closes a real bug: before this, a legitimately conceptual **nested C1 leaf** (no
+`path`, no `plan_kind` — exactly the drawing-rules.md-sanctioned pattern) was wrongly flagged
+`BROKEN`, because the old check only exempted `add`/`create`. The flat-kind check
+(`_note_flat_entry`, used by Patterns/Impact/Custom) already only flagged `BROKEN` when a `path` was
+authored but unresolved, so it needed no change.
+
+**Canvas**: `nodeAccent.tsx` gained `noCodeReasonClassName` (a dotted border via
+`.no-code-conceptual`/`.no-code-unresolved`, distinct from the Planned block's dashed one — muted
+`--text-2` for conceptual, warning `--warning` for unresolved) and `NoCodeChip`
+(CONCEPTUAL/UNRESOLVED text pill, reusing `LabeledChip`, same shared `.status-chip` shape as
+`PlanKindChip`/`ImpactStatusChip`). `CanvasNodeBox.tsx`'s `activate()` gained a second early branch
+right after the `plan_kind` one: `no_code_reason ∈ {conceptual, unresolved}` also opens the existing
+`descriptionPopupStore`, with `noCodeReasonMessage()` picking an authored `meta.details`/
+`description` first, else a reason-appropriate stock message (the failed path appended for
+`unresolved`) — instead of `InspectorPanel`'s generic-and-wrong "no longer exists". `"planned"` is
+deliberately excluded from the new chip/class/branch — it keeps its own existing
+dashed-border/`PlanKindChip` treatment unchanged.
+
+⚠ **The direct `add_element` canvas-ops authoring path (drawing-rules.md's "Drawing a type this
+skill does not know") never goes through `resolve_diagram()` at all**, so nothing computes
+`meta.no_code_reason` for a box drawn that way — this is exactly the path a real observed incident
+came from (a process-trace diagram with every `node_id` left `null`, failing "no longer exists" on
+click). `drawing-rules.md` now tells the authoring skill to set
+`"meta": {"no_code_reason": "conceptual"}` by hand on such an `add_element` op, so the canvas
+renders it identically to a resolver-authored conceptual box.
+
+## Sequence diagram — messages become elements, not edges
+
+`sequence` is the one diagram type where an authored `relations[]` entry becomes a **dedicated
+element**, not an edge. The reason is structural: `Edge` (`canvas/document.py`) has no `meta`/`order`,
+but a sequence message needs `order` (its time row), `from`/`to` (which participant columns), and
+`async`/`return` (arrow shape). Rather than extend `Edge`, `canvas/recipes.py`'s `reshape()` turns each
+sequence relation into a `render: "sequence"` element whose `meta` carries all four, and emits **no
+edges** for the layer.
+
+- **Backend wiring is the generic one** — one `DiagramSpec` entry (`DIAGRAMS["sequence"]`) + one
+  `DiagramTypeDefinition` (`BUILTIN_TYPES["sequence"]`, `context="sequence"`) gives GET/get-path/
+  delete routes and the unified `.../context` envelope for free. It resolves through the shared
+  `resolve_diagram()` (flat shape), `has_generate=False` (skill-drawn, like patterns/impact).
+- **Context is a recorded-trace scaffold**: `_SequenceContextProvider` (context_providers.py) returns
+  the traces list plus a reduced participant/message skeleton of the most recent one
+  (`_sequence_scaffold`), collapsing distinct caller→callee hops so the skill draws a readable flow
+  rather than a huge loop. The AI fills labels, return arrows, and calls the trace's blind spots hid.
+- **Frontend renders one whole layer** via `web/src/canvas/doc/SequenceDiagram.tsx` — an
+  own-component renderer (`BLOCK_RULES.sequence.renderer === "sequence"`), like `GroupFrame` but
+  whole-diagram. It reads `meta.role` (`participant`/`message`), `meta.order` (row), `meta.from`/
+  `meta.to` (column lookup by participant `node_id`/recipe key), `meta.async`/`meta.return`. Because
+  it computes all geometry from `meta`, it ignores `element.position`/`size` and is `lockedLayout` —
+  `autoLayout`'s dagre pass excludes `render === "sequence"` elements.
+- **Self-check**: `check_diagram.py --kind sequence` and `inspect.py`'s `FlatInspector` treat it as a
+  flat shape (participants = nodes, messages = relations), so duplicate/dangling/island/orphan rules
+  apply unchanged. Its budget row (24 participants / 60 messages) is in both `_BUDGETS` and
+  `drawing-rules.md`'s table.
+- **Mock**: `mockBridge.ts`'s `runRecipe`/`getDiagramsStatus` gained a `sequence` case so the default
+  mock mode demos the frontend.
 
 ## Impact status chip (`meta.status`) — the ADD/MODIFY/DELETE label
 
@@ -720,17 +837,21 @@ Separate from authoring, and the reason a user could ask for a diagram and see n
   per-kind `subscribeDiagram` pings, so a kind flips to ready without any user action needed. ⚠
   Custom sends one coarse `{"type": "custom"}` ping (never `custom/<id>`), so that branch also
   refetches the type list; `DiagramEventKind` gained the bare `"custom"` literal.
-- `canvas/doc/pendingDrawRequests.ts` records what the user pressed "Draw…" for; only those kinds
-  auto-add when their artifact arrives. ⚠ Unconditional auto-add would redraw the canvas on any
-  artifact change from any cause.
-- That gate only covers a brand-new draw. Editing a diagram already on the canvas (e.g. adding a
-  `style` to an existing C1 block) doesn't flip `ready`, so it used to sit invisible until the user
-  removed and re-added the layer by hand. `get_diagrams_status` now also returns each kind's content
-  `fingerprint` (`_content_fingerprint` in `bridge/routes/diagrams.py`, a `hash_lines` hash of the
-  raw diagram JSON); `DrawDiagramButton.tsx`'s `refetchStatus` re-runs the recipe for any kind that is
-  already placed on the canvas whose fingerprint just changed, no pending-request gate needed —
-  a recipe re-run only ever touches content fields, never position/size (`recipes.py`), so there is
-  nothing for the gate to protect against here.
+- `DrawDiagramButton`'s `refetchStatus` auto-adds **every** kind that becomes ready and isn't yet on
+  the canvas, with no pending-request gate (`canvas/doc/pendingDrawRequests.ts` was removed). The
+  add is unconditional so a diagram drawn by *any* path appears — the "Draw…" button, a
+  terminal/agent-window run on the same workspace, another agent. It stays safe because pings are
+  scoped per-workspace (`isForAnotherWorkspace`) and `refetchStatus` only fires on a not-ready→ready
+  transition for a kind `!placed.has(kind)`, so an unrelated artifact change never redraws the canvas;
+  the `before === null` guard also means a first-ever visit adds nothing.
+- The brand-new-draw path is one thing; editing a diagram already on the canvas (e.g. adding a
+  `style` to an existing C1 block) is another — a content edit doesn't flip `ready`, so it used to sit
+  invisible until the user removed and re-added the layer by hand. `get_diagrams_status` now also
+  returns each kind's content `fingerprint` (`_content_fingerprint` in `bridge/routes/diagrams.py`, a
+  `hash_lines` hash of the raw diagram JSON); `DrawDiagramButton.tsx`'s `refetchStatus` re-runs the
+  recipe for any kind already placed on the canvas whose fingerprint just changed — a recipe re-run
+  only ever touches content fields, never position/size (`recipes.py`), so it is never a surprise,
+  just the picture catching up with what is already on disk.
 - 🔴 A "Draw…" task launched from a **read-only PR workspace** is forked into its own worktree, so the
   skill writes where the canvas is not looking. `agents/agentDiagramsReady.ts` checks that agent's
   own workspace on the working→idle transition and badges its `AgentRail` row
@@ -746,9 +867,20 @@ Separate from authoring, and the reason a user could ask for a diagram and see n
   `lastStatusRef` now seeds from it instead of `null`, and every fetch writes its result back. A truly
   first-ever visit (nothing cached yet either) still has no baseline and is still skipped, same as
   before — there is nothing to compare it against.
+- 🟢 **A first draw never flashes the recipe's transient `(0,0)` pile.** A recipe run creates its boxes at
+  `(0,0)` and that commit's canvas ping can land on screen before `runRecipeAndLayout`'s layout pass
+  repositions them — the "pile when redrawing" a fresh diagram. `runRecipeAndLayout` defers its layer
+  (`canvasDocStore.deferLayout`), and `fetchAndApplyCanvasDoc` withholds any snapshot whose elements
+  for a deferred layer are all still at `(0,0)` — so the pile never flashes, while a real move (a
+  drag, an edit on another layer) still applies; the layout PATCH that follows lands the laid-out
+  positions and applies them through the same shared path. Because the guard checks the *content*
+  (origin-piled) rather than mere in-flight-ness, it drops only the transient state, never an
+  unrelated user write. The direct-`PATCH` fallback path (`drawing-rules.md`'s "type this skill does
+  not know") is separately protected: `apply_batch.py` gives a position-less `add_element` a
+  server-side cascade (`_DEFAULT_ADD_STEP_*`) instead of `(0,0)`.
 - **A fourth trigger: expanding a collapsed diagram from the Diagrams tab.** `AgentRail.tsx`'s
   `onToggleLayer` calls `runRecipeAndLayout` (`diagramCatalog.ts`'s shared function — also what the
-  Diagrams tab's own "Available to add" rows and remove-then-re-add use) whenever a click flips a
+  Diagrams tab's remove-then-redraw flow uses) whenever a click flips a
   layer from collapsed to expanded — never on collapse, which has nothing to refresh. This is an
   unconditional re-run, not a fingerprint check: expanding is a deliberate, low-frequency user action,
   so there is no need to gate it the way the automatic triggers above are gated. `refreshingLayer`

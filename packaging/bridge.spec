@@ -66,7 +66,10 @@ exe = EXE(
     exclude_binaries=True,
     name="codechroma-bridge",
     console=True,
-    target_arch=os.environ.get("CODECHROMA_PYINSTALLER_TARGET_ARCH"),
+    target_arch=os.environ.get(
+        "CODECHROMA_PYINSTALLER_TARGET_ARCH",
+        "arm64" if sys.platform == "darwin" else None,
+    ),
 )
 COLLECT(
     exe,

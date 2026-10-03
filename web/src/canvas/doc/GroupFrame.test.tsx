@@ -48,11 +48,11 @@ describe("GroupFrame", () => {
     render(<GroupFrame element={group} members={members} sizes={new Map()} />);
 
     const frame = screen.getByTestId("canvas-group-frame");
-    // m1: left=-10..210, top=64..136. m2: left=390..610, top=264..336.
-    // Union: left=-10, top=64, right=610, bottom=336. Padding: side=32, top=48, bottom=32.
-    expect(frame.style.left).toBe("-42px");
+    // m1: left=-50..150, top=64..136. m2: left=350..650, top=264..336.
+    // Union: left=-50, top=64, right=650, bottom=336. Padding: side=32, top=48, bottom=32.
+    expect(frame.style.left).toBe("-82px");
     expect(frame.style.top).toBe("16px");
-    expect(frame.style.width).toBe("684px");
+    expect(frame.style.width).toBe("764px");
     expect(frame.style.height).toBe("352px");
     expect(screen.getByText("External integrations")).toBeInTheDocument();
   });
@@ -67,9 +67,9 @@ describe("GroupFrame", () => {
     render(<GroupFrame element={group} members={members} sizes={sizes} />);
 
     const frame = screen.getByTestId("canvas-group-frame");
-    // Assumed default box centers the member (100 - 110, 100 - 36) = (-10, 64), then margin shifts
-    // the measured border-box by (5, 5): left=-5, top=69, right=-5+300=295, bottom=69+150=219.
-    expect(frame.style.left).toBe("-37px");
+    // Assumed default box centers the member (100 - 150, 100 - 36) = (-50, 64), then margin shifts
+    // the measured border-box by (5, 5): left=-45, top=69, right=-45+300=255, bottom=69+150=219.
+    expect(frame.style.left).toBe("-77px");
     expect(frame.style.top).toBe("21px");
     expect(frame.style.width).toBe("364px");
     expect(frame.style.height).toBe("230px");

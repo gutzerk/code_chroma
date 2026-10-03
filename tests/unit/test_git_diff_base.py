@@ -64,7 +64,12 @@ def test_head_reproduces_the_uncommitted_only_behaviour(repo):
 
     entries = compute_function_diffs(engine, repo)
 
-    assert [entry["node_id"] for entry in entries] == ["payments.py::function::charge"]
+    # The changed file now also emits its own file-level `component::` entry alongside the function
+    # diff, so the file's box carries a diff. Order is function entries first, file entry appended.
+    assert [entry["node_id"] for entry in entries] == [
+        "payments.py::function::charge",
+        "component::payments.py",
+    ]
     assert "amount * 2" in entries[0]["proposed_source"]
 
 
@@ -77,7 +82,10 @@ def test_an_edit_the_agent_committed_still_shows_in_its_diff(agent):
     against_base = compute_function_diffs(engine, agent, base=merge_base(agent))
 
     assert against_head == []
-    assert [entry["node_id"] for entry in against_base] == ["payments.py::function::charge"]
+    assert [entry["node_id"] for entry in against_base] == [
+        "payments.py::function::charge",
+        "component::payments.py",
+    ]
 
 
 def test_a_commit_landing_on_main_does_not_appear_in_the_agents_diff(repo, agent):
@@ -90,7 +98,10 @@ def test_a_commit_landing_on_main_does_not_appear_in_the_agents_diff(repo, agent
     entries = compute_function_diffs(engine, agent, base=merge_base(agent))
 
     # Two-dot comparison would report unrelated.py as a deletion — it exists on main, not here.
-    assert [entry["node_id"] for entry in entries] == ["payments.py::function::charge"]
+    assert [entry["node_id"] for entry in entries] == [
+        "payments.py::function::charge",
+        "component::payments.py",
+    ]
 
 
 def test_the_base_moves_on_its_own_once_main_is_merged_in(repo, agent):

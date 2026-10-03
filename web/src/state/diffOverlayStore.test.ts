@@ -14,10 +14,13 @@ describe("diffOverlayStore", () => {
   });
 
   it("stores diffs by node_id and marks itself active", () => {
-    diffOverlayStore.setDiffs([
-      { node_id: "function::foo", original_source: "a", proposed_source: "b" },
-      { node_id: "function::bar", original_source: "c", proposed_source: "d" },
-    ]);
+    diffOverlayStore.write(
+      [
+        { node_id: "function::foo", original_source: "a", proposed_source: "b" },
+        { node_id: "function::bar", original_source: "c", proposed_source: "d" },
+      ],
+      true,
+    );
 
     expect(diffOverlayStore.getDiff("function::foo")).toEqual({
       node_id: "function::foo",
@@ -29,15 +32,25 @@ describe("diffOverlayStore", () => {
   });
 
   it("stays active even when a run finds zero changed functions", () => {
-    diffOverlayStore.setDiffs([]);
+    diffOverlayStore.write([], true);
 
     expect(diffOverlayStore.getIsActive()).toBe(true);
   });
 
-  it("clears every diff and marks itself inactive without touching code_visible", () => {
-    diffOverlayStore.setDiffs([
+  it("fillDiffs stores diffs without flipping the visual Diff-mode flag (impact always-on)", () => {
+    diffOverlayStore.write([
       { node_id: "function::foo", original_source: "a", proposed_source: "b" },
     ]);
+
+    expect(diffOverlayStore.getDiff("function::foo")?.proposed_source).toBe("b");
+    expect(diffOverlayStore.getIsActive()).toBe(false);
+  });
+
+  it("clears every diff and marks itself inactive without touching code_visible", () => {
+    diffOverlayStore.write(
+      [{ node_id: "function::foo", original_source: "a", proposed_source: "b" }],
+      true,
+    );
     expansionStore.showCode("function::foo");
 
     diffOverlayStore.clear();

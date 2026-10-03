@@ -72,6 +72,30 @@ describe("layoutDiagramEdges", () => {
     expect(edge.hero).toBeUndefined();
   });
 
+  it("carries an authored transport through to the positioned edge", () => {
+    const rectByKey = new Map<string, Rect>([
+      ["a", { left: 0, top: 0, width: 100, height: 50 }],
+      ["b", { left: 200, top: 0, width: 100, height: 50 }],
+    ]);
+    const relations = [{ from: "a", to: "b", label: "Sends", transport: "https" }];
+
+    const [edge] = layoutDiagramEdges(relations, rectByKey);
+
+    expect(edge.transport).toBe("https");
+  });
+
+  it("leaves transport undefined for a relation that never authored it", () => {
+    const rectByKey = new Map<string, Rect>([
+      ["a", { left: 0, top: 0, width: 100, height: 50 }],
+      ["b", { left: 200, top: 0, width: 100, height: 50 }],
+    ]);
+    const relations = [{ from: "a", to: "b", label: "calls" }];
+
+    const [edge] = layoutDiagramEdges(relations, rectByKey);
+
+    expect(edge.transport).toBeUndefined();
+  });
+
   it("carries an authored style through to the positioned edge", () => {
     const rectByKey = new Map<string, Rect>([
       ["a", { left: 0, top: 0, width: 100, height: 50 }],

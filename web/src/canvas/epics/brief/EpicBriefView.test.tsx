@@ -7,7 +7,6 @@ import { EpicsDiagramClient } from "../../../engine-client/epicsDiagramClient";
 import {
   DIAGRAM_STUB,
   EPICS_STUB,
-  RESEARCH_STUB,
   EPIC_BRIEF_STUB,
 } from "../../../engine-client/stubEngineClient";
 import type { EngineClient } from "../../../engine-client/EngineClient";
@@ -92,7 +91,6 @@ function clientWith(job: EpicBriefJobState, epicsItem: EpicWorkItem = STAGELESS_
   return {
     ...DIAGRAM_STUB,
     ...EPICS_STUB,
-    ...RESEARCH_STUB,
     ...EPIC_BRIEF_STUB,
     getNode: async () => null,
     getChildren: async () => [],

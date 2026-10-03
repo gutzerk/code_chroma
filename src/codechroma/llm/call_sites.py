@@ -81,14 +81,6 @@ CALL_SITES: dict[str, CallSite] = {
             " works out which graph nodes it reaches, and writes impact.json.",
         ),
         CallSite(
-            "research_agent",
-            "Research skill",
-            "agentic",
-            "bridge/research_agent.py",
-            "A headless CLI run of codechroma-research, one per question (job-keyed). Searches the"
-            " repo (embeddings + keyword) and writes a cited answer as that question's artifact.",
-        ),
-        CallSite(
             "epic_brief_agent",
             "Epic-brief skill",
             "agentic",
@@ -150,7 +142,6 @@ GROUPS: dict[str, CallSiteGroup] = {
             "impact_agent",
         ),
     ),
-    "research": CallSiteGroup("research", "Research", ("research_agent",)),
     "planning": CallSiteGroup(
         "planning",
         "Planning",

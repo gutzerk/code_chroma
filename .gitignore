@@ -43,3 +43,13 @@ test-results/
 # Per-checkout active-feature pointer for /speckit-* commands -- diverges per branch/worktree,
 # not shared repo state, so tracking it just produces merge conflicts.
 .specify/feature.json
+
+# Throwaway single-page previews of a diagram change (e.g. epics-preview.html).
+epics-preview.html
+*-preview.html
+
+# Scratch/temp output from diagram preview tooling (HTML/PNG builds, ad-hoc playwright probes).
+.claude/tmp/
+.claude/plans/
+.claude/reports/
+verify_tmp*.cjs

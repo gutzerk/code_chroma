@@ -57,12 +57,18 @@ def test_impact_context_carries_reason_and_anchor_evidence(bridge):
         body = client.get("/repos/default/impact/context?source=diff").json()["generation_data"]
 
     assert body["source"] == "diff"
-    assert body["seed_count"] == 1
+    # Impact diff (git_diff.py) seeds both the changed file's whole-text `component::` box and the
+    # per-function diff, so an edit to one file surfaces two seeds.
+    assert body["seed_count"] == 2
     slugify_ctx = next(node for node in body["nodes"] if node["id"] == SLUGIFY)
     assert slugify_ctx["seed"] is True
     assert slugify_ctx["reason"] == "modified"
     assert slugify_ctx["path"] == "shared/text_utils.py"
     assert slugify_ctx["level"] == "function"
+    # The file-level whole-text diff is a second seed, reason-inherited from the child.
+    component_ctx = next(node for node in body["nodes"] if node["id"] == TEXT_UTILS_COMPONENT)
+    assert component_ctx["seed"] is True
+    assert component_ctx["reason"] == "modified"
     # One-hop neighbours carry no reason but keep their real ids.
     caller = next(node for node in body["nodes"] if node["name"] == "UserService")
     assert caller["seed"] is False

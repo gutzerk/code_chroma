@@ -102,12 +102,12 @@ def test_validate_rejects_unknown_provider():
 
 def test_validate_rejects_agentic_call_site_outright(cli_provider):
     problems = validate({
-        "call_site_id": "research_agent", "provider_id": cli_provider.id,
+        "call_site_id": "epic_brief_agent", "provider_id": cli_provider.id,
         "model": "m", "mode": "cli",
     })
 
     assert problems
-    assert "research" in problems[0]
+    assert "epic_brief" in problems[0]
 
 
 def test_validate_rejects_mode_provider_kind_mismatch(api_provider):
@@ -138,7 +138,7 @@ def test_save_assignment_raises_on_invalid_payload():
 
 def test_save_assignment_raises_on_agentic_call_site(cli_provider):
     with pytest.raises(ValueError):
-        save_assignment("research_agent", {
+        save_assignment("epic_brief_agent", {
             "provider_id": cli_provider.id, "model": "m", "mode": "cli",
         })
 

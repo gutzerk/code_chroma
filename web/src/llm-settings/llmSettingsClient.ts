@@ -1,7 +1,7 @@
 import { bridgeRequest, jsonInit } from "../util/httpJson";
 
 export type ProviderKind = "cli" | "api";
-export type Transport = "anthropic" | "openai-compatible";
+export type Transport = "anthropic" | "gemini" | "openai-compatible";
 
 /** A masked provider payload -- the raw key never leaves the bridge (see providers_store.py). */
 export interface Provider {

@@ -21,45 +21,29 @@ def mapper(tmp_path):
     return FrameMapper(engine, repo), repo
 
 
-def test_method_qualname_resolves_to_function_node(mapper):
+@pytest.mark.parametrize(
+    "rel_file,qualname,lineno,expected",
+    [
+        (
+            "users/service.py", "UserService.create_user", 11,
+            "users/service.py::function::UserService.create_user",
+        ),
+        ("shared/text_utils.py", "slugify", 4, "shared/text_utils.py::function::slugify"),
+        (
+            "users/service.py", "UserService.<locals>.mystery", 13,
+            "users/service.py::function::UserService.create_user",
+        ),
+        # external frames resolve to none regardless of qualname/line
+        (None, "loads", 1, None),
+        ("users/service.py", "nope", 1, None),
+    ],
+)
+def test_resolve(mapper, rel_file, qualname, lineno, expected):
     frame_mapper, repo = mapper
-    filename = str(repo / "users" / "service.py")
+    filename = (
+        str(repo / rel_file) if rel_file is not None else "/usr/lib/python3.14/json/decoder.py"
+    )
 
-    node_id = frame_mapper.resolve(filename, "UserService.create_user", 11)
+    node_id = frame_mapper.resolve(filename, qualname, lineno)
 
-    assert node_id == "users/service.py::function::UserService.create_user"
-
-
-def test_module_level_function_resolves(mapper):
-    frame_mapper, repo = mapper
-    filename = str(repo / "shared" / "text_utils.py")
-
-    node_id = frame_mapper.resolve(filename, "slugify", 4)
-
-    assert node_id == "shared/text_utils.py::function::slugify"
-
-
-def test_line_fallback_when_qualname_mismatches(mapper):
-    frame_mapper, repo = mapper
-    filename = str(repo / "users" / "service.py")
-
-    node_id = frame_mapper.resolve(filename, "UserService.<locals>.mystery", 13)
-
-    assert node_id == "users/service.py::function::UserService.create_user"
-
-
-def test_external_frame_resolves_to_none(mapper):
-    frame_mapper, _ = mapper
-
-    node_id = frame_mapper.resolve("/usr/lib/python3.14/json/decoder.py", "loads", 1)
-
-    assert node_id is None
-
-
-def test_unknown_qualname_and_line_outside_any_function_is_none(mapper):
-    frame_mapper, repo = mapper
-    filename = str(repo / "users" / "service.py")
-
-    node_id = frame_mapper.resolve(filename, "nope", 1)
-
-    assert node_id is None
+    assert node_id == expected

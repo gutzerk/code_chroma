@@ -3,11 +3,109 @@
 ⚠ **016-single-canvas-dashboard Stage 4 deleted `EpicsView.tsx`, `EpicBoxes.tsx`,
 `EpicConnections.tsx`, `epicsGraph.ts` and `epicsLayout.ts`** (the pure id/label helpers
 `SpecsFrame.tsx` needs moved to `canvas/epics/specStageHelpers.ts`). An epic item now renders as a
-flat `CanvasNodeBox` (via `canvas/recipes.py`'s shared `reshape()`, 036), reached through the rail's
+`CanvasNodeBox` (via `canvas/recipes.py`'s shared `reshape()`, 036), reached through the rail's
 `RecipeMenu` ("Epics") rather than its own view — the box-graph/expand-per-item interaction this file
-describes is gone. **`canvas/epics/brief/` (the AI brief) survived**, reachable by clicking an epic
-element, which opens a small standalone `EpicBriefPanel` instead of the deleted view — see
-[`single-canvas.md`](single-canvas.md). `epics_resolver.py`/`epic_brief_agent.py` are unchanged.
+describes is gone. `epics_resolver.py`/`epic_brief_agent.py` are unchanged.
+
+**010-epics-tree-render** reshaped this into a tree: the epics diagram is **skill-drawn one focused
+epic at a time** (the `type: epics` row in `codechroma-draw-diagram`, see `diagram-skills.md`) with
+nested frames — every spec box's `group` is its own epic's id and that epic's `group` is its business
+domain, so `build_batch_ops` mints one GroupFrame per distinct group and `reshape()` renders the
+domain → epic → specs nesting (`group` = parent id, never an intra-epic parent→child arrow). The
+skill draws **one named epic as its brief**: the epic content cards, a group frame + one **`spec`
+box per phase**, and **one `task` box per task** under its spec (a per-node `render` override in
+`recipes.py::_node_of` lets one epics JSON mix `epic`, `group`, `spec` and `task` boxes) — not
+the whole portfolio. Every task box stamps `meta.source_ref` (its `tasks.md` path) +
+`meta.line_start`/`meta.line_end` (its own 1-based inclusive line range, start == end for a single
+checkbox line), so the inspector's Linked file panel (`GET /repos/{id}/source`) opens exactly that
+task's slice — several tasks share one `tasks.md`, each keeps only its own lines. The old
+"work-item portfolio map" all-epics intent was dropped so a draw
+targets a single focused epic whose boxes open its AI brief (click → `meta.recipe_key`; a spec box
+opens its epic via `meta.spec_of`). A box authorized
+with `meta.summary` (the Summary card), `meta.acceptance` (an Acceptance-criteria list) or
+`meta.specs` (a «Спеки» User-Stories card, each `\n\n`-separated story its own bordered card with a
+head, why line and numbered criteria) renders its `description` **without the default 4-line clamp** —
+the Summary as prose, the Acceptance as a **structured divider list** (CanvasNodeBox splits its
+`\n`-separated description into distinct rows with dot markers — `diagram-node-box-criteria`, no
+checkbox squares, mirroring the epic brief's acceptance card minus the checkmarks) and the Спеки as
+story cards (`diagram-node-box-story`, each with `-story-head`/`-why`/`-criteria`) — via
+`diagram-node-box--summary`/`--acceptance`/`--specs` in `styles.css`, so the box stretches to fit its
+full text (its `element.size.h` must be tall enough; the DOM box only ever grows right/down past that
+floor). An epics box's **width auto-fits its content** when the canvas
+lays it out: `fitContentWidth` in `epicsLayout.ts` derives the width without measuring the DOM — an
+Acceptance list sizes to its widest `\n` criterion, a prose Summary to a comfortable reading column
+(`PROSE_WIDTH`), a bare title to `CONTENT_MIN_WIDTH`, capped at `CONTENT_MAX_WIDTH` — and the layout
+persists that width to `element.size` alongside the position, so the box renders sized to its text. A
+box inside its frame is framed via its `group_id`, and `check_diagram.py --kind epics` skips its
+`ORPHAN`/`ISLAND` connectivity checks — an epics diagram's hierarchy nests through `meta.recipe_key`
+and group frames, not `relations[]`, so a full-graph epic with no cross-epic edges is correct, not a
+disconnected stub.
+Epic-tree boxes are **hard-layout** (`BLOCK_RULES.epic`/`BLOCK_RULES.spec.lockedLayout`,
+`CanvasNodeBox` never drags them — no solo/group drag, no collision-solving, position only from
+auto-layout/fit). Their
+auto-layout is the deterministic per-EP column pass in `web/src/canvas/doc/epicsLayout.ts` — one
+column per top-level epic (each spec box its own column), stories/specs stacked under their parent
+epic, group frames bound their
+members — because the shared layered layout (which keys off `meta.order`/`meta.lane`/edges) has
+nothing to rank the epics artifact on and would pile every box at (0,0). An epics box's `position`
+is its **bottom-left corner** (not the shared center convention): `elementRect`/`CanvasNodeBox`
+special-case the `epic`/`spec`/`task` renders as `left = x`, `top = y - height`, so
+`placeSubtree` stacks a column by laying each box's top at `prevTop + height + gap` — overlap
+is impossible by construction. Group frames (which are not in the bottom-left set) still position
+from their center. A content card's height is estimated by `fitContentHeight` (`epicsLayout.ts`);
+when that estimate undershoots the real rendered box (a dense Спеки card most often), the box grows
+**up** past its slot over the box above; when a box over-reserves (an epic title sized taller than its
+text, or a card sized before a shorter text), it keeps an empty dark band under its label.
+`useReflowEpics` (`web/src/canvas/doc/useReflowEpics.ts`, wired into `CanvasDocView`) fixes both once
+after mount: it re-lays-out the epics layer supplying the real heights for every epics box whose
+persisted `size.h` disagrees with its rendered content, and persists the corrected `size`+`position`.
+The height source is `epicsContentSizeStore` (`web/src/canvas/doc/epicsContentSizeStore.ts`) —
+CanvasNodeBox reports each epics box's **header element** height (not the box border-box, whose
+`minHeight` is pinned to the reservation and so can never reveal a shrink) via a ResizeObserver. The
+reflow re-lays-out at that measured footprint, anchoring the layer's top edge, so an over-reserving
+box shrinks to kill the dark band and an under-reserving one grows to avoid overlap. It is one-shot —
+the corrected `size.h` makes the mismatch check pass on the next effect run, so it can't loop.
+Epics-layer boxes get more
+prominent titles (a shared `diagram-node-box--epic` marker from CanvasNodeBox, keyed off the
+epic/spec/task render kinds): larger bolder names on every epic block, and the epic title box itself
+(`diagram-node-box--epic-root`, the render-"epic" box that isn't a content card) adds an
+accent-tinted header band — so each EP column's structural header reads at a glance.
+
+A focused epic is authored as its **full task graph** (the EP-4-sized default the `type: epics`
+skill draws): the epic content cards on top, then one **`spec` box per phase** (from `tasks.md`'s
+`##` headings), and each phase's `task` boxes stacked **directly beneath their spec** in the same
+column. Python-side this needs
+no change — `recipes.py::_node_of` passes a per-node `render` through verbatim, so an epics JSON mixes
+`epic`/`spec`/`task` renders freely and the hierarchy nests purely from `recipe_key`
+(`EP-4` / `EP-4::phase-3` / `EP-4::phase-3::T011`). On the frontend, `BLOCK_RULES.task`
+(`elementRules.ts`) gives `task` box rendering + `lockedLayout`, the deterministic column pass in
+`epicsLayout.ts` recurses epic → spec → its tasks (each spec's tasks hang right under it; children in a
+column sort deterministically — content cards first, then phase-specs by phase number and each
+spec's tasks by task number — since the recipe projects elements in hash-id order), and a
+`task` box renders its P (parallel) / US# story tags as colored chips
+(`.task-tag--p` green / `.task-tag--us` blue, `.diagram-node-box--task`) mirroring the epic brief's
+tasks card. Each task authors `meta.us` (when it belongs to a story) and `meta.parallel === "true"`
+(when it carries the `[P]` flag) from `tasks.md`'s `[P]`/`[US#]` marker columns. In the Diagrams tab the
+epics row is named by its first top-level epic's short title (label minus the `EP-x · ` prefix,
+via `labelForDiagramLayer`/`epicsLayerShortTitle` in `diagramCatalog.ts`), falling back to "Epics"
+when the layer has no top-level epic. Clicking an
+any epics-layer box (epic title, content card, phase header or task) opens the SAME right-side
+InspectorPanel as a code box, showing the block's full text and its place in the epic — instead of a
+code tree or the conceptual description popup. The block renders via `EpicBlockContent` in
+`web/src/canvas/doc/EpicBlockPanel.tsx` (carried on `InspectorEntry.epicBlock`, because the block has
+no real `node_id` or work-item id). A resolvable work item's drilldown
+(`web/src/canvas/epics/InspectorWorkItem.tsx`, reached via `InspectorEntry.workItemId`) covers the
+epic itself, and the AI brief remains a button inside it (not the box's primary click).
+
+When an epics box carries `meta.source_ref` (a repo-relative file path) and, optionally, its own
+`meta.line_start`/`meta.line_end`, `EpicBlockContent` renders a **Linked file** section beneath the
+description: it fetches that slice and draws it with the code inspector's own highlighter, the
+range shaded like a diff. Several boxes may point at one file, each highlighting its own slice —
+the scribe stamps `source_ref` (+ line range) per block, for a task its tasks.md line and for a
+content card its spec md. The slice comes from `GET /repos/{id}/source?path=..&start=..&end=..`
+(`routes/graph.py::get_source_fragment`, reusing the node inspector's `read_text`/`slice_lines`
+seam; the path is confined to the workspace root).
+**`canvas/epics/brief/` (the AI brief) survived**, on that button.
 
 The `"epics"` member of the `CanvasView` union (see [`web-canvas-shell.md`](web-canvas-shell.md)): a
 canvas showing **one chosen work item** at a time — its acceptance criteria, its stories, its
@@ -92,8 +190,9 @@ its children) actually has a link to check — the common no-links case skips it
 
 | Route | Notes |
 |---|---|
-| `GET /repos/{id}/epics` | Summaries only; a missing source directory is `200` with `items: []`, never 4xx/5xx. The web client no longer calls this for a portfolio dump — kept for any other consumer and for the mock/test fixtures — see below |
+| `GET /repos/{id}/epics` | The diagram artifact payload (see `diagram-registry`/`single-canvas.md`): the epics view serves a diagram doc, not an `epics_index` summary (which lives at `/epics/context`). Per **one-epic-one-file**, each epic is its own synthesized diagram kind `epics/<epic_id>` (see `diagram_registry.py`'s `_synthesize_epics`), one `.codechroma/diagrams/epics/<epic_id>/<epic_id>.json` and one canvas layer row. The bare `epics` kind remains as a compatibility/portfolio path for now |
 | `GET /repos/{id}/epics/items/{item_id}` | One `WorkItem`; `404` on an unknown id; `?expand=<stage_node_id>` populates exactly one stage's sections |
+| `GET /repos/{id}/epics/{item_id}/diagram-path` | Absolute path the skill writes that epic's own diagram file to (the per-epic `epics/<epic_id>` artifact, one file per epic, each its own layer) |
 
 ⚠ **No `/epics/layout` route.** `bridge/routes/epics.py`'s own module docstring: "Its saved-layout
 pair was dropped in 016 Stage 6 -- epic positions live on canvas.json now." An older revision of
@@ -154,19 +253,19 @@ tasks-inside-the-card) is inherently nested, not a set of independently-position
 needing drag/pan, so `EpicBriefView` uses none of `useSavedLayoutAndFitLoop`/the
 collision system.
 
-**One artifact per epic, not per repo.** `bridge/epic_brief_agent.py` mirrors
-`bridge/research_agent.py`'s per-question keying, not `diagram_registry.DIAGRAMS`'s per-repo one:
+**One artifact per epic, not per repo.** `bridge/epic_brief_agent.py` uses per-epic keying via the
+shared `CompositeKeyAgentSpec`, not `diagram_registry.DIAGRAMS`'s per-repo one:
 `job_key(workspace_id, epic_id)` = `f"{workspace_id}:{epic_id}"`, and
 `epic_brief_path(repo_root, key)` writes to `.codechroma/epics/briefs/<epic_id>.json` — one file per
-epic, keyed off the id half of `job_key` exactly like `research_agent.research_answer_path`. Not a
+epic, keyed off the id half of `job_key`. Not a
 `DiagramSpec`: that shape assumes one artifact per `Workspace` (`root_for`/`artifact_path` take a
 `Workspace`, not an item id) and unconditionally wires a repo-wide generate/status/output/layout
 route quartet — the same reason 007 ruled out `DIAGRAMS` for the box-graph half of this view.
 
 **Data model** (`src/codechroma/requirements/brief_models.py`): `BriefTask`, `ScopeItem`,
 `AcceptanceCriterion`, `Dependency`, `EpicBrief` — frozen dataclasses with `to_dict`/`from_dict`,
-mirroring `research/models.py`'s style rather than `requirements/models.py`'s (which has no
-serialization methods, since it's never round-tripped through JSON on disk). `ScopeItem.tasks_source`
+chosen over `requirements/models.py`'s style (which has no serialization methods, since it's never
+round-tripped through JSON on disk). `ScopeItem.tasks_source`
 is `"spec"` | `"draft"` | `None` — `"draft"` renders the card with a dashed border (same honesty
 convention as Patterns' `confirmed: null`), `None` means the item is out of scope and carries no
 tasks at all. `EpicBrief` also carries `component` (`str | None`) and `spokes` (a `BriefSpoke` list,
@@ -182,8 +281,8 @@ still stays attached to the scope item it implements — the pool is a render co
 `closes_scope_id` continues to name the feature scope item.
 
 **The skill** (`.claude/skills/codechroma-epic-brief/SKILL.md`, prompt in
-`prompts/epic_brief_agent.yaml`) is the only step in the run — unlike `codechroma-research`, there is
-no deterministic half that ran before it. Every datum it needs is **injected into the prompt** by
+`prompts/epic_brief_agent.yaml`) is the only step in the run — every datum it needs is **injected
+into the prompt** by
 `epic_brief_agent.build_brief_bundle()` (`bridge/epic_brief_agent.py`) before the run starts, so the
 agent does one data step instead of five: it used to curl the bridge for each datum (the epic, each
 `tasks` stage via `?expand=`, the write path), and every curl was a full LLM round-trip. The bundle
@@ -236,13 +335,12 @@ API response is resolved — same "never mutate the file, merge at read time" pr
 |---|---|
 | `POST /repos/{id}/epics/{item_id}/brief` | Starts the skill, or returns a cached brief inline without re-running it; `404` on an unknown `item_id`. Checks the skill's *live* state first — an in-flight run (e.g. another tab) wins over a cached brief on disk, so the client's generate guard can't be bypassed into a second `claude` process. `?force=true` (the canvas "Regenerate" button) skips the cached-brief shortcut and runs the skill fresh — the bundle is rebuilt and injected exactly like a first run |
 | `POST /repos/{id}/epics/{item_id}/brief/cancel` | Cancels an in-flight brief run for this epic (`SkillAgent.stop(job_key)`, resetting the job to idle) and emits an `epic-brief-status` ping. `stop()` awaits the cancelled task, whose `_run` now restores the pre-run brief on `CancelledError` — so the half-written fragment rolls back before `stop()` returns |
-| `GET /repos/{id}/epics/{item_id}/brief` | `{"state", "brief": EpicBrief \| null, ...}` — mirrors `GET /repos/{id}/research/{job_key}`'s "not gated on `state == "done"`" shape, except the success state here is always `"idle"` (no degraded/inline path exists for a brief) |
+| `GET /repos/{id}/epics/{item_id}/brief` | `{"state", "brief": EpicBrief \| null, ...}` — not gated on `state == "done"`; the success state here is always `"idle"` (no degraded/inline path exists for a brief) |
 | `GET /repos/{id}/epics/{item_id}/brief/output` | Progress lines while generating |
-| `GET /repos/{id}/epics/{item_id}/brief/path` | Absolute path the skill writes to — mirrors research's own `/path` route |
+| `GET /repos/{id}/epics/{item_id}/brief/path` | Absolute path the skill writes to |
 
 `services.py`'s `_build_skill_agents()` registers `agents["epic-brief"]`; `skill_sync.SKILL_NAMES`
-installs `codechroma-epic-brief` into the analyzed repo alongside the other five skills
-(`codechroma-{plan,draw-diagram,review-diagram,research,diagram-type}`);
+installs `codechroma-epic-brief` into the analyzed repo alongside its sibling skills;
 `SkillAgentTimeoutsConfig.timeout_seconds["epic-brief"]` defaults to 300s.
 
 **Frontend** (`web/src/canvas/epics/brief/`): `EpicBriefView.tsx` (the problem frame plus a
@@ -252,12 +350,11 @@ stored in the brief JSON, so the schema stays stable if the palette changes; tak
 inline `--scope-item` CSS variable), `TaskChip` (renders the task's `[P]` parallel flag, its `repo`
 tag — see below — id, and text), `AcceptanceCriterionBlock` (the trace/gap badge). `web/src/state/useEpicBrief.ts` is
 its while-generating poll of job state + output lines is the shared `state/usePolledJob.ts` hook
-(the diagram-type interview's own `useDiagramTypeInterview` consumer is retired), and the overall
-shape stays modeled on `useResearch.ts` (poll while `state === "generating"`, no websocket push — generating a
-brief is a one-off action, not a status watched continuously), except it's bound to one `itemId` and
+(the diagram-type interview's own `useDiagramTypeInterview` consumer is retired), polling while
+`state === "generating"` with no websocket push — generating a brief is a one-off action, not a
+status watched continuously. It's bound to one `itemId` and
 bootstraps its current state on mount/id change (a brief from an earlier session, or a job another
-tab already started), since — unlike an ad-hoc research question — a brief view always has exactly
-one epic in view; `generate(force?)` — the bare `Generate` (empty state) or a `force`-ed
+tab already started); `generate(force?)` — the bare `Generate` (empty state) or a `force`-ed
 "Regenerate" (an existing brief) — skips the POST while `job.state === "generating"` so a second
 generate (e.g. switching back to an epic whose brief is still running) re-attaches to the in-flight
 run instead of risking a second `claude` process — the same client-side guard `useDiagramGeneration`'s
@@ -276,7 +373,7 @@ call, so it's opt-in and explicit by design.
 Both `Generate` and `Regenerate` are disabled (with a `title` hint) when `useGroupAvailability`
 ("planning")'s check reports the group's effective CLI (assigned provider, or the default `claude`)
 is not on PATH — see [`llm-settings.md`](llm-settings.md#web)'s `cli_available` field. A brief has
-no offline/degraded path (unlike research's keyword fallback), so this is the one place a missing
+no offline/degraded path, so this is the one place a missing
 provider is worth blocking proactively instead of letting the click fail. Also: a failed `Regenerate`
 on top of an existing brief now renders `job.error` next to the button
 (`epic-brief-regenerate-error`) — it used to be silently swallowed once `brief` was non-null, since

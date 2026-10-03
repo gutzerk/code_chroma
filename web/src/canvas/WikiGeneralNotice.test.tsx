@@ -8,7 +8,6 @@ import type { DiagramGenerationStatus, WikiGeneralStatus } from "../state/types"
 import {
   DIAGRAM_STUB,
   EPICS_STUB,
-  RESEARCH_STUB,
   EPIC_BRIEF_STUB,
 } from "../engine-client/stubEngineClient";
 import { agentStore } from "../agents/agentStore";
@@ -40,7 +39,6 @@ function clientWith(overrides: Partial<EngineClient> = {}): EngineClient {
   return {
     ...DIAGRAM_STUB,
     ...EPICS_STUB,
-    ...RESEARCH_STUB,
     ...EPIC_BRIEF_STUB,
     getNode: async () => null,
     getChildren: async () => [],
@@ -291,7 +289,7 @@ describe("WikiGeneralNotice", () => {
     });
 
     expect(await screen.findByTestId("wiki-general-notice")).toHaveTextContent(
-      "Architecture wiki may be out of date",
+      "Architecture wiki is outdated",
     );
     expect(screen.getByTestId("wiki-general-update")).toBeInTheDocument();
     expect(screen.queryByTestId("wiki-general-generate")).toBeNull();

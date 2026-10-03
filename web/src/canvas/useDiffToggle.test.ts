@@ -106,7 +106,7 @@ describe("useDiffToggle", () => {
   });
 
   it("clears hierarchyChangesStore on toggle-off in the plain hierarchy view", async () => {
-    diffOverlayStore.setDiffs([]);
+    diffOverlayStore.write([], true);
     hierarchyChangesStore.setStatuses({ "file::a.py": "modified" });
     const engineClient = {
       getDiff: vi.fn().mockResolvedValue([]),

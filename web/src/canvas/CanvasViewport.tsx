@@ -13,6 +13,7 @@ import { canvasLayoutStore } from "../state/canvasLayoutStore";
 import { selectionStore } from "../state/selectionStore";
 import { gridStep } from "./canvasGrid";
 import { clamp } from "../util/clamp";
+import { readSavedCameraView, writeSavedCameraView } from "./canvasCameraStore";
 
 export interface CanvasViewportHandle {
   /** Returns false, without moving the camera, when `nodeId` isn't mounted yet — callers that need
@@ -40,6 +41,11 @@ interface ViewState {
   scale: number;
 }
 
+/** The reset camera position ("Fit-wise origin"): no pan, no zoom — what the canvas opens on when
+ * nothing was saved, and what resetView() returns to. Used as the fallback when a reload has no
+ * persisted view to restore. */
+const RESET_VIEW: ViewState = { x: 0, y: 0, scale: 1 };
+
 const MIN_SCALE = 0.25;
 const MAX_SCALE = 2.5;
 const BUTTON_ZOOM_STEP = 1.12;
@@ -50,6 +56,11 @@ const BUTTON_ZOOM_STEP = 1.12;
 const FOCUS_MAX_SCALE = 3.5;
 const FOCUS_FIT_PADDING = 0.7;
 const FOCUS_ANIMATION_MS = 550;
+
+// How long the viewport must stay still (no resize) before recentering re-arms. Recentering is
+// debounced onto this settle so the viewport's startup settle-shrink (side panels mounting a beat
+// after the camera restore, on a reload) doesn't re-center the saved camera — see the effect below.
+const VIEW_SETTLE_MS = 300;
 
 // Consecutive frames the framed layout must stay unchanged before fitToNodes reports "done" — long
 // enough to outlast the lazy-load reflow that follows the last block mounting, short enough to be
@@ -216,7 +227,10 @@ function clickTargetBelowArrow(clientX: number, clientY: number): HTMLElement | 
  * block under it. The click a completed drag would synthesize is swallowed so it can't also toggle. */
 export const CanvasViewport = forwardRef<CanvasViewportHandle, CanvasViewportProps>(
   function CanvasViewport({ children }, ref) {
-    const [view, setView] = useState<ViewState>({ x: 0, y: 0, scale: 1 });
+    // Restore the persisted camera at mount (lazy initializer so localStorage is read once). Reset
+    // to the fresh origin when nothing is saved -- readSavedCameraView returns null for an absent
+    // or at-origin view.
+    const [view, setView] = useState<ViewState>(() => readSavedCameraView() ?? RESET_VIEW);
     const [isFocusing, setIsFocusing] = useState(false);
     const viewportRef = useRef<HTMLDivElement | null>(null);
     const contentRef = useRef<HTMLDivElement | null>(null);
@@ -416,7 +430,12 @@ export const CanvasViewport = forwardRef<CanvasViewportHandle, CanvasViewportPro
       // canvas in every view. In the hierarchy the root block nests its descendants, so fitting root
       // was enough; the C1 view instead renders absolutely-positioned box anchors under a
       // `display: contents` wrapper, so there is nothing to measure and fitting root (not rendered at
-      // all there) silently did nothing. Unioning whatever carries a data-node-id covers both.
+      // all there) silently did nothing. Unioning whatever carries a data-node-id covers both —
+      // but only elements with a real node_id: the single-canvas doc also renders note/group/diagram
+      // frames and synthetic boxes (node_id null) that carry no data-node-id, so fit-all used to
+      // collapse onto whichever diagram happened to have code-backed boxes. Every canvas-doc element
+      // itself now stamps `data-canvas-element`, so unioning that PLUS data-node-id covers the whole
+      // canvas in both the hierarchy and the one-canvas doc.
       fitToAllNodes() {
         const viewportEl = viewportRef.current;
         if (!viewportEl) return;
@@ -428,9 +447,13 @@ export const CanvasViewport = forwardRef<CanvasViewportHandle, CanvasViewportPro
         const viewportRect = viewportEl.getBoundingClientRect();
 
         // Scoped to the viewport, not the document: the Explorer tree stamps data-node-id too, and
-        // it lives outside the pannable canvas entirely.
+        // it lives outside the pannable canvas entirely. data-canvas-element covers every canvas-doc
+        // box/area (notes, groups, synthetic without node_id); data-node-id covers the hierarchy's
+        // Block/TreeNode plus any code-backed box that also carries it.
         const { rect: unionRect } = unionRects(
-          viewportEl.querySelectorAll<HTMLElement>("[data-node-id]"),
+          viewportEl.querySelectorAll<HTMLElement>(
+            "[data-canvas-element], [data-node-id]",
+          ),
         );
         if (!unionRect) return;
 
@@ -446,7 +469,7 @@ export const CanvasViewport = forwardRef<CanvasViewportHandle, CanvasViewportPro
         zoomAround(x, y, 1 / BUTTON_ZOOM_STEP);
       },
       resetView() {
-        setView({ x: 0, y: 0, scale: 1 });
+        setView(RESET_VIEW);
       },
     }));
 
@@ -498,10 +521,29 @@ export const CanvasViewport = forwardRef<CanvasViewportHandle, CanvasViewportPro
     // each axis — panning by delta/2 keeps content centered, preserving zoom (unlike a re-fit).
     // Both axes matter: the inspector shrinks the canvas from the right, the terminal (now a bottom
     // dock) from the bottom.
+    //
+    // Not every width change is a real window/panel resize: on a reload that restores a saved camera,
+    // the side panels (project tree + code sidebar) mount a frame or two AFTER the viewport — so the
+    // viewport briefly paints at full width, then shrinks to its final width once the panels land. The
+    // saved camera was written for the final layout (panels present), so that settle-shrink must not
+    // re-center the view or it shifts the restored camera sideways on every reload (the accumulated
+    // ~-125px drift bug). We arm recentering only once the viewport has gone VIEW_SETTLE_MS without
+    // further resize (a debounced settle: any size change — including the panel-mount shrink — defers
+    // arming), so a slow settle just keeps resetting the timer instead of racing a fixed wall-clock
+    // window off mount. Only then do genuine later resizes (window/panel) re-center.
+    const settledRef = useRef(false);
     useEffect(() => {
       const el = viewportRef.current;
       if (!el || typeof ResizeObserver === "undefined") return undefined;
       let last: { width: number; height: number } | null = null;
+      let settleTimer: ReturnType<typeof setTimeout> | null = null;
+      const arm = () => {
+        if (settleTimer) {
+          clearTimeout(settleTimer);
+          settleTimer = null;
+        }
+        settledRef.current = true;
+      };
       const observer = new ResizeObserver((entries) => {
         const rect = entries[0]?.contentRect;
         const width = rect?.width ?? el.clientWidth;
@@ -513,13 +555,34 @@ export const CanvasViewport = forwardRef<CanvasViewportHandle, CanvasViewportPro
         const dx = width - last.width;
         const dy = height - last.height;
         last = { width, height };
+        if (!settledRef.current) {
+          // Any size change (incl. the panel-mount settle-shrink) defers arming until fully still.
+          if (settleTimer) clearTimeout(settleTimer);
+          settleTimer = setTimeout(arm, VIEW_SETTLE_MS);
+          return;
+        }
         if (dx !== 0 || dy !== 0) {
           setView((v) => ({ ...v, x: v.x + dx / 2, y: v.y + dy / 2 }));
         }
       });
       observer.observe(el);
-      return () => observer.disconnect();
+      // Arm even if the viewport never resizes (e.g. a view with no side panels to mount).
+      settleTimer = setTimeout(arm, VIEW_SETTLE_MS);
+      return () => {
+        if (settleTimer) clearTimeout(settleTimer);
+        observer.disconnect();
+      };
     }, []);
+
+    // Persist the camera as the user pans/zooms, so a reload restores it (readSavedCameraView at
+    // mount). The reset origin isn't a meaningful place to save — restoring "no view" is the same as
+    // opening on it — so an at-origin view is skipped; the very first render also computes a view that
+    // is just the restore read back out, which save-on-change would write redundantly and is exactly
+    // what readSavedCameraView treats as "nothing saved".
+    useEffect(() => {
+      if (view.x === 0 && view.y === 0 && view.scale === 1) return;
+      writeSavedCameraView(view);
+    }, [view]);
 
     // Broadcast "block layout changed" so the SVG overlays (connection lines, plan frames) re-measure
     // their getBoundingClientRect boxes on ANY block resize/move — not just expand/collapse. Blocks

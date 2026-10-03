@@ -43,4 +43,4 @@ linux:
       arch: [x64]
     - target: AppImage
       arch: [x64]
-  artifactName: CodeChroma-${version}-${arch}.${ext}
+  artifactName: CodeChroma-${version}-x64.${ext}

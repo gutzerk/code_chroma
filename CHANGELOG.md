@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.1.2](https://github.com/gutzerk/code_chroma/compare/codechroma-v0.1.1...codechroma-v0.1.2) (2026-10-03)
+
+
+### Bug Fixes
+
+* publish Intel macOS desktop installer ([55a15a8](https://github.com/gutzerk/code_chroma/commit/55a15a8e35b5e2d2bd0495428836bfc9d20741f7))
+* publish Intel macOS desktop installer ([a531c1f](https://github.com/gutzerk/code_chroma/commit/a531c1fe17d34e4dad91801b17289fd6001589a8))
+
 ## [0.1.1](https://github.com/gutzerk/code_chroma/compare/codechroma-v0.1.0...codechroma-v0.1.1) (2026-10-03)
 
 

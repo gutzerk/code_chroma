@@ -1,7 +1,7 @@
 import { verify as verifySignature } from "sigstore";
 import type { Bundle } from "sigstore";
 
-export const ATTESTATIONS_API = `https://api.github.com/repos/UshakovDV/code-chroma/attestations/sha256`;
+export const ATTESTATIONS_API = `https://api.github.com/repos/gutzerk/code_chroma/attestations/sha256`;
 
 /**
  * OIDC issuer of the short-lived GitHub Actions token that signed each installer's attestation.
@@ -12,7 +12,7 @@ const ACTIONS_ISSUER = "https://token.actions.githubusercontent.com";
 // Pinned to refs/heads/main because the build jobs attest in the same main-triggered run that
 // creates the tag; the upload's OIDC ref is the branch, not the tag it just created.
 const WORKFLOW_IDENTITY =
-  "https://github.com/UshakovDV/code-chroma/.github/workflows/release-please.yml@refs/heads/main";
+  "https://github.com/gutzerk/code_chroma/.github/workflows/release-please.yml@refs/heads/main";
 
 /** The `/attestations/sha256:{digest}` REST response (kept loose — GitHub may add fields). */
 interface AttestationsResponse {

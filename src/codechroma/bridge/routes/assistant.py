@@ -7,13 +7,12 @@ persists, applying to the running bridge on the next use.
 
 from __future__ import annotations
 
-import shutil
-
 from fastapi import APIRouter, HTTPException, Request
 
 from codechroma.assistant import load_assistant_settings, save_assistant_settings
 from codechroma.bridge.routes._body import json_body
 from codechroma.context.llm_provider import PROBE_MODEL, key_source, provider_from_env
+from codechroma.llm.runtime_env import CliLookupError, resolve_runtime_cli
 
 router = APIRouter()
 
@@ -43,11 +42,13 @@ def test_assistant_connection() -> dict:
     """Checks the assistant works now: CLI present, plus one tiny call if a key resolves."""
     settings = load_assistant_settings()
     cli = settings.effective_cli
-    cli_found = shutil.which(cli) is not None
-
     problems: list[str] = []
-    if not cli_found:
-        problems.append(f"'{cli}' not found on PATH")
+    try:
+        resolve_runtime_cli(cli)
+        cli_found = True
+    except CliLookupError as exc:
+        cli_found = False
+        problems.append(str(exc))
 
     source = key_source()
     provider = provider_from_env() if source != "none" else None

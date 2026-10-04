@@ -13,7 +13,6 @@ import { basename, join, resolve } from "node:path";
 import { startBridge, stopBridge, type BridgeHandle } from "./bridgeProcess";
 import { resolveBridgeExecutable } from "./bridgeLocation";
 import { addRecent, readRecents, recentsStorePath } from "./recentRepos";
-import { repairProcessPath } from "./shellPath";
 import { TabManager, type Tab } from "./tabManager";
 import type { TabsChangedPayload } from "./tabbarPreload";
 import { checkForUpdates, downloadAsset, installAsset, type UpdateInfo } from "./updater";
@@ -500,7 +499,6 @@ function repoFromArgv(argv: string[]): string | null {
 }
 
 app.whenReady().then(async () => {
-  repairProcessPath();
   buildMenu();
   registerIpc();
   const initialShell = await createShell();

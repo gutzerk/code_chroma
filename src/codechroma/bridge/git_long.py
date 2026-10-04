@@ -23,6 +23,12 @@ from pathlib import Path
 
 from codechroma.config import settings
 from codechroma.errors import codechromaError
+from codechroma.llm.runtime_env import (
+    CliLookupError,
+    launch_failed,
+    resolve_runtime_cli,
+    runtime_environment,
+)
 
 logger = logging.getLogger("uvicorn.error")
 
@@ -55,7 +61,7 @@ def timeout_seconds() -> int:
 def non_interactive_env() -> dict[str, str]:
     """git's environment with every credential prompt turned into an immediate failure."""
     return {
-        **os.environ,
+        **runtime_environment()[0],
         "GIT_TERMINAL_PROMPT": "0",
         "GIT_ASKPASS": "echo",
         "SSH_ASKPASS": "echo",
@@ -69,16 +75,18 @@ def run_git_long(cwd: Path, *args: str, timeout: int | None = None) -> str:
     limit = timeout if timeout is not None else timeout_seconds()
     # Own process group: killing git alone orphans its credential helper, ssh and pager.
     try:
+        runtime = resolve_runtime_cli("git", non_interactive_env())
         process = subprocess.Popen(
-            ["git", *args],
+            [runtime.executable, *args],
             cwd=cwd,
-            env=non_interactive_env(),
+            env=dict(runtime.env),
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
             text=True,
             start_new_session=not settings.windows,
         )
-    except OSError as exc:
+    except (OSError, CliLookupError) as exc:
+        launch_failed(exc)
         raise GitLongError(REASON_NOT_RUNNABLE, f"git could not be run: {exc}") from exc
     try:
         stdout, stderr = process.communicate(timeout=limit)

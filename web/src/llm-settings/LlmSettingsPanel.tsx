@@ -4,19 +4,23 @@ import { AssistantSection } from "../assistant/AssistantSection";
 import { PanelCloseButton } from "../canvas/PanelCloseButton";
 import { CallSitesSection } from "./CallSitesSection";
 import { ProvidersSection } from "./ProvidersSection";
+import { RuntimeSection } from "./RuntimeSection";
 
-type Tab = "providers" | "call-sites" | "assistant";
+type Tab = "providers" | "call-sites" | "assistant" | "runtime";
 
 const TABS: { id: Tab; label: string }[] = [
   { id: "providers", label: "Providers" },
   { id: "call-sites", label: "Model routing" },
   { id: "assistant", label: "Agent windows" },
+  { id: "runtime", label: "CLI tools" },
 ];
 
 /** Every LLM setting in one window, reached from the single Settings gear -- provider connections,
  * the per-feature routing table, and the agent-window fallback credentials. */
 export function LlmSettingsPanel({ onDismiss }: { onDismiss: () => void }) {
   const [tab, setTab] = useState<Tab>("providers");
+
+
 
   return (
     <ModalDialog
@@ -61,6 +65,7 @@ export function LlmSettingsPanel({ onDismiss }: { onDismiss: () => void }) {
         {tab === "providers" && <ProvidersSection />}
         {tab === "call-sites" && <CallSitesSection />}
         {tab === "assistant" && <AssistantSection />}
+        {tab === "runtime" && <RuntimeSection />}
       </div>
     </ModalDialog>
   );

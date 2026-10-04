@@ -137,7 +137,7 @@ def test_test_cli_provider_with_base_url_probes_the_endpoint(client, monkeypatch
     })
     created = response.json()
     monkeypatch.setattr(
-        "codechroma.bridge.routes.llm_settings.shutil.which", lambda binary: "/usr/bin/claude"
+        "codechroma.llm.runtime_env.shutil.which", lambda binary, **_kwargs: "/usr/bin/claude"
     )
     monkeypatch.setattr(
         "codechroma.bridge.routes.llm_settings.model_catalog.fetch_models",
@@ -284,7 +284,7 @@ def test_test_provider_draft_cli_claude_with_base_url_probes_the_endpoint(
     client, monkeypatch, fetch_result, expect_ok, expect_fragment
 ):
     monkeypatch.setattr(
-        "codechroma.bridge.routes.llm_settings.shutil.which", lambda binary: "/usr/bin/claude"
+        "codechroma.llm.runtime_env.shutil.which", lambda binary, **_kwargs: "/usr/bin/claude"
     )
     monkeypatch.setattr(
         "codechroma.bridge.routes.llm_settings.model_catalog.fetch_models",
@@ -354,7 +354,7 @@ def test_unassigned_group_shows_null_assignment(client):
 
 def test_unassigned_group_reports_cli_available_when_default_claude_is_on_path(client, monkeypatch):
     monkeypatch.setattr(
-        "codechroma.bridge.routes.llm_settings.shutil.which", lambda binary: "/usr/bin/claude"
+        "codechroma.llm.runtime_env.shutil.which", lambda binary, **_kwargs: "/usr/bin/claude"
     )
 
     entry = next(g for g in client.get("/llm/call-sites").json()["groups"] if g["id"] == "diagrams")
@@ -363,7 +363,7 @@ def test_unassigned_group_reports_cli_available_when_default_claude_is_on_path(c
 
 
 def test_unassigned_group_reports_cli_unavailable_when_claude_is_missing(client, monkeypatch):
-    monkeypatch.setattr("codechroma.bridge.routes.llm_settings.shutil.which", lambda binary: None)
+    monkeypatch.setattr("codechroma.llm.runtime_env.shutil.which", lambda binary, **_kwargs: None)
 
     entry = next(g for g in client.get("/llm/call-sites").json()["groups"] if g["id"] == "diagrams")
 
@@ -374,8 +374,8 @@ def test_assigned_group_reports_cli_available_from_its_own_provider_adapter(clie
     created = _make_cli_provider(client)
     client.put("/llm/call-site-groups/diagrams", json={"provider_id": created["id"], "model": "m"})
     monkeypatch.setattr(
-        "codechroma.bridge.routes.llm_settings.shutil.which",
-        lambda binary: "/usr/bin/claude" if binary == "claude" else None,
+        "codechroma.llm.runtime_env.shutil.which",
+        lambda binary, **_kwargs: "/usr/bin/claude" if binary == "claude" else None,
     )
 
     entry = next(g for g in client.get("/llm/call-sites").json()["groups"] if g["id"] == "diagrams")

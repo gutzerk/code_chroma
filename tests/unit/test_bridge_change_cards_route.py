@@ -1,5 +1,6 @@
 """TestClient coverage for GET /repos/{repo_id}/change-cards and the read-only write guards."""
 
+
 import shutil
 import subprocess
 from pathlib import Path
@@ -7,7 +8,7 @@ from pathlib import Path
 import pytest
 from fastapi.testclient import TestClient
 
-from codechroma.bridge import skill_agent
+from tests.unit.fake_claude import CLI_MISSING
 
 FIXTURE_REPO = Path(__file__).parent.parent / "fixtures" / "sample_repo"
 
@@ -94,13 +95,13 @@ def test_a_read_only_workspace_is_still_allowed_to_start_a_generate_run(
 ):
     # Generation only writes a .codechroma/{kind}.json artifact, so it stays allowed read-only.
     test_client, repo, bridge = client
-    monkeypatch.setattr(skill_agent.shutil, "which", lambda _name: None)
+    monkeypatch.setattr("codechroma.llm.runtime_env.shutil.which", lambda _name, **_kwargs: None)
     bridge.registry.register("pr-12", repo, read_only=True)
 
     response = test_client.post(generate_path)
 
     assert response.status_code == 200
-    assert response.json() == {"state": "error", "error": "claude CLI not found on PATH"}
+    assert response.json() == {"state": "error", "error": CLI_MISSING}
 
 
 def test_a_writable_workspace_is_still_allowed_to_accept(client):

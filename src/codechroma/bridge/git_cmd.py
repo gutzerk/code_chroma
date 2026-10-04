@@ -7,6 +7,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 
 from codechroma.config import settings
+from codechroma.llm.runtime_env import CliLookupError, launch_failed, resolve_runtime_cli
 
 
 def _git_timeout() -> int:
@@ -21,16 +22,18 @@ def run_git_raw(
 ) -> subprocess.CompletedProcess[str] | None:
     """The one place a git subprocess is spawned; None when git couldn't be run at all."""
     try:
+        runtime = resolve_runtime_cli("git", env)
         return subprocess.run(
-            ["git", *args],
+            [runtime.executable, *args],
             cwd=cwd,
-            env=env,
+            env=dict(runtime.env),
             input=input_text,
             capture_output=True,
             text=True,
             timeout=_git_timeout(),
         )
-    except (OSError, subprocess.TimeoutExpired):
+    except (OSError, subprocess.TimeoutExpired, CliLookupError) as exc:
+        launch_failed(exc)
         return None
 
 
@@ -118,13 +121,16 @@ def head_content(git_root: Path, repo_root: Path, file_path: str, base: str = "H
     prefix = repo_root.relative_to(git_root).as_posix()
     git_relative = f"{prefix}/{file_path}" if prefix else file_path
     try:
+        runtime = resolve_runtime_cli("git")
         result = subprocess.run(
-            ["git", "show", f"{base}:{git_relative}"],
+            [runtime.executable, "show", f"{base}:{git_relative}"],
             cwd=git_root,
+            env=dict(runtime.env),
             capture_output=True,
             timeout=_git_timeout(),
         )
-    except (OSError, subprocess.TimeoutExpired):
+    except (OSError, subprocess.TimeoutExpired, CliLookupError) as exc:
+        launch_failed(exc)
         return b""
     return result.stdout if result.returncode == 0 else b""
 

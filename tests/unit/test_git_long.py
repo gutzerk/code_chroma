@@ -23,9 +23,17 @@ def _stub_git(bin_dir: Path, body: str) -> None:
 
 @pytest.fixture
 def bin_dir(tmp_path, monkeypatch):
+    if os.name == "nt":
+        pytest.skip("uses POSIX shebang stubs")
     path = tmp_path / "bin"
     path.mkdir()
-    monkeypatch.setenv("PATH", f"{path}:{os.environ['PATH']}")
+    monkeypatch.setenv("PATH", f"{path}{os.pathsep}{os.environ['PATH']}")
+    from codechroma.llm import runtime_env
+
+    monkeypatch.setattr(runtime_env, "_probe", lambda *_: ({}, None, (), "test-shell"))
+    environment = runtime_env.get_runtime_environment()
+    environment.inherited = dict(os.environ)
+    environment.refresh("test PATH changed", force=True).result()
     return path
 
 
@@ -58,7 +66,12 @@ def test_a_hang_leaves_nothing_behind(tmp_path, bin_dir):
 
 
 def test_a_missing_binary_is_distinct_from_a_hang(tmp_path, monkeypatch):
-    monkeypatch.setenv("PATH", str(tmp_path / "empty"))
+    from codechroma.llm.runtime_env import CliLookupError
+
+    def missing(*args, **kwargs):
+        raise CliLookupError("git executable not found")
+
+    monkeypatch.setattr(git_long, "resolve_runtime_cli", missing)
 
     with pytest.raises(git_long.GitLongError) as caught:
         git_long.run_git_long(tmp_path, "fetch", "origin")

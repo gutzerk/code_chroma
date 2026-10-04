@@ -23,7 +23,6 @@ import contextlib
 import json
 import logging
 import os
-import shutil
 from collections import deque
 from collections.abc import Awaitable, Callable
 from datetime import UTC, datetime
@@ -33,6 +32,13 @@ from typing import TYPE_CHECKING, TextIO
 from codechroma.config import settings
 from codechroma.llm.cli_adapters import CLI_ADAPTERS, CliAdapter
 from codechroma.llm.resolve_cli import resolve_cli as _resolve_cli
+from codechroma.llm.runtime_env import (
+    CliLaunchError,
+    CliLookupError,
+    RuntimeCli,
+    launch_failed,
+    resolve_runtime_cli,
+)
 
 if TYPE_CHECKING:
     from codechroma.bridge.workspaces import Workspace
@@ -178,15 +184,18 @@ class SkillAgent:
             return already
 
         cli = self.resolve_cli()
-        if shutil.which(cli[1]) is None:
-            state = {"state": "error", "error": f"{cli[1]} CLI not found on PATH"}
+        try:
+            runtime = await asyncio.to_thread(resolve_runtime_cli, cli[1], cli[3])
+        except CliLookupError as exc:
+            state = {"state": "error", "error": str(exc)}
             self.jobs[repo_id] = state
             await on_change(repo_id, state)
             return dict(state)
 
+        cli = (cli[0], runtime.executable, cli[2], dict(runtime.env))
         state = await self._begin_generating(repo_id, on_change)
         task = asyncio.create_task(
-            self._run(repo_id, repo_root, on_change, on_output, prompt, cli, workspace)
+            self._run(repo_id, repo_root, on_change, on_output, prompt, cli, workspace, runtime)
         )
         self.tasks[repo_id] = task
         # 🔴 Self-removing: cancel() awaits what is left, and a closed-loop task raises there.
@@ -298,14 +307,17 @@ class SkillAgent:
         prompt: str | None = None,
         cli: tuple[CliAdapter, str, str, dict[str, str]] | None = None,
         workspace: Workspace | None = None,
+        runtime: RuntimeCli | None = None,
     ) -> None:
         try:
             if self.run_body is not None:
                 state = await self._run_pipeline_body(repo_id, repo_root, workspace, on_output)
             else:
-                state = await self._run_cli(repo_id, repo_root, on_output, prompt, cli)
+                state = await self._run_cli(repo_id, repo_root, on_output, prompt, cli, runtime)
         except asyncio.CancelledError:
             raise
+        except (CliLookupError, CliLaunchError) as exc:
+            state = {"state": "error", "error": str(exc)}
         except Exception:
             logger.exception("%s: run crashed for %s", self.name, repo_id)
             state = {"state": "error", "error": "generation crashed unexpectedly"}
@@ -364,6 +376,7 @@ class SkillAgent:
         on_output: OnOutput | None = None,
         prompt: str | None = None,
         cli: tuple[CliAdapter, str, str, dict[str, str]] | None = None,
+        runtime: RuntimeCli | None = None,
     ) -> dict:
         snapshot = self._snapshot(repo_root, repo_id)
 
@@ -371,12 +384,15 @@ class SkillAgent:
             self._restore(repo_root, repo_id, snapshot)
 
         adapter, binary, model, env_overrides = cli if cli is not None else self.resolve_cli()
+        # start() already captured lookup and environment as one snapshot.
+        runtime = runtime or await asyncio.to_thread(resolve_runtime_cli, binary, env_overrides)
+        binary, env_overrides = runtime.executable, dict(runtime.env)
         static_prompt = prompt if prompt is not None else self.prompt
         assert static_prompt is not None, "_run_cli needs a prompt; unreachable if run_body is set"
         # An explicit --model re-triggers the CLI rejection; omit when ANTHROPIC_MODEL carries it.
         argv_model = "" if "ANTHROPIC_MODEL" in env_overrides else model
         # The run's workspace id (e.g. "pr-29"): which /repos/{id} slices and worktree to use.
-        run_env = {**os.environ, **env_overrides, "codechroma_WORKSPACE_ID": repo_id}
+        run_env = {**env_overrides, "codechroma_WORKSPACE_ID": repo_id}
         # build_argv's --bare check needs this run's actual env, not the bridge process's own.
         argv = adapter.build_argv(binary, static_prompt, argv_model, env=run_env)
         debug_log = open_debug_log(self.name, repo_id)
@@ -389,10 +405,13 @@ class SkillAgent:
                 limit=_stream_limit(),
                 env=run_env,
             )
-        except BaseException:
+        except BaseException as exc:
             # A launch failure (missing binary, FD exhaustion) would otherwise leak this handle.
             if debug_log is not None:
                 debug_log.close()
+            if isinstance(exc, OSError):
+                launch_failed(exc)
+                raise CliLaunchError(runtime.launch_error(exc)) from exc
             raise
         self.procs[repo_id] = proc
         stderr_tail = bytearray()

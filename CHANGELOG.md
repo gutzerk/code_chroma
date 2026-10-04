@@ -1,5 +1,15 @@
 # Changelog
 
+## [0.5.1](https://github.com/gutzerk/code_chroma/compare/v0.5.0...v0.5.1) (2026-10-04)
+
+
+### Bug Fixes
+
+* resolve GitHub repository for PR picker ([baa1d94](https://github.com/gutzerk/code_chroma/commit/baa1d94e471fe94a105e5446a0fcb2761781d4ce))
+* resolve GitHub repository for PR picker ([a71c232](https://github.com/gutzerk/code_chroma/commit/a71c23296e1b1708a13650e448a9bfdfe4406d1b))
+* synchronize watcher startup and update publish test stub ([ecfd7f8](https://github.com/gutzerk/code_chroma/commit/ecfd7f80812269d2615e9b7a6b7e029d9d246434))
+* synchronize watcher startup and update publish test stub ([19103ce](https://github.com/gutzerk/code_chroma/commit/19103ce295a9302ceebe675ac22d2980b243d45e))
+
 ## [0.5.0](https://github.com/gutzerk/code_chroma/compare/v0.4.2...v0.5.0) (2026-10-04)
 
 

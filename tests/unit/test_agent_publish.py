@@ -162,6 +162,7 @@ def test_an_existing_pr_is_linked_instead_of_a_second_one_being_offered(agent, b
         """
 case "$1 $2" in
   "auth status") exit 0 ;;
+  "repo view") echo '{"nameWithOwner":"acme/app"}'; exit 0 ;;
   "pr view") echo "https://github.com/acme/app/pull/7"; exit 0 ;;
 esac
 exit 1

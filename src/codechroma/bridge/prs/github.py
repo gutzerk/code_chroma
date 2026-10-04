@@ -1,13 +1,4 @@
-"""Reading a pull request's identity from what the user pasted, and its metadata from `gh`.
-
-Everything here is local except `fetch_metadata`. In particular the "is this PR ours?" check is a
-string comparison against `origin`'s own slug, not a network call: a URL for another repository is
-rejected before anything is spawned, and a bare `#123` needs no check at all.
-
-`gh` resolves the repository from `origin` itself, so there is no arbitrary-repo path to guard
-against, and a pull request from a fork comes back flagged with no extra work — its head lands in
-the base repository's `refs/pull/<n>/head` regardless of who opened it.
-"""
+"""Reading a pull request's identity from what the user pasted, and its metadata from `gh`."""
 
 from __future__ import annotations
 
@@ -19,7 +10,6 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from codechroma.bridge.agents.publish import run_gh
-from codechroma.bridge.git_cmd import run_git
 
 logger = logging.getLogger("uvicorn.error")
 
@@ -29,8 +19,6 @@ _PR_URL = re.compile(
 )
 
 _BARE_NUMBER = re.compile(r"^#?(?P<number>\d+)$")
-
-_ORIGIN_SLUG = re.compile(r"github\.com[/:](?P<owner>[^/]+)/(?P<repo>[^/]+?)(?:\.git)?/?$")
 
 _METADATA_FIELDS = (
     "number,title,url,state,author,headRefName,headRefOid,baseRefName,"
@@ -65,22 +53,31 @@ def parse_pr_reference(raw: object) -> PrReference | None:
     return PrReference(number=int(bare.group("number"))) if bare else None
 
 
-def origin_slug(repo_root: Path) -> tuple[str, str] | None:
-    """`origin`'s (owner, repo) when it is a GitHub remote, else None."""
-    # `config --get`, not `remote get-url`: the latter applies `url.*.insteadOf`, hiding the slug.
-    remote = run_git(repo_root, "config", "--get", "remote.origin.url")
-    if remote is None:
+def repository_slug(repo_root: Path) -> tuple[str, str] | None:
+    """The current checkout's GitHub owner/repo as resolved by `gh`, or None if unresolved."""
+    raw = run_gh(repo_root, "repo", "view", "--json", "nameWithOwner")
+    if raw is None:
         return None
-    match = _ORIGIN_SLUG.search(remote.strip())
-    return (match.group("owner"), match.group("repo")) if match else None
+    try:
+        data = json.loads(raw)
+    except ValueError:
+        logger.warning("prs: gh repo view returned unparseable JSON")
+        return None
+    slug = data.get("nameWithOwner") if isinstance(data, dict) else None
+    if not isinstance(slug, str):
+        return None
+    owner, separator, repo = slug.strip().partition("/")
+    if not separator or not owner or not repo or "/" in repo:
+        return None
+    return owner, repo
 
 
-def belongs_to_origin(reference: PrReference, repo_root: Path) -> bool:
-    """Whether this reference is a pull request of the opened repository's own `origin`."""
+def belongs_to_repository(reference: PrReference, repo_root: Path) -> bool:
+    """Whether this reference belongs to the repository resolved from the current checkout."""
     # A bare number can only mean "in this repo", so there is nothing to disagree with.
     if reference.owner is None or reference.repo is None:
         return True
-    slug = origin_slug(repo_root)
+    slug = repository_slug(repo_root)
     if slug is None:
         return False
     return (reference.owner.lower(), reference.repo.lower()) == (
@@ -89,9 +86,9 @@ def belongs_to_origin(reference: PrReference, repo_root: Path) -> bool:
     )
 
 
-def is_github_remote(repo_root: Path) -> bool:
-    """Whether `origin` points at GitHub at all — the third of the three preflight checks."""
-    return origin_slug(repo_root) is not None
+def is_github_repository(repo_root: Path) -> bool:
+    """Whether `gh` can resolve the current checkout to a GitHub repository."""
+    return repository_slug(repo_root) is not None
 
 
 def has_gh() -> bool:
@@ -170,7 +167,7 @@ def fetch_general_comments(repo_root: Path, number: int) -> list[dict]:
 
 def fetch_review_comments(repo_root: Path, number: int) -> list[dict]:
     """Inline comments on a diff line, via the REST `pulls/{n}/comments` endpoint."""
-    slug = origin_slug(repo_root)
+    slug = repository_slug(repo_root)
     if slug is None:
         return []
     owner, repo = slug

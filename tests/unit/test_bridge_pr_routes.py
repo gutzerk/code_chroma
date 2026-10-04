@@ -49,11 +49,29 @@ def _stub_gh(bin_dir: Path, metadata: dict | None, open_prs: list[dict] | None =
     listing = f"echo '{json.dumps(open_prs)}'; exit 0" if open_prs is not None else "exit 1"
     script = bin_dir / "gh"
     script.write_text(
-        f'#!/bin/sh\ncase "$1 $2" in\n  "auth status") exit 0 ;;\n  "pr view") {view} ;;\n'
+        f'#!/bin/sh\ncase "$1 $2" in\n  "auth status") exit 0 ;;\n'
+        '  "repo view") echo \'{"nameWithOwner":"acme/app"}\'; exit 0 ;;\n'
+        f'  "pr view") {view} ;;\n'
         f'  "pr list") {listing} ;;\nesac\n'
         "exit 1\n"
     )
     script.chmod(0o755)
+
+
+def _mock_gh_resolution(monkeypatch, open_prs: list[dict] | None) -> None:
+    """Make the `/prs/github` endpoint deterministic without requiring a shell on PATH."""
+    monkeypatch.setattr(pr_github, "has_gh", lambda: True)
+
+    def run_gh(_root: Path, *args: str) -> str | None:
+        if args == ("auth", "status"):
+            return ""
+        if args == ("repo", "view", "--json", "nameWithOwner"):
+            return json.dumps({"nameWithOwner": "acme/app"})
+        if args[:2] == ("pr", "list"):
+            return json.dumps(open_prs) if open_prs is not None else None
+        return None
+
+    monkeypatch.setattr(pr_github, "run_gh", run_gh)
 
 
 @pytest.fixture
@@ -87,7 +105,7 @@ def client(tmp_path, origin, monkeypatch, make_bridge):
     _git(tmp_path, "clone", str(origin), str(repo))
     _git(repo, "config", "user.email", "test@example.com")
     _git(repo, "config", "user.name", "Test")
-    # An https URL so origin_slug() reads acme/app, while fetches still go to the local bare repo.
+    # The bridge fetches from this local path; the fake gh resolves the checkout as acme/app.
     _git(repo, "remote", "set-url", "--push", "origin", str(origin))
     _git(repo, "config", "remote.origin.url", "https://github.com/acme/app.git")
     _git(repo, "config", "remote.origin.pushurl", str(origin))
@@ -347,12 +365,11 @@ def test_the_list_route_reports_the_cap_and_the_active_workspace(client):
     assert body["prs"][0]["id"] == "pr-7"
 
 
-def test_github_prs_lists_open_prs_from_gh(client):
-    test_client, _repo, _server, bin_dir = client
-    _stub_gh(
-        bin_dir,
-        PR_METADATA,
-        open_prs=[
+def test_github_prs_lists_open_prs_from_gh(client, monkeypatch):
+    test_client, _repo, _server, _bin = client
+    _mock_gh_resolution(
+        monkeypatch,
+        [
             {"number": 7, "title": "Add refunds", "headRefName": "feature/refunds",
              "author": {"login": "octocat"}},
             {"number": 9, "title": "Add coupons", "headRefName": "feature/coupons",
@@ -369,9 +386,32 @@ def test_github_prs_lists_open_prs_from_gh(client):
 
 
 def test_github_prs_ignores_the_import_cap(client, monkeypatch):
-    test_client, _repo, bridge, bin_dir = client
+    test_client, _repo, bridge, _bin = client
     monkeypatch.setattr(bridge.pr_manager, "at_capacity", lambda: True)
-    _stub_gh(bin_dir, PR_METADATA, open_prs=[])
+    _mock_gh_resolution(monkeypatch, [])
+
+    response = test_client.get("/prs/github")
+
+    assert response.status_code == 200
+    assert response.json()["prs"] == []
+
+
+def test_github_prs_works_with_an_upstream_remote_instead_of_origin(client, monkeypatch):
+    test_client, repo, _server, _bin = client
+    _mock_gh_resolution(monkeypatch, [])
+    _git(repo, "remote", "remove", "origin")
+    _git(repo, "remote", "add", "upstream", "git@github.com:acme/app.git")
+
+    response = test_client.get("/prs/github")
+
+    assert response.status_code == 200
+    assert response.json()["prs"] == []
+
+
+def test_github_prs_works_with_a_custom_ssh_alias(client, monkeypatch):
+    test_client, repo, _server, _bin = client
+    _mock_gh_resolution(monkeypatch, [])
+    _git(repo, "remote", "set-url", "origin", "git@gh-work:acme/app.git")
 
     response = test_client.get("/prs/github")
 
@@ -389,12 +429,37 @@ def test_github_prs_reports_a_missing_gh_as_its_own_blocker(client, monkeypatch)
     assert response.json()["detail"] == "GitHub CLI required"
 
 
-def test_github_prs_reports_a_gh_failure_as_a_502(client):
+def test_github_prs_reports_authentication_failure_separately(client, monkeypatch):
     test_client, _repo, _server, _bin = client
+    monkeypatch.setattr(pr_github, "has_gh", lambda: True)
+    monkeypatch.setattr(pr_github, "is_authenticated", lambda _root: False)
+
+    response = test_client.get("/prs/github")
+
+    assert response.status_code == 409
+    assert response.json()["detail"] == "Log in: gh auth login"
+
+
+def test_github_prs_reports_repository_detection_failure_separately(client, monkeypatch):
+    test_client, _repo, _server, _bin = client
+    monkeypatch.setattr(pr_github, "has_gh", lambda: True)
+    monkeypatch.setattr(pr_github, "is_authenticated", lambda _root: True)
+    monkeypatch.setattr(pr_github, "is_github_repository", lambda _root: False)
+
+    response = test_client.get("/prs/github")
+
+    assert response.status_code == 409
+    assert "gh repo view" in response.json()["detail"]
+
+
+def test_github_prs_reports_a_gh_failure_as_a_502(client, monkeypatch):
+    test_client, _repo, _server, _bin = client
+    _mock_gh_resolution(monkeypatch, None)
 
     response = test_client.get("/prs/github")
 
     assert response.status_code == 502
+    assert "gh pr list" in response.json()["detail"]
 
 
 def server_max_prs() -> int:

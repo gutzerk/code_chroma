@@ -22,7 +22,7 @@ export const PR_CLIENT_STUB = {
   prImportPreflight: async (): Promise<PrImportPreflight> => ({
     ready: false,
     reason: "not-github",
-    text: "Works with GitHub only",
+    text: "Could not detect a GitHub repository; check that `gh repo view` works here",
   }),
   openPr: async (): Promise<PrWorkspace> => {
     throw new Error("no bridge in this test");

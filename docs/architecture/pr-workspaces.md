@@ -96,8 +96,15 @@ unchanged, because `App.tsx` already routes every canvas request through `repoId
 - Routes: `GET /prs`, `GET /prs/preflight`, `POST /prs`, `POST /prs/{n}/refresh`, `DELETE /prs/{n}`,
   plus `read_only` on `GET /workspaces/{id}/status`. Preflight uses `publish`'s disabled-with-reason
   pattern; an already-open PR is a 200 linking to it, not a second fetch.
-- Out of scope on purpose: no review *prose* (no new skill or artifact), only `origin`'s own PRs
-  (forks work via `refs/pull/<n>/head`), and refresh is a button — nothing polls GitHub.
+- `prs/github.py` resolves repository identity with `gh repo view --json nameWithOwner`, not by
+  parsing `origin`'s URL. This lets GitHub CLI handle HTTPS/SSH URLs, a GitHub `upstream` remote,
+  SSH aliases and Git worktrees/nested working directories. The picker distinguishes a missing
+  `gh`, failed authentication, an unresolved GitHub checkout and a failed PR-list command; an empty
+  successful list means there are no open PRs. A pasted PR URL is checked against the resolved
+  owner/repo, while a bare number means the current repository.
+- Out of scope on purpose: no review *prose* (no new skill or artifact), only the current
+  repository's own PRs (forks work via `refs/pull/<n>/head`), and refresh is a button — nothing
+  polls GitHub.
 - 🔴 **Refresh states its outcome** (`pr-dialog-row-notice`), from the `updated` flag `refresh_pr`
   already returns — the route's own "the head moved" answer, the same one that decides whether the
   workspace was dropped and re-seeded, not a guess from diffing payloads. The row renders *none* of

@@ -7,7 +7,7 @@ import threading
 from fastapi.testclient import TestClient
 from httpx import ASGITransport, AsyncClient
 
-from codechroma.bridge import skill_agent, wiki_general_agent
+from codechroma.bridge import wiki_general_agent
 from tests.unit.fake_claude import fake_claude_exec
 
 
@@ -31,7 +31,7 @@ def _seed_tree(repo, *, generated_at_commit=None):
 
 
 def test_update_never_wipes_existing_pages(bridge, monkeypatch):
-    monkeypatch.setattr(skill_agent.shutil, "which", lambda _name: None)
+    monkeypatch.setattr("codechroma.llm.runtime_env.shutil.which", lambda _name, **_kwargs: None)
     _seed_tree(bridge.repo)
     index = bridge.repo / ".codechroma" / "wiki-general" / "index.md"
 
@@ -42,7 +42,9 @@ def test_update_never_wipes_existing_pages(bridge, monkeypatch):
 
 
 def test_update_is_refused_while_generate_is_already_running(bridge, monkeypatch):
-    monkeypatch.setattr(skill_agent.shutil, "which", lambda _name: "/usr/bin/claude")
+    monkeypatch.setattr(
+        "codechroma.llm.runtime_env.shutil.which", lambda _name, **_kwargs: "/usr/bin/claude"
+    )
     monkeypatch.setattr(asyncio, "create_subprocess_exec", fake_claude_exec(hang=True))
 
     with TestClient(bridge.app) as client:
@@ -53,7 +55,9 @@ def test_update_is_refused_while_generate_is_already_running(bridge, monkeypatch
 
 
 def test_generate_is_refused_while_update_is_already_running(bridge, monkeypatch):
-    monkeypatch.setattr(skill_agent.shutil, "which", lambda _name: "/usr/bin/claude")
+    monkeypatch.setattr(
+        "codechroma.llm.runtime_env.shutil.which", lambda _name, **_kwargs: "/usr/bin/claude"
+    )
     monkeypatch.setattr(asyncio, "create_subprocess_exec", fake_claude_exec(hang=True))
     _seed_tree(bridge.repo)
 
@@ -66,7 +70,9 @@ def test_generate_is_refused_while_update_is_already_running(bridge, monkeypatch
 
 def test_generate_and_update_cannot_both_start_from_overlapping_requests(bridge, monkeypatch):
     """Regression: the refuse-check and the state flip must be atomic, or both kinds can start."""
-    monkeypatch.setattr(skill_agent.shutil, "which", lambda _name: "/usr/bin/claude")
+    monkeypatch.setattr(
+        "codechroma.llm.runtime_env.shutil.which", lambda _name, **_kwargs: "/usr/bin/claude"
+    )
     monkeypatch.setattr(asyncio, "create_subprocess_exec", fake_claude_exec(hang=True))
     entered = threading.Event()
     release = threading.Event()
@@ -165,7 +171,7 @@ def _seed_clustering_manifest(repo, *, generated_at_commit=None):
 
 
 def test_update_computes_the_real_create_rewrite_delete_sequence(bridge, monkeypatch):
-    monkeypatch.setattr(skill_agent.shutil, "which", lambda _name: None)
+    monkeypatch.setattr("codechroma.llm.runtime_env.shutil.which", lambda _name, **_kwargs: None)
     directory = _seed_clustering_manifest(bridge.repo)
     # A brand-new, self-contained pair of files with zero overlap with any existing id.
     notifications = bridge.repo / "notifications"
@@ -210,7 +216,9 @@ def test_update_computes_the_real_create_rewrite_delete_sequence(bridge, monkeyp
 
 
 def test_update_recomputes_edges_and_stamps_generated_at_commit_together(bridge, monkeypatch):
-    monkeypatch.setattr(skill_agent.shutil, "which", lambda _name: "/usr/bin/claude")
+    monkeypatch.setattr(
+        "codechroma.llm.runtime_env.shutil.which", lambda _name, **_kwargs: "/usr/bin/claude"
+    )
     directory = _seed_clustering_manifest(bridge.repo, generated_at_commit="stale-sha")
     monkeypatch.setattr(asyncio, "create_subprocess_exec", fake_claude_exec(returncode=0))
 
@@ -234,7 +242,9 @@ def _receive_final_status(websocket, attempts: int = 20) -> dict:
 
 
 def test_update_stamps_generated_at_commit_once_it_succeeds(bridge, monkeypatch):
-    monkeypatch.setattr(skill_agent.shutil, "which", lambda _name: "/usr/bin/claude")
+    monkeypatch.setattr(
+        "codechroma.llm.runtime_env.shutil.which", lambda _name, **_kwargs: "/usr/bin/claude"
+    )
     _seed_tree(bridge.repo, generated_at_commit="stale-sha")
     (bridge.repo / "shared" / "text_utils.py").write_text("def slugify(text): return text\n")
     manifest_path = bridge.repo / ".codechroma" / "wiki-general" / "manifest.json"

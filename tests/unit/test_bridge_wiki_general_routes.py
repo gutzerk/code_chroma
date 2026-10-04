@@ -1,5 +1,6 @@
 """TestClient coverage for the wiki-general status/generate/output/cancel routes."""
 
+
 import asyncio
 import json
 import shutil
@@ -7,8 +8,7 @@ from pathlib import Path
 
 from fastapi.testclient import TestClient
 
-from codechroma.bridge import skill_agent
-from tests.unit.fake_claude import fake_claude_exec
+from tests.unit.fake_claude import CLI_MISSING, fake_claude_exec
 
 
 def _strip_code_files(repo: Path) -> None:
@@ -70,18 +70,18 @@ def test_status_reports_has_wiki_general_once_the_manifest_is_valid(bridge):
 
 
 def test_generate_without_claude_binary_reports_error(bridge, monkeypatch):
-    monkeypatch.setattr(skill_agent.shutil, "which", lambda _name: None)
+    monkeypatch.setattr("codechroma.llm.runtime_env.shutil.which", lambda _name, **_kwargs: None)
 
     with TestClient(bridge.app) as client:
         response = client.post("/repos/default/wiki-general/generate")
         status_response = client.get("/repos/default/wiki-general/status")
 
-    assert response.json() == {"state": "error", "error": "claude CLI not found on PATH"}
+    assert response.json() == {"state": "error", "error": CLI_MISSING}
     assert status_response.json()["state"] == "error"
 
 
 def test_generate_clears_a_previous_runs_stale_pages(bridge, monkeypatch):
-    monkeypatch.setattr(skill_agent.shutil, "which", lambda _name: None)
+    monkeypatch.setattr("codechroma.llm.runtime_env.shutil.which", lambda _name, **_kwargs: None)
     stale = bridge.repo / ".codechroma" / "wiki-general" / "c3" / "old-component.md"
     stale.parent.mkdir(parents=True, exist_ok=True)
     stale.write_text("stale page from a previous run")
@@ -93,7 +93,7 @@ def test_generate_clears_a_previous_runs_stale_pages(bridge, monkeypatch):
 
 
 def test_generate_recreates_c2_and_c3_empty_so_no_subagent_has_to_mkdir(bridge, monkeypatch):
-    monkeypatch.setattr(skill_agent.shutil, "which", lambda _name: None)
+    monkeypatch.setattr("codechroma.llm.runtime_env.shutil.which", lambda _name, **_kwargs: None)
 
     with TestClient(bridge.app) as client:
         client.post("/repos/default/wiki-general/generate")
@@ -104,7 +104,9 @@ def test_generate_recreates_c2_and_c3_empty_so_no_subagent_has_to_mkdir(bridge, 
 
 
 def test_generate_does_not_clear_pages_while_already_generating(bridge, monkeypatch):
-    monkeypatch.setattr(skill_agent.shutil, "which", lambda _name: "/usr/bin/claude")
+    monkeypatch.setattr(
+        "codechroma.llm.runtime_env.shutil.which", lambda _name, **_kwargs: "/usr/bin/claude"
+    )
     monkeypatch.setattr(asyncio, "create_subprocess_exec", fake_claude_exec(hang=True))
     live = bridge.repo / ".codechroma" / "wiki-general" / "c3" / "in-progress.md"
 
@@ -119,7 +121,7 @@ def test_generate_does_not_clear_pages_while_already_generating(bridge, monkeypa
 
 
 def test_generate_bootstraps_a_missing_plain_wiki(bridge, monkeypatch):
-    monkeypatch.setattr(skill_agent.shutil, "which", lambda _name: None)
+    monkeypatch.setattr("codechroma.llm.runtime_env.shutil.which", lambda _name, **_kwargs: None)
     shutil.rmtree(bridge.repo / ".codechroma" / "wiki")
 
     with TestClient(bridge.app) as client:
@@ -246,7 +248,9 @@ def test_interactive_status_rejects_an_unrecognized_kind(bridge):
 
 
 def test_cancel_kills_an_in_flight_run_and_reports_idle(bridge, monkeypatch):
-    monkeypatch.setattr(skill_agent.shutil, "which", lambda _name: "/usr/bin/claude")
+    monkeypatch.setattr(
+        "codechroma.llm.runtime_env.shutil.which", lambda _name, **_kwargs: "/usr/bin/claude"
+    )
     killed = []
     monkeypatch.setattr(
         asyncio, "create_subprocess_exec", fake_claude_exec(hang=True, killed=killed)
@@ -262,7 +266,7 @@ def test_cancel_kills_an_in_flight_run_and_reports_idle(bridge, monkeypatch):
 
 
 def test_generate_broadcasts_status_over_events_socket(bridge, monkeypatch):
-    monkeypatch.setattr(skill_agent.shutil, "which", lambda _name: None)
+    monkeypatch.setattr("codechroma.llm.runtime_env.shutil.which", lambda _name, **_kwargs: None)
 
     with TestClient(bridge.app) as client:
         with client.websocket_connect("/repos/default/events") as websocket:
@@ -272,7 +276,7 @@ def test_generate_broadcasts_status_over_events_socket(bridge, monkeypatch):
     assert message == {
         "type": "wiki-general-status",
         "state": "error",
-        "error": "claude CLI not found on PATH",
+        "error": CLI_MISSING,
     }
 
 
@@ -291,7 +295,9 @@ def test_generate_refuses_on_a_repo_with_no_real_code_without_launching_claude(
     def _unexpected_exec(*_args, **_kwargs):
         raise AssertionError("claude should never be launched for a codeless repo")
 
-    monkeypatch.setattr(skill_agent.shutil, "which", lambda _name: "/usr/bin/claude")
+    monkeypatch.setattr(
+        "codechroma.llm.runtime_env.shutil.which", lambda _name, **_kwargs: "/usr/bin/claude"
+    )
     monkeypatch.setattr(asyncio, "create_subprocess_exec", _unexpected_exec)
     repo = make_repo(prepare=_strip_code_files)
 

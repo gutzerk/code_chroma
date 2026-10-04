@@ -5,11 +5,11 @@ from __future__ import annotations
 import json
 import logging
 import re
-import shutil
 from dataclasses import dataclass
 from pathlib import Path
 
 from codechroma.bridge.agents.publish import run_gh
+from codechroma.llm.runtime_env import cli_available
 
 logger = logging.getLogger("uvicorn.error")
 
@@ -92,7 +92,7 @@ def is_github_repository(repo_root: Path) -> bool:
 
 
 def has_gh() -> bool:
-    return shutil.which("gh") is not None
+    return cli_available("gh")
 
 
 def is_authenticated(repo_root: Path) -> bool:

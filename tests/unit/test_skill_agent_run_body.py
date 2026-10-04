@@ -10,7 +10,7 @@ _SETTLE_SECONDS = 0.05
 
 def _stub_claude_on_path(monkeypatch):
     monkeypatch.setattr(
-        "codechroma.bridge.skill_agent.shutil.which", lambda _name: "/usr/bin/claude"
+        "codechroma.llm.runtime_env.shutil.which", lambda _name, **_kwargs: "/usr/bin/claude"
     )
 
 

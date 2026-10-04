@@ -14,6 +14,37 @@ class FakeWebSocket:
         self.sent.append(message)
 
 
+def test_watcher_start_waits_until_monitoring_is_active(tmp_path, monkeypatch):
+    entered = threading.Event()
+    activate = threading.Event()
+    started = threading.Event()
+
+    def delayed_watch(*_args, **kwargs):
+        entered.set()
+        assert activate.wait(timeout=2)
+        yield set()
+        kwargs["stop_event"].wait(timeout=2)
+
+    monkeypatch.setattr("codechroma.bridge.live.watch", delayed_watch)
+    watcher = FileWatcher(tmp_path / "plan.json", lambda: None)
+
+    def start():
+        watcher.start()
+        started.set()
+
+    caller = threading.Thread(target=start)
+    caller.start()
+    try:
+        assert entered.wait(timeout=2)
+        assert not started.is_set()
+        activate.set()
+        assert started.wait(timeout=2)
+    finally:
+        activate.set()
+        caller.join(timeout=2)
+        watcher.stop()
+
+
 def test_broadcast_delivers_to_every_connection():
     manager = ConnectionManager()
     first, second = FakeWebSocket(), FakeWebSocket()

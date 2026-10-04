@@ -7,7 +7,12 @@ name: Release
 on:
   push:
     branches: [main]
-  workflow_dispatch: # manual "release now" button
+  workflow_dispatch:
+    inputs:
+      release_tag:
+        description: Rebuild installers and latest.json for an existing release tag
+        required: false
+        type: string
 
 permissions:
   contents: write
@@ -30,7 +35,7 @@ jobs:
     timeout-minutes: 15
     outputs:
       release_created: ${{ steps.release.outputs.release_created }}
-      tag_name: ${{ steps.release.outputs.tag_name }}
+      tag_name: ${{ steps.release.outputs.tag_name || github.event.inputs.release_tag }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - id: release
@@ -39,6 +44,12 @@ jobs:
           token: ${{ secrets.code_pat_release }}
           manifest-file: .release-please-manifest.json
           config-file: release-please-config.json
+      - name: Keep an existing release unpublished during recovery
+        if: github.event_name == 'workflow_dispatch' && github.event.inputs.release_tag != ''
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ github.event.inputs.release_tag }}
+        run: gh release edit "$RELEASE_TAG" --draft
 
   # The installers share the same three stages as scripts/dev/build_desktop.sh:
   # web SPA bundle (same-origin) -> PyInstaller-frozen bridge -> electron-builder.
@@ -55,7 +66,9 @@ jobs:
             bridge_arch: x86_64
     runs-on: ${{ matrix.runner }}
     needs: release
-    if: needs.release.outputs.release_created == 'true'
+    if: >-
+      ${{ needs.release.outputs.release_created == 'true' ||
+          (github.event_name == 'workflow_dispatch' && github.event.inputs.release_tag != '') }}
     timeout-minutes: 40
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -128,13 +141,13 @@ jobs:
         with:
           subject-path: desktop/dist/CodeChroma-*-${{ matrix.arch }}.dmg
 
-      # softprops/action-gh-release appends assets to the tag/Release release-please already made;
-      # glob files are expanded by the action itself (not the shell), so a missing match is a
-      # visible error, never a silent no-op.
+      # Keep the release as a draft until all platforms and latest.json are ready. Glob files are
+      # expanded by the action itself (not the shell), so a missing match is a visible error.
       - name: Upload DMG to release
         uses: softprops/action-gh-release@efb35369e0ad2afab669f228072c1b0d510eae64 # v3.0.3
         with:
           tag_name: ${{ needs.release.outputs.tag_name }}
+          draft: true
           files: |
             desktop/dist/CodeChroma-*-${{ matrix.arch }}.dmg
             desktop/dist/CodeChroma-*-${{ matrix.arch }}.dmg.sha256
@@ -145,7 +158,9 @@ jobs:
     name: Build Windows installer (x64)
     runs-on: windows-latest
     needs: release
-    if: needs.release.outputs.release_created == 'true'
+    if: >-
+      ${{ needs.release.outputs.release_created == 'true' ||
+          (github.event_name == 'workflow_dispatch' && github.event.inputs.release_tag != '') }}
     timeout-minutes: 40
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -215,6 +230,7 @@ jobs:
         uses: softprops/action-gh-release@efb35369e0ad2afab669f228072c1b0d510eae64 # v3.0.3
         with:
           tag_name: ${{ needs.release.outputs.tag_name }}
+          draft: true
           files: |
             desktop/dist/CodeChroma-*-Setup.exe
             desktop/dist/CodeChroma-*-Setup.exe.sha256
@@ -225,7 +241,9 @@ jobs:
     name: Build Linux installers (x64)
     runs-on: ubuntu-22.04
     needs: release
-    if: needs.release.outputs.release_created == 'true'
+    if: >-
+      ${{ needs.release.outputs.release_created == 'true' ||
+          (github.event_name == 'workflow_dispatch' && github.event.inputs.release_tag != '') }}
     timeout-minutes: 40
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -307,6 +325,7 @@ jobs:
         uses: softprops/action-gh-release@efb35369e0ad2afab669f228072c1b0d510eae64 # v3.0.3
         with:
           tag_name: ${{ needs.release.outputs.tag_name }}
+          draft: true
           files: |
             desktop/dist/CodeChroma-*-x64.deb
             desktop/dist/CodeChroma-*-x64.AppImage
@@ -324,18 +343,27 @@ jobs:
     name: Publish install manifest (latest.json)
     runs-on: ubuntu-latest
     needs: [release, macos, windows, linux]
-    if: needs.release.outputs.release_created == 'true'
+    if: >-
+      ${{ needs.release.outputs.release_created == 'true' ||
+          (github.event_name == 'workflow_dispatch' && github.event.inputs.release_tag != '') }}
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Download installer checksums from the draft release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ needs.release.outputs.tag_name }}
+        run: |
+          mkdir -p distribution/sidecars
+          gh release download "$RELEASE_TAG" --pattern '*.sha256' --dir distribution/sidecars
       - name: Build and upload latest.json
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           RELEASE_TAG: ${{ needs.release.outputs.tag_name }}
           REPO: ${{ github.repository }}
         run: |
           python3 - <<'PY'
-          import json, os, re, time, urllib.error, urllib.request
+          import json, os, re
+          from pathlib import Path
 
           repo, tag = os.environ["REPO"], os.environ["RELEASE_TAG"]
           match = re.fullmatch(
@@ -357,19 +385,10 @@ jobs:
           assets, sha = {}, {}
           for t in targets:
               n = names[t]
-              # fetch the released .sha256 sidecar (first token, e.g. "<hex>  <name>")
-              sidecar_url = f"{base}/{n}.sha256"
-              for attempt in range(6):
-                  try:
-                      with urllib.request.urlopen(sidecar_url, timeout=30) as r:
-                          digest = r.read().decode().strip().split()[0].lower()
-                      break
-                  except urllib.error.HTTPError as error:
-                      if error.code not in (404, 429, 500, 502, 503, 504) or attempt == 5:
-                          raise
-                      delay = 2 ** attempt
-                      print(f"Retrying {sidecar_url} after HTTP {error.code} in {delay}s.")
-                      time.sleep(delay)
+              sidecar = Path("distribution/sidecars") / f"{n}.sha256"
+              digest = sidecar.read_text().strip().split()[0].lower()
+              if not re.fullmatch(r"[0-9a-f]{64}", digest):
+                  raise SystemExit(f"Invalid SHA-256 sidecar for {n}: {digest!r}")
               assets[t] = f"{base}/{n}"
               sha[t] = digest
           manifest = {"version": version, "assets": assets, "sha256": sha}
@@ -384,6 +403,7 @@ jobs:
         uses: softprops/action-gh-release@efb35369e0ad2afab669f228072c1b0d510eae64 # v3.0.3
         with:
           tag_name: ${{ needs.release.outputs.tag_name }}
+          draft: false
           files: distribution/latest.json
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

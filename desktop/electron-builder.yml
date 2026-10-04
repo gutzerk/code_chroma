@@ -34,6 +34,9 @@ win:
 
 nsis:
   oneClick: false
+  perMachine: false
+  selectPerMachineByDefault: false
+  allowElevation: false
   allowToChangeInstallationDirectory: true
 
 linux:

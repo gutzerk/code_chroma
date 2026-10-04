@@ -5,10 +5,12 @@ from __future__ import annotations
 import dataclasses
 import functools
 import json
+import logging
+import os
 import sqlite3
 import threading
 from collections.abc import Callable
-from datetime import datetime
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any, Protocol
 
@@ -25,6 +27,8 @@ from codechroma.graph.models import (
     Symbol,
     SymbolKind,
 )
+
+logger = logging.getLogger(__name__)
 
 
 class GraphStore(Protocol):
@@ -142,9 +146,47 @@ class SqliteGraphStore:
     """SQLite-backed GraphStore. One database file per repository being analyzed."""
 
     def __init__(self, db_path: str):
-        Path(db_path).parent.mkdir(parents=True, exist_ok=True)
+        self._db_path = Path(db_path)
+        self._db_path.parent.mkdir(parents=True, exist_ok=True)
         # check_same_thread=False: FastAPI runs sync route handlers on a worker threadpool.
-        self._conn = sqlite3.connect(db_path, check_same_thread=False)
+        self._conn = sqlite3.connect(self._db_path, check_same_thread=False)
+        self._conn.execute("PRAGMA busy_timeout=5000")
+        integrity = self._integrity_errors(self._conn)
+        if integrity:
+            try:
+                self._conn.execute("REINDEX")
+                self._conn.commit()
+            except sqlite3.DatabaseError as exc:
+                error_code = (getattr(exc, "sqlite_errorcode", 0) or 0) & 0xFF
+                if error_code in (sqlite3.SQLITE_BUSY, sqlite3.SQLITE_LOCKED):
+                    self._conn.close()
+                    raise RuntimeError(
+                        f"graph database {self._db_path} is corrupt and in use by another "
+                        "process; close other CodeChroma instances using this repository and retry"
+                    ) from exc
+                if error_code not in (
+                    sqlite3.SQLITE_CORRUPT,
+                    sqlite3.SQLITE_NOTADB,
+                    sqlite3.SQLITE_CONSTRAINT,
+                ):
+                    self._conn.close()
+                    raise
+                integrity = [str(exc)]
+            else:
+                integrity = self._integrity_errors(self._conn)
+                if not integrity:
+                    logger.warning("reindexed corrupt graph database %s", self._db_path)
+        if integrity:
+            self._conn.close()
+            backup_dir = self._preserve_corrupt_database()
+            logger.warning(
+                "graph database %s could not be repaired (%s); preserving it at %s and rebuilding",
+                self._db_path,
+                "; ".join(integrity[:3]),
+                backup_dir,
+            )
+            self._conn = sqlite3.connect(self._db_path, check_same_thread=False)
+            self._conn.execute("PRAGMA busy_timeout=5000")
         # WAL lets readers run during the single writer's delete-then-reinsert commit.
         self._conn.execute("PRAGMA journal_mode=WAL")
         # busy_timeout makes a concurrent writer wait instead of raising "database is locked".
@@ -153,6 +195,28 @@ class SqliteGraphStore:
         self._lock = threading.RLock()
         self._conn.executescript(_SCHEMA)
         self._conn.commit()
+
+    @staticmethod
+    def _integrity_errors(conn: sqlite3.Connection) -> list[str]:
+        try:
+            results = [row[0] for row in conn.execute("PRAGMA integrity_check")]
+        except sqlite3.DatabaseError as exc:
+            error_code = getattr(exc, "sqlite_errorcode", 0) or 0
+            if (error_code & 0xFF) not in (sqlite3.SQLITE_CORRUPT, sqlite3.SQLITE_NOTADB):
+                conn.close()
+                raise
+            return [str(exc)]
+        return [] if results == ["ok"] else results
+
+    def _preserve_corrupt_database(self) -> Path:
+        timestamp = datetime.now(UTC).strftime("%Y%m%dT%H%M%S%fZ")
+        backup_dir = self._db_path.with_name(f"{self._db_path.name}.corrupt-{timestamp}")
+        backup_dir.mkdir()
+        for suffix in ("", "-wal", "-shm"):
+            source = Path(f"{self._db_path}{suffix}")
+            if source.exists():
+                os.replace(source, backup_dir / source.name)
+        return backup_dir
 
     @_synchronized
     def save(

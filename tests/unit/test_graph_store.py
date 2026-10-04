@@ -23,6 +23,34 @@ def _store(tmp_path):
     return SqliteGraphStore(str(tmp_path / "graph.db"))
 
 
+def test_corrupt_database_is_preserved_and_recreated(tmp_path):
+    db_path = tmp_path / "graph.db"
+    db_path.write_bytes(b"not a sqlite database")
+
+    store = _store(tmp_path)
+    backups = list(tmp_path.glob("graph.db.corrupt-*"))
+
+    assert len(backups) == 1
+    assert (backups[0] / "graph.db").read_bytes() == b"not a sqlite database"
+    assert store.load("r1").nodes == {}
+    assert store._conn.execute("PRAGMA integrity_check").fetchone() == ("ok",)
+    store._conn.close()
+
+
+def test_corrupt_database_backup_includes_wal_and_shm(tmp_path):
+    store = _store(tmp_path)
+    store._conn.close()
+    (tmp_path / "graph.db").write_bytes(b"corrupt database")
+    (tmp_path / "graph.db-wal").write_bytes(b"corrupt wal")
+    (tmp_path / "graph.db-shm").write_bytes(b"corrupt shm")
+
+    backup_dir = store._preserve_corrupt_database()
+
+    assert (backup_dir / "graph.db").read_bytes() == b"corrupt database"
+    assert (backup_dir / "graph.db-wal").read_bytes() == b"corrupt wal"
+    assert (backup_dir / "graph.db-shm").read_bytes() == b"corrupt shm"
+
+
 def test_save_and_load_round_trips_nodes_symbols_and_summaries(tmp_path):
     store = _store(tmp_path)
     repo = Repository(id="r1", root_path="/repo", primary_language="python")

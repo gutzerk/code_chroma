@@ -82,13 +82,19 @@ class _Watcher:
         self._on_change = on_change
         self._debounce_ms = debounce_ms if debounce_ms is not None else self._debounce_default
         self._stop = threading.Event()
+        self._ready = threading.Event()
         self._thread: threading.Thread | None = None
 
     def start(self) -> None:
         if self._thread is not None:
             return
+        self._stop.clear()
+        self._ready.clear()
         self._thread = threading.Thread(target=self._run, name=self._thread_name, daemon=True)
         self._thread.start()
+        if not self._ready.wait(timeout=5):
+            self.stop()
+            raise RuntimeError(f"{self._thread_name} did not start monitoring in time")
 
     def stop(self) -> None:
         self._stop.set()
@@ -128,7 +134,10 @@ class _Watcher:
         watch_filter = self._watch_filter()
         # Two calls: omitting watch_filter keeps watchfiles' own default; =None would disable it.
         changes_iter = (
-            watch(watch_dir, debounce=self._debounce_ms, step=200, stop_event=self._stop)
+            watch(
+                watch_dir, debounce=self._debounce_ms, step=200, stop_event=self._stop,
+                yield_on_timeout=True, rust_timeout=200,
+            )
             if watch_filter is None
             else watch(
                 watch_dir,
@@ -136,9 +145,14 @@ class _Watcher:
                 debounce=self._debounce_ms,
                 step=200,
                 stop_event=self._stop,
+                yield_on_timeout=True,
+                rust_timeout=200,
             )
         )
         for changes in changes_iter:
+            # watch() is lazy: only its first yield proves the OS watcher is installed.
+            # Timeout yields let start() wait for readiness even when no files change.
+            self._ready.set()
             if not changes or self._is_noise(changes):
                 continue
             try:

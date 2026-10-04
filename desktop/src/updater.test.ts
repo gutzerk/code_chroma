@@ -7,6 +7,7 @@ import {
   compareVersions,
   digestHex,
   downloadAsset,
+  macAppBundlePath,
   mountPointFromPlist,
   parseTag,
   safeAssetPath,
@@ -129,6 +130,17 @@ describe("mountPointFromPlist", () => {
 
   it("returns null when no mount-point key is present", () => {
     expect(mountPointFromPlist("<plist><dict></dict></plist>")).toBeNull();
+  });
+});
+
+describe("macAppBundlePath", () => {
+  it("returns the enclosing app bundle for a packaged executable", () => {
+    expect(macAppBundlePath("/Users/me/Applications/CodeChroma.app/Contents/MacOS/CodeChroma"))
+      .toBe("/Users/me/Applications/CodeChroma.app");
+  });
+
+  it("returns null when the executable is not inside an app bundle", () => {
+    expect(macAppBundlePath("/usr/local/bin/codechroma")).toBeNull();
   });
 });
 

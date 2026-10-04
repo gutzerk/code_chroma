@@ -1,11 +1,18 @@
 #!/usr/bin/env bash
 # One-command installer for CodeChroma on macOS: downloads the pre-built DMG for this Mac's
-# architecture from the latest GitHub Release and installs it into /Applications.
+# architecture from the latest GitHub Release and installs it into ~/Applications by default.
 # No local checkout, no dev toolchain, no build — the release CI already assembled the DMG.
 #
 #   curl -fsSL https://raw.githubusercontent.com/UshakovDV/code-chroma/main/scripts/install_desktop.sh | bash
 #
 set -euo pipefail
+
+INSTALL_SCOPE="user"
+case "${1:-}" in
+  "") ;;
+  --system) INSTALL_SCOPE="system" ;;
+  *) echo "Usage: install_desktop.sh [--system]" >&2; exit 1 ;;
+esac
 
 REPO="UshakovDV/code-chroma"
 DMG_DIR="${HOME}/Downloads"
@@ -63,7 +70,7 @@ else
 fi
 
 # --- integrity check --------------------------------------------------------
-# Verify the DMG against the release's SHA-256 sidecar before it's mounted as root. A mismatch can
+# Verify the DMG against the release's SHA-256 sidecar before mounting it. A mismatch can
 # mean a stale cached copy or a tampered download; either way we redownload once, then fail hard.
 say "Verifying SHA-256 checksum"
 ACTUAL="$(shasum -a 256 "$DEST" | awk '{print $1}')"
@@ -76,10 +83,16 @@ fi
 [[ "$ACTUAL" = "$EXPECTED" ]] || fatal "Checksum mismatch — the download is corrupted or tampered with."
 rm -f "$SHA256_FILE"
 
-# --- install into /Applications ------------------------------------------------
-# /Applications is root-owned on a fresh machine, so the final copy goes through sudo.
-say "Installing CodeChroma.app into /Applications (admin password may be requested)"
-sudo -v
+# --- install into the selected Applications folder -----------------------------
+if [[ "$INSTALL_SCOPE" == "system" ]]; then
+  say "System-wide install will replace /Applications/CodeChroma.app. This writes to the shared Applications folder, so macOS will request administrator authorization."
+  command -v sudo >/dev/null 2>&1 || fatal "System-wide installation requires sudo."
+  sudo -v
+  INSTALL_DIR="/Applications"
+else
+  INSTALL_DIR="${HOME}/Applications"
+  mkdir -p "$INSTALL_DIR"
+fi
 MOUNT="$(mktemp -d /tmp/codechroma-install.XXXXXX)"
 attach_cleanup() { hdiutil detach "$MOUNT" -quiet >/dev/null 2>&1 || true; rmdir "$MOUNT" 2>/dev/null || true; }
 trap attach_cleanup EXIT
@@ -88,7 +101,12 @@ hdiutil attach "$DEST" -nobrowse -mountpoint "$MOUNT" >/dev/null
 # Make the write idempotent: remove a prior install if present, then copy the fresh one.
 # "/Applications" is a hard literal (unsafe for a variable that could empty out), so the
 # destructive rm only ever targets this exact path.
-sudo rm -rf /Applications/CodeChroma.app
-sudo cp -R "$MOUNT/CodeChroma.app" /Applications/
+if [[ "$INSTALL_SCOPE" == "system" ]]; then
+  sudo rm -rf /Applications/CodeChroma.app
+  sudo cp -R "$MOUNT/CodeChroma.app" /Applications/
+else
+  rm -rf "${INSTALL_DIR}/CodeChroma.app"
+  cp -R "$MOUNT/CodeChroma.app" "$INSTALL_DIR/"
+fi
 
-say "Done. Launch with:  open /Applications/CodeChroma.app"
+say "Done. Launch with:  open ${INSTALL_DIR}/CodeChroma.app"

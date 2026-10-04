@@ -2,7 +2,7 @@
 
 ```bash
 ./scripts/dev/build_desktop.sh       # developer build: SPA -> frozen bridge -> desktop/dist/CodeChroma-*.dmg (macOS arm64)
-./scripts/dev/build_desktop.sh --install  # build, then replace /Applications/CodeChroma.app (quit running app + index refresh)
+./scripts/dev/build_desktop.sh --install  # build, then replace ~/Applications/CodeChroma.app (quit running app + index refresh)
 npm --prefix desktop start          # run the shell against dist/codechroma-bridge (build the bridge first)
 npm --prefix desktop start -- --repo /path/to/repo   # skip the launcher screen
 npm --prefix desktop test           # vitest (recentRepos, shellPath, bridgeProcess)
@@ -51,12 +51,18 @@ uses it for macOS and Linux; Windows downloads its fixed-name installer and chec
 GitHub's latest-release endpoint:
 - macOS arm64/x64 / Linux x64: `distribution/install.sh` — `curl -fsSL
   https://raw.githubusercontent.com/gutzerk/code_chroma/main/distribution/install.sh | sh`. Detects
-  OS/arch, downloads the matching `.dmg`/`.deb`, verifies SHA-256, installs into `/Applications` (mac,
-  via `hdiutil`) or via `apt` (Linux). This is the recommended end-user path — no checkout, no build.
+  OS/arch, downloads and verifies the matching artifact, then installs into the current user's
+  `~/Applications` without administrator access: macOS copies the `.app` from the `.dmg` via
+  `hdiutil`; Linux copies and marks the AppImage executable. Pass `--system` to opt into replacing
+  `/Applications/CodeChroma.app` on macOS or installing the Linux `.deb` via `apt`; the installer
+  explains that system destination and why administrator authorization is needed before invoking
+  `sudo`. This is the recommended end-user path — no checkout, no build, no admin password.
 - Windows x64: `irm https://codechroma.dev/install.ps1 | iex` (or
   `distribution/install.cmd` → `distribution/install.ps1`) — downloads the stable
   `CodeChroma-Setup.exe` and `.sha256` from GitHub's latest-release endpoint, verifies SHA-256, then
-  runs the NSIS wizard. It does not read `latest.json`.
+  runs the NSIS wizard defaulted to the current user (`perMachine: false`,
+  `selectPerMachineByDefault: false`) with automatic elevation disabled
+  (`allowElevation: false`); it does not read `latest.json`.
 The manifest is served from each Release (`.../releases/latest/download/latest.json`), so no custom
 domain is required; `CODECROMA_MANIFEST_URL` overrides the shell installer source. The release
 workflow keeps newly created releases in draft until every platform build and manifest upload succeeds,
@@ -67,9 +73,16 @@ build-from-source installers. `distribution/` is the recommended manifest-based 
 
 `./scripts/install_desktop.sh` is a **one-command installer for a clean Mac with no local checkout**:
 it detects Apple Silicon or Intel, downloads that architecture's latest DMG and checksum, verifies
-the download, then copies the app into `/Applications`. It needs `curl`, `python3`, `hdiutil`, and
-`sudo`, but does not build the app. Run with
+the download, then copies the app into `~/Applications` by default without `sudo`. Pass `--system`
+to opt into replacing `/Applications/CodeChroma.app`; it explains the shared destination before
+requesting administrator authorization. It needs `curl`, `python3`, and `hdiutil`, but does not build
+the app. Run with
 `curl -fsSL https://<host>/install_desktop.sh | bash` (or `bash scripts/install_desktop.sh`).
+
+`./scripts/install_linux.sh` installs the verified Linux AppImage into `~/Applications` by default.
+Pass `--system` to install the `.deb` through apt; that operation modifies system package locations
+and requests administrator authorization after an explanation. For the manifest installer, pass
+`--system` as `sh -s -- --system` after the curl pipe.
 
 `./scripts/install_desktop.ps1` is the Windows x64 installer: it resolves the latest `Setup.exe`,
 verifies its published checksum, and launches the interactive NSIS installer. It downloads the
@@ -84,8 +97,9 @@ File → "Check for Updates…" menu item. The startup check only runs for packa
 (`app.isPackaged`) so a dev run never hits the API. Clicking either opens a confirm dialog, then
 downloads the correct per-platform artifact and runs it: on macOS `hdiutil -plist` mounts the `.dmg`
 (the mount point is parsed from XML, so space-y volume names can't break the path) and `ditto` copies
-the new `.app` over `/Applications/CodeChroma.app` (via `osascript` when elevation is needed); on
-Windows it launches the `-Setup.exe` (NSIS shows its own UAC/overwrite prompt); on Linux it
+the new `.app` over the running app bundle with the current user's permissions (it never prompts
+for elevation; system-wide installs must be moved to `~/Applications` before in-app updates); on
+Windows it launches the `-Setup.exe` (per-user NSIS shows the overwrite prompt without UAC); on Linux it
 atomically replaces the running AppImage in place. The download streams to a `.part` sibling while
 hashing SHA-256 in one pass (aborting and discarding anything past 1 GiB), is verified against the
 release's published `.sha256` sidecar, then **provenance-checked** before it's renamed into place:
@@ -104,8 +118,8 @@ file. After install the app either
 relaunches (`app.relaunch()`, macOS/Linux) or lets the installer take over (Windows). It connects to
 `api.github.com/repos/UshakovDV/code-chroma/releases/latest` using Node's built-in `fetch` — no
 runtime dependency. The one-command installers (`install_desktop.sh`, `install_linux.sh`,
-`install_desktop.ps1`) reuse the same model: fetch the sidecar first, verify before mounting/running
-under elevation, and redownload once if a stale cached copy fails its checksum — only a second
+`install_desktop.ps1`) reuse the same model: fetch the sidecar first, verify before mounting or
+launching, and redownload once if a stale cached copy fails its checksum — only a second
 mismatch is treated as tampering.
 ⚠ On **unsigned macOS**, Gatekeeper shows the standard "unverified publisher"
 warning for the freshly copied `.app`; the update still works, it just can't be silent/delta (that

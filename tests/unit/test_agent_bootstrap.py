@@ -66,7 +66,12 @@ def test_preflight_refuses_a_directory_inside_someone_elses_repository(project):
 
 
 def test_preflight_reports_no_git_when_git_is_not_on_path(project, monkeypatch):
-    monkeypatch.setenv("PATH", "")
+    from codechroma.llm.runtime_env import CliLookupError
+
+    def missing_git(*_args):
+        raise CliLookupError("git executable not found")
+
+    monkeypatch.setattr("codechroma.bridge.git_cmd.resolve_runtime_cli", missing_git)
 
     result = bootstrap.preflight(project)
 

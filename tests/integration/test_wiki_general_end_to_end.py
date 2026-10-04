@@ -2,12 +2,25 @@
 
 import asyncio
 import json
+import os
 from pathlib import Path
 
+import pytest
 from fastapi.testclient import TestClient
 
-from codechroma.bridge import skill_agent
+from codechroma.llm.runtime_env import RuntimeCli
 from tests.unit.fake_worker_claude import fake_worker_exec
+
+
+@pytest.fixture(autouse=True)
+def _fake_cli(monkeypatch, use_test_runtime):
+    runtime = use_test_runtime()
+
+    def resolve(binary, env):
+        return RuntimeCli(os.path.abspath(binary), runtime.spawn_env(env), "test")
+
+    monkeypatch.setattr("codechroma.bridge.skill_agent.resolve_runtime_cli", resolve)
+    monkeypatch.setattr("codechroma.bridge.wiki_general_worker.resolve_runtime_cli", resolve)
 
 
 def _write_wiki_general_tree(repo_root: Path) -> None:
@@ -60,7 +73,6 @@ def _receive_final_status(websocket, attempts: int = 20) -> dict:
 
 
 def test_a_real_run_writes_the_tree_and_the_bridge_reports_it_ready(bridge, monkeypatch):
-    monkeypatch.setattr(skill_agent.shutil, "which", lambda _name: "/usr/bin/claude")
     monkeypatch.setattr(asyncio, "create_subprocess_exec", fake_worker_exec(_respond))
 
     with TestClient(bridge.app) as client:
@@ -89,7 +101,6 @@ def test_a_real_run_writes_the_tree_and_the_bridge_reports_it_ready(bridge, monk
 
 
 def test_a_run_whose_worker_jobs_keep_failing_reports_that_error(bridge, monkeypatch):
-    monkeypatch.setattr(skill_agent.shutil, "which", lambda _name: "/usr/bin/claude")
     monkeypatch.setattr(
         asyncio, "create_subprocess_exec", fake_worker_exec(_respond, fail_when=_fail_all)
     )
@@ -109,7 +120,6 @@ def test_regenerating_replaces_a_previous_manifest_that_had_gone_invalid(bridge,
     manifest_path = bridge.repo / ".codechroma" / "wiki-general" / "manifest.json"
     manifest_path.parent.mkdir(parents=True, exist_ok=True)
     manifest_path.write_text(json.dumps({"containers": [], "components": []}))
-    monkeypatch.setattr(skill_agent.shutil, "which", lambda _name: "/usr/bin/claude")
     monkeypatch.setattr(asyncio, "create_subprocess_exec", fake_worker_exec(_respond))
 
     with TestClient(bridge.app) as client:

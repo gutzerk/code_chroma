@@ -196,7 +196,16 @@ def _respond(prompt: str, required: list[str]) -> dict:
     return {"summary": "The backend.", "description": "Serves the API."}
 
 
-def test_run_pipeline_writes_manifest_and_pages_and_passes_self_check(tmp_path, monkeypatch):
+def test_run_pipeline_writes_manifest_and_pages_and_passes_self_check(
+    tmp_path, monkeypatch, use_test_runtime
+):
+    from codechroma.llm.runtime_env import RuntimeCli
+
+    runtime = use_test_runtime()
+    monkeypatch.setattr(
+        "codechroma.bridge.wiki_general_worker.resolve_runtime_cli",
+        lambda binary, env: RuntimeCli(binary, runtime.spawn_env(env), "test"),
+    )
     monkeypatch.setattr(asyncio, "create_subprocess_exec", fake_worker_exec(_respond))
     monkeypatch.setattr(
         pipeline,

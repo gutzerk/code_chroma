@@ -30,13 +30,6 @@ needed:
 | macOS (Apple Silicon or Intel) | `bash scripts/install_desktop.sh` |
 | Windows (x64) | `powershell -ExecutionPolicy Bypass -File scripts/install_desktop.ps1` |
 | Linux (Debian/Ubuntu x64) | `bash scripts/install_linux.sh` |
-
-Each also works straight from the web; for example on macOS:
-
-```bash
-curl -fsSL https://raw.githubusercontent.com/UshakovDV/code-chroma/main/scripts/install_desktop.sh | bash
-```
-
 Then `open /Applications/CodeChroma.app` and pick a repo in the launcher. Otherwise, to run the
 canvas from source, install the dependencies once from this repo's root:
 

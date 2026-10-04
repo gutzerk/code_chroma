@@ -90,6 +90,20 @@ describe("launchAgent", () => {
     expect(windowActions.restoreAgentWindow).not.toHaveBeenCalled();
   });
 
+  it("opens the failed agent window and stores its startup error for its terminal", async () => {
+    const created = agentRecord("helper");
+    const failingClient = client(async () => created);
+    failingClient.start = async () => {
+      throw new Error("claude CLI not found on PATH");
+    };
+
+    await launchAgent(failingClient);
+
+    expect(windowActions.openAgentWindow).toHaveBeenCalledWith(failingClient, "helper");
+    expect(agentStore.getStartError("helper")).toBe("claude CLI not found on PATH");
+    expect(agentStore.getLaunchError()).toBeNull();
+  });
+
   it("passes the current-view context description through to create", async () => {
     const create = vi.fn(async (title: string) => agentRecord(title || "helper"));
 

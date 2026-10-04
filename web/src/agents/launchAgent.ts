@@ -19,6 +19,7 @@ export async function launchAgent(
   if (agentStore.getIsAtCapacity() || agentStore.getIsLaunching()) return;
   agentStore.setLaunchError(null);
   agentStore.setIsLaunching(true);
+  let createdId: string | null = null;
   try {
     const preflight = await client.gitPreflight();
     if (preflight.state !== "ready") {
@@ -28,6 +29,8 @@ export async function launchAgent(
     const created = task
       ? await client.create("", "agent", attachTo, task, "task")
       : await client.create("", "agent", attachTo, context?.description ?? null);
+    createdId = created.id;
+    agentStore.setStartError(created.id, null);
     agentStore.upsert(created);
     const started = await client.start(created.id);
     agentStore.upsert(started);
@@ -35,7 +38,13 @@ export async function launchAgent(
     // the canvas already shows the right data for — just open its window, no workspace switch.
     openAgentWindow(client, created.id);
   } catch (err) {
-    agentStore.setLaunchError(err instanceof Error ? err.message : String(err));
+    const message = err instanceof Error ? err.message : String(err);
+    if (createdId) {
+      agentStore.setStartError(createdId, message);
+      openAgentWindow(client, createdId);
+    } else {
+      agentStore.setLaunchError(message);
+    }
   } finally {
     agentStore.setIsLaunching(false);
   }

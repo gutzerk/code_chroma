@@ -15,9 +15,8 @@ never consults the providers store.
 from __future__ import annotations
 
 import os
-from pathlib import Path
 
-from codechroma.assistant import load_assistant_settings
+from codechroma.assistant import DEFAULT_CLI, load_assistant_settings
 from codechroma.bridge.resources import resource_path
 from codechroma.config import settings
 
@@ -52,7 +51,9 @@ def agent_cli(
         from codechroma.llm.resolve_cli import resolve_cli
 
         _adapter_key, binary, _model, env = resolve_cli(AGENT_CALL_SITE, _default_model())
-        plugin_args = _codechroma_plugin_args(binary, _adapter_key == "claude")
+        plugin_args = _codechroma_plugin_args(
+            _resolved_claude_adapter(_adapter_key, binary)
+        )
         return [binary, *plugin_args, *_resume_prompt(resume_session_id, initial_prompt)], env
     argv_entry = ALLOWED_AGENTS.get(agent)
     if argv_entry is None:
@@ -60,7 +61,7 @@ def agent_cli(
     if agent == "claude":
         # Keep the default binary unless the user pointed the assistant at something else.
         binary = load_assistant_settings().effective_cli
-        plugin_args = _codechroma_plugin_args(binary, Path(binary).stem.casefold() == "claude")
+        plugin_args = _codechroma_plugin_args(binary == DEFAULT_CLI)
         return [binary, *plugin_args, *_resume_prompt(resume_session_id, initial_prompt)], {}
     # Generic kinds (e.g. shell): a resume still appends the flag; a first message never does.
     if resume_session_id:
@@ -73,11 +74,25 @@ def resolved_cli_for(kind: str, argv: list[str]) -> str:
     return argv[0] if kind == "agent" else ""
 
 
-def _codechroma_plugin_args(binary: str, is_claude: bool) -> list[str]:
+def _codechroma_plugin_args(is_claude: bool) -> list[str]:
     """Load CodeChroma skills for this Claude Code process without changing its project."""
-    if not is_claude or Path(binary).stem.casefold() != "claude":
+    if not is_claude:
         return []
     return ["--plugin-dir", str(resource_path("skills").parent)]
+
+
+def _resolved_claude_adapter(adapter_key: str, binary: str) -> bool:
+    """Distinguish a Claude provider wrapper from the unassigned assistant CLI fallback."""
+    if adapter_key != "claude":
+        return False
+    from codechroma.llm.call_site_settings import load_group_assignment
+    from codechroma.llm.providers_store import find_provider
+
+    assignment = load_group_assignment("agents")
+    provider = find_provider(assignment.provider_id) if assignment is not None else None
+    if provider is not None and provider.kind == "cli":
+        return provider.adapter == "claude"
+    return binary == load_assistant_settings().effective_cli == DEFAULT_CLI
 
 
 def _resume_prompt(resume_session_id: str | None, initial_prompt: str | None) -> list[str]:

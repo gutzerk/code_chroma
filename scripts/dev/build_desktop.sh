@@ -4,7 +4,7 @@ y#!/usr/bin/env bash
 # at scripts/ because it is fetched by a fixed curl URL).
 #
 #   ./scripts/dev/build_desktop.sh              # build only, produce the installer artifact
-#   ./scripts/dev/build_desktop.sh --install    # build, then replace /Applications/CodeChroma.app
+#   ./scripts/dev/build_desktop.sh --install    # build, then replace ~/Applications/CodeChroma.app
 #                                               # (quit running app + refresh indexes)
 set -euo pipefail
 
@@ -60,10 +60,11 @@ if [[ "$INSTALL" != "1" ]]; then
   exit 0
 fi
 
-# --- --install: replace /Applications/CodeChroma.app (macOS-only) -----------------
+# --- --install: replace the per-user app in ~/Applications (macOS-only) ------------
 # Local dev reinstall: run as the invoking user, quit a running app, refresh indexes.
 APP_NAME="CodeChroma.app"
-INSTALL_DIR="/Applications"
+INSTALL_DIR="${HOME}/Applications"
+mkdir -p "$INSTALL_DIR"
 
 if pgrep -x "CodeChroma" >/dev/null 2>&1; then
   echo "==> quitting the running app"

@@ -7,7 +7,6 @@
 #
 set -eu
 
-APP="codechroma"
 MANIFEST_URL="${CODECROMA_MANIFEST_URL:-https://github.com/gutzerk/code_chroma/releases/latest/download/latest.json}"
 DOWNLOAD_DIR="${HOME}/Downloads"
 MAX_BYTES=1073741824   # 1 GiB; fail-fast cap so a rogue oversized asset can't fill the disk
@@ -18,6 +17,13 @@ err()  { printf '  \033[31m✗\033[0m %s\n' "$1" >&2; exit 1; }
 # Keep only safe file-name characters; a hostile asset name must never reach a shell path unchecked.
 safe_name() { printf '%s' "${1##*/}" | tr -cd 'A-Za-z0-9._-'; }
 need() { command -v "$1" >/dev/null 2>&1 || err "requires '$1' -- install it first."; }
+
+INSTALL_SCOPE="user"
+case "${1:-}" in
+    "") ;;
+    --system) INSTALL_SCOPE="system" ;;
+    *) err "usage: install.sh [--system]" ;;
+esac
 
 # --- resolve OS/arch to a manifest target key --------------------------------
 OS="$(uname -s)"
@@ -37,7 +43,9 @@ esac
 case "$os-$arch" in
     macos-arm64)   target="macos-arm64" ;;
     macos-x86_64)  target="macos-x64" ;;
-    linux-x86_64)  target="linux-x64" ;;
+    linux-x86_64)
+        if [ "$INSTALL_SCOPE" = "system" ]; then target="linux-x64"; else target="linux-appimage"; fi
+        ;;
     *) err "no CodeChroma build for ${os}/${arch}; only macOS arm64/x64 and Linux x64 are released." ;;
 esac
 
@@ -103,24 +111,45 @@ fi
 case "$os" in
     macos)
         need hdiutil
-        log "installing CodeChroma.app into /Applications (admin password may be requested)"
-        sudo -v
         MOUNT="$(mktemp -d /tmp/codechroma-install.XXXXXX)"
         attach_cleanup() { hdiutil detach "$MOUNT" -quiet >/dev/null 2>&1 || true; rmdir "$MOUNT" 2>/dev/null || true; }
         trap 'attach_cleanup; rm -rf "$TMP"' EXIT
         hdiutil attach "$DEST" -nobrowse -mountpoint "$MOUNT" >/dev/null
         [ -d "$MOUNT/CodeChroma.app" ] || err "CodeChroma.app not found in the downloaded DMG."
-        sudo rm -rf /Applications/CodeChroma.app
-        sudo cp -R "$MOUNT/CodeChroma.app" /Applications/
-        log "done. launch with:  open /Applications/CodeChroma.app"
+        if [ "$INSTALL_SCOPE" = "system" ]; then
+            log "System-wide install will replace /Applications/CodeChroma.app. This writes to the shared Applications folder, so macOS will request administrator authorization."
+            need sudo
+            sudo -v
+            sudo rm -rf /Applications/CodeChroma.app
+            sudo cp -R "$MOUNT/CodeChroma.app" /Applications/
+            log "done. launch with:  open /Applications/CodeChroma.app"
+        else
+            APP_DIR="${HOME}/Applications"
+            mkdir -p "$APP_DIR"
+            rm -rf "${APP_DIR}/CodeChroma.app"
+            cp -R "$MOUNT/CodeChroma.app" "$APP_DIR/"
+            log "done. launch with:  open ${APP_DIR}/CodeChroma.app"
+        fi
         ;;
     linux)
-        [ "$(id -u)" -eq 0 ] && SUDO="" || SUDO="sudo"
-        command -v apt-get >/dev/null 2>&1 || err "this Linux build packages a .deb; apt-get is required."
-        log "installing ${ASSET} (admin password may be requested)"
-        $SUDO apt-get install -y "$DEST"
-        log "done. launch with:  codechroma-desktop"
+        if [ "$INSTALL_SCOPE" = "system" ]; then
+            command -v apt-get >/dev/null 2>&1 || err "system installation requires apt-get."
+            log "System-wide install will install ${ASSET} through apt into system package locations (including /usr) and may install dependencies. Administrator authorization is required."
+            need sudo
+            sudo -v
+            sudo apt-get install -y "$DEST"
+            log "done. launch with:  codechroma-desktop"
+        else
+            APP_DIR="${HOME}/Applications"
+            APP_PATH="${APP_DIR}/CodeChroma.AppImage"
+            mkdir -p "$APP_DIR"
+            cp "$DEST" "$APP_PATH"
+            chmod 755 "$APP_PATH"
+            log "done. launch with:  ${APP_PATH}"
+        fi
         ;;
 esac
 
-warn "if the app is on PATH but not found yet, start a new shell or add ${DOWNLOAD_DIR} -- ${APP} was installed there."
+if [ "$os" = "linux" ] && [ "$INSTALL_SCOPE" = "user" ]; then
+    warn "The AppImage is installed for this user only; no system directories or package database were changed."
+fi

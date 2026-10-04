@@ -221,23 +221,29 @@ export async function installAsset(
   return spec.install(info);
 }
 
-/** Mounts the dmg, copies the .app over /Applications (sudo via osascript), unmounts. */
+/** Mounts the dmg and replaces this user's app bundle without requesting elevation. */
 async function runMacDmg(info: UpdateInfo): Promise<boolean> {
   const plist = await execFileP("hdiutil", ["attach", info.downloadPath, "-nobrowse", "-plist"]);
   const vol = mountPointFromPlist(plist);
   if (!vol) throw new Error("could not locate mounted dmg volume");
   const src = join(vol, "CodeChroma.app");
-  const dest = "/Applications/CodeChroma.app";
-  // Pass the paths as real osascript argv (never interpolated into AppleScript or shell source),
-  // then let AppleScript's `quoted form of` shell-quote them for the privileged `ditto`.
-  const run = [
-    "on run {src, dest}",
-    "do shell script (\"ditto \" & quoted form of src & \" \" & quoted form of dest) with administrator privileges",
-    "end run",
-  ];
-  await execFileP("osascript", [...run.flatMap((s) => ["-e", s]), src, dest]);
+  const dest = macAppBundlePath(process.execPath);
+  if (!dest) throw new Error("could not locate CodeChroma.app; reinstall the app into ~/Applications to update without administrator privileges");
+  try {
+    await execFileP("ditto", [src, dest]);
+  } catch (error) {
+    const reason = error instanceof Error ? error.message : String(error);
+    throw new Error(`Could not update ${dest} without administrator privileges. Reinstall CodeChroma into ~/Applications, then retry. ${reason}`);
+  }
   await execFileP("hdiutil", ["detach", vol]);
   return true;
+}
+
+/** Returns the enclosing .app bundle for an executable inside it, or null outside an app bundle. */
+export function macAppBundlePath(executablePath: string): string | null {
+  const marker = ".app/";
+  const index = executablePath.indexOf(marker);
+  return index < 0 ? null : executablePath.slice(0, index + marker.length - 1);
 }
 
 /** Pulls the first `<key>mount-point</key>` value out of hdiutil's `-plist` XML output. */

@@ -29,8 +29,11 @@ needed:
 |---|---|
 | macOS (Apple Silicon or Intel) | `bash scripts/install_desktop.sh` |
 | Windows (x64) | `powershell -ExecutionPolicy Bypass -File scripts/install_desktop.ps1` |
-| Linux (Debian/Ubuntu x64) | `bash scripts/install_linux.sh` |
-Then `open /Applications/CodeChroma.app` and pick a repo in the launcher. Otherwise, to run the
+| Linux (x64) | `bash scripts/install_linux.sh` |
+
+macOS and Linux install per-user into `~/Applications` without administrator privileges; use
+`--system` only to opt into the system-wide macOS app or Linux `.deb` package. After a macOS install,
+run `open ~/Applications/CodeChroma.app` and pick a repo in the launcher. Otherwise, to run the
 canvas from source, install the dependencies once from this repo's root:
 
 ```bash

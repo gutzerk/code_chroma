@@ -25,7 +25,11 @@ Desktop app — one command:
 |---|---|
 | macOS (Apple Silicon or Intel) | `bash scripts/install_desktop.sh` |
 | Windows (x64) | `powershell -ExecutionPolicy Bypass -File scripts/install_desktop.ps1` |
-| Linux (Debian/Ubuntu x64) | `bash scripts/install_linux.sh` |
+| Linux (x64) | `bash scripts/install_linux.sh` |
+
+macOS and Linux install per-user into `~/Applications` and do not request administrator access.
+For a system-wide macOS app or Linux `.deb` package, explicitly pass `--system`; that writes to
+shared system locations and requests administrator authorization.
 
 From source — point it at any repo:
 

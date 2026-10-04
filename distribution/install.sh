@@ -3,12 +3,12 @@
 # herdr's distribution/: it reads distribution/latest.json (the single install manifest) and installs the
 # platform's pre-built GUI installer from the matching GitHub Release. No local checkout, no build.
 #
-#   curl -fsSL https://raw.githubusercontent.com/gutzerk/code-chroma/main/distribution/install.sh | sh
+#   curl -fsSL https://raw.githubusercontent.com/gutzerk/code_chroma/main/distribution/install.sh | sh
 #
 set -eu
 
 APP="codechroma"
-MANIFEST_URL="${CODECROMA_MANIFEST_URL:-https://github.com/gutzerk/code-chroma/releases/latest/download/latest.json}"
+MANIFEST_URL="${CODECROMA_MANIFEST_URL:-https://github.com/gutzerk/code_chroma/releases/latest/download/latest.json}"
 DOWNLOAD_DIR="${HOME}/Downloads"
 MAX_BYTES=1073741824   # 1 GiB; fail-fast cap so a rogue oversized asset can't fill the disk
 

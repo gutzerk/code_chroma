@@ -9,7 +9,7 @@ npm --prefix desktop test           # vitest (recentRepos, shellPath, bridgeProc
 poetry run python scripts/make_desktop_icon.py       # regenerate desktop/build/icon.png
 ./scripts/install_desktop.sh         # clean-macOS installer (see below)
 ./scripts/install_desktop.ps1        # clean-Windows installer (see below)
-curl -fsSL https://raw.githubusercontent.com/gutzerk/code-chroma/main/distribution/install.sh | sh   # end-user install (macOS arm64/x64 / Linux x64) from latest Release via manifest
+curl -fsSL https://raw.githubusercontent.com/gutzerk/code_chroma/main/distribution/install.sh | sh   # end-user install (macOS arm64/x64 / Linux x64) from latest Release via manifest
 python3 scripts/gen_distribution_manifest.py 9.9.9 --build-dir desktop/dist   # reproduce latest.json locally
 ```
 
@@ -29,29 +29,38 @@ triggers the follow-on release workflow when merged; configure that secret in re
 with repository Contents and Pull requests write access. The macOS matrix passes one architecture
 per job and `electron-builder.yml` gives both DMGs explicit architecture names
 (`CodeChroma-<version>-arm64.dmg` / `CodeChroma-<version>-x64.dmg`) for the checksum and manifest
-steps. If a release exists but its builds or manifest failed, dispatch the Release workflow on
+steps. Windows uses the stable asset names `CodeChroma-Setup.exe` and
+`CodeChroma-Setup.exe.sha256`; its installer downloads them from GitHub's
+`releases/latest/download/` endpoint without reading release metadata. If a release exists but its
+builds or manifest failed, dispatch the Release workflow on
 `main` with `release_tag` (for example `v0.3.0`) to rebuild and publish assets for that release;
 ordinary pushes only build when release-please creates a release. New releases stay drafts during
 asset generation, so `/releases/latest/` continues resolving to the previous published release.
-Only the final manifest-upload step publishes the new release; a failed or in-progress build leaves
-the previous release as latest. A recovery dispatch first returns its existing release to draft.
+The final manifest-upload step publishes the new release only after all platform builds succeed; a
+failed or in-progress build leaves the previous release as latest. A recovery dispatch first returns
+its existing release to draft.
 The author version lives in `desktop/package.json` (electron-builder reads it for the artifact name);
 `release-please-config.json` syncs `web/package.json` and `pyproject.toml` from it. See the plan in
 `.claude/plans/release-versioning.md` for the design.
 Pull-request CI also runs the desktop Vitest suites and TypeScript build.
 
-**End-user installs go through `distribution/` (the herdr-style manifest installers).** One
+**End-user installs go through `distribution/`.** One
 `distribution/latest.json` manifest is published to every Release (built by the `manifest` CI job after
-all platform builds) and lists a download URL + SHA-256 per platform target. Each OS picks its target
-from it:
+all platform builds) and lists a download URL + SHA-256 per platform target. The shell installer
+uses it for macOS and Linux; Windows downloads its fixed-name installer and checksum directly from
+GitHub's latest-release endpoint:
 - macOS arm64/x64 / Linux x64: `distribution/install.sh` — `curl -fsSL
-  https://raw.githubusercontent.com/gutzerk/code-chroma/main/distribution/install.sh | sh`. Detects
+  https://raw.githubusercontent.com/gutzerk/code_chroma/main/distribution/install.sh | sh`. Detects
   OS/arch, downloads the matching `.dmg`/`.deb`, verifies SHA-256, installs into `/Applications` (mac,
   via `hdiutil`) or via `apt` (Linux). This is the recommended end-user path — no checkout, no build.
-- Windows x64: `distribution/install.cmd` (thin bootstrap) → `distribution/install.ps1` — reads the same
-  manifest, downloads `Setup.exe`, verifies SHA-256, runs the NSIS wizard.
+- Windows x64: `irm https://codechroma.dev/install.ps1 | iex` (or
+  `distribution/install.cmd` → `distribution/install.ps1`) — downloads the stable
+  `CodeChroma-Setup.exe` and `.sha256` from GitHub's latest-release endpoint, verifies SHA-256, then
+  runs the NSIS wizard. It does not read `latest.json`.
 The manifest is served from each Release (`.../releases/latest/download/latest.json`), so no custom
-domain is required; `CODECROMA_MANIFEST_URL` overrides the source. `scripts/gen_distribution_manifest.py`
+domain is required; `CODECROMA_MANIFEST_URL` overrides the shell installer source. The release
+workflow keeps newly created releases in draft until every platform build and manifest upload succeeds,
+so a failed build cannot replace the previous working latest release. `scripts/gen_distribution_manifest.py`
 reproduces the same manifest locally (e.g. for smoke-testing `install.sh` against a non-release build).
 The root `scripts/install_*.sh/.ps1` are legacy direct-release downloaders; they are not
 build-from-source installers. `distribution/` is the recommended manifest-based download path.

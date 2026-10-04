@@ -82,10 +82,10 @@ boxes-vs-tree selector (the old `?strategy=` / `VITE_CANVAS_STRATEGY` switch was
 
 Build/run commands and architecture notes both live in
 [`docs/architecture/desktop-app.md`](docs/architecture/desktop-app.md). End-user install is
-`curl -fsSL https://raw.githubusercontent.com/gutzerk/code-chroma/main/distribution/install.sh | sh`
-(macOS arm64/x64 / Linux x64) or `distribution/install.cmd` (Windows): each reads the published
-`distribution/latest.json` manifest and downloads the platform's prebuilt installer from the latest
-GitHub Release.
+`curl -fsSL https://raw.githubusercontent.com/gutzerk/code_chroma/main/distribution/install.sh | sh`
+(macOS arm64/x64 / Linux x64) or `distribution/install.cmd` (Windows): the shell installer reads
+the published `distribution/latest.json` manifest; the Windows installer resolves the latest
+release's setup and checksum directly from GitHub.
 
 **Releases ship via GitHub, not local builds.** `.github/workflows/release-please.yml` runs
 `release-please` (using the `code_pat_release` repository secret so merging its Release PR triggers

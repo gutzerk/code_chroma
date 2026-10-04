@@ -208,11 +208,11 @@ jobs:
       - name: Package the Electron app (nsis)
         run: npm --prefix desktop run dist
 
-      # SHA-256 sidecar for the Setup.exe, verified by install_desktop.ps1 before it's launched.
+      # Stable names are used by the Windows bootstrapper and GitHub's latest/download endpoint.
       - name: Hash the Setup.exe
         shell: pwsh
         run: |
-          $installers = @(Get-ChildItem -Path "desktop/dist/CodeChroma-*-Setup.exe" -File)
+          $installers = @(Get-ChildItem -Path "desktop/dist/CodeChroma-Setup.exe" -File)
           if ($installers.Count -ne 1) {
             throw "Expected exactly one Setup.exe, found $($installers.Count)."
           }
@@ -224,7 +224,7 @@ jobs:
       - name: Attest the Setup.exe
         uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
         with:
-          subject-path: desktop/dist/CodeChroma-*-Setup.exe
+          subject-path: desktop/dist/CodeChroma-Setup.exe
 
       - name: Upload Setup to release
         uses: softprops/action-gh-release@efb35369e0ad2afab669f228072c1b0d510eae64 # v3.0.3
@@ -232,8 +232,8 @@ jobs:
           tag_name: ${{ needs.release.outputs.tag_name }}
           draft: true
           files: |
-            desktop/dist/CodeChroma-*-Setup.exe
-            desktop/dist/CodeChroma-*-Setup.exe.sha256
+            desktop/dist/CodeChroma-Setup.exe
+            desktop/dist/CodeChroma-Setup.exe.sha256
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
@@ -335,9 +335,9 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
   # Assembles and publishes distribution/latest.json -- the single install manifest that
-  # distribution/install.sh (macOS/Linux) and install.ps1 (Windows) read. It runs after the macOS,
-  # Windows, and Linux build jobs complete and their .sha256 sidecars are uploaded, then publishes
-  # the manifest to that Release so it's reachable at .../releases/latest/download/latest.json.
+  # distribution/install.sh (macOS/Linux) reads. It runs after the macOS, Windows, and Linux build
+  # jobs complete and their .sha256 sidecars are uploaded, then publishes the manifest to that
+  # Release so it's reachable at .../releases/latest/download/latest.json.
   # Asset URLs and checksums are deterministic from the tag + released sidecars.
   manifest:
     name: Publish install manifest (latest.json)
@@ -378,7 +378,7 @@ jobs:
           names = {
               "macos-arm64":   f"CodeChroma-{version}-arm64.dmg",
               "macos-x64":     f"CodeChroma-{version}-x64.dmg",
-              "windows-x64":   f"CodeChroma-{version}-Setup.exe",
+              "windows-x64":   "CodeChroma-Setup.exe",
               "linux-x64":     f"CodeChroma-{version}-x64.deb",
               "linux-appimage":f"CodeChroma-{version}-x64.AppImage",
           }
@@ -389,7 +389,10 @@ jobs:
               digest = sidecar.read_text().strip().split()[0].lower()
               if not re.fullmatch(r"[0-9a-f]{64}", digest):
                   raise SystemExit(f"Invalid SHA-256 sidecar for {n}: {digest!r}")
-              assets[t] = f"{base}/{n}"
+              if t == "windows-x64":
+                  assets[t] = f"https://github.com/{repo}/releases/latest/download/{n}"
+              else:
+                  assets[t] = f"{base}/{n}"
               sha[t] = digest
           manifest = {"version": version, "assets": assets, "sha256": sha}
           os.makedirs("distribution", exist_ok=True)

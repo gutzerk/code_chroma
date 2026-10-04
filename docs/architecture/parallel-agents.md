@@ -293,13 +293,19 @@ branch through an agent attached to it (`_guard_shared_worktree`, keyed off `Age
   carries `data-active-workspace` for the e2e specs: once a workspace is `ready` nothing on screen says
   which one it is, and the spec used to infer it from the branch switcher being disabled — a proxy that
   stopped existing when the switcher became usable everywhere.
+- A window can be docked into the resizable left-side `AgentTerminalDock` in `.canvas-main-row`.
+  `agentDockStore` keeps a session-local ordered list of attached agent ids and the selected tab;
+  every docked terminal stays mounted while switching tabs. Docking hides the floating window without
+  persisting `minimized`, so after reload it naturally returns as a window. Detach removes that tab
+  and opens the agent window; the tab's close action follows the normal `closeAgentWindow` flow.
 - `AgentRail` renders its own full-height panel (`.agent-task-rail`, header "AGENT TASKS" + a count
   chip) beside `.canvas-stage` inside `.canvas-main-row` — a sibling of the canvas, not a rail/toolbar
   item, so cards have room for more than an icon. It is the **only** always-visible list of agents:
   one two-line card per agent for its whole lifetime (bold title, then a status/branch caption), so
   the list's shape never changes — clicking toggles minimize/restore (`minimizeAgentWindow` /
-  `restoreAgentWindow`, uniformly, never a checkout — see "Branch scope" above) and `aria-pressed` is
-  the *window open* state, not a selection. An agent belonging to another branch reads as dimmed here
+  `restoreAgentWindow`, uniformly, never a checkout — see "Branch scope" above) and `aria-pressed`
+  means a floating window is open or the agent is docked. Clicking a docked row switches the selected
+  terminal tab. An agent belonging to another branch reads as dimmed here
   (`.agent-rail-item-off-branch`) and captioned `on <base_branch>` instead of its status, purely as
   information; its click behaves exactly like any other row's. 🔴 A row can also carry a small accent
   dot (`.agent-rail-diagram-badge`, test id `diagram-ready-<id>`, from `agentStore.diagramsReady`):
@@ -386,7 +392,8 @@ branch through an agent attached to it (`_guard_shared_worktree`, keyed off `Age
   (`.code-popup-backdrop` is 100). The wrapper also makes it modal in behaviour, not just in looks:
   focus moves in and is restored on unmount, Tab is trapped, Escape cancels (suppressed while the
   request is in flight), and the backdrop absorbs every click aimed at what's underneath.
-- ⚠ An agent window's title bar has exactly **two** controls: "–" (`minimizeAgentWindow`) and "×"
+- ⚠ An agent window's title bar has **three** controls: "⇤" (dock on the canvas), "–"
+  (`minimizeAgentWindow`) and "×"
   (`closeAgentWindow`, `agents/windowActions.ts`). "×" closes the session, removes the card, and calls
   `DELETE /agents/{id}` with **no** query flags by default — the worktree directory and the `agent/<id>`
   branch are left exactly as they are, so the work can be picked back up by attaching a new agent to

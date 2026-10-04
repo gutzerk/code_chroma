@@ -11,14 +11,24 @@ additive, never a required migration).
 
 from __future__ import annotations
 
+from dataclasses import dataclass
+
 from codechroma.assistant import load_assistant_settings
 from codechroma.context.llm_provider import resolve_provider_key
 from codechroma.llm.call_site_settings import load_assignment
 from codechroma.llm.cli_adapters import CLI_ADAPTERS
 from codechroma.llm.providers_store import Provider, find_provider
 
-# (adapter_key, binary, model, env_overrides) -- the shape every consumer turns back into a launch.
-ClResolved = tuple[str, str, str, dict[str, str]]
+
+@dataclass(frozen=True)
+class CliResolution:
+    """Resolved CLI details plus whether adapter_key came from an assigned provider."""
+
+    adapter_key: str
+    binary: str
+    model: str
+    env_overrides: dict[str, str]
+    provider_assigned: bool
 
 
 def _cli_env_overrides(provider: Provider, model: str) -> dict[str, str]:
@@ -40,18 +50,25 @@ def _cli_env_overrides(provider: Provider, model: str) -> dict[str, str]:
     return overrides
 
 
-def resolve_cli(call_site_id: str, default_model: str) -> ClResolved:
-    """(adapter_key, binary, model, env_overrides): the call site's assignment, else the default."""
+def resolve_cli(call_site_id: str, default_model: str) -> CliResolution:
+    """Resolve the call site's provider or assistant fallback, including provider provenance."""
     assignment = load_assignment(call_site_id)
     if assignment is not None and assignment.mode == "cli":
         provider = find_provider(assignment.provider_id)
         if provider is not None and provider.kind == "cli" and provider.adapter in CLI_ADAPTERS:
-            return (
-                provider.adapter,
-                provider.adapter,
-                assignment.model,
-                _cli_env_overrides(provider, assignment.model),
+            return CliResolution(
+                adapter_key=provider.adapter,
+                binary=provider.adapter,
+                model=assignment.model,
+                env_overrides=_cli_env_overrides(provider, assignment.model),
+                provider_assigned=True,
             )
     assistant = load_assistant_settings()
     model = assistant.model if assistant.model else default_model
-    return "claude", assistant.effective_cli, model, {}
+    return CliResolution(
+        adapter_key="claude",
+        binary=assistant.effective_cli,
+        model=model,
+        env_overrides={},
+        provider_assigned=False,
+    )

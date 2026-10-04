@@ -16,7 +16,8 @@ from __future__ import annotations
 
 import os
 
-from codechroma.assistant import load_assistant_settings
+from codechroma.assistant import DEFAULT_CLI, load_assistant_settings
+from codechroma.bridge.resources import resource_path
 from codechroma.config import settings
 
 ALLOWED_AGENTS: dict[str, list[str]] = {
@@ -49,15 +50,24 @@ def agent_cli(
     if agent == "agent":
         from codechroma.llm.resolve_cli import resolve_cli
 
-        _adapter_key, binary, _model, env = resolve_cli(AGENT_CALL_SITE, _default_model())
-        return [binary, *_resume_prompt(resume_session_id, initial_prompt)], env
+        resolution = resolve_cli(AGENT_CALL_SITE, _default_model())
+        plugin_args = _codechroma_plugin_args(
+            resolution.adapter_key == "claude"
+            and (resolution.provider_assigned or resolution.binary == DEFAULT_CLI)
+        )
+        return [
+            resolution.binary,
+            *plugin_args,
+            *_resume_prompt(resume_session_id, initial_prompt),
+        ], resolution.env_overrides
     argv_entry = ALLOWED_AGENTS.get(agent)
     if argv_entry is None:
         return None
     if agent == "claude":
         # Keep the default binary unless the user pointed the assistant at something else.
         binary = load_assistant_settings().effective_cli
-        return [binary, *_resume_prompt(resume_session_id, initial_prompt)], {}
+        plugin_args = _codechroma_plugin_args(binary == DEFAULT_CLI)
+        return [binary, *plugin_args, *_resume_prompt(resume_session_id, initial_prompt)], {}
     # Generic kinds (e.g. shell): a resume still appends the flag; a first message never does.
     if resume_session_id:
         return [*argv_entry, RESUME_FLAG, resume_session_id], {}
@@ -67,6 +77,13 @@ def agent_cli(
 def resolved_cli_for(kind: str, argv: list[str]) -> str:
     """The label to persist on `AgentRecord.resolved_cli` -- only `agent` windows report one."""
     return argv[0] if kind == "agent" else ""
+
+
+def _codechroma_plugin_args(is_claude: bool) -> list[str]:
+    """Load CodeChroma skills for this Claude Code process without changing its project."""
+    if not is_claude:
+        return []
+    return ["--plugin-dir", str(resource_path("skills").parent)]
 
 
 def _resume_prompt(resume_session_id: str | None, initial_prompt: str | None) -> list[str]:

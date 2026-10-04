@@ -113,7 +113,10 @@
    [`config-and-prompts.md`](config-and-prompts.md)). It produces a plain `AISummary(node_id,
    text, generated_at)` — no test/coverage stats are attached.
 4. **GraphStore** (`graph/store.py`) — `Protocol` (Repository pattern), one `SqliteGraphStore` per
-   repository (`.codechroma/graph.db` under the analyzed repo root, gitignored). `save()` does a full
+   repository (`.codechroma/graph.db` under the analyzed repo root, gitignored). Opening the store
+   runs SQLite's `integrity_check`; repairable index damage is rebuilt with `REINDEX`, otherwise the
+   corrupt cache is moved with its WAL/SHM sidecars into a timestamped
+   `.codechroma/graph.db.corrupt-*` directory and rebuilt from source. `save()` does a full
    delete+reinsert per repository per run rather than incremental upsert. `diff()` compares two
    in-memory `Graph` snapshots (added/removed/reparented node IDs) — this is a value-level diff, not
    read from the DB.

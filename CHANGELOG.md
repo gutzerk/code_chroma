@@ -1,5 +1,30 @@
 # Changelog
 
+## [0.3.0](https://github.com/gutzerk/code_chroma/compare/v0.2.2...v0.3.0) (2026-10-03)
+
+
+### Features
+
+* add production install scripts ([5014f14](https://github.com/gutzerk/code_chroma/commit/5014f14e8367471778e61405dbd08ed9bd6a3309))
+* add production install scripts ([6b8c92e](https://github.com/gutzerk/code_chroma/commit/6b8c92eb3df4abc2d63bdeff4fa746b7cdbca506))
+
+
+### Bug Fixes
+
+* add release-please manifest configuration ([406456a](https://github.com/gutzerk/code_chroma/commit/406456a15a85abd1c1828b8d593e2534333479a1))
+* add release-please manifest configuration ([37c7879](https://github.com/gutzerk/code_chroma/commit/37c7879e7904bdfe0ded2b6cbd64be0a147a40cb))
+* correct Windows bridge packaging and refresh desktop icon ([55b5729](https://github.com/gutzerk/code_chroma/commit/55b57292068f78fe2eef283f5c02e08798195e8e))
+* correct Windows bridge packaging and refresh desktop icon ([304fc23](https://github.com/gutzerk/code_chroma/commit/304fc23c458d9c87c9873f02f4e023bdbda89467))
+* **desktop:** add Linux package metadata ([5a9ecc8](https://github.com/gutzerk/code_chroma/commit/5a9ecc83d1c065cde6282a7c8511fdcd5ad8d681))
+* **desktop:** add Linux package metadata ([15dc854](https://github.com/gutzerk/code_chroma/commit/15dc854fddf145dbb15712576c9822bf61a32f7b))
+* **desktop:** align Linux artifact naming ([f37eed2](https://github.com/gutzerk/code_chroma/commit/f37eed258c03bce8b95ec98192f06789472ff77d))
+* **desktop:** align Linux artifact naming ([38d8868](https://github.com/gutzerk/code_chroma/commit/38d886897e846177e5360805b96d5aef165c9b0b))
+* publish Intel macOS desktop installer ([55a15a8](https://github.com/gutzerk/code_chroma/commit/55a15a8e35b5e2d2bd0495428836bfc9d20741f7))
+* publish Intel macOS desktop installer ([a531c1f](https://github.com/gutzerk/code_chroma/commit/a531c1fe17d34e4dad91801b17289fd6001589a8))
+* **release:** create manifest output directory ([068cd90](https://github.com/gutzerk/code_chroma/commit/068cd90c708f850f47989ca42d2a673efb43e69a))
+* **release:** create manifest output directory ([a492b23](https://github.com/gutzerk/code_chroma/commit/a492b2336dbf479e66717dbd586ba97b9701b855))
+* use release PAT secret ([34824d5](https://github.com/gutzerk/code_chroma/commit/34824d589117400ad20b9429d44671c96950d257))
+
 ## [0.2.2](https://github.com/gutzerk/code_chroma/compare/codechroma-v0.2.1...codechroma-v0.2.2) (2026-10-03)
 
 

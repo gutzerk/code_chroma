@@ -570,11 +570,14 @@ def _stub_agent_start(monkeypatch, bridge, launched: dict) -> None:
 
 
 @pytest.fixture
-def started_client(client, tmp_path, monkeypatch):
+def started_client(client, tmp_path, monkeypatch, use_test_runtime):
     """Context-managed: an agent PTY needs one event loop that outlives a single request."""
+    if os.name == "nt":
+        pytest.skip("uses a POSIX shebang CLI stub")
     test_client, repo, bridge = client
     _stub_claude(tmp_path)
     monkeypatch.setenv("PATH", f"{tmp_path / 'bin'}:{os.environ['PATH']}")
+    use_test_runtime()
     with test_client as live:
         yield live, repo, bridge
 

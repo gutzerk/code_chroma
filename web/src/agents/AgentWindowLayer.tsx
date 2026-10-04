@@ -10,6 +10,7 @@ import { useAgentClient } from "./AgentClientContext";
 import { flagDiagramsReady } from "./agentDiagramsReady";
 import { agentStore, useActiveWorkspace, useAgents, useGitPreflight, usePendingClose } from "./agentStore";
 import { AgentWindow } from "./AgentWindow";
+import { agentDockStore, useDockedAgentIds } from "./agentDockStore";
 import { branchStore } from "./branchStore";
 import { CloseAgentDialog } from "./CloseAgentDialog";
 import { GitInitDialog } from "./GitInitDialog";
@@ -28,6 +29,7 @@ export function AgentWindowLayer() {
   const agentClient = useAgentClient();
   const engineClient = useEngineClient();
   const agents = useAgents();
+  const dockedAgentIds = useDockedAgentIds();
   const activeWorkspace = useActiveWorkspace();
   const preflight = useGitPreflight();
   const pendingClose = usePendingClose();
@@ -43,6 +45,10 @@ export function AgentWindowLayer() {
   }, [agentClient]);
 
   useEffect(refresh, [refresh]);
+
+  useEffect(() => {
+    agentDockStore.retain(agents.map((agent) => agent.id));
+  }, [agents]);
 
   const refreshBranchList = useCallback(() => {
     void agentClient
@@ -80,7 +86,10 @@ export function AgentWindowLayer() {
             // restoreAgentWindow, not a branch switch: the agent that just pinged may belong to a
             // branch main no longer has checked out, but its own worktree runs regardless, and its
             // window is reachable either way (AgentWindow.tsx no longer hides it for that reason).
-            notifyAgentStatus(before, kind, () => restoreAgentWindow(agentClient, before.id));
+            notifyAgentStatus(before, kind, () => {
+              agentDockStore.activate(before.id);
+              restoreAgentWindow(agentClient, before.id);
+            });
           }
           // A finished "Draw a diagram" task may have written into its own forked worktree, where
           // the canvas never looks -- badge its rail row so the result is one click away.
@@ -110,10 +119,14 @@ export function AgentWindowLayer() {
       data-active-workspace={activeWorkspace}
     >
       <WorkspaceStatusBanner />
-      {/* Every agent, minimized or not: AgentWindow hides with `display:none`, because unmounting
-          would dispose the xterm and force a full reattach on every restore. */}
+      {/* Every agent is represented here; minimized windows hide without unmounting so xterm stays
+          attached, while docked agents render their terminal in AgentTerminalDock. */}
       {agents.map((agent) => (
-        <AgentWindow key={agent.id} agent={agent} />
+        <AgentWindow
+          key={agent.id}
+          agent={agent}
+          docked={dockedAgentIds.includes(agent.id)}
+        />
       ))}
       {preflight && preflight.state !== "ready" && (
         <GitInitDialog

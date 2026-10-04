@@ -17,15 +17,15 @@ import { baseBranchOf, isAgentOnBranch } from "./branchScope";
 import { useCurrentBranch } from "./branchStore";
 import { DeleteDiagramDialog } from "./DeleteDiagramDialog";
 import { closeAgentWindow, minimizeAgentWindow, restoreAgentWindow } from "./windowActions";
+import { agentDockStore, useDockedAgentIds } from "./agentDockStore";
 
 type RailTab = "agents" | "diagrams";
 
 /**
  * The agent task panel: a full-height dock beside the canvas, one card per agent for its whole
  * lifetime, and the only place a minimized window can be reopened from without a window of its own.
- * Minimizing does not remove its card, it only flips `aria-pressed` — so the panel answers "which
- * agents exist and which one wants me?" at a glance, without the list changing shape as windows come
- * and go.
+ * Minimizing does not remove its card, it only flips `aria-pressed`; a docked agent also stays
+ * pressed, and selecting it switches the active dock tab.
  *
  * A second "Diagrams" tab shares this same dock and is now the *only* place a diagram is shown and
  * managed (016-single-canvas-dashboard Stage 4 originally split this with `RecipeMenu`'s dropdown;
@@ -66,6 +66,7 @@ export function AgentRail({ hidden = false }: { hidden?: boolean }) {
   const agentClient = useAgentClient();
   const engineClient = useEngineClient();
   const agents = useAgents();
+  const dockedAgentIds = useDockedAgentIds();
   const current = useCurrentBranch();
   const diagramsReady = useDiagramsReady();
   const doc = useCanvasDoc();
@@ -143,18 +144,22 @@ export function AgentRail({ hidden = false }: { hidden?: boolean }) {
             {agents.map((agent) => {
               const onBranch = isAgentOnBranch(agent, current);
               const hasDiagram = diagramsReady.has(agent.id);
+              const isDocked = dockedAgentIds.includes(agent.id);
               return (
                 <div className="agent-rail-row" key={agent.id}>
                   <RailButton
                     className={`agent-rail-item${onBranch ? "" : " agent-rail-item-off-branch"}`}
                     testId={`agent-rail-${agent.id}`}
                     label={tooltipFor(agent, onBranch, hasDiagram)}
-                    pressed={!agent.window.minimized}
+                    pressed={isDocked || !agent.window.minimized}
                     onClick={() => {
                       // Clicking is the acknowledgement: restoring also activates that workspace,
                       // where DrawDiagramButton's own watcher adds the diagram without further prompting.
                       agentStore.clearDiagramsReady(agent.id);
-                      if (agent.window.minimized) restoreAgentWindow(agentClient, agent.id);
+                      if (isDocked) {
+                        agentDockStore.activate(agent.id);
+                        restoreAgentWindow(agentClient, agent.id);
+                      } else if (agent.window.minimized) restoreAgentWindow(agentClient, agent.id);
                       else minimizeAgentWindow(agentClient, agent.id);
                     }}
                   >

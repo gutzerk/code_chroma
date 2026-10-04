@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { cleanup, render, screen, waitFor } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import type { AgentRecord } from "../state/types";
 import { EngineClientProvider } from "../engine-client/EngineClientContext";
 import type { EngineClient } from "../engine-client/EngineClient";
@@ -10,7 +10,9 @@ import { AgentClientProvider } from "./AgentClientContext";
 import type { AgentClient } from "./agentClient";
 import { PR_CLIENT_STUB } from "./stubAgentClient";
 import { agentStore } from "./agentStore";
+import { agentDockStore } from "./agentDockStore";
 import { flagDiagramsReady } from "./agentDiagramsReady";
+import { AgentTerminalDock } from "./AgentTerminalDock";
 import { AgentWindowLayer } from "./AgentWindowLayer";
 
 // Its own behavior is covered in agentDiagramsReady.test.ts; here only the branch that calls it is.
@@ -113,6 +115,7 @@ function renderLayer(agents: AgentRecord[], engineOverrides: Partial<EngineClien
     <EngineClientProvider repoId="main" client={engineClient}>
       <AgentClientProvider client={agentClient(agents)}>
         <TerminalClientProvider client={terminalClient()}>
+          <AgentTerminalDock />
           <AgentWindowLayer />
         </TerminalClientProvider>
       </AgentClientProvider>
@@ -134,6 +137,7 @@ function renderLayerWithPing(agents: AgentRecord[]) {
 
 beforeEach(() => {
   agentStore.reset();
+  agentDockStore.reset();
   vi.mocked(flagDiagramsReady).mockClear();
 });
 
@@ -149,6 +153,33 @@ describe("AgentWindowLayer", () => {
 
     expect(screen.getByTestId("agent-window-refund-flow")).toHaveClass("agent-window-hidden");
     expect(screen.getByTestId("agent-terminal-refund-flow")).toBeInTheDocument();
+  });
+
+  it("docks agents as tabs, switches between mounted terminals, and detaches the active agent", async () => {
+    const second = record({
+      id: "flaky-tests",
+      title: "flaky tests",
+      window: { ...record().window, x: 220, minimized: false, z: 2 },
+    });
+    renderLayer([record({ window: { ...record().window, minimized: false } }), second]);
+
+    await waitFor(() => expect(screen.getByTestId("agent-dock-refund-flow")).toBeInTheDocument());
+    fireEvent.click(screen.getByTestId("agent-dock-refund-flow"));
+    fireEvent.click(screen.getByTestId("agent-dock-flaky-tests"));
+
+    expect(screen.getByTestId("agent-dock-tab-refund-flow")).toHaveAttribute("aria-selected", "false");
+    expect(screen.getByTestId("agent-dock-panel-refund-flow")).toHaveAttribute("hidden");
+    expect(screen.getByTestId("agent-dock-panel-flaky-tests")).not.toHaveAttribute("hidden");
+    expect(screen.getByTestId("agent-terminal-refund-flow")).toBeInTheDocument();
+    expect(screen.getByTestId("agent-terminal-flaky-tests")).toBeInTheDocument();
+
+    fireEvent.click(screen.getByTestId("agent-dock-tab-refund-flow"));
+    fireEvent.click(screen.getByTestId("agent-detach-refund-flow"));
+
+    expect(screen.queryByTestId("agent-dock-tab-refund-flow")).not.toBeInTheDocument();
+    expect(screen.getByTestId("agent-dock-tab-flaky-tests")).toBeInTheDocument();
+    expect(screen.getByTestId("agent-dock-panel-flaky-tests")).not.toHaveAttribute("hidden");
+    expect(screen.getByTestId("agent-window-refund-flow")).not.toHaveClass("agent-window-hidden");
   });
 
   // A monitor unplugged mid-session shrinks the browser window in place, which used to leave a

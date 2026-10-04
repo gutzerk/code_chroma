@@ -10,6 +10,7 @@ import { AgentClientProvider } from "./AgentClientContext";
 import type { AgentClient } from "./agentClient";
 import { PR_CLIENT_STUB } from "./stubAgentClient";
 import { agentStore } from "./agentStore";
+import { agentDockStore } from "./agentDockStore";
 import { branchStore } from "./branchStore";
 import { AgentRail } from "./AgentRail";
 
@@ -102,6 +103,7 @@ function renderRail(
 
 beforeEach(() => {
   agentStore.reset();
+  agentDockStore.reset();
   branchStore.reset();
   canvasDocStore.reset();
   collapsedLayersStore.reset();
@@ -158,6 +160,19 @@ describe("the rail's agent strip", () => {
 
     expect(screen.getByTestId("agent-rail-refund-flow")).toHaveAttribute("aria-pressed", "true");
     expect(screen.getByTestId("agent-rail-flaky-tests")).toHaveAttribute("aria-pressed", "false");
+  });
+
+  it("keeps docked agents pressed and selects their tab from the rail", () => {
+    agentStore.upsert(record());
+    agentStore.upsert(record({ id: "flaky-tests", title: "flaky tests" }));
+    agentDockStore.attach("refund-flow");
+    agentDockStore.attach("flaky-tests");
+    renderRail();
+
+    expect(screen.getByTestId("agent-rail-flaky-tests")).toHaveAttribute("aria-pressed", "true");
+    fireEvent.click(screen.getByTestId("agent-rail-refund-flow"));
+
+    expect(agentDockStore.getActiveAgentId()).toBe("refund-flow");
   });
 
   it("minimizes an open agent on click, and tells the bridge", () => {

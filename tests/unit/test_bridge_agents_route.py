@@ -546,6 +546,29 @@ def _stub_claude(tmp_path: Path) -> None:
     binary.chmod(0o755)
 
 
+def _stub_agent_start(monkeypatch, bridge, launched: dict) -> None:
+    """Capture launch inputs without depending on a local Claude executable or terminal."""
+
+    class _Session:
+        pid = 4242
+        status = "idle"
+        exit_code = None
+
+        def close(self):
+            pass
+
+        def terminate_process(self):
+            pass
+
+    def start(agent_id, argv, cwd, **kwargs):
+        launched.update(argv=argv, cwd=cwd)
+        session = _Session()
+        bridge.agent_sessions._sessions[agent_id] = session
+        return session
+
+    monkeypatch.setattr(bridge.agent_sessions, "start", start)
+
+
 @pytest.fixture
 def started_client(client, tmp_path, monkeypatch):
     """Context-managed: an agent PTY needs one event loop that outlives a single request."""
@@ -568,6 +591,63 @@ def test_start_brings_up_the_pty_and_reports_a_pid(started_client):
     assert body["status"] == "idle"
     assert body["pid"] is not None
     assert bridge.agent_sessions.is_running("runner")
+
+
+@pytest.mark.parametrize("attach_to", [None, "main"])
+def test_claude_agent_launch_loads_the_runtime_plugin_for_worktrees_and_attachments(
+    started_client, monkeypatch, attach_to
+):
+    from codechroma.bridge.resources import resource_path
+
+    test_client, _repo, bridge = started_client
+    body = {"title": "plugin-agent"}
+    if attach_to is not None:
+        body["attach_to"] = attach_to
+    test_client.post("/agents", json=body)
+    launched = {}
+    _stub_agent_start(monkeypatch, bridge, launched)
+
+    response = test_client.post("/agents/plugin-agent/start", json={})
+
+    argv = launched["argv"]
+    assert response.status_code == 200
+    assert argv[1:3] == ["--plugin-dir", str(resource_path("skills").parent)]
+
+
+def test_nested_attached_project_skills_and_instructions_are_untouched(
+    started_client, monkeypatch
+):
+    from codechroma.bridge.resources import resource_path
+
+    test_client, repo, bridge = started_client
+    nested_project = repo / "nested-project"
+    nested_project.mkdir()
+    claude_md = nested_project / "CLAUDE.md"
+    claude_md.write_text("Keep this project instruction.\n")
+    user_skill = nested_project / ".claude" / "skills" / "codechroma-draw-diagram" / "SKILL.md"
+    user_skill.parent.mkdir(parents=True)
+    user_skill.write_text(
+        "---\n"
+        "name: codechroma-draw-diagram\n"
+        "description: User skill\n"
+        "---\n"
+        "User-owned.\n"
+    )
+    bridge.pr_manager.upsert(pr_record(282, str(nested_project)))
+    created = test_client.post(
+        "/agents", json={"title": "nested-agent", "attach_to": "pr-282"}
+    ).json()
+
+    launched = {}
+    _stub_agent_start(monkeypatch, bridge, launched)
+
+    response = test_client.post(f"/agents/{created['id']}/start", json={})
+
+    assert response.status_code == 200
+    assert Path(launched["cwd"]) == nested_project
+    assert launched["argv"][1:3] == ["--plugin-dir", str(resource_path("skills").parent)]
+    assert claude_md.read_text() == "Keep this project instruction.\n"
+    assert user_skill.read_text().endswith("User-owned.\n")
 
 
 def test_a_fresh_start_consumes_the_pending_context(started_client):

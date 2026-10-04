@@ -38,6 +38,13 @@ for package in (
 datas += [(str(PROJECT_ROOT / "web" / "dist"), "codechroma_data/web")]
 for skill in SKILL_NAMES:
     datas.append((str(PROJECT_ROOT / ".claude" / "skills" / skill), f"codechroma_data/skills/{skill}"))
+# The runtime plugin directory shares the bundled skills above; it is loaded only for Claude agents.
+datas.append(
+    (
+        str(PROJECT_ROOT / ".claude" / ".claude-plugin"),
+        "codechroma_data/.claude-plugin",
+    )
+)
 # Agent status manifests, read at runtime by bridge/agents/status.py via resource_path("detect").
 datas.append(
     (str(PROJECT_ROOT / "src" / "codechroma" / "bridge" / "agents" / "detect"), "codechroma_data/detect")

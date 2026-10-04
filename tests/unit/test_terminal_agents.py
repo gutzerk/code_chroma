@@ -53,13 +53,20 @@ def test_agent_kind_routes_to_an_assigned_cli_provider_binary():
 def test_agent_kind_loads_plugin_when_claude_adapter_uses_a_wrapper(monkeypatch):
     from codechroma.bridge.resources import resource_path
     from codechroma.llm import resolve_cli
+    from codechroma.llm.resolve_cli import CliResolution
     from codechroma.terminal.agents import agent_cli
 
     _assign_agents_group()
     monkeypatch.setattr(
         resolve_cli,
         "resolve_cli",
-        lambda _call_site, _model: ("claude", "claude-wrapper", "claude-opus", {}),
+        lambda _call_site, _model: CliResolution(
+            adapter_key="claude",
+            binary="claude-wrapper",
+            model="claude-opus",
+            env_overrides={},
+            provider_assigned=True,
+        ),
     )
 
     argv, env = agent_cli("agent")

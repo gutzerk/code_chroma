@@ -50,11 +50,16 @@ def agent_cli(
     if agent == "agent":
         from codechroma.llm.resolve_cli import resolve_cli
 
-        _adapter_key, binary, _model, env = resolve_cli(AGENT_CALL_SITE, _default_model())
+        resolution = resolve_cli(AGENT_CALL_SITE, _default_model())
         plugin_args = _codechroma_plugin_args(
-            _resolved_claude_adapter(_adapter_key, binary)
+            resolution.adapter_key == "claude"
+            and (resolution.provider_assigned or resolution.binary == DEFAULT_CLI)
         )
-        return [binary, *plugin_args, *_resume_prompt(resume_session_id, initial_prompt)], env
+        return [
+            resolution.binary,
+            *plugin_args,
+            *_resume_prompt(resume_session_id, initial_prompt),
+        ], resolution.env_overrides
     argv_entry = ALLOWED_AGENTS.get(agent)
     if argv_entry is None:
         return None
@@ -79,20 +84,6 @@ def _codechroma_plugin_args(is_claude: bool) -> list[str]:
     if not is_claude:
         return []
     return ["--plugin-dir", str(resource_path("skills").parent)]
-
-
-def _resolved_claude_adapter(adapter_key: str, binary: str) -> bool:
-    """Distinguish a Claude provider wrapper from the unassigned assistant CLI fallback."""
-    if adapter_key != "claude":
-        return False
-    from codechroma.llm.call_site_settings import load_group_assignment
-    from codechroma.llm.providers_store import find_provider
-
-    assignment = load_group_assignment("agents")
-    provider = find_provider(assignment.provider_id) if assignment is not None else None
-    if provider is not None and provider.kind == "cli":
-        return provider.adapter == "claude"
-    return binary == load_assistant_settings().effective_cli == DEFAULT_CLI
 
 
 def _resume_prompt(resume_session_id: str | None, initial_prompt: str | None) -> list[str]:

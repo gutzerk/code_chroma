@@ -180,11 +180,16 @@ needs no credential check at all.
 
 ## `skill_agent.py`'s `_run_cli` (was `_run_claude`)
 
-`SkillAgent.resolve_cli()` returns `(adapter, binary, model, env_overrides)`: if `self.name`'s
-assignment exists and is `mode="cli"` with a `kind="cli"` provider whose `adapter` is in
-`CLI_ADAPTERS`, that adapter/provider-adapter-name/assignment-model, plus `env_overrides` from
-`_cli_env_overrides(provider)`; else today's exact default — `load_assistant_settings()`'s
-`effective_cli`/`model`, via `ClaudeAdapter`, with `env_overrides={}`. `start()`'s
+`llm.resolve_cli.resolve_cli()` returns a `CliResolution` (`adapter_key`, `binary`, `model`,
+`env_overrides`, `provider_assigned`): if `self.name`'s assignment exists and is `mode="cli"` with a
+`kind="cli"` provider whose `adapter` is in `CLI_ADAPTERS`, that adapter/provider-adapter-name/
+assignment-model, plus `env_overrides` from `_cli_env_overrides(provider)` and
+`provider_assigned=True`; else today's exact default — `load_assistant_settings()`'s
+`effective_cli`/`model`, via `ClaudeAdapter`, with `env_overrides={}` and
+`provider_assigned=False`. `SkillAgent.resolve_cli()` maps the same result to
+`(adapter, binary, model, env_overrides)` for its existing callers. Agent-window launch logic uses
+the returned provenance directly when deciding whether to add Claude plugin flags; it does not
+resolve the provider a second time. `start()`'s
 `shutil.which(...)` PATH guard and `_read_events()`'s per-line parsing both call through the same
 resolved adapter/binary, so an assigned `codex`-style provider (once that adapter ships) would be
 checked and parsed correctly too.

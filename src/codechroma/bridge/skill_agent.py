@@ -349,8 +349,13 @@ class SkillAgent:
 
     def resolve_cli(self) -> tuple[CliAdapter, str, str, dict[str, str]]:
         """(adapter, binary, model, env_overrides) of the shared resolve, adapter mapped to impl."""
-        adapter_key, binary, model, env_overrides = _resolve_cli(self.name, self.model)
-        return CLI_ADAPTERS[adapter_key], binary, model, env_overrides
+        resolution = _resolve_cli(self.name, self.model)
+        return (
+            CLI_ADAPTERS[resolution.adapter_key],
+            resolution.binary,
+            resolution.model,
+            resolution.env_overrides,
+        )
 
     async def _run_cli(
         self,

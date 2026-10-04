@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.4.2](https://github.com/gutzerk/code_chroma/compare/v0.4.1...v0.4.2) (2026-10-04)
+
+
+### Bug Fixes
+
+* restore Windows desktop window controls ([2ee6c8f](https://github.com/gutzerk/code_chroma/commit/2ee6c8f271e6296d4b2a26308c7a2f40759fdd97))
+* restore Windows desktop window controls ([dd36006](https://github.com/gutzerk/code_chroma/commit/dd36006d83a795910a73cd8187af4265ae1efd46))
+
 ## [0.4.1](https://github.com/gutzerk/code_chroma/compare/v0.4.0...v0.4.1) (2026-10-04)
 
 

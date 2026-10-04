@@ -51,6 +51,7 @@ def _install_conventional_commit_hook(repo: Path) -> None:
 AUTH_OK_NO_PR = """
 case "$1 $2" in
   "auth status") exit 0 ;;
+  "repo view") echo '{"nameWithOwner":"acme/app"}'; exit 0 ;;
   "pr view") exit 1 ;;
   "pr create") echo "https://github.com/acme/app/pull/123"; exit 0 ;;
 esac
@@ -117,14 +118,22 @@ def test_a_failed_auth_status_reads_as_not_authenticated(agent, bin_dir):
     assert result["text"] == "Log in: gh auth login"
 
 
-def test_a_gitlab_origin_reads_as_not_github(agent, bin_dir):
-    _stub_gh(bin_dir, AUTH_OK_NO_PR)
+def test_a_gitlab_origin_reads_as_not_github(agent, monkeypatch):
+    monkeypatch.setattr(publish.shutil, "which", lambda _name: "gh")
+    monkeypatch.setattr(
+        publish,
+        "run_gh",
+        lambda _root, *args: "" if args == ("auth", "status") else None,
+    )
+    monkeypatch.setattr(
+        "codechroma.bridge.prs.github.run_gh", lambda *_args: None
+    )
     _git(agent, "remote", "set-url", "origin", "https://gitlab.com/acme/app.git")
 
     result = publish.preflight(agent, "agent/refund-flow", "main")
 
     assert result["reason"] == publish.REASON_NOT_GITHUB
-    assert result["text"] == "Works with GitHub only"
+    assert "gh repo view" in result["text"]
 
 
 def test_a_branch_with_no_commits_has_nothing_to_open_a_pr_for(agent, bin_dir):

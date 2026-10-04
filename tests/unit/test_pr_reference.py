@@ -4,6 +4,7 @@
 writes into a temp dir prepended to PATH, and `origin` is a plain URL on a local repository.
 """
 
+import json
 import os
 import subprocess
 from pathlib import Path
@@ -17,7 +18,12 @@ def _stub_gh(bin_dir: Path, body: str) -> None:
     """A fake `gh` on PATH; `body` is the sh script standing in for the real binary."""
     bin_dir.mkdir(parents=True, exist_ok=True)
     script = bin_dir / "gh"
-    script.write_text(f"#!/bin/sh\n{body}\n")
+    script.write_text(
+        "#!/bin/sh\ncase \"$1 $2\" in\n"
+        "  \"repo view\") echo '{\"nameWithOwner\":\"acme/app\"}'; exit 0 ;;\n"
+        "esac\n"
+        f"{body}\n"
+    )
     script.chmod(0o755)
 
 
@@ -85,26 +91,39 @@ def test_anything_that_is_not_a_pull_request_is_rejected(raw):
 
 
 @pytest.mark.parametrize(
-    "remote",
+    ("remote_name", "remote"),
     [
-        "https://github.com/acme/app.git",
-        "https://github.com/acme/app",
-        "git@github.com:acme/app.git",
-        "ssh://git@github.com/acme/app.git",
+        ("origin", "https://github.com/acme/app.git"),
+        ("origin", "https://github.com/acme/app"),
+        ("origin", "https://build-user@github.com/acme/app.git"),
+        ("origin", "git@github.com:acme/app.git"),
+        ("origin", "ssh://git@github.com/acme/app.git"),
+        ("upstream", "git@github.com:acme/app.git"),
+        ("origin", "git@gh-work:acme/app.git"),
     ],
 )
-def test_origin_slug_reads_every_remote_form(tmp_path, remote):
+def test_repository_slug_uses_gh_resolution_for_remote_variants(
+    tmp_path, monkeypatch, remote_name, remote
+):
     root = tmp_path / "repo"
     root.mkdir()
     subprocess.run(["git", "init"], cwd=root, check=True, capture_output=True)
     subprocess.run(
-        ["git", "remote", "add", "origin", remote], cwd=root, check=True, capture_output=True
+        ["git", "remote", "add", remote_name, remote], cwd=root, check=True, capture_output=True
     )
+    calls = []
 
-    assert github.origin_slug(root) == ("acme", "app")
+    def resolve(cwd, *args):
+        calls.append((cwd, args))
+        return json.dumps({"nameWithOwner": "acme/app"})
+
+    monkeypatch.setattr(github, "run_gh", resolve)
+
+    assert github.repository_slug(root) == ("acme", "app")
+    assert calls == [(root, ("repo", "view", "--json", "nameWithOwner"))]
 
 
-def test_a_non_github_remote_has_no_slug(tmp_path):
+def test_failed_gh_resolution_is_not_a_github_repository(tmp_path, monkeypatch):
     root = tmp_path / "repo"
     root.mkdir()
     subprocess.run(["git", "init"], cwd=root, check=True, capture_output=True)
@@ -112,41 +131,68 @@ def test_a_non_github_remote_has_no_slug(tmp_path):
         ["git", "remote", "add", "origin", "https://gitlab.com/acme/app.git"],
         cwd=root, check=True, capture_output=True,
     )
+    monkeypatch.setattr(github, "run_gh", lambda *_args: None)
 
-    assert github.origin_slug(root) is None
-    assert not github.is_github_remote(root)
+    assert github.repository_slug(root) is None
+    assert not github.is_github_repository(root)
 
 
-def test_a_repository_with_no_origin_has_no_slug(tmp_path):
-    root = tmp_path / "bare"
+def test_gh_can_resolve_a_nested_path_inside_a_worktree(tmp_path, monkeypatch):
+    root = tmp_path / "repo"
     root.mkdir()
     subprocess.run(["git", "init"], cwd=root, check=True, capture_output=True)
+    subprocess.run(["git", "config", "user.email", "test@example.com"], cwd=root, check=True)
+    subprocess.run(["git", "config", "user.name", "Test"], cwd=root, check=True)
+    (root / "README.md").write_text("repo\n")
+    subprocess.run(["git", "add", "README.md"], cwd=root, check=True)
+    subprocess.run(["git", "commit", "-m", "initial"], cwd=root, check=True, capture_output=True)
+    (root / "nested").mkdir()
+    worktree = tmp_path / "worktree"
+    subprocess.run(
+        ["git", "worktree", "add", "--detach", str(worktree), "HEAD"],
+        cwd=root, check=True, capture_output=True,
+    )
+    nested = worktree / "nested"
+    nested.mkdir()
+    monkeypatch.setattr(
+        github, "run_gh", lambda cwd, *_args: json.dumps({"nameWithOwner": "acme/app"})
+        if cwd == nested else None,
+    )
 
-    assert github.origin_slug(root) is None
+    assert github.repository_slug(nested) == ("acme", "app")
 
 
-def test_a_pull_request_of_this_repository_belongs_to_origin(repo):
+def test_a_pull_request_of_this_repository_belongs_to_resolved_repository(repo, monkeypatch):
+    monkeypatch.setattr(
+        github, "run_gh", lambda *_args: json.dumps({"nameWithOwner": "acme/app"})
+    )
     reference = github.parse_pr_reference("https://github.com/acme/app/pull/7")
 
-    assert github.belongs_to_origin(reference, repo)
+    assert github.belongs_to_repository(reference, repo)
 
 
-def test_the_owner_comparison_ignores_case(repo):
+def test_the_owner_comparison_ignores_case(repo, monkeypatch):
+    monkeypatch.setattr(
+        github, "run_gh", lambda *_args: json.dumps({"nameWithOwner": "acme/app"})
+    )
     reference = github.parse_pr_reference("https://github.com/ACME/App/pull/7")
 
-    assert github.belongs_to_origin(reference, repo)
+    assert github.belongs_to_repository(reference, repo)
 
 
-def test_another_repositorys_pull_request_does_not_belong_to_origin(repo):
+def test_another_repositorys_pull_request_does_not_belong_to_resolved_repo(repo, monkeypatch):
+    monkeypatch.setattr(
+        github, "run_gh", lambda *_args: json.dumps({"nameWithOwner": "acme/app"})
+    )
     reference = github.parse_pr_reference("https://github.com/other/thing/pull/7")
 
-    assert not github.belongs_to_origin(reference, repo)
+    assert not github.belongs_to_repository(reference, repo)
 
 
 def test_a_bare_number_always_belongs_to_the_opened_repository(repo):
     reference = github.parse_pr_reference("7")
 
-    assert github.belongs_to_origin(reference, repo)
+    assert github.belongs_to_repository(reference, repo)
 
 
 def test_metadata_comes_back_parsed(repo, bin_dir):
@@ -267,9 +313,12 @@ def test_review_comments_fall_back_to_original_line_when_resolved(repo, bin_dir)
     assert comments[0]["line"] == 9
 
 
-def test_review_comments_are_empty_without_a_github_origin(tmp_path, bin_dir):
+def test_review_comments_are_empty_when_gh_cannot_resolve_the_checkout(
+    tmp_path, bin_dir, monkeypatch
+):
     root = tmp_path / "bare"
     root.mkdir()
     subprocess.run(["git", "init"], cwd=root, check=True, capture_output=True)
+    monkeypatch.setattr(github, "run_gh", lambda *_args: None)
 
     assert github.fetch_review_comments(root, 7) == []

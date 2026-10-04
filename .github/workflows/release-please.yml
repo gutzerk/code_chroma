@@ -7,7 +7,12 @@ name: Release
 on:
   push:
     branches: [main]
-  workflow_dispatch: # manual "release now" button
+  workflow_dispatch:
+    inputs:
+      release_tag:
+        description: Rebuild installers and latest.json for an existing release tag
+        required: false
+        type: string
 
 permissions:
   contents: write
@@ -30,7 +35,7 @@ jobs:
     timeout-minutes: 15
     outputs:
       release_created: ${{ steps.release.outputs.release_created }}
-      tag_name: ${{ steps.release.outputs.tag_name }}
+      tag_name: ${{ steps.release.outputs.tag_name || github.event.inputs.release_tag }}
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
       - id: release
@@ -55,7 +60,9 @@ jobs:
             bridge_arch: x86_64
     runs-on: ${{ matrix.runner }}
     needs: release
-    if: needs.release.outputs.release_created == 'true'
+    if: >-
+      ${{ needs.release.outputs.release_created == 'true' ||
+          (github.event_name == 'workflow_dispatch' && github.event.inputs.release_tag != '') }}
     timeout-minutes: 40
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
@@ -145,7 +152,9 @@ jobs:
     name: Build Windows installer (x64)
     runs-on: windows-latest
     needs: release
-    if: needs.release.outputs.release_created == 'true'
+    if: >-
+      ${{ needs.release.outputs.release_created == 'true' ||
+          (github.event_name == 'workflow_dispatch' && github.event.inputs.release_tag != '') }}
     timeout-minutes: 40
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
@@ -225,7 +234,9 @@ jobs:
     name: Build Linux installers (x64)
     runs-on: ubuntu-22.04
     needs: release
-    if: needs.release.outputs.release_created == 'true'
+    if: >-
+      ${{ needs.release.outputs.release_created == 'true' ||
+          (github.event_name == 'workflow_dispatch' && github.event.inputs.release_tag != '') }}
     timeout-minutes: 40
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
@@ -324,7 +335,9 @@ jobs:
     name: Publish install manifest (latest.json)
     runs-on: ubuntu-latest
     needs: [release, macos, windows, linux]
-    if: needs.release.outputs.release_created == 'true'
+    if: >-
+      ${{ needs.release.outputs.release_created == 'true' ||
+          (github.event_name == 'workflow_dispatch' && github.event.inputs.release_tag != '') }}
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4

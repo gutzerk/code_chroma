@@ -123,6 +123,8 @@ shell that shows a recents/"Open folder…" launcher, then spawns a **PyInstalle
 free port and loads `http://127.0.0.1:<port>` in the same window. macOS builds target arm64 and x64 DMGs;
 Windows builds target an NSIS installer. `python -m codechroma.bridge.launch` remains the
 browser/dev path and is unaffected.
+The desktop shell opens in a regular windowed state so the operating system's minimize, maximize,
+and close controls remain available. Its tab strip uses the canvas background color (`#1b1d23`).
 
 Things worth knowing before touching it:
 

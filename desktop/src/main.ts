@@ -112,10 +112,8 @@ async function createShell(): Promise<Shell> {
     minWidth: 900,
     minHeight: 600,
     title: "CodeChroma",
-    backgroundColor: "#11131a",
-    // Opens full-screen (true full-screen mode, F11/Ctrl+Cmd+F toggles back). The title bar and
-    // tab strip render over the screen edge-to-edge, like a maximized IDE.
-    fullscreen: true,
+    backgroundColor: "#1b1d23",
+    fullscreen: false,
   });
 
   const tabBar = new WebContentsView({

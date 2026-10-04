@@ -18,7 +18,7 @@ extraResources:
 mac:
   target:
     - target: dmg
-      arch: [arm64, x64]
+  artifactName: CodeChroma-${version}-${arch}.${ext}
   category: public.app-category.developer-tools
   # Unsigned by design for now -- recipients right-click -> Open on first launch. To sign later,
   # drop these two lines and supply CSC_LINK / CSC_KEY_PASSWORD plus a notarize block.

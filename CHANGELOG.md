@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.3.2](https://github.com/gutzerk/code_chroma/compare/v0.3.1...v0.3.2) (2026-10-04)
+
+
+### Bug Fixes
+
+* show agent launch errors in agent windows ([58de260](https://github.com/gutzerk/code_chroma/commit/58de2600a283385ea1d880f5208747458e7dc12c))
+
 ## [0.3.1](https://github.com/gutzerk/code_chroma/compare/v0.3.0...v0.3.1) (2026-10-04)
 
 

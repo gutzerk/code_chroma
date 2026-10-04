@@ -175,7 +175,9 @@ canvas instead of collapsing onto whichever diagram happened to carry code-backe
   the branch-scoping rules), plus a second "Diagrams" tab for collapsing/expanding a diagram layer on
   the canvas without deleting it (also in `parallel-agents.md`). The panel always renders — even with
   neither agents nor diagrams it stays mounted (empty tabs + zero counts) so the UI never loses the
-  strip that lets the user get an agent or diagram started. Since the left rail is
+  strip that lets the user get an agent or diagram started. The context bar control after Assistant
+  settings hides or restores this panel without closing agent windows or changing diagram visibility;
+  hiding it also closes an open code popup and code inspector. Since the left rail is
   icon-only, `RailButton` renders the control's name as a real
   `.rail-tooltip` span shown on hover after a 300ms delay — deliberately not a `title` attribute
   (native tooltips are ~1s late, OS-styled, and untestable), `aria-hidden` because `aria-label`

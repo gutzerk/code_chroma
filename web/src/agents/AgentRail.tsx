@@ -62,7 +62,7 @@ type RailTab = "agents" | "diagrams";
  * would raise a second, OS-styled tooltip inside a button whose whole point is `.rail-tooltip`. Only
  * the accessibility wrapper differs — the colour map is still the one in styles.css.
  */
-export function AgentRail() {
+export function AgentRail({ hidden = false }: { hidden?: boolean }) {
   const agentClient = useAgentClient();
   const engineClient = useEngineClient();
   const agents = useAgents();
@@ -101,7 +101,7 @@ export function AgentRail() {
   };
 
   return (
-    <div className="agent-task-rail" data-testid="agent-task-rail">
+    <div className="agent-task-rail" data-testid="agent-task-rail" hidden={hidden}>
       <div className="agent-task-rail-tabs" role="tablist" aria-label="Agent panel sections">
         <button
           type="button"

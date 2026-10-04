@@ -277,6 +277,9 @@ branch through an agent attached to it (`_guard_shared_worktree`, keyed off `Age
   session (resolved from `websocket.app.state.services.agent_sessions`, the per-app
   `AgentSessionRegistry`); with no `workspace`, it spawns a per-socket PTY exactly as the plain
   terminal panel always has.
+  If creating an agent succeeds but starting its process fails (for example, `claude` is missing from
+  the bridge's PATH), the canvas opens that agent's window and renders the launch error in its own
+  terminal area; the unrelated app shell terminal is not opened.
 - Canvas side: `web/src/agents/`. `AgentWindowLayer` is `position: fixed` **above** `.canvas-stage` —
   screen coordinates on purpose, so a window never scales with zoom. ⚠ Not registered with feature
   002's `collisionStore`: different coordinate space, explicitly out of scope there. 🔴 Minimizing

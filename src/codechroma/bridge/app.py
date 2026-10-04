@@ -107,6 +107,10 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
 
 def create_app(repo_root: Path | None = None) -> FastAPI:
     """Builds an app over `repo_root`, analyzing now so the first request has a graph to serve."""
+    from codechroma.llm.runtime_env import get_runtime_environment
+
+    # The probe itself runs on a dedicated worker, before repository analysis/discovery.
+    get_runtime_environment().start().result()
     root = Path(repo_root) if repo_root is not None else default_repo_root()
     # Every entry point needs this, not just launch.py -- else a skill-agent run has no SKILL.md.
     try:

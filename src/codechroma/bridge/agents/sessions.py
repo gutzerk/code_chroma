@@ -1,8 +1,7 @@
 """Long-lived agent PTYs owned by the bridge, with scrollback so a window can reattach to one.
 
-🔴 The process is spawned here, in the bridge, never by the renderer — that is the only way it
-inherits the PATH `desktop/src/shellPath.ts` repaired at startup, without which a Finder-launched
-app cannot find `/opt/homebrew/bin/claude` and every agent dies instantly.
+Agent lookup and launch use llm.runtime_env, including the user's login-shell
+exports when the macOS GUI environment is incomplete.
 
 The session outlives any single WebSocket: minimizing a window, or reloading the page, must not kill
 the agent. So output is fanned out to zero or more attached consumers, and a reattaching consumer is
@@ -24,7 +23,6 @@ from __future__ import annotations
 
 import asyncio
 import logging
-import shutil
 import time
 from pathlib import Path
 from typing import Protocol, runtime_checkable
@@ -32,6 +30,7 @@ from typing import Protocol, runtime_checkable
 from codechroma.bridge.agents.status import StatusDetector, load_manifest_for
 from codechroma.config import settings
 from codechroma.errors import codechromaError
+from codechroma.llm.runtime_env import CliLookupError, launch_failed, resolve_runtime_cli
 from codechroma.terminal.pty_session import PtySession, default_cols, default_rows
 from codechroma.terminal.screen_tap import ScreenTap
 
@@ -248,14 +247,19 @@ class AgentSessionRegistry:
             return existing
         if not argv:
             raise AgentStartError("no command configured for this agent kind")
-        if shutil.which(argv[0]) is None:
-            raise AgentStartError(f"{argv[0]} CLI not found on PATH")
+        try:
+            runtime = resolve_runtime_cli(argv[0], env)
+        except CliLookupError as exc:
+            raise AgentStartError(str(exc)) from exc
+        argv = [runtime.executable, *argv[1:]]
+        env = dict(runtime.env)
         if not cwd.is_dir():
             raise AgentStartError(f"the agent's worktree is missing: {cwd}")
         try:
             session = AgentSession(agent_id, argv, str(cwd), kind=kind, env=env)
-        except OSError as exc:
-            raise AgentStartError(f"could not start {argv[0]}: {exc}") from exc
+        except Exception as exc:
+            launch_failed(exc)
+            raise AgentStartError(runtime.launch_error(exc)) from exc
         self._sessions[agent_id] = session
         return session
 

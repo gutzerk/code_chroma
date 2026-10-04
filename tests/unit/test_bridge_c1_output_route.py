@@ -8,7 +8,6 @@ from pathlib import Path
 import pytest
 from fastapi.testclient import TestClient
 
-from codechroma.bridge import skill_agent
 from tests.unit.fake_claude import fake_claude_exec
 
 FIXTURE_REPO = Path(__file__).parent.parent / "fixtures" / "sample_repo"
@@ -59,7 +58,9 @@ def test_the_feed_serves_the_lines_a_run_has_rendered_so_far(server_module):
 
 def test_generating_pushes_the_runs_progress_over_the_events_socket(server_module, monkeypatch):
     events = [{"type": "assistant", "message": {"content": [_TOOL_USE]}}]
-    monkeypatch.setattr(skill_agent.shutil, "which", lambda _name: "/usr/bin/claude")
+    monkeypatch.setattr(
+        "codechroma.llm.runtime_env.shutil.which", lambda _name, **_kwargs: "/usr/bin/claude"
+    )
     monkeypatch.setattr(asyncio, "create_subprocess_exec", fake_claude_exec(events=events))
 
     with TestClient(server_module.app) as client:

@@ -19,7 +19,9 @@ _SETTLE_SECONDS = 0.05
 
 @pytest.fixture(autouse=True)
 def _clear_jobs(monkeypatch):
-    monkeypatch.setattr(skill_agent.shutil, "which", lambda _name: "/usr/bin/claude")
+    monkeypatch.setattr(
+        "codechroma.llm.runtime_env.shutil.which", lambda _name, **_kwargs: "/usr/bin/claude"
+    )
     AGENT.jobs.clear()
     AGENT.output.clear()
     yield

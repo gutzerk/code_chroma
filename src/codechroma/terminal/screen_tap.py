@@ -43,9 +43,11 @@ _PROGRESS_STATES = {
     "4": "warning",
 }
 
+
 def _process_cache_seconds() -> float:
     # `ps` costs a fork; the foreground process only changes when the user launches something.
     return settings.terminal.process_cache_seconds
+
 
 # pyte reports colours by name; these are the eight SGR bases, "brown" being its word for yellow.
 _SGR_BASE = {
@@ -199,11 +201,18 @@ def _process_name_of(master_fd: int) -> str | None:
         pgid = os.tcgetpgrp(master_fd)
     except OSError:
         return None
+    from codechroma.llm.runtime_env import CliLookupError, resolve_runtime_cli
+
     try:
+        runtime = resolve_runtime_cli("ps")
         result = subprocess.run(
-            ["ps", "-o", "comm=", "-p", str(pgid)], capture_output=True, text=True, timeout=2
+            [runtime.executable, "-o", "comm=", "-p", str(pgid)],
+            capture_output=True,
+            text=True,
+            timeout=2,
+            env=dict(runtime.env),
         )
-    except (OSError, subprocess.TimeoutExpired):
+    except OSError, subprocess.TimeoutExpired, CliLookupError:
         return None
     if result.returncode != 0:
         return None

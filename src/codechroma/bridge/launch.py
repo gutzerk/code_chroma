@@ -8,7 +8,6 @@ from __future__ import annotations
 
 import argparse
 import os
-import shutil
 import signal
 import socket
 import subprocess
@@ -17,6 +16,7 @@ import time
 from pathlib import Path
 
 from codechroma.bridge.skill_sync import SKILL_NAMES, sync_skill
+from codechroma.llm.runtime_env import CliLookupError, get_runtime_environment, resolve_runtime_cli
 
 PROJECT_ROOT = Path(__file__).resolve().parents[3]
 WEB_DIR = PROJECT_ROOT / "web"
@@ -35,7 +35,7 @@ def _wait_for_port(host: str, port: int, timeout: float) -> bool:
 
 
 def _start_bridge(repo_path: Path, host: str, port: int) -> subprocess.Popen:
-    env = dict(os.environ)
+    env = get_runtime_environment().spawn_env()
     env["codechroma_BRIDGE_REPO_PATH"] = str(repo_path)
     command = [
         sys.executable, "-m", "uvicorn", "codechroma.bridge.server:app",
@@ -45,17 +45,16 @@ def _start_bridge(repo_path: Path, host: str, port: int) -> subprocess.Popen:
 
 
 def _start_frontend(bridge_url: str, host: str, port: int) -> subprocess.Popen:
-    env = dict(os.environ)
+    env = get_runtime_environment().spawn_env()
     env["VITE_ENGINE_BRIDGE_URL"] = bridge_url
     env["VITE_TERMINAL_BRIDGE_URL"] = f"ws://{host}:{port}"
-    npm = env.get("CODECHROMA_NPM") or shutil.which(
-        "npm.cmd" if os.name == "nt" else "npm",
-        path=env.get("PATH"),
-    )
-    if not npm:
-        raise FileNotFoundError(
-            "npm was not found; install Node.js, add npm to PATH, or set CODECHROMA_NPM"
+    try:
+        runtime = resolve_runtime_cli(
+            os.environ.get("CODECHROMA_NPM") or ("npm.cmd" if os.name == "nt" else "npm"), env,
         )
+    except CliLookupError as exc:
+        raise FileNotFoundError("npm was not found; install Node.js or set CODECHROMA_NPM") from exc
+    npm, env = runtime.executable, dict(runtime.env)
     return subprocess.Popen([npm, "run", "dev"], cwd=str(WEB_DIR), env=env)
 
 

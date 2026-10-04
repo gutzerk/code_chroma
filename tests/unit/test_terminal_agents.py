@@ -50,6 +50,24 @@ def test_agent_kind_routes_to_an_assigned_cli_provider_binary():
     assert env["ANTHROPIC_AUTH_TOKEN"] == "sk-proxy"
 
 
+def test_agent_kind_loads_plugin_when_claude_adapter_uses_a_wrapper(monkeypatch):
+    from codechroma.bridge.resources import resource_path
+    from codechroma.llm import resolve_cli
+    from codechroma.terminal.agents import agent_cli
+
+    _assign_agents_group()
+    monkeypatch.setattr(
+        resolve_cli,
+        "resolve_cli",
+        lambda _call_site, _model: ("claude", "claude-wrapper", "claude-opus", {}),
+    )
+
+    argv, env = agent_cli("agent")
+
+    assert argv == ["claude-wrapper", "--plugin-dir", str(resource_path("skills").parent)]
+    assert env == {}
+
+
 def test_agent_kind_carries_a_first_message_and_resume():
     from codechroma.terminal.agents import agent_cli
 
@@ -100,12 +118,47 @@ def test_non_claude_assistant_cli_does_not_receive_claude_plugin_flags():
 
 def test_runtime_plugin_directory_contains_the_existing_bundled_skills():
     import json
+    import re
 
     from codechroma.bridge.resources import resource_path
     from codechroma.bridge.skill_sync import SKILL_NAMES
 
     plugin_root = resource_path("skills").parent
     manifest = json.loads((plugin_root / ".claude-plugin" / "plugin.json").read_text())
+    discoverable_commands = set()
+    for skill_name in SKILL_NAMES:
+        skill_text = (plugin_root / "skills" / skill_name / "SKILL.md").read_text()
+        frontmatter = skill_text.split("---", 2)[1]
+        declared_name = re.search(r"(?m)^name:\s*(\S+)\s*$", frontmatter)
+        assert declared_name is not None
+        assert declared_name.group(1) == skill_name
+        discoverable_commands.add(f"/{manifest['name']}:{declared_name.group(1)}")
 
     assert manifest["name"] == "codechroma"
-    assert all((plugin_root / "skills" / name / "SKILL.md").is_file() for name in SKILL_NAMES)
+    assert discoverable_commands == {
+        "/codechroma:codechroma-draw-diagram",
+        "/codechroma:codechroma-review-diagram",
+        "/codechroma:codechroma-epic-brief",
+        "/codechroma:codechroma-wiki-general-update",
+    }
+
+
+def test_headless_prompts_keep_using_synced_project_skill_commands():
+    from pathlib import Path
+
+    prompts = Path(__file__).parents[2] / "src" / "codechroma" / "prompts"
+    prompt_skill_names = {
+        "c1_agent.yaml": "codechroma-draw-diagram",
+        "patterns_agent.yaml": "codechroma-draw-diagram",
+        "impact_agent.yaml": "codechroma-draw-diagram",
+        "sequence_agent.yaml": "codechroma-draw-diagram",
+        "epics_agent.yaml": "codechroma-draw-diagram",
+        "impact_review_agent.yaml": "codechroma-review-diagram",
+        "epic_brief_agent.yaml": "codechroma-epic-brief",
+        "wiki_general_update_agent.yaml": "codechroma-wiki-general-update",
+    }
+
+    assert all(
+        f"/{skill_name}" in (prompts / prompt_name).read_text()
+        for prompt_name, skill_name in prompt_skill_names.items()
+    )

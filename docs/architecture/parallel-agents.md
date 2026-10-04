@@ -76,9 +76,13 @@ branch through an agent attached to it (`_guard_shared_worktree`, keyed off `Age
   `attach_to` workspaces, and nested/PR project roots. The plugin points at the same packaged skills
   as `skill_sync`, so the existing copy/reconcile behavior is unchanged. It writes no files into a
   launched project, adds no prompt text, and is not installed in Claude's global plugin directory.
-  Plugin skills are namespaced (`/codechroma:<skill-name>`), leaving project skills and their
-  precedence intact; non-Claude provider CLIs receive no Claude-specific flags. Frozen desktop
-  builds include the manifest beside their bundled skill copies.
+  Plugin skill invocation names combine the plugin name with the skill's declared name, e.g.
+  `/codechroma:codechroma-draw-diagram`, leaving project skills and their precedence intact.
+  The separate headless `claude -p` pipeline continues to use the unnamespaced, project-synced
+  skill commands from its prompts; those prompts are not sent through the runtime plugin.
+  Non-Claude providers receive no Claude-specific flags, and a Claude adapter is recognized by the
+  resolved provider rather than its executable filename. Frozen desktop builds include the
+  manifest beside their bundled skill copies.
 - `autostart.py` — `auto_start_agents()`, called from `app.py`'s `lifespan()` right after
   `registry.start_all()`, undoes what `reconcile()` just did: every record `reconcile()` left
   `stopped`/`pid=None` gets its `claude` respawned, so closing and reopening the app (or the desktop

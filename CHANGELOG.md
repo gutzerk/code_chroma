@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.4.0](https://github.com/gutzerk/code_chroma/compare/v0.3.2...v0.4.0) (2026-10-04)
+
+
+### Features
+
+* dock agent terminals on canvas ([f669a72](https://github.com/gutzerk/code_chroma/commit/f669a726b6fa74397049cef00fcb46d259609d4c))
+* dock agent terminals on canvas ([7d7ab27](https://github.com/gutzerk/code_chroma/commit/7d7ab273f09a2244ccd63f0c8ad863064500a0aa))
+
 ## [0.3.2](https://github.com/gutzerk/code_chroma/compare/v0.3.1...v0.3.2) (2026-10-04)
 
 

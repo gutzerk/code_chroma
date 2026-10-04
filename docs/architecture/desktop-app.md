@@ -93,6 +93,8 @@ release's published `.sha256` sidecar, then **provenance-checked** before it's r
 (`/repos/UshakovDV/code-chroma/attestations/sha256:<hex>`) and verifies it with `sigstore-js`,
 pinning the OIDC issuer and workflow identity of `release-please.yml` — so the signed attestation,
 not the release's own sidecar, is the authority binding the artifact to this repo's release pipeline.
+`desktop/package.json` pins Sigstore to v4: Electron 33 embeds Node 20, while Sigstore v5 requires
+Node 22.22.2+, 24.15+, or 26+ and is incompatible with the packaged desktop runtime.
 A release that publishes no attestation refuses to update (it would be an unverified install), and
 one whose installer has no reachable `sha256` digest surfaces the update but asks the user to install
 manually instead of silently pretending to be current. Asset names are sanitized to

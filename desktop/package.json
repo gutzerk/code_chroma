@@ -25,6 +25,6 @@
     "vitest": "^2.1.5"
   },
   "dependencies": {
-    "sigstore": "5.0.0"
+    "sigstore": "4.1.1"
   }
 }

@@ -67,3 +67,13 @@ def fake_claude_exec(
         )
 
     return _exec
+
+
+class _MissingCliMessage:
+    """Match the actionable diagnosis without pinning the host's PATH/source text."""
+
+    def __eq__(self, other):
+        return isinstance(other, str) and "executable not found on PATH" in other
+
+
+CLI_MISSING = _MissingCliMessage()

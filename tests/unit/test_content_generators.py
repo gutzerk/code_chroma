@@ -1,13 +1,14 @@
 """Unit tests for build_skill_agent_for's background `claude -p` generation job."""
 
+
 import asyncio
 import json
 
 import pytest
 
-from codechroma.bridge import content_generators, skill_agent
+from codechroma.bridge import content_generators
 from codechroma.diagrams.registry import BUILTIN_TYPES
-from tests.unit.fake_claude import fake_claude_exec
+from tests.unit.fake_claude import CLI_MISSING, fake_claude_exec
 
 # One instance per test module; the autouse fixture clears its state between tests.
 AGENT = content_generators.build_skill_agent_for(BUILTIN_TYPES["c1"])
@@ -69,18 +70,20 @@ def _run_generation(repo_root, on_change=None):
 
 
 def test_missing_claude_binary_reports_error_without_spawning(monkeypatch, tmp_path):
-    monkeypatch.setattr(skill_agent.shutil, "which", lambda _name: None)
+    monkeypatch.setattr("codechroma.llm.runtime_env.shutil.which", lambda _name, **_kwargs: None)
     on_change = _RecordingChange()
 
     result = asyncio.run(AGENT.start("default", tmp_path, on_change))
 
-    assert result == {"state": "error", "error": "claude CLI not found on PATH"}
+    assert result == {"state": "error", "error": CLI_MISSING}
     assert AGENT.get_state("default") == result
     assert on_change.calls == [("default", result)]
 
 
 def test_successful_run_ends_idle(monkeypatch, tmp_path):
-    monkeypatch.setattr(skill_agent.shutil, "which", lambda _name: "/usr/bin/claude")
+    monkeypatch.setattr(
+        "codechroma.llm.runtime_env.shutil.which", lambda _name, **_kwargs: "/usr/bin/claude"
+    )
     monkeypatch.setattr(asyncio, "create_subprocess_exec", fake_claude_exec(returncode=0))
     _write_c1(tmp_path, VALID_C1)
     on_change = _RecordingChange()
@@ -97,7 +100,9 @@ def test_successful_run_ends_idle(monkeypatch, tmp_path):
 
 
 def test_runs_claude_with_the_haiku_model(monkeypatch, tmp_path):
-    monkeypatch.setattr(skill_agent.shutil, "which", lambda _name: "/usr/bin/claude")
+    monkeypatch.setattr(
+        "codechroma.llm.runtime_env.shutil.which", lambda _name, **_kwargs: "/usr/bin/claude"
+    )
     captured = []
 
     def _capturing_factory(*args, **_kwargs):
@@ -136,7 +141,9 @@ def test_timeout_falls_back_to_the_default_when_unset_or_junk(monkeypatch):
 def test_nonzero_exit_reports_stderr_then_the_progress_lines(
     monkeypatch, tmp_path, events, stderr, expected
 ):
-    monkeypatch.setattr(skill_agent.shutil, "which", lambda _name: "/usr/bin/claude")
+    monkeypatch.setattr(
+        "codechroma.llm.runtime_env.shutil.which", lambda _name, **_kwargs: "/usr/bin/claude"
+    )
     monkeypatch.setattr(
         asyncio,
         "create_subprocess_exec",
@@ -149,7 +156,9 @@ def test_nonzero_exit_reports_stderr_then_the_progress_lines(
 
 
 def test_exit_zero_without_a_written_diagram_is_an_error(monkeypatch, tmp_path):
-    monkeypatch.setattr(skill_agent.shutil, "which", lambda _name: "/usr/bin/claude")
+    monkeypatch.setattr(
+        "codechroma.llm.runtime_env.shutil.which", lambda _name, **_kwargs: "/usr/bin/claude"
+    )
     monkeypatch.setattr(asyncio, "create_subprocess_exec", fake_claude_exec(returncode=0))
 
     _run_generation(tmp_path)
@@ -168,7 +177,9 @@ def test_exit_zero_without_a_written_diagram_is_an_error(monkeypatch, tmp_path):
 def test_a_run_that_leaves_no_valid_diagram_restores_the_previous_one(
     monkeypatch, tmp_path, returncode, stderr
 ):
-    monkeypatch.setattr(skill_agent.shutil, "which", lambda _name: "/usr/bin/claude")
+    monkeypatch.setattr(
+        "codechroma.llm.runtime_env.shutil.which", lambda _name, **_kwargs: "/usr/bin/claude"
+    )
     _write_c1(tmp_path, VALID_C1)
 
     truncating_exec = fake_claude_exec(
@@ -184,7 +195,9 @@ def test_a_run_that_leaves_no_valid_diagram_restores_the_previous_one(
 
 
 def test_a_run_that_leaves_the_draft_marker_restores_the_previous_one(monkeypatch, tmp_path):
-    monkeypatch.setattr(skill_agent.shutil, "which", lambda _name: "/usr/bin/claude")
+    monkeypatch.setattr(
+        "codechroma.llm.runtime_env.shutil.which", lambda _name, **_kwargs: "/usr/bin/claude"
+    )
     _write_c1(tmp_path, VALID_C1)
     still_draft_exec = fake_claude_exec(
         returncode=0, on_spawn=lambda: _write_c1(tmp_path, DRAFT_C1)
@@ -197,7 +210,9 @@ def test_a_run_that_leaves_the_draft_marker_restores_the_previous_one(monkeypatc
 
 
 def test_cancel_all_kills_an_in_flight_run(monkeypatch, tmp_path):
-    monkeypatch.setattr(skill_agent.shutil, "which", lambda _name: "/usr/bin/claude")
+    monkeypatch.setattr(
+        "codechroma.llm.runtime_env.shutil.which", lambda _name, **_kwargs: "/usr/bin/claude"
+    )
     killed = []
     monkeypatch.setattr(
         asyncio, "create_subprocess_exec", fake_claude_exec(hang=True, killed=killed)
@@ -215,7 +230,9 @@ def test_cancel_all_kills_an_in_flight_run(monkeypatch, tmp_path):
 
 
 def test_second_call_while_generating_does_not_spawn_again(monkeypatch, tmp_path):
-    monkeypatch.setattr(skill_agent.shutil, "which", lambda _name: "/usr/bin/claude")
+    monkeypatch.setattr(
+        "codechroma.llm.runtime_env.shutil.which", lambda _name, **_kwargs: "/usr/bin/claude"
+    )
     spawns = []
     monkeypatch.setattr(
         asyncio,
@@ -261,7 +278,9 @@ def _clear_patterns_jobs():
 
 
 def test_patterns_invalid_artifact_reports_error_and_restores_snapshot(monkeypatch, tmp_path):
-    monkeypatch.setattr(skill_agent.shutil, "which", lambda _name: "/usr/bin/claude")
+    monkeypatch.setattr(
+        "codechroma.llm.runtime_env.shutil.which", lambda _name, **_kwargs: "/usr/bin/claude"
+    )
     path = _patterns_path(tmp_path)
     path.parent.mkdir(parents=True, exist_ok=True)
     valid = {"type": "patterns", "nodes": [], "relations": []}

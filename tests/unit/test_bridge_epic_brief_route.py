@@ -41,7 +41,7 @@ def test_get_before_any_brief_generated_defaults_to_idle(make_bridge, make_repo)
 
 def test_missing_claude_binary_reports_error(make_bridge, make_repo, monkeypatch):
     repo = make_repo(prepare=_with_requirements_fixture)
-    monkeypatch.setattr(skill_agent.shutil, "which", lambda _name: None)
+    monkeypatch.setattr("codechroma.llm.runtime_env.shutil.which", lambda _name, **_kwargs: None)
     client = TestClient(make_bridge(repo).app)
 
     response = client.post(f"/repos/main/epics/{EPIC_ID}/brief")

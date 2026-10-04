@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import os
 
 import pytest
 
@@ -13,6 +14,19 @@ from codechroma.bridge.wiki_general_worker import (
 )
 from codechroma.llm.cli_adapters import ClaudeAdapter, CodexAdapter
 from tests.unit.fake_worker_claude import fake_worker_exec
+
+
+@pytest.fixture(autouse=True)
+def _fake_executable(monkeypatch):
+    from codechroma.llm.runtime_env import RuntimeCli, runtime_environment
+
+    monkeypatch.setattr(
+        "codechroma.bridge.wiki_general_worker.resolve_runtime_cli",
+        lambda binary, env: RuntimeCli(
+            os.path.abspath(binary), runtime_environment(env)[0], "test",
+        ),
+    )
+
 
 _SCHEMA = {"type": "object", "properties": {"word": {"type": "string"}}, "required": ["word"]}
 

@@ -73,7 +73,7 @@ def test_a_lost_worktree_is_skipped_without_crashing_boot(repo, tmp_path, monkey
 
 def test_a_missing_claude_binary_does_not_crash_boot(repo, make_bridge, monkeypatch):
     TestClient(make_bridge(repo).app).post("/agents", json={"title": "runner"})
-    monkeypatch.setattr("shutil.which", lambda _name: None)
+    monkeypatch.setattr("shutil.which", lambda _name, **_kwargs: None)
 
     restarted = make_bridge(repo)
     with TestClient(restarted.app) as live:

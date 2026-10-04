@@ -61,9 +61,17 @@ exit 1
 
 @pytest.fixture
 def bin_dir(tmp_path, monkeypatch):
+    if os.name == "nt":
+        pytest.skip("uses POSIX shebang stubs")
     path = tmp_path / "bin"
     path.mkdir()
-    monkeypatch.setenv("PATH", f"{path}:{os.environ['PATH']}")
+    monkeypatch.setenv("PATH", f"{path}{os.pathsep}{os.environ['PATH']}")
+    from codechroma.llm import runtime_env
+
+    monkeypatch.setattr(runtime_env, "_probe", lambda *_: ({}, None, (), "test-shell"))
+    environment = runtime_env.get_runtime_environment()
+    environment.inherited = dict(os.environ)
+    environment.refresh("test PATH changed", force=True).result()
     return path
 
 
@@ -100,7 +108,7 @@ def _commit_work(agent_path: Path) -> None:
 
 
 def test_no_gh_on_path_is_reported_before_the_click(agent, monkeypatch):
-    monkeypatch.setattr("shutil.which", lambda _name: None)
+    monkeypatch.setattr("shutil.which", lambda _name, **_kwargs: None)
 
     result = publish.preflight(agent, "agent/refund-flow", "main")
 
@@ -119,7 +127,7 @@ def test_a_failed_auth_status_reads_as_not_authenticated(agent, bin_dir):
 
 
 def test_a_gitlab_origin_reads_as_not_github(agent, monkeypatch):
-    monkeypatch.setattr(publish.shutil, "which", lambda _name: "gh")
+    monkeypatch.setattr("codechroma.llm.runtime_env.shutil.which", lambda _name, **_kwargs: "gh")
     monkeypatch.setattr(
         publish,
         "run_gh",
@@ -218,8 +226,8 @@ def test_create_pr_falls_back_to_a_fixed_message_when_claude_is_missing(
 ):
     _stub_gh(bin_dir, AUTH_OK_NO_PR)
     monkeypatch.setattr(
-        "codechroma.bridge.agents.publish.shutil.which",
-        lambda name: None if name == "claude" else "/usr/bin/true",
+        "codechroma.llm.runtime_env.shutil.which",
+        lambda name, **_kwargs: None if name == "claude" else "/usr/bin/true",
     )
     _git(agent, "remote", "set-url", "origin", str(tmp_path / "origin.git"))
     _commit_work(agent)

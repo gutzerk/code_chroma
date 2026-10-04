@@ -764,7 +764,7 @@ def test_resume_is_refused_without_a_recorded_session(started_client):
 def test_start_reports_a_missing_claude_binary_instead_of_a_dead_agent(client, monkeypatch):
     test_client, _repo, _server = client
     test_client.post("/agents", json={"title": "runner"})
-    monkeypatch.setattr("shutil.which", lambda _name: None)
+    monkeypatch.setattr("shutil.which", lambda _name, **_kwargs: None)
 
     response = test_client.post("/agents/runner/start", json={})
 
@@ -907,7 +907,7 @@ def _write_transcript(root: Path, worktree: Path, session_id: str) -> None:
 def test_pr_preflight_reports_the_reason_before_the_button_renders(client, monkeypatch):
     test_client, _repo, _server = client
     test_client.post("/agents", json={"title": "publisher"})
-    monkeypatch.setattr("shutil.which", lambda _name: None)
+    monkeypatch.setattr("shutil.which", lambda _name, **_kwargs: None)
 
     body = test_client.get("/agents/publisher/pr-preflight").json()
 

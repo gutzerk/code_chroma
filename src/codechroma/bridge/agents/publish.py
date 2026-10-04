@@ -15,7 +15,6 @@ Merging is delegated to GitHub via the PR, or done by hand.
 from __future__ import annotations
 
 import logging
-import shutil
 import subprocess
 from pathlib import Path
 
@@ -23,6 +22,12 @@ from codechroma.bridge.git_cmd import porcelain_paths, run_git, run_git_raw
 from codechroma.bridge.git_long import GitLongError, kill_process_group, run_git_long
 from codechroma.config import settings
 from codechroma.errors import codechromaError
+from codechroma.llm.runtime_env import (
+    CliLookupError,
+    cli_available,
+    launch_failed,
+    resolve_runtime_cli,
+)
 
 logger = logging.getLogger("uvicorn.error")
 
@@ -73,7 +78,7 @@ def preflight(worktree: Path, branch: str, main_branch: str, source_pr: str | No
     """Everything that would stop a PR, checked before the button renders — not after a click."""
     if source_pr is not None:
         return _blocked(REASON_PR_ATTACHED)
-    if shutil.which("gh") is None:
+    if not cli_available("gh"):
         return _blocked(REASON_GH_MISSING)
     if run_gh(worktree, "auth", "status") is None:
         return _blocked(REASON_NOT_AUTHENTICATED)
@@ -153,7 +158,9 @@ def create_pr(
 
 def _generate_commit_message(worktree: Path, previous_error: str | None = None) -> str:
     """Asks Claude for a message fitting the staged diff; a rejection is fed back for one retry."""
-    if shutil.which("claude") is None:
+    try:
+        runtime = resolve_runtime_cli("claude")
+    except CliLookupError:
         return _FALLBACK_COMMIT_MESSAGE
     diff = run_git(worktree, "diff", "--cached") or ""
     if len(diff) > _diff_char_limit():
@@ -172,13 +179,15 @@ def _generate_commit_message(worktree: Path, previous_error: str | None = None) 
     )
     try:
         result = subprocess.run(
-            ["claude", "-p", prompt, "--model", _commit_message_model()],
+            [runtime.executable, "-p", prompt, "--model", _commit_message_model()],
             cwd=worktree,
             capture_output=True,
             text=True,
             timeout=_commit_message_timeout(),
+            env=dict(runtime.env),
         )
-    except (OSError, subprocess.TimeoutExpired):
+    except (OSError, subprocess.TimeoutExpired) as exc:
+        launch_failed(exc)
         return _FALLBACK_COMMIT_MESSAGE
     if result.returncode != 0:
         return _FALLBACK_COMMIT_MESSAGE
@@ -203,15 +212,18 @@ def run_gh(worktree: Path, *args: str) -> str | None:
     """`gh` in a checkout (public: the PR importer reuses it); None when it fails or hangs."""
     # Own process group: killing gh alone orphans its credential helper, pager and ssh.
     try:
+        runtime = resolve_runtime_cli("gh")
         process = subprocess.Popen(
-            ["gh", *args],
+            [runtime.executable, *args],
+            env=dict(runtime.env),
             cwd=worktree,
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
             text=True,
             start_new_session=not settings.windows,
         )
-    except OSError:
+    except (OSError, CliLookupError) as exc:
+        launch_failed(exc)
         return None
     try:
         timeout = _gh_timeout()

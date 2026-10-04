@@ -116,10 +116,10 @@ body {
   height: 100vh;
 }
 
-/* The agents toggle is the context bar's one "tonal primary" call-to-action, matching the design
+/* The agent launcher is the context bar's one "tonal primary" call-to-action, matching the design
    handoff's "New agent task" button — a labeled pill, not an icon-only square like the rest of the
-   bar's controls. It opens/closes the whole parallel-agents panel. Scoped under .canvas-chrome so
-   it outranks the plain `.canvas-chrome button` base rule (one class + one type beats one class). */
+   bar's controls. Scoped under .canvas-chrome so it outranks the plain `.canvas-chrome button` base
+   rule (one class + one type beats one class). */
 .canvas-chrome .agents-toggle-button {
   width: auto;
   height: 34px;
@@ -141,6 +141,11 @@ body {
   width: 18px;
   height: 18px;
   flex-shrink: 0;
+}
+
+.agent-panel-toggle-button > span:first-child {
+  font-size: 1.1rem;
+  line-height: 1;
 }
 
 /* IDE activity bar: every view/zoom control, icon-only, always visible at the window's left edge. */
@@ -634,6 +639,10 @@ body {
   background: var(--surface-1);
 }
 
+.agent-task-rail[hidden] {
+  display: none;
+}
+
 /* Agents / Diagrams switch above the header -- same underline-tab shape as .llm-settings-tabs,
    kept separate since this panel has its own nesting/theme (a full-height dock, not a modal). */
 .agent-task-rail-tabs {
@@ -857,12 +866,6 @@ body {
   margin-left: auto;
   border-radius: 50%;
   background: var(--accent);
-}
-
-.agents-launch-error {
-  color: #f28b82;
-  font-size: 0.72rem;
-  white-space: nowrap;
 }
 
 .terminal-toggle-button[aria-pressed="true"] {
@@ -4604,6 +4607,12 @@ body {
   color: var(--text-2);
   font-size: 0.8rem;
   text-align: center;
+}
+
+.agent-window-idle[role="alert"] {
+  color: #f28b82;
+  font-family: var(--font-mono);
+  overflow-wrap: anywhere;
 }
 
 .agent-window-resize-handle {

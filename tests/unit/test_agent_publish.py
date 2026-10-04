@@ -5,6 +5,7 @@ writes into a temp dir that is prepended to PATH, and `origin` points at a secon
 """
 
 import os
+import shutil
 import subprocess
 from pathlib import Path
 
@@ -60,18 +61,13 @@ exit 1
 
 
 @pytest.fixture
-def bin_dir(tmp_path, monkeypatch):
+def bin_dir(tmp_path, monkeypatch, use_test_runtime):
     if os.name == "nt":
         pytest.skip("uses POSIX shebang stubs")
     path = tmp_path / "bin"
     path.mkdir()
     monkeypatch.setenv("PATH", f"{path}{os.pathsep}{os.environ['PATH']}")
-    from codechroma.llm import runtime_env
-
-    monkeypatch.setattr(runtime_env, "_probe", lambda *_: ({}, None, (), "test-shell"))
-    environment = runtime_env.get_runtime_environment()
-    environment.inherited = dict(os.environ)
-    environment.refresh("test PATH changed", force=True).result()
+    use_test_runtime()
     return path
 
 
@@ -225,9 +221,10 @@ def test_create_pr_falls_back_to_a_fixed_message_when_claude_is_missing(
     agent, bin_dir, tmp_path, monkeypatch
 ):
     _stub_gh(bin_dir, AUTH_OK_NO_PR)
+    real_which = shutil.which
     monkeypatch.setattr(
         "codechroma.llm.runtime_env.shutil.which",
-        lambda name, **_kwargs: None if name == "claude" else "/usr/bin/true",
+        lambda name, **kwargs: None if name == "claude" else real_which(name, **kwargs),
     )
     _git(agent, "remote", "set-url", "origin", str(tmp_path / "origin.git"))
     _commit_work(agent)

@@ -37,6 +37,7 @@ import { useLatchedMount } from "./panelStore";
 import { RailIcon } from "../icons/RailIcon";
 import { RailButton } from "./RailButton";
 import { AgentRail } from "../agents/AgentRail";
+import { AgentTerminalDock } from "../agents/AgentTerminalDock";
 import { AgentWindowLayer } from "../agents/AgentWindowLayer";
 import {
   useActiveWorkspace,
@@ -512,6 +513,7 @@ export function RootCanvas() {
           {/* Row for the canvas plus the agent task panel beside it — a full-height sibling of the
               canvas, not a toolbar item, so cards have room to be more than an icon and a tooltip. */}
           <div className="canvas-main-row">
+            <AgentTerminalDock />
             {projectTreeMounted && rootNode && (
               <ProjectTreePanel
                 rootNode={rootNode}

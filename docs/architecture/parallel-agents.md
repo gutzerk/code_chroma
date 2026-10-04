@@ -71,6 +71,14 @@ branch through an agent attached to it (`_guard_shared_worktree`, keyed off `Age
   how the hostage branch above went unnoticed. `_unique_id` now treats `MAIN_ID` as taken, and also
   a leftover worktree or branch from a "×"-closed agent (see "Nothing prunes those" below) — it only
   picks the record's own id, not whether it will share a directory.
+- **Runtime skill availability** — `terminal/agents.py` adds the bundled CodeChroma plugin directory
+  to Claude Code launches with `--plugin-dir`; this applies equally to provisioned worktrees,
+  `attach_to` workspaces, and nested/PR project roots. The plugin points at the same packaged skills
+  as `skill_sync`, so the existing copy/reconcile behavior is unchanged. It writes no files into a
+  launched project, adds no prompt text, and is not installed in Claude's global plugin directory.
+  Plugin skills are namespaced (`/codechroma:<skill-name>`), leaving project skills and their
+  precedence intact; non-Claude provider CLIs receive no Claude-specific flags. Frozen desktop
+  builds include the manifest beside their bundled skill copies.
 - `autostart.py` — `auto_start_agents()`, called from `app.py`'s `lifespan()` right after
   `registry.start_all()`, undoes what `reconcile()` just did: every record `reconcile()` left
   `stopped`/`pid=None` gets its `claude` respawned, so closing and reopening the app (or the desktop

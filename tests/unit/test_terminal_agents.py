@@ -18,6 +18,12 @@ def _assign_agents_group(**provider_kwargs):
     return provider
 
 
+def _plugin_args():
+    from codechroma.bridge.resources import resource_path
+
+    return ["--plugin-dir", str(resource_path("skills").parent)]
+
+
 def test_agent_kind_with_no_assignment_launches_effective_cli():
     from codechroma.assistant import save_assistant_settings
     from codechroma.terminal.agents import agent_cli
@@ -27,6 +33,7 @@ def test_agent_kind_with_no_assignment_launches_effective_cli():
     argv, env = agent_cli("agent")
 
     assert argv[0] == "codex"
+    assert "--plugin-dir" not in argv
     assert env == {}
 
 
@@ -38,6 +45,7 @@ def test_agent_kind_routes_to_an_assigned_cli_provider_binary():
     argv, env = agent_cli("agent")
 
     assert argv[0] == "claude"
+    assert argv[1:3] == _plugin_args()
     assert env["ANTHROPIC_BASE_URL"] == "https://proxy.example.com"
     assert env["ANTHROPIC_AUTH_TOKEN"] == "sk-proxy"
 
@@ -47,11 +55,11 @@ def test_agent_kind_carries_a_first_message_and_resume():
 
     argv, _env = agent_cli("agent", initial_prompt="make a diagram")
 
-    assert argv == ["claude", "make a diagram"]
+    assert argv == ["claude", *_plugin_args(), "make a diagram"]
 
     resumed, _env = agent_cli("agent", resume_session_id="abc123")
 
-    assert resumed == ["claude", "--resume", "abc123"]
+    assert resumed == ["claude", *_plugin_args(), "--resume", "abc123"]
 
 
 def test_agent_kind_unknown_assigns_nothing_to_a_fixed_shell():
@@ -74,5 +82,30 @@ def test_claude_kind_still_ignores_the_provider_store():
 
     argv, env = agent_cli("claude")
 
-    assert argv == ["claude"]
+    assert argv == ["claude", *_plugin_args()]
     assert env == {}
+
+
+def test_non_claude_assistant_cli_does_not_receive_claude_plugin_flags():
+    from codechroma.assistant import save_assistant_settings
+    from codechroma.terminal.agents import agent_cli
+
+    save_assistant_settings({"cli": "codex"})
+
+    argv, env = agent_cli("claude")
+
+    assert argv == ["codex"]
+    assert env == {}
+
+
+def test_runtime_plugin_directory_contains_the_existing_bundled_skills():
+    import json
+
+    from codechroma.bridge.resources import resource_path
+    from codechroma.bridge.skill_sync import SKILL_NAMES
+
+    plugin_root = resource_path("skills").parent
+    manifest = json.loads((plugin_root / ".claude-plugin" / "plugin.json").read_text())
+
+    assert manifest["name"] == "codechroma"
+    assert all((plugin_root / "skills" / name / "SKILL.md").is_file() for name in SKILL_NAMES)

@@ -1,5 +1,19 @@
 # Changelog
 
+## [0.5.0](https://github.com/gutzerk/code_chroma/compare/v0.4.2...v0.5.0) (2026-10-04)
+
+
+### Features
+
+* load CodeChroma skills in agent sessions ([fcd6b45](https://github.com/gutzerk/code_chroma/commit/fcd6b458d203e97c622a0d9ead29cd7bfdfac528))
+
+
+### Bug Fixes
+
+* recover corrupt graph database caches ([0f86175](https://github.com/gutzerk/code_chroma/commit/0f8617508c9dab85005eb050b5e21af26d2d64fb))
+* start desktop shell fullscreen ([e084e6f](https://github.com/gutzerk/code_chroma/commit/e084e6f61b8a7560e82d9ed61bf3df207af7616b))
+* support wrapped Claude agent executables ([16ce542](https://github.com/gutzerk/code_chroma/commit/16ce5424fba8e2fed524e711e7bfe9f0918a1f4f))
+
 ## [0.4.2](https://github.com/gutzerk/code_chroma/compare/v0.4.1...v0.4.2) (2026-10-04)
 
 

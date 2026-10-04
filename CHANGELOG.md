@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.4.1](https://github.com/gutzerk/code_chroma/compare/v0.4.0...v0.4.1) (2026-10-04)
+
+
+### Bug Fixes
+
+* keep desktop Sigstore compatible with Electron runtime ([5c069fe](https://github.com/gutzerk/code_chroma/commit/5c069fe76618dcd5cb206f1bdad5e289991aa67d))
+* keep desktop Sigstore compatible with Electron runtime ([de7b25e](https://github.com/gutzerk/code_chroma/commit/de7b25ee9893d82692004bc01295906414bbff82))
+
 ## [0.4.0](https://github.com/gutzerk/code_chroma/compare/v0.3.2...v0.4.0) (2026-10-04)
 
 

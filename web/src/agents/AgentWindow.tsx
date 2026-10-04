@@ -8,18 +8,20 @@ import { AgentLed } from "./AgentLed";
 import { AgentTerminal } from "./AgentTerminal";
 import { CreatePrButton } from "./CreatePrButton";
 import { closeAgentWindow, minimizeAgentWindow, persist } from "./windowActions";
+import { agentDockStore } from "./agentDockStore";
 
 /** One movable agent window, in *screen* coordinates above the canvas — deliberately not in canvas
  * space, so it never scales with zoom and stays readable at any magnification. Minimizing hides it
  * with `display:none` rather than unmounting: the xterm buffer dies with the DOM node.
  *
- * Visibility depends only on `minimized`, never on which branch main has checked out: an agent's
- * terminal runs in its own worktree (`AgentTerminal`'s `workspace={agent.id}`), so a checkout on
+ * Floating visibility depends on `minimized` or whether it is docked, never on which branch main has
+ * checked out: an agent's terminal runs in its own worktree (`AgentTerminal`'s
+ * `workspace={agent.id}`), so a checkout on
  * main cannot touch it either way, and forcing that checkout just to *look* at an already-running
  * agent has no technical reason behind it — see AgentRail.tsx's own comment on the incident that
  * motivated dropping it: main can refuse the checkout (a dirty tree) and then the window has no way
  * to become reachable again. */
-export function AgentWindow({ agent }: { agent: AgentRecord }) {
+export function AgentWindow({ agent, docked = false }: { agent: AgentRecord; docked?: boolean }) {
   const agentClient = useAgentClient();
   const panelRef = useRef<HTMLDivElement | null>(null);
   const geometry = agent.window;
@@ -67,6 +69,8 @@ export function AgentWindow({ agent }: { agent: AgentRecord }) {
 
   const running = agent.status !== "stopped" && agent.status !== "exited";
 
+  if (docked) return null;
+
   return (
     <div
       ref={panelRef}
@@ -113,6 +117,15 @@ export function AgentWindow({ agent }: { agent: AgentRecord }) {
           </>
         )}
         {!agent.worktree_lost && !agent.source_pr && <CreatePrButton agent={agent} />}
+        <button
+          type="button"
+          className="agent-window-button"
+          aria-label={`Dock ${agent.title} on the canvas`}
+          data-testid={`agent-dock-${agent.id}`}
+          onClick={() => agentDockStore.attach(agent.id)}
+        >
+          ⇤
+        </button>
         <button
           type="button"
           className="agent-window-button"

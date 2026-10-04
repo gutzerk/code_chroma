@@ -26,7 +26,12 @@ then four platform builds (macOS `macos-14` arm64 and `macos-15-intel` x64, Wind
 `windows-latest` x64, and Linux x64) run the same three stages here and upload the installers to that
 Release. The release-please action uses the `code_pat_release` repository secret so its Release PR
 triggers the follow-on release workflow when merged; configure that secret in repository settings
-with repository Contents and Pull requests write access.
+with repository Contents and Pull requests write access. The macOS matrix passes one architecture
+per job and `electron-builder.yml` gives both DMGs explicit architecture names
+(`CodeChroma-<version>-arm64.dmg` / `CodeChroma-<version>-x64.dmg`) for the checksum and manifest
+steps. If a release exists but its builds or manifest failed, dispatch the Release workflow on
+`main` with `release_tag` (for example `v0.3.0`) to rebuild and publish assets for that release;
+ordinary pushes only build when release-please creates a release.
 The author version lives in `desktop/package.json` (electron-builder reads it for the artifact name);
 `release-please-config.json` syncs `web/package.json` and `pyproject.toml` from it. See the plan in
 `.claude/plans/release-versioning.md` for the design.

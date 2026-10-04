@@ -3,7 +3,7 @@ rem Thin Windows bootstrap for the CodeChroma installer (style of herdr/distribu
 rem downloads install.ps1 and runs it, so the docs can stay a single PowerShell file.
 setlocal
 
-set "INSTALLER_URL=https://raw.githubusercontent.com/gutzerk/code-chroma/main/distribution/install.ps1"
+set "INSTALLER_URL=https://raw.githubusercontent.com/gutzerk/code_chroma/main/distribution/install.ps1"
 set "CURL_PROTOCOL=--proto =https --tlsv1.2"
 if defined CODECROMA_INSTALLER_URL (
     set "INSTALLER_URL=%CODECROMA_INSTALLER_URL%"

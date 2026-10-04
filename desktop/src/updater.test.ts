@@ -18,7 +18,7 @@ import {
 const ASSETS: ReleaseAsset[] = [
   { name: "CodeChroma-0.1.0-arm64.dmg", browser_download_url: "https://dl/dmg" },
   { name: "CodeChroma-0.1.0-x64.dmg", browser_download_url: "https://dl/dmg-intel" },
-  { name: "CodeChroma-0.1.0-Setup.exe", browser_download_url: "https://dl/exe" },
+  { name: "CodeChroma-Setup.exe", browser_download_url: "https://dl/exe" },
   { name: "CodeChroma-0.1.0-x64.AppImage", browser_download_url: "https://dl/appimage" },
 ];
 
@@ -70,7 +70,7 @@ describe("selectAsset", () => {
   });
 
   it("picks the Setup.exe on win32/x64", () => {
-    expect(selectAsset(ASSETS, "win32", "x64")?.name).toBe("CodeChroma-0.1.0-Setup.exe");
+    expect(selectAsset(ASSETS, "win32", "x64")?.name).toBe("CodeChroma-Setup.exe");
   });
 
   it("picks the AppImage on linux/x64", () => {

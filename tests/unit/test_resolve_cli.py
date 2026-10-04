@@ -25,12 +25,13 @@ def test_no_assignment_falls_back_to_effective_cli(tmp_path, monkeypatch):
     from codechroma.llm.resolve_cli import resolve_cli
     save_assistant_settings({"cli": "codex"})
 
-    adapter_key, binary, model, env = resolve_cli("parallel_agents", "haiku")
+    resolved = resolve_cli("parallel_agents", "haiku")
 
-    assert adapter_key == "claude"
-    assert binary == "codex"
-    assert model == "haiku"
-    assert env == {}
+    assert resolved.adapter_key == "claude"
+    assert resolved.binary == "codex"
+    assert resolved.model == "haiku"
+    assert resolved.env_overrides == {}
+    assert resolved.provider_assigned is False
 
 
 def test_group_assignment_resolves_to_the_provider_adapter(tmp_path, monkeypatch):
@@ -41,17 +42,18 @@ def test_group_assignment_resolves_to_the_provider_adapter(tmp_path, monkeypatch
         tmp_path, monkeypatch, base_url="https://proxy.example.com", api_key="sk-proxy"
     )
 
-    adapter_key, binary, model, env = resolve_cli("parallel_agents", "haiku")
+    resolved = resolve_cli("parallel_agents", "haiku")
 
-    assert adapter_key == "claude"
-    assert binary == "claude"
-    assert model == "claude-opus"
-    assert env == {
+    assert resolved.adapter_key == "claude"
+    assert resolved.binary == "claude"
+    assert resolved.model == "claude-opus"
+    assert resolved.env_overrides == {
         "ANTHROPIC_BASE_URL": "https://proxy.example.com",
         "ANTHROPIC_API_KEY": "",
         "ANTHROPIC_MODEL": "claude-opus",
         "ANTHROPIC_AUTH_TOKEN": "sk-proxy",
     }
+    assert resolved.provider_assigned is True
 
 
 def test_non_cli_kind_provider_falls_back(tmp_path, monkeypatch):
@@ -62,17 +64,19 @@ def test_non_cli_kind_provider_falls_back(tmp_path, monkeypatch):
         "label": "Direct API", "kind": "api", "transport": "anthropic", "api_key": "sk-ant-x",
     })
 
-    adapter_key, binary, _model, _env = resolve_cli("parallel_agents", "haiku")
+    resolved = resolve_cli("parallel_agents", "haiku")
 
-    assert adapter_key == "claude"
-    assert binary == "claude"
+    assert resolved.adapter_key == "claude"
+    assert resolved.binary == "claude"
+    assert resolved.provider_assigned is False
 
 
 def test_unknown_call_site_also_falls_back(tmp_path, monkeypatch):
     """Even a call site with no group and no row resolves to the effective default."""
     from codechroma.llm.resolve_cli import resolve_cli
 
-    adapter_key, binary, _model, _env = resolve_cli("nonexistent_site", "haiku")
+    resolved = resolve_cli("nonexistent_site", "haiku")
 
-    assert adapter_key == "claude"
-    assert binary == "claude"
+    assert resolved.adapter_key == "claude"
+    assert resolved.binary == "claude"
+    assert resolved.provider_assigned is False

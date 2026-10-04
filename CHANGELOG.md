@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.3.1](https://github.com/gutzerk/code_chroma/compare/v0.3.0...v0.3.1) (2026-10-04)
+
+
+### Bug Fixes
+
+* simplify stable Windows installer releases ([9b3c9cd](https://github.com/gutzerk/code_chroma/commit/9b3c9cd540b49662788a032fc0377dc97924f17c))
+
 ## [0.3.0](https://github.com/gutzerk/code_chroma/compare/v0.2.2...v0.3.0) (2026-10-03)
 
 

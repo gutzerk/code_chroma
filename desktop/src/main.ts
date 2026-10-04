@@ -113,7 +113,7 @@ async function createShell(): Promise<Shell> {
     minHeight: 600,
     title: "CodeChroma",
     backgroundColor: "#1b1d23",
-    fullscreen: false,
+    fullscreen: true,
   });
 
   const tabBar = new WebContentsView({

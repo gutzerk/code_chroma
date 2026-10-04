@@ -151,5 +151,6 @@ def test_allowed_agents_and_cli_dispatch_unaffected_by_skill_agent_cli_refactor(
     assert ALLOWED_AGENTS["claude"] == ["claude"]
     # The placeholder resolves at launch; it is never executed, and empty is the truthful sentinel.
     assert ALLOWED_AGENTS["agent"] == []
-    assert agent_cli("claude")[0] == ["claude"]
+    assert agent_cli("claude")[0][:1] == ["claude"]
+    assert "--plugin-dir" in agent_cli("claude")[0]
     assert agent_cli("shell")[0] == ALLOWED_AGENTS["shell"]

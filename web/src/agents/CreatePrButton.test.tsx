@@ -73,7 +73,7 @@ describe("the disabled states name their reason", () => {
   it.each([
     ["gh-missing", "GitHub CLI required"],
     ["not-authenticated", "Log in: gh auth login"],
-    ["not-github", "Works with GitHub only"],
+    ["not-github", "Could not detect a GitHub repository; check that `gh repo view` works here"],
     ["no-commits", "The agent hasn't committed anything yet"],
   ])("%s renders as %s", async (reason, text) => {
     await withPreflight(record(), { ready: false, reason, text, dirty: [] });

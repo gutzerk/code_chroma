@@ -79,14 +79,22 @@ def list_prs(services: Services) -> dict:
 
 @router.get("/prs/github")
 def list_github_prs(services: Services) -> dict:
-    """Every open pull request on GitHub, for the picker -- skips `_pr_blocker`'s slow auth check"""
+    """Every open pull request on the GitHub repository resolved from this checkout."""
     if not pr_github.has_gh():
         raise HTTPException(status_code=409, detail=PR_BUTTON_TEXT[PR_REASON_GH_MISSING])
-    if not pr_github.is_github_remote(services.repo_root):
+    if not pr_github.is_authenticated(services.repo_root):
+        raise HTTPException(status_code=409, detail=PR_BUTTON_TEXT[PR_REASON_NOT_AUTHENTICATED])
+    if not pr_github.is_github_repository(services.repo_root):
         raise HTTPException(status_code=409, detail=PR_BUTTON_TEXT[PR_REASON_NOT_GITHUB])
     prs = pr_github.list_open_prs(services.repo_root)
     if prs is None:
-        raise HTTPException(status_code=502, detail="gh pr list failed")
+        raise HTTPException(
+            status_code=502,
+            detail=(
+                "Could not load open pull requests from GitHub; "
+                "check `gh pr list` and try again"
+            ),
+        )
     return {"prs": prs}
 
 
@@ -110,7 +118,7 @@ def _open_pr_blocking(services: BridgeServices, reference: PrReference) -> PrRec
     blocker = _pr_blocker(services)
     if blocker is not None:
         raise HTTPException(status_code=409, detail=PR_BUTTON_TEXT[blocker])
-    if not pr_github.belongs_to_origin(reference, services.repo_root):
+    if not pr_github.belongs_to_repository(reference, services.repo_root):
         raise HTTPException(status_code=400, detail=PR_BUTTON_TEXT[PR_REASON_WRONG_REPO])
     metadata = pr_github.fetch_metadata(services.repo_root, reference.number)
     if metadata is None:
@@ -182,7 +190,7 @@ def _pr_blocker(services: BridgeServices) -> str | None:
         return PR_REASON_GH_MISSING
     if not pr_github.is_authenticated(services.repo_root):
         return PR_REASON_NOT_AUTHENTICATED
-    if not pr_github.is_github_remote(services.repo_root):
+    if not pr_github.is_github_repository(services.repo_root):
         return PR_REASON_NOT_GITHUB
     if services.pr_manager.at_capacity():
         return PR_REASON_LIMIT
@@ -190,7 +198,7 @@ def _pr_blocker(services: BridgeServices) -> str | None:
 
 
 def _origin_payload(services: BridgeServices) -> dict | None:
-    slug = pr_github.origin_slug(services.repo_root)
+    slug = pr_github.repository_slug(services.repo_root)
     return {"owner": slug[0], "repo": slug[1]} if slug else None
 
 

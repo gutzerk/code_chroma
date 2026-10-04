@@ -37,7 +37,7 @@ REASON_PR_ATTACHED = "pr-attached"
 BUTTON_TEXT = {
     REASON_GH_MISSING: "GitHub CLI required",
     REASON_NOT_AUTHENTICATED: "Log in: gh auth login",
-    REASON_NOT_GITHUB: "Works with GitHub only",
+    REASON_NOT_GITHUB: "Could not detect a GitHub repository; check that `gh repo view` works here",
     REASON_NO_COMMITS: "The agent hasn't committed anything yet",
     REASON_PR_ATTACHED: "Reviewing a PR -- can't publish from here",
 }
@@ -79,10 +79,10 @@ def preflight(worktree: Path, branch: str, main_branch: str, source_pr: str | No
         return _blocked(REASON_NOT_AUTHENTICATED)
 
     # Local import: prs/github.py imports run_gh from here, so a top-level import would be circular.
-    from codechroma.bridge.prs.github import is_github_remote
+    from codechroma.bridge.prs.github import is_github_repository
 
     remote = run_git(worktree, "remote", "get-url", "origin")
-    if remote is None or not is_github_remote(worktree):
+    if remote is None or not is_github_repository(worktree):
         return _blocked(REASON_NOT_GITHUB, remote=remote.strip() if remote else None)
 
     existing = existing_pr_url(worktree, branch)

@@ -26,7 +26,7 @@ import { CodePopupContext } from "./CodePopupContext";
 import { CodePopup } from "./CodePopup";
 import { collapsedLayersStore } from "./doc/collapsedLayersStore";
 import { InspectorPanel } from "./InspectorPanel";
-import { useIsInspectorOpen } from "./inspectorStore";
+import { inspectorStore, useIsInspectorOpen } from "./inspectorStore";
 import { ProjectTreePanel } from "./ProjectTreePanel";
 import { CodeSidebar } from "./CodeSidebar";
 import {
@@ -42,7 +42,6 @@ import {
   useActiveWorkspace,
   useIsAtAgentCapacity,
   useIsLaunchingAgent,
-  useLaunchError,
   useMaxAgents,
 } from "../agents/agentStore";
 import { useAgentClient } from "../agents/AgentClientContext";
@@ -94,6 +93,7 @@ export function RootCanvas() {
   const engineClient = useEngineClient();
   const [rootNode, setRootNode] = useState<HierarchyNodeRef | null>(null);
   const [codePopupNode, setCodePopupNode] = useState<HierarchyNodeRef | null>(null);
+  const [isAgentPanelOpen, setIsAgentPanelOpen] = useState(true);
   const breadcrumbPath = useDeepestExpandedPath();
   const expandedNodeIds = useExpandedNodeIdsByOrder();
   const codeVisibleNodeIds = useCodeVisibleNodeIdsByOrder();
@@ -113,7 +113,6 @@ export function RootCanvas() {
   const isAtAgentCapacity = useIsAtAgentCapacity();
   const isLaunchingAgent = useIsLaunchingAgent();
   const maxAgents = useMaxAgents();
-  const launchError = useLaunchError();
   const isInspectorOpen = useIsInspectorOpen();
   const isProjectTreePanelOpen = useIsProjectTreePanelOpen();
   // Latched: each panel stays mounted (hidden via CSS) after its first open, so PTY scrollback
@@ -480,6 +479,22 @@ export function RootCanvas() {
             <PrRailButton />
             <SettingsRailButton />
             <RailButton
+              className="agent-panel-toggle-button"
+              label={`${isAgentPanelOpen ? "Collapse" : "Expand"} agents and diagrams panel`}
+              pressed={isAgentPanelOpen}
+              ariaExpanded={isAgentPanelOpen}
+              testId="agent-panel-toggle-button"
+              onClick={() => {
+                if (isAgentPanelOpen) {
+                  setCodePopupNode(null);
+                  inspectorStore.close();
+                }
+                setIsAgentPanelOpen(!isAgentPanelOpen);
+              }}
+            >
+              <span aria-hidden="true">{isAgentPanelOpen ? "›" : "‹"}</span>
+            </RailButton>
+            <RailButton
               className="agents-toggle-button"
               label="Run agent"
               disabled={isAtAgentCapacity || isLaunchingAgent}
@@ -493,11 +508,6 @@ export function RootCanvas() {
               <RailIcon name="agents" />
               <span className="agents-toggle-label">Run agent</span>
             </RailButton>
-            {launchError && (
-              <span className="agents-launch-error" role="alert">
-                {launchError}
-              </span>
-            )}
           </div>
           {/* Row for the canvas plus the agent task panel beside it — a full-height sibling of the
               canvas, not a toolbar item, so cards have room to be more than an icon and a tooltip. */}
@@ -552,7 +562,7 @@ export function RootCanvas() {
               {isDiffActive && <DeletedDiffOverlay />}
               {isTraceActive && <TraceControls />}
             </div>
-            <AgentRail />
+            <AgentRail hidden={!isAgentPanelOpen} />
           </div>
           {/* Docked under the canvas, inside .canvas-area, so the inspector to the right of it stays
               full viewport height and the terminal spans only the canvas's own width. */}

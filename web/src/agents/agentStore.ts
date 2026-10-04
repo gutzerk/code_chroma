@@ -30,6 +30,7 @@ class AgentStore extends Store {
   private maxAgents = 5;
   private gitPreflight: GitPreflight | null = null;
   private launchError: string | null = null;
+  private startErrors: Record<string, string> = {};
   private isLaunching = false;
   // The agent currently awaiting a "delete worktree?" confirmation on close — an agent that is the
   // last one on its own worktree. Null (the resting state) closes immediately, no dialog at all.
@@ -50,6 +51,8 @@ class AgentStore extends Store {
   getGitPreflight = (): GitPreflight | null => this.gitPreflight;
 
   getLaunchError = (): string | null => this.launchError;
+
+  getStartError = (id: string): string | null => this.startErrors[id] ?? null;
 
   getPendingClose = (): string | null => this.pendingClose;
 
@@ -86,6 +89,11 @@ class AgentStore extends Store {
 
   remove = (id: string): void => {
     this.agents = this.agents.filter((agent) => agent.id !== id);
+    if (id in this.startErrors) {
+      this.startErrors = Object.fromEntries(
+        Object.entries(this.startErrors).filter(([agentId]) => agentId !== id),
+      );
+    }
     if (this.activeWorkspace === id) this.activeWorkspace = "main";
     this.emit();
   };
@@ -139,6 +147,18 @@ class AgentStore extends Store {
     this.emit();
   };
 
+  setStartError = (id: string, error: string | null): void => {
+    if (error === null) {
+      if (!(id in this.startErrors)) return;
+      this.startErrors = Object.fromEntries(
+        Object.entries(this.startErrors).filter(([agentId]) => agentId !== id),
+      );
+    } else {
+      this.startErrors = { ...this.startErrors, [id]: error };
+    }
+    this.emit();
+  };
+
   setPendingClose = (id: string | null): void => {
     this.pendingClose = id;
     this.emit();
@@ -172,6 +192,7 @@ class AgentStore extends Store {
     this.maxAgents = 5;
     this.gitPreflight = null;
     this.launchError = null;
+    this.startErrors = {};
     this.isLaunching = false;
     this.pendingClose = null;
     this.diagramsReady = NO_DIAGRAMS_READY;
@@ -223,6 +244,10 @@ export function useGitPreflight(): GitPreflight | null {
 
 export function useLaunchError(): string | null {
   return useSyncExternalStore(agentStore.subscribe, agentStore.getLaunchError);
+}
+
+export function useAgentStartError(id: string): string | null {
+  return useSyncExternalStore(agentStore.subscribe, () => agentStore.getStartError(id));
 }
 
 export function usePendingClose(): string | null {

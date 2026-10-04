@@ -183,6 +183,17 @@ describe("AgentWindow", () => {
     expect(screen.getByTestId("agent-window-refund-flow")).toHaveClass("agent-window-hidden");
   });
 
+  it("shows that agent's startup error inside its terminal area", () => {
+    agentStore.setStartError("refund-flow", "claude CLI not found on PATH");
+
+    renderWindow(record({ status: "stopped", pid: null }));
+
+    expect(screen.getByRole("alert")).toHaveTextContent("claude CLI not found on PATH");
+    expect(screen.queryByTestId("agent-window-idle-refund-flow")).not.toHaveTextContent(
+      "This agent failed to start.",
+    );
+  });
+
   // An agent's own worktree is untouched by whatever main has checked out, so its window must stay
   // visible either way -- a dirty main tree that refuses a checkout must never be able to trap it
   // behind a hidden window with no reachable close button (see AgentRail.tsx's own comment).

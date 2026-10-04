@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { act, render, screen, waitFor } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { RootCanvas } from "./RootCanvas";
 import { AgentClientProvider } from "../agents/AgentClientContext";
 import { MockAgentClient } from "../agents/mockAgentClient";
@@ -10,7 +10,10 @@ import { agentStore } from "../agents/agentStore";
 import { expansionStore } from "../state/expansionState";
 import { diffOverlayStore } from "../state/diffOverlayStore";
 import { projectTreePanelStore } from "./projectTreePanelStore";
+import { inspectorStore } from "./inspectorStore";
+import { terminalPanelStore } from "../terminal/terminalPanelStore";
 import { collapsedLayersStore } from "./doc/collapsedLayersStore";
+import { codeViewModeStore } from "./codeViewModeStore";
 import type { EngineClient } from "../engine-client/EngineClient";
 import { SEEDED_CANVAS_DOC } from "../state/types";
 import type { CanvasBatch, CanvasBatchResult, CanvasDoc, CanvasElement, HierarchyNodeRef } from "../state/types";
@@ -128,6 +131,9 @@ afterEach(() => {
   agentStore.reset();
   projectTreePanelStore.reset();
   collapsedLayersStore.reset();
+  codeViewModeStore.reset();
+  inspectorStore.reset();
+  terminalPanelStore.reset();
   vi.restoreAllMocks();
 });
 
@@ -201,15 +207,89 @@ describe("RootCanvas project tree panel", () => {
     expect(canvas.querySelectorAll("[data-testid='tree-node']").length).toBe(0);
   });
 });
+
+describe("RootCanvas agents and diagrams panel", () => {
+  it("collapses and restores the panel without resetting its selected section", async () => {
+    renderCanvas();
+    await waitFor(() => expect(screen.getByTestId("agent-task-rail")).toBeTruthy());
+
+    fireEvent.click(screen.getByTestId("agent-task-rail-tab-agents"));
+    fireEvent.click(screen.getByRole("button", { name: "Collapse agents and diagrams panel" }));
+
+    const panel = screen.getByTestId("agent-task-rail");
+    expect(panel).toHaveAttribute("hidden");
+    expect(screen.getByRole("button", { name: "Expand agents and diagrams panel" })).toHaveAttribute(
+      "aria-expanded",
+      "false",
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Expand agents and diagrams panel" }));
+
+    expect(panel).not.toHaveAttribute("hidden");
+    expect(screen.getByTestId("agent-task-rail-tab-agents")).toHaveAttribute(
+      "aria-selected",
+      "true",
+    );
+  });
+
+  it("closes an open code popup when collapsing the panel", async () => {
+    const calculateTotal: HierarchyNodeRef = {
+      node_id: "function::calculate_total",
+      name: "calculate_total",
+      level: "function",
+      parent_id: null,
+      has_children: false,
+      child_count: 0,
+      source: "return 1",
+      language: "python",
+    };
+    renderCanvas({
+      getNode: async () => calculateTotal,
+      getCanvas: async () => ({
+        ...SEEDED_CANVAS_DOC,
+        doc_id: "d1",
+        elements: {
+          calculateTotal: {
+            id: "calculateTotal",
+            render: "hierarchy",
+            layer: "hierarchy",
+            label: "",
+            description: "",
+            node_id: calculateTotal.node_id,
+            position: { x: 0, y: 0 },
+            size: null,
+            group_id: null,
+            meta: {},
+            created_by: "user",
+          },
+        },
+      }),
+    });
+    act(() => codeViewModeStore.setMode("popup"));
+    await waitFor(() => expect(screen.getByTestId("app-root")).toBeTruthy());
+    act(() => collapsedLayersStore.expand("hierarchy"));
+
+    fireEvent.click(
+      await screen.findByRole("button", { name: "Show code for calculate_total" }),
+    );
+    expect(await screen.findByTestId("code-popup")).toBeInTheDocument();
+    act(() => inspectorStore.open("function::calculate_total", "calculate_total"));
+
+    fireEvent.click(screen.getByRole("button", { name: "Collapse agents and diagrams panel" }));
+
+    expect(screen.queryByTestId("code-popup")).not.toBeInTheDocument();
+    expect(inspectorStore.getIsOpen()).toBe(false);
+  });
+});
+
 describe("RootCanvas agent launch error", () => {
-  it("announces a blocked/failed launch to screen readers, not just visually", async () => {
+  it("does not show an agent launch error in the app shell or open its terminal", async () => {
     renderCanvas();
     await waitFor(() => expect(screen.getByTestId("app-canvas")).toBeTruthy());
 
     act(() => agentStore.setLaunchError("the limit of 5 concurrent agents is reached"));
 
-    expect(await screen.findByRole("alert")).toHaveTextContent(
-      "the limit of 5 concurrent agents is reached",
-    );
+    expect(terminalPanelStore.getIsOpen()).toBe(false);
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
   });
 });

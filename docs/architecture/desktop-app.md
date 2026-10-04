@@ -31,7 +31,10 @@ per job and `electron-builder.yml` gives both DMGs explicit architecture names
 (`CodeChroma-<version>-arm64.dmg` / `CodeChroma-<version>-x64.dmg`) for the checksum and manifest
 steps. If a release exists but its builds or manifest failed, dispatch the Release workflow on
 `main` with `release_tag` (for example `v0.3.0`) to rebuild and publish assets for that release;
-ordinary pushes only build when release-please creates a release.
+ordinary pushes only build when release-please creates a release. New releases stay drafts during
+asset generation, so `/releases/latest/` continues resolving to the previous published release.
+Only the final manifest-upload step publishes the new release; a failed or in-progress build leaves
+the previous release as latest. A recovery dispatch first returns its existing release to draft.
 The author version lives in `desktop/package.json` (electron-builder reads it for the artifact name);
 `release-please-config.json` syncs `web/package.json` and `pyproject.toml` from it. See the plan in
 `.claude/plans/release-versioning.md` for the design.

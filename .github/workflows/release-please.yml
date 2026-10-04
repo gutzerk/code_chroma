@@ -44,6 +44,12 @@ jobs:
           token: ${{ secrets.code_pat_release }}
           manifest-file: .release-please-manifest.json
           config-file: release-please-config.json
+      - name: Keep an existing release unpublished during recovery
+        if: github.event_name == 'workflow_dispatch' && github.event.inputs.release_tag != ''
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ github.event.inputs.release_tag }}
+        run: gh release edit "$RELEASE_TAG" --draft
 
   # The installers share the same three stages as scripts/dev/build_desktop.sh:
   # web SPA bundle (same-origin) -> PyInstaller-frozen bridge -> electron-builder.
@@ -135,13 +141,13 @@ jobs:
         with:
           subject-path: desktop/dist/CodeChroma-*-${{ matrix.arch }}.dmg
 
-      # softprops/action-gh-release appends assets to the tag/Release release-please already made;
-      # glob files are expanded by the action itself (not the shell), so a missing match is a
-      # visible error, never a silent no-op.
+      # Keep the release as a draft until all platforms and latest.json are ready. Glob files are
+      # expanded by the action itself (not the shell), so a missing match is a visible error.
       - name: Upload DMG to release
         uses: softprops/action-gh-release@3bb12739c298aeb8a4eeaf626c5b8d85266b0e65 # v2
         with:
           tag_name: ${{ needs.release.outputs.tag_name }}
+          draft: true
           files: |
             desktop/dist/CodeChroma-*-${{ matrix.arch }}.dmg
             desktop/dist/CodeChroma-*-${{ matrix.arch }}.dmg.sha256
@@ -224,6 +230,7 @@ jobs:
         uses: softprops/action-gh-release@3bb12739c298aeb8a4eeaf626c5b8d85266b0e65 # v2
         with:
           tag_name: ${{ needs.release.outputs.tag_name }}
+          draft: true
           files: |
             desktop/dist/CodeChroma-*-Setup.exe
             desktop/dist/CodeChroma-*-Setup.exe.sha256
@@ -318,6 +325,7 @@ jobs:
         uses: softprops/action-gh-release@3bb12739c298aeb8a4eeaf626c5b8d85266b0e65 # v2
         with:
           tag_name: ${{ needs.release.outputs.tag_name }}
+          draft: true
           files: |
             desktop/dist/CodeChroma-*-x64.deb
             desktop/dist/CodeChroma-*-x64.AppImage
@@ -341,14 +349,21 @@ jobs:
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - name: Download installer checksums from the draft release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ needs.release.outputs.tag_name }}
+        run: |
+          mkdir -p distribution/sidecars
+          gh release download "$RELEASE_TAG" --pattern '*.sha256' --dir distribution/sidecars
       - name: Build and upload latest.json
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           RELEASE_TAG: ${{ needs.release.outputs.tag_name }}
           REPO: ${{ github.repository }}
         run: |
           python3 - <<'PY'
-          import json, os, re, time, urllib.error, urllib.request
+          import json, os, re
+          from pathlib import Path
 
           repo, tag = os.environ["REPO"], os.environ["RELEASE_TAG"]
           match = re.fullmatch(
@@ -370,19 +385,10 @@ jobs:
           assets, sha = {}, {}
           for t in targets:
               n = names[t]
-              # fetch the released .sha256 sidecar (first token, e.g. "<hex>  <name>")
-              sidecar_url = f"{base}/{n}.sha256"
-              for attempt in range(6):
-                  try:
-                      with urllib.request.urlopen(sidecar_url, timeout=30) as r:
-                          digest = r.read().decode().strip().split()[0].lower()
-                      break
-                  except urllib.error.HTTPError as error:
-                      if error.code not in (404, 429, 500, 502, 503, 504) or attempt == 5:
-                          raise
-                      delay = 2 ** attempt
-                      print(f"Retrying {sidecar_url} after HTTP {error.code} in {delay}s.")
-                      time.sleep(delay)
+              sidecar = Path("distribution/sidecars") / f"{n}.sha256"
+              digest = sidecar.read_text().strip().split()[0].lower()
+              if not re.fullmatch(r"[0-9a-f]{64}", digest):
+                  raise SystemExit(f"Invalid SHA-256 sidecar for {n}: {digest!r}")
               assets[t] = f"{base}/{n}"
               sha[t] = digest
           manifest = {"version": version, "assets": assets, "sha256": sha}
@@ -397,6 +403,7 @@ jobs:
         uses: softprops/action-gh-release@3bb12739c298aeb8a4eeaf626c5b8d85266b0e65 # v2
         with:
           tag_name: ${{ needs.release.outputs.tag_name }}
+          draft: false
           files: distribution/latest.json
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

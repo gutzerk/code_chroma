@@ -1,5 +1,19 @@
 # Changelog
 
+## [0.6.0](https://github.com/gutzerk/code_chroma/compare/v0.5.1...v0.6.0) (2026-10-04)
+
+
+### Features
+
+* add Settings Updates with per-user installation flow ([ce3b126](https://github.com/gutzerk/code_chroma/commit/ce3b126463fd1c960c75d7239c4aae431ead0604))
+* add Settings Updates with per-user installation flow ([34126e8](https://github.com/gutzerk/code_chroma/commit/34126e870882ab7d8b3f6d5569352b581839c45b))
+
+
+### Bug Fixes
+
+* isolate CLI runtime test fixtures ([76f7db3](https://github.com/gutzerk/code_chroma/commit/76f7db38b1458e6d1080327856466d65402a2ad3))
+* isolate CLI runtime test fixtures ([e3db944](https://github.com/gutzerk/code_chroma/commit/e3db944b352ce72d57d2a19c9c10615b3387154d))
+
 ## [0.5.1](https://github.com/gutzerk/code_chroma/compare/v0.5.0...v0.5.1) (2026-10-04)
 
 

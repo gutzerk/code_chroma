@@ -10,8 +10,10 @@ def test_manifest_includes_separate_arm_and_intel_macos_assets(tmp_path, monkeyp
     build_dir.mkdir()
     arm_asset = build_dir / "CodeChroma-1.2.3-arm64.dmg"
     intel_asset = build_dir / "CodeChroma-1.2.3-x64.dmg"
+    windows_asset = build_dir / "CodeChroma-Setup.exe"
     arm_asset.write_bytes(b"arm")
     intel_asset.write_bytes(b"intel")
+    windows_asset.write_bytes(b"windows")
     output = tmp_path / "distribution" / "latest.json"
     monkeypatch.setattr(
         sys,
@@ -33,3 +35,7 @@ def test_manifest_includes_separate_arm_and_intel_macos_assets(tmp_path, monkeyp
     assert manifest["assets"]["macos-x64"].endswith("/CodeChroma-1.2.3-x64.dmg")
     assert manifest["sha256"]["macos-arm64"] == hashlib.sha256(b"arm").hexdigest()
     assert manifest["sha256"]["macos-x64"] == hashlib.sha256(b"intel").hexdigest()
+    assert manifest["assets"]["windows-x64"] == (
+        "https://github.com/gutzerk/code_chroma/releases/latest/download/CodeChroma-Setup.exe"
+    )
+    assert manifest["sha256"]["windows-x64"] == hashlib.sha256(b"windows").hexdigest()

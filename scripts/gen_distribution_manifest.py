@@ -1,14 +1,13 @@
 #!/usr/bin/env python3
-"""Generate distribution/latest.json -- the single install manifest used by distribution/
-install.sh (macOS/Linux) and install.ps1 (Windows), in the style of herdr.
+"""Generate distribution/latest.json -- the install manifest used by distribution/install.sh.
 
 Reads the just-built installers in desktop/dist and emits one JSON with a version + per-platform
-URL/SHA-256 (keyed by the target names the installers look up). The release CI calls this after the
-three build jobs and uploads the result as a Release asset so the installers can fetch it from
+URL/SHA-256 (keyed by the target names the installer looks up). The release CI calls this after the
+three build jobs and uploads the result as a Release asset so the shell installer can fetch it from
 ``.../releases/latest/download/latest.json`` (or from the raw repo copy for local/dev snapshots).
 
 Non-release (local) use: pick a directory and a version to build a manifest for whatever installers
-exist there, so install.sh/install.ps1 can be smoke-tested without a real release.
+exist there, so install.sh can be smoke-tested without a real release.
 """
 
 from __future__ import annotations
@@ -18,7 +17,7 @@ import hashlib
 import json
 from pathlib import Path
 
-REPO = "gutzerk/code-chroma"
+REPO = "gutzerk/code_chroma"
 
 # Per-platform source glob (inside the build output dir) -> manifest target key -> release URL path.
 # Must stay in sync with desktop/electron-builder.yml artifact names and release-please.yml uploads.
@@ -39,9 +38,9 @@ PLATFORMS = [
     },
     {
         "target": "windows-x64",
-        "glob": "CodeChroma-*-Setup.exe",
-        "url": lambda v, name: (
-            f"https://github.com/{REPO}/releases/download/v{v}/{name}"
+        "glob": "CodeChroma-Setup.exe",
+        "url": lambda _version, name: (
+            f"https://github.com/{REPO}/releases/latest/download/{name}"
         ),
     },
     {

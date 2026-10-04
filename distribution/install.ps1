@@ -1,86 +1,58 @@
-# One-command installer for CodeChroma on Windows (x64), style of herdr/distribution/install.ps1
-# but slimmed for a GUI Setup.exe (herdr's 700-line atomic-junction + ConPTY logic doesn't apply --
-# the NSIS installer owns the actual install). Reads distribution/latest.json, downloads the
-# platform Setup.exe from the matching GitHub Release, verifies its SHA-256, then runs the installer.
+# One-command installer for the latest stable CodeChroma release on Windows.
 #
-#   powershell -ExecutionPolicy Bypass -c "irm https://raw.githubusercontent.com/gutzerk/code-chroma/main/distribution/install.ps1 | iex"
+#   powershell -ExecutionPolicy Bypass -c "irm https://raw.githubusercontent.com/gutzerk/code_chroma/main/distribution/install.ps1 | iex"
 #
-[CmdletBinding()]
-param(
-    [string]$ManifestUrl = $env:CODECROMA_MANIFEST_URL,
-    [string]$DownloadDir  = $env:CODECROMA_DOWNLOAD_DIR
-)
-
-Set-StrictMode -Version Latest
 $ErrorActionPreference = "Stop"
-$ProgressPreference = "SilentlyContinue"
-
-function Say  ([string]$Msg)  { Write-Host "==> $Msg" }
-function Fatal([string]$Msg)  { Write-Host "`n[A] $Msg" -ForegroundColor Red; exit 1 }
-
-# --- platform guard ---------------------------------------------------------
-if ($env:OS -ne "Windows_NT") { Fatal "This installer installs the Windows app; run it on Windows." }
-if ($env:PROCESSOR_ARCHITECTURE -ne "AMD64") { Fatal "This build only supports x64." }
-
-$Repo = "gutzerk/code-chroma"
-if ([string]::IsNullOrWhiteSpace($ManifestUrl)) {
-    $ManifestUrl = "https://github.com/$Repo/releases/latest/download/latest.json"
+if ($env:OS -ne "Windows_NT") {
+    throw "This installer supports Windows only."
 }
-if ([string]::IsNullOrWhiteSpace($DownloadDir)) {
-    $DownloadDir = Join-Path $HOME "Downloads"
-}
-$MaxBytes = 1073741824   # 1 GiB; fail-fast cap so a rogue oversized asset can't fill the disk
-$Target = "windows-x64"
 
-# --- fetch manifest and pull out this target's URL + checksum -----------------
-Say "Fetching latest release manifest"
+$repo = "gutzerk/code_chroma"
+$baseUrl = "https://github.com/$repo/releases/latest/download"
+$installerName = "CodeChroma-Setup.exe"
+$checksumName = "$installerName.sha256"
+$tempDir = Join-Path $env:TEMP "codechroma-install-$([guid]::NewGuid().ToString('N'))"
+$installerPath = Join-Path $tempDir $installerName
+$checksumPath = Join-Path $tempDir $checksumName
+
 try {
-    $Manifest = (Invoke-WebRequest -Uri $ManifestUrl -UseBasicParsing).Content | ConvertFrom-Json
-} catch {
-    Fatal "Can't reach $ManifestUrl. Check network, or that a release exists yet."
+    New-Item -ItemType Directory -Path $tempDir | Out-Null
+
+    try {
+        Invoke-WebRequest -Uri "$baseUrl/$installerName" -OutFile $installerPath -UseBasicParsing
+    } catch {
+        throw "Could not download the latest CodeChroma installer: $($_.Exception.Message)"
+    }
+
+    try {
+        Invoke-WebRequest -Uri "$baseUrl/$checksumName" -OutFile $checksumPath -UseBasicParsing
+    } catch {
+        throw "Could not download the CodeChroma installer checksum: $($_.Exception.Message)"
+    }
+
+    $checksumText = (Get-Content -LiteralPath $checksumPath -Raw).Trim()
+    $expectedHash = [regex]::Match($checksumText, '^([0-9a-fA-F]{64})(?:\s|$)').Groups[1].Value
+    if (-not $expectedHash) {
+        throw "The CodeChroma installer checksum file is invalid."
+    }
+
+    $actualHash = (Get-FileHash -LiteralPath $installerPath -Algorithm SHA256).Hash
+    if ($actualHash -ine $expectedHash) {
+        throw "CodeChroma installer checksum verification failed; the installer was not run."
+    }
+
+    Write-Host "Checksum verified. Starting the CodeChroma setup wizard..."
+    $process = Start-Process -FilePath $installerPath -Wait -PassThru
+    if ($process.ExitCode -ne 0) {
+        throw "The CodeChroma installer exited with code $($process.ExitCode)."
+    }
+    Write-Host "CodeChroma installation completed."
+} finally {
+    if (Test-Path -LiteralPath $tempDir) {
+        try {
+            Remove-Item -LiteralPath $tempDir -Recurse -Force
+        } catch {
+            Write-Warning "Could not remove temporary installer files at $tempDir."
+        }
+    }
 }
-$Url = [string]$Manifest.assets.$Target
-$Sha = [string]$Manifest.sha256.$Target
-$Version = [string]$Manifest.version
-if ([string]::IsNullOrWhiteSpace($Url))  { Fatal "Release manifest has no binary for $Target." }
-if ($Sha -notmatch '^[0-9a-fA-F]{64}$')  { Fatal "Release manifest has no valid SHA-256 for $Target." }
-
-$ExeName = [regex]::Replace((Split-Path -Leaf $Url), '[^A-Za-z0-9._-]', '_')
-if ([string]::IsNullOrWhiteSpace($ExeName)) { Fatal "Could not derive a file name from the manifest URL." }
-
-# --- download ----------------------------------------------------------------
-New-Item -ItemType Directory -Force -Path $DownloadDir | Out-Null
-$Dest = Join-Path $DownloadDir $ExeName
-
-$DownloadFn = {
-    $resp = Invoke-WebRequest -Uri $Url -Method Head -UseBasicParsing
-    $len = $resp.Headers["Content-Length"]
-    if ($len) { if ([long]$len -gt $MaxBytes) { return $false } }
-    Invoke-WebRequest -Uri $Url -OutFile $Dest -UseBasicParsing | Out-Null
-    return $true
-}
-if (-not (Test-Path $Dest)) {
-    Say "Downloading $ExeName"
-    if (-not (& $DownloadFn)) { Fatal "Download failed, or the asset exceeds 1 GiB." }
-} else {
-    Say "Already downloaded: $Dest"
-}
-
-# --- integrity check -----------------------------------------------------------
-Say "Verifying SHA-256 checksum"
-$Actual = (Get-FileHash -Path $Dest -Algorithm SHA256).Hash.ToLowerInvariant()
-if ($Actual -ne ($Sha.ToLowerInvariant())) {
-    Say "Checksum mismatch; redownloading"
-    Remove-Item -Force $Dest -ErrorAction SilentlyContinue
-    if (-not (& $DownloadFn)) { Fatal "Download failed, or the asset exceeds 1 GiB." }
-    $Actual = (Get-FileHash -Path $Dest -Algorithm SHA256).Hash.ToLowerInvariant()
-}
-if ($Actual -ne $Sha.ToLowerInvariant()) { Fatal "Checksum mismatch - the download is corrupted or tampered with." }
-
-# --- run the NSIS installer -----------------------------------------------------
-# NSIS is not silent by design here; the user picks install options in the wizard.
-Say "Running the installer (follow the wizard)"
-Start-Process -FilePath $Dest -Wait
-
-if ([string]::IsNullOrWhiteSpace($Version)) { $Version = "(unknown)" }
-Say "Done. CodeChroma $Version installed; launch it from the Start menu."

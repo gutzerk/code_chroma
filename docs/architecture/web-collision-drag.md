@@ -91,8 +91,9 @@ given its size.
 
   Tests: `collision/resolveDrop.test.ts`, `collision/collisionStore.test.ts`,
   `collision/useGroupDrag.test.tsx`, `state/selectionStore.test.ts`, the collision/ghost/landing
-  blocks in `C1View.test.tsx`, `PlanPanel.test.tsx`, `web/e2e/block-collision.spec.ts` and
-  `web/e2e/multi-select.spec.ts`; the undo wiring in `canvas/UndoManager.test.tsx`, `state/undoStore.test.ts`
+  blocks in `C1View.test.tsx` and `PlanPanel.test.tsx`; `web/e2e/block-collision.spec.ts` and
+  `web/e2e/multi-select.spec.ts` cover the current Project Tree/diagrams-canvas separation, not
+  collision behavior. The undo wiring in `canvas/UndoManager.test.tsx`, `state/undoStore.test.ts`
   and the record/restore tests in `canvas/useSavedLayoutAndFitLoop.test.ts`. `CanvasNodeBox`'s own
   simpler drag path (it doesn't go through `useSelectionAwareDrag`, just `collision/useGroupDrag.ts`
   directly — see [`single-canvas.md`](single-canvas.md)) has its own coverage in

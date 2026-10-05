@@ -683,20 +683,13 @@ was ported onto the one canvas** — see the "C1 chrome onto the one canvas" sec
 correctly identified as C1-view-only at the time this list was written; the porting work it enabled
 came after Stage 4, not as part of it.
 
-✅ **Ported: `e2e/multi-select.spec.ts` and `e2e/block-collision.spec.ts`.** Both used to click the
-deleted "Show the C1 system-context view" rail button and assert on the old `c1-node-anchor`
-testid/synthetic `c1-*` `data-node-id`s — broken exactly as flagged here originally. Now ported onto
-the hierarchy's `boxes` strategy (`strategies/boxes/TopLevelChildren.tsx`), the one surface still
-exercising the real collision/multi-select mechanism end to end (`CanvasNodeBox`, what a
-recipe-authored C1 box renders through, deliberately does not join it — its position is the
-document's own truth, not a dagre-solved layout a drag perturbs). This needed a second top-level
-fixture node: `web/src/engine-client/fixtures.ts` gained `folder::billing-lite` alongside
-`folder::shadow-app`, since root only ever had the one child before and the multi-select/collision
-gestures both need two independently draggable top-level boxes. `anchorFor()` now filters
-`hierarchy-top-box` (`TopLevelChildren`'s own testid) instead of `c1-node-anchor`. The third
-block-collision case ("the relationship arrow is drawn from the landing") has no analogue — two
-hierarchy top-level boxes carry no edge between them the way two C1 boxes did — and was retired with
-an explanatory comment rather than guessed at.
+⚠ The E2E specs that previously asserted hierarchy-box multi-select and collision were superseded
+when `RootCanvas` began collapsing the hierarchy layer on load and the Project Tree became the
+hierarchy's visible surface. `e2e/multi-select.spec.ts` now verifies modifier-click behavior in the
+Project Tree; `e2e/block-collision.spec.ts` verifies that expanding the tree does not add hierarchy
+boxes to the diagrams canvas. Those tests no longer claim coverage of the hidden
+`TopLevelChildren` drag surface; its mechanics remain covered by focused component/unit tests. The
+second top-level fixture node (`folder::billing-lite`) remains part of the mock graph.
 🔴 Adding that second top-level fixture node exposed a real, narrow bug in `RootCanvas.tsx`'s own
 initial camera-centering effect: with `?autoexpand=off` (every e2e spec), a **single**
 `requestAnimationFrame(() => centerOnNode(id))` call raced `TopLevelChildren`'s async

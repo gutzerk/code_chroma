@@ -1,5 +1,5 @@
 import { test, expect } from "@playwright/test";
-import { gotoApp, clickBlockName } from "./helpers";
+import { gotoApp, clickTreeNodeName } from "./helpers";
 
 // The code popup opens content-sized (styles.css), capped at ~95% of the viewport. Its
 // bottom-right corner handle still lets the user fine-tune that window — grow or shrink it — up to
@@ -15,7 +15,7 @@ test.skip("dragging the popup's corner handle grows it past its default size", a
 
   const viewport = page.getByTestId("app-canvas");
   for (const name of ["examples", "shadow-app", "backend", "domain", "order_service.py"]) {
-    await clickBlockName(page, name);
+    await clickTreeNodeName(page, name);
     await page.waitForTimeout(150); // let each expand's auto-fit settle before the next click
   }
   await expect(viewport.getByText("calculate_total", { exact: true })).toBeVisible();

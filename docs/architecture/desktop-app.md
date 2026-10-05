@@ -117,7 +117,10 @@ shell installers). The AppImage replacement renames a PID-suffixed temp sibling 
 file. After install the app either
 relaunches (`app.relaunch()`, macOS/Linux) or lets the installer take over (Windows). It connects to
 `api.github.com/repos/UshakovDV/code-chroma/releases/latest` using Node's built-in `fetch` — no
-runtime dependency. The one-command installers (`install_desktop.sh`, `install_linux.sh`,
+runtime dependency. The release version is cached in the app's userData directory, so the Updates
+panel can retain the last successful result when GitHub is unavailable. GitHub API rate limits
+surface their reset time when provided, and the manual GitHub Releases path remains available while
+the retry button is disabled until the cooldown expires. The one-command installers (`install_desktop.sh`, `install_linux.sh`,
 `install_desktop.ps1`) reuse the same model: fetch the sidecar first, verify before mounting or
 launching, and redownload once if a stale cached copy fails its checksum — only a second
 mismatch is treated as tampering.

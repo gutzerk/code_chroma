@@ -1,6 +1,6 @@
 import { describe, it, expect, vi } from "vitest";
 import { UpdateService } from "./updateService";
-import type { UpdateInfo } from "./updater";
+import { GitHubRateLimitError, type UpdateInfo } from "./updater";
 const info: UpdateInfo = { version: "2.0.0", assetName: "app", downloadPath: "tmp" };
 function setup(update: UpdateInfo | null = info) {
   const deps = { check: vi.fn(async (_version: string, opts?: { onLatest?: (version: string) => void }) => { opts?.onLatest?.("2.0.0"); return update; }), download: vi.fn(async () => "tmp"), install: vi.fn(async () => true), writable: vi.fn(async () => {}) };
@@ -40,5 +40,29 @@ describe("UpdateService", () => {
     const { service, deps } = setup();
     deps.check.mockRejectedValue(new Error("Network unreachable"));
     expect((await service.check()).phase).toBe("error");
+  });
+  it("keeps the cached version and suppresses retries during a rate-limit cooldown", async () => {
+    const { service, deps } = setup();
+    deps.check.mockRejectedValue(new GitHubRateLimitError("Rate limit. Resets in 1 minute.", Date.now() + 60_000));
+    service.state.latestVersion = "1.8.0";
+    expect(await service.check()).toMatchObject({ phase: "error", latestVersion: "1.8.0", retryAfter: expect.any(Number) });
+    expect(deps.check).toHaveBeenCalledOnce();
+    await service.check();
+    expect(deps.check).toHaveBeenCalledOnce();
+  });
+  it("loads and persists a cached latest version", async () => {
+    const writeLatest = vi.fn();
+    const deps = {
+      check: vi.fn(async (_version: string, opts?: { onLatest?: (version: string) => void }) => {
+        opts?.onLatest?.("v2.1.0");
+        return null;
+      }),
+      readLatest: () => "v2.0.0",
+      writeLatest,
+    };
+    const service = new UpdateService("2.1.0", vi.fn(), deps);
+    expect(service.state.latestVersion).toBe("v2.0.0");
+    expect((await service.check()).latestVersion).toBe("v2.1.0");
+    expect(writeLatest).toHaveBeenCalledWith("v2.1.0");
   });
 });

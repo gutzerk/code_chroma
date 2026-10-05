@@ -203,6 +203,18 @@ describe("checkForUpdates", () => {
     await expect(checkForUpdates("1.0.0", { fetchImpl })).rejects.toThrow(/500/);
   });
 
+  it("reports rate limits and their reset time", async () => {
+    const reset = Math.floor(Date.now() / 1000) + 720;
+    const response = new Response(JSON.stringify({ message: "API rate limit exceeded" }), {
+      status: 403,
+      headers: { "x-ratelimit-remaining": "0", "x-ratelimit-reset": String(reset) },
+    });
+    await expect(checkForUpdates("1.0.0", { fetchImpl: (async () => response) as typeof fetch }))
+      .rejects.toMatchObject({ name: "GitHubRateLimitError", retryAt: reset * 1000 });
+    await expect(checkForUpdates("1.0.0", { fetchImpl: (async () => response) as typeof fetch }))
+      .rejects.toThrow(/Resets in 12 minutes/);
+  });
+
   it("resolves the digest from the .sha256 sidecar when one is published", async () => {
     const calls: string[] = [];
     const fetchImpl = (async (url: unknown) => {

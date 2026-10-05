@@ -8,7 +8,6 @@ assignments are machine-local, not per-repo. Full contract in
 from __future__ import annotations
 
 import asyncio
-import shutil
 
 from fastapi import APIRouter, HTTPException, Request
 
@@ -27,6 +26,7 @@ from codechroma.llm.call_site_settings import (
     save_group_assignment,
 )
 from codechroma.llm.call_sites import CALL_SITES, GROUPS, HIDDEN_GROUPS
+from codechroma.llm.runtime_env import CliLookupError, resolve_runtime_cli
 
 router = APIRouter()
 
@@ -105,9 +105,10 @@ async def get_provider_models(provider_id: str) -> dict:
 
 def _run_provider_test(provider_id: str | None, provider: providers_store.Provider) -> dict:
     if provider.kind == "cli":
-        found = shutil.which(provider.adapter or "") is not None
-        if not found:
-            error = f"{provider.adapter!r} not found on PATH"
+        try:
+            resolve_runtime_cli(provider.adapter or "")
+        except CliLookupError as exc:
+            error = str(exc)
             return {"ok": False, "provider_id": provider_id, "error": error}
         result = model_catalog.fetch_models(provider)
         if result["error"]:
@@ -232,7 +233,13 @@ def _group_cli_available(
         binary = provider.adapter if provider is not None else None
     else:
         binary = default_cli
-    return bool(binary and shutil.which(binary))
+    if not binary:
+        return False
+    try:
+        resolve_runtime_cli(binary)
+        return True
+    except CliLookupError:
+        return False
 
 
 def _joined_group(

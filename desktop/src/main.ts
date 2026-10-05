@@ -13,10 +13,10 @@ import { basename, join, resolve } from "node:path";
 import { startBridge, stopBridge, type BridgeHandle } from "./bridgeProcess";
 import { resolveBridgeExecutable } from "./bridgeLocation";
 import { addRecent, readRecents, recentsStorePath } from "./recentRepos";
-import { repairProcessPath } from "./shellPath";
 import { TabManager, type Tab } from "./tabManager";
 import type { TabsChangedPayload } from "./tabbarPreload";
-import { checkForUpdates, downloadAsset, installAsset, type UpdateInfo } from "./updater";
+import { UpdateService } from "./updateService";
+import { readCachedLatestVersion, updateCachePath, writeCachedLatestVersion } from "./updateCache";
 
 const LAUNCHER_PAGE = join(__dirname, "..", "launcher", "index.html");
 const TABBAR_PAGE = join(__dirname, "..", "tabbar", "index.html");
@@ -292,95 +292,44 @@ function frontShell(): Shell | undefined {
   return shellForWindow(BrowserWindow.getFocusedWindow()) ?? [...shells][0];
 }
 
-/** Guards check/install so a notification-click and the File menu can't double-fire osascript mounts. */
-let updateBusy = false;
-
-/** Latest newer-than-`app.getVersion()` release, or null. `checkForUpdates` defaults to this process's
- * platform/arch, so callers stay terse. */
-function latest(): Promise<UpdateInfo | null> {
-  return checkForUpdates(app.getVersion());
-}
-
-/** Background check at startup: never prompts, offline must not break launch. Only for packaged
- * installs -- a dev run (`npm start`) hitting the real GitHub API would just be noise. */
+const updates = new UpdateService(app.getVersion(), state => {
+  for (const shell of shells) for (const tab of shell.tabs.listTabs()) {
+    if (!tab.view.webContents.isDestroyed()) tab.view.webContents.send("updates:state", state);
+  }
+}, {
+  readLatest: () => readCachedLatestVersion(updateCachePath(app.getPath("userData"))),
+  writeLatest: version => writeCachedLatestVersion(updateCachePath(app.getPath("userData")), version),
+});
 async function checkAndNotify(): Promise<void> {
   if (!app.isPackaged) return;
-  try {
-    const info = await latest();
-    if (info) notifyUpdateAvailable(info);
-  } catch {
-    /* offline or API unreachable -- the File menu item still re-checks on demand. */
+  const state = await updates.check();
+  if (state.phase === "available") notifyUpdateAvailable(state.latestVersion!);
+}
+async function runUpdateFlow(): Promise<void> {
+  const state = await updates.check();
+  if (state.phase === "error") { dialog.showErrorBox("Check for updates", state.error!); return; }
+  if (state.phase !== "available" && state.phase !== "ready") return;
+  const choice = await dialog.showMessageBox({ message: `CodeChroma ${state.latestVersion} available`, buttons: [state.phase === "ready" ? "Restart and Update" : "Download update", "Later"], cancelId: 1 });
+  if (choice.response !== 0) return;
+  if (state.phase === "ready") await updates.restart(restartAfterUpdate);
+  else {
+    const downloaded = await updates.download();
+    if (downloaded.phase === "error") dialog.showErrorBox("Update failed", downloaded.error!);
+    else if ((await dialog.showMessageBox({ message: "Update ready", buttons: ["Restart and Update", "Later"], cancelId: 1 })).response === 0) await updates.restart(restartAfterUpdate);
   }
 }
-
-/** Runs the update flow; `info` skips the API re-check, the menu item passes none to re-check.
- * The `updateBusy` gate is taken before the first await so a notification-click and the File menu
- * can't both drive the (privileged) install. */
-async function runUpdateFlow(infoArg?: UpdateInfo): Promise<void> {
-  if (updateBusy) return;
-  updateBusy = true;
-  try {
-    let info: UpdateInfo | null = infoArg ?? null;
-    if (!info) {
-      try {
-        info = await latest();
-      } catch {
-        dialog.showErrorBox("Check for updates", "Couldn't reach GitHub. Check your connection and try again.");
-        return;
-      }
-    }
-    if (!info) return;
-
-    // A newer release whose installer has no reachable SHA-256 digest can't be verified: tell the
-    // user rather than silently claiming the app is current.
-    if (!info.sha256) {
-      dialog.showErrorBox(
-        "Check for updates",
-        `CodeChroma ${info.version} is available but its installer has no checksum to verify against. Please install manually from GitHub.`,
-      );
-      return;
-    }
-
-    const shell = frontShell();
-    const confirm = shell
-      ? await dialog.showMessageBox(shell.window, {
-          type: "info",
-          buttons: ["Update", "Later"],
-          defaultId: 0,
-          cancelId: 1,
-          message: `An update to CodeChroma ${info.version} is available.`,
-          detail: `Install ${info.version} now? You'll need to relaunch CodeChroma.`,
-        })
-      : { response: 1 };
-    if (confirm.response !== 0) return;
-
-    await downloadAsset(info);
-    if (await installAsset(info)) {
-      await dialog.showMessageBox({
-        type: "info",
-        message: `CodeChroma ${info.version} installed.`,
-        detail: "Relaunch to use the new version.",
-        buttons: ["Relaunch"],
-      });
-      app.relaunch();
-      app.quit();
-    }
-  } catch (error) {
-    // A failed install and an unreachable GitHub are different failures to the user; keep the
-    // offline case honest instead of lumping it into "Update failed".
-    dialog.showErrorBox("Update failed", (error as Error).message);
-  } finally {
-    updateBusy = false;
-  }
+function restartAfterUpdate(relaunch: boolean): void {
+  if (relaunch) app.relaunch({ execPath: process.env.APPIMAGE ?? process.execPath });
+  app.quit();
 }
 
 /** Alerts on a newer release; clicking it starts the update using the `info` already fetched. */
-function notifyUpdateAvailable(info: UpdateInfo): void {
+function notifyUpdateAvailable(version: string): void {
   const notification = new Notification({
-    title: `CodeChroma ${info.version} available`,
+    title: `CodeChroma ${version} available`,
     body: "Click to update.",
   });
-  notification.on("click", () => void runUpdateFlow(info));
+  notification.on("click", () => void runUpdateFlow());
   notification.show();
 }
 
@@ -448,6 +397,15 @@ function buildMenu(): void {
 }
 
 function registerIpc(): void {
+  for (const action of ["state", "check", "download", "restart"] as const) {
+    ipcMain.handle(`updates:${action}`, (event) => {
+      if (!shellForTabSender(event.sender)) throw new Error("Unknown update caller");
+      if (action === "state") return updates.state;
+      if (action === "check") return updates.check();
+      if (action === "download") return updates.download();
+      return updates.restart(restartAfterUpdate);
+    });
+  }
   ipcMain.handle("launcher:list-recents", () => readRecents(storePath()));
   ipcMain.handle("launcher:pick-folder", () => promptForFolder());
   ipcMain.handle("launcher:open-repo", (event, repoPath: string) => {
@@ -500,7 +458,6 @@ function repoFromArgv(argv: string[]): string | null {
 }
 
 app.whenReady().then(async () => {
-  repairProcessPath();
   buildMenu();
   registerIpc();
   const initialShell = await createShell();

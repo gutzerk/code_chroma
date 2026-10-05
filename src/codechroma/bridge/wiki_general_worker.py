@@ -12,7 +12,6 @@ from __future__ import annotations
 
 import asyncio
 import logging
-import os
 from dataclasses import dataclass
 from pathlib import Path
 from typing import TextIO
@@ -20,6 +19,7 @@ from typing import TextIO
 from codechroma.bridge.skill_agent import SkillAgent, debug_write, open_debug_log
 from codechroma.config import settings
 from codechroma.llm.cli_adapters import CliAdapter, supports_minimal_context_workers
+from codechroma.llm.runtime_env import resolve_runtime_cli
 
 logger = logging.getLogger("codechroma.bridge.wiki_general_worker")
 
@@ -90,15 +90,22 @@ async def _run_once(
     env_overrides: dict[str, str],
 ) -> WorkerResult:
     """One subprocess attempt; its raw stdout/stderr are appended to the job's shared debug log."""
-    argv = adapter.build_worker_argv(binary, prompt, model, schema)
+    runtime = await asyncio.to_thread(resolve_runtime_cli, binary, env_overrides)
+    argv = adapter.build_worker_argv(runtime.executable, prompt, model, schema)
     debug_write(debug_log, f"=== attempt {attempt + 1}: {' '.join(argv)}\n")
-    proc = await asyncio.create_subprocess_exec(
-        *argv,
-        cwd=str(repo_root),
-        stdout=asyncio.subprocess.PIPE,
-        stderr=asyncio.subprocess.PIPE,
-        env={**os.environ, **env_overrides},
-    )
+    try:
+        proc = await asyncio.create_subprocess_exec(
+            *argv,
+            cwd=str(repo_root),
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.PIPE,
+            env=dict(runtime.env),
+        )
+    except OSError as exc:
+        from codechroma.llm.runtime_env import CliLaunchError, launch_failed
+
+        launch_failed(exc)
+        raise CliLaunchError(runtime.launch_error(exc)) from exc
     agent.register_job_proc(repo_id, proc)
     try:
         stdout, stderr = await asyncio.wait_for(proc.communicate(), timeout=timeout_seconds)

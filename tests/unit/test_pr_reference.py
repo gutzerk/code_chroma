@@ -28,10 +28,13 @@ def _stub_gh(bin_dir: Path, body: str) -> None:
 
 
 @pytest.fixture
-def bin_dir(tmp_path, monkeypatch):
+def bin_dir(tmp_path, monkeypatch, use_test_runtime):
+    if os.name == "nt":
+        pytest.skip("uses POSIX shebang stubs")
     path = tmp_path / "bin"
     path.mkdir()
     monkeypatch.setenv("PATH", f"{path}:{os.environ['PATH']}")
+    use_test_runtime()
     return path
 
 
@@ -244,7 +247,12 @@ def test_a_logged_out_gh_is_not_authenticated(repo, bin_dir):
 
 
 def test_gh_missing_from_path_is_detected(monkeypatch, tmp_path):
-    monkeypatch.setenv("PATH", str(tmp_path / "empty"))
+    from codechroma.llm.runtime_env import CliLookupError
+
+    def missing_gh(*_args):
+        raise CliLookupError("gh executable not found")
+
+    monkeypatch.setattr("codechroma.llm.runtime_env.resolve_runtime_cli", missing_gh)
 
     assert not github.has_gh()
 

@@ -44,7 +44,7 @@ def test_start_while_a_run_is_in_flight_does_not_spawn_a_second_process(monkeypa
     back to a view whose diagram is mid-generation must never start a fresh `claude` run)."""
     agent = _make_agent(tmp_path)
     monkeypatch.setattr(
-        "codechroma.bridge.skill_agent.shutil.which", lambda _name: "/usr/bin/claude"
+        "codechroma.llm.runtime_env.shutil.which", lambda _name, **_kwargs: "/usr/bin/claude"
     )
     spawns: list[str] = []
     monkeypatch.setattr(
@@ -76,7 +76,7 @@ def test_stop_restores_the_pre_run_artifact_on_cancel(monkeypatch, tmp_path):
     `_run_claude` before `_restore`, so a partial file survived and was read as a real brief)."""
     agent = _make_agent(tmp_path)
     monkeypatch.setattr(
-        "codechroma.bridge.skill_agent.shutil.which", lambda _name: "/usr/bin/claude"
+        "codechroma.llm.runtime_env.shutil.which", lambda _name, **_kwargs: "/usr/bin/claude"
     )
     # ⚠ Before start(): `_snapshot` runs before the spawn, so a later write is not in the snapshot.
     good = agent.artifact(tmp_path, "job-a")
@@ -122,7 +122,7 @@ def test_stop_kills_an_in_flight_run_and_resets_to_idle(monkeypatch, tmp_path):
     fresh instead of re-attaching to a run the user just cancelled."""
     agent = _make_agent(tmp_path)
     monkeypatch.setattr(
-        "codechroma.bridge.skill_agent.shutil.which", lambda _name: "/usr/bin/claude"
+        "codechroma.llm.runtime_env.shutil.which", lambda _name, **_kwargs: "/usr/bin/claude"
     )
     killed = []
     monkeypatch.setattr(
@@ -163,7 +163,7 @@ def test_forget_drops_composite_item_keys_alongside_the_bare_repo_id(tmp_path):
 def test_stop_with_nothing_running_reports_idle(monkeypatch, tmp_path):
     agent = _make_agent(tmp_path)
     monkeypatch.setattr(
-        "codechroma.bridge.skill_agent.shutil.which", lambda _name: "/usr/bin/claude"
+        "codechroma.llm.runtime_env.shutil.which", lambda _name, **_kwargs: "/usr/bin/claude"
     )
 
     async def _drive():
@@ -176,7 +176,7 @@ def test_stop_with_nothing_running_reports_idle(monkeypatch, tmp_path):
 def test_two_jobs_snapshot_and_restore_independent_files(monkeypatch, tmp_path):
     agent = _make_agent(tmp_path)
     monkeypatch.setattr(
-        "codechroma.bridge.skill_agent.shutil.which", lambda _name: "/usr/bin/claude"
+        "codechroma.llm.runtime_env.shutil.which", lambda _name, **_kwargs: "/usr/bin/claude"
     )
     (tmp_path / "job-a.json").write_text(json.dumps({"kept": "a"}))
     (tmp_path / "job-b.json").write_text(json.dumps({"kept": "b"}))
@@ -196,7 +196,7 @@ def test_two_jobs_snapshot_and_restore_independent_files(monkeypatch, tmp_path):
 def test_start_without_a_prompt_override_uses_the_default_prompt(monkeypatch, tmp_path):
     agent = _make_agent(tmp_path)
     monkeypatch.setattr(
-        "codechroma.bridge.skill_agent.shutil.which", lambda _name: "/usr/bin/claude"
+        "codechroma.llm.runtime_env.shutil.which", lambda _name, **_kwargs: "/usr/bin/claude"
     )
     captured = []
 
@@ -219,7 +219,7 @@ def test_start_without_a_prompt_override_uses_the_default_prompt(monkeypatch, tm
 def test_start_with_a_prompt_override_uses_it_instead(monkeypatch, tmp_path):
     agent = _make_agent(tmp_path)
     monkeypatch.setattr(
-        "codechroma.bridge.skill_agent.shutil.which", lambda _name: "/usr/bin/claude"
+        "codechroma.llm.runtime_env.shutil.which", lambda _name, **_kwargs: "/usr/bin/claude"
     )
     captured = []
 
@@ -243,7 +243,7 @@ def test_start_with_a_prompt_override_uses_it_instead(monkeypatch, tmp_path):
 def test_run_passes_the_workspace_id_to_the_claude_env(monkeypatch, tmp_path):
     agent = _make_agent(tmp_path)
     monkeypatch.setattr(
-        "codechroma.bridge.skill_agent.shutil.which", lambda _name: "/usr/bin/claude"
+        "codechroma.llm.runtime_env.shutil.which", lambda _name, **_kwargs: "/usr/bin/claude"
     )
     seen_env = {}
 
@@ -345,7 +345,7 @@ def test_a_failed_first_ever_run_leaves_no_half_written_artifact_behind(monkeypa
     """With no pre-run snapshot, restore deletes: a broken first file must not get rendered."""
     agent = _make_agent(tmp_path)
     monkeypatch.setattr(
-        "codechroma.bridge.skill_agent.shutil.which", lambda _name: "/usr/bin/claude"
+        "codechroma.llm.runtime_env.shutil.which", lambda _name, **_kwargs: "/usr/bin/claude"
     )
 
     failing = fake_claude_exec(returncode=1)
@@ -367,7 +367,7 @@ def test_a_failed_run_reports_the_readable_api_error_over_cosmetic_stderr_noise(
     """A `result` event's own message beats an unrelated stderr banner (e.g. unrecognized_model)."""
     agent = _make_agent(tmp_path)
     monkeypatch.setattr(
-        "codechroma.bridge.skill_agent.shutil.which", lambda _name: "/usr/bin/claude"
+        "codechroma.llm.runtime_env.shutil.which", lambda _name, **_kwargs: "/usr/bin/claude"
     )
     failing = fake_claude_exec(
         returncode=1,
@@ -490,7 +490,7 @@ def test_start_passes_provider_env_overrides_into_the_subprocess_env(
     save_group_assignment("planning", {"provider_id": provider.id, "model": "deepseek-chat"})
     agent = _make_agent(tmp_path, name="wiki_general_agent")
     monkeypatch.setattr(
-        "codechroma.bridge.skill_agent.shutil.which", lambda _name: "/usr/bin/claude"
+        "codechroma.llm.runtime_env.shutil.which", lambda _name, **_kwargs: "/usr/bin/claude"
     )
     seen_envs = []
     seen_argvs = []
@@ -528,7 +528,7 @@ def test_start_omits_bare_for_a_keyless_proxy_even_with_a_real_key_on_the_bridge
     save_group_assignment("planning", {"provider_id": provider.id, "model": "deepseek-chat"})
     agent = _make_agent(tmp_path, name="wiki_general_agent")
     monkeypatch.setattr(
-        "codechroma.bridge.skill_agent.shutil.which", lambda _name: "/usr/bin/claude"
+        "codechroma.llm.runtime_env.shutil.which", lambda _name, **_kwargs: "/usr/bin/claude"
     )
     seen_argvs = []
 

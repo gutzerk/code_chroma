@@ -11,6 +11,7 @@ from fastapi.testclient import TestClient
 
 from codechroma.bridge import skill_agent
 from codechroma.diagrams import library
+from codechroma.llm.runtime_env import CliLookupError
 from tests.conftest import diagram_json_path
 
 VALID_DEFINITION = {
@@ -33,7 +34,10 @@ def _isolated_library(tmp_path, monkeypatch):
 @pytest.fixture(autouse=True)
 def _no_claude_cli(monkeypatch):
     """None of these routes should ever spawn a real `claude` process in a test run."""
-    monkeypatch.setattr(skill_agent.shutil, "which", lambda _name: None)
+    def missing_cli(*_args):
+        raise CliLookupError("claude executable not found")
+
+    monkeypatch.setattr(skill_agent, "resolve_runtime_cli", missing_cli)
 
 
 def test_get_diagram_type_rejects_a_malformed_id(bridge):

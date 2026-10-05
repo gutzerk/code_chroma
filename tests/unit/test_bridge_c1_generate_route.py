@@ -1,5 +1,6 @@
 """TestClient coverage for the background C1 generation routes and their status broadcast."""
 
+
 import asyncio
 import shutil
 import subprocess
@@ -9,9 +10,8 @@ from pathlib import Path
 import pytest
 from fastapi.testclient import TestClient
 
-from codechroma.bridge import skill_agent
 from tests.conftest import diagram_json_path
-from tests.unit.fake_claude import fake_claude_exec
+from tests.unit.fake_claude import CLI_MISSING, fake_claude_exec
 
 FIXTURE_REPO = Path(__file__).parent.parent / "fixtures" / "sample_repo"
 
@@ -46,21 +46,21 @@ def test_status_defaults_to_idle(server_module):
 
 def test_generate_without_claude_binary_reports_error(server_module, monkeypatch):
     bridge, _repo = server_module
-    monkeypatch.setattr(skill_agent.shutil, "which", lambda _name: None)
+    monkeypatch.setattr("codechroma.llm.runtime_env.shutil.which", lambda _name, **_kwargs: None)
 
     with TestClient(bridge.app) as client:
         response = client.post("/repos/default/c1/generate")
         status_response = client.get("/repos/default/c1/status")
 
     assert response.status_code == 200
-    assert response.json() == {"state": "error", "error": "claude CLI not found on PATH"}
-    assert status_response.json() == {"state": "error", "error": "claude CLI not found on PATH"}
+    assert response.json() == {"state": "error", "error": CLI_MISSING}
+    assert status_response.json() == {"state": "error", "error": CLI_MISSING}
 
 
 def test_only_if_missing_does_not_start_a_run_when_a_diagram_exists(server_module, monkeypatch):
     bridge, repo = server_module
-    # Without the guard this reports "claude CLI not found on PATH", so idle means it never tried.
-    monkeypatch.setattr(skill_agent.shutil, "which", lambda _name: None)
+    # Without the guard this reports CLI_MISSING, so idle means it never tried.
+    monkeypatch.setattr("codechroma.llm.runtime_env.shutil.which", lambda _name, **_kwargs: None)
     c1_path = diagram_json_path(repo, "c1")
     c1_path.parent.mkdir(parents=True, exist_ok=True)
     c1_path.write_text('{"system": {"name": "Sample"}, "actors": []}')
@@ -75,18 +75,18 @@ def test_only_if_missing_still_starts_a_run_when_the_existing_diagram_is_a_draft
     server_module, monkeypatch
 ):
     bridge, repo = server_module
-    monkeypatch.setattr(skill_agent.shutil, "which", lambda _name: None)
+    monkeypatch.setattr("codechroma.llm.runtime_env.shutil.which", lambda _name, **_kwargs: None)
     # 043: bring-up's draft c1.json must not count as "already generated" for only_if_missing.
 
     with TestClient(bridge.app) as client:
         response = client.post("/repos/default/c1/generate?only_if_missing=true")
 
-    assert response.json() == {"state": "error", "error": "claude CLI not found on PATH"}
+    assert response.json() == {"state": "error", "error": CLI_MISSING}
 
 
 def test_only_if_missing_still_starts_a_run_when_no_diagram_exists(server_module, monkeypatch):
     bridge, repo = server_module
-    monkeypatch.setattr(skill_agent.shutil, "which", lambda _name: None)
+    monkeypatch.setattr("codechroma.llm.runtime_env.shutil.which", lambda _name, **_kwargs: None)
     # 043: undo bring-up's deterministic bootstrap so this test starts from a truly-missing file.
     diagram_json_path(repo, "c1").unlink(missing_ok=True)
 
@@ -94,12 +94,12 @@ def test_only_if_missing_still_starts_a_run_when_no_diagram_exists(server_module
         response = client.post("/repos/default/c1/generate?only_if_missing=true")
 
     assert not diagram_json_path(repo, "c1").exists()
-    assert response.json() == {"state": "error", "error": "claude CLI not found on PATH"}
+    assert response.json() == {"state": "error", "error": CLI_MISSING}
 
 
 def test_cancel_without_a_run_resets_to_idle(server_module, monkeypatch):
     bridge, _repo = server_module
-    monkeypatch.setattr(skill_agent.shutil, "which", lambda _name: None)
+    monkeypatch.setattr("codechroma.llm.runtime_env.shutil.which", lambda _name, **_kwargs: None)
 
     with TestClient(bridge.app) as client:
         response = client.post("/repos/default/c1/cancel")
@@ -110,7 +110,9 @@ def test_cancel_without_a_run_resets_to_idle(server_module, monkeypatch):
 
 def test_cancel_kills_an_in_flight_run_and_reports_idle(server_module, monkeypatch):
     bridge, _repo = server_module
-    monkeypatch.setattr(skill_agent.shutil, "which", lambda _name: "/usr/bin/claude")
+    monkeypatch.setattr(
+        "codechroma.llm.runtime_env.shutil.which", lambda _name, **_kwargs: "/usr/bin/claude"
+    )
     killed = []
     monkeypatch.setattr(
         asyncio, "create_subprocess_exec", fake_claude_exec(hang=True, killed=killed)
@@ -131,7 +133,7 @@ def test_cancel_kills_an_in_flight_run_and_reports_idle(server_module, monkeypat
 
 def test_generate_broadcasts_status_over_events_socket(server_module, monkeypatch):
     bridge, _repo = server_module
-    monkeypatch.setattr(skill_agent.shutil, "which", lambda _name: None)
+    monkeypatch.setattr("codechroma.llm.runtime_env.shutil.which", lambda _name, **_kwargs: None)
 
     with TestClient(bridge.app) as client:
         with client.websocket_connect("/repos/default/events") as websocket:
@@ -141,7 +143,7 @@ def test_generate_broadcasts_status_over_events_socket(server_module, monkeypatc
     assert message == {
         "type": "c1-status",
         "state": "error",
-        "error": "claude CLI not found on PATH",
+        "error": CLI_MISSING,
     }
 
 
@@ -156,7 +158,7 @@ def _receive_until(websocket, message_type: str, attempts: int = 10) -> dict:
 
 def test_generate_broadcasts_tag_the_ping_with_the_agents_workspace_id(server_module, monkeypatch):
     bridge, _repo = server_module
-    monkeypatch.setattr(skill_agent.shutil, "which", lambda _name: None)
+    monkeypatch.setattr("codechroma.llm.runtime_env.shutil.which", lambda _name, **_kwargs: None)
 
     with TestClient(bridge.app) as client:
         agent_id = client.post("/agents", json={"title": "refund flow"}).json()["id"]
@@ -167,6 +169,6 @@ def test_generate_broadcasts_tag_the_ping_with_the_agents_workspace_id(server_mo
     assert message == {
         "type": "c1-status",
         "state": "error",
-        "error": "claude CLI not found on PATH",
+        "error": CLI_MISSING,
         "workspace": agent_id,
     }

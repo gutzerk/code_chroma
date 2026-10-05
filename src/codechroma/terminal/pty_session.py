@@ -13,6 +13,7 @@ import time
 from collections.abc import Callable
 
 from codechroma.config import settings
+from codechroma.llm.runtime_env import launch_failed, resolve_runtime_cli
 
 if settings.windows:
     from winpty import PtyProcess
@@ -81,9 +82,17 @@ class PtySession:
         self.last_size: tuple[int, int] | None = None
         # A multi-byte character can straddle two reads; an incremental decoder carries the tail.
         self._decoder = codecs.getincrementaldecoder("utf-8")("replace")
-        child_env = _terminal_env()
-        if env:
-            child_env.update(env)
+        if env is not None and "PATH" in env and os.path.isabs(argv[0]):
+            child_env = dict(env)
+        else:
+            runtime = resolve_runtime_cli(argv[0], env)
+            argv = [runtime.executable, *argv[1:]]
+            child_env = dict(runtime.env)
+        terminal_env = _terminal_env()
+        for key in ("TERM", "COLORTERM", "FORCE_COLOR"):
+            child_env[key] = (env or {}).get(key, terminal_env[key])
+        if not child_env.get("LC_ALL") and not child_env.get("LANG"):
+            child_env["LANG"] = "en_US.UTF-8"
         if settings.windows:
             # ConPTY owns the Windows terminal handles and reads output from a worker thread.
             self._process = PtyProcess.spawn(
@@ -95,17 +104,23 @@ class PtySession:
             self._master_fd, slave_fd = pty.openpty()
             # Size the PTY before the child exists, so it never observes a 0x0 terminal.
             self.resize(rows, cols)
-            self._process = subprocess.Popen(
-                argv,
-                stdin=slave_fd,
-                stdout=slave_fd,
-                stderr=slave_fd,
-                cwd=cwd,
-                env=child_env,
-                preexec_fn=_make_controlling_tty,
-                close_fds=True,
-            )
-            os.close(slave_fd)
+            try:
+                self._process = subprocess.Popen(
+                    argv,
+                    stdin=slave_fd,
+                    stdout=slave_fd,
+                    stderr=slave_fd,
+                    cwd=cwd,
+                    env=child_env,
+                    preexec_fn=_make_controlling_tty,
+                    close_fds=True,
+                )
+            except OSError as exc:
+                launch_failed(exc)
+                os.close(self._master_fd)
+                raise
+            finally:
+                os.close(slave_fd)
         self._exit_code: int | None = None
         if settings.windows:
             self._read_task = asyncio.create_task(self._read_windows())

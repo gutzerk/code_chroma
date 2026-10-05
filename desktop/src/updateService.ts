@@ -3,8 +3,18 @@ import {
   downloadAsset,
   installAsset,
   assertUserInstallation,
+  GitHubRateLimitError,
   type UpdateInfo,
 } from "./updater";
+
+type UpdateServiceDependencies = {
+  check: typeof checkForUpdates;
+  download: typeof downloadAsset;
+  install: typeof installAsset;
+  writable: typeof assertUserInstallation;
+  readLatest: () => string | undefined;
+  writeLatest: (version: string) => void;
+};
 
 export interface UpdateState {
   currentVersion: string;
@@ -13,6 +23,7 @@ export interface UpdateState {
   bytes?: number;
   total?: number;
   error?: string;
+  retryAfter?: number;
 }
 
 /** One shared update transaction for Settings, the File menu, and release notifications. */
@@ -20,18 +31,23 @@ export class UpdateService {
   state: UpdateState;
   private info: UpdateInfo | null = null;
   private busy = false;
+  private deps: UpdateServiceDependencies;
 
   constructor(
     currentVersion: string,
     private changed: (state: UpdateState) => void,
-    private deps = {
+    deps: Partial<UpdateServiceDependencies> = {},
+  ) {
+    this.deps = {
       check: checkForUpdates,
       download: downloadAsset,
       install: installAsset,
       writable: assertUserInstallation,
-    },
-  ) {
-    this.state = { currentVersion, phase: "idle" };
+      readLatest: () => undefined,
+      writeLatest: () => {},
+      ...deps,
+    };
+    this.state = { currentVersion, latestVersion: this.deps.readLatest(), phase: "idle" };
   }
 
   private set(patch: Partial<UpdateState>) {
@@ -45,9 +61,13 @@ export class UpdateService {
     try {
       await action();
     } catch (error) {
+      const rateLimit = error instanceof GitHubRateLimitError;
       this.set({
         phase: "error",
-        error: `${error instanceof Error ? error.message : error} Try again or update manually from GitHub Releases.`,
+        error: rateLimit
+          ? error.message
+          : `${error instanceof Error ? error.message : error} Try again or update manually from GitHub Releases.`,
+        retryAfter: rateLimit ? error.retryAt : undefined,
       });
     } finally {
       this.busy = false;
@@ -57,18 +77,25 @@ export class UpdateService {
 
   check() {
     return this.run(async () => {
+      if (this.state.retryAfter && Date.now() < this.state.retryAfter) return;
       if (this.state.phase === "ready") return;
       this.info = null;
-      this.set({ phase: "checking", latestVersion: undefined, error: undefined });
+      this.set({ phase: "checking", error: undefined });
+      let latestReturned = false;
       this.info = await this.deps.check(this.state.currentVersion, {
-        onLatest: latestVersion => this.set({ latestVersion }),
+        onLatest: latestVersion => {
+          latestReturned = true;
+          try { this.deps.writeLatest(latestVersion); } catch {}
+          this.set({ latestVersion });
+        },
       });
-      if (!this.state.latestVersion && !this.info) {
+      if (!latestReturned && !this.info) {
         throw new Error("No stable release was returned by GitHub.");
       }
       this.set({
         phase: this.info ? "available" : "up-to-date",
         latestVersion: this.info?.version ?? this.state.latestVersion,
+        retryAfter: undefined,
       });
     });
   }

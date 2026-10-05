@@ -21,6 +21,16 @@ export interface UpdateInfo {
   downloadUrl?: string;
 }
 
+export class GitHubRateLimitError extends Error {
+  constructor(
+    message: string,
+    readonly retryAt: number,
+  ) {
+    super(message);
+    this.name = "GitHubRateLimitError";
+  }
+}
+
 /** A single `assets[]` entry from the GitHub /releases/latest response. */
 export interface ReleaseAsset {
   name: string;
@@ -122,7 +132,10 @@ export async function checkForUpdates(
   const doFetch = fetchImpl ?? fetch;
   const response = await doFetch(RELEASES_API, { signal: AbortSignal.timeout(15_000), headers: { "User-Agent": "code-chroma-desktop" } });
   // Throw (not return null) on a non-2xx: "no update" must not be conflated with "offline/rejected".
-  if (!response.ok) throw new Error(`GitHub API responded ${response.status}`);
+  if (!response.ok) {
+    if (await isRateLimitResponse(response)) throw await rateLimitError(response);
+    throw new Error(`GitHub API responded ${response.status}`);
+  }
   const release = (await response.json()) as LatestRelease;
   if (!release || typeof release.tag_name !== "string" || !semver(release.tag_name) || !Array.isArray(release.assets) || release.assets.some(a => !a || typeof a.name !== "string" || typeof a.browser_download_url !== "string")) throw new Error("Malformed GitHub release response. Try again or visit GitHub Releases.");
   const version = release.tag_name;
@@ -136,6 +149,38 @@ export async function checkForUpdates(
   // A newer asset with no reachable digest is still "an update", not "up to date": the caller must
   // surface it (a release that forgot its sidecar must not silently masquerade as current).
   return { version, assetName: asset.name, downloadUrl: release.assets!.find(a => a.name === asset.name)!.browser_download_url, downloadPath: join(tmpdir(), safeAssetPath(asset.name)), sha256 };
+}
+
+async function isRateLimitResponse(response: Response): Promise<boolean> {
+  if (response.status === 429 || response.headers?.get("x-ratelimit-remaining") === "0") return true;
+  if (response.status !== 403) return false;
+  const body = await response.clone().json().catch(() => null) as { message?: unknown } | null;
+  return typeof body?.message === "string" && /rate limit/i.test(body.message);
+}
+
+async function rateLimitError(response: Response): Promise<GitHubRateLimitError> {
+  const now = Date.now();
+  const reset = Number(response.headers?.get("x-ratelimit-reset"));
+  const retryAfter = response.headers?.get("retry-after");
+  const retryAfterSeconds = Number(retryAfter);
+  const retryAfterDate = retryAfter && Number.isNaN(retryAfterSeconds) ? Date.parse(retryAfter) : NaN;
+  const retryAt = Number.isFinite(reset) && reset * 1000 > now
+    ? reset * 1000
+    : Number.isFinite(retryAfterSeconds) && retryAfterSeconds > 0
+      ? now + retryAfterSeconds * 1000
+      : Number.isFinite(retryAfterDate) && retryAfterDate > now
+        ? retryAfterDate
+        : now + 60_000;
+  const delay = describeDelay(retryAt - now);
+  const message = Number.isFinite(reset) && reset * 1000 > now
+    ? `GitHub API rate limit reached (unauthenticated). Resets in ${delay}. Update manually from GitHub Releases.`
+    : `GitHub API rate limit reached (unauthenticated). Try again in ${delay} or update manually from GitHub Releases.`;
+  return new GitHubRateLimitError(message, retryAt);
+}
+
+function describeDelay(milliseconds: number): string {
+  const minutes = Math.ceil(milliseconds / 60_000);
+  return minutes <= 1 ? "about 1 minute" : `${minutes} minutes`;
 }
 
 /** The hex from the release's `<installer>.sha256` sidecar, or undefined when none is published. */

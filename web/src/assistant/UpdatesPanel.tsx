@@ -8,6 +8,7 @@ export interface UpdateState {
   bytes?: number;
   total?: number;
   error?: string;
+  retryAfter?: number;
 }
 
 export interface UpdatesApi {
@@ -35,6 +36,7 @@ const STATUS: Record<UpdateState["phase"], string> = {
 
 export function UpdatesPanel({ onDismiss }: { onDismiss: () => void }) {
   const [state, setState] = useState<UpdateState>({ currentVersion: "Unknown", phase: "checking" });
+  const [now, setNow] = useState(Date.now());
   const api = window.codechromaUpdates;
   const run = (action: () => Promise<UpdateState>) => {
     action().then(setState).catch(error => setState(s => ({
@@ -56,7 +58,25 @@ export function UpdatesPanel({ onDismiss }: { onDismiss: () => void }) {
     return () => { active = false; unsubscribe(); };
   }, [api]);
 
+  useEffect(() => {
+    if (!state.retryAfter || state.phase !== "error") return;
+    if (state.retryAfter <= Date.now()) return;
+    const retryAt = state.retryAfter;
+    const timer = window.setInterval(() => {
+      const current = Date.now();
+      setNow(current);
+      if (current >= retryAt) window.clearInterval(timer);
+    }, 1000);
+    return () => window.clearInterval(timer);
+  }, [state.phase, state.retryAfter]);
+
   const busy = ["checking", "downloading", "installing"].includes(state.phase);
+  const rateLimited = state.retryAfter !== undefined && now < state.retryAfter;
+  const seconds = state.retryAfter ? Math.ceil((state.retryAfter - now) / 1000) : 0;
+  const minutes = Math.ceil(seconds / 60);
+  const retryLabel = rateLimited
+    ? minutes > 0 ? `Try again in ${minutes} min` : `Try again in ${seconds} sec`
+    : "Try again";
   return (
     <ModalDialog label="Updates" testId="updates-panel" className="settings-home-dialog" onDismiss={onDismiss}>
       <header className="llm-dialog-header"><h2>Updates</h2></header>
@@ -85,8 +105,8 @@ export function UpdatesPanel({ onDismiss }: { onDismiss: () => void }) {
           {state.phase === "ready" && (
             <button className="llm-button-primary" onClick={() => run(api.restart)}>Restart and Update</button>
           )}
-          <button disabled={busy || state.phase === "ready"} onClick={() => run(api.check)}>
-            {state.phase === "error" ? "Try again" : "Check for updates"}
+          <button disabled={busy || state.phase === "ready" || rateLimited} onClick={() => run(api.check)}>
+            {state.phase === "error" ? retryLabel : "Check for updates"}
           </button>
           <p>
             <a href="https://github.com/gutzerk/code_chroma/releases" target="_blank" rel="noreferrer">GitHub Releases</a>

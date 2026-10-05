@@ -16,6 +16,7 @@ import { addRecent, readRecents, recentsStorePath } from "./recentRepos";
 import { TabManager, type Tab } from "./tabManager";
 import type { TabsChangedPayload } from "./tabbarPreload";
 import { UpdateService } from "./updateService";
+import { readCachedLatestVersion, updateCachePath, writeCachedLatestVersion } from "./updateCache";
 
 const LAUNCHER_PAGE = join(__dirname, "..", "launcher", "index.html");
 const TABBAR_PAGE = join(__dirname, "..", "tabbar", "index.html");
@@ -295,6 +296,9 @@ const updates = new UpdateService(app.getVersion(), state => {
   for (const shell of shells) for (const tab of shell.tabs.listTabs()) {
     if (!tab.view.webContents.isDestroyed()) tab.view.webContents.send("updates:state", state);
   }
+}, {
+  readLatest: () => readCachedLatestVersion(updateCachePath(app.getPath("userData"))),
+  writeLatest: version => writeCachedLatestVersion(updateCachePath(app.getPath("userData")), version),
 });
 async function checkAndNotify(): Promise<void> {
   if (!app.isPackaged) return;

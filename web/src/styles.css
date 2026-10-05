@@ -6234,11 +6234,15 @@ body {
   border-radius: 14px;
   background: color-mix(in srgb, var(--diagram-frame-color, #94a3b8) 6%, transparent);
   cursor: grab;
+  /* Own compositor layer + no transitions, so the border never repaints/blinks as left/top change. */
+  transform: translateZ(0);
+  will-change: left, top;
+  transition: none;
 }
 
+/* Cursor only: restyling the border/background mid-drag made the frame visibly flicker. */
 .canvas-diagram-frame--dragging {
   cursor: grabbing;
-  background: color-mix(in srgb, var(--diagram-frame-color, #94a3b8) 12%, transparent);
 }
 
 .canvas-diagram-frame-label {

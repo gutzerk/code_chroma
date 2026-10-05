@@ -93,22 +93,26 @@ prebuilt release and does not clone or build the repository. Run with
 **Updates are checked in-app and installed from GitHub, not in place.** On startup the main
 process (`desktop/src/updater.ts`) queries the latest GitHub Release against `app.getVersion()`; if a
 newer version exists it raises a native Notification ("Update to vX.Y.Z available") plus a
-File → "Check for Updates…" menu item. The startup check only runs for packaged installs
-(`app.isPackaged`) so a dev run never hits the API. Clicking either opens a confirm dialog, then
-downloads the correct per-platform artifact and runs it: on macOS `hdiutil -plist` mounts the `.dmg`
+File → "Check for Updates…" menu item. The Settings → Updates dialog
+(`web/src/assistant/UpdatesPanel.tsx`) shows current/latest stable versions, check and download
+progress, signature errors, and the explicit restart action. Its release-notes link opens in the
+system browser. The startup check only runs for packaged installs (`app.isPackaged`) so a dev run
+never hits the API. The native notification and menu actions still use a confirm dialog, then
+download the correct per-platform artifact and run it: on macOS `hdiutil -plist` mounts the `.dmg`
 (the mount point is parsed from XML, so space-y volume names can't break the path) and `ditto` copies
 the new `.app` over the running app bundle with the current user's permissions (it never prompts
 for elevation; system-wide installs must be moved to `~/Applications` before in-app updates); on
 Windows it launches the `-Setup.exe` (per-user NSIS shows the overwrite prompt without UAC); on Linux it
 atomically replaces the running AppImage in place. The download streams to a `.part` sibling while
-hashing SHA-256 in one pass (aborting and discarding anything past 1 GiB), is verified against the
-release's published `.sha256` sidecar, then **provenance-checked** before it's renamed into place:
+hashing SHA-256 in one pass (aborting and discarding anything past 1 GiB), is verified against
+GitHub's asset digest (falling back to the release `.sha256` sidecar), then **provenance-checked**
+before it's renamed into place:
 `desktop/src/attestation.ts` fetches the artifact's signed attestation from GitHub
-(`/repos/UshakovDV/code-chroma/attestations/sha256:<hex>`) and verifies it with `sigstore-js`,
+(`/repos/gutzerk/code_chroma/attestations/sha256:<hex>`) and verifies it with `sigstore-js`,
 pinning the OIDC issuer and workflow identity of `release-please.yml` — so the signed attestation,
 not the release's own sidecar, is the authority binding the artifact to this repo's release pipeline.
-`desktop/package.json` pins Sigstore to v4: Electron 33 embeds Node 20, while Sigstore v5 requires
-Node 22.22.2+, 24.15+, or 26+ and is incompatible with the packaged desktop runtime.
+`desktop/package.json` pins Sigstore to v5. Electron 44.5.1 embeds Node 24.21.0, satisfying
+Sigstore's Node 22.22.2+ runtime requirement.
 A release that publishes no attestation refuses to update (it would be an unverified install), and
 one whose installer has no reachable `sha256` digest surfaces the update but asks the user to install
 manually instead of silently pretending to be current. Asset names are sanitized to
@@ -116,7 +120,7 @@ manually instead of silently pretending to be current. Asset names are sanitized
 shell installers). The AppImage replacement renames a PID-suffixed temp sibling over the running
 file. After install the app either
 relaunches (`app.relaunch()`, macOS/Linux) or lets the installer take over (Windows). It connects to
-`api.github.com/repos/UshakovDV/code-chroma/releases/latest` using Node's built-in `fetch` — no
+`api.github.com/repos/gutzerk/code_chroma/releases/latest` using Node's built-in `fetch` — no
 runtime dependency. The release version is cached in the app's userData directory, so the Updates
 panel can retain the last successful result when GitHub is unavailable. GitHub API rate limits
 surface their reset time when provided, and the manual GitHub Releases path remains available while

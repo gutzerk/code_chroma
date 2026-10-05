@@ -96,7 +96,7 @@ describe("SettingsDialog", () => {
     fireEvent.click(screen.getByTestId("settings-open-updates"));
     expect(await screen.findByTestId("updates-panel")).toBeTruthy();
     expect(screen.getByText("Open CodeChroma in the desktop app to check and install updates.")).toBeTruthy();
-    fireEvent.click(screen.getByText("Back"));
+    fireEvent.click(screen.getByRole("button", { name: "Back" }));
     expect(screen.getByTestId("settings-open-updates")).toBeTruthy();
   });
 

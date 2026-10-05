@@ -168,7 +168,8 @@ canvas instead of collapsing onto whichever diagram happened to carry code-backe
   layout is still do later window/panel resizes re-center.
 
   `.canvas-area` itself is `.canvas-chrome` (the context bar) stacked over `.canvas-main-row`, a flex
-  row of `.canvas-stage` (the pan/zoom viewport) plus
+  row of `.canvas-stage` (the pan/zoom viewport, with `min-width: 0` so it shrinks beside panels)
+  plus
   `AgentRail`'s own full-height panel beside it — one card per agent (title, status/branch caption,
   bigger and two-line, not the icon-only rail items the name might suggest), dimmed for an agent whose
   branch main doesn't currently have checked out (see [`parallel-agents.md`](parallel-agents.md) for
@@ -478,4 +479,5 @@ of literal hex, so one edit re-themes the whole app.
 Two conventions when touching it: use a token for any value that repeats more than once (add a new
 token rather than a new hex), and keep every font size at or above `--text-2xs` (0.68rem) — nothing
 renders smaller. A global `:focus-visible` accent ring is defined at the top too, so interactive
-elements get one consistent focus treatment.
+elements get one consistent focus treatment. Scrollbars use the shared theme tokens globally: thin
+tracks stay transparent, with rounded thumbs that become more visible on hover and drag.

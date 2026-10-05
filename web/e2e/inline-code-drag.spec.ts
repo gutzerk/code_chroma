@@ -62,3 +62,25 @@ test("dragging an inline code panel's header moves it by the mouse delta without
   const transformAfter = await content.evaluate((el) => getComputedStyle(el).transform);
   expect(transformAfter).toBe(transformBefore);
 });
+
+test("opening the code sidebar keeps the canvas stage within its flex row", async ({ page }) => {
+  await gotoApp(page);
+
+  const tree = page.getByTestId("project-tree-panel");
+  for (const name of ["examples", "shadow-app", "backend", "domain", "order_service.py"]) {
+    await tree.getByText(name, { exact: true }).click();
+    await page.waitForTimeout(150);
+  }
+
+  await expect(page.getByTestId("code-sidebar")).toBeVisible();
+  await expect(page.getByTestId("block-code-view")).toBeVisible();
+  await expect(page.getByTestId("block-code-view-source")).toHaveCSS("scrollbar-width", "thin");
+
+  const stage = page.locator(".canvas-stage");
+  await expect(stage).toHaveCSS("min-width", "0px");
+  const stageRight = await stage.evaluate((element) => element.getBoundingClientRect().right);
+  const rowRight = await page
+    .locator(".canvas-main-row")
+    .evaluate((element) => element.getBoundingClientRect().right);
+  expect(stageRight).toBeLessThanOrEqual(rowRight + 1);
+});

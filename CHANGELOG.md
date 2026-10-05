@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.7.0](https://github.com/gutzerk/code_chroma/compare/v0.6.0...v0.7.0) (2026-10-05)
+
+
+### Features
+
+* open a project directly from GitHub (--github) and fix flaky git_long test ([fd0704a](https://github.com/gutzerk/code_chroma/commit/fd0704a39f0843925272b79da21717b3283d96ea))
+
+
+### Bug Fixes
+
+* harden --github ref handling and portable zombie check in test ([2fb4b31](https://github.com/gutzerk/code_chroma/commit/2fb4b313c05c95e39e1aaa124836a8b76793fac2))
+
 ## [0.6.0](https://github.com/gutzerk/code_chroma/compare/v0.5.1...v0.6.0) (2026-10-04)
 
 

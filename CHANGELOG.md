@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.7.1](https://github.com/gutzerk/code_chroma/compare/v0.7.0...v0.7.1) (2026-10-05)
+
+
+### Bug Fixes
+
+* make unit tests and git/encoding handling portable on Windows ([d4d7964](https://github.com/gutzerk/code_chroma/commit/d4d79645f63b3d45ede102c060761f5a94a74b28))
+
 ## [0.7.0](https://github.com/gutzerk/code_chroma/compare/v0.6.0...v0.7.0) (2026-10-05)
 
 

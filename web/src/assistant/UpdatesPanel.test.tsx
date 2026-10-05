@@ -62,6 +62,7 @@ describe("UpdatesPanel", () => {
     setup("downloading");
     expect(await screen.findByText("Downloading…")).toBeTruthy();
     expect(screen.getByRole("progressbar", { name: "Download progress" }).getAttribute("value")).toBe("50");
+    expect(screen.getAllByText("0.7.0")).toHaveLength(1);
     expect(screen.queryByRole("button", { name: "Update now" })).toBeNull();
     expect(screen.getByRole("button", { name: "Check for updates" })).toBeDisabled();
   });

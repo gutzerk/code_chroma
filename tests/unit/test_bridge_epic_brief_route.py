@@ -56,7 +56,7 @@ def test_cached_brief_is_returned_without_re_running_the_skill(make_bridge, make
     key = epic_brief_agent.job_key("main", EPIC_ID)
     path = epic_brief_agent.epic_brief_path(repo, key)
     path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text('{"epic_id": "EP-A-01", "generated_at": "", "scope": []}')
+    path.write_text('{"epic_id": "EP-A-01", "generated_at": "", "scope": []}', encoding="utf-8")
     client = TestClient(make_bridge(repo).app)
 
     response = client.post(f"/repos/main/epics/{EPIC_ID}/brief")
@@ -74,7 +74,7 @@ def test_force_true_regenerates_a_cached_brief(
     path = epic_brief_agent.epic_brief_path(repo, key)
     path.parent.mkdir(parents=True, exist_ok=True)
     # A valid brief is already cached -- the canvas "Regenerate" must bypass it, not echo it back.
-    path.write_text('{"epic_id": "EP-A-01", "generated_at": "", "scope": []}')
+    path.write_text('{"epic_id": "EP-A-01", "generated_at": "", "scope": []}', encoding="utf-8")
     client = TestClient(make_bridge(repo).app)
     captured = {}
 
@@ -127,7 +127,9 @@ def test_get_brief_splices_the_real_task_text_in_over_whatever_was_cached(make_b
             "tasks": [{"id": "T003", "stage": "001-first-story-feature", "text": "mangled ("}],
         }
     ]
-    path.write_text(json.dumps({"epic_id": EPIC_ID, "generated_at": "", "scope": scope}))
+    path.write_text(
+        json.dumps({"epic_id": EPIC_ID, "generated_at": "", "scope": scope}), encoding="utf-8"
+    )
     client = TestClient(make_bridge(repo).app)
 
     response = client.get(f"/repos/main/epics/{EPIC_ID}/brief")

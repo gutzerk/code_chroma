@@ -33,7 +33,7 @@ def repo(tmp_path, monkeypatch):
     _git(root, "init", "-b", "main")
     _git(root, "config", "user.email", "test@example.com")
     _git(root, "config", "user.name", "Test")
-    (root / "payments.py").write_text(ORIGINAL)
+    (root / "payments.py").write_text(ORIGINAL, encoding="utf-8")
     _commit(root, "initial")
     monkeypatch.setenv(worktree.WORKSPACES_DIR_ENV, str(tmp_path / "worktrees"))
     return root
@@ -59,7 +59,7 @@ def analyzed(root: Path) -> GraphEngine:
 
 
 def test_head_reproduces_the_uncommitted_only_behaviour(repo):
-    (repo / "payments.py").write_text(PATCHED)
+    (repo / "payments.py").write_text(PATCHED, encoding="utf-8")
     engine = analyzed(repo)
 
     entries = compute_function_diffs(engine, repo)
@@ -74,7 +74,7 @@ def test_head_reproduces_the_uncommitted_only_behaviour(repo):
 
 
 def test_an_edit_the_agent_committed_still_shows_in_its_diff(agent):
-    (agent / "payments.py").write_text(PATCHED)
+    (agent / "payments.py").write_text(PATCHED, encoding="utf-8")
     _commit(agent, "agent work")
     engine = analyzed(agent)
 
@@ -89,9 +89,9 @@ def test_an_edit_the_agent_committed_still_shows_in_its_diff(agent):
 
 
 def test_a_commit_landing_on_main_does_not_appear_in_the_agents_diff(repo, agent):
-    (repo / "unrelated.py").write_text("def other():\n    return 1\n")
+    (repo / "unrelated.py").write_text("def other():\n    return 1\n", encoding="utf-8")
     _commit(repo, "someone else's work on main")
-    (agent / "payments.py").write_text(PATCHED)
+    (agent / "payments.py").write_text(PATCHED, encoding="utf-8")
     _commit(agent, "agent work")
     engine = analyzed(agent)
 
@@ -105,7 +105,7 @@ def test_a_commit_landing_on_main_does_not_appear_in_the_agents_diff(repo, agent
 
 
 def test_the_base_moves_on_its_own_once_main_is_merged_in(repo, agent):
-    (repo / "unrelated.py").write_text("def other():\n    return 1\n")
+    (repo / "unrelated.py").write_text("def other():\n    return 1\n", encoding="utf-8")
     _commit(repo, "main moves on")
     before = merge_base(agent)
 
@@ -116,9 +116,9 @@ def test_the_base_moves_on_its_own_once_main_is_merged_in(repo, agent):
 
 
 def test_an_agents_uncommitted_edit_shows_alongside_its_committed_one(agent):
-    (agent / "payments.py").write_text(PATCHED)
+    (agent / "payments.py").write_text(PATCHED, encoding="utf-8")
     _commit(agent, "agent work")
-    (agent / "extra.py").write_text("def extra():\n    return 2\n")
+    (agent / "extra.py").write_text("def extra():\n    return 2\n", encoding="utf-8")
     engine = analyzed(agent)
 
     entries = compute_function_diffs(engine, agent, base=merge_base(agent))
@@ -139,7 +139,7 @@ def test_working_tree_status_against_a_base_reports_a_committed_deletion(agent):
 
 
 def test_an_unreachable_base_reports_nothing_rather_than_everything(agent):
-    (agent / "payments.py").write_text(PATCHED)
+    (agent / "payments.py").write_text(PATCHED, encoding="utf-8")
 
     status = working_tree_status(agent, detect_git_root(agent), "0" * 40)
 

@@ -134,7 +134,7 @@ def get_epic_brief_path(item_id: str, ws: Ws) -> dict:
     """Absolute location the skill writes this epic's brief to."""
     key = epic_brief_agent.job_key(ws.id, item_id)
     path = epic_brief_agent.epic_brief_path(ws.root, key)
-    return {"repo_root": str(ws.root), "brief_path": str(path)}
+    return {"repo_root": str(ws.root), "brief_path": path.as_posix()}
 
 
 @router.get("/repos/{repo_id}/epics/{item_id}/diagram-path")
@@ -150,4 +150,4 @@ def get_epic_diagram_path(item_id: str, ws: Ws) -> dict:
     if not valid_epic_id(item_id):
         raise HTTPException(status_code=404, detail=f"unknown work item: {item_id!r}")
     path = ws.diagram_artifact_path(f"epics/{item_id}")
-    return {"repo_root": str(ws.root), "diagram_path": str(path)}
+    return {"repo_root": str(ws.root), "diagram_path": path.as_posix()}

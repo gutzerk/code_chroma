@@ -94,7 +94,7 @@ def test_resolved_patterns_pass_through_authored_nodes_and_relations(server_modu
                 ],
             }
         )
-    )
+, encoding="utf-8")
 
     with TestClient(bridge.app) as client:
         payload = client.get("/repos/default/patterns").json()
@@ -128,7 +128,7 @@ def test_rejected_instances_are_dropped_from_the_resolved_payload(server_module)
                 "relations": [],
             }
         )
-    )
+, encoding="utf-8")
 
     with TestClient(bridge.app) as client:
         payload = client.get("/repos/default/patterns").json()

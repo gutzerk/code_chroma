@@ -24,7 +24,9 @@ def test_the_seeded_root_block_is_real_on_disk_not_synthesized_per_request(bridg
     with TestClient(bridge.app) as client:
         client.get("/repos/default/canvas")
 
-    saved = json.loads((bridge.repo / ".codechroma" / "canvas-core.json").read_text())
+    saved = json.loads(
+        (bridge.repo / ".codechroma" / "canvas-core.json").read_text(encoding="utf-8")
+    )
     assert "seed-hierarchy" in saved["elements"]
 
 

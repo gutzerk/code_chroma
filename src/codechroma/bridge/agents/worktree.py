@@ -161,7 +161,11 @@ def _repair_submodule_gitdirs(source: Path, target: Path) -> None:
         git_dir = _repointed_git_dir(git_file, source, target)
         if git_dir is None:
             continue
-        git_file.write_text(f"gitdir: {os.path.relpath(git_dir, git_file.parent)}\n")
+        pointer = f"gitdir: {os.path.relpath(git_dir, git_file.parent)}\n"
+        # r+ rather than write_text: Windows refuses to truncate-recreate a hidden file.
+        with git_file.open("r+", encoding="utf-8") as handle:
+            handle.truncate(0)
+            handle.write(pointer)
         _set_core_worktree(git_dir, git_file.parent)
 
 
@@ -178,7 +182,7 @@ def _set_core_worktree(git_dir: Path, work_tree: Path) -> None:
 
 def _repointed_git_dir(git_file: Path, source: Path, target: Path) -> Path | None:
     """The git dir a moved submodule's `.git` file still means, or None if it needs no fixing."""
-    pointer = git_file.read_text().strip()
+    pointer = git_file.read_text(encoding="utf-8").strip()
     if not pointer.startswith("gitdir:"):
         return None
     recorded = pointer.removeprefix("gitdir:").strip()
@@ -206,7 +210,7 @@ def _submodule_git_files(root: Path, depth: int = 0) -> list[Path]:
 def _submodule_paths(gitmodules: Path) -> list[str]:
     """The `path =` values of a .gitmodules file; empty when there is none or it can't be read."""
     try:
-        lines = gitmodules.read_text().splitlines()
+        lines = gitmodules.read_text(encoding="utf-8").splitlines()
     except OSError:
         return []
     paths = []

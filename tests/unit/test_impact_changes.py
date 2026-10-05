@@ -16,7 +16,7 @@ FIXTURE_REPO = Path(__file__).parent.parent / "fixtures" / "sample_repo"
 def _write(root: Path, relative: str, text: str) -> None:
     path = root / relative
     path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(text)
+    path.write_text(text, encoding="utf-8")
 
 
 def _commit_all(root: Path) -> None:
@@ -74,7 +74,7 @@ CREATE_INVOICE = "billing/service.py::function::BillingService.create_invoice"
 
 def test_a_changed_symbol_attributes_to_the_box_that_is_its_exact_node(engine_repo):
     engine, root = engine_repo
-    text = (root / "users/service.py").read_text()
+    text = (root / "users/service.py").read_text(encoding="utf-8")
     _write(root, "users/service.py", text.replace("return user_id", "return user_id  # x"))
     boxes = [_box("create-user", CREATE_USER)]
 
@@ -87,7 +87,11 @@ def test_a_changed_symbol_attributes_to_the_box_that_is_its_exact_node(engine_re
 
 def test_a_changed_symbol_collapses_onto_its_file_level_box(engine_repo):
     engine, root = engine_repo
-    _write(root, "users/service.py", (root / "users/service.py").read_text() + "\n# tweak\n")
+    _write(
+        root,
+        "users/service.py",
+        (root / "users/service.py").read_text(encoding="utf-8") + "\n# tweak\n",
+    )
     boxes = [_box("users-file", COMPONENT_USERS)]
 
     payload = resolve_impact_changes(root, _diagram(boxes), engine=engine)
@@ -97,7 +101,11 @@ def test_a_changed_symbol_collapses_onto_its_file_level_box(engine_repo):
 
 def test_a_changed_symbol_collapses_onto_its_directory_level_box(engine_repo):
     engine, root = engine_repo
-    _write(root, "users/service.py", (root / "users/service.py").read_text() + "\n# tweak\n")
+    _write(
+        root,
+        "users/service.py",
+        (root / "users/service.py").read_text(encoding="utf-8") + "\n# tweak\n",
+    )
     boxes = [_box("users-dir", DIR_USERS)]
 
     payload = resolve_impact_changes(root, _diagram(boxes), engine=engine)
@@ -107,7 +115,11 @@ def test_a_changed_symbol_collapses_onto_its_directory_level_box(engine_repo):
 
 def test_a_changed_symbol_with_no_owning_box_is_unassigned(engine_repo):
     engine, root = engine_repo
-    _write(root, "users/service.py", (root / "users/service.py").read_text() + "\n# tweak\n")
+    _write(
+        root,
+        "users/service.py",
+        (root / "users/service.py").read_text(encoding="utf-8") + "\n# tweak\n",
+    )
     boxes = [_box("invoice", CREATE_INVOICE)]
 
     payload = resolve_impact_changes(root, _diagram(boxes), engine=engine)
@@ -117,7 +129,7 @@ def test_a_changed_symbol_with_no_owning_box_is_unassigned(engine_repo):
 
 def test_two_changed_symbols_in_one_file_both_roll_onto_the_same_collapsed_box(engine_repo):
     engine, root = engine_repo
-    text = (root / "users/service.py").read_text()
+    text = (root / "users/service.py").read_text(encoding="utf-8")
     _write(root, "users/service.py", text.replace("return user_id", "return user_id  # x"))
     boxes = [_box("users-file", COMPONENT_USERS)]
 
@@ -128,7 +140,11 @@ def test_two_changed_symbols_in_one_file_both_roll_onto_the_same_collapsed_box(e
 
 def test_an_authored_status_overrides_the_inferred_one(engine_repo):
     engine, root = engine_repo
-    _write(root, "users/service.py", (root / "users/service.py").read_text() + "\n# tweak\n")
+    _write(
+        root,
+        "users/service.py",
+        (root / "users/service.py").read_text(encoding="utf-8") + "\n# tweak\n",
+    )
     boxes = [_box("create-user", CREATE_USER)]
     authored = {"blocks": [{"block": "create-user", "status": "removed"}]}
 
@@ -139,7 +155,11 @@ def test_an_authored_status_overrides_the_inferred_one(engine_repo):
 
 def test_authored_prose_merges_onto_the_matching_block(engine_repo):
     engine, root = engine_repo
-    _write(root, "users/service.py", (root / "users/service.py").read_text() + "\n# tweak\n")
+    _write(
+        root,
+        "users/service.py",
+        (root / "users/service.py").read_text(encoding="utf-8") + "\n# tweak\n",
+    )
     boxes = [_box("create-user", CREATE_USER)]
     authored = {"blocks": [{"block": "create-user", "after": "Now slugs unicode names too."}]}
 
@@ -196,7 +216,11 @@ def test_general_comments_are_appended_to_unattributed_review_comments(engine_re
 
 def test_a_review_of_a_different_diff_is_reported_stale(engine_repo):
     engine, root = engine_repo
-    _write(root, "users/service.py", (root / "users/service.py").read_text() + "\n# tweak\n")
+    _write(
+        root,
+        "users/service.py",
+        (root / "users/service.py").read_text(encoding="utf-8") + "\n# tweak\n",
+    )
 
     payload = resolve_impact_changes(
         root, _diagram([]), {"fingerprint": "stale-hash"}, engine=engine
@@ -207,7 +231,11 @@ def test_a_review_of_a_different_diff_is_reported_stale(engine_repo):
 
 def test_a_review_of_the_current_diff_is_not_stale(engine_repo):
     engine, root = engine_repo
-    _write(root, "users/service.py", (root / "users/service.py").read_text() + "\n# tweak\n")
+    _write(
+        root,
+        "users/service.py",
+        (root / "users/service.py").read_text(encoding="utf-8") + "\n# tweak\n",
+    )
     current = resolve_impact_changes(root, _diagram([]), engine=engine)["fingerprint"]
 
     payload = resolve_impact_changes(root, _diagram([]), {"fingerprint": current}, engine=engine)

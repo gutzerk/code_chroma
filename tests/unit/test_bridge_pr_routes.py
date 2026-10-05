@@ -8,6 +8,7 @@ import json
 import os
 import shutil
 import subprocess
+import sys
 from pathlib import Path
 
 import pytest
@@ -45,17 +46,27 @@ def _git(root: Path, *args: str) -> str:
 def _stub_gh(bin_dir: Path, metadata: dict | None, open_prs: list[dict] | None = None) -> None:
     """A fake `gh` answering `auth status`, `pr view` and `pr list`. A None arg fails that verb."""
     bin_dir.mkdir(parents=True, exist_ok=True)
-    view = f"echo '{json.dumps(metadata)}'; exit 0" if metadata is not None else "exit 1"
-    listing = f"echo '{json.dumps(open_prs)}'; exit 0" if open_prs is not None else "exit 1"
-    script = bin_dir / "gh"
-    script.write_text(
-        f'#!/bin/sh\ncase "$1 $2" in\n  "auth status") exit 0 ;;\n'
-        '  "repo view") echo \'{"nameWithOwner":"acme/app"}\'; exit 0 ;;\n'
-        f'  "pr view") {view} ;;\n'
-        f'  "pr list") {listing} ;;\nesac\n'
-        "exit 1\n"
+    answers = {
+        "auth status": "",
+        "repo view": '{"nameWithOwner":"acme/app"}',
+        "pr view": None if metadata is None else json.dumps(metadata),
+        "pr list": None if open_prs is None else json.dumps(open_prs),
+    }
+    stub = bin_dir / "gh_stub.py"
+    stub.write_text(
+        "import json, sys\n"
+        f"answers = json.loads({json.dumps(json.dumps(answers))})\n"
+        'answer = answers.get(" ".join(sys.argv[1:3]))\n'
+        "if answer is None:\n    sys.exit(1)\n"
+        "print(answer)\n",
+        encoding="utf-8",
     )
-    script.chmod(0o755)
+    if os.name == "nt":
+        (bin_dir / "gh.cmd").write_text(f'@"{sys.executable}" "{stub}" %*\n', encoding="utf-8")
+    else:
+        script = bin_dir / "gh"
+        script.write_text(f'#!/bin/sh\nexec "{sys.executable}" "{stub}" "$@"\n', encoding="utf-8")
+        script.chmod(0o755)
 
 
 def _mock_gh_resolution(monkeypatch, open_prs: list[dict] | None) -> None:
@@ -85,7 +96,9 @@ def origin(tmp_path):
     _git(seed, "add", "-A")
     _git(seed, "commit", "-m", "initial")
     _git(seed, "checkout", "-b", "feature/refunds")
-    (seed / "shared" / "refund.py").write_text("def issue_refund():\n    return 1\n")
+    (seed / "shared" / "refund.py").write_text(
+        "def issue_refund():\n    return 1\n", encoding="utf-8"
+    )
     _git(seed, "add", "-A")
     _git(seed, "commit", "-m", "add refunds")
     bare = tmp_path / "origin.git"
@@ -97,10 +110,11 @@ def origin(tmp_path):
 
 
 @pytest.fixture
-def client(tmp_path, origin, monkeypatch, make_bridge):
+def client(tmp_path, origin, monkeypatch, make_bridge, use_test_runtime):
     bin_dir = tmp_path / "bin"
     _stub_gh(bin_dir, PR_METADATA)
-    monkeypatch.setenv("PATH", f"{bin_dir}:{os.environ['PATH']}")
+    monkeypatch.setenv("PATH", f"{bin_dir}{os.pathsep}{os.environ['PATH']}")
+    use_test_runtime()
     repo = tmp_path / "repo"
     _git(tmp_path, "clone", str(origin), str(repo))
     _git(repo, "config", "user.email", "test@example.com")
@@ -524,10 +538,10 @@ def test_opening_a_pr_copies_mains_authored_diagrams_onto_the_worktree(client, m
     # Main has authored patterns + a custom diagram before the PR is opened.
     patterns_dir = repo / ".codechroma/diagrams/patterns"
     patterns_dir.mkdir(parents=True, exist_ok=True)
-    (patterns_dir / "patterns.json").write_text('{"patterns": [1]}')
+    (patterns_dir / "patterns.json").write_text('{"patterns": [1]}', encoding="utf-8")
     custom = repo / ".codechroma/diagrams/custom/data-flow"
     custom.mkdir(parents=True, exist_ok=True)
-    (custom / "data-flow.json").write_text('{"nodes": []}')
+    (custom / "data-flow.json").write_text('{"nodes": []}', encoding="utf-8")
 
     _open_pr(test_client)
 
@@ -536,9 +550,11 @@ def test_opening_a_pr_copies_mains_authored_diagrams_onto_the_worktree(client, m
     pr_root = pr_importer.worktree_path(repo, 7)
     assert (
         pr_root / ".codechroma/diagrams/patterns/patterns.json"
-    ).read_text() == '{"patterns": [1]}'
+    ).read_text(encoding="utf-8") == '{"patterns": [1]}'
     assert (
         pr_root / ".codechroma/diagrams/custom/data-flow/data-flow.json"
-    ).read_text() == '{"nodes": []}'
+    ).read_text(encoding="utf-8") == '{"nodes": []}'
     # Main is untouched.
-    assert (repo / ".codechroma/diagrams/patterns/patterns.json").read_text() == '{"patterns": [1]}'
+    assert (repo / ".codechroma/diagrams/patterns/patterns.json").read_text(
+        encoding="utf-8"
+    ) == '{"patterns": [1]}'

@@ -29,7 +29,7 @@ def _write_trace(repo: Path, trace_id: str, steps: list[dict], status: str = "ok
         "status": status,
         "steps": steps,
     }
-    (traces_dir / f"{trace_id}.json").write_text(json.dumps(payload))
+    (traces_dir / f"{trace_id}.json").write_text(json.dumps(payload), encoding="utf-8")
 
 
 @pytest.fixture

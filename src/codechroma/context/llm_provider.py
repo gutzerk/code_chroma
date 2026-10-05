@@ -131,7 +131,7 @@ def key_source() -> str:
 def _read_key_file(path: str) -> str | None:
     """The first non-empty line of a credentials file, trimmed; None on an unreadable file."""
     try:
-        for line in Path(path).expanduser().read_text().splitlines():
+        for line in Path(path).expanduser().read_text(encoding="utf-8").splitlines():
             stripped = line.strip()
             if stripped and not stripped.startswith("#"):
                 return stripped

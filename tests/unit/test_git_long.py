@@ -18,7 +18,7 @@ def _stub_git(bin_dir: Path, body: str) -> None:
     """A fake `git` on PATH; `body` is the shell script standing in for the real binary."""
     bin_dir.mkdir(parents=True, exist_ok=True)
     script = bin_dir / "git"
-    script.write_text(f"#!/bin/sh\n{body}\n")
+    script.write_text(f"#!/bin/sh\n{body}\n", encoding="utf-8")
     script.chmod(0o755)
 
 
@@ -77,7 +77,7 @@ def test_a_hang_leaves_nothing_behind(tmp_path, bin_dir):
     with pytest.raises(git_long.GitLongError):
         git_long.run_git_long(tmp_path, "fetch", "origin", timeout=1)
 
-    child_pid = int(marker.read_text().strip())
+    child_pid = int(marker.read_text(encoding="utf-8").strip())
     # The whole process group is killed, so what git spawned is not still sleeping.
     assert _wait_until_gone(child_pid)
 

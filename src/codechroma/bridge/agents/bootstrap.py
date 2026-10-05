@@ -161,14 +161,14 @@ def _write_gitignore(root: Path, extra_ignores: list[str]) -> bool:
     if path.exists():
         return False
     lines = list(BASE_IGNORES) + [entry for entry in extra_ignores if entry not in BASE_IGNORES]
-    path.write_text("\n".join(lines) + "\n")
+    path.write_text("\n".join(lines) + "\n", encoding="utf-8")
     return True
 
 
 def _effective_ignores(root: Path) -> list[str]:
     """The user's own `.gitignore` when there is one, else the base set `initialize` would write."""
     try:
-        return (root / ".gitignore").read_text().splitlines()
+        return (root / ".gitignore").read_text(encoding="utf-8").splitlines()
     except OSError:
         return list(BASE_IGNORES)
 

@@ -7,6 +7,7 @@ from fastapi.testclient import TestClient
 from starlette.websockets import WebSocketDisconnect
 
 from codechroma.terminal import server
+from tests.unit.portable_commands import ECHO, PWD, QUICK, SLEEPY
 
 
 def test_unknown_agent_is_rejected_without_spawning_a_process(monkeypatch):
@@ -38,7 +39,7 @@ def test_a_provider_routed_agent_with_no_live_session_fails_rather_than_spawning
 
 
 def test_input_is_echoed_back_through_the_pty(monkeypatch):
-    monkeypatch.setattr(server, "ALLOWED_AGENTS", {"echo-agent": ["cat"]})
+    monkeypatch.setattr(server, "ALLOWED_AGENTS", {"echo-agent": ECHO})
     client = TestClient(server.app)
 
     with client.websocket_connect("/ws/terminal?agent=echo-agent") as websocket:
@@ -53,7 +54,7 @@ def test_input_is_echoed_back_through_the_pty(monkeypatch):
 
 def test_terminal_starts_in_the_configured_repo_path(monkeypatch, tmp_path):
     monkeypatch.setenv("codechroma_BRIDGE_REPO_PATH", str(tmp_path))
-    monkeypatch.setattr(server, "ALLOWED_AGENTS", {"pwd-agent": ["sh", "-c", "pwd"]})
+    monkeypatch.setattr(server, "ALLOWED_AGENTS", {"pwd-agent": PWD})
     client = TestClient(server.app)
 
     with client.websocket_connect("/ws/terminal?agent=pwd-agent") as websocket:
@@ -74,7 +75,7 @@ def test_resize_message_updates_the_pty_session_size(monkeypatch):
         sessions.append(session)
         return session
 
-    monkeypatch.setattr(server, "ALLOWED_AGENTS", {"echo-agent": ["cat"]})
+    monkeypatch.setattr(server, "ALLOWED_AGENTS", {"echo-agent": ECHO})
     monkeypatch.setattr(server, "PtySession", spy_session)
     client = TestClient(server.app)
 
@@ -86,7 +87,7 @@ def test_resize_message_updates_the_pty_session_size(monkeypatch):
 
 
 def test_child_exit_closes_the_websocket(monkeypatch):
-    monkeypatch.setattr(server, "ALLOWED_AGENTS", {"quick": ["true"]})
+    monkeypatch.setattr(server, "ALLOWED_AGENTS", {"quick": QUICK})
     client = TestClient(server.app)
 
     with client.websocket_connect("/ws/terminal?agent=quick") as websocket:
@@ -102,7 +103,7 @@ def test_child_exit_closes_the_websocket(monkeypatch):
 
 
 def test_malformed_resize_does_not_kill_the_session(monkeypatch):
-    monkeypatch.setattr(server, "ALLOWED_AGENTS", {"echo-agent": ["cat"]})
+    monkeypatch.setattr(server, "ALLOWED_AGENTS", {"echo-agent": ECHO})
     client = TestClient(server.app)
 
     with client.websocket_connect("/ws/terminal?agent=echo-agent") as websocket:
@@ -124,7 +125,7 @@ def test_disconnecting_closes_the_pty_session(monkeypatch):
         closed.append(True)
         real_close(self)
 
-    monkeypatch.setattr(server, "ALLOWED_AGENTS", {"sleepy": ["sleep", "5"]})
+    monkeypatch.setattr(server, "ALLOWED_AGENTS", {"sleepy": SLEEPY})
     monkeypatch.setattr(server.PtySession, "close", spy_close)
     client = TestClient(server.app)
 

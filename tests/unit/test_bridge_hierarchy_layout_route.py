@@ -50,7 +50,9 @@ def test_post_layout_writes_file_and_round_trips(server_module):
 
     assert post.status_code == 200
     assert get.json() == layout
-    on_disk = json.loads((repo / ".codechroma" / "hierarchy-layout.json").read_text())
+    on_disk = json.loads(
+        (repo / ".codechroma" / "hierarchy-layout.json").read_text(encoding="utf-8")
+    )
     assert on_disk == layout
 
 

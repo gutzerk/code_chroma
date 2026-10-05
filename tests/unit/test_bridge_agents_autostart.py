@@ -29,7 +29,7 @@ def _stub_claude(bin_dir: Path) -> None:
         pytest.skip("uses a POSIX shebang CLI stub")
     binary = bin_dir / "claude"
     binary.parent.mkdir(parents=True, exist_ok=True)
-    binary.write_text("#!/bin/sh\necho ready\nexec cat\n")
+    binary.write_text("#!/bin/sh\necho ready\nexec cat\n", encoding="utf-8")
     binary.chmod(0o755)
 
 

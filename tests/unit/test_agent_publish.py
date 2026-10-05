@@ -24,7 +24,7 @@ def _stub_gh(bin_dir: Path, body: str) -> None:
     """A fake `gh` on PATH; `body` is the sh case-body deciding what each subcommand does."""
     bin_dir.mkdir(parents=True, exist_ok=True)
     script = bin_dir / "gh"
-    script.write_text(f"#!/bin/sh\n{body}\n")
+    script.write_text(f"#!/bin/sh\n{body}\n", encoding="utf-8")
     script.chmod(0o755)
 
 
@@ -32,7 +32,7 @@ def _stub_claude(bin_dir: Path, body: str) -> None:
     """A fake `claude` on PATH, shadowing any real CLI already there — tests must never call it."""
     bin_dir.mkdir(parents=True, exist_ok=True)
     script = bin_dir / "claude"
-    script.write_text(f"#!/bin/sh\n{body}\n")
+    script.write_text(f"#!/bin/sh\n{body}\n", encoding="utf-8")
     script.chmod(0o755)
 
 
@@ -45,7 +45,7 @@ def _install_conventional_commit_hook(repo: Path) -> None:
         "  echo 'commit-msg: header is not Conventional Commits' >&2\n"
         "  exit 1\n"
         "fi\n"
-    )
+, encoding="utf-8")
     hook.chmod(0o755)
 
 
@@ -81,7 +81,7 @@ def repo(tmp_path, monkeypatch):
     _git(root, "config", "user.email", "test@example.com")
     _git(root, "config", "user.name", "Test")
     _git(root, "remote", "add", "origin", "https://github.com/acme/app.git")
-    (root / "app.py").write_text("value = 1\n")
+    (root / "app.py").write_text("value = 1\n", encoding="utf-8")
     _git(root, "add", "-A")
     _git(root, "commit", "-m", "initial")
     monkeypatch.setenv(worktree.WORKSPACES_DIR_ENV, str(tmp_path / "worktrees"))
@@ -98,7 +98,7 @@ def agent(repo, tmp_path):
 
 
 def _commit_work(agent_path: Path) -> None:
-    (agent_path / "refund.py").write_text("def refund():\n    return 1\n")
+    (agent_path / "refund.py").write_text("def refund():\n    return 1\n", encoding="utf-8")
     _git(agent_path, "add", "-A")
     _git(agent_path, "commit", "-m", "agent work")
 
@@ -152,7 +152,7 @@ def test_a_branch_with_no_commits_has_nothing_to_open_a_pr_for(agent, bin_dir):
 def test_a_ready_branch_reports_its_uncommitted_files_rather_than_hiding_them(agent, bin_dir):
     _stub_gh(bin_dir, AUTH_OK_NO_PR)
     _commit_work(agent)
-    (agent / "not-yet-committed.py").write_text("x = 1\n")
+    (agent / "not-yet-committed.py").write_text("x = 1\n", encoding="utf-8")
 
     result = publish.preflight(agent, "agent/refund-flow", "main")
 
@@ -197,7 +197,7 @@ def test_create_pr_commits_the_dirty_files_when_asked(agent, bin_dir, tmp_path):
     _stub_claude(bin_dir, 'echo "chore: commit late file"')
     _git(agent, "remote", "set-url", "origin", str(tmp_path / "origin.git"))
     _commit_work(agent)
-    (agent / "late.py").write_text("late = True\n")
+    (agent / "late.py").write_text("late = True\n", encoding="utf-8")
 
     publish.create_pr(agent, "agent/refund-flow", "main", commit_dirty=True)
 
@@ -210,7 +210,7 @@ def test_create_pr_uses_claudes_generated_commit_message(agent, bin_dir, tmp_pat
     _stub_claude(bin_dir, 'echo "feat(refund): add late file"')
     _git(agent, "remote", "set-url", "origin", str(tmp_path / "origin.git"))
     _commit_work(agent)
-    (agent / "late.py").write_text("late = True\n")
+    (agent / "late.py").write_text("late = True\n", encoding="utf-8")
 
     publish.create_pr(agent, "agent/refund-flow", "main", commit_dirty=True)
 
@@ -228,7 +228,7 @@ def test_create_pr_falls_back_to_a_fixed_message_when_claude_is_missing(
     )
     _git(agent, "remote", "set-url", "origin", str(tmp_path / "origin.git"))
     _commit_work(agent)
-    (agent / "late.py").write_text("late = True\n")
+    (agent / "late.py").write_text("late = True\n", encoding="utf-8")
 
     publish.create_pr(agent, "agent/refund-flow", "main", commit_dirty=True)
 
@@ -252,7 +252,7 @@ def test_create_pr_retries_the_message_after_a_commit_msg_hook_rejection(
     _commit_work(agent)
     # Installed after the fixtures' own commits, which predate this test's hook-compliance concern.
     _install_conventional_commit_hook(repo)
-    (agent / "late.py").write_text("late = True\n")
+    (agent / "late.py").write_text("late = True\n", encoding="utf-8")
 
     publish.create_pr(agent, "agent/refund-flow", "main", commit_dirty=True)
 
@@ -263,7 +263,7 @@ def test_create_pr_leaves_the_dirty_files_out_when_not_asked(agent, bin_dir, tmp
     _stub_gh(bin_dir, AUTH_OK_NO_PR)
     _git(agent, "remote", "set-url", "origin", str(tmp_path / "origin.git"))
     _commit_work(agent)
-    (agent / "late.py").write_text("late = True\n")
+    (agent / "late.py").write_text("late = True\n", encoding="utf-8")
 
     publish.create_pr(agent, "agent/refund-flow", "main", commit_dirty=False)
 

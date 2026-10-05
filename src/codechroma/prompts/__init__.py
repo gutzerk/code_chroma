@@ -18,7 +18,7 @@ _PROMPTS_DIR = Path(__file__).parent
 
 @cache
 def _load(name: str) -> dict[str, str]:
-    return yaml.safe_load((_PROMPTS_DIR / f"{name}.yaml").read_text())
+    return yaml.safe_load((_PROMPTS_DIR / f"{name}.yaml").read_text(encoding="utf-8"))
 
 
 def render_prompt(name: str, key: str = "prompt", **variables: object) -> str:

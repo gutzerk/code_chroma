@@ -31,11 +31,11 @@ def origin(tmp_path):
     seed = tmp_path / "seed"
     seed.mkdir()
     _init(seed)
-    (seed / "app.py").write_text("value = 1\n")
+    (seed / "app.py").write_text("value = 1\n", encoding="utf-8")
     _git(seed, "add", "-A")
     _git(seed, "commit", "-m", "initial")
     _git(seed, "checkout", "-b", "feature/refunds")
-    (seed / "refund.py").write_text("def issue_refund():\n    return 1\n")
+    (seed / "refund.py").write_text("def issue_refund():\n    return 1\n", encoding="utf-8")
     _git(seed, "add", "-A")
     _git(seed, "commit", "-m", "add refunds")
     bare = tmp_path / "origin.git"
@@ -92,7 +92,7 @@ def test_the_worktree_is_clean_because_codechroma_is_excluded_first(repo):
     path, _sha = importer.import_pr(repo, 7, "main")
 
     exclude = Path(_git(repo, "rev-parse", "--git-path", "info/exclude").strip())
-    assert ".codechroma/" in (repo / exclude).read_text()
+    assert ".codechroma/" in (repo / exclude).read_text(encoding="utf-8")
     assert _git(path, "status", "--porcelain") == ""
 
 
@@ -136,7 +136,7 @@ def test_refresh_reports_no_change_when_the_head_has_not_moved(repo):
 def test_refresh_follows_a_new_commit_on_the_pull_request(repo, origin):
     _bare, seed = origin
     path, sha = importer.import_pr(repo, 7, "main")
-    (seed / "refund.py").write_text("def issue_refund():\n    return 2\n")
+    (seed / "refund.py").write_text("def issue_refund():\n    return 2\n", encoding="utf-8")
     _git(seed, "commit", "-am", "tweak the refund")
     _git(seed, "push", "--force", "origin", "feature/refunds:refs/pull/7/head")
 
@@ -144,7 +144,7 @@ def test_refresh_follows_a_new_commit_on_the_pull_request(repo, origin):
 
     assert moved
     assert refreshed != sha
-    assert (path / "refund.py").read_text() == "def issue_refund():\n    return 2\n"
+    assert (path / "refund.py").read_text(encoding="utf-8") == "def issue_refund():\n    return 2\n"
 
 
 def test_refresh_recreates_a_worktree_deleted_by_hand(repo):

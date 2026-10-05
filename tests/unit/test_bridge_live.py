@@ -92,12 +92,12 @@ def test_broadcast_threadsafe_is_a_noop_before_a_loop_is_bound():
 
 
 def test_watcher_fires_callback_when_a_file_changes(tmp_path):
-    (tmp_path / "a.py").write_text("x = 1\n")
+    (tmp_path / "a.py").write_text("x = 1\n", encoding="utf-8")
     fired = threading.Event()
     watcher = RepoWatcher(tmp_path, fired.set, debounce_ms=200)
     watcher.start()
     try:
-        (tmp_path / "a.py").write_text("x = 2\n")
+        (tmp_path / "a.py").write_text("x = 2\n", encoding="utf-8")
         assert fired.wait(timeout=10)
     finally:
         watcher.stop()
@@ -110,7 +110,7 @@ def test_file_watcher_fires_on_a_watched_file_under_codechroma(tmp_path):
     watcher = FileWatcher(watched_path, fired.set, debounce_ms=200)
     watcher.start()
     try:
-        watched_path.write_text('{"steps": []}')
+        watched_path.write_text('{"steps": []}', encoding="utf-8")
         assert fired.wait(timeout=10)
     finally:
         watcher.stop()
@@ -123,7 +123,7 @@ def test_file_watcher_ignores_sibling_files(tmp_path):
     watcher = FileWatcher(watched_path, fired.set, debounce_ms=200)
     watcher.start()
     try:
-        (tmp_path / ".codechroma" / "graph.db").write_text("noise")
+        (tmp_path / ".codechroma" / "graph.db").write_text("noise", encoding="utf-8")
         assert not fired.wait(timeout=2)
     finally:
         watcher.stop()

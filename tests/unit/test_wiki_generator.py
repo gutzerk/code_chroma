@@ -161,7 +161,7 @@ def test_generate_wiki_reports_a_page_count_matching_disk(tmp_path):
 def test_generate_wiki_shows_real_docstrings_on_the_file_page(tmp_path):
     result = generate_wiki(_fixture_graph(), tmp_path, tmp_path / ".codechroma" / "wiki")
 
-    text = (result.output_dir / "files" / "pkg" / "documented.md").read_text()
+    text = (result.output_dir / "files" / "pkg" / "documented.md").read_text(encoding="utf-8")
     assert "Documented module." in text
     assert "A documented widget." in text
     assert "Renders the widget." in text
@@ -170,14 +170,14 @@ def test_generate_wiki_shows_real_docstrings_on_the_file_page(tmp_path):
 def test_generate_wiki_lists_module_parameters(tmp_path):
     result = generate_wiki(_fixture_graph(), tmp_path, tmp_path / ".codechroma" / "wiki")
 
-    text = (result.output_dir / "files" / "pkg" / "documented.md").read_text()
+    text = (result.output_dir / "files" / "pkg" / "documented.md").read_text(encoding="utf-8")
     assert "MAX_SIZE" in text
 
 
 def test_generate_wiki_marks_undocumented_items_instead_of_omitting_them(tmp_path):
     result = generate_wiki(_fixture_graph(), tmp_path, tmp_path / ".codechroma" / "wiki")
 
-    text = (result.output_dir / "files" / "pkg" / "undocumented.md").read_text()
+    text = (result.output_dir / "files" / "pkg" / "undocumented.md").read_text(encoding="utf-8")
     assert "helper" in text
     assert "no docstring" in text.lower()
 
@@ -186,7 +186,7 @@ def test_generate_wiki_replaces_previous_output_in_full(tmp_path):
     output_dir = tmp_path / ".codechroma" / "wiki"
     output_dir.mkdir(parents=True)
     stale = output_dir / "stale.md"
-    stale.write_text("stale content")
+    stale.write_text("stale content", encoding="utf-8")
 
     generate_wiki(_fixture_graph(), tmp_path, output_dir)
 
@@ -196,7 +196,7 @@ def test_generate_wiki_replaces_previous_output_in_full(tmp_path):
 def test_generate_wiki_excludes_documented_items_from_gaps(tmp_path):
     result = generate_wiki(_fixture_graph(), tmp_path, tmp_path / ".codechroma" / "wiki")
 
-    gaps = json.loads(result.gap_json_path.read_text())
+    gaps = json.loads(result.gap_json_path.read_text(encoding="utf-8"))
     names = {g["qualified_name"] for g in gaps}
     assert "Widget" not in names
     assert "Widget.render" not in names
@@ -205,7 +205,7 @@ def test_generate_wiki_excludes_documented_items_from_gaps(tmp_path):
 def test_generate_wiki_includes_undocumented_item_with_full_gap_shape(tmp_path):
     result = generate_wiki(_fixture_graph(), tmp_path, tmp_path / ".codechroma" / "wiki")
 
-    gaps = json.loads(result.gap_json_path.read_text())
+    gaps = json.loads(result.gap_json_path.read_text(encoding="utf-8"))
     entry = next(g for g in gaps if g["qualified_name"] == "helper")
     assert entry == {
         "path": "pkg/undocumented.py",
@@ -218,7 +218,7 @@ def test_generate_wiki_includes_undocumented_item_with_full_gap_shape(tmp_path):
 def test_generate_wiki_undocumented_count_matches_gap_list_length(tmp_path):
     result = generate_wiki(_fixture_graph(), tmp_path, tmp_path / ".codechroma" / "wiki")
 
-    gaps = json.loads(result.gap_json_path.read_text())
+    gaps = json.loads(result.gap_json_path.read_text(encoding="utf-8"))
     assert result.undocumented_count == len(gaps)
 
 
@@ -252,14 +252,14 @@ def test_generate_wiki_writes_an_index_for_a_nested_subfolder(tmp_path):
 
     nested_index = result.output_dir / "files" / "pkg" / "sub" / "index.md"
     assert nested_index.exists()
-    assert "inner.py" in nested_index.read_text()
+    assert "inner.py" in nested_index.read_text(encoding="utf-8")
 
 
 def test_generate_wiki_links_a_nested_subfolder_from_its_parent(tmp_path):
     result = generate_wiki(_nested_folder_graph(), tmp_path, tmp_path / ".codechroma" / "wiki")
 
     parent_index = result.output_dir / "files" / "pkg" / "index.md"
-    assert "sub/index.md" in parent_index.read_text()
+    assert "sub/index.md" in parent_index.read_text(encoding="utf-8")
 
 
 def _go_function_file_symbols(name: str, is_exported: bool) -> _FileSymbols:
@@ -370,7 +370,7 @@ def _go_file_graph() -> Graph:
 def test_generate_wiki_shows_full_breakdown_for_a_go_file(tmp_path):
     result = generate_wiki(_go_file_graph(), tmp_path, tmp_path / ".codechroma" / "wiki")
 
-    text = (result.output_dir / "files" / "pkg" / "widget.md").read_text()
+    text = (result.output_dir / "files" / "pkg" / "widget.md").read_text(encoding="utf-8")
     assert "Package widget renders things." in text
     assert "### Widget" in text
     assert "Widget is a thing." in text
@@ -405,7 +405,7 @@ def test_generate_wiki_shows_full_breakdown_for_ts_js_files(tmp_path, file_path)
     result = generate_wiki(_ts_file_graph(file_path), tmp_path, tmp_path / ".codechroma" / "wiki")
 
     page_path = result.output_dir / "files" / Path(file_path).with_suffix(".md")
-    text = page_path.read_text()
+    text = page_path.read_text(encoding="utf-8")
     assert "File overview." in text
     assert "`helper`" in text
     assert "Helps." in text
@@ -437,7 +437,7 @@ def _java_file_graph() -> Graph:
 def test_generate_wiki_shows_full_breakdown_for_a_java_file(tmp_path):
     result = generate_wiki(_java_file_graph(), tmp_path, tmp_path / ".codechroma" / "wiki")
 
-    text = (result.output_dir / "files" / "pkg" / "Greeter.md").read_text()
+    text = (result.output_dir / "files" / "pkg" / "Greeter.md").read_text(encoding="utf-8")
     assert "### Greeter" in text
     assert "Greets people." in text
     assert "`hello`" in text

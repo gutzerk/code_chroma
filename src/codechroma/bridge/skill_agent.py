@@ -513,7 +513,7 @@ class SkillAgent:
     def has_artifact(self, repo_root: Path, repo_id: str) -> bool:
         """Whether a valid artifact already exists — the shared `only_if_missing` guard."""
         try:
-            data = json.loads(self.artifact(repo_root, repo_id).read_text())
+            data = json.loads(self.artifact(repo_root, repo_id).read_text(encoding="utf-8"))
         except (OSError, ValueError):
             return False
         return self.validate(data)

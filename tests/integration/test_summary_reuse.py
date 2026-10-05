@@ -31,7 +31,9 @@ def test_reanalyze_only_resummarizes_changed_files(tmp_path):
 
     spy.summarized_ids.clear()
     (repo / "users" / "service.py").write_text(
-        (repo / "users" / "service.py").read_text() + "\n\ndef noop():\n    return 1\n"
+        (repo / "users" / "service.py").read_text(encoding="utf-8")
+        + "\n\ndef noop():\n    return 1\n",
+        encoding="utf-8",
     )
     engine.reanalyze(["users/service.py"])
 

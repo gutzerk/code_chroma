@@ -13,7 +13,7 @@ def _init_repo(root: Path) -> None:
     subprocess.run(["git", "init"], cwd=root, check=True, capture_output=True)
     subprocess.run(["git", "config", "user.email", "test@example.com"], cwd=root, check=True)
     subprocess.run(["git", "config", "user.name", "Test"], cwd=root, check=True)
-    (root / "app.py").write_text("value = 1\n")
+    (root / "app.py").write_text("value = 1\n", encoding="utf-8")
     subprocess.run(["git", "add", "-A"], cwd=root, check=True, capture_output=True)
     subprocess.run(["git", "commit", "-m", "initial"], cwd=root, check=True, capture_output=True)
 
@@ -48,7 +48,7 @@ def test_add_creates_a_branch_and_a_populated_directory(repo):
         ["git", "branch", "--list", "agent/refund-flow"], cwd=repo, capture_output=True, text=True
     ).stdout
     assert "agent/refund-flow" in branches
-    assert (path / "app.py").read_text() == "value = 1\n"
+    assert (path / "app.py").read_text(encoding="utf-8") == "value = 1\n"
 
 
 def test_add_surfaces_git_stderr_on_failure(repo):
@@ -75,11 +75,11 @@ def test_add_detached_creates_no_branch_at_all(repo):
     symbolic = subprocess.run(["git", "symbolic-ref", "-q", "HEAD"], cwd=path, capture_output=True)
     assert "pr-12" not in branches
     assert symbolic.returncode != 0
-    assert (path / "app.py").read_text() == "value = 1\n"
+    assert (path / "app.py").read_text(encoding="utf-8") == "value = 1\n"
 
 
 def test_add_detached_checks_out_the_commit_it_was_given(repo):
-    (repo / "app.py").write_text("value = 2\n")
+    (repo / "app.py").write_text("value = 2\n", encoding="utf-8")
     subprocess.run(["git", "commit", "-am", "second"], cwd=repo, check=True, capture_output=True)
     first = subprocess.run(
         ["git", "rev-parse", "HEAD~1"], cwd=repo, capture_output=True, text=True
@@ -88,7 +88,7 @@ def test_add_detached_checks_out_the_commit_it_was_given(repo):
 
     worktree.add_detached(repo, path, first)
 
-    assert (path / "app.py").read_text() == "value = 1\n"
+    assert (path / "app.py").read_text(encoding="utf-8") == "value = 1\n"
 
 
 def test_checkout_detached_moves_an_existing_worktree(repo):
@@ -96,7 +96,7 @@ def test_checkout_detached_moves_an_existing_worktree(repo):
         ["git", "rev-parse", "HEAD"], cwd=repo, capture_output=True, text=True
     ).stdout.strip()
     path = worktree.add_detached(repo, worktree.worktree_path(repo, "pr-14"), head)
-    (repo / "app.py").write_text("value = 3\n")
+    (repo / "app.py").write_text("value = 3\n", encoding="utf-8")
     subprocess.run(["git", "commit", "-am", "third"], cwd=repo, check=True, capture_output=True)
     moved = subprocess.run(
         ["git", "rev-parse", "HEAD"], cwd=repo, capture_output=True, text=True
@@ -104,7 +104,7 @@ def test_checkout_detached_moves_an_existing_worktree(repo):
 
     worktree.checkout_detached(path, moved)
 
-    assert (path / "app.py").read_text() == "value = 3\n"
+    assert (path / "app.py").read_text(encoding="utf-8") == "value = 3\n"
 
 
 def test_checkout_detached_refuses_rather_than_discarding_a_local_edit(repo):
@@ -112,17 +112,17 @@ def test_checkout_detached_refuses_rather_than_discarding_a_local_edit(repo):
         ["git", "rev-parse", "HEAD"], cwd=repo, capture_output=True, text=True
     ).stdout.strip()
     path = worktree.add_detached(repo, worktree.worktree_path(repo, "pr-15"), head)
-    (repo / "app.py").write_text("value = 4\n")
+    (repo / "app.py").write_text("value = 4\n", encoding="utf-8")
     subprocess.run(["git", "commit", "-am", "fourth"], cwd=repo, check=True, capture_output=True)
     moved = subprocess.run(
         ["git", "rev-parse", "HEAD"], cwd=repo, capture_output=True, text=True
     ).stdout.strip()
-    (path / "app.py").write_text("hand-edited\n")
+    (path / "app.py").write_text("hand-edited\n", encoding="utf-8")
 
     with pytest.raises(worktree.WorktreeError):
         worktree.checkout_detached(path, moved)
 
-    assert (path / "app.py").read_text() == "hand-edited\n"
+    assert (path / "app.py").read_text(encoding="utf-8") == "hand-edited\n"
 
 
 def test_remove_deletes_the_directory_but_keeps_the_branch(repo):
@@ -141,7 +141,7 @@ def test_remove_deletes_the_directory_but_keeps_the_branch(repo):
 def test_remove_refuses_a_dirty_worktree_without_force(repo):
     path = worktree.worktree_path(repo, "dirty")
     worktree.add(repo, "agent/dirty", path)
-    (path / "app.py").write_text("value = 2\n")
+    (path / "app.py").write_text("value = 2\n", encoding="utf-8")
 
     with pytest.raises(worktree.WorktreeError):
         worktree.remove(repo, path)
@@ -152,7 +152,7 @@ def test_remove_refuses_a_dirty_worktree_without_force(repo):
 def test_remove_with_force_drops_a_dirty_worktree(repo):
     path = worktree.worktree_path(repo, "dirty")
     worktree.add(repo, "agent/dirty", path)
-    (path / "app.py").write_text("value = 2\n")
+    (path / "app.py").write_text("value = 2\n", encoding="utf-8")
 
     worktree.remove(repo, path, force=True)
 
@@ -179,7 +179,7 @@ def test_prune_recovers_after_the_directory_is_deleted_by_hand(repo):
 
     worktree.prune(repo)
 
-    listed = [entry["path"] for entry in worktree.list_worktrees(repo)]
+    listed = [Path(entry["path"]) for entry in worktree.list_worktrees(repo)]
     assert str(path) not in listed
 
 
@@ -240,7 +240,7 @@ def test_add_works_with_a_path_nested_inside_the_repository(repo, monkeypatch):
 
     worktree.add(repo, "agent/nested", path)
 
-    assert (path / "app.py").read_text() == "value = 1\n"
+    assert (path / "app.py").read_text(encoding="utf-8") == "value = 1\n"
 
 
 def test_move_relocates_a_worktree_and_git_still_knows_it(repo, tmp_path):
@@ -250,20 +250,20 @@ def test_move_relocates_a_worktree_and_git_still_knows_it(repo, tmp_path):
 
     worktree.move(repo, source, target)
 
-    listed = [entry["path"] for entry in worktree.list_worktrees(repo)]
-    assert str(target) in listed
+    listed = [Path(entry["path"]) for entry in worktree.list_worktrees(repo)]
+    assert target in listed
     assert not source.exists()
 
 
 def test_move_carries_uncommitted_work_across(repo):
     source = worktree.worktree_path(repo, "dirty-mover")
     worktree.add(repo, "agent/dirty-mover", source)
-    (source / "app.py").write_text("value = 99\n")
+    (source / "app.py").write_text("value = 99\n", encoding="utf-8")
 
     worktree.move(repo, source, repo / ".codechroma" / "worktrees" / "dirty-mover")
 
     moved = repo / ".codechroma" / "worktrees" / "dirty-mover" / "app.py"
-    assert moved.read_text() == "value = 99\n"
+    assert moved.read_text(encoding="utf-8") == "value = 99\n"
 
 
 def test_move_keeps_a_submodule_usable(repo, tmp_path):

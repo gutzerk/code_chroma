@@ -46,8 +46,8 @@ def docs_only_client(tmp_path, monkeypatch, make_bridge):
     shutil.copytree(FIXTURE_REPO, repo)
     docs_dir = repo / "docs-only"
     docs_dir.mkdir()
-    (docs_dir / "README.md").write_text("# Docs")
-    (docs_dir / "guide.rst").write_text("Guide")
+    (docs_dir / "README.md").write_text("# Docs", encoding="utf-8")
+    (docs_dir / "guide.rst").write_text("Guide", encoding="utf-8")
     _init_repo(repo)
 
     bridge = make_bridge(repo)

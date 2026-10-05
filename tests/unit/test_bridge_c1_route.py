@@ -24,7 +24,7 @@ def _init_repo(root: Path) -> None:
 def _write_c1(repo: Path, c1: dict) -> None:
     c1_path = diagram_json_path(repo, "c1")
     c1_path.parent.mkdir(parents=True, exist_ok=True)
-    c1_path.write_text(json.dumps(c1))
+    c1_path.write_text(json.dumps(c1), encoding="utf-8")
 
 
 @pytest.fixture
@@ -200,5 +200,5 @@ def test_no_api_key_still_bootstraps_a_system_only_c1_file(server_module):
     """043: the deterministic bootstrap needs no credential -- c1.json appears either way."""
     _server, repo = server_module
 
-    written = json.loads(diagram_json_path(repo, "c1").read_text())
+    written = json.loads(diagram_json_path(repo, "c1").read_text(encoding="utf-8"))
     assert written["nodes"][0]["id"] == "system"

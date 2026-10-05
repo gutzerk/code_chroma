@@ -17,7 +17,7 @@ from codechroma.skills import is_synced_skill_path
 def source_dir(tmp_path):
     source = tmp_path / "source-skill"
     source.mkdir()
-    (source / "SKILL.md").write_text("updated skill body with details field")
+    (source / "SKILL.md").write_text("updated skill body with details field", encoding="utf-8")
     return source
 
 
@@ -28,19 +28,23 @@ def test_installs_a_skill_into_a_repo_without_one(tmp_path, source_dir):
     target = sync_skill(repo, "codechroma-epic-brief", source=source_dir)
 
     assert target == repo / ".claude" / "skills" / "codechroma-epic-brief"
-    assert (target / "SKILL.md").read_text() == "updated skill body with details field"
+    assert (target / "SKILL.md").read_text(
+        encoding="utf-8"
+    ) == "updated skill body with details field"
 
 
 def test_replaces_an_existing_stale_copy(tmp_path, source_dir):
     repo = tmp_path / "repo"
     stale = repo / ".claude" / "skills" / "codechroma-epic-brief"
     stale.mkdir(parents=True)
-    (stale / "SKILL.md").write_text("old skill without details")
-    (stale / "leftover.md").write_text("stale extra file")
+    (stale / "SKILL.md").write_text("old skill without details", encoding="utf-8")
+    (stale / "leftover.md").write_text("stale extra file", encoding="utf-8")
 
     target = sync_skill(repo, "codechroma-epic-brief", source=source_dir)
 
-    assert (target / "SKILL.md").read_text() == "updated skill body with details field"
+    assert (target / "SKILL.md").read_text(
+        encoding="utf-8"
+    ) == "updated skill body with details field"
     assert not (target / "leftover.md").exists()
 
 
@@ -64,7 +68,7 @@ def test_skips_when_the_target_repo_is_this_project(name):
 
 
 def test_the_draw_diagram_router_names_every_type_it_routes_to():
-    body = (skill_source("codechroma-draw-diagram") / "SKILL.md").read_text()
+    body = (skill_source("codechroma-draw-diagram") / "SKILL.md").read_text(encoding="utf-8")
 
     assert all(kind in body for kind in ("c1", "patterns", "impact", "custom"))
 
@@ -82,7 +86,9 @@ def test_the_draw_diagram_router_names_every_type_it_routes_to():
     ],
 )
 def test_every_reference_the_router_points_at_ships_with_the_skill(reference, marker):
-    body = (skill_source("codechroma-draw-diagram") / "references" / reference).read_text()
+    body = (skill_source("codechroma-draw-diagram") / "references" / reference).read_text(
+        encoding="utf-8"
+    )
 
     assert marker in body
 
@@ -108,7 +114,7 @@ def test_syncing_removes_a_skill_a_previous_version_installed(tmp_path, retired_
     repo = tmp_path / "repo"
     stale = repo / ".claude" / "skills" / retired_name
     stale.mkdir(parents=True)
-    (stale / "SKILL.md").write_text("an old, merged/retired-away skill")
+    (stale / "SKILL.md").write_text("an old, merged/retired-away skill", encoding="utf-8")
 
     sync_all_skills(repo)
 

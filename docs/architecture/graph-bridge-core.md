@@ -273,6 +273,11 @@ Supporting modules:
   `impact_resolver.py`) is unaffected by either review-axis change — only which review sidecar sits
   on top of it changed. See [`docs/architecture/diagram-skills.md`](diagram-skills.md) for what
   `codechroma-review-diagram` covers today.
+- `github_repo.py` — `launch.py --github owner/repo[@ref]`: `parse_github_ref` (URL / ssh / shorthand),
+  `open_github_repo` clones into `~/.codechroma/github-repos/<owner>/<repo>` (or fetches if cached) via
+  `git_long`, then checks out the ref **detached**. 🔴 Private repos rely on the user's existing git
+  credentials — never a token in a URL/argv; `_explain` turns git's failures into not-found / auth /
+  network / timeout messages. Tests: `tests/unit/test_github_repo.py` (local bare repo, no network).
 - `launch.py` — the `python -m codechroma.bridge.launch --repo-path X` one-command launcher (see the
   root `CLAUDE.md`'s Commands section). 🔴 Skill install is an **`app.py::create_app` step**, not a
   `launch.py`-only one: `create_app` calls `skill_sync.sync_all_skills(root)` right after resolving

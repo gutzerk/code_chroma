@@ -45,6 +45,11 @@ def test_garbage_is_refused_with_a_hint(raw):
         github_repo.parse_github_ref(raw)
 
 
+def test_a_ref_that_looks_like_an_option_is_refused():
+    with pytest.raises(GithubRepoError, match="not a valid"):
+        github_repo.parse_github_ref("acme/app", "--upload-pack=x")
+
+
 def _git(cwd: Path, *args: str) -> str:
     env = {"GIT_AUTHOR_NAME": "t", "GIT_AUTHOR_EMAIL": "t@t", "GIT_COMMITTER_NAME": "t",
            "GIT_COMMITTER_EMAIL": "t@t", "PATH": "/usr/bin:/bin:/usr/local/bin"}

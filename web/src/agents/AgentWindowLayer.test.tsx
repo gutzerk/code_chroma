@@ -136,12 +136,17 @@ function renderLayerWithPing(agents: AgentRecord[]) {
 }
 
 beforeEach(() => {
+  window.localStorage.removeItem("codechroma.agentDockCollapsed");
   agentStore.reset();
   agentDockStore.reset();
   vi.mocked(flagDiagramsReady).mockClear();
 });
 
-afterEach(cleanup);
+afterEach(() => {
+  cleanup();
+  window.localStorage.removeItem("codechroma.agentDockCollapsed");
+  agentDockStore.reset();
+});
 
 describe("AgentWindowLayer", () => {
   // Filtering minimized agents out of the render unmounted their xterm, so every restore paid for a
@@ -180,6 +185,44 @@ describe("AgentWindowLayer", () => {
     expect(screen.getByTestId("agent-dock-tab-flaky-tests")).toBeInTheDocument();
     expect(screen.getByTestId("agent-dock-panel-flaky-tests")).not.toHaveAttribute("hidden");
     expect(screen.getByTestId("agent-window-refund-flow")).not.toHaveClass("agent-window-hidden");
+  });
+
+  it("collapses the docked panel without unmounting its terminal and persists the toggle", async () => {
+    renderLayer([record({ window: { ...record().window, minimized: false } })]);
+
+    await waitFor(() => expect(screen.getByTestId("agent-dock-refund-flow")).toBeInTheDocument());
+    fireEvent.click(screen.getByTestId("agent-dock-refund-flow"));
+
+    const terminal = screen.getByTestId("agent-terminal-refund-flow");
+    const toggle = screen.getByTestId("agent-terminal-dock-toggle");
+    fireEvent.click(toggle);
+
+    expect(screen.getByTestId("agent-terminal-dock")).toHaveClass("agent-terminal-dock--collapsed");
+    expect(toggle).toHaveAttribute("aria-expanded", "false");
+    expect(terminal).toBeInTheDocument();
+    expect(window.localStorage.getItem("codechroma.agentDockCollapsed")).toBe("true");
+
+    fireEvent.click(toggle);
+
+    expect(screen.getByTestId("agent-terminal-dock")).not.toHaveClass(
+      "agent-terminal-dock--collapsed",
+    );
+    expect(toggle).toHaveAttribute("aria-expanded", "true");
+    expect(terminal).toBeInTheDocument();
+  });
+
+  it("keeps the detach action in the dock header as a non-shrinking control", async () => {
+    const narrowHeaderAgent = record({
+      title: "An agent with a long title that should not crowd the controls",
+      branch: "agent/a-very-long-branch-name-that-can-be-truncated",
+      window: { ...record().window, minimized: false },
+    });
+    renderLayer([narrowHeaderAgent]);
+
+    await waitFor(() => expect(screen.getByTestId("agent-dock-refund-flow")).toBeInTheDocument());
+    fireEvent.click(screen.getByTestId("agent-dock-refund-flow"));
+
+    expect(screen.getByTestId("agent-detach-refund-flow")).toHaveClass("agent-terminal-dock-action");
   });
 
   // A monitor unplugged mid-session shrinks the browser window in place, which used to leave a

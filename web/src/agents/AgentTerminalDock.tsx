@@ -4,7 +4,12 @@ import type { AgentRecord } from "../state/types";
 import { AgentTerminal } from "./AgentTerminal";
 import { useAgentClient } from "./AgentClientContext";
 import { agentStore, useAgents, useAgentStartError } from "./agentStore";
-import { agentDockStore, useActiveDockedAgentId, useDockedAgentIds } from "./agentDockStore";
+import {
+  agentDockStore,
+  useActiveDockedAgentId,
+  useDockedAgentIds,
+  useIsAgentDockCollapsed,
+} from "./agentDockStore";
 import { AgentLed } from "./AgentLed";
 import { closeAgentWindow, openAgentWindow } from "./windowActions";
 import { CreatePrButton } from "./CreatePrButton";
@@ -16,6 +21,7 @@ export function AgentTerminalDock() {
   const agents = useAgents();
   const agentIds = useDockedAgentIds();
   const activeAgentId = useActiveDockedAgentId();
+  const collapsed = useIsAgentDockCollapsed();
   const dockedAgents = agentIds
     .map((id) => agents.find((agent) => agent.id === id))
     .filter((agent): agent is AgentRecord => agent !== undefined);
@@ -31,28 +37,46 @@ export function AgentTerminalDock() {
       defaultWidth={DEFAULT_WIDTH}
       minWidth={MIN_WIDTH}
       maxViewportFraction={0.65}
+      collapsed={collapsed}
+      collapsedWidth={40}
       hidden={dockedAgents.length === 0}
     >
-      <div className="agent-terminal-dock-tabs" role="tablist" aria-label="Docked agents">
+      <div className="agent-terminal-dock-toolbar">
+        {!collapsed && (
+          <div className="agent-terminal-dock-tabs" role="tablist" aria-label="Docked agents">
+            {dockedAgents.map((agent) => (
+              <button
+                key={agent.id}
+                type="button"
+                role="tab"
+                aria-selected={agent.id === activeAgent?.id}
+                aria-controls={`agent-dock-panel-${agent.id}`}
+                className={`agent-terminal-dock-tab${agent.id === activeAgent?.id ? " is-active" : ""}`}
+                data-testid={`agent-dock-tab-${agent.id}`}
+                onClick={() => agentDockStore.activate(agent.id)}
+              >
+                <AgentLed status={agent.status} />
+                <span>{agent.title}</span>
+              </button>
+            ))}
+          </div>
+        )}
+        <button
+          type="button"
+          className="agent-terminal-dock-toggle"
+          aria-label={`${collapsed ? "Expand" : "Collapse"} docked agent panel`}
+          aria-expanded={!collapsed}
+          data-testid="agent-terminal-dock-toggle"
+          onClick={agentDockStore.toggleCollapsed}
+        >
+          <span aria-hidden="true">{collapsed ? "›" : "‹"}</span>
+        </button>
+      </div>
+      <div className="agent-terminal-dock-panels" hidden={collapsed}>
         {dockedAgents.map((agent) => (
-          <button
-            key={agent.id}
-            type="button"
-            role="tab"
-            aria-selected={agent.id === activeAgent?.id}
-            aria-controls={`agent-dock-panel-${agent.id}`}
-            className={`agent-terminal-dock-tab${agent.id === activeAgent?.id ? " is-active" : ""}`}
-            data-testid={`agent-dock-tab-${agent.id}`}
-            onClick={() => agentDockStore.activate(agent.id)}
-          >
-            <AgentLed status={agent.status} />
-            <span>{agent.title}</span>
-          </button>
+          <DockedAgentPanel key={agent.id} agent={agent} active={agent.id === activeAgent?.id} />
         ))}
       </div>
-      {dockedAgents.map((agent) => (
-        <DockedAgentPanel key={agent.id} agent={agent} active={agent.id === activeAgent?.id} />
-      ))}
     </ResizableRail>
   );
 }
@@ -97,7 +121,7 @@ function DockedAgentPanel({ agent, active }: { agent: AgentRecord; active: boole
         {!agent.worktree_lost && !agent.source_pr && <CreatePrButton agent={agent} />}
         <button
           type="button"
-          className="agent-window-button"
+          className="agent-window-button agent-terminal-dock-action"
           aria-label={`Detach ${agent.title} to a window`}
           data-testid={`agent-detach-${agent.id}`}
           onClick={() => {

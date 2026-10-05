@@ -309,7 +309,10 @@ branch through an agent attached to it (`_guard_shared_worktree`, keyed off `Age
   `agentDockStore` keeps a session-local ordered list of attached agent ids and the selected tab;
   every docked terminal stays mounted while switching tabs. Docking hides the floating window without
   persisting `minimized`, so after reload it naturally returns as a window. Detach removes that tab
-  and opens the agent window; the tab's close action follows the normal `closeAgentWindow` flow.
+  and opens the agent window; the tab's close action follows the normal `closeAgentWindow` flow. The
+  dock's collapse state persists in browser storage, leaves its expand handle available, and hides
+  terminal panels without unmounting them. Detach/close controls in the active terminal header do not
+  shrink away at the dock's minimum width.
 - `AgentRail` renders its own full-height panel (`.agent-task-rail`, header "AGENT TASKS" + a count
   chip) beside `.canvas-stage` inside `.canvas-main-row` — a sibling of the canvas, not a rail/toolbar
   item, so cards have room for more than an icon. It is the **only** always-visible list of agents:

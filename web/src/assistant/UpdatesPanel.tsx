@@ -23,24 +23,18 @@ declare global {
   interface Window { codechromaUpdates?: UpdatesApi }
 }
 
-const STATUS: Record<UpdateState["phase"], string> = {
-  idle: "Not checked",
-  checking: "Checking for updates…",
-  "up-to-date": "Up to date",
-  available: "Update available",
-  downloading: "Downloading update…",
-  ready: "Ready to restart",
-  installing: "Preparing update…",
-  error: "Update failed",
-};
+function displayVersion(version: string | undefined): string {
+  return version?.replace(/^v/i, "") ?? "Unknown";
+}
 
 export function UpdatesPanel({ onDismiss }: { onDismiss: () => void }) {
   const [state, setState] = useState<UpdateState>({ currentVersion: "Unknown", phase: "checking" });
-  const [now, setNow] = useState(Date.now());
   const api = window.codechromaUpdates;
   const run = (action: () => Promise<UpdateState>) => {
     action().then(setState).catch(error => setState(s => ({
-      ...s, phase: "error", error: `${String(error)} Check your connection and try again.`,
+      ...s,
+      phase: "error",
+      error: error instanceof Error ? error.message : String(error),
     })));
   };
 
@@ -53,67 +47,145 @@ export function UpdatesPanel({ onDismiss }: { onDismiss: () => void }) {
       setState(s);
       if (s.phase === "idle") return api.check().then(s => { if (active) setState(s); });
     }).catch(error => {
-      if (active) setState(s => ({ ...s, phase: "error", error: String(error) }));
+      if (active) setState(s => ({
+        ...s,
+        phase: "error",
+        error: error instanceof Error ? error.message : String(error),
+      }));
     });
     return () => { active = false; unsubscribe(); };
   }, [api]);
 
-  useEffect(() => {
-    if (!state.retryAfter || state.phase !== "error") return;
-    if (state.retryAfter <= Date.now()) return;
-    const retryAt = state.retryAfter;
-    const timer = window.setInterval(() => {
-      const current = Date.now();
-      setNow(current);
-      if (current >= retryAt) window.clearInterval(timer);
-    }, 1000);
-    return () => window.clearInterval(timer);
-  }, [state.phase, state.retryAfter]);
+  const checking = state.phase === "checking";
+  const downloading = state.phase === "downloading";
+  const installing = state.phase === "installing";
+  const busy = checking || downloading || installing;
+  const upToDate = state.phase === "up-to-date";
+  const available = state.phase === "available";
+  const ready = state.phase === "ready";
+  const hasUpdate = available || downloading || ready || installing;
+  const headline = hasUpdate
+    ? "Update available"
+    : upToDate
+      ? "You're up to date"
+      : checking
+        ? "Checking for updates…"
+        : state.phase === "error"
+          ? "Update check failed"
+          : "Updates";
 
-  const busy = ["checking", "downloading", "installing"].includes(state.phase);
-  const rateLimited = state.retryAfter !== undefined && now < state.retryAfter;
-  const seconds = state.retryAfter ? Math.ceil((state.retryAfter - now) / 1000) : 0;
-  const minutes = Math.ceil(seconds / 60);
-  const retryLabel = rateLimited
-    ? minutes > 0 ? `Try again in ${minutes} min` : `Try again in ${seconds} sec`
-    : "Try again";
   return (
-    <ModalDialog label="Updates" testId="updates-panel" className="settings-home-dialog" onDismiss={onDismiss}>
-      <header className="llm-dialog-header"><h2>Updates</h2></header>
+    <ModalDialog label="Updates" testId="updates-panel" className="updates-dialog" onDismiss={onDismiss}>
+      <header className="updates-header">
+        <button
+          className="updates-back"
+          type="button"
+          aria-label="Back"
+          onClick={onDismiss}
+        >
+          <svg aria-hidden="true" viewBox="0 0 24 24">
+            <path d="m15 18-6-6 6-6" />
+          </svg>
+        </button>
+        <h2>Updates</h2>
+      </header>
+
       {!api ? (
-        <p>Open CodeChroma in the desktop app to check and install updates.</p>
+        <p className="updates-message">Open CodeChroma in the desktop app to check and install updates.</p>
       ) : (
         <>
-          <dl>
-            <dt>Current version</dt><dd>{state.currentVersion}</dd>
-            <dt>Latest stable version</dt><dd>{state.latestVersion ?? "Not checked"}</dd>
-          </dl>
-          <p role="status">{STATUS[state.phase]}</p>
-          {state.phase === "downloading" && (
-            <>
-              <progress aria-label="Download progress" value={state.total ? state.bytes ?? 0 : undefined} max={state.total ?? 1} />
-              <p>{((state.bytes ?? 0) / 1048576).toFixed(1)} MB downloaded</p>
-            </>
+          <section className="updates-status" aria-live="polite">
+            <h3>{headline}</h3>
+            {hasUpdate && (
+              <p>A new stable version of Code Chroma is ready to install.</p>
+            )}
+          </section>
+
+          <section className={`updates-version-card${upToDate ? " updates-version-current-only" : ""}`} aria-label="Version information">
+            <div className="updates-version">
+              <span>Current</span>
+              <strong>{displayVersion(state.currentVersion)}</strong>
+            </div>
+            {hasUpdate && (
+              <>
+                <svg className="updates-version-arrow" aria-hidden="true" viewBox="0 0 24 24">
+                  <path d="M5 12h14m-6-6 6 6-6 6" />
+                </svg>
+                <div className="updates-version updates-version-latest">
+                  <span>Latest stable</span>
+                  <strong>{displayVersion(state.latestVersion)}</strong>
+                </div>
+              </>
+            )}
+          </section>
+
+          {state.phase === "error" && (
+            <p className="updates-error" role="alert">
+              {state.error || "Couldn't check for updates. Try again."}
+            </p>
           )}
-          {state.phase === "installing" && <progress aria-label="Update progress" />}
-          {state.error && <p role="alert">{state.error}</p>}
-          {state.phase === "available" && (
-            <button className="llm-button-primary" onClick={() => run(api.download)}>
-              Update to {state.latestVersion}
-            </button>
-          )}
-          {state.phase === "ready" && (
-            <button className="llm-button-primary" onClick={() => run(api.restart)}>Restart and Update</button>
-          )}
-          <button disabled={busy || state.phase === "ready" || rateLimited} onClick={() => run(api.check)}>
-            {state.phase === "error" ? retryLabel : "Check for updates"}
-          </button>
-          <p>
-            <a href="https://github.com/gutzerk/code_chroma/releases" target="_blank" rel="noreferrer">GitHub Releases</a>
-          </p>
+
+          <div className="updates-actions">
+            {available && (
+              <button
+                className="updates-primary"
+                type="button"
+                disabled={busy}
+                onClick={() => run(api.download)}
+              >
+                Update now
+              </button>
+            )}
+            {downloading && (
+              <div className="updates-download" aria-live="polite">
+                <span>Downloading…</span>
+                <progress
+                  aria-label="Download progress"
+                  value={state.total ? state.bytes ?? 0 : undefined}
+                  max={state.total ?? 1}
+                />
+              </div>
+            )}
+            {ready && (
+              <button
+                className="updates-primary"
+                type="button"
+                onClick={() => run(api.restart)}
+              >
+                Restart to finish updating
+              </button>
+            )}
+            {installing && (
+              <div className="updates-download" aria-live="polite">
+                <span>Restarting…</span>
+                <progress aria-label="Installing update" />
+              </div>
+            )}
+
+            <div className="updates-secondary-actions">
+              <button
+                className="updates-check"
+                type="button"
+                disabled={busy}
+                onClick={() => run(api.check)}
+              >
+                {checking ? "Checking…" : "Check for updates"}
+              </button>
+              <a
+                className="updates-release-link"
+                href="https://github.com/gutzerk/code_chroma/releases"
+                target="_blank"
+                rel="noopener noreferrer"
+              >
+                <span>Release notes on GitHub</span>
+                <svg aria-hidden="true" viewBox="0 0 16 16">
+                  <path d="M9 2h5v5M14 2 7 9M12 9v4H3V4h4" />
+                </svg>
+              </a>
+            </div>
+          </div>
         </>
       )}
-      <div className="llm-dialog-actions"><button onClick={onDismiss}>Back</button></div>
     </ModalDialog>
   );
 }

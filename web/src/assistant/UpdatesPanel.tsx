@@ -60,18 +60,22 @@ export function UpdatesPanel({ onDismiss }: { onDismiss: () => void }) {
 
   useEffect(() => {
     if (!state.retryAfter || state.phase !== "error") return;
-    const timer = window.setInterval(() => setNow(Date.now()), 1000);
+    if (state.retryAfter <= Date.now()) return;
+    const retryAt = state.retryAfter;
+    const timer = window.setInterval(() => {
+      const current = Date.now();
+      setNow(current);
+      if (current >= retryAt) window.clearInterval(timer);
+    }, 1000);
     return () => window.clearInterval(timer);
   }, [state.phase, state.retryAfter]);
 
   const busy = ["checking", "downloading", "installing"].includes(state.phase);
   const rateLimited = state.retryAfter !== undefined && now < state.retryAfter;
-  const retryLabel = state.retryAfter
-    ? (() => {
-      const seconds = Math.ceil((state.retryAfter! - now) / 1000);
-      const minutes = Math.ceil(seconds / 60);
-      return minutes > 0 ? `Try again in ${minutes} min` : `Try again in ${seconds} sec`;
-    })()
+  const seconds = state.retryAfter ? Math.ceil((state.retryAfter - now) / 1000) : 0;
+  const minutes = Math.ceil(seconds / 60);
+  const retryLabel = rateLimited
+    ? minutes > 0 ? `Try again in ${minutes} min` : `Try again in ${seconds} sec`
     : "Try again";
   return (
     <ModalDialog label="Updates" testId="updates-panel" className="settings-home-dialog" onDismiss={onDismiss}>

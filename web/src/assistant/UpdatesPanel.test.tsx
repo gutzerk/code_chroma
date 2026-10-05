@@ -50,4 +50,8 @@ describe("UpdatesPanel", () => {
     expect(screen.getByText("1.9.0")).toBeTruthy();
     expect(screen.getByRole("button", { name: "Try again in 2 min" })).toBeDisabled();
   });
+  it("enables retry after the rate-limit cooldown expires", async () => {
+    setup("error", { retryAfter: Date.now() - 1000 });
+    expect(await screen.findByRole("button", { name: "Try again" })).toBeEnabled();
+  });
 });

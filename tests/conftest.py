@@ -8,6 +8,7 @@ Every bridge route test used to carry its own copy of `_init_repo` and a fixture
 
 from __future__ import annotations
 
+import os
 import shutil
 import subprocess
 from dataclasses import dataclass
@@ -23,6 +24,11 @@ from codechroma.bridge.services import BridgeServices
 from codechroma.bridge.workspaces import Workspace
 
 FIXTURE_REPO = Path(__file__).parent / "fixtures" / "sample_repo"
+
+# Tests assume `main`; pin it so a machine-wide init.defaultBranch can't change it.
+os.environ.update(
+    GIT_CONFIG_COUNT="1", GIT_CONFIG_KEY_0="init.defaultBranch", GIT_CONFIG_VALUE_0="main"
+)
 
 
 @pytest.fixture

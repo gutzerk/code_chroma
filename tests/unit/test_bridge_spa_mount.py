@@ -35,9 +35,9 @@ def spa_server_module(tmp_path, monkeypatch, make_bridge):
     _init_repo(repo)
     spa = tmp_path / "spa"
     spa.mkdir()
-    (spa / "index.html").write_text("<!doctype html><title>CodeChroma</title>")
+    (spa / "index.html").write_text("<!doctype html><title>CodeChroma</title>", encoding="utf-8")
     (spa / "assets").mkdir()
-    (spa / "assets" / "index.js").write_text("console.log('canvas')")
+    (spa / "assets" / "index.js").write_text("console.log('canvas')", encoding="utf-8")
     monkeypatch.setattr(
         "codechroma.bridge.resources.resource_path",
         lambda kind, *parts: spa.joinpath(*parts) if kind == "web" else Path("/nonexistent"),

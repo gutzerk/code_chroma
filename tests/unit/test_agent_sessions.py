@@ -3,13 +3,14 @@
 import asyncio
 
 from codechroma.bridge.agents.sessions import AgentSession, AgentSessionPort, agent_run_env
+from tests.unit.portable_commands import ECHO
 
 
 def _attach_frame(stream: str) -> str:
     """The first frame a reattaching window receives after the agent emitted `stream`."""
 
     async def run() -> str:
-        session = AgentSession("runner", ["cat"], cwd=".")
+        session = AgentSession("runner", ECHO, cwd=".")
         session._on_output(stream)
         queue = session.attach()
         session.close()
@@ -34,7 +35,7 @@ def test_a_repainted_screen_reattaches_without_the_text_the_repaint_erased():
 
 def test_resyncing_an_unknown_queue_is_a_no_op_rather_than_an_error():
     async def run() -> int:
-        session = AgentSession("runner", ["cat"], cwd=".")
+        session = AgentSession("runner", ECHO, cwd=".")
         stranger: asyncio.Queue = asyncio.Queue()
         session.resync(stranger)
         session.close()
@@ -45,7 +46,7 @@ def test_resyncing_an_unknown_queue_is_a_no_op_rather_than_an_error():
 
 def test_agent_session_satisfies_the_terminal_port():
     async def run() -> bool:
-        session = AgentSession("runner", ["cat"], cwd=".")
+        session = AgentSession("runner", ECHO, cwd=".")
         result = isinstance(session, AgentSessionPort)
         session.close()
         return result
@@ -71,7 +72,7 @@ class _IdleLater:
 
 def _make_injecting_session(monkeypatch, classify, written: list[str]):
     """Real AgentSession with detector.classify patched and write() recording into `written`."""
-    session = AgentSession("runner", ["cat"], cwd=".")
+    session = AgentSession("runner", ECHO, cwd=".")
     session.write = written.append
     monkeypatch.setattr(session._detector, "classify", classify)
     return session

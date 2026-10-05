@@ -138,7 +138,7 @@ def test_delete_type_rejects_invalid_id():
 def test_load_type_malformed_file_returns_none(tmp_path):
     path = library.type_path("broken")
     path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text("not json")
+    path.write_text("not json", encoding="utf-8")
 
     assert library.load_type("broken") is None
 

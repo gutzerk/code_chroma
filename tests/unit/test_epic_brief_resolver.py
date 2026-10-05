@@ -121,11 +121,11 @@ def _with_collision_fixture(repo: Path) -> None:
     other.mkdir(parents=True)
     (other / "spec.md").write_text(
         f'**Input**: User description: "Implement {OTHER_STORY}: the second story"\n'
-    )
-    (other / "plan.md").write_text("# Plan\n\n**Spec**: [spec.md](./spec.md)\n")
+, encoding="utf-8")
+    (other / "plan.md").write_text("# Plan\n\n**Spec**: [spec.md](./spec.md)\n", encoding="utf-8")
     (other / "tasks.md").write_text(
         f"# Tasks: Second spec\n\n## Phase 1\n\n- [ ] {OTHER_TASK}\n"
-    )
+, encoding="utf-8")
 
 
 def test_a_task_from_each_of_two_specs_keeps_its_own_text(make_repo):
@@ -158,12 +158,12 @@ def _with_duplicate_id_fixture(repo: Path) -> None:
     other.mkdir(parents=True)
     (other / "spec.md").write_text(
         f'**Input**: User description: "Implement {OTHER_STORY}: the second story"\n'
-    )
-    (other / "plan.md").write_text("# Plan\n\n**Spec**: [spec.md](./spec.md)\n")
+, encoding="utf-8")
+    (other / "plan.md").write_text("# Plan\n\n**Spec**: [spec.md](./spec.md)\n", encoding="utf-8")
     (other / "tasks.md").write_text(
         f"# Tasks: Second spec\n\n## Phase 1\n\n- [ ] {OTHER_TASK}\n"
         "- [ ] T004 A conflicting second text\n"
-    )
+, encoding="utf-8")
 
 
 def test_a_task_id_duplicated_within_one_stage_splices_nothing(make_repo):

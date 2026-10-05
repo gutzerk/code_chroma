@@ -63,7 +63,7 @@ def test_only_if_missing_does_not_start_a_run_when_a_diagram_exists(server_modul
     monkeypatch.setattr("codechroma.llm.runtime_env.shutil.which", lambda _name, **_kwargs: None)
     c1_path = diagram_json_path(repo, "c1")
     c1_path.parent.mkdir(parents=True, exist_ok=True)
-    c1_path.write_text('{"system": {"name": "Sample"}, "actors": []}')
+    c1_path.write_text('{"system": {"name": "Sample"}, "actors": []}', encoding="utf-8")
 
     with TestClient(bridge.app) as client:
         response = client.post("/repos/default/c1/generate?only_if_missing=true")

@@ -23,14 +23,20 @@ def run_git_raw(
     """The one place a git subprocess is spawned; None when git couldn't be run at all."""
     try:
         runtime = resolve_runtime_cli("git", env)
-        return subprocess.run(
+        # Bytes in/out keeps Windows from translating newlines or using the ANSI code page.
+        raw = subprocess.run(
             [runtime.executable, *args],
             cwd=cwd,
             env=dict(runtime.env),
-            input=input_text,
+            input=input_text.encode("utf-8") if input_text is not None else None,
             capture_output=True,
-            text=True,
             timeout=_git_timeout(),
+        )
+        return subprocess.CompletedProcess(
+            raw.args,
+            raw.returncode,
+            (raw.stdout or b"").decode("utf-8", errors="replace"),
+            (raw.stderr or b"").decode("utf-8", errors="replace"),
         )
     except (OSError, subprocess.TimeoutExpired, CliLookupError) as exc:
         launch_failed(exc)
@@ -75,7 +81,7 @@ def ensure_excluded(cwd: Path, patterns: tuple[str, ...] | list[str]) -> bool:
     if not path.is_absolute():
         path = (cwd / path).resolve()
     try:
-        existing = path.read_text().splitlines() if path.exists() else []
+        existing = path.read_text(encoding="utf-8").splitlines() if path.exists() else []
         missing = [pattern for pattern in patterns if pattern not in existing]
         if not missing:
             return True

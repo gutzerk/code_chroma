@@ -15,10 +15,10 @@ def _seed_tree(repo, *, generated_at_commit=None):
     directory = repo / ".codechroma" / "wiki-general"
     (directory / "c2").mkdir(parents=True, exist_ok=True)
     (directory / "c3").mkdir(parents=True, exist_ok=True)
-    (directory / "index.md").write_text("# Root\n")
+    (directory / "index.md").write_text("# Root\n", encoding="utf-8")
     (directory / "c3" / "auth.md").write_text(
         "# Authentication\n\n## Elements\n\n- **Login** — x.\n  - File: `shared/text_utils.py`\n"
-    )
+, encoding="utf-8")
     manifest = {
         "containers": [{"id": "backend", "name": "Backend", "path": "c2/backend.md"}],
         "components": [
@@ -27,7 +27,7 @@ def _seed_tree(repo, *, generated_at_commit=None):
     }
     if generated_at_commit is not None:
         manifest["generated_at_commit"] = generated_at_commit
-    (directory / "manifest.json").write_text(json.dumps(manifest))
+    (directory / "manifest.json").write_text(json.dumps(manifest), encoding="utf-8")
 
 
 def test_update_never_wipes_existing_pages(bridge, monkeypatch):
@@ -109,18 +109,24 @@ def _seed_clustering_manifest(repo, *, generated_at_commit=None):
         "# Root\n\n## Containers\n\n"
         "- [Backend](c2/backend.md) — backend.\n"
         "- [Frontend](c2/frontend.md) — frontend.\n"
-    )
+, encoding="utf-8")
     (directory / "c2" / "backend.md").write_text(
         "# Backend\n\n## Components\n\n"
         "- [Billing](../c3/billing.md) — billing.\n"
         "- [Misc](../c3/misc.md) — misc.\n"
-    )
+, encoding="utf-8")
     (directory / "c2" / "frontend.md").write_text(
         "# Frontend\n\n## Components\n\n- [Web](../c3/web.md) — web.\n"
+, encoding="utf-8")
+    (directory / "c3" / "billing.md").write_text(
+        "# Billing\n\n## Elements\n\n- **X** — x.\n", encoding="utf-8"
     )
-    (directory / "c3" / "billing.md").write_text("# Billing\n\n## Elements\n\n- **X** — x.\n")
-    (directory / "c3" / "misc.md").write_text("# Misc\n\n## Elements\n\n- **X** — x.\n")
-    (directory / "c3" / "web.md").write_text("# Web\n\n## Elements\n\n- **X** — x.\n")
+    (directory / "c3" / "misc.md").write_text(
+        "# Misc\n\n## Elements\n\n- **X** — x.\n", encoding="utf-8"
+    )
+    (directory / "c3" / "web.md").write_text(
+        "# Web\n\n## Elements\n\n- **X** — x.\n", encoding="utf-8"
+    )
     manifest = {
         "containers": [
             {
@@ -166,7 +172,7 @@ def _seed_clustering_manifest(repo, *, generated_at_commit=None):
     }
     if generated_at_commit is not None:
         manifest["generated_at_commit"] = generated_at_commit
-    (directory / "manifest.json").write_text(json.dumps(manifest))
+    (directory / "manifest.json").write_text(json.dumps(manifest), encoding="utf-8")
     return directory
 
 
@@ -176,8 +182,8 @@ def test_update_computes_the_real_create_rewrite_delete_sequence(bridge, monkeyp
     # A brand-new, self-contained pair of files with zero overlap with any existing id.
     notifications = bridge.repo / "notifications"
     notifications.mkdir()
-    (notifications / "email.py").write_text("def send_email(): pass\n")
-    (notifications / "sms.py").write_text("def send_sms(): pass\n")
+    (notifications / "email.py").write_text("def send_email(): pass\n", encoding="utf-8")
+    (notifications / "sms.py").write_text("def send_sms(): pass\n", encoding="utf-8")
     captured = {}
     real_render_prompt = __import__(
         "codechroma.bridge.routes.wiki_general", fromlist=["render_prompt"]
@@ -207,12 +213,12 @@ def test_update_computes_the_real_create_rewrite_delete_sequence(bridge, monkeyp
         ]}
     ]
 
-    stamped = json.loads((directory / "manifest.json").read_text())
+    stamped = json.loads((directory / "manifest.json").read_text(encoding="utf-8"))
     stamped_ids = {c["id"] for c in stamped["components"]}
     # misc's only file moved away -> deleted: manifest entry, page, and parent link all removed.
     assert "misc" not in stamped_ids
     assert not (directory / "c3" / "misc.md").exists()
-    assert "misc.md" not in (directory / "c2" / "backend.md").read_text()
+    assert "misc.md" not in (directory / "c2" / "backend.md").read_text(encoding="utf-8")
 
 
 def test_update_recomputes_edges_and_stamps_generated_at_commit_together(bridge, monkeypatch):
@@ -227,7 +233,7 @@ def test_update_recomputes_edges_and_stamps_generated_at_commit_together(bridge,
             client.post("/repos/default/wiki-general/update")
             _receive_final_status(websocket)
 
-    stamped = json.loads((directory / "manifest.json").read_text())
+    stamped = json.loads((directory / "manifest.json").read_text(encoding="utf-8"))
     assert stamped["generated_at_commit"] != "stale-sha"
     assert stamped["edges"] == []  # billing and web have no cross-component call/import traffic
 
@@ -246,7 +252,9 @@ def test_update_stamps_generated_at_commit_once_it_succeeds(bridge, monkeypatch)
         "codechroma.llm.runtime_env.shutil.which", lambda _name, **_kwargs: "/usr/bin/claude"
     )
     _seed_tree(bridge.repo, generated_at_commit="stale-sha")
-    (bridge.repo / "shared" / "text_utils.py").write_text("def slugify(text): return text\n")
+    (bridge.repo / "shared" / "text_utils.py").write_text(
+        "def slugify(text): return text\n", encoding="utf-8"
+    )
     manifest_path = bridge.repo / ".codechroma" / "wiki-general" / "manifest.json"
     monkeypatch.setattr(asyncio, "create_subprocess_exec", fake_claude_exec(returncode=0))
 
@@ -255,5 +263,5 @@ def test_update_stamps_generated_at_commit_once_it_succeeds(bridge, monkeypatch)
             client.post("/repos/default/wiki-general/update")
             _receive_final_status(websocket)
 
-    stamped = json.loads(manifest_path.read_text())
+    stamped = json.loads(manifest_path.read_text(encoding="utf-8"))
     assert stamped["generated_at_commit"] != "stale-sha"

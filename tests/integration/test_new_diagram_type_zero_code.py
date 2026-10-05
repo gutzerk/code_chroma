@@ -58,7 +58,7 @@ def test_a_new_type_renders_and_self_checks_with_zero_new_source_files(bridge):
                 "relations": [{"from": "build", "to": "deploy", "label": "triggers"}],
             }
         )
-    )
+, encoding="utf-8")
 
     with TestClient(bridge.app) as client:
         resolved = client.get("/repos/default/custom/release-flow").json()

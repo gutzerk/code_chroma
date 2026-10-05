@@ -42,7 +42,7 @@ def test_read_accessors_are_safe_before_any_analysis():
 
 
 def test_analyze_and_reanalyze_never_call_sync_wiki(tmp_path):
-    (tmp_path / "a.py").write_text('"""A module."""\n')
+    (tmp_path / "a.py").write_text('"""A module."""\n', encoding="utf-8")
     engine = GraphEngine()
 
     with patch("codechroma.engine.sync_wiki") as mock_sync_wiki:

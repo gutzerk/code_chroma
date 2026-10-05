@@ -41,10 +41,10 @@ def test_diff_route_reports_a_modified_function(client):
     test_client, repo = client
     slugify_path = repo / "shared" / "text_utils.py"
     slugify_path.write_text(
-        slugify_path.read_text().replace(
+        slugify_path.read_text(encoding="utf-8").replace(
             'return text.strip().lower().replace(" ", "-")', 'return "patched"'
         )
-    )
+, encoding="utf-8")
 
     response = test_client.get("/repos/default/diff")
 
@@ -58,7 +58,9 @@ def test_diff_route_reports_a_modified_function(client):
 def test_diff_route_reports_an_added_file_container(client):
     test_client, repo = client
     new_file = repo / "billing" / "refunds.py"
-    new_file.write_text('class Refund:\n    """A refund."""\n    reason = "duplicate"\n')
+    new_file.write_text(
+        'class Refund:\n    """A refund."""\n    reason = "duplicate"\n', encoding="utf-8"
+    )
 
     response = test_client.get("/repos/default/diff")
 
@@ -73,7 +75,9 @@ def test_diff_route_reports_an_added_file_container(client):
 def test_diff_route_reports_an_added_class_with_no_functions(client):
     test_client, repo = client
     new_file = repo / "billing" / "refunds.py"
-    new_file.write_text('class Refund:\n    """A refund."""\n    reason = "duplicate"\n')
+    new_file.write_text(
+        'class Refund:\n    """A refund."""\n    reason = "duplicate"\n', encoding="utf-8"
+    )
 
     response = test_client.get("/repos/default/diff")
 
@@ -91,11 +95,11 @@ def test_diff_route_reports_a_modified_class_without_a_function_change(client):
     test_client, repo = client
     invoice_path = repo / "billing" / "models" / "invoice.py"
     invoice_path.write_text(
-        invoice_path.read_text().replace(
+        invoice_path.read_text(encoding="utf-8").replace(
             '"""A single billing invoice."""\n',
             '"""A single billing invoice."""\n\n    currency = "USD"\n',
         )
-    )
+, encoding="utf-8")
 
     response = test_client.get("/repos/default/diff")
 
@@ -114,10 +118,10 @@ def test_diff_route_omits_the_class_entry_when_a_method_changed(client):
     test_client, repo = client
     invoice_path = repo / "billing" / "models" / "invoice.py"
     invoice_path.write_text(
-        invoice_path.read_text().replace(
+        invoice_path.read_text(encoding="utf-8").replace(
             'return sum(line["amount"] for line in lines)', "return 0.0"
         )
-    )
+, encoding="utf-8")
 
     response = test_client.get("/repos/default/diff")
 

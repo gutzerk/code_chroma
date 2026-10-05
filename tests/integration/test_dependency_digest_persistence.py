@@ -26,7 +26,7 @@ def test_analyze_writes_a_valid_dependency_digest(repo):
     engine.analyze(str(repo))
 
     path = dependency_digest_path(repo)
-    digest = json.loads(path.read_text())
+    digest = json.loads(path.read_text(encoding="utf-8"))
     assert digest["totals"]["file_count"] > 0
 
 
@@ -35,12 +35,14 @@ def test_reanalyze_rewrites_the_digest_with_a_new_edge(repo):
     engine.analyze(str(repo))
     service_path = repo / "users" / "service.py"
     service_path.write_text(
-        service_path.read_text() + "\n\ndef noop_helper():\n    return slugify('x')\n"
+        service_path.read_text(encoding="utf-8")
+        + "\n\ndef noop_helper():\n    return slugify('x')\n",
+        encoding="utf-8",
     )
 
     engine.reanalyze(["users/service.py"])
 
-    digest = json.loads(dependency_digest_path(repo).read_text())
+    digest = json.loads(dependency_digest_path(repo).read_text(encoding="utf-8"))
     users_file = next(f for f in digest["files"] if f["path"] == "users/service.py")
     assert any(fn["name"] == "noop_helper" for fn in users_file["functions"])
 

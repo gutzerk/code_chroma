@@ -40,7 +40,7 @@ def test_a_custom_type_gets_the_same_envelope_shape_with_null_fields(bridge, tmp
     library.save_type(NEW_TYPE)
     diagram_path = diagram_json_path(bridge.repo, "custom/release-flow")
     diagram_path.parent.mkdir(parents=True, exist_ok=True)
-    diagram_path.write_text(json.dumps({"nodes": [], "relations": []}))
+    diagram_path.write_text(json.dumps({"nodes": [], "relations": []}), encoding="utf-8")
 
     with TestClient(bridge.app) as client:
         body = client.get("/repos/default/custom/release-flow/context").json()

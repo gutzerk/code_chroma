@@ -19,7 +19,7 @@ SCRIPT = (
 
 def _run(tmp_path, diagram, *extra):
     path = tmp_path / "flow.json"
-    path.write_text(json.dumps(diagram))
+    path.write_text(json.dumps(diagram), encoding="utf-8")
     return subprocess.run(
         [sys.executable, str(SCRIPT), "--kind", "custom", "--type", "flow",
          "--json", str(path), *extra],

@@ -108,7 +108,7 @@ def test_references_context_and_component_surface_on_fetch(tmp_path):
         "context_file: context/work/epic-context/EP-REF.md\n"
         'component: "application"\n'
         "---\n"
-    )
+, encoding="utf-8")
     source = MarkdownRequirementsSource(items_root, tmp_path)
 
     item = source.fetch_item("EP-REF")
@@ -126,7 +126,7 @@ def test_missing_reference_fields_default_to_empty(tmp_path):
     items_root.mkdir()
     (items_root / "a.md").write_text(
         "---\nid: EP-PLAIN\ntitle: Plain\nstatus: Draft\nkind: epic\n---\n"
-    )
+, encoding="utf-8")
     source = MarkdownRequirementsSource(items_root, tmp_path)
 
     item = source.fetch_item("EP-PLAIN")
@@ -141,10 +141,10 @@ def test_duplicate_id_keeps_the_first(tmp_path):
     items_root.mkdir()
     (items_root / "a-first.md").write_text(
         "---\nid: EP-DUP\ntitle: First\nstatus: Draft\nkind: epic\n---\n"
-    )
+, encoding="utf-8")
     (items_root / "b-second.md").write_text(
         "---\nid: EP-DUP\ntitle: Second\nstatus: Draft\nkind: epic\n---\n"
-    )
+, encoding="utf-8")
     source = MarkdownRequirementsSource(items_root, tmp_path)
 
     items = source.list_items()
@@ -156,11 +156,13 @@ def test_fingerprint_changes_when_a_listed_item_changes(tmp_path):
     items_root = tmp_path / "epics"
     items_root.mkdir()
     path = items_root / "a.md"
-    path.write_text("---\nid: EP-X\ntitle: X\nstatus: Draft\nkind: epic\n---\n")
+    path.write_text("---\nid: EP-X\ntitle: X\nstatus: Draft\nkind: epic\n---\n", encoding="utf-8")
     source = MarkdownRequirementsSource(items_root, tmp_path)
     before = source.fingerprint()
 
-    path.write_text("---\nid: EP-X\ntitle: X renamed\nstatus: Draft\nkind: epic\n---\n")
+    path.write_text(
+        "---\nid: EP-X\ntitle: X renamed\nstatus: Draft\nkind: epic\n---\n", encoding="utf-8"
+    )
     after = source.fingerprint()
 
     assert before != after

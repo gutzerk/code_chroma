@@ -189,7 +189,7 @@ def _check_links(
         return  # already reported as MISSING-PAGE below
     linked = {(page.parent / match.group(1)).resolve() for match in _LINK_RE.finditer(text)}
     for target in sorted(expected - linked):
-        rel = target.relative_to(wiki_dir)
+        rel = target.relative_to(wiki_dir).as_posix()
         report.advisory.append(f"LINK-MISSING {label} page never links to {rel}")
 
 

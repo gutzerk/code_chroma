@@ -10,6 +10,7 @@ import pytest
 from fastapi.testclient import TestClient
 
 from codechroma.terminal import server as terminal_server
+from tests.unit.portable_commands import ECHO
 
 FIXTURE_REPO = Path(__file__).parent.parent / "fixtures" / "sample_repo"
 
@@ -33,7 +34,7 @@ def bridge_server(tmp_path, monkeypatch, make_bridge):
 
 
 def test_terminal_route_echoes_through_the_bridge(bridge_server, monkeypatch):
-    monkeypatch.setattr(terminal_server, "ALLOWED_AGENTS", {"echo-agent": ["cat"]})
+    monkeypatch.setattr(terminal_server, "ALLOWED_AGENTS", {"echo-agent": ECHO})
 
     with TestClient(bridge_server.app) as client:
         with client.websocket_connect("/ws/terminal?agent=echo-agent") as websocket:

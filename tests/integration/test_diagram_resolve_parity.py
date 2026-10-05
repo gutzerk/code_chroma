@@ -22,7 +22,7 @@ GOLDEN_DIR = Path(__file__).parent.parent / "fixtures" / "diagram_parity"
 
 
 def _golden(name: str) -> dict:
-    return json.loads((GOLDEN_DIR / f"{name}.golden.json").read_text())
+    return json.loads((GOLDEN_DIR / f"{name}.golden.json").read_text(encoding="utf-8"))
 
 
 def _anchor(node: dict) -> str:
@@ -80,7 +80,7 @@ def test_c1_parity(bridge):
     golden = _golden("c1")
     c1_path = diagram_json_path(bridge.repo, "c1")
     c1_path.parent.mkdir(parents=True, exist_ok=True)
-    c1_path.write_text(json.dumps(golden["input"]))
+    c1_path.write_text(json.dumps(golden["input"]), encoding="utf-8")
 
     with TestClient(bridge.app) as client:
         body = client.get("/repos/default/c1").json()
@@ -95,7 +95,7 @@ def test_patterns_parity(bridge):
     golden = _golden("patterns")
     patterns_path = diagram_json_path(bridge.repo, "patterns")
     patterns_path.parent.mkdir(parents=True, exist_ok=True)
-    patterns_path.write_text(json.dumps(golden["input"]))
+    patterns_path.write_text(json.dumps(golden["input"]), encoding="utf-8")
 
     with TestClient(bridge.app) as client:
         body = client.get("/repos/default/patterns").json()
@@ -119,7 +119,7 @@ def test_impact_parity(bridge):
     impact_input = {**golden["input"], "nodes": _with_status_in_meta(golden["input"]["nodes"])}
     impact_path = diagram_json_path(bridge.repo, "impact")
     impact_path.parent.mkdir(parents=True, exist_ok=True)
-    impact_path.write_text(json.dumps(impact_input))
+    impact_path.write_text(json.dumps(impact_input), encoding="utf-8")
 
     with TestClient(bridge.app) as client:
         body = client.get("/repos/default/impact").json()
@@ -143,7 +143,7 @@ def test_custom_parity(bridge, tmp_path, monkeypatch):
     })
     custom_path = diagram_json_path(bridge.repo, "custom/arch")
     custom_path.parent.mkdir(parents=True, exist_ok=True)
-    custom_path.write_text(json.dumps(golden["input"]))
+    custom_path.write_text(json.dumps(golden["input"]), encoding="utf-8")
 
     with TestClient(bridge.app) as client:
         body = client.get("/repos/default/custom/arch").json()

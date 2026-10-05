@@ -25,7 +25,7 @@ def _init_repo(root: Path, commit: bool = True) -> None:
 def project(tmp_path):
     root = tmp_path / "project"
     root.mkdir()
-    (root / "app.py").write_text("value = 1\n", newline="\n")
+    (root / "app.py").write_text("value = 1\n", newline="\n", encoding="utf-8")
     return root
 
 
@@ -79,10 +79,10 @@ def test_preflight_reports_no_git_when_git_is_not_on_path(project, monkeypatch):
 
 
 def test_commit_plan_respects_an_existing_gitignore(project):
-    (project / ".gitignore").write_text("secrets.txt\nlogs/\n")
-    (project / "secrets.txt").write_text("token")
+    (project / ".gitignore").write_text("secrets.txt\nlogs/\n", encoding="utf-8")
+    (project / "secrets.txt").write_text("token", encoding="utf-8")
     (project / "logs").mkdir()
-    (project / "logs" / "run.log").write_text("noise")
+    (project / "logs" / "run.log").write_text("noise", encoding="utf-8")
 
     plan = bootstrap.commit_plan(project)
 
@@ -93,7 +93,7 @@ def test_commit_plan_respects_an_existing_gitignore(project):
 
 def test_commit_plan_honors_extra_ignores(project):
     (project / "generated").mkdir()
-    (project / "generated" / "out.js").write_text("x" * 100)
+    (project / "generated" / "out.js").write_text("x" * 100, encoding="utf-8")
 
     plan = bootstrap.commit_plan(project, ["generated/"])
 
@@ -101,7 +101,7 @@ def test_commit_plan_honors_extra_ignores(project):
 
 
 def test_include_un_excludes_a_preticked_path(project):
-    (project / ".env").write_text("SECRET=1")
+    (project / ".env").write_text("SECRET=1", encoding="utf-8")
 
     default = bootstrap.commit_plan(project)
     kept = bootstrap.commit_plan(project, include=[".env"])
@@ -113,7 +113,7 @@ def test_include_un_excludes_a_preticked_path(project):
 
 def test_node_modules_is_reported_as_already_ignored_on_a_fresh_project(project):
     (project / "node_modules").mkdir()
-    (project / "node_modules" / "left-pad.js").write_text("x")
+    (project / "node_modules" / "left-pad.js").write_text("x", encoding="utf-8")
 
     plan = bootstrap.commit_plan(project)
 
@@ -122,9 +122,9 @@ def test_node_modules_is_reported_as_already_ignored_on_a_fresh_project(project)
 
 
 def test_dotenv_and_node_modules_land_in_the_suspicious_list_preticked(project):
-    (project / ".env").write_text("SECRET=1")
+    (project / ".env").write_text("SECRET=1", encoding="utf-8")
     (project / "node_modules").mkdir()
-    (project / "node_modules" / "left-pad.js").write_text("x")
+    (project / "node_modules" / "left-pad.js").write_text("x", encoding="utf-8")
 
     plan = bootstrap.commit_plan(project)
 
@@ -134,7 +134,7 @@ def test_dotenv_and_node_modules_land_in_the_suspicious_list_preticked(project):
 
 
 def test_private_keys_and_large_files_are_flagged(project):
-    (project / "server.pem").write_text("-----BEGIN-----")
+    (project / "server.pem").write_text("-----BEGIN-----", encoding="utf-8")
     (project / "blob.bin").write_bytes(b"0" * (bootstrap.large_file_bytes() + 1))
 
     plan = bootstrap.commit_plan(project)
@@ -147,17 +147,17 @@ def test_private_keys_and_large_files_are_flagged(project):
 def test_initialize_creates_a_gitignore_when_none_exists(project):
     bootstrap.initialize(project, ["node_modules/"])
 
-    written = (project / ".gitignore").read_text()
+    written = (project / ".gitignore").read_text(encoding="utf-8")
     assert ".codechroma/" in written
     assert "node_modules/" in written
 
 
 def test_initialize_never_rewrites_an_existing_gitignore(project):
-    (project / ".gitignore").write_text("mine.txt\n")
+    (project / ".gitignore").write_text("mine.txt\n", encoding="utf-8")
 
     result = bootstrap.initialize(project, ["node_modules/"])
 
-    assert (project / ".gitignore").read_text() == "mine.txt\n"
+    assert (project / ".gitignore").read_text(encoding="utf-8") == "mine.txt\n"
     assert result["created_gitignore"] is False
 
 
@@ -172,8 +172,8 @@ def test_initialize_is_a_no_op_on_a_ready_repository(project):
 def test_initialize_refuses_when_everything_would_be_ignored(tmp_path):
     root = tmp_path / "ignored-only"
     root.mkdir()
-    (root / ".gitignore").write_text("*\n")
-    (root / "app.py").write_text("value = 1\n")
+    (root / ".gitignore").write_text("*\n", encoding="utf-8")
+    (root / "app.py").write_text("value = 1\n", encoding="utf-8")
 
     with pytest.raises(bootstrap.BootstrapError, match="nothing to commit"):
         bootstrap.initialize(root)
@@ -185,7 +185,7 @@ def test_git_worktree_add_succeeds_after_git_init(project, tmp_path, monkeypatch
 
     path = worktree.add(project, "agent/first", worktree.worktree_path(project, "first"))
 
-    assert (path / "app.py").read_text() == "value = 1\n"
+    assert (path / "app.py").read_text(encoding="utf-8") == "value = 1\n"
 
 
 def test_initialize_completes_an_unborn_head_repository(project, tmp_path, monkeypatch):

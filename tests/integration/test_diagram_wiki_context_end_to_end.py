@@ -77,13 +77,13 @@ def test_editing_a_wiki_backed_file_flips_the_existing_patterns_staleness_flag(b
         patterns_file = diagram_json_path(bridge.repo, "patterns")
         patterns_file.write_text(
             json.dumps({"fingerprint": reviewed, "nodes": [], "relations": []})
-        )
+, encoding="utf-8")
 
         (bridge.repo / "discounts.py").write_text(
             _STRATEGY_SOURCE.decode()
             + "\n\nclass PremiumDiscount(DiscountStrategy):\n    def apply(self, price):\n"
             "        return price - 20\n"
-        )
+, encoding="utf-8")
         ws.engine.reanalyze(["discounts.py"])
         ws.engine.sync_wiki(bridge.repo / ".codechroma" / "wiki")
         payload = client.get("/repos/default/patterns").json()

@@ -13,7 +13,7 @@ def test_drag_survives_a_reanalyze_with_real_file_change(bridge):
         print("PATCH move ok:", r2.json())
 
         # Make a real code change, like editing a file while the canvas is open.
-        (bridge.repo / "new_file.py").write_text("x = 1\n")
+        (bridge.repo / "new_file.py").write_text("x = 1\n", encoding="utf-8")
 
         ws = bridge.registry.get("default")
         changed = ws.sync()

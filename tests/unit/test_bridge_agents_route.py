@@ -142,15 +142,19 @@ def test_post_agents_installs_the_skills_into_the_worktree(client):
 def test_post_agents_seeds_diagrams_from_main_into_the_worktree(client):
     test_client, repo, _server = client
     diagram_json_path(repo, "patterns").parent.mkdir(parents=True, exist_ok=True)
-    diagram_json_path(repo, "patterns").write_text(json.dumps({"nodes": []}))
+    diagram_json_path(repo, "patterns").write_text(json.dumps({"nodes": []}), encoding="utf-8")
     diagram_json_path(repo, "c1").parent.mkdir(parents=True, exist_ok=True)
-    diagram_json_path(repo, "c1").write_text(json.dumps({"blocks": []}))
+    diagram_json_path(repo, "c1").write_text(json.dumps({"blocks": []}), encoding="utf-8")
 
     body = test_client.post("/agents", json={"title": "refund flow"}).json()
 
     worktree_atlas = Path(body["worktree"]) / ".codechroma" / "diagrams"
-    assert json.loads((worktree_atlas / "patterns" / "patterns.json").read_text()) == {"nodes": []}
-    assert json.loads((worktree_atlas / "c1" / "c1.json").read_text()) == {"blocks": []}
+    assert json.loads(
+        (worktree_atlas / "patterns" / "patterns.json").read_text(encoding="utf-8")
+    ) == {"nodes": []}
+    assert json.loads((worktree_atlas / "c1" / "c1.json").read_text(encoding="utf-8")) == {
+        "blocks": []
+    }
 
 
 def test_post_agents_can_attach_to_main_instead_of_forking_a_branch(client):
@@ -255,14 +259,18 @@ def test_post_agents_attaching_to_a_pr_reuses_its_existing_diagrams(client, tmp_
     test_client, _repo, bridge = client
     pr_path = _pr_worktree(tmp_path)
     diagram_json_path(pr_path, "c1").parent.mkdir(parents=True, exist_ok=True)
-    diagram_json_path(pr_path, "c1").write_text(json.dumps({"blocks": ["pr-own"]}))
+    diagram_json_path(pr_path, "c1").write_text(
+        json.dumps({"blocks": ["pr-own"]}), encoding="utf-8"
+    )
     bridge.pr_manager.upsert(pr_record(282, str(pr_path)))
 
     body = test_client.post("/agents", json={"title": "fix", "attach_to": "pr-282"}).json()
 
     worktree_path = Path(body["worktree"])
     assert worktree_path == pr_path
-    assert json.loads(diagram_json_path(worktree_path, "c1").read_text()) == {"blocks": ["pr-own"]}
+    assert json.loads(diagram_json_path(worktree_path, "c1").read_text(encoding="utf-8")) == {
+        "blocks": ["pr-own"]
+    }
 
 
 def test_a_pr_attached_agents_worktree_cannot_be_deleted_through_it(client, tmp_path):
@@ -357,7 +365,9 @@ def test_delete_removes_the_worktree_and_branch_when_asked(client):
 def test_delete_refuses_a_dirty_worktree_without_force(client):
     test_client, _repo, _server = client
     created = test_client.post("/agents", json={"title": "dirty"}).json()
-    (Path(created["worktree"]) / "shared" / "text_utils.py").write_text("changed = True\n")
+    (Path(created["worktree"]) / "shared" / "text_utils.py").write_text(
+        "changed = True\n", encoding="utf-8"
+    )
 
     response = test_client.delete("/agents/dirty?worktree=true")
 
@@ -368,7 +378,9 @@ def test_delete_refuses_a_dirty_worktree_without_force(client):
 def test_delete_with_force_drops_a_dirty_worktree(client):
     test_client, _repo, _server = client
     created = test_client.post("/agents", json={"title": "dirty"}).json()
-    (Path(created["worktree"]) / "shared" / "text_utils.py").write_text("changed = True\n")
+    (Path(created["worktree"]) / "shared" / "text_utils.py").write_text(
+        "changed = True\n", encoding="utf-8"
+    )
 
     response = test_client.delete("/agents/dirty?worktree=true&force=true")
 
@@ -436,7 +448,7 @@ def test_patch_window_persists_geometry(client):
         "/agents/moved/window", json={"x": 40, "y": 60, "minimized": True, "bogus": "ignored"}
     )
 
-    stored = json.loads((repo / ".codechroma" / "agents.json").read_text())
+    stored = json.loads((repo / ".codechroma" / "agents.json").read_text(encoding="utf-8"))
     assert response.json()["x"] == 40
     assert response.json()["minimized"] is True
     assert stored["agents"][0]["window"]["y"] == 60
@@ -489,7 +501,7 @@ def malformed_registry_client(tmp_path, monkeypatch, make_bridge):
     shutil.copytree(FIXTURE_REPO, repo)
     _init_repo(repo)
     (repo / ".codechroma").mkdir(exist_ok=True)
-    (repo / ".codechroma" / "agents.json").write_text("{ this is not json")
+    (repo / ".codechroma" / "agents.json").write_text("{ this is not json", encoding="utf-8")
     monkeypatch.setenv(worktree.WORKSPACES_DIR_ENV, str(tmp_path / "worktrees"))
 
     bridge = make_bridge(repo)
@@ -507,8 +519,8 @@ def test_a_malformed_agents_json_yields_an_empty_list(malformed_registry_client)
 def non_git_client(tmp_path, monkeypatch, make_bridge):
     project = tmp_path / "project"
     project.mkdir()
-    (project / "app.py").write_text("value = 1\n")
-    (project / ".env").write_text("SECRET=1")
+    (project / "app.py").write_text("value = 1\n", encoding="utf-8")
+    (project / ".env").write_text("SECRET=1", encoding="utf-8")
     monkeypatch.setenv(worktree.WORKSPACES_DIR_ENV, str(tmp_path / "worktrees"))
 
     return TestClient(make_bridge(project).app), project
@@ -542,7 +554,7 @@ def _stub_claude(tmp_path: Path) -> None:
     """A fake `claude` on PATH: prints one line and reads stdin, so the PTY stays open."""
     binary = tmp_path / "bin" / "claude"
     binary.parent.mkdir(parents=True, exist_ok=True)
-    binary.write_text("#!/bin/sh\necho ready\nexec cat\n")
+    binary.write_text("#!/bin/sh\necho ready\nexec cat\n", encoding="utf-8")
     binary.chmod(0o755)
 
 
@@ -626,7 +638,7 @@ def test_nested_attached_project_skills_and_instructions_are_untouched(
     nested_project = repo / "nested-project"
     nested_project.mkdir()
     claude_md = nested_project / "CLAUDE.md"
-    claude_md.write_text("Keep this project instruction.\n")
+    claude_md.write_text("Keep this project instruction.\n", encoding="utf-8")
     user_skill = nested_project / ".claude" / "skills" / "codechroma-draw-diagram" / "SKILL.md"
     user_skill.parent.mkdir(parents=True)
     user_skill.write_text(
@@ -635,7 +647,7 @@ def test_nested_attached_project_skills_and_instructions_are_untouched(
         "description: User skill\n"
         "---\n"
         "User-owned.\n"
-    )
+, encoding="utf-8")
     bridge.pr_manager.upsert(pr_record(282, str(nested_project)))
     created = test_client.post(
         "/agents", json={"title": "nested-agent", "attach_to": "pr-282"}
@@ -649,8 +661,8 @@ def test_nested_attached_project_skills_and_instructions_are_untouched(
     assert response.status_code == 200
     assert Path(launched["cwd"]) == nested_project
     assert launched["argv"][1:3] == ["--plugin-dir", str(resource_path("skills").parent)]
-    assert claude_md.read_text() == "Keep this project instruction.\n"
-    assert user_skill.read_text().endswith("User-owned.\n")
+    assert claude_md.read_text(encoding="utf-8") == "Keep this project instruction.\n"
+    assert user_skill.read_text(encoding="utf-8").endswith("User-owned.\n")
 
 
 def test_a_fresh_start_consumes_the_pending_context(started_client):
@@ -893,9 +905,9 @@ def test_resume_runs_claude_with_the_recorded_session_id(started_client, tmp_pat
 def _fake_running_pid(repo: Path) -> None:
     """Writes a pid into agents.json the way a live session would, to prove startup clears it."""
     path = repo / ".codechroma" / "agents.json"
-    stored = json.loads(path.read_text())
+    stored = json.loads(path.read_text(encoding="utf-8"))
     stored["agents"][0]["pid"] = 999999
-    path.write_text(json.dumps(stored))
+    path.write_text(json.dumps(stored), encoding="utf-8")
 
 
 def _write_transcript(root: Path, worktree: Path, session_id: str) -> None:
@@ -904,7 +916,7 @@ def _write_transcript(root: Path, worktree: Path, session_id: str) -> None:
     directory.mkdir(parents=True, exist_ok=True)
     (directory / f"{session_id}.jsonl").write_text(
         json.dumps({"type": "user", "cwd": str(worktree.resolve()), "sessionId": session_id}) + "\n"
-    )
+, encoding="utf-8")
 
 
 def test_pr_preflight_reports_the_reason_before_the_button_renders(client, monkeypatch):
@@ -1030,12 +1042,12 @@ def test_post_branch_409s_when_the_target_branch_would_overwrite_a_local_change(
     subprocess.run(
         ["git", "checkout", "-b", "feature-x"], cwd=repo, check=True, capture_output=True
     )
-    (repo / "shared" / "text_utils.py").write_text("changed_on = 'feature-x'\n")
+    (repo / "shared" / "text_utils.py").write_text("changed_on = 'feature-x'\n", encoding="utf-8")
     subprocess.run(
         ["git", "commit", "-am", "change on feature-x"], cwd=repo, check=True, capture_output=True
     )
     subprocess.run(["git", "checkout", before], cwd=repo, check=True, capture_output=True)
-    (repo / "shared" / "text_utils.py").write_text("dirty = 1\n")
+    (repo / "shared" / "text_utils.py").write_text("dirty = 1\n", encoding="utf-8")
 
     response = test_client.post("/agents/branch", json={"branch": "feature-x"})
 
@@ -1045,12 +1057,12 @@ def test_post_branch_409s_when_the_target_branch_would_overwrite_a_local_change(
 def test_post_branch_carries_over_a_local_change_the_target_branch_does_not_touch(client):
     test_client, repo, _server = client
     subprocess.run(["git", "branch", "feature-x"], cwd=repo, check=True, capture_output=True)
-    (repo / "shared" / "text_utils.py").write_text("dirty = 1\n")
+    (repo / "shared" / "text_utils.py").write_text("dirty = 1\n", encoding="utf-8")
 
     response = test_client.post("/agents/branch", json={"branch": "feature-x"})
 
     assert response.status_code == 200
-    assert (repo / "shared" / "text_utils.py").read_text() == "dirty = 1\n"
+    assert (repo / "shared" / "text_utils.py").read_text(encoding="utf-8") == "dirty = 1\n"
 
 
 # Such a branch could only answer "already used by worktree at ...", so it never reaches the UI.
@@ -1169,7 +1181,7 @@ def test_post_branch_update_fast_forwards_main_from_its_upstream(client, tmp_pat
     subprocess.run(["git", "clone", str(origin), str(feeder)], check=True, capture_output=True)
     subprocess.run(["git", "config", "user.email", "t@example.com"], cwd=feeder, check=True)
     subprocess.run(["git", "config", "user.name", "T"], cwd=feeder, check=True)
-    (feeder / "shared" / "text_utils.py").write_text("value = 9\n")
+    (feeder / "shared" / "text_utils.py").write_text("value = 9\n", encoding="utf-8")
     subprocess.run(["git", "add", "-A"], cwd=feeder, check=True, capture_output=True)
     subprocess.run(
         ["git", "commit", "-m", "feeder change"], cwd=feeder, check=True, capture_output=True
@@ -1178,7 +1190,7 @@ def test_post_branch_update_fast_forwards_main_from_its_upstream(client, tmp_pat
 
     body = test_client.post("/agents/branch/update").json()
 
-    assert (repo / "shared" / "text_utils.py").read_text() == "value = 9\n"
+    assert (repo / "shared" / "text_utils.py").read_text(encoding="utf-8") == "value = 9\n"
     assert body["current"] == "main"
 
 

@@ -19,7 +19,7 @@ def _init_repo(root: Path) -> None:
     subprocess.run(["git", "init"], cwd=root, check=True, capture_output=True)
     subprocess.run(["git", "config", "user.email", "test@example.com"], cwd=root, check=True)
     subprocess.run(["git", "config", "user.name", "Test"], cwd=root, check=True)
-    (root / "app.py").write_text("value = 1\n")
+    (root / "app.py").write_text("value = 1\n", encoding="utf-8")
     subprocess.run(["git", "add", "-A"], cwd=root, check=True, capture_output=True)
     subprocess.run(["git", "commit", "-m", "initial"], cwd=root, check=True, capture_output=True)
 
@@ -74,7 +74,7 @@ def test_migrate_repoints_the_record_and_persists_it(repo, tmp_path):
     manager = AgentManager(repo)
     manager.migrate_worktrees()
 
-    stored = json.loads((repo / ".codechroma" / "agents.json").read_text())
+    stored = json.loads((repo / ".codechroma" / "agents.json").read_text(encoding="utf-8"))
     assert manager.get("refund-flow").worktree == str(
         repo / ".codechroma" / "worktrees" / "refund-flow"
     )
@@ -84,11 +84,13 @@ def test_migrate_repoints_the_record_and_persists_it(repo, tmp_path):
 
 def test_migrate_carries_uncommitted_agent_work_across(repo, tmp_path):
     old = _legacy_worktree(repo, tmp_path, "wip", "agent/wip")
-    (old / "app.py").write_text("value = 42\n")
+    (old / "app.py").write_text("value = 42\n", encoding="utf-8")
 
     AgentManager(repo).migrate_worktrees()
 
-    assert (repo / ".codechroma" / "worktrees" / "wip" / "app.py").read_text() == "value = 42\n"
+    assert (repo / ".codechroma" / "worktrees" / "wip" / "app.py").read_text(
+        encoding="utf-8"
+    ) == "value = 42\n"
 
 
 def test_migrate_leaves_a_worktree_already_in_the_repository_alone(repo):
@@ -141,7 +143,7 @@ def test_reconcile_migrates_and_does_not_report_the_worktree_as_lost(repo, tmp_p
 
 def test_reconcile_backfills_a_diagram_an_agent_never_got_seeded_with(repo):
     diagram_json_path(repo, "patterns").parent.mkdir(parents=True, exist_ok=True)
-    diagram_json_path(repo, "patterns").write_text('{"nodes": ["main"]}')
+    diagram_json_path(repo, "patterns").write_text('{"nodes": ["main"]}', encoding="utf-8")
     manager = AgentManager(repo)
     created = manager.create("refund flow")
     diagram_json_path(Path(created.worktree), "patterns").unlink()
@@ -149,7 +151,7 @@ def test_reconcile_backfills_a_diagram_an_agent_never_got_seeded_with(repo):
     manager.reconcile()
 
     seeded = diagram_json_path(Path(created.worktree), "patterns")
-    assert seeded.read_text() == '{"nodes": ["main"]}'
+    assert seeded.read_text(encoding="utf-8") == '{"nodes": ["main"]}'
 
 
 def test_reconcile_resyncs_skills_into_an_existing_agent_worktree(repo, monkeypatch):
@@ -170,20 +172,20 @@ def test_reconcile_resyncs_skills_into_an_existing_agent_worktree(repo, monkeypa
 
 def test_reconcile_never_overwrites_an_agent_that_already_diverged(repo):
     diagram_json_path(repo, "patterns").parent.mkdir(parents=True, exist_ok=True)
-    diagram_json_path(repo, "patterns").write_text('{"nodes": ["main"]}')
+    diagram_json_path(repo, "patterns").write_text('{"nodes": ["main"]}', encoding="utf-8")
     manager = AgentManager(repo)
     created = manager.create("refund flow")
     own_diagram = diagram_json_path(Path(created.worktree), "patterns")
-    own_diagram.write_text('{"nodes": ["own"]}')
+    own_diagram.write_text('{"nodes": ["own"]}', encoding="utf-8")
 
     manager.reconcile()
 
-    assert own_diagram.read_text() == '{"nodes": ["own"]}'
+    assert own_diagram.read_text(encoding="utf-8") == '{"nodes": ["own"]}'
 
 
 def test_recreate_worktree_reseeds_diagrams_into_the_fresh_checkout(repo):
     diagram_json_path(repo, "patterns").parent.mkdir(parents=True, exist_ok=True)
-    diagram_json_path(repo, "patterns").write_text('{"nodes": ["main"]}')
+    diagram_json_path(repo, "patterns").write_text('{"nodes": ["main"]}', encoding="utf-8")
     manager = AgentManager(repo)
     created = manager.create("refund flow")
     worktree.remove(repo, Path(created.worktree), force=True)
@@ -193,7 +195,7 @@ def test_recreate_worktree_reseeds_diagrams_into_the_fresh_checkout(repo):
     manager.recreate_worktree(created.id)
 
     seeded = diagram_json_path(Path(created.worktree), "patterns")
-    assert seeded.read_text() == '{"nodes": ["main"]}'
+    assert seeded.read_text(encoding="utf-8") == '{"nodes": ["main"]}'
 
 
 def test_recreate_worktree_clears_worktree_lost_on_every_sibling_sharing_it(repo):
@@ -229,7 +231,9 @@ def _write_transcript(
     directory = projects / project
     directory.mkdir(parents=True, exist_ok=True)
     path = directory / f"{session_id}.jsonl"
-    path.write_text(json.dumps({"type": "user", "cwd": cwd, "sessionId": session_id}) + "\n")
+    path.write_text(
+        json.dumps({"type": "user", "cwd": cwd, "sessionId": session_id}) + "\n", encoding="utf-8"
+    )
     os.utime(path, (mtime, mtime))
 
 
@@ -550,7 +554,9 @@ def _record(agent_id: str, branch: str, path: Path) -> dict:
 def _write_registry(repo: Path, records: list[dict]) -> None:
     path = repo / ".codechroma" / "agents.json"
     path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(json.dumps({"version": 1, "agents": records, "active_workspace": "main"}))
+    path.write_text(
+        json.dumps({"version": 1, "agents": records, "active_workspace": "main"}), encoding="utf-8"
+    )
 
 
 def test_attach_to_a_pr_shares_its_own_worktree_and_branch(repo):
@@ -560,7 +566,7 @@ def test_attach_to_a_pr_shares_its_own_worktree_and_branch(repo):
     created = manager.create("fix", attach_to="pr-282")
 
     assert created.shares_workspace_with == "pr-282"
-    assert created.worktree == "/pr/worktree"
+    assert created.worktree == str(Path("/pr/worktree"))
     assert created.branch == "feature"
 
 
@@ -669,7 +675,7 @@ def test_delete_cannot_race_a_concurrent_attach_to_the_same_worktree(repo, monke
 
 def test_worktree_provisioning_installs_skills_and_seeds_diagrams(repo):
     diagram_json_path(repo, "patterns").parent.mkdir(parents=True, exist_ok=True)
-    diagram_json_path(repo, "patterns").write_text('{"nodes": ["main"]}')
+    diagram_json_path(repo, "patterns").write_text('{"nodes": ["main"]}', encoding="utf-8")
     from codechroma.bridge.skill_sync import WORKTREE_EXCLUDES
 
     manager = AgentManager(repo)
@@ -682,7 +688,7 @@ def test_worktree_provisioning_installs_skills_and_seeds_diagrams(repo):
     assert skill_root.is_dir()
     # Main's diagram was seeded into the worktree, so the first open needs no regeneration.
     seeded_patterns = diagram_json_path(Path(created.worktree), "patterns")
-    assert seeded_patterns.read_text() == '{"nodes": ["main"]}'
+    assert seeded_patterns.read_text(encoding="utf-8") == '{"nodes": ["main"]}'
     # The seeded artifacts are excluded, so they never read as the agent's own untracked work.
     ensure = subprocess.run(
         ["git", "-C", created.worktree, "status", "--porcelain"],

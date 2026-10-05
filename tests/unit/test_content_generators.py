@@ -48,7 +48,7 @@ def _c1_path(repo_root):
 def _write_c1(repo_root, diagram):
     path = _c1_path(repo_root)
     path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(json.dumps(diagram))
+    path.write_text(json.dumps(diagram), encoding="utf-8")
 
 
 class _RecordingChange:
@@ -185,13 +185,13 @@ def test_a_run_that_leaves_no_valid_diagram_restores_the_previous_one(
     truncating_exec = fake_claude_exec(
         returncode=returncode,
         stderr=stderr,
-        on_spawn=lambda: _c1_path(tmp_path).write_text(TRUNCATED_C1),
+        on_spawn=lambda: _c1_path(tmp_path).write_text(TRUNCATED_C1, encoding="utf-8"),
     )
     monkeypatch.setattr(asyncio, "create_subprocess_exec", truncating_exec)
 
     _run_generation(tmp_path)
 
-    assert json.loads(_c1_path(tmp_path).read_text()) == VALID_C1
+    assert json.loads(_c1_path(tmp_path).read_text(encoding="utf-8")) == VALID_C1
 
 
 def test_a_run_that_leaves_the_draft_marker_restores_the_previous_one(monkeypatch, tmp_path):
@@ -206,7 +206,7 @@ def test_a_run_that_leaves_the_draft_marker_restores_the_previous_one(monkeypatc
 
     _run_generation(tmp_path)
 
-    assert json.loads(_c1_path(tmp_path).read_text()) == VALID_C1
+    assert json.loads(_c1_path(tmp_path).read_text(encoding="utf-8")) == VALID_C1
 
 
 def test_cancel_all_kills_an_in_flight_run(monkeypatch, tmp_path):
@@ -284,11 +284,11 @@ def test_patterns_invalid_artifact_reports_error_and_restores_snapshot(monkeypat
     path = _patterns_path(tmp_path)
     path.parent.mkdir(parents=True, exist_ok=True)
     valid = {"type": "patterns", "nodes": [], "relations": []}
-    path.write_text(json.dumps(valid))
-    good_snapshot = path.read_text()
+    path.write_text(json.dumps(valid), encoding="utf-8")
+    good_snapshot = path.read_text(encoding="utf-8")
 
     def _corrupt_then_exit(*_args, **_kwargs):
-        path.write_text("not json")
+        path.write_text("not json", encoding="utf-8")
         return fake_claude_exec(returncode=0)(*_args, **_kwargs)
 
     monkeypatch.setattr(asyncio, "create_subprocess_exec", _corrupt_then_exit)
@@ -301,7 +301,7 @@ def test_patterns_invalid_artifact_reports_error_and_restores_snapshot(monkeypat
 
     final_state = PATTERNS_AGENT.get_state("default")
     assert final_state == {"state": "error", "error": "generation produced no valid patterns.json"}
-    assert path.read_text() == good_snapshot
+    assert path.read_text(encoding="utf-8") == good_snapshot
 
 
 # --- impact: prompt_for is the one per-kind wrinkle build_skill_agent_for doesn't cover ---

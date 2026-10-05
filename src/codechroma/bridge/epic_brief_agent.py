@@ -36,7 +36,7 @@ def build_brief_bundle(root: Path, item_id: str, epic: dict, brief_path: Path) -
     return {
         "epic": epic,
         "tasks_by_stage": tasks_by_stage,
-        "write_path": str(brief_path),
+        "write_path": brief_path.as_posix(),
         "has_spec": bool(stage_names),
         "component": epic.get("component"),
     }

@@ -81,7 +81,7 @@ def test_stop_restores_the_pre_run_artifact_on_cancel(monkeypatch, tmp_path):
     # ⚠ Before start(): `_snapshot` runs before the spawn, so a later write is not in the snapshot.
     good = agent.artifact(tmp_path, "job-a")
     good.parent.mkdir(parents=True, exist_ok=True)
-    good.write_text('{"scope": []}')
+    good.write_text('{"scope": []}', encoding="utf-8")
 
     class HalfWritingProc:
         def __init__(self):
@@ -100,7 +100,7 @@ def test_stop_restores_the_pre_run_artifact_on_cancel(monkeypatch, tmp_path):
     async def _exec(*_args, **_kwargs):
         # The claude process immediately overwrites the artifact with a half-written fragment, then
         # hangs -- the exact "cancelled mid-write" shape the restore must undo.
-        agent.artifact(tmp_path, "job-a").write_text('{"scope": ["half-written')
+        agent.artifact(tmp_path, "job-a").write_text('{"scope": ["half-written', encoding="utf-8")
         return HalfWritingProc()
 
     monkeypatch.setattr(asyncio, "create_subprocess_exec", _exec)
@@ -113,7 +113,9 @@ def test_stop_restores_the_pre_run_artifact_on_cancel(monkeypatch, tmp_path):
     asyncio.run(_drive())
 
     # The pre-run snapshot won: cancel rolled the fragment back, leaving the valid brief intact.
-    assert json.loads(agent.artifact(tmp_path, "job-a").read_text()) == {"scope": []}
+    assert json.loads(agent.artifact(tmp_path, "job-a").read_text(encoding="utf-8")) == {
+        "scope": []
+    }
 
 
 def test_stop_kills_an_in_flight_run_and_resets_to_idle(monkeypatch, tmp_path):
@@ -178,8 +180,8 @@ def test_two_jobs_snapshot_and_restore_independent_files(monkeypatch, tmp_path):
     monkeypatch.setattr(
         "codechroma.llm.runtime_env.shutil.which", lambda _name, **_kwargs: "/usr/bin/claude"
     )
-    (tmp_path / "job-a.json").write_text(json.dumps({"kept": "a"}))
-    (tmp_path / "job-b.json").write_text(json.dumps({"kept": "b"}))
+    (tmp_path / "job-a.json").write_text(json.dumps({"kept": "a"}), encoding="utf-8")
+    (tmp_path / "job-b.json").write_text(json.dumps({"kept": "b"}), encoding="utf-8")
     monkeypatch.setattr(asyncio, "create_subprocess_exec", fake_claude_exec(returncode=1))
 
     async def _drive():
@@ -189,8 +191,8 @@ def test_two_jobs_snapshot_and_restore_independent_files(monkeypatch, tmp_path):
 
     asyncio.run(_drive())
 
-    assert json.loads((tmp_path / "job-a.json").read_text()) == {"kept": "a"}
-    assert json.loads((tmp_path / "job-b.json").read_text()) == {"kept": "b"}
+    assert json.loads((tmp_path / "job-a.json").read_text(encoding="utf-8")) == {"kept": "a"}
+    assert json.loads((tmp_path / "job-b.json").read_text(encoding="utf-8")) == {"kept": "b"}
 
 
 def test_start_without_a_prompt_override_uses_the_default_prompt(monkeypatch, tmp_path):
@@ -205,7 +207,7 @@ def test_start_without_a_prompt_override_uses_the_default_prompt(monkeypatch, tm
         return fake_claude_exec(returncode=0)(*args, **_kwargs)
 
     monkeypatch.setattr(asyncio, "create_subprocess_exec", _capturing_factory)
-    (tmp_path / "job-a.json").write_text(json.dumps({}))
+    (tmp_path / "job-a.json").write_text(json.dumps({}), encoding="utf-8")
 
     async def _drive():
         await agent.start("job-a", tmp_path, _noop_on_change)
@@ -228,7 +230,7 @@ def test_start_with_a_prompt_override_uses_it_instead(monkeypatch, tmp_path):
         return fake_claude_exec(returncode=0)(*args, **_kwargs)
 
     monkeypatch.setattr(asyncio, "create_subprocess_exec", _capturing_factory)
-    (tmp_path / "job-a.json").write_text(json.dumps({}))
+    (tmp_path / "job-a.json").write_text(json.dumps({}), encoding="utf-8")
 
     async def _drive():
         await agent.start("job-a", tmp_path, _noop_on_change, prompt="per-run prompt")
@@ -252,7 +254,7 @@ def test_run_passes_the_workspace_id_to_the_claude_env(monkeypatch, tmp_path):
         return fake_claude_exec(returncode=0)(*_args, **_kwargs)
 
     monkeypatch.setattr(asyncio, "create_subprocess_exec", _capturing_factory)
-    (tmp_path / "pr-7.json").write_text(json.dumps({}))
+    (tmp_path / "pr-7.json").write_text(json.dumps({}), encoding="utf-8")
 
     async def _drive():
         await agent.start("pr-7", tmp_path, _noop_on_change)
@@ -351,7 +353,7 @@ def test_a_failed_first_ever_run_leaves_no_half_written_artifact_behind(monkeypa
     failing = fake_claude_exec(returncode=1)
 
     async def _exec(*args, **kwargs):
-        agent.artifact(tmp_path, "job-a").write_text('{"scope": ["half-written')
+        agent.artifact(tmp_path, "job-a").write_text('{"scope": ["half-written', encoding="utf-8")
         return await failing(*args, **kwargs)
 
     monkeypatch.setattr(asyncio, "create_subprocess_exec", _exec)

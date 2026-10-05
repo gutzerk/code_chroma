@@ -18,7 +18,7 @@ def _clone(remote: Path, dest: Path) -> None:
 
 
 def _new_commit(repo: Path, value: str) -> None:
-    (repo / "app.py").write_text(f"value = {value}\n")
+    (repo / "app.py").write_text(f"value = {value}\n", encoding="utf-8")
     _git(repo, "add", "-A")
     _git(repo, "commit", "-m", f"set value = {value}")
 
@@ -27,7 +27,7 @@ def _init_repo(root: Path) -> None:
     _git(root, "init")
     _git(root, "config", "user.email", "test@example.com")
     _git(root, "config", "user.name", "Test")
-    (root / "app.py").write_text("value = 1\n")
+    (root / "app.py").write_text("value = 1\n", encoding="utf-8")
     _git(root, "add", "-A")
     _git(root, "commit", "-m", "initial")
 
@@ -79,31 +79,31 @@ def test_checkout_refuses_an_unknown_branch(repo):
 
 def test_checkout_carries_over_an_uncommitted_change_the_target_branch_does_not_touch(repo):
     _git(repo, "branch", "feature-x")
-    (repo / "app.py").write_text("value = 2\n")
+    (repo / "app.py").write_text("value = 2\n", encoding="utf-8")
 
     main_branch.checkout(repo, "feature-x")
 
     assert main_branch.current_branch(repo) == "feature-x"
-    assert (repo / "app.py").read_text() == "value = 2\n"
+    assert (repo / "app.py").read_text(encoding="utf-8") == "value = 2\n"
 
 
 def test_checkout_carries_over_an_untracked_file(repo):
     _git(repo, "branch", "feature-x")
-    (repo / "scratch.txt").write_text("mine\n")
+    (repo / "scratch.txt").write_text("mine\n", encoding="utf-8")
 
     main_branch.checkout(repo, "feature-x")
 
     assert main_branch.current_branch(repo) == "feature-x"
-    assert (repo / "scratch.txt").read_text() == "mine\n"
+    assert (repo / "scratch.txt").read_text(encoding="utf-8") == "mine\n"
 
 
 def test_checkout_refused_by_a_real_conflict_does_not_switch_branches(repo):
     before = main_branch.current_branch(repo)
     _git(repo, "checkout", "-b", "feature-x")
-    (repo / "app.py").write_text("value = 3\n")
+    (repo / "app.py").write_text("value = 3\n", encoding="utf-8")
     _git(repo, "commit", "-am", "change on feature-x")
     _git(repo, "checkout", before)
-    (repo / "app.py").write_text("value = 2\n")
+    (repo / "app.py").write_text("value = 2\n", encoding="utf-8")
 
     with pytest.raises(main_branch.DirtyWorkingTreeError):
         main_branch.checkout(repo, "feature-x")
@@ -131,7 +131,7 @@ def test_checkout_carries_over_any_untracked_file_regardless_of_who_wrote_it(rep
     _git(repo, "branch", "feature-x")
     ours = repo / relative
     ours.parent.mkdir(parents=True, exist_ok=True)
-    ours.write_text("ours\n")
+    ours.write_text("ours\n", encoding="utf-8")
 
     main_branch.checkout(repo, "feature-x")
 
@@ -157,7 +157,7 @@ def test_update_branch_fast_forwards_from_its_upstream(tmp_path):
 
     main_branch.update_branch(repo)
 
-    assert (repo / "app.py").read_text() == "value = 2\n"
+    assert (repo / "app.py").read_text(encoding="utf-8") == "value = 2\n"
     assert main_branch.current_branch(repo) == "main"
 
 

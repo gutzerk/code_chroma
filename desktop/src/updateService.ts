@@ -62,11 +62,15 @@ export class UpdateService {
       await action();
     } catch (error) {
       const rateLimit = error instanceof GitHubRateLimitError;
+      const message = error instanceof Error ? error.message : String(error);
+      const signatureFailure = /root was signed by (\d+)\/(\d+) keys/i.exec(message);
       this.set({
         phase: "error",
         error: rateLimit
           ? error.message
-          : `${error instanceof Error ? error.message : error} Try again or update manually from GitHub Releases.`,
+          : signatureFailure
+            ? `Release signature could not be verified (${signatureFailure[1]}/${signatureFailure[2]} keys). The release may be unsigned or signed with outdated keys. Update manually from GitHub Releases.`
+            : `${message} Try again or update manually from GitHub Releases.`,
         retryAfter: rateLimit ? error.retryAt : undefined,
       });
     } finally {

@@ -9,6 +9,12 @@ from pathlib import Path
 
 
 def main(argv: list[str] | None = None) -> int:
+    arguments = list(sys.argv[1:] if argv is None else argv)
+    if len(arguments) == 2 and arguments[0] == "--printenv":
+        from codechroma.llm.env_helper import print_environment
+
+        print_environment(arguments[1])
+        return 0
     parser = argparse.ArgumentParser(prog="codechroma-bridge", description=__doc__)
     parser.add_argument("--repo-path", required=True, help="Repository to analyze")
     parser.add_argument("--port", type=int, required=True, help="Port to serve on")

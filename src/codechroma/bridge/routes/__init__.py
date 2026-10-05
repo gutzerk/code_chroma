@@ -27,6 +27,7 @@ from codechroma.bridge.routes import (
     llm_settings,
     prs,
     recipes,
+    runtime,
     traces,
     wiki_general,
     workspaces,
@@ -36,6 +37,7 @@ from codechroma.bridge.routes import (
 ROUTERS = (
     graph.router,
     assistant.router,
+    runtime.router,
     diffs.router,
     llm_settings.router,
     canvas.router,

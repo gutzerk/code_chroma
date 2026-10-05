@@ -25,6 +25,8 @@ def _init_repo(root: Path) -> None:
 
 def _stub_claude(bin_dir: Path) -> None:
     """A fake `claude` on PATH: prints one line and reads stdin, so the PTY stays open."""
+    if os.name == "nt":
+        pytest.skip("uses a POSIX shebang CLI stub")
     binary = bin_dir / "claude"
     binary.parent.mkdir(parents=True, exist_ok=True)
     binary.write_text("#!/bin/sh\necho ready\nexec cat\n")
@@ -32,7 +34,8 @@ def _stub_claude(bin_dir: Path) -> None:
 
 
 @pytest.fixture
-def repo(tmp_path, monkeypatch):
+def repo(tmp_path, monkeypatch, use_test_runtime):
+    use_test_runtime()
     root = tmp_path / "repo"
     shutil.copytree(FIXTURE_REPO, root)
     _init_repo(root)
@@ -40,11 +43,14 @@ def repo(tmp_path, monkeypatch):
     return root
 
 
-def test_a_stopped_agent_auto_starts_on_the_next_boot(repo, tmp_path, monkeypatch, make_bridge):
+def test_a_stopped_agent_auto_starts_on_the_next_boot(
+    repo, tmp_path, monkeypatch, make_bridge, use_test_runtime
+):
     TestClient(make_bridge(repo).app).post("/agents", json={"title": "runner"})
     _stub_claude(tmp_path / "bin")
     monkeypatch.setenv("PATH", f"{tmp_path / 'bin'}:{os.environ['PATH']}")
 
+    use_test_runtime()
     restarted = make_bridge(repo)
     with TestClient(restarted.app) as live:
         body = live.get("/agents").json()
@@ -55,12 +61,15 @@ def test_a_stopped_agent_auto_starts_on_the_next_boot(repo, tmp_path, monkeypatc
     assert running
 
 
-def test_a_lost_worktree_is_skipped_without_crashing_boot(repo, tmp_path, monkeypatch, make_bridge):
+def test_a_lost_worktree_is_skipped_without_crashing_boot(
+    repo, tmp_path, monkeypatch, make_bridge, use_test_runtime
+):
     created = TestClient(make_bridge(repo).app).post("/agents", json={"title": "lost"}).json()
     shutil.rmtree(created["worktree"])
     _stub_claude(tmp_path / "bin")
     monkeypatch.setenv("PATH", f"{tmp_path / 'bin'}:{os.environ['PATH']}")
 
+    use_test_runtime()
     restarted = make_bridge(repo)
     with TestClient(restarted.app) as live:
         body = live.get("/agents").json()
@@ -71,10 +80,13 @@ def test_a_lost_worktree_is_skipped_without_crashing_boot(repo, tmp_path, monkey
     assert not running
 
 
-def test_a_missing_claude_binary_does_not_crash_boot(repo, make_bridge, monkeypatch):
+def test_a_missing_claude_binary_does_not_crash_boot(
+    repo, make_bridge, monkeypatch, use_test_runtime
+):
     TestClient(make_bridge(repo).app).post("/agents", json={"title": "runner"})
-    monkeypatch.setattr("shutil.which", lambda _name: None)
+    monkeypatch.setattr("shutil.which", lambda _name, **_kwargs: None)
 
+    use_test_runtime()
     restarted = make_bridge(repo)
     with TestClient(restarted.app) as live:
         body = live.get("/agents").json()
@@ -84,7 +96,7 @@ def test_a_missing_claude_binary_does_not_crash_boot(repo, make_bridge, monkeypa
 
 
 def test_a_recorded_session_id_resumes_instead_of_starting_fresh(
-    repo, tmp_path, monkeypatch, make_bridge
+    repo, tmp_path, monkeypatch, make_bridge, use_test_runtime
 ):
     first = make_bridge(repo)
     TestClient(first.app).post("/agents", json={"title": "runner"})
@@ -93,6 +105,7 @@ def test_a_recorded_session_id_resumes_instead_of_starting_fresh(
     _stub_claude(tmp_path / "bin")
     monkeypatch.setenv("PATH", f"{tmp_path / 'bin'}:{os.environ['PATH']}")
 
+    use_test_runtime()
     restarted = make_bridge(repo)
     with TestClient(restarted.app):
         argv = restarted.agent_sessions.get("runner").argv
@@ -101,7 +114,7 @@ def test_a_recorded_session_id_resumes_instead_of_starting_fresh(
 
 
 def test_two_agents_sharing_a_worktree_each_auto_start_their_own_pty(
-    repo, tmp_path, monkeypatch, make_bridge
+    repo, tmp_path, monkeypatch, make_bridge, use_test_runtime
 ):
     test_client = TestClient(make_bridge(repo).app)
     target = test_client.post("/agents", json={"title": "refund flow"}).json()
@@ -109,6 +122,7 @@ def test_two_agents_sharing_a_worktree_each_auto_start_their_own_pty(
     _stub_claude(tmp_path / "bin")
     monkeypatch.setenv("PATH", f"{tmp_path / 'bin'}:{os.environ['PATH']}")
 
+    use_test_runtime()
     restarted = make_bridge(repo)
     with TestClient(restarted.app):
         target_running = restarted.agent_sessions.is_running("refund-flow")

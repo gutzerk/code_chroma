@@ -1,12 +1,12 @@
-import { execFile } from "node:child_process";
+import { execFile, spawn } from "node:child_process";
 import { createHash } from "node:crypto";
-import { createReadStream } from "node:fs";
-import { chmod, copyFile, mkdir, open, rename, rm } from "node:fs/promises";
-import { tmpdir } from "node:os";
-import { basename, dirname, join } from "node:path";
+import { constants, createReadStream } from "node:fs";
+import { access, realpath, stat, chmod, copyFile, mkdir, open, rename, rm } from "node:fs/promises";
+import { homedir, tmpdir } from "node:os";
+import { basename, dirname, join, relative, isAbsolute } from "node:path";
 import { fetchAttestation, verifyAttestation } from "./attestation";
 
-export const REPO = "UshakovDV/code-chroma";
+export const REPO = "gutzerk/code_chroma";
 const RELEASES_API = `https://api.github.com/repos/${REPO}/releases/latest`;
 const DOWNLOAD_BASE = `https://github.com/${REPO}/releases/latest/download`;
 
@@ -18,6 +18,17 @@ export interface UpdateInfo {
   downloadPath: string;
   /** Hex SHA-256 of the installer, when the release provided a digest. */
   sha256?: string;
+  downloadUrl?: string;
+}
+
+export class GitHubRateLimitError extends Error {
+  constructor(
+    message: string,
+    readonly retryAt: number,
+  ) {
+    super(message);
+    this.name = "GitHubRateLimitError";
+  }
 }
 
 /** A single `assets[]` entry from the GitHub /releases/latest response. */
@@ -39,6 +50,8 @@ export interface AssetMatch {
 interface LatestRelease {
   tag_name?: string;
   assets?: ReleaseAsset[];
+  draft?: boolean;
+  prerelease?: boolean;
 }
 
 /** Per-platform/arch install descriptor: artifact suffix and the install step (true = relaunch). */
@@ -56,22 +69,32 @@ const PLATFORMS: Record<string, PlatformSpec> = {
 };
 
 /** `v1.2.3` (with or without the `v`) -> `[1, 2, 3]`, or null if the tag isn't a semver. */
-export function parseTag(tag: string): number[] | null {
-  const match = /^v?(\d+)\.(\d+)(?:\.(\d+))?(?:-([0-9A-Za-z.-]+))?/.exec(tag.trim());
-  if (!match) return null;
-  const [, major, minor, patch, pre] = match;
-  const base = [Number(major), Number(minor), patch === undefined ? 0 : Number(patch)];
-  return pre === undefined ? base : [...base, -1];
+function semver(tag: string): { base: number[]; pre: string[] } | null {
+  const m = /^v?(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)(?:-([0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*))?(?:\+[0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*)?$/.exec(tag.trim());
+  if (!m) return null;
+  const pre = m[4]?.split(".") ?? [];
+  if (pre.some(x => /^\d+$/.test(x) && x.length > 1 && x[0] === "0")) return null;
+  const base = m.slice(1, 4).map(Number);
+  return base.every(Number.isSafeInteger) ? { base, pre } : null;
 }
-
-/** Returns <0, 0, >0 for `a < b`, `a == b`, `a > b` treating each dot-segment numerically. */
+export function parseTag(tag: string): number[] | null {
+  const v = semver(tag);
+  return v ? [...v.base, ...(v.pre.length ? [-1] : [])] : null;
+}
 export function compareVersions(a: string, b: string): number {
-  const av = parseTag(a) ?? [0];
-  const bv = parseTag(b) ?? [0];
-  const len = Math.max(av.length, bv.length);
-  for (let i = 0; i < len; i++) {
-    const diff = (av[i] ?? 0) - (bv[i] ?? 0);
-    if (diff !== 0) return diff;
+  const av = semver(a), bv = semver(b);
+  if (!av || !bv) throw new Error("Invalid semantic version");
+  for (let i = 0; i < 3; i++) if (av.base[i] !== bv.base[i]) return av.base[i] - bv.base[i];
+  if (!av.pre.length || !bv.pre.length) return Number(!av.pre.length) - Number(!bv.pre.length);
+  for (let i = 0; i < Math.max(av.pre.length, bv.pre.length); i++) {
+    const x = av.pre[i], y = bv.pre[i];
+    if (x === undefined) return -1;
+    if (y === undefined) return 1;
+    if (x === y) continue;
+    const xn = /^\d+$/.test(x), yn = /^\d+$/.test(y);
+    if (xn && yn) return BigInt(x) < BigInt(y) ? -1 : 1;
+    if (xn !== yn) return xn ? -1 : 1;
+    return x < y ? -1 : 1;
   }
   return 0;
 }
@@ -80,7 +103,8 @@ export function compareVersions(a: string, b: string): number {
 export function selectAsset(assets: ReleaseAsset[], platform: string, arch: string): AssetMatch | null {
   const spec = PLATFORMS[`${platform}/${arch}`];
   if (!spec) return null;
-  const asset = assets.find((a) => a.name.endsWith(spec.suffix));
+  const asset = assets.find((a) => a.name.startsWith("CodeChroma-") && a.name.endsWith(spec.suffix)
+    && (platform !== "win32" || a.name === "CodeChroma-Setup.exe" || a.name.endsWith("-x64-Setup.exe")));
   if (!asset) return null;
   return { name: asset.name, sha256: digestHex(asset.digest) };
 }
@@ -102,23 +126,61 @@ export function safeAssetPath(name: string): string {
 /** Reports whether we're behind `currentVersion`, and by which asset, from the latest release. */
 export async function checkForUpdates(
   currentVersion: string,
-  opts: { platform?: string; arch?: string; fetchImpl?: typeof fetch } = {},
+  opts: { platform?: string; arch?: string; fetchImpl?: typeof fetch; onLatest?: (version: string) => void } = {},
 ): Promise<UpdateInfo | null> {
   const { platform = process.platform, arch = process.arch, fetchImpl } = opts;
   const doFetch = fetchImpl ?? fetch;
-  const response = await doFetch(RELEASES_API, { headers: { "User-Agent": "code-chroma-desktop" } });
+  const response = await doFetch(RELEASES_API, { signal: AbortSignal.timeout(15_000), headers: { "User-Agent": "code-chroma-desktop" } });
   // Throw (not return null) on a non-2xx: "no update" must not be conflated with "offline/rejected".
-  if (!response.ok) throw new Error(`GitHub API responded ${response.status}`);
+  if (!response.ok) {
+    if (await isRateLimitResponse(response)) throw await rateLimitError(response);
+    throw new Error(`GitHub API responded ${response.status}`);
+  }
   const release = (await response.json()) as LatestRelease;
-  const version = release.tag_name ?? "";
-  if (version === "" || compareVersions(version, currentVersion) <= 0) return null;
+  if (!release || typeof release.tag_name !== "string" || !semver(release.tag_name) || !Array.isArray(release.assets) || release.assets.some(a => !a || typeof a.name !== "string" || typeof a.browser_download_url !== "string")) throw new Error("Malformed GitHub release response. Try again or visit GitHub Releases.");
+  const version = release.tag_name;
+  if (release.draft || release.prerelease || semver(version)!.pre.length) return null;
+  opts.onLatest?.(version);
+  if (compareVersions(version, currentVersion) <= 0) return null;
   const asset = selectAsset(release.assets ?? [], platform, arch);
-  if (!asset) return null;
+  if (!asset) throw new Error(`No installer for ${platform}/${arch}. Install manually from GitHub Releases.`);
   // Prefer GitHub's own asset digest; fall back to our `.sha256` sidecar only when it's absent.
   const sha256 = asset.sha256 ?? (await sidecarHex(asset.name, release.assets ?? [], doFetch));
   // A newer asset with no reachable digest is still "an update", not "up to date": the caller must
   // surface it (a release that forgot its sidecar must not silently masquerade as current).
-  return { version, assetName: asset.name, downloadPath: join(tmpdir(), safeAssetPath(asset.name)), sha256 };
+  return { version, assetName: asset.name, downloadUrl: release.assets!.find(a => a.name === asset.name)!.browser_download_url, downloadPath: join(tmpdir(), safeAssetPath(asset.name)), sha256 };
+}
+
+async function isRateLimitResponse(response: Response): Promise<boolean> {
+  if (response.status === 429 || response.headers?.get("x-ratelimit-remaining") === "0") return true;
+  if (response.status !== 403) return false;
+  const body = await response.clone().json().catch(() => null) as { message?: unknown } | null;
+  return typeof body?.message === "string" && /rate limit/i.test(body.message);
+}
+
+async function rateLimitError(response: Response): Promise<GitHubRateLimitError> {
+  const now = Date.now();
+  const reset = Number(response.headers?.get("x-ratelimit-reset"));
+  const retryAfter = response.headers?.get("retry-after");
+  const retryAfterSeconds = Number(retryAfter);
+  const retryAfterDate = retryAfter && Number.isNaN(retryAfterSeconds) ? Date.parse(retryAfter) : NaN;
+  const retryAt = Number.isFinite(reset) && reset * 1000 > now
+    ? reset * 1000
+    : Number.isFinite(retryAfterSeconds) && retryAfterSeconds > 0
+      ? now + retryAfterSeconds * 1000
+      : Number.isFinite(retryAfterDate) && retryAfterDate > now
+        ? retryAfterDate
+        : now + 60_000;
+  const delay = describeDelay(retryAt - now);
+  const message = Number.isFinite(reset) && reset * 1000 > now
+    ? `GitHub API rate limit reached (unauthenticated). Resets in ${delay}. Update manually from GitHub Releases.`
+    : `GitHub API rate limit reached (unauthenticated). Try again in ${delay} or update manually from GitHub Releases.`;
+  return new GitHubRateLimitError(message, retryAt);
+}
+
+function describeDelay(milliseconds: number): string {
+  const minutes = Math.ceil(milliseconds / 60_000);
+  return minutes <= 1 ? "about 1 minute" : `${minutes} minutes`;
 }
 
 /** The hex from the release's `<installer>.sha256` sidecar, or undefined when none is published. */
@@ -131,6 +193,7 @@ async function sidecarHex(
   if (!sidecar) return undefined;
   try {
     const response = await doFetch(sidecar.browser_download_url, {
+      signal: AbortSignal.timeout(15_000),
       headers: { "User-Agent": "code-chroma-desktop" },
     });
     if (!response.ok) return undefined;
@@ -142,12 +205,17 @@ async function sidecarHex(
 }
 
 /** Downloads the installer to `downloadPath` unless a verified copy is already there. */
-export async function downloadAsset(info: UpdateInfo): Promise<string> {
+export async function downloadAsset(info: UpdateInfo, onProgress: (bytes: number, total?: number) => void = () => {}): Promise<string> {
   if (!info.sha256) throw new Error("release has no SHA-256 digest to verify against");
-  if (await isVerified(info)) return info.downloadPath;
+  if (await isVerified(info)) {
+    const bundle = await fetchAttestation(info.sha256);
+    await verifyAttestation(bundle, info.sha256);
+    return info.downloadPath;
+  }
   const dest = info.downloadPath;
   const part = `${dest}.part`;
-  const response = await fetch(`${DOWNLOAD_BASE}/${info.assetName}`, {
+  const response = await fetch(info.downloadUrl ?? `${DOWNLOAD_BASE}/${info.assetName}`, {
+    signal: AbortSignal.timeout(15 * 60_000),
     headers: { "User-Agent": "code-chroma-desktop" },
   });
   if (!response.ok) throw new Error(`download failed (${response.status})`);
@@ -163,30 +231,30 @@ export async function downloadAsset(info: UpdateInfo): Promise<string> {
       const { done, value } = await reader.read();
       if (done) break;
       bytes += value.byteLength;
-      if (bytes > MAX_ASSET_BYTES) await discard(part, "download too large; refusing to write an oversized installer");
+      if (bytes > MAX_ASSET_BYTES) throw new Error("download too large; refusing to write an oversized installer");
       hash.update(value);
       await out.writeFile(value);
+      onProgress(bytes, Number(response.headers.get("content-length")) || undefined);
     }
-    if (hash.digest("hex") !== info.sha256) await discard(part, "download failed integrity check");
+    if (hash.digest("hex") !== info.sha256) throw new Error("download failed integrity check");
+  } catch (error) {
+    await out.close();
+    await rm(part, { force: true });
+    throw error;
   } finally {
     await out.close();
   }
-  // Provenance is the authority: the sidecar above only catches corruption, whereas the signed
-  // attestation binds this artifact to this repo's release workflow. An unverifiable or mismatched
-  // attestation is treated as tampering and the file is never renamed into place.
-  const bundle = await fetchAttestation(info.sha256);
-  await verifyAttestation(bundle, info.sha256);
-  if (info.assetName.endsWith(".AppImage")) {
-    await chmod(part, 0o755);
+  // Verify provenance before promoting the temporary file to a prepared update.
+  try {
+    const bundle = await fetchAttestation(info.sha256);
+    await verifyAttestation(bundle, info.sha256);
+    if (info.assetName.endsWith(".AppImage")) await chmod(part, 0o755);
+    await rename(part, dest);
+    return dest;
+  } catch (error) {
+    await rm(part, { force: true });
+    throw error;
   }
-  await rename(part, dest);
-  return dest;
-}
-
-/** Removes the in-progress `.part` then throws; used on any failure mid-download. */
-async function discard(part: string, why: string): Promise<never> {
-  await rm(part, { force: true });
-  throw new Error(why);
 }
 
 /** True when a file at `downloadPath` exists and its SHA-256 matches `info.sha256`. */
@@ -218,6 +286,7 @@ export async function installAsset(
   const { platform = process.platform, arch = process.arch } = opts;
   const spec = PLATFORMS[`${platform}/${arch}`];
   if (!spec) throw new Error(`no install path for ${platform}/${arch} / ${info.assetName}`);
+  await assertUserInstallation({ platform });
   return spec.install(info);
 }
 
@@ -227,15 +296,29 @@ async function runMacDmg(info: UpdateInfo): Promise<boolean> {
   const vol = mountPointFromPlist(plist);
   if (!vol) throw new Error("could not locate mounted dmg volume");
   const src = join(vol, "CodeChroma.app");
-  const dest = macAppBundlePath(process.execPath);
-  if (!dest) throw new Error("could not locate CodeChroma.app; reinstall the app into ~/Applications to update without administrator privileges");
+  const dest = join(homedir(), "Applications", "CodeChroma.app");
+
+  const staged = `${dest}.update-${process.pid}`;
+  const backup = `${dest}.previous-${process.pid}`;
+  let moved = false;
   try {
-    await execFileP("ditto", [src, dest]);
+    await execFileP("ditto", [src, staged]);
+    await rename(dest, backup);
+    moved = true;
+    try { await rename(staged, dest); }
+    catch (error) { await rename(backup, dest); moved = false; throw error; }
+    await rm(backup, { recursive: true, force: true });
+    moved = false;
   } catch (error) {
     const reason = error instanceof Error ? error.message : String(error);
     throw new Error(`Could not update ${dest} without administrator privileges. Reinstall CodeChroma into ~/Applications, then retry. ${reason}`);
   }
-  await execFileP("hdiutil", ["detach", vol]);
+  finally {
+    await rm(staged, { recursive: true, force: true });
+    // Retain the previous bundle if cleanup failed after a successful swap.
+    if (!moved) await rm(backup, { recursive: true, force: true });
+    await execFileP("hdiutil", ["detach", vol]);
+  }
   return true;
 }
 
@@ -252,9 +335,13 @@ export function mountPointFromPlist(plist: string): string | null {
   return match?.[1] ?? null;
 }
 
-/** Runs the Windows NSIS installer (it shows its own UAC/overwrite prompt and relaunches itself). */
+/** Runs the Windows NSIS installer (uses the per-user setup wizard after this process quits). */
 async function runWindowsSetup(info: UpdateInfo): Promise<boolean> {
-  await execFileP(info.downloadPath);
+  await new Promise<void>((resolve, reject) => {
+    const child = spawn(info.downloadPath, ["/currentuser", `/D=${dirname(process.execPath)}`], { detached: true, stdio: "ignore", windowsHide: true });
+    child.once("error", reject);
+    child.once("spawn", () => { child.unref(); resolve(); });
+  });
   return false;
 }
 
@@ -268,10 +355,34 @@ function execFileP(file: string, args: string[] = []): Promise<string> {
 /** Replaces the running AppImage via sibling-tmp + atomic rename (rename avoids ETXTBSY, no root). */
 async function runLinuxAppImage(info: UpdateInfo): Promise<boolean> {
   const current = process.env.APPIMAGE;
-  if (!current) throw new Error("not running from an AppImage; install the .deb instead");
+  if (!current) throw new Error("Not running from a user-local AppImage. Reinstall the AppImage in your home directory to enable updates without administrator privileges.");
   const tmp = join(dirname(current), `.${basename(current)}.update-${process.pid}`);
-  await copyFile(info.downloadPath, tmp);
-  await chmod(tmp, 0o755);
-  await rename(tmp, current);
+  try {
+    await copyFile(info.downloadPath, tmp);
+    await chmod(tmp, 0o755);
+    await rename(tmp, current);
+  } finally { await rm(tmp, { force: true }); }
   return true;
+}
+
+/** Refuse system installs before downloading or invoking any installer. */
+export async function assertUserInstallation(opts: { platform?: string; executable?: string; home?: string; appImage?: string; localAppData?: string } = {}): Promise<void> {
+  const platform = opts.platform ?? process.platform;
+  const home = opts.home ?? homedir();
+  const executable = opts.executable ?? process.execPath;
+  const target = platform === "darwin" ? macAppBundlePath(executable) : platform === "linux" ? (opts.appImage ?? process.env.APPIMAGE) : dirname(executable);
+  const root = platform === "win32" ? (opts.localAppData ?? process.env.LOCALAPPDATA) : home;
+  const rel = target && root ? relative(root, target) : "..";
+  const message = "This installation cannot be updated without administrator privileges. Reinstall CodeChroma in ~/Applications on macOS, as a user-local AppImage on Linux, or with the per-user Windows installer, then retry. Your settings and repositories will be preserved.";
+  if (!target || !root || rel.startsWith("..") || isAbsolute(rel)) throw new Error(message);
+  if (platform === "darwin" && target !== join(home, "Applications", "CodeChroma.app")) throw new Error(message);
+  try {
+    const resolvedTarget = await realpath(target);
+    const resolvedRoot = await realpath(root);
+    const resolvedRelative = relative(resolvedRoot, resolvedTarget);
+    if (resolvedRelative.startsWith("..") || isAbsolute(resolvedRelative)) throw new Error(message);
+    if (process.getuid && ((await stat(target)).uid !== process.getuid() || (await stat(dirname(target))).uid !== process.getuid())) throw new Error(message);
+    await access(target, constants.W_OK);
+    await access(dirname(target), constants.W_OK);
+  } catch { throw new Error(message); }
 }

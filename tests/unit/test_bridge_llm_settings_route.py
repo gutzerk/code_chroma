@@ -9,11 +9,12 @@ from codechroma.llm.call_sites import CALL_SITES, GROUPS, HIDDEN_GROUPS
 
 
 @pytest.fixture
-def client(tmp_path, monkeypatch):
+def client(tmp_path, monkeypatch, use_test_runtime):
     """A minimal app with just the llm_settings router and isolated store files."""
     monkeypatch.setenv("codechroma_LLM_PROVIDERS_FILE", str(tmp_path / "providers.json"))
     monkeypatch.setenv("codechroma_LLM_CALL_SITE_SETTINGS_FILE", str(tmp_path / "call-sites.json"))
     monkeypatch.setenv("codechroma_ASSISTANT_SETTINGS_FILE", str(tmp_path / "assistant.json"))
+    use_test_runtime()
     app = FastAPI()
     app.include_router(router)
     return TestClient(app)
@@ -137,7 +138,7 @@ def test_test_cli_provider_with_base_url_probes_the_endpoint(client, monkeypatch
     })
     created = response.json()
     monkeypatch.setattr(
-        "codechroma.bridge.routes.llm_settings.shutil.which", lambda binary: "/usr/bin/claude"
+        "codechroma.llm.runtime_env.shutil.which", lambda binary, **_kwargs: "/usr/bin/claude"
     )
     monkeypatch.setattr(
         "codechroma.bridge.routes.llm_settings.model_catalog.fetch_models",
@@ -284,7 +285,7 @@ def test_test_provider_draft_cli_claude_with_base_url_probes_the_endpoint(
     client, monkeypatch, fetch_result, expect_ok, expect_fragment
 ):
     monkeypatch.setattr(
-        "codechroma.bridge.routes.llm_settings.shutil.which", lambda binary: "/usr/bin/claude"
+        "codechroma.llm.runtime_env.shutil.which", lambda binary, **_kwargs: "/usr/bin/claude"
     )
     monkeypatch.setattr(
         "codechroma.bridge.routes.llm_settings.model_catalog.fetch_models",
@@ -352,32 +353,38 @@ def test_unassigned_group_shows_null_assignment(client):
     assert entry["assignment"] is None
 
 
-def test_unassigned_group_reports_cli_available_when_default_claude_is_on_path(client, monkeypatch):
+def test_unassigned_group_reports_cli_available_when_default_claude_is_on_path(
+    client, monkeypatch, use_test_runtime
+):
     monkeypatch.setattr(
-        "codechroma.bridge.routes.llm_settings.shutil.which", lambda binary: "/usr/bin/claude"
+        "codechroma.llm.runtime_env.shutil.which", lambda binary, **_kwargs: "/usr/bin/claude"
     )
 
+    use_test_runtime()
     entry = next(g for g in client.get("/llm/call-sites").json()["groups"] if g["id"] == "diagrams")
 
     assert entry["cli_available"] is True
 
 
 def test_unassigned_group_reports_cli_unavailable_when_claude_is_missing(client, monkeypatch):
-    monkeypatch.setattr("codechroma.bridge.routes.llm_settings.shutil.which", lambda binary: None)
+    monkeypatch.setattr("codechroma.llm.runtime_env.shutil.which", lambda binary, **_kwargs: None)
 
     entry = next(g for g in client.get("/llm/call-sites").json()["groups"] if g["id"] == "diagrams")
 
     assert entry["cli_available"] is False
 
 
-def test_assigned_group_reports_cli_available_from_its_own_provider_adapter(client, monkeypatch):
+def test_assigned_group_reports_cli_available_from_its_own_provider_adapter(
+    client, monkeypatch, use_test_runtime
+):
     created = _make_cli_provider(client)
     client.put("/llm/call-site-groups/diagrams", json={"provider_id": created["id"], "model": "m"})
     monkeypatch.setattr(
-        "codechroma.bridge.routes.llm_settings.shutil.which",
-        lambda binary: "/usr/bin/claude" if binary == "claude" else None,
+        "codechroma.llm.runtime_env.shutil.which",
+        lambda binary, **_kwargs: "/usr/bin/claude" if binary == "claude" else None,
     )
 
+    use_test_runtime()
     entry = next(g for g in client.get("/llm/call-sites").json()["groups"] if g["id"] == "diagrams")
 
     assert entry["cli_available"] is True

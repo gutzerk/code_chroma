@@ -91,6 +91,15 @@ describe("SettingsDialog", () => {
     expect(screen.queryByTestId("settings-open-llm")).toBeNull();
   });
 
+  it("opens Updates from Settings", async () => {
+    renderDialog();
+    fireEvent.click(screen.getByTestId("settings-open-updates"));
+    expect(await screen.findByTestId("updates-panel")).toBeTruthy();
+    expect(screen.getByText("Open CodeChroma in the desktop app to check and install updates.")).toBeTruthy();
+    fireEvent.click(screen.getByText("Back"));
+    expect(screen.getByTestId("settings-open-updates")).toBeTruthy();
+  });
+
   it("dismisses", async () => {
     const { onDismiss } = renderDialog();
     await waitFor(() => expect(screen.getByTestId("assistant-dismiss")).toBeTruthy());

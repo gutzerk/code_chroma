@@ -5,7 +5,7 @@ import json
 
 import pytest
 
-from codechroma.bridge import review, skill_agent
+from codechroma.bridge import review
 from codechroma.bridge.overlays import impact_changes_path
 from tests.unit.fake_claude import fake_claude_exec
 
@@ -61,7 +61,9 @@ def test_the_review_writes_beside_the_diagram_not_over_it(tmp_path):
 
 
 def test_a_successful_run_ends_idle(monkeypatch, tmp_path):
-    monkeypatch.setattr(skill_agent.shutil, "which", lambda _name: "/usr/bin/claude")
+    monkeypatch.setattr(
+        "codechroma.llm.runtime_env.shutil.which", lambda _name, **_kwargs: "/usr/bin/claude"
+    )
     monkeypatch.setattr(asyncio, "create_subprocess_exec", fake_claude_exec(returncode=0))
     _write_review(tmp_path, VALID_REVIEW)
 
@@ -71,7 +73,9 @@ def test_a_successful_run_ends_idle(monkeypatch, tmp_path):
 
 
 def test_exit_zero_without_a_written_review_is_an_error(monkeypatch, tmp_path):
-    monkeypatch.setattr(skill_agent.shutil, "which", lambda _name: "/usr/bin/claude")
+    monkeypatch.setattr(
+        "codechroma.llm.runtime_env.shutil.which", lambda _name, **_kwargs: "/usr/bin/claude"
+    )
     monkeypatch.setattr(asyncio, "create_subprocess_exec", fake_claude_exec(returncode=0))
 
     _run_review(tmp_path)
@@ -83,7 +87,9 @@ def test_exit_zero_without_a_written_review_is_an_error(monkeypatch, tmp_path):
 
 
 def test_a_run_that_leaves_an_unparseable_review_restores_the_previous_one(monkeypatch, tmp_path):
-    monkeypatch.setattr(skill_agent.shutil, "which", lambda _name: "/usr/bin/claude")
+    monkeypatch.setattr(
+        "codechroma.llm.runtime_env.shutil.which", lambda _name, **_kwargs: "/usr/bin/claude"
+    )
     _write_review(tmp_path, VALID_REVIEW)
 
     truncating_exec = fake_claude_exec(
@@ -98,7 +104,9 @@ def test_a_run_that_leaves_an_unparseable_review_restores_the_previous_one(monke
 
 
 def test_a_second_start_while_one_is_in_flight_is_a_no_op(monkeypatch, tmp_path):
-    monkeypatch.setattr(skill_agent.shutil, "which", lambda _name: "/usr/bin/claude")
+    monkeypatch.setattr(
+        "codechroma.llm.runtime_env.shutil.which", lambda _name, **_kwargs: "/usr/bin/claude"
+    )
     starts = []
     monkeypatch.setattr(
         asyncio,
@@ -128,7 +136,9 @@ def test_the_review_timeout_is_read_from_its_own_env_var(monkeypatch):
 def test_services_shutdown_covers_the_review_runner(monkeypatch, tmp_path):
     from codechroma.bridge.services import _build_skill_agents
 
-    monkeypatch.setattr(skill_agent.shutil, "which", lambda _name: "/usr/bin/claude")
+    monkeypatch.setattr(
+        "codechroma.llm.runtime_env.shutil.which", lambda _name, **_kwargs: "/usr/bin/claude"
+    )
     killed = []
     monkeypatch.setattr(
         asyncio, "create_subprocess_exec", fake_claude_exec(hang=True, killed=killed)

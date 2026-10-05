@@ -3,6 +3,7 @@ import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import {
   MAX_ASSET_BYTES,
+  assertUserInstallation,
   checkForUpdates,
   compareVersions,
   digestHex,
@@ -46,8 +47,8 @@ describe("compareVersions", () => {
     expect(compareVersions("1.2.3", "v1.2.3")).toBe(0);
   });
 
-  it("treats a missing segment as zero", () => {
-    expect(compareVersions("1.2", "1.2.0")).toBe(0);
+  it("rejects incomplete semantic versions", () => {
+    expect(() => compareVersions("1.2", "1.2.0")).toThrow("Invalid semantic version");
   });
 
   it("ranks a newer version higher", () => {
@@ -85,6 +86,14 @@ describe("selectAsset", () => {
 
   it("returns null for an unsupported platform/arch", () => {
     expect(selectAsset(ASSETS, "linux", "arm64")).toBeNull();
+  });
+});
+
+describe("architecture isolation", () => {
+  it("does not choose an ARM Windows installer for x64", () => {
+    const assets = [{ name: "CodeChroma-arm64-Setup.exe", browser_download_url: "https://dl/arm" }, ...ASSETS];
+    expect(selectAsset(assets, "win32", "x64")?.name).toBe("CodeChroma-Setup.exe");
+    expect(selectAsset(assets, "win32", "arm64")).toBeNull();
   });
 });
 
@@ -194,6 +203,18 @@ describe("checkForUpdates", () => {
     await expect(checkForUpdates("1.0.0", { fetchImpl })).rejects.toThrow(/500/);
   });
 
+  it("reports rate limits and their reset time", async () => {
+    const reset = Math.floor(Date.now() / 1000) + 720;
+    const response = new Response(JSON.stringify({ message: "API rate limit exceeded" }), {
+      status: 403,
+      headers: { "x-ratelimit-remaining": "0", "x-ratelimit-reset": String(reset) },
+    });
+    await expect(checkForUpdates("1.0.0", { fetchImpl: (async () => response) as typeof fetch }))
+      .rejects.toMatchObject({ name: "GitHubRateLimitError", retryAt: reset * 1000 });
+    await expect(checkForUpdates("1.0.0", { fetchImpl: (async () => response) as typeof fetch }))
+      .rejects.toThrow(/Resets in 12 minutes/);
+  });
+
   it("resolves the digest from the .sha256 sidecar when one is published", async () => {
     const calls: string[] = [];
     const fetchImpl = (async (url: unknown) => {
@@ -221,5 +242,36 @@ describe("checkForUpdates", () => {
     // not "up to date".
     expect(info?.sha256).toBeUndefined();
     expect(info?.version).toBe("v2.0.0");
+  });
+});
+
+ describe("stable release handling", () => {
+  const opts = (payload: unknown) => ({ platform: "darwin", arch: "arm64", fetchImpl: (async () => ({ ok: true, json: async () => payload })) as typeof fetch });
+  it("reports already up to date while returning the stable version", async () => {
+    let latest = "";
+    expect(await checkForUpdates("2.0.0", { ...opts({ tag_name: "v2.0.0", assets: ASSETS }), onLatest: v => { latest = v; } })).toBeNull();
+    expect(latest).toBe("v2.0.0");
+  });
+  it.each([{ prerelease: true }, { draft: true }, { tag_name: "v3.0.0-beta.1" }])("ignores non-stable releases %j", async flags => {
+    expect(await checkForUpdates("1.0.0", opts({ tag_name: "v3.0.0", assets: ASSETS, ...flags }))).toBeNull();
+  });
+  it.each([null, {}, { tag_name: "v2.0.0junk", assets: [] }, { tag_name: "v2.0.0", assets: [null] }])("rejects malformed responses %j", async payload => {
+    await expect(checkForUpdates("1.0.0", opts(payload))).rejects.toThrow("Malformed");
+  });
+  it("rejects unreachable releases", async () => {
+    await expect(checkForUpdates("1.0.0", { fetchImpl: (async () => { throw new Error("offline"); }) as typeof fetch })).rejects.toThrow("offline");
+  });
+  it("does not claim up to date when the architecture has no asset", async () => {
+    await expect(checkForUpdates("1.0.0", { ...opts({ tag_name: "v2.0.0", assets: ASSETS }), arch: "arm64", platform: "linux" })).rejects.toThrow("No installer");
+  });
+  it("rejects a system installation without launching an installer", async () => {
+    await expect(assertUserInstallation({ platform: "win32", executable: "C:/Program Files/CodeChroma/CodeChroma.exe", localAppData: "C:/Users/me/AppData/Local" })).rejects.toThrow("administrator privileges");
+  });
+  it("orders semver prerelease identifiers and ignores build metadata", () => {
+    expect(compareVersions("1.0.0-beta.10", "1.0.0-beta.2")).toBeGreaterThan(0);
+    expect(compareVersions("1.0.0-alpha", "1.0.0-beta")).toBeLessThan(0);
+    expect(compareVersions("1.0.0+one", "1.0.0+two")).toBe(0);
+    expect(parseTag("1.0.0garbage")).toBeNull();
+    expect(parseTag("1.0.0-01")).toBeNull();
   });
 });

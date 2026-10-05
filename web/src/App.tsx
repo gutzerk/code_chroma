@@ -1,3 +1,4 @@
+import { bridgeRequest, jsonInit } from "./util/httpJson";
 import { useEffect, useRef } from "react";
 import { AgentClientProvider } from "./agents/AgentClientContext";
 import { useActiveWorkspace } from "./agents/agentStore";
@@ -9,6 +10,13 @@ import { collapsedLayersStore } from "./canvas/doc/collapsedLayersStore";
 import { expansionStore } from "./state/expansionState";
 
 export function App() {
+  useEffect(() => {
+    const recheck = () => {
+      void bridgeRequest("/runtime/focus", jsonInit("POST", {})).catch(() => {});
+    };
+    window.addEventListener("focus", recheck);
+    return () => window.removeEventListener("focus", recheck);
+  }, []);
   // The active workspace *is* the repo id: switching agents rebuilds the engine client, so every
   // request the canvas makes — children, connections, diff, plan, c1, impact-changes, traces — moves to
   // that worktree at once. Missing one would silently show the main repo's data on the agent's canvas.

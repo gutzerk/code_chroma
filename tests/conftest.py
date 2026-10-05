@@ -25,6 +25,24 @@ from codechroma.bridge.workspaces import Workspace
 FIXTURE_REPO = Path(__file__).parent / "fixtures" / "sample_repo"
 
 
+@pytest.fixture
+def use_test_runtime(monkeypatch):
+    """Capture the test's current PATH without a real login shell or another test's cache."""
+    import os
+
+    from codechroma.llm import runtime_env
+    from codechroma.llm.runtime_settings import RuntimeSettings
+
+    def use():
+        monkeypatch.setattr(runtime_env, "_probe", lambda *_: ({}, None, (), "test-shell"))
+        runtime = runtime_env.RuntimeEnvironment(RuntimeSettings(), dict(os.environ))
+        runtime.snapshot()
+        monkeypatch.setattr(runtime_env, "get_runtime_environment", lambda: runtime)
+        return runtime
+
+    return use
+
+
 def init_repo(root: Path) -> None:
     """`git init` + one commit of everything, the starting point every bridge test assumes."""
     subprocess.run(["git", "init"], cwd=root, check=True, capture_output=True)

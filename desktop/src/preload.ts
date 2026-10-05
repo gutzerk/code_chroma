@@ -43,3 +43,15 @@ const desktopWorkspaceApi: DesktopWorkspaceApi = {
 };
 
 contextBridge.exposeInMainWorld("codechromaDesktop", desktopWorkspaceApi);
+
+contextBridge.exposeInMainWorld("codechromaUpdates", {
+  state: () => ipcRenderer.invoke("updates:state"),
+  check: () => ipcRenderer.invoke("updates:check"),
+  download: () => ipcRenderer.invoke("updates:download"),
+  restart: () => ipcRenderer.invoke("updates:restart"),
+  subscribe: (handler: (state: unknown) => void) => {
+    const listener = (_event: unknown, state: unknown) => handler(state);
+    ipcRenderer.on("updates:state", listener);
+    return () => ipcRenderer.removeListener("updates:state", listener);
+  },
+});

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import os
 
 import pytest
 
@@ -13,6 +14,21 @@ from codechroma.bridge.wiki_general_worker import (
 )
 from codechroma.llm.cli_adapters import ClaudeAdapter, CodexAdapter
 from tests.unit.fake_worker_claude import fake_worker_exec
+
+
+@pytest.fixture(autouse=True)
+def _fake_executable(monkeypatch, use_test_runtime):
+    from codechroma.llm.runtime_env import RuntimeCli
+
+    runtime = use_test_runtime()
+
+    monkeypatch.setattr(
+        "codechroma.bridge.wiki_general_worker.resolve_runtime_cli",
+        lambda binary, env: RuntimeCli(
+            os.path.abspath(binary), runtime.spawn_env(env), "test",
+        ),
+    )
+
 
 _SCHEMA = {"type": "object", "properties": {"word": {"type": "string"}}, "required": ["word"]}
 
@@ -170,13 +186,21 @@ def test_external_cancellation_kills_and_unregisters_the_subprocess(monkeypatch,
     monkeypatch.setattr(asyncio, "create_subprocess_exec", _exec)
 
     async def drive():
+        spawned = asyncio.Event()
+
+        async def exec_and_signal(*args, **kwargs):
+            proc = await _exec(*args, **kwargs)
+            spawned.set()
+            return proc
+
+        monkeypatch.setattr(asyncio, "create_subprocess_exec", exec_and_signal)
         task = asyncio.create_task(
             run_worker_job(
                 agent, "default", tmp_path, ClaudeAdapter(), "claude", "haiku", "ping",
                 _SCHEMA, {},
             )
         )
-        await asyncio.sleep(0.01)
+        await asyncio.wait_for(spawned.wait(), timeout=5)
         task.cancel()
         with pytest.raises(asyncio.CancelledError):
             await task

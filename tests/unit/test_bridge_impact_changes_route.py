@@ -1,5 +1,6 @@
 """TestClient coverage for the Impact change-review endpoints and the "impact-changes" broadcast."""
 
+
 import json
 import shutil
 import subprocess
@@ -8,8 +9,8 @@ from pathlib import Path
 import pytest
 from fastapi.testclient import TestClient
 
-from codechroma.bridge import skill_agent
 from tests.conftest import diagram_json_path
+from tests.unit.fake_claude import CLI_MISSING
 
 FIXTURE_REPO = Path(__file__).parent.parent / "fixtures" / "sample_repo"
 
@@ -127,12 +128,12 @@ def test_review_status_defaults_to_idle(server_module):
 
 def test_generate_reports_an_error_when_the_claude_cli_is_missing(server_module, monkeypatch):
     bridge, _repo = server_module
-    monkeypatch.setattr(skill_agent.shutil, "which", lambda _name: None)
+    monkeypatch.setattr("codechroma.llm.runtime_env.shutil.which", lambda _name, **_kwargs: None)
 
     with TestClient(bridge.app) as client:
         payload = client.post("/repos/default/impact-changes/generate").json()
 
-    assert payload == {"state": "error", "error": "claude CLI not found on PATH"}
+    assert payload == {"state": "error", "error": CLI_MISSING}
 
 
 def test_writing_the_review_file_broadcasts_an_impact_changes_ping(server_module):

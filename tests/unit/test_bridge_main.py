@@ -22,3 +22,13 @@ def test_main_exports_codechroma_bridge_url_with_the_bound_port(bridge_repo, mon
     module.main(["--repo-path", str(bridge_repo), "--port", "54893"])
 
     assert module.os.environ["codechroma_BRIDGE_URL"] == "http://127.0.0.1:54893"
+
+
+def test_printenv_mode_does_not_start_the_bridge(monkeypatch, capsys):
+    import json
+
+    module = _load_bridge_main()
+    monkeypatch.setenv("CODECHROMA_PRINTENV_TEST", "value")
+    assert module.main(["--printenv", "UNIQUE_MARKER"]) == 0
+    body = capsys.readouterr().out.split("UNIQUE_MARKER")[1]
+    assert json.loads(body)["CODECHROMA_PRINTENV_TEST"] == "value"

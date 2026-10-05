@@ -15,6 +15,8 @@ interface ResizableRailProps {
   /** The resize handle's data-testid. */
   handleTestid: string;
   hidden: boolean;
+  collapsed?: boolean;
+  collapsedWidth?: number;
   children: ReactNode;
 }
 
@@ -34,6 +36,8 @@ export function ResizableRail({
   dataTestid,
   handleTestid,
   hidden,
+  collapsed = false,
+  collapsedWidth,
   children,
 }: ResizableRailProps) {
   const panelRef = useRef<HTMLElement | null>(null);
@@ -48,11 +52,13 @@ export function ResizableRail({
 
   return (
     <aside
-      className={`${className}${isResizing ? ` ${resizingClass}` : ""}`}
+      className={`${className}${collapsed ? ` ${className}--collapsed` : ""}${
+        isResizing ? ` ${resizingClass}` : ""
+      }`}
       data-testid={dataTestid}
       aria-label={ariaLabel}
       ref={panelRef}
-      style={{ width: size?.width ?? defaultWidth }}
+      style={{ width: collapsed ? collapsedWidth : size?.width ?? defaultWidth }}
       hidden={hidden}
     >
       <div

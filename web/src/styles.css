@@ -4635,6 +4635,10 @@ body {
   background: var(--surface-1);
 }
 
+.agent-terminal-dock--collapsed {
+  overflow: visible;
+}
+
 .agent-terminal-dock[hidden] {
   display: none;
 }
@@ -4654,14 +4658,56 @@ body {
   touch-action: none;
 }
 
-.agent-terminal-dock-tabs {
+.agent-terminal-dock--collapsed .agent-terminal-dock-resize-handle {
+  display: none;
+}
+
+.agent-terminal-dock-panels {
+  display: flex;
+  flex: 1 1 auto;
+  min-width: 0;
+  min-height: 0;
+  flex-direction: column;
+}
+
+.agent-terminal-dock-panels[hidden] {
+  display: none;
+}
+
+.agent-terminal-dock-toolbar {
   display: flex;
   flex: 0 0 auto;
+  min-width: 0;
+  align-items: center;
+  border-bottom: 1px solid var(--border);
+  background: var(--surface-2);
+}
+
+.agent-terminal-dock-tabs {
+  display: flex;
+  flex: 1 1 auto;
+  min-width: 0;
   gap: 2px;
   overflow-x: auto;
   padding: 4px 4px 0;
-  border-bottom: 1px solid var(--border);
-  background: var(--surface-2);
+}
+
+.agent-terminal-dock-toggle {
+  display: flex;
+  flex: 0 0 auto;
+  width: 32px;
+  height: 30px;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--text-1);
+  cursor: pointer;
+}
+
+.agent-terminal-dock-toggle:hover {
+  background: rgba(255, 255, 255, 0.08);
 }
 
 .agent-terminal-dock-tab {
@@ -4720,7 +4766,28 @@ body {
   font-size: 0.78rem;
 }
 
+.agent-terminal-dock-header .agent-window-button,
+.agent-terminal-dock-header .agent-window-pr-button,
+.agent-terminal-dock-header .agent-window-pr-link {
+  flex-shrink: 0;
+}
+
+.agent-terminal-dock-header .agent-window-pr-button {
+  max-width: 6rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.agent-terminal-dock-header .agent-window-cli {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
 .agent-terminal-dock-title {
+  flex: 0 1 auto;
+  min-width: 0;
   overflow: hidden;
   font-weight: 600;
   text-overflow: ellipsis;
@@ -4729,6 +4796,8 @@ body {
 
 .agent-terminal-dock-header .agent-window-branch {
   min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .agent-terminal-dock-panel .agent-window-terminal {

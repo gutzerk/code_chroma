@@ -1,6 +1,7 @@
 """One-command launcher: analyze a repo with the live bridge, then boot the web canvas against it.
 
 Usage: python -m codechroma.bridge.launch --repo-path /path/to/repo
+       python -m codechroma.bridge.launch --github owner/repo [--ref BRANCH] [--clone-dir DIR]
 Any VITE_* env vars (e.g. VITE_CANVAS_STRATEGY=tree) are forwarded to the frontend.
 """
 
@@ -15,6 +16,7 @@ import sys
 import time
 from pathlib import Path
 
+from codechroma.bridge.github_repo import GithubRepoError, open_github_repo, parse_github_ref
 from codechroma.bridge.skill_sync import SKILL_NAMES, sync_skill
 from codechroma.llm.runtime_env import CliLookupError, get_runtime_environment, resolve_runtime_cli
 
@@ -60,7 +62,15 @@ def _start_frontend(bridge_url: str, host: str, port: int) -> subprocess.Popen:
 
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(prog="codechroma-live", description=__doc__)
-    parser.add_argument("--repo-path", required=True, help="Path to the repository to visualize")
+    source = parser.add_mutually_exclusive_group(required=True)
+    source.add_argument("--repo-path", help="Path to the repository to visualize")
+    source.add_argument(
+        "--github", help="GitHub URL or owner/repo[@ref] to clone (or refresh) and visualize"
+    )
+    parser.add_argument("--ref", help="Branch, tag or commit to open with --github")
+    parser.add_argument(
+        "--clone-dir", help="Where --github clones to (default ~/.codechroma/github-repos/o/r)"
+    )
     parser.add_argument("--host", default="127.0.0.1", help="Bridge host (default 127.0.0.1)")
     parser.add_argument("--port", type=int, default=8000, help="Bridge port (default 8000)")
     parser.add_argument(
@@ -69,9 +79,18 @@ def main(argv: list[str] | None = None) -> int:
     )
     args = parser.parse_args(argv)
 
-    repo_path = Path(args.repo_path).expanduser().resolve()
-    if not repo_path.is_dir():
-        parser.error(f"--repo-path is not a directory: {repo_path}")
+    if args.github:
+        try:
+            reference = parse_github_ref(args.github, args.ref)
+            print(f"[codechroma-live] opening {reference.slug} from GitHub …", flush=True)
+            clone_dir = Path(args.clone_dir) if args.clone_dir else None
+            repo_path = open_github_repo(reference, clone_dir)
+        except GithubRepoError as exc:
+            parser.error(str(exc))
+    else:
+        repo_path = Path(args.repo_path).expanduser().resolve()
+        if not repo_path.is_dir():
+            parser.error(f"--repo-path is not a directory: {repo_path}")
 
     for skill_name in SKILL_NAMES:
         skill_target = sync_skill(repo_path, skill_name)

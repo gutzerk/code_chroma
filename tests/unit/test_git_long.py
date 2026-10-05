@@ -6,6 +6,7 @@ is prepended to PATH, so a hang and a missing binary can both be produced on dem
 
 import os
 import subprocess
+import time
 from pathlib import Path
 
 import pytest
@@ -19,6 +20,24 @@ def _stub_git(bin_dir: Path, body: str) -> None:
     script = bin_dir / "git"
     script.write_text(f"#!/bin/sh\n{body}\n")
     script.chmod(0o755)
+
+
+def _wait_until_gone(pid: int, wait: float = 10.0) -> bool:
+    """True once `pid` is dead; an unreaped zombie counts, since init may reap it late."""
+    deadline = time.monotonic() + wait
+    while time.monotonic() < deadline:
+        try:
+            os.kill(pid, 0)
+        except OSError:
+            return True
+        try:
+            state = Path(f"/proc/{pid}/stat").read_text().rsplit(")", 1)[1].split()[0]
+        except (OSError, IndexError):
+            state = ""
+        if state == "Z":
+            return True
+        time.sleep(0.1)
+    return False
 
 
 @pytest.fixture
@@ -60,9 +79,8 @@ def test_a_hang_leaves_nothing_behind(tmp_path, bin_dir):
         git_long.run_git_long(tmp_path, "fetch", "origin", timeout=1)
 
     child_pid = int(marker.read_text().strip())
-    with pytest.raises(OSError):
-        # The whole process group is killed, so what git spawned is not still sleeping.
-        os.kill(child_pid, 0)
+    # The whole process group is killed, so what git spawned is not still sleeping.
+    assert _wait_until_gone(child_pid)
 
 
 def test_a_missing_binary_is_distinct_from_a_hang(tmp_path, monkeypatch):

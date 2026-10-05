@@ -39,6 +39,12 @@ cd web && npm install && cd ..
 poetry run python -m codechroma.bridge.launch --repo-path /path/to/your/repo
 ```
 
+Or open a GitHub project without cloning it yourself — `--github` takes a URL or `owner/repo[@ref]`:
+
+```bash
+poetry run python -m codechroma.bridge.launch --github owner/repo
+```
+
 Open the URL it prints (usually `http://localhost:5173`) and start clicking. See [`QUICKSTART.md`](./QUICKSTART.md) for the full walkthrough, [`web/QUICKSTART.md`](./web/QUICKSTART.md) to explore the UI offline, and [`CLAUDE.md`](./CLAUDE.md) for the command reference and documentation map.
 
 ## docs

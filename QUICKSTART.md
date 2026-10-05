@@ -58,7 +58,10 @@ Options:
 
 | Flag | Default | Purpose |
 |---|---|---|
-| `--repo-path` | *(required)* | Repository to visualize |
+| `--repo-path` | *(one of the two)* | Local repository to visualize |
+| `--github` | *(one of the two)* | GitHub URL or `owner/repo[@ref]`; cloned to `~/.codechroma/github-repos/<owner>/<repo>` (`$CODECHROMA_GITHUB_CACHE_DIR` moves it), or fetched if already there |
+| `--ref` | remote default branch | Branch, tag or commit to open with `--github` |
+| `--clone-dir` | managed cache | Where `--github` clones to |
 | `--host` | `127.0.0.1` | Bridge host |
 | `--port` | `8000` | Bridge port |
 | `--ready-timeout` | `600` | Max seconds to wait for the initial analysis |

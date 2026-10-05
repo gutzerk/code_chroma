@@ -63,7 +63,8 @@ export function UpdatesPanel({ onDismiss }: { onDismiss: () => void }) {
   const upToDate = state.phase === "up-to-date";
   const available = state.phase === "available";
   const ready = state.phase === "ready";
-  const headline = available
+  const hasUpdate = available || downloading || ready || installing;
+  const headline = hasUpdate
     ? "Update available"
     : upToDate
       ? "You're up to date"
@@ -95,7 +96,7 @@ export function UpdatesPanel({ onDismiss }: { onDismiss: () => void }) {
         <>
           <section className="updates-status" aria-live="polite">
             <h3>{headline}</h3>
-            {available && (
+            {hasUpdate && (
               <p>A new stable version of Code Chroma is ready to install.</p>
             )}
           </section>
@@ -105,7 +106,7 @@ export function UpdatesPanel({ onDismiss }: { onDismiss: () => void }) {
               <span>Current</span>
               <strong>{displayVersion(state.currentVersion)}</strong>
             </div>
-            {available && (
+            {hasUpdate && (
               <>
                 <svg className="updates-version-arrow" aria-hidden="true" viewBox="0 0 24 24">
                   <path d="M5 12h14m-6-6 6 6-6 6" />

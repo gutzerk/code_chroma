@@ -17,7 +17,7 @@ from codechroma.llm.runtime_settings import RuntimeSettings, validate_settings
 def executable(directory: Path, name: str) -> Path:
     directory.mkdir(parents=True, exist_ok=True)
     path = directory / (name + ".EXE" if os.name == "nt" else name)
-    path.write_text("executable")
+    path.write_text("executable", encoding="utf-8")
     path.chmod(0o755)
     return path
 

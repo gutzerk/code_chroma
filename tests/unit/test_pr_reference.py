@@ -23,7 +23,7 @@ def _stub_gh(bin_dir: Path, body: str) -> None:
         "  \"repo view\") echo '{\"nameWithOwner\":\"acme/app\"}'; exit 0 ;;\n"
         "esac\n"
         f"{body}\n"
-    )
+, encoding="utf-8")
     script.chmod(0o755)
 
 
@@ -146,7 +146,7 @@ def test_gh_can_resolve_a_nested_path_inside_a_worktree(tmp_path, monkeypatch):
     subprocess.run(["git", "init"], cwd=root, check=True, capture_output=True)
     subprocess.run(["git", "config", "user.email", "test@example.com"], cwd=root, check=True)
     subprocess.run(["git", "config", "user.name", "Test"], cwd=root, check=True)
-    (root / "README.md").write_text("repo\n")
+    (root / "README.md").write_text("repo\n", encoding="utf-8")
     subprocess.run(["git", "add", "README.md"], cwd=root, check=True)
     subprocess.run(["git", "commit", "-m", "initial"], cwd=root, check=True, capture_output=True)
     (root / "nested").mkdir()

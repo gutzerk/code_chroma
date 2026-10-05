@@ -131,10 +131,12 @@ def test_runtime_plugin_directory_contains_the_existing_bundled_skills():
     from codechroma.bridge.skill_sync import SKILL_NAMES
 
     plugin_root = resource_path("skills").parent
-    manifest = json.loads((plugin_root / ".claude-plugin" / "plugin.json").read_text())
+    manifest = json.loads(
+        (plugin_root / ".claude-plugin" / "plugin.json").read_text(encoding="utf-8")
+    )
     discoverable_commands = set()
     for skill_name in SKILL_NAMES:
-        skill_text = (plugin_root / "skills" / skill_name / "SKILL.md").read_text()
+        skill_text = (plugin_root / "skills" / skill_name / "SKILL.md").read_text(encoding="utf-8")
         frontmatter = skill_text.split("---", 2)[1]
         declared_name = re.search(r"(?m)^name:\s*(\S+)\s*$", frontmatter)
         assert declared_name is not None
@@ -166,6 +168,6 @@ def test_headless_prompts_keep_using_synced_project_skill_commands():
     }
 
     assert all(
-        f"/{skill_name}" in (prompts / prompt_name).read_text()
+        f"/{skill_name}" in (prompts / prompt_name).read_text(encoding="utf-8")
         for prompt_name, skill_name in prompt_skill_names.items()
     )

@@ -45,10 +45,10 @@ def test_accept_commits_only_the_targeted_function(client):
     test_client, repo = client
     invoice_path = repo / "billing" / "models" / "invoice.py"
     invoice_path.write_text(
-        invoice_path.read_text()
+        invoice_path.read_text(encoding="utf-8")
         .replace('return sum(line["amount"] for line in lines)', "return 0.0")
         .replace('return f"INV-{number:06d}"', 'return "PATCHED"')
-    )
+, encoding="utf-8")
 
     diff_body = test_client.get("/repos/default/diff").json()
     total_node_id = _node_id_for(diff_body, "::function::Invoice.total")
@@ -76,7 +76,9 @@ def test_accept_commits_only_the_targeted_function(client):
 def test_accept_commits_a_whole_new_file(client):
     test_client, repo = client
     new_file = repo / "billing" / "refunds.py"
-    new_file.write_text('class Refund:\n    """A refund."""\n    reason = "duplicate"\n')
+    new_file.write_text(
+        'class Refund:\n    """A refund."""\n    reason = "duplicate"\n', encoding="utf-8"
+    )
 
     diff_body = test_client.get("/repos/default/diff").json()
     component_node_id = _node_id_for(diff_body, "component::billing/refunds.py")
@@ -114,10 +116,10 @@ def test_accept_leaves_git_status_clean_for_the_committed_file(client):
     test_client, repo = client
     invoice_path = repo / "billing" / "models" / "invoice.py"
     invoice_path.write_text(
-        invoice_path.read_text().replace(
+        invoice_path.read_text(encoding="utf-8").replace(
             'return sum(line["amount"] for line in lines)', "return 0.0"
         )
-    )
+, encoding="utf-8")
     diff_body = test_client.get("/repos/default/diff").json()
     total_node_id = _node_id_for(diff_body, "::function::Invoice.total")
 
@@ -133,11 +135,11 @@ def test_accept_commits_a_class_level_diff_without_duplicating_its_body(client):
     test_client, repo = client
     invoice_path = repo / "billing" / "models" / "invoice.py"
     invoice_path.write_text(
-        invoice_path.read_text().replace(
+        invoice_path.read_text(encoding="utf-8").replace(
             '"""A single billing invoice."""\n',
             '"""A single billing invoice."""\n\n    currency = "USD"\n',
         )
-    )
+, encoding="utf-8")
     diff_body = test_client.get("/repos/default/diff").json()
     class_node_id = _node_id_for(diff_body, "class::Invoice")
 

@@ -45,30 +45,17 @@ test("dragging the terminal panel's top-edge handle grows it up to 60% of the vi
   expect(boxCapped.height).toBeLessThanOrEqual(viewport.height * 0.6 + 2);
 });
 
-// Growing the panel shrinks the canvas from the bottom; blocks must stay centered in the remaining
-// visible canvas (not slide under the panel). A block's center-y relative to the canvas viewport's
-// center is the invariant — scale is unchanged and both content and viewport-center shift by delta/2.
-test("growing the terminal panel keeps canvas blocks centered in the visible area", async ({
-  page,
-}) => {
+// The canvas viewport shrinks to the space above the bottom dock; it does not extend under it.
+test("growing the terminal panel keeps the canvas viewport above the dock", async ({ page }) => {
   await gotoApp(page);
 
   const canvas = page.getByTestId("app-canvas");
-  // Match whichever render strategy is active (boxes → "block", tree → "tree-node"); the centering
-  // is a pure `.canvas-content` transform, so the invariant holds regardless of renderer.
-  const block = canvas.locator('[data-testid="block"], [data-testid="tree-node"]').first();
-  await expect(block).toBeVisible();
-
-  const offsetFromCenter = async () => {
-    const canvasBox = await canvas.boundingBox();
-    const blockBox = await block.boundingBox();
-    if (!canvasBox || !blockBox) throw new Error("canvas or block not found");
-    return blockBox.y + blockBox.height / 2 - (canvasBox.y + canvasBox.height / 2);
-  };
+  const canvasBefore = await canvas.boundingBox();
+  if (!canvasBefore) throw new Error("canvas viewport not found");
 
   await page.getByRole("button", { name: "Open terminal panel" }).click();
-  await expect(page.getByTestId("terminal-panel")).toBeVisible();
-  const offsetBefore = await offsetFromCenter();
+  const terminal = page.getByTestId("terminal-panel");
+  await expect(terminal).toBeVisible();
 
   const handle = page.getByTestId("terminal-panel-resize-handle");
   const handleBox = await handle.boundingBox();
@@ -80,9 +67,12 @@ test("growing the terminal panel keeps canvas blocks centered in the visible are
   await page.mouse.move(handleX, handleY - 120, { steps: 5 });
   await page.mouse.up();
 
-  await expect(async () => {
-    expect(Math.abs((await offsetFromCenter()) - offsetBefore)).toBeLessThanOrEqual(5);
-  }).toPass();
+  const canvasAfter = await canvas.boundingBox();
+  const terminalBox = await terminal.boundingBox();
+  if (!canvasAfter || !terminalBox) throw new Error("canvas or terminal panel disappeared");
+  expect(canvasAfter.height).toBeLessThan(canvasBefore.height);
+  expect(canvasAfter.y).toBeCloseTo(canvasBefore.y, 0);
+  expect(canvasAfter.y + canvasAfter.height).toBeCloseTo(terminalBox.y, 0);
 });
 
 // Growing the panel must reflow the xterm grid to more rows (like a real terminal window), not leave

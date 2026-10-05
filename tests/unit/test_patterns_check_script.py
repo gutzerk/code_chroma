@@ -18,7 +18,7 @@ SCRIPT = (
 
 def _run(tmp_path, diagram, *extra_args):
     path = tmp_path / "patterns.json"
-    path.write_text(json.dumps(diagram))
+    path.write_text(json.dumps(diagram), encoding="utf-8")
     return subprocess.run(
         [sys.executable, str(SCRIPT), "--kind", "patterns", "--json", str(path), *extra_args],
         capture_output=True,

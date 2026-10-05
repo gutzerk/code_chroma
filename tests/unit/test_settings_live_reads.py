@@ -30,7 +30,7 @@ def test_ai_summarizer_explicit_model_wins_over_settings(monkeypatch):
     assert summarizer._model == "hand-picked"
 
 
-def test_git_cmd_timeout_is_read_at_call_time(monkeypatch):
+def test_git_cmd_timeout_is_read_at_call_time(monkeypatch, tmp_path):
     custom = Settings(git=GitConfig(short_timeout_seconds=3))
     monkeypatch.setattr("codechroma.bridge.git_cmd.settings", custom)
     captured: dict = {}
@@ -43,8 +43,7 @@ def test_git_cmd_timeout_is_read_at_call_time(monkeypatch):
     monkeypatch.setattr(git_cmd.subprocess, "run", capture)
 
     # A git command that returns immediately; only the timeout read is under test.
-    monkeypatch.setenv("PATH", "/usr/bin:/bin")
-    result = git_cmd.run_git_raw("/tmp", "rev-parse", "--is-inside-work-tree")
+    result = git_cmd.run_git_raw(tmp_path, "rev-parse", "--is-inside-work-tree")
 
     assert result is not None
     assert captured["timeout"] == 3

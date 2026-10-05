@@ -29,7 +29,7 @@ def raiser():
 
 @pytest.fixture
 def repo(tmp_path):
-    (tmp_path / "scenario.py").write_text(_SOURCE)
+    (tmp_path / "scenario.py").write_text(_SOURCE, encoding="utf-8")
     return tmp_path
 
 
@@ -108,7 +108,7 @@ def test_write_trace_persists_ordered_steps(repo):
     trace = record_trace(repo, "import scenario; scenario.outer(1)", use_monitoring=False)
 
     out_path = write_trace(repo, trace)
-    written = json.loads(out_path.read_text())
+    written = json.loads(out_path.read_text(encoding="utf-8"))
     assert out_path == repo / ".codechroma" / "traces" / f"{trace.id}.json"
     assert written["steps"] == sorted(written["steps"], key=lambda s: s["seq"])
     assert written["steps"]

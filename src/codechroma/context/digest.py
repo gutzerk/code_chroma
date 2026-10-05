@@ -76,7 +76,7 @@ def _declared_dependencies(repo_root: Path) -> list[str]:
     pyproject = repo_root / "pyproject.toml"
     if pyproject.is_file():
         try:
-            data = tomllib.loads(pyproject.read_text())
+            data = tomllib.loads(pyproject.read_text(encoding="utf-8"))
         except (OSError, tomllib.TOMLDecodeError):
             data = {}
         for dep in data.get("project", {}).get("dependencies", []):

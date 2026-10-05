@@ -26,11 +26,11 @@ def _load_module():
 def _write_tree(root: Path, *, manifest: dict, pages: dict[str, str]) -> None:
     wiki_general = root / ".codechroma" / "wiki-general"
     wiki_general.mkdir(parents=True, exist_ok=True)
-    (wiki_general / "manifest.json").write_text(json.dumps(manifest))
+    (wiki_general / "manifest.json").write_text(json.dumps(manifest), encoding="utf-8")
     for relative_path, content in pages.items():
         page = wiki_general / relative_path
         page.parent.mkdir(parents=True, exist_ok=True)
-        page.write_text(content)
+        page.write_text(content, encoding="utf-8")
 
 
 def _valid_manifest() -> dict:

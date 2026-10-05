@@ -27,7 +27,7 @@ def repo(tmp_path, monkeypatch):
     _git(root, "init", "-b", "main")
     _git(root, "config", "user.email", "test@example.com")
     _git(root, "config", "user.name", "Test")
-    (root / "shared.py").write_text("def shared():\n    return 1\n")
+    (root / "shared.py").write_text("def shared():\n    return 1\n", encoding="utf-8")
     _commit(root, "initial")
     monkeypatch.setenv(worktree.WORKSPACES_DIR_ENV, str(tmp_path / "worktrees"))
     return root
@@ -38,7 +38,7 @@ def _add_agent(repo: Path, name: str, filename: str, body: str) -> Path:
     worktree.add(repo, f"agent/{name}", path)
     _git(path, "config", "user.email", "agent@example.com")
     _git(path, "config", "user.name", "Agent")
-    (path / filename).write_text(body)
+    (path / filename).write_text(body, encoding="utf-8")
     _commit(path, f"{name} work")
     return path
 

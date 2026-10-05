@@ -87,7 +87,7 @@ class StatusRules:
 def load_manifest(path: Path) -> StatusRules:
     """Parses a detection manifest; a missing or malformed one yields rules that never classify."""
     try:
-        raw = tomllib.loads(path.read_text())
+        raw = tomllib.loads(path.read_text(encoding="utf-8"))
     except (OSError, ValueError):
         logger.warning("agent status: unusable manifest at %s — the detector will hold", path)
         return StatusRules()

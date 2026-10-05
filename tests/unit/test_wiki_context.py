@@ -10,7 +10,7 @@ from codechroma.config import Settings, WikiContextConfig
 
 def _write(path: Path, text: str) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(text)
+    path.write_text(text, encoding="utf-8")
 
 
 def _wiki(tmp_path: Path) -> Path:
@@ -75,7 +75,7 @@ def test_a_path_with_a_gaps_json_entry_still_serves_its_real_page(tmp_path):
             [{"path": "billing/service.py", "qualified_name": "billing.service", "kind": "module",
               "reason": "no docstring"}]
         )
-    )
+, encoding="utf-8")
 
     bundle = build_wiki_context(wiki_dir, ["billing/service.py"])
 
@@ -117,7 +117,7 @@ def test_a_dot_dot_escape_outside_wiki_dir_is_a_gap_not_read(tmp_path):
     wiki_dir = _wiki(tmp_path)
     secret_dir = tmp_path / "outside"
     secret_dir.mkdir()
-    (secret_dir / "index.md").write_text("TOP SECRET\n")
+    (secret_dir / "index.md").write_text("TOP SECRET\n", encoding="utf-8")
     escape = os.path.relpath(secret_dir, start=wiki_dir / "files")
 
     bundle = build_wiki_context(wiki_dir, [escape])
@@ -130,7 +130,7 @@ def test_an_absolute_path_is_a_gap_not_read(tmp_path):
     wiki_dir = _wiki(tmp_path)
     secret_dir = tmp_path / "outside"
     secret_dir.mkdir()
-    (secret_dir / "index.md").write_text("TOP SECRET\n")
+    (secret_dir / "index.md").write_text("TOP SECRET\n", encoding="utf-8")
 
     bundle = build_wiki_context(wiki_dir, [str(secret_dir)])
 

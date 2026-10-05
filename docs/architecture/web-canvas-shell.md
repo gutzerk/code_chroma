@@ -34,10 +34,11 @@ canvas instead of collapsing onto whichever diagram happened to carry code-backe
   C1-view-only, and stayed at the time — `c1PlanStore`/`C1PlanPanel` were later removed outright with
   the Plan overlay's retirement, see `change-cards.md`; `c1ChangesStore`/`C1InspectorContext` remain;
   `canvas/epics/brief/` stayed too, reachable from an "epic" canvas element
-  via a small standalone `EpicBriefPanel` instead of the deleted `EpicsView`). `RootCanvas` now always
-  renders `CanvasDocView` inside its `CanvasViewport`, passing it only the resolved `strategy.id` (as
-  the render fallback for elements carrying no `meta.strategy` of their own). The client no longer
-  seeds anything: the bridge guarantees every document already holds its root block — see
+  via a small standalone `EpicBriefPanel` instead of the deleted `EpicsView`). `RootCanvas` always
+  renders `CanvasDocView` inside its `CanvasViewport`. The document carries a seeded hierarchy
+  element, but `RootCanvas` collapses that layer on load: the Project Tree sidebar is the hierarchy
+  surface and the canvas opens diagrams-only. The client no longer seeds anything: the bridge
+  guarantees every document already holds its root block — see
   [`single-canvas.md`](single-canvas.md)'s "The seeded root block".
   `DrawDiagramButton` (the rail's "Draw…" control, replacing the five per-kind toggle buttons and,
   since the diagram-management unification, `RecipeMenu`'s own dropdown — see
@@ -45,19 +46,17 @@ canvas instead of collapsing onto whichever diagram happened to carry code-backe
   `LayerStrip` (the layer-visibility chips, docked in `.canvas-chrome`) both live in `canvas/doc/`
   alongside it. `ConnectionsOverlay`/`ChangeConnectionsOverlay`/`TraceFlowOverlay` are unconditional
   now (they used to be gated on `isHierarchy`, and there used to be a fourth, `PlanConnectionsOverlay`,
-  before the Plan overlay's retirement) since the
-  hierarchy is always potentially present as a canvas element rather than one of several mutually
-  exclusive views; `UndoManager`'s `activeKind` is hardcoded to `"hierarchy"` for the same reason —
-  it, `useSavedLayoutAndFitLoop.ts` and the whole `collision/` multi-select/group-drag system remain
-  exactly as they were, still load-bearing for `strategies/boxes/TopLevelChildren.tsx`'s own top-level
-  box dragging. 🔴 **`canvas/doc/CanvasNodeBox.tsx` (the one box every recipe-authored element
+  before the Plan overlay's retirement) are mounted unconditionally, but resolve no hierarchy
+  endpoints while its layer is collapsed. `UndoManager` handles both `"hierarchy"` and `"canvas"`
+  layout kinds. The hierarchy `collision/` multi-select/group-drag implementation remains in
+  `strategies/boxes/TopLevelChildren.tsx`, but that hierarchy box surface is not shown on initial
+  load. 🔴 **`canvas/doc/CanvasNodeBox.tsx` (the one box every recipe-authored element
   renders through) deliberately does not join that collision/multi-select system** — a canvas-doc
   element's position is the document's own absolute truth, committed straight through
-  `update_element`. `web/e2e/multi-select.spec.ts` and `web/e2e/block-collision.spec.ts` (both
-  originally written against the old C1 view's boxes) have already been ported onto the hierarchy's
-  `boxes` strategy instead (`strategies/boxes/TopLevelChildren.tsx`'s `hierarchy-top-box` testid),
-  the one surface that still exercises the real collision/multi-select mechanism end to end — see
-  `single-canvas.md`'s Stage 4 section for the porting detail. 🔴 `CanvasNodeBox`'s inline style pins
+  `update_element`. `web/e2e/multi-select.spec.ts` now verifies Project Tree modifier-click behavior,
+  while `web/e2e/block-collision.spec.ts` verifies that expanding the tree does not put hierarchy
+  boxes on the diagrams canvas. Neither exercises the hidden hierarchy-box drag surface; collision
+  and group-drag behavior is covered by focused unit tests. 🔴 `CanvasNodeBox`'s inline style pins
   a real, fixed `width` (not just `minWidth`) equal to `element.size?.w ?? DEFAULT_WIDTH` — its own
   box classes (`.custom-node-box`/`.pattern-node-box`/`.impact-node-box`/the C1 `.block`) declare no
   CSS `width` of their own, so a `minWidth`-only box shrink-to-fits against `.canvas-content`'s own
@@ -402,18 +401,16 @@ It is **resizable** — as is the code sidebar, both through the shared `Resizab
 `edge: "right"`) aside+handle skeleton the two side panels reuse instead of re-implementing. Dragging
 it wider reveals more of a row's name or its inline code.
 
-It deliberately **reuses the canvas's own hierarchy renderer** rather than inventing a filesystem
+It deliberately **reuses the hierarchy's `TreeNode` renderer** rather than inventing a filesystem
 explorer: `ProjectTreePanel` mounts the same `TreeNode` (via `strategies/tree/TreeNode.tsx`) over
-the hierarchy root, so — because `TreeNode` reads/writes the shared global `expansionStore` and
-fetches children lazily through `useNodeChildren` (which already re-fetches on live pings) — the
-sidebar and the canvas tree remain one source of truth (expanding here expands on any canvas tree
-still shown and vice versa), and on-disk edits appear in the sidebar without reload.
+the hierarchy root. `TreeNode` reads/writes the shared global `expansionStore` and fetches children
+lazily through `useNodeChildren` (which already re-fetches on live pings), so expansion and live
+updates stay consistent within the sidebar. The canvas's hierarchy layer remains collapsed by
+default and is not a second visible tree surface.
 
-The panel passes `TreeNode` panel-only flags: `openCodeOnActivate` (a row with code opens that code
-on click — via the shared `chrome.toggleCode`, respecting the global inline-vs-popup mode — instead
-of expanding) and `hideCodeButton` (drops the redundant Show/Hide-code button from the row, since the
-click already reveals the source). Both are scoped to the panel: the canvas tree and C1 views leave
-them unset, so their rows keep the explicit Show-code button and plain expand.
+The panel passes `TreeNode` panel-only flags: `openCodeOnActivate` (a code-capable row opens in the
+Code Sidebar via `openFilesStore`, instead of expanding) and `hideCodeButton` (drops the redundant
+Show/Hide-code button from the row, since the click already reveals the source).
 
 The open-file highlight is not a per-row subscription: `ProjectTreePanel` subscribes to the
 open-files store **once**, builds an `openFileIds` `Set` + `activeFileId`, and threads them down the
@@ -424,14 +421,11 @@ receives), but it fires one store render rather than one per row. Open rows get
 `.tree-node-open-file` (subtle highlight); the active row additionally gets
 `.tree-node-active` (stronger accent + green marker dot).
 
-`RootCanvas` owns the on-canvas framing, so it passes `onActivate` (a callback on `TreeNode` that
-fires after a row's own expand/inspector default) down as `navigateTreeTo`: `revealNode(nodeId)` to
-expand the ancestors, then `camera.frameFitTo([nodeId])` — the same retry-until-mounted framing the
-initial auto-expand and diff reveals use — because each revealed ancestor's children mount
-asynchronously, so a deeply nested target needs several fetches before its block exists.
-`TreeNode`'s label is keyboard-accessible (`tabIndex` + Enter/Space, with `aria-expanded` on rows
-that expand) and only *navigates* on a grow-the-view gesture: an expand or a leaf click. A collapse
-("put it away") does not re-frame the camera. The panel is latched (`useLatchedMount`); its
+`RootCanvas` still provides `onActivate` as `navigateTreeTo` (`revealNode(nodeId)` followed by
+`camera.frameFitTo([nodeId])`) where a hierarchy element is available on canvas; with the layer
+collapsed by default, Project Tree expansion itself does not pan the diagrams canvas. `TreeNode`'s
+label is keyboard-accessible (`tabIndex` + Enter/Space, with `aria-expanded` on rows that expand).
+The panel is latched (`useLatchedMount`); its
 `.project-tree-panel` CSS is a full-height scrollable column whose `[hidden]` override wins over
 `display:flex`.
 

@@ -12,6 +12,10 @@ async function runAgent(page: Page): Promise<void> {
   await page.getByRole("button", { name: "Run agent" }).click();
 }
 
+async function showAgentsTab(page: Page): Promise<void> {
+  await page.getByRole("tab", { name: "Agents", exact: true }).click();
+}
+
 test("clicking Run agent opens a running window immediately, with no dialog in between", async ({
   page,
 }) => {
@@ -59,6 +63,7 @@ test("the window drags, minimizes and restores from the rail", async ({ page }) 
   await page.getByRole("button", { name: "Minimize agent1" }).click();
   await expect(window).toBeHidden();
 
+  await showAgentsTab(page);
   await page.getByTestId("agent-rail-agent1").click();
   await expect(window).toBeVisible();
 });
@@ -68,6 +73,7 @@ test("the window drags, minimizes and restores from the rail", async ({ page }) 
 test("the rail keeps an entry per agent and toggles its window from there", async ({ page }) => {
   await gotoApp(page);
   await runAgent(page);
+  await showAgentsTab(page);
 
   const entry = page.getByTestId("agent-rail-agent1");
   const window = page.getByTestId("agent-window-agent1");
@@ -106,10 +112,11 @@ test("a minimized window's rail entry shows the task title and status as text", 
   await gotoApp(page);
   await runAgent(page);
   await page.getByRole("button", { name: "Minimize agent1" }).click();
+  await showAgentsTab(page);
 
   const entry = page.getByTestId("agent-rail-agent1");
   await expect(entry.locator(".agent-rail-title")).toHaveText("agent1");
-  await expect(entry.locator(".agent-rail-status")).toHaveText("Idle — waiting for you");
+  await expect(entry.locator(".agent-rail-status")).toHaveText("Idle");
 });
 
 // The window layer used to filter minimized agents out before rendering, which disposed the xterm
@@ -128,6 +135,7 @@ test("minimizing keeps the agent's terminal mounted, so restoring is not a reatt
   await expect(page.getByTestId("agent-window-agent1")).toBeHidden();
   await expect(terminal).toBeAttached();
 
+  await showAgentsTab(page);
   await page.getByTestId("agent-rail-agent1").click();
 
   await expect(page.getByTestId("agent-window-agent1")).toBeVisible();
@@ -138,6 +146,7 @@ test("minimizing keeps the agent's terminal mounted, so restoring is not a reatt
 test("resizing an agent window reflows its xterm grid", async ({ page }) => {
   await gotoApp(page);
   await runAgent(page);
+  await showAgentsTab(page);
 
   const screen = page.getByTestId("agent-window-agent1").locator(".xterm-screen");
   await expect(screen).toBeVisible();
@@ -212,27 +221,27 @@ test("the rail LED reflects the freshly launched agent's status, not just its ex
 }) => {
   await gotoApp(page);
   await runAgent(page);
+  await showAgentsTab(page);
 
   const railLed = page.getByTestId("agent-rail-agent1").locator(".agent-led");
   await expect(railLed).toHaveClass(/agent-led-idle/);
 });
 
-// Opening an agent's window is exactly the moment the canvas is meant to follow it. Read straight off
-// `data-active-workspace`; the branch switcher used to stand in for this, but it no longer disables
-// itself outside main — switching branches while an agent is focused is now allowed.
-test("launching an agent moves the canvas to it, and restoring after minimizing moves it back", async ({
-  page,
-}) => {
+// Launching an agent opens its own terminal window without changing the canvas workspace.
+test("launching an agent leaves the main canvas workspace unchanged", async ({ page }) => {
   await gotoApp(page);
   const layer = page.getByTestId("agent-layer");
   await expect(layer).toHaveAttribute("data-active-workspace", "main");
 
   await runAgent(page);
-  await expect(layer).toHaveAttribute("data-active-workspace", "agent1");
+  await expect(page.getByTestId("agent-window-agent1")).toBeVisible();
+  await expect(layer).toHaveAttribute("data-active-workspace", "main");
 
   await page.getByRole("button", { name: "Minimize agent1" }).click();
+  await showAgentsTab(page);
   await page.getByTestId("agent-rail-agent1").click();
-  await expect(layer).toHaveAttribute("data-active-workspace", "agent1");
+  await expect(page.getByTestId("agent-window-agent1")).toBeVisible();
+  await expect(layer).toHaveAttribute("data-active-workspace", "main");
 });
 
 async function switchBranchTo(page: Page, branch: string): Promise<void> {
@@ -240,50 +249,46 @@ async function switchBranchTo(page: Page, branch: string): Promise<void> {
   await page.getByTestId("branch-switcher-list").getByRole("button", { name: branch }).click();
 }
 
-// The whole point of the branch scope: an agent on another branch keeps running, its window just goes
-// away, and the rail row that stays behind is the way back to it.
-test("switching branch hides an agent's window and the rail row brings both back", async ({
+// Agent terminals live in their own worktree, so changing main's branch does not hide them.
+test("switching branch keeps the agent window visible and labels its rail entry", async ({
   page,
 }) => {
   await gotoApp(page);
   await runAgent(page);
+  await showAgentsTab(page);
   const window = page.getByTestId("agent-window-agent1");
   const entry = page.getByTestId("agent-rail-agent1");
 
   await switchBranchTo(page, "feature-x");
 
-  await expect(window).toBeHidden();
+  await expect(window).toBeVisible();
   await expect(entry).toHaveClass(/agent-rail-item-off-branch/);
   await expect(entry.locator(".agent-rail-status")).toHaveText("on main");
 
   await entry.click();
-
-  await expect(page.getByTestId("branch-switcher-button")).toHaveAttribute(
-    "aria-label",
-    "Branch: main",
-  );
+  await expect(window).toBeHidden();
+  await entry.click();
   await expect(window).toBeVisible();
 });
 
-// Hiding must not disturb the xterm: the branch is a view filter, not a teardown.
-test("an agent hidden by a branch switch keeps its terminal mounted", async ({ page }) => {
+// A main-branch change cannot tear down an agent terminal running in its own worktree.
+test("switching branches keeps the agent terminal mounted", async ({ page }) => {
   await gotoApp(page);
   await runAgent(page);
   await expect(page.getByTestId("agent-terminal-agent1")).toBeAttached();
 
   await switchBranchTo(page, "feature-x");
 
-  await expect(page.getByTestId("agent-window-agent1")).toBeHidden();
+  await expect(page.getByTestId("agent-window-agent1")).toBeVisible();
   await expect(page.getByTestId("agent-terminal-agent1")).toBeAttached();
 });
 
-// It used to disable itself off main, which made an agent's own branch a dead end.
-test("the branch switcher stays usable while an agent's workspace is the active one", async ({
+// The branch switcher continues to operate while an agent window is open.
+test("the branch switcher stays usable while an agent window is open", async ({
   page,
 }) => {
   await gotoApp(page);
   await runAgent(page);
-  await expect(page.getByTestId("agent-layer")).toHaveAttribute("data-active-workspace", "agent1");
 
   await switchBranchTo(page, "feature-x");
 
@@ -291,5 +296,7 @@ test("the branch switcher stays usable while an agent's workspace is the active 
     "aria-label",
     "Branch: feature-x",
   );
+  await expect(page.getByTestId("agent-window-agent1")).toBeVisible();
+  await expect(page.getByTestId("agent-layer")).toHaveAttribute("data-active-workspace", "main");
   await expect(page.getByTestId("agent-layer")).toHaveAttribute("data-active-workspace", "main");
 });

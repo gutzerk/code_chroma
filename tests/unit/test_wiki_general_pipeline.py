@@ -228,7 +228,9 @@ def test_run_pipeline_writes_manifest_and_pages_and_passes_self_check(
     result = asyncio.run(pipeline.run_pipeline(agent, workspace, "default", None))
 
     assert result == {"state": "idle", "error": None}
-    manifest = json.loads((tmp_path / ".codechroma" / "wiki-general" / "manifest.json").read_text())
+    manifest = json.loads(
+        (tmp_path / ".codechroma" / "wiki-general" / "manifest.json").read_text(encoding="utf-8")
+    )
     assert manifest["components"][0]["id"] == "auth"
     assert manifest["containers"][0]["id"] == "app"
     assert (tmp_path / ".codechroma" / "wiki-general" / "c3" / "auth.md").is_file()

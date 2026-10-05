@@ -181,6 +181,12 @@ class GraphEngine:
         self._children_index: dict[str, list[HierarchyNode]] | None = None
         self._children_index_graph: Graph | None = None
 
+    def close(self) -> None:
+        """Releases the store's file handles; a no-op for stores without a `close`."""
+        close = getattr(self._store, "close", None)
+        if close is not None:
+            close()
+
     def _store_for(self, repo_path: str) -> GraphStore:
         if self._store is not None:
             return self._store

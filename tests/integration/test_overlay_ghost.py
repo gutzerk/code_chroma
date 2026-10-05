@@ -22,7 +22,7 @@ _IMPACT = {
 
 def _write_json(path, payload: dict) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(json.dumps(payload))
+    path.write_text(json.dumps(payload), encoding="utf-8")
 
 
 def test_a_removed_blocks_ghost_still_appears_after_regenerating(bridge):

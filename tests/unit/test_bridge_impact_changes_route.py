@@ -25,13 +25,16 @@ def _init_repo(root: Path) -> None:
 
 def _write_json(path: Path, payload: dict) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(json.dumps(payload))
+    path.write_text(json.dumps(payload), encoding="utf-8")
 
 
 def _tweak_billing_service(repo: Path) -> None:
     """Edits inside create_invoice's body -- a whole-file overwrite reads as the symbol deleted."""
     path = repo / "billing" / "service.py"
-    path.write_text(path.read_text().replace("return invoice_id", "return invoice_id  # x"))
+    path.write_text(
+        path.read_text(encoding="utf-8").replace("return invoice_id", "return invoice_id  # x"),
+        encoding="utf-8",
+    )
 
 
 _IMPACT = {
@@ -78,7 +81,7 @@ def test_a_changed_file_badges_its_block_without_any_review(server_module):
 def test_an_authored_review_supplies_the_before_after_prose(server_module):
     bridge, repo = server_module
     _write_json(diagram_json_path(repo, "impact"), _IMPACT)
-    (repo / "billing" / "service.py").write_text("changed\n")
+    (repo / "billing" / "service.py").write_text("changed\n", encoding="utf-8")
     _write_json(
         repo / ".codechroma" / "impact-changes.json",
         {
@@ -98,7 +101,7 @@ def test_an_authored_review_supplies_the_before_after_prose(server_module):
 def test_the_path_route_reports_where_to_write_and_which_diff_to_review(server_module):
     bridge, repo = server_module
     _write_json(diagram_json_path(repo, "impact"), _IMPACT)
-    (repo / "billing" / "service.py").write_text("changed\n")
+    (repo / "billing" / "service.py").write_text("changed\n", encoding="utf-8")
 
     with TestClient(bridge.app) as client:
         payload = client.get("/repos/default/impact-changes-path").json()
@@ -108,7 +111,7 @@ def test_the_path_route_reports_where_to_write_and_which_diff_to_review(server_m
 
 def test_the_path_routes_fingerprint_matches_the_changes_route(server_module):
     bridge, repo = server_module
-    (repo / "billing" / "service.py").write_text("changed\n")
+    (repo / "billing" / "service.py").write_text("changed\n", encoding="utf-8")
 
     with TestClient(bridge.app) as client:
         from_path = client.get("/repos/default/impact-changes-path").json()["fingerprint"]

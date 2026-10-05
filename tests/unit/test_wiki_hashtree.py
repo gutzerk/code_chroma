@@ -38,8 +38,8 @@ def _graph_with_two_files() -> Graph:
 @pytest.fixture
 def repo_root(tmp_path):
     (tmp_path / "pkg").mkdir()
-    (tmp_path / "pkg" / "a.py").write_text("print('a')\n")
-    (tmp_path / "pkg" / "b.py").write_text("print('b')\n")
+    (tmp_path / "pkg" / "a.py").write_text("print('a')\n", encoding="utf-8")
+    (tmp_path / "pkg" / "b.py").write_text("print('b')\n", encoding="utf-8")
     return tmp_path
 
 
@@ -56,7 +56,7 @@ def test_build_tree_root_hash_changes_when_a_file_changes(repo_root):
     graph = _graph_with_two_files()
     before = build_tree(graph, repo_root)
 
-    (repo_root / "pkg" / "a.py").write_text("print('changed')\n")
+    (repo_root / "pkg" / "a.py").write_text("print('changed')\n", encoding="utf-8")
     after = build_tree(graph, repo_root)
 
     assert before.hash != after.hash
@@ -73,7 +73,7 @@ def test_diff_tree_reports_only_the_one_changed_file(repo_root):
     graph = _graph_with_two_files()
     old = build_tree(graph, repo_root)
 
-    (repo_root / "pkg" / "a.py").write_text("print('changed')\n")
+    (repo_root / "pkg" / "a.py").write_text("print('changed')\n", encoding="utf-8")
     new = build_tree(graph, repo_root)
 
     assert diff_tree(old, new) == ["pkg/a.py"]
@@ -84,7 +84,7 @@ def test_diff_tree_reports_an_added_folder_without_descending(repo_root):
     old = build_tree(graph, repo_root)
 
     (repo_root / "extra").mkdir()
-    (repo_root / "extra" / "c.py").write_text("print('c')\n")
+    (repo_root / "extra" / "c.py").write_text("print('c')\n", encoding="utf-8")
     new_nodes = dict(graph.nodes)
     new_nodes["dir::extra"] = HierarchyNode(
         id="dir::extra", name="extra", level=HierarchyLevel.SYSTEM, source_path="extra"

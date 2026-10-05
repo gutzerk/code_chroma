@@ -63,8 +63,8 @@ def test_generate_wiki_gives_a_nested_subfolder_its_own_index_page(repo):
 
     nested_index = result.output_dir / "files" / "billing" / "models" / "index.md"
     parent_index = result.output_dir / "files" / "billing" / "index.md"
-    assert "invoice.py" in nested_index.read_text()
-    assert "models/index.md" in parent_index.read_text()
+    assert "invoice.py" in nested_index.read_text(encoding="utf-8")
+    assert "models/index.md" in parent_index.read_text(encoding="utf-8")
 
 
 def test_generate_wiki_shows_real_docstrings_from_the_fixture_repo(repo):
@@ -72,7 +72,7 @@ def test_generate_wiki_shows_real_docstrings_from_the_fixture_repo(repo):
     engine.analyze(str(repo))
     result = engine.generate_wiki()
 
-    text = (result.output_dir / "files" / "billing" / "service.md").read_text()
+    text = (result.output_dir / "files" / "billing" / "service.md").read_text(encoding="utf-8")
     assert "Billing and invoicing service." in text
     assert "Handles invoice creation for billed accounts." in text
     assert "Create an invoice for the named account." in text
@@ -83,7 +83,7 @@ def test_gap_json_is_valid_and_matches_undocumented_count(repo):
     engine.analyze(str(repo))
     result = engine.generate_wiki()
 
-    gaps = json.loads(result.gap_json_path.read_text())
+    gaps = json.loads(result.gap_json_path.read_text(encoding="utf-8"))
     assert len(gaps) == result.undocumented_count
 
 
@@ -92,7 +92,7 @@ def test_generate_wiki_shows_full_breakdown_for_a_go_file(repo):
     engine.analyze(str(repo))
     result = engine.generate_wiki()
 
-    text = (result.output_dir / "files" / "billing" / "reporter.md").read_text()
+    text = (result.output_dir / "files" / "billing" / "reporter.md").read_text(encoding="utf-8")
     assert "Package billing generates billing reports." in text
     assert "### Report" in text
     assert "`RenderReport`" in text
@@ -106,7 +106,7 @@ def test_generate_wiki_shows_full_breakdown_for_a_tsx_file(repo):
     engine.analyze(str(repo))
     result = engine.generate_wiki()
 
-    text = (result.output_dir / "files" / "web" / "UserCard.md").read_text()
+    text = (result.output_dir / "files" / "web" / "UserCard.md").read_text(encoding="utf-8")
     assert "`UserCard`" in text
     assert "UserCard renders a single user's summary card." in text
 
@@ -125,7 +125,7 @@ def test_generate_wiki_shows_summaries_for_all_seven_new_languages(polyglot_repo
         "c_greeter.md": "Builds the greeting for a name.",
     }
     for name, documented_summary in pages.items():
-        text = (result.output_dir / "files" / name).read_text()
+        text = (result.output_dir / "files" / name).read_text(encoding="utf-8")
         assert documented_summary in text
         assert "*no docstring*" in text
 
@@ -135,7 +135,7 @@ def test_h_extension_resolves_through_the_cpp_analyzer_end_to_end(polyglot_repo)
     engine.analyze(str(polyglot_repo))
     result = engine.generate_wiki()
 
-    text = (result.output_dir / "files" / "cpp_greeter.md").read_text()
+    text = (result.output_dir / "files" / "cpp_greeter.md").read_text(encoding="utf-8")
     assert "### Greeter" in text
     assert "Greets people by name." in text
 
@@ -145,7 +145,7 @@ def test_gap_report_flags_only_the_undocumented_exported_go_and_ts_symbols(repo)
     engine.analyze(str(repo))
     result = engine.generate_wiki()
 
-    gaps = json.loads(result.gap_json_path.read_text())
+    gaps = json.loads(result.gap_json_path.read_text(encoding="utf-8"))
     go_and_ts_gaps = {
         g["qualified_name"]
         for g in gaps

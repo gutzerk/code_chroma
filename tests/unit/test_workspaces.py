@@ -51,7 +51,7 @@ def test_workspace_pings_carry_their_id_as_the_broadcast_key(repo):
 def test_on_repo_change_pings_wiki_general_after_a_commit(registry, repo):
     workspaces, events = registry
     main = workspaces.get(MAIN_ID)
-    (repo / "new.py").write_text("def g(): pass\n")
+    (repo / "new.py").write_text("def g(): pass\n", encoding="utf-8")
     subprocess.run(["git", "add", "-A"], cwd=repo, check=True, capture_output=True)
     subprocess.run(["git", "commit", "-m", "second"], cwd=repo, check=True, capture_output=True)
 
@@ -63,7 +63,7 @@ def test_on_repo_change_pings_wiki_general_after_a_commit(registry, repo):
 def test_on_repo_change_does_not_ping_wiki_general_for_an_uncommitted_edit(registry, repo):
     workspaces, events = registry
     main = workspaces.get(MAIN_ID)
-    (repo / "new.py").write_text("def g(): pass\n")
+    (repo / "new.py").write_text("def g(): pass\n", encoding="utf-8")
 
     main._watchers.on_repo_change()
 
@@ -198,7 +198,9 @@ def test_feature_plan_resolve_reports_has_diagram_once_its_file_exists(tmp_path)
 
     before = spec.resolve(workspace)
     spec.artifact_path(workspace.root).parent.mkdir(parents=True, exist_ok=True)
-    spec.artifact_path(workspace.root).write_text('{"nodes": [], "relations": []}')
+    spec.artifact_path(workspace.root).write_text(
+        '{"nodes": [], "relations": []}', encoding="utf-8"
+    )
     after = spec.resolve(workspace)
 
     assert before["has_diagram"] is False
@@ -255,7 +257,7 @@ def test_root_for_names_a_registered_workspace_and_admits_ignorance_otherwise(re
 
 def test_diff_base_merge_bases_against_an_explicit_base_ref(repo, tmp_path):
     subprocess.run(["git", "branch", "release"], cwd=repo, check=True, capture_output=True)
-    (repo / "extra.py").write_text("value = 1\n")
+    (repo / "extra.py").write_text("value = 1\n", encoding="utf-8")
     subprocess.run(["git", "add", "-A"], cwd=repo, check=True, capture_output=True)
     subprocess.run(["git", "commit", "-m", "second"], cwd=repo, check=True, capture_output=True)
     expected = subprocess.run(
@@ -286,7 +288,7 @@ def test_changed_since_finds_a_committed_change_divergent_files_cannot_see_on_ma
     base_commit = subprocess.run(
         ["git", "rev-parse", "HEAD"], cwd=repo, check=True, capture_output=True, text=True
     ).stdout.strip()
-    (repo / "extra.py").write_text("value = 1\n")
+    (repo / "extra.py").write_text("value = 1\n", encoding="utf-8")
     subprocess.run(["git", "add", "-A"], cwd=repo, check=True, capture_output=True)
     subprocess.run(["git", "commit", "-m", "second"], cwd=repo, check=True, capture_output=True)
 
@@ -296,7 +298,7 @@ def test_changed_since_finds_a_committed_change_divergent_files_cannot_see_on_ma
 
 def test_changed_since_falls_back_to_divergent_files_without_a_known_base_commit(repo):
     workspace = Workspace.create(MAIN_ID, repo, lambda _m: None)
-    (repo / "extra.py").write_text("value = 1\n")
+    (repo / "extra.py").write_text("value = 1\n", encoding="utf-8")
 
     assert workspace.changed_since(None) == workspace.divergent_files()
     assert "extra.py" in workspace.changed_since(None)
@@ -320,7 +322,7 @@ def test_bootstrap_c1_writes_the_file_with_no_credential(repo):
 
     bootstrap_if_missing(workspace, "c1")
 
-    written = json.loads(workspace.diagram_path("c1").read_text())
+    written = json.loads(workspace.diagram_path("c1").read_text(encoding="utf-8"))
     assert written["nodes"][0]["id"] == "system"
 
 
@@ -354,7 +356,7 @@ def test_bootstrap_patterns_writes_the_file_when_a_client_is_available(repo, mon
 
     bootstrap_if_missing(workspace, "patterns")
 
-    written = json.loads(workspace.diagram_path("patterns").read_text())
+    written = json.loads(workspace.diagram_path("patterns").read_text(encoding="utf-8"))
     assert written["fingerprint"] == "stub-fingerprint"
 
 
@@ -362,7 +364,7 @@ def test_bootstrap_patterns_is_a_no_op_once_the_file_exists(repo, monkeypatch):
     workspace = Workspace.create(MAIN_ID, repo, lambda _m: None)
     workspace.engine.analyze(str(repo))
     workspace.diagram_path("patterns").parent.mkdir(parents=True, exist_ok=True)
-    workspace.diagram_path("patterns").write_text("{}")
+    workspace.diagram_path("patterns").write_text("{}", encoding="utf-8")
     reached = []
     monkeypatch.setattr(
         "codechroma.context.patterns_generator.provider_from_env",

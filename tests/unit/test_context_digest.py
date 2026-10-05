@@ -38,7 +38,7 @@ def test_digest_carries_only_the_fields_c1_reads(engine, repo):
 def test_declared_dependencies_read_from_pyproject(engine, repo):
     (repo / "pyproject.toml").write_text(
         '[project]\ndependencies = ["fastapi (>=0.1,<0.2)", "anthropic"]\n'
-    )
+, encoding="utf-8")
 
     digest = build_context_digest(engine, repo)
 
@@ -86,7 +86,7 @@ def test_declared_dependencies_read_from_pyproject(engine, repo):
     ],
 )
 def test_declared_dependencies_read_from_go_mod(engine, repo, go_mod_text, expected):
-    (repo / "go.mod").write_text(go_mod_text)
+    (repo / "go.mod").write_text(go_mod_text, encoding="utf-8")
 
     digest = build_context_digest(engine, repo)
 
@@ -94,8 +94,12 @@ def test_declared_dependencies_read_from_go_mod(engine, repo, go_mod_text, expec
 
 
 def test_declared_dependencies_concatenate_pyproject_and_go_mod(engine, repo):
-    (repo / "pyproject.toml").write_text('[project]\ndependencies = ["fastapi"]\n')
-    (repo / "go.mod").write_text("module example.com/demo\n\nrequire github.com/lib/pq v1.10.9\n")
+    (repo / "pyproject.toml").write_text(
+        '[project]\ndependencies = ["fastapi"]\n', encoding="utf-8"
+    )
+    (repo / "go.mod").write_text(
+        "module example.com/demo\n\nrequire github.com/lib/pq v1.10.9\n", encoding="utf-8"
+    )
 
     digest = build_context_digest(engine, repo)
 
@@ -103,7 +107,7 @@ def test_declared_dependencies_concatenate_pyproject_and_go_mod(engine, repo):
 
 
 def test_readme_excerpt_reads_repo_root_readme(engine, repo):
-    (repo / "README.md").write_text("# Sample Repo\n\nA demo billing/users app.")
+    (repo / "README.md").write_text("# Sample Repo\n\nA demo billing/users app.", encoding="utf-8")
 
     digest = build_context_digest(engine, repo)
 

@@ -1,12 +1,8 @@
 import { test, expect } from "@playwright/test";
+import { treeNode } from "./helpers";
 
-// On first load (auto-expand enabled by default) the canvas cascades open level by level until at
-// least 5 elements are visible, instead of showing a single collapsed root. For the fixture the
-// cascade is examples -> shadow-app -> {backend, frontend}, which reveals 9 elements.
-// The hierarchy renders as nested boxes (there is no boxes-vs-tree choice anymore), so the
-// assertions below read `[data-testid="block"]`. No gotoApp here on purpose — this is the one spec
-// that must load with auto-expand left on.
-test("auto-expands the tree on first load until >= 5 elements are visible", async ({ page }) => {
+// On first load the hierarchy auto-expands in the Project Tree while the canvas stays diagrams-only.
+test("auto-expands the Project Tree on first load", async ({ page }) => {
   await page.goto("/");
   await page.waitForSelector('[data-testid="app-root"]');
 
@@ -16,13 +12,13 @@ test("auto-expands the tree on first load until >= 5 elements are visible", asyn
     "folder::shadow-app/backend",
     "folder::shadow-app/frontend",
   ]) {
-    await expect(
-      page.locator(`[data-testid="block"][data-node-id="${nodeId}"]`),
-    ).toHaveAttribute("data-expand-state", "expanded");
+    await expect(treeNode(page, nodeId)).toHaveAttribute("data-expand-state", "expanded");
   }
 
-  // Files (terminal for auto-expand) are revealed but never expanded.
-  await expect(
-    page.locator('[data-testid="block"][data-node-id="file::shadow-app/backend/main.py"]'),
-  ).toHaveAttribute("data-expand-state", "collapsed");
+  // Files are revealed in the sidebar but remain collapsed.
+  await expect(treeNode(page, "file::shadow-app/backend/main.py")).toHaveAttribute(
+    "data-expand-state",
+    "collapsed",
+  );
+  await expect(page.getByTestId("canvas-hierarchy-element")).toHaveCount(0);
 });

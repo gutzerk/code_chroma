@@ -49,7 +49,7 @@ def repo(tmp_path):
     root = tmp_path / "repo"
     root.mkdir()
     _init_repo(root)
-    (root / "billing.py").write_text("def charge():\n    return 1\n")
+    (root / "billing.py").write_text("def charge():\n    return 1\n", encoding="utf-8")
     _commit_all(root)
     engine = GraphEngine(summarizer=AISummarizer())
     engine.analyze(str(root))
@@ -69,7 +69,7 @@ def test_the_builtin_overlays_are_registered():
 
 def test_a_changed_node_gets_an_overlay_record_with_no_is_ghost_field(repo):
     root, engine = repo
-    (root / "billing.py").write_text("def charge():\n    return 2\n")
+    (root / "billing.py").write_text("def charge():\n    return 2\n", encoding="utf-8")
     ws = _FakeWs(root, engine)
 
     resolved = attach_overlays(_diagram(), ws, ["changes"])

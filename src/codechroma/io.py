@@ -43,7 +43,7 @@ def write_json(path: Path, payload: object, mode: int | None = None) -> bool:
         path.parent.mkdir(parents=True, exist_ok=True)
         # Unique per call: a fixed temp name races os.replace() between concurrent writers.
         temp = path.with_suffix(f".{os.getpid()}.{uuid.uuid4().hex}.json.tmp")
-        temp.write_text(json.dumps(payload, indent=2))
+        temp.write_text(json.dumps(payload, indent=2), encoding="utf-8")
         if mode is not None:
             temp.chmod(mode)
         os.replace(temp, path)
@@ -86,7 +86,7 @@ def locked(path: Path):
 def load_json(path: Path) -> dict:
     """Parses a JSON file, tolerating a missing or malformed file (returns {})."""
     try:
-        return json.loads(path.read_text())
+        return json.loads(path.read_text(encoding="utf-8"))
     except (OSError, ValueError):
         return {}
 
@@ -94,7 +94,7 @@ def load_json(path: Path) -> dict:
 def load_json_or_none(path: Path) -> dict | None:
     """Like load_json, but None on a missing/malformed file -- for callers that must tell apart."""
     try:
-        data = json.loads(path.read_text())
+        data = json.loads(path.read_text(encoding="utf-8"))
     except (OSError, ValueError):
         return None
     return data if isinstance(data, dict) else None
@@ -103,7 +103,7 @@ def load_json_or_none(path: Path) -> dict | None:
 def read_text(path: Path) -> str | None:
     """File contents, or None when it can't be read or isn't decodable text."""
     try:
-        return path.read_text()
+        return path.read_text(encoding="utf-8")
     except (OSError, UnicodeDecodeError):
         return None
 

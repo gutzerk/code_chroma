@@ -26,7 +26,9 @@ def _init_repo(root: Path) -> None:
 
 def _edit_slugify(repo: Path) -> None:
     path = repo / "shared" / "text_utils.py"
-    path.write_text(path.read_text().replace('" ", "-"', '" ", "_"'))
+    path.write_text(
+        path.read_text(encoding="utf-8").replace('" ", "-"', '" ", "_"'), encoding="utf-8"
+    )
 
 
 def _write_feature(repo: Path, feature: str = "feature/specs") -> None:
@@ -35,10 +37,10 @@ def _write_feature(repo: Path, feature: str = "feature/specs") -> None:
     feature_dir.mkdir(parents=True, exist_ok=True)
     (feature_dir / "plan.md").write_text(
         "# Plan\n- [x] T1 Implement `shared/text_utils.py` tweaks\n"
-    )
+, encoding="utf-8")
     (feature_dir / "tasks.md").write_text(
         "# Tasks\n- [x] T2 Create `users/service.py` users\n"
-    )
+, encoding="utf-8")
 
 
 @pytest.fixture
@@ -80,8 +82,8 @@ def test_impact_context_diff_source_ignores_ide_clutter(bridge):
     # An untouched dev machine's bare tree shows .idea/ as untracked; it must never seed impact.
     idea = repo / ".idea"
     idea.mkdir()
-    (idea / ".gitignore").write_text("")
-    (idea / "modules.xml").write_text("workspace.xml")
+    (idea / ".gitignore").write_text("", encoding="utf-8")
+    (idea / "modules.xml").write_text("workspace.xml", encoding="utf-8")
 
     with TestClient(test_client.app) as client:
         body = client.get("/repos/default/impact/context?source=diff").json()["generation_data"]
@@ -145,7 +147,7 @@ def test_impact_get_serves_an_authored_file(bridge):
         ],
         "relations": [],
         "fingerprint": "irrelevant",
-    }))
+    }), encoding="utf-8")
 
     with TestClient(test_client.app) as client:
         body = client.get("/repos/default/impact").json()
@@ -178,7 +180,7 @@ def test_impact_get_preserves_plan_status_and_relation_label(bridge):
             {"from": SLUGIFY, "to": TEXT_UTILS_COMPONENT, "label": "defined in"},
         ],
         "fingerprint": "irrelevant",
-    }))
+    }), encoding="utf-8")
 
     with TestClient(test_client.app) as client:
         body = client.get("/repos/default/impact").json()
@@ -202,7 +204,7 @@ def test_impact_drops_a_node_with_no_resolved_node_id(bridge):
         ],
         "relations": [],
         "fingerprint": "irrelevant",
-    }))
+    }), encoding="utf-8")
 
     with TestClient(test_client.app) as client:
         body = client.get("/repos/default/impact").json()
@@ -225,7 +227,7 @@ def test_impact_staleness_follows_the_authored_source(bridge):
         "fingerprint": "old",
         "generated_at": "t",
         "nodes": [], "relations": [],
-    }))
+    }), encoding="utf-8")
 
     with TestClient(test_client.app) as client:
         body = client.get("/repos/default/impact").json()
@@ -248,7 +250,7 @@ def test_impact_staleness_follows_a_mismatched_feature(bridge):
         "fingerprint": "old",
         "generated_at": "t",
         "nodes": [], "relations": [],
-    }))
+    }), encoding="utf-8")
 
     with TestClient(test_client.app) as client:
         body = client.get("/repos/default/impact").json()

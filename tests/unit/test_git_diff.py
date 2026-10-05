@@ -32,10 +32,10 @@ def test_reports_a_modified_function_with_its_before_and_after(tmp_path):
     _init_repo(repo)
     slugify_path = repo / "shared" / "text_utils.py"
     slugify_path.write_text(
-        slugify_path.read_text().replace(
+        slugify_path.read_text(encoding="utf-8").replace(
             'return text.strip().lower().replace(" ", "-")', 'return "patched"'
         )
-    )
+, encoding="utf-8")
     engine = _engine_for(repo, tmp_path)
 
     diffs = compute_function_diffs(engine, repo)
@@ -51,7 +51,9 @@ def test_excludes_unmodified_functions_in_a_changed_file(tmp_path):
     shutil.copytree(FIXTURE_REPO, repo)
     _init_repo(repo)
     service_path = repo / "users" / "service.py"
-    service_path.write_text(service_path.read_text() + "\n# trailing comment\n")
+    service_path.write_text(
+        service_path.read_text(encoding="utf-8") + "\n# trailing comment\n", encoding="utf-8"
+    )
     engine = _engine_for(repo, tmp_path)
 
     diffs = compute_function_diffs(engine, repo)
@@ -63,7 +65,9 @@ def test_reports_a_function_in_a_brand_new_untracked_file_with_empty_original(tm
     repo = tmp_path / "repo"
     shutil.copytree(FIXTURE_REPO, repo)
     _init_repo(repo)
-    (repo / "shared" / "new_module.py").write_text("def brand_new():\n    return 1\n")
+    (repo / "shared" / "new_module.py").write_text(
+        "def brand_new():\n    return 1\n", encoding="utf-8"
+    )
     engine = _engine_for(repo, tmp_path)
 
     diffs = compute_function_diffs(engine, repo)
@@ -78,7 +82,7 @@ def test_reports_a_deleted_function_removed_from_an_existing_file(tmp_path):
     shutil.copytree(FIXTURE_REPO, repo)
     _init_repo(repo)
     slugify_path = repo / "shared" / "text_utils.py"
-    slugify_path.write_text('"""Small text helpers shared across services."""\n')
+    slugify_path.write_text('"""Small text helpers shared across services."""\n', encoding="utf-8")
     engine = _engine_for(repo, tmp_path)
 
     diffs = compute_function_diffs(engine, repo)
@@ -111,11 +115,13 @@ def test_tags_added_and_modified_status_on_each_entry(tmp_path):
     _init_repo(repo)
     slugify_path = repo / "shared" / "text_utils.py"
     slugify_path.write_text(
-        slugify_path.read_text().replace(
+        slugify_path.read_text(encoding="utf-8").replace(
             'return text.strip().lower().replace(" ", "-")', 'return "patched"'
         )
+, encoding="utf-8")
+    (repo / "shared" / "new_module.py").write_text(
+        "def brand_new():\n    return 1\n", encoding="utf-8"
     )
-    (repo / "shared" / "new_module.py").write_text("def brand_new():\n    return 1\n")
     engine = _engine_for(repo, tmp_path)
 
     diffs = compute_function_diffs(engine, repo)
@@ -131,10 +137,10 @@ def test_reports_a_file_level_modified_entry_for_a_changed_existing_file(tmp_pat
     _init_repo(repo)
     slugify_path = repo / "shared" / "text_utils.py"
     slugify_path.write_text(
-        slugify_path.read_text().replace(
+        slugify_path.read_text(encoding="utf-8").replace(
             'return text.strip().lower().replace(" ", "-")', 'return "patched"'
         )
-    )
+, encoding="utf-8")
     engine = _engine_for(repo, tmp_path)
 
     diffs = compute_function_diffs(engine, repo)

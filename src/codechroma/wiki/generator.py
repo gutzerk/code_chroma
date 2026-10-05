@@ -30,7 +30,7 @@ FilePages = dict[str, _FileSymbols]
 
 def write_text_file(path: Path, text: str) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(text)
+    path.write_text(text, encoding="utf-8")
 
 
 def children_by_parent(nodes: dict[str, HierarchyNode]) -> dict[str, list[HierarchyNode]]:

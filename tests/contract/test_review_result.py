@@ -21,11 +21,11 @@ _IMPACT_DIAGRAM = {
 def _write_impact(ws, changes: dict | None = None) -> None:
     diagram_path = ws.diagram_artifact_path("impact")
     diagram_path.parent.mkdir(parents=True, exist_ok=True)
-    diagram_path.write_text(json.dumps(_IMPACT_DIAGRAM))
+    diagram_path.write_text(json.dumps(_IMPACT_DIAGRAM), encoding="utf-8")
     if changes is not None:
         path = impact_changes_path(ws.root)
         path.parent.mkdir(parents=True, exist_ok=True)
-        path.write_text(json.dumps(changes))
+        path.write_text(json.dumps(changes), encoding="utf-8")
 
 
 def test_explanatory_axis_populates_explanation_and_nulls_severity(bridge):

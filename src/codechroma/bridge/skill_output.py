@@ -107,7 +107,7 @@ def _tool_arg(tool_input: dict, repo_root: Path) -> str:
 def _relativize(value: str, repo_root: Path) -> str:
     """Absolute paths are what the agent actually sends, and they're mostly the repo root twice."""
     try:
-        return str(Path(value).relative_to(repo_root))
+        return Path(value).relative_to(repo_root).as_posix()
     except ValueError:
         return value
 

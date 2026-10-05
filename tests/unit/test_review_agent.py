@@ -35,7 +35,7 @@ def _clear_jobs():
 def _write_review(repo_root, review):
     path = impact_changes_path(repo_root)
     path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(json.dumps(review))
+    path.write_text(json.dumps(review), encoding="utf-8")
 
 
 class _RecordingChange:
@@ -94,13 +94,15 @@ def test_a_run_that_leaves_an_unparseable_review_restores_the_previous_one(monke
 
     truncating_exec = fake_claude_exec(
         returncode=0,
-        on_spawn=lambda: impact_changes_path(tmp_path).write_text(TRUNCATED_REVIEW),
+        on_spawn=lambda: impact_changes_path(tmp_path).write_text(
+            TRUNCATED_REVIEW, encoding="utf-8"
+        ),
     )
     monkeypatch.setattr(asyncio, "create_subprocess_exec", truncating_exec)
 
     _run_review(tmp_path)
 
-    assert json.loads(impact_changes_path(tmp_path).read_text()) == VALID_REVIEW
+    assert json.loads(impact_changes_path(tmp_path).read_text(encoding="utf-8")) == VALID_REVIEW
 
 
 def test_a_second_start_while_one_is_in_flight_is_a_no_op(monkeypatch, tmp_path):

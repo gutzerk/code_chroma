@@ -142,7 +142,7 @@ def _explain(exc: GitLongError, reference: GithubRef) -> str:
             f"or raise {TIMEOUT_ENV_VAR}"
         )
     detail = str(exc).lower()
-    if "not found" in detail or "does not exist" in detail:
+    if any(hint in detail for hint in ("not found", "does not exist", "does not appear to be")):
         return (
             f"Repository {reference.slug} was not found, or you have no access to it "
             "(private repos need git credentials, e.g. `gh auth setup-git`)"

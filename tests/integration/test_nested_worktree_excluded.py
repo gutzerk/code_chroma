@@ -24,7 +24,7 @@ def repo(tmp_path, monkeypatch):
     _git(root, "init", "-b", "main")
     _git(root, "config", "user.email", "test@example.com")
     _git(root, "config", "user.name", "Test")
-    (root / "shared.py").write_text("def shared():\n    return 1\n")
+    (root / "shared.py").write_text("def shared():\n    return 1\n", encoding="utf-8")
     _git(root, "add", "-A")
     _git(root, "commit", "-m", "initial")
     monkeypatch.delenv(worktree.WORKSPACES_DIR_ENV, raising=False)

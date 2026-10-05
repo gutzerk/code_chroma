@@ -42,8 +42,10 @@ def test_a_second_type_gets_change_badges_from_its_own_definition_alone(bridge):
                 "relations": [],
             }
         )
+, encoding="utf-8")
+    (bridge.repo / "billing" / "service.py").write_text(
+        "changed for the release\n", encoding="utf-8"
     )
-    (bridge.repo / "billing" / "service.py").write_text("changed for the release\n")
 
     with TestClient(bridge.app) as client:
         resolved = client.get("/repos/default/custom/release-flow").json()

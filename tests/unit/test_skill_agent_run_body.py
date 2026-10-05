@@ -38,7 +38,7 @@ def test_run_body_success_writes_state_idle(monkeypatch, tmp_path):
     _stub_claude_on_path(monkeypatch)
 
     async def run_body(agent, workspace, repo_id, on_output):
-        (tmp_path / f"{repo_id}.json").write_text(json.dumps({"ok": True}))
+        (tmp_path / f"{repo_id}.json").write_text(json.dumps({"ok": True}), encoding="utf-8")
         return {"state": "idle", "error": None}
 
     agent = _make_agent(run_body=run_body)
@@ -56,10 +56,10 @@ def test_run_body_success_writes_state_idle(monkeypatch, tmp_path):
 def test_run_body_failure_restores_prior_artifact(monkeypatch, tmp_path):
     _stub_claude_on_path(monkeypatch)
     artifact_path = tmp_path / "job-a.json"
-    artifact_path.write_text(json.dumps({"ok": True, "prior": True}))
+    artifact_path.write_text(json.dumps({"ok": True, "prior": True}), encoding="utf-8")
 
     async def run_body(agent, workspace, repo_id, on_output):
-        artifact_path.write_text(json.dumps({"ok": False, "half-written": True}))
+        artifact_path.write_text(json.dumps({"ok": False, "half-written": True}), encoding="utf-8")
         return {"state": "error", "error": "job failed"}
 
     agent = _make_agent(run_body=run_body)
@@ -72,7 +72,7 @@ def test_run_body_failure_restores_prior_artifact(monkeypatch, tmp_path):
     state = asyncio.run(drive())
 
     assert state == {"state": "error", "error": "job failed"}
-    assert json.loads(artifact_path.read_text()) == {"ok": True, "prior": True}
+    assert json.loads(artifact_path.read_text(encoding="utf-8")) == {"ok": True, "prior": True}
 
 
 def test_run_body_result_missing_valid_artifact_is_reported_as_invalid(monkeypatch, tmp_path):

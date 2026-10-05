@@ -58,8 +58,8 @@ def test_reanalyze_preserves_stable_ids_for_unrelated_nodes(tmp_path):
     assert before_node is not None
 
     (repo / "users" / "service.py").write_text(
-        (repo / "users" / "service.py").read_text() + "\n\ndef noop():\n    pass\n"
-    )
+        (repo / "users" / "service.py").read_text(encoding="utf-8") + "\n\ndef noop():\n    pass\n"
+, encoding="utf-8")
     engine.reanalyze(["users/service.py"])
 
     after_node = engine.get_node(shared_component_id)

@@ -196,6 +196,10 @@ class SqliteGraphStore:
         self._conn.executescript(_SCHEMA)
         self._conn.commit()
 
+    def close(self) -> None:
+        with self._lock:
+            self._conn.close()
+
     @staticmethod
     def _integrity_errors(conn: sqlite3.Connection) -> list[str]:
         try:

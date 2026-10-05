@@ -71,11 +71,11 @@ def test_editing_one_file_rewrites_only_its_page_and_ancestor_indexes(repo):
 
     changed_file = repo / "billing" / "service.py"
     changed_file.write_text(
-        changed_file.read_text().replace(
+        changed_file.read_text(encoding="utf-8").replace(
             "Create an invoice for the named account.",
             "Create an invoice for the named account, updated.",
         )
-    )
+, encoding="utf-8")
     engine.reanalyze(["billing/service.py"])
     result = engine.sync_wiki(output_dir=output_dir)
     mtimes_after = {p: p.stat().st_mtime_ns for p in output_dir.rglob("*.md")}
@@ -92,15 +92,17 @@ def test_editing_one_file_updates_gaps_but_not_a_sibling_file_page(repo):
     output_dir = repo / ".codechroma" / "wiki"
     engine.sync_wiki(output_dir=output_dir)
     sibling_page = output_dir / "files" / "billing" / "reporter.md"
-    sibling_before = sibling_page.read_text()
+    sibling_before = sibling_page.read_text(encoding="utf-8")
 
     changed_file = repo / "billing" / "service.py"
-    changed_file.write_text(changed_file.read_text() + "\n\ndef helper():\n    pass\n")
+    changed_file.write_text(
+        changed_file.read_text(encoding="utf-8") + "\n\ndef helper():\n    pass\n", encoding="utf-8"
+    )
     engine.reanalyze(["billing/service.py"])
     engine.sync_wiki(output_dir=output_dir)
 
-    assert sibling_page.read_text() == sibling_before
-    assert "helper" in (output_dir / "gaps.md").read_text()
+    assert sibling_page.read_text(encoding="utf-8") == sibling_before
+    assert "helper" in (output_dir / "gaps.md").read_text(encoding="utf-8")
 
 
 def test_deleting_a_file_removes_its_page_and_updates_the_folder_index(repo):
@@ -118,7 +120,9 @@ def test_deleting_a_file_removes_its_page_and_updates_the_folder_index(repo):
 
     assert result.changed_paths == ["billing/service.py"]
     assert not page.exists()
-    assert "service" not in (output_dir / "files" / "billing" / "index.md").read_text()
+    assert "service" not in (output_dir / "files" / "billing" / "index.md").read_text(
+        encoding="utf-8"
+    )
 
 
 def test_deleting_a_folder_removes_its_whole_page_subtree(repo):
@@ -136,7 +140,9 @@ def test_deleting_a_folder_removes_its_whole_page_subtree(repo):
 
     assert "billing/models" in result.changed_paths
     assert not folder_dir.exists()
-    assert "models" not in (output_dir / "files" / "billing" / "index.md").read_text()
+    assert "models" not in (output_dir / "files" / "billing" / "index.md").read_text(
+        encoding="utf-8"
+    )
 
 
 def test_adding_a_folder_creates_pages_for_it_and_its_contents(repo):
@@ -147,13 +153,13 @@ def test_adding_a_folder_creates_pages_for_it_and_its_contents(repo):
 
     new_dir = repo / "newpkg"
     new_dir.mkdir()
-    (new_dir / "thing.py").write_text('"""A new module."""\n')
+    (new_dir / "thing.py").write_text('"""A new module."""\n', encoding="utf-8")
     engine.reanalyze(["newpkg/thing.py"])
     result = engine.sync_wiki(output_dir=output_dir)
 
     assert (output_dir / "files" / "newpkg" / "index.md").exists()
     assert (output_dir / "files" / "newpkg" / "thing.md").exists()
-    assert "newpkg" in (output_dir / "index.md").read_text()
+    assert "newpkg" in (output_dir / "index.md").read_text(encoding="utf-8")
     assert "newpkg" in result.changed_paths
 
 

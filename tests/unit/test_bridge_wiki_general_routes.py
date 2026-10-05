@@ -15,9 +15,9 @@ def _strip_code_files(repo: Path) -> None:
     """Removes sample_repo's real code, leaving only doc/config files -- nothing to document."""
     for name in ("web", "shared", "users", "billing"):
         shutil.rmtree(repo / name, ignore_errors=True)
-    (repo / "README.md").write_text("# Nothing here yet\n")
-    (repo / "package.json").write_text('{"name": "empty"}\n')
-    (repo / "config.yml").write_text("key: value\n")
+    (repo / "README.md").write_text("# Nothing here yet\n", encoding="utf-8")
+    (repo / "package.json").write_text('{"name": "empty"}\n', encoding="utf-8")
+    (repo / "config.yml").write_text("key: value\n", encoding="utf-8")
 
 
 def _manifest_json() -> str:
@@ -54,7 +54,7 @@ def test_status_defaults_to_idle_and_not_generated(bridge):
 def test_status_reports_has_wiki_general_once_the_manifest_is_valid(bridge):
     manifest_path = bridge.repo / ".codechroma" / "wiki-general" / "manifest.json"
     manifest_path.parent.mkdir(parents=True, exist_ok=True)
-    manifest_path.write_text(_manifest_json())
+    manifest_path.write_text(_manifest_json(), encoding="utf-8")
 
     with TestClient(bridge.app) as client:
         response = client.get("/repos/default/wiki-general/status")
@@ -84,7 +84,7 @@ def test_generate_clears_a_previous_runs_stale_pages(bridge, monkeypatch):
     monkeypatch.setattr("codechroma.llm.runtime_env.shutil.which", lambda _name, **_kwargs: None)
     stale = bridge.repo / ".codechroma" / "wiki-general" / "c3" / "old-component.md"
     stale.parent.mkdir(parents=True, exist_ok=True)
-    stale.write_text("stale page from a previous run")
+    stale.write_text("stale page from a previous run", encoding="utf-8")
 
     with TestClient(bridge.app) as client:
         client.post("/repos/default/wiki-general/generate")
@@ -114,7 +114,7 @@ def test_generate_does_not_clear_pages_while_already_generating(bridge, monkeypa
         client.post("/repos/default/wiki-general/generate")
         # Simulates the in-flight run having written a page of its own by now.
         live.parent.mkdir(parents=True, exist_ok=True)
-        live.write_text("written by the in-flight run")
+        live.write_text("written by the in-flight run", encoding="utf-8")
         client.post("/repos/default/wiki-general/generate")
 
     assert live.exists()
@@ -147,7 +147,7 @@ def test_generate_reports_a_plain_wiki_sync_failure_as_a_normal_error(bridge, mo
 def test_interactive_status_generating_clears_stale_pages(bridge):
     stale = bridge.repo / ".codechroma" / "wiki-general" / "c2" / "old-container.md"
     stale.parent.mkdir(parents=True, exist_ok=True)
-    stale.write_text("stale page from a previous run")
+    stale.write_text("stale page from a previous run", encoding="utf-8")
 
     with TestClient(bridge.app) as client:
         client.post("/repos/default/wiki-general/status", json={"state": "generating"})

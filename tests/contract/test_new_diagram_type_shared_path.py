@@ -62,7 +62,7 @@ def test_a_brand_new_custom_type_renders_through_the_shared_resolver_with_no_new
                 ],
             }
         )
-    )
+, encoding="utf-8")
 
     with TestClient(bridge.app) as client:
         body = client.get("/repos/default/custom/onboarding-flow").json()

@@ -61,7 +61,7 @@ def test_an_existing_builtin_type_picks_up_a_new_overlay_via_its_own_data_only(b
     diagram_path = bridge.main.diagram_artifact_path("patterns")
     diagram_path.parent.mkdir(parents=True, exist_ok=True)
     node = {"id": "billing", "name": "Billing", "kind": "infra"}
-    diagram_path.write_text(json.dumps({"nodes": [node], "relations": []}))
+    diagram_path.write_text(json.dumps({"nodes": [node], "relations": []}), encoding="utf-8")
 
     with TestClient(bridge.app) as client:
         resolved = client.get("/repos/default/patterns").json()
@@ -75,7 +75,7 @@ def test_a_brand_new_custom_type_picks_up_the_same_overlay_via_its_own_definitio
     diagram_path = diagram_json_path(bridge.repo, "custom/release-flow")
     diagram_path.parent.mkdir(parents=True, exist_ok=True)
     payload = {"nodes": [{"id": "build", "name": "Build"}], "relations": []}
-    diagram_path.write_text(json.dumps(payload))
+    diagram_path.write_text(json.dumps(payload), encoding="utf-8")
 
     with TestClient(bridge.app) as client:
         resolved = client.get("/repos/default/custom/release-flow").json()

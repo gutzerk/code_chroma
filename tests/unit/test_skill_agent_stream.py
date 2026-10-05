@@ -48,7 +48,7 @@ class _RecordingOutput:
 def _write_c1(repo_root):
     path = repo_root / BUILTIN_TYPES["c1"].artifact
     path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(json.dumps(VALID_C1))
+    path.write_text(json.dumps(VALID_C1), encoding="utf-8")
 
 
 def _tool_use(name, **tool_input):
@@ -213,7 +213,7 @@ def test_debug_log_dir_writes_the_raw_stream_to_disk(monkeypatch, tmp_path):
 
     logs = list(log_dir.glob(f"{AGENT.name}-default-*.log"))
     assert len(logs) == 1
-    assert "tool_use" in logs[0].read_text()
+    assert "tool_use" in logs[0].read_text(encoding="utf-8")
 
 
 def test_without_the_env_var_nothing_is_written_to_disk(monkeypatch, tmp_path):

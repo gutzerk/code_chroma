@@ -631,6 +631,7 @@ class WorkspaceRegistry:
         if workspace is None:
             return False
         workspace.stop_watchers()
+        workspace.engine.close()  # an open graph.db would block deleting the worktree on Windows
         return True
 
     def ensure_async(self, workspace_id: str) -> dict:

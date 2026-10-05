@@ -16,7 +16,7 @@ def _transcript(root: Path, project: str, session_id: str, cwd: str, mtime: floa
         + "\n"
         + json.dumps({"type": "user", "cwd": cwd, "sessionId": session_id})
         + "\n"
-    )
+, encoding="utf-8")
     os.utime(path, (mtime, mtime))
     return path
 
@@ -69,7 +69,7 @@ def test_a_transcript_with_no_cwd_entry_is_skipped(tmp_path):
     worktree = tmp_path / "worktrees" / "refund-flow"
     worktree.mkdir(parents=True)
     (projects / "-x").mkdir(parents=True)
-    (projects / "-x" / "no-cwd.jsonl").write_text('{"type": "mode"}\n')
+    (projects / "-x" / "no-cwd.jsonl").write_text('{"type": "mode"}\n', encoding="utf-8")
 
     assert transcripts.find_session_id(worktree, projects) is None
 

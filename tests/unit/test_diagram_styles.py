@@ -35,7 +35,7 @@ def test_dependency_graph_allows_self_relations():
 def test_web_registry_lists_the_same_style_ids():
     if not _WEB_REGISTRY.exists():
         return
-    text = _WEB_REGISTRY.read_text()
+    text = _WEB_REGISTRY.read_text(encoding="utf-8")
     web_ids = set(re.findall(r"id\s*:\s*['\"]([a-z0-9-]+)['\"]", text))
     assert set(STYLES) <= web_ids
 

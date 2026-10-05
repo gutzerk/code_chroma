@@ -18,9 +18,9 @@ def _write_tree(root: Path, components: list[dict], pages: dict[str, str]) -> No
     directory = root / ".codechroma" / "wiki-general"
     (directory / "c3").mkdir(parents=True, exist_ok=True)
     manifest = {"containers": [{"id": "backend", "name": "Backend"}], "components": components}
-    (directory / "manifest.json").write_text(json.dumps(manifest))
+    (directory / "manifest.json").write_text(json.dumps(manifest), encoding="utf-8")
     for component_id, text in pages.items():
-        (directory / "c3" / f"{component_id}.md").write_text(text)
+        (directory / "c3" / f"{component_id}.md").write_text(text, encoding="utf-8")
 
 
 def test_a_changed_path_matches_the_component_whose_page_references_it(tmp_path):
@@ -86,7 +86,7 @@ def test_a_component_with_no_page_on_disk_is_silently_skipped_not_crashed(tmp_pa
 def test_a_component_id_with_a_path_separator_never_escapes_the_c3_directory(tmp_path):
     """Manifest ids are model-written; a "../../secret" id must not read outside c3/."""
     secret = tmp_path / "secret.md"
-    secret.write_text("- File: `src/auth.py`\n")
+    secret.write_text("- File: `src/auth.py`\n", encoding="utf-8")
     _write_tree(
         tmp_path,
         [{"id": "../../secret", "name": "Escape", "container": "backend"}],

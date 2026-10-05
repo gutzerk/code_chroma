@@ -22,10 +22,10 @@ def test_explanatory_type_review_route_returns_explanation_not_severity(bridge):
     ws = bridge.main
     diagram_path = ws.diagram_artifact_path("impact")
     diagram_path.parent.mkdir(parents=True, exist_ok=True)
-    diagram_path.write_text(json.dumps(_IMPACT_DIAGRAM))
+    diagram_path.write_text(json.dumps(_IMPACT_DIAGRAM), encoding="utf-8")
     impact_changes_path(ws.root).write_text(json.dumps({
         "fingerprint": "f", "summary": "renamed", "blocks": [{"block": "billing", "before": "x"}],
-    }))
+    }), encoding="utf-8")
 
     with TestClient(bridge.app) as client:
         body = client.get("/repos/default/impact/review").json()

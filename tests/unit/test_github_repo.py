@@ -63,7 +63,7 @@ def remote(tmp_path, monkeypatch):
     work = tmp_path / "work"
     work.mkdir()
     _git(work, "init", "-q", "-b", "main")
-    (work / "a.py").write_text("x = 1\n")
+    (work / "a.py").write_text("x = 1\n", encoding="utf-8")
     _git(work, "add", ".")
     _git(work, "commit", "-qm", "one")
     _git(work, "tag", "v1")
@@ -79,12 +79,12 @@ def test_clones_into_the_managed_cache(remote, tmp_path):
     path = github_repo.open_github_repo(GithubRef("acme", "app"))
 
     assert path == (tmp_path / "cache" / "acme" / "app").resolve()
-    assert (path / "a.py").read_text() == "x = 1\n"
+    assert (path / "a.py").read_text(encoding="utf-8") == "x = 1\n"
 
 
 def test_reopening_fetches_new_commits(remote):
     github_repo.open_github_repo(GithubRef("acme", "app"))
-    (remote / "b.py").write_text("y = 2\n")
+    (remote / "b.py").write_text("y = 2\n", encoding="utf-8")
     _git(remote, "add", ".")
     _git(remote, "commit", "-qm", "two")
     _git(remote, "push", "-q", "origin", "main")
@@ -95,7 +95,7 @@ def test_reopening_fetches_new_commits(remote):
 
 
 def test_a_tag_can_be_checked_out_and_the_default_restored(remote):
-    (remote / "b.py").write_text("y = 2\n")
+    (remote / "b.py").write_text("y = 2\n", encoding="utf-8")
     _git(remote, "add", ".")
     _git(remote, "commit", "-qm", "two")
     _git(remote, "push", "-q", "origin", "main")
@@ -124,7 +124,7 @@ def test_a_custom_clone_dir_is_used(remote, tmp_path):
 def test_a_non_git_directory_is_never_overwritten(remote, tmp_path):
     target = tmp_path / "busy"
     target.mkdir()
-    (target / "keep.txt").write_text("hi")
+    (target / "keep.txt").write_text("hi", encoding="utf-8")
 
     with pytest.raises(GithubRepoError, match="not a git checkout"):
         github_repo.open_github_repo(GithubRef("acme", "app"), target)

@@ -30,7 +30,7 @@ def _load_module():
 
 def _run_json(tmp_path, diagram, *extra_args):
     path = tmp_path / "impact.json"
-    path.write_text(json.dumps(diagram))
+    path.write_text(json.dumps(diagram), encoding="utf-8")
     return subprocess.run(
         [sys.executable, str(SCRIPT), "--kind", "impact", "--json", str(path), *extra_args],
         capture_output=True,

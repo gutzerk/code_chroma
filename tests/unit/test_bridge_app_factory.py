@@ -10,7 +10,9 @@ from fastapi.testclient import TestClient
 
 def test_two_apps_serve_their_own_repositories(make_repo, make_bridge):
     first = make_repo(name="first")
-    second = make_repo(lambda repo: (repo / "only_here.py").write_text("x = 1\n"), name="second")
+    second = make_repo(
+        lambda repo: (repo / "only_here.py").write_text("x = 1\n", encoding="utf-8"), name="second"
+    )
 
     one = TestClient(make_bridge(first).app)
     two = TestClient(make_bridge(second).app)

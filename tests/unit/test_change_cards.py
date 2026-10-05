@@ -51,7 +51,9 @@ def _cards_for(payload: dict, node_id: str) -> list[dict]:
 
 def test_an_edited_function_pins_to_its_own_node(repo, engine):
     path = repo / "shared" / "text_utils.py"
-    path.write_text(path.read_text().replace('" ", "-"', '" ", "_"'))
+    path.write_text(
+        path.read_text(encoding="utf-8").replace('" ", "-"', '" ", "_"'), encoding="utf-8"
+    )
     _reanalyze(engine, "shared/text_utils.py")
 
     payload = build_change_cards(engine, repo)
@@ -67,7 +69,9 @@ def test_an_edited_function_pins_to_its_own_node(repo, engine):
 
 def test_the_line_counts_describe_the_edit(repo, engine):
     path = repo / "shared" / "text_utils.py"
-    path.write_text(path.read_text().replace('" ", "-"', '" ", "_"'))
+    path.write_text(
+        path.read_text(encoding="utf-8").replace('" ", "-"', '" ", "_"'), encoding="utf-8"
+    )
     _reanalyze(engine, "shared/text_utils.py")
 
     payload = build_change_cards(engine, repo)
@@ -78,9 +82,11 @@ def test_the_line_counts_describe_the_edit(repo, engine):
 
 def test_two_deleted_methods_share_their_class_block_and_the_count_shows_it(repo, engine):
     path = repo / "users" / "service.py"
-    source = path.read_text()
+    source = path.read_text(encoding="utf-8")
     kept = source.split("    def create_user")[0] + source.split("def list_active_users")[1]
-    path.write_text(kept.replace("(service: UserService) -> list:", "() -> list:"))
+    path.write_text(
+        kept.replace("(service: UserService) -> list:", "() -> list:"), encoding="utf-8"
+    )
     _reanalyze(engine, "users/service.py")
 
     payload = build_change_cards(engine, repo)
@@ -98,7 +104,9 @@ def test_two_deleted_methods_share_their_class_block_and_the_count_shows_it(repo
 
 def test_a_deleted_module_level_function_lands_on_its_file(repo, engine):
     path = repo / "users" / "service.py"
-    path.write_text(path.read_text().split("def list_active_users")[0])
+    path.write_text(
+        path.read_text(encoding="utf-8").split("def list_active_users")[0], encoding="utf-8"
+    )
     _reanalyze(engine, "users/service.py")
 
     payload = build_change_cards(engine, repo)
@@ -113,7 +121,9 @@ def test_a_deleted_module_level_function_lands_on_its_file(repo, engine):
 
 def test_a_deleted_function_is_named_and_marked_delete(repo, engine):
     path = repo / "users" / "service.py"
-    path.write_text(path.read_text().split("def list_active_users")[0])
+    path.write_text(
+        path.read_text(encoding="utf-8").split("def list_active_users")[0], encoding="utf-8"
+    )
     _reanalyze(engine, "users/service.py")
 
     payload = build_change_cards(engine, repo)
@@ -125,7 +135,9 @@ def test_a_deleted_function_is_named_and_marked_delete(repo, engine):
 
 def test_by_node_status_reports_added_for_a_new_file(repo, engine):
     (repo / "refunds").mkdir()
-    (repo / "refunds" / "service.py").write_text("def issue_refund():\n    return 1\n")
+    (repo / "refunds" / "service.py").write_text(
+        "def issue_refund():\n    return 1\n", encoding="utf-8"
+    )
     _reanalyze(engine, "refunds/service.py")
 
     payload = build_change_cards(engine, repo)
@@ -136,9 +148,11 @@ def test_by_node_status_reports_added_for_a_new_file(repo, engine):
 
 def test_by_node_status_translates_deleted_cards_to_removed(repo, engine):
     path = repo / "users" / "service.py"
-    source = path.read_text()
+    source = path.read_text(encoding="utf-8")
     kept = source.split("    def create_user")[0] + source.split("def list_active_users")[1]
-    path.write_text(kept.replace("(service: UserService) -> list:", "() -> list:"))
+    path.write_text(
+        kept.replace("(service: UserService) -> list:", "() -> list:"), encoding="utf-8"
+    )
     _reanalyze(engine, "users/service.py")
 
     payload = build_change_cards(engine, repo)
@@ -149,7 +163,9 @@ def test_by_node_status_translates_deleted_cards_to_removed(repo, engine):
 
 def test_by_node_status_is_modified_for_an_edited_function(repo, engine):
     path = repo / "shared" / "text_utils.py"
-    path.write_text(path.read_text().replace('" ", "-"', '" ", "_"'))
+    path.write_text(
+        path.read_text(encoding="utf-8").replace('" ", "-"', '" ", "_"'), encoding="utf-8"
+    )
     _reanalyze(engine, "shared/text_utils.py")
 
     payload = build_change_cards(engine, repo)
@@ -168,7 +184,9 @@ def test_by_node_status_collapses_a_mixed_kind_node_to_modified():
 
 def test_a_new_file_in_a_new_directory_pins_to_the_nearest_existing_folder(repo, engine):
     (repo / "refunds").mkdir()
-    (repo / "refunds" / "service.py").write_text("def issue_refund():\n    return 1\n")
+    (repo / "refunds" / "service.py").write_text(
+        "def issue_refund():\n    return 1\n", encoding="utf-8"
+    )
     _reanalyze(engine, "refunds/service.py")
 
     payload = build_change_cards(engine, repo)
@@ -179,7 +197,7 @@ def test_a_new_file_in_a_new_directory_pins_to_the_nearest_existing_folder(repo,
 
 
 def test_a_changed_markdown_file_is_a_card_not_a_silent_drop(repo, engine):
-    (repo / "README.md").write_text("# Sample\n\nTwo lines.\n")
+    (repo / "README.md").write_text("# Sample\n\nTwo lines.\n", encoding="utf-8")
 
     payload = build_change_cards(engine, repo)
 
@@ -201,7 +219,7 @@ def test_a_changed_binary_file_is_carded_without_pretending_to_count_lines(repo,
 
 
 def test_a_deleted_non_code_file_still_gets_a_card(repo, engine):
-    (repo / "NOTES.md").write_text("notes\n")
+    (repo / "NOTES.md").write_text("notes\n", encoding="utf-8")
     _git(repo, "add", "-A")
     _git(repo, "commit", "-m", "notes")
     (repo / "NOTES.md").unlink()
@@ -223,7 +241,9 @@ def test_nothing_changed_means_no_cards_but_a_resolved_base(repo, engine):
 
 def test_an_unreachable_base_says_so_instead_of_reporting_an_empty_change_set(repo, engine):
     path = repo / "shared" / "text_utils.py"
-    path.write_text(path.read_text().replace('" ", "-"', '" ", "_"'))
+    path.write_text(
+        path.read_text(encoding="utf-8").replace('" ", "-"', '" ", "_"'), encoding="utf-8"
+    )
 
     payload = build_change_cards(engine, repo, base="refs/heads/no-such-branch")
 
@@ -250,7 +270,7 @@ def test_our_own_graph_db_is_out_of_scope_rather_than_a_change(repo, engine):
 
 def test_a_change_the_graph_has_no_node_for_is_reported_not_dropped(repo):
     empty = GraphEngine(summarizer=AISummarizer())
-    (repo / "README.md").write_text("# Sample\n")
+    (repo / "README.md").write_text("# Sample\n", encoding="utf-8")
 
     payload = build_change_cards(empty, repo)
 
@@ -265,7 +285,9 @@ def test_a_committed_change_still_shows_against_an_earlier_base(repo, engine):
     base = subprocess.run(
         ["git", "rev-parse", "HEAD"], cwd=repo, capture_output=True, text=True
     ).stdout.strip()
-    path.write_text(path.read_text().replace('" ", "-"', '" ", "_"'))
+    path.write_text(
+        path.read_text(encoding="utf-8").replace('" ", "-"', '" ", "_"'), encoding="utf-8"
+    )
     _git(repo, "commit", "-am", "tweak the slug separator")
     _reanalyze(engine, "shared/text_utils.py")
 
@@ -276,7 +298,9 @@ def test_a_committed_change_still_shows_against_an_earlier_base(repo, engine):
 
 def test_every_card_carries_the_plan_step_fields_the_canvas_renders(repo, engine):
     path = repo / "shared" / "text_utils.py"
-    path.write_text(path.read_text().replace('" ", "-"', '" ", "_"'))
+    path.write_text(
+        path.read_text(encoding="utf-8").replace('" ", "-"', '" ", "_"'), encoding="utf-8"
+    )
     _reanalyze(engine, "shared/text_utils.py")
 
     payload = build_change_cards(engine, repo)

@@ -36,7 +36,7 @@ def _write_prs(repo: Path, worktree: str) -> None:
     (repo / ".codechroma").mkdir(exist_ok=True)
     (repo / ".codechroma" / "prs.json").write_text(
         json.dumps({"version": 1, "prs": [{**PR_ENTRY, "worktree": worktree}]})
-    )
+, encoding="utf-8")
 
 
 @pytest.fixture
@@ -51,7 +51,7 @@ def repo_with_open_pr(tmp_path, monkeypatch):
     _git(repo, "commit", "-m", "initial")
     pr_root = repo / ".codechroma" / "worktrees" / "pr-12"
     pr_root.mkdir(parents=True)
-    (pr_root / "marker.py").write_text("value = 1\n")
+    (pr_root / "marker.py").write_text("value = 1\n", encoding="utf-8")
     _write_prs(repo, str(pr_root))
     monkeypatch.setenv("codechroma_WORKSPACES_DIR", str(tmp_path / "elsewhere"))
     return repo, pr_root
@@ -105,7 +105,7 @@ def test_an_active_pull_request_survives_the_restart(repo_with_open_pr, make_bri
     repo, _pr_root = repo_with_open_pr
     (repo / ".codechroma" / "agents.json").write_text(
         json.dumps({"version": 1, "agents": [], "active_workspace": "pr-12"})
-    )
+, encoding="utf-8")
 
     bridge = make_bridge(repo)
 
@@ -119,7 +119,7 @@ def test_an_active_workspace_that_no_longer_exists_falls_back_to_main(tmp_path, 
     (repo / ".codechroma").mkdir(exist_ok=True)
     (repo / ".codechroma" / "agents.json").write_text(
         json.dumps({"version": 1, "agents": [], "active_workspace": "pr-99"})
-    )
+, encoding="utf-8")
 
     bridge = make_bridge(repo)
 

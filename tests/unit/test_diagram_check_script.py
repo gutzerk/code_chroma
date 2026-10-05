@@ -28,7 +28,7 @@ def _load_module():
 
 def _run(tmp_path, kind, diagram, *extra):
     path = tmp_path / f"{kind}.json"
-    path.write_text(json.dumps(diagram))
+    path.write_text(json.dumps(diagram), encoding="utf-8")
     argv = [sys.executable, str(SCRIPT), "--kind", kind, "--json", str(path), *extra]
     if kind == "custom":
         argv[4:4] = ["--type", "flow"]
@@ -50,7 +50,7 @@ def _markdown_budgets():
     """The budget table in drawing-rules.md, parsed back into the shape `_BUDGETS` has."""
     rows = re.findall(
         r"^\|\s*(c1|patterns|impact|epics|custom|sequence)\s*\|(.+)\|\s*$",
-        RULES.read_text(),
+        RULES.read_text(encoding="utf-8"),
         re.M,
     )
     columns = ("max_nodes", "max_relations", "max_name_chars", "max_edge_label_chars")

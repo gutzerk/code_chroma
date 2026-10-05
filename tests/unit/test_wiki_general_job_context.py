@@ -8,7 +8,7 @@ from codechroma.config import Settings, WikiContextConfig
 
 def _write(path: Path, text: str) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(text)
+    path.write_text(text, encoding="utf-8")
 
 
 def test_a_single_sentence_bullet_doc_is_left_unchanged():

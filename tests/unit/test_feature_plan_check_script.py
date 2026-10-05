@@ -17,7 +17,7 @@ SCRIPT = (
 
 def _run(tmp_path, diagram, *extra):
     path = tmp_path / "plan.json"
-    path.write_text(json.dumps(diagram))
+    path.write_text(json.dumps(diagram), encoding="utf-8")
     return subprocess.run(
         [sys.executable, str(SCRIPT), "--kind", "feature-plan", "--slug", "token-auth",
          "--json", str(path), *extra],

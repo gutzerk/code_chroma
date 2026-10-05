@@ -30,10 +30,10 @@ def repo(tmp_path):
     _git(root, "init", "-b", "main")
     _git(root, "config", "user.email", "test@example.com")
     _git(root, "config", "user.name", "Test")
-    (root / "kept.py").write_text("value = 1\n")
-    (root / "edited.py").write_text("value = 2\n")
-    (root / "removed.py").write_text("value = 3\n")
-    (root / "renamed.py").write_text("value = 4\n")
+    (root / "kept.py").write_text("value = 1\n", encoding="utf-8")
+    (root / "edited.py").write_text("value = 2\n", encoding="utf-8")
+    (root / "removed.py").write_text("value = 3\n", encoding="utf-8")
+    (root / "renamed.py").write_text("value = 4\n", encoding="utf-8")
     _git(root, "add", "-A")
     _git(root, "commit", "-m", "initial")
     return root
@@ -49,15 +49,15 @@ def _both_ways(root: Path) -> tuple[dict, dict]:
 
 
 def _modify(root: Path) -> None:
-    (root / "edited.py").write_text("value = 99\n")
+    (root / "edited.py").write_text("value = 99\n", encoding="utf-8")
 
 
 def _add_untracked(root: Path) -> None:
-    (root / "brand_new.py").write_text("value = 5\n")
+    (root / "brand_new.py").write_text("value = 5\n", encoding="utf-8")
 
 
 def _add_staged(root: Path) -> None:
-    (root / "staged_new.py").write_text("value = 6\n")
+    (root / "staged_new.py").write_text("value = 6\n", encoding="utf-8")
     _git(root, "add", "staged_new.py")
 
 

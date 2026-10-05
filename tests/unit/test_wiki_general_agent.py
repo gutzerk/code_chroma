@@ -80,7 +80,7 @@ def test_a_real_code_symbol_alongside_yaml_and_doc_symbols_still_counts(tmp_path
 
 def test_an_unparsed_source_file_on_disk_counts_even_with_no_symbols(tmp_path):
     # An unsupported-language repo has zero symbols too -- the raw-file fallback tells them apart.
-    (tmp_path / "app.kt").write_text("fun main() {}\n")
+    (tmp_path / "app.kt").write_text("fun main() {}\n", encoding="utf-8")
     ws = _ws(tmp_path)
 
     assert has_documentable_content(ws) is True
@@ -95,7 +95,7 @@ def test_a_file_inside_an_ignored_directory_alone_does_not_count(
     tmp_path, dir_name, file_name, contents
 ):
     (tmp_path / dir_name).mkdir()
-    (tmp_path / dir_name / file_name).write_text(contents)
+    (tmp_path / dir_name / file_name).write_text(contents, encoding="utf-8")
     ws = _ws(tmp_path)
 
     assert has_documentable_content(ws) is False

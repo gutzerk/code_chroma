@@ -31,7 +31,9 @@ def test_feature_attaches_to_the_id_named_in_spec_input_line():
 def test_feature_naming_no_known_id_stays_unattached(tmp_path):
     feature = tmp_path / "specs" / "999-orphan"
     feature.mkdir(parents=True)
-    (feature / "spec.md").write_text("**Input**: User description: \"no id named here\"\n")
+    (feature / "spec.md").write_text(
+        '**Input**: User description: "no id named here"\n', encoding="utf-8"
+    )
     source = SpeckitDeliverySource(tmp_path / "specs", tmp_path)
 
     stages = source.stages_for("EP-A-01-01")
@@ -44,7 +46,7 @@ def test_an_id_mentioned_only_in_prose_is_never_mistaken_for_an_attachment(tmp_p
     feature.mkdir(parents=True)
     (feature / "spec.md").write_text(
         '**Input**: User description: "no id named here"\n\nSee also EP-B-02 for background.\n'
-    )
+, encoding="utf-8")
     source = SpeckitDeliverySource(tmp_path / "specs", tmp_path)
 
     stages = source.stages_for("EP-B-02")
@@ -56,7 +58,9 @@ def test_two_features_attaching_to_one_item_both_contribute(tmp_path):
     for slug in ("100-first", "200-second"):
         feature = tmp_path / "specs" / slug
         feature.mkdir(parents=True)
-        (feature / "spec.md").write_text('**Input**: User description: "for EP-SHARED-01"\n')
+        (feature / "spec.md").write_text(
+            '**Input**: User description: "for EP-SHARED-01"\n', encoding="utf-8"
+        )
     source = SpeckitDeliverySource(tmp_path / "specs", tmp_path)
 
     stages = source.stages_for("EP-SHARED-01")
@@ -69,7 +73,7 @@ def test_most_specific_id_wins_when_a_feature_names_a_parent_and_a_child(tmp_pat
     feature.mkdir(parents=True)
     (feature / "spec.md").write_text(
         '**Input**: User description: "covers EP-PARENT-01 under EP-PARENT"\n'
-    )
+, encoding="utf-8")
     source = SpeckitDeliverySource(tmp_path / "specs", tmp_path)
 
     assert source.stages_for("EP-PARENT-01")
@@ -101,8 +105,10 @@ def test_expanding_the_tasks_stage_parses_phases_and_marker_text():
 def test_deleting_the_tasks_file_removes_its_stage(tmp_path):
     feature = tmp_path / "specs" / "001-first-story-feature"
     feature.mkdir(parents=True)
-    (feature / "spec.md").write_text('**Input**: User description: "for EP-A-01-01"\n')
-    (feature / "tasks.md").write_text("- [x] T001 one task\n")
+    (feature / "spec.md").write_text(
+        '**Input**: User description: "for EP-A-01-01"\n', encoding="utf-8"
+    )
+    (feature / "tasks.md").write_text("- [x] T001 one task\n", encoding="utf-8")
     source = SpeckitDeliverySource(tmp_path / "specs", tmp_path)
     assert {stage.kind for stage in source.stages_for("EP-A-01-01")} == {"spec", "tasks"}
 
@@ -124,10 +130,12 @@ def test_deleting_the_tasks_file_removes_its_stage(tmp_path):
 def test_new_artifact_kind_appears_then_disappears_with_its_file(tmp_path, kind, relpath, content):
     feature = tmp_path / "specs" / "001-x"
     feature.mkdir(parents=True)
-    (feature / "spec.md").write_text('**Input**: User description: "for EP-A-01-01"\n')
+    (feature / "spec.md").write_text(
+        '**Input**: User description: "for EP-A-01-01"\n', encoding="utf-8"
+    )
     artifact = feature / relpath
     artifact.parent.mkdir(parents=True, exist_ok=True)
-    artifact.write_text(content)
+    artifact.write_text(content, encoding="utf-8")
     source = SpeckitDeliverySource(tmp_path / "specs", tmp_path)
     assert kind in {stage.kind for stage in source.stages_for("EP-A-01-01")}
 
@@ -168,12 +176,12 @@ def test_widened_regex_id_does_not_spuriously_attach_across_unrelated_features(t
     first.mkdir(parents=True)
     (first / "spec.md").write_text(
         '**Input**: User description: "Implements FR-001 for EP-SHARED-01"\n'
-    )
+, encoding="utf-8")
     second = tmp_path / "specs" / "200-second"
     second.mkdir(parents=True)
     (second / "spec.md").write_text(
         '**Input**: User description: "Implements FR-002 for EP-SHARED-02"\n'
-    )
+, encoding="utf-8")
     source = SpeckitDeliverySource(tmp_path / "specs", tmp_path)
 
     stages = source.stages_for("FR-001")
@@ -234,13 +242,17 @@ def test_wrapped_bold_leadin_paragraph_joins_its_continuation_lines(tmp_path):
     # lines joined, not be cut to its first line (008-model-shaped-serving-units regression).
     feature = tmp_path / "specs" / "002-wrapped"
     feature.mkdir(parents=True)
-    (feature / "spec.md").write_text("**Input**: User description: \"for EP-C-03-03\"\n")
+    (feature / "spec.md").write_text(
+        '**Input**: User description: "for EP-C-03-03"\n', encoding="utf-8"
+    )
     continuation = (
         "**Structure Decision**: single project, extending the existing `servingunits` package in\n"
         "the application repo's Go service core. The model-hardware-fit is a cross-repo call,\n"
         "modeled as a port so nobody blocks.\n"
     )
-    (feature / "plan.md").write_text(f"## Project Structure\n\n{continuation}\n\n## Other\n")
+    (feature / "plan.md").write_text(
+        f"## Project Structure\n\n{continuation}\n\n## Other\n", encoding="utf-8"
+    )
     source = SpeckitDeliverySource(tmp_path / "specs", tmp_path)
     node_id = stage_node_id("002-wrapped", "plan")
 
@@ -261,14 +273,16 @@ def test_wrapped_checklist_task_joins_its_continuation_lines(tmp_path):
     # never cut to its first line (LMP-123 regression: T013 truncated at "reads `fits: false`,").
     feature = tmp_path / "specs" / "003-wrapped-check"
     feature.mkdir(parents=True)
-    (feature / "spec.md").write_text('**Input**: User description: "for EP-D-04-04"\n')
+    (feature / "spec.md").write_text(
+        '**Input**: User description: "for EP-D-04-04"\n', encoding="utf-8"
+    )
     task = (
         "- [ ] T013 [P] [US2] Test: every candidate undersized → every `ShapeFitResult` reads "
         "`fits: false`,\n"
         "      each with `excluded_reason`, and `AssessShapes` returns no error — in\n"
         "      `internal/modelfit/assess_shapes_test.go`\n"
     )
-    (feature / "tasks.md").write_text(f"## Phase 1\n\n{task}\n")
+    (feature / "tasks.md").write_text(f"## Phase 1\n\n{task}\n", encoding="utf-8")
     source = SpeckitDeliverySource(tmp_path / "specs", tmp_path)
     node_id = stage_node_id("003-wrapped-check", "tasks")
 
@@ -287,8 +301,12 @@ def test_wrapped_checklist_task_joins_its_continuation_lines(tmp_path):
 def test_parallel_and_story_markers_parse_from_item_text(tmp_path):
     feature = tmp_path / "specs" / "001-marked"
     feature.mkdir(parents=True)
-    (feature / "spec.md").write_text('**Input**: User description: "for EP-A-01-01"\n')
-    (feature / "tasks.md").write_text("## Phase 1\n\n- [ ] T003 [P] [US1] do the thing\n")
+    (feature / "spec.md").write_text(
+        '**Input**: User description: "for EP-A-01-01"\n', encoding="utf-8"
+    )
+    (feature / "tasks.md").write_text(
+        "## Phase 1\n\n- [ ] T003 [P] [US1] do the thing\n", encoding="utf-8"
+    )
     source = SpeckitDeliverySource(tmp_path / "specs", tmp_path)
     node_id = stage_node_id("001-marked", "tasks")
 
@@ -307,8 +325,8 @@ def test_editing_the_older_attach_source_file_invalidates_the_cache(tmp_path):
     feature.mkdir(parents=True)
     spec = feature / "spec.md"
     plan = feature / "plan.md"
-    spec.write_text('**Input**: User description: "for EP-A-01-01"\n')
-    plan.write_text('**Input**: User description: "for EP-B-02-02"\n')
+    spec.write_text('**Input**: User description: "for EP-A-01-01"\n', encoding="utf-8")
+    plan.write_text('**Input**: User description: "for EP-B-02-02"\n', encoding="utf-8")
     source = SpeckitDeliverySource(tmp_path / "specs", tmp_path)
     assert source.stages_for("EP-A-01-01")
 
@@ -318,5 +336,5 @@ def test_editing_the_older_attach_source_file_invalidates_the_cache(tmp_path):
     os.utime(plan, (spec_mtime + 10, spec_mtime + 10))
 
     # Editing only spec.md -- the older file -- must invalidate the cache and drop the stale attach.
-    spec.write_text('**Input**: User description: "no id named here"\n')
+    spec.write_text('**Input**: User description: "no id named here"\n', encoding="utf-8")
     assert source.stages_for("EP-A-01-01") == []

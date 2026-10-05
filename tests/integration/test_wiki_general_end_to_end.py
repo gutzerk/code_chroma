@@ -31,16 +31,16 @@ def _write_wiki_general_tree(repo_root: Path) -> None:
     (wiki_general / "index.md").write_text(
         "# Sample — Architecture Map\n\n## Containers\n\n"
         "- [Backend](c2/backend.md) — the backend.\n"
-    )
+, encoding="utf-8")
     (wiki_general / "c2" / "backend.md").write_text(
         "# Backend\n\n## Components\n\n- [Billing](../c3/billing.md) — billing logic.\n"
-    )
+, encoding="utf-8")
     (wiki_general / "c3" / "billing.md").write_text(
         "# Billing\n\n## Elements\n\n"
         "- **Reporter** — builds billing reports.\n"
         "  - File: `billing/reporter.go`\n"
         "- **Identity Data** — conceptual, no code reference.\n"
-    )
+, encoding="utf-8")
     manifest = {
         "generated_at": "2026-09-14T00:00:00Z",
         "containers": [{"id": "backend", "name": "Backend", "path": "c2/backend.md"}],
@@ -48,7 +48,7 @@ def _write_wiki_general_tree(repo_root: Path) -> None:
             {"id": "billing", "name": "Billing", "container": "backend", "path": "c3/billing.md"}
         ],
     }
-    (wiki_general / "manifest.json").write_text(json.dumps(manifest))
+    (wiki_general / "manifest.json").write_text(json.dumps(manifest), encoding="utf-8")
 
 
 def _respond(prompt: str, required: list[str]) -> dict:
@@ -92,7 +92,7 @@ def test_a_real_run_writes_the_tree_and_the_bridge_reports_it_ready(bridge, monk
     }
     wiki_general = bridge.repo / ".codechroma" / "wiki-general"
     assert (wiki_general / "index.md").is_file()
-    manifest = json.loads((wiki_general / "manifest.json").read_text())
+    manifest = json.loads((wiki_general / "manifest.json").read_text(encoding="utf-8"))
     assert manifest["containers"] and manifest["components"]
     first_container = manifest["containers"][0]["id"]
     first_component = manifest["components"][0]["id"]
@@ -119,7 +119,7 @@ def test_a_run_whose_worker_jobs_keep_failing_reports_that_error(bridge, monkeyp
 def test_regenerating_replaces_a_previous_manifest_that_had_gone_invalid(bridge, monkeypatch):
     manifest_path = bridge.repo / ".codechroma" / "wiki-general" / "manifest.json"
     manifest_path.parent.mkdir(parents=True, exist_ok=True)
-    manifest_path.write_text(json.dumps({"containers": [], "components": []}))
+    manifest_path.write_text(json.dumps({"containers": [], "components": []}), encoding="utf-8")
     monkeypatch.setattr(asyncio, "create_subprocess_exec", fake_worker_exec(_respond))
 
     with TestClient(bridge.app) as client:

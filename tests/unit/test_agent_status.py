@@ -17,7 +17,7 @@ SCREENS = Path(__file__).parent.parent / "fixtures" / "agent_screens"
 
 
 def screen(name: str) -> list[str]:
-    return (SCREENS / f"{name}.txt").read_text().splitlines()
+    return (SCREENS / f"{name}.txt").read_text(encoding="utf-8").splitlines()
 
 
 @pytest.fixture
@@ -107,7 +107,7 @@ def test_the_send_debounce_caps_changes_at_four_per_second(detector):
 
 def test_a_malformed_manifest_degrades_to_always_hold(tmp_path):
     broken = tmp_path / "broken.toml"
-    broken.write_text("this is not = valid = toml")
+    broken.write_text("this is not = valid = toml", encoding="utf-8")
 
     detector = StatusDetector(load_manifest(broken))
 
@@ -124,7 +124,7 @@ def test_an_unparseable_pattern_is_skipped_without_losing_the_rest(tmp_path):
     manifest = tmp_path / "partial.toml"
     manifest.write_text(
         'name = "partial"\nprocess = ["claude"]\n[blocked]\nscreen_regex = ["[unclosed", "boom"]\n'
-    )
+, encoding="utf-8")
 
     detector = StatusDetector(load_manifest(manifest))
 
@@ -150,7 +150,9 @@ def test_the_manifest_dir_resolves_under_meipass_when_frozen(monkeypatch, tmp_pa
     """A frozen app keeps data files under _MEIPASS, not beside the .py module reading them."""
     bundled = tmp_path / "codechroma_data" / "detect"
     bundled.mkdir(parents=True)
-    bundled.joinpath("claude.toml").write_text('name = "frozen"\nprocess = ["claude"]\n')
+    bundled.joinpath("claude.toml").write_text(
+        'name = "frozen"\nprocess = ["claude"]\n', encoding="utf-8"
+    )
     monkeypatch.setattr("sys.frozen", True, raising=False)
     monkeypatch.setattr("sys._MEIPASS", str(tmp_path), raising=False)
 

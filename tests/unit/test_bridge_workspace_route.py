@@ -75,7 +75,9 @@ def test_activating_an_agent_records_it_and_brings_its_graph_up(client):
 def test_an_activated_agents_canvas_reads_its_own_worktree(client):
     test_client, _repo, _server = client
     created = test_client.post("/agents", json={"title": "refund flow"}).json()
-    (Path(created["worktree"]) / "brand_new.py").write_text("def brand_new():\n    return 1\n")
+    (Path(created["worktree"]) / "brand_new.py").write_text(
+        "def brand_new():\n    return 1\n", encoding="utf-8"
+    )
     test_client.post("/workspaces/refund-flow/activate")
 
     children = test_client.get("/repos/refund-flow/nodes/root/children").json()
@@ -88,7 +90,9 @@ def test_an_activated_agents_canvas_reads_its_own_worktree(client):
 def test_the_agents_new_file_is_a_real_block_not_only_a_diff_panel(client):
     test_client, _repo, _server = client
     created = test_client.post("/agents", json={"title": "refund flow"}).json()
-    (Path(created["worktree"]) / "brand_new.py").write_text("def brand_new():\n    return 1\n")
+    (Path(created["worktree"]) / "brand_new.py").write_text(
+        "def brand_new():\n    return 1\n", encoding="utf-8"
+    )
     test_client.post("/workspaces/refund-flow/activate")
 
     node = test_client.get("/repos/refund-flow/nodes/component::brand_new.py").json()

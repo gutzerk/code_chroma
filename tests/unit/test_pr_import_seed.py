@@ -11,7 +11,7 @@ from codechroma.config import RequirementsConfig, Settings
 def _write(root: Path, relative: str, content: str = "{}") -> Path:
     path = root / relative
     path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(content)
+    path.write_text(content, encoding="utf-8")
     return path
 
 
@@ -50,7 +50,9 @@ def test_seed_copies_canvas_doc_so_a_read_only_pr_can_show_its_hierarchy_box(tmp
 
     seed_diagrams_from_main(pr, main)
 
-    assert (pr / ".codechroma/canvas-core.json").read_text() == '{"elements": {"root": {}}}'
+    assert (pr / ".codechroma/canvas-core.json").read_text(
+        encoding="utf-8"
+    ) == '{"elements": {"root": {}}}'
 
 
 def test_seed_does_not_overwrite_a_pr_canvas_doc_that_already_exists(tmp_path):
@@ -60,7 +62,7 @@ def test_seed_does_not_overwrite_a_pr_canvas_doc_that_already_exists(tmp_path):
 
     seed_diagrams_from_main(pr, main)
 
-    assert (pr / ".codechroma/canvas-core.json").read_text() == "PR-VERSION"
+    assert (pr / ".codechroma/canvas-core.json").read_text(encoding="utf-8") == "PR-VERSION"
 
 
 def test_seed_does_not_copy_dead_layout_files(tmp_path):
@@ -92,7 +94,9 @@ def test_seed_does_not_overwrite_a_pr_artifact_that_already_exists(tmp_path):
 
     seed_diagrams_from_main(pr, main)
 
-    assert (pr / ".codechroma/diagrams/patterns/patterns.json").read_text() == "PR-VERSION"
+    assert (pr / ".codechroma/diagrams/patterns/patterns.json").read_text(
+        encoding="utf-8"
+    ) == "PR-VERSION"
 
 
 def test_seed_writes_only_the_canvas_when_main_has_no_diagrams(tmp_path):
@@ -148,7 +152,7 @@ def test_seed_writes_a_root_block_when_main_has_no_canvas_of_its_own(tmp_path):
 
     seed_diagrams_from_main(target, main)
 
-    saved = json.loads((target / ".codechroma" / "canvas-core.json").read_text())
+    saved = json.loads((target / ".codechroma" / "canvas-core.json").read_text(encoding="utf-8"))
     assert [e["render"] for e in saved["elements"].values()] == ["hierarchy"]
 
 
@@ -167,7 +171,7 @@ def test_seed_canvas_doc_alone_leaves_the_prs_own_requirements_source_untouched(
 
     pr_import_seed.seed_canvas_doc(pr, main)
 
-    assert (pr / "plan/epics/roadmap.md").read_text() == "PR-VERSION"
+    assert (pr / "plan/epics/roadmap.md").read_text(encoding="utf-8") == "PR-VERSION"
 
 
 def test_seed_canvas_doc_is_a_no_op_when_the_pr_root_is_main(tmp_path):
@@ -175,4 +179,6 @@ def test_seed_canvas_doc_is_a_no_op_when_the_pr_root_is_main(tmp_path):
 
     pr_import_seed.seed_canvas_doc(main, main)
 
-    assert (main / ".codechroma/canvas-core.json").read_text() == '{"elements": {"root": {}}}'
+    assert (main / ".codechroma/canvas-core.json").read_text(
+        encoding="utf-8"
+    ) == '{"elements": {"root": {}}}'

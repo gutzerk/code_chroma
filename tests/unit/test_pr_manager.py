@@ -71,7 +71,7 @@ def test_unknown_keys_on_disk_are_dropped(tmp_path):
     path.parent.mkdir(parents=True)
     path.write_text(
         json.dumps({"version": 1, "prs": [{"number": 12, "worktree": "/wt", "kind": "pr"}]})
-    )
+, encoding="utf-8")
 
     loaded = PrManager(tmp_path / "repo")
 
@@ -95,7 +95,7 @@ def test_unknown_keys_on_disk_are_dropped(tmp_path):
 def test_an_untrustworthy_entry_is_skipped(tmp_path, entry):
     path = tmp_path / "repo" / ".codechroma" / "prs.json"
     path.parent.mkdir(parents=True)
-    path.write_text(json.dumps({"version": 1, "prs": [entry]}))
+    path.write_text(json.dumps({"version": 1, "prs": [entry]}), encoding="utf-8")
 
     loaded = PrManager(tmp_path / "repo")
 
@@ -105,7 +105,7 @@ def test_an_untrustworthy_entry_is_skipped(tmp_path, entry):
 def test_a_malformed_registry_file_degrades_to_no_reviews(tmp_path):
     path = tmp_path / "repo" / ".codechroma" / "prs.json"
     path.parent.mkdir(parents=True)
-    path.write_text("{ not json")
+    path.write_text("{ not json", encoding="utf-8")
 
     loaded = PrManager(tmp_path / "repo")
 
@@ -167,7 +167,7 @@ def test_reconcile_leaves_a_present_worktree_alone(manager, tmp_path):
 def test_reconcile_backfills_canvas_doc_for_a_pr_imported_before_seeding_existed(manager, tmp_path):
     canvas = tmp_path / "repo" / ".codechroma" / "canvas-core.json"
     canvas.parent.mkdir(parents=True)
-    canvas.write_text('{"elements": {"root": {}}}')
+    canvas.write_text('{"elements": {"root": {}}}', encoding="utf-8")
     present = tmp_path / "present"
     present.mkdir()
     manager.upsert(_record(12, str(present)))
@@ -175,7 +175,7 @@ def test_reconcile_backfills_canvas_doc_for_a_pr_imported_before_seeding_existed
     manager.reconcile()
 
     canvas_core = present / ".codechroma" / "canvas-core.json"
-    assert canvas_core.read_text() == '{"elements": {"root": {}}}'
+    assert canvas_core.read_text(encoding="utf-8") == '{"elements": {"root": {}}}'
 
 
 def test_the_payload_carries_the_id_and_the_runtime_flag(manager, tmp_path):
@@ -191,7 +191,7 @@ def test_the_payload_carries_the_id_and_the_runtime_flag(manager, tmp_path):
 def test_the_registry_never_records_the_active_workspace(manager, tmp_path):
     manager.upsert(_record(12, str(tmp_path / "wt")))
 
-    written = json.loads(manager.registry_path.read_text())
+    written = json.loads(manager.registry_path.read_text(encoding="utf-8"))
 
     assert set(written) == {"version", "prs"}
 
@@ -221,7 +221,7 @@ def test_a_malformed_comments_field_degrades_to_empty(tmp_path):
         json.dumps(
             {"version": 1, "prs": [{"number": 12, "worktree": "/wt", "review_comments": "nope"}]}
         )
-    )
+, encoding="utf-8")
 
     loaded = PrManager(tmp_path / "repo")
 

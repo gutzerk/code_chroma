@@ -34,7 +34,9 @@ def client(tmp_path, monkeypatch, make_bridge):
 
 def _edit_slugify(repo: Path) -> None:
     path = repo / "shared" / "text_utils.py"
-    path.write_text(path.read_text().replace('" ", "-"', '" ", "_"'))
+    path.write_text(
+        path.read_text(encoding="utf-8").replace('" ", "-"', '" ", "_"'), encoding="utf-8"
+    )
 
 
 def test_no_changes_gives_an_empty_but_resolved_payload(client):

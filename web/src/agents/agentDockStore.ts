@@ -2,14 +2,36 @@ import { useSyncExternalStore } from "react";
 import { Store } from "../state/createStore";
 
 const EMPTY: readonly string[] = [];
+const COLLAPSED_STORAGE_KEY = "codechroma.agentDockCollapsed";
+
+function readCollapsed(): boolean {
+  try {
+    return window.localStorage.getItem(COLLAPSED_STORAGE_KEY) === "true";
+  } catch {
+    return false;
+  }
+}
 
 class AgentDockStore extends Store {
   private agentIds: readonly string[] = EMPTY;
   private activeAgentId: string | null = null;
+  private collapsed = readCollapsed();
 
   getAgentIds = (): readonly string[] => this.agentIds;
 
   getActiveAgentId = (): string | null => this.activeAgentId;
+
+  getIsCollapsed = (): boolean => this.collapsed;
+
+  toggleCollapsed = (): void => {
+    this.collapsed = !this.collapsed;
+    try {
+      window.localStorage.setItem(COLLAPSED_STORAGE_KEY, String(this.collapsed));
+    } catch {
+      // The panel remains usable when browser storage is unavailable.
+    }
+    this.emit();
+  };
 
   attach = (id: string): void => {
     if (this.agentIds.includes(id)) {
@@ -49,6 +71,7 @@ class AgentDockStore extends Store {
   reset = (): void => {
     this.agentIds = EMPTY;
     this.activeAgentId = null;
+    this.collapsed = readCollapsed();
     this.emit();
   };
 }
@@ -61,4 +84,8 @@ export function useDockedAgentIds(): readonly string[] {
 
 export function useActiveDockedAgentId(): string | null {
   return useSyncExternalStore(agentDockStore.subscribe, agentDockStore.getActiveAgentId);
+}
+
+export function useIsAgentDockCollapsed(): boolean {
+  return useSyncExternalStore(agentDockStore.subscribe, agentDockStore.getIsCollapsed);
 }

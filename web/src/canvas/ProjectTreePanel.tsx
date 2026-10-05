@@ -8,14 +8,12 @@ const DEFAULT_WIDTH = 240;
 const MIN_WIDTH = 180;
 
 /**
- * IDE-style project tree side panel. Reuses the same `TreeNode` renderer (and through it the shared
- * ExpansionStore + useNodeChildren lazy fetch) as the canvas tree strategy, so expanding a node
- * here expands it on the canvas too and vice versa — one source of truth for hierarchy state.
+ * IDE-style project tree side panel. Reuses `TreeNode` and its shared ExpansionStore/lazy children;
+ * the hierarchy layer on the diagrams canvas is collapsed by default.
  *
- * Renders the same root node RootCanvas already owns (fetched once there and shared here as a prop),
- * so the sidebar never issues its own getNode. The concrete on-canvas framing lives in RootCanvas
- * (which owns the CanvasViewport), passed down as `onActivate` and invoked on a row click — so the
- * sidebar acts as a navigational index over the same hierarchy the canvas shows.
+ * Renders the root node RootCanvas already owns (fetched once there and shared here as a prop), so
+ * the sidebar never issues its own getNode. `onActivate` is owned by RootCanvas, which may frame a
+ * corresponding canvas element when one is present.
  *
  * Resizable via the shared ResizableRail (right-edge handle, like the inspector); dragging it wider
  * reveals more of a row's name. Clicking a code-capable row opens it in the sibling code sidebar via

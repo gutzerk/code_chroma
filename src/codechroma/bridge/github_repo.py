@@ -21,6 +21,7 @@ from codechroma.bridge.git_cmd import run_git
 from codechroma.bridge.git_long import (
     REASON_NOT_RUNNABLE,
     REASON_TIMED_OUT,
+    TIMEOUT_ENV_VAR,
     GitLongError,
     run_git_long,
 )
@@ -72,6 +73,8 @@ def parse_github_ref(raw: object, ref: str | None = None) -> GithubRef:
             "optionally owner/repo@branch"
         )
     chosen = (ref or "").strip() or inline_ref
+    if chosen and chosen.startswith("-"):
+        raise GithubRepoError(f"'{chosen}' is not a valid branch, tag or commit")
     return GithubRef(match.group("owner"), match.group("repo"), chosen or None)
 
 
@@ -136,7 +139,7 @@ def _explain(exc: GitLongError, reference: GithubRef) -> str:
     if exc.reason == REASON_TIMED_OUT:
         return (
             f"Timed out talking to GitHub for {reference.slug}; check your network "
-            "or raise codechroma_GIT_LONG_TIMEOUT_SECONDS"
+            f"or raise {TIMEOUT_ENV_VAR}"
         )
     detail = str(exc).lower()
     if "not found" in detail or "does not exist" in detail:

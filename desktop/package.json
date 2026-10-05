@@ -18,13 +18,13 @@
   },
   "devDependencies": {
     "@types/node": "^26.1.1",
-    "electron": "^33.2.0",
+    "electron": "44.5.1",
     "electron-builder": "^25.1.8",
     "sharp": "^0.35.5",
     "typescript": "^5.6.3",
     "vitest": "^2.1.5"
   },
   "dependencies": {
-    "sigstore": "4.1.1"
+    "sigstore": "5.0.0"
   }
 }

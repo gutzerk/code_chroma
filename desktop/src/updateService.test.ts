@@ -41,6 +41,15 @@ describe("UpdateService", () => {
     deps.check.mockRejectedValue(new Error("Network unreachable"));
     expect((await service.check()).phase).toBe("error");
   });
+  it("explains Sigstore trust-root failures and keeps the manual fallback", async () => {
+    const { service, deps } = setup();
+    deps.download.mockRejectedValue(new Error("root was signed by 0/3 keys"));
+    await service.check();
+    expect(await service.download()).toMatchObject({
+      phase: "error",
+      error: "Release signature could not be verified (0/3 keys). The release may be unsigned or signed with outdated keys. Update manually from GitHub Releases.",
+    });
+  });
   it("keeps the cached version and suppresses retries during a rate-limit cooldown", async () => {
     const { service, deps } = setup();
     deps.check.mockRejectedValue(new GitHubRateLimitError("Rate limit. Resets in 1 minute.", Date.now() + 60_000));

@@ -79,6 +79,8 @@ def main(argv: list[str] | None = None) -> int:
     )
     args = parser.parse_args(argv)
 
+    if args.repo_path and (args.ref or args.clone_dir):
+        parser.error("--ref and --clone-dir only apply with --github")
     if args.github:
         try:
             reference = parse_github_ref(args.github, args.ref)

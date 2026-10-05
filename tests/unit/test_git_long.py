@@ -30,11 +30,10 @@ def _wait_until_gone(pid: int, wait: float = 10.0) -> bool:
             os.kill(pid, 0)
         except OSError:
             return True
-        try:
-            state = Path(f"/proc/{pid}/stat").read_text().rsplit(")", 1)[1].split()[0]
-        except (OSError, IndexError):
-            state = ""
-        if state == "Z":
+        probe = subprocess.run(
+            ["ps", "-o", "stat=", "-p", str(pid)], capture_output=True, text=True, check=False
+        )
+        if probe.stdout.strip().startswith("Z"):
             return True
         time.sleep(0.1)
     return False

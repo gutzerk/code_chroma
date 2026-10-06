@@ -91,6 +91,11 @@
   /* Font stacks. */
   --font-ui: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
   --font-mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+
+  /* "Create issue" dialog (CreateIssueDialog.tsx) — its own Figma-specced dark card, token-ized
+     per issue #88 rather than folded into the surface / accent scale above. */
+  --issue-dialog-bg: #16171c;
+  --issue-dialog-accent: #8faef2;
 }
 
 * {
@@ -5906,6 +5911,231 @@ body {
   color: var(--text-3);
   font-size: 1.15rem;
   line-height: 1.5;
+}
+
+/* "Create issue" dialog (web/src/assistant/CreateIssueDialog.tsx) — issue #88. Opened from the
+   Settings home ("Report an issue" row); same dark-card chrome as .updates-dialog (both match the
+   same Figma spec) but kept as its own class vocabulary so the two dialogs stay decoupled. */
+.issue-dialog {
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  width: 480px;
+  max-width: calc(100vw - 32px);
+  padding: 24px 28px 28px;
+  background: var(--issue-dialog-bg);
+  border: 1px solid #2b2e38;
+  border-radius: 16px;
+  color: #e8e9ec;
+  font-family: "IBM Plex Sans", var(--font-ui, system-ui, sans-serif);
+  font-size: 14px;
+  box-shadow: var(--shadow-3);
+}
+.issue-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-left: -10px;
+}
+.issue-header h2 {
+  margin: 0;
+  color: #a3a7b3;
+  font-size: 16px;
+  font-weight: 500;
+}
+.issue-back {
+  display: inline-flex;
+  flex: 0 0 44px;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  padding: 0;
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  color: #c9ccd4;
+  cursor: pointer;
+}
+.issue-back:hover {
+  background: #1e2027;
+  color: #e8e9ec;
+}
+.issue-back svg {
+  width: 20px;
+  height: 20px;
+  fill: none;
+  stroke: currentColor;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 1.8;
+}
+.issue-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.issue-field label,
+.issue-field-group-label {
+  color: #c9ccd4;
+  font-size: 13px;
+  font-weight: 500;
+}
+.issue-field input[type="text"],
+.issue-field textarea {
+  box-sizing: border-box;
+  min-height: 44px;
+  padding: 0 14px;
+  background: #1e2027;
+  border: 1px solid #343743;
+  border-radius: 10px;
+  color: #e8e9ec;
+  font: inherit;
+  font-size: 15px;
+}
+.issue-field input[type="text"]::placeholder,
+.issue-field textarea::placeholder {
+  color: #7d8190;
+}
+.issue-field textarea {
+  min-height: 150px;
+  padding: 12px 14px;
+  font-size: 14px;
+  line-height: 1.5;
+  resize: none;
+}
+.issue-field input[type="text"]:focus-visible,
+.issue-field textarea:focus-visible,
+.issue-label-pill:focus-visible,
+.issue-checkbox-row input:focus-visible,
+.issue-back:focus-visible,
+.issue-button-primary:focus-visible,
+.issue-button-secondary:focus-visible,
+.issue-button-danger:focus-visible {
+  outline: 2px solid var(--issue-dialog-accent);
+  outline-offset: 2px;
+}
+.issue-label-group {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.issue-label-pill {
+  min-height: 36px;
+  padding: 0 14px;
+  background: transparent;
+  border: 1px solid #343743;
+  border-radius: 18px;
+  color: #c9ccd4;
+  cursor: pointer;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 500;
+}
+.issue-label-pill[aria-pressed="true"] {
+  background: #1b2338;
+  border-color: var(--issue-dialog-accent);
+  color: #dce6fb;
+}
+.issue-checkbox-row {
+  display: flex;
+  align-items: center;
+  min-height: 44px;
+  gap: 10px;
+  color: #c9ccd4;
+  font-size: 14px;
+  cursor: pointer;
+}
+.issue-checkbox-row input {
+  width: 18px;
+  height: 18px;
+  accent-color: var(--issue-dialog-accent);
+}
+.issue-error {
+  margin: 0;
+  color: #f0a4a4;
+  font-size: 13px;
+  line-height: 1.45;
+}
+.issue-footer {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-top: auto;
+}
+.issue-footer-buttons {
+  display: flex;
+  gap: 10px;
+}
+.issue-button-secondary,
+.issue-button-primary,
+.issue-button-danger {
+  height: 48px;
+  border-radius: 10px;
+  cursor: pointer;
+  font: inherit;
+  font-size: 15px;
+}
+.issue-footer-buttons .issue-button-secondary {
+  flex: 1;
+}
+.issue-footer-buttons .issue-button-primary {
+  flex: 2;
+}
+.issue-button-secondary {
+  background: transparent;
+  border: 1px solid #343743;
+  color: #e8e9ec;
+  font-weight: 500;
+}
+.issue-button-primary {
+  background: var(--issue-dialog-accent);
+  border: 1px solid var(--issue-dialog-accent);
+  color: #0e1220;
+  font-weight: 600;
+}
+.issue-button-primary:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+.issue-button-danger {
+  background: var(--danger);
+  border: 1px solid var(--danger);
+  color: #fff;
+  font-weight: 600;
+}
+.issue-footer-note {
+  margin: 0;
+  color: #a3a7b3;
+  font-size: 12px;
+  text-align: center;
+}
+.issue-footer-repo {
+  font-family: "IBM Plex Mono", var(--font-mono, ui-monospace, monospace);
+}
+.issue-confirm-dialog {
+  gap: 14px;
+}
+.issue-confirm-title {
+  margin: 0;
+  color: #e8e9ec;
+  font-size: 16px;
+  font-weight: 600;
+}
+.issue-confirm-body {
+  margin: 0;
+  color: #a3a7b3;
+  font-size: 14px;
+}
+.issue-confirm-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+}
+.issue-confirm-actions button {
+  height: 40px;
+  padding: 0 16px;
 }
 
 /* The tabbed LLM dialog. Header and tab bar stay put; only the active tab's panel scrolls. */

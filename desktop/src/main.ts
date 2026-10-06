@@ -120,8 +120,11 @@ async function createShell(): Promise<Shell> {
     minHeight: 600,
     title: "CodeChroma",
     backgroundColor: "#1b1d23",
-    fullscreen: true,
   });
+  // Maximized, not `fullscreen: true` -- fullscreen drops the OS window frame entirely, so on
+  // Windows (and Linux) there's no title bar left to show the minimize/maximize/close buttons.
+  // `maximize()` keeps the normal frame and just fills the screen.
+  window.maximize();
 
   const tabBar = new WebContentsView({
     webPreferences: {

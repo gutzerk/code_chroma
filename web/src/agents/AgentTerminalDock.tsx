@@ -40,6 +40,12 @@ export function AgentTerminalDock() {
       collapsed={collapsed}
       collapsedWidth={40}
       hidden={dockedAgents.length === 0}
+      collapseToggle={{
+        collapsed,
+        onToggle: agentDockStore.toggleCollapsed,
+        ariaLabel: `${collapsed ? "Expand" : "Collapse"} docked agent panel`,
+        arrow: collapsed ? "›" : "‹",
+      }}
     >
       <div className="agent-terminal-dock-toolbar">
         {!collapsed && (
@@ -61,16 +67,6 @@ export function AgentTerminalDock() {
             ))}
           </div>
         )}
-        <button
-          type="button"
-          className="agent-terminal-dock-toggle"
-          aria-label={`${collapsed ? "Expand" : "Collapse"} docked agent panel`}
-          aria-expanded={!collapsed}
-          data-testid="agent-terminal-dock-toggle"
-          onClick={agentDockStore.toggleCollapsed}
-        >
-          <span aria-hidden="true">{collapsed ? "›" : "‹"}</span>
-        </button>
       </div>
       <div className="agent-terminal-dock-panels" hidden={collapsed}>
         {dockedAgents.map((agent) => (

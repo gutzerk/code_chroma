@@ -167,18 +167,26 @@ canvas instead of collapsing onto whichever diagram happened to carry code-backe
   layout is still do later window/panel resizes re-center.
 
   `.canvas-area` itself is `.canvas-chrome` (the context bar) stacked over `.canvas-main-row`, a flex
-  row of `.canvas-stage` (the pan/zoom viewport, with `min-width: 0` so it shrinks beside panels)
-  plus
-  `AgentRail`'s own full-height panel beside it — one card per agent (title, status/branch caption,
+  row ordered `ProjectTreePanel` → `CodeSidebar` → `AgentTerminalDock` → `.canvas-stage` (the pan/zoom
+  viewport, with `min-width: 0` so it shrinks beside panels) → `AgentRail` — the code-tree sidebar is
+  pinned at the row's outer edge (right after `.app-rail`) and every docked/floating-agent surface
+  lives to its right, on either side of the canvas. `AgentRail` is
+  its own full-height panel beside the stage — one card per agent (title, status/branch caption,
   bigger and two-line, not the icon-only rail items the name might suggest), dimmed for an agent whose
   branch main doesn't currently have checked out (see [`parallel-agents.md`](parallel-agents.md) for
   the branch-scoping rules), plus a second "Diagrams" tab for collapsing/expanding a diagram layer on
   the canvas without deleting it (also in `parallel-agents.md`). The panel always renders — even with
   neither agents nor diagrams it stays mounted (empty tabs + zero counts) so the UI never loses the
-  strip that lets the user get an agent or diagram started. The context bar control after Assistant
-  settings hides or restores this panel without closing agent windows or changing diagram visibility;
-  hiding it also closes an open code popup and code inspector. Since the left rail is
-  icon-only, `RailButton` renders the control's name as a real
+  strip that lets the user get an agent or diagram started. 🔵 There is no corner toggle button for
+  it anymore: a `SplitterHandle` (`canvas/SplitterHandle.tsx`) sits as its own always-rendered
+  `.agent-task-rail-resize-handle` flex item immediately to its left — hidden by default, it
+  highlights and reveals a small arrow button only on hover/focus (`.panel-splitter` /
+  `.panel-splitter-arrow` in `styles.css`), which is what hides or restores the panel (still without
+  closing agent windows or changing diagram visibility; hiding it also still closes an open code
+  popup and code inspector). The same `SplitterHandle` also replaced `AgentTerminalDock`'s old
+  in-toolbar toggle button: its existing resize-handle strip now doubles as the collapse/expand
+  control, so there's nothing left to click inside the dock's toolbar itself. Since the left rail is
+  icon-only, `RailButton` renders the other controls' names as a real
   `.rail-tooltip` span shown on hover after a 300ms delay — deliberately not a `title` attribute
   (native tooltips are ~1s late, OS-styled, and untestable), `aria-hidden` because `aria-label`
   already names the button, and `visibility: hidden` rather than just transparent so Playwright and

@@ -194,7 +194,7 @@ describe("AgentWindowLayer", () => {
     fireEvent.click(screen.getByTestId("agent-dock-refund-flow"));
 
     const terminal = screen.getByTestId("agent-terminal-refund-flow");
-    const toggle = screen.getByTestId("agent-terminal-dock-toggle");
+    const toggle = screen.getByTestId("agent-terminal-dock-resize-handle-arrow");
     fireEvent.click(toggle);
 
     expect(screen.getByTestId("agent-terminal-dock")).toHaveClass("agent-terminal-dock--collapsed");

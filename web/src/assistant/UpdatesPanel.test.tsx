@@ -38,6 +38,21 @@ describe("UpdatesPanel", () => {
     expect(screen.getByRole("link", { name: "Release notes on GitHub" }).getAttribute("target")).toBe("_blank");
   });
 
+  it("opens the changelog in its own window when the update has notes", async () => {
+    setup("available", { notes: "## Features\n- Faster canvas" });
+    fireEvent.click(await screen.findByRole("button", { name: "What's new in 0.7.0" }));
+    expect(screen.getByRole("dialog", { name: "What's new" })).toBeTruthy();
+    expect(screen.getByText("Faster canvas")).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "Back" }));
+    expect(await screen.findByRole("heading", { name: "Update available" })).toBeTruthy();
+  });
+
+  it("hides the changelog button when the release has no notes", async () => {
+    setup("available");
+    await screen.findByRole("heading", { name: "Update available" });
+    expect(screen.queryByRole("button", { name: /What's new/ })).toBeNull();
+  });
+
   it("shows only the current version when up to date", async () => {
     setup("up-to-date");
     expect(await screen.findByRole("heading", { name: "You're up to date" })).toBeTruthy();

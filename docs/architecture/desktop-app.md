@@ -94,7 +94,7 @@ prebuilt release and does not clone or build the repository. Run with
 process (`desktop/src/updater.ts`) queries the latest GitHub Release against `app.getVersion()`; if a
 newer version exists it raises a native Notification ("Update to vX.Y.Z available") plus a
 File → "Check for Updates…" menu item. The Settings → Updates dialog
-(`web/src/assistant/UpdatesPanel.tsx`) shows current/latest stable versions, check and download
+(`web/src/assistant/UpdatesPanel.tsx`) shows current/latest stable versions, a "What's new in X" button that opens the release's changelog (GitHub release body, carried as `UpdateInfo.notes`/`UpdateState.notes`) in a separate window, check and download
 progress, signature errors, and the explicit restart action. Its release-notes link opens in the
 system browser. The startup check only runs for packaged installs (`app.isPackaged`) so a dev run
 never hits the API. The native notification and menu actions still use a confirm dialog, then

@@ -24,6 +24,7 @@ export interface UpdateState {
   total?: number;
   error?: string;
   retryAfter?: number;
+  notes?: string;
 }
 
 /** One shared update transaction for Settings, the File menu, and release notifications. */
@@ -100,6 +101,7 @@ export class UpdateService {
         phase: this.info ? "available" : "up-to-date",
         latestVersion: this.info?.version ?? this.state.latestVersion,
         retryAfter: undefined,
+        notes: this.info?.notes,
       });
     });
   }

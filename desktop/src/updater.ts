@@ -19,6 +19,8 @@ export interface UpdateInfo {
   /** Hex SHA-256 of the installer, when the release provided a digest. */
   sha256?: string;
   downloadUrl?: string;
+  /** The release's changelog (GitHub release body), when it has one. */
+  notes?: string;
 }
 
 export class GitHubRateLimitError extends Error {
@@ -49,6 +51,7 @@ export interface AssetMatch {
 /** The subset of the release payload we read (kept loose — GitHub may add fields over time). */
 interface LatestRelease {
   tag_name?: string;
+  body?: string | null;
   assets?: ReleaseAsset[];
   draft?: boolean;
   prerelease?: boolean;
@@ -148,7 +151,13 @@ export async function checkForUpdates(
   const sha256 = asset.sha256 ?? (await sidecarHex(asset.name, release.assets ?? [], doFetch));
   // A newer asset with no reachable digest is still "an update", not "up to date": the caller must
   // surface it (a release that forgot its sidecar must not silently masquerade as current).
-  return { version, assetName: asset.name, downloadUrl: release.assets!.find(a => a.name === asset.name)!.browser_download_url, downloadPath: join(tmpdir(), safeAssetPath(asset.name)), sha256 };
+  return { version, assetName: asset.name, downloadUrl: release.assets!.find(a => a.name === asset.name)!.browser_download_url, downloadPath: join(tmpdir(), safeAssetPath(asset.name)), sha256, notes: releaseNotes(release.body) };
+}
+
+/** Trimmed release body capped at 20k chars, or undefined when empty/non-string. */
+function releaseNotes(body: unknown): string | undefined {
+  const text = typeof body === "string" ? body.trim() : "";
+  return text ? text.slice(0, 20_000) : undefined;
 }
 
 async function isRateLimitResponse(response: Response): Promise<boolean> {

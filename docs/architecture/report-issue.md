@@ -8,10 +8,9 @@ desktop app.
 
 ## Entry point
 
-`web/src/assistant/SettingsDialog.tsx`'s "Report an issue" row opens
-`web/src/assistant/CreateIssueDialog.tsx` as a third settings category, alongside "LLM" and
-"Updates" (see [`assistant-settings.md`](assistant-settings.md)) — same one-modal-at-a-time rule
-(`openCategory`), reached via the gear on the canvas chrome.
+`web/src/assistant/ReportIssueRailButton.tsx` — a button in the canvas top bar, just before the
+Games button — opens `web/src/assistant/CreateIssueDialog.tsx`. It is no longer a Settings row;
+open state lives in the button itself (mirrors `SettingsRailButton`).
 
 ## The dialog (`web/src/assistant/CreateIssueDialog.tsx`)
 
@@ -53,7 +52,7 @@ desktop app.
 - `web/src/assistant/CreateIssueDialog.test.tsx` — title-gates the submit button, single-select
   label pills, the built URL's title/body/labels query params, the appended version+OS line (and
   that it never contains a path), the success/confirm-discard states.
-- `web/src/assistant/SettingsDialog.test.tsx` — the "Report an issue" row opens/closes the dialog.
+- `web/src/assistant/ReportIssueRailButton.test.tsx` — the top-bar button opens/closes the dialog.
 
 ## Out of scope (v1)
 

@@ -12,6 +12,7 @@ import {
 import { basename, join, resolve } from "node:path";
 import { startBridge, stopBridge, type BridgeHandle } from "./bridgeProcess";
 import { resolveBridgeExecutable } from "./bridgeLocation";
+import { createProject } from "./newProject";
 import { addRecent, readRecents, recentsStorePath } from "./recentRepos";
 import { TabManager, type Tab } from "./tabManager";
 import { listWorkspacesForRepo } from "./workspaceSummaries";
@@ -427,6 +428,9 @@ function registerIpc(): void {
     listWorkspacesForRepo(repoPath),
   );
   ipcMain.handle("launcher:pick-folder", () => promptForFolder());
+  ipcMain.handle("launcher:create-project", (_event, parentDir: string, name: string) =>
+    createProject(parentDir, name),
+  );
   ipcMain.handle(
     "launcher:open-repo",
     (event, repoPath: string, workspaceId?: string) => {

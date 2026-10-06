@@ -6,6 +6,13 @@ const recentsEl = document.getElementById("recents");
 const recentsPanel = document.getElementById("recents-panel");
 const statusEl = document.getElementById("status");
 const openButton = document.getElementById("open");
+const newToggle = document.getElementById("new-toggle");
+const newForm = document.getElementById("new-form");
+const newName = document.getElementById("new-name");
+const newBrowse = document.getElementById("new-browse");
+const newLocation = document.getElementById("new-location");
+const newCreate = document.getElementById("new-create");
+let newParentDir = null;
 
 function setStatus(text, isError) {
   statusEl.textContent = text;
@@ -14,6 +21,8 @@ function setStatus(text, isError) {
 
 function setBusy(busy) {
   openButton.disabled = busy;
+  newToggle.disabled = busy;
+  newCreate.disabled = busy;
   for (const button of recentsEl.querySelectorAll("button")) {
     button.disabled = busy;
   }
@@ -81,6 +90,35 @@ openButton.addEventListener("click", async () => {
   const picked = await api.pickFolder();
   if (picked) {
     await open(picked);
+  }
+});
+
+newToggle.addEventListener("click", () => {
+  newForm.classList.toggle("hidden");
+  if (!newForm.classList.contains("hidden")) newName.focus();
+});
+
+newBrowse.addEventListener("click", async () => {
+  const picked = await api.pickFolder();
+  if (picked) {
+    newParentDir = picked;
+    newLocation.textContent = picked;
+  }
+});
+
+newForm.addEventListener("submit", async (event) => {
+  event.preventDefault();
+  if (openButton.disabled) return;
+  if (!newParentDir) {
+    setStatus("Choose where to create the project.", true);
+    return;
+  }
+  try {
+    const created = await api.createProject(newParentDir, newName.value);
+    await open(created);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    setStatus(message.replace(/^Error invoking remote method '[^']+': (Error: )?/, ""), true);
   }
 });
 

@@ -61,7 +61,7 @@ Not repo-scoped — no `Services` dependency.
 
 - `web/src/assistant/SettingsRailButton.tsx` — the gear button on the canvas chrome,
   self-contained open state (mirrors `PrRailButton`). Opens `SettingsDialog.tsx`, a category-list
-  home ("LLM", "Updates", and "Report an issue" — see
+  home ("LLM" and "Updates"; "Report an issue" is its own top-bar button — see
   [`report-issue.md`](report-issue.md)) rather than this form directly.
 - `web/src/assistant/AssistantSection.tsx` — the actual form, unchanged behavior from the old
   `SettingsDialog.tsx`: a provider dropdown (claude/codex → `cli`) and a token field (→ `api_key`),

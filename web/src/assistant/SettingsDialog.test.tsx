@@ -100,14 +100,6 @@ describe("SettingsDialog", () => {
     expect(screen.getByTestId("settings-open-updates")).toBeTruthy();
   });
 
-  it("opens Report an issue from Settings", async () => {
-    renderDialog();
-    fireEvent.click(screen.getByTestId("settings-open-issue"));
-    expect(await screen.findByTestId("create-issue-dialog")).toBeTruthy();
-    fireEvent.click(screen.getByRole("button", { name: "Back" }));
-    expect(screen.getByTestId("settings-open-issue")).toBeTruthy();
-  });
-
   it("dismisses", async () => {
     const { onDismiss } = renderDialog();
     await waitFor(() => expect(screen.getByTestId("assistant-dismiss")).toBeTruthy());

@@ -16,6 +16,7 @@ export type RailIconName =
   | "settings"
   | "report-issue"
   | "llm-providers"
+  | "updates"
   | "c1"
   | "hierarchy"
   | "layer"
@@ -176,6 +177,19 @@ const PATHS: Record<RailIconName, ReactElement> = {
       />
       <path fill="currentColor" d="M7.4 5h1.2v3.4H7.4z" />
       <circle cx="8" cy="9.7" r="0.75" fill="currentColor" />
+    </>
+  ),
+  // A down arrow inside an open ring — check for and install app updates.
+  updates: (
+    <>
+      <path
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="1.3"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        d="M13.2 8A5.2 5.2 0 1 1 11.6 4.3M13.4 2.2v2.4h-2.4M8 5.6v4.2M6.2 8.2L8 10l1.8-1.8"
+      />
     </>
   ),
   // A chip (the model) plugged into a socket — the LLM provider/call-site settings panel.

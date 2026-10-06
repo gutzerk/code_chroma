@@ -426,6 +426,52 @@ export function RootCanvas() {
   return (
     <div className="app-root" data-testid="app-root">
       <UndoManager kinds={UNDO_KINDS} />
+      {/* Row 1 of the floating-card shell: a full-width top bar above the rail, so the branch chip
+          sits at the window's true left edge and Run agent at its true right edge, instead of being
+          scoped to the canvas area beside the rail. */}
+      <div className="canvas-chrome" data-testid="app-chrome">
+        {activePr && (
+          <span className="canvas-chrome-workspace-label" data-testid="active-pr-label">
+            {`PR #${activePr.number} · ${activePr.head_ref}`}
+          </span>
+        )}
+        <BranchSwitcher />
+        <div className="canvas-chrome-spacer" />
+        <GamesMenu />
+        <div className="canvas-chrome-separator" />
+        <PrRailButton />
+        <SettingsRailButton />
+        <RailButton
+          className="agent-panel-toggle-button"
+          label={`${isAgentPanelOpen ? "Collapse" : "Expand"} agents and diagrams panel`}
+          pressed={isAgentPanelOpen}
+          ariaExpanded={isAgentPanelOpen}
+          testId="agent-panel-toggle-button"
+          onClick={() => {
+            if (isAgentPanelOpen) {
+              setCodePopupNode(null);
+              inspectorStore.close();
+            }
+            setIsAgentPanelOpen(!isAgentPanelOpen);
+          }}
+        >
+          <span aria-hidden="true">{isAgentPanelOpen ? "›" : "‹"}</span>
+        </RailButton>
+        <RailButton
+          className="agents-toggle-button"
+          label="Run agent"
+          disabled={isAtAgentCapacity || isLaunchingAgent}
+          tooltip={
+            isAtAgentCapacity
+              ? `${maxAgents} agents is the limit — close one to start another`
+              : "Attaches to the workspace you're currently viewing"
+          }
+          onClick={() => void attachAgent(agentClient, viewContext)}
+        >
+          <RailIcon name="agents" />
+          <span className="agents-toggle-label">Run agent</span>
+        </RailButton>
+      </div>
       <div className="app-body" data-testid="app-body">
         <nav className="app-rail" data-testid="app-rail" aria-label="View controls">
           <RailButton label="Zoom out" onClick={() => viewportRef.current?.zoomOut()}>
@@ -467,49 +513,6 @@ export function RootCanvas() {
           <DrawDiagramButton />
         </nav>
         <div className="canvas-area" data-testid="canvas-area">
-          <div className="canvas-chrome" data-testid="app-chrome">
-            {activePr && (
-              <span className="canvas-chrome-workspace-label" data-testid="active-pr-label">
-                {`PR #${activePr.number} · ${activePr.head_ref}`}
-              </span>
-            )}
-            <BranchSwitcher />
-            <div className="canvas-chrome-spacer" />
-            <GamesMenu />
-            <div className="canvas-chrome-separator" />
-            <PrRailButton />
-            <SettingsRailButton />
-            <RailButton
-              className="agent-panel-toggle-button"
-              label={`${isAgentPanelOpen ? "Collapse" : "Expand"} agents and diagrams panel`}
-              pressed={isAgentPanelOpen}
-              ariaExpanded={isAgentPanelOpen}
-              testId="agent-panel-toggle-button"
-              onClick={() => {
-                if (isAgentPanelOpen) {
-                  setCodePopupNode(null);
-                  inspectorStore.close();
-                }
-                setIsAgentPanelOpen(!isAgentPanelOpen);
-              }}
-            >
-              <span aria-hidden="true">{isAgentPanelOpen ? "›" : "‹"}</span>
-            </RailButton>
-            <RailButton
-              className="agents-toggle-button"
-              label="Run agent"
-              disabled={isAtAgentCapacity || isLaunchingAgent}
-              tooltip={
-                isAtAgentCapacity
-                  ? `${maxAgents} agents is the limit — close one to start another`
-                  : "Attaches to the workspace you're currently viewing"
-              }
-              onClick={() => void attachAgent(agentClient, viewContext)}
-            >
-              <RailIcon name="agents" />
-              <span className="agents-toggle-label">Run agent</span>
-            </RailButton>
-          </div>
           {/* Row for the canvas plus the agent task panel beside it — a full-height sibling of the
               canvas, not a toolbar item, so cards have room to be more than an icon and a tooltip. */}
           <div className="canvas-main-row">

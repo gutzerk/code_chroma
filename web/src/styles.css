@@ -602,9 +602,10 @@ body {
   background: rgba(255, 255, 255, 0.1);
 }
 
-/* Context bar over the canvas only — the rail and Explorer reach the window's top edge. The active
-   PR (if any) plus the branch chip sit on the left, agent controls on the right, one row. Row 1 of
-   the floating-card shell: its own rounded panel instead of a hairline rule under a flat bar. */
+/* Row 1 of the floating-card shell: a full-width top bar spanning the whole window, above the rail
+   and every other row-2 panel — its own rounded panel instead of a hairline rule under a flat bar.
+   The active PR (if any) plus the branch chip sit at the window's true left edge, agent controls at
+   its true right edge, one row. */
 .canvas-chrome {
   display: flex;
   align-items: center;

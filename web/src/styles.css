@@ -4,16 +4,41 @@
    c1/patterns) are intentionally named so each view's color story stays stable and editable in one
    place. Radii/shadows/type map the values already in use onto shared steps. */
 :root {
-  /* Surfaces — darkest (app background) to most-elevated (dropdowns/menus). */
-  --surface-0: #1b1d23; /* window / canvas background */
-  --surface-1: #16181d; /* rail, docked panels, agent task rail */
-  --surface-2: #22252e; /* blocks, cards, tiles, epic-brief blocks */
-  --surface-3: #2b2f3a; /* dropdowns, tooltips, menus, lifted tiles */
-  --surface-4: #23262e; /* window title bars */
-  --surface-inset: #131519; /* logs, terminal wells, skill output */
-  --surface-code: #1b1e26; /* text inputs, search boxes */
+  /* Soft-rounded "floating cards on dark ground" palette (restyle spec) — the window-specific
+     tiers used directly by the top bar / rail / agent panel / canvas / sidebar rules below, and
+     also aliased onto the generic --surface-N / --text-N / --accent tokens underneath so every
+     existing component re-themes for free without a per-rule rewrite. */
+  --bg-ground: #0f1115; /* window background behind the panels */
+  --bg-panel: #181b23; /* left rail, agent panel, right sidebar */
+  --bg-canvas: #151820; /* center canvas */
+  --bg-raised: #1e222c; /* cards, chips, buttons inside panels */
+  --bg-raised-2: #262b38; /* hover, active segment, counters */
+  --bg-inset: #12141a; /* terminal, switcher track */
+  --text-soft: #e9ebf2;
+  --text-muted-soft: #8b91a1;
+  --icon: #a3a9ba;
+  --accent-bg: #2b3550; /* Generate button background */
+  --success: #4ade80; /* agent status indicator */
+  --select-ring: #3b4a73; /* selected card ring */
+  --dot-grid: #262b38; /* canvas grid dots */
 
-  /* Borders — faint → strong. */
+  /* Radii for the floating-card restyle. */
+  --radius-panel: 22px;
+  --radius-card: 16px;
+  --radius-btn: 14px;
+
+  /* Surfaces — darkest (app background) to most-elevated (dropdowns/menus). */
+  --surface-0: var(--bg-ground); /* window / canvas background */
+  --surface-1: var(--bg-panel); /* rail, docked panels, agent task rail */
+  --surface-2: var(--bg-raised); /* blocks, cards, tiles, epic-brief blocks */
+  --surface-3: var(--bg-raised-2); /* dropdowns, tooltips, menus, lifted tiles */
+  --surface-4: var(--bg-raised); /* window title bars */
+  --surface-inset: var(--bg-inset); /* logs, terminal wells, skill output */
+  --surface-code: var(--bg-raised); /* text inputs, search boxes */
+
+  /* Borders — faint → strong. Kept for components outside the main-window restyle (dialogs,
+     menus) that still rely on a hairline; the restyled shell itself leans on background-shade
+     contrast instead of borders. */
   --border: #3a3f4b;
   --border-strong: #444;
   --border-subtle: #333;
@@ -23,14 +48,14 @@
   --scrollbar-thumb-active: var(--accent-muted);
 
   /* Text. */
-  --text-1: #e6e6e6; /* primary labels */
-  --text-2: #9aa0a6; /* secondary / muted */
+  --text-1: var(--text-soft); /* primary labels */
+  --text-2: var(--text-muted-soft); /* secondary / muted */
   --text-3: #6b7280; /* tertiary / de-emphasised */
   --text-invert: #0d0f14; /* text sitting on a filled accent */
   --text-strong: #c7cbd6; /* slightly dimmer-than-1 emphasis */
 
   /* Accent / primary actions. */
-  --accent: #8ab4f8;
+  --accent: #8fb0ff;
   --accent-muted: #60a5fa;
   --primary: #2f6feb;
   --link: #6ea8fe;
@@ -64,8 +89,8 @@
      trio that otherwise repeats inline. */
   --control-bg: transparent;
   --control-border: #555;
-  --control-idle: #aaa; /* glyph color */
-  --control-hover: #fff; /* glyph color on hover */
+  --control-idle: var(--icon); /* glyph color */
+  --control-hover: var(--text-soft); /* glyph color on hover */
   --control-hover-border: #888;
 
   /* Radius scale. */
@@ -89,8 +114,8 @@
   --text-lg: 1.05rem;
 
   /* Font stacks. */
-  --font-ui: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
-  --font-mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  --font-ui: "DM Sans", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
 
   /* "Create issue" dialog (CreateIssueDialog.tsx) — its own Figma-specced dark card, token-ized
      per issue #88 rather than folded into the surface / accent scale above. */
@@ -159,27 +184,41 @@ body {
   display: flex;
   flex-direction: column;
   height: 100vh;
+  box-sizing: border-box;
+  padding: 6px;
+  gap: 6px;
+  background: var(--bg-ground);
 }
 
 /* The agent launcher is the context bar's one "tonal primary" call-to-action, matching the design
    handoff's "New agent task" button — a labeled pill, not an icon-only square like the rest of the
    bar's controls. Scoped under .canvas-chrome so it outranks the plain `.canvas-chrome button` base
-   rule (one class + one type beats one class). */
+   rule (one class + one type beats one class). Fully-rounded pill, --accent fill, dark text — the
+   restyle's one "filled" control in the bar. */
 .canvas-chrome .agents-toggle-button {
   width: auto;
-  height: 34px;
+  height: 44px;
   gap: 8px;
-  padding: 0 14px;
-  background: rgba(138, 180, 248, 0.16);
-  border-color: rgba(138, 180, 248, 0.4);
-  color: var(--accent);
+  padding: 0 22px;
+  background: var(--accent);
+  color: #0f1320;
+  border-radius: var(--radius-full);
   font-weight: 600;
-  font-size: 0.8rem;
+  font-size: 0.875rem;
   white-space: nowrap;
 }
 
-.canvas-chrome .agents-toggle-button:hover {
-  background: rgba(138, 180, 248, 0.24);
+.canvas-chrome .agents-toggle-button:hover:not(:disabled) {
+  background: var(--accent);
+  filter: brightness(1.06);
+  color: #0f1320;
+}
+
+.agents-toggle-button .agents-toggle-icon {
+  width: 38px;
+  height: 38px;
+  margin-left: -4px;
+  flex-shrink: 0;
 }
 
 .agents-toggle-button .rail-icon {
@@ -193,12 +232,12 @@ body {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 0.3rem;
+  gap: 6px;
   flex-shrink: 0;
-  width: 48px;
-  padding: 0.4rem 0;
-  border-right: 1px solid var(--border-subtle);
-  background: var(--surface-1);
+  width: 46px;
+  padding: 10px 0;
+  border-radius: var(--radius-panel);
+  background: var(--bg-panel);
 }
 
 .app-rail button {
@@ -206,21 +245,21 @@ body {
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 34px;
-  height: 34px;
+  width: 44px;
+  height: 44px;
   padding: 0;
-  background: var(--surface-2);
-  border: 1px solid var(--border-strong);
-  border-radius: var(--radius-sm);
-  color: var(--text-1);
+  background: transparent;
+  border: none;
+  border-radius: var(--radius-btn);
+  color: var(--icon);
   cursor: pointer;
   font-size: var(--text-sm);
-  transition: background 120ms ease, border-color 120ms ease, color 120ms ease;
+  transition: background 120ms ease, color 120ms ease;
 }
 
 .app-rail button:hover:not(:disabled) {
-  background: var(--surface-3);
-  border-color: var(--control-hover-border);
+  background: var(--bg-raised-2);
+  color: var(--text-soft);
 }
 
 .app-rail .rail-icon {
@@ -232,9 +271,10 @@ body {
   cursor: default;
 }
 
-/* Hover label, IDE-style: escapes the 48px rail and floats over whatever is to its right, so it
+/* Hover label, IDE-style: escapes the rail and floats over whatever is to its right, so it
    needs no space of its own. `visibility` (not just opacity) carries the hidden state so it stays
-   out of hit-testing and out of the accessibility/visibility tree until hovered. */
+   out of hit-testing and out of the accessibility/visibility tree until hovered. No shadow — a
+   border-free, bg-raised-2 chip reads clearly enough against the dark ground behind it. */
 .rail-tooltip {
   position: absolute;
   left: calc(100% + 10px);
@@ -242,11 +282,9 @@ body {
   transform: translateY(-50%);
   z-index: 60;
   padding: 0.25rem 0.5rem;
-  border: 1px solid var(--border);
-  border-radius: 4px;
-  background: var(--surface-3);
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.45);
-  color: var(--text-1);
+  border-radius: 8px;
+  background: var(--bg-raised-2);
+  color: var(--text-soft);
   font-size: 0.75rem;
   line-height: 1.3;
   white-space: nowrap;
@@ -266,11 +304,13 @@ body {
   transition-delay: 300ms;
 }
 
+/* Divider between the zoom group and the panel-toggle group, per the restyle spec: a short 24px
+   hairline with its own breathing room above/below rather than the rail's base button gap. */
 .app-rail-separator {
-  width: 22px;
+  width: 24px;
   height: 1px;
-  margin: 0.2rem 0;
-  background: var(--border-subtle);
+  margin: 8px 0;
+  background: #2a2f3c;
 }
 
 /* Deliberately quieter than a control: the dot is the content, so the tile itself recedes. Scoped
@@ -289,18 +329,28 @@ body {
   border-color: var(--accent);
 }
 
-/* Bigger than the 9px base: the card itself is now bigger, and the dot is its only non-text content. */
+/* 10px per the restyle spec: the card itself is bigger, and the dot is its only non-text content. */
 .agent-rail-item .agent-led {
-  width: 12px;
-  height: 12px;
+  width: 10px;
+  height: 10px;
   flex-shrink: 0;
 }
 
+/* Branch chip — a pill like the project tab, not a bare icon+label pair floating in the bar. */
 .branch-switcher {
   position: relative;
   display: flex;
   align-items: center;
   gap: 0.35rem;
+  height: 40px;
+  padding: 0 14px 0 6px;
+  border-radius: var(--radius-full);
+  background: var(--bg-raised);
+}
+
+.branch-switcher .branch-switcher-button {
+  width: 28px;
+  height: 28px;
 }
 
 /* The current branch name beside the branch icon button — PyCharm's "Git: <branch>". Stays
@@ -308,9 +358,9 @@ body {
    shrinkable element in the bar. */
 .canvas-chrome .branch-switcher-name {
   flex-shrink: 0;
-  font-size: var(--text-xs);
+  font-size: 0.8125rem;
   color: var(--text-2);
-  font-family: var(--font-mono);
+  font-family: var(--font-ui);
   white-space: nowrap;
 }
 
@@ -554,16 +604,21 @@ body {
   background: rgba(255, 255, 255, 0.1);
 }
 
-/* Context bar over the canvas only — the rail and Explorer reach the window's top edge. The active
-   PR (if any) plus the branch chip sit on the left, agent controls on the right, one row. */
+/* Row 1 of the floating-card shell: a full-width top bar spanning the whole window, above the rail
+   and every other row-2 panel — its own rounded panel instead of a hairline rule under a flat bar.
+   The active PR (if any) plus the branch chip sit at the window's true left edge, agent controls at
+   its true right edge, one row. */
 .canvas-chrome {
   display: flex;
   align-items: center;
   gap: 0.5rem;
   flex-shrink: 0;
-  min-height: 1.9rem;
-  padding: 0.25rem 0.75rem;
-  border-bottom: 1px solid var(--border-subtle);
+  min-height: 48px;
+  padding: 0 0.375rem;
+  border-radius: var(--radius-panel);
+  background: var(--bg-panel);
+  position: relative;
+  z-index: 300;
 }
 
 /* The PR label is the only element allowed to shrink/ellipsis (a PR title can run long); everything
@@ -585,12 +640,13 @@ body {
 }
 
 /* Vertical rule between the Games control and the PR/settings group — .canvas-chrome is a
-   horizontal row, so this is the row equivalent of .app-rail-separator's horizontal line. */
+   horizontal row, so this is the row equivalent of .app-rail-separator's horizontal line. Softened
+   to match the no-harsh-border restyle. */
 .canvas-chrome-separator {
   width: 1px;
   height: 18px;
   flex-shrink: 0;
-  background: var(--border-subtle);
+  background: #2a2f3c;
 }
 
 .canvas-chrome button {
@@ -598,22 +654,22 @@ body {
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 28px;
-  height: 28px;
+  width: 44px;
+  height: 44px;
   padding: 0;
-  background: var(--surface-2);
-  border: 1px solid var(--border-strong);
-  border-radius: var(--radius-sm);
-  color: var(--text-1);
+  background: transparent;
+  border: none;
+  border-radius: var(--radius-btn);
+  color: var(--icon);
   cursor: pointer;
   font-size: var(--text-sm);
   flex-shrink: 0;
-  transition: background 120ms ease, border-color 120ms ease, color 120ms ease;
+  transition: background 120ms ease, color 120ms ease;
 }
 
 .canvas-chrome button:hover:not(:disabled) {
-  background: var(--surface-3);
-  border-color: var(--control-hover-border);
+  background: var(--bg-raised-2);
+  color: var(--text-soft);
 }
 
 .canvas-chrome .rail-icon {
@@ -638,6 +694,14 @@ body {
   left: 50%;
   top: calc(100% + 8px);
   transform: translateX(-50%);
+}
+
+/* Run agent is the rightmost control and its tooltip is wider than the button, so anchor it to the
+   button's right edge instead of centering it off-screen. */
+.canvas-chrome .agents-toggle-button .rail-tooltip {
+  left: auto;
+  right: 0;
+  transform: none;
 }
 
 /* Cards carry their title+status as visible text already, but the tooltip still names the exact
@@ -669,14 +733,18 @@ body {
 }
 
 /* Full-height dock beside the canvas (sibling in .canvas-main-row, not a .canvas-chrome toolbar
-   item) — same right-panel treatment as .inspector-panel: hairline border, matching background. */
+   item) — its own rounded floating card, like every other panel in the row, instead of a
+   hairline-bordered strip glued to the canvas. */
 .agent-task-rail {
   display: flex;
   flex-direction: column;
-  width: 240px;
+  gap: 14px;
+  width: 272px;
   flex-shrink: 0;
-  border-left: 1px solid var(--border-subtle);
-  background: var(--surface-1);
+  padding: 12px;
+  overflow: hidden;
+  border-radius: var(--radius-panel);
+  background: var(--bg-panel);
 }
 
 .agent-task-rail[hidden] {
@@ -685,44 +753,68 @@ body {
 
 /* A flex sibling of its own (not absolutely positioned inside the aside, since AgentRail fully
    unmounts-from-view via `hidden` rather than shrinking to a collapsed strip) -- always rendered at
-   the panel's left edge so there is still something to hover/click when the panel itself is hidden. */
+   the panel's left edge so there is still something to hover/click when the panel itself is hidden.
+   6px wide with -6px margins on both sides to cancel out .canvas-main-row's own 6px flex gap on
+   either side of it -- otherwise this strip would visually double that gap (6 + 10 + 6 = 22px)
+   instead of reading as the same single 6px divider every other panel boundary in the row uses. The
+   arrow button itself still pops out well past this strip on hover/focus (see .panel-splitter-arrow),
+   so the hit target and hover affordance are unaffected by shrinking the strip's resting size. */
 .agent-task-rail-resize-handle {
   position: relative;
-  flex: 0 0 10px;
-  cursor: pointer;
+  flex: 0 0 6px;
+  width: 6px;
+  margin: 0 -6px;
+  cursor: default;
 }
 
-/* Agents / Diagrams switch above the header -- same underline-tab shape as .llm-settings-tabs,
-   kept separate since this panel has its own nesting/theme (a full-height dock, not a modal). */
+/* Bigger than the shared .panel-splitter-arrow default: this is the only remaining way to
+   re-expand the agent/diagrams panel once collapsed (unlike the other panels' arrows, which are a
+   drag-resize affordance first and a collapse toggle second), so it earns a larger, easier target.
+   Still centered the same way as the shared rule (top/left 50% + translate(-50%, -50%)). */
+.agent-task-rail-resize-handle .panel-splitter-arrow,
+.agent-terminal-dock-resize-handle .panel-splitter-arrow {
+  width: 26px;
+  height: 52px;
+  border-radius: 10px;
+  font-size: 1.1rem;
+}
+
+/* AGENTS / DIAGRAMS segmented switch — a pill-shaped track with a sliding active segment,
+   replacing the old underline tabs so the dock reads as "one control", not two linked buttons. */
 .agent-task-rail-tabs {
   display: flex;
   flex: 0 0 auto;
-  border-bottom: 1px solid var(--border-subtle);
+  gap: 2px;
+  padding: 4px;
+  border-radius: 18px;
+  background: var(--bg-inset);
 }
 
 .agent-task-rail-tab {
   flex: 1 1 auto;
   appearance: none;
-  padding: 0.4rem 0.5rem;
+  height: 36px;
+  padding: 0 0.5rem;
   background: none;
   border: none;
-  border-bottom: 2px solid transparent;
-  color: var(--text-2);
+  border-radius: 14px;
+  color: var(--text-muted-soft);
   cursor: pointer;
   font: inherit;
-  font-size: 0.7rem;
+  font-size: 0.75rem;
   font-weight: 600;
-  letter-spacing: 0.03em;
+  letter-spacing: 0.06em;
   text-transform: uppercase;
+  transition: background 120ms ease, color 120ms ease;
 }
 
 .agent-task-rail-tab:hover {
-  color: var(--text-1);
+  color: var(--text-soft);
 }
 
 .agent-task-rail-tab[aria-selected="true"] {
-  border-bottom-color: var(--accent);
-  color: var(--text-1);
+  background: var(--bg-raised-2);
+  color: var(--text-soft);
 }
 
 /* `display: contents` so grouping the header+body per tab in one semantic tabpanel element doesn't
@@ -749,35 +841,39 @@ body {
   display: flex;
   align-items: center;
   gap: 0.4rem;
-  padding: 0.5rem 0.6rem;
-  border-bottom: 1px solid var(--border-subtle);
   flex-shrink: 0;
 }
 
 .agent-task-rail-label {
   flex: 1;
   min-width: 0;
-  font-size: 0.7rem;
+  font-size: 0.75rem;
   font-weight: 600;
-  color: var(--text-2);
-  letter-spacing: 0.04em;
+  color: var(--text-muted-soft);
+  letter-spacing: 0.06em;
   text-transform: uppercase;
 }
 
 .agent-task-rail-count {
-  padding: 0.05rem 0.45rem;
-  border: 1px solid var(--border-strong);
-  border-radius: 999px;
-  color: var(--text-1);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 22px;
+  height: 22px;
+  padding: 0 0.3rem;
+  border-radius: var(--radius-full);
+  background: var(--bg-raised-2);
+  color: var(--text-soft);
   font-size: 0.7rem;
   flex-shrink: 0;
 }
 
 .agent-task-rail-body {
   display: flex;
+  flex: 1 1 auto;
   flex-direction: column;
   gap: 0.4rem;
-  padding: 0.5rem;
+  min-height: 0;
   overflow-y: auto;
 }
 
@@ -790,21 +886,24 @@ body {
 }
 
 /* One agent card. No longer an icon-square rail button — a full-width block since it now lives in
-   its own panel rather than squeezed into the .canvas-chrome toolbar row. */
+   its own panel rather than squeezed into the .canvas-chrome toolbar row. No border: the card
+   itself is a distinct background shade from the panel behind it, and the selected state is an
+   inset ring rather than a border/outline. */
 .agent-rail-item {
   position: relative;
   display: flex;
   align-items: center;
   flex: 1 1 auto;
   min-width: 0;
-  gap: 10px;
-  padding: 10px 12px;
-  background: #1e2128;
-  border: 1px solid var(--border-subtle);
-  border-radius: 6px;
+  gap: 12px;
+  padding: 14px 16px;
+  background: #212633;
+  border: none;
+  border-radius: var(--radius-card);
   color: var(--text-1);
   cursor: pointer;
   text-align: left;
+  transition: background 120ms ease;
 }
 
 /* Closing an off-branch agent must never require its stuck "switch back to my branch" checkout to
@@ -841,11 +940,13 @@ body {
 }
 
 .agent-rail-item:hover {
-  border-color: #5a6070;
+  background: var(--bg-raised-2);
 }
 
+/* Selected state: an inset ring, not an outer border/outline — a 1.5px ring that sits inside the
+   card's own edge so it never nudges the card's footprint or the gap to its neighbors. */
 .agent-rail-item[aria-pressed="true"] {
-  border-color: var(--accent);
+  box-shadow: inset 0 0 0 1.5px var(--select-ring);
 }
 
 /* An agent belonging to another branch: still listed and still clickable (the click checks its branch
@@ -871,7 +972,7 @@ body {
   max-width: 100%;
   overflow: hidden;
   color: var(--text-1);
-  font-size: 0.85rem;
+  font-size: 0.9375rem;
   font-weight: 600;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -881,7 +982,7 @@ body {
   max-width: 100%;
   overflow: hidden;
   color: var(--text-2);
-  font-size: 0.75rem;
+  font-size: 0.8125rem;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
@@ -898,24 +999,24 @@ body {
 }
 
 .terminal-toggle-button[aria-pressed="true"] {
-  border-color: var(--accent);
+  background: var(--bg-raised-2);
   color: var(--accent);
 }
 
 /* The project-tree toggle highlights when the sidebar (and with it the code sidebar) is open — an
    IDE-style "explorer's open" accent. Mirrors terminal's panel-open treatment. */
 .project-tree-toggle-button[aria-pressed="true"] {
-  border-color: var(--accent);
+  background: var(--bg-raised-2);
   color: var(--accent);
 }
 
 .agents-toggle-button[aria-pressed="true"] {
-  border-color: var(--accent);
+  background: var(--bg-raised-2);
   color: var(--accent);
 }
 
 .diff-toggle-button[aria-pressed="true"] {
-  border-color: var(--added);
+  background: var(--bg-raised-2);
   color: var(--added);
 }
 
@@ -958,23 +1059,22 @@ body {
 }
 
 .trace-toggle-button[aria-pressed="true"] {
-  border-color: var(--trace);
+  background: var(--bg-raised-2);
   color: var(--trace);
 }
 
 /* The icon is green even idle, so the Games control stands out from the rest of the grey chrome
-   row at a glance. The border stays neutral until a game is actually open/running — aria-pressed
+   row at a glance. The fill stays neutral until a game is actually open/running — aria-pressed
    below lights that up too — so idle vs. running still reads as a clear on/off, not one flat look. */
 .canvas-chrome .games-menu-button {
   color: var(--games);
 }
 
 .canvas-chrome .games-menu-button:hover:not(:disabled) {
-  border-color: var(--games);
+  background: var(--bg-raised-2);
 }
 
 .games-menu-button[aria-pressed="true"] {
-  border-color: var(--games);
   background: rgba(74, 222, 128, 0.16);
 }
 
@@ -986,13 +1086,12 @@ body {
   position: absolute;
   left: 1rem;
   bottom: 1rem;
-  max-width: 32rem;
+  max-width: min(32rem, calc(100% - 2rem));
   padding: 0.4rem 0.6rem;
-  border: 1px solid var(--border);
   border-left: 3px solid #e5c07b;
-  border-radius: 6px;
-  background: rgba(24, 26, 32, 0.94);
-  color: #c8ccd4;
+  border-radius: var(--radius-card);
+  background: var(--bg-raised);
+  color: var(--text-1);
   font-size: 0.75rem;
   line-height: 1.4;
   z-index: 40;
@@ -1010,15 +1109,14 @@ body {
   left: 1rem;
   bottom: 4rem;
   display: flex;
-  max-width: 32rem;
+  max-width: min(32rem, calc(100% - 2rem));
   flex-direction: column;
   gap: 0.3rem;
   padding: 0.4rem 0.6rem;
-  border: 1px solid var(--border);
   border-left: 3px solid #d19a66;
-  border-radius: 6px;
-  background: rgba(24, 26, 32, 0.94);
-  color: #c8ccd4;
+  border-radius: var(--radius-card);
+  background: var(--bg-raised);
+  color: var(--text-1);
   font-size: 0.75rem;
   line-height: 1.4;
   z-index: 40;
@@ -1055,23 +1153,23 @@ body {
   color: var(--text-1);
 }
 
-/* Third in the bottom-left column, above .c1-coverage-note/.diagram-health-note (same screen-fixed
-   chrome contract: outside CanvasViewport, in RootCanvas, so it neither zooms nor drifts). */
+/* "Architecture wiki not created yet" banner — bottom-left, floating card (--bg-raised, 18px
+   radius), per the restyle spec. Third in the bottom-left column, above .c1-coverage-note/
+   .diagram-health-note (same screen-fixed chrome contract: outside CanvasViewport, in RootCanvas,
+   so it neither zooms nor drifts). */
 .wiki-general-notice {
   position: absolute;
-  left: 1rem;
-  bottom: 7rem;
+  left: 20px;
+  bottom: 20px;
   display: flex;
   align-items: center;
   gap: 0.6rem;
-  max-width: 32rem;
-  padding: 0.4rem 0.6rem;
-  border: 1px solid var(--border);
-  border-left: 3px solid #61afef;
-  border-radius: 6px;
-  background: rgba(24, 26, 32, 0.94);
-  color: #c8ccd4;
-  font-size: 0.75rem;
+  max-width: min(32rem, calc(100% - 2rem));
+  padding: 8px 8px 8px 18px;
+  border-radius: 18px;
+  background: var(--bg-raised);
+  color: var(--text-1);
+  font-size: 0.8125rem;
   line-height: 1.4;
   z-index: 40;
 }
@@ -1090,17 +1188,19 @@ body {
 
 .wiki-general-generate-button {
   flex: 0 0 auto;
-  padding: 0.3rem 0.9rem;
-  font-size: 0.78rem;
-  color: #cfe6ff;
-  background: #1f2a33;
-  border: 1px solid #4a7fa8;
-  border-radius: 4px;
+  height: 34px;
+  padding: 0 16px;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  color: var(--accent);
+  background: var(--accent-bg);
+  border: none;
+  border-radius: 12px;
   cursor: pointer;
 }
 
 .wiki-general-generate-button:hover {
-  background: #26374a;
+  filter: brightness(1.15);
 }
 
 /* Motion cue on the generating row so a multi-minute run reads as "working", not "stuck" --
@@ -2106,6 +2206,7 @@ body {
   flex: 1;
   min-height: 0;
   overflow: hidden;
+  gap: 6px;
 }
 
 .canvas-area {
@@ -2115,25 +2216,43 @@ body {
   flex: 1;
   min-width: 0;
   min-height: 0;
+  gap: 6px;
 }
 
 /* Row for the canvas plus the agent task panel beside it, so the panel spans the canvas's full
-   height rather than being squeezed into the .canvas-chrome toolbar row above. */
+   height rather than being squeezed into the .canvas-chrome toolbar row above. The tree/code/agent
+   panels beside it are all flex-shrink: 0 (fixed/resizable widths), so when every optional panel is
+   open at once on a narrower window there isn't always room left for .canvas-stage's own min-width —
+   scrolling this row horizontally in that case is what keeps .canvas-stage at a real, non-zero size
+   instead of being squeezed to 0 and letting its screen-fixed chrome (Fit All, the wiki-general
+   progress bar, etc. — see .canvas-stage below) render past its edge, overlapping the next panel
+   (gutzerk/code_chroma#61). Each panel in the row is its own rounded floating card, so the 6px gap
+   between them is what reads as separation instead of a hard border line. */
 .canvas-main-row {
   display: flex;
   flex: 1;
   min-width: 0;
   min-height: 0;
+  overflow-x: auto;
+  gap: 6px;
 }
 
 /* The visible canvas box: positioning context for Fit All, the deleted-diff overlay and the trace
-   controls, so the breadcrumb strip above never shifts what they anchor to. */
+   controls, so the breadcrumb strip above never shifts what they anchor to. min-width keeps this
+   from ever collapsing to 0 beside the fixed-width tree/code/agent panels — without it, their
+   absolutely-positioned screen-fixed chrome (anchored to this box) renders at the collapsed edge and
+   bleeds into whichever panel sits next door instead of reflowing (#61). Rounded + clipped like
+   every other panel in the row, with its own --bg-canvas tone so the dot grid reads as a distinct
+   surface from the rail/agent-panel/sidebar around it. */
 .canvas-stage {
   position: relative;
   display: flex;
   flex: 1;
-  min-width: 0;
+  min-width: 360px;
   min-height: 0;
+  overflow: hidden;
+  border-radius: var(--radius-panel);
+  background: var(--bg-canvas);
 }
 
 /* The whiteboard dot grid. Painted here rather than on .canvas-content because that box only spans
@@ -2147,8 +2266,8 @@ body {
   flex: 1;
   overflow: hidden;
   touch-action: none;
-  background-image: radial-gradient(circle, #2f333f 1px, transparent 1.2px);
-  background-size: var(--canvas-grid-size, 28px) var(--canvas-grid-size, 28px);
+  background-image: radial-gradient(var(--dot-grid) 1.3px, transparent 1.3px);
+  background-size: var(--canvas-grid-size, 24px) var(--canvas-grid-size, 24px);
   background-position: var(--canvas-grid-x, 0px) var(--canvas-grid-y, 0px);
 }
 
@@ -2171,22 +2290,24 @@ body {
 /* Sits over the canvas viewport, outside `.canvas-content`, so pan/zoom never moves it. */
 .fit-all-button {
   position: absolute;
-  bottom: 1.5rem;
+  bottom: 20px;
   left: 50%;
   transform: translateX(-50%);
   z-index: 5;
-  padding: 0.9rem 2.2rem;
-  border: 1px solid var(--border-strong);
-  border-radius: 999px;
-  background: var(--surface-2);
+  height: 48px;
+  padding: 0 28px;
+  border: none;
+  border-radius: var(--radius-full);
+  background: var(--bg-raised);
   color: var(--text-1);
   cursor: pointer;
-  font-size: 1.1rem;
+  font-size: 1rem;
   font-weight: 600;
+  transition: background 120ms ease;
 }
 
 .fit-all-button:hover {
-  border-color: var(--control-hover-border);
+  background: var(--bg-raised-2);
 }
 
 /* Same screen-fixed chrome contract as .fit-all-button (sits over the viewport, outside
@@ -2753,6 +2874,19 @@ body {
 .canvas-node-box-copy-button.is-failed {
   color: #d97070;
   border-color: #d97070;
+}
+
+/* One blue hover for every copy button (hierarchy blocks, tree rows, canvas boxes, epic brief). The
+   extra attribute selectors out-rank the per-variant :hover rules above. */
+button[data-copy-state="idle"][aria-label]:hover:not(:disabled) {
+  color: var(--accent);
+  border-color: var(--accent);
+  background: rgba(143, 176, 255, 0.14);
+}
+
+.copy-icon {
+  display: block;
+  margin: auto;
 }
 
 .tree-node-code-button {
@@ -3755,6 +3889,25 @@ body {
   pointer-events: auto;
 }
 
+/* Reveal the collapse arrow on hover over the whole panel, not just its hairline-thin splitter
+   strip -- easier to discover/reach than hunting for the exact 6px edge. .agent-terminal-dock's
+   handle is already a descendant of the aside (ResizableRail nests it inside), so a plain ancestor
+   hover is enough; .agent-task-rail's handle is an external flex sibling instead (kept that way so
+   it's still hoverable even while the rail itself is `hidden` when collapsed -- see the comment by
+   .agent-task-rail-resize-handle), so reaching it from a panel hover needs :has() on their shared
+   row parent. */
+.agent-terminal-dock:hover .panel-splitter-arrow {
+  opacity: 1;
+  transform: translate(-50%, -50%) scale(1);
+  pointer-events: auto;
+}
+
+.canvas-main-row:has(.agent-task-rail:hover) .agent-task-rail-resize-handle .panel-splitter-arrow {
+  opacity: 1;
+  transform: translate(-50%, -50%) scale(1);
+  pointer-events: auto;
+}
+
 .panel-splitter-arrow:hover {
   background: var(--accent);
   color: #0d0f13;
@@ -4565,7 +4718,7 @@ body {
   box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.35);
 }
 
-/* Status detection is intentionally disabled for now: the LED is always green. */
+/* Status detection is intentionally disabled for now: the LED is always the success green. */
 .agent-led-stopped,
 .agent-led-running,
 .agent-led-idle,
@@ -4573,7 +4726,7 @@ body {
 .agent-led-working,
 .agent-led-exited,
 .agent-led-foreign {
-  background: #22c55e;
+  background: var(--success);
 }
 
 .agent-window {
@@ -4616,9 +4769,9 @@ body {
 
 .agent-window-branch,
 .agent-window-cli {
-  color: #8b909a;
-  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
-  font-size: 0.7rem;
+  color: var(--text-muted-soft);
+  font-family: var(--font-mono);
+  font-size: 0.75rem;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -4646,20 +4799,21 @@ body {
   color: #ffffff;
 }
 
+/* The task badge beside the status-row's agent name. */
 .agent-window-pr-button {
-  background: none;
-  border: 1px solid var(--border);
-  border-radius: 4px;
-  color: var(--text-2);
+  background: #272c38;
+  border: none;
+  border-radius: 10px;
+  color: var(--text-muted-soft);
   cursor: pointer;
-  font-size: 0.68rem;
-  padding: 0.1rem 0.4rem;
+  font-size: 0.6875rem;
+  padding: 0.1rem 0.5rem;
   white-space: nowrap;
 }
 
 .agent-window-pr-button:hover {
-  color: #ffffff;
-  border-color: var(--link);
+  color: var(--text-soft);
+  background: var(--bg-raised-2);
 }
 
 .agent-window-pr-button:disabled {
@@ -4677,7 +4831,12 @@ body {
 .agent-window-terminal {
   flex: 1;
   min-height: 0;
-  padding: 0.25rem;
+  margin: 12px;
+  padding: 14px;
+  border-radius: var(--radius-card);
+  background: var(--bg-inset);
+  font-family: var(--font-mono);
+  font-size: 0.8125rem;
 }
 
 .agent-window-idle {
@@ -4712,13 +4871,9 @@ body {
   flex: 0 0 auto;
   flex-direction: column;
   min-width: 0;
-  overflow: hidden;
-  border-right: 1px solid var(--border);
-  background: var(--surface-1);
-}
-
-.agent-terminal-dock--collapsed {
   overflow: visible;
+  border-radius: var(--radius-panel);
+  background: var(--bg-panel);
 }
 
 .agent-terminal-dock[hidden] {
@@ -4741,12 +4896,46 @@ body {
 }
 
 /* Collapsed means a drag would have nothing left to resize -- the strip stays visible (its hover
-   arrow is now the only way to expand again) but no longer claims a resize cursor. */
+   arrow is now the only way to expand again) but claims neither a resize nor a pointer cursor. */
 .agent-terminal-dock--collapsed .agent-terminal-dock-resize-handle {
+  cursor: default;
+}
+
+.agent-led-strip {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  padding: 10px 0;
+}
+
+.agent-led-strip--framed {
+  width: 28px;
+  flex-shrink: 0;
+  border-radius: var(--radius-panel);
+  background: var(--bg-panel);
+}
+
+.agent-led-strip-button {
+  display: flex;
+  width: 22px;
+  height: 22px;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  border: none;
+  border-radius: var(--radius-full);
+  background: transparent;
   cursor: pointer;
 }
 
+.agent-led-strip-button:hover {
+  background: var(--bg-raised-2);
+}
+
 .agent-terminal-dock-panels {
+  overflow: hidden;
+  border-radius: inherit;
   display: flex;
   flex: 1 1 auto;
   min-width: 0;
@@ -4763,8 +4952,8 @@ body {
   flex: 0 0 auto;
   min-width: 0;
   align-items: center;
-  border-bottom: 1px solid var(--border);
-  background: var(--surface-2);
+  padding: 14px 14px 0;
+  background: transparent;
 }
 
 .agent-terminal-dock-tabs {
@@ -4773,23 +4962,27 @@ body {
   min-width: 0;
   gap: 2px;
   overflow-x: auto;
-  padding: 4px 4px 0;
+  padding: 0;
 }
 
+/* The docked agent tab — a pill, not a browser-style top-rounded tab, matching the restyle's
+   "agent tab pill" (34px tall, #222733 when the tab shown is the active one). */
 .agent-terminal-dock-tab {
   display: inline-flex;
   min-width: 0;
   max-width: 12rem;
+  height: 34px;
   align-items: center;
-  gap: 6px;
-  padding: 5px 8px;
-  border: 1px solid transparent;
-  border-bottom: none;
-  border-radius: 6px 6px 0 0;
+  gap: 8px;
+  padding: 0 12px;
+  border: none;
+  border-radius: var(--radius-full);
   color: var(--text-2);
-  font-size: 0.75rem;
+  font-size: 0.8125rem;
+  font-weight: 500;
   white-space: nowrap;
   cursor: pointer;
+  transition: background 120ms ease, color 120ms ease;
 }
 
 .agent-terminal-dock-tab span:last-child {
@@ -4798,13 +4991,12 @@ body {
 }
 
 .agent-terminal-dock-tab:hover {
-  background: rgba(255, 255, 255, 0.05);
+  background: var(--bg-raised-2);
 }
 
 .agent-terminal-dock-tab.is-active {
-  border-color: var(--border);
-  background: var(--surface-1);
-  color: var(--text-1);
+  background: #222733;
+  color: var(--text-soft);
 }
 
 .agent-terminal-dock-panel {
@@ -4819,16 +5011,19 @@ body {
   display: none;
 }
 
+/* The docked panel's status row — a card (14px radius, --bg-raised) rather than a hairline-bordered
+   title bar, holding the status dot, agent name, cli/branch and the detach/close actions. */
 .agent-terminal-dock-header {
   display: flex;
   flex: 0 0 auto;
   align-items: center;
   gap: 0.5rem;
   min-width: 0;
-  padding: 0.35rem 0.5rem;
-  border-bottom: 1px solid var(--border);
-  background: var(--surface-4);
-  color: #d5d8dd;
+  margin: 8px 12px 0;
+  padding: 10px 12px;
+  border-radius: var(--radius-card);
+  background: var(--bg-raised);
+  color: var(--text-soft);
   font-size: 0.78rem;
 }
 
@@ -6892,8 +7087,8 @@ body {
      tree must not draw a scroll track padding under the content. */
   overflow-x: hidden;
   padding: 0.4rem 0.25rem 0.6rem 0.35rem;
-  border-right: 1px solid var(--border);
-  background: var(--surface-1);
+  border-radius: var(--radius-panel);
+  background: var(--bg-panel);
 }
 
 .project-tree-panel--resizing {
@@ -6972,8 +7167,8 @@ body {
   flex-direction: column;
   flex-shrink: 0;
   min-width: 0;
-  border-right: 1px solid var(--border);
-  background: var(--surface-1);
+  border-radius: var(--radius-panel);
+  background: var(--bg-panel);
 }
 
 .code-sidebar--resizing {

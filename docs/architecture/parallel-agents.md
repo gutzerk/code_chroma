@@ -307,7 +307,10 @@ branch through an agent attached to it (`_guard_shared_worktree`, keyed off `Age
   stopped existing when the switcher became usable everywhere.
 - A window can be docked into the resizable left-side `AgentTerminalDock` in `.canvas-main-row`.
   `agentDockStore` keeps a session-local ordered list of attached agent ids and the selected tab;
-  every docked terminal stays mounted while switching tabs. Docking hides the floating window without
+  every docked terminal stays mounted while switching tabs. Collapsed, the dock shrinks to a 28px
+  strip holding a column of status LEDs, one per docked agent; clicking one selects it and expands the
+  dock. The same shared `AgentLedStrip` (with `SplitterHandle`) is the collapsed form of the right-side
+  Agents/Diagrams `AgentRail` too, so both panels collapse identically. Docking hides the floating window without
   persisting `minimized`, so after reload it naturally returns as a window. Detach removes that tab
   and opens the agent window; the tab's close action follows the normal `closeAgentWindow` flow. The
   dock's collapse state persists in browser storage and hides terminal panels without unmounting

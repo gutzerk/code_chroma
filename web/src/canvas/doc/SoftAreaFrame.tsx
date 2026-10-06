@@ -49,10 +49,11 @@ export function SoftAreaFrame({
       data-canvas-element
       style={{
         position: "absolute",
-        left: left - padding.side,
-        top: top - padding.top,
-        width: right - left + padding.side * 2,
-        height: bottom - top + padding.top + padding.bottom,
+        // Whole pixels only: a fractional live-drag offset shifts a dashed border's antialiasing every frame.
+        left: Math.round(left - padding.side),
+        top: Math.round(top - padding.top),
+        width: Math.round(right - left + padding.side * 2),
+        height: Math.round(bottom - top + padding.top + padding.bottom),
       }}
       {...interactiveProps}
     >

@@ -8,6 +8,8 @@ export interface LauncherApi {
    * as child workspaces without starting that repo's bridge first. Best-effort: [] on any error. */
   listWorkspaces(repoPath: string): Promise<WorkspaceSummary[]>;
   pickFolder(): Promise<string | null>;
+  /** Scaffolds `<parentDir>/<name>` (README, src/, git init) and returns its path; rejects with a readable message. */
+  createProject(parentDir: string, name: string): Promise<string>;
   /** `workspaceId` boots the canvas straight into that workspace (only takes effect the first time
    * the repo is opened in this run -- reopening an already-open repo just focuses its tab). */
   openRepo(repoPath: string, workspaceId?: string): Promise<void>;
@@ -19,6 +21,8 @@ const api: LauncherApi = {
   listRecents: () => ipcRenderer.invoke("launcher:list-recents"),
   listWorkspaces: (repoPath) => ipcRenderer.invoke("launcher:list-workspaces", repoPath),
   pickFolder: () => ipcRenderer.invoke("launcher:pick-folder"),
+  createProject: (parentDir, name) =>
+    ipcRenderer.invoke("launcher:create-project", parentDir, name),
   openRepo: (repoPath, workspaceId) =>
     ipcRenderer.invoke("launcher:open-repo", repoPath, workspaceId),
   onProgress: (handler) => {

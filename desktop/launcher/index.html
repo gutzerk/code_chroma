@@ -137,6 +137,46 @@
         font-family: ui-monospace, SFMono-Regular, monospace;
         font-size: 11px;
       }
+      .new-project {
+        width: 460px;
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+      }
+      .new-project input {
+        padding: 8px 10px;
+        border: 1px solid var(--line);
+        border-radius: 7px;
+        background: var(--panel);
+        color: var(--text);
+        font: inherit;
+      }
+      .new-project .row {
+        display: flex;
+        gap: 8px;
+        align-items: center;
+      }
+      .new-project .row span {
+        flex: 1;
+        color: var(--muted);
+        font-size: 11px;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+      button.secondary {
+        padding: 9px 18px;
+        border: 1px solid var(--line);
+        border-radius: 7px;
+        background: transparent;
+        color: var(--text);
+        font: inherit;
+        cursor: pointer;
+      }
+      button.secondary:disabled {
+        opacity: 0.55;
+        cursor: default;
+      }
       .hidden {
         display: none;
       }
@@ -151,7 +191,19 @@
       <div id="recents"></div>
     </div>
 
-    <button class="primary" id="open">Open folder…</button>
+    <div class="row" style="display: flex; gap: 8px">
+      <button class="primary" id="open">Open folder…</button>
+      <button class="secondary" id="new-toggle">New project…</button>
+    </div>
+
+    <form class="new-project hidden" id="new-form">
+      <input id="new-name" placeholder="Project name" autocomplete="off" />
+      <div class="row">
+        <button type="button" class="secondary" id="new-browse">Location…</button>
+        <span id="new-location">No location chosen</span>
+      </div>
+      <button type="submit" class="primary" id="new-create">Create and open</button>
+    </form>
     <div id="status"></div>
 
     <script type="module" src="./launcher.js"></script>

@@ -1,6 +1,5 @@
 import { useEffect, useState } from "react";
 import { UpdatesPanel } from "./UpdatesPanel";
-import { CreateIssueDialog } from "./CreateIssueDialog";
 import { ModalDialog } from "../agents/ModalDialog";
 import { RailIcon } from "../icons/RailIcon";
 import { LlmSettingsPanel } from "../llm-settings/LlmSettingsPanel";
@@ -36,14 +35,13 @@ function useLlmSummary(): string | null {
  * provider connections, per-feature routing, and the agent-window fallback -- lives behind the one
  * "LLM" row rather than being split between here and a second rail button. */
 export function SettingsDialog({ onDismiss }: { onDismiss: () => void }) {
-  const [openCategory, setOpenCategory] = useState<"llm" | "updates" | "issue" | null>(null);
+  const [openCategory, setOpenCategory] = useState<"llm" | "updates" | null>(null);
   const summary = useLlmSummary();
 
   // One modal at a time, never stacked: two live ModalDialogs both bind a capturing document
   // keydown listener, so Escape in the child would dismiss the parent too.
   if (openCategory === "updates") return <UpdatesPanel onDismiss={() => setOpenCategory(null)} />;
   if (openCategory === "llm") return <LlmSettingsPanel onDismiss={() => setOpenCategory(null)} />;
-  if (openCategory === "issue") return <CreateIssueDialog onDismiss={() => setOpenCategory(null)} />;
 
   return (
     <ModalDialog
@@ -84,14 +82,10 @@ export function SettingsDialog({ onDismiss }: { onDismiss: () => void }) {
           </button>
         </li>
         <li><button type="button" className="settings-home-row" data-testid="settings-open-updates" onClick={() => setOpenCategory("updates")}>
-          <span className="settings-home-row-text"><span className="settings-home-row-title">Updates</span><span className="settings-home-row-desc">Installed version, stable releases, and app updates</span></span>
-          <span className="settings-home-row-chevron" aria-hidden="true">›</span>
-        </button></li>
-        <li><button type="button" className="settings-home-row" data-testid="settings-open-issue" onClick={() => setOpenCategory("issue")}>
           <span className="settings-home-row-icon">
-            <RailIcon name="report-issue" />
+            <RailIcon name="updates" />
           </span>
-          <span className="settings-home-row-text"><span className="settings-home-row-title">Report an issue</span><span className="settings-home-row-desc">File a bug or suggest an idea on GitHub</span></span>
+          <span className="settings-home-row-text"><span className="settings-home-row-title">Updates</span><span className="settings-home-row-desc">Installed version, stable releases, and app updates</span></span>
           <span className="settings-home-row-chevron" aria-hidden="true">›</span>
         </button></li>
       </ul>

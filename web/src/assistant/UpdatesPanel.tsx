@@ -9,6 +9,7 @@ export interface UpdateState {
   total?: number;
   error?: string;
   retryAfter?: number;
+  notes?: string;
 }
 
 export interface UpdatesApi {
@@ -27,8 +28,25 @@ function displayVersion(version: string | undefined): string {
   return version?.replace(/^v/i, "") ?? "Unknown";
 }
 
+function ChangelogBody({ notes }: { notes: string }) {
+  return (
+    <div className="updates-changelog-body">
+      {notes.split(/\r?\n/).map((raw, i) => {
+        const line = raw.trim();
+        if (!line) return null;
+        const heading = /^#{1,6}\s+(.*)$/.exec(line);
+        if (heading) return <h4 key={i}>{heading[1]}</h4>;
+        const item = /^[-*]\s+(.*)$/.exec(line);
+        if (item) return <p key={i} className="updates-changelog-item">{item[1]}</p>;
+        return <p key={i}>{line}</p>;
+      })}
+    </div>
+  );
+}
+
 export function UpdatesPanel({ onDismiss }: { onDismiss: () => void }) {
   const [state, setState] = useState<UpdateState>({ currentVersion: "Unknown", phase: "checking" });
+  const [showNotes, setShowNotes] = useState(false);
   const api = window.codechromaUpdates;
   const run = (action: () => Promise<UpdateState>) => {
     action().then(setState).catch(error => setState(s => ({
@@ -73,6 +91,33 @@ export function UpdatesPanel({ onDismiss }: { onDismiss: () => void }) {
         : state.phase === "error"
           ? "Update check failed"
           : "Updates";
+
+  // One live ModalDialog at a time: two would each bind Escape and dismiss together.
+  if (showNotes && hasUpdate && state.notes) {
+    return (
+      <ModalDialog
+        label="What's new"
+        testId="updates-changelog"
+        className="updates-dialog"
+        onDismiss={() => setShowNotes(false)}
+      >
+        <header className="updates-header">
+          <button
+            className="updates-back"
+            type="button"
+            aria-label="Back"
+            onClick={() => setShowNotes(false)}
+          >
+            <svg aria-hidden="true" viewBox="0 0 24 24">
+              <path d="m15 18-6-6 6-6" />
+            </svg>
+          </button>
+          <h2>What's new in {displayVersion(state.latestVersion)}</h2>
+        </header>
+        <ChangelogBody notes={state.notes} />
+      </ModalDialog>
+    );
+  }
 
   return (
     <ModalDialog label="Updates" testId="updates-panel" className="updates-dialog" onDismiss={onDismiss}>
@@ -160,6 +205,16 @@ export function UpdatesPanel({ onDismiss }: { onDismiss: () => void }) {
                 <span>Restarting…</span>
                 <progress aria-label="Installing update" />
               </div>
+            )}
+
+            {hasUpdate && state.notes && (
+              <button
+                className="updates-check updates-changelog-button"
+                type="button"
+                onClick={() => setShowNotes(true)}
+              >
+                What's new in {displayVersion(state.latestVersion)}
+              </button>
             )}
 
             <div className="updates-secondary-actions">

@@ -14,6 +14,7 @@ export type RailIconName =
   | "custom"
   | "impact"
   | "settings"
+  | "report-issue"
   | "llm-providers"
   | "c1"
   | "hierarchy"
@@ -161,6 +162,20 @@ const PATHS: Record<RailIconName, ReactElement> = {
         strokeLinecap="round"
         d="M6.6 2.4l.4-1.2h2l.4 1.2 1.1.5 1.1-.5 1 1.7-.4 1.1.4 1.1-.1 1.2 1.1.9.8 1.9-1.2 1.1-.6.7.1 1.3-1.7.9-1.2-.1-1 .4-.6.7-2-.3-1.1-.3v-1.1l-1.1-.8-.9.2-1.5-.6-.3-2 .6-1.2 1-.2v-1.2l.9-1.2.9.2.8-.4z"
       />
+    </>
+  ),
+  // A speech bubble with an exclamation mark — report a bug or suggest an idea.
+  "report-issue": (
+    <>
+      <path
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="1.3"
+        strokeLinejoin="round"
+        d="M1.8 2.6h12.4v8.4H6.9l-2.8 2.6v-2.6H1.8z"
+      />
+      <path fill="currentColor" d="M7.4 5h1.2v3.4H7.4z" />
+      <circle cx="8" cy="9.7" r="0.75" fill="currentColor" />
     </>
   ),
   // A chip (the model) plugged into a socket — the LLM provider/call-site settings panel.

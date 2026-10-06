@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.8.1](https://github.com/gutzerk/code_chroma/compare/v0.8.0...v0.8.1) (2026-10-06)
+
+
+### Bug Fixes
+
+* don't open block details after a drag, stop diagram frame flicke… ([db02b97](https://github.com/gutzerk/code_chroma/commit/db02b97c20dc1722bb33c9465d176b6b896221f5))
+
 ## [0.8.0](https://github.com/gutzerk/code_chroma/compare/v0.7.1...v0.8.0) (2026-10-06)
 
 

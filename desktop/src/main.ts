@@ -14,6 +14,7 @@ import { startBridge, stopBridge, type BridgeHandle } from "./bridgeProcess";
 import { resolveBridgeExecutable } from "./bridgeLocation";
 import { addRecent, readRecents, recentsStorePath } from "./recentRepos";
 import { TabManager, type Tab } from "./tabManager";
+import { listWorkspacesForRepo } from "./workspaceSummaries";
 import type { TabsChangedPayload } from "./tabbarPreload";
 import { UpdateService } from "./updateService";
 import { readCachedLatestVersion, updateCachePath, writeCachedLatestVersion } from "./updateCache";
@@ -58,17 +59,23 @@ function shellForTabBarSender(sender: WebContents): Shell | undefined {
   return [...shells].find((shell) => shell.tabBar.webContents === sender);
 }
 
-function tabTitle(tab: ProjectTab): string {
-  if (tab.repoPath) return basename(tab.repoPath);
-  // A workspace tab (e.g. a PR review sharing its repo's bridge) titles as `#<number>`.
-  if (tab.workspaceId?.startsWith("pr-")) return `#${tab.workspaceId.slice(3)}`;
+/** Labels tabs the way #87 asked for -- `Project [Main]` for the repo tab, `Project [PR #42]` for
+ * a workspace tab sharing its bridge -- so parallel tabs on the same project stay distinguishable
+ * at a glance instead of all showing the bare repo name or a bare `#<number>`. */
+function tabTitle(shell: Shell, tab: ProjectTab): string {
+  if (tab.repoPath) return `${basename(tab.repoPath)} [Main]`;
+  if (tab.workspaceId?.startsWith("pr-")) {
+    const owner = shell.tabs.listTabs().find((t) => t.repoPath !== null && t.bridge === tab.bridge);
+    const label = `PR #${tab.workspaceId.slice(3)}`;
+    return owner?.repoPath ? `${basename(owner.repoPath)} [${label}]` : label;
+  }
   return "New Tab";
 }
 
 function pushTabsChanged(shell: Shell): void {
   if (shell.tabBar.webContents.isDestroyed()) return;
   const payload: TabsChangedPayload = {
-    tabs: shell.tabs.listTabs().map((tab) => ({ id: tab.id, title: tabTitle(tab) })),
+    tabs: shell.tabs.listTabs().map((tab) => ({ id: tab.id, title: tabTitle(shell, tab) })),
     activeId: shell.tabs.activeTab()?.id ?? null,
   };
   shell.tabBar.webContents.send("tabbar:changed", payload);
@@ -155,6 +162,7 @@ async function openRepo(
   homeShell: Shell,
   repoPath: string,
   requestingTabId: string | null,
+  workspaceId: string | null = null,
 ): Promise<void> {
   for (const shell of shells) {
     const existing = shell.tabs.focusExisting(repoPath);
@@ -200,7 +208,12 @@ async function openRepo(
     addRecent(storePath(), repoPath, Date.now());
     homeShell.tabs.assignRepo(tab.id, repoPath, bridge);
     pushTabsChanged(homeShell);
-    if (!tab.view.webContents.isDestroyed()) await tab.view.webContents.loadURL(bridge.origin);
+    // A workspace was requested (the launcher's recent-projects tree) -- boot the canvas straight
+    // into it instead of main; `agentStore.initialWorkspace()` reads this same `?workspace=` param.
+    const url = workspaceId
+      ? `${bridge.origin}/?workspace=${encodeURIComponent(workspaceId)}`
+      : bridge.origin;
+    if (!tab.view.webContents.isDestroyed()) await tab.view.webContents.loadURL(url);
   } catch (error) {
     // assignRepo hasn't run (or didn't reach here) -- the bridge is still untracked, so stop it
     // ourselves rather than leaking it. Once assignRepo has run the tab owns it and normal
@@ -407,13 +420,19 @@ function registerIpc(): void {
     });
   }
   ipcMain.handle("launcher:list-recents", () => readRecents(storePath()));
+  ipcMain.handle("launcher:list-workspaces", (_event, repoPath: string) =>
+    listWorkspacesForRepo(repoPath),
+  );
   ipcMain.handle("launcher:pick-folder", () => promptForFolder());
-  ipcMain.handle("launcher:open-repo", (event, repoPath: string) => {
-    const found = shellForTabSender(event.sender);
-    const shell = found?.shell ?? frontShell();
-    if (!shell) return;
-    return openRepo(shell, repoPath, found?.tab.id ?? null);
-  });
+  ipcMain.handle(
+    "launcher:open-repo",
+    (event, repoPath: string, workspaceId?: string) => {
+      const found = shellForTabSender(event.sender);
+      const shell = found?.shell ?? frontShell();
+      if (!shell) return;
+      return openRepo(shell, repoPath, found?.tab.id ?? null, workspaceId ?? null);
+    },
+  );
   ipcMain.handle("desktop:open-workspace-window", (event, workspaceId: string) =>
     openWorkspaceWindow(event.sender, workspaceId),
   );
@@ -445,7 +464,7 @@ function registerIpc(): void {
     const shell = shellForTabBarSender(event.sender);
     if (!shell) return { tabs: [], activeId: null };
     return {
-      tabs: shell.tabs.listTabs().map((tab) => ({ id: tab.id, title: tabTitle(tab) })),
+      tabs: shell.tabs.listTabs().map((tab) => ({ id: tab.id, title: tabTitle(shell, tab) })),
       activeId: shell.tabs.activeTab()?.id ?? null,
     };
   });

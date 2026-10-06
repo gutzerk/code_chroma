@@ -19,19 +19,40 @@ function setBusy(busy) {
   }
 }
 
-async function open(repoPath) {
+async function open(repoPath, workspaceId) {
   // Guard against a second click racing in before the first disables the buttons: once a repo is
   // chosen, nothing further is clickable until the window navigates to the loading canvas.
   if (openButton.disabled) return;
   setBusy(true);
   setStatus("Starting…");
-  await api.openRepo(repoPath);
+  await api.openRepo(repoPath, workspaceId);
+}
+
+/** One recent project's workspace children (agents/PRs), read from its `.codechroma/*.json` --
+ * shown as a nested row list so a project opens straight into that task context (#87's
+ * "Recent Projects: display Workspaces as child items"). Empty when the repo has none, or on any
+ * read error (listWorkspaces is best-effort). */
+function renderWorkspaceRows(container, repoPath, workspaces) {
+  for (const workspace of workspaces) {
+    const row = document.createElement("button");
+    row.className = "recent workspace";
+    row.textContent = workspace.label;
+    row.addEventListener("mousedown", (event) => event.stopPropagation());
+    row.addEventListener("click", (event) => {
+      event.stopPropagation();
+      void open(repoPath, workspace.id);
+    });
+    container.append(row);
+  }
 }
 
 function renderRecents(recents) {
   recentsPanel.classList.toggle("hidden", recents.length === 0);
   recentsEl.replaceChildren();
   for (const repo of recents) {
+    const entry = document.createElement("div");
+    entry.className = "recent-entry";
+
     const button = document.createElement("button");
     button.className = "recent";
     button.textContent = repo.name;
@@ -40,7 +61,19 @@ function renderRecents(recents) {
     path.textContent = repo.path;
     button.append(path);
     button.addEventListener("click", () => void open(repo.path));
-    recentsEl.append(button);
+    entry.append(button);
+
+    const children = document.createElement("div");
+    children.className = "recent-workspaces";
+    entry.append(children);
+    recentsEl.append(entry);
+
+    // Fire-and-forget per entry: one repo's unreadable `.codechroma/` must never block the rest
+    // of the list from rendering.
+    void api
+      .listWorkspaces(repo.path)
+      .then((workspaces) => renderWorkspaceRows(children, repo.path, workspaces))
+      .catch(() => {});
   }
 }
 

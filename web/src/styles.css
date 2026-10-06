@@ -232,7 +232,7 @@ body {
   align-items: center;
   gap: 6px;
   flex-shrink: 0;
-  width: 64px;
+  width: 56px;
   padding: 10px 0;
   border-radius: var(--radius-panel);
   background: var(--bg-panel);

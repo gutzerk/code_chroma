@@ -74,6 +74,13 @@ given its size.
   either strategy, ignores shift/ctrl-click's selection semantics entirely (falls through to its
   normal click action instead) and can never carry `block-selected`.
 
+  ⚠ Click vs drag (`useDragOffset.ts`): a press becomes a drag past `DRAG_THRESHOLD_PX` (4px), and any
+  drag that crossed it swallows its own release click (`suppressClickAfterDrag`), so a moved block
+  never also opens its details; a press under 4px stays a plain click. Test: `useDragOffset.test.tsx`.
+  ⚠ Frame flicker: `SoftAreaFrame` rounds frame geometry to whole px and the group/lane/island/diagram
+  frame classes sit on their own compositor layer with `transition: none`, so a live-drag fractional
+  offset doesn't re-antialias the dashed border/tint every frame.
+
   Drags are undoable. `canvas/UndoManager.tsx` owns Ctrl/Cmd+Z (capture-phase keydown, no UI, mounted
   once in RootCanvas with `kinds={["hierarchy", "canvas"]}` — every `LayoutKind` with boxes actually
   draggable on the one canvas today), popping whichever of those kinds recorded the most recent

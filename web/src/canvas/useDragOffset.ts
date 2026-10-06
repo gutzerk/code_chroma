@@ -11,18 +11,9 @@ interface DragState {
   moved: boolean;
 }
 
+// A press only becomes a drag past this many px; below it the gesture is a plain click, above it the
+// click the release synthesizes is swallowed so a repositioned block never also opens its details.
 const DRAG_THRESHOLD_PX = 4;
-
-// A finished drag's own synthesized click gets swallowed (see suppressNextClick) so it can't also
-// fire whatever the moved element's plain click does (open code, toggle expand, ...). That's right
-// for a real drag, but DRAG_THRESHOLD_PX alone is too twitchy a line for it: a trackpad's physical
-// click depression, or an ordinary mouse's own jitter, routinely crosses 4px on a gesture the user
-// experienced as a single click — which used to eat that exact click, making the block look like it
-// silently ignored the first press until a second, slightly steadier one got through. Suppression
-// now waits for a distinctly larger, unambiguous drag before it engages; the block can still nudge a
-// few px on a release below this line (onEnd's own commit is unaffected), but the click that
-// (mis)classified press also gets to open the panel/toggle as normal.
-const CLICK_SUPPRESS_THRESHOLD_PX = 12;
 
 export interface DragHandleProps {
   onPointerDown: (event: PointerEvent<HTMLElement>) => void;
@@ -213,11 +204,7 @@ export function useDragOffset({
     };
     const onEnd = (endEvent: globalThis.PointerEvent) => {
       if (endEvent.pointerId !== drag.pointerId) return;
-      const releaseDistance = Math.hypot(
-        endEvent.clientX - drag.startClientX,
-        endEvent.clientY - drag.startClientY,
-      );
-      if (drag.moved && suppressClickAfterDrag && releaseDistance >= CLICK_SUPPRESS_THRESHOLD_PX) {
+      if (drag.moved && suppressClickAfterDrag) {
         suppressNextClick();
       }
       if (drag.moved) {

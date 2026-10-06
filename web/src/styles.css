@@ -6884,6 +6884,9 @@ button[data-copy-state="idle"][aria-label]:hover:not(:disabled) {
    whichever `.canvas-group-frame-color-<n>` class GroupFrame paired with this same class -- so the
    6-hex palette itself lives in exactly one place instead of being repeated per property. */
 .canvas-group-frame {
+  transform: translateZ(0);
+  will-change: left, top;
+  transition: none;
   z-index: 0;
   box-sizing: border-box;
   border: 2px dashed rgb(var(--group-frame-rgb, 148, 163, 184));
@@ -6917,6 +6920,9 @@ button[data-copy-state="idle"][aria-label]:hover:not(:disabled) {
    (laneColor.ts) -- never the same hash as the group frame or the concurrency island below, so a box
    in a real group AND a Lane AND an island always shows three distinguishable colors. */
 .canvas-lane-area {
+  transform: translateZ(0);
+  will-change: left, top;
+  transition: none;
   z-index: 0;
   box-sizing: border-box;
   border-radius: 16px;
@@ -6949,6 +6955,9 @@ button[data-copy-state="idle"][aria-label]:hover:not(:disabled) {
    so it never coincides in color with a Lane or a real structural group, even though all three can
    overlap on one box at once. */
 .canvas-concurrency-island {
+  transform: translateZ(0);
+  will-change: left, top;
+  transition: none;
   box-sizing: border-box;
   border-radius: 16px;
   background: rgba(var(--concurrency-island-rgb, 148, 163, 184), 0.12);

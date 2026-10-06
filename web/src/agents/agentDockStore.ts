@@ -33,6 +33,10 @@ class AgentDockStore extends Store {
     this.emit();
   };
 
+  expand = (): void => {
+    if (this.collapsed) this.toggleCollapsed();
+  };
+
   attach = (id: string): void => {
     if (this.agentIds.includes(id)) {
       this.activate(id);

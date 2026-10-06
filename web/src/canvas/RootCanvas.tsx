@@ -35,13 +35,16 @@ import {
 } from "./projectTreePanelStore";
 import { useLatchedMount } from "./panelStore";
 import { RailIcon } from "../icons/RailIcon";
+import runAgentIcon from "../icons/run-agent.svg";
 import { RailButton } from "./RailButton";
 import { SplitterHandle } from "./SplitterHandle";
+import { AgentLedStrip } from "../agents/AgentLedStrip";
 import { AgentRail } from "../agents/AgentRail";
 import { AgentTerminalDock } from "../agents/AgentTerminalDock";
 import { AgentWindowLayer } from "../agents/AgentWindowLayer";
 import {
   useActiveWorkspace,
+  useAgents,
   useIsAtAgentCapacity,
   useIsLaunchingAgent,
   useMaxAgents,
@@ -96,6 +99,7 @@ export function RootCanvas() {
   const [rootNode, setRootNode] = useState<HierarchyNodeRef | null>(null);
   const [codePopupNode, setCodePopupNode] = useState<HierarchyNodeRef | null>(null);
   const [isAgentPanelOpen, setIsAgentPanelOpen] = useState(true);
+  const allAgents = useAgents();
   const breadcrumbPath = useDeepestExpandedPath();
   const expandedNodeIds = useExpandedNodeIdsByOrder();
   const codeVisibleNodeIds = useCodeVisibleNodeIdsByOrder();
@@ -453,7 +457,7 @@ export function RootCanvas() {
           }
           onClick={() => void attachAgent(agentClient, viewContext)}
         >
-          <RailIcon name="agents" />
+          <img className="agents-toggle-icon" src={runAgentIcon} alt="" aria-hidden="true" />
           <span className="agents-toggle-label">Run agent</span>
         </RailButton>
       </div>
@@ -571,6 +575,14 @@ export function RootCanvas() {
               ariaLabel={`${isAgentPanelOpen ? "Collapse" : "Expand"} agents and diagrams panel`}
               arrow={isAgentPanelOpen ? "›" : "‹"}
             />
+            {!isAgentPanelOpen && (
+              <AgentLedStrip
+                framed
+                agents={allAgents}
+                testId="agent-rail-led"
+                onSelect={() => setIsAgentPanelOpen(true)}
+              />
+            )}
             <AgentRail hidden={!isAgentPanelOpen} />
           </div>
           {/* Docked under the canvas, inside .canvas-area, so the inspector to the right of it stays

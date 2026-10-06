@@ -30,7 +30,26 @@ export function NodeKindGlyph({ node }: { node: HierarchyNodeRef }) {
 /** How long the button shows its copied/failed glyph before returning to the copy icon. */
 const COPY_FLASH_MS = 1200;
 
-const COPY_GLYPH = { idle: "⧉", copied: "✓", failed: "✕" };
+const COPY_GLYPH = { idle: <CopyIcon />, copied: "✓", failed: "✕" };
+
+/** Two overlapping rounded squares -- the idle copy glyph; strokes follow the button's text color. */
+function CopyIcon() {
+  return (
+    <svg
+      className="copy-icon"
+      viewBox="0 0 16 16"
+      width="14"
+      height="14"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.4"
+      aria-hidden="true"
+    >
+      <rect x="5.5" y="5.5" width="8" height="8" rx="2.2" />
+      <path d="M10.5 3.7V4a2.2 2.2 0 0 0-2.2-2.2H4A2.2 2.2 0 0 0 1.8 4v4.3A2.2 2.2 0 0 0 4 10.5h.3" />
+    </svg>
+  );
+}
 
 /** Fold a per-file status into the badge's status vocabulary: change-cards can carry a `deleted`
  * file inside a still-present file's box, and the badge has no `deleted` mark — it reads as removed. */

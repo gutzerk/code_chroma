@@ -158,6 +158,7 @@ export function AgentRail({ hidden = false }: { hidden?: boolean }) {
                       agentStore.clearDiagramsReady(agent.id);
                       if (isDocked) {
                         agentDockStore.activate(agent.id);
+                        agentDockStore.expand();
                         restoreAgentWindow(agentClient, agent.id);
                       } else if (agent.window.minimized) restoreAgentWindow(agentClient, agent.id);
                       else minimizeAgentWindow(agentClient, agent.id);

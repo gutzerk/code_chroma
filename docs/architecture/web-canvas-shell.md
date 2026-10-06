@@ -139,7 +139,7 @@ canvas instead of collapsing onto whichever diagram happened to carry code-backe
   the client saw rather than just the publish, and that it restores exactly what the reveal added
   while leaving what the user had open before the click alone) and `RootCanvas.test.tsx`'s "render
   strategy" describe block and `useCanvasCamera.test.ts`/`useSavedLayoutAndFitLoop.test.ts`. The shell
-  is laid out IDE-style as one horizontal row: a 48px icon **rail** (`.app-rail`, zoom then the
+  is laid out IDE-style as one horizontal row: a 64px icon **rail** (`.app-rail`, zoom then the
   terminal/code-view/diff/plan/trace toggles then `DrawDiagramButton`, split by one
   `.app-rail-separator` — `RailButton.tsx` wraps each control, `RailIcon.tsx` supplies the glyphs),
   then an optional **project-tree panel** (`ProjectTreePanel.tsx` + `projectTreePanelStore.ts`, a
@@ -477,6 +477,17 @@ C1 person-actor box and the multi-select outline, so don't read the name as stil
 the icon-control
 gray trio (`--control-*`), radius, shadow, and type steps. Rules reference `var(--token)` instead
 of literal hex, so one edit re-themes the whole app.
+
+A literal "floating rounded cards on dark ground" palette (`--bg-ground`, `--bg-panel`,
+`--bg-canvas`, `--bg-raised`, `--bg-raised-2`, `--bg-inset`, `--text-soft`, `--text-muted-soft`,
+`--icon`, `--accent-bg`, `--success`, `--select-ring`, `--dot-grid`) sits above the semantic layer
+and is aliased onto it, so the restyle re-themes the whole app without touching the ~7000 rules that
+still reference `--surface-*`/`--text-*`/`--accent`. `--radius-panel` (22px), `--radius-card`
+(14–16px) and `--radius-btn` (14px) are the new radius steps; pills (tabs, Run agent, Fit All,
+chips, counters) use `border-radius: var(--radius-full)` instead. The five main-window regions (top
+bar `.canvas-chrome`, left rail `.app-rail`, agent panel `.agent-terminal-dock`, center canvas
+`.canvas-stage`, right sidebar `.agent-task-rail`) render as separate 6px-gapped cards with no hard
+borders and no drop shadows — depth comes only from the background-shade steps above.
 
 Two conventions when touching it: use a token for any value that repeats more than once (add a new
 token rather than a new hex), and keep every font size at or above `--text-2xs` (0.68rem) — nothing

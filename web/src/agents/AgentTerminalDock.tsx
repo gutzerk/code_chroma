@@ -11,6 +11,7 @@ import {
   useIsAgentDockCollapsed,
 } from "./agentDockStore";
 import { AgentLed } from "./AgentLed";
+import { AgentLedStrip } from "./AgentLedStrip";
 import { closeAgentWindow, openAgentWindow } from "./windowActions";
 import { CreatePrButton } from "./CreatePrButton";
 
@@ -38,7 +39,7 @@ export function AgentTerminalDock() {
       minWidth={MIN_WIDTH}
       maxViewportFraction={0.65}
       collapsed={collapsed}
-      collapsedWidth={40}
+      collapsedWidth={28}
       hidden={dockedAgents.length === 0}
       collapseToggle={{
         collapsed,
@@ -68,6 +69,16 @@ export function AgentTerminalDock() {
           </div>
         )}
       </div>
+      {collapsed && (
+        <AgentLedStrip
+          agents={dockedAgents}
+          testId="agent-dock-led"
+          onSelect={(agent) => {
+            agentDockStore.activate(agent.id);
+            agentDockStore.toggleCollapsed();
+          }}
+        />
+      )}
       <div className="agent-terminal-dock-panels" hidden={collapsed}>
         {dockedAgents.map((agent) => (
           <DockedAgentPanel key={agent.id} agent={agent} active={agent.id === activeAgent?.id} />

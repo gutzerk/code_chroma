@@ -81,7 +81,7 @@
         background: transparent;
         filter: none;
       }
-      .recent:last-child {
+      .recent-entry:last-child > .recent {
         border-bottom: 0;
       }
       .recent:hover {
@@ -92,6 +92,20 @@
         color: var(--muted);
         font-size: 11px;
         margin-top: 2px;
+      }
+      .recent-workspaces {
+        background: #141722;
+      }
+      .recent-workspaces:empty {
+        display: none;
+      }
+      .recent.workspace {
+        padding-left: 28px;
+        font-size: 12px;
+        border-bottom: 1px solid var(--line);
+      }
+      .recent-workspaces .recent.workspace:last-child {
+        border-bottom: 0;
       }
       .empty {
         padding: 16px 14px;

@@ -36,6 +36,7 @@ import {
 import { useLatchedMount } from "./panelStore";
 import { RailIcon } from "../icons/RailIcon";
 import { RailButton } from "./RailButton";
+import { SplitterHandle } from "./SplitterHandle";
 import { AgentRail } from "../agents/AgentRail";
 import { AgentTerminalDock } from "../agents/AgentTerminalDock";
 import { AgentWindowLayer } from "../agents/AgentWindowLayer";
@@ -442,22 +443,6 @@ export function RootCanvas() {
         <PrRailButton />
         <SettingsRailButton />
         <RailButton
-          className="agent-panel-toggle-button"
-          label={`${isAgentPanelOpen ? "Collapse" : "Expand"} agents and diagrams panel`}
-          pressed={isAgentPanelOpen}
-          ariaExpanded={isAgentPanelOpen}
-          testId="agent-panel-toggle-button"
-          onClick={() => {
-            if (isAgentPanelOpen) {
-              setCodePopupNode(null);
-              inspectorStore.close();
-            }
-            setIsAgentPanelOpen(!isAgentPanelOpen);
-          }}
-        >
-          <span aria-hidden="true">{isAgentPanelOpen ? "›" : "‹"}</span>
-        </RailButton>
-        <RailButton
           className="agents-toggle-button"
           label="Run agent"
           disabled={isAtAgentCapacity || isLaunchingAgent}
@@ -514,9 +499,10 @@ export function RootCanvas() {
         </nav>
         <div className="canvas-area" data-testid="canvas-area">
           {/* Row for the canvas plus the agent task panel beside it — a full-height sibling of the
-              canvas, not a toolbar item, so cards have room to be more than an icon and a tooltip. */}
+              canvas, not a toolbar item, so cards have room to be more than an icon and a tooltip.
+              The project tree stays the leftmost item (the very edge, right after .app-rail), with
+              the code sidebar beside it and the docked agent windows to their right. */}
           <div className="canvas-main-row">
-            <AgentTerminalDock />
             {projectTreeMounted && rootNode && (
               <ProjectTreePanel
                 rootNode={rootNode}
@@ -525,6 +511,7 @@ export function RootCanvas() {
               />
             )}
             <CodeSidebar hidden={!isProjectTreePanelOpen} />
+            <AgentTerminalDock />
             {/* Own positioning context so the absolutely-positioned overlays below keep anchoring to
                 the visible canvas, not to the canvas plus the breadcrumb strip above it. */}
             <div className="canvas-stage">
@@ -567,6 +554,23 @@ export function RootCanvas() {
               {isDiffActive && <DeletedDiffOverlay />}
               {isTraceActive && <TraceControls />}
             </div>
+            {/* Always rendered (unlike AgentRail itself, which fully hides): this is the only
+                remaining way to re-expand the panel once collapsed, since collapsing now hides
+                AgentRail entirely rather than shrinking it to a visible strip. */}
+            <SplitterHandle
+              className="agent-task-rail-resize-handle"
+              dataTestid="agent-panel-toggle-handle"
+              collapsed={!isAgentPanelOpen}
+              onToggle={() => {
+                if (isAgentPanelOpen) {
+                  setCodePopupNode(null);
+                  inspectorStore.close();
+                }
+                setIsAgentPanelOpen(!isAgentPanelOpen);
+              }}
+              ariaLabel={`${isAgentPanelOpen ? "Collapse" : "Expand"} agents and diagrams panel`}
+              arrow={isAgentPanelOpen ? "›" : "‹"}
+            />
             <AgentRail hidden={!isAgentPanelOpen} />
           </div>
           {/* Docked under the canvas, inside .canvas-area, so the inspector to the right of it stays

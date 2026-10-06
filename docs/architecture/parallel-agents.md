@@ -310,9 +310,12 @@ branch through an agent attached to it (`_guard_shared_worktree`, keyed off `Age
   every docked terminal stays mounted while switching tabs. Docking hides the floating window without
   persisting `minimized`, so after reload it naturally returns as a window. Detach removes that tab
   and opens the agent window; the tab's close action follows the normal `closeAgentWindow` flow. The
-  dock's collapse state persists in browser storage, leaves its expand handle available, and hides
-  terminal panels without unmounting them. Detach/close controls in the active terminal header do not
-  shrink away at the dock's minimum width.
+  dock's collapse state persists in browser storage and hides terminal panels without unmounting
+  them. 🔵 There is no in-toolbar toggle button anymore — the dock's own resize-handle strip doubles
+  as the collapse/expand control via `canvas/SplitterHandle.tsx` (the shared hover-reveal arrow used
+  by every panel-edge splitter, see [`web-canvas-shell.md`](web-canvas-shell.md)); the strip stays
+  rendered while collapsed so the arrow remains reachable, it just stops accepting a resize drag.
+  Detach/close controls in the active terminal header do not shrink away at the dock's minimum width.
 - `AgentRail` renders its own full-height panel (`.agent-task-rail`, header "AGENT TASKS" + a count
   chip) beside `.canvas-stage` inside `.canvas-main-row` — a sibling of the canvas, not a rail/toolbar
   item, so cards have room for more than an icon. It is the **only** always-visible list of agents:

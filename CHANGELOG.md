@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.9.0](https://github.com/gutzerk/code_chroma/compare/v0.8.1...v0.9.0) (2026-10-06)
+
+
+### Features
+
+* add "New project…" to the desktop launcher ([#52](https://github.com/gutzerk/code_chroma/issues/52)) ([#97](https://github.com/gutzerk/code_chroma/issues/97)) ([dff8483](https://github.com/gutzerk/code_chroma/commit/dff8483f97fd4b8df2d5c32a0f74d9bcdd3b60e0))
+
 ## [0.8.1](https://github.com/gutzerk/code_chroma/compare/v0.8.0...v0.8.1) (2026-10-06)
 
 

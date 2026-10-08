@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+﻿import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { createScriptedClient, type Scene } from "./scriptedSession";
 
 const scene = (overrides: Partial<Scene> = {}): Scene => ({
@@ -35,6 +35,51 @@ describe("createScriptedClient", () => {
 
     expect(onChosen).toHaveBeenCalledWith(1);
     expect(onDone).toHaveBeenCalledWith(1);
+  });
+
+  it("types the prompt itself and waits for Enter before it starts work", () => {
+    const onChosen = vi.fn();
+    const client = createScriptedClient(() => {});
+    const { session, output } = attach(client);
+    client.play(scene({ confirm: true, question: undefined, options: undefined, onChosen }));
+    vi.advanceTimersByTime(5000);
+    const waitedFor = onChosen.mock.calls.length;
+
+    session.write("\r");
+
+    expect(output.join("")).toContain("go");
+    expect(waitedFor).toBe(0);
+    expect(onChosen).toHaveBeenCalledWith(0);
+  });
+
+  it("stops after its work lines and carries on only once resumed", () => {
+    const onDone = vi.fn();
+    const client = createScriptedClient(() => {});
+    const { output } = attach(client);
+    client.play(
+      scene({ hold: true, question: undefined, options: undefined, resumeLines: ["after"], onDone }),
+    );
+    vi.advanceTimersByTime(20000);
+    const stoppedAt = output.join("");
+
+    client.resume();
+    vi.advanceTimersByTime(20000);
+
+    expect(stoppedAt).not.toContain("after");
+    expect(output.join("")).toContain("after");
+    expect(onDone).toHaveBeenCalledTimes(1);
+  });
+
+  it("does not stop at all when it was resumed before it got there", () => {
+    const onDone = vi.fn();
+    const client = createScriptedClient(() => {});
+    attach(client);
+    client.play(scene({ hold: true, question: undefined, options: undefined, onDone }));
+
+    client.resume();
+    vi.advanceTimersByTime(20000);
+
+    expect(onDone).toHaveBeenCalledTimes(1);
   });
 
   it("plays a scene again on a reconnect while it is unfinished", () => {

@@ -30,7 +30,20 @@ export interface TutorialStep {
   nextLabel?: string;
   /** Skips the highlight ring: the target is only the area the user may interact with. */
   quiet?: boolean;
+  /** Every element matching `target` is highlighted together, but none of them can be clicked. */
+  locked?: boolean;
   onEnter?: () => void;
+}
+
+const PLAN_BLOCKS = '[data-recipe-key^="plan::"]';
+const IMPACT_ADDED_BLOCK = '[data-testid="canvas-node-box"]:has(.node-meta-chip--impact-new)';
+const ZOOM_RETRY_MS = 120;
+const ZOOM_MAX_TRIES = 25;
+
+/** Zooms the camera on the planned blocks, retrying while the plan is still being drawn in. */
+function zoomToPlanBlocks(tries = 0): void {
+  if (tutorialSimStore.zoomToSelector(PLAN_BLOCKS) || tries >= ZOOM_MAX_TRIES) return;
+  window.setTimeout(() => zoomToPlanBlocks(tries + 1), ZOOM_RETRY_MS);
 }
 
 export const TUTORIAL_STEPS: readonly TutorialStep[] = [
@@ -220,23 +233,34 @@ export const TUTORIAL_STEPS: readonly TutorialStep[] = [
     id: "plan-shown",
     stage: 4,
     text: "There it is: the new blocks carry a PLAN · ADD label. That is a plan, they do not exist in the code yet. The arrows show where the feature will plug into the app.",
-    target: '[data-recipe-key="plan::service"]',
+    target: PLAN_BLOCKS,
+    locked: true,
     placement: "right",
     advance: "next",
     nextLabel: "Next",
+    onEnter: () => zoomToPlanBlocks(),
   },
   {
     id: "run-agent",
     stage: 4,
     text: "Now let's have a second agent build it. Run agent starts a new one right next to the others. Click it.",
     target: ".agents-toggle-button",
-    placement: "bottom",
+    placement: "left",
     advance: "click",
+  },
+  {
+    id: "send-implement",
+    stage: 4,
+    text: "A new agent window opened and I typed the command for you: \"Implement the plan\". Press Enter to send it.",
+    target: '[data-testid="tutorial-agent-2"]',
+    quiet: true,
+    placement: "left",
+    advance: "auto",
   },
   {
     id: "agent2-started",
     stage: 4,
-    text: "The second agent got the plan and started writing the code. It works on its own, so we don't have to wait. Go back to the first agent in the list.",
+    text: "The second agent read the plan from the canvas and started writing the code. It will wait here until you come back to it. Go back to the first agent in the list.",
     target: '[data-testid="agent-rail-tutorial-1"]',
     placement: "left",
     advance: "click",
@@ -311,15 +335,17 @@ export const TUTORIAL_STEPS: readonly TutorialStep[] = [
     id: "plan-built",
     stage: 4,
     text: "Done. The PLAN label is gone: the blocks are now linked to the real code that agent 2 wrote. A plan turns into code, and the diagram keeps up. That completes stage 4.",
-    target: '[data-recipe-key="plan::service"]',
+    target: PLAN_BLOCKS,
+    locked: true,
     placement: "right",
     advance: "next",
     nextLabel: "Next stage",
+    onEnter: () => zoomToPlanBlocks(),
   },
   {
     id: "gh-cli",
     stage: 5,
-    text: "Stage 5: reviewing a pull request. CodeChroma talks to GitHub through the GitHub CLI, so you need it first: install gh from cli.github.com and run gh auth login once. The canvas is empty again, no agents and no diagrams. Is gh ready?",
+    text: "Stage 5: pull requests. CodeChroma uses the GitHub CLI, so install gh (cli.github.com) and run gh auth login once. Is it ready?",
     placement: "center",
     advance: "next",
     nextLabel: "gh is ready",
@@ -329,7 +355,7 @@ export const TUTORIAL_STEPS: readonly TutorialStep[] = [
     stage: 5,
     text: "This is the pull request button. Click it.",
     target: '[data-testid="pr-toggle-button"]',
-    placement: "bottom",
+    placement: "left",
     advance: "click",
   },
   {
@@ -368,28 +394,38 @@ export const TUTORIAL_STEPS: readonly TutorialStep[] = [
   {
     id: "impact-shown",
     stage: 5,
-    text: "Here is what the pull request changes. ADD marks new code and MODIFY marks changed code. The boxes without a label are untouched code that the change talks to.",
-    target: '[data-testid="impact-status-chip"]',
+    text: "This is what the pull request changes. + ADD marks new code, like validate_title. ~ MODIFY marks changed code, − DELETE removed code. Unlabelled boxes are untouched.",
+    target: IMPACT_ADDED_BLOCK,
+    locked: true,
     placement: "right",
     advance: "next",
     nextLabel: "Next",
   },
   {
-    id: "run-agent-pr",
+    id: "impact-agents-tab",
     stage: 5,
-    text: "Now ask an agent about this pull request. Click Run agent.",
-    target: ".agents-toggle-button",
-    placement: "bottom",
+    text: "You don't need a new agent to ask about this pull request. The agent that drew the diagram is still here and knows it. Open the Agents tab.",
+    target: '[data-testid="agent-task-rail-tab-agents"]',
+    placement: "left",
+    advance: "click",
+  },
+  {
+    id: "impact-open-agent",
+    stage: 5,
+    text: "Click the agent that drew the impact diagram to open its window and ask it about the pull request.",
+    target: '[data-testid="agent-rail-tutorial-1"]',
+    placement: "left",
     advance: "click",
   },
   {
     id: "explain-working",
     stage: 5,
     text: "The agent explains add_todo and will break its block into steps. Watch the diagram.",
-    target: '[data-testid="tutorial-agent-2"]',
+    target: '[data-testid="tutorial-agent"]',
     quiet: true,
     placement: "left",
     advance: "auto",
+    onEnter: () => tutorialSimStore.requestScene("explain"),
   },
   {
     id: "split-done",

@@ -139,7 +139,15 @@ Steps then click the `backend/app.py` block (opens the real
 (`meta.no_code_reason === "conceptual"`) that opens the description popup instead of code.
 `CanvasNodeBox` exposes `data-recipe-key` and `data-no-code` so steps can target boxes that have no
 `node_id`; a step's `quiet: true` skips the highlight ring when the target is just the region the user
-may use (the whole canvas, the inspector, the popup).
+may use (the whole canvas, the inspector, the popup). A step's `locked: true` highlights every element
+matching `target` as one box and blocks clicks on all of them (the stage 4 `plan-shown` step zooms in
+on the two `plan::*` blocks via `tutorialSimStore.zoomToSelector` → `CanvasViewport.fitToSelector`).
+A scripted `Scene` (`scriptedSession.ts`) can set `confirm: true` (the agent types the prompt itself,
+then waits for the user's Enter) and `hold: true` (after `workLines` it stops until
+`ScriptedClient.resume()`, then prints `resumeLines` and finishes). Stage 4's second agent
+(`implementScript.ts`) uses both: step `send-implement` asks for Enter, and `TutorialAgentMock` resumes
+it when the user is back in its window (step `agent2-result`). A `"left"` chat flips to the target's right when there is no room on the left, so it never covers
+a left-docked agent window.
 
 **Stage 4 (Agents and plans)** (its first agent window docks at the left edge, `AGENT_LEFT` in `TutorialAgentMock.tsx`, so the new one fits on the right) adds two pretend agents on top of the real panels. The first agent is
 the stage-2 terminal (`createDrawDiagramClient`, built on `scriptedSession.ts`: a `Scene` is a typed

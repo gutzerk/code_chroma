@@ -32,6 +32,12 @@ export function claudeBanner(cwd = "~/codechroma-tutorial"): string {
 /** One exchange: the user's prompt is typed, Claude optionally asks, then "works" and finishes. */
 export interface Scene {
   prompt: string;
+  /** After the prompt is typed out the agent waits for the user to press Enter to send it. */
+  confirm?: boolean;
+  /** After `workLines` the agent stops and does nothing until `resume()` is called. */
+  hold?: boolean;
+  /** Printed after a held scene resumes, before `doneLine`. */
+  resumeLines?: readonly string[];
   /** Printed before the question, e.g. which skill Claude picked. */
   intro?: string;
   /** Without a question the scene goes straight to work after the prompt. */
@@ -45,7 +51,7 @@ export interface Scene {
   onDone?: (choice: number) => void;
 }
 
-type Phase = "idle" | "typing" | "choosing" | "working";
+type Phase = "idle" | "typing" | "confirming" | "choosing" | "working" | "held";
 
 function optionLines(options: readonly string[], selected: number): string {
   const rows = options.map((label, index) =>
@@ -65,6 +71,8 @@ export class ScriptedSession {
   private timers: number[] = [];
   private closed = false;
   private lead = 0;
+  private held: { scene: Scene; choice: number } | null = null;
+  private resumeEarly = false;
 
   constructor(private readonly emit: (data: string) => void) {}
 
@@ -101,7 +109,10 @@ export class ScriptedSession {
       this.later(delay, () => this.emit(char));
       delay += TYPE_MS;
     }
-    this.later(delay + 300, () => this.afterPrompt(scene));
+    this.later(delay + 300, () => {
+      if (scene.confirm) this.phase = "confirming";
+      else this.afterPrompt(scene);
+    });
   }
 
   private afterPrompt(scene: Scene): void {
@@ -118,8 +129,29 @@ export class ScriptedSession {
     this.phase = "choosing";
   }
 
+  /** Lets a held scene carry on; if it has not stopped yet, it will not stop at all. */
+  resume(): void {
+    const held = this.held;
+    if (!held) {
+      this.resumeEarly = true;
+      return;
+    }
+    this.held = null;
+    this.phase = "working";
+    const step = held.scene.stepMs ?? DEFAULT_STEP_MS;
+    const lines = held.scene.resumeLines ?? [];
+    lines.forEach((line, index) => {
+      this.later(step * (index + 1), () => this.emit(`  ${DIM}⎿ ${line}${RESET}\r\n`));
+    });
+    this.finish(held.scene, held.choice, step * (lines.length + 1));
+  }
+
   handleInput(data: string): void {
     const scene = this.scene;
+    if (this.phase === "confirming" && scene) {
+      if (data === "\r") this.afterPrompt(scene);
+      return;
+    }
     if (this.phase !== "choosing" || !scene?.options) return;
     if (data === "\x1b[A" || data === "\x1b[B") {
       const count = scene.options.length;
@@ -142,6 +174,18 @@ export class ScriptedSession {
       this.later(step * (index + 1), () => this.emit(`  ${DIM}⎿ ${line}${RESET}\r\n`));
     });
     const finishAt = step * (scene.workLines.length + 1);
+    if (!scene.hold) {
+      this.finish(scene, choice, finishAt);
+      return;
+    }
+    this.later(finishAt, () => {
+      this.phase = "held";
+      this.held = { scene, choice };
+      if (this.resumeEarly) this.resume();
+    });
+  }
+
+  private finish(scene: Scene, choice: number, finishAt: number): void {
     this.later(finishAt, () =>
       this.emit(`\r\n${GREEN}●${RESET} ${scene.doneLine(choice)}\r\n`),
     );
@@ -163,6 +207,8 @@ export class ScriptedSession {
 export interface ScriptedClient extends TerminalClient {
   /** Plays a scene once the terminal is attached (queued until then). */
   play(scene: Scene): void;
+  /** Lets a scene that stopped on `hold` carry on (also when it has not reached the stop yet). */
+  resume(): void;
 }
 
 /** A TerminalClient whose one session is a `ScriptedSession`; `setup` runs when the terminal attaches. */
@@ -171,7 +217,12 @@ export function createScriptedClient(setup: (session: ScriptedSession) => void):
   // Scenes asked for but not finished: a terminal that reconnects (React StrictMode remounts it in
   // dev) starts a fresh session, which must pick them up again.
   const unfinished: Scene[] = [];
+  let resumed = false;
   return {
+    resume() {
+      resumed = true;
+      session?.resume();
+    },
     play(scene) {
       const tracked: Scene = {
         ...scene,
@@ -190,6 +241,7 @@ export function createScriptedClient(setup: (session: ScriptedSession) => void):
       session = created;
       setup(created);
       unfinished.forEach((scene) => created.play(scene));
+      if (resumed) created.resume();
       return {
         write: (data) => created.handleInput(data),
         writeBinary: () => {},

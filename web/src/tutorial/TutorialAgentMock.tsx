@@ -8,7 +8,7 @@ import runAgentIcon from "../icons/run-agent.svg";
 import { TerminalClientProvider } from "../terminal/TerminalClientContext";
 import { createDrawDiagramClient, createImpactClient } from "./drawDiagramScript";
 import { IMPACT_DIAGRAM_TASK } from "../pr/PrDialog";
-import { createExplainClient } from "./explainScript";
+import { explainScene } from "./explainScript";
 import { createImplementClient } from "./implementScript";
 import type { Scene, ScriptedClient } from "./scriptedSession";
 import { splitAddTodo } from "./tutorialSplit";
@@ -156,6 +156,8 @@ export function TutorialAgentMock() {
 
   const drawImpact = () => {
     tutorialSimStore.reveal("impact");
+    seedLayerPositions("impact", TUTORIAL_LAYOUTS.impact);
+    tutorialSimStore.listAgent1();
     void runRecipeAndLayout(engineClient, "impact")
       .catch(() => undefined)
       .then(() => {
@@ -235,40 +237,39 @@ export function TutorialAgentMock() {
     },
   });
 
+  const explainPrScene = (): Scene =>
+    explainScene(() => {
+      void splitAddTodo(engineClient)
+        .catch(() => undefined)
+        .then(() => {
+          tutorialSimStore.closeAgent();
+          advanceTutorialFrom("explain-working");
+        });
+    });
+
   useEffect(() => {
     if (!sim.scene || !first) return;
-    first.client.play(sim.scene === "feature" ? featureScene() : secondDiagramScene());
+    const scenes = { feature: featureScene, second: secondDiagramScene, explain: explainPrScene };
+    first.client.play(scenes[sim.scene]());
     tutorialSimStore.requestScene(null);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [sim.scene, first]);
 
-  // Stage 5's agent explains the pull request; earlier stages' agent builds the planned feature.
   const featureId = sim.feature;
-  const inPrStage = stage === 5;
   useEffect(() => {
     if (sim.agent2 !== "working" || second) return;
-    if (inPrStage) {
-      nextId.current += 1;
-      const onDone = () => {
-        void splitAddTodo(engineClient)
-          .catch(() => undefined)
-          .then(() => {
-            tutorialSimStore.finishAgent2();
-            advanceTutorialFrom("explain-working");
-          });
-      };
-      setSecond({ id: nextId.current, client: createExplainClient(onDone) });
-      return;
-    }
     const feature = featureById(featureId);
     if (!feature) return;
     nextId.current += 1;
     setSecond({
       id: nextId.current,
-      client: createImplementClient(feature, tutorialSimStore.finishAgent2),
+      client: createImplementClient(feature, {
+        onStarted: () => advanceTutorialFrom("send-implement"),
+        onDone: tutorialSimStore.finishAgent2,
+      }),
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [sim.agent2, second, featureId, inPrStage]);
+  }, [sim.agent2, second, featureId]);
 
   // A pull request opened with the impact box ticked starts an agent that draws its impact diagram.
   const impactStarted = useRef(false);
@@ -282,6 +283,11 @@ export function TutorialAgentMock() {
     setFirst(null);
     tutorialSimStore.openAgent();
   }, [sim.pr, sim.prImpact]);
+
+  // The second agent stops half way and carries on only once the user is back in its window.
+  useEffect(() => {
+    if (stepId === "agent2-result") second?.client.resume();
+  }, [stepId, second]);
 
   // Once the second agent has finished, its planned blocks become real code.
   useEffect(() => {

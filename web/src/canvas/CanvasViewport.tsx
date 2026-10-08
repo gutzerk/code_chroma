@@ -26,6 +26,8 @@ export interface CanvasViewportHandle {
   fitToNodes: (nodeIds: string[]) => boolean;
   /** Fits the union of every mounted node, whatever is on the canvas — see the imperative handle. */
   fitToAllNodes: () => void;
+  /** Zooms in on the union of every mounted element matching the CSS selector; false when none is laid out. */
+  fitToSelector: (selector: string) => boolean;
   zoomIn: () => void;
   zoomOut: () => void;
   resetView: () => void;
@@ -459,6 +461,19 @@ export const CanvasViewport = forwardRef<CanvasViewportHandle, CanvasViewportPro
 
         setView((v) => computeFitView(v, viewportRect, unionRect));
         playFocusAnimation();
+      },
+      fitToSelector(selector: string): boolean {
+        const viewportEl = viewportRef.current;
+        if (!viewportEl) return false;
+        lastFocusedNodeIdRef.current = null;
+        previousViewRef.current = null;
+        contentRef.current?.classList.remove("canvas-content--animated");
+        const viewportRect = viewportEl.getBoundingClientRect();
+        const { rect: unionRect } = unionRects(viewportEl.querySelectorAll<HTMLElement>(selector));
+        if (!unionRect) return false;
+        setView((v) => computeFitView(v, viewportRect, unionRect));
+        playFocusAnimation();
+        return true;
       },
       zoomIn() {
         const { x, y } = viewportCenter();

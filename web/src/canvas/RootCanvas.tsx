@@ -274,6 +274,10 @@ export function RootCanvas() {
     tutorialSimStore.setFitAll(fitAll);
     return () => tutorialSimStore.setFitAll(null);
   }, [fitAll]);
+  useEffect(() => {
+    tutorialSimStore.setFitSelector((selector) => viewportRef.current?.fitToSelector(selector) ?? false);
+    return () => tutorialSimStore.setFitSelector(null);
+  }, []);
 
   // A click on a row in the ProjectTree sidebar: reveal the node's ancestors (expand the canvas
   // tree down to it) then frame the block once it's mounted. navigateTreeTo is the concrete "focus

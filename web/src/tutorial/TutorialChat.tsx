@@ -21,25 +21,51 @@ function sameBox(a: Box | null, b: Box | null): boolean {
   return a.left === b.left && a.top === b.top && a.width === b.width && a.height === b.height;
 }
 
-function chatPosition(step: TutorialStep, box: Box | null): { left: number; top: number } {
+function unionBox(elements: Element[]): Box | null {
+  const rects = elements.map((element) => element.getBoundingClientRect());
+  if (rects.length === 0) return null;
+  const left = Math.min(...rects.map((rect) => rect.left));
+  const top = Math.min(...rects.map((rect) => rect.top));
+  const right = Math.max(...rects.map((rect) => rect.right));
+  const bottom = Math.max(...rects.map((rect) => rect.bottom));
+  return { left, top, width: right - left, height: bottom - top };
+}
+
+function chatPosition(
+  step: TutorialStep,
+  box: Box | null,
+): { left: number; top: number; placement: TutorialStep["placement"] } {
   if (step.placement === "corner") {
-    return { left: window.innerWidth - CHAT_WIDTH - 24, top: window.innerHeight - 260 };
+    return {
+      left: window.innerWidth - CHAT_WIDTH - 24,
+      top: window.innerHeight - 260,
+      placement: "corner",
+    };
   }
   if (!box || step.placement === "center") {
-    return { left: (window.innerWidth - CHAT_WIDTH) / 2, top: window.innerHeight * 0.3 };
+    return {
+      left: (window.innerWidth - CHAT_WIDTH) / 2,
+      top: window.innerHeight * 0.3,
+      placement: "center",
+    };
   }
+  // A "left" chat with no room beside the target would cover it, so it flips to the target's right.
+  const placement =
+    step.placement === "left" && box.left - CHAT_WIDTH - GAP < GAP ? "right" : step.placement;
   const right = Math.min(box.left + box.width + GAP, window.innerWidth - CHAT_WIDTH - GAP);
   const placed = {
     corner: 0,
     center: 0,
     bottom: box.left,
-    left: Math.max(GAP, box.left - CHAT_WIDTH - GAP),
+    left: box.left - CHAT_WIDTH - GAP,
     right,
   };
-  const left = placed[step.placement];
-  const top =
-    step.placement === "bottom" ? box.top + box.height + GAP : box.top + box.height / 2 - 36;
-  return { left, top: Math.max(GAP, Math.min(top, window.innerHeight - 220)) };
+  const top = placement === "bottom" ? box.top + box.height + GAP : box.top + box.height / 2 - 36;
+  return {
+    left: placed[placement],
+    top: Math.max(GAP, Math.min(top, window.innerHeight - 220)),
+    placement,
+  };
 }
 
 function StageProgress({ step }: { step: TutorialStep }) {
@@ -97,11 +123,14 @@ export function TutorialChat() {
     if (!step) return;
     let frame = 0;
     const track = () => {
-      const element = step.target ? document.querySelector(step.target) : null;
-      const rect = element?.getBoundingClientRect();
-      const next = rect
-        ? { left: rect.left, top: rect.top, width: rect.width, height: rect.height }
-        : null;
+      const elements = step.target
+        ? Array.from(
+            step.locked
+              ? document.querySelectorAll(step.target)
+              : [document.querySelector(step.target)],
+          ).filter((element): element is Element => element !== null)
+        : [];
+      const next = unionBox(elements);
       setBox((previous) => (sameBox(previous, next) ? previous : next));
       frame = requestAnimationFrame(track);
     };
@@ -115,7 +144,7 @@ export function TutorialChat() {
       const clicked = event.target as Element | null;
       if (clicked && chatRef.current?.contains(clicked)) return;
       const target = step.target ? document.querySelector(step.target) : null;
-      if (clicked && target?.contains(clicked)) {
+      if (!step.locked && clicked && target?.contains(clicked)) {
         if (event.type === "click" && step.advance === "click") {
           window.setTimeout(tutorialStore.next, 0);
         }
@@ -148,7 +177,7 @@ export function TutorialChat() {
       )}
       <div
         ref={chatRef}
-        className={`tutorial-chat tutorial-chat--${box || step.placement === "corner" ? step.placement : "center"}`}
+        className={`tutorial-chat tutorial-chat--${position.placement}`}
         data-testid="tutorial-chat"
         style={{ left: position.left, top: position.top, width: CHAT_WIDTH }}
       >

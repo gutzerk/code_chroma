@@ -383,6 +383,16 @@ def count_open() -> int:
           },
         },
         {
+          id: "backend/service.py::function::remove_todo",
+          name: "remove_todo",
+          node_id: "backend/service.py",
+          seed: true,
+          description: "Deleted by this pull request: todos can no longer be removed.",
+          meta: {
+            status: "deleted",
+          },
+        },
+        {
           id: "backend/app.py::function::handle_create_todo",
           name: "handle_create_todo",
           node_id: "backend/app.py::function::handle_create_todo",
@@ -475,6 +485,10 @@ def add_todo(title: str) -> dict:
 
 
 def finish_todo(todo_id: int) -> dict:
+    return repository.mark_done(todo_id)
+
+
+def remove_todo(todo_id: int) -> dict:
     return repository.mark_done(todo_id)
 `,
 };

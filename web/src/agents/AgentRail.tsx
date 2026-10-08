@@ -334,7 +334,7 @@ function tutorialAgentRows(sim: ReturnType<typeof useTutorialSim>): TutorialAgen
   if (sim.agent2 !== "none") {
     rows.push({
       id: "tutorial-2",
-      title: sim.feature ? `Build: ${featureById(sim.feature)?.label ?? "feature"}` : "Explain the PR",
+      title: sim.feature ? `Build: ${featureById(sim.feature)?.label ?? "feature"}` : "Build the feature",
       status: sim.agent2 === "working" ? "working" : "idle",
       open: sim.agent2Window,
       onClick: tutorialSimStore.openAgent2Window,

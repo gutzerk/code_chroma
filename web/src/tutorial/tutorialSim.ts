@@ -4,7 +4,7 @@ import { Store } from "../state/createStore";
 export type SimWikiState = "idle" | "running" | "done";
 export type SimAgentState = "closed" | "open";
 export type SimAgent2State = "none" | "working" | "done";
-export type SimScene = "feature" | "second";
+export type SimScene = "feature" | "second" | "explain";
 
 const WIKI_DURATION_MS = 4000;
 const WIKI_TICK_MS = 100;
@@ -66,6 +66,15 @@ class TutorialSimStore extends Store {
   };
 
   fitCanvas = (): void => this.fitAll?.();
+
+  private fitSelector: ((selector: string) => boolean) | null = null;
+
+  setFitSelector = (fit: ((selector: string) => boolean) | null): void => {
+    this.fitSelector = fit;
+  };
+
+  /** Zooms the canvas in on the elements matching the selector; false while they are not laid out. */
+  zoomToSelector = (selector: string): boolean => this.fitSelector?.(selector) ?? false;
 
   private set(patch: Partial<SimSnapshot>): void {
     this.snapshot = { ...this.snapshot, ...patch };

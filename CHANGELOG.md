@@ -1,5 +1,28 @@
 # Changelog
 
+## [0.9.0](https://github.com/gutzerk/code_chroma/compare/v0.8.1...v0.9.0) (2026-10-06)
+
+
+### Features
+
+* add "New project…" to the desktop launcher ([#52](https://github.com/gutzerk/code_chroma/issues/52)) ([#97](https://github.com/gutzerk/code_chroma/issues/97)) ([dff8483](https://github.com/gutzerk/code_chroma/commit/dff8483f97fd4b8df2d5c32a0f74d9bcdd3b60e0))
+
+## [0.8.1](https://github.com/gutzerk/code_chroma/compare/v0.8.0...v0.8.1) (2026-10-06)
+
+
+### Bug Fixes
+
+* don't open block details after a drag, stop diagram frame flicke… ([db02b97](https://github.com/gutzerk/code_chroma/commit/db02b97c20dc1722bb33c9465d176b6b896221f5))
+
+## [0.8.0](https://github.com/gutzerk/code_chroma/compare/v0.7.1...v0.8.0) (2026-10-06)
+
+
+### Features
+
+* recolor run-agent icon, enlarge it, and fix its tooltip layering ([0979d94](https://github.com/gutzerk/code_chroma/commit/0979d94a10bd64db6f0e6797f02b2d740a2a7b44))
+* show release changelog in Updates and move Report issue to the … ([e2a45b2](https://github.com/gutzerk/code_chroma/commit/e2a45b24135ea3293b590104f36acb8c16c35c98))
+* show release changelog in Updates and move Report issue to the top bar ([309781f](https://github.com/gutzerk/code_chroma/commit/309781f9fc98b9874cde822f84603f9489805e4a))
+
 ## [0.7.1](https://github.com/gutzerk/code_chroma/compare/v0.7.0...v0.7.1) (2026-10-05)
 
 

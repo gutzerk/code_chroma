@@ -42,3 +42,22 @@ export function createDrawDiagramClient(
     });
   });
 }
+
+/** The agent a pull request opened with "build the impact diagram" starts: no question, the type is set. */
+export function createImpactClient(task: string, onDone: () => void): ScriptedClient {
+  return createScriptedClient((session) => {
+    session.open();
+    session.play({
+      prompt: task,
+      intro: "I will use the codechroma-draw-diagram skill.",
+      workLines: [
+        "Reading the diff of the pull request…",
+        "Finding the code the change talks to…",
+        "Drawing the Change impact diagram…",
+        "Self-check passed.",
+      ],
+      doneLine: () => "Done. The Change impact diagram is on your canvas.",
+      onDone,
+    });
+  });
+}

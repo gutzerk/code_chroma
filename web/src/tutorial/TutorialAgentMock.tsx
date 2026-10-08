@@ -6,7 +6,8 @@ import { seedLayerPositions } from "../canvas/doc/layerPositionCache";
 import { useEngineClient } from "../engine-client/EngineClientContext";
 import runAgentIcon from "../icons/run-agent.svg";
 import { TerminalClientProvider } from "../terminal/TerminalClientContext";
-import { createDrawDiagramClient } from "./drawDiagramScript";
+import { createDrawDiagramClient, createImpactClient } from "./drawDiagramScript";
+import { IMPACT_DIAGRAM_TASK } from "../pr/PrDialog";
 import { createExplainClient } from "./explainScript";
 import { createImplementClient } from "./implementScript";
 import type { Scene, ScriptedClient } from "./scriptedSession";
@@ -28,6 +29,9 @@ interface Session {
   id: number;
   client: ScriptedClient;
 }
+
+/** In stage 4 the first agent moves to the left of the diagram, leaving the right side to the new one. */
+const AGENT_LEFT = 24;
 
 /** How far from the right edge a floating agent window must sit to stay clear of the agents panel. */
 function useRightOffset(): number {
@@ -52,12 +56,15 @@ function AgentWindowShell({
   session,
   open,
   right,
+  left,
 }: {
   testId: string;
   title: string;
   session: Session | null;
   open: boolean;
   right: number;
+  /** When set the window docks to the left edge instead, clear of the one on the right. */
+  left?: number;
 }) {
   const panelRef = useRef<HTMLDivElement>(null);
   const sessionId = session?.id;
@@ -76,7 +83,7 @@ function AgentWindowShell({
       className="agent-window tutorial-agent"
       data-testid={testId}
       ref={panelRef}
-      style={open ? { right } : { display: "none" }}
+      style={open ? (left === undefined ? { right } : { left, right: "auto" }) : { display: "none" }}
     >
       <div className="agent-window-title">
         <img className="agent-window-icon" src={runAgentIcon} alt="" aria-hidden="true" />
@@ -147,9 +154,24 @@ export function TutorialAgentMock() {
       });
   };
 
+  const drawImpact = () => {
+    tutorialSimStore.reveal("impact");
+    void runRecipeAndLayout(engineClient, "impact")
+      .catch(() => undefined)
+      .then(() => {
+        tutorialSimStore.closeAgent();
+        advanceTutorialFrom("impact-working");
+        window.setTimeout(tutorialSimStore.fitCanvas, 300);
+      });
+  };
+
   useEffect(() => {
     if (sim.agent !== "open" || first) return;
     nextId.current += 1;
+    if (stage === 5) {
+      setFirst({ id: nextId.current, client: createImpactClient(IMPACT_DIAGRAM_TASK, drawImpact) });
+      return;
+    }
     const resumed = (step?.stage ?? 0) >= 4;
     const client = createDrawDiagramClient(
       {
@@ -248,23 +270,18 @@ export function TutorialAgentMock() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [sim.agent2, second, featureId, inPrStage]);
 
-  // A pull request opened with the impact box ticked gets its impact diagram drawn right away.
-  const impactDrawn = useRef(false);
+  // A pull request opened with the impact box ticked starts an agent that draws its impact diagram.
+  const impactStarted = useRef(false);
   useEffect(() => {
     if (sim.pr === "none") {
-      impactDrawn.current = false;
+      impactStarted.current = false;
       return;
     }
-    if (!sim.prImpact || impactDrawn.current) return;
-    impactDrawn.current = true;
-    tutorialSimStore.reveal("impact");
-    void runRecipeAndLayout(engineClient, "impact")
-      .catch(() => undefined)
-      .then(() => {
-        advanceTutorialFrom("impact-working");
-        window.setTimeout(tutorialSimStore.fitCanvas, 300);
-      });
-  }, [sim.pr, sim.prImpact, engineClient]);
+    if (!sim.prImpact || impactStarted.current) return;
+    impactStarted.current = true;
+    setFirst(null);
+    tutorialSimStore.openAgent();
+  }, [sim.pr, sim.prImpact]);
 
   // Once the second agent has finished, its planned blocks become real code.
   useEffect(() => {
@@ -285,6 +302,7 @@ export function TutorialAgentMock() {
         session={first}
         open={sim.agent === "open"}
         right={right}
+        left={stage === 4 ? AGENT_LEFT : undefined}
       />
       <AgentWindowShell
         testId="tutorial-agent-2"

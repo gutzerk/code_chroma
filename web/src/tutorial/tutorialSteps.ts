@@ -359,8 +359,10 @@ export const TUTORIAL_STEPS: readonly TutorialStep[] = [
   {
     id: "impact-working",
     stage: 5,
-    text: "Drawing the impact diagram of the pull request.",
-    placement: "corner",
+    text: "An agent opened by itself and is drawing the impact diagram of the pull request, because you ticked the box. It got the instruction to draw it, so it does not ask which diagram.",
+    target: '[data-testid="tutorial-agent"]',
+    quiet: true,
+    placement: "left",
     advance: "auto",
   },
   {

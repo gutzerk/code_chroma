@@ -141,7 +141,7 @@ Steps then click the `backend/app.py` block (opens the real
 `node_id`; a step's `quiet: true` skips the highlight ring when the target is just the region the user
 may use (the whole canvas, the inspector, the popup).
 
-**Stage 4 (Agents and plans)** adds two pretend agents on top of the real panels. The first agent is
+**Stage 4 (Agents and plans)** (its first agent window docks at the left edge, `AGENT_LEFT` in `TutorialAgentMock.tsx`, so the new one fits on the right) adds two pretend agents on top of the real panels. The first agent is
 the stage-2 terminal (`createDrawDiagramClient`, built on `scriptedSession.ts`: a `Scene` is a typed
 prompt, an optional arrow-key question, scripted work lines and a done line); `tutorialSimStore.scene`
 asks it to play the next exchange. `AgentRail` lists the pretend agents (`tutorial-1`, `tutorial-2`)
@@ -160,7 +160,7 @@ tutorial runs the dialog talks to `tutorialPr.ts`'s `tutorialPrClient` (one open
 and "Open on canvas" calls `finishTutorialPrOpen`, which sets `tutorialSimStore.pr`. The dialog's
 "Build the impact diagram right away" box is a real feature too: ticked, `PrDialog` starts an agent in
 the new review (`launchAgent(client, pr.id, null, IMPACT_DIAGRAM_TASK)`). In the lesson that box makes
-`TutorialAgentMock` reveal and draw the project's prebuilt impact diagram; Run agent then starts the
+`TutorialAgentMock` open the first agent window at once, a scripted session (`createImpactClient`) that receives the same `IMPACT_DIAGRAM_TASK` and then draws the project's prebuilt impact diagram; Run agent then starts the
 scripted explain agent (`explainScript.ts`), and when it finishes `tutorialSplit.ts` splits the
 `add_todo` block into three numbered steps (`meta.order`) through `patchCanvasDoc`.
 

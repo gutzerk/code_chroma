@@ -47,6 +47,8 @@ export interface DesktopWorkspaceApi {
   /** Brings this tab's shell window to front and makes this tab active -- the desktop half of
    * clicking a native agent-status notification. */
   focusThisTab(): Promise<void>;
+  /** Closes this tab's project and shows the open-project launcher. */
+  closeThisProject(): Promise<void>;
 }
 
 const desktopWorkspaceApi: DesktopWorkspaceApi = {
@@ -55,6 +57,7 @@ const desktopWorkspaceApi: DesktopWorkspaceApi = {
   closeWorkspaceWindow: (workspaceId) =>
     ipcRenderer.invoke("desktop:close-workspace-window", workspaceId),
   focusThisTab: () => ipcRenderer.invoke("desktop:focus-this-tab"),
+  closeThisProject: () => ipcRenderer.invoke("desktop:close-this-project"),
 };
 
 contextBridge.exposeInMainWorld("codechromaDesktop", desktopWorkspaceApi);

@@ -352,6 +352,7 @@ describe("PrDialog", () => {
       openWorkspaceWindow,
       closeWorkspaceWindow: vi.fn(async () => {}),
       focusThisTab: vi.fn(async () => {}),
+      closeThisProject: vi.fn(async () => {}),
     };
     renderDialog();
     publish([pr(7)]);
@@ -368,6 +369,7 @@ describe("PrDialog", () => {
       openWorkspaceWindow: vi.fn(async () => {}),
       closeWorkspaceWindow,
       focusThisTab: vi.fn(async () => {}),
+      closeThisProject: vi.fn(async () => {}),
     };
     const closePr = vi.fn(async () => {});
     renderDialog(client({ closePr }));

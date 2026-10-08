@@ -287,6 +287,14 @@ function focusThisTab(sender: WebContents): void {
   shell.window.focus();
 }
 
+/** Closes the calling tab's project and lands the user on the open-project (launcher) tab. */
+function closeThisProject(sender: WebContents): void {
+  const found = shellForTabSender(sender);
+  if (!found) return;
+  closeTabById(found.shell, found.tab.id);
+  ensureLauncherTabActive(found.shell);
+}
+
 async function promptForFolder(): Promise<string | null> {
   const result = await dialog.showOpenDialog({
     title: "Open repository",
@@ -451,6 +459,7 @@ function registerIpc(): void {
     closeWorkspaceWindow(event.sender, workspaceId),
   );
   ipcMain.handle("desktop:focus-this-tab", (event) => focusThisTab(event.sender));
+  ipcMain.handle("desktop:close-this-project", (event) => closeThisProject(event.sender));
 
   ipcMain.handle("tabbar:new", (event) => {
     const shell = shellForTabBarSender(event.sender);

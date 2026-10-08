@@ -204,6 +204,7 @@ describe("notifyAgentStatus", () => {
       openWorkspaceWindow: vi.fn(),
       closeWorkspaceWindow: vi.fn(),
       focusThisTab,
+      closeThisProject: vi.fn(async () => {}),
     });
     const onOpen = vi.fn();
     notifyAgentStatus(record(), "exited", onOpen);

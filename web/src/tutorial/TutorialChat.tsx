@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { tutorialStore, useTutorialStep } from "./tutorialStore";
+import { getDesktopWorkspaceApi } from "../agents/desktopWorkspaceApi";
 import runAgentIcon from "../icons/run-agent.svg";
 import { TUTORIAL_STAGES, TUTORIAL_STEPS, type TutorialStep } from "./tutorialSteps";
 import "./tutorial.css";
@@ -160,6 +161,13 @@ export function TutorialChat() {
   }, [step]);
 
   if (!step) return null;
+  // The last step's button ends the lesson: close the example project and go back to the launcher.
+  const finish = () => {
+    tutorialStore.next();
+    if (step === TUTORIAL_STEPS[TUTORIAL_STEPS.length - 1]) {
+      void getDesktopWorkspaceApi()?.closeThisProject();
+    }
+  };
   const position = chatPosition(step, box);
   return (
     <>
@@ -193,7 +201,7 @@ export function TutorialChat() {
         <StageProgress step={step} />
         <p className="tutorial-chat-text">{typed}</p>
         {step.advance === "next" && typed.length === step.text.length && (
-          <button type="button" className="tutorial-chat-next" onClick={tutorialStore.next}>
+          <button type="button" className="tutorial-chat-next" onClick={finish}>
             {step.nextLabel ?? "Next"}
           </button>
         )}

@@ -818,6 +818,11 @@ export const CanvasViewport = forwardRef<CanvasViewportHandle, CanvasViewportPro
             "--canvas-grid-y": `${view.y}px`,
           } as CSSProperties
         }
+        // Capture, so a block that stops its own pointerdown (a draggable box) still clears a finished
+        // pan's leftover click-swallow flag instead of eating the next, unrelated click.
+        onPointerDownCapture={() => {
+          didPanRef.current = false;
+        }}
         onPointerDown={handlePointerDown}
         onPointerMove={handlePointerMove}
         onPointerUp={endGesture}

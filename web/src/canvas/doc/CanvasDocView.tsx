@@ -13,7 +13,6 @@ import { BLOCK_RULES } from "./elementRules";
 import { elementRect } from "./elementRect";
 import { leadingOrderDigits, stringMeta } from "./elementMeta";
 import { GroupFrame } from "./GroupFrame";
-import { HierarchyElement } from "./HierarchyElement";
 import { LaneArea } from "./LaneArea";
 import { NoteElement } from "./NoteElement";
 import { SequenceDiagram } from "./SequenceDiagram";
@@ -337,7 +336,8 @@ export function CanvasDocView() {
           {visibleElements.map((element) => {
             switch (BLOCK_RULES[element.render].renderer) {
               case "hierarchy":
-                return <HierarchyElement key={element.id} element={element} />;
+                // Retired code-tree block: an old document may still carry one; it draws nothing.
+                return null;
               case "note":
                 return <NoteElement key={element.id} element={element} />;
               case "group":

@@ -10,6 +10,7 @@ import {
   useDockedAgentIds,
   useIsAgentDockCollapsed,
 } from "./agentDockStore";
+import runAgentIcon from "../icons/run-agent.svg";
 import { AgentLed } from "./AgentLed";
 import { AgentLedStrip } from "./AgentLedStrip";
 import { closeAgentWindow, openAgentWindow } from "./windowActions";
@@ -117,6 +118,7 @@ function DockedAgentPanel({ agent, active }: { agent: AgentRecord; active: boole
       data-testid={`agent-dock-panel-${agent.id}`}
     >
       <div className="agent-terminal-dock-header">
+        <img className="agent-window-icon" src={runAgentIcon} alt="" aria-hidden="true" />
         <AgentLed status={agent.status} />
         <span className="agent-terminal-dock-title">{agent.title}</span>
         {agent.resolved_cli && (

@@ -34,6 +34,12 @@ export function captureLayerPositions(layerElements: readonly CanvasElement[], l
   else cache.delete(layer);
 }
 
+/** Pre-loads `layer`'s positions by `recipe_key`, so the next `runRecipeAndLayout` of that recipe
+ * places each box there instead of running a fresh layout (the tutorial's saved arrangement). */
+export function seedLayerPositions(layer: string, positions: Record<string, CanvasPosition>): void {
+  cache.set(layer, new Map(Object.entries(positions)));
+}
+
 /** Returns and forgets `layer`'s cached position for `recipeKey`, if one was captured. */
 export function takeCachedPosition(layer: string, recipeKey: string): CanvasPosition | undefined {
   const snapshot = cache.get(layer);

@@ -24,11 +24,15 @@ import { GamesMenu } from "../games/GamesMenu";
 import { useHasCanvasLayer } from "./doc/canvasDocStore";
 import { CodePopupContext } from "./CodePopupContext";
 import { CodePopup } from "./CodePopup";
-import { collapsedLayersStore } from "./doc/collapsedLayersStore";
 import { InspectorPanel } from "./InspectorPanel";
 import { inspectorStore, useIsInspectorOpen } from "./inspectorStore";
 import { ProjectTreePanel } from "./ProjectTreePanel";
 import { CodeSidebar } from "./CodeSidebar";
+import { TutorialAgentMock } from "../tutorial/TutorialAgentMock";
+import { TutorialChat } from "../tutorial/TutorialChat";
+import { tutorialSimStore } from "../tutorial/tutorialSim";
+import { tutorialStore } from "../tutorial/tutorialStore";
+import { useStartTutorial } from "../tutorial/useStartTutorial";
 import {
   projectTreePanelStore,
   useIsProjectTreePanelOpen,
@@ -126,6 +130,7 @@ export function RootCanvas() {
   const terminalMounted = useLatchedMount(isTerminalPanelOpen);
   const inspectorMounted = useLatchedMount(isInspectorOpen);
   const projectTreeMounted = useLatchedMount(isProjectTreePanelOpen);
+  useStartTutorial(rootNode?.name ?? null);
   const isDiffActive = useIsDiffActive();
   const isReadOnly = useIsWorkspaceReadOnly();
   // The "impact" recipe's layer is the one-canvas model's replacement for the old "view is open"
@@ -165,13 +170,6 @@ export function RootCanvas() {
   // The camera policy — retry-until-mounted framing plus the auto-fit suppression lock.
   const camera = useCanvasCamera(viewportRef);
   const { frameFitTo } = camera;
-
-  // The tree lives in the ProjectTree sidebar, so the canvas opens diagrams-only — collapse the
-  // seeded hierarchy layer on load. Runs per load; collapsedLayersStore is workspace-scoped, so a
-  // workspace switch re-collapses it to the same diagrams-first default.
-  useEffect(() => {
-    collapsedLayersStore.collapse("hierarchy");
-  }, [engineClient]);
 
   // Read once at startup only, never during interaction: these pick initial state, they are not
   // deep-linking or per-node routing, which FR-018 explicitly drops. The app never writes them.
@@ -272,6 +270,10 @@ export function RootCanvas() {
   // View-agnostic on purpose: the C1 view renders no root block, so targeting rootNode here was a
   // silent no-op there. fitToAllNodes unions whatever is actually mounted in either view.
   const fitAll = useCallback(() => viewportRef.current?.fitToAllNodes(), []);
+  useEffect(() => {
+    tutorialSimStore.setFitAll(fitAll);
+    return () => tutorialSimStore.setFitAll(null);
+  }, [fitAll]);
 
   // A click on a row in the ProjectTree sidebar: reveal the node's ancestors (expand the canvas
   // tree down to it) then frame the block once it's mounted. navigateTreeTo is the concrete "focus
@@ -455,7 +457,11 @@ export function RootCanvas() {
               ? `${maxAgents} agents is the limit — close one to start another`
               : "Attaches to the workspace you're currently viewing"
           }
-          onClick={() => void attachAgent(agentClient, viewContext)}
+          onClick={() => {
+            // The lesson's second agent is a simulation; it never reaches the bridge.
+            if (tutorialStore.isActive()) tutorialSimStore.startAgent2();
+            else void attachAgent(agentClient, viewContext);
+          }}
         >
           <img className="agents-toggle-icon" src={runAgentIcon} alt="" aria-hidden="true" />
           <span className="agents-toggle-label">Run agent</span>
@@ -501,6 +507,8 @@ export function RootCanvas() {
           {/* Diff / AI-plan / Replay rail buttons hidden for now; underlying logic kept above. */}
           <DrawDiagramButton />
         </nav>
+        <TutorialChat />
+        <TutorialAgentMock />
         <div className="canvas-area" data-testid="canvas-area">
           {/* Row for the canvas plus the agent task panel beside it — a full-height sibling of the
               canvas, not a toolbar item, so cards have room to be more than an icon and a tooltip.

@@ -16,7 +16,7 @@ def _write_impact(repo, nodes: list, relations: list) -> None:
 
 
 def _impact_elements(canvas: dict) -> dict:
-    """Just the impact layer -- every document also holds the seeded root block (ensure_seeded)."""
+    """Just the impact layer of the canvas document."""
     return {k: v for k, v in canvas["elements"].items() if v["layer"] == "impact"}
 
 

@@ -31,9 +31,7 @@ from codechroma.bridge.git_sync import GitSync
 from codechroma.bridge.layout_store import LayoutStore, layout_path_for
 from codechroma.bridge.live import DirWatcher, FileWatcher, RepoWatcher, _Watcher
 from codechroma.bridge.overlays import impact_changes_path
-from codechroma.bridge.plan_resolver import ROOT_NODE_ID
 from codechroma.bridge.trace_archive import TraceArchive
-from codechroma.canvas.document import ensure_seeded
 from codechroma.config import settings
 from codechroma.dependencies.digest import dependency_digest_path, load_dependency_digest
 from codechroma.engine import GraphEngine
@@ -375,19 +373,7 @@ class Workspace:
         workspace._git = WorkspaceGit(workspace)
         workspace._watchers = WorkspaceWatchers(workspace)
         workspace._watchers.build()
-        # A read-only workspace can't be written to at all; a PR gets its seed at import instead.
-        if not read_only:
-            workspace._seed_canvas()
         return workspace
-
-    def _seed_canvas(self) -> None:
-        """Best-effort root block: an unwritable repo degrades to a blank canvas, not a dead one."""
-        try:
-            ensure_seeded(
-                self._artifacts.canvas_core_path, self._artifacts.diagrams_root, ROOT_NODE_ID
-            )
-        except OSError:
-            logger.warning("could not seed canvas-core.json for %s", self.id, exc_info=True)
 
     # --- delegated helpers (public names tests and routes depend on stay on `Workspace`) ---
 

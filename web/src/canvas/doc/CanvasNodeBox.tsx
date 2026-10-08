@@ -350,6 +350,8 @@ export function CanvasNodeBox({ element, onMeasure }: CanvasNodeBoxProps) {
       // used to add the wrong id, or nothing at all, so nothing ever lit up as selected.
       data-select-id={element.id}
       data-render={element.render}
+      data-recipe-key={stringMeta(element, "recipe_key")}
+      data-no-code={stringMeta(element, "no_code_reason")}
       style={{
         position: "absolute",
         // An epics box (`epic`/`spec`/`task`) positions by its bottom-left corner (`left = x`,

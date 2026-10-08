@@ -6,6 +6,8 @@ import { useEngineClient } from "../../engine-client/EngineClientContext";
 import type { DiagramsStatus } from "../../state/types";
 import { RailIcon } from "../../icons/RailIcon";
 import { RailButton } from "../RailButton";
+import { tutorialSimStore } from "../../tutorial/tutorialSim";
+import { tutorialStore } from "../../tutorial/tutorialStore";
 import { canvasDocStore, collectActiveLayers, useCanvasDoc } from "./canvasDocStore";
 import {
   computeReadyDiagrams,
@@ -165,6 +167,11 @@ export function DrawDiagramButton() {
 
   const onDrawDiagram = () => {
     setError(null);
+    // The tutorial opens a scripted mock agent instead of launching a real one.
+    if (tutorialStore.isActive()) {
+      tutorialSimStore.openAgent();
+      return;
+    }
     // A ready-but-unplaced diagram is added automatically regardless of who wrote it — the "Draw…"
     // button included — so there is no pending-request set to mark here (the old `pendingDrawRequests`
     // gate, removed).

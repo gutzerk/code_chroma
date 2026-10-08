@@ -6,7 +6,8 @@ const recentsEl = document.getElementById("recents");
 const recentsPanel = document.getElementById("recents-panel");
 const statusEl = document.getElementById("status");
 const openButton = document.getElementById("open");
-const newToggle = document.getElementById("new-toggle");
+const tutorialButton = document.getElementById("tutorial");
+const newToggle =document.getElementById("new-toggle");
 const newForm = document.getElementById("new-form");
 const newName = document.getElementById("new-name");
 const newBrowse = document.getElementById("new-browse");
@@ -21,6 +22,7 @@ function setStatus(text, isError) {
 
 function setBusy(busy) {
   openButton.disabled = busy;
+  tutorialButton.disabled = busy;
   newToggle.disabled = busy;
   newCreate.disabled = busy;
   for (const button of recentsEl.querySelectorAll("button")) {
@@ -90,6 +92,16 @@ openButton.addEventListener("click", async () => {
   const picked = await api.pickFolder();
   if (picked) {
     await open(picked);
+  }
+});
+
+tutorialButton.addEventListener("click", async () => {
+  if (openButton.disabled) return;
+  try {
+    await open(await api.createTutorial());
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    setStatus(message.replace(/^Error invoking remote method '[^']+': (Error: )?/, ""), true);
   }
 });
 

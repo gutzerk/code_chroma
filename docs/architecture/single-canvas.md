@@ -178,13 +178,6 @@ what changed since.
   `docs/architecture/web-canvas-shell.md`'s Order/Lane/Concurrency island entry for the full
   layout+render story) — same borderless soft-tint treatment, each with its own color hash/palette so
   a box in a real group, a Lane, and an island at once still reads as three distinct colors.
-- `canvas/doc/HierarchyElement.tsx` — wraps `resolveStrategy(element.meta.strategy).NodeRenderer` at
-  the element's `(x, y)`, fetching the pinned node via `getNode` and caching it into
-  `expansionStore` exactly like `RootCanvas`'s own root-node effect. **Deliberately injects no
-  C1-style Inspector redirect** — `useNodeChrome`'s `opensInspector` and expand-in-place are mutually
-  exclusive per row, so redirecting the root row to the Inspector would silently disable its own
-  expand arrow. `Block.tsx`/`TreeNode.tsx`/`expansionState.ts` stay genuinely untouched, matching the
-  plan's own Decision ("the tree just gains an (x, y)").
 - `canvas/doc/CanvasEdges.tsx` — one relationship arrow per `doc.edges` entry, routed off each
   element's own *persisted* position/size via `connectors/diagramLayout.ts`'s `layoutDiagramEdges`/
   `rectFromBox` — unlike the old per-view Connections components, nothing here re-runs dagre; a
@@ -230,8 +223,7 @@ what changed since.
   `"true"` string, and only a flag-read that accepts both survives either path — `stringMeta` would
   silently drop the boolean form.
 - `canvas/doc/CanvasDocView.tsx` — the single view: iterates `doc.elements`, filters out hidden
-  layers before mapping (so they don't mount, not just CSS-hide), dispatches `hierarchy` →
-  `HierarchyElement`, `note` → `NoteElement`, `group` → `GroupFrame`, everything else →
+  layers before mapping (so they don't mount, not just CSS-hide), dispatches `note` → `NoteElement`, `group` → `GroupFrame`, everything else →
   `CanvasNodeBox`, all in one loop. As of Stage 4 it also takes `rootNode`/`strategyName` props and seeds a
   `"hierarchy"` element the first time the document has none (see below) — the rail/breadcrumb/
   `InspectorPanel` chrome around it is inherited from `RootCanvas`, which now mounts it
@@ -245,7 +237,7 @@ with their own `meta.lane`/shared-`order`-digit membership), `canvas/doc/GroupFr
 bounding-box math itself: default-size union, real-measured-size/margin override, no-members renders
 nothing), `canvas/doc/LaneArea.test.tsx`/`canvas/doc/ConcurrencyIslandArea.test.tsx` (same bounding-box
 contract via the shared `unionBoundsOf()`, plus each area's own color hash),
-`canvas/doc/HierarchyElement.test.tsx` (still expands lazily via the real `TreeNode`/`getChildren`).
+(`HierarchyElement` has since been deleted with the code-tree block.)
 
 ### `DiagramFrame.tsx` — a whole diagram's own dashed, draggable frame
 
@@ -582,54 +574,20 @@ unconditionally in `RootCanvas` beside `InspectorPanel`; renders `null` while cl
 latched-mount handling the way the terminal/wizard panels do (nothing in it needs to survive
 close/reopen).
 
-### The seeded root block — one invariant, enforced server-side
+### No root block anymore — the canvas starts empty
 
-🔴 **A canvas document always holds a `render: "hierarchy"` root block, and the server is what
-guarantees it.** `canvas/document.py`'s `ensure_seeded(path, node_id)` writes a document containing
-just that block (`id: "seed-hierarchy"`, `created_by: "user"` so no recipe re-run reconciles it away)
-whenever the file is missing or parses to an empty document. Two callers:
+The code-tree block (`render: "hierarchy"`, the big frame of folders and files that used to sit on
+the canvas) is retired: the Project Tree sidebar is the one hierarchy surface. The server seeds
+nothing (`ensure_seeded`, `hierarchy_seed` and `_is_seedable` are gone), a fresh repo's `GET
+/canvas` returns an empty document, and `pr_import_seed.seed_canvas_doc` only copies main's
+`canvas-core.json`. `"hierarchy"` stays in `RENDER_KINDS` purely so old files still validate;
+`CanvasDoc.load` drops any such element, and `CanvasDocView` draws nothing for one that slips through.
+`HierarchyElement.tsx` and the `RootCanvas` effect that collapsed the layer were deleted.
 
-| Caller | Covers |
-|---|---|
-| `Workspace.create` (skipped when `read_only`) | main and every agent worktree, at bring-up |
-| `pr_import_seed.seed_canvas_doc` | a PR, after copying main's `canvas.json` — main may have none |
-| `PrManager.reconcile()` | the same `seed_canvas_doc`, backfilling a PR imported before seeding existed |
-
-🔴 **`ensure_seeded` never raises, and that is load-bearing** — every caller above sits on a startup
-path, so one bad file must not take a whole workspace (or the bridge) down with it. `_is_seedable`
-is the gate, and it refuses three kinds of document rather than clobbering data the user might still
-recover:
-
-| On disk | Outcome | Why |
-|---|---|---|
-| missing | seeded | the ordinary fresh-repo case |
-| `{}` | **seeded** | a legitimately empty document — ⚠ this is why the check uses `load_json_or_none`, not `load_json`: the latter reports a literal `{}` as falsy, identically to a parse failure, so the old check left such a canvas blank forever |
-| unparseable, or valid JSON that isn't an object | left alone | `CanvasDoc.load` reports a malformed file as an *empty* document, so seeding would overwrite it |
-| parseable, but a shape `CanvasDoc` rejects | left alone | 🔴 this used to raise `ValidationError` straight out of `model_validate`; neither caller catches anything but `OSError`, so one such file crashed `Workspace.create` and `PrManager.reconcile()` — i.e. bridge startup |
-
-⚠ It returns `path.is_file()`, not a bare `True`: `io.write_json` swallows its own `OSError`, so the
-file actually landing is the only proof a seed happened.
-
-Everything else that used to enforce this is gone. The invariant previously lived in **four** places:
-the PR-import copy, the `reconcile()` backfill, a `read_only` branch in `get_canvas` that
-synthesized the element *on the read path* (giving the client an id that existed in no document — so
-any drag, layout save or `removeLayerAndRefresh("hierarchy")` against it failed), and a
-`useSeedHierarchyElement` React effect that `PATCH`ed one in behind three refs, a bounded retry loop
-and a client-identity reset effect. `get_canvas` is now two lines and has no `read_only` case;
-`CanvasDocView` seeds nothing, lost its `rootNode` prop entirely, and renders whatever it is served.
-
-**The strategy selector is gone.** The hierarchy always renders as nested boxes (`strategies/boxes/
-Block.tsx`, via `BoxesRenderer`); the former `?strategy=` / `VITE_CANVAS_STRATEGY` switch and the
-`strategyName` threading through `CanvasDocView` were removed (see `strategies/types.ts` /
-`web-canvas-shell.md`).
-
-Tests: `tests/unit/test_canvas_document_seed.py` (every row of the table above),
-`tests/unit/test_bridge_canvas_route.py` (a fresh repo already serves the block; it is real on
-disk, not synthesized per request; a read-only workspace serves what the import wrote),
-`tests/unit/test_pr_import_seed.py` (the canvas is seeded even when main has no diagrams at all; an
-existing PR canvas.json is never overwritten; `seed_canvas_doc` alone touches nothing else).
-`mockBridge.ts` and `RootCanvas.test.tsx` both start
-from `SEEDED_CANVAS_DOC` (`state/types.ts`) so they serve what the bridge serves.
+Tests: `tests/unit/test_canvas_document_legacy.py` (a legacy element is dropped on load),
+`tests/unit/test_bridge_canvas_route.py` (a fresh repo serves an empty canvas),
+`tests/unit/test_pr_import_seed.py`, `CanvasDocView.test.tsx` (draws nothing for a legacy element).
+`mockBridge.ts` and `RootCanvas.test.tsx` start from `EMPTY_CANVAS_DOC`.
 
 Removed CanvasDocView's own `<CanvasViewport>` wrapper from Stage 2 — `RootCanvas` now provides the
 one `CanvasViewport` (with the `viewportRef` the rest of its chrome needs), so `CanvasDocView` mounted

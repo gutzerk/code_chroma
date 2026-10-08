@@ -430,6 +430,11 @@ def count_open() -> int:
           to: "db/repository.py::function::insert",
           label: "saves",
         },
+        {
+          from: "backend/service.py::function::remove_todo",
+          to: "db/repository.py::function::insert",
+          label: "used the same table",
+        },
       ],
     },
     null,

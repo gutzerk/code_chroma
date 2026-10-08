@@ -8,6 +8,7 @@ import { useCollisionParticipant } from "../collision/collisionStore";
 import { DropGhost } from "../collision/DropGhost";
 import { inspectorStore, useIsInspectorTarget } from "../inspectorStore";
 import { selectionStore } from "../../state/selectionStore";
+import { tutorialStore } from "../../tutorial/tutorialStore";
 import { useIsSelected, useSelectedCount } from "../../state/selectionStore";
 import { canvasDocStore, commitCanvasPositions } from "./canvasDocStore";
 import { dragOffsetStore, useLiveDragOffsets } from "./dragOffsetStore";
@@ -251,6 +252,8 @@ export function CanvasNodeBox({ element, onMeasure }: CanvasNodeBoxProps) {
       return;
     }
     selectionStore.clear();
+    // The tutorial's "drag this block" step only allows moving: a click must not open the inspector.
+    if (tutorialStore.currentStepId() === "move-block") return;
     // An epics-layer box (epic title, content card, phase header or task) has no code behind it --
     // its primary click opens the SAME right-side inspector as a code box, showing the block's full
     // text + its place in the epic instead of a code tree. Opening the inspector keeps re-clicking

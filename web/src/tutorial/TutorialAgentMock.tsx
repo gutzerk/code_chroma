@@ -11,6 +11,7 @@ import { IMPACT_DIAGRAM_TASK } from "../pr/PrDialog";
 import { explainScene } from "./explainScript";
 import { createImplementClient } from "./implementScript";
 import type { Scene, ScriptedClient } from "./scriptedSession";
+import { placeLayerRightOfOthers } from "./placeRightOfOthers";
 import { splitAddTodo } from "./tutorialSplit";
 import { buildPlan, drawPlan, featureById, TUTORIAL_FEATURES } from "./tutorialPlan";
 import { applyStageState } from "./tutorialStageState";
@@ -228,6 +229,7 @@ export function TutorialAgentMock() {
     onDone: () => {
       tutorialSimStore.reveal("c1");
       void runRecipeAndLayout(engineClient, "c1")
+        .then(() => placeLayerRightOfOthers(engineClient, "c1"))
         .catch(() => undefined)
         .then(() => {
           tutorialSimStore.closeAgent();

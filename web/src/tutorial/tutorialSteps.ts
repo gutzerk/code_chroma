@@ -123,7 +123,7 @@ export const TUTORIAL_STEPS: readonly TutorialStep[] = [
   {
     id: "choose-diagram",
     stage: 2,
-    text: "A real terminal just opened with Claude Code inside. Here Claude is scripted for the lesson. Use the arrow keys to look at the options, then press Enter on the diagram you want.",
+    text: "A real terminal just opened with Claude Code inside. Here Claude is scripted for the lesson. Claude asks which diagram to draw. Press Enter on Design patterns.",
     target: '[data-testid="tutorial-agent"]',
     placement: "left",
     advance: "auto",
@@ -226,7 +226,9 @@ export const TUTORIAL_STEPS: readonly TutorialStep[] = [
     id: "plan-working",
     stage: 4,
     text: "Claude is placing the feature on the diagram.",
-    placement: "corner",
+    target: '[data-testid="tutorial-agent"]',
+    quiet: true,
+    placement: "left",
     advance: "auto",
   },
   {

@@ -7,6 +7,7 @@ const GREEN = "\x1b[32m";
 const RESET = "\x1b[0m";
 
 const HINT = "↑/↓ to move · Enter to select";
+const CONFIRM_HINT = "Press Enter to send";
 const TYPE_MS = 45;
 const DEFAULT_STEP_MS = 900;
 const BANNER_WIDTH = 42;
@@ -54,11 +55,14 @@ export interface Scene {
 type Phase = "idle" | "typing" | "confirming" | "choosing" | "working" | "held";
 
 function optionLines(options: readonly string[], selected: number): string {
-  const rows = options.map((label, index) =>
-    index === selected
-      ? `\x1b[2K${ORANGE}❯ ${index + 1}. ${label}${RESET}`
-      : `\x1b[2K  ${DIM}${index + 1}. ${label}${RESET}`,
-  );
+  // A lone option needs no number.
+  const numbered = options.length > 1;
+  const rows = options.map((label, index) => {
+    const text = numbered ? `${index + 1}. ${label}` : label;
+    return index === selected
+      ? `\x1b[2K${ORANGE}❯ ${text}${RESET}`
+      : `\x1b[2K  ${DIM}${text}${RESET}`;
+  });
   return [...rows, "\x1b[2K", `\x1b[2K  ${DIM}${HINT}${RESET}`].join("\r\n");
 }
 
@@ -110,8 +114,10 @@ export class ScriptedSession {
       delay += TYPE_MS;
     }
     this.later(delay + 300, () => {
-      if (scene.confirm) this.phase = "confirming";
-      else this.afterPrompt(scene);
+      if (scene.confirm) {
+        this.phase = "confirming";
+        this.emit(`\r\n\r\n${ORANGE}❯ ${CONFIRM_HINT}${RESET}`);
+      } else this.afterPrompt(scene);
     });
   }
 

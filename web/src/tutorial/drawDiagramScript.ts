@@ -1,10 +1,6 @@
 import { createScriptedClient, type ScriptedClient } from "./scriptedSession";
 
-export const DIAGRAM_CHOICES = [
-  { label: "System context (C1)", recipe: "c1" },
-  { label: "Design patterns", recipe: "patterns" },
-  { label: "Change impact", recipe: "impact" },
-] as const;
+export const DIAGRAM_CHOICES = [{ label: "Design patterns", recipe: "patterns" }] as const;
 
 export interface DrawDiagramHooks {
   onChosen: () => void;
@@ -56,6 +52,7 @@ export function createImpactClient(task: string, onDone: () => void): ScriptedCl
         "Drawing the Change impact diagram…",
         "Self-check passed.",
       ],
+      stepMs: 400,
       doneLine: () => "Done. The Change impact diagram is on your canvas.",
       onDone,
     });

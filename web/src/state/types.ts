@@ -969,9 +969,7 @@ export interface CanvasDoc {
 }
 
 /** The shared "nothing on the canvas yet" CanvasDoc — one literal instead of a copy per caller.
- * Note this is emptier than anything the bridge actually serves: `canvas/document.py`'s
- * `ensure_seeded` guarantees a real document always carries the root block (see SEEDED_CANVAS_DOC),
- * so this stands only for "the fetch hasn't landed yet". */
+ * Also what a fresh repo's canvas looks like: the bridge seeds nothing. */
 export const EMPTY_CANVAS_DOC: CanvasDoc = {
   schema_version: 1,
   doc_id: "",
@@ -987,28 +985,6 @@ export const EMPTY_CANVAS_DOC: CanvasDoc = {
  * unrelated places (the seeded document, `getCachedAncestorPath`'s completeness test, and
  * `RootCanvas`'s `?root=` default) each need it. One constant so they can't drift apart. */
 export const ROOT_NODE_ID = "root";
-
-/** The root block the bridge seeds every fresh document with (`canvas/document.py`'s
- * `hierarchy_seed`), mirrored here so the mock bridge and the stub client serve what the real one
- * does — a canvas with no hierarchy element renders nothing at all. */
-export const SEEDED_CANVAS_DOC: CanvasDoc = {
-  ...EMPTY_CANVAS_DOC,
-  elements: {
-    "seed-hierarchy": {
-      id: "seed-hierarchy",
-      render: "hierarchy",
-      layer: "hierarchy",
-      label: "",
-      description: "",
-      node_id: ROOT_NODE_ID,
-      position: { x: 0, y: 0 },
-      size: null,
-      group_id: null,
-      meta: {},
-      created_by: "user",
-    },
-  },
-};
 
 /** One op inside a PATCH /repos/{id}/canvas batch — a loose bag of every op's optional fields,
  * mirroring `apply_batch.py`'s per-op handlers rather than a discriminated union, since the wire

@@ -1,6 +1,5 @@
 """pr_import_seed: copying main's authored diagrams into a bare PR worktree, safely."""
 
-import json
 from pathlib import Path
 
 from codechroma.bridge import pr_import_seed
@@ -42,8 +41,8 @@ def test_seed_copies_every_authored_diagram_into_a_bare_pr_worktree(tmp_path):
     assert (pr / "plan/epics/roadmap.md").exists()
 
 
-def test_seed_copies_canvas_doc_so_a_read_only_pr_can_show_its_hierarchy_box(tmp_path):
-    """A read-only PR can never self-seed canvas-core's hierarchy element (refuse_if_read_only)."""
+def test_seed_copies_canvas_doc_so_a_read_only_pr_shows_the_same_canvas(tmp_path):
+    """A read-only PR can never write its own canvas-core.json, so it starts from main's."""
     main = _main_root(tmp_path)
     pr = tmp_path / "pr"
     pr.mkdir()
@@ -99,8 +98,7 @@ def test_seed_does_not_overwrite_a_pr_artifact_that_already_exists(tmp_path):
     ) == "PR-VERSION"
 
 
-def test_seed_writes_only_the_canvas_when_main_has_no_diagrams(tmp_path):
-    """The canvas is the one thing seeded unconditionally -- a PR without it renders nothing."""
+def test_seed_writes_nothing_when_main_has_no_diagrams(tmp_path):
     main = tmp_path / "main"
     main.mkdir()
     pr = tmp_path / "pr"
@@ -108,7 +106,7 @@ def test_seed_writes_only_the_canvas_when_main_has_no_diagrams(tmp_path):
 
     seed_diagrams_from_main(pr, main)
 
-    assert [p.name for p in (pr / ".codechroma").iterdir()] == ["canvas-core.json"]
+    assert list(pr.iterdir()) == []
 
 
 def test_seed_is_a_no_op_when_pr_is_main(tmp_path):
@@ -143,17 +141,6 @@ def test_seed_skips_an_external_requirements_source(tmp_path, monkeypatch):
     assert list(external.iterdir()) == []
     # Patterns still seeded from main.
     assert (pr / ".codechroma/diagrams/patterns/patterns.json").exists()
-
-
-def test_seed_writes_a_root_block_when_main_has_no_canvas_of_its_own(tmp_path):
-    main = tmp_path / "main"
-    target = tmp_path / "target"
-    (main / ".codechroma").mkdir(parents=True)
-
-    seed_diagrams_from_main(target, main)
-
-    saved = json.loads((target / ".codechroma" / "canvas-core.json").read_text(encoding="utf-8"))
-    assert [e["render"] for e in saved["elements"].values()] == ["hierarchy"]
 
 
 def test_seed_canvas_doc_alone_leaves_the_prs_own_requirements_source_untouched(

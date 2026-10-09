@@ -43,6 +43,17 @@ describe("subjectDigestHex", () => {
   });
 });
 
+describe("verifyAttestation trust-cache recovery", () => {
+  it("retries once with a fresh TUF cache when the cached root fails to chain", async () => {
+    verifyMock.mockRejectedValueOnce(new Error("root was signed by 0/3 keys")).mockResolvedValueOnce(undefined);
+
+    await verifyAttestation(bundleWithSubject("a".repeat(64)), "a".repeat(64));
+
+    expect(verifyMock).toHaveBeenCalledTimes(2);
+    expect(verifyMock.mock.calls[1][1]).toHaveProperty("tufCachePath");
+  });
+});
+
 describe("verifyAttestation", () => {
   it("resolves when the signature verifies and the subject matches the artifact digest", async () => {
     verifyMock.mockResolvedValue(undefined);

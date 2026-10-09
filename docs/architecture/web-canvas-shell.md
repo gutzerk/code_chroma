@@ -35,11 +35,9 @@ canvas instead of collapsing onto whichever diagram happened to carry code-backe
   the Plan overlay's retirement, see `change-cards.md`; `c1ChangesStore`/`C1InspectorContext` remain;
   `canvas/epics/brief/` stayed too, reachable from an "epic" canvas element
   via a small standalone `EpicBriefPanel` instead of the deleted `EpicsView`). `RootCanvas` always
-  renders `CanvasDocView` inside its `CanvasViewport`. The document carries a seeded hierarchy
-  element, but `RootCanvas` collapses that layer on load: the Project Tree sidebar is the hierarchy
-  surface and the canvas opens diagrams-only. The client no longer seeds anything: the bridge
-  guarantees every document already holds its root block — see
-  [`single-canvas.md`](single-canvas.md)'s "The seeded root block".
+  renders `CanvasDocView` inside its `CanvasViewport`. The canvas opens empty and holds only
+  diagrams; the Project Tree sidebar is the hierarchy surface (see
+  [`single-canvas.md`](single-canvas.md)'s "No root block anymore").
   `DrawDiagramButton` (the rail's "Draw…" control, replacing the five per-kind toggle buttons and,
   since the diagram-management unification, `RecipeMenu`'s own dropdown — see
   [`diagram-skills.md`](diagram-skills.md)) and

@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useCanvasDoc } from "../canvas/doc/canvasDocStore";
 import { collapsedLayersStore, useCollapsedLayers } from "../canvas/doc/collapsedLayersStore";
 import {
@@ -18,6 +18,9 @@ import { useCurrentBranch } from "./branchStore";
 import { DeleteDiagramDialog } from "./DeleteDiagramDialog";
 import { closeAgentWindow, minimizeAgentWindow, restoreAgentWindow } from "./windowActions";
 import { agentDockStore, useDockedAgentIds } from "./agentDockStore";
+import { featureById } from "../tutorial/tutorialPlan";
+import { tutorialSimStore, useTutorialSim } from "../tutorial/tutorialSim";
+import { useTutorialActive } from "../tutorial/tutorialStore";
 
 type RailTab = "agents" | "diagrams";
 
@@ -73,7 +76,14 @@ export function AgentRail({ hidden = false }: { hidden?: boolean }) {
   const customTypes = useCustomDiagramTypes(engineClient);
   const collapsedLayers = useCollapsedLayers();
   const diagramLayers = useMemo(() => listActiveDiagramLayers(doc), [doc]);
+  const tutorialActive = useTutorialActive();
+  const sim = useTutorialSim();
+  const simRows = tutorialActive ? tutorialAgentRows(sim) : [];
   const [tab, setTab] = useState<RailTab>(() => (agents.length > 0 ? "agents" : "diagrams"));
+  const railResets = sim.railResets;
+  useEffect(() => {
+    if (railResets > 0) setTab("diagrams");
+  }, [railResets]);
   const [deletingLayer, setDeletingLayer] = useState<string | null>(null);
   const [deleteBusy, setDeleteBusy] = useState(false);
   const [deleteError, setDeleteError] = useState<string | null>(null);
@@ -138,9 +148,26 @@ export function AgentRail({ hidden = false }: { hidden?: boolean }) {
         >
           <div className="agent-task-rail-header">
             <span className="agent-task-rail-label">Agent tasks</span>
-            <span className="agent-task-rail-count">{agents.length}</span>
+            <span className="agent-task-rail-count">{agents.length + simRows.length}</span>
           </div>
           <div className="agent-task-rail-body">
+            {simRows.map((row) => (
+              <div className="agent-rail-row" key={row.id}>
+                <RailButton
+                  className="agent-rail-item"
+                  testId={`agent-rail-${row.id}`}
+                  label={`${row.title} — ${agentStatusLabel(row.status)}`}
+                  pressed={row.open}
+                  onClick={row.onClick}
+                >
+                  <span className={`agent-led agent-led-${row.status}`} aria-hidden="true" />
+                  <span className="agent-rail-preview">
+                    <span className="agent-rail-title">{row.title}</span>
+                    <span className="agent-rail-status">{agentStatusLabel(row.status)}</span>
+                  </span>
+                </RailButton>
+              </div>
+            ))}
             {agents.map((agent) => {
               const onBranch = isAgentOnBranch(agent, current);
               const hasDiagram = diagramsReady.has(agent.id);
@@ -282,4 +309,36 @@ function tooltipFor(agent: AgentRecord, onBranch: boolean, hasDiagram = false): 
   if (hasDiagram) return `${agent.title} — drew a diagram; open to see it`;
   if (!onBranch) return `${agent.title} — on ${baseBranchOf(agent)}`;
   return `${agent.title} — ${agentStatusLabel(agent.status)}`;
+}
+
+interface TutorialAgentRow {
+  id: string;
+  title: string;
+  status: AgentRecord["status"];
+  open: boolean;
+  onClick: () => void;
+}
+
+/** The lesson's pretend agents, shown with the same card markup as real ones. */
+function tutorialAgentRows(sim: ReturnType<typeof useTutorialSim>): TutorialAgentRow[] {
+  const rows: TutorialAgentRow[] = [];
+  if (sim.agent1Listed) {
+    rows.push({
+      id: "tutorial-1",
+      title: "Draw a diagram",
+      status: "idle",
+      open: sim.agent === "open",
+      onClick: tutorialSimStore.openAgent,
+    });
+  }
+  if (sim.agent2 !== "none") {
+    rows.push({
+      id: "tutorial-2",
+      title: sim.feature ? `Build: ${featureById(sim.feature)?.label ?? "feature"}` : "Build the feature",
+      status: sim.agent2 === "working" ? "working" : "idle",
+      open: sim.agent2Window,
+      onClick: tutorialSimStore.openAgent2Window,
+    });
+  }
+  return rows;
 }

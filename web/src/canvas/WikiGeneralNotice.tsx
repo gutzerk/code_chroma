@@ -1,10 +1,16 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useIsWorkspaceReadOnly } from "../agents/workspaceStore";
 import { useEngineClient } from "../engine-client/EngineClientContext";
-import { guardedClick, providerGate, useGroupAvailability } from "../llm-settings/useGroupAvailability";
+import {
+  guardedClick,
+  providerGate,
+  useGroupAvailability,
+} from "../llm-settings/useGroupAvailability";
 import { useWikiGeneralStatus } from "../state/useWikiGeneralStatus";
 import { useSkillOutput } from "../state/useSkillOutput";
 import { SkillOutputFeed } from "./SkillOutputFeed";
+import { tutorialSimStore, useTutorialSim } from "../tutorial/tutorialSim";
+import { advanceTutorialFrom, useTutorialActive } from "../tutorial/tutorialStore";
 import { estimateTimeRemaining, parseWikiGeneralProgress } from "./wikiGeneralProgress";
 
 /**
@@ -49,85 +55,151 @@ export function WikiGeneralNotice() {
   }, [isGenerating]);
   const elapsedMs = startedAtRef.current !== null ? Date.now() - startedAtRef.current : 0;
   const eta = estimateTimeRemaining(progress, elapsedMs);
+  const tutorialActive = useTutorialActive();
+  const sim = useTutorialSim();
+  const [showReady, setShowReady] = useState(false);
+  const wasGeneratingRef = useRef(false);
+  useEffect(() => {
+    if (wasGeneratingRef.current && !isGenerating && status.has_wiki_general) setShowReady(true);
+    wasGeneratingRef.current = isGenerating;
+  }, [isGenerating, status.has_wiki_general]);
+  useEffect(() => {
+    if (sim.wiki === "done") setShowReady(!sim.wikiAcked);
+  }, [sim.wiki, sim.wikiAcked]);
+  const readyNotice = showReady ? (
+    <div
+      className="wiki-general-notice wiki-ready-notice"
+      role="status"
+      data-testid="wiki-ready-notice"
+    >
+      <span>Architecture wiki is ready</span>
+      <button
+        type="button"
+        className="wiki-ready-dismiss"
+        data-testid="wiki-ready-dismiss"
+        aria-label="Dismiss"
+        onClick={() => setShowReady(false)}
+      >
+        ✓
+      </button>
+    </div>
+  ) : null;
+  // The tutorial swaps the real Generate for a simulation, so a lesson never calls a model.
+  if (tutorialActive && sim.wiki !== "done") {
+    return (
+      <div className="wiki-general-notice" role="status" data-testid="wiki-general-notice">
+        {sim.wiki === "running" ? (
+          <>
+            <span className="wiki-general-spinner" aria-hidden="true" />
+            <div className="wiki-general-generating-body">
+              <span>Building the architecture map…</span>
+              <div className="wiki-general-progress" aria-hidden="true">
+                <div
+                  className="wiki-general-progress-bar wiki-general-progress-bar--determinate"
+                  style={{ width: `${sim.wikiPercent}%` }}
+                />
+              </div>
+            </div>
+          </>
+        ) : (
+          <>
+            <span>Architecture wiki not created yet</span>
+            <button
+              type="button"
+              className="wiki-general-generate-button"
+              data-testid="wiki-general-generate"
+              onClick={() => tutorialSimStore.startWiki(() => advanceTutorialFrom("wiki-building"))}
+            >
+              Generate
+            </button>
+          </>
+        )}
+      </div>
+    );
+  }
+  if (sim.wiki === "done") return readyNotice;
   const nothingToAsk = status.empty || (status.has_wiki_general && !status.stale);
-  if (isReadOnly || (nothingToAsk && !isGenerating)) return null;
+  if (isReadOnly || (nothingToAsk && !isGenerating)) return readyNotice;
 
   // Shared by both Generate and Update -- aria-disabled (never native) keeps the hint keyboard-reachable.
   const gate = providerGate(providerAvailable);
 
   return (
-    <div className="wiki-general-notice" role="status" data-testid="wiki-general-notice">
-      {isGenerating ? (
-        <>
-          <span className="wiki-general-spinner" aria-hidden="true" />
-          <div className="wiki-general-generating-body">
-            <span>
-              Building the architecture map…
-              {progress ? ` ${progress.completed} / ${progress.total}` : ""}
-              {eta ? ` (${eta})` : ""}
-            </span>
-            <div
-              className="wiki-general-progress"
-              role={progress ? "progressbar" : undefined}
-              aria-hidden={progress ? undefined : true}
-              aria-valuemin={progress ? 0 : undefined}
-              aria-valuemax={progress?.total}
-              aria-valuenow={progress?.completed}
-              data-testid="wiki-general-progress"
-            >
+    <>
+      <div className="wiki-general-notice" role="status" data-testid="wiki-general-notice">
+        {isGenerating ? (
+          <>
+            <span className="wiki-general-spinner" aria-hidden="true" />
+            <div className="wiki-general-generating-body">
+              <span>
+                Building the architecture map…
+                {progress ? ` ${progress.completed} / ${progress.total}` : ""}
+                {eta ? ` (${eta})` : ""}
+              </span>
               <div
-                className={
-                  progress
-                    ? "wiki-general-progress-bar wiki-general-progress-bar--determinate"
-                    : "wiki-general-progress-bar"
-                }
-                style={progress ? { width: `${progress.percent}%` } : undefined}
-              />
+                className="wiki-general-progress"
+                role={progress ? "progressbar" : undefined}
+                aria-hidden={progress ? undefined : true}
+                aria-valuemin={progress ? 0 : undefined}
+                aria-valuemax={progress?.total}
+                aria-valuenow={progress?.completed}
+                data-testid="wiki-general-progress"
+              >
+                <div
+                  className={
+                    progress
+                      ? "wiki-general-progress-bar wiki-general-progress-bar--determinate"
+                      : "wiki-general-progress-bar"
+                  }
+                  style={progress ? { width: `${progress.percent}%` } : undefined}
+                />
+              </div>
+              <SkillOutputFeed lines={lines} testId="wiki-general-generation-output" />
             </div>
-            <SkillOutputFeed lines={lines} testId="wiki-general-generation-output" />
-          </div>
-          <button
-            type="button"
-            className="generating-stop-button"
-            data-testid="wiki-general-stop"
-            onClick={status.stop}
-          >
-            Stop
-          </button>
-        </>
-      ) : status.has_wiki_general ? (
-        <>
-          <span>
-            Architecture wiki is outdated
-            {status.state === "error" && status.error ? ` — ${status.error}` : ""}
-          </span>
-          <button
-            type="button"
-            className="wiki-general-update-button"
-            data-testid="wiki-general-update"
-            onClick={guardedClick(!providerAvailable, status.update)}
-            {...gate}
-          >
-            Update
-          </button>
-        </>
-      ) : (
-        <>
-          <span>
-            Architecture wiki not created yet
-            {status.state === "error" && status.error ? ` — ${status.error}` : ""}
-          </span>
-          <button
-            type="button"
-            className="wiki-general-generate-button"
-            data-testid="wiki-general-generate"
-            onClick={guardedClick(!providerAvailable, status.trigger)}
-            {...gate}
-          >
-            Generate
-          </button>
-        </>
-      )}
-    </div>
+            <button
+              type="button"
+              className="generating-stop-button"
+              data-testid="wiki-general-stop"
+              onClick={status.stop}
+            >
+              Stop
+            </button>
+          </>
+        ) : status.has_wiki_general ? (
+          <>
+            <span>
+              Architecture wiki is outdated
+              {status.state === "error" && status.error ? ` — ${status.error}` : ""}
+            </span>
+            <button
+              type="button"
+              className="wiki-general-update-button"
+              data-testid="wiki-general-update"
+              onClick={guardedClick(!providerAvailable, status.update)}
+              {...gate}
+            >
+              Update
+            </button>
+          </>
+        ) : (
+          <>
+            <span>
+              Architecture wiki not created yet
+              {status.state === "error" && status.error ? ` — ${status.error}` : ""}
+            </span>
+            <button
+              type="button"
+              className="wiki-general-generate-button"
+              data-testid="wiki-general-generate"
+              onClick={guardedClick(!providerAvailable, status.trigger)}
+              {...gate}
+            >
+              Generate
+            </button>
+          </>
+        )}
+      </div>
+      {readyNotice}
+    </>
   );
 }

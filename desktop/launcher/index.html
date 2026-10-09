@@ -177,12 +177,31 @@
         opacity: 0.55;
         cursor: default;
       }
+      button.tutorial {
+        width: 240px;
+        padding: 11px 20px;
+        border: 1px solid var(--accent);
+        border-radius: 10px;
+        background: var(--accent);
+        color: #0b0e16;
+        font-size: 15px;
+        font-weight: 700;
+        cursor: pointer;
+      }
+      button.tutorial:hover {
+        filter: brightness(1.08);
+      }
+      button.tutorial:disabled {
+        opacity: 0.55;
+        cursor: default;
+      }
       .hidden {
         display: none;
       }
     </style>
   </head>
   <body>
+    <button class="tutorial" id="tutorial">Tutorial</button>
     <h1>CodeChroma</h1>
     <p class="subtitle">Open a repository to map it.</p>
 

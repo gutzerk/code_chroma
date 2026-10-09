@@ -4,6 +4,10 @@ import { RailIcon } from "../icons/RailIcon";
 import { useAgentClient } from "../agents/AgentClientContext";
 import { PrDialog } from "./PrDialog";
 import { prStore } from "./prStore";
+import { useTutorialSim } from "../tutorial/tutorialSim";
+import { useTutorialStep } from "../tutorial/tutorialStore";
+
+const PR_DIALOG_STEPS = ["pr-pick", "pr-impact", "pr-open"];
 
 /** The rail's pull-request control, in the agents group because — like "Make active" — it changes
  * which workspace the canvas draws, not what is rendered of it.
@@ -13,6 +17,13 @@ import { prStore } from "./prStore";
 export function PrRailButton() {
   const agentClient = useAgentClient();
   const [open, setOpen] = useState(false);
+
+  // The lesson's dialog belongs to its own steps only: any other step (or a stage jump) shuts it.
+  const tutorialStepId = useTutorialStep()?.id;
+  const stageResets = useTutorialSim().railResets;
+  useEffect(() => {
+    if (tutorialStepId && !PR_DIALOG_STEPS.includes(tutorialStepId)) setOpen(false);
+  }, [tutorialStepId, stageResets]);
 
   useEffect(() => {
     let cancelled = false;

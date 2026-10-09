@@ -212,7 +212,16 @@ export function NodeButtons({
 /** The inline code/diff window plus the change-cards panel — same in both strategies. The
  * Impact change review itself now lives in the inspector panel (see `InspectorChangeReview`), not
  * here. */
-export function NodePanels({ node, chrome }: { node: HierarchyNodeRef; chrome: NodeChrome }) {
+export function NodePanels({
+  node,
+  chrome,
+  hideInlineCode,
+}: {
+  node: HierarchyNodeRef;
+  chrome: NodeChrome;
+  /** The sidebar tree shows code in the code sidebar, so a block's inline code window must not mirror here. */
+  hideInlineCode?: boolean;
+}) {
   const diff = useDiff(node.node_id);
   const engineClient = useEngineClient();
   const { handleAccept, isAccepting, acceptError } = useAcceptDiff(
@@ -226,6 +235,7 @@ export function NodePanels({ node, chrome }: { node: HierarchyNodeRef; chrome: N
   return (
     <>
       {chrome.isCodeVisible &&
+        !hideInlineCode &&
         (diff ? (
           <DiffView
             node={node}

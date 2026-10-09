@@ -2,47 +2,15 @@
 
 from __future__ import annotations
 
-import json
-
 from fastapi.testclient import TestClient
 
-from codechroma.canvas.document import ensure_seeded
 
-
-def test_get_canvas_on_a_fresh_repo_already_holds_the_seeded_root_block(bridge):
+def test_get_canvas_on_a_fresh_repo_is_empty(bridge):
     with TestClient(bridge.app) as client:
         response = client.get("/repos/default/canvas")
 
-    elements = list(response.json()["elements"].values())
     assert response.status_code == 200
-    assert [(e["id"], e["render"], e["node_id"]) for e in elements] == [
-        ("seed-hierarchy", "hierarchy", "root")
-    ]
-
-
-def test_the_seeded_root_block_is_real_on_disk_not_synthesized_per_request(bridge):
-    with TestClient(bridge.app) as client:
-        client.get("/repos/default/canvas")
-
-    saved = json.loads(
-        (bridge.repo / ".codechroma" / "canvas-core.json").read_text(encoding="utf-8")
-    )
-    assert "seed-hierarchy" in saved["elements"]
-
-
-def test_a_read_only_workspace_serves_the_seed_the_pr_import_wrote(bridge):
-    ensure_seeded(
-        bridge.repo / ".codechroma" / "canvas-core.json",
-        bridge.repo / ".codechroma" / "diagrams",
-        "root",
-    )
-    bridge.registry.register("pr-12", bridge.repo, read_only=True)
-
-    with TestClient(bridge.app) as client:
-        response = client.get("/repos/pr-12/canvas")
-
-    elements = list(response.json()["elements"].values())
-    assert [e["id"] for e in elements] == ["seed-hierarchy"]
+    assert response.json()["elements"] == {}
 
 
 def test_patch_canvas_adds_an_element_and_reports_its_real_id(bridge):

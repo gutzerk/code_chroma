@@ -4,8 +4,16 @@ import { useAgentClient } from "../agents/AgentClientContext";
 import { ModalDialog } from "../agents/ModalDialog";
 import { agentStore, useActiveWorkspace } from "../agents/agentStore";
 import { getDesktopWorkspaceApi } from "../agents/desktopWorkspaceApi";
+import { launchAgent } from "../agents/launchAgent";
+import { finishTutorialPrOpen, tutorialPrClient, type PrDialogClient } from "../tutorial/tutorialPr";
+import { advanceTutorialFrom, useTutorialActive } from "../tutorial/tutorialStore";
 import { workspaceStore } from "../agents/workspaceStore";
 import { prStore, usePrWorkspaces } from "./prStore";
+
+/** The first message of the agent a ticked "Build impact diagram" box starts in the new PR. */
+export const IMPACT_DIAGRAM_TASK =
+  "Draw the Change impact diagram for this pull request with the codechroma-draw-diagram skill. " +
+  "The type is already chosen, so do not ask which diagram to draw.";
 
 /** Pick one of GitHub's open pull requests, get it on the canvas as a read-only workspace.
  *
@@ -13,7 +21,11 @@ import { prStore, usePrWorkspaces } from "./prStore";
  * click rather than surfaced after it. Only ref-specific and network failures are post-click errors,
  * because only those can't be known in advance. */
 export function PrDialog({ onDismiss }: { onDismiss: () => void }) {
-  const agentClient = useAgentClient();
+  const realClient = useAgentClient();
+  const tutorial = useTutorialActive();
+  // The tutorial has no GitHub to talk to, so it gets a scripted stand-in with one open PR.
+  const agentClient: PrDialogClient = tutorial ? tutorialPrClient : realClient;
+  const [buildImpact, setBuildImpact] = useState(false);
   const prs = usePrWorkspaces();
   const activeWorkspace = useActiveWorkspace();
   const [preflight, setPreflight] = useState<PrImportPreflight | null>(null);
@@ -69,12 +81,19 @@ export function PrDialog({ onDismiss }: { onDismiss: () => void }) {
 
   const open = async () => {
     if (parsed === null) return;
+    if (tutorial) {
+      finishTutorialPrOpen(buildImpact, onDismiss);
+      return;
+    }
     setBusy(true);
     setError(null);
     try {
       const pr = await agentClient.openPr(String(parsed));
       prStore.upsert(pr);
       setSelectedNumber("");
+      if (buildImpact) {
+        void launchAgent(realClient, pr.id, null, IMPACT_DIAGRAM_TASK);
+      }
       if (getDesktopWorkspaceApi()) {
         // Desktop: open the PR as its own tab, keeping the current repo tab's place intact (a bare
         // window would lose the tab bar) -- the desktop half focuses that new tab.
@@ -170,7 +189,10 @@ export function PrDialog({ onDismiss }: { onDismiss: () => void }) {
           aria-label="Open pull request on GitHub"
           value={selectedNumber}
           disabled={busy || blocked || availablePrs.length === 0}
-          onChange={(event) => setSelectedNumber(event.target.value)}
+          onChange={(event) => {
+            setSelectedNumber(event.target.value);
+            if (event.target.value) advanceTutorialFrom("pr-pick");
+          }}
         >
           <option value="">{selectPlaceholder(githubPrs, githubPrsError, availablePrs.length)}</option>
           {availablePrs.map((pr) => (
@@ -191,6 +213,18 @@ export function PrDialog({ onDismiss }: { onDismiss: () => void }) {
           {primaryLabel}
         </button>
       </div>
+      <label className="pr-dialog-impact-row" data-testid="pr-dialog-impact">
+        <input
+          type="checkbox"
+          checked={buildImpact}
+          disabled={busy || blocked}
+          onChange={(event) => {
+            setBuildImpact(event.target.checked);
+            if (event.target.checked) advanceTutorialFrom("pr-impact");
+          }}
+        />
+        Build the impact diagram right away
+      </label>
       {githubPrsError && (
         <p className="agent-dialog-error" data-testid="pr-dialog-github-error">
           Couldn't load GitHub's open pull requests: {githubPrsError}

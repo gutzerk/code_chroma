@@ -9,7 +9,7 @@ import {
   type SkillRunKind,
 } from "./EngineClient";
 import {
-  SEEDED_CANVAS_DOC,
+  EMPTY_CANVAS_DOC,
   EMPTY_DIAGRAM,
   type ImpactChanges,
   type CanvasBatch,
@@ -1668,7 +1668,7 @@ export class MockBridgeEngineClient implements EngineClient {
 
   // In-memory only, per client instance (a workspace switch gets a fresh one) — mirrors one
   // .codechroma/canvas.json per workspace without persisting across reload.
-  private canvasDoc: CanvasDoc = { ...SEEDED_CANVAS_DOC, doc_id: "mock" };
+  private canvasDoc: CanvasDoc = { ...EMPTY_CANVAS_DOC, doc_id: "mock" };
 
   async getCanvas(): Promise<CanvasDoc> {
     return this.canvasDoc;

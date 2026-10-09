@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
-import { PrDialog } from "./PrDialog";
+import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import { IMPACT_DIAGRAM_TASK, PrDialog } from "./PrDialog";
 import { prStore } from "./prStore";
 import { AgentClientProvider } from "../agents/AgentClientContext";
 import { agentStore } from "../agents/agentStore";
@@ -178,6 +178,33 @@ describe("PrDialog", () => {
     expect(workspaceStore.getIsReadOnly("pr-7")).toBe(true);
   });
 
+  it("starts an impact-diagram agent inside the new review when the box is ticked", async () => {
+    const create = vi.fn(async () => {
+      throw new Error("stop here");
+    });
+    renderDialog(client({ create }));
+    await waitFor(() => expect(screen.getByTestId("pr-dialog-select")).not.toBeDisabled());
+
+    selectPr(7);
+    fireEvent.click(within(screen.getByTestId("pr-dialog-impact")).getByRole("checkbox"));
+    fireEvent.click(screen.getByTestId("pr-dialog-open"));
+
+    await waitFor(() => expect(create).toHaveBeenCalled());
+    expect(create).toHaveBeenCalledWith("", "agent", "pr-7", IMPACT_DIAGRAM_TASK, "task");
+  });
+
+  it("starts no agent when the impact box is left alone", async () => {
+    const create = vi.fn();
+    renderDialog(client({ create }));
+    await waitFor(() => expect(screen.getByTestId("pr-dialog-select")).not.toBeDisabled());
+
+    selectPr(7);
+    fireEvent.click(screen.getByTestId("pr-dialog-open"));
+
+    await waitFor(() => expect(agentStore.getActiveWorkspace()).toBe("pr-7"));
+    expect(create).not.toHaveBeenCalled();
+  });
+
   it("surfaces the bridge's own rejection as the dialog's error", async () => {
     renderDialog(
       client({
@@ -325,6 +352,7 @@ describe("PrDialog", () => {
       openWorkspaceWindow,
       closeWorkspaceWindow: vi.fn(async () => {}),
       focusThisTab: vi.fn(async () => {}),
+      closeThisProject: vi.fn(async () => {}),
     };
     renderDialog();
     publish([pr(7)]);
@@ -341,6 +369,7 @@ describe("PrDialog", () => {
       openWorkspaceWindow: vi.fn(async () => {}),
       closeWorkspaceWindow,
       focusThisTab: vi.fn(async () => {}),
+      closeThisProject: vi.fn(async () => {}),
     };
     const closePr = vi.fn(async () => {});
     renderDialog(client({ closePr }));

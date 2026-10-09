@@ -17,9 +17,9 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Self
 
-from pydantic import BaseModel, Field, ValidationError
+from pydantic import BaseModel, Field
 
-from codechroma.io import is_within_dir, load_json, load_json_or_none, write_json
+from codechroma.io import is_within_dir, load_json, write_json
 
 SCHEMA_VERSION = 1
 
@@ -170,7 +170,10 @@ class CanvasDoc(BaseModel):
         doc = cls(
             schema_version=core.schema_version, doc_id=core.doc_id, updated_at=core.updated_at
         )
-        doc.elements.update(core.elements)
+        # The code-tree block was retired; "hierarchy" stays a valid render only so old files load.
+        doc.elements.update(
+            {i: e for i, e in core.elements.items() if e.render != "hierarchy"}
+        )
         doc.edges.update(core.edges)
         for projection_path in sorted(diagrams_root.glob("**/projection.json")):
             projection = DiagramProjection.load(projection_path)
@@ -228,52 +231,3 @@ class CanvasDoc(BaseModel):
 def _layer_for(diagrams_root: Path, projection_path: Path) -> str:
     """The layer string a `diagrams_root/**/projection.json` path was written under."""
     return "/".join(projection_path.relative_to(diagrams_root).parent.parts)
-
-
-# The seeded root block's fixed id, so a re-seed of the same document is idempotent.
-HIERARCHY_SEED_ID = "seed-hierarchy"
-
-
-def hierarchy_seed(node_id: str) -> Element:
-    """The root block every canvas opens with; `created_by: "user"` so no recipe re-run drops it."""
-    return Element(
-        id=HIERARCHY_SEED_ID,
-        render="hierarchy",
-        layer="hierarchy",
-        node_id=node_id,
-        created_by="user",
-    )
-
-
-# 🔴 The one place "a canvas always has a root block" is enforced; the client seeds nothing anymore.
-def ensure_seeded(canvas_core_path: Path, diagrams_root: Path, node_id: str) -> bool:
-    """Writes a doc holding just the root block iff the assembled canvas has no elements at all."""
-    # ⚠ Never raises: a caller's startup path must survive one bad file, so it degrades to a no-op.
-    if not _is_seedable(canvas_core_path):
-        return False
-    doc = CanvasDoc.load(canvas_core_path, diagrams_root)
-    if doc.elements:
-        return False
-    seed = hierarchy_seed(node_id)
-    doc.elements[seed.id] = seed
-    doc.save(canvas_core_path, diagrams_root)
-    # write_json swallows its own OSError, so the file landing is the only proof a seed happened.
-    return canvas_core_path.is_file()
-
-
-def _is_seedable(canvas_core_path: Path) -> bool:
-    """Whether `canvas_core_path` is absent or fully understood -- never a file we'd clobber."""
-    if not canvas_core_path.exists():
-        return True
-    # Not `load_json`: it reads a literal `{}` (empty, seedable) as falsy, like a parse error.
-    raw = load_json_or_none(canvas_core_path)
-    if raw is None:
-        return False
-    if not raw:
-        return True
-    try:
-        CanvasCore.model_validate(raw)
-    except ValidationError:
-        # Parseable JSON in a shape CanvasCore rejects -- a real document this build can't read.
-        return False
-    return True

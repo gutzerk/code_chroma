@@ -17,8 +17,6 @@ from pathlib import Path
 
 from codechroma.bridge.diagram_registry import DIAGRAMS
 from codechroma.bridge.epics_resolver import resolve_source_uri
-from codechroma.bridge.plan_resolver import ROOT_NODE_ID
-from codechroma.canvas.document import ensure_seeded
 from codechroma.config import settings
 
 
@@ -54,13 +52,11 @@ def _copy_authored_diagram(pr_root: Path, main_root: Path, path_fn) -> None:
 
 # 🔴 Public and idempotent: `prs.manager.reconcile()` calls this alone, never the whole seed above.
 def seed_canvas_doc(pr_root: Path, main_root: Path) -> None:
-    """Copies main's canvas-core.json, falling back to a seeded one -- a read-only PR can't seed."""
+    """Copies main's canvas-core.json into the PR worktree when it has none of its own."""
     if main_root == pr_root:
         return
     target = pr_root / ".codechroma" / "canvas-core.json"
     _copy_file_if_missing(main_root / ".codechroma" / "canvas-core.json", target)
-    # Main may have none at all, and a PR opening on an empty document renders nothing whatsoever.
-    ensure_seeded(target, pr_root / ".codechroma" / "diagrams", ROOT_NODE_ID)
 
 
 def _copy_projections(pr_root: Path, main_root: Path) -> None:

@@ -6,6 +6,8 @@ export interface DesktopWorkspaceApi {
   /** Brings this tab's shell window to front and makes this tab active -- the desktop half of
    * clicking a native agent-status notification. */
   focusThisTab(): Promise<void>;
+  /** Closes this tab's project and shows the open-project launcher. */
+  closeThisProject(): Promise<void>;
 }
 
 declare global {

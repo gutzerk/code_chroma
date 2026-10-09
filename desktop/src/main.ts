@@ -13,6 +13,7 @@ import { basename, join, resolve } from "node:path";
 import { startBridge, stopBridge, type BridgeHandle } from "./bridgeProcess";
 import { resolveBridgeExecutable } from "./bridgeLocation";
 import { createProject } from "./newProject";
+import { createTutorialProject } from "./tutorialProject";
 import { addRecent, readRecents, recentsStorePath } from "./recentRepos";
 import { TabManager, type Tab } from "./tabManager";
 import { listWorkspacesForRepo } from "./workspaceSummaries";
@@ -286,6 +287,14 @@ function focusThisTab(sender: WebContents): void {
   shell.window.focus();
 }
 
+/** Closes the calling tab's project and lands the user on the open-project (launcher) tab. */
+function closeThisProject(sender: WebContents): void {
+  const found = shellForTabSender(sender);
+  if (!found) return;
+  closeTabById(found.shell, found.tab.id);
+  ensureLauncherTabActive(found.shell);
+}
+
 async function promptForFolder(): Promise<string | null> {
   const result = await dialog.showOpenDialog({
     title: "Open repository",
@@ -431,6 +440,9 @@ function registerIpc(): void {
   ipcMain.handle("launcher:create-project", (_event, parentDir: string, name: string) =>
     createProject(parentDir, name),
   );
+  ipcMain.handle("launcher:create-tutorial", () =>
+    createTutorialProject(app.getPath("userData")),
+  );
   ipcMain.handle(
     "launcher:open-repo",
     (event, repoPath: string, workspaceId?: string) => {
@@ -447,6 +459,7 @@ function registerIpc(): void {
     closeWorkspaceWindow(event.sender, workspaceId),
   );
   ipcMain.handle("desktop:focus-this-tab", (event) => focusThisTab(event.sender));
+  ipcMain.handle("desktop:close-this-project", (event) => closeThisProject(event.sender));
 
   ipcMain.handle("tabbar:new", (event) => {
     const shell = shellForTabBarSender(event.sender);

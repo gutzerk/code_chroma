@@ -10,6 +10,8 @@ export interface LauncherApi {
   pickFolder(): Promise<string | null>;
   /** Scaffolds `<parentDir>/<name>` (README, src/, git init) and returns its path; rejects with a readable message. */
   createProject(parentDir: string, name: string): Promise<string>;
+  /** Writes (or restores) the tutorial example project under app data and returns its path. */
+  createTutorial(): Promise<string>;
   /** `workspaceId` boots the canvas straight into that workspace (only takes effect the first time
    * the repo is opened in this run -- reopening an already-open repo just focuses its tab). */
   openRepo(repoPath: string, workspaceId?: string): Promise<void>;
@@ -23,6 +25,7 @@ const api: LauncherApi = {
   pickFolder: () => ipcRenderer.invoke("launcher:pick-folder"),
   createProject: (parentDir, name) =>
     ipcRenderer.invoke("launcher:create-project", parentDir, name),
+  createTutorial: () => ipcRenderer.invoke("launcher:create-tutorial"),
   openRepo: (repoPath, workspaceId) =>
     ipcRenderer.invoke("launcher:open-repo", repoPath, workspaceId),
   onProgress: (handler) => {
@@ -44,6 +47,8 @@ export interface DesktopWorkspaceApi {
   /** Brings this tab's shell window to front and makes this tab active -- the desktop half of
    * clicking a native agent-status notification. */
   focusThisTab(): Promise<void>;
+  /** Closes this tab's project and shows the open-project launcher. */
+  closeThisProject(): Promise<void>;
 }
 
 const desktopWorkspaceApi: DesktopWorkspaceApi = {
@@ -52,6 +57,7 @@ const desktopWorkspaceApi: DesktopWorkspaceApi = {
   closeWorkspaceWindow: (workspaceId) =>
     ipcRenderer.invoke("desktop:close-workspace-window", workspaceId),
   focusThisTab: () => ipcRenderer.invoke("desktop:focus-this-tab"),
+  closeThisProject: () => ipcRenderer.invoke("desktop:close-this-project"),
 };
 
 contextBridge.exposeInMainWorld("codechromaDesktop", desktopWorkspaceApi);

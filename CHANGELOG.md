@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.9.1](https://github.com/gutzerk/code_chroma/compare/v0.9.0...v0.9.1) (2026-10-09)
+
+
+### Bug Fixes
+
+* shorten _check_split docstring for ruff E501 ([ce1a0f5](https://github.com/gutzerk/code_chroma/commit/ce1a0f5f7a6ad5a2e4a27b4fd7fee4a34303e6a7))
+* suggest splitting diagrams over ~15 nodes into several linked ones ([f9cfaa4](https://github.com/gutzerk/code_chroma/commit/f9cfaa442e0e9363689d482e4638bcbfbeec8b83)), closes [#99](https://github.com/gutzerk/code_chroma/issues/99)
+
 ## [0.9.0](https://github.com/gutzerk/code_chroma/compare/v0.8.1...v0.9.0) (2026-10-06)
 
 

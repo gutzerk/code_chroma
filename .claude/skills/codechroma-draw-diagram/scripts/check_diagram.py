@@ -825,7 +825,7 @@ def _check_density(budgets: dict, style: object, kind: str, report: _Report) -> 
 
 
 def _check_split(threshold: int, style: object, kind: str, report: _Report) -> None:
-    """Advisory: past ~15 nodes, propose a split to the user instead of shipping a crowded diagram."""
+    """Advisory: past ~15 nodes, propose splitting instead of shipping a crowded diagram."""
     if threshold <= 0 or (kind == "custom" and style == "dependency-graph"):
         return
     if report.node_count > threshold:

@@ -8,6 +8,7 @@ import { useHierarchyChangeStatus } from "../state/hierarchyChangesStore";
 import { useLiveVersion } from "../state/liveStore";
 import { useNodeChildren } from "../state/useNodeChildren";
 import { useAcceptDiff } from "../state/useAcceptDiff";
+import { useIsWorkspaceReadOnly } from "../agents/workspaceStore";
 import { CodeView } from "./CodeView";
 import { DiffView } from "./DiffView";
 import { PanelCloseButton } from "./PanelCloseButton";
@@ -200,6 +201,8 @@ function InspectorLevel({ entryId }: { entryId: string }) {
   // No onAccepted callback: unlike an inline code view there is nothing to close — accepting clears
   // the node's entry from diffOverlayStore, so this level re-renders as plain source on its own.
   const { handleAccept, isAccepting, acceptError } = useAcceptDiff(engineClient);
+  // No Accept in a pull-request workspace: it is a view of someone else's branch, not a working copy.
+  const readOnly = useIsWorkspaceReadOnly();
   // Enabled unconditionally: unlike a canvas block there is no collapsed state here — the level the
   // user navigated to is the level being shown.
   const children = useNodeChildren(entryId, Boolean(node?.has_children));
@@ -250,7 +253,7 @@ function InspectorLevel({ entryId }: { entryId: string }) {
             node={node}
             diff={diff}
             className="block-code-view--inspector"
-            onAccept={handleAccept}
+            onAccept={readOnly ? undefined : handleAccept}
             isAccepting={isAccepting}
             acceptError={acceptError}
           />

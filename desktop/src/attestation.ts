@@ -1,3 +1,6 @@
+import { mkdtemp, rm } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { verify as verifySignature } from "sigstore";
 import type { Bundle } from "sigstore";
 
@@ -54,10 +57,19 @@ export function subjectDigestHex(bundle: Bundle): string | null {
  * artifact with SHA-256 `artifactSha256`. Throws on any mismatch or signature-chain failure.
  */
 export async function verifyAttestation(bundle: Bundle, artifactSha256: string): Promise<void> {
-  await verifySignature(bundle, {
-    certificateIssuer: ACTIONS_ISSUER,
-    certificateIdentityURI: WORKFLOW_IDENTITY,
-  });
+  const options = { certificateIssuer: ACTIONS_ISSUER, certificateIdentityURI: WORKFLOW_IDENTITY };
+  try {
+    await verifySignature(bundle, options);
+  } catch (error) {
+    if (!/signed by \d+\/\d+ keys/i.test(error instanceof Error ? error.message : "")) throw error;
+    // A stale/corrupt on-disk TUF cache can't chain to the live root; retry once from the bundled seed.
+    const tufCachePath = await mkdtemp(join(tmpdir(), "codechroma-tuf-"));
+    try {
+      await verifySignature(bundle, { ...options, tufCachePath });
+    } finally {
+      await rm(tufCachePath, { recursive: true, force: true });
+    }
+  }
   const vouched = subjectDigestHex(bundle);
   if (vouched !== artifactSha256) {
     throw new Error("signed attestation does not vouch for the downloaded artifact");

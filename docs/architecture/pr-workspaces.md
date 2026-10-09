@@ -55,12 +55,9 @@ unchanged, because `App.tsx` already routes every canvas request through `repoId
   read-through borrow via `c1_source_root`; the copy makes the PR self-contained and stable if main's
   diagrams change while it stays open. Main is never written to. 🔴 The seed also handles
   `canvas.json` itself, not just the diagram artifact files, and it is the **only** thing that can:
-  a read-only workspace refuses every write through `refuse_if_read_only`, so a PR that arrived
-  without a root block would render nothing at all, forever. `seed_canvas_doc` copies main's file
-  when there is one and then calls `canvas.document.ensure_seeded` either way — main may have no
-  `canvas.json` of its own. That helper is the single definition of the invariant for every
-  workspace kind (see [`single-canvas.md`](single-canvas.md)'s "The seeded root block"); nothing on
-  the client seeds anymore, and `get_canvas` no longer has a `read_only` branch synthesizing one.
+  a read-only workspace refuses every write through `refuse_if_read_only`. `seed_canvas_doc` copies
+  main's file when the PR has none; nothing seeds a root block anymore (the code-tree block is
+  retired, see [`single-canvas.md`](single-canvas.md)'s "No root block anymore").
   🔴 `PrManager.reconcile()` backfills a PR fetched before this seeding existed, so it self-heals on
   the bridge's next restart instead of staying blank forever — but it calls **`seed_canvas_doc` and
   nothing wider**. The full `seed_diagrams_from_main` belongs to *import* only: unlike every other
@@ -124,3 +121,11 @@ unchanged, because `App.tsx` already routes every canvas request through `repoId
   `web/src/state/{changeCardStore,refreshDiffs}.test.ts`, `web/src/canvas/ChangeCardsPanel.test.tsx`,
   `web/e2e/{pr-review,change-cards}.spec.ts`. Tests that hand-build an `AgentClient` spread
   `PR_CLIENT_STUB` (`web/src/agents/stubAgentClient.ts`), the `C1_CHANGES_STUB` precedent.
+
+## Build the impact diagram on open
+
+`PrDialog` has a "Build the impact diagram right away" checkbox (off by default). Ticked, a successful
+open also calls `launchAgent(realClient, pr.id, null, IMPACT_DIAGRAM_TASK)`, so an agent starts inside
+the new read-only review with a task that names the impact type (the draw skill does not ask which
+diagram). It targets `pr.id` explicitly, so it works in the desktop app too, where the review opens in
+its own tab and the current window stays on main. Tests: `PrDialog.test.tsx`.

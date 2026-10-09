@@ -45,7 +45,10 @@ export function TreeNode({
   openFileIds,
   activeFileId,
 }: TreeNodeProps) {
-  const chrome = useNodeChrome(node);
+  const rawChrome = useNodeChrome(node);
+  // The sidebar tree never shows inline code (that lives in the code sidebar), so a block's code
+  // window being open on the canvas must not change this row's layout or block its expand.
+  const chrome = openCodeOnActivate ? { ...rawChrome, isCodeVisible: false } : rawChrome;
   // Gated on has_children like Block, so expanding a description-only row neither fetches nor
   // renders an empty indented container below it.
   const children = useNodeChildren(node.node_id, chrome.isExpanded && node.has_children);
@@ -166,7 +169,7 @@ export function TreeNode({
             />
           </div>
         </div>
-        <NodePanels node={node} chrome={chrome} />
+        <NodePanels node={node} chrome={chrome} hideInlineCode={openCodeOnActivate} />
       </div>
       {!chrome.isCodeVisible && chrome.isExpanded && children && (
         <div className="tree-node-children" data-testid="tree-node-children">

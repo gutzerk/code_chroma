@@ -1212,6 +1212,22 @@ body {
   margin-top: 0.1rem;
 }
 
+.wiki-ready-dismiss {
+  flex: 0 0 auto;
+  width: 34px;
+  height: 34px;
+  color: var(--success);
+  background: var(--accent-bg);
+  border: none;
+  border-radius: 12px;
+  font-size: 1rem;
+  cursor: pointer;
+}
+
+.wiki-ready-dismiss:hover {
+  filter: brightness(1.15);
+}
+
 .wiki-general-generate-button {
   flex: 0 0 auto;
   height: 34px;
@@ -4761,9 +4777,9 @@ button[data-copy-state="idle"][aria-label]:hover:not(:disabled) {
   flex-direction: column;
   min-width: 360px;
   min-height: 200px;
-  background: var(--surface-0);
+  background: var(--bg-panel);
   border: 1px solid var(--border);
-  border-radius: 6px;
+  border-radius: var(--radius-card);
   box-shadow: 0 12px 32px rgba(0, 0, 0, 0.45);
   overflow: hidden;
 }
@@ -4781,12 +4797,18 @@ button[data-copy-state="idle"][aria-label]:hover:not(:disabled) {
   display: flex;
   align-items: center;
   gap: 0.5rem;
-  padding: 0.35rem 0.5rem;
-  background: var(--surface-4);
-  border-bottom: 1px solid var(--border);
+  padding: 12px 14px 0;
+  background: transparent;
   cursor: grab;
   font-size: 0.78rem;
-  color: #d5d8dd;
+  color: var(--text-soft);
+}
+
+/* The run-agent mark leads every agent window's title, real or the tutorial's scripted one. */
+.agent-window-icon {
+  flex: none;
+  width: 24px;
+  height: 24px;
 }
 
 .agent-window-name {
@@ -5039,6 +5061,10 @@ button[data-copy-state="idle"][aria-label]:hover:not(:disabled) {
 
 /* The docked panel's status row — a card (14px radius, --bg-raised) rather than a hairline-bordered
    title bar, holding the status dot, agent name, cli/branch and the detach/close actions. */
+.agent-terminal-dock-header .agent-window-icon {
+  margin-right: -0.1rem;
+}
+
 .agent-terminal-dock-header {
   display: flex;
   flex: 0 0 auto;
@@ -6922,13 +6948,7 @@ button[data-copy-state="idle"][aria-label]:hover:not(:disabled) {
   overflow: visible;
 }
 
-.canvas-hierarchy-element {
-  z-index: 1;
-}
 
-.canvas-hierarchy-element--dragging {
-  opacity: 0.85;
-}
 
 /* A group's frame — a background rect sized to enclose its current members (GroupFrame.tsx
    recomputes left/top/width/height every render), not a styled box of its own like the other
@@ -7404,4 +7424,37 @@ button[data-copy-state="idle"][aria-label]:hover:not(:disabled) {
   padding: 1rem;
   color: var(--text-3);
   font-size: 0.8rem;
+}
+
+.pr-dialog-impact-row {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-top: 0.7rem;
+  cursor: pointer;
+}
+
+/* The tutorial's "drag this way" cue beside the block (tutorial/TutorialMoveArrow.tsx). */
+.tutorial-move-arrow {
+  position: absolute;
+  transform: translate(-50%, -100%);
+  font-size: 56px;
+  font-weight: 700;
+  line-height: 1;
+  color: #34c759;
+  pointer-events: none;
+  z-index: 3;
+  animation: tutorial-move-arrow-blink 1s ease-in-out infinite;
+}
+
+@keyframes tutorial-move-arrow-blink {
+  0%,
+  100% {
+    opacity: 1;
+    transform: translate(-50%, -100%);
+  }
+  50% {
+    opacity: 0.2;
+    transform: translate(-50%, calc(-100% - 10px));
+  }
 }

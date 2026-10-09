@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState, type PointerEvent } from "react";
 import { PAN_IGNORE_SELECTOR } from "./CanvasViewport";
+import { applyDragAxisLock, reportDragEnd } from "./dragAxisLock";
 
 interface DragState {
   pointerId: number;
@@ -188,8 +189,10 @@ export function useDragOffset({
     let latest = { x: drag.startOffsetX, y: drag.startOffsetY };
     const onMove = (moveEvent: globalThis.PointerEvent) => {
       if (moveEvent.pointerId !== drag.pointerId) return;
-      const dx = moveEvent.clientX - drag.startClientX;
-      const dy = moveEvent.clientY - drag.startClientY;
+      const { dx, dy } = applyDragAxisLock(
+        moveEvent.clientX - drag.startClientX,
+        moveEvent.clientY - drag.startClientY,
+      );
       // A press only becomes a drag past the threshold, so an ordinary click never moves the panel.
       if (!drag.moved && Math.hypot(dx, dy) < DRAG_THRESHOLD_PX) return;
       if (!drag.moved) {
@@ -215,6 +218,7 @@ export function useDragOffset({
         const resolved = resolveFinal ? resolveFinal(latest, context) : latest;
         if (resolved.x !== latest.x || resolved.y !== latest.y) setOffset(resolved);
         onDragEnd?.(resolved);
+        reportDragEnd();
       }
       cleanup();
     };

@@ -82,6 +82,8 @@ NOARROWS_MIN_BLOCKS = 8
 MIN_BLOCKS_FOR_DEPTH = 12
 # Below this ratio (diagram nodes / density-source classes), the run reproduced the same thinness.
 MIN_COVERAGE_RATIO = 0.15
+# Above this many nodes the SPLIT advisory asks the agent to propose several diagrams (issue #99).
+DEFAULT_SPLIT_THRESHOLD = 15
 MIN_CLASSES_FOR_SPARSE_CHECK = 8
 # Below this, it's a single unconnected id (ORPHAN's job for nodes[]), not an isolated cluster.
 MIN_ISLAND_SIZE = 2
@@ -281,6 +283,7 @@ def main(argv: list[str] | None = None) -> int:
         return 2
 
     _check_density(checks["budgets"], diagram_style, args.kind, report)
+    _check_split(args.split_threshold, diagram_style, args.kind, report)
     _check_hero_budget(checks, report)
     _check_impact_status(diagram, args.kind, report)
     if not args.json_path:
@@ -315,6 +318,12 @@ def _parse_args(argv: list[str] | None) -> argparse.Namespace:
     parser.add_argument("--slug", help="feature-plan slug (required for --kind feature-plan)")
     parser.add_argument("--source", default="diff", choices=("diff", "plan"), help="impact slice")
     parser.add_argument("--feature", help="feature dir (impact-context&feature=) for a plan slice")
+    parser.add_argument(
+        "--split-threshold",
+        type=int,
+        default=DEFAULT_SPLIT_THRESHOLD,
+        help="node count above which SPLIT suggests several diagrams (0 disables)",
+    )
     parser.add_argument(
         "--shape-advisory",
         action="store_true",
@@ -813,6 +822,18 @@ def _check_density(budgets: dict, style: object, kind: str, report: _Report) -> 
             report.advisories.append(
                 f"LONGLABEL {pair} {len(label)} chars, budget {budgets['max_edge_label_chars']}"
             )
+
+
+def _check_split(threshold: int, style: object, kind: str, report: _Report) -> None:
+    """Advisory: past ~15 nodes, propose a split to the user instead of shipping a crowded diagram."""
+    if threshold <= 0 or (kind == "custom" and style == "dependency-graph"):
+        return
+    if report.node_count > threshold:
+        report.advisories.append(
+            f"SPLIT {report.node_count} node(s), over {threshold} -- tell the user it is crowded,"
+            " propose a split (by stage/subsystem/layer/flow step), and on confirm draw several"
+            " linked diagrams (see drawing-rules.md 'Splitting a crowded diagram')"
+        )
 
 
 def _check_hero_budget(checks: dict, report: _Report) -> None:

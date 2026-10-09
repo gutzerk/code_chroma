@@ -164,6 +164,22 @@ boxes across the top), and its "relations" are its messages (the real story, cap
 means you dumped the repo instead of judging the slice. `patterns` has the opposite failure mode —
 its characteristic bug is too *few* boxes (`SPARSE`), not too many.
 
+## Splitting a crowded diagram
+
+Past ~15 nodes a diagram gets unreadable (overlapping frames, tangled edges), long before the
+ceilings above. The self-check prints a `SPLIT` advisory when the count exceeds 15
+(`--split-threshold N` tunes it, `0` disables it; a legitimately large diagram may stay whole).
+
+1. **Warn and propose, don't just draw.** Tell the user the diagram is too large and propose a split
+   plan — by stage/frame, by subsystem/directory, by flow step, or by abstraction layer — naming each
+   resulting diagram and what it holds. Ask them to confirm, adjust, or keep one diagram.
+2. **On confirm, draw several focused diagrams**, each coherent on its own and within the threshold.
+   Write the first to the type's normal path; write the others as `custom` diagrams (or the
+   type's own sub-slug where it has one), each running the self-check.
+3. **Cross-reference them.** Give every split diagram a box (kind `external`, named after its
+   sibling, `description` saying which diagram holds the rest) for each neighbour it hands off to,
+   so the whole picture stays navigable.
+
 ## Anti-patterns
 
 One line each; every one of these is a finding, not a style preference.

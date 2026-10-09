@@ -104,6 +104,20 @@ def test_too_many_boxes_is_a_shape_finding_not_a_hard_failure(tmp_path):
     assert "CROWDED" in result.stdout
 
 
+def test_a_diagram_over_fifteen_nodes_gets_a_split_advisory(tmp_path):
+    result = _run(tmp_path, "impact", _flat(16))
+
+    assert "SPLIT 16 node(s), over 15" in result.stdout
+
+
+def test_split_threshold_is_tunable_and_can_be_disabled(tmp_path):
+    raised = _run(tmp_path, "impact", _flat(16), "--split-threshold", "20")
+    disabled = _run(tmp_path, "impact", _flat(16), "--split-threshold", "0")
+
+    assert "SPLIT" not in raised.stdout
+    assert "SPLIT" not in disabled.stdout
+
+
 def test_a_diagram_inside_its_budget_says_nothing_about_density(tmp_path):
     result = _run(tmp_path, "impact", _flat(4))
 

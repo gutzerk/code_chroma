@@ -233,6 +233,10 @@ aggregated line, and shape-tier for c1 only, whose schema requires a label). A `
 `style == "dependency-graph"` is exempt from `CROWDED`/`EDGEBOMB`, reusing the same style-aware
 precedent as its existing `SELF` exemption.
 
+`SPLIT` (issue #99) is a separate, advisory-only signal: past `--split-threshold` nodes (default 15,
+`0` disables; same dependency-graph exemption) it tells the agent to warn the user and propose
+splitting into several cross-referenced diagrams (`drawing-rules.md` "Splitting a crowded diagram").
+
 ⚠ These thresholds are **not** in `config.py`. The script is stdlib-only inside the analyzed repo
 and cannot import `codechroma`. The constitution's "capped by configuration" rule governs listings
 the bridge serves — that is the diagnostics cap below, not an authoring guideline.

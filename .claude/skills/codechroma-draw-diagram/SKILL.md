@@ -7,6 +7,8 @@ Every diagram type here writes **one JSON file** that the Code Atlas canvas watc
 live — you never call a render API and the user never reloads. **Ask the bridge for the write path;
 never guess it from your working directory.** Write the diagram fresh from what you find now — do
 not fetch or read whatever is currently on disk/canvas first.
+If the self-check prints `SPLIT` (over ~15 nodes), warn the user and propose splitting into several
+linked diagrams before finishing — see `references/drawing-rules.md` "Splitting a crowded diagram".
 **Never report success on a run that didn't print `OK`** from the self-check.
 
 ## Router — pick by artifact, not by adjective

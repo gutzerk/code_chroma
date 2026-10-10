@@ -3,6 +3,9 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { verify as verifySignature } from "sigstore";
 import type { Bundle } from "sigstore";
+import { installEcdsaDigestShim } from "./cryptoCompat";
+
+installEcdsaDigestShim();
 
 export const ATTESTATIONS_API = `https://api.github.com/repos/gutzerk/code_chroma/attestations/sha256`;
 

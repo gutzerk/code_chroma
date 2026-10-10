@@ -114,6 +114,12 @@ not the release's own sidecar, is the authority binding the artifact to this rep
 `desktop/package.json` pins Sigstore to v5. Electron 44.5.1 embeds Node 24.21.0, satisfying
 Sigstore's Node 22.22.2+ runtime requirement.
 If Sigstore's on-disk TUF cache can't chain to the live root (`root was signed by N/M keys`), `verifyAttestation` retries once with a throwaway `tufCachePath` seeded from the bundled root.
+🔴 Electron's BoringSSL has no default digest for EC keys, but `@tufjs/models` (inside `sigstore`) calls
+`crypto.verify(undefined, …)` on the Sigstore TUF root's ECDSA keys, so every root signature failed
+and the updater reported "root was signed by 0/3 keys" (shown as "Release signature could not be
+verified") — unrelated to commit/tag signing. `desktop/src/cryptoCompat.ts`'s `installEcdsaDigestShim`
+(installed by `attestation.ts`) supplies sha256/sha384 by curve; node alone never reproduces the bug,
+so check it under Electron (`ELECTRON_RUN_AS_NODE=1 electron script.cjs`).
 A release that publishes no attestation refuses to update (it would be an unverified install), and
 one whose installer has no reachable `sha256` digest surfaces the update but asks the user to install
 manually instead of silently pretending to be current. Asset names are sanitized to

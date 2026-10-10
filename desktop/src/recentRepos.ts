@@ -1,5 +1,5 @@
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
-import { dirname, join } from "node:path";
+import { dirname, isAbsolute, join } from "node:path";
 
 export const MAX_RECENTS = 10;
 
@@ -41,7 +41,7 @@ export function addRecent(storePath: string, repoPath: string, now: number): Rec
 
 /** Last two path segments, so sibling checkouts named "web" stay distinguishable in the list. */
 function basename(repoPath: string): string {
-  const segments = repoPath.split("/").filter(Boolean);
+  const segments = repoPath.split(/[\/]/).filter(Boolean);
   return segments.slice(-2).join("/") || repoPath;
 }
 
@@ -52,7 +52,7 @@ function isRecentRepo(value: unknown): value is RecentRepo {
   const candidate = value as Record<string, unknown>;
   return (
     typeof candidate.path === "string" &&
-    candidate.path.startsWith("/") &&
+    isAbsolute(candidate.path) &&
     typeof candidate.name === "string" &&
     typeof candidate.openedAt === "number"
   );

@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.10.0](https://github.com/gutzerk/code_chroma/compare/v0.9.3...v0.10.0) (2026-10-10)
+
+
+### Features
+
+* lay out diagrams with ELK and keep placed blocks fixed on update ([aa0d195](https://github.com/gutzerk/code_chroma/commit/aa0d195b1085e08d363c1002fe5782c084fda7ba))
+
 ## [0.9.3](https://github.com/gutzerk/code_chroma/compare/v0.9.2...v0.9.3) (2026-10-10)
 
 

@@ -6,12 +6,12 @@ import { recipeChromeKey } from "../../state/useSidecar";
  *
  * `AgentRail`'s Diagrams tab "remove from canvas" row action (`removeLayerAndRefresh`) `delete_element`s every box in a layer, so a
  * user-dragged position has nowhere left to live once its element is gone — picking the same recipe
- * again (`runRecipeAndLayout`) used to always fall through to a fresh dagre pass (`autoLayout.ts`),
+ * again (`runRecipeAndLayout`) used to always fall through to a fresh ELK pass (`autoLayout.ts`),
  * silently discarding wherever the user had put things. This cache is the fix: `removeLayerAndRefresh`
  * snapshots every element's position keyed by its own `meta.recipe_key` (the same key
  * `build_batch_ops` reconciles by) right before deleting it, and `runRecipeAndLayout` checks this
  * cache for each freshly-added element before handing it to `layoutNewElements` — a hit restores the
- * old spot instead of a new dagre-computed one.
+ * old spot instead of a new ELK-computed one.
  *
  * Module-level, not a `Store`: nothing renders off this, it only feeds a one-shot decision inside
  * `runRecipeAndLayout`. Entries are consumed on read so a stale position can never resurface once

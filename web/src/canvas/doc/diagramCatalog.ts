@@ -235,7 +235,7 @@ export function computeReadyDiagrams(
  * canvas -- several diagrams can coexist at once. Shared by `DrawDiagramButton`'s auto-add-when-ready
  * effect and `AgentRail`'s Diagrams tab (both its expand-refresh and its "add back" action).
  *
- * Before falling back to a fresh dagre layout, each new element is checked against
+ * Before falling back to a fresh ELK layout, each new element is checked against
  * `layerPositionCache` -- a hit means this same recipe key sat on the canvas before a
  * `removeLayerAndRefresh` deleted it, so its old spot is restored instead of a new one being
  * computed, which is what makes remove-then-re-add via the rail keep a user's dragged layout. */
@@ -295,7 +295,7 @@ export async function runRecipeAndLayout(
       if (cached) restored[id] = cached;
       else toLayout.push(id);
     }
-    const { positions, sizes } = layoutNewElements(doc, toLayout);
+    const { positions, sizes } = await layoutNewElements(doc, toLayout, restored);
     // Fold any derived sizes (a content-fit epics width) in with the positions; `update_element`
     // carries both, so a box that auto-sized to its text keeps that width once persisted.
     const layout = { ...restored, ...positions };
@@ -334,7 +334,7 @@ export async function runRecipeAndLayout(
  *
  * Snapshots every element's position into `layerPositionCache` first — once `delete_element` lands,
  * that position exists nowhere else, and `runRecipeAndLayout` reads this snapshot to restore it if
- * the same recipe is picked again instead of running a fresh dagre layout. */
+ * the same recipe is picked again instead of running a fresh ELK layout. */
 export async function removeLayerAndRefresh(
   engineClient: EngineClient,
   layer: string,

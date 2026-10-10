@@ -1,7 +1,8 @@
 import { layoutBoxes } from "../connectors/diagramLayout";
-import type { CanvasDoc, CanvasPosition, CanvasSize } from "../../state/types";
+import type { CanvasDoc, CanvasElement, CanvasPosition, CanvasSize } from "../../state/types";
 import { rawMeta, stringMeta } from "./elementMeta";
 import { isEpicsLayer, layoutEpics } from "./epicsLayout";
+import { placeIncrementally } from "./incrementalLayout";
 
 const DEFAULT_SIZE = { width: 300, height: 72 };
 // Vertical gap below the document's existing content before a fresh batch's own layered block starts.
@@ -9,18 +10,16 @@ const NEW_ELEMENTS_MARGIN = 80;
 
 /**
  * Positions brand-new elements (added by one recipe run or one chat-skill batch) with a single
- * direction-aware layered-layout pass over just that subgraph (`layeredLayout.ts`,
- * 051-directed-layered-diagram-layout), then shifts the whole result below whatever is already on
- * the document — so a fresh batch never lands on top of existing boxes. Every existing element's
+ * ELK layered-layout pass over just that subgraph (`elkLayout.ts`), then shifts the whole result
+ * below whatever is already on the document — so a fresh batch never lands on top of existing boxes. Every existing element's
  * position is left untouched: only `newIds` are ever repositioned (016-single-canvas-dashboard's
  * "only new_elements get auto-positioned" rule). Returns positions keyed by element id, for the
  * caller to fold into `update_element` ops — this module never writes to the document itself.
  *
- * Known gap (051): the edge filter below only keeps edges where *both* endpoints are in `newIds`, so
- * an edge from a new element to an already-placed one plays no part in this layout pass — a newly
- * added node is never ranked relative to existing boxes, only relative to other new ones. The
- * "source above target" guarantee therefore only holds within one `layoutBoxes()` call (typically a
- * first draw), not across incremental batches.
+ * Two modes. A fresh draw (no other placed element in the new elements' layer) is laid out alone and
+ * stacked below the existing canvas. An incremental update (the layer already has placed boxes) goes
+ * through `incrementalLayout.ts`: every placed box keeps its position, and each new one lands next to
+ * the boxes it connects to, offset by wherever the user moved them.
  */
 export interface LayoutResult {
   positions: Record<string, CanvasPosition>;
@@ -29,29 +28,36 @@ export interface LayoutResult {
   sizes?: Record<string, CanvasSize>;
 }
 
-export function layoutNewElements(
+export async function layoutNewElements(
   doc: CanvasDoc,
   newIds: readonly string[],
-): LayoutResult {
+  // Positions that override the doc's for kept elements (e.g. ones about to be restored from the cache).
+  fixed: Readonly<Record<string, CanvasPosition>> = {},
+): Promise<LayoutResult> {
   const newIdSet = new Set(newIds);
-  // A sequence layer is laid out deterministically (layoutSequence below) -- never by dagre, whose
+  // A sequence layer is laid out deterministically (layoutSequence below) -- never by ELK, whose
   // edge/order/lane model doesn't fit it. Split new elements by render so sequence leaves the
-  // dagre path entirely and gets its own hard-layout pass (positions feed DiagramFrame/canvas-bounds
+  // ELK path entirely and gets its own hard-layout pass (positions feed DiagramFrame/canvas-bounds
   // so the dashed frame hugs the real picture).
   const sequenceIds = newIds.filter((id) => doc.elements[id]?.render === "sequence");
   const nonSequenceIds = newIds.filter((id) => doc.elements[id]?.render !== "sequence");
   const sequenceLayout = layoutSequence(doc, sequenceIds);
 
+  const sizeOf = (element: CanvasElement) => ({
+    width: element.size?.w ?? DEFAULT_SIZE.width,
+    height: element.size?.h ?? DEFAULT_SIZE.height,
+  });
+  const specOf = (element: CanvasElement) => ({
+    id: element.id,
+    ...sizeOf(element),
+    order: stringMeta(element, "order"),
+    lane: stringMeta(element, "lane"),
+  });
+
   const nodes = nonSequenceIds
     .map((id) => doc.elements[id])
-    .filter((element): element is NonNullable<typeof element> => Boolean(element))
-    .map((element) => ({
-      id: element.id,
-      width: element.size?.w ?? DEFAULT_SIZE.width,
-      height: element.size?.h ?? DEFAULT_SIZE.height,
-      order: stringMeta(element, "order"),
-      lane: stringMeta(element, "lane"),
-    }));
+    .filter((element): element is CanvasElement => Boolean(element))
+    .map(specOf);
 
   // `existingElements.length === 0` is the real "nothing there yet" signal -- clamping the computed
   // max to 0 used to double as that check too, but a populated diagram sitting entirely above y=0
@@ -64,9 +70,7 @@ export function layoutNewElements(
   const yOffset =
     existingElements.length > 0
       ? Math.max(
-          ...existingElements.map(
-            (element) => element.position.y + (element.size?.h ?? DEFAULT_SIZE.height) / 2,
-          ),
+          ...existingElements.map((element) => element.position.y + sizeOf(element).height / 2),
         ) + NEW_ELEMENTS_MARGIN
       : 0;
 
@@ -82,18 +86,50 @@ export function layoutNewElements(
     };
   }
 
+  // Incremental update: the layer already has placed boxes, so they stay exactly where they are and
+  // only the new ones are placed next to them (follows the diagram if the user moved it).
+  const layers = new Set(nonSequenceIds.map((id) => doc.elements[id]?.layer));
+  const pinnedElements = Object.values(doc.elements).filter(
+    (element) =>
+      layers.has(element.layer) &&
+      !newIdSet.has(element.id) &&
+      !["group", "note", "sequence"].includes(element.render),
+  );
+  if (nodes.length > 0 && pinnedElements.length > 0) {
+    const pinned = pinnedElements.map((element) => ({
+      ...specOf(element),
+      position: fixed[element.id] ?? element.position,
+    }));
+    const pinnedIds = new Set(pinned.map((box) => box.id));
+    const inGraph = new Set([...pinnedIds, ...nodes.map((node) => node.id)]);
+    const obstacles = existingElements
+      .filter((element) => !pinnedIds.has(element.id) && element.render !== "group")
+      .map((element) => {
+        const { width, height } = sizeOf(element);
+        const center = fixed[element.id] ?? element.position;
+        return { id: element.id, x: center.x - width / 2, y: center.y - height / 2, width, height };
+      });
+    const positions = await placeIncrementally({
+      pinned,
+      added: nodes,
+      edges: Object.values(doc.edges).filter((edge) => inGraph.has(edge.from) && inGraph.has(edge.to)),
+      obstacles,
+    });
+    return { positions: { ...positions, ...sequenceLayout.positions }, sizes: sequenceLayout.sizes };
+  }
+
   const edges = Object.values(doc.edges)
     .filter((edge) => newIdSet.has(edge.from) && newIdSet.has(edge.to))
     .map((edge) => ({ from: edge.from, to: edge.to, kind: edge.kind }));
 
-  const { boxes } = layoutBoxes(nodes, edges);
+  const { boxes } = await layoutBoxes(nodes, edges);
 
   const positions: Record<string, CanvasPosition> = {};
   for (const box of boxes) {
     positions[box.id] = { x: box.x, y: box.y + yOffset };
   }
   // Fold the sequence positions in (unshifted -- a sequence layer is self-contained; see
-  // layoutSequence). Sequence sizes ride alongside dagre's unconditionally, like the epics branch
+  // layoutSequence). Sequence sizes ride alongside ELK's unconditionally, like the epics branch
   // above (layoutSequence returns an empty sizes map when there are no sequence ids).
   return {
     positions: { ...positions, ...sequenceLayout.positions },
@@ -122,7 +158,7 @@ export const SEQUENCE_LAYOUT = {
  * Participants sit in columns left-to-right (x = column * colW); every message sits on its own time
  * row (y = headH + headGap + rowH * (order - 1)) at the midpoint between its two columns. The first
  * row is pushed `headGap` below the participant heads; the gap below the last line is DiagramFrame's
- * own bottom padding (see SEQUENCE_LAYOUT). Returns empty when there are no sequence ids (the dagre
+ * own bottom padding (see SEQUENCE_LAYOUT). Returns empty when there are no sequence ids (the ELK
  * path is the only active one). */
 export function layoutSequence(
   doc: CanvasDoc,

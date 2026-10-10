@@ -5,7 +5,9 @@
   <a href="https://github.com/gutzerk/code-chroma/stargazers"><img src="https://img.shields.io/github/stars/gutzerk/code-chroma?labelColor=333333&color=666666&logo=github" alt="GitHub stars" /></a>
 </p>
 
-https://github.com/user-attachments/assets/6047002c-1fd1-49e5-ad98-5c404c88e4e0
+<video src="https://github.com/gutzerk/code_chroma/raw/main/docs/media/schema-diagram.mp4" controls muted width="100%"></video>
+
+[Watch the demo](docs/media/schema-diagram.mp4)
 
 **Navigate any codebase like a map, not a maze.**
 

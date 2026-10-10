@@ -7,7 +7,7 @@
 
 <video src="https://github.com/gutzerk/code_chroma/raw/main/docs/media/schema-diagram.mp4" controls muted width="100%"></video>
 
-[Watch the demo](docs/media/schema-diagram.mp4)
+[Watch the demo](https://github.com/gutzerk/code_chroma/raw/main/docs/media/schema-diagram.mp4)
 
 **Navigate any codebase like a map, not a maze.**
 

@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.9.3](https://github.com/gutzerk/code_chroma/compare/v0.9.2...v0.9.3) (2026-10-10)
+
+
+### Bug Fixes
+
+* make recent repos and desktop tests work on Windows ([f1b770a](https://github.com/gutzerk/code_chroma/commit/f1b770a2d3ed2495a56c5351e27754d390c0596b))
+* make the in-app updater verify signatures under Electron ([f795628](https://github.com/gutzerk/code_chroma/commit/f795628b63c71b60d0dd41d5ec8f83376a750bf9))
+
 ## [0.9.2](https://github.com/gutzerk/code_chroma/compare/v0.9.1...v0.9.2) (2026-10-09)
 
 

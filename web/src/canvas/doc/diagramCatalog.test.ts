@@ -204,7 +204,7 @@ describe("remove-then-re-add position preservation", () => {
     expect(removed.ok).toBe(true);
 
     // Re-adding: the recipe re-projects fresh from disk with a new id, at whatever position the
-    // server just wrote (the seam that used to always be overwritten by a fresh dagre layout).
+    // server just wrote (the seam that used to always be overwritten by a fresh ELK layout).
     const client2 = {
       runRecipe: async () => ({
         ok: true as const,

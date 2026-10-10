@@ -3,25 +3,25 @@ import { layoutBoxes, layoutDiagramEdges } from "./diagramLayout";
 import type { Rect } from "./orthogonalRoute";
 
 describe("layoutBoxes", () => {
-  it("returns an empty result with sane fallback dimensions for no nodes", () => {
-    const result = layoutBoxes([], []);
+  it("returns an empty result with sane fallback dimensions for no nodes", async () => {
+    const result = await layoutBoxes([], []);
 
     expect(result).toEqual({ boxes: [], width: 600, height: 400 });
   });
 
-  it("still type-checks and lays out a plain {from, to} edge with no kind", () => {
+  it("still type-checks and lays out a plain {from, to} edge with no kind", async () => {
     const nodes = [
       { id: "a", width: 100, height: 50 },
       { id: "b", width: 100, height: 50 },
     ];
     const edges: { from: string; to: string }[] = [{ from: "a", to: "b" }];
 
-    const { boxes } = layoutBoxes(nodes, edges);
+    const { boxes } = await layoutBoxes(nodes, edges);
 
     expect(boxes.map((box) => box.id).sort()).toEqual(["a", "b"]);
   });
 
-  it("returns every input node exactly once in boxes", () => {
+  it("returns every input node exactly once in boxes", async () => {
     const nodes = [
       { id: "a", width: 100, height: 50 },
       { id: "b", width: 100, height: 50 },
@@ -29,17 +29,17 @@ describe("layoutBoxes", () => {
     ];
     const edges = [{ from: "a", to: "b", kind: "uses" }];
 
-    const { boxes } = layoutBoxes(nodes, edges);
+    const { boxes } = await layoutBoxes(nodes, edges);
 
     expect(boxes).toHaveLength(3);
     expect(boxes.map((box) => box.id).sort()).toEqual(["a", "b", "c"]);
   });
 
-  it("skips an edge naming an id not present in nodes, same as before the body swap", () => {
+  it("skips an edge naming an id not present in nodes, same as before the body swap", async () => {
     const nodes = [{ id: "a", width: 100, height: 50 }];
     const edges = [{ from: "a", to: "missing" }];
 
-    const { boxes } = layoutBoxes(nodes, edges);
+    const { boxes } = await layoutBoxes(nodes, edges);
 
     expect(boxes).toEqual([{ id: "a", x: expect.any(Number), y: expect.any(Number), width: 100, height: 50 }]);
   });

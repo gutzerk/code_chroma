@@ -1,7 +1,7 @@
 {
   "name": "codechroma-desktop",
   "private": true,
-  "version": "0.9.3",
+  "version": "0.10.0",
   "productName": "CodeChroma",
   "description": "CodeChroma desktop shell: opens a repo and hosts the canvas in its own window",
   "homepage": "https://github.com/gutzerk/code_chroma",

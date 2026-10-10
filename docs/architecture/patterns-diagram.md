@@ -125,9 +125,8 @@ No bridge/frontend change was needed -- a struct/interface is just another `node
 Epics, Impact, Custom, hierarchy-only) in favor of `RootCanvas` rendering the one `CanvasDocView`
 unconditionally (see [`single-canvas.md`](single-canvas.md)). Patterns now reaches the canvas
 through the `pattern` recipe (`DrawDiagramButton` → `runRecipeAndLayout` → `autoLayout.ts`'s
-`layoutNewElements()` → `diagramLayout.ts`'s `layoutBoxes()` → `layeredLayout.ts`'s
-`computeLayeredLayout()`, the shared direction-aware layered layout every diagram type now uses
-(051-directed-layered-diagram-layout) — see [`web-canvas-shell.md`](web-canvas-shell.md)'s
+`layoutNewElements()` → `diagramLayout.ts`'s `layoutBoxes()` → `elkLayout.ts`'s
+`computeElkLayout()` (async), the shared ELK layered layout every diagram type now uses — see [`web-canvas-shell.md`](web-canvas-shell.md)'s
 `connectors/` section). The component names below
 (`PatternNodeBox`, `PatternsLegend.tsx`, the dagre-specific drag-position note) describe that
 removed architecture; treat this section as historical until it's rewritten against the current

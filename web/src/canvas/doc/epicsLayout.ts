@@ -5,7 +5,7 @@ import { stringMeta } from "./elementMeta";
  * Deterministic per-EP column layout for the epics diagram (010-epics-tree-render, Part 1:
  * the block structure is "one column per epic, stories stacked under their parent epic").
  *
- * The shared layered layout (`layoutBoxes`/`computeLayeredLayout`) keys off `meta.order`/`meta.lane`
+ * The shared layered layout (`layoutBoxes`/`computeElkLayout`) keys off `meta.order`/`meta.lane`
  * and edges -- fields the epics artifact never carries -- so it piles everything at (0,0). This is
  * the epics-specific branch used in its place. It derives the hierarchy from the recipe's group
  * frames (010 Part 1: the resolver writes each node's `group` string into a `__group__::<group>`

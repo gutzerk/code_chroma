@@ -24,7 +24,7 @@ describe("findFreePort", () => {
 describe("startBridge", () => {
   it("reports the bridge's own exit instead of waiting out the ready timeout", async () => {
     const attempt = startBridge({
-      executable: "/usr/bin/false",
+      executable: process.execPath,
       repoPath: process.cwd(),
       readyTimeoutMs: 30_000,
     });
@@ -35,7 +35,7 @@ describe("startBridge", () => {
   it("streams the child's stdout lines to onProgress", async () => {
     const lines: string[] = [];
     const attempt = startBridge({
-      executable: "/bin/echo",
+      executable: process.execPath,
       repoPath: process.cwd(),
       onProgress: (line) => lines.push(line),
       readyTimeoutMs: 30_000,

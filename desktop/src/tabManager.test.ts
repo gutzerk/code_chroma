@@ -10,6 +10,19 @@ class FakeView implements ViewLike {
   webContents = {};
 }
 
+/** Windows without developer mode / admin refuses symlink creation (EPERM), so those tests skip there. */
+const canSymlink = (() => {
+  const probe = mkdtempSync(join(tmpdir(), "codechroma-symlink-probe-"));
+  try {
+    symlinkSync(probe, join(probe, "link"));
+    return true;
+  } catch {
+    return false;
+  } finally {
+    rmSync(probe, { recursive: true, force: true });
+  }
+})();
+
 let nextPort = 40000;
 function fakeBridge(): BridgeHandle {
   const port = nextPort++;
@@ -83,7 +96,7 @@ describe("canonical path dedupe", () => {
     rmSync(dir, { recursive: true, force: true });
   });
 
-  it("resolves a symlink to the same real path", () => {
+  it.skipIf(!canSymlink)("resolves a symlink to the same real path", () => {
     const real = join(dir, "real-repo");
     const link = join(dir, "linked-repo");
     mkdirSync(real);
@@ -92,7 +105,7 @@ describe("canonical path dedupe", () => {
     expect(canonicalRepoPath(link)).toBe(canonicalRepoPath(real));
   });
 
-  it("finds a repo registered via its real path when asked via a symlink to it", () => {
+  it.skipIf(!canSymlink)("finds a repo registered via its real path when asked via a symlink to it", () => {
     const real = join(dir, "real-repo");
     const link = join(dir, "linked-repo");
     mkdirSync(real);

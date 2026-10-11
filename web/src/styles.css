@@ -2706,6 +2706,7 @@ body {
 .block-focus-button,
 .block-copy-button,
 .canvas-node-box-copy-button,
+.canvas-diagram-frame-copy-button,
 .canvas-node-box-desc-button {
   flex-shrink: 0;
   width: 1.4rem;
@@ -2722,6 +2723,7 @@ body {
 .block-focus-button:hover,
 .block-copy-button:hover,
 .canvas-node-box-copy-button:hover,
+.canvas-diagram-frame-copy-button:hover,
 .canvas-node-box-desc-button:hover {
   color: #fff;
   border-color: var(--control-hover-border);
@@ -2906,14 +2908,16 @@ body {
 
 .block-copy-button.is-copied,
 .tree-node-copy-button.is-copied,
-.canvas-node-box-copy-button.is-copied {
+.canvas-node-box-copy-button.is-copied,
+.canvas-diagram-frame-copy-button.is-copied {
   color: #6ec46e;
   border-color: #6ec46e;
 }
 
 .block-copy-button.is-failed,
 .tree-node-copy-button.is-failed,
-.canvas-node-box-copy-button.is-failed {
+.canvas-node-box-copy-button.is-failed,
+.canvas-diagram-frame-copy-button.is-failed {
   color: #d97070;
   border-color: #d97070;
 }
@@ -7100,6 +7104,19 @@ button[data-copy-state="idle"][aria-label]:hover:not(:disabled) {
   font-size: 0.85rem;
   color: var(--diagram-frame-color, #94a3b8);
   pointer-events: none;
+}
+
+/* The copy-name button sits inline after the label; the label itself ignores pointer events. */
+.canvas-diagram-frame-copy {
+  display: inline-block;
+  margin-left: 0.5rem;
+  vertical-align: middle;
+  pointer-events: auto;
+  cursor: default;
+}
+
+.canvas-diagram-frame-copy-button {
+  font-size: 0.7rem;
 }
 
 /* The four builtin recipe kinds each get their own fixed hue (styles.css's "Status / kind hues"

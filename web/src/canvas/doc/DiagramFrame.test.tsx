@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { fireEvent, render, screen } from "@testing-library/react";
 import { DiagramFrame } from "./DiagramFrame";
 import { EngineClientProvider } from "../../engine-client/EngineClientContext";
@@ -51,6 +51,18 @@ describe("DiagramFrame", () => {
     canvasDocStore.reset();
     dragOffsetStore.reset();
     undoStore.reset();
+  });
+
+  it("copies the diagram name from the frame's copy button without starting a drag", async () => {
+    const writeText = vi.fn().mockResolvedValue(undefined);
+    Object.assign(navigator, { clipboard: { writeText } });
+    renderFrame("c1", "System Context", [element({ id: "a" })]);
+
+    fireEvent.pointerDown(screen.getByTestId("canvas-diagram-frame-copy"));
+    fireEvent.click(screen.getByTestId("canvas-diagram-frame-copy"));
+
+    expect(writeText).toHaveBeenCalledWith("System Context");
+    expect(dragOffsetStore.getAll()).toEqual({});
   });
 
   it("renders nothing for a diagram with no visible members", () => {

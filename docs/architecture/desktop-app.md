@@ -191,7 +191,7 @@ Things worth knowing before touching it:
   startup, using the host path separator; every spawned child inherits the fix.
 - `desktop/launcher/` is deliberately plain HTML/JS outside the tsc build: it renders *before* any
   bridge exists, so it cannot be part of the served SPA. Its typed contract is `preload.ts`'s
-  `LauncherApi`. Recents live in `app.getPath('userData')/recent.json`.
+  `LauncherApi`. Recents live in `app.getPath('userData')/recent.json`. Entries whose folder is gone are kept but flagged `missing` (greyed with ⚠); clicking one shows "Project not found at <path>…" and offers removal, and every entry has a hover × (`removeRecent`, list-only) (#56).
   Each recent entry also lists its known workspaces as child rows (#87's "Recent Projects: display
   Workspaces as child items") — `workspaceSummaries.ts`'s `listWorkspacesForRepo` does a best-effort
   read of that repo's own `.codechroma/{agents,prs}.json` (never the running bridge; the repo need

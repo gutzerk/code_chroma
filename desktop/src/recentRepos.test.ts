@@ -1,8 +1,8 @@
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { addRecent, MAX_RECENTS, readRecents, recentsStorePath } from "./recentRepos";
+import { addRecent, MAX_RECENTS, readRecents, recentsStorePath, removeRecent } from "./recentRepos";
 
 let dir: string;
 let store: string;
@@ -34,12 +34,16 @@ describe("readRecents", () => {
     expect(readRecents(store)).toEqual([]);
   });
 
-  it("drops entries whose directory no longer exists", () => {
+  it("flags entries whose directory no longer exists instead of dropping them", () => {
     const alive = repoDir("alive");
+    const gone = join(dir, "since-deleted");
     addRecent(store, alive, 1000);
-    addRecent(store, join(dir, "since-deleted"), 2000);
+    addRecent(store, gone, 2000);
 
-    expect(readRecents(store).map((entry) => entry.path)).toEqual([alive]);
+    expect(readRecents(store).map((entry) => [entry.path, entry.missing])).toEqual([
+      [gone, true],
+      [alive, false],
+    ]);
   });
 });
 
@@ -74,5 +78,19 @@ describe("addRecent", () => {
     const result = addRecent(store, "/Users/me/projects/atlas", 1000);
 
     expect(result[0]?.name).toBe("projects/atlas");
+  });
+});
+
+describe("removeRecent", () => {
+  it("forgets only the given entry and leaves the folder on disk", () => {
+    const keep = repoDir("keep");
+    const drop = repoDir("drop");
+    addRecent(store, keep, 1000);
+    addRecent(store, drop, 2000);
+
+    const next = removeRecent(store, drop);
+
+    expect(next.map((entry) => entry.path)).toEqual([keep]);
+    expect(existsSync(drop)).toBe(true);
   });
 });

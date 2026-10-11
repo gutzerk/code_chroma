@@ -57,6 +57,17 @@ function renderWorkspaceRows(container, repoPath, workspaces) {
   }
 }
 
+async function offerRemoval(repo) {
+  const message = `Project not found at ${repo.path}. It may have been deleted or moved.`;
+  setStatus(message, true);
+  if (confirm(`${message}
+
+Remove it from the recent list?`)) {
+    renderRecents(await api.removeRecent(repo.path));
+    setStatus("");
+  }
+}
+
 function renderRecents(recents) {
   recentsPanel.classList.toggle("hidden", recents.length === 0);
   recentsEl.replaceChildren();
@@ -65,14 +76,25 @@ function renderRecents(recents) {
     entry.className = "recent-entry";
 
     const button = document.createElement("button");
-    button.className = "recent";
-    button.textContent = repo.name;
+    button.className = repo.missing ? "recent missing" : "recent";
+    button.textContent = repo.missing ? `⚠ ${repo.name}` : repo.name;
     const path = document.createElement("span");
     path.className = "path";
     path.textContent = repo.path;
     button.append(path);
-    button.addEventListener("click", () => void open(repo.path));
+    button.addEventListener("click", () => {
+      if (repo.missing) void offerRemoval(repo);
+      else void open(repo.path);
+    });
     entry.append(button);
+
+    const forget = document.createElement("button");
+    forget.className = "forget";
+    forget.textContent = "×";
+    forget.title = "Remove from list (the folder is not touched)";
+    forget.setAttribute("aria-label", `Remove ${repo.name} from list`);
+    forget.addEventListener("click", async () => renderRecents(await api.removeRecent(repo.path)));
+    entry.append(forget);
 
     const children = document.createElement("div");
     children.className = "recent-workspaces";

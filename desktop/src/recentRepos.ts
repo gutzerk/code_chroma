@@ -7,10 +7,16 @@ export interface RecentRepo {
   path: string;
   name: string;
   openedAt: number;
+  /** True when the directory has since been moved or deleted; set on read, never persisted. */
+  missing?: boolean;
 }
 
-/** Reads the recents list, dropping entries whose directory has since been moved or deleted. */
+/** Reads the recents list, flagging (not dropping) entries whose directory is gone so the user can forget them. */
 export function readRecents(storePath: string): RecentRepo[] {
+  return readStored(storePath).map((entry) => ({ ...entry, missing: !existsSync(entry.path) }));
+}
+
+function readStored(storePath: string): RecentRepo[] {
   let raw: string;
   try {
     raw = readFileSync(storePath, "utf8");
@@ -26,17 +32,27 @@ export function readRecents(storePath: string): RecentRepo[] {
   if (!Array.isArray(parsed)) {
     return [];
   }
-  return parsed.filter(isRecentRepo).filter((entry) => existsSync(entry.path));
+  return parsed.filter(isRecentRepo);
+}
+
+function writeStored(storePath: string, entries: RecentRepo[]): void {
+  mkdirSync(dirname(storePath), { recursive: true });
+  writeFileSync(storePath, JSON.stringify(entries, null, 2), "utf8");
 }
 
 /** Moves `repoPath` to the front (deduped by path), caps the list, and persists it. */
 export function addRecent(storePath: string, repoPath: string, now: number): RecentRepo[] {
   const entry: RecentRepo = { path: repoPath, name: basename(repoPath), openedAt: now };
-  const others = readRecents(storePath).filter((existing) => existing.path !== repoPath);
+  const others = readStored(storePath).filter((existing) => existing.path !== repoPath);
   const next = [entry, ...others].slice(0, MAX_RECENTS);
-  mkdirSync(dirname(storePath), { recursive: true });
-  writeFileSync(storePath, JSON.stringify(next, null, 2), "utf8");
-  return next;
+  writeStored(storePath, next);
+  return readRecents(storePath);
+}
+
+/** Forgets `repoPath` from the list only -- never touches the project on disk. */
+export function removeRecent(storePath: string, repoPath: string): RecentRepo[] {
+  writeStored(storePath, readStored(storePath).filter((entry) => entry.path !== repoPath));
+  return readRecents(storePath);
 }
 
 /** Last two path segments, so sibling checkouts named "web" stay distinguishable in the list. */

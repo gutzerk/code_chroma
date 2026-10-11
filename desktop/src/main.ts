@@ -14,7 +14,7 @@ import { startBridge, stopBridge, type BridgeHandle } from "./bridgeProcess";
 import { resolveBridgeExecutable } from "./bridgeLocation";
 import { createProject } from "./newProject";
 import { createTutorialProject } from "./tutorialProject";
-import { addRecent, readRecents, recentsStorePath } from "./recentRepos";
+import { addRecent, readRecents, recentsStorePath, removeRecent } from "./recentRepos";
 import { TabManager, type Tab } from "./tabManager";
 import { listWorkspacesForRepo } from "./workspaceSummaries";
 import type { TabsChangedPayload } from "./tabbarPreload";
@@ -433,6 +433,9 @@ function registerIpc(): void {
     });
   }
   ipcMain.handle("launcher:list-recents", () => readRecents(storePath()));
+  ipcMain.handle("launcher:remove-recent", (_event, repoPath: string) =>
+    removeRecent(storePath(), repoPath),
+  );
   ipcMain.handle("launcher:list-workspaces", (_event, repoPath: string) =>
     listWorkspacesForRepo(repoPath),
   );

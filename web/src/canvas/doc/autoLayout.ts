@@ -207,7 +207,7 @@ export function layoutSequence(
     // the gap below the last line is the dashed DiagramFrame's own padding (DiagramFrame.tsx's
     // PADDING.bottom). Inflating `size.h` here made the outer message rects poke up into the heads and
     // pinch the bottom arrow against the frame -- don't fatten it.
-    sizes[element.id] = { w: 40, h: SEQUENCE_LAYOUT.rowH };
+    sizes[element.id] = { w: Math.max(Math.abs(x1 - x2) * SEQUENCE_LAYOUT.colW, 40), h: SEQUENCE_LAYOUT.rowH };
   }
   return { positions, sizes };
 }

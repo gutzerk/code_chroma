@@ -274,3 +274,19 @@ describe("NodeMetaRow", () => {
     expect(screen.queryByTestId("canvas-node-meta-row")).not.toBeInTheDocument();
   });
 });
+
+describe("external tag and shapes", () => {
+  it("adds a shape class for a registered meta.shape and ignores unknown ones", () => {
+    const known = accentFor(element("custom", { shape: "database" }));
+    const unknown = accentFor(element("custom", { shape: "blob" }));
+
+    expect(known.className).toContain("node-shape-database");
+    expect(unknown.className ?? "").not.toContain("node-shape-");
+  });
+
+  it("labels an external no-code box EXTERNAL", () => {
+    const accent = accentFor(element("custom", { no_code_reason: "external" }));
+
+    expect(accent.className).toContain("no-code-external");
+  });
+});

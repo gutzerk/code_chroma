@@ -84,6 +84,7 @@
   --kind-delete: #e06c75;     /* delete / deleted — red */
   --kind-conceptual: #c48af8; /* conceptual — purple */
   --kind-unresolved: #9aa0a6; /* unresolved — grey */
+  --kind-external: #f0a64a; /* external — amber */
 
   /* Icon-button controls on blocks/tree rows (focus/code/close buttons) — the recurring gray
      trio that otherwise repeats inline. */
@@ -7482,3 +7483,32 @@ button[data-copy-state="idle"][aria-label]:hover:not(:disabled) {
     transform: translate(-50%, calc(-100% - 10px));
   }
 }
+
+/* External systems (meta.external -> no_code_reason "external"): dashed amber outline, separate from conceptual. */
+.diagram-node-box.no-code-external,
+.block.no-code-external {
+  border-style: dashed;
+  border-color: var(--kind-external);
+}
+
+.node-meta-chip--no-code-external {
+  border-color: var(--kind-external);
+  background: color-mix(in oklab, var(--kind-external) 20%, transparent);
+  color: var(--kind-external);
+}
+
+/* Shape registry (shapes.ts): conventional forms picked by meta.shape. */
+.diagram-node-box.node-shape-database,
+.block.node-shape-database { border-radius: 50% / 14px; border-top-width: 4px; border-bottom-width: 4px; border-top-style: double; }
+.diagram-node-box.node-shape-storage,
+.block.node-shape-storage { border-radius: 8px 8px 50% 50% / 8px 8px 14px 14px; border-bottom-style: double; border-bottom-width: 4px; }
+.diagram-node-box.node-shape-queue,
+.block.node-shape-queue { border-radius: 999px; }
+.diagram-node-box.node-shape-actor,
+.block.node-shape-actor { border-radius: 24px 24px 8px 8px; }
+.diagram-node-box.node-shape-client,
+.block.node-shape-client { border-top-width: 10px; border-radius: 6px; }
+.diagram-node-box.node-shape-cache,
+.block.node-shape-cache { border-radius: 4px 18px 4px 18px; }
+.diagram-node-box.node-shape-external,
+.block.node-shape-external { border-style: dashed; border-color: var(--kind-external); }

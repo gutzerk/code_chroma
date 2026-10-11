@@ -4,6 +4,8 @@ import type { WorkspaceSummary } from "./workspaceSummaries";
 
 export interface LauncherApi {
   listRecents(): Promise<RecentRepo[]>;
+  /** Forgets one recent project (list only, never the folder) and returns the updated list. */
+  removeRecent(repoPath: string): Promise<RecentRepo[]>;
   /** Agents/PRs already known for `repoPath`, so the launcher's recent-projects entry can show them
    * as child workspaces without starting that repo's bridge first. Best-effort: [] on any error. */
   listWorkspaces(repoPath: string): Promise<WorkspaceSummary[]>;
@@ -21,6 +23,7 @@ export interface LauncherApi {
 
 const api: LauncherApi = {
   listRecents: () => ipcRenderer.invoke("launcher:list-recents"),
+  removeRecent: (repoPath) => ipcRenderer.invoke("launcher:remove-recent", repoPath),
   listWorkspaces: (repoPath) => ipcRenderer.invoke("launcher:list-workspaces", repoPath),
   pickFolder: () => ipcRenderer.invoke("launcher:pick-folder"),
   createProject: (parentDir, name) =>

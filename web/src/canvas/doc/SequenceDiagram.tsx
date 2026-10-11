@@ -92,6 +92,16 @@ export function SequenceDiagram({ layer, elements }: SequenceDiagramProps) {
       bottom: element.position.y + h / 2,
     };
   });
+  // An arrow spans its two lifelines regardless of the message element's own (narrow) rect, so fold
+  // each arrow's real extent in -- otherwise it pokes past the frame.
+  for (const { element, fromCol, toCol } of messages) {
+    allRects.push({
+      left: Math.min(fromCol.position.x, toCol.position.x),
+      top: element.position.y - 10,
+      right: Math.max(fromCol.position.x, toCol.position.x),
+      bottom: element.position.y + 10,
+    });
+  }
   const left = Math.min(...allRects.map((r) => r.left));
   const top = Math.min(...allRects.map((r) => r.top));
   const right = Math.max(...allRects.map((r) => r.right));

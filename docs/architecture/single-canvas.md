@@ -294,6 +294,10 @@ matching how `LaneArea`/`ConcurrencyIslandArea` each already keep their own pale
 index still reads as two distinguishable colors, not a coincidental match. Renders nothing once its
 layer has no visible members (every element removed, or the whole layer collapsed via the Diagrams tab).
 
+The label carries an inline copy-name button (`CopyButton` from `strategies/nodeChrome`, passed through
+`SoftAreaFrame`'s `labelAction`) that copies the diagram's display name; its wrapper stops `pointerdown`
+so a press never starts the frame drag.
+
 Tests: `canvas/doc/DiagramFrame.test.tsx` (bounding-box sizing/label, builtin vs. hashed coloring, the
 group-drag commit + its `"canvas"` undo entry, the `role`/`tabIndex`/`aria-label` triple, the
 abort-mid-drag cleanup), `canvas/doc/CanvasNodeBox.test.tsx`'s own abort-mid-drag case for the group

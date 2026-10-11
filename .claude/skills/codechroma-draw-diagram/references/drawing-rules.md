@@ -475,3 +475,17 @@ The user wants a diagram none of the four rows covers. In this order:
 
    Same rule as every other kind: don't report the diagram finished until this pass comes back
    clean.
+
+
+## External components and standard shapes
+
+- **External systems** (third-party services, external APIs, legacy systems, anything outside this
+  repo that takes part in the flow) must be drawn, not skipped. Author them pathless with
+  `"meta": {"external": true}`; the resolver stamps `no_code_reason: "external"` (never
+  `conceptual` -- the two tags are separate), and the canvas draws a dashed amber outline plus an
+  `EXTERNAL` chip. On the freeform canvas path set `"meta": {"no_code_reason": "external"}` yourself.
+- **Standard shapes**: set `"meta": {"shape": "<name>"}` with one of `database` (cylinder-like),
+  `storage`, `queue` (pill), `actor` (user), `client` (browser/app, heavy top bar), `cache`,
+  `external`. Pick by component type instead of leaving everything a plain box; an unknown name
+  renders a plain box. The registry lives in `web/src/canvas/doc/shapes.ts` -- add a name there plus a
+  `.node-shape-<name>` rule in `web/src/styles.css`.

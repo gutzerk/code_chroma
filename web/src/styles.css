@@ -3498,8 +3498,11 @@ button[data-copy-state="idle"][aria-label]:hover:not(:disabled) {
    panel's z-index above can't escape its block — raise the whole ancestor chain of an open panel
    so it paints (and hit-tests) above later sibling blocks it overflows into or is dragged over. */
 .block:has(.block-code-view--inline),
-.tree-node:has(.block-code-view--inline) {
-  z-index: 1;
+.tree-node:has(.block-code-view--inline),
+.diagram-node-box:has(.block-code-view--inline),
+.canvas-node-box:has(.block-code-view--inline) {
+  /* Above every other box (z-index 1) so an open code panel never sits under a neighbour's text. */
+  z-index: 10;
 }
 
 .block-code-view--inline .block-code-view-header {
@@ -7103,6 +7106,10 @@ button[data-copy-state="idle"][aria-label]:hover:not(:disabled) {
   font-weight: 600;
   font-size: 0.85rem;
   color: var(--diagram-frame-color, #94a3b8);
+  /* Opaque backing so an overlapping frame's label hides the one beneath instead of garbling it. */
+  padding: 0 0.4rem;
+  border-radius: 4px;
+  background: var(--surface-0);
   pointer-events: none;
 }
 

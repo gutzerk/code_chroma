@@ -298,6 +298,10 @@ The label carries an inline copy-name button (`CopyButton` from `strategies/node
 `SoftAreaFrame`'s `labelAction`) that copies the diagram's display name; its wrapper stops `pointerdown`
 so a press never starts the frame drag.
 
+Overlap: the frame label has an opaque `--surface-0` backing so an overlapping frame's label hides the one
+beneath it, and any box holding an open inline code panel is raised to `z-index: 10` (`styles.css`,
+`.block-code-view--inline` `:has` rules) so the panel is never painted under a neighbour's text.
+
 Tests: `canvas/doc/DiagramFrame.test.tsx` (bounding-box sizing/label, builtin vs. hashed coloring, the
 group-drag commit + its `"canvas"` undo entry, the `role`/`tabIndex`/`aria-label` triple, the
 abort-mid-drag cleanup), `canvas/doc/CanvasNodeBox.test.tsx`'s own abort-mid-drag case for the group

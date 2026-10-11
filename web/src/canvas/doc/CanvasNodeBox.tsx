@@ -295,7 +295,7 @@ export function CanvasNodeBox({ element, onMeasure }: CanvasNodeBoxProps) {
     // instead of InspectorPanel's generic "no longer exists" (the wrong message for something that
     // was never real code, or for an authoring mistake it has no way to explain).
     const noCodeReason = stringMeta(element, "no_code_reason");
-    if (noCodeReason === "conceptual" || noCodeReason === "unresolved") {
+    if (noCodeReason === "conceptual" || noCodeReason === "unresolved" || noCodeReason === "external") {
       descriptionPopupStore.open(element.label, noCodeReasonMessage(element, noCodeReason));
       return;
     }

@@ -5,6 +5,7 @@ import { ALL_BRAND_ICONS } from "../../icons/brands";
 import { C1BlockIcon } from "../../icons/C1BlockIcon";
 import { groupColorIndex } from "./groupColor";
 import { stringMeta } from "./elementMeta";
+import { isNodeShape } from "./shapes";
 
 export interface NodeAccent {
   icon?: ReactNode;
@@ -54,6 +55,12 @@ function statusClassName(element: CanvasElement): string | undefined {
   return `block-change--${STATUS_CLASS_ALIASES[status] ?? status}`;
 }
 
+/** `meta.shape` names an entry of `NODE_SHAPES` (shapes.ts); an unknown name renders the plain box. */
+function shapeClassName(element: CanvasElement): string | undefined {
+  const shape = stringMeta(element, "shape");
+  return shape && isNodeShape(shape) ? `node-shape-${shape}` : undefined;
+}
+
 function groupClassName(element: CanvasElement): string | undefined {
   const group = stringMeta(element, "group");
   return group ? `custom-node-group-${groupColorIndex(group)}` : undefined;
@@ -61,6 +68,7 @@ function groupClassName(element: CanvasElement): string | undefined {
 
 export const NO_CODE_REASON_LABELS: Record<string, string> = {
   conceptual: "CONCEPTUAL",
+  external: "EXTERNAL",
   unresolved: "UNRESOLVED",
 };
 
@@ -87,6 +95,7 @@ export function accentFor(element: CanvasElement): NodeAccent {
     kindClassName(element),
     statusClassName(element),
     groupClassName(element),
+    shapeClassName(element),
     noCodeReasonClassName(element),
   ].filter((name): name is string => Boolean(name));
   if (!icon && classNames.length === 0) return NO_ACCENT;
@@ -95,6 +104,7 @@ export function accentFor(element: CanvasElement): NodeAccent {
 
 const NO_CODE_REASON_MESSAGES: Record<string, string> = {
   conceptual: "This box stands for a concept, not a specific piece of code — there's nothing to open.",
+  external: "This box is an external system outside this codebase — there's no code here to open.",
   unresolved: "This box's path could not be matched to any code in the graph — it may have moved, " +
     "been renamed, or the diagram may be out of date.",
 };

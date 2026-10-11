@@ -931,3 +931,15 @@ A real session drawing a `custom` diagram surfaced skill-text gaps the fixes bel
   does not know") — `BROKEN`/`DANGLING`/`ORPHAN`/`DUPLICATE`, read off a post-batch
   `GET /repos/{id}/canvas` — since there is no `.codechroma/<kind>.json` file for
   `check_diagram.py` to fetch on this path.
+
+
+## External components and standard shapes (issue #63)
+
+`meta.external: true` on a pathless node makes `diagram_resolver._stamp_no_code_reason` stamp
+`no_code_reason: "external"` (precedence: planned > unresolved > external > conceptual), so external
+systems have their own tag, separate from `conceptual`. The canvas shows a dashed amber outline and an
+`EXTERNAL` chip (`nodeAccentLogic.tsx`, `styles.css`); clicking opens the description popup.
+`meta.shape` selects a conventional shape from the registry `web/src/canvas/doc/shapes.ts`
+(`database`, `storage`, `queue`, `actor`, `client`, `cache`, `external`), applied as a
+`.node-shape-<name>` class; unknown names fall back to the plain box. Tests:
+`tests/unit/test_diagram_resolver.py`, `web/src/canvas/doc/nodeAccent.test.tsx`.

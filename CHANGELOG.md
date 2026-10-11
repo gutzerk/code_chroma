@@ -1,5 +1,21 @@
 # Changelog
 
+## [0.11.0](https://github.com/gutzerk/code_chroma/compare/v0.10.0...v0.11.0) (2026-10-11)
+
+
+### Features
+
+* tag external components and add a standard shape registry to diagrams ([4f63a76](https://github.com/gutzerk/code_chroma/commit/4f63a76de5aaba425b7609c277adea7be95409e3)), closes [#63](https://github.com/gutzerk/code_chroma/issues/63)
+
+
+### Bug Fixes
+
+* add a copy-name button to the diagram frame label ([d3de2c1](https://github.com/gutzerk/code_chroma/commit/d3de2c1f68d4290fb2a752fba8a6fdcfd40907a6)), closes [#55](https://github.com/gutzerk/code_chroma/issues/55)
+* keep overlapping diagram labels and open code panels readable ([454cd99](https://github.com/gutzerk/code_chroma/commit/454cd99ac49ae23a20500a6381f4e35f9f4d38c9)), closes [#54](https://github.com/gutzerk/code_chroma/issues/54)
+* keep sequence arrows inside the frame and let stale recent projects be removed ([d7880e3](https://github.com/gutzerk/code_chroma/commit/d7880e3e485569e6b9b5436c9f38b53c8987ccd9))
+* shorten docstring to satisfy ruff line length ([98d77e0](https://github.com/gutzerk/code_chroma/commit/98d77e03d65e0c621bb43ee0dd5668b8f5e77b8b))
+* shrink the drag minimum gap so ELK-laid-out blocks can be dropped back ([fdc91fe](https://github.com/gutzerk/code_chroma/commit/fdc91fe98e63ea4f430b1ae59f4f5ae530fba8aa))
+
 ## [0.10.0](https://github.com/gutzerk/code_chroma/compare/v0.9.3...v0.10.0) (2026-10-10)
 
 

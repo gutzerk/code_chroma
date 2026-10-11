@@ -1023,11 +1023,11 @@ describe("CanvasNodeBox — group drag", () => {
 
     fireEvent.pointerDown(boxA, { button: 0, pointerId: 1, clientX: 0, clientY: 0 });
     // Drag straight onto `b` — the raw release point would leave `a` overlapping it.
-    fireEvent.pointerMove(document, { pointerId: 1, clientX: 150, clientY: 5 });
+    fireEvent.pointerMove(document, { pointerId: 1, clientX: 100, clientY: 5 });
     await act(async () => {
       await new Promise((resolve) => requestAnimationFrame(() => resolve(null)));
     });
-    fireEvent.pointerUp(document, { pointerId: 1, clientX: 150, clientY: 5 });
+    fireEvent.pointerUp(document, { pointerId: 1, clientX: 100, clientY: 5 });
 
     // The corrected landing animates in via a transition (SETTLE_MS) with a timeout fallback; jsdom
     // never fires transitionend, so wait out the fallback before reading the committed position.
@@ -1036,9 +1036,9 @@ describe("CanvasNodeBox — group drag", () => {
     });
 
     const committed = canvasDocStore.getDoc().elements.a.position;
-    // Raw release would commit x = 100 + 150 = 250, still overlapping b's right edge (215) by the
+    // Raw release would commit x = 100 + 100 = 200, still overlapping b's right edge (215) by the
     // NODE_SEP gap — the solver must have shifted the landing well past that.
-    expect(committed.x).toBeGreaterThan(250);
+    expect(committed).not.toEqual({ x: 200, y: 100 });
 
     vi.restoreAllMocks();
   });

@@ -1,5 +1,5 @@
 import ELK, { type ElkNode } from "elkjs/lib/elk.bundled.js";
-import { NODE_SEP, RANK_SEP } from "../collision/constants";
+import { ELK_NODE_SEP, ELK_RANK_SEP } from "../collision/constants";
 import { leadingOrderDigits } from "../doc/elementMeta";
 import type { LayoutBoxSpec, PositionedBox } from "./diagramLayout";
 
@@ -84,11 +84,11 @@ export async function computeElkLayout(
     layoutOptions: {
       "elk.algorithm": "layered",
       "elk.direction": "DOWN",
-      "elk.spacing.nodeNode": String(NODE_SEP),
-      "elk.layered.spacing.nodeNodeBetweenLayers": String(RANK_SEP),
+      "elk.spacing.nodeNode": String(ELK_NODE_SEP),
+      "elk.layered.spacing.nodeNodeBetweenLayers": String(ELK_RANK_SEP),
       "elk.padding": `[top=${MARGIN},left=${MARGIN},bottom=${MARGIN},right=${MARGIN}]`,
       "elk.layered.considerModelOrder.strategy": "NODES_AND_EDGES",
-      "elk.spacing.componentComponent": String(NODE_SEP),
+      "elk.spacing.componentComponent": String(ELK_NODE_SEP),
       "elk.separateConnectedComponents": "true",
       "elk.aspectRatio": "1.6",
     },

@@ -271,9 +271,8 @@ canvas instead of collapsing onto whichever diagram happened to carry code-backe
     and the original dagre layout. Direction is `DOWN`: for every one-directional edge A→B, A's box
     ends up above B's, so the diagram reads top-to-bottom in data/process-flow order; ELK breaks
     cycles itself. Duplicate same-direction edges collapse and self-loops / edges to unknown ids are
-    dropped before ELK sees them (they still render). Spacing reuses `collision/constants.ts`'s
-    `NODE_SEP` (nodes in a layer and between components) and `RANK_SEP` (between layers) so hand-dropped
-    blocks keep the auto layout's rhythm; disconnected components are packed by ELK
+    dropped before ELK sees them (they still render). Spacing comes from `collision/constants.ts`'s
+    `ELK_NODE_SEP` (nodes in a layer and between components) and `ELK_RANK_SEP` (between layers); disconnected components are packed by ELK
     (`separateConnectedComponents`, `aspectRatio` 1.6) — 🔴 ELK separates components with
     `elk.spacing.componentComponent` (default 20), which must be set explicitly or components touch.
     ELK returns top-left corners; the adapter converts to the center-anchored boxes the canvas uses.

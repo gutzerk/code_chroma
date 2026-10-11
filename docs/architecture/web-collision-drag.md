@@ -26,9 +26,10 @@ given its size.
   `connectors/obstacleRouter.ts` (see [`c1-diagram.md`](c1-diagram.md)), which reads box rects purely
   as obstacles and never writes a position — it is not a second, competing layout pass, and boxes are
   not participants in it the way they are in `collisionStore`.
-  ⚠ `collision/constants.ts` is the single source for dagre's `nodesep`/`ranksep` too
-  (`layoutDiagram` imports them), so the gap is anisotropic — `NODE_SEP` 60 on X, `RANK_SEP` 90 on
-  Y — and a hand-dropped block lands in the auto layout's rhythm. The store divides
+  ⚠ `collision/constants.ts` keeps two separate gaps: `ELK_NODE_SEP` 110 / `ELK_RANK_SEP` 160 are
+  auto-layout spacing only, while the drag rule's `NODE_SEP`/`RANK_SEP` are a small 24. ELK sizes
+  unmeasured boxes at a default, so freshly laid-out boxes are often closer than the ELK spacing; a drag
+  gap that large made such a box impossible to drop back. The store divides
   `getBoundingClientRect` by the same `measureScale` the drag delta uses, freezes its rectangles for
   the gesture, and drops participants nested inside the dragged element (a panel lives inside a C1
   box, and a block must never be shoved out of its own ancestor). `DropGhost` is portalled into

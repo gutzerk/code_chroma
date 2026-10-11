@@ -4,17 +4,24 @@
  * layout instead of the two drifting apart the next time one of the numbers is edited.
  */
 
-/** Minimum gap on X, px in canvas coordinates — dagre's `nodesep` (between neighbours in a row). */
-export const NODE_SEP = 110;
+/** ELK/dagre spacing on X (between neighbours in a row) -- auto-layout only, not the drag rule. */
+export const ELK_NODE_SEP = 110;
 
-/** Minimum gap on Y — dagre's `ranksep` (between rows). Deliberately different from NODE_SEP. */
-export const RANK_SEP = 160;
+/** ELK/dagre spacing on Y (between rows). Deliberately different from ELK_NODE_SEP. */
+export const ELK_RANK_SEP = 160;
+
+/** Minimum gap on X a dragged block must keep, px. Far below ELK_NODE_SEP: ELK sizes unmeasured boxes
+ * at a default, so freshly laid-out boxes are often closer than ELK_NODE_SEP and must stay droppable. */
+export const NODE_SEP = 24;
+
+/** Minimum gap on Y a dragged block must keep (see NODE_SEP). */
+export const RANK_SEP = 24;
 
 /** Rings of the spiral fallback searched when no candidate position is free. */
 export const MAX_RING = 12;
 
 /** Spiral ring spacing. */
-export const RING_STEP = NODE_SEP;
+export const RING_STEP = ELK_NODE_SEP;
 
 /** Landing animation duration. */
 export const SETTLE_MS = 160;

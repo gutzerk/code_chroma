@@ -6,7 +6,7 @@ import { collisionStore } from "../../collision/collisionStore";
 import { selectionStore } from "../../../state/selectionStore";
 import type { EngineClient } from "../../../engine-client/EngineClient";
 import type { HierarchyNodeRef } from "../../../state/types";
-import { NODE_SEP, RANK_SEP } from "../../collision/constants";
+import { ELK_NODE_SEP, ELK_RANK_SEP } from "../../collision/constants";
 import { BLOCK_LAYOUT } from "./layoutConfig";
 
 function node(id: string, name: string): HierarchyNodeRef {
@@ -36,12 +36,12 @@ describe("gridLayout", () => {
     const boxes = gridLayout(nodes, new Map());
 
     expect(boxes[0]).toMatchObject({ id: "a", x: 0, y: 0 });
-    expect(boxes[1]).toMatchObject({ id: "b", x: BLOCK_LAYOUT.minWidth + NODE_SEP, y: 0 });
-    expect(boxes[2]).toMatchObject({ id: "c", x: 0, y: BLOCK_LAYOUT.minHeight + RANK_SEP });
+    expect(boxes[1]).toMatchObject({ id: "b", x: BLOCK_LAYOUT.minWidth + ELK_NODE_SEP, y: 0 });
+    expect(boxes[2]).toMatchObject({ id: "c", x: 0, y: BLOCK_LAYOUT.minHeight + ELK_RANK_SEP });
     expect(boxes[3]).toMatchObject({
       id: "d",
-      x: BLOCK_LAYOUT.minWidth + NODE_SEP,
-      y: BLOCK_LAYOUT.minHeight + RANK_SEP,
+      x: BLOCK_LAYOUT.minWidth + ELK_NODE_SEP,
+      y: BLOCK_LAYOUT.minHeight + ELK_RANK_SEP,
     });
   });
 
@@ -51,7 +51,7 @@ describe("gridLayout", () => {
     const boxes = gridLayout([node("a", "A"), node("b", "B")], sizes);
 
     expect(boxes[0]).toMatchObject({ width: 300, height: 100 });
-    expect(boxes[1]).toMatchObject({ x: 300 + NODE_SEP });
+    expect(boxes[1]).toMatchObject({ x: 300 + ELK_NODE_SEP });
   });
 });
 

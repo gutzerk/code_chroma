@@ -147,6 +147,17 @@ def test_branch_workspaces_survive_a_restart(client, make_bridge):
     ]
 
 
+def test_a_branch_whose_directory_vanished_is_listed_but_not_registered(client, make_bridge):
+    test_client, repo, _bridge = client
+    created = test_client.post("/branches", json={"branch": "feature-x"}).json()
+    shutil.rmtree(created["worktree"])
+
+    restarted = make_bridge(repo)
+
+    assert not restarted.registry.is_registered(created["id"])
+    assert restarted.services.branch_manager.get(created["id"]).worktree_lost is True
+
+
 def test_closing_a_branch_workspace_keeps_the_directory_and_the_branch(client):
     test_client, repo, bridge = client
     created = test_client.post("/branches", json={"branch": "feature-x"}).json()
@@ -218,3 +229,18 @@ def test_a_failure_after_the_checkout_leaves_no_worktree_or_branch_behind(client
     assert "doomed" not in branches
     assert test_client.get("/branches").json()["branches"] == []
     assert test_client.post("/branches", json={"new_branch": "doomed"}).status_code == 200
+
+
+def test_closing_a_branch_workspace_tells_the_other_windows(client, monkeypatch):
+    test_client, _repo, bridge = client
+    created = test_client.post("/branches", json={"branch": "feature-x"}).json()
+    sent = []
+
+    async def capture(message):
+        sent.append(message)
+
+    monkeypatch.setattr(bridge.services.connections, "broadcast", capture)
+
+    test_client.delete(f"/branches/{created['id']}")
+
+    assert sent == [{"type": "branch-removed", "id": created["id"]}]

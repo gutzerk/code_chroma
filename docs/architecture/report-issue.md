@@ -4,9 +4,11 @@ Issue [#88](https://github.com/gutzerk/code_chroma/issues/88): lets a user file 
 idea without leaving the app. The dialog first asks the bridge (`GET /issues/status`,
 `src/codechroma/bridge/routes/issues.py`) whether `gh` is installed and logged in. If so, "Create
 issue" posts through `POST /issues` (`gh issue create --repo gutzerk/code_chroma`, the user's own
-`gh` credentials — the app stores no token) and the footer links the created issue. If not (or with
-no bridge, or if `gh` fails), the footer says it can't post automatically and the dialog falls back
-to opening a prefilled URL in the system browser/a new tab, which needs no credentials.
+`gh` credentials — the app stores no token) and the footer links the created issue. If `gh` can't post
+(or there is no bridge, or `POST /issues` answers 409), the footer says so and the dialog falls back
+to opening a prefilled URL in the system browser/a new tab, which needs no credentials. Any other
+failure (e.g. 502) shows an error and does **not** open the browser: `gh` may already have filed the
+issue. The bridge caches the `gh auth status` probe for 60 s (it is a network call).
 
 ## Entry point
 

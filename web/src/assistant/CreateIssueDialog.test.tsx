@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { CreateIssueDialog } from "./CreateIssueDialog";
+import * as http from "../util/httpJson";
 
 afterEach(() => {
   delete window.codechromaUpdates;
@@ -105,5 +106,26 @@ describe("CreateIssueDialog", () => {
     fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
 
     expect(onDismiss).toHaveBeenCalledOnce();
+  });
+
+  it("posts through the bridge when gh can post, and shows the created issue link", async () => {
+    const openSpy = vi.spyOn(window, "open").mockReturnValue(null);
+    vi.spyOn(http, "bridgeRequest").mockImplementation(async (path: string) =>
+      (path === "/issues/status" ? { can_post: true } : { url: "https://github.com/o/r/issues/9" }) as never);
+    setup();
+    fireEvent.change(screen.getByLabelText("Title"), { target: { value: "Bug title" } });
+    await screen.findByText(/via your GitHub CLI/);
+
+    fireEvent.click(screen.getByRole("button", { name: "Create issue" }));
+
+    expect(await screen.findByRole("link", { name: "https://github.com/o/r/issues/9" })).toBeTruthy();
+    expect(openSpy).not.toHaveBeenCalled();
+  });
+
+  it("says it cannot post automatically when gh is unavailable", async () => {
+    vi.spyOn(http, "bridgeRequest").mockResolvedValue({ can_post: false } as never);
+    setup();
+
+    expect(await screen.findByText(/Can't post automatically/)).toBeTruthy();
   });
 });

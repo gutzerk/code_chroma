@@ -1,10 +1,12 @@
 # Report an issue — the in-app "Create issue" dialog
 
 Issue [#88](https://github.com/gutzerk/code_chroma/issues/88): lets a user file a bug or suggest an
-idea without leaving the app. There is no server-side piece — the dialog is pure web (one React
-component) and talks to GitHub only by opening a prefilled URL in the system browser/a new tab, so
-it needs no token, no stored credentials, and works identically in the plain web canvas and the
-desktop app.
+idea without leaving the app. The dialog first asks the bridge (`GET /issues/status`,
+`src/codechroma/bridge/routes/issues.py`) whether `gh` is installed and logged in. If so, "Create
+issue" posts through `POST /issues` (`gh issue create --repo gutzerk/code_chroma`, the user's own
+`gh` credentials — the app stores no token) and the footer links the created issue. If not (or with
+no bridge, or if `gh` fails), the footer says it can't post automatically and the dialog falls back
+to opening a prefilled URL in the system browser/a new tab, which needs no credentials.
 
 ## Entry point
 
@@ -22,8 +24,7 @@ open state lives in the button itself (mirrors `SettingsRailButton`).
   every field URL-encoded via `URLSearchParams` — and opens it with `window.open(url, "_blank",
   …)`, which in the desktop app is intercepted by `main.ts`'s `setWindowOpenHandler` and handed to
   `shell.openExternal` (the same path the Updates panel's release-notes link already uses); in a
-  plain browser it opens an ordinary new tab. This is deliberately "Option A" from the issue (a
-  prefilled link, not the GitHub API) — no OAuth/token handling, the user reviews and submits the
+  plain browser it opens an ordinary new tab. This is the fallback path ("Option A" from the issue); the user reviews and submits the
   issue themselves on GitHub.
 - When the checkbox is on, `systemInfoLine()` appends `App: CodeChroma <version>` /
   `OS: <platform>` to the end of the body. The version comes from the existing
@@ -56,7 +57,5 @@ open state lives in the button itself (mirrors `SettingsRailButton`).
 
 ## Out of scope (v1)
 
-- Posting directly via the GitHub API (issue's "Option B") — would need OAuth device flow, token
-  storage, and rate-limit handling; the prefilled-link path needs none of that.
-- Showing a GitHub-side "issue created" link — Option A hands off to the browser before the issue
-  exists, so there is no issue number to report back.
+- Posting via the GitHub API directly (issue's "Option B") — would need OAuth device flow, token
+  storage, and rate-limit handling; the `gh` path reuses the user's existing login instead.

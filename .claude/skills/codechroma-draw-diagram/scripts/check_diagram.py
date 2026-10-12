@@ -1293,6 +1293,7 @@ def _inspect_flat(diagram: object, checks: dict, args: argparse.Namespace) -> _R
     if check_islands:
         _check_islands(endpoints, report, check_islands["hint"])
     _check_bare_pattern_markers(nodes, touched, report)
+    _check_shared_node_ids(nodes, report)
     if required_meta:
         _check_unreviewed(report)
     _check_unlabeled(checks["unlabeled"], report)
@@ -1302,6 +1303,22 @@ def _inspect_flat(diagram: object, checks: dict, args: argparse.Namespace) -> _R
         if checks.get("membership_source"):
             _check_membership(checks["membership_source"], nodes, report, args)
     return report
+
+
+def _check_shared_node_ids(nodes: list[dict], report: _Report) -> None:
+    """Advises when one node_id is claimed by boxes in several groups."""
+    groups_by_id: dict[str, set[str]] = {}
+    for node in nodes:
+        node_id, group = node.get("node_id"), node.get("group")
+        if isinstance(node_id, str) and node_id and isinstance(group, str) and group:
+            groups_by_id.setdefault(node_id, set()).add(group)
+    for node_id, groups in groups_by_id.items():
+        if len(groups) > 1:
+            report.advisories.append(
+                f"SHAREDNODE {node_id!r} is linked by boxes in {len(groups)} groups "
+                f"({', '.join(sorted(groups))}) -- point each box at its own class/function "
+                "node_id, or null + meta.no_code_reason: conceptual for a fail/aggregate box"
+            )
 
 
 def _check_unreviewed(report: _Report) -> None:

@@ -99,10 +99,7 @@ progress, signature errors, and the explicit restart action. Its release-notes l
 system browser. The startup check only runs for packaged installs (`app.isPackaged`) so a dev run
 never hits the API. The native notification and menu actions still use a confirm dialog, then
 download the correct per-platform artifact and run it: on macOS `hdiutil -plist` mounts the `.dmg`
-(the mount point is parsed from XML, so space-y volume names can't break the path) and `ditto` copies
-the new `.app` over the running app bundle with the current user's permissions (it never prompts
-for elevation; system-wide installs must be moved to `~/Applications` before in-app updates); on
-Windows it launches the `-Setup.exe` (per-user NSIS shows the overwrite prompt without UAC); on Linux it
+(the mount point is parsed from XML, so space-y volume names can't break the path) and `ditto` stages the new `.app` next to the install as `CodeChroma.app.update-<pid>` with the current user's permissions (it never prompts for elevation; system-wide installs must be moved to `~/Applications` before in-app updates), then a detached `/bin/sh` script waits for this process to exit, swaps the staged bundle in (rolling back on failure), deletes the old bundle best-effort and `open`s the app — the running bundle is never modified while in use, which is what caused the `ENOTEMPTY` failure of #118; on Windows it silently runs the per-user `-Setup.exe` (`/currentuser /S --updated --force-run`, no UAC and no wizard; the NSIS template waits for the app to close and relaunches it); on Linux it
 atomically replaces the running AppImage in place. The download streams to a `.part` sibling while
 hashing SHA-256 in one pass (aborting and discarding anything past 1 GiB), is verified against
 GitHub's asset digest (falling back to the release `.sha256` sidecar), then **provenance-checked**
@@ -126,7 +123,7 @@ manually instead of silently pretending to be current. Asset names are sanitized
 `[A-Za-z0-9._-]` before they become local paths (`safeAssetPath` in the updater, `safe_name` in the
 shell installers). The AppImage replacement renames a PID-suffixed temp sibling over the running
 file. After install the app either
-relaunches (`app.relaunch()`, macOS/Linux) or lets the installer take over (Windows). It connects to
+relaunches (`app.relaunch()`, Linux only) or lets the detached helper/installer relaunch it (macOS, Windows). It connects to
 `api.github.com/repos/gutzerk/code_chroma/releases/latest` using Node's built-in `fetch` — no
 runtime dependency. The release version is cached in the app's userData directory, so the Updates
 panel can retain the last successful result when GitHub is unavailable. GitHub API rate limits

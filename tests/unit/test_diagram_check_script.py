@@ -439,3 +439,20 @@ def test_uncovered_findings_are_unchanged_by_the_parallel_probe_batch(monkeypatc
         "UNCOVERED b1 path=src/dir1 has sub-directories",
         "UNCOVERED b3 path=src/dir3 has sub-directories",
     ]
+
+
+@pytest.mark.parametrize(
+    ("groups", "flagged"), [(("Build", "Failure"), True), (("Build", "Build"), False)]
+)
+def test_shared_node_id_advisory_fires_only_across_groups_and_never_fails(
+    tmp_path, groups, flagged
+):
+    diagram = _flat(2, relations=[{"from": "n0", "to": "n1", "label": "uses"}])
+    for node, group in zip(diagram["nodes"], groups, strict=True):
+        node["node_id"] = "component::.github/workflows/image-publish.yaml"
+        node["group"] = group
+
+    result = _run(tmp_path, "custom", diagram)
+
+    assert result.returncode == 0
+    assert ("SHAREDNODE" in result.stdout) is flagged

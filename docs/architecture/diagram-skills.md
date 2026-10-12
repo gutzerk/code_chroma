@@ -783,6 +783,12 @@ ancestor (the containing file/component, or its directory — `impact_context.py
 `change_cards.py`'s `resolve_target` fallback ladder). That box still exists and is still clickable, so
 it gets its own `.block-change--deleted` CSS rule (same red as `removed`, but no strikethrough).
 
+`check_diagram.py` flat kinds also run `_check_shared_node_ids`: a non-blocking `SHAREDNODE` advisory
+when one `node_id` is linked by boxes in more than one `group` (gutzerk/code_chroma#65). The
+convention (`drawing-rules.md`, "Point `node_id` at the deepest symbol") is symbol-level ids
+(`::function::`/`::class::`) over `component::<path>`, and `null` + `no_code_reason: conceptual` for
+fail/aggregate boxes.
+
 `check_diagram.py --kind impact` also gained `_check_impact_status`: a non-blocking advisory
 (`NOSTATUS`/`BADSTATUS`) when a node is missing `meta.status` or carries a value outside the four —
 nothing previously validated this field, which is exactly why the gap (a skill draft that never wrote

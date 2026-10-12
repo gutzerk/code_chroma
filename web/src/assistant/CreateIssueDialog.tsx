@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { ModalDialog } from "../agents/ModalDialog";
+import { bridgeRequest, jsonInit } from "../util/httpJson";
 // `window.codechromaUpdates` is declared globally by UpdatesPanel.tsx.
 
 type IssueLabel = "bug" | "enhancement" | "question" | "documentation";
@@ -9,6 +10,21 @@ const REPO = "gutzerk/code_chroma";
 const LABELS: IssueLabel[] = ["bug", "enhancement", "question", "documentation"];
 // Keeps the prefilled GitHub URL well under the ~8k limit browsers and GitHub both tolerate.
 const MAX_URL_LENGTH = 8000;
+
+/** Whether the bridge's `gh` is installed and logged in; `false` when unknown (no bridge, error). */
+function useCanPostViaGh(): boolean {
+  const [canPost, setCanPost] = useState(false);
+
+  useEffect(() => {
+    let active = true;
+    bridgeRequest<{ can_post: boolean }>("/issues/status")
+      .then(status => { if (active) setCanPost(status.can_post); })
+      .catch(() => {});
+    return () => { active = false; };
+  }, []);
+
+  return canPost;
+}
 
 /** `navigator.platform` values are stable, OS-only strings (no hostname/username/paths) -- mapped
  * to a friendly label, falling back to the raw value for anything unrecognized. */
@@ -68,7 +84,10 @@ export function CreateIssueDialog({ onDismiss }: { onDismiss: () => void }) {
   const [phase, setPhase] = useState<Phase>("idle");
   const [error, setError] = useState<string | null>(null);
   const [confirmingDiscard, setConfirmingDiscard] = useState(false);
+  const [createdUrl, setCreatedUrl] = useState<string | null>(null);
+  const [fellBack, setFellBack] = useState(false);
   const appVersion = useAppVersion();
+  const canPostViaGh = useCanPostViaGh();
 
   const hasContent = title.trim() !== "" || description.trim() !== "";
 
@@ -80,19 +99,43 @@ export function CreateIssueDialog({ onDismiss }: { onDismiss: () => void }) {
     onDismiss();
   }
 
-  function handleSubmit() {
+  async function handleSubmit() {
     if (!title.trim() || phase === "submitting") return;
     setPhase("submitting");
     setError(null);
     try {
       const body = buildBody(description, includeSystemInfo, appVersion);
-      const url = buildIssueUrl(title.trim(), body, label);
-      window.open(url, "_blank", "noopener,noreferrer");
+      if (canPostViaGh) {
+        try {
+          const created = await bridgeRequest<{ url: string }>(
+            "/issues", jsonInit("POST", { title: title.trim(), body, label }),
+          );
+          setCreatedUrl(created.url);
+          setPhase("success");
+          return;
+        } catch {
+          setFellBack(true);
+        }
+      }
+      window.open(buildIssueUrl(title.trim(), body, label), "_blank", "noopener,noreferrer");
       setPhase("success");
     } catch (err) {
       setPhase("error");
       setError(err instanceof Error ? err.message : String(err));
     }
+  }
+
+  function footerNote() {
+    if (createdUrl) {
+      return <>Issue created: <a href={createdUrl} target="_blank" rel="noreferrer">{createdUrl}</a></>;
+    }
+    if (phase === "success") {
+      return `Opened in your browser -- finish posting it there.${fellBack ? " (automatic posting failed)" : ""}`;
+    }
+    if (canPostViaGh) {
+      return <>Will be posted to <span className="issue-footer-repo">{REPO}</span> on GitHub via your GitHub CLI</>;
+    }
+    return <>Can't post automatically (GitHub CLI missing or not logged in) -- will open <span className="issue-footer-repo">{REPO}</span> in your browser</>;
   }
 
   if (confirmingDiscard) {
@@ -200,9 +243,7 @@ export function CreateIssueDialog({ onDismiss }: { onDismiss: () => void }) {
           </button>
         </div>
         <p className="issue-footer-note" aria-live="polite">
-          {phase === "success"
-            ? "Opened in your browser -- finish posting it there."
-            : <>Will be posted to <span className="issue-footer-repo">{REPO}</span> on GitHub</>}
+          {footerNote()}
         </p>
       </div>
     </ModalDialog>

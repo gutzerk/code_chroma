@@ -299,6 +299,12 @@ export async function installAsset(
   return spec.install(info);
 }
 
+/** Removes a leftover bundle with retries (ENOTEMPTY races); a failure must not fail an update that already swapped. */
+async function removeBestEffort(path: string): Promise<void> {
+  try { await rm(path, { recursive: true, force: true, maxRetries: 5, retryDelay: 200 }); }
+  catch { /* leftover is harmless; the next update retries via its own pid-suffixed backup */ }
+}
+
 /** Mounts the dmg and replaces this user's app bundle without requesting elevation. */
 async function runMacDmg(info: UpdateInfo): Promise<boolean> {
   const plist = await execFileP("hdiutil", ["attach", info.downloadPath, "-nobrowse", "-plist"]);
@@ -316,16 +322,16 @@ async function runMacDmg(info: UpdateInfo): Promise<boolean> {
     moved = true;
     try { await rename(staged, dest); }
     catch (error) { await rename(backup, dest); moved = false; throw error; }
-    await rm(backup, { recursive: true, force: true });
     moved = false;
+    await removeBestEffort(backup);
   } catch (error) {
     const reason = error instanceof Error ? error.message : String(error);
     throw new Error(`Could not update ${dest} without administrator privileges. Reinstall CodeChroma into ~/Applications, then retry. ${reason}`);
   }
   finally {
-    await rm(staged, { recursive: true, force: true });
+    await removeBestEffort(staged);
     // Retain the previous bundle if cleanup failed after a successful swap.
-    if (!moved) await rm(backup, { recursive: true, force: true });
+    if (!moved) await removeBestEffort(backup);
     await execFileP("hdiutil", ["detach", vol]);
   }
   return true;

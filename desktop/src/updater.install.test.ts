@@ -2,7 +2,7 @@ import { homedir } from "node:os";
 import { join, dirname } from "node:path";
 import { EventEmitter } from "node:events";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { access, stat, rename, copyFile, realpath } from "node:fs/promises";
+import { access, stat, rename, copyFile, realpath, rm } from "node:fs/promises";
 import { execFile, spawn } from "node:child_process";
 import { assertUserInstallation, installAsset } from "./updater";
 vi.mock("node:fs/promises", async importOriginal => ({
@@ -28,6 +28,14 @@ describe("user installation paths", () => {
     expect(execFile).toHaveBeenCalledWith("ditto", [join("/Volumes/CodeChroma", "CodeChroma.app"), `${destination}.update-${process.pid}`], expect.any(Function));
     expect(rename).toHaveBeenCalledWith(`${destination}.update-${process.pid}`, destination);
     expect(execFile).toHaveBeenCalledWith("hdiutil", ["detach", "/Volumes/CodeChroma"], expect.any(Function));
+  });
+  it("still succeeds when the old bundle cannot be fully removed after the swap", async () => {
+    const destination = join(home, "Applications", "CodeChroma.app");
+    process.execPath = `${destination}/Contents/MacOS/CodeChroma`;
+    vi.mocked(rm).mockRejectedValue(Object.assign(new Error("ENOTEMPTY: directory not empty"), { code: "ENOTEMPTY" }));
+    const installed = await installAsset({ version: "2.0.0", assetName: "app-arm64.dmg", downloadPath: "installer.dmg" }, { platform: "darwin", arch: "arm64" });
+    vi.mocked(rm).mockResolvedValue(undefined);
+    expect(installed).toBe(true);
   });
   it("atomically replaces the user-local AppImage", async () => {
     const destination = join(home, "Applications", "CodeChroma.AppImage");

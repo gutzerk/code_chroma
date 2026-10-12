@@ -199,8 +199,8 @@ class AgentStore extends Store {
   /** Test/dev-only full reset. */
   reset = (): void => {
     this.agents = EMPTY;
-    this.activeWorkspace = "main";
-    this.workspaceChosen = false;
+    this.activeWorkspace = initialWorkspace();
+    this.workspaceChosen = workspaceFromUrl() !== null;
     this.maxAgents = 5;
     this.gitPreflight = null;
     this.launchError = null;

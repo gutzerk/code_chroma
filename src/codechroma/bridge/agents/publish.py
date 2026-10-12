@@ -208,7 +208,7 @@ def _commits_ahead(worktree: Path, branch: str, main_branch: str) -> bool:
         return False
 
 
-def run_gh(worktree: Path, *args: str) -> str | None:
+def run_gh(worktree: Path, *args: str, quiet: bool = False) -> str | None:
     """`gh` in a checkout (public: the PR importer reuses it); None when it fails or hangs."""
     # Own process group: killing gh alone orphans its credential helper, pager and ssh.
     try:
@@ -234,7 +234,8 @@ def run_gh(worktree: Path, *args: str) -> str | None:
         return None
     if process.returncode != 0:
         # The caller only gets None; the reason (missing label, rate limit) must not vanish with it.
-        logger.warning("publish: gh %s failed: %s", " ".join(args[:2]), (stderr or "").strip())
+        if not quiet:
+            logger.warning("publish: gh %s failed: %s", " ".join(args[:2]), (stderr or "").strip())
         return None
     return stdout
 

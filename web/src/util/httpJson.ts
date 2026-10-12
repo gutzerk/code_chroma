@@ -27,6 +27,14 @@ export function jsonInit(method: string, body?: unknown): RequestInit {
   };
 }
 
+/** A non-2xx bridge response; `status` lets a caller treat one code (e.g. 409) differently. */
+export class BridgeHttpError extends Error {
+  constructor(message: string, readonly status: number) {
+    super(message);
+    this.name = "BridgeHttpError";
+  }
+}
+
 /** One fetch call every bridge client shares: resolves VITE_ENGINE_BRIDGE_URL, throws a clear
  * "no bridge" error when unset, and surfaces the bridge's own error message on a bad response. */
 export async function bridgeRequest<T>(path: string, init?: RequestInit): Promise<T> {
@@ -37,7 +45,7 @@ export async function bridgeRequest<T>(path: string, init?: RequestInit): Promis
   const base = bridgeUrl === "same-origin" ? window.location.origin : bridgeUrl;
   const response = await fetch(`${base}${path}`, init);
   if (!response.ok) {
-    throw new Error(await errorMessageFrom(response));
+    throw new BridgeHttpError(await errorMessageFrom(response), response.status);
   }
   if (response.status === 204) {
     return undefined as T;

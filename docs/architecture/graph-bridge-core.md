@@ -206,10 +206,18 @@ the product rule is one branch per window anyway. Tests: `tests/unit/test_bridge
 
 🔴 **`origin_guard.py` refuses a cross-origin write.** CORS only hides the response; a cross-origin
 `text/plain` POST still ran the handler, so any site open in the user's browser could open a branch,
-file a GitHub issue or start an agent. `create_app` installs a middleware that answers 403 to a
-POST/PUT/PATCH/DELETE whose `Origin` is neither the request's own host nor in
-`codechroma_BRIDGE_CORS_ORIGINS`. A request with no `Origin` (skills' curl/python, the desktop shell,
-tests) is untouched. Tests: `tests/unit/test_bridge_origin_guard.py`.
+file a GitHub issue or start an agent. `create_app` installs the pure-ASGI `OriginGuard`, which
+answers 403 to a POST/PUT/PATCH/DELETE and closes (1008) any WebSocket handshake (terminal, events)
+whose `Origin` is neither in `codechroma_BRIDGE_CORS_ORIGINS` nor this server's own *loopback* host.
+"Same `Origin` and `Host`" alone is not trusted: a DNS-rebound page sends both as its own name, so
+the host must also be `localhost`/`127.0.0.1`/`::1` (a non-loopback deployment must list its origin
+in the env var). A request with no `Origin` (skills' curl/python, the desktop shell, tests) is
+untouched. Tests: `tests/unit/test_bridge_origin_guard.py`.
+
+Closing a branch workspace broadcasts `branch-removed` (like `pr-removed`); `drop_live` runs before
+the delete only with `?worktree_too=true`, and a record whose directory vanished (`worktree_lost`)
+stays listed but is not registered at startup. `open_branch` judges "already held" under the
+manager lock, so two racing opens of one branch can't both pass.
 
 Supporting modules:
 

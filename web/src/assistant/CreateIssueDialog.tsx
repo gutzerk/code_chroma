@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { ModalDialog } from "../agents/ModalDialog";
-import { bridgeRequest, jsonInit } from "../util/httpJson";
+import { BridgeHttpError, bridgeRequest, jsonInit } from "../util/httpJson";
 // `window.codechromaUpdates` is declared globally by UpdatesPanel.tsx.
 
 type IssueLabel = "bug" | "enhancement" | "question" | "documentation";
@@ -113,7 +113,10 @@ export function CreateIssueDialog({ onDismiss }: { onDismiss: () => void }) {
           setCreatedUrl(created.url);
           setPhase("success");
           return;
-        } catch {
+        } catch (err) {
+          // Only "gh can't post" falls back to the browser: after any other failure gh may already
+          // have filed the issue, and a prefilled form would then make a duplicate.
+          if (!(err instanceof BridgeHttpError && err.status === 409)) throw err;
           setFellBack(true);
         }
       }

@@ -1,15 +1,10 @@
-"""The branch-workspace registry: `<main_root>/.codechroma/branches.json`, one worktree per record.
-
-A sibling of agents.json and prs.json rather than rows in either: a branch workspace is neither an
-agent (no `claude`, no autostart, not counted against `max_agents`) nor a PR (writable, on a real
-branch). It is just "this project, on that branch, in its own directory" -- what a second window
-needs so it never shares a checkout with the first.
-"""
+"""The branch-workspace registry: `.codechroma/branches.json`, one worktree per record."""
 
 from __future__ import annotations
 
 import logging
 import threading
+from collections.abc import Callable
 from dataclasses import asdict, dataclass
 from datetime import UTC, datetime
 from pathlib import Path
@@ -120,22 +115,28 @@ class BranchManager:
             else:
                 skill_sync.install_into_worktree(Path(record.worktree), "branches")
 
-    def open_branch(self, branch: str, holders: dict[str, str | None]) -> BranchRecord:
+    def open_branch(
+        self, branch: str, holders: Callable[[], dict[str, str | None]]
+    ) -> BranchRecord:
         """Checks the existing local `branch` out into a new worktree and records it."""
         if branch not in main_branch.list_branches(self.main_root):
             raise main_branch.UnknownBranchError(branch)
-        if branch in holders:
-            raise BranchInUseError(branch, holders[branch])
-        return self._provision(branch, create=False, start_point=None)
+        with self._lock:
+            # Judged under the lock so two racing opens of one branch can't both pass.
+            taken = holders()
+            if branch in taken:
+                raise BranchInUseError(branch, taken[branch])
+            return self._provision(branch, create=False, start_point=None)
 
     def create_branch(self, branch: str, start_point: str | None) -> BranchRecord:
         """Creates `branch` from `start_point` (main's current branch by default) in a worktree."""
         if not _valid_branch_name(self.main_root, branch):
             raise worktree.WorktreeError(f"{branch!r} is not a valid branch name")
-        if branch in main_branch.list_branches(self.main_root):
+        existing = main_branch.list_branches(self.main_root)
+        if branch in existing:
             raise worktree.WorktreeError(f"branch {branch!r} already exists")
         # Only a local branch: a client-sent "--orphan" would otherwise be parsed as a git flag.
-        if start_point is not None and start_point not in main_branch.list_branches(self.main_root):
+        if start_point is not None and start_point not in existing:
             raise main_branch.UnknownBranchError(start_point)
         base = start_point or main_branch.current_branch(self.main_root)
         return self._provision(branch, create=True, start_point=base)
@@ -143,7 +144,7 @@ class BranchManager:
     def _provision(self, branch: str, create: bool, start_point: str | None) -> BranchRecord:
         with self._lock:
             workspace_id = self._unique_id(branch)
-            path = self._dir_for(workspace_id)
+            path = worktree.worktree_path(self.main_root, workspace_id)
             # Before `add`: an unexcluded nested worktree reads to GitSync as thousands of files.
             ensure_excluded(self.main_root, skill_sync.WORKTREE_EXCLUDES)
             if create:
@@ -193,15 +194,14 @@ class BranchManager:
         self.save()
         return record
 
-    def _dir_for(self, workspace_id: str) -> Path:
-        return worktree.worktree_path(self.main_root, workspace_id)
-
     def _unique_id(self, branch: str) -> str:
         """`br_<slug>`, suffixed until neither a record nor a leftover directory holds it."""
         slug = worktree.slugify(branch, fallback_index=len(self._records) + 1)
         base = f"{BRANCH_ID_PREFIX}{slug}"
         candidate, suffix = base, 2
-        while candidate in self._records or self._dir_for(candidate).exists():
+        while (
+            candidate in self._records or worktree.worktree_path(self.main_root, candidate).exists()
+        ):
             candidate = f"{base}-{suffix}"
             suffix += 1
         return candidate

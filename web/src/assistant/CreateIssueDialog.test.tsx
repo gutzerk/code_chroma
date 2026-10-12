@@ -128,4 +128,23 @@ describe("CreateIssueDialog", () => {
 
     expect(await screen.findByText(/Can't post automatically/)).toBeTruthy();
   });
+
+  it.each([
+    [409, true],
+    [502, false],
+  ])("on a bridge %i the browser fallback opens: %s", async (status, opens) => {
+    const openSpy = vi.spyOn(window, "open").mockReturnValue(null);
+    vi.spyOn(http, "bridgeRequest").mockImplementation(async (path: string) => {
+      if (path === "/issues/status") return { can_post: true } as never;
+      throw new http.BridgeHttpError("failed", status);
+    });
+    setup();
+    fireEvent.change(screen.getByLabelText("Title"), { target: { value: "Bug title" } });
+    await screen.findByText(/via your GitHub CLI/);
+
+    fireEvent.click(screen.getByRole("button", { name: "Create issue" }));
+
+    await waitFor(() => expect(openSpy.mock.calls.length > 0).toBe(opens));
+    expect(screen.queryByText(/automatic posting failed/) !== null).toBe(opens);
+  });
 });

@@ -1,40 +1,59 @@
-"""Refuses state-changing requests that a web page on another origin sent to the local bridge.
-
-CORS only stops a page *reading* a response. A cross-origin `text/plain` POST is a "simple request"
-that still reaches the handler, and `json_body` parses it whatever the content type, so every write
-route (open a branch, create a GitHub issue, run an agent) would be reachable from any site the
-user has open. Browsers always attach `Origin` to such a request, so refusing an unsafe method whose
-`Origin` is neither this server's own nor an allowed dev origin closes it. Callers that send no
-`Origin` (the skills' curl/python, the desktop shell's fetch, tests) are unaffected.
-"""
+"""Refuses unsafe-method HTTP and any WebSocket handshake from a foreign `Origin`."""
 
 from __future__ import annotations
 
 from urllib.parse import urlparse
 
-from fastapi import FastAPI, Request
-from fastapi.responses import JSONResponse
+from starlette.types import ASGIApp, Receive, Scope, Send
 
 _UNSAFE_METHODS = frozenset({"POST", "PUT", "PATCH", "DELETE"})
+_LOOPBACK_HOSTS = frozenset({"localhost", "127.0.0.1", "::1"})
 
 
 def is_cross_origin(origin: str, host: str, allowed: set[str]) -> bool:
-    """Whether `origin` is neither the host the request addressed nor an explicitly allowed one."""
-    return origin not in allowed and urlparse(origin).netloc != host
+    """Whether `origin` is neither an explicitly allowed one nor this loopback server itself."""
+    if origin in allowed:
+        return False
+    # Same netloc alone is not enough: a DNS-rebound page sends Origin and Host as its own name.
+    return urlparse(origin).netloc != host or urlparse(origin).hostname not in _LOOPBACK_HOSTS
 
 
-def install_origin_guard(app: FastAPI, allowed_origins: list[str]) -> None:
-    allowed = {origin.strip() for origin in allowed_origins if origin.strip()}
+class OriginGuard:
+    """ASGI middleware: 403 for a foreign-origin write, close(1008) for a foreign-origin socket."""
 
-    @app.middleware("http")
-    async def _origin_guard(request: Request, call_next):
-        origin = request.headers.get("origin")
-        if (
-            request.method in _UNSAFE_METHODS
-            and origin
-            and is_cross_origin(origin, request.headers.get("host", ""), allowed)
+    def __init__(self, app: ASGIApp, allowed_origins: list[str]) -> None:
+        self.app = app
+        self.allowed = {origin.strip() for origin in allowed_origins if origin.strip()}
+
+    async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
+        kind = scope["type"]
+        if kind not in ("http", "websocket") or (
+            kind == "http" and scope["method"] not in _UNSAFE_METHODS
         ):
-            return JSONResponse(
-                status_code=403, content={"detail": "cross-origin request refused"}
-            )
-        return await call_next(request)
+            await self.app(scope, receive, send)
+            return
+        headers = {k.decode("latin-1"): v.decode("latin-1") for k, v in scope["headers"]}
+        origin = headers.get("origin")
+        if origin and is_cross_origin(origin, headers.get("host", ""), self.allowed):
+            await _refuse(kind, receive, send)
+            return
+        await self.app(scope, receive, send)
+
+
+async def _refuse(kind: str, receive: Receive, send: Send) -> None:
+    if kind == "websocket":
+        await receive()
+        await send({"type": "websocket.close", "code": 1008})
+        return
+    body = b'{"detail":"cross-origin request refused"}'
+    await send(
+        {
+            "type": "http.response.start",
+            "status": 403,
+            "headers": [
+                (b"content-type", b"application/json"),
+                (b"content-length", str(len(body)).encode()),
+            ],
+        }
+    )
+    await send({"type": "http.response.body", "body": body})

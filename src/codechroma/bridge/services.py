@@ -106,6 +106,8 @@ class BridgeServices:
         branch_manager = BranchManager(repo_root)
         branch_manager.reconcile()
         for branch_record in branch_manager.list():
+            if branch_record.worktree_lost:
+                continue
             registry.register(branch_record.id, Path(branch_record.worktree))
 
         # With every workspace registered, a deferred `active_workspace: "pr-12"` can be judged.

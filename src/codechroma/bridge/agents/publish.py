@@ -150,7 +150,7 @@ def create_pr(
     created = run_gh(worktree, "pr", "create", "--fill", "--head", branch, "--base", main_branch)
     if created is None:
         raise PublishError("gh pr create failed")
-    url = _first_url(created)
+    url = first_url(created)
     if url is None:
         raise PublishError("gh pr create returned no URL")
     return url
@@ -235,7 +235,7 @@ def run_gh(worktree: Path, *args: str) -> str | None:
     return stdout if process.returncode == 0 else None
 
 
-def _first_url(output: str) -> str | None:
+def first_url(output: str) -> str | None:
     for line in output.splitlines():
         candidate = line.strip()
         if candidate.startswith("http"):

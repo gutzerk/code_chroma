@@ -287,7 +287,7 @@ async function sha256Hex(path: string): Promise<string> {
   return hash.digest("hex");
 }
 
-/** Installs `info`; true when the app should relaunch (mac/Linux own the swap, Windows NSIS does). */
+/** Installs `info`; true when the app should relaunch (only Linux; macOS and Windows hand the swap and relaunch to a detached helper). */
 export async function installAsset(
   info: UpdateInfo,
   opts: { platform?: string; arch?: string } = {},
@@ -299,42 +299,49 @@ export async function installAsset(
   return spec.install(info);
 }
 
-/** Removes a leftover bundle with retries (ENOTEMPTY races); a failure must not fail an update that already swapped. */
-async function removeBestEffort(path: string): Promise<void> {
-  try { await rm(path, { recursive: true, force: true, maxRetries: 5, retryDelay: 200 }); }
-  catch { /* leftover is harmless; the next update retries via its own pid-suffixed backup */ }
-}
+/** Runs after this process exits: swaps the staged bundle in, drops the backup, relaunches (rolls back on failure). */
+const MAC_SWAP_SCRIPT = [
+  'pid="$1"; staged="$2"; dest="$3"; backup="$dest.previous-$pid"',
+  'while kill -0 "$pid" 2>/dev/null; do sleep 0.2; done',
+  'if mv "$dest" "$backup" && mv "$staged" "$dest"; then rm -rf "$backup" 2>/dev/null',
+  'else [ -d "$backup" ] && [ ! -d "$dest" ] && mv "$backup" "$dest"; rm -rf "$staged" 2>/dev/null; fi',
+  'open "$dest"',
+].join("\n");
 
-/** Mounts the dmg and replaces this user's app bundle without requesting elevation. */
+/** Stages the new bundle from the dmg, then hands the swap to a detached script that runs once this app has quit. */
 async function runMacDmg(info: UpdateInfo): Promise<boolean> {
   const plist = await execFileP("hdiutil", ["attach", info.downloadPath, "-nobrowse", "-plist"]);
   const vol = mountPointFromPlist(plist);
   if (!vol) throw new Error("could not locate mounted dmg volume");
   const src = join(vol, "CodeChroma.app");
   const dest = join(homedir(), "Applications", "CodeChroma.app");
-
   const staged = `${dest}.update-${process.pid}`;
-  const backup = `${dest}.previous-${process.pid}`;
-  let moved = false;
   try {
     await execFileP("ditto", [src, staged]);
-    await rename(dest, backup);
-    moved = true;
-    try { await rename(staged, dest); }
-    catch (error) { await rename(backup, dest); moved = false; throw error; }
-    moved = false;
-    await removeBestEffort(backup);
+    await spawnDetached("/bin/sh", ["-c", MAC_SWAP_SCRIPT, "sh", String(process.pid), staged, dest]);
   } catch (error) {
+    await removeBestEffort(staged);
     const reason = error instanceof Error ? error.message : String(error);
     throw new Error(`Could not update ${dest} without administrator privileges. Reinstall CodeChroma into ~/Applications, then retry. ${reason}`);
-  }
-  finally {
-    await removeBestEffort(staged);
-    // Retain the previous bundle if cleanup failed after a successful swap.
-    if (!moved) await removeBestEffort(backup);
+  } finally {
     await execFileP("hdiutil", ["detach", vol]);
   }
-  return true;
+  return false;
+}
+
+/** Removes a leftover bundle with retries (ENOTEMPTY races); a failure must not fail the update. */
+async function removeBestEffort(path: string): Promise<void> {
+  try { await rm(path, { recursive: true, force: true, maxRetries: 5, retryDelay: 200 }); }
+  catch { /* leftover is harmless */ }
+}
+
+/** Starts `file` detached so it outlives this process; resolves once it has spawned. */
+function spawnDetached(file: string, args: string[]): Promise<void> {
+  return new Promise<void>((resolve, reject) => {
+    const child = spawn(file, args, { detached: true, stdio: "ignore", windowsHide: true });
+    child.once("error", reject);
+    child.once("spawn", () => { child.unref(); resolve(); });
+  });
 }
 
 /** Returns the enclosing .app bundle for an executable inside it, or null outside an app bundle. */
@@ -350,13 +357,9 @@ export function mountPointFromPlist(plist: string): string | null {
   return match?.[1] ?? null;
 }
 
-/** Runs the Windows NSIS installer (uses the per-user setup wizard after this process quits). */
+/** Runs the per-user NSIS installer silently; it replaces the app once this process quits and relaunches it. */
 async function runWindowsSetup(info: UpdateInfo): Promise<boolean> {
-  await new Promise<void>((resolve, reject) => {
-    const child = spawn(info.downloadPath, ["/currentuser", `/D=${dirname(process.execPath)}`], { detached: true, stdio: "ignore", windowsHide: true });
-    child.once("error", reject);
-    child.once("spawn", () => { child.unref(); resolve(); });
-  });
+  await spawnDetached(info.downloadPath, ["/currentuser", "/S", "--updated", "--force-run", `/D=${dirname(process.execPath)}`]);
   return false;
 }
 

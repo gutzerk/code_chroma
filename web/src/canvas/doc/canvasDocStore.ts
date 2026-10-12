@@ -4,6 +4,7 @@ import type { EngineClient } from "../../engine-client/EngineClient";
 import { EMPTY_CANVAS_DOC, type CanvasBatchResult, type CanvasDoc, type CanvasOp } from "../../state/types";
 import { reportAsyncError } from "../../util/reportError";
 import { undoStore } from "../../state/undoStore";
+import { findUnplaced, layoutUnplaced } from "./pileLayout";
 
 /** The one canvas document in memory, plus the one optimistic edit a drag needs (016-single-canvas-
  * dashboard, Stage 2). Follows state/createStore.ts like every other canvas store; workspace-scoped
@@ -20,6 +21,11 @@ class CanvasDocStore extends Store {
   // fetchAndApplyCanvasDoc's own comment. Lives on the store, not a module-level `let`, so the
   // guard stays correct if a second CanvasDocStore instance is ever mounted alongside this one.
   private _latestFetchSeq = 0;
+  // Layers whose auto-layout failed once; skipped afterwards so a persistent failure can't loop.
+  // Per store (cleared by reset) so one workspace's failure never disables layout in another.
+  readonly unlayoutableLayers = new Set<string>();
+  // Ids the auto-layout already placed, so a box that lands back on the origin isn't re-placed.
+  readonly autoPlacedIds = new Set<string>();
 
   nextFetchSeq = (): number => ++this._latestFetchSeq;
   isLatestFetchSeq = (seq: number): boolean => seq === this._latestFetchSeq;
@@ -78,6 +84,8 @@ class CanvasDocStore extends Store {
   reset(): void {
     this._doc = EMPTY_CANVAS_DOC;
     this._loaded = false;
+    this.unlayoutableLayers.clear();
+    this.autoPlacedIds.clear();
     this.emit();
   }
 }
@@ -134,6 +142,25 @@ async function fetchAndApplyCanvasDoc(
     return layouts.length > 0 && layouts.every((element) => element.position.x === 0 && element.position.y === 0);
   });
   if (transientPile) return;
+  // Boxes that arrived on the origin (a position-less write nobody laid out) get the ELK pass here --
+  // a whole piled layer from scratch, a few new boxes next to the placed ones -- so layout never
+  // depends on which path drew the diagram.
+  const skip = new Set([...canvasDocStore.unlayoutableLayers, ...canvasDocStore.layersMidLayout()]);
+  const unplaced = Object.entries(findUnplaced(doc, skip, canvasDocStore.autoPlacedIds));
+  if (unplaced.length > 0) {
+    for (const [layer, ids] of unplaced) {
+      canvasDocStore.deferLayout(layer);
+      for (const id of ids) canvasDocStore.autoPlacedIds.add(id);
+      layoutUnplaced(engineClient, doc, layer, ids)
+        .catch((cause: unknown) => {
+          canvasDocStore.unlayoutableLayers.add(layer);
+          reportAsyncError("canvas auto-layout", cause);
+          if (canvasDocStore.isLatestFetchSeq(seq) && !isStale()) canvasDocStore.setDoc(doc);
+        })
+        .finally(() => canvasDocStore.releaseLayout(layer));
+    }
+    return;
+  }
   if (canvasDocStore.isLatestFetchSeq(seq) && !isStale()) canvasDocStore.setDoc(doc);
 }
 

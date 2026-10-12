@@ -45,6 +45,9 @@ MAIN_ID = "main"
 # A fetched pull request's workspace id; agents.manager refuses an agent id that would shadow one.
 PR_ID_PREFIX = "pr-"
 
+# An opened-by-branch workspace's id; the underscore keeps it out of reach of any agent slug.
+BRANCH_ID_PREFIX = "br_"
+
 STATE_ANALYZING = "analyzing"
 STATE_READY = "ready"
 STATE_ERROR = "error"

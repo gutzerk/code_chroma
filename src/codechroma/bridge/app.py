@@ -25,6 +25,7 @@ from fastapi.staticfiles import StaticFiles
 from codechroma.bridge import resources
 from codechroma.bridge.errors import install_error_handler
 from codechroma.bridge.git_cmd import ensure_excluded
+from codechroma.bridge.origin_guard import install_origin_guard
 from codechroma.bridge.routes import ROUTERS
 from codechroma.bridge.services import BridgeServices
 from codechroma.bridge.skill_sync import SKILL_EXCLUDE_PATTERNS, sync_all_skills
@@ -121,16 +122,18 @@ def create_app(repo_root: Path | None = None) -> FastAPI:
     app = FastAPI(lifespan=lifespan)
     app.state.services = BridgeServices.create(root)
 
+    allowed_origins = os.environ.get(
+        "codechroma_BRIDGE_CORS_ORIGINS",
+        # Both loopback spellings: dev server and launcher can answer on either.
+        "http://localhost:5173,http://127.0.0.1:5173",
+    ).split(",")
     app.add_middleware(
         CORSMiddleware,
-        allow_origins=os.environ.get(
-            "codechroma_BRIDGE_CORS_ORIGINS",
-            # Both loopback spellings: dev server and launcher can answer on either.
-            "http://localhost:5173,http://127.0.0.1:5173",
-        ).split(","),
+        allow_origins=allowed_origins,
         allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE"],
         allow_headers=["*"],
     )
+    install_origin_guard(app, allowed_origins)
     # One handler for every domain error, so a route only catches to reword the message.
     install_error_handler(app)
     # Serve the PTY terminal bridge on this same port so the canvas's terminal panel connects.

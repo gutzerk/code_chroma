@@ -188,6 +188,29 @@ engine and watchers; `.codechroma/graph.db` keeps its work, so the next access r
 at one physical worktree. `get`/`ensure_async`/`state`/`is_live`/`drop_live` all resolve to the
 canonical id first via `self._canonical`; `unregister` only tears the shared `Workspace` down once
 `self._aliases[canonical]` empties, so unregistering one alias never stops the other's watchers.
+🔴 **Branch workspaces (`bridge/branches/manager.py`, `routes/branches.py`)** are what a second window
+on an already-open project shows: one existing or newly created *branch* in its own `git worktree`,
+registered as an ordinary writable workspace under `br_<slug>` (the underscore can't appear in an
+agent slug, so the two id spaces never collide). Not an agent — no `claude`, no autostart, not counted
+against `max_agents` — and not a PR (writable, on a real branch). Persisted in
+`<main_root>/.codechroma/branches.json` (`BranchManager`, reconciled and re-registered by
+`BridgeServices.create`), created like an agent's worktree (`ensure_excluded`, skills installed,
+main's diagrams seeded). Routes: `GET /branches` (records), `GET /branches/choices` (every local
+branch with the workspace id already holding it, from `git worktree list` — `main`, a `br_*`, an
+agent, or `null` for a worktree we don't track), `POST /branches` with exactly one of `branch` /
+`new_branch` (+ optional `start_point`, default main's current branch), `DELETE
+/branches/{id}?worktree_too=` (record only by default; the branch itself is never deleted). A branch
+that is already checked out anywhere is a 409 whose `detail` is `{message, workspace}` so the shell
+can focus the window showing it instead of failing — git forbids a second checkout of one branch, and
+the product rule is one branch per window anyway. Tests: `tests/unit/test_bridge_branches_route.py`.
+
+🔴 **`origin_guard.py` refuses a cross-origin write.** CORS only hides the response; a cross-origin
+`text/plain` POST still ran the handler, so any site open in the user's browser could open a branch,
+file a GitHub issue or start an agent. `create_app` installs a middleware that answers 403 to a
+POST/PUT/PATCH/DELETE whose `Origin` is neither the request's own host nor in
+`codechroma_BRIDGE_CORS_ORIGINS`. A request with no `Origin` (skills' curl/python, the desktop shell,
+tests) is untouched. Tests: `tests/unit/test_bridge_origin_guard.py`.
+
 Supporting modules:
 
 - `live.py` — `RepoWatcher` (watchfiles thread, `.gitignore`-noise-filtered, ~1s debounce) and
@@ -202,7 +225,11 @@ Supporting modules:
   `WS /repos/{id}/events` under `key=repo_id` (same mechanism as the trace socket), and
   `WorkspaceRegistry` wraps each workspace's `on_event` so `Workspace.emit` broadcasts under its own
   id — a workspace-scoped ping only reaches that repo's canvases, while unkeyed broadcasts
-  (agent/PR lifecycle, `workspace-activated`) still reach every socket.
+  (agent/PR lifecycle) still reach every socket. 🔴 `POST /workspaces/{id}/activate` no longer
+  broadcasts anything: the old `workspace-activated` ping made every window follow whichever one
+  switched last, so two windows on one project could never show different workspaces. `active_workspace`
+  in agents.json is now only the *initial* pick for a window that names none (see
+  `parallel-agents.md`/`desktop-app.md`), never a live instruction to the other windows.
 - `git_sync.py` — `git status --porcelain` diff (mtime-keyed, `.codechroma` db excluded so it can't
   self-loop); `sync()` reanalyzes changed files and returns them (or `None` when nothing changed).
   Also invoked lazily on every HTTP request, so request-path reads stay fresh even without the watcher.

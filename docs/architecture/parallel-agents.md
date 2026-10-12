@@ -281,7 +281,7 @@ branch through an agent attached to it (`_guard_shared_worktree`, keyed off `Age
   `POST /agents/{id}/{start,stop,recreate-worktree,pr}`, `PATCH /agents/{id}/window`,
   `GET /agents/{id}/pr-preflight`, `GET /agents/git-preflight`, `POST /agents/git-init`,
   `POST /workspaces/{id}/activate`, `GET /workspaces/{id}/status`. Lifecycle pings
-  (`agent-added`/`agent-removed`/`agent-status`/`workspace-activated`) travel over the existing
+  (`agent-added`/`agent-removed`/`agent-status`) travel over the existing
   `WS /repos/{id}/events` — no new socket.
 - 🔴 Agent processes start **from the bridge**, never the renderer: that is the only way they inherit
   the PATH `desktop/src/shellPath.ts` repairs, without which a Finder-launched app can't find
@@ -305,6 +305,12 @@ branch through an agent attached to it (`_guard_shared_worktree`, keyed off `Age
   carries `data-active-workspace` for the e2e specs: once a workspace is `ready` nothing on screen says
   which one it is, and the spec used to infer it from the branch switcher being disabled — a proxy that
   stopped existing when the switcher became usable everywhere.
+- 🔴 **A window owns its active workspace.** `agentStore.workspaceChosen` is set by a `?workspace=` URL
+  param or any `setActiveWorkspace` call, and once set `setList` ignores the bridge's
+  `active_workspace` — otherwise a second window on the same project (a PR tab, a branch tab) would be
+  dragged onto whatever the first one last opened. The bridge no longer pushes `workspace-activated`
+  at all; the persisted value only seeds a window that names no workspace. The desktop shell always
+  names one (`?workspace=main` for a repo tab), see [`desktop-app.md`](desktop-app.md).
 - A window can be docked into the resizable left-side `AgentTerminalDock` in `.canvas-main-row`.
   `agentDockStore` keeps a session-local ordered list of attached agent ids and the selected tab;
   every docked terminal stays mounted while switching tabs. Collapsed, the dock shrinks to a 28px

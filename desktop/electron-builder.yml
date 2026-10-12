@@ -8,6 +8,7 @@ files:
   - out/**/*
   - launcher/**/*
   - tabbar/**/*
+  - branchPicker/**/*
   - package.json
 
 # The PyInstaller one-dir bundle, kept outside the asar so its executable stays executable.

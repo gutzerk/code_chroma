@@ -101,7 +101,9 @@ def test_the_agents_new_file_is_a_real_block_not_only_a_diff_panel(client):
     assert node["name"] == "brand_new.py"
 
 
-def test_activation_is_broadcast_so_other_views_follow(client, monkeypatch):
+def test_activation_is_not_broadcast_so_other_windows_keep_their_own_workspace(
+    client, monkeypatch
+):
     test_client, _repo, bridge = client
     test_client.post("/agents", json={"title": "refund flow"})
     sent: list[dict] = []
@@ -112,7 +114,7 @@ def test_activation_is_broadcast_so_other_views_follow(client, monkeypatch):
     monkeypatch.setattr(bridge.connections, "broadcast", record)
     test_client.post("/workspaces/refund-flow/activate")
 
-    assert {"type": "workspace-activated", "id": "refund-flow"} in sent
+    assert not [message for message in sent if message["type"] == "workspace-activated"]
 
 
 def test_switching_back_to_main_leaves_the_agent_workspace_loaded(client):

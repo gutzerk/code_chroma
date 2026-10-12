@@ -16,6 +16,7 @@ routes win.
 from codechroma.bridge.routes import (
     agents,
     assistant,
+    branches,
     canvas,
     custom_diagrams,
     diagrams,
@@ -50,6 +51,7 @@ ROUTERS = (
     traces.router,
     workspaces.router,
     prs.router,
+    branches.router,
     agents.router,
     events.router,
 )

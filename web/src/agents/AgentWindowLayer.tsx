@@ -96,8 +96,7 @@ export function AgentWindowLayer() {
           if (kind === "idle" && before?.context_kind === "task") {
             void flagDiagramsReady(message.id);
           }
-        } else if (message.type === "workspace-activated") agentStore.setActiveWorkspace(message.id);
-        else if (message.type === "branch-changed") {
+        } else if (message.type === "branch-changed") {
           // Settle against the ping's branch right away — the async re-read below isn't there yet, and
           // `settleActiveWorkspace` reads the current branch off the store. Then re-read the full
           // list: the ping carries only the new current branch, not the branches (one may have just

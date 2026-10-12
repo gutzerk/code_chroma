@@ -12,6 +12,8 @@ import {
 import { basename, join, resolve } from "node:path";
 import { startBridge, stopBridge, type BridgeHandle } from "./bridgeProcess";
 import { resolveBridgeExecutable } from "./bridgeLocation";
+import { fetchBranchChoices, requestBranchWorkspace } from "./branchBridge";
+import { showBranchPicker } from "./branchPicker";
 import { createProject } from "./newProject";
 import { createTutorialProject } from "./tutorialProject";
 import { addRecent, readRecents, recentsStorePath, removeRecent } from "./recentRepos";
@@ -66,9 +68,9 @@ function shellForTabBarSender(sender: WebContents): Shell | undefined {
  * at a glance instead of all showing the bare repo name or a bare `#<number>`. */
 function tabTitle(shell: Shell, tab: ProjectTab): string {
   if (tab.repoPath) return `${basename(tab.repoPath)} [Main]`;
-  if (tab.workspaceId?.startsWith("pr-")) {
+  if (tab.workspaceId?.startsWith("pr-") || tab.label) {
     const owner = shell.tabs.listTabs().find((t) => t.repoPath !== null && t.bridge === tab.bridge);
-    const label = `PR #${tab.workspaceId.slice(3)}`;
+    const label = tab.label ?? `PR #${tab.workspaceId?.slice(3)}`;
     return owner?.repoPath ? `${basename(owner.repoPath)} [${label}]` : label;
   }
   return "New Tab";
@@ -170,14 +172,12 @@ async function openRepo(
   workspaceId: string | null = null,
 ): Promise<void> {
   for (const shell of shells) {
-    const existing = shell.tabs.focusExisting(repoPath);
-    if (existing) {
-      layoutShell(shell);
-      pushTabsChanged(shell);
-      shell.window.show();
-      shell.window.focus();
-      return;
-    }
+    const existing = shell.tabs.findByRepoPath(repoPath);
+    if (!existing) continue;
+    surfaceTab(shell, existing.id);
+    // A named workspace (the launcher's tree) just focuses; a plain reopen asks which branch to show.
+    if (workspaceId === null) await reopenOpenRepo(shell, existing, repoPath);
+    return;
   }
 
   const requestingTab = requestingTabId ? homeShell.tabs.findTab(requestingTabId) : undefined;
@@ -215,9 +215,8 @@ async function openRepo(
     pushTabsChanged(homeShell);
     // A workspace was requested (the launcher's recent-projects tree) -- boot the canvas straight
     // into it instead of main; `agentStore.initialWorkspace()` reads this same `?workspace=` param.
-    const url = workspaceId
-      ? `${bridge.origin}/?workspace=${encodeURIComponent(workspaceId)}`
-      : bridge.origin;
+    // Always explicit (main by default): a window never inherits the bridge's "last active" pick.
+    const url = `${bridge.origin}/?workspace=${encodeURIComponent(workspaceId ?? "main")}`;
     if (!tab.view.webContents.isDestroyed()) await tab.view.webContents.loadURL(url);
   } catch (error) {
     // assignRepo hasn't run (or didn't reach here) -- the bridge is still untracked, so stop it
@@ -242,28 +241,77 @@ function closeTabById(shell: Shell, tabId: string): void {
   pushTabsChanged(shell);
 }
 
+/** Makes `tabId` the shown tab of `shell` and brings its window to the front. */
+function surfaceTab(shell: Shell, tabId: string): void {
+  shell.tabs.setActive(tabId);
+  layoutShell(shell);
+  pushTabsChanged(shell);
+  shell.window.show();
+  shell.window.focus();
+}
+
+/** Focuses the tab showing `workspaceId`, or the project's own tab when it has none (main, an agent). */
+function surfaceWorkspace(shell: Shell, owner: ProjectTab, workspaceId: string | null): void {
+  const held = workspaceId && workspaceId !== "main" ? shell.tabs.findWorkspaceTab(workspaceId) : undefined;
+  surfaceTab(shell, (held ?? owner).id);
+}
+
+/** The project is already open: asks which branch a new tab should show, like an IDE's "open again". */
+async function reopenOpenRepo(shell: Shell, owner: ProjectTab, repoPath: string): Promise<void> {
+  const bridge = owner.bridge;
+  if (!bridge) return;
+  let choices;
+  try {
+    choices = await fetchBranchChoices(bridge.origin);
+  } catch {
+    return; // An older or busy bridge: surfacing the open tab (done by the caller) is all we can do.
+  }
+  const result = await showBranchPicker(shell.window, { project: basename(repoPath), choices });
+  if (result.kind === "cancel") return;
+
+  const outcome = await requestBranchWorkspace(
+    bridge.origin,
+    result.kind === "branch"
+      ? { branch: result.name }
+      : { newBranch: result.name, startPoint: result.from },
+  );
+  if (outcome.kind === "held") {
+    surfaceWorkspace(shell, owner, outcome.workspace);
+  } else if (outcome.kind === "failed") {
+    dialog.showErrorBox("Could not open the branch", outcome.message);
+  } else {
+    await openWorkspaceTab(shell, owner, outcome.record.id, outcome.record.branch);
+  }
+}
+
+/** Opens (or focuses) a tab showing `workspaceId` on `owner`'s bridge, keeping it single-per-repo. */
+async function openWorkspaceTab(
+  shell: Shell,
+  owner: ProjectTab,
+  workspaceId: string,
+  label: string | null = null,
+): Promise<void> {
+  const bridge = owner.bridge;
+  if (!bridge) return;
+  const existing = shell.tabs.findWorkspaceTab(workspaceId);
+  if (existing) {
+    surfaceTab(shell, existing.id);
+    return;
+  }
+  const tab = shell.tabs.addWorkspaceTab(owner.id, workspaceId, label);
+  layoutShell(shell);
+  pushTabsChanged(shell);
+  if (!tab.view.webContents.isDestroyed()) {
+    await tab.view.webContents.loadURL(`${bridge.origin}/?workspace=${encodeURIComponent(workspaceId)}`);
+  }
+}
+
 /** Opens (or focuses) a tab showing `workspaceId` on the same bridge as the calling tab's project
  * -- used to review a PR in its own tab, keeping the bridge single-per-repo. */
 async function openWorkspaceWindow(sender: WebContents, workspaceId: string): Promise<void> {
   const found = shellForTabSender(sender);
-  const bridge = found?.tab.bridge;
-  if (!found || !bridge) return;
-  const { shell, tab } = found;
-
-  const existing = shell.tabs.findWorkspaceTab(workspaceId);
-  if (existing) {
-    shell.tabs.setActive(existing.id);
-    layoutShell(shell);
-    pushTabsChanged(shell);
-    return;
-  }
-
-  const prTab = shell.tabs.addWorkspaceTab(tab.id, workspaceId);
-  layoutShell(shell);
-  pushTabsChanged(shell);
-  if (!prTab.view.webContents.isDestroyed()) {
-    await prTab.view.webContents.loadURL(`${bridge.origin}/?workspace=${encodeURIComponent(workspaceId)}`);
-  }
+  if (!found) return;
+  await openWorkspaceTab(found.shell, found.tab, workspaceId);
 }
 
 function closeWorkspaceWindow(sender: WebContents, workspaceId: string): void {

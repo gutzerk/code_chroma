@@ -218,6 +218,22 @@ describe("workspace switching", () => {
     expect(agentStore.getActiveWorkspace()).toBe("refund-flow");
   });
 
+  it("does not follow another window's pick once this window has chosen its workspace", () => {
+    agentStore.setActiveWorkspace("pr-9");
+
+    agentStore.setList({ agents: [], active_workspace: "refund-flow", max_agents: 5 });
+
+    expect(agentStore.getActiveWorkspace()).toBe("pr-9");
+  });
+
+  it("keeps the first load's workspace across later list refreshes", () => {
+    agentStore.setList({ agents: [], active_workspace: "refund-flow", max_agents: 5 });
+
+    agentStore.setList({ agents: [], active_workspace: "main", max_agents: 5 });
+
+    expect(agentStore.getActiveWorkspace()).toBe("refund-flow");
+  });
+
   it("restores the workspace the bridge remembers on load", () => {
     agentStore.setList({
       agents: [agent("refund-flow")],

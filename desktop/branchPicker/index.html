@@ -1,0 +1,141 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta
+      http-equiv="Content-Security-Policy"
+      content="default-src 'none'; style-src 'unsafe-inline'; script-src 'self' file:"
+    />
+    <title>Open project again</title>
+    <style>
+      :root {
+        color-scheme: dark;
+        --bg: #11131a;
+        --panel: #191d28;
+        --line: #2a3040;
+        --text: #e6e9f0;
+        --muted: #8b93a7;
+        --accent: #6c8cff;
+      }
+      * {
+        box-sizing: border-box;
+      }
+      body {
+        margin: 0;
+        padding: 18px;
+        height: 100vh;
+        display: flex;
+        flex-direction: column;
+        gap: 12px;
+        background: var(--bg);
+        color: var(--text);
+        font: 13px/1.5 -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      }
+      h1 {
+        margin: 0;
+        font-size: 16px;
+        font-weight: 600;
+      }
+      p {
+        margin: 0;
+        color: var(--muted);
+      }
+      .mode {
+        display: flex;
+        gap: 14px;
+      }
+      #branches {
+        flex: 1;
+        min-height: 0;
+        overflow-y: auto;
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        background: var(--panel);
+      }
+      .branch {
+        display: flex;
+        justify-content: space-between;
+        padding: 7px 12px;
+        border-bottom: 1px solid var(--line);
+        cursor: pointer;
+      }
+      .branch:last-child {
+        border-bottom: none;
+      }
+      .branch.selected {
+        background: rgba(108, 140, 255, 0.18);
+      }
+      .branch .tag {
+        color: var(--muted);
+        font-size: 11px;
+      }
+      #new-form {
+        display: none;
+        flex: 1;
+        flex-direction: column;
+        gap: 8px;
+      }
+      #new-form label {
+        color: var(--muted);
+        font-size: 11px;
+        text-transform: uppercase;
+        letter-spacing: 0.06em;
+      }
+      input[type="text"],
+      select {
+        padding: 7px 9px;
+        border: 1px solid var(--line);
+        border-radius: 6px;
+        background: var(--panel);
+        color: var(--text);
+        font: inherit;
+      }
+      .actions {
+        display: flex;
+        justify-content: flex-end;
+        gap: 8px;
+      }
+      button {
+        padding: 7px 14px;
+        border: 1px solid var(--line);
+        border-radius: 6px;
+        background: var(--panel);
+        color: var(--text);
+        font: inherit;
+        cursor: pointer;
+      }
+      button.primary {
+        border-color: var(--accent);
+        background: var(--accent);
+        color: #0b0d12;
+      }
+      button:disabled {
+        opacity: 0.45;
+        cursor: default;
+      }
+    </style>
+  </head>
+  <body>
+    <h1 id="title">Open project again</h1>
+    <p>
+      This project is already open. Work on another branch in a separate tab, or jump to the open
+      one.
+    </p>
+    <div class="mode">
+      <label><input type="radio" name="mode" value="existing" checked /> Existing branch</label>
+      <label><input type="radio" name="mode" value="new" /> New branch</label>
+    </div>
+    <div id="branches"></div>
+    <div id="new-form">
+      <label for="new-name">Branch name</label>
+      <input id="new-name" type="text" placeholder="feature/my-task" spellcheck="false" />
+      <label for="new-from">Start from</label>
+      <select id="new-from"></select>
+    </div>
+    <div class="actions">
+      <button id="cancel">Cancel</button>
+      <button id="open" class="primary" disabled>Open</button>
+    </div>
+    <script src="picker.js"></script>
+  </body>
+</html>

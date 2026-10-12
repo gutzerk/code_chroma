@@ -130,19 +130,12 @@ checking whether `meta.plan_kind` is actually set.
 
 ## 8. Deliver to the canvas
 
-There is no "Draw" menu entry for a dynamic `feature-plan/<slug>` kind, so nothing on the canvas side
-auto-triggers a redraw the way it does for `c1`/`patterns`/`custom`. Call the recipe run yourself
-once the self-check prints `OK`:
+Nothing to call: the canvas watches `feature-plan/*` files, so once the self-check prints `OK` it
+places the diagram itself and runs its auto-layout (ELK) — and re-lays-out content on a later edit.
+Do **not** POST `/recipes/feature-plan/<slug>/run` yourself: a server-side run commits every box at
+the origin with no layout pass, which is exactly the piled-up diagram this step used to produce.
 
-```bash
-curl -s -X POST "http://localhost:8000/repos/${CODECHROMA_WORKSPACE_ID:-default}/recipes/feature-plan/<slug>/run"
-```
-
-This reconciles the `feature-plan/<slug>` canvas layer against the file you just wrote and broadcasts
-the update to every connected canvas immediately — the diagram appears live, no reload needed. Check
-the response's `"ok": true`; a rejected batch changes nothing.
-
-**Re-running this same command later only touches this feature's own layer.** A Planned block
+**Editing the file later only touches this feature's own layer.** A Planned block
 survives an unrelated diagram's regenerate untouched (each recipe only reconciles its own layer), and
-re-running *this* feature's recipe after editing its file keeps everything you didn't remove from the
-authored JSON — same ownership rule every other type's recipe already follows.
+the canvas re-running *this* feature's recipe after you edit its file keeps everything you didn't
+remove from the authored JSON — same ownership rule every other type's recipe already follows.

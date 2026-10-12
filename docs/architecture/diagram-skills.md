@@ -808,17 +808,16 @@ highlighting doesn't:
   (`_default_flat_checks`, factored out of `_fetch_custom_checks`'s existing tail so the two share one
   implementation). Same budgets as `custom` (60/100/40/50); not a new `_BUDGETS` row, so the
   markdown-table drift test (`test_diagram_check_script.py`) needed no change.
-- **Delivery has no "Draw" menu to lean on.** A dynamic `feature-plan/<slug>` layer isn't in
-  `BUILTIN_RECIPES` and isn't enumerable the way saved custom types are (`GET /diagram-types`), so
-  nothing on the canvas auto-triggers its first render. The mode file instead tells the skill to call
-  `POST /repos/{id}/recipes/feature-plan/<slug>/run` itself once the self-check passes — the same
-  route every other type's "Draw" click already calls, which is what actually broadcasts the
-  `"canvas"` WS event a connected canvas renders from (`commit_canvas_batch`), independent of any
-  per-kind ping. This needed `canvas/recipes.py`'s `recipe_for()` to gain a `feature-plan/` branch
-  (mirroring its `custom/` one — see `graph-bridge-core.md`) and
-  `web/src/canvas/doc/diagramCatalog.ts`'s `isRecipeBackedLayer`/`labelForDiagramLayer` to recognize
-  the prefix too, so the Diagrams tab's collapse/expand refresh and label work for it like any other
-  recipe-backed layer.
+- **Delivery goes through the same auto-place path as every other type — the skill must NOT run the
+  recipe itself.** `get_diagrams_status` lists each `feature-plan/<slug>` on disk (ready +
+  fingerprint), `"feature-plan"` is a `DiagramEventKind` in `WATCHED_DIAGRAM_EVENT_KINDS`, so
+  `DrawDiagramButton.refetchStatus` auto-adds the layer via `runRecipeAndLayout` (which is what runs
+  the client-side ELK layout) and refreshes it on a fingerprint change. 🔴 A server-side
+  `POST /recipes/feature-plan/<slug>/run` commits the boxes with no layout pass (layout lives in the
+  canvas), so the old "skill POSTs the run" delivery left feature plans unlaid-out (issue #120).
+  `canvas/recipes.py`'s `recipe_for()` `feature-plan/` branch and `diagramCatalog.ts`'s
+  `isRecipeBackedLayer`/`labelForDiagramLayer` still serve the canvas-triggered run and the Diagrams
+  tab.
 - **The status-reporting convention doesn't apply.** `drawing-rules.md`'s Bridge contract tells every
   type to POST `{"state":"generating"}`/`"idle"` around its write — `feature-plan/<slug>` has no
   generate/status/output routes at all (`has_generate=False`, it never auto-generates), so
@@ -881,8 +880,9 @@ Separate from authoring, and the reason a user could ask for a diagram and see n
   positions and applies them through the same shared path. Because the guard checks the *content*
   (origin-piled) rather than mere in-flight-ness, it drops only the transient state, never an
   unrelated user write. The direct-`PATCH` fallback path (`drawing-rules.md`'s "type this skill does
-  not know") is separately protected: `apply_batch.py` gives a position-less `add_element` a
-  server-side cascade (`_DEFAULT_ADD_STEP_*`) instead of `(0,0)`.
+  not know") is covered by a canvas-side pass: `canvasDocStore.ts`'s `fetchAndApplyCanvasDoc` runs ELK (`pileLayout.ts`) on
+  any layer that arrives with every box on the origin, whoever drew it (the server cascade
+  `_DEFAULT_ADD_STEP_*` was removed; a position-less add now lands at `(0,0)`).
 - **A fourth trigger: expanding a collapsed diagram from the Diagrams tab.** `AgentRail.tsx`'s
   `onToggleLayer` calls `runRecipeAndLayout` (`diagramCatalog.ts`'s shared function — also what the
   Diagrams tab's remove-then-redraw flow uses) whenever a click flips a

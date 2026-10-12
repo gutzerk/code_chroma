@@ -13,7 +13,7 @@ router = APIRouter()
 
 @router.post("/workspaces/{workspace_id}/activate")
 async def activate_workspace(workspace_id: str, services: Services) -> dict:
-    """Makes a workspace the canvas's data source, kicking off its bring-up in the background."""
+    """Records the last-viewed workspace and starts its bring-up; other windows don't follow."""
     if workspace_id != MAIN_ID and not services.registry.is_registered(workspace_id):
         raise HTTPException(status_code=404, detail=f"unknown workspace: {workspace_id}")
     try:
@@ -21,7 +21,6 @@ async def activate_workspace(workspace_id: str, services: Services) -> dict:
     except UnknownAgentError as exc:
         raise HTTPException(status_code=404, detail=f"unknown workspace: {workspace_id}") from exc
     state = services.registry.ensure_async(workspace_id)
-    await services.connections.broadcast({"type": "workspace-activated", "id": workspace_id})
     return {"id": workspace_id, **state}
 
 

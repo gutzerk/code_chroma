@@ -34,7 +34,6 @@ from codechroma.bridge.prs.manager import (
 )
 from codechroma.bridge.routes._body import as_count, json_body
 from codechroma.bridge.services import BridgeServices
-from codechroma.bridge.workspaces import MAIN_ID
 
 router = APIRouter()
 
@@ -153,11 +152,7 @@ async def close_pr(number: int, services: Services) -> dict:
     # Both offloaded: drop_live joins a running analyze thread, and remove_pr shells out to git.
     await asyncio.to_thread(_close_pr_blocking, services, number, record)
     services.pr_manager.delete(number)
-    # unregister ends in drop_live, which joins a bring-up thread; keep it off the loop too.
-    await asyncio.to_thread(services.registry.unregister, record.id)
-    await services.forget_workspace_runs(record.id)
-    if services.agent_manager.active_workspace == record.id:
-        services.agent_manager.set_active_workspace(MAIN_ID)
+    await services.release_workspace(record.id)
     await services.connections.broadcast({"type": "pr-removed", "id": record.id})
     return {"status": "deleted", "id": record.id}
 

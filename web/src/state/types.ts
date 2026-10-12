@@ -599,7 +599,6 @@ export type AgentEvent =
   | { type: "agent-added"; agent: AgentRecord }
   | { type: "agent-removed"; id: string }
   | { type: "agent-status"; id: string; status: AgentStatus }
-  | { type: "workspace-activated"; id: string }
   | { type: "branch-changed"; branch: string };
 
 /** How far a workspace's graph is from being drawable (GET /workspaces/{id}/status). A worktree is

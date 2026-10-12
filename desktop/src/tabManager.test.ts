@@ -68,20 +68,13 @@ describe("opening repos", () => {
     expect(manager.allBridges()).toEqual([bridgeA, bridgeB]);
   });
 
-  it("focuses the existing tab instead of duplicating an already-open repo", () => {
+  it("finds the tab already holding a repo, and nothing for an unopened one", () => {
     const tab = manager.newTab();
     manager.assignRepo(tab.id, "/repos/atlas", fakeBridge());
-    manager.newTab(); // a second, unrelated empty tab is now active
+    manager.newTab();
 
-    const found = manager.focusExisting("/repos/atlas");
-
-    expect(found).toMatchObject({ id: tab.id });
-    expect(manager.activeTab()).toMatchObject({ id: tab.id });
-    expect(manager.listTabs()).toHaveLength(2);
-  });
-
-  it("returns null from focusExisting when the repo isn't open anywhere", () => {
-    expect(manager.focusExisting("/repos/unknown")).toBeNull();
+    expect(manager.findByRepoPath("/repos/atlas")).toMatchObject({ id: tab.id });
+    expect(manager.findByRepoPath("/repos/unknown")).toBeUndefined();
   });
 });
 
@@ -234,6 +227,15 @@ describe("workspace tabs (e.g. a PR review in its own tab)", () => {
     expect(prTab.bridge).toBe(bridge);
     expect(prTab.ownsBridge).toBe(false);
     expect(manager.activeTab()).toMatchObject({ id: prTab.id });
+  });
+
+  it("carries a label for a workspace tab that is not a PR", () => {
+    const owner = manager.newTab();
+    manager.assignRepo(owner.id, "/repos/atlas", fakeBridge());
+
+    const branchTab = manager.addWorkspaceTab(owner.id, "br_feature-x", "feature-x");
+
+    expect(branchTab.label).toBe("feature-x");
   });
 
   it("finds an existing workspace tab for a given workspace id", () => {

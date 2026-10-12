@@ -20,6 +20,7 @@ from pathlib import Path
 
 from codechroma.bridge.agents.manager import AgentManager
 from codechroma.bridge.agents.sessions import AgentSessionRegistry
+from codechroma.bridge.branches.manager import BranchManager
 from codechroma.bridge.diagram_registry import DIAGRAMS
 from codechroma.bridge.live import ConnectionManager
 from codechroma.bridge.prs import importer as pr_importer
@@ -33,7 +34,7 @@ from codechroma.bridge.wiki_general_agent import (
     build_wiki_general_agent,
     build_wiki_general_update_agent,
 )
-from codechroma.bridge.workspaces import Workspace, WorkspaceRegistry
+from codechroma.bridge.workspaces import MAIN_ID, Workspace, WorkspaceRegistry
 from codechroma.diagrams.registry import BUILTIN_TYPES
 
 logger = logging.getLogger("uvicorn.error")
@@ -67,6 +68,7 @@ class BridgeServices:
     registry: WorkspaceRegistry
     agent_manager: AgentManager
     pr_manager: PrManager
+    branch_manager: BranchManager
     agent_sessions: AgentSessionRegistry
     # Per-app runners: two apps in one process never share job state or leak cancels across.
     skill_agents: dict[str, SkillAgent] = field(default_factory=_build_skill_agents)
@@ -100,6 +102,12 @@ class BridgeServices:
                 c1_source_root=registry.main.root,
             )
 
+        # A branch opened in its own worktree is a plain writable workspace, like an agent's.
+        branch_manager = BranchManager(repo_root)
+        branch_manager.reconcile()
+        for branch_record in branch_manager.list():
+            registry.register(branch_record.id, Path(branch_record.worktree))
+
         # With every workspace registered, a deferred `active_workspace: "pr-12"` can be judged.
         agent_manager.workspace_guard = registry.is_registered
         agent_manager.revalidate_active_workspace()
@@ -111,6 +119,7 @@ class BridgeServices:
             registry=registry,
             agent_manager=agent_manager,
             pr_manager=pr_manager,
+            branch_manager=branch_manager,
             # Its own registry: cancel_skill_agents() kills diagram runners, never these.
             agent_sessions=AgentSessionRegistry(),
         )
@@ -119,6 +128,14 @@ class BridgeServices:
         """Kills every runner's in-flight jobs so a restart can't leave an orphan still writing."""
         for agent in self.skill_agents.values():
             await agent.cancel()
+
+    async def release_workspace(self, workspace_id: str) -> None:
+        """Unregisters a closed workspace and its runs; falls back to main if it was active."""
+        # unregister ends in drop_live, which joins a bring-up thread; keep it off the loop.
+        await asyncio.to_thread(self.registry.unregister, workspace_id)
+        await self.forget_workspace_runs(workspace_id)
+        if self.agent_manager.active_workspace == workspace_id:
+            self.agent_manager.set_active_workspace(MAIN_ID)
 
     async def forget_workspace_runs(self, repo_id: str) -> None:
         """Drops repo_id's state from every runner — call this once its workspace is deleted."""

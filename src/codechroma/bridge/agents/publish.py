@@ -227,12 +227,16 @@ def run_gh(worktree: Path, *args: str) -> str | None:
         return None
     try:
         timeout = _gh_timeout()
-        stdout, _stderr = process.communicate(timeout=timeout)
+        stdout, stderr = process.communicate(timeout=timeout)
     except subprocess.TimeoutExpired:
         kill_process_group(process)
         logger.warning("publish: gh %s timed out after %ss", " ".join(args), timeout)
         return None
-    return stdout if process.returncode == 0 else None
+    if process.returncode != 0:
+        # The caller only gets None; the reason (missing label, rate limit) must not vanish with it.
+        logger.warning("publish: gh %s failed: %s", " ".join(args[:2]), (stderr or "").strip())
+        return None
+    return stdout
 
 
 def _first_url(output: str) -> str | None:

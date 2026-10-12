@@ -15,6 +15,8 @@ export interface Tab<TView extends ViewLike = ViewLike, TWindow extends ViewLike
   repoPath: string | null;
   /** The workspace this tab draws when it's not a full repo tab (e.g. `pr-7`); null otherwise. */
   workspaceId: string | null;
+  /** Shown in the tab title for a workspace tab that isn't a PR (e.g. the branch it has open). */
+  label: string | null;
   /** Whether this tab stops the bridge it holds at close — true only for the repo tab that spawned
    * the bridge, never for a workspace tab sharing it. */
   ownsBridge: boolean;
@@ -112,6 +114,7 @@ export class TabManager<TView extends ViewLike = ViewLike, TWindow extends ViewL
       id: this.makeId(),
       repoPath: null,
       workspaceId: null,
+      label: null,
       ownsBridge: false,
       view: this.createEmptyView(),
       bridge: null,
@@ -123,27 +126,24 @@ export class TabManager<TView extends ViewLike = ViewLike, TWindow extends ViewL
   }
 
   /** Adds a workspace tab (e.g. a PR review) that shares `ownerId`'s bridge, and makes it active. */
-  addWorkspaceTab(ownerId: string, workspaceId: string): Tab<TView, TWindow> {
+  addWorkspaceTab(
+    ownerId: string,
+    workspaceId: string,
+    label: string | null = null,
+  ): Tab<TView, TWindow> {
     const owner = this.findTab(ownerId);
     const bridge = owner?.bridge ?? null;
     const tab: Tab<TView, TWindow> = {
       id: this.makeId(),
       repoPath: null,
       workspaceId,
+      label,
       ownsBridge: false,
       view: this.createEmptyView(),
       bridge,
       satellites: new Map(),
     };
     this.tabs.push(tab);
-    this.activeId = tab.id;
-    return tab;
-  }
-
-  /** If repoPath is already open in some tab, makes that tab active and returns it; otherwise null. */
-  focusExisting(repoPath: string): Tab<TView, TWindow> | null {
-    const tab = this.findByRepoPath(repoPath);
-    if (!tab) return null;
     this.activeId = tab.id;
     return tab;
   }

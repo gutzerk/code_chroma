@@ -179,6 +179,19 @@ Things worth knowing before touching it:
   `"<repo> [Main]"`, a PR workspace tab reads `"<repo> [PR #n]"` (found by matching the shared
   `bridge` identity back to its owning repo tab) — so two tabs on the same project stay
   distinguishable instead of one showing the bare repo name and the other a bare `#<number>`.
+- 🔴 **Opening an already-open project asks which branch to show (#123).** `openRepo` no longer just
+  focuses the existing tab: for a plain reopen it surfaces that tab, fetches `GET /branches/choices`
+  from the project's bridge (`branchBridge.ts`) and shows `branchPicker.ts`'s modal window
+  (`branchPicker/index.html`, plain JS like the launcher; contract in `branchPickerPreload.ts`). The
+  user can pick an existing branch, create a new one (from a chosen start branch), or cancel (the open
+  tab was already surfaced). A branch some workspace already shows is never opened twice — the bridge
+  answers `POST /branches` with a 409 naming the holder and the shell focuses that workspace's tab
+  (the repo tab for `main`/an agent). Otherwise `POST /branches` provisions a
+  worktree (see `graph-bridge-core.md`'s branch workspaces) and the result opens as a *workspace tab*
+  (`TabManager.addWorkspaceTab(owner, id, label)`, `openWorkspaceTab` in `main.ts`) on the same
+  bridge, titled `Project [<branch>]` via `Tab.label`. A recents-tree click that names a workspace
+  still just focuses. Every repo tab now loads `/?workspace=main` explicitly, so it never inherits
+  another window's last pick from `agents.json`. Tests: `branchBridge.test.ts`, `tabManager.test.ts`.
 - **`bridge/resources.py` is the only module that knows about freezing.**
   `resource_path("skills"|"web"|"detect")` resolves to `_MEIPASS/codechroma_data/...` when frozen, else
   the source tree. Anything new that reads a repo data file at runtime must go through it, and be
@@ -196,9 +209,10 @@ Things worth knowing before touching it:
   blocking the list. Clicking a workspace row opens the repo straight into it via `openRepo`'s
   `workspaceId` param, which loads `<bridge origin>/?workspace=<id>` — the same query param
   `agentStore.initialWorkspace()` already read for a PR's "Open in New Window". This only takes
-  effect the first time that repo is opened in the run; reopening an already-open repo still just
-  focuses its existing tab (`TabManager.focusExisting`), so the requested workspace is dropped —
-  switching to it from inside that tab's own Agent rail/PR dialog remains the way to get there.
+  effect the first time that repo is opened in the run; reopening an already-open repo with a named workspace still just
+  focuses its existing tab, so the requested workspace is dropped — switching to it from inside that
+  tab's own Agent rail/PR dialog remains the way to get there (a *plain* reopen now asks for a branch,
+  see the bullet below).
 - **"New project…" on the launcher (#52)** creates a repo from scratch: name + location →
   `launcher:create-project` IPC → `desktop/src/newProject.ts`'s `createProject` writes
   `README.md`, `.gitignore`, `src/main.py` into `<location>/<name>` and runs `git init` (no commit, so

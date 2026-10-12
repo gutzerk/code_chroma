@@ -141,6 +141,19 @@ path that really exists on disk may have **no graph node at all**. That is not a
 — pick a path the graph listed, or leave the box conceptual (`path`/`node_id` null) where its schema
 allows it.
 
+### Point `node_id` at the deepest symbol
+
+A `node_id` is the **most specific graph node the box represents**, not just its file: prefer
+`<path>::function::<qualname>` or `<path>::class::<qualname>` over `component::<path>`, and fall back
+to the file only when the box really is the whole file (or the file has no symbol node for it).
+Two classes or functions from one file are two boxes with two different `node_id`s. Copy them from
+`GET /structure?root=component::<path>&depth=2` — never construct one. A fail/terminate, aggregate or
+stage box that isn't a real piece of code takes `node_id: null` with `meta.no_code_reason:
+"conceptual"` (or a `dir::` id when it means a folder), never the working file's id. The checker's
+`SHAREDNODE` advisory (flat kinds only) flags one `node_id` claimed by boxes in several groups.
+`impact` is the exception: its boxes are file-level by design (see `type-impact.md`), so ignore
+`SHAREDNODE` there when one changed file legitimately spans several groups.
+
 ## Density budgets
 
 These are a **pathology ceiling, never a size target.** Hitting one means the diagram has gone
@@ -310,6 +323,7 @@ Same six per type; each `type-*.md` adds only what differs.
 | `DANGLING <pair>` | fix the id, or drop the relation |
 | `SELF <pair>` | drop it (`custom`'s `dependency-graph` style excepted — recursion is real) |
 | `ORPHAN <id>` | wire it in, or drop it |
+| `SHAREDNODE <node_id>` | advisory (flat kinds; not `impact`) — give each box its own class/function id, or `null` + `no_code_reason: conceptual` |
 | `ISLAND <ids…>` | wire in the missing relation, or merge/drop the cluster |
 
 ## The one shared diagram shape

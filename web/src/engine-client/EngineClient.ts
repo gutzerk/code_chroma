@@ -78,7 +78,7 @@ export type SkillRunKind = DiagramKind | "impact-changes" | "wiki-general";
  * refetched off the shared "changed" ping today but keeps the same per-kind channel shape. Bare
  * `"custom"` is the one coarse ping every custom type shares (`workspaces.py`'s `on_custom_change`
  * emits `{"type": "custom"}`, never `custom/<id>`), so a listener must refetch the whole type list. */
-export type DiagramEventKind = SkillRunKind | DiagramFetchKind | "custom";
+export type DiagramEventKind = SkillRunKind | DiagramFetchKind | "custom" | "feature-plan";
 
 /**
  * Facade over the local HTTP+WebSocket bridge in front of epic 001's GraphEngine

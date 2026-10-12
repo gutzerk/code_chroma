@@ -26,7 +26,9 @@ for package in (
     "watchfiles",
     "anthropic",
     "pyte",
-    "pywinpty",
+    # The import name, not the distribution name: "pywinpty" is not a package, so it collected
+    # nothing and the frozen build shipped without OpenConsole.exe (ConPTY then spawns silently dead).
+    "winpty",
 ):
     package_datas, package_binaries, package_hiddenimports = collect_all(package)
     datas += package_datas

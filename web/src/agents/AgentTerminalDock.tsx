@@ -1,4 +1,4 @@
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { ResizableRail } from "../canvas/ResizableRail";
 import type { AgentRecord } from "../state/types";
 import { AgentTerminal } from "./AgentTerminal";
@@ -8,6 +8,7 @@ import {
   agentDockStore,
   useActiveDockedAgentId,
   useDockedAgentIds,
+  useAgentDockFocusRequest,
   useIsAgentDockCollapsed,
 } from "./agentDockStore";
 import runAgentIcon from "../icons/run-agent.svg";
@@ -24,10 +25,22 @@ export function AgentTerminalDock() {
   const agentIds = useDockedAgentIds();
   const activeAgentId = useActiveDockedAgentId();
   const collapsed = useIsAgentDockCollapsed();
+  const focusRequest = useAgentDockFocusRequest();
   const dockedAgents = agentIds
     .map((id) => agents.find((agent) => agent.id === id))
     .filter((agent): agent is AgentRecord => agent !== undefined);
   const activeAgent = dockedAgents.find((agent) => agent.id === activeAgentId);
+
+  useEffect(() => {
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (!(event.ctrlKey || event.metaKey) || !event.shiftKey || event.altKey) return;
+      if (event.key.toLowerCase() !== "o") return;
+      event.preventDefault();
+      agentDockStore.openAndFocus();
+    };
+    window.addEventListener("keydown", onKeyDown, true);
+    return () => window.removeEventListener("keydown", onKeyDown, true);
+  }, []);
 
   return (
     <ResizableRail
@@ -76,20 +89,34 @@ export function AgentTerminalDock() {
           testId="agent-dock-led"
           onSelect={(agent) => {
             agentDockStore.activate(agent.id);
-            agentDockStore.toggleCollapsed();
+            agentDockStore.openAndFocus();
           }}
+          onBackgroundClick={agentDockStore.openAndFocus}
         />
       )}
       <div className="agent-terminal-dock-panels" hidden={collapsed}>
         {dockedAgents.map((agent) => (
-          <DockedAgentPanel key={agent.id} agent={agent} active={agent.id === activeAgent?.id} />
+          <DockedAgentPanel
+            key={agent.id}
+            agent={agent}
+            active={agent.id === activeAgent?.id}
+            focusRequest={focusRequest}
+          />
         ))}
       </div>
     </ResizableRail>
   );
 }
 
-function DockedAgentPanel({ agent, active }: { agent: AgentRecord; active: boolean }) {
+function DockedAgentPanel({
+  agent,
+  active,
+  focusRequest,
+}: {
+  agent: AgentRecord;
+  active: boolean;
+  focusRequest: number;
+}) {
   const agentClient = useAgentClient();
   const startError = useAgentStartError(agent.id);
   const [recovering, setRecovering] = useState(false);
@@ -170,6 +197,7 @@ function DockedAgentPanel({ agent, active }: { agent: AgentRecord; active: boole
           running={running}
           hidden={!active}
           kind={agent.kind}
+          focusRequest={active ? focusRequest : 0}
         />
       )}
     </div>

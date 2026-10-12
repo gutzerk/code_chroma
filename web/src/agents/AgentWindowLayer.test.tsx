@@ -211,6 +211,32 @@ describe("AgentWindowLayer", () => {
     expect(terminal).toBeInTheDocument();
   });
 
+  it("expands the collapsed dock when its empty body is clicked", async () => {
+    renderLayer([record({ window: { ...record().window, minimized: false } })]);
+    await waitFor(() => expect(screen.getByTestId("agent-dock-refund-flow")).toBeInTheDocument());
+    fireEvent.click(screen.getByTestId("agent-dock-refund-flow"));
+    fireEvent.click(screen.getByTestId("agent-terminal-dock-resize-handle-arrow"));
+
+    fireEvent.click(screen.getByTestId("agent-dock-led"));
+
+    expect(screen.getByTestId("agent-terminal-dock")).not.toHaveClass(
+      "agent-terminal-dock--collapsed",
+    );
+  });
+
+  it("expands the collapsed dock with Ctrl+Shift+O", async () => {
+    renderLayer([record({ window: { ...record().window, minimized: false } })]);
+    await waitFor(() => expect(screen.getByTestId("agent-dock-refund-flow")).toBeInTheDocument());
+    fireEvent.click(screen.getByTestId("agent-dock-refund-flow"));
+    fireEvent.click(screen.getByTestId("agent-terminal-dock-resize-handle-arrow"));
+
+    fireEvent.keyDown(window, { key: "O", ctrlKey: true, shiftKey: true });
+
+    expect(screen.getByTestId("agent-terminal-dock")).not.toHaveClass(
+      "agent-terminal-dock--collapsed",
+    );
+  });
+
   it("keeps the detach action in the dock header as a non-shrinking control", async () => {
     const narrowHeaderAgent = record({
       title: "An agent with a long title that should not crowd the controls",

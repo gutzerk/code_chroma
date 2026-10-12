@@ -1191,7 +1191,8 @@ body {
   display: flex;
   align-items: center;
   gap: 0.6rem;
-  max-width: min(32rem, calc(100% - 2rem));
+  /* Never wider than the left half minus the centered Fit All button, on any viewport width. */
+  max-width: min(32rem, calc(50% - 100px));
   padding: 8px 8px 8px 18px;
   border-radius: 18px;
   background: var(--bg-raised);
@@ -4965,6 +4966,14 @@ button[data-copy-state="idle"][aria-label]:hover:not(:disabled) {
   padding: 10px 0;
 }
 
+.agent-led-strip--clickable {
+  cursor: pointer;
+}
+
+.agent-led-strip--clickable:not(.agent-led-strip--framed) {
+  flex: 1 1 auto;
+}
+
 .agent-led-strip--framed {
   width: 28px;
   flex-shrink: 0;
@@ -5033,6 +5042,7 @@ button[data-copy-state="idle"][aria-label]:hover:not(:disabled) {
   padding: 0 12px;
   border: none;
   border-radius: var(--radius-full);
+  background: var(--bg-raised);
   color: var(--text-2);
   font-size: 0.8125rem;
   font-weight: 500;
@@ -5046,13 +5056,15 @@ button[data-copy-state="idle"][aria-label]:hover:not(:disabled) {
   text-overflow: ellipsis;
 }
 
-.agent-terminal-dock-tab:hover {
+.agent-terminal-dock-tab:not(.is-active):hover {
   background: var(--bg-raised-2);
 }
 
 .agent-terminal-dock-tab.is-active {
-  background: #222733;
-  color: var(--text-soft);
+  background: transparent;
+  color: var(--text-1);
+  font-weight: 600;
+  cursor: default;
 }
 
 .agent-terminal-dock-panel {

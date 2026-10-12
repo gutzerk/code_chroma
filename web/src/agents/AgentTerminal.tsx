@@ -1,4 +1,4 @@
-import { useRef } from "react";
+import { useEffect, useRef } from "react";
 import { useXtermSession } from "../terminal/useXtermSession";
 import { useAgentStartError } from "./agentStore";
 
@@ -10,21 +10,30 @@ export function AgentTerminal({
   running,
   hidden = false,
   kind = "claude",
+  focusRequest = 0,
 }: {
   workspace: string;
   running: boolean;
   hidden?: boolean;
   kind?: string;
+  /** Bumping this focuses the terminal once it is visible (the dock's open-and-type shortcut). */
+  focusRequest?: number;
 }) {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const startError = useAgentStartError(workspace);
-  useXtermSession(containerRef, {
+  const { focus } = useXtermSession(containerRef, {
     agent: kind,
     workspace,
     enabled: running,
     hidden,
     closedNotice: "\r\n[detached]\r\n",
   });
+
+  useEffect(() => {
+    if (focusRequest === 0 || hidden || !running) return undefined;
+    const timer = setTimeout(focus, 0);
+    return () => clearTimeout(timer);
+  }, [focusRequest, hidden, running, focus]);
 
   if (!running) {
     return (

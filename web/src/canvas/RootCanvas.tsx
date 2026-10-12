@@ -595,6 +595,7 @@ export function RootCanvas() {
                 agents={allAgents}
                 testId="agent-rail-led"
                 onSelect={() => setIsAgentPanelOpen(true)}
+                onBackgroundClick={() => setIsAgentPanelOpen(true)}
               />
             )}
             <AgentRail hidden={!isAgentPanelOpen} />

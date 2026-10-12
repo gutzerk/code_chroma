@@ -309,7 +309,11 @@ branch through an agent attached to it (`_guard_shared_worktree`, keyed off `Age
   `agentDockStore` keeps a session-local ordered list of attached agent ids and the selected tab;
   every docked terminal stays mounted while switching tabs. Collapsed, the dock shrinks to a 28px
   strip holding a column of status LEDs, one per docked agent; clicking one selects it and expands the
-  dock. The same shared `AgentLedStrip` (with `SplitterHandle`) is the collapsed form of the right-side
+  dock, and clicking anywhere else on the strip expands it too. Ctrl/Cmd+Shift+O (window-level, capture
+  phase) expands the dock and focuses the active terminal via `agentDockStore.openAndFocus()`'s
+  `focusRequest` counter → `AgentTerminal`'s `focusRequest` prop. Inactive tabs are filled pills (they
+  look clickable); the active tab is flat, bold and non-interactive-looking. The same shared
+  `AgentLedStrip` (with `SplitterHandle`, and the same click-anywhere-to-open) is the collapsed form of the right-side
   Agents/Diagrams `AgentRail` too, so both panels collapse identically. Docking hides the floating window without
   persisting `minimized`, so after reload it naturally returns as a window. Detach removes that tab
   and opens the agent window; the tab's close action follows the normal `closeAgentWindow` flow. The

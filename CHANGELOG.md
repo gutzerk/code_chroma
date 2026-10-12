@@ -1,5 +1,22 @@
 # Changelog
 
+## [0.12.0](https://github.com/gutzerk/code_chroma/compare/v0.11.0...v0.12.0) (2026-10-12)
+
+
+### Features
+
+* ask which branch to show when a project is opened again ([a0d06b0](https://github.com/gutzerk/code_chroma/commit/a0d06b0a430a983edf6f09704e1f1d0b616a01e4)), closes [#123](https://github.com/gutzerk/code_chroma/issues/123)
+* create issues through gh when it is available ([ce99ae4](https://github.com/gutzerk/code_chroma/commit/ce99ae4062d90d739c8db4a321b46016065773d0))
+
+
+### Bug Fixes
+
+* answer ConPTY's startup query so the Windows agent window shows output ([705d73f](https://github.com/gutzerk/code_chroma/commit/705d73fa603aa5351ec3f623ba88ba2eccb48049))
+* apply ELK layout to every diagram layer that arrives unplaced ([bd829c7](https://github.com/gutzerk/code_chroma/commit/bd829c70a8eede072c81836bc377ccd322c77b9b)), closes [#120](https://github.com/gutzerk/code_chroma/issues/120)
+* clearer docked-agent tabs, click/shortcut to open the collapsed dock, wiki notice clear of Fit All ([af1de57](https://github.com/gutzerk/code_chroma/commit/af1de57580366a3638cdbfcaa329ed2d97c19de6))
+* don't fail a completed macOS update when old bundle cleanup hits ENOTEMPTY ([a85716b](https://github.com/gutzerk/code_chroma/commit/a85716bbbd70dae1a650c8b091047a15d4390802)), closes [#118](https://github.com/gutzerk/code_chroma/issues/118)
+* swap the macOS bundle after exit and install Windows updates silently ([12bfcd8](https://github.com/gutzerk/code_chroma/commit/12bfcd893de8a76c8ac3e75e81c934fda082293e))
+
 ## [0.11.0](https://github.com/gutzerk/code_chroma/compare/v0.10.0...v0.11.0) (2026-10-11)
 
 

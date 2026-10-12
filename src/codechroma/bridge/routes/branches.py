@@ -65,6 +65,7 @@ async def close_branch_workspace(
     # Unknown ids and git refusals become 404/409 through bridge/errors.py's table.
     record = await asyncio.to_thread(_close_blocking, services, workspace_id, worktree_too)
     await services.release_workspace(workspace_id)
+    await services.connections.broadcast({"type": "branch-removed", "id": workspace_id})
     return {"status": "deleted", "id": record.id}
 
 
@@ -73,7 +74,8 @@ def _close_blocking(
 ) -> BranchRecord:
     """Unloads before the directory goes: an analyze still writing graph.db would fail mid-write."""
     services.branch_manager.get(workspace_id)
-    services.registry.drop_live(workspace_id)
+    if worktree_too:
+        services.registry.drop_live(workspace_id)
     return services.branch_manager.delete(workspace_id, worktree_too)
 
 
@@ -84,7 +86,7 @@ def _provision_blocking(
     if create:
         record = services.branch_manager.create_branch(name, start_point)
     else:
-        record = services.branch_manager.open_branch(name, _holders(services))
+        record = services.branch_manager.open_branch(name, lambda: _holders(services))
     services.registry.register(record.id, Path(record.worktree))
     return record
 

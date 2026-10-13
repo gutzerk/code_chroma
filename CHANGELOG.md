@@ -1,5 +1,14 @@
 # Changelog
 
+## [0.12.1](https://github.com/gutzerk/code_chroma/compare/v0.12.0...v0.12.1) (2026-10-13)
+
+
+### Bug Fixes
+
+* bundle winpty in the frozen bridge so agent terminals render ([75c34e7](https://github.com/gutzerk/code_chroma/commit/75c34e7ebbb747446ed8e35aa4cf799a6e7e9012))
+* harden branch workspaces, the origin guard and gh issue posting ([cf0ff42](https://github.com/gutzerk/code_chroma/commit/cf0ff4263c4c9f1ae1d36840a107ec92c2e4c9a2))
+* point diagram node_id at the deepest symbol and flag one node_id shared across groups ([0e4d394](https://github.com/gutzerk/code_chroma/commit/0e4d394b7c34397eacb1aad25a3d7e4f6027c448)), closes [#65](https://github.com/gutzerk/code_chroma/issues/65)
+
 ## [0.12.0](https://github.com/gutzerk/code_chroma/compare/v0.11.0...v0.12.0) (2026-10-12)
 
 

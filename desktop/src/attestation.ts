@@ -4,21 +4,11 @@ import { join } from "node:path";
 import { verify as verifySignature } from "sigstore";
 import type { Bundle } from "sigstore";
 import { installEcdsaDigestShim } from "./cryptoCompat";
+import { ACTIONS_ISSUER, ATTESTATIONS_API, USER_AGENT, WORKFLOW_IDENTITY } from "./updateConstants";
 
 installEcdsaDigestShim();
 
-export const ATTESTATIONS_API = `https://api.github.com/repos/gutzerk/code_chroma/attestations/sha256`;
-
-/**
- * OIDC issuer of the short-lived GitHub Actions token that signed each installer's attestation.
- * Pinning issuer + identity is what binds the provenance to *this* repo's release workflow, so a
- * compromised pipeline can't substitute an attestation signed by anything else.
- */
-const ACTIONS_ISSUER = "https://token.actions.githubusercontent.com";
-// Pinned to refs/heads/main because the build jobs attest in the same main-triggered run that
-// creates the tag; the upload's OIDC ref is the branch, not the tag it just created.
-const WORKFLOW_IDENTITY =
-  "https://github.com/gutzerk/code_chroma/.github/workflows/release-please.yml@refs/heads/main";
+export { ATTESTATIONS_API };
 
 /** The `/attestations/sha256:{digest}` REST response (kept loose — GitHub may add fields). */
 interface AttestationsResponse {
@@ -31,7 +21,7 @@ interface AttestationsResponse {
  */
 export async function fetchAttestation(hex: string): Promise<Bundle> {
   const response = await fetch(`${ATTESTATIONS_API}:${hex}`, {
-    headers: { "User-Agent": "code-chroma-desktop" },
+    headers: { "User-Agent": USER_AGENT },
   });
   if (!response.ok) throw new Error(`no attestation for release artifact (${response.status})`);
   const { attestations } = (await response.json()) as AttestationsResponse;

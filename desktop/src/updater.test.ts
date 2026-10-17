@@ -175,7 +175,7 @@ describe("checkForUpdates", () => {
       const cache: ReleaseCache = { etag: 'W/"abc"', release: newer };
       let sent: Headers | undefined;
       const fetchImpl = (async (_u: unknown, init?: RequestInit) => {
-        sent = new Headers(init?.headers);
+        sent ??= new Headers(init?.headers);
         return { ok: false, status: 304, headers: new Headers() };
       }) as unknown as typeof fetch;
       const info = await checkForUpdates("1.0.0", { ...mac, fetchImpl, cache });

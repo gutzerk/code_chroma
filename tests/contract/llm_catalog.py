@@ -13,7 +13,9 @@ from codechroma.llm.call_sites import CALL_SITES, GROUPS, HIDDEN_GROUPS
 from codechroma.llm.cli_adapters import CLI_ADAPTERS
 from codechroma.llm.providers_store import KINDS, TRANSPORTS
 
-CATALOG_PATH = Path(__file__).resolve().parents[1] / "fixtures" / "bridge_contract" / "llm_catalog.json"
+CATALOG_PATH = (
+    Path(__file__).resolve().parents[1] / "fixtures" / "bridge_contract" / "llm_catalog.json"
+)
 
 
 def build_catalog() -> dict:

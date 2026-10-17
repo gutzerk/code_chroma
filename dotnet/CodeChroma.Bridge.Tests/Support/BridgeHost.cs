@@ -11,6 +11,9 @@ namespace CodeChroma.Bridge.Tests.Support;
 /// <summary>A bridge over a throwaway git copy of tests/fixtures/sample_repo, served in-memory.</summary>
 public sealed class BridgeHost : IDisposable
 {
+    /// <summary>True when CODECHROMA_PYTHON is set: the host then analyzes with the Python analyzers and the C# core.</summary>
+    public static bool RealEngine { get; } = !string.IsNullOrEmpty(Environment.GetEnvironmentVariable(PythonAnalysisExporter.PythonEnvVar));
+
     public string Root { get; }
     public WebApplicationFactory<Program> Factory { get; }
     public HttpClient Client { get; }
@@ -39,7 +42,9 @@ public sealed class BridgeHost : IDisposable
             builder.UseSetting("Bridge:RepoRoot", Root);
             builder.ConfigureServices(services =>
             {
-                services.AddSingleton<IEngineFactory>(new SnapshotEngineFactory(snapshot));
+                services.AddSingleton<IEngineFactory>(RealEngine
+                    ? new CoreEngineFactory(new PythonAnalysisExporter())
+                    : new SnapshotEngineFactory(snapshot));
                 services.AddSingleton(UserPaths.Under(Path.Combine(_tempDir, "user-stores")));
                 configure?.Invoke(services);
             });

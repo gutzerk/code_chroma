@@ -14,12 +14,13 @@ from contextlib import contextmanager
 from dataclasses import asdict
 from pathlib import Path
 
+from codechroma.analysis_export import build_input
 from codechroma.analyzers.registry import AnalyzerRegistry
 from codechroma.context.digest import build_context_digest
 from codechroma.context.structure import UnknownRootError, build_structure
 from codechroma.dependencies import clustering
 from codechroma.dependencies import digest as digest_module
-from codechroma.engine import GraphEngine, _iter_repo_files
+from codechroma.engine import GraphEngine
 from codechroma.graph.builder import GraphBuilder
 from codechroma.graph.models import Graph, HierarchyNode, Symbol, SymbolKind
 from codechroma.graph.store import SqliteGraphStore
@@ -65,71 +66,10 @@ SCENARIOS = (
 )
 
 
-def symbol_to_dict(symbol: Symbol) -> dict:
-    data = asdict(symbol)
-    data["kind"] = symbol.kind.value
-    data["qualified_references"] = [
-        {"qualifier": qualifier, "name": name} for qualifier, name in symbol.qualified_references
-    ]
-    data["body_statements"] = [
-        {"type": kind, "start_line": start, "end_line": end}
-        for kind, start, end in symbol.body_statements
-    ]
-    return data
-
-
 def node_to_dict(node: HierarchyNode) -> dict:
     data = asdict(node)
     data["level"] = node.level.value
     return data
-
-
-def _parse_repo(root: Path, registry: AnalyzerRegistry) -> dict[str, list[Symbol] | None]:
-    """Mirrors GraphEngine.analyze(): no analyzer or a parse failure means a None entry."""
-    engine = GraphEngine(registry=registry, summarizer=AISummarizer())
-    symbols_by_file: dict[str, list[Symbol] | None] = {}
-    for rel_path in _iter_repo_files(root):
-        analyzer = registry.for_file(rel_path)
-        if analyzer is None:
-            symbols_by_file[rel_path] = None
-            continue
-        symbols_by_file[rel_path] = engine._parse_file_or_none(root, rel_path, analyzer)[0]
-    return symbols_by_file
-
-
-def _import_resolutions(
-    symbols_by_file: dict[str, list[Symbol] | None], root: Path, registry: AnalyzerRegistry
-) -> dict[str, dict[str, str]]:
-    """The analyzer port's resolve_import answers, pre-computed so the core needs no analyzers."""
-    resolutions: dict[str, dict[str, str]] = {}
-    for file_path, symbols in symbols_by_file.items():
-        analyzer = registry.for_file(file_path)
-        for symbol in symbols or []:
-            if symbol.kind != SymbolKind.MODULE or analyzer is None:
-                continue
-            for dotted in sorted(set(symbol.imports.values())):
-                target = analyzer.resolve_import(dotted, file_path, root)
-                if target is not None:
-                    resolutions.setdefault(file_path, {})[dotted] = target
-    return resolutions
-
-
-def build_input(root: Path, summaries: dict[str, str]) -> dict:
-    """The analyzer-output JSON contract (schema_version 1) the C# core consumes."""
-    registry = AnalyzerRegistry.with_defaults()
-    symbols_by_file = _parse_repo(root, registry)
-    return {
-        "schema_version": SCHEMA_VERSION,
-        "files": [
-            {
-                "path": path,
-                "symbols": None if symbols is None else [symbol_to_dict(s) for s in symbols],
-            }
-            for path, symbols in symbols_by_file.items()
-        ],
-        "import_resolutions": _import_resolutions(symbols_by_file, root, registry),
-        "summaries": summaries,
-    }
 
 
 @contextmanager

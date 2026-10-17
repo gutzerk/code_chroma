@@ -17,6 +17,10 @@
   </ItemGroup>
 
   <ItemGroup>
+    <Content Include="..\..\tests\fixtures\graph_golden\sample_repo.input.json" Link="fixtures\sample_repo.input.json" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+
+  <ItemGroup>
     <ProjectReference Include="..\CodeChroma.Canvas.Avalonia\CodeChroma.Canvas.Avalonia.csproj" />
   </ItemGroup>
 

@@ -169,5 +169,75 @@ public class CanvasJourneyTests
         Assert.True(measurer.LineHeight > 0);
     }
 
+    [AvaloniaFact]
+    public void Shift_dragging_over_empty_space_rubber_band_selects_the_boxes_it_touches_and_does_not_pan()
+    {
+        var (window, view, _, _) = Open(DocOf(Box("a", 150, 36), Box("b", 650, 36), Box("c", 150, 436)));
+
+        window.MouseDown(new Point(790, 250), MouseButton.Left, RawInputModifiers.Shift);
+        window.MouseMove(new Point(400, 150), RawInputModifiers.Shift);
+        window.MouseMove(new Point(100, 10), RawInputModifiers.Shift);
+        var live = view.MarqueeCanvasRect;
+        window.MouseUp(new Point(100, 10), MouseButton.Left, RawInputModifiers.Shift);
+
+        Assert.NotNull(live);
+        Assert.Null(view.MarqueeCanvasRect);
+        Assert.Equal(new[] { "a", "b" }, view.Selection.OrderBy(x => x).ToArray());
+        Assert.Equal(0, view.Viewport.State.X);
+    }
+
+    [AvaloniaFact]
+    public void Escape_clears_the_selection()
+    {
+        var (window, view, _, _) = Open(DocOf(Box("a", 150, 36)));
+        window.MouseDown(new Point(150, 36), MouseButton.Left);
+        window.MouseUp(new Point(150, 36), MouseButton.Left);
+        view.Focus();
+
+        window.KeyPress(Key.Escape, RawInputModifiers.None, PhysicalKey.Escape, null);
+
+        Assert.Empty(view.Selection);
+    }
+
+    [AvaloniaFact]
+    public void Dragging_one_of_a_multi_selection_moves_all_by_the_same_delta_in_one_batch_and_Ctrl_Z_undoes_it_as_one_step()
+    {
+        var (window, view, store, bridge) = Open(DocOf(Box("a", 150, 36), Box("b", 650, 36)));
+        window.MouseDown(new Point(790, 250), MouseButton.Left, RawInputModifiers.Shift);
+        window.MouseMove(new Point(100, 10), RawInputModifiers.Shift);
+        window.MouseUp(new Point(100, 10), MouseButton.Left, RawInputModifiers.Shift);
+
+        window.MouseDown(new Point(150, 36), MouseButton.Left);
+        window.MouseMove(new Point(200, 70));
+        window.MouseMove(new Point(250, 136));
+        window.MouseUp(new Point(250, 136), MouseButton.Left);
+        Dispatcher_Flush();
+        var moved = (store.Doc.Elements["a"].Position, store.Doc.Elements["b"].Position);
+        view.Focus();
+        window.KeyPress(Key.Z, RawInputModifiers.Control, PhysicalKey.Z, "z");
+        Dispatcher_Flush();
+
+        Assert.Equal(new Position(250, 136), moved.Item1);
+        Assert.Equal(new Position(750, 136), moved.Item2);
+        Assert.Equal(2, bridge.Patches[0].Ops.Count);
+        Assert.Equal(new Position(150, 36), store.Doc.Elements["a"].Position);
+        Assert.Equal(new Position(650, 36), store.Doc.Elements["b"].Position);
+        Assert.False(view.Undo.CanUndo("canvas"));
+    }
+
+    [AvaloniaFact]
+    public void Undo_with_nothing_recorded_changes_nothing_and_a_pure_click_records_nothing()
+    {
+        var (window, view, store, bridge) = Open(DocOf(Box("a", 150, 36)));
+        window.MouseDown(new Point(150, 36), MouseButton.Left);
+        window.MouseUp(new Point(150, 36), MouseButton.Left);
+
+        var undone = view.UndoMove();
+
+        Assert.False(undone);
+        Assert.Empty(bridge.Patches);
+        Assert.Equal(new Position(150, 36), store.Doc.Elements["a"].Position);
+    }
+
     private static void Dispatcher_Flush() => global::Avalonia.Threading.Dispatcher.UIThread.RunJobs();
 }

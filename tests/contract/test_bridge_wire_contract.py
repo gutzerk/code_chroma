@@ -17,7 +17,12 @@ from starlette.websockets import WebSocketDisconnect
 
 from codechroma.bridge.app import create_app
 from tests.conftest import FIXTURE_REPO, init_repo
-from tests.contract.bridge_contract import expectation_failures, load_cases, select, substitute_variables
+from tests.contract.bridge_contract import (
+    expectation_failures,
+    load_cases,
+    select,
+    substitute_variables,
+)
 
 CASES = load_cases()
 USER_STORE_ENV = {

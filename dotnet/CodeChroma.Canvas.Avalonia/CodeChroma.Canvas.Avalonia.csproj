@@ -1,0 +1,19 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <RootNamespace>CodeChroma.Canvas.Avalonia</RootNamespace>
+    <Description>Thin Avalonia view over CodeChroma.Canvas: draws the model-owned scene through one viewport matrix with culling.</Description>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Avalonia" Version="11.1.5" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\CodeChroma.Canvas\CodeChroma.Canvas.csproj" />
+  </ItemGroup>
+
+</Project>

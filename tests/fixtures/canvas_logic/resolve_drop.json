@@ -1,0 +1,14 @@
+{
+  "_doc": "resolveDrop.test.ts scenarios. Rects are [x, y, width, height]; obstacles are [id, x, y, width, height]. nodeSep = rankSep = 24.",
+  "scenarios": [
+    {"name": "returns the release point unchanged with no obstacles", "moving": [0, 0, 100, 50], "obstacles": [], "expected": {"x": 0, "y": 0, "blocked": false}},
+    {"name": "returns the release point unchanged when no obstacle is within the gap", "moving": [0, 0, 100, 50], "obstacles": [["a", 164, 0, 200, 100]], "expected": {"x": 0, "y": 0, "blocked": false}},
+    {"name": "escapes one overlap to the left by the minimum translation", "moving": [150, 25, 100, 50], "obstacles": [["a", 200, 0, 200, 100]], "expected": {"x": 76, "y": 25, "blocked": false}},
+    {"name": "escapes upwards by the rank gap when the free space is above", "moving": [250, 170, 100, 50], "obstacles": [["a", 0, 200, 600, 200]], "expected": {"x": 250, "y": 126, "blocked": false}},
+    {"name": "finds the nearest point free of both neighbours", "moving": [150, 120, 100, 50], "obstacles": [["a", 0, 0, 200, 100], ["b", 0, 190, 200, 100]], "expected": {"x": 224, "y": 120, "blocked": false}},
+    {"name": "lands outside a gap the block cannot fit inside", "moving": [50, 135, 100, 50], "obstacles": [["a", 0, 0, 200, 100], ["b", 0, 190, 200, 100]], "expected": {"x": -124, "y": 135, "blocked": false}},
+    {"name": "symmetric scene resolves to the same exit every run", "moving": [-90, 0, 180, 50], "obstacles": [["a", -300, 0, 200, 50], ["b", 100, 0, 200, 50]], "expected": {"x": -90, "y": -74, "blocked": false}, "repeat": 50}
+  ],
+  "denseGrid": {"name": "whole scene dense -> blocked", "moving": [0, 0, 100, 100], "from": -1600, "to": 1600, "step": 200, "size": 200, "expected": {"x": 0, "y": 0, "blocked": true}},
+  "spiral": {"moving": [-100, -100, 200, 200], "centres": [-450, -300, -150, 0, 150, 300, 450], "half": 20, "ringStep": 110}
+}

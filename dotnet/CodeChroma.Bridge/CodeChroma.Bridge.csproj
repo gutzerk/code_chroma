@@ -9,10 +9,15 @@
 
   <ItemGroup>
     <EmbeddedResource Include="../../tests/fixtures/bridge_contract/llm_catalog.json" LogicalName="llm_catalog.json" />
+    <EmbeddedResource Include="../../src/codechroma/bridge/agents/detect/*.toml" LogicalName="detect/%(Filename)%(Extension)" />
   </ItemGroup>
 
   <ItemGroup>
     <ProjectReference Include="../CodeChroma.Core/CodeChroma.Core.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Porta.Pty" Version="1.0.7" />
   </ItemGroup>
 
 </Project>

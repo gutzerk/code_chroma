@@ -1,11 +1,18 @@
 using Avalonia;
+using Avalonia.WebView.Desktop;
 
 namespace CodeChroma.Shell.App;
 
 internal static class Program
 {
-    [STAThread]
-    public static void Main(string[] args) => BuildAvaloniaApp().StartWithClassicDesktopLifetime(args);
+    public static string[] Args { get; private set; } = [];
 
-    public static AppBuilder BuildAvaloniaApp() => AppBuilder.Configure<App>().UsePlatformDetect();
+    [STAThread]
+    public static void Main(string[] args)
+    {
+        Args = args;
+        BuildAvaloniaApp().StartWithClassicDesktopLifetime(args);
+    }
+
+    public static AppBuilder BuildAvaloniaApp() => AppBuilder.Configure<App>().UsePlatformDetect().UseDesktopWebView();
 }

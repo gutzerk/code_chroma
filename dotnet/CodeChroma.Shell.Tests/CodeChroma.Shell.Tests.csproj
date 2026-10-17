@@ -22,6 +22,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\CodeChroma.Shell\CodeChroma.Shell.csproj" />
+    <ProjectReference Include="..\CodeChroma.Shell.FakeBridge\CodeChroma.Shell.FakeBridge.csproj" />
   </ItemGroup>
 
 </Project>

@@ -34,6 +34,11 @@ public sealed class TempDir : IDisposable
 
     public void Dispose()
     {
-        try { Directory.Delete(Path, true); } catch (IOException) { }
+        try
+        {
+            foreach (var file in Directory.EnumerateFiles(Path, "*", SearchOption.AllDirectories)) File.SetAttributes(file, FileAttributes.Normal);
+            Directory.Delete(Path, true);
+        }
+        catch (Exception e) when (e is IOException or UnauthorizedAccessException) { }
     }
 }

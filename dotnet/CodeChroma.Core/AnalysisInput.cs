@@ -16,15 +16,6 @@ public sealed record AnalysisInput
 
 public sealed class UnsupportedSchemaException(int found) : Exception($"unsupported analysis input schema_version {found}");
 
-public static class AnalysisInputReader
-{
-    public const int SupportedSchemaVersion = 1;
-
-    public static AnalysisInput Parse(string json) => throw new NotImplementedException();
-
-    public static AnalysisInput Load(string path) => Parse(File.ReadAllText(path));
-}
-
 /// <summary>Answers what repo path an import resolves to, standing in for the analyzer port's resolve_import.</summary>
 public interface IImportResolver
 {

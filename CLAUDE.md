@@ -43,6 +43,8 @@ poetry run pytest -n auto           # same, parallelized across CPU cores (pytes
 poetry run pytest tests/unit/test_analyzers.py::test_name   # single test
 poetry run pytest tests/unit tests/contract tests/integration  # by suite (see tests/ layout below)
 poetry run ruff check .             # lint (rules: E, F, I, UP, B; line-length 100)
+dotnet test dotnet                   # C# graph core (net8.0) + parity tests against tests/fixtures/graph_golden (docs/planning/011)
+poetry run python -m tests.graph_golden   # regenerate the C# parity goldens after changing builder/digest/clustering output
 poetry run python scripts/bench_analyze.py [path]   # SC-001 perf check: analyze() on ~50k-line repo, must finish <5min
 ```
 
@@ -106,7 +108,7 @@ Open the relevant file before making a non-trivial change in that area.
 
 | File | Covers |
 |---|---|
-| [`docs/architecture/engine.md`](docs/architecture/engine.md) | `GraphEngine` pipeline: Analyzers, GraphBuilder, AISummarizer, GraphStore, Dependency digest, `reanalyze()`, contract tests |
+| [`docs/architecture/engine.md`](docs/architecture/engine.md) | `GraphEngine` pipeline: Analyzers, GraphBuilder, AISummarizer, GraphStore, Dependency digest, `reanalyze()`, contract tests, C# core + parity goldens |
 | [`docs/architecture/config-and-prompts.md`](docs/architecture/config-and-prompts.md) | `config.py`'s pydantic `Settings` (every tunable limit/timeout/model name) and `prompts/*.yaml` (every Claude system/user prompt) |
 | [`docs/architecture/terminal-bridge.md`](docs/architecture/terminal-bridge.md) | Embedded terminal (PTY sizing, env, frame protocol) — unrelated to the graph bridge |
 | [`docs/architecture/graph-bridge-core.md`](docs/architecture/graph-bridge-core.md) | Bridge app factory, `Workspace`/registry, live-reanalyze plumbing (`live.py`/`git_sync.py`/`git_diff.py`/`plan_resolver.py`), `launch.py` + skill-sync |

@@ -60,6 +60,7 @@ public sealed class LauncherPanel : UserControl
 
         Content = new ScrollViewer
         {
+            HorizontalScrollBarVisibility = Avalonia.Controls.Primitives.ScrollBarVisibility.Disabled,
             Content = new StackPanel
             {
                 Width = 560,

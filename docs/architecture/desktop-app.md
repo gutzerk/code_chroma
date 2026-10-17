@@ -237,3 +237,5 @@ Things worth knowing before touching it:
   committed; `.gitignore` un-ignores it against the global `build/` rule.
 - Tests: `tests/unit/test_resources.py`, `tests/unit/test_bridge_spa_mount.py`,
   `web/src/engine-client/sameOrigin.test.ts`, and the Vitest suites in `desktop/src/*.test.ts`.
+
+> Migration in progress: a C# / Avalonia replacement for this Electron shell is tracked in [`docs/planning/011-avalonia-shell.md`](../planning/011-avalonia-shell.md) (code in `dotnet/`). Electron remains the reference until it lands.

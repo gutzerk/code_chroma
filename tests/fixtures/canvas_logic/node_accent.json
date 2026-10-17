@@ -1,0 +1,56 @@
+{
+  "_doc": "nodeAccent.test.tsx (39 vitest tests) -> semantic accents, not CSS class names. brandSlugs is the stub brand catalog. Group index = hashStringToIndex(name, 6, 31).",
+  "brandSlugs": ["stripe"],
+  "accent": [
+    {"name": "plain node has no accent", "render": "impact", "meta": {}, "expected": {}},
+    {"name": "recognised brand icon wins over a kind icon", "render": "c1", "meta": {"icon": "stripe", "kind": "database"}, "expected": {"icon": "brand:stripe", "kind": "database"}},
+    {"name": "recognised kind gets a kind icon", "render": "c1", "meta": {"kind": "database"}, "expected": {"icon": "kind:database", "kind": "database"}},
+    {"name": "unrecognised kind has no icon (patterns' infra)", "render": "pattern", "meta": {"kind": "infra"}, "expected": {"kind": "infra"}},
+    {"name": "custom node gains an icon from a recognised kind", "render": "custom", "meta": {"kind": "queue"}, "expected": {"icon": "kind:queue", "kind": "queue"}},
+    {"name": "unknown brand slug falls through to the kind icon", "render": "c1", "meta": {"icon": "no-such-brand", "kind": "api"}, "expected": {"icon": "kind:api", "kind": "api"}},
+    {"name": "impact status modified", "render": "impact", "meta": {"status": "modified"}, "expected": {"status": "modified"}},
+    {"name": "status applies to any render kind, not only impact", "render": "c1", "meta": {"status": "added"}, "expected": {"status": "added"}},
+    {"name": "authored 'new' aliases onto 'added'", "render": "impact", "meta": {"status": "new"}, "expected": {"status": "added"}},
+    {"name": "authored 'deleted' is not aliased to 'removed'", "render": "impact", "meta": {"status": "deleted"}, "expected": {"status": "deleted"}},
+    {"name": "group hashes into the shared palette (custom)", "render": "custom", "meta": {"group": "Persistence"}, "expected": {"group": 3}},
+    {"name": "group applies to any render kind", "render": "c1", "meta": {"group": "Persistence"}, "expected": {"group": 3}},
+    {"name": "group hash is stable: Storage", "render": "custom", "meta": {"group": "Storage"}, "expected": {"group": 3}},
+    {"name": "group hash differs by name: Auth", "render": "custom", "meta": {"group": "Auth"}, "expected": {"group": 0}},
+    {"name": "several rules combine", "render": "custom", "meta": {"kind": "flow", "status": "modified"}, "expected": {"kind": "flow", "status": "modified"}},
+    {"name": "conceptual no-code box", "render": "custom", "meta": {"no_code_reason": "conceptual"}, "expected": {"noCode": "conceptual"}},
+    {"name": "unresolved no-code box", "render": "custom", "meta": {"no_code_reason": "unresolved"}, "expected": {"noCode": "unresolved"}},
+    {"name": "external no-code box", "render": "custom", "meta": {"no_code_reason": "external"}, "expected": {"noCode": "external"}},
+    {"name": "planned is not a recognised no-code reason", "render": "custom", "meta": {"plan_kind": "add", "no_code_reason": "planned"}, "expected": {}},
+    {"name": "registered shape is kept", "render": "custom", "meta": {"shape": "database"}, "expected": {"shape": "database"}},
+    {"name": "unknown shape is ignored", "render": "custom", "meta": {"shape": "blob"}, "expected": {}}
+  ],
+  "topBand": [
+    {"name": "step number alone", "meta": {"order": "2a"}, "expected": {"order": "STEP 2a"}},
+    {"name": "plan role alone", "meta": {"plan_kind": "modify"}, "expected": {"plan": "PLAN · MODIFY"}},
+    {"name": "both together", "meta": {"plan_kind": "add", "order": "1"}, "expected": {"plan": "PLAN · ADD", "order": "STEP 1"}},
+    {"name": "neither renders nothing", "meta": {}, "expected": null},
+    {"name": "unrecognised plan_kind renders nothing", "meta": {"plan_kind": "rename"}, "expected": null}
+  ],
+  "impactChip": [
+    {"name": "new -> ADD", "render": "impact", "meta": {"status": "new"}, "expected": "+ ADD"},
+    {"name": "modified -> mark + MODIFY", "render": "impact", "meta": {"status": "modified"}, "expected": "~ MODIFY"},
+    {"name": "count is appended", "render": "impact", "meta": {"status": "modified"}, "count": 17, "expected": "~ MODIFY · 17"},
+    {"name": "deleted -> DELETE", "render": "impact", "meta": {"status": "deleted"}, "expected": "− DELETE"},
+    {"name": "context renders nothing", "render": "impact", "meta": {"status": "context"}, "expected": null},
+    {"name": "absent status renders nothing", "render": "impact", "meta": {}, "expected": null},
+    {"name": "non-impact render kind renders nothing", "render": "custom", "meta": {"status": "new"}, "expected": null}
+  ],
+  "noCodeChip": [
+    {"name": "conceptual", "meta": {"no_code_reason": "conceptual"}, "expected": "∅ CONCEPTUAL"},
+    {"name": "unresolved", "meta": {"no_code_reason": "unresolved"}, "expected": "∅ UNRESOLVED"},
+    {"name": "external", "meta": {"no_code_reason": "external"}, "expected": "∅ EXTERNAL"},
+    {"name": "planned is not a reason", "meta": {"no_code_reason": "planned"}, "expected": null},
+    {"name": "absent reason", "meta": {}, "expected": null}
+  ],
+  "metaRow": [
+    {"name": "impact status and no-code chip together", "render": "impact", "meta": {"status": "new", "no_code_reason": "conceptual"}, "expected": ["+ ADD", "∅ CONCEPTUAL"]},
+    {"name": "neither -> empty row", "render": "impact", "meta": {}, "expected": []},
+    {"name": "epic brief tags as chips", "render": "epic", "meta": {"status": "Planned", "priority": "Medium", "group": "settings", "depends_on": "EP-1"}, "expected": ["Planned", "Medium", "settings", "depends_on → EP-1"]},
+    {"name": "epic without tags -> empty row", "render": "epic", "meta": {}, "expected": []}
+  ]
+}

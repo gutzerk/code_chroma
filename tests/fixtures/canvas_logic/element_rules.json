@@ -1,0 +1,16 @@
+{
+  "_doc": "elementRules.test.ts: the per-kind behaviour table. CSS class strings (NODE_STYLES) are dropped: they are a web rendering detail.",
+  "rules": [
+    {"kind": "hierarchy", "renderer": "hierarchy", "activation": "inspector", "overlay": null, "statusChip": null, "lockedLayout": false},
+    {"kind": "c1", "renderer": "node-box", "activation": "inspector", "overlay": null, "statusChip": null, "lockedLayout": false},
+    {"kind": "pattern", "renderer": "node-box", "activation": "inspector", "overlay": null, "statusChip": null, "lockedLayout": false},
+    {"kind": "impact", "renderer": "node-box", "activation": "inspector", "overlay": "impact", "statusChip": "impact", "lockedLayout": false},
+    {"kind": "epic", "renderer": "node-box", "activation": "epic-brief", "overlay": null, "statusChip": null, "lockedLayout": true},
+    {"kind": "spec", "renderer": "node-box", "activation": "epic-brief", "overlay": null, "statusChip": null, "lockedLayout": true},
+    {"kind": "task", "renderer": "node-box", "activation": "inspector", "overlay": null, "statusChip": null, "lockedLayout": true},
+    {"kind": "custom", "renderer": "node-box", "activation": "inspector", "overlay": null, "statusChip": null, "lockedLayout": false},
+    {"kind": "group", "renderer": "group", "activation": "inspector", "overlay": null, "statusChip": null, "lockedLayout": false},
+    {"kind": "note", "renderer": "note", "activation": "inspector", "overlay": null, "statusChip": null, "lockedLayout": false},
+    {"kind": "sequence", "renderer": "sequence", "activation": "inspector", "overlay": null, "statusChip": null, "lockedLayout": true}
+  ]
+}

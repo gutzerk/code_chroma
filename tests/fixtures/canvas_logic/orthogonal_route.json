@@ -1,0 +1,52 @@
+{
+  "_doc": "Shared canvas-logic cases (orthogonalRoute.test.ts, 31 vitest tests -> these tables). Rects are [left, top, width, height]; points are [x, y].",
+  "chooseSides": [
+    {"name": "side by side leaves through facing vertical sides", "from": [0, 0, 100, 60], "to": [400, 20, 100, 60], "expected": ["right", "left"]},
+    {"name": "one below the other leaves through facing horizontal sides", "from": [0, 0, 100, 60], "to": [20, 400, 100, 60], "expected": ["bottom", "top"]},
+    {"name": "prefers the separating axis over the larger centre delta", "from": [0, 0, 400, 40], "to": [30, 200, 400, 40], "expected": ["bottom", "top"]},
+    {"name": "falls back to the dominant delta when overlapping on both axes", "from": [0, 0, 100, 60], "to": [60, 20, 100, 60], "expected": ["right", "left"]}
+  ],
+  "anchorOf": [
+    {"name": "side midpoint with no lane", "rect": [0, 0, 100, 60], "side": "right", "offset": 0, "expected": [100, 30]},
+    {"name": "shifted along the side by the lane offset", "rect": [0, 0, 100, 200], "side": "right", "offset": 20, "expected": [100, 120]},
+    {"name": "outer lane clamps back onto the side", "rect": [0, 0, 100, 40], "side": "right", "offset": 100, "expected": [100, 32]}
+  ],
+  "assignLanes": [
+    {"name": "one arrow gets the centre lane", "pairs": [["a", "b"]], "expected": [[0, 0]]},
+    {"name": "two arrows between one pair spread symmetrically", "pairs": [["a", "b"], ["a", "b"]], "gap": 14, "expected": [[-7, 0], [7, 1]]},
+    {"name": "opposite directions share the pair and take different lanes", "pairs": [["a", "b"], ["b", "a"]], "expected": [[-7, 0], [7, 1]]},
+    {"name": "different pairs each keep a centre lane", "pairs": [["a", "b"], ["c", "d"]], "expected": [[0, 0], [0, 0]]}
+  ],
+  "assignPorts": [
+    {"name": "one arrow on a box+side gets the centre port", "keys": ["boxA|right"], "expected": [0]},
+    {"name": "arrows on the same box+side spread apart even from different pairs", "keys": ["boxC|left", "boxC|left"], "gap": 14, "expected": [-7, 7]},
+    {"name": "different box+sides stay centred", "keys": ["boxA|right", "boxB|left"], "expected": [0, 0]}
+  ],
+  "simplify": [
+    {"name": "drops a collinear corner", "points": [[0, 0], [10, 0], [20, 0]], "expected": [[0, 0], [20, 0]]},
+    {"name": "drops a repeated corner", "points": [[0, 0], [0, 0], [0, 10]], "expected": [[0, 0], [0, 10]]}
+  ],
+  "roundedPath": [
+    {"name": "straight run is a single line", "points": [[0, 0], [100, 0]], "expected": "M 0 0 L 100 0"},
+    {"name": "corner becomes a quadratic curve", "points": [[0, 0], [100, 0], [100, 100]], "radius": 10, "expected": "M 0 0 L 90 0 Q 100 0 100 10 L 100 100"},
+    {"name": "radius shrinks on a short segment", "points": [[0, 0], [4, 0], [4, 100]], "radius": 10, "expected": "M 0 0 L 2 0 Q 4 0 4 2 L 4 100"}
+  ],
+  "labelPointOf": [
+    {"name": "true arc-length midpoint of a multi-segment line", "points": [[0, 0], [100, 0], [100, 200], [300, 200]], "avoid": [], "expected": [100, 150]},
+    {"name": "longest clear segment when the midpoint sits on a box", "points": [[0, 0], [100, 0], [100, 200]], "avoid": [[80, 30, 40, 40]], "expected": [100, 100]}
+  ],
+  "routeConnector": [
+    {"name": "one straight line between horizontally aligned boxes", "from": [0, 0, 100, 60], "to": [300, 0, 100, 60], "expect": {"d": "M 100 30 L 300 30"}},
+    {"name": "right-angle elbows when offset on both axes", "from": [0, 0, 100, 60], "to": [300, 200, 100, 60], "expect": {"corners": [[100, 30], [192, 30], [200, 30], [200, 222], [200, 230], [300, 230]]}},
+    {"name": "vertical neighbours run straight between facing sides (the vitest case named 'routes around' never actually wrapped)","from": [0, 0, 100, 60], "to": [0, 200, 100, 60], "lane": {"offset": 0, "rank": 0}, "expect": {"cornerYRange": [60, 200]}},
+    {"name": "genuinely wraps around the nearer outer edge when sides face away (new: closes the gap above)", "from": [0, 0, 100, 60], "to": [20, 30, 100, 60], "lane": {"offset": 0, "rank": 0}, "expect": {"cornerXRange": [-18, 70]}},
+    {"name": "caption sits on the true arc-length midpoint, not the longest segment", "from": [0, 0, 100, 60], "to": [300, 200, 100, 60], "lane": {"offset": 20, "rank": 0}, "expect": {"label": [220, 130]}},
+    {"name": "leaves a stub before the first turn", "from": [0, 0, 100, 60], "to": [300, 200, 100, 60], "expect": {"point1": [118, 30]}}
+  ],
+  "laneSeparation": [
+    {"name": "two arrows between one pair draw on different strokes with different captions", "from": [0, 0, 100, 60], "to": [300, 200, 100, 60], "count": 2, "reverseOdd": false, "distinctD": 2, "distinctLabels": 2},
+    {"name": "two directions of a bidirectional pair separate", "from": [0, 0, 100, 60], "to": [300, 0, 100, 60], "count": 2, "reverseOdd": true, "distinctD": 2, "distinctLabels": 2},
+    {"name": "each of three lanes keeps its own caption", "from": [0, 0, 100, 200], "to": [300, 0, 100, 200], "count": 3, "reverseOdd": false, "distinctD": 3, "distinctLabels": 3},
+    {"name": "each lane of a wrapping route takes its own outer line", "from": [0, 0, 100, 60], "to": [20, 30, 100, 60], "count": 2, "reverseOdd": false, "distinctD": 2, "distinctLabels": 1}
+  ]
+}

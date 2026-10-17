@@ -1,0 +1,28 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio Version 17
+VisualStudioVersion = 17.0.31903.59
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "CodeChroma.Shell", "CodeChroma.Shell\CodeChroma.Shell.csproj", "{23C1641F-5F94-4AAD-89A0-367A95962507}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "CodeChroma.Shell.Tests", "CodeChroma.Shell.Tests\CodeChroma.Shell.Tests.csproj", "{6D775708-4B7A-4DF4-8649-8FA7BDBA5995}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Release|Any CPU = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{23C1641F-5F94-4AAD-89A0-367A95962507}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{23C1641F-5F94-4AAD-89A0-367A95962507}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{23C1641F-5F94-4AAD-89A0-367A95962507}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{23C1641F-5F94-4AAD-89A0-367A95962507}.Release|Any CPU.Build.0 = Release|Any CPU
+		{6D775708-4B7A-4DF4-8649-8FA7BDBA5995}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{6D775708-4B7A-4DF4-8649-8FA7BDBA5995}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{6D775708-4B7A-4DF4-8649-8FA7BDBA5995}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{6D775708-4B7A-4DF4-8649-8FA7BDBA5995}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+EndGlobal

@@ -66,6 +66,22 @@ Electron toolchain and Sigstore shim, or a single .NET codebase). Decision is th
 - Update verification: **checksum-only** (SHA-256 from `latest.json`/sidecar). This is a downgrade from Sigstore
   attestation and must be flagged in the UI and docs. No Apple/Windows certificates.
 
+## Status after the first implementation pass (2026-10-17)
+
+Merged into `integration/csharp-and-distribution`, nothing pushed or released. Windows host only.
+
+| Phase | State |
+|---|---|
+| 0 | Done, measured. |
+| 1 | Code done (WebView per tab, open-repo flow, tests). **Exit gate not met**: `web/e2e` Playwright journeys not run in the shell, no side-by-side install test, native dialogs not clicked through. |
+| 2 | Code done (updater with rollback, Velopack packaging, checksum-only verification, Electron migration, gated CI jobs). **Exit gate not met**: nothing run on macOS/Linux/CI, no `.deb`, `Shell.App` does not yet call the updater/migration or show the checksum-only notice. |
+| 3 | Not started (needs a published migration release and a soak period). |
+| 4 | **Not done and must not be done yet**: it is gated on Phase 3 being out and stable. `desktop/` is intact. |
+| 5 | Partial. Canvas: hierarchy, select, drag, undo, code popup, diff, trace, agent-window layer ported with headless tests, but not wired to a live bridge. Bridge: assistant, runtime, llm settings, traces, issues, diagram types, branches and C# graph core done; agents, prs, canvas, recipes, diffs, epics, wiki_general, PTY host and skill/LLM runners remain. |
+
+Suites after the merge: Shell 307, Canvas 503 + 66, Bridge 173, Core 144 (all pass, 0 skipped); desktop vitest 214 (2 skipped); web vitest 1483; Python contract + distribution
+tests pass and `ruff` is clean when run from a clean checkout (run inside the main checkout they fail because `.claude/worktrees/` holds duplicate repo copies).
+
 ## What "no Electron" requires
 
 Electron currently provides five things. Each needs a replacement before `desktop/` can go.

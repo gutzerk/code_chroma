@@ -5,20 +5,20 @@ BeforeAll {
     . (Join-Path $PSScriptRoot '..\..\distribution\install.ps1')
 
     function New-Fixture {
-        param([string]$Root, [string]$Version = '1.2.3', [byte[]]$Payload = ([Text.Encoding]::UTF8.GetBytes('setup bytes')), [hashtable]$ManifestOverrides = @{})
+        param([string]$Root, [string]$Version = '1.2.3', [byte[]]$Payload = ([Text.Encoding]::UTF8.GetBytes('setup bytes')), [hashtable]$ManifestOverrides = @{}, [string]$Target = 'windows-x64', [string]$AssetName = 'CodeChroma-Setup.exe')
         $sha = [BitConverter]::ToString([Security.Cryptography.SHA256]::Create().ComputeHash($Payload)).Replace('-', '').ToLowerInvariant()
         $tag = "v$Version"
         $manifest = [ordered]@{
             version = $Version
             channel = 'stable'
-            assets  = @{ 'windows-x64' = "https://github.com/gutzerk/code_chroma/releases/download/$tag/CodeChroma-Setup.exe" }
-            sha256  = @{ 'windows-x64' = $sha }
-            size    = @{ 'windows-x64' = $Payload.Length }
+            assets  = @{ $Target = "https://github.com/gutzerk/code_chroma/releases/download/$tag/$AssetName" }
+            sha256  = @{ $Target = $sha }
+            size    = @{ $Target = $Payload.Length }
         }
         foreach ($key in $ManifestOverrides.Keys) { $manifest[$key] = $ManifestOverrides[$key] }
         $manifestPath = Join-Path $Root 'latest.json'
         $manifest | ConvertTo-Json -Depth 5 | Set-Content -LiteralPath $manifestPath -Encoding utf8
-        $installerPath = Join-Path $Root 'CodeChroma-Setup.exe'
+        $installerPath = Join-Path $Root $AssetName
         [IO.File]::WriteAllBytes($installerPath, $Payload)
         return @{ Manifest = $manifestPath; Installer = $installerPath }
     }
@@ -172,7 +172,8 @@ Describe 'Uninstall-CodeChroma' {
         $env:USERPROFILE = Join-Path $TestDrive 'Profile'
         New-Item -ItemType Directory -Force -Path (Join-Path $env:APPDATA 'CodeChroma') | Out-Null
         New-Item -ItemType Directory -Force -Path (Join-Path $env:USERPROFILE '.codechroma') | Out-Null
-        Mock Get-CodeChromaUninstallString { return '"C:\Apps\CodeChroma\Uninstall CodeChroma.exe" /currentuser' }
+        Mock Get-CodeChromaUninstallString { return '"C:\Apps\CodeChroma\Uninstall CodeChroma.exe" /currentuser' } -ParameterFilter { $Flavor -eq 'electron' }
+        Mock Get-CodeChromaUninstallString { return $null } -ParameterFilter { $Flavor -eq 'dotnet' }
     }
 
     It 'runs the registered uninstaller silently and keeps user data' {
@@ -191,8 +192,27 @@ Describe 'Uninstall-CodeChroma' {
         (Join-Path $env:USERPROFILE '.codechroma') | Should -Not -Exist
     }
 
+    It 'runs the Velopack uninstaller as Update.exe uninstall --silent' {
+        Mock Get-CodeChromaUninstallString { return '"C:\Users\me\AppData\Local\CodeChroma\Update.exe" --uninstall' } -ParameterFilter { $Flavor -eq 'dotnet' }
+        Mock Get-CodeChromaUninstallString { return $null } -ParameterFilter { $Flavor -eq 'electron' }
+
+        Uninstall-CodeChroma
+
+        $script:started.Count | Should -Be 1
+        $script:started[0].FilePath | Should -Match 'Update\.exe$'
+        ($script:started[0].Args -join ' ') | Should -Be 'uninstall --silent'
+    }
+
+    It 'removes both flavors when both are installed' {
+        Mock Get-CodeChromaUninstallString { return '"C:\Users\me\AppData\Local\CodeChroma\Update.exe" --uninstall' } -ParameterFilter { $Flavor -eq 'dotnet' }
+
+        Uninstall-CodeChroma
+
+        $script:started.Count | Should -Be 2
+    }
+
     It 'is a clean no-op when nothing is installed' {
-        Mock Get-CodeChromaUninstallString { return $null }
+        Mock Get-CodeChromaUninstallString { return $null } -ParameterFilter { $Flavor -eq 'electron' }
 
         { Uninstall-CodeChroma } | Should -Not -Throw
 
@@ -220,7 +240,111 @@ Describe 'Invoke-CodeChromaInstaller argument parsing' {
         Should -Invoke Install-CodeChroma -ParameterFilter { $Silent -and $Force }
     }
 
+    It 'routes -Dotnet to the installer' {
+        Invoke-CodeChromaInstaller @('-Dotnet', '-Silent')
+
+        Should -Invoke Install-CodeChroma -ParameterFilter { $Dotnet -and $Silent }
+    }
+
+    It 'routes CODECROMA_APP=dotnet like -Dotnet' {
+        $env:CODECROMA_APP = 'dotnet'
+        try { Invoke-CodeChromaInstaller @() } finally { Remove-Item Env:\CODECROMA_APP }
+
+        Should -Invoke Install-CodeChroma -ParameterFilter { $Dotnet }
+    }
+
     It 'rejects unknown options' {
         { Invoke-CodeChromaInstaller @('-Bogus') } | Should -Throw '*usage*'
+    }
+}
+
+Describe 'Install-CodeChroma -Dotnet (the C# app, Velopack Setup)' {
+    BeforeEach {
+        Use-Fixture (New-Fixture -Root $TestDrive -Target 'dotnet-windows-x64' -AssetName 'CodeChroma-1.2.3-win-x64-Installer.exe')
+        Mock Get-CodeChromaUninstallString { return $null }
+    }
+
+    It 'installs the dotnet-windows-x64 asset with the Velopack silent flag, not the NSIS ones' {
+        Install-CodeChroma -ManifestUrl 'https://example.invalid/latest.json' -Dotnet -Silent
+
+        ($script:requested -join ' ') | Should -Match 'CodeChroma-1\.2\.3-win-x64-Installer\.exe'
+        $script:started.Count | Should -Be 1
+        $script:started[0].Args | Should -Contain '--silent'
+        $script:started[0].Args | Should -Not -Contain '/currentuser'
+        $script:started[0].Args | Should -Not -Contain '/S'
+    }
+
+    It 'starts the Velopack Setup without arguments when not silent' {
+        Install-CodeChroma -ManifestUrl 'https://example.invalid/latest.json' -Dotnet
+
+        $script:started[0].Args | Should -BeNullOrEmpty
+    }
+
+    It 'does not fall back to the Electron installer when the manifest has no dotnet build' {
+        Use-Fixture (New-Fixture -Root $TestDrive)
+
+        { Install-CodeChroma -ManifestUrl 'https://example.invalid/latest.json' -Dotnet } | Should -Throw '*dotnet-windows-x64*'
+
+        $script:started.Count | Should -Be 0
+    }
+
+    It 'refuses a checksum mismatch before running the Setup' {
+        Use-Fixture (New-Fixture -Root $TestDrive -Target 'dotnet-windows-x64' -AssetName 'CodeChroma-1.2.3-win-x64-Installer.exe' -ManifestOverrides @{ sha256 = @{ 'dotnet-windows-x64' = ('0' * 64) } })
+
+        { Install-CodeChroma -ManifestUrl 'https://example.invalid/latest.json' -Dotnet } | Should -Throw '*checksum*'
+
+        $script:started.Count | Should -Be 0
+    }
+
+    It 'warns that in-app updates are checked by SHA-256 only' {
+        Install-CodeChroma -ManifestUrl 'https://example.invalid/latest.json' -Dotnet
+
+        Should -Invoke Write-Warning -ParameterFilter { $Message -match 'SHA-256 checksum only' }
+    }
+
+    It 'treats the same version of the other flavor as not installed' {
+        Mock Get-CodeChromaInstalledVersion { return '1.2.3' } -ParameterFilter { $Flavor -eq 'electron' }
+        Mock Get-CodeChromaInstalledVersion { return $null } -ParameterFilter { $Flavor -eq 'dotnet' }
+
+        Install-CodeChroma -ManifestUrl 'https://example.invalid/latest.json' -Dotnet
+
+        $script:started.Count | Should -Be 1
+    }
+
+    It 'skips when the same version of the C# app is installed' {
+        Mock Get-CodeChromaInstalledVersion { return '1.2.3' } -ParameterFilter { $Flavor -eq 'dotnet' }
+
+        Install-CodeChroma -ManifestUrl 'https://example.invalid/latest.json' -Dotnet
+
+        $script:started.Count | Should -Be 0
+    }
+
+    It 'retires an installed Electron copy after the install succeeded' {
+        Mock Get-CodeChromaUninstallString { return '"C:\Apps\CodeChroma\Uninstall CodeChroma.exe" /currentuser' } -ParameterFilter { $Flavor -eq 'electron' }
+
+        Install-CodeChroma -ManifestUrl 'https://example.invalid/latest.json' -Dotnet -Silent
+
+        $script:started.Count | Should -Be 2
+        $script:started[1].FilePath | Should -Match 'Uninstall CodeChroma\.exe$'
+        $script:started[1].Args | Should -Contain '/S'
+    }
+
+    It 'keeps the Electron copy when the C# installer failed' {
+        Mock Get-CodeChromaUninstallString { return '"C:\Apps\CodeChroma\Uninstall CodeChroma.exe"' } -ParameterFilter { $Flavor -eq 'electron' }
+        Mock Start-CodeChromaProcess { return 5 }
+
+        { Install-CodeChroma -ManifestUrl 'https://example.invalid/latest.json' -Dotnet } | Should -Throw '*exited with code 5*'
+
+        Should -Invoke Get-CodeChromaUninstallString -Times 0
+    }
+
+    It 'only warns when the Electron uninstaller fails' {
+        Mock Get-CodeChromaUninstallString { return '"C:\Apps\CodeChroma\Uninstall CodeChroma.exe"' } -ParameterFilter { $Flavor -eq 'electron' }
+        $script:calls = 0
+        Mock Start-CodeChromaProcess { $script:calls++; if ($script:calls -eq 1) { return 0 } else { return 9 } }
+
+        { Install-CodeChroma -ManifestUrl 'https://example.invalid/latest.json' -Dotnet } | Should -Not -Throw
+
+        Should -Invoke Write-Warning -ParameterFilter { $Message -match 'Could not remove the Electron build' }
     }
 }

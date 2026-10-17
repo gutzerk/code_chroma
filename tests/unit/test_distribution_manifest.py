@@ -168,10 +168,10 @@ def test_a_release_with_only_electron_installers_has_no_dotnet_targets(tmp_path)
 
 
 @pytest.mark.parametrize("target", ELECTRON_TARGETS)
-def test_a_release_carrying_both_flavors_keeps_the_electron_targets_on_the_electron_installers(tmp_path, target):
+def test_a_release_carrying_both_flavors_keeps_the_electron_targets_on_the_electron_installers(tmp_path, target):  # noqa: E501
     _populate(tmp_path / "build", FILES)
 
     manifest = _generate(tmp_path)
 
     assert manifest["assets"][target].endswith(f"/{FILES[target]}")
-    assert manifest["sha256"][target] == hashlib.sha256(f"payload for {target}".encode()).hexdigest()
+    assert manifest["sha256"][target] == hashlib.sha256(f"payload for {target}".encode()).hexdigest()  # noqa: E501

@@ -93,6 +93,10 @@ manifest and installs per-user. Both installers verify the SHA-256 (and `gh atte
 `gh` is available) and support `--uninstall`/`--purge`; the installed app checks for updates every
 6 hours and on focus. Artifact names are guarded by `tests/unit/test_distribution_consistency.py`.
 
+The C# app (gated, not yet shipped) has its own Velopack packages and updater; its updates are verified by SHA-256
+only (no Sigstore), flagged in the UI state and installers, and `install.sh --dotnet` / `install.ps1 -Dotnet` install it
+(details in `docs/architecture/desktop-app.md`).
+
 **Releases ship via GitHub, not local builds.** `.github/workflows/release-please.yml` runs
 `release-please` (using the `code_pat_release` repository secret so merging its Release PR triggers
 the release build) on every push to `main`: it bumps the version, writes CHANGELOG, tags `vX.Y.Z`

@@ -1,4 +1,4 @@
-namespace CodeChroma.Shell.Tests;
+namespace CodeChroma.Shell.Tests.Updater;
 
 public class UpdateServiceTests
 {
@@ -9,7 +9,11 @@ public class UpdateServiceTests
         public Func<string, Action<string>?, UpdateInfo?> Check = (_, onLatest) => { onLatest?.Invoke("2.0.0"); return Info; };
         public Action? Download = () => { };
         public Action? Writable = () => { };
+        public Provenance Expected = Provenance.ChecksumOnly;
+        public Provenance Downloaded = Provenance.ChecksumOnly;
         public int Checks, Downloads, Installs;
+
+        public Provenance ExpectedProvenance => Expected;
 
         public Task<UpdateInfo?> CheckAsync(string current, Action<string>? onLatest, CancellationToken ct)
         {
@@ -17,11 +21,11 @@ public class UpdateServiceTests
             return Task.FromResult(Check(current, onLatest));
         }
 
-        public Task DownloadAsync(UpdateInfo info, Action<long, long?> progress, CancellationToken ct)
+        public Task<Provenance> DownloadAsync(UpdateInfo info, Action<long, long?> progress, CancellationToken ct)
         {
             Downloads++;
             Download?.Invoke();
-            return Task.CompletedTask;
+            return Task.FromResult(Downloaded);
         }
 
         public Task<bool> InstallAsync(UpdateInfo info, CancellationToken ct)
@@ -150,5 +154,47 @@ public class UpdateServiceTests
 
         Assert.Equal(UpdatePhase.Error, state.Phase);
         Assert.Equal(0, ops.Installs);
+    }
+
+    [Theory]
+    [InlineData(Provenance.ChecksumOnly, true)]
+    [InlineData(Provenance.Attested, false)]
+    public async Task A_checksum_only_update_is_flagged_when_offered_and_again_when_ready(Provenance provenance, bool flagged)
+    {
+        var (service, ops, _) = Make();
+        ops.Expected = provenance;
+        ops.Downloaded = provenance;
+
+        var offered = await service.CheckAsync();
+        var ready = await service.DownloadAsync();
+
+        var expectedNotice = flagged ? UpdateConstants.ChecksumOnlyNotice : null;
+        Assert.Equal(expectedNotice, offered.VerificationNotice);
+        Assert.Equal((provenance, expectedNotice), (ready.Provenance, ready.VerificationNotice));
+    }
+
+    [Fact]
+    public void The_downgrade_notice_names_what_is_and_is_not_checked()
+    {
+        var notice = UpdateConstants.ChecksumOnlyNotice;
+
+        Assert.Contains("SHA-256", notice);
+        Assert.Contains("not signed or attested", notice);
+        Assert.Contains("compromised release", notice);
+    }
+
+    [Fact]
+    public async Task A_rollback_from_the_previous_launch_is_surfaced_until_dismissed()
+    {
+        var acknowledged = 0;
+        var outcome = new InstallOutcome("rolled-back", "2.0.0", "the new version exited during startup; the previous version was restored");
+        var service = new UpdateService("1.0.0", new FakeOps(), new MemoryCache(null), _ => { }, readOutcome: () => outcome, acknowledgeOutcome: () => acknowledged++);
+
+        var before = service.State.LastInstall;
+        service.DismissLastInstall();
+
+        Assert.True(before!.RolledBack);
+        Assert.Null(service.State.LastInstall);
+        Assert.Equal(1, acknowledged);
     }
 }

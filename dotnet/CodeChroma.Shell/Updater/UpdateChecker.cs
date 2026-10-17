@@ -6,9 +6,15 @@ namespace CodeChroma.Shell;
 
 public sealed record ReleaseAsset(string Name, string BrowserDownloadUrl, string? Digest = null);
 
-public sealed record AssetMatch(string Name, string? Sha256);
+/// <summary>Native is a package this updater can apply; ElectronLegacy is an Electron installer only a human can run.</summary>
+public enum AssetKind { Native, ElectronLegacy }
 
-public sealed record UpdateInfo(string Version, string AssetName, string DownloadPath, string? Sha256, string? DownloadUrl, string? Notes);
+public sealed record AssetMatch(string Name, string? Sha256, AssetKind Kind = AssetKind.Native);
+
+public sealed record UpdateInfo(string Version, string AssetName, string DownloadPath, string? Sha256, string? DownloadUrl, string? Notes)
+{
+    public AssetKind Kind => AssetSelector.KindOf(AssetName);
+}
 
 public sealed class GitHubRateLimitException(string message, DateTimeOffset retryAt) : Exception(message)
 {
@@ -17,7 +23,17 @@ public sealed class GitHubRateLimitException(string message, DateTimeOffset retr
 
 public static partial class AssetSelector
 {
-    private static readonly Dictionary<ShellPlatform, string> Suffixes = new()
+    /// <summary>Velopack-built packages (CI renames them to these); the Windows/macOS ones are zips the updater swaps in.</summary>
+    private static readonly Dictionary<ShellPlatform, string> NativeSuffixes = new()
+    {
+        [new(ShellOs.MacOs, ShellArch.Arm64)] = "-osx-arm64.zip",
+        [new(ShellOs.MacOs, ShellArch.X64)] = "-osx-x64.zip",
+        [new(ShellOs.Windows, ShellArch.X64)] = "-win-x64.zip",
+        [new(ShellOs.Linux, ShellArch.X64)] = "-linux-x86_64.AppImage",
+    };
+
+    /// <summary>Electron installers stay selectable so a release that only carries them is reported, not hidden.</summary>
+    private static readonly Dictionary<ShellPlatform, string> LegacySuffixes = new()
     {
         [new(ShellOs.MacOs, ShellArch.Arm64)] = "-arm64.dmg",
         [new(ShellOs.MacOs, ShellArch.X64)] = "-x64.dmg",
@@ -30,12 +46,21 @@ public static partial class AssetSelector
 
     public static AssetMatch? Select(IReadOnlyList<ReleaseAsset> assets, ShellPlatform platform)
     {
-        if (!Suffixes.TryGetValue(platform, out var suffix)) return null;
-        var asset = assets.FirstOrDefault(a => a.Name.StartsWith("CodeChroma-", StringComparison.Ordinal)
-            && a.Name.EndsWith(suffix, StringComparison.Ordinal)
+        if (NativeSuffixes.TryGetValue(platform, out var native)
+            && assets.FirstOrDefault(a => IsCodeChroma(a.Name) && a.Name.EndsWith(native, StringComparison.Ordinal)) is { } nativeAsset)
+            return new AssetMatch(nativeAsset.Name, DigestHex(nativeAsset.Digest), AssetKind.Native);
+        if (!LegacySuffixes.TryGetValue(platform, out var legacy)) return null;
+        var asset = assets.FirstOrDefault(a => IsCodeChroma(a.Name) && a.Name.EndsWith(legacy, StringComparison.Ordinal)
             && (platform.Os != ShellOs.Windows || a.Name == "CodeChroma-Setup.exe" || a.Name.EndsWith("-x64-Setup.exe", StringComparison.Ordinal)));
-        return asset is null ? null : new AssetMatch(asset.Name, DigestHex(asset.Digest));
+        return asset is null ? null : new AssetMatch(asset.Name, DigestHex(asset.Digest), AssetKind.ElectronLegacy);
     }
+
+    public static AssetKind KindOf(string assetName) =>
+        NativeSuffixes.Values.Any(s => assetName.EndsWith(s, StringComparison.Ordinal)) ? AssetKind.Native
+            : LegacySuffixes.Values.Any(s => assetName.EndsWith(s, StringComparison.Ordinal)) ? AssetKind.ElectronLegacy
+            : AssetKind.Native;
+
+    private static bool IsCodeChroma(string name) => name.StartsWith("CodeChroma-", StringComparison.Ordinal);
 
     public static string? DigestHex(string? digest) =>
         digest is null ? null : DigestPattern().Match(digest) is { Success: true } m ? m.Groups[1].Value : null;
@@ -47,17 +72,27 @@ public sealed partial class UpdateChecker(HttpClient http, string repo = "gutzer
 {
     private readonly Func<DateTimeOffset> now = clock ?? (() => DateTimeOffset.UtcNow);
     private readonly string temp = tempDir ?? Path.GetTempPath();
+    private string? etag;
+    private string? cachedBody;
 
     public async Task<UpdateInfo?> CheckAsync(string currentVersion, ShellPlatform platform, Action<string>? onLatest = null, CancellationToken ct = default)
     {
-        using var response = await Send($"https://api.github.com/repos/{repo}/releases/latest", ct);
-        if (!response.IsSuccessStatusCode)
+        using var response = await Send($"https://api.github.com/repos/{repo}/releases/latest", ct, etag);
+        string body;
+        if (response.StatusCode == System.Net.HttpStatusCode.NotModified && cachedBody is not null) body = cachedBody;
+        else if (response.IsSuccessStatusCode)
+        {
+            body = await response.Content.ReadAsStringAsync(ct);
+            (etag, cachedBody) = (response.Headers.ETag?.Tag, response.Headers.ETag is null ? null : body);
+        }
+        else if (cachedBody is not null && await IsRateLimited(response)) body = cachedBody;
+        else
         {
             if (await IsRateLimited(response)) throw RateLimit(response);
             throw new HttpRequestException($"GitHub API responded {(int)response.StatusCode}");
         }
 
-        var (tag, notes, assets, stable) = Parse(await response.Content.ReadAsStringAsync(ct));
+        var (tag, notes, assets, stable) = Parse(body);
         if (!stable) return null;
         onLatest?.Invoke(tag);
         if (SemVer.CompareTags(tag, currentVersion) <= 0) return null;
@@ -66,13 +101,16 @@ public sealed partial class UpdateChecker(HttpClient http, string repo = "gutzer
             ?? throw new InvalidOperationException($"No installer for {platform.Os}/{platform.Arch}. Install manually from GitHub Releases.");
         var sha = match.Sha256 ?? await SidecarHex(match.Name, assets, ct);
         var url = assets.First(a => a.Name == match.Name).BrowserDownloadUrl;
+        if (!UpdateConstants.IsTrustedDownloadUrl(url, repo))
+            throw new InvalidOperationException($"The release asset URL is not a {repo} GitHub release download; refusing it. Install manually from GitHub Releases.");
         return new UpdateInfo(tag, match.Name, Path.Combine(temp, AssetSelector.SafeAssetName(match.Name)), sha, url, notes);
     }
 
-    private Task<HttpResponseMessage> Send(string url, CancellationToken ct)
+    private Task<HttpResponseMessage> Send(string url, CancellationToken ct, string? ifNoneMatch = null)
     {
         var request = new HttpRequestMessage(HttpMethod.Get, url);
-        request.Headers.UserAgent.ParseAdd("code-chroma-desktop");
+        request.Headers.UserAgent.ParseAdd(UpdateConstants.UserAgent);
+        if (ifNoneMatch is not null) request.Headers.TryAddWithoutValidation("If-None-Match", ifNoneMatch);
         return http.SendAsync(request, ct);
     }
 

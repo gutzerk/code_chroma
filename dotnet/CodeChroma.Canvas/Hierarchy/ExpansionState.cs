@@ -95,6 +95,19 @@ public sealed class ExpansionState
         return visible;
     }
 
+    /// <summary>The open and code-visible sets at this moment, so a Diff reveal can be undone exactly.</summary>
+    public Snapshot TakeSnapshot() => new(_expanded.ToList(), _codeVisible.ToList());
+
+    /// <summary>Puts a snapshot back: whatever a reveal opened closes, whatever the user had open stays.</summary>
+    public void Restore(Snapshot snapshot)
+    {
+        _expanded.Clear();
+        _expanded.AddRange(snapshot.Expanded);
+        _codeVisible.Clear();
+        _codeVisible.AddRange(snapshot.CodeVisible);
+        Commit();
+    }
+
     /// <summary>Re-reads the active workspace's snapshot (a workspace switch).</summary>
     public void Load()
     {
@@ -143,5 +156,5 @@ public sealed class ExpansionState
 
     private string Key => $"{Prefix}.{_workspace()}";
 
-    private sealed record Snapshot(List<string> Expanded, List<string> CodeVisible);
+    public sealed record Snapshot(List<string> Expanded, List<string> CodeVisible);
 }

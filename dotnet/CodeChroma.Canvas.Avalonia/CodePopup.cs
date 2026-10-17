@@ -6,6 +6,7 @@ using Avalonia.Layout;
 using Avalonia.Media;
 using Avalonia.VisualTree;
 using CodeChroma.Canvas.Hierarchy;
+using CodeChroma.Canvas.Diff;
 using CodeChroma.Canvas.Highlighting;
 
 namespace CodeChroma.Canvas.Avalonia;
@@ -24,9 +25,10 @@ public sealed class CodePopup : Grid
     private Size _sizeAtStart;
     private bool _dragging, _resizing, _moved;
 
-    public CodePopup(CodeSnippet snippet)
+    public CodePopup(CodeSnippet snippet, FunctionDiff? diff = null, Func<Task<bool>>? accept = null)
     {
         Snippet = snippet;
+        Diff = diff;
         Focusable = true;
         Backdrop = new Border { Background = new SolidColorBrush(Color.FromArgb(0x66, 0, 0, 0)) };
         Backdrop.PointerPressed += (_, e) => { if (ReferenceEquals(e.Source, Backdrop)) Close(); };
@@ -34,7 +36,21 @@ public sealed class CodePopup : Grid
         TitleText = new TextBlock { Text = TitleOf(snippet), FontWeight = FontWeight.SemiBold, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(10, 0) };
         CloseButton = new Button { Content = "x", Width = 28, Height = 24, HorizontalAlignment = HorizontalAlignment.Right, Margin = new Thickness(4) };
         CloseButton.Click += (_, _) => Close();
-        TitleBar = new Border { Background = Brushes.WhiteSmoke, Child = new Grid { Children = { TitleText, CloseButton } }, Height = 32 };
+        var titleGrid = new Grid { Children = { TitleText, CloseButton } };
+        if (diff is not null && accept is not null)
+        {
+            AcceptButton = new Button { Content = "Accept", Height = 24, HorizontalAlignment = HorizontalAlignment.Right, Margin = new Thickness(0, 4, 40, 4) };
+            AcceptButton.Click += async (_, _) =>
+            {
+                AcceptButton.IsEnabled = false;
+                AcceptButton.Content = "Accepting...";
+                var ok = await accept();
+                if (ok) Close();
+                else { AcceptButton.IsEnabled = true; AcceptButton.Content = "Accept"; }
+            };
+            titleGrid.Children.Add(AcceptButton);
+        }
+        TitleBar = new Border { Background = Brushes.WhiteSmoke, Child = titleGrid, Height = 32 };
         TitleBar.PointerPressed += OnTitlePressed;
         TitleBar.PointerMoved += OnTitleMoved;
         TitleBar.PointerReleased += (_, e) => { _dragging = false; e.Pointer.Capture(null); };
@@ -67,6 +83,8 @@ public sealed class CodePopup : Grid
     }
 
     public CodeSnippet Snippet { get; }
+    public FunctionDiff? Diff { get; }
+    public Button? AcceptButton { get; }
     public Border Backdrop { get; }
     public Border Panel { get; }
     public Border TitleBar { get; }
@@ -93,6 +111,20 @@ public sealed class CodePopup : Grid
     private void FillSource()
     {
         SourceBlock.Inlines!.Clear();
+        if (Diff is not null)
+        {
+            var lines = LineDiff.Compute(Diff.OriginalSource, Diff.ProposedSource);
+            for (var i = 0; i < lines.Count; i++)
+            {
+                var kind = lines[i].Kind;
+                SourceBlock.Inlines.Add(new Run($"{lines[i].Marker} {lines[i].Text}" + (i < lines.Count - 1 ? "\n" : ""))
+                {
+                    Background = DiffBrushes.For(kind),
+                    Foreground = Brushes.Black,
+                });
+            }
+            return;
+        }
         foreach (var token in SyntaxHighlighter.Tokenize(Snippet.Language, Snippet.Text))
             SourceBlock.Inlines.Add(new Run(token.Text) { Foreground = CodeBrushes.For(token.Kind) });
     }
@@ -133,4 +165,23 @@ public sealed class CodePopup : Grid
         Panel.Width = Math.Max(MinPanelWidth, _sizeAtStart.Width + delta.X);
         Panel.Height = Math.Max(MinPanelHeight, _sizeAtStart.Height + delta.Y);
     }
+}
+
+public static class DiffBrushes
+{
+    public static IBrush For(DiffLineKind kind) => kind switch
+    {
+        DiffLineKind.Added => new SolidColorBrush(Color.FromRgb(0xD4, 0xF4, 0xDD)),
+        DiffLineKind.Removed => new SolidColorBrush(Color.FromRgb(0xF8, 0xD7, 0xDA)),
+        _ => Brushes.Transparent,
+    };
+
+    /// <summary>The block-recolor border for a node's change status.</summary>
+    public static IBrush Border(string status) => status switch
+    {
+        "added" => Brushes.SeaGreen,
+        "modified" => Brushes.DarkOrange,
+        "removed" => Brushes.Firebrick,
+        _ => Brushes.Gray,
+    };
 }

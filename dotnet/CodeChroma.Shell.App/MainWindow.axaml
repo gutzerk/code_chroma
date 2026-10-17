@@ -1,6 +1,18 @@
-<Window xmlns="https://github.com/avaloniaui" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml" x:Class="CodeChroma.Shell.App.MainWindow" Title="CodeChroma" Width="1200" Height="800">
+<Window xmlns="https://github.com/avaloniaui" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml" x:Class="CodeChroma.Shell.App.MainWindow" Title="CodeChroma" Width="1400" Height="900" MinWidth="900" MinHeight="600">
   <DockPanel>
-    <StackPanel x:Name="TabStrip" DockPanel.Dock="Top" Orientation="Horizontal" Spacing="4" Margin="4" />
-    <Border Padding="16"><TextBlock x:Name="Placeholder" /></Border>
+    <Menu DockPanel.Dock="Top">
+      <MenuItem Header="_File">
+        <MenuItem x:Name="OpenRepoItem" Header="_Open Repo…" InputGesture="Ctrl+O" />
+        <MenuItem x:Name="NewTabItem" Header="_New Tab" InputGesture="Ctrl+T" />
+        <MenuItem x:Name="CloseTabItem" Header="_Close Tab" InputGesture="Ctrl+W" />
+      </MenuItem>
+      <MenuItem Header="_Help">
+        <MenuItem x:Name="AboutItem" Header="_About CodeChroma" />
+      </MenuItem>
+    </Menu>
+    <ScrollViewer DockPanel.Dock="Top" HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Disabled">
+      <StackPanel x:Name="TabStrip" Orientation="Horizontal" Spacing="2" Margin="4,2" />
+    </ScrollViewer>
+    <Grid x:Name="Content" />
   </DockPanel>
 </Window>

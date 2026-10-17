@@ -46,6 +46,7 @@ public sealed class SkillAgents
             "impact-changes_review_agent", Prompts.Render("impact_review_agent"), SkillTimeouts.Model,
             (root, _) => ImpactChangesPath(root), data => data is JsonObject, "codechroma_IMPACT_REVIEW_TIMEOUT_SECONDS",
             SkillTimeouts.For("impact-changes"), "review produced no valid impact-changes.json"));
+        yield return new KindSpec("epic-brief", Epics.EpicBrief.Spec());
     }
 
     public static string ImpactChangesPath(string repoRoot) => Path.Combine(repoRoot, ".codechroma", "impact-changes.json");

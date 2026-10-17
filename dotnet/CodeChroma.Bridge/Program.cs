@@ -56,6 +56,9 @@ TraceRoutes.Map(app);
 IssueRoutes.Map(app);
 DiagramTypeRoutes.Map(app);
 BranchRoutes.Map(app, repoRoot);
+LayoutRoutes.Map(app);
+EpicsRoutes.Map(app);
+ContextRoutes.Map(app);
 
 app.Run();
 

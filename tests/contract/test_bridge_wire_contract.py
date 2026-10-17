@@ -30,6 +30,7 @@ USER_STORE_ENV = {
     "codechroma_RUNTIME_SETTINGS_FILE": "runtime-environment.json",
     "codechroma_LLM_PROVIDERS_FILE": "llm-providers.json",
     "codechroma_LLM_CALL_SITE_SETTINGS_FILE": "llm-call-site-settings.json",
+    "codechroma_DIAGRAM_TYPES_DIR": "diagram-types",
 }
 SUPPORTED = {"real-engine", "diagram-resolver", "terminal-frames", "pty"}
 

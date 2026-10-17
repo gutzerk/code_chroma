@@ -1,4 +1,4 @@
-"""Dumps the code-defined LLM catalog (call sites, groups, adapters, transports) for the C# bridge.
+"""Dumps the code-defined catalogs (LLM call sites, adapters, diagram styles, providers) for C#.
 
 `python -m tests.contract.llm_catalog` rewrites tests/fixtures/bridge_contract/llm_catalog.json,
 which `CodeChroma.Bridge` embeds; `test_llm_catalog_snapshot.py` fails when the file drifts.
@@ -9,6 +9,11 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
+from codechroma.bridge.context_providers import CONTEXT_PROVIDERS
+from codechroma.bridge.overlays import OVERLAY_PROVIDERS
+from codechroma.bridge.review import REVIEW_AGENT_FACTORIES
+from codechroma.config import settings
+from codechroma.diagrams.styles import STYLES
 from codechroma.llm.call_sites import CALL_SITES, GROUPS, HIDDEN_GROUPS
 from codechroma.llm.cli_adapters import CLI_ADAPTERS
 from codechroma.llm.providers_store import KINDS, TRANSPORTS
@@ -42,6 +47,22 @@ def build_catalog() -> dict:
         "adapters": list(CLI_ADAPTERS),
         "transports": list(TRANSPORTS),
         "kinds": list(KINDS),
+        "diagram_styles": [
+            {
+                "id": style.id,
+                "label": style.label,
+                "description": style.description,
+                "overrides": style.overrides,
+            }
+            for style in STYLES.values()
+        ],
+        "context_providers": sorted(CONTEXT_PROVIDERS),
+        "overlay_providers": sorted(OVERLAY_PROVIDERS),
+        "review_agents": sorted(REVIEW_AGENT_FACTORIES),
+        "custom_diagrams": {
+            "type_id_pattern": settings.custom_diagrams.type_id_pattern,
+            "max_types": settings.custom_diagrams.max_types,
+        },
     }
 
 

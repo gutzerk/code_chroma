@@ -105,5 +105,83 @@
   "kinds": [
     "cli",
     "api"
-  ]
+  ],
+  "diagram_styles": [
+    {
+      "id": "boxes-arrows",
+      "label": "Boxes & arrows",
+      "description": "Plain boxes, optionally clustered into named groups, connected by labeled arrows. Fits most architecture/flow/dependency questions.",
+      "overrides": {
+        "supports_groups": true
+      }
+    },
+    {
+      "id": "dependency-graph",
+      "label": "Dependency graph",
+      "description": "Boxes and labeled arrows for imports/calls between modules or files. Cycles are expected and are kept, not cleaned up -- a dependency graph without them defeats the point.",
+      "overrides": {
+        "supports_groups": true,
+        "allow_self_relations": true
+      }
+    },
+    {
+      "id": "patterns-yellow-arrows",
+      "label": "Patterns (yellow arrows)",
+      "description": "Boxes and arrows tinted for the Design Patterns view's own relation styling.",
+      "overrides": {
+        "edge_style": {
+          "border-color": "var(--warning)"
+        }
+      }
+    },
+    {
+      "id": "impact-status-colors",
+      "label": "Impact (status colors)",
+      "description": "Boxes and arrows for a change-impact slice; node color follows plan status.",
+      "overrides": {
+        "edge_style": {}
+      }
+    },
+    {
+      "id": "layered-flow",
+      "label": "Layered flow",
+      "description": "A decomposed/layered look for a custom diagram grouped into named layers.",
+      "overrides": {
+        "supports_groups": true
+      }
+    },
+    {
+      "id": "state-machine",
+      "label": "State machine",
+      "description": "Boxes and arrows for a custom state-machine-shaped diagram; self-transitions are real data, kept rather than dropped.",
+      "overrides": {
+        "allow_self_relations": true
+      }
+    },
+    {
+      "id": "sequence",
+      "label": "Sequence",
+      "description": "A UML-style sequence view: participants arranged left-to-right, ordered messages flowing between them top-to-bottom. Authored relations become dedicated message elements laid out by time, not plain edges.",
+      "overrides": {
+        "supports_groups": false,
+        "allow_self_relations": true
+      }
+    }
+  ],
+  "context_providers": [
+    "epics",
+    "impact",
+    "patterns",
+    "sequence"
+  ],
+  "overlay_providers": [
+    "changes"
+  ],
+  "review_agents": [
+    "impact-changes"
+  ],
+  "custom_diagrams": {
+    "type_id_pattern": "^[a-z0-9][a-z0-9-]{0,63}$",
+    "max_types": 100
+  }
 }

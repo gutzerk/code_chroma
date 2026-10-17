@@ -19,6 +19,7 @@ builder.Services.AddSingleton<TraceConnections>();
 builder.Services.AddSingleton(UserPaths.FromEnvironment());
 builder.Services.AddSingleton<ProviderStore>();
 builder.Services.AddSingleton<CallSiteStore>();
+builder.Services.AddSingleton<DiagramLibrary>();
 builder.Services.AddSingleton(sp =>
 {
     var connections = sp.GetRequiredService<ConnectionManager>();
@@ -46,6 +47,7 @@ RuntimeRoutes.Map(app);
 LlmSettingsRoutes.Map(app);
 TraceRoutes.Map(app);
 IssueRoutes.Map(app);
+DiagramTypeRoutes.Map(app);
 
 app.Run();
 

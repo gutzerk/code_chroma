@@ -11,7 +11,7 @@ PACK_SH = ROOT / "distribution" / "velopack" / "pack.sh"
 PACK_PS1 = ROOT / "distribution" / "velopack" / "pack.ps1"
 VERSION = "1.2.3"
 
-# A stand-in for `vpk pack` that records its arguments and writes what Velopack 1.2 writes for the channel.
+# A stand-in for `vpk pack` that records its arguments and writes what Velopack 1.2 writes for the channel.  # noqa: E501
 FAKE_VPK = """#!/bin/sh
 printf '%s\\n' "$*" > "$VPK_LOG"
 out=""; channel=""
@@ -46,7 +46,10 @@ def _run_sh(tmp_path, publish, rid, version=VERSION, **env):
     base.update({"CODECROMA_VPK_BIN": str(fake), "VPK_LOG": str(tmp_path / "vpk.log"), **env})
     return subprocess.run(
         ["sh", str(PACK_SH), rid, version, str(publish), str(tmp_path / "out")],
-        env=base, text=True, capture_output=True, check=False,
+        env=base,
+        text=True,
+        capture_output=True,
+        check=False,
     )
 
 
@@ -62,7 +65,9 @@ needs_sh = pytest.mark.skipif(shutil.which("sh") is None, reason="requires a POS
         ("linux-x64", f"CodeChroma-{VERSION}-linux-x86_64.AppImage", b"appimage-bytes"),
     ],
 )
-def test_pack_sh_renames_the_vpk_output_and_writes_a_matching_sidecar(tmp_path, publish, rid, name, payload):
+def test_pack_sh_renames_the_vpk_output_and_writes_a_matching_sidecar(
+    tmp_path, publish, rid, name, payload
+):
     result = _run_sh(tmp_path, publish, rid)
 
     assert result.returncode == 0, result.stderr
@@ -72,8 +77,12 @@ def test_pack_sh_renames_the_vpk_output_and_writes_a_matching_sidecar(tmp_path, 
 
 
 @needs_sh
-@pytest.mark.parametrize(("rid", "expect_no_inst"), [("osx-arm64", True), ("osx-x64", True), ("linux-x64", False)])
-def test_pack_sh_passes_the_channel_runtime_and_skips_the_velopack_app_check(tmp_path, publish, rid, expect_no_inst):
+@pytest.mark.parametrize(
+    ("rid", "expect_no_inst"), [("osx-arm64", True), ("osx-x64", True), ("linux-x64", False)]
+)
+def test_pack_sh_passes_the_channel_runtime_and_skips_the_velopack_app_check(
+    tmp_path, publish, rid, expect_no_inst
+):
     _run_sh(tmp_path, publish, rid)
 
     args = (tmp_path / "vpk.log").read_text().split()
@@ -110,7 +119,9 @@ def test_pack_sh_rejects_an_unknown_runtime_and_a_missing_main_exe(tmp_path, pub
     assert (unknown.returncode, missing.returncode) == (2, 1)
 
 
-@pytest.mark.skipif(os.name != "nt" or shutil.which("powershell") is None, reason="requires Windows PowerShell")
+@pytest.mark.skipif(
+    os.name != "nt" or shutil.which("powershell") is None, reason="requires Windows PowerShell"
+)
 def test_pack_ps1_renames_the_setup_and_portable_zip_and_writes_sidecars(tmp_path):
     publish = tmp_path / "publish"
     publish.mkdir()
@@ -127,9 +138,25 @@ def test_pack_ps1_renames_the_setup_and_portable_zip_and_writes_sidecars(tmp_pat
     )
 
     result = subprocess.run(
-        ["powershell", "-NoProfile", "-ExecutionPolicy", "Bypass", "-File", str(PACK_PS1), "-Version", VERSION,
-         "-PublishDir", str(publish), "-OutDir", str(tmp_path / "out"), "-Vpk", str(fake)],
-        text=True, capture_output=True, check=False,
+        [
+            "powershell",
+            "-NoProfile",
+            "-ExecutionPolicy",
+            "Bypass",
+            "-File",
+            str(PACK_PS1),
+            "-Version",
+            VERSION,
+            "-PublishDir",
+            str(publish),
+            "-OutDir",
+            str(tmp_path / "out"),
+            "-Vpk",
+            str(fake),
+        ],
+        text=True,
+        capture_output=True,
+        check=False,
     )
 
     out = tmp_path / "out"
@@ -137,4 +164,6 @@ def test_pack_ps1_renames_the_setup_and_portable_zip_and_writes_sidecars(tmp_pat
     installer = out / f"CodeChroma-{VERSION}-win-x64-Installer.exe"
     update = out / f"CodeChroma-{VERSION}-win-x64.zip"
     assert installer.read_bytes().startswith(b"setup")
-    assert (out / f"{update.name}.sha256").read_text() == f"{hashlib.sha256(update.read_bytes()).hexdigest()}  {update.name}\n"
+    assert (
+        out / f"{update.name}.sha256"
+    ).read_text() == f"{hashlib.sha256(update.read_bytes()).hexdigest()}  {update.name}\n"

@@ -23,10 +23,10 @@ from pathlib import Path
 REPO = "gutzerk/code_chroma"
 
 # Target -> artifact glob; test_distribution_consistency.py guards drift from builder and workflow.
-# The first five are the Electron installers (still shipping); the ``dotnet-*`` targets are the C# app's
-# Velopack packages (distribution/velopack/pack.*). Their names avoid the Electron suffixes on purpose, so
-# installed Electron updaters (which select by suffix) never pick them up. ``dotnet-windows-x64`` is the
-# Setup for fresh installs and ``dotnet-windows-x64-update`` the zip the in-app updater swaps in; on macOS
+# The first five are the Electron installers (still shipping); the ``dotnet-*`` targets are the C# app's  # noqa: E501
+# Velopack packages (distribution/velopack/pack.*). Their names avoid the Electron suffixes on purpose, so  # noqa: E501
+# installed Electron updaters (which select by suffix) never pick them up. ``dotnet-windows-x64`` is the  # noqa: E501
+# Setup for fresh installs and ``dotnet-windows-x64-update`` the zip the in-app updater swaps in; on macOS  # noqa: E501
 # the zip (a CodeChroma.app) serves both, and on Linux the AppImage does. The C# app is verified by
 # SHA-256 only (no Sigstore), so ``sha256`` is the whole trust for those targets.
 PLATFORMS = [

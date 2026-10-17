@@ -40,6 +40,15 @@ public sealed class AnalyzerRegistry
     {
         yield return new PythonAnalyzer();
         yield return new TypeScriptAnalyzer();
+        yield return new GoAnalyzer();
+        yield return new JavaAnalyzer();
+        yield return new CSharpAnalyzer();
+        yield return new RustAnalyzer();
+        yield return new PhpAnalyzer();
+        yield return new RubyAnalyzer();
+        yield return new CAnalyzer();
+        yield return new CppAnalyzer();
+        yield return new YamlAnalyzer();
     }
 
     /// <summary>pathlib.PurePath.suffix of the final path component.</summary>

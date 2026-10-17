@@ -1,6 +1,6 @@
 # 016 - Remove Electron completely
 
-Status: Idea. This is the end state of plans 011-014: nothing in the shipped app depends on
+Status: Phase 0 measured (Windows only), go/no-go awaiting decision. This is the end state of plans 011-014: nothing in the shipped app depends on
 Electron, Chromium or Node at runtime. Electron (`desktop/`) stays the shipping app and the reference
 until every exit gate below is met. Nothing here is started beyond what plans 011-015 already built.
 
@@ -19,7 +19,43 @@ Built and merged on `integration/csharp-and-distribution`, none of it wired into
 | Shell logic | `dotnet/CodeChroma.Shell`, `.Shell.App` | Tab model, bridge manager, updater logic, stores. Window builds, never run on a display. |
 
 Measured so far: the graph core saves about 100 ms of a 3.6 s analyze, so speed alone does not justify
-the rewrite. Electron baselines (memory per tab, installer size, cold start) are NOT measured.
+the rewrite. Electron and WebView-shell baselines are in "Phase 0 results" below (Windows only).
+
+## Phase 0 results (2026-10-17, Windows 11 x64 only)
+
+Method: installed Electron 0.12.0 vs a throwaway Avalonia 11.3 + `WebView.Avalonia` 11.0.0.1 (WebView2)
+prototype, both loading the same frozen Python bridge (`dist/codechroma-bridge`) against small fixture repos
+(`tests/fixtures/*`). Cold start = process spawn until `#root` has >40 DOM nodes (read over CDP). Memory =
+summed working set of the whole process tree after settling (shared pages are counted per process, so treat
+it as an upper bound; private bytes are about 35% lower for both). Two runs each; the runs agree within ~10%.
+The Electron tabs were opened one after another in a running app; the prototype was started fresh with
+1/3/5 views (all views alive, like Electron's `WebContentsView`s).
+
+| Metric | Electron | C# + WebView2 | Delta |
+|---|---|---|---|
+| Cold start to first canvas | 5.2-5.6 s | 5.0-5.1 s | about equal (bridge-bound) |
+| RSS, 1 tab | 700-830 MB | 557-563 MB | -20 to -30% |
+| RSS, 3 tabs | 1.13-1.29 GB | 0.90-0.91 GB | about -20 to -30% |
+| RSS, 5 tabs | 1.61-1.73 GB | 1.25-1.26 GB | about -25% |
+| Per-tab bridge (Python, unchanged) | 88 MB | 87 MB | none; 440 MB of the 5-tab total either way |
+| Installer | 139 MB (NSIS 0.12.1, unsigned, includes the bridge) | not built; self-contained publish is 108 MB on disk / 44 MB zipped, plus the 68 MB bridge | est. 30-40% smaller |
+| Installed size | 450 MB | about 176 MB (shell 108 + bridge 68) | about -60% |
+
+Not measured: macOS and Linux (no hardware here), WKWebView/WebKitGTK behaviour, the Python bridge cold
+start on its own (about 4.75 s in a dev venv per earlier notes, which is what dominates cold start here).
+The prototype also showed that `WebView.Avalonia` needs an `app.manifest` with a supported-OS list or the
+native control host throws at startup. The C# shell reuses the same React canvas, so the canvas itself
+costs the same in both; the saving is Electron's own processes, not the work.
+
+### Go/no-go
+
+The gain from Phases 0-4 on Windows is real but modest: about a quarter less memory, a smaller install,
+and no change in startup, because both are limited by the Python bridge, which stays. It costs a new
+installer/updater/signing pipeline plus a migration release, and the only WebView component for Avalonia 11
+that supports all three OSes in the evidence so far is a community package (111k downloads, one publisher)
+that is unproven on macOS and Linux. Recommendation: **no-go on a full Electron removal for performance
+reasons alone**; go only if the driver is something the numbers do not capture (e.g. dropping the Node/
+Electron toolchain and Sigstore shim, or a single .NET codebase). Decision is the owner's.
 
 ## What "no Electron" requires
 

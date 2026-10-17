@@ -53,3 +53,7 @@ epics-preview.html
 .claude/plans/
 .claude/reports/
 verify_tmp*.cjs
+
+# .NET build output (dotnet/)
+dotnet/**/bin/
+dotnet/**/obj/

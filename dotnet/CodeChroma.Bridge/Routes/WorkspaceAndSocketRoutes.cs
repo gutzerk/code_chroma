@@ -7,20 +7,9 @@ using CodeChroma.Bridge.Workspaces;
 
 namespace CodeChroma.Bridge.Routes;
 
-/// <summary>Workspace status/activation, the live events socket, and the terminal socket's tagged error frames.</summary>
+/// <summary>Workspace status/activation and the live events socket; the terminal socket is TerminalRoutes.</summary>
 public static class WorkspaceAndSocketRoutes
 {
-    private const int UnknownAgentCloseCode = 4404;
-    private const int NotImplementedCloseCode = 1011;
-    private const string ErrorTag = "e";
-
-    private static readonly Dictionary<string, string[]> AllowedAgents = new()
-    {
-        ["shell"] = [OperatingSystem.IsWindows() ? "cmd.exe" : "/bin/bash"],
-        ["claude"] = ["claude"],
-        ["agent"] = [],
-    };
-
     public static void Map(WebApplication app, string repoRoot)
     {
         app.MapGet("/health", () => Results.Json(new Health("ok", repoRoot), BridgeJson.Default.Health));
@@ -58,27 +47,5 @@ public static class WorkspaceAndSocketRoutes
             finally { connections.Remove(socket); }
             return Results.Empty;
         });
-
-        app.Map("/ws/terminal", async (HttpContext context) =>
-        {
-            if (!context.WebSockets.IsWebSocketRequest) return Results.BadRequest();
-            using var socket = await context.WebSockets.AcceptWebSocketAsync();
-            var agent = context.Request.Query["agent"].ToString();
-            if (!AllowedAgents.TryGetValue(agent, out var argv))
-                await Fail(socket, $"unknown agent: {agent}", UnknownAgentCloseCode);
-            else if (argv.Length == 0)
-                await Fail(socket, $"no executable configured for agent: {agent}", UnknownAgentCloseCode);
-            else
-                await Fail(socket, "the PTY terminal host is not ported to the C# bridge yet", NotImplementedCloseCode);
-            return Results.Empty;
-        });
-    }
-
-    /// <summary>One error control frame (tag "e" + JSON) the client renders inline, then a distinct close code.</summary>
-    private static async Task Fail(WebSocket socket, string message, int code)
-    {
-        var frame = ErrorTag + new JsonObject { ["type"] = "error", ["message"] = message }.ToJsonString();
-        await socket.SendAsync(Encoding.UTF8.GetBytes(frame), WebSocketMessageType.Text, true, CancellationToken.None);
-        await socket.CloseOutputAsync((WebSocketCloseStatus)code, null, CancellationToken.None);
     }
 }

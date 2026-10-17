@@ -1,4 +1,4 @@
-# 011 - Distribution: download, install, update, build pipeline
+# 015 - Distribution: download, install, update, build pipeline
 
 Status: In progress (installers + CI stream done on this branch; updater/builder stream and docs pass pending)
 
@@ -90,4 +90,22 @@ Run anyway, Linux `chmod +x` / libfuse2). Mention `gh` for attestation verificat
 setup and checksum "directly from GitHub") - Windows now uses the manifest; add `--uninstall`.
 
 Stale `.claude/plans/*` (release-versioning, desktop-inapp-update, install-update-hardening,
-desktop-crossbuild): add a "superseded by 011" note or remove.
+desktop-crossbuild): add a "superseded by 015" note or remove.
+
+
+## Updater stream (merged)
+
+Implemented on the updater branch and now documented in `docs/architecture/desktop-app.md`
+("Updater behaviour added with the distribution work"): single constants module, download-URL
+validation, ETag cache for the GitHub rate limit, periodic + focus checks, skip-version and
+auto-download settings, Linux AppImage rollback (`.previous`), macOS swap-script rollback test, `.deb`
+message, installer cleanup, About entry and window-title version. Tests are table-driven; the three
+`updater*.test.ts` files stay separate because the install file mocks `fs/promises` and
+`child_process` module-wide.
+
+## Known gaps (for the planning doc)
+
+- Windows rollback is not implemented (NSIS in-place upgrade); needs a design (backup of the install dir or a versioned side-by-side install).
+- Windows artifact is still `CodeChroma-Setup.exe` (unversioned) because the workflow globs and manifest generator belong to the distribution stream; `selectAsset` already accepts `CodeChroma-<v>-x64-Setup.exe`, so a rename is safe on the updater side. Old installed updaters also match that name by suffix.
+- The updater does not yet prefer a previously downloaded `latest.json`; ETag plus cached release covers the rate limit.
+- Signing hooks (macOS notarization, Windows `signtoolOptions`) in `electron-builder.yml` were not added in this stream.

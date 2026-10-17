@@ -42,6 +42,33 @@ public sealed class WorkspaceRegistry : IDisposable
         lock (_lock) _roots[id] = (root, readOnly);
     }
 
+    /// <summary>Unloads a live workspace but keeps its registration, so the next access re-analyzes it.</summary>
+    public bool DropLive(string id)
+    {
+        if (id == Workspace.MainId) return false;
+        Workspace? workspace;
+        lock (_lock)
+        {
+            if (!_live.Remove(id, out workspace)) return false;
+            _touched.Remove(id);
+            _states.Remove(id);
+        }
+        workspace.Dispose();
+        return true;
+    }
+
+    /// <summary>Forgets a registration and unloads the workspace; main is never forgotten.</summary>
+    public void Unregister(string id)
+    {
+        if (id == Workspace.MainId) return;
+        DropLive(id);
+        lock (_lock)
+        {
+            _roots.Remove(id);
+            _states.Remove(id);
+        }
+    }
+
     /// <summary>The workspace for an id, brought up on first access; main for an unregistered id.</summary>
     public Workspace Get(string id)
     {

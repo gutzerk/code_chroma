@@ -9,6 +9,7 @@ public sealed class WorkspaceWatchers : IDisposable
     private readonly FileSystemWatcher _watcher;
     private readonly Debouncer _repo;
     private readonly Dictionary<string, Debouncer> _diagrams = [];
+    private readonly Debouncer _traces;
 
     public WorkspaceWatchers(Workspace workspace)
     {
@@ -16,6 +17,7 @@ public sealed class WorkspaceWatchers : IDisposable
         _repo = new Debouncer(TimeSpan.FromMilliseconds(BridgeLimits.RepoDebounceMs), OnRepoChange);
         foreach (var kind in Workspace.DiagramKinds)
             _diagrams[kind] = new Debouncer(TimeSpan.FromMilliseconds(BridgeLimits.WatcherDebounceMs), () => workspace.Emit(new JsonObject { ["type"] = kind }));
+        _traces = new Debouncer(TimeSpan.FromMilliseconds(BridgeLimits.WatcherDebounceMs), () => workspace.Emit(new JsonObject { ["type"] = "trace" }));
         _watcher = new FileSystemWatcher(workspace.Root)
         {
             IncludeSubdirectories = true,
@@ -38,6 +40,11 @@ public sealed class WorkspaceWatchers : IDisposable
             diagram.Trigger();
             return;
         }
+        if (parts is [".codechroma", "traces", _])
+        {
+            _traces.Trigger();
+            return;
+        }
         if (parts.Any(BridgeLimits.IgnoredDirs.Contains)) return;
         _repo.Trigger();
     }
@@ -55,6 +62,7 @@ public sealed class WorkspaceWatchers : IDisposable
         _watcher.EnableRaisingEvents = false;
         _watcher.Dispose();
         _repo.Dispose();
+        _traces.Dispose();
         foreach (var d in _diagrams.Values) d.Dispose();
     }
 }

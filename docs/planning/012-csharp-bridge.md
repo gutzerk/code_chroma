@@ -1,6 +1,6 @@
 # 012 — FastAPI bridge + WebSocket → ASP.NET Core (Plan 2)
 
-Status: **In progress** (wire contract built and green on both backends for graph, diagrams, workspaces and transport; the other 14 route modules are not ported).
+Status: **In progress** (wire contract green on both backends for graph, diagrams, workspaces, transport, assistant, runtime settings, llm settings, traces, issues, diagram types and branches; the graph is served by `CodeChroma.Core`).
 
 Target is .NET 8 (`net8.0`, the only SDK installed here; the original plan said .NET 10). Code lives in `dotnet/CodeChroma.Bridge` (+ `.Tests`). Nothing in Python was deleted; strangler rules apply.
 
@@ -80,3 +80,22 @@ Known differences: the repo watcher ignores the same directory names as the engi
 ## Removal candidates (nothing deleted yet)
 
 Only after the matching routes pass the shared contract against a real engine: `bridge/routes/{graph,events,workspaces}.py` and the graph part of `routes/diagrams.py` (path/delete/status/diagrams-status), `bridge/origin_guard.py`, `bridge/live.py`, `bridge/git_sync.py`, the corresponding `tests/unit/test_bridge_*` files whose cases moved into the contract, and finally `fastapi`, `uvicorn`, `websockets`, `watchfiles` (+ `pywinpty`, `pyte` once the terminal host is ported), `packaging/bridge.spec`. The contract runner and `scripts/dump_bridge_contract_snapshot.py` must stay until the Python bridge is gone.
+
+## Phase 5 progress (bridge finish)
+
+Contract runner additions (both backends): http `capture` + `{{var}}` substitution, `ws send`, and per-case empty machine-local stores (assistant/runtime/llm/diagram-types env vars; C# `UserPaths.Under`). New case files: `assistant`, `runtime`, `llm_settings`, `traces`, `issues`, `diagram_types`, `branches`. `llm_catalog.json` (call sites, adapters, diagram styles, provider names) is dumped from Python by `python -m tests.contract.llm_catalog`, embedded in `CodeChroma.Bridge`, and guarded by `tests/contract/test_llm_catalog_snapshot.py`.
+
+Engine: `CoreEngineFactory` analyzes with the Python analyzers (`python -m codechroma.analysis_export`, `CODECHROMA_PYTHON` picks the interpreter) and serves from `CodeChroma.Core`; reanalyze shells out for a delta of the changed files. With `CODECHROMA_PYTHON` set the whole contract runs on this real engine (the two `real-engine` cases then run too).
+
+| Route group | State |
+|---|---|
+| assistant (GET/PUT settings, test probe partial) | ported, contract |
+| runtime settings GET/PUT | ported, contract; `environment`, `cli/{name}`, `refresh`, `focus` not ported |
+| llm_settings (providers, call-sites, groups, models) | ported, contract; API-provider completion test not ported |
+| traces (list/get, trace-stream, trace-ingest, `trace` ping) | ported, contract |
+| issues (status, create via `gh`) | ported; validation contract only |
+| custom diagram types + custom/feature-plan paths/delete, diagrams/status custom entries | ported, contract; resolved GET payloads not ported |
+| branches (list, choices, open/create, close) | ported, contract; skills are not synced into branch worktrees |
+| not ported | agents, prs, canvas (GET/PATCH), recipes, diffs/change-cards/accept, epics, wiki_general, skill runners (`claude -p`), generate routes, resolvers, PTY terminal host |
+
+Results: `dotnet test dotnet/CodeChroma.Bridge.sln` 173 passed / 0 skipped with `CODECHROMA_PYTHON` set (170 passed, 1 skipped without); Python `tests/contract` 251 passed.

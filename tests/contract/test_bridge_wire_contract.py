@@ -17,9 +17,21 @@ from starlette.websockets import WebSocketDisconnect
 
 from codechroma.bridge.app import create_app
 from tests.conftest import FIXTURE_REPO, init_repo
-from tests.contract.bridge_contract import expectation_failures, load_cases
+from tests.contract.bridge_contract import (
+    expectation_failures,
+    load_cases,
+    select,
+    substitute_variables,
+)
 
 CASES = load_cases()
+USER_STORE_ENV = {
+    "codechroma_ASSISTANT_SETTINGS_FILE": "assistant-settings.json",
+    "codechroma_RUNTIME_SETTINGS_FILE": "runtime-environment.json",
+    "codechroma_LLM_PROVIDERS_FILE": "llm-providers.json",
+    "codechroma_LLM_CALL_SITE_SETTINGS_FILE": "llm-call-site-settings.json",
+    "codechroma_DIAGRAM_TYPES_DIR": "diagram-types",
+}
 SUPPORTED = {"real-engine", "diagram-resolver", "terminal-frames", "pty"}
 
 
@@ -62,7 +74,7 @@ class _Socket:
         return self.frames.get(timeout=timeout_s)
 
 
-def _run_http(client: TestClient, spec: dict, repo: str) -> list[str]:
+def _run_http(client: TestClient, spec: dict, repo: str, variables: dict) -> list[str]:
     request = spec["http"]
     response = client.request(
         request["method"],
@@ -79,6 +91,9 @@ def _run_http(client: TestClient, spec: dict, repo: str) -> list[str]:
         )
     if "json" in expect or "checks" in expect:
         failures.extend(expectation_failures(expect, response.json(), repo))
+    for name, path in spec.get("capture", {}).items():
+        values, _ = select(response.json(), path)
+        variables[name] = str(values[0]) if values else ""
     return failures
 
 
@@ -113,6 +128,9 @@ def _run_ws(
         sockets[spec["name"]] = _Socket(session)
         return []
     socket = sockets[spec["name"]]
+    if action == "send":
+        socket.session.send_json(spec["json"])
+        return []
     deadline = spec.get("timeout_ms", 8000) / 1000
     if action == "expect_close":
         kind, value = socket.next(deadline)
@@ -145,6 +163,15 @@ def _read_only(case: dict) -> bool:
     return all("http" in step and step["http"]["method"] == "GET" for step in case["steps"])
 
 
+@pytest.fixture
+def user_stores(tmp_path, monkeypatch):
+    """Points every machine-local settings store at an empty temp dir, so cases never share state."""
+    stores = tmp_path / "user-stores"
+    for env, name in USER_STORE_ENV.items():
+        monkeypatch.setenv(env, str(stores / name))
+    return stores
+
+
 @pytest.fixture(scope="module")
 def shared_bridges(tmp_path_factory):
     """One analyzed app per distinct repo spec, for cases that only issue GETs."""
@@ -169,7 +196,7 @@ def shared_bridges(tmp_path_factory):
 
 
 @pytest.mark.parametrize("case", CASES, ids=[case["id"] for case in CASES])
-def test_wire_contract(case, make_repo, make_bridge, shared_bridges):
+def test_wire_contract(case, make_repo, make_bridge, shared_bridges, user_stores):
     missing = set(case.get("requires", [])) - SUPPORTED
     if missing:
         pytest.skip(f"backend lacks {sorted(missing)}")
@@ -180,12 +207,14 @@ def test_wire_contract(case, make_repo, make_bridge, shared_bridges):
         shared_client = None
     failures: list[str] = []
     sockets: dict = {}
+    variables: dict[str, str] = {}
 
     with ExitStack() as stack:
         client = shared_client or stack.enter_context(TestClient(make_bridge(repo).app))
-        for number, step in enumerate(case["steps"], start=1):
+        for number, raw_step in enumerate(case["steps"], start=1):
+            step = substitute_variables(raw_step, variables)
             if "http" in step:
-                found = _run_http(client, step, str(repo))
+                found = _run_http(client, step, str(repo), variables)
             elif "fs" in step:
                 _run_fs(step, repo)
                 found = []

@@ -1,0 +1,56 @@
+{
+  "group": "runtime",
+  "sources": ["src/codechroma/bridge/routes/runtime.py", "src/codechroma/llm/runtime_settings.py"],
+  "repo": {"base": "sample_repo"},
+  "cases": [
+    {
+      "id": "defaults_are_served_when_nothing_is_saved",
+      "steps": [
+        {
+          "http": {"method": "GET", "path": "/runtime/settings"},
+          "expect": {"status": 200, "json": {"shell": null, "timeout_seconds": 10, "cli_paths": {}}}
+        }
+      ]
+    },
+    {
+      "id": "saved_settings_are_served_back",
+      "steps": [
+        {
+          "http": {"method": "PUT", "path": "/runtime/settings", "json": {"shell": "/bin/zsh", "timeout_seconds": 2.5, "cli_paths": {"claude": "/opt/bin/claude"}}},
+          "expect": {"status": 200, "json": {"shell": "/bin/zsh", "timeout_seconds": 2.5, "cli_paths": {"claude": "/opt/bin/claude"}}}
+        },
+        {
+          "http": {"method": "GET", "path": "/runtime/settings"},
+          "expect": {"status": 200, "json": {"shell": "/bin/zsh", "timeout_seconds": 2.5, "cli_paths": {"claude": "/opt/bin/claude"}}}
+        }
+      ]
+    },
+    {
+      "id": "an_invalid_save_is_refused_with_the_reason",
+      "steps": [
+        {
+          "http": {"method": "PUT", "path": "/runtime/settings", "json": {"timeout_seconds": 0}},
+          "expect": {"status": 400, "json": {"detail": "timeout_seconds must be between 0.1 and 60"}}
+        }
+      ]
+    },
+    {
+      "id": "a_blank_shell_is_refused",
+      "steps": [
+        {
+          "http": {"method": "PUT", "path": "/runtime/settings", "json": {"shell": "  "}},
+          "expect": {"status": 400, "json": {"detail": "shell must be a non-empty executable path or null"}}
+        }
+      ]
+    },
+    {
+      "id": "cli_paths_must_be_explicit_executable_paths",
+      "steps": [
+        {
+          "http": {"method": "PUT", "path": "/runtime/settings", "json": {"cli_paths": {"claude": "claude"}}},
+          "expect": {"status": 400, "json": {"detail": "cli_paths must map executable names to explicit executable paths"}}
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,31 @@
+{
+  "group": "issues",
+  "sources": ["src/codechroma/bridge/routes/issues.py"],
+  "repo": {"base": "sample_repo"},
+  "cases": [
+    {
+      "id": "status_names_the_target_repo_and_whether_gh_can_post",
+      "steps": [
+        {
+          "http": {"method": "GET", "path": "/issues/status"},
+          "expect": {"status": 200, "checks": [
+            {"path": "$.repo", "equals": "gutzerk/code_chroma"},
+            {"path": "$.can_post", "type": "boolean"}
+          ]}
+        }
+      ]
+    },
+    {
+      "id": "a_blank_title_is_refused",
+      "steps": [
+        {"http": {"method": "POST", "path": "/issues", "json": {"title": "   ", "body": "x"}}, "expect": {"status": 400, "json": {"detail": "title is required"}}}
+      ]
+    },
+    {
+      "id": "an_unknown_label_is_refused",
+      "steps": [
+        {"http": {"method": "POST", "path": "/issues", "json": {"title": "t", "label": "urgent"}}, "expect": {"status": 400, "json": {"detail": "unknown label: urgent"}}}
+      ]
+    }
+  ]
+}

@@ -19,6 +19,8 @@ public static class Fixtures
         return data;
     }
 
+    public static IEnumerable<object[]> RepoDataForAnalyzers() => Repos.Select(r => new object[] { r });
+
     public static readonly string FixturesDir = FindFixturesDir();
     public static readonly string GoldenDir = Path.Combine(FixturesDir, "graph_golden");
 

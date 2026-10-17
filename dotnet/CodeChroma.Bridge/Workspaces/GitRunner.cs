@@ -37,6 +37,36 @@ public static class GitRunner
 
     public static string? Run(string cwd, params string[] args) => Run(cwd, null, args);
 
+    /// <summary>Exit code, stdout and stderr of a git command; null when git could not be started or timed out.</summary>
+    public static (int ExitCode, string Stdout, string Stderr)? RunRaw(string cwd, params string[] args)
+    {
+        var info = new ProcessStartInfo("git")
+        {
+            WorkingDirectory = cwd,
+            RedirectStandardOutput = true,
+            RedirectStandardError = true,
+            StandardOutputEncoding = Encoding.UTF8,
+            StandardErrorEncoding = Encoding.UTF8,
+        };
+        foreach (var arg in args) info.ArgumentList.Add(arg);
+        try
+        {
+            using var process = Process.Start(info)!;
+            var stdout = process.StandardOutput.ReadToEndAsync();
+            var stderr = process.StandardError.ReadToEndAsync();
+            if (!process.WaitForExit(TimeSpan.FromSeconds(BridgeLimits.GitLongTimeoutSeconds)))
+            {
+                try { process.Kill(entireProcessTree: true); } catch (InvalidOperationException) { }
+                return null;
+            }
+            return (process.ExitCode, stdout.GetAwaiter().GetResult(), stderr.GetAwaiter().GetResult());
+        }
+        catch (Exception error) when (error is System.ComponentModel.Win32Exception or InvalidOperationException)
+        {
+            return null;
+        }
+    }
+
     /// <summary>Repo-relative paths from `git status --porcelain` output (renames report the new path).</summary>
     public static IEnumerable<string> PorcelainPaths(string status)
     {

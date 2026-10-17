@@ -20,15 +20,20 @@ builder.Services.AddSingleton(UserPaths.FromEnvironment());
 builder.Services.AddSingleton<ProviderStore>();
 builder.Services.AddSingleton<CallSiteStore>();
 builder.Services.AddSingleton<DiagramLibrary>();
+builder.Services.AddSingleton(new BranchManager(repoRoot));
 builder.Services.AddSingleton(sp =>
 {
     var connections = sp.GetRequiredService<ConnectionManager>();
-    return new WorkspaceRegistry(
+    var registry = new WorkspaceRegistry(
         repoRoot,
         sp.GetRequiredService<IEngineFactory>(),
         (key, message) => connections.BroadcastDetached(message, key),
         sp.GetRequiredService<TimeProvider>(),
         startWatchers: true);
+    var branches = sp.GetRequiredService<BranchManager>();
+    branches.Reconcile();
+    foreach (var record in branches.List()) registry.Register(record.Id, record.Worktree);
+    return registry;
 });
 builder.Services.AddHostedService<RegistryLifecycle>();
 builder.Services.AddCors();
@@ -48,6 +53,7 @@ LlmSettingsRoutes.Map(app);
 TraceRoutes.Map(app);
 IssueRoutes.Map(app);
 DiagramTypeRoutes.Map(app);
+BranchRoutes.Map(app, repoRoot);
 
 app.Run();
 

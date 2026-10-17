@@ -4,6 +4,7 @@ using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.Media;
 using CodeChroma.Canvas.Collision;
+using CodeChroma.Canvas.Diff;
 using CodeChroma.Canvas.Hierarchy;
 using CodeChroma.Canvas.Model;
 using CodeChroma.Canvas.Scene;
@@ -66,6 +67,7 @@ public sealed class HierarchyView : Control
     public DragOffsetStore DragOffsets { get; } = new();
     public HierarchyScene Scene => _scene;
     public CodeViewMode CodeMode { get; set; } = CodeViewMode.Popup;
+    private DiffOverlay? _diff;
     private TracePlayer? _trace;
     private int _lastFollowedStep = -1;
 
@@ -82,6 +84,23 @@ public sealed class HierarchyView : Control
             InvalidateVisual();
         }
     }
+
+    /// <summary>The Diff-toggle layers to draw: recolored borders, inline diffs and the change-card panels.</summary>
+    public DiffOverlay? Diff
+    {
+        get => _diff;
+        set
+        {
+            if (_diff is not null) _diff.Changed -= InvalidateVisual;
+            _diff = value;
+            if (_diff is not null) _diff.Changed += InvalidateVisual;
+            InvalidateVisual();
+        }
+    }
+
+    /// <summary>The change-card panels now on screen, each beside its (nearest visible) block.</summary>
+    public IReadOnlyList<ChangeCardPanel> ChangeCardPanels =>
+        _diff is { IsActive: true } d ? ChangeCardLayout.Place(d.AllCards, Expansion.NearestVisibleAncestor, id => _scene.Find(id) is { } b ? Offset(b).Rect : null) : Array.Empty<ChangeCardPanel>();
 
     /// <summary>What the trace overlay draws now: framed blocks and caller-to-callee edges, in canvas space.</summary>
     public (IReadOnlyList<TraceNodeMark> Nodes, IReadOnlyList<TraceEdgeMark> Edges) TraceMarks =>
@@ -353,15 +372,22 @@ public sealed class HierarchyView : Control
             var r = new Rect(cr.Left, cr.Top, cr.Width, cr.Height);
             var selected = Selection.IsSelected(box.Id);
             var fill = box.Item.DocOnly ? Brushes.WhiteSmoke : Brushes.White;
-            context.DrawRectangle(fill, new Pen(selected ? Brushes.DodgerBlue : Accent(box.Item.Level), selected ? 2.5 : 1.2), r, 8, 8);
+            var change = _diff?.StatusOf(box.Id);
+            var border = selected ? Brushes.DodgerBlue : change is not null ? DiffBrushes.Border(change) : Accent(box.Item.Level);
+            context.DrawRectangle(fill, new Pen(border, selected || change is not null ? 2.5 : 1.2), r, 8, 8);
             DrawHeader(context, box, r, typeface);
-            if (box.CodeOpen && _code?.Get(box.Id) is { } snippet)
+            if (box.CodeOpen)
             {
                 var body = new Rect(r.X + 8, r.Y + box.HeaderHeight, r.Width - 16, r.Height - box.HeaderHeight - 8);
                 using (context.PushClip(body))
-                    context.DrawText(CodeText.Format(snippet.Language, snippet.Text, 11, body.Width, body.Height), body.TopLeft);
+                {
+                    if (_diff?.DiffOf(box.Id) is { } diff) DrawDiff(context, diff, body);
+                    else if (_code?.Get(box.Id) is { } snippet) context.DrawText(CodeText.Format(snippet.Language, snippet.Text, 11, body.Width, body.Height), body.TopLeft);
+                }
             }
         }
+        foreach (var panel in ChangeCardPanels)
+            DrawChangeCards(context, panel);
         var (traceNodes, traceEdges) = TraceMarks;
         foreach (var edge in traceEdges)
             context.DrawLine(new Pen(edge.Error ? Brushes.Firebrick : Brushes.DarkOrange, edge.Active ? 3 : 1.5), new Point(edge.From.X, edge.From.Y), new Point(edge.To.X, edge.To.Y));
@@ -393,6 +419,35 @@ public sealed class HierarchyView : Control
             var br = new Rect(b.Left, b.Top, b.Width, b.Height);
             context.DrawRectangle(Brushes.WhiteSmoke, new Pen(Brushes.Gray, 1), br, 4, 4);
             context.DrawText(new FormattedText("</>", CultureInfo.InvariantCulture, FlowDirection.LeftToRight, new Typeface(CodeText.Mono), 10, Brushes.DimGray), new Point(br.X + 2, br.Y + 5));
+        }
+    }
+
+    private static void DrawDiff(DrawingContext context, FunctionDiff diff, Rect body)
+    {
+        var y = body.Y;
+        foreach (var line in LineDiff.Compute(diff.OriginalSource, diff.ProposedSource))
+        {
+            context.FillRectangle(DiffBrushes.For(line.Kind), new Rect(body.X, y, body.Width, 14));
+            context.DrawText(new FormattedText($"{line.Marker} {line.Text}", CultureInfo.InvariantCulture, FlowDirection.LeftToRight, new Typeface(CodeText.Mono), 11, Brushes.Black) { MaxTextWidth = body.Width, MaxTextHeight = 14 }, new Point(body.X, y));
+            y += 14;
+            if (y > body.Bottom) break;
+        }
+    }
+
+    private static void DrawChangeCards(DrawingContext context, ChangeCardPanel panel)
+    {
+        var r = new Rect(panel.Rect.Left, panel.Rect.Top, panel.Rect.Width, panel.Rect.Height);
+        var dashed = new Pen(Brushes.DarkOrange, 1.5, new DashStyle([4, 3], 0));
+        context.DrawLine(dashed, new Point(panel.From.X, panel.From.Y), new Point(panel.To.X, panel.To.Y));
+        context.DrawRectangle(Brushes.White, dashed, r, 6, 6);
+        var typeface = Typeface.Default;
+        context.DrawText(new FormattedText(panel.Title + (panel.AncestorHint ? " (changed inside here)" : ""), CultureInfo.InvariantCulture, FlowDirection.LeftToRight, typeface, 11, Brushes.DimGray) { MaxTextWidth = r.Width - 12, MaxTextHeight = 16 }, new Point(r.X + 8, r.Y + 6));
+        var y = r.Y + ChangeCardLayout.HeaderHeight;
+        foreach (var card in panel.Cards)
+        {
+            context.DrawText(new FormattedText($"{card.Kind}: {card.Text}", CultureInfo.InvariantCulture, FlowDirection.LeftToRight, typeface, 12, Brushes.Black) { MaxTextWidth = r.Width - 16, MaxTextHeight = 16 }, new Point(r.X + 8, y));
+            context.DrawText(new FormattedText(card.Meta, CultureInfo.InvariantCulture, FlowDirection.LeftToRight, typeface, 10, Brushes.Gray) { MaxTextWidth = r.Width - 16, MaxTextHeight = 14 }, new Point(r.X + 8, y + 17));
+            y += ChangeCardLayout.CardHeight;
         }
     }
 }

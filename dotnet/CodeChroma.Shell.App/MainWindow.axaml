@@ -7,6 +7,7 @@
         <MenuItem x:Name="CloseTabItem" Header="_Close Tab" InputGesture="Ctrl+W" />
       </MenuItem>
       <MenuItem Header="_Help">
+        <MenuItem x:Name="CheckUpdatesItem" Header="Check for _Updates…" />
         <MenuItem x:Name="AboutItem" Header="_About CodeChroma" />
       </MenuItem>
     </Menu>

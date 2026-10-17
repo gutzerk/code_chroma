@@ -16,6 +16,7 @@ public sealed partial class MainWindow : Window, IShellUi, ILauncherHost
     private readonly ShellController controller;
     private readonly TabModel tabs;
     private readonly string version;
+    private readonly UpdateHost updates;
     private bool shutDown;
 
     public MainWindow() : this([])
@@ -37,6 +38,9 @@ public sealed partial class MainWindow : Window, IShellUi, ILauncherHost
         OpenRepoItem.Click += (_, _) => controller.EnsureLauncherTabActive();
         NewTabItem.Click += (_, _) => controller.NewTab();
         CloseTabItem.Click += async (_, _) => { if (tabs.ActiveTab is { } active) await controller.CloseTabAsync(active.Id); };
+        updates = new UpdateHost(this, UserDataDir, version, () => tabs.Tabs.Select(t => (TabView)t.View), Close);
+        CheckUpdatesItem.Click += async (_, _) => await updates.CheckManuallyAsync();
+        Opened += (_, _) => updates.Start();
         AboutItem.Click += async (_, _) => await Dialogs.ShowAboutAsync(this, version);
         KeyDown += OnKeyDown;
         Closing += OnClosing;
@@ -81,6 +85,7 @@ public sealed partial class MainWindow : Window, IShellUi, ILauncherHost
         {
             case "open-workspace" when message.Id is not null: _ = controller.OpenWorkspaceTabAsync(tab.Id, message.Id); break;
             case "close-workspace" when message.Id is not null: _ = controller.CloseWorkspaceTabAsync(message.Id); break;
+            case "updates": _ = updates.HandleCallAsync(view, message); break;
             case "focus-tab": controller.FocusTab(tab.Id); break;
             case "close-project": _ = controller.CloseProjectAsync(tab.Id); break;
         }

@@ -46,6 +46,8 @@ try {
     check("desktop API is present", (await evalIn(canvas, "typeof window.codechromaDesktop?.openWorkspaceWindow")) === "function");
     const expected = `${repo.split(/[\\/]/).filter(Boolean).pop()} [Main] - CodeChroma ${version}`;
     check("window title carries project and version", title(child.pid) === expected, `got "${title(child.pid)}"`);
+    const updateState = await evalIn(canvas, "window.codechromaUpdates ? window.codechromaUpdates.state().then(s => JSON.stringify(s)) : 'missing'");
+    check("updates API answers over the message channel", typeof updateState === "string" && updateState.includes('"currentVersion"'), updateState);
     await evalIn(canvas, "window.codechromaDesktop.openWorkspaceWindow('pr-9')");
     const deadline = Date.now() + 15000;
     while (Date.now() < deadline && !(await canvases()).some((t) => t.url.includes("workspace=pr-9"))) await sleep(200);

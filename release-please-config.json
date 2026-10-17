@@ -11,7 +11,8 @@
         { "type": "json", "path": "web/package.json", "jsonpath": "$.version" },
         { "type": "json", "path": "web/package-lock.json", "jsonpath": "$.version" },
         { "type": "json", "path": "web/package-lock.json", "jsonpath": "$.packages[''].version" },
-        { "type": "toml", "path": "pyproject.toml", "jsonpath": "$.project.version" }
+        { "type": "toml", "path": "pyproject.toml", "jsonpath": "$.project.version" },
+        { "type": "xml", "path": "dotnet/CodeChroma.Shell.App/CodeChroma.Shell.App.csproj", "xpath": "//Project/PropertyGroup/Version" }
       ]
     }
   }

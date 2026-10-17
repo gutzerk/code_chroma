@@ -24,4 +24,14 @@ public class DesktopMessageTests
     {
         Assert.Null(DesktopMessage.Parse(json));
     }
+
+    [Theory]
+    [InlineData("""{"type":"updates","callId":"c1","method":"skip","arg":"2.0.0"}""", "c1", "skip", "2.0.0")]
+    [InlineData("""{"type":"updates","callId":"c2","method":"check"}""", "c2", "check", null)]
+    public void Update_calls_carry_a_call_id_a_method_and_an_optional_argument(string json, string callId, string method, string? arg)
+    {
+        var message = DesktopMessage.Parse(json);
+
+        Assert.Equal(new DesktopMessage("updates", null, callId, method, arg), message);
+    }
 }

@@ -19,6 +19,32 @@ public static class DesktopScript
             focusThisTab: function () { return post({ type: "focus-tab" }); },
             closeThisProject: function () { return post({ type: "close-project" }); }
           };
+          var pending = {}, listeners = [], nextCall = 0;
+          window.__ccUpdatesReply = function (id, ok, json) {
+            var call = pending[id]; delete pending[id];
+            if (!call) return;
+            if (ok) call.resolve(JSON.parse(json)); else call.reject(new Error(json));
+          };
+          window.__ccUpdatesPush = function (json) {
+            var state = JSON.parse(json);
+            listeners.slice().forEach(function (fn) { fn(state); });
+          };
+          function call(method, arg) {
+            return new Promise(function (resolve, reject) {
+              var id = "u" + (++nextCall);
+              pending[id] = { resolve: resolve, reject: reject };
+              post({ type: "updates", callId: id, method: method, arg: arg === undefined ? undefined : String(arg) });
+            });
+          }
+          window.codechromaUpdates = {
+            state: function () { return call("state"); },
+            check: function () { return call("check"); },
+            download: function () { return call("download"); },
+            restart: function () { return call("restart"); },
+            skip: function (version) { return call("skip", version); },
+            setAutoDownload: function (enabled) { return call("auto-download", enabled); },
+            subscribe: function (fn) { listeners.push(fn); return function () { listeners = listeners.filter(function (x) { return x !== fn; }); }; }
+          };
         })();
         """;
 }

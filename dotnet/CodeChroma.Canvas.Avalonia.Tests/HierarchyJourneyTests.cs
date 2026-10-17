@@ -419,6 +419,39 @@ public class HierarchyJourneyTests
     }
 
     [AvaloniaFact]
+    public void Clicking_a_block_body_while_its_code_is_open_neither_closes_it_nor_toggles_expansion()
+    {
+        var (window, _, view, _) = Open();
+        view.Expansion.Expand(Billing);
+        view.Expansion.ShowCode(Reporter);
+        Reveal(view, Reporter);
+
+        Click(window, Screen(view, Reporter));
+
+        Assert.True(view.Expansion.IsCodeVisible(Reporter));
+        Assert.False(view.Expansion.IsExpanded(Reporter));
+    }
+
+    [AvaloniaTheory]
+    [InlineData(RawInputModifiers.Control, true)]
+    [InlineData(RawInputModifiers.Meta, true)]
+    [InlineData(RawInputModifiers.None, false)]
+    [InlineData(RawInputModifiers.Shift, false)]
+    public void Only_Ctrl_or_Cmd_with_Z_undoes_a_move_plain_Z_and_other_modifiers_do_nothing(RawInputModifiers modifiers, bool undoes)
+    {
+        var (window, _, view, _) = Open();
+        var start = view.RectOf(Billing);
+        Drag(window, Screen(view, Billing), new Point(Screen(view, Billing).X + 120, Screen(view, Billing).Y + 50));
+        var moved = view.RectOf(Billing);
+        view.Focus();
+
+        window.KeyPress(Key.Z, modifiers, PhysicalKey.Z, "z");
+
+        Assert.NotEqual(start, moved);
+        Assert.Equal(undoes ? start : moved, view.RectOf(Billing));
+    }
+
+    [AvaloniaFact]
     public void Rendering_a_frame_with_nested_blocks_selection_inline_code_and_a_band_does_not_throw()
     {
         var (window, _, view, _) = Open();

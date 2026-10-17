@@ -10,6 +10,10 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <ProjectReference Include="..\CodeChroma.Core\CodeChroma.Core.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
     <Using Include="CodeChroma.Canvas.Geometry" />
     <Using Include="CodeChroma.Canvas.Connectors" />
     <Using Include="CodeChroma.Canvas.Collision" />
@@ -19,6 +23,9 @@
     <Using Include="CodeChroma.Canvas.State" />
     <Using Include="CodeChroma.Canvas.Catalog" />
     <Using Include="CodeChroma.Canvas.Highlighting" />
+    <Using Include="CodeChroma.Canvas.Hierarchy" />
+    <Using Include="CodeChroma.Canvas.Tracing" />
+    <Using Include="CodeChroma.Canvas.Diff" />
   </ItemGroup>
 
 </Project>

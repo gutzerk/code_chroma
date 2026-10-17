@@ -10,7 +10,7 @@ public sealed record GroupInfo(string Id, string Label, IReadOnlyList<string> Me
 /// <summary>The code-defined call sites, groups, adapters and transports, embedded from llm_catalog.json (dumped from Python).</summary>
 public static class LlmCatalog
 {
-    private static readonly JsonObject Data = Load();
+    public static JsonObject Data { get; } = Load();
 
     public static IReadOnlyList<CallSiteInfo> CallSites { get; } = Data["call_sites"]!.AsArray()
         .Select(n => new CallSiteInfo(Str(n!, "id"), Str(n!, "label"), Str(n!, "capability"), Str(n!, "description"))).ToList();
@@ -18,6 +18,8 @@ public static class LlmCatalog
     public static IReadOnlyList<GroupInfo> Groups { get; } = Data["groups"]!.AsArray()
         .Select(n => new GroupInfo(Str(n!, "id"), Str(n!, "label"),
             n!["members"]!.AsArray().Select(m => m!.GetValue<string>()).ToList(), n["hidden"]!.GetValue<bool>())).ToList();
+
+    public static IReadOnlyList<string> Strings(string key) => Data[key]!.AsArray().Select(n => n!.GetValue<string>()).ToList();
 
     public static IReadOnlyList<string> Adapters { get; } = Strings("adapters");
 
@@ -33,8 +35,6 @@ public static class LlmCatalog
     public static string? GroupOf(string callSiteId) => Groups.FirstOrDefault(g => g.Members.Contains(callSiteId))?.Id;
 
     private static string Str(JsonNode node, string key) => node[key]!.GetValue<string>();
-
-    private static List<string> Strings(string key) => Data[key]!.AsArray().Select(n => n!.GetValue<string>()).ToList();
 
     private static JsonObject Load()
     {

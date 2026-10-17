@@ -54,6 +54,9 @@ TraceRoutes.Map(app);
 IssueRoutes.Map(app);
 DiagramTypeRoutes.Map(app);
 BranchRoutes.Map(app, repoRoot);
+CanvasRoutes.Map(app);
+RecipeRoutes.Map(app);
+DiffRoutes.Map(app);
 
 app.Run();
 

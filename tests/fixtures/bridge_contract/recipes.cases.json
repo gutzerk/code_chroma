@@ -1,0 +1,555 @@
+{
+  "group": "recipes",
+  "sources": [
+    "src/codechroma/bridge/routes/recipes.py",
+    "src/codechroma/canvas/recipes.py"
+  ],
+  "repo": {
+    "base": "sample_repo"
+  },
+  "cases": [
+    {
+      "id": "an_unknown_recipe_is_a_404",
+      "steps": [
+        {
+          "http": {
+            "method": "POST",
+            "path": "/repos/main/recipes/not-a-recipe/run"
+          },
+          "expect": {
+            "status": 404,
+            "json": {
+              "detail": "unknown recipe: 'not-a-recipe'"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "running_a_recipe_projects_its_nodes_and_edges_onto_the_canvas",
+      "steps": [
+        {
+          "fs": "write",
+          "path": ".codechroma/diagrams/impact/impact.json",
+          "text": "{\"nodes\": [{\"id\": \"n1\", \"name\": \"Auth\", \"node_id\": \"component::src\"}, {\"id\": \"n2\", \"name\": \"Db\", \"node_id\": \"component::src\"}], \"relations\": [{\"from\": \"n1\", \"to\": \"n2\", \"label\": \"reads\"}]}"
+        },
+        {
+          "http": {
+            "method": "POST",
+            "path": "/repos/main/recipes/impact/run"
+          },
+          "expect": {
+            "status": 200,
+            "checks": [
+              {
+                "path": "$.ok",
+                "equals": true
+              },
+              {
+                "path": "$.batch_id",
+                "type": "string"
+              },
+              {
+                "path": "$.affected",
+                "count": 3
+              },
+              {
+                "path": "$.diagnostics.dropped_count",
+                "equals": 0
+              },
+              {
+                "path": "$.diagnostics.dropped",
+                "count": 0
+              },
+              {
+                "path": "$.diagnostics.shown",
+                "equals": 0
+              },
+              {
+                "path": "$.diagnostics.truncated",
+                "equals": false
+              }
+            ]
+          },
+          "capture": {
+            "first": "$.id_map.n0",
+            "second": "$.id_map.n1"
+          }
+        },
+        {
+          "http": {
+            "method": "GET",
+            "path": "/repos/main/canvas"
+          },
+          "expect": {
+            "status": 200,
+            "checks": [
+              {
+                "path": "$.elements['{{first}}'].label",
+                "equals": "Auth"
+              },
+              {
+                "path": "$.elements['{{first}}'].layer",
+                "equals": "impact"
+              },
+              {
+                "path": "$.elements['{{first}}'].render",
+                "equals": "impact"
+              },
+              {
+                "path": "$.elements['{{first}}'].created_by",
+                "equals": "ai"
+              },
+              {
+                "path": "$.elements['{{first}}'].meta.recipe_key",
+                "equals": "n1"
+              },
+              {
+                "path": "$.elements['{{second}}'].label",
+                "equals": "Db"
+              },
+              {
+                "path": "$.edges..label",
+                "contains": "reads"
+              },
+              {
+                "path": "$.edges",
+                "count": 1
+              },
+              {
+                "path": "$.elements",
+                "count": 2
+              }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "a_second_run_keeps_a_user_moved_position_and_changes_nothing_else",
+      "steps": [
+        {
+          "fs": "write",
+          "path": ".codechroma/diagrams/impact/impact.json",
+          "text": "{\"nodes\": [{\"id\": \"n1\", \"name\": \"Auth\", \"node_id\": \"component::src\"}], \"relations\": []}"
+        },
+        {
+          "http": {
+            "method": "POST",
+            "path": "/repos/main/recipes/impact/run"
+          },
+          "expect": {
+            "status": 200
+          },
+          "capture": {
+            "id": "$.id_map.n0"
+          }
+        },
+        {
+          "http": {
+            "method": "PATCH",
+            "path": "/repos/main/canvas",
+            "json": {
+              "ops": [
+                {
+                  "op": "update_element",
+                  "id": "{{id}}",
+                  "position": {
+                    "x": 99,
+                    "y": 5
+                  }
+                }
+              ]
+            }
+          },
+          "expect": {
+            "status": 200,
+            "checks": [
+              {
+                "path": "$.ok",
+                "equals": true
+              }
+            ]
+          }
+        },
+        {
+          "fs": "write",
+          "path": ".codechroma/diagrams/impact/impact.json",
+          "text": "{\"nodes\": [{\"id\": \"n1\", \"name\": \"Auth renamed\", \"node_id\": \"component::src\"}], \"relations\": []}"
+        },
+        {
+          "http": {
+            "method": "POST",
+            "path": "/repos/main/recipes/impact/run"
+          },
+          "expect": {
+            "status": 200,
+            "json": {
+              "ok": true,
+              "batch_id": {
+                "$any": true
+              },
+              "id_map": {},
+              "affected": [
+                "{{id}}"
+              ],
+              "diagnostics": {
+                "dropped": [],
+                "dropped_count": 0,
+                "shown": 0,
+                "truncated": false
+              }
+            }
+          }
+        },
+        {
+          "http": {
+            "method": "GET",
+            "path": "/repos/main/canvas"
+          },
+          "expect": {
+            "status": 200,
+            "checks": [
+              {
+                "path": "$.elements['{{id}}'].position.x",
+                "equals": 99
+              },
+              {
+                "path": "$.elements['{{id}}'].label",
+                "equals": "Auth renamed"
+              },
+              {
+                "path": "$.elements",
+                "count": 1
+              }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "a_node_dropped_from_the_diagram_leaves_the_canvas_but_a_user_note_stays",
+      "steps": [
+        {
+          "fs": "write",
+          "path": ".codechroma/diagrams/impact/impact.json",
+          "text": "{\"nodes\": [{\"id\": \"n1\", \"name\": \"Auth\", \"node_id\": \"component::src\"}, {\"id\": \"n2\", \"name\": \"Db\", \"node_id\": \"component::src\"}], \"relations\": [{\"from\": \"n1\", \"to\": \"n2\"}]}"
+        },
+        {
+          "http": {
+            "method": "POST",
+            "path": "/repos/main/recipes/impact/run"
+          },
+          "expect": {
+            "status": 200
+          }
+        },
+        {
+          "http": {
+            "method": "PATCH",
+            "path": "/repos/main/canvas",
+            "json": {
+              "ops": [
+                {
+                  "op": "add_note",
+                  "label": "mine",
+                  "layer": "impact",
+                  "created_by": "user"
+                }
+              ]
+            }
+          },
+          "expect": {
+            "status": 200,
+            "checks": [
+              {
+                "path": "$.ok",
+                "equals": true
+              }
+            ]
+          }
+        },
+        {
+          "fs": "write",
+          "path": ".codechroma/diagrams/impact/impact.json",
+          "text": "{\"nodes\": [], \"relations\": []}"
+        },
+        {
+          "http": {
+            "method": "POST",
+            "path": "/repos/main/recipes/impact/run"
+          },
+          "expect": {
+            "status": 200,
+            "checks": [
+              {
+                "path": "$.ok",
+                "equals": true
+              }
+            ]
+          }
+        },
+        {
+          "http": {
+            "method": "GET",
+            "path": "/repos/main/canvas"
+          },
+          "expect": {
+            "status": 200,
+            "checks": [
+              {
+                "path": "$.elements",
+                "count": 1
+              },
+              {
+                "path": "$.elements..label",
+                "contains": "mine"
+              },
+              {
+                "path": "$.edges",
+                "count": 0
+              }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "an_edge_change_updates_in_place_and_a_removed_edge_is_deleted",
+      "steps": [
+        {
+          "fs": "write",
+          "path": ".codechroma/diagrams/impact/impact.json",
+          "text": "{\"nodes\": [{\"id\": \"n1\", \"name\": \"A\", \"node_id\": \"component::src\"}, {\"id\": \"n2\", \"name\": \"B\", \"node_id\": \"component::src\"}], \"relations\": [{\"from\": \"n1\", \"to\": \"n2\", \"label\": \"one\"}]}"
+        },
+        {
+          "http": {
+            "method": "POST",
+            "path": "/repos/main/recipes/impact/run"
+          },
+          "expect": {
+            "status": 200
+          }
+        },
+        {
+          "fs": "write",
+          "path": ".codechroma/diagrams/impact/impact.json",
+          "text": "{\"nodes\": [{\"id\": \"n1\", \"name\": \"A\", \"node_id\": \"component::src\"}, {\"id\": \"n2\", \"name\": \"B\", \"node_id\": \"component::src\"}], \"relations\": [{\"from\": \"n1\", \"to\": \"n2\", \"label\": \"two\"}]}"
+        },
+        {
+          "http": {
+            "method": "POST",
+            "path": "/repos/main/recipes/impact/run"
+          },
+          "expect": {
+            "status": 200,
+            "checks": [
+              {
+                "path": "$.ok",
+                "equals": true
+              },
+              {
+                "path": "$.affected",
+                "count": 3
+              }
+            ]
+          }
+        },
+        {
+          "http": {
+            "method": "GET",
+            "path": "/repos/main/canvas"
+          },
+          "expect": {
+            "status": 200,
+            "checks": [
+              {
+                "path": "$.edges..label",
+                "equals": [
+                  "two"
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "fs": "write",
+          "path": ".codechroma/diagrams/impact/impact.json",
+          "text": "{\"nodes\": [{\"id\": \"n1\", \"name\": \"A\", \"node_id\": \"component::src\"}, {\"id\": \"n2\", \"name\": \"B\", \"node_id\": \"component::src\"}], \"relations\": []}"
+        },
+        {
+          "http": {
+            "method": "POST",
+            "path": "/repos/main/recipes/impact/run"
+          },
+          "expect": {
+            "status": 200,
+            "checks": [
+              {
+                "path": "$.ok",
+                "equals": true
+              }
+            ]
+          }
+        },
+        {
+          "http": {
+            "method": "GET",
+            "path": "/repos/main/canvas"
+          },
+          "expect": {
+            "status": 200,
+            "checks": [
+              {
+                "path": "$.edges",
+                "count": 0
+              },
+              {
+                "path": "$.elements",
+                "count": 2
+              }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "a_refresh_larger_than_the_mass_delete_guard_is_reconciled",
+      "steps": [
+        {
+          "fs": "write",
+          "path": ".codechroma/diagrams/impact/impact.json",
+          "text": "{\"nodes\": [{\"id\": \"n0\", \"name\": \"Node 0\", \"node_id\": \"component::src\"}, {\"id\": \"n1\", \"name\": \"Node 1\", \"node_id\": \"component::src\"}, {\"id\": \"n2\", \"name\": \"Node 2\", \"node_id\": \"component::src\"}, {\"id\": \"n3\", \"name\": \"Node 3\", \"node_id\": \"component::src\"}, {\"id\": \"n4\", \"name\": \"Node 4\", \"node_id\": \"component::src\"}, {\"id\": \"n5\", \"name\": \"Node 5\", \"node_id\": \"component::src\"}, {\"id\": \"n6\", \"name\": \"Node 6\", \"node_id\": \"component::src\"}, {\"id\": \"n7\", \"name\": \"Node 7\", \"node_id\": \"component::src\"}, {\"id\": \"n8\", \"name\": \"Node 8\", \"node_id\": \"component::src\"}, {\"id\": \"n9\", \"name\": \"Node 9\", \"node_id\": \"component::src\"}, {\"id\": \"n10\", \"name\": \"Node 10\", \"node_id\": \"component::src\"}, {\"id\": \"n11\", \"name\": \"Node 11\", \"node_id\": \"component::src\"}, {\"id\": \"n12\", \"name\": \"Node 12\", \"node_id\": \"component::src\"}, {\"id\": \"n13\", \"name\": \"Node 13\", \"node_id\": \"component::src\"}, {\"id\": \"n14\", \"name\": \"Node 14\", \"node_id\": \"component::src\"}, {\"id\": \"n15\", \"name\": \"Node 15\", \"node_id\": \"component::src\"}, {\"id\": \"n16\", \"name\": \"Node 16\", \"node_id\": \"component::src\"}, {\"id\": \"n17\", \"name\": \"Node 17\", \"node_id\": \"component::src\"}, {\"id\": \"n18\", \"name\": \"Node 18\", \"node_id\": \"component::src\"}, {\"id\": \"n19\", \"name\": \"Node 19\", \"node_id\": \"component::src\"}, {\"id\": \"n20\", \"name\": \"Node 20\", \"node_id\": \"component::src\"}, {\"id\": \"n21\", \"name\": \"Node 21\", \"node_id\": \"component::src\"}, {\"id\": \"n22\", \"name\": \"Node 22\", \"node_id\": \"component::src\"}, {\"id\": \"n23\", \"name\": \"Node 23\", \"node_id\": \"component::src\"}, {\"id\": \"n24\", \"name\": \"Node 24\", \"node_id\": \"component::src\"}], \"relations\": []}"
+        },
+        {
+          "http": {
+            "method": "POST",
+            "path": "/repos/main/recipes/impact/run"
+          },
+          "expect": {
+            "status": 200,
+            "checks": [
+              {
+                "path": "$.ok",
+                "equals": true
+              }
+            ]
+          }
+        },
+        {
+          "fs": "write",
+          "path": ".codechroma/diagrams/impact/impact.json",
+          "text": "{\"nodes\": [{\"id\": \"n0\", \"name\": \"Node 0\", \"node_id\": \"component::src\"}, {\"id\": \"n1\", \"name\": \"Node 1\", \"node_id\": \"component::src\"}], \"relations\": []}"
+        },
+        {
+          "http": {
+            "method": "POST",
+            "path": "/repos/main/recipes/impact/run"
+          },
+          "expect": {
+            "status": 200,
+            "checks": [
+              {
+                "path": "$.ok",
+                "equals": true
+              }
+            ]
+          }
+        },
+        {
+          "http": {
+            "method": "GET",
+            "path": "/repos/main/canvas"
+          },
+          "expect": {
+            "status": 200,
+            "checks": [
+              {
+                "path": "$.elements",
+                "count": 2
+              }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "a_dangling_relation_is_reported_softly_and_does_not_fail_the_run",
+      "steps": [
+        {
+          "fs": "write",
+          "path": ".codechroma/diagrams/impact/impact.json",
+          "text": "{\"nodes\": [{\"id\": \"n1\", \"name\": \"Auth\", \"node_id\": \"component::src\"}], \"relations\": [{\"from\": \"n1\", \"to\": \"ghost\"}]}"
+        },
+        {
+          "http": {
+            "method": "POST",
+            "path": "/repos/main/recipes/impact/run"
+          },
+          "expect": {
+            "status": 200,
+            "checks": [
+              {
+                "path": "$.ok",
+                "equals": true
+              },
+              {
+                "path": "$.diagnostics.dropped_count",
+                "equals": 1
+              },
+              {
+                "path": "$.diagnostics.dropped..reason",
+                "equals": [
+                  "dangling_endpoint"
+                ]
+              }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "an_empty_diagram_runs_to_an_empty_layer",
+      "steps": [
+        {
+          "http": {
+            "method": "POST",
+            "path": "/repos/main/recipes/impact/run"
+          },
+          "expect": {
+            "status": 200,
+            "checks": [
+              {
+                "path": "$.ok",
+                "equals": true
+              },
+              {
+                "path": "$.affected",
+                "count": 0
+              },
+              {
+                "path": "$.diagnostics.dropped_count",
+                "equals": 0
+              }
+            ]
+          }
+        },
+        {
+          "http": {
+            "method": "GET",
+            "path": "/repos/main/canvas"
+          },
+          "expect": {
+            "status": 200,
+            "checks": [
+              {
+                "path": "$.elements",
+                "count": 0
+              }
+            ]
+          }
+        }
+      ]
+    }
+  ]
+}

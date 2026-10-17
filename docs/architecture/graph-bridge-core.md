@@ -361,3 +361,13 @@ so live saves are cheap. Exercised by
 ## C# bridge status (docs/planning/012)
 
 `dotnet/CodeChroma.Bridge` is a partial ASP.NET Core port that replays the same `tests/fixtures/bridge_contract` cases as this Python bridge; the Python bridge remains the reference and is not removed. Its graph comes from `CodeChroma.Core` fed by the in-process C# analyzers (`CodeChroma.Core/Analyzers`, `NativeAnalysisExporter`, default); `CODECHROMA_ANALYZERS=python` shells out to `python -m codechroma.analysis_export` (also used by `tests/graph_golden.py`) as fallback and parity oracle (see 011, Phase 5). See 012 for the ported/unported route table.
+
+### C# route table: canvas, recipes, diffs
+
+| Route | C# file | Notes |
+|---|---|---|
+| `GET/PATCH /repos/{id}/canvas` | `Routes/CanvasRoutes.cs`, `Stores/CanvasDocument.cs`, `Stores/ApplyBatch.cs`, `Stores/CanvasWrite.cs` | Same `canvas-core.json` + `diagrams/<layer>/projection.json` split and `apply_batch` validation as `canvas/`; one lock per workspace; emits the `canvas` ping with `batch_id`. |
+| `POST /repos/{id}/recipes/{recipe}/run` | `Routes/RecipeRoutes.cs`, `Stores/Recipes.cs` | Needs an `IDiagramResolver`; the default `RawDiagramResolver` serves the stored artifact, so resolver-side drops (id-less nodes, node_id attach) are not reported until the resolver port replaces it. |
+| `GET /repos/{id}/diff`, `GET /repos/{id}/change-cards`, `POST /repos/{id}/diff/{node}/accept` | `Routes/DiffRoutes.cs`, `Workspaces/{GitTree,FunctionDiffs,ChangeCards,GitAccept,LineDiff}.cs` | Old-side symbols come from `IOldSymbolParser` (default: the Python analysis exporter run over a scratch copy of the base bytes), so function-level diffs need `CODECHROMA_PYTHON`; those contract cases carry `requires: real-engine`. |
+
+Known gaps: no `canvas` watcher backstop ping for files written outside `PATCH /canvas`; `DiffBase` ignores a stored `base_ref` (agent/PR workspaces diff against the merge-base with the integration branch).

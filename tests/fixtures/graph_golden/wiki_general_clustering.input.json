@@ -1,0 +1,692 @@
+{
+ "schema_version": 1,
+ "files": [
+  {
+   "path": ".gremlins.yaml",
+   "symbols": [
+    {
+     "id": ".gremlins.yaml::module::.gremlins",
+     "file_path": ".gremlins.yaml",
+     "kind": "module",
+     "name": "gremlins",
+     "qualified_name": ".gremlins",
+     "start_line": 1,
+     "end_line": 2,
+     "language": "yaml",
+     "parent_symbol_id": null,
+     "references": [],
+     "qualified_references": [],
+     "assigned_identifiers": [],
+     "imports": {},
+     "body_statements": [],
+     "docstring": null,
+     "is_exported": false
+    }
+   ]
+  },
+  {
+   "path": ".github/workflows/ci.yml",
+   "symbols": [
+    {
+     "id": ".github/workflows/ci.yml::module::.github.workflows.ci",
+     "file_path": ".github/workflows/ci.yml",
+     "kind": "module",
+     "name": "ci",
+     "qualified_name": ".github.workflows.ci",
+     "start_line": 1,
+     "end_line": 6,
+     "language": "yaml",
+     "parent_symbol_id": null,
+     "references": [],
+     "qualified_references": [],
+     "assigned_identifiers": [],
+     "imports": {},
+     "body_statements": [],
+     "docstring": null,
+     "is_exported": false
+    },
+    {
+     "id": ".github/workflows/ci.yml::class::test",
+     "file_path": ".github/workflows/ci.yml",
+     "kind": "class",
+     "name": "test",
+     "qualified_name": "test",
+     "start_line": 4,
+     "end_line": 6,
+     "language": "yaml",
+     "parent_symbol_id": ".github/workflows/ci.yml::module::.github.workflows.ci",
+     "references": [],
+     "qualified_references": [],
+     "assigned_identifiers": [],
+     "imports": {},
+     "body_statements": [],
+     "docstring": null,
+     "is_exported": false
+    }
+   ]
+  },
+  {
+   "path": "billing/invoice.py",
+   "symbols": [
+    {
+     "id": "billing/invoice.py::module::billing.invoice",
+     "file_path": "billing/invoice.py",
+     "kind": "module",
+     "name": "invoice",
+     "qualified_name": "billing.invoice",
+     "start_line": 1,
+     "end_line": 6,
+     "language": "python",
+     "parent_symbol_id": null,
+     "references": [],
+     "qualified_references": [],
+     "assigned_identifiers": [],
+     "imports": {},
+     "body_statements": [],
+     "docstring": "Invoice helpers, sharing the billing/ folder with service.py.",
+     "is_exported": false
+    },
+    {
+     "id": "billing/invoice.py::function::invoice_id",
+     "file_path": "billing/invoice.py",
+     "kind": "function",
+     "name": "invoice_id",
+     "qualified_name": "invoice_id",
+     "start_line": 4,
+     "end_line": 5,
+     "language": "python",
+     "parent_symbol_id": "billing/invoice.py::module::billing.invoice",
+     "references": [],
+     "qualified_references": [],
+     "assigned_identifiers": [],
+     "imports": {},
+     "body_statements": [
+      {
+       "type": "return_statement",
+       "start_line": 5,
+       "end_line": 5
+      }
+     ],
+     "docstring": null,
+     "is_exported": false
+    }
+   ]
+  },
+  {
+   "path": "billing/service.py",
+   "symbols": [
+    {
+     "id": "billing/service.py::module::billing.service",
+     "file_path": "billing/service.py",
+     "kind": "module",
+     "name": "service",
+     "qualified_name": "billing.service",
+     "start_line": 1,
+     "end_line": 7,
+     "language": "python",
+     "parent_symbol_id": null,
+     "references": [],
+     "qualified_references": [],
+     "assigned_identifiers": [],
+     "imports": {
+      "MAX_RETRIES": "consts.values"
+     },
+     "body_statements": [],
+     "docstring": "Billing service functions.",
+     "is_exported": false
+    },
+    {
+     "id": "billing/service.py::function::charge",
+     "file_path": "billing/service.py",
+     "kind": "function",
+     "name": "charge",
+     "qualified_name": "charge",
+     "start_line": 5,
+     "end_line": 6,
+     "language": "python",
+     "parent_symbol_id": "billing/service.py::module::billing.service",
+     "references": [],
+     "qualified_references": [],
+     "assigned_identifiers": [],
+     "imports": {},
+     "body_statements": [
+      {
+       "type": "return_statement",
+       "start_line": 6,
+       "end_line": 6
+      }
+     ],
+     "docstring": null,
+     "is_exported": false
+    }
+   ]
+  },
+  {
+   "path": "billing/reports/detail.py",
+   "symbols": [
+    {
+     "id": "billing/reports/detail.py::module::billing.reports.detail",
+     "file_path": "billing/reports/detail.py",
+     "kind": "module",
+     "name": "detail",
+     "qualified_name": "billing.reports.detail",
+     "start_line": 1,
+     "end_line": 6,
+     "language": "python",
+     "parent_symbol_id": null,
+     "references": [],
+     "qualified_references": [],
+     "assigned_identifiers": [],
+     "imports": {},
+     "body_statements": [],
+     "docstring": "Report detail, sharing billing/reports/ with summary.py.",
+     "is_exported": false
+    },
+    {
+     "id": "billing/reports/detail.py::function::detail",
+     "file_path": "billing/reports/detail.py",
+     "kind": "function",
+     "name": "detail",
+     "qualified_name": "detail",
+     "start_line": 4,
+     "end_line": 5,
+     "language": "python",
+     "parent_symbol_id": "billing/reports/detail.py::module::billing.reports.detail",
+     "references": [],
+     "qualified_references": [],
+     "assigned_identifiers": [],
+     "imports": {},
+     "body_statements": [
+      {
+       "type": "return_statement",
+       "start_line": 5,
+       "end_line": 5
+      }
+     ],
+     "docstring": null,
+     "is_exported": false
+    }
+   ]
+  },
+  {
+   "path": "billing/reports/summary.py",
+   "symbols": [
+    {
+     "id": "billing/reports/summary.py::module::billing.reports.summary",
+     "file_path": "billing/reports/summary.py",
+     "kind": "module",
+     "name": "summary",
+     "qualified_name": "billing.reports.summary",
+     "start_line": 1,
+     "end_line": 6,
+     "language": "python",
+     "parent_symbol_id": null,
+     "references": [],
+     "qualified_references": [],
+     "assigned_identifiers": [],
+     "imports": {},
+     "body_statements": [],
+     "docstring": "Report summary -- its own component, same top-level dir as billing/.",
+     "is_exported": false
+    },
+    {
+     "id": "billing/reports/summary.py::function::summarize",
+     "file_path": "billing/reports/summary.py",
+     "kind": "function",
+     "name": "summarize",
+     "qualified_name": "summarize",
+     "start_line": 4,
+     "end_line": 5,
+     "language": "python",
+     "parent_symbol_id": "billing/reports/summary.py::module::billing.reports.summary",
+     "references": [],
+     "qualified_references": [],
+     "assigned_identifiers": [],
+     "imports": {},
+     "body_statements": [
+      {
+       "type": "return_statement",
+       "start_line": 5,
+       "end_line": 5
+      }
+     ],
+     "docstring": null,
+     "is_exported": false
+    }
+   ]
+  },
+  {
+   "path": "consts/values.py",
+   "symbols": [
+    {
+     "id": "consts/values.py::module::consts.values",
+     "file_path": "consts/values.py",
+     "kind": "module",
+     "name": "values",
+     "qualified_name": "consts.values",
+     "start_line": 1,
+     "end_line": 4,
+     "language": "python",
+     "parent_symbol_id": null,
+     "references": [],
+     "qualified_references": [],
+     "assigned_identifiers": [],
+     "imports": {},
+     "body_statements": [],
+     "docstring": "Alone in its own folder -- imported but never called, joins billing/ via import fallback only.",
+     "is_exported": false
+    },
+    {
+     "id": "consts/values.py::variable::MAX_RETRIES",
+     "file_path": "consts/values.py",
+     "kind": "variable",
+     "name": "MAX_RETRIES",
+     "qualified_name": "consts.values.MAX_RETRIES",
+     "start_line": 3,
+     "end_line": 3,
+     "language": "python",
+     "parent_symbol_id": "consts/values.py::module::consts.values",
+     "references": [],
+     "qualified_references": [],
+     "assigned_identifiers": [],
+     "imports": {},
+     "body_statements": [],
+     "docstring": null,
+     "is_exported": false
+    }
+   ]
+  },
+  {
+   "path": "misc/helper.py",
+   "symbols": [
+    {
+     "id": "misc/helper.py::module::misc.helper",
+     "file_path": "misc/helper.py",
+     "kind": "module",
+     "name": "helper",
+     "qualified_name": "misc.helper",
+     "start_line": 1,
+     "end_line": 7,
+     "language": "python",
+     "parent_symbol_id": null,
+     "references": [],
+     "qualified_references": [],
+     "assigned_identifiers": [],
+     "imports": {
+      "charge": "billing.service"
+     },
+     "body_statements": [],
+     "docstring": "Alone in its own folder -- joins billing/ via call-graph majority, not a folder default.",
+     "is_exported": false
+    },
+    {
+     "id": "misc/helper.py::function::do_it",
+     "file_path": "misc/helper.py",
+     "kind": "function",
+     "name": "do_it",
+     "qualified_name": "do_it",
+     "start_line": 5,
+     "end_line": 6,
+     "language": "python",
+     "parent_symbol_id": "misc/helper.py::module::misc.helper",
+     "references": [
+      "charge"
+     ],
+     "qualified_references": [],
+     "assigned_identifiers": [],
+     "imports": {},
+     "body_statements": [
+      {
+       "type": "return_statement",
+       "start_line": 6,
+       "end_line": 6
+      }
+     ],
+     "docstring": null,
+     "is_exported": false
+    }
+   ]
+  },
+  {
+   "path": "misc/testdata/fixture.yaml",
+   "symbols": [
+    {
+     "id": "misc/testdata/fixture.yaml::module::misc.testdata.fixture",
+     "file_path": "misc/testdata/fixture.yaml",
+     "kind": "module",
+     "name": "fixture",
+     "qualified_name": "misc.testdata.fixture",
+     "start_line": 1,
+     "end_line": 2,
+     "language": "yaml",
+     "parent_symbol_id": null,
+     "references": [],
+     "qualified_references": [],
+     "assigned_identifiers": [],
+     "imports": {},
+     "body_statements": [],
+     "docstring": null,
+     "is_exported": false
+    }
+   ]
+  },
+  {
+   "path": "orphan/isolated.py",
+   "symbols": [
+    {
+     "id": "orphan/isolated.py::module::orphan.isolated",
+     "file_path": "orphan/isolated.py",
+     "kind": "module",
+     "name": "isolated",
+     "qualified_name": "orphan.isolated",
+     "start_line": 1,
+     "end_line": 6,
+     "language": "python",
+     "parent_symbol_id": null,
+     "references": [],
+     "qualified_references": [],
+     "assigned_identifiers": [],
+     "imports": {},
+     "body_statements": [],
+     "docstring": "Completely isolated -- no call, no import, in or out. No signal can ever place this file.",
+     "is_exported": false
+    },
+    {
+     "id": "orphan/isolated.py::function::standalone",
+     "file_path": "orphan/isolated.py",
+     "kind": "function",
+     "name": "standalone",
+     "qualified_name": "standalone",
+     "start_line": 4,
+     "end_line": 5,
+     "language": "python",
+     "parent_symbol_id": "orphan/isolated.py::module::orphan.isolated",
+     "references": [],
+     "qualified_references": [],
+     "assigned_identifiers": [],
+     "imports": {},
+     "body_statements": [
+      {
+       "type": "return_statement",
+       "start_line": 5,
+       "end_line": 5
+      }
+     ],
+     "docstring": null,
+     "is_exported": false
+    }
+   ]
+  },
+  {
+   "path": "shipping/service.py",
+   "symbols": [
+    {
+     "id": "shipping/service.py::module::shipping.service",
+     "file_path": "shipping/service.py",
+     "kind": "module",
+     "name": "service",
+     "qualified_name": "shipping.service",
+     "start_line": 1,
+     "end_line": 6,
+     "language": "python",
+     "parent_symbol_id": null,
+     "references": [],
+     "qualified_references": [],
+     "assigned_identifiers": [],
+     "imports": {},
+     "body_statements": [],
+     "docstring": "Shipping service -- fully unconnected to billing/, becomes its own solo container.",
+     "is_exported": false
+    },
+    {
+     "id": "shipping/service.py::function::ship",
+     "file_path": "shipping/service.py",
+     "kind": "function",
+     "name": "ship",
+     "qualified_name": "ship",
+     "start_line": 4,
+     "end_line": 5,
+     "language": "python",
+     "parent_symbol_id": "shipping/service.py::module::shipping.service",
+     "references": [],
+     "qualified_references": [],
+     "assigned_identifiers": [],
+     "imports": {},
+     "body_statements": [
+      {
+       "type": "return_statement",
+       "start_line": 5,
+       "end_line": 5
+      }
+     ],
+     "docstring": null,
+     "is_exported": false
+    }
+   ]
+  },
+  {
+   "path": "shipping/tracking.py",
+   "symbols": [
+    {
+     "id": "shipping/tracking.py::module::shipping.tracking",
+     "file_path": "shipping/tracking.py",
+     "kind": "module",
+     "name": "tracking",
+     "qualified_name": "shipping.tracking",
+     "start_line": 1,
+     "end_line": 6,
+     "language": "python",
+     "parent_symbol_id": null,
+     "references": [],
+     "qualified_references": [],
+     "assigned_identifiers": [],
+     "imports": {},
+     "body_statements": [],
+     "docstring": "Shipping tracking, sharing shipping/ with service.py.",
+     "is_exported": false
+    },
+    {
+     "id": "shipping/tracking.py::function::track",
+     "file_path": "shipping/tracking.py",
+     "kind": "function",
+     "name": "track",
+     "qualified_name": "track",
+     "start_line": 4,
+     "end_line": 5,
+     "language": "python",
+     "parent_symbol_id": "shipping/tracking.py::module::shipping.tracking",
+     "references": [],
+     "qualified_references": [],
+     "assigned_identifiers": [],
+     "imports": {},
+     "body_statements": [
+      {
+       "type": "return_statement",
+       "start_line": 5,
+       "end_line": 5
+      }
+     ],
+     "docstring": null,
+     "is_exported": false
+    }
+   ]
+  },
+  {
+   "path": "solo_a/a.py",
+   "symbols": [
+    {
+     "id": "solo_a/a.py::module::solo_a.a",
+     "file_path": "solo_a/a.py",
+     "kind": "module",
+     "name": "a",
+     "qualified_name": "solo_a.a",
+     "start_line": 1,
+     "end_line": 7,
+     "language": "python",
+     "parent_symbol_id": null,
+     "references": [],
+     "qualified_references": [],
+     "assigned_identifiers": [],
+     "imports": {
+      "helper_b": "solo_b.b"
+     },
+     "body_statements": [],
+     "docstring": "Alone in its own folder, tied only to solo_b/b.py -- merges with it by aggregate traffic.",
+     "is_exported": false
+    },
+    {
+     "id": "solo_a/a.py::function::helper_a",
+     "file_path": "solo_a/a.py",
+     "kind": "function",
+     "name": "helper_a",
+     "qualified_name": "helper_a",
+     "start_line": 5,
+     "end_line": 6,
+     "language": "python",
+     "parent_symbol_id": "solo_a/a.py::module::solo_a.a",
+     "references": [
+      "helper_b"
+     ],
+     "qualified_references": [],
+     "assigned_identifiers": [],
+     "imports": {},
+     "body_statements": [
+      {
+       "type": "return_statement",
+       "start_line": 6,
+       "end_line": 6
+      }
+     ],
+     "docstring": null,
+     "is_exported": false
+    }
+   ]
+  },
+  {
+   "path": "solo_b/b.py",
+   "symbols": [
+    {
+     "id": "solo_b/b.py::module::solo_b.b",
+     "file_path": "solo_b/b.py",
+     "kind": "module",
+     "name": "b",
+     "qualified_name": "solo_b.b",
+     "start_line": 1,
+     "end_line": 6,
+     "language": "python",
+     "parent_symbol_id": null,
+     "references": [],
+     "qualified_references": [],
+     "assigned_identifiers": [],
+     "imports": {},
+     "body_statements": [],
+     "docstring": "Alone in its own folder, tied only to solo_a/a.py.",
+     "is_exported": false
+    },
+    {
+     "id": "solo_b/b.py::function::helper_b",
+     "file_path": "solo_b/b.py",
+     "kind": "function",
+     "name": "helper_b",
+     "qualified_name": "helper_b",
+     "start_line": 4,
+     "end_line": 5,
+     "language": "python",
+     "parent_symbol_id": "solo_b/b.py::module::solo_b.b",
+     "references": [],
+     "qualified_references": [],
+     "assigned_identifiers": [],
+     "imports": {},
+     "body_statements": [
+      {
+       "type": "return_statement",
+       "start_line": 5,
+       "end_line": 5
+      }
+     ],
+     "docstring": null,
+     "is_exported": false
+    }
+   ]
+  }
+ ],
+ "import_resolutions": {
+  "billing/service.py": {
+   "consts.values": "consts/values.py"
+  },
+  "misc/helper.py": {
+   "billing.service": "billing/service.py"
+  },
+  "solo_a/a.py": {
+   "solo_b.b": "solo_b/b.py"
+  }
+ },
+ "summaries": {
+  "component::.gremlins.yaml": "Component `.gremlins.yaml`: level=component; source=.gremlins.yaml",
+  "dir::.github": "System `.github`: level=system; source=.github",
+  "dir::.github/workflows": "Pillar `workflows`: level=pillar; source=.github/workflows",
+  "component::.github/workflows/ci.yml": "Component `ci.yml`: level=component; source=.github/workflows/ci.yml",
+  ".github/workflows/ci.yml::class::test": "Service `test`: level=service; source=.github/workflows/ci.yml",
+  "dir::billing": "System `billing`: level=system; source=billing",
+  "component::billing/invoice.py": "Component `invoice.py`: level=component; source=billing/invoice.py",
+  "service::billing/invoice.py::functions": "Service `Module Functions`: level=service; source=billing/invoice.py",
+  "billing/invoice.py::function::invoice_id": "Function `invoice_id`: level=function; source=billing/invoice.py",
+  "logicblock::billing/invoice.py::function::invoice_id::0": "Logic block `Step 1`: level=logic_block; source=billing/invoice.py:5-5",
+  "code::logicblock::billing/invoice.py::function::invoice_id::0": "Code `billing/invoice.py:5-5`: level=code; source=billing/invoice.py:5-5",
+  "component::billing/service.py": "Component `service.py`: level=component; source=billing/service.py",
+  "service::billing/service.py::functions": "Service `Module Functions`: level=service; source=billing/service.py",
+  "billing/service.py::function::charge": "Function `charge`: level=function; source=billing/service.py",
+  "logicblock::billing/service.py::function::charge::0": "Logic block `Step 1`: level=logic_block; source=billing/service.py:6-6",
+  "code::logicblock::billing/service.py::function::charge::0": "Code `billing/service.py:6-6`: level=code; source=billing/service.py:6-6",
+  "dir::billing/reports": "Pillar `reports`: level=pillar; source=billing/reports",
+  "component::billing/reports/detail.py": "Component `detail.py`: level=component; source=billing/reports/detail.py",
+  "service::billing/reports/detail.py::functions": "Service `Module Functions`: level=service; source=billing/reports/detail.py",
+  "billing/reports/detail.py::function::detail": "Function `detail`: level=function; source=billing/reports/detail.py",
+  "logicblock::billing/reports/detail.py::function::detail::0": "Logic block `Step 1`: level=logic_block; source=billing/reports/detail.py:5-5",
+  "code::logicblock::billing/reports/detail.py::function::detail::0": "Code `billing/reports/detail.py:5-5`: level=code; source=billing/reports/detail.py:5-5",
+  "component::billing/reports/summary.py": "Component `summary.py`: level=component; source=billing/reports/summary.py",
+  "service::billing/reports/summary.py::functions": "Service `Module Functions`: level=service; source=billing/reports/summary.py",
+  "billing/reports/summary.py::function::summarize": "Function `summarize`: level=function; source=billing/reports/summary.py",
+  "logicblock::billing/reports/summary.py::function::summarize::0": "Logic block `Step 1`: level=logic_block; source=billing/reports/summary.py:5-5",
+  "code::logicblock::billing/reports/summary.py::function::summarize::0": "Code `billing/reports/summary.py:5-5`: level=code; source=billing/reports/summary.py:5-5",
+  "dir::consts": "System `consts`: level=system; source=consts",
+  "component::consts/values.py": "Component `values.py`: level=component; source=consts/values.py",
+  "dir::misc": "System `misc`: level=system; source=misc",
+  "component::misc/helper.py": "Component `helper.py`: level=component; source=misc/helper.py",
+  "service::misc/helper.py::functions": "Service `Module Functions`: level=service; source=misc/helper.py",
+  "misc/helper.py::function::do_it": "Function `do_it`: level=function; source=misc/helper.py; calls=charge",
+  "logicblock::misc/helper.py::function::do_it::0": "Logic block `Step 1`: level=logic_block; source=misc/helper.py:6-6",
+  "code::logicblock::misc/helper.py::function::do_it::0": "Code `misc/helper.py:6-6`: level=code; source=misc/helper.py:6-6",
+  "dir::misc/testdata": "Pillar `testdata`: level=pillar; source=misc/testdata",
+  "component::misc/testdata/fixture.yaml": "Component `fixture.yaml`: level=component; source=misc/testdata/fixture.yaml",
+  "dir::orphan": "System `orphan`: level=system; source=orphan",
+  "component::orphan/isolated.py": "Component `isolated.py`: level=component; source=orphan/isolated.py",
+  "service::orphan/isolated.py::functions": "Service `Module Functions`: level=service; source=orphan/isolated.py",
+  "orphan/isolated.py::function::standalone": "Function `standalone`: level=function; source=orphan/isolated.py",
+  "logicblock::orphan/isolated.py::function::standalone::0": "Logic block `Step 1`: level=logic_block; source=orphan/isolated.py:5-5",
+  "code::logicblock::orphan/isolated.py::function::standalone::0": "Code `orphan/isolated.py:5-5`: level=code; source=orphan/isolated.py:5-5",
+  "dir::shipping": "System `shipping`: level=system; source=shipping",
+  "component::shipping/service.py": "Component `service.py`: level=component; source=shipping/service.py",
+  "service::shipping/service.py::functions": "Service `Module Functions`: level=service; source=shipping/service.py",
+  "shipping/service.py::function::ship": "Function `ship`: level=function; source=shipping/service.py",
+  "logicblock::shipping/service.py::function::ship::0": "Logic block `Step 1`: level=logic_block; source=shipping/service.py:5-5",
+  "code::logicblock::shipping/service.py::function::ship::0": "Code `shipping/service.py:5-5`: level=code; source=shipping/service.py:5-5",
+  "component::shipping/tracking.py": "Component `tracking.py`: level=component; source=shipping/tracking.py",
+  "service::shipping/tracking.py::functions": "Service `Module Functions`: level=service; source=shipping/tracking.py",
+  "shipping/tracking.py::function::track": "Function `track`: level=function; source=shipping/tracking.py",
+  "logicblock::shipping/tracking.py::function::track::0": "Logic block `Step 1`: level=logic_block; source=shipping/tracking.py:5-5",
+  "code::logicblock::shipping/tracking.py::function::track::0": "Code `shipping/tracking.py:5-5`: level=code; source=shipping/tracking.py:5-5",
+  "dir::solo_a": "System `solo_a`: level=system; source=solo_a",
+  "component::solo_a/a.py": "Component `a.py`: level=component; source=solo_a/a.py",
+  "service::solo_a/a.py::functions": "Service `Module Functions`: level=service; source=solo_a/a.py",
+  "solo_a/a.py::function::helper_a": "Function `helper_a`: level=function; source=solo_a/a.py; calls=helper_b",
+  "logicblock::solo_a/a.py::function::helper_a::0": "Logic block `Step 1`: level=logic_block; source=solo_a/a.py:6-6",
+  "code::logicblock::solo_a/a.py::function::helper_a::0": "Code `solo_a/a.py:6-6`: level=code; source=solo_a/a.py:6-6",
+  "dir::solo_b": "System `solo_b`: level=system; source=solo_b",
+  "component::solo_b/b.py": "Component `b.py`: level=component; source=solo_b/b.py",
+  "service::solo_b/b.py::functions": "Service `Module Functions`: level=service; source=solo_b/b.py",
+  "solo_b/b.py::function::helper_b": "Function `helper_b`: level=function; source=solo_b/b.py",
+  "logicblock::solo_b/b.py::function::helper_b::0": "Logic block `Step 1`: level=logic_block; source=solo_b/b.py:5-5",
+  "code::logicblock::solo_b/b.py::function::helper_b::0": "Code `solo_b/b.py:5-5`: level=code; source=solo_b/b.py:5-5"
+ }
+}

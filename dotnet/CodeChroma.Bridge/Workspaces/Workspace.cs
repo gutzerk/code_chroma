@@ -31,7 +31,6 @@ public sealed class Workspace : IDisposable
     public string Root { get; }
     public IGraphEngine Engine { get; }
     public bool ReadOnly { get; }
-    public SkillJobs Jobs { get; } = new();
     public WorkspaceState State { get; } = new("ready", "", null);
 
     public string TracesDir => Path.Combine(Root, ".codechroma", "traces");

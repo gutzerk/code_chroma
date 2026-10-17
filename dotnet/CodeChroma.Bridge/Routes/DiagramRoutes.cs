@@ -3,6 +3,7 @@ using System.Text;
 using System.Text.Json;
 using System.Text.Json.Nodes;
 using CodeChroma.Bridge.Http;
+using CodeChroma.Bridge.Skills;
 using CodeChroma.Bridge.Stores;
 using CodeChroma.Bridge.Workspaces;
 
@@ -34,22 +35,34 @@ public static class DiagramRoutes
 
         app.MapGet("/repos/{repoId}/diagrams/status", DiagramsStatus);
 
-        foreach (var kind in SkillJobs.Kinds)
+        foreach (var kind in GenerateKinds)
         {
             var k = kind;
-            app.MapGet($"/repos/{{repoId}}/{k}/status", (string repoId, WorkspaceRegistry r) =>
-                Results.Json(r.Get(repoId).Jobs.Get(k), BridgeJson.Default.JobState));
-            app.MapGet($"/repos/{{repoId}}/{k}/output", (string repoId, WorkspaceRegistry r) =>
-                Results.Json(new JobOutput(r.Get(repoId).Jobs.Output(k)), BridgeJson.Default.JobOutput));
-            app.MapPost($"/repos/{{repoId}}/{k}/status", async (string repoId, HttpRequest request, WorkspaceRegistry r) =>
-                await SetStatus(r.Get(repoId), k, request));
-            app.MapPost($"/repos/{{repoId}}/{k}/cancel", (string repoId, WorkspaceRegistry r) =>
+            app.MapPost($"/repos/{{repoId}}/{k}/generate", async (string repoId, HttpRequest request, WorkspaceRegistry r, SkillAgents agents) =>
             {
                 var ws = r.Get(repoId);
-                return Emit(ws, k, ws.Jobs.Stop(k));
+                var agent = agents[k];
+                var onlyIfMissing = request.Query["only_if_missing"].ToString().Equals("true", StringComparison.OrdinalIgnoreCase);
+                if (onlyIfMissing && k == "c1" && agent.HasArtifact(ws.Root, ws.Id)) return Results.Json(agent.GetState(ws.Id), BridgeJson.Default.JobState);
+                var (onChange, onOutput) = SkillJobCallbacks.For(k, ws.Emit);
+                return Results.Json(await agent.Start(ws.Id, ws.Root, onChange, onOutput), BridgeJson.Default.JobState);
+            });
+            app.MapGet($"/repos/{{repoId}}/{k}/status", (string repoId, WorkspaceRegistry r, SkillAgents agents) =>
+                Results.Json(agents[k].GetState(r.Get(repoId).Id), BridgeJson.Default.JobState));
+            app.MapGet($"/repos/{{repoId}}/{k}/output", (string repoId, WorkspaceRegistry r, SkillAgents agents) =>
+                Results.Json(new JobOutput(agents[k].GetOutput(r.Get(repoId).Id)), BridgeJson.Default.JobOutput));
+            app.MapPost($"/repos/{{repoId}}/{k}/status", async (string repoId, HttpRequest request, WorkspaceRegistry r, SkillAgents agents) =>
+                await SetStatus(r.Get(repoId), agents[k], k, request));
+            app.MapPost($"/repos/{{repoId}}/{k}/cancel", async (string repoId, WorkspaceRegistry r, SkillAgents agents) =>
+            {
+                var ws = r.Get(repoId);
+                return await SkillJobCallbacks.StopAndNotify(agents[k], ws.Id, k, ws.Emit);
             });
         }
     }
+
+    /// <summary>The kinds with a generate/status/output/cancel quartet (c1, and the Impact change review).</summary>
+    public static readonly IReadOnlyList<string> GenerateKinds = ["c1", "impact-changes"];
 
     public static JsonNode? LoadArtifact(Workspace ws, string kind)
     {
@@ -63,38 +76,20 @@ public static class DiagramRoutes
         }
     }
 
-    private static IResult Emit(Workspace ws, string kind, JobState state)
+    private static async Task<IResult> SetStatus(Workspace ws, SkillAgent agent, string kind, HttpRequest request)
     {
-        ws.Emit(new JsonObject { ["type"] = $"{kind}-status", ["state"] = state.State, ["error"] = state.Error });
-        return Results.Json(state, BridgeJson.Default.JobState);
-    }
-
-    /// <summary>Lenient body read: anything that is not a JSON object is an empty one.</summary>
-    private static async Task<JsonObject> LenientBody(HttpRequest request)
-    {
-        try
-        {
-            return await JsonNode.ParseAsync(request.Body) as JsonObject ?? new JsonObject();
-        }
-        catch (JsonException)
-        {
-            return new JsonObject();
-        }
-    }
-
-    private static async Task<IResult> SetStatus(Workspace ws, string kind, HttpRequest request)
-    {
-        var body = await LenientBody(request);
-        var state = body["state"] is JsonValue v && v.TryGetValue(out string? s) ? s : null;
+        var body = await Reply.LenientBody(request);
+        var state = Json.Str(body["state"]);
+        var (onChange, _) = SkillJobCallbacks.For(kind, ws.Emit);
         switch (state)
         {
             case "generating":
-                return Emit(ws, kind, ws.Jobs.MarkGenerating(kind));
+                return Results.Json(await agent.MarkGenerating(ws.Id, onChange), BridgeJson.Default.JobState);
             case "idle":
-                return Emit(ws, kind, ws.Jobs.MarkDone(kind, null));
+                return Results.Json(await agent.MarkDone(ws.Id, onChange), BridgeJson.Default.JobState);
             case "error":
-                var detail = body["detail"] is JsonValue d && d.TryGetValue(out string? text) && text.Length > 0 ? text : "unspecified error";
-                return Emit(ws, kind, ws.Jobs.MarkDone(kind, detail));
+                var detail = Json.Str(body["detail"]) is { Length: > 0 } text ? text : "unspecified error";
+                return Results.Json(await agent.MarkDone(ws.Id, onChange, detail), BridgeJson.Default.JobState);
         }
         var shown = state is null ? "None" : $"'{state}'";
         return Results.Json(new ErrorDetail($"unrecognized state: {shown}"), BridgeJson.Default.ErrorDetail, statusCode: 400);

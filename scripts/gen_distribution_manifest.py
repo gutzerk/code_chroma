@@ -23,12 +23,23 @@ from pathlib import Path
 REPO = "gutzerk/code_chroma"
 
 # Target -> artifact glob; test_distribution_consistency.py guards drift from builder and workflow.
+# The first five are the Electron installers (still shipping); the ``dotnet-*`` targets are the C# app's
+# Velopack packages (distribution/velopack/pack.*). Their names avoid the Electron suffixes on purpose, so
+# installed Electron updaters (which select by suffix) never pick them up. ``dotnet-windows-x64`` is the
+# Setup for fresh installs and ``dotnet-windows-x64-update`` the zip the in-app updater swaps in; on macOS
+# the zip (a CodeChroma.app) serves both, and on Linux the AppImage does. The C# app is verified by
+# SHA-256 only (no Sigstore), so ``sha256`` is the whole trust for those targets.
 PLATFORMS = [
     {"target": "macos-arm64", "glob": "CodeChroma-*-arm64.dmg"},
     {"target": "macos-x64", "glob": "CodeChroma-*-x64.dmg"},
     {"target": "windows-x64", "glob": "CodeChroma-*-x64-Setup.exe"},
     {"target": "linux-x64", "glob": "CodeChroma-*-x64.deb"},
     {"target": "linux-appimage", "glob": "CodeChroma-*-x64.AppImage"},
+    {"target": "dotnet-windows-x64", "glob": "CodeChroma-*-win-x64-Installer.exe"},
+    {"target": "dotnet-windows-x64-update", "glob": "CodeChroma-*-win-x64.zip"},
+    {"target": "dotnet-macos-arm64", "glob": "CodeChroma-*-osx-arm64.zip"},
+    {"target": "dotnet-macos-x64", "glob": "CodeChroma-*-osx-x64.zip"},
+    {"target": "dotnet-linux-x64", "glob": "CodeChroma-*-linux-x86_64.AppImage"},
 ]
 
 _DIGEST = re.compile(r"[0-9a-f]{64}")

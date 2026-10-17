@@ -11,6 +11,19 @@ if (args.Length == 0)
 
 var runs = args.Length > 1 ? int.Parse(args[1]) : 5;
 var clock = Stopwatch.StartNew();
+if (Directory.Exists(args[0]))
+{
+    // Directory mode: end-to-end native analyze (scan, parse, resolve, summarize, build graph).
+    for (var run = 0; run < runs; run++)
+    {
+        clock.Restart();
+        var full = new CodeChroma.Core.Analyzers.AnalysisExporter().Full(args[0]);
+        var parseMs = clock.Elapsed.TotalMilliseconds;
+        new GraphCore().Analyze(full);
+        Console.WriteLine($"analyze run {run}: export {parseMs,8:F1} ms  total {clock.Elapsed.TotalMilliseconds,8:F1} ms ({full.Files.Count} files)");
+    }
+    return 0;
+}
 var input = AnalysisInputReader.Load(args[0]);
 Console.WriteLine($"load json: {clock.ElapsedMilliseconds} ms ({input.Files.Count} files)");
 

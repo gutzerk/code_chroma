@@ -360,4 +360,4 @@ so live saves are cheap. Exercised by
 
 ## C# bridge status (docs/planning/012)
 
-`dotnet/CodeChroma.Bridge` is a partial ASP.NET Core port that replays the same `tests/fixtures/bridge_contract` cases as this Python bridge; the Python bridge remains the reference and is not removed. Its graph comes from `CodeChroma.Core` fed by `python -m codechroma.analysis_export` (`src/codechroma/analysis_export.py`, also used by `tests/graph_golden.py`). See 012 for the ported/unported route table.
+`dotnet/CodeChroma.Bridge` is a partial ASP.NET Core port that replays the same `tests/fixtures/bridge_contract` cases as this Python bridge; the Python bridge remains the reference and is not removed. Its graph comes from `CodeChroma.Core` fed by the in-process C# analyzers (`CodeChroma.Core/Analyzers`, `NativeAnalysisExporter`, default); `CODECHROMA_ANALYZERS=python` shells out to `python -m codechroma.analysis_export` (also used by `tests/graph_golden.py`) as fallback and parity oracle (see 011, Phase 5). See 012 for the ported/unported route table.

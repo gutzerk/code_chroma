@@ -12,6 +12,7 @@ afterEach(async () => { vi.unstubAllGlobals(); vi.clearAllMocks(); await rm(dire
 function info() {
   return { version: "2.0.0", assetName: "CodeChroma-Setup.exe", downloadPath: join(directory, "installer.exe"), downloadUrl: "https://github.com/gutzerk/code_chroma/releases/download/v2.0.0/CodeChroma-Setup.exe", sha256: createHash("sha256").update("installer").digest("hex") };
 }
+const missing = async (path: string) => { await expect(readFile(path)).rejects.toThrow(); };
 describe("release downloads", () => {
   it("uses the checked release URL and reports progress before verifying provenance", async () => {
     const fetchMock = vi.fn(async () => new Response("installer", { headers: { "content-length": "9" } }));
@@ -24,22 +25,25 @@ describe("release downloads", () => {
     expect(verifyAttestation).toHaveBeenCalled();
     expect(await readFile(update.downloadPath, "utf8")).toBe("installer");
   });
-  it("reports an HTTP download failure", async () => {
-    vi.stubGlobal("fetch", vi.fn(async () => new Response("unavailable", { status: 503 })));
-    await expect(downloadAsset(info())).rejects.toThrow("download failed (503)");
-  });
-  it("cleans incomplete downloads after a connection failure", async () => {
-    vi.stubGlobal("fetch", vi.fn(async () => new Response(new ReadableStream({ start(controller) { controller.error(new Error("Connection lost")); } }))));
+
+  it.each([
+    ["an HTTP failure", () => new Response("unavailable", { status: 503 }), "download failed (503)"],
+    ["a lost connection", () => new Response(new ReadableStream({ start(c) { c.error(new Error("Connection lost")); } })), "Connection lost"],
+    ["a digest mismatch", () => new Response("tampered"), "integrity check"],
+  ])("rejects %s and leaves no files", async (_name, respond, message) => {
+    vi.stubGlobal("fetch", vi.fn(async () => respond()));
     const update = info();
-    await expect(downloadAsset(update)).rejects.toThrow("Connection lost");
-    await expect(readFile(`${update.downloadPath}.part`)).rejects.toThrow();
+    await expect(downloadAsset(update)).rejects.toThrow(message);
+    await missing(update.downloadPath);
+    await missing(`${update.downloadPath}.part`);
   });
+
   it("does not prepare an artifact with invalid provenance", async () => {
     vi.stubGlobal("fetch", vi.fn(async () => new Response("installer")));
     vi.mocked(verifyAttestation).mockRejectedValueOnce(new Error("Invalid provenance"));
     const update = info();
     await expect(downloadAsset(update)).rejects.toThrow("Invalid provenance");
-    await expect(readFile(update.downloadPath)).rejects.toThrow();
-    await expect(readFile(`${update.downloadPath}.part`)).rejects.toThrow();
+    await missing(update.downloadPath);
+    await missing(`${update.downloadPath}.part`);
   });
 });

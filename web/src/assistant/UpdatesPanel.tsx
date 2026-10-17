@@ -10,6 +10,8 @@ export interface UpdateState {
   error?: string;
   retryAfter?: number;
   notes?: string;
+  skippedVersion?: string;
+  autoDownload?: boolean;
 }
 
 export interface UpdatesApi {
@@ -17,6 +19,9 @@ export interface UpdatesApi {
   check(): Promise<UpdateState>;
   download(): Promise<UpdateState>;
   restart(): Promise<UpdateState>;
+  /** Absent on desktop shells that predate skip/auto-download. */
+  skip?(version: string): Promise<UpdateState>;
+  setAutoDownload?(enabled: boolean): Promise<UpdateState>;
   subscribe(handler: (state: UpdateState) => void): () => void;
 }
 
@@ -181,6 +186,16 @@ export function UpdatesPanel({ onDismiss }: { onDismiss: () => void }) {
                 Update now
               </button>
             )}
+            {available && api.skip && state.latestVersion && (
+              <button
+                className="updates-check"
+                type="button"
+                disabled={busy}
+                onClick={() => run(() => api.skip!(state.latestVersion!))}
+              >
+                Skip this version
+              </button>
+            )}
             {downloading && (
               <div className="updates-download" aria-live="polite">
                 <span>Downloading…</span>
@@ -215,6 +230,17 @@ export function UpdatesPanel({ onDismiss }: { onDismiss: () => void }) {
               >
                 What's new in {displayVersion(state.latestVersion)}
               </button>
+            )}
+
+            {api.setAutoDownload && (
+              <label className="updates-auto">
+                <input
+                  type="checkbox"
+                  checked={state.autoDownload === true}
+                  onChange={(event) => run(() => api.setAutoDownload!(event.target.checked))}
+                />
+                <span>Download updates automatically</span>
+              </label>
             )}
 
             <div className="updates-secondary-actions">

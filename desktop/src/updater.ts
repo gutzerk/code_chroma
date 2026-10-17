@@ -1,14 +1,23 @@
 import { execFile, spawn } from "node:child_process";
 import { createHash } from "node:crypto";
 import { constants, createReadStream } from "node:fs";
-import { access, realpath, stat, chmod, copyFile, mkdir, open, rename, rm } from "node:fs/promises";
+import { access, realpath, stat, chmod, copyFile, mkdir, open, readdir, rename, rm } from "node:fs/promises";
 import { homedir, tmpdir } from "node:os";
 import { basename, dirname, join, relative, isAbsolute } from "node:path";
 import { fetchAttestation, verifyAttestation } from "./attestation";
+import { DOWNLOAD_BASE, RELEASES_API, REPO, USER_AGENT, isReleaseDownloadUrl } from "./updateConstants";
+import { LINUX_SWAP_SCRIPT, MAC_SWAP_SCRIPT } from "./updateScripts";
 
-export const REPO = "gutzerk/code_chroma";
-const RELEASES_API = `https://api.github.com/repos/${REPO}/releases/latest`;
-const DOWNLOAD_BASE = `https://github.com/${REPO}/releases/latest/download`;
+export { REPO };
+
+/** Shown instead of the generic error when the app was installed from the .deb package. */
+export const DEB_UPDATE_MESSAGE = "CodeChroma was installed from the .deb package, which the app cannot update itself. Update it with apt (sudo apt install --only-upgrade codechroma) or download the new .deb or AppImage from GitHub Releases and reinstall.";
+
+/** A cached /releases/latest payload plus its ETag, so GitHub can answer 304 without spending rate limit. */
+export interface ReleaseCache {
+  etag?: string;
+  release?: unknown;
+}
 
 /** What a newer release looks like once fetched: the version plus the matching asset to install. */
 export interface UpdateInfo {
@@ -129,17 +138,28 @@ export function safeAssetPath(name: string): string {
 /** Reports whether we're behind `currentVersion`, and by which asset, from the latest release. */
 export async function checkForUpdates(
   currentVersion: string,
-  opts: { platform?: string; arch?: string; fetchImpl?: typeof fetch; onLatest?: (version: string) => void } = {},
+  opts: { platform?: string; arch?: string; fetchImpl?: typeof fetch; onLatest?: (version: string) => void; cache?: ReleaseCache } = {},
 ): Promise<UpdateInfo | null> {
-  const { platform = process.platform, arch = process.arch, fetchImpl } = opts;
+  const { platform = process.platform, arch = process.arch, fetchImpl, cache } = opts;
   const doFetch = fetchImpl ?? fetch;
-  const response = await doFetch(RELEASES_API, { signal: AbortSignal.timeout(15_000), headers: { "User-Agent": "code-chroma-desktop" } });
-  // Throw (not return null) on a non-2xx: "no update" must not be conflated with "offline/rejected".
-  if (!response.ok) {
-    if (await isRateLimitResponse(response)) throw await rateLimitError(response);
-    throw new Error(`GitHub API responded ${response.status}`);
+  const headers: Record<string, string> = { "User-Agent": USER_AGENT };
+  if (cache?.etag && cache.release) headers["If-None-Match"] = cache.etag;
+  const response = await doFetch(RELEASES_API, { signal: AbortSignal.timeout(15_000), headers });
+  let payload: unknown;
+  if (response.status === 304 && cache?.release) {
+    payload = cache.release;
+  } else if (!response.ok) {
+    // Throw (not return null) on a non-2xx: "no update" must not be conflated with "offline/rejected".
+    if (await isRateLimitResponse(response)) {
+      if (!cache?.release) throw await rateLimitError(response);
+      payload = cache.release;
+    } else throw new Error(`GitHub API responded ${response.status}`);
+  } else {
+    payload = await response.json();
+    const etag = response.headers?.get("etag");
+    if (cache) { cache.release = payload; cache.etag = etag ?? undefined; }
   }
-  const release = (await response.json()) as LatestRelease;
+  const release = payload as LatestRelease;
   if (!release || typeof release.tag_name !== "string" || !semver(release.tag_name) || !Array.isArray(release.assets) || release.assets.some(a => !a || typeof a.name !== "string" || typeof a.browser_download_url !== "string")) throw new Error("Malformed GitHub release response. Try again or visit GitHub Releases.");
   const version = release.tag_name;
   if (release.draft || release.prerelease || semver(version)!.pre.length) return null;
@@ -148,10 +168,12 @@ export async function checkForUpdates(
   const asset = selectAsset(release.assets ?? [], platform, arch);
   if (!asset) throw new Error(`No installer for ${platform}/${arch}. Install manually from GitHub Releases.`);
   // Prefer GitHub's own asset digest; fall back to our `.sha256` sidecar only when it's absent.
+  const downloadUrl = release.assets.find(a => a.name === asset.name)!.browser_download_url;
+  if (!isReleaseDownloadUrl(downloadUrl)) throw new Error(`Unexpected download URL for ${asset.name}. Update manually from GitHub Releases.`);
   const sha256 = asset.sha256 ?? (await sidecarHex(asset.name, release.assets ?? [], doFetch));
   // A newer asset with no reachable digest is still "an update", not "up to date": the caller must
   // surface it (a release that forgot its sidecar must not silently masquerade as current).
-  return { version, assetName: asset.name, downloadUrl: release.assets!.find(a => a.name === asset.name)!.browser_download_url, downloadPath: join(tmpdir(), safeAssetPath(asset.name)), sha256, notes: releaseNotes(release.body) };
+  return { version, assetName: asset.name, downloadUrl, downloadPath: join(tmpdir(), safeAssetPath(asset.name)), sha256, notes: releaseNotes(release.body) };
 }
 
 /** Trimmed release body capped at 20k chars, or undefined when empty/non-string. */
@@ -203,7 +225,7 @@ async function sidecarHex(
   try {
     const response = await doFetch(sidecar.browser_download_url, {
       signal: AbortSignal.timeout(15_000),
-      headers: { "User-Agent": "code-chroma-desktop" },
+      headers: { "User-Agent": USER_AGENT },
     });
     if (!response.ok) return undefined;
     const match = /^([0-9a-f]{64})\s+/.exec((await response.text()).trim());
@@ -223,9 +245,11 @@ export async function downloadAsset(info: UpdateInfo, onProgress: (bytes: number
   }
   const dest = info.downloadPath;
   const part = `${dest}.part`;
-  const response = await fetch(info.downloadUrl ?? `${DOWNLOAD_BASE}/${info.assetName}`, {
+  const url = info.downloadUrl ?? `${DOWNLOAD_BASE}/${info.assetName}`;
+  if (!isReleaseDownloadUrl(url)) throw new Error(`Unexpected download URL for ${info.assetName}. Update manually from GitHub Releases.`);
+  const response = await fetch(url, {
     signal: AbortSignal.timeout(15 * 60_000),
-    headers: { "User-Agent": "code-chroma-desktop" },
+    headers: { "User-Agent": USER_AGENT },
   });
   if (!response.ok) throw new Error(`download failed (${response.status})`);
   if (!response.body) throw new Error("download failed (no response body)");
@@ -299,15 +323,6 @@ export async function installAsset(
   return spec.install(info);
 }
 
-/** Runs after this process exits: swaps the staged bundle in, drops the backup, relaunches (rolls back on failure). */
-const MAC_SWAP_SCRIPT = [
-  'pid="$1"; staged="$2"; dest="$3"; backup="$dest.previous-$pid"',
-  'while kill -0 "$pid" 2>/dev/null; do sleep 0.2; done',
-  'if mv "$dest" "$backup" && mv "$staged" "$dest"; then rm -rf "$backup" 2>/dev/null',
-  'else [ -d "$backup" ] && [ ! -d "$dest" ] && mv "$backup" "$dest"; rm -rf "$staged" 2>/dev/null; fi',
-  'open "$dest"',
-].join("\n");
-
 /** Stages the new bundle from the dmg, then hands the swap to a detached script that runs once this app has quit. */
 async function runMacDmg(info: UpdateInfo): Promise<boolean> {
   const plist = await execFileP("hdiutil", ["attach", info.downloadPath, "-nobrowse", "-plist"]);
@@ -326,6 +341,7 @@ async function runMacDmg(info: UpdateInfo): Promise<boolean> {
   } finally {
     await execFileP("hdiutil", ["detach", vol]);
   }
+  await removeBestEffort(info.downloadPath);
   return false;
 }
 
@@ -370,17 +386,41 @@ function execFileP(file: string, args: string[] = []): Promise<string> {
   });
 }
 
-/** Replaces the running AppImage via sibling-tmp + atomic rename (rename avoids ETXTBSY, no root). */
+/** True when the executable lives in a system prefix, i.e. it came from the .deb package. */
+function isDebInstall(executable: string): boolean {
+  return /^\/(opt|usr)\//.test(executable.replace(/\\/g, "/"));
+}
+
+/** Seconds the new AppImage must stay alive before the update counts as a successful launch. */
+const LAUNCH_GRACE_SECONDS = "8";
+
+/** Stages a sibling copy, then a detached script swaps it in (old one kept as `.previous`) and restores the old one if the new one fails to launch. */
 async function runLinuxAppImage(info: UpdateInfo): Promise<boolean> {
   const current = process.env.APPIMAGE;
-  if (!current) throw new Error("Not running from a user-local AppImage. Reinstall the AppImage in your home directory to enable updates without administrator privileges.");
-  const tmp = join(dirname(current), `.${basename(current)}.update-${process.pid}`);
+  if (!current) throw new Error(isDebInstall(process.execPath) ? DEB_UPDATE_MESSAGE : "Not running from a user-local AppImage. Reinstall the AppImage in your home directory to enable updates without administrator privileges.");
+  const staged = join(dirname(current), `.${basename(current)}.update-${process.pid}`);
   try {
-    await copyFile(info.downloadPath, tmp);
-    await chmod(tmp, 0o755);
-    await rename(tmp, current);
-  } finally { await rm(tmp, { force: true }); }
-  return true;
+    await copyFile(info.downloadPath, staged);
+    await chmod(staged, 0o755);
+    await spawnDetached("/bin/sh", ["-c", LINUX_SWAP_SCRIPT, "sh", String(process.pid), staged, current, LAUNCH_GRACE_SECONDS]);
+  } catch (error) {
+    await rm(staged, { force: true });
+    throw error;
+  }
+  await removeBestEffort(info.downloadPath);
+  return false;
+}
+
+/** Deletes leftover installers and `.part` files from earlier updates in `dir`; returns the names removed. */
+export async function cleanupStaleDownloads(dir: string = tmpdir()): Promise<string[]> {
+  let names: string[];
+  try { names = await readdir(dir); } catch { return []; }
+  const stale = names.filter((n) => /^CodeChroma-.*(\.dmg|\.exe|\.AppImage)(\.part)?$/.test(n));
+  const removed: string[] = [];
+  for (const name of stale) {
+    try { await rm(join(dir, name), { force: true }); removed.push(name); } catch { /* in use: leave it */ }
+  }
+  return removed;
 }
 
 /** Refuse system installs before downloading or invoking any installer. */
@@ -392,6 +432,7 @@ export async function assertUserInstallation(opts: { platform?: string; executab
   const root = platform === "win32" ? (opts.localAppData ?? process.env.LOCALAPPDATA) : home;
   const rel = target && root ? relative(root, target) : "..";
   const message = "This installation cannot be updated without administrator privileges. Reinstall CodeChroma in ~/Applications on macOS, as a user-local AppImage on Linux, or with the per-user Windows installer, then retry. Your settings and repositories will be preserved.";
+  if (platform === "linux" && !target && isDebInstall(executable)) throw new Error(DEB_UPDATE_MESSAGE);
   if (!target || !root || rel.startsWith("..") || isAbsolute(rel)) throw new Error(message);
   if (platform === "darwin" && target !== join(home, "Applications", "CodeChroma.app")) throw new Error(message);
   try {

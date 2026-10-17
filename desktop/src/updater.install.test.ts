@@ -18,52 +18,81 @@ vi.mock("node:child_process", () => ({
 }));
 const originalExecutable = process.execPath;
 const home = homedir();
+const failingSpawn = () => { const child = Object.assign(new EventEmitter(), { unref: vi.fn() }); queueMicrotask(() => child.emit("error", new Error("spawn failed"))); return child as never; };
+const installer = (assetName: string, downloadPath: string) => ({ version: "2.0.0", assetName, downloadPath });
 beforeEach(() => { vi.clearAllMocks(); });
 afterEach(() => { process.execPath = originalExecutable; vi.unstubAllEnvs(); });
-describe("user installation paths", () => {
-  it("stages the macOS user bundle, detaches the DMG and hands the swap to a detached script", async () => {
-    const destination = join(home, "Applications", "CodeChroma.app");
-    process.execPath = `${destination}/Contents/MacOS/CodeChroma`;
-    const relaunch = await installAsset({ version: "2.0.0", assetName: "app-arm64.dmg", downloadPath: "installer.dmg" }, { platform: "darwin", arch: "arm64" });
+
+describe("macOS install", () => {
+  const destination = join(home, "Applications", "CodeChroma.app");
+  const staged = `${destination}.update-${process.pid}`;
+  beforeEach(() => { process.execPath = `${destination}/Contents/MacOS/CodeChroma`; });
+
+  it("stages the bundle, hands the swap to a detached script, detaches the DMG and deletes it", async () => {
+    const relaunch = await installAsset(installer("app-arm64.dmg", "installer.dmg"), { platform: "darwin", arch: "arm64" });
     expect(relaunch).toBe(false);
-    expect(execFile).toHaveBeenCalledWith("ditto", [join("/Volumes/CodeChroma", "CodeChroma.app"), `${destination}.update-${process.pid}`], expect.any(Function));
-    expect(spawn).toHaveBeenCalledWith("/bin/sh", ["-c", expect.stringContaining("kill -0"), "sh", String(process.pid), `${destination}.update-${process.pid}`, destination], expect.objectContaining({ detached: true }));
+    expect(execFile).toHaveBeenCalledWith("ditto", [join("/Volumes/CodeChroma", "CodeChroma.app"), staged], expect.any(Function));
+    expect(spawn).toHaveBeenCalledWith("/bin/sh", ["-c", expect.stringContaining("kill -0"), "sh", String(process.pid), staged, destination], expect.objectContaining({ detached: true }));
+    expect(execFile).toHaveBeenCalledWith("hdiutil", ["detach", "/Volumes/CodeChroma"], expect.any(Function));
+    expect(rm).toHaveBeenCalledWith("installer.dmg", expect.objectContaining({ force: true }));
     expect(rename).not.toHaveBeenCalled();
+  });
+
+  it("removes the staged bundle, keeps the DMG and reports failure when the swap script cannot start", async () => {
+    vi.mocked(spawn).mockImplementationOnce(failingSpawn);
+    await expect(installAsset(installer("app-arm64.dmg", "installer.dmg"), { platform: "darwin", arch: "arm64" })).rejects.toThrow("spawn failed");
+    expect(rm).toHaveBeenCalledWith(staged, expect.objectContaining({ recursive: true }));
+    expect(rm).not.toHaveBeenCalledWith("installer.dmg", expect.anything());
     expect(execFile).toHaveBeenCalledWith("hdiutil", ["detach", "/Volumes/CodeChroma"], expect.any(Function));
   });
-  it("removes the staged bundle and reports failure when the swap script cannot start", async () => {
-    const destination = join(home, "Applications", "CodeChroma.app");
-    process.execPath = `${destination}/Contents/MacOS/CodeChroma`;
-    vi.mocked(spawn).mockImplementationOnce(() => { const child = Object.assign(new EventEmitter(), { unref: vi.fn() }); queueMicrotask(() => child.emit("error", new Error("spawn failed"))); return child as never; });
-    await expect(installAsset({ version: "2.0.0", assetName: "app-arm64.dmg", downloadPath: "installer.dmg" }, { platform: "darwin", arch: "arm64" })).rejects.toThrow("spawn failed");
-    expect(rm).toHaveBeenCalledWith(`${destination}.update-${process.pid}`, expect.objectContaining({ recursive: true }));
-    expect(execFile).toHaveBeenCalledWith("hdiutil", ["detach", "/Volumes/CodeChroma"], expect.any(Function));
+});
+
+describe("Linux AppImage install", () => {
+  const destination = join(home, "Applications", "CodeChroma.AppImage");
+  beforeEach(() => { vi.stubEnv("APPIMAGE", destination); });
+
+  it("stages a sibling copy and hands the swap and launch watchdog to a detached script", async () => {
+    const relaunch = await installAsset(installer("app-x64.AppImage", "installer.AppImage"), { platform: "linux", arch: "x64" });
+    expect(relaunch).toBe(false);
+    expect(copyFile).toHaveBeenCalledWith("installer.AppImage", expect.stringContaining(".update-"));
+    expect(spawn).toHaveBeenCalledWith("/bin/sh", ["-c", expect.stringContaining(".previous"), "sh", String(process.pid), expect.stringContaining(".update-"), destination, expect.any(String)], expect.objectContaining({ detached: true }));
+    expect(rm).toHaveBeenCalledWith("installer.AppImage", expect.objectContaining({ force: true }));
   });
-  it("atomically replaces the user-local AppImage", async () => {
-    const destination = join(home, "Applications", "CodeChroma.AppImage");
-    vi.stubEnv("APPIMAGE", destination);
-    expect(await installAsset({ version: "2.0.0", assetName: "app-x64.AppImage", downloadPath: "installer.AppImage" }, { platform: "linux", arch: "x64" })).toBe(true);
-    expect(copyFile).toHaveBeenCalled();
-    expect(rename).toHaveBeenCalledWith(expect.stringContaining(".update-"), destination);
+
+  it("cleans the staged copy and keeps the download when the script cannot start", async () => {
+    vi.mocked(spawn).mockImplementationOnce(failingSpawn);
+    await expect(installAsset(installer("app-x64.AppImage", "installer.AppImage"), { platform: "linux", arch: "x64" })).rejects.toThrow("spawn failed");
+    expect(rm).toHaveBeenCalledWith(expect.stringContaining(".update-"), expect.anything());
+    expect(rm).not.toHaveBeenCalledWith("installer.AppImage", expect.anything());
   });
+
+  it("explains .deb installs instead of the generic error", async () => {
+    vi.stubEnv("APPIMAGE", "");
+    process.execPath = "/opt/CodeChroma/codechroma";
+    await expect(installAsset(installer("app-x64.AppImage", "installer.AppImage"), { platform: "linux", arch: "x64" })).rejects.toThrow(/apt/);
+  });
+});
+
+describe("Windows install", () => {
   it("launches the per-user NSIS installer at the existing install directory", async () => {
     const root = join(home, "AppData", "Local");
     vi.stubEnv("LOCALAPPDATA", root);
     process.execPath = join(root, "Programs", "CodeChroma", "CodeChroma.exe");
-    expect(await installAsset({ version: "2.0.0", assetName: "CodeChroma-Setup.exe", downloadPath: "installer.exe" }, { platform: "win32", arch: "x64" })).toBe(false);
+    expect(await installAsset(installer("CodeChroma-Setup.exe", "installer.exe"), { platform: "win32", arch: "x64" })).toBe(false);
     expect(spawn).toHaveBeenCalledWith("installer.exe", ["/currentuser", "/S", "--updated", "--force-run", `/D=${dirname(process.execPath)}`], expect.objectContaining({ detached: true, windowsHide: true }));
   });
-  it("rejects unwritable installations", async () => {
-    vi.mocked(access).mockRejectedValueOnce(new Error("EACCES"));
-    await expect(assertUserInstallation({ platform: "linux", appImage: join(home, "app.AppImage") })).rejects.toThrow("administrator privileges");
-  });
-  it("rejects symlinks resolving outside the user home", async () => {
-    vi.mocked(realpath).mockResolvedValueOnce(join(home, "..", "system", "app.AppImage"));
-    await expect(assertUserInstallation({ platform: "linux", appImage: join(home, "app.AppImage") })).rejects.toThrow("administrator privileges");
-  });
-  it("rejects root-owned user-local installations on Unix", async () => {
-    if (!process.getuid) return;
-    vi.mocked(stat).mockResolvedValueOnce({ uid: process.getuid() + 1 } as Awaited<ReturnType<typeof stat>>);
-    await expect(assertUserInstallation({ platform: "linux", appImage: join(home, "app.AppImage") })).rejects.toThrow("administrator privileges");
+});
+
+describe("user installation guard", () => {
+  const appImage = join(home, "app.AppImage");
+  const cases: [string, () => void][] = [
+    ["an unwritable install", () => vi.mocked(access).mockRejectedValueOnce(new Error("EACCES"))],
+    ["a symlink resolving outside the user home", () => vi.mocked(realpath).mockResolvedValueOnce(join(home, "..", "system", "app.AppImage"))],
+  ];
+  if (process.getuid) cases.push(["a root-owned install", () => vi.mocked(stat).mockResolvedValueOnce({ uid: process.getuid!() + 1 } as Awaited<ReturnType<typeof stat>>)]);
+
+  it.each(cases)("rejects %s", async (_name, arrange) => {
+    arrange();
+    await expect(assertUserInstallation({ platform: "linux", appImage })).rejects.toThrow("administrator privileges");
   });
 });

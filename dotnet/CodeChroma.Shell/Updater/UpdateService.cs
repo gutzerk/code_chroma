@@ -13,14 +13,21 @@ public sealed record UpdateState(
     long? Total = null,
     string? Error = null,
     DateTimeOffset? RetryAfter = null,
-    string? Notes = null);
+    string? Notes = null,
+    Provenance? Provenance = null,
+    string? VerificationNotice = null,
+    InstallOutcome? LastInstall = null);
 
 public interface IUpdateOperations
 {
     Task<UpdateInfo?> CheckAsync(string currentVersion, Action<string>? onLatest, CancellationToken ct);
 
-    Task DownloadAsync(UpdateInfo info, Action<long, long?> progress, CancellationToken ct);
+    /// <summary>How downloads are verified; ChecksumOnly makes the service flag every offered update with the downgrade notice.</summary>
+    Provenance ExpectedProvenance { get; }
 
+    Task<Provenance> DownloadAsync(UpdateInfo info, Action<long, long?> progress, CancellationToken ct);
+
+    /// <summary>True when the host must quit now so the detached helper can swap the app and relaunch it.</summary>
     Task<bool> InstallAsync(UpdateInfo info, CancellationToken ct);
 
     void AssertWritable();
@@ -70,18 +77,30 @@ public sealed partial class UpdateService
     private readonly IUpdateCache cache;
     private readonly Action<UpdateState> changed;
     private readonly Func<DateTimeOffset> clock;
+    private readonly Func<InstallOutcome?> readOutcome;
+    private readonly Action acknowledgeOutcome;
     private UpdateInfo? info;
     private bool busy;
 
     public UpdateState State { get; private set; }
 
-    public UpdateService(string currentVersion, IUpdateOperations ops, IUpdateCache cache, Action<UpdateState> changed, Func<DateTimeOffset>? clock = null)
+    public UpdateService(string currentVersion, IUpdateOperations ops, IUpdateCache cache, Action<UpdateState> changed, Func<DateTimeOffset>? clock = null,
+        Func<InstallOutcome?>? readOutcome = null, Action? acknowledgeOutcome = null)
     {
         this.ops = ops;
         this.cache = cache;
         this.changed = changed;
         this.clock = clock ?? (() => DateTimeOffset.UtcNow);
-        State = new UpdateState(currentVersion, cache.Read());
+        this.readOutcome = readOutcome ?? (() => null);
+        this.acknowledgeOutcome = acknowledgeOutcome ?? (() => { });
+        State = new UpdateState(currentVersion, cache.Read(), LastInstall: this.readOutcome());
+    }
+
+    /// <summary>Clears the "updated / rolled back" banner once the user has seen it.</summary>
+    public void DismissLastInstall()
+    {
+        acknowledgeOutcome();
+        Set(s => s with { LastInstall = null });
     }
 
     [GeneratedRegex(@"root was signed by (\d+)/(\d+) keys", RegexOptions.IgnoreCase)]
@@ -141,6 +160,8 @@ public sealed partial class UpdateService
             LatestVersion = info?.Version ?? s.LatestVersion,
             RetryAfter = null,
             Notes = info?.Notes,
+            Provenance = null,
+            VerificationNotice = info is not null && ops.ExpectedProvenance == Provenance.ChecksumOnly ? UpdateConstants.ChecksumOnlyNotice : null,
         });
     });
 
@@ -150,8 +171,13 @@ public sealed partial class UpdateService
         var update = info ?? throw new InvalidOperationException("Check for updates first.");
         ops.AssertWritable();
         Set(s => s with { Phase = UpdatePhase.Downloading, Bytes = 0, Total = null, Error = null });
-        await ops.DownloadAsync(update, (bytes, total) => Set(s => s with { Bytes = bytes, Total = total }), ct);
-        Set(s => s with { Phase = UpdatePhase.Ready });
+        var provenance = await ops.DownloadAsync(update, (bytes, total) => Set(s => s with { Bytes = bytes, Total = total }), ct);
+        Set(s => s with
+        {
+            Phase = UpdatePhase.Ready,
+            Provenance = provenance,
+            VerificationNotice = provenance == Provenance.ChecksumOnly ? UpdateConstants.ChecksumOnlyNotice : null,
+        });
     });
 
     public Task<UpdateState> RestartAsync(Action<bool> restartApp, CancellationToken ct = default) => Run(async () =>

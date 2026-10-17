@@ -1,16 +1,18 @@
 namespace CodeChroma.Shell;
 
-public enum InstallKind { MacSwap, WindowsSetup, LinuxAppImageReplace }
+/// <summary>WindowsSetup is the Electron NSIS path, kept for reference; the C# app uses WindowsSwap (side-by-side with rollback).</summary>
+public enum InstallKind { MacSwap, WindowsSetup, LinuxAppImageReplace, WindowsSwap }
 
-public sealed record InstallPlan(InstallKind Kind, bool RelaunchInProcess);
+/// <summary>ExitForHelper: the host must quit right after InstallAsync so the detached helper can swap and relaunch it.</summary>
+public sealed record InstallPlan(InstallKind Kind, bool ExitForHelper);
 
 public static class InstallPlanner
 {
     private static readonly Dictionary<ShellPlatform, InstallPlan> Plans = new()
     {
-        [new(ShellOs.MacOs, ShellArch.Arm64)] = new(InstallKind.MacSwap, false),
-        [new(ShellOs.MacOs, ShellArch.X64)] = new(InstallKind.MacSwap, false),
-        [new(ShellOs.Windows, ShellArch.X64)] = new(InstallKind.WindowsSetup, false),
+        [new(ShellOs.MacOs, ShellArch.Arm64)] = new(InstallKind.MacSwap, true),
+        [new(ShellOs.MacOs, ShellArch.X64)] = new(InstallKind.MacSwap, true),
+        [new(ShellOs.Windows, ShellArch.X64)] = new(InstallKind.WindowsSwap, true),
         [new(ShellOs.Linux, ShellArch.X64)] = new(InstallKind.LinuxAppImageReplace, true),
     };
 
@@ -68,6 +70,14 @@ public sealed record InstallLocation(ShellOs Os, string Executable, string Home,
     {
         if (!IsUserInstallation()) throw new UnauthorizedAccessException(Message);
     }
+
+    /// <summary>What an update replaces: the .app bundle (macOS), the AppImage file (Linux) or the app directory holding the exe (Windows).</summary>
+    public string? TargetPath() => Os switch
+    {
+        ShellOs.MacOs => BundlePath(Executable),
+        ShellOs.Linux => AppImage,
+        _ => ParentDir(Executable) is { Length: > 0 } dir ? dir : null,
+    };
 
     private static string? BundlePath(string executable)
     {

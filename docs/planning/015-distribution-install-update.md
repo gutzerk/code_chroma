@@ -100,6 +100,14 @@ message, installer cleanup, About entry and window-title version. Tests are tabl
 `updater*.test.ts` files stay separate because the install file mocks `fs/promises` and
 `child_process` module-wide.
 
+## C# app additions (016 Phase 2)
+
+Velopack packages, `dotnet-*` manifest targets, `install.sh --dotnet` / `install.ps1 -Dotnet`, gated `dotnet-*` release
+jobs and the C# updater with rollback are described in `docs/architecture/desktop-app.md` ("C# app distribution and
+updater"). Updates of the C# app are checksum-only (no Sigstore): a recorded downgrade, flagged in `UpdateState` and
+the installers. The Windows rollback gap below is closed for the C# app only (side-by-side `current.previous`).
+Not done: `.deb` for the C# app (Velopack has none), signing/notarization, delta updates.
+
 ## Known gaps (for the planning doc)
 
 - Windows rollback is not implemented (NSIS in-place upgrade); needs a design (backup of the install dir or a versioned side-by-side install).

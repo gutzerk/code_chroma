@@ -13,7 +13,13 @@ FILES = {
     "windows-x64": f"CodeChroma-{VERSION}-x64-Setup.exe",
     "linux-x64": f"CodeChroma-{VERSION}-x64.deb",
     "linux-appimage": f"CodeChroma-{VERSION}-x64.AppImage",
+    "dotnet-windows-x64": f"CodeChroma-{VERSION}-win-x64-Installer.exe",
+    "dotnet-windows-x64-update": f"CodeChroma-{VERSION}-win-x64.zip",
+    "dotnet-macos-arm64": f"CodeChroma-{VERSION}-osx-arm64.zip",
+    "dotnet-macos-x64": f"CodeChroma-{VERSION}-osx-x64.zip",
+    "dotnet-linux-x64": f"CodeChroma-{VERSION}-linux-x86_64.AppImage",
 }
+ELECTRON_TARGETS = ["macos-arm64", "macos-x64", "windows-x64", "linux-x64", "linux-appimage"]
 REPO = "gutzerk/code_chroma"
 
 
@@ -151,3 +157,21 @@ def test_missing_installers_skip_their_target_and_none_at_all_fails(tmp_path):
     assert set(manifest["assets"]) == {"linux-appimage"}
     with pytest.raises(SystemExit):
         _run(VERSION, "--build-dir", str(tmp_path / "empty"), "--out", str(tmp_path / "e.json"))
+
+
+def test_a_release_with_only_electron_installers_has_no_dotnet_targets(tmp_path):
+    _populate(tmp_path / "build", {t: FILES[t] for t in ELECTRON_TARGETS})
+
+    manifest = _generate(tmp_path)
+
+    assert set(manifest["assets"]) == set(ELECTRON_TARGETS)
+
+
+@pytest.mark.parametrize("target", ELECTRON_TARGETS)
+def test_a_release_carrying_both_flavors_keeps_the_electron_targets_on_the_electron_installers(tmp_path, target):  # noqa: E501
+    _populate(tmp_path / "build", FILES)
+
+    manifest = _generate(tmp_path)
+
+    assert manifest["assets"][target].endswith(f"/{FILES[target]}")
+    assert manifest["sha256"][target] == hashlib.sha256(f"payload for {target}".encode()).hexdigest()  # noqa: E501

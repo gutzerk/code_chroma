@@ -1,6 +1,6 @@
 using CodeChroma.Shell.Tests.Support;
 
-namespace CodeChroma.Shell.Tests;
+namespace CodeChroma.Shell.Tests.Updater;
 
 public class UpdateCacheTests
 {

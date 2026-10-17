@@ -1,4 +1,4 @@
-namespace CodeChroma.Shell.Tests;
+namespace CodeChroma.Shell.Tests.Updater;
 
 public class VersionTests
 {

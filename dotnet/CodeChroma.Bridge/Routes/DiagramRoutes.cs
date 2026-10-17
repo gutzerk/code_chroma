@@ -2,6 +2,7 @@ using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
 using System.Text.Json.Nodes;
+using CodeChroma.Bridge.Diagrams;
 using CodeChroma.Bridge.Http;
 using CodeChroma.Bridge.Skills;
 using CodeChroma.Bridge.Stores;
@@ -23,7 +24,7 @@ public static class DiagramRoutes
                 return Results.Json(new JsonObject { ["repo_root"] = ws.Root, [$"{k}_path"] = ws.DiagramPath(k) }, BridgeJson.Default.JsonObject);
             });
             app.MapGet($"/repos/{{repoId}}/{k}", (string repoId, WorkspaceRegistry registry) =>
-                Results.Json(LoadArtifact(registry.Get(repoId), k) ?? new JsonObject(), BridgeJson.Default.JsonObject));
+                Results.Json(ResolveKind(registry.Get(repoId), k), BridgeJson.Default.JsonObject));
             app.MapDelete($"/repos/{{repoId}}/{k}", (string repoId, WorkspaceRegistry registry) =>
             {
                 var path = registry.Get(repoId).DiagramPath(k);
@@ -64,6 +65,31 @@ public static class DiagramRoutes
     /// <summary>The kinds with a generate/status/output/cancel quartet (c1, and the Impact change review).</summary>
     public static readonly IReadOnlyList<string> GenerateKinds = ["c1", "impact-changes"];
 
+    /// <summary>One built-in kind's resolved payload; patterns and impact (engine slices) are served as authored.</summary>
+    public static JsonObject ResolveKind(Workspace ws, string kind)
+    {
+        var data = DiagramArtifacts.Load(ws, kind);
+        switch (kind)
+        {
+            case "c1":
+                if (data.Count == 0) return new JsonObject();
+                data["type"] = "c1";
+                return DiagramResolver.AttachCoverage(DiagramResolver.Resolve(ws.Engine, data), ws.Engine);
+            case "epics":
+                var epics = DiagramResolver.Resolve(ws.Engine, data);
+                epics["has_diagram"] = data.Count > 0;
+                return epics;
+            case "sequence":
+                if (data.Count == 0) return new JsonObject();
+                data["type"] = "sequence";
+                var sequence = DiagramResolver.Resolve(ws.Engine, data);
+                sequence["has_diagram"] = true;
+                return sequence;
+            default:
+                return LoadArtifact(ws, kind) as JsonObject ?? new JsonObject();
+        }
+    }
+
     public static JsonNode? LoadArtifact(Workspace ws, string kind)
     {
         try
@@ -95,7 +121,7 @@ public static class DiagramRoutes
         return Results.Json(new ErrorDetail($"unrecognized state: {shown}"), BridgeJson.Default.ErrorDetail, statusCode: 400);
     }
 
-    private static string? Fingerprint(JsonNode? diagram)
+    public static string? Fingerprint(JsonNode? diagram)
     {
         if (diagram is not JsonObject { Count: > 0 }) return null;
         return Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(Canonical(diagram)))).ToLowerInvariant()[..16];
@@ -113,19 +139,20 @@ public static class DiagramRoutes
     {
         var ws = registry.Get(repoId);
         var result = new JsonObject();
-        void Add(string key, JsonNode? diagram) => result[key] = new JsonObject
+        void Add(string key, JsonNode? diagram, bool? ready = null) => result[key] = new JsonObject
         {
-            ["ready"] = diagram is JsonObject { Count: > 0 },
+            ["ready"] = ready ?? diagram is JsonObject { Count: > 0 },
             ["fingerprint"] = Fingerprint(diagram),
         };
-        foreach (var kind in Workspace.DiagramKinds) Add(kind, LoadArtifact(ws, kind));
+        // A built-in is ready once its file validates (an empty object is valid); custom and feature-plan once non-empty.
+        foreach (var kind in Workspace.DiagramKinds) Add(kind, DiagramArtifacts.Load(ws, kind), SkillAgents.HasValidFlatDiagram(LoadArtifact(ws, kind)));
         foreach (var entry in library.ListTypes())
-            if (Json.Str(entry!["id"]) is { } typeId) Add($"custom/{typeId}", LoadArtifact(ws, $"custom/{typeId}"));
+            if (Json.Str(entry!["id"]) is { } typeId) Add($"custom/{typeId}", DiagramArtifacts.Load(ws, $"custom/{typeId}"));
         var featureDir = Path.Combine(ws.Root, ".codechroma", "diagrams", "feature-plan");
         if (Directory.Exists(featureDir))
             foreach (var dir in Directory.GetDirectories(featureDir).Select(Path.GetFileName).Order(StringComparer.Ordinal))
             {
-                var diagram = LoadArtifact(ws, $"feature-plan/{dir}");
+                var diagram = DiagramArtifacts.Load(ws, $"feature-plan/{dir}");
                 if (diagram is JsonObject { Count: > 0 }) Add($"feature-plan/{dir}", diagram);
             }
         return Results.Json(result, BridgeJson.Default.JsonObject);

@@ -1,4 +1,5 @@
 using System.Text.Json.Nodes;
+using CodeChroma.Bridge.Diagrams;
 using CodeChroma.Bridge.Http;
 using CodeChroma.Bridge.Stores;
 using CodeChroma.Bridge.Workspaces;
@@ -51,11 +52,18 @@ public static class DiagramTypeRoutes
             var ws = registry.Get(repoId);
             return wantsPath
                 ? PathResponse(ws, $"custom/{id}", "custom_path")
-                : Reply.Json(DiagramRoutes.LoadArtifact(ws, $"custom/{id}") ?? new JsonObject());
+                : Reply.Json(ResolveCustom(ws, id, library));
         });
 
         app.MapDelete("/repos/{repoId}/custom/{typeId}", (string repoId, string typeId, WorkspaceRegistry registry) =>
             DiagramLibrary.ValidTypeId(typeId) ? Deleted(registry.Get(repoId), $"custom/{typeId}") : InvalidType(typeId));
+
+        app.MapGet("/repos/{repoId}/custom/{typeId}/context", (string repoId, string typeId, WorkspaceRegistry registry, DiagramLibrary library) =>
+        {
+            if (!DiagramLibrary.ValidTypeId(typeId)) return InvalidType(typeId);
+            if (library.LoadType(typeId) is not { } definition) return Reply.Error(404, $"unknown diagram kind: 'custom/{typeId}'");
+            return Reply.Json(CustomContext(registry.Get(repoId), typeId, definition));
+        });
 
         app.MapGet("/repos/{repoId}/feature-plan/{slug}", (string repoId, string slug, WorkspaceRegistry registry) =>
         {
@@ -65,11 +73,53 @@ public static class DiagramTypeRoutes
             var ws = registry.Get(repoId);
             return wantsPath
                 ? PathResponse(ws, $"feature-plan/{id}", "feature_plan_path")
-                : Reply.Json(DiagramRoutes.LoadArtifact(ws, $"feature-plan/{id}") ?? new JsonObject());
+                : Reply.Json(ResolveFeaturePlan(ws, id));
         });
 
         app.MapDelete("/repos/{repoId}/feature-plan/{slug}", (string repoId, string slug, WorkspaceRegistry registry) =>
             DiagramLibrary.ValidTypeId(slug) ? Deleted(registry.Get(repoId), $"feature-plan/{slug}") : Reply.Error(400, $"invalid feature-plan slug: '{slug}'"));
+    }
+
+    /// <summary>A custom type's payload: shared resolve with the type's own style, grouping gate, coverage and staleness.</summary>
+    public static JsonObject ResolveCustom(Workspace ws, string typeId, DiagramLibrary library)
+    {
+        var definition = library.LoadType(typeId)!;
+        var data = DiagramArtifacts.Load(ws, $"custom/{typeId}");
+        var resolved = DiagramResolver.Resolve(ws.Engine, data, definition["style"]);
+        resolved["has_diagram"] = data.Count > 0;
+        if (!GroupingEnabled(definition)) resolved["groups"] = new JsonArray();
+        DiagramResolver.AttachCoverage(resolved, ws.Engine);
+        return DiagramResolver.AttachStaleness(resolved, DiagramArtifacts.DigestFingerprint(ws), Json.Str(data["fingerprint"]));
+    }
+
+    public static JsonObject ResolveFeaturePlan(Workspace ws, string slug)
+    {
+        var data = DiagramArtifacts.Load(ws, $"feature-plan/{slug}");
+        var resolved = DiagramResolver.Resolve(ws.Engine, data);
+        resolved["has_diagram"] = data.Count > 0;
+        return resolved;
+    }
+
+    /// <summary>A type's own grouping toggle AND a style that supports groups.</summary>
+    public static bool GroupingEnabled(JsonObject definition)
+    {
+        var style = Json.Str(definition["style"]) is { } id ? DiagramStyles.Catalog(id) : null;
+        var wants = definition["grouping"] is JsonObject g && Json.Truthy(g["enabled"]);
+        return wants && style?["overrides"] is JsonObject o && Json.Truthy(o["supports_groups"]);
+    }
+
+    private static JsonObject CustomContext(Workspace ws, string typeId, JsonObject definition)
+    {
+        JsonNode? coverage = null;
+        if (definition["addons"] is JsonObject addons && Json.Truthy(addons["coverage"]))
+        {
+            var diagram = DiagramArtifacts.Load(ws, $"custom/{typeId}");
+            var report = Coverage.Report(ws.Engine, DiagramResolver.AuthoredPaths(diagram));
+            var withFlag = new JsonObject { ["has_diagram"] = diagram.Count > 0 };
+            foreach (var (k, v) in report) withFlag[k] = v?.DeepClone();
+            coverage = withFlag;
+        }
+        return new JsonObject { ["coverage"] = coverage, ["staleness"] = null, ["generation_data"] = null };
     }
 
     private static IResult InvalidType(string typeId) => Reply.Error(400, $"invalid diagram type id: '{typeId}'");

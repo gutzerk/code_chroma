@@ -1,0 +1,62 @@
+using CodeChroma.Bridge.Engine;
+using CodeChroma.Bridge.Http;
+using CodeChroma.Bridge.Live;
+using CodeChroma.Bridge.Routes;
+using CodeChroma.Bridge.Workspaces;
+
+var builder = WebApplication.CreateBuilder(args);
+
+var repoRoot = Path.GetFullPath(builder.Configuration["Bridge:RepoRoot"] ?? Environment.GetEnvironmentVariable("codechroma_BRIDGE_REPO_PATH") ?? ".");
+var allowedOrigins = (Environment.GetEnvironmentVariable("codechroma_BRIDGE_CORS_ORIGINS") ?? "http://localhost:5173,http://127.0.0.1:5173")
+    .Split(',').Select(o => o.Trim()).Where(o => o.Length > 0).ToHashSet();
+
+builder.Services.AddSingleton(TimeProvider.System);
+builder.Services.AddSingleton<IEngineFactory, UnavailableEngineFactory>();
+builder.Services.AddSingleton<ConnectionManager>();
+builder.Services.AddSingleton(sp =>
+{
+    var connections = sp.GetRequiredService<ConnectionManager>();
+    return new WorkspaceRegistry(
+        repoRoot,
+        sp.GetRequiredService<IEngineFactory>(),
+        (key, message) => connections.BroadcastDetached(message, key),
+        sp.GetRequiredService<TimeProvider>(),
+        startWatchers: true);
+});
+builder.Services.AddHostedService<RegistryLifecycle>();
+builder.Services.AddCors();
+
+var app = builder.Build();
+
+app.UseWebSockets();
+app.UseCors(policy => policy.WithOrigins([.. allowedOrigins]).WithMethods("GET", "POST", "PUT", "PATCH", "DELETE").AllowAnyHeader());
+app.UseMiddleware<OriginGuard>((IReadOnlySet<string>)allowedOrigins);
+
+WorkspaceAndSocketRoutes.Map(app, repoRoot);
+GraphRoutes.Map(app);
+DiagramRoutes.Map(app);
+
+app.Run();
+
+/// <summary>Starts the watchers with the host and sweeps idle workspaces every minute.</summary>
+internal sealed class RegistryLifecycle(WorkspaceRegistry registry) : BackgroundService
+{
+    protected override async Task ExecuteAsync(CancellationToken stoppingToken)
+    {
+        registry.StartAll();
+        using var timer = new PeriodicTimer(TimeSpan.FromSeconds(BridgeLimits.IdleSweepSeconds));
+        try
+        {
+            while (await timer.WaitForNextTickAsync(stoppingToken)) registry.UnloadIdle();
+        }
+        catch (OperationCanceledException) { }
+    }
+
+    public override Task StopAsync(CancellationToken cancellationToken)
+    {
+        registry.Dispose();
+        return base.StopAsync(cancellationToken);
+    }
+}
+
+public partial class Program;

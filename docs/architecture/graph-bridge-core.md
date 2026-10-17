@@ -355,3 +355,5 @@ so live saves are cheap. Exercised by
 `tests/unit/test_plan_resolver.py`, `tests/unit/test_impact.py`, `tests/unit/test_skill_sync.py`,
 `tests/unit/test_main_branch.py`, and
 `tests/integration/test_summary_reuse.py`.
+
+🔵 **C# bridge in progress (`dotnet/CodeChroma.Bridge`, plan `docs/planning/012-csharp-bridge.md`).** An ASP.NET Core re-implementation of the graph, diagram-artifact, workspace and socket routes. The Python bridge stays the reference: `tests/fixtures/bridge_contract/*.cases.json` is a language-neutral wire contract replayed by `tests/contract/test_bridge_wire_contract.py` (against this FastAPI app) and by `dotnet/CodeChroma.Bridge.Tests` (against the C# app). When you change a route's request/response shape here, update the matching case file or the C# suite will diverge; regenerate `engine_snapshot.sample_repo.json` with `scripts/dump_bridge_contract_snapshot.py` if the sample repo's graph changes. Baseline numbers: `scripts/bench_bridge_cold_start.py`.

@@ -518,3 +518,5 @@ One gear, one dialog, three tabs — no second rail button:
 - Running a `simple` call site's `mode="cli"` assignment (only the 8 agentic sites actually execute
   a CLI run in this feature; `build_provider` returns `None` for that combination today).
 - A live model list from the bridge (same as the assistant-settings probe).
+
+C# bridge note: the API-provider "Test" and `POST /assistant/settings/test` make a real one-token completion via `Skills/LlmCompletion.cs` (anthropic uses `ANTHROPIC_BASE_URL` when set); CLI selection for skill runs is `Skills/CliResolver.cs`.

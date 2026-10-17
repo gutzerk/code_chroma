@@ -361,3 +361,7 @@ so live saves are cheap. Exercised by
 ## C# bridge status (docs/planning/012)
 
 `dotnet/CodeChroma.Bridge` is a partial ASP.NET Core port that replays the same `tests/fixtures/bridge_contract` cases as this Python bridge; the Python bridge remains the reference and is not removed. Its graph comes from `CodeChroma.Core` fed by `python -m codechroma.analysis_export` (`src/codechroma/analysis_export.py`, also used by `tests/graph_golden.py`). See 012 for the ported/unported route table.
+
+## C# bridge: skill runners, epics, wiki-general status and resolved diagrams
+
+The C# bridge (`dotnet/CodeChroma.Bridge`) ports the headless skill runner and the routes around it; `docs/planning/012-csharp-bridge.md` has the full status table. Entry points: `Skills/SkillAgent.cs` (one runner per kind, owned by `Skills/SkillAgents.cs`, registered by `AddSkillServices()`), `Skills/RuntimeEnvironment.cs` (the same snapshot/generation model as `llm/runtime_env.py`), `Routes/DiagramRoutes.cs` (generate/status/output/cancel for `c1` and `impact-changes`), `Routes/EpicsRoutes.cs`, `Routes/WikiGeneralRoutes.cs`, `Routes/LayoutRoutes.cs`, `Routes/ContextRoutes.cs`. Runner tests use `dotnet/CodeChroma.Bridge.FakeCli` (copy it, rename to `claude`, script it with `fakecli.script.json`); never point a test at a real CLI. Call `SkillAgents.ForgetWorkspace(id)` when a workspace is released.

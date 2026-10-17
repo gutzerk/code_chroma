@@ -12,8 +12,8 @@
     <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.8.0" />
     <PackageReference Include="xunit" Version="2.5.3" />
     <PackageReference Include="xunit.runner.visualstudio" Version="2.5.3" />
-    <PackageReference Include="Avalonia.Headless.XUnit" Version="11.1.5" />
-    <PackageReference Include="Avalonia.Themes.Fluent" Version="11.1.5" />
+    <PackageReference Include="Avalonia.Headless.XUnit" Version="11.3.12" />
+    <PackageReference Include="Avalonia.Themes.Fluent" Version="11.3.12" />
   </ItemGroup>
 
   <ItemGroup>

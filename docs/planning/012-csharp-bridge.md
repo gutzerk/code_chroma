@@ -98,5 +98,12 @@ Engine: `CoreEngineFactory` analyzes with the Python analyzers (`python -m codec
 | branches (list, choices, open/create, close) | ported, contract; skills are not synced into branch worktrees |
 | canvas GET/PATCH, recipes run, diff/change-cards/accept | ported, contract (`canvas`, `recipes`, `diffs` case files; function-level diff cases are `requires: real-engine`) |
 | not ported | agents, prs, epics, wiki_general, skill runners (`claude -p`), generate routes, resolvers, PTY terminal host |
+| branches (list, choices, open/create, close) | ported, contract; skills installed and diagrams seeded into branch worktrees, agent worktrees count as holders |
+| agents (cards, git-preflight/init, branch switcher, start/stop/resume, window, pr-preflight, pr, recreate-worktree, delete), autostart, status LED poller | ported, contract (`agents.cases.json`); `claude -p` commit-message generation is a plain process call |
+| prs (preflight, list, github list, open, refresh, close) | ported, contract (`prs.cases.json`: validation and 404 paths; the gh/fetch happy path needs a GitHub remote and is covered by unit-level logic only) |
+| PTY terminal host `WS /ws/terminal` | ported, contract (`terminal.cases.json`) plus real-process xUnit tests |
+| not ported | canvas (GET/PATCH), recipes, diffs/change-cards/accept, epics, wiki_general, skill runners (`claude -p`), generate routes, resolvers |
+
+PTY choice: `Porta.Pty` 1.0.7 (MIT, netstandard2.0, ConPTY on Windows, native `openpty` shim on Linux/macOS) behind `Terminal/PtyHost.cs`, which adds incremental UTF-8 decoding, the ConPTY startup `ESC[c` reply, exit reporting and kill. Newer Porta.Pty versions target net10 only. `Terminal/ScreenTap.cs` is a managed VT emulator (pyte replacement) for reattach redraws and the status detector; `Agents/StatusDetector.cs` reads the shipped `detect/*.toml` (embedded). Known gap: the foreground-process probe (`tcgetpgrp`+`ps`) is not ported, so the detector never treats a nested `vim` as foreign.
 
 Results: `dotnet test dotnet/CodeChroma.Bridge.sln` 173 passed / 0 skipped with `CODECHROMA_PYTHON` set (170 passed, 1 skipped without); Python `tests/contract` 251 passed.

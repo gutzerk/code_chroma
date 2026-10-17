@@ -1,0 +1,126 @@
+using CodeChroma.Bridge.Live;
+using CodeChroma.Bridge.Prs;
+using CodeChroma.Bridge.Routes;
+using CodeChroma.Bridge.Stores;
+using CodeChroma.Bridge.Terminal;
+using CodeChroma.Bridge.Workspaces;
+
+namespace CodeChroma.Bridge.Agents;
+
+/// <summary>DI registration for the agents, PR reviews and the PTY terminal host: one line in Program.cs.</summary>
+public static class AgentsAndPrsServices
+{
+    public static IServiceCollection AddAgentsAndPrs(this IServiceCollection services, string repoRoot)
+    {
+        services.AddSingleton(_ => new AgentManager(repoRoot));
+        services.AddSingleton(_ => new PrManager(repoRoot));
+        services.AddSingleton<AgentSessionRegistry>();
+        services.AddSingleton<TerminalAgents>();
+        services.AddHostedService<AgentRuntime>();
+        return services;
+    }
+}
+
+/// <summary>
+/// Boot and shutdown of everything agent-shaped: reconciles the registries, registers agent and PR workspaces, brings every
+/// persisted agent's PTY back up, samples their screens for the status LED, and kills the PTYs on exit so no orphan keeps
+/// writing to files behind the user's back.
+/// </summary>
+public sealed class AgentRuntime(
+    AgentManager agents, PrManager prs, BranchManager branches, WorkspaceRegistry registry, AgentSessionRegistry sessions,
+    TerminalAgents terminalAgents, ConnectionManager connections, UserPaths paths, ILogger<AgentRuntime> log) : IHostedService
+{
+    public const int StatusPollMs = 250;
+
+    private CancellationTokenSource? _stop;
+    private Task? _poller;
+
+    public Task StartAsync(CancellationToken cancellationToken)
+    {
+        agents.Reconcile();
+        foreach (var record in agents.List())
+            registry.Register(record.Id, record.Worktree, sharesWorkspaceWith: record.SharesWorkspaceWith);
+
+        prs.Reconcile();
+        agents.PrLookup = prs.FindById;
+        foreach (var pr in prs.List())
+            registry.Register(pr.Id, pr.Worktree, readOnly: true, baseRef: PrImporter.LocalBaseRef(pr.Number), c1SourceRoot: registry.Main.Root);
+
+        branches.ExtraHolders = () => [.. agents.List().Select(a => (a.Worktree, a.Id))];
+        agents.WorkspaceGuard = registry.IsRegistered;
+        agents.RevalidateActiveWorkspace();
+
+        AutoStartAgents();
+        _stop = new CancellationTokenSource();
+        _poller = Task.Run(() => PollStatuses(_stop.Token));
+        return Task.CompletedTask;
+    }
+
+    public async Task StopAsync(CancellationToken cancellationToken)
+    {
+        _stop?.Cancel();
+        if (_poller is not null) await Task.WhenAny(_poller, Task.Delay(TimeSpan.FromSeconds(2), cancellationToken));
+        sessions.StopAll();
+        foreach (var record in agents.List())
+        {
+            record.Pid = null;
+            record.Status = AgentRecord.StatusStopped;
+            record.ExitCode = null;
+        }
+        agents.Save();
+    }
+
+    /// <summary>One agent's failure to start is logged and skipped, never raised past this loop.</summary>
+    private void AutoStartAgents()
+    {
+        foreach (var record in agents.List())
+        {
+            if (record.WorktreeLost || sessions.Get(record.Id) is not null) continue;
+            try { AutoStartOne(record); }
+            catch (Exception error) { log.LogError(error, "agents: auto-start failed for {Agent}", record.Id); }
+        }
+    }
+
+    /// <summary>Resumes the last chat when a session id survived, starts fresh otherwise.</summary>
+    private void AutoStartOne(AgentRecord record)
+    {
+        var sessionId = agents.CaptureSessionId(record.Id);
+        var launch = terminalAgents.Resolve(record.Kind, sessionId);
+        if (launch is null)
+        {
+            log.LogError("agents: unknown kind {Kind} for {Agent}, skipping auto-start", record.Kind, record.Id);
+            return;
+        }
+        var env = new Dictionary<string, string>(launch.Env) { ["codechroma_WORKSPACE_ID"] = record.Id };
+        AgentSession session;
+        try { session = sessions.Start(record.Id, launch.Argv, record.Worktree, record.Kind, env, paths); }
+        catch (AgentStartException error)
+        {
+            log.LogWarning("agents: could not auto-start {Agent}: {Reason}", record.Id, error.Message);
+            return;
+        }
+        agents.MarkStarted(record.Id, session.Pid, TerminalAgents.ResolvedCliFor(record.Kind, launch.Argv));
+        _ = AgentRoutes.CaptureSessionIdLater(agents, record.Id);
+    }
+
+    /// <summary>Samples every live agent's screen and pushes only the changes the detector settled on.</summary>
+    private async Task PollStatuses(CancellationToken stopping)
+    {
+        using var timer = new PeriodicTimer(TimeSpan.FromMilliseconds(StatusPollMs));
+        try
+        {
+            while (await timer.WaitForNextTickAsync(stopping))
+            {
+                try
+                {
+                    foreach (var (id, status) in sessions.PollStatuses()) await AgentRoutes.BroadcastStatus(connections, id, status);
+                }
+                catch (Exception error) when (error is not OperationCanceledException)
+                {
+                    log.LogError(error, "agents: status poll failed");
+                }
+            }
+        }
+        catch (OperationCanceledException) { }
+    }
+}

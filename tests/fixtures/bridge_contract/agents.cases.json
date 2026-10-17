@@ -1,0 +1,660 @@
+{
+  "group": "agents",
+  "sources": [
+    "src/codechroma/bridge/routes/agents.py",
+    "src/codechroma/bridge/agents/manager.py"
+  ],
+  "repo": {
+    "base": "sample_repo"
+  },
+  "cases": [
+    {
+      "id": "no_agents_at_first",
+      "steps": [
+        {
+          "http": {
+            "method": "GET",
+            "path": "/agents"
+          },
+          "expect": {
+            "status": 200,
+            "json": {
+              "agents": [],
+              "active_workspace": "main",
+              "max_agents": 5
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "git_preflight_reports_a_ready_repository",
+      "steps": [
+        {
+          "http": {
+            "method": "GET",
+            "path": "/agents/git-preflight"
+          },
+          "expect": {
+            "status": 200,
+            "checks": [
+              {
+                "path": "$.state",
+                "equals": "ready"
+              }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "create_validation_is_a_400_with_a_reason",
+      "steps": [
+        {
+          "http": {
+            "method": "POST",
+            "path": "/agents",
+            "json": {
+              "title": 5
+            }
+          },
+          "expect": {
+            "status": 400,
+            "json": {
+              "detail": "title must be a string"
+            }
+          }
+        },
+        {
+          "http": {
+            "method": "POST",
+            "path": "/agents",
+            "json": {
+              "kind": "bogus"
+            }
+          },
+          "expect": {
+            "status": 400,
+            "json": {
+              "detail": "unknown agent kind: bogus"
+            }
+          }
+        },
+        {
+          "http": {
+            "method": "POST",
+            "path": "/agents",
+            "json": {
+              "attach_to": 3
+            }
+          },
+          "expect": {
+            "status": 400,
+            "json": {
+              "detail": "attach_to must be a string"
+            }
+          }
+        },
+        {
+          "http": {
+            "method": "POST",
+            "path": "/agents",
+            "json": {
+              "context": 3
+            }
+          },
+          "expect": {
+            "status": 400,
+            "json": {
+              "detail": "context must be a string"
+            }
+          }
+        },
+        {
+          "http": {
+            "method": "POST",
+            "path": "/agents",
+            "json": {
+              "context_kind": "nope"
+            }
+          },
+          "expect": {
+            "status": 400,
+            "json": {
+              "detail": "context_kind must be 'view' or 'task'"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "attaching_to_an_unknown_workspace_is_a_404",
+      "steps": [
+        {
+          "http": {
+            "method": "POST",
+            "path": "/agents",
+            "json": {
+              "title": "x",
+              "kind": "shell",
+              "attach_to": "nope"
+            }
+          },
+          "expect": {
+            "status": 404,
+            "json": {
+              "detail": "unknown attach_to: nope"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "unknown_agents_are_404_everywhere",
+      "steps": [
+        {
+          "http": {
+            "method": "POST",
+            "path": "/agents/nope/start",
+            "json": {}
+          },
+          "expect": {
+            "status": 404,
+            "json": {
+              "detail": "unknown agent: nope"
+            }
+          }
+        },
+        {
+          "http": {
+            "method": "POST",
+            "path": "/agents/nope/stop"
+          },
+          "expect": {
+            "status": 404,
+            "json": {
+              "detail": "unknown agent: nope"
+            }
+          }
+        },
+        {
+          "http": {
+            "method": "POST",
+            "path": "/agents/nope/recreate-worktree"
+          },
+          "expect": {
+            "status": 404,
+            "json": {
+              "detail": "unknown agent: nope"
+            }
+          }
+        },
+        {
+          "http": {
+            "method": "GET",
+            "path": "/agents/nope/pr-preflight"
+          },
+          "expect": {
+            "status": 404,
+            "json": {
+              "detail": "unknown agent: nope"
+            }
+          }
+        },
+        {
+          "http": {
+            "method": "DELETE",
+            "path": "/agents/nope"
+          },
+          "expect": {
+            "status": 404,
+            "json": {
+              "detail": "unknown agent: nope"
+            }
+          }
+        },
+        {
+          "http": {
+            "method": "PATCH",
+            "path": "/agents/nope/window",
+            "json": {
+              "x": 1
+            }
+          },
+          "expect": {
+            "status": 404,
+            "json": {
+              "detail": "unknown agent: nope"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "an_agent_gets_its_own_branch_and_worktree_and_can_be_deleted",
+      "steps": [
+        {
+          "http": {
+            "method": "POST",
+            "path": "/agents",
+            "json": {
+              "title": "First Task!",
+              "kind": "shell",
+              "context": "line one\nline two"
+            }
+          },
+          "expect": {
+            "status": 200,
+            "checks": [
+              {
+                "path": "$.id",
+                "equals": "first-task"
+              },
+              {
+                "path": "$.branch",
+                "equals": "agent/first-task"
+              },
+              {
+                "path": "$.status",
+                "equals": "stopped"
+              },
+              {
+                "path": "$.kind",
+                "equals": "shell"
+              },
+              {
+                "path": "$.context",
+                "equals": "line one line two"
+              },
+              {
+                "path": "$.context_kind",
+                "equals": "view"
+              },
+              {
+                "path": "$.shares_workspace_with",
+                "equals": null
+              },
+              {
+                "path": "$.worktree_lost",
+                "equals": false
+              }
+            ]
+          }
+        },
+        {
+          "http": {
+            "method": "GET",
+            "path": "/agents"
+          },
+          "expect": {
+            "status": 200,
+            "checks": [
+              {
+                "path": "$.agents",
+                "count": 1
+              }
+            ]
+          }
+        },
+        {
+          "http": {
+            "method": "DELETE",
+            "path": "/agents/first-task"
+          },
+          "expect": {
+            "status": 200,
+            "json": {
+              "status": "deleted",
+              "id": "first-task"
+            }
+          }
+        },
+        {
+          "http": {
+            "method": "GET",
+            "path": "/agents"
+          },
+          "expect": {
+            "status": 200,
+            "checks": [
+              {
+                "path": "$.agents",
+                "count": 0
+              }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "an_agent_attached_to_main_shares_it_and_refuses_worktree_removal",
+      "steps": [
+        {
+          "http": {
+            "method": "POST",
+            "path": "/agents",
+            "json": {
+              "title": "Looker",
+              "kind": "shell",
+              "attach_to": "main"
+            }
+          },
+          "expect": {
+            "status": 200,
+            "checks": [
+              {
+                "path": "$.shares_workspace_with",
+                "equals": "main"
+              }
+            ]
+          }
+        },
+        {
+          "http": {
+            "method": "DELETE",
+            "path": "/agents/looker",
+            "query": {
+              "worktree": "true"
+            }
+          },
+          "expect": {
+            "status": 409
+          }
+        }
+      ]
+    },
+    {
+      "id": "window_patches_keep_only_known_geometry",
+      "steps": [
+        {
+          "http": {
+            "method": "POST",
+            "path": "/agents",
+            "json": {
+              "title": "Win",
+              "kind": "shell"
+            }
+          },
+          "expect": {
+            "status": 200
+          }
+        },
+        {
+          "http": {
+            "method": "PATCH",
+            "path": "/agents/win/window",
+            "json": {
+              "x": 10.5,
+              "width": 300,
+              "bogus": 1,
+              "minimized": true,
+              "height": "tall"
+            }
+          },
+          "expect": {
+            "status": 200,
+            "checks": [
+              {
+                "path": "$.x",
+                "equals": 10.5
+              },
+              {
+                "path": "$.width",
+                "equals": 300
+              },
+              {
+                "path": "$.minimized",
+                "equals": true
+              },
+              {
+                "path": "$.height",
+                "equals": 480
+              },
+              {
+                "path": "$.bogus",
+                "absent": true
+              }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "the_agent_limit_is_a_409",
+      "steps": [
+        {
+          "http": {
+            "method": "POST",
+            "path": "/agents",
+            "json": {
+              "title": "a1",
+              "kind": "shell",
+              "attach_to": "main"
+            }
+          },
+          "expect": {
+            "status": 200
+          }
+        },
+        {
+          "http": {
+            "method": "POST",
+            "path": "/agents",
+            "json": {
+              "title": "a2",
+              "kind": "shell",
+              "attach_to": "main"
+            }
+          },
+          "expect": {
+            "status": 200
+          }
+        },
+        {
+          "http": {
+            "method": "POST",
+            "path": "/agents",
+            "json": {
+              "title": "a3",
+              "kind": "shell",
+              "attach_to": "main"
+            }
+          },
+          "expect": {
+            "status": 200
+          }
+        },
+        {
+          "http": {
+            "method": "POST",
+            "path": "/agents",
+            "json": {
+              "title": "a4",
+              "kind": "shell",
+              "attach_to": "main"
+            }
+          },
+          "expect": {
+            "status": 200
+          }
+        },
+        {
+          "http": {
+            "method": "POST",
+            "path": "/agents",
+            "json": {
+              "title": "a5",
+              "kind": "shell",
+              "attach_to": "main"
+            }
+          },
+          "expect": {
+            "status": 200
+          }
+        },
+        {
+          "http": {
+            "method": "POST",
+            "path": "/agents",
+            "json": {
+              "title": "a6",
+              "kind": "shell",
+              "attach_to": "main"
+            }
+          },
+          "expect": {
+            "status": 409,
+            "json": {
+              "detail": "the limit of 5 concurrent agents is reached"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "the_branch_switcher_validates_its_input",
+      "steps": [
+        {
+          "http": {
+            "method": "GET",
+            "path": "/agents/branch"
+          },
+          "expect": {
+            "status": 200,
+            "checks": [
+              {
+                "path": "$.current",
+                "type": "string"
+              }
+            ]
+          }
+        },
+        {
+          "http": {
+            "method": "POST",
+            "path": "/agents/branch",
+            "json": {}
+          },
+          "expect": {
+            "status": 400,
+            "json": {
+              "detail": "branch is required"
+            }
+          }
+        },
+        {
+          "http": {
+            "method": "POST",
+            "path": "/agents/branch",
+            "json": {
+              "branch": "nope"
+            }
+          },
+          "expect": {
+            "status": 404,
+            "json": {
+              "detail": "unknown branch: nope"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "a_shell_agent_runs_survives_a_window_closing_and_stops_on_request",
+      "requires": [
+        "pty"
+      ],
+      "steps": [
+        {
+          "http": {
+            "method": "POST",
+            "path": "/agents",
+            "json": {
+              "title": "Live",
+              "kind": "shell"
+            }
+          },
+          "expect": {
+            "status": 200
+          }
+        },
+        {
+          "http": {
+            "method": "POST",
+            "path": "/agents/live/start",
+            "json": {}
+          },
+          "expect": {
+            "status": 200,
+            "checks": [
+              {
+                "path": "$.status",
+                "equals": "idle"
+              },
+              {
+                "path": "$.pid",
+                "type": "number"
+              }
+            ]
+          }
+        },
+        {
+          "ws": "connect",
+          "name": "win",
+          "path": "/ws/terminal?agent=shell&workspace=live",
+          "expect": "accepted"
+        },
+        {
+          "ws": "receive",
+          "name": "win",
+          "tag": "o",
+          "raw": true,
+          "timeout_ms": 15000
+        },
+        {
+          "ws": "send",
+          "name": "win",
+          "json": {
+            "type": "resize",
+            "rows": 30,
+            "cols": 100
+          }
+        },
+        {
+          "http": {
+            "method": "GET",
+            "path": "/agents"
+          },
+          "expect": {
+            "status": 200,
+            "checks": [
+              {
+                "path": "$.agents[0].status",
+                "equals": "idle"
+              }
+            ]
+          }
+        },
+        {
+          "http": {
+            "method": "POST",
+            "path": "/agents/live/stop"
+          },
+          "expect": {
+            "status": 200,
+            "checks": [
+              {
+                "path": "$.status",
+                "equals": "stopped"
+              },
+              {
+                "path": "$.pid",
+                "equals": null
+              }
+            ]
+          }
+        }
+      ]
+    }
+  ]
+}

@@ -115,7 +115,11 @@ public class WireContractTests
                 if (File.Exists(target)) File.Delete(target);
                 break;
             default:
-                File.WriteAllText(target, File.ReadAllText(target).Replace(step["find"]!.GetValue<string>(), step["with"]!.GetValue<string>()));
+                // Like Python's text-mode read/write: a CRLF checkout still matches a "\n" needle.
+                var original = File.ReadAllText(target);
+                var crlf = original.Contains("\r\n");
+                string Fit(string text) => crlf ? text.Replace("\r\n", "\n").Replace("\n", "\r\n") : text;
+                File.WriteAllText(target, original.Replace(Fit(step["find"]!.GetValue<string>()), Fit(step["with"]!.GetValue<string>())));
                 break;
         }
         return [];

@@ -51,6 +51,13 @@ public sealed class WorkspaceWatchers : IDisposable
 
     private void OnRepoChange()
     {
+        // A failed reanalysis (repo deleted underneath, analyzer crash) must never take the process down.
+        try { Notify(); }
+        catch (Exception) { }
+    }
+
+    private void Notify()
+    {
         var changed = _workspace.Sync();
         if (changed is not null)
             _workspace.Emit(new JsonObject { ["type"] = "changed", ["paths"] = new JsonArray(changed.Select(p => (JsonNode?)p).ToArray()) });

@@ -96,6 +96,7 @@ Engine: `CoreEngineFactory` analyzes with the Python analyzers (`python -m codec
 | issues (status, create via `gh`) | ported; validation contract only |
 | custom diagram types + custom/feature-plan paths/delete, diagrams/status custom entries | ported, contract; resolved GET payloads not ported |
 | branches (list, choices, open/create, close) | ported, contract; skills are not synced into branch worktrees |
-| not ported | agents, prs, canvas (GET/PATCH), recipes, diffs/change-cards/accept, epics, wiki_general, skill runners (`claude -p`), generate routes, resolvers, PTY terminal host |
+| canvas GET/PATCH, recipes run, diff/change-cards/accept | ported, contract (`canvas`, `recipes`, `diffs` case files; function-level diff cases are `requires: real-engine`) |
+| not ported | agents, prs, epics, wiki_general, skill runners (`claude -p`), generate routes, resolvers, PTY terminal host |
 
 Results: `dotnet test dotnet/CodeChroma.Bridge.sln` 173 passed / 0 skipped with `CODECHROMA_PYTHON` set (170 passed, 1 skipped without); Python `tests/contract` 251 passed.

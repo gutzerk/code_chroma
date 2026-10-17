@@ -99,3 +99,21 @@ Engine: `CoreEngineFactory` analyzes with the Python analyzers (`python -m codec
 | not ported | agents, prs, canvas (GET/PATCH), recipes, diffs/change-cards/accept, epics, wiki_general, skill runners (`claude -p`), generate routes, resolvers, PTY terminal host |
 
 Results: `dotnet test dotnet/CodeChroma.Bridge.sln` 173 passed / 0 skipped with `CODECHROMA_PYTHON` set (170 passed, 1 skipped without); Python `tests/contract` 251 passed.
+
+## Phase 5 progress (bridge skills, runners and resolvers)
+
+Ported to `dotnet/CodeChroma.Bridge` by the `bridge-skills` branch; all of it has C# xUnit tests, and everything with a wire shape has contract cases replayed on both backends (`runtime_environment`, `layout`, `epics`, `wiki_general`, `diagrams_resolved`; the two `diagram-resolver` cases in `diagrams` now run too).
+
+| Group | State |
+|---|---|
+| Skill/LLM subprocess runners | `Skills/SkillAgent.cs` (snapshot, restore, timeout, cancel, flush, composite keys, run bodies), `CliAdapters.cs` (claude/codex/kimi argv + JSONL rendering), `SkillOutput.cs`, `CliResolver.cs` (call site to provider to adapter to binary/model/env), `RuntimeEnvironment.cs` (login-shell capture, resolution cache, diagnostics), `Prompts.cs` (prompts/*.yaml embedded). Tested against `CodeChroma.Bridge.FakeCli`, a scripted executable; no real Claude or network |
+| Generate/status/output/cancel | `c1` and `impact-changes` run through `SkillAgent`; `Workspaces/SkillJobs.cs` is gone |
+| Runtime | `environment`, `cli/{name}`, `refresh`, `focus` ported; `PUT /runtime/settings` reconfigures the environment |
+| Assistant / llm_settings | `POST /assistant/settings/test` and the API-provider completion test make a real completion through `Skills/LlmCompletion.cs` (anthropic, openai-compatible, gemini), tested with stub handlers |
+| Epics | `Epics/` (markdown requirements source, speckit delivery source, assembler, brief normalization, tasks.md splice) and `Routes/EpicsRoutes.cs` (items, brief start/poll/cancel/output/path, diagram-path) |
+| wiki-general | status, interactive status (with the generate/update mutual exclusion and commit stamp), output, cancel, `wiki-general-context`; `generate`/`update` answer 501 |
+| Diagrams | `Diagrams/` shared resolver (diagnostics, path to node_id, origins, coverage, staleness, legacy c1 migration); resolved GET for c1, epics, sequence, custom and feature-plan; `custom/{id}/context`, `c1/context`, `epics/context`; hierarchy layout GET/POST |
+| Still not ported | patterns and impact resolved payloads (need the pattern detector and change cards), `impact-changes` payload, `{kind}/review`, `patterns/impact/sequence` context, `wiki-context` (needs the plain wiki generator), wiki-general pipeline/update, PR workspaces' `c1_source_root` |
+
+Known differences: the custom-diagram staleness fingerprint hashes `.codechroma/dependency-digest.json` with the C# canonical-JSON hash (the C# engine does not write that file, so it is constant); `epic_brief_agent`'s prompt carries compact JSON; the plain-wiki sync that `prepare_new_run` does is skipped; a login shell is captured with `env -0` (POSIX) or `Get-ChildItem env:` (PowerShell) instead of the Python helper.
+Pre-existing, not from this change: on the integration branch `tests/fixtures/sample_repo/.claude/` is tracked (commit 21b0ec0), which makes two Python `graph::structure_*` contract cases fail.

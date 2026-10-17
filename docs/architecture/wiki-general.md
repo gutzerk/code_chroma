@@ -584,3 +584,5 @@ the real create/rewrite/delete sequence against `sample_repo` including a determ
 `Created` component, `edges[]`/`generated_at_commit` recomputed together on a clean finish) ·
 the `stale` field's extra cases folded into the existing `test_bridge_wiki_general_routes.py` and
 `test_wiki_general_end_to_end.py` status assertions.
+
+C# bridge note: only the status, interactive status, output, cancel and `wiki-general-context` routes are ported (`Skills/WikiGeneral.cs`, `Routes/WikiGeneralRoutes.cs`); `generate` and `update` return 501 until the worker pipeline and delta computation are ported. Contract: `wiki_general.cases.json`.

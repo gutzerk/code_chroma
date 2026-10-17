@@ -1,5 +1,6 @@
 using System.Text.Json.Nodes;
 using CodeChroma.Bridge.Http;
+using CodeChroma.Bridge.Skills;
 using CodeChroma.Bridge.Stores;
 
 namespace CodeChroma.Bridge.Routes;
@@ -33,24 +34,47 @@ public static class AssistantRoutes
             return Reply.Json(Masked(settings));
         });
 
-        app.MapPost("/assistant/settings/test", (UserPaths paths) =>
+        app.MapPost("/assistant/settings/test", async (UserPaths paths, RuntimeEnvironment runtime, HttpClient http) =>
         {
             var settings = Load(paths);
             var cli = Json.Str(settings["cli"])!;
-            var cliFound = CliLocator.Find(cli) is not null;
-            var source = KeySource(settings);
             var problems = new List<string>();
-            if (!cliFound) problems.Add($"{cli} was not found on PATH");
-            if (source == "none")
-                problems.Add("no API key configured (settings file, key path, or ANTHROPIC_API_KEY)");
-            else
-                problems.Add("the API probe call is not available in the C# bridge yet");
-            return Reply.Json(new JsonObject
+            bool cliFound;
+            try
             {
-                ["ok"] = false, ["cli"] = cli, ["cli_found"] = cliFound, ["auth_source"] = source,
-                ["error"] = string.Join("; ", problems),
-            });
+                await Task.Run(() => runtime.Resolve(cli));
+                cliFound = true;
+            }
+            catch (CliLookupException error)
+            {
+                cliFound = false;
+                problems.Add(error.Message);
+            }
+            var source = KeySource(settings);
+            if (source == "none")
+            {
+                problems.Add("no API key configured (settings file, key path, or ANTHROPIC_API_KEY)");
+                return Reply.Json(Probe(false, cli, cliFound, source, string.Join("; ", problems)));
+            }
+            var llm = LlmCompletion.ForAssistant(Json.Str(settings["api_key"]), Json.Str(settings["api_key_path"]), http);
+            try
+            {
+                var text = await llm!.Complete("Reply with the single word: ok", LlmCompletion.ProbeModel, 1);
+                return Reply.Json(Probe(true, cli, cliFound, source, message: text.Length > 40 ? text[..40] : text));
+            }
+            catch (Exception error)
+            {
+                return Reply.Json(Probe(false, cli, cliFound, source, error.Message));
+            }
         });
+    }
+
+    private static JsonObject Probe(bool ok, string cli, bool cliFound, string source, string? error = null, string? message = null)
+    {
+        var result = new JsonObject { ["ok"] = ok, ["cli"] = cli, ["cli_found"] = cliFound, ["auth_source"] = source };
+        if (error is not null) result["error"] = error;
+        if (message is not null) result["message"] = message;
+        return result;
     }
 
     public static JsonObject Load(UserPaths paths) => FromPayload(JsonFile.LoadObject(paths.Assistant));

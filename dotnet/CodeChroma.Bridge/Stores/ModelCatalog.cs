@@ -86,10 +86,12 @@ public static class ModelCatalog
     }
 }
 
-/// <summary>The provider "Test" button; only the CLI half is ported, API completions are reported as unavailable.</summary>
+/// <summary>The provider "Test" button: a CLI is located and asked for models, an API provider answers one tiny completion.</summary>
 public static class ProviderTester
 {
-    public static async Task<JsonObject> Run(string? providerId, JsonObject provider)
+    public static Task<JsonObject> Run(string? providerId, JsonObject provider) => Run(providerId, provider, Skills.LlmCompletion.SharedHttp);
+
+    public static async Task<JsonObject> Run(string? providerId, JsonObject provider, HttpClient http)
     {
         if (Json.Str(provider["kind"]) == "cli")
         {
@@ -101,7 +103,19 @@ public static class ProviderTester
                 ? Failure(providerId, error.ToString())
                 : new JsonObject { ["ok"] = true, ["provider_id"] = providerId, ["message"] = "ok" };
         }
-        return Failure(providerId, "API provider completion tests are not available in the C# bridge yet");
+        var llm = Skills.LlmCompletion.For(provider, http);
+        if (llm is null) return Failure(providerId, "provider is not fully configured");
+        var model = Skills.LlmCompletion.ProbeModelFor(Json.Str(provider["transport"])) ?? Json.Str(provider["test_model"]);
+        if (string.IsNullOrEmpty(model)) return Failure(providerId, "set a test model for this provider before testing");
+        try
+        {
+            var text = await llm.Complete("Reply with the single word: ok", model, 1);
+            return new JsonObject { ["ok"] = true, ["provider_id"] = providerId, ["message"] = text.Length > 40 ? text[..40] : text };
+        }
+        catch (Exception error)
+        {
+            return Failure(providerId, error.Message);
+        }
     }
 
     private static JsonObject Failure(string? providerId, string error) =>

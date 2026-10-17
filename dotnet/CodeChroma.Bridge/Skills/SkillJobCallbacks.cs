@@ -44,6 +44,7 @@ public static class SkillServices
     public static IServiceCollection AddSkillServices(this IServiceCollection services)
     {
         services.AddSingleton(sp => new RuntimeEnvironment(() => RuntimeSettings.From(RuntimeRoutes.Load(sp.GetRequiredService<UserPaths>()))));
+        services.AddSingleton(LlmCompletion.SharedHttp);
         services.AddSingleton<CliResolver>();
         services.AddSingleton<SkillAgents>();
         return services;

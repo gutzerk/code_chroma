@@ -1,0 +1,67 @@
+{
+  "group": "wiki_general",
+  "sources": ["src/codechroma/bridge/routes/wiki_general.py", "src/codechroma/bridge/wiki_general_agent.py", "src/codechroma/bridge/wiki_general_context.py"],
+  "repo": {
+    "base": "sample_repo",
+    "files": {
+      ".codechroma/wiki-general/manifest.json": {"text": "{\"generated_at\": \"2026-01-01\", \"containers\": [{\"id\": \"core\", \"name\": \"Core\", \"path\": \"c2/core.md\"}, {\"id\": \"gone\", \"path\": \"c2/gone.md\"}], \"components\": [{\"id\": \"engine\", \"container\": \"core\"}]}"},
+      ".codechroma/wiki-general/index.md": {"text": "# System overview\n"},
+      ".codechroma/wiki-general/c2/core.md": {"text": "# Core container\n"}
+    }
+  },
+  "cases": [
+    {
+      "id": "status_reports_the_tree_and_that_it_predates_head",
+      "steps": [
+        {"http": {"method": "GET", "path": "/repos/main/wiki-general/status"}, "expect": {"status": 200, "json": {"state": "idle", "error": null, "has_wiki_general": true, "stale": true, "empty": false}}},
+        {"http": {"method": "GET", "path": "/repos/main/wiki-general/output"}, "expect": {"status": 200, "json": {"lines": []}}}
+      ]
+    },
+    {
+      "id": "the_context_bundle_has_the_root_and_every_readable_container",
+      "steps": [
+        {
+          "http": {"method": "GET", "path": "/repos/main/wiki-general-context"},
+          "expect": {"status": 200, "json": {
+            "has_wiki_general": true, "generated_at": "2026-01-01", "root": "# System overview\n",
+            "containers": [{"id": "core", "name": "Core", "content": "# Core container\n"}], "truncated": false
+          }}
+        }
+      ]
+    },
+    {
+      "id": "without_a_tree_the_context_says_so",
+      "steps": [
+        {"http": {"method": "POST", "path": "/repos/main/wiki-general/status", "json": {"state": "generating"}}, "expect": {"status": 200, "json": {"state": "generating", "error": null}}},
+        {"http": {"method": "GET", "path": "/repos/main/wiki-general-context"}, "expect": {"status": 200, "json": {"has_wiki_general": false, "generated_at": null, "root": null, "containers": [], "truncated": false}}}
+      ]
+    },
+    {
+      "id": "an_interactive_run_flips_state_and_a_clean_finish_stamps_the_commit",
+      "steps": [
+        {"http": {"method": "POST", "path": "/repos/main/wiki-general/status", "json": {"state": "generating"}}, "expect": {"status": 200, "json": {"state": "generating", "error": null}}},
+        {"http": {"method": "GET", "path": "/repos/main/wiki-general/status"}, "expect": {"json": {"state": "generating", "error": null, "has_wiki_general": false, "stale": false, "empty": false}}},
+        {"http": {"method": "POST", "path": "/repos/main/wiki-general/status", "json": {"kind": "wiki-general-update", "state": "generating"}}, "expect": {"status": 409, "json": {"detail": "a generate run is already in progress"}}},
+        {"fs": "write", "path": ".codechroma/wiki-general/manifest.json", "text": "{\"containers\": [{\"id\": \"core\"}], \"components\": [{\"id\": \"engine\"}]}"},
+        {"http": {"method": "POST", "path": "/repos/main/wiki-general/status", "json": {"state": "idle"}}, "expect": {"status": 200, "json": {"state": "idle", "error": null}}},
+        {"http": {"method": "GET", "path": "/repos/main/wiki-general/status"}, "expect": {"json": {"state": "idle", "error": null, "has_wiki_general": true, "stale": false, "empty": false}}}
+      ]
+    },
+    {
+      "id": "an_error_report_carries_its_detail",
+      "steps": [
+        {"http": {"method": "POST", "path": "/repos/main/wiki-general/status", "json": {"state": "error", "detail": "pipeline failed"}}, "expect": {"status": 200, "json": {"state": "error", "error": "pipeline failed"}}},
+        {"http": {"method": "POST", "path": "/repos/main/wiki-general/status", "json": {"state": "error"}}, "expect": {"json": {"state": "error", "error": "unspecified error"}}},
+        {"http": {"method": "POST", "path": "/repos/main/wiki-general/cancel"}, "expect": {"status": 200, "json": {"state": "idle", "error": null}}}
+      ]
+    },
+    {
+      "id": "unrecognized_kinds_and_states_are_refused",
+      "steps": [
+        {"http": {"method": "POST", "path": "/repos/main/wiki-general/status", "json": {"kind": "nope", "state": "idle"}}, "expect": {"status": 400, "json": {"detail": "unrecognized kind: 'nope'"}}},
+        {"http": {"method": "POST", "path": "/repos/main/wiki-general/status", "json": {"state": "nope"}}, "expect": {"status": 400, "json": {"detail": "unrecognized state: 'nope'"}}},
+        {"http": {"method": "POST", "path": "/repos/main/wiki-general/status", "json": {}}, "expect": {"status": 400, "json": {"detail": "unrecognized state: None"}}}
+      ]
+    }
+  ]
+}

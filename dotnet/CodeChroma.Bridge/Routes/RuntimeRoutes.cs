@@ -1,24 +1,26 @@
 using System.Text.Json;
 using System.Text.Json.Nodes;
 using CodeChroma.Bridge.Http;
+using CodeChroma.Bridge.Skills;
 using CodeChroma.Bridge.Stores;
 
 namespace CodeChroma.Bridge.Routes;
 
-/// <summary>GET/PUT /runtime/settings; the login-shell diagnostics routes (environment, cli, refresh, focus) are not ported.</summary>
+/// <summary>GET/PUT /runtime/settings plus the login-shell diagnostics routes (environment, cli/{name}, refresh, focus).</summary>
 public static class RuntimeRoutes
 {
     public static void Map(WebApplication app)
     {
         app.MapGet("/runtime/settings", (UserPaths paths) => Reply.Json(Load(paths)));
 
-        app.MapPut("/runtime/settings", async (HttpRequest request, UserPaths paths) =>
+        app.MapPut("/runtime/settings", async (HttpRequest request, UserPaths paths, RuntimeEnvironment runtime) =>
         {
             var body = await Reply.LenientBody(request);
             try
             {
                 var settings = Validate(body);
                 JsonFile.Write(paths.Runtime, settings);
+                await Task.Run(() => runtime.Configure(RuntimeSettings.From(settings)).GetAwaiter().GetResult());
                 return Reply.Json(settings);
             }
             catch (ArgumentException error)
@@ -26,6 +28,16 @@ public static class RuntimeRoutes
                 return Reply.Error(400, error.Message);
             }
         });
+
+        app.MapGet("/runtime/environment", (RuntimeEnvironment runtime) => Reply.Json(runtime.Snapshot().Diagnostics()));
+
+        app.MapGet("/runtime/cli/{name}", (string name, RuntimeEnvironment runtime) => Reply.Json(runtime.Diagnose(name)));
+
+        app.MapPost("/runtime/refresh", async (RuntimeEnvironment runtime) =>
+            Reply.Json((await runtime.Refresh("user Re-detect", force: true)).Diagnostics()));
+
+        app.MapPost("/runtime/focus", async (RuntimeEnvironment runtime) =>
+            Reply.Json((await Task.Run(runtime.RecheckUnresolved)).Diagnostics()));
     }
 
     public static JsonObject Load(UserPaths paths)

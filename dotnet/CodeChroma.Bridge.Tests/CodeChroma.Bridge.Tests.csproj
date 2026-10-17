@@ -17,6 +17,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\CodeChroma.Bridge\CodeChroma.Bridge.csproj" />
+    <ProjectReference Include="..\CodeChroma.Bridge.FakeCli\CodeChroma.Bridge.FakeCli.csproj" ReferenceOutputAssembly="false" />
   </ItemGroup>
 
   <ItemGroup>

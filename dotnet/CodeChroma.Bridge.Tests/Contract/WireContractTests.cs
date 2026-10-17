@@ -48,8 +48,6 @@ public class WireContractTests
         string[] realEngineOnly = ["graph::a_docs_only_folder_is_flagged_doc_only", "graph::binary_files_are_listed_with_null_source"];
         string[] documented =
         [
-            "diagrams::an_unconvertible_legacy_c1_is_flagged_for_regeneration",
-            "diagrams::c1_nodes_get_graph_node_ids_and_unmapped_code_is_listed",
             "graph::a_docs_only_folder_is_flagged_doc_only",
             "graph::binary_files_are_listed_with_null_source",
         ];

@@ -43,10 +43,7 @@ Where a later shell replaces Electron, only the updater and `electron-builder.ym
 
 ## Left / depends on the desktop stream
 
-- Versioned Windows asset name (`CodeChroma-<version>-x64-Setup.exe`): needs `win.artifactName` in
-  `desktop/electron-builder.yml`. The updater already accepts the `-x64-Setup.exe` suffix, and
-  `PLATFORMS` / the consistency test only need the glob changed. Until then the asset stays
-  `CodeChroma-Setup.exe` (the manifest URL is still version-pinned via the tag).
+- ~~Versioned Windows asset name~~ Done: `win.artifactName` in `desktop/electron-builder.yml` is `CodeChroma-${version}-x64-Setup.${ext}`; the workflow globs, `PLATFORMS` and the consistency test follow it.
 - macOS signing/notarization: remove `identity: null` and add a notarize block in electron-builder.yml;
   Windows: `win.signtoolOptions`. The CI steps already forward `CSC_LINK`/`WIN_CSC_LINK` etc. when the
   `MAC_*` / `WIN_*` secrets exist.
@@ -106,6 +103,6 @@ message, installer cleanup, About entry and window-title version. Tests are tabl
 ## Known gaps (for the planning doc)
 
 - Windows rollback is not implemented (NSIS in-place upgrade); needs a design (backup of the install dir or a versioned side-by-side install).
-- Windows artifact is still `CodeChroma-Setup.exe` (unversioned) because the workflow globs and manifest generator belong to the distribution stream; `selectAsset` already accepts `CodeChroma-<v>-x64-Setup.exe`, so a rename is safe on the updater side. Old installed updaters also match that name by suffix.
+- ~~Windows artifact is unversioned~~ Done: `win.artifactName` is `CodeChroma-${version}-x64-Setup.${ext}`, and the workflow globs, generator and consistency test follow it. Old releases keep the unversioned name and `selectAsset` still accepts it.
 - The updater does not yet prefer a previously downloaded `latest.json`; ETag plus cached release covers the rate limit.
 - Signing hooks (macOS notarization, Windows `signtoolOptions`) in `electron-builder.yml` were not added in this stream.

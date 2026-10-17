@@ -26,7 +26,7 @@ REPO = "gutzerk/code_chroma"
 PLATFORMS = [
     {"target": "macos-arm64", "glob": "CodeChroma-*-arm64.dmg"},
     {"target": "macos-x64", "glob": "CodeChroma-*-x64.dmg"},
-    {"target": "windows-x64", "glob": "CodeChroma-Setup.exe"},
+    {"target": "windows-x64", "glob": "CodeChroma-*-x64-Setup.exe"},
     {"target": "linux-x64", "glob": "CodeChroma-*-x64.deb"},
     {"target": "linux-appimage", "glob": "CodeChroma-*-x64.AppImage"},
 ]

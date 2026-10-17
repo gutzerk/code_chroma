@@ -10,7 +10,7 @@ VERSION = "1.2.3"
 FILES = {
     "macos-arm64": f"CodeChroma-{VERSION}-arm64.dmg",
     "macos-x64": f"CodeChroma-{VERSION}-x64.dmg",
-    "windows-x64": "CodeChroma-Setup.exe",
+    "windows-x64": f"CodeChroma-{VERSION}-x64-Setup.exe",
     "linux-x64": f"CodeChroma-{VERSION}-x64.deb",
     "linux-appimage": f"CodeChroma-{VERSION}-x64.AppImage",
 }

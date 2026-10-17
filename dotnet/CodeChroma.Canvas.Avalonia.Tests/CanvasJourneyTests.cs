@@ -165,7 +165,7 @@ public class CanvasJourneyTests
         var short1 = measurer.Measure("short", 200, 13);
         var long1 = measurer.Measure(string.Join(" ", Enumerable.Repeat("word", 80)), 200, 13);
 
-        Assert.True(long1.Height > short1.Height);
+        Assert.True(long1.Height > short1.Height, $"short={short1} long={long1}");
         Assert.True(measurer.LineHeight > 0);
     }
 

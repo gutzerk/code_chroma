@@ -3,6 +3,7 @@ using CodeChroma.Bridge.Engine;
 using CodeChroma.Bridge.Http;
 using CodeChroma.Bridge.Live;
 using CodeChroma.Bridge.Routes;
+using CodeChroma.Bridge.Skills;
 using CodeChroma.Bridge.Stores;
 using CodeChroma.Bridge.Workspaces;
 
@@ -21,6 +22,7 @@ builder.Services.AddSingleton(UserPaths.FromEnvironment());
 builder.Services.AddSingleton<ProviderStore>();
 builder.Services.AddSingleton<CallSiteStore>();
 builder.Services.AddSingleton<DiagramLibrary>();
+builder.Services.AddSkillServices();
 builder.Services.AddSingleton(new BranchManager(repoRoot));
 builder.Services.AddSingleton(sp =>
 {
@@ -62,6 +64,10 @@ DiffRoutes.Map(app);
 AgentRoutes.Map(app, repoRoot);
 PrRoutes.Map(app, repoRoot);
 TerminalRoutes.Map(app, repoRoot);
+LayoutRoutes.Map(app);
+EpicsRoutes.Map(app);
+ContextRoutes.Map(app);
+WikiGeneralRoutes.Map(app);
 
 app.Run();
 

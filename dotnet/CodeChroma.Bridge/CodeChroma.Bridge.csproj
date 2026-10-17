@@ -10,6 +10,7 @@
   <ItemGroup>
     <EmbeddedResource Include="../../tests/fixtures/bridge_contract/llm_catalog.json" LogicalName="llm_catalog.json" />
     <EmbeddedResource Include="../../src/codechroma/bridge/agents/detect/*.toml" LogicalName="detect/%(Filename)%(Extension)" />
+    <EmbeddedResource Include="../../src/codechroma/prompts/*.yaml" LogicalName="prompts/%(Filename)%(Extension)" />
   </ItemGroup>
 
   <ItemGroup>
@@ -18,6 +19,7 @@
 
   <ItemGroup>
     <PackageReference Include="Porta.Pty" Version="1.0.7" />
+    <PackageReference Include="YamlDotNet" Version="16.3.0" />
   </ItemGroup>
 
 </Project>

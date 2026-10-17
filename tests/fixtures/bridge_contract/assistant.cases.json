@@ -1,0 +1,115 @@
+{
+  "group": "assistant",
+  "sources": ["src/codechroma/bridge/routes/assistant.py", "src/codechroma/assistant.py"],
+  "repo": {"base": "sample_repo"},
+  "cases": [
+    {
+      "id": "defaults_are_served_when_nothing_is_saved",
+      "steps": [
+        {
+          "http": {"method": "GET", "path": "/assistant/settings"},
+          "expect": {"status": 200, "json": {
+            "schema_version": 1, "cli": "claude", "model": null, "api_key_set": false,
+            "api_key_path": null, "instruction": ""
+          }}
+        }
+      ]
+    },
+    {
+      "id": "a_saved_key_is_masked_to_a_boolean_and_never_echoed",
+      "steps": [
+        {
+          "http": {"method": "PUT", "path": "/assistant/settings", "json": {"cli": "codex", "model": "m1", "api_key": "sk-secret", "instruction": "be terse"}},
+          "expect": {"status": 200, "json": {
+            "schema_version": 1, "cli": "codex", "model": "m1", "api_key_set": true,
+            "api_key_path": null, "instruction": "be terse"
+          }}
+        },
+        {
+          "http": {"method": "GET", "path": "/assistant/settings"},
+          "expect": {"status": 200, "checks": [
+            {"path": "$.cli", "equals": "codex"},
+            {"path": "$.api_key_set", "equals": true},
+            {"path": "$.api_key", "absent": true}
+          ]}
+        }
+      ]
+    },
+    {
+      "id": "an_empty_key_string_clears_the_key",
+      "steps": [
+        {"http": {"method": "PUT", "path": "/assistant/settings", "json": {"api_key": "sk-secret"}}, "expect": {"status": 200}},
+        {
+          "http": {"method": "PUT", "path": "/assistant/settings", "json": {"api_key": ""}},
+          "expect": {"status": 200, "checks": [
+            {"path": "$.api_key_set", "equals": false}
+          ]}
+        }
+      ]
+    },
+    {
+      "id": "an_empty_key_path_is_refused",
+      "steps": [
+        {
+          "http": {"method": "PUT", "path": "/assistant/settings", "json": {"api_key_path": ""}},
+          "expect": {"status": 400, "json": {"detail": "api_key_path must be a non-empty string"}}
+        }
+      ]
+    },
+    {
+      "id": "a_masked_payload_round_trips_without_the_key",
+      "steps": [
+        {"http": {"method": "PUT", "path": "/assistant/settings", "json": {"api_key_path": "/keys/anthropic.txt"}}, "expect": {"status": 200}},
+        {
+          "http": {"method": "PUT", "path": "/assistant/settings", "json": {"cli": "claude", "api_key_set": false, "api_key_path": "/keys/anthropic.txt"}},
+          "expect": {"status": 200, "checks": [{"path": "$.api_key_path", "equals": "/keys/anthropic.txt"}]}
+        }
+      ]
+    },
+    {
+      "id": "an_unusable_body_saves_the_defaults",
+      "steps": [
+        {
+          "http": {"method": "PUT", "path": "/assistant/settings", "json": [1, 2]},
+          "expect": {"status": 200, "checks": [{"path": "$.cli", "equals": "claude"}]}
+        }
+      ]
+    },
+    {
+      "id": "an_invalid_cli_is_refused_with_the_reason",
+      "steps": [
+        {
+          "http": {"method": "PUT", "path": "/assistant/settings", "json": {"cli": "${cli}"}},
+          "expect": {"status": 400, "json": {"detail": "cli must be a simple executable name (no slashes)"}}
+        }
+      ],
+      "matrix": {"cli": ["", "  ", "bin/claude", ".", ".."]}
+    },
+    {
+      "id": "both_a_key_and_a_key_path_is_refused",
+      "steps": [
+        {
+          "http": {"method": "PUT", "path": "/assistant/settings", "json": {"api_key": "k", "api_key_path": "/p"}},
+          "expect": {"status": 400, "json": {"detail": "provide an api_key OR an api_key_path, not both"}}
+        }
+      ]
+    },
+    {
+      "id": "every_problem_is_reported_in_one_detail",
+      "steps": [
+        {
+          "http": {"method": "PUT", "path": "/assistant/settings", "json": {"cli": "a/b", "model": " ", "instruction": 5}},
+          "expect": {"status": 400, "json": {"detail": "cli must be a simple executable name (no slashes); model must be a non-empty string; instruction must be a string"}}
+        }
+      ]
+    },
+    {
+      "id": "a_refused_save_leaves_the_stored_settings_alone",
+      "steps": [
+        {"http": {"method": "PUT", "path": "/assistant/settings", "json": {"cli": "codex"}}, "expect": {"status": 200}},
+        {"http": {"method": "PUT", "path": "/assistant/settings", "json": {"cli": "x/y"}}, "expect": {"status": 400}},
+        {"http": {"method": "GET", "path": "/assistant/settings"}, "expect": {"status": 200, "checks": [{"path": "$.cli", "equals": "codex"}]}}
+      ]
+    }
+  ]
+}

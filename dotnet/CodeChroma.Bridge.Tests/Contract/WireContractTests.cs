@@ -19,14 +19,15 @@ public class WireContractTests
         using var host = new BridgeHost(contractCase.Repo);
         var sockets = new Dictionary<string, Frames>();
         var failures = new List<string>();
+        var variables = new Dictionary<string, string>();
         try
         {
             var number = 0;
             foreach (var node in contractCase.Steps)
             {
                 number++;
-                var step = node!.AsObject();
-                var found = step.ContainsKey("http") ? await RunHttp(host, step)
+                var step = Substitute(node!.AsObject(), variables);
+                var found = step.ContainsKey("http") ? await RunHttp(host, step, variables)
                     : step.ContainsKey("fs") ? RunFs(host, step)
                     : await RunWs(host, step, sockets);
                 failures.AddRange(found.Select(message => $"step {number}: {message}"));
@@ -55,7 +56,17 @@ public class WireContractTests
             ids);
     }
 
-    private static async Task<List<string>> RunHttp(BridgeHost host, JsonObject step)
+    /// <summary>Replaces "{{name}}" in every string of a step with the value an earlier step captured.</summary>
+    private static JsonObject Substitute(JsonObject step, Dictionary<string, string> variables)
+    {
+        if (variables.Count == 0) return step;
+        var text = step.ToJsonString();
+        foreach (var (name, value) in variables)
+            text = text.Replace("{{" + name + "}}", System.Text.Json.JsonSerializer.Serialize(value)[1..^1]);
+        return JsonNode.Parse(text)!.AsObject();
+    }
+
+    private static async Task<List<string>> RunHttp(BridgeHost host, JsonObject step, Dictionary<string, string> variables)
     {
         var spec = step["http"]!.AsObject();
         var path = spec["path"]!.GetValue<string>();
@@ -77,6 +88,11 @@ public class WireContractTests
             failures.Add($"status {(int)response.StatusCode} != {status}: {text[..Math.Min(300, text.Length)]}");
         if (expect.ContainsKey("json") || expect.ContainsKey("checks"))
             failures.AddRange(ContractMatchers.ExpectationFailures(expect, text.Length == 0 ? null : JsonNode.Parse(text), host.Root));
+        foreach (var (name, selector) in step["capture"]?.AsObject() ?? [])
+        {
+            var values = ContractMatchers.Select(text.Length == 0 ? null : JsonNode.Parse(text), selector!.GetValue<string>()).Values;
+            variables[name] = values.Count > 0 ? values[0]?.ToString() ?? "" : "";
+        }
         return failures;
     }
 
@@ -132,6 +148,11 @@ public class WireContractTests
 
         var frames = sockets[step["name"]!.GetValue<string>()];
         var timeout = TimeSpan.FromMilliseconds(step["timeout_ms"]?.GetValue<int>() ?? 8000);
+        if (action == "send")
+        {
+            await frames.Send(step["json"]!.ToJsonString());
+            return [];
+        }
         if (action == "expect_close")
         {
             var (kind, value) = await frames.Next(timeout);
@@ -197,6 +218,9 @@ public class WireContractTests
                 await _channel.Writer.WriteAsync(("error", error.Message));
             }
         }
+
+        public Task Send(string text) =>
+            _socket.SendAsync(Encoding.UTF8.GetBytes(text), WebSocketMessageType.Text, true, CancellationToken.None);
 
         public async Task<(string Kind, string Value)> Next(TimeSpan timeout)
         {

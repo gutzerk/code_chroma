@@ -34,6 +34,8 @@ public sealed class Workspace : IDisposable
     public SkillJobs Jobs { get; } = new();
     public WorkspaceState State { get; } = new("ready", "", null);
 
+    public string TracesDir => Path.Combine(Root, ".codechroma", "traces");
+
     public string DiagramPath(string kind) => Path.Combine(Root, ".codechroma", "diagrams", kind, Path.GetFileName(kind) + ".json");
 
     /// <summary>Pings connected canvases; main's pings stay bare, others carry their workspace id.</summary>

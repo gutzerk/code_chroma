@@ -1,5 +1,6 @@
 using System.Diagnostics;
 using CodeChroma.Bridge.Engine;
+using CodeChroma.Bridge.Stores;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.AspNetCore.TestHost;
 using Microsoft.Extensions.DependencyInjection;
@@ -39,6 +40,7 @@ public sealed class BridgeHost : IDisposable
             builder.ConfigureServices(services =>
             {
                 services.AddSingleton<IEngineFactory>(new SnapshotEngineFactory(snapshot));
+                services.AddSingleton(UserPaths.Under(Path.Combine(_tempDir, "user-stores")));
                 configure?.Invoke(services);
             });
         });

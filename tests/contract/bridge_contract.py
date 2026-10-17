@@ -11,7 +11,11 @@ Case file: {"group", "sources", "repo": {"base", "files"}, "cases": [{"id", "req
   {"fs": "write" | "delete" | "replace", "path", "text" | "base64" | "find" + "with"}
   {"ws": "connect", "name", "path", "headers", "expect": "accepted" | "rejected"}
   {"ws": "receive", "name", "timeout_ms", "skip_until_match", "tag", "raw", "expect": {...}}
+  {"ws": "send", "name", "json"}
   {"ws": "expect_close", "name", "code"}
+An http step may carry "capture": {"var": "$.json.path"}; later steps substitute "{{var}}" in any
+string (path, json, expect) with the first selected value. Machine-local stores (assistant, runtime
+and LLM settings) start empty for every case on both backends.
 `expect.json` is an exact deep compare in which {"$any": true} matches anything; a string containing
 "$REPO" is the workspace root. `checks` entries are {"path", "equals" | "contains" | "count" |
 "absent" | "type"} over a tiny JSONPath: $ .key ['key'] ..key [*] [key=value] [index]. `matrix` expands a case once
@@ -73,6 +77,19 @@ def _substitute(node: Any, name: str, value: str) -> Any:
             _substitute(key, name, value): _substitute(val, name, value)
             for key, val in node.items()
         }
+    return node
+
+
+def substitute_variables(node: Any, variables: dict[str, str]) -> Any:
+    """Replaces "{{name}}" in every string of a step with the value an earlier step captured."""
+    if isinstance(node, str):
+        for name, value in variables.items():
+            node = node.replace("{{" + name + "}}", value)
+        return node
+    if isinstance(node, list):
+        return [substitute_variables(item, variables) for item in node]
+    if isinstance(node, dict):
+        return {key: substitute_variables(val, variables) for key, val in node.items()}
     return node
 
 

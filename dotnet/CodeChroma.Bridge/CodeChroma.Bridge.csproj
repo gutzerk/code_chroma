@@ -7,4 +7,8 @@
     <InvariantGlobalization>true</InvariantGlobalization>
   </PropertyGroup>
 
+  <ItemGroup>
+    <EmbeddedResource Include="../../tests/fixtures/bridge_contract/llm_catalog.json" LogicalName="llm_catalog.json" />
+  </ItemGroup>
+
 </Project>

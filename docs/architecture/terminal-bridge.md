@@ -62,3 +62,8 @@ The browser side is `web/src/terminal/useXtermSession.ts` — see
 [`docs/architecture/web-panels.md`](web-panels.md).
 
 - ⚠ **ConPTY blocks on its startup `ESC[c` query.** Until something replies, a Windows child's output is withheld entirely. `PtySession._answer_conpty_query` answers it server-side (once), because an agent window's PTY starts before any xterm attaches and a late attach only gets a screen redraw. Without it the agent window is blank (issue #128). Test: `tests/unit/test_pty_session_windows.py`.
+
+
+## C# host (`dotnet/CodeChroma.Bridge/Terminal/`, `Routes/TerminalRoutes.cs`)
+
+The C# bridge serves `WS /ws/terminal` with the same protocol (`o`/`e` tags, `input`/`binary`/`resize` frames, 4404/4409 close codes, 30x120 default PTY) on `Porta.Pty` (ConPTY / openpty). 🔴 It fixes the frozen-Python-on-Windows bug where the socket closed with 1000 about 20ms after open (shown as `[detached]`): the PTY is owned by `PtyHost`, not by the socket handler, and a plain terminal only closes when its child exits or the client leaves; proven by `TerminalSocketTests`/`PtyHostTests` against real `cmd.exe`. Closing a window on an agent session only detaches (`AgentSession.Detach`); the process keeps running and a new window is seeded with `ScreenTap.Render()`. A `?workspace=` naming a registered non-agent workspace opens a shell in that workspace's root (Python reports "the agent is not running" for any registered id). Not ported: foreground-process probing for the status LED.

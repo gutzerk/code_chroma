@@ -1,0 +1,28 @@
+{
+  "group": "terminal",
+  "sources": ["src/codechroma/terminal/server.py", "src/codechroma/terminal/pty_session.py"],
+  "repo": {"base": "sample_repo"},
+  "cases": [
+    {
+      "id": "an_agent_workspace_that_is_not_running_gets_a_tagged_error_and_4409",
+      "requires": ["terminal-frames"],
+      "steps": [
+        {"http": {"method": "POST", "path": "/agents", "json": {"title": "Idle", "kind": "shell"}}, "expect": {"status": 200}},
+        {"ws": "connect", "name": "term", "path": "/ws/terminal?agent=shell&workspace=idle", "expect": "accepted"},
+        {"ws": "receive", "name": "term", "tag": "e", "timeout_ms": 8000, "expect": {"json": {"type": "error", "message": "the agent is not running"}}},
+        {"ws": "expect_close", "name": "term", "code": 4409}
+      ]
+    },
+    {
+      "id": "a_plain_shell_echoes_input_and_stays_open",
+      "requires": ["pty"],
+      "steps": [
+        {"ws": "connect", "name": "term", "path": "/ws/terminal?agent=shell", "expect": "accepted"},
+        {"ws": "receive", "name": "term", "tag": "o", "raw": true, "timeout_ms": 15000},
+        {"ws": "send", "name": "term", "json": {"type": "resize", "rows": 30, "cols": 100}},
+        {"ws": "send", "name": "term", "json": {"type": "input", "data": "echo contract-marker-77\r"}},
+        {"ws": "receive", "name": "term", "tag": "o", "raw": true, "timeout_ms": 15000}
+      ]
+    }
+  ]
+}

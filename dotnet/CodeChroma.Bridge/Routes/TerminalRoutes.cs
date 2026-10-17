@@ -24,10 +24,12 @@ public static class TerminalRoutes
 
     public static void Map(WebApplication app, string repoRoot)
     {
-        app.Map("/ws/terminal", async (HttpContext context, AgentSessionRegistry sessions, WorkspaceRegistry registry, AgentManager agents) =>
+        app.Map("/ws/terminal", async (HttpContext context, AgentSessionRegistry sessions, WorkspaceRegistry registry, AgentManager agents, IHostApplicationLifetime lifetime) =>
         {
             if (!context.WebSockets.IsWebSocketRequest) return Results.BadRequest();
             using var socket = await context.WebSockets.AcceptWebSocketAsync();
+            using var linked = CancellationTokenSource.CreateLinkedTokenSource(context.RequestAborted, lifetime.ApplicationStopping);
+            var aborted = linked.Token;
             var agent = context.Request.Query["agent"].ToString();
             var workspace = context.Request.Query["workspace"].ToString();
             if (!TerminalAgents.Allowed.TryGetValue(agent, out var argv))
@@ -38,7 +40,7 @@ public static class TerminalRoutes
             var session = workspace.Length > 0 ? sessions.Get(workspace) : null;
             if (session is not null)
             {
-                await BridgeManagedSession(socket, session, context.RequestAborted);
+                await BridgeManagedSession(socket, session, aborted);
                 return Results.Empty;
             }
             if (NamesAnAgent(agents, workspace))
@@ -51,7 +53,7 @@ public static class TerminalRoutes
                 await Fail(socket, $"no executable configured for agent: {agent}", UnknownAgentCloseCode);
                 return Results.Empty;
             }
-            await BridgeOwnPty(socket, argv, ResolveCwd(registry, repoRoot, workspace), context.RequestAborted);
+            await BridgeOwnPty(socket, argv, ResolveCwd(registry, repoRoot, workspace), aborted);
             return Results.Empty;
         });
     }
@@ -122,6 +124,7 @@ public static class TerminalRoutes
             session.Detach(consumer);
             consumer.Channel.Writer.TryComplete();
             await pump;
+            await CloseQuietly(socket);
         }
     }
 

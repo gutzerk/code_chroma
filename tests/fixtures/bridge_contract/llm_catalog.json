@@ -1,0 +1,109 @@
+{
+  "call_sites": [
+    {
+      "id": "ai_summarizer",
+      "label": "AI summarizer",
+      "capability": "simple",
+      "description": "Runs once per node during GraphEngine.analyze(). Sends that node's code (bottom-up, using its children's summaries) to the model and stores the reply as the node's AISummary. No key configured -> writes a deterministic offline summary instead."
+    },
+    {
+      "id": "initial_diagram_bootstrap",
+      "label": "Initial diagram bootstrap",
+      "capability": "simple",
+      "description": "A one-shot call that runs at most once per repo, before the first analyze() has ever written patterns.json: confirms/renames/rejects the free heuristic candidates patterns/detector.py already found. c1's bootstrap is now a deterministic table lookup (context/c1_template.py) and no longer shares this call site. Every later regenerate goes through c1_agent / patterns_agent (CLI runs) instead -- this setting never affects those."
+    },
+    {
+      "id": "c1_agent",
+      "label": "C1 diagram (regenerate)",
+      "capability": "agentic",
+      "description": "A headless `claude -p` run (skill_agent.SkillAgent) of the codechroma-draw-diagram skill. It reads the repo's own files through the CLI's tools and rewrites c1.json. Triggered by 'regenerate the C1 diagram' from the canvas."
+    },
+    {
+      "id": "patterns_agent",
+      "label": "Patterns diagram (regenerate)",
+      "capability": "agentic",
+      "description": "A headless CLI run of codechroma-draw-diagram (patterns type). It reads the actual classes behind each detected pattern and rewrites patterns.json, confirming or deepening what patterns_generator seeded."
+    },
+    {
+      "id": "impact-changes_review_agent",
+      "label": "Impact review skill",
+      "capability": "agentic",
+      "description": "A headless CLI run of codechroma-review-diagram (explanatory axis). It reads the working tree's current git diff and writes which Impact boxes it touches, for the Diff overlay."
+    },
+    {
+      "id": "impact_agent",
+      "label": "Impact diagram skill",
+      "capability": "agentic",
+      "description": "A headless CLI run of codechroma-draw-diagram (impact type). It reads a diff/PR/plan, works out which graph nodes it reaches, and writes impact.json."
+    },
+    {
+      "id": "epic_brief_agent",
+      "label": "Epic-brief skill",
+      "capability": "agentic",
+      "description": "A headless CLI run of codechroma-epic-brief, one per epic (job-keyed). Reads that epic's tasks/requirements and writes its AI brief JSON: problem, scope, dependencies, risks, acceptance criteria."
+    },
+    {
+      "id": "wiki_general_agent",
+      "label": "Architecture map (generate)",
+      "capability": "agentic",
+      "description": "A deterministic Python pipeline's pool of zero-tool worker calls (058). Full rebuild: reads the plain wiki and writes the whole C1/C2/C3 architecture-map page tree from scratch."
+    },
+    {
+      "id": "wiki_general_update_agent",
+      "label": "Architecture map (update)",
+      "capability": "agentic",
+      "description": "A headless CLI run of codechroma-wiki-general-update. Patches only the pages a commit actually touched, instead of rebuilding the whole architecture-map tree."
+    },
+    {
+      "id": "parallel_agents",
+      "label": "Agent windows",
+      "capability": "agentic",
+      "description": "A provider-routed interactive agent window (kind=\"agent\"): its CLI is resolved at launch from the `agents` group's assignment rather than the fixed `effective_cli`, so a provider added in the Providers tab (including a claude one pointed at a proxy) can power a canvas agent window. Unassigned falls back to `effective_cli`, exactly like every other agentic site -- FR-009."
+    }
+  ],
+  "groups": [
+    {
+      "id": "diagrams",
+      "label": "Diagrams",
+      "members": [
+        "c1_agent",
+        "impact-changes_review_agent",
+        "patterns_agent",
+        "impact_agent"
+      ],
+      "hidden": false
+    },
+    {
+      "id": "planning",
+      "label": "Planning",
+      "members": [
+        "epic_brief_agent",
+        "wiki_general_agent",
+        "wiki_general_update_agent"
+      ],
+      "hidden": false
+    },
+    {
+      "id": "agents",
+      "label": "Agent windows",
+      "members": [
+        "parallel_agents"
+      ],
+      "hidden": true
+    }
+  ],
+  "adapters": [
+    "claude",
+    "codex",
+    "kimi-cli"
+  ],
+  "transports": [
+    "anthropic",
+    "gemini",
+    "openai-compatible"
+  ],
+  "kinds": [
+    "cli",
+    "api"
+  ]
+}

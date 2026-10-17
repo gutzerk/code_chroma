@@ -2,6 +2,7 @@ using CodeChroma.Bridge.Engine;
 using CodeChroma.Bridge.Http;
 using CodeChroma.Bridge.Live;
 using CodeChroma.Bridge.Routes;
+using CodeChroma.Bridge.Stores;
 using CodeChroma.Bridge.Workspaces;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -13,6 +14,10 @@ var allowedOrigins = (Environment.GetEnvironmentVariable("codechroma_BRIDGE_CORS
 builder.Services.AddSingleton(TimeProvider.System);
 builder.Services.AddSingleton<IEngineFactory, UnavailableEngineFactory>();
 builder.Services.AddSingleton<ConnectionManager>();
+builder.Services.AddSingleton<TraceConnections>();
+builder.Services.AddSingleton(UserPaths.FromEnvironment());
+builder.Services.AddSingleton<ProviderStore>();
+builder.Services.AddSingleton<CallSiteStore>();
 builder.Services.AddSingleton(sp =>
 {
     var connections = sp.GetRequiredService<ConnectionManager>();
@@ -35,6 +40,11 @@ app.UseMiddleware<OriginGuard>((IReadOnlySet<string>)allowedOrigins);
 WorkspaceAndSocketRoutes.Map(app, repoRoot);
 GraphRoutes.Map(app);
 DiagramRoutes.Map(app);
+AssistantRoutes.Map(app);
+RuntimeRoutes.Map(app);
+LlmSettingsRoutes.Map(app);
+TraceRoutes.Map(app);
+IssueRoutes.Map(app);
 
 app.Run();
 

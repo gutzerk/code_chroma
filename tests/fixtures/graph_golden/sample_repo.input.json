@@ -1,0 +1,813 @@
+{
+ "schema_version": 1,
+ "files": [
+  {
+   "path": "billing/reporter.go",
+   "symbols": [
+    {
+     "id": "billing/reporter.go::module::billing.reporter",
+     "file_path": "billing/reporter.go",
+     "kind": "module",
+     "name": "reporter",
+     "qualified_name": "billing.reporter",
+     "start_line": 1,
+     "end_line": 22,
+     "language": "go",
+     "parent_symbol_id": null,
+     "references": [],
+     "qualified_references": [],
+     "assigned_identifiers": [],
+     "imports": {},
+     "body_statements": [],
+     "docstring": "Package billing generates billing reports.",
+     "is_exported": false
+    },
+    {
+     "id": "billing/reporter.go::class::Report",
+     "file_path": "billing/reporter.go",
+     "kind": "class",
+     "name": "Report",
+     "qualified_name": "Report",
+     "start_line": 5,
+     "end_line": 7,
+     "language": "go",
+     "parent_symbol_id": "billing/reporter.go::module::billing.reporter",
+     "references": [],
+     "qualified_references": [],
+     "assigned_identifiers": [],
+     "imports": {},
+     "body_statements": [],
+     "docstring": "Report holds a rendered billing summary.",
+     "is_exported": true
+    },
+    {
+     "id": "billing/reporter.go::function::RenderReport",
+     "file_path": "billing/reporter.go",
+     "kind": "function",
+     "name": "RenderReport",
+     "qualified_name": "RenderReport",
+     "start_line": 10,
+     "end_line": 12,
+     "language": "go",
+     "parent_symbol_id": "billing/reporter.go::module::billing.reporter",
+     "references": [],
+     "qualified_references": [],
+     "assigned_identifiers": [],
+     "imports": {},
+     "body_statements": [
+      {
+       "type": "return_statement",
+       "start_line": 11,
+       "end_line": 11
+      }
+     ],
+     "docstring": "RenderReport builds a human-readable summary for an account.",
+     "is_exported": true
+    },
+    {
+     "id": "billing/reporter.go::function::formatCurrency",
+     "file_path": "billing/reporter.go",
+     "kind": "function",
+     "name": "formatCurrency",
+     "qualified_name": "formatCurrency",
+     "start_line": 15,
+     "end_line": 17,
+     "language": "go",
+     "parent_symbol_id": "billing/reporter.go::module::billing.reporter",
+     "references": [],
+     "qualified_references": [],
+     "assigned_identifiers": [],
+     "imports": {},
+     "body_statements": [
+      {
+       "type": "return_statement",
+       "start_line": 16,
+       "end_line": 16
+      }
+     ],
+     "docstring": "formatCurrency is an internal helper with no exported doc requirement.",
+     "is_exported": false
+    },
+    {
+     "id": "billing/reporter.go::function::SendReport",
+     "file_path": "billing/reporter.go",
+     "kind": "function",
+     "name": "SendReport",
+     "qualified_name": "SendReport",
+     "start_line": 19,
+     "end_line": 21,
+     "language": "go",
+     "parent_symbol_id": "billing/reporter.go::module::billing.reporter",
+     "references": [],
+     "qualified_references": [],
+     "assigned_identifiers": [],
+     "imports": {},
+     "body_statements": [
+      {
+       "type": "return_statement",
+       "start_line": 20,
+       "end_line": 20
+      }
+     ],
+     "docstring": null,
+     "is_exported": true
+    }
+   ]
+  },
+  {
+   "path": "billing/service.py",
+   "symbols": [
+    {
+     "id": "billing/service.py::module::billing.service",
+     "file_path": "billing/service.py",
+     "kind": "module",
+     "name": "service",
+     "qualified_name": "billing.service",
+     "start_line": 1,
+     "end_line": 16,
+     "language": "python",
+     "parent_symbol_id": null,
+     "references": [],
+     "qualified_references": [],
+     "assigned_identifiers": [],
+     "imports": {
+      "slugify": "shared.text_utils"
+     },
+     "body_statements": [],
+     "docstring": "Billing and invoicing service.",
+     "is_exported": false
+    },
+    {
+     "id": "billing/service.py::class::BillingService",
+     "file_path": "billing/service.py",
+     "kind": "class",
+     "name": "BillingService",
+     "qualified_name": "BillingService",
+     "start_line": 5,
+     "end_line": 15,
+     "language": "python",
+     "parent_symbol_id": "billing/service.py::module::billing.service",
+     "references": [
+      "slugify"
+     ],
+     "qualified_references": [],
+     "assigned_identifiers": [],
+     "imports": {},
+     "body_statements": [],
+     "docstring": "Handles invoice creation for billed accounts.",
+     "is_exported": false
+    },
+    {
+     "id": "billing/service.py::function::BillingService.__init__",
+     "file_path": "billing/service.py",
+     "kind": "function",
+     "name": "__init__",
+     "qualified_name": "BillingService.__init__",
+     "start_line": 8,
+     "end_line": 9,
+     "language": "python",
+     "parent_symbol_id": "billing/service.py::class::BillingService",
+     "references": [],
+     "qualified_references": [],
+     "assigned_identifiers": [],
+     "imports": {},
+     "body_statements": [
+      {
+       "type": "expression_statement",
+       "start_line": 9,
+       "end_line": 9
+      }
+     ],
+     "docstring": null,
+     "is_exported": false
+    },
+    {
+     "id": "billing/service.py::function::BillingService.create_invoice",
+     "file_path": "billing/service.py",
+     "kind": "function",
+     "name": "create_invoice",
+     "qualified_name": "BillingService.create_invoice",
+     "start_line": 11,
+     "end_line": 15,
+     "language": "python",
+     "parent_symbol_id": "billing/service.py::class::BillingService",
+     "references": [
+      "slugify"
+     ],
+     "qualified_references": [],
+     "assigned_identifiers": [],
+     "imports": {},
+     "body_statements": [
+      {
+       "type": "expression_statement",
+       "start_line": 12,
+       "end_line": 12
+      },
+      {
+       "type": "expression_statement",
+       "start_line": 13,
+       "end_line": 13
+      },
+      {
+       "type": "expression_statement",
+       "start_line": 14,
+       "end_line": 14
+      },
+      {
+       "type": "return_statement",
+       "start_line": 15,
+       "end_line": 15
+      }
+     ],
+     "docstring": "Create an invoice for the named account.",
+     "is_exported": false
+    }
+   ]
+  },
+  {
+   "path": "billing/models/invoice.py",
+   "symbols": [
+    {
+     "id": "billing/models/invoice.py::module::billing.models.invoice",
+     "file_path": "billing/models/invoice.py",
+     "kind": "module",
+     "name": "invoice",
+     "qualified_name": "billing.models.invoice",
+     "start_line": 1,
+     "end_line": 15,
+     "language": "python",
+     "parent_symbol_id": null,
+     "references": [],
+     "qualified_references": [],
+     "assigned_identifiers": [],
+     "imports": {},
+     "body_statements": [],
+     "docstring": "Invoice model nested one directory deeper than billing/service.py.",
+     "is_exported": false
+    },
+    {
+     "id": "billing/models/invoice.py::class::Invoice",
+     "file_path": "billing/models/invoice.py",
+     "kind": "class",
+     "name": "Invoice",
+     "qualified_name": "Invoice",
+     "start_line": 4,
+     "end_line": 9,
+     "language": "python",
+     "parent_symbol_id": "billing/models/invoice.py::module::billing.models.invoice",
+     "references": [
+      "sum"
+     ],
+     "qualified_references": [],
+     "assigned_identifiers": [],
+     "imports": {},
+     "body_statements": [],
+     "docstring": "A single billing invoice.",
+     "is_exported": false
+    },
+    {
+     "id": "billing/models/invoice.py::function::Invoice.total",
+     "file_path": "billing/models/invoice.py",
+     "kind": "function",
+     "name": "total",
+     "qualified_name": "Invoice.total",
+     "start_line": 7,
+     "end_line": 9,
+     "language": "python",
+     "parent_symbol_id": "billing/models/invoice.py::class::Invoice",
+     "references": [
+      "sum"
+     ],
+     "qualified_references": [],
+     "assigned_identifiers": [],
+     "imports": {},
+     "body_statements": [
+      {
+       "type": "expression_statement",
+       "start_line": 8,
+       "end_line": 8
+      },
+      {
+       "type": "return_statement",
+       "start_line": 9,
+       "end_line": 9
+      }
+     ],
+     "docstring": "Sum the amounts of all invoice lines.",
+     "is_exported": false
+    },
+    {
+     "id": "billing/models/invoice.py::function::format_invoice_id",
+     "file_path": "billing/models/invoice.py",
+     "kind": "function",
+     "name": "format_invoice_id",
+     "qualified_name": "format_invoice_id",
+     "start_line": 12,
+     "end_line": 14,
+     "language": "python",
+     "parent_symbol_id": "billing/models/invoice.py::module::billing.models.invoice",
+     "references": [],
+     "qualified_references": [],
+     "assigned_identifiers": [],
+     "imports": {},
+     "body_statements": [
+      {
+       "type": "expression_statement",
+       "start_line": 13,
+       "end_line": 13
+      },
+      {
+       "type": "return_statement",
+       "start_line": 14,
+       "end_line": 14
+      }
+     ],
+     "docstring": "Render a zero-padded invoice id string.",
+     "is_exported": false
+    }
+   ]
+  },
+  {
+   "path": "shared/text_utils.py",
+   "symbols": [
+    {
+     "id": "shared/text_utils.py::module::shared.text_utils",
+     "file_path": "shared/text_utils.py",
+     "kind": "module",
+     "name": "text_utils",
+     "qualified_name": "shared.text_utils",
+     "start_line": 1,
+     "end_line": 7,
+     "language": "python",
+     "parent_symbol_id": null,
+     "references": [],
+     "qualified_references": [],
+     "assigned_identifiers": [],
+     "imports": {},
+     "body_statements": [],
+     "docstring": "Small text helpers shared across services.",
+     "is_exported": false
+    },
+    {
+     "id": "shared/text_utils.py::function::slugify",
+     "file_path": "shared/text_utils.py",
+     "kind": "function",
+     "name": "slugify",
+     "qualified_name": "slugify",
+     "start_line": 4,
+     "end_line": 6,
+     "language": "python",
+     "parent_symbol_id": "shared/text_utils.py::module::shared.text_utils",
+     "references": [
+      "replace",
+      "lower",
+      "strip"
+     ],
+     "qualified_references": [
+      {
+       "qualifier": "text.strip().lower()",
+       "name": "replace"
+      },
+      {
+       "qualifier": "text.strip()",
+       "name": "lower"
+      },
+      {
+       "qualifier": "text",
+       "name": "strip"
+      }
+     ],
+     "assigned_identifiers": [],
+     "imports": {},
+     "body_statements": [
+      {
+       "type": "expression_statement",
+       "start_line": 5,
+       "end_line": 5
+      },
+      {
+       "type": "return_statement",
+       "start_line": 6,
+       "end_line": 6
+      }
+     ],
+     "docstring": "Lowercase and hyphenate text into a URL-safe slug.",
+     "is_exported": false
+    }
+   ]
+  },
+  {
+   "path": "users/service.py",
+   "symbols": [
+    {
+     "id": "users/service.py::module::users.service",
+     "file_path": "users/service.py",
+     "kind": "module",
+     "name": "service",
+     "qualified_name": "users.service",
+     "start_line": 1,
+     "end_line": 25,
+     "language": "python",
+     "parent_symbol_id": null,
+     "references": [],
+     "qualified_references": [],
+     "assigned_identifiers": [],
+     "imports": {
+      "slugify": "shared.text_utils"
+     },
+     "body_statements": [],
+     "docstring": "User account management service.",
+     "is_exported": false
+    },
+    {
+     "id": "users/service.py::class::UserService",
+     "file_path": "users/service.py",
+     "kind": "class",
+     "name": "UserService",
+     "qualified_name": "UserService",
+     "start_line": 5,
+     "end_line": 19,
+     "language": "python",
+     "parent_symbol_id": "users/service.py::module::users.service",
+     "references": [
+      "slugify",
+      "get"
+     ],
+     "qualified_references": [
+      {
+       "qualifier": "self._users",
+       "name": "get"
+      }
+     ],
+     "assigned_identifiers": [],
+     "imports": {},
+     "body_statements": [],
+     "docstring": "Handles user account lifecycle.",
+     "is_exported": false
+    },
+    {
+     "id": "users/service.py::function::UserService.__init__",
+     "file_path": "users/service.py",
+     "kind": "function",
+     "name": "__init__",
+     "qualified_name": "UserService.__init__",
+     "start_line": 8,
+     "end_line": 9,
+     "language": "python",
+     "parent_symbol_id": "users/service.py::class::UserService",
+     "references": [],
+     "qualified_references": [],
+     "assigned_identifiers": [],
+     "imports": {},
+     "body_statements": [
+      {
+       "type": "expression_statement",
+       "start_line": 9,
+       "end_line": 9
+      }
+     ],
+     "docstring": null,
+     "is_exported": false
+    },
+    {
+     "id": "users/service.py::function::UserService.create_user",
+     "file_path": "users/service.py",
+     "kind": "function",
+     "name": "create_user",
+     "qualified_name": "UserService.create_user",
+     "start_line": 11,
+     "end_line": 15,
+     "language": "python",
+     "parent_symbol_id": "users/service.py::class::UserService",
+     "references": [
+      "slugify"
+     ],
+     "qualified_references": [],
+     "assigned_identifiers": [],
+     "imports": {},
+     "body_statements": [
+      {
+       "type": "expression_statement",
+       "start_line": 12,
+       "end_line": 12
+      },
+      {
+       "type": "expression_statement",
+       "start_line": 13,
+       "end_line": 13
+      },
+      {
+       "type": "expression_statement",
+       "start_line": 14,
+       "end_line": 14
+      },
+      {
+       "type": "return_statement",
+       "start_line": 15,
+       "end_line": 15
+      }
+     ],
+     "docstring": "Create a new user and return their slug id.",
+     "is_exported": false
+    },
+    {
+     "id": "users/service.py::function::UserService.get_user",
+     "file_path": "users/service.py",
+     "kind": "function",
+     "name": "get_user",
+     "qualified_name": "UserService.get_user",
+     "start_line": 17,
+     "end_line": 19,
+     "language": "python",
+     "parent_symbol_id": "users/service.py::class::UserService",
+     "references": [
+      "get"
+     ],
+     "qualified_references": [
+      {
+       "qualifier": "self._users",
+       "name": "get"
+      }
+     ],
+     "assigned_identifiers": [],
+     "imports": {},
+     "body_statements": [
+      {
+       "type": "expression_statement",
+       "start_line": 18,
+       "end_line": 18
+      },
+      {
+       "type": "return_statement",
+       "start_line": 19,
+       "end_line": 19
+      }
+     ],
+     "docstring": "Look up a user by slug id.",
+     "is_exported": false
+    },
+    {
+     "id": "users/service.py::function::list_active_users",
+     "file_path": "users/service.py",
+     "kind": "function",
+     "name": "list_active_users",
+     "qualified_name": "list_active_users",
+     "start_line": 22,
+     "end_line": 24,
+     "language": "python",
+     "parent_symbol_id": "users/service.py::module::users.service",
+     "references": [
+      "list",
+      "keys"
+     ],
+     "qualified_references": [
+      {
+       "qualifier": "service._users",
+       "name": "keys"
+      }
+     ],
+     "assigned_identifiers": [],
+     "imports": {},
+     "body_statements": [
+      {
+       "type": "expression_statement",
+       "start_line": 23,
+       "end_line": 23
+      },
+      {
+       "type": "return_statement",
+       "start_line": 24,
+       "end_line": 24
+      }
+     ],
+     "docstring": "Return slugs of all known users.",
+     "is_exported": false
+    }
+   ]
+  },
+  {
+   "path": "web/UserCard.tsx",
+   "symbols": [
+    {
+     "id": "web/UserCard.tsx::module::web.UserCard",
+     "file_path": "web/UserCard.tsx",
+     "kind": "module",
+     "name": "UserCard",
+     "qualified_name": "web.UserCard",
+     "start_line": 1,
+     "end_line": 9,
+     "language": "typescript",
+     "parent_symbol_id": null,
+     "references": [],
+     "qualified_references": [],
+     "assigned_identifiers": [],
+     "imports": {},
+     "body_statements": [],
+     "docstring": "UserCard renders a single user's summary card.",
+     "is_exported": false
+    },
+    {
+     "id": "web/UserCard.tsx::function::UserCard",
+     "file_path": "web/UserCard.tsx",
+     "kind": "function",
+     "name": "UserCard",
+     "qualified_name": "UserCard",
+     "start_line": 2,
+     "end_line": 4,
+     "language": "typescript",
+     "parent_symbol_id": "web/UserCard.tsx::module::web.UserCard",
+     "references": [],
+     "qualified_references": [],
+     "assigned_identifiers": [],
+     "imports": {},
+     "body_statements": [
+      {
+       "type": "return_statement",
+       "start_line": 3,
+       "end_line": 3
+      }
+     ],
+     "docstring": "UserCard renders a single user's summary card.",
+     "is_exported": true
+    },
+    {
+     "id": "web/UserCard.tsx::function::trackUserCardView",
+     "file_path": "web/UserCard.tsx",
+     "kind": "function",
+     "name": "trackUserCardView",
+     "qualified_name": "trackUserCardView",
+     "start_line": 6,
+     "end_line": 8,
+     "language": "typescript",
+     "parent_symbol_id": "web/UserCard.tsx::module::web.UserCard",
+     "references": [
+      "log"
+     ],
+     "qualified_references": [
+      {
+       "qualifier": "console",
+       "name": "log"
+      }
+     ],
+     "assigned_identifiers": [],
+     "imports": {},
+     "body_statements": [
+      {
+       "type": "expression_statement",
+       "start_line": 7,
+       "end_line": 7
+      }
+     ],
+     "docstring": null,
+     "is_exported": true
+    }
+   ]
+  },
+  {
+   "path": "web/widget.ts",
+   "symbols": [
+    {
+     "id": "web/widget.ts::module::web.widget",
+     "file_path": "web/widget.ts",
+     "kind": "module",
+     "name": "widget",
+     "qualified_name": "web.widget",
+     "start_line": 1,
+     "end_line": 6,
+     "language": "typescript",
+     "parent_symbol_id": null,
+     "references": [],
+     "qualified_references": [],
+     "assigned_identifiers": [],
+     "imports": {},
+     "body_statements": [],
+     "docstring": "Small widget that renders a user's slug, mirroring the shared slugify convention.",
+     "is_exported": false
+    },
+    {
+     "id": "web/widget.ts::function::renderUserSlug",
+     "file_path": "web/widget.ts",
+     "kind": "function",
+     "name": "renderUserSlug",
+     "qualified_name": "renderUserSlug",
+     "start_line": 2,
+     "end_line": 5,
+     "language": "typescript",
+     "parent_symbol_id": "web/widget.ts::module::web.widget",
+     "references": [
+      "replace",
+      "toLowerCase",
+      "trim"
+     ],
+     "qualified_references": [
+      {
+       "qualifier": "name.trim().toLowerCase()",
+       "name": "replace"
+      },
+      {
+       "qualifier": "name.trim()",
+       "name": "toLowerCase"
+      },
+      {
+       "qualifier": "name",
+       "name": "trim"
+      }
+     ],
+     "assigned_identifiers": [],
+     "imports": {},
+     "body_statements": [
+      {
+       "type": "lexical_declaration",
+       "start_line": 3,
+       "end_line": 3
+      },
+      {
+       "type": "return_statement",
+       "start_line": 4,
+       "end_line": 4
+      }
+     ],
+     "docstring": "Small widget that renders a user's slug, mirroring the shared slugify convention.",
+     "is_exported": true
+    }
+   ]
+  }
+ ],
+ "import_resolutions": {
+  "billing/service.py": {
+   "shared.text_utils": "shared/text_utils.py"
+  },
+  "users/service.py": {
+   "shared.text_utils": "shared/text_utils.py"
+  }
+ },
+ "summaries": {
+  "dir::billing": "System `billing`: level=system; source=billing",
+  "component::billing/reporter.go": "Component `reporter.go`: level=component; source=billing/reporter.go",
+  "billing/reporter.go::class::Report": "Service `Report`: level=service; source=billing/reporter.go",
+  "service::billing/reporter.go::functions": "Service `Module Functions`: level=service; source=billing/reporter.go",
+  "billing/reporter.go::function::RenderReport": "Function `RenderReport`: level=function; source=billing/reporter.go",
+  "logicblock::billing/reporter.go::function::RenderReport::0": "Logic block `Step 1`: level=logic_block; source=billing/reporter.go:11-11",
+  "code::logicblock::billing/reporter.go::function::RenderReport::0": "Code `billing/reporter.go:11-11`: level=code; source=billing/reporter.go:11-11",
+  "billing/reporter.go::function::formatCurrency": "Function `formatCurrency`: level=function; source=billing/reporter.go",
+  "logicblock::billing/reporter.go::function::formatCurrency::0": "Logic block `Step 1`: level=logic_block; source=billing/reporter.go:16-16",
+  "code::logicblock::billing/reporter.go::function::formatCurrency::0": "Code `billing/reporter.go:16-16`: level=code; source=billing/reporter.go:16-16",
+  "billing/reporter.go::function::SendReport": "Function `SendReport`: level=function; source=billing/reporter.go",
+  "logicblock::billing/reporter.go::function::SendReport::0": "Logic block `Step 1`: level=logic_block; source=billing/reporter.go:20-20",
+  "code::logicblock::billing/reporter.go::function::SendReport::0": "Code `billing/reporter.go:20-20`: level=code; source=billing/reporter.go:20-20",
+  "component::billing/service.py": "Component `service.py`: level=component; source=billing/service.py",
+  "billing/service.py::class::BillingService": "Service `BillingService`: level=service; source=billing/service.py; calls=slugify",
+  "billing/service.py::function::BillingService.__init__": "Function `__init__`: level=function; source=billing/service.py",
+  "logicblock::billing/service.py::function::BillingService.__init__::0": "Logic block `Step 1`: level=logic_block; source=billing/service.py:9-9",
+  "code::logicblock::billing/service.py::function::BillingService.__init__::0": "Code `billing/service.py:9-9`: level=code; source=billing/service.py:9-9",
+  "billing/service.py::function::BillingService.create_invoice": "Function `create_invoice`: level=function; source=billing/service.py; calls=slugify",
+  "logicblock::billing/service.py::function::BillingService.create_invoice::0": "Logic block `Step 1`: level=logic_block; source=billing/service.py:12-15",
+  "code::logicblock::billing/service.py::function::BillingService.create_invoice::0": "Code `billing/service.py:12-15`: level=code; source=billing/service.py:12-15",
+  "dir::billing/models": "Pillar `models`: level=pillar; source=billing/models",
+  "component::billing/models/invoice.py": "Component `invoice.py`: level=component; source=billing/models/invoice.py",
+  "billing/models/invoice.py::class::Invoice": "Service `Invoice`: level=service; source=billing/models/invoice.py; calls=sum",
+  "billing/models/invoice.py::function::Invoice.total": "Function `total`: level=function; source=billing/models/invoice.py; calls=sum",
+  "logicblock::billing/models/invoice.py::function::Invoice.total::0": "Logic block `Step 1`: level=logic_block; source=billing/models/invoice.py:8-9",
+  "code::logicblock::billing/models/invoice.py::function::Invoice.total::0": "Code `billing/models/invoice.py:8-9`: level=code; source=billing/models/invoice.py:8-9",
+  "service::billing/models/invoice.py::functions": "Service `Module Functions`: level=service; source=billing/models/invoice.py",
+  "billing/models/invoice.py::function::format_invoice_id": "Function `format_invoice_id`: level=function; source=billing/models/invoice.py",
+  "logicblock::billing/models/invoice.py::function::format_invoice_id::0": "Logic block `Step 1`: level=logic_block; source=billing/models/invoice.py:13-14",
+  "code::logicblock::billing/models/invoice.py::function::format_invoice_id::0": "Code `billing/models/invoice.py:13-14`: level=code; source=billing/models/invoice.py:13-14",
+  "dir::shared": "System `shared`: level=system; source=shared",
+  "component::shared/text_utils.py": "Component `text_utils.py`: level=component; source=shared/text_utils.py",
+  "service::shared/text_utils.py::functions": "Service `Module Functions`: level=service; source=shared/text_utils.py",
+  "shared/text_utils.py::function::slugify": "Function `slugify`: level=function; source=shared/text_utils.py; calls=lower, replace, strip",
+  "logicblock::shared/text_utils.py::function::slugify::0": "Logic block `Step 1`: level=logic_block; source=shared/text_utils.py:5-6",
+  "code::logicblock::shared/text_utils.py::function::slugify::0": "Code `shared/text_utils.py:5-6`: level=code; source=shared/text_utils.py:5-6",
+  "dir::users": "System `users`: level=system; source=users",
+  "component::users/service.py": "Component `service.py`: level=component; source=users/service.py",
+  "users/service.py::class::UserService": "Service `UserService`: level=service; source=users/service.py; calls=get, slugify",
+  "users/service.py::function::UserService.__init__": "Function `__init__`: level=function; source=users/service.py",
+  "logicblock::users/service.py::function::UserService.__init__::0": "Logic block `Step 1`: level=logic_block; source=users/service.py:9-9",
+  "code::logicblock::users/service.py::function::UserService.__init__::0": "Code `users/service.py:9-9`: level=code; source=users/service.py:9-9",
+  "users/service.py::function::UserService.create_user": "Function `create_user`: level=function; source=users/service.py; calls=slugify",
+  "logicblock::users/service.py::function::UserService.create_user::0": "Logic block `Step 1`: level=logic_block; source=users/service.py:12-15",
+  "code::logicblock::users/service.py::function::UserService.create_user::0": "Code `users/service.py:12-15`: level=code; source=users/service.py:12-15",
+  "users/service.py::function::UserService.get_user": "Function `get_user`: level=function; source=users/service.py; calls=get",
+  "logicblock::users/service.py::function::UserService.get_user::0": "Logic block `Step 1`: level=logic_block; source=users/service.py:18-19",
+  "code::logicblock::users/service.py::function::UserService.get_user::0": "Code `users/service.py:18-19`: level=code; source=users/service.py:18-19",
+  "service::users/service.py::functions": "Service `Module Functions`: level=service; source=users/service.py",
+  "users/service.py::function::list_active_users": "Function `list_active_users`: level=function; source=users/service.py; calls=keys, list",
+  "logicblock::users/service.py::function::list_active_users::0": "Logic block `Step 1`: level=logic_block; source=users/service.py:23-24",
+  "code::logicblock::users/service.py::function::list_active_users::0": "Code `users/service.py:23-24`: level=code; source=users/service.py:23-24",
+  "dir::web": "System `web`: level=system; source=web",
+  "component::web/UserCard.tsx": "Component `UserCard.tsx`: level=component; source=web/UserCard.tsx",
+  "service::web/UserCard.tsx::functions": "Service `Module Functions`: level=service; source=web/UserCard.tsx",
+  "web/UserCard.tsx::function::UserCard": "Function `UserCard`: level=function; source=web/UserCard.tsx",
+  "logicblock::web/UserCard.tsx::function::UserCard::0": "Logic block `Step 1`: level=logic_block; source=web/UserCard.tsx:3-3",
+  "code::logicblock::web/UserCard.tsx::function::UserCard::0": "Code `web/UserCard.tsx:3-3`: level=code; source=web/UserCard.tsx:3-3",
+  "web/UserCard.tsx::function::trackUserCardView": "Function `trackUserCardView`: level=function; source=web/UserCard.tsx; calls=log",
+  "logicblock::web/UserCard.tsx::function::trackUserCardView::0": "Logic block `Step 1`: level=logic_block; source=web/UserCard.tsx:7-7",
+  "code::logicblock::web/UserCard.tsx::function::trackUserCardView::0": "Code `web/UserCard.tsx:7-7`: level=code; source=web/UserCard.tsx:7-7",
+  "component::web/widget.ts": "Component `widget.ts`: level=component; source=web/widget.ts",
+  "service::web/widget.ts::functions": "Service `Module Functions`: level=service; source=web/widget.ts",
+  "web/widget.ts::function::renderUserSlug": "Function `renderUserSlug`: level=function; source=web/widget.ts; calls=replace, toLowerCase, trim",
+  "logicblock::web/widget.ts::function::renderUserSlug::0": "Logic block `Step 1`: level=logic_block; source=web/widget.ts:3-4",
+  "code::logicblock::web/widget.ts::function::renderUserSlug::0": "Code `web/widget.ts:3-4`: level=code; source=web/widget.ts:3-4"
+ }
+}

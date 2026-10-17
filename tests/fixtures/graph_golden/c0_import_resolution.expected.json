@@ -1,0 +1,1660 @@
+{
+ "schema_version": 1,
+ "nodes": [
+  {
+   "id": "dir::goservice",
+   "name": "goservice",
+   "level": "system",
+   "parent_ids": [],
+   "source_path": "goservice",
+   "symbol_ids": [],
+   "repository_id": null,
+   "depends_on_ids": [],
+   "doc_only": false
+  },
+  {
+   "id": "component::goservice/handler.go",
+   "name": "handler.go",
+   "level": "component",
+   "parent_ids": [
+    "dir::goservice"
+   ],
+   "source_path": "goservice/handler.go",
+   "symbol_ids": [],
+   "repository_id": null,
+   "depends_on_ids": [],
+   "doc_only": false
+  },
+  {
+   "id": "service::goservice/handler.go::functions",
+   "name": "Module Functions",
+   "level": "service",
+   "parent_ids": [
+    "component::goservice/handler.go"
+   ],
+   "source_path": "goservice/handler.go",
+   "symbol_ids": [],
+   "repository_id": null,
+   "depends_on_ids": [],
+   "doc_only": false
+  },
+  {
+   "id": "goservice/handler.go::function::Greet",
+   "name": "Greet",
+   "level": "function",
+   "parent_ids": [
+    "service::goservice/handler.go::functions"
+   ],
+   "source_path": "goservice/handler.go",
+   "symbol_ids": [],
+   "repository_id": null,
+   "depends_on_ids": [
+    "goutil/helper.go::function::Helper"
+   ],
+   "doc_only": false
+  },
+  {
+   "id": "logicblock::goservice/handler.go::function::Greet::0",
+   "name": "Step 1",
+   "level": "logic_block",
+   "parent_ids": [
+    "goservice/handler.go::function::Greet"
+   ],
+   "source_path": "goservice/handler.go:8-8",
+   "symbol_ids": [],
+   "repository_id": null,
+   "depends_on_ids": [],
+   "doc_only": false
+  },
+  {
+   "id": "code::logicblock::goservice/handler.go::function::Greet::0",
+   "name": "goservice/handler.go:8-8",
+   "level": "code",
+   "parent_ids": [
+    "logicblock::goservice/handler.go::function::Greet::0"
+   ],
+   "source_path": "goservice/handler.go:8-8",
+   "symbol_ids": [],
+   "repository_id": null,
+   "depends_on_ids": [],
+   "doc_only": false
+  },
+  {
+   "id": "dir::goutil",
+   "name": "goutil",
+   "level": "system",
+   "parent_ids": [],
+   "source_path": "goutil",
+   "symbol_ids": [],
+   "repository_id": null,
+   "depends_on_ids": [],
+   "doc_only": false
+  },
+  {
+   "id": "component::goutil/helper.go",
+   "name": "helper.go",
+   "level": "component",
+   "parent_ids": [
+    "dir::goutil"
+   ],
+   "source_path": "goutil/helper.go",
+   "symbol_ids": [],
+   "repository_id": null,
+   "depends_on_ids": [],
+   "doc_only": false
+  },
+  {
+   "id": "service::goutil/helper.go::functions",
+   "name": "Module Functions",
+   "level": "service",
+   "parent_ids": [
+    "component::goutil/helper.go"
+   ],
+   "source_path": "goutil/helper.go",
+   "symbol_ids": [],
+   "repository_id": null,
+   "depends_on_ids": [],
+   "doc_only": false
+  },
+  {
+   "id": "goutil/helper.go::function::Helper",
+   "name": "Helper",
+   "level": "function",
+   "parent_ids": [
+    "service::goutil/helper.go::functions"
+   ],
+   "source_path": "goutil/helper.go",
+   "symbol_ids": [],
+   "repository_id": null,
+   "depends_on_ids": [],
+   "doc_only": false
+  },
+  {
+   "id": "logicblock::goutil/helper.go::function::Helper::0",
+   "name": "Step 1",
+   "level": "logic_block",
+   "parent_ids": [
+    "goutil/helper.go::function::Helper"
+   ],
+   "source_path": "goutil/helper.go:6-6",
+   "symbol_ids": [],
+   "repository_id": null,
+   "depends_on_ids": [],
+   "doc_only": false
+  },
+  {
+   "id": "code::logicblock::goutil/helper.go::function::Helper::0",
+   "name": "goutil/helper.go:6-6",
+   "level": "code",
+   "parent_ids": [
+    "logicblock::goutil/helper.go::function::Helper::0"
+   ],
+   "source_path": "goutil/helper.go:6-6",
+   "symbol_ids": [],
+   "repository_id": null,
+   "depends_on_ids": [],
+   "doc_only": false
+  },
+  {
+   "id": "dir::src",
+   "name": "src",
+   "level": "system",
+   "parent_ids": [],
+   "source_path": "src",
+   "symbol_ids": [],
+   "repository_id": null,
+   "depends_on_ids": [],
+   "doc_only": false
+  },
+  {
+   "id": "dir::src/pkg",
+   "name": "pkg",
+   "level": "pillar",
+   "parent_ids": [
+    "dir::src"
+   ],
+   "source_path": "src/pkg",
+   "symbol_ids": [],
+   "repository_id": null,
+   "depends_on_ids": [],
+   "doc_only": false
+  },
+  {
+   "id": "component::src/pkg/__init__.py",
+   "name": "__init__.py",
+   "level": "component",
+   "parent_ids": [
+    "dir::src/pkg"
+   ],
+   "source_path": "src/pkg/__init__.py",
+   "symbol_ids": [],
+   "repository_id": null,
+   "depends_on_ids": [],
+   "doc_only": false
+  },
+  {
+   "id": "component::src/pkg/models.py",
+   "name": "models.py",
+   "level": "component",
+   "parent_ids": [
+    "dir::src/pkg"
+   ],
+   "source_path": "src/pkg/models.py",
+   "symbol_ids": [],
+   "repository_id": null,
+   "depends_on_ids": [],
+   "doc_only": false
+  },
+  {
+   "id": "src/pkg/models.py::class::Widget",
+   "name": "Widget",
+   "level": "service",
+   "parent_ids": [
+    "component::src/pkg/models.py"
+   ],
+   "source_path": "src/pkg/models.py",
+   "symbol_ids": [],
+   "repository_id": null,
+   "depends_on_ids": [],
+   "doc_only": false
+  },
+  {
+   "id": "src/pkg/models.py::function::Widget.__init__",
+   "name": "__init__",
+   "level": "function",
+   "parent_ids": [
+    "src/pkg/models.py::class::Widget"
+   ],
+   "source_path": "src/pkg/models.py",
+   "symbol_ids": [],
+   "repository_id": null,
+   "depends_on_ids": [],
+   "doc_only": false
+  },
+  {
+   "id": "logicblock::src/pkg/models.py::function::Widget.__init__::0",
+   "name": "Step 1",
+   "level": "logic_block",
+   "parent_ids": [
+    "src/pkg/models.py::function::Widget.__init__"
+   ],
+   "source_path": "src/pkg/models.py:8-8",
+   "symbol_ids": [],
+   "repository_id": null,
+   "depends_on_ids": [],
+   "doc_only": false
+  },
+  {
+   "id": "code::logicblock::src/pkg/models.py::function::Widget.__init__::0",
+   "name": "src/pkg/models.py:8-8",
+   "level": "code",
+   "parent_ids": [
+    "logicblock::src/pkg/models.py::function::Widget.__init__::0"
+   ],
+   "source_path": "src/pkg/models.py:8-8",
+   "symbol_ids": [],
+   "repository_id": null,
+   "depends_on_ids": [],
+   "doc_only": false
+  },
+  {
+   "id": "service::src/pkg/models.py::functions",
+   "name": "Module Functions",
+   "level": "service",
+   "parent_ids": [
+    "component::src/pkg/models.py"
+   ],
+   "source_path": "src/pkg/models.py",
+   "symbol_ids": [],
+   "repository_id": null,
+   "depends_on_ids": [],
+   "doc_only": false
+  },
+  {
+   "id": "src/pkg/models.py::function::build",
+   "name": "build",
+   "level": "function",
+   "parent_ids": [
+    "service::src/pkg/models.py::functions"
+   ],
+   "source_path": "src/pkg/models.py",
+   "symbol_ids": [],
+   "repository_id": null,
+   "depends_on_ids": [
+    "src/pkg/models.py::class::Widget"
+   ],
+   "doc_only": false
+  },
+  {
+   "id": "logicblock::src/pkg/models.py::function::build::0",
+   "name": "Step 1",
+   "level": "logic_block",
+   "parent_ids": [
+    "src/pkg/models.py::function::build"
+   ],
+   "source_path": "src/pkg/models.py:12-13",
+   "symbol_ids": [],
+   "repository_id": null,
+   "depends_on_ids": [],
+   "doc_only": false
+  },
+  {
+   "id": "code::logicblock::src/pkg/models.py::function::build::0",
+   "name": "src/pkg/models.py:12-13",
+   "level": "code",
+   "parent_ids": [
+    "logicblock::src/pkg/models.py::function::build::0"
+   ],
+   "source_path": "src/pkg/models.py:12-13",
+   "symbol_ids": [],
+   "repository_id": null,
+   "depends_on_ids": [],
+   "doc_only": false
+  },
+  {
+   "id": "component::src/pkg/service.py",
+   "name": "service.py",
+   "level": "component",
+   "parent_ids": [
+    "dir::src/pkg"
+   ],
+   "source_path": "src/pkg/service.py",
+   "symbol_ids": [],
+   "repository_id": null,
+   "depends_on_ids": [],
+   "doc_only": false
+  },
+  {
+   "id": "src/pkg/service.py::class::Factory",
+   "name": "Factory",
+   "level": "service",
+   "parent_ids": [
+    "component::src/pkg/service.py"
+   ],
+   "source_path": "src/pkg/service.py",
+   "symbol_ids": [],
+   "repository_id": null,
+   "depends_on_ids": [
+    "src/pkg/models.py::function::build"
+   ],
+   "doc_only": false
+  },
+  {
+   "id": "src/pkg/service.py::function::Factory.__init__",
+   "name": "__init__",
+   "level": "function",
+   "parent_ids": [
+    "src/pkg/service.py::class::Factory"
+   ],
+   "source_path": "src/pkg/service.py",
+   "symbol_ids": [],
+   "repository_id": null,
+   "depends_on_ids": [],
+   "doc_only": false
+  },
+  {
+   "id": "logicblock::src/pkg/service.py::function::Factory.__init__::0",
+   "name": "Step 1",
+   "level": "logic_block",
+   "parent_ids": [
+    "src/pkg/service.py::function::Factory.__init__"
+   ],
+   "source_path": "src/pkg/service.py:9-9",
+   "symbol_ids": [],
+   "repository_id": null,
+   "depends_on_ids": [],
+   "doc_only": false
+  },
+  {
+   "id": "code::logicblock::src/pkg/service.py::function::Factory.__init__::0",
+   "name": "src/pkg/service.py:9-9",
+   "level": "code",
+   "parent_ids": [
+    "logicblock::src/pkg/service.py::function::Factory.__init__::0"
+   ],
+   "source_path": "src/pkg/service.py:9-9",
+   "symbol_ids": [],
+   "repository_id": null,
+   "depends_on_ids": [],
+   "doc_only": false
+  },
+  {
+   "id": "src/pkg/service.py::function::Factory.make",
+   "name": "make",
+   "level": "function",
+   "parent_ids": [
+    "src/pkg/service.py::class::Factory"
+   ],
+   "source_path": "src/pkg/service.py",
+   "symbol_ids": [],
+   "repository_id": null,
+   "depends_on_ids": [
+    "src/pkg/models.py::function::build"
+   ],
+   "doc_only": false
+  },
+  {
+   "id": "logicblock::src/pkg/service.py::function::Factory.make::0",
+   "name": "Step 1",
+   "level": "logic_block",
+   "parent_ids": [
+    "src/pkg/service.py::function::Factory.make"
+   ],
+   "source_path": "src/pkg/service.py:12-14",
+   "symbol_ids": [],
+   "repository_id": null,
+   "depends_on_ids": [],
+   "doc_only": false
+  },
+  {
+   "id": "code::logicblock::src/pkg/service.py::function::Factory.make::0",
+   "name": "src/pkg/service.py:12-14",
+   "level": "code",
+   "parent_ids": [
+    "logicblock::src/pkg/service.py::function::Factory.make::0"
+   ],
+   "source_path": "src/pkg/service.py:12-14",
+   "symbol_ids": [],
+   "repository_id": null,
+   "depends_on_ids": [],
+   "doc_only": false
+  },
+  {
+   "id": "src/pkg/service.py::function::Factory._local_helper",
+   "name": "_local_helper",
+   "level": "function",
+   "parent_ids": [
+    "src/pkg/service.py::class::Factory"
+   ],
+   "source_path": "src/pkg/service.py",
+   "symbol_ids": [],
+   "repository_id": null,
+   "depends_on_ids": [],
+   "doc_only": false
+  },
+  {
+   "id": "logicblock::src/pkg/service.py::function::Factory._local_helper::0",
+   "name": "Step 1",
+   "level": "logic_block",
+   "parent_ids": [
+    "src/pkg/service.py::function::Factory._local_helper"
+   ],
+   "source_path": "src/pkg/service.py:17-17",
+   "symbol_ids": [],
+   "repository_id": null,
+   "depends_on_ids": [],
+   "doc_only": false
+  },
+  {
+   "id": "code::logicblock::src/pkg/service.py::function::Factory._local_helper::0",
+   "name": "src/pkg/service.py:17-17",
+   "level": "code",
+   "parent_ids": [
+    "logicblock::src/pkg/service.py::function::Factory._local_helper::0"
+   ],
+   "source_path": "src/pkg/service.py:17-17",
+   "symbol_ids": [],
+   "repository_id": null,
+   "depends_on_ids": [],
+   "doc_only": false
+  },
+  {
+   "id": "dir::web",
+   "name": "web",
+   "level": "system",
+   "parent_ids": [],
+   "source_path": "web",
+   "symbol_ids": [],
+   "repository_id": null,
+   "depends_on_ids": [],
+   "doc_only": false
+  },
+  {
+   "id": "component::web/index.ts",
+   "name": "index.ts",
+   "level": "component",
+   "parent_ids": [
+    "dir::web"
+   ],
+   "source_path": "web/index.ts",
+   "symbol_ids": [],
+   "repository_id": null,
+   "depends_on_ids": [],
+   "doc_only": false
+  },
+  {
+   "id": "service::web/index.ts::functions",
+   "name": "Module Functions",
+   "level": "service",
+   "parent_ids": [
+    "component::web/index.ts"
+   ],
+   "source_path": "web/index.ts",
+   "symbol_ids": [],
+   "repository_id": null,
+   "depends_on_ids": [],
+   "doc_only": false
+  },
+  {
+   "id": "web/index.ts::function::greet",
+   "name": "greet",
+   "level": "function",
+   "parent_ids": [
+    "service::web/index.ts::functions"
+   ],
+   "source_path": "web/index.ts",
+   "symbol_ids": [],
+   "repository_id": null,
+   "depends_on_ids": [
+    "web/utils.ts::function::helper"
+   ],
+   "doc_only": false
+  },
+  {
+   "id": "logicblock::web/index.ts::function::greet::0",
+   "name": "Step 1",
+   "level": "logic_block",
+   "parent_ids": [
+    "web/index.ts::function::greet"
+   ],
+   "source_path": "web/index.ts:4-4",
+   "symbol_ids": [],
+   "repository_id": null,
+   "depends_on_ids": [],
+   "doc_only": false
+  },
+  {
+   "id": "code::logicblock::web/index.ts::function::greet::0",
+   "name": "web/index.ts:4-4",
+   "level": "code",
+   "parent_ids": [
+    "logicblock::web/index.ts::function::greet::0"
+   ],
+   "source_path": "web/index.ts:4-4",
+   "symbol_ids": [],
+   "repository_id": null,
+   "depends_on_ids": [],
+   "doc_only": false
+  },
+  {
+   "id": "component::web/utils.ts",
+   "name": "utils.ts",
+   "level": "component",
+   "parent_ids": [
+    "dir::web"
+   ],
+   "source_path": "web/utils.ts",
+   "symbol_ids": [],
+   "repository_id": null,
+   "depends_on_ids": [],
+   "doc_only": false
+  },
+  {
+   "id": "service::web/utils.ts::functions",
+   "name": "Module Functions",
+   "level": "service",
+   "parent_ids": [
+    "component::web/utils.ts"
+   ],
+   "source_path": "web/utils.ts",
+   "symbol_ids": [],
+   "repository_id": null,
+   "depends_on_ids": [],
+   "doc_only": false
+  },
+  {
+   "id": "web/utils.ts::function::helper",
+   "name": "helper",
+   "level": "function",
+   "parent_ids": [
+    "service::web/utils.ts::functions"
+   ],
+   "source_path": "web/utils.ts",
+   "symbol_ids": [],
+   "repository_id": null,
+   "depends_on_ids": [],
+   "doc_only": false
+  },
+  {
+   "id": "logicblock::web/utils.ts::function::helper::0",
+   "name": "Step 1",
+   "level": "logic_block",
+   "parent_ids": [
+    "web/utils.ts::function::helper"
+   ],
+   "source_path": "web/utils.ts:2-2",
+   "symbol_ids": [],
+   "repository_id": null,
+   "depends_on_ids": [],
+   "doc_only": false
+  },
+  {
+   "id": "code::logicblock::web/utils.ts::function::helper::0",
+   "name": "web/utils.ts:2-2",
+   "level": "code",
+   "parent_ids": [
+    "logicblock::web/utils.ts::function::helper::0"
+   ],
+   "source_path": "web/utils.ts:2-2",
+   "symbol_ids": [],
+   "repository_id": null,
+   "depends_on_ids": [],
+   "doc_only": false
+  },
+  {
+   "id": "component::go.mod",
+   "name": "go.mod",
+   "level": "component",
+   "parent_ids": [],
+   "source_path": "go.mod",
+   "symbol_ids": [],
+   "repository_id": null,
+   "depends_on_ids": [],
+   "doc_only": false
+  },
+  {
+   "id": "component::pyproject.toml",
+   "name": "pyproject.toml",
+   "level": "component",
+   "parent_ids": [],
+   "source_path": "pyproject.toml",
+   "symbol_ids": [],
+   "repository_id": null,
+   "depends_on_ids": [],
+   "doc_only": false
+  }
+ ],
+ "digest": {
+  "totals": {
+   "file_count": 7,
+   "class_count": 2,
+   "function_count": 9,
+   "edge_count": 5
+  },
+  "caps": {
+   "max_callees_per_symbol": 12,
+   "max_callers_per_symbol": 12,
+   "max_imports_per_file": 20,
+   "trivial_max_body_lines": 2,
+   "max_detailed_files": 500,
+   "max_total_symbol_entries": 6000
+  },
+  "truncated": false,
+  "files_omitted": 0,
+  "files": [
+   {
+    "path": "goservice/handler.go",
+    "node_id": "component::goservice/handler.go",
+    "imports": [
+     "example.com/c0fixture/goutil"
+    ],
+    "imports_overflow": 0,
+    "classes": [],
+    "classes_omitted": 0,
+    "functions": [
+     {
+      "id": "goservice/handler.go::function::Greet",
+      "node_id": "goservice/handler.go::function::Greet",
+      "name": "Greet",
+      "is_trivial": false,
+      "calls": [
+       "goutil/helper.go::function::Helper"
+      ],
+      "calls_overflow": 0,
+      "called_by": [],
+      "called_by_overflow": 0
+     }
+    ],
+    "functions_omitted": 0
+   },
+   {
+    "path": "goutil/helper.go",
+    "node_id": "component::goutil/helper.go",
+    "imports": [],
+    "imports_overflow": 0,
+    "classes": [],
+    "classes_omitted": 0,
+    "functions": [
+     {
+      "id": "goutil/helper.go::function::Helper",
+      "node_id": "goutil/helper.go::function::Helper",
+      "name": "Helper",
+      "is_trivial": false,
+      "calls": [],
+      "calls_overflow": 0,
+      "called_by": [
+       "goservice/handler.go::function::Greet"
+      ],
+      "called_by_overflow": 0
+     }
+    ],
+    "functions_omitted": 0
+   },
+   {
+    "path": "src/pkg/__init__.py",
+    "node_id": "component::src/pkg/__init__.py",
+    "imports": [],
+    "imports_overflow": 0,
+    "classes": [],
+    "classes_omitted": 0,
+    "functions": [],
+    "functions_omitted": 0
+   },
+   {
+    "path": "src/pkg/models.py",
+    "node_id": "component::src/pkg/models.py",
+    "imports": [],
+    "imports_overflow": 0,
+    "classes": [
+     {
+      "id": "src/pkg/models.py::class::Widget",
+      "node_id": "src/pkg/models.py::class::Widget",
+      "name": "Widget",
+      "is_trivial": false,
+      "calls": [],
+      "calls_overflow": 0,
+      "called_by": [
+       "src/pkg/models.py::function::build"
+      ],
+      "called_by_overflow": 0,
+      "methods": [],
+      "methods_omitted": 1
+     }
+    ],
+    "classes_omitted": 0,
+    "functions": [
+     {
+      "id": "src/pkg/models.py::function::build",
+      "node_id": "src/pkg/models.py::function::build",
+      "name": "build",
+      "is_trivial": false,
+      "calls": [
+       "src/pkg/models.py::class::Widget"
+      ],
+      "calls_overflow": 0,
+      "called_by": [
+       "src/pkg/service.py::class::Factory",
+       "src/pkg/service.py::function::Factory.make"
+      ],
+      "called_by_overflow": 0
+     }
+    ],
+    "functions_omitted": 0
+   },
+   {
+    "path": "src/pkg/service.py",
+    "node_id": "component::src/pkg/service.py",
+    "imports": [
+     "pkg.models"
+    ],
+    "imports_overflow": 0,
+    "classes": [
+     {
+      "id": "src/pkg/service.py::class::Factory",
+      "node_id": "src/pkg/service.py::class::Factory",
+      "name": "Factory",
+      "is_trivial": false,
+      "calls": [
+       "src/pkg/models.py::function::build"
+      ],
+      "calls_overflow": 0,
+      "called_by": [],
+      "called_by_overflow": 0,
+      "methods": [
+       {
+        "id": "src/pkg/service.py::function::Factory.make",
+        "node_id": "src/pkg/service.py::function::Factory.make",
+        "name": "make",
+        "is_trivial": false,
+        "calls": [
+         "src/pkg/models.py::function::build"
+        ],
+        "calls_overflow": 0,
+        "called_by": [],
+        "called_by_overflow": 0
+       }
+      ],
+      "methods_omitted": 2
+     }
+    ],
+    "classes_omitted": 0,
+    "functions": [],
+    "functions_omitted": 0
+   },
+   {
+    "path": "web/index.ts",
+    "node_id": "component::web/index.ts",
+    "imports": [
+     "./utils"
+    ],
+    "imports_overflow": 0,
+    "classes": [],
+    "classes_omitted": 0,
+    "functions": [
+     {
+      "id": "web/index.ts::function::greet",
+      "node_id": "web/index.ts::function::greet",
+      "name": "greet",
+      "is_trivial": false,
+      "calls": [
+       "web/utils.ts::function::helper"
+      ],
+      "calls_overflow": 0,
+      "called_by": [],
+      "called_by_overflow": 0
+     }
+    ],
+    "functions_omitted": 0
+   },
+   {
+    "path": "web/utils.ts",
+    "node_id": "component::web/utils.ts",
+    "imports": [],
+    "imports_overflow": 0,
+    "classes": [],
+    "classes_omitted": 0,
+    "functions": [
+     {
+      "id": "web/utils.ts::function::helper",
+      "node_id": "web/utils.ts::function::helper",
+      "name": "helper",
+      "is_trivial": false,
+      "calls": [],
+      "calls_overflow": 0,
+      "called_by": [
+       "web/index.ts::function::greet"
+      ],
+      "called_by_overflow": 0
+     }
+    ],
+    "functions_omitted": 0
+   }
+  ]
+ },
+ "digest_tight": {
+  "totals": {
+   "file_count": 7,
+   "class_count": 2,
+   "function_count": 9,
+   "edge_count": 5
+  },
+  "caps": {
+   "max_callees_per_symbol": 1,
+   "max_callers_per_symbol": 1,
+   "max_imports_per_file": 1,
+   "trivial_max_body_lines": 2,
+   "max_detailed_files": 2,
+   "max_total_symbol_entries": 6000
+  },
+  "truncated": true,
+  "files_omitted": 5,
+  "files": [
+   {
+    "path": "goservice/handler.go",
+    "node_id": "component::goservice/handler.go",
+    "detail_omitted": true
+   },
+   {
+    "path": "goutil/helper.go",
+    "node_id": "component::goutil/helper.go",
+    "detail_omitted": true
+   },
+   {
+    "path": "src/pkg/__init__.py",
+    "node_id": "component::src/pkg/__init__.py",
+    "detail_omitted": true
+   },
+   {
+    "path": "src/pkg/models.py",
+    "node_id": "component::src/pkg/models.py",
+    "imports": [],
+    "imports_overflow": 0,
+    "classes": [
+     {
+      "id": "src/pkg/models.py::class::Widget",
+      "node_id": "src/pkg/models.py::class::Widget",
+      "name": "Widget",
+      "is_trivial": false,
+      "calls": [],
+      "calls_overflow": 0,
+      "called_by": [
+       "src/pkg/models.py::function::build"
+      ],
+      "called_by_overflow": 0,
+      "methods": [],
+      "methods_omitted": 1
+     }
+    ],
+    "classes_omitted": 0,
+    "functions": [
+     {
+      "id": "src/pkg/models.py::function::build",
+      "node_id": "src/pkg/models.py::function::build",
+      "name": "build",
+      "is_trivial": false,
+      "calls": [
+       "src/pkg/models.py::class::Widget"
+      ],
+      "calls_overflow": 0,
+      "called_by": [
+       "src/pkg/service.py::class::Factory"
+      ],
+      "called_by_overflow": 1
+     }
+    ],
+    "functions_omitted": 0
+   },
+   {
+    "path": "src/pkg/service.py",
+    "node_id": "component::src/pkg/service.py",
+    "imports": [
+     "pkg.models"
+    ],
+    "imports_overflow": 0,
+    "classes": [
+     {
+      "id": "src/pkg/service.py::class::Factory",
+      "node_id": "src/pkg/service.py::class::Factory",
+      "name": "Factory",
+      "is_trivial": false,
+      "calls": [
+       "src/pkg/models.py::function::build"
+      ],
+      "calls_overflow": 0,
+      "called_by": [],
+      "called_by_overflow": 0,
+      "methods": [
+       {
+        "id": "src/pkg/service.py::function::Factory.make",
+        "node_id": "src/pkg/service.py::function::Factory.make",
+        "name": "make",
+        "is_trivial": false,
+        "calls": [
+         "src/pkg/models.py::function::build"
+        ],
+        "calls_overflow": 0,
+        "called_by": [],
+        "called_by_overflow": 0
+       }
+      ],
+      "methods_omitted": 2
+     }
+    ],
+    "classes_omitted": 0,
+    "functions": [],
+    "functions_omitted": 0
+   },
+   {
+    "path": "web/index.ts",
+    "node_id": "component::web/index.ts",
+    "detail_omitted": true
+   },
+   {
+    "path": "web/utils.ts",
+    "node_id": "component::web/utils.ts",
+    "detail_omitted": true
+   }
+  ]
+ },
+ "clusters": {
+  "components": [
+   {
+    "id": "folder::src/pkg",
+    "container_id": "solo::folder::src/pkg",
+    "files": [
+     "src/pkg/__init__.py",
+     "src/pkg/models.py",
+     "src/pkg/service.py"
+    ]
+   },
+   {
+    "id": "folder::web",
+    "container_id": "solo::folder::web",
+    "files": [
+     "web/index.ts",
+     "web/utils.ts"
+    ]
+   },
+   {
+    "id": "merged::goservice/handler.go",
+    "container_id": "solo::merged::goservice/handler.go",
+    "files": [
+     "goservice/handler.go",
+     "goutil/helper.go"
+    ]
+   }
+  ],
+  "containers": [
+   {
+    "id": "solo::folder::src/pkg",
+    "component_ids": [
+     "folder::src/pkg"
+    ]
+   },
+   {
+    "id": "solo::folder::web",
+    "component_ids": [
+     "folder::web"
+    ]
+   },
+   {
+    "id": "solo::merged::goservice/handler.go",
+    "component_ids": [
+     "merged::goservice/handler.go"
+    ]
+   }
+  ],
+  "component_edges": [],
+  "container_edges": [],
+  "undetermined_files": [],
+  "file_edge_weights": [
+   [
+    "goservice/handler.go",
+    "goutil/helper.go",
+    1
+   ],
+   [
+    "src/pkg/models.py",
+    "src/pkg/service.py",
+    2
+   ],
+   [
+    "web/index.ts",
+    "web/utils.ts",
+    1
+   ]
+  ],
+  "undetermined_candidates": {}
+ },
+ "structure": {
+  "default": {
+   "args": {},
+   "result": {
+    "root": "root",
+    "depth": 2,
+    "truncated": true,
+    "nodes": [
+     {
+      "node_id": "dir::goservice",
+      "path": "goservice",
+      "name": "goservice",
+      "level": "folder",
+      "summary": "System `goservice`: level=system; source=goservice.",
+      "doc_only": false,
+      "child_count": 1,
+      "truncated": false,
+      "children": [
+       {
+        "node_id": "component::goservice/handler.go",
+        "path": "goservice/handler.go",
+        "name": "handler.go",
+        "level": "file",
+        "summary": "Component `handler.go`: level=component; source=goservice/handler.go.",
+        "doc_only": false,
+        "child_count": 0,
+        "truncated": false
+       }
+      ]
+     },
+     {
+      "node_id": "dir::goutil",
+      "path": "goutil",
+      "name": "goutil",
+      "level": "folder",
+      "summary": "System `goutil`: level=system; source=goutil.",
+      "doc_only": false,
+      "child_count": 1,
+      "truncated": false,
+      "children": [
+       {
+        "node_id": "component::goutil/helper.go",
+        "path": "goutil/helper.go",
+        "name": "helper.go",
+        "level": "file",
+        "summary": "Component `helper.go`: level=component; source=goutil/helper.go.",
+        "doc_only": false,
+        "child_count": 0,
+        "truncated": false
+       }
+      ]
+     },
+     {
+      "node_id": "dir::src",
+      "path": "src",
+      "name": "src",
+      "level": "folder",
+      "summary": "System `src`: level=system; source=src.",
+      "doc_only": false,
+      "child_count": 1,
+      "truncated": false,
+      "children": [
+       {
+        "node_id": "dir::src/pkg",
+        "path": "src/pkg",
+        "name": "pkg",
+        "level": "folder",
+        "summary": "Pillar `pkg`: level=pillar; source=src/pkg.",
+        "doc_only": false,
+        "child_count": 3,
+        "truncated": true
+       }
+      ]
+     },
+     {
+      "node_id": "dir::web",
+      "path": "web",
+      "name": "web",
+      "level": "folder",
+      "summary": "System `web`: level=system; source=web.",
+      "doc_only": false,
+      "child_count": 2,
+      "truncated": false,
+      "children": [
+       {
+        "node_id": "component::web/index.ts",
+        "path": "web/index.ts",
+        "name": "index.ts",
+        "level": "file",
+        "summary": "Component `index.ts`: level=component; source=web/index.ts.",
+        "doc_only": false,
+        "child_count": 0,
+        "truncated": false
+       },
+       {
+        "node_id": "component::web/utils.ts",
+        "path": "web/utils.ts",
+        "name": "utils.ts",
+        "level": "file",
+        "summary": "Component `utils.ts`: level=component; source=web/utils.ts.",
+        "doc_only": false,
+        "child_count": 0,
+        "truncated": false
+       }
+      ]
+     },
+     {
+      "node_id": "component::go.mod",
+      "path": "go.mod",
+      "name": "go.mod",
+      "level": "file",
+      "summary": "Component `go.mod`: level=component; source=go.mod.",
+      "doc_only": false,
+      "child_count": 0,
+      "truncated": false
+     },
+     {
+      "node_id": "component::pyproject.toml",
+      "path": "pyproject.toml",
+      "name": "pyproject.toml",
+      "level": "file",
+      "summary": "Component `pyproject.toml`: level=component; source=pyproject.toml.",
+      "doc_only": false,
+      "child_count": 0,
+      "truncated": false
+     }
+    ]
+   }
+  },
+  "depth_1": {
+   "args": {
+    "depth": 1
+   },
+   "result": {
+    "root": "root",
+    "depth": 1,
+    "truncated": true,
+    "nodes": [
+     {
+      "node_id": "dir::goservice",
+      "path": "goservice",
+      "name": "goservice",
+      "level": "folder",
+      "summary": "System `goservice`: level=system; source=goservice.",
+      "doc_only": false,
+      "child_count": 1,
+      "truncated": true
+     },
+     {
+      "node_id": "dir::goutil",
+      "path": "goutil",
+      "name": "goutil",
+      "level": "folder",
+      "summary": "System `goutil`: level=system; source=goutil.",
+      "doc_only": false,
+      "child_count": 1,
+      "truncated": true
+     },
+     {
+      "node_id": "dir::src",
+      "path": "src",
+      "name": "src",
+      "level": "folder",
+      "summary": "System `src`: level=system; source=src.",
+      "doc_only": false,
+      "child_count": 1,
+      "truncated": true
+     },
+     {
+      "node_id": "dir::web",
+      "path": "web",
+      "name": "web",
+      "level": "folder",
+      "summary": "System `web`: level=system; source=web.",
+      "doc_only": false,
+      "child_count": 2,
+      "truncated": true
+     },
+     {
+      "node_id": "component::go.mod",
+      "path": "go.mod",
+      "name": "go.mod",
+      "level": "file",
+      "summary": "Component `go.mod`: level=component; source=go.mod.",
+      "doc_only": false,
+      "child_count": 0,
+      "truncated": false
+     },
+     {
+      "node_id": "component::pyproject.toml",
+      "path": "pyproject.toml",
+      "name": "pyproject.toml",
+      "level": "file",
+      "summary": "Component `pyproject.toml`: level=component; source=pyproject.toml.",
+      "doc_only": false,
+      "child_count": 0,
+      "truncated": false
+     }
+    ]
+   }
+  },
+  "depth_5": {
+   "args": {
+    "depth": 5
+   },
+   "result": {
+    "root": "root",
+    "depth": 5,
+    "truncated": false,
+    "nodes": [
+     {
+      "node_id": "dir::goservice",
+      "path": "goservice",
+      "name": "goservice",
+      "level": "folder",
+      "summary": "System `goservice`: level=system; source=goservice.",
+      "doc_only": false,
+      "child_count": 1,
+      "truncated": false,
+      "children": [
+       {
+        "node_id": "component::goservice/handler.go",
+        "path": "goservice/handler.go",
+        "name": "handler.go",
+        "level": "file",
+        "summary": "Component `handler.go`: level=component; source=goservice/handler.go.",
+        "doc_only": false,
+        "child_count": 0,
+        "truncated": false
+       }
+      ]
+     },
+     {
+      "node_id": "dir::goutil",
+      "path": "goutil",
+      "name": "goutil",
+      "level": "folder",
+      "summary": "System `goutil`: level=system; source=goutil.",
+      "doc_only": false,
+      "child_count": 1,
+      "truncated": false,
+      "children": [
+       {
+        "node_id": "component::goutil/helper.go",
+        "path": "goutil/helper.go",
+        "name": "helper.go",
+        "level": "file",
+        "summary": "Component `helper.go`: level=component; source=goutil/helper.go.",
+        "doc_only": false,
+        "child_count": 0,
+        "truncated": false
+       }
+      ]
+     },
+     {
+      "node_id": "dir::src",
+      "path": "src",
+      "name": "src",
+      "level": "folder",
+      "summary": "System `src`: level=system; source=src.",
+      "doc_only": false,
+      "child_count": 1,
+      "truncated": false,
+      "children": [
+       {
+        "node_id": "dir::src/pkg",
+        "path": "src/pkg",
+        "name": "pkg",
+        "level": "folder",
+        "summary": "Pillar `pkg`: level=pillar; source=src/pkg.",
+        "doc_only": false,
+        "child_count": 3,
+        "truncated": false,
+        "children": [
+         {
+          "node_id": "component::src/pkg/__init__.py",
+          "path": "src/pkg/__init__.py",
+          "name": "__init__.py",
+          "level": "file",
+          "summary": "Component `__init__.py`: level=component; source=src/pkg/__init__.py.",
+          "doc_only": false,
+          "child_count": 0,
+          "truncated": false
+         },
+         {
+          "node_id": "component::src/pkg/models.py",
+          "path": "src/pkg/models.py",
+          "name": "models.py",
+          "level": "file",
+          "summary": "Component `models.py`: level=component; source=src/pkg/models.py.",
+          "doc_only": false,
+          "child_count": 0,
+          "truncated": false
+         },
+         {
+          "node_id": "component::src/pkg/service.py",
+          "path": "src/pkg/service.py",
+          "name": "service.py",
+          "level": "file",
+          "summary": "Component `service.py`: level=component; source=src/pkg/service.py.",
+          "doc_only": false,
+          "child_count": 0,
+          "truncated": false
+         }
+        ]
+       }
+      ]
+     },
+     {
+      "node_id": "dir::web",
+      "path": "web",
+      "name": "web",
+      "level": "folder",
+      "summary": "System `web`: level=system; source=web.",
+      "doc_only": false,
+      "child_count": 2,
+      "truncated": false,
+      "children": [
+       {
+        "node_id": "component::web/index.ts",
+        "path": "web/index.ts",
+        "name": "index.ts",
+        "level": "file",
+        "summary": "Component `index.ts`: level=component; source=web/index.ts.",
+        "doc_only": false,
+        "child_count": 0,
+        "truncated": false
+       },
+       {
+        "node_id": "component::web/utils.ts",
+        "path": "web/utils.ts",
+        "name": "utils.ts",
+        "level": "file",
+        "summary": "Component `utils.ts`: level=component; source=web/utils.ts.",
+        "doc_only": false,
+        "child_count": 0,
+        "truncated": false
+       }
+      ]
+     },
+     {
+      "node_id": "component::go.mod",
+      "path": "go.mod",
+      "name": "go.mod",
+      "level": "file",
+      "summary": "Component `go.mod`: level=component; source=go.mod.",
+      "doc_only": false,
+      "child_count": 0,
+      "truncated": false
+     },
+     {
+      "node_id": "component::pyproject.toml",
+      "path": "pyproject.toml",
+      "name": "pyproject.toml",
+      "level": "file",
+      "summary": "Component `pyproject.toml`: level=component; source=pyproject.toml.",
+      "doc_only": false,
+      "child_count": 0,
+      "truncated": false
+     }
+    ]
+   }
+  },
+  "depth_99_is_clamped": {
+   "args": {
+    "depth": 99
+   },
+   "result": {
+    "root": "root",
+    "depth": 5,
+    "truncated": false,
+    "nodes": [
+     {
+      "node_id": "dir::goservice",
+      "path": "goservice",
+      "name": "goservice",
+      "level": "folder",
+      "summary": "System `goservice`: level=system; source=goservice.",
+      "doc_only": false,
+      "child_count": 1,
+      "truncated": false,
+      "children": [
+       {
+        "node_id": "component::goservice/handler.go",
+        "path": "goservice/handler.go",
+        "name": "handler.go",
+        "level": "file",
+        "summary": "Component `handler.go`: level=component; source=goservice/handler.go.",
+        "doc_only": false,
+        "child_count": 0,
+        "truncated": false
+       }
+      ]
+     },
+     {
+      "node_id": "dir::goutil",
+      "path": "goutil",
+      "name": "goutil",
+      "level": "folder",
+      "summary": "System `goutil`: level=system; source=goutil.",
+      "doc_only": false,
+      "child_count": 1,
+      "truncated": false,
+      "children": [
+       {
+        "node_id": "component::goutil/helper.go",
+        "path": "goutil/helper.go",
+        "name": "helper.go",
+        "level": "file",
+        "summary": "Component `helper.go`: level=component; source=goutil/helper.go.",
+        "doc_only": false,
+        "child_count": 0,
+        "truncated": false
+       }
+      ]
+     },
+     {
+      "node_id": "dir::src",
+      "path": "src",
+      "name": "src",
+      "level": "folder",
+      "summary": "System `src`: level=system; source=src.",
+      "doc_only": false,
+      "child_count": 1,
+      "truncated": false,
+      "children": [
+       {
+        "node_id": "dir::src/pkg",
+        "path": "src/pkg",
+        "name": "pkg",
+        "level": "folder",
+        "summary": "Pillar `pkg`: level=pillar; source=src/pkg.",
+        "doc_only": false,
+        "child_count": 3,
+        "truncated": false,
+        "children": [
+         {
+          "node_id": "component::src/pkg/__init__.py",
+          "path": "src/pkg/__init__.py",
+          "name": "__init__.py",
+          "level": "file",
+          "summary": "Component `__init__.py`: level=component; source=src/pkg/__init__.py.",
+          "doc_only": false,
+          "child_count": 0,
+          "truncated": false
+         },
+         {
+          "node_id": "component::src/pkg/models.py",
+          "path": "src/pkg/models.py",
+          "name": "models.py",
+          "level": "file",
+          "summary": "Component `models.py`: level=component; source=src/pkg/models.py.",
+          "doc_only": false,
+          "child_count": 0,
+          "truncated": false
+         },
+         {
+          "node_id": "component::src/pkg/service.py",
+          "path": "src/pkg/service.py",
+          "name": "service.py",
+          "level": "file",
+          "summary": "Component `service.py`: level=component; source=src/pkg/service.py.",
+          "doc_only": false,
+          "child_count": 0,
+          "truncated": false
+         }
+        ]
+       }
+      ]
+     },
+     {
+      "node_id": "dir::web",
+      "path": "web",
+      "name": "web",
+      "level": "folder",
+      "summary": "System `web`: level=system; source=web.",
+      "doc_only": false,
+      "child_count": 2,
+      "truncated": false,
+      "children": [
+       {
+        "node_id": "component::web/index.ts",
+        "path": "web/index.ts",
+        "name": "index.ts",
+        "level": "file",
+        "summary": "Component `index.ts`: level=component; source=web/index.ts.",
+        "doc_only": false,
+        "child_count": 0,
+        "truncated": false
+       },
+       {
+        "node_id": "component::web/utils.ts",
+        "path": "web/utils.ts",
+        "name": "utils.ts",
+        "level": "file",
+        "summary": "Component `utils.ts`: level=component; source=web/utils.ts.",
+        "doc_only": false,
+        "child_count": 0,
+        "truncated": false
+       }
+      ]
+     },
+     {
+      "node_id": "component::go.mod",
+      "path": "go.mod",
+      "name": "go.mod",
+      "level": "file",
+      "summary": "Component `go.mod`: level=component; source=go.mod.",
+      "doc_only": false,
+      "child_count": 0,
+      "truncated": false
+     },
+     {
+      "node_id": "component::pyproject.toml",
+      "path": "pyproject.toml",
+      "name": "pyproject.toml",
+      "level": "file",
+      "summary": "Component `pyproject.toml`: level=component; source=pyproject.toml.",
+      "doc_only": false,
+      "child_count": 0,
+      "truncated": false
+     }
+    ]
+   }
+  },
+  "max_children_1": {
+   "args": {
+    "max_children": 1
+   },
+   "result": {
+    "root": "root",
+    "depth": 2,
+    "truncated": true,
+    "nodes": [
+     {
+      "node_id": "dir::goservice",
+      "path": "goservice",
+      "name": "goservice",
+      "level": "folder",
+      "summary": "System `goservice`: level=system; source=goservice.",
+      "doc_only": false,
+      "child_count": 1,
+      "truncated": false,
+      "children": [
+       {
+        "node_id": "component::goservice/handler.go",
+        "path": "goservice/handler.go",
+        "name": "handler.go",
+        "level": "file",
+        "summary": "Component `handler.go`: level=component; source=goservice/handler.go.",
+        "doc_only": false,
+        "child_count": 0,
+        "truncated": false
+       }
+      ]
+     }
+    ]
+   }
+  },
+  "max_nodes_3": {
+   "args": {
+    "depth": 5,
+    "max_nodes": 3
+   },
+   "result": {
+    "root": "root",
+    "depth": 5,
+    "truncated": true,
+    "nodes": [
+     {
+      "node_id": "dir::goservice",
+      "path": "goservice",
+      "name": "goservice",
+      "level": "folder",
+      "summary": "System `goservice`: level=system; source=goservice.",
+      "doc_only": false,
+      "child_count": 1,
+      "truncated": true
+     },
+     {
+      "node_id": "dir::goutil",
+      "path": "goutil",
+      "name": "goutil",
+      "level": "folder",
+      "summary": "System `goutil`: level=system; source=goutil.",
+      "doc_only": false,
+      "child_count": 1,
+      "truncated": true
+     },
+     {
+      "node_id": "dir::src",
+      "path": "src",
+      "name": "src",
+      "level": "folder",
+      "summary": "System `src`: level=system; source=src.",
+      "doc_only": false,
+      "child_count": 1,
+      "truncated": true
+     }
+    ]
+   }
+  },
+  "root_first_system_depth_1": {
+   "args": {
+    "root_id": "component::go.mod",
+    "depth": 1
+   },
+   "result": {
+    "root": "component::go.mod",
+    "depth": 1,
+    "truncated": false,
+    "nodes": []
+   }
+  },
+  "unknown_root": {
+   "args": {
+    "root_id": "dir::does-not-exist"
+   },
+   "error": "unknown_root"
+  }
+ },
+ "context_digest": {
+  "external_import_roots": [
+   {
+    "root": "example",
+    "count": 1
+   }
+  ],
+  "declared_dependencies": [],
+  "readme_excerpt": null
+ }
+}

@@ -1,3 +1,4 @@
+using CodeChroma.Bridge.Agents;
 using CodeChroma.Bridge.Engine;
 using CodeChroma.Bridge.Http;
 using CodeChroma.Bridge.Live;
@@ -36,6 +37,7 @@ builder.Services.AddSingleton(sp =>
     return registry;
 });
 builder.Services.AddHostedService<RegistryLifecycle>();
+builder.Services.AddAgentsAndPrs(repoRoot);
 builder.Services.AddCors();
 
 var app = builder.Build();
@@ -54,6 +56,9 @@ TraceRoutes.Map(app);
 IssueRoutes.Map(app);
 DiagramTypeRoutes.Map(app);
 BranchRoutes.Map(app, repoRoot);
+AgentRoutes.Map(app, repoRoot);
+PrRoutes.Map(app, repoRoot);
+TerminalRoutes.Map(app, repoRoot);
 
 app.Run();
 

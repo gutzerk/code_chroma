@@ -1,0 +1,11 @@
+{
+  "_doc": "pileLayout.test.ts findUnplaced. Boxes are [id, layer, x, y]; every box renders as 'custom'.",
+  "unplaced": [
+    {"name": "every box of a layer wholly on the origin", "boxes": [["a", "x", 0, 0], ["b", "x", 0, 0]], "skip": [], "done": [], "expected": {"x": ["a", "b"]}},
+    {"name": "only the new box of an already laid-out layer", "boxes": [["a", "x", 300, 0], ["b", "x", 0, 200], ["c", "x", 0, 0]], "skip": [], "done": [], "expected": {"x": ["c"]}},
+    {"name": "ignores a lone box", "boxes": [["a", "x", 0, 0]], "skip": [], "done": [], "expected": {}},
+    {"name": "ignores the hierarchy layer", "boxes": [["a", "hierarchy", 0, 0], ["b", "hierarchy", 0, 0]], "skip": [], "done": [], "expected": {}},
+    {"name": "ignores a skipped layer", "boxes": [["a", "x", 0, 0], ["b", "x", 0, 0]], "skip": ["x"], "done": [], "expected": {}},
+    {"name": "ignores boxes already auto-placed", "boxes": [["a", "x", 0, 0], ["b", "x", 5, 5]], "skip": [], "done": ["a"], "expected": {}}
+  ]
+}

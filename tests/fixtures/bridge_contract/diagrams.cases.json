@@ -1,0 +1,146 @@
+{
+  "group": "diagrams",
+  "sources": [
+    "tests/unit/test_bridge_c1_route.py",
+    "tests/unit/test_bridge_patterns_route.py",
+    "tests/unit/test_bridge_impact_route.py",
+    "tests/unit/test_bridge_diagram_status_route.py",
+    "tests/unit/test_bridge_diagrams_status_route.py",
+    "tests/unit/test_bridge_c1_output_route.py"
+  ],
+  "repo": {"base": "sample_repo"},
+  "cases": [
+    {
+      "id": "path_route_reports_the_per_diagram_artifact_location",
+      "steps": [
+        {
+          "http": {"method": "GET", "path": "/repos/main/${kind}-path"},
+          "expect": {"status": 200, "json": {
+            "repo_root": "$REPO",
+            "${kind}_path": "$REPO/.codechroma/diagrams/${kind}/${kind}.json"
+          }}
+        }
+      ],
+      "matrix": {"kind": ["c1", "patterns", "impact", "epics", "sequence"]}
+    },
+    {
+      "id": "delete_removes_the_artifact_file_and_reports_it",
+      "steps": [
+        {"fs": "write", "path": ".codechroma/diagrams/${kind}/${kind}.json", "text": "{}"},
+        {"http": {"method": "DELETE", "path": "/repos/main/${kind}"}, "expect": {"status": 200, "json": {"deleted": true}}},
+        {"http": {"method": "DELETE", "path": "/repos/main/${kind}"}, "expect": {"status": 200, "json": {"deleted": false}}}
+      ],
+      "matrix": {"kind": ["c1", "patterns", "impact", "epics", "sequence"]}
+    },
+    {
+      "id": "a_missing_c1_file_yields_an_empty_object",
+      "steps": [
+        {"fs": "delete", "path": ".codechroma/diagrams/c1/c1.json"},
+        {"http": {"method": "GET", "path": "/repos/main/c1"}, "expect": {"status": 200, "json": {}}}
+      ]
+    },
+    {
+      "id": "a_written_c1_is_served_back",
+      "steps": [
+        {"fs": "write", "path": ".codechroma/diagrams/c1/c1.json", "text": "{\"type\": \"c1\", \"nodes\": [{\"id\": \"system\", \"name\": \"Sample Repo\", \"description\": \"A demo app.\"}], \"relations\": []}"},
+        {
+          "http": {"method": "GET", "path": "/repos/main/c1"},
+          "expect": {"status": 200, "checks": [
+            {"path": "$.nodes[0].name", "equals": "Sample Repo"},
+            {"path": "$.nodes[0].description", "equals": "A demo app."}
+          ]}
+        }
+      ]
+    },
+    {
+      "id": "an_unconvertible_legacy_c1_is_flagged_for_regeneration",
+      "requires": ["diagram-resolver"],
+      "steps": [
+        {"fs": "write", "path": ".codechroma/diagrams/c1/c1.json", "text": "{\"system\": \"not-a-dict\", \"actors\": []}"},
+        {"http": {"method": "GET", "path": "/repos/main/c1"}, "expect": {"status": 200, "checks": [{"path": "$.needs_regeneration", "equals": true}]}}
+      ]
+    },
+    {
+      "id": "c1_nodes_get_graph_node_ids_and_unmapped_code_is_listed",
+      "requires": ["diagram-resolver"],
+      "steps": [
+        {"fs": "write", "path": ".codechroma/diagrams/c1/c1.json", "text": "{\"type\": \"c1\", \"nodes\": [{\"id\": \"system\", \"name\": \"Sample Repo\"}, {\"id\": \"shared\", \"name\": \"Shared\", \"path\": \"shared\", \"parent\": \"system\"}, {\"id\": \"ghost\", \"name\": \"Ghost\", \"path\": \"nope/missing.py\", \"parent\": \"system\"}], \"relations\": []}"},
+        {
+          "http": {"method": "GET", "path": "/repos/main/c1"},
+          "expect": {"status": 200, "checks": [
+            {"path": "$.nodes[id=shared].node_id", "equals": ["dir::shared"]},
+            {"path": "$.nodes[id=ghost].node_id", "equals": [null]},
+            {"path": "$.unmapped[*].path", "equals": ["billing", "users", "web"]}
+          ]}
+        }
+      ]
+    },
+    {
+      "id": "diagrams_status_reports_ready_and_a_fingerprint_for_a_written_c1",
+      "steps": [
+        {"fs": "write", "path": ".codechroma/diagrams/c1/c1.json", "text": "{\"system\": {\"name\": \"Sample\"}}"},
+        {
+          "http": {"method": "GET", "path": "/repos/main/diagrams/status"},
+          "expect": {"status": 200, "checks": [
+            {"path": "$.c1.ready", "equals": true},
+            {"path": "$.c1.fingerprint", "type": "string"}
+          ]}
+        }
+      ]
+    },
+    {
+      "id": "deleting_a_diagram_flips_its_ready_flag_back_to_false",
+      "steps": [
+        {"fs": "write", "path": ".codechroma/diagrams/c1/c1.json", "text": "{\"system\": {\"name\": \"Sample\"}}"},
+        {"http": {"method": "GET", "path": "/repos/main/diagrams/status"}, "expect": {"checks": [{"path": "$.c1.ready", "equals": true}]}},
+        {"http": {"method": "DELETE", "path": "/repos/main/c1"}, "expect": {"status": 200}},
+        {"http": {"method": "GET", "path": "/repos/main/diagrams/status"}, "expect": {"checks": [
+          {"path": "$.c1.ready", "equals": false},
+          {"path": "$.c1.fingerprint", "type": "null"}
+        ]}}
+      ]
+    },
+    {
+      "id": "a_written_feature_plan_reports_ready_under_its_layer_name",
+      "steps": [
+        {"fs": "write", "path": ".codechroma/diagrams/feature-plan/token-auth/token-auth.json", "text": "{\"nodes\": [], \"relations\": [{\"from\": \"a\", \"to\": \"b\"}]}"},
+        {"http": {"method": "GET", "path": "/repos/main/diagrams/status"}, "expect": {"checks": [{"path": "$['feature-plan/token-auth'].ready", "equals": true}]}}
+      ]
+    },
+    {
+      "id": "job_status_starts_idle",
+      "steps": [
+        {"http": {"method": "GET", "path": "/repos/main/${kind}/status"}, "expect": {"status": 200, "json": {"state": "idle", "error": null}}},
+        {"http": {"method": "GET", "path": "/repos/main/${kind}/output"}, "expect": {"status": 200, "json": {"lines": []}}}
+      ],
+      "matrix": {"kind": ["c1", "impact-changes"]}
+    },
+    {
+      "id": "an_interactive_run_flips_the_job_state_and_cancel_resets_it",
+      "steps": [
+        {"http": {"method": "POST", "path": "/repos/main/${kind}/status", "json": {"state": "generating"}}, "expect": {"status": 200, "json": {"state": "generating", "error": null}}},
+        {"http": {"method": "GET", "path": "/repos/main/${kind}/status"}, "expect": {"json": {"state": "generating", "error": null}}},
+        {"http": {"method": "POST", "path": "/repos/main/${kind}/cancel"}, "expect": {"status": 200, "json": {"state": "idle", "error": null}}},
+        {"http": {"method": "GET", "path": "/repos/main/${kind}/status"}, "expect": {"json": {"state": "idle", "error": null}}}
+      ],
+      "matrix": {"kind": ["c1", "impact-changes"]}
+    },
+    {
+      "id": "an_interactive_run_can_finish_idle_or_with_an_error",
+      "steps": [
+        {"http": {"method": "POST", "path": "/repos/main/c1/status", "json": {"state": "generating"}}, "expect": {"status": 200}},
+        {"http": {"method": "POST", "path": "/repos/main/c1/status", "json": {"state": "idle"}}, "expect": {"json": {"state": "idle", "error": null}}},
+        {"http": {"method": "POST", "path": "/repos/main/c1/status", "json": {"state": "error", "detail": "self-check did not converge after 3 attempts"}}, "expect": {"json": {"state": "error", "error": "self-check did not converge after 3 attempts"}}},
+        {"http": {"method": "POST", "path": "/repos/main/c1/status", "json": {"state": "error"}}, "expect": {"json": {"state": "error", "error": "unspecified error"}}},
+        {"http": {"method": "GET", "path": "/repos/main/c1/status"}, "expect": {"json": {"state": "error", "error": "unspecified error"}}}
+      ]
+    },
+    {
+      "id": "an_unrecognized_job_state_is_a_400",
+      "steps": [
+        {"http": {"method": "POST", "path": "/repos/main/c1/status", "json": {"state": "${state}"}}, "expect": {"status": 400}}
+      ],
+      "matrix": {"state": ["paused", "", "GENERATING"]}
+    }
+  ]
+}

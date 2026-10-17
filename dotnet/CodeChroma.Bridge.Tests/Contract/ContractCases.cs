@@ -9,8 +9,8 @@ public static class ContractCases
 {
     /// <summary>Capabilities this backend implements; cases needing others are listed, not run.</summary>
     public static readonly HashSet<string> Supported = Support.BridgeHost.RealEngine
-        ? ["terminal-frames", "real-engine"]
-        : ["terminal-frames"];
+        ? ["terminal-frames", "pty", "real-engine"]
+        : ["terminal-frames", "pty"];
 
     public static string FixtureDir { get; } = FindFixtureDir();
 

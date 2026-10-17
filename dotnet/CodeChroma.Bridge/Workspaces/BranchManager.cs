@@ -2,12 +2,13 @@ using System.Globalization;
 using System.Text;
 using System.Text.Json.Nodes;
 using System.Text.RegularExpressions;
+using CodeChroma.Bridge.Agents;
 using CodeChroma.Bridge.Stores;
 
 namespace CodeChroma.Bridge.Workspaces;
 
 /// <summary>A domain refusal that maps to an HTTP status (bridge/errors.py's table).</summary>
-public sealed class BridgeException(int status, string message, JsonNode? detail = null) : Exception(message)
+public class BridgeException(int status, string message, JsonNode? detail = null) : Exception(message)
 {
     public int Status { get; } = status;
 
@@ -24,7 +25,7 @@ public sealed record BranchRecord(string Id, string Branch, string Worktree, str
     };
 }
 
-/// <summary>The branch-workspace registry (.codechroma/branches.json): one worktree per record. Skills are not synced into them.</summary>
+/// <summary>The branch-workspace registry (.codechroma/branches.json): one worktree per record, with skills installed and diagrams seeded like an agent's.</summary>
 public sealed partial class BranchManager
 {
     public const string IdPrefix = "br_";
@@ -42,6 +43,9 @@ public sealed partial class BranchManager
         foreach (var entry in entries ?? [])
             if (FromJson(entry) is { } record) _records[record.Id] = record;
     }
+
+    /// <summary>Worktrees other registries own (agents), so a branch an agent holds reads as taken by that agent.</summary>
+    public Func<IReadOnlyList<(string Worktree, string Id)>> ExtraHolders { get; set; } = () => [];
 
     public string RegistryPath => Path.Combine(_mainRoot, ".codechroma", "branches.json");
 
@@ -61,7 +65,11 @@ public sealed partial class BranchManager
     {
         if (List().Count == 0) return;
         GitRunner.Run(_mainRoot, "worktree", "prune");
-        foreach (var record in List()) record.WorktreeLost = !Directory.Exists(record.Worktree);
+        foreach (var record in List())
+        {
+            record.WorktreeLost = !Directory.Exists(record.Worktree);
+            if (!record.WorktreeLost) SkillSync.InstallIntoWorktree(record.Worktree);
+        }
     }
 
     public static IReadOnlyList<string> ListBranches(string root) =>
@@ -99,6 +107,7 @@ public sealed partial class BranchManager
     {
         var byPath = new Dictionary<string, string>(PathComparer) { [Normalize(_mainRoot)] = Workspace.MainId };
         foreach (var record in List()) byPath[Normalize(record.Worktree)] = record.Id;
+        foreach (var (worktree, id) in ExtraHolders()) byPath.TryAdd(Normalize(worktree), id);
         var holders = new Dictionary<string, string?>();
         foreach (var (path, branch) in ListWorktrees(_mainRoot))
             if (branch is not null) holders[branch] = byPath.GetValueOrDefault(Normalize(path));
@@ -145,7 +154,7 @@ public sealed partial class BranchManager
         {
             var id = UniqueId(branch);
             var path = WorktreePath(id);
-            EnsureExcluded(".codechroma/");
+            GitExclude.Ensure(_mainRoot, [.. SkillSync.WorktreeExcludes]);
             Directory.CreateDirectory(Path.GetDirectoryName(path)!);
             if (create)
             {
@@ -157,11 +166,32 @@ public sealed partial class BranchManager
             {
                 Git(["worktree", "add", path, branch], "git worktree add");
             }
+            try
+            {
+                SkillSync.InstallIntoWorktree(path);
+                DiagramSeed.SeedFromMain(_mainRoot, path);
+            }
+            catch (Exception)
+            {
+                UndoProvision(branch, path, create);
+                throw;
+            }
             var record = new BranchRecord(id, branch, path, DateTime.UtcNow.ToString("yyyy-MM-dd'T'HH:mm:ss'Z'", CultureInfo.InvariantCulture));
             _records[id] = record;
             Save();
             return record;
         }
+    }
+
+    /// <summary>Never leave a checkout (and a branch we just made) that no record points at.</summary>
+    private void UndoProvision(string branch, string path, bool created)
+    {
+        try
+        {
+            WorktreeOps.Remove(_mainRoot, path, force: true);
+            if (created) WorktreeOps.DeleteBranch(_mainRoot, branch);
+        }
+        catch (WorktreeException) { /* the half-made worktree stays for the user to clean up */ }
     }
 
     private void Git(IEnumerable<string> args, string description)
@@ -175,22 +205,6 @@ public sealed partial class BranchManager
     {
         if (string.IsNullOrWhiteSpace(branch) || branch.StartsWith('-')) return false;
         return GitRunner.RunRaw(_mainRoot, "check-ref-format", "--branch", branch) is { ExitCode: 0 };
-    }
-
-    private void EnsureExcluded(string pattern)
-    {
-        var resolved = GitRunner.Run(_mainRoot, "rev-parse", "--git-path", "info/exclude")?.Trim();
-        if (string.IsNullOrEmpty(resolved)) return;
-        var path = Path.IsPathRooted(resolved) ? resolved : Path.GetFullPath(Path.Combine(_mainRoot, resolved));
-        try
-        {
-            var existing = File.Exists(path) ? File.ReadAllLines(path) : [];
-            if (existing.Contains(pattern)) return;
-            Directory.CreateDirectory(Path.GetDirectoryName(path)!);
-            var prefix = existing.Length == 0 || existing[^1] == "" ? "" : "\n";
-            File.AppendAllText(path, prefix + pattern + "\n");
-        }
-        catch (IOException) { }
     }
 
     private string WorktreePath(string id)

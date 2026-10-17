@@ -11,6 +11,8 @@ public sealed class WorkspaceRegistry : IDisposable
     private readonly TimeProvider _time;
     private readonly bool _startWatchers;
     private readonly Dictionary<string, (string Root, bool ReadOnly)> _roots = [];
+    private readonly Dictionary<string, RootExtras> _extras = [];
+    private readonly Dictionary<string, string> _canonical = [];
     private readonly Dictionary<string, Workspace> _live = [];
     private readonly Dictionary<string, long> _touched = [];
     private readonly Dictionary<string, WorkspaceState> _states = [];
@@ -37,9 +39,30 @@ public sealed class WorkspaceRegistry : IDisposable
         lock (_lock) return _live.ContainsKey(id);
     }
 
-    public void Register(string id, string root, bool readOnly = false)
+    /// <summary>Extra facts about a registered root: the ref diffs compare against and where C1 reads from.</summary>
+    public sealed record RootExtras(string? BaseRef, string? C1SourceRoot);
+
+    /// <summary>`sharesWorkspaceWith` makes this id an alias of another registered id's live workspace (attach-created agents).</summary>
+    public void Register(string id, string root, bool readOnly = false, string? baseRef = null, string? c1SourceRoot = null, string? sharesWorkspaceWith = null)
     {
-        lock (_lock) _roots[id] = (root, readOnly);
+        lock (_lock)
+        {
+            _roots[id] = (root, readOnly);
+            _extras[id] = new RootExtras(baseRef, c1SourceRoot);
+            if (sharesWorkspaceWith is null) _canonical.Remove(id);
+            else _canonical[id] = _canonical.GetValueOrDefault(sharesWorkspaceWith, sharesWorkspaceWith);
+        }
+    }
+
+    /// <summary>The directory a registered id lives in; null when nothing is registered under it.</summary>
+    public string? RootFor(string id)
+    {
+        lock (_lock) return _roots.TryGetValue(id, out var entry) ? entry.Root : null;
+    }
+
+    public RootExtras? ExtrasFor(string id)
+    {
+        lock (_lock) return _extras.GetValueOrDefault(id);
     }
 
     /// <summary>Unloads a live workspace but keeps its registration, so the next access re-analyzes it.</summary>
@@ -65,6 +88,8 @@ public sealed class WorkspaceRegistry : IDisposable
         lock (_lock)
         {
             _roots.Remove(id);
+            _extras.Remove(id);
+            _canonical.Remove(id);
             _states.Remove(id);
         }
     }
@@ -74,6 +99,7 @@ public sealed class WorkspaceRegistry : IDisposable
     {
         lock (_lock)
         {
+            id = Canon(id);
             if (_live.TryGetValue(id, out var live))
             {
                 _touched[id] = _time.GetTimestamp();
@@ -88,6 +114,7 @@ public sealed class WorkspaceRegistry : IDisposable
     {
         lock (_lock)
         {
+            id = Canon(id);
             if (!_roots.ContainsKey(id)) return new WorkspaceState("error", "", "unknown workspace");
             if (_live.ContainsKey(id)) { _touched[id] = _time.GetTimestamp(); return State(id); }
             _states[id] = new WorkspaceState("analyzing", "starting", null);
@@ -107,6 +134,7 @@ public sealed class WorkspaceRegistry : IDisposable
     {
         lock (_lock)
         {
+            id = Canon(id);
             if (_live.TryGetValue(id, out var live)) return live.State;
             if (_states.TryGetValue(id, out var recorded)) return recorded;
             return _roots.ContainsKey(id)
@@ -144,10 +172,17 @@ public sealed class WorkspaceRegistry : IDisposable
             foreach (var workspace in _live.Values) workspace.StartWatchers();
     }
 
+    private string Canon(string id) => _canonical.GetValueOrDefault(id, id);
+
     private Workspace BringUp(string id)
     {
         var (root, readOnly) = _roots[id];
-        var workspace = new Workspace(id, root, _factory.Create(root), _onEvent, readOnly);
+        var extras = _extras.GetValueOrDefault(id);
+        var workspace = new Workspace(id, root, _factory.Create(root), _onEvent, readOnly)
+        {
+            BaseRef = extras?.BaseRef,
+            C1SourceRoot = extras?.C1SourceRoot,
+        };
         _live[id] = workspace;
         _touched[id] = _time.GetTimestamp();
         if (_startWatchers && id != Workspace.MainId) workspace.StartWatchers();

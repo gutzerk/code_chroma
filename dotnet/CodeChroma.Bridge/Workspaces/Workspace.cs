@@ -31,6 +31,12 @@ public sealed class Workspace : IDisposable
     public string Root { get; }
     public IGraphEngine Engine { get; }
     public bool ReadOnly { get; }
+
+    /// <summary>The ref diffs compare against instead of the default branch (a PR review's fetched base).</summary>
+    public string? BaseRef { get; init; }
+
+    /// <summary>Where C1 is read through from (a PR borrows main's), when it is not this root.</summary>
+    public string? C1SourceRoot { get; init; }
     public SkillJobs Jobs { get; } = new();
     public WorkspaceState State { get; } = new("ready", "", null);
 

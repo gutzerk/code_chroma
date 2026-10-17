@@ -21,7 +21,17 @@ import { TabManager, type Tab } from "./tabManager";
 import { listWorkspacesForRepo } from "./workspaceSummaries";
 import type { TabsChangedPayload } from "./tabbarPreload";
 import { UpdateService } from "./updateService";
-import { readCachedLatestVersion, updateCachePath, writeCachedLatestVersion } from "./updateCache";
+import {
+  readCachedLatestVersion,
+  readUpdateSettings,
+  updateCachePath,
+  updateSettingsPath,
+  writeCachedLatestVersion,
+  writeUpdateSettings,
+} from "./updateCache";
+import { UpdateScheduler } from "./updateScheduler";
+import { cleanupStaleDownloads } from "./updater";
+import { aboutMessage, windowTitle } from "./appVersion";
 
 const LAUNCHER_PAGE = join(__dirname, "..", "launcher", "index.html");
 const TABBAR_PAGE = join(__dirname, "..", "tabbar", "index.html");
@@ -78,6 +88,8 @@ function tabTitle(shell: Shell, tab: ProjectTab): string {
 
 function pushTabsChanged(shell: Shell): void {
   if (shell.tabBar.webContents.isDestroyed()) return;
+  const active = shell.tabs.activeTab();
+  shell.window.setTitle(windowTitle(app.getVersion(), active ? tabTitle(shell, active) : undefined));
   const payload: TabsChangedPayload = {
     tabs: shell.tabs.listTabs().map((tab) => ({ id: tab.id, title: tabTitle(shell, tab) })),
     activeId: shell.tabs.activeTab()?.id ?? null,
@@ -122,7 +134,7 @@ async function createShell(): Promise<Shell> {
     height: 900,
     minWidth: 900,
     minHeight: 600,
-    title: "CodeChroma",
+    title: windowTitle(app.getVersion()),
     backgroundColor: "#1b1d23",
   });
   // Maximized, not `fullscreen: true` -- fullscreen drops the OS window frame entirely, so on
@@ -373,11 +385,22 @@ const updates = new UpdateService(app.getVersion(), state => {
 }, {
   readLatest: () => readCachedLatestVersion(updateCachePath(app.getPath("userData"))),
   writeLatest: version => writeCachedLatestVersion(updateCachePath(app.getPath("userData")), version),
+  readSettings: () => readUpdateSettings(updateSettingsPath(app.getPath("userData"))),
+  writeSettings: settings => writeUpdateSettings(updateSettingsPath(app.getPath("userData")), settings),
 });
+let lastNotified: string | undefined;
 async function checkAndNotify(): Promise<void> {
   if (!app.isPackaged) return;
-  const state = await updates.check();
-  if (state.phase === "available") notifyUpdateAvailable(state.latestVersion!);
+  const state = await updates.check({ background: true });
+  if (state.phase === "available" || state.phase === "ready") {
+    if (state.latestVersion === lastNotified) return;
+    lastNotified = state.latestVersion;
+    notifyUpdateAvailable(state.latestVersion!);
+  }
+}
+const updateScheduler = new UpdateScheduler(checkAndNotify);
+function showAbout(): void {
+  void dialog.showMessageBox({ type: "info", buttons: ["OK"], ...aboutMessage(app.getVersion()) });
 }
 async function runUpdateFlow(): Promise<void> {
   const state = await updates.check();
@@ -466,16 +489,21 @@ function buildMenu(): void {
     { role: "editMenu" },
     { role: "viewMenu" },
     { role: "windowMenu" },
+    // macOS already has About in the app menu; elsewhere it lives under Help.
+    ...(process.platform === "darwin" ? [] : [{ role: "help" as const, submenu: [{ label: "About CodeChroma", click: showAbout }] }]),
   ];
   Menu.setApplicationMenu(Menu.buildFromTemplate(template));
 }
 
 function registerIpc(): void {
-  for (const action of ["state", "check", "download", "restart"] as const) {
-    ipcMain.handle(`updates:${action}`, (event) => {
+  for (const action of ["state", "check", "download", "restart", "skip", "auto-download"] as const) {
+    ipcMain.handle(`updates:${action}`, (event, arg?: unknown) => {
+      const version = typeof arg === "string" ? arg : typeof arg === "boolean" ? String(arg) : undefined;
       if (!shellForTabSender(event.sender)) throw new Error("Unknown update caller");
       if (action === "state") return updates.state;
       if (action === "check") return updates.check();
+      if (action === "skip") return updates.skipVersion(version ?? updates.state.latestVersion ?? "");
+      if (action === "auto-download") return updates.setAutoDownload(version === "true");
       if (action === "download") return updates.download();
       return updates.restart(restartAfterUpdate);
     });
@@ -551,7 +579,11 @@ app.whenReady().then(async () => {
   buildMenu();
   registerIpc();
   const initialShell = await createShell();
-  void checkAndNotify();
+  if (app.isPackaged) {
+    void cleanupStaleDownloads();
+    updateScheduler.start({ immediate: true });
+    app.on("browser-window-focus", () => void updateScheduler.onFocus());
+  }
   const preselected = repoFromArgv(process.argv);
   if (preselected !== null) {
     await openRepo(initialShell, resolve(preselected), null);

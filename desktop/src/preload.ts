@@ -70,6 +70,8 @@ contextBridge.exposeInMainWorld("codechromaUpdates", {
   check: () => ipcRenderer.invoke("updates:check"),
   download: () => ipcRenderer.invoke("updates:download"),
   restart: () => ipcRenderer.invoke("updates:restart"),
+  skip: (version: string) => ipcRenderer.invoke("updates:skip", version),
+  setAutoDownload: (enabled: boolean) => ipcRenderer.invoke("updates:auto-download", enabled),
   subscribe: (handler: (state: unknown) => void) => {
     const listener = (_event: unknown, state: unknown) => handler(state);
     ipcRenderer.on("updates:state", listener);

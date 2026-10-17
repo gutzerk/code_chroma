@@ -59,6 +59,7 @@ BranchRoutes.Map(app, repoRoot);
 LayoutRoutes.Map(app);
 EpicsRoutes.Map(app);
 ContextRoutes.Map(app);
+WikiGeneralRoutes.Map(app);
 
 app.Run();
 

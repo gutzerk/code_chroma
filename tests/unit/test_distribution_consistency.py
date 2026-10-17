@@ -76,11 +76,12 @@ def test_updater_suffixes_all_match_a_built_name():
         assert any(n.endswith(suffix) for n in _built_names()), suffix
 
 
-def test_the_windows_asset_keeps_the_name_the_updater_accepts():
+def test_the_windows_asset_is_versioned_and_still_accepted_by_the_updater():
     windows = _expand(BUILDER["win"]["artifactName"], version=VERSION, arch="x64", ext="exe")
 
-    assert windows == "CodeChroma-Setup.exe"
-    assert '"CodeChroma-Setup.exe"' in UPDATER
+    assert windows == f"CodeChroma-{VERSION}-x64-Setup.exe"
+    assert '.endsWith("-x64-Setup.exe")' in UPDATER
+    assert '"CodeChroma-Setup.exe"' in UPDATER  # releases published before the rename
 
 
 def test_linux_artifact_arch_stays_literal_x64():

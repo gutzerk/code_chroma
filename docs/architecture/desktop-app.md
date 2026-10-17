@@ -29,9 +29,8 @@ triggers the follow-on release workflow when merged; configure that secret in re
 with repository Contents and Pull requests write access. The macOS matrix passes one architecture
 per job and `electron-builder.yml` gives both DMGs explicit architecture names
 (`CodeChroma-<version>-arm64.dmg` / `CodeChroma-<version>-x64.dmg`) for the checksum and manifest
-steps. Windows uses the stable asset names `CodeChroma-Setup.exe` and
-`CodeChroma-Setup.exe.sha256`; its installer downloads them from GitHub's
-`releases/latest/download/` endpoint without reading release metadata. If a release exists but its
+steps. Windows uses the versioned asset name `CodeChroma-<version>-x64-Setup.exe` (plus a
+`.sha256` sidecar); `install.ps1` finds it through `latest.json`. If a release exists but its
 builds or manifest failed, dispatch the Release workflow on
 `main` with `release_tag` (for example `v0.3.0`) to rebuild and publish assets for that release;
 ordinary pushes only build when release-please creates a release. New releases stay drafts during
@@ -83,8 +82,10 @@ generator — the release workflow's `manifest` job and developers call the same
 `electron-builder.yml`, the workflow globs, `updater.ts` and the generator. The `manifest` job also
 attests `latest.json` and the `.sha256` sidecars and uploads version-pinned copies of
 `install.sh`/`install.ps1`/`install.cmd` (use `.../releases/download/vX.Y.Z/install.sh` instead of
-the mutable `main` URL to pin the installer itself). The Windows asset is still the unversioned
-`CodeChroma-Setup.exe`, but its manifest URL is pinned to the release tag.
+the mutable `main` URL to pin the installer itself). The Windows asset is the versioned
+`CodeChroma-<version>-x64-Setup.exe` and its manifest URL is pinned to the release tag. Releases
+published before the rename carry the unversioned `CodeChroma-Setup.exe`; `selectAsset` in
+`updater.ts` keeps accepting both, and installed updaters match by the `-Setup.exe` suffix.
 
 The release workflow keeps newly created releases in draft until every platform build and manifest
 upload succeeds, so a failed build cannot replace the previous working latest release; a `gate` job

@@ -31,7 +31,7 @@ dmg:
 win:
   target:
     - nsis
-  artifactName: CodeChroma-Setup.${ext}
+  artifactName: CodeChroma-${version}-x64-Setup.${ext}
 
 nsis:
   oneClick: false

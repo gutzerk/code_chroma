@@ -288,11 +288,11 @@ jobs:
       - name: Package the Electron app (nsis)
         run: npm --prefix desktop run dist
 
-      # Stable names are used by the Windows bootstrapper and GitHub's latest/download endpoint.
+      # Versioned name (CodeChroma-<version>-x64-Setup.exe); the manifest records the exact asset URL.
       - name: Hash the Setup.exe
         shell: pwsh
         run: |
-          $installers = @(Get-ChildItem -Path "desktop/dist/CodeChroma-Setup.exe" -File)
+          $installers = @(Get-ChildItem -Path "desktop/dist/CodeChroma-*-x64-Setup.exe" -File)
           if ($installers.Count -ne 1) {
             throw "Expected exactly one Setup.exe, found $($installers.Count)."
           }
@@ -304,7 +304,7 @@ jobs:
       - name: Attest the Setup.exe
         uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
         with:
-          subject-path: desktop/dist/CodeChroma-Setup.exe
+          subject-path: desktop/dist/CodeChroma-*-x64-Setup.exe
 
       - name: Upload Setup to release
         uses: softprops/action-gh-release@efb35369e0ad2afab669f228072c1b0d510eae64 # v3.0.3
@@ -312,8 +312,8 @@ jobs:
           tag_name: ${{ needs.release.outputs.tag_name }}
           draft: true
           files: |
-            desktop/dist/CodeChroma-Setup.exe
-            desktop/dist/CodeChroma-Setup.exe.sha256
+            desktop/dist/CodeChroma-*-x64-Setup.exe
+            desktop/dist/CodeChroma-*-x64-Setup.exe.sha256
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 

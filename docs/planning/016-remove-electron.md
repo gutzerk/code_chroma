@@ -74,7 +74,7 @@ Merged into `integration/csharp-and-distribution`, nothing pushed or released. W
 |---|---|
 | 0 | Done, measured. |
 | 1 | Code done (WebView per tab, open-repo flow, tests). **Exit gate not met**: `web/e2e` Playwright journeys not run in the shell, no side-by-side install test, native dialogs not clicked through. |
-| 2 | Code done (updater with rollback, Velopack packaging, checksum-only verification, Electron migration, gated CI jobs). **Exit gate not met**: nothing run on macOS/Linux/CI, no `.deb`, `Shell.App` does not yet call the updater/migration or show the checksum-only notice. |
+| 2 | Code done (updater with rollback, Velopack packaging, checksum-only verification, Electron migration, gated CI jobs). **Exit gate not met**: nothing run on macOS/Linux/CI, no `.deb`, `Shell.App` now calls the updater, the migration and shows the checksum-only notice in its dialogs (wired and checked on Windows only; `UpdatesPanel.tsx` does not render the notice yet). |
 | 3 | Not started (needs a published migration release and a soak period). |
 | 4 | **Not done and must not be done yet**: it is gated on Phase 3 being out and stable. `desktop/` is intact. |
 | 5 | Partial. Canvas: hierarchy, select, drag, undo, code popup, diff, trace, agent-window layer ported with headless tests, but not wired to a live bridge. Bridge: assistant, runtime, llm settings, traces, issues, diagram types, branches and C# graph core done; agents, prs, canvas, recipes, diffs, epics, wiki_general, PTY host and skill/LLM runners remain. |

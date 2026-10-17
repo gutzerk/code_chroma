@@ -19,6 +19,22 @@ public static class Dialogs
         return window.ShowDialog(owner);
     }
 
+    public static async Task<bool> ConfirmAsync(Window owner, string title, string message, string detail, string yes, string no)
+    {
+        var accepted = false;
+        var yesButton = new Button { Content = yes, IsDefault = true };
+        var noButton = new Button { Content = no };
+        var panel = new StackPanel { Margin = new Thickness(20), Spacing = 10, MinWidth = 320 };
+        panel.Children.Add(new TextBlock { Text = message, FontWeight = FontWeight.SemiBold, FontSize = 16, TextWrapping = TextWrapping.Wrap });
+        panel.Children.Add(new TextBlock { Text = detail, TextWrapping = TextWrapping.Wrap, MaxWidth = 480 });
+        panel.Children.Add(new StackPanel { Orientation = Orientation.Horizontal, Spacing = 8, HorizontalAlignment = HorizontalAlignment.Right, Children = { yesButton, noButton } });
+        var window = new Window { Title = title, Content = panel, SizeToContent = SizeToContent.WidthAndHeight, CanResize = false, WindowStartupLocation = WindowStartupLocation.CenterOwner };
+        yesButton.Click += (_, _) => { accepted = true; window.Close(); };
+        noButton.Click += (_, _) => window.Close();
+        await window.ShowDialog(owner);
+        return accepted;
+    }
+
     public static Task ShowAboutAsync(Window owner, string version)
     {
         var about = AppInfo.About(version);

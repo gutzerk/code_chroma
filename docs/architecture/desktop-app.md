@@ -316,3 +316,16 @@ loads `http://127.0.0.1:<port>/?workspace=<id>` from the unchanged Python bridge
 and talks to the shell over the WebView message channel (`DesktopScript`/`DesktopMessage`); `codechromaUpdates` is not
 provided yet. Tests: `dotnet test dotnet/CodeChroma.Shell.sln`; smoke: `dotnet/CodeChroma.Shell.App/smoke/smoke.mjs`.
 
+**Shell updater wiring (016 Phase 1 follow-up).** `CodeChroma.Shell.App/UpdateHost.cs` builds `UpdateService` over the
+real `UpdateOperations` and owns: the first-run `ElectronMigration.Detect/ImportUserData` (failures never block startup),
+the "updated / rolled back" report from `InstallOutcomeStore`, the scheduled checks (startup, every 6 h, window focus;
+only for per-user installs via `UpdateScheduler`) and Help, Check for Updates, whose dialogs show
+`VerificationNotice` (the checksum-only warning) before a download and before the restart. The page API
+`window.codechromaUpdates` (`DesktopScript.cs`) round-trips over the WebView message channel: the page posts
+`{type:"updates", callId, method, arg}`, `UpdatesBridge` (in `CodeChroma.Shell`, unit-tested) runs it and the shell replies
+through `window.__ccUpdatesReply`; state changes are pushed with `window.__ccUpdatesPush` to every tab's `subscribe`.
+`UpdatesBridge.ToJson` keeps the shape `web/src/assistant/UpdatesPanel.tsx` expects and adds `verificationNotice`,
+`provenance`, `lastInstall`. The csproj `<Version>` is bumped by release-please (`xml` extra-file) and guarded by
+`tests/unit/test_dotnet_version_sync.py`. Verified on a Windows display with `smoke/smoke.mjs`; `UpdatesPanel.tsx` does not
+render `verificationNotice` yet (web is untouched), so in-page the warning is only in the shell dialogs.
+

@@ -1,0 +1,47 @@
+{
+  "group": "workspaces",
+  "sources": ["tests/unit/test_bridge_workspace_route.py"],
+  "repo": {"base": "sample_repo"},
+  "cases": [
+    {
+      "id": "main_is_ready_without_being_activated",
+      "steps": [
+        {
+          "http": {"method": "GET", "path": "/workspaces/main/status"},
+          "expect": {"status": 200, "json": {
+            "id": "main", "state": "ready", "progress": "", "error": null, "read_only": false
+          }}
+        }
+      ]
+    },
+    {
+      "id": "an_unknown_workspace_status_is_an_error_not_a_silent_wait",
+      "steps": [
+        {
+          "http": {"method": "GET", "path": "/workspaces/nobody/status"},
+          "expect": {"status": 200, "json": {
+            "id": "nobody", "state": "error", "progress": "", "error": "unknown workspace",
+            "read_only": false
+          }}
+        }
+      ]
+    },
+    {
+      "id": "activating_an_unknown_workspace_is_404",
+      "steps": [
+        {"http": {"method": "POST", "path": "/workspaces/nobody/activate"}, "expect": {"status": 404}}
+      ]
+    },
+    {
+      "id": "activating_main_reports_it_ready",
+      "steps": [
+        {
+          "http": {"method": "POST", "path": "/workspaces/main/activate"},
+          "expect": {"status": 200, "json": {
+            "id": "main", "state": "ready", "progress": "", "error": null
+          }}
+        }
+      ]
+    }
+  ]
+}

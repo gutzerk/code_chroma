@@ -3,6 +3,7 @@ using System.Text;
 using System.Text.Json;
 using System.Text.Json.Nodes;
 using CodeChroma.Bridge.Http;
+using CodeChroma.Bridge.Stores;
 using CodeChroma.Bridge.Workspaces;
 
 namespace CodeChroma.Bridge.Routes;
@@ -21,7 +22,7 @@ public static class DiagramRoutes
                 return Results.Json(new JsonObject { ["repo_root"] = ws.Root, [$"{k}_path"] = ws.DiagramPath(k) }, BridgeJson.Default.JsonObject);
             });
             app.MapGet($"/repos/{{repoId}}/{k}", (string repoId, WorkspaceRegistry registry) =>
-                Results.Json(Load(registry.Get(repoId), k) ?? new JsonObject(), BridgeJson.Default.JsonObject));
+                Results.Json(LoadArtifact(registry.Get(repoId), k) ?? new JsonObject(), BridgeJson.Default.JsonObject));
             app.MapDelete($"/repos/{{repoId}}/{k}", (string repoId, WorkspaceRegistry registry) =>
             {
                 var path = registry.Get(repoId).DiagramPath(k);
@@ -50,7 +51,7 @@ public static class DiagramRoutes
         }
     }
 
-    private static JsonNode? Load(Workspace ws, string kind)
+    public static JsonNode? LoadArtifact(Workspace ws, string kind)
     {
         try
         {
@@ -113,7 +114,7 @@ public static class DiagramRoutes
         _ => node.ToJsonString(),
     };
 
-    private static IResult DiagramsStatus(string repoId, WorkspaceRegistry registry)
+    private static IResult DiagramsStatus(string repoId, WorkspaceRegistry registry, DiagramLibrary library)
     {
         var ws = registry.Get(repoId);
         var result = new JsonObject();
@@ -122,12 +123,14 @@ public static class DiagramRoutes
             ["ready"] = diagram is JsonObject { Count: > 0 },
             ["fingerprint"] = Fingerprint(diagram),
         };
-        foreach (var kind in Workspace.DiagramKinds) Add(kind, Load(ws, kind));
+        foreach (var kind in Workspace.DiagramKinds) Add(kind, LoadArtifact(ws, kind));
+        foreach (var entry in library.ListTypes())
+            if (Json.Str(entry!["id"]) is { } typeId) Add($"custom/{typeId}", LoadArtifact(ws, $"custom/{typeId}"));
         var featureDir = Path.Combine(ws.Root, ".codechroma", "diagrams", "feature-plan");
         if (Directory.Exists(featureDir))
             foreach (var dir in Directory.GetDirectories(featureDir).Select(Path.GetFileName).Order(StringComparer.Ordinal))
             {
-                var diagram = Load(ws, $"feature-plan/{dir}");
+                var diagram = LoadArtifact(ws, $"feature-plan/{dir}");
                 if (diagram is JsonObject { Count: > 0 }) Add($"feature-plan/{dir}", diagram);
             }
         return Results.Json(result, BridgeJson.Default.JsonObject);

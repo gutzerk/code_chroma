@@ -2,6 +2,7 @@ using CodeChroma.Bridge.Engine;
 using CodeChroma.Bridge.Http;
 using CodeChroma.Bridge.Live;
 using CodeChroma.Bridge.Routes;
+using CodeChroma.Bridge.Stores;
 using CodeChroma.Bridge.Workspaces;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -11,17 +12,28 @@ var allowedOrigins = (Environment.GetEnvironmentVariable("codechroma_BRIDGE_CORS
     .Split(',').Select(o => o.Trim()).Where(o => o.Length > 0).ToHashSet();
 
 builder.Services.AddSingleton(TimeProvider.System);
-builder.Services.AddSingleton<IEngineFactory, UnavailableEngineFactory>();
+builder.Services.AddSingleton<IAnalysisExporter>(_ => new PythonAnalysisExporter());
+builder.Services.AddSingleton<IEngineFactory, CoreEngineFactory>();
 builder.Services.AddSingleton<ConnectionManager>();
+builder.Services.AddSingleton<TraceConnections>();
+builder.Services.AddSingleton(UserPaths.FromEnvironment());
+builder.Services.AddSingleton<ProviderStore>();
+builder.Services.AddSingleton<CallSiteStore>();
+builder.Services.AddSingleton<DiagramLibrary>();
+builder.Services.AddSingleton(new BranchManager(repoRoot));
 builder.Services.AddSingleton(sp =>
 {
     var connections = sp.GetRequiredService<ConnectionManager>();
-    return new WorkspaceRegistry(
+    var registry = new WorkspaceRegistry(
         repoRoot,
         sp.GetRequiredService<IEngineFactory>(),
         (key, message) => connections.BroadcastDetached(message, key),
         sp.GetRequiredService<TimeProvider>(),
         startWatchers: true);
+    var branches = sp.GetRequiredService<BranchManager>();
+    branches.Reconcile();
+    foreach (var record in branches.List()) registry.Register(record.Id, record.Worktree);
+    return registry;
 });
 builder.Services.AddHostedService<RegistryLifecycle>();
 builder.Services.AddCors();
@@ -35,6 +47,13 @@ app.UseMiddleware<OriginGuard>((IReadOnlySet<string>)allowedOrigins);
 WorkspaceAndSocketRoutes.Map(app, repoRoot);
 GraphRoutes.Map(app);
 DiagramRoutes.Map(app);
+AssistantRoutes.Map(app);
+RuntimeRoutes.Map(app);
+LlmSettingsRoutes.Map(app);
+TraceRoutes.Map(app);
+IssueRoutes.Map(app);
+DiagramTypeRoutes.Map(app);
+BranchRoutes.Map(app, repoRoot);
 
 app.Run();
 

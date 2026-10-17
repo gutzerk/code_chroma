@@ -6,7 +6,7 @@ using CodeChroma.Bridge.Workspaces;
 namespace CodeChroma.Bridge.Live;
 
 /// <summary>Tracks connected canvas sockets (keyed by workspace id) and fans change pings out to them.</summary>
-public sealed class ConnectionManager
+public class ConnectionManager
 {
     private readonly Dictionary<WebSocket, string?> _connections = [];
     private readonly object _lock = new();
@@ -21,7 +21,7 @@ public sealed class ConnectionManager
         lock (_lock) _connections.Remove(socket);
     }
 
-    public Task Broadcast(JsonObject message, string? key = null)
+    public Task Broadcast(JsonNode message, string? key = null)
     {
         WebSocket[] targets;
         lock (_lock) targets = _connections.Where(c => key is null || c.Value == key).Select(c => c.Key).ToArray();
@@ -31,7 +31,7 @@ public sealed class ConnectionManager
     }
 
     /// <summary>Broadcast from a watcher thread, where nobody awaits the result.</summary>
-    public void BroadcastDetached(JsonObject message, string? key = null) => _ = Broadcast(message, key);
+    public void BroadcastDetached(JsonNode message, string? key = null) => _ = Broadcast(message, key);
 
     private async Task Send(WebSocket socket, byte[] bytes)
     {
@@ -47,3 +47,6 @@ public sealed class ConnectionManager
         }
     }
 }
+
+/// <summary>The trace-stream consumers, keyed by the raw repo id in the socket path (a separate set from the events sockets).</summary>
+public sealed class TraceConnections : ConnectionManager;

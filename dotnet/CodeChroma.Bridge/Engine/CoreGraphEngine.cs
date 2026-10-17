@@ -1,0 +1,125 @@
+using System.Diagnostics;
+using System.Text;
+using System.Text.Json;
+using System.Text.Json.Serialization;
+using CodeChroma.Core;
+
+namespace CodeChroma.Bridge.Engine;
+
+/// <summary>Produces the graph core's analyzer-output contract; the analyzers themselves stay in Python.</summary>
+public interface IAnalysisExporter
+{
+    AnalysisInput Full(string root);
+
+    AnalysisDelta Delta(string root, IReadOnlyList<string> changedPaths);
+}
+
+/// <summary>The wire shape of `python -m codechroma.analysis_export --files`.</summary>
+internal sealed record DeltaWire(
+    IReadOnlyList<FileSymbols> Changed,
+    IReadOnlyList<string> Removed,
+    [property: JsonPropertyName("import_resolutions")] IReadOnlyDictionary<string, IReadOnlyDictionary<string, string>> ImportResolutions);
+
+/// <summary>Shells out to the Python analyzers (`codechroma.analysis_export`); CODECHROMA_PYTHON picks the interpreter.</summary>
+public sealed class PythonAnalysisExporter(string? python = null) : IAnalysisExporter
+{
+    public const string PythonEnvVar = "CODECHROMA_PYTHON";
+    private const int TimeoutSeconds = 600;
+
+    private readonly string _python = python
+        ?? Environment.GetEnvironmentVariable(PythonEnvVar)
+        ?? (OperatingSystem.IsWindows() ? "python" : "python3");
+
+    public AnalysisInput Full(string root) => AnalysisInputReader.Parse(Run(root, []));
+
+    public AnalysisDelta Delta(string root, IReadOnlyList<string> changedPaths)
+    {
+        var wire = JsonSerializer.Deserialize<DeltaWire>(Run(root, ["--files", .. changedPaths]), WireJson.Options)
+            ?? throw new JsonException("analysis delta is empty");
+        return new AnalysisDelta(wire.Changed, wire.Removed, wire.ImportResolutions);
+    }
+
+    private string Run(string root, IEnumerable<string> extra)
+    {
+        var info = new ProcessStartInfo(_python)
+        {
+            RedirectStandardOutput = true,
+            RedirectStandardError = true,
+            StandardOutputEncoding = Encoding.UTF8,
+            StandardErrorEncoding = Encoding.UTF8,
+            WorkingDirectory = root,
+        };
+        foreach (var arg in new[] { "-m", "codechroma.analysis_export", root }.Concat(extra)) info.ArgumentList.Add(arg);
+        info.Environment["PYTHONIOENCODING"] = "utf-8";
+        using var process = Process.Start(info) ?? throw new InvalidOperationException($"could not start {_python}");
+        var stdout = process.StandardOutput.ReadToEndAsync();
+        var stderr = process.StandardError.ReadToEndAsync();
+        if (!process.WaitForExit(TimeSpan.FromSeconds(TimeoutSeconds)))
+        {
+            try { process.Kill(entireProcessTree: true); } catch (InvalidOperationException) { }
+            throw new TimeoutException($"{_python} -m codechroma.analysis_export timed out after {TimeoutSeconds}s");
+        }
+        if (process.ExitCode != 0)
+            throw new InvalidOperationException($"analysis export failed ({process.ExitCode}): {stderr.GetAwaiter().GetResult().Trim()}");
+        return stdout.GetAwaiter().GetResult();
+    }
+}
+
+/// <summary>The bridge's engine seam over <see cref="GraphCore"/>.</summary>
+public sealed class CoreGraphEngine : IGraphEngine
+{
+    private readonly GraphCore _core = new();
+    private readonly IAnalysisExporter _exporter;
+    private readonly string _root;
+    private readonly object _writeLock = new();
+
+    public CoreGraphEngine(string root, IAnalysisExporter exporter)
+    {
+        _root = root;
+        _exporter = exporter;
+        _core.Analyze(exporter.Full(root));
+    }
+
+    /// <summary>Wraps an already-built analysis input (tests and snapshots); reanalysis needs an exporter.</summary>
+    public CoreGraphEngine(AnalysisInput input, IAnalysisExporter? exporter = null)
+    {
+        _root = "";
+        _exporter = exporter ?? new NoReanalysis();
+        _core.Analyze(input);
+    }
+
+    public GraphNode? GetNode(string id) => _core.GetNode(id) is { } node ? Map(node) : null;
+
+    public IReadOnlyList<GraphNode> GetChildren(string id) => _core.GetChildren(id).Select(Map).ToList();
+
+    public SymbolInfo? GetSymbol(string id) =>
+        _core.Snapshot.Symbols.TryGetValue(id, out var s) ? new SymbolInfo(s.Id, s.FilePath, s.StartLine, s.EndLine, s.Language) : null;
+
+    public IReadOnlyList<GraphNode> GetDependencies(string id) => _core.GetDependencies(id).Select(Map).ToList();
+
+    public IReadOnlyList<GraphNode> GetDependents(string id) => _core.GetDependents(id).Select(Map).ToList();
+
+    public string? SummaryText(string id) => _core.Snapshot.Summaries.GetValueOrDefault(id);
+
+    public void Reanalyze(IReadOnlyList<string> changedPaths)
+    {
+        lock (_writeLock) _core.Reanalyze(_exporter.Delta(_root, changedPaths));
+    }
+
+    private static GraphNode Map(HierarchyNode node) => new(
+        node.Id, node.Name, (HierarchyLevel)(int)node.Level, node.ParentIds, node.SourcePath, node.DocOnly, node.DependsOnIds);
+
+    private sealed class NoReanalysis : IAnalysisExporter
+    {
+        public AnalysisInput Full(string root) => throw new NotSupportedException();
+
+        public AnalysisDelta Delta(string root, IReadOnlyList<string> changedPaths) =>
+            throw new NotSupportedException("this engine was built from a fixed input");
+    }
+}
+
+/// <summary>Analyzes a root with the Python analyzers and serves the graph from the C# core.</summary>
+public sealed class CoreEngineFactory(IAnalysisExporter exporter) : IEngineFactory
+{
+    public IGraphEngine Create(string root) => new CoreGraphEngine(root, exporter);
+}

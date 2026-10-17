@@ -7,4 +7,12 @@
     <InvariantGlobalization>true</InvariantGlobalization>
   </PropertyGroup>
 
+  <ItemGroup>
+    <EmbeddedResource Include="../../tests/fixtures/bridge_contract/llm_catalog.json" LogicalName="llm_catalog.json" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="../CodeChroma.Core/CodeChroma.Core.csproj" />
+  </ItemGroup>
+
 </Project>

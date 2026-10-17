@@ -24,6 +24,8 @@ fixture-backed mock (`web/src/engine-client/mockBridge.ts`) when `VITE_ENGINE_BR
 set it (or use the one-command launcher below) to hit the real bridge. The live bridge runs the
 offline summarizer only — it never calls Claude, so a reanalyze on every save stays instant.
 
+A native Avalonia port of the canvas (`dotnet/CodeChroma.Canvas*`, 016 Phase 5) now covers the expand-in-place hierarchy, rubber-band select, group drag, undo, code popup, trace playback, Diff toggle and agent-window layer with headless tests replacing the matching Playwright journeys; `web/` stays the reference. Status and gaps: [`docs/planning/013-avalonia-canvas.md`](docs/planning/013-avalonia-canvas.md).
+
 A second, unrelated bridge — an embedded terminal — is also real: `src/codechroma/terminal/server.py`
 exposes `WS /ws/terminal`, and `web/src/terminal/TerminalClient.ts` connects over a real WebSocket
 (see [`docs/architecture/terminal-bridge.md`](docs/architecture/terminal-bridge.md)). Don't conflate

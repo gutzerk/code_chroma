@@ -7,7 +7,7 @@ using CodeChroma.Bridge.Stores;
 namespace CodeChroma.Bridge.Workspaces;
 
 /// <summary>A domain refusal that maps to an HTTP status (bridge/errors.py's table).</summary>
-public sealed class BridgeException(int status, string message, JsonNode? detail = null) : Exception(message)
+public class BridgeException(int status, string message, JsonNode? detail = null) : Exception(message)
 {
     public int Status { get; } = status;
 

@@ -1,58 +1,205 @@
-# One-command installer for the latest stable CodeChroma release on Windows.
+# One-command installer for the latest stable CodeChroma release on Windows (x64).
 #
 #   powershell -ExecutionPolicy Bypass -c "irm https://raw.githubusercontent.com/gutzerk/code_chroma/main/distribution/install.ps1 | iex"
 #
-$ErrorActionPreference = "Stop"
-if ($env:OS -ne "Windows_NT") {
-    throw "This installer supports Windows only."
+# With options, run the script as a script block:
+#   & ([scriptblock]::Create((irm https://raw.githubusercontent.com/gutzerk/code_chroma/main/distribution/install.ps1))) -Silent
+# Options: -Silent (no wizard, per-user)  -Force (reinstall the same version)
+#          -Uninstall (remove the app)  -Purge (with -Uninstall: also delete user data)
+# Test hooks (weaken security, never set in production): CODECROMA_MANIFEST_URL, CODECROMA_PS_LIBRARY.
+
+$ErrorActionPreference = 'Stop'
+$ProgressPreference = 'SilentlyContinue'
+
+$script:Repo = 'gutzerk/code_chroma'
+$script:SignerWorkflow = "$script:Repo/.github/workflows/release-please.yml"
+$script:DefaultManifestUrl = "https://github.com/$script:Repo/releases/latest/download/latest.json"
+$script:DefaultMaxBytes = 1GB
+
+function Get-CodeChromaArch {
+    if ($env:PROCESSOR_ARCHITEW6432) { return $env:PROCESSOR_ARCHITEW6432 }
+    return $env:PROCESSOR_ARCHITECTURE
 }
 
-$repo = "gutzerk/code_chroma"
-$baseUrl = "https://github.com/$repo/releases/latest/download"
-$installerName = "CodeChroma-Setup.exe"
-$checksumName = "$installerName.sha256"
-$tempDir = Join-Path $env:TEMP "codechroma-install-$([guid]::NewGuid().ToString('N'))"
-$installerPath = Join-Path $tempDir $installerName
-$checksumPath = Join-Path $tempDir $checksumName
-
-try {
-    New-Item -ItemType Directory -Path $tempDir | Out-Null
-
-    try {
-        Invoke-WebRequest -Uri "$baseUrl/$installerName" -OutFile $installerPath -UseBasicParsing
-    } catch {
-        throw "Could not download the latest CodeChroma installer: $($_.Exception.Message)"
+function Invoke-CodeChromaDownload {
+    param([string]$Uri, [string]$OutFile, [long]$MaxBytes)
+    [Net.ServicePointManager]::SecurityProtocol = [Net.ServicePointManager]::SecurityProtocol -bor [Net.SecurityProtocolType]::Tls12
+    Invoke-WebRequest -Uri $Uri -OutFile $OutFile -UseBasicParsing
+    if ((Get-Item -LiteralPath $OutFile).Length -gt $MaxBytes) {
+        Remove-Item -LiteralPath $OutFile -Force
+        throw "Download from $Uri exceeds $MaxBytes bytes."
     }
+}
 
-    try {
-        Invoke-WebRequest -Uri "$baseUrl/$checksumName" -OutFile $checksumPath -UseBasicParsing
-    } catch {
-        throw "Could not download the CodeChroma installer checksum: $($_.Exception.Message)"
-    }
+function Start-CodeChromaProcess {
+    param([string]$FilePath, [string[]]$ArgumentList)
+    $params = @{ FilePath = $FilePath; Wait = $true; PassThru = $true }
+    if ($ArgumentList -and $ArgumentList.Count -gt 0) { $params.ArgumentList = $ArgumentList }
+    return (Start-Process @params).ExitCode
+}
 
-    $checksumText = (Get-Content -LiteralPath $checksumPath -Raw).Trim()
-    $expectedHash = [regex]::Match($checksumText, '^([0-9a-fA-F]{64})(?:\s|$)').Groups[1].Value
-    if (-not $expectedHash) {
-        throw "The CodeChroma installer checksum file is invalid."
-    }
+function Get-CodeChromaGh {
+    $command = Get-Command -Name 'gh' -CommandType Application -ErrorAction SilentlyContinue
+    if ($command) { return $command.Source }
+    return $null
+}
 
-    $actualHash = (Get-FileHash -LiteralPath $installerPath -Algorithm SHA256).Hash
-    if ($actualHash -ine $expectedHash) {
-        throw "CodeChroma installer checksum verification failed; the installer was not run."
-    }
+function Invoke-CodeChromaGh {
+    param([string]$Gh, [string[]]$Arguments)
+    & $Gh @Arguments *> $null
+    return $LASTEXITCODE
+}
 
-    Write-Host "Checksum verified. Starting the CodeChroma setup wizard..."
-    $process = Start-Process -FilePath $installerPath -Wait -PassThru
-    if ($process.ExitCode -ne 0) {
-        throw "The CodeChroma installer exited with code $($process.ExitCode)."
-    }
-    Write-Host "CodeChroma installation completed."
-} finally {
-    if (Test-Path -LiteralPath $tempDir) {
-        try {
-            Remove-Item -LiteralPath $tempDir -Recurse -Force
-        } catch {
-            Write-Warning "Could not remove temporary installer files at $tempDir."
+function Get-CodeChromaUninstallEntry {
+    $roots = @(
+        'HKCU:\Software\Microsoft\Windows\CurrentVersion\Uninstall',
+        'HKLM:\Software\Microsoft\Windows\CurrentVersion\Uninstall'
+    )
+    foreach ($root in $roots) {
+        if (-not (Test-Path -LiteralPath $root)) { continue }
+        foreach ($key in Get-ChildItem -LiteralPath $root -ErrorAction SilentlyContinue) {
+            $item = Get-ItemProperty -LiteralPath $key.PSPath -ErrorAction SilentlyContinue
+            if ($item -and $item.DisplayName -eq 'CodeChroma') { return $item }
         }
+    }
+    return $null
+}
+
+function Get-CodeChromaInstalledVersion {
+    $entry = Get-CodeChromaUninstallEntry
+    if ($entry) { return [string]$entry.DisplayVersion }
+    return $null
+}
+
+function Get-CodeChromaUninstallString {
+    $entry = Get-CodeChromaUninstallEntry
+    if ($entry) { return [string]$entry.UninstallString }
+    return $null
+}
+
+function Get-Sha256Hex {
+    param([string]$Path)
+    return (Get-FileHash -LiteralPath $Path -Algorithm SHA256).Hash.ToLowerInvariant()
+}
+
+function Install-CodeChroma {
+    param(
+        [string]$ManifestUrl = $(if ($env:CODECROMA_MANIFEST_URL) { $env:CODECROMA_MANIFEST_URL } else { $script:DefaultManifestUrl }),
+        [switch]$Silent,
+        [switch]$Force,
+        [long]$MaxBytes = $script:DefaultMaxBytes
+    )
+    if ($env:OS -ne 'Windows_NT') { throw 'This installer supports Windows only.' }
+    $arch = Get-CodeChromaArch
+    if ($arch -ne 'AMD64') { throw "Unsupported architecture '$arch': CodeChroma for Windows is released for x64 only." }
+    if ($env:CODECROMA_MANIFEST_URL) { Write-Warning "Using CODECROMA_MANIFEST_URL override (test hook): $ManifestUrl" }
+
+    $tempDir = Join-Path ([IO.Path]::GetTempPath()) "codechroma-install-$([guid]::NewGuid().ToString('N'))"
+    try {
+        New-Item -ItemType Directory -Path $tempDir | Out-Null
+        $manifestPath = Join-Path $tempDir 'latest.json'
+        try { Invoke-CodeChromaDownload -Uri $ManifestUrl -OutFile $manifestPath -MaxBytes 1MB }
+        catch { throw "Could not download the release manifest: $($_.Exception.Message)" }
+        $manifest = Get-Content -LiteralPath $manifestPath -Raw | ConvertFrom-Json
+
+        $url = $manifest.assets.'windows-x64'
+        $expectedHash = [string]$manifest.sha256.'windows-x64'
+        if (-not $url) { throw 'The release manifest has no windows-x64 build.' }
+        if ($expectedHash -notmatch '^[0-9a-fA-F]{64}$') { throw 'The release manifest has no valid SHA-256 for windows-x64.' }
+        $pinned = "https://github.com/$script:Repo/releases/download/"
+        if (-not $env:CODECROMA_MANIFEST_URL -and -not $url.StartsWith($pinned)) {
+            throw "Installer URL is not hosted by the $script:Repo releases: $url"
+        }
+        $version = [string]$manifest.version
+
+        $installed = Get-CodeChromaInstalledVersion
+        if (-not $Force -and $installed -and $installed -eq $version) {
+            Write-Host "CodeChroma $version is already installed (use -Force to reinstall)."
+            return
+        }
+
+        $installerPath = Join-Path $tempDir 'CodeChroma-Setup.exe'
+        Write-Host "Downloading CodeChroma $version..."
+        try { Invoke-CodeChromaDownload -Uri $url -OutFile $installerPath -MaxBytes $MaxBytes }
+        catch { throw "Could not download the CodeChroma installer: $($_.Exception.Message)" }
+
+        $length = (Get-Item -LiteralPath $installerPath).Length
+        if ($length -gt $MaxBytes) { throw "Download exceeds $MaxBytes bytes; refusing oversized installer." }
+        $expectedSize = $manifest.size.'windows-x64'
+        if ($expectedSize -and [long]$expectedSize -ne $length) {
+            throw "Download size $length does not match the manifest size $expectedSize."
+        }
+        if ((Get-Sha256Hex -Path $installerPath) -ne $expectedHash.ToLowerInvariant()) {
+            throw 'CodeChroma installer checksum verification failed; the installer was not run.'
+        }
+
+        $gh = Get-CodeChromaGh
+        if ($gh -and (Invoke-CodeChromaGh -Gh $gh -Arguments @('auth', 'status')) -eq 0) {
+            $verify = @('attestation', 'verify', $installerPath, '--repo', $script:Repo, '--signer-workflow', $script:SignerWorkflow)
+            if ((Invoke-CodeChromaGh -Gh $gh -Arguments $verify) -ne 0) {
+                throw "attestation verification failed: this installer was not built by the $script:Repo release pipeline."
+            }
+            Write-Host 'Build provenance verified (gh attestation verify).'
+        } else {
+            Write-Warning 'gh is not installed or not logged in: only the SHA-256 checksum was verified, not build provenance (attestation). Install the GitHub CLI (https://cli.github.com) for full verification.'
+        }
+
+        $installerArgs = @('/currentuser')
+        if ($Silent) { $installerArgs += '/S' } else { Write-Host 'Starting the CodeChroma setup wizard...' }
+        $code = Start-CodeChromaProcess -FilePath $installerPath -ArgumentList $installerArgs
+        if ($code -ne 0) { throw "The CodeChroma installer exited with code $code." }
+        Write-Host 'CodeChroma installation completed.'
+    } finally {
+        if (Test-Path -LiteralPath $tempDir) {
+            try { Remove-Item -LiteralPath $tempDir -Recurse -Force }
+            catch { Write-Warning "Could not remove temporary installer files at $tempDir." }
+        }
+    }
+}
+
+function Uninstall-CodeChroma {
+    param([switch]$Purge)
+    $uninstall = Get-CodeChromaUninstallString
+    if (-not $uninstall) {
+        Write-Host 'CodeChroma is not installed; nothing to remove.'
+    } else {
+        if ($uninstall -match '^\s*"([^"]+)"\s*(.*)$') { $exe = $Matches[1]; $rest = $Matches[2] } else { $exe = $uninstall; $rest = '' }
+        $uninstallArgs = @($rest -split '\s+' | Where-Object { $_ }) + '/S'
+        $code = Start-CodeChromaProcess -FilePath $exe -ArgumentList $uninstallArgs
+        if ($code -ne 0) { throw "The CodeChroma uninstaller exited with code $code." }
+        Write-Host 'CodeChroma removed.'
+    }
+    if ($Purge) {
+        foreach ($dir in @((Join-Path $env:APPDATA 'CodeChroma'), (Join-Path $env:USERPROFILE '.codechroma'))) {
+            if (Test-Path -LiteralPath $dir) { Remove-Item -LiteralPath $dir -Recurse -Force }
+        }
+        Write-Host 'Removed user data (settings, recents, diagram types).'
+    } else {
+        Write-Host 'User data kept (run with -Uninstall -Purge to delete it).'
+    }
+}
+
+function Invoke-CodeChromaInstaller {
+    param([string[]]$Arguments = @())
+    $options = @{ Silent = $false; Force = $false; Uninstall = $false; Purge = $false }
+    foreach ($arg in $Arguments) {
+        $name = $arg.TrimStart('-')
+        if ($arg.StartsWith('-') -and $options.ContainsKey($name)) { $options[$name] = $true }
+        else { throw "usage: install.ps1 [-Silent] [-Force] [-Uninstall [-Purge]] (unknown option '$arg')" }
+    }
+    if ($options.Purge -and -not $options.Uninstall) { throw 'usage: -Purge only works together with -Uninstall' }
+    if ($options.Uninstall) { Uninstall-CodeChroma -Purge:$options.Purge }
+    else { Install-CodeChroma -Silent:$options.Silent -Force:$options.Force }
+}
+
+if ($env:CODECROMA_PS_LIBRARY -ne '1') {
+    try {
+        Invoke-CodeChromaInstaller -Arguments $args
+    } catch {
+        if ($MyInvocation.MyCommand.Path) {
+            [Console]::Error.WriteLine($_.Exception.Message)
+            exit 1
+        }
+        throw
     }
 }

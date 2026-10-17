@@ -1,0 +1,77 @@
+name: Packaging smoke
+
+# Builds the same packaging stages as the release (web bundle -> PyInstaller bridge -> electron-builder)
+# but unpacked (--dir) and never uploaded, so a packaging break shows up on the PR, not at release time.
+on:
+  pull_request:
+    paths:
+      - "packaging/**"
+      - "desktop/**"
+      - "web/package.json"
+      - "web/package-lock.json"
+      - "pyproject.toml"
+      - "poetry.lock"
+      - ".github/workflows/packaging-smoke.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: packaging-smoke-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  linux:
+    name: Package (Linux, unpacked)
+    runs-on: ubuntu-22.04
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.14"
+
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: desktop/package-lock.json
+
+      - name: Install Poetry
+        run: pipx install poetry==2.5.1
+
+      - name: Install web deps
+        working-directory: web
+        run: npm ci
+
+      - name: Install desktop deps
+        working-directory: desktop
+        run: npm ci
+
+      - name: Install Python deps
+        run: |
+          poetry config virtualenvs.in-project true
+          poetry install --no-interaction
+
+      - name: Build canvas bundle (same-origin)
+        env:
+          VITE_ENGINE_BRIDGE_URL: same-origin
+          VITE_TERMINAL_BRIDGE_URL: same-origin
+        run: npm --prefix web run build
+
+      - name: Freeze the bridge (PyInstaller)
+        run: poetry run pyinstaller packaging/bridge.spec --noconfirm --clean
+
+      - name: Package the Electron app (unpacked, no installer)
+        run: npm --prefix desktop run dist -- --linux --dir
+
+      - name: Check the unpacked app contains the frozen bridge
+        run: |
+          find desktop/dist/linux-unpacked/resources -name codechroma-bridge -type f | grep -q .

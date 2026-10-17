@@ -26,13 +26,25 @@ Desktop app — one command:
 
 | Platform | Command |
 |---|---|
-| macOS (Apple Silicon or Intel) | `bash scripts/install_desktop.sh` |
-| Windows (x64) | `powershell -ExecutionPolicy Bypass -File scripts/install_desktop.ps1` |
-| Linux (x64) | `bash scripts/install_linux.sh` |
+| macOS (Apple Silicon or Intel) / Linux (x64) | `curl -fsSL https://raw.githubusercontent.com/gutzerk/code_chroma/main/distribution/install.sh \| sh` |
+| Windows (x64) | `powershell -ExecutionPolicy Bypass -c "irm https://raw.githubusercontent.com/gutzerk/code_chroma/main/distribution/install.ps1 \| iex"` (or run `distribution/install.cmd`) |
 
 macOS and Linux install per-user into `~/Applications` and do not request administrator access.
-For a system-wide macOS app or Linux `.deb` package, explicitly pass `--system`; that writes to
-shared system locations and requests administrator authorization.
+For a system-wide macOS app or Linux `.deb` package, append `-s -- --system` to the `sh` command;
+that writes to shared system locations and requests administrator authorization. The installers
+check the SHA-256 from the release's `latest.json`, and also run `gh attestation verify` when the
+GitHub CLI is installed and logged in (otherwise they warn that only the checksum was checked).
+Re-running the command installs a newer version and skips the same one (`--force` / `-Force` to
+reinstall).
+
+**Update:** the app checks for a new release at start-up, every 6 hours and when its window regains
+focus; open **Updates** to download, skip a version or turn on automatic download. **Uninstall:**
+re-run the installer with `--uninstall` (`-Uninstall` on Windows); add `--purge` / `-Purge` to also
+delete settings and caches.
+
+**First launch:** release builds are not yet code-signed. On macOS a browser-downloaded app may need
+right-click → Open (or `xattr -dr com.apple.quarantine ~/Applications/CodeChroma.app`); on Windows
+SmartScreen may show "More info → Run anyway"; the Linux AppImage needs FUSE (`libfuse2`).
 
 From source — point it at any repo:
 

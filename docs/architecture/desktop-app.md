@@ -7,18 +7,18 @@ npm --prefix desktop start          # run the shell against dist/codechroma-brid
 npm --prefix desktop start -- --repo /path/to/repo   # skip the launcher screen
 npm --prefix desktop test           # vitest (recentRepos, shellPath, bridgeProcess)
 poetry run python scripts/make_desktop_icon.py       # regenerate desktop/build/icon.png
-./scripts/install_desktop.sh         # clean-macOS installer (see below)
-./scripts/install_desktop.ps1        # clean-Windows installer (see below)
 curl -fsSL https://raw.githubusercontent.com/gutzerk/code_chroma/main/distribution/install.sh | sh   # end-user install (macOS arm64/x64 / Linux x64) from latest Release via manifest
-python3 scripts/gen_distribution_manifest.py 9.9.9 --build-dir desktop/dist   # reproduce latest.json locally
+powershell -ExecutionPolicy Bypass -c "irm https://raw.githubusercontent.com/gutzerk/code_chroma/main/distribution/install.ps1 | iex"   # end-user install (Windows x64)
+python3 scripts/gen_distribution_manifest.py --help   # the one latest.json generator (CI and local); see "End-user installs" below
 ```
 
 `scripts/dev/build_desktop.sh` runs the three shared stages — SPA bundle → frozen Python bridge
 (`packaging/bridge.spec`) → electron-builder (`electron-builder.yml`, mac `dmg` target). It is
 macOS-only: the `--install` step (and the quit/index-refresh it triggers) shells out to Apple tools
-(`hdiutil`, `osascript`, `killall Dock`, `mdimport`). The equivalent build stages for Windows run
-inside `install_desktop.ps1` (npm → pyinstaller → electron-builder `win`/`nsis`), since there is no
-bash on Windows.
+(`hdiutil`, `osascript`, `killall Dock`, `mdimport`). There is no local Windows build script: Windows
+installers are built by the `windows` job in `release-please.yml` (npm → pyinstaller →
+electron-builder `win`/`nsis`), and the PR-time `packaging-smoke.yml` job exercises the
+PyInstaller + `electron-builder --dir` stages on Linux so packaging breakage shows up before a release.
 
 **Releases run on GitHub, not locally.** `.github/workflows/release-please.yml` is the release path:
 `release-please` bumps the version + writes CHANGELOG + tags `vX.Y.Z` and opens a Release on merge;
@@ -40,8 +40,8 @@ The final manifest-upload step publishes the new release only after all platform
 failed or in-progress build leaves the previous release as latest. A recovery dispatch first returns
 its existing release to draft.
 The author version lives in `desktop/package.json` (electron-builder reads it for the artifact name);
-`release-please-config.json` syncs `web/package.json` and `pyproject.toml` from it. See the plan in
-`.claude/plans/release-versioning.md` for the design.
+`release-please-config.json` syncs `web/package.json` and `pyproject.toml` from it. See
+`docs/planning/015-distribution-install-update.md` for the plan and remaining work.
 Pull-request CI also runs the desktop Vitest suites and TypeScript build.
 
 **End-user installs go through `distribution/`.** One
@@ -57,38 +57,44 @@ GitHub's latest-release endpoint:
   `/Applications/CodeChroma.app` on macOS or installing the Linux `.deb` via `apt`; the installer
   explains that system destination and why administrator authorization is needed before invoking
   `sudo`. This is the recommended end-user path — no checkout, no build, no admin password.
-- Windows x64: `irm https://codechroma.dev/install.ps1 | iex` (or
-  `distribution/install.cmd` → `distribution/install.ps1`) — downloads the stable
-  `CodeChroma-Setup.exe` and `.sha256` from GitHub's latest-release endpoint, verifies SHA-256, then
-  runs the NSIS wizard defaulted to the current user (`perMachine: false`,
-  `selectPerMachineByDefault: false`) with automatic elevation disabled
-  (`allowElevation: false`); it does not read `latest.json`.
+- Windows x64: `irm https://raw.githubusercontent.com/gutzerk/code_chroma/main/distribution/install.ps1 | iex`
+  (or `distribution/install.cmd` → `distribution/install.ps1`) — reads `latest.json`, requires a
+  GitHub-releases URL, enforces a size cap plus the manifest size and SHA-256, then runs the NSIS
+  wizard defaulted to the current user (`perMachine: false`, `selectPerMachineByDefault: false`,
+  `allowElevation: false`). Options: `-Silent` (no wizard, per-user), `-Force`, `-Uninstall`,
+  `-Purge`.
+- Both installers also run `gh attestation verify` when the GitHub CLI is installed and logged in
+  (a failed verification aborts the install) and otherwise warn that only the checksum was
+  checked. Both support `--uninstall` / `-Uninstall` (`--purge` / `-Purge` also removes user data),
+  skip an already-installed version unless forced, and `install.sh` swaps the app atomically with
+  rollback, quits a running macOS app first, warns when `libfuse2` is missing, and on Linux writes
+  a `.desktop` entry and a `~/.local/bin/codechroma` symlink. Test hooks that weaken security and
+  must never be set in production: `CODECROMA_MANIFEST_URL`, `CODECROMA_MAX_BYTES`,
+  `CODECROMA_GH_BIN` (`sh`), `CODECROMA_INSTALLER_URL` (`install.cmd`).
 The manifest is served from each Release (`.../releases/latest/download/latest.json`), so no custom
-domain is required; `CODECROMA_MANIFEST_URL` overrides the shell installer source. The release
-workflow keeps newly created releases in draft until every platform build and manifest upload succeeds,
-so a failed build cannot replace the previous working latest release. `scripts/gen_distribution_manifest.py`
-reproduces the same manifest locally (e.g. for smoke-testing `install.sh` against a non-release build).
-The root `scripts/install_*.sh/.ps1` are legacy direct-release downloaders; they are not
-build-from-source installers. `distribution/` is the recommended manifest-based download path.
+domain is required; `CODECROMA_MANIFEST_URL` overrides the installer source (test hook). Its shape is
+`{"version", "channel", "date", "min_supported_version", "assets": {target: url}, "sha256": {target: hex},
+"size": {target: bytes}}` with targets `macos-arm64`, `macos-x64`, `windows-x64`, `linux-x64` (`.deb`)
+and `linux-appimage`. Fields are additive: already-installed versions read only `version`/`assets`/
+`sha256`, so never rename or remove those. `scripts/gen_distribution_manifest.py` is the **only**
+generator — the release workflow's `manifest` job and developers call the same code
+(`tests/unit/test_distribution_manifest.py` proves CI and local mode produce identical JSON), and
+`tests/unit/test_distribution_consistency.py` fails if artifact names drift between
+`electron-builder.yml`, the workflow globs, `updater.ts` and the generator. The `manifest` job also
+attests `latest.json` and the `.sha256` sidecars and uploads version-pinned copies of
+`install.sh`/`install.ps1`/`install.cmd` (use `.../releases/download/vX.Y.Z/install.sh` instead of
+the mutable `main` URL to pin the installer itself). The Windows asset is still the unversioned
+`CodeChroma-Setup.exe`, but its manifest URL is pinned to the release tag.
 
-`./scripts/install_desktop.sh` is a **one-command installer for a clean Mac with no local checkout**:
-it detects Apple Silicon or Intel, downloads that architecture's latest DMG and checksum, verifies
-the download, then copies the app into `~/Applications` by default without `sudo`. Pass `--system`
-to opt into replacing `/Applications/CodeChroma.app`; it explains the shared destination before
-requesting administrator authorization. It needs `curl`, `python3`, and `hdiutil`, but does not build
-the app. Run with
-`curl -fsSL https://<host>/install_desktop.sh | bash` (or `bash scripts/install_desktop.sh`).
+The release workflow keeps newly created releases in draft until every platform build and manifest
+upload succeeds, so a failed build cannot replace the previous working latest release; a `gate` job
+makes the builds wait for a green `ci.yml` on the same commit, manual dispatch from a branch other
+than `main` fails fast (the attestation identity is pinned to `main`), and an `alert` job opens an
+issue when a release is left as a draft. macOS/Windows signing steps exist but are gated on secrets
+and do nothing while they are absent.
 
-`./scripts/install_linux.sh` installs the verified Linux AppImage into `~/Applications` by default.
-Pass `--system` to install the `.deb` through apt; that operation modifies system package locations
-and requests administrator authorization after an explanation. For the manifest installer, pass
-`--system` as `sh -s -- --system` after the curl pipe.
-
-`./scripts/install_desktop.ps1` is the Windows x64 installer: it resolves the latest `Setup.exe`,
-verifies its published checksum, and launches the interactive NSIS installer. It downloads the
-prebuilt release and does not clone or build the repository. Run with
-`curl -fsSL https://<host>/install_desktop.ps1 | powershell -ExecutionPolicy Bypass -` (or
-`powershell -ExecutionPolicy Bypass -File scripts/install_desktop.ps1`).
+The root `scripts/install_desktop.sh`, `install_linux.sh` and `install_desktop.ps1` are deprecated
+thin forwarders to `distribution/` (kept for one release; delete them once nothing references them).
 
 **Updates are checked in-app and installed from GitHub, not in place.** On startup the main
 process (`desktop/src/updater.ts`) queries the latest GitHub Release against `app.getVersion()`; if a
@@ -128,20 +134,46 @@ relaunches (`app.relaunch()`, Linux only) or lets the detached helper/installer 
 runtime dependency. The release version is cached in the app's userData directory, so the Updates
 panel can retain the last successful result when GitHub is unavailable. GitHub API rate limits
 surface their reset time when provided, and the manual GitHub Releases path remains available while
-the retry button is disabled until the cooldown expires. The one-command installers (`install_desktop.sh`, `install_linux.sh`,
-`install_desktop.ps1`) reuse the same model: fetch the sidecar first, verify before mounting or
-launching, and redownload once if a stale cached copy fails its checksum — only a second
-mismatch is treated as tampering.
+the retry button is disabled until the cooldown expires. The one-command installers (`distribution/install.sh`, `install.ps1`) reuse the same model: verify
+the manifest SHA-256 before mounting or launching, and redownload once if a stale cached copy fails
+its checksum — only a second mismatch is treated as tampering (a size mismatch against the manifest is
+fatal immediately).
 ⚠ On **unsigned macOS**, Gatekeeper shows the standard "unverified publisher"
 warning for the freshly copied `.app`; the update still works, it just can't be silent/delta (that
 is the trade-off for not having a paid Developer ID). Release workflow actions are pinned to commit
 SHAs (kept current by Dependabot). The release pipeline attests every installer with
 `actions/attest-build-provenance` (short-lived OIDC identity, Sigstore/SLSA provenance), and the
 in-app updater verifies that signed attestation (see above) — so the in-app path is protected
-against a compromised release pipeline, not just corruption. ⚠ **The one-command shell installers**
-(`install_*.sh`/`.ps1`) still verify only the same-release `.sha256` sidecar, so they guard against
-corruption but not against a compromised pipeline; extending them to `gh attestation verify` is
-future work. The in-app check is advisory: it never downloads or installs without user consent.
+against a compromised release pipeline, not just corruption. ⚠ **The one-command installers** verify the manifest SHA-256 and, when `gh` is installed and logged in,
+`gh attestation verify`; without `gh` they warn that only the checksum was checked, so that path guards
+against corruption but not a compromised pipeline. The in-app check is advisory: it never downloads or installs without user consent.
+
+**Updater behaviour added with the distribution work** (`desktop/src/`):
+- `updateConstants.ts` is the single source for the repo slug, the releases/attestations/download URLs,
+  the pinned Sigstore issuer and workflow identity (`...release-please.yml@refs/heads/main`),
+  `PERIODIC_CHECK_MS` (6 h) and `FOCUS_MIN_GAP_MS` (1 h). A repo rename is a one-line change;
+  `updateConstants.test.ts` fails if the slug leaks into other updater sources.
+- Asset URLs must be `https://github.com/<REPO>/releases/(latest/)?download/...` (no credentials), checked
+  when the release is parsed and again in `downloadAsset`.
+- `checkForUpdates` takes a `ReleaseCache {etag, release}` held in memory by `UpdateService` and sends
+  `If-None-Match`; a 304 or a rate-limit response reuses the cached release. Not persisted across restarts.
+- `updateScheduler.ts` checks every 6 h and on window focus (throttled to 1 h), packaged builds only; a
+  background check stays silent for a skipped version and notifies once per version.
+- `update-settings.json` in userData (`skippedVersion`, `autoDownload`) via `updateCache.ts`; IPC
+  `updates:skip` / `updates:auto-download`; UI in `UpdatesPanel.tsx`. A manual check always shows a skipped
+  version; auto-download only downloads and verifies — installing still needs the explicit restart.
+- Per-OS install: macOS and Linux use detached swap scripts in `updateScripts.ts`. The Linux script keeps
+  the old AppImage as `<name>.previous` and, if the new one exits non-zero within 8 s, restores it and
+  launches it. Windows is unchanged (per-user NSIS `/currentuser /S --updated --force-run /D=<dir>`) and
+  has **no automatic rollback** (NSIS replaces in place). A `.deb` install under `/opt` or `/usr` gets a
+  clear "update with apt or reinstall" message.
+- The downloaded installer is deleted after a successful hand-off on macOS/Linux; `cleanupStaleDownloads()`
+  removes `CodeChroma-*.dmg|.exe|.AppImage[.part]` leftovers from the temp dir at startup.
+- The version shows in Help → About CodeChroma (Windows/Linux; macOS uses the app-menu About) and in the
+  window title (`appVersion.ts`).
+- Out of scope: delta updates (every update is a full download of 100 MB+; revisit with
+  `.blockmap`/electron-updater once the bridge shrinks), signing hooks in `electron-builder.yml`, and
+  reading a previously downloaded `latest.json` in the updater.
 
 `CodeChroma.app` is a double-click app with no Python or Node on the user's machine: an Electron
 shell that shows a recents/"Open folder…" launcher, then spawns a **PyInstaller-frozen bridge** on a
@@ -238,4 +270,4 @@ Things worth knowing before touching it:
 - Tests: `tests/unit/test_resources.py`, `tests/unit/test_bridge_spa_mount.py`,
   `web/src/engine-client/sameOrigin.test.ts`, and the Vitest suites in `desktop/src/*.test.ts`.
 
-> Migration in progress: a C# / Avalonia replacement for this Electron shell is tracked in [`docs/planning/011-avalonia-shell.md`](../planning/011-avalonia-shell.md) (code in `dotnet/`). Electron remains the reference until it lands.
+> Migration in progress: a C# / Avalonia replacement for this Electron shell is tracked in [`docs/planning/014-avalonia-shell.md`](../planning/014-avalonia-shell.md) (code in `dotnet/`). Electron remains the reference until it lands.

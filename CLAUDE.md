@@ -88,8 +88,10 @@ Build/run commands and architecture notes both live in
 (macOS arm64/x64 / Linux x64) or `distribution/install.cmd` (Windows): the shell installer reads
 the published `distribution/latest.json` manifest and installs per-user without administrator
 privileges by default (macOS and Linux AppImage in `~/Applications`); pass `--system` to opt into
-`/Applications` or the Linux `.deb` package. The Windows installer resolves the latest release's
-setup and checksum directly from GitHub.
+`/Applications` or the Linux `.deb` package. The Windows installer (`install.ps1`) reads the same
+manifest and installs per-user. Both installers verify the SHA-256 (and `gh attestation verify` when
+`gh` is available) and support `--uninstall`/`--purge`; the installed app checks for updates every
+6 hours and on focus. Artifact names are guarded by `tests/unit/test_distribution_consistency.py`.
 
 **Releases ship via GitHub, not local builds.** `.github/workflows/release-please.yml` runs
 `release-please` (using the `code_pat_release` repository secret so merging its Release PR triggers

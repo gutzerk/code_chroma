@@ -1,4 +1,4 @@
-# 011 - Avalonia shell (replace the Electron host with C#)
+# 014 - Avalonia shell (replace the Electron host with C#)
 
 Status: In progress. Electron (`desktop/`) stays the reference implementation until every item under
 "Remaining work" is done and install, update and uninstall have been exercised on all targets.

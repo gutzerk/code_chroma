@@ -170,3 +170,45 @@ the same cases). `graph/models.py` stays until the store and analyzers are porte
   job next to the Python one.
 - **Removal (Step 3 of the plan) is deliberately not done.** Prerequisites: a reviewed parity run, an
   analyzer-output producer, and Plan 2 no longer importing the Python modules listed above.
+
+## Phase 5 - C# analyzers (016-remove-electron.md)
+
+`dotnet/CodeChroma.Core/Analyzers/` ports every Python analyzer, the gitignore-aware repo scan
+(`RepoScanner`, a port of pathspec's "gitignore" basic patterns), per-language `resolve_import`, and the
+offline summarizer. `AnalysisExporter.Full/Delta` emits the same analysis input as
+`python -m codechroma.analysis_export`; the bridge uses it by default (`NativeAnalysisExporter`).
+`CODECHROMA_ANALYZERS=python` keeps the Python shell-out selectable as fallback and oracle.
+
+### Parser choice (vetted)
+
+| Option | Verdict |
+|---|---|
+| **TreeSitter.DotNet 1.3.0** (Marius Greuel, MIT, ~242k downloads, source on GitHub) | **Chosen.** One package bundles the native runtime plus python, typescript, tsx, javascript, go, rust, java, c, cpp, c-sharp, php, ruby for win-x64/arm64/x86, osx-arm64/x64, linux-x64/arm64/arm/x86. Cost: ~53 MB nupkg (all RIDs; a RID-specific publish only ships its own natives). |
+| tree-sitter / tree-sitter-c / TreeSitterSharp.* (0.4-0.5, anonymous publishers, ~5k downloads, one package per grammar) | Rejected: unclear provenance, fragmented. |
+| TreeSitterLanguagePack (Kreuzberg, 306 grammars) | Not tried; far larger than needed. |
+| Hand-written Python parser | Rejected: the Python analyzer's output is defined by tree-sitter node shapes (error recovery, docstring quirks); a hand parser would not be byte-identical. |
+| YAML: **YamlDotNet 16.3.0** (MIT, 570M downloads) | Chosen; parser events are composed into pyyaml-shaped nodes (duplicate keys and aliases preserved). |
+
+### Parity results
+
+Oracle: the Python-exported `tests/fixtures/graph_golden/*.input.json` (6 fixture repos, all 11 languages, files,
+import resolutions, summaries and the resulting node goldens: byte-identical) plus a live oracle
+(`PythonOracleFact`, needs `CODECHROMA_PYTHON`, `CODECHROMA_ORACLE_REPO`, `CODECHROMA_ORACLE_STRICT=1`) on real repos:
+cobra (Go), ripgrep (Rust), gson (Java), Slim (PHP), sinatra (Ruby+YAML), lua (C): identical in strict mode (files,
+import resolutions, summaries). This repo's own python/ts/yaml files: identical except as below.
+
+Intentional / known differences:
+- The packaged grammars are not the pinned pip versions. **Python**: the packaged grammar inlines `expression_statement`;
+  the analyzer maps bare expressions back to that type, so output is identical (300+ files). **TSX/JSX** parsed with the
+  TypeScript grammar (as Python does) differ in ERROR recovery for ~16% of `.tsx` files in this repo. **C#**: C# 12
+  collection expressions parse differently (~10% of AutoMapper). **C++**: ~13% of fmt's template-heavy files. All other
+  languages matched exactly on every corpus tried. Fix path: pin newer grammar builds (a custom native pack) or move TSX to the tsx grammar for both engines.
+- YAML: YamlDotNet inserts a virtual line break at EOF; end lines are clamped to the real line count to match pyyaml.
+- Class shapes (pattern detection) are not exported by the contract and are not ported.
+
+### Perf (Release, Windows 11)
+
+| Repo | Python `analyze()` | C# export + graph |
+|---|---|---|
+| sample_repo (7 files) | ~30 ms | 2-5 ms warm (104 ms first run, JIT/native load) |
+| synthetic 53k-line / 200-file (`bench_analyze.py`) | 4.65 s (includes SQLite save) | 0.30-0.50 s |

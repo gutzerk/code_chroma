@@ -161,3 +161,7 @@ baseline numbers, the test audit and what remains.
   `OrderedMap`/`Counter`); the digest's `generated_at` is the only field excluded from comparison.
 - `scripts/bench_graph_core.py` times analyze/reanalyze on the fixtures; `--stages <repo> [dump.json]` times
   just builder, digest and clustering and dumps the contract JSON that `dotnet/CodeChroma.Bench` reads.
+
+## C# analyzer port
+
+`dotnet/CodeChroma.Core/Analyzers/` mirrors `src/codechroma/analyzers/*` (tree-sitter via TreeSitter.DotNet, YAML via YamlDotNet), `_iter_repo_files` (`RepoScanner`) and the offline summarizer; the C# bridge uses it by default. Python stays the reference: change an analyzer here and in C# together and run `dotnet test dotnet` (parity against `tests/fixtures/graph_golden/*.input.json`). The live oracle test compares against `python -m codechroma.analysis_export` on any repo (`CODECHROMA_PYTHON`, `PYTHONPATH`, `CODECHROMA_ORACLE_REPO`). Results and known grammar-version skew: `docs/planning/011-csharp-graph-core.md`, Phase 5.

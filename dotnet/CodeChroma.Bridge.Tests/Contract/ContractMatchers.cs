@@ -134,7 +134,7 @@ public static partial class ContractMatchers
                 failures.Add($"{path}: {subject?.ToJsonString()} != {check["equals"]?.ToJsonString()}");
             else if (check.ContainsKey("contains") && !Contains(subject, check["contains"]))
                 failures.Add($"{path}: {subject?.ToJsonString()} lacks {check["contains"]?.ToJsonString()}");
-            else if (check.ContainsKey("count") && (subject as JsonArray)?.Count != check["count"]!.GetValue<int>())
+            else if (check.ContainsKey("count") && (subject switch { JsonArray array => array.Count, JsonObject map => map.Count, _ => (int?)null }) != check["count"]!.GetValue<int>())
                 failures.Add($"{path}: count != {check["count"]}");
             else if (check.ContainsKey("type") && JsonType(subject) != check["type"]!.GetValue<string>())
                 failures.Add($"{path}: type {JsonType(subject)} != {check["type"]}");

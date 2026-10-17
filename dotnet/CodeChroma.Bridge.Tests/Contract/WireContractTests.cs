@@ -54,7 +54,10 @@ public class WireContractTests
             "graph::binary_files_are_listed_with_null_source",
             "transport::terminal_pty_output_arrives_in_o_tagged_frames",
         ];
-        Assert.Equal(BridgeHost.RealEngine ? documented.Except(realEngineOnly).ToArray() : documented, ids);
+        // A case that needs nothing but the real engine is skipped without it and runs with it; no list to maintain.
+        var needsOnlyRealEngine = ContractCases.All.Where(c => c.Requires.Length > 0 && c.Requires.All(r => r == "real-engine")).Select(c => c.Id);
+        var expected = BridgeHost.RealEngine ? documented.Except(realEngineOnly) : documented.Union(needsOnlyRealEngine);
+        Assert.Equal(expected.Order().ToArray(), ids);
     }
 
     /// <summary>Replaces "{{name}}" in every string of a step with the value an earlier step captured.</summary>
@@ -112,7 +115,11 @@ public class WireContractTests
                 if (File.Exists(target)) File.Delete(target);
                 break;
             default:
-                File.WriteAllText(target, File.ReadAllText(target).Replace(step["find"]!.GetValue<string>(), step["with"]!.GetValue<string>()));
+                // Like Python's text-mode read/write: a CRLF checkout still matches a "\n" needle.
+                var original = File.ReadAllText(target);
+                var crlf = original.Contains("\r\n");
+                string Fit(string text) => crlf ? text.Replace("\r\n", "\n").Replace("\n", "\r\n") : text;
+                File.WriteAllText(target, original.Replace(Fit(step["find"]!.GetValue<string>()), Fit(step["with"]!.GetValue<string>())));
                 break;
         }
         return [];

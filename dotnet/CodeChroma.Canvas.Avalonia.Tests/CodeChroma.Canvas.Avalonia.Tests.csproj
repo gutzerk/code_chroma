@@ -17,6 +17,7 @@
   </ItemGroup>
 
   <ItemGroup>
+    <Content Include="..\..\tests\fixtures\canvas_logic\traces.json" Link="fixtures\traces.json" CopyToOutputDirectory="PreserveNewest" />
     <Content Include="..\..\tests\fixtures\graph_golden\sample_repo.input.json" Link="fixtures\sample_repo.input.json" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 

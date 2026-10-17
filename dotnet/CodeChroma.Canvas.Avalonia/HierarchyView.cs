@@ -8,6 +8,7 @@ using CodeChroma.Canvas.Hierarchy;
 using CodeChroma.Canvas.Model;
 using CodeChroma.Canvas.Scene;
 using CodeChroma.Canvas.State;
+using CodeChroma.Canvas.Tracing;
 using Box = CodeChroma.Canvas.Geometry.Box;
 using CPoint = CodeChroma.Canvas.Geometry.Point;
 using CRect = CodeChroma.Canvas.Geometry.Rect;
@@ -65,6 +66,49 @@ public sealed class HierarchyView : Control
     public DragOffsetStore DragOffsets { get; } = new();
     public HierarchyScene Scene => _scene;
     public CodeViewMode CodeMode { get; set; } = CodeViewMode.Popup;
+    private TracePlayer? _trace;
+    private int _lastFollowedStep = -1;
+
+    /// <summary>The playback to draw over the blocks; the camera follows the active node while its Follow flag is on.</summary>
+    public TracePlayer? Trace
+    {
+        get => _trace;
+        set
+        {
+            if (_trace is not null) _trace.Changed -= OnTraceChanged;
+            _trace = value;
+            _lastFollowedStep = -1;
+            if (_trace is not null) _trace.Changed += OnTraceChanged;
+            InvalidateVisual();
+        }
+    }
+
+    /// <summary>What the trace overlay draws now: framed blocks and caller-to-callee edges, in canvas space.</summary>
+    public (IReadOnlyList<TraceNodeMark> Nodes, IReadOnlyList<TraceEdgeMark> Edges) TraceMarks =>
+        _trace is { IsActive: true } t
+            ? TraceFlow.Compute(t.Trace, t.StepIndex, Expansion.NearestVisibleAncestor, HeaderRect)
+            : (Array.Empty<TraceNodeMark>(), Array.Empty<TraceEdgeMark>());
+
+    private CRect? HeaderRect(string id)
+    {
+        if (_scene.Find(id) is not { } box) return null;
+        var r = Offset(box).Rect;
+        return new CRect(r.Left, r.Top, r.Width, box.HeaderHeight);
+    }
+
+    private void OnTraceChanged()
+    {
+        if (_trace is { IsActive: true, FollowCamera: true, IsLive: false } t && t.StepIndex != _lastFollowedStep && t.CurrentFrame?.NodeId is { } node)
+        {
+            _lastFollowedStep = t.StepIndex;
+            if (HeaderRect(Expansion.NearestVisibleAncestor(node)) is { } header)
+            {
+                var at = Viewport.CanvasToScreen(new CPoint(header.CenterX, header.CenterY));
+                Viewport.Pan(Viewport.Width / 2 - at.X, Viewport.Height / 2 - at.Y);
+            }
+        }
+        InvalidateVisual();
+    }
     public CRect? MarqueeCanvasRect => _mode == Mode.Marquee && _marqueeEnd is { } end ? Marquee.Normalize(Viewport.ScreenToCanvas(new CPoint(_pressed.X, _pressed.Y)), Viewport.ScreenToCanvas(new CPoint(end.X, end.Y))) : null;
 
     /// <summary>Raised when the code button wants the popup for a node that has source.</summary>
@@ -318,6 +362,11 @@ public sealed class HierarchyView : Control
                     context.DrawText(CodeText.Format(snippet.Language, snippet.Text, 11, body.Width, body.Height), body.TopLeft);
             }
         }
+        var (traceNodes, traceEdges) = TraceMarks;
+        foreach (var edge in traceEdges)
+            context.DrawLine(new Pen(edge.Error ? Brushes.Firebrick : Brushes.DarkOrange, edge.Active ? 3 : 1.5), new Point(edge.From.X, edge.From.Y), new Point(edge.To.X, edge.To.Y));
+        foreach (var mark in traceNodes)
+            context.DrawRectangle(null, new Pen(mark.Error ? Brushes.Firebrick : Brushes.DarkOrange, mark.Active ? 3 : 1.2), new Rect(mark.Frame.Left, mark.Frame.Top, mark.Frame.Width, mark.Frame.Height), 8, 8);
         if (MarqueeCanvasRect is { } band)
             context.DrawRectangle(new SolidColorBrush(Color.FromArgb(0x30, 0x1E, 0x90, 0xFF)), new Pen(Brushes.DodgerBlue, 1), new Rect(band.Left, band.Top, band.Width, band.Height));
     }

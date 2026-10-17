@@ -1,6 +1,6 @@
 # 016 - Remove Electron completely
 
-Status: Phase 0 measured (Windows only), go/no-go awaiting decision. This is the end state of plans 011-014: nothing in the shipped app depends on
+Status: Phase 0 measured (Windows only); owner decided GO on Phases 1-5 despite the modest numbers. This is the end state of plans 011-014: nothing in the shipped app depends on
 Electron, Chromium or Node at runtime. Electron (`desktop/`) stays the shipping app and the reference
 until every exit gate below is met. Nothing here is started beyond what plans 011-015 already built.
 
@@ -56,6 +56,15 @@ that supports all three OSes in the evidence so far is a community package (111k
 that is unproven on macOS and Linux. Recommendation: **no-go on a full Electron removal for performance
 reasons alone**; go only if the driver is something the numbers do not capture (e.g. dropping the Node/
 Electron toolchain and Sigstore shim, or a single .NET codebase). Decision is the owner's.
+
+### Decisions taken (2026-10-17)
+
+- Go/no-go: **go, Phases 1-5** (owner decision; the Phase 0 recommendation above was no-go on performance alone).
+- WebView: `WebView.Avalonia` 11.0.0.1 (+ `.Desktop`), needs an `app.manifest` supported-OS list on Windows.
+- Terminal: xterm.js stays in the WebView panel, backed by the existing PTY bridge.
+- Installers: Velopack on all three OSes.
+- Update verification: **checksum-only** (SHA-256 from `latest.json`/sidecar). This is a downgrade from Sigstore
+  attestation and must be flagged in the UI and docs. No Apple/Windows certificates.
 
 ## What "no Electron" requires
 

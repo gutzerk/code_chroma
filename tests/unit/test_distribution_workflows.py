@@ -147,3 +147,49 @@ def test_legacy_scripts_are_thin_forwarders_to_the_distribution_installer(script
     assert "gutzerk/code_chroma" in text
     assert "UshakovDV/code-chroma" not in text
     assert len(text.splitlines()) < 40
+
+
+DOTNET_JOBS = ["dotnet-windows", "dotnet-macos", "dotnet-linux"]
+ELECTRON_JOBS = ["macos", "windows", "linux"]
+
+
+@pytest.mark.parametrize("job", DOTNET_JOBS)
+def test_dotnet_release_jobs_are_off_unless_the_repo_variable_enables_them(job):
+    spec = _jobs(RELEASE)[job]
+
+    assert "vars.CODECROMA_BUILD_DOTNET == 'true'" in spec["if"]
+    assert "gate" in spec["needs"]
+
+
+@pytest.mark.parametrize("job", DOTNET_JOBS)
+def test_dotnet_release_jobs_publish_drafts_and_pin_the_velopack_cli(job):
+    text = yaml.dump(_jobs(RELEASE)[job])
+
+    assert "draft: true" in text
+    assert "dotnet tool install --global vpk --version 1.2.161" in text
+    assert "distribution/velopack/pack." in text
+    assert "dotnet publish dotnet/CodeChroma.Shell.App" in text
+    assert "bridge/codechroma-bridge" in text
+
+
+@pytest.mark.parametrize("job", ELECTRON_JOBS)
+def test_the_electron_jobs_are_still_there_and_unconditional_on_the_dotnet_variable(job):
+    text = yaml.dump(_jobs(RELEASE)[job])
+
+    assert "CODECROMA_BUILD_DOTNET" not in text
+    assert "electron" in text.lower()
+
+
+def test_a_skipped_dotnet_job_does_not_skip_the_manifest_but_a_failed_one_does():
+    manifest = _jobs(RELEASE)["manifest"]
+
+    assert set(manifest["needs"]) >= set(DOTNET_JOBS) | set(ELECTRON_JOBS)
+    assert "!cancelled()" in manifest["if"] and "!failure()" in manifest["if"]
+    assert set(_jobs(RELEASE)["alert"]["needs"]) >= set(DOTNET_JOBS)
+
+
+def test_ci_runs_the_csharp_shell_tests_on_all_three_oses():
+    job = _jobs(CI)["dotnet-shell"]
+
+    assert set(job["strategy"]["matrix"]["os"]) == {"ubuntu-latest", "windows-latest", "macos-14"}
+    assert "dotnet test dotnet/CodeChroma.Shell.sln" in yaml.dump(job)

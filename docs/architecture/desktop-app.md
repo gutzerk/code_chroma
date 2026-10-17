@@ -271,6 +271,37 @@ Things worth knowing before touching it:
 - Tests: `tests/unit/test_resources.py`, `tests/unit/test_bridge_spa_mount.py`,
   `web/src/engine-client/sameOrigin.test.ts`, and the Vitest suites in `desktop/src/*.test.ts`.
 
+**C# app distribution and updater (016 Phase 2; gated, nothing ships it yet).**
+- 🔴 **Checksum-only downgrade.** The C# updater verifies the SHA-256 from GitHub's asset digest / `.sha256` sidecar
+  / `latest.json` only. There is no Sigstore check and no Apple/Windows certificate. `UpdateState.VerificationNotice`
+  (`UpdateConstants.ChecksumOnlyNotice`) is set when an update is offered and again when it is ready, and
+  `UpdateState.Provenance` carries `ChecksumOnly`; the UI must show it. `install.sh --dotnet` / `install.ps1 -Dotnet`
+  print the same warning. A compromised release pipeline is therefore not detected in-app.
+- **Packaging** (`distribution/velopack/pack.ps1|pack.sh`, vpk 1.2.161 pinned): produces
+  `CodeChroma-<v>-win-x64-Installer.exe` (Velopack Setup, fresh installs), `CodeChroma-<v>-win-x64.zip` (update
+  payload; its `current/` folder is swapped in), `CodeChroma-<v>-osx-{arm64,x64}.zip` (the `.app`), and
+  `CodeChroma-<v>-linux-x86_64.AppImage`, each with a `.sha256`. Names avoid every Electron suffix so installed
+  Electron updaters ignore them; manifest targets are `dotnet-windows-x64`, `dotnet-windows-x64-update`,
+  `dotnet-macos-arm64|x64`, `dotnet-linux-x64` (Electron targets unchanged). Release jobs `dotnet-windows|macos|linux`
+  run only when repo variable `CODECROMA_BUILD_DOTNET` is `true` and ship the bridge in `<app>/bridge/codechroma-bridge/`
+  (contract the shell must honour). The app does not call `VelopackApp.Run()` yet, so vpk runs with `--skipVeloAppCheck`.
+- **Updater code** (`dotnet/CodeChroma.Shell/Updater/`): `UpdateChecker` (native names preferred, Electron names =
+  `AssetKind.ElectronLegacy`, trusted-URL check, ETag cache), `UpdateDownloader`, `UpdateOperations`,
+  `PlatformInstaller` (stages next to the install, writes a helper from `UpdateScripts`, starts it detached; the host
+  then quits), `UpdateSettingsStore`/`UpdateScheduler`/`StaleDownloads`, `InstallOutcomeStore`.
+- **Swap + rollback** (`UpdateScripts`): after the app exits the helper moves `target` to `target.previous`, moves the
+  staged copy in, launches it and watches it for 8 s; if it dies (Windows/Linux: non-zero exit; macOS: no process
+  via `pgrep`) the previous copy is restored and relaunched. The result lands in `<userData>/update-result.json`
+  (`updated`/`rolled-back`/`failed`) and surfaces as `UpdateState.LastInstall`. Windows (new): directory swap of
+  `...\CodeChroma\current` by a hidden PowerShell; macOS: `~/Applications/CodeChroma.app` via `ditto`; Linux keeps
+  `.previous`. No delta updates (full zip each time).
+- **Electron to C# migration**: `ElectronMigration` finds the old install, copies top-level `*.json` (recents, update
+  settings/cache) and the tutorial project into the C# user-data dir once (never overwrites, never touches the source;
+  no-op if the C# app uses the same dir, which it should: `ElectronUserDataDir`). Browser localStorage (canvas camera,
+  expansion) is keyed by the random bridge port, so it never persisted and is not migrated. macOS/Linux installs
+  replace the same path in place; on Windows `install.ps1 -Dotnet` (or `RemovalFor`) silently runs the NSIS uninstaller.
+- Tests: `dotnet/CodeChroma.Shell.Tests/Updater/`, `tests/unit/test_distribution_{velopack,consistency,manifest,installer,workflows}.py`, `tests/pester/install.Tests.ps1`.
+
 > Migration in progress: a C# / Avalonia replacement for this Electron shell is tracked in [`docs/planning/014-avalonia-shell.md`](../planning/014-avalonia-shell.md) (code in `dotnet/`). Electron remains the reference until it lands.
 
 ## C# shell (`dotnet/CodeChroma.Shell*`, in progress - plans 014/016)

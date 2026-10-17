@@ -111,7 +111,7 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       - name: shellcheck the shell installers
-        run: shellcheck --severity=warning distribution/install.sh scripts/install_desktop.sh scripts/install_linux.sh
+        run: shellcheck --severity=warning distribution/install.sh distribution/velopack/pack.sh scripts/install_desktop.sh scripts/install_linux.sh
 
       # -shellcheck= / -pyflakes= keep actionlint to workflow syntax and expression checks only.
       - name: actionlint the workflows
@@ -145,3 +145,23 @@ jobs:
       - name: Pester
         shell: pwsh
         run: Invoke-Pester -Path tests/pester -CI
+
+  # The C# shell's tests, including the updater swap helpers (POSIX sh on Linux/macOS, PowerShell on
+  # Windows) that can only be exercised on their own OS.
+  dotnet-shell:
+    name: C# shell tests (${{ matrix.os }})
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-14]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - uses: actions/setup-dotnet@67a3573c9a986a3f9c594539f4ab511d57bb3ce9 # v4.3.1
+        with:
+          dotnet-version: "8.0.x"
+
+      - name: Test CodeChroma.Shell
+        run: dotnet test dotnet/CodeChroma.Shell.sln --configuration Release

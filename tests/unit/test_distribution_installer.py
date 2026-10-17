@@ -97,6 +97,14 @@ printf 'osascript %s\\n' "$*" >> "$SUDO_LOG"
 exit 0
 """
 
+DITTO = """#!/bin/sh
+# ditto -x -k ARCHIVE DEST: unpack the dotnet app zip as a CodeChroma.app bundle.
+dest="$4"
+mkdir -p "$dest/CodeChroma.app"
+printf '%s' "$APP_PAYLOAD" > "$dest/CodeChroma.app/Contents"
+exit 0
+"""
+
 LDCONFIG = """#!/bin/sh
 printf '%s\\n' "$LDCONFIG_OUT"
 """
@@ -131,6 +139,7 @@ class Sandbox:
             "pgrep": PGREP,
             "osascript": OSASCRIPT,
             "ldconfig": LDCONFIG,
+            "ditto": DITTO,
         }.items():
             command = self.commands / name
             command.write_text(source, encoding="utf-8", newline="\n")
@@ -522,3 +531,113 @@ def test_installer_has_no_python_dependency():
 
     assert "python3" not in text
     assert "python " not in text
+
+
+DOTNET_PLATFORMS = {
+    "mac-arm": ("Darwin", "arm64", "dotnet-macos-arm64", "CodeChroma-1.2.3-osx-arm64.zip"),
+    "mac-x64": ("Darwin", "x86_64", "dotnet-macos-x64", "CodeChroma-1.2.3-osx-x64.zip"),
+    "linux-x64": ("Linux", "x86_64", "dotnet-linux-x64", "CodeChroma-1.2.3-linux-x86_64.AppImage"),
+}
+
+
+def make_dotnet(tmp_path: Path, key: str, **kwargs) -> Sandbox:
+    system, machine, target, asset = DOTNET_PLATFORMS[key]
+    return Sandbox(tmp_path, system, machine, target, asset, **kwargs)
+
+
+@pytest.mark.parametrize("key", list(DOTNET_PLATFORMS))
+def test_dotnet_flavor_installs_per_user_at_the_same_path_as_the_electron_app(tmp_path, key):
+    box = make_dotnet(tmp_path, key)
+
+    result = box.run("--dotnet")
+
+    assert result.returncode == 0, result.stderr
+    assert box.sudo_calls() == ""
+    assert installed_path(box).read_bytes() == box.payload
+    assert "flavor=dotnet" in (box.home / ".local" / "state" / "codechroma" / "installed").read_text()  # noqa: E501
+
+
+@pytest.mark.parametrize("key", list(DOTNET_PLATFORMS))
+def test_dotnet_flavor_says_updates_are_checksum_only(tmp_path, key):
+    box = make_dotnet(tmp_path, key)
+
+    result = box.run("--dotnet")
+
+    assert "SHA-256 checksum only" in result.stderr + result.stdout
+    assert "user-data folder" in result.stdout
+
+
+def test_the_app_environment_variable_selects_the_dotnet_flavor(tmp_path):
+    box = make_dotnet(tmp_path, "linux-x64")
+
+    result = box.run(CODECROMA_APP="dotnet")
+
+    assert result.returncode == 0, result.stderr
+    assert installed_path(box).read_bytes() == box.payload
+
+
+def test_dotnet_flavor_refuses_system_scope_before_downloading(tmp_path):
+    box = make_dotnet(tmp_path, "linux-x64")
+
+    result = box.run("--dotnet", "--system")
+
+    assert result.returncode != 0
+    assert "per user only" in result.stderr
+    assert box.curl_urls() == []
+
+
+def test_an_unknown_app_flavor_is_refused(tmp_path):
+    box = make_dotnet(tmp_path, "linux-x64")
+
+    result = box.run(CODECROMA_APP="swift")
+
+    assert result.returncode != 0
+    assert "unknown app flavor" in result.stderr
+
+
+@pytest.mark.parametrize("key", ["mac-arm", "linux-x64"])
+def test_dotnet_checksum_mismatch_installs_nothing(tmp_path, key):
+    box = make_dotnet(tmp_path, key)
+
+    result = box.run("--dotnet", CORRUPT_FIRST="5")
+
+    assert result.returncode != 0
+    assert "checksum" in result.stderr
+    assert not (box.home / "Applications").exists()
+
+
+def test_a_manifest_without_the_dotnet_target_is_rejected_not_silently_replaced_by_electron(tmp_path):  # noqa: E501
+    box = make(tmp_path, "linux-x64")
+
+    result = box.run("--dotnet")
+
+    assert result.returncode != 0
+    assert "no binary for dotnet-linux-x64" in result.stderr
+
+
+def test_the_same_version_of_the_other_flavor_is_not_treated_as_installed(tmp_path):
+    electron = make(tmp_path, "linux-x64")
+    electron.run()
+    dotnet = make_dotnet(tmp_path, "linux-x64")
+    dotnet.curl_log.unlink()
+
+    again = dotnet.run("--dotnet")
+    skipped = dotnet.run("--dotnet")
+
+    assert again.returncode == 0, again.stderr
+    assert installed_path(dotnet).read_bytes() == dotnet.payload
+    assert "already installed" in skipped.stdout
+    assert dotnet.asset_downloads() == 1
+
+
+def test_dotnet_uninstall_removes_the_app_and_keeps_user_data(tmp_path):
+    box = make_dotnet(tmp_path, "mac-arm")
+    box.run("--dotnet")
+    data = box.home / "Library" / "Application Support" / "CodeChroma"
+    data.mkdir(parents=True)
+
+    result = box.run("--uninstall")
+
+    assert result.returncode == 0, result.stderr
+    assert not (box.home / "Applications" / "CodeChroma.app").exists()
+    assert data.exists()

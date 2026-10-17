@@ -1,5 +1,9 @@
-<Application xmlns="https://github.com/avaloniaui" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml" x:Class="CodeChroma.Shell.App.App">
+<Application xmlns="https://github.com/avaloniaui" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml" x:Class="CodeChroma.Shell.App.App" RequestedThemeVariant="Dark">
   <Application.Styles>
-    <FluentTheme />
+    <FluentTheme>
+      <FluentTheme.Palettes>
+        <ColorPaletteResources x:Key="Dark" RegionColor="#11131a" Accent="#6c8cff" BaseHigh="#e6e9f0" BaseMedium="#8b93a7" ChromeLow="#2a3040" ErrorText="IndianRed" />
+      </FluentTheme.Palettes>
+    </FluentTheme>
   </Application.Styles>
 </Application>

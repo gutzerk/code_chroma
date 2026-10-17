@@ -122,7 +122,7 @@ public sealed partial class MainWindow : Window, IShellUi, ILauncherHost
         {
             var id = info.Id;
             var active = id == snapshot.ActiveId;
-            var select = new Button { Content = info.Title, FontWeight = active ? FontWeight.SemiBold : FontWeight.Normal, Padding = new Thickness(10, 4), BorderThickness = new Thickness(0, 0, 0, active ? 2 : 0), BorderBrush = Brushes.SteelBlue };
+            var select = new Button { Content = info.Title, FontWeight = active ? FontWeight.SemiBold : FontWeight.Normal, Padding = new Thickness(10, 4), BorderThickness = new Thickness(0, 0, 0, active ? 2 : 0), BorderBrush = new SolidColorBrush(Color.Parse("#6c8cff")) };
             select.Click += (_, _) => controller.SwitchTab(id);
             var close = new Button { Content = "×", Padding = new Thickness(6, 2), Background = Brushes.Transparent };
             close.Click += async (_, _) => await controller.CloseTabAsync(id);

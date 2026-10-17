@@ -482,3 +482,12 @@ token rather than a new hex), and keep every font size at or above `--text-2xs` 
 renders smaller. A global `:focus-visible` accent ring is defined at the top too, so interactive
 elements get one consistent focus treatment. Scrollbars use the shared theme tokens globally: thin
 tracks stay transparent, with rounded thumbs that become more visible on hover and drag.
+
+## Avalonia port (in progress, `dotnet/`)
+
+An Avalonia (C#, net8.0) port of the canvas's pure logic and a first headless view live under `dotnet/`: routing,
+collision solver, layout (native layered layout instead of elkjs), scene graph with culling, viewport matrix, stores.
+This React canvas stays the reference and is unchanged; the audit, ELK decision, baseline numbers, remaining work and the
+list of `web/src/canvas/` files that become removal candidates once the C# canvas passes the same journeys are in
+[`docs/planning/013-avalonia-canvas.md`](../planning/013-avalonia-canvas.md). Shared test cases live in
+`tests/fixtures/canvas_logic/*.json`; run `dotnet test dotnet/CodeChroma.Canvas.sln`.

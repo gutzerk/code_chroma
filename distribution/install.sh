@@ -1,45 +1,105 @@
 #!/bin/sh
-# One-command installer for CodeChroma on macOS (arm64/x64) and Linux (x64), in the style of
-# herdr's distribution/: it reads distribution/latest.json (the single install manifest) and installs the
-# platform's pre-built GUI installer from the matching GitHub Release. No local checkout, no build.
+# One-command installer for CodeChroma on macOS (arm64/x64) and Linux (x64). It reads the release's
+# latest.json manifest and installs the pre-built GUI installer from the matching GitHub Release.
+# No local checkout, no build, no python.
 #
 #   curl -fsSL https://raw.githubusercontent.com/gutzerk/code_chroma/main/distribution/install.sh | sh
+#   curl -fsSL .../install.sh | sh -s -- --system      # macOS /Applications or the Linux .deb (sudo)
+#   curl -fsSL .../install.sh | sh -s -- --uninstall   # remove the app; add --purge to drop user data
 #
+# Options: --system  --force  --uninstall  --purge  --help
+# Test hooks (weaken security, never set in production): CODECROMA_MANIFEST_URL,
+# CODECROMA_MAX_BYTES, CODECROMA_GH_BIN.
 set -eu
 
-MANIFEST_URL="${CODECROMA_MANIFEST_URL:-https://github.com/gutzerk/code_chroma/releases/latest/download/latest.json}"
-DOWNLOAD_DIR="${HOME}/Downloads"
-MAX_BYTES=1073741824   # 1 GiB; fail-fast cap so a rogue oversized asset can't fill the disk
+REPO="gutzerk/code_chroma"
+MANIFEST_URL="${CODECROMA_MANIFEST_URL:-https://github.com/${REPO}/releases/latest/download/latest.json}"
+MAX_BYTES="${CODECROMA_MAX_BYTES:-1073741824}"   # 1 GiB cap so a rogue asset can't fill the disk
+GH_BIN="${CODECROMA_GH_BIN:-gh}"
+SIGNER_WORKFLOW="${REPO}/.github/workflows/release-please.yml"
+STATE_DIR="${XDG_STATE_HOME:-${HOME}/.local/state}/codechroma"
+STATE_FILE="${STATE_DIR}/installed"
+APP_DIR="${HOME}/Applications"
 
 log()  { printf '  \033[32m>\033[0m %s\n' "$1"; }
 warn() { printf '  \033[33m!\033[0m %s\n' "$1"; }
-err()  { printf '  \033[31m✗\033[0m %s\n' "$1" >&2; exit 1; }
+err()  { printf '  \033[31mx\033[0m %s\n' "$1" >&2; exit 1; }
 # Keep only safe file-name characters; a hostile asset name must never reach a shell path unchecked.
 safe_name() { printf '%s' "${1##*/}" | tr -cd 'A-Za-z0-9._-'; }
 need() { command -v "$1" >/dev/null 2>&1 || err "requires '$1' -- install it first."; }
+usage() { printf 'usage: install.sh [--system] [--force] [--uninstall [--purge]]\n'; }
 
 INSTALL_SCOPE="user"
-case "${1:-}" in
-    "") ;;
-    --system) INSTALL_SCOPE="system" ;;
-    *) err "usage: install.sh [--system]" ;;
-esac
+FORCE=0
+UNINSTALL=0
+PURGE=0
+for arg in "$@"; do
+    case "$arg" in
+        --system) INSTALL_SCOPE="system" ;;
+        --force) FORCE=1 ;;
+        --uninstall) UNINSTALL=1 ;;
+        --purge) PURGE=1 ;;
+        -h|--help) usage; exit 0 ;;
+        *) usage >&2; err "usage: unknown option '$arg'" ;;
+    esac
+done
+[ "$PURGE" -eq 0 ] || [ "$UNINSTALL" -eq 1 ] || err "usage: --purge only works together with --uninstall"
 
-# --- resolve OS/arch to a manifest target key --------------------------------
+# --- resolve OS/arch ------------------------------------------------------------
 OS="$(uname -s)"
 case "$OS" in
     Linux)  os="linux" ;;
     Darwin) os="macos" ;;
-    *) err "unsupported OS: $OS" ;;
+    *) err "unsupported OS: $OS (Windows: use install.ps1)" ;;
 esac
 ARCH="$(uname -m)"
 case "$ARCH" in
-    x86_64|amd64)          arch="x86_64" ;;
-    aarch64|arm64)         arch="arm64" ;;
+    x86_64|amd64)  arch="x86_64" ;;
+    aarch64|arm64) arch="arm64" ;;
     *) err "unsupported architecture: $ARCH" ;;
 esac
 
-# Linux builds are x64-only (the only Linux artifacts the release CI builds).
+# --- uninstall ------------------------------------------------------------------
+purge_user_data() {
+    if [ "$os" = "macos" ]; then
+        rm -rf "${HOME}/Library/Application Support/CodeChroma" "${HOME}/Library/Logs/CodeChroma" \
+            "${HOME}/Library/Caches/CodeChroma"
+    else
+        rm -rf "${XDG_CONFIG_HOME:-${HOME}/.config}/CodeChroma" "${XDG_CACHE_HOME:-${HOME}/.cache}/CodeChroma"
+    fi
+    rm -rf "${HOME}/.codechroma"
+    log "removed user data (settings, recents, diagram types)"
+}
+
+uninstall() {
+    found=0
+    if [ "$os" = "macos" ]; then
+        if [ -d "${APP_DIR}/CodeChroma.app" ]; then rm -rf "${APP_DIR}/CodeChroma.app"; found=1; fi
+        if [ "$INSTALL_SCOPE" = "system" ] && [ -d /Applications/CodeChroma.app ]; then
+            log "removing /Applications/CodeChroma.app needs administrator authorization."
+            need sudo
+            sudo rm -rf /Applications/CodeChroma.app
+            found=1
+        fi
+    else
+        if [ -e "${APP_DIR}/CodeChroma.AppImage" ]; then rm -f "${APP_DIR}/CodeChroma.AppImage"; found=1; fi
+        rm -f "${XDG_DATA_HOME:-${HOME}/.local/share}/applications/codechroma.desktop"
+        if [ -L "${HOME}/.local/bin/codechroma" ]; then rm -f "${HOME}/.local/bin/codechroma"; fi
+        if [ "$INSTALL_SCOPE" = "system" ] && command -v dpkg >/dev/null 2>&1 \
+            && dpkg -s codechroma-desktop >/dev/null 2>&1; then
+            log "removing the codechroma-desktop package needs administrator authorization."
+            need sudo
+            sudo apt-get remove -y codechroma-desktop
+            found=1
+        fi
+    fi
+    rm -rf "$STATE_DIR"
+    if [ "$found" -eq 1 ]; then log "CodeChroma removed."; else log "CodeChroma is not installed; nothing to remove."; fi
+    if [ "$PURGE" -eq 1 ]; then purge_user_data; else log "user data kept (re-run with --uninstall --purge to delete it)"; fi
+}
+
+if [ "$UNINSTALL" -eq 1 ]; then uninstall; exit 0; fi
+
 case "$os-$arch" in
     macos-arm64)   target="macos-arm64" ;;
     macos-x86_64)  target="macos-x64" ;;
@@ -51,83 +111,154 @@ esac
 
 need curl
 need awk
-need python3   # manifest JSON parsing (present on macOS and all modern Linux)
-
 log "detected ${os}/${arch} (target ${target})"
 
-# --- fetch the manifest and pull out this target's URL + checksum --------------
-log "fetching latest release manifest..."
+# --- manifest parsing (no python): flatten JSON so each key sits on its own line -------
+# json_get SECTION KEY prints KEY inside object SECTION; SECTION "" matches a key anywhere.
+json_get() {
+    tr ',{}' '\n\n\n' < "$MANIFEST_FILE" | awk -v sec="$1" -v key="$2" '
+        /^[ \t]*$/ { next }
+        /^[ \t]*"[^"]+"[ \t]*:[ \t]*$/ { s = $0; sub(/^[ \t]*"/, "", s); sub(/".*$/, "", s); cur = s; next }
+        /^[ \t]*"[^"]+"[ \t]*:/ {
+            k = $0; sub(/^[ \t]*"/, "", k); sub(/".*$/, "", k)
+            v = $0; sub(/^[ \t]*"[^"]+"[ \t]*:[ \t]*/, "", v); sub(/[ \t\r]*$/, "", v); gsub(/^"|"$/, "", v)
+            if ((sec == "" || cur == sec) && k == key) { print v; exit }
+        }'
+}
+
 TMP="$(mktemp -d)"
-trap 'rm -rf "$TMP"' EXIT
+MOUNT=""
+cleanup() {
+    if [ -n "$MOUNT" ]; then
+        hdiutil detach "$MOUNT" -quiet >/dev/null 2>&1 || true
+        rmdir "$MOUNT" 2>/dev/null || true
+    fi
+    rm -rf "$TMP"
+}
+trap cleanup EXIT
 MANIFEST_FILE="${TMP}/latest.json"
+
+case "${CODECROMA_MANIFEST_URL:-}" in
+    "") ;;
+    *) warn "using CODECROMA_MANIFEST_URL override (test hook): ${CODECROMA_MANIFEST_URL}" ;;
+esac
+log "fetching latest release manifest..."
 curl -fsSL --retry 3 --connect-timeout 10 --max-time 30 "$MANIFEST_URL" -o "$MANIFEST_FILE" \
     || err "can't reach ${MANIFEST_URL}. Check network, or that a release exists yet."
 
-URL="$(   python3 -c 'import json,sys; d=json.load(open(sys.argv[1])); sys.stdout.write(d["assets"].get(sys.argv[2],"") or "")' "$MANIFEST_FILE" "$target")"
-SHA256="$(python3 -c 'import json,sys; d=json.load(open(sys.argv[1])); sys.stdout.write(d["sha256"].get(sys.argv[2],"") or "")' "$MANIFEST_FILE" "$target")"
-VERSION="$( python3 -c 'import json,sys; d=json.load(open(sys.argv[1])); sys.stdout.write(d.get("version",""))' "$MANIFEST_FILE")"
+URL="$(json_get assets "$target")"
+SHA256="$(json_get sha256 "$target")"
+SIZE="$(json_get size "$target")"
+VERSION="$(json_get "" version)"
 
 [ -n "$URL" ] || err "release manifest has no binary for ${target}."
 [ "${#SHA256}" -eq 64 ] || err "release manifest has no valid SHA-256 for ${target}."
-
 ASSET="$(safe_name "${URL##*/}")"
 [ -n "$ASSET" ] || err "could not derive a file name from the manifest URL."
 
-# --- download ----------------------------------------------------------------
-mkdir -p "$DOWNLOAD_DIR"
-DEST="${DOWNLOAD_DIR}/${ASSET}"
-if [ -f "$DEST" ]; then
-    log "already downloaded: ${DEST}"
-else
-    log "downloading ${ASSET}"
-    curl -fsSL --retry 3 --connect-timeout 10 --speed-limit 1024 --speed-time 30 --max-filesize "$MAX_BYTES" "$URL" -o "$DEST" \
-        || err "download failed from ${URL}"
-    # Fail-fast size cap: a rogue/oversized asset must not fill the disk. --max-filesize honors
-    # Content-Length; wc -c guards the chunked/no-CL case curl cannot pre-limit.
-    if [ "$(wc -c < "$DEST")" -gt "$MAX_BYTES" ]; then
-        rm -f "$DEST"
-        err "download exceeds ${MAX_BYTES} bytes; refusing oversized asset"
-    fi
+# --- already installed? ---------------------------------------------------------
+installed_version=""
+installed_path=""
+if [ -f "$STATE_FILE" ]; then
+    installed_version="$(sed -n 's/^version=//p' "$STATE_FILE" | head -n 1)"
+    installed_path="$(sed -n 's/^path=//p' "$STATE_FILE" | head -n 1)"
+fi
+if [ "$FORCE" -eq 0 ] && [ -n "$VERSION" ] && [ "$installed_version" = "$VERSION" ] \
+    && [ -n "$installed_path" ] && [ -e "$installed_path" ]; then
+    log "CodeChroma ${VERSION} is already installed at ${installed_path} (use --force to reinstall)."
+    exit 0
 fi
 
-# --- integrity check ----------------------------------------------------------
+# --- download into a private temp dir (never ~/Downloads) -------------------------
+DEST="${TMP}/${ASSET}"
+download() {
+    curl -fsSL --retry 3 --connect-timeout 10 --speed-limit 1024 --speed-time 30 \
+        --max-filesize "$MAX_BYTES" "$URL" -o "$DEST" || err "download failed from ${URL}"
+    actual_size="$(wc -c < "$DEST" | tr -d ' ')"
+    [ "$actual_size" -le "$MAX_BYTES" ] || { rm -f "$DEST"; err "download exceeds ${MAX_BYTES} bytes; refusing oversized asset"; }
+    if [ -n "$SIZE" ] && [ "$actual_size" != "$SIZE" ]; then
+        rm -f "$DEST"
+        err "download size ${actual_size} does not match the manifest size ${SIZE}"
+    fi
+}
+checksum() {
+    if command -v sha256sum >/dev/null 2>&1; then sha256sum "$DEST" | awk '{print $1}'
+    else shasum -a 256 "$DEST" | awk '{print $1}'; fi
+}
+
+log "downloading ${ASSET}"
+download
 log "verifying SHA-256 checksum"
-if command -v sha256sum >/dev/null 2>&1; then
-    ACTUAL="$(sha256sum "$DEST" | awk '{print $1}')"
-else
-    ACTUAL="$(shasum -a 256 "$DEST" | awk '{print $1}')"
-fi
+ACTUAL="$(checksum)"
 if [ "$ACTUAL" != "$SHA256" ]; then
-    log "checksum mismatch; redownloading"
+    log "checksum mismatch; redownloading once"
     rm -f "$DEST"
-    curl -fsSL --retry 3 --connect-timeout 10 --speed-limit 1024 --speed-time 30 --max-filesize "$MAX_BYTES" "$URL" -o "$DEST" \
-        || err "download failed from ${URL}"
-    [ "$(wc -c < "$DEST")" -le "$MAX_BYTES" ] || { rm -f "$DEST"; err "download exceeds ${MAX_BYTES} bytes; refusing oversized asset"; }
-    ACTUAL="$( (command -v sha256sum >/dev/null 2>&1 && sha256sum "$DEST" || shasum -a 256 "$DEST") | awk '{print $1}')"
+    download
+    ACTUAL="$(checksum)"
 fi
 [ "$ACTUAL" = "$SHA256" ] || err "checksum mismatch -- the download is corrupted or tampered with."
 
+# --- provenance: gh attestation verify when available ----------------------------
+if command -v "$GH_BIN" >/dev/null 2>&1 && "$GH_BIN" auth status >/dev/null 2>&1; then
+    log "verifying build provenance (gh attestation verify)"
+    "$GH_BIN" attestation verify "$DEST" --repo "$REPO" --signer-workflow "$SIGNER_WORKFLOW" >/dev/null 2>&1 \
+        || err "attestation verification failed: this file was not built by ${REPO}'s release pipeline."
+else
+    warn "gh is not installed or not logged in: only the SHA-256 checksum was verified, not build provenance (attestation)."
+    warn "install and log in to the GitHub CLI for full verification: https://cli.github.com"
+fi
+
 # --- install by platform -------------------------------------------------------
+remember() { # path
+    mkdir -p "$STATE_DIR"
+    printf 'version=%s\npath=%s\nscope=%s\n' "$VERSION" "$1" "$INSTALL_SCOPE" > "$STATE_FILE"
+}
+
+quit_running_app() {
+    if command -v pgrep >/dev/null 2>&1 && pgrep -x CodeChroma >/dev/null 2>&1; then
+        warn "CodeChroma is running; asking it to quit before replacing it."
+        osascript -e 'tell application "CodeChroma" to quit' >/dev/null 2>&1 || true
+        sleep 2
+    fi
+}
+
+# swap_dir NEW FINAL: move FINAL aside, move NEW in, roll back if that fails, then drop the old copy.
+swap_dir() {
+    new="$1"; final="$2"; old="${final}.old-$$"
+    if [ -e "$final" ]; then
+        mv "$final" "$old" || { rm -rf "$new"; err "could not move the existing app aside; it was left untouched."; }
+    fi
+    if ! mv "$new" "$final"; then
+        [ ! -e "$old" ] || mv "$old" "$final"
+        rm -rf "$new"
+        err "could not put the new app in place; the previous version was restored."
+    fi
+    rm -rf "$old"
+}
+
 case "$os" in
     macos)
         need hdiutil
         MOUNT="$(mktemp -d /tmp/codechroma-install.XXXXXX)"
-        attach_cleanup() { hdiutil detach "$MOUNT" -quiet >/dev/null 2>&1 || true; rmdir "$MOUNT" 2>/dev/null || true; }
-        trap 'attach_cleanup; rm -rf "$TMP"' EXIT
         hdiutil attach "$DEST" -nobrowse -mountpoint "$MOUNT" >/dev/null
         [ -d "$MOUNT/CodeChroma.app" ] || err "CodeChroma.app not found in the downloaded DMG."
+        quit_running_app
         if [ "$INSTALL_SCOPE" = "system" ]; then
             log "System-wide install will replace /Applications/CodeChroma.app. This writes to the shared Applications folder, so macOS will request administrator authorization."
             need sudo
             sudo -v
+            sudo cp -R "$MOUNT/CodeChroma.app" "/Applications/CodeChroma.app.new-$$" \
+                || { sudo rm -rf "/Applications/CodeChroma.app.new-$$"; err "copy failed; the installed app was left untouched."; }
             sudo rm -rf /Applications/CodeChroma.app
-            sudo cp -R "$MOUNT/CodeChroma.app" /Applications/
+            sudo mv "/Applications/CodeChroma.app.new-$$" /Applications/CodeChroma.app
+            remember /Applications/CodeChroma.app
             log "done. launch with:  open /Applications/CodeChroma.app"
         else
-            APP_DIR="${HOME}/Applications"
             mkdir -p "$APP_DIR"
-            rm -rf "${APP_DIR}/CodeChroma.app"
-            cp -R "$MOUNT/CodeChroma.app" "$APP_DIR/"
+            cp -R "$MOUNT/CodeChroma.app" "${APP_DIR}/CodeChroma.app.new-$$" \
+                || { rm -rf "${APP_DIR}/CodeChroma.app.new-$$"; err "copy failed; the installed app was left untouched."; }
+            swap_dir "${APP_DIR}/CodeChroma.app.new-$$" "${APP_DIR}/CodeChroma.app"
+            remember "${APP_DIR}/CodeChroma.app"
             log "done. launch with:  open ${APP_DIR}/CodeChroma.app"
         fi
         ;;
@@ -138,18 +269,29 @@ case "$os" in
             need sudo
             sudo -v
             sudo apt-get install -y "$DEST"
+            remember /usr/bin/codechroma-desktop
             log "done. launch with:  codechroma-desktop"
         else
-            APP_DIR="${HOME}/Applications"
+            if command -v ldconfig >/dev/null 2>&1 && ! ldconfig -p 2>/dev/null | grep -q 'libfuse\.so\.2'; then
+                warn "libfuse2 was not found; the AppImage needs it (Debian/Ubuntu: sudo apt install libfuse2)."
+            fi
             APP_PATH="${APP_DIR}/CodeChroma.AppImage"
             mkdir -p "$APP_DIR"
-            cp "$DEST" "$APP_PATH"
-            chmod 755 "$APP_PATH"
-            log "done. launch with:  ${APP_PATH}"
+            cp "$DEST" "${APP_PATH}.new-$$" \
+                || { rm -f "${APP_PATH}.new-$$"; err "copy failed; the installed app was left untouched."; }
+            chmod 755 "${APP_PATH}.new-$$"
+            mv -f "${APP_PATH}.new-$$" "$APP_PATH" || { rm -f "${APP_PATH}.new-$$"; err "could not replace the installed AppImage."; }
+            ENTRY_DIR="${XDG_DATA_HOME:-${HOME}/.local/share}/applications"
+            mkdir -p "$ENTRY_DIR" "${HOME}/.local/bin"
+            printf '[Desktop Entry]\nType=Application\nName=CodeChroma\nComment=Zoomable architecture map of your code\nExec=%s\nTerminal=false\nCategories=Development;\n' \
+                "$APP_PATH" > "${ENTRY_DIR}/codechroma.desktop"
+            ln -sf "$APP_PATH" "${HOME}/.local/bin/codechroma"
+            remember "$APP_PATH"
+            log "done. launch with:  ${APP_PATH}  (or: codechroma, if ~/.local/bin is on PATH)"
+            warn "The AppImage is installed for this user only; no system directories or package database were changed."
         fi
         ;;
 esac
 
-if [ "$os" = "linux" ] && [ "$INSTALL_SCOPE" = "user" ]; then
-    warn "The AppImage is installed for this user only; no system directories or package database were changed."
-fi
+# Older installer versions left a copy of the download here; it is no longer needed.
+rm -f "${HOME}/Downloads/${ASSET}" "${HOME}/Downloads/${ASSET}.sha256"

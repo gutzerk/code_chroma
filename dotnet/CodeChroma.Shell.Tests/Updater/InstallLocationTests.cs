@@ -1,4 +1,4 @@
-namespace CodeChroma.Shell.Tests;
+namespace CodeChroma.Shell.Tests.Updater;
 
 public class InstallLocationTests
 {
@@ -24,5 +24,17 @@ public class InstallLocationTests
         Assert.Equal(allowed, location.IsUserInstallation());
         if (!allowed)
             Assert.Contains("administrator privileges", Assert.Throws<UnauthorizedAccessException>(location.AssertUserInstallation).Message);
+    }
+
+    [Theory]
+    [InlineData(ShellOs.MacOs, "/home/me/Applications/CodeChroma.app/Contents/MacOS/CodeChroma", null, "/home/me/Applications/CodeChroma.app")]
+    [InlineData(ShellOs.Linux, "/tmp/.mount_x/AppRun", "/home/me/Applications/CodeChroma.AppImage", "/home/me/Applications/CodeChroma.AppImage")]
+    [InlineData(ShellOs.Windows, @"C:\Users\me\AppData\Local\CodeChroma\current\CodeChroma.Shell.App.exe", null, "C:/Users/me/AppData/Local/CodeChroma/current")]
+    [InlineData(ShellOs.Linux, "/opt/x", null, null)]
+    public void The_update_target_is_the_bundle_the_appimage_or_the_app_directory(ShellOs os, string executable, string? appImage, string? expected)
+    {
+        var location = new InstallLocation(os, executable, Home, Win, appImage);
+
+        Assert.Equal(expected, location.TargetPath());
     }
 }

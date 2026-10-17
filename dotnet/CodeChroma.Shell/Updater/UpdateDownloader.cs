@@ -4,7 +4,7 @@ namespace CodeChroma.Shell;
 
 public enum Provenance
 {
-    /// <summary>Only the SHA-256 from the release was checked; no signed provenance. Surface this to the user.</summary>
+    /// <summary>Only the SHA-256 from the release was checked; no signed provenance. UpdateService surfaces this as <see cref="UpdateConstants.ChecksumOnlyNotice"/>.</summary>
     ChecksumOnly,
     Attested,
 }
@@ -27,7 +27,7 @@ public sealed class ChecksumOnlyAttestationVerifier : IAttestationVerifier
         throw new NotSupportedException("no Sigstore client is configured; only the SHA-256 checksum can be verified");
 }
 
-public sealed class UpdateDownloader(HttpClient http, IAttestationVerifier verifier, long maxBytes = 1_000_000_000, bool requireAttestation = false)
+public sealed class UpdateDownloader(HttpClient http, IAttestationVerifier verifier, long maxBytes = 1_000_000_000, bool requireAttestation = false, string repo = UpdateConstants.Repo)
 {
     public async Task<DownloadResult> DownloadAsync(UpdateInfo info, IProgress<(long Bytes, long? Total)>? progress = null, CancellationToken ct = default)
     {
@@ -54,8 +54,10 @@ public sealed class UpdateDownloader(HttpClient http, IAttestationVerifier verif
 
     private async Task Fetch(UpdateInfo info, string part, IProgress<(long, long?)>? progress, CancellationToken ct)
     {
-        var request = new HttpRequestMessage(HttpMethod.Get, info.DownloadUrl ?? throw new InvalidOperationException("release asset has no download URL"));
-        request.Headers.UserAgent.ParseAdd("code-chroma-desktop");
+        var url = info.DownloadUrl ?? throw new InvalidOperationException("release asset has no download URL");
+        if (!UpdateConstants.IsTrustedDownloadUrl(url, repo)) throw new InvalidOperationException("download URL is not a GitHub release download of this repository; refusing it");
+        var request = new HttpRequestMessage(HttpMethod.Get, url);
+        request.Headers.UserAgent.ParseAdd(UpdateConstants.UserAgent);
         using var response = await http.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, ct);
         if (!response.IsSuccessStatusCode) throw new InvalidOperationException($"download failed ({(int)response.StatusCode})");
 

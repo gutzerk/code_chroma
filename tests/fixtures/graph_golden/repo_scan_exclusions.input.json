@@ -1,0 +1,80 @@
+{
+ "schema_version": 1,
+ "files": [
+  {
+   "path": "real.py",
+   "symbols": [
+    {
+     "id": "real.py::module::real",
+     "file_path": "real.py",
+     "kind": "module",
+     "name": "real",
+     "qualified_name": "real",
+     "start_line": 1,
+     "end_line": 4,
+     "language": "python",
+     "parent_symbol_id": null,
+     "references": [],
+     "qualified_references": [],
+     "assigned_identifiers": [],
+     "imports": {},
+     "body_statements": [],
+     "docstring": "A real source file the scan must keep.",
+     "is_exported": false
+    },
+    {
+     "id": "real.py::variable::VALUE",
+     "file_path": "real.py",
+     "kind": "variable",
+     "name": "VALUE",
+     "qualified_name": "real.VALUE",
+     "start_line": 3,
+     "end_line": 3,
+     "language": "python",
+     "parent_symbol_id": "real.py::module::real",
+     "references": [],
+     "qualified_references": [],
+     "assigned_identifiers": [],
+     "imports": {},
+     "body_statements": [],
+     "docstring": null,
+     "is_exported": false
+    }
+   ]
+  },
+  {
+   "path": "sub/.gitignore",
+   "symbols": null
+  },
+  {
+   "path": "sub/kept.py",
+   "symbols": [
+    {
+     "id": "sub/kept.py::module::sub.kept",
+     "file_path": "sub/kept.py",
+     "kind": "module",
+     "name": "kept",
+     "qualified_name": "sub.kept",
+     "start_line": 1,
+     "end_line": 2,
+     "language": "python",
+     "parent_symbol_id": null,
+     "references": [],
+     "qualified_references": [],
+     "assigned_identifiers": [],
+     "imports": {},
+     "body_statements": [],
+     "docstring": "Not matched by the nested .gitignore -- the scan must keep this one.",
+     "is_exported": false
+    }
+   ]
+  }
+ ],
+ "import_resolutions": {},
+ "summaries": {
+  "component::real.py": "Component `real.py`: level=component; source=real.py",
+  "dir::sub": "System `sub`: level=system; source=sub",
+  "component::sub/kept.py": "Component `kept.py`: level=component; source=sub/kept.py",
+  "component::sub/.gitignore": "Component `.gitignore`: level=component; source=sub/.gitignore"
+ }
+}

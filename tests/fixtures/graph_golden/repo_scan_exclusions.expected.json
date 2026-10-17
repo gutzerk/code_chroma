@@ -1,0 +1,444 @@
+{
+ "schema_version": 1,
+ "nodes": [
+  {
+   "id": "component::real.py",
+   "name": "real.py",
+   "level": "component",
+   "parent_ids": [],
+   "source_path": "real.py",
+   "symbol_ids": [],
+   "repository_id": null,
+   "depends_on_ids": [],
+   "doc_only": false
+  },
+  {
+   "id": "dir::sub",
+   "name": "sub",
+   "level": "system",
+   "parent_ids": [],
+   "source_path": "sub",
+   "symbol_ids": [],
+   "repository_id": null,
+   "depends_on_ids": [],
+   "doc_only": false
+  },
+  {
+   "id": "component::sub/kept.py",
+   "name": "kept.py",
+   "level": "component",
+   "parent_ids": [
+    "dir::sub"
+   ],
+   "source_path": "sub/kept.py",
+   "symbol_ids": [],
+   "repository_id": null,
+   "depends_on_ids": [],
+   "doc_only": false
+  },
+  {
+   "id": "component::sub/.gitignore",
+   "name": ".gitignore",
+   "level": "component",
+   "parent_ids": [
+    "dir::sub"
+   ],
+   "source_path": "sub/.gitignore",
+   "symbol_ids": [],
+   "repository_id": null,
+   "depends_on_ids": [],
+   "doc_only": false
+  }
+ ],
+ "digest": {
+  "totals": {
+   "file_count": 2,
+   "class_count": 0,
+   "function_count": 0,
+   "edge_count": 0
+  },
+  "caps": {
+   "max_callees_per_symbol": 12,
+   "max_callers_per_symbol": 12,
+   "max_imports_per_file": 20,
+   "trivial_max_body_lines": 2,
+   "max_detailed_files": 500,
+   "max_total_symbol_entries": 6000
+  },
+  "truncated": false,
+  "files_omitted": 0,
+  "files": [
+   {
+    "path": "real.py",
+    "node_id": "component::real.py",
+    "imports": [],
+    "imports_overflow": 0,
+    "classes": [],
+    "classes_omitted": 0,
+    "functions": [],
+    "functions_omitted": 0
+   },
+   {
+    "path": "sub/kept.py",
+    "node_id": "component::sub/kept.py",
+    "imports": [],
+    "imports_overflow": 0,
+    "classes": [],
+    "classes_omitted": 0,
+    "functions": [],
+    "functions_omitted": 0
+   }
+  ]
+ },
+ "digest_tight": {
+  "totals": {
+   "file_count": 2,
+   "class_count": 0,
+   "function_count": 0,
+   "edge_count": 0
+  },
+  "caps": {
+   "max_callees_per_symbol": 1,
+   "max_callers_per_symbol": 1,
+   "max_imports_per_file": 1,
+   "trivial_max_body_lines": 2,
+   "max_detailed_files": 2,
+   "max_total_symbol_entries": 6000
+  },
+  "truncated": false,
+  "files_omitted": 0,
+  "files": [
+   {
+    "path": "real.py",
+    "node_id": "component::real.py",
+    "imports": [],
+    "imports_overflow": 0,
+    "classes": [],
+    "classes_omitted": 0,
+    "functions": [],
+    "functions_omitted": 0
+   },
+   {
+    "path": "sub/kept.py",
+    "node_id": "component::sub/kept.py",
+    "imports": [],
+    "imports_overflow": 0,
+    "classes": [],
+    "classes_omitted": 0,
+    "functions": [],
+    "functions_omitted": 0
+   }
+  ]
+ },
+ "clusters": {
+  "components": [],
+  "containers": [],
+  "component_edges": [],
+  "container_edges": [],
+  "undetermined_files": [
+   "real.py",
+   "sub/kept.py"
+  ],
+  "file_edge_weights": [],
+  "undetermined_candidates": {
+   "real.py": [],
+   "sub/kept.py": []
+  }
+ },
+ "structure": {
+  "default": {
+   "args": {},
+   "result": {
+    "root": "root",
+    "depth": 2,
+    "truncated": false,
+    "nodes": [
+     {
+      "node_id": "dir::sub",
+      "path": "sub",
+      "name": "sub",
+      "level": "folder",
+      "summary": "System `sub`: level=system; source=sub.",
+      "doc_only": false,
+      "child_count": 2,
+      "truncated": false,
+      "children": [
+       {
+        "node_id": "component::sub/.gitignore",
+        "path": "sub/.gitignore",
+        "name": ".gitignore",
+        "level": "file",
+        "summary": "Component `.gitignore`: level=component; source=sub/.gitignore.",
+        "doc_only": false,
+        "child_count": 0,
+        "truncated": false
+       },
+       {
+        "node_id": "component::sub/kept.py",
+        "path": "sub/kept.py",
+        "name": "kept.py",
+        "level": "file",
+        "summary": "Component `kept.py`: level=component; source=sub/kept.py.",
+        "doc_only": false,
+        "child_count": 0,
+        "truncated": false
+       }
+      ]
+     },
+     {
+      "node_id": "component::real.py",
+      "path": "real.py",
+      "name": "real.py",
+      "level": "file",
+      "summary": "Component `real.py`: level=component; source=real.py.",
+      "doc_only": false,
+      "child_count": 0,
+      "truncated": false
+     }
+    ]
+   }
+  },
+  "depth_1": {
+   "args": {
+    "depth": 1
+   },
+   "result": {
+    "root": "root",
+    "depth": 1,
+    "truncated": true,
+    "nodes": [
+     {
+      "node_id": "dir::sub",
+      "path": "sub",
+      "name": "sub",
+      "level": "folder",
+      "summary": "System `sub`: level=system; source=sub.",
+      "doc_only": false,
+      "child_count": 2,
+      "truncated": true
+     },
+     {
+      "node_id": "component::real.py",
+      "path": "real.py",
+      "name": "real.py",
+      "level": "file",
+      "summary": "Component `real.py`: level=component; source=real.py.",
+      "doc_only": false,
+      "child_count": 0,
+      "truncated": false
+     }
+    ]
+   }
+  },
+  "depth_5": {
+   "args": {
+    "depth": 5
+   },
+   "result": {
+    "root": "root",
+    "depth": 5,
+    "truncated": false,
+    "nodes": [
+     {
+      "node_id": "dir::sub",
+      "path": "sub",
+      "name": "sub",
+      "level": "folder",
+      "summary": "System `sub`: level=system; source=sub.",
+      "doc_only": false,
+      "child_count": 2,
+      "truncated": false,
+      "children": [
+       {
+        "node_id": "component::sub/.gitignore",
+        "path": "sub/.gitignore",
+        "name": ".gitignore",
+        "level": "file",
+        "summary": "Component `.gitignore`: level=component; source=sub/.gitignore.",
+        "doc_only": false,
+        "child_count": 0,
+        "truncated": false
+       },
+       {
+        "node_id": "component::sub/kept.py",
+        "path": "sub/kept.py",
+        "name": "kept.py",
+        "level": "file",
+        "summary": "Component `kept.py`: level=component; source=sub/kept.py.",
+        "doc_only": false,
+        "child_count": 0,
+        "truncated": false
+       }
+      ]
+     },
+     {
+      "node_id": "component::real.py",
+      "path": "real.py",
+      "name": "real.py",
+      "level": "file",
+      "summary": "Component `real.py`: level=component; source=real.py.",
+      "doc_only": false,
+      "child_count": 0,
+      "truncated": false
+     }
+    ]
+   }
+  },
+  "depth_99_is_clamped": {
+   "args": {
+    "depth": 99
+   },
+   "result": {
+    "root": "root",
+    "depth": 5,
+    "truncated": false,
+    "nodes": [
+     {
+      "node_id": "dir::sub",
+      "path": "sub",
+      "name": "sub",
+      "level": "folder",
+      "summary": "System `sub`: level=system; source=sub.",
+      "doc_only": false,
+      "child_count": 2,
+      "truncated": false,
+      "children": [
+       {
+        "node_id": "component::sub/.gitignore",
+        "path": "sub/.gitignore",
+        "name": ".gitignore",
+        "level": "file",
+        "summary": "Component `.gitignore`: level=component; source=sub/.gitignore.",
+        "doc_only": false,
+        "child_count": 0,
+        "truncated": false
+       },
+       {
+        "node_id": "component::sub/kept.py",
+        "path": "sub/kept.py",
+        "name": "kept.py",
+        "level": "file",
+        "summary": "Component `kept.py`: level=component; source=sub/kept.py.",
+        "doc_only": false,
+        "child_count": 0,
+        "truncated": false
+       }
+      ]
+     },
+     {
+      "node_id": "component::real.py",
+      "path": "real.py",
+      "name": "real.py",
+      "level": "file",
+      "summary": "Component `real.py`: level=component; source=real.py.",
+      "doc_only": false,
+      "child_count": 0,
+      "truncated": false
+     }
+    ]
+   }
+  },
+  "max_children_1": {
+   "args": {
+    "max_children": 1
+   },
+   "result": {
+    "root": "root",
+    "depth": 2,
+    "truncated": true,
+    "nodes": [
+     {
+      "node_id": "dir::sub",
+      "path": "sub",
+      "name": "sub",
+      "level": "folder",
+      "summary": "System `sub`: level=system; source=sub.",
+      "doc_only": false,
+      "child_count": 2,
+      "truncated": true,
+      "children": [
+       {
+        "node_id": "component::sub/.gitignore",
+        "path": "sub/.gitignore",
+        "name": ".gitignore",
+        "level": "file",
+        "summary": "Component `.gitignore`: level=component; source=sub/.gitignore.",
+        "doc_only": false,
+        "child_count": 0,
+        "truncated": false
+       }
+      ]
+     }
+    ]
+   }
+  },
+  "max_nodes_3": {
+   "args": {
+    "depth": 5,
+    "max_nodes": 3
+   },
+   "result": {
+    "root": "root",
+    "depth": 5,
+    "truncated": true,
+    "nodes": [
+     {
+      "node_id": "dir::sub",
+      "path": "sub",
+      "name": "sub",
+      "level": "folder",
+      "summary": "System `sub`: level=system; source=sub.",
+      "doc_only": false,
+      "child_count": 2,
+      "truncated": true,
+      "children": [
+       {
+        "node_id": "component::sub/.gitignore",
+        "path": "sub/.gitignore",
+        "name": ".gitignore",
+        "level": "file",
+        "summary": "Component `.gitignore`: level=component; source=sub/.gitignore.",
+        "doc_only": false,
+        "child_count": 0,
+        "truncated": false
+       }
+      ]
+     },
+     {
+      "node_id": "component::real.py",
+      "path": "real.py",
+      "name": "real.py",
+      "level": "file",
+      "summary": "Component `real.py`: level=component; source=real.py.",
+      "doc_only": false,
+      "child_count": 0,
+      "truncated": false
+     }
+    ]
+   }
+  },
+  "root_first_system_depth_1": {
+   "args": {
+    "root_id": "component::real.py",
+    "depth": 1
+   },
+   "result": {
+    "root": "component::real.py",
+    "depth": 1,
+    "truncated": false,
+    "nodes": []
+   }
+  },
+  "unknown_root": {
+   "args": {
+    "root_id": "dir::does-not-exist"
+   },
+   "error": "unknown_root"
+  }
+ },
+ "context_digest": {
+  "external_import_roots": [],
+  "declared_dependencies": [],
+  "readme_excerpt": null
+ }
+}

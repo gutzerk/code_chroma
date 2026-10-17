@@ -1,0 +1,1600 @@
+{
+ "schema_version": 1,
+ "nodes": [
+  {
+   "id": "component::CSharpGreeter.cs",
+   "name": "CSharpGreeter.cs",
+   "level": "component",
+   "parent_ids": [],
+   "source_path": "CSharpGreeter.cs",
+   "symbol_ids": [],
+   "repository_id": null,
+   "depends_on_ids": [],
+   "doc_only": false
+  },
+  {
+   "id": "CSharpGreeter.cs::class::Greeter",
+   "name": "Greeter",
+   "level": "service",
+   "parent_ids": [
+    "component::CSharpGreeter.cs"
+   ],
+   "source_path": "CSharpGreeter.cs",
+   "symbol_ids": [],
+   "repository_id": null,
+   "depends_on_ids": [],
+   "doc_only": false
+  },
+  {
+   "id": "CSharpGreeter.cs::function::Greeter.Hello",
+   "name": "Hello",
+   "level": "function",
+   "parent_ids": [
+    "CSharpGreeter.cs::class::Greeter"
+   ],
+   "source_path": "CSharpGreeter.cs",
+   "symbol_ids": [],
+   "repository_id": null,
+   "depends_on_ids": [],
+   "doc_only": false
+  },
+  {
+   "id": "logicblock::CSharpGreeter.cs::function::Greeter.Hello::0",
+   "name": "Step 1",
+   "level": "logic_block",
+   "parent_ids": [
+    "CSharpGreeter.cs::function::Greeter.Hello"
+   ],
+   "source_path": "CSharpGreeter.cs:10-10",
+   "symbol_ids": [],
+   "repository_id": null,
+   "depends_on_ids": [],
+   "doc_only": false
+  },
+  {
+   "id": "code::logicblock::CSharpGreeter.cs::function::Greeter.Hello::0",
+   "name": "CSharpGreeter.cs:10-10",
+   "level": "code",
+   "parent_ids": [
+    "logicblock::CSharpGreeter.cs::function::Greeter.Hello::0"
+   ],
+   "source_path": "CSharpGreeter.cs:10-10",
+   "symbol_ids": [],
+   "repository_id": null,
+   "depends_on_ids": [],
+   "doc_only": false
+  },
+  {
+   "id": "CSharpGreeter.cs::function::Greeter.Helper",
+   "name": "Helper",
+   "level": "function",
+   "parent_ids": [
+    "CSharpGreeter.cs::class::Greeter"
+   ],
+   "source_path": "CSharpGreeter.cs",
+   "symbol_ids": [],
+   "repository_id": null,
+   "depends_on_ids": [],
+   "doc_only": false
+  },
+  {
+   "id": "logicblock::CSharpGreeter.cs::function::Greeter.Helper::0",
+   "name": "Step 1",
+   "level": "logic_block",
+   "parent_ids": [
+    "CSharpGreeter.cs::function::Greeter.Helper"
+   ],
+   "source_path": "CSharpGreeter.cs:15-15",
+   "symbol_ids": [],
+   "repository_id": null,
+   "depends_on_ids": [],
+   "doc_only": false
+  },
+  {
+   "id": "code::logicblock::CSharpGreeter.cs::function::Greeter.Helper::0",
+   "name": "CSharpGreeter.cs:15-15",
+   "level": "code",
+   "parent_ids": [
+    "logicblock::CSharpGreeter.cs::function::Greeter.Helper::0"
+   ],
+   "source_path": "CSharpGreeter.cs:15-15",
+   "symbol_ids": [],
+   "repository_id": null,
+   "depends_on_ids": [],
+   "doc_only": false
+  },
+  {
+   "id": "component::JavaGreeter.java",
+   "name": "JavaGreeter.java",
+   "level": "component",
+   "parent_ids": [],
+   "source_path": "JavaGreeter.java",
+   "symbol_ids": [],
+   "repository_id": null,
+   "depends_on_ids": [],
+   "doc_only": false
+  },
+  {
+   "id": "JavaGreeter.java::class::Greeter",
+   "name": "Greeter",
+   "level": "service",
+   "parent_ids": [
+    "component::JavaGreeter.java"
+   ],
+   "source_path": "JavaGreeter.java",
+   "symbol_ids": [],
+   "repository_id": null,
+   "depends_on_ids": [],
+   "doc_only": false
+  },
+  {
+   "id": "JavaGreeter.java::function::Greeter.hello",
+   "name": "hello",
+   "level": "function",
+   "parent_ids": [
+    "JavaGreeter.java::class::Greeter"
+   ],
+   "source_path": "JavaGreeter.java",
+   "symbol_ids": [],
+   "repository_id": null,
+   "depends_on_ids": [],
+   "doc_only": false
+  },
+  {
+   "id": "logicblock::JavaGreeter.java::function::Greeter.hello::0",
+   "name": "Step 1",
+   "level": "logic_block",
+   "parent_ids": [
+    "JavaGreeter.java::function::Greeter.hello"
+   ],
+   "source_path": "JavaGreeter.java:9-9",
+   "symbol_ids": [],
+   "repository_id": null,
+   "depends_on_ids": [],
+   "doc_only": false
+  },
+  {
+   "id": "code::logicblock::JavaGreeter.java::function::Greeter.hello::0",
+   "name": "JavaGreeter.java:9-9",
+   "level": "code",
+   "parent_ids": [
+    "logicblock::JavaGreeter.java::function::Greeter.hello::0"
+   ],
+   "source_path": "JavaGreeter.java:9-9",
+   "symbol_ids": [],
+   "repository_id": null,
+   "depends_on_ids": [],
+   "doc_only": false
+  },
+  {
+   "id": "JavaGreeter.java::function::Greeter.helper",
+   "name": "helper",
+   "level": "function",
+   "parent_ids": [
+    "JavaGreeter.java::class::Greeter"
+   ],
+   "source_path": "JavaGreeter.java",
+   "symbol_ids": [],
+   "repository_id": null,
+   "depends_on_ids": [],
+   "doc_only": false
+  },
+  {
+   "id": "logicblock::JavaGreeter.java::function::Greeter.helper::0",
+   "name": "Step 1",
+   "level": "logic_block",
+   "parent_ids": [
+    "JavaGreeter.java::function::Greeter.helper"
+   ],
+   "source_path": "JavaGreeter.java:13-13",
+   "symbol_ids": [],
+   "repository_id": null,
+   "depends_on_ids": [],
+   "doc_only": false
+  },
+  {
+   "id": "code::logicblock::JavaGreeter.java::function::Greeter.helper::0",
+   "name": "JavaGreeter.java:13-13",
+   "level": "code",
+   "parent_ids": [
+    "logicblock::JavaGreeter.java::function::Greeter.helper::0"
+   ],
+   "source_path": "JavaGreeter.java:13-13",
+   "symbol_ids": [],
+   "repository_id": null,
+   "depends_on_ids": [],
+   "doc_only": false
+  },
+  {
+   "id": "component::c_greeter.c",
+   "name": "c_greeter.c",
+   "level": "component",
+   "parent_ids": [],
+   "source_path": "c_greeter.c",
+   "symbol_ids": [],
+   "repository_id": null,
+   "depends_on_ids": [],
+   "doc_only": false
+  },
+  {
+   "id": "service::c_greeter.c::functions",
+   "name": "Module Functions",
+   "level": "service",
+   "parent_ids": [
+    "component::c_greeter.c"
+   ],
+   "source_path": "c_greeter.c",
+   "symbol_ids": [],
+   "repository_id": null,
+   "depends_on_ids": [],
+   "doc_only": false
+  },
+  {
+   "id": "c_greeter.c::function::hello",
+   "name": "hello",
+   "level": "function",
+   "parent_ids": [
+    "service::c_greeter.c::functions"
+   ],
+   "source_path": "c_greeter.c",
+   "symbol_ids": [],
+   "repository_id": null,
+   "depends_on_ids": [],
+   "doc_only": false
+  },
+  {
+   "id": "logicblock::c_greeter.c::function::hello::0",
+   "name": "Step 1",
+   "level": "logic_block",
+   "parent_ids": [
+    "c_greeter.c::function::hello"
+   ],
+   "source_path": "c_greeter.c:5-5",
+   "symbol_ids": [],
+   "repository_id": null,
+   "depends_on_ids": [],
+   "doc_only": false
+  },
+  {
+   "id": "code::logicblock::c_greeter.c::function::hello::0",
+   "name": "c_greeter.c:5-5",
+   "level": "code",
+   "parent_ids": [
+    "logicblock::c_greeter.c::function::hello::0"
+   ],
+   "source_path": "c_greeter.c:5-5",
+   "symbol_ids": [],
+   "repository_id": null,
+   "depends_on_ids": [],
+   "doc_only": false
+  },
+  {
+   "id": "c_greeter.c::function::helper",
+   "name": "helper",
+   "level": "function",
+   "parent_ids": [
+    "service::c_greeter.c::functions"
+   ],
+   "source_path": "c_greeter.c",
+   "symbol_ids": [],
+   "repository_id": null,
+   "depends_on_ids": [],
+   "doc_only": false
+  },
+  {
+   "id": "logicblock::c_greeter.c::function::helper::0",
+   "name": "Step 1",
+   "level": "logic_block",
+   "parent_ids": [
+    "c_greeter.c::function::helper"
+   ],
+   "source_path": "c_greeter.c:9-9",
+   "symbol_ids": [],
+   "repository_id": null,
+   "depends_on_ids": [],
+   "doc_only": false
+  },
+  {
+   "id": "code::logicblock::c_greeter.c::function::helper::0",
+   "name": "c_greeter.c:9-9",
+   "level": "code",
+   "parent_ids": [
+    "logicblock::c_greeter.c::function::helper::0"
+   ],
+   "source_path": "c_greeter.c:9-9",
+   "symbol_ids": [],
+   "repository_id": null,
+   "depends_on_ids": [],
+   "doc_only": false
+  },
+  {
+   "id": "component::cpp_greeter.h",
+   "name": "cpp_greeter.h",
+   "level": "component",
+   "parent_ids": [],
+   "source_path": "cpp_greeter.h",
+   "symbol_ids": [],
+   "repository_id": null,
+   "depends_on_ids": [],
+   "doc_only": false
+  },
+  {
+   "id": "cpp_greeter.h::class::Greeter",
+   "name": "Greeter",
+   "level": "service",
+   "parent_ids": [
+    "component::cpp_greeter.h"
+   ],
+   "source_path": "cpp_greeter.h",
+   "symbol_ids": [],
+   "repository_id": null,
+   "depends_on_ids": [],
+   "doc_only": false
+  },
+  {
+   "id": "cpp_greeter.h::function::Greeter.hello",
+   "name": "hello",
+   "level": "function",
+   "parent_ids": [
+    "cpp_greeter.h::class::Greeter"
+   ],
+   "source_path": "cpp_greeter.h",
+   "symbol_ids": [],
+   "repository_id": null,
+   "depends_on_ids": [],
+   "doc_only": false
+  },
+  {
+   "id": "logicblock::cpp_greeter.h::function::Greeter.hello::0",
+   "name": "Step 1",
+   "level": "logic_block",
+   "parent_ids": [
+    "cpp_greeter.h::function::Greeter.hello"
+   ],
+   "source_path": "cpp_greeter.h:7-7",
+   "symbol_ids": [],
+   "repository_id": null,
+   "depends_on_ids": [],
+   "doc_only": false
+  },
+  {
+   "id": "code::logicblock::cpp_greeter.h::function::Greeter.hello::0",
+   "name": "cpp_greeter.h:7-7",
+   "level": "code",
+   "parent_ids": [
+    "logicblock::cpp_greeter.h::function::Greeter.hello::0"
+   ],
+   "source_path": "cpp_greeter.h:7-7",
+   "symbol_ids": [],
+   "repository_id": null,
+   "depends_on_ids": [],
+   "doc_only": false
+  },
+  {
+   "id": "cpp_greeter.h::function::Greeter.helper",
+   "name": "helper",
+   "level": "function",
+   "parent_ids": [
+    "cpp_greeter.h::class::Greeter"
+   ],
+   "source_path": "cpp_greeter.h",
+   "symbol_ids": [],
+   "repository_id": null,
+   "depends_on_ids": [],
+   "doc_only": false
+  },
+  {
+   "id": "logicblock::cpp_greeter.h::function::Greeter.helper::0",
+   "name": "Step 1",
+   "level": "logic_block",
+   "parent_ids": [
+    "cpp_greeter.h::function::Greeter.helper"
+   ],
+   "source_path": "cpp_greeter.h:12-12",
+   "symbol_ids": [],
+   "repository_id": null,
+   "depends_on_ids": [],
+   "doc_only": false
+  },
+  {
+   "id": "code::logicblock::cpp_greeter.h::function::Greeter.helper::0",
+   "name": "cpp_greeter.h:12-12",
+   "level": "code",
+   "parent_ids": [
+    "logicblock::cpp_greeter.h::function::Greeter.helper::0"
+   ],
+   "source_path": "cpp_greeter.h:12-12",
+   "symbol_ids": [],
+   "repository_id": null,
+   "depends_on_ids": [],
+   "doc_only": false
+  },
+  {
+   "id": "component::php_greeter.php",
+   "name": "php_greeter.php",
+   "level": "component",
+   "parent_ids": [],
+   "source_path": "php_greeter.php",
+   "symbol_ids": [],
+   "repository_id": null,
+   "depends_on_ids": [],
+   "doc_only": false
+  },
+  {
+   "id": "php_greeter.php::class::Greeter",
+   "name": "Greeter",
+   "level": "service",
+   "parent_ids": [
+    "component::php_greeter.php"
+   ],
+   "source_path": "php_greeter.php",
+   "symbol_ids": [],
+   "repository_id": null,
+   "depends_on_ids": [],
+   "doc_only": false
+  },
+  {
+   "id": "php_greeter.php::function::Greeter.hello",
+   "name": "hello",
+   "level": "function",
+   "parent_ids": [
+    "php_greeter.php::class::Greeter"
+   ],
+   "source_path": "php_greeter.php",
+   "symbol_ids": [],
+   "repository_id": null,
+   "depends_on_ids": [],
+   "doc_only": false
+  },
+  {
+   "id": "logicblock::php_greeter.php::function::Greeter.hello::0",
+   "name": "Step 1",
+   "level": "logic_block",
+   "parent_ids": [
+    "php_greeter.php::function::Greeter.hello"
+   ],
+   "source_path": "php_greeter.php:13-13",
+   "symbol_ids": [],
+   "repository_id": null,
+   "depends_on_ids": [],
+   "doc_only": false
+  },
+  {
+   "id": "code::logicblock::php_greeter.php::function::Greeter.hello::0",
+   "name": "php_greeter.php:13-13",
+   "level": "code",
+   "parent_ids": [
+    "logicblock::php_greeter.php::function::Greeter.hello::0"
+   ],
+   "source_path": "php_greeter.php:13-13",
+   "symbol_ids": [],
+   "repository_id": null,
+   "depends_on_ids": [],
+   "doc_only": false
+  },
+  {
+   "id": "php_greeter.php::function::Greeter.helper",
+   "name": "helper",
+   "level": "function",
+   "parent_ids": [
+    "php_greeter.php::class::Greeter"
+   ],
+   "source_path": "php_greeter.php",
+   "symbol_ids": [],
+   "repository_id": null,
+   "depends_on_ids": [],
+   "doc_only": false
+  },
+  {
+   "id": "logicblock::php_greeter.php::function::Greeter.helper::0",
+   "name": "Step 1",
+   "level": "logic_block",
+   "parent_ids": [
+    "php_greeter.php::function::Greeter.helper"
+   ],
+   "source_path": "php_greeter.php:18-18",
+   "symbol_ids": [],
+   "repository_id": null,
+   "depends_on_ids": [],
+   "doc_only": false
+  },
+  {
+   "id": "code::logicblock::php_greeter.php::function::Greeter.helper::0",
+   "name": "php_greeter.php:18-18",
+   "level": "code",
+   "parent_ids": [
+    "logicblock::php_greeter.php::function::Greeter.helper::0"
+   ],
+   "source_path": "php_greeter.php:18-18",
+   "symbol_ids": [],
+   "repository_id": null,
+   "depends_on_ids": [],
+   "doc_only": false
+  },
+  {
+   "id": "component::ruby_greeter.rb",
+   "name": "ruby_greeter.rb",
+   "level": "component",
+   "parent_ids": [],
+   "source_path": "ruby_greeter.rb",
+   "symbol_ids": [],
+   "repository_id": null,
+   "depends_on_ids": [],
+   "doc_only": false
+  },
+  {
+   "id": "ruby_greeter.rb::class::Greeter",
+   "name": "Greeter",
+   "level": "service",
+   "parent_ids": [
+    "component::ruby_greeter.rb"
+   ],
+   "source_path": "ruby_greeter.rb",
+   "symbol_ids": [],
+   "repository_id": null,
+   "depends_on_ids": [],
+   "doc_only": false
+  },
+  {
+   "id": "ruby_greeter.rb::function::Greeter.hello",
+   "name": "hello",
+   "level": "function",
+   "parent_ids": [
+    "ruby_greeter.rb::class::Greeter"
+   ],
+   "source_path": "ruby_greeter.rb",
+   "symbol_ids": [],
+   "repository_id": null,
+   "depends_on_ids": [],
+   "doc_only": false
+  },
+  {
+   "id": "logicblock::ruby_greeter.rb::function::Greeter.hello::0",
+   "name": "Step 1",
+   "level": "logic_block",
+   "parent_ids": [
+    "ruby_greeter.rb::function::Greeter.hello"
+   ],
+   "source_path": "ruby_greeter.rb:5-5",
+   "symbol_ids": [],
+   "repository_id": null,
+   "depends_on_ids": [],
+   "doc_only": false
+  },
+  {
+   "id": "code::logicblock::ruby_greeter.rb::function::Greeter.hello::0",
+   "name": "ruby_greeter.rb:5-5",
+   "level": "code",
+   "parent_ids": [
+    "logicblock::ruby_greeter.rb::function::Greeter.hello::0"
+   ],
+   "source_path": "ruby_greeter.rb:5-5",
+   "symbol_ids": [],
+   "repository_id": null,
+   "depends_on_ids": [],
+   "doc_only": false
+  },
+  {
+   "id": "ruby_greeter.rb::function::Greeter.helper",
+   "name": "helper",
+   "level": "function",
+   "parent_ids": [
+    "ruby_greeter.rb::class::Greeter"
+   ],
+   "source_path": "ruby_greeter.rb",
+   "symbol_ids": [],
+   "repository_id": null,
+   "depends_on_ids": [],
+   "doc_only": false
+  },
+  {
+   "id": "logicblock::ruby_greeter.rb::function::Greeter.helper::0",
+   "name": "Step 1",
+   "level": "logic_block",
+   "parent_ids": [
+    "ruby_greeter.rb::function::Greeter.helper"
+   ],
+   "source_path": "ruby_greeter.rb:9-9",
+   "symbol_ids": [],
+   "repository_id": null,
+   "depends_on_ids": [],
+   "doc_only": false
+  },
+  {
+   "id": "code::logicblock::ruby_greeter.rb::function::Greeter.helper::0",
+   "name": "ruby_greeter.rb:9-9",
+   "level": "code",
+   "parent_ids": [
+    "logicblock::ruby_greeter.rb::function::Greeter.helper::0"
+   ],
+   "source_path": "ruby_greeter.rb:9-9",
+   "symbol_ids": [],
+   "repository_id": null,
+   "depends_on_ids": [],
+   "doc_only": false
+  },
+  {
+   "id": "component::rust_greeter.rs",
+   "name": "rust_greeter.rs",
+   "level": "component",
+   "parent_ids": [],
+   "source_path": "rust_greeter.rs",
+   "symbol_ids": [],
+   "repository_id": null,
+   "depends_on_ids": [],
+   "doc_only": false
+  },
+  {
+   "id": "service::rust_greeter.rs::functions",
+   "name": "Module Functions",
+   "level": "service",
+   "parent_ids": [
+    "component::rust_greeter.rs"
+   ],
+   "source_path": "rust_greeter.rs",
+   "symbol_ids": [],
+   "repository_id": null,
+   "depends_on_ids": [],
+   "doc_only": false
+  },
+  {
+   "id": "rust_greeter.rs::function::hello",
+   "name": "hello",
+   "level": "function",
+   "parent_ids": [
+    "service::rust_greeter.rs::functions"
+   ],
+   "source_path": "rust_greeter.rs",
+   "symbol_ids": [],
+   "repository_id": null,
+   "depends_on_ids": [],
+   "doc_only": false
+  },
+  {
+   "id": "logicblock::rust_greeter.rs::function::hello::0",
+   "name": "Step 1",
+   "level": "logic_block",
+   "parent_ids": [
+    "rust_greeter.rs::function::hello"
+   ],
+   "source_path": "rust_greeter.rs:5-5",
+   "symbol_ids": [],
+   "repository_id": null,
+   "depends_on_ids": [],
+   "doc_only": false
+  },
+  {
+   "id": "code::logicblock::rust_greeter.rs::function::hello::0",
+   "name": "rust_greeter.rs:5-5",
+   "level": "code",
+   "parent_ids": [
+    "logicblock::rust_greeter.rs::function::hello::0"
+   ],
+   "source_path": "rust_greeter.rs:5-5",
+   "symbol_ids": [],
+   "repository_id": null,
+   "depends_on_ids": [],
+   "doc_only": false
+  },
+  {
+   "id": "rust_greeter.rs::function::helper",
+   "name": "helper",
+   "level": "function",
+   "parent_ids": [
+    "service::rust_greeter.rs::functions"
+   ],
+   "source_path": "rust_greeter.rs",
+   "symbol_ids": [],
+   "repository_id": null,
+   "depends_on_ids": [],
+   "doc_only": false
+  },
+  {
+   "id": "logicblock::rust_greeter.rs::function::helper::0",
+   "name": "Step 1",
+   "level": "logic_block",
+   "parent_ids": [
+    "rust_greeter.rs::function::helper"
+   ],
+   "source_path": "rust_greeter.rs:9-9",
+   "symbol_ids": [],
+   "repository_id": null,
+   "depends_on_ids": [],
+   "doc_only": false
+  },
+  {
+   "id": "code::logicblock::rust_greeter.rs::function::helper::0",
+   "name": "rust_greeter.rs:9-9",
+   "level": "code",
+   "parent_ids": [
+    "logicblock::rust_greeter.rs::function::helper::0"
+   ],
+   "source_path": "rust_greeter.rs:9-9",
+   "symbol_ids": [],
+   "repository_id": null,
+   "depends_on_ids": [],
+   "doc_only": false
+  }
+ ],
+ "digest": {
+  "totals": {
+   "file_count": 7,
+   "class_count": 5,
+   "function_count": 14,
+   "edge_count": 0
+  },
+  "caps": {
+   "max_callees_per_symbol": 12,
+   "max_callers_per_symbol": 12,
+   "max_imports_per_file": 20,
+   "trivial_max_body_lines": 2,
+   "max_detailed_files": 500,
+   "max_total_symbol_entries": 6000
+  },
+  "truncated": false,
+  "files_omitted": 0,
+  "files": [
+   {
+    "path": "CSharpGreeter.cs",
+    "node_id": "component::CSharpGreeter.cs",
+    "imports": [],
+    "imports_overflow": 0,
+    "classes": [
+     {
+      "id": "CSharpGreeter.cs::class::Greeter",
+      "node_id": "CSharpGreeter.cs::class::Greeter",
+      "name": "Greeter",
+      "is_trivial": false,
+      "calls": [],
+      "calls_overflow": 0,
+      "called_by": [],
+      "called_by_overflow": 0,
+      "methods": [
+       {
+        "id": "CSharpGreeter.cs::function::Greeter.Hello",
+        "node_id": "CSharpGreeter.cs::function::Greeter.Hello",
+        "name": "Hello",
+        "is_trivial": false,
+        "calls": [],
+        "calls_overflow": 0,
+        "called_by": [],
+        "called_by_overflow": 0
+       },
+       {
+        "id": "CSharpGreeter.cs::function::Greeter.Helper",
+        "node_id": "CSharpGreeter.cs::function::Greeter.Helper",
+        "name": "Helper",
+        "is_trivial": false,
+        "calls": [],
+        "calls_overflow": 0,
+        "called_by": [],
+        "called_by_overflow": 0
+       }
+      ],
+      "methods_omitted": 0
+     }
+    ],
+    "classes_omitted": 0,
+    "functions": [],
+    "functions_omitted": 0
+   },
+   {
+    "path": "JavaGreeter.java",
+    "node_id": "component::JavaGreeter.java",
+    "imports": [],
+    "imports_overflow": 0,
+    "classes": [
+     {
+      "id": "JavaGreeter.java::class::Greeter",
+      "node_id": "JavaGreeter.java::class::Greeter",
+      "name": "Greeter",
+      "is_trivial": false,
+      "calls": [],
+      "calls_overflow": 0,
+      "called_by": [],
+      "called_by_overflow": 0,
+      "methods": [
+       {
+        "id": "JavaGreeter.java::function::Greeter.hello",
+        "node_id": "JavaGreeter.java::function::Greeter.hello",
+        "name": "hello",
+        "is_trivial": false,
+        "calls": [],
+        "calls_overflow": 0,
+        "called_by": [],
+        "called_by_overflow": 0
+       },
+       {
+        "id": "JavaGreeter.java::function::Greeter.helper",
+        "node_id": "JavaGreeter.java::function::Greeter.helper",
+        "name": "helper",
+        "is_trivial": false,
+        "calls": [],
+        "calls_overflow": 0,
+        "called_by": [],
+        "called_by_overflow": 0
+       }
+      ],
+      "methods_omitted": 0
+     }
+    ],
+    "classes_omitted": 0,
+    "functions": [],
+    "functions_omitted": 0
+   },
+   {
+    "path": "c_greeter.c",
+    "node_id": "component::c_greeter.c",
+    "imports": [],
+    "imports_overflow": 0,
+    "classes": [],
+    "classes_omitted": 0,
+    "functions": [
+     {
+      "id": "c_greeter.c::function::hello",
+      "node_id": "c_greeter.c::function::hello",
+      "name": "hello",
+      "is_trivial": false,
+      "calls": [],
+      "calls_overflow": 0,
+      "called_by": [],
+      "called_by_overflow": 0
+     },
+     {
+      "id": "c_greeter.c::function::helper",
+      "node_id": "c_greeter.c::function::helper",
+      "name": "helper",
+      "is_trivial": false,
+      "calls": [],
+      "calls_overflow": 0,
+      "called_by": [],
+      "called_by_overflow": 0
+     }
+    ],
+    "functions_omitted": 0
+   },
+   {
+    "path": "cpp_greeter.h",
+    "node_id": "component::cpp_greeter.h",
+    "imports": [],
+    "imports_overflow": 0,
+    "classes": [
+     {
+      "id": "cpp_greeter.h::class::Greeter",
+      "node_id": "cpp_greeter.h::class::Greeter",
+      "name": "Greeter",
+      "is_trivial": false,
+      "calls": [],
+      "calls_overflow": 0,
+      "called_by": [],
+      "called_by_overflow": 0,
+      "methods": [
+       {
+        "id": "cpp_greeter.h::function::Greeter.hello",
+        "node_id": "cpp_greeter.h::function::Greeter.hello",
+        "name": "hello",
+        "is_trivial": false,
+        "calls": [],
+        "calls_overflow": 0,
+        "called_by": [],
+        "called_by_overflow": 0
+       },
+       {
+        "id": "cpp_greeter.h::function::Greeter.helper",
+        "node_id": "cpp_greeter.h::function::Greeter.helper",
+        "name": "helper",
+        "is_trivial": false,
+        "calls": [],
+        "calls_overflow": 0,
+        "called_by": [],
+        "called_by_overflow": 0
+       }
+      ],
+      "methods_omitted": 0
+     }
+    ],
+    "classes_omitted": 0,
+    "functions": [],
+    "functions_omitted": 0
+   },
+   {
+    "path": "php_greeter.php",
+    "node_id": "component::php_greeter.php",
+    "imports": [],
+    "imports_overflow": 0,
+    "classes": [
+     {
+      "id": "php_greeter.php::class::Greeter",
+      "node_id": "php_greeter.php::class::Greeter",
+      "name": "Greeter",
+      "is_trivial": false,
+      "calls": [],
+      "calls_overflow": 0,
+      "called_by": [],
+      "called_by_overflow": 0,
+      "methods": [
+       {
+        "id": "php_greeter.php::function::Greeter.hello",
+        "node_id": "php_greeter.php::function::Greeter.hello",
+        "name": "hello",
+        "is_trivial": false,
+        "calls": [],
+        "calls_overflow": 0,
+        "called_by": [],
+        "called_by_overflow": 0
+       },
+       {
+        "id": "php_greeter.php::function::Greeter.helper",
+        "node_id": "php_greeter.php::function::Greeter.helper",
+        "name": "helper",
+        "is_trivial": false,
+        "calls": [],
+        "calls_overflow": 0,
+        "called_by": [],
+        "called_by_overflow": 0
+       }
+      ],
+      "methods_omitted": 0
+     }
+    ],
+    "classes_omitted": 0,
+    "functions": [],
+    "functions_omitted": 0
+   },
+   {
+    "path": "ruby_greeter.rb",
+    "node_id": "component::ruby_greeter.rb",
+    "imports": [],
+    "imports_overflow": 0,
+    "classes": [
+     {
+      "id": "ruby_greeter.rb::class::Greeter",
+      "node_id": "ruby_greeter.rb::class::Greeter",
+      "name": "Greeter",
+      "is_trivial": false,
+      "calls": [],
+      "calls_overflow": 0,
+      "called_by": [],
+      "called_by_overflow": 0,
+      "methods": [
+       {
+        "id": "ruby_greeter.rb::function::Greeter.hello",
+        "node_id": "ruby_greeter.rb::function::Greeter.hello",
+        "name": "hello",
+        "is_trivial": false,
+        "calls": [],
+        "calls_overflow": 0,
+        "called_by": [],
+        "called_by_overflow": 0
+       },
+       {
+        "id": "ruby_greeter.rb::function::Greeter.helper",
+        "node_id": "ruby_greeter.rb::function::Greeter.helper",
+        "name": "helper",
+        "is_trivial": false,
+        "calls": [],
+        "calls_overflow": 0,
+        "called_by": [],
+        "called_by_overflow": 0
+       }
+      ],
+      "methods_omitted": 0
+     }
+    ],
+    "classes_omitted": 0,
+    "functions": [],
+    "functions_omitted": 0
+   },
+   {
+    "path": "rust_greeter.rs",
+    "node_id": "component::rust_greeter.rs",
+    "imports": [],
+    "imports_overflow": 0,
+    "classes": [],
+    "classes_omitted": 0,
+    "functions": [
+     {
+      "id": "rust_greeter.rs::function::hello",
+      "node_id": "rust_greeter.rs::function::hello",
+      "name": "hello",
+      "is_trivial": false,
+      "calls": [],
+      "calls_overflow": 0,
+      "called_by": [],
+      "called_by_overflow": 0
+     },
+     {
+      "id": "rust_greeter.rs::function::helper",
+      "node_id": "rust_greeter.rs::function::helper",
+      "name": "helper",
+      "is_trivial": false,
+      "calls": [],
+      "calls_overflow": 0,
+      "called_by": [],
+      "called_by_overflow": 0
+     }
+    ],
+    "functions_omitted": 0
+   }
+  ]
+ },
+ "digest_tight": {
+  "totals": {
+   "file_count": 7,
+   "class_count": 5,
+   "function_count": 14,
+   "edge_count": 0
+  },
+  "caps": {
+   "max_callees_per_symbol": 1,
+   "max_callers_per_symbol": 1,
+   "max_imports_per_file": 1,
+   "trivial_max_body_lines": 2,
+   "max_detailed_files": 2,
+   "max_total_symbol_entries": 6000
+  },
+  "truncated": true,
+  "files_omitted": 5,
+  "files": [
+   {
+    "path": "CSharpGreeter.cs",
+    "node_id": "component::CSharpGreeter.cs",
+    "imports": [],
+    "imports_overflow": 0,
+    "classes": [
+     {
+      "id": "CSharpGreeter.cs::class::Greeter",
+      "node_id": "CSharpGreeter.cs::class::Greeter",
+      "name": "Greeter",
+      "is_trivial": false,
+      "calls": [],
+      "calls_overflow": 0,
+      "called_by": [],
+      "called_by_overflow": 0,
+      "methods": [
+       {
+        "id": "CSharpGreeter.cs::function::Greeter.Hello",
+        "node_id": "CSharpGreeter.cs::function::Greeter.Hello",
+        "name": "Hello",
+        "is_trivial": false,
+        "calls": [],
+        "calls_overflow": 0,
+        "called_by": [],
+        "called_by_overflow": 0
+       },
+       {
+        "id": "CSharpGreeter.cs::function::Greeter.Helper",
+        "node_id": "CSharpGreeter.cs::function::Greeter.Helper",
+        "name": "Helper",
+        "is_trivial": false,
+        "calls": [],
+        "calls_overflow": 0,
+        "called_by": [],
+        "called_by_overflow": 0
+       }
+      ],
+      "methods_omitted": 0
+     }
+    ],
+    "classes_omitted": 0,
+    "functions": [],
+    "functions_omitted": 0
+   },
+   {
+    "path": "JavaGreeter.java",
+    "node_id": "component::JavaGreeter.java",
+    "imports": [],
+    "imports_overflow": 0,
+    "classes": [
+     {
+      "id": "JavaGreeter.java::class::Greeter",
+      "node_id": "JavaGreeter.java::class::Greeter",
+      "name": "Greeter",
+      "is_trivial": false,
+      "calls": [],
+      "calls_overflow": 0,
+      "called_by": [],
+      "called_by_overflow": 0,
+      "methods": [
+       {
+        "id": "JavaGreeter.java::function::Greeter.hello",
+        "node_id": "JavaGreeter.java::function::Greeter.hello",
+        "name": "hello",
+        "is_trivial": false,
+        "calls": [],
+        "calls_overflow": 0,
+        "called_by": [],
+        "called_by_overflow": 0
+       },
+       {
+        "id": "JavaGreeter.java::function::Greeter.helper",
+        "node_id": "JavaGreeter.java::function::Greeter.helper",
+        "name": "helper",
+        "is_trivial": false,
+        "calls": [],
+        "calls_overflow": 0,
+        "called_by": [],
+        "called_by_overflow": 0
+       }
+      ],
+      "methods_omitted": 0
+     }
+    ],
+    "classes_omitted": 0,
+    "functions": [],
+    "functions_omitted": 0
+   },
+   {
+    "path": "c_greeter.c",
+    "node_id": "component::c_greeter.c",
+    "detail_omitted": true
+   },
+   {
+    "path": "cpp_greeter.h",
+    "node_id": "component::cpp_greeter.h",
+    "detail_omitted": true
+   },
+   {
+    "path": "php_greeter.php",
+    "node_id": "component::php_greeter.php",
+    "detail_omitted": true
+   },
+   {
+    "path": "ruby_greeter.rb",
+    "node_id": "component::ruby_greeter.rb",
+    "detail_omitted": true
+   },
+   {
+    "path": "rust_greeter.rs",
+    "node_id": "component::rust_greeter.rs",
+    "detail_omitted": true
+   }
+  ]
+ },
+ "clusters": {
+  "components": [
+   {
+    "id": "folder::<root>",
+    "container_id": "solo::folder::<root>",
+    "files": [
+     "CSharpGreeter.cs",
+     "JavaGreeter.java",
+     "c_greeter.c",
+     "cpp_greeter.h",
+     "php_greeter.php",
+     "ruby_greeter.rb",
+     "rust_greeter.rs"
+    ]
+   }
+  ],
+  "containers": [
+   {
+    "id": "solo::folder::<root>",
+    "component_ids": [
+     "folder::<root>"
+    ]
+   }
+  ],
+  "component_edges": [],
+  "container_edges": [],
+  "undetermined_files": [],
+  "file_edge_weights": [],
+  "undetermined_candidates": {}
+ },
+ "structure": {
+  "default": {
+   "args": {},
+   "result": {
+    "root": "root",
+    "depth": 2,
+    "truncated": false,
+    "nodes": [
+     {
+      "node_id": "component::CSharpGreeter.cs",
+      "path": "CSharpGreeter.cs",
+      "name": "CSharpGreeter.cs",
+      "level": "file",
+      "summary": "Component `CSharpGreeter.cs`: level=component; source=CSharpGreeter.cs.",
+      "doc_only": false,
+      "child_count": 0,
+      "truncated": false
+     },
+     {
+      "node_id": "component::JavaGreeter.java",
+      "path": "JavaGreeter.java",
+      "name": "JavaGreeter.java",
+      "level": "file",
+      "summary": "Component `JavaGreeter.java`: level=component; source=JavaGreeter.java.",
+      "doc_only": false,
+      "child_count": 0,
+      "truncated": false
+     },
+     {
+      "node_id": "component::c_greeter.c",
+      "path": "c_greeter.c",
+      "name": "c_greeter.c",
+      "level": "file",
+      "summary": "Component `c_greeter.c`: level=component; source=c_greeter.c.",
+      "doc_only": false,
+      "child_count": 0,
+      "truncated": false
+     },
+     {
+      "node_id": "component::cpp_greeter.h",
+      "path": "cpp_greeter.h",
+      "name": "cpp_greeter.h",
+      "level": "file",
+      "summary": "Component `cpp_greeter.h`: level=component; source=cpp_greeter.h.",
+      "doc_only": false,
+      "child_count": 0,
+      "truncated": false
+     },
+     {
+      "node_id": "component::php_greeter.php",
+      "path": "php_greeter.php",
+      "name": "php_greeter.php",
+      "level": "file",
+      "summary": "Component `php_greeter.php`: level=component; source=php_greeter.php.",
+      "doc_only": false,
+      "child_count": 0,
+      "truncated": false
+     },
+     {
+      "node_id": "component::ruby_greeter.rb",
+      "path": "ruby_greeter.rb",
+      "name": "ruby_greeter.rb",
+      "level": "file",
+      "summary": "Component `ruby_greeter.rb`: level=component; source=ruby_greeter.rb.",
+      "doc_only": false,
+      "child_count": 0,
+      "truncated": false
+     },
+     {
+      "node_id": "component::rust_greeter.rs",
+      "path": "rust_greeter.rs",
+      "name": "rust_greeter.rs",
+      "level": "file",
+      "summary": "Component `rust_greeter.rs`: level=component; source=rust_greeter.rs.",
+      "doc_only": false,
+      "child_count": 0,
+      "truncated": false
+     }
+    ]
+   }
+  },
+  "depth_1": {
+   "args": {
+    "depth": 1
+   },
+   "result": {
+    "root": "root",
+    "depth": 1,
+    "truncated": false,
+    "nodes": [
+     {
+      "node_id": "component::CSharpGreeter.cs",
+      "path": "CSharpGreeter.cs",
+      "name": "CSharpGreeter.cs",
+      "level": "file",
+      "summary": "Component `CSharpGreeter.cs`: level=component; source=CSharpGreeter.cs.",
+      "doc_only": false,
+      "child_count": 0,
+      "truncated": false
+     },
+     {
+      "node_id": "component::JavaGreeter.java",
+      "path": "JavaGreeter.java",
+      "name": "JavaGreeter.java",
+      "level": "file",
+      "summary": "Component `JavaGreeter.java`: level=component; source=JavaGreeter.java.",
+      "doc_only": false,
+      "child_count": 0,
+      "truncated": false
+     },
+     {
+      "node_id": "component::c_greeter.c",
+      "path": "c_greeter.c",
+      "name": "c_greeter.c",
+      "level": "file",
+      "summary": "Component `c_greeter.c`: level=component; source=c_greeter.c.",
+      "doc_only": false,
+      "child_count": 0,
+      "truncated": false
+     },
+     {
+      "node_id": "component::cpp_greeter.h",
+      "path": "cpp_greeter.h",
+      "name": "cpp_greeter.h",
+      "level": "file",
+      "summary": "Component `cpp_greeter.h`: level=component; source=cpp_greeter.h.",
+      "doc_only": false,
+      "child_count": 0,
+      "truncated": false
+     },
+     {
+      "node_id": "component::php_greeter.php",
+      "path": "php_greeter.php",
+      "name": "php_greeter.php",
+      "level": "file",
+      "summary": "Component `php_greeter.php`: level=component; source=php_greeter.php.",
+      "doc_only": false,
+      "child_count": 0,
+      "truncated": false
+     },
+     {
+      "node_id": "component::ruby_greeter.rb",
+      "path": "ruby_greeter.rb",
+      "name": "ruby_greeter.rb",
+      "level": "file",
+      "summary": "Component `ruby_greeter.rb`: level=component; source=ruby_greeter.rb.",
+      "doc_only": false,
+      "child_count": 0,
+      "truncated": false
+     },
+     {
+      "node_id": "component::rust_greeter.rs",
+      "path": "rust_greeter.rs",
+      "name": "rust_greeter.rs",
+      "level": "file",
+      "summary": "Component `rust_greeter.rs`: level=component; source=rust_greeter.rs.",
+      "doc_only": false,
+      "child_count": 0,
+      "truncated": false
+     }
+    ]
+   }
+  },
+  "depth_5": {
+   "args": {
+    "depth": 5
+   },
+   "result": {
+    "root": "root",
+    "depth": 5,
+    "truncated": false,
+    "nodes": [
+     {
+      "node_id": "component::CSharpGreeter.cs",
+      "path": "CSharpGreeter.cs",
+      "name": "CSharpGreeter.cs",
+      "level": "file",
+      "summary": "Component `CSharpGreeter.cs`: level=component; source=CSharpGreeter.cs.",
+      "doc_only": false,
+      "child_count": 0,
+      "truncated": false
+     },
+     {
+      "node_id": "component::JavaGreeter.java",
+      "path": "JavaGreeter.java",
+      "name": "JavaGreeter.java",
+      "level": "file",
+      "summary": "Component `JavaGreeter.java`: level=component; source=JavaGreeter.java.",
+      "doc_only": false,
+      "child_count": 0,
+      "truncated": false
+     },
+     {
+      "node_id": "component::c_greeter.c",
+      "path": "c_greeter.c",
+      "name": "c_greeter.c",
+      "level": "file",
+      "summary": "Component `c_greeter.c`: level=component; source=c_greeter.c.",
+      "doc_only": false,
+      "child_count": 0,
+      "truncated": false
+     },
+     {
+      "node_id": "component::cpp_greeter.h",
+      "path": "cpp_greeter.h",
+      "name": "cpp_greeter.h",
+      "level": "file",
+      "summary": "Component `cpp_greeter.h`: level=component; source=cpp_greeter.h.",
+      "doc_only": false,
+      "child_count": 0,
+      "truncated": false
+     },
+     {
+      "node_id": "component::php_greeter.php",
+      "path": "php_greeter.php",
+      "name": "php_greeter.php",
+      "level": "file",
+      "summary": "Component `php_greeter.php`: level=component; source=php_greeter.php.",
+      "doc_only": false,
+      "child_count": 0,
+      "truncated": false
+     },
+     {
+      "node_id": "component::ruby_greeter.rb",
+      "path": "ruby_greeter.rb",
+      "name": "ruby_greeter.rb",
+      "level": "file",
+      "summary": "Component `ruby_greeter.rb`: level=component; source=ruby_greeter.rb.",
+      "doc_only": false,
+      "child_count": 0,
+      "truncated": false
+     },
+     {
+      "node_id": "component::rust_greeter.rs",
+      "path": "rust_greeter.rs",
+      "name": "rust_greeter.rs",
+      "level": "file",
+      "summary": "Component `rust_greeter.rs`: level=component; source=rust_greeter.rs.",
+      "doc_only": false,
+      "child_count": 0,
+      "truncated": false
+     }
+    ]
+   }
+  },
+  "depth_99_is_clamped": {
+   "args": {
+    "depth": 99
+   },
+   "result": {
+    "root": "root",
+    "depth": 5,
+    "truncated": false,
+    "nodes": [
+     {
+      "node_id": "component::CSharpGreeter.cs",
+      "path": "CSharpGreeter.cs",
+      "name": "CSharpGreeter.cs",
+      "level": "file",
+      "summary": "Component `CSharpGreeter.cs`: level=component; source=CSharpGreeter.cs.",
+      "doc_only": false,
+      "child_count": 0,
+      "truncated": false
+     },
+     {
+      "node_id": "component::JavaGreeter.java",
+      "path": "JavaGreeter.java",
+      "name": "JavaGreeter.java",
+      "level": "file",
+      "summary": "Component `JavaGreeter.java`: level=component; source=JavaGreeter.java.",
+      "doc_only": false,
+      "child_count": 0,
+      "truncated": false
+     },
+     {
+      "node_id": "component::c_greeter.c",
+      "path": "c_greeter.c",
+      "name": "c_greeter.c",
+      "level": "file",
+      "summary": "Component `c_greeter.c`: level=component; source=c_greeter.c.",
+      "doc_only": false,
+      "child_count": 0,
+      "truncated": false
+     },
+     {
+      "node_id": "component::cpp_greeter.h",
+      "path": "cpp_greeter.h",
+      "name": "cpp_greeter.h",
+      "level": "file",
+      "summary": "Component `cpp_greeter.h`: level=component; source=cpp_greeter.h.",
+      "doc_only": false,
+      "child_count": 0,
+      "truncated": false
+     },
+     {
+      "node_id": "component::php_greeter.php",
+      "path": "php_greeter.php",
+      "name": "php_greeter.php",
+      "level": "file",
+      "summary": "Component `php_greeter.php`: level=component; source=php_greeter.php.",
+      "doc_only": false,
+      "child_count": 0,
+      "truncated": false
+     },
+     {
+      "node_id": "component::ruby_greeter.rb",
+      "path": "ruby_greeter.rb",
+      "name": "ruby_greeter.rb",
+      "level": "file",
+      "summary": "Component `ruby_greeter.rb`: level=component; source=ruby_greeter.rb.",
+      "doc_only": false,
+      "child_count": 0,
+      "truncated": false
+     },
+     {
+      "node_id": "component::rust_greeter.rs",
+      "path": "rust_greeter.rs",
+      "name": "rust_greeter.rs",
+      "level": "file",
+      "summary": "Component `rust_greeter.rs`: level=component; source=rust_greeter.rs.",
+      "doc_only": false,
+      "child_count": 0,
+      "truncated": false
+     }
+    ]
+   }
+  },
+  "max_children_1": {
+   "args": {
+    "max_children": 1
+   },
+   "result": {
+    "root": "root",
+    "depth": 2,
+    "truncated": true,
+    "nodes": [
+     {
+      "node_id": "component::CSharpGreeter.cs",
+      "path": "CSharpGreeter.cs",
+      "name": "CSharpGreeter.cs",
+      "level": "file",
+      "summary": "Component `CSharpGreeter.cs`: level=component; source=CSharpGreeter.cs.",
+      "doc_only": false,
+      "child_count": 0,
+      "truncated": false
+     }
+    ]
+   }
+  },
+  "max_nodes_3": {
+   "args": {
+    "depth": 5,
+    "max_nodes": 3
+   },
+   "result": {
+    "root": "root",
+    "depth": 5,
+    "truncated": true,
+    "nodes": [
+     {
+      "node_id": "component::CSharpGreeter.cs",
+      "path": "CSharpGreeter.cs",
+      "name": "CSharpGreeter.cs",
+      "level": "file",
+      "summary": "Component `CSharpGreeter.cs`: level=component; source=CSharpGreeter.cs.",
+      "doc_only": false,
+      "child_count": 0,
+      "truncated": false
+     },
+     {
+      "node_id": "component::JavaGreeter.java",
+      "path": "JavaGreeter.java",
+      "name": "JavaGreeter.java",
+      "level": "file",
+      "summary": "Component `JavaGreeter.java`: level=component; source=JavaGreeter.java.",
+      "doc_only": false,
+      "child_count": 0,
+      "truncated": false
+     },
+     {
+      "node_id": "component::c_greeter.c",
+      "path": "c_greeter.c",
+      "name": "c_greeter.c",
+      "level": "file",
+      "summary": "Component `c_greeter.c`: level=component; source=c_greeter.c.",
+      "doc_only": false,
+      "child_count": 0,
+      "truncated": false
+     }
+    ]
+   }
+  },
+  "root_first_system_depth_1": {
+   "args": {
+    "root_id": "component::CSharpGreeter.cs",
+    "depth": 1
+   },
+   "result": {
+    "root": "component::CSharpGreeter.cs",
+    "depth": 1,
+    "truncated": false,
+    "nodes": []
+   }
+  },
+  "unknown_root": {
+   "args": {
+    "root_id": "dir::does-not-exist"
+   },
+   "error": "unknown_root"
+  }
+ },
+ "context_digest": {
+  "external_import_roots": [],
+  "declared_dependencies": [],
+  "readme_excerpt": null
+ }
+}

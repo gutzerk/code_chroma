@@ -47,6 +47,7 @@ public sealed class SkillAgents
             (root, _) => ImpactChangesPath(root), data => data is JsonObject, "codechroma_IMPACT_REVIEW_TIMEOUT_SECONDS",
             SkillTimeouts.For("impact-changes"), "review produced no valid impact-changes.json"));
         yield return new KindSpec("epic-brief", Epics.EpicBrief.Spec());
+        foreach (var wiki in WikiGeneral.Specs()) yield return wiki;
     }
 
     public static string ImpactChangesPath(string repoRoot) => Path.Combine(repoRoot, ".codechroma", "impact-changes.json");

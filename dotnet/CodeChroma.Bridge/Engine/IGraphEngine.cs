@@ -39,3 +39,10 @@ public interface IEngineFactory
     /// <summary>Analyzes <paramref name="root"/> and returns a ready engine.</summary>
     IGraphEngine Create(string root);
 }
+
+/// <summary>Placeholder until CodeChroma.Core lands: the bridge boots, but no repository can be analyzed.</summary>
+public sealed class UnavailableEngineFactory : IEngineFactory
+{
+    public IGraphEngine Create(string root) =>
+        throw new NotSupportedException("no graph engine is wired in yet; register an IEngineFactory backed by CodeChroma.Core");
+}

@@ -34,7 +34,7 @@ public class ContractMatchersTests
     {
         var (found, wasFanned) = ContractMatchers.Select(JsonNode.Parse(Doc), path);
 
-        Assert.Equal(new JsonArray(found.ToArray()).ToJsonString(), JsonNode.Parse(values)!.ToJsonString());
+        Assert.Equal(new JsonArray(found.Select(n => n?.DeepClone()).ToArray()).ToJsonString(), JsonNode.Parse(values)!.ToJsonString());
         Assert.Equal(fanned, wasFanned);
     }
 

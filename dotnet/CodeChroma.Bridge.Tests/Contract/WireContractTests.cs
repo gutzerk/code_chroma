@@ -92,7 +92,7 @@ public class WireContractTests
                     : Encoding.UTF8.GetBytes(step["text"]!.GetValue<string>()));
                 break;
             case "delete":
-                File.Delete(target);
+                if (File.Exists(target)) File.Delete(target);
                 break;
             default:
                 File.WriteAllText(target, File.ReadAllText(target).Replace(step["find"]!.GetValue<string>(), step["with"]!.GetValue<string>()));

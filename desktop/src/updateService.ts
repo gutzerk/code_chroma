@@ -4,8 +4,11 @@ import {
   installAsset,
   assertUserInstallation,
   GitHubRateLimitError,
+  type ReleaseCache,
   type UpdateInfo,
 } from "./updater";
+import { compareVersions } from "./updater";
+import type { UpdateSettings } from "./updateCache";
 
 type UpdateServiceDependencies = {
   check: typeof checkForUpdates;
@@ -14,6 +17,8 @@ type UpdateServiceDependencies = {
   writable: typeof assertUserInstallation;
   readLatest: () => string | undefined;
   writeLatest: (version: string) => void;
+  readSettings: () => UpdateSettings;
+  writeSettings: (settings: UpdateSettings) => void;
 };
 
 export interface UpdateState {
@@ -25,6 +30,10 @@ export interface UpdateState {
   error?: string;
   retryAfter?: number;
   notes?: string;
+  /** A version the user chose to ignore; background checks stay quiet about it. */
+  skippedVersion?: string;
+  /** Download new releases unprompted (installing still needs an explicit restart). */
+  autoDownload: boolean;
 }
 
 /** One shared update transaction for Settings, the File menu, and release notifications. */
@@ -33,6 +42,7 @@ export class UpdateService {
   private info: UpdateInfo | null = null;
   private busy = false;
   private deps: UpdateServiceDependencies;
+  private releaseCache: ReleaseCache = {};
 
   constructor(
     currentVersion: string,
@@ -46,9 +56,35 @@ export class UpdateService {
       writable: assertUserInstallation,
       readLatest: () => undefined,
       writeLatest: () => {},
+      readSettings: () => ({ autoDownload: false }),
+      writeSettings: () => {},
       ...deps,
     };
-    this.state = { currentVersion, latestVersion: this.deps.readLatest(), phase: "idle" };
+    const settings = this.deps.readSettings();
+    this.state = { currentVersion, latestVersion: this.deps.readLatest(), phase: "idle", skippedVersion: settings.skippedVersion, autoDownload: settings.autoDownload };
+  }
+
+  private persistSettings() {
+    try { this.deps.writeSettings({ skippedVersion: this.state.skippedVersion, autoDownload: this.state.autoDownload }); } catch { /* settings are best effort */ }
+  }
+
+  /** Stay quiet about `version` in background checks (a newer release still shows). */
+  async skipVersion(version: string) {
+    this.set({ skippedVersion: version });
+    this.persistSettings();
+    return this.state;
+  }
+
+  async setAutoDownload(enabled: boolean) {
+    this.set({ autoDownload: enabled });
+    this.persistSettings();
+    return this.state;
+  }
+
+  private isSkipped(version: string | undefined): boolean {
+    const skipped = this.state.skippedVersion;
+    if (!skipped || !version) return false;
+    try { return compareVersions(version, skipped) <= 0; } catch { return version === skipped; }
   }
 
   private set(patch: Partial<UpdateState>) {
@@ -80,7 +116,7 @@ export class UpdateService {
     return this.state;
   }
 
-  check() {
+  check(opts: { background?: boolean } = {}) {
     return this.run(async () => {
       if (this.state.retryAfter && Date.now() < this.state.retryAfter) return;
       if (this.state.phase === "ready") return;
@@ -88,6 +124,7 @@ export class UpdateService {
       this.set({ phase: "checking", error: undefined });
       let latestReturned = false;
       this.info = await this.deps.check(this.state.currentVersion, {
+        cache: this.releaseCache,
         onLatest: latestVersion => {
           latestReturned = true;
           try { this.deps.writeLatest(latestVersion); } catch {}
@@ -97,23 +134,30 @@ export class UpdateService {
       if (!latestReturned && !this.info) {
         throw new Error("No stable release was returned by GitHub.");
       }
+      const hidden = opts.background === true && this.isSkipped(this.info?.version);
+      if (hidden) this.info = null;
       this.set({
         phase: this.info ? "available" : "up-to-date",
         latestVersion: this.info?.version ?? this.state.latestVersion,
         retryAfter: undefined,
         notes: this.info?.notes,
       });
+      if (this.info && this.state.autoDownload && !this.isSkipped(this.info.version)) await this.downloadNow();
     });
+  }
+
+  private async downloadNow() {
+    if (!this.info) throw new Error("Check for updates first.");
+    await this.deps.writable();
+    this.set({ phase: "downloading", bytes: 0, total: undefined, error: undefined });
+    await this.deps.download(this.info, (bytes, total) => this.set({ bytes, total }));
+    this.set({ phase: "ready" });
   }
 
   download() {
     return this.run(async () => {
       if (this.state.phase === "ready") return;
-      if (!this.info) throw new Error("Check for updates first.");
-      await this.deps.writable();
-      this.set({ phase: "downloading", bytes: 0, total: undefined, error: undefined });
-      await this.deps.download(this.info, (bytes, total) => this.set({ bytes, total }));
-      this.set({ phase: "ready" });
+      await this.downloadNow();
     });
   }
 

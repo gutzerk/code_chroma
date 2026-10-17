@@ -272,3 +272,16 @@ Things worth knowing before touching it:
   `web/src/engine-client/sameOrigin.test.ts`, and the Vitest suites in `desktop/src/*.test.ts`.
 
 > Migration in progress: a C# / Avalonia replacement for this Electron shell is tracked in [`docs/planning/014-avalonia-shell.md`](../planning/014-avalonia-shell.md) (code in `dotnet/`). Electron remains the reference until it lands.
+
+## C# shell (`dotnet/CodeChroma.Shell*`, in progress - plans 014/016)
+
+The Avalonia replacement for the Electron host, not shipped yet; `desktop/` stays the shipping app. Run with
+`dotnet run --project dotnet/CodeChroma.Shell.App -- --repo <path>` (needs `dist/codechroma-bridge`, or `CODECHROMA_BRIDGE=<exe>`;
+`CODECHROMA_VERSION` overrides the displayed version). Logic is UI-free in `CodeChroma.Shell` (`ShellController` drives
+`BridgeRegistry` -> `TabModel` -> `IShellUi.Navigate`); `CodeChroma.Shell.App` only renders. One `WebView.Avalonia` per tab
+loads `http://127.0.0.1:<port>/?workspace=<id>` from the unchanged Python bridge. 🔴 Windows needs `app.manifest` with a
+`supportedOS` entry or the native WebView host throws at startup. User data lives in the same folder as Electron's
+(`%APPDATA%/CodeChroma`), so recents are shared. The canvas's `window.codechromaDesktop` is injected after each navigation
+and talks to the shell over the WebView message channel (`DesktopScript`/`DesktopMessage`); `codechromaUpdates` is not
+provided yet. Tests: `dotnet test dotnet/CodeChroma.Shell.sln`; smoke: `dotnet/CodeChroma.Shell.App/smoke/smoke.mjs`.
+

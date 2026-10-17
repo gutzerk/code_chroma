@@ -21,7 +21,7 @@ namespace CodeChroma.Canvas.Avalonia;
 /// </summary>
 public sealed class CanvasView : Control
 {
-    private enum Mode { None, Pan, Drag }
+    private enum Mode { None, Pan, Drag, Marquee }
 
     private const double CullMarginPx = 200;
     private const double DragThresholdPx = 3;
@@ -29,7 +29,8 @@ public sealed class CanvasView : Control
     private readonly CanvasDocStore _store;
     private readonly ICanvasBridge _bridge;
     private readonly AvaloniaTextMeasurer _measurer = new();
-    private readonly HashSet<string> _selection = new();
+    private readonly HashSet<string> _marqueeBase = new();
+    private Point? _marqueeEnd;
     private SceneGraph _scene;
     private List<RoutedEdge<CanvasEdge>>? _routed;
     private string _routedSignature = "";
@@ -47,13 +48,21 @@ public sealed class CanvasView : Control
         Viewport = new Viewport(new ViewState(0, 0, 1), 800, 600);
         _scene = new SceneGraph(store.Doc, _measurer);
         store.Changed += OnStoreChanged;
+        SelectionModel.Changed += InvalidateVisual;
         ClipToBounds = true;
         Focusable = true;
     }
 
     public Viewport Viewport { get; }
     public SceneGraph Scene => _scene;
-    public IReadOnlyCollection<string> Selection => _selection;
+    public SelectionModel SelectionModel { get; } = new();
+    public IReadOnlyCollection<string> Selection => SelectionModel.Ids;
+    public UndoHistory Undo { get; } = new();
+
+    /// <summary>The rubber band in canvas space while a shift-drag is in progress.</summary>
+    public CRect? MarqueeCanvasRect => _mode == Mode.Marquee && _marqueeEnd is { } end
+        ? Marquee.Normalize(Viewport.ScreenToCanvas(new CPoint(_pressed.X, _pressed.Y)), Viewport.ScreenToCanvas(new CPoint(end.X, end.Y)))
+        : null;
     public DragOffsetStore DragOffsets { get; } = new();
 
     /// <summary>The ids of the boxes realised for the current camera (everything else has no visual at all).</summary>
@@ -83,7 +92,7 @@ public sealed class CanvasView : Control
     private void OnStoreChanged()
     {
         _scene = new SceneGraph(_store.Doc, _measurer);
-        _selection.RemoveWhere(id => !_store.Doc.Elements.ContainsKey(id));
+        SelectionModel.Prune(id => _store.Doc.Elements.ContainsKey(id));
         _routed = null;
         InvalidateVisual();
     }
@@ -113,21 +122,23 @@ public sealed class CanvasView : Control
         _pressedOn = HitTest(position);
         if (_pressedOn is null)
         {
-            if (!ctrl) _selection.Clear();
-            _mode = Mode.Pan;
+            _marqueeBase.Clear();
+            if (e.KeyModifiers.HasFlag(KeyModifiers.Shift))
+            {
+                foreach (var id in SelectionModel.Ids) _marqueeBase.Add(id);
+                _mode = Mode.Marquee;
+            }
+            else
+            {
+                if (!ctrl) SelectionModel.Clear();
+                _mode = Mode.Pan;
+            }
         }
         else
         {
-            _pressedWasSelected = _selection.Contains(_pressedOn);
-            if (ctrl)
-            {
-                if (!_selection.Remove(_pressedOn)) _selection.Add(_pressedOn);
-            }
-            else if (!_pressedWasSelected)
-            {
-                _selection.Clear();
-                _selection.Add(_pressedOn);
-            }
+            _pressedWasSelected = SelectionModel.IsSelected(_pressedOn);
+            if (ctrl || e.KeyModifiers.HasFlag(KeyModifiers.Shift)) SelectionModel.Toggle(_pressedOn);
+            else if (!_pressedWasSelected) SelectionModel.Replace([_pressedOn]);
             _mode = Mode.Drag;
         }
         e.Pointer.Capture(this);
@@ -146,6 +157,12 @@ public sealed class CanvasView : Control
             Viewport.Pan(position.X - _last.X, position.Y - _last.Y);
             _last = position;
         }
+        else if (_mode == Mode.Marquee)
+        {
+            _marqueeEnd = position;
+            var hits = Marquee.Hits(MarqueeCanvasRect!.Value, _scene.Cull(Viewport, CullMarginPx).Select(n => (n.Id, n.Rect)));
+            SelectionModel.Replace(_marqueeBase.Concat(hits));
+        }
         else
         {
             var delta = new LiveDragOffset((position.X - _pressed.X) / Viewport.State.Scale, (position.Y - _pressed.Y) / Viewport.State.Scale);
@@ -160,14 +177,12 @@ public sealed class CanvasView : Control
         e.Pointer.Capture(null);
         var mode = _mode;
         _mode = Mode.None;
+        _marqueeEnd = null;
         if (mode == Mode.Drag)
         {
             if (_moved) CommitDrag(e.GetPosition(this));
-            else if (_pressedWasSelected && _pressedOn is not null && !e.KeyModifiers.HasFlag(KeyModifiers.Control))
-            {
-                _selection.Clear();
-                _selection.Add(_pressedOn);
-            }
+            else if (_pressedWasSelected && _pressedOn is not null && !e.KeyModifiers.HasFlag(KeyModifiers.Control) && !e.KeyModifiers.HasFlag(KeyModifiers.Shift))
+                SelectionModel.Replace([_pressedOn]);
         }
         DragOffsets.Reset();
         InvalidateVisual();
@@ -183,7 +198,7 @@ public sealed class CanvasView : Control
     }
 
     private IEnumerable<string> DraggableSelection() =>
-        _selection.Where(id => _store.Doc.Elements.TryGetValue(id, out var el) && !ElementRules.For(el.Render).LockedLayout);
+        SelectionModel.Ids.Where(id => _store.Doc.Elements.TryGetValue(id, out var el) && !ElementRules.For(el.Render).LockedLayout);
 
     private void CommitDrag(Point release)
     {
@@ -208,7 +223,23 @@ public sealed class CanvasView : Control
             var p = _store.Doc.Elements[id].Position;
             return new Position(p.X + dx, p.Y + dy);
         });
+        Undo.Record("canvas", ids.ToDictionary(id => id, id => _store.Doc.Elements[id].Position));
         _ = _store.ApplyCanvasPositionsAsync(_bridge, positions);
+    }
+
+    /// <summary>Ctrl+Z: puts the last moved boxes back where the move started (not itself recorded).</summary>
+    public bool UndoMove()
+    {
+        if (Undo.UndoLatest(new[] { "canvas" }) is not { } latest) return false;
+        _ = _store.ApplyCanvasPositionsAsync(_bridge, latest.Layout);
+        return true;
+    }
+
+    protected override void OnKeyDown(KeyEventArgs e)
+    {
+        base.OnKeyDown(e);
+        if (e.Key == Key.Escape) { SelectionModel.Clear(); e.Handled = true; }
+        else if (e.Key == Key.Z && (e.KeyModifiers.HasFlag(KeyModifiers.Control) || e.KeyModifiers.HasFlag(KeyModifiers.Meta))) e.Handled = UndoMove();
     }
 
     public override void Render(DrawingContext context)
@@ -229,7 +260,7 @@ public sealed class CanvasView : Control
         {
             var offset = DragOffsets.All.TryGetValue(node.Id, out var o) ? o : default;
             var r = new Rect(node.Rect.Left + offset.X, node.Rect.Top + offset.Y, node.Rect.Width, node.Rect.Height);
-            var selected = _selection.Contains(node.Id);
+            var selected = SelectionModel.IsSelected(node.Id);
             context.DrawRectangle(Brushes.White, new Pen(selected ? Brushes.DodgerBlue : Brushes.DimGray, selected ? 2 : 1), r, 6, 6);
             var title = new FormattedText(node.Element.Label, CultureInfo.InvariantCulture, FlowDirection.LeftToRight, typeface, 14, Brushes.Black)
             {
@@ -238,5 +269,7 @@ public sealed class CanvasView : Control
             };
             context.DrawText(title, new Point(r.X + 8, r.Y + 6));
         }
+        if (MarqueeCanvasRect is { } band)
+            context.DrawRectangle(new SolidColorBrush(Color.FromArgb(0x30, 0x1E, 0x90, 0xFF)), new Pen(Brushes.DodgerBlue, 1), new Rect(band.Left, band.Top, band.Width, band.Height));
     }
 }

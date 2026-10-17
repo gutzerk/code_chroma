@@ -1,0 +1,16 @@
+{
+  "_doc": "Block.test.tsx 'lays out a folder's children in a wrapping row / sizes the columns to the child count / single column above five' (3 DOM tests) as one table, plus gridLayout (TopLevelChildren.test.tsx). childCount children of one expanded parent -> distinct child x / y values.",
+  "childLayout": [
+    {"name": "one child is a single cell", "childCount": 1, "columns": 1, "rows": 1},
+    {"name": "three children share a row", "childCount": 3, "columns": 3, "rows": 1},
+    {"name": "five children still share a row", "childCount": 5, "columns": 5, "rows": 1},
+    {"name": "six children stack in one column", "childCount": 6, "columns": 1, "rows": 6},
+    {"name": "nine children stack in one column", "childCount": 9, "columns": 1, "rows": 9}
+  ],
+  "topLevelGrid": [
+    {"name": "a single system sits at the origin", "count": 1, "columns": 1},
+    {"name": "two systems wrap into two columns", "count": 2, "columns": 2},
+    {"name": "four systems form a 2x2 grid", "count": 4, "columns": 2},
+    {"name": "five systems use three columns", "count": 5, "columns": 3}
+  ]
+}

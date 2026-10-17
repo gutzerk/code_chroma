@@ -3,10 +3,11 @@ using System.Text;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using CodeChroma.Core;
+using CodeChroma.Core.Analyzers;
 
 namespace CodeChroma.Bridge.Engine;
 
-/// <summary>Produces the graph core's analyzer-output contract; the analyzers themselves stay in Python.</summary>
+/// <summary>Produces the graph core's analyzer-output contract (the C# analyzers by default, Python as the oracle).</summary>
 public interface IAnalysisExporter
 {
     AnalysisInput Full(string root);
@@ -19,6 +20,29 @@ internal sealed record DeltaWire(
     IReadOnlyList<FileSymbols> Changed,
     IReadOnlyList<string> Removed,
     [property: JsonPropertyName("import_resolutions")] IReadOnlyDictionary<string, IReadOnlyDictionary<string, string>> ImportResolutions);
+
+/// <summary>Analyzes in-process with the C# tree-sitter analyzers; no Python interpreter involved.</summary>
+public sealed class NativeAnalysisExporter(AnalysisExporter? exporter = null) : IAnalysisExporter
+{
+    private readonly AnalysisExporter _exporter = exporter ?? new AnalysisExporter();
+
+    public AnalysisInput Full(string root) => _exporter.Full(root);
+
+    public AnalysisDelta Delta(string root, IReadOnlyList<string> changedPaths) => _exporter.Delta(root, changedPaths);
+}
+
+/// <summary>Picks the analyzer backend: CODECHROMA_ANALYZERS=python shells out to Python, anything else is native C#.</summary>
+public static class AnalysisExporters
+{
+    public const string BackendEnvVar = "CODECHROMA_ANALYZERS";
+
+    public static IAnalysisExporter FromEnvironment() => For(Environment.GetEnvironmentVariable(BackendEnvVar));
+
+    public static IAnalysisExporter For(string? backend) =>
+        string.Equals(backend, "python", StringComparison.OrdinalIgnoreCase)
+            ? new PythonAnalysisExporter()
+            : new NativeAnalysisExporter();
+}
 
 /// <summary>Shells out to the Python analyzers (`codechroma.analysis_export`); CODECHROMA_PYTHON picks the interpreter.</summary>
 public sealed class PythonAnalysisExporter(string? python = null) : IAnalysisExporter
@@ -118,7 +142,7 @@ public sealed class CoreGraphEngine : IGraphEngine
     }
 }
 
-/// <summary>Analyzes a root with the Python analyzers and serves the graph from the C# core.</summary>
+/// <summary>Analyzes a root with the configured analyzers and serves the graph from the C# core.</summary>
 public sealed class CoreEngineFactory(IAnalysisExporter exporter) : IEngineFactory
 {
     public IGraphEngine Create(string root) => new CoreGraphEngine(root, exporter);

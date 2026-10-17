@@ -42,18 +42,38 @@ public sealed class YamlAnalyzer : ILanguageAnalyzer
     {
         var parser = new Parser(new StringReader(text));
         var documents = new List<YNode>();
+        var lastLine = LineCount(text);
         parser.Consume<StreamStart>();
         while (parser.Accept<DocumentStart>(out _))
         {
             parser.Consume<DocumentStart>();
             var anchors = new Dictionary<string, YNode>();
-            documents.Add(ComposeNode(parser, anchors));
+            documents.Add(ComposeNode(parser, anchors, lastLine));
             parser.Consume<DocumentEnd>();
         }
         return documents;
     }
 
-    private static YNode ComposeNode(IParser parser, Dictionary<string, YNode> anchors)
+    /// <summary>Lines in the text with pyyaml's break set; YamlDotNet adds a virtual break at EOF that pyyaml does not.</summary>
+    private const char Nel = (char)0x85;
+    private const char LineSep = (char)0x2028;
+    private const char ParaSep = (char)0x2029;
+
+    private static int LineCount(string text)
+    {
+        var lines = 1;
+        for (var i = 0; i < text.Length; i++)
+        {
+            var ch = text[i];
+            if (ch == '\r' && i + 1 < text.Length && text[i + 1] == '\n') i++;
+            if (ch == '\n' || ch == '\r' || ch == Nel || ch == LineSep || ch == ParaSep) lines++;
+        }
+        return lines;
+    }
+
+    private static int Clamp(Mark mark, int lastLine) => (int)Math.Min(mark.Line, lastLine);
+
+    private static YNode ComposeNode(IParser parser, Dictionary<string, YNode> anchors, int lastLine)
     {
         switch (parser.Current)
         {
@@ -65,7 +85,7 @@ public sealed class YamlAnalyzer : ILanguageAnalyzer
             case Scalar scalar:
             {
                 parser.MoveNext();
-                var node = new YScalar(scalar.Value, (int)scalar.Start.Line, (int)scalar.End.Line);
+                var node = new YScalar(scalar.Value, Clamp(scalar.Start, lastLine), Clamp(scalar.End, lastLine));
                 Register(anchors, scalar.Anchor, node);
                 return node;
             }
@@ -73,8 +93,8 @@ public sealed class YamlAnalyzer : ILanguageAnalyzer
             {
                 parser.MoveNext();
                 var items = new List<YNode>();
-                while (parser.Current is not SequenceEnd) items.Add(ComposeNode(parser, anchors));
-                var node = new YSequence(items, (int)seq.Start.Line, (int)parser.Current!.End.Line);
+                while (parser.Current is not SequenceEnd) items.Add(ComposeNode(parser, anchors, lastLine));
+                var node = new YSequence(items, Clamp(seq.Start, lastLine), Clamp(parser.Current!.End, lastLine));
                 parser.MoveNext();
                 Register(anchors, seq.Anchor, node);
                 return node;
@@ -85,10 +105,10 @@ public sealed class YamlAnalyzer : ILanguageAnalyzer
                 var entries = new List<(YNode, YNode)>();
                 while (parser.Current is not MappingEnd)
                 {
-                    var key = ComposeNode(parser, anchors);
-                    entries.Add((key, ComposeNode(parser, anchors)));
+                    var key = ComposeNode(parser, anchors, lastLine);
+                    entries.Add((key, ComposeNode(parser, anchors, lastLine)));
                 }
-                var node = new YMapping(entries, (int)map.Start.Line, (int)parser.Current!.End.Line);
+                var node = new YMapping(entries, Clamp(map.Start, lastLine), Clamp(parser.Current!.End, lastLine));
                 parser.MoveNext();
                 Register(anchors, map.Anchor, node);
                 return node;

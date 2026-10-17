@@ -1,6 +1,6 @@
 # 013 - Canvas UI to Avalonia (C#)
 
-Status: **In progress** (pure logic and a first headless view are done; the React canvas is untouched and stays the reference).
+Status: **In progress** (pure logic, the hierarchy canvas, rubber-band/group drag/undo, the code popup, trace playback, the Diff toggle and the agent-window layer are ported and covered by headless tests; the React canvas is untouched and stays the reference, see "Phase 5 parity" below).
 
 Source: "Plan 3: Canvas UI -> Avalonia" of the four-plan C# migration. Shared rules apply: tests first, audit every test
 with three questions (observable behaviour? covered elsewhere? tied to the old framework?), parametrize, shared JSON
@@ -13,10 +13,10 @@ only needs the existing `GET/PATCH /canvas` JSON shape, so nothing in the bridge
 
 | Path | What |
 |---|---|
-| `dotnet/CodeChroma.Canvas/` | Pure, UI-free library (net8.0): model, routing, collision, layout, scene graph, viewport, stores, catalog logic |
-| `dotnet/CodeChroma.Canvas.Tests/` | xUnit suite, 365 tests, driven by `tests/fixtures/canvas_logic/*.json` |
-| `dotnet/CodeChroma.Canvas.Avalonia/` | Thin view (`CanvasView`, `AvaloniaTextMeasurer`), Avalonia 11.1.5 |
-| `dotnet/CodeChroma.Canvas.Avalonia.Tests/` | Headless journey tests, 8 tests |
+| `dotnet/CodeChroma.Canvas/` | Pure, UI-free library (net8.0): model, routing, collision, layout, scene graph, viewport, stores, catalog logic, plus (Phase 5) `Hierarchy/` (expansion, nested layout, adapters over `CodeChroma.Core`), `Tracing/`, `Diff/`, `Agents/`, `State/Interaction.cs`, `Highlighting/SyntaxHighlighter.cs` |
+| `dotnet/CodeChroma.Canvas.Tests/` | xUnit suite, 503 tests, driven by `tests/fixtures/canvas_logic/*.json` |
+| `dotnet/CodeChroma.Canvas.Avalonia/` | Thin views: `CanvasView` (canvas document), `HierarchyView`/`HierarchyCanvas` (nested hierarchy), `CodePopup`, `TraceControls`, `DiffToggleButton`, `AgentWorkspaceView`; Avalonia 11.3.12 |
+| `dotnet/CodeChroma.Canvas.Avalonia.Tests/` | Headless journey tests, 66 tests |
 | `tests/fixtures/canvas_logic/` | Shared JSON cases (inputs and expected outputs of the vitest files), usable by vitest later |
 
 Target framework is **net8.0** because only the .NET SDK 8.0.302 is installed here; the migration plan's .NET 10 is a
@@ -112,26 +112,70 @@ before being trusted (all matched).
 ## Journey coverage (headless)
 
 Done: pan, wheel zoom, culling plus pan swap, selection / multi-select / clear, drag with collision resolution and
-persistence, locked-layout immobility, render with edges does not throw, text measurement.
+persistence, locked-layout immobility, render with edges does not throw, text measurement (first pass, 8 tests); and, from
+Phase 5, everything in "Phase 5 parity" below.
 
-Not done (still React-only): expand-in-place of the hierarchy, trace playback overlay, diff accept / change cards,
-agent windows (16 Playwright tests), rubber-band multi-select and group-drag collision, undo, the code popup, the
-terminal panel (stays an xterm.js WebView), the real REST/WS bridge client, theming/pixel parity.
+Not done (still React-only): focus-fit animation and snap/ghost landing preview, camera persistence, the project-tree and
+code sidebars, the terminal panel itself (stays an xterm.js WebView, Plan 4's shell), the real REST/WS bridge client,
+theming/pixel parity. See "What is left".
 
-## Remaining work
+## Phase 5 parity (docs/planning/016-remove-electron.md) - what was ported, with the test that replaces each Playwright journey
 
-1. Bridge client: implement `ICanvasBridge` over the Plan 2 REST contract; WS `changed` ping to `FetchAndApplyAsync`.
-2. Hierarchy canvas: expand-in-place nesting, `Block` / `CanvasNodeBox` visuals (59 + 38 DOM tests to rewrite as scene-graph
-   and journey tests; decide which of the two survives when porting, they overlap on props).
-3. Interaction parity: rubber-band select, group drag with collision (`web-collision-drag.md`), undo, keyboard, focus-fit
-   animation, snap/ghost landing preview.
-4. Overlays: trace playback, diff / change cards, impact chips on the model (chip text logic is already ported).
-5. AvaloniaEdit + TextMate for the code popup; add the "tokens reassemble to source" invariant per language.
-6. Agent windows and the terminal WebView host (belongs to Plan 4's shell).
-7. Quality: measure the native layout against ELK on real diagrams and decide on the offline-elkjs fallback.
-8. Run the shared fixtures from vitest too (a one-line loader per file) so the two implementations stay locked together
-   until the web code is removed.
-9. Retarget to net10.0 together with the other plans.
+All of it is driven by the C# graph core (`CoreHierarchySource` over `CodeChroma.Core.Graph`, fed in the tests by the shared
+`tests/fixtures/graph_golden/sample_repo.input.json`), not by the mock bridge. Tests were written beside the code and committed
+together (the red-suite-first discipline of the first pass was not repeated).
+
+| Feature | Native implementation | Replaces | Headless test |
+|---|---|---|---|
+| Expand-in-place hierarchy canvas | `Hierarchy/ExpansionState`, `HierarchyLayout` (nested boxes, 5-column row else one column, description line, code panel), `HierarchyView` | `expand-in-place.spec.ts`, `multi-expand-collapse.spec.ts`, `Block.test.tsx` (expand/collapse/leaf/layout/description cases), `expansionState.test.ts` | `HierarchyJourneyTests` (expand chain to a function, sibling independence, leaf rule, persistence across reload), `HierarchyTests` |
+| Rubber-band select | `Marquee`, `SelectionModel`, shift-drag in `HierarchyView` and `CanvasView` | `multi-select.spec.ts` (canvas half), `selectionStore.test.ts`, `Block.test.tsx` "Block selection" | `HierarchyJourneyTests` (band selects what it touches, second band extends, Escape clears, plain drag still pans), `CanvasJourneyTests` |
+| Group drag | free move of the whole selection, solo drop settles through `DropResolver` | `TopLevelChildren.test.tsx`, `block-collision.spec.ts` | `HierarchyJourneyTests`, `CanvasJourneyTests` |
+| Undo | `UndoHistory` (per kind, cap 10, `UndoLatest`), `TopLevelLayoutStore`, Ctrl/Cmd+Z | `undoStore.test.ts`, `UndoManager.test.tsx` | `HierarchyJourneyTests`, `CanvasJourneyTests`, `UndoHistoryTests` |
+| Code popup + syntax highlighting | `CodePopup` (drag by title, corner resize, Escape/backdrop/close), `SyntaxHighlighter` (in-house tokenizer, 21 languages via `LanguageRegistry`), inline code panel | `CodePopup.test.tsx`, `code-popup-resize.spec.ts`, `inline-code-drag.spec.ts` (popup part), Prism highlighter tests | `HierarchyJourneyTests` (popup journeys), `SyntaxHighlighterTests` |
+| Diff / change cards | `Diff/DiffController` (refresh + reveal + restore + cancel + coalesced live refresh + Accept), `DiffOverlay`, `LineDiff`, `ChangeCardLayout`; recolored borders, diff popup, `DiffToggleButton` | `global-diff.spec.ts`, `diff-accept.spec.ts`, `change-cards.spec.ts` (all `test.skip` upstream: the rail button was pulled), `refreshDiffs/useDiffToggle/useAcceptDiff/DiffView/ChangeCardsPanel` tests | `DiffJourneyTests`, `DiffControllerTests` |
+| Trace playback | `Tracing/TracePlayer` (injectable clock), `TraceFlow` overlay math, `TraceControls` | `trace-playback.spec.ts` (2, `test.skip` upstream), `traceStore.test.ts`, `TraceFlowOverlay.test.tsx` | `TraceJourneyTests`, `TracePlayerTests` |
+| Agent windows (window layer only) | `Agents/AgentWindowStore` (limit 5, clamp, minimize/restore, branch scope, workspace follow), `AgentWorkspaceView`/`AgentWindow` with a content slot for the shell's terminal | 10 of the 15 `agent-windows.spec.ts` journeys | `AgentJourneyTests`, `AgentWindowStoreTests` |
+
+### Test audit additions (what was dropped or not ported, and why)
+
+Three questions as before. A reason is recorded for everything not ported; anything not listed was **not audited** (see the end).
+
+| Web test(s) | Verdict | Reason |
+|---|---|---|
+| `expand-in-place` / `multi-expand-collapse` / `multi-select` Project Tree steps (`clickTreeNodeName`, URL unchanged, `code-sidebar` visible) | dropped | The Project Tree and code sidebars are web chrome that is not ported; the canvas assertions (expand in place, ancestors stay open, siblings independent, modifier-click selects instead of expanding) are kept. "URL does not change" is meaningless without a router. |
+| `Block.test` focus/"Center" button, copy-path button (3), `className` prop, `data-select-id` stamping | dropped | DOM buttons, CSS hooks and test attributes; clipboard copy and per-block centre are not ported (listed under What is left). |
+| `Block.test` params signature | not ported | `HierarchyItem.Params` exists but the Core node has no parameter text yet, so the adapter passes null. |
+| `Block.test` ChildRenderer (C1 box interior), "inline code panel dragged by its header" | dropped | C1 interior renderer is retired in single-canvas; the inline panel is not a draggable window in the native view (the popup is, and is tested). |
+| `Block.test` "diff accept" inside the inline panel | merged into popup | Accept lives on the popup (`DiffJourneyTests`); an inline Accept button is not drawn. |
+| `expansionState.test` snapshot-reference-stability (4), `cacheNodeRefs`/name fallback/cached-ancestor-path (5), `reset()` | dropped | `useSyncExternalStore` reference identity and the fetch-time parent cache do not exist: parents come from `IHierarchySource` synchronously. Deepest path and nearest-visible ancestor are kept. |
+| `selectionStore.test` stable-reference, `undoStore.test` notify variants | merged | Same shape as the kept notify tests; reference identity is a React concern. |
+| `CodePopup.test` "source area stays selectable (not a drag handle)" | dropped | Text selection is a DOM/browser behaviour. |
+| `refreshDiffs.test` "shared ancestor fetched once", "nothing fetched when cache has the chain" | dropped | There is no per-ancestor fetch to dedupe; ancestors are read from the in-memory source. |
+| `refreshDiffs.test` "drops a run whose workspace was switched mid-flight" | not ported | The C# canvas has no workspace registry yet (belongs with the bridge client). |
+| `useDiffToggle.test` camera-lock release | dropped | There is no auto-fit loop or camera suppression in the native view. |
+| `ChangeCardsPanel.test` "stamps its own node id for the connector overlay", `TraceFlowOverlay.test` aria-label counts | dropped | DOM attributes / accessibility labels of SVGs. |
+| `change-cards.spec` "dragging a change-card panel moves its connector" | not ported | Panels are not draggable in the native view (placed beside their block). Upstream test is `test.skip`. |
+| `agent-windows.spec` "resizing an agent window reflows its xterm grid", "the rail body has no scrollbar", "branch switcher stays usable" | not ported | xterm lives in the shell's WebView; the scrollbar test is a CSS pixel check; the branch switcher is not ported. |
+| `trace-playback.spec` / `change-cards.spec` / `global-diff.spec` / `diff-accept.spec` | ported although `test.skip` | They are skipped upstream only because the rail buttons were pulled; the logic is live, so the journeys are the right acceptance tests. |
+| `highlighting/*Highlighter` (Prism) | replaced (as in the first pass) | `SyntaxHighlighterTests`: kinds from a table plus "tokens reassemble to the source" for every canonical language. The in-house tokenizer is lexical only (keywords, strings, comments, numbers); it is not a TextMate grammar. |
+
+**Not audited individually** (Phase 5 scope was the journeys, the stores and the components named above): `AgentRail.test`,
+`AgentWindow.test`, `AgentWindowLayer.test`, `agentStore.test`, `windowActions.test`, `launchAgent.test`, `attachAgent.test`,
+`branchScope.test`, `branchStore.test`, `CanvasViewport.test`, `CanvasNodeBox.test` / single-canvas group-drag tests,
+`useSelectionAwareDrag`, `useDragOffset`, `CodeView`/`CodeSidebar`/`ProjectTreePanel` tests, `ConnectionsOverlay`,
+`RouteProbe*`, `LabelClearanceMonitor`, the epics/wiki/PR/C1 canvases.
+
+## What is left after Phase 5 parity
+
+1. The hierarchy surface is not yet wired to a live bridge: `ICanvasBridge` over the Plan 2 REST contract, the WS `changed` ping
+   into `HierarchyView` (rebuild the `IHierarchySource`), `IDiffBridge`/`IAgentClient` implementations, and a trace list/stream client.
+2. Camera persistence, focus-fit animation, snap/ghost landing preview, per-block "Center", copy-path button, `Params` on function
+   blocks, doc-only styling checks, inline-panel Accept button, change-card panel dragging.
+3. Project tree + code sidebar (`openFilesStore`, MRU tabs), `ConnectionsOverlay` (call/reference lines between blocks), route probe.
+4. Real terminal inside an agent window and the dock/branch switcher (Plan 4's shell hosts the xterm WebView); a TextMate grammar
+   if token fidelity beyond the in-house tokenizer is wanted.
+5. Epics, C1, patterns, wiki and PR canvases, the single-canvas recipe menu, and layout-quality measurement against ELK.
+6. Pixel/theming parity and real-font text measurement (the headless platform uses stub metrics).
 
 ## Removal candidates in `web/` (nothing deleted yet - do not delete until the journeys above pass)
 

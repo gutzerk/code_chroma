@@ -1,0 +1,1952 @@
+{
+ "schema_version": 1,
+ "nodes": [
+  {
+   "id": "dir::billing",
+   "name": "billing",
+   "level": "system",
+   "parent_ids": [],
+   "source_path": "billing",
+   "symbol_ids": [],
+   "repository_id": null,
+   "depends_on_ids": [],
+   "doc_only": false
+  },
+  {
+   "id": "component::billing/reporter.go",
+   "name": "reporter.go",
+   "level": "component",
+   "parent_ids": [
+    "dir::billing"
+   ],
+   "source_path": "billing/reporter.go",
+   "symbol_ids": [],
+   "repository_id": null,
+   "depends_on_ids": [],
+   "doc_only": false
+  },
+  {
+   "id": "billing/reporter.go::class::Report",
+   "name": "Report",
+   "level": "service",
+   "parent_ids": [
+    "component::billing/reporter.go"
+   ],
+   "source_path": "billing/reporter.go",
+   "symbol_ids": [],
+   "repository_id": null,
+   "depends_on_ids": [],
+   "doc_only": false
+  },
+  {
+   "id": "service::billing/reporter.go::functions",
+   "name": "Module Functions",
+   "level": "service",
+   "parent_ids": [
+    "component::billing/reporter.go"
+   ],
+   "source_path": "billing/reporter.go",
+   "symbol_ids": [],
+   "repository_id": null,
+   "depends_on_ids": [],
+   "doc_only": false
+  },
+  {
+   "id": "billing/reporter.go::function::RenderReport",
+   "name": "RenderReport",
+   "level": "function",
+   "parent_ids": [
+    "service::billing/reporter.go::functions"
+   ],
+   "source_path": "billing/reporter.go",
+   "symbol_ids": [],
+   "repository_id": null,
+   "depends_on_ids": [],
+   "doc_only": false
+  },
+  {
+   "id": "logicblock::billing/reporter.go::function::RenderReport::0",
+   "name": "Step 1",
+   "level": "logic_block",
+   "parent_ids": [
+    "billing/reporter.go::function::RenderReport"
+   ],
+   "source_path": "billing/reporter.go:11-11",
+   "symbol_ids": [],
+   "repository_id": null,
+   "depends_on_ids": [],
+   "doc_only": false
+  },
+  {
+   "id": "code::logicblock::billing/reporter.go::function::RenderReport::0",
+   "name": "billing/reporter.go:11-11",
+   "level": "code",
+   "parent_ids": [
+    "logicblock::billing/reporter.go::function::RenderReport::0"
+   ],
+   "source_path": "billing/reporter.go:11-11",
+   "symbol_ids": [],
+   "repository_id": null,
+   "depends_on_ids": [],
+   "doc_only": false
+  },
+  {
+   "id": "billing/reporter.go::function::formatCurrency",
+   "name": "formatCurrency",
+   "level": "function",
+   "parent_ids": [
+    "service::billing/reporter.go::functions"
+   ],
+   "source_path": "billing/reporter.go",
+   "symbol_ids": [],
+   "repository_id": null,
+   "depends_on_ids": [],
+   "doc_only": false
+  },
+  {
+   "id": "logicblock::billing/reporter.go::function::formatCurrency::0",
+   "name": "Step 1",
+   "level": "logic_block",
+   "parent_ids": [
+    "billing/reporter.go::function::formatCurrency"
+   ],
+   "source_path": "billing/reporter.go:16-16",
+   "symbol_ids": [],
+   "repository_id": null,
+   "depends_on_ids": [],
+   "doc_only": false
+  },
+  {
+   "id": "code::logicblock::billing/reporter.go::function::formatCurrency::0",
+   "name": "billing/reporter.go:16-16",
+   "level": "code",
+   "parent_ids": [
+    "logicblock::billing/reporter.go::function::formatCurrency::0"
+   ],
+   "source_path": "billing/reporter.go:16-16",
+   "symbol_ids": [],
+   "repository_id": null,
+   "depends_on_ids": [],
+   "doc_only": false
+  },
+  {
+   "id": "billing/reporter.go::function::SendReport",
+   "name": "SendReport",
+   "level": "function",
+   "parent_ids": [
+    "service::billing/reporter.go::functions"
+   ],
+   "source_path": "billing/reporter.go",
+   "symbol_ids": [],
+   "repository_id": null,
+   "depends_on_ids": [],
+   "doc_only": false
+  },
+  {
+   "id": "logicblock::billing/reporter.go::function::SendReport::0",
+   "name": "Step 1",
+   "level": "logic_block",
+   "parent_ids": [
+    "billing/reporter.go::function::SendReport"
+   ],
+   "source_path": "billing/reporter.go:20-20",
+   "symbol_ids": [],
+   "repository_id": null,
+   "depends_on_ids": [],
+   "doc_only": false
+  },
+  {
+   "id": "code::logicblock::billing/reporter.go::function::SendReport::0",
+   "name": "billing/reporter.go:20-20",
+   "level": "code",
+   "parent_ids": [
+    "logicblock::billing/reporter.go::function::SendReport::0"
+   ],
+   "source_path": "billing/reporter.go:20-20",
+   "symbol_ids": [],
+   "repository_id": null,
+   "depends_on_ids": [],
+   "doc_only": false
+  },
+  {
+   "id": "component::billing/service.py",
+   "name": "service.py",
+   "level": "component",
+   "parent_ids": [
+    "dir::billing"
+   ],
+   "source_path": "billing/service.py",
+   "symbol_ids": [],
+   "repository_id": null,
+   "depends_on_ids": [],
+   "doc_only": false
+  },
+  {
+   "id": "billing/service.py::class::BillingService",
+   "name": "BillingService",
+   "level": "service",
+   "parent_ids": [
+    "component::billing/service.py"
+   ],
+   "source_path": "billing/service.py",
+   "symbol_ids": [],
+   "repository_id": null,
+   "depends_on_ids": [
+    "shared/text_utils.py::function::slugify"
+   ],
+   "doc_only": false
+  },
+  {
+   "id": "billing/service.py::function::BillingService.__init__",
+   "name": "__init__",
+   "level": "function",
+   "parent_ids": [
+    "billing/service.py::class::BillingService"
+   ],
+   "source_path": "billing/service.py",
+   "symbol_ids": [],
+   "repository_id": null,
+   "depends_on_ids": [],
+   "doc_only": false
+  },
+  {
+   "id": "logicblock::billing/service.py::function::BillingService.__init__::0",
+   "name": "Step 1",
+   "level": "logic_block",
+   "parent_ids": [
+    "billing/service.py::function::BillingService.__init__"
+   ],
+   "source_path": "billing/service.py:9-9",
+   "symbol_ids": [],
+   "repository_id": null,
+   "depends_on_ids": [],
+   "doc_only": false
+  },
+  {
+   "id": "code::logicblock::billing/service.py::function::BillingService.__init__::0",
+   "name": "billing/service.py:9-9",
+   "level": "code",
+   "parent_ids": [
+    "logicblock::billing/service.py::function::BillingService.__init__::0"
+   ],
+   "source_path": "billing/service.py:9-9",
+   "symbol_ids": [],
+   "repository_id": null,
+   "depends_on_ids": [],
+   "doc_only": false
+  },
+  {
+   "id": "billing/service.py::function::BillingService.create_invoice",
+   "name": "create_invoice",
+   "level": "function",
+   "parent_ids": [
+    "billing/service.py::class::BillingService"
+   ],
+   "source_path": "billing/service.py",
+   "symbol_ids": [],
+   "repository_id": null,
+   "depends_on_ids": [
+    "shared/text_utils.py::function::slugify"
+   ],
+   "doc_only": false
+  },
+  {
+   "id": "logicblock::billing/service.py::function::BillingService.create_invoice::0",
+   "name": "Step 1",
+   "level": "logic_block",
+   "parent_ids": [
+    "billing/service.py::function::BillingService.create_invoice"
+   ],
+   "source_path": "billing/service.py:12-15",
+   "symbol_ids": [],
+   "repository_id": null,
+   "depends_on_ids": [],
+   "doc_only": false
+  },
+  {
+   "id": "code::logicblock::billing/service.py::function::BillingService.create_invoice::0",
+   "name": "billing/service.py:12-15",
+   "level": "code",
+   "parent_ids": [
+    "logicblock::billing/service.py::function::BillingService.create_invoice::0"
+   ],
+   "source_path": "billing/service.py:12-15",
+   "symbol_ids": [],
+   "repository_id": null,
+   "depends_on_ids": [],
+   "doc_only": false
+  },
+  {
+   "id": "dir::billing/models",
+   "name": "models",
+   "level": "pillar",
+   "parent_ids": [
+    "dir::billing"
+   ],
+   "source_path": "billing/models",
+   "symbol_ids": [],
+   "repository_id": null,
+   "depends_on_ids": [],
+   "doc_only": false
+  },
+  {
+   "id": "component::billing/models/invoice.py",
+   "name": "invoice.py",
+   "level": "component",
+   "parent_ids": [
+    "dir::billing/models"
+   ],
+   "source_path": "billing/models/invoice.py",
+   "symbol_ids": [],
+   "repository_id": null,
+   "depends_on_ids": [],
+   "doc_only": false
+  },
+  {
+   "id": "billing/models/invoice.py::class::Invoice",
+   "name": "Invoice",
+   "level": "service",
+   "parent_ids": [
+    "component::billing/models/invoice.py"
+   ],
+   "source_path": "billing/models/invoice.py",
+   "symbol_ids": [],
+   "repository_id": null,
+   "depends_on_ids": [],
+   "doc_only": false
+  },
+  {
+   "id": "billing/models/invoice.py::function::Invoice.total",
+   "name": "total",
+   "level": "function",
+   "parent_ids": [
+    "billing/models/invoice.py::class::Invoice"
+   ],
+   "source_path": "billing/models/invoice.py",
+   "symbol_ids": [],
+   "repository_id": null,
+   "depends_on_ids": [],
+   "doc_only": false
+  },
+  {
+   "id": "logicblock::billing/models/invoice.py::function::Invoice.total::0",
+   "name": "Step 1",
+   "level": "logic_block",
+   "parent_ids": [
+    "billing/models/invoice.py::function::Invoice.total"
+   ],
+   "source_path": "billing/models/invoice.py:8-9",
+   "symbol_ids": [],
+   "repository_id": null,
+   "depends_on_ids": [],
+   "doc_only": false
+  },
+  {
+   "id": "code::logicblock::billing/models/invoice.py::function::Invoice.total::0",
+   "name": "billing/models/invoice.py:8-9",
+   "level": "code",
+   "parent_ids": [
+    "logicblock::billing/models/invoice.py::function::Invoice.total::0"
+   ],
+   "source_path": "billing/models/invoice.py:8-9",
+   "symbol_ids": [],
+   "repository_id": null,
+   "depends_on_ids": [],
+   "doc_only": false
+  },
+  {
+   "id": "service::billing/models/invoice.py::functions",
+   "name": "Module Functions",
+   "level": "service",
+   "parent_ids": [
+    "component::billing/models/invoice.py"
+   ],
+   "source_path": "billing/models/invoice.py",
+   "symbol_ids": [],
+   "repository_id": null,
+   "depends_on_ids": [],
+   "doc_only": false
+  },
+  {
+   "id": "billing/models/invoice.py::function::format_invoice_id",
+   "name": "format_invoice_id",
+   "level": "function",
+   "parent_ids": [
+    "service::billing/models/invoice.py::functions"
+   ],
+   "source_path": "billing/models/invoice.py",
+   "symbol_ids": [],
+   "repository_id": null,
+   "depends_on_ids": [],
+   "doc_only": false
+  },
+  {
+   "id": "logicblock::billing/models/invoice.py::function::format_invoice_id::0",
+   "name": "Step 1",
+   "level": "logic_block",
+   "parent_ids": [
+    "billing/models/invoice.py::function::format_invoice_id"
+   ],
+   "source_path": "billing/models/invoice.py:13-14",
+   "symbol_ids": [],
+   "repository_id": null,
+   "depends_on_ids": [],
+   "doc_only": false
+  },
+  {
+   "id": "code::logicblock::billing/models/invoice.py::function::format_invoice_id::0",
+   "name": "billing/models/invoice.py:13-14",
+   "level": "code",
+   "parent_ids": [
+    "logicblock::billing/models/invoice.py::function::format_invoice_id::0"
+   ],
+   "source_path": "billing/models/invoice.py:13-14",
+   "symbol_ids": [],
+   "repository_id": null,
+   "depends_on_ids": [],
+   "doc_only": false
+  },
+  {
+   "id": "dir::shared",
+   "name": "shared",
+   "level": "system",
+   "parent_ids": [],
+   "source_path": "shared",
+   "symbol_ids": [],
+   "repository_id": null,
+   "depends_on_ids": [],
+   "doc_only": false
+  },
+  {
+   "id": "component::shared/text_utils.py",
+   "name": "text_utils.py",
+   "level": "component",
+   "parent_ids": [
+    "dir::shared"
+   ],
+   "source_path": "shared/text_utils.py",
+   "symbol_ids": [],
+   "repository_id": null,
+   "depends_on_ids": [],
+   "doc_only": false
+  },
+  {
+   "id": "service::shared/text_utils.py::functions",
+   "name": "Module Functions",
+   "level": "service",
+   "parent_ids": [
+    "component::shared/text_utils.py"
+   ],
+   "source_path": "shared/text_utils.py",
+   "symbol_ids": [],
+   "repository_id": null,
+   "depends_on_ids": [],
+   "doc_only": false
+  },
+  {
+   "id": "shared/text_utils.py::function::slugify",
+   "name": "slugify",
+   "level": "function",
+   "parent_ids": [
+    "service::shared/text_utils.py::functions"
+   ],
+   "source_path": "shared/text_utils.py",
+   "symbol_ids": [],
+   "repository_id": null,
+   "depends_on_ids": [],
+   "doc_only": false
+  },
+  {
+   "id": "logicblock::shared/text_utils.py::function::slugify::0",
+   "name": "Step 1",
+   "level": "logic_block",
+   "parent_ids": [
+    "shared/text_utils.py::function::slugify"
+   ],
+   "source_path": "shared/text_utils.py:5-6",
+   "symbol_ids": [],
+   "repository_id": null,
+   "depends_on_ids": [],
+   "doc_only": false
+  },
+  {
+   "id": "code::logicblock::shared/text_utils.py::function::slugify::0",
+   "name": "shared/text_utils.py:5-6",
+   "level": "code",
+   "parent_ids": [
+    "logicblock::shared/text_utils.py::function::slugify::0"
+   ],
+   "source_path": "shared/text_utils.py:5-6",
+   "symbol_ids": [],
+   "repository_id": null,
+   "depends_on_ids": [],
+   "doc_only": false
+  },
+  {
+   "id": "dir::users",
+   "name": "users",
+   "level": "system",
+   "parent_ids": [],
+   "source_path": "users",
+   "symbol_ids": [],
+   "repository_id": null,
+   "depends_on_ids": [],
+   "doc_only": false
+  },
+  {
+   "id": "component::users/service.py",
+   "name": "service.py",
+   "level": "component",
+   "parent_ids": [
+    "dir::users"
+   ],
+   "source_path": "users/service.py",
+   "symbol_ids": [],
+   "repository_id": null,
+   "depends_on_ids": [],
+   "doc_only": false
+  },
+  {
+   "id": "users/service.py::class::UserService",
+   "name": "UserService",
+   "level": "service",
+   "parent_ids": [
+    "component::users/service.py"
+   ],
+   "source_path": "users/service.py",
+   "symbol_ids": [],
+   "repository_id": null,
+   "depends_on_ids": [
+    "shared/text_utils.py::function::slugify"
+   ],
+   "doc_only": false
+  },
+  {
+   "id": "users/service.py::function::UserService.__init__",
+   "name": "__init__",
+   "level": "function",
+   "parent_ids": [
+    "users/service.py::class::UserService"
+   ],
+   "source_path": "users/service.py",
+   "symbol_ids": [],
+   "repository_id": null,
+   "depends_on_ids": [],
+   "doc_only": false
+  },
+  {
+   "id": "logicblock::users/service.py::function::UserService.__init__::0",
+   "name": "Step 1",
+   "level": "logic_block",
+   "parent_ids": [
+    "users/service.py::function::UserService.__init__"
+   ],
+   "source_path": "users/service.py:9-9",
+   "symbol_ids": [],
+   "repository_id": null,
+   "depends_on_ids": [],
+   "doc_only": false
+  },
+  {
+   "id": "code::logicblock::users/service.py::function::UserService.__init__::0",
+   "name": "users/service.py:9-9",
+   "level": "code",
+   "parent_ids": [
+    "logicblock::users/service.py::function::UserService.__init__::0"
+   ],
+   "source_path": "users/service.py:9-9",
+   "symbol_ids": [],
+   "repository_id": null,
+   "depends_on_ids": [],
+   "doc_only": false
+  },
+  {
+   "id": "users/service.py::function::UserService.create_user",
+   "name": "create_user",
+   "level": "function",
+   "parent_ids": [
+    "users/service.py::class::UserService"
+   ],
+   "source_path": "users/service.py",
+   "symbol_ids": [],
+   "repository_id": null,
+   "depends_on_ids": [
+    "shared/text_utils.py::function::slugify"
+   ],
+   "doc_only": false
+  },
+  {
+   "id": "logicblock::users/service.py::function::UserService.create_user::0",
+   "name": "Step 1",
+   "level": "logic_block",
+   "parent_ids": [
+    "users/service.py::function::UserService.create_user"
+   ],
+   "source_path": "users/service.py:12-15",
+   "symbol_ids": [],
+   "repository_id": null,
+   "depends_on_ids": [],
+   "doc_only": false
+  },
+  {
+   "id": "code::logicblock::users/service.py::function::UserService.create_user::0",
+   "name": "users/service.py:12-15",
+   "level": "code",
+   "parent_ids": [
+    "logicblock::users/service.py::function::UserService.create_user::0"
+   ],
+   "source_path": "users/service.py:12-15",
+   "symbol_ids": [],
+   "repository_id": null,
+   "depends_on_ids": [],
+   "doc_only": false
+  },
+  {
+   "id": "users/service.py::function::UserService.get_user",
+   "name": "get_user",
+   "level": "function",
+   "parent_ids": [
+    "users/service.py::class::UserService"
+   ],
+   "source_path": "users/service.py",
+   "symbol_ids": [],
+   "repository_id": null,
+   "depends_on_ids": [],
+   "doc_only": false
+  },
+  {
+   "id": "logicblock::users/service.py::function::UserService.get_user::0",
+   "name": "Step 1",
+   "level": "logic_block",
+   "parent_ids": [
+    "users/service.py::function::UserService.get_user"
+   ],
+   "source_path": "users/service.py:18-19",
+   "symbol_ids": [],
+   "repository_id": null,
+   "depends_on_ids": [],
+   "doc_only": false
+  },
+  {
+   "id": "code::logicblock::users/service.py::function::UserService.get_user::0",
+   "name": "users/service.py:18-19",
+   "level": "code",
+   "parent_ids": [
+    "logicblock::users/service.py::function::UserService.get_user::0"
+   ],
+   "source_path": "users/service.py:18-19",
+   "symbol_ids": [],
+   "repository_id": null,
+   "depends_on_ids": [],
+   "doc_only": false
+  },
+  {
+   "id": "service::users/service.py::functions",
+   "name": "Module Functions",
+   "level": "service",
+   "parent_ids": [
+    "component::users/service.py"
+   ],
+   "source_path": "users/service.py",
+   "symbol_ids": [],
+   "repository_id": null,
+   "depends_on_ids": [],
+   "doc_only": false
+  },
+  {
+   "id": "users/service.py::function::list_active_users",
+   "name": "list_active_users",
+   "level": "function",
+   "parent_ids": [
+    "service::users/service.py::functions"
+   ],
+   "source_path": "users/service.py",
+   "symbol_ids": [],
+   "repository_id": null,
+   "depends_on_ids": [],
+   "doc_only": false
+  },
+  {
+   "id": "logicblock::users/service.py::function::list_active_users::0",
+   "name": "Step 1",
+   "level": "logic_block",
+   "parent_ids": [
+    "users/service.py::function::list_active_users"
+   ],
+   "source_path": "users/service.py:23-24",
+   "symbol_ids": [],
+   "repository_id": null,
+   "depends_on_ids": [],
+   "doc_only": false
+  },
+  {
+   "id": "code::logicblock::users/service.py::function::list_active_users::0",
+   "name": "users/service.py:23-24",
+   "level": "code",
+   "parent_ids": [
+    "logicblock::users/service.py::function::list_active_users::0"
+   ],
+   "source_path": "users/service.py:23-24",
+   "symbol_ids": [],
+   "repository_id": null,
+   "depends_on_ids": [],
+   "doc_only": false
+  },
+  {
+   "id": "dir::web",
+   "name": "web",
+   "level": "system",
+   "parent_ids": [],
+   "source_path": "web",
+   "symbol_ids": [],
+   "repository_id": null,
+   "depends_on_ids": [],
+   "doc_only": false
+  },
+  {
+   "id": "component::web/UserCard.tsx",
+   "name": "UserCard.tsx",
+   "level": "component",
+   "parent_ids": [
+    "dir::web"
+   ],
+   "source_path": "web/UserCard.tsx",
+   "symbol_ids": [],
+   "repository_id": null,
+   "depends_on_ids": [],
+   "doc_only": false
+  },
+  {
+   "id": "service::web/UserCard.tsx::functions",
+   "name": "Module Functions",
+   "level": "service",
+   "parent_ids": [
+    "component::web/UserCard.tsx"
+   ],
+   "source_path": "web/UserCard.tsx",
+   "symbol_ids": [],
+   "repository_id": null,
+   "depends_on_ids": [],
+   "doc_only": false
+  },
+  {
+   "id": "web/UserCard.tsx::function::UserCard",
+   "name": "UserCard",
+   "level": "function",
+   "parent_ids": [
+    "service::web/UserCard.tsx::functions"
+   ],
+   "source_path": "web/UserCard.tsx",
+   "symbol_ids": [],
+   "repository_id": null,
+   "depends_on_ids": [],
+   "doc_only": false
+  },
+  {
+   "id": "logicblock::web/UserCard.tsx::function::UserCard::0",
+   "name": "Step 1",
+   "level": "logic_block",
+   "parent_ids": [
+    "web/UserCard.tsx::function::UserCard"
+   ],
+   "source_path": "web/UserCard.tsx:3-3",
+   "symbol_ids": [],
+   "repository_id": null,
+   "depends_on_ids": [],
+   "doc_only": false
+  },
+  {
+   "id": "code::logicblock::web/UserCard.tsx::function::UserCard::0",
+   "name": "web/UserCard.tsx:3-3",
+   "level": "code",
+   "parent_ids": [
+    "logicblock::web/UserCard.tsx::function::UserCard::0"
+   ],
+   "source_path": "web/UserCard.tsx:3-3",
+   "symbol_ids": [],
+   "repository_id": null,
+   "depends_on_ids": [],
+   "doc_only": false
+  },
+  {
+   "id": "web/UserCard.tsx::function::trackUserCardView",
+   "name": "trackUserCardView",
+   "level": "function",
+   "parent_ids": [
+    "service::web/UserCard.tsx::functions"
+   ],
+   "source_path": "web/UserCard.tsx",
+   "symbol_ids": [],
+   "repository_id": null,
+   "depends_on_ids": [],
+   "doc_only": false
+  },
+  {
+   "id": "logicblock::web/UserCard.tsx::function::trackUserCardView::0",
+   "name": "Step 1",
+   "level": "logic_block",
+   "parent_ids": [
+    "web/UserCard.tsx::function::trackUserCardView"
+   ],
+   "source_path": "web/UserCard.tsx:7-7",
+   "symbol_ids": [],
+   "repository_id": null,
+   "depends_on_ids": [],
+   "doc_only": false
+  },
+  {
+   "id": "code::logicblock::web/UserCard.tsx::function::trackUserCardView::0",
+   "name": "web/UserCard.tsx:7-7",
+   "level": "code",
+   "parent_ids": [
+    "logicblock::web/UserCard.tsx::function::trackUserCardView::0"
+   ],
+   "source_path": "web/UserCard.tsx:7-7",
+   "symbol_ids": [],
+   "repository_id": null,
+   "depends_on_ids": [],
+   "doc_only": false
+  },
+  {
+   "id": "component::web/widget.ts",
+   "name": "widget.ts",
+   "level": "component",
+   "parent_ids": [
+    "dir::web"
+   ],
+   "source_path": "web/widget.ts",
+   "symbol_ids": [],
+   "repository_id": null,
+   "depends_on_ids": [],
+   "doc_only": false
+  },
+  {
+   "id": "service::web/widget.ts::functions",
+   "name": "Module Functions",
+   "level": "service",
+   "parent_ids": [
+    "component::web/widget.ts"
+   ],
+   "source_path": "web/widget.ts",
+   "symbol_ids": [],
+   "repository_id": null,
+   "depends_on_ids": [],
+   "doc_only": false
+  },
+  {
+   "id": "web/widget.ts::function::renderUserSlug",
+   "name": "renderUserSlug",
+   "level": "function",
+   "parent_ids": [
+    "service::web/widget.ts::functions"
+   ],
+   "source_path": "web/widget.ts",
+   "symbol_ids": [],
+   "repository_id": null,
+   "depends_on_ids": [],
+   "doc_only": false
+  },
+  {
+   "id": "logicblock::web/widget.ts::function::renderUserSlug::0",
+   "name": "Step 1",
+   "level": "logic_block",
+   "parent_ids": [
+    "web/widget.ts::function::renderUserSlug"
+   ],
+   "source_path": "web/widget.ts:3-4",
+   "symbol_ids": [],
+   "repository_id": null,
+   "depends_on_ids": [],
+   "doc_only": false
+  },
+  {
+   "id": "code::logicblock::web/widget.ts::function::renderUserSlug::0",
+   "name": "web/widget.ts:3-4",
+   "level": "code",
+   "parent_ids": [
+    "logicblock::web/widget.ts::function::renderUserSlug::0"
+   ],
+   "source_path": "web/widget.ts:3-4",
+   "symbol_ids": [],
+   "repository_id": null,
+   "depends_on_ids": [],
+   "doc_only": false
+  }
+ ],
+ "digest": {
+  "totals": {
+   "file_count": 7,
+   "class_count": 4,
+   "function_count": 15,
+   "edge_count": 4
+  },
+  "caps": {
+   "max_callees_per_symbol": 12,
+   "max_callers_per_symbol": 12,
+   "max_imports_per_file": 20,
+   "trivial_max_body_lines": 2,
+   "max_detailed_files": 500,
+   "max_total_symbol_entries": 6000
+  },
+  "truncated": false,
+  "files_omitted": 0,
+  "files": [
+   {
+    "path": "billing/models/invoice.py",
+    "node_id": "component::billing/models/invoice.py",
+    "imports": [],
+    "imports_overflow": 0,
+    "classes": [
+     {
+      "id": "billing/models/invoice.py::class::Invoice",
+      "node_id": "billing/models/invoice.py::class::Invoice",
+      "name": "Invoice",
+      "is_trivial": false,
+      "calls": [],
+      "calls_overflow": 0,
+      "called_by": [],
+      "called_by_overflow": 0,
+      "methods": [
+       {
+        "id": "billing/models/invoice.py::function::Invoice.total",
+        "node_id": "billing/models/invoice.py::function::Invoice.total",
+        "name": "total",
+        "is_trivial": false,
+        "calls": [],
+        "calls_overflow": 0,
+        "called_by": [],
+        "called_by_overflow": 0
+       }
+      ],
+      "methods_omitted": 0
+     }
+    ],
+    "classes_omitted": 0,
+    "functions": [
+     {
+      "id": "billing/models/invoice.py::function::format_invoice_id",
+      "node_id": "billing/models/invoice.py::function::format_invoice_id",
+      "name": "format_invoice_id",
+      "is_trivial": false,
+      "calls": [],
+      "calls_overflow": 0,
+      "called_by": [],
+      "called_by_overflow": 0
+     }
+    ],
+    "functions_omitted": 0
+   },
+   {
+    "path": "billing/reporter.go",
+    "node_id": "component::billing/reporter.go",
+    "imports": [],
+    "imports_overflow": 0,
+    "classes": [
+     {
+      "id": "billing/reporter.go::class::Report",
+      "node_id": "billing/reporter.go::class::Report",
+      "name": "Report",
+      "is_trivial": false,
+      "calls": [],
+      "calls_overflow": 0,
+      "called_by": [],
+      "called_by_overflow": 0,
+      "methods": [],
+      "methods_omitted": 0
+     }
+    ],
+    "classes_omitted": 0,
+    "functions": [
+     {
+      "id": "billing/reporter.go::function::RenderReport",
+      "node_id": "billing/reporter.go::function::RenderReport",
+      "name": "RenderReport",
+      "is_trivial": false,
+      "calls": [],
+      "calls_overflow": 0,
+      "called_by": [],
+      "called_by_overflow": 0
+     },
+     {
+      "id": "billing/reporter.go::function::SendReport",
+      "node_id": "billing/reporter.go::function::SendReport",
+      "name": "SendReport",
+      "is_trivial": false,
+      "calls": [],
+      "calls_overflow": 0,
+      "called_by": [],
+      "called_by_overflow": 0
+     },
+     {
+      "id": "billing/reporter.go::function::formatCurrency",
+      "node_id": "billing/reporter.go::function::formatCurrency",
+      "name": "formatCurrency",
+      "is_trivial": false,
+      "calls": [],
+      "calls_overflow": 0,
+      "called_by": [],
+      "called_by_overflow": 0
+     }
+    ],
+    "functions_omitted": 0
+   },
+   {
+    "path": "billing/service.py",
+    "node_id": "component::billing/service.py",
+    "imports": [
+     "shared.text_utils"
+    ],
+    "imports_overflow": 0,
+    "classes": [
+     {
+      "id": "billing/service.py::class::BillingService",
+      "node_id": "billing/service.py::class::BillingService",
+      "name": "BillingService",
+      "is_trivial": false,
+      "calls": [
+       "shared/text_utils.py::function::slugify"
+      ],
+      "calls_overflow": 0,
+      "called_by": [],
+      "called_by_overflow": 0,
+      "methods": [
+       {
+        "id": "billing/service.py::function::BillingService.create_invoice",
+        "node_id": "billing/service.py::function::BillingService.create_invoice",
+        "name": "create_invoice",
+        "is_trivial": false,
+        "calls": [
+         "shared/text_utils.py::function::slugify"
+        ],
+        "calls_overflow": 0,
+        "called_by": [],
+        "called_by_overflow": 0
+       }
+      ],
+      "methods_omitted": 1
+     }
+    ],
+    "classes_omitted": 0,
+    "functions": [],
+    "functions_omitted": 0
+   },
+   {
+    "path": "shared/text_utils.py",
+    "node_id": "component::shared/text_utils.py",
+    "imports": [],
+    "imports_overflow": 0,
+    "classes": [],
+    "classes_omitted": 0,
+    "functions": [
+     {
+      "id": "shared/text_utils.py::function::slugify",
+      "node_id": "shared/text_utils.py::function::slugify",
+      "name": "slugify",
+      "is_trivial": false,
+      "calls": [],
+      "calls_overflow": 0,
+      "called_by": [
+       "billing/service.py::class::BillingService",
+       "billing/service.py::function::BillingService.create_invoice",
+       "users/service.py::class::UserService",
+       "users/service.py::function::UserService.create_user"
+      ],
+      "called_by_overflow": 0
+     }
+    ],
+    "functions_omitted": 0
+   },
+   {
+    "path": "users/service.py",
+    "node_id": "component::users/service.py",
+    "imports": [
+     "shared.text_utils"
+    ],
+    "imports_overflow": 0,
+    "classes": [
+     {
+      "id": "users/service.py::class::UserService",
+      "node_id": "users/service.py::class::UserService",
+      "name": "UserService",
+      "is_trivial": false,
+      "calls": [
+       "shared/text_utils.py::function::slugify"
+      ],
+      "calls_overflow": 0,
+      "called_by": [],
+      "called_by_overflow": 0,
+      "methods": [
+       {
+        "id": "users/service.py::function::UserService.create_user",
+        "node_id": "users/service.py::function::UserService.create_user",
+        "name": "create_user",
+        "is_trivial": false,
+        "calls": [
+         "shared/text_utils.py::function::slugify"
+        ],
+        "calls_overflow": 0,
+        "called_by": [],
+        "called_by_overflow": 0
+       },
+       {
+        "id": "users/service.py::function::UserService.get_user",
+        "node_id": "users/service.py::function::UserService.get_user",
+        "name": "get_user",
+        "is_trivial": false,
+        "calls": [],
+        "calls_overflow": 0,
+        "called_by": [],
+        "called_by_overflow": 0
+       }
+      ],
+      "methods_omitted": 1
+     }
+    ],
+    "classes_omitted": 0,
+    "functions": [
+     {
+      "id": "users/service.py::function::list_active_users",
+      "node_id": "users/service.py::function::list_active_users",
+      "name": "list_active_users",
+      "is_trivial": false,
+      "calls": [],
+      "calls_overflow": 0,
+      "called_by": [],
+      "called_by_overflow": 0
+     }
+    ],
+    "functions_omitted": 0
+   },
+   {
+    "path": "web/UserCard.tsx",
+    "node_id": "component::web/UserCard.tsx",
+    "imports": [],
+    "imports_overflow": 0,
+    "classes": [],
+    "classes_omitted": 0,
+    "functions": [
+     {
+      "id": "web/UserCard.tsx::function::UserCard",
+      "node_id": "web/UserCard.tsx::function::UserCard",
+      "name": "UserCard",
+      "is_trivial": false,
+      "calls": [],
+      "calls_overflow": 0,
+      "called_by": [],
+      "called_by_overflow": 0
+     },
+     {
+      "id": "web/UserCard.tsx::function::trackUserCardView",
+      "node_id": "web/UserCard.tsx::function::trackUserCardView",
+      "name": "trackUserCardView",
+      "is_trivial": false,
+      "calls": [],
+      "calls_overflow": 0,
+      "called_by": [],
+      "called_by_overflow": 0
+     }
+    ],
+    "functions_omitted": 0
+   },
+   {
+    "path": "web/widget.ts",
+    "node_id": "component::web/widget.ts",
+    "imports": [],
+    "imports_overflow": 0,
+    "classes": [],
+    "classes_omitted": 0,
+    "functions": [
+     {
+      "id": "web/widget.ts::function::renderUserSlug",
+      "node_id": "web/widget.ts::function::renderUserSlug",
+      "name": "renderUserSlug",
+      "is_trivial": false,
+      "calls": [],
+      "calls_overflow": 0,
+      "called_by": [],
+      "called_by_overflow": 0
+     }
+    ],
+    "functions_omitted": 0
+   }
+  ]
+ },
+ "digest_tight": {
+  "totals": {
+   "file_count": 7,
+   "class_count": 4,
+   "function_count": 15,
+   "edge_count": 4
+  },
+  "caps": {
+   "max_callees_per_symbol": 1,
+   "max_callers_per_symbol": 1,
+   "max_imports_per_file": 1,
+   "trivial_max_body_lines": 2,
+   "max_detailed_files": 2,
+   "max_total_symbol_entries": 6000
+  },
+  "truncated": true,
+  "files_omitted": 5,
+  "files": [
+   {
+    "path": "billing/models/invoice.py",
+    "node_id": "component::billing/models/invoice.py",
+    "detail_omitted": true
+   },
+   {
+    "path": "billing/reporter.go",
+    "node_id": "component::billing/reporter.go",
+    "detail_omitted": true
+   },
+   {
+    "path": "billing/service.py",
+    "node_id": "component::billing/service.py",
+    "imports": [
+     "shared.text_utils"
+    ],
+    "imports_overflow": 0,
+    "classes": [
+     {
+      "id": "billing/service.py::class::BillingService",
+      "node_id": "billing/service.py::class::BillingService",
+      "name": "BillingService",
+      "is_trivial": false,
+      "calls": [
+       "shared/text_utils.py::function::slugify"
+      ],
+      "calls_overflow": 0,
+      "called_by": [],
+      "called_by_overflow": 0,
+      "methods": [
+       {
+        "id": "billing/service.py::function::BillingService.create_invoice",
+        "node_id": "billing/service.py::function::BillingService.create_invoice",
+        "name": "create_invoice",
+        "is_trivial": false,
+        "calls": [
+         "shared/text_utils.py::function::slugify"
+        ],
+        "calls_overflow": 0,
+        "called_by": [],
+        "called_by_overflow": 0
+       }
+      ],
+      "methods_omitted": 1
+     }
+    ],
+    "classes_omitted": 0,
+    "functions": [],
+    "functions_omitted": 0
+   },
+   {
+    "path": "shared/text_utils.py",
+    "node_id": "component::shared/text_utils.py",
+    "imports": [],
+    "imports_overflow": 0,
+    "classes": [],
+    "classes_omitted": 0,
+    "functions": [
+     {
+      "id": "shared/text_utils.py::function::slugify",
+      "node_id": "shared/text_utils.py::function::slugify",
+      "name": "slugify",
+      "is_trivial": false,
+      "calls": [],
+      "calls_overflow": 0,
+      "called_by": [
+       "billing/service.py::class::BillingService"
+      ],
+      "called_by_overflow": 3
+     }
+    ],
+    "functions_omitted": 0
+   },
+   {
+    "path": "users/service.py",
+    "node_id": "component::users/service.py",
+    "detail_omitted": true
+   },
+   {
+    "path": "web/UserCard.tsx",
+    "node_id": "component::web/UserCard.tsx",
+    "detail_omitted": true
+   },
+   {
+    "path": "web/widget.ts",
+    "node_id": "component::web/widget.ts",
+    "detail_omitted": true
+   }
+  ]
+ },
+ "clusters": {
+  "components": [
+   {
+    "id": "folder::billing",
+    "container_id": "solo::folder::billing",
+    "files": [
+     "billing/reporter.go",
+     "billing/service.py",
+     "shared/text_utils.py",
+     "users/service.py"
+    ]
+   },
+   {
+    "id": "folder::web",
+    "container_id": "solo::folder::web",
+    "files": [
+     "web/UserCard.tsx",
+     "web/widget.ts"
+    ]
+   }
+  ],
+  "containers": [
+   {
+    "id": "solo::folder::billing",
+    "component_ids": [
+     "folder::billing"
+    ]
+   },
+   {
+    "id": "solo::folder::web",
+    "component_ids": [
+     "folder::web"
+    ]
+   }
+  ],
+  "component_edges": [],
+  "container_edges": [],
+  "undetermined_files": [
+   "billing/models/invoice.py"
+  ],
+  "file_edge_weights": [
+   [
+    "billing/service.py",
+    "shared/text_utils.py",
+    2
+   ],
+   [
+    "shared/text_utils.py",
+    "users/service.py",
+    2
+   ]
+  ],
+  "undetermined_candidates": {
+   "billing/models/invoice.py": [
+    {
+     "id": "folder::billing",
+     "files": [
+      "billing/reporter.go",
+      "billing/service.py",
+      "shared/text_utils.py",
+      "users/service.py"
+     ]
+    },
+    {
+     "id": "folder::web",
+     "files": [
+      "web/UserCard.tsx",
+      "web/widget.ts"
+     ]
+    }
+   ]
+  }
+ },
+ "structure": {
+  "default": {
+   "args": {},
+   "result": {
+    "root": "root",
+    "depth": 2,
+    "truncated": true,
+    "nodes": [
+     {
+      "node_id": "dir::billing",
+      "path": "billing",
+      "name": "billing",
+      "level": "folder",
+      "summary": "System `billing`: level=system; source=billing.",
+      "doc_only": false,
+      "child_count": 3,
+      "truncated": false,
+      "children": [
+       {
+        "node_id": "dir::billing/models",
+        "path": "billing/models",
+        "name": "models",
+        "level": "folder",
+        "summary": "Pillar `models`: level=pillar; source=billing/models.",
+        "doc_only": false,
+        "child_count": 1,
+        "truncated": true
+       },
+       {
+        "node_id": "component::billing/reporter.go",
+        "path": "billing/reporter.go",
+        "name": "reporter.go",
+        "level": "file",
+        "summary": "Component `reporter.go`: level=component; source=billing/reporter.go.",
+        "doc_only": false,
+        "child_count": 0,
+        "truncated": false
+       },
+       {
+        "node_id": "component::billing/service.py",
+        "path": "billing/service.py",
+        "name": "service.py",
+        "level": "file",
+        "summary": "Component `service.py`: level=component; source=billing/service.py.",
+        "doc_only": false,
+        "child_count": 0,
+        "truncated": false
+       }
+      ]
+     },
+     {
+      "node_id": "dir::shared",
+      "path": "shared",
+      "name": "shared",
+      "level": "folder",
+      "summary": "System `shared`: level=system; source=shared.",
+      "doc_only": false,
+      "child_count": 1,
+      "truncated": false,
+      "children": [
+       {
+        "node_id": "component::shared/text_utils.py",
+        "path": "shared/text_utils.py",
+        "name": "text_utils.py",
+        "level": "file",
+        "summary": "Component `text_utils.py`: level=component; source=shared/text_utils.py.",
+        "doc_only": false,
+        "child_count": 0,
+        "truncated": false
+       }
+      ]
+     },
+     {
+      "node_id": "dir::users",
+      "path": "users",
+      "name": "users",
+      "level": "folder",
+      "summary": "System `users`: level=system; source=users.",
+      "doc_only": false,
+      "child_count": 1,
+      "truncated": false,
+      "children": [
+       {
+        "node_id": "component::users/service.py",
+        "path": "users/service.py",
+        "name": "service.py",
+        "level": "file",
+        "summary": "Component `service.py`: level=component; source=users/service.py.",
+        "doc_only": false,
+        "child_count": 0,
+        "truncated": false
+       }
+      ]
+     },
+     {
+      "node_id": "dir::web",
+      "path": "web",
+      "name": "web",
+      "level": "folder",
+      "summary": "System `web`: level=system; source=web.",
+      "doc_only": false,
+      "child_count": 2,
+      "truncated": false,
+      "children": [
+       {
+        "node_id": "component::web/UserCard.tsx",
+        "path": "web/UserCard.tsx",
+        "name": "UserCard.tsx",
+        "level": "file",
+        "summary": "Component `UserCard.tsx`: level=component; source=web/UserCard.tsx.",
+        "doc_only": false,
+        "child_count": 0,
+        "truncated": false
+       },
+       {
+        "node_id": "component::web/widget.ts",
+        "path": "web/widget.ts",
+        "name": "widget.ts",
+        "level": "file",
+        "summary": "Component `widget.ts`: level=component; source=web/widget.ts.",
+        "doc_only": false,
+        "child_count": 0,
+        "truncated": false
+       }
+      ]
+     }
+    ]
+   }
+  },
+  "depth_1": {
+   "args": {
+    "depth": 1
+   },
+   "result": {
+    "root": "root",
+    "depth": 1,
+    "truncated": true,
+    "nodes": [
+     {
+      "node_id": "dir::billing",
+      "path": "billing",
+      "name": "billing",
+      "level": "folder",
+      "summary": "System `billing`: level=system; source=billing.",
+      "doc_only": false,
+      "child_count": 3,
+      "truncated": true
+     },
+     {
+      "node_id": "dir::shared",
+      "path": "shared",
+      "name": "shared",
+      "level": "folder",
+      "summary": "System `shared`: level=system; source=shared.",
+      "doc_only": false,
+      "child_count": 1,
+      "truncated": true
+     },
+     {
+      "node_id": "dir::users",
+      "path": "users",
+      "name": "users",
+      "level": "folder",
+      "summary": "System `users`: level=system; source=users.",
+      "doc_only": false,
+      "child_count": 1,
+      "truncated": true
+     },
+     {
+      "node_id": "dir::web",
+      "path": "web",
+      "name": "web",
+      "level": "folder",
+      "summary": "System `web`: level=system; source=web.",
+      "doc_only": false,
+      "child_count": 2,
+      "truncated": true
+     }
+    ]
+   }
+  },
+  "depth_5": {
+   "args": {
+    "depth": 5
+   },
+   "result": {
+    "root": "root",
+    "depth": 5,
+    "truncated": false,
+    "nodes": [
+     {
+      "node_id": "dir::billing",
+      "path": "billing",
+      "name": "billing",
+      "level": "folder",
+      "summary": "System `billing`: level=system; source=billing.",
+      "doc_only": false,
+      "child_count": 3,
+      "truncated": false,
+      "children": [
+       {
+        "node_id": "dir::billing/models",
+        "path": "billing/models",
+        "name": "models",
+        "level": "folder",
+        "summary": "Pillar `models`: level=pillar; source=billing/models.",
+        "doc_only": false,
+        "child_count": 1,
+        "truncated": false,
+        "children": [
+         {
+          "node_id": "component::billing/models/invoice.py",
+          "path": "billing/models/invoice.py",
+          "name": "invoice.py",
+          "level": "file",
+          "summary": "Component `invoice.py`: level=component; source=billing/models/invoice.py.",
+          "doc_only": false,
+          "child_count": 0,
+          "truncated": false
+         }
+        ]
+       },
+       {
+        "node_id": "component::billing/reporter.go",
+        "path": "billing/reporter.go",
+        "name": "reporter.go",
+        "level": "file",
+        "summary": "Component `reporter.go`: level=component; source=billing/reporter.go.",
+        "doc_only": false,
+        "child_count": 0,
+        "truncated": false
+       },
+       {
+        "node_id": "component::billing/service.py",
+        "path": "billing/service.py",
+        "name": "service.py",
+        "level": "file",
+        "summary": "Component `service.py`: level=component; source=billing/service.py.",
+        "doc_only": false,
+        "child_count": 0,
+        "truncated": false
+       }
+      ]
+     },
+     {
+      "node_id": "dir::shared",
+      "path": "shared",
+      "name": "shared",
+      "level": "folder",
+      "summary": "System `shared`: level=system; source=shared.",
+      "doc_only": false,
+      "child_count": 1,
+      "truncated": false,
+      "children": [
+       {
+        "node_id": "component::shared/text_utils.py",
+        "path": "shared/text_utils.py",
+        "name": "text_utils.py",
+        "level": "file",
+        "summary": "Component `text_utils.py`: level=component; source=shared/text_utils.py.",
+        "doc_only": false,
+        "child_count": 0,
+        "truncated": false
+       }
+      ]
+     },
+     {
+      "node_id": "dir::users",
+      "path": "users",
+      "name": "users",
+      "level": "folder",
+      "summary": "System `users`: level=system; source=users.",
+      "doc_only": false,
+      "child_count": 1,
+      "truncated": false,
+      "children": [
+       {
+        "node_id": "component::users/service.py",
+        "path": "users/service.py",
+        "name": "service.py",
+        "level": "file",
+        "summary": "Component `service.py`: level=component; source=users/service.py.",
+        "doc_only": false,
+        "child_count": 0,
+        "truncated": false
+       }
+      ]
+     },
+     {
+      "node_id": "dir::web",
+      "path": "web",
+      "name": "web",
+      "level": "folder",
+      "summary": "System `web`: level=system; source=web.",
+      "doc_only": false,
+      "child_count": 2,
+      "truncated": false,
+      "children": [
+       {
+        "node_id": "component::web/UserCard.tsx",
+        "path": "web/UserCard.tsx",
+        "name": "UserCard.tsx",
+        "level": "file",
+        "summary": "Component `UserCard.tsx`: level=component; source=web/UserCard.tsx.",
+        "doc_only": false,
+        "child_count": 0,
+        "truncated": false
+       },
+       {
+        "node_id": "component::web/widget.ts",
+        "path": "web/widget.ts",
+        "name": "widget.ts",
+        "level": "file",
+        "summary": "Component `widget.ts`: level=component; source=web/widget.ts.",
+        "doc_only": false,
+        "child_count": 0,
+        "truncated": false
+       }
+      ]
+     }
+    ]
+   }
+  },
+  "depth_99_is_clamped": {
+   "args": {
+    "depth": 99
+   },
+   "result": {
+    "root": "root",
+    "depth": 5,
+    "truncated": false,
+    "nodes": [
+     {
+      "node_id": "dir::billing",
+      "path": "billing",
+      "name": "billing",
+      "level": "folder",
+      "summary": "System `billing`: level=system; source=billing.",
+      "doc_only": false,
+      "child_count": 3,
+      "truncated": false,
+      "children": [
+       {
+        "node_id": "dir::billing/models",
+        "path": "billing/models",
+        "name": "models",
+        "level": "folder",
+        "summary": "Pillar `models`: level=pillar; source=billing/models.",
+        "doc_only": false,
+        "child_count": 1,
+        "truncated": false,
+        "children": [
+         {
+          "node_id": "component::billing/models/invoice.py",
+          "path": "billing/models/invoice.py",
+          "name": "invoice.py",
+          "level": "file",
+          "summary": "Component `invoice.py`: level=component; source=billing/models/invoice.py.",
+          "doc_only": false,
+          "child_count": 0,
+          "truncated": false
+         }
+        ]
+       },
+       {
+        "node_id": "component::billing/reporter.go",
+        "path": "billing/reporter.go",
+        "name": "reporter.go",
+        "level": "file",
+        "summary": "Component `reporter.go`: level=component; source=billing/reporter.go.",
+        "doc_only": false,
+        "child_count": 0,
+        "truncated": false
+       },
+       {
+        "node_id": "component::billing/service.py",
+        "path": "billing/service.py",
+        "name": "service.py",
+        "level": "file",
+        "summary": "Component `service.py`: level=component; source=billing/service.py.",
+        "doc_only": false,
+        "child_count": 0,
+        "truncated": false
+       }
+      ]
+     },
+     {
+      "node_id": "dir::shared",
+      "path": "shared",
+      "name": "shared",
+      "level": "folder",
+      "summary": "System `shared`: level=system; source=shared.",
+      "doc_only": false,
+      "child_count": 1,
+      "truncated": false,
+      "children": [
+       {
+        "node_id": "component::shared/text_utils.py",
+        "path": "shared/text_utils.py",
+        "name": "text_utils.py",
+        "level": "file",
+        "summary": "Component `text_utils.py`: level=component; source=shared/text_utils.py.",
+        "doc_only": false,
+        "child_count": 0,
+        "truncated": false
+       }
+      ]
+     },
+     {
+      "node_id": "dir::users",
+      "path": "users",
+      "name": "users",
+      "level": "folder",
+      "summary": "System `users`: level=system; source=users.",
+      "doc_only": false,
+      "child_count": 1,
+      "truncated": false,
+      "children": [
+       {
+        "node_id": "component::users/service.py",
+        "path": "users/service.py",
+        "name": "service.py",
+        "level": "file",
+        "summary": "Component `service.py`: level=component; source=users/service.py.",
+        "doc_only": false,
+        "child_count": 0,
+        "truncated": false
+       }
+      ]
+     },
+     {
+      "node_id": "dir::web",
+      "path": "web",
+      "name": "web",
+      "level": "folder",
+      "summary": "System `web`: level=system; source=web.",
+      "doc_only": false,
+      "child_count": 2,
+      "truncated": false,
+      "children": [
+       {
+        "node_id": "component::web/UserCard.tsx",
+        "path": "web/UserCard.tsx",
+        "name": "UserCard.tsx",
+        "level": "file",
+        "summary": "Component `UserCard.tsx`: level=component; source=web/UserCard.tsx.",
+        "doc_only": false,
+        "child_count": 0,
+        "truncated": false
+       },
+       {
+        "node_id": "component::web/widget.ts",
+        "path": "web/widget.ts",
+        "name": "widget.ts",
+        "level": "file",
+        "summary": "Component `widget.ts`: level=component; source=web/widget.ts.",
+        "doc_only": false,
+        "child_count": 0,
+        "truncated": false
+       }
+      ]
+     }
+    ]
+   }
+  },
+  "max_children_1": {
+   "args": {
+    "max_children": 1
+   },
+   "result": {
+    "root": "root",
+    "depth": 2,
+    "truncated": true,
+    "nodes": [
+     {
+      "node_id": "dir::billing",
+      "path": "billing",
+      "name": "billing",
+      "level": "folder",
+      "summary": "System `billing`: level=system; source=billing.",
+      "doc_only": false,
+      "child_count": 3,
+      "truncated": true,
+      "children": [
+       {
+        "node_id": "dir::billing/models",
+        "path": "billing/models",
+        "name": "models",
+        "level": "folder",
+        "summary": "Pillar `models`: level=pillar; source=billing/models.",
+        "doc_only": false,
+        "child_count": 1,
+        "truncated": true
+       }
+      ]
+     }
+    ]
+   }
+  },
+  "max_nodes_3": {
+   "args": {
+    "depth": 5,
+    "max_nodes": 3
+   },
+   "result": {
+    "root": "root",
+    "depth": 5,
+    "truncated": true,
+    "nodes": [
+     {
+      "node_id": "dir::billing",
+      "path": "billing",
+      "name": "billing",
+      "level": "folder",
+      "summary": "System `billing`: level=system; source=billing.",
+      "doc_only": false,
+      "child_count": 3,
+      "truncated": true
+     },
+     {
+      "node_id": "dir::shared",
+      "path": "shared",
+      "name": "shared",
+      "level": "folder",
+      "summary": "System `shared`: level=system; source=shared.",
+      "doc_only": false,
+      "child_count": 1,
+      "truncated": true
+     },
+     {
+      "node_id": "dir::users",
+      "path": "users",
+      "name": "users",
+      "level": "folder",
+      "summary": "System `users`: level=system; source=users.",
+      "doc_only": false,
+      "child_count": 1,
+      "truncated": true
+     }
+    ]
+   }
+  },
+  "root_first_system_depth_1": {
+   "args": {
+    "root_id": "dir::billing",
+    "depth": 1
+   },
+   "result": {
+    "root": "dir::billing",
+    "depth": 1,
+    "truncated": true,
+    "nodes": [
+     {
+      "node_id": "dir::billing/models",
+      "path": "billing/models",
+      "name": "models",
+      "level": "folder",
+      "summary": "Pillar `models`: level=pillar; source=billing/models.",
+      "doc_only": false,
+      "child_count": 1,
+      "truncated": true
+     },
+     {
+      "node_id": "component::billing/reporter.go",
+      "path": "billing/reporter.go",
+      "name": "reporter.go",
+      "level": "file",
+      "summary": "Component `reporter.go`: level=component; source=billing/reporter.go.",
+      "doc_only": false,
+      "child_count": 0,
+      "truncated": false
+     },
+     {
+      "node_id": "component::billing/service.py",
+      "path": "billing/service.py",
+      "name": "service.py",
+      "level": "file",
+      "summary": "Component `service.py`: level=component; source=billing/service.py.",
+      "doc_only": false,
+      "child_count": 0,
+      "truncated": false
+     }
+    ]
+   }
+  },
+  "unknown_root": {
+   "args": {
+    "root_id": "dir::does-not-exist"
+   },
+   "error": "unknown_root"
+  }
+ },
+ "context_digest": {
+  "external_import_roots": [],
+  "declared_dependencies": [],
+  "readme_excerpt": null
+ }
+}

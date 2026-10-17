@@ -1,0 +1,2282 @@
+{
+ "schema_version": 1,
+ "nodes": [
+  {
+   "id": "component::.gremlins.yaml",
+   "name": ".gremlins.yaml",
+   "level": "component",
+   "parent_ids": [],
+   "source_path": ".gremlins.yaml",
+   "symbol_ids": [],
+   "repository_id": null,
+   "depends_on_ids": [],
+   "doc_only": false
+  },
+  {
+   "id": "dir::.github",
+   "name": ".github",
+   "level": "system",
+   "parent_ids": [],
+   "source_path": ".github",
+   "symbol_ids": [],
+   "repository_id": null,
+   "depends_on_ids": [],
+   "doc_only": false
+  },
+  {
+   "id": "dir::.github/workflows",
+   "name": "workflows",
+   "level": "pillar",
+   "parent_ids": [
+    "dir::.github"
+   ],
+   "source_path": ".github/workflows",
+   "symbol_ids": [],
+   "repository_id": null,
+   "depends_on_ids": [],
+   "doc_only": false
+  },
+  {
+   "id": "component::.github/workflows/ci.yml",
+   "name": "ci.yml",
+   "level": "component",
+   "parent_ids": [
+    "dir::.github/workflows"
+   ],
+   "source_path": ".github/workflows/ci.yml",
+   "symbol_ids": [],
+   "repository_id": null,
+   "depends_on_ids": [],
+   "doc_only": false
+  },
+  {
+   "id": ".github/workflows/ci.yml::class::test",
+   "name": "test",
+   "level": "service",
+   "parent_ids": [
+    "component::.github/workflows/ci.yml"
+   ],
+   "source_path": ".github/workflows/ci.yml",
+   "symbol_ids": [],
+   "repository_id": null,
+   "depends_on_ids": [],
+   "doc_only": false
+  },
+  {
+   "id": "dir::billing",
+   "name": "billing",
+   "level": "system",
+   "parent_ids": [],
+   "source_path": "billing",
+   "symbol_ids": [],
+   "repository_id": null,
+   "depends_on_ids": [],
+   "doc_only": false
+  },
+  {
+   "id": "component::billing/invoice.py",
+   "name": "invoice.py",
+   "level": "component",
+   "parent_ids": [
+    "dir::billing"
+   ],
+   "source_path": "billing/invoice.py",
+   "symbol_ids": [],
+   "repository_id": null,
+   "depends_on_ids": [],
+   "doc_only": false
+  },
+  {
+   "id": "service::billing/invoice.py::functions",
+   "name": "Module Functions",
+   "level": "service",
+   "parent_ids": [
+    "component::billing/invoice.py"
+   ],
+   "source_path": "billing/invoice.py",
+   "symbol_ids": [],
+   "repository_id": null,
+   "depends_on_ids": [],
+   "doc_only": false
+  },
+  {
+   "id": "billing/invoice.py::function::invoice_id",
+   "name": "invoice_id",
+   "level": "function",
+   "parent_ids": [
+    "service::billing/invoice.py::functions"
+   ],
+   "source_path": "billing/invoice.py",
+   "symbol_ids": [],
+   "repository_id": null,
+   "depends_on_ids": [],
+   "doc_only": false
+  },
+  {
+   "id": "logicblock::billing/invoice.py::function::invoice_id::0",
+   "name": "Step 1",
+   "level": "logic_block",
+   "parent_ids": [
+    "billing/invoice.py::function::invoice_id"
+   ],
+   "source_path": "billing/invoice.py:5-5",
+   "symbol_ids": [],
+   "repository_id": null,
+   "depends_on_ids": [],
+   "doc_only": false
+  },
+  {
+   "id": "code::logicblock::billing/invoice.py::function::invoice_id::0",
+   "name": "billing/invoice.py:5-5",
+   "level": "code",
+   "parent_ids": [
+    "logicblock::billing/invoice.py::function::invoice_id::0"
+   ],
+   "source_path": "billing/invoice.py:5-5",
+   "symbol_ids": [],
+   "repository_id": null,
+   "depends_on_ids": [],
+   "doc_only": false
+  },
+  {
+   "id": "component::billing/service.py",
+   "name": "service.py",
+   "level": "component",
+   "parent_ids": [
+    "dir::billing"
+   ],
+   "source_path": "billing/service.py",
+   "symbol_ids": [],
+   "repository_id": null,
+   "depends_on_ids": [],
+   "doc_only": false
+  },
+  {
+   "id": "service::billing/service.py::functions",
+   "name": "Module Functions",
+   "level": "service",
+   "parent_ids": [
+    "component::billing/service.py"
+   ],
+   "source_path": "billing/service.py",
+   "symbol_ids": [],
+   "repository_id": null,
+   "depends_on_ids": [],
+   "doc_only": false
+  },
+  {
+   "id": "billing/service.py::function::charge",
+   "name": "charge",
+   "level": "function",
+   "parent_ids": [
+    "service::billing/service.py::functions"
+   ],
+   "source_path": "billing/service.py",
+   "symbol_ids": [],
+   "repository_id": null,
+   "depends_on_ids": [],
+   "doc_only": false
+  },
+  {
+   "id": "logicblock::billing/service.py::function::charge::0",
+   "name": "Step 1",
+   "level": "logic_block",
+   "parent_ids": [
+    "billing/service.py::function::charge"
+   ],
+   "source_path": "billing/service.py:6-6",
+   "symbol_ids": [],
+   "repository_id": null,
+   "depends_on_ids": [],
+   "doc_only": false
+  },
+  {
+   "id": "code::logicblock::billing/service.py::function::charge::0",
+   "name": "billing/service.py:6-6",
+   "level": "code",
+   "parent_ids": [
+    "logicblock::billing/service.py::function::charge::0"
+   ],
+   "source_path": "billing/service.py:6-6",
+   "symbol_ids": [],
+   "repository_id": null,
+   "depends_on_ids": [],
+   "doc_only": false
+  },
+  {
+   "id": "dir::billing/reports",
+   "name": "reports",
+   "level": "pillar",
+   "parent_ids": [
+    "dir::billing"
+   ],
+   "source_path": "billing/reports",
+   "symbol_ids": [],
+   "repository_id": null,
+   "depends_on_ids": [],
+   "doc_only": false
+  },
+  {
+   "id": "component::billing/reports/detail.py",
+   "name": "detail.py",
+   "level": "component",
+   "parent_ids": [
+    "dir::billing/reports"
+   ],
+   "source_path": "billing/reports/detail.py",
+   "symbol_ids": [],
+   "repository_id": null,
+   "depends_on_ids": [],
+   "doc_only": false
+  },
+  {
+   "id": "service::billing/reports/detail.py::functions",
+   "name": "Module Functions",
+   "level": "service",
+   "parent_ids": [
+    "component::billing/reports/detail.py"
+   ],
+   "source_path": "billing/reports/detail.py",
+   "symbol_ids": [],
+   "repository_id": null,
+   "depends_on_ids": [],
+   "doc_only": false
+  },
+  {
+   "id": "billing/reports/detail.py::function::detail",
+   "name": "detail",
+   "level": "function",
+   "parent_ids": [
+    "service::billing/reports/detail.py::functions"
+   ],
+   "source_path": "billing/reports/detail.py",
+   "symbol_ids": [],
+   "repository_id": null,
+   "depends_on_ids": [],
+   "doc_only": false
+  },
+  {
+   "id": "logicblock::billing/reports/detail.py::function::detail::0",
+   "name": "Step 1",
+   "level": "logic_block",
+   "parent_ids": [
+    "billing/reports/detail.py::function::detail"
+   ],
+   "source_path": "billing/reports/detail.py:5-5",
+   "symbol_ids": [],
+   "repository_id": null,
+   "depends_on_ids": [],
+   "doc_only": false
+  },
+  {
+   "id": "code::logicblock::billing/reports/detail.py::function::detail::0",
+   "name": "billing/reports/detail.py:5-5",
+   "level": "code",
+   "parent_ids": [
+    "logicblock::billing/reports/detail.py::function::detail::0"
+   ],
+   "source_path": "billing/reports/detail.py:5-5",
+   "symbol_ids": [],
+   "repository_id": null,
+   "depends_on_ids": [],
+   "doc_only": false
+  },
+  {
+   "id": "component::billing/reports/summary.py",
+   "name": "summary.py",
+   "level": "component",
+   "parent_ids": [
+    "dir::billing/reports"
+   ],
+   "source_path": "billing/reports/summary.py",
+   "symbol_ids": [],
+   "repository_id": null,
+   "depends_on_ids": [],
+   "doc_only": false
+  },
+  {
+   "id": "service::billing/reports/summary.py::functions",
+   "name": "Module Functions",
+   "level": "service",
+   "parent_ids": [
+    "component::billing/reports/summary.py"
+   ],
+   "source_path": "billing/reports/summary.py",
+   "symbol_ids": [],
+   "repository_id": null,
+   "depends_on_ids": [],
+   "doc_only": false
+  },
+  {
+   "id": "billing/reports/summary.py::function::summarize",
+   "name": "summarize",
+   "level": "function",
+   "parent_ids": [
+    "service::billing/reports/summary.py::functions"
+   ],
+   "source_path": "billing/reports/summary.py",
+   "symbol_ids": [],
+   "repository_id": null,
+   "depends_on_ids": [],
+   "doc_only": false
+  },
+  {
+   "id": "logicblock::billing/reports/summary.py::function::summarize::0",
+   "name": "Step 1",
+   "level": "logic_block",
+   "parent_ids": [
+    "billing/reports/summary.py::function::summarize"
+   ],
+   "source_path": "billing/reports/summary.py:5-5",
+   "symbol_ids": [],
+   "repository_id": null,
+   "depends_on_ids": [],
+   "doc_only": false
+  },
+  {
+   "id": "code::logicblock::billing/reports/summary.py::function::summarize::0",
+   "name": "billing/reports/summary.py:5-5",
+   "level": "code",
+   "parent_ids": [
+    "logicblock::billing/reports/summary.py::function::summarize::0"
+   ],
+   "source_path": "billing/reports/summary.py:5-5",
+   "symbol_ids": [],
+   "repository_id": null,
+   "depends_on_ids": [],
+   "doc_only": false
+  },
+  {
+   "id": "dir::consts",
+   "name": "consts",
+   "level": "system",
+   "parent_ids": [],
+   "source_path": "consts",
+   "symbol_ids": [],
+   "repository_id": null,
+   "depends_on_ids": [],
+   "doc_only": false
+  },
+  {
+   "id": "component::consts/values.py",
+   "name": "values.py",
+   "level": "component",
+   "parent_ids": [
+    "dir::consts"
+   ],
+   "source_path": "consts/values.py",
+   "symbol_ids": [],
+   "repository_id": null,
+   "depends_on_ids": [],
+   "doc_only": false
+  },
+  {
+   "id": "dir::misc",
+   "name": "misc",
+   "level": "system",
+   "parent_ids": [],
+   "source_path": "misc",
+   "symbol_ids": [],
+   "repository_id": null,
+   "depends_on_ids": [],
+   "doc_only": false
+  },
+  {
+   "id": "component::misc/helper.py",
+   "name": "helper.py",
+   "level": "component",
+   "parent_ids": [
+    "dir::misc"
+   ],
+   "source_path": "misc/helper.py",
+   "symbol_ids": [],
+   "repository_id": null,
+   "depends_on_ids": [],
+   "doc_only": false
+  },
+  {
+   "id": "service::misc/helper.py::functions",
+   "name": "Module Functions",
+   "level": "service",
+   "parent_ids": [
+    "component::misc/helper.py"
+   ],
+   "source_path": "misc/helper.py",
+   "symbol_ids": [],
+   "repository_id": null,
+   "depends_on_ids": [],
+   "doc_only": false
+  },
+  {
+   "id": "misc/helper.py::function::do_it",
+   "name": "do_it",
+   "level": "function",
+   "parent_ids": [
+    "service::misc/helper.py::functions"
+   ],
+   "source_path": "misc/helper.py",
+   "symbol_ids": [],
+   "repository_id": null,
+   "depends_on_ids": [
+    "billing/service.py::function::charge"
+   ],
+   "doc_only": false
+  },
+  {
+   "id": "logicblock::misc/helper.py::function::do_it::0",
+   "name": "Step 1",
+   "level": "logic_block",
+   "parent_ids": [
+    "misc/helper.py::function::do_it"
+   ],
+   "source_path": "misc/helper.py:6-6",
+   "symbol_ids": [],
+   "repository_id": null,
+   "depends_on_ids": [],
+   "doc_only": false
+  },
+  {
+   "id": "code::logicblock::misc/helper.py::function::do_it::0",
+   "name": "misc/helper.py:6-6",
+   "level": "code",
+   "parent_ids": [
+    "logicblock::misc/helper.py::function::do_it::0"
+   ],
+   "source_path": "misc/helper.py:6-6",
+   "symbol_ids": [],
+   "repository_id": null,
+   "depends_on_ids": [],
+   "doc_only": false
+  },
+  {
+   "id": "dir::misc/testdata",
+   "name": "testdata",
+   "level": "pillar",
+   "parent_ids": [
+    "dir::misc"
+   ],
+   "source_path": "misc/testdata",
+   "symbol_ids": [],
+   "repository_id": null,
+   "depends_on_ids": [],
+   "doc_only": false
+  },
+  {
+   "id": "component::misc/testdata/fixture.yaml",
+   "name": "fixture.yaml",
+   "level": "component",
+   "parent_ids": [
+    "dir::misc/testdata"
+   ],
+   "source_path": "misc/testdata/fixture.yaml",
+   "symbol_ids": [],
+   "repository_id": null,
+   "depends_on_ids": [],
+   "doc_only": false
+  },
+  {
+   "id": "dir::orphan",
+   "name": "orphan",
+   "level": "system",
+   "parent_ids": [],
+   "source_path": "orphan",
+   "symbol_ids": [],
+   "repository_id": null,
+   "depends_on_ids": [],
+   "doc_only": false
+  },
+  {
+   "id": "component::orphan/isolated.py",
+   "name": "isolated.py",
+   "level": "component",
+   "parent_ids": [
+    "dir::orphan"
+   ],
+   "source_path": "orphan/isolated.py",
+   "symbol_ids": [],
+   "repository_id": null,
+   "depends_on_ids": [],
+   "doc_only": false
+  },
+  {
+   "id": "service::orphan/isolated.py::functions",
+   "name": "Module Functions",
+   "level": "service",
+   "parent_ids": [
+    "component::orphan/isolated.py"
+   ],
+   "source_path": "orphan/isolated.py",
+   "symbol_ids": [],
+   "repository_id": null,
+   "depends_on_ids": [],
+   "doc_only": false
+  },
+  {
+   "id": "orphan/isolated.py::function::standalone",
+   "name": "standalone",
+   "level": "function",
+   "parent_ids": [
+    "service::orphan/isolated.py::functions"
+   ],
+   "source_path": "orphan/isolated.py",
+   "symbol_ids": [],
+   "repository_id": null,
+   "depends_on_ids": [],
+   "doc_only": false
+  },
+  {
+   "id": "logicblock::orphan/isolated.py::function::standalone::0",
+   "name": "Step 1",
+   "level": "logic_block",
+   "parent_ids": [
+    "orphan/isolated.py::function::standalone"
+   ],
+   "source_path": "orphan/isolated.py:5-5",
+   "symbol_ids": [],
+   "repository_id": null,
+   "depends_on_ids": [],
+   "doc_only": false
+  },
+  {
+   "id": "code::logicblock::orphan/isolated.py::function::standalone::0",
+   "name": "orphan/isolated.py:5-5",
+   "level": "code",
+   "parent_ids": [
+    "logicblock::orphan/isolated.py::function::standalone::0"
+   ],
+   "source_path": "orphan/isolated.py:5-5",
+   "symbol_ids": [],
+   "repository_id": null,
+   "depends_on_ids": [],
+   "doc_only": false
+  },
+  {
+   "id": "dir::shipping",
+   "name": "shipping",
+   "level": "system",
+   "parent_ids": [],
+   "source_path": "shipping",
+   "symbol_ids": [],
+   "repository_id": null,
+   "depends_on_ids": [],
+   "doc_only": false
+  },
+  {
+   "id": "component::shipping/service.py",
+   "name": "service.py",
+   "level": "component",
+   "parent_ids": [
+    "dir::shipping"
+   ],
+   "source_path": "shipping/service.py",
+   "symbol_ids": [],
+   "repository_id": null,
+   "depends_on_ids": [],
+   "doc_only": false
+  },
+  {
+   "id": "service::shipping/service.py::functions",
+   "name": "Module Functions",
+   "level": "service",
+   "parent_ids": [
+    "component::shipping/service.py"
+   ],
+   "source_path": "shipping/service.py",
+   "symbol_ids": [],
+   "repository_id": null,
+   "depends_on_ids": [],
+   "doc_only": false
+  },
+  {
+   "id": "shipping/service.py::function::ship",
+   "name": "ship",
+   "level": "function",
+   "parent_ids": [
+    "service::shipping/service.py::functions"
+   ],
+   "source_path": "shipping/service.py",
+   "symbol_ids": [],
+   "repository_id": null,
+   "depends_on_ids": [],
+   "doc_only": false
+  },
+  {
+   "id": "logicblock::shipping/service.py::function::ship::0",
+   "name": "Step 1",
+   "level": "logic_block",
+   "parent_ids": [
+    "shipping/service.py::function::ship"
+   ],
+   "source_path": "shipping/service.py:5-5",
+   "symbol_ids": [],
+   "repository_id": null,
+   "depends_on_ids": [],
+   "doc_only": false
+  },
+  {
+   "id": "code::logicblock::shipping/service.py::function::ship::0",
+   "name": "shipping/service.py:5-5",
+   "level": "code",
+   "parent_ids": [
+    "logicblock::shipping/service.py::function::ship::0"
+   ],
+   "source_path": "shipping/service.py:5-5",
+   "symbol_ids": [],
+   "repository_id": null,
+   "depends_on_ids": [],
+   "doc_only": false
+  },
+  {
+   "id": "component::shipping/tracking.py",
+   "name": "tracking.py",
+   "level": "component",
+   "parent_ids": [
+    "dir::shipping"
+   ],
+   "source_path": "shipping/tracking.py",
+   "symbol_ids": [],
+   "repository_id": null,
+   "depends_on_ids": [],
+   "doc_only": false
+  },
+  {
+   "id": "service::shipping/tracking.py::functions",
+   "name": "Module Functions",
+   "level": "service",
+   "parent_ids": [
+    "component::shipping/tracking.py"
+   ],
+   "source_path": "shipping/tracking.py",
+   "symbol_ids": [],
+   "repository_id": null,
+   "depends_on_ids": [],
+   "doc_only": false
+  },
+  {
+   "id": "shipping/tracking.py::function::track",
+   "name": "track",
+   "level": "function",
+   "parent_ids": [
+    "service::shipping/tracking.py::functions"
+   ],
+   "source_path": "shipping/tracking.py",
+   "symbol_ids": [],
+   "repository_id": null,
+   "depends_on_ids": [],
+   "doc_only": false
+  },
+  {
+   "id": "logicblock::shipping/tracking.py::function::track::0",
+   "name": "Step 1",
+   "level": "logic_block",
+   "parent_ids": [
+    "shipping/tracking.py::function::track"
+   ],
+   "source_path": "shipping/tracking.py:5-5",
+   "symbol_ids": [],
+   "repository_id": null,
+   "depends_on_ids": [],
+   "doc_only": false
+  },
+  {
+   "id": "code::logicblock::shipping/tracking.py::function::track::0",
+   "name": "shipping/tracking.py:5-5",
+   "level": "code",
+   "parent_ids": [
+    "logicblock::shipping/tracking.py::function::track::0"
+   ],
+   "source_path": "shipping/tracking.py:5-5",
+   "symbol_ids": [],
+   "repository_id": null,
+   "depends_on_ids": [],
+   "doc_only": false
+  },
+  {
+   "id": "dir::solo_a",
+   "name": "solo_a",
+   "level": "system",
+   "parent_ids": [],
+   "source_path": "solo_a",
+   "symbol_ids": [],
+   "repository_id": null,
+   "depends_on_ids": [],
+   "doc_only": false
+  },
+  {
+   "id": "component::solo_a/a.py",
+   "name": "a.py",
+   "level": "component",
+   "parent_ids": [
+    "dir::solo_a"
+   ],
+   "source_path": "solo_a/a.py",
+   "symbol_ids": [],
+   "repository_id": null,
+   "depends_on_ids": [],
+   "doc_only": false
+  },
+  {
+   "id": "service::solo_a/a.py::functions",
+   "name": "Module Functions",
+   "level": "service",
+   "parent_ids": [
+    "component::solo_a/a.py"
+   ],
+   "source_path": "solo_a/a.py",
+   "symbol_ids": [],
+   "repository_id": null,
+   "depends_on_ids": [],
+   "doc_only": false
+  },
+  {
+   "id": "solo_a/a.py::function::helper_a",
+   "name": "helper_a",
+   "level": "function",
+   "parent_ids": [
+    "service::solo_a/a.py::functions"
+   ],
+   "source_path": "solo_a/a.py",
+   "symbol_ids": [],
+   "repository_id": null,
+   "depends_on_ids": [
+    "solo_b/b.py::function::helper_b"
+   ],
+   "doc_only": false
+  },
+  {
+   "id": "logicblock::solo_a/a.py::function::helper_a::0",
+   "name": "Step 1",
+   "level": "logic_block",
+   "parent_ids": [
+    "solo_a/a.py::function::helper_a"
+   ],
+   "source_path": "solo_a/a.py:6-6",
+   "symbol_ids": [],
+   "repository_id": null,
+   "depends_on_ids": [],
+   "doc_only": false
+  },
+  {
+   "id": "code::logicblock::solo_a/a.py::function::helper_a::0",
+   "name": "solo_a/a.py:6-6",
+   "level": "code",
+   "parent_ids": [
+    "logicblock::solo_a/a.py::function::helper_a::0"
+   ],
+   "source_path": "solo_a/a.py:6-6",
+   "symbol_ids": [],
+   "repository_id": null,
+   "depends_on_ids": [],
+   "doc_only": false
+  },
+  {
+   "id": "dir::solo_b",
+   "name": "solo_b",
+   "level": "system",
+   "parent_ids": [],
+   "source_path": "solo_b",
+   "symbol_ids": [],
+   "repository_id": null,
+   "depends_on_ids": [],
+   "doc_only": false
+  },
+  {
+   "id": "component::solo_b/b.py",
+   "name": "b.py",
+   "level": "component",
+   "parent_ids": [
+    "dir::solo_b"
+   ],
+   "source_path": "solo_b/b.py",
+   "symbol_ids": [],
+   "repository_id": null,
+   "depends_on_ids": [],
+   "doc_only": false
+  },
+  {
+   "id": "service::solo_b/b.py::functions",
+   "name": "Module Functions",
+   "level": "service",
+   "parent_ids": [
+    "component::solo_b/b.py"
+   ],
+   "source_path": "solo_b/b.py",
+   "symbol_ids": [],
+   "repository_id": null,
+   "depends_on_ids": [],
+   "doc_only": false
+  },
+  {
+   "id": "solo_b/b.py::function::helper_b",
+   "name": "helper_b",
+   "level": "function",
+   "parent_ids": [
+    "service::solo_b/b.py::functions"
+   ],
+   "source_path": "solo_b/b.py",
+   "symbol_ids": [],
+   "repository_id": null,
+   "depends_on_ids": [],
+   "doc_only": false
+  },
+  {
+   "id": "logicblock::solo_b/b.py::function::helper_b::0",
+   "name": "Step 1",
+   "level": "logic_block",
+   "parent_ids": [
+    "solo_b/b.py::function::helper_b"
+   ],
+   "source_path": "solo_b/b.py:5-5",
+   "symbol_ids": [],
+   "repository_id": null,
+   "depends_on_ids": [],
+   "doc_only": false
+  },
+  {
+   "id": "code::logicblock::solo_b/b.py::function::helper_b::0",
+   "name": "solo_b/b.py:5-5",
+   "level": "code",
+   "parent_ids": [
+    "logicblock::solo_b/b.py::function::helper_b::0"
+   ],
+   "source_path": "solo_b/b.py:5-5",
+   "symbol_ids": [],
+   "repository_id": null,
+   "depends_on_ids": [],
+   "doc_only": false
+  }
+ ],
+ "digest": {
+  "totals": {
+   "file_count": 14,
+   "class_count": 1,
+   "function_count": 10,
+   "edge_count": 2
+  },
+  "caps": {
+   "max_callees_per_symbol": 12,
+   "max_callers_per_symbol": 12,
+   "max_imports_per_file": 20,
+   "trivial_max_body_lines": 2,
+   "max_detailed_files": 500,
+   "max_total_symbol_entries": 6000
+  },
+  "truncated": false,
+  "files_omitted": 0,
+  "files": [
+   {
+    "path": ".github/workflows/ci.yml",
+    "node_id": "component::.github/workflows/ci.yml",
+    "imports": [],
+    "imports_overflow": 0,
+    "classes": [
+     {
+      "id": ".github/workflows/ci.yml::class::test",
+      "node_id": ".github/workflows/ci.yml::class::test",
+      "name": "test",
+      "is_trivial": false,
+      "calls": [],
+      "calls_overflow": 0,
+      "called_by": [],
+      "called_by_overflow": 0,
+      "methods": [],
+      "methods_omitted": 0
+     }
+    ],
+    "classes_omitted": 0,
+    "functions": [],
+    "functions_omitted": 0
+   },
+   {
+    "path": ".gremlins.yaml",
+    "node_id": "component::.gremlins.yaml",
+    "imports": [],
+    "imports_overflow": 0,
+    "classes": [],
+    "classes_omitted": 0,
+    "functions": [],
+    "functions_omitted": 0
+   },
+   {
+    "path": "billing/invoice.py",
+    "node_id": "component::billing/invoice.py",
+    "imports": [],
+    "imports_overflow": 0,
+    "classes": [],
+    "classes_omitted": 0,
+    "functions": [],
+    "functions_omitted": 1
+   },
+   {
+    "path": "billing/reports/detail.py",
+    "node_id": "component::billing/reports/detail.py",
+    "imports": [],
+    "imports_overflow": 0,
+    "classes": [],
+    "classes_omitted": 0,
+    "functions": [],
+    "functions_omitted": 1
+   },
+   {
+    "path": "billing/reports/summary.py",
+    "node_id": "component::billing/reports/summary.py",
+    "imports": [],
+    "imports_overflow": 0,
+    "classes": [],
+    "classes_omitted": 0,
+    "functions": [],
+    "functions_omitted": 1
+   },
+   {
+    "path": "billing/service.py",
+    "node_id": "component::billing/service.py",
+    "imports": [
+     "consts.values"
+    ],
+    "imports_overflow": 0,
+    "classes": [],
+    "classes_omitted": 0,
+    "functions": [],
+    "functions_omitted": 1
+   },
+   {
+    "path": "consts/values.py",
+    "node_id": "component::consts/values.py",
+    "imports": [],
+    "imports_overflow": 0,
+    "classes": [],
+    "classes_omitted": 0,
+    "functions": [],
+    "functions_omitted": 0
+   },
+   {
+    "path": "misc/helper.py",
+    "node_id": "component::misc/helper.py",
+    "imports": [
+     "billing.service"
+    ],
+    "imports_overflow": 0,
+    "classes": [],
+    "classes_omitted": 0,
+    "functions": [
+     {
+      "id": "misc/helper.py::function::do_it",
+      "node_id": "misc/helper.py::function::do_it",
+      "name": "do_it",
+      "is_trivial": false,
+      "calls": [
+       "billing/service.py::function::charge"
+      ],
+      "calls_overflow": 0,
+      "called_by": [],
+      "called_by_overflow": 0
+     }
+    ],
+    "functions_omitted": 0
+   },
+   {
+    "path": "misc/testdata/fixture.yaml",
+    "node_id": "component::misc/testdata/fixture.yaml",
+    "imports": [],
+    "imports_overflow": 0,
+    "classes": [],
+    "classes_omitted": 0,
+    "functions": [],
+    "functions_omitted": 0
+   },
+   {
+    "path": "orphan/isolated.py",
+    "node_id": "component::orphan/isolated.py",
+    "imports": [],
+    "imports_overflow": 0,
+    "classes": [],
+    "classes_omitted": 0,
+    "functions": [],
+    "functions_omitted": 1
+   },
+   {
+    "path": "shipping/service.py",
+    "node_id": "component::shipping/service.py",
+    "imports": [],
+    "imports_overflow": 0,
+    "classes": [],
+    "classes_omitted": 0,
+    "functions": [],
+    "functions_omitted": 1
+   },
+   {
+    "path": "shipping/tracking.py",
+    "node_id": "component::shipping/tracking.py",
+    "imports": [],
+    "imports_overflow": 0,
+    "classes": [],
+    "classes_omitted": 0,
+    "functions": [],
+    "functions_omitted": 1
+   },
+   {
+    "path": "solo_a/a.py",
+    "node_id": "component::solo_a/a.py",
+    "imports": [
+     "solo_b.b"
+    ],
+    "imports_overflow": 0,
+    "classes": [],
+    "classes_omitted": 0,
+    "functions": [
+     {
+      "id": "solo_a/a.py::function::helper_a",
+      "node_id": "solo_a/a.py::function::helper_a",
+      "name": "helper_a",
+      "is_trivial": false,
+      "calls": [
+       "solo_b/b.py::function::helper_b"
+      ],
+      "calls_overflow": 0,
+      "called_by": [],
+      "called_by_overflow": 0
+     }
+    ],
+    "functions_omitted": 0
+   },
+   {
+    "path": "solo_b/b.py",
+    "node_id": "component::solo_b/b.py",
+    "imports": [],
+    "imports_overflow": 0,
+    "classes": [],
+    "classes_omitted": 0,
+    "functions": [],
+    "functions_omitted": 1
+   }
+  ]
+ },
+ "digest_tight": {
+  "totals": {
+   "file_count": 14,
+   "class_count": 1,
+   "function_count": 10,
+   "edge_count": 2
+  },
+  "caps": {
+   "max_callees_per_symbol": 1,
+   "max_callers_per_symbol": 1,
+   "max_imports_per_file": 1,
+   "trivial_max_body_lines": 2,
+   "max_detailed_files": 2,
+   "max_total_symbol_entries": 6000
+  },
+  "truncated": true,
+  "files_omitted": 12,
+  "files": [
+   {
+    "path": ".github/workflows/ci.yml",
+    "node_id": "component::.github/workflows/ci.yml",
+    "detail_omitted": true
+   },
+   {
+    "path": ".gremlins.yaml",
+    "node_id": "component::.gremlins.yaml",
+    "detail_omitted": true
+   },
+   {
+    "path": "billing/invoice.py",
+    "node_id": "component::billing/invoice.py",
+    "detail_omitted": true
+   },
+   {
+    "path": "billing/reports/detail.py",
+    "node_id": "component::billing/reports/detail.py",
+    "detail_omitted": true
+   },
+   {
+    "path": "billing/reports/summary.py",
+    "node_id": "component::billing/reports/summary.py",
+    "detail_omitted": true
+   },
+   {
+    "path": "billing/service.py",
+    "node_id": "component::billing/service.py",
+    "imports": [
+     "consts.values"
+    ],
+    "imports_overflow": 0,
+    "classes": [],
+    "classes_omitted": 0,
+    "functions": [],
+    "functions_omitted": 1
+   },
+   {
+    "path": "consts/values.py",
+    "node_id": "component::consts/values.py",
+    "detail_omitted": true
+   },
+   {
+    "path": "misc/helper.py",
+    "node_id": "component::misc/helper.py",
+    "imports": [
+     "billing.service"
+    ],
+    "imports_overflow": 0,
+    "classes": [],
+    "classes_omitted": 0,
+    "functions": [
+     {
+      "id": "misc/helper.py::function::do_it",
+      "node_id": "misc/helper.py::function::do_it",
+      "name": "do_it",
+      "is_trivial": false,
+      "calls": [
+       "billing/service.py::function::charge"
+      ],
+      "calls_overflow": 0,
+      "called_by": [],
+      "called_by_overflow": 0
+     }
+    ],
+    "functions_omitted": 0
+   },
+   {
+    "path": "misc/testdata/fixture.yaml",
+    "node_id": "component::misc/testdata/fixture.yaml",
+    "detail_omitted": true
+   },
+   {
+    "path": "orphan/isolated.py",
+    "node_id": "component::orphan/isolated.py",
+    "detail_omitted": true
+   },
+   {
+    "path": "shipping/service.py",
+    "node_id": "component::shipping/service.py",
+    "detail_omitted": true
+   },
+   {
+    "path": "shipping/tracking.py",
+    "node_id": "component::shipping/tracking.py",
+    "detail_omitted": true
+   },
+   {
+    "path": "solo_a/a.py",
+    "node_id": "component::solo_a/a.py",
+    "detail_omitted": true
+   },
+   {
+    "path": "solo_b/b.py",
+    "node_id": "component::solo_b/b.py",
+    "detail_omitted": true
+   }
+  ]
+ },
+ "clusters": {
+  "components": [
+   {
+    "id": "folder::billing",
+    "container_id": "top::billing",
+    "files": [
+     "billing/invoice.py",
+     "billing/service.py",
+     "consts/values.py",
+     "misc/helper.py"
+    ]
+   },
+   {
+    "id": "folder::billing/reports",
+    "container_id": "top::billing",
+    "files": [
+     "billing/reports/detail.py",
+     "billing/reports/summary.py"
+    ]
+   },
+   {
+    "id": "folder::shipping",
+    "container_id": "solo::folder::shipping",
+    "files": [
+     "shipping/service.py",
+     "shipping/tracking.py"
+    ]
+   },
+   {
+    "id": "merged::solo_a/a.py",
+    "container_id": "solo::merged::solo_a/a.py",
+    "files": [
+     "solo_a/a.py",
+     "solo_b/b.py"
+    ]
+   }
+  ],
+  "containers": [
+   {
+    "id": "solo::folder::shipping",
+    "component_ids": [
+     "folder::shipping"
+    ]
+   },
+   {
+    "id": "solo::merged::solo_a/a.py",
+    "component_ids": [
+     "merged::solo_a/a.py"
+    ]
+   },
+   {
+    "id": "top::billing",
+    "component_ids": [
+     "folder::billing",
+     "folder::billing/reports"
+    ]
+   }
+  ],
+  "component_edges": [],
+  "container_edges": [],
+  "undetermined_files": [
+   "orphan/isolated.py"
+  ],
+  "file_edge_weights": [
+   [
+    "billing/service.py",
+    "misc/helper.py",
+    1
+   ],
+   [
+    "solo_a/a.py",
+    "solo_b/b.py",
+    1
+   ]
+  ],
+  "undetermined_candidates": {
+   "orphan/isolated.py": [
+    {
+     "id": "folder::billing",
+     "files": [
+      "billing/invoice.py",
+      "billing/service.py",
+      "consts/values.py",
+      "misc/helper.py"
+     ]
+    },
+    {
+     "id": "folder::billing/reports",
+     "files": [
+      "billing/reports/detail.py",
+      "billing/reports/summary.py"
+     ]
+    },
+    {
+     "id": "folder::shipping",
+     "files": [
+      "shipping/service.py",
+      "shipping/tracking.py"
+     ]
+    }
+   ]
+  }
+ },
+ "structure": {
+  "default": {
+   "args": {},
+   "result": {
+    "root": "root",
+    "depth": 2,
+    "truncated": true,
+    "nodes": [
+     {
+      "node_id": "dir::.github",
+      "path": ".github",
+      "name": ".github",
+      "level": "folder",
+      "summary": "System `.github`: level=system; source=.github.",
+      "doc_only": false,
+      "child_count": 1,
+      "truncated": false,
+      "children": [
+       {
+        "node_id": "dir::.github/workflows",
+        "path": ".github/workflows",
+        "name": "workflows",
+        "level": "folder",
+        "summary": "Pillar `workflows`: level=pillar; source=.github/workflows.",
+        "doc_only": false,
+        "child_count": 1,
+        "truncated": true
+       }
+      ]
+     },
+     {
+      "node_id": "dir::billing",
+      "path": "billing",
+      "name": "billing",
+      "level": "folder",
+      "summary": "System `billing`: level=system; source=billing.",
+      "doc_only": false,
+      "child_count": 3,
+      "truncated": false,
+      "children": [
+       {
+        "node_id": "dir::billing/reports",
+        "path": "billing/reports",
+        "name": "reports",
+        "level": "folder",
+        "summary": "Pillar `reports`: level=pillar; source=billing/reports.",
+        "doc_only": false,
+        "child_count": 2,
+        "truncated": true
+       },
+       {
+        "node_id": "component::billing/invoice.py",
+        "path": "billing/invoice.py",
+        "name": "invoice.py",
+        "level": "file",
+        "summary": "Component `invoice.py`: level=component; source=billing/invoice.py.",
+        "doc_only": false,
+        "child_count": 0,
+        "truncated": false
+       },
+       {
+        "node_id": "component::billing/service.py",
+        "path": "billing/service.py",
+        "name": "service.py",
+        "level": "file",
+        "summary": "Component `service.py`: level=component; source=billing/service.py.",
+        "doc_only": false,
+        "child_count": 0,
+        "truncated": false
+       }
+      ]
+     },
+     {
+      "node_id": "dir::consts",
+      "path": "consts",
+      "name": "consts",
+      "level": "folder",
+      "summary": "System `consts`: level=system; source=consts.",
+      "doc_only": false,
+      "child_count": 1,
+      "truncated": false,
+      "children": [
+       {
+        "node_id": "component::consts/values.py",
+        "path": "consts/values.py",
+        "name": "values.py",
+        "level": "file",
+        "summary": "Component `values.py`: level=component; source=consts/values.py.",
+        "doc_only": false,
+        "child_count": 0,
+        "truncated": false
+       }
+      ]
+     },
+     {
+      "node_id": "dir::misc",
+      "path": "misc",
+      "name": "misc",
+      "level": "folder",
+      "summary": "System `misc`: level=system; source=misc.",
+      "doc_only": false,
+      "child_count": 2,
+      "truncated": false,
+      "children": [
+       {
+        "node_id": "dir::misc/testdata",
+        "path": "misc/testdata",
+        "name": "testdata",
+        "level": "folder",
+        "summary": "Pillar `testdata`: level=pillar; source=misc/testdata.",
+        "doc_only": false,
+        "child_count": 1,
+        "truncated": true
+       },
+       {
+        "node_id": "component::misc/helper.py",
+        "path": "misc/helper.py",
+        "name": "helper.py",
+        "level": "file",
+        "summary": "Component `helper.py`: level=component; source=misc/helper.py.",
+        "doc_only": false,
+        "child_count": 0,
+        "truncated": false
+       }
+      ]
+     },
+     {
+      "node_id": "dir::orphan",
+      "path": "orphan",
+      "name": "orphan",
+      "level": "folder",
+      "summary": "System `orphan`: level=system; source=orphan.",
+      "doc_only": false,
+      "child_count": 1,
+      "truncated": false,
+      "children": [
+       {
+        "node_id": "component::orphan/isolated.py",
+        "path": "orphan/isolated.py",
+        "name": "isolated.py",
+        "level": "file",
+        "summary": "Component `isolated.py`: level=component; source=orphan/isolated.py.",
+        "doc_only": false,
+        "child_count": 0,
+        "truncated": false
+       }
+      ]
+     },
+     {
+      "node_id": "dir::shipping",
+      "path": "shipping",
+      "name": "shipping",
+      "level": "folder",
+      "summary": "System `shipping`: level=system; source=shipping.",
+      "doc_only": false,
+      "child_count": 2,
+      "truncated": false,
+      "children": [
+       {
+        "node_id": "component::shipping/service.py",
+        "path": "shipping/service.py",
+        "name": "service.py",
+        "level": "file",
+        "summary": "Component `service.py`: level=component; source=shipping/service.py.",
+        "doc_only": false,
+        "child_count": 0,
+        "truncated": false
+       },
+       {
+        "node_id": "component::shipping/tracking.py",
+        "path": "shipping/tracking.py",
+        "name": "tracking.py",
+        "level": "file",
+        "summary": "Component `tracking.py`: level=component; source=shipping/tracking.py.",
+        "doc_only": false,
+        "child_count": 0,
+        "truncated": false
+       }
+      ]
+     },
+     {
+      "node_id": "dir::solo_a",
+      "path": "solo_a",
+      "name": "solo_a",
+      "level": "folder",
+      "summary": "System `solo_a`: level=system; source=solo_a.",
+      "doc_only": false,
+      "child_count": 1,
+      "truncated": false,
+      "children": [
+       {
+        "node_id": "component::solo_a/a.py",
+        "path": "solo_a/a.py",
+        "name": "a.py",
+        "level": "file",
+        "summary": "Component `a.py`: level=component; source=solo_a/a.py.",
+        "doc_only": false,
+        "child_count": 0,
+        "truncated": false
+       }
+      ]
+     },
+     {
+      "node_id": "dir::solo_b",
+      "path": "solo_b",
+      "name": "solo_b",
+      "level": "folder",
+      "summary": "System `solo_b`: level=system; source=solo_b.",
+      "doc_only": false,
+      "child_count": 1,
+      "truncated": false,
+      "children": [
+       {
+        "node_id": "component::solo_b/b.py",
+        "path": "solo_b/b.py",
+        "name": "b.py",
+        "level": "file",
+        "summary": "Component `b.py`: level=component; source=solo_b/b.py.",
+        "doc_only": false,
+        "child_count": 0,
+        "truncated": false
+       }
+      ]
+     },
+     {
+      "node_id": "component::.gremlins.yaml",
+      "path": ".gremlins.yaml",
+      "name": ".gremlins.yaml",
+      "level": "file",
+      "summary": "Component `.gremlins.yaml`: level=component; source=.gremlins.yaml.",
+      "doc_only": false,
+      "child_count": 0,
+      "truncated": false
+     }
+    ]
+   }
+  },
+  "depth_1": {
+   "args": {
+    "depth": 1
+   },
+   "result": {
+    "root": "root",
+    "depth": 1,
+    "truncated": true,
+    "nodes": [
+     {
+      "node_id": "dir::.github",
+      "path": ".github",
+      "name": ".github",
+      "level": "folder",
+      "summary": "System `.github`: level=system; source=.github.",
+      "doc_only": false,
+      "child_count": 1,
+      "truncated": true
+     },
+     {
+      "node_id": "dir::billing",
+      "path": "billing",
+      "name": "billing",
+      "level": "folder",
+      "summary": "System `billing`: level=system; source=billing.",
+      "doc_only": false,
+      "child_count": 3,
+      "truncated": true
+     },
+     {
+      "node_id": "dir::consts",
+      "path": "consts",
+      "name": "consts",
+      "level": "folder",
+      "summary": "System `consts`: level=system; source=consts.",
+      "doc_only": false,
+      "child_count": 1,
+      "truncated": true
+     },
+     {
+      "node_id": "dir::misc",
+      "path": "misc",
+      "name": "misc",
+      "level": "folder",
+      "summary": "System `misc`: level=system; source=misc.",
+      "doc_only": false,
+      "child_count": 2,
+      "truncated": true
+     },
+     {
+      "node_id": "dir::orphan",
+      "path": "orphan",
+      "name": "orphan",
+      "level": "folder",
+      "summary": "System `orphan`: level=system; source=orphan.",
+      "doc_only": false,
+      "child_count": 1,
+      "truncated": true
+     },
+     {
+      "node_id": "dir::shipping",
+      "path": "shipping",
+      "name": "shipping",
+      "level": "folder",
+      "summary": "System `shipping`: level=system; source=shipping.",
+      "doc_only": false,
+      "child_count": 2,
+      "truncated": true
+     },
+     {
+      "node_id": "dir::solo_a",
+      "path": "solo_a",
+      "name": "solo_a",
+      "level": "folder",
+      "summary": "System `solo_a`: level=system; source=solo_a.",
+      "doc_only": false,
+      "child_count": 1,
+      "truncated": true
+     },
+     {
+      "node_id": "dir::solo_b",
+      "path": "solo_b",
+      "name": "solo_b",
+      "level": "folder",
+      "summary": "System `solo_b`: level=system; source=solo_b.",
+      "doc_only": false,
+      "child_count": 1,
+      "truncated": true
+     },
+     {
+      "node_id": "component::.gremlins.yaml",
+      "path": ".gremlins.yaml",
+      "name": ".gremlins.yaml",
+      "level": "file",
+      "summary": "Component `.gremlins.yaml`: level=component; source=.gremlins.yaml.",
+      "doc_only": false,
+      "child_count": 0,
+      "truncated": false
+     }
+    ]
+   }
+  },
+  "depth_5": {
+   "args": {
+    "depth": 5
+   },
+   "result": {
+    "root": "root",
+    "depth": 5,
+    "truncated": false,
+    "nodes": [
+     {
+      "node_id": "dir::.github",
+      "path": ".github",
+      "name": ".github",
+      "level": "folder",
+      "summary": "System `.github`: level=system; source=.github.",
+      "doc_only": false,
+      "child_count": 1,
+      "truncated": false,
+      "children": [
+       {
+        "node_id": "dir::.github/workflows",
+        "path": ".github/workflows",
+        "name": "workflows",
+        "level": "folder",
+        "summary": "Pillar `workflows`: level=pillar; source=.github/workflows.",
+        "doc_only": false,
+        "child_count": 1,
+        "truncated": false,
+        "children": [
+         {
+          "node_id": "component::.github/workflows/ci.yml",
+          "path": ".github/workflows/ci.yml",
+          "name": "ci.yml",
+          "level": "file",
+          "summary": "Component `ci.yml`: level=component; source=.github/workflows/ci.yml.",
+          "doc_only": false,
+          "child_count": 0,
+          "truncated": false
+         }
+        ]
+       }
+      ]
+     },
+     {
+      "node_id": "dir::billing",
+      "path": "billing",
+      "name": "billing",
+      "level": "folder",
+      "summary": "System `billing`: level=system; source=billing.",
+      "doc_only": false,
+      "child_count": 3,
+      "truncated": false,
+      "children": [
+       {
+        "node_id": "dir::billing/reports",
+        "path": "billing/reports",
+        "name": "reports",
+        "level": "folder",
+        "summary": "Pillar `reports`: level=pillar; source=billing/reports.",
+        "doc_only": false,
+        "child_count": 2,
+        "truncated": false,
+        "children": [
+         {
+          "node_id": "component::billing/reports/detail.py",
+          "path": "billing/reports/detail.py",
+          "name": "detail.py",
+          "level": "file",
+          "summary": "Component `detail.py`: level=component; source=billing/reports/detail.py.",
+          "doc_only": false,
+          "child_count": 0,
+          "truncated": false
+         },
+         {
+          "node_id": "component::billing/reports/summary.py",
+          "path": "billing/reports/summary.py",
+          "name": "summary.py",
+          "level": "file",
+          "summary": "Component `summary.py`: level=component; source=billing/reports/summary.py.",
+          "doc_only": false,
+          "child_count": 0,
+          "truncated": false
+         }
+        ]
+       },
+       {
+        "node_id": "component::billing/invoice.py",
+        "path": "billing/invoice.py",
+        "name": "invoice.py",
+        "level": "file",
+        "summary": "Component `invoice.py`: level=component; source=billing/invoice.py.",
+        "doc_only": false,
+        "child_count": 0,
+        "truncated": false
+       },
+       {
+        "node_id": "component::billing/service.py",
+        "path": "billing/service.py",
+        "name": "service.py",
+        "level": "file",
+        "summary": "Component `service.py`: level=component; source=billing/service.py.",
+        "doc_only": false,
+        "child_count": 0,
+        "truncated": false
+       }
+      ]
+     },
+     {
+      "node_id": "dir::consts",
+      "path": "consts",
+      "name": "consts",
+      "level": "folder",
+      "summary": "System `consts`: level=system; source=consts.",
+      "doc_only": false,
+      "child_count": 1,
+      "truncated": false,
+      "children": [
+       {
+        "node_id": "component::consts/values.py",
+        "path": "consts/values.py",
+        "name": "values.py",
+        "level": "file",
+        "summary": "Component `values.py`: level=component; source=consts/values.py.",
+        "doc_only": false,
+        "child_count": 0,
+        "truncated": false
+       }
+      ]
+     },
+     {
+      "node_id": "dir::misc",
+      "path": "misc",
+      "name": "misc",
+      "level": "folder",
+      "summary": "System `misc`: level=system; source=misc.",
+      "doc_only": false,
+      "child_count": 2,
+      "truncated": false,
+      "children": [
+       {
+        "node_id": "dir::misc/testdata",
+        "path": "misc/testdata",
+        "name": "testdata",
+        "level": "folder",
+        "summary": "Pillar `testdata`: level=pillar; source=misc/testdata.",
+        "doc_only": false,
+        "child_count": 1,
+        "truncated": false,
+        "children": [
+         {
+          "node_id": "component::misc/testdata/fixture.yaml",
+          "path": "misc/testdata/fixture.yaml",
+          "name": "fixture.yaml",
+          "level": "file",
+          "summary": "Component `fixture.yaml`: level=component; source=misc/testdata/fixture.yaml.",
+          "doc_only": false,
+          "child_count": 0,
+          "truncated": false
+         }
+        ]
+       },
+       {
+        "node_id": "component::misc/helper.py",
+        "path": "misc/helper.py",
+        "name": "helper.py",
+        "level": "file",
+        "summary": "Component `helper.py`: level=component; source=misc/helper.py.",
+        "doc_only": false,
+        "child_count": 0,
+        "truncated": false
+       }
+      ]
+     },
+     {
+      "node_id": "dir::orphan",
+      "path": "orphan",
+      "name": "orphan",
+      "level": "folder",
+      "summary": "System `orphan`: level=system; source=orphan.",
+      "doc_only": false,
+      "child_count": 1,
+      "truncated": false,
+      "children": [
+       {
+        "node_id": "component::orphan/isolated.py",
+        "path": "orphan/isolated.py",
+        "name": "isolated.py",
+        "level": "file",
+        "summary": "Component `isolated.py`: level=component; source=orphan/isolated.py.",
+        "doc_only": false,
+        "child_count": 0,
+        "truncated": false
+       }
+      ]
+     },
+     {
+      "node_id": "dir::shipping",
+      "path": "shipping",
+      "name": "shipping",
+      "level": "folder",
+      "summary": "System `shipping`: level=system; source=shipping.",
+      "doc_only": false,
+      "child_count": 2,
+      "truncated": false,
+      "children": [
+       {
+        "node_id": "component::shipping/service.py",
+        "path": "shipping/service.py",
+        "name": "service.py",
+        "level": "file",
+        "summary": "Component `service.py`: level=component; source=shipping/service.py.",
+        "doc_only": false,
+        "child_count": 0,
+        "truncated": false
+       },
+       {
+        "node_id": "component::shipping/tracking.py",
+        "path": "shipping/tracking.py",
+        "name": "tracking.py",
+        "level": "file",
+        "summary": "Component `tracking.py`: level=component; source=shipping/tracking.py.",
+        "doc_only": false,
+        "child_count": 0,
+        "truncated": false
+       }
+      ]
+     },
+     {
+      "node_id": "dir::solo_a",
+      "path": "solo_a",
+      "name": "solo_a",
+      "level": "folder",
+      "summary": "System `solo_a`: level=system; source=solo_a.",
+      "doc_only": false,
+      "child_count": 1,
+      "truncated": false,
+      "children": [
+       {
+        "node_id": "component::solo_a/a.py",
+        "path": "solo_a/a.py",
+        "name": "a.py",
+        "level": "file",
+        "summary": "Component `a.py`: level=component; source=solo_a/a.py.",
+        "doc_only": false,
+        "child_count": 0,
+        "truncated": false
+       }
+      ]
+     },
+     {
+      "node_id": "dir::solo_b",
+      "path": "solo_b",
+      "name": "solo_b",
+      "level": "folder",
+      "summary": "System `solo_b`: level=system; source=solo_b.",
+      "doc_only": false,
+      "child_count": 1,
+      "truncated": false,
+      "children": [
+       {
+        "node_id": "component::solo_b/b.py",
+        "path": "solo_b/b.py",
+        "name": "b.py",
+        "level": "file",
+        "summary": "Component `b.py`: level=component; source=solo_b/b.py.",
+        "doc_only": false,
+        "child_count": 0,
+        "truncated": false
+       }
+      ]
+     },
+     {
+      "node_id": "component::.gremlins.yaml",
+      "path": ".gremlins.yaml",
+      "name": ".gremlins.yaml",
+      "level": "file",
+      "summary": "Component `.gremlins.yaml`: level=component; source=.gremlins.yaml.",
+      "doc_only": false,
+      "child_count": 0,
+      "truncated": false
+     }
+    ]
+   }
+  },
+  "depth_99_is_clamped": {
+   "args": {
+    "depth": 99
+   },
+   "result": {
+    "root": "root",
+    "depth": 5,
+    "truncated": false,
+    "nodes": [
+     {
+      "node_id": "dir::.github",
+      "path": ".github",
+      "name": ".github",
+      "level": "folder",
+      "summary": "System `.github`: level=system; source=.github.",
+      "doc_only": false,
+      "child_count": 1,
+      "truncated": false,
+      "children": [
+       {
+        "node_id": "dir::.github/workflows",
+        "path": ".github/workflows",
+        "name": "workflows",
+        "level": "folder",
+        "summary": "Pillar `workflows`: level=pillar; source=.github/workflows.",
+        "doc_only": false,
+        "child_count": 1,
+        "truncated": false,
+        "children": [
+         {
+          "node_id": "component::.github/workflows/ci.yml",
+          "path": ".github/workflows/ci.yml",
+          "name": "ci.yml",
+          "level": "file",
+          "summary": "Component `ci.yml`: level=component; source=.github/workflows/ci.yml.",
+          "doc_only": false,
+          "child_count": 0,
+          "truncated": false
+         }
+        ]
+       }
+      ]
+     },
+     {
+      "node_id": "dir::billing",
+      "path": "billing",
+      "name": "billing",
+      "level": "folder",
+      "summary": "System `billing`: level=system; source=billing.",
+      "doc_only": false,
+      "child_count": 3,
+      "truncated": false,
+      "children": [
+       {
+        "node_id": "dir::billing/reports",
+        "path": "billing/reports",
+        "name": "reports",
+        "level": "folder",
+        "summary": "Pillar `reports`: level=pillar; source=billing/reports.",
+        "doc_only": false,
+        "child_count": 2,
+        "truncated": false,
+        "children": [
+         {
+          "node_id": "component::billing/reports/detail.py",
+          "path": "billing/reports/detail.py",
+          "name": "detail.py",
+          "level": "file",
+          "summary": "Component `detail.py`: level=component; source=billing/reports/detail.py.",
+          "doc_only": false,
+          "child_count": 0,
+          "truncated": false
+         },
+         {
+          "node_id": "component::billing/reports/summary.py",
+          "path": "billing/reports/summary.py",
+          "name": "summary.py",
+          "level": "file",
+          "summary": "Component `summary.py`: level=component; source=billing/reports/summary.py.",
+          "doc_only": false,
+          "child_count": 0,
+          "truncated": false
+         }
+        ]
+       },
+       {
+        "node_id": "component::billing/invoice.py",
+        "path": "billing/invoice.py",
+        "name": "invoice.py",
+        "level": "file",
+        "summary": "Component `invoice.py`: level=component; source=billing/invoice.py.",
+        "doc_only": false,
+        "child_count": 0,
+        "truncated": false
+       },
+       {
+        "node_id": "component::billing/service.py",
+        "path": "billing/service.py",
+        "name": "service.py",
+        "level": "file",
+        "summary": "Component `service.py`: level=component; source=billing/service.py.",
+        "doc_only": false,
+        "child_count": 0,
+        "truncated": false
+       }
+      ]
+     },
+     {
+      "node_id": "dir::consts",
+      "path": "consts",
+      "name": "consts",
+      "level": "folder",
+      "summary": "System `consts`: level=system; source=consts.",
+      "doc_only": false,
+      "child_count": 1,
+      "truncated": false,
+      "children": [
+       {
+        "node_id": "component::consts/values.py",
+        "path": "consts/values.py",
+        "name": "values.py",
+        "level": "file",
+        "summary": "Component `values.py`: level=component; source=consts/values.py.",
+        "doc_only": false,
+        "child_count": 0,
+        "truncated": false
+       }
+      ]
+     },
+     {
+      "node_id": "dir::misc",
+      "path": "misc",
+      "name": "misc",
+      "level": "folder",
+      "summary": "System `misc`: level=system; source=misc.",
+      "doc_only": false,
+      "child_count": 2,
+      "truncated": false,
+      "children": [
+       {
+        "node_id": "dir::misc/testdata",
+        "path": "misc/testdata",
+        "name": "testdata",
+        "level": "folder",
+        "summary": "Pillar `testdata`: level=pillar; source=misc/testdata.",
+        "doc_only": false,
+        "child_count": 1,
+        "truncated": false,
+        "children": [
+         {
+          "node_id": "component::misc/testdata/fixture.yaml",
+          "path": "misc/testdata/fixture.yaml",
+          "name": "fixture.yaml",
+          "level": "file",
+          "summary": "Component `fixture.yaml`: level=component; source=misc/testdata/fixture.yaml.",
+          "doc_only": false,
+          "child_count": 0,
+          "truncated": false
+         }
+        ]
+       },
+       {
+        "node_id": "component::misc/helper.py",
+        "path": "misc/helper.py",
+        "name": "helper.py",
+        "level": "file",
+        "summary": "Component `helper.py`: level=component; source=misc/helper.py.",
+        "doc_only": false,
+        "child_count": 0,
+        "truncated": false
+       }
+      ]
+     },
+     {
+      "node_id": "dir::orphan",
+      "path": "orphan",
+      "name": "orphan",
+      "level": "folder",
+      "summary": "System `orphan`: level=system; source=orphan.",
+      "doc_only": false,
+      "child_count": 1,
+      "truncated": false,
+      "children": [
+       {
+        "node_id": "component::orphan/isolated.py",
+        "path": "orphan/isolated.py",
+        "name": "isolated.py",
+        "level": "file",
+        "summary": "Component `isolated.py`: level=component; source=orphan/isolated.py.",
+        "doc_only": false,
+        "child_count": 0,
+        "truncated": false
+       }
+      ]
+     },
+     {
+      "node_id": "dir::shipping",
+      "path": "shipping",
+      "name": "shipping",
+      "level": "folder",
+      "summary": "System `shipping`: level=system; source=shipping.",
+      "doc_only": false,
+      "child_count": 2,
+      "truncated": false,
+      "children": [
+       {
+        "node_id": "component::shipping/service.py",
+        "path": "shipping/service.py",
+        "name": "service.py",
+        "level": "file",
+        "summary": "Component `service.py`: level=component; source=shipping/service.py.",
+        "doc_only": false,
+        "child_count": 0,
+        "truncated": false
+       },
+       {
+        "node_id": "component::shipping/tracking.py",
+        "path": "shipping/tracking.py",
+        "name": "tracking.py",
+        "level": "file",
+        "summary": "Component `tracking.py`: level=component; source=shipping/tracking.py.",
+        "doc_only": false,
+        "child_count": 0,
+        "truncated": false
+       }
+      ]
+     },
+     {
+      "node_id": "dir::solo_a",
+      "path": "solo_a",
+      "name": "solo_a",
+      "level": "folder",
+      "summary": "System `solo_a`: level=system; source=solo_a.",
+      "doc_only": false,
+      "child_count": 1,
+      "truncated": false,
+      "children": [
+       {
+        "node_id": "component::solo_a/a.py",
+        "path": "solo_a/a.py",
+        "name": "a.py",
+        "level": "file",
+        "summary": "Component `a.py`: level=component; source=solo_a/a.py.",
+        "doc_only": false,
+        "child_count": 0,
+        "truncated": false
+       }
+      ]
+     },
+     {
+      "node_id": "dir::solo_b",
+      "path": "solo_b",
+      "name": "solo_b",
+      "level": "folder",
+      "summary": "System `solo_b`: level=system; source=solo_b.",
+      "doc_only": false,
+      "child_count": 1,
+      "truncated": false,
+      "children": [
+       {
+        "node_id": "component::solo_b/b.py",
+        "path": "solo_b/b.py",
+        "name": "b.py",
+        "level": "file",
+        "summary": "Component `b.py`: level=component; source=solo_b/b.py.",
+        "doc_only": false,
+        "child_count": 0,
+        "truncated": false
+       }
+      ]
+     },
+     {
+      "node_id": "component::.gremlins.yaml",
+      "path": ".gremlins.yaml",
+      "name": ".gremlins.yaml",
+      "level": "file",
+      "summary": "Component `.gremlins.yaml`: level=component; source=.gremlins.yaml.",
+      "doc_only": false,
+      "child_count": 0,
+      "truncated": false
+     }
+    ]
+   }
+  },
+  "max_children_1": {
+   "args": {
+    "max_children": 1
+   },
+   "result": {
+    "root": "root",
+    "depth": 2,
+    "truncated": true,
+    "nodes": [
+     {
+      "node_id": "dir::.github",
+      "path": ".github",
+      "name": ".github",
+      "level": "folder",
+      "summary": "System `.github`: level=system; source=.github.",
+      "doc_only": false,
+      "child_count": 1,
+      "truncated": false,
+      "children": [
+       {
+        "node_id": "dir::.github/workflows",
+        "path": ".github/workflows",
+        "name": "workflows",
+        "level": "folder",
+        "summary": "Pillar `workflows`: level=pillar; source=.github/workflows.",
+        "doc_only": false,
+        "child_count": 1,
+        "truncated": true
+       }
+      ]
+     }
+    ]
+   }
+  },
+  "max_nodes_3": {
+   "args": {
+    "depth": 5,
+    "max_nodes": 3
+   },
+   "result": {
+    "root": "root",
+    "depth": 5,
+    "truncated": true,
+    "nodes": [
+     {
+      "node_id": "dir::.github",
+      "path": ".github",
+      "name": ".github",
+      "level": "folder",
+      "summary": "System `.github`: level=system; source=.github.",
+      "doc_only": false,
+      "child_count": 1,
+      "truncated": true
+     },
+     {
+      "node_id": "dir::billing",
+      "path": "billing",
+      "name": "billing",
+      "level": "folder",
+      "summary": "System `billing`: level=system; source=billing.",
+      "doc_only": false,
+      "child_count": 3,
+      "truncated": true
+     },
+     {
+      "node_id": "dir::consts",
+      "path": "consts",
+      "name": "consts",
+      "level": "folder",
+      "summary": "System `consts`: level=system; source=consts.",
+      "doc_only": false,
+      "child_count": 1,
+      "truncated": true
+     }
+    ]
+   }
+  },
+  "root_first_system_depth_1": {
+   "args": {
+    "root_id": "component::.gremlins.yaml",
+    "depth": 1
+   },
+   "result": {
+    "root": "component::.gremlins.yaml",
+    "depth": 1,
+    "truncated": false,
+    "nodes": []
+   }
+  },
+  "unknown_root": {
+   "args": {
+    "root_id": "dir::does-not-exist"
+   },
+   "error": "unknown_root"
+  }
+ },
+ "context_digest": {
+  "external_import_roots": [],
+  "declared_dependencies": [],
+  "readme_excerpt": null
+ }
+}

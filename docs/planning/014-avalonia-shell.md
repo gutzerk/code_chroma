@@ -12,8 +12,13 @@ Target is .NET 8 (the only SDK on the dev machine here); move to .NET 10 when th
   (`UpdateChecker`, `UpdateDownloader`, `UpdateService`, `InstallPlanner`, `InstallLocation`), `RecentRepos`,
   `WorkspaceSummaries`, `NewProject`, `BridgeLocation`, `BranchBridgeClient`.
 - `dotnet/CodeChroma.Shell.Tests` - xUnit, `dotnet test dotnet/CodeChroma.Shell.sln`.
-- `dotnet/CodeChroma.Shell.App` - Avalonia 11.3 host. Today only a window with a tab strip over `TabModel`
-  (restores and builds; not exercised on a display). No WebView yet.
+- `dotnet/CodeChroma.Shell.App` - Avalonia 11.3 host: `WebView.Avalonia` per tab (`TabView`), tab strip and menu over
+  `TabModel`, native launcher (`LauncherPanel`: open folder, recents with workspaces, new project, tutorial), branch
+  picker and About dialogs, `window.codechromaDesktop` injected into the canvas (`DesktopScript`), `app.manifest`
+  (needed by the WebView2 host). Booted on Windows 11 against the frozen bridge (see "Phase 1 shell" below).
+- `dotnet/CodeChroma.Shell.FakeBridge` - test-only stand-in for the frozen bridge (same CLI and `bridge ready at` line).
+- UI-free additions: `ShellController` (open-repo flow over `IShellUi`), `TabTitles`, `AppInfo` (title/About),
+  `AppPaths` (user-data dir shared with Electron), `DesktopMessage`, `TutorialProject` (data in `tutorial-project.json`).
 
 ## Step 0 - baseline (not measured in this change)
 
@@ -52,7 +57,8 @@ Written red first (commit "test(shell): add red xUnit suite", 148 compile errors
 | `newProject.test.ts` (5) | Parametrized | invalid-name theory, scaffold, non-empty, missing parent, missing git. |
 | `bridgeLocation.test.ts` (3) | Parametrized | OS x packaged theory + missing-bridge hint theory. |
 | `branchBridge.test.ts` (7) | Rewritten | `BranchBridgeTests`, refusals as a theory. |
-| `tutorialProject.test.ts` (8) | Deferred | 555 lines of embedded sample project; pure data, port after the shell runs. |
+| `tutorialProject.test.ts` (8) | Ported (Phase 1) | `TutorialProjectTests`; file data extracted once from the TS into an embedded `tutorial-project.json`; the three diagram-kind tests became one theory, the two git-status tests another. |
+| `appVersion.test.ts` (2) | Ported (Phase 1) | `AppInfoTests` (title theory, About). |
 
 Added (no Electron precedent; `main.ts` was untested):
 
@@ -63,7 +69,12 @@ Added (no Electron precedent; `main.ts` was untested):
 - PR tab shares the owner's bridge, does not own it, closing it does not stop the bridge, and it follows the owner
   to a respawned bridge (`TabModelTests`).
 
-Result: `dotnet test dotnet/CodeChroma.Shell.sln` - 170 passed, 0 failed, 0 skipped.
+Phase 1 additions (016): `ShellControllerTests` (open-repo flow, workspace url, same repo twice focuses, bridge failure,
+recents, title with version, branch picker outcomes, PR tab shares the bridge, per-repo respawn with PR tabs following,
+shutdown), `TabTitleTests`, `AppPathsTests`, `DesktopMessageTests`, `RealBridgeEndToEndTests` (real processes: free port +
+ready handshake, per-repo respawn, controller + PR tab on one real bridge).
+
+Result: `dotnet test dotnet/CodeChroma.Shell.sln` - 245 passed, 0 failed, 0 skipped.
 
 ## Updater verification
 
@@ -93,15 +104,23 @@ Result: `dotnet test dotnet/CodeChroma.Shell.sln` - 170 passed, 0 failed, 0 skip
 ## Remaining work
 
 1. Step 0 measurements (above) and the go/no-go.
-2. WebView per tab hosting the existing web canvas; `ProcessBridgeLauncher` wiring into `main`-equivalent startup
-   (open repo -> `BridgeRegistry.EnsureAsync` -> `TabModel.AssignRepo` -> navigate to the origin).
+2. ~~WebView per tab, open-repo wiring~~ done in Phase 1 (016). Still open: macOS/Linux WebView behaviour, the
+   `codechromaUpdates` preload API (updater owner), multiple windows, native menu bar on macOS.
 3. Graceful bridge stop: `Process.Kill(entireProcessTree)` is used; Electron sent SIGTERM then SIGKILL.
 4. Avalonia views: launcher, branch picker, recent-repos tree (workspace summaries), About/version, update panel.
 5. Updater: real `IUpdateOperations` (checker + downloader + platform installer runner), attestation verifier,
    realpath/ownership checks in `InstallLocation`, installer-specific swap/relaunch (replaces the dmg swap script and
    NSIS flags), periodic check.
-6. `tutorialProject` port.
+6. ~~`tutorialProject` port~~ done.
 7. Installer, signing and notarization; CI matrix for `dotnet test` and the publish jobs.
 8. Only then: delete `desktop/`, update `.github/workflows/release-please.yml`, `distribution/install.*`,
    `docs/architecture/desktop-app.md`, `CLAUDE.md`, `README.md` (separate commit, after install/update/uninstall are
    exercised on all four targets).
+
+## Phase 1 shell (016)
+
+Verified on Windows 11 x64 only: `node dotnet/CodeChroma.Shell.App/smoke/smoke.mjs <shell exe> <codechroma-bridge.exe> <repo>`
+boots the shell with `--repo`, and over CDP checks that the real canvas renders, the desktop API is injected, the window
+title is `<repo> [Main] - CodeChroma <version>`, and that `openWorkspaceWindow('pr-9')` opens a second tab on the same
+bridge origin (title follows). The launcher, branch picker and About dialogs are native Avalonia and not covered by CDP
+or any automated UI test. The Playwright journeys in `web/e2e` have NOT been run inside the shell.

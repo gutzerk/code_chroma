@@ -122,6 +122,10 @@ final commit, after its exit gate passes.
 - Exit gate: every Playwright journey in `web/e2e/` passes inside the C# shell; Electron and C# shell
   can be installed side by side.
 
+Phase 1 status: shell side built (WebView per tab, tab bar, launcher, recents, branch picker, new/tutorial project, title
+with version, About, respawn) and booted on Windows; see 014 "Phase 1 shell". The exit gate (Playwright journeys inside
+the shell, side-by-side install) is NOT met.
+
 ### Phase 2 - Updater, installers, signing for the C# app
 - Real update operations and platform installer runner (macOS swap script, Linux AppImage with
   `.previous` rollback, Windows installer); Windows rollback is new design work (Electron has none).

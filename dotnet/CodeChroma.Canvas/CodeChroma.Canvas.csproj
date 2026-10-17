@@ -24,6 +24,7 @@
     <Using Include="CodeChroma.Canvas.Catalog" />
     <Using Include="CodeChroma.Canvas.Highlighting" />
     <Using Include="CodeChroma.Canvas.Hierarchy" />
+    <Using Include="CodeChroma.Canvas.Tracing" />
   </ItemGroup>
 
 </Project>

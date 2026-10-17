@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import shutil
 import statistics
 import sys
@@ -50,7 +51,42 @@ def _measure(name: str) -> dict:
     }
 
 
+def _time_stages(repo: Path, dump_input: Path | None) -> None:
+    """Times only builder, digest and clustering on an already-parsed repo (the ported slice)."""
+    sys.path.insert(0, str(Path(__file__).parent.parent))
+    from tests.graph_golden import _parse_repo, build_input
+
+    from codechroma.analyzers.registry import AnalyzerRegistry
+    from codechroma.dependencies.clustering import build_clusters
+    from codechroma.dependencies.digest import build_dependency_digest
+    from codechroma.graph.builder import GraphBuilder
+    from codechroma.graph.models import Graph
+
+    registry = AnalyzerRegistry.with_defaults()
+    parsed = _parse_repo(repo, registry)
+    if dump_input is not None:
+        dump_input.write_text(json.dumps(build_input(repo, {})), encoding="utf-8")
+    for run in range(RUNS):
+        started = time.perf_counter()
+        nodes, symbols = GraphBuilder().build(parsed, repo_root=repo, registry=registry)
+        built = time.perf_counter()
+        graph = Graph(nodes={n.id: n for n in nodes}, symbols=symbols)
+        build_dependency_digest(graph, repo)
+        digested = time.perf_counter()
+        build_clusters(graph, repo, registry)
+        done = time.perf_counter()
+        print(
+            f"run {run}: build {1000 * (built - started):7.1f} ms  "
+            f"digest {1000 * (digested - built):7.1f} ms  "
+            f"clusters {1000 * (done - digested):7.1f} ms"
+        )
+
+
 def main() -> None:
+    if len(sys.argv) > 1 and sys.argv[1] == "--stages":
+        dump = Path(sys.argv[3]) if len(sys.argv) > 3 else None
+        _time_stages(Path(sys.argv[2]), dump)
+        return
     for name in REPOS:
         row = _measure(name)
         print(

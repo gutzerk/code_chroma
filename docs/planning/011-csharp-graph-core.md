@@ -98,11 +98,47 @@ integration before), `FindRoute` incl. the 12-hop cap, `PluralityWinner`, `Undet
 emits, so the goldens cannot silently go stale. Repos covered: `sample_repo`, `polyglot_repo`,
 `c0_import_resolution`, `wiki_general_clustering`, `yaml_repo`, `repo_scan_exclusions`.
 
-## Step 3 - C# core
+## Step 3 - C# core (done for this slice)
 
-`dotnet/CodeChroma.sln`: `CodeChroma.Core` (library) and `CodeChroma.Core.Tests` (xUnit). Run
-`dotnet test dotnet`. The tests were committed **red first** (every one failing with
-`NotImplementedException` against API stubs) before any implementation was written.
+`dotnet/CodeChroma.sln`: `CodeChroma.Core` (library; only dependency is Tomlyn, for `pyproject.toml`),
+`CodeChroma.Core.Tests` (xUnit) and `CodeChroma.Bench` (console timing harness). Run `dotnet test dotnet`.
+
+Order followed: the xUnit suite and the API stubs were committed **red first** (all 144 cases failing with
+`NotImplementedException`), then the implementation was written until they passed. A mutation check
+(renaming the "Module Functions" service) turned 5 parity/builder cases red, so the parity assertions
+are not vacuous.
+
+Result: **144 C# cases pass** (builder 25, digest 17, clustering 25, structure 13, context digest 13,
+core/API 10, analyzer contract 9, parity 32 = 5 checks x 6 repos + 2 edit scenarios). Parity covers, byte-for-byte on the
+Python goldens: every node (id, order and all fields), the dependency digest under default and tight caps,
+clusters (components, containers, edges, weights, candidates), eight structure-menu cases per repo, the
+context digest, and the reanalyze `GraphDiff` of two edit scenarios.
+
+Design notes:
+- Immutable records for `Symbol`/`HierarchyNode`, `Graph` with id dictionaries and a lazily built
+  parent-to-children index (replaces Python's O(n) `get_dependents` scan), `DependencyIndex` with
+  precomputed sorted dependency/dependent lists.
+- `IGraphCore`/`GraphCore` replace the Python method-surface contract test with a compile-time interface;
+  `IGraphSink` is the hook for persisting the digest and may throw without failing a run.
+- Python dict ordering is part of the parity contract (node order, counter tie-breaks), so
+  `OrderedMap`/`Counter` reproduce insertion order explicitly instead of relying on `Dictionary`.
+- Analyzer boundary: the core never calls an analyzer. `resolve_import` answers arrive pre-computed in
+  `import_resolutions`, so the contract is plain JSON (`AnalysisInputReader`, `schema_version` 1).
+
+### C# timing on the 53k-line synthetic repo (same parsed input, `CodeChroma.Bench`, Release)
+
+| Stage | Python (5 runs) | C# (5 runs, run 0 includes JIT) |
+|---|---|---|
+| GraphBuilder.build | 68-116 ms | 36-78 ms |
+| dependency digest | 43-50 ms | 31-61 ms |
+| clustering | 5-7 ms | 4-15 ms |
+| load analyzer JSON (once) | n/a | 235 ms |
+
+Honest reading: the slice is ~1.5-2x faster in steady state but saves roughly 100 ms of a 3.6 s analyze,
+and reading the JSON contract costs more than that on a cold process. There is no speed argument for
+this slice alone (confirmed by the Step 0 profile); the argument is dropping the Python runtime once
+analyzers and the bridge follow. Peak working set of the bench process: 144 MB (includes the 8 MB JSON
+and the whole input graph); Python RSS was not measured on the same input.
 
 ## Removal candidates (NOT removed; only after parity is reviewed and Plans 2+ no longer call them)
 
@@ -114,4 +150,23 @@ the same cases). `graph/models.py` stays until the store and analyzers are porte
 
 ## What remains
 
-(Filled in when the implementation is complete.)
+- **Analyzers still Python.** A C# analyzer story (tree-sitter bindings or a subprocess that emits the
+  contract) is its own plan; until then something must produce `AnalysisInput` JSON. No such producer
+  exists outside `tests/graph_golden.py` (test-only); the bridge would need a small exporter first.
+- **Incremental update is a rebuild.** `GraphCore.Reanalyze` swaps the changed files and rebuilds the
+  whole graph (builder is ~4% of an analyze run). A true incremental graph update was not written because
+  the baseline does not show it is worth it. Node order after `Reanalyze` is insertion order, which
+  differs from Python's (Python's reanalyze order comes from a `set` and is nondeterministic).
+- **SQLite store with incremental upsert** is not ported; the 0.84 s `save()` (29% of analyze) is the
+  largest language-independent win and could land in Python first.
+- **Parallel per-file analysis** belongs with the analyzers.
+- **Empty-repo placeholder** node name is the constant `repository` (Python uses the directory name; the
+  contract has no repo name field yet).
+- **Not measured:** Python peak RSS, cold start of a self-contained .NET publish vs PyInstaller,
+  installer size. `dotnet publish` (trimmed/AOT; Tomlyn is the only reflection-prone dependency) was not tried.
+- **Not run:** the full Python suite (`pytest -n auto`); only the suites touching this slice
+  (101 tests) plus `ruff check .` were run. No Python source was changed.
+- **CI:** no workflow runs `dotnet test` yet (`.github/` is owned elsewhere). Add a `dotnet test dotnet`
+  job next to the Python one.
+- **Removal (Step 3 of the plan) is deliberately not done.** Prerequisites: a reviewed parity run, an
+  analyzer-output producer, and Plan 2 no longer importing the Python modules listed above.

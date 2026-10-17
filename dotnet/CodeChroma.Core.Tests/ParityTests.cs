@@ -41,6 +41,8 @@ public class ParityTests
 
         var actualDefault = DependencyDigest.Build(graph);
         var actualTight = DependencyDigest.Build(graph, tight);
+        actualDefault.Remove("generated_at");
+        actualTight.Remove("generated_at");
 
         AssertSame(expected["digest"], actualDefault, $"{repo} digest");
         AssertSame(expected["digest_tight"], actualTight, $"{repo} digest (tight caps)");

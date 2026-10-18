@@ -80,11 +80,26 @@ uninstall() {
     else
         if [ -e "${APP_DIR}/CodeChroma.AppImage" ]; then rm -f "${APP_DIR}/CodeChroma.AppImage"; found=1; fi
         rm -f "${XDG_DATA_HOME:-${HOME}/.local/share}/applications/codechroma.desktop"
+        rm -f "${XDG_DATA_HOME:-${HOME}/.local/share}/icons/hicolor/256x256/apps/codechroma.png"
         if [ -L "${HOME}/.local/bin/codechroma" ]; then rm -f "${HOME}/.local/bin/codechroma"; fi
     fi
     rm -rf "$STATE_DIR"
     if [ "$found" -eq 1 ]; then log "CodeChroma removed."; else log "CodeChroma is not installed; nothing to remove."; fi
     if [ "$PURGE" -eq 1 ]; then purge_user_data; else log "user data kept (re-run with --uninstall --purge to delete it)"; fi
+}
+
+# install_linux_icon APPIMAGE: copies the icon bundled in the AppImage to the user icon theme; fails quietly.
+install_linux_icon() {
+    probe="${TMP}/icon-probe"
+    icon_dir="${XDG_DATA_HOME:-${HOME}/.local/share}/icons/hicolor/256x256/apps"
+    mkdir -p "$probe" || return 1
+    (cd "$probe" && "$1" --appimage-extract '*.png' >/dev/null 2>&1) || return 1
+    png=""
+    for candidate in "$probe"/squashfs-root/*.png; do
+        [ -f "$candidate" ] && { png="$candidate"; break; }
+    done
+    [ -n "$png" ] || return 1
+    mkdir -p "$icon_dir" && cp "$png" "${icon_dir}/codechroma.png"
 }
 
 if [ "$UNINSTALL" -eq 1 ]; then uninstall; exit 0; fi
@@ -256,6 +271,11 @@ case "$os" in
         mkdir -p "$ENTRY_DIR" "${HOME}/.local/bin"
         printf '[Desktop Entry]\nType=Application\nName=CodeChroma\nComment=Zoomable architecture map of your code\nExec=%s\nTerminal=false\nCategories=Development;\n' \
             "$APP_PATH" > "${ENTRY_DIR}/codechroma.desktop"
+        if install_linux_icon "$APP_PATH"; then
+            printf 'Icon=codechroma\n' >> "${ENTRY_DIR}/codechroma.desktop"
+        else
+            warn "could not read the icon from the AppImage; the launcher entry will use a generic icon."
+        fi
         ln -sf "$APP_PATH" "${HOME}/.local/bin/codechroma"
         remember "$APP_PATH"
         log "done. launch with:  ${APP_PATH}  (or: codechroma, if ~/.local/bin is on PATH)"

@@ -48,8 +48,13 @@ Logic is UI-free in `CodeChroma.Shell`; `CodeChroma.Shell.App` only renders.
   bridge origin; other navigations are cancelled and opened in the system browser.
 - Chrome: no native menu bar on Windows/Linux; the tab strip (`#1b1d23` bar, `#6c8cff` active underline) ends in a
   "⋯" flyout (Open Repo, New Tab, Close Tab, Check for Updates, About; Ctrl+O/T/W work). macOS gets a native menu.
-  `App.axaml` carries the shared styles. The icon art is `Assets/icon.png`; `Assets/icon.ico` is generated from it by `scripts/make_ico.ps1`; macOS `.icns`
-  and Linux icons for the Velopack packages are not wired yet.
+  `App.axaml` carries the shared styles. The icon art is `Assets/icon.png`; `Assets/icon.ico` is generated from it by
+  `scripts/make_ico.ps1` and `Assets/icon.icns` (one 256px `ic08` PNG entry) by `scripts/make_icns.py` (pure Python, no
+  Pillow); regenerate both after changing `icon.png`. `pack.ps1` passes the `.ico` to `vpk --icon`; `pack.sh` passes the
+  `.icns` for `osx-*` and the `.png` for `linux-x64`. On Linux `install.sh` extracts the icon from the installed AppImage
+  (`--appimage-extract '*.png'`) into `~/.local/share/icons/hicolor/256x256/apps/codechroma.png`, adds `Icon=codechroma` to
+  the `.desktop` entry, and `--uninstall` removes it; if extraction fails the entry is written without `Icon=` and a
+  warning is printed.
 - 🔴 Windows needs `app.manifest` with a `supportedOS` entry or the native WebView host throws at startup.
   Linux needs WebKitGTK (and `libfuse2` for the AppImage).
 - 🔴 `Program.Main` calls `VelopackApp.Build().Run()` first so Velopack's install/uninstall hooks work. Real
@@ -98,7 +103,7 @@ weaken security and must never be set in production: `CODECROMA_MANIFEST_URL`, `
 
 **In-app updater** (`dotnet/CodeChroma.Shell/Updater/`): `UpdateChecker` (trusted-URL check, ETag cache),
 `UpdateDownloader`, `UpdateOperations`, `PlatformInstaller` (stages next to the install, writes a helper from
-`UpdateScripts`, starts it detached, then the host quits), `UpdateSettingsStore`/`UpdateScheduler`/`StaleDownloads`,
+`UpdateScripts`, starts it detached, then the host quits), `UpdateSettingsStore`/`UpdateScheduler`,
 `InstallOutcomeStore`, `UpdatesBridge`. `CodeChroma.Shell.App/UpdateHost.cs` wires it: scheduled checks at startup,
 every 6 h and on window focus (per-user installs only), Help -> Check for Updates, and the "updated / rolled back"
 report. The canvas's `window.codechromaUpdates` (`web/src/assistant/UpdatesPanel.tsx`) round-trips over the WebView

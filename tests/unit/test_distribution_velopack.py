@@ -93,6 +93,19 @@ def test_pack_sh_passes_the_channel_runtime_without_skipping_the_velopack_app_ch
 
 
 @needs_sh
+@pytest.mark.parametrize(
+    ("rid", "icon"),
+    [("osx-arm64", "icon.icns"), ("osx-x64", "icon.icns"), ("linux-x64", "icon.png")],
+)
+def test_pack_sh_passes_the_platform_icon_to_vpk(tmp_path, publish, rid, icon):
+    _run_sh(tmp_path, publish, rid)
+
+    args = (tmp_path / "vpk.log").read_text().split()
+    assert Path(args[args.index("--icon") + 1]).name == icon
+    assert (ROOT / "dotnet" / "CodeChroma.Shell.App" / "Assets" / icon).is_file()
+
+
+@needs_sh
 def test_pack_sh_fails_loudly_and_lists_the_output_when_vpk_produced_nothing(tmp_path, publish):
     result = _run_sh(tmp_path, publish, "osx-arm64", VPK_EMPTY="1")
 

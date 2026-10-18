@@ -234,6 +234,51 @@ def test_linux_user_install_registers_launcher_entry_and_command(tmp_path):
     assert link.is_symlink() or link.exists()
 
 
+APPIMAGE_WITH_ICON = (
+    b"#!/bin/sh\n"
+    b'[ "$1" = "--appimage-extract" ] || exit 0\n'
+    b"mkdir -p squashfs-root && printf icon-bytes > squashfs-root/CodeChroma.png\n"
+)
+
+
+def _icon_path(box: Sandbox) -> Path:
+    icons = box.home / ".local" / "share" / "icons" / "hicolor" / "256x256" / "apps"
+    return icons / "codechroma.png"
+
+
+def test_linux_install_copies_the_appimage_icon_and_references_it_from_the_launcher(tmp_path):
+    box = make(tmp_path, "linux-x64", payload=APPIMAGE_WITH_ICON)
+
+    result = box.run()
+
+    entry = box.home / ".local" / "share" / "applications" / "codechroma.desktop"
+    assert result.returncode == 0, result.stderr
+    assert _icon_path(box).read_bytes() == b"icon-bytes"
+    assert "Icon=codechroma" in entry.read_text().splitlines()
+
+
+def test_linux_install_without_a_readable_icon_still_installs_and_warns(tmp_path):
+    box = make(tmp_path, "linux-x64")
+
+    result = box.run()
+
+    entry = box.home / ".local" / "share" / "applications" / "codechroma.desktop"
+    assert result.returncode == 0, result.stderr
+    assert not any(line.startswith("Icon=") for line in entry.read_text().splitlines())
+    assert not _icon_path(box).exists()
+    assert "generic icon" in result.stdout + result.stderr
+
+
+def test_linux_uninstall_removes_the_installed_icon(tmp_path):
+    box = make(tmp_path, "linux-x64", payload=APPIMAGE_WITH_ICON)
+    assert box.run().returncode == 0
+
+    result = box.run("--uninstall")
+
+    assert result.returncode == 0, result.stderr
+    assert not _icon_path(box).exists()
+
+
 def test_system_scope_is_refused_before_downloading(tmp_path):
     box = make(tmp_path, "linux-x64")
 

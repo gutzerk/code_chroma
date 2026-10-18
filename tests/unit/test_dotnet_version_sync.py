@@ -6,12 +6,12 @@ ROOT = Path(__file__).resolve().parents[2]
 CSPROJ = "dotnet/CodeChroma.Shell.App/CodeChroma.Shell.App.csproj"
 
 
-def test_the_csharp_app_version_matches_the_author_version():
-    author = json.loads((ROOT / "desktop/package.json").read_text("utf-8"))["version"]
+def test_the_csharp_app_version_matches_the_web_version():
+    web_version = json.loads((ROOT / "web/package.json").read_text("utf-8"))["version"]
 
     declared = re.search(r"<Version>([^<]+)</Version>", (ROOT / CSPROJ).read_text("utf-8"))
 
-    assert declared is not None and declared.group(1) == author
+    assert declared is not None and declared.group(1) == web_version
 
 
 def test_release_please_bumps_the_csharp_app_version():

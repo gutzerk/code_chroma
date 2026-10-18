@@ -139,16 +139,17 @@ public sealed partial class MainWindow : Window, IShellUi, ILauncherHost
             var title = new TextBlock { Text = info.Title, TextTrimming = TextTrimming.CharacterEllipsis, VerticalAlignment = VerticalAlignment.Center, Foreground = new SolidColorBrush(Color.Parse(active ? "#e6e9f0" : "#8b93a7")) };
             var close = new Button { Content = "×", Classes = { "tiny" }, Padding = new Thickness(4, 0), FontSize = 13, VerticalAlignment = VerticalAlignment.Center };
             close.Click += async (_, _) => await controller.CloseTabAsync(id);
-            var body = new DockPanel { MinWidth = 100, MaxWidth = 220, Margin = new Thickness(12, 0, 6, 0) };
+            var body = new DockPanel { MinWidth = 110, MaxWidth = 220, Margin = new Thickness(16, 0, 8, 0) };
             DockPanel.SetDock(close, Dock.Right);
             body.Children.Add(close);
             body.Children.Add(title);
             var tab = new Border
             {
                 Child = body,
-                Background = new SolidColorBrush(Color.Parse(active ? "#11131a" : "#1b1d23")),
-                BorderBrush = new SolidColorBrush(Color.Parse(active ? "#6c8cff" : "#2a3040")),
-                BorderThickness = new Thickness(0, active ? 2 : 0, 1, 0),
+                Background = new SolidColorBrush(Color.Parse(active ? "#11131a" : "#242833")),
+                BorderThickness = new Thickness(0),
+                CornerRadius = new CornerRadius(12, 12, 0, 0),
+                Margin = new Thickness(4, 6, 0, 0),
                 Cursor = new Cursor(StandardCursorType.Hand),
             };
             tab.PointerPressed += (_, _) => controller.SwitchTab(id);

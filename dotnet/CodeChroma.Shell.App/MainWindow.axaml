@@ -4,7 +4,7 @@
       <DockPanel>
         <Button x:Name="MoreButton" DockPanel.Dock="Right" Content="⋯" Classes="tiny" Margin="4,0" Padding="10,2" FontSize="16" VerticalAlignment="Center" />
         <ScrollViewer HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Disabled">
-          <StackPanel x:Name="TabStrip" Orientation="Horizontal" Height="32" />
+          <StackPanel x:Name="TabStrip" Orientation="Horizontal" Height="38" />
         </ScrollViewer>
       </DockPanel>
     </Border>

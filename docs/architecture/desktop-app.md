@@ -329,3 +329,7 @@ through `window.__ccUpdatesReply`; state changes are pushed with `window.__ccUpd
 `tests/unit/test_dotnet_version_sync.py`. Verified on a Windows display with `smoke/smoke.mjs`; `UpdatesPanel.tsx` does not
 render `verificationNotice` yet (web is untouched), so in-page the warning is only in the shell dialogs.
 
+
+### C# bridge bundling
+
+`dotnet publish dotnet/CodeChroma.Shell.App -r <rid> --self-contained -p:BundleCSharpBridge=true` also publishes `dotnet/CodeChroma.Bridge` into `bridge/codechroma-bridge/` (apphost renamed to `codechroma-bridge[.exe]`) and copies `web/dist` (built with `VITE_ENGINE_BRIDGE_URL=same-origin VITE_TERMINAL_BRIDGE_URL=same-origin`) to its `web/` folder, which the bridge serves. The shell launches it as `codechroma-bridge --repo-path <repo> --port <n>` (`BridgeCli`) and probes `/health`. Release CI still bundles the Python bridge.

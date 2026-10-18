@@ -117,7 +117,9 @@
    runs SQLite's `integrity_check`; repairable index damage is rebuilt with `REINDEX`, otherwise the
    corrupt cache is moved with its WAL/SHM sidecars into a timestamped
    `.codechroma/graph.db.corrupt-*` directory and rebuilt from source. `save()` does a full
-   delete+reinsert per repository per run rather than incremental upsert. `diff()` compares two
+   delete+reinsert per run rather than incremental upsert, and since the db is per repo it also drops
+   rows under any other `repository_id` (a moved/copied checkout carries its old id and `nodes.id`
+   is a global primary key). `diff()` compares two
    in-memory `Graph` snapshots (added/removed/reparented node IDs) — this is a value-level diff, not
    read from the DB.
 5. **Dependency digest** (`dependencies/digest.py`) — reshapes the call/import edges `GraphBuilder`

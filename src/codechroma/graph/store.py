@@ -233,6 +233,7 @@ class SqliteGraphStore:
     ) -> None:
         conn = self._conn
         repo_id = repository.id
+        # One db per repo: rows under another id (a moved or copied checkout) are stale, drop them.
         with conn:
             conn.execute(
                 "INSERT INTO repositories (id, root_path, primary_language) VALUES (?, ?, ?)"
@@ -242,28 +243,23 @@ class SqliteGraphStore:
             )
             conn.execute(
                 "DELETE FROM node_parents WHERE node_id IN "
-                "(SELECT id FROM nodes WHERE repository_id = ?)",
-                (repo_id,),
+                "(SELECT id FROM nodes)",
             )
             conn.execute(
                 "DELETE FROM node_symbols WHERE node_id IN "
-                "(SELECT id FROM nodes WHERE repository_id = ?)",
-                (repo_id,),
+                "(SELECT id FROM nodes)",
             )
             conn.execute(
                 "DELETE FROM node_dependencies WHERE node_id IN "
-                "(SELECT id FROM nodes WHERE repository_id = ?)",
-                (repo_id,),
+                "(SELECT id FROM nodes)",
             )
             conn.execute(
-                "DELETE FROM summaries WHERE node_id IN "
-                "(SELECT node_id FROM summaries s WHERE EXISTS "
-                "(SELECT 1 FROM nodes n WHERE n.id = s.node_id AND n.repository_id = ?))",
-                (repo_id,),
+                "DELETE FROM summaries WHERE node_id IN (SELECT id FROM nodes)"
             )
-            conn.execute("DELETE FROM nodes WHERE repository_id = ?", (repo_id,))
-            conn.execute("DELETE FROM symbols WHERE repository_id = ?", (repo_id,))
-            conn.execute("DELETE FROM class_shapes WHERE repository_id = ?", (repo_id,))
+            conn.execute("DELETE FROM nodes")
+            conn.execute("DELETE FROM symbols")
+            conn.execute("DELETE FROM class_shapes")
+            conn.execute("DELETE FROM repositories WHERE id != ?", (repo_id,))
 
             conn.executemany(
                 "INSERT INTO nodes (id, repository_id, name, level, source_path)"

@@ -13,6 +13,15 @@ public sealed class JsonSnapshotEngine : IGraphEngine
 
     public List<IReadOnlyList<string>> Reanalyzed { get; } = [];
 
+    /// <summary>The hand-built graph and grouping a wiki-general test serves; null leaves the engine without one.</summary>
+    public CodeChroma.Core.Graph? Graph { get; set; }
+
+    public CodeChroma.Core.ClusterResult? Clusters { get; set; }
+
+    public CodeChroma.Core.Graph? GraphSnapshot() => Graph;
+
+    public CodeChroma.Core.ClusterResult? BuildClusters(string repoRoot) => Clusters;
+
     public JsonSnapshotEngine(string snapshotPath)
     {
         var doc = JsonNode.Parse(File.ReadAllText(snapshotPath))!.AsObject();
@@ -66,7 +75,12 @@ public sealed class JsonSnapshotEngine : IGraphEngine
     public void Reanalyze(IReadOnlyList<string> changedPaths) => Reanalyzed.Add(changedPaths);
 }
 
-public sealed class SnapshotEngineFactory(string snapshotPath) : IEngineFactory
+public sealed class SnapshotEngineFactory(string snapshotPath, Action<JsonSnapshotEngine>? configure = null) : IEngineFactory
 {
-    public IGraphEngine Create(string root) => new JsonSnapshotEngine(snapshotPath);
+    public IGraphEngine Create(string root)
+    {
+        var engine = new JsonSnapshotEngine(snapshotPath);
+        configure?.Invoke(engine);
+        return engine;
+    }
 }

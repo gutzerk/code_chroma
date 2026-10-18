@@ -6,7 +6,7 @@ using CodeChroma.Bridge.Workspaces;
 
 namespace CodeChroma.Bridge.Routes;
 
-/// <summary>wiki-general status, interactive status, output, cancel and the context bundle; the generate and update runs are not ported.</summary>
+/// <summary>wiki-general status, interactive status, generate, update, clustering, output, cancel and the context bundle.</summary>
 public static class WikiGeneralRoutes
 {
     private const string ReadOnlyMessage = "a pull-request workspace is read-only";
@@ -62,7 +62,8 @@ public static class WikiGeneralRoutes
                     if (agent.GetState(ws.Id).State == "generating") return Results.Json(agent.GetState(ws.Id), BridgeJson.Default.JobState);
                     if (kind == WikiGeneral.Kind && !WikiGeneral.HasDocumentableContent(ws.Root))
                         return Results.Json(await agent.MarkDone(ws.Id, onChange, WikiGeneral.NoDocumentableContentError), BridgeJson.Default.JobState);
-                    WikiGeneral.Clear(ws.Root);
+                    if (WikiGeneral.PrepareNewRun(ws) is { } syncError)
+                        return Results.Json(await agent.MarkDone(ws.Id, onChange, syncError), BridgeJson.Default.JobState);
                     return Results.Json(await agent.MarkGenerating(ws.Id, onChange), BridgeJson.Default.JobState);
                 }
                 finally
@@ -91,11 +92,72 @@ public static class WikiGeneralRoutes
             return Results.Json(await SkillJobCallbacks.StopAndNotify(Active(agents, ws), ws.Id, WikiGeneral.Kind, ws.Emit), BridgeJson.Default.JobState);
         });
 
-        foreach (var route in new[] { "generate", "update" })
-            app.MapPost($"/repos/{{repoId}}/wiki-general/{route}", (string repoId, WorkspaceRegistry registry) =>
-                registry.Get(repoId).ReadOnly
-                    ? Reply.Error(409, ReadOnlyMessage)
-                    : Reply.Error(501, $"wiki-general {route} is not available in the C# bridge yet; run the codechroma-wiki-general skill from an agent window"));
+        app.MapPost("/repos/{repoId}/wiki-general/generate", async (string repoId, WorkspaceRegistry registry, SkillAgents agents) =>
+        {
+            var ws = registry.Get(repoId);
+            if (ws.ReadOnly) return Reply.Error(409, ReadOnlyMessage);
+            var agent = agents[WikiGeneral.Kind];
+            var (onChange, onOutput) = SkillJobCallbacks.For(WikiGeneral.Kind, ws.Emit);
+            onChange = StampOnSuccess(ws, onChange);
+            var gate = WikiGeneral.RunLock(ws.Id);
+            await gate.WaitAsync();
+            try
+            {
+                if (agents[WikiGeneral.KindUpdate].GetState(ws.Id).State == "generating") return Reply.Error(409, "a update run is already in progress");
+                if (agent.GetState(ws.Id).State == "generating") return Results.Json(agent.GetState(ws.Id), BridgeJson.Default.JobState);
+                if (!WikiGeneral.HasDocumentableContent(ws.Root))
+                    return Results.Json(await agent.MarkDone(ws.Id, onChange, WikiGeneral.NoDocumentableContentError), BridgeJson.Default.JobState);
+                var syncError = await Task.Run(() => WikiGeneral.PrepareNewRun(ws));
+                if (syncError is not null) return Results.Json(await agent.MarkDone(ws.Id, onChange, syncError), BridgeJson.Default.JobState);
+                return Results.Json(await agent.Start(ws.Id, ws.Root, onChange, onOutput, workspace: ws), BridgeJson.Default.JobState);
+            }
+            finally
+            {
+                gate.Release();
+            }
+        });
+
+        app.MapPost("/repos/{repoId}/wiki-general/update", async (string repoId, WorkspaceRegistry registry, SkillAgents agents) =>
+        {
+            var ws = registry.Get(repoId);
+            if (ws.ReadOnly) return Reply.Error(409, ReadOnlyMessage);
+            var agent = agents[WikiGeneral.KindUpdate];
+            var (onChange, onOutput) = SkillJobCallbacks.For(WikiGeneral.Kind, ws.Emit);
+            onChange = StampOnSuccess(ws, onChange);
+            var gate = WikiGeneral.RunLock(ws.Id);
+            await gate.WaitAsync();
+            try
+            {
+                if (agents[WikiGeneral.Kind].GetState(ws.Id).State == "generating") return Reply.Error(409, "a generate run is already in progress");
+                JsonObject delta;
+                try
+                {
+                    delta = await Task.Run(() => WikiGeneralUpdate.ApplyDelta(ws, WikiGeneralUpdate.ComputeDelta(ws)));
+                }
+                catch (Exception error)
+                {
+                    // A reanalyze or manifest failure must reach the canvas as an error, not crash the route.
+                    return Results.Json(await agent.MarkDone(ws.Id, onChange, error.Message), BridgeJson.Default.JobState);
+                }
+                string Dump(string level, string bucket) => delta[level]![bucket]!.ToJsonString(new System.Text.Json.JsonSerializerOptions { WriteIndented = true, Encoder = System.Text.Encodings.Web.JavaScriptEncoder.UnsafeRelaxedJsonEscaping });
+                var prompt = Prompts.Render("wiki_general_update_agent",
+                    ("created_components_json", Dump("components", "created")), ("rewritten_components_json", Dump("components", "rewritten")),
+                    ("created_containers_json", Dump("containers", "created")), ("rewritten_containers_json", Dump("containers", "rewritten")));
+                return Results.Json(await agent.Start(ws.Id, ws.Root, onChange, onOutput, prompt), BridgeJson.Default.JobState);
+            }
+            finally
+            {
+                gate.Release();
+            }
+        });
+
+        app.MapGet("/repos/{repoId}/wiki-general/clustering", (string repoId, WorkspaceRegistry registry) =>
+            Reply.Guard(() =>
+            {
+                var ws = registry.Get(repoId);
+                var result = ws.Engine.BuildClusters(ws.Root) ?? throw new BridgeException(409, "the engine has no graph to cluster");
+                return Reply.Json(WikiGeneralUpdate.ClusteringBody(result));
+            }));
 
         app.MapGet("/repos/{repoId}/wiki-general-context", (string repoId, WorkspaceRegistry registry) =>
             Reply.Json(WikiGeneral.Context(registry.Get(repoId).Root)));

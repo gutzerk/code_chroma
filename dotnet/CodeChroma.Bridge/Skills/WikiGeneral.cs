@@ -1,6 +1,7 @@
 using System.Collections.Concurrent;
 using System.Text.Json.Nodes;
 using CodeChroma.Bridge.Stores;
+using CodeChroma.Bridge.Wiki;
 using CodeChroma.Bridge.Workspaces;
 
 namespace CodeChroma.Bridge.Skills;
@@ -41,7 +42,7 @@ public static class WikiGeneral
     {
         yield return new SkillAgents.KindSpec(Kind, new SkillAgentSpec(
             "wiki_general_agent", null, SkillTimeouts.Model, (root, id) => ManifestPath(root, id), ValidManifest,
-            "codechroma_WIKI_GENERAL_TIMEOUT_SECONDS", SkillTimeouts.For(Kind), "generation produced no valid wiki-general manifest"));
+            "codechroma_WIKI_GENERAL_TIMEOUT_SECONDS", SkillTimeouts.For(Kind), "generation produced no valid wiki-general manifest", WikiGeneralPipeline.Run));
         yield return new SkillAgents.KindSpec(KindUpdate, new SkillAgentSpec(
             "wiki_general_update_agent", Prompts.Render("wiki_general_update_agent"), SkillTimeouts.Model, (root, id) => ManifestPath(root, id), ValidManifest,
             "codechroma_WIKI_GENERAL_UPDATE_TIMEOUT_SECONDS", SkillTimeouts.For(KindUpdate), "update produced no valid wiki-general manifest"));
@@ -54,6 +55,22 @@ public static class WikiGeneral
         try { Directory.Delete(directory, recursive: true); } catch (DirectoryNotFoundException) { }
         Directory.CreateDirectory(Path.Combine(directory, "c2"));
         Directory.CreateDirectory(Path.Combine(directory, "c3"));
+    }
+
+    /// <summary>Clears stale pages and readies the plain wiki before a run; an error message on failure, else null.</summary>
+    public static string? PrepareNewRun(Workspace ws)
+    {
+        Clear(ws.Root);
+        try
+        {
+            WikiBootstrap.IfMissing(ws);
+            WikiContext.Sync(ws);
+        }
+        catch (Exception error)
+        {
+            return $"plain wiki sync failed: {error.Message}";
+        }
+        return null;
     }
 
     /// <summary>False when the repo has nothing but a placeholder, doc or config tree: no run should start.</summary>

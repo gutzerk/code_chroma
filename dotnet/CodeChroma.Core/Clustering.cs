@@ -90,6 +90,20 @@ public static class Clustering
         return (groupOf, items.Where(i => !groupOf.ContainsKey(i)).ToList());
     }
 
+    /// <summary>Rolls item-level edges up to their groups' edges; drops intra-group and unmapped traffic.</summary>
+    public static Dictionary<(string, string), int> AggregateEdgeList(
+        IReadOnlyDictionary<string, string> groupOf, IEnumerable<(string From, string To, int Count)> edges)
+    {
+        var aggregated = new Dictionary<(string, string), int>();
+        foreach (var (a, b, weight) in edges)
+        {
+            if (!groupOf.TryGetValue(a, out var groupA) || !groupOf.TryGetValue(b, out var groupB) || groupA == groupB) continue;
+            var key = PairKey(groupA, groupB);
+            aggregated[key] = (aggregated.TryGetValue(key, out var n) ? n : 0) + weight;
+        }
+        return aggregated;
+    }
+
     private static OrderedMap<(string, string), int> AggregateEdges(
         Dictionary<string, string> groupOf, IEnumerable<KeyValuePair<(string, string), int>> edges)
     {

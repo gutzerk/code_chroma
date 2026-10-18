@@ -40,6 +40,9 @@ public interface IGraphEngine
     /// <summary>The engine's current Graph for whole-graph consumers (the wiki); null for engines without one.</summary>
     CodeChroma.Core.Graph? GraphSnapshot() => null;
 
+    /// <summary>The deterministic component and container grouping wiki-general documents; null for engines without a graph.</summary>
+    CodeChroma.Core.ClusterResult? BuildClusters(string repoRoot) => null;
+
     /// <summary>The heuristic design-pattern candidates for the current graph; engines without shape support report none.</summary>
     IReadOnlyList<CodeChroma.Core.Patterns.PatternInstance> PatternCandidates() => [];
 

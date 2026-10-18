@@ -435,10 +435,6 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
-      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
-        with:
-          python-version: "3.14"
-
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: "22"
@@ -449,26 +445,15 @@ jobs:
         with:
           dotnet-version: "8.0.x"
 
-      - name: Install Poetry
-        run: pipx install poetry==2.5.1
-
       - name: Install web deps
         working-directory: web
         run: npm ci
-
-      - name: Install Python deps
-        run: |
-          poetry config virtualenvs.in-project true
-          poetry install --no-interaction
 
       - name: Build canvas bundle (same-origin)
         env:
           VITE_ENGINE_BRIDGE_URL: same-origin
           VITE_TERMINAL_BRIDGE_URL: same-origin
         run: npm --prefix web run build
-
-      - name: Freeze the bridge (PyInstaller)
-        run: poetry run pyinstaller packaging/bridge.spec --noconfirm --clean
 
       - name: Resolve the release version
         id: version
@@ -484,9 +469,7 @@ jobs:
       - name: Publish the shell (self-contained)
         shell: pwsh
         run: |
-          dotnet publish dotnet/CodeChroma.Shell.App -c Release -r win-x64 --self-contained true -p:Version=${{ steps.version.outputs.version }} -o publish
-          New-Item -ItemType Directory -Force -Path publish/bridge | Out-Null
-          Copy-Item -Recurse dist/codechroma-bridge publish/bridge/codechroma-bridge
+          dotnet publish dotnet/CodeChroma.Shell.App -c Release -r win-x64 --self-contained true -p:Version=${{ steps.version.outputs.version }} -p:BundleCSharpBridge=true -o publish
 
       - name: Install Velopack CLI
         run: dotnet tool install --global vpk --version 1.2.161
@@ -537,10 +520,6 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
-      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
-        with:
-          python-version: "3.14"
-
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: "22"
@@ -551,28 +530,15 @@ jobs:
         with:
           dotnet-version: "8.0.x"
 
-      - name: Install Poetry
-        run: pipx install poetry==2.5.1
-
       - name: Install web deps
         working-directory: web
         run: npm ci
-
-      - name: Install Python deps
-        run: |
-          poetry config virtualenvs.in-project true
-          poetry install --no-interaction
 
       - name: Build canvas bundle (same-origin)
         env:
           VITE_ENGINE_BRIDGE_URL: same-origin
           VITE_TERMINAL_BRIDGE_URL: same-origin
         run: npm --prefix web run build
-
-      - name: Freeze the bridge (PyInstaller)
-        env:
-          CODECROMA_PYINSTALLER_TARGET_ARCH: ${{ matrix.bridge_arch }}
-        run: poetry run pyinstaller packaging/bridge.spec --noconfirm --clean
 
       - name: Resolve the release version
         id: version
@@ -588,9 +554,7 @@ jobs:
 
       - name: Publish the shell (self-contained)
         run: |
-          dotnet publish dotnet/CodeChroma.Shell.App -c Release -r ${{ matrix.rid }} --self-contained true -p:Version=${{ steps.version.outputs.version }} -o publish
-          mkdir -p publish/bridge
-          cp -R dist/codechroma-bridge publish/bridge/codechroma-bridge
+          dotnet publish dotnet/CodeChroma.Shell.App -c Release -r ${{ matrix.rid }} --self-contained true -p:Version=${{ steps.version.outputs.version }} -p:BundleCSharpBridge=true -o publish
 
       - name: Install Velopack CLI
         run: dotnet tool install --global vpk --version 1.2.161
@@ -626,10 +590,6 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
-      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
-        with:
-          python-version: "3.14"
-
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: "22"
@@ -640,26 +600,15 @@ jobs:
         with:
           dotnet-version: "8.0.x"
 
-      - name: Install Poetry
-        run: pipx install poetry==2.5.1
-
       - name: Install web deps
         working-directory: web
         run: npm ci
-
-      - name: Install Python deps
-        run: |
-          poetry config virtualenvs.in-project true
-          poetry install --no-interaction
 
       - name: Build canvas bundle (same-origin)
         env:
           VITE_ENGINE_BRIDGE_URL: same-origin
           VITE_TERMINAL_BRIDGE_URL: same-origin
         run: npm --prefix web run build
-
-      - name: Freeze the bridge (PyInstaller)
-        run: poetry run pyinstaller packaging/bridge.spec --noconfirm --clean
 
       - name: Resolve the release version
         id: version
@@ -675,9 +624,7 @@ jobs:
 
       - name: Publish the shell (self-contained)
         run: |
-          dotnet publish dotnet/CodeChroma.Shell.App -c Release -r linux-x64 --self-contained true -p:Version=${{ steps.version.outputs.version }} -o publish
-          mkdir -p publish/bridge
-          cp -R dist/codechroma-bridge publish/bridge/codechroma-bridge
+          dotnet publish dotnet/CodeChroma.Shell.App -c Release -r linux-x64 --self-contained true -p:Version=${{ steps.version.outputs.version }} -p:BundleCSharpBridge=true -o publish
 
       - name: Install Velopack CLI
         run: dotnet tool install --global vpk --version 1.2.161

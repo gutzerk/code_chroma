@@ -100,7 +100,7 @@ Swapped in (2026-10-18): the C# bridge now takes `--repo-path`/`--port` (`Bridge
 `VITE_ENGINE_BRIDGE_URL=same-origin VITE_TERMINAL_BRIDGE_URL=same-origin npm --prefix web run build`) bundles it as
 `bridge/codechroma-bridge/` (self-contained, installer 111 MB vs 85 MB). Locally installed on Windows: the bridge is
 healthy 2.5 s after the app starts with `--repo` (the Python bridge took about 5 s) and `structure` answers in 0.25 s.
-CI (`release-please.yml`) still bundles the Python bridge; switching it needs the web build step in the three publish jobs.
+The `dotnet-windows|macos|linux` release jobs now publish with `-p:BundleCSharpBridge=true` (they already built the same-origin canvas) and no longer freeze the Python bridge or install Python/Poetry; not run on real CI.
 
 Still missing: patterns and impact resolved payloads, `impact-changes`, `{kind}/review`, `wiki-context`, wiki-general
 generate/update, `GET /diagram-types` registries, PR happy path (gh), foreground-process status probing, skills packaged

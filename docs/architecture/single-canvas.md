@@ -669,7 +669,7 @@ position depends on the first's measured width, so the root's true rect could st
 or two after that one call. Fixed by retrying `centerOnNode` a few more frames, but **only** for the
 `boxes` strategy specifically (`strategy.id === "boxes"`) — an early version retried unconditionally
 and, even bounded to just 4 frames, that was long enough to occasionally clobber a real camera action
-a fast test gesture triggered in the same window (confirmed via `change-cards.spec.ts`/
+a fast test gesture triggered in the same window (confirmed via the since-removed `change-cards.spec.ts`/
 `pr-review.spec.ts` regressing when a PR-workspace switch remounted this effect immediately before
 toggling Diff). The `tree` strategy (the app default, used by most e2e specs including these two) has
 no such measurement dependency and keeps the original single call, unchanged.

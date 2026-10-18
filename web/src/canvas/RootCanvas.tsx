@@ -89,7 +89,7 @@ import { useDiffToggle } from "./useDiffToggle";
 // which only mounts once its own async chain (canvas-doc load -> its own getNode fetch) resolves -- a handful of frames used to be enough when the
 // root row mounted synchronously with `rootNode`, but now the first several calls can all fire
 // before the element exists at all, same reasoning as useCanvasCamera's FIT_MAX_FRAMES.
-export const CAMERA_RECENTER_MAX_FRAMES = 180;
+const CAMERA_RECENTER_MAX_FRAMES = 180;
 // Every layout kind with boxes actually draggable on the one canvas today -- "hierarchy" (the
 // pinned root row, still saved-layout-based) and "canvas" (every CanvasNodeBox drag). A module-level
 // constant, not built inline in JSX, so UndoManager's own effect (deps [kinds]) doesn't re-subscribe

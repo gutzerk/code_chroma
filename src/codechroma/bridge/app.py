@@ -1,11 +1,11 @@
 """The bridge application factory: one `create_app(repo_root)` per analyzed repository.
 
 This module deliberately does **nothing** at import time. `server.py` calls `create_app()` once for
-uvicorn and the desktop bridge; a test calls it with a temporary repository and gets an
+uvicorn and the C# shell's bundled bridge; a test calls it with a temporary repository and gets an
 independent app, which is what replaced the old `importlib.reload(server)` fixture.
 
 Startup ordering that matters: uvicorn runs the lifespan *before* it binds the listening socket, so
-`launch.py`'s "wait for the port" and the desktop shell's `GET /health` poll both still mean "the
+`launch.py`'s "wait for the port" and the C# shell's `GET /health` poll both still mean "the
 initial analyze is done" -- the same guarantee the old module-scope analyze gave them.
 """
 
@@ -49,7 +49,7 @@ IDLE_SWEEP_SECONDS = 60
 
 def default_repo_root() -> Path:
     """The repo `codechroma_BRIDGE_REPO_PATH` names; an absolute value wins over PROJECT_ROOT."""
-    return PROJECT_ROOT / os.environ.get("codechroma_BRIDGE_REPO_PATH", "examples")
+    return PROJECT_ROOT / os.environ.get("codechroma_BRIDGE_REPO_PATH", ".")
 
 
 async def _poll_agent_statuses(services: BridgeServices) -> None:

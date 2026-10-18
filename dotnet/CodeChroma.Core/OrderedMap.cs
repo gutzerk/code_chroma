@@ -52,7 +52,6 @@ internal sealed class OrderedMap<TKey, TValue> : IReadOnlyDictionary<TKey, TValu
         return true;
     }
 
-    public TValue? GetOrDefault(TKey key) => TryGetValue(key, out var v) ? v : default;
 
     public IEnumerator<KeyValuePair<TKey, TValue>> GetEnumerator() => _items.GetEnumerator();
     IEnumerator IEnumerable.GetEnumerator() => GetEnumerator();

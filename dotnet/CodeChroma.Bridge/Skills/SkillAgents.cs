@@ -19,18 +19,6 @@ public sealed class SkillAgents
 
     public IEnumerable<SkillAgent> All => _agents.Values;
 
-    /// <summary>Cancels every in-flight run so a restart cannot leave an orphan still writing.</summary>
-    public async Task CancelAll()
-    {
-        foreach (var agent in _agents.Values) await agent.Cancel();
-    }
-
-    /// <summary>Drops a closed workspace's state from every runner.</summary>
-    public async Task ForgetWorkspace(string repoId)
-    {
-        foreach (var agent in _agents.Values) await agent.Forget(repoId);
-    }
-
     public sealed record KindSpec(string Kind, SkillAgentSpec Spec);
 
     /// <summary>The diagram and review kinds; the composite kinds are added by their own modules.</summary>

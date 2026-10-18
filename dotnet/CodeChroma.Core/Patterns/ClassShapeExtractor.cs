@@ -52,7 +52,7 @@ public static class ClassShapeExtractor
                     var qualname = !string.IsNullOrEmpty(enclosing) ? $"{enclosing}.{name}" : name;
                     var classId = $"{filePath}::class::{qualname}";
                     var bases = CollectBases(target);
-                    var shape = new ClassShape(classId) { Bases = bases, Decorators = decorators };
+                    var shape = new ClassShape { Bases = bases, Decorators = decorators };
                     if (target.Field("body") is { } body) CollectClassBody(body, shape);
                     shape.IsAbstract = bases.Contains("ABC") || shape.Methods.Values.Any(m => m.Decorators.Contains("abstractmethod"));
                     shapes[classId] = shape;
@@ -216,7 +216,7 @@ public static class ClassShapeExtractor
                 var name = nameNode.Text;
                 var classId = $"{filePath}::class::{name}";
                 typeIds[name] = classId;
-                var shape = new ClassShape(classId);
+                var shape = new ClassShape();
                 if (typeNode.Type == "struct_type")
                 {
                     shape.Kind = "struct";

@@ -71,37 +71,6 @@ public class ParityTests
         AssertSame(Fixtures.Expected(repo)["clusters"], actual, $"{repo} clusters");
     }
 
-    [Theory, MemberData(nameof(AllRepos))]
-    public void Structure_MatchesTheGoldenForEveryCase(string repo)
-    {
-        var graph = Fixtures.GraphOf(repo);
-
-        foreach (var (name, golden) in Fixtures.Expected(repo)["structure"]!.AsObject())
-        {
-            var args = golden!["args"]!.AsObject();
-            var options = new StructureOptions(
-                (string?)args["root_id"] ?? "root", (int?)args["depth"], (int?)args["max_children"], (int?)args["max_nodes"]);
-            if (golden["error"] is not null)
-            {
-                Assert.Throws<UnknownRootException>(() => StructureBuilder.Build(graph, options));
-                continue;
-            }
-
-            AssertSame(golden["result"], Fixtures.ToJson(StructureBuilder.Build(graph, options)), $"{repo} structure/{name}");
-        }
-    }
-
-    [Theory, MemberData(nameof(AllRepos))]
-    public void ContextDigest_MatchesTheGoldenIgnoringTheRepoName(string repo)
-    {
-        var graph = Fixtures.GraphOf(repo);
-
-        var digest = ContextDigest.Build(graph, Path.Combine(Fixtures.FixturesDir, repo));
-
-        digest.Remove("repo_name");
-        AssertSame(Fixtures.Expected(repo)["context_digest"], digest, $"{repo} context digest");
-    }
-
     [Theory]
     [InlineData("append_method")]
     [InlineData("delete_file")]

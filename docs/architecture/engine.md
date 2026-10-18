@@ -147,8 +147,7 @@ are split `tests/unit/` (analyzers, store), `tests/integration/` (full analyze/r
 ## C# graph core and parity tests (`dotnet/`, plan 011)
 
 `dotnet/CodeChroma.Core` (net8.0) is a second implementation of the graph half of this pipeline:
-`GraphBuilder` (step 2), `DependencyIndex`/`DependencyDigest` (step 5), `Clustering`, `StructureBuilder`,
-`ContextDigest` and `GraphCore` (analyze/reanalyze/accessors). It does **not** run analyzers: it consumes the
+`GraphBuilder` (step 2), `DependencyIndex`/`DependencyDigest` (step 5), `Clustering` and `GraphCore` (analyze/reanalyze/accessors). It does **not** run analyzers: it consumes the
 analyzer-output JSON contract (`schema_version` 1: ordered `files[]` of symbols or `null`, pre-computed
 `import_resolutions`, optional `summaries`). The Python code here stays the reference implementation and is
 not removed yet; see [`docs/planning/011-csharp-graph-core.md`](../planning/011-csharp-graph-core.md) for the
@@ -181,4 +180,4 @@ guards freshness and `PatternParityTests` (C#) must reproduce candidates and fin
 
 ## C# analyzer port
 
-`dotnet/CodeChroma.Core/Analyzers/` mirrors `src/codechroma/analyzers/*` (tree-sitter via TreeSitter.DotNet, YAML via YamlDotNet), `_iter_repo_files` (`RepoScanner`) and the offline summarizer; the C# bridge uses it by default. Python stays the reference: change an analyzer here and in C# together and run `dotnet test dotnet` (parity against `tests/fixtures/graph_golden/*.input.json`). The live oracle test compares against `python -m codechroma.analysis_export` on any repo (`CODECHROMA_PYTHON`, `PYTHONPATH`, `CODECHROMA_ORACLE_REPO`). Results and known grammar-version skew: `docs/planning/011-csharp-graph-core.md`, Phase 5.
+`dotnet/CodeChroma.Core/Analyzers/` mirrors `src/codechroma/analyzers/*` (tree-sitter via TreeSitter.DotNet, YAML via YamlDotNet), `_iter_repo_files` (`RepoScanner`) and the offline summarizer; the C# bridge uses it by default. Python stays the reference: change an analyzer here and in C# together and run `dotnet test dotnet` (parity against `tests/fixtures/graph_golden/*.input.json`). The live oracle test compares against `python -m codechroma.analysis_export` on any repo (`CODECHROMA_PYTHON`, `PYTHONPATH`, `CODECHROMA_ORACLE_REPO`); the bridge itself never shells out to Python (the `PythonAnalysisExporter` oracle lives in `CodeChroma.Bridge.Tests/Support`). The C# core has no structure or context-digest builders; the bridge's `/structure` is built in `Routes/GraphRoutes.cs` from the engine. Results and known grammar-version skew: `docs/planning/011-csharp-graph-core.md`, Phase 5.

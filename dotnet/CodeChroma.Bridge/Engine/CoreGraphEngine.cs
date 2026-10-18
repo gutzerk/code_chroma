@@ -1,26 +1,16 @@
-using System.Diagnostics;
-using System.Text;
-using System.Text.Json;
-using System.Text.Json.Serialization;
 using CodeChroma.Core;
 using CodeChroma.Core.Analyzers;
 using CodeChroma.Core.Patterns;
 
 namespace CodeChroma.Bridge.Engine;
 
-/// <summary>Produces the graph core's analyzer-output contract (the C# analyzers by default, Python as the oracle).</summary>
+/// <summary>Produces the graph core's analyzer-output contract (the bridge ships the native C# analyzers; tests can swap in the Python oracle).</summary>
 public interface IAnalysisExporter
 {
     AnalysisInput Full(string root);
 
     AnalysisDelta Delta(string root, IReadOnlyList<string> changedPaths);
 }
-
-/// <summary>The wire shape of `python -m codechroma.analysis_export --files`.</summary>
-internal sealed record DeltaWire(
-    IReadOnlyList<FileSymbols> Changed,
-    IReadOnlyList<string> Removed,
-    [property: JsonPropertyName("import_resolutions")] IReadOnlyDictionary<string, IReadOnlyDictionary<string, string>> ImportResolutions);
 
 /// <summary>Analyzes in-process with the C# tree-sitter analyzers; no Python interpreter involved.</summary>
 public sealed class NativeAnalysisExporter(AnalysisExporter? exporter = null) : IAnalysisExporter
@@ -32,64 +22,6 @@ public sealed class NativeAnalysisExporter(AnalysisExporter? exporter = null) : 
     public AnalysisInput Full(string root) => _exporter.Full(root);
 
     public AnalysisDelta Delta(string root, IReadOnlyList<string> changedPaths) => _exporter.Delta(root, changedPaths);
-}
-
-/// <summary>Picks the analyzer backend: CODECHROMA_ANALYZERS=python shells out to Python, anything else is native C#.</summary>
-public static class AnalysisExporters
-{
-    public const string BackendEnvVar = "CODECHROMA_ANALYZERS";
-
-    public static IAnalysisExporter FromEnvironment() => For(Environment.GetEnvironmentVariable(BackendEnvVar));
-
-    public static IAnalysisExporter For(string? backend) =>
-        string.Equals(backend, "python", StringComparison.OrdinalIgnoreCase)
-            ? new PythonAnalysisExporter()
-            : new NativeAnalysisExporter();
-}
-
-/// <summary>Shells out to the Python analyzers (`codechroma.analysis_export`); CODECHROMA_PYTHON picks the interpreter.</summary>
-public sealed class PythonAnalysisExporter(string? python = null) : IAnalysisExporter
-{
-    public const string PythonEnvVar = "CODECHROMA_PYTHON";
-    private const int TimeoutSeconds = 600;
-
-    private readonly string _python = python
-        ?? Environment.GetEnvironmentVariable(PythonEnvVar)
-        ?? (OperatingSystem.IsWindows() ? "python" : "python3");
-
-    public AnalysisInput Full(string root) => AnalysisInputReader.Parse(Run(root, []));
-
-    public AnalysisDelta Delta(string root, IReadOnlyList<string> changedPaths)
-    {
-        var wire = JsonSerializer.Deserialize<DeltaWire>(Run(root, ["--files", .. changedPaths]), WireJson.Options)
-            ?? throw new JsonException("analysis delta is empty");
-        return new AnalysisDelta(wire.Changed, wire.Removed, wire.ImportResolutions);
-    }
-
-    private string Run(string root, IEnumerable<string> extra)
-    {
-        var info = new ProcessStartInfo(_python)
-        {
-            RedirectStandardOutput = true,
-            RedirectStandardError = true,
-            StandardOutputEncoding = Encoding.UTF8,
-            StandardErrorEncoding = Encoding.UTF8,
-            WorkingDirectory = root,
-        };
-        foreach (var arg in new[] { "-m", "codechroma.analysis_export", root }.Concat(extra)) info.ArgumentList.Add(arg);
-        info.Environment["PYTHONIOENCODING"] = "utf-8";
-        using var process = Process.Start(info) ?? throw new InvalidOperationException($"could not start {_python}");
-        var stdout = process.StandardOutput.ReadToEndAsync();
-        var stderr = process.StandardError.ReadToEndAsync();
-        if (!process.WaitForExit(TimeSpan.FromSeconds(TimeoutSeconds)))
-        {
-            try { process.Kill(entireProcessTree: true); } catch (InvalidOperationException) { }
-            throw new TimeoutException($"{_python} -m codechroma.analysis_export timed out after {TimeoutSeconds}s");
-        }
-        if (process.ExitCode != 0)
-            throw new InvalidOperationException($"analysis export failed ({process.ExitCode}): {stderr.GetAwaiter().GetResult().Trim()}");
-        return stdout.GetAwaiter().GetResult();
-    }
 }
 
 /// <summary>The bridge's engine seam over <see cref="GraphCore"/>.</summary>

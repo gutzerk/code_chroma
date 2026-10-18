@@ -14,8 +14,6 @@ public static partial class UpdateConstants
     public const string ChecksumOnlyNotice =
         "This update is verified by its SHA-256 checksum only. It is not signed or attested, so the checksum protects against a corrupted download but not against a compromised release. Compare it with the checksum published on GitHub Releases if that matters to you.";
 
-    public const string ChecksumOnlyBadge = "Checksum only (not signed)";
-
     [GeneratedRegex(@"^https://github\.com/(?<repo>[^/]+/[^/]+)/releases/(?:latest/)?download/[^?#\s]+$")]
     private static partial Regex DownloadUrlPattern();
 

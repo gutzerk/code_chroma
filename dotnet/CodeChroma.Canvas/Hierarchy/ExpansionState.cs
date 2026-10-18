@@ -29,7 +29,6 @@ public sealed class ExpansionState
     public bool Restored { get; private set; }
 
     public IReadOnlyList<string> ExpandedOrder => _expanded;
-    public IReadOnlyList<string> CodeVisibleOrder => _codeVisible;
 
     public bool IsExpanded(string id) => _expanded.Contains(id);
     public bool IsCodeVisible(string id) => _codeVisible.Contains(id);

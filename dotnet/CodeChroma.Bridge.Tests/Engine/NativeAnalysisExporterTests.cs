@@ -27,19 +27,6 @@ public class NativeAnalysisExporterTests
         return seen;
     }
 
-    [Theory]
-    [InlineData("python", typeof(PythonAnalysisExporter))]
-    [InlineData("PYTHON", typeof(PythonAnalysisExporter))]
-    [InlineData("native", typeof(NativeAnalysisExporter))]
-    [InlineData("", typeof(NativeAnalysisExporter))]
-    [InlineData(null, typeof(NativeAnalysisExporter))]
-    public void The_backend_switch_defaults_to_native_and_keeps_python_selectable(string? value, Type expected)
-    {
-        var exporter = AnalysisExporters.For(value);
-
-        Assert.IsType(expected, exporter);
-    }
-
     [Fact]
     public void The_native_exporter_builds_the_sample_repo_graph_without_python()
     {

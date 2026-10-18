@@ -1,6 +1,7 @@
 using System.Text.Json.Nodes;
 using CodeChroma.Bridge.Engine;
 using CodeChroma.Bridge.Tests.Contract;
+using CodeChroma.Bridge.Tests.Support;
 using CodeChroma.Core;
 
 namespace CodeChroma.Bridge.Tests.Engine;

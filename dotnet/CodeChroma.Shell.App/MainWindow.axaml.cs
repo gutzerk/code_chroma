@@ -35,19 +35,33 @@ public sealed partial class MainWindow : Window, IShellUi, ILauncherHost
         var manager = new BridgeManager(new ProcessBridgeLauncher(), new TcpPortFinder(), new HttpHealthProbe(new HttpClient()));
         controller = new ShellController(tabs, new BridgeRegistry(manager, ResolveBridge()), this, new BranchBridgeClient(new HttpClient()), RecentsPath, version, action => Dispatcher.UIThread.Post(action));
 
-        OpenRepoItem.Click += (_, _) => controller.EnsureLauncherTabActive();
-        NewTabItem.Click += (_, _) => controller.NewTab();
-        CloseTabItem.Click += async (_, _) => { if (tabs.ActiveTab is { } active) await controller.CloseTabAsync(active.Id); };
         updates = new UpdateHost(this, UserDataDir, version, () => tabs.Tabs.Select(t => (TabView)t.View), Close);
-        CheckUpdatesItem.Click += async (_, _) => await updates.CheckManuallyAsync();
         Opened += (_, _) => updates.Start();
-        AboutItem.Click += async (_, _) => await Dialogs.ShowAboutAsync(this, version);
+        MoreButton.Flyout = BuildMoreMenu();
         KeyDown += OnKeyDown;
         Closing += OnClosing;
 
         controller.NewTab();
         WindowState = WindowState.Maximized;
         if (AppPaths.RepoFromArgs(args) is { } repo) Opened += async (_, _) => await controller.OpenRepoAsync(Path.GetFullPath(repo), tabs.ActiveTab?.Id);
+    }
+
+    private MenuFlyout BuildMoreMenu()
+    {
+        MenuItem Item(string header, string? gesture, Func<Task> action)
+        {
+            var item = new MenuItem { Header = header, InputGesture = gesture is null ? null : KeyGesture.Parse(gesture) };
+            item.Click += async (_, _) => await action();
+            return item;
+        }
+        var flyout = new MenuFlyout();
+        flyout.Items.Add(Item("Open Repo…", "Ctrl+O", () => { controller.EnsureLauncherTabActive(); return Task.CompletedTask; }));
+        flyout.Items.Add(Item("New Tab", "Ctrl+T", () => { controller.NewTab(); return Task.CompletedTask; }));
+        flyout.Items.Add(Item("Close Tab", "Ctrl+W", async () => { if (tabs.ActiveTab is { } active) await controller.CloseTabAsync(active.Id); }));
+        flyout.Items.Add(new Separator());
+        flyout.Items.Add(Item("Check for Updates…", null, () => updates.CheckManuallyAsync()));
+        flyout.Items.Add(Item("About CodeChroma", null, () => Dialogs.ShowAboutAsync(this, version)));
+        return flyout;
     }
 
     public string UserDataDir { get; }
@@ -122,13 +136,25 @@ public sealed partial class MainWindow : Window, IShellUi, ILauncherHost
         {
             var id = info.Id;
             var active = id == snapshot.ActiveId;
-            var select = new Button { Content = info.Title, FontWeight = active ? FontWeight.SemiBold : FontWeight.Normal, Padding = new Thickness(10, 4), BorderThickness = new Thickness(0, 0, 0, active ? 2 : 0), BorderBrush = new SolidColorBrush(Color.Parse("#6c8cff")) };
-            select.Click += (_, _) => controller.SwitchTab(id);
-            var close = new Button { Content = "×", Padding = new Thickness(6, 2), Background = Brushes.Transparent };
+            var title = new TextBlock { Text = info.Title, TextTrimming = TextTrimming.CharacterEllipsis, VerticalAlignment = VerticalAlignment.Center, Foreground = new SolidColorBrush(Color.Parse(active ? "#e6e9f0" : "#8b93a7")) };
+            var close = new Button { Content = "×", Classes = { "tiny" }, Padding = new Thickness(4, 0), FontSize = 13, VerticalAlignment = VerticalAlignment.Center };
             close.Click += async (_, _) => await controller.CloseTabAsync(id);
-            TabStrip.Children.Add(new StackPanel { Orientation = Orientation.Horizontal, Children = { select, close } });
+            var body = new DockPanel { MinWidth = 100, MaxWidth = 220, Margin = new Thickness(12, 0, 6, 0) };
+            DockPanel.SetDock(close, Dock.Right);
+            body.Children.Add(close);
+            body.Children.Add(title);
+            var tab = new Border
+            {
+                Child = body,
+                Background = new SolidColorBrush(Color.Parse(active ? "#11131a" : "#1b1d23")),
+                BorderBrush = new SolidColorBrush(Color.Parse(active ? "#6c8cff" : "#2a3040")),
+                BorderThickness = new Thickness(0, active ? 2 : 0, 1, 0),
+                Cursor = new Cursor(StandardCursorType.Hand),
+            };
+            tab.PointerPressed += (_, _) => controller.SwitchTab(id);
+            TabStrip.Children.Add(tab);
         }
-        var add = new Button { Content = "+" };
+        var add = new Button { Content = "+", Classes = { "tiny" }, Width = 32, FontSize = 16, VerticalAlignment = VerticalAlignment.Center, HorizontalContentAlignment = HorizontalAlignment.Center };
         add.Click += (_, _) => controller.NewTab();
         TabStrip.Children.Add(add);
     }

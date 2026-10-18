@@ -1,19 +1,13 @@
 <Window xmlns="https://github.com/avaloniaui" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml" x:Class="CodeChroma.Shell.App.MainWindow" Title="CodeChroma" Icon="/Assets/icon.ico" Width="1400" Height="900" MinWidth="900" MinHeight="600">
   <DockPanel>
-    <Menu DockPanel.Dock="Top">
-      <MenuItem Header="_File">
-        <MenuItem x:Name="OpenRepoItem" Header="_Open Repo…" InputGesture="Ctrl+O" />
-        <MenuItem x:Name="NewTabItem" Header="_New Tab" InputGesture="Ctrl+T" />
-        <MenuItem x:Name="CloseTabItem" Header="_Close Tab" InputGesture="Ctrl+W" />
-      </MenuItem>
-      <MenuItem Header="_Help">
-        <MenuItem x:Name="CheckUpdatesItem" Header="Check for _Updates…" />
-        <MenuItem x:Name="AboutItem" Header="_About CodeChroma" />
-      </MenuItem>
-    </Menu>
-    <ScrollViewer DockPanel.Dock="Top" HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Disabled">
-      <StackPanel x:Name="TabStrip" Orientation="Horizontal" Spacing="2" Margin="4,2" />
-    </ScrollViewer>
+    <Border DockPanel.Dock="Top" Background="#1b1d23" BorderBrush="#2a3040" BorderThickness="0,0,0,1">
+      <DockPanel>
+        <Button x:Name="MoreButton" DockPanel.Dock="Right" Content="⋯" Classes="tiny" Margin="4,0" Padding="10,2" FontSize="16" VerticalAlignment="Center" />
+        <ScrollViewer HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Disabled">
+          <StackPanel x:Name="TabStrip" Orientation="Horizontal" Height="32" />
+        </ScrollViewer>
+      </DockPanel>
+    </Border>
     <Grid x:Name="Content" />
   </DockPanel>
 </Window>

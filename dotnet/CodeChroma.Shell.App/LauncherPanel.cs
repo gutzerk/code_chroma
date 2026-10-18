@@ -187,7 +187,7 @@ public sealed class LauncherPanel : UserControl
 
     private static TextBlock NameLabel(RecentRepo repo)
     {
-        var label = new TextBlock { Text = repo.Missing ? $"⚠ {repo.Name}" : repo.Name };
+        var label = new TextBlock { Text = repo.Missing ? $"! {repo.Name}" : repo.Name };
         if (repo.Missing) label.Foreground = Muted;
         return label;
     }

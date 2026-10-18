@@ -37,7 +37,12 @@ public sealed partial class MainWindow : Window, IShellUi, ILauncherHost
 
         updates = new UpdateHost(this, UserDataDir, version, () => tabs.Tabs.Select(t => (TabView)t.View), Close);
         Opened += (_, _) => updates.Start();
-        MoreButton.Flyout = BuildMoreMenu();
+        if (OperatingSystem.IsMacOS())
+        {
+            NativeMenu.SetMenu(this, BuildNativeMenu());
+            MoreButton.IsVisible = false;
+        }
+        else MoreButton.Flyout = BuildMoreMenu();
         KeyDown += OnKeyDown;
         Closing += OnClosing;
 
@@ -46,22 +51,46 @@ public sealed partial class MainWindow : Window, IShellUi, ILauncherHost
         if (AppPaths.RepoFromArgs(args) is { } repo) Opened += async (_, _) => await controller.OpenRepoAsync(Path.GetFullPath(repo), tabs.ActiveTab?.Id);
     }
 
+    /// <summary>The one command list: a flyout behind "…" on Windows/Linux, the native menu bar on macOS where one is expected.</summary>
+    private IReadOnlyList<(string Header, string? Key, Func<Task>? Action)> Commands() =>
+    [
+        ("Open Repo…", "O", () => { controller.EnsureLauncherTabActive(); return Task.CompletedTask; }),
+        ("New Tab", "T", () => { controller.NewTab(); return Task.CompletedTask; }),
+        ("Close Tab", "W", async () => { if (tabs.ActiveTab is { } active) await controller.CloseTabAsync(active.Id); }),
+        ("-", null, null),
+        ("Check for Updates…", null, () => updates.CheckManuallyAsync()),
+        ("About CodeChroma", null, () => Dialogs.ShowAboutAsync(this, version)),
+    ];
+
+    private static KeyGesture? Gesture(string? key) =>
+        key is null ? null : KeyGesture.Parse($"{(OperatingSystem.IsMacOS() ? "Meta" : "Ctrl")}+{key}");
+
     private MenuFlyout BuildMoreMenu()
     {
-        MenuItem Item(string header, string? gesture, Func<Task> action)
-        {
-            var item = new MenuItem { Header = header, InputGesture = gesture is null ? null : KeyGesture.Parse(gesture) };
-            item.Click += async (_, _) => await action();
-            return item;
-        }
         var flyout = new MenuFlyout();
-        flyout.Items.Add(Item("Open Repo…", "Ctrl+O", () => { controller.EnsureLauncherTabActive(); return Task.CompletedTask; }));
-        flyout.Items.Add(Item("New Tab", "Ctrl+T", () => { controller.NewTab(); return Task.CompletedTask; }));
-        flyout.Items.Add(Item("Close Tab", "Ctrl+W", async () => { if (tabs.ActiveTab is { } active) await controller.CloseTabAsync(active.Id); }));
-        flyout.Items.Add(new Separator());
-        flyout.Items.Add(Item("Check for Updates…", null, () => updates.CheckManuallyAsync()));
-        flyout.Items.Add(Item("About CodeChroma", null, () => Dialogs.ShowAboutAsync(this, version)));
+        foreach (var (header, key, action) in Commands())
+        {
+            if (action is null) { flyout.Items.Add(new Separator()); continue; }
+            var item = new MenuItem { Header = header, InputGesture = Gesture(key) };
+            item.Click += async (_, _) => await action();
+            flyout.Items.Add(item);
+        }
         return flyout;
+    }
+
+    private NativeMenu BuildNativeMenu()
+    {
+        var root = new NativeMenu();
+        var file = new NativeMenu();
+        foreach (var (header, key, action) in Commands())
+        {
+            if (action is null) { file.Items.Add(new NativeMenuItemSeparator()); continue; }
+            var item = new NativeMenuItem { Header = header, Gesture = Gesture(key) };
+            item.Click += async (_, _) => await action();
+            file.Items.Add(item);
+        }
+        root.Items.Add(new NativeMenuItem { Header = "CodeChroma", Menu = file });
+        return root;
     }
 
     public string UserDataDir { get; }

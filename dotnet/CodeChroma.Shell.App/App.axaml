@@ -6,6 +6,9 @@
       </FluentTheme.Palettes>
     </FluentTheme>
     <!-- Mirrors the launcher and tab bar CSS of the Electron shell: bg #11131a, panel #191d28, line #2a3040, accent #6c8cff, rounded 7-10px. -->
+    <Style Selector="Window">
+      <Setter Property="FontFamily" Value="Segoe UI, SF Pro Text, Helvetica Neue, Cantarell, Ubuntu, Noto Sans, DejaVu Sans, sans-serif" />
+    </Style>
     <Style Selector="Button">
       <Setter Property="Background" Value="Transparent" />
       <Setter Property="BorderBrush" Value="#2a3040" />

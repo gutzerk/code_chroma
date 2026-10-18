@@ -19,6 +19,7 @@
   </ItemGroup>
   <ItemGroup>
     <AvaloniaResource Include="Assets\icon.ico" />
+    <AvaloniaResource Include="Assets\icon.png" />
     <ProjectReference Include="..\CodeChroma.Shell\CodeChroma.Shell.csproj" />
   </ItemGroup>
   <!-- Opt-in: -p:BundleCSharpBridge=true publishes the C# bridge + built canvas (web/dist, same-origin build) into bridge/codechroma-bridge. -->

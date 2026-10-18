@@ -66,8 +66,9 @@ to revive if it comes back, it would be rebuilt from scratch.
   here, so it stands out from the grey chrome row at a glance — but the border only turns green once
   `aria-pressed` is true, so idle vs. a game actually running still reads as a distinct on/off, not
   one flat look throughout.
-- **`src/breadcrumb/`** — `Breadcrumb.tsx`, derived from `ExpansionStore`; renders the deepest
-  expanded node path. No longer mounted anywhere: `RootCanvas.tsx`'s `.canvas-chrome` used to show it
+- **`src/breadcrumb/`** — the `Breadcrumb.tsx` component was deleted (it was unmounted dead code);
+  history: it was derived from `ExpansionStore` and rendered the deepest expanded node path, and was
+  no longer mounted anywhere: `RootCanvas.tsx`'s `.canvas-chrome` used to show it
   next to `BranchSwitcher`, but on a PR workspace that put an unrelated node-path string (e.g.
   "pr-69 / specs / …") right beside the branch chip, reading as broken/unrelated UI. `RootCanvas`
   now renders a plain `PR #<number> · <head_ref>` label there instead (only when the active

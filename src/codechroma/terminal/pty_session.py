@@ -55,7 +55,7 @@ def _make_controlling_tty() -> None:
 
 
 def _terminal_env() -> dict[str, str]:
-    """The bridge's env plus the terminal identity a Finder-launched desktop app never inherits."""
+    """The bridge's env plus the terminal identity a Finder-launched shell app never inherits."""
     env = dict(os.environ)
     env["TERM"] = "xterm-256color"
     env["COLORTERM"] = "truecolor"

@@ -375,8 +375,8 @@ bucket the full-rebuild skill's own escalation call owns (Update does not run th
 an undetermined file just doesn't appear in any component's `files[]` until a future Generate or a
 call that resolves it).
 
-`find_affected_components`/`changed_paths_since_last_run` still exist (their own tests still cover
-the old path-grep matching behavior) but the update route no longer calls either — full recompute
+`find_affected_components` still exists (its own tests still cover the old path-grep matching
+behavior; `changed_paths_since_last_run` was removed as dead code) but the update route no longer calls it — full recompute
 replaced them as the mechanism, per research.md §10's "diffing a freshly-recomputed manifest against
 the stored one gives an exact, correct answer... in one mechanism instead of separate detection logic
 per case." Tests: `tests/unit/test_wiki_general_affected.py`'s `_diff_manifest` cases (a moved file
@@ -385,7 +385,7 @@ marks both components `Rewritten`, an emptied component `Deleted`, an unrelated 
 against `sample_repo`, deterministic naming, `edges[]`/`generated_at_commit` recomputed together).
 
 🔴 `stamp_generated_commit`'s own staleness plumbing is unchanged by the above: the changed-paths
-concept `changed_paths_since_last_run(ws, manifest)` used to feed `find_affected_components` came from
+concept the removed `changed_paths_since_last_run(ws, manifest)` used to feed `find_affected_components` from
 `WorkspaceGit.changed_since(base_commit)` (`manifest["generated_at_commit"]` vs. what's on disk now),
 never from `WorkspaceGit.divergent_files()` (which is hard-coded to diff against `"HEAD"` for the main
 workspace, so it only ever sees *uncommitted* edits) — that fix (2026-09-16) still matters for

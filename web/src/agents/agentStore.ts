@@ -254,10 +254,6 @@ export function useGitPreflight(): GitPreflight | null {
   return useSyncExternalStore(agentStore.subscribe, agentStore.getGitPreflight);
 }
 
-export function useLaunchError(): string | null {
-  return useSyncExternalStore(agentStore.subscribe, agentStore.getLaunchError);
-}
-
 export function useAgentStartError(id: string): string | null {
   return useSyncExternalStore(agentStore.subscribe, () => agentStore.getStartError(id));
 }

@@ -45,7 +45,7 @@ function featureElements(): CanvasElement[] {
 }
 
 /** Takes the feature's blocks off the canvas (a replay, or a different feature picked). */
-export async function removePlan(engineClient: EngineClient): Promise<void> {
+async function removePlan(engineClient: EngineClient): Promise<void> {
   const ops: CanvasOp[] = featureElements().map((element) => ({
     op: "delete_element",
     id: element.id,

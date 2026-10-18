@@ -211,12 +211,6 @@ def is_stale(ws: Workspace, manifest: dict | None = None) -> bool:
     return head is not None and data.get("generated_at_commit") != head
 
 
-def changed_paths_since_last_run(ws: Workspace, manifest: dict | None) -> set[str]:
-    """The update route's real diff base: since generated_at_commit, not since the branch point."""
-    base_commit = manifest.get("generated_at_commit") if manifest else None
-    return set(ws.changed_since(base_commit))
-
-
 def find_affected_components(ws: Workspace, changed_paths: set[str]) -> dict:
     """Which c3/<id>.md pages reference a changed path; a path matching none lands in "gaps"."""
     # Never a real "gap" to report -- the bridge's own bookkeeping, not code a page could reference.

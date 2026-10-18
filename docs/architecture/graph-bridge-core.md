@@ -216,7 +216,10 @@ untouched. Tests: `tests/unit/test_bridge_origin_guard.py`.
 
 Closing a branch workspace broadcasts `branch-removed` (like `pr-removed`); `drop_live` runs before
 the delete only with `?worktree_too=true`, and a record whose directory vanished (`worktree_lost`)
-stays listed but is not registered at startup. `open_branch` judges "already held" under the
+stays listed but is not registered at startup. `?force=true` removes a dirty worktree; if git
+refuses (409), the dropped workspace is re-ensured so it is not left unloaded. The web client lists
+`branch-removed` in `AGENT_EVENT_TYPES` and `settleRemovedWorkspace` falls back to main when the
+removed id is the active workspace. `open_branch` judges "already held" under the
 manager lock, so two racing opens of one branch can't both pass.
 
 Supporting modules:
@@ -377,3 +380,5 @@ Agents, PR workspaces and the terminal host are ported (`Agents/`, `Prs/`, `Term
 ## C# bridge: skill runners, epics, wiki-general status and resolved diagrams
 
 The C# bridge (`dotnet/CodeChroma.Bridge`) ports the headless skill runner and the routes around it; `docs/planning/012-csharp-bridge.md` has the full status table. Entry points: `Skills/SkillAgent.cs` (one runner per kind, owned by `Skills/SkillAgents.cs`, registered by `AddSkillServices()`), `Skills/RuntimeEnvironment.cs` (the same snapshot/generation model as `llm/runtime_env.py`), `Routes/DiagramRoutes.cs` (generate/status/output/cancel for `c1` and `impact-changes`), `Routes/EpicsRoutes.cs`, `Routes/WikiGeneralRoutes.cs`, `Routes/LayoutRoutes.cs`, `Routes/ContextRoutes.cs`. Runner tests use `dotnet/CodeChroma.Bridge.FakeCli` (copy it, rename to `claude`, script it with `fakecli.script.json`); never point a test at a real CLI. Call `SkillAgents.ForgetWorkspace(id)` when a workspace is released.
+
+C# concurrency notes: `WorkspaceRegistry.Get` builds a workspace outside the registry lock (per-id `Lazy`, inserted under the lock), `SkillAgent.Start` claims the job slot atomically before any await, `RuntimeEnvironment.Configure`/`SnapshotAsync`/`RecheckUnresolved` are awaited rather than blocked on, `Workspace.Sync` also reanalyzes the previous changed set so reverted files refresh, `SourceText.IsWithin` resolves symlinks, every `epics/{itemId}` route validates the id, and blocking git/gh GET handlers use `Reply.GuardBlocking`.

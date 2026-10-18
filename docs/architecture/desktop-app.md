@@ -284,7 +284,7 @@ Things worth knowing before touching it:
   Electron updaters ignore them; manifest targets are `dotnet-windows-x64`, `dotnet-windows-x64-update`,
   `dotnet-macos-arm64|x64`, `dotnet-linux-x64` (Electron targets unchanged). Release jobs `dotnet-windows|macos|linux`
   run only when repo variable `CODECROMA_BUILD_DOTNET` is `true` and ship the bridge in `<app>/bridge/codechroma-bridge/`
-  (contract the shell must honour). The app does not call `VelopackApp.Run()` yet, so vpk runs with `--skipVeloAppCheck`.
+  (contract the shell must honour). `Program.Main` calls `VelopackApp.Build().Run()` first, so vpk's app check passes (no `--skipVeloAppCheck`); install/uninstall hooks are still unverified on a real install.
 - **Updater code** (`dotnet/CodeChroma.Shell/Updater/`): `UpdateChecker` (native names preferred, Electron names =
   `AssetKind.ElectronLegacy`, trusted-URL check, ETag cache), `UpdateDownloader`, `UpdateOperations`,
   `PlatformInstaller` (stages next to the install, writes a helper from `UpdateScripts`, starts it detached; the host
@@ -295,6 +295,14 @@ Things worth knowing before touching it:
   (`updated`/`rolled-back`/`failed`) and surfaces as `UpdateState.LastInstall`. Windows (new): directory swap of
   `...\CodeChroma\current` by a hidden PowerShell; macOS: `~/Applications/CodeChroma.app` via `ditto`; Linux keeps
   `.previous`. No delta updates (full zip each time).
+- **Shell hardening (review fixes)**: the C# shell injects `window.codechromaDesktop` and accepts canvas messages only
+  while the tab's URL origin equals its bridge origin (other navigations are cancelled and opened in the system browser);
+  `OpenRepoAsync` sets the tab's `RepoPath` before awaiting the bridge so a double-open reuses one tab;
+  `BridgeRegistry.StopAllAsync` also stops still-starting bridges, `BridgeManager.StartAsync` kills the process on
+  cancellation/failure, and on Windows bridges join a KILL_ON_JOB_CLOSE Job Object; `UpdateService` reports an
+  Electron-only release as a manual download instead of offering it; the sidecar `.sha256` URL must pass
+  `IsTrustedDownloadUrl`, which rejects `.`/`..`/`%2e` segments; `apply-update.sh` unsets `APPIMAGE APPDIR ARGV0 OWD`
+  and removes itself on exit.
 - **Electron to C# migration**: `ElectronMigration` finds the old install, copies top-level `*.json` (recents, update
   settings/cache) and the tutorial project into the C# user-data dir once (never overwrites, never touches the source;
   no-op if the C# app uses the same dir, which it should: `ElectronUserDataDir`). Browser localStorage (canvas camera,

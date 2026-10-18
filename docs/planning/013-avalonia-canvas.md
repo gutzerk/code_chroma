@@ -177,6 +177,14 @@ Three questions as before. A reason is recorded for everything not ported; anyth
 5. Epics, C1, patterns, wiki and PR canvases, the single-canvas recipe menu, and layout-quality measurement against ELK.
 6. Pixel/theming parity and real-font text measurement (the headless platform uses stub metrics).
 
+## Review fixes (views and stores)
+
+Avalonia views subscribe to model stores in `OnAttachedToVisualTree` and unsubscribe on detach, and marshal `Changed` to the UI
+thread (`UiThread.Run`); `ApplyCanvasPositionsAsync` returns whether the write landed (the undo entry is recorded only then and a
+failed refetch no longer rolls back); auto-layout refetches and applies the doc, with `LayoutTimeout` bounding a hung PATCH;
+`DiffController` ignores results of cancelled/deactivated runs; `DiffOverlay.LinesOf` caches line diffs and `LineDiff` falls back
+to a prefix/suffix diff above `MaxCells`; `FitAll` sets `Viewport.State` once, capped at `MaxScale`.
+
 ## Removal candidates in `web/` (nothing deleted yet - do not delete until the journeys above pass)
 
 `web/src/canvas/` (including `connectors/`, `collision/`, `doc/`, `highlighting/`), its share of `styles.css`, the matching

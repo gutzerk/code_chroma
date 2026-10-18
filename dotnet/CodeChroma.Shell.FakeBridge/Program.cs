@@ -1,7 +1,7 @@
 using System.Net;
 using System.Text;
 
-// Stand-in for the frozen bridge: same CLI (--repo-path, --port), same "bridge ready at" line, answers /health and /.
+// Stand-in for the bundled bridge: same CLI (--repo-path, --port), same "bridge ready at" line, answers /health and /.
 string? repo = null;
 var port = 0;
 for (var i = 0; i < args.Length - 1; i++)

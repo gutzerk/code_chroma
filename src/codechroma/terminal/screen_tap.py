@@ -4,7 +4,7 @@ The raw byte stream from a TUI is repaint garbage — cursor jumps, partial redr
 Only the *rendered* screen is a stable thing to match rules against, so `PtySession` feeds the same
 chunks it sends to the socket into a `pyte.Screen` here. One extra call, no second read of the fd.
 
-`pyte` is pure Python on purpose: a native dependency would break the PyInstaller desktop build.
+`pyte` is pure Python on purpose: no native dependency to build or bundle.
 """
 
 from __future__ import annotations

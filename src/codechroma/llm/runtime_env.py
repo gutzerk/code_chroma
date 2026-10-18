@@ -33,13 +33,12 @@ def _executable(path: str) -> bool:
 
 
 def _clean(env: Mapping[str, str]) -> dict[str, str]:
-    # Retain skill bridge/workspace identity, never probe/settings/bundler internals.
-    result = {
+    # Keep skill bridge/workspace identity; drop probe/settings internals and bash functions.
+    return {
         k: v
         for k, v in env.items()
         if not (
-            k.upper().startswith(("_PYI_", "_MEIPASS", "PYINSTALLER_"))
-            or k == "CODECHROMA_RESOLVING_ENVIRONMENT"
+            k == "CODECHROMA_RESOLVING_ENVIRONMENT"
             or (
                 k.lower().startswith("codechroma_")
                 and k not in {"codechroma_BRIDGE_URL", "codechroma_WORKSPACE_ID"}
@@ -47,36 +46,6 @@ def _clean(env: Mapping[str, str]) -> dict[str, str]:
             or k.startswith("BASH_FUNC_")
         )
     }
-    if getattr(sys, "frozen", False):
-        # Restore native loader variables modified by PyInstaller before launching system tools.
-        for key in ("LD_LIBRARY_PATH", "DYLD_LIBRARY_PATH"):
-            original = env.get(key + "_ORIG")
-            if original is not None:
-                if original:
-                    result[key] = original
-                else:
-                    result.pop(key, None)
-            result.pop(key + "_ORIG", None)
-        bundled = getattr(sys, "_MEIPASS", None)
-        if bundled:
-            prefix = os.path.normcase(os.path.abspath(bundled))
-
-            def inside_bundle(value: str) -> bool:
-                normalized = os.path.normcase(os.path.abspath(value))
-                return normalized == prefix or normalized.startswith(prefix + os.sep)
-
-            for key in ("PATH", "PYTHONPATH", "LD_LIBRARY_PATH", "DYLD_LIBRARY_PATH"):
-                if key in result:
-                    cleaned = os.pathsep.join(
-                        p for p in result[key].split(os.pathsep) if p and not inside_bundle(p)
-                    )
-                    if cleaned:
-                        result[key] = cleaned
-                    else:
-                        result.pop(key, None)
-            if result.get("PYTHONHOME") and inside_bundle(result["PYTHONHOME"]):
-                result.pop("PYTHONHOME")
-    return result
 
 
 def _fallback_dirs(home: str, platform: str) -> tuple[str, ...]:
@@ -275,10 +244,7 @@ def _probe(
     shell: str, home: str, inherited: Mapping[str, str], timeout: float
 ) -> tuple[dict[str, str], str | None, tuple[str, ...], str]:
     marker = "CODECHROMA_ENV_" + secrets.token_hex(24)
-    if getattr(sys, "frozen", False):
-        helper = [sys.executable, "--printenv", marker]
-    else:
-        helper = [sys.executable, "-I", str(Path(__file__).with_name("env_helper.py")), marker]
+    helper = [sys.executable, "-I", str(Path(__file__).with_name("env_helper.py")), marker]
     argv, executable, kind = _shell_command(shell, helper)
     env = _clean(inherited)
     for name in (
@@ -292,8 +258,6 @@ def _probe(
         env.pop(name, None)
     env["PWD"] = home
     env["CODECHROMA_RESOLVING_ENVIRONMENT"] = "1"
-    if getattr(sys, "frozen", False):
-        env["PYINSTALLER_RESET_ENVIRONMENT"] = "1"
     error = None
     warnings: list[str] = []
     # A file prevents noisy startup output from exhausting memory or filling a pipe.

@@ -18,8 +18,8 @@ Target is .NET 8 (the only SDK on the dev machine here); move to .NET 10 when th
 - `dotnet/CodeChroma.Shell.App` - Avalonia 11.3 host: `WebView.Avalonia` per tab (`TabView`), tab strip and menu over
   `TabModel`, native launcher (`LauncherPanel`: open folder, recents with workspaces, new project, tutorial), branch
   picker and About dialogs, `window.codechromaDesktop` injected into the canvas (`DesktopScript`), `app.manifest`
-  (needed by the WebView2 host). Booted on Windows 11 against the frozen bridge (see "Phase 1 shell" below).
-- `dotnet/CodeChroma.Shell.FakeBridge` - test-only stand-in for the frozen bridge (same CLI and `bridge ready at` line).
+  (needed by the WebView2 host). Booted on Windows 11 against the Python bridge of the time (since removed) (see "Phase 1 shell" below).
+- `dotnet/CodeChroma.Shell.FakeBridge` - test-only stand-in for the bridge (same CLI and `bridge ready at` line).
 - UI-free additions: `ShellController` (open-repo flow over `IShellUi`), `TabTitles`, `AppInfo` (title/About),
   `AppPaths` (user-data dir shared with Electron), `DesktopMessage`, `TutorialProject` (data in `tutorial-project.json`).
 

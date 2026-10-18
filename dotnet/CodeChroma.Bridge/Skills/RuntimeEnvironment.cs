@@ -334,9 +334,7 @@ public sealed class RuntimeEnvironment
         var result = new Dictionary<string, string>(env.Count, OperatingSystem.IsWindows() ? StringComparer.OrdinalIgnoreCase : StringComparer.Ordinal);
         foreach (var (k, v) in env)
         {
-            var upper = k.ToUpperInvariant();
-            if (upper.StartsWith("_PYI_") || upper.StartsWith("_MEIPASS") || upper.StartsWith("PYINSTALLER_")
-                || k == "CODECHROMA_RESOLVING_ENVIRONMENT" || k.StartsWith("BASH_FUNC_")) continue;
+            if (k == "CODECHROMA_RESOLVING_ENVIRONMENT" || k.StartsWith("BASH_FUNC_")) continue;
             if (k.StartsWith("codechroma_", StringComparison.OrdinalIgnoreCase) && k is not ("codechroma_BRIDGE_URL" or "codechroma_WORKSPACE_ID")) continue;
             result[k] = v;
         }

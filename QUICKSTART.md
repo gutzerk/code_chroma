@@ -30,11 +30,10 @@ needed:
 | macOS (Apple Silicon or Intel) / Linux (x64) | `curl -fsSL https://raw.githubusercontent.com/gutzerk/code_chroma/main/distribution/install.sh \| sh` |
 | Windows (x64) | `powershell -ExecutionPolicy Bypass -c "irm https://raw.githubusercontent.com/gutzerk/code_chroma/main/distribution/install.ps1 \| iex"` (or run `distribution/install.cmd`) |
 
-macOS and Linux install per-user into `~/Applications` without administrator privileges; append
-`-s -- --system` to the `sh` command only to opt into the system-wide macOS app or Linux `.deb`
-package. The installers verify the release checksum (and the build attestation when the GitHub CLI
+All platforms install per-user (macOS and Linux into `~/Applications`) without administrator
+privileges. The installers verify the release checksum (and the build attestation when the GitHub CLI
 is available). The app updates itself (Updates panel; checked at start-up, every 6 hours and on
-focus); to remove it re-run the installer with `--uninstall` (`-Uninstall` on Windows, add
+focus; verified by checksum only, with automatic rollback if the new version fails to start); to remove it re-run the installer with `--uninstall` (`-Uninstall` on Windows, add
 `--purge` / `-Purge` to delete user data). Release builds are not yet code-signed: on macOS use
 right-click → Open if Gatekeeper complains, on Windows "More info → Run anyway" in SmartScreen, and
 on Linux install `libfuse2` for the AppImage. After a macOS install,

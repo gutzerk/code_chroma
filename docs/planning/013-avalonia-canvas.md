@@ -2,12 +2,14 @@
 
 Status: **In progress** (pure logic, the hierarchy canvas, rubber-band/group drag/undo, the code popup, trace playback, the Diff toggle and the agent-window layer are ported and covered by headless tests; the React canvas is untouched and stays the reference, see "Phase 5 parity" below).
 
+> Update 2026-10-18: Electron (`desktop/`, `electron-builder.yml`, PyInstaller, `cryptoCompat.ts`, the install forwarders) was removed from the tree; the last Electron commit is the local tag `electron-last-build`. Mentions below of Electron as the shipping app or reference describe the plan's history. Current state: [`docs/architecture/desktop-app.md`](../architecture/desktop-app.md).
+
 Source: "Plan 3: Canvas UI -> Avalonia" of the four-plan C# migration. Shared rules apply: tests first, audit every test
 with three questions (observable behaviour? covered elsewhere? tied to the old framework?), parametrize, shared JSON
 fixtures, strangler rather than big bang, docs move with code.
 
 Order across plans: core (1) -> bridge (2) -> shell (4) -> canvas (3). This plan was started early and in isolation: it
-only needs the existing `GET/PATCH /canvas` JSON shape, so nothing in the bridge, `desktop/` or `web/` was changed.
+only needs the existing `GET/PATCH /canvas` JSON shape, so nothing in the bridge, the old Electron `desktop/` or `web/` was changed.
 
 ## Where the code lives
 

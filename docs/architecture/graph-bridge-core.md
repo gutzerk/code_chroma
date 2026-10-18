@@ -11,8 +11,7 @@ made "point the bridge at another repo" mean `importlib.reload`. Now `BridgeServ
 Routes live in `routes/{graph,diffs,diagrams,custom_diagrams,epics,traces,
 workspaces,prs,agents,events}.py`, one `APIRouter` each, included in that order by
 `routes/__init__.py`'s `ROUTERS`. `server.py` survives as
-a 22-line shim (`app = create_app()`) because `launch.py`'s uvicorn command line and
-`packaging/bridge_main.py` name it. Adding an endpoint group is a new router file, not more lines in
+a 22-line shim (`app = create_app()`) because `launch.py`'s uvicorn command line names it. Adding an endpoint group is a new router file, not more lines in
 one module — and two apps over two repos can coexist in one process, which is what
 `tests/conftest.py`'s `make_bridge` uses instead of a reload. `tests/conftest.py` is the shared
 bridge-test harness: `BridgeHarness` (re-exposes `app.state.services` internals under the old
@@ -319,17 +318,16 @@ Supporting modules:
 - `launch.py` — the `python -m codechroma.bridge.launch --repo-path X` one-command launcher (see the
   root `CLAUDE.md`'s Commands section). 🔴 Skill install is an **`app.py::create_app` step**, not a
   `launch.py`-only one: `create_app` calls `skill_sync.sync_all_skills(root)` right after resolving
-  `root`, so every entry point that builds an app over a repo — the packaged desktop bridge
-  (`packaging/bridge_main.py`), a plain `uvicorn codechroma.bridge.server:app`, and `launch.py` itself
+  `root`, so every Python entry point that builds an app over a repo — a plain `uvicorn codechroma.bridge.server:app`, and `launch.py` itself
   — installs/refreshes every skill in `skill_sync.SKILL_NAMES` into the target repo's
   `.claude/skills/` (source of truth: this repo's own `.claude/skills/`) so agents running inside
   that repo write plans, diagrams, change reviews, pattern diagrams and epic briefs in the
   current format; skipped when the target is this repo itself. 🔴 `SKILL_NAMES` is the **single**
   per-skill list — `sync_skill(root, name)` is generic, `SKILL_EXCLUDE_PATTERNS` is derived from it,
   and `launch.py`'s "installed X at Y" print lines loop over it; a new skill is one name in that
-  tuple plus its directory, never a new `sync_*_skill` function. `packaging/bridge.spec` **imports**
-  the same tuple rather than re-typing it — the hand-kept copy it used to hold is what silently
-  dropped `codechroma-impact`/`codechroma-impact-review` from every frozen build.
+  tuple plus its directory, never a new `sync_*_skill` function. A hand-kept copy in the
+  now-removed PyInstaller spec is what once silently dropped `codechroma-impact`/`codechroma-impact-review`
+  from every frozen build; the tuple is the only list.
   🔴 **Removing a name is not enough to uninstall a skill.** `sync_skill` only `rmtree`s a target
   whose name is still in `SKILL_NAMES`, so a dropped name stays installed forever in every
   already-analyzed repo. `RETIRED_SKILL_NAMES` + `prune_retired_skills()` (called from

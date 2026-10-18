@@ -17,7 +17,7 @@ https://github.com/user-attachments/assets/51791ff0-7b0e-4c2c-b70b-2a4588432f22
 - **diagrams as layers** — C1, Design Patterns, Change Impact, Epics, Sequence, or a custom type — show, hide, or delete.
 - **AI agents** — describe a diagram in plain language and a built-in agent draws it; run parallel Claude Code sessions, each in its own worktree.
 - **PR workspaces** — paste a PR URL and browse its head as a read-only workspace.
-- **desktop app** — a double-click `.app`/installer, no Python or Node needed.
+- **desktop app** — a native (C# / Avalonia) double-click app and installer, no Python or Node needed.
 - **works with or without a key** — analysis, canvas, and live sync run on a deterministic offline summarizer; set a key to unlock AI features.
 
 ## install
@@ -29,16 +29,18 @@ Desktop app — one command:
 | macOS (Apple Silicon or Intel) / Linux (x64) | `curl -fsSL https://raw.githubusercontent.com/gutzerk/code_chroma/main/distribution/install.sh \| sh` |
 | Windows (x64) | `powershell -ExecutionPolicy Bypass -c "irm https://raw.githubusercontent.com/gutzerk/code_chroma/main/distribution/install.ps1 \| iex"` (or run `distribution/install.cmd`) |
 
-macOS and Linux install per-user into `~/Applications` and do not request administrator access.
-For a system-wide macOS app or Linux `.deb` package, append `-s -- --system` to the `sh` command;
-that writes to shared system locations and requests administrator authorization. The installers
-check the SHA-256 from the release's `latest.json`, and also run `gh attestation verify` when the
-GitHub CLI is installed and logged in (otherwise they warn that only the checksum was checked).
+All platforms install per-user (macOS and Linux into `~/Applications`) and do not request administrator
+access. The installers check the SHA-256 from the release's `latest.json`, and also run
+`gh attestation verify` when the GitHub CLI is installed and logged in (otherwise they warn that only
+the checksum was checked).
 Re-running the command installs a newer version and skips the same one (`--force` / `-Force` to
 reinstall).
 
 **Update:** the app checks for a new release at start-up, every 6 hours and when its window regains
-focus; open **Updates** to download, skip a version or turn on automatic download. **Uninstall:**
+focus; open **Updates** to download, skip a version or turn on automatic download. In-app updates are
+verified by SHA-256 checksum only (not signed or attested) and roll back automatically if the new
+version fails to start. Coming from the old Electron app? Your recent repos and settings are imported
+on first launch. **Uninstall:**
 re-run the installer with `--uninstall` (`-Uninstall` on Windows); add `--purge` / `-Purge` to also
 delete settings and caches.
 

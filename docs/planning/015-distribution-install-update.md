@@ -1,9 +1,12 @@
 # 015 - Distribution: download, install, update, build pipeline
 
-Status: In progress (installers + CI stream done on this branch; updater/builder stream and docs pass pending)
+Status: **Done** (installers, manifest and CI now package the Velopack C# app; Electron-era items below are history)
 
-Independent of the C# migration plans: everything works with today's Electron + PyInstaller build.
-Where a later shell replaces Electron, only the updater and `electron-builder.yml` items change.
+> Update 2026-10-18: Electron (`desktop/`, `electron-builder.yml`, PyInstaller, `cryptoCompat.ts`, the install forwarders) was removed from the tree; the last Electron commit is the local tag `electron-last-build`. Mentions below of Electron as the shipping app or reference describe the plan's history. Current state: [`docs/architecture/desktop-app.md`](../architecture/desktop-app.md).
+
+Originally independent of the C# migration plans and written against the Electron + PyInstaller build; the shell replacement
+changed the updater and the packager exactly as anticipated. Items naming `electron-builder.yml`, `packaging-smoke.yml`'s
+PyInstaller stage or Sigstore verification no longer exist in the tree.
 
 ## Decisions
 

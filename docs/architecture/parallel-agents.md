@@ -252,7 +252,7 @@ branch through an agent attached to it (`_guard_shared_worktree`, keyed off `Age
   Rules live in TOML so a Claude TUI change is a data fix. 250 ms hysteresis, ≤4 pushes/second.
   🔴 Unknown means *hold*, never `idle`; a malformed manifest degrades to "always hold".
   ⚠ The manifest is a runtime data file, so it is read through `resources.py`'s `resource_path`
-  (kind `"detect"`) and shipped by `packaging/bridge.spec` — otherwise it 404s in the frozen app.
+  (kind `"detect"`) and (for any bundled bridge) must be shipped next to it — otherwise it 404s there.
 - `transcripts.py` — the `claude --resume` session id. 🔴 The `~/.claude/projects/<escaped>` name is
   **not guessed**: a wrong escape would silently start a *fresh* conversation. Every transcript
   records its own `cwd`, so the id is read from the newest one whose `cwd` is this worktree.
@@ -284,7 +284,7 @@ branch through an agent attached to it (`_guard_shared_worktree`, keyed off `Age
   (`agent-added`/`agent-removed`/`agent-status`) travel over the existing
   `WS /repos/{id}/events` — no new socket.
 - 🔴 Agent processes start **from the bridge**, never the renderer: that is the only way they inherit
-  the PATH `desktop/src/shellPath.ts` repairs, without which a Finder-launched app can't find
+  the PATH the bridge's `RuntimeEnvironment` captures from the user's login shell (see [`runtime-environment.md`](runtime-environment.md)), without which a Finder-launched app can't find
   `/opt/homebrew/bin/claude`. `WS /ws/terminal?agent=claude&workspace=<id>` *attaches* to the managed
   session (resolved from `websocket.app.state.services.agent_sessions`, the per-app
   `AgentSessionRegistry`); with no `workspace`, it spawns a per-socket PTY exactly as the plain

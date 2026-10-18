@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import uuid
 from collections.abc import Callable
 
 from codechroma.bridge.workspaces import Workspace
@@ -42,9 +41,8 @@ def _next_step(doc: CanvasDoc, session_id: str | None) -> int:
     )
 
 
-def open_question(ws: Workspace, request: AskRequest) -> tuple[str, str]:
-    """Adds the `question` element; returns (question_id, element_id)."""
-    question_id = uuid.uuid4().hex
+def open_question(ws: Workspace, request: AskRequest, question_id: str) -> str:
+    """Adds the `question` element for a caller-chosen id; returns the element id."""
 
     def build(doc: CanvasDoc) -> list[dict]:
         meta = {
@@ -66,8 +64,7 @@ def open_question(ws: Workspace, request: AskRequest) -> tuple[str, str]:
             "label": request.question, "meta": meta,
         }]
 
-    response = _commit(ws, build)
-    return question_id, response["id_map"]["q"]
+    return _commit(ws, build)["id_map"]["q"]
 
 
 def find_element(ws: Workspace, question_id: str) -> Element | None:

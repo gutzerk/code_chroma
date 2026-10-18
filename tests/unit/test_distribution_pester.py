@@ -1,5 +1,6 @@
 import shutil
 import subprocess
+import sys
 from pathlib import Path
 
 import pytest
@@ -10,7 +11,7 @@ PROBE = "if (Get-Module -ListAvailable Pester | Where-Object { $_.Version.Major 
 
 
 def _has_pester5() -> bool:
-    if SHELL is None:
+    if SHELL is None or sys.platform != "win32":
         return False
     probe = subprocess.run(
         [SHELL, "-NoProfile", "-Command", PROBE], capture_output=True, text=True, check=False
@@ -18,7 +19,7 @@ def _has_pester5() -> bool:
     return "yes" in probe.stdout
 
 
-@pytest.mark.skipif(not _has_pester5(), reason="needs PowerShell with Pester 5+")
+@pytest.mark.skipif(not _has_pester5(), reason="needs Windows PowerShell with Pester 5+")
 def test_install_ps1_pester_suite_passes():
     command = (
         "Import-Module Pester -MinimumVersion 5.0.0; "

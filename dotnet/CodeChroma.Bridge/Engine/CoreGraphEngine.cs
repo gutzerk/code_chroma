@@ -157,6 +157,9 @@ public sealed class CoreGraphEngine : IGraphEngine
 
     public CodeChroma.Core.Graph? GraphSnapshot() => _core.Snapshot;
 
+    public CodeChroma.Core.ClusterResult? BuildClusters(string repoRoot) =>
+        CodeChroma.Core.Clustering.Build(_core.Snapshot, new LiveImportResolver(AnalyzerRegistry.WithDefaults(), repoRoot));
+
     public IReadOnlyList<PatternInstance> PatternCandidates() => PatternState().Candidates;
 
     public System.Text.Json.Nodes.JsonObject? PatternsContext()

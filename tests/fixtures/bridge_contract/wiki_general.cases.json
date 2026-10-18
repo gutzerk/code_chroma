@@ -62,6 +62,32 @@
         {"http": {"method": "POST", "path": "/repos/main/wiki-general/status", "json": {"state": "nope"}}, "expect": {"status": 400, "json": {"detail": "unrecognized state: 'nope'"}}},
         {"http": {"method": "POST", "path": "/repos/main/wiki-general/status", "json": {}}, "expect": {"status": 400, "json": {"detail": "unrecognized state: None"}}}
       ]
+    },
+    {
+      "id": "clustering_serves_the_fixed_grouping_with_restricted_choice_candidates",
+      "requires": ["real-engine"],
+      "steps": [
+        {
+          "http": {"method": "GET", "path": "/repos/main/wiki-general/clustering"},
+          "expect": {"status": 200, "json": {
+            "components": [
+              {"id": "folder::billing", "files": ["billing/reporter.go", "billing/service.py", "shared/text_utils.py", "users/service.py"]},
+              {"id": "folder::web", "files": ["web/UserCard.tsx", "web/widget.ts"]}
+            ],
+            "containers": [
+              {"id": "solo::folder::billing", "component_ids": ["folder::billing"]},
+              {"id": "solo::folder::web", "component_ids": ["folder::web"]}
+            ],
+            "component_edges": [],
+            "container_edges": [],
+            "undetermined_files": ["billing/models/invoice.py"],
+            "undetermined_candidates": {"billing/models/invoice.py": [
+              {"id": "folder::billing", "files": ["billing/reporter.go", "billing/service.py", "shared/text_utils.py", "users/service.py"]},
+              {"id": "folder::web", "files": ["web/UserCard.tsx", "web/widget.ts"]}
+            ]}
+          }}
+        }
+      ]
     }
   ]
 }

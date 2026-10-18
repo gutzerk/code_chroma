@@ -201,6 +201,15 @@ public sealed class SkillAgent(SkillAgentSpec spec, CliResolver resolver, Runtim
         }
     }
 
+    /// <summary>The CLI this call site resolves to right now, for a run body that spawns its own workers.</summary>
+    public CliResolution ResolveCli() => resolver.Resolve(Spec.Name, Spec.Model);
+
+    /// <summary>The runnable executable and environment for a resolved CLI; blocking, so call it off the request path.</summary>
+    public RuntimeCli ResolveRuntime(CliResolution cli) => runtime.Resolve(cli.Binary, cli.EnvOverrides);
+
+    /// <summary>Tells the runtime environment a launch failed, so its next resolve re-probes.</summary>
+    public void ReportLaunchFailed(Exception error) => runtime.LaunchFailed(error);
+
     public void RegisterJobProc(string repoId, Process process)
     {
         var list = _jobProcs.GetOrAdd(repoId, _ => []);
@@ -481,7 +490,7 @@ public sealed class SkillAgent(SkillAgentSpec spec, CliResolver resolver, Runtim
         catch (Exception error) when (error is IOException or UnauthorizedAccessException) { }
     }
 
-    private StreamWriter? OpenDebugLog(string repoId)
+    internal StreamWriter? OpenDebugLog(string repoId)
     {
         var dir = Environment.GetEnvironmentVariable("codechroma_SKILL_LOG_DIR")?.Trim();
         if (string.IsNullOrEmpty(dir)) return null;
@@ -496,7 +505,7 @@ public sealed class SkillAgent(SkillAgentSpec spec, CliResolver resolver, Runtim
         }
     }
 
-    private static void DebugWrite(TextWriter? log, string text)
+    internal static void DebugWrite(TextWriter? log, string text)
     {
         if (log is null) return;
         try

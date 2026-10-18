@@ -1,6 +1,6 @@
 namespace CodeChroma.Shell;
 
-/// <summary>Where the shell keeps per-user data (same place Electron used) and small launch-time parsing.</summary>
+/// <summary>Where the shell keeps per-user data (per-OS app-data directory) and small launch-time parsing.</summary>
 public static class AppPaths
 {
     public const string ProductName = "CodeChroma";

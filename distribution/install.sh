@@ -28,7 +28,7 @@ safe_name() { printf '%s' "${1##*/}" | tr -cd 'A-Za-z0-9._-'; }
 need() { command -v "$1" >/dev/null 2>&1 || err "requires '$1' -- install it first."; }
 usage() { printf 'usage: install.sh [--force] [--uninstall [--purge]]\n'; }
 
-# The C# app installs per user at the paths the old Electron build used and keeps its user-data folder.
+# The C# app installs per user and keeps its user-data folder.
 APP_FLAVOR="dotnet"
 INSTALL_SCOPE="user"
 FORCE=0
@@ -202,7 +202,7 @@ warn "the app's in-app updates are verified by their SHA-256 checksum only (they
 remember() { # path
     mkdir -p "$STATE_DIR"
     printf 'version=%s\npath=%s\nscope=%s\nflavor=%s\n' "$VERSION" "$1" "$INSTALL_SCOPE" "$APP_FLAVOR" > "$STATE_FILE"
-    log "your settings and recent projects are kept (an older Electron build's user data is imported on first launch)."
+    log "your settings and recent projects are kept."
 }
 
 quit_running_app() {

@@ -4,7 +4,7 @@ The desktop app is the C# / Avalonia shell with Velopack packaging and updater. 
 unchanged React canvas in one WebView per tab and talks to the **C# bridge** (`dotnet/CodeChroma.Bridge`)
 bundled next to it. There is no Electron, PyInstaller or Node at runtime. Node is only used to build
 `web/`, which the WebView loads. Electron was removed in plan [017](../planning/017-finish-electron-removal.md);
-the last Electron commit is the local tag `electron-last-build` (git history only, nothing ships from it).
+the last Electron commit is the local tag `electron-last-build` (git history only, nothing ships from it; there were no Electron users, so no migration code exists).
 The Python engine/bridge (`src/codechroma/`) remains the reference implementation and the dev path
 (`python -m codechroma.bridge.launch`); it is not part of the desktop package.
 
@@ -61,7 +61,7 @@ Logic is UI-free in `CodeChroma.Shell`; `CodeChroma.Shell.App` only renders.
   contexts map the build-time `same-origin` sentinel to `window.location.origin`
   (`web/src/engine-client/sameOrigin.test.ts`).
 - User data lives in `AppPaths.UserDataDir` (`%APPDATA%/CodeChroma`, `~/Library/Application Support/CodeChroma`,
-  `$XDG_CONFIG_HOME/CodeChroma`) - the folder the old Electron app used, so recents carry over.
+  `$XDG_CONFIG_HOME/CodeChroma`).
 
 ## Distribution and updates
 
@@ -91,7 +91,7 @@ the updater and the generator.
 the SHA-256, and also run `gh attestation verify` when the GitHub CLI is installed and logged in (otherwise warn
 that only the checksum was checked). Per-user by default, no administrator rights: macOS unzips the `.app` into
 `~/Applications`, Linux installs the AppImage with a `.desktop` entry and `~/.local/bin/codechroma`, Windows runs the
-Velopack Setup. Options: `--force`, `--uninstall`, `--purge` (`-Force`/`-Uninstall`/`-Purge` on Windows). `--dotnet`/`-Dotnet` are accepted and ignored (old command lines keep working); `--system` is rejected because there is no system-wide package (so no `.deb`). `install.ps1` removes a leftover per-user Electron install after installing, keeping its user data. Test hooks that
+Velopack Setup. Options: `--force`, `--uninstall`, `--purge` (`-Force`/`-Uninstall`/`-Purge` on Windows). `--dotnet`/`-Dotnet` are accepted and ignored (old command lines keep working); `--system` is rejected because there is no system-wide package (so no `.deb`). Test hooks that
 weaken security and must never be set in production: `CODECROMA_MANIFEST_URL`, `CODECROMA_MAX_BYTES`,
 `CODECROMA_GH_BIN` (`sh`), `CODECROMA_INSTALLER_URL` (`install.cmd`). Pester/shell tests:
 `tests/pester/install.Tests.ps1`, `tests/unit/test_distribution_installer.py`.
@@ -119,12 +119,6 @@ credential-free `https://github.com/<repo>/releases/(latest/)?download/...` with
   No delta updates (full package each time). `apply-update.sh` unsets `APPIMAGE APPDIR ARGV0 OWD` and removes itself.
 - ⚠ Releases are unsigned: SmartScreen and Gatekeeper show an "unverified publisher" warning; a `.deb` or
   system-wide install is not updated in place.
-- **Electron migration.** `ElectronMigration` stays so users coming from the old Electron app keep their data: it
-  finds the old install, copies top-level `*.json` (recents, update settings/cache) and the tutorial project into the
-  shell's user-data dir once (never overwrites, never touches the source; a no-op when both use the same dir, which
-  they should: `ElectronUserDataDir`). Browser localStorage (canvas camera, expansion) was keyed by the random bridge
-  port and is not migrated. The Electron app can no longer be built from
-  `main`; to inspect or rebuild it check out the tag `electron-last-build`.
 
 ## Bridge gaps vs the Python bridge
 

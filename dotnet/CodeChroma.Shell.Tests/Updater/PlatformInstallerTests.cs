@@ -126,19 +126,6 @@ public class PlatformInstallerTests
     }
 
     [Fact]
-    public async Task A_legacy_electron_installer_is_never_applied_by_the_swap()
-    {
-        using var scenario = new InstallScenario(ShellOs.MacOs);
-        var launcher = new RecordingLauncher();
-        var info = scenario.Package(assetName: "CodeChroma-2.0.0-x64.dmg");
-
-        var error = await Assert.ThrowsAsync<InvalidOperationException>(() => scenario.Installer(launcher).InstallAsync(info));
-
-        Assert.Contains("Electron installer", error.Message);
-        Assert.Empty(launcher.Launches);
-    }
-
-    [Fact]
     public async Task A_system_wide_install_is_refused_before_anything_is_staged()
     {
         using var scenario = new InstallScenario(ShellOs.Linux);

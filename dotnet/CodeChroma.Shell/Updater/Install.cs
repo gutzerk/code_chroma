@@ -1,7 +1,7 @@
 namespace CodeChroma.Shell;
 
-/// <summary>WindowsSetup is the Electron NSIS path, kept for reference; the C# app uses WindowsSwap (side-by-side with rollback).</summary>
-public enum InstallKind { MacSwap, WindowsSetup, LinuxAppImageReplace, WindowsSwap }
+/// <summary>WindowsSwap installs side-by-side with rollback.</summary>
+public enum InstallKind { MacSwap, LinuxAppImageReplace, WindowsSwap }
 
 /// <summary>ExitForHelper: the host must quit right after InstallAsync so the detached helper can swap and relaunch it.</summary>
 public sealed record InstallPlan(InstallKind Kind, bool ExitForHelper);
@@ -39,8 +39,7 @@ public static class AppImageInstaller
 }
 
 /// <summary>
-/// Pure path rule: only per-user installs may self-update. The Electron version also checked realpath and
-/// file ownership (uid); those host checks are not ported yet (see docs/planning avalonia-shell remaining work).
+/// Pure path rule: only per-user installs may self-update; a realpath or file-ownership (uid) check is not performed.
 /// </summary>
 public sealed record InstallLocation(ShellOs Os, string Executable, string Home, string? LocalAppData, string? AppImage)
 {

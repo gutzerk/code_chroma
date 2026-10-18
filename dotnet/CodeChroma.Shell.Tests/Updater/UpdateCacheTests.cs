@@ -5,7 +5,7 @@ namespace CodeChroma.Shell.Tests.Updater;
 public class UpdateCacheTests
 {
     [Fact]
-    public void Persists_and_reads_the_latest_version_in_the_electron_file_format()
+    public void Persists_and_reads_the_latest_version_in_the_cache_file_format()
     {
         using var temp = new TempDir();
         var cache = new FileUpdateCache(FileUpdateCache.PathIn(temp.Path));

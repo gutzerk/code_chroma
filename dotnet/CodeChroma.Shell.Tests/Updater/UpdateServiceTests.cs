@@ -198,18 +198,6 @@ public class UpdateServiceTests
         Assert.Equal(1, acknowledged);
     }
 
-    [Fact]
-    public async Task Electron_only_release_is_reported_as_a_manual_download()
-    {
-        var (service, ops, _) = Make();
-        ops.Check = (_, onLatest) => { onLatest?.Invoke("2.0.0"); return new UpdateInfo("2.0.0", "CodeChroma-Setup.exe", "tmp", null, null, null); };
-
-        var state = await service.CheckAsync();
-
-        Assert.Equal(UpdatePhase.Error, state.Phase);
-        Assert.Contains("manually", state.Error);
-    }
-
     [Theory]
     [InlineData("https://github.com/gutzerk/code_chroma/releases/download/v1/../../../evil/x.zip", false)]
     [InlineData("https://github.com/gutzerk/code_chroma/releases/download/v1/%2e%2e/x.zip", false)]

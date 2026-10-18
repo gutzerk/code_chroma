@@ -7,8 +7,7 @@
 #   osx-*:     CodeChroma-<version>-osx-<arch>.zip       the CodeChroma.app bundle, zipped (install.sh unzips it
 #                                                        into ~/Applications; the in-app updater swaps the bundle)
 #   linux-x64: CodeChroma-<version>-linux-x86_64.AppImage
-# The names avoid the Electron suffixes (-arm64.dmg, -x64.dmg, -x64.AppImage) so installed Electron updaters never
-# pick them up. scripts/gen_distribution_manifest.py and tests/unit/test_distribution_consistency.py pin them.
+# scripts/gen_distribution_manifest.py and tests/unit/test_distribution_consistency.py pin these names.
 # Test hook: CODECROMA_VPK_BIN replaces the vpk executable.
 set -eu
 

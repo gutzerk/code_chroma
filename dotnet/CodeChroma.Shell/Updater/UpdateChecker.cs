@@ -6,15 +6,9 @@ namespace CodeChroma.Shell;
 
 public sealed record ReleaseAsset(string Name, string BrowserDownloadUrl, string? Digest = null);
 
-/// <summary>Native is a package this updater can apply; ElectronLegacy is an Electron installer only a human can run.</summary>
-public enum AssetKind { Native, ElectronLegacy }
+public sealed record AssetMatch(string Name, string? Sha256);
 
-public sealed record AssetMatch(string Name, string? Sha256, AssetKind Kind = AssetKind.Native);
-
-public sealed record UpdateInfo(string Version, string AssetName, string DownloadPath, string? Sha256, string? DownloadUrl, string? Notes)
-{
-    public AssetKind Kind => AssetSelector.KindOf(AssetName);
-}
+public sealed record UpdateInfo(string Version, string AssetName, string DownloadPath, string? Sha256, string? DownloadUrl, string? Notes);
 
 public sealed class GitHubRateLimitException(string message, DateTimeOffset retryAt) : Exception(message)
 {
@@ -32,33 +26,15 @@ public static partial class AssetSelector
         [new(ShellOs.Linux, ShellArch.X64)] = "-linux-x86_64.AppImage",
     };
 
-    /// <summary>Electron installers stay selectable so a release that only carries them is reported, not hidden.</summary>
-    private static readonly Dictionary<ShellPlatform, string> LegacySuffixes = new()
-    {
-        [new(ShellOs.MacOs, ShellArch.Arm64)] = "-arm64.dmg",
-        [new(ShellOs.MacOs, ShellArch.X64)] = "-x64.dmg",
-        [new(ShellOs.Windows, ShellArch.X64)] = "-Setup.exe",
-        [new(ShellOs.Linux, ShellArch.X64)] = "-x64.AppImage",
-    };
-
     [GeneratedRegex("^sha256:([0-9a-f]{64})$", RegexOptions.IgnoreCase)]
     private static partial Regex DigestPattern();
 
     public static AssetMatch? Select(IReadOnlyList<ReleaseAsset> assets, ShellPlatform platform)
     {
-        if (NativeSuffixes.TryGetValue(platform, out var native)
-            && assets.FirstOrDefault(a => IsCodeChroma(a.Name) && a.Name.EndsWith(native, StringComparison.Ordinal)) is { } nativeAsset)
-            return new AssetMatch(nativeAsset.Name, DigestHex(nativeAsset.Digest), AssetKind.Native);
-        if (!LegacySuffixes.TryGetValue(platform, out var legacy)) return null;
-        var asset = assets.FirstOrDefault(a => IsCodeChroma(a.Name) && a.Name.EndsWith(legacy, StringComparison.Ordinal)
-            && (platform.Os != ShellOs.Windows || a.Name == "CodeChroma-Setup.exe" || a.Name.EndsWith("-x64-Setup.exe", StringComparison.Ordinal)));
-        return asset is null ? null : new AssetMatch(asset.Name, DigestHex(asset.Digest), AssetKind.ElectronLegacy);
+        if (!NativeSuffixes.TryGetValue(platform, out var native)) return null;
+        var asset = assets.FirstOrDefault(a => IsCodeChroma(a.Name) && a.Name.EndsWith(native, StringComparison.Ordinal));
+        return asset is null ? null : new AssetMatch(asset.Name, DigestHex(asset.Digest));
     }
-
-    public static AssetKind KindOf(string assetName) =>
-        NativeSuffixes.Values.Any(s => assetName.EndsWith(s, StringComparison.Ordinal)) ? AssetKind.Native
-            : LegacySuffixes.Values.Any(s => assetName.EndsWith(s, StringComparison.Ordinal)) ? AssetKind.ElectronLegacy
-            : AssetKind.Native;
 
     private static bool IsCodeChroma(string name) => name.StartsWith("CodeChroma-", StringComparison.Ordinal);
 

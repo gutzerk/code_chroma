@@ -6,8 +6,8 @@
 #   & ([scriptblock]::Create((irm https://raw.githubusercontent.com/gutzerk/code_chroma/main/distribution/install.ps1))) -Silent
 # Options: -Silent (no wizard, per-user)  -Force (reinstall the same version)
 #          -Uninstall (remove the app)  -Purge (with -Uninstall: also delete user data)
-#          -Dotnet (accepted and ignored: the C# app, a Velopack Setup, is the only app. It removes an
-#          installed Electron copy and keeps its user data. Its in-app updates are SHA-256 checked only.)
+#          -Dotnet (accepted and ignored: the C# app, a Velopack Setup, is the only app. Its in-app
+#          updates are SHA-256 checked only.)
 # Test hooks (weaken security, never set in production): CODECROMA_MANIFEST_URL, CODECROMA_PS_LIBRARY.
 
 $ErrorActionPreference = 'Stop'
@@ -53,9 +53,8 @@ function Invoke-CodeChromaGh {
     return $LASTEXITCODE
 }
 
-# Flavor: 'electron' (NSIS uninstaller), 'dotnet' (Velopack: the uninstall string runs Update.exe) or 'any'.
+# Only a Velopack install counts: its uninstall string runs Update.exe.
 function Get-CodeChromaUninstallEntry {
-    param([string]$Flavor = 'any')
     $roots = @(
         'HKCU:\Software\Microsoft\Windows\CurrentVersion\Uninstall',
         'HKLM:\Software\Microsoft\Windows\CurrentVersion\Uninstall'
@@ -65,49 +64,35 @@ function Get-CodeChromaUninstallEntry {
         foreach ($key in Get-ChildItem -LiteralPath $root -ErrorAction SilentlyContinue) {
             $item = Get-ItemProperty -LiteralPath $key.PSPath -ErrorAction SilentlyContinue
             if (-not $item -or $item.DisplayName -notmatch '^CodeChroma( \d\S*)?$') { continue }
-            $isVelopack = ([string]$item.UninstallString) -match 'Update\.exe'
-            if ($Flavor -eq 'any' -or ($Flavor -eq 'dotnet' -and $isVelopack) -or ($Flavor -eq 'electron' -and -not $isVelopack)) { return $item }
+            if (([string]$item.UninstallString) -match 'Update\.exe') { return $item }
         }
     }
     return $null
 }
 
 function Get-CodeChromaInstalledVersion {
-    param([string]$Flavor = 'any')
-    $entry = Get-CodeChromaUninstallEntry -Flavor $Flavor
+    $entry = Get-CodeChromaUninstallEntry
     if ($entry) { return [string]$entry.DisplayVersion }
     return $null
 }
 
 function Get-CodeChromaUninstallString {
-    param([string]$Flavor = 'any')
-    $entry = Get-CodeChromaUninstallEntry -Flavor $Flavor
+    $entry = Get-CodeChromaUninstallEntry
     if ($entry) { return [string]$entry.UninstallString }
     return $null
 }
 
-# Runs one registered uninstaller silently: Velopack's is `Update.exe uninstall --silent`, NSIS's takes /S.
+# Runs one registered uninstaller silently: Velopack's is `Update.exe uninstall --silent`.
 function Invoke-CodeChromaUninstallString {
-    param([string]$UninstallString, [string]$Flavor)
-    if ($UninstallString -match '^\s*"([^"]+)"\s*(.*)$') { $exe = $Matches[1]; $rest = $Matches[2] } else { $exe = $UninstallString; $rest = '' }
-    $uninstallArgs = @($rest -split '\s+' | Where-Object { $_ })
-    if ($Flavor -eq 'dotnet') { $uninstallArgs = @('uninstall', '--silent') } else { $uninstallArgs += '/S' }
-    $code = Start-CodeChromaProcess -FilePath $exe -ArgumentList $uninstallArgs
+    param([string]$UninstallString)
+    $exe = if ($UninstallString -match '^\s*"([^"]+)"') { $Matches[1] } else { $UninstallString }
+    $code = Start-CodeChromaProcess -FilePath $exe -ArgumentList @('uninstall', '--silent')
     if ($code -ne 0) { throw "The CodeChroma uninstaller exited with code $code." }
 }
 
 function Get-Sha256Hex {
     param([string]$Path)
     return (Get-FileHash -LiteralPath $Path -Algorithm SHA256).Hash.ToLowerInvariant()
-}
-
-# After the C# app is installed, retire a per-user Electron copy; its user data (%APPDATA%\CodeChroma) is shared and kept.
-function Remove-CodeChromaElectron {
-    $uninstall = Get-CodeChromaUninstallString -Flavor 'electron'
-    if (-not $uninstall) { return }
-    Write-Host 'Removing the previous Electron build (your settings and recent projects are kept)...'
-    try { Invoke-CodeChromaUninstallString -UninstallString $uninstall -Flavor 'electron' }
-    catch { Write-Warning "Could not remove the Electron build automatically: $($_.Exception.Message) Remove it from Apps & features." }
 }
 
 function Install-CodeChroma {
@@ -119,7 +104,6 @@ function Install-CodeChroma {
         [long]$MaxBytes = $script:DefaultMaxBytes
     )
     $target = 'dotnet-windows-x64'
-    $flavor = 'dotnet'
     if ($env:OS -ne 'Windows_NT') { throw 'This installer supports Windows only.' }
     $arch = Get-CodeChromaArch
     if ($arch -ne 'AMD64') { throw "Unsupported architecture '$arch': CodeChroma for Windows is released for x64 only." }
@@ -143,8 +127,7 @@ function Install-CodeChroma {
         }
         $version = [string]$manifest.version
 
-        # Only a Velopack install counts; a leftover Electron copy of the same version does not.
-        $installed = Get-CodeChromaInstalledVersion -Flavor $flavor
+        $installed = Get-CodeChromaInstalledVersion
         if (-not $Force -and $installed -and $installed -eq $version) {
             Write-Host "CodeChroma $version is already installed (use -Force to reinstall)."
             return
@@ -182,7 +165,6 @@ function Install-CodeChroma {
         $code = Start-CodeChromaProcess -FilePath $installerPath -ArgumentList $installerArgs
         if ($code -ne 0) { throw "The CodeChroma installer exited with code $code." }
         Write-Host 'CodeChroma installation completed.'
-        Remove-CodeChromaElectron
     } finally {
         if (Test-Path -LiteralPath $tempDir) {
             try { Remove-Item -LiteralPath $tempDir -Recurse -Force }
@@ -193,14 +175,9 @@ function Install-CodeChroma {
 
 function Uninstall-CodeChroma {
     param([switch]$Purge)
-    $removed = $false
-    foreach ($flavor in @('dotnet', 'electron')) {
-        $uninstall = Get-CodeChromaUninstallString -Flavor $flavor
-        if (-not $uninstall) { continue }
-        Invoke-CodeChromaUninstallString -UninstallString $uninstall -Flavor $flavor
-        $removed = $true
-    }
-    if ($removed) { Write-Host 'CodeChroma removed.' } else { Write-Host 'CodeChroma is not installed; nothing to remove.' }
+    $uninstall = Get-CodeChromaUninstallString
+    if ($uninstall) { Invoke-CodeChromaUninstallString -UninstallString $uninstall }
+    if ($uninstall) { Write-Host 'CodeChroma removed.' } else { Write-Host 'CodeChroma is not installed; nothing to remove.' }
     if ($Purge) {
         foreach ($dir in @((Join-Path $env:APPDATA 'CodeChroma'), (Join-Path $env:USERPROFILE '.codechroma'))) {
             if (Test-Path -LiteralPath $dir) { Remove-Item -LiteralPath $dir -Recurse -Force }

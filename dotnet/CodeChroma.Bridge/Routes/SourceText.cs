@@ -37,9 +37,31 @@ public static class SourceText
 
     public static bool IsWithin(string baseDir, string path)
     {
-        var root = Path.GetFullPath(baseDir).TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar) + Path.DirectorySeparatorChar;
+        var comparison = OperatingSystem.IsWindows() ? StringComparison.OrdinalIgnoreCase : StringComparison.Ordinal;
         var full = Path.GetFullPath(path);
-        return full.StartsWith(root, StringComparison.OrdinalIgnoreCase);
+        if (!Under(Path.GetFullPath(baseDir), full, comparison)) return false;
+        return Under(RealPath(Path.GetFullPath(baseDir)), RealPath(full), comparison);
+    }
+
+    private static bool Under(string baseDir, string full, StringComparison comparison) =>
+        full.StartsWith(baseDir.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar) + Path.DirectorySeparatorChar, comparison);
+
+    /// <summary>The path with every symlink or junction component replaced by its final target.</summary>
+    private static string RealPath(string full)
+    {
+        var current = Path.GetPathRoot(full) ?? "";
+        foreach (var part in full[current.Length..].Split(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar))
+        {
+            if (part.Length == 0) continue;
+            current = Path.Combine(current, part);
+            try
+            {
+                FileSystemInfo info = Directory.Exists(current) ? new DirectoryInfo(current) : new FileInfo(current);
+                if (info.LinkTarget is not null && info.ResolveLinkTarget(returnFinalTarget: true) is { } target) current = target.FullName;
+            }
+            catch (Exception error) when (error is IOException or UnauthorizedAccessException) { }
+        }
+        return current;
     }
 
     public static string? ReadWithin(string baseDir, string path) => IsWithin(baseDir, path) ? Read(path) : null;

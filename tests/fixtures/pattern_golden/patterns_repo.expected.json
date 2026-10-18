@@ -1,0 +1,471 @@
+{
+  "fingerprint": "5ad19e0f000e66f6134fcebbeaab4989014db3e8",
+  "candidates": [
+    {
+      "id": "strategy::gopkg/pay.go::class::Charger",
+      "type": "strategy",
+      "name": "Strategy — Charger dispatch",
+      "description": null,
+      "confirmed": null,
+      "confidence": 0.6,
+      "participants": [
+        {
+          "id": "gopkg/pay.go::class::Charger",
+          "role": "interface",
+          "name": "Charger",
+          "qualified_name": "Charger",
+          "node_id": "gopkg/pay.go::class::Charger",
+          "path": "gopkg/pay.go",
+          "description": null
+        },
+        {
+          "id": "gopkg/pay.go::class::Card",
+          "role": "implementation",
+          "name": "Card",
+          "qualified_name": "Card",
+          "node_id": "gopkg/pay.go::class::Card",
+          "path": "gopkg/pay.go",
+          "description": null
+        },
+        {
+          "id": "gopkg/pay.go::class::Cash",
+          "role": "implementation",
+          "name": "Cash",
+          "qualified_name": "Cash",
+          "node_id": "gopkg/pay.go::class::Cash",
+          "path": "gopkg/pay.go",
+          "description": null
+        }
+      ],
+      "relations": [
+        {
+          "from": "gopkg/pay.go::class::Card",
+          "to": "gopkg/pay.go::class::Charger",
+          "kind": "implements",
+          "label": null
+        },
+        {
+          "from": "gopkg/pay.go::class::Cash",
+          "to": "gopkg/pay.go::class::Charger",
+          "kind": "implements",
+          "label": null
+        }
+      ]
+    },
+    {
+      "id": "strategy::py/shop.py::class::Pricer",
+      "type": "strategy",
+      "name": "Strategy — Pricer dispatch",
+      "description": null,
+      "confirmed": null,
+      "confidence": 0.6,
+      "participants": [
+        {
+          "id": "py/shop.py::class::Pricer",
+          "role": "interface",
+          "name": "Pricer",
+          "qualified_name": "Pricer",
+          "node_id": "py/shop.py::class::Pricer",
+          "path": "py/shop.py",
+          "description": null
+        },
+        {
+          "id": "py/shop.py::class::Flat",
+          "role": "implementation",
+          "name": "Flat",
+          "qualified_name": "Flat",
+          "node_id": "py/shop.py::class::Flat",
+          "path": "py/shop.py",
+          "description": null
+        },
+        {
+          "id": "py/shop.py::class::Tiered",
+          "role": "implementation",
+          "name": "Tiered",
+          "qualified_name": "Tiered",
+          "node_id": "py/shop.py::class::Tiered",
+          "path": "py/shop.py",
+          "description": null
+        },
+        {
+          "id": "py/shop.py::class::Cart",
+          "role": "dispatcher",
+          "name": "Cart",
+          "qualified_name": "Cart",
+          "node_id": "py/shop.py::class::Cart",
+          "path": "py/shop.py",
+          "description": null
+        }
+      ],
+      "relations": [
+        {
+          "from": "py/shop.py::class::Flat",
+          "to": "py/shop.py::class::Pricer",
+          "kind": "implements",
+          "label": null
+        },
+        {
+          "from": "py/shop.py::class::Tiered",
+          "to": "py/shop.py::class::Pricer",
+          "kind": "implements",
+          "label": null
+        },
+        {
+          "from": "py/shop.py::class::Cart",
+          "to": "py/shop.py::class::Pricer",
+          "kind": "uses",
+          "label": null
+        }
+      ]
+    },
+    {
+      "id": "facade::py/shop.py::class::Gateway",
+      "type": "facade",
+      "name": "Facade — Gateway",
+      "description": null,
+      "confirmed": null,
+      "confidence": 0.35,
+      "participants": [
+        {
+          "id": "py/shop.py::class::Gateway",
+          "role": "facade",
+          "name": "Gateway",
+          "qualified_name": "Gateway",
+          "node_id": "py/shop.py::class::Gateway",
+          "path": "py/shop.py",
+          "description": null
+        },
+        {
+          "id": "attr::py/shop.py::class::Gateway::auth",
+          "role": "target",
+          "name": "auth",
+          "qualified_name": "auth",
+          "node_id": null,
+          "path": null,
+          "description": null
+        },
+        {
+          "id": "attr::py/shop.py::class::Gateway::cache",
+          "role": "target",
+          "name": "cache",
+          "qualified_name": "cache",
+          "node_id": null,
+          "path": null,
+          "description": null
+        },
+        {
+          "id": "attr::py/shop.py::class::Gateway::db",
+          "role": "target",
+          "name": "db",
+          "qualified_name": "db",
+          "node_id": null,
+          "path": null,
+          "description": null
+        }
+      ],
+      "relations": [
+        {
+          "from": "py/shop.py::class::Gateway",
+          "to": "attr::py/shop.py::class::Gateway::auth",
+          "kind": "wraps",
+          "label": null
+        },
+        {
+          "from": "py/shop.py::class::Gateway",
+          "to": "attr::py/shop.py::class::Gateway::cache",
+          "kind": "wraps",
+          "label": null
+        },
+        {
+          "from": "py/shop.py::class::Gateway",
+          "to": "attr::py/shop.py::class::Gateway::db",
+          "kind": "wraps",
+          "label": null
+        }
+      ]
+    },
+    {
+      "id": "adapter::py/shop.py::class::LegacyAdapter",
+      "type": "adapter",
+      "name": "Adapter — LegacyAdapter",
+      "description": null,
+      "confirmed": null,
+      "confidence": 0.55,
+      "participants": [
+        {
+          "id": "py/shop.py::class::LegacyAdapter",
+          "role": "adapter",
+          "name": "LegacyAdapter",
+          "qualified_name": "LegacyAdapter",
+          "node_id": "py/shop.py::class::LegacyAdapter",
+          "path": "py/shop.py",
+          "description": null
+        },
+        {
+          "id": "attr::py/shop.py::class::LegacyAdapter::client",
+          "role": "adaptee",
+          "name": "client",
+          "qualified_name": "client",
+          "node_id": null,
+          "path": null,
+          "description": null
+        }
+      ],
+      "relations": [
+        {
+          "from": "py/shop.py::class::LegacyAdapter",
+          "to": "attr::py/shop.py::class::LegacyAdapter::client",
+          "kind": "wraps",
+          "label": null
+        }
+      ]
+    },
+    {
+      "id": "registry::gopkg/pay.go::class::Bus",
+      "type": "registry",
+      "name": "Registry — Bus",
+      "description": null,
+      "confirmed": null,
+      "confidence": 0.6,
+      "participants": [
+        {
+          "id": "gopkg/pay.go::class::Bus",
+          "role": "registry",
+          "name": "Bus",
+          "qualified_name": "Bus",
+          "node_id": "gopkg/pay.go::class::Bus",
+          "path": "gopkg/pay.go",
+          "description": null
+        }
+      ],
+      "relations": []
+    },
+    {
+      "id": "registry::py/shop.py::class::Hub",
+      "type": "registry",
+      "name": "Registry — Hub",
+      "description": null,
+      "confirmed": null,
+      "confidence": 0.6,
+      "participants": [
+        {
+          "id": "py/shop.py::class::Hub",
+          "role": "registry",
+          "name": "Hub",
+          "qualified_name": "Hub",
+          "node_id": "py/shop.py::class::Hub",
+          "path": "py/shop.py",
+          "description": null
+        }
+      ],
+      "relations": []
+    },
+    {
+      "id": "singleton::py/shop.py::class::Config",
+      "type": "singleton",
+      "name": "Singleton — Config",
+      "description": null,
+      "confirmed": null,
+      "confidence": 0.7,
+      "participants": [
+        {
+          "id": "py/shop.py::class::Config",
+          "role": "instance",
+          "name": "Config",
+          "qualified_name": "Config",
+          "node_id": "py/shop.py::class::Config",
+          "path": "py/shop.py",
+          "description": null
+        }
+      ],
+      "relations": []
+    },
+    {
+      "id": "singleton::gopkg/pay.go::variable::inst",
+      "type": "singleton",
+      "name": "Singleton — Pool",
+      "description": null,
+      "confirmed": null,
+      "confidence": 0.6,
+      "participants": [
+        {
+          "id": "gopkg/pay.go::class::Pool",
+          "role": "instance",
+          "name": "Pool",
+          "qualified_name": "Pool",
+          "node_id": "gopkg/pay.go::class::Pool",
+          "path": "gopkg/pay.go",
+          "description": null
+        }
+      ],
+      "relations": []
+    },
+    {
+      "id": "observer::gopkg/pay.go::class::Bus",
+      "type": "observer",
+      "name": "Observer — Bus",
+      "description": null,
+      "confirmed": null,
+      "confidence": 0.45,
+      "participants": [
+        {
+          "id": "gopkg/pay.go::class::Bus",
+          "role": "subject",
+          "name": "Bus",
+          "qualified_name": "Bus",
+          "node_id": "gopkg/pay.go::class::Bus",
+          "path": "gopkg/pay.go",
+          "description": null
+        }
+      ],
+      "relations": []
+    },
+    {
+      "id": "observer::py/shop.py::class::Hub",
+      "type": "observer",
+      "name": "Observer — Hub",
+      "description": null,
+      "confirmed": null,
+      "confidence": 0.45,
+      "participants": [
+        {
+          "id": "py/shop.py::class::Hub",
+          "role": "subject",
+          "name": "Hub",
+          "qualified_name": "Hub",
+          "node_id": "py/shop.py::class::Hub",
+          "path": "py/shop.py",
+          "description": null
+        }
+      ],
+      "relations": []
+    },
+    {
+      "id": "repository::py/repos.py::class::UserRepository",
+      "type": "repository",
+      "name": "Repository — UserRepository",
+      "description": null,
+      "confirmed": null,
+      "confidence": 0.55,
+      "participants": [
+        {
+          "id": "py/repos.py::class::UserRepository",
+          "role": "interface",
+          "name": "UserRepository",
+          "qualified_name": "UserRepository",
+          "node_id": "py/repos.py::class::UserRepository",
+          "path": "py/repos.py",
+          "description": null
+        },
+        {
+          "id": "py/repos.py::class::MemUserRepository",
+          "role": "implementation",
+          "name": "MemUserRepository",
+          "qualified_name": "MemUserRepository",
+          "node_id": "py/repos.py::class::MemUserRepository",
+          "path": "py/repos.py",
+          "description": null
+        },
+        {
+          "id": "py/repos.py::class::SqlUserRepository",
+          "role": "implementation",
+          "name": "SqlUserRepository",
+          "qualified_name": "SqlUserRepository",
+          "node_id": "py/repos.py::class::SqlUserRepository",
+          "path": "py/repos.py",
+          "description": null
+        }
+      ],
+      "relations": [
+        {
+          "from": "py/repos.py::class::MemUserRepository",
+          "to": "py/repos.py::class::UserRepository",
+          "kind": "implements",
+          "label": null
+        },
+        {
+          "from": "py/repos.py::class::SqlUserRepository",
+          "to": "py/repos.py::class::UserRepository",
+          "kind": "implements",
+          "label": null
+        }
+      ]
+    },
+    {
+      "id": "repository::py/repos.py::class::IOrderRepo",
+      "type": "repository",
+      "name": "Repository — OrderRepo",
+      "description": null,
+      "confirmed": null,
+      "confidence": 0.5,
+      "participants": [
+        {
+          "id": "py/repos.py::class::IOrderRepo",
+          "role": "interface",
+          "name": "IOrderRepo",
+          "qualified_name": "IOrderRepo",
+          "node_id": "py/repos.py::class::IOrderRepo",
+          "path": "py/repos.py",
+          "description": null
+        },
+        {
+          "id": "py/repos.py::class::FakeOrderRepo",
+          "role": "implementation",
+          "name": "FakeOrderRepo",
+          "qualified_name": "FakeOrderRepo",
+          "node_id": "py/repos.py::class::FakeOrderRepo",
+          "path": "py/repos.py",
+          "description": null
+        }
+      ],
+      "relations": [
+        {
+          "from": "py/repos.py::class::FakeOrderRepo",
+          "to": "py/repos.py::class::IOrderRepo",
+          "kind": "implements",
+          "label": null
+        }
+      ]
+    },
+    {
+      "id": "repository::py/repos.py::class::PgOrderRepo",
+      "type": "repository",
+      "name": "Repository — PgOrderRepo",
+      "description": null,
+      "confirmed": null,
+      "confidence": 0.5,
+      "participants": [
+        {
+          "id": "py/repos.py::class::PgOrderRepo",
+          "role": "implementation",
+          "name": "PgOrderRepo",
+          "qualified_name": "PgOrderRepo",
+          "node_id": "py/repos.py::class::PgOrderRepo",
+          "path": "py/repos.py",
+          "description": null
+        }
+      ],
+      "relations": []
+    },
+    {
+      "id": "repository::py/repos.py::class::SoloRepository",
+      "type": "repository",
+      "name": "Repository — SoloRepository",
+      "description": null,
+      "confirmed": null,
+      "confidence": 0.5,
+      "participants": [
+        {
+          "id": "py/repos.py::class::SoloRepository",
+          "role": "implementation",
+          "name": "SoloRepository",
+          "qualified_name": "SoloRepository",
+          "node_id": "py/repos.py::class::SoloRepository",
+          "path": "py/repos.py",
+          "description": null
+        }
+      ],
+      "relations": []
+    }
+  ]
+}

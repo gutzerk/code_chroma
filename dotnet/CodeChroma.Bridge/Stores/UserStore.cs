@@ -52,7 +52,7 @@ public static class JsonFile
     {
         try
         {
-            return JsonNode.Parse(File.ReadAllText(path));
+            lock (Gate) return JsonNode.Parse(File.ReadAllText(path));
         }
         catch (Exception error) when (error is IOException or JsonException or UnauthorizedAccessException)
         {
@@ -68,8 +68,19 @@ public static class JsonFile
         {
             Directory.CreateDirectory(Path.GetDirectoryName(path)!);
             var temp = $"{path}.{Environment.ProcessId}.{Guid.NewGuid():N}.tmp";
-            File.WriteAllText(temp, payload.ToJsonString(new JsonSerializerOptions { WriteIndented = true }));
-            File.Move(temp, path, overwrite: true);
+            try
+            {
+                File.WriteAllText(temp, payload.ToJsonString(new JsonSerializerOptions { WriteIndented = true }));
+                for (var attempt = 0; ; attempt++)
+                {
+                    try { File.Move(temp, path, overwrite: true); break; }
+                    catch (Exception error) when (error is IOException or UnauthorizedAccessException && attempt < 4) { Thread.Sleep(25 * (attempt + 1)); }
+                }
+            }
+            finally
+            {
+                try { File.Delete(temp); } catch (Exception error) when (error is IOException or UnauthorizedAccessException) { }
+            }
         }
     }
 

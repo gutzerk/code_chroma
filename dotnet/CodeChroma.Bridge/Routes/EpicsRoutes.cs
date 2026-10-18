@@ -34,10 +34,11 @@ public static partial class EpicsRoutes
     public static void Map(WebApplication app)
     {
         app.MapGet("/repos/{repoId}/epics/items/{itemId}", (string repoId, string itemId, string? expand, WorkspaceRegistry registry) =>
-            EpicsAssembler.For(registry.Get(repoId).Root).Item(itemId, expand) is { } item ? Reply.Json(item) : Unknown(itemId));
+            ValidEpicId(itemId) && EpicsAssembler.For(registry.Get(repoId).Root).Item(itemId, expand) is { } item ? Reply.Json(item) : Unknown(itemId));
 
         app.MapPost("/repos/{repoId}/epics/{itemId}/brief", async (string repoId, string itemId, bool? force, WorkspaceRegistry registry, SkillAgents agents) =>
         {
+            if (!ValidEpicId(itemId)) return Unknown(itemId);
             var ws = registry.Get(repoId);
             if (ws.ReadOnly) return Reply.Error(409, "a pull-request workspace is read-only");
             if (EpicsAssembler.For(ws.Root).Item(itemId) is not { } epic) return Unknown(itemId);
@@ -57,6 +58,7 @@ public static partial class EpicsRoutes
 
         app.MapGet("/repos/{repoId}/epics/{itemId}/brief", (string repoId, string itemId, WorkspaceRegistry registry, SkillAgents agents) =>
         {
+            if (!ValidEpicId(itemId)) return Unknown(itemId);
             var ws = registry.Get(repoId);
             var key = EpicBrief.JobKey(ws.Id, itemId);
             var state = agents["epic-brief"].GetState(key);
@@ -67,6 +69,7 @@ public static partial class EpicsRoutes
 
         app.MapPost("/repos/{repoId}/epics/{itemId}/brief/cancel", async (string repoId, string itemId, WorkspaceRegistry registry, SkillAgents agents) =>
         {
+            if (!ValidEpicId(itemId)) return Unknown(itemId);
             var ws = registry.Get(repoId);
             var key = EpicBrief.JobKey(ws.Id, itemId);
             var extras = new JsonObject { ["job_key"] = key, ["item_id"] = itemId };
@@ -76,10 +79,12 @@ public static partial class EpicsRoutes
         });
 
         app.MapGet("/repos/{repoId}/epics/{itemId}/brief/output", (string repoId, string itemId, WorkspaceRegistry registry, SkillAgents agents) =>
-            Reply.Json(new JsonObject { ["lines"] = new JsonArray(agents["epic-brief"].GetOutput(EpicBrief.JobKey(registry.Get(repoId).Id, itemId)).Select(l => (JsonNode?)l).ToArray()) }));
+            !ValidEpicId(itemId) ? Unknown(itemId)
+                : Reply.Json(new JsonObject { ["lines"] = new JsonArray(agents["epic-brief"].GetOutput(EpicBrief.JobKey(registry.Get(repoId).Id, itemId)).Select(l => (JsonNode?)l).ToArray()) }));
 
         app.MapGet("/repos/{repoId}/epics/{itemId}/brief/path", (string repoId, string itemId, WorkspaceRegistry registry) =>
         {
+            if (!ValidEpicId(itemId)) return Unknown(itemId);
             var ws = registry.Get(repoId);
             return Reply.Json(new JsonObject
             {

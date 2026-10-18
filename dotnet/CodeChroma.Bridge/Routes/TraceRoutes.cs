@@ -12,6 +12,8 @@ namespace CodeChroma.Bridge.Routes;
 /// <summary>Recorded execution traces (.codechroma/traces) plus the producer/consumer socket pair a live trace run uses.</summary>
 public static class TraceRoutes
 {
+    private const int MaxIngestBytes = 8 * 1024 * 1024;
+
     public static void Map(WebApplication app)
     {
         app.MapGet("/repos/{repoId}/traces", (string repoId, WorkspaceRegistry registry) =>
@@ -45,15 +47,24 @@ public static class TraceRoutes
                 var buffer = new byte[16 * 1024];
                 while (socket.State == WebSocketState.Open)
                 {
-                    var text = new StringBuilder();
+                    using var message = new MemoryStream();
+                    var oversized = false;
                     WebSocketReceiveResult result;
                     do
                     {
                         result = await socket.ReceiveAsync(buffer, context.RequestAborted);
                         if (result.MessageType == WebSocketMessageType.Close) return Results.Empty;
-                        text.Append(Encoding.UTF8.GetString(buffer, 0, result.Count));
+                        if (oversized) continue;
+                        message.Write(buffer, 0, result.Count);
+                        oversized = message.Length > MaxIngestBytes;
                     } while (!result.EndOfMessage);
-                    await connections.Broadcast(JsonNode.Parse(text.ToString())!, repoId);
+                    if (oversized) continue;
+                    JsonNode? frame;
+                    try { frame = JsonNode.Parse(Encoding.UTF8.GetString(message.GetBuffer(), 0, (int)message.Length)); }
+                    catch (JsonException) { continue; }
+                    if (frame is null) continue;
+                    try { await connections.Broadcast(frame, repoId); }
+                    catch (Exception error) when (error is WebSocketException or ObjectDisposedException or InvalidOperationException) { }
                 }
             }
             catch (Exception) { /* a producer that drops or sends junk just ends the relay */ }

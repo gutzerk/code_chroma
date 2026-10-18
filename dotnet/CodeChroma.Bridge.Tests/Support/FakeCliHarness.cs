@@ -62,6 +62,10 @@ public sealed class FakeCliHarness : IDisposable
 
     public void Dispose()
     {
-        try { System.IO.Directory.Delete(Directory, recursive: true); } catch (IOException) { }
+        for (var attempt = 0; attempt < 5; attempt++)
+        {
+            try { System.IO.Directory.Delete(Directory, recursive: true); return; }
+            catch (Exception error) when (error is IOException or UnauthorizedAccessException) { Thread.Sleep(100); }
+        }
     }
 }

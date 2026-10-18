@@ -135,7 +135,7 @@ public static class TerminalRoutes
             await foreach (var chunk in reader.ReadAllAsync())
                 await socket.SendAsync(Encoding.UTF8.GetBytes(OutputTag + chunk), WebSocketMessageType.Text, true, CancellationToken.None);
         }
-        catch (Exception error) when (error is WebSocketException or ObjectDisposedException or InvalidOperationException or OperationCanceledException) { }
+        catch (Exception error) when (error is WebSocketException or ObjectDisposedException or InvalidOperationException or OperationCanceledException or IOException) { }
         finally
         {
             if (closeOnEnd) await CloseQuietly(socket);
@@ -170,14 +170,14 @@ public static class TerminalRoutes
                 }
             }
         }
-        catch (Exception error) when (error is WebSocketException or OperationCanceledException or ObjectDisposedException) { }
+        catch (Exception error) when (error is WebSocketException or OperationCanceledException or ObjectDisposedException or IOException) { }
     }
 
     private static int? Dimension(JsonNode? node, int fallback)
     {
         if (node is null) return fallback;
-        if (node is JsonValue value && value.TryGetValue<int>(out var number)) return number;
-        if (node is JsonValue text && text.TryGetValue<string>(out var s) && int.TryParse(s, out var parsed)) return parsed;
+        if (node is JsonValue value && value.TryGetValue<int>(out var number)) return Math.Clamp(number, 1, 1000);
+        if (node is JsonValue text && text.TryGetValue<string>(out var s) && int.TryParse(s, out var parsed)) return Math.Clamp(parsed, 1, 1000);
         return null;
     }
 
@@ -200,8 +200,12 @@ public static class TerminalRoutes
     private static async Task Fail(WebSocket socket, string message, int code)
     {
         var frame = ErrorTag + new JsonObject { ["type"] = "error", ["message"] = message }.ToJsonString();
-        await socket.SendAsync(Encoding.UTF8.GetBytes(frame), WebSocketMessageType.Text, true, CancellationToken.None);
-        await socket.CloseOutputAsync((WebSocketCloseStatus)code, null, CancellationToken.None);
+        try
+        {
+            await socket.SendAsync(Encoding.UTF8.GetBytes(frame), WebSocketMessageType.Text, true, CancellationToken.None);
+            await socket.CloseOutputAsync((WebSocketCloseStatus)code, null, CancellationToken.None);
+        }
+        catch (Exception error) when (error is WebSocketException or ObjectDisposedException or InvalidOperationException or IOException or OperationCanceledException) { }
     }
 
     private static async Task CloseQuietly(WebSocket socket)
@@ -211,6 +215,6 @@ public static class TerminalRoutes
             if (socket.State is WebSocketState.Open or WebSocketState.CloseReceived)
                 await socket.CloseOutputAsync(WebSocketCloseStatus.NormalClosure, null, CancellationToken.None);
         }
-        catch (Exception error) when (error is WebSocketException or ObjectDisposedException or InvalidOperationException) { }
+        catch (Exception error) when (error is WebSocketException or ObjectDisposedException or InvalidOperationException or IOException or OperationCanceledException) { }
     }
 }

@@ -57,6 +57,7 @@ public sealed record SkillAgentSpec(
 /// </summary>
 public sealed class SkillAgent(SkillAgentSpec spec, CliResolver resolver, RuntimeEnvironment runtime, SkillRunSettings? settings = null)
 {
+    private readonly object _startGate = new();
     private static readonly JobState IdleState = new("idle", null);
     private readonly SkillRunSettings _settings = settings ?? new SkillRunSettings();
     private readonly ConcurrentDictionary<string, JobState> _jobs = new();
@@ -66,7 +67,8 @@ public sealed class SkillAgent(SkillAgentSpec spec, CliResolver resolver, Runtim
 
     private sealed class Run
     {
-        public Task Task { get; set; } = Task.CompletedTask;
+        public TaskCompletionSource Done { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        public Task Task => Done.Task;
         public required CancellationTokenSource Stop { get; init; }
         public Process? Process { get; set; }
     }
@@ -95,25 +97,50 @@ public sealed class SkillAgent(SkillAgentSpec spec, CliResolver resolver, Runtim
     /// <summary>Starts a background run unless one is in flight; the workspace is only for a run body.</summary>
     public async Task<JobState> Start(string repoId, string repoRoot, OnChange onChange, OnOutput? onOutput = null, string? prompt = null, Workspace? workspace = null)
     {
-        if (AlreadyGenerating(repoId) is { } already) return already;
-        var cli = resolver.Resolve(Spec.Name, Spec.Model);
+        var state = new JobState("generating", null);
+        var run = new Run { Stop = new CancellationTokenSource() };
+        lock (_startGate)
+        {
+            if (AlreadyGenerating(repoId) is { } already) return already;
+            _jobs[repoId] = state;
+            _output[repoId] = [];
+            _runs[repoId] = run;
+        }
+        CliResolution cli;
         RuntimeCli resolved;
         try
         {
+            cli = resolver.Resolve(Spec.Name, Spec.Model);
             resolved = await Task.Run(() => runtime.Resolve(cli.Binary, cli.EnvOverrides));
         }
         catch (CliLookupException error)
         {
+            _runs.TryRemove(new KeyValuePair<string, Run>(repoId, run));
+            run.Done.TrySetResult();
             var failed = new JobState("error", error.Message);
             _jobs[repoId] = failed;
             await onChange(repoId, failed);
             return failed;
         }
-        var state = await BeginGenerating(repoId, onChange);
-        var stop = new CancellationTokenSource();
-        var run = new Run { Stop = stop };
-        _runs[repoId] = run;
-        run.Task = Task.Run(() => RunAsync(repoId, repoRoot, onChange, onOutput, prompt, cli, workspace, resolved, stop.Token));
+        catch
+        {
+            _runs.TryRemove(new KeyValuePair<string, Run>(repoId, run));
+            _jobs[repoId] = IdleState;
+            run.Done.TrySetResult();
+            throw;
+        }
+        var stop = run.Stop.Token;
+        if (stop.IsCancellationRequested)
+        {
+            run.Done.TrySetResult();
+            return GetState(repoId);
+        }
+        await onChange(repoId, state);
+        _ = Task.Run(async () =>
+        {
+            try { await RunAsync(repoId, repoRoot, onChange, onOutput, prompt, cli, workspace, resolved, stop); }
+            finally { run.Done.TrySetResult(); }
+        });
         return state;
     }
 
@@ -153,6 +180,7 @@ public sealed class SkillAgent(SkillAgentSpec spec, CliResolver resolver, Runtim
         KillProcess(run.Process);
         KillJobProcs(repoId);
         try { await run.Task; } catch (OperationCanceledException) { }
+        KillProcess(run.Process);
     }
 
     public async Task Cancel()
@@ -221,7 +249,7 @@ public sealed class SkillAgent(SkillAgentSpec spec, CliResolver resolver, Runtim
                 ? await RunBody(repoId, repoRoot, workspace, onOutput, stop)
                 : await RunCli(repoId, repoRoot, onOutput, prompt, cli, resolved, stop);
         }
-        catch (OperationCanceledException) when (stop.IsCancellationRequested)
+        catch (OperationCanceledException) when (stop.IsCancellationRequested || !_runs.ContainsKey(repoId))
         {
             return;
         }
@@ -301,7 +329,12 @@ public sealed class SkillAgent(SkillAgentSpec spec, CliResolver resolver, Runtim
         }
         using (process)
         {
-            _runs[repoId].Process = process;
+            if (_runs.TryGetValue(repoId, out var active)) active.Process = process;
+            else
+            {
+                KillProcess(process);
+                throw new OperationCanceledException(stop);
+            }
             process.StandardInput.Close();
             var pending = new List<string>();
             var stderrTail = new StringBuilder();

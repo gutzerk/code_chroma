@@ -16,6 +16,7 @@ public sealed class WorkspaceRegistry : IDisposable
     private readonly Dictionary<string, Workspace> _live = [];
     private readonly Dictionary<string, long> _touched = [];
     private readonly Dictionary<string, WorkspaceState> _states = [];
+    private readonly Dictionary<string, Lazy<Workspace>> _pending = [];
     private readonly object _lock = new();
 
     public WorkspaceRegistry(string mainRoot, IEngineFactory factory, Action<string, JsonObject> onEvent, TimeProvider time, bool startWatchers)
@@ -25,14 +26,21 @@ public sealed class WorkspaceRegistry : IDisposable
         _time = time;
         _startWatchers = startWatchers;
         _roots[Workspace.MainId] = (mainRoot, false);
-        Main = BringUp(Workspace.MainId);
+        Main = Create(Workspace.MainId);
+        lock (_lock) Publish(Workspace.MainId, Main);
     }
 
     public Workspace Main { get; }
 
-    public bool IsRegistered(string id) => _roots.ContainsKey(id);
+    public bool IsRegistered(string id)
+    {
+        lock (_lock) return _roots.ContainsKey(id);
+    }
 
-    public bool IsReadOnly(string id) => _roots.TryGetValue(id, out var entry) && entry.ReadOnly;
+    public bool IsReadOnly(string id)
+    {
+        lock (_lock) return _roots.TryGetValue(id, out var entry) && entry.ReadOnly;
+    }
 
     public bool IsLive(string id)
     {
@@ -87,6 +95,7 @@ public sealed class WorkspaceRegistry : IDisposable
         DropLive(id);
         lock (_lock)
         {
+            _pending.Remove(id);
             _roots.Remove(id);
             _extras.Remove(id);
             _canonical.Remove(id);
@@ -97,6 +106,7 @@ public sealed class WorkspaceRegistry : IDisposable
     /// <summary>The workspace for an id, brought up on first access; main for an unregistered id.</summary>
     public Workspace Get(string id)
     {
+        Lazy<Workspace> pending;
         lock (_lock)
         {
             id = Canon(id);
@@ -105,7 +115,28 @@ public sealed class WorkspaceRegistry : IDisposable
                 _touched[id] = _time.GetTimestamp();
                 return live;
             }
-            return _roots.ContainsKey(id) ? BringUp(id) : Main;
+            if (!_roots.ContainsKey(id)) return Main;
+            var key = id;
+            if (!_pending.TryGetValue(id, out pending!))
+                _pending[id] = pending = new Lazy<Workspace>(() => Create(key), LazyThreadSafetyMode.ExecutionAndPublication);
+        }
+        try
+        {
+            var built = pending.Value;
+            lock (_lock)
+            {
+                if (_pending.GetValueOrDefault(id) == pending) _pending.Remove(id);
+                if (_live.TryGetValue(id, out var winner)) return winner;
+                if (!_roots.ContainsKey(id)) { built.Dispose(); return Main; }
+                Publish(id, built);
+                return built;
+            }
+        }
+        catch
+        {
+            lock (_lock)
+                if (_pending.GetValueOrDefault(id) == pending) _pending.Remove(id);
+            throw;
         }
     }
 
@@ -174,19 +205,27 @@ public sealed class WorkspaceRegistry : IDisposable
 
     private string Canon(string id) => _canonical.GetValueOrDefault(id, id);
 
-    private Workspace BringUp(string id)
+    private Workspace Create(string id)
     {
-        var (root, readOnly) = _roots[id];
-        var extras = _extras.GetValueOrDefault(id);
-        var workspace = new Workspace(id, root, _factory.Create(root), _onEvent, readOnly)
+        (string Root, bool ReadOnly) entry;
+        RootExtras? extras;
+        lock (_lock)
+        {
+            entry = _roots[id];
+            extras = _extras.GetValueOrDefault(id);
+        }
+        return new Workspace(id, entry.Root, _factory.Create(entry.Root), _onEvent, entry.ReadOnly)
         {
             BaseRef = extras?.BaseRef,
             C1SourceRoot = extras?.C1SourceRoot,
         };
+    }
+
+    private void Publish(string id, Workspace workspace)
+    {
         _live[id] = workspace;
         _touched[id] = _time.GetTimestamp();
         if (_startWatchers && id != Workspace.MainId) workspace.StartWatchers();
-        return workspace;
     }
 
     public void Dispose()

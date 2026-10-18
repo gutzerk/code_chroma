@@ -78,6 +78,32 @@ public sealed class SkillAgentTests : IDisposable
     }
 
     [Fact]
+    public async Task Concurrent_starts_for_one_key_launch_a_single_run()
+    {
+        _cli.Script(Sleep(300), Write(Artifact(), "{}"), Exit(0));
+        var agent = Agent();
+
+        var states = await Task.WhenAll(Enumerable.Range(0, 5).Select(_ => agent.Start("job-a", _root, OnChange)));
+        await Settled(agent);
+
+        Assert.All(states, s => Assert.Equal("generating", s.State));
+        Assert.Single(_cli.Invocations());
+    }
+
+    [Fact]
+    public async Task Stop_right_after_start_cancels_cleanly()
+    {
+        _cli.Script(Hang());
+        var agent = Agent();
+
+        var start = agent.Start("job-a", _root, OnChange);
+        var stop = agent.Stop("job-a");
+        await Task.WhenAll(start, stop);
+
+        Assert.Equal("idle", agent.GetState("job-a").State);
+    }
+
+    [Fact]
     public async Task The_cli_is_launched_in_the_repo_with_the_prompt_the_model_and_the_workspace_id()
     {
         _cli.Script(["codechroma_WORKSPACE_ID"], Write(Artifact(), "{}"), Exit(0));

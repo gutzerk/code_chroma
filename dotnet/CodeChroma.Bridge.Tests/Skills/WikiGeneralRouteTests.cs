@@ -1,5 +1,6 @@
 using System.Net.Http.Json;
 using System.Text.Json.Nodes;
+using CodeChroma.Bridge.Engine;
 using CodeChroma.Bridge.Stores;
 using CodeChroma.Bridge.Tests.Support;
 using CodeChroma.Bridge.Workspaces;
@@ -14,7 +15,8 @@ public sealed class WikiGeneralRouteTests : IDisposable
     private const string Worker = """{"type":"result","is_error":false,"structured_output":{"summary":"Short summary.","description":"A longer description.","narrative":"The system narrative.","assignments":[]}}""";
 
     private readonly FakeCliHarness _cli = new();
-    private readonly BridgeHost _host = new();
+    private readonly BridgeHost _host = new(configure: services => services.AddSingleton<IEngineFactory>(
+        new SnapshotEngineFactory(Path.Combine(CodeChroma.Bridge.Tests.Contract.ContractCases.FixtureDir, "engine_snapshot.sample_repo.json"))));
     private readonly JsonSnapshotEngine _engine;
 
     public WikiGeneralRouteTests()

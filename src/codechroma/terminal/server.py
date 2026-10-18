@@ -93,6 +93,7 @@ async def _bridge_own_pty(websocket: WebSocket, argv: list[str], cwd: str) -> No
         on_output=queue.put_nowait,
         on_exit=lambda: queue.put_nowait(None),
         cwd=cwd,
+        client_attached=True,
     )
     pump_task = asyncio.create_task(_pump_output(websocket, queue))
     try:

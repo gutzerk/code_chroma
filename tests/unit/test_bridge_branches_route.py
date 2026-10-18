@@ -181,6 +181,31 @@ def test_closing_with_worktree_too_removes_the_directory(client):
     assert not Path(created["worktree"]).exists()
 
 
+def test_a_refused_worktree_removal_keeps_the_workspace_registered(client):
+    test_client, _repo, bridge = client
+    created = test_client.post("/branches", json={"branch": "feature-x"}).json()
+    (Path(created["worktree"]) / "untracked.txt").write_text("dirty", encoding="utf-8")
+
+    response = test_client.delete(f"/branches/{created['id']}", params={"worktree_too": "true"})
+
+    assert response.status_code == 409
+    assert Path(created["worktree"]).is_dir()
+    assert bridge.registry.is_registered(created["id"])
+
+
+def test_force_removes_a_dirty_worktree(client):
+    test_client, _repo, _bridge = client
+    created = test_client.post("/branches", json={"branch": "feature-x"}).json()
+    (Path(created["worktree"]) / "untracked.txt").write_text("dirty", encoding="utf-8")
+
+    response = test_client.delete(
+        f"/branches/{created['id']}", params={"worktree_too": "true", "force": "true"}
+    )
+
+    assert response.status_code == 200
+    assert not Path(created["worktree"]).exists()
+
+
 def test_closing_an_unknown_branch_workspace_is_a_404(client):
     test_client, _repo, _bridge = client
 

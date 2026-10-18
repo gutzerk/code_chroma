@@ -14,7 +14,7 @@ import { agentDockStore, useDockedAgentIds } from "./agentDockStore";
 import { branchStore } from "./branchStore";
 import { CloseAgentDialog } from "./CloseAgentDialog";
 import { GitInitDialog } from "./GitInitDialog";
-import { settleActiveWorkspace } from "./branchActions";
+import { settleActiveWorkspace, settleRemovedWorkspace } from "./branchActions";
 import { WorkspaceStatusBanner } from "./WorkspaceStatusBanner";
 import { confirmCloseAgentWindow, restoreAgentWindow } from "./windowActions";
 
@@ -103,6 +103,9 @@ export function AgentWindowLayer() {
           // been created or deleted externally), so it can't rebuild the list on its own.
           branchStore.setBranch({ current: message.branch, branches: branchStore.getBranches() });
           settleActiveWorkspace(agentClient);
+          refreshBranchList();
+        } else if (message.type === "branch-removed") {
+          settleRemovedWorkspace(agentClient, message.id);
           refreshBranchList();
         }
       }),

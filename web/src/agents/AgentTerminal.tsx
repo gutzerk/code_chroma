@@ -29,9 +29,13 @@ export function AgentTerminal({
     closedNotice: "\r\n[detached]\r\n",
   });
 
+  const handledFocusRequest = useRef(0);
   useEffect(() => {
-    if (focusRequest === 0 || hidden || !running) return undefined;
-    const timer = setTimeout(focus, 0);
+    if (focusRequest === handledFocusRequest.current || hidden || !running) return undefined;
+    const timer = setTimeout(() => {
+      handledFocusRequest.current = focusRequest;
+      focus();
+    }, 0);
     return () => clearTimeout(timer);
   }, [focusRequest, hidden, running, focus]);
 

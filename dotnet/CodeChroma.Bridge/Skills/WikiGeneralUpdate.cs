@@ -207,7 +207,7 @@ public static partial class WikiGeneralUpdate
         try { File.Delete(pagePath); } catch (Exception error) when (error is IOException or UnauthorizedAccessException) { }
     }
 
-    private static bool Contains(JsonNode? list, JsonNode? id) => list is JsonArray array && Text(id) is { } text && array.Any(n => Text(n) == text);
+    private static HashSet<string> IdSet(JsonNode? list) => list is JsonArray array ? array.Select(Text).OfType<string>().ToHashSet() : [];
 
     /// <summary>Applies every Deleted entry and refreshes files[] for Rewritten and Created; page text is not touched.</summary>
     public static JsonObject ApplyDelta(Workspace ws, JsonObject delta)
@@ -220,18 +220,20 @@ public static partial class WikiGeneralUpdate
         var containersById = containers.Where(c => Text(c["id"]) is not null).GroupBy(c => Text(c["id"])!).ToDictionary(g => g.Key, g => g.Last());
         var componentDelta = (JsonObject)delta["components"]!;
         var containerDelta = (JsonObject)delta["containers"]!;
+        var deletedComponents = IdSet(componentDelta["deleted"]);
+        var deletedContainers = IdSet(containerDelta["deleted"]);
 
-        foreach (var component in components.Where(c => Contains(componentDelta["deleted"], c["id"])))
+        foreach (var component in components.Where(c => deletedComponents.Contains(Text(c["id"]) ?? "")))
         {
             var parent = Text(component["container"]) is { } owner ? containersById.GetValueOrDefault(owner) : null;
             var parentPage = parent is null ? null : Text(parent["path"]);
             DeleteEntry(wikiDir, component, parentPage is null ? null : ConfinedPath(wikiDir, parentPage));
         }
-        components = components.Where(c => !Contains(componentDelta["deleted"], c["id"])).ToList();
+        components = components.Where(c => !deletedComponents.Contains(Text(c["id"]) ?? "")).ToList();
 
-        foreach (var container in containers.Where(c => Contains(containerDelta["deleted"], c["id"])))
+        foreach (var container in containers.Where(c => deletedContainers.Contains(Text(c["id"]) ?? "")))
             DeleteEntry(wikiDir, container, Path.Combine(wikiDir, "index.md"));
-        containers = containers.Where(c => !Contains(containerDelta["deleted"], c["id"])).ToList();
+        containers = containers.Where(c => !deletedContainers.Contains(Text(c["id"]) ?? "")).ToList();
 
         var componentsById = components.Where(c => Text(c["id"]) is not null).GroupBy(c => Text(c["id"])!).ToDictionary(g => g.Key, g => g.Last());
         foreach (var entry in DictList(componentDelta["rewritten"]))

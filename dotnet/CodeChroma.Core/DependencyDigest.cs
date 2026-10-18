@@ -86,10 +86,12 @@ public static class DependencyDigest
 {
     public const string FileName = "dependency-digest.json";
 
-    private sealed class FileSymbolsView
+    /// <summary>One file's symbols grouped the way every per-file consumer (digest, wiki) reads them.</summary>
+    public sealed class FileSymbolsView
     {
         public required string Path { get; init; }
         public Symbol? Module { get; init; }
+        public List<Symbol> Variables { get; } = [];
         public List<Symbol> Classes { get; } = [];
         public Dictionary<string, List<Symbol>> MethodsByClassId { get; } = [];
         public List<Symbol> Functions { get; } = [];
@@ -177,7 +179,7 @@ public static class DependencyDigest
         File.Move(temp, path, overwrite: true);
     }
 
-    private static Dictionary<string, FileSymbolsView> GroupByFile(Graph graph)
+    public static Dictionary<string, FileSymbolsView> GroupByFile(Graph graph)
     {
         var byFile = new OrderedMap<string, List<Symbol>>();
         foreach (var symbol in graph.SymbolList)
@@ -192,6 +194,7 @@ public static class DependencyDigest
             var module = symbols.FirstOrDefault(s => s.Kind == SymbolKind.Module);
             var view = new FileSymbolsView { Path = path, Module = module };
             view.Classes.AddRange(symbols.Where(s => s.Kind == SymbolKind.Class));
+            view.Variables.AddRange(symbols.Where(s => s.Kind == SymbolKind.Variable));
             foreach (var cls in view.Classes) view.MethodsByClassId[cls.Id] = [];
             foreach (var symbol in symbols.Where(s => s.Kind == SymbolKind.Function))
             {

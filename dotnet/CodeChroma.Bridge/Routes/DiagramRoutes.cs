@@ -15,6 +15,7 @@ public static class DiagramRoutes
 {
     public static void Map(WebApplication app)
     {
+        var parser = DiffRoutes.ParserFor(app);
         foreach (var kind in Workspace.DiagramKinds)
         {
             var k = kind;
@@ -24,7 +25,7 @@ public static class DiagramRoutes
                 return Results.Json(new JsonObject { ["repo_root"] = ws.Root, [$"{k}_path"] = ws.DiagramPath(k) }, BridgeJson.Default.JsonObject);
             });
             app.MapGet($"/repos/{{repoId}}/{k}", (string repoId, WorkspaceRegistry registry) =>
-                Results.Json(ResolveKind(registry.Get(repoId), k), BridgeJson.Default.JsonObject));
+                Results.Json(ResolveKind(registry.Get(repoId), k, parser), BridgeJson.Default.JsonObject));
             app.MapDelete($"/repos/{{repoId}}/{k}", (string repoId, WorkspaceRegistry registry) =>
             {
                 var path = registry.Get(repoId).DiagramPath(k);
@@ -65,8 +66,8 @@ public static class DiagramRoutes
     /// <summary>The kinds with a generate/status/output/cancel quartet (c1, and the Impact change review).</summary>
     public static readonly IReadOnlyList<string> GenerateKinds = ["c1", "impact-changes"];
 
-    /// <summary>One built-in kind's resolved payload; patterns and impact (engine slices) are served as authored.</summary>
-    public static JsonObject ResolveKind(Workspace ws, string kind)
+    /// <summary>One built-in kind's resolved payload, with the impact "changes" overlay attached.</summary>
+    public static JsonObject ResolveKind(Workspace ws, string kind, IOldSymbolParser parser)
     {
         var data = DiagramArtifacts.Load(ws, kind);
         switch (kind)
@@ -81,6 +82,8 @@ public static class DiagramRoutes
                 return epics;
             case "patterns":
                 return PatternsResolver.Resolve(ws.Engine, data);
+            case "impact":
+                return ImpactChanges.AttachOverlay(ws, parser, ImpactResolver.Resolve(ws));
             case "sequence":
                 if (data.Count == 0) return new JsonObject();
                 data["type"] = "sequence";

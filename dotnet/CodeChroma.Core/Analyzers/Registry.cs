@@ -36,6 +36,9 @@ public sealed class AnalyzerRegistry
 
     public static AnalyzerRegistry WithDefaults() => new(Defaults());
 
+    /// <summary>Every extension (with its leading dot) some registered analyzer parses.</summary>
+    public IReadOnlyCollection<string> SupportedExtensions() => _byExtension.Keys;
+
     private static IEnumerable<ILanguageAnalyzer> Defaults()
     {
         yield return new PythonAnalyzer();

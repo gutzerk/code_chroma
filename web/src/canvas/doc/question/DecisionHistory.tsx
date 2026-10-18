@@ -16,10 +16,12 @@ export function DecisionHistory({ items, disabled, onRevise }: DecisionHistoryPr
         <p>{S.historyEmpty}</p>
       ) : (
         <>
-          {items.map((item, index) => (
+          {items.map((item, index) => {
+            const n = item.step ?? index + 1;
+            return (
             <p key={item.elementId} data-testid="question-history-item">
               <b>
-                {item.step ?? index + 1}. {item.title}
+                {n}. {item.title}
               </b>
               <br />
               {item.state === "skipped" ? S.skipped : item.answer}{" "}
@@ -27,13 +29,14 @@ export function DecisionHistory({ items, disabled, onRevise }: DecisionHistoryPr
                 type="button"
                 className="question-quiet"
                 disabled={disabled}
-                aria-label={`${S.revise} ${item.step ?? index + 1}`}
+                aria-label={`${S.revise} ${n}`}
                 onClick={() => onRevise(item)}
               >
                 {S.revise}
               </button>
             </p>
-          ))}
+            );
+          })}
           <p className="question-note">{S.reviseNote}</p>
         </>
       )}

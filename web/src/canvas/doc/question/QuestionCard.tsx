@@ -21,6 +21,7 @@ export function QuestionCard({
 }: QuestionCardProps) {
   const [draft, setDraft] = useState("");
   const { step, total } = question;
+  const progress = step !== null && total !== null ? { step, total } : null;
 
   if (question.state !== "open") {
     return (
@@ -49,17 +50,17 @@ export function QuestionCard({
     <div className="question-card" data-testid="question-card" data-state="open">
       <small>
         {S.agentAsks}
-        {step !== null && total !== null ? ` · ${S.progress(step, total)}` : ""}
+        {progress ? ` · ${S.progress(progress.step, progress.total)}` : ""}
       </small>
-      {step !== null && total !== null && total > 0 && (
+      {progress && progress.total > 0 && (
         <div
           className="question-progress"
           role="progressbar"
           aria-valuemin={0}
-          aria-valuemax={total}
-          aria-valuenow={step - 1}
+          aria-valuemax={progress.total}
+          aria-valuenow={progress.step - 1}
         >
-          <div className="question-progress-bar" style={{ width: `${((step - 1) / total) * 100}%` }} />
+          <div className="question-progress-bar" style={{ width: `${((progress.step - 1) / progress.total) * 100}%` }} />
         </div>
       )}
       <h3 className="question-title">{question.title}</h3>

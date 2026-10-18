@@ -8,6 +8,7 @@ from pydantic import BaseModel
 from codechroma.bridge.deps import Services, Ws
 from codechroma.canvas.document import Element
 from codechroma.questions import store
+from codechroma.questions.launch import bearer_token
 from codechroma.questions.mcp_server import QuestionAuthError
 from codechroma.questions.models import AskRequest, QuestionResult
 
@@ -32,10 +33,15 @@ def _ack(question_id: str, state: str, answer: str | None, waiting: bool) -> dic
     return ack if answer is None else {**ack, "answer": answer}
 
 
-def _open_element(ws: Ws, question_id: str) -> Element:
+def _find_element(ws: Ws, question_id: str) -> Element:
     element = store.find_element(ws, question_id)
     if element is None:
         raise HTTPException(status_code=404, detail="unknown question")
+    return element
+
+
+def _open_element(ws: Ws, question_id: str) -> Element:
+    element = _find_element(ws, question_id)
     if element.meta.get("state") != "open":
         raise HTTPException(status_code=409, detail="question is already settled")
     return element
@@ -54,9 +60,8 @@ def list_open_questions(ws: Ws, services: Services) -> dict:
 async def ask_question(repo_id: str, request: Request, body: AskRequest) -> dict:
     """Blocking ask for non-MCP callers (the AskUserQuestion hook); same bearer token as /mcp."""
     mcp = request.app.state.question_mcp
-    header = request.headers.get("authorization", "").removeprefix("Bearer ").strip()
     try:
-        authorized = mcp.workspace_id_for(header or None) == repo_id
+        authorized = mcp.workspace_id_for(bearer_token(request.headers)) == repo_id
     except QuestionAuthError:
         authorized = False
     if not authorized:
@@ -96,9 +101,6 @@ def skip_question(ws: Ws, services: Services, question_id: str) -> dict:
 @router.post("/repos/{repo_id}/questions/{question_id}/revise")
 def revise_question(ws: Ws, services: Services, question_id: str) -> dict:
     """Reopens a settled question and deletes the later steps of the same session."""
-    element = store.find_element(ws, question_id)
-    if element is None:
-        raise HTTPException(status_code=404, detail="unknown question")
-    removed = store.reopen(ws, element)
+    removed = store.reopen(ws, _find_element(ws, question_id))
     services.questions.forget(question_id)
     return {**_ack(question_id, "open", None, False), "removed": removed}

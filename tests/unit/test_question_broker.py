@@ -69,7 +69,7 @@ def test_question_without_a_live_waiter_reports_not_waiting():
 
     assert waiting is False
     assert woke is False
-    assert broker.result("restored-from-disk").answer == "x"
+    assert broker.lookup("restored-from-disk").answer == "x"
 
 
 def test_settled_question_is_no_longer_waiting():

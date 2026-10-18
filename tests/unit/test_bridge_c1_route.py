@@ -1,24 +1,12 @@
 """TestClient coverage for the C1 diagram endpoints and the "c1" file-change broadcast."""
 
 import json
-import shutil
-import subprocess
 from pathlib import Path
 
 import pytest
 from fastapi.testclient import TestClient
 
-from tests.conftest import diagram_json_path
-
-FIXTURE_REPO = Path(__file__).parent.parent / "fixtures" / "sample_repo"
-
-
-def _init_repo(root: Path) -> None:
-    subprocess.run(["git", "init"], cwd=root, check=True, capture_output=True)
-    subprocess.run(["git", "config", "user.email", "test@example.com"], cwd=root, check=True)
-    subprocess.run(["git", "config", "user.name", "Test"], cwd=root, check=True)
-    subprocess.run(["git", "add", "-A"], cwd=root, check=True, capture_output=True)
-    subprocess.run(["git", "commit", "-m", "initial"], cwd=root, check=True, capture_output=True)
+from tests.conftest import copy_sample_repo, diagram_json_path
 
 
 def _write_c1(repo: Path, c1: dict) -> None:
@@ -30,8 +18,7 @@ def _write_c1(repo: Path, c1: dict) -> None:
 @pytest.fixture
 def server_module(tmp_path, monkeypatch, make_bridge):
     repo = tmp_path / "repo"
-    shutil.copytree(FIXTURE_REPO, repo)
-    _init_repo(repo)
+    copy_sample_repo(repo)
     # No ANTHROPIC_API_KEY (set, not deleted, so a real .env's key can't leak into the bootstrap).
     monkeypatch.setenv("ANTHROPIC_API_KEY", "")
 

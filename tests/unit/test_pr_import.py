@@ -11,18 +11,13 @@ import pytest
 
 from codechroma.bridge.agents import worktree
 from codechroma.bridge.prs import importer
-
-
-def _git(root: Path, *args: str) -> str:
-    return subprocess.run(
-        ["git", *args], cwd=root, check=True, capture_output=True, text=True
-    ).stdout
+from tests.conftest import git
 
 
 def _init(root: Path) -> None:
-    _git(root, "init", "-b", "main")
-    _git(root, "config", "user.email", "test@example.com")
-    _git(root, "config", "user.name", "Test")
+    git(root, "init", "-b", "main")
+    git(root, "config", "user.email", "test@example.com")
+    git(root, "config", "user.name", "Test")
 
 
 @pytest.fixture
@@ -32,17 +27,17 @@ def origin(tmp_path):
     seed.mkdir()
     _init(seed)
     (seed / "app.py").write_text("value = 1\n", encoding="utf-8")
-    _git(seed, "add", "-A")
-    _git(seed, "commit", "-m", "initial")
-    _git(seed, "checkout", "-b", "feature/refunds")
+    git(seed, "add", "-A")
+    git(seed, "commit", "-m", "initial")
+    git(seed, "checkout", "-b", "feature/refunds")
     (seed / "refund.py").write_text("def issue_refund():\n    return 1\n", encoding="utf-8")
-    _git(seed, "add", "-A")
-    _git(seed, "commit", "-m", "add refunds")
+    git(seed, "add", "-A")
+    git(seed, "commit", "-m", "add refunds")
     bare = tmp_path / "origin.git"
-    _git(tmp_path, "init", "--bare", str(bare))
-    _git(seed, "remote", "add", "origin", str(bare))
-    _git(seed, "push", "origin", "main")
-    _git(seed, "push", "origin", "feature/refunds:refs/pull/7/head")
+    git(tmp_path, "init", "--bare", str(bare))
+    git(seed, "remote", "add", "origin", str(bare))
+    git(seed, "push", "origin", "main")
+    git(seed, "push", "origin", "feature/refunds:refs/pull/7/head")
     return bare, seed
 
 
@@ -51,9 +46,9 @@ def repo(tmp_path, origin, monkeypatch):
     """A clone of that origin — the repository the user has open in the canvas."""
     bare, _seed = origin
     root = tmp_path / "repo"
-    _git(tmp_path, "clone", str(bare), str(root))
-    _git(root, "config", "user.email", "test@example.com")
-    _git(root, "config", "user.name", "Test")
+    git(tmp_path, "clone", str(bare), str(root))
+    git(root, "config", "user.email", "test@example.com")
+    git(root, "config", "user.name", "Test")
     monkeypatch.delenv(worktree.WORKSPACES_DIR_ENV, raising=False)
     return root
 
@@ -61,46 +56,46 @@ def repo(tmp_path, origin, monkeypatch):
 def test_both_refs_land_under_our_own_namespace(repo):
     importer.fetch_refs(repo, 7, "main")
 
-    refs = _git(repo, "for-each-ref", "--format=%(refname)", "refs/codechroma")
+    refs = git(repo, "for-each-ref", "--format=%(refname)", "refs/codechroma")
     assert "refs/codechroma/pr/7/head" in refs
     assert "refs/codechroma/pr/7/base" in refs
 
 
 def test_the_users_remote_tracking_refs_are_untouched(repo):
-    before = _git(repo, "for-each-ref", "--format=%(refname) %(objectname)", "refs/remotes")
+    before = git(repo, "for-each-ref", "--format=%(refname) %(objectname)", "refs/remotes")
 
     importer.fetch_refs(repo, 7, "main")
 
-    assert _git(repo, "for-each-ref", "--format=%(refname) %(objectname)", "refs/remotes") == before
+    assert git(repo, "for-each-ref", "--format=%(refname) %(objectname)", "refs/remotes") == before
 
 
 def test_the_fetch_creates_no_local_branch(repo):
     importer.fetch_refs(repo, 7, "main")
 
-    assert _git(repo, "branch", "--list").strip() == "* main"
+    assert git(repo, "branch", "--list").strip() == "* main"
 
 
 def test_import_checks_the_head_out_detached(repo):
     path, sha = importer.import_pr(repo, 7, "main")
 
     assert (path / "refund.py").exists()
-    assert _git(path, "rev-parse", "HEAD").strip() == sha
+    assert git(path, "rev-parse", "HEAD").strip() == sha
     assert subprocess.run(["git", "symbolic-ref", "-q", "HEAD"], cwd=path).returncode != 0
 
 
 def test_the_worktree_is_clean_because_codechroma_is_excluded_first(repo):
     path, _sha = importer.import_pr(repo, 7, "main")
 
-    exclude = Path(_git(repo, "rev-parse", "--git-path", "info/exclude").strip())
+    exclude = Path(git(repo, "rev-parse", "--git-path", "info/exclude").strip())
     assert ".codechroma/" in (repo / exclude).read_text(encoding="utf-8")
-    assert _git(path, "status", "--porcelain") == ""
+    assert git(path, "status", "--porcelain") == ""
 
 
 def test_the_base_ref_makes_the_merge_base_resolvable(repo):
     importer.import_pr(repo, 7, "main")
 
-    merge_base = _git(repo, "merge-base", importer.local_base_ref(7), importer.local_head_ref(7))
-    assert merge_base.strip() == _git(repo, "rev-parse", "origin/main").strip()
+    merge_base = git(repo, "merge-base", importer.local_base_ref(7), importer.local_head_ref(7))
+    assert merge_base.strip() == git(repo, "rev-parse", "origin/main").strip()
 
 
 def test_skills_are_installed_into_a_pull_request_worktree(repo):
@@ -137,8 +132,8 @@ def test_refresh_follows_a_new_commit_on_the_pull_request(repo, origin):
     _bare, seed = origin
     path, sha = importer.import_pr(repo, 7, "main")
     (seed / "refund.py").write_text("def issue_refund():\n    return 2\n", encoding="utf-8")
-    _git(seed, "commit", "-am", "tweak the refund")
-    _git(seed, "push", "--force", "origin", "feature/refunds:refs/pull/7/head")
+    git(seed, "commit", "-am", "tweak the refund")
+    git(seed, "push", "--force", "origin", "feature/refunds:refs/pull/7/head")
 
     refreshed, moved = importer.refresh_pr(repo, 7, path, "main", sha)
 
@@ -166,7 +161,7 @@ def test_remove_drops_the_worktree_and_both_refs(repo):
     importer.remove_pr(repo, 7, path)
 
     assert not path.exists()
-    assert _git(repo, "for-each-ref", "--format=%(refname)", "refs/codechroma").strip() == ""
+    assert git(repo, "for-each-ref", "--format=%(refname)", "refs/codechroma").strip() == ""
 
 
 def test_remove_survives_a_worktree_that_is_already_gone(repo):
@@ -177,7 +172,7 @@ def test_remove_survives_a_worktree_that_is_already_gone(repo):
 
     importer.remove_pr(repo, 7, path)
 
-    assert _git(repo, "for-each-ref", "--format=%(refname)", "refs/codechroma").strip() == ""
+    assert git(repo, "for-each-ref", "--format=%(refname)", "refs/codechroma").strip() == ""
 
 
 def test_the_worktree_lives_beside_the_agents(repo):

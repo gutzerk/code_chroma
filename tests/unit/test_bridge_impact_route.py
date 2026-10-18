@@ -1,27 +1,15 @@
 """TestClient coverage for the Impact diagram routes: diff-seeded and plan-seeded slices."""
 
 import json
-import shutil
-import subprocess
 from pathlib import Path
 
 import pytest
 from fastapi.testclient import TestClient
 
-from tests.conftest import diagram_json_path
-
-FIXTURE_REPO = Path(__file__).parent.parent / "fixtures" / "sample_repo"
+from tests.conftest import copy_sample_repo, diagram_json_path
 
 SLUGIFY = "shared/text_utils.py::function::slugify"
 TEXT_UTILS_COMPONENT = "component::shared/text_utils.py"
-
-
-def _init_repo(root: Path) -> None:
-    subprocess.run(["git", "init"], cwd=root, check=True, capture_output=True)
-    subprocess.run(["git", "config", "user.email", "test@example.com"], cwd=root, check=True)
-    subprocess.run(["git", "config", "user.name", "Test"], cwd=root, check=True)
-    subprocess.run(["git", "add", "-A"], cwd=root, check=True, capture_output=True)
-    subprocess.run(["git", "commit", "-m", "initial"], cwd=root, check=True, capture_output=True)
 
 
 def _edit_slugify(repo: Path) -> None:
@@ -46,8 +34,7 @@ def _write_feature(repo: Path, feature: str = "feature/specs") -> None:
 @pytest.fixture
 def bridge(tmp_path, monkeypatch, make_bridge):
     repo = tmp_path / "repo"
-    shutil.copytree(FIXTURE_REPO, repo)
-    _init_repo(repo)
+    copy_sample_repo(repo)
     return make_bridge(repo), repo
 
 

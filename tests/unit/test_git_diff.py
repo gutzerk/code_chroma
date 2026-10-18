@@ -1,22 +1,14 @@
 """Unit tests for git_diff.py: matching current FUNCTION nodes against their git-HEAD source."""
 
 import shutil
-import subprocess
 from pathlib import Path
 
 from codechroma.bridge.git_diff import compute_function_diffs
 from codechroma.engine import GraphEngine
 from codechroma.graph.store import SqliteGraphStore
+from tests.conftest import copy_sample_repo
 
 FIXTURE_REPO = Path(__file__).parent.parent / "fixtures" / "sample_repo"
-
-
-def _init_repo(root: Path) -> None:
-    subprocess.run(["git", "init"], cwd=root, check=True, capture_output=True)
-    subprocess.run(["git", "config", "user.email", "test@example.com"], cwd=root, check=True)
-    subprocess.run(["git", "config", "user.name", "Test"], cwd=root, check=True)
-    subprocess.run(["git", "add", "-A"], cwd=root, check=True, capture_output=True)
-    subprocess.run(["git", "commit", "-m", "initial"], cwd=root, check=True, capture_output=True)
 
 
 def _engine_for(repo: Path, tmp_path: Path) -> GraphEngine:
@@ -28,8 +20,7 @@ def _engine_for(repo: Path, tmp_path: Path) -> GraphEngine:
 
 def test_reports_a_modified_function_with_its_before_and_after(tmp_path):
     repo = tmp_path / "repo"
-    shutil.copytree(FIXTURE_REPO, repo)
-    _init_repo(repo)
+    copy_sample_repo(repo)
     slugify_path = repo / "shared" / "text_utils.py"
     slugify_path.write_text(
         slugify_path.read_text(encoding="utf-8").replace(
@@ -48,8 +39,7 @@ def test_reports_a_modified_function_with_its_before_and_after(tmp_path):
 
 def test_excludes_unmodified_functions_in_a_changed_file(tmp_path):
     repo = tmp_path / "repo"
-    shutil.copytree(FIXTURE_REPO, repo)
-    _init_repo(repo)
+    copy_sample_repo(repo)
     service_path = repo / "users" / "service.py"
     service_path.write_text(
         service_path.read_text(encoding="utf-8") + "\n# trailing comment\n", encoding="utf-8"
@@ -63,8 +53,7 @@ def test_excludes_unmodified_functions_in_a_changed_file(tmp_path):
 
 def test_reports_a_function_in_a_brand_new_untracked_file_with_empty_original(tmp_path):
     repo = tmp_path / "repo"
-    shutil.copytree(FIXTURE_REPO, repo)
-    _init_repo(repo)
+    copy_sample_repo(repo)
     (repo / "shared" / "new_module.py").write_text(
         "def brand_new():\n    return 1\n", encoding="utf-8"
     )
@@ -79,8 +68,7 @@ def test_reports_a_function_in_a_brand_new_untracked_file_with_empty_original(tm
 
 def test_reports_a_deleted_function_removed_from_an_existing_file(tmp_path):
     repo = tmp_path / "repo"
-    shutil.copytree(FIXTURE_REPO, repo)
-    _init_repo(repo)
+    copy_sample_repo(repo)
     slugify_path = repo / "shared" / "text_utils.py"
     slugify_path.write_text('"""Small text helpers shared across services."""\n', encoding="utf-8")
     engine = _engine_for(repo, tmp_path)
@@ -96,8 +84,7 @@ def test_reports_a_deleted_function_removed_from_an_existing_file(tmp_path):
 
 def test_reports_deleted_functions_for_a_deleted_file(tmp_path):
     repo = tmp_path / "repo"
-    shutil.copytree(FIXTURE_REPO, repo)
-    _init_repo(repo)
+    copy_sample_repo(repo)
     (repo / "web" / "widget.ts").unlink()
     engine = _engine_for(repo, tmp_path)
 
@@ -111,8 +98,7 @@ def test_reports_deleted_functions_for_a_deleted_file(tmp_path):
 
 def test_tags_added_and_modified_status_on_each_entry(tmp_path):
     repo = tmp_path / "repo"
-    shutil.copytree(FIXTURE_REPO, repo)
-    _init_repo(repo)
+    copy_sample_repo(repo)
     slugify_path = repo / "shared" / "text_utils.py"
     slugify_path.write_text(
         slugify_path.read_text(encoding="utf-8").replace(
@@ -133,8 +119,7 @@ def test_tags_added_and_modified_status_on_each_entry(tmp_path):
 
 def test_reports_a_file_level_modified_entry_for_a_changed_existing_file(tmp_path):
     repo = tmp_path / "repo"
-    shutil.copytree(FIXTURE_REPO, repo)
-    _init_repo(repo)
+    copy_sample_repo(repo)
     slugify_path = repo / "shared" / "text_utils.py"
     slugify_path.write_text(
         slugify_path.read_text(encoding="utf-8").replace(
@@ -157,8 +142,7 @@ def test_reports_a_file_level_modified_entry_for_a_changed_existing_file(tmp_pat
 
 def test_returns_nothing_for_files_with_no_git_changes(tmp_path):
     repo = tmp_path / "repo"
-    shutil.copytree(FIXTURE_REPO, repo)
-    _init_repo(repo)
+    copy_sample_repo(repo)
     engine = _engine_for(repo, tmp_path)
 
     diffs = compute_function_diffs(engine, repo)

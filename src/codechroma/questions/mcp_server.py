@@ -6,6 +6,7 @@ import asyncio
 import hashlib
 import hmac
 import secrets
+import uuid
 from collections.abc import AsyncIterator, Callable
 from contextlib import asynccontextmanager
 from typing import Any
@@ -100,9 +101,14 @@ class QuestionMcp:
     async def ask(self, workspace_id: str, request: AskRequest) -> dict[str, Any]:
         """Opens the question on the canvas, blocks for the answer, or returns pending."""
         ws = self._workspace_for(workspace_id)
-        question_id, _ = await asyncio.to_thread(store.open_question, ws, request)
+        question_id = uuid.uuid4().hex
         self.broker.open(question_id)
-        result = await self.broker.wait(question_id, settings.questions.ask_wait_seconds)
+        try:
+            await asyncio.to_thread(store.open_question, ws, request, question_id)
+            result = await self.broker.wait(question_id, settings.questions.ask_wait_seconds)
+        except BaseException:
+            self.broker.close(question_id)
+            raise
         return result.to_tool_dict()
 
     async def result(self, workspace_id: str, question_id: str) -> dict[str, Any]:

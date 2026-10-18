@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import uuid
 from types import SimpleNamespace
 
 import pytest
@@ -20,7 +21,8 @@ OPTIONS = [
 
 def _ask(bridge, **overrides) -> str:
     request = AskRequest(question="How to structure checkout?", options=OPTIONS, **overrides)
-    question_id, _ = store.open_question(bridge.main, request)
+    question_id = uuid.uuid4().hex
+    store.open_question(bridge.main, request, question_id)
     return question_id
 
 

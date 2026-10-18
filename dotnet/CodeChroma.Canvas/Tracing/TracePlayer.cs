@@ -153,6 +153,7 @@ public sealed class TracePlayer
 
     public void SetSpeed(double speed)
     {
+        if (!(speed > 0) || double.IsInfinity(speed)) return;
         Speed = speed;
         if (IsPlaying) ScheduleTick();
         Changed?.Invoke();

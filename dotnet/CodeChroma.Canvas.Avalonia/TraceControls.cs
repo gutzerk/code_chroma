@@ -2,6 +2,7 @@ using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Layout;
 using Avalonia.Media;
+using Avalonia.VisualTree;
 using CodeChroma.Canvas.Tracing;
 
 namespace CodeChroma.Canvas.Avalonia;
@@ -66,9 +67,23 @@ public sealed class TraceControls : StackPanel
         Children.Add(new StackPanel { Orientation = Orientation.Horizontal, Spacing = 8, Children = { CurrentNode, FollowToggle, BreakpointButton, CloseButton } });
         Children.Add(ErrorPlaque);
         Children.Add(CallStack);
-        player.Changed += Sync;
         Sync();
     }
+
+    protected override void OnAttachedToVisualTree(VisualTreeAttachmentEventArgs e)
+    {
+        base.OnAttachedToVisualTree(e);
+        _player.Changed += OnPlayerChanged;
+        Sync();
+    }
+
+    protected override void OnDetachedFromVisualTree(VisualTreeAttachmentEventArgs e)
+    {
+        base.OnDetachedFromVisualTree(e);
+        _player.Changed -= OnPlayerChanged;
+    }
+
+    private void OnPlayerChanged() => UiThread.Run(Sync);
 
     public ComboBox Picker { get; }
     public Button StepBackButton { get; }

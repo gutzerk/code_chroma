@@ -118,4 +118,14 @@ public class ViewportTests
         Assert.Equal(expected.X, p.X, 4);
         Assert.Equal(expected.Y, p.Y, 4);
     }
+
+    [Fact]
+    public void Fit_with_an_explicit_ceiling_stays_at_or_below_it()
+    {
+        var viewport = Make(w: 1000, h: 600);
+
+        var view = viewport.ComputeFit(new Rect(0, 0, 10, 10), Viewport.MaxScale);
+
+        Assert.Equal(Viewport.MaxScale, view.Scale, 9);
+    }
 }

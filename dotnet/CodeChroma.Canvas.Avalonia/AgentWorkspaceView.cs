@@ -35,9 +35,23 @@ public sealed class AgentWorkspaceView : Grid
         RailPanel.Children.Add(RunButton);
         Children.Add(WindowLayer);
         Children.Add(RailPanel);
-        store.Changed += Sync;
         Sync();
     }
+
+    protected override void OnAttachedToVisualTree(VisualTreeAttachmentEventArgs e)
+    {
+        base.OnAttachedToVisualTree(e);
+        _store.Changed += OnStoreChanged;
+        Sync();
+    }
+
+    protected override void OnDetachedFromVisualTree(VisualTreeAttachmentEventArgs e)
+    {
+        base.OnDetachedFromVisualTree(e);
+        _store.Changed -= OnStoreChanged;
+    }
+
+    private void OnStoreChanged() => UiThread.Run(Sync);
 
     public AvCanvas WindowLayer { get; }
     public StackPanel RailPanel { get; }
@@ -137,6 +151,12 @@ public sealed class AgentWindow : Border
             if (!_dragging) return;
             _dragging = false;
             e.Pointer.Capture(null);
+            await _store.CommitWindowAsync(_id);
+        };
+        TitleBar.PointerCaptureLost += async (_, _) =>
+        {
+            if (!_dragging) return;
+            _dragging = false;
             await _store.CommitWindowAsync(_id);
         };
         var body = new Grid { RowDefinitions = new RowDefinitions("Auto,*") };

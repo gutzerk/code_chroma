@@ -62,10 +62,13 @@ public sealed class Viewport
     }
 
     /// <summary>The view that centres <paramref name="canvasRect"/> and fills it with padding (computeFitView, minus the DOM).</summary>
-    public ViewState ComputeFit(Rect canvasRect)
+    public ViewState ComputeFit(Rect canvasRect) => ComputeFit(canvasRect, FocusMaxScale);
+
+    /// <summary>Same fit with a caller-chosen scale ceiling, e.g. <see cref="MaxScale"/> for a manual fit-all.</summary>
+    public ViewState ComputeFit(Rect canvasRect, double maxScale)
     {
         var fit = Math.Min(Width / canvasRect.Width, Height / canvasRect.Height);
-        var scale = Math.Clamp(fit * FocusFitPadding, MinScale, FocusMaxScale);
+        var scale = Math.Clamp(fit * FocusFitPadding, MinScale, maxScale);
         return new ViewState(
             Width / 2 - canvasRect.CenterX * scale,
             Height / 2 - canvasRect.CenterY * scale,

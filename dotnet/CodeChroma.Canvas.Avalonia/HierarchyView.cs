@@ -3,6 +3,7 @@ using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.Media;
+using Avalonia.VisualTree;
 using CodeChroma.Canvas.Collision;
 using CodeChroma.Canvas.Diff;
 using CodeChroma.Canvas.Hierarchy;
@@ -41,6 +42,8 @@ public sealed class HierarchyView : Control
     private bool _moved, _modifierToggled;
     private HierarchyBox? _pressedBox;
     private Point? _marqueeEnd;
+    private bool _attached;
+    private Trace? _followedTrace;
 
     public HierarchyView(IHierarchySource source, ExpansionState expansion, TopLevelLayoutStore layout, ICodeSource? code = null, UndoHistory? undo = null)
     {
@@ -52,12 +55,35 @@ public sealed class HierarchyView : Control
         Viewport = new Viewport(new ViewState(20, 20, 1), 800, 600);
         _scene = HierarchyLayout.Compute(source, expansion, _measurer, layout.Positions);
         IndexTops();
-        expansion.Changed += Rebuild;
-        layout.Changed += Rebuild;
         Selection.Changed += InvalidateVisual;
         ClipToBounds = true;
         Focusable = true;
     }
+
+    protected override void OnAttachedToVisualTree(VisualTreeAttachmentEventArgs e)
+    {
+        base.OnAttachedToVisualTree(e);
+        _attached = true;
+        Expansion.Changed += OnModelChanged;
+        Layout.Changed += OnModelChanged;
+        if (_trace is not null) _trace.Changed += OnTraceChanged;
+        if (_diff is not null) _diff.Changed += OnDiffChanged;
+        OnModelChanged();
+    }
+
+    protected override void OnDetachedFromVisualTree(VisualTreeAttachmentEventArgs e)
+    {
+        base.OnDetachedFromVisualTree(e);
+        _attached = false;
+        Expansion.Changed -= OnModelChanged;
+        Layout.Changed -= OnModelChanged;
+        if (_trace is not null) _trace.Changed -= OnTraceChanged;
+        if (_diff is not null) _diff.Changed -= OnDiffChanged;
+    }
+
+    private void OnModelChanged() => UiThread.Run(Rebuild);
+
+    private void OnDiffChanged() => UiThread.Run(InvalidateVisual);
 
     public ExpansionState Expansion { get; }
     public TopLevelLayoutStore Layout { get; }
@@ -80,7 +106,7 @@ public sealed class HierarchyView : Control
             if (_trace is not null) _trace.Changed -= OnTraceChanged;
             _trace = value;
             _lastFollowedStep = -1;
-            if (_trace is not null) _trace.Changed += OnTraceChanged;
+            if (_trace is not null && _attached) _trace.Changed += OnTraceChanged;
             InvalidateVisual();
         }
     }
@@ -91,9 +117,9 @@ public sealed class HierarchyView : Control
         get => _diff;
         set
         {
-            if (_diff is not null) _diff.Changed -= InvalidateVisual;
+            if (_diff is not null) _diff.Changed -= OnDiffChanged;
             _diff = value;
-            if (_diff is not null) _diff.Changed += InvalidateVisual;
+            if (_diff is not null && _attached) _diff.Changed += OnDiffChanged;
             InvalidateVisual();
         }
     }
@@ -115,8 +141,15 @@ public sealed class HierarchyView : Control
         return new CRect(r.Left, r.Top, r.Width, box.HeaderHeight);
     }
 
-    private void OnTraceChanged()
+    private void OnTraceChanged() => UiThread.Run(FollowTrace);
+
+    private void FollowTrace()
     {
+        if (_trace is not null && !ReferenceEquals(_trace.Trace, _followedTrace))
+        {
+            _followedTrace = _trace.Trace;
+            _lastFollowedStep = -1;
+        }
         if (_trace is { IsActive: true, FollowCamera: true, IsLive: false } t && t.StepIndex != _lastFollowedStep && t.CurrentFrame?.NodeId is { } node)
         {
             _lastFollowedStep = t.StepIndex;
@@ -169,9 +202,7 @@ public sealed class HierarchyView : Control
         var rects = _scene.TopLevel.Select(b => b.Rect).ToList();
         var l = rects.Min(r => r.Left); var t = rects.Min(r => r.Top);
         var right = rects.Max(r => r.Right); var bottom = rects.Max(r => r.Bottom);
-        var fit = Viewport.ComputeFit(new CRect(l, t, right - l, bottom - t));
-        Viewport.Pan(fit.X - Viewport.State.X, fit.Y - Viewport.State.Y);
-        Viewport.ZoomAround(new CPoint(0, 0), fit.Scale / Viewport.State.Scale);
+        Viewport.State = Viewport.ComputeFit(new CRect(l, t, right - l, bottom - t), Viewport.MaxScale);
         InvalidateVisual();
     }
 
@@ -381,7 +412,7 @@ public sealed class HierarchyView : Control
                 var body = new Rect(r.X + 8, r.Y + box.HeaderHeight, r.Width - 16, r.Height - box.HeaderHeight - 8);
                 using (context.PushClip(body))
                 {
-                    if (_diff?.DiffOf(box.Id) is { } diff) DrawDiff(context, diff, body);
+                    if (_diff?.DiffOf(box.Id) is { } diff) DrawDiff(context, _diff.LinesOf(diff), body);
                     else if (_code?.Get(box.Id) is { } snippet) context.DrawText(CodeText.Format(snippet.Language, snippet.Text, 11, body.Width, body.Height), body.TopLeft);
                 }
             }
@@ -422,10 +453,10 @@ public sealed class HierarchyView : Control
         }
     }
 
-    private static void DrawDiff(DrawingContext context, FunctionDiff diff, Rect body)
+    private static void DrawDiff(DrawingContext context, IReadOnlyList<DiffLine> lines, Rect body)
     {
         var y = body.Y;
-        foreach (var line in LineDiff.Compute(diff.OriginalSource, diff.ProposedSource))
+        foreach (var line in lines)
         {
             context.FillRectangle(DiffBrushes.For(line.Kind), new Rect(body.X, y, body.Width, 14));
             context.DrawText(new FormattedText($"{line.Marker} {line.Text}", CultureInfo.InvariantCulture, FlowDirection.LeftToRight, new Typeface(CodeText.Mono), 11, Brushes.Black) { MaxTextWidth = body.Width, MaxTextHeight = 14 }, new Point(body.X, y));

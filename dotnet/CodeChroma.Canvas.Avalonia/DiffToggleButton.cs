@@ -1,5 +1,7 @@
+using Avalonia;
 using Avalonia.Automation;
 using Avalonia.Controls;
+using Avalonia.VisualTree;
 using CodeChroma.Canvas.Diff;
 
 namespace CodeChroma.Canvas.Avalonia;
@@ -20,10 +22,25 @@ public sealed class DiffToggleButton : Button
     {
         _controller = controller;
         Click += async (_, _) => await _controller.ToggleAsync();
-        controller.PendingChanged += Sync;
-        controller.Overlay.Changed += Sync;
         Sync();
     }
+
+    protected override void OnAttachedToVisualTree(VisualTreeAttachmentEventArgs e)
+    {
+        base.OnAttachedToVisualTree(e);
+        _controller.PendingChanged += OnChanged;
+        _controller.Overlay.Changed += OnChanged;
+        Sync();
+    }
+
+    protected override void OnDetachedFromVisualTree(VisualTreeAttachmentEventArgs e)
+    {
+        base.OnDetachedFromVisualTree(e);
+        _controller.PendingChanged -= OnChanged;
+        _controller.Overlay.Changed -= OnChanged;
+    }
+
+    private void OnChanged() => UiThread.Run(Sync);
 
     public string Label => _controller.IsPending ? PendingLabel : _controller.Overlay.IsActive ? OnLabel : OffLabel;
 

@@ -171,4 +171,62 @@ public class CanvasDocStoreTests
         Assert.Equal(2, store.Doc.Elements.Count);
         Assert.Empty(store.LayersMidLayout());
     }
+
+    [Fact]
+    public async Task A_successful_write_whose_refetch_fails_keeps_the_new_positions()
+    {
+        var bridge = new FakeBridge { GetCanvas = () => throw new IOException("offline") };
+        var store = new CanvasDocStore();
+        store.SetDoc(Fx.DocOf(Fx.Element("a", x: 5, y: 6)));
+
+        var ok = await store.ApplyCanvasPositionsAsync(bridge, new Dictionary<string, Position> { ["a"] = new(50, 60) });
+
+        Assert.True(ok);
+        Assert.Equal(new Position(50, 60), store.Doc.Elements["a"].Position);
+    }
+
+    [Fact]
+    public async Task A_failed_write_reports_false_so_callers_can_skip_the_undo_entry()
+    {
+        var bridge = new FakeBridge { Patch = _ => Task.FromResult(new BatchResult(false, new[] { "rejected" })) };
+        var store = new CanvasDocStore();
+        store.SetDoc(Fx.DocOf(Fx.Element("a", x: 5, y: 6)));
+
+        var ok = await store.ApplyCanvasPositionsAsync(bridge, new Dictionary<string, Position> { ["a"] = new(50, 60) });
+
+        Assert.False(ok);
+    }
+
+    [Fact]
+    public async Task After_a_successful_auto_layout_the_refetched_doc_is_applied()
+    {
+        var piled = Fx.DocOf(Fx.Element("a", layer: "x", render: RenderKind.Custom), Fx.Element("b", layer: "x", render: RenderKind.Custom));
+        var placed = Fx.DocOf(Fx.Element("a", layer: "x", x: 10, y: 20, render: RenderKind.Custom), Fx.Element("b", layer: "x", x: 300, y: 20, render: RenderKind.Custom));
+        var served = piled;
+        var bridge = new FakeBridge
+        {
+            GetCanvas = () => Task.FromResult(served),
+            Patch = _ => { served = placed; return Task.FromResult(new BatchResult(true, Array.Empty<string>())); },
+        };
+        var store = new CanvasDocStore();
+
+        await store.FetchAndApplyAsync(bridge);
+
+        Assert.True(store.Loaded);
+        Assert.Equal(new Position(10, 20), store.Doc.Elements["a"].Position);
+    }
+
+    [Fact]
+    public async Task A_layout_patch_that_hangs_is_abandoned_after_the_timeout_and_the_snapshot_shown()
+    {
+        var piled = Fx.DocOf(Fx.Element("a", layer: "x", render: RenderKind.Custom), Fx.Element("b", layer: "x", render: RenderKind.Custom));
+        var bridge = new FakeBridge { GetCanvas = () => Task.FromResult(piled), Patch = _ => new TaskCompletionSource<BatchResult>().Task };
+        var store = new CanvasDocStore { LayoutTimeout = TimeSpan.FromMilliseconds(50) };
+
+        await store.FetchAndApplyAsync(bridge);
+
+        Assert.Contains("x", store.UnlayoutableLayers);
+        Assert.True(store.Loaded);
+        Assert.Empty(store.LayersMidLayout());
+    }
 }

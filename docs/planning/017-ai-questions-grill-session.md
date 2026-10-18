@@ -1,6 +1,6 @@
 # 017 — AI questions and grill sessions on the canvas
 
-Status: Specification
+Status: In progress (phases 1-2 done; see `docs/architecture/ai-questions.md`)
 
 Prototype: `Chroma-AI-Canvas-Example.html` (the unified session: choice cards, architecture-diagram options, AI ranking with pro/con, decision history).
 
@@ -60,8 +60,8 @@ Agent launch: `terminal/agents.py` `agent_cli` injects the MCP registration — 
 
 ## Phases
 
-1. **Backend core.** Models, broker (open/answer/skip/timeout/restart-safe: an open question with no live waiter shows as "agent is no longer waiting"), routes, `ask_user` MCP server, unit tests for broker and routes.
-2. **Canvas UI.** `question` element + `QuestionCard` with choices, custom answer, skip, progress, decision history, revise (restarts later steps), AI-rank styling and pro/con. Vitest per component; Playwright journey: agent asks → click → agent receives answer (mock MCP client).
+1. **Backend core (done).** Models, broker (open/answer/skip/timeout/restart-safe: an open question with no live waiter shows as "agent is no longer waiting"), routes, `ask_user` MCP server, unit tests for broker and routes.
+2. **Canvas UI (done; Playwright journey still pending).** `question` element + `QuestionCard` with choices, custom answer, skip, progress, decision history, revise (restarts later steps), AI-rank styling and pro/con. Vitest per component; Playwright journey: agent asks → click → agent receives answer (mock MCP client).
 3. **Agent wiring.** Inject MCP config into Claude and Codex windows; `codechroma-grill` skill (Claude) and an `AGENTS.md` snippet (Codex) telling the agent to use `ask_user` with a recommended option and pro/con; Claude `AskUserQuestion` hook.
 4. **Diagram options.** `kind: "diagram"` options linked to drawn diagrams (reuse the draw-diagram skill output); scenario toggles stay inside the diagram element, not the question.
 5. **Docs.** New `docs/architecture/ai-questions.md`, row in CLAUDE.md map, update `single-canvas.md`, `parallel-agents.md`, `assistant-settings.md` where they touch.

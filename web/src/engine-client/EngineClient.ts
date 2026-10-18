@@ -1,4 +1,9 @@
 import type {
+  OpenQuestionsPayload,
+  QuestionAck,
+  QuestionAnswerBody,
+} from "../canvas/doc/question/questionAdapter";
+import type {
   AgentEvent,
   C1Coverage,
   CanvasBatch,
@@ -138,6 +143,14 @@ export interface EngineClient {
    * that recipe's own layer against its freshly resolved payload; resolves even when the batch is
    * rejected, same as patchCanvas. */
   runRecipe(recipe: string): Promise<CanvasBatchResult>;
+  /** Open agent questions (GET /repos/{id}/questions) -- 017-ai-questions-grill-session. */
+  getOpenQuestions(): Promise<OpenQuestionsPayload>;
+  /** Answers one question (POST /repos/{id}/questions/{qid}/answer); returns the agent's waiter. */
+  answerQuestion(questionId: string, body: QuestionAnswerBody): Promise<QuestionAck>;
+  /** Skips one question (POST /repos/{id}/questions/{qid}/skip). */
+  skipQuestion(questionId: string): Promise<QuestionAck>;
+  /** Reopens an answered question and restarts later steps (POST .../{qid}/revise -- assumed route). */
+  reviseQuestion(questionId: string): Promise<QuestionAck>;
   /** Which diagram artifacts already exist on disk (GET /repos/{id}/diagrams/status) — the
    * "Diagrams" menu's readiness signal, so it never offers a click that silently does nothing. */
   getDiagramsStatus(): Promise<DiagramsStatus>;
@@ -518,6 +531,22 @@ export class HttpEngineClient implements EngineClient {
 
   runRecipe(recipe: string): Promise<CanvasBatchResult> {
     return this.postJson<CanvasBatchResult>(`/recipes/${recipe}/run`);
+  }
+
+  getOpenQuestions(): Promise<OpenQuestionsPayload> {
+    return this.getJson<OpenQuestionsPayload>("/questions");
+  }
+
+  answerQuestion(questionId: string, body: QuestionAnswerBody): Promise<QuestionAck> {
+    return this.postJson<QuestionAck>(`/questions/${encodeURIComponent(questionId)}/answer`, body);
+  }
+
+  skipQuestion(questionId: string): Promise<QuestionAck> {
+    return this.postJson<QuestionAck>(`/questions/${encodeURIComponent(questionId)}/skip`);
+  }
+
+  reviseQuestion(questionId: string): Promise<QuestionAck> {
+    return this.postJson<QuestionAck>(`/questions/${encodeURIComponent(questionId)}/revise`);
   }
 
   getDiagramsStatus(): Promise<DiagramsStatus> {

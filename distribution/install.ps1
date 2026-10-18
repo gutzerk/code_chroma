@@ -103,6 +103,7 @@ function Install-CodeChroma {
         [switch]$Dotnet,  # kept so older command lines still work; the C# app is the only app
         [long]$MaxBytes = $script:DefaultMaxBytes
     )
+    $null = $Dotnet
     $target = 'dotnet-windows-x64'
     if ($env:OS -ne 'Windows_NT') { throw 'This installer supports Windows only.' }
     $arch = Get-CodeChromaArch

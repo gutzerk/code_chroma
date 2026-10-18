@@ -17,7 +17,7 @@ public class UpdateScriptTests
         public string Marker => HostShell.ForSh(Temp.Sub("launched.log"));
         public string UserData => Temp.Dir("userdata");
 
-        public void WriteApp(string path, string body) => File.WriteAllText(path, "#!/bin/sh\n" + body + "\n");
+        public void WriteApp(string path, string body) => WriteScript(path, body);
 
         public (int ExitCode, string Output) Run(string mode, string keep, IDictionary<string, string>? env = null)
         {
@@ -91,10 +91,16 @@ public class UpdateScriptTests
         Assert.True(InstallOutcomeStore.Read(run.UserData)!.Failed);
     }
 
+    private static void WriteScript(string path, string body)
+    {
+        File.WriteAllText(path, "#!/bin/sh\n" + body + "\n");
+        if (!OperatingSystem.IsWindows()) File.SetUnixFileMode(path, UnixFileMode.UserRead | UnixFileMode.UserWrite | UnixFileMode.UserExecute);
+    }
+
     private static string Fake(PosixRun run, string name, string body)
     {
         var path = run.Temp.Sub(name);
-        File.WriteAllText(path, "#!/bin/sh\n" + body + "\n");
+        WriteScript(path, body);
         return HostShell.ForSh(path);
     }
 

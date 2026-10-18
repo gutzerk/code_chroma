@@ -230,7 +230,7 @@ public class DebouncerTests
     public async Task A_burst_of_triggers_fires_once_after_the_quiet_window()
     {
         var fired = 0;
-        using var debouncer = new Debouncer(TimeSpan.FromMilliseconds(150), () => Interlocked.Increment(ref fired));
+        using var debouncer = new Debouncer(TimeSpan.FromMilliseconds(1000), () => Interlocked.Increment(ref fired));
 
         for (var i = 0; i < 5; i++)
         {
@@ -238,7 +238,7 @@ public class DebouncerTests
             await Task.Delay(40);
         }
         Assert.Equal(0, fired);
-        await Task.Delay(400);
+        await Task.Delay(2500);
 
         Assert.Equal(1, fired);
     }

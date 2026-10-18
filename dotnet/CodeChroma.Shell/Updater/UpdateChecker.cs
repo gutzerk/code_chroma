@@ -150,7 +150,7 @@ public sealed partial class UpdateChecker(HttpClient http, string repo = "gutzer
     private async Task<string?> SidecarHex(string assetName, List<ReleaseAsset> assets, CancellationToken ct)
     {
         var sidecar = assets.FirstOrDefault(a => a.Name == assetName + ".sha256");
-        if (sidecar is null) return null;
+        if (sidecar is null || !UpdateConstants.IsTrustedDownloadUrl(sidecar.BrowserDownloadUrl, repo)) return null;
         try
         {
             using var response = await Send(sidecar.BrowserDownloadUrl, ct);

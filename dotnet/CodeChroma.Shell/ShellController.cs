@@ -49,6 +49,7 @@ public sealed class ShellController(TabModel tabs, BridgeRegistry bridges, IShel
 
         var requesting = requestingTabId is null ? null : tabs.FindTab(requestingTabId);
         var tab = requesting is { RepoPath: null, WorkspaceId: null } ? requesting : tabs.NewTab();
+        tab.RepoPath = repoPath;
         tabs.SetActive(tab.Id);
         Changed();
 
@@ -59,6 +60,7 @@ public sealed class ShellController(TabModel tabs, BridgeRegistry bridges, IShel
         }
         catch (Exception e) when (e is InvalidOperationException or TimeoutException or IOException or System.ComponentModel.Win32Exception)
         {
+            tab.RepoPath = null;
             ui.ShowTabError(tab, e.Message);
             return;
         }

@@ -23,9 +23,8 @@ if (-not (Test-Path -LiteralPath (Join-Path $PublishDir $MainExe))) { throw "$Ma
 $work = Join-Path ([IO.Path]::GetTempPath()) "codechroma-vpk-$([guid]::NewGuid().ToString('N'))"
 New-Item -ItemType Directory -Force -Path $work, $OutDir | Out-Null
 try {
-    # The shell does not reference Velopack yet, so vpk's VelopackApp check must be skipped.
     & $Vpk pack --packId CodeChroma --packTitle CodeChroma --packVersion $Version --packDir $PublishDir `
-        --mainExe $MainExe --outputDir $work --channel win-x64 --runtime win-x64 --skipVeloAppCheck `
+        --mainExe $MainExe --outputDir $work --channel win-x64 --runtime win-x64 `
         --icon (Join-Path $PSScriptRoot '..\..\dotnet\CodeChroma.Shell.App\Assets\icon.ico')
     if ($LASTEXITCODE -ne 0) { throw "vpk pack failed with exit code $LASTEXITCODE." }
 

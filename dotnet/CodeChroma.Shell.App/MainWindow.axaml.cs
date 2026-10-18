@@ -112,11 +112,31 @@ public sealed partial class MainWindow : Window, IShellUi, ILauncherHost
     private object CreateView()
     {
         var view = new TabView(this) { IsVisible = false };
-        view.Web.NavigationCompleted += (_, _) => _ = view.Web.ExecuteScriptAsync(DesktopScript.Source);
-        view.Web.WebMessageReceived += (_, e) => Dispatcher.UIThread.Post(() => OnCanvasMessage(view, e.Message));
+        view.Web.NavigationCompleted += (_, _) =>
+        {
+            if (IsBridgeOrigin(view, view.Web.Url)) _ = view.Web.ExecuteScriptAsync(DesktopScript.Source);
+        };
+        view.Web.NavigationStarting += (_, e) =>
+        {
+            if (e.Url is not { } target || IsBridgeOrigin(view, target) || target.Scheme == "about") return;
+            e.Cancel = true;
+            if (target.Scheme is "http" or "https") Process.Start(new ProcessStartInfo(target.AbsoluteUri) { UseShellExecute = true });
+        };
+        view.Web.WebMessageReceived += (_, e) => Dispatcher.UIThread.Post(() =>
+        {
+            if (IsBridgeOrigin(view, view.Web.Url)) OnCanvasMessage(view, e.Message);
+        });
         view.Web.WebViewNewWindowRequested += (_, e) => e.UrlLoadingStrategy = WebViewCore.Enums.UrlRequestStrategy.OpenExternally;
         Content.Children.Add(view);
         return view;
+    }
+
+    private bool IsBridgeOrigin(TabView view, Uri? current)
+    {
+        var tab = tabs.Tabs.FirstOrDefault(t => ReferenceEquals(t.View, view));
+        if (current is null || tab is null || tabs.BridgeFor(tab) is not { } bridge) return false;
+        return Uri.TryCreate(bridge.Origin, UriKind.Absolute, out var origin)
+            && current.Scheme == origin.Scheme && current.Host == origin.Host && current.Port == origin.Port;
     }
 
     private void OnCanvasMessage(TabView view, string? json)

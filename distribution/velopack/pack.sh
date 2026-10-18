@@ -30,10 +30,9 @@ mkdir -p "$out"
 
 extra=""
 [ "${rid#osx-}" = "$rid" ] || extra="--noInst"
-# The shell does not reference Velopack yet, so vpk's VelopackApp check must be skipped.
 # shellcheck disable=SC2086
 "$vpk" pack --packId CodeChroma --packTitle CodeChroma --packVersion "$version" --packDir "$publish" \
-    --mainExe "$main_exe" --outputDir "$work" --channel "$rid" --runtime "$rid" --skipVeloAppCheck $extra
+    --mainExe "$main_exe" --outputDir "$work" --channel "$rid" --runtime "$rid" $extra
 
 # pick PATTERN: the single matching file in the vpk output, or fail listing what was produced.
 pick() {

@@ -17,6 +17,8 @@ public static class UpdateScripts
         open_bin="${CODECROMA_OPEN_BIN:-open}"
         pgrep_bin="${CODECROMA_PGREP_BIN:-pgrep}"
         launched=""
+        unset APPIMAGE APPDIR ARGV0 OWD
+        trap 'rm -f "$0"' EXIT
 
         report() {
             mkdir -p "$(dirname "$result")" 2>/dev/null

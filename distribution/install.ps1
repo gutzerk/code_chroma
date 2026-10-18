@@ -48,6 +48,7 @@ function Get-CodeChromaGh {
 
 function Invoke-CodeChromaGh {
     param([string]$Gh, [string[]]$Arguments)
+    $ErrorActionPreference = 'Continue'
     & $Gh @Arguments *> $null
     return $LASTEXITCODE
 }
@@ -63,7 +64,7 @@ function Get-CodeChromaUninstallEntry {
         if (-not (Test-Path -LiteralPath $root)) { continue }
         foreach ($key in Get-ChildItem -LiteralPath $root -ErrorAction SilentlyContinue) {
             $item = Get-ItemProperty -LiteralPath $key.PSPath -ErrorAction SilentlyContinue
-            if (-not $item -or $item.DisplayName -ne 'CodeChroma') { continue }
+            if (-not $item -or $item.DisplayName -notmatch '^CodeChroma( \d\S*)?$') { continue }
             $isVelopack = ([string]$item.UninstallString) -match 'Update\.exe'
             if ($Flavor -eq 'any' -or ($Flavor -eq 'dotnet' -and $isVelopack) -or ($Flavor -eq 'electron' -and -not $isVelopack)) { return $item }
         }

@@ -333,3 +333,5 @@ render `verificationNotice` yet (web is untouched), so in-page the warning is on
 ### C# bridge bundling
 
 `dotnet publish dotnet/CodeChroma.Shell.App -r <rid> --self-contained -p:BundleCSharpBridge=true` also publishes `dotnet/CodeChroma.Bridge` into `bridge/codechroma-bridge/` (apphost renamed to `codechroma-bridge[.exe]`) and copies `web/dist` (built with `VITE_ENGINE_BRIDGE_URL=same-origin VITE_TERMINAL_BRIDGE_URL=same-origin`) to its `web/` folder, which the bridge serves. The shell launches it as `codechroma-bridge --repo-path <repo> --port <n>` (`BridgeCli`) and probes `/health`. The gated `dotnet-*` release jobs use this option; the Electron jobs still freeze the Python bridge.
+
+The shell icon is `dotnet/CodeChroma.Shell.App/Assets/icon.ico` (generated from `desktop/build/icon.png` by `scripts/make_ico.ps1`); it is the exe's `ApplicationIcon`, the window icon, and passed to `vpk pack --icon` for the shortcuts. macOS (`.icns`) and Linux icons for the Velopack packages are not wired yet.

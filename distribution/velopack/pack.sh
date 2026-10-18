@@ -27,11 +27,18 @@ work="$(mktemp -d)"
 trap 'rm -rf "$work"' EXIT
 mkdir -p "$out"
 
+assets="$(cd "$(dirname "$0")/../../dotnet/CodeChroma.Shell.App/Assets" && pwd)"
+case "$rid" in
+    osx-*) icon="$assets/icon.icns" ;;
+    linux-x64) icon="$assets/icon.png" ;;
+esac
+[ -f "$icon" ] || { echo "error: icon $icon not found" >&2; exit 1; }
+
 extra=""
 [ "${rid#osx-}" = "$rid" ] || extra="--noInst"
 # shellcheck disable=SC2086
 "$vpk" pack --packId CodeChroma --packTitle CodeChroma --packVersion "$version" --packDir "$publish" \
-    --mainExe "$main_exe" --outputDir "$work" --channel "$rid" --runtime "$rid" $extra
+    --mainExe "$main_exe" --outputDir "$work" --channel "$rid" --runtime "$rid" --icon "$icon" $extra
 
 # pick PATTERN: the single matching file in the vpk output, or fail listing what was produced.
 pick() {

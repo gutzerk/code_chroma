@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it } from "vitest";
+import { tutorialSimStore } from "./tutorialSim";
 import { tutorialStore } from "./tutorialStore";
 import { TUTORIAL_STEPS } from "./tutorialSteps";
 
@@ -64,5 +65,25 @@ describe("tutorialStore stage 3", () => {
     tutorialStore.goToStage(3);
 
     expect(tutorialStore.currentStepId()).toBe("move-block");
+  });
+});
+
+describe("tutorialStore gate lifecycle", () => {
+  it("switches the diagram gate off when the tutorial finishes", () => {
+    tutorialSimStore.enableGate();
+    tutorialStore.start();
+
+    for (let i = 0; i < TUTORIAL_STEPS.length; i += 1) tutorialStore.next();
+
+    expect(tutorialSimStore.isHidden("c1")).toBe(false);
+  });
+
+  it("switches the diagram gate off when the tutorial is abandoned", () => {
+    tutorialSimStore.enableGate();
+    tutorialStore.start();
+
+    tutorialStore.reset();
+
+    expect(tutorialSimStore.isHidden("c1")).toBe(false);
   });
 });

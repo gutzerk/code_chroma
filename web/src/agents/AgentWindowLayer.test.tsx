@@ -237,6 +237,23 @@ describe("AgentWindowLayer", () => {
     );
   });
 
+  it("leaves Ctrl+Shift+O alone when no agent is docked", async () => {
+    renderLayer([]);
+
+    const notPrevented = fireEvent.keyDown(window, { key: "O", ctrlKey: true, shiftKey: true });
+
+    expect(notPrevented).toBe(true);
+  });
+
+  it("falls back to main when a branch-removed ping names the active workspace", async () => {
+    const ping = renderLayerWithPing([]);
+    agentStore.setActiveWorkspace("feature-x");
+
+    ping({ type: "branch-removed", id: "feature-x" });
+
+    await waitFor(() => expect(agentStore.getActiveWorkspace()).toBe("main"));
+  });
+
   it("keeps the detach action in the dock header as a non-shrinking control", async () => {
     const narrowHeaderAgent = record({
       title: "An agent with a long title that should not crowd the controls",

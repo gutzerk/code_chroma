@@ -1,5 +1,6 @@
 import { useSyncExternalStore } from "react";
 import { Store } from "../state/createStore";
+import { tutorialSimStore } from "./tutorialSim";
 import { TUTORIAL_STEPS, type TutorialStep } from "./tutorialSteps";
 
 class TutorialStore extends Store {
@@ -22,6 +23,7 @@ class TutorialStore extends Store {
     if (!this.active) return;
     if (this.stepIndex >= TUTORIAL_STEPS.length - 1) {
       this.active = false;
+      tutorialSimStore.disableGate();
     } else {
       this.stepIndex += 1;
     }
@@ -38,6 +40,7 @@ class TutorialStore extends Store {
 
   reset = (): void => {
     this.active = false;
+    tutorialSimStore.disableGate();
     this.stepIndex = 0;
     this.emit();
   };

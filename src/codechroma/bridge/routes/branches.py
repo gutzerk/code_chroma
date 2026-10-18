@@ -59,24 +59,31 @@ async def open_branch_workspace(request: Request, services: Services) -> dict:
 
 @router.delete("/branches/{workspace_id}")
 async def close_branch_workspace(
-    workspace_id: str, services: Services, worktree_too: bool = False
+    workspace_id: str, services: Services, worktree_too: bool = False, force: bool = False
 ) -> dict:
-    """Forgets the workspace; its directory is removed only with `?worktree_too=true`."""
+    """Forgets the workspace; its directory goes only with `?worktree_too=true` (+`force`)."""
     # Unknown ids and git refusals become 404/409 through bridge/errors.py's table.
-    record = await asyncio.to_thread(_close_blocking, services, workspace_id, worktree_too)
+    record = await asyncio.to_thread(
+        _close_blocking, services, workspace_id, worktree_too, force
+    )
     await services.release_workspace(workspace_id)
     await services.connections.broadcast({"type": "branch-removed", "id": workspace_id})
     return {"status": "deleted", "id": record.id}
 
 
 def _close_blocking(
-    services: BridgeServices, workspace_id: str, worktree_too: bool
+    services: BridgeServices, workspace_id: str, worktree_too: bool, force: bool = False
 ) -> BranchRecord:
-    """Unloads before the directory goes: an analyze still writing graph.db would fail mid-write."""
+    """Unloads before the directory goes (analyze writes graph.db); reloads if git refuses."""
     services.branch_manager.get(workspace_id)
     if worktree_too:
         services.registry.drop_live(workspace_id)
-    return services.branch_manager.delete(workspace_id, worktree_too)
+    try:
+        return services.branch_manager.delete(workspace_id, worktree_too, force)
+    except worktree.WorktreeError:
+        if worktree_too:
+            services.registry.ensure_async(workspace_id)
+        raise
 
 
 def _provision_blocking(

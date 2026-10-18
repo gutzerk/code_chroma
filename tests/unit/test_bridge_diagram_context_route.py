@@ -1,30 +1,17 @@
 """TestClient coverage for the unified GET /repos/{id}/{kind}/context envelope (037)."""
 
-import shutil
-import subprocess
-from pathlib import Path
 
 import pytest
 from fastapi.testclient import TestClient
 
 from codechroma.diagrams import library
-
-FIXTURE_REPO = Path(__file__).parent.parent / "fixtures" / "sample_repo"
-
-
-def _init_repo(root: Path) -> None:
-    subprocess.run(["git", "init"], cwd=root, check=True, capture_output=True)
-    subprocess.run(["git", "config", "user.email", "test@example.com"], cwd=root, check=True)
-    subprocess.run(["git", "config", "user.name", "Test"], cwd=root, check=True)
-    subprocess.run(["git", "add", "-A"], cwd=root, check=True, capture_output=True)
-    subprocess.run(["git", "commit", "-m", "initial"], cwd=root, check=True, capture_output=True)
+from tests.conftest import copy_sample_repo
 
 
 @pytest.fixture
 def server_module(tmp_path, monkeypatch, make_bridge):
     repo = tmp_path / "repo"
-    shutil.copytree(FIXTURE_REPO, repo)
-    _init_repo(repo)
+    copy_sample_repo(repo)
     monkeypatch.setenv("ANTHROPIC_API_KEY", "")
     monkeypatch.setenv(library.DIAGRAM_TYPES_DIR_ENV, str(tmp_path / "diagram-types"))
 

@@ -1,21 +1,14 @@
 """TestClient coverage for GET children on bridge/routes/graph.py, incl. binary files."""
 
 import shutil
-import subprocess
 from pathlib import Path
 
 import pytest
 from fastapi.testclient import TestClient
 
+from tests.conftest import init_repo
+
 FIXTURE_REPO = Path(__file__).parent.parent / "fixtures" / "sample_repo"
-
-
-def _init_repo(root: Path) -> None:
-    subprocess.run(["git", "init"], cwd=root, check=True, capture_output=True)
-    subprocess.run(["git", "config", "user.email", "test@example.com"], cwd=root, check=True)
-    subprocess.run(["git", "config", "user.name", "Test"], cwd=root, check=True)
-    subprocess.run(["git", "add", "-A"], cwd=root, check=True, capture_output=True)
-    subprocess.run(["git", "commit", "-m", "initial"], cwd=root, check=True, capture_output=True)
 
 
 @pytest.fixture
@@ -23,7 +16,7 @@ def client(tmp_path, monkeypatch, make_bridge):
     repo = tmp_path / "repo"
     shutil.copytree(FIXTURE_REPO, repo)
     (repo / "data.bin").write_bytes(b"\x00\x8a\xff binary not utf-8")
-    _init_repo(repo)
+    init_repo(repo)
 
     bridge = make_bridge(repo)
     return TestClient(bridge.app), repo
@@ -48,7 +41,7 @@ def docs_only_client(tmp_path, monkeypatch, make_bridge):
     docs_dir.mkdir()
     (docs_dir / "README.md").write_text("# Docs", encoding="utf-8")
     (docs_dir / "guide.rst").write_text("Guide", encoding="utf-8")
-    _init_repo(repo)
+    init_repo(repo)
 
     bridge = make_bridge(repo)
     return TestClient(bridge.app), repo

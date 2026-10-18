@@ -9,10 +9,11 @@ actually has to survive, and no longer needs a module reload to express.
 
 import json
 import shutil
-import subprocess
 from pathlib import Path
 
 import pytest
+
+from tests.conftest import git
 
 FIXTURE_REPO = Path(__file__).parent.parent / "fixtures" / "sample_repo"
 
@@ -28,10 +29,6 @@ PR_ENTRY = {
 }
 
 
-def _git(root: Path, *args: str) -> None:
-    subprocess.run(["git", *args], cwd=root, check=True, capture_output=True)
-
-
 def _write_prs(repo: Path, worktree: str) -> None:
     (repo / ".codechroma").mkdir(exist_ok=True)
     (repo / ".codechroma" / "prs.json").write_text(
@@ -44,11 +41,11 @@ def repo_with_open_pr(tmp_path, monkeypatch):
     """A repository whose prs.json already names a pull-request worktree, as after a restart."""
     repo = tmp_path / "repo"
     shutil.copytree(FIXTURE_REPO, repo)
-    _git(repo, "init")
-    _git(repo, "config", "user.email", "test@example.com")
-    _git(repo, "config", "user.name", "Test")
-    _git(repo, "add", "-A")
-    _git(repo, "commit", "-m", "initial")
+    git(repo, "init")
+    git(repo, "config", "user.email", "test@example.com")
+    git(repo, "config", "user.name", "Test")
+    git(repo, "add", "-A")
+    git(repo, "commit", "-m", "initial")
     pr_root = repo / ".codechroma" / "worktrees" / "pr-12"
     pr_root.mkdir(parents=True)
     (pr_root / "marker.py").write_text("value = 1\n", encoding="utf-8")
@@ -92,7 +89,7 @@ def test_its_diff_base_is_the_fetched_base_ref(rebooted):
 def test_a_vanished_worktree_is_flagged_rather_than_dropped(tmp_path, make_bridge):
     repo = tmp_path / "repo"
     shutil.copytree(FIXTURE_REPO, repo)
-    _git(repo, "init")
+    git(repo, "init")
     _write_prs(repo, str(tmp_path / "gone"))
 
     bridge = make_bridge(repo)
@@ -115,7 +112,7 @@ def test_an_active_pull_request_survives_the_restart(repo_with_open_pr, make_bri
 def test_an_active_workspace_that_no_longer_exists_falls_back_to_main(tmp_path, make_bridge):
     repo = tmp_path / "repo"
     shutil.copytree(FIXTURE_REPO, repo)
-    _git(repo, "init")
+    git(repo, "init")
     (repo / ".codechroma").mkdir(exist_ok=True)
     (repo / ".codechroma" / "agents.json").write_text(
         json.dumps({"version": 1, "agents": [], "active_workspace": "pr-99"})

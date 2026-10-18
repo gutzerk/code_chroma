@@ -8,24 +8,21 @@ import pytest
 from fastapi.testclient import TestClient
 
 from codechroma.bridge.agents import worktree
+from tests.conftest import git
 
 FIXTURE_REPO = Path(__file__).parent.parent / "fixtures" / "sample_repo"
-
-
-def _git(root: Path, *args: str) -> None:
-    subprocess.run(["git", *args], cwd=root, check=True, capture_output=True)
 
 
 @pytest.fixture
 def client(tmp_path, monkeypatch, make_bridge):
     repo = tmp_path / "repo"
     shutil.copytree(FIXTURE_REPO, repo)
-    _git(repo, "init", "-b", "main")
-    _git(repo, "config", "user.email", "test@example.com")
-    _git(repo, "config", "user.name", "Test")
-    _git(repo, "add", "-A")
-    _git(repo, "commit", "-m", "initial")
-    _git(repo, "branch", "feature-x")
+    git(repo, "init", "-b", "main")
+    git(repo, "config", "user.email", "test@example.com")
+    git(repo, "config", "user.name", "Test")
+    git(repo, "add", "-A")
+    git(repo, "commit", "-m", "initial")
+    git(repo, "branch", "feature-x")
     monkeypatch.setenv(worktree.WORKSPACES_DIR_ENV, str(tmp_path / "worktrees"))
     bridge = make_bridge(repo)
     return TestClient(bridge.app), repo, bridge

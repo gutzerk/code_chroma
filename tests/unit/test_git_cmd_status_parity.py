@@ -9,39 +9,33 @@ Comparing `base="HEAD"` against `base=<the sha HEAD points at>` puts both parser
 working tree, which is the overlap where they must not disagree.
 """
 
-import subprocess
 from pathlib import Path
 
 import pytest
 
 from codechroma.bridge.git_cmd import working_tree_status
-
-
-def _git(root: Path, *args: str) -> str:
-    return subprocess.run(
-        ["git", *args], cwd=root, check=True, capture_output=True, text=True
-    ).stdout
+from tests.conftest import git
 
 
 @pytest.fixture
 def repo(tmp_path):
     root = tmp_path / "repo"
     root.mkdir()
-    _git(root, "init", "-b", "main")
-    _git(root, "config", "user.email", "test@example.com")
-    _git(root, "config", "user.name", "Test")
+    git(root, "init", "-b", "main")
+    git(root, "config", "user.email", "test@example.com")
+    git(root, "config", "user.name", "Test")
     (root / "kept.py").write_text("value = 1\n", encoding="utf-8")
     (root / "edited.py").write_text("value = 2\n", encoding="utf-8")
     (root / "removed.py").write_text("value = 3\n", encoding="utf-8")
     (root / "renamed.py").write_text("value = 4\n", encoding="utf-8")
-    _git(root, "add", "-A")
-    _git(root, "commit", "-m", "initial")
+    git(root, "add", "-A")
+    git(root, "commit", "-m", "initial")
     return root
 
 
 def _both_ways(root: Path) -> tuple[dict, dict]:
     """(what the HEAD parser reports, what the against-a-commit parser reports) for one tree."""
-    head_sha = _git(root, "rev-parse", "HEAD").strip()
+    head_sha = git(root, "rev-parse", "HEAD").strip()
     return (
         working_tree_status(root, root, "HEAD").statuses,
         working_tree_status(root, root, head_sha).statuses,
@@ -58,7 +52,7 @@ def _add_untracked(root: Path) -> None:
 
 def _add_staged(root: Path) -> None:
     (root / "staged_new.py").write_text("value = 6\n", encoding="utf-8")
-    _git(root, "add", "staged_new.py")
+    git(root, "add", "staged_new.py")
 
 
 def _delete(root: Path) -> None:
@@ -66,11 +60,11 @@ def _delete(root: Path) -> None:
 
 
 def _delete_staged(root: Path) -> None:
-    _git(root, "rm", "-q", "removed.py")
+    git(root, "rm", "-q", "removed.py")
 
 
 def _rename_staged(root: Path) -> None:
-    _git(root, "mv", "renamed.py", "moved.py")
+    git(root, "mv", "renamed.py", "moved.py")
 
 
 def _everything(root: Path) -> None:

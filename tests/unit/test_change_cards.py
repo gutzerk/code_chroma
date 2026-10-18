@@ -14,23 +14,20 @@ from codechroma.bridge.change_cards import (
 )
 from codechroma.engine import GraphEngine
 from codechroma.summarize.ai_summarizer import AISummarizer
+from tests.conftest import git
 
 FIXTURE_REPO = Path(__file__).parent.parent / "fixtures" / "sample_repo"
-
-
-def _git(root: Path, *args: str) -> None:
-    subprocess.run(["git", *args], cwd=root, check=True, capture_output=True)
 
 
 @pytest.fixture
 def repo(tmp_path):
     root = tmp_path / "repo"
     shutil.copytree(FIXTURE_REPO, root)
-    _git(root, "init")
-    _git(root, "config", "user.email", "test@example.com")
-    _git(root, "config", "user.name", "Test")
-    _git(root, "add", "-A")
-    _git(root, "commit", "-m", "initial")
+    git(root, "init")
+    git(root, "config", "user.email", "test@example.com")
+    git(root, "config", "user.name", "Test")
+    git(root, "add", "-A")
+    git(root, "commit", "-m", "initial")
     return root
 
 
@@ -220,8 +217,8 @@ def test_a_changed_binary_file_is_carded_without_pretending_to_count_lines(repo,
 
 def test_a_deleted_non_code_file_still_gets_a_card(repo, engine):
     (repo / "NOTES.md").write_text("notes\n", encoding="utf-8")
-    _git(repo, "add", "-A")
-    _git(repo, "commit", "-m", "notes")
+    git(repo, "add", "-A")
+    git(repo, "commit", "-m", "notes")
     (repo / "NOTES.md").unlink()
 
     payload = build_change_cards(engine, repo)
@@ -288,7 +285,7 @@ def test_a_committed_change_still_shows_against_an_earlier_base(repo, engine):
     path.write_text(
         path.read_text(encoding="utf-8").replace('" ", "-"', '" ", "_"'), encoding="utf-8"
     )
-    _git(repo, "commit", "-am", "tweak the slug separator")
+    git(repo, "commit", "-am", "tweak the slug separator")
     _reanalyze(engine, "shared/text_utils.py")
 
     payload = build_change_cards(engine, repo, base=base)

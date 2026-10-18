@@ -59,25 +59,19 @@ def test_add_element_sanitizes_style_to_the_allowed_keys():
     assert element.style == {"background": "var(--accent)"}
 
 
-def test_add_element_without_a_position_cascades_instead_of_piling_at_origin():
+def test_add_element_without_a_position_lands_at_origin_for_the_canvas_to_lay_out():
     doc = CanvasDoc()
 
     result = apply_batch(doc, [
         {"op": "add_element", "temp_id": "a", "render": "c1", "label": "A"},
-        {"op": "add_element", "temp_id": "b", "render": "c1", "label": "B"},
     ])
 
     assert result.ok
-    pos_a = result.doc.elements[result.id_map["a"]].position
-    pos_b = result.doc.elements[result.id_map["b"]].position
-    # Position-less adds spread down-right (routes/canvas.py path), never piling
-    # at (0,0) or stacking on each other.
-    assert (pos_a.x, pos_a.y) != (0.0, 0.0)
-    assert (pos_b.x, pos_b.y) != (0.0, 0.0)
-    assert pos_b.x > pos_a.x
+    pos = result.doc.elements[result.id_map["a"]].position
+    assert (pos.x, pos.y) == (0.0, 0.0)
 
 
-def test_explicit_position_still_wins_over_the_default_cascade():
+def test_explicit_position_still_wins_over_the_origin_default():
     doc = CanvasDoc()
 
     result = apply_batch(doc, [

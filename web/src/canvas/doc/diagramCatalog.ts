@@ -11,6 +11,7 @@ import type {
 import { recipeChromeKey } from "../../state/useSidecar";
 import { stringMeta } from "./elementMeta";
 import { layoutNewElements } from "./autoLayout";
+import { layoutOps } from "./pileLayout";
 import { isEpicsLayerName, parentEpicKey } from "./epicsLayout";
 import { BLOCK_RULES } from "./elementRules";
 import { canvasDocStore, collectActiveLayers, patchCanvasDoc } from "./canvasDocStore";
@@ -156,7 +157,7 @@ export function useCustomDiagramTypes(engineClient: EngineClient): DiagramTypeSu
  * watch the same set so they never disagree about what counts as a diagram ping. `epics` is in here
  * (unlike the status fetch alone, which already covers it) so a freshly written `epics.json` also
  * drives the auto-place-the-layer flow, not just the readiness map. */
-export const WATCHED_DIAGRAM_EVENT_KINDS: DiagramEventKind[] = ["c1", "epics", "patterns", "impact", "sequence", "custom"];
+export const WATCHED_DIAGRAM_EVENT_KINDS: DiagramEventKind[] = ["c1", "epics", "patterns", "impact", "sequence", "custom", "feature-plan"];
 
 /** Fetches `GET /repos/{id}/diagrams/status` once, then keeps it fresh on every diagram ping -- the
  * Diagrams tab's own copy of the readiness map `DrawDiagramButton` keeps for its own task text,
@@ -235,7 +236,7 @@ export function computeReadyDiagrams(
  * canvas -- several diagrams can coexist at once. Shared by `DrawDiagramButton`'s auto-add-when-ready
  * effect and `AgentRail`'s Diagrams tab (both its expand-refresh and its "add back" action).
  *
- * Before falling back to a fresh dagre layout, each new element is checked against
+ * Before falling back to a fresh ELK layout, each new element is checked against
  * `layerPositionCache` -- a hit means this same recipe key sat on the canvas before a
  * `removeLayerAndRefresh` deleted it, so its old spot is restored instead of a new one being
  * computed, which is what makes remove-then-re-add via the rail keep a user's dragged layout. */
@@ -295,16 +296,11 @@ export async function runRecipeAndLayout(
       if (cached) restored[id] = cached;
       else toLayout.push(id);
     }
-    const { positions, sizes } = layoutNewElements(doc, toLayout);
+    const { positions, sizes } = await layoutNewElements(doc, toLayout, restored);
     // Fold any derived sizes (a content-fit epics width) in with the positions; `update_element`
     // carries both, so a box that auto-sized to its text keeps that width once persisted.
     const layout = { ...restored, ...positions };
-    const ops = Object.entries(layout).map(([id, position]) => ({
-      op: "update_element" as const,
-      id,
-      position,
-      ...(sizes?.[id] ? { size: sizes[id] } : {}),
-    }));
+    const ops = layoutOps(layout, sizes);
     if (ops.length > 0) {
       // patchCanvasDoc's own post-write refetch applies the laid-out doc through the shared
       // fetchAndApplyCanvasDoc path: the content check there passes now that these boxes are no
@@ -334,7 +330,7 @@ export async function runRecipeAndLayout(
  *
  * Snapshots every element's position into `layerPositionCache` first — once `delete_element` lands,
  * that position exists nowhere else, and `runRecipeAndLayout` reads this snapshot to restore it if
- * the same recipe is picked again instead of running a fresh dagre layout. */
+ * the same recipe is picked again instead of running a fresh ELK layout. */
 export async function removeLayerAndRefresh(
   engineClient: EngineClient,
   layer: string,

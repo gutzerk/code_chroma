@@ -1,0 +1,543 @@
+{
+ "schema_version": 1,
+ "files": [
+  {
+   "path": "go.mod",
+   "symbols": null
+  },
+  {
+   "path": "pyproject.toml",
+   "symbols": null
+  },
+  {
+   "path": "goservice/handler.go",
+   "symbols": [
+    {
+     "id": "goservice/handler.go::module::goservice.handler",
+     "file_path": "goservice/handler.go",
+     "kind": "module",
+     "name": "handler",
+     "qualified_name": "goservice.handler",
+     "start_line": 1,
+     "end_line": 10,
+     "language": "go",
+     "parent_symbol_id": null,
+     "references": [],
+     "qualified_references": [],
+     "assigned_identifiers": [],
+     "imports": {
+      "goutil": "example.com/c0fixture/goutil"
+     },
+     "body_statements": [],
+     "docstring": "Package goservice calls the goutil package across a real go.mod-rooted import path.",
+     "is_exported": false
+    },
+    {
+     "id": "goservice/handler.go::function::Greet",
+     "file_path": "goservice/handler.go",
+     "kind": "function",
+     "name": "Greet",
+     "qualified_name": "Greet",
+     "start_line": 7,
+     "end_line": 9,
+     "language": "go",
+     "parent_symbol_id": "goservice/handler.go::module::goservice.handler",
+     "references": [
+      "Helper"
+     ],
+     "qualified_references": [
+      {
+       "qualifier": "goutil",
+       "name": "Helper"
+      }
+     ],
+     "assigned_identifiers": [],
+     "imports": {},
+     "body_statements": [
+      {
+       "type": "return_statement",
+       "start_line": 8,
+       "end_line": 8
+      }
+     ],
+     "docstring": "Greet resolves through the imported package's directory, not a string comparison.",
+     "is_exported": true
+    }
+   ]
+  },
+  {
+   "path": "goutil/helper.go",
+   "symbols": [
+    {
+     "id": "goutil/helper.go::module::goutil.helper",
+     "file_path": "goutil/helper.go",
+     "kind": "module",
+     "name": "helper",
+     "qualified_name": "goutil.helper",
+     "start_line": 1,
+     "end_line": 8,
+     "language": "go",
+     "parent_symbol_id": null,
+     "references": [],
+     "qualified_references": [],
+     "assigned_identifiers": [],
+     "imports": {},
+     "body_statements": [],
+     "docstring": "Package goutil provides a small exported helper resolved cross-package.",
+     "is_exported": false
+    },
+    {
+     "id": "goutil/helper.go::function::Helper",
+     "file_path": "goutil/helper.go",
+     "kind": "function",
+     "name": "Helper",
+     "qualified_name": "Helper",
+     "start_line": 5,
+     "end_line": 7,
+     "language": "go",
+     "parent_symbol_id": "goutil/helper.go::module::goutil.helper",
+     "references": [],
+     "qualified_references": [],
+     "assigned_identifiers": [],
+     "imports": {},
+     "body_statements": [
+      {
+       "type": "return_statement",
+       "start_line": 6,
+       "end_line": 6
+      }
+     ],
+     "docstring": "Helper returns a greeting for name.",
+     "is_exported": true
+    }
+   ]
+  },
+  {
+   "path": "src/pkg/__init__.py",
+   "symbols": [
+    {
+     "id": "src/pkg/__init__.py::module::src.pkg",
+     "file_path": "src/pkg/__init__.py",
+     "kind": "module",
+     "name": "pkg",
+     "qualified_name": "src.pkg",
+     "start_line": 1,
+     "end_line": 1,
+     "language": "python",
+     "parent_symbol_id": null,
+     "references": [],
+     "qualified_references": [],
+     "assigned_identifiers": [],
+     "imports": {},
+     "body_statements": [],
+     "docstring": null,
+     "is_exported": false
+    }
+   ]
+  },
+  {
+   "path": "src/pkg/models.py",
+   "symbols": [
+    {
+     "id": "src/pkg/models.py::module::src.pkg.models",
+     "file_path": "src/pkg/models.py",
+     "kind": "module",
+     "name": "models",
+     "qualified_name": "src.pkg.models",
+     "start_line": 1,
+     "end_line": 14,
+     "language": "python",
+     "parent_symbol_id": null,
+     "references": [],
+     "qualified_references": [],
+     "assigned_identifiers": [],
+     "imports": {},
+     "body_statements": [],
+     "docstring": "Widget model, resolved cross-file via the src-layout package root.",
+     "is_exported": false
+    },
+    {
+     "id": "src/pkg/models.py::class::Widget",
+     "file_path": "src/pkg/models.py",
+     "kind": "class",
+     "name": "Widget",
+     "qualified_name": "Widget",
+     "start_line": 4,
+     "end_line": 8,
+     "language": "python",
+     "parent_symbol_id": "src/pkg/models.py::module::src.pkg.models",
+     "references": [],
+     "qualified_references": [],
+     "assigned_identifiers": [],
+     "imports": {},
+     "body_statements": [],
+     "docstring": "A named widget.",
+     "is_exported": false
+    },
+    {
+     "id": "src/pkg/models.py::function::Widget.__init__",
+     "file_path": "src/pkg/models.py",
+     "kind": "function",
+     "name": "__init__",
+     "qualified_name": "Widget.__init__",
+     "start_line": 7,
+     "end_line": 8,
+     "language": "python",
+     "parent_symbol_id": "src/pkg/models.py::class::Widget",
+     "references": [],
+     "qualified_references": [],
+     "assigned_identifiers": [],
+     "imports": {},
+     "body_statements": [
+      {
+       "type": "expression_statement",
+       "start_line": 8,
+       "end_line": 8
+      }
+     ],
+     "docstring": null,
+     "is_exported": false
+    },
+    {
+     "id": "src/pkg/models.py::function::build",
+     "file_path": "src/pkg/models.py",
+     "kind": "function",
+     "name": "build",
+     "qualified_name": "build",
+     "start_line": 11,
+     "end_line": 13,
+     "language": "python",
+     "parent_symbol_id": "src/pkg/models.py::module::src.pkg.models",
+     "references": [
+      "Widget"
+     ],
+     "qualified_references": [],
+     "assigned_identifiers": [],
+     "imports": {},
+     "body_statements": [
+      {
+       "type": "expression_statement",
+       "start_line": 12,
+       "end_line": 12
+      },
+      {
+       "type": "return_statement",
+       "start_line": 13,
+       "end_line": 13
+      }
+     ],
+     "docstring": "Constructs a Widget by name.",
+     "is_exported": false
+    }
+   ]
+  },
+  {
+   "path": "src/pkg/service.py",
+   "symbols": [
+    {
+     "id": "src/pkg/service.py::module::src.pkg.service",
+     "file_path": "src/pkg/service.py",
+     "kind": "module",
+     "name": "service",
+     "qualified_name": "src.pkg.service",
+     "start_line": 1,
+     "end_line": 18,
+     "language": "python",
+     "parent_symbol_id": null,
+     "references": [],
+     "qualified_references": [],
+     "assigned_identifiers": [],
+     "imports": {
+      "m": "pkg.models"
+     },
+     "body_statements": [],
+     "docstring": "Service that resolves Widget across the src-layout package root via a module alias.",
+     "is_exported": false
+    },
+    {
+     "id": "src/pkg/service.py::class::Factory",
+     "file_path": "src/pkg/service.py",
+     "kind": "class",
+     "name": "Factory",
+     "qualified_name": "Factory",
+     "start_line": 5,
+     "end_line": 17,
+     "language": "python",
+     "parent_symbol_id": "src/pkg/service.py::module::src.pkg.service",
+     "references": [
+      "build",
+      "_local_helper"
+     ],
+     "qualified_references": [
+      {
+       "qualifier": "m",
+       "name": "build"
+      },
+      {
+       "qualifier": "self",
+       "name": "_local_helper"
+      }
+     ],
+     "assigned_identifiers": [],
+     "imports": {},
+     "body_statements": [],
+     "docstring": "Builds widgets; deliberately mixes a resolvable call with unresolvable ones.",
+     "is_exported": false
+    },
+    {
+     "id": "src/pkg/service.py::function::Factory.__init__",
+     "file_path": "src/pkg/service.py",
+     "kind": "function",
+     "name": "__init__",
+     "qualified_name": "Factory.__init__",
+     "start_line": 8,
+     "end_line": 9,
+     "language": "python",
+     "parent_symbol_id": "src/pkg/service.py::class::Factory",
+     "references": [],
+     "qualified_references": [],
+     "assigned_identifiers": [],
+     "imports": {},
+     "body_statements": [
+      {
+       "type": "expression_statement",
+       "start_line": 9,
+       "end_line": 9
+      }
+     ],
+     "docstring": null,
+     "is_exported": false
+    },
+    {
+     "id": "src/pkg/service.py::function::Factory.make",
+     "file_path": "src/pkg/service.py",
+     "kind": "function",
+     "name": "make",
+     "qualified_name": "Factory.make",
+     "start_line": 11,
+     "end_line": 14,
+     "language": "python",
+     "parent_symbol_id": "src/pkg/service.py::class::Factory",
+     "references": [
+      "build",
+      "_local_helper"
+     ],
+     "qualified_references": [
+      {
+       "qualifier": "m",
+       "name": "build"
+      },
+      {
+       "qualifier": "self",
+       "name": "_local_helper"
+      }
+     ],
+     "assigned_identifiers": [],
+     "imports": {},
+     "body_statements": [
+      {
+       "type": "expression_statement",
+       "start_line": 12,
+       "end_line": 12
+      },
+      {
+       "type": "expression_statement",
+       "start_line": 13,
+       "end_line": 13
+      },
+      {
+       "type": "return_statement",
+       "start_line": 14,
+       "end_line": 14
+      }
+     ],
+     "docstring": null,
+     "is_exported": false
+    },
+    {
+     "id": "src/pkg/service.py::function::Factory._local_helper",
+     "file_path": "src/pkg/service.py",
+     "kind": "function",
+     "name": "_local_helper",
+     "qualified_name": "Factory._local_helper",
+     "start_line": 16,
+     "end_line": 17,
+     "language": "python",
+     "parent_symbol_id": "src/pkg/service.py::class::Factory",
+     "references": [],
+     "qualified_references": [],
+     "assigned_identifiers": [],
+     "imports": {},
+     "body_statements": [
+      {
+       "type": "return_statement",
+       "start_line": 17,
+       "end_line": 17
+      }
+     ],
+     "docstring": null,
+     "is_exported": false
+    }
+   ]
+  },
+  {
+   "path": "web/index.ts",
+   "symbols": [
+    {
+     "id": "web/index.ts::module::web.index",
+     "file_path": "web/index.ts",
+     "kind": "module",
+     "name": "index",
+     "qualified_name": "web.index",
+     "start_line": 1,
+     "end_line": 6,
+     "language": "typescript",
+     "parent_symbol_id": null,
+     "references": [],
+     "qualified_references": [],
+     "assigned_identifiers": [],
+     "imports": {
+      "helper": "./utils"
+     },
+     "body_statements": [],
+     "docstring": null,
+     "is_exported": false
+    },
+    {
+     "id": "web/index.ts::function::greet",
+     "file_path": "web/index.ts",
+     "kind": "function",
+     "name": "greet",
+     "qualified_name": "greet",
+     "start_line": 3,
+     "end_line": 5,
+     "language": "typescript",
+     "parent_symbol_id": "web/index.ts::module::web.index",
+     "references": [
+      "helper"
+     ],
+     "qualified_references": [],
+     "assigned_identifiers": [],
+     "imports": {},
+     "body_statements": [
+      {
+       "type": "return_statement",
+       "start_line": 4,
+       "end_line": 4
+      }
+     ],
+     "docstring": null,
+     "is_exported": true
+    }
+   ]
+  },
+  {
+   "path": "web/utils.ts",
+   "symbols": [
+    {
+     "id": "web/utils.ts::module::web.utils",
+     "file_path": "web/utils.ts",
+     "kind": "module",
+     "name": "utils",
+     "qualified_name": "web.utils",
+     "start_line": 1,
+     "end_line": 4,
+     "language": "typescript",
+     "parent_symbol_id": null,
+     "references": [],
+     "qualified_references": [],
+     "assigned_identifiers": [],
+     "imports": {},
+     "body_statements": [],
+     "docstring": null,
+     "is_exported": false
+    },
+    {
+     "id": "web/utils.ts::function::helper",
+     "file_path": "web/utils.ts",
+     "kind": "function",
+     "name": "helper",
+     "qualified_name": "helper",
+     "start_line": 1,
+     "end_line": 3,
+     "language": "typescript",
+     "parent_symbol_id": "web/utils.ts::module::web.utils",
+     "references": [],
+     "qualified_references": [],
+     "assigned_identifiers": [],
+     "imports": {},
+     "body_statements": [
+      {
+       "type": "return_statement",
+       "start_line": 2,
+       "end_line": 2
+      }
+     ],
+     "docstring": null,
+     "is_exported": true
+    }
+   ]
+  }
+ ],
+ "import_resolutions": {
+  "goservice/handler.go": {
+   "example.com/c0fixture/goutil": "goutil"
+  },
+  "src/pkg/service.py": {
+   "pkg.models": "src/pkg/models.py"
+  },
+  "web/index.ts": {
+   "./utils": "web/utils.ts"
+  }
+ },
+ "summaries": {
+  "dir::goservice": "System `goservice`: level=system; source=goservice",
+  "component::goservice/handler.go": "Component `handler.go`: level=component; source=goservice/handler.go",
+  "service::goservice/handler.go::functions": "Service `Module Functions`: level=service; source=goservice/handler.go",
+  "goservice/handler.go::function::Greet": "Function `Greet`: level=function; source=goservice/handler.go; calls=Helper",
+  "logicblock::goservice/handler.go::function::Greet::0": "Logic block `Step 1`: level=logic_block; source=goservice/handler.go:8-8",
+  "code::logicblock::goservice/handler.go::function::Greet::0": "Code `goservice/handler.go:8-8`: level=code; source=goservice/handler.go:8-8",
+  "dir::goutil": "System `goutil`: level=system; source=goutil",
+  "component::goutil/helper.go": "Component `helper.go`: level=component; source=goutil/helper.go",
+  "service::goutil/helper.go::functions": "Service `Module Functions`: level=service; source=goutil/helper.go",
+  "goutil/helper.go::function::Helper": "Function `Helper`: level=function; source=goutil/helper.go",
+  "logicblock::goutil/helper.go::function::Helper::0": "Logic block `Step 1`: level=logic_block; source=goutil/helper.go:6-6",
+  "code::logicblock::goutil/helper.go::function::Helper::0": "Code `goutil/helper.go:6-6`: level=code; source=goutil/helper.go:6-6",
+  "dir::src": "System `src`: level=system; source=src",
+  "dir::src/pkg": "Pillar `pkg`: level=pillar; source=src/pkg",
+  "component::src/pkg/__init__.py": "Component `__init__.py`: level=component; source=src/pkg/__init__.py",
+  "component::src/pkg/models.py": "Component `models.py`: level=component; source=src/pkg/models.py",
+  "src/pkg/models.py::class::Widget": "Service `Widget`: level=service; source=src/pkg/models.py",
+  "src/pkg/models.py::function::Widget.__init__": "Function `__init__`: level=function; source=src/pkg/models.py",
+  "logicblock::src/pkg/models.py::function::Widget.__init__::0": "Logic block `Step 1`: level=logic_block; source=src/pkg/models.py:8-8",
+  "code::logicblock::src/pkg/models.py::function::Widget.__init__::0": "Code `src/pkg/models.py:8-8`: level=code; source=src/pkg/models.py:8-8",
+  "service::src/pkg/models.py::functions": "Service `Module Functions`: level=service; source=src/pkg/models.py",
+  "src/pkg/models.py::function::build": "Function `build`: level=function; source=src/pkg/models.py; calls=Widget",
+  "logicblock::src/pkg/models.py::function::build::0": "Logic block `Step 1`: level=logic_block; source=src/pkg/models.py:12-13",
+  "code::logicblock::src/pkg/models.py::function::build::0": "Code `src/pkg/models.py:12-13`: level=code; source=src/pkg/models.py:12-13",
+  "component::src/pkg/service.py": "Component `service.py`: level=component; source=src/pkg/service.py",
+  "src/pkg/service.py::class::Factory": "Service `Factory`: level=service; source=src/pkg/service.py; calls=_local_helper, build",
+  "src/pkg/service.py::function::Factory.__init__": "Function `__init__`: level=function; source=src/pkg/service.py",
+  "logicblock::src/pkg/service.py::function::Factory.__init__::0": "Logic block `Step 1`: level=logic_block; source=src/pkg/service.py:9-9",
+  "code::logicblock::src/pkg/service.py::function::Factory.__init__::0": "Code `src/pkg/service.py:9-9`: level=code; source=src/pkg/service.py:9-9",
+  "src/pkg/service.py::function::Factory.make": "Function `make`: level=function; source=src/pkg/service.py; calls=_local_helper, build",
+  "logicblock::src/pkg/service.py::function::Factory.make::0": "Logic block `Step 1`: level=logic_block; source=src/pkg/service.py:12-14",
+  "code::logicblock::src/pkg/service.py::function::Factory.make::0": "Code `src/pkg/service.py:12-14`: level=code; source=src/pkg/service.py:12-14",
+  "src/pkg/service.py::function::Factory._local_helper": "Function `_local_helper`: level=function; source=src/pkg/service.py",
+  "logicblock::src/pkg/service.py::function::Factory._local_helper::0": "Logic block `Step 1`: level=logic_block; source=src/pkg/service.py:17-17",
+  "code::logicblock::src/pkg/service.py::function::Factory._local_helper::0": "Code `src/pkg/service.py:17-17`: level=code; source=src/pkg/service.py:17-17",
+  "dir::web": "System `web`: level=system; source=web",
+  "component::web/index.ts": "Component `index.ts`: level=component; source=web/index.ts",
+  "service::web/index.ts::functions": "Service `Module Functions`: level=service; source=web/index.ts",
+  "web/index.ts::function::greet": "Function `greet`: level=function; source=web/index.ts; calls=helper",
+  "logicblock::web/index.ts::function::greet::0": "Logic block `Step 1`: level=logic_block; source=web/index.ts:4-4",
+  "code::logicblock::web/index.ts::function::greet::0": "Code `web/index.ts:4-4`: level=code; source=web/index.ts:4-4",
+  "component::web/utils.ts": "Component `utils.ts`: level=component; source=web/utils.ts",
+  "service::web/utils.ts::functions": "Service `Module Functions`: level=service; source=web/utils.ts",
+  "web/utils.ts::function::helper": "Function `helper`: level=function; source=web/utils.ts",
+  "logicblock::web/utils.ts::function::helper::0": "Logic block `Step 1`: level=logic_block; source=web/utils.ts:2-2",
+  "code::logicblock::web/utils.ts::function::helper::0": "Code `web/utils.ts:2-2`: level=code; source=web/utils.ts:2-2",
+  "component::go.mod": "Component `go.mod`: level=component; source=go.mod",
+  "component::pyproject.toml": "Component `pyproject.toml`: level=component; source=pyproject.toml"
+ }
+}

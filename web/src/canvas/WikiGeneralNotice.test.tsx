@@ -113,8 +113,8 @@ describe("WikiGeneralNotice", () => {
       }),
     });
 
-    expect(await screen.findByTestId("wiki-general-notice")).toHaveTextContent(
-      "Building the architecture map",
+    await waitFor(() =>
+      expect(screen.getByTestId("wiki-general-notice")).toHaveTextContent("Building the architecture map"),
     );
   });
 
@@ -167,8 +167,8 @@ describe("WikiGeneralNotice", () => {
       }),
     });
 
-    expect(await screen.findByTestId("wiki-general-notice")).toHaveTextContent(
-      "Building the architecture map",
+    await waitFor(() =>
+      expect(screen.getByTestId("wiki-general-notice")).toHaveTextContent("Building the architecture map"),
     );
     expect(screen.getByTestId("wiki-general-stop")).toBeInTheDocument();
   });
@@ -329,8 +329,8 @@ describe("WikiGeneralNotice", () => {
       }),
     });
 
-    expect(await screen.findByTestId("wiki-general-notice")).toHaveTextContent(
-      "Building the architecture map",
+    await waitFor(() =>
+      expect(screen.getByTestId("wiki-general-notice")).toHaveTextContent("Building the architecture map"),
     );
     expect(screen.queryByTestId("wiki-general-update")).toBeNull();
   });

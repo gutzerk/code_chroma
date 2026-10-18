@@ -141,6 +141,19 @@ path that really exists on disk may have **no graph node at all**. That is not a
 — pick a path the graph listed, or leave the box conceptual (`path`/`node_id` null) where its schema
 allows it.
 
+### Point `node_id` at the deepest symbol
+
+A `node_id` is the **most specific graph node the box represents**, not just its file: prefer
+`<path>::function::<qualname>` or `<path>::class::<qualname>` over `component::<path>`, and fall back
+to the file only when the box really is the whole file (or the file has no symbol node for it).
+Two classes or functions from one file are two boxes with two different `node_id`s. Copy them from
+`GET /structure?root=component::<path>&depth=2` — never construct one. A fail/terminate, aggregate or
+stage box that isn't a real piece of code takes `node_id: null` with `meta.no_code_reason:
+"conceptual"` (or a `dir::` id when it means a folder), never the working file's id. The checker's
+`SHAREDNODE` advisory (flat kinds only) flags one `node_id` claimed by boxes in several groups.
+`impact` is the exception: its boxes are file-level by design (see `type-impact.md`), so ignore
+`SHAREDNODE` there when one changed file legitimately spans several groups.
+
 ## Density budgets
 
 These are a **pathology ceiling, never a size target.** Hitting one means the diagram has gone
@@ -163,6 +176,22 @@ boxes across the top), and its "relations" are its messages (the real story, cap
 `impact`'s 25 is low **on purpose**: its slice is one-hop by construction, so a big impact diagram
 means you dumped the repo instead of judging the slice. `patterns` has the opposite failure mode —
 its characteristic bug is too *few* boxes (`SPARSE`), not too many.
+
+## Splitting a crowded diagram
+
+Past ~15 nodes a diagram gets unreadable (overlapping frames, tangled edges), long before the
+ceilings above. The self-check prints a `SPLIT` advisory when the count exceeds 15
+(`--split-threshold N` tunes it, `0` disables it; a legitimately large diagram may stay whole).
+
+1. **Warn and propose, don't just draw.** Tell the user the diagram is too large and propose a split
+   plan — by stage/frame, by subsystem/directory, by flow step, or by abstraction layer — naming each
+   resulting diagram and what it holds. Ask them to confirm, adjust, or keep one diagram.
+2. **On confirm, draw several focused diagrams**, each coherent on its own and within the threshold.
+   Write the first to the type's normal path; write the others as `custom` diagrams (or the
+   type's own sub-slug where it has one), each running the self-check.
+3. **Cross-reference them.** Give every split diagram a box (kind `external`, named after its
+   sibling, `description` saying which diagram holds the rest) for each neighbour it hands off to,
+   so the whole picture stays navigable.
 
 ## Anti-patterns
 
@@ -294,6 +323,7 @@ Same six per type; each `type-*.md` adds only what differs.
 | `DANGLING <pair>` | fix the id, or drop the relation |
 | `SELF <pair>` | drop it (`custom`'s `dependency-graph` style excepted — recursion is real) |
 | `ORPHAN <id>` | wire it in, or drop it |
+| `SHAREDNODE <node_id>` | advisory (flat kinds; not `impact`) — give each box its own class/function id, or `null` + `no_code_reason: conceptual` |
 | `ISLAND <ids…>` | wire in the missing relation, or merge/drop the cluster |
 
 ## The one shared diagram shape
@@ -459,3 +489,17 @@ The user wants a diagram none of the four rows covers. In this order:
 
    Same rule as every other kind: don't report the diagram finished until this pass comes back
    clean.
+
+
+## External components and standard shapes
+
+- **External systems** (third-party services, external APIs, legacy systems, anything outside this
+  repo that takes part in the flow) must be drawn, not skipped. Author them pathless with
+  `"meta": {"external": true}`; the resolver stamps `no_code_reason: "external"` (never
+  `conceptual` -- the two tags are separate), and the canvas draws a dashed amber outline plus an
+  `EXTERNAL` chip. On the freeform canvas path set `"meta": {"no_code_reason": "external"}` yourself.
+- **Standard shapes**: set `"meta": {"shape": "<name>"}` with one of `database` (cylinder-like),
+  `storage`, `queue` (pill), `actor` (user), `client` (browser/app, heavy top bar), `cache`,
+  `external`. Pick by component type instead of leaving everything a plain box; an unknown name
+  renders a plain box. The registry lives in `web/src/canvas/doc/shapes.ts` -- add a name there plus a
+  `.node-shape-<name>` rule in `web/src/styles.css`.

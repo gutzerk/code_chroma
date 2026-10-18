@@ -82,6 +82,8 @@ NOARROWS_MIN_BLOCKS = 8
 MIN_BLOCKS_FOR_DEPTH = 12
 # Below this ratio (diagram nodes / density-source classes), the run reproduced the same thinness.
 MIN_COVERAGE_RATIO = 0.15
+# Above this many nodes the SPLIT advisory asks the agent to propose several diagrams (issue #99).
+DEFAULT_SPLIT_THRESHOLD = 15
 MIN_CLASSES_FOR_SPARSE_CHECK = 8
 # Below this, it's a single unconnected id (ORPHAN's job for nodes[]), not an isolated cluster.
 MIN_ISLAND_SIZE = 2
@@ -281,6 +283,7 @@ def main(argv: list[str] | None = None) -> int:
         return 2
 
     _check_density(checks["budgets"], diagram_style, args.kind, report)
+    _check_split(args.split_threshold, diagram_style, args.kind, report)
     _check_hero_budget(checks, report)
     _check_impact_status(diagram, args.kind, report)
     if not args.json_path:
@@ -315,6 +318,12 @@ def _parse_args(argv: list[str] | None) -> argparse.Namespace:
     parser.add_argument("--slug", help="feature-plan slug (required for --kind feature-plan)")
     parser.add_argument("--source", default="diff", choices=("diff", "plan"), help="impact slice")
     parser.add_argument("--feature", help="feature dir (impact-context&feature=) for a plan slice")
+    parser.add_argument(
+        "--split-threshold",
+        type=int,
+        default=DEFAULT_SPLIT_THRESHOLD,
+        help="node count above which SPLIT suggests several diagrams (0 disables)",
+    )
     parser.add_argument(
         "--shape-advisory",
         action="store_true",
@@ -815,6 +824,18 @@ def _check_density(budgets: dict, style: object, kind: str, report: _Report) -> 
             )
 
 
+def _check_split(threshold: int, style: object, kind: str, report: _Report) -> None:
+    """Advisory: past ~15 nodes, propose splitting instead of shipping a crowded diagram."""
+    if threshold <= 0 or (kind == "custom" and style == "dependency-graph"):
+        return
+    if report.node_count > threshold:
+        report.advisories.append(
+            f"SPLIT {report.node_count} node(s), over {threshold} -- tell the user it is crowded,"
+            " propose a split (by stage/subsystem/layer/flow step), and on confirm draw several"
+            " linked diagrams (see drawing-rules.md 'Splitting a crowded diagram')"
+        )
+
+
 def _check_hero_budget(checks: dict, report: _Report) -> None:
     """Impact only (gated on the budget key existing): too many hero relations tells no story."""
     limit = checks.get("max_hero_edges")
@@ -1272,6 +1293,7 @@ def _inspect_flat(diagram: object, checks: dict, args: argparse.Namespace) -> _R
     if check_islands:
         _check_islands(endpoints, report, check_islands["hint"])
     _check_bare_pattern_markers(nodes, touched, report)
+    _check_shared_node_ids(nodes, report)
     if required_meta:
         _check_unreviewed(report)
     _check_unlabeled(checks["unlabeled"], report)
@@ -1281,6 +1303,22 @@ def _inspect_flat(diagram: object, checks: dict, args: argparse.Namespace) -> _R
         if checks.get("membership_source"):
             _check_membership(checks["membership_source"], nodes, report, args)
     return report
+
+
+def _check_shared_node_ids(nodes: list[dict], report: _Report) -> None:
+    """Advises when one node_id is claimed by boxes in several groups."""
+    groups_by_id: dict[str, set[str]] = {}
+    for node in nodes:
+        node_id, group = node.get("node_id"), node.get("group")
+        if isinstance(node_id, str) and node_id and isinstance(group, str) and group:
+            groups_by_id.setdefault(node_id, set()).add(group)
+    for node_id, groups in groups_by_id.items():
+        if len(groups) > 1:
+            report.advisories.append(
+                f"SHAREDNODE {node_id!r} is linked by boxes in {len(groups)} groups "
+                f"({', '.join(sorted(groups))}) -- point each box at its own class/function "
+                "node_id, or null + meta.no_code_reason: conceptual for a fail/aggregate box"
+            )
 
 
 def _check_unreviewed(report: _Report) -> None:

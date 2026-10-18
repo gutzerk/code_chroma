@@ -1,34 +1,22 @@
 """WorkspaceRegistry: main comes up analyzed, unknown ids fall back, paths stay per-workspace."""
 
 import json
-import shutil
 import subprocess
 import threading
 import time
-from pathlib import Path
 
 import pytest
 
 from codechroma.bridge.agents.worktree import main_branch
 from codechroma.bridge.bootstrap_diagrams import bootstrap_if_missing
 from codechroma.bridge.workspaces import MAIN_ID, STATE_READY, Workspace, WorkspaceRegistry
-
-FIXTURE_REPO = Path(__file__).parent.parent / "fixtures" / "sample_repo"
-
-
-def _init_repo(root: Path) -> None:
-    subprocess.run(["git", "init"], cwd=root, check=True, capture_output=True)
-    subprocess.run(["git", "config", "user.email", "test@example.com"], cwd=root, check=True)
-    subprocess.run(["git", "config", "user.name", "Test"], cwd=root, check=True)
-    subprocess.run(["git", "add", "-A"], cwd=root, check=True, capture_output=True)
-    subprocess.run(["git", "commit", "-m", "initial"], cwd=root, check=True, capture_output=True)
+from tests.conftest import copy_sample_repo
 
 
 @pytest.fixture
 def repo(tmp_path):
     root = tmp_path / "repo"
-    shutil.copytree(FIXTURE_REPO, root)
-    _init_repo(root)
+    copy_sample_repo(root)
     return root
 
 

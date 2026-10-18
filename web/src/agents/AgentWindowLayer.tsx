@@ -14,7 +14,7 @@ import { agentDockStore, useDockedAgentIds } from "./agentDockStore";
 import { branchStore } from "./branchStore";
 import { CloseAgentDialog } from "./CloseAgentDialog";
 import { GitInitDialog } from "./GitInitDialog";
-import { settleActiveWorkspace } from "./branchActions";
+import { settleActiveWorkspace, settleRemovedWorkspace } from "./branchActions";
 import { WorkspaceStatusBanner } from "./WorkspaceStatusBanner";
 import { confirmCloseAgentWindow, restoreAgentWindow } from "./windowActions";
 
@@ -96,14 +96,16 @@ export function AgentWindowLayer() {
           if (kind === "idle" && before?.context_kind === "task") {
             void flagDiagramsReady(message.id);
           }
-        } else if (message.type === "workspace-activated") agentStore.setActiveWorkspace(message.id);
-        else if (message.type === "branch-changed") {
+        } else if (message.type === "branch-changed") {
           // Settle against the ping's branch right away — the async re-read below isn't there yet, and
           // `settleActiveWorkspace` reads the current branch off the store. Then re-read the full
           // list: the ping carries only the new current branch, not the branches (one may have just
           // been created or deleted externally), so it can't rebuild the list on its own.
           branchStore.setBranch({ current: message.branch, branches: branchStore.getBranches() });
           settleActiveWorkspace(agentClient);
+          refreshBranchList();
+        } else if (message.type === "branch-removed") {
+          settleRemovedWorkspace(agentClient, message.id);
           refreshBranchList();
         }
       }),

@@ -8,6 +8,7 @@ import { useCollisionParticipant } from "../collision/collisionStore";
 import { DropGhost } from "../collision/DropGhost";
 import { inspectorStore, useIsInspectorTarget } from "../inspectorStore";
 import { selectionStore } from "../../state/selectionStore";
+import { tutorialStore } from "../../tutorial/tutorialStore";
 import { useIsSelected, useSelectedCount } from "../../state/selectionStore";
 import { canvasDocStore, commitCanvasPositions } from "./canvasDocStore";
 import { dragOffsetStore, useLiveDragOffsets } from "./dragOffsetStore";
@@ -251,6 +252,8 @@ export function CanvasNodeBox({ element, onMeasure }: CanvasNodeBoxProps) {
       return;
     }
     selectionStore.clear();
+    // The tutorial's "drag this block" step only allows moving: a click must not open the inspector.
+    if (tutorialStore.currentStepId() === "move-block") return;
     // An epics-layer box (epic title, content card, phase header or task) has no code behind it --
     // its primary click opens the SAME right-side inspector as a code box, showing the block's full
     // text + its place in the epic instead of a code tree. Opening the inspector keeps re-clicking
@@ -292,7 +295,7 @@ export function CanvasNodeBox({ element, onMeasure }: CanvasNodeBoxProps) {
     // instead of InspectorPanel's generic "no longer exists" (the wrong message for something that
     // was never real code, or for an authoring mistake it has no way to explain).
     const noCodeReason = stringMeta(element, "no_code_reason");
-    if (noCodeReason === "conceptual" || noCodeReason === "unresolved") {
+    if (noCodeReason === "conceptual" || noCodeReason === "unresolved" || noCodeReason === "external") {
       descriptionPopupStore.open(element.label, noCodeReasonMessage(element, noCodeReason));
       return;
     }
@@ -350,6 +353,8 @@ export function CanvasNodeBox({ element, onMeasure }: CanvasNodeBoxProps) {
       // used to add the wrong id, or nothing at all, so nothing ever lit up as selected.
       data-select-id={element.id}
       data-render={element.render}
+      data-recipe-key={stringMeta(element, "recipe_key")}
+      data-no-code={stringMeta(element, "no_code_reason")}
       style={{
         position: "absolute",
         // An epics box (`epic`/`spec`/`task`) positions by its bottom-left corner (`left = x`,

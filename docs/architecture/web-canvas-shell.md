@@ -35,11 +35,9 @@ canvas instead of collapsing onto whichever diagram happened to carry code-backe
   the Plan overlay's retirement, see `change-cards.md`; `c1ChangesStore`/`C1InspectorContext` remain;
   `canvas/epics/brief/` stayed too, reachable from an "epic" canvas element
   via a small standalone `EpicBriefPanel` instead of the deleted `EpicsView`). `RootCanvas` always
-  renders `CanvasDocView` inside its `CanvasViewport`. The document carries a seeded hierarchy
-  element, but `RootCanvas` collapses that layer on load: the Project Tree sidebar is the hierarchy
-  surface and the canvas opens diagrams-only. The client no longer seeds anything: the bridge
-  guarantees every document already holds its root block — see
-  [`single-canvas.md`](single-canvas.md)'s "The seeded root block".
+  renders `CanvasDocView` inside its `CanvasViewport`. The canvas opens empty and holds only
+  diagrams; the Project Tree sidebar is the hierarchy surface (see
+  [`single-canvas.md`](single-canvas.md)'s "No root block anymore").
   `DrawDiagramButton` (the rail's "Draw…" control, replacing the five per-kind toggle buttons and,
   since the diagram-management unification, `RecipeMenu`'s own dropdown — see
   [`diagram-skills.md`](diagram-skills.md)) and
@@ -139,7 +137,7 @@ canvas instead of collapsing onto whichever diagram happened to carry code-backe
   the client saw rather than just the publish, and that it restores exactly what the reveal added
   while leaving what the user had open before the click alone) and `RootCanvas.test.tsx`'s "render
   strategy" describe block and `useCanvasCamera.test.ts`/`useSavedLayoutAndFitLoop.test.ts`. The shell
-  is laid out IDE-style as one horizontal row: a 48px icon **rail** (`.app-rail`, zoom then the
+  is laid out IDE-style as one horizontal row: a 64px icon **rail** (`.app-rail`, zoom then the
   terminal/code-view/diff/plan/trace toggles then `DrawDiagramButton`, split by one
   `.app-rail-separator` — `RailButton.tsx` wraps each control, `RailIcon.tsx` supplies the glyphs),
   then an optional **project-tree panel** (`ProjectTreePanel.tsx` + `projectTreePanelStore.ts`, a
@@ -167,18 +165,26 @@ canvas instead of collapsing onto whichever diagram happened to carry code-backe
   layout is still do later window/panel resizes re-center.
 
   `.canvas-area` itself is `.canvas-chrome` (the context bar) stacked over `.canvas-main-row`, a flex
-  row of `.canvas-stage` (the pan/zoom viewport, with `min-width: 0` so it shrinks beside panels)
-  plus
-  `AgentRail`'s own full-height panel beside it — one card per agent (title, status/branch caption,
+  row ordered `ProjectTreePanel` → `CodeSidebar` → `AgentTerminalDock` → `.canvas-stage` (the pan/zoom
+  viewport, with `min-width: 0` so it shrinks beside panels) → `AgentRail` — the code-tree sidebar is
+  pinned at the row's outer edge (right after `.app-rail`) and every docked/floating-agent surface
+  lives to its right, on either side of the canvas. `AgentRail` is
+  its own full-height panel beside the stage — one card per agent (title, status/branch caption,
   bigger and two-line, not the icon-only rail items the name might suggest), dimmed for an agent whose
   branch main doesn't currently have checked out (see [`parallel-agents.md`](parallel-agents.md) for
   the branch-scoping rules), plus a second "Diagrams" tab for collapsing/expanding a diagram layer on
   the canvas without deleting it (also in `parallel-agents.md`). The panel always renders — even with
   neither agents nor diagrams it stays mounted (empty tabs + zero counts) so the UI never loses the
-  strip that lets the user get an agent or diagram started. The context bar control after Assistant
-  settings hides or restores this panel without closing agent windows or changing diagram visibility;
-  hiding it also closes an open code popup and code inspector. Since the left rail is
-  icon-only, `RailButton` renders the control's name as a real
+  strip that lets the user get an agent or diagram started. 🔵 There is no corner toggle button for
+  it anymore: a `SplitterHandle` (`canvas/SplitterHandle.tsx`) sits as its own always-rendered
+  `.agent-task-rail-resize-handle` flex item immediately to its left — hidden by default, it
+  highlights and reveals a small arrow button only on hover/focus (`.panel-splitter` /
+  `.panel-splitter-arrow` in `styles.css`), which is what hides or restores the panel (still without
+  closing agent windows or changing diagram visibility; hiding it also still closes an open code
+  popup and code inspector). The same `SplitterHandle` also replaced `AgentTerminalDock`'s old
+  in-toolbar toggle button: its existing resize-handle strip now doubles as the collapse/expand
+  control, so there's nothing left to click inside the dock's toolbar itself. Since the left rail is
+  icon-only, `RailButton` renders the other controls' names as a real
   `.rail-tooltip` span shown on hover after a 300ms delay — deliberately not a `title` attribute
   (native tooltips are ~1s late, OS-styled, and untestable), `aria-hidden` because `aria-label`
   already names the button, and `visibility: hidden` rather than just transparent so Playwright and
@@ -257,58 +263,48 @@ canvas instead of collapsing onto whichever diagram happened to carry code-backe
     side's exact midpoint. `obstacleRouter.ts` wraps it with an A\* search that avoids every *other* box;
     `RelationshipEdge.tsx` is the rendered arrow (casing + stroke + hit-stroke + caption) and
     `EdgeLabel.tsx` its measured, opaque caption chip. Three further shared pieces replaced per-view
-    copies: `diagramLayout.ts`'s `layoutBoxes()` — the stable adapter surface every diagram view
-    reaches through `autoLayout.ts`'s `layoutNewElements()` — delegates its body to
-    `layeredLayout.ts#computeLayeredLayout()` (051-directed-layered-diagram-layout; replaced
-    024-degree-priority-diagram-layout's degree-priority, hub-centered radial/BFS layout, which
-    itself had replaced the original dagre-backed `createDiagramGraph()`/`diagramSizeOf()` —
-    `bfsLayout.ts` and its `@dagrejs/dagre`-era predecessor are both gone). `layeredLayout.ts` is a
-    directed, ranked (Sugiyama-style) layout, not a hub-centered one: for every one-directional edge
-    A→B (no matching reverse edge), A's box always ends up strictly above B's, so the diagram reads
-    top-to-bottom in data/process-flow order — this deliberately gives up 024's "most-connected node
-    at the visual center" guarantee in exchange for direction being visible at a glance. Per
-    connected component (BFS/union-find; a zero-degree node is its own singleton): duplicate
-    same-direction edges collapse to one structural edge and self-loops are dropped before ranking
-    (they still render); a deterministic DFS (node order sorted by id) marks back-edges, i.e. the
-    edges that close a cycle (feedback-arc-set-via-DFS) — a true two-way relationship has no single
-    flow direction, so its edges are excluded from ranking but still render normally. Rank is then
-    longest-path layering over the resulting DAG via Kahn's algorithm
-    (`rank(node) = max(rank(parent)) + 1`, ready nodes always processed in id order for determinism)
-    — this is already height-minimal (provably, by induction over any valid rank assignment), so no
-    separate "tightening" pass runs on top of it. Within a rank, nodes sort by the average X of their
-    already-placed parents (a single top-down barycenter pass, not an iterative sweep), falling back
-    to (degree desc, id asc) for rank 0 or for a node with no positioned parent (e.g. its only edge
-    was cut as a back-edge); this keeps a branch's children roughly under it instead of interleaving
-    with an unrelated sibling branch's. Every edge kind (`uses`/`implements`/`extends`/`wraps`/
-    `notifies`/`registers`) reads the same way — source above target, no per-kind inversion — a
-    decision confirmed explicitly rather than assumed. Components are packed largest-first,
-    left-to-right with `NODE_SEP` gaps, wrapping past a `MAX_ROW_WIDTH` — singleton components pack
-    through the exact same path, no special-case code. Final overlap correction reuses
-    `resolveDrop()` from `collision/resolveDrop.ts` (the same solver manual drag-and-drop uses),
-    processing boxes ordered by rank (top ranks first, ties by X then id) so a downstream box can
-    never bump an upstream one out of its intended row. 🔴 Known gap: the directional guarantee holds
-    only *within* one `layoutBoxes()` call (typically a first draw) — `autoLayout.ts`'s
-    `layoutNewElements()` only considers edges where both endpoints are in the new batch and stacks
-    the whole batch below existing content by a flat Y-offset, so an incrementally-added node with an
-    edge into an already-placed one is not ranked relative to it. **054-diagram-flow-order:** a box
-    carrying an authored `meta.order` (`LayoutBoxSpec.order`, threaded from `element.meta.order` by
-    `autoLayout.ts` via the shared `stringMeta()` helper, `doc/elementMeta.ts`) gets its rank straight
-    from the leading digit run of that string (`parseOrderRank()`, 0-indexed to match a parentless
-    box's default rank 0, clamped at 0 so a stray `order: "0"` can't go negative — logs a
-    `console.warn` and collides onto the same rank as `"1"` when that happens) instead of
-    `max(rank(parent)) + 1` — order is authoritative when present, not a tiebreaker, so it can
-    override what topology alone implies (see
-    [ADR 0002](../adr/0002-order-on-box-overrides-rank.md)). An order-less box in the same diagram is
-    unaffected: its rank still comes from its real parents, whether those parents are order-pinned or
-    not, which is what reconciles both onto one rank scale. `compressRanks()` then maps each
-    component's resulting rank values onto a dense `0..k-1` scale before layout — an authored
-    `order` of `"1"` and `"100"` would otherwise leave ~98 empty rank rows of dead vertical space
-    between them; only relative order ever matters downstream, never the raw authored number.
+    copies: `diagramLayout.ts`'s `layoutBoxes()` — the stable, **async** adapter surface every diagram
+    view reaches through `autoLayout.ts`'s `layoutNewElements()` — delegates its body to
+    `elkLayout.ts#computeElkLayout()`, which runs [ELK](https://github.com/kieler/elkjs)'s `layered`
+    algorithm (`elkjs/lib/elk.bundled.js`, in-thread, no worker). It replaced the hand-rolled
+    `layeredLayout.ts` (051-directed-layered-diagram-layout), which had replaced 024's radial layout
+    and the original dagre layout. Direction is `DOWN`: for every one-directional edge A→B, A's box
+    ends up above B's, so the diagram reads top-to-bottom in data/process-flow order; ELK breaks
+    cycles itself. Duplicate same-direction edges collapse and self-loops / edges to unknown ids are
+    dropped before ELK sees them (they still render). Spacing comes from `collision/constants.ts`'s
+    `ELK_NODE_SEP` (nodes in a layer and between components) and `ELK_RANK_SEP` (between layers); disconnected components are packed by ELK
+    (`separateConnectedComponents`, `aspectRatio` 1.6) — 🔴 ELK separates components with
+    `elk.spacing.componentComponent` (default 20), which must be set explicitly or components touch.
+    ELK returns top-left corners; the adapter converts to the center-anchored boxes the canvas uses.
+    Every edge kind reads the same way — source above target, no per-kind inversion.
+    **Fresh draw vs incremental update** (`autoLayout.ts#layoutNewElements`): a fresh draw (no other
+    placed element in the new elements' layer) is laid out alone by ELK and stacked below existing
+    canvas content. An *incremental update* (the layer already has placed boxes — a recipe re-run that
+    added blocks) goes through `doc/incrementalLayout.ts#placeIncrementally`: ELK lays out placed +
+    new boxes together with every edge among them (so a new box wired to an old one is ranked against
+    it), but only the new boxes get positions — a placed box keeps its saved position exactly, whether
+    or not the user dragged it, and the server's re-run never touches a kept element's position
+    either. Each new box takes the offset (saved position minus ELK position) of the placed boxes it
+    connects to — the global median offset if it has none — so new blocks follow a diagram the user
+    moved or rearranged. `resolveDrop()` then clears overlaps against every other canvas element
+    (other diagrams, user boxes; group frames excluded) and against earlier new boxes. A removed block
+    simply leaves a gap; nothing reflows. `runRecipeAndLayout` passes its cache-restored positions as
+    `fixed` so a layer being re-added counts as placed at its restored spots. Sequence and epics
+    layers still relay out whole.
+    **054-diagram-flow-order:** a box carrying an authored `meta.order` (`LayoutBoxSpec.order`,
+    threaded from `element.meta.order` by `autoLayout.ts` via the shared `stringMeta()` helper,
+    `doc/elementMeta.ts`) is authoritative over topology (see
+    [ADR 0002](../adr/0002-order-on-box-overrides-rank.md)). ELK's own `partitioning` option was tried
+    and rejected — it disables component packing and stacks unconnected nodes — so `applyOrder()`
+    instead drops any real edge between two ordered boxes that runs *against* their order and adds
+    synthetic ordering edges (never rendered) from every box of one order value to every box of the
+    next distinct one. The order is the leading digit run (`parseOrderRank()`, 0-indexed, clamped at 0
+    — `order: "0"` logs a `console.warn` and lands with `"1"`); an order-less box keeps the rank its
+    real edges give it. Only relative order matters, so `"1"` and `"100"` leave no empty rows.
     Rendered as a "STEP n" tag inside the box's own top band
     (`NodeTopBand`, `doc/nodeAccent.tsx`, wired into `CanvasNodeBox.tsx`;
     `.canvas-node-top-band`/`.canvas-node-order-badge` in styles.css — see that file's "Band + meta
-    row, ghost no-code" box-format section) — inherits the same known gap above (only ranks within
-    one `layoutBoxes()` call). 🔵 **Box format ("Band + meta row, ghost no-code"):** `CanvasNodeBox`'s
+    row, ghost no-code" box-format section). 🔵 **Box format ("Band + meta row, ghost no-code"):** `CanvasNodeBox`'s
     meta chrome (plan_kind, order, impact status, no_code_reason) is no longer a set of floating
     corner pills/badges/strips — `NodeTopBand` (`doc/nodeAccent.tsx`) renders an in-flow strip above
     the header holding `meta.plan_kind` (tinted by role) and `meta.order` ("STEP n"), and
@@ -320,11 +316,11 @@ canvas instead of collapsing onto whichever diagram happened to carry code-backe
     `no-code-unresolved`, `accentFor`'s `noCodeReasonClassName`) gets a solid 3px frame in the reason's
     color plus a transparent ("ghost") fill and an italic title (styles.css); `meta.plan_kind` no
     longer drives a border accent at all, only the top band. **`Lane`/`Concurrency island`** (the other two 054 terms, CONTEXT.md):
-    within one rank, `orderRank()`'s barycenter/degree/id ordering feeds through `clusterByLane()`,
-    which pulls every box sharing a `meta.lane` value adjacent — a lane's spot is its earliest
-    member's position in that ordering, every other member moves up next to it, and a lane-less box
-    (or an entirely lane-less diagram) passes through unchanged, since `Array.prototype.sort`'s
-    stability makes this a no-op when there's nothing to cluster. Both are rendered, not laid out,
+    within one layer, `elkLayout.ts#clusterByLane()` reorders the ELK input so every box sharing a
+    `meta.lane` value is adjacent — a lane sits where its earliest member is — and ELK's
+    `considerModelOrder.strategy: NODES_AND_EDGES` keeps that input order as a tie-break (a soft
+    preference, unlike the old hard clustering; crossing minimization can still override it). A
+    lane-less diagram passes through unchanged. Both are rendered, not laid out,
     as their own soft-tinted background areas — `LaneArea`/`ConcurrencyIslandArea` (`doc/`) — computed
     purely off `CanvasDocView.tsx`'s `renderableElements` through one shared `bucketPerLayer()`
     helper: it partitions box ids by diagram `layer`, and within each layer by `meta.lane` — and
@@ -470,8 +466,23 @@ the icon-control
 gray trio (`--control-*`), radius, shadow, and type steps. Rules reference `var(--token)` instead
 of literal hex, so one edit re-themes the whole app.
 
+A literal "floating rounded cards on dark ground" palette (`--bg-ground`, `--bg-panel`,
+`--bg-canvas`, `--bg-raised`, `--bg-raised-2`, `--bg-inset`, `--text-soft`, `--text-muted-soft`,
+`--icon`, `--accent-bg`, `--success`, `--select-ring`, `--dot-grid`) sits above the semantic layer
+and is aliased onto it, so the restyle re-themes the whole app without touching the ~7000 rules that
+still reference `--surface-*`/`--text-*`/`--accent`. `--radius-panel` (22px), `--radius-card`
+(14–16px) and `--radius-btn` (14px) are the new radius steps; pills (tabs, Run agent, Fit All,
+chips, counters) use `border-radius: var(--radius-full)` instead. The five main-window regions (top
+bar `.canvas-chrome`, left rail `.app-rail`, agent panel `.agent-terminal-dock`, center canvas
+`.canvas-stage`, right sidebar `.agent-task-rail`) render as separate 6px-gapped cards with no hard
+borders and no drop shadows — depth comes only from the background-shade steps above.
+
 Two conventions when touching it: use a token for any value that repeats more than once (add a new
 token rather than a new hex), and keep every font size at or above `--text-2xs` (0.68rem) — nothing
 renders smaller. A global `:focus-visible` accent ring is defined at the top too, so interactive
 elements get one consistent focus treatment. Scrollbars use the shared theme tokens globally: thin
 tracks stay transparent, with rounded thumbs that become more visible on hover and drag.
+
+## Avalonia port (in progress, `dotnet/`)
+
+An Avalonia (C#, net8.0, Avalonia 11.3.12) port of the canvas lives under `dotnet/`: the pure logic (routing, collision solver, native layered layout instead of elkjs, scene graph with culling, viewport, stores) and, from 016 Phase 5, native equivalents of the expand-in-place hierarchy (`HierarchyView`, fed by the C# graph core), rubber-band select, group drag, undo, the code popup with syntax highlighting, trace playback, the Diff toggle with change cards, and the agent-window layer. This React canvas stays the reference and is unchanged; the audit, ELK decision, baseline numbers, the Phase 5 feature table (which Playwright journey each headless test replaces), what is left, and the list of `web/src/canvas/` files that become removal candidates once the C# canvas passes the same journeys are in [`docs/planning/013-avalonia-canvas.md`](../planning/013-avalonia-canvas.md). Shared test cases live in `tests/fixtures/canvas_logic/*.json`; run `dotnet test dotnet/CodeChroma.Canvas.sln`.

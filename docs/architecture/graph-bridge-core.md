@@ -11,8 +11,7 @@ made "point the bridge at another repo" mean `importlib.reload`. Now `BridgeServ
 Routes live in `routes/{graph,diffs,diagrams,custom_diagrams,epics,traces,
 workspaces,prs,agents,events}.py`, one `APIRouter` each, included in that order by
 `routes/__init__.py`'s `ROUTERS`. `server.py` survives as
-a 22-line shim (`app = create_app()`) because `launch.py`'s uvicorn command line and
-`packaging/bridge_main.py` name it. Adding an endpoint group is a new router file, not more lines in
+a 22-line shim (`app = create_app()`) because `launch.py`'s uvicorn command line names it. Adding an endpoint group is a new router file, not more lines in
 one module — and two apps over two repos can coexist in one process, which is what
 `tests/conftest.py`'s `make_bridge` uses instead of a reload. `tests/conftest.py` is the shared
 bridge-test harness: `BridgeHarness` (re-exposes `app.state.services` internals under the old
@@ -188,6 +187,40 @@ engine and watchers; `.codechroma/graph.db` keeps its work, so the next access r
 at one physical worktree. `get`/`ensure_async`/`state`/`is_live`/`drop_live` all resolve to the
 canonical id first via `self._canonical`; `unregister` only tears the shared `Workspace` down once
 `self._aliases[canonical]` empties, so unregistering one alias never stops the other's watchers.
+🔴 **Branch workspaces (`bridge/branches/manager.py`, `routes/branches.py`)** are what a second window
+on an already-open project shows: one existing or newly created *branch* in its own `git worktree`,
+registered as an ordinary writable workspace under `br_<slug>` (the underscore can't appear in an
+agent slug, so the two id spaces never collide). Not an agent — no `claude`, no autostart, not counted
+against `max_agents` — and not a PR (writable, on a real branch). Persisted in
+`<main_root>/.codechroma/branches.json` (`BranchManager`, reconciled and re-registered by
+`BridgeServices.create`), created like an agent's worktree (`ensure_excluded`, skills installed,
+main's diagrams seeded). Routes: `GET /branches` (records), `GET /branches/choices` (every local
+branch with the workspace id already holding it, from `git worktree list` — `main`, a `br_*`, an
+agent, or `null` for a worktree we don't track), `POST /branches` with exactly one of `branch` /
+`new_branch` (+ optional `start_point`, default main's current branch), `DELETE
+/branches/{id}?worktree_too=` (record only by default; the branch itself is never deleted). A branch
+that is already checked out anywhere is a 409 whose `detail` is `{message, workspace}` so the shell
+can focus the window showing it instead of failing — git forbids a second checkout of one branch, and
+the product rule is one branch per window anyway. Tests: `tests/unit/test_bridge_branches_route.py`.
+
+🔴 **`origin_guard.py` refuses a cross-origin write.** CORS only hides the response; a cross-origin
+`text/plain` POST still ran the handler, so any site open in the user's browser could open a branch,
+file a GitHub issue or start an agent. `create_app` installs the pure-ASGI `OriginGuard`, which
+answers 403 to a POST/PUT/PATCH/DELETE and closes (1008) any WebSocket handshake (terminal, events)
+whose `Origin` is neither in `codechroma_BRIDGE_CORS_ORIGINS` nor this server's own *loopback* host.
+"Same `Origin` and `Host`" alone is not trusted: a DNS-rebound page sends both as its own name, so
+the host must also be `localhost`/`127.0.0.1`/`::1` (a non-loopback deployment must list its origin
+in the env var). A request with no `Origin` (skills' curl/python, the desktop shell, tests) is
+untouched. Tests: `tests/unit/test_bridge_origin_guard.py`.
+
+Closing a branch workspace broadcasts `branch-removed` (like `pr-removed`); `drop_live` runs before
+the delete only with `?worktree_too=true`, and a record whose directory vanished (`worktree_lost`)
+stays listed but is not registered at startup. `?force=true` removes a dirty worktree; if git
+refuses (409), the dropped workspace is re-ensured so it is not left unloaded. The web client lists
+`branch-removed` in `AGENT_EVENT_TYPES` and `settleRemovedWorkspace` falls back to main when the
+removed id is the active workspace. `open_branch` judges "already held" under the
+manager lock, so two racing opens of one branch can't both pass.
+
 Supporting modules:
 
 - `live.py` — `RepoWatcher` (watchfiles thread, `.gitignore`-noise-filtered, ~1s debounce) and
@@ -202,7 +235,11 @@ Supporting modules:
   `WS /repos/{id}/events` under `key=repo_id` (same mechanism as the trace socket), and
   `WorkspaceRegistry` wraps each workspace's `on_event` so `Workspace.emit` broadcasts under its own
   id — a workspace-scoped ping only reaches that repo's canvases, while unkeyed broadcasts
-  (agent/PR lifecycle, `workspace-activated`) still reach every socket.
+  (agent/PR lifecycle) still reach every socket. 🔴 `POST /workspaces/{id}/activate` no longer
+  broadcasts anything: the old `workspace-activated` ping made every window follow whichever one
+  switched last, so two windows on one project could never show different workspaces. `active_workspace`
+  in agents.json is now only the *initial* pick for a window that names none (see
+  `parallel-agents.md`/`desktop-app.md`), never a live instruction to the other windows.
 - `git_sync.py` — `git status --porcelain` diff (mtime-keyed, `.codechroma` db excluded so it can't
   self-loop); `sync()` reanalyzes changed files and returns them (or `None` when nothing changed).
   Also invoked lazily on every HTTP request, so request-path reads stay fresh even without the watcher.
@@ -281,17 +318,16 @@ Supporting modules:
 - `launch.py` — the `python -m codechroma.bridge.launch --repo-path X` one-command launcher (see the
   root `CLAUDE.md`'s Commands section). 🔴 Skill install is an **`app.py::create_app` step**, not a
   `launch.py`-only one: `create_app` calls `skill_sync.sync_all_skills(root)` right after resolving
-  `root`, so every entry point that builds an app over a repo — the packaged desktop bridge
-  (`packaging/bridge_main.py`), a plain `uvicorn codechroma.bridge.server:app`, and `launch.py` itself
+  `root`, so every Python entry point that builds an app over a repo — a plain `uvicorn codechroma.bridge.server:app`, and `launch.py` itself
   — installs/refreshes every skill in `skill_sync.SKILL_NAMES` into the target repo's
   `.claude/skills/` (source of truth: this repo's own `.claude/skills/`) so agents running inside
   that repo write plans, diagrams, change reviews, pattern diagrams and epic briefs in the
   current format; skipped when the target is this repo itself. 🔴 `SKILL_NAMES` is the **single**
   per-skill list — `sync_skill(root, name)` is generic, `SKILL_EXCLUDE_PATTERNS` is derived from it,
   and `launch.py`'s "installed X at Y" print lines loop over it; a new skill is one name in that
-  tuple plus its directory, never a new `sync_*_skill` function. `packaging/bridge.spec` **imports**
-  the same tuple rather than re-typing it — the hand-kept copy it used to hold is what silently
-  dropped `codechroma-impact`/`codechroma-impact-review` from every frozen build.
+  tuple plus its directory, never a new `sync_*_skill` function. A hand-kept copy in a
+  since-removed packaging spec once silently dropped `codechroma-impact`/`codechroma-impact-review`
+  from one build; the tuple is the only list.
   🔴 **Removing a name is not enough to uninstall a skill.** `sync_skill` only `rmtree`s a target
   whose name is still in `SKILL_NAMES`, so a dropped name stays installed forever in every
   already-analyzed repo. `RETIRED_SKILL_NAMES` + `prune_retired_skills()` (called from
@@ -320,3 +356,29 @@ so live saves are cheap. Exercised by
 `tests/unit/test_plan_resolver.py`, `tests/unit/test_impact.py`, `tests/unit/test_skill_sync.py`,
 `tests/unit/test_main_branch.py`, and
 `tests/integration/test_summary_reuse.py`.
+
+🔵 **C# bridge in progress (`dotnet/CodeChroma.Bridge`, plan `docs/planning/012-csharp-bridge.md`).** An ASP.NET Core re-implementation of the graph, diagram-artifact, workspace and socket routes. The Python bridge stays the reference: `tests/fixtures/bridge_contract/*.cases.json` is a language-neutral wire contract replayed by `tests/contract/test_bridge_wire_contract.py` (against this FastAPI app) and by `dotnet/CodeChroma.Bridge.Tests` (against the C# app). When you change a route's request/response shape here, update the matching case file or the C# suite will diverge; regenerate `engine_snapshot.sample_repo.json` with `scripts/dump_bridge_contract_snapshot.py` if the sample repo's graph changes. Baseline numbers: `scripts/bench_bridge_cold_start.py`.
+
+> The Python package runs from a source checkout only: `bridge/resources.py` resolves `skills`, `web` and `detect` relative to the repo root, with no installed-wheel layout.
+
+## C# bridge status (docs/planning/012)
+
+`dotnet/CodeChroma.Bridge` is a partial ASP.NET Core port that replays the same `tests/fixtures/bridge_contract` cases as this Python bridge; the Python bridge remains the reference and is not removed. Its graph comes from `CodeChroma.Core` fed by the in-process C# analyzers (`CodeChroma.Core/Analyzers`, `NativeAnalysisExporter`, registered directly in `Program.cs`; there is no backend env-var switch and the shipped bridge never runs Python). The Python analysis exporter (`python -m codechroma.analysis_export`, also used by `tests/graph_golden.py`) survives only as a parity oracle: `PythonAnalysisExporter` lives in `CodeChroma.Bridge.Tests/Support/` and `BridgeHost` plugs it in when `CODECHROMA_PYTHON` is set (see 011, Phase 5). See 012 for the ported/unported route table.
+
+### C# route table: canvas, recipes, diffs
+
+| Route | C# file | Notes |
+|---|---|---|
+| `GET/PATCH /repos/{id}/canvas` | `Routes/CanvasRoutes.cs`, `Stores/CanvasDocument.cs`, `Stores/ApplyBatch.cs`, `Stores/CanvasWrite.cs` | Same `canvas-core.json` + `diagrams/<layer>/projection.json` split and `apply_batch` validation as `canvas/`; one lock per workspace; emits the `canvas` ping with `batch_id`. |
+| `POST /repos/{id}/recipes/{recipe}/run` | `Routes/RecipeRoutes.cs`, `Stores/Recipes.cs` | Needs an `IDiagramResolver`; the default `RawDiagramResolver` serves the stored artifact, so resolver-side drops (id-less nodes, node_id attach) are not reported until the resolver port replaces it. |
+| `GET /repos/{id}/diff`, `GET /repos/{id}/change-cards`, `POST /repos/{id}/diff/{node}/accept` | `Routes/DiffRoutes.cs`, `Workspaces/{GitTree,FunctionDiffs,ChangeCards,GitAccept,LineDiff}.cs` | Old-side symbols come from `IOldSymbolParser` (default `ExporterSymbolParser`: the registered native analysis exporter run over a scratch copy of the base bytes); those contract cases carry `requires: real-engine`. |
+
+Known gaps: no `canvas` watcher backstop ping for files written outside `PATCH /canvas`; `DiffBase` ignores a stored `base_ref` (agent/PR workspaces diff against the merge-base with the integration branch).
+
+Agents, PR workspaces and the terminal host are ported (`Agents/`, `Prs/`, `Terminal/`, `Routes/AgentRoutes.cs`, `PrRoutes.cs`, `TerminalRoutes.cs`; `AddAgentsAndPrs` registers services and the `AgentRuntime` hosted service, which reconciles `agents.json`/`prs.json`, registers their workspaces, autostarts persisted agents, polls the status LED every 250ms and kills PTYs on shutdown). Branch workspaces now install skills and seed diagrams into their worktrees and treat agent worktrees as holders (`BranchManager.ExtraHolders`). `WorkspaceRegistry.Register` takes `baseRef`, `c1SourceRoot` and `sharesWorkspaceWith`. Skills are found via `$CODECHROMA_SKILLS_DIR`, else the nearest `.claude/skills` above the executable or working directory. CLI lookup uses the process PATH plus `cli_paths` runtime settings (no login-shell capture).
+
+## C# bridge: skill runners, epics, wiki-general status and resolved diagrams
+
+The C# bridge (`dotnet/CodeChroma.Bridge`) ports the headless skill runner and the routes around it; `docs/planning/012-csharp-bridge.md` has the full status table. Entry points: `Skills/SkillAgent.cs` (one runner per kind, owned by `Skills/SkillAgents.cs`, registered by `AddSkillServices()`), `Skills/RuntimeEnvironment.cs` (the same snapshot/generation model as `llm/runtime_env.py`), `Routes/DiagramRoutes.cs` (generate/status/output/cancel for `c1` and `impact-changes`), `Routes/EpicsRoutes.cs`, `Routes/WikiGeneralRoutes.cs`, `Routes/LayoutRoutes.cs`, `Routes/ContextRoutes.cs`. Runner tests use `dotnet/CodeChroma.Bridge.FakeCli` (copy it, rename to `claude`, script it with `fakecli.script.json`); never point a test at a real CLI. Call `SkillAgents.ForgetWorkspace(id)` when a workspace is released.
+
+C# concurrency notes: `WorkspaceRegistry.Get` builds a workspace outside the registry lock (per-id `Lazy`, inserted under the lock), `SkillAgent.Start` claims the job slot atomically before any await, `RuntimeEnvironment.Configure`/`SnapshotAsync`/`RecheckUnresolved` are awaited rather than blocked on, `Workspace.Sync` also reanalyzes the previous changed set so reverted files refresh, `SourceText.IsWithin` resolves symlinks, every `epics/{itemId}` route validates the id, and blocking git/gh GET handlers use `Reply.GuardBlocking`.

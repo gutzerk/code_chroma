@@ -1,4 +1,4 @@
-import { computeLayeredLayout, type LayoutEdge } from "./layeredLayout";
+import { computeElkLayout, type LayoutEdge } from "./elkLayout";
 import { pairKeyOf, type Rect } from "./orthogonalRoute";
 import { routeEdges } from "./routeEdges";
 
@@ -23,13 +23,13 @@ export interface PositionedBox {
 }
 
 /** The stable adapter surface every diagram view reaches through `autoLayout.ts`'s
- * `layoutNewElements()`. The body delegates to `layeredLayout.ts`'s direction-aware layered
- * algorithm — an edge whose endpoint isn't a node is skipped, same as before the body swap. */
-export function layoutBoxes(
+ * `layoutNewElements()`. The body delegates to `elkLayout.ts`'s ELK layered algorithm (async) —
+ * an edge whose endpoint isn't a node is skipped. */
+export async function layoutBoxes(
   nodes: readonly LayoutBoxSpec[],
   edges: readonly LayoutEdge[],
-): { boxes: PositionedBox[]; width: number; height: number } {
-  return computeLayeredLayout(nodes, edges);
+): Promise<{ boxes: PositionedBox[]; width: number; height: number }> {
+  return computeElkLayout(nodes, edges);
 }
 
 /** Every box is an obstacle for every arrow it isn't attached to, so a relationship line never

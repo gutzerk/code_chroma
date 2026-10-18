@@ -1,0 +1,42 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <IsPackable>false</IsPackable>
+    <IsTestProject>true</IsTestProject>
+    <NoWarn>$(NoWarn);xUnit1026</NoWarn>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="coverlet.collector" Version="6.0.0" />
+    <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.8.0" />
+    <PackageReference Include="xunit" Version="2.5.3" />
+    <PackageReference Include="xunit.runner.visualstudio" Version="2.5.3" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\CodeChroma.Canvas\CodeChroma.Canvas.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Content Include="..\..\tests\fixtures\canvas_logic\*.json" Link="fixtures\%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" />
+    <Content Include="..\..\tests\fixtures\graph_golden\sample_repo.input.json" Link="fixtures\sample_repo.input.json" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Using Include="Xunit" />
+    <Using Include="CodeChroma.Canvas.Geometry" />
+    <Using Include="CodeChroma.Canvas.Connectors" />
+    <Using Include="CodeChroma.Canvas.Collision" />
+    <Using Include="CodeChroma.Canvas.Model" />
+    <Using Include="CodeChroma.Canvas.Layout" />
+    <Using Include="CodeChroma.Canvas.Scene" />
+    <Using Include="CodeChroma.Canvas.State" />
+    <Using Include="CodeChroma.Canvas.Catalog" />
+    <Using Include="CodeChroma.Canvas.Highlighting" />
+    <Using Include="System.Text.Json" />
+  </ItemGroup>
+
+</Project>

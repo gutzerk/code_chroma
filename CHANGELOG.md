@@ -1,5 +1,108 @@
 # Changelog
 
+## [0.12.1](https://github.com/gutzerk/code_chroma/compare/v0.12.0...v0.12.1) (2026-10-13)
+
+
+### Bug Fixes
+
+* bundle winpty in the frozen bridge so agent terminals render ([75c34e7](https://github.com/gutzerk/code_chroma/commit/75c34e7ebbb747446ed8e35aa4cf799a6e7e9012))
+* harden branch workspaces, the origin guard and gh issue posting ([cf0ff42](https://github.com/gutzerk/code_chroma/commit/cf0ff4263c4c9f1ae1d36840a107ec92c2e4c9a2))
+* point diagram node_id at the deepest symbol and flag one node_id shared across groups ([0e4d394](https://github.com/gutzerk/code_chroma/commit/0e4d394b7c34397eacb1aad25a3d7e4f6027c448)), closes [#65](https://github.com/gutzerk/code_chroma/issues/65)
+
+## [0.12.0](https://github.com/gutzerk/code_chroma/compare/v0.11.0...v0.12.0) (2026-10-12)
+
+
+### Features
+
+* ask which branch to show when a project is opened again ([a0d06b0](https://github.com/gutzerk/code_chroma/commit/a0d06b0a430a983edf6f09704e1f1d0b616a01e4)), closes [#123](https://github.com/gutzerk/code_chroma/issues/123)
+* create issues through gh when it is available ([ce99ae4](https://github.com/gutzerk/code_chroma/commit/ce99ae4062d90d739c8db4a321b46016065773d0))
+
+
+### Bug Fixes
+
+* answer ConPTY's startup query so the Windows agent window shows output ([705d73f](https://github.com/gutzerk/code_chroma/commit/705d73fa603aa5351ec3f623ba88ba2eccb48049))
+* apply ELK layout to every diagram layer that arrives unplaced ([bd829c7](https://github.com/gutzerk/code_chroma/commit/bd829c70a8eede072c81836bc377ccd322c77b9b)), closes [#120](https://github.com/gutzerk/code_chroma/issues/120)
+* clearer docked-agent tabs, click/shortcut to open the collapsed dock, wiki notice clear of Fit All ([af1de57](https://github.com/gutzerk/code_chroma/commit/af1de57580366a3638cdbfcaa329ed2d97c19de6))
+* don't fail a completed macOS update when old bundle cleanup hits ENOTEMPTY ([a85716b](https://github.com/gutzerk/code_chroma/commit/a85716bbbd70dae1a650c8b091047a15d4390802)), closes [#118](https://github.com/gutzerk/code_chroma/issues/118)
+* swap the macOS bundle after exit and install Windows updates silently ([12bfcd8](https://github.com/gutzerk/code_chroma/commit/12bfcd893de8a76c8ac3e75e81c934fda082293e))
+
+## [0.11.0](https://github.com/gutzerk/code_chroma/compare/v0.10.0...v0.11.0) (2026-10-11)
+
+
+### Features
+
+* tag external components and add a standard shape registry to diagrams ([4f63a76](https://github.com/gutzerk/code_chroma/commit/4f63a76de5aaba425b7609c277adea7be95409e3)), closes [#63](https://github.com/gutzerk/code_chroma/issues/63)
+
+
+### Bug Fixes
+
+* add a copy-name button to the diagram frame label ([d3de2c1](https://github.com/gutzerk/code_chroma/commit/d3de2c1f68d4290fb2a752fba8a6fdcfd40907a6)), closes [#55](https://github.com/gutzerk/code_chroma/issues/55)
+* keep overlapping diagram labels and open code panels readable ([454cd99](https://github.com/gutzerk/code_chroma/commit/454cd99ac49ae23a20500a6381f4e35f9f4d38c9)), closes [#54](https://github.com/gutzerk/code_chroma/issues/54)
+* keep sequence arrows inside the frame and let stale recent projects be removed ([d7880e3](https://github.com/gutzerk/code_chroma/commit/d7880e3e485569e6b9b5436c9f38b53c8987ccd9))
+* shorten docstring to satisfy ruff line length ([98d77e0](https://github.com/gutzerk/code_chroma/commit/98d77e03d65e0c621bb43ee0dd5668b8f5e77b8b))
+* shrink the drag minimum gap so ELK-laid-out blocks can be dropped back ([fdc91fe](https://github.com/gutzerk/code_chroma/commit/fdc91fe98e63ea4f430b1ae59f4f5ae530fba8aa))
+
+## [0.10.0](https://github.com/gutzerk/code_chroma/compare/v0.9.3...v0.10.0) (2026-10-10)
+
+
+### Features
+
+* lay out diagrams with ELK and keep placed blocks fixed on update ([aa0d195](https://github.com/gutzerk/code_chroma/commit/aa0d195b1085e08d363c1002fe5782c084fda7ba))
+
+## [0.9.3](https://github.com/gutzerk/code_chroma/compare/v0.9.2...v0.9.3) (2026-10-10)
+
+
+### Bug Fixes
+
+* make recent repos and desktop tests work on Windows ([f1b770a](https://github.com/gutzerk/code_chroma/commit/f1b770a2d3ed2495a56c5351e27754d390c0596b))
+* make the in-app updater verify signatures under Electron ([f795628](https://github.com/gutzerk/code_chroma/commit/f795628b63c71b60d0dd41d5ec8f83376a750bf9))
+
+## [0.9.2](https://github.com/gutzerk/code_chroma/compare/v0.9.1...v0.9.2) (2026-10-09)
+
+
+### Bug Fixes
+
+* shorten _check_split docstring for ruff E501 ([ce1a0f5](https://github.com/gutzerk/code_chroma/commit/ce1a0f5f7a6ad5a2e4a27b4fd7fee4a34303e6a7))
+* suggest splitting diagrams over ~15 nodes into several linked ones ([f9cfaa4](https://github.com/gutzerk/code_chroma/commit/f9cfaa442e0e9363689d482e4638bcbfbeec8b83)), closes [#99](https://github.com/gutzerk/code_chroma/issues/99)
+
+## [0.9.1](https://github.com/gutzerk/code_chroma/compare/v0.9.0...v0.9.1) (2026-10-09)
+
+
+### Bug Fixes
+
+* shorten _check_split docstring for ruff E501 ([ce1a0f5](https://github.com/gutzerk/code_chroma/commit/ce1a0f5f7a6ad5a2e4a27b4fd7fee4a34303e6a7))
+* suggest splitting diagrams over ~15 nodes into several linked ones ([f9cfaa4](https://github.com/gutzerk/code_chroma/commit/f9cfaa442e0e9363689d482e4638bcbfbeec8b83)), closes [#99](https://github.com/gutzerk/code_chroma/issues/99)
+
+## [0.9.0](https://github.com/gutzerk/code_chroma/compare/v0.8.1...v0.9.0) (2026-10-06)
+
+
+### Features
+
+* add "New project…" to the desktop launcher ([#52](https://github.com/gutzerk/code_chroma/issues/52)) ([#97](https://github.com/gutzerk/code_chroma/issues/97)) ([dff8483](https://github.com/gutzerk/code_chroma/commit/dff8483f97fd4b8df2d5c32a0f74d9bcdd3b60e0))
+
+## [0.8.1](https://github.com/gutzerk/code_chroma/compare/v0.8.0...v0.8.1) (2026-10-06)
+
+
+### Bug Fixes
+
+* don't open block details after a drag, stop diagram frame flicke… ([db02b97](https://github.com/gutzerk/code_chroma/commit/db02b97c20dc1722bb33c9465d176b6b896221f5))
+
+## [0.8.0](https://github.com/gutzerk/code_chroma/compare/v0.7.1...v0.8.0) (2026-10-06)
+
+
+### Features
+
+* recolor run-agent icon, enlarge it, and fix its tooltip layering ([0979d94](https://github.com/gutzerk/code_chroma/commit/0979d94a10bd64db6f0e6797f02b2d740a2a7b44))
+* show release changelog in Updates and move Report issue to the … ([e2a45b2](https://github.com/gutzerk/code_chroma/commit/e2a45b24135ea3293b590104f36acb8c16c35c98))
+* show release changelog in Updates and move Report issue to the top bar ([309781f](https://github.com/gutzerk/code_chroma/commit/309781f9fc98b9874cde822f84603f9489805e4a))
+
+## [0.7.1](https://github.com/gutzerk/code_chroma/compare/v0.7.0...v0.7.1) (2026-10-05)
+
+
+### Bug Fixes
+
+* make unit tests and git/encoding handling portable on Windows ([d4d7964](https://github.com/gutzerk/code_chroma/commit/d4d79645f63b3d45ede102c060761f5a94a74b28))
+
 ## [0.7.0](https://github.com/gutzerk/code_chroma/compare/v0.6.0...v0.7.0) (2026-10-05)
 
 

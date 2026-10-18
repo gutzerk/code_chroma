@@ -198,6 +198,15 @@ def get_diagrams_status(ws: Ws, services: Services) -> dict:
             "ready": bool(diagram),
             "fingerprint": _content_fingerprint(diagram),
         }
+    feature_dir = DIAGRAMS.feature_plan_dir(ws.root)
+    slugs = feature_dir.iterdir() if feature_dir.is_dir() else ()
+    for slug in sorted(p.name for p in slugs if p.is_dir()):
+        diagram = ws.load_diagram(f"feature-plan/{slug}")
+        if diagram:
+            status[f"feature-plan/{slug}"] = {
+                "ready": True,
+                "fingerprint": _content_fingerprint(diagram),
+            }
     return status
 
 

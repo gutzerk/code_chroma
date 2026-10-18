@@ -327,24 +327,3 @@ def test_multiple_start_calls_share_one_capture(service, monkeypatch):
     pending = [service.start() for _ in range(5)]
     assert all(item.result() is pending[0].result() for item in pending)
     assert calls == [1]
-
-
-def test_frozen_runtime_restores_user_loader_paths(monkeypatch, tmp_path):
-    bundled = str(tmp_path / "bundle")
-    user_lib = str(tmp_path / "user-libraries")
-    user_python = str(tmp_path / "user-python")
-    monkeypatch.setattr(runtime.sys, "frozen", True, raising=False)
-    monkeypatch.setattr(runtime.sys, "_MEIPASS", bundled, raising=False)
-    env = runtime._clean(
-        {
-            "LD_LIBRARY_PATH": bundled,
-            "LD_LIBRARY_PATH_ORIG": user_lib,
-            "PYTHONPATH": os.pathsep.join([bundled, user_python]),
-            "PYTHONHOME": bundled,
-            "_PYI_APPLICATION_HOME_DIR": bundled,
-        }
-    )
-    assert env["LD_LIBRARY_PATH"] == user_lib
-    assert env["PYTHONPATH"] == user_python
-    assert "PYTHONHOME" not in env and "LD_LIBRARY_PATH_ORIG" not in env
-    assert "_PYI_APPLICATION_HOME_DIR" not in env

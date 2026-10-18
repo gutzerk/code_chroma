@@ -1,187 +1,147 @@
-# Desktop app (`desktop/`)
+# Desktop app (`dotnet/CodeChroma.Shell*`)
+
+The desktop app is the C# / Avalonia shell with Velopack packaging and updater. It hosts the
+unchanged React canvas in one WebView per tab and talks to the **C# bridge** (`dotnet/CodeChroma.Bridge`)
+bundled next to it. There is no Electron, PyInstaller or Node at runtime. Node is only used to build
+`web/`, which the WebView loads. Electron was removed in plan [017](../planning/017-finish-electron-removal.md);
+the last Electron commit is the local tag `electron-last-build` (git history only, nothing ships from it; there were no Electron users, so no migration code exists).
+The Python engine/bridge (`src/codechroma/`) remains the reference implementation and the dev path
+(`python -m codechroma.bridge.launch`); it is not part of the desktop package.
 
 ```bash
-./scripts/dev/build_desktop.sh       # developer build: SPA -> frozen bridge -> desktop/dist/CodeChroma-*.dmg (macOS arm64)
-./scripts/dev/build_desktop.sh --install  # build, then replace ~/Applications/CodeChroma.app (quit running app + index refresh)
-npm --prefix desktop start          # run the shell against dist/codechroma-bridge (build the bridge first)
-npm --prefix desktop start -- --repo /path/to/repo   # skip the launcher screen
-npm --prefix desktop test           # vitest (recentRepos, shellPath, bridgeProcess)
-poetry run python scripts/make_desktop_icon.py       # regenerate desktop/build/icon.png
-./scripts/install_desktop.sh         # clean-macOS installer (see below)
-./scripts/install_desktop.ps1        # clean-Windows installer (see below)
-curl -fsSL https://raw.githubusercontent.com/gutzerk/code_chroma/main/distribution/install.sh | sh   # end-user install (macOS arm64/x64 / Linux x64) from latest Release via manifest
-python3 scripts/gen_distribution_manifest.py 9.9.9 --build-dir desktop/dist   # reproduce latest.json locally
+dotnet run --project dotnet/CodeChroma.Shell.App -- --repo /path/to/repo   # run the shell; omit --repo for the launcher
+dotnet test dotnet/CodeChroma.Shell.sln                                    # shell logic + updater tests (no display needed)
+# CI: the `dotnet-shell` job in ci.yml runs that suite on every PR
+dotnet publish dotnet/CodeChroma.Shell.App -r <rid> --self-contained -p:BundleCSharpBridge=true -o publish   # app + bundled bridge + web/dist
+pwsh distribution/velopack/pack.ps1 -Version X.Y.Z -PublishDir publish -OutDir out   # Windows: Setup + update zip + .sha256
+sh distribution/velopack/pack.sh osx-arm64 X.Y.Z publish out                       # macOS / Linux packages
+python3 scripts/gen_distribution_manifest.py --help                        # the one latest.json generator (CI and local)
 ```
 
-`scripts/dev/build_desktop.sh` runs the three shared stages — SPA bundle → frozen Python bridge
-(`packaging/bridge.spec`) → electron-builder (`electron-builder.yml`, mac `dmg` target). It is
-macOS-only: the `--install` step (and the quit/index-refresh it triggers) shells out to Apple tools
-(`hdiutil`, `osascript`, `killall Dock`, `mdimport`). The equivalent build stages for Windows run
-inside `install_desktop.ps1` (npm → pyinstaller → electron-builder `win`/`nsis`), since there is no
-bash on Windows.
+Running from source needs `web/dist` built with `VITE_ENGINE_BRIDGE_URL=same-origin VITE_TERMINAL_BRIDGE_URL=same-origin`
+and a bridge executable: `BundleCSharpBridge=true` produces it, or point `CODECHROMA_BRIDGE=<exe>` at one.
+`CODECHROMA_VERSION` overrides the displayed version.
 
-**Releases run on GitHub, not locally.** `.github/workflows/release-please.yml` is the release path:
-`release-please` bumps the version + writes CHANGELOG + tags `vX.Y.Z` and opens a Release on merge;
-then four platform builds (macOS `macos-14` arm64 and `macos-15-intel` x64, Windows
-`windows-latest` x64, and Linux x64) run the same three stages here and upload the installers to that
-Release. The release-please action uses the `code_pat_release` repository secret so its Release PR
-triggers the follow-on release workflow when merged; configure that secret in repository settings
-with repository Contents and Pull requests write access. The macOS matrix passes one architecture
-per job and `electron-builder.yml` gives both DMGs explicit architecture names
-(`CodeChroma-<version>-arm64.dmg` / `CodeChroma-<version>-x64.dmg`) for the checksum and manifest
-steps. Windows uses the stable asset names `CodeChroma-Setup.exe` and
-`CodeChroma-Setup.exe.sha256`; its installer downloads them from GitHub's
-`releases/latest/download/` endpoint without reading release metadata. If a release exists but its
-builds or manifest failed, dispatch the Release workflow on
-`main` with `release_tag` (for example `v0.3.0`) to rebuild and publish assets for that release;
-ordinary pushes only build when release-please creates a release. New releases stay drafts during
-asset generation, so `/releases/latest/` continues resolving to the previous published release.
-The final manifest-upload step publishes the new release only after all platform builds succeed; a
-failed or in-progress build leaves the previous release as latest. A recovery dispatch first returns
-its existing release to draft.
-The author version lives in `desktop/package.json` (electron-builder reads it for the artifact name);
-`release-please-config.json` syncs `web/package.json` and `pyproject.toml` from it. See the plan in
-`.claude/plans/release-versioning.md` for the design.
-Pull-request CI also runs the desktop Vitest suites and TypeScript build.
+## Shell layout
 
-**End-user installs go through `distribution/`.** One
-`distribution/latest.json` manifest is published to every Release (built by the `manifest` CI job after
-all platform builds) and lists a download URL + SHA-256 per platform target. The shell installer
-uses it for macOS and Linux; Windows downloads its fixed-name installer and checksum directly from
-GitHub's latest-release endpoint:
-- macOS arm64/x64 / Linux x64: `distribution/install.sh` — `curl -fsSL
-  https://raw.githubusercontent.com/gutzerk/code_chroma/main/distribution/install.sh | sh`. Detects
-  OS/arch, downloads and verifies the matching artifact, then installs into the current user's
-  `~/Applications` without administrator access: macOS copies the `.app` from the `.dmg` via
-  `hdiutil`; Linux copies and marks the AppImage executable. Pass `--system` to opt into replacing
-  `/Applications/CodeChroma.app` on macOS or installing the Linux `.deb` via `apt`; the installer
-  explains that system destination and why administrator authorization is needed before invoking
-  `sudo`. This is the recommended end-user path — no checkout, no build, no admin password.
-- Windows x64: `irm https://codechroma.dev/install.ps1 | iex` (or
-  `distribution/install.cmd` → `distribution/install.ps1`) — downloads the stable
-  `CodeChroma-Setup.exe` and `.sha256` from GitHub's latest-release endpoint, verifies SHA-256, then
-  runs the NSIS wizard defaulted to the current user (`perMachine: false`,
-  `selectPerMachineByDefault: false`) with automatic elevation disabled
-  (`allowElevation: false`); it does not read `latest.json`.
-The manifest is served from each Release (`.../releases/latest/download/latest.json`), so no custom
-domain is required; `CODECROMA_MANIFEST_URL` overrides the shell installer source. The release
-workflow keeps newly created releases in draft until every platform build and manifest upload succeeds,
-so a failed build cannot replace the previous working latest release. `scripts/gen_distribution_manifest.py`
-reproduces the same manifest locally (e.g. for smoke-testing `install.sh` against a non-release build).
-The root `scripts/install_*.sh/.ps1` are legacy direct-release downloaders; they are not
-build-from-source installers. `distribution/` is the recommended manifest-based download path.
+Logic is UI-free in `CodeChroma.Shell`; `CodeChroma.Shell.App` only renders.
 
-`./scripts/install_desktop.sh` is a **one-command installer for a clean Mac with no local checkout**:
-it detects Apple Silicon or Intel, downloads that architecture's latest DMG and checksum, verifies
-the download, then copies the app into `~/Applications` by default without `sudo`. Pass `--system`
-to opt into replacing `/Applications/CodeChroma.app`; it explains the shared destination before
-requesting administrator authorization. It needs `curl`, `python3`, and `hdiutil`, but does not build
-the app. Run with
-`curl -fsSL https://<host>/install_desktop.sh | bash` (or `bash scripts/install_desktop.sh`).
+- `ShellController` drives `BridgeRegistry` -> `TabModel` -> `IShellUi.Navigate`. One `WebView.Avalonia`
+  per tab loads `http://127.0.0.1:<port>/?workspace=<id>` from that tab's bridge.
+- `Bridge/BridgeManager` launches `codechroma-bridge --repo-path <repo> --port <n>` (`BridgeCli`) and probes
+  `/health`. **One bridge process per repo, permanently**: switching the opened repo respawns it. A PR
+  workspace or branch opened from the canvas is a *workspace tab* sharing its repo tab's bridge and never
+  owns it; closing it leaves the repo tab running. Bridges join a KILL_ON_JOB_CLOSE Job Object on Windows,
+  `BridgeRegistry.StopAllAsync` also stops still-starting bridges and `StartAsync` kills the process on
+  cancellation or failure.
+- `Tabs/TabTitles`: repo tab `"<repo> [Main]"`, PR workspace `"<repo> [PR #n]"`, branch workspace
+  `"<repo> [<branch>]"`. Every repo tab loads `/?workspace=main` explicitly so it never inherits another
+  window's last pick.
+- `Projects/ProjectStores` (recents, with missing folders kept but flagged; per-repo workspace summaries
+  read best-effort from `.codechroma/{agents,prs}.json`), `Projects/TutorialProject` (+
+  `tutorial-project.json`: the bundled todo-app tutorial restored into `<userData>/codechroma-tutorial`) and
+  new-project creation (`git init`, no commit) feed the launcher panel (`LauncherPanel`).
+- Opening an already-open project asks which branch to show (`Bridge/BranchBridgeClient`: `GET /branches/choices`,
+  `POST /branches`; a 409 names the workspace already showing it and the shell focuses that tab).
+- `window.codechromaDesktop` is injected after each navigation and talks to the shell over the WebView message
+  channel (`DesktopScript`/`DesktopMessage`). The shell accepts messages only while the tab URL origin equals its
+  bridge origin; other navigations are cancelled and opened in the system browser.
+- Chrome: no native menu bar on Windows/Linux; the tab strip (`#1b1d23` bar, `#6c8cff` active underline) ends in a
+  "⋯" flyout (Open Repo, New Tab, Close Tab, Check for Updates, About; Ctrl+O/T/W work). macOS gets a native menu.
+  `App.axaml` carries the shared styles. The icon art is `Assets/icon.png`; `Assets/icon.ico` is generated from it by
+  `scripts/make_ico.ps1` and `Assets/icon.icns` (one 256px `ic08` PNG entry) by `scripts/make_icns.py` (pure Python, no
+  Pillow); regenerate both after changing `icon.png`. `pack.ps1` passes the `.ico` to `vpk --icon`; `pack.sh` passes the
+  `.icns` for `osx-*` and the `.png` for `linux-x64`. On Linux `install.sh` extracts the icon from the installed AppImage
+  (`--appimage-extract '*.png'`) into `~/.local/share/icons/hicolor/256x256/apps/codechroma.png`, adds `Icon=codechroma` to
+  the `.desktop` entry, and `--uninstall` removes it; if extraction fails the entry is written without `Icon=` and a
+  warning is printed.
+- 🔴 Windows needs `app.manifest` with a `supportedOS` entry or the native WebView host throws at startup.
+  Linux needs WebKitGTK (and `libfuse2` for the AppImage).
+- 🔴 `Program.Main` calls `VelopackApp.Build().Run()` first so Velopack's install/uninstall hooks work. Real
+  install/uninstall hooks are still unverified on a real install.
+- The environment for agent PTYs and skills comes from the bridge's `RuntimeEnvironment` (login-shell PATH, see
+  [`runtime-environment.md`](runtime-environment.md)); the bridge exports `codechroma_BRIDGE_URL` (the real
+  dynamic port) so a terminal-panel agent, which has no browser, can reach it.
+- The bridge serves the SPA (`web/` folder next to it), so there is no `file://` origin and no CORS; both client
+  contexts map the build-time `same-origin` sentinel to `window.location.origin`
+  (`web/src/engine-client/sameOrigin.test.ts`).
+- User data lives in `AppPaths.UserDataDir` (`%APPDATA%/CodeChroma`, `~/Library/Application Support/CodeChroma`,
+  `$XDG_CONFIG_HOME/CodeChroma`).
 
-`./scripts/install_linux.sh` installs the verified Linux AppImage into `~/Applications` by default.
-Pass `--system` to install the `.deb` through apt; that operation modifies system package locations
-and requests administrator authorization after an explanation. For the manifest installer, pass
-`--system` as `sh -s -- --system` after the curl pipe.
+## Distribution and updates
 
-`./scripts/install_desktop.ps1` is the Windows x64 installer: it resolves the latest `Setup.exe`,
-verifies its published checksum, and launches the interactive NSIS installer. It downloads the
-prebuilt release and does not clone or build the repository. Run with
-`curl -fsSL https://<host>/install_desktop.ps1 | powershell -ExecutionPolicy Bypass -` (or
-`powershell -ExecutionPolicy Bypass -File scripts/install_desktop.ps1`).
+Everything is published to GitHub Releases by `.github/workflows/release-please.yml`; releases are not built
+locally. `release-please` (using the `code_pat_release` secret so merging its Release PR triggers the build)
+bumps the version, writes CHANGELOG and tags `vX.Y.Z`; the author version is the shell csproj `<Version>`
+(release-please `xml` extra-file, guarded by `tests/unit/test_dotnet_version_sync.py`), synced with
+`web/package.json` and `pyproject.toml` via `release-please-config.json`. A `gate` job waits for a green `ci.yml`
+on the same commit, new releases stay drafts until every platform build and the manifest upload succeed (so
+`/releases/latest/` keeps the previous release on failure), an `alert` job opens an issue when one is left as a
+draft, and dispatching the workflow on `main` with `release_tag` rebuilds a release's assets.
 
-**Updates are checked in-app and installed from GitHub, not in place.** On startup the main
-process (`desktop/src/updater.ts`) queries the latest GitHub Release against `app.getVersion()`; if a
-newer version exists it raises a native Notification ("Update to vX.Y.Z available") plus a
-File → "Check for Updates…" menu item. The Settings → Updates dialog
-(`web/src/assistant/UpdatesPanel.tsx`) shows current/latest stable versions, check and download
-progress, signature errors, and the explicit restart action. Its release-notes link opens in the
-system browser. The startup check only runs for packaged installs (`app.isPackaged`) so a dev run
-never hits the API. The native notification and menu actions still use a confirm dialog, then
-download the correct per-platform artifact and run it: on macOS `hdiutil -plist` mounts the `.dmg`
-(the mount point is parsed from XML, so space-y volume names can't break the path) and `ditto` copies
-the new `.app` over the running app bundle with the current user's permissions (it never prompts
-for elevation; system-wide installs must be moved to `~/Applications` before in-app updates); on
-Windows it launches the `-Setup.exe` (per-user NSIS shows the overwrite prompt without UAC); on Linux it
-atomically replaces the running AppImage in place. The download streams to a `.part` sibling while
-hashing SHA-256 in one pass (aborting and discarding anything past 1 GiB), is verified against
-GitHub's asset digest (falling back to the release `.sha256` sidecar), then **provenance-checked**
-before it's renamed into place:
-`desktop/src/attestation.ts` fetches the artifact's signed attestation from GitHub
-(`/repos/gutzerk/code_chroma/attestations/sha256:<hex>`) and verifies it with `sigstore-js`,
-pinning the OIDC issuer and workflow identity of `release-please.yml` — so the signed attestation,
-not the release's own sidecar, is the authority binding the artifact to this repo's release pipeline.
-`desktop/package.json` pins Sigstore to v5. Electron 44.5.1 embeds Node 24.21.0, satisfying
-Sigstore's Node 22.22.2+ runtime requirement.
-A release that publishes no attestation refuses to update (it would be an unverified install), and
-one whose installer has no reachable `sha256` digest surfaces the update but asks the user to install
-manually instead of silently pretending to be current. Asset names are sanitized to
-`[A-Za-z0-9._-]` before they become local paths (`safeAssetPath` in the updater, `safe_name` in the
-shell installers). The AppImage replacement renames a PID-suffixed temp sibling over the running
-file. After install the app either
-relaunches (`app.relaunch()`, macOS/Linux) or lets the installer take over (Windows). It connects to
-`api.github.com/repos/gutzerk/code_chroma/releases/latest` using Node's built-in `fetch` — no
-runtime dependency. The release version is cached in the app's userData directory, so the Updates
-panel can retain the last successful result when GitHub is unavailable. GitHub API rate limits
-surface their reset time when provided, and the manual GitHub Releases path remains available while
-the retry button is disabled until the cooldown expires. The one-command installers (`install_desktop.sh`, `install_linux.sh`,
-`install_desktop.ps1`) reuse the same model: fetch the sidecar first, verify before mounting or
-launching, and redownload once if a stale cached copy fails its checksum — only a second
-mismatch is treated as tampering.
-⚠ On **unsigned macOS**, Gatekeeper shows the standard "unverified publisher"
-warning for the freshly copied `.app`; the update still works, it just can't be silent/delta (that
-is the trade-off for not having a paid Developer ID). Release workflow actions are pinned to commit
-SHAs (kept current by Dependabot). The release pipeline attests every installer with
-`actions/attest-build-provenance` (short-lived OIDC identity, Sigstore/SLSA provenance), and the
-in-app updater verifies that signed attestation (see above) — so the in-app path is protected
-against a compromised release pipeline, not just corruption. ⚠ **The one-command shell installers**
-(`install_*.sh`/`.ps1`) still verify only the same-release `.sha256` sidecar, so they guard against
-corruption but not against a compromised pipeline; extending them to `gh attestation verify` is
-future work. The in-app check is advisory: it never downloads or installs without user consent.
+**Packaging** (`distribution/velopack/pack.ps1|pack.sh`, `vpk` 1.2.161 pinned) produces, each with a `.sha256`:
+`CodeChroma-<v>-win-x64-Installer.exe` (Velopack Setup, fresh installs), `CodeChroma-<v>-win-x64.zip` (update
+payload whose `current/` folder is swapped in), `CodeChroma-<v>-osx-{arm64,x64}.zip` (the `.app`) and
+`CodeChroma-<v>-linux-x86_64.AppImage`. The bridge ships in `<app>/bridge/codechroma-bridge/`.
 
-`CodeChroma.app` is a double-click app with no Python or Node on the user's machine: an Electron
-shell that shows a recents/"Open folder…" launcher, then spawns a **PyInstaller-frozen bridge** on a
-free port and loads `http://127.0.0.1:<port>` in the same window. macOS builds target arm64 and x64 DMGs;
-Windows builds target an NSIS installer. `python -m codechroma.bridge.launch` remains the
-browser/dev path and is unaffected.
-The desktop shell opens in a regular windowed state so the operating system's minimize, maximize,
-and close controls remain available. Its tab strip uses the canvas background color (`#1b1d23`).
+**Manifest.** `distribution/latest.json` is attached to every Release by the `manifest` job (which also attests it
+and uploads version-pinned copies of the installers). Shape: `{"version", "channel", "date",
+"min_supported_version", "assets": {target: url}, "sha256": {target: hex}, "size": {target: bytes}}`; fields are
+additive, so never rename or remove `version`/`assets`/`sha256`. Targets: `dotnet-windows-x64` (Setup), `dotnet-windows-x64-update` (zip), `dotnet-macos-arm64`, `dotnet-macos-x64`, `dotnet-linux-x64`; the `dotnet-` prefix is historical. `scripts/gen_distribution_manifest.py` is the
+only generator (`tests/unit/test_distribution_manifest.py` proves CI and local output are identical) and
+`tests/unit/test_distribution_consistency.py` fails if artifact names drift between the packer, workflow globs,
+the updater and the generator.
 
-Things worth knowing before touching it:
+**Installers** (`distribution/install.sh`, `install.ps1`, `install.cmd`): read the manifest, enforce a size cap and
+the SHA-256, and also run `gh attestation verify` when the GitHub CLI is installed and logged in (otherwise warn
+that only the checksum was checked). Per-user by default, no administrator rights: macOS unzips the `.app` into
+`~/Applications`, Linux installs the AppImage with a `.desktop` entry and `~/.local/bin/codechroma`, Windows runs the
+Velopack Setup. Options: `--force`, `--uninstall`, `--purge` (`-Force`/`-Uninstall`/`-Purge` on Windows). `--dotnet`/`-Dotnet` are accepted and ignored (old command lines keep working); `--system` is rejected because there is no system-wide package (so no `.deb`). Test hooks that
+weaken security and must never be set in production: `CODECROMA_MANIFEST_URL`, `CODECROMA_MAX_BYTES`,
+`CODECROMA_GH_BIN` (`sh`), `CODECROMA_INSTALLER_URL` (`install.cmd`). Pester/shell tests:
+`tests/pester/install.Tests.ps1`, `tests/unit/test_distribution_installer.py`.
 
-- **The bridge serves the SPA**, so there is no `file://` origin and no CORS in the desktop path:
-  `create_app` mounts `web/dist` at `/` **after every router** (so `/repos/...` still wins) and adds
-  `GET /health` for the readiness poll. The renderer needs no IPC to find its backend — it reads
-  `window.location.origin`, which already carries the dynamic port. Both client contexts map the
-  build-time sentinel `same-origin` to that origin (`SAME_ORIGIN` in `EngineClientContext.tsx`,
-  `terminalBaseUrl` in `TerminalClientContext.tsx`); unset still means the fixture mock.
-- ⚠ **A terminal-panel agent has no browser, so it can't read `window.location.origin`.**
-  `bridge_main.py` exports `codechroma_BRIDGE_URL=http://<host>:<port>` into `os.environ` right after
-  it resolves the free port; `_terminal_env()` inherits it into every PTY spawned for the terminal
-  panel. The `codechroma-*` skills (`draw-diagram`/`review-diagram`/`plan`/`diagram-type`)
-  read this env var first and fall back to `http://localhost:8000` (the dev-launcher default) only
-  when it's unset — without it, a skill run from the packaged app's terminal panel hits a dead port
-  and can't write.
-- **One bridge process per repo, permanently.** `create_app(repo_root)` analyzes `main` as it builds,
-  so switching the *opened* repo is a respawn (agent worktrees are a different thing: those are extra
-  `Workspace`es inside the same process) — `main.ts` kills and re-spawns. `packaging/bridge_main.py`
-  passes `--repo-path` straight to `create_app`, so a relative path is now fine there; only the
-  `codechroma_BRIDGE_REPO_PATH` fallback still needs an absolute value to beat `PROJECT_ROOT`.
-  A PR review opened from the canvas becomes a **workspace tab** (`TabManager.addWorkspaceTab`) that
-  shares its repo tab's bridge and titles `#<number>` — it never spawns a second bridge, and closing
-  it leaves the repo tab (and its bridge) running. PR tabs are `ownsBridge: false`, so
-  `closeTab`'s bridge-stop only ever hits the tab that actually started the process.
-- **`bridge/resources.py` is the only module that knows about freezing.**
-  `resource_path("skills"|"web"|"detect")` resolves to `_MEIPASS/codechroma_data/...` when frozen, else
-  the source tree. Anything new that reads a repo data file at runtime must go through it, and be
-  listed in `packaging/bridge.spec`, or it will work in dev and 404 in the app.
-- 🔴 **`desktop/src/shellPath.ts` is load-bearing.** A desktop launch can inherit an incomplete
-  PATH, so the CLI and git may be invisible. It asks the host shell for its real PATH once at
-  startup, using the host path separator; every spawned child inherits the fix.
-- `desktop/launcher/` is deliberately plain HTML/JS outside the tsc build: it renders *before* any
-  bridge exists, so it cannot be part of the served SPA. Its typed contract is `preload.ts`'s
-  `LauncherApi`. Recents live in `app.getPath('userData')/recent.json`.
-- `desktop/build/icon.png` is generated by `scripts/make_desktop_icon.py` (pure-stdlib PNG writer) and
-  committed; `.gitignore` un-ignores it against the global `build/` rule.
-- Tests: `tests/unit/test_resources.py`, `tests/unit/test_bridge_spa_mount.py`,
-  `web/src/engine-client/sameOrigin.test.ts`, and the Vitest suites in `desktop/src/*.test.ts`.
+**In-app updater** (`dotnet/CodeChroma.Shell/Updater/`): `UpdateChecker` (trusted-URL check, ETag cache),
+`UpdateDownloader`, `UpdateOperations`, `PlatformInstaller` (stages next to the install, writes a helper from
+`UpdateScripts`, starts it detached, then the host quits), `UpdateSettingsStore`/`UpdateScheduler`,
+`InstallOutcomeStore`, `UpdatesBridge`. `CodeChroma.Shell.App/UpdateHost.cs` wires it: scheduled checks at startup,
+every 6 h and on window focus (per-user installs only), Help -> Check for Updates, and the "updated / rolled back"
+report. The canvas's `window.codechromaUpdates` (`web/src/assistant/UpdatesPanel.tsx`) round-trips over the WebView
+channel; `UpdatesBridge.ToJson` adds `verificationNotice`, `provenance` and `lastInstall`.
+`UpdateConstants` is the single source for the repo slug, intervals and wording; download URLs must be
+credential-free `https://github.com/<repo>/releases/(latest/)?download/...` with no `.`/`..`/`%2e` segments.
+
+- 🔴 **Checksum-only verification.** The updater verifies the SHA-256 (GitHub asset digest, `.sha256` sidecar or
+  manifest) only: no Sigstore check and no Apple/Windows certificate. `UpdateState.VerificationNotice`
+  (`UpdateConstants.ChecksumOnlyNotice`) is set when an update is offered and when it is ready, and
+  `UpdateState.Provenance` carries `ChecksumOnly`. A compromised release pipeline is not detected in-app.
+  The shell dialogs show the notice; `UpdatesPanel.tsx` does not render it yet.
+- **Swap and rollback** (`UpdateScripts`): after the app exits the helper moves `target` to `target.previous`, moves
+  the staged copy in, launches it and watches it for 8 s; if it dies (Windows/Linux: non-zero exit; macOS: no process
+  via `pgrep`) the previous copy is restored and relaunched. The result lands in `<userData>/update-result.json`
+  (`updated`/`rolled-back`/`failed`) and surfaces as `UpdateState.LastInstall`. Windows swaps `...\CodeChroma\current`
+  with a hidden PowerShell, macOS replaces `~/Applications/CodeChroma.app` via `ditto`, Linux keeps `.previous`.
+  No delta updates (full package each time). `apply-update.sh` unsets `APPIMAGE APPDIR ARGV0 OWD` and removes itself.
+- ⚠ Releases are unsigned: SmartScreen and Gatekeeper show an "unverified publisher" warning; a `.deb` or
+  system-wide install is not updated in place.
+
+## Bridge gaps vs the Python bridge
+
+The C# bridge replaces the Python one in the shipped app. Known, owner-confirmed differences (plan 017 table A):
+summaries are offline-only (no Claude call), the graph is in-memory (no `graph.db`), PR happy path needs `gh`,
+nested-process foreground probing is degraded, and execution tracing capture stays Python (`sys.monitoring`; C#
+only plays traces back). Everything else (graph, canvas, recipes, diffs, agents, PRs, epics, PTY, skill/LLM runners,
+branches, traces, settings, patterns, impact/review, plain wiki) is ported; the wiki-general generate/update port is in progress (plan 017 row 4); see
+[`engine.md`](engine.md) and [`graph-bridge-core.md`](graph-bridge-core.md).
+
+## Tests
+
+`dotnet/CodeChroma.Shell.Tests/` (updater, tabs, stores, bridge manager, `UpdatesBridge`), `dotnet/CodeChroma.Bridge.Tests/`,
+`tests/unit/test_distribution_*.py`, `tests/pester/install.Tests.ps1`. Smoke on a display: `dotnet/CodeChroma.Shell.App/smoke/smoke.mjs`.
+macOS and Linux behaviour (WKWebView/WebKitGTK rendering, Unix PTY, install/update/rollback/uninstall) was reviewed
+from code and is not verified on real hardware.
+
+🔴 macOS crash: WebView.Avalonia 11.0.0.1 runs `ExecuteScriptAsync(script)` on macOS as `__dispatchMessageCallback("<script>")` (a Blazor-only hook)
+and does `result.ToString()` on the null result, an unhandleable NRE inside a native callback that aborts the app. Two guards: `UpdateHost`
+only receives tabs that are on the bridge origin (`MainWindow` filters with `IsBridgeOrigin`; empty tabs get no scripts), and `web/index.html`
+defines `window.__dispatchMessageCallback` (evals the source, always returns a string) so scripts sent to a loaded page never return null.

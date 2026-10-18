@@ -213,6 +213,30 @@ describe("CanvasViewport focusOnNode", () => {
     expect(blockClicked).toBe(false);
   });
 
+  it("does not swallow a later click when the next press starts on a block that stops pointerdown", () => {
+    let blockClicked = false;
+    render(
+      <CanvasViewport ref={createRef<CanvasViewportHandle>()}>
+        <div data-testid="empty" />
+        <div
+          data-testid="block"
+          onPointerDown={(event) => event.stopPropagation()}
+          onClick={() => (blockClicked = true)}
+        />
+      </CanvasViewport>,
+    );
+    const empty = screen.getByTestId("empty");
+    const block = screen.getByTestId("block");
+    fireEvent.pointerDown(empty, { button: 0, pointerId: 1, clientX: 100, clientY: 100 });
+    fireEvent.pointerMove(empty, { pointerId: 1, clientX: 300, clientY: 300 });
+    fireEvent.pointerUp(empty, { pointerId: 1, clientX: 300, clientY: 300 });
+
+    fireEvent.pointerDown(block, { button: 0, pointerId: 2, clientX: 50, clientY: 50 });
+    fireEvent.click(block, { clientX: 50, clientY: 50 });
+
+    expect(blockClicked).toBe(true);
+  });
+
   it("does not start a pan when the drag begins on a control (button / code panel)", () => {
     const ref = createRef<CanvasViewportHandle>();
     render(

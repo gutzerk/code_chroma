@@ -1,0 +1,157 @@
+{
+  "group": "diagram_types",
+  "sources": ["src/codechroma/bridge/routes/custom_diagrams.py", "src/codechroma/bridge/routes/feature_plans.py", "src/codechroma/diagrams/library.py"],
+  "repo": {"base": "sample_repo"},
+  "cases": [
+    {
+      "id": "the_style_catalog_is_served_in_registry_order",
+      "steps": [
+        {
+          "http": {"method": "GET", "path": "/diagram-styles"},
+          "expect": {"status": 200, "checks": [
+            {"path": "$.styles[*].id", "equals": ["boxes-arrows", "dependency-graph", "patterns-yellow-arrows", "impact-status-colors", "layered-flow", "state-machine", "sequence"]},
+            {"path": "$.styles[0].label", "equals": "Boxes & arrows"},
+            {"path": "$.styles[0].overrides", "equals": {"supports_groups": true}}
+          ]}
+        }
+      ]
+    },
+    {
+      "id": "an_empty_library_lists_nothing",
+      "steps": [
+        {"http": {"method": "GET", "path": "/diagram-types"}, "expect": {"status": 200, "json": {"types": []}}}
+      ]
+    },
+    {
+      "id": "a_saved_definition_is_stamped_listed_and_read_back",
+      "steps": [
+        {
+          "http": {"method": "PUT", "path": "/diagram-types/data-flow", "json": {"id": "ignored", "title": "Data flow", "style": "boxes-arrows", "instructions": "Show data movement.", "layout": {"direction": "LR"}, "grouping": {"enabled": true}, "relation_kinds": [{"id": "reads", "label": "reads"}]}},
+          "expect": {"status": 200, "checks": [
+            {"path": "$.id", "equals": "data-flow"},
+            {"path": "$.schema_version", "equals": 1},
+            {"path": "$.created_at", "type": "string"},
+            {"path": "$.updated_at", "type": "string"},
+            {"path": "$.title", "equals": "Data flow"}
+          ]}
+        },
+        {
+          "http": {"method": "GET", "path": "/diagram-types"},
+          "expect": {"status": 200, "json": {"types": [{"id": "data-flow", "title": "Data flow", "description": "", "style": "boxes-arrows"}]}}
+        },
+        {
+          "http": {"method": "GET", "path": "/diagram-types/data-flow"},
+          "expect": {"status": 200, "checks": [{"path": "$.layout.direction", "equals": "LR"}, {"path": "$.relation_kinds", "count": 1}]}
+        }
+      ]
+    },
+    {
+      "id": "a_resave_keeps_the_created_at_stamp",
+      "steps": [
+        {
+          "http": {"method": "PUT", "path": "/diagram-types/flow", "json": {"title": "Flow", "style": "layered-flow", "instructions": "x", "layout": {"direction": "TB"}, "grouping": {"enabled": false}, "relation_kinds": []}},
+          "capture": {"created": "$.created_at"},
+          "expect": {"status": 200}
+        },
+        {
+          "http": {"method": "PUT", "path": "/diagram-types/flow", "json": {"title": "Flow v2", "style": "layered-flow", "instructions": "x", "layout": {"direction": "TB"}, "grouping": {"enabled": false}, "relation_kinds": []}},
+          "expect": {"status": 200, "checks": [{"path": "$.created_at", "equals": "{{created}}"}, {"path": "$.title", "equals": "Flow v2"}]}
+        }
+      ]
+    },
+    {
+      "id": "an_invalid_definition_is_refused_with_every_problem",
+      "steps": [
+        {
+          "http": {"method": "PUT", "path": "/diagram-types/broken", "json": {"title": " ", "style": "neon", "layout": {"direction": "UP"}, "grouping": {}, "relation_kinds": "none", "addons": {"x": 1}, "overlays": ["nope"], "context": "nope", "checks": {"shape": "round"}, "review": {"axis": "a", "agent_factory": "b"}}},
+          "expect": {"status": 400, "json": {"detail": "title is required; style must be one of ['boxes-arrows', 'dependency-graph', 'impact-status-colors', 'layered-flow', 'patterns-yellow-arrows', 'sequence', 'state-machine'] or an inline style object; instructions is required; layout must have direction one of ('TB', 'LR'); grouping must be an object with a boolean 'enabled'; relation_kinds must be a list of {'id': str, 'label': str} objects; addons must be an object of booleans; overlays must be a list of registered overlay names; context must be null or a registered context provider name; checks.shape must be one of ('hierarchical', 'flat'); review must be null or an object with a known axis and agent_factory"}}
+        }
+      ]
+    },
+    {
+      "id": "a_type_id_that_is_not_a_slug_is_refused_everywhere",
+      "steps": [
+        {"http": {"method": "GET", "path": "/diagram-types/Bad_ID"}, "expect": {"status": 400, "json": {"detail": "invalid diagram type id: 'Bad_ID'"}}},
+        {"http": {"method": "PUT", "path": "/diagram-types/Bad_ID", "json": {}}, "expect": {"status": 400, "json": {"detail": "invalid diagram type id: 'Bad_ID'"}}},
+        {"http": {"method": "DELETE", "path": "/diagram-types/Bad_ID"}, "expect": {"status": 400, "json": {"detail": "invalid diagram type id: 'Bad_ID'"}}},
+        {"http": {"method": "GET", "path": "/repos/main/custom/Bad_ID"}, "expect": {"status": 400, "json": {"detail": "invalid diagram type id: 'Bad_ID'"}}},
+        {"http": {"method": "GET", "path": "/repos/main/custom/Bad_ID-path"}, "expect": {"status": 400, "json": {"detail": "invalid diagram type id: 'Bad_ID'"}}}
+      ]
+    },
+    {
+      "id": "an_unknown_type_is_a_404_to_read_and_to_delete",
+      "steps": [
+        {"http": {"method": "GET", "path": "/diagram-types/nope"}, "expect": {"status": 404, "json": {"detail": "unknown diagram type: 'nope'"}}},
+        {"http": {"method": "DELETE", "path": "/diagram-types/nope"}, "expect": {"status": 404, "json": {"detail": "unknown diagram type: 'nope'"}}}
+      ]
+    },
+    {
+      "id": "deleting_a_saved_type_removes_it_from_the_library",
+      "steps": [
+        {
+          "http": {"method": "PUT", "path": "/diagram-types/tmp", "json": {"title": "T", "style": "sequence", "instructions": "x", "layout": {"direction": "TB"}, "grouping": {"enabled": false}, "relation_kinds": []}},
+          "expect": {"status": 200}
+        },
+        {"http": {"method": "DELETE", "path": "/diagram-types/tmp"}, "expect": {"status": 200, "json": {"deleted": "tmp"}}},
+        {"http": {"method": "GET", "path": "/diagram-types"}, "expect": {"status": 200, "json": {"types": []}}}
+      ]
+    },
+    {
+      "id": "a_saved_types_per_repo_path_is_served",
+      "steps": [
+        {
+          "http": {"method": "PUT", "path": "/diagram-types/data-flow", "json": {"title": "T", "style": "sequence", "instructions": "x", "layout": {"direction": "TB"}, "grouping": {"enabled": false}, "relation_kinds": []}},
+          "expect": {"status": 200}
+        },
+        {
+          "http": {"method": "GET", "path": "/repos/main/custom/data-flow-path"},
+          "expect": {"status": 200, "json": {"repo_root": "$REPO", "custom_path": "$REPO/.codechroma/diagrams/custom/data-flow/data-flow.json"}}
+        },
+        {"http": {"method": "DELETE", "path": "/repos/main/custom/data-flow"}, "expect": {"status": 200, "json": {"deleted": false}}}
+      ]
+    },
+    {
+      "id": "an_unsaved_custom_type_has_no_per_repo_path",
+      "steps": [
+        {"http": {"method": "GET", "path": "/repos/main/custom/ghost-path"}, "expect": {"status": 404, "json": {"detail": "unknown diagram kind: 'custom/ghost'"}}}
+      ]
+    },
+    {
+      "id": "feature_plan_slugs_are_validated_and_their_artifact_path_is_served",
+      "steps": [
+        {"http": {"method": "GET", "path": "/repos/main/feature-plan/Bad_Slug-path"}, "expect": {"status": 400, "json": {"detail": "invalid feature-plan slug: 'Bad_Slug'"}}},
+        {"http": {"method": "DELETE", "path": "/repos/main/feature-plan/Bad_Slug"}, "expect": {"status": 400, "json": {"detail": "invalid feature-plan slug: 'Bad_Slug'"}}},
+        {
+          "http": {"method": "GET", "path": "/repos/main/feature-plan/token-auth-path"},
+          "expect": {"status": 200, "json": {"repo_root": "$REPO", "feature_plan_path": "$REPO/.codechroma/diagrams/feature-plan/token-auth/token-auth.json"}}
+        }
+      ]
+    },
+    {
+      "id": "diagrams_status_lists_every_saved_type_even_without_a_diagram",
+      "steps": [
+        {
+          "http": {"method": "PUT", "path": "/diagram-types/data-flow", "json": {"title": "T", "style": "sequence", "instructions": "x", "layout": {"direction": "TB"}, "grouping": {"enabled": false}, "relation_kinds": []}},
+          "expect": {"status": 200}
+        },
+        {
+          "http": {"method": "GET", "path": "/repos/main/diagrams/status"},
+          "expect": {"status": 200, "checks": [{"path": "$['custom/data-flow']", "equals": {"ready": false, "fingerprint": null}}]}
+        },
+        {"fs": "write", "path": ".codechroma/diagrams/custom/data-flow/data-flow.json", "text": "{\"nodes\": []}"},
+        {
+          "http": {"method": "GET", "path": "/repos/main/diagrams/status"},
+          "expect": {"status": 200, "checks": [{"path": "$['custom/data-flow'].ready", "equals": true}, {"path": "$['custom/data-flow'].fingerprint", "type": "string"}]}
+        }
+      ]
+    },
+    {
+      "id": "a_feature_plan_delete_removes_its_file",
+      "steps": [
+        {"fs": "write", "path": ".codechroma/diagrams/feature-plan/token-auth/token-auth.json", "text": "{}"},
+        {"http": {"method": "DELETE", "path": "/repos/main/feature-plan/token-auth"}, "expect": {"status": 200, "json": {"deleted": true}}},
+        {"http": {"method": "DELETE", "path": "/repos/main/feature-plan/token-auth"}, "expect": {"status": 200, "json": {"deleted": false}}}
+      ]
+    }
+  ]
+}

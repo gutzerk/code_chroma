@@ -2,25 +2,13 @@
 
 
 import json
-import shutil
-import subprocess
 from pathlib import Path
 
 import pytest
 from fastapi.testclient import TestClient
 
-from tests.conftest import diagram_json_path
+from tests.conftest import copy_sample_repo, diagram_json_path
 from tests.unit.fake_claude import CLI_MISSING
-
-FIXTURE_REPO = Path(__file__).parent.parent / "fixtures" / "sample_repo"
-
-
-def _init_repo(root: Path) -> None:
-    subprocess.run(["git", "init"], cwd=root, check=True, capture_output=True)
-    subprocess.run(["git", "config", "user.email", "test@example.com"], cwd=root, check=True)
-    subprocess.run(["git", "config", "user.name", "Test"], cwd=root, check=True)
-    subprocess.run(["git", "add", "-A"], cwd=root, check=True, capture_output=True)
-    subprocess.run(["git", "commit", "-m", "initial"], cwd=root, check=True, capture_output=True)
 
 
 def _write_json(path: Path, payload: dict) -> None:
@@ -49,8 +37,7 @@ _IMPACT = {
 @pytest.fixture
 def server_module(tmp_path, monkeypatch, make_bridge):
     repo = tmp_path / "repo"
-    shutil.copytree(FIXTURE_REPO, repo)
-    _init_repo(repo)
+    copy_sample_repo(repo)
     # No ANTHROPIC_API_KEY (set, not deleted, so a real .env's key can't leak into the bootstrap).
     monkeypatch.setenv("ANTHROPIC_API_KEY", "")
 

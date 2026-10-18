@@ -15,7 +15,7 @@ import { terminalPanelStore } from "../terminal/terminalPanelStore";
 import { collapsedLayersStore } from "./doc/collapsedLayersStore";
 import { codeViewModeStore } from "./codeViewModeStore";
 import type { EngineClient } from "../engine-client/EngineClient";
-import { SEEDED_CANVAS_DOC } from "../state/types";
+import { EMPTY_CANVAS_DOC } from "../state/types";
 import type { CanvasBatch, CanvasBatchResult, CanvasDoc, CanvasElement, HierarchyNodeRef } from "../state/types";
 import type { TerminalClient } from "../terminal/TerminalClient";
 
@@ -28,11 +28,9 @@ const ROOT: HierarchyNodeRef = {
   child_count: 0,
 };
 
-/** A minimal, real (not stubbed) in-memory canvas.json stand-in. It starts seeded with the root
- * block, exactly as the bridge serves it (`canvas/document.py`'s ensure_seeded): nothing on the
- * client creates that element anymore, so an empty document here would render nothing at all. */
+/** A minimal, real (not stubbed) in-memory canvas.json stand-in, starting empty like a fresh repo. */
 function makeCanvasState() {
-  let doc: CanvasDoc = { ...SEEDED_CANVAS_DOC, doc_id: "d1" };
+  let doc: CanvasDoc = { ...EMPTY_CANVAS_DOC, doc_id: "d1" };
   let counter = 0;
   return {
     getCanvas: async (): Promise<CanvasDoc> => doc,
@@ -140,34 +138,6 @@ afterEach(() => {
 /** How the seeded hierarchy renders once expanded onto the canvas. The boxes-vs-tree *choice* is
  * gone — the hierarchy always renders as nested boxes (`block` inside a `canvas-hierarchy-element`),
  * and the old `?strategy=` param no longer selects anything (see `strategies/types.ts`). */
-describe("RootCanvas render strategy", () => {
-  afterEach(() => window.history.replaceState({}, "", "/"));
-
-  // The seeded hierarchy layer on the canvas is collapsed by default; these tests expand it back
-  // onto the canvas, then assert the nested-box renderer that draws it.
-  const showCanvasTree = () => act(() => collapsedLayersStore.expand("hierarchy"));
-
-  it("renders the hierarchy on the canvas as nested boxes by default", async () => {
-    renderCanvas();
-    await waitFor(() => expect(screen.getByTestId("app-root")).toBeTruthy());
-    showCanvasTree();
-
-    await waitFor(() => expect(screen.getByTestId("canvas-hierarchy-element")).toBeTruthy());
-    expect(screen.getByTestId("block")).toBeTruthy();
-  });
-
-  it("ignores the legacy ?strategy= param and still renders nested boxes", async () => {
-    window.history.replaceState({}, "", "/?strategy=boxes");
-
-    renderCanvas();
-    await waitFor(() => expect(screen.getByTestId("app-root")).toBeTruthy());
-    showCanvasTree();
-
-    await waitFor(() => expect(screen.getByTestId("canvas-hierarchy-element")).toBeTruthy());
-    expect(screen.getByTestId("block")).toBeTruthy();
-  });
-});
-
 describe("RootCanvas project tree panel", () => {
   // The singleton starts open by default in production (PanelStore(true)); afterEach resets it to
   // closed, so each test re-opens it to model a fresh load before rendering.
@@ -232,52 +202,13 @@ describe("RootCanvas agents and diagrams panel", () => {
     );
   });
 
-  it("closes an open code popup when collapsing the panel", async () => {
-    const calculateTotal: HierarchyNodeRef = {
-      node_id: "function::calculate_total",
-      name: "calculate_total",
-      level: "function",
-      parent_id: null,
-      has_children: false,
-      child_count: 0,
-      source: "return 1",
-      language: "python",
-    };
-    renderCanvas({
-      getNode: async () => calculateTotal,
-      getCanvas: async () => ({
-        ...SEEDED_CANVAS_DOC,
-        doc_id: "d1",
-        elements: {
-          calculateTotal: {
-            id: "calculateTotal",
-            render: "hierarchy",
-            layer: "hierarchy",
-            label: "",
-            description: "",
-            node_id: calculateTotal.node_id,
-            position: { x: 0, y: 0 },
-            size: null,
-            group_id: null,
-            meta: {},
-            created_by: "user",
-          },
-        },
-      }),
-    });
-    act(() => codeViewModeStore.setMode("popup"));
+  it("closes an open inspector when collapsing the panel", async () => {
+    renderCanvas();
     await waitFor(() => expect(screen.getByTestId("app-root")).toBeTruthy());
-    act(() => collapsedLayersStore.expand("hierarchy"));
-
-    fireEvent.click(
-      await screen.findByRole("button", { name: "Show code for calculate_total" }),
-    );
-    expect(await screen.findByTestId("code-popup")).toBeInTheDocument();
     act(() => inspectorStore.open("function::calculate_total", "calculate_total"));
 
     fireEvent.click(screen.getByRole("button", { name: "Collapse agents and diagrams panel" }));
 
-    expect(screen.queryByTestId("code-popup")).not.toBeInTheDocument();
     expect(inspectorStore.getIsOpen()).toBe(false);
   });
 });

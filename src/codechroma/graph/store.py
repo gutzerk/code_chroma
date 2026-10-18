@@ -142,6 +142,17 @@ def _synchronized[T](method: Callable[..., T]) -> Callable[..., T]:
     return wrapper
 
 
+_GRAPH_TABLES = (
+    "node_parents",
+    "node_symbols",
+    "node_dependencies",
+    "summaries",
+    "nodes",
+    "symbols",
+    "class_shapes",
+)
+
+
 class SqliteGraphStore:
     """SQLite-backed GraphStore. One database file per repository being analyzed."""
 
@@ -233,6 +244,7 @@ class SqliteGraphStore:
     ) -> None:
         conn = self._conn
         repo_id = repository.id
+        # One db per repo: rows under another id (a moved or copied checkout) are stale, drop them.
         with conn:
             conn.execute(
                 "INSERT INTO repositories (id, root_path, primary_language) VALUES (?, ?, ?)"
@@ -240,30 +252,9 @@ class SqliteGraphStore:
                 " primary_language = excluded.primary_language",
                 (repo_id, repository.root_path, repository.primary_language),
             )
-            conn.execute(
-                "DELETE FROM node_parents WHERE node_id IN "
-                "(SELECT id FROM nodes WHERE repository_id = ?)",
-                (repo_id,),
-            )
-            conn.execute(
-                "DELETE FROM node_symbols WHERE node_id IN "
-                "(SELECT id FROM nodes WHERE repository_id = ?)",
-                (repo_id,),
-            )
-            conn.execute(
-                "DELETE FROM node_dependencies WHERE node_id IN "
-                "(SELECT id FROM nodes WHERE repository_id = ?)",
-                (repo_id,),
-            )
-            conn.execute(
-                "DELETE FROM summaries WHERE node_id IN "
-                "(SELECT node_id FROM summaries s WHERE EXISTS "
-                "(SELECT 1 FROM nodes n WHERE n.id = s.node_id AND n.repository_id = ?))",
-                (repo_id,),
-            )
-            conn.execute("DELETE FROM nodes WHERE repository_id = ?", (repo_id,))
-            conn.execute("DELETE FROM symbols WHERE repository_id = ?", (repo_id,))
-            conn.execute("DELETE FROM class_shapes WHERE repository_id = ?", (repo_id,))
+            for table in _GRAPH_TABLES:
+                conn.execute(f"DELETE FROM {table}")
+            conn.execute("DELETE FROM repositories WHERE id != ?", (repo_id,))
 
             conn.executemany(
                 "INSERT INTO nodes (id, repository_id, name, level, source_path)"

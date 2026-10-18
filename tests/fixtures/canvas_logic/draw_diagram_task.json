@@ -1,0 +1,13 @@
+{
+  "_doc": "DrawDiagramButton.test.ts (the pure .ts file, not the .tsx component file) buildDrawDiagramTask.",
+  "cases": [
+    {"name": "asks directly when 4 or fewer kinds are missing", "labels": ["C1", "Design patterns", "Change impact"], "anyReady": false,
+     "contains": ["Ask which kind they'd like -- C1, Design patterns, Change impact --"], "notContains": ["multiple-choice tool call"]},
+    {"name": "plain-text answer once more than 4 kinds are missing", "labels": ["C1", "Design patterns", "Change impact", "Server Comms", "MCP Lifecycle"], "anyReady": false,
+     "contains": ["not a multiple-choice tool call", "C1, Design patterns, Change impact, Server Comms, MCP Lifecycle"], "notContains": []},
+    {"name": "says 'another' once a diagram is already drawn", "labels": ["Change impact"], "anyReady": true,
+     "contains": ["wants another diagram"], "notContains": []},
+    {"name": "asks what new diagram once nothing is missing", "labels": [], "anyReady": true,
+     "contains": ["already drawn", "ask what new diagram"], "notContains": ["Ask which kind"]}
+  ]
+}

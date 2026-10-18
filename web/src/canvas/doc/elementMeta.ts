@@ -31,7 +31,7 @@ export function flagMeta(element: CanvasElement, key: string): boolean {
 
 /** The leading run of ASCII digits in an authored `order` string, normalized to its plain numeric
  * form (e.g. `"2a"` -> `"2"`, and a stray `"02a"` -> `"2"` too, not `"02"`), or `undefined` for empty/
- * non-numeric input -- shared by `layeredLayout.ts`'s rank parser and `CanvasDocView.tsx`'s
+ * non-numeric input -- shared by `elkLayout.ts`'s rank parser and `CanvasDocView.tsx`'s
  * Concurrency island grouping (054-diagram-flow-order) so both "same leading digit" comparisons use
  * one identical rule instead of two regexes that could drift apart. The normalization matters for the
  * second caller specifically: without it, `"2a"` and `"02b"` would parse to the same layout rank (both

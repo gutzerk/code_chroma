@@ -20,7 +20,7 @@ router = APIRouter()
 
 @router.get("/repos/{repo_id}/canvas")
 def get_canvas(ws: Ws) -> dict:
-    """This workspace's document verbatim -- ensure_seeded guaranteed it has a root block."""
+    """This workspace's document verbatim; a fresh repo's is empty (no seeded root block)."""
     return CanvasDoc.load(ws.canvas_core_path, ws.diagrams_root).model_dump(by_alias=True)
 
 

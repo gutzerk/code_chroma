@@ -16,8 +16,8 @@ Three things had drifted, all of them consequences of "one skill per diagram typ
   repo has no skill for.
 - **Rules diverged.** Numeric budgets existed only in c1. The label-length rule only in impact. The
   `style` rule in three of four. The `kind`/icon vocabulary only in c1.
-- **Two lists of skill names were hand-kept.** `skill_sync.SKILL_NAMES` and `packaging/bridge.spec`
-  — and they had already diverged: the frozen build shipped **no impact skill at all**.
+- **Two lists of skill names were hand-kept.** `skill_sync.SKILL_NAMES` and a second copy in the old bridge packaging
+  spec (since removed) — and they had already diverged: that build shipped **no impact skill at all**.
 
 ## Layout
 
@@ -62,8 +62,8 @@ merge. `skill_sync.RETIRED_SKILL_NAMES` + `prune_retired_skills()` (called from 
 exist for exactly this. Retired names also stay in `SKILL_EXCLUDE_PATTERNS`, so a leftover never
 reads as the user's own untracked work in the window before it is removed.
 
-⚠ `packaging/bridge.spec` now **imports** `SKILL_NAMES` instead of re-typing it. The hand-kept copy
-is what silently dropped `codechroma-impact` and `codechroma-impact-review` from every frozen build.
+⚠ Historical: a removed packaging spec used to re-type this list and silently dropped
+`codechroma-impact` and `codechroma-impact-review` from one build; `SKILL_NAMES` is now the only list.
 
 💡 `skills.is_synced_skill_path` matches the `codechroma-` prefix, not exact names, so it needed no
 change.
@@ -232,6 +232,10 @@ exit-tier prose — that's stale and should be corrected alongside the next chan
 aggregated line, and shape-tier for c1 only, whose schema requires a label). A `custom` diagram with
 `style == "dependency-graph"` is exempt from `CROWDED`/`EDGEBOMB`, reusing the same style-aware
 precedent as its existing `SELF` exemption.
+
+`SPLIT` (issue #99) is a separate, advisory-only signal: past `--split-threshold` nodes (default 15,
+`0` disables; same dependency-graph exemption) it tells the agent to warn the user and propose
+splitting into several cross-referenced diagrams (`drawing-rules.md` "Splitting a crowded diagram").
 
 ⚠ These thresholds are **not** in `config.py`. The script is stdlib-only inside the analyzed repo
 and cannot import `codechroma`. The constitution's "capped by configuration" rule governs listings
@@ -779,6 +783,12 @@ ancestor (the containing file/component, or its directory — `impact_context.py
 `change_cards.py`'s `resolve_target` fallback ladder). That box still exists and is still clickable, so
 it gets its own `.block-change--deleted` CSS rule (same red as `removed`, but no strikethrough).
 
+`check_diagram.py` flat kinds also run `_check_shared_node_ids`: a non-blocking `SHAREDNODE` advisory
+when one `node_id` is linked by boxes in more than one `group` (gutzerk/code_chroma#65). The
+convention (`drawing-rules.md`, "Point `node_id` at the deepest symbol") is symbol-level ids
+(`::function::`/`::class::`) over `component::<path>`, and `null` + `no_code_reason: conceptual` for
+fail/aggregate boxes.
+
 `check_diagram.py --kind impact` also gained `_check_impact_status`: a non-blocking advisory
 (`NOSTATUS`/`BADSTATUS`) when a node is missing `meta.status` or carries a value outside the four —
 nothing previously validated this field, which is exactly why the gap (a skill draft that never wrote
@@ -804,17 +814,16 @@ highlighting doesn't:
   (`_default_flat_checks`, factored out of `_fetch_custom_checks`'s existing tail so the two share one
   implementation). Same budgets as `custom` (60/100/40/50); not a new `_BUDGETS` row, so the
   markdown-table drift test (`test_diagram_check_script.py`) needed no change.
-- **Delivery has no "Draw" menu to lean on.** A dynamic `feature-plan/<slug>` layer isn't in
-  `BUILTIN_RECIPES` and isn't enumerable the way saved custom types are (`GET /diagram-types`), so
-  nothing on the canvas auto-triggers its first render. The mode file instead tells the skill to call
-  `POST /repos/{id}/recipes/feature-plan/<slug>/run` itself once the self-check passes — the same
-  route every other type's "Draw" click already calls, which is what actually broadcasts the
-  `"canvas"` WS event a connected canvas renders from (`commit_canvas_batch`), independent of any
-  per-kind ping. This needed `canvas/recipes.py`'s `recipe_for()` to gain a `feature-plan/` branch
-  (mirroring its `custom/` one — see `graph-bridge-core.md`) and
-  `web/src/canvas/doc/diagramCatalog.ts`'s `isRecipeBackedLayer`/`labelForDiagramLayer` to recognize
-  the prefix too, so the Diagrams tab's collapse/expand refresh and label work for it like any other
-  recipe-backed layer.
+- **Delivery goes through the same auto-place path as every other type — the skill must NOT run the
+  recipe itself.** `get_diagrams_status` lists each `feature-plan/<slug>` on disk (ready +
+  fingerprint), `"feature-plan"` is a `DiagramEventKind` in `WATCHED_DIAGRAM_EVENT_KINDS`, so
+  `DrawDiagramButton.refetchStatus` auto-adds the layer via `runRecipeAndLayout` (which is what runs
+  the client-side ELK layout) and refreshes it on a fingerprint change. 🔴 A server-side
+  `POST /recipes/feature-plan/<slug>/run` commits the boxes with no layout pass (layout lives in the
+  canvas), so the old "skill POSTs the run" delivery left feature plans unlaid-out (issue #120).
+  `canvas/recipes.py`'s `recipe_for()` `feature-plan/` branch and `diagramCatalog.ts`'s
+  `isRecipeBackedLayer`/`labelForDiagramLayer` still serve the canvas-triggered run and the Diagrams
+  tab.
 - **The status-reporting convention doesn't apply.** `drawing-rules.md`'s Bridge contract tells every
   type to POST `{"state":"generating"}`/`"idle"` around its write — `feature-plan/<slug>` has no
   generate/status/output routes at all (`has_generate=False`, it never auto-generates), so
@@ -877,8 +886,9 @@ Separate from authoring, and the reason a user could ask for a diagram and see n
   positions and applies them through the same shared path. Because the guard checks the *content*
   (origin-piled) rather than mere in-flight-ness, it drops only the transient state, never an
   unrelated user write. The direct-`PATCH` fallback path (`drawing-rules.md`'s "type this skill does
-  not know") is separately protected: `apply_batch.py` gives a position-less `add_element` a
-  server-side cascade (`_DEFAULT_ADD_STEP_*`) instead of `(0,0)`.
+  not know") is covered by a canvas-side pass: `canvasDocStore.ts`'s `fetchAndApplyCanvasDoc` runs ELK (`pileLayout.ts`) on
+  any layer that arrives with every box on the origin, whoever drew it (the server cascade
+  `_DEFAULT_ADD_STEP_*` was removed; a position-less add now lands at `(0,0)`).
 - **A fourth trigger: expanding a collapsed diagram from the Diagrams tab.** `AgentRail.tsx`'s
   `onToggleLayer` calls `runRecipeAndLayout` (`diagramCatalog.ts`'s shared function — also what the
   Diagrams tab's remove-then-redraw flow uses) whenever a click flips a
@@ -927,3 +937,15 @@ A real session drawing a `custom` diagram surfaced skill-text gaps the fixes bel
   does not know") — `BROKEN`/`DANGLING`/`ORPHAN`/`DUPLICATE`, read off a post-batch
   `GET /repos/{id}/canvas` — since there is no `.codechroma/<kind>.json` file for
   `check_diagram.py` to fetch on this path.
+
+
+## External components and standard shapes (issue #63)
+
+`meta.external: true` on a pathless node makes `diagram_resolver._stamp_no_code_reason` stamp
+`no_code_reason: "external"` (precedence: planned > unresolved > external > conceptual), so external
+systems have their own tag, separate from `conceptual`. The canvas shows a dashed amber outline and an
+`EXTERNAL` chip (`nodeAccentLogic.tsx`, `styles.css`); clicking opens the description popup.
+`meta.shape` selects a conventional shape from the registry `web/src/canvas/doc/shapes.ts`
+(`database`, `storage`, `queue`, `actor`, `client`, `cache`, `external`), applied as a
+`.node-shape-<name>` class; unknown names fall back to the plain box. Tests:
+`tests/unit/test_diagram_resolver.py`, `web/src/canvas/doc/nodeAccent.test.tsx`.

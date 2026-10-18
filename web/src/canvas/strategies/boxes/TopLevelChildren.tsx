@@ -10,7 +10,7 @@ import { PAN_IGNORE_SELECTOR } from "../../CanvasViewport";
 import { useCollisionParticipant } from "../../collision/collisionStore";
 import { useSelectionAwareDrag } from "../../collision/useSelectionAwareDrag";
 import { DropGhost } from "../../collision/DropGhost";
-import { NODE_SEP, RANK_SEP } from "../../collision/constants";
+import { ELK_NODE_SEP, ELK_RANK_SEP } from "../../collision/constants";
 import { useSavedLayout } from "../../useSavedLayoutAndFitLoop";
 import { useMeasuredSizes } from "../../useMeasuredSizes";
 import { Block } from "./Block";
@@ -50,12 +50,12 @@ export function gridLayout(
     const size = sizes.get(node.node_id) ?? DEFAULT_SIZE;
     boxes.push({ id: node.node_id, x, y, width: size.width, height: size.height });
     rowHeight = Math.max(rowHeight, size.height);
-    x += size.width + NODE_SEP;
+    x += size.width + ELK_NODE_SEP;
     column += 1;
     if (column >= columns) {
       column = 0;
       x = 0;
-      y += rowHeight + RANK_SEP;
+      y += rowHeight + ELK_RANK_SEP;
       rowHeight = 0;
     }
   }
@@ -123,7 +123,7 @@ function DraggableTopLevelBox({
       onPointerDown={(event: ReactPointerEvent<HTMLElement>) => {
         if ((event.target as HTMLElement).closest(PAN_IGNORE_SELECTOR)) return;
         // A held Shift means the user is starting a marquee, not this box's own drag -- see
-        // HierarchyElement.tsx's identical check for why this must reach CanvasViewport instead.
+        // CanvasNodeBox.tsx's identical check for why this must reach CanvasViewport instead.
         if (event.shiftKey) return;
         // The box drag owns this gesture — without this the viewport would pan alongside it.
         event.stopPropagation();

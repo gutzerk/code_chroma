@@ -1,0 +1,41 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net8.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <AvaloniaUseCompiledBindingsByDefault>true</AvaloniaUseCompiledBindingsByDefault>
+    <ApplicationManifest>app.manifest</ApplicationManifest>
+    <ApplicationIcon>Assets\icon.ico</ApplicationIcon>
+    <RootNamespace>CodeChroma.Shell.App</RootNamespace>
+    <Version>0.12.1</Version>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="Avalonia" Version="11.3.12" />
+    <PackageReference Include="Avalonia.Desktop" Version="11.3.12" />
+    <PackageReference Include="Avalonia.Themes.Fluent" Version="11.3.12" />
+    <PackageReference Include="Velopack" Version="1.2.161" />
+    <PackageReference Include="WebView.Avalonia" Version="11.0.0.1" />
+    <PackageReference Include="WebView.Avalonia.Desktop" Version="11.0.0.1" />
+  </ItemGroup>
+  <ItemGroup>
+    <AvaloniaResource Include="Assets\icon.ico" />
+    <AvaloniaResource Include="Assets\icon.png" />
+    <ProjectReference Include="..\CodeChroma.Shell\CodeChroma.Shell.csproj" />
+  </ItemGroup>
+  <!-- Opt-in: -p:BundleCSharpBridge=true publishes the C# bridge + built canvas (web/dist, same-origin build) into bridge/codechroma-bridge. -->
+  <Target Name="BundleCSharpBridge" AfterTargets="Publish" Condition="'$(BundleCSharpBridge)' == 'true'">
+    <PropertyGroup>
+      <BridgeOut>$(PublishDir)bridge/codechroma-bridge/</BridgeOut>
+      <WebDist>$(MSBuildThisFileDirectory)../../web/dist/</WebDist>
+    </PropertyGroup>
+    <Error Condition="!Exists('$(WebDist)index.html')" Text="web/dist is missing: run VITE_ENGINE_BRIDGE_URL=same-origin VITE_TERMINAL_BRIDGE_URL=same-origin npm --prefix web run build first." />
+    <Exec Command="dotnet publish &quot;$(MSBuildThisFileDirectory)../CodeChroma.Bridge&quot; -c Release -r $(RuntimeIdentifier) --self-contained true -o &quot;$(BridgeOut)&quot;" />
+    <PropertyGroup>
+      <HostExt Condition="$(RuntimeIdentifier.StartsWith('win'))">.exe</HostExt>
+    </PropertyGroup>
+    <Move SourceFiles="$(BridgeOut)CodeChroma.Bridge$(HostExt)" DestinationFiles="$(BridgeOut)codechroma-bridge$(HostExt)" />
+    <ItemGroup><WebFiles Include="$(WebDist)**/*" /></ItemGroup>
+    <Copy SourceFiles="@(WebFiles)" DestinationFiles="@(WebFiles->'$(BridgeOut)web/%(RecursiveDir)%(Filename)%(Extension)')" />
+  </Target>
+</Project>

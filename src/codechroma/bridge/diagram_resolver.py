@@ -50,13 +50,15 @@ def _resolve_node(engine: GraphEngine, item: dict, notes: Diagnostics) -> dict:
 
 
 def _stamp_no_code_reason(node: dict, *, path: str | None) -> dict:
-    """Why a no-`node_id` node lacks one: `"planned"` > `"unresolved"` > `"conceptual"`."""
+    """Why a node lacks `node_id`: `"planned"` > `"unresolved"` > `"external"` > `"conceptual"`."""
     meta = node.get("meta")
     plan_kind = meta.get("plan_kind") if isinstance(meta, dict) else None
     if plan_kind in ("add", "create"):
         reason, detail = "planned", None
     elif path:
         reason, detail = "unresolved", path
+    elif isinstance(meta, dict) and meta.get("external") is True:
+        reason, detail = "external", None
     else:
         reason, detail = "conceptual", None
     base_meta = meta if isinstance(meta, dict) else {}

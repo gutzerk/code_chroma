@@ -16,6 +16,7 @@ class AgentDockStore extends Store {
   private agentIds: readonly string[] = EMPTY;
   private activeAgentId: string | null = null;
   private collapsed = readCollapsed();
+  private focusRequest = 0;
 
   getAgentIds = (): readonly string[] => this.agentIds;
 
@@ -23,14 +24,30 @@ class AgentDockStore extends Store {
 
   getIsCollapsed = (): boolean => this.collapsed;
 
-  toggleCollapsed = (): void => {
-    this.collapsed = !this.collapsed;
-    try {
-      window.localStorage.setItem(COLLAPSED_STORAGE_KEY, String(this.collapsed));
-    } catch {
-      // The panel remains usable when browser storage is unavailable.
+  getFocusRequest = (): number => this.focusRequest;
+
+  private setCollapsed(collapsed: boolean): void {
+    if (this.collapsed !== collapsed) {
+      this.collapsed = collapsed;
+      try {
+        window.localStorage.setItem(COLLAPSED_STORAGE_KEY, String(collapsed));
+      } catch {
+        // The panel remains usable when browser storage is unavailable.
+      }
     }
     this.emit();
+  }
+
+  toggleCollapsed = (): void => this.setCollapsed(!this.collapsed);
+
+  expand = (): void => {
+    if (this.collapsed) this.setCollapsed(false);
+  };
+
+  openAndFocus = (): void => {
+    if (this.agentIds.length === 0) return;
+    this.focusRequest += 1;
+    this.setCollapsed(false);
   };
 
   attach = (id: string): void => {
@@ -88,4 +105,8 @@ export function useActiveDockedAgentId(): string | null {
 
 export function useIsAgentDockCollapsed(): boolean {
   return useSyncExternalStore(agentDockStore.subscribe, agentDockStore.getIsCollapsed);
+}
+
+export function useAgentDockFocusRequest(): number {
+  return useSyncExternalStore(agentDockStore.subscribe, agentDockStore.getFocusRequest);
 }

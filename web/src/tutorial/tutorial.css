@@ -1,0 +1,172 @@
+.tutorial-chat {
+  box-sizing: border-box;
+  position: fixed;
+  z-index: 10000;
+  padding: 14px 16px;
+  border: 1px solid var(--accent, #6c8cff);
+  border-radius: 14px;
+  background: var(--bg-raised-2, #262b38);
+  color: var(--text-soft, #e9ebf2);
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.45);
+  font-size: 13px;
+  line-height: 1.5;
+  transition:
+    left 0.45s ease,
+    top 0.45s ease;
+}
+
+.tutorial-chat::before {
+  content: "";
+  position: absolute;
+  width: 12px;
+  height: 12px;
+  background: inherit;
+  border: inherit;
+  transform: rotate(45deg);
+}
+
+.tutorial-chat--center::before,
+.tutorial-chat--corner::before {
+  display: none;
+}
+
+.tutorial-chat--right::before {
+  left: -7px;
+  top: 30px;
+  border-right: 0;
+  border-top: 0;
+}
+
+.tutorial-chat--left::before {
+  right: -7px;
+  top: 30px;
+  border-left: 0;
+  border-bottom: 0;
+}
+
+.tutorial-chat--bottom::before {
+  left: 24px;
+  top: -7px;
+  border-right: 0;
+  border-bottom: 0;
+}
+
+.tutorial-chat-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 10px;
+}
+
+.tutorial-chat-icon {
+  width: 44px;
+  height: 44px;
+  flex: none;
+}
+
+.tutorial-chat-stage {
+  color: var(--text-muted-soft, #8b91a1);
+  font-size: 12px;
+}
+
+.tutorial-progress {
+  display: flex;
+  gap: 4px;
+  margin-bottom: 12px;
+}
+
+.tutorial-progress-segment {
+  position: relative;
+  flex: 1;
+  height: 8px;
+  padding: 0;
+  overflow: hidden;
+  border: 0;
+  border-radius: 4px;
+  background: var(--bg-inset, #12141a);
+  cursor: pointer;
+}
+
+.tutorial-progress-segment:disabled {
+  cursor: default;
+  opacity: 0.5;
+}
+
+.tutorial-progress-segment.is-current {
+  outline: 1px solid var(--accent, #6c8cff);
+}
+
+.tutorial-progress-fill {
+  display: block;
+  height: 100%;
+  background: var(--accent, #6c8cff);
+  transition: width 0.3s ease;
+}
+
+.tutorial-chat-name {
+  margin-bottom: 0;
+  color: var(--accent, #6c8cff);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.tutorial-chat-text {
+  min-height: 3em;
+  margin: 0;
+}
+
+.tutorial-chat-next {
+  margin-top: 10px;
+  padding: 6px 16px;
+  border: 0;
+  border-radius: 8px;
+  background: var(--accent, #6c8cff);
+  color: #0b0e16;
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.tutorial-highlight {
+  position: fixed;
+  z-index: 9999;
+  border: 2px solid var(--accent, #6c8cff);
+  border-radius: 8px;
+  pointer-events: none;
+  animation: tutorial-pulse 1.4s ease-in-out infinite;
+}
+
+@keyframes tutorial-pulse {
+  0%,
+  100% {
+    box-shadow: 0 0 0 0 rgba(108, 140, 255, 0.5);
+  }
+  50% {
+    box-shadow: 0 0 0 8px rgba(108, 140, 255, 0);
+  }
+}
+
+.tutorial-agent {
+  top: 72px;
+  right: 24px;
+  z-index: 9000;
+  width: 480px;
+  height: auto;
+  padding-bottom: 14px;
+  cursor: default;
+}
+
+.tutorial-agent .agent-window-title {
+  cursor: default;
+}
+
+.tutorial-agent-terminal {
+  display: flex;
+  height: 380px;
+}
+
+.tutorial-agent-terminal .agent-window-terminal {
+  margin: 0;
+}

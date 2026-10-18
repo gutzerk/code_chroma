@@ -4,6 +4,7 @@ import { useDragOffset } from "../canvas/useDragOffset";
 import { useResizableSize } from "../canvas/useResizableSize";
 import { useAgentClient } from "./AgentClientContext";
 import { agentStore } from "./agentStore";
+import runAgentIcon from "../icons/run-agent.svg";
 import { AgentLed } from "./AgentLed";
 import { AgentTerminal } from "./AgentTerminal";
 import { CreatePrButton } from "./CreatePrButton";
@@ -88,6 +89,7 @@ export function AgentWindow({ agent, docked = false }: { agent: AgentRecord; doc
       onPointerDownCapture={() => persist(agentClient, agent.id, { z: agentStore.bringToFront(agent.id) })}
     >
       <div className="agent-window-title" data-testid={`agent-title-${agent.id}`} {...handleProps}>
+        <img className="agent-window-icon" src={runAgentIcon} alt="" aria-hidden="true" />
         <AgentLed status={agent.status} />
         <span className="agent-window-name">{agent.title}</span>
         {agent.resolved_cli && (

@@ -1,0 +1,33 @@
+{
+  "group": "prs",
+  "sources": ["src/codechroma/bridge/routes/prs.py", "src/codechroma/bridge/prs/manager.py"],
+  "repo": {"base": "sample_repo"},
+  "cases": [
+    {
+      "id": "no_pull_request_reviews_are_open_at_first",
+      "steps": [
+        {"http": {"method": "GET", "path": "/prs"}, "expect": {"status": 200, "json": {"prs": [], "max_prs": 3, "active_workspace": "main"}}}
+      ]
+    },
+    {
+      "id": "preflight_reports_the_cap_and_a_count",
+      "steps": [
+        {"http": {"method": "GET", "path": "/prs/preflight"}, "expect": {"status": 200, "checks": [{"path": "$.count", "equals": 0}, {"path": "$.max_prs", "equals": 3}, {"path": "$.ready", "type": "boolean"}]}}
+      ]
+    },
+    {
+      "id": "an_unparseable_reference_is_a_400",
+      "steps": [
+        {"http": {"method": "POST", "path": "/prs", "json": {"ref": "not a pr"}}, "expect": {"status": 400, "json": {"detail": "Paste a GitHub pull-request URL, or a number like #123"}}},
+        {"http": {"method": "POST", "path": "/prs", "json": {}}, "expect": {"status": 400, "json": {"detail": "Paste a GitHub pull-request URL, or a number like #123"}}}
+      ]
+    },
+    {
+      "id": "closing_or_refreshing_an_unopened_review_is_a_404",
+      "steps": [
+        {"http": {"method": "POST", "path": "/prs/7/refresh"}, "expect": {"status": 404, "json": {"detail": "no open review for #7"}}},
+        {"http": {"method": "DELETE", "path": "/prs/7"}, "expect": {"status": 404, "json": {"detail": "no open review for #7"}}}
+      ]
+    }
+  ]
+}

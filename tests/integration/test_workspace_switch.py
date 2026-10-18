@@ -1,34 +1,23 @@
 """Two agent worktrees with different files return different graphs, and main stays untouched."""
 
-import subprocess
 from pathlib import Path
 
 import pytest
 
 from codechroma.bridge.agents import worktree
 from codechroma.bridge.workspaces import MAIN_ID, STATE_READY, WorkspaceRegistry
-
-
-def _git(root: Path, *args: str) -> str:
-    return subprocess.run(
-        ["git", *args], cwd=root, check=True, capture_output=True, text=True
-    ).stdout
-
-
-def _commit(root: Path, message: str) -> None:
-    _git(root, "add", "-A")
-    _git(root, "commit", "-m", message)
+from tests.conftest import commit, git
 
 
 @pytest.fixture
 def repo(tmp_path, monkeypatch):
     root = tmp_path / "repo"
     root.mkdir()
-    _git(root, "init", "-b", "main")
-    _git(root, "config", "user.email", "test@example.com")
-    _git(root, "config", "user.name", "Test")
+    git(root, "init", "-b", "main")
+    git(root, "config", "user.email", "test@example.com")
+    git(root, "config", "user.name", "Test")
     (root / "shared.py").write_text("def shared():\n    return 1\n", encoding="utf-8")
-    _commit(root, "initial")
+    commit(root, "initial")
     monkeypatch.setenv(worktree.WORKSPACES_DIR_ENV, str(tmp_path / "worktrees"))
     return root
 
@@ -36,10 +25,10 @@ def repo(tmp_path, monkeypatch):
 def _add_agent(repo: Path, name: str, filename: str, body: str) -> Path:
     path = worktree.worktree_path(repo, name)
     worktree.add(repo, f"agent/{name}", path)
-    _git(path, "config", "user.email", "agent@example.com")
-    _git(path, "config", "user.name", "Agent")
+    git(path, "config", "user.email", "agent@example.com")
+    git(path, "config", "user.name", "Agent")
     (path / filename).write_text(body, encoding="utf-8")
-    _commit(path, f"{name} work")
+    commit(path, f"{name} work")
     return path
 
 
@@ -155,7 +144,7 @@ def test_an_agent_workspaces_diff_base_is_its_divergence_point(repo, registry):
 
     base = workspaces.get("alpha").diff_base()
 
-    assert base == _git(repo, "rev-parse", "main").strip()
+    assert base == git(repo, "rev-parse", "main").strip()
     assert workspaces.main.diff_base() == "HEAD"
 
 

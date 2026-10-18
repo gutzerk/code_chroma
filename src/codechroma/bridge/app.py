@@ -1,11 +1,11 @@
 """The bridge application factory: one `create_app(repo_root)` per analyzed repository.
 
 This module deliberately does **nothing** at import time. `server.py` calls `create_app()` once for
-uvicorn and the frozen desktop bridge; a test calls it with a temporary repository and gets an
+uvicorn and the C# shell's bundled bridge; a test calls it with a temporary repository and gets an
 independent app, which is what replaced the old `importlib.reload(server)` fixture.
 
 Startup ordering that matters: uvicorn runs the lifespan *before* it binds the listening socket, so
-`launch.py`'s "wait for the port" and the desktop shell's `GET /health` poll both still mean "the
+`launch.py`'s "wait for the port" and the C# shell's `GET /health` poll both still mean "the
 initial analyze is done" -- the same guarantee the old module-scope analyze gave them.
 """
 
@@ -25,6 +25,7 @@ from fastapi.staticfiles import StaticFiles
 from codechroma.bridge import resources
 from codechroma.bridge.errors import install_error_handler
 from codechroma.bridge.git_cmd import ensure_excluded
+from codechroma.bridge.origin_guard import OriginGuard
 from codechroma.bridge.routes import ROUTERS
 from codechroma.bridge.services import BridgeServices
 from codechroma.bridge.skill_sync import SKILL_EXCLUDE_PATTERNS, sync_all_skills
@@ -48,7 +49,7 @@ IDLE_SWEEP_SECONDS = 60
 
 def default_repo_root() -> Path:
     """The repo `codechroma_BRIDGE_REPO_PATH` names; an absolute value wins over PROJECT_ROOT."""
-    return PROJECT_ROOT / os.environ.get("codechroma_BRIDGE_REPO_PATH", "examples")
+    return PROJECT_ROOT / os.environ.get("codechroma_BRIDGE_REPO_PATH", ".")
 
 
 async def _poll_agent_statuses(services: BridgeServices) -> None:
@@ -121,16 +122,18 @@ def create_app(repo_root: Path | None = None) -> FastAPI:
     app = FastAPI(lifespan=lifespan)
     app.state.services = BridgeServices.create(root)
 
+    allowed_origins = os.environ.get(
+        "codechroma_BRIDGE_CORS_ORIGINS",
+        # Both loopback spellings: dev server and launcher can answer on either.
+        "http://localhost:5173,http://127.0.0.1:5173",
+    ).split(",")
     app.add_middleware(
         CORSMiddleware,
-        allow_origins=os.environ.get(
-            "codechroma_BRIDGE_CORS_ORIGINS",
-            # Both loopback spellings: dev server and launcher can answer on either.
-            "http://localhost:5173,http://127.0.0.1:5173",
-        ).split(","),
+        allow_origins=allowed_origins,
         allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE"],
         allow_headers=["*"],
     )
+    app.add_middleware(OriginGuard, allowed_origins=allowed_origins)
     # One handler for every domain error, so a route only catches to reword the message.
     install_error_handler(app)
     # Serve the PTY terminal bridge on this same port so the canvas's terminal panel connects.

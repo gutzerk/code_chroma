@@ -35,10 +35,10 @@ Four things about it are load-bearing for how a TUI actually renders, and all fo
   banner against zero columns and every later reflow inherits that mess.
 - 🔴 **The child gets an explicit `env`** (`_terminal_env`): `TERM=xterm-256color`, `COLORTERM`,
   `FORCE_COLOR`, and a UTF-8 `LANG` when none is set. A Finder-launched desktop app inherits **no
-  `TERM`** — `desktop/src/shellPath.ts` repairs `PATH` and nothing else — so inheriting the bridge's
+  `TERM`** — the bridge's captured runtime environment repairs `PATH` and not `TERM` — so inheriting the bridge's
   environment verbatim meant a colourless, degraded TUI in the packaged app only. That base (before
-  the overrides) is `dict(os.environ)`, which is how `codechroma_BRIDGE_REPO_PATH` and (in the desktop
-  app) `codechroma_BRIDGE_URL` — set by `packaging/bridge_main.py` to the real dynamic port — reach the
+  the overrides) is `dict(os.environ)`, which is how `codechroma_BRIDGE_REPO_PATH` and (under the C# shell's bridge)
+  `codechroma_BRIDGE_URL` — set to the real dynamic port — reach the
   shell a `codechroma-*` skill runs in; see [`desktop-app.md`](desktop-app.md).
 - 🔴 **Output is decoded incrementally**, not per `os.read`. A multi-byte character straddling the
   4096-byte read boundary used to become U+FFFD on both sides, which is most of a TUI's box drawing
@@ -60,3 +60,10 @@ Four things about it are load-bearing for how a TUI actually renders, and all fo
 
 The browser side is `web/src/terminal/useXtermSession.ts` — see
 [`docs/architecture/web-panels.md`](web-panels.md).
+
+- ⚠ **ConPTY blocks on its startup `ESC[c` query.** Until something replies, a Windows child's output is withheld entirely. `PtySession._answer_conpty_query` answers it server-side (once), because an agent window's PTY starts before any xterm attaches and a late attach only gets a screen redraw. Without it the agent window is blank (issue #128). Test: `tests/unit/test_pty_session_windows.py`.
+
+
+## C# host (`dotnet/CodeChroma.Bridge/Terminal/`, `Routes/TerminalRoutes.cs`)
+
+The C# bridge serves `WS /ws/terminal` with the same protocol (`o`/`e` tags, `input`/`binary`/`resize` frames, 4404/4409 close codes, 30x120 default PTY) on `Porta.Pty` (ConPTY / openpty). 🔴 It fixes the frozen-Python-on-Windows bug where the socket closed with 1000 about 20ms after open (shown as `[detached]`): the PTY is owned by `PtyHost`, not by the socket handler, and a plain terminal only closes when its child exits or the client leaves; proven by `TerminalSocketTests`/`PtyHostTests` against real `cmd.exe`. Closing a window on an agent session only detaches (`AgentSession.Detach`); the process keeps running and a new window is seeded with `ScreenTap.Render()`. A `?workspace=` naming a registered non-agent workspace opens a shell in that workspace's root (Python reports "the agent is not running" for any registered id). Not ported: foreground-process probing for the status LED.

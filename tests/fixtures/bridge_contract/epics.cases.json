@@ -1,0 +1,155 @@
+{
+  "group": "epics",
+  "sources": [
+    "src/codechroma/bridge/routes/epics.py",
+    "src/codechroma/requirements/assembler.py",
+    "src/codechroma/requirements/markdown/epic_source.py",
+    "src/codechroma/requirements/markdown/speckit_source.py"
+  ],
+  "repo": {
+    "base": "sample_repo",
+    "files": {
+      "plan/epics/EP-A-01.md": {"text": "---\nid: EP-A-01\ntitle: Foundation\nstatus: Planned\nkind: epic\ndepends_on:\n  - {id: EP-Z-01, title: an outside epic}\n---\n\n## Acceptance Criteria\n\n- [x] first criterion\n- [ ] second criterion\n"},
+      "plan/epics/EP-A-01-01.md": {"text": "---\nid: EP-A-01-01\ntitle: First story\nstatus: Draft\nkind: story\nparent: EP-A-01\n---\n"},
+      "specs/001-first/spec.md": {"text": "**Input**: User description: \"for EP-A-01-01\"\n\n**Status**: Draft\n"},
+      "specs/001-first/tasks.md": {"text": "## Phase 1: Setup\n\n- [x] T001 first task\n- [ ] T002 [P] second task\n"}
+    }
+  },
+  "cases": [
+    {
+      "id": "the_index_has_summaries_only",
+      "steps": [
+        {
+          "http": {"method": "GET", "path": "/repos/main/epics/context"},
+          "expect": {"status": 200, "checks": [
+            {"path": "$.generation_data.items", "count": 2},
+            {"path": "$.generation_data.items[0].requirements", "absent": true},
+            {"path": "$.generation_data.omitted", "equals": 0},
+            {"path": "$.generation_data.source", "equals": "file://plan/epics"},
+            {"path": "$.generation_data.generated_at", "type": "string"}
+          ]}
+        }
+      ]
+    },
+    {
+      "id": "an_item_has_requirements_children_links_and_unexpanded_stages",
+      "steps": [
+        {
+          "http": {"method": "GET", "path": "/repos/main/epics/items/ep-a-01"},
+          "expect": {"status": 200, "checks": [
+            {"path": "$.id", "equals": "EP-A-01"},
+            {"path": "$.title", "equals": "Foundation"},
+            {"path": "$.requirements", "count": 2},
+            {"path": "$.requirements[0].done", "equals": true},
+            {"path": "$.requirements[1].done", "equals": false},
+            {"path": "$.requirements[0].kind", "equals": "checklist"},
+            {"path": "$.children", "count": 1},
+            {"path": "$.children[0].id", "equals": "EP-A-01-01"},
+            {"path": "$.links[0].id", "equals": "EP-Z-01"},
+            {"path": "$.links[0].relation", "equals": "depends_on"},
+            {"path": "$.links[0].in_index", "equals": false},
+            {"path": "$.source_ref", "type": "string"}
+          ]}
+        }
+      ]
+    },
+    {
+      "id": "expanding_a_stage_populates_only_that_stage",
+      "steps": [
+        {
+          "http": {"method": "GET", "path": "/repos/main/epics/items/EP-A-01-01", "query": {"expand": "epic-stage::001-first::tasks"}},
+          "expect": {"status": 200, "checks": [
+            {"path": "$.stages", "count": 2},
+            {"path": "$.stages[1].done", "equals": 1},
+            {"path": "$.stages[1].total", "equals": 2},
+            {"path": "$.stages[1].sections[0].title", "equals": "Phase 1: Setup"},
+            {"path": "$.stages[1].sections[0].items[1].parallel", "equals": true},
+            {"path": "$.stages[1].sections[0].items[1].id", "equals": "T002"},
+            {"path": "$.stages[0].sections", "count": 0}
+          ]}
+        }
+      ]
+    },
+    {
+      "id": "an_unknown_item_is_a_404",
+      "steps": [
+        {"http": {"method": "GET", "path": "/repos/main/epics/items/NOPE"}, "expect": {"status": 404, "json": {"detail": "unknown work item: 'NOPE'"}}},
+        {"http": {"method": "POST", "path": "/repos/main/epics/NOPE/brief"}, "expect": {"status": 404, "json": {"detail": "unknown work item: 'NOPE'"}}}
+      ]
+    },
+    {
+      "id": "the_brief_before_any_run_is_idle_and_empty",
+      "steps": [
+        {
+          "http": {"method": "GET", "path": "/repos/main/epics/EP-A-01/brief"},
+          "expect": {"status": 200, "json": {"job_key": "main:EP-A-01", "brief": null, "state": "idle", "error": null}}
+        },
+        {
+          "http": {"method": "GET", "path": "/repos/main/epics/EP-A-01/brief/output"},
+          "expect": {"status": 200, "json": {"lines": []}}
+        }
+      ]
+    },
+    {
+      "id": "a_cached_brief_is_normalized_and_served_without_running_the_skill",
+      "steps": [
+        {
+          "fs": "write", "path": ".codechroma/epics/briefs/EP-A-01.json",
+          "text": "{\"epic_id\": \"EP-A-01\", \"generated_at\": \"t\", \"junk\": 1, \"scope\": [{\"id\": \"s1\", \"title\": \"S\", \"tasks\": []}]}"
+        },
+        {
+          "http": {"method": "POST", "path": "/repos/main/epics/EP-A-01/brief"},
+          "expect": {"status": 200, "checks": [
+            {"path": "$.state", "equals": "idle"},
+            {"path": "$.brief.epic_id", "equals": "EP-A-01"},
+            {"path": "$.brief.junk", "absent": true},
+            {"path": "$.brief.scope[0].in_scope", "equals": true},
+            {"path": "$.brief.scope[0].description", "equals": ""}
+          ]}
+        },
+        {
+          "http": {"method": "GET", "path": "/repos/main/epics/EP-A-01/brief"},
+          "expect": {"status": 200, "checks": [{"path": "$.brief.scope", "count": 1}]}
+        }
+      ]
+    },
+    {
+      "id": "a_missing_cli_is_an_error_state_for_the_brief",
+      "steps": [
+        {
+          "http": {"method": "PUT", "path": "/runtime/settings", "json": {"cli_paths": {"claude": "/definitely/missing/claude"}}},
+          "expect": {"status": 200}
+        },
+        {
+          "http": {"method": "POST", "path": "/repos/main/epics/EP-A-01/brief"},
+          "expect": {"status": 200, "checks": [
+            {"path": "$.state", "equals": "error"},
+            {"path": "$.error", "contains": "does not exist"},
+            {"path": "$.brief", "type": "null"}
+          ]}
+        },
+        {
+          "http": {"method": "POST", "path": "/repos/main/epics/EP-A-01/brief/cancel"},
+          "expect": {"status": 200, "json": {"job_key": "main:EP-A-01", "brief": null, "state": "idle", "error": null}}
+        }
+      ]
+    },
+    {
+      "id": "the_brief_and_diagram_paths_point_at_the_per_epic_artifacts",
+      "steps": [
+        {
+          "http": {"method": "GET", "path": "/repos/main/epics/EP-A-01/brief/path"},
+          "expect": {"status": 200, "checks": [{"path": "$.brief_path", "contains": ".codechroma/epics/briefs/EP-A-01.json"}]}
+        },
+        {
+          "http": {"method": "GET", "path": "/repos/main/epics/EP-A-01/diagram-path"},
+          "expect": {"status": 200, "checks": [{"path": "$.diagram_path", "contains": ".codechroma/diagrams/epics/EP-A-01/EP-A-01.json"}]}
+        },
+        {
+          "http": {"method": "GET", "path": "/repos/main/epics/bad.id/diagram-path"},
+          "expect": {"status": 404}
+        }
+      ]
+    }
+  ]
+}

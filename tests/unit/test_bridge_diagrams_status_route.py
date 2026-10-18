@@ -51,6 +51,19 @@ def test_written_c1_reports_ready(server_module):
     assert response.json()["patterns"] == {"ready": False, "fingerprint": None}
 
 
+def test_written_feature_plan_reports_ready_under_its_layer_name(server_module):
+    bridge, repo = server_module
+    _write_json(
+        diagram_json_path(repo, "feature-plan/token-auth"),
+        {"nodes": [], "relations": [{"from": "a", "to": "b"}]},
+    )
+
+    with TestClient(bridge.app) as client:
+        response = client.get("/repos/default/diagrams/status")
+
+    assert response.json()["feature-plan/token-auth"]["ready"] is True
+
+
 def test_c1_fingerprint_changes_when_the_file_is_edited_in_place(server_module):
     # Lets a client spot an in-place edit; DrawDiagramButton reruns the stale check.
     bridge, repo = server_module

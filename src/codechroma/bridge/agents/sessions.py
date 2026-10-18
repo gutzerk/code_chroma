@@ -136,6 +136,7 @@ class AgentSession(AgentSessionPort):
         queue: asyncio.Queue = asyncio.Queue()
         queue.put_nowait(self._tap.render())
         self._consumers.add(queue)
+        self._pty.client_attached = True
         return queue
 
     def resync(self, queue: asyncio.Queue) -> None:
@@ -146,6 +147,7 @@ class AgentSession(AgentSessionPort):
     def detach(self, queue: asyncio.Queue) -> None:
         """Drops one consumer; the process keeps running with nobody watching."""
         self._consumers.discard(queue)
+        self._pty.client_attached = bool(self._consumers)
 
     def write(self, data: str) -> None:
         self._pty.write(data)

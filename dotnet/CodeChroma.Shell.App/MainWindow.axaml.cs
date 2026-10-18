@@ -35,7 +35,7 @@ public sealed partial class MainWindow : Window, IShellUi, ILauncherHost
         var manager = new BridgeManager(new ProcessBridgeLauncher(), new TcpPortFinder(), new HttpHealthProbe(new HttpClient()));
         controller = new ShellController(tabs, new BridgeRegistry(manager, ResolveBridge()), this, new BranchBridgeClient(new HttpClient()), RecentsPath, version, action => Dispatcher.UIThread.Post(action));
 
-        updates = new UpdateHost(this, UserDataDir, version, () => tabs.Tabs.Select(t => (TabView)t.View), Close);
+        updates = new UpdateHost(this, UserDataDir, version, () => tabs.Tabs.Select(t => (TabView)t.View).Where(v => IsBridgeOrigin(v, v.Web.Url)), Close);
         Opened += (_, _) => updates.Start();
         if (OperatingSystem.IsMacOS())
         {

@@ -80,7 +80,7 @@ def test_pack_sh_renames_the_vpk_output_and_writes_a_matching_sidecar(
 @pytest.mark.parametrize(
     ("rid", "expect_no_inst"), [("osx-arm64", True), ("osx-x64", True), ("linux-x64", False)]
 )
-def test_pack_sh_passes_the_channel_runtime_and_skips_the_velopack_app_check(
+def test_pack_sh_passes_the_channel_runtime_without_skipping_the_velopack_app_check(
     tmp_path, publish, rid, expect_no_inst
 ):
     _run_sh(tmp_path, publish, rid)
@@ -88,7 +88,7 @@ def test_pack_sh_passes_the_channel_runtime_and_skips_the_velopack_app_check(
     args = (tmp_path / "vpk.log").read_text().split()
     assert args[args.index("--channel") + 1] == rid
     assert args[args.index("--runtime") + 1] == rid
-    assert "--skipVeloAppCheck" in args
+    assert "--skipVeloAppCheck" not in args
     assert ("--noInst" in args) == expect_no_inst
 
 

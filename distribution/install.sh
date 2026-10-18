@@ -165,6 +165,16 @@ VERSION="$(json_get "" version)"
 [ "${#SHA256}" -eq 64 ] || err "release manifest has no valid SHA-256 for ${target}."
 ASSET="$(safe_name "${URL##*/}")"
 [ -n "$ASSET" ] || err "could not derive a file name from the manifest URL."
+# Pin the download to this repo's release assets unless the test-hook manifest override is set.
+if [ -z "${CODECROMA_MANIFEST_URL:-}" ]; then
+    case "$URL" in
+        "https://github.com/${REPO}/releases/download/"*) ;;
+        *) err "the manifest asset URL is not a https://github.com/${REPO}/releases/download/ URL; refusing it." ;;
+    esac
+    case "$URL" in
+        */../*|*/..|*%2[eE]*) err "the manifest asset URL contains a path traversal; refusing it." ;;
+    esac
+fi
 
 # --- already installed? ---------------------------------------------------------
 installed_version=""
@@ -235,7 +245,7 @@ remember() { # path
 }
 
 quit_running_app() {
-    if command -v pgrep >/dev/null 2>&1 && pgrep -x CodeChroma >/dev/null 2>&1; then
+    if command -v pgrep >/dev/null 2>&1 && { pgrep -x CodeChroma >/dev/null 2>&1 || pgrep -x CodeChroma.Shell.App >/dev/null 2>&1; }; then
         warn "CodeChroma is running; asking it to quit before replacing it."
         osascript -e 'tell application "CodeChroma" to quit' >/dev/null 2>&1 || true
         sleep 2

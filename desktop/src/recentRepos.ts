@@ -57,7 +57,7 @@ export function removeRecent(storePath: string, repoPath: string): RecentRepo[] 
 
 /** Last two path segments, so sibling checkouts named "web" stay distinguishable in the list. */
 function basename(repoPath: string): string {
-  const segments = repoPath.split(/[\/]/).filter(Boolean);
+  const segments = repoPath.split(/[\\/]/).filter(Boolean);
   return segments.slice(-2).join("/") || repoPath;
 }
 

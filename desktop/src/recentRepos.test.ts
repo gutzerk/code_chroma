@@ -79,6 +79,12 @@ describe("addRecent", () => {
 
     expect(result[0]?.name).toBe("projects/atlas");
   });
+
+  it("splits Windows backslash paths too", () => {
+    const result = addRecent(store, "C:\\Users\\me\\projects\\atlas", 1000);
+
+    expect(result[0]?.name).toBe("projects/atlas");
+  });
 });
 
 describe("removeRecent", () => {

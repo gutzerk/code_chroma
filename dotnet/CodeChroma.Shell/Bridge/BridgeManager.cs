@@ -1,6 +1,7 @@
 using System.Diagnostics;
 using System.Net;
 using System.Net.Sockets;
+using System.Runtime.InteropServices;
 using System.Text.RegularExpressions;
 
 namespace CodeChroma.Shell;
@@ -60,13 +61,21 @@ public sealed partial class BridgeManager(IBridgeProcessLauncher launcher, IPort
         var timeout = readyTimeout ?? DefaultReadyTimeout;
         var deadline = DateTime.UtcNow + timeout;
         var poll = pollInterval ?? TimeSpan.FromMilliseconds(400);
-        while (DateTime.UtcNow < deadline)
+        try
         {
-            ct.ThrowIfCancellationRequested();
-            if (ready.Task.IsCompleted) return new BridgeHandle(port, origin, process);
-            if (process.HasExited) throw new InvalidOperationException(process.ExitDescription ?? "bridge exited");
-            if (await health.IsHealthyAsync(origin, ct)) return new BridgeHandle(port, origin, process);
-            await Task.WhenAny(ready.Task, process.Exited, Task.Delay(poll, ct));
+            while (DateTime.UtcNow < deadline)
+            {
+                ct.ThrowIfCancellationRequested();
+                if (ready.Task.IsCompleted) return new BridgeHandle(port, origin, process);
+                if (process.HasExited) throw new InvalidOperationException(process.ExitDescription ?? "bridge exited");
+                if (await health.IsHealthyAsync(origin, ct)) return new BridgeHandle(port, origin, process);
+                await Task.WhenAny(ready.Task, process.Exited, Task.Delay(poll, ct));
+            }
+        }
+        catch
+        {
+            await StopAsync(process);
+            throw;
         }
         await StopAsync(process);
         throw new TimeoutException($"bridge did not become ready within {(int)timeout.TotalMilliseconds}ms");
@@ -102,8 +111,11 @@ public sealed class BridgeRegistry(BridgeManager manager, string executable)
     {
         Task<BridgeHandle>[] all;
         lock (gate) all = [.. bridges.Values];
-        foreach (var task in all.Where(t => t.IsCompletedSuccessfully))
-            await BridgeManager.StopAsync((await task).Process);
+        foreach (var task in all)
+        {
+            try { await BridgeManager.StopAsync((await task).Process); }
+            catch (Exception e) when (e is InvalidOperationException or TimeoutException or IOException or System.ComponentModel.Win32Exception or OperationCanceledException) { }
+        }
     }
 }
 
@@ -169,6 +181,7 @@ public sealed class ProcessBridgeLauncher : IBridgeProcessLauncher
         process.ErrorDataReceived += (_, e) => { if (e.Data is not null) spec.OnLine(e.Data); };
         var wrapper = new RealProcess(process);
         process.Start();
+        BridgeJob.Assign(process);
         process.BeginOutputReadLine();
         process.BeginErrorReadLine();
         wrapper.Watch();
@@ -200,4 +213,78 @@ public sealed class ProcessBridgeLauncher : IBridgeProcessLauncher
             await Task.WhenAny(exited.Task, Task.Delay(grace));
         }
     }
+}
+
+/// <summary>Windows Job Object with KILL_ON_JOB_CLOSE so bridges die with the shell even if it crashes; a no-op elsewhere.</summary>
+internal static class BridgeJob
+{
+    private static readonly Lazy<IntPtr> Job = new(Create);
+
+    public static void Assign(Process process)
+    {
+        if (!OperatingSystem.IsWindows() || Job.Value == IntPtr.Zero) return;
+        try { AssignProcessToJobObject(Job.Value, process.Handle); }
+        catch (Exception e) when (e is InvalidOperationException or System.ComponentModel.Win32Exception) { }
+    }
+
+    private static IntPtr Create()
+    {
+        if (!OperatingSystem.IsWindows()) return IntPtr.Zero;
+        var job = CreateJobObject(IntPtr.Zero, null);
+        if (job == IntPtr.Zero) return IntPtr.Zero;
+        var info = new ExtendedLimitInformation { BasicLimitInformation = new BasicLimitInformation { LimitFlags = KillOnJobClose } };
+        var size = Marshal.SizeOf<ExtendedLimitInformation>();
+        var buffer = Marshal.AllocHGlobal(size);
+        try
+        {
+            Marshal.StructureToPtr(info, buffer, false);
+            return SetInformationJobObject(job, ExtendedLimitInformationClass, buffer, (uint)size) ? job : IntPtr.Zero;
+        }
+        finally { Marshal.FreeHGlobal(buffer); }
+    }
+
+    private const uint KillOnJobClose = 0x2000;
+    private const int ExtendedLimitInformationClass = 9;
+
+    [StructLayout(LayoutKind.Sequential)]
+    private struct BasicLimitInformation
+    {
+        public long PerProcessUserTimeLimit;
+        public long PerJobUserTimeLimit;
+        public uint LimitFlags;
+        public UIntPtr MinimumWorkingSetSize;
+        public UIntPtr MaximumWorkingSetSize;
+        public uint ActiveProcessLimit;
+        public UIntPtr Affinity;
+        public uint PriorityClass;
+        public uint SchedulingClass;
+    }
+
+    [StructLayout(LayoutKind.Sequential)]
+    private struct IoCounters
+    {
+        public ulong ReadOperationCount, WriteOperationCount, OtherOperationCount, ReadTransferCount, WriteTransferCount, OtherTransferCount;
+    }
+
+    [StructLayout(LayoutKind.Sequential)]
+    private struct ExtendedLimitInformation
+    {
+        public BasicLimitInformation BasicLimitInformation;
+        public IoCounters IoInfo;
+        public UIntPtr ProcessMemoryLimit;
+        public UIntPtr JobMemoryLimit;
+        public UIntPtr PeakProcessMemoryUsed;
+        public UIntPtr PeakJobMemoryUsed;
+    }
+
+    [DllImport("kernel32.dll", CharSet = CharSet.Unicode)]
+    private static extern IntPtr CreateJobObject(IntPtr attributes, string? name);
+
+    [DllImport("kernel32.dll")]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    private static extern bool SetInformationJobObject(IntPtr job, int infoClass, IntPtr info, uint size);
+
+    [DllImport("kernel32.dll")]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    private static extern bool AssignProcessToJobObject(IntPtr job, IntPtr process);
 }

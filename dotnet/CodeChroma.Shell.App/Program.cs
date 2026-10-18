@@ -1,5 +1,6 @@
 using Avalonia;
 using Avalonia.WebView.Desktop;
+using Velopack;
 
 namespace CodeChroma.Shell.App;
 
@@ -10,6 +11,7 @@ internal static class Program
     [STAThread]
     public static void Main(string[] args)
     {
+        VelopackApp.Build().Run();
         Args = args;
         BuildAvaloniaApp().StartWithClassicDesktopLifetime(args);
     }

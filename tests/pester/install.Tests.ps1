@@ -165,6 +165,17 @@ Describe 'Install-CodeChroma' {
     }
 }
 
+Describe 'Invoke-CodeChromaGh' {
+    It 'returns the exit code instead of throwing when the native command writes to stderr' {
+        $previous = $ErrorActionPreference
+        $ErrorActionPreference = 'Stop'
+
+        try { $code = Invoke-CodeChromaGh -Gh 'cmd.exe' -Arguments @('/c', 'echo not logged in 1>&2 & exit 4') } finally { $ErrorActionPreference = $previous }
+
+        $code | Should -Be 4
+    }
+}
+
 Describe 'Uninstall-CodeChroma' {
     BeforeEach {
         Use-Fixture (New-Fixture -Root $TestDrive)

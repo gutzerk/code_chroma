@@ -75,7 +75,9 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           REPO: ${{ github.repository }}
           SHA: ${{ github.sha }}
+          RELEASE_TAG: ${{ github.event.inputs.release_tag }}
         run: |
+          if [ -n "$RELEASE_TAG" ]; then SHA="$(gh api "repos/$REPO/commits/$RELEASE_TAG" --jq .sha)"; fi
           for attempt in $(seq 1 100); do
             runs="$(gh run list --repo "$REPO" --workflow ci.yml --commit "$SHA" --json status,conclusion)"
             total="$(jq 'length' <<<"$runs")"
@@ -113,6 +115,8 @@ jobs:
     timeout-minutes: 40
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.event.inputs.release_tag != '' && format('refs/tags/{0}', github.event.inputs.release_tag) || github.sha }}
 
       - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
         with:
@@ -228,6 +232,8 @@ jobs:
     timeout-minutes: 40
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.event.inputs.release_tag != '' && format('refs/tags/{0}', github.event.inputs.release_tag) || github.sha }}
 
       - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
         with:
@@ -327,6 +333,8 @@ jobs:
     timeout-minutes: 40
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.event.inputs.release_tag != '' && format('refs/tags/{0}', github.event.inputs.release_tag) || github.sha }}
 
       - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
         with:
@@ -434,6 +442,8 @@ jobs:
     timeout-minutes: 40
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.event.inputs.release_tag != '' && format('refs/tags/{0}', github.event.inputs.release_tag) || github.sha }}
 
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
@@ -519,6 +529,8 @@ jobs:
     timeout-minutes: 40
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.event.inputs.release_tag != '' && format('refs/tags/{0}', github.event.inputs.release_tag) || github.sha }}
 
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
@@ -589,6 +601,8 @@ jobs:
     timeout-minutes: 40
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.event.inputs.release_tag != '' && format('refs/tags/{0}', github.event.inputs.release_tag) || github.sha }}
 
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
@@ -665,6 +679,8 @@ jobs:
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.event.inputs.release_tag != '' && format('refs/tags/{0}', github.event.inputs.release_tag) || github.sha }}
       - name: Download installer checksums and asset sizes from the draft release
         env:
           GH_TOKEN: ${{ github.token }}

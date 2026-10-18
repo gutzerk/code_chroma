@@ -22,5 +22,6 @@ public static partial class UpdateConstants
     /// <summary>True only for a credential-free github.com release-download URL of <paramref name="repo"/>.</summary>
     public static bool IsTrustedDownloadUrl(string? url, string repo = Repo) =>
         url is not null && DownloadUrlPattern().Match(url) is { Success: true } m
+        && !url.Split('/').Any(segment => segment is ".." or "." || segment.Contains("%2e", StringComparison.OrdinalIgnoreCase))
         && string.Equals(m.Groups["repo"].Value, repo, StringComparison.Ordinal);
 }

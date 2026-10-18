@@ -9,9 +9,10 @@ public sealed record GraphNode(
     IReadOnlyList<string> ParentIds,
     string? SourcePath,
     bool DocOnly,
-    IReadOnlyList<string> DependsOnIds);
+    IReadOnlyList<string> DependsOnIds,
+    IReadOnlyList<string>? SymbolIds = null);
 
-public sealed record SymbolInfo(string Id, string FilePath, int StartLine, int EndLine, string Language);
+public sealed record SymbolInfo(string Id, string FilePath, int StartLine, int EndLine, string Language, string QualifiedName = "");
 
 /// <summary>The narrow surface the bridge needs from the graph core (CodeChroma.Core plugs in here).</summary>
 public interface IGraphEngine
@@ -31,7 +32,13 @@ public interface IGraphEngine
 
     string? SummaryText(string id);
 
+    /// <summary>The innermost function node whose line span holds <paramref name="line"/> in a repo-relative file, or null.</summary>
+    string? FunctionNodeAtLine(string relPath, int line) => null;
+
     void Reanalyze(IReadOnlyList<string> changedPaths);
+
+    /// <summary>The engine's current Graph for whole-graph consumers (the wiki); null for engines without one.</summary>
+    CodeChroma.Core.Graph? GraphSnapshot() => null;
 
     /// <summary>The heuristic design-pattern candidates for the current graph; engines without shape support report none.</summary>
     IReadOnlyList<CodeChroma.Core.Patterns.PatternInstance> PatternCandidates() => [];

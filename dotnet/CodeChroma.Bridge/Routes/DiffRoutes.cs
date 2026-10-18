@@ -9,9 +9,13 @@ namespace CodeChroma.Bridge.Routes;
 /// <summary>The Diff toggle's two layers: per-function diffs, change cards, and committing one node.</summary>
 public static class DiffRoutes
 {
+    /// <summary>The seam that parses a file as it was at the diff base; shared by every route that builds change cards.</summary>
+    public static IOldSymbolParser ParserFor(WebApplication app) =>
+        app.Services.GetService<IOldSymbolParser>() ?? new ExporterSymbolParser(app.Services.GetRequiredService<IAnalysisExporter>());
+
     public static void Map(WebApplication app)
     {
-        var parser = app.Services.GetService<IOldSymbolParser>() ?? new ExporterSymbolParser(app.Services.GetRequiredService<IAnalysisExporter>());
+        var parser = ParserFor(app);
         app.MapGet("/repos/{repoId}/diff", (string repoId, WorkspaceRegistry registry) =>
         {
             var ws = registry.Get(repoId);

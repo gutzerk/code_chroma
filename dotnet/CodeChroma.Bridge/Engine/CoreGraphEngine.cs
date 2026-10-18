@@ -124,13 +124,27 @@ public sealed class CoreGraphEngine : IGraphEngine
     public IReadOnlyList<GraphNode> GetChildren(string id) => _core.GetChildren(id).Select(Map).ToList();
 
     public SymbolInfo? GetSymbol(string id) =>
-        _core.Snapshot.Symbols.TryGetValue(id, out var s) ? new SymbolInfo(s.Id, s.FilePath, s.StartLine, s.EndLine, s.Language) : null;
+        _core.Snapshot.Symbols.TryGetValue(id, out var s) ? new SymbolInfo(s.Id, s.FilePath, s.StartLine, s.EndLine, s.Language, s.QualifiedName) : null;
 
     public IReadOnlyList<GraphNode> GetDependencies(string id) => _core.GetDependencies(id).Select(Map).ToList();
 
     public IReadOnlyList<GraphNode> GetDependents(string id) => _core.GetDependents(id).Select(Map).ToList();
 
     public string? SummaryText(string id) => _core.Snapshot.Summaries.GetValueOrDefault(id);
+
+    public string? FunctionNodeAtLine(string relPath, int line)
+    {
+        // Same walk as the trace FrameMapper: entries sorted by (start, -end), nearest start at or before the line that covers it.
+        var entries = _core.Snapshot.SymbolList
+            .Where(s => s.Kind == SymbolKind.Function && s.FilePath == relPath)
+            .OrderBy(s => s.StartLine).ThenByDescending(s => s.EndLine).ToList();
+        for (var i = entries.Count - 1; i >= 0; i--)
+        {
+            if (entries[i].StartLine > line) continue;
+            if (line <= entries[i].EndLine) return entries[i].Id;
+        }
+        return null;
+    }
 
     public void Reanalyze(IReadOnlyList<string> changedPaths)
     {
@@ -140,6 +154,8 @@ public sealed class CoreGraphEngine : IGraphEngine
             _patterns = null;
         }
     }
+
+    public CodeChroma.Core.Graph? GraphSnapshot() => _core.Snapshot;
 
     public IReadOnlyList<PatternInstance> PatternCandidates() => PatternState().Candidates;
 
@@ -165,7 +181,7 @@ public sealed class CoreGraphEngine : IGraphEngine
     }
 
     private static GraphNode Map(HierarchyNode node) => new(
-        node.Id, node.Name, (HierarchyLevel)(int)node.Level, node.ParentIds, node.SourcePath, node.DocOnly, node.DependsOnIds);
+        node.Id, node.Name, (HierarchyLevel)(int)node.Level, node.ParentIds, node.SourcePath, node.DocOnly, node.DependsOnIds, node.SymbolIds);
 
     private sealed class NoReanalysis : IAnalysisExporter
     {

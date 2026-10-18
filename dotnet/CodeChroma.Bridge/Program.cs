@@ -72,6 +72,8 @@ BranchRoutes.Map(app, repoRoot);
 CanvasRoutes.Map(app);
 RecipeRoutes.Map(app);
 DiffRoutes.Map(app);
+ImpactRoutes.Map(app);
+WikiRoutes.Map(app);
 AgentRoutes.Map(app, repoRoot);
 PrRoutes.Map(app, repoRoot);
 TerminalRoutes.Map(app, repoRoot);

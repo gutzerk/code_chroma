@@ -12,6 +12,7 @@ function setup(phase: UpdateState["phase"], overrides: Partial<UpdateState> = {}
     bytes: 50,
     total: 100,
     error: phase === "error" ? "Couldn't check for updates. Try again." : undefined,
+    autoDownload: false,
     ...overrides,
   };
   const api = {
@@ -20,6 +21,8 @@ function setup(phase: UpdateState["phase"], overrides: Partial<UpdateState> = {}
     download: vi.fn(async () => ({ ...state, phase: "ready" as const })),
     restart: vi.fn(async () => ({ ...state, phase: "installing" as const })),
     subscribe: vi.fn(() => vi.fn()),
+    skip: vi.fn(async (version: string) => ({ ...state, skippedVersion: version })),
+    setAutoDownload: vi.fn(async (enabled: boolean) => ({ ...state, autoDownload: enabled })),
   };
   const onDismiss = vi.fn();
   window.codechromaUpdates = api;
@@ -36,6 +39,21 @@ describe("UpdatesPanel", () => {
     expect(screen.getAllByText("0.7.0")).toHaveLength(1);
     expect(screen.getByRole("button", { name: "Update now" })).toBeTruthy();
     expect(screen.getByRole("link", { name: "Release notes on GitHub" }).getAttribute("target")).toBe("_blank");
+  });
+
+  it("opens the changelog in its own window when the update has notes", async () => {
+    setup("available", { notes: "## Features\n- Faster canvas" });
+    fireEvent.click(await screen.findByRole("button", { name: "What's new in 0.7.0" }));
+    expect(screen.getByRole("dialog", { name: "What's new" })).toBeTruthy();
+    expect(screen.getByText("Faster canvas")).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "Back" }));
+    expect(await screen.findByRole("heading", { name: "Update available" })).toBeTruthy();
+  });
+
+  it("hides the changelog button when the release has no notes", async () => {
+    setup("available");
+    await screen.findByRole("heading", { name: "Update available" });
+    expect(screen.queryByRole("button", { name: /What's new/ })).toBeNull();
   });
 
   it("shows only the current version when up to date", async () => {
@@ -77,6 +95,35 @@ describe("UpdatesPanel", () => {
     expect(await screen.findByRole("alert")).toHaveTextContent("Couldn't check for updates");
     fireEvent.click(screen.getByRole("button", { name: "Check for updates" }));
     await waitFor(() => expect(api.check).toHaveBeenCalledOnce());
+  });
+
+  it("skips the offered version", async () => {
+    const { api } = setup("available");
+    fireEvent.click(await screen.findByRole("button", { name: "Skip this version" }));
+    await waitFor(() => expect(api.skip).toHaveBeenCalledWith("v0.7.0"));
+  });
+
+  it("offers no skip button when nothing is available", async () => {
+    setup("up-to-date");
+    await screen.findByRole("heading", { name: "You're up to date" });
+    expect(screen.queryByRole("button", { name: "Skip this version" })).toBeNull();
+  });
+
+  it.each([[false, true], [true, false]])("toggles automatic downloads from %s to %s", async (initial, next) => {
+    const { api } = setup("up-to-date", { autoDownload: initial });
+    const box = await screen.findByRole("checkbox", { name: "Download updates automatically" });
+    expect((box as HTMLInputElement).checked).toBe(initial);
+    fireEvent.click(box);
+    await waitFor(() => expect(api.setAutoDownload).toHaveBeenCalledWith(next));
+  });
+
+  it("hides the new controls when the desktop shell predates them", async () => {
+    const state: UpdateState = { currentVersion: "v0.6.0", latestVersion: "v0.7.0", phase: "available", autoDownload: false };
+    window.codechromaUpdates = { state: async () => state, check: async () => state, download: async () => state, restart: async () => state, subscribe: () => () => {} };
+    render(<UpdatesPanel onDismiss={vi.fn()} />);
+    await screen.findByRole("heading", { name: "Update available" });
+    expect(screen.queryByRole("button", { name: "Skip this version" })).toBeNull();
+    expect(screen.queryByRole("checkbox")).toBeNull();
   });
 
   it("closes when Back is pressed", async () => {

@@ -2,6 +2,7 @@ import { createContext, useContext, useEffect, useMemo, type ReactNode } from "r
 import type { EngineClient } from "./EngineClient";
 import { HttpEngineClient } from "./EngineClient";
 import { MockBridgeEngineClient } from "./mockBridge";
+import { withTutorialDiagramGate } from "../tutorial/tutorialDiagramGate";
 
 const EngineClientReactContext = createContext<EngineClient | null>(null);
 
@@ -36,7 +37,7 @@ export function EngineClientProvider({
   children: ReactNode;
 }) {
   const client = useMemo(
-    () => injectedClient ?? createEngineClient(repoId),
+    () => injectedClient ?? withTutorialDiagramGate(createEngineClient(repoId)),
     [injectedClient, repoId],
   );
   // A workspace switch builds a fresh client; the old one's socket must not be left open forever.

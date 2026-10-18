@@ -194,7 +194,7 @@ describe("AgentWindowLayer", () => {
     fireEvent.click(screen.getByTestId("agent-dock-refund-flow"));
 
     const terminal = screen.getByTestId("agent-terminal-refund-flow");
-    const toggle = screen.getByTestId("agent-terminal-dock-toggle");
+    const toggle = screen.getByTestId("agent-terminal-dock-resize-handle-arrow");
     fireEvent.click(toggle);
 
     expect(screen.getByTestId("agent-terminal-dock")).toHaveClass("agent-terminal-dock--collapsed");
@@ -209,6 +209,49 @@ describe("AgentWindowLayer", () => {
     );
     expect(toggle).toHaveAttribute("aria-expanded", "true");
     expect(terminal).toBeInTheDocument();
+  });
+
+  it("expands the collapsed dock when its empty body is clicked", async () => {
+    renderLayer([record({ window: { ...record().window, minimized: false } })]);
+    await waitFor(() => expect(screen.getByTestId("agent-dock-refund-flow")).toBeInTheDocument());
+    fireEvent.click(screen.getByTestId("agent-dock-refund-flow"));
+    fireEvent.click(screen.getByTestId("agent-terminal-dock-resize-handle-arrow"));
+
+    fireEvent.click(screen.getByTestId("agent-dock-led"));
+
+    expect(screen.getByTestId("agent-terminal-dock")).not.toHaveClass(
+      "agent-terminal-dock--collapsed",
+    );
+  });
+
+  it("expands the collapsed dock with Ctrl+Shift+O", async () => {
+    renderLayer([record({ window: { ...record().window, minimized: false } })]);
+    await waitFor(() => expect(screen.getByTestId("agent-dock-refund-flow")).toBeInTheDocument());
+    fireEvent.click(screen.getByTestId("agent-dock-refund-flow"));
+    fireEvent.click(screen.getByTestId("agent-terminal-dock-resize-handle-arrow"));
+
+    fireEvent.keyDown(window, { key: "O", ctrlKey: true, shiftKey: true });
+
+    expect(screen.getByTestId("agent-terminal-dock")).not.toHaveClass(
+      "agent-terminal-dock--collapsed",
+    );
+  });
+
+  it("leaves Ctrl+Shift+O alone when no agent is docked", async () => {
+    renderLayer([]);
+
+    const notPrevented = fireEvent.keyDown(window, { key: "O", ctrlKey: true, shiftKey: true });
+
+    expect(notPrevented).toBe(true);
+  });
+
+  it("falls back to main when a branch-removed ping names the active workspace", async () => {
+    const ping = renderLayerWithPing([]);
+    agentStore.setActiveWorkspace("feature-x");
+
+    ping({ type: "branch-removed", id: "feature-x" });
+
+    await waitFor(() => expect(agentStore.getActiveWorkspace()).toBe("main"));
   });
 
   it("keeps the detach action in the dock header as a non-shrinking control", async () => {

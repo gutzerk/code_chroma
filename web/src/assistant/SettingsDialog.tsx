@@ -82,8 +82,11 @@ export function SettingsDialog({ onDismiss }: { onDismiss: () => void }) {
           </button>
         </li>
         <li><button type="button" className="settings-home-row" data-testid="settings-open-updates" onClick={() => setOpenCategory("updates")}>
+          <span className="settings-home-row-icon">
+            <RailIcon name="updates" />
+          </span>
           <span className="settings-home-row-text"><span className="settings-home-row-title">Updates</span><span className="settings-home-row-desc">Installed version, stable releases, and app updates</span></span>
-          <span className="settings-home-row-chevron" aria-hidden="true">›</span>
+          <span className="settings-home-row-chevron" aria-hidden="true">â€º</span>
         </button></li>
       </ul>
 

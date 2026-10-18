@@ -19,17 +19,7 @@ MAX_EXPLANATION_CHARS = 1000
 # A batch deleting more elements/edges than this needs the caller's explicit confirmation.
 MASS_DELETE_GUARD = 20
 
-# A position-less add_element cascades down-right from the doc extent instead of
-# piling every box at (0,0) -- a sane default for the direct PATCH /canvas path.
-_DEFAULT_ADD_STEP_X = 340.0
-_DEFAULT_ADD_STEP_Y = 120.0
-
-_ADD_ELEMENT_OPS = {"add_element", "add_group", "add_note"}
 _DELETE_OPS = {"delete_element", "delete_edge"}
-VALID_OPS = _ADD_ELEMENT_OPS | {
-    "add_edge", "update_element", "update_edge", "delete_element", "delete_edge",
-}
-
 _DEFAULT_RENDER = {"add_group": "group", "add_note": "note"}
 
 # Neither kind's own web component (NoteElement.tsx/GroupFrame.tsx) ever reads node_id.
@@ -129,14 +119,6 @@ def _apply_add_element(
     group_id = op.get("group_id")
     if group_id is not None:
         group_id = _resolve_element_ref(doc, id_map, group_id)
-    if not position:
-        # Cascade from the current doc extent so a position-less add leaves (0,0)
-        # instead of sharing it with every other.
-        max_x = max_y = 0.0
-        for existing in doc.elements.values():
-            max_x = max(max_x, existing.position.x)
-            max_y = max(max_y, existing.position.y)
-        position = {"x": max_x + _DEFAULT_ADD_STEP_X, "y": max_y + _DEFAULT_ADD_STEP_Y}
     element = Element(
         render=render,
         layer=op.get("layer", layer),

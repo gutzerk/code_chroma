@@ -1,5 +1,6 @@
 import { useRef, type ReactNode } from "react";
 import { useResizableSize } from "./useResizableSize";
+import { SplitterHandle } from "./SplitterHandle";
 
 interface ResizableRailProps {
   /** Un-resized width (before the user drags the handle). */
@@ -17,6 +18,14 @@ interface ResizableRailProps {
   hidden: boolean;
   collapsed?: boolean;
   collapsedWidth?: number;
+  /** When given, the resize handle also hosts a hover-reveal collapse/expand arrow (see
+   * `SplitterHandle`) instead of being a plain drag-only strip. */
+  collapseToggle?: {
+    collapsed: boolean;
+    onToggle: () => void;
+    ariaLabel: string;
+    arrow: ReactNode;
+  };
   children: ReactNode;
 }
 
@@ -38,6 +47,7 @@ export function ResizableRail({
   hidden,
   collapsed = false,
   collapsedWidth,
+  collapseToggle,
   children,
 }: ResizableRailProps) {
   const panelRef = useRef<HTMLElement | null>(null);
@@ -61,12 +71,24 @@ export function ResizableRail({
       style={{ width: collapsed ? collapsedWidth : size?.width ?? defaultWidth }}
       hidden={hidden}
     >
-      <div
-        className={`${className}-resize-handle`}
-        data-testid={handleTestid}
-        aria-hidden="true"
-        {...handleProps}
-      />
+      {collapseToggle ? (
+        <SplitterHandle
+          className={`${className}-resize-handle`}
+          dataTestid={handleTestid}
+          resizeHandleProps={collapsed ? undefined : handleProps}
+          collapsed={collapseToggle.collapsed}
+          onToggle={collapseToggle.onToggle}
+          ariaLabel={collapseToggle.ariaLabel}
+          arrow={collapseToggle.arrow}
+        />
+      ) : (
+        <div
+          className={`${className}-resize-handle`}
+          data-testid={handleTestid}
+          aria-hidden="true"
+          {...handleProps}
+        />
+      )}
       {children}
     </aside>
   );

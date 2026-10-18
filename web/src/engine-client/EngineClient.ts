@@ -78,7 +78,7 @@ export type SkillRunKind = DiagramKind | "impact-changes" | "wiki-general";
  * refetched off the shared "changed" ping today but keeps the same per-kind channel shape. Bare
  * `"custom"` is the one coarse ping every custom type shares (`workspaces.py`'s `on_custom_change`
  * emits `{"type": "custom"}`, never `custom/<id>`), so a listener must refetch the whole type list. */
-export type DiagramEventKind = SkillRunKind | DiagramFetchKind | "custom";
+export type DiagramEventKind = SkillRunKind | DiagramFetchKind | "custom" | "feature-plan";
 
 /**
  * Facade over the local HTTP+WebSocket bridge in front of epic 001's GraphEngine
@@ -198,7 +198,7 @@ export interface EngineClient {
    * unsubscribe fn that also closes the socket when the last listener leaves. The mock never fires. */
   subscribeTraceStream(onEvent: (message: TraceStreamMessage) => void): () => void;
   /** Subscribes to the agent lifecycle pings (`agent-added` / `agent-removed` / `agent-status` /
-   * `workspace-activated`) on the same shared events socket — no second socket for the agent layer.
+   * `branch-changed`) on the same shared events socket — no second socket for the agent layer.
    * Returns an unsubscribe fn. The mock never fires. */
   subscribeAgents(onEvent: (message: AgentEvent) => void): () => void;
   /** One fully-loaded work item (GET /repos/{id}/epics/items/{id}); `expand` names one stage node
@@ -240,13 +240,13 @@ export interface EngineClient {
   dispose?(): void;
 }
 
-/** The five agent-lifecycle messages, fanned out to one listener set each but delivered together. */
+/** The four agent-lifecycle messages, fanned out to one listener set each but delivered together. */
 export const AGENT_EVENT_TYPES = [
   "agent-added",
   "agent-removed",
   "agent-status",
-  "workspace-activated",
   "branch-changed",
+  "branch-removed",
 ] as const;
 
 type AgentEventType = (typeof AGENT_EVENT_TYPES)[number];

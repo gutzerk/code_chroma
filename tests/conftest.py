@@ -58,6 +58,19 @@ def init_repo(root: Path) -> None:
     subprocess.run(["git", "commit", "-m", "initial"], cwd=root, check=True, capture_output=True)
 
 
+def git(root: Path, *args: str) -> str:
+    """Run `git <args>` in `root`, raising on failure, and return stdout."""
+    return subprocess.run(
+        ["git", *args], cwd=root, check=True, capture_output=True, text=True
+    ).stdout
+
+
+def commit(root: Path, message: str) -> None:
+    """Stage everything and commit it with `message`."""
+    git(root, "add", "-A")
+    git(root, "commit", "-m", message)
+
+
 def copy_sample_repo(target: Path) -> Path:
     """A committed copy of tests/fixtures/sample_repo at `target`."""
     shutil.copytree(FIXTURE_REPO, target)

@@ -110,9 +110,3 @@ export const collapsedLayersStore = new CollapsedLayersStore();
 export function useCollapsedLayers(): ReadonlySet<string> {
   return useSyncExternalStore(collapsedLayersStore.subscribe, collapsedLayersStore.getCollapsed);
 }
-
-export function useIsLayerCollapsed(layer: string): boolean {
-  return useSyncExternalStore(collapsedLayersStore.subscribe, () =>
-    collapsedLayersStore.isCollapsed(layer),
-  );
-}

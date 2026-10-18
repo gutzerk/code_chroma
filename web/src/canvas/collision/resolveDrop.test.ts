@@ -62,7 +62,7 @@ const SCENARIOS: Scenario[] = [
   {
     name: "lands outside a gap the block cannot fit inside",
     moving: rect(50, 135, 100, 50),
-    obstacles: [obstacle("a", 0, 0, 200, 100), obstacle("b", 0, 220, 200, 100)],
+    obstacles: [obstacle("a", 0, 0, 200, 100), obstacle("b", 0, 190, 200, 100)],
     // The vertical gap is too narrow for 50 (height) + 2·RANK_SEP, so it leaves the corridor
     // entirely to the left, landing NODE_SEP clear of the shared left edge (0).
     expected: { x: 0 - 100 - NODE_SEP, y: 135, blocked: false },
@@ -96,16 +96,16 @@ describe("resolveDrop", () => {
   it("resolves a symmetric scene the same way on every run", () => {
     // Obstacles the same height as the block and mirrored either side of it, so escaping up and
     // escaping down are equally good to the last decimal — the tie the ghost would flicker on.
-    const moving = rect(-50, 0, 100, 50);
+    const moving = rect(-90, 0, 180, 50);
     const obstacles = [obstacle("a", -300, 0, 200, 50), obstacle("b", 100, 0, 200, 50)];
     const first = resolveDrop(moving, obstacles);
 
     const runs = Array.from({ length: 50 }, () => resolveDrop(moving, obstacles));
 
     expect(runs.every((run) => run.x === first.x && run.y === first.y)).toBe(true);
-    // The 200px corridor cannot hold a 100px block with NODE_SEP either side, so it leaves the row,
+    // The 200px corridor cannot hold a 180px block with NODE_SEP either side, so it leaves the row,
     // landing RANK_SEP clear of the obstacles' shared top edge (0): y = 0 - 50 (height) - RANK_SEP.
-    expect(first).toEqual({ x: -50, y: 0 - 50 - RANK_SEP, blocked: false });
+    expect(first).toEqual({ x: -90, y: 0 - 50 - RANK_SEP, blocked: false });
   });
 
   describe("spiral fallback", () => {

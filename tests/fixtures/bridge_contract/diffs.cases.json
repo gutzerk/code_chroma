@@ -1,0 +1,1019 @@
+{
+  "group": "diffs",
+  "sources": [
+    "src/codechroma/bridge/routes/diffs.py",
+    "src/codechroma/bridge/git_diff.py",
+    "src/codechroma/bridge/git_accept.py",
+    "src/codechroma/bridge/change_cards.py",
+    "src/codechroma/bridge/plan_resolver.py"
+  ],
+  "repo": {
+    "base": "sample_repo"
+  },
+  "cases": [
+    {
+      "id": "no_uncommitted_changes_means_no_diff",
+      "steps": [
+        {
+          "http": {
+            "method": "GET",
+            "path": "/repos/main/diff"
+          },
+          "expect": {
+            "status": 200,
+            "json": []
+          }
+        }
+      ]
+    },
+    {
+      "id": "no_changes_gives_an_empty_but_resolved_card_payload",
+      "steps": [
+        {
+          "http": {
+            "method": "GET",
+            "path": "/repos/main/change-cards"
+          },
+          "expect": {
+            "status": 200,
+            "checks": [
+              {
+                "path": "$.base",
+                "type": "string"
+              },
+              {
+                "path": "$.base_resolved",
+                "equals": true
+              },
+              {
+                "path": "$.card_count",
+                "equals": 0
+              },
+              {
+                "path": "$.cards",
+                "count": 0
+              },
+              {
+                "path": "$.by_node",
+                "equals": {}
+              },
+              {
+                "path": "$.by_node_status",
+                "equals": {}
+              },
+              {
+                "path": "$.unassigned",
+                "count": 0
+              }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "a_markdown_only_change_is_a_file_card_not_an_empty_pr",
+      "steps": [
+        {
+          "fs": "write",
+          "path": "README.md",
+          "text": "# Hello\n"
+        },
+        {
+          "http": {
+            "method": "GET",
+            "path": "/repos/main/diff"
+          },
+          "expect": {
+            "status": 200,
+            "json": []
+          }
+        },
+        {
+          "http": {
+            "method": "GET",
+            "path": "/repos/main/change-cards"
+          },
+          "expect": {
+            "status": 200,
+            "checks": [
+              {
+                "path": "$.card_count",
+                "equals": 1
+              },
+              {
+                "path": "$.unassigned",
+                "count": 0
+              },
+              {
+                "path": "$.cards[0].id",
+                "equals": "README.md"
+              },
+              {
+                "path": "$.cards[0].file",
+                "equals": "README.md"
+              },
+              {
+                "path": "$.cards[0].text",
+                "equals": "Added README.md"
+              },
+              {
+                "path": "$.cards[0].details",
+                "equals": ""
+              },
+              {
+                "path": "$.cards[0].kind",
+                "equals": "add"
+              },
+              {
+                "path": "$.cards[0].status",
+                "equals": "added"
+              },
+              {
+                "path": "$.cards[0].target",
+                "equals": "file"
+              },
+              {
+                "path": "$.cards[0].symbol",
+                "equals": null
+              },
+              {
+                "path": "$.cards[0].name",
+                "equals": "README.md"
+              },
+              {
+                "path": "$.cards[0].resolution",
+                "type": "string"
+              },
+              {
+                "path": "$.cards[0].added_lines",
+                "equals": 1
+              },
+              {
+                "path": "$.cards[0].removed_lines",
+                "equals": 0
+              },
+              {
+                "path": "$.cards[0].binary",
+                "equals": false
+              },
+              {
+                "path": "$.cards[0].node_id",
+                "type": "string"
+              },
+              {
+                "path": "$.by_node",
+                "type": "object"
+              }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "a_binary_file_has_a_card_with_no_line_counts",
+      "steps": [
+        {
+          "fs": "write",
+          "path": "assets/logo.bin",
+          "base64": "AP/+gA=="
+        },
+        {
+          "http": {
+            "method": "GET",
+            "path": "/repos/main/change-cards"
+          },
+          "expect": {
+            "status": 200,
+            "checks": [
+              {
+                "path": "$.card_count",
+                "equals": 1
+              },
+              {
+                "path": "$.cards[0].file",
+                "equals": "assets/logo.bin"
+              },
+              {
+                "path": "$.cards[0].binary",
+                "equals": true
+              },
+              {
+                "path": "$.cards[0].added_lines",
+                "equals": 0
+              },
+              {
+                "path": "$.cards[0].removed_lines",
+                "equals": 0
+              },
+              {
+                "path": "$.cards[0].status",
+                "equals": "added"
+              }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "changes_inside_ignored_directories_never_make_a_card",
+      "steps": [
+        {
+          "fs": "write",
+          "path": "node_modules/pkg/readme.md",
+          "text": "ignored\n"
+        },
+        {
+          "fs": "write",
+          "path": "dist/out.md",
+          "text": "ignored\n"
+        },
+        {
+          "http": {
+            "method": "GET",
+            "path": "/repos/main/change-cards"
+          },
+          "expect": {
+            "status": 200,
+            "checks": [
+              {
+                "path": "$.card_count",
+                "equals": 0
+              },
+              {
+                "path": "$.unassigned",
+                "count": 0
+              }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "accepting_a_node_with_no_pending_change_is_a_404",
+      "steps": [
+        {
+          "http": {
+            "method": "POST",
+            "path": "/repos/main/diff/shared/text_utils.py::function::slugify/accept"
+          },
+          "expect": {
+            "status": 404,
+            "json": {
+              "detail": "no pending change for shared/text_utils.py::function::slugify"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "accepting_a_new_file_commits_it_whole_and_pings_the_canvas",
+      "steps": [
+        {
+          "ws": "connect",
+          "name": "events",
+          "path": "/repos/main/events",
+          "expect": "accepted"
+        },
+        {
+          "fs": "write",
+          "path": "notes.md",
+          "text": "# notes\n"
+        },
+        {
+          "http": {
+            "method": "GET",
+            "path": "/repos/main/change-cards"
+          },
+          "expect": {
+            "status": 200,
+            "checks": [
+              {
+                "path": "$.card_count",
+                "equals": 1
+              }
+            ]
+          }
+        },
+        {
+          "http": {
+            "method": "POST",
+            "path": "/repos/main/diff/notes.md/accept"
+          },
+          "expect": {
+            "status": 200,
+            "json": {
+              "status": "committed",
+              "file_path": "notes.md",
+              "commit_sha": {
+                "$any": true
+              }
+            }
+          },
+          "capture": {
+            "sha": "$.commit_sha"
+          }
+        },
+        {
+          "ws": "receive",
+          "name": "events",
+          "timeout_ms": 15000,
+          "skip_until_match": true,
+          "expect": {
+            "checks": [
+              {
+                "path": "$.type",
+                "equals": "changed"
+              },
+              {
+                "path": "$.paths",
+                "contains": "notes.md"
+              }
+            ]
+          }
+        },
+        {
+          "http": {
+            "method": "GET",
+            "path": "/repos/main/change-cards"
+          },
+          "expect": {
+            "status": 200,
+            "checks": [
+              {
+                "path": "$.card_count",
+                "equals": 0
+              },
+              {
+                "path": "$.base",
+                "equals": "{{sha}}"
+              }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "a_modified_function_is_reported_with_both_sources",
+      "requires": [
+        "real-engine"
+      ],
+      "steps": [
+        {
+          "fs": "replace",
+          "path": "shared/text_utils.py",
+          "find": "return text.strip().lower().replace(\" \", \"-\")",
+          "with": "return \"patched\""
+        },
+        {
+          "http": {
+            "method": "GET",
+            "path": "/repos/main/diff"
+          },
+          "expect": {
+            "status": 200,
+            "checks": [
+              {
+                "path": "$",
+                "count": 2
+              },
+              {
+                "path": "$[node_id=shared/text_utils.py::function::slugify].status",
+                "equals": [
+                  "modified"
+                ]
+              },
+              {
+                "path": "$[node_id=shared/text_utils.py::function::slugify].level",
+                "equals": [
+                  "function"
+                ]
+              },
+              {
+                "path": "$[node_id=shared/text_utils.py::function::slugify].name",
+                "equals": [
+                  "slugify"
+                ]
+              },
+              {
+                "path": "$[node_id=shared/text_utils.py::function::slugify].original_source",
+                "equals": [
+                  "def slugify(text: str) -> str:\n    \"\"\"Lowercase and hyphenate text into a URL-safe slug.\"\"\"\n    return text.strip().lower().replace(\" \", \"-\")"
+                ]
+              },
+              {
+                "path": "$[node_id=shared/text_utils.py::function::slugify].proposed_source",
+                "equals": [
+                  "def slugify(text: str) -> str:\n    \"\"\"Lowercase and hyphenate text into a URL-safe slug.\"\"\"\n    return \"patched\""
+                ]
+              },
+              {
+                "path": "$[node_id=component::shared/text_utils.py].status",
+                "equals": [
+                  "modified"
+                ]
+              },
+              {
+                "path": "$[node_id=component::shared/text_utils.py].level",
+                "equals": [
+                  "file"
+                ]
+              },
+              {
+                "path": "$[node_id=component::shared/text_utils.py].name",
+                "equals": [
+                  "text_utils.py"
+                ]
+              }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "a_new_file_with_a_class_is_reported_as_added_file_and_class",
+      "requires": [
+        "real-engine"
+      ],
+      "steps": [
+        {
+          "fs": "write",
+          "path": "billing/refunds.py",
+          "text": "class Refund:\n    \"\"\"A refund.\"\"\"\n    reason = \"duplicate\"\n"
+        },
+        {
+          "http": {
+            "method": "GET",
+            "path": "/repos/main/diff"
+          },
+          "expect": {
+            "status": 200,
+            "checks": [
+              {
+                "path": "$",
+                "count": 2
+              },
+              {
+                "path": "$[node_id=component::billing/refunds.py].status",
+                "equals": [
+                  "added"
+                ]
+              },
+              {
+                "path": "$[node_id=component::billing/refunds.py].level",
+                "equals": [
+                  "file"
+                ]
+              },
+              {
+                "path": "$[node_id=component::billing/refunds.py].original_source",
+                "equals": [
+                  ""
+                ]
+              },
+              {
+                "path": "$[node_id=component::billing/refunds.py].proposed_source",
+                "equals": [
+                  "class Refund:\n    \"\"\"A refund.\"\"\"\n    reason = \"duplicate\"\n"
+                ]
+              },
+              {
+                "path": "$[node_id=billing/refunds.py::class::Refund].status",
+                "equals": [
+                  "added"
+                ]
+              },
+              {
+                "path": "$[node_id=billing/refunds.py::class::Refund].level",
+                "equals": [
+                  "class"
+                ]
+              },
+              {
+                "path": "$[node_id=billing/refunds.py::class::Refund].name",
+                "equals": [
+                  "Refund"
+                ]
+              }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "a_modified_class_is_reported_only_when_no_function_in_it_changed",
+      "requires": [
+        "real-engine"
+      ],
+      "steps": [
+        {
+          "fs": "replace",
+          "path": "billing/models/invoice.py",
+          "find": "\"\"\"A single billing invoice.\"\"\"\n",
+          "with": "\"\"\"A single billing invoice.\"\"\"\n\n    currency = \"USD\"\n"
+        },
+        {
+          "http": {
+            "method": "GET",
+            "path": "/repos/main/diff"
+          },
+          "expect": {
+            "status": 200,
+            "checks": [
+              {
+                "path": "$[node_id=billing/models/invoice.py::class::Invoice].status",
+                "equals": [
+                  "modified"
+                ]
+              },
+              {
+                "path": "$[node_id=billing/models/invoice.py::class::Invoice].level",
+                "equals": [
+                  "class"
+                ]
+              },
+              {
+                "path": "$[node_id=billing/models/invoice.py::class::Invoice].proposed_source",
+                "type": "array"
+              }
+            ]
+          }
+        },
+        {
+          "fs": "replace",
+          "path": "billing/models/invoice.py",
+          "find": "return sum(line[\"amount\"] for line in lines)",
+          "with": "return 0.0"
+        },
+        {
+          "http": {
+            "method": "GET",
+            "path": "/repos/main/diff"
+          },
+          "expect": {
+            "status": 200,
+            "checks": [
+              {
+                "path": "$[node_id=billing/models/invoice.py::function::Invoice.total].status",
+                "equals": [
+                  "modified"
+                ]
+              },
+              {
+                "path": "$[node_id=billing/models/invoice.py::class::Invoice]",
+                "count": 0
+              }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "a_deleted_file_reports_every_function_it_had_as_deleted",
+      "requires": [
+        "real-engine"
+      ],
+      "steps": [
+        {
+          "fs": "delete",
+          "path": "billing/service.py"
+        },
+        {
+          "http": {
+            "method": "GET",
+            "path": "/repos/main/diff"
+          },
+          "expect": {
+            "status": 200,
+            "checks": [
+              {
+                "path": "$[node_id=billing/service.py::function::BillingService.create_invoice].status",
+                "equals": [
+                  "deleted"
+                ]
+              },
+              {
+                "path": "$[node_id=billing/service.py::function::BillingService.create_invoice].proposed_source",
+                "equals": [
+                  ""
+                ]
+              },
+              {
+                "path": "$[node_id=billing/service.py::function::BillingService.__init__].status",
+                "equals": [
+                  "deleted"
+                ]
+              },
+              {
+                "path": "$[status=deleted]",
+                "count": 2
+              }
+            ]
+          }
+        },
+        {
+          "http": {
+            "method": "GET",
+            "path": "/repos/main/change-cards"
+          },
+          "expect": {
+            "status": 200,
+            "checks": [
+              {
+                "path": "$.cards[0].kind",
+                "equals": "delete"
+              },
+              {
+                "path": "$.cards[0].text",
+                "type": "string"
+              },
+              {
+                "path": "$.by_node_status",
+                "type": "object"
+              }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "an_edited_function_comes_back_as_a_card_on_its_own_node",
+      "requires": [
+        "real-engine"
+      ],
+      "steps": [
+        {
+          "fs": "replace",
+          "path": "shared/text_utils.py",
+          "find": "return text.strip().lower().replace(\" \", \"-\")",
+          "with": "return \"patched\""
+        },
+        {
+          "http": {
+            "method": "GET",
+            "path": "/repos/main/change-cards"
+          },
+          "expect": {
+            "status": 200,
+            "checks": [
+              {
+                "path": "$.card_count",
+                "equals": 2
+              },
+              {
+                "path": "$.unassigned",
+                "count": 0
+              },
+              {
+                "path": "$.by_node['shared/text_utils.py::function::slugify']",
+                "equals": 1
+              },
+              {
+                "path": "$.by_node['component::shared/text_utils.py']",
+                "equals": 1
+              },
+              {
+                "path": "$.by_node_status['shared/text_utils.py::function::slugify']",
+                "equals": "modified"
+              },
+              {
+                "path": "$.cards[0].id",
+                "equals": "shared/text_utils.py::function::slugify"
+              },
+              {
+                "path": "$.cards[0].file",
+                "equals": "shared/text_utils.py"
+              },
+              {
+                "path": "$.cards[0].symbol",
+                "equals": "slugify"
+              },
+              {
+                "path": "$.cards[0].name",
+                "equals": "slugify"
+              },
+              {
+                "path": "$.cards[0].text",
+                "equals": "Modified slugify"
+              },
+              {
+                "path": "$.cards[0].node_id",
+                "equals": "shared/text_utils.py::function::slugify"
+              },
+              {
+                "path": "$.cards[0].kind",
+                "equals": "modify"
+              },
+              {
+                "path": "$.cards[0].resolution",
+                "equals": "exact"
+              },
+              {
+                "path": "$.cards[0].target",
+                "equals": "function"
+              },
+              {
+                "path": "$.cards[0].added_lines",
+                "equals": 1
+              },
+              {
+                "path": "$.cards[0].removed_lines",
+                "equals": 1
+              },
+              {
+                "path": "$.cards[1].id",
+                "equals": "component::shared/text_utils.py"
+              },
+              {
+                "path": "$.cards[1].target",
+                "equals": "file"
+              },
+              {
+                "path": "$.cards[1].resolution",
+                "equals": "exact"
+              }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "an_added_file_and_a_deleted_file_become_added_and_removed_nodes",
+      "requires": [
+        "real-engine"
+      ],
+      "steps": [
+        {
+          "fs": "write",
+          "path": "billing/refunds.py",
+          "text": "class Refund:\n    \"\"\"A refund.\"\"\"\n    reason = \"duplicate\"\n"
+        },
+        {
+          "fs": "delete",
+          "path": "billing/service.py"
+        },
+        {
+          "http": {
+            "method": "GET",
+            "path": "/repos/main/change-cards"
+          },
+          "expect": {
+            "status": 200,
+            "checks": [
+              {
+                "path": "$.by_node_status['component::billing/refunds.py']",
+                "equals": "added"
+              },
+              {
+                "path": "$.by_node_status['billing/refunds.py::class::Refund']",
+                "equals": "added"
+              },
+              {
+                "path": "$.card_count",
+                "type": "number"
+              }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "accepting_one_function_commits_only_that_function",
+      "requires": [
+        "real-engine"
+      ],
+      "steps": [
+        {
+          "fs": "replace",
+          "path": "billing/models/invoice.py",
+          "find": "return sum(line[\"amount\"] for line in lines)",
+          "with": "return 0.0"
+        },
+        {
+          "fs": "replace",
+          "path": "billing/models/invoice.py",
+          "find": "return f\"INV-{number:06d}\"",
+          "with": "return \"PATCHED\""
+        },
+        {
+          "http": {
+            "method": "POST",
+            "path": "/repos/main/diff/billing/models/invoice.py::function::Invoice.total/accept"
+          },
+          "expect": {
+            "status": 200,
+            "json": {
+              "status": "committed",
+              "file_path": "billing/models/invoice.py",
+              "commit_sha": {
+                "$any": true
+              }
+            }
+          }
+        },
+        {
+          "http": {
+            "method": "GET",
+            "path": "/repos/main/diff"
+          },
+          "expect": {
+            "status": 200,
+            "checks": [
+              {
+                "path": "$[node_id=billing/models/invoice.py::function::Invoice.total]",
+                "count": 0
+              },
+              {
+                "path": "$[node_id=billing/models/invoice.py::function::format_invoice_id].status",
+                "equals": [
+                  "modified"
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "http": {
+            "method": "POST",
+            "path": "/repos/main/diff/billing/models/invoice.py::function::format_invoice_id/accept"
+          },
+          "expect": {
+            "status": 200,
+            "checks": [
+              {
+                "path": "$.status",
+                "equals": "committed"
+              }
+            ]
+          }
+        },
+        {
+          "http": {
+            "method": "GET",
+            "path": "/repos/main/diff"
+          },
+          "expect": {
+            "status": 200,
+            "json": []
+          }
+        }
+      ]
+    },
+    {
+      "id": "accepting_a_new_file_with_a_class_commits_the_whole_file",
+      "requires": [
+        "real-engine"
+      ],
+      "steps": [
+        {
+          "fs": "write",
+          "path": "billing/refunds.py",
+          "text": "class Refund:\n    \"\"\"A refund.\"\"\"\n    reason = \"duplicate\"\n"
+        },
+        {
+          "http": {
+            "method": "POST",
+            "path": "/repos/main/diff/component::billing/refunds.py/accept"
+          },
+          "expect": {
+            "status": 200,
+            "json": {
+              "status": "committed",
+              "file_path": "billing/refunds.py",
+              "commit_sha": {
+                "$any": true
+              }
+            }
+          }
+        },
+        {
+          "http": {
+            "method": "GET",
+            "path": "/repos/main/diff"
+          },
+          "expect": {
+            "status": 200,
+            "json": []
+          }
+        }
+      ]
+    },
+    {
+      "id": "accepting_a_deleted_function_commits_the_whole_file_deletion",
+      "requires": [
+        "real-engine"
+      ],
+      "steps": [
+        {
+          "fs": "delete",
+          "path": "billing/service.py"
+        },
+        {
+          "http": {
+            "method": "POST",
+            "path": "/repos/main/diff/billing/service.py::function::BillingService.create_invoice/accept"
+          },
+          "expect": {
+            "status": 200,
+            "json": {
+              "status": "committed",
+              "file_path": "billing/service.py",
+              "commit_sha": {
+                "$any": true
+              }
+            }
+          }
+        },
+        {
+          "http": {
+            "method": "GET",
+            "path": "/repos/main/diff"
+          },
+          "expect": {
+            "status": 200,
+            "json": []
+          }
+        }
+      ]
+    },
+    {
+      "id": "accepting_a_class_level_diff_commits_without_duplicating_its_body",
+      "requires": [
+        "real-engine"
+      ],
+      "steps": [
+        {
+          "fs": "replace",
+          "path": "billing/models/invoice.py",
+          "find": "\"\"\"A single billing invoice.\"\"\"\n",
+          "with": "\"\"\"A single billing invoice.\"\"\"\n\n    currency = \"USD\"\n"
+        },
+        {
+          "http": {
+            "method": "POST",
+            "path": "/repos/main/diff/billing/models/invoice.py::class::Invoice/accept"
+          },
+          "expect": {
+            "status": 200,
+            "json": {
+              "status": "committed",
+              "file_path": "billing/models/invoice.py",
+              "commit_sha": {
+                "$any": true
+              }
+            }
+          }
+        },
+        {
+          "http": {
+            "method": "GET",
+            "path": "/repos/main/diff"
+          },
+          "expect": {
+            "status": 200,
+            "json": []
+          }
+        }
+      ]
+    },
+    {
+      "id": "accepting_a_function_with_no_hunk_of_its_own_commits_the_whole_file",
+      "requires": [
+        "real-engine"
+      ],
+      "steps": [
+        {
+          "fs": "replace",
+          "path": "billing/models/invoice.py",
+          "find": "return f\"INV-{number:06d}\"",
+          "with": "return \"PATCHED\""
+        },
+        {
+          "http": {
+            "method": "POST",
+            "path": "/repos/main/diff/billing/models/invoice.py::function::Invoice.total/accept"
+          },
+          "expect": {
+            "status": 200,
+            "json": {
+              "status": "committed",
+              "file_path": "billing/models/invoice.py",
+              "commit_sha": {
+                "$any": true
+              }
+            }
+          }
+        },
+        {
+          "http": {
+            "method": "GET",
+            "path": "/repos/main/diff"
+          },
+          "expect": {
+            "status": 200,
+            "json": []
+          }
+        }
+      ]
+    }
+  ]
+}

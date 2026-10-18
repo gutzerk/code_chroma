@@ -26,6 +26,7 @@ from codechroma.bridge.agents.manager import AgentLimitError, UnknownAgentError
 from codechroma.bridge.agents.publish import PublishError
 from codechroma.bridge.agents.sessions import AgentStartError
 from codechroma.bridge.agents.worktree import WorktreeError
+from codechroma.bridge.branches.manager import BranchInUseError, UnknownBranchWorkspaceError
 from codechroma.bridge.git_accept import DiffNotFoundError, GitCommandError, GitConflictError
 from codechroma.bridge.git_long import GitLongError
 from codechroma.bridge.prs.manager import PrLimitError, UnknownPrError
@@ -38,12 +39,14 @@ STATUS_BY_ERROR: dict[type[BaseException], int] = {
     # Not found.
     UnknownAgentError: 404,
     UnknownPrError: 404,
+    UnknownBranchWorkspaceError: 404,
     UnknownBranchError: 404,
     UnknownRootError: 404,
     DiffNotFoundError: 404,
     # The request is well-formed but the repository is in a state that refuses it.
     AgentLimitError: 409,
     PrLimitError: 409,
+    BranchInUseError: 409,
     AgentStartError: 409,
     CheckoutError: 409,
     DirtyWorkingTreeError: 409,

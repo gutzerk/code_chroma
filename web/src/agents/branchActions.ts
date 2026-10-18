@@ -49,3 +49,15 @@ export function settleActiveWorkspace(client: AgentClient): void {
       // Best effort — a failed switch just leaves the canvas on the previous workspace's data.
     });
 }
+
+/** A `branch-removed` ping: if the closed workspace is the one on screen, fall back to main. */
+export function settleRemovedWorkspace(client: AgentClient, removedId: string): void {
+  if (agentStore.getActiveWorkspace() !== removedId) return;
+  agentStore.setActiveWorkspace("main");
+  client
+    .activateWorkspace("main")
+    .then((status) => workspaceStore.setStatus(status))
+    .catch(() => {
+      // Best effort — a failed switch just leaves the canvas on the previous workspace's data.
+    });
+}

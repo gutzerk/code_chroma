@@ -24,23 +24,31 @@ import { GamesMenu } from "../games/GamesMenu";
 import { useHasCanvasLayer } from "./doc/canvasDocStore";
 import { CodePopupContext } from "./CodePopupContext";
 import { CodePopup } from "./CodePopup";
-import { collapsedLayersStore } from "./doc/collapsedLayersStore";
 import { InspectorPanel } from "./InspectorPanel";
 import { inspectorStore, useIsInspectorOpen } from "./inspectorStore";
 import { ProjectTreePanel } from "./ProjectTreePanel";
 import { CodeSidebar } from "./CodeSidebar";
+import { TutorialAgentMock } from "../tutorial/TutorialAgentMock";
+import { TutorialChat } from "../tutorial/TutorialChat";
+import { tutorialSimStore } from "../tutorial/tutorialSim";
+import { tutorialStore } from "../tutorial/tutorialStore";
+import { useStartTutorial } from "../tutorial/useStartTutorial";
 import {
   projectTreePanelStore,
   useIsProjectTreePanelOpen,
 } from "./projectTreePanelStore";
 import { useLatchedMount } from "./panelStore";
 import { RailIcon } from "../icons/RailIcon";
+import runAgentIcon from "../icons/run-agent.svg";
 import { RailButton } from "./RailButton";
+import { SplitterHandle } from "./SplitterHandle";
+import { AgentLedStrip } from "../agents/AgentLedStrip";
 import { AgentRail } from "../agents/AgentRail";
 import { AgentTerminalDock } from "../agents/AgentTerminalDock";
 import { AgentWindowLayer } from "../agents/AgentWindowLayer";
 import {
   useActiveWorkspace,
+  useAgents,
   useIsAtAgentCapacity,
   useIsLaunchingAgent,
   useMaxAgents,
@@ -54,6 +62,7 @@ import { useIsDiffActive } from "../state/diffOverlayStore";
 import { PrRailButton } from "../pr/PrRailButton";
 import { usePrWorkspaces } from "../pr/prStore";
 import { SettingsRailButton } from "../assistant/SettingsRailButton";
+import { ReportIssueRailButton } from "../assistant/ReportIssueRailButton";
 import { traceStore, useTraceState } from "../state/traceStore";
 import { revealNode } from "../state/revealNode";
 import { autoExpandInitial } from "../state/autoExpandInitial";
@@ -76,12 +85,11 @@ import { useDiffToggle } from "./useDiffToggle";
 
 // How many rAF retries the initial camera-recenter gets before giving up (see the effect below) --
 // exported so e2e specs waiting this settle out can reference the real cap instead of a magic number.
-// ~3s at 60fps: since 016-single-canvas-dashboard the centered element is a HierarchyElement pinned
-// onto the canvas doc, which only mounts once its own async chain (canvas-doc load -> seed
-// add_element -> its own getNode fetch) resolves -- a handful of frames used to be enough when the
+// ~3s at 60fps: since 016-single-canvas-dashboard the centered element is a canvas-doc element,
+// which only mounts once its own async chain (canvas-doc load -> its own getNode fetch) resolves -- a handful of frames used to be enough when the
 // root row mounted synchronously with `rootNode`, but now the first several calls can all fire
 // before the element exists at all, same reasoning as useCanvasCamera's FIT_MAX_FRAMES.
-export const CAMERA_RECENTER_MAX_FRAMES = 180;
+const CAMERA_RECENTER_MAX_FRAMES = 180;
 // Every layout kind with boxes actually draggable on the one canvas today -- "hierarchy" (the
 // pinned root row, still saved-layout-based) and "canvas" (every CanvasNodeBox drag). A module-level
 // constant, not built inline in JSX, so UndoManager's own effect (deps [kinds]) doesn't re-subscribe
@@ -95,6 +103,7 @@ export function RootCanvas() {
   const [rootNode, setRootNode] = useState<HierarchyNodeRef | null>(null);
   const [codePopupNode, setCodePopupNode] = useState<HierarchyNodeRef | null>(null);
   const [isAgentPanelOpen, setIsAgentPanelOpen] = useState(true);
+  const allAgents = useAgents();
   const breadcrumbPath = useDeepestExpandedPath();
   const expandedNodeIds = useExpandedNodeIdsByOrder();
   const codeVisibleNodeIds = useCodeVisibleNodeIdsByOrder();
@@ -121,6 +130,7 @@ export function RootCanvas() {
   const terminalMounted = useLatchedMount(isTerminalPanelOpen);
   const inspectorMounted = useLatchedMount(isInspectorOpen);
   const projectTreeMounted = useLatchedMount(isProjectTreePanelOpen);
+  useStartTutorial(rootNode?.name ?? null);
   const isDiffActive = useIsDiffActive();
   const isReadOnly = useIsWorkspaceReadOnly();
   // The "impact" recipe's layer is the one-canvas model's replacement for the old "view is open"
@@ -160,13 +170,6 @@ export function RootCanvas() {
   // The camera policy — retry-until-mounted framing plus the auto-fit suppression lock.
   const camera = useCanvasCamera(viewportRef);
   const { frameFitTo } = camera;
-
-  // The tree lives in the ProjectTree sidebar, so the canvas opens diagrams-only — collapse the
-  // seeded hierarchy layer on load. Runs per load; collapsedLayersStore is workspace-scoped, so a
-  // workspace switch re-collapses it to the same diagrams-first default.
-  useEffect(() => {
-    collapsedLayersStore.collapse("hierarchy");
-  }, [engineClient]);
 
   // Read once at startup only, never during interaction: these pick initial state, they are not
   // deep-linking or per-node routing, which FR-018 explicitly drops. The app never writes them.
@@ -267,6 +270,14 @@ export function RootCanvas() {
   // View-agnostic on purpose: the C1 view renders no root block, so targeting rootNode here was a
   // silent no-op there. fitToAllNodes unions whatever is actually mounted in either view.
   const fitAll = useCallback(() => viewportRef.current?.fitToAllNodes(), []);
+  useEffect(() => {
+    tutorialSimStore.setFitAll(fitAll);
+    return () => tutorialSimStore.setFitAll(null);
+  }, [fitAll]);
+  useEffect(() => {
+    tutorialSimStore.setFitSelector((selector) => viewportRef.current?.fitToSelector(selector) ?? false);
+    return () => tutorialSimStore.setFitSelector(null);
+  }, []);
 
   // A click on a row in the ProjectTree sidebar: reveal the node's ancestors (expand the canvas
   // tree down to it) then frame the block once it's mounted. navigateTreeTo is the concrete "focus
@@ -426,6 +437,41 @@ export function RootCanvas() {
   return (
     <div className="app-root" data-testid="app-root">
       <UndoManager kinds={UNDO_KINDS} />
+      {/* Row 1 of the floating-card shell: a full-width top bar above the rail, so the branch chip
+          sits at the window's true left edge and Run agent at its true right edge, instead of being
+          scoped to the canvas area beside the rail. */}
+      <div className="canvas-chrome" data-testid="app-chrome">
+        {activePr && (
+          <span className="canvas-chrome-workspace-label" data-testid="active-pr-label">
+            {`PR #${activePr.number} · ${activePr.head_ref}`}
+          </span>
+        )}
+        <BranchSwitcher />
+        <div className="canvas-chrome-spacer" />
+        <ReportIssueRailButton />
+        <GamesMenu />
+        <div className="canvas-chrome-separator" />
+        <PrRailButton />
+        <SettingsRailButton />
+        <RailButton
+          className="agents-toggle-button"
+          label="Run agent"
+          disabled={isAtAgentCapacity || isLaunchingAgent}
+          tooltip={
+            isAtAgentCapacity
+              ? `${maxAgents} agents is the limit — close one to start another`
+              : "Attaches to the workspace you're currently viewing"
+          }
+          onClick={() => {
+            // The lesson's second agent is a simulation; it never reaches the bridge.
+            if (tutorialStore.isActive()) tutorialSimStore.startAgent2();
+            else void attachAgent(agentClient, viewContext);
+          }}
+        >
+          <img className="agents-toggle-icon" src={runAgentIcon} alt="" aria-hidden="true" />
+          <span className="agents-toggle-label">Run agent</span>
+        </RailButton>
+      </div>
       <div className="app-body" data-testid="app-body">
         <nav className="app-rail" data-testid="app-rail" aria-label="View controls">
           <RailButton label="Zoom out" onClick={() => viewportRef.current?.zoomOut()}>
@@ -466,54 +512,14 @@ export function RootCanvas() {
           {/* Diff / AI-plan / Replay rail buttons hidden for now; underlying logic kept above. */}
           <DrawDiagramButton />
         </nav>
+        <TutorialChat />
+        <TutorialAgentMock />
         <div className="canvas-area" data-testid="canvas-area">
-          <div className="canvas-chrome" data-testid="app-chrome">
-            {activePr && (
-              <span className="canvas-chrome-workspace-label" data-testid="active-pr-label">
-                {`PR #${activePr.number} · ${activePr.head_ref}`}
-              </span>
-            )}
-            <BranchSwitcher />
-            <div className="canvas-chrome-spacer" />
-            <GamesMenu />
-            <div className="canvas-chrome-separator" />
-            <PrRailButton />
-            <SettingsRailButton />
-            <RailButton
-              className="agent-panel-toggle-button"
-              label={`${isAgentPanelOpen ? "Collapse" : "Expand"} agents and diagrams panel`}
-              pressed={isAgentPanelOpen}
-              ariaExpanded={isAgentPanelOpen}
-              testId="agent-panel-toggle-button"
-              onClick={() => {
-                if (isAgentPanelOpen) {
-                  setCodePopupNode(null);
-                  inspectorStore.close();
-                }
-                setIsAgentPanelOpen(!isAgentPanelOpen);
-              }}
-            >
-              <span aria-hidden="true">{isAgentPanelOpen ? "›" : "‹"}</span>
-            </RailButton>
-            <RailButton
-              className="agents-toggle-button"
-              label="Run agent"
-              disabled={isAtAgentCapacity || isLaunchingAgent}
-              tooltip={
-                isAtAgentCapacity
-                  ? `${maxAgents} agents is the limit — close one to start another`
-                  : "Attaches to the workspace you're currently viewing"
-              }
-              onClick={() => void attachAgent(agentClient, viewContext)}
-            >
-              <RailIcon name="agents" />
-              <span className="agents-toggle-label">Run agent</span>
-            </RailButton>
-          </div>
           {/* Row for the canvas plus the agent task panel beside it — a full-height sibling of the
-              canvas, not a toolbar item, so cards have room to be more than an icon and a tooltip. */}
+              canvas, not a toolbar item, so cards have room to be more than an icon and a tooltip.
+              The project tree stays the leftmost item (the very edge, right after .app-rail), with
+              the code sidebar beside it and the docked agent windows to their right. */}
           <div className="canvas-main-row">
-            <AgentTerminalDock />
             {projectTreeMounted && rootNode && (
               <ProjectTreePanel
                 rootNode={rootNode}
@@ -522,6 +528,7 @@ export function RootCanvas() {
               />
             )}
             <CodeSidebar hidden={!isProjectTreePanelOpen} />
+            <AgentTerminalDock />
             {/* Own positioning context so the absolutely-positioned overlays below keep anchoring to
                 the visible canvas, not to the canvas plus the breadcrumb strip above it. */}
             <div className="canvas-stage">
@@ -564,6 +571,32 @@ export function RootCanvas() {
               {isDiffActive && <DeletedDiffOverlay />}
               {isTraceActive && <TraceControls />}
             </div>
+            {/* Always rendered (unlike AgentRail itself, which fully hides): this is the only
+                remaining way to re-expand the panel once collapsed, since collapsing now hides
+                AgentRail entirely rather than shrinking it to a visible strip. */}
+            <SplitterHandle
+              className="agent-task-rail-resize-handle"
+              dataTestid="agent-panel-toggle-handle"
+              collapsed={!isAgentPanelOpen}
+              onToggle={() => {
+                if (isAgentPanelOpen) {
+                  setCodePopupNode(null);
+                  inspectorStore.close();
+                }
+                setIsAgentPanelOpen(!isAgentPanelOpen);
+              }}
+              ariaLabel={`${isAgentPanelOpen ? "Collapse" : "Expand"} agents and diagrams panel`}
+              arrow={isAgentPanelOpen ? "›" : "‹"}
+            />
+            {!isAgentPanelOpen && (
+              <AgentLedStrip
+                framed
+                agents={allAgents}
+                testId="agent-rail-led"
+                onSelect={() => setIsAgentPanelOpen(true)}
+                onBackgroundClick={() => setIsAgentPanelOpen(true)}
+              />
+            )}
             <AgentRail hidden={!isAgentPanelOpen} />
           </div>
           {/* Docked under the canvas, inside .canvas-area, so the inspector to the right of it stays

@@ -1,11 +1,13 @@
-/** Mirrors desktop/src/preload.ts's DesktopWorkspaceApi -- present only when running inside the
- * Electron desktop app, absent in the browser dev flow. */
+/** The desktop shell's DesktopWorkspaceApi -- present only when running inside the
+ * desktop shell, absent in the browser dev flow. */
 export interface DesktopWorkspaceApi {
   openWorkspaceWindow(workspaceId: string): Promise<void>;
   closeWorkspaceWindow(workspaceId: string): Promise<void>;
   /** Brings this tab's shell window to front and makes this tab active -- the desktop half of
    * clicking a native agent-status notification. */
   focusThisTab(): Promise<void>;
+  /** Closes this tab's project and shows the open-project launcher. */
+  closeThisProject(): Promise<void>;
 }
 
 declare global {

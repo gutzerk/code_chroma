@@ -1,0 +1,94 @@
+{
+  "group": "traces",
+  "sources": ["tests/unit/test_bridge_trace_route.py"],
+  "repo": {"base": "sample_repo"},
+  "cases": [
+    {
+      "id": "no_recorded_traces_lists_nothing",
+      "steps": [
+        {"http": {"method": "GET", "path": "/repos/main/traces"}, "expect": {"status": 200, "json": []}}
+      ]
+    },
+    {
+      "id": "a_trace_is_summarized_from_its_own_file",
+      "steps": [
+        {"fs": "write", "path": ".codechroma/traces/abc123.json", "text": "{\"id\": \"abc123\", \"entry\": \"scenario.main()\", \"created_at\": \"2026-07-20T00:00:00+00:00\", \"status\": \"ok\", \"steps\": [{\"seq\": 0, \"node_id\": \"n\", \"event\": \"call\", \"depth\": 0}]}"},
+        {
+          "http": {"method": "GET", "path": "/repos/default/traces"},
+          "expect": {"status": 200, "json": [
+            {"id": "abc123", "entry": "scenario.main()", "created_at": "2026-07-20T00:00:00+00:00", "status": "ok", "step_count": 1}
+          ]}
+        }
+      ]
+    },
+    {
+      "id": "a_meta_sidecar_summarizes_without_parsing_the_steps",
+      "steps": [
+        {"fs": "write", "path": ".codechroma/traces/big.json", "text": "{\"id\": \"big\", \"steps\": []}"},
+        {"fs": "write", "path": ".codechroma/traces/big.meta.json", "text": "{\"id\": \"big\", \"entry\": \"e()\", \"created_at\": \"t\", \"status\": \"error\", \"step_count\": 9000}"},
+        {
+          "http": {"method": "GET", "path": "/repos/main/traces"},
+          "expect": {"status": 200, "json": [
+            {"id": "big", "entry": "e()", "created_at": "t", "status": "error", "step_count": 9000}
+          ]}
+        }
+      ]
+    },
+    {
+      "id": "a_summary_defaults_missing_fields_and_skips_unreadable_files",
+      "steps": [
+        {"fs": "write", "path": ".codechroma/traces/bare.json", "text": "{\"steps\": [1, 2]}"},
+        {"fs": "write", "path": ".codechroma/traces/broken.json", "text": "not json"},
+        {
+          "http": {"method": "GET", "path": "/repos/main/traces"},
+          "expect": {"status": 200, "json": [
+            {"id": "bare", "entry": "", "created_at": "", "status": "ok", "step_count": 2}
+          ]}
+        }
+      ]
+    },
+    {
+      "id": "a_trace_is_served_with_its_steps_ordered_by_seq",
+      "steps": [
+        {"fs": "write", "path": ".codechroma/traces/ordered.json", "text": "{\"id\": \"ordered\", \"steps\": [{\"seq\": 2, \"node_id\": \"c\"}, {\"seq\": 0, \"node_id\": \"a\"}, {\"seq\": 1, \"node_id\": \"b\"}]}"},
+        {
+          "http": {"method": "GET", "path": "/repos/default/traces/ordered"},
+          "expect": {"status": 200, "checks": [
+            {"path": "$.steps[*].seq", "equals": [0, 1, 2]},
+            {"path": "$.id", "equals": "ordered"}
+          ]}
+        }
+      ]
+    },
+    {
+      "id": "a_trace_without_a_step_list_gets_an_empty_one",
+      "steps": [
+        {"fs": "write", "path": ".codechroma/traces/nosteps.json", "text": "{\"id\": \"nosteps\", \"steps\": \"oops\"}"},
+        {"http": {"method": "GET", "path": "/repos/main/traces/nosteps"}, "expect": {"status": 200, "json": {"id": "nosteps", "steps": []}}}
+      ]
+    },
+    {
+      "id": "a_missing_trace_yields_an_empty_object",
+      "steps": [
+        {"http": {"method": "GET", "path": "/repos/main/traces/nope"}, "expect": {"status": 200, "json": {}}}
+      ]
+    },
+    {
+      "id": "a_new_trace_file_pings_the_canvas",
+      "steps": [
+        {"ws": "connect", "name": "events", "path": "/repos/main/events"},
+        {"fs": "write", "path": ".codechroma/traces/fresh.json", "text": "{\"id\": \"fresh\", \"steps\": []}"},
+        {"ws": "receive", "name": "events", "skip_until_match": true, "timeout_ms": 10000, "expect": {"json": {"type": "trace"}}}
+      ]
+    },
+    {
+      "id": "ingested_steps_are_relayed_to_stream_consumers_of_the_same_repo",
+      "steps": [
+        {"ws": "connect", "name": "consumer", "path": "/repos/default/trace-stream"},
+        {"ws": "connect", "name": "producer", "path": "/repos/default/trace-ingest"},
+        {"ws": "send", "name": "producer", "json": {"type": "step", "step": {"seq": 0, "node_id": "a"}}},
+        {"ws": "receive", "name": "consumer", "expect": {"json": {"type": "step", "step": {"seq": 0, "node_id": "a"}}}}
+      ]
+    }
+  ]
+}

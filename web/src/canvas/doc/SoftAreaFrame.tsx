@@ -1,4 +1,4 @@
-import type { HTMLAttributes } from "react";
+import type { HTMLAttributes, ReactNode } from "react";
 import type { UnionBounds } from "./boundingBox";
 
 export interface SoftAreaFramePadding {
@@ -21,6 +21,8 @@ export interface SoftAreaFrameProps {
    * handle) -- every purely decorative caller (`GroupFrame`/`LaneArea`/`ConcurrencyIslandArea`) omits
    * this and stays exactly as inert as before; it doesn't make any of them interactive on its own. */
   interactiveProps?: HTMLAttributes<HTMLDivElement>;
+  /** Optional control rendered inline after the label (`DiagramFrame`'s copy-name button). */
+  labelAction?: ReactNode;
 }
 
 /**
@@ -40,6 +42,7 @@ export function SoftAreaFrame({
   labelClassName,
   label,
   interactiveProps,
+  labelAction,
 }: SoftAreaFrameProps) {
   const { left, top, right, bottom } = bounds;
   return (
@@ -49,14 +52,18 @@ export function SoftAreaFrame({
       data-canvas-element
       style={{
         position: "absolute",
-        left: left - padding.side,
-        top: top - padding.top,
-        width: right - left + padding.side * 2,
-        height: bottom - top + padding.top + padding.bottom,
+        // Whole pixels only: a fractional live-drag offset shifts a dashed border's antialiasing every frame.
+        left: Math.round(left - padding.side),
+        top: Math.round(top - padding.top),
+        width: Math.round(right - left + padding.side * 2),
+        height: Math.round(bottom - top + padding.top + padding.bottom),
       }}
       {...interactiveProps}
     >
-      <span className={labelClassName}>{label}</span>
+      <span className={labelClassName}>
+        {label}
+        {labelAction}
+      </span>
     </div>
   );
 }

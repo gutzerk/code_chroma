@@ -1,0 +1,29 @@
+{
+  "group": "layout",
+  "sources": ["src/codechroma/bridge/routes/diagrams.py", "src/codechroma/bridge/layout_store.py"],
+  "repo": {"base": "sample_repo"},
+  "cases": [
+    {
+      "id": "no_saved_layout_is_an_empty_object",
+      "steps": [
+        {"http": {"method": "GET", "path": "/repos/main/hierarchy/layout"}, "expect": {"status": 200, "json": {}}}
+      ]
+    },
+    {
+      "id": "a_saved_layout_is_sanitized_and_served_back",
+      "steps": [
+        {
+          "http": {"method": "POST", "path": "/repos/main/hierarchy/layout", "json": {"a": {"x": 1.5, "y": 2.5}, "b": {"x": "1", "y": 2.5}, "c": {"x": true, "y": 2.5}, "d": 5, "e": {"x": 3.5}}},
+          "expect": {"status": 200, "json": {"a": {"x": 1.5, "y": 2.5}}}
+        },
+        {"http": {"method": "GET", "path": "/repos/main/hierarchy/layout"}, "expect": {"status": 200, "json": {"a": {"x": 1.5, "y": 2.5}}}}
+      ]
+    },
+    {
+      "id": "a_non_object_body_saves_an_empty_layout",
+      "steps": [
+        {"http": {"method": "POST", "path": "/repos/main/hierarchy/layout", "json": [1, 2]}, "expect": {"status": 200, "json": {}}}
+      ]
+    }
+  ]
+}

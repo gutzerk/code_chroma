@@ -14,17 +14,23 @@ import os
 import sys
 import uuid
 from dataclasses import dataclass
+from datetime import UTC, datetime
 from pathlib import Path
 from types import ModuleType
 
-IS_WINDOWS = os.name == "nt"
+from codechroma.config import settings
 
-if IS_WINDOWS:
+if settings.windows:
     from filelock import FileLock
 else:
     import fcntl
 
 logger = logging.getLogger(__name__)
+
+
+def utc_now_iso() -> str:
+    """UTC now as second-precision ISO-8601 with a trailing Z."""
+    return datetime.now(UTC).isoformat(timespec="seconds").replace("+00:00", "Z")
 
 
 def load_module_from_path(name: str, path: Path) -> ModuleType:
@@ -68,7 +74,7 @@ def locked(path: Path):
     lock_path = path.parent / f"{path.name}.lock"
     lock_path.parent.mkdir(parents=True, exist_ok=True)
 
-    if IS_WINDOWS:
+    if settings.windows:
         # Windows
         lock = FileLock(str(lock_path))
         with lock:

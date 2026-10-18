@@ -1,7 +1,5 @@
 """Nested `.codechroma/worktrees` stay out of the main graph and git status."""
 
-import subprocess
-from pathlib import Path
 
 import pytest
 
@@ -9,24 +7,19 @@ from codechroma.bridge.agents import worktree
 from codechroma.bridge.agents.manager import AgentManager
 from codechroma.bridge.git_cmd import working_tree_status
 from codechroma.engine import GraphEngine
-
-
-def _git(root: Path, *args: str) -> str:
-    return subprocess.run(
-        ["git", *args], cwd=root, check=True, capture_output=True, text=True
-    ).stdout
+from tests.conftest import git
 
 
 @pytest.fixture
 def repo(tmp_path, monkeypatch):
     root = tmp_path / "repo"
     root.mkdir()
-    _git(root, "init", "-b", "main")
-    _git(root, "config", "user.email", "test@example.com")
-    _git(root, "config", "user.name", "Test")
+    git(root, "init", "-b", "main")
+    git(root, "config", "user.email", "test@example.com")
+    git(root, "config", "user.name", "Test")
     (root / "shared.py").write_text("def shared():\n    return 1\n", encoding="utf-8")
-    _git(root, "add", "-A")
-    _git(root, "commit", "-m", "initial")
+    git(root, "add", "-A")
+    git(root, "commit", "-m", "initial")
     monkeypatch.delenv(worktree.WORKSPACES_DIR_ENV, raising=False)
     return root
 

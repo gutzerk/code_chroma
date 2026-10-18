@@ -252,7 +252,7 @@ branch through an agent attached to it (`_guard_shared_worktree`, keyed off `Age
   Rules live in TOML so a Claude TUI change is a data fix. 250 ms hysteresis, ≤4 pushes/second.
   🔴 Unknown means *hold*, never `idle`; a malformed manifest degrades to "always hold".
   ⚠ The manifest is a runtime data file, so it is read through `resources.py`'s `resource_path`
-  (kind `"detect"`) and shipped by `packaging/bridge.spec` — otherwise it 404s in the frozen app.
+  (kind `"detect"`) and (for any bundled bridge) must be shipped next to it — otherwise it 404s there.
 - `transcripts.py` — the `claude --resume` session id. 🔴 The `~/.claude/projects/<escaped>` name is
   **not guessed**: a wrong escape would silently start a *fresh* conversation. Every transcript
   records its own `cwd`, so the id is read from the newest one whose `cwd` is this worktree.
@@ -281,10 +281,10 @@ branch through an agent attached to it (`_guard_shared_worktree`, keyed off `Age
   `POST /agents/{id}/{start,stop,recreate-worktree,pr}`, `PATCH /agents/{id}/window`,
   `GET /agents/{id}/pr-preflight`, `GET /agents/git-preflight`, `POST /agents/git-init`,
   `POST /workspaces/{id}/activate`, `GET /workspaces/{id}/status`. Lifecycle pings
-  (`agent-added`/`agent-removed`/`agent-status`/`workspace-activated`) travel over the existing
+  (`agent-added`/`agent-removed`/`agent-status`) travel over the existing
   `WS /repos/{id}/events` — no new socket.
 - 🔴 Agent processes start **from the bridge**, never the renderer: that is the only way they inherit
-  the PATH `desktop/src/shellPath.ts` repairs, without which a Finder-launched app can't find
+  the PATH the bridge's `RuntimeEnvironment` captures from the user's login shell (see [`runtime-environment.md`](runtime-environment.md)), without which a Finder-launched app can't find
   `/opt/homebrew/bin/claude`. `WS /ws/terminal?agent=claude&workspace=<id>` *attaches* to the managed
   session (resolved from `websocket.app.state.services.agent_sessions`, the per-app
   `AgentSessionRegistry`); with no `workspace`, it spawns a per-socket PTY exactly as the plain
@@ -305,14 +305,30 @@ branch through an agent attached to it (`_guard_shared_worktree`, keyed off `Age
   carries `data-active-workspace` for the e2e specs: once a workspace is `ready` nothing on screen says
   which one it is, and the spec used to infer it from the branch switcher being disabled — a proxy that
   stopped existing when the switcher became usable everywhere.
+- 🔴 **A window owns its active workspace.** `agentStore.workspaceChosen` is set by a `?workspace=` URL
+  param or any `setActiveWorkspace` call, and once set `setList` ignores the bridge's
+  `active_workspace` — otherwise a second window on the same project (a PR tab, a branch tab) would be
+  dragged onto whatever the first one last opened. The bridge no longer pushes `workspace-activated`
+  at all; the persisted value only seeds a window that names no workspace. The desktop shell always
+  names one (`?workspace=main` for a repo tab), see [`desktop-app.md`](desktop-app.md).
 - A window can be docked into the resizable left-side `AgentTerminalDock` in `.canvas-main-row`.
   `agentDockStore` keeps a session-local ordered list of attached agent ids and the selected tab;
-  every docked terminal stays mounted while switching tabs. Docking hides the floating window without
+  every docked terminal stays mounted while switching tabs. Collapsed, the dock shrinks to a 28px
+  strip holding a column of status LEDs, one per docked agent; clicking one selects it and expands the
+  dock, and clicking anywhere else on the strip expands it too. Ctrl/Cmd+Shift+O (window-level, capture
+  phase) expands the dock and focuses the active terminal via `agentDockStore.openAndFocus()`'s
+  `focusRequest` counter → `AgentTerminal`'s `focusRequest` prop. Inactive tabs are filled pills (they
+  look clickable); the active tab is flat, bold and non-interactive-looking. The same shared
+  `AgentLedStrip` (with `SplitterHandle`, and the same click-anywhere-to-open) is the collapsed form of the right-side
+  Agents/Diagrams `AgentRail` too, so both panels collapse identically. Docking hides the floating window without
   persisting `minimized`, so after reload it naturally returns as a window. Detach removes that tab
   and opens the agent window; the tab's close action follows the normal `closeAgentWindow` flow. The
-  dock's collapse state persists in browser storage, leaves its expand handle available, and hides
-  terminal panels without unmounting them. Detach/close controls in the active terminal header do not
-  shrink away at the dock's minimum width.
+  dock's collapse state persists in browser storage and hides terminal panels without unmounting
+  them. 🔵 There is no in-toolbar toggle button anymore — the dock's own resize-handle strip doubles
+  as the collapse/expand control via `canvas/SplitterHandle.tsx` (the shared hover-reveal arrow used
+  by every panel-edge splitter, see [`web-canvas-shell.md`](web-canvas-shell.md)); the strip stays
+  rendered while collapsed so the arrow remains reachable, it just stops accepting a resize drag.
+  Detach/close controls in the active terminal header do not shrink away at the dock's minimum width.
 - `AgentRail` renders its own full-height panel (`.agent-task-rail`, header "AGENT TASKS" + a count
   chip) beside `.canvas-stage` inside `.canvas-main-row` — a sibling of the canvas, not a rail/toolbar
   item, so cards have room for more than an icon. It is the **only** always-visible list of agents:

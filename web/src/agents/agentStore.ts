@@ -15,8 +15,12 @@ const MIN_VISIBLE = 120;
 /** Lets a fresh window (e.g. a PR opened via "Open in New Window") boot straight into the right
  * workspace instead of defaulting to main and requiring a second switch. */
 export function initialWorkspace(): string {
-  if (typeof window === "undefined") return "main";
-  return new URLSearchParams(window.location.search).get("workspace") ?? "main";
+  return workspaceFromUrl() ?? "main";
+}
+
+function workspaceFromUrl(): string | null {
+  if (typeof window === "undefined") return null;
+  return new URLSearchParams(window.location.search).get("workspace");
 }
 
 /**
@@ -27,6 +31,9 @@ export function initialWorkspace(): string {
 class AgentStore extends Store {
   private agents: AgentRecord[] = EMPTY;
   private activeWorkspace = initialWorkspace();
+  // Once this window has chosen its workspace (URL, a click, or the first load) the bridge's
+  // "last active" must never move it again: another window's pick is not ours to follow.
+  private workspaceChosen = workspaceFromUrl() !== null;
   private maxAgents = 5;
   private gitPreflight: GitPreflight | null = null;
   private launchError: string | null = null;
@@ -71,7 +78,10 @@ class AgentStore extends Store {
     max_agents: number;
   }): void => {
     this.agents = list.agents.map((agent) => clampToViewport(agent));
-    this.activeWorkspace = list.active_workspace;
+    if (!this.workspaceChosen) {
+      this.activeWorkspace = list.active_workspace;
+      this.workspaceChosen = true;
+    }
     this.maxAgents = list.max_agents;
     this.emit();
   };
@@ -134,6 +144,7 @@ class AgentStore extends Store {
 
   setActiveWorkspace = (id: string): void => {
     this.activeWorkspace = id;
+    this.workspaceChosen = true;
     this.emit();
   };
 
@@ -188,7 +199,8 @@ class AgentStore extends Store {
   /** Test/dev-only full reset. */
   reset = (): void => {
     this.agents = EMPTY;
-    this.activeWorkspace = "main";
+    this.activeWorkspace = initialWorkspace();
+    this.workspaceChosen = workspaceFromUrl() !== null;
     this.maxAgents = 5;
     this.gitPreflight = null;
     this.launchError = null;
@@ -240,10 +252,6 @@ export function useActiveWorkspace(): string {
 
 export function useGitPreflight(): GitPreflight | null {
   return useSyncExternalStore(agentStore.subscribe, agentStore.getGitPreflight);
-}
-
-export function useLaunchError(): string | null {
-  return useSyncExternalStore(agentStore.subscribe, agentStore.getLaunchError);
 }
 
 export function useAgentStartError(id: string): string | null {

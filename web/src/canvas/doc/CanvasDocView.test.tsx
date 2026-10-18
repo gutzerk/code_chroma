@@ -19,7 +19,6 @@ import type {
   CanvasDoc,
   CanvasEdge,
   CanvasElement,
-  HierarchyNodeRef,
 } from "../../state/types";
 
 function elementOf(overrides: Partial<CanvasElement> & { id: string }): CanvasElement {
@@ -98,21 +97,12 @@ afterEach(() => {
 });
 
 describe("CanvasDocView", () => {
-  it("renders a recipe box, a note, and a pinned hierarchy element", async () => {
-    const root: HierarchyNodeRef = {
-      node_id: "root",
-      name: "Root",
-      level: "folder",
-      parent_id: null,
-      has_children: false,
-      child_count: 0,
-    };
+  it("renders a recipe box and a note", async () => {
     const doc = docWith([
       elementOf({ id: "e1", render: "impact", label: "Auth service" }),
       elementOf({ id: "e2", render: "note", label: "remember this" }),
-      elementOf({ id: "e3", render: "hierarchy", node_id: "root", position: { x: 300, y: 300 } }),
     ]);
-    const engineClient = client(doc, { getNode: async () => root });
+    const engineClient = client(doc);
 
     render(
       <EngineClientProvider repoId="default" client={engineClient}>
@@ -122,7 +112,6 @@ describe("CanvasDocView", () => {
 
     await waitFor(() => expect(screen.getByText("Auth service")).toBeInTheDocument());
     expect(screen.getByText("remember this")).toBeInTheDocument();
-    expect(screen.getByText("Root")).toBeInTheDocument();
   });
 
   it("writes one update_element op when a box is dragged", async () => {
@@ -243,20 +232,12 @@ describe("CanvasDocView", () => {
     expect(canvasDocStore.getDoc().edges.edge1).toBeDefined();
   });
 
-  it("still renders a hierarchy element regardless of any layer's collapsed state", async () => {
-    const root: HierarchyNodeRef = {
-      node_id: "root",
-      name: "Root",
-      level: "folder",
-      parent_id: null,
-      has_children: false,
-      child_count: 0,
-    };
+  it("draws nothing for a legacy hierarchy element an old document still carries", async () => {
     const doc = docWith([
       elementOf({ id: "e1", render: "hierarchy", node_id: "root", layer: "hierarchy" }),
+      elementOf({ id: "e2", render: "note", label: "still here" }),
     ]);
-    const engineClient = client(doc, { getNode: async () => root });
-    collapsedLayersStore.collapse("c1");
+    const engineClient = client(doc);
 
     render(
       <EngineClientProvider repoId="default" client={engineClient}>
@@ -264,7 +245,8 @@ describe("CanvasDocView", () => {
       </EngineClientProvider>,
     );
 
-    await waitFor(() => expect(screen.getByText("Root")).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByText("still here")).toBeInTheDocument());
+    expect(document.querySelector('[data-element-id="e1"]')).toBeNull();
   });
 
   it("re-shows a diagram's elements the moment it's expanded again, no refetch needed", async () => {

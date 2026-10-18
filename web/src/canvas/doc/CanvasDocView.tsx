@@ -13,7 +13,6 @@ import { BLOCK_RULES } from "./elementRules";
 import { elementRect } from "./elementRect";
 import { leadingOrderDigits, stringMeta } from "./elementMeta";
 import { GroupFrame } from "./GroupFrame";
-import { HierarchyElement } from "./HierarchyElement";
 import { LaneArea } from "./LaneArea";
 import { NoteElement } from "./NoteElement";
 import { SequenceDiagram } from "./SequenceDiagram";
@@ -99,8 +98,7 @@ function useCanvasUndo(engineClient: ReturnType<typeof useEngineClient>): void {
 
 /**
  * The single canvas-document view (016-single-canvas-dashboard). Iterates every element and renders
- * it by its `render` key: `hierarchy` through HierarchyElement (which wraps the real strategy
- * renderer), `note` through NoteElement, `group` through GroupFrame (a background rect enclosing its
+ * it by its `render` key: `note` through NoteElement, `group` through GroupFrame (a background rect enclosing its
  * members' current bounds, not a box of its own), everything else (c1/pattern/impact/epic/custom)
  * through the one CanvasNodeBox. AgentRail's Diagrams tab is the one place to remove a diagram
  * outright or soft-remove it from the canvas (deleting its layer's elements/edges from the
@@ -337,7 +335,8 @@ export function CanvasDocView() {
           {visibleElements.map((element) => {
             switch (BLOCK_RULES[element.render].renderer) {
               case "hierarchy":
-                return <HierarchyElement key={element.id} element={element} />;
+                // Retired code-tree block: an old document may still carry one; it draws nothing.
+                return null;
               case "note":
                 return <NoteElement key={element.id} element={element} />;
               case "group":

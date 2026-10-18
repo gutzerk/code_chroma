@@ -150,7 +150,7 @@ def create_pr(
     created = run_gh(worktree, "pr", "create", "--fill", "--head", branch, "--base", main_branch)
     if created is None:
         raise PublishError("gh pr create failed")
-    url = _first_url(created)
+    url = first_url(created)
     if url is None:
         raise PublishError("gh pr create returned no URL")
     return url
@@ -208,7 +208,7 @@ def _commits_ahead(worktree: Path, branch: str, main_branch: str) -> bool:
         return False
 
 
-def run_gh(worktree: Path, *args: str) -> str | None:
+def run_gh(worktree: Path, *args: str, quiet: bool = False) -> str | None:
     """`gh` in a checkout (public: the PR importer reuses it); None when it fails or hangs."""
     # Own process group: killing gh alone orphans its credential helper, pager and ssh.
     try:
@@ -227,15 +227,20 @@ def run_gh(worktree: Path, *args: str) -> str | None:
         return None
     try:
         timeout = _gh_timeout()
-        stdout, _stderr = process.communicate(timeout=timeout)
+        stdout, stderr = process.communicate(timeout=timeout)
     except subprocess.TimeoutExpired:
         kill_process_group(process)
         logger.warning("publish: gh %s timed out after %ss", " ".join(args), timeout)
         return None
-    return stdout if process.returncode == 0 else None
+    if process.returncode != 0:
+        # The caller only gets None; the reason (missing label, rate limit) must not vanish with it.
+        if not quiet:
+            logger.warning("publish: gh %s failed: %s", " ".join(args[:2]), (stderr or "").strip())
+        return None
+    return stdout
 
 
-def _first_url(output: str) -> str | None:
+def first_url(output: str) -> str | None:
     for line in output.splitlines():
         candidate = line.strip()
         if candidate.startswith("http"):

@@ -8,6 +8,7 @@ import { unionBoundsOf } from "./boundingBox";
 import { canvasDocStore, commitCanvasPositions } from "./canvasDocStore";
 import { diagramFrameColorClass } from "./diagramFrameColor";
 import { dragOffsetStore } from "./dragOffsetStore";
+import { CopyButton } from "../strategies/nodeChrome";
 import { SoftAreaFrame } from "./SoftAreaFrame";
 
 // The larger of GroupFrame's/LaneArea's/ConcurrencyIslandArea's own padding on each side (currently
@@ -130,6 +131,17 @@ export function DiagramFrame({ layer, label, members, sizes }: DiagramFrameProps
       testId="canvas-diagram-frame"
       labelClassName="canvas-diagram-frame-label"
       label={label}
+      labelAction={
+        // The frame body is a drag handle, so keep a press on the button from starting a drag.
+        <span className="canvas-diagram-frame-copy" onPointerDown={(e) => e.stopPropagation()}>
+          <CopyButton
+            text={label}
+            name={`${label} diagram`}
+            variant="canvas-diagram-frame"
+            testId="canvas-diagram-frame-copy"
+          />
+        </span>
+      }
       interactiveProps={{
         role: "button",
         tabIndex: 0,

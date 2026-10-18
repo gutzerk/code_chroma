@@ -1,0 +1,168 @@
+{
+  "group": "wiki",
+  "sources": [
+    "src/codechroma/wiki/generator.py",
+    "src/codechroma/wiki/writer.py",
+    "src/codechroma/wiki/hashtree.py",
+    "src/codechroma/wiki/sync.py",
+    "src/codechroma/bridge/bootstrap_wiki.py",
+    "src/codechroma/bridge/wiki_context.py"
+  ],
+  "repo": {
+    "base": "sample_repo"
+  },
+  "cases": [
+    {
+      "id": "the_first_open_wiki_answers_a_folder_and_a_file_with_gaps_for_unknown_paths",
+      "requires": [
+        "real-engine"
+      ],
+      "steps": [
+        {
+          "http": {
+            "method": "GET",
+            "path": "/repos/main/wiki-context",
+            "query": {
+              "paths": "shared,shared/text_utils.py,nope.py"
+            }
+          },
+          "expect": {
+            "status": 200,
+            "checks": [
+              {
+                "path": "$.has_wiki",
+                "equals": true
+              },
+              {
+                "path": "$.root",
+                "contains": "## Folders"
+              },
+              {
+                "path": "$.root",
+                "contains": "- [shared](files/shared/index.md)"
+              },
+              {
+                "path": "$.pages",
+                "count": 2
+              },
+              {
+                "path": "$.pages[0].path",
+                "equals": "shared"
+              },
+              {
+                "path": "$.pages[0].kind",
+                "equals": "folder"
+              },
+              {
+                "path": "$.pages[0].content",
+                "equals": "# shared/\n\n## Files\n\n- [text_utils.py](text_utils.md) — Small text helpers shared across services.\n"
+              },
+              {
+                "path": "$.pages[1].path",
+                "equals": "shared/text_utils.py"
+              },
+              {
+                "path": "$.pages[1].kind",
+                "equals": "file"
+              },
+              {
+                "path": "$.pages[1].content",
+                "equals": "# shared/text_utils.py\n\nSmall text helpers shared across services.\n\n## Functions\n\n- `slugify` — Lowercase and hyphenate text into a URL-safe slug.\n"
+              },
+              {
+                "path": "$.gaps",
+                "equals": [
+                  "nope.py"
+                ]
+              },
+              {
+                "path": "$.truncated",
+                "equals": false
+              }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "a_nested_file_pulls_in_its_ancestor_folders_with_a_class_breakdown",
+      "requires": [
+        "real-engine"
+      ],
+      "steps": [
+        {
+          "http": {
+            "method": "GET",
+            "path": "/repos/main/wiki-context",
+            "query": {
+              "paths": "billing/models/invoice.py,billing"
+            }
+          },
+          "expect": {
+            "status": 200,
+            "checks": [
+              {
+                "path": "$.pages",
+                "count": 3
+              },
+              {
+                "path": "$.pages[0].path",
+                "equals": "billing"
+              },
+              {
+                "path": "$.pages[0].content",
+                "equals": "# billing/\n\n## Subfolders\n\n- [models](models/index.md)\n\n## Files\n\n- [reporter.go](reporter.md) — Package billing generates billing reports.\n- [service.py](service.md) — Billing and invoicing service.\n"
+              },
+              {
+                "path": "$.pages[1].path",
+                "equals": "billing/models"
+              },
+              {
+                "path": "$.pages[1].content",
+                "equals": "# billing/models/\n\n## Files\n\n- [invoice.py](invoice.md) — Invoice model nested one directory deeper than billing/service.py.\n"
+              },
+              {
+                "path": "$.pages[2].path",
+                "equals": "billing/models/invoice.py"
+              },
+              {
+                "path": "$.pages[2].content",
+                "equals": "# billing/models/invoice.py\n\nInvoice model nested one directory deeper than billing/service.py.\n\n## Classes\n\n### Invoice\n\nA single billing invoice.\n\n#### Methods\n\n- `total` — Sum the amounts of all invoice lines.\n\n## Functions\n\n- `format_invoice_id` — Render a zero-padded invoice id string.\n"
+              },
+              {
+                "path": "$.gaps",
+                "count": 0
+              }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "typescript_files_get_a_breakdown_and_undocumented_exports_show_the_placeholder",
+      "requires": [
+        "real-engine"
+      ],
+      "steps": [
+        {
+          "http": {
+            "method": "GET",
+            "path": "/repos/main/wiki-context",
+            "query": {
+              "paths": "web/UserCard.tsx"
+            }
+          },
+          "expect": {
+            "status": 200,
+            "checks": [
+              {
+                "path": "$.pages[1].content",
+                "equals": "# web/UserCard.tsx\n\nUserCard renders a single user's summary card.\n\n## Functions\n\n- `UserCard` — UserCard renders a single user's summary card.\n- `trackUserCardView` — *no docstring*\n"
+              }
+            ]
+          }
+        }
+      ]
+    }
+  ]
+}

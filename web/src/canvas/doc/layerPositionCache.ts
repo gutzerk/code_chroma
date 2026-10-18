@@ -6,12 +6,12 @@ import { recipeChromeKey } from "../../state/useSidecar";
  *
  * `AgentRail`'s Diagrams tab "remove from canvas" row action (`removeLayerAndRefresh`) `delete_element`s every box in a layer, so a
  * user-dragged position has nowhere left to live once its element is gone — picking the same recipe
- * again (`runRecipeAndLayout`) used to always fall through to a fresh dagre pass (`autoLayout.ts`),
+ * again (`runRecipeAndLayout`) used to always fall through to a fresh ELK pass (`autoLayout.ts`),
  * silently discarding wherever the user had put things. This cache is the fix: `removeLayerAndRefresh`
  * snapshots every element's position keyed by its own `meta.recipe_key` (the same key
  * `build_batch_ops` reconciles by) right before deleting it, and `runRecipeAndLayout` checks this
  * cache for each freshly-added element before handing it to `layoutNewElements` — a hit restores the
- * old spot instead of a new dagre-computed one.
+ * old spot instead of a new ELK-computed one.
  *
  * Module-level, not a `Store`: nothing renders off this, it only feeds a one-shot decision inside
  * `runRecipeAndLayout`. Entries are consumed on read so a stale position can never resurface once
@@ -32,6 +32,12 @@ export function captureLayerPositions(layerElements: readonly CanvasElement[], l
   }
   if (snapshot.size > 0) cache.set(layer, snapshot);
   else cache.delete(layer);
+}
+
+/** Pre-loads `layer`'s positions by `recipe_key`, so the next `runRecipeAndLayout` of that recipe
+ * places each box there instead of running a fresh layout (the tutorial's saved arrangement). */
+export function seedLayerPositions(layer: string, positions: Record<string, CanvasPosition>): void {
+  cache.set(layer, new Map(Object.entries(positions)));
 }
 
 /** Returns and forgets `layer`'s cached position for `recipeKey`, if one was captured. */

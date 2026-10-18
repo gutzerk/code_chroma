@@ -7,7 +7,6 @@ disk carrying a real `refs/pull/<n>/head` exactly as GitHub serves one.
 import json
 import os
 import shutil
-import subprocess
 import sys
 from pathlib import Path
 
@@ -17,6 +16,7 @@ from fastapi.testclient import TestClient
 from codechroma.bridge.prs import github as pr_github
 from codechroma.bridge.routes.prs import PR_REASON_GH_MISSING
 from codechroma.bridge.skill_agent import SkillAgent
+from tests.conftest import git
 
 FIXTURE_REPO = Path(__file__).parent.parent / "fixtures" / "sample_repo"
 
@@ -35,12 +35,6 @@ PR_METADATA = {
     "deletions": 0,
     "changedFiles": 1,
 }
-
-
-def _git(root: Path, *args: str) -> str:
-    return subprocess.run(
-        ["git", *args], cwd=root, check=True, capture_output=True, text=True
-    ).stdout
 
 
 def _stub_gh(bin_dir: Path, metadata: dict | None, open_prs: list[dict] | None = None) -> None:
@@ -90,22 +84,22 @@ def origin(tmp_path):
     """A bare 'GitHub' whose refs/pull/7/head is one commit ahead of main."""
     seed = tmp_path / "seed"
     shutil.copytree(FIXTURE_REPO, seed)
-    _git(seed, "init", "-b", "main")
-    _git(seed, "config", "user.email", "test@example.com")
-    _git(seed, "config", "user.name", "Test")
-    _git(seed, "add", "-A")
-    _git(seed, "commit", "-m", "initial")
-    _git(seed, "checkout", "-b", "feature/refunds")
+    git(seed, "init", "-b", "main")
+    git(seed, "config", "user.email", "test@example.com")
+    git(seed, "config", "user.name", "Test")
+    git(seed, "add", "-A")
+    git(seed, "commit", "-m", "initial")
+    git(seed, "checkout", "-b", "feature/refunds")
     (seed / "shared" / "refund.py").write_text(
         "def issue_refund():\n    return 1\n", encoding="utf-8"
     )
-    _git(seed, "add", "-A")
-    _git(seed, "commit", "-m", "add refunds")
+    git(seed, "add", "-A")
+    git(seed, "commit", "-m", "add refunds")
     bare = tmp_path / "origin.git"
-    _git(tmp_path, "init", "--bare", str(bare))
-    _git(seed, "remote", "add", "origin", str(bare))
-    _git(seed, "push", "origin", "main")
-    _git(seed, "push", "origin", "feature/refunds:refs/pull/7/head")
+    git(tmp_path, "init", "--bare", str(bare))
+    git(seed, "remote", "add", "origin", str(bare))
+    git(seed, "push", "origin", "main")
+    git(seed, "push", "origin", "feature/refunds:refs/pull/7/head")
     return bare
 
 
@@ -116,14 +110,14 @@ def client(tmp_path, origin, monkeypatch, make_bridge, use_test_runtime):
     monkeypatch.setenv("PATH", f"{bin_dir}{os.pathsep}{os.environ['PATH']}")
     use_test_runtime()
     repo = tmp_path / "repo"
-    _git(tmp_path, "clone", str(origin), str(repo))
-    _git(repo, "config", "user.email", "test@example.com")
-    _git(repo, "config", "user.name", "Test")
+    git(tmp_path, "clone", str(origin), str(repo))
+    git(repo, "config", "user.email", "test@example.com")
+    git(repo, "config", "user.name", "Test")
     # The bridge fetches from this local path; the fake gh resolves the checkout as acme/app.
-    _git(repo, "remote", "set-url", "--push", "origin", str(origin))
-    _git(repo, "config", "remote.origin.url", "https://github.com/acme/app.git")
-    _git(repo, "config", "remote.origin.pushurl", str(origin))
-    _git(repo, "config", f"url.{origin}.insteadOf", "https://github.com/acme/app.git")
+    git(repo, "remote", "set-url", "--push", "origin", str(origin))
+    git(repo, "config", "remote.origin.url", "https://github.com/acme/app.git")
+    git(repo, "config", "remote.origin.pushurl", str(origin))
+    git(repo, "config", f"url.{origin}.insteadOf", "https://github.com/acme/app.git")
     monkeypatch.setenv("codechroma_WORKSPACES_DIR", str(tmp_path / "worktrees"))
 
     bridge = make_bridge(repo)
@@ -251,12 +245,12 @@ def test_the_terminal_roots_itself_in_the_pull_requests_own_worktree(client):
 def test_a_pull_request_workspace_refuses_to_accept_a_diff(client):
     test_client, _repo, _server, _bin = client
     body = _open_pr(test_client).json()
-    before = _git(Path(body["worktree"]), "rev-parse", "HEAD")
+    before = git(Path(body["worktree"]), "rev-parse", "HEAD")
 
     response = test_client.post("/repos/pr-7/diff/shared%2Frefund.py::function::x/accept")
 
     assert response.status_code == 409
-    assert _git(Path(body["worktree"]), "rev-parse", "HEAD") == before
+    assert git(Path(body["worktree"]), "rev-parse", "HEAD") == before
 
 
 def test_a_pull_request_workspace_may_spawn_a_claude_run(client, monkeypatch):
@@ -318,7 +312,7 @@ def test_closing_a_pull_request_removes_its_worktree_refs_and_registration(clien
     assert response.json() == {"status": "deleted", "id": "pr-7"}
     assert not Path(body["worktree"]).exists()
     assert not bridge.registry.is_registered("pr-7")
-    assert _git(repo, "for-each-ref", "--format=%(refname)", "refs/codechroma").strip() == ""
+    assert git(repo, "for-each-ref", "--format=%(refname)", "refs/codechroma").strip() == ""
 
 
 def test_closing_the_active_pull_request_returns_the_canvas_to_main(client):
@@ -413,8 +407,8 @@ def test_github_prs_ignores_the_import_cap(client, monkeypatch):
 def test_github_prs_works_with_an_upstream_remote_instead_of_origin(client, monkeypatch):
     test_client, repo, _server, _bin = client
     _mock_gh_resolution(monkeypatch, [])
-    _git(repo, "remote", "remove", "origin")
-    _git(repo, "remote", "add", "upstream", "git@github.com:acme/app.git")
+    git(repo, "remote", "remove", "origin")
+    git(repo, "remote", "add", "upstream", "git@github.com:acme/app.git")
 
     response = test_client.get("/prs/github")
 
@@ -425,7 +419,7 @@ def test_github_prs_works_with_an_upstream_remote_instead_of_origin(client, monk
 def test_github_prs_works_with_a_custom_ssh_alias(client, monkeypatch):
     test_client, repo, _server, _bin = client
     _mock_gh_resolution(monkeypatch, [])
-    _git(repo, "remote", "set-url", "origin", "git@gh-work:acme/app.git")
+    git(repo, "remote", "set-url", "origin", "git@gh-work:acme/app.git")
 
     response = test_client.get("/prs/github")
 

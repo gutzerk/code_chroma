@@ -1,30 +1,18 @@
 """TestClient coverage for /workspaces/{id}/activate and /status on the bridge server."""
 
-import shutil
-import subprocess
 from pathlib import Path
 
 import pytest
 from fastapi.testclient import TestClient
 
 from codechroma.bridge.agents import worktree
-
-FIXTURE_REPO = Path(__file__).parent.parent / "fixtures" / "sample_repo"
-
-
-def _init_repo(root: Path) -> None:
-    subprocess.run(["git", "init"], cwd=root, check=True, capture_output=True)
-    subprocess.run(["git", "config", "user.email", "test@example.com"], cwd=root, check=True)
-    subprocess.run(["git", "config", "user.name", "Test"], cwd=root, check=True)
-    subprocess.run(["git", "add", "-A"], cwd=root, check=True, capture_output=True)
-    subprocess.run(["git", "commit", "-m", "initial"], cwd=root, check=True, capture_output=True)
+from tests.conftest import copy_sample_repo
 
 
 @pytest.fixture
 def client(tmp_path, monkeypatch, make_bridge):
     repo = tmp_path / "repo"
-    shutil.copytree(FIXTURE_REPO, repo)
-    _init_repo(repo)
+    copy_sample_repo(repo)
     monkeypatch.setenv(worktree.WORKSPACES_DIR_ENV, str(tmp_path / "worktrees"))
 
     bridge = make_bridge(repo)
@@ -101,7 +89,9 @@ def test_the_agents_new_file_is_a_real_block_not_only_a_diff_panel(client):
     assert node["name"] == "brand_new.py"
 
 
-def test_activation_is_broadcast_so_other_views_follow(client, monkeypatch):
+def test_activation_is_not_broadcast_so_other_windows_keep_their_own_workspace(
+    client, monkeypatch
+):
     test_client, _repo, bridge = client
     test_client.post("/agents", json={"title": "refund flow"})
     sent: list[dict] = []
@@ -112,7 +102,7 @@ def test_activation_is_broadcast_so_other_views_follow(client, monkeypatch):
     monkeypatch.setattr(bridge.connections, "broadcast", record)
     test_client.post("/workspaces/refund-flow/activate")
 
-    assert {"type": "workspace-activated", "id": "refund-flow"} in sent
+    assert not [message for message in sent if message["type"] == "workspace-activated"]
 
 
 def test_switching_back_to_main_leaves_the_agent_workspace_loaded(client):

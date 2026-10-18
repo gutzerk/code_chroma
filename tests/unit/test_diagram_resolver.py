@@ -274,6 +274,14 @@ def test_pathless_node_with_no_meta_is_stamped_conceptual(engine):
     assert resolved["nodes"][0]["meta"] == {"no_code_reason": "conceptual"}
 
 
+def test_pathless_external_node_is_stamped_external_not_conceptual(engine):
+    data = _diagram(nodes=[{"id": "a", "name": "Stripe", "meta": {"external": True}}])
+
+    resolved = resolve_diagram(engine, data)
+
+    assert resolved["nodes"][0]["meta"] == {"external": True, "no_code_reason": "external"}
+
+
 def test_unresolved_path_is_stamped_with_the_failed_path_as_detail(engine):
     data = _diagram(nodes=[{"id": "a", "name": "A", "path": "shared/missing.py"}])
 

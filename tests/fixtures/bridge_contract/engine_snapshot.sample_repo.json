@@ -1,0 +1,995 @@
+{
+  "repo": "sample_repo",
+  "nodes": [
+    {
+      "id": "dir::billing",
+      "name": "billing",
+      "level": "system",
+      "parent_ids": [],
+      "source_path": "billing",
+      "doc_only": false,
+      "depends_on_ids": []
+    },
+    {
+      "id": "component::billing/reporter.go",
+      "name": "reporter.go",
+      "level": "component",
+      "parent_ids": [
+        "dir::billing"
+      ],
+      "source_path": "billing/reporter.go",
+      "doc_only": false,
+      "depends_on_ids": []
+    },
+    {
+      "id": "billing/reporter.go::class::Report",
+      "name": "Report",
+      "level": "service",
+      "parent_ids": [
+        "component::billing/reporter.go"
+      ],
+      "source_path": "billing/reporter.go",
+      "doc_only": false,
+      "depends_on_ids": []
+    },
+    {
+      "id": "service::billing/reporter.go::functions",
+      "name": "Module Functions",
+      "level": "service",
+      "parent_ids": [
+        "component::billing/reporter.go"
+      ],
+      "source_path": "billing/reporter.go",
+      "doc_only": false,
+      "depends_on_ids": []
+    },
+    {
+      "id": "billing/reporter.go::function::RenderReport",
+      "name": "RenderReport",
+      "level": "function",
+      "parent_ids": [
+        "service::billing/reporter.go::functions"
+      ],
+      "source_path": "billing/reporter.go",
+      "doc_only": false,
+      "depends_on_ids": []
+    },
+    {
+      "id": "logicblock::billing/reporter.go::function::RenderReport::0",
+      "name": "Step 1",
+      "level": "logic_block",
+      "parent_ids": [
+        "billing/reporter.go::function::RenderReport"
+      ],
+      "source_path": "billing/reporter.go:11-11",
+      "doc_only": false,
+      "depends_on_ids": []
+    },
+    {
+      "id": "code::logicblock::billing/reporter.go::function::RenderReport::0",
+      "name": "billing/reporter.go:11-11",
+      "level": "code",
+      "parent_ids": [
+        "logicblock::billing/reporter.go::function::RenderReport::0"
+      ],
+      "source_path": "billing/reporter.go:11-11",
+      "doc_only": false,
+      "depends_on_ids": []
+    },
+    {
+      "id": "billing/reporter.go::function::formatCurrency",
+      "name": "formatCurrency",
+      "level": "function",
+      "parent_ids": [
+        "service::billing/reporter.go::functions"
+      ],
+      "source_path": "billing/reporter.go",
+      "doc_only": false,
+      "depends_on_ids": []
+    },
+    {
+      "id": "logicblock::billing/reporter.go::function::formatCurrency::0",
+      "name": "Step 1",
+      "level": "logic_block",
+      "parent_ids": [
+        "billing/reporter.go::function::formatCurrency"
+      ],
+      "source_path": "billing/reporter.go:16-16",
+      "doc_only": false,
+      "depends_on_ids": []
+    },
+    {
+      "id": "code::logicblock::billing/reporter.go::function::formatCurrency::0",
+      "name": "billing/reporter.go:16-16",
+      "level": "code",
+      "parent_ids": [
+        "logicblock::billing/reporter.go::function::formatCurrency::0"
+      ],
+      "source_path": "billing/reporter.go:16-16",
+      "doc_only": false,
+      "depends_on_ids": []
+    },
+    {
+      "id": "billing/reporter.go::function::SendReport",
+      "name": "SendReport",
+      "level": "function",
+      "parent_ids": [
+        "service::billing/reporter.go::functions"
+      ],
+      "source_path": "billing/reporter.go",
+      "doc_only": false,
+      "depends_on_ids": []
+    },
+    {
+      "id": "logicblock::billing/reporter.go::function::SendReport::0",
+      "name": "Step 1",
+      "level": "logic_block",
+      "parent_ids": [
+        "billing/reporter.go::function::SendReport"
+      ],
+      "source_path": "billing/reporter.go:20-20",
+      "doc_only": false,
+      "depends_on_ids": []
+    },
+    {
+      "id": "code::logicblock::billing/reporter.go::function::SendReport::0",
+      "name": "billing/reporter.go:20-20",
+      "level": "code",
+      "parent_ids": [
+        "logicblock::billing/reporter.go::function::SendReport::0"
+      ],
+      "source_path": "billing/reporter.go:20-20",
+      "doc_only": false,
+      "depends_on_ids": []
+    },
+    {
+      "id": "component::billing/service.py",
+      "name": "service.py",
+      "level": "component",
+      "parent_ids": [
+        "dir::billing"
+      ],
+      "source_path": "billing/service.py",
+      "doc_only": false,
+      "depends_on_ids": []
+    },
+    {
+      "id": "billing/service.py::class::BillingService",
+      "name": "BillingService",
+      "level": "service",
+      "parent_ids": [
+        "component::billing/service.py"
+      ],
+      "source_path": "billing/service.py",
+      "doc_only": false,
+      "depends_on_ids": [
+        "shared/text_utils.py::function::slugify"
+      ]
+    },
+    {
+      "id": "billing/service.py::function::BillingService.__init__",
+      "name": "__init__",
+      "level": "function",
+      "parent_ids": [
+        "billing/service.py::class::BillingService"
+      ],
+      "source_path": "billing/service.py",
+      "doc_only": false,
+      "depends_on_ids": []
+    },
+    {
+      "id": "logicblock::billing/service.py::function::BillingService.__init__::0",
+      "name": "Step 1",
+      "level": "logic_block",
+      "parent_ids": [
+        "billing/service.py::function::BillingService.__init__"
+      ],
+      "source_path": "billing/service.py:9-9",
+      "doc_only": false,
+      "depends_on_ids": []
+    },
+    {
+      "id": "code::logicblock::billing/service.py::function::BillingService.__init__::0",
+      "name": "billing/service.py:9-9",
+      "level": "code",
+      "parent_ids": [
+        "logicblock::billing/service.py::function::BillingService.__init__::0"
+      ],
+      "source_path": "billing/service.py:9-9",
+      "doc_only": false,
+      "depends_on_ids": []
+    },
+    {
+      "id": "billing/service.py::function::BillingService.create_invoice",
+      "name": "create_invoice",
+      "level": "function",
+      "parent_ids": [
+        "billing/service.py::class::BillingService"
+      ],
+      "source_path": "billing/service.py",
+      "doc_only": false,
+      "depends_on_ids": [
+        "shared/text_utils.py::function::slugify"
+      ]
+    },
+    {
+      "id": "logicblock::billing/service.py::function::BillingService.create_invoice::0",
+      "name": "Step 1",
+      "level": "logic_block",
+      "parent_ids": [
+        "billing/service.py::function::BillingService.create_invoice"
+      ],
+      "source_path": "billing/service.py:12-15",
+      "doc_only": false,
+      "depends_on_ids": []
+    },
+    {
+      "id": "code::logicblock::billing/service.py::function::BillingService.create_invoice::0",
+      "name": "billing/service.py:12-15",
+      "level": "code",
+      "parent_ids": [
+        "logicblock::billing/service.py::function::BillingService.create_invoice::0"
+      ],
+      "source_path": "billing/service.py:12-15",
+      "doc_only": false,
+      "depends_on_ids": []
+    },
+    {
+      "id": "dir::billing/models",
+      "name": "models",
+      "level": "pillar",
+      "parent_ids": [
+        "dir::billing"
+      ],
+      "source_path": "billing/models",
+      "doc_only": false,
+      "depends_on_ids": []
+    },
+    {
+      "id": "component::billing/models/invoice.py",
+      "name": "invoice.py",
+      "level": "component",
+      "parent_ids": [
+        "dir::billing/models"
+      ],
+      "source_path": "billing/models/invoice.py",
+      "doc_only": false,
+      "depends_on_ids": []
+    },
+    {
+      "id": "billing/models/invoice.py::class::Invoice",
+      "name": "Invoice",
+      "level": "service",
+      "parent_ids": [
+        "component::billing/models/invoice.py"
+      ],
+      "source_path": "billing/models/invoice.py",
+      "doc_only": false,
+      "depends_on_ids": []
+    },
+    {
+      "id": "billing/models/invoice.py::function::Invoice.total",
+      "name": "total",
+      "level": "function",
+      "parent_ids": [
+        "billing/models/invoice.py::class::Invoice"
+      ],
+      "source_path": "billing/models/invoice.py",
+      "doc_only": false,
+      "depends_on_ids": []
+    },
+    {
+      "id": "logicblock::billing/models/invoice.py::function::Invoice.total::0",
+      "name": "Step 1",
+      "level": "logic_block",
+      "parent_ids": [
+        "billing/models/invoice.py::function::Invoice.total"
+      ],
+      "source_path": "billing/models/invoice.py:8-9",
+      "doc_only": false,
+      "depends_on_ids": []
+    },
+    {
+      "id": "code::logicblock::billing/models/invoice.py::function::Invoice.total::0",
+      "name": "billing/models/invoice.py:8-9",
+      "level": "code",
+      "parent_ids": [
+        "logicblock::billing/models/invoice.py::function::Invoice.total::0"
+      ],
+      "source_path": "billing/models/invoice.py:8-9",
+      "doc_only": false,
+      "depends_on_ids": []
+    },
+    {
+      "id": "service::billing/models/invoice.py::functions",
+      "name": "Module Functions",
+      "level": "service",
+      "parent_ids": [
+        "component::billing/models/invoice.py"
+      ],
+      "source_path": "billing/models/invoice.py",
+      "doc_only": false,
+      "depends_on_ids": []
+    },
+    {
+      "id": "billing/models/invoice.py::function::format_invoice_id",
+      "name": "format_invoice_id",
+      "level": "function",
+      "parent_ids": [
+        "service::billing/models/invoice.py::functions"
+      ],
+      "source_path": "billing/models/invoice.py",
+      "doc_only": false,
+      "depends_on_ids": []
+    },
+    {
+      "id": "logicblock::billing/models/invoice.py::function::format_invoice_id::0",
+      "name": "Step 1",
+      "level": "logic_block",
+      "parent_ids": [
+        "billing/models/invoice.py::function::format_invoice_id"
+      ],
+      "source_path": "billing/models/invoice.py:13-14",
+      "doc_only": false,
+      "depends_on_ids": []
+    },
+    {
+      "id": "code::logicblock::billing/models/invoice.py::function::format_invoice_id::0",
+      "name": "billing/models/invoice.py:13-14",
+      "level": "code",
+      "parent_ids": [
+        "logicblock::billing/models/invoice.py::function::format_invoice_id::0"
+      ],
+      "source_path": "billing/models/invoice.py:13-14",
+      "doc_only": false,
+      "depends_on_ids": []
+    },
+    {
+      "id": "dir::shared",
+      "name": "shared",
+      "level": "system",
+      "parent_ids": [],
+      "source_path": "shared",
+      "doc_only": false,
+      "depends_on_ids": []
+    },
+    {
+      "id": "component::shared/text_utils.py",
+      "name": "text_utils.py",
+      "level": "component",
+      "parent_ids": [
+        "dir::shared"
+      ],
+      "source_path": "shared/text_utils.py",
+      "doc_only": false,
+      "depends_on_ids": []
+    },
+    {
+      "id": "service::shared/text_utils.py::functions",
+      "name": "Module Functions",
+      "level": "service",
+      "parent_ids": [
+        "component::shared/text_utils.py"
+      ],
+      "source_path": "shared/text_utils.py",
+      "doc_only": false,
+      "depends_on_ids": []
+    },
+    {
+      "id": "shared/text_utils.py::function::slugify",
+      "name": "slugify",
+      "level": "function",
+      "parent_ids": [
+        "service::shared/text_utils.py::functions"
+      ],
+      "source_path": "shared/text_utils.py",
+      "doc_only": false,
+      "depends_on_ids": []
+    },
+    {
+      "id": "logicblock::shared/text_utils.py::function::slugify::0",
+      "name": "Step 1",
+      "level": "logic_block",
+      "parent_ids": [
+        "shared/text_utils.py::function::slugify"
+      ],
+      "source_path": "shared/text_utils.py:5-6",
+      "doc_only": false,
+      "depends_on_ids": []
+    },
+    {
+      "id": "code::logicblock::shared/text_utils.py::function::slugify::0",
+      "name": "shared/text_utils.py:5-6",
+      "level": "code",
+      "parent_ids": [
+        "logicblock::shared/text_utils.py::function::slugify::0"
+      ],
+      "source_path": "shared/text_utils.py:5-6",
+      "doc_only": false,
+      "depends_on_ids": []
+    },
+    {
+      "id": "dir::users",
+      "name": "users",
+      "level": "system",
+      "parent_ids": [],
+      "source_path": "users",
+      "doc_only": false,
+      "depends_on_ids": []
+    },
+    {
+      "id": "component::users/service.py",
+      "name": "service.py",
+      "level": "component",
+      "parent_ids": [
+        "dir::users"
+      ],
+      "source_path": "users/service.py",
+      "doc_only": false,
+      "depends_on_ids": []
+    },
+    {
+      "id": "users/service.py::class::UserService",
+      "name": "UserService",
+      "level": "service",
+      "parent_ids": [
+        "component::users/service.py"
+      ],
+      "source_path": "users/service.py",
+      "doc_only": false,
+      "depends_on_ids": [
+        "shared/text_utils.py::function::slugify"
+      ]
+    },
+    {
+      "id": "users/service.py::function::UserService.__init__",
+      "name": "__init__",
+      "level": "function",
+      "parent_ids": [
+        "users/service.py::class::UserService"
+      ],
+      "source_path": "users/service.py",
+      "doc_only": false,
+      "depends_on_ids": []
+    },
+    {
+      "id": "logicblock::users/service.py::function::UserService.__init__::0",
+      "name": "Step 1",
+      "level": "logic_block",
+      "parent_ids": [
+        "users/service.py::function::UserService.__init__"
+      ],
+      "source_path": "users/service.py:9-9",
+      "doc_only": false,
+      "depends_on_ids": []
+    },
+    {
+      "id": "code::logicblock::users/service.py::function::UserService.__init__::0",
+      "name": "users/service.py:9-9",
+      "level": "code",
+      "parent_ids": [
+        "logicblock::users/service.py::function::UserService.__init__::0"
+      ],
+      "source_path": "users/service.py:9-9",
+      "doc_only": false,
+      "depends_on_ids": []
+    },
+    {
+      "id": "users/service.py::function::UserService.create_user",
+      "name": "create_user",
+      "level": "function",
+      "parent_ids": [
+        "users/service.py::class::UserService"
+      ],
+      "source_path": "users/service.py",
+      "doc_only": false,
+      "depends_on_ids": [
+        "shared/text_utils.py::function::slugify"
+      ]
+    },
+    {
+      "id": "logicblock::users/service.py::function::UserService.create_user::0",
+      "name": "Step 1",
+      "level": "logic_block",
+      "parent_ids": [
+        "users/service.py::function::UserService.create_user"
+      ],
+      "source_path": "users/service.py:12-15",
+      "doc_only": false,
+      "depends_on_ids": []
+    },
+    {
+      "id": "code::logicblock::users/service.py::function::UserService.create_user::0",
+      "name": "users/service.py:12-15",
+      "level": "code",
+      "parent_ids": [
+        "logicblock::users/service.py::function::UserService.create_user::0"
+      ],
+      "source_path": "users/service.py:12-15",
+      "doc_only": false,
+      "depends_on_ids": []
+    },
+    {
+      "id": "users/service.py::function::UserService.get_user",
+      "name": "get_user",
+      "level": "function",
+      "parent_ids": [
+        "users/service.py::class::UserService"
+      ],
+      "source_path": "users/service.py",
+      "doc_only": false,
+      "depends_on_ids": []
+    },
+    {
+      "id": "logicblock::users/service.py::function::UserService.get_user::0",
+      "name": "Step 1",
+      "level": "logic_block",
+      "parent_ids": [
+        "users/service.py::function::UserService.get_user"
+      ],
+      "source_path": "users/service.py:18-19",
+      "doc_only": false,
+      "depends_on_ids": []
+    },
+    {
+      "id": "code::logicblock::users/service.py::function::UserService.get_user::0",
+      "name": "users/service.py:18-19",
+      "level": "code",
+      "parent_ids": [
+        "logicblock::users/service.py::function::UserService.get_user::0"
+      ],
+      "source_path": "users/service.py:18-19",
+      "doc_only": false,
+      "depends_on_ids": []
+    },
+    {
+      "id": "service::users/service.py::functions",
+      "name": "Module Functions",
+      "level": "service",
+      "parent_ids": [
+        "component::users/service.py"
+      ],
+      "source_path": "users/service.py",
+      "doc_only": false,
+      "depends_on_ids": []
+    },
+    {
+      "id": "users/service.py::function::list_active_users",
+      "name": "list_active_users",
+      "level": "function",
+      "parent_ids": [
+        "service::users/service.py::functions"
+      ],
+      "source_path": "users/service.py",
+      "doc_only": false,
+      "depends_on_ids": []
+    },
+    {
+      "id": "logicblock::users/service.py::function::list_active_users::0",
+      "name": "Step 1",
+      "level": "logic_block",
+      "parent_ids": [
+        "users/service.py::function::list_active_users"
+      ],
+      "source_path": "users/service.py:23-24",
+      "doc_only": false,
+      "depends_on_ids": []
+    },
+    {
+      "id": "code::logicblock::users/service.py::function::list_active_users::0",
+      "name": "users/service.py:23-24",
+      "level": "code",
+      "parent_ids": [
+        "logicblock::users/service.py::function::list_active_users::0"
+      ],
+      "source_path": "users/service.py:23-24",
+      "doc_only": false,
+      "depends_on_ids": []
+    },
+    {
+      "id": "dir::web",
+      "name": "web",
+      "level": "system",
+      "parent_ids": [],
+      "source_path": "web",
+      "doc_only": false,
+      "depends_on_ids": []
+    },
+    {
+      "id": "component::web/UserCard.tsx",
+      "name": "UserCard.tsx",
+      "level": "component",
+      "parent_ids": [
+        "dir::web"
+      ],
+      "source_path": "web/UserCard.tsx",
+      "doc_only": false,
+      "depends_on_ids": []
+    },
+    {
+      "id": "service::web/UserCard.tsx::functions",
+      "name": "Module Functions",
+      "level": "service",
+      "parent_ids": [
+        "component::web/UserCard.tsx"
+      ],
+      "source_path": "web/UserCard.tsx",
+      "doc_only": false,
+      "depends_on_ids": []
+    },
+    {
+      "id": "web/UserCard.tsx::function::UserCard",
+      "name": "UserCard",
+      "level": "function",
+      "parent_ids": [
+        "service::web/UserCard.tsx::functions"
+      ],
+      "source_path": "web/UserCard.tsx",
+      "doc_only": false,
+      "depends_on_ids": []
+    },
+    {
+      "id": "logicblock::web/UserCard.tsx::function::UserCard::0",
+      "name": "Step 1",
+      "level": "logic_block",
+      "parent_ids": [
+        "web/UserCard.tsx::function::UserCard"
+      ],
+      "source_path": "web/UserCard.tsx:3-3",
+      "doc_only": false,
+      "depends_on_ids": []
+    },
+    {
+      "id": "code::logicblock::web/UserCard.tsx::function::UserCard::0",
+      "name": "web/UserCard.tsx:3-3",
+      "level": "code",
+      "parent_ids": [
+        "logicblock::web/UserCard.tsx::function::UserCard::0"
+      ],
+      "source_path": "web/UserCard.tsx:3-3",
+      "doc_only": false,
+      "depends_on_ids": []
+    },
+    {
+      "id": "web/UserCard.tsx::function::trackUserCardView",
+      "name": "trackUserCardView",
+      "level": "function",
+      "parent_ids": [
+        "service::web/UserCard.tsx::functions"
+      ],
+      "source_path": "web/UserCard.tsx",
+      "doc_only": false,
+      "depends_on_ids": []
+    },
+    {
+      "id": "logicblock::web/UserCard.tsx::function::trackUserCardView::0",
+      "name": "Step 1",
+      "level": "logic_block",
+      "parent_ids": [
+        "web/UserCard.tsx::function::trackUserCardView"
+      ],
+      "source_path": "web/UserCard.tsx:7-7",
+      "doc_only": false,
+      "depends_on_ids": []
+    },
+    {
+      "id": "code::logicblock::web/UserCard.tsx::function::trackUserCardView::0",
+      "name": "web/UserCard.tsx:7-7",
+      "level": "code",
+      "parent_ids": [
+        "logicblock::web/UserCard.tsx::function::trackUserCardView::0"
+      ],
+      "source_path": "web/UserCard.tsx:7-7",
+      "doc_only": false,
+      "depends_on_ids": []
+    },
+    {
+      "id": "component::web/widget.ts",
+      "name": "widget.ts",
+      "level": "component",
+      "parent_ids": [
+        "dir::web"
+      ],
+      "source_path": "web/widget.ts",
+      "doc_only": false,
+      "depends_on_ids": []
+    },
+    {
+      "id": "service::web/widget.ts::functions",
+      "name": "Module Functions",
+      "level": "service",
+      "parent_ids": [
+        "component::web/widget.ts"
+      ],
+      "source_path": "web/widget.ts",
+      "doc_only": false,
+      "depends_on_ids": []
+    },
+    {
+      "id": "web/widget.ts::function::renderUserSlug",
+      "name": "renderUserSlug",
+      "level": "function",
+      "parent_ids": [
+        "service::web/widget.ts::functions"
+      ],
+      "source_path": "web/widget.ts",
+      "doc_only": false,
+      "depends_on_ids": []
+    },
+    {
+      "id": "logicblock::web/widget.ts::function::renderUserSlug::0",
+      "name": "Step 1",
+      "level": "logic_block",
+      "parent_ids": [
+        "web/widget.ts::function::renderUserSlug"
+      ],
+      "source_path": "web/widget.ts:3-4",
+      "doc_only": false,
+      "depends_on_ids": []
+    },
+    {
+      "id": "code::logicblock::web/widget.ts::function::renderUserSlug::0",
+      "name": "web/widget.ts:3-4",
+      "level": "code",
+      "parent_ids": [
+        "logicblock::web/widget.ts::function::renderUserSlug::0"
+      ],
+      "source_path": "web/widget.ts:3-4",
+      "doc_only": false,
+      "depends_on_ids": []
+    }
+  ],
+  "symbols": [
+    {
+      "id": "billing/reporter.go::module::billing.reporter",
+      "file_path": "billing/reporter.go",
+      "start_line": 1,
+      "end_line": 22,
+      "language": "go"
+    },
+    {
+      "id": "billing/reporter.go::class::Report",
+      "file_path": "billing/reporter.go",
+      "start_line": 5,
+      "end_line": 7,
+      "language": "go"
+    },
+    {
+      "id": "billing/reporter.go::function::RenderReport",
+      "file_path": "billing/reporter.go",
+      "start_line": 10,
+      "end_line": 12,
+      "language": "go"
+    },
+    {
+      "id": "billing/reporter.go::function::formatCurrency",
+      "file_path": "billing/reporter.go",
+      "start_line": 15,
+      "end_line": 17,
+      "language": "go"
+    },
+    {
+      "id": "billing/reporter.go::function::SendReport",
+      "file_path": "billing/reporter.go",
+      "start_line": 19,
+      "end_line": 21,
+      "language": "go"
+    },
+    {
+      "id": "billing/service.py::module::billing.service",
+      "file_path": "billing/service.py",
+      "start_line": 1,
+      "end_line": 16,
+      "language": "python"
+    },
+    {
+      "id": "billing/service.py::class::BillingService",
+      "file_path": "billing/service.py",
+      "start_line": 5,
+      "end_line": 15,
+      "language": "python"
+    },
+    {
+      "id": "billing/service.py::function::BillingService.__init__",
+      "file_path": "billing/service.py",
+      "start_line": 8,
+      "end_line": 9,
+      "language": "python"
+    },
+    {
+      "id": "billing/service.py::function::BillingService.create_invoice",
+      "file_path": "billing/service.py",
+      "start_line": 11,
+      "end_line": 15,
+      "language": "python"
+    },
+    {
+      "id": "billing/models/invoice.py::module::billing.models.invoice",
+      "file_path": "billing/models/invoice.py",
+      "start_line": 1,
+      "end_line": 15,
+      "language": "python"
+    },
+    {
+      "id": "billing/models/invoice.py::class::Invoice",
+      "file_path": "billing/models/invoice.py",
+      "start_line": 4,
+      "end_line": 9,
+      "language": "python"
+    },
+    {
+      "id": "billing/models/invoice.py::function::Invoice.total",
+      "file_path": "billing/models/invoice.py",
+      "start_line": 7,
+      "end_line": 9,
+      "language": "python"
+    },
+    {
+      "id": "billing/models/invoice.py::function::format_invoice_id",
+      "file_path": "billing/models/invoice.py",
+      "start_line": 12,
+      "end_line": 14,
+      "language": "python"
+    },
+    {
+      "id": "shared/text_utils.py::module::shared.text_utils",
+      "file_path": "shared/text_utils.py",
+      "start_line": 1,
+      "end_line": 7,
+      "language": "python"
+    },
+    {
+      "id": "shared/text_utils.py::function::slugify",
+      "file_path": "shared/text_utils.py",
+      "start_line": 4,
+      "end_line": 6,
+      "language": "python"
+    },
+    {
+      "id": "users/service.py::module::users.service",
+      "file_path": "users/service.py",
+      "start_line": 1,
+      "end_line": 25,
+      "language": "python"
+    },
+    {
+      "id": "users/service.py::class::UserService",
+      "file_path": "users/service.py",
+      "start_line": 5,
+      "end_line": 19,
+      "language": "python"
+    },
+    {
+      "id": "users/service.py::function::UserService.__init__",
+      "file_path": "users/service.py",
+      "start_line": 8,
+      "end_line": 9,
+      "language": "python"
+    },
+    {
+      "id": "users/service.py::function::UserService.create_user",
+      "file_path": "users/service.py",
+      "start_line": 11,
+      "end_line": 15,
+      "language": "python"
+    },
+    {
+      "id": "users/service.py::function::UserService.get_user",
+      "file_path": "users/service.py",
+      "start_line": 17,
+      "end_line": 19,
+      "language": "python"
+    },
+    {
+      "id": "users/service.py::function::list_active_users",
+      "file_path": "users/service.py",
+      "start_line": 22,
+      "end_line": 24,
+      "language": "python"
+    },
+    {
+      "id": "web/UserCard.tsx::module::web.UserCard",
+      "file_path": "web/UserCard.tsx",
+      "start_line": 1,
+      "end_line": 9,
+      "language": "typescript"
+    },
+    {
+      "id": "web/UserCard.tsx::function::UserCard",
+      "file_path": "web/UserCard.tsx",
+      "start_line": 2,
+      "end_line": 4,
+      "language": "typescript"
+    },
+    {
+      "id": "web/UserCard.tsx::function::trackUserCardView",
+      "file_path": "web/UserCard.tsx",
+      "start_line": 6,
+      "end_line": 8,
+      "language": "typescript"
+    },
+    {
+      "id": "web/widget.ts::module::web.widget",
+      "file_path": "web/widget.ts",
+      "start_line": 1,
+      "end_line": 6,
+      "language": "typescript"
+    },
+    {
+      "id": "web/widget.ts::function::renderUserSlug",
+      "file_path": "web/widget.ts",
+      "start_line": 2,
+      "end_line": 5,
+      "language": "typescript"
+    }
+  ],
+  "summaries": {
+    "dir::billing": "System `billing`: level=system; source=billing",
+    "component::billing/reporter.go": "Component `reporter.go`: level=component; source=billing/reporter.go",
+    "billing/reporter.go::class::Report": "Service `Report`: level=service; source=billing/reporter.go",
+    "service::billing/reporter.go::functions": "Service `Module Functions`: level=service; source=billing/reporter.go",
+    "billing/reporter.go::function::RenderReport": "Function `RenderReport`: level=function; source=billing/reporter.go",
+    "logicblock::billing/reporter.go::function::RenderReport::0": "Logic block `Step 1`: level=logic_block; source=billing/reporter.go:11-11",
+    "code::logicblock::billing/reporter.go::function::RenderReport::0": "Code `billing/reporter.go:11-11`: level=code; source=billing/reporter.go:11-11",
+    "billing/reporter.go::function::formatCurrency": "Function `formatCurrency`: level=function; source=billing/reporter.go",
+    "logicblock::billing/reporter.go::function::formatCurrency::0": "Logic block `Step 1`: level=logic_block; source=billing/reporter.go:16-16",
+    "code::logicblock::billing/reporter.go::function::formatCurrency::0": "Code `billing/reporter.go:16-16`: level=code; source=billing/reporter.go:16-16",
+    "billing/reporter.go::function::SendReport": "Function `SendReport`: level=function; source=billing/reporter.go",
+    "logicblock::billing/reporter.go::function::SendReport::0": "Logic block `Step 1`: level=logic_block; source=billing/reporter.go:20-20",
+    "code::logicblock::billing/reporter.go::function::SendReport::0": "Code `billing/reporter.go:20-20`: level=code; source=billing/reporter.go:20-20",
+    "component::billing/service.py": "Component `service.py`: level=component; source=billing/service.py",
+    "billing/service.py::class::BillingService": "Service `BillingService`: level=service; source=billing/service.py; calls=slugify",
+    "billing/service.py::function::BillingService.__init__": "Function `__init__`: level=function; source=billing/service.py",
+    "logicblock::billing/service.py::function::BillingService.__init__::0": "Logic block `Step 1`: level=logic_block; source=billing/service.py:9-9",
+    "code::logicblock::billing/service.py::function::BillingService.__init__::0": "Code `billing/service.py:9-9`: level=code; source=billing/service.py:9-9",
+    "billing/service.py::function::BillingService.create_invoice": "Function `create_invoice`: level=function; source=billing/service.py; calls=slugify",
+    "logicblock::billing/service.py::function::BillingService.create_invoice::0": "Logic block `Step 1`: level=logic_block; source=billing/service.py:12-15",
+    "code::logicblock::billing/service.py::function::BillingService.create_invoice::0": "Code `billing/service.py:12-15`: level=code; source=billing/service.py:12-15",
+    "dir::billing/models": "Pillar `models`: level=pillar; source=billing/models",
+    "component::billing/models/invoice.py": "Component `invoice.py`: level=component; source=billing/models/invoice.py",
+    "billing/models/invoice.py::class::Invoice": "Service `Invoice`: level=service; source=billing/models/invoice.py; calls=sum",
+    "billing/models/invoice.py::function::Invoice.total": "Function `total`: level=function; source=billing/models/invoice.py; calls=sum",
+    "logicblock::billing/models/invoice.py::function::Invoice.total::0": "Logic block `Step 1`: level=logic_block; source=billing/models/invoice.py:8-9",
+    "code::logicblock::billing/models/invoice.py::function::Invoice.total::0": "Code `billing/models/invoice.py:8-9`: level=code; source=billing/models/invoice.py:8-9",
+    "service::billing/models/invoice.py::functions": "Service `Module Functions`: level=service; source=billing/models/invoice.py",
+    "billing/models/invoice.py::function::format_invoice_id": "Function `format_invoice_id`: level=function; source=billing/models/invoice.py",
+    "logicblock::billing/models/invoice.py::function::format_invoice_id::0": "Logic block `Step 1`: level=logic_block; source=billing/models/invoice.py:13-14",
+    "code::logicblock::billing/models/invoice.py::function::format_invoice_id::0": "Code `billing/models/invoice.py:13-14`: level=code; source=billing/models/invoice.py:13-14",
+    "dir::shared": "System `shared`: level=system; source=shared",
+    "component::shared/text_utils.py": "Component `text_utils.py`: level=component; source=shared/text_utils.py",
+    "service::shared/text_utils.py::functions": "Service `Module Functions`: level=service; source=shared/text_utils.py",
+    "shared/text_utils.py::function::slugify": "Function `slugify`: level=function; source=shared/text_utils.py; calls=lower, replace, strip",
+    "logicblock::shared/text_utils.py::function::slugify::0": "Logic block `Step 1`: level=logic_block; source=shared/text_utils.py:5-6",
+    "code::logicblock::shared/text_utils.py::function::slugify::0": "Code `shared/text_utils.py:5-6`: level=code; source=shared/text_utils.py:5-6",
+    "dir::users": "System `users`: level=system; source=users",
+    "component::users/service.py": "Component `service.py`: level=component; source=users/service.py",
+    "users/service.py::class::UserService": "Service `UserService`: level=service; source=users/service.py; calls=get, slugify",
+    "users/service.py::function::UserService.__init__": "Function `__init__`: level=function; source=users/service.py",
+    "logicblock::users/service.py::function::UserService.__init__::0": "Logic block `Step 1`: level=logic_block; source=users/service.py:9-9",
+    "code::logicblock::users/service.py::function::UserService.__init__::0": "Code `users/service.py:9-9`: level=code; source=users/service.py:9-9",
+    "users/service.py::function::UserService.create_user": "Function `create_user`: level=function; source=users/service.py; calls=slugify",
+    "logicblock::users/service.py::function::UserService.create_user::0": "Logic block `Step 1`: level=logic_block; source=users/service.py:12-15",
+    "code::logicblock::users/service.py::function::UserService.create_user::0": "Code `users/service.py:12-15`: level=code; source=users/service.py:12-15",
+    "users/service.py::function::UserService.get_user": "Function `get_user`: level=function; source=users/service.py; calls=get",
+    "logicblock::users/service.py::function::UserService.get_user::0": "Logic block `Step 1`: level=logic_block; source=users/service.py:18-19",
+    "code::logicblock::users/service.py::function::UserService.get_user::0": "Code `users/service.py:18-19`: level=code; source=users/service.py:18-19",
+    "service::users/service.py::functions": "Service `Module Functions`: level=service; source=users/service.py",
+    "users/service.py::function::list_active_users": "Function `list_active_users`: level=function; source=users/service.py; calls=keys, list",
+    "logicblock::users/service.py::function::list_active_users::0": "Logic block `Step 1`: level=logic_block; source=users/service.py:23-24",
+    "code::logicblock::users/service.py::function::list_active_users::0": "Code `users/service.py:23-24`: level=code; source=users/service.py:23-24",
+    "dir::web": "System `web`: level=system; source=web",
+    "component::web/UserCard.tsx": "Component `UserCard.tsx`: level=component; source=web/UserCard.tsx",
+    "service::web/UserCard.tsx::functions": "Service `Module Functions`: level=service; source=web/UserCard.tsx",
+    "web/UserCard.tsx::function::UserCard": "Function `UserCard`: level=function; source=web/UserCard.tsx",
+    "logicblock::web/UserCard.tsx::function::UserCard::0": "Logic block `Step 1`: level=logic_block; source=web/UserCard.tsx:3-3",
+    "code::logicblock::web/UserCard.tsx::function::UserCard::0": "Code `web/UserCard.tsx:3-3`: level=code; source=web/UserCard.tsx:3-3",
+    "web/UserCard.tsx::function::trackUserCardView": "Function `trackUserCardView`: level=function; source=web/UserCard.tsx; calls=log",
+    "logicblock::web/UserCard.tsx::function::trackUserCardView::0": "Logic block `Step 1`: level=logic_block; source=web/UserCard.tsx:7-7",
+    "code::logicblock::web/UserCard.tsx::function::trackUserCardView::0": "Code `web/UserCard.tsx:7-7`: level=code; source=web/UserCard.tsx:7-7",
+    "component::web/widget.ts": "Component `widget.ts`: level=component; source=web/widget.ts",
+    "service::web/widget.ts::functions": "Service `Module Functions`: level=service; source=web/widget.ts",
+    "web/widget.ts::function::renderUserSlug": "Function `renderUserSlug`: level=function; source=web/widget.ts; calls=replace, toLowerCase, trim",
+    "logicblock::web/widget.ts::function::renderUserSlug::0": "Logic block `Step 1`: level=logic_block; source=web/widget.ts:3-4",
+    "code::logicblock::web/widget.ts::function::renderUserSlug::0": "Code `web/widget.ts:3-4`: level=code; source=web/widget.ts:3-4"
+  }
+}

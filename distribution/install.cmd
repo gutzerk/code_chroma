@@ -1,6 +1,8 @@
 @echo off
-rem Thin Windows bootstrap for the CodeChroma installer (style of herdr/distribution/install.cmd):
-rem downloads install.ps1 and runs it, so the docs can stay a single PowerShell file.
+rem Thin Windows bootstrap for the CodeChroma installer: downloads install.ps1 over HTTPS (TLS 1.2+)
+rem and runs it with the arguments you pass (-Silent, -Force, -Uninstall, -Purge).
+rem CODECROMA_INSTALLER_URL overrides the script source; it is a test hook that also allows plain
+rem HTTP, so never set it in production.
 setlocal
 
 set "INSTALLER_URL=https://raw.githubusercontent.com/gutzerk/code_chroma/main/distribution/install.ps1"
@@ -8,6 +10,7 @@ set "CURL_PROTOCOL=--proto =https --tlsv1.2"
 if defined CODECROMA_INSTALLER_URL (
     set "INSTALLER_URL=%CODECROMA_INSTALLER_URL%"
     set "CURL_PROTOCOL=--proto =http,https"
+    echo warning: using CODECROMA_INSTALLER_URL override ^(test hook^) 1>&2
 )
 set "INSTALLER_PATH=%TEMP%\codechroma-install-%RANDOM%-%RANDOM%.ps1"
 

@@ -1,5 +1,7 @@
 # Архитектурная оценка CodeChroma
 
+> Примечание 2026-10-18: оценка исторична. Electron (`desktop/`), PyInstaller и `packaging/` удалены из дерева; замечания про `desktop/` и PyInstaller ниже описывают состояние на момент обзора. Актуально: [`desktop-app.md`](desktop-app.md).
+
 Дата: 2026-08-06 · ветка `dataflow` · 13.4k строк Python / 18.1k строк TypeScript · 970 + 893 + 90 тестов
 
 ## Резюме

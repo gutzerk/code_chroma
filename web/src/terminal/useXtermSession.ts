@@ -17,10 +17,10 @@ const FONT_FAMILY =
 
 // The full 16 colours, not just a background: a TUI's dim greys are unreadable against a default palette.
 const THEME = {
-  background: "#1b1d23",
+  background: "#12141a",
   foreground: "#d7dae0",
-  cursor: "#d7dae0",
-  cursorAccent: "#1b1d23",
+  cursor: "#8fb0ff",
+  cursorAccent: "#12141a",
   selectionBackground: "#3a3f4b",
   black: "#3f4451",
   red: "#e05561",

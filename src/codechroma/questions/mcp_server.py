@@ -18,7 +18,7 @@ from codechroma.bridge.workspaces import Workspace
 from codechroma.config import settings
 from codechroma.questions import store
 from codechroma.questions.broker import QuestionBroker
-from codechroma.questions.launch import McpEndpoint, discover_base_url, loopback_url
+from codechroma.questions.launch import McpEndpoint, bearer_token, discover_base_url, loopback_url
 from codechroma.questions.models import AskRequest, QuestionOption
 
 SERVER_NAME = "codechroma"
@@ -118,8 +118,7 @@ class QuestionMcp:
         return hmac.new(self._secret, workspace_id.encode(), hashlib.sha256).hexdigest()
 
     def _workspace_id(self, ctx: Context) -> str:
-        header = (ctx.headers or {}).get("authorization", "")
-        return self.workspace_id_for(header.removeprefix("Bearer ").strip() or None)
+        return self.workspace_id_for(bearer_token(ctx.headers or {}))
 
     async def _ask_user_tool(
         self,

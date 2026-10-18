@@ -6,8 +6,10 @@ import json
 import os
 import sys
 import tempfile
+from collections.abc import Mapping
 from dataclasses import dataclass
 from pathlib import Path
+from urllib.parse import urlsplit
 
 from codechroma.config import settings
 
@@ -42,10 +44,13 @@ class McpEndpoint:
         }}}
 
 
+def bearer_token(headers: Mapping[str, str]) -> str | None:
+    """The bearer token of an `Authorization` header, or None when absent or empty."""
+    return headers.get("authorization", "").removeprefix("Bearer ").strip() or None
+
+
 def loopback_url(url: str) -> str | None:
     """`scheme://127.0.0.1:port` for a request's base URL; None when it carries no explicit port."""
-    from urllib.parse import urlsplit
-
     parts = urlsplit(url)
     return f"{parts.scheme}://{_LOOPBACK}:{parts.port}" if parts.port else None
 

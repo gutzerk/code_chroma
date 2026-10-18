@@ -8,6 +8,8 @@ export interface QuestionOptionsProps {
   onChoose: (optionId: string) => void;
 }
 
+const TIER_LABEL = { best: S.tierBest, middle: S.tierMiddle, last: S.tierLast };
+
 /** The option cards: title, description, coloured pro/con, AI rank border + recommended badge. */
 export function QuestionOptions({ options, disabled, onChoose }: QuestionOptionsProps) {
   if (options.length === 0) return null;
@@ -43,7 +45,7 @@ export function QuestionOptions({ options, disabled, onChoose }: QuestionOptions
             )}
             {tier && option.why && (
               <span className="question-option-why">
-                {{ best: S.tierBest, middle: S.tierMiddle, last: S.tierLast }[tier]} — {option.why}
+                {TIER_LABEL[tier]} — {option.why}
               </span>
             )}
           </button>

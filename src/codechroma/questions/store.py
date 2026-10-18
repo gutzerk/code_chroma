@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import uuid
+from collections.abc import Callable
 
 from codechroma.bridge.workspaces import Workspace
 from codechroma.canvas.apply_batch import BatchResult, apply_batch
@@ -22,10 +23,11 @@ def commit_canvas_batch(ws: Workspace, result: BatchResult) -> dict:
     return commit(ws, result)
 
 
-def _commit(ws: Workspace, ops: list[dict]) -> dict:
+def _commit(ws: Workspace, build_ops: Callable[[CanvasDoc], list[dict]]) -> dict:
     with canvas_lock(ws.id):
         doc = CanvasDoc.load(ws.canvas_core_path, ws.diagrams_root)
-        response = commit_canvas_batch(ws, apply_batch(doc, ops, explanation="ai question"))
+        result = apply_batch(doc, build_ops(doc), explanation="ai question")
+        response = commit_canvas_batch(ws, result)
     if not response["ok"]:
         raise QuestionWriteError(str(response["errors"]))
     return response
@@ -34,24 +36,21 @@ def _commit(ws: Workspace, ops: list[dict]) -> dict:
 def _next_step(doc: CanvasDoc, session_id: str | None) -> int:
     if not session_id:
         return 1
-    seen = [e for e in doc.elements.values() if _meta_of(e).get("session_id") == session_id]
-    return len(seen) + 1
-
-
-def _meta_of(element: Element) -> dict:
-    return element.meta if element.render == "question" else {}
+    return 1 + sum(
+        1 for e in doc.elements.values()
+        if e.render == "question" and e.meta.get("session_id") == session_id
+    )
 
 
 def open_question(ws: Workspace, request: AskRequest) -> tuple[str, str]:
     """Adds the `question` element; returns (question_id, element_id)."""
     question_id = uuid.uuid4().hex
-    with canvas_lock(ws.id):
-        doc = CanvasDoc.load(ws.canvas_core_path, ws.diagrams_root)
-        step = _next_step(doc, request.session_id)
+
+    def build(doc: CanvasDoc) -> list[dict]:
         meta = {
             "question_id": question_id,
             "session_id": request.session_id,
-            "step": step,
+            "step": _next_step(doc, request.session_id),
             "total": request.total,
             "kind": request.kind,
             "state": "open",
@@ -62,13 +61,12 @@ def open_question(ws: Workspace, request: AskRequest) -> tuple[str, str]:
             "agent_id": request.agent_id,
             "options": [option.model_dump() for option in request.options],
         }
-        op = {
+        return [{
             "op": "add_element", "temp_id": "q", "render": "question", "layer": "questions",
             "label": request.question, "meta": meta,
-        }
-        response = commit_canvas_batch(ws, apply_batch(doc, [op], explanation="ai question"))
-    if not response["ok"]:
-        raise QuestionWriteError(str(response["errors"]))
+        }]
+
+    response = _commit(ws, build)
     return question_id, response["id_map"]["q"]
 
 
@@ -82,7 +80,7 @@ def find_element(ws: Workspace, question_id: str) -> Element | None:
 
 
 def list_questions(ws: Workspace) -> list[Element]:
-    """Every `question` element, oldest first by step order of insertion."""
+    """Every `question` element, in canvas insertion order."""
     doc = CanvasDoc.load(ws.canvas_core_path, ws.diagrams_root)
     return [e for e in doc.elements.values() if e.render == "question"]
 
@@ -90,7 +88,7 @@ def list_questions(ws: Workspace) -> list[Element]:
 def settle(ws: Workspace, element_id: str, state: str, result: QuestionResult) -> None:
     """Writes the answered/skipped state onto the element's meta."""
     meta = {"state": state, "answer": result.answer, "option_id": result.option_id}
-    _commit(ws, [{"op": "update_element", "id": element_id, "meta": meta}])
+    _commit(ws, lambda _doc: [{"op": "update_element", "id": element_id, "meta": meta}])
 
 
 def result_from(element: Element) -> QuestionResult | None:
@@ -119,5 +117,5 @@ def reopen(ws: Workspace, element: Element) -> list[str]:
         "op": "update_element", "id": element.id,
         "meta": {"state": "open", "answer": None, "option_id": None},
     })
-    _commit(ws, ops)
+    _commit(ws, lambda _doc: ops)
     return later

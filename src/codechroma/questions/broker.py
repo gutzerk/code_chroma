@@ -12,14 +12,12 @@ class QuestionBroker:
 
     def __init__(self) -> None:
         self._futures: dict[str, asyncio.Future[QuestionResult]] = {}
-        self._loops: dict[str, asyncio.AbstractEventLoop] = {}
         self._results: dict[str, QuestionResult] = {}
 
     def open(self, question_id: str) -> None:
         """Registers a waiter on the running loop; call from the loop that will await it."""
         loop = asyncio.get_running_loop()
         self._futures[question_id] = loop.create_future()
-        self._loops[question_id] = loop
 
     def is_waiting(self, question_id: str) -> bool:
         """Whether a live, unsettled waiter exists (false after a restart or once settled)."""
@@ -33,10 +31,6 @@ class QuestionBroker:
     def skip(self, question_id: str) -> bool:
         """Settles as skipped; returns whether a live waiter was woken."""
         return self._settle(question_id, QuestionResult(skipped=True))
-
-    def result(self, question_id: str) -> QuestionResult | None:
-        """The settled result, or None while the question is still open or unknown."""
-        return self._results.get(question_id)
 
     def lookup(self, question_id: str) -> QuestionResult:
         """`ask_user_result`: the settled result, else a pending marker carrying the id."""
@@ -52,7 +46,7 @@ class QuestionBroker:
         try:
             return await asyncio.wait_for(asyncio.shield(future), timeout)
         except TimeoutError:
-            return QuestionResult(pending=True, question_id=question_id)
+            return self.lookup(question_id)
 
     def forget(self, question_id: str) -> None:
         """Drops a settled result (the question was reopened)."""
@@ -61,17 +55,15 @@ class QuestionBroker:
     def close(self, question_id: str) -> None:
         """Drops a waiter without settling it (the agent went away)."""
         future = self._futures.pop(question_id, None)
-        self._loops.pop(question_id, None)
         if future is not None and not future.done():
             future.cancel()
 
     def _settle(self, question_id: str, result: QuestionResult) -> bool:
         self._results[question_id] = result
         future = self._futures.pop(question_id, None)
-        loop = self._loops.pop(question_id, None)
-        if future is None or loop is None or future.done():
+        if future is None or future.done():
             return False
-        loop.call_soon_threadsafe(_set_if_pending, future, result)
+        future.get_loop().call_soon_threadsafe(_set_if_pending, future, result)
         return True
 
 

@@ -62,7 +62,7 @@ public static class WikiGeneralRoutes
                     if (agent.GetState(ws.Id).State == "generating") return Results.Json(agent.GetState(ws.Id), BridgeJson.Default.JobState);
                     if (kind == WikiGeneral.Kind && !WikiGeneral.HasDocumentableContent(ws.Root))
                         return Results.Json(await agent.MarkDone(ws.Id, onChange, WikiGeneral.NoDocumentableContentError), BridgeJson.Default.JobState);
-                    if (WikiGeneral.PrepareNewRun(ws) is { } syncError)
+                    if (await Task.Run(() => WikiGeneral.PrepareNewRun(ws)) is { } syncError)
                         return Results.Json(await agent.MarkDone(ws.Id, onChange, syncError), BridgeJson.Default.JobState);
                     return Results.Json(await agent.MarkGenerating(ws.Id, onChange), BridgeJson.Default.JobState);
                 }

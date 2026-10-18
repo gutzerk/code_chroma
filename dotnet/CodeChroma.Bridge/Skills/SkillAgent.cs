@@ -227,7 +227,7 @@ public sealed class SkillAgent(SkillAgentSpec spec, CliResolver resolver, Runtim
         lock (list) foreach (var process in list) KillProcess(process);
     }
 
-    private static void KillProcess(Process? process)
+    internal static void KillProcess(Process? process)
     {
         try
         {
@@ -388,7 +388,7 @@ public sealed class SkillAgent(SkillAgentSpec spec, CliResolver resolver, Runtim
         return new JobState("error", Spec.InvalidError);
     }
 
-    private static async Task WaitQuietly(Process process)
+    internal static async Task WaitQuietly(Process process)
     {
         try { await process.WaitForExitAsync(); } catch (InvalidOperationException) { }
     }

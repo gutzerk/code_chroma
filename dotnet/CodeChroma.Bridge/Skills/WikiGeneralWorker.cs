@@ -81,8 +81,8 @@ public static class WikiGeneralWorker
             }
             catch (OperationCanceledException)
             {
-                Kill(process);
-                await WaitQuietly(process);
+                SkillAgent.KillProcess(process);
+                await SkillAgent.WaitQuietly(process);
                 if (token.IsCancellationRequested) throw;
                 SkillAgent.DebugWrite(debugLog, "=== timed out\n");
                 return new WorkerResult(false, null, "worker timed out");
@@ -107,19 +107,5 @@ public static class WikiGeneralWorker
                 ? new WorkerResult(true, data, null)
                 : new WorkerResult(false, null, "worker returned no structured output");
         }
-    }
-
-    private static void Kill(Process process)
-    {
-        try
-        {
-            if (!process.HasExited) process.Kill(entireProcessTree: true);
-        }
-        catch (Exception error) when (error is InvalidOperationException or Win32Exception) { }
-    }
-
-    private static async Task WaitQuietly(Process process)
-    {
-        try { await process.WaitForExitAsync(); } catch (InvalidOperationException) { }
     }
 }

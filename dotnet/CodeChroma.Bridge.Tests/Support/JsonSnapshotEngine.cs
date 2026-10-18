@@ -75,12 +75,7 @@ public sealed class JsonSnapshotEngine : IGraphEngine
     public void Reanalyze(IReadOnlyList<string> changedPaths) => Reanalyzed.Add(changedPaths);
 }
 
-public sealed class SnapshotEngineFactory(string snapshotPath, Action<JsonSnapshotEngine>? configure = null) : IEngineFactory
+public sealed class SnapshotEngineFactory(string snapshotPath) : IEngineFactory
 {
-    public IGraphEngine Create(string root)
-    {
-        var engine = new JsonSnapshotEngine(snapshotPath);
-        configure?.Invoke(engine);
-        return engine;
-    }
+    public IGraphEngine Create(string root) => new JsonSnapshotEngine(snapshotPath);
 }

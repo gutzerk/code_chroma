@@ -142,6 +142,17 @@ def _synchronized[T](method: Callable[..., T]) -> Callable[..., T]:
     return wrapper
 
 
+_GRAPH_TABLES = (
+    "node_parents",
+    "node_symbols",
+    "node_dependencies",
+    "summaries",
+    "nodes",
+    "symbols",
+    "class_shapes",
+)
+
+
 class SqliteGraphStore:
     """SQLite-backed GraphStore. One database file per repository being analyzed."""
 
@@ -241,24 +252,8 @@ class SqliteGraphStore:
                 " primary_language = excluded.primary_language",
                 (repo_id, repository.root_path, repository.primary_language),
             )
-            conn.execute(
-                "DELETE FROM node_parents WHERE node_id IN "
-                "(SELECT id FROM nodes)",
-            )
-            conn.execute(
-                "DELETE FROM node_symbols WHERE node_id IN "
-                "(SELECT id FROM nodes)",
-            )
-            conn.execute(
-                "DELETE FROM node_dependencies WHERE node_id IN "
-                "(SELECT id FROM nodes)",
-            )
-            conn.execute(
-                "DELETE FROM summaries WHERE node_id IN (SELECT id FROM nodes)"
-            )
-            conn.execute("DELETE FROM nodes")
-            conn.execute("DELETE FROM symbols")
-            conn.execute("DELETE FROM class_shapes")
+            for table in _GRAPH_TABLES:
+                conn.execute(f"DELETE FROM {table}")
             conn.execute("DELETE FROM repositories WHERE id != ?", (repo_id,))
 
             conn.executemany(

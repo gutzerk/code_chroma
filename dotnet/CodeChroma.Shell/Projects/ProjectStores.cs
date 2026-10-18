@@ -166,7 +166,7 @@ public static class BridgeLocation
             ? Path.Combine(resourcesPath, "bridge", ExecutableName, file)
             : Path.Combine(repoRoot, "dist", ExecutableName, file);
         if (File.Exists(candidate)) return candidate;
-        var how = isPackaged ? "rebuild the desktop installer for this platform" : "`poetry run pyinstaller packaging/bridge.spec`";
-        throw new FileNotFoundException($"frozen bridge not found at {candidate} - {how} first");
+        var how = isPackaged ? "rebuild the desktop installer for this platform" : "rebuild with -p:BundleCSharpBridge=true (dotnet publish dotnet/CodeChroma.Shell.App, then run the published app) or set CODECHROMA_BRIDGE=<exe>";
+        throw new FileNotFoundException($"bridge not found at {candidate} - {how} first");
     }
 }

@@ -1,4 +1,4 @@
-"""The process-wide bridge app, for `uvicorn codechroma.bridge.server:app` and the frozen desktop.
+"""The process-wide bridge app, for `uvicorn codechroma.bridge.server:app` and the desktop.
 
 Everything that used to live here as module globals and 1058 lines of routes now lives in
 `bridge/app.py` (the factory), `bridge/services.py` (the collaborators) and `bridge/routes/*`

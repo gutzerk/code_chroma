@@ -1,7 +1,7 @@
 """The bridge application factory: one `create_app(repo_root)` per analyzed repository.
 
 This module deliberately does **nothing** at import time. `server.py` calls `create_app()` once for
-uvicorn and the frozen desktop bridge; a test calls it with a temporary repository and gets an
+uvicorn and the desktop bridge; a test calls it with a temporary repository and gets an
 independent app, which is what replaced the old `importlib.reload(server)` fixture.
 
 Startup ordering that matters: uvicorn runs the lifespan *before* it binds the listening socket, so

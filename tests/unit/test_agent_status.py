@@ -5,6 +5,7 @@ from pathlib import Path
 import pytest
 
 from codechroma.bridge.agents.status import (
+    MANIFEST_DIR,
     STATUS_BLOCKED,
     STATUS_IDLE,
     STATUS_WORKING,
@@ -146,16 +147,5 @@ def test_the_shipped_manifest_names_the_claude_binaries():
     assert rules.tail_lines == 8
 
 
-def test_the_manifest_dir_resolves_under_meipass_when_frozen(monkeypatch, tmp_path):
-    """A frozen app keeps data files under _MEIPASS, not beside the .py module reading them."""
-    bundled = tmp_path / "codechroma_data" / "detect"
-    bundled.mkdir(parents=True)
-    bundled.joinpath("claude.toml").write_text(
-        'name = "frozen"\nprocess = ["claude"]\n', encoding="utf-8"
-    )
-    monkeypatch.setattr("sys.frozen", True, raising=False)
-    monkeypatch.setattr("sys._MEIPASS", str(tmp_path), raising=False)
-
-    from codechroma.bridge.resources import resource_path
-
-    assert load_manifest(resource_path("detect", "claude.toml")).name == "frozen"
+def test_the_manifest_dir_is_the_shipped_detect_folder():
+    assert (MANIFEST_DIR / "claude.toml").is_file()

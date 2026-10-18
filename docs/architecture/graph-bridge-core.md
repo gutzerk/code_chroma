@@ -325,9 +325,9 @@ Supporting modules:
   current format; skipped when the target is this repo itself. 🔴 `SKILL_NAMES` is the **single**
   per-skill list — `sync_skill(root, name)` is generic, `SKILL_EXCLUDE_PATTERNS` is derived from it,
   and `launch.py`'s "installed X at Y" print lines loop over it; a new skill is one name in that
-  tuple plus its directory, never a new `sync_*_skill` function. A hand-kept copy in the
-  now-removed PyInstaller spec is what once silently dropped `codechroma-impact`/`codechroma-impact-review`
-  from every frozen build; the tuple is the only list.
+  tuple plus its directory, never a new `sync_*_skill` function. A hand-kept copy in a
+  since-removed packaging spec once silently dropped `codechroma-impact`/`codechroma-impact-review`
+  from one build; the tuple is the only list.
   🔴 **Removing a name is not enough to uninstall a skill.** `sync_skill` only `rmtree`s a target
   whose name is still in `SKILL_NAMES`, so a dropped name stays installed forever in every
   already-analyzed repo. `RETIRED_SKILL_NAMES` + `prune_retired_skills()` (called from
@@ -358,6 +358,8 @@ so live saves are cheap. Exercised by
 `tests/integration/test_summary_reuse.py`.
 
 🔵 **C# bridge in progress (`dotnet/CodeChroma.Bridge`, plan `docs/planning/012-csharp-bridge.md`).** An ASP.NET Core re-implementation of the graph, diagram-artifact, workspace and socket routes. The Python bridge stays the reference: `tests/fixtures/bridge_contract/*.cases.json` is a language-neutral wire contract replayed by `tests/contract/test_bridge_wire_contract.py` (against this FastAPI app) and by `dotnet/CodeChroma.Bridge.Tests` (against the C# app). When you change a route's request/response shape here, update the matching case file or the C# suite will diverge; regenerate `engine_snapshot.sample_repo.json` with `scripts/dump_bridge_contract_snapshot.py` if the sample repo's graph changes. Baseline numbers: `scripts/bench_bridge_cold_start.py`.
+
+> The Python package runs from a source checkout only: `bridge/resources.py` resolves `skills`, `web` and `detect` relative to the repo root, with no installed-wheel layout.
 
 ## C# bridge status (docs/planning/012)
 

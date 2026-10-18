@@ -1,6 +1,6 @@
 # 017 - Finish the Electron removal
 
-Status: **In progress**. Electron is deleted (plan row 11 done 2026-10-18: `desktop/`, Electron/PyInstaller CI steps, `packaging/bridge.spec`, `cryptoCompat.ts`, the install forwarders; the last Electron commit is the local tag `electron-last-build`; `ElectronMigration` stays in the shell to import user data). Open: wiki-general port (row 4), and the macOS/Linux/CI verification, migration release and soak rows. Continues [016](016-remove-electron.md) (read its Phase 0-5 definitions and "Decisions taken"
+Status: **In progress**. Electron is deleted (plan row 11 done 2026-10-18: `desktop/`, Electron/PyInstaller CI steps, `packaging/bridge.spec`, `cryptoCompat.ts`, the install forwarders; the last Electron commit is the local tag `electron-last-build`; `ElectronMigration` stays in the shell to import user data). Open: wiki-general port (row 4), the macOS/Linux/CI verification, the migration-release decision (row 9: final Electron release from `electron-last-build` vs manual reinstall - undecided, must be settled before the first push) and the soak row. Continues [016](016-remove-electron.md) (read its Phase 0-5 definitions and "Decisions taken"
 first). 016's "Where we are" table is stale; the real state is below.
 
 Goal: ship the C# app (Avalonia shell + bundled C# bridge) as the only desktop app, reach existing Electron users through
@@ -14,7 +14,7 @@ WebView hosts. Replacing the React canvas and deleting the Python engine is **ou
 | Graph core + native analyzers (11 languages) | Done. Parity-tested against Python goldens; 10-16% of `.tsx/.jsx`, C#, C++ files differ (grammar versions). |
 | C# bridge | Most route groups done: graph, canvas, recipes, diffs, agents, PRs, epics, PTY, skill/LLM runners, branches, traces, settings. Bundled into the shell via `-p:BundleCSharpBridge=true`. |
 | Shell (tabs, launcher, recents, updater, Velopack packaging) | Code done, booted on Windows only. |
-| CI | `dotnet-windows/macos/linux` release jobs exist, gated off (`CODECHROMA_BUILD_DOTNET`), never run on real CI. |
+| CI | `dotnet-windows/macos/linux` release jobs exist, never run on real CI. |
 | Last review pass | 131-commit review fixed ~40 defects (uncommitted at the time of writing); C# suites green on Windows. |
 
 Not verified at all: macOS, Linux, Unix PTY, the Velopack install/uninstall hooks (`--skipVeloAppCheck` is passed while the
@@ -68,7 +68,7 @@ sanity check. "Windows-only" work can start now; macOS/Linux items need hardware
 | 6 | macOS (arm64/x64) pass: WKWebView rendering, xterm/WebGL, Unix PTY, install/update/rollback/uninstall, Gatekeeper behaviour | Phase 2 gate on macOS | 4-6 |
 | 7 | Linux pass: WebKitGTK rendering, AppImage + deb, PTY, update/rollback | Phase 2 gate on Linux | 3-5 |
 | 8 | Side-by-side install test and Electron-to-C# migration test with a real userData folder | Settings intact after migration | 2-3 |
-| 9 | Migration release (Phase 3): ship C# app + Electron build that updates itself into it; document fallback download | Release published | 1-2 |
+| 9 | Migration release (Phase 3). **Decision OPEN (not yet made by the owner; must be decided before the first push):** either (a) a final Electron release built from the `electron-last-build` tag whose updater points at the C# app, or (b) accept a manual reinstall. Document the fallback download either way | Decision recorded here, then release published | 1-2 |
 | 10 | Soak (calendar time, not effort): no migration failures reported | Owner signs off | 2-4 weeks elapsed |
 | 11 | **Done 2026-10-18** (done ahead of rows 5-10 on the owner's instruction; the unverified-platform and soak risks below remain open, with no Electron build left to fall back on except the tag). Delete Electron (Phase 4): `desktop/`, Electron/PyInstaller CI steps, `cryptoCompat.ts`, install forwarders, docs rewrite (README, QUICKSTART, CLAUDE.md, `desktop-app.md`, planning 011-017) | Clean checkout builds/tests/releases with no Electron step | 2-3 |
 
@@ -89,7 +89,7 @@ sanity check. "Windows-only" work can start now; macOS/Linux items need hardware
 - Checksum-only update verification is weaker than Sigstore; the UI and docs must keep flagging it
   (`UpdatesPanel.tsx` does not render the notice yet, per 016).
 - A C# bridge feature gap discovered after the migration release cannot be fixed by the Electron side any more once
-  Electron users have moved; row 1's decisions must be made before row 9.
+  Electron users have moved (applies only if option (a) of row 9 is chosen); row 1's decisions must be made before row 9.
 - Unsigned binaries: more SmartScreen/Gatekeeper friction; a signing decision is still open.
 
 ## Done when

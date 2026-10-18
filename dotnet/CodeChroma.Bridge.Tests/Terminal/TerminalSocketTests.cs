@@ -5,7 +5,7 @@ using CodeChroma.Bridge.Tests.Support;
 
 namespace CodeChroma.Bridge.Tests.Terminal;
 
-/// <summary>The /ws/terminal socket against real shells: the old frozen-Python bridge closed it with 1000 about 20ms after open.</summary>
+/// <summary>The /ws/terminal socket against real shells: the old Python bridge closed it with 1000 about 20ms after open.</summary>
 public class TerminalSocketTests
 {
     private static readonly TimeSpan Patience = TimeSpan.FromSeconds(20);

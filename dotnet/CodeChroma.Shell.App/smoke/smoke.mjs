@@ -1,4 +1,4 @@
-// Boots the shell with --repo against the frozen bridge and checks the canvas, the window title and the desktop API over CDP (Windows/WebView2).
+// Boots the shell with --repo against the bundled bridge and checks the canvas, the window title and the desktop API over CDP (Windows/WebView2).
 // usage: node smoke.mjs <path to CodeChroma.Shell.App.exe> <path to codechroma-bridge.exe> <repo dir> [expected version]
 import { spawn, execFileSync } from "node:child_process";
 import { mkdtempSync } from "node:fs";

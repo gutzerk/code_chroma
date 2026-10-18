@@ -1,5 +1,5 @@
-/** Mirrors desktop/src/preload.ts's DesktopWorkspaceApi -- present only when running inside the
- * Electron desktop app, absent in the browser dev flow. */
+/** The desktop shell's DesktopWorkspaceApi -- present only when running inside the
+ * desktop shell, absent in the browser dev flow. */
 export interface DesktopWorkspaceApi {
   openWorkspaceWindow(workspaceId: string): Promise<void>;
   closeWorkspaceWindow(workspaceId: string): Promise<void>;

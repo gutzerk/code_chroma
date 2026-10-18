@@ -18,7 +18,7 @@ public interface ILauncherHost
     Task<string?> PickFolderAsync(string title);
 }
 
-/// <summary>The open-project screen of an empty tab, laid out like the Electron launcher: tutorial, title, recent panel, open/new buttons.</summary>
+/// <summary>The open-project screen of an empty tab, laid out like the original launcher: tutorial, title, recent panel, open/new buttons.</summary>
 public sealed class LauncherPanel : UserControl
 {
     private static readonly IBrush Muted = new SolidColorBrush(Color.Parse("#8b93a7"));

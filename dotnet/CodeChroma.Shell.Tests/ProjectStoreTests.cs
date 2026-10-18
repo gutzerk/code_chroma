@@ -201,7 +201,7 @@ public class BridgeLocationTests
     [InlineData(ShellOs.Linux, true, "")]
     [InlineData(ShellOs.Windows, false, ".exe")]
     [InlineData(ShellOs.Linux, false, "")]
-    public void Finds_the_frozen_bridge_packaged_or_in_the_build_output(ShellOs os, bool packaged, string extension)
+    public void Finds_the_bridge_packaged_or_in_the_build_output(ShellOs os, bool packaged, string extension)
     {
         using var temp = new TempDir();
         var folder = packaged ? temp.Dir("bridge", "codechroma-bridge") : temp.Dir("dist", "codechroma-bridge");
@@ -215,7 +215,7 @@ public class BridgeLocationTests
 
     [Theory]
     [InlineData(true, "rebuild the desktop installer")]
-    [InlineData(false, "pyinstaller packaging/bridge.spec")]
+    [InlineData(false, "rebuild with -p:BundleCSharpBridge=true")]
     public void A_missing_bridge_says_how_to_build_it(bool packaged, string hint)
     {
         using var temp = new TempDir();

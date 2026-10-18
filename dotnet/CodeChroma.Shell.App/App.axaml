@@ -5,7 +5,7 @@
         <ColorPaletteResources x:Key="Dark" RegionColor="#11131a" Accent="#6c8cff" BaseHigh="#e6e9f0" BaseMedium="#8b93a7" ChromeLow="#2a3040" ErrorText="IndianRed" />
       </FluentTheme.Palettes>
     </FluentTheme>
-    <!-- Mirrors the launcher and tab bar CSS of the Electron shell: bg #11131a, panel #191d28, line #2a3040, accent #6c8cff, rounded 7-10px. -->
+    <!-- Mirrors the launcher and tab bar CSS of the desktop shell: bg #11131a, panel #191d28, line #2a3040, accent #6c8cff, rounded 7-10px. -->
     <Style Selector="Window">
       <Setter Property="FontFamily" Value="Segoe UI, SF Pro Text, Helvetica Neue, Cantarell, Ubuntu, Noto Sans, DejaVu Sans, sans-serif" />
     </Style>

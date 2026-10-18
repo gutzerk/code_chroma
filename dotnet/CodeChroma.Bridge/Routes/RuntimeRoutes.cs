@@ -20,7 +20,7 @@ public static class RuntimeRoutes
             {
                 var settings = Validate(body);
                 JsonFile.Write(paths.Runtime, settings);
-                await Task.Run(() => runtime.Configure(RuntimeSettings.From(settings)).GetAwaiter().GetResult());
+                await runtime.Configure(RuntimeSettings.From(settings));
                 return Reply.Json(settings);
             }
             catch (ArgumentException error)
@@ -29,15 +29,15 @@ public static class RuntimeRoutes
             }
         });
 
-        app.MapGet("/runtime/environment", (RuntimeEnvironment runtime) => Reply.Json(runtime.Snapshot().Diagnostics()));
+        app.MapGet("/runtime/environment", async (RuntimeEnvironment runtime) => Reply.Json((await runtime.SnapshotAsync()).Diagnostics()));
 
-        app.MapGet("/runtime/cli/{name}", (string name, RuntimeEnvironment runtime) => Reply.Json(runtime.Diagnose(name)));
+        app.MapGet("/runtime/cli/{name}", async (string name, RuntimeEnvironment runtime) => Reply.Json(await Task.Run(() => runtime.Diagnose(name))));
 
         app.MapPost("/runtime/refresh", async (RuntimeEnvironment runtime) =>
             Reply.Json((await runtime.Refresh("user Re-detect", force: true)).Diagnostics()));
 
         app.MapPost("/runtime/focus", async (RuntimeEnvironment runtime) =>
-            Reply.Json((await Task.Run(runtime.RecheckUnresolved)).Diagnostics()));
+            Reply.Json((await runtime.RecheckUnresolved()).Diagnostics()));
     }
 
     public static JsonObject Load(UserPaths paths)

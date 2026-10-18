@@ -18,24 +18,10 @@ public static class WorkspaceCanvasExtensions
     {
         if (ws.Id == Workspace.MainId) return "HEAD";
         // A stored hash stops being the divergence point the moment the agent pulls main in.
-        var mergeBase = GitRunner.Run(ws.Root, "merge-base", MainBranch(ws.Root), "HEAD")?.Trim();
+        var mergeBase = GitRunner.Run(ws.Root, "merge-base", Agents.WorktreeOps.MainBranch(ws.Root), "HEAD")?.Trim();
         return string.IsNullOrEmpty(mergeBase) ? "HEAD" : mergeBase;
     }
 
-    /// <summary>The integration branch: origin's default when known, else main/master, else HEAD.</summary>
-    public static string MainBranch(string root)
-    {
-        var remoteHead = GitRunner.Run(root, "symbolic-ref", "--quiet", "refs/remotes/origin/HEAD")?.Trim();
-        if (!string.IsNullOrEmpty(remoteHead))
-        {
-            var name = remoteHead.StartsWith("refs/remotes/origin/", StringComparison.Ordinal) ? remoteHead["refs/remotes/origin/".Length..] : remoteHead;
-            if (name.Length > 0) return name;
-        }
-        foreach (var candidate in new[] { "main", "master" })
-            if (!string.IsNullOrEmpty(GitRunner.Run(root, "rev-parse", "--verify", "--quiet", $"refs/heads/{candidate}"))) return candidate;
-        var current = GitRunner.Run(root, "rev-parse", "--abbrev-ref", "HEAD")?.Trim();
-        return string.IsNullOrEmpty(current) ? "HEAD" : current;
-    }
 }
 
 /// <summary>The one lock per workspace around a canvas read-modify-write, and the shared commit response.</summary>

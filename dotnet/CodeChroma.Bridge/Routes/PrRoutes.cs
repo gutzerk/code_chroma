@@ -29,7 +29,7 @@ public static class PrRoutes
 
     public static void Map(WebApplication app, string repoRoot)
     {
-        app.MapGet("/prs/preflight", (PrManager prs) => Guard(() =>
+        app.MapGet("/prs/preflight", (PrManager prs) => Reply.GuardBlocking(() =>
         {
             var reason = Blocker(prs, repoRoot);
             return Reply.Json(new JsonObject
@@ -43,14 +43,14 @@ public static class PrRoutes
             });
         }));
 
-        app.MapGet("/prs", (PrManager prs, AgentManager agents) => Guard(() => Reply.Json(new JsonObject
+        app.MapGet("/prs", (PrManager prs, AgentManager agents) => Reply.Guard(() => Reply.Json(new JsonObject
         {
             ["prs"] = new JsonArray(prs.List().Select(p => (JsonNode?)p.ToPayload()).ToArray()),
             ["max_prs"] = PrManager.MaxPrWorkspaces,
             ["active_workspace"] = agents.ActiveWorkspace,
         })));
 
-        app.MapGet("/prs/github", () => Guard(() =>
+        app.MapGet("/prs/github", () => Reply.GuardBlocking(() =>
         {
             if (!GithubCli.HasGh()) return Reply.Error(409, ButtonText[Publish.ReasonGhMissing]);
             if (!GithubCli.IsAuthenticated(repoRoot)) return Reply.Error(409, ButtonText[Publish.ReasonNotAuthenticated]);
@@ -61,7 +61,7 @@ public static class PrRoutes
                 : Reply.Json(new JsonObject { ["prs"] = list });
         }));
 
-        app.MapPost("/prs", (HttpRequest request, PrManager prs, WorkspaceRegistry registry, ConnectionManager connections) => GuardAsync(async () =>
+        app.MapPost("/prs", (HttpRequest request, PrManager prs, WorkspaceRegistry registry, ConnectionManager connections) => Reply.GuardAsync(async () =>
         {
             var reference = GithubCli.ParseReference((await Reply.LenientBody(request))["ref"]);
             if (reference is null) return Reply.Error(400, ButtonText[ReasonInvalidRef]);
@@ -71,7 +71,7 @@ public static class PrRoutes
             return Reply.Json(record.ToPayload());
         }));
 
-        app.MapPost("/prs/{number:int}/refresh", (int number, PrManager prs, AgentManager agents, WorkspaceRegistry registry, ConnectionManager connections) => GuardAsync(async () =>
+        app.MapPost("/prs/{number:int}/refresh", (int number, PrManager prs, AgentManager agents, WorkspaceRegistry registry, ConnectionManager connections) => Reply.GuardAsync(async () =>
         {
             var record = OrNotFound(prs, number);
             GuardNoAttachedAgents(agents, record);
@@ -87,7 +87,7 @@ public static class PrRoutes
             return Reply.Json(payload);
         }));
 
-        app.MapDelete("/prs/{number:int}", (int number, PrManager prs, AgentManager agents, WorkspaceRegistry registry, ConnectionManager connections) => GuardAsync(async () =>
+        app.MapDelete("/prs/{number:int}", (int number, PrManager prs, AgentManager agents, WorkspaceRegistry registry, ConnectionManager connections) => Reply.GuardAsync(async () =>
         {
             var record = OrNotFound(prs, number);
             GuardNoAttachedAgents(agents, record);
@@ -180,15 +180,4 @@ public static class PrRoutes
         if (attached.Count > 0) throw new WorktreeException($"{record.Id} is still in use by agent(s) {string.Join(", ", attached.Select(a => a.Id))}");
     }
 
-    private static IResult Guard(Func<IResult> body)
-    {
-        try { return body(); }
-        catch (BridgeException error) { return Reply.Error(error.Status, error.Detail); }
-    }
-
-    private static async Task<IResult> GuardAsync(Func<Task<IResult>> body)
-    {
-        try { return await body(); }
-        catch (BridgeException error) { return Reply.Error(error.Status, error.Detail); }
-    }
 }

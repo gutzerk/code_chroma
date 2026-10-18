@@ -146,4 +146,29 @@ public class GraphCoreTests
 
         Assert.Equal(["system::__empty__"], core.Snapshot.NodeList.Select(n => n.Id));
     }
+
+    private const string NL = "\n";
+
+    [Fact]
+    public void Reanalyze_WithLiveResolver_AddsEdgeWhenImportTargetIsCreatedLater()
+    {
+        var root = Directory.CreateTempSubdirectory("cc-reresolve").FullName;
+        try
+        {
+            File.WriteAllText(Path.Combine(root, "a.py"), "import b" + NL + NL + "def run():" + NL + "    return b.go()" + NL);
+            var exporter = new Analyzers.AnalysisExporter();
+            var core = new GraphCore(liveResolver: new Analyzers.LiveImportResolver(exporter.Registry, root));
+            core.Analyze(exporter.Full(root));
+            Assert.Empty(core.GetDependencies("a.py::function::run"));
+            File.WriteAllText(Path.Combine(root, "b.py"), "def go():" + NL + "    return 1" + NL);
+
+            core.Reanalyze(exporter.Delta(root, ["b.py"]));
+
+            Assert.Contains(core.GetDependencies("a.py::function::run"), n => n.Id == "b.py::function::go");
+        }
+        finally
+        {
+            Directory.Delete(root, true);
+        }
+    }
 }

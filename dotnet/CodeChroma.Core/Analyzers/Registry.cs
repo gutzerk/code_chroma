@@ -82,3 +82,12 @@ public static class Grammars
         return use(tree.RootNode);
     }
 }
+
+/// <summary>Resolves imports against the live repo tree through the analyzers, like the Python engine does on every reanalyze.</summary>
+public sealed class LiveImportResolver(AnalyzerRegistry registry, string root) : IImportResolver
+{
+    private readonly string _root = Path.GetFullPath(root);
+
+    public string? Resolve(string importerFile, string dotted) =>
+        registry.ForFile(importerFile)?.ResolveImport(dotted, importerFile, _root);
+}

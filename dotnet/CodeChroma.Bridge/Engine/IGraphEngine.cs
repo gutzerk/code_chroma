@@ -32,6 +32,12 @@ public interface IGraphEngine
     string? SummaryText(string id);
 
     void Reanalyze(IReadOnlyList<string> changedPaths);
+
+    /// <summary>The heuristic design-pattern candidates for the current graph; engines without shape support report none.</summary>
+    IReadOnlyList<CodeChroma.Core.Patterns.PatternInstance> PatternCandidates() => [];
+
+    /// <summary>The patterns skill's {classes, heuristic_candidates} payload; null for engines without shape support.</summary>
+    System.Text.Json.Nodes.JsonObject? PatternsContext() => null;
 }
 
 public interface IEngineFactory

@@ -17,22 +17,22 @@ public static class AgentRoutes
 
     public static void Map(WebApplication app, string repoRoot)
     {
-        app.MapGet("/agents/git-preflight", () => Guard(() => Reply.Json(AgentBootstrap.Preflight(repoRoot))));
+        app.MapGet("/agents/git-preflight", () => Reply.GuardBlocking(() => Reply.Json(AgentBootstrap.Preflight(repoRoot))));
 
-        app.MapPost("/agents/git-init", (HttpRequest request) => GuardAsync(async () =>
+        app.MapPost("/agents/git-init", (HttpRequest request) => Reply.GuardAsync(async () =>
         {
             var body = await Reply.LenientBody(request);
             var extra = body["extra_ignores"] is JsonArray list ? list.Select(Json.Str).OfType<string>().ToList() : [];
             return Reply.Json(await Task.Run(() => AgentBootstrap.Initialize(repoRoot, extra)));
         }));
 
-        app.MapGet("/agents/branch", () => Guard(() => Reply.Json(new JsonObject
+        app.MapGet("/agents/branch", () => Reply.GuardBlocking(() => Reply.Json(new JsonObject
         {
             ["current"] = MainBranchOps.CurrentBranch(repoRoot),
             ["branches"] = Strings(MainBranchOps.SwitchableBranches(repoRoot)),
         })));
 
-        app.MapPost("/agents/branch", (HttpRequest request, AgentManager agents, AgentSessionRegistry sessions, ConnectionManager connections) => GuardAsync(async () =>
+        app.MapPost("/agents/branch", (HttpRequest request, AgentManager agents, AgentSessionRegistry sessions, ConnectionManager connections) => Reply.GuardAsync(async () =>
         {
             var body = await Reply.LenientBody(request);
             if (Json.Str(body["branch"]) is not { Length: > 0 } branch) return Reply.Error(400, "branch is required");
@@ -43,7 +43,7 @@ public static class AgentRoutes
             return Reply.Json(new JsonObject { ["current"] = branch, ["branches"] = Strings(await Task.Run(() => MainBranchOps.SwitchableBranches(repoRoot))) });
         }));
 
-        app.MapPost("/agents/branch/update", (AgentManager agents, AgentSessionRegistry sessions, ConnectionManager connections) => GuardAsync(async () =>
+        app.MapPost("/agents/branch/update", (AgentManager agents, AgentSessionRegistry sessions, ConnectionManager connections) => Reply.GuardAsync(async () =>
         {
             RefuseIfLiveAgentInMain(agents, sessions, repoRoot);
             var branch = await Task.Run(() => MainBranchOps.UpdateBranch(repoRoot));
@@ -51,14 +51,14 @@ public static class AgentRoutes
             return Reply.Json(new JsonObject { ["current"] = branch, ["branches"] = Strings(await Task.Run(() => MainBranchOps.SwitchableBranches(repoRoot))) });
         }));
 
-        app.MapGet("/agents", (AgentManager agents, AgentSessionRegistry sessions) => Guard(() => Reply.Json(new JsonObject
+        app.MapGet("/agents", (AgentManager agents, AgentSessionRegistry sessions) => Reply.Guard(() => Reply.Json(new JsonObject
         {
             ["agents"] = new JsonArray(agents.List().Select(r => (JsonNode?)Payload(sessions, r)).ToArray()),
             ["active_workspace"] = agents.ActiveWorkspace,
             ["max_agents"] = AgentManager.MaxAgents,
         })));
 
-        app.MapPost("/agents", (HttpRequest request, AgentManager agents, AgentSessionRegistry sessions, WorkspaceRegistry registry, ConnectionManager connections) => GuardAsync(async () =>
+        app.MapPost("/agents", (HttpRequest request, AgentManager agents, AgentSessionRegistry sessions, WorkspaceRegistry registry, ConnectionManager connections) => Reply.GuardAsync(async () =>
         {
             var body = await Reply.LenientBody(request);
             var invalid = Validate(body, out var title, out var kind, out var attachTo, out var context, out var contextKind);
@@ -73,7 +73,7 @@ public static class AgentRoutes
             return Reply.Json(payload);
         }));
 
-        app.MapPost("/agents/{agentId}/start", (string agentId, HttpRequest request, AgentManager agents, AgentSessionRegistry sessions, TerminalAgents terminalAgents, UserPaths paths, ConnectionManager connections) => GuardAsync(async () =>
+        app.MapPost("/agents/{agentId}/start", (string agentId, HttpRequest request, AgentManager agents, AgentSessionRegistry sessions, TerminalAgents terminalAgents, UserPaths paths, ConnectionManager connections) => Reply.GuardAsync(async () =>
         {
             var body = await Reply.LenientBody(request);
             var record = OrNotFound(agents, agentId);
@@ -97,7 +97,7 @@ public static class AgentRoutes
             return Reply.Json(payload);
         }));
 
-        app.MapPost("/agents/{agentId}/recreate-worktree", (string agentId, AgentManager agents, AgentSessionRegistry sessions, WorkspaceRegistry registry) => GuardAsync(async () =>
+        app.MapPost("/agents/{agentId}/recreate-worktree", (string agentId, AgentManager agents, AgentSessionRegistry sessions, WorkspaceRegistry registry) => Reply.GuardAsync(async () =>
         {
             try
             {
@@ -108,7 +108,7 @@ public static class AgentRoutes
             catch (UnknownAgentException) { return Reply.Error(404, $"unknown agent: {agentId}"); }
         }));
 
-        app.MapPost("/agents/{agentId}/stop", (string agentId, AgentManager agents, AgentSessionRegistry sessions, ConnectionManager connections) => GuardAsync(async () =>
+        app.MapPost("/agents/{agentId}/stop", (string agentId, AgentManager agents, AgentSessionRegistry sessions, ConnectionManager connections) => Reply.GuardAsync(async () =>
         {
             OrNotFound(agents, agentId);
             sessions.Stop(agentId);
@@ -117,13 +117,13 @@ public static class AgentRoutes
             return Reply.Json(payload);
         }));
 
-        app.MapGet("/agents/{agentId}/pr-preflight", (string agentId, AgentManager agents) => Guard(() =>
+        app.MapGet("/agents/{agentId}/pr-preflight", (string agentId, AgentManager agents) => Reply.GuardBlocking(() =>
         {
             var record = OrNotFound(agents, agentId);
             return Reply.Json(Publish.Preflight(record.Worktree, record.Branch, WorktreeOps.MainBranch(repoRoot), record.SourcePr));
         }));
 
-        app.MapPost("/agents/{agentId}/pr", (string agentId, HttpRequest request, AgentManager agents, AgentSessionRegistry sessions, UserPaths paths) => GuardAsync(async () =>
+        app.MapPost("/agents/{agentId}/pr", (string agentId, HttpRequest request, AgentManager agents, AgentSessionRegistry sessions, UserPaths paths) => Reply.GuardAsync(async () =>
         {
             var record = OrNotFound(agents, agentId);
             var body = await Reply.LenientBody(request);
@@ -137,7 +137,7 @@ public static class AgentRoutes
             return Reply.Json(payload);
         }));
 
-        app.MapDelete("/agents/{agentId}", (string agentId, HttpRequest request, AgentManager agents, AgentSessionRegistry sessions, WorkspaceRegistry registry, ConnectionManager connections) => GuardAsync(async () =>
+        app.MapDelete("/agents/{agentId}", (string agentId, HttpRequest request, AgentManager agents, AgentSessionRegistry sessions, WorkspaceRegistry registry, ConnectionManager connections) => Reply.GuardAsync(async () =>
         {
             try
             {
@@ -150,7 +150,7 @@ public static class AgentRoutes
             catch (UnknownAgentException) { return Reply.Error(404, $"unknown agent: {agentId}"); }
         }));
 
-        app.MapPatch("/agents/{agentId}/window", (string agentId, HttpRequest request, AgentManager agents) => GuardAsync(async () =>
+        app.MapPatch("/agents/{agentId}/window", (string agentId, HttpRequest request, AgentManager agents) => Reply.GuardAsync(async () =>
         {
             try { return Reply.Json(agents.UpdateWindow(agentId, await Reply.LenientBody(request)).Window); }
             catch (UnknownAgentException) { return Reply.Error(404, $"unknown agent: {agentId}"); }
@@ -246,15 +246,4 @@ public static class AgentRoutes
 
     private static JsonArray Strings(IEnumerable<string> values) => new(values.Select(v => (JsonNode?)JsonValue.Create(v)).ToArray());
 
-    private static IResult Guard(Func<IResult> body)
-    {
-        try { return body(); }
-        catch (BridgeException error) { return Reply.Error(error.Status, error.Detail); }
-    }
-
-    private static async Task<IResult> GuardAsync(Func<Task<IResult>> body)
-    {
-        try { return await body(); }
-        catch (BridgeException error) { return Reply.Error(error.Status, error.Detail); }
-    }
 }

@@ -4,6 +4,7 @@ using System.Text.Json;
 using System.Text.Json.Serialization;
 using CodeChroma.Core;
 using CodeChroma.Core.Analyzers;
+using CodeChroma.Core.Patterns;
 
 namespace CodeChroma.Bridge.Engine;
 
@@ -25,6 +26,8 @@ internal sealed record DeltaWire(
 public sealed class NativeAnalysisExporter(AnalysisExporter? exporter = null) : IAnalysisExporter
 {
     private readonly AnalysisExporter _exporter = exporter ?? new AnalysisExporter();
+
+    public AnalyzerRegistry Registry => _exporter.Registry;
 
     public AnalysisInput Full(string root) => _exporter.Full(root);
 
@@ -92,15 +95,18 @@ public sealed class PythonAnalysisExporter(string? python = null) : IAnalysisExp
 /// <summary>The bridge's engine seam over <see cref="GraphCore"/>.</summary>
 public sealed class CoreGraphEngine : IGraphEngine
 {
-    private readonly GraphCore _core = new();
+    private readonly GraphCore _core;
     private readonly IAnalysisExporter _exporter;
     private readonly string _root;
     private readonly object _writeLock = new();
+    private IReadOnlyList<PatternInstance>? _patterns;
+    private IReadOnlyDictionary<string, ClassShape>? _shapes;
 
     public CoreGraphEngine(string root, IAnalysisExporter exporter)
     {
         _root = root;
         _exporter = exporter;
+        _core = new GraphCore(liveResolver: exporter is NativeAnalysisExporter native ? new LiveImportResolver(native.Registry, root) : null);
         _core.Analyze(exporter.Full(root));
     }
 
@@ -109,6 +115,7 @@ public sealed class CoreGraphEngine : IGraphEngine
     {
         _root = "";
         _exporter = exporter ?? new NoReanalysis();
+        _core = new GraphCore();
         _core.Analyze(input);
     }
 
@@ -127,7 +134,34 @@ public sealed class CoreGraphEngine : IGraphEngine
 
     public void Reanalyze(IReadOnlyList<string> changedPaths)
     {
-        lock (_writeLock) _core.Reanalyze(_exporter.Delta(_root, changedPaths));
+        lock (_writeLock)
+        {
+            _core.Reanalyze(_exporter.Delta(_root, changedPaths));
+            _patterns = null;
+        }
+    }
+
+    public IReadOnlyList<PatternInstance> PatternCandidates() => PatternState().Candidates;
+
+    public System.Text.Json.Nodes.JsonObject? PatternsContext()
+    {
+        var (graph, shapes, candidates) = PatternState();
+        return Core.Patterns.PatternsContext.Build(graph, shapes, candidates);
+    }
+
+    private (Graph Graph, IReadOnlyDictionary<string, ClassShape> Shapes, IReadOnlyList<PatternInstance> Candidates) PatternState()
+    {
+        lock (_writeLock)
+        {
+            var graph = _core.Snapshot;
+            if (_patterns is null)
+            {
+                var paths = graph.SymbolList.Where(s => s.Kind == SymbolKind.Module).Select(s => s.FilePath);
+                _shapes = _root.Length == 0 ? new Dictionary<string, ClassShape>() : ClassShapeExtractor.ExtractAll(_root, paths);
+                _patterns = PatternDetector.DetectCandidates(graph, _shapes);
+            }
+            return (graph, _shapes!, _patterns);
+        }
     }
 
     private static GraphNode Map(HierarchyNode node) => new(

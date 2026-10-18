@@ -138,6 +138,16 @@ public sealed class RuntimeEnvironment
         return pending.GetAwaiter().GetResult();
     }
 
+    public async Task<EnvironmentSnapshot> SnapshotAsync()
+    {
+        var pending = Start();
+        lock (_lock)
+        {
+            if (_snapshot is not null) return _snapshot;
+        }
+        return await pending;
+    }
+
     public Task<EnvironmentSnapshot> Refresh(string reason, bool force = false)
     {
         lock (_lock)
@@ -203,7 +213,7 @@ public sealed class RuntimeEnvironment
             {
                 Generation = _snapshot is null ? 1 : _snapshot.Generation + 1,
                 Environment = merged, CapturedEnvironment = captured, Path = path, Source = source, Shell = shell, ShellType = kind,
-                CapturedAt = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds() / 1000.0,
+                CapturedAt = Now(),
                 DurationSeconds = (Environment.TickCount64 - started) / 1000.0,
                 Warnings = warnings, CaptureError = error,
             };
@@ -272,15 +282,15 @@ public sealed class RuntimeEnvironment
         throw new CliLookupException(message);
     }
 
-    public Task<EnvironmentSnapshot> Configure(RuntimeSettings options)
+    public async Task<EnvironmentSnapshot> Configure(RuntimeSettings options)
     {
         lock (_lock)
         {
             Options = options;
             _records.Clear();
         }
-        Start().GetAwaiter().GetResult();
-        return Refresh("settings changed", force: true);
+        await Start();
+        return await Refresh("settings changed", force: true);
     }
 
     /// <summary>A missing or unreadable launcher invalidates every cached lookup and recaptures.</summary>
@@ -291,16 +301,18 @@ public sealed class RuntimeEnvironment
         Refresh("executable launch failed");
     }
 
-    public EnvironmentSnapshot RecheckUnresolved()
+    public async Task<EnvironmentSnapshot> RecheckUnresolved()
     {
-        var snapshot = Snapshot();
+        var snapshot = await SnapshotAsync();
         string[] names;
         lock (_lock) names = [.. _records.Values.Where(r => r.FailureReason is not null).Select(r => r.Name).Distinct()];
-        foreach (var name in names)
-            try { Resolve(name, recheck: true); } catch (CliLookupException) { }
         if (names.Length == 0) return snapshot;
-        Start().GetAwaiter().GetResult();
-        return Snapshot();
+        await Task.Run(() =>
+        {
+            foreach (var name in names)
+                try { Resolve(name, recheck: true); } catch (CliLookupException) { }
+        });
+        return await SnapshotAsync();
     }
 
     public JsonObject Diagnose(string name)

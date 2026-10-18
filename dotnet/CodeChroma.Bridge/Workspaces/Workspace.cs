@@ -14,6 +14,7 @@ public sealed class Workspace : IDisposable
     private readonly Action<string, JsonObject> _onEvent;
     private readonly object _syncLock = new();
     private string? _lastSignature;
+    private IReadOnlyList<string> _lastChanged = [];
     private string? _lastHead;
     private WorkspaceWatchers? _watchers;
 
@@ -75,7 +76,9 @@ public sealed class Workspace : IDisposable
             var signature = string.Join("|", changed.Order(StringComparer.Ordinal).Select(rel => $"{rel}:{MtimeTicks(rel)}"));
             if (signature == _lastSignature) return null;
             _lastSignature = signature;
-            if (changed.Count > 0) Engine.Reanalyze(changed);
+            var refresh = changed.Union(_lastChanged, StringComparer.Ordinal).ToList();
+            _lastChanged = changed;
+            if (refresh.Count > 0) Engine.Reanalyze(refresh);
             return changed;
         }
     }

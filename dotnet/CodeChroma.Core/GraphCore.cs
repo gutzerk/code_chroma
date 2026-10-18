@@ -36,20 +36,21 @@ public static class GraphDiffer
 }
 
 /// <summary>Builds and serves the hierarchy graph from analyzer output; the C# counterpart of the graph half of GraphEngine.</summary>
-public sealed class GraphCore(IGraphSink? sink = null) : IGraphCore
+public sealed class GraphCore(IGraphSink? sink = null, IImportResolver? liveResolver = null) : IGraphCore
 {
+    private sealed record State(Graph Graph, DependencyIndex Index);
+
     private static readonly Graph Empty = new([], []);
 
     private readonly OrderedMap<string, FileSymbols> _files = new();
     private readonly Dictionary<string, IReadOnlyDictionary<string, string>> _resolutions = [];
     private IReadOnlyDictionary<string, string> _summaries = new Dictionary<string, string>();
-    private Graph? _graph;
-    private DependencyIndex? _index;
+    private volatile State? _state;
 
     /// <summary>Raised when the sink throws; a sink bug must never fail an otherwise-successful run.</summary>
     public event Action<Exception>? SinkFailed;
 
-    public Graph Snapshot => _graph ?? Empty;
+    public Graph Snapshot => _state?.Graph ?? Empty;
 
     public AnalysisRunResult Analyze(AnalysisInput input)
     {
@@ -63,7 +64,7 @@ public sealed class GraphCore(IGraphSink? sink = null) : IGraphCore
 
     public AnalysisRunResult Reanalyze(AnalysisDelta delta)
     {
-        if (_graph is null) throw new InvalidOperationException("Reanalyze() requires a prior Analyze() call");
+        if (_state is null) throw new InvalidOperationException("Reanalyze() requires a prior Analyze() call");
         foreach (var path in delta.Removed)
         {
             _files.Remove(path);
@@ -77,7 +78,26 @@ public sealed class GraphCore(IGraphSink? sink = null) : IGraphCore
             else
                 _resolutions.Remove(file.Path);
         }
+        ReResolveImports();
         return Rebuild();
+    }
+
+    /// <summary>Re-resolves every import against the live tree so a new or deleted target file changes edges in unchanged importers.</summary>
+    private void ReResolveImports()
+    {
+        if (liveResolver is null) return;
+        foreach (var file in _files.Values)
+        {
+            var fresh = new Dictionary<string, string>();
+            foreach (var symbol in file.Symbols ?? [])
+            {
+                if (symbol.Kind != SymbolKind.Module) continue;
+                foreach (var dotted in symbol.Imports.Values.Distinct())
+                    if (liveResolver.Resolve(file.Path, dotted) is { } target) fresh[dotted] = target;
+            }
+            if (fresh.Count > 0) _resolutions[file.Path] = fresh;
+            else _resolutions.Remove(file.Path);
+        }
     }
 
     public HierarchyNode? GetNode(string nodeId) => Snapshot.Nodes.GetValueOrDefault(nodeId);
@@ -85,10 +105,10 @@ public sealed class GraphCore(IGraphSink? sink = null) : IGraphCore
     public IReadOnlyList<HierarchyNode> GetChildren(string nodeId) => Snapshot.ChildrenOf(nodeId);
 
     public IReadOnlyList<HierarchyNode> GetDependencies(string nodeId) =>
-        _index is null ? [] : _index.DependenciesOf(nodeId).Select(id => Snapshot.Nodes[id]).ToList();
+        _state is not { } s ? [] : s.Index.DependenciesOf(nodeId).Select(id => s.Graph.Nodes[id]).ToList();
 
     public IReadOnlyList<HierarchyNode> GetDependents(string nodeId) =>
-        _index is null ? [] : _index.DependentsOf(nodeId).Select(id => Snapshot.Nodes[id]).ToList();
+        _state is not { } s ? [] : s.Index.DependentsOf(nodeId).Select(id => s.Graph.Nodes[id]).ToList();
 
     private AnalysisRunResult Rebuild()
     {
@@ -97,10 +117,10 @@ public sealed class GraphCore(IGraphSink? sink = null) : IGraphCore
         var nodes = built.Nodes.Count > 0
             ? built.Nodes
             : [new HierarchyNode { Id = "system::__empty__", Name = "repository", Level = HierarchyLevel.System }];
-        _graph = new Graph(nodes, built.Symbols, _summaries);
-        _index = new DependencyIndex(_graph);
-        NotifySink(_graph);
-        return new AnalysisRunResult("succeeded", GraphDiffer.Diff(before, _graph));
+        var graph = new Graph(nodes, built.Symbols, _summaries);
+        _state = new State(graph, new DependencyIndex(graph));
+        NotifySink(graph);
+        return new AnalysisRunResult("succeeded", GraphDiffer.Diff(before, graph));
     }
 
     private void NotifySink(Graph graph)

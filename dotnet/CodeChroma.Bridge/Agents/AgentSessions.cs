@@ -44,7 +44,8 @@ public sealed class AgentSession : IAgentSessionPort, IDisposable
         AgentId = agentId;
         Argv = [.. launch.Argv];
         _detector = new StatusDetector(StatusRules.ForKind(kind));
-        _pty = PtyHost.Start(launch, OnOutput, OnExit);
+        // callbacks take _gate, so none can observe _pty before it is assigned
+        lock (_gate) _pty = PtyHost.Start(launch, OnOutput, OnExit);
     }
 
     public string AgentId { get; }
@@ -147,7 +148,7 @@ public sealed class AgentSession : IAgentSessionPort, IDisposable
         AgentConsumer[] targets;
         lock (_gate)
         {
-            _exitCode = _pty.ExitCode ?? 0;
+            _exitCode = _pty?.ExitCode ?? 0;
             targets = [.. _consumers];
             _consumers.Clear();
         }

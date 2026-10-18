@@ -27,6 +27,7 @@ public sealed class WorkspaceWatchers : IDisposable
         _watcher.Changed += (_, e) => Route(e.FullPath);
         _watcher.Created += (_, e) => Route(e.FullPath);
         _watcher.Deleted += (_, e) => Route(e.FullPath);
+        _watcher.Error += (_, _) => _repo.Trigger();
         _watcher.Renamed += (_, e) => { Route(e.OldFullPath); Route(e.FullPath); };
     }
 

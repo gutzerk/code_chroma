@@ -79,6 +79,8 @@ public static class DiagramRoutes
                 var epics = DiagramResolver.Resolve(ws.Engine, data);
                 epics["has_diagram"] = data.Count > 0;
                 return epics;
+            case "patterns":
+                return PatternsResolver.Resolve(ws.Engine, data);
             case "sequence":
                 if (data.Count == 0) return new JsonObject();
                 data["type"] = "sequence";

@@ -21,23 +21,24 @@ from codechroma.terminal.agents import agent_cli, resolved_cli_for
 logger = logging.getLogger("uvicorn.error")
 
 
-async def auto_start_agents(services: BridgeServices) -> None:
+async def auto_start_agents(services: BridgeServices, question_mcp=None) -> None:
     """One agent's failure to start is logged and skipped, never raised past this loop."""
     for record in services.agent_manager.list():
         if record.worktree_lost or services.agent_sessions.get(record.id) is not None:
             continue
         try:
-            _auto_start_one(services, record)
+            _auto_start_one(services, record, question_mcp)
         except Exception:
             logger.exception("agents: auto-start failed for %s", record.id)
 
 
-def _auto_start_one(services: BridgeServices, record: AgentRecord) -> None:
+def _auto_start_one(services: BridgeServices, record: AgentRecord, question_mcp=None) -> None:
     """Resumes the last chat when a session id survived, starts fresh otherwise."""
     from codechroma.bridge.routes.agents import _capture_session_id_later
 
     session_id = services.agent_manager.capture_session_id(record.id)
-    resolved = agent_cli(record.kind, session_id)
+    mcp = question_mcp.endpoint_for(record.id) if question_mcp is not None else None
+    resolved = agent_cli(record.kind, session_id, mcp=mcp)
     if resolved is None:
         logger.error("agents: unknown kind %r for %s, skipping auto-start", record.kind, record.id)
         return

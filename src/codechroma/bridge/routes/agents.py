@@ -172,7 +172,11 @@ async def post_agent_start(agent_id: str, request: Request, services: Services) 
     # A fresh start consumes pending context up front; "task" rides in argv, not a post-boot inject.
     pending = services.agent_manager.consume_context(agent_id) if not resume else None
     task_text = pending[0] if pending and pending[1] == "task" else None
-    resolved = agent_cli(record.kind, session_id, initial_prompt=task_text)
+    mcp = request.app.state.question_mcp
+    mcp.remember_base_url(str(request.base_url))
+    resolved = agent_cli(
+        record.kind, session_id, initial_prompt=task_text, mcp=mcp.endpoint_for(agent_id)
+    )
     if resolved is None:
         raise HTTPException(status_code=400, detail=f"unknown agent kind: {record.kind}")
     argv, env_overrides = resolved

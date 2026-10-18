@@ -1,3 +1,8 @@
+import type {
+  OpenQuestionsPayload,
+  QuestionAck,
+  QuestionAnswerBody,
+} from "../canvas/doc/question/questionAdapter";
 import {
   AGENT_EVENT_TYPES,
   type DiagramEventKind,
@@ -1718,6 +1723,49 @@ export class MockBridgeEngineClient implements EngineClient {
       });
     }
     return result;
+  }
+
+  async getOpenQuestions(): Promise<OpenQuestionsPayload> {
+    return {
+      questions: Object.values(this.canvasDoc.elements)
+        .filter((el) => el.render === "question" && el.meta.state !== "answered" && el.meta.state !== "skipped")
+        .map((el) => ({ question_id: el.id, state: "open" as const })),
+    };
+  }
+
+  // Question writes mutate the element's meta in place of the real bridge's broker + apply_batch.
+  private setQuestionMeta(questionId: string, patch: Record<string, unknown>): QuestionAck {
+    const el = this.canvasDoc.elements[questionId];
+    if (!el || el.render !== "question") throw new Error(`unknown question: ${questionId}`);
+    const meta = { ...el.meta, ...patch };
+    this.canvasDoc = { ...this.canvasDoc, elements: { ...this.canvasDoc.elements, [el.id]: { ...el, meta } } };
+    this.emit<CanvasPing>("canvas", { type: "canvas", batch_id: nextMockCanvasId(), affected: [el.id], new_elements: [] });
+    return { question_id: el.id, state: meta.state as QuestionAck["state"], answer: (meta.answer as string | null) ?? null };
+  }
+
+  async answerQuestion(questionId: string, body: QuestionAnswerBody): Promise<QuestionAck> {
+    return this.setQuestionMeta(questionId, { state: "answered", answer: body.answer, option_id: body.option_id });
+  }
+
+  async skipQuestion(questionId: string): Promise<QuestionAck> {
+    return this.setQuestionMeta(questionId, { state: "skipped", answer: null });
+  }
+
+  async reviseQuestion(questionId: string): Promise<QuestionAck> {
+    const target = this.canvasDoc.elements[questionId];
+    const sessionId = target?.meta.session_id;
+    const step = target?.meta.step;
+    if (typeof sessionId === "string" && typeof step === "number") {
+      // Later steps are dropped (before the ping): the agent re-asks them after the revised answer.
+      const elements = Object.fromEntries(
+        Object.entries(this.canvasDoc.elements).filter(
+          ([, el]) =>
+            !(el.render === "question" && el.meta.session_id === sessionId && Number(el.meta.step) > step),
+        ),
+      );
+      this.canvasDoc = { ...this.canvasDoc, elements };
+    }
+    return this.setQuestionMeta(questionId, { state: "open", answer: null, option_id: null });
   }
 
   async getDiagramsStatus(): Promise<DiagramsStatus> {

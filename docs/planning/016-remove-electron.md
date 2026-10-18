@@ -95,14 +95,16 @@ app, because the app still launches the Python bridge.
 Suites after the merge (Windows): Core 190, Canvas 503 + 66, Shell 321, Bridge 534 (with `CODECHROMA_PYTHON`) and 520 + 1 skipped
 (without), Python contract + distribution + theme tests 429, `ruff` clean (from a clean checkout; web/desktop vitest not re-run).
 
-Still missing before the C# bridge can replace `dist/codechroma-bridge`:
-- It is not a drop-in: no `--repo-path`/`--port` CLI (it reads `Bridge:RepoRoot`/`codechroma_BRIDGE_REPO_PATH`), and serving the
-  built React canvas from the same origin (as the Python bridge does) was not verified.
-- Not ported: patterns and impact resolved payloads, `impact-changes`, `{kind}/review`, `wiki-context`, wiki-general
-  generate/update, `GET /diagram-types` registries, PR happy path (gh), foreground-process status probing, skills packaged
-  next to the bridge.
-- Packaging: the bridge would ship self-contained (about 170 MB unpacked, tree-sitter natives for all platforms) inside the
-  installer; nothing builds it yet. Unix PTY and everything on macOS/Linux is untested.
+Swapped in (2026-10-18): the C# bridge now takes `--repo-path`/`--port` (`BridgeCli`), serves the same-origin canvas from a
+`web/` folder next to its executable, and `dotnet publish dotnet/CodeChroma.Shell.App -p:BundleCSharpBridge=true` (after
+`VITE_ENGINE_BRIDGE_URL=same-origin VITE_TERMINAL_BRIDGE_URL=same-origin npm --prefix web run build`) bundles it as
+`bridge/codechroma-bridge/` (self-contained, installer 111 MB vs 85 MB). Locally installed on Windows: the bridge is
+healthy 2.5 s after the app starts with `--repo` (the Python bridge took about 5 s) and `structure` answers in 0.25 s.
+CI (`release-please.yml`) still bundles the Python bridge; switching it needs the web build step in the three publish jobs.
+
+Still missing: patterns and impact resolved payloads, `impact-changes`, `{kind}/review`, `wiki-context`, wiki-general
+generate/update, `GET /diagram-types` registries, PR happy path (gh), foreground-process status probing, skills packaged
+next to the bridge. Unix PTY and everything on macOS/Linux is untested.
 
 ## What "no Electron" requires
 

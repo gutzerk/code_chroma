@@ -1,3 +1,4 @@
+using CodeChroma.Bridge;
 using CodeChroma.Bridge.Agents;
 using CodeChroma.Bridge.Engine;
 using CodeChroma.Bridge.Http;
@@ -7,9 +8,12 @@ using CodeChroma.Bridge.Skills;
 using CodeChroma.Bridge.Stores;
 using CodeChroma.Bridge.Workspaces;
 
-var builder = WebApplication.CreateBuilder(args);
+var cli = BridgeCli.Parse(args);
+var builder = WebApplication.CreateBuilder(cli.Remaining);
+builder.Logging.SetMinimumLevel(LogLevel.Warning);
+if (cli.Port is { } port) builder.WebHost.UseUrls($"http://127.0.0.1:{port}");
 
-var repoRoot = Path.GetFullPath(builder.Configuration["Bridge:RepoRoot"] ?? Environment.GetEnvironmentVariable("codechroma_BRIDGE_REPO_PATH") ?? ".");
+var repoRoot = Path.GetFullPath(cli.RepoPath ?? builder.Configuration["Bridge:RepoRoot"] ?? Environment.GetEnvironmentVariable("codechroma_BRIDGE_REPO_PATH") ?? ".");
 var allowedOrigins = (Environment.GetEnvironmentVariable("codechroma_BRIDGE_CORS_ORIGINS") ?? "http://localhost:5173,http://127.0.0.1:5173")
     .Split(',').Select(o => o.Trim()).Where(o => o.Length > 0).ToHashSet();
 
@@ -45,6 +49,13 @@ builder.Services.AddCors();
 var app = builder.Build();
 
 app.UseWebSockets();
+var spaDir = Path.Combine(AppContext.BaseDirectory, "web");
+if (Directory.Exists(spaDir))
+{
+    var spa = new Microsoft.Extensions.FileProviders.PhysicalFileProvider(spaDir);
+    app.UseDefaultFiles(new DefaultFilesOptions { FileProvider = spa });
+    app.UseStaticFiles(new StaticFileOptions { FileProvider = spa });
+}
 app.UseCors(policy => policy.WithOrigins([.. allowedOrigins]).WithMethods("GET", "POST", "PUT", "PATCH", "DELETE").AllowAnyHeader());
 app.UseMiddleware<OriginGuard>((IReadOnlySet<string>)allowedOrigins);
 

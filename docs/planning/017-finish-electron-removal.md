@@ -1,6 +1,6 @@
 # 017 - Finish the Electron removal
 
-Status: Specification. Continues [016](016-remove-electron.md) (read its Phase 0-5 definitions and "Decisions taken"
+Status: **In progress**. Electron is deleted (plan row 11 done 2026-10-18: `desktop/`, Electron/PyInstaller CI steps, `packaging/bridge.spec`, `cryptoCompat.ts`, the install forwarders; the last Electron commit is the local tag `electron-last-build`; `ElectronMigration` stays in the shell to import user data). Open: wiki-general port (row 4), and the macOS/Linux/CI verification, migration release and soak rows. Continues [016](016-remove-electron.md) (read its Phase 0-5 definitions and "Decisions taken"
 first). 016's "Where we are" table is stale; the real state is below.
 
 Goal: ship the C# app (Avalonia shell + bundled C# bridge) as the only desktop app, reach existing Electron users through
@@ -70,7 +70,7 @@ sanity check. "Windows-only" work can start now; macOS/Linux items need hardware
 | 8 | Side-by-side install test and Electron-to-C# migration test with a real userData folder | Settings intact after migration | 2-3 |
 | 9 | Migration release (Phase 3): ship C# app + Electron build that updates itself into it; document fallback download | Release published | 1-2 |
 | 10 | Soak (calendar time, not effort): no migration failures reported | Owner signs off | 2-4 weeks elapsed |
-| 11 | Delete Electron (Phase 4): `desktop/`, Electron/PyInstaller CI steps, `cryptoCompat.ts`, install forwarders, docs rewrite (README, QUICKSTART, CLAUDE.md, `desktop-app.md`, planning 011-017) | Clean checkout builds/tests/releases with no Electron step | 2-3 |
+| 11 | **Done 2026-10-18** (done ahead of rows 5-10 on the owner's instruction; the unverified-platform and soak risks below remain open, with no Electron build left to fall back on except the tag). Delete Electron (Phase 4): `desktop/`, Electron/PyInstaller CI steps, `cryptoCompat.ts`, install forwarders, docs rewrite (README, QUICKSTART, CLAUDE.md, `desktop-app.md`, planning 011-017) | Clean checkout builds/tests/releases with no Electron step | 2-3 |
 
 ### How much is left
 

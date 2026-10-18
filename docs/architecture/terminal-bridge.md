@@ -35,10 +35,10 @@ Four things about it are load-bearing for how a TUI actually renders, and all fo
   banner against zero columns and every later reflow inherits that mess.
 - 🔴 **The child gets an explicit `env`** (`_terminal_env`): `TERM=xterm-256color`, `COLORTERM`,
   `FORCE_COLOR`, and a UTF-8 `LANG` when none is set. A Finder-launched desktop app inherits **no
-  `TERM`** — `desktop/src/shellPath.ts` repairs `PATH` and nothing else — so inheriting the bridge's
+  `TERM`** — the bridge's captured runtime environment repairs `PATH` and not `TERM` — so inheriting the bridge's
   environment verbatim meant a colourless, degraded TUI in the packaged app only. That base (before
-  the overrides) is `dict(os.environ)`, which is how `codechroma_BRIDGE_REPO_PATH` and (in the desktop
-  app) `codechroma_BRIDGE_URL` — set by `packaging/bridge_main.py` to the real dynamic port — reach the
+  the overrides) is `dict(os.environ)`, which is how `codechroma_BRIDGE_REPO_PATH` and (under the C# shell's bridge)
+  `codechroma_BRIDGE_URL` — set to the real dynamic port — reach the
   shell a `codechroma-*` skill runs in; see [`desktop-app.md`](desktop-app.md).
 - 🔴 **Output is decoded incrementally**, not per `os.read`. A multi-byte character straddling the
   4096-byte read boundary used to become U+FFFD on both sides, which is most of a TUI's box drawing

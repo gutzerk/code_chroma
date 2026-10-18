@@ -1,6 +1,8 @@
 # 012 — FastAPI bridge + WebSocket → ASP.NET Core (Plan 2)
 
-Status: **In progress** (wire contract green on both backends for graph, diagrams, workspaces, transport, assistant, runtime settings, llm settings, traces, issues, diagram types and branches; the graph is served by `CodeChroma.Core`).
+Status: **In progress** (the C# bridge is the only bridge in the desktop app; wiki-general generate/update port is still open, see 017; wire contract green on both backends for graph, diagrams, workspaces, transport, assistant, runtime settings, llm settings, traces, issues, diagram types and branches; the graph is served by `CodeChroma.Core`).
+
+> Update 2026-10-18: Electron (`desktop/`, `electron-builder.yml`, PyInstaller, `cryptoCompat.ts`, the install forwarders) was removed from the tree; the last Electron commit is the local tag `electron-last-build`. Mentions below of Electron as the shipping app or reference describe the plan's history. Current state: [`docs/architecture/desktop-app.md`](../architecture/desktop-app.md).
 
 Target is .NET 8 (`net8.0`, the only SDK installed here; the original plan said .NET 10). Code lives in `dotnet/CodeChroma.Bridge` (+ `.Tests`). Nothing in Python was deleted; strangler rules apply.
 

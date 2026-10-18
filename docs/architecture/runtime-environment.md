@@ -3,7 +3,7 @@
 The bridge captures the user's environment once at startup, before repository analysis.
 Each bridge process owns one `RuntimeEnvironment`; provider selection, Git/GitHub detection,
 agent PTYs, headless agents, worker subprocesses, npm and process inspection reuse it.
-Electron no longer runs a synchronous shell query. Capture happens on a dedicated worker;
+The desktop shell no longer runs a synchronous shell query (the Electron shell is removed). Capture happens on a dedicated worker;
 refresh keeps the previous immutable generation usable while the worker runs.
 
 ## Capture and safety
@@ -13,8 +13,8 @@ the passwd login shell, then `/bin/sh`. There are invocation adapters for POSIX 
 fish, Nu, csh/tcsh, xonsh, and PowerShell. Windows normally uses the inherited environment;
 an explicit PowerShell override enables profile capture there too.
 
-The shell launches a small isolated Python helper, or the frozen bridge's `--printenv`
-mode. The helper emits JSON between cryptographically random markers. Startup output is
+The shell launches a small isolated Python helper (the removed PyInstaller bridge also had a
+`--printenv` mode; the C# bridge has its own port in `dotnet/CodeChroma.Bridge/Skills/RuntimeEnvironment.cs`). The helper emits JSON between cryptographically random markers. Startup output is
 spooled to a temporary file and the parser reads a bounded tail. Stderr is discarded.
 A valid JSON environment is accepted after a nonzero exit (or after timeout cleanup).
 Invalid/missing data falls back to the inherited environment and common directories.

@@ -1,7 +1,10 @@
 # 014 - Avalonia shell (replace the Electron host with C#)
 
-Status: In progress. Electron (`desktop/`) stays the reference implementation until every item under
-"Remaining work" is done and install, update and uninstall have been exercised on all targets.
+Status: **Done** (the C# shell is the only desktop app; `desktop/` was deleted). Install, update, rollback and uninstall are
+exercised on Windows only; macOS and Linux remain unverified (see 017).
+
+> Update 2026-10-18: Electron (`desktop/`, `electron-builder.yml`, PyInstaller, `cryptoCompat.ts`, the install forwarders) was removed from the tree; the last Electron commit is the local tag `electron-last-build`. Mentions below of Electron as the shipping app or reference describe the plan's history. Current state: [`docs/architecture/desktop-app.md`](../architecture/desktop-app.md).
+
 
 Source: "Plan 4" of the migration plans (shell moves after the core and bridge plans, before the canvas).
 Target is .NET 8 (the only SDK on the dev machine here); move to .NET 10 when the toolchain allows.

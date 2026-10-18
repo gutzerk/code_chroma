@@ -24,7 +24,7 @@ fixture-backed mock (`web/src/engine-client/mockBridge.ts`) when `VITE_ENGINE_BR
 set it (or use the one-command launcher below) to hit the real bridge. The live bridge runs the
 offline summarizer only — it never calls Claude, so a reanalyze on every save stays instant.
 
-A native Avalonia port of the canvas (`dotnet/CodeChroma.Canvas*`, 016 Phase 5) now covers the expand-in-place hierarchy, rubber-band select, group drag, undo, code popup, trace playback, Diff toggle and agent-window layer with headless tests replacing the matching Playwright journeys; `web/` stays the reference. Status and gaps: [`docs/planning/013-avalonia-canvas.md`](docs/planning/013-avalonia-canvas.md).
+A native Avalonia port of the canvas (`dotnet/CodeChroma.Canvas*`, 016 Phase 5) covers the expand-in-place hierarchy, rubber-band select, group drag, undo, code popup, trace playback, Diff toggle and agent-window layer with headless tests replacing the matching Playwright journeys; `web/` stays the reference. Status and gaps: [`docs/planning/013-avalonia-canvas.md`](docs/planning/013-avalonia-canvas.md).
 
 A second, unrelated bridge — an embedded terminal — is also real: `src/codechroma/terminal/server.py`
 exposes `WS /ws/terminal`, and `web/src/terminal/TerminalClient.ts` connects over a real WebSocket
@@ -82,32 +82,29 @@ and the diff overlay refreshes in place. The terminal panel targets `ws://localh
 (`VITE_TERMINAL_BRIDGE_URL` to override). The hierarchy always renders as nested boxes — there is no
 boxes-vs-tree selector (the old `?strategy=` / `VITE_CANVAS_STRATEGY` switch was removed).
 
-### Desktop app (`desktop/`)
+### Desktop app (`dotnet/CodeChroma.Shell*`)
 
-Build/run commands and architecture notes both live in
+The desktop app is the C# / Avalonia shell (Velopack packaging and updater) hosting the web canvas
+over the bundled C# bridge (`dotnet/CodeChroma.Bridge`); Electron, PyInstaller and `desktop/` were
+removed (last Electron commit: local tag `electron-last-build`; `ElectronMigration` still imports old
+user data). Run it with `dotnet run --project dotnet/CodeChroma.Shell.App -- --repo <path>`; build,
+packaging, installers, updater and bridge-gap notes live in
 [`docs/architecture/desktop-app.md`](docs/architecture/desktop-app.md). End-user install is
 `curl -fsSL https://raw.githubusercontent.com/gutzerk/code_chroma/main/distribution/install.sh | sh`
-(macOS arm64/x64 / Linux x64) or `distribution/install.cmd` (Windows): the shell installer reads
-the published `distribution/latest.json` manifest and installs per-user without administrator
-privileges by default (macOS and Linux AppImage in `~/Applications`); pass `--system` to opt into
-`/Applications` or the Linux `.deb` package. The Windows installer (`install.ps1`) reads the same
-manifest and installs per-user. Both installers verify the SHA-256 (and `gh attestation verify` when
-`gh` is available) and support `--uninstall`/`--purge`; the installed app checks for updates every
-6 hours and on focus. Artifact names are guarded by `tests/unit/test_distribution_consistency.py`.
-
-The C# replacement shell (`dotnet/CodeChroma.Shell*`, plans 014/016) is not shipped yet; its notes are at the end of the same doc.
-The C# app (gated, not yet shipped) has its own Velopack packages and updater; its updates are verified by SHA-256
-only (no Sigstore), flagged in the UI state and installers, and `install.sh --dotnet` / `install.ps1 -Dotnet` install it
-(details in `docs/architecture/desktop-app.md`).
+(macOS arm64/x64 / Linux x64) or `distribution/install.cmd` (Windows): both read the published
+`distribution/latest.json`, install per-user without administrator privileges, verify the SHA-256
+(and `gh attestation verify` when `gh` is available) and support `--uninstall`/`--purge`. The app
+checks for updates every 6 hours and on focus; in-app updates are verified by SHA-256 only (no
+Sigstore), flagged in the UI state and installers. Artifact names are guarded by
+`tests/unit/test_distribution_consistency.py`.
 
 **Releases ship via GitHub, not local builds.** `.github/workflows/release-please.yml` runs
 `release-please` (using the `code_pat_release` repository secret so merging its Release PR triggers
 the release build) on every push to `main`: it bumps the version, writes CHANGELOG, tags `vX.Y.Z`
-and opens a Release PR. Merging it triggers builds for macOS arm64/x64, Windows x64, and Linux x64.
-Author version is
-`desktop/package.json`; `release-please-config.json` syncs it with `web/package.json` and
-`pyproject.toml`. Files are versioned with Conventional Commits (`feat:`/`fix:`/`BREAKING CHANGE:`),
-since that's what release-please parses.
+and opens a Release PR. Merging it builds the Velopack packages for Windows x64, macOS arm64/x64 and
+Linux x64. The author version is the shell csproj `<Version>`; `release-please-config.json` syncs it
+with `web/package.json` and `pyproject.toml`. Files are versioned with Conventional Commits
+(`feat:`/`fix:`/`BREAKING CHANGE:`), since that's what release-please parses.
 
 ## Documentation map
 
@@ -138,7 +135,7 @@ Open the relevant file before making a non-trivial change in that area.
 | [`docs/architecture/web-collision-drag.md`](docs/architecture/web-collision-drag.md) | `collision/`: solo collision-avoidance + Miro-style multi-select/group-drag |
 | [`docs/architecture/web-panels.md`](docs/architecture/web-panels.md) | `src/terminal/` (xterm), `src/breadcrumb/`, `src/games/` (rail games menu + Snake) — the small IDE-chrome panels |
 | [`docs/architecture/web-engine-client.md`](docs/architecture/web-engine-client.md) | `src/engine-client/`, `src/state/`, and the `src/agents/` cross-reference |
-| [`docs/architecture/desktop-app.md`](docs/architecture/desktop-app.md) | Desktop app: build/run commands and packaging architecture |
+| [`docs/architecture/desktop-app.md`](docs/architecture/desktop-app.md) | C# desktop shell: build/run, Velopack packaging, installers, updater, Electron migration |
 | [`docs/architecture/architecture-assessment.md`](docs/architecture/architecture-assessment.md) | Whole-repo architecture assessment: what's done well, what needs fixing, top risks to future features — a point-in-time review, not a living reference |
 | [`docs/architecture/skill-artifact-merge.md`](docs/architecture/skill-artifact-merge.md) | The "fresh source + authored overlay + id-splice + fingerprint staleness" idiom shared by `resolve_patterns._merge`, `resolve_c1`/`c1_changes`, and `resolve_brief` |
 | [`docs/architecture/wiki-generator.md`](docs/architecture/wiki-generator.md) | On-demand, docstring-only repo wiki: `GraphEngine.generate_wiki()`, `wiki/generator.py` + `wiki/writer.py`, Python-only docstring/module-variable extraction, the gap report, `.codechroma/wiki/` output |

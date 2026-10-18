@@ -1,6 +1,8 @@
 # 011 - C# graph core (GraphBuilder, dependency digest, clustering)
 
-Status: **In progress**
+Status: **Done** (graph core and the 11 C# analyzers back the shipped C# bridge; Python stays the reference and the contract oracle)
+
+> Update 2026-10-18: Electron (`desktop/`, `electron-builder.yml`, PyInstaller, `cryptoCompat.ts`, the install forwarders) was removed from the tree; the last Electron commit is the local tag `electron-last-build`. Mentions below of Electron as the shipping app or reference describe the plan's history. Current state: [`docs/architecture/desktop-app.md`](../architecture/desktop-app.md).
 
 Plan 1 of the four-part C# migration (graph core -> bridge -> shell -> canvas). The Python code stays
 the reference implementation; nothing in `src/codechroma/` is deleted by this change.

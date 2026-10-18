@@ -1,8 +1,12 @@
 # 016 - Remove Electron completely
 
-Status: Phase 0 measured (Windows only); owner decided GO on Phases 1-5 despite the modest numbers. This is the end state of plans 011-014: nothing in the shipped app depends on
-Electron, Chromium or Node at runtime. Electron (`desktop/`) stays the shipping app and the reference
-until every exit gate below is met. Nothing here is started beyond what plans 011-015 already built.
+Status: **In progress**. Owner decided GO on Phases 1-5 despite the modest numbers. This is the end state of plans 011-014: nothing in the shipped app depends on
+Electron, Chromium or Node at runtime. Phase 4 (deleting Electron) was carried out on 2026-10-18 under plan 017: `desktop/` and every
+Electron/PyInstaller step are gone and the C# shell is the only desktop app. Still open: the macOS/Linux exit gates, the
+velopack hook check on a real install, and the Phase 3 migration-release/soak decision (the "Where we are" and "Status after"
+tables below are a 2026-10-17 snapshot, kept as history).
+
+> Update 2026-10-18: Electron (`desktop/`, `electron-builder.yml`, PyInstaller, `cryptoCompat.ts`, the install forwarders) was removed from the tree; the last Electron commit is the local tag `electron-last-build`. Mentions below of Electron as the shipping app or reference describe the plan's history. Current state: [`docs/architecture/desktop-app.md`](../architecture/desktop-app.md).
 
 Target: one cross-platform .NET (C#) desktop app (Avalonia) for Windows, macOS and Linux. It is not a
 separate native stack per OS. Swift is out because it cannot ship on Windows or Linux.

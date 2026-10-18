@@ -3,6 +3,7 @@ using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.Media;
+using Avalonia.VisualTree;
 using CodeChroma.Canvas.Collision;
 using CodeChroma.Canvas.Connectors;
 using CodeChroma.Canvas.Model;
@@ -47,7 +48,6 @@ public sealed class CanvasView : Control
         _bridge = bridge;
         Viewport = new Viewport(new ViewState(0, 0, 1), 800, 600);
         _scene = new SceneGraph(store.Doc, _measurer);
-        store.Changed += OnStoreChanged;
         SelectionModel.Changed += InvalidateVisual;
         ClipToBounds = true;
         Focusable = true;
@@ -89,7 +89,22 @@ public sealed class CanvasView : Control
         }
     }
 
-    private void OnStoreChanged()
+    protected override void OnAttachedToVisualTree(VisualTreeAttachmentEventArgs e)
+    {
+        base.OnAttachedToVisualTree(e);
+        _store.Changed += OnStoreChanged;
+        OnStoreChanged();
+    }
+
+    protected override void OnDetachedFromVisualTree(VisualTreeAttachmentEventArgs e)
+    {
+        base.OnDetachedFromVisualTree(e);
+        _store.Changed -= OnStoreChanged;
+    }
+
+    private void OnStoreChanged() => UiThread.Run(ApplyStore);
+
+    private void ApplyStore()
     {
         _scene = new SceneGraph(_store.Doc, _measurer);
         SelectionModel.Prune(id => _store.Doc.Elements.ContainsKey(id));
@@ -223,15 +238,25 @@ public sealed class CanvasView : Control
             var p = _store.Doc.Elements[id].Position;
             return new Position(p.X + dx, p.Y + dy);
         });
-        Undo.Record("canvas", ids.ToDictionary(id => id, id => _store.Doc.Elements[id].Position));
-        _ = _store.ApplyCanvasPositionsAsync(_bridge, positions);
+        var before = ids.ToDictionary(id => id, id => _store.Doc.Elements[id].Position);
+        _ = CommitPositionsAsync(positions, before);
+    }
+
+    private async Task CommitPositionsAsync(IReadOnlyDictionary<string, Position> positions, IReadOnlyDictionary<string, Position> before)
+    {
+        if (await _store.ApplyCanvasPositionsAsync(_bridge, positions)) Undo.Record("canvas", before);
+    }
+
+    private async Task UndoPositionsAsync(IReadOnlyDictionary<string, Position> layout)
+    {
+        if (!await _store.ApplyCanvasPositionsAsync(_bridge, layout)) Undo.Record("canvas", layout);
     }
 
     /// <summary>Ctrl+Z: puts the last moved boxes back where the move started (not itself recorded).</summary>
     public bool UndoMove()
     {
         if (Undo.UndoLatest(new[] { "canvas" }) is not { } latest) return false;
-        _ = _store.ApplyCanvasPositionsAsync(_bridge, latest.Layout);
+        _ = UndoPositionsAsync(latest.Layout);
         return true;
     }
 

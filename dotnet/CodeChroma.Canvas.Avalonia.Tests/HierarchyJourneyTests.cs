@@ -8,6 +8,7 @@ using Avalonia.Threading;
 using Avalonia.VisualTree;
 using CodeChroma.Canvas.Highlighting;
 using CodeChroma.Canvas.Hierarchy;
+using CodeChroma.Canvas.Scene;
 using CodeChroma.Canvas.State;
 using CodeChroma.Core;
 
@@ -472,4 +473,23 @@ public class HierarchyJourneyTests
 
     private static bool Contains(global::CodeChroma.Canvas.Geometry.Rect outer, global::CodeChroma.Canvas.Geometry.Rect inner) =>
         inner.Left >= outer.Left && inner.Top >= outer.Top && inner.Right <= outer.Right + 1e-6 && inner.Bottom <= outer.Bottom + 1e-6;
+
+    [AvaloniaFact]
+    public void Fit_all_sets_the_camera_in_one_step_within_the_manual_zoom_limits_and_centres_the_top_level_blocks()
+    {
+        var (_, _, view, _) = Open();
+        view.Viewport.Width = 800;
+        view.Viewport.Height = 600;
+
+        view.FitAll();
+
+        var s = view.Viewport.State.Scale;
+        Assert.InRange(s, Viewport.MinScale, Viewport.MaxScale);
+        var tops = view.Scene.TopLevel.Select(b => b.Rect).ToList();
+        var cx = (tops.Min(r => r.Left) + tops.Max(r => r.Right)) / 2;
+        var cy = (tops.Min(r => r.Top) + tops.Max(r => r.Bottom)) / 2;
+        var centre = view.Viewport.CanvasToScreen(new CodeChroma.Canvas.Geometry.Point(cx, cy));
+        Assert.Equal(400, centre.X, 3);
+        Assert.Equal(300, centre.Y, 3);
+    }
 }

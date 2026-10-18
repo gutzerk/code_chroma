@@ -6,6 +6,7 @@ public sealed class DiffOverlay
     private Dictionary<string, FunctionDiff> _diffs = new();
     private Dictionary<string, List<ChangeCard>> _cards = new();
     private Dictionary<string, string> _statuses = new();
+    private readonly Dictionary<string, IReadOnlyList<DiffLine>> _lines = new();
 
     public event Action? Changed;
 
@@ -16,6 +17,16 @@ public sealed class DiffOverlay
     public IReadOnlyList<FunctionDiff> Deleted => _diffs.Values.Where(d => d.Status == "deleted").ToList();
     public IEnumerable<ChangeCard> AllCards => _cards.Values.SelectMany(c => c);
 
+    /// <summary>The line diff of a node's function, computed once per published run instead of per paint.</summary>
+    public IReadOnlyList<DiffLine> LinesOf(FunctionDiff diff)
+    {
+        lock (_lines)
+        {
+            if (!_lines.TryGetValue(diff.NodeId, out var lines)) _lines[diff.NodeId] = lines = LineDiff.Compute(diff.OriginalSource, diff.ProposedSource);
+            return lines;
+        }
+    }
+
     public FunctionDiff? DiffOf(string nodeId) => _diffs.GetValueOrDefault(nodeId);
     public IReadOnlyList<ChangeCard> CardsOf(string nodeId) => _cards.TryGetValue(nodeId, out var c) ? c : Array.Empty<ChangeCard>();
 
@@ -24,6 +35,7 @@ public sealed class DiffOverlay
 
     public void Publish(IEnumerable<FunctionDiff> diffs, IEnumerable<ChangeCard> cards, IReadOnlyDictionary<string, string>? statuses)
     {
+        lock (_lines) _lines.Clear();
         _diffs = diffs.ToDictionary(d => d.NodeId);
         _cards = cards.GroupBy(c => c.NodeId).ToDictionary(g => g.Key, g => g.ToList());
         _statuses = statuses is null
@@ -36,6 +48,7 @@ public sealed class DiffOverlay
     /// <summary>Drops every layer; the windows a run opened stay open, they just show plain code afterwards.</summary>
     public void Clear()
     {
+        lock (_lines) _lines.Clear();
         _diffs = new();
         _cards = new();
         _statuses = new();
@@ -61,6 +74,7 @@ public sealed class DiffController
     private CancellationTokenSource? _activation;
     private ExpansionState.Snapshot? _preDiff;
     private bool _running, _rerunQueued;
+    private int _epoch;
 
     public DiffController(IDiffBridge bridge, IHierarchySource source, ExpansionState expansion, DiffOverlay overlay)
     {
@@ -86,33 +100,39 @@ public sealed class DiffController
         if (IsPending) { Cancel(); return; }
         if (Overlay.IsActive) { Deactivate(); return; }
         _preDiff = _expansion.TakeSnapshot();
-        _activation = new CancellationTokenSource();
+        var run = _activation = new CancellationTokenSource();
         SetPending(true);
         LastError = null;
         try
         {
-            if (await RefreshAsync(_activation.Token) is null) return;
+            if (await RefreshAsync(run.Token) is null) return;
         }
         catch (Exception ex)
         {
-            LastError = ex.Message;
-            _expansion.Restore(_preDiff);
+            if (ReferenceEquals(_activation, run))
+            {
+                LastError = ex.Message;
+                _expansion.Restore(_preDiff);
+            }
         }
         finally
         {
-            SetPending(false);
+            if (ReferenceEquals(_activation, run)) SetPending(false);
         }
     }
 
     private void Cancel()
     {
+        _epoch++;
         _activation?.Cancel();
+        _activation = null;
         if (_preDiff is not null) _expansion.Restore(_preDiff);
         SetPending(false);
     }
 
     private void Deactivate()
     {
+        _epoch++;
         if (_preDiff is not null) _expansion.Restore(_preDiff);
         _preDiff = null;
         Overlay.Clear();
@@ -127,6 +147,7 @@ public sealed class DiffController
     /// <summary>Fetches, reveals and publishes; resolves to null when cancelled, never rejecting on an abort.</summary>
     public async Task<DiffRefresh?> RefreshAsync(CancellationToken ct = default)
     {
+        var epoch = _epoch;
         IReadOnlyList<FunctionDiff> entries;
         ChangeCardSet? cardSet;
         try
@@ -140,7 +161,7 @@ public sealed class DiffController
         {
             return null;
         }
-        if (ct.IsCancellationRequested) return null;
+        if (ct.IsCancellationRequested || epoch != _epoch) return null;
         var diffed = entries.Select(e => e.NodeId).ToHashSet();
         var cards = (cardSet?.Cards ?? new List<ChangeCard>()).Where(c => !diffed.Contains(c.NodeId)).ToList();
         foreach (var entry in entries.Where(e => e.Status != "deleted" && e.Level != "file"))
@@ -149,7 +170,7 @@ public sealed class DiffController
             RevealEntry(entry);
         }
         foreach (var nodeId in cards.Select(c => c.NodeId).Distinct()) RevealAncestors(nodeId);
-        if (ct.IsCancellationRequested) return null;
+        if (ct.IsCancellationRequested || epoch != _epoch) return null;
         Overlay.Publish(entries, cards, cardSet?.ByNodeStatus);
         return new DiffRefresh(entries, cards);
     }

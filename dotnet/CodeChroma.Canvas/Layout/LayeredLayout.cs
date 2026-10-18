@@ -65,7 +65,7 @@ public static class LayeredLayout
     {
         var digits = ElementMeta.LeadingOrderDigits(order);
         if (digits is null) return null;
-        var rank = int.Parse(digits) - 1;
+        var rank = (int.TryParse(digits, out var parsed) ? parsed : int.MaxValue) - 1;
         if (rank < 0) warn?.Invoke($"meta.order \"{order}\" is out of range (Order is 1-indexed) -- treating as \"1\"");
         return Math.Max(0, rank);
     }

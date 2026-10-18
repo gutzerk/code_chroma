@@ -89,7 +89,7 @@ public static class EpicsLayout
     private static int PhaseNumber(CanvasElement element)
     {
         var m = Regex.Match(ElementMeta.String(element, "recipe_key") ?? "", @"phase-(\d+)");
-        return m.Success ? int.Parse(m.Groups[1].Value) : 0;
+        return m.Success ? (int.TryParse(m.Groups[1].Value, out var n) ? n : int.MaxValue) : 0;
     }
 
     private static double PlaceSubtree(Placed node, double x, double startY)

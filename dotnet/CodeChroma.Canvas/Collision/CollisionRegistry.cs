@@ -18,8 +18,12 @@ public sealed class CollisionRegistry
     /// <summary>Registers a participant; disposing the result unregisters it, so a closed panel leaves no phantom obstacle.</summary>
     public IDisposable Register(string id, Func<Box?> bounds, string? containerId = null, bool inCanvasSpace = true)
     {
-        _participants[id] = new Participant(id, bounds, containerId, inCanvasSpace);
-        return new Registration(() => _participants.Remove(id));
+        var participant = new Participant(id, bounds, containerId, inCanvasSpace);
+        _participants[id] = participant;
+        return new Registration(() =>
+        {
+            if (_participants.TryGetValue(id, out var current) && ReferenceEquals(current, participant)) _participants.Remove(id);
+        });
     }
 
     public void BeginGesture() => _frozen = ReadAll();

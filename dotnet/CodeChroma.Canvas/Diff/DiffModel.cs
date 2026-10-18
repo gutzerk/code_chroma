@@ -67,10 +67,14 @@ public readonly record struct DiffLine(DiffLineKind Kind, string Text)
 /// <summary>A line diff (longest common subsequence) between the git-HEAD source and the disk source.</summary>
 public static class LineDiff
 {
+    /// <summary>Above this many table cells the exact LCS is skipped for a coarse common-prefix/suffix diff.</summary>
+    public const long MaxCells = 4_000_000;
+
     public static IReadOnlyList<DiffLine> Compute(string original, string proposed)
     {
         var a = Lines(original);
         var b = Lines(proposed);
+        if ((long)a.Length * b.Length > MaxCells) return Coarse(a, b);
         var lcs = new int[a.Length + 1, b.Length + 1];
         for (var i = a.Length - 1; i >= 0; i--)
             for (var j = b.Length - 1; j >= 0; j--)
@@ -85,6 +89,19 @@ public static class LineDiff
         }
         while (x < a.Length) result.Add(new DiffLine(DiffLineKind.Removed, a[x++]));
         while (y < b.Length) result.Add(new DiffLine(DiffLineKind.Added, b[y++]));
+        return result;
+    }
+
+    private static IReadOnlyList<DiffLine> Coarse(string[] a, string[] b)
+    {
+        int head = 0, tail = 0;
+        while (head < a.Length && head < b.Length && a[head] == b[head]) head++;
+        while (tail < a.Length - head && tail < b.Length - head && a[^(tail + 1)] == b[^(tail + 1)]) tail++;
+        var result = new List<DiffLine>(a.Length + b.Length);
+        for (var i = 0; i < head; i++) result.Add(new DiffLine(DiffLineKind.Context, a[i]));
+        for (var i = head; i < a.Length - tail; i++) result.Add(new DiffLine(DiffLineKind.Removed, a[i]));
+        for (var i = head; i < b.Length - tail; i++) result.Add(new DiffLine(DiffLineKind.Added, b[i]));
+        for (var i = a.Length - tail; i < a.Length; i++) result.Add(new DiffLine(DiffLineKind.Context, a[i]));
         return result;
     }
 

@@ -44,7 +44,9 @@ public sealed class CodePopup : Grid
             {
                 AcceptButton.IsEnabled = false;
                 AcceptButton.Content = "Accepting...";
-                var ok = await accept();
+                var ok = false;
+                try { ok = await accept(); }
+                catch (Exception) { ok = false; }
                 if (ok) Close();
                 else { AcceptButton.IsEnabled = true; AcceptButton.Content = "Accept"; }
             };
@@ -54,6 +56,7 @@ public sealed class CodePopup : Grid
         TitleBar.PointerPressed += OnTitlePressed;
         TitleBar.PointerMoved += OnTitleMoved;
         TitleBar.PointerReleased += (_, e) => { _dragging = false; e.Pointer.Capture(null); };
+        TitleBar.PointerCaptureLost += (_, _) => _dragging = false;
 
         SourceBlock = new TextBlock { FontFamily = CodeText.Mono, FontSize = 13, Margin = new Thickness(10), TextWrapping = TextWrapping.NoWrap };
         FillSource();
@@ -63,6 +66,7 @@ public sealed class CodePopup : Grid
         ResizeHandle.PointerPressed += OnResizePressed;
         ResizeHandle.PointerMoved += OnResizeMoved;
         ResizeHandle.PointerReleased += (_, e) => { _resizing = false; e.Pointer.Capture(null); };
+        ResizeHandle.PointerCaptureLost += (_, _) => _resizing = false;
 
         var content = new Grid { RowDefinitions = new RowDefinitions("Auto,*") };
         Grid.SetRow(scroller, 1);

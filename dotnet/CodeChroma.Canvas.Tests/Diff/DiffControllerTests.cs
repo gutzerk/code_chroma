@@ -286,6 +286,60 @@ public class DiffControllerTests
         Assert.True(expansion.IsCodeVisible(Fn));
         Assert.NotNull(overlay.DiffOf(Fn));
     }
+
+    private sealed class UncancellableBridge : IDiffBridge
+    {
+        public List<TaskCompletionSource<IReadOnlyList<FunctionDiff>>> Gates { get; } = new();
+
+        public Task<IReadOnlyList<FunctionDiff>> GetDiffAsync(CancellationToken ct)
+        {
+            var gate = new TaskCompletionSource<IReadOnlyList<FunctionDiff>>();
+            Gates.Add(gate);
+            return gate.Task;
+        }
+
+        public Task<ChangeCardSet?> GetChangeCardsAsync(CancellationToken ct) => Task.FromResult<ChangeCardSet?>(null);
+
+        public Task AcceptAsync(string nodeId, CancellationToken ct) => Task.CompletedTask;
+    }
+
+    [Fact]
+    public async Task A_cancelled_run_that_settles_late_does_not_clear_pending_of_the_run_that_replaced_it()
+    {
+        var source = TableSource.Tree();
+        var bridge = new UncancellableBridge();
+        var overlay = new DiffOverlay();
+        var c = new DiffController(bridge, source, new ExpansionState(source), overlay);
+        var first = c.ToggleAsync();
+        await c.ToggleAsync();
+        var second = c.ToggleAsync();
+
+        bridge.Gates[0].SetResult([]);
+        await first;
+        var pendingAfterStaleRunSettled = c.IsPending;
+        bridge.Gates[1].SetResult([]);
+        await second;
+
+        Assert.True(pendingAfterStaleRunSettled);
+        Assert.False(c.IsPending);
+        Assert.True(overlay.IsActive);
+    }
+
+    [Fact]
+    public async Task A_live_refresh_that_lands_after_the_overlay_was_turned_off_publishes_nothing()
+    {
+        var (c, bridge, _, overlay) = Make();
+        await c.ToggleAsync();
+        bridge.Gate = new TaskCompletionSource<bool>();
+        var refresh = c.RefreshAsync();
+
+        await c.ToggleAsync();
+        bridge.Gate.SetResult(true);
+        var result = await refresh;
+
+        Assert.Null(result);
+        Assert.False(overlay.IsActive);
+    }
 }
 
 public class DiffModelTests

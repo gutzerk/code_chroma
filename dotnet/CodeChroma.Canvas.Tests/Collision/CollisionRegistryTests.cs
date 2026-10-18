@@ -104,4 +104,17 @@ public class CollisionRegistryTests
         Assert.Equal(300, during[0].Bounds.X);
         Assert.Equal(9000, registry.ObstaclesExcept("a")[0].Bounds.X);
     }
+
+    [Fact]
+    public void Disposing_a_stale_registration_does_not_remove_the_participant_that_replaced_it()
+    {
+        var registry = new CollisionRegistry();
+        var stale = registry.Register("a", () => Rect(0, 0, 240, 72));
+        registry.Register("a", () => Rect(500, 0, 240, 72));
+        registry.Register("b", () => Rect(900, 0, 240, 72));
+
+        stale.Dispose();
+
+        Assert.Equal(new[] { "a" }, registry.ObstaclesExcept("b").Select(o => o.Id).ToArray());
+    }
 }

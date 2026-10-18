@@ -82,6 +82,28 @@ Merged into `integration/csharp-and-distribution`, nothing pushed or released. W
 Suites after the merge: Shell 307, Canvas 503 + 66, Bridge 173, Core 144 (all pass, 0 skipped); desktop vitest 214 (2 skipped); web vitest 1483; Python contract + distribution
 tests pass and `ruff` is clean when run from a clean checkout (run inside the main checkout they fail because `.claude/worktrees/` holds duplicate repo copies).
 
+### Update 2026-10-18: C# bridge and analyzers merged
+
+Merged into `integration/csharp-and-distribution` (not pushed): all route groups except those listed below, a real
+cross-platform PTY host (`Porta.Pty`; the Windows `[detached]` close-after-20ms bug of the frozen Python bridge is
+covered by real-process tests, not yet verified in the shipped app), and C# analyzers for all 11 languages
+(`TreeSitter.DotNet`, `YamlDotNet`; exact parity with Python on Go, Rust, Java, PHP, Ruby, C, YAML, Python; about 10-16% of
+`.tsx`/`.jsx`, C# and C++ files differ because the packaged grammars are not the pinned pip versions). Synthetic 53k-line
+repo: 4.65 s Python vs 0.3-0.5 s C# (export plus graph build; Python figure includes its SQLite save). Not yet measured in the
+app, because the app still launches the Python bridge.
+
+Suites after the merge (Windows): Core 190, Canvas 503 + 66, Shell 321, Bridge 534 (with `CODECHROMA_PYTHON`) and 520 + 1 skipped
+(without), Python contract + distribution + theme tests 429, `ruff` clean (from a clean checkout; web/desktop vitest not re-run).
+
+Still missing before the C# bridge can replace `dist/codechroma-bridge`:
+- It is not a drop-in: no `--repo-path`/`--port` CLI (it reads `Bridge:RepoRoot`/`codechroma_BRIDGE_REPO_PATH`), and serving the
+  built React canvas from the same origin (as the Python bridge does) was not verified.
+- Not ported: patterns and impact resolved payloads, `impact-changes`, `{kind}/review`, `wiki-context`, wiki-general
+  generate/update, `GET /diagram-types` registries, PR happy path (gh), foreground-process status probing, skills packaged
+  next to the bridge.
+- Packaging: the bridge would ship self-contained (about 170 MB unpacked, tree-sitter natives for all platforms) inside the
+  installer; nothing builds it yet. Unix PTY and everything on macOS/Linux is untested.
+
 ## What "no Electron" requires
 
 Electron currently provides five things. Each needs a replacement before `desktop/` can go.

@@ -109,8 +109,10 @@ public sealed class LauncherPanel : UserControl
                 status,
             },
         };
-        column.VerticalAlignment = VerticalAlignment.Top;
-        var scroller = new ScrollViewer { HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled, HorizontalAlignment = HorizontalAlignment.Stretch, VerticalAlignment = VerticalAlignment.Stretch, Content = new Grid { Children = { column } } };
+        column.VerticalAlignment = VerticalAlignment.Center;
+        var centered = new Grid { Children = { column } };
+        var scroller = new ScrollViewer { HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled, HorizontalAlignment = HorizontalAlignment.Stretch, VerticalAlignment = VerticalAlignment.Stretch, Content = centered };
+        scroller.SizeChanged += (_, e) => centered.MinHeight = e.NewSize.Height;
         Content = scroller;
         RenderRecents(RecentRepos.Read(host.RecentsPath));
     }

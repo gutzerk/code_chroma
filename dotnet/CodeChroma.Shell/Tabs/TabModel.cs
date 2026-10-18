@@ -36,9 +36,6 @@ public sealed class TabModel(Func<object> createView)
 
     public Tab? FindWorkspaceTab(string workspaceId) => tabs.FirstOrDefault(t => t.WorkspaceId == workspaceId && t.RepoPath is null);
 
-    public Tab? FindTabBySender(object sender) =>
-        tabs.FirstOrDefault(t => ReferenceEquals(t.View, sender) || t.Satellites.Values.Any(s => ReferenceEquals(s, sender)));
-
     public Tab NewTab()
     {
         var tab = new Tab { Id = $"tab-{++counter}", View = createView() };
@@ -82,25 +79,6 @@ public sealed class TabModel(Func<object> createView)
         return tab;
     }
 
-    public void RegisterSatellite(string tabId, string workspaceId, object window)
-    {
-        if (FindTab(tabId) is { } tab) tab.Satellites[workspaceId] = window;
-    }
-
-    public object? FindSatellite(string tabId, string workspaceId) =>
-        FindTab(tabId)?.Satellites.GetValueOrDefault(workspaceId);
-
-    public void ReleaseSatellite(object window)
-    {
-        foreach (var tab in tabs)
-            foreach (var (workspaceId, satellite) in tab.Satellites)
-                if (ReferenceEquals(satellite, window))
-                {
-                    tab.Satellites.Remove(workspaceId);
-                    return;
-                }
-    }
-
     public CloseTabOutcome? CloseTab(string tabId)
     {
         var index = tabs.FindIndex(t => t.Id == tabId);
@@ -114,6 +92,4 @@ public sealed class TabModel(Func<object> createView)
 
         return new CloseTabOutcome(tab.View, tab.OwnsBridge ? tab.Bridge : null, [.. tab.Satellites.Values], fallback, ActiveTab!);
     }
-
-    public IReadOnlyList<BridgeHandle> AllBridges() => [.. tabs.Where(t => t.OwnsBridge && t.Bridge is not null).Select(t => t.Bridge!)];
 }

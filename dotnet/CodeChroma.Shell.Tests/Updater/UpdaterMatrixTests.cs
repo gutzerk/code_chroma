@@ -128,19 +128,4 @@ public class UpdaterMatrixTests
     [Fact]
     public void Unsupported_platforms_have_no_install_path() =>
         Assert.Throws<NotSupportedException>(() => InstallPlanner.For(new(ShellOs.Windows, ShellArch.Arm64)));
-
-    [Fact]
-    public async Task The_AppImage_is_replaced_without_leaving_temp_files()
-    {
-        using var temp = new TempDir();
-        var current = temp.Sub("CodeChroma.AppImage");
-        var staged = temp.Sub("download.AppImage");
-        await File.WriteAllTextAsync(current, "old");
-        await File.WriteAllTextAsync(staged, "new");
-
-        AppImageInstaller.Replace(staged, current);
-
-        Assert.Equal("new", await File.ReadAllTextAsync(current));
-        Assert.Equal(2, Directory.GetFileSystemEntries(temp.Path).Length);
-    }
 }

@@ -127,17 +127,4 @@ public class UpdateOperationsTests
 
         Assert.Equal([false, true, true, false], results);
     }
-
-    [Fact]
-    public void Cleanup_removes_only_leftover_codechroma_installers()
-    {
-        using var temp = new TempDir();
-        foreach (var name in new[] { "CodeChroma-2.0.0-win-x64.zip", "CodeChroma-2.0.0-x64.AppImage.part", "CodeChroma-Setup.exe", "notes.zip" })
-            File.WriteAllText(temp.Sub(name), "x");
-
-        var removed = StaleDownloads.Cleanup(temp.Path);
-
-        Assert.Equal(3, removed);
-        Assert.Equal(["notes.zip"], Directory.GetFiles(temp.Path).Select(Path.GetFileName));
-    }
 }

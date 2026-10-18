@@ -20,9 +20,8 @@ public sealed class MethodShape
 }
 
 /// <summary>Structural summary of one class/struct/interface; mirrors graph/models.py ClassShape.</summary>
-public sealed class ClassShape(string symbolId)
+public sealed class ClassShape
 {
-    public string SymbolId { get; } = symbolId;
     public List<string> Bases { get; init; } = [];
     public List<string> Decorators { get; init; } = [];
     public bool IsAbstract { get; set; }

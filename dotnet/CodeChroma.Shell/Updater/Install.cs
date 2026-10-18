@@ -20,24 +20,6 @@ public static class InstallPlanner
         Plans.TryGetValue(platform, out var plan) ? plan : throw new NotSupportedException($"no install path for {platform.Os}/{platform.Arch}");
 }
 
-public static class AppImageInstaller
-{
-    public static void Replace(string stagedPath, string currentPath)
-    {
-        var temp = Path.Combine(Path.GetDirectoryName(currentPath)!, $".{Path.GetFileName(currentPath)}.update-{Environment.ProcessId}");
-        try
-        {
-            File.Copy(stagedPath, temp, overwrite: true);
-            if (!OperatingSystem.IsWindows()) File.SetUnixFileMode(temp, UnixFileMode.UserRead | UnixFileMode.UserWrite | UnixFileMode.UserExecute | UnixFileMode.GroupRead | UnixFileMode.GroupExecute | UnixFileMode.OtherRead | UnixFileMode.OtherExecute);
-            File.Move(temp, currentPath, overwrite: true);
-        }
-        finally
-        {
-            File.Delete(temp);
-        }
-    }
-}
-
 /// <summary>
 /// Pure path rule: only per-user installs may self-update; a realpath or file-ownership (uid) check is not performed.
 /// </summary>

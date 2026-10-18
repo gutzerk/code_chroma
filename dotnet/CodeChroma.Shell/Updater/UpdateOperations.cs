@@ -96,28 +96,3 @@ public sealed class UpdateScheduler(Func<DateTimeOffset> clock, bool packaged = 
         return true;
     }
 }
-
-/// <summary>Removes installer downloads an interrupted update left in the temp directory.</summary>
-public static class StaleDownloads
-{
-    private static readonly string[] Patterns =
-    [
-        "CodeChroma-*.zip", "CodeChroma-*.zip.part", "CodeChroma-*.AppImage", "CodeChroma-*.AppImage.part",
-        "CodeChroma-*.exe", "CodeChroma-*.exe.part", "CodeChroma-*.dmg", "CodeChroma-*.dmg.part",
-    ];
-
-    public static int Cleanup(string tempDir)
-    {
-        var removed = 0;
-        foreach (var file in Patterns.SelectMany(p => Directory.EnumerateFiles(tempDir, p)).ToList())
-        {
-            try
-            {
-                File.Delete(file);
-                removed++;
-            }
-            catch (Exception e) when (e is IOException or UnauthorizedAccessException) { }
-        }
-        return removed;
-    }
-}

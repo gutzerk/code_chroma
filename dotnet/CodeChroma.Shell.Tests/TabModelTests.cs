@@ -48,7 +48,6 @@ public class TabModelTests
         Assert.Equal(2, model.Tabs.Count);
         Assert.Same(a, model.FindByRepoPath("/repos/atlas"));
         Assert.Same(b, model.FindByRepoPath("/repos/other"));
-        Assert.Equal([a.Bridge, b.Bridge], model.AllBridges());
         Assert.Null(model.FindByRepoPath("/repos/unknown"));
     }
 
@@ -76,7 +75,7 @@ public class TabModelTests
         var outcome = model.CloseTab(a.Id)!;
 
         Assert.Same(a.Bridge, outcome.BridgeToStop);
-        Assert.Equal([b.Bridge], model.AllBridges());
+        Assert.Same(b, model.ActiveTab);
     }
 
     [Fact]
@@ -109,36 +108,6 @@ public class TabModelTests
 
         Assert.Same(c, outcome.ActiveTab);
         Assert.Contains(a, model.Tabs);
-    }
-
-    [Fact]
-    public void Satellite_windows_close_with_their_tab_and_are_found_by_sender()
-    {
-        var (model, _) = Make();
-        var tab = Open(model, "/repos/a");
-        var window = new View();
-        model.RegisterSatellite(tab.Id, "pr-7", window);
-
-        Assert.Same(tab, model.FindTabBySender(window));
-        Assert.Same(tab, model.FindTabBySender(tab.View));
-        Assert.Null(model.FindTabBySender(new View()));
-        Assert.Same(window, model.FindSatellite(tab.Id, "pr-7"));
-        Assert.Equal([window], model.CloseTab(tab.Id)!.SatellitesToClose);
-    }
-
-    [Fact]
-    public void Releasing_a_satellite_is_idempotent_and_leaves_the_bridge_alone()
-    {
-        var (model, _) = Make();
-        var tab = Open(model, "/repos/a");
-        var window = new View();
-        model.RegisterSatellite(tab.Id, "pr-7", window);
-
-        model.ReleaseSatellite(window);
-        model.ReleaseSatellite(window);
-
-        Assert.Null(model.FindSatellite(tab.Id, "pr-7"));
-        Assert.NotNull(model.FindTab(tab.Id)!.Bridge);
     }
 
     [Fact]

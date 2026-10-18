@@ -19,7 +19,6 @@
 
   <ItemGroup>
     <PackageReference Include="Porta.Pty" Version="1.0.7" />
-    <PackageReference Include="YamlDotNet" Version="16.3.0" />
   </ItemGroup>
 
 </Project>

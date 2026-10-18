@@ -167,9 +167,6 @@ public sealed class AgentSessionRegistry : IDisposable
         lock (_lock) return _sessions.GetValueOrDefault(agentId);
     }
 
-    /// <summary>Whether the process is alive, which is not what the LED says (that is a screen reading).</summary>
-    public bool IsRunning(string agentId) => Get(agentId) is { IsAlive: true };
-
     /// <summary>Every agent whose status just changed, as (id, status).</summary>
     public List<(string Id, string Status)> PollStatuses()
     {

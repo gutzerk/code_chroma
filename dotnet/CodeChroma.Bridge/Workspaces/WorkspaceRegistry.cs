@@ -68,11 +68,6 @@ public sealed class WorkspaceRegistry : IDisposable
         lock (_lock) return _roots.TryGetValue(id, out var entry) ? entry.Root : null;
     }
 
-    public RootExtras? ExtrasFor(string id)
-    {
-        lock (_lock) return _extras.GetValueOrDefault(id);
-    }
-
     /// <summary>Unloads a live workspace but keeps its registration, so the next access re-analyzes it.</summary>
     public bool DropLive(string id)
     {

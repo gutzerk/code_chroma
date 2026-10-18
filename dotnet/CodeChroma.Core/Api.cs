@@ -27,8 +27,6 @@ public sealed record ClusterResult(
     IReadOnlyList<string> UndeterminedFiles,
     IReadOnlyDictionary<(string, string), int> FileEdgeWeights);
 
-public sealed record StructureOptions(string RootId = "root", int? Depth = null, int? MaxChildren = null, int? MaxNodes = null);
-
 public sealed class StructureEntry
 {
     public required string NodeId { get; init; }
@@ -42,10 +40,6 @@ public sealed class StructureEntry
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public List<StructureEntry>? Children { get; set; }
 }
-
-public sealed record StructureResult(string Root, int Depth, bool Truncated, IReadOnlyList<StructureEntry> Nodes);
-
-public sealed class UnknownRootException(string rootId) : Exception($"no graph node for root '{rootId}'");
 
 /// <summary>Receives every graph the core produces, e.g. to persist the dependency digest.</summary>
 public interface IGraphSink

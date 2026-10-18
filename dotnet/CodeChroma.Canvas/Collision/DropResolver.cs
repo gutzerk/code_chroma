@@ -15,10 +15,6 @@ public static class CollisionConstants
     public const int MaxRing = 12;
     /// <summary>Spiral ring spacing.</summary>
     public const double RingStep = ElkNodeSep;
-    /// <summary>Landing animation duration.</summary>
-    public const int SettleMs = 160;
-    /// <summary>How much closer a new landing must be before it replaces the one the ghost already shows.</summary>
-    public const double LandingHysteresisPx = 8;
 }
 
 /// <summary>A rectangle the dragged block must not land on top of; the id is only the last tie-break.</summary>

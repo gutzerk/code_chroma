@@ -18,7 +18,7 @@ var allowedOrigins = (Environment.GetEnvironmentVariable("codechroma_BRIDGE_CORS
     .Split(',').Select(o => o.Trim()).Where(o => o.Length > 0).ToHashSet();
 
 builder.Services.AddSingleton(TimeProvider.System);
-builder.Services.AddSingleton<IAnalysisExporter>(_ => AnalysisExporters.FromEnvironment());
+builder.Services.AddSingleton<IAnalysisExporter>(_ => new NativeAnalysisExporter());
 builder.Services.AddSingleton<IEngineFactory, CoreEngineFactory>();
 builder.Services.AddSingleton<ConnectionManager>();
 builder.Services.AddSingleton<TraceConnections>();

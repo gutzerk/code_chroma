@@ -153,12 +153,6 @@ public sealed partial class UpdateService
             try { cache.Write(latest); } catch (IOException) { }
             Set(s => s with { LatestVersion = latest });
         }, ct);
-        if (info is { Kind: not AssetKind.Native })
-        {
-            var legacy = info;
-            info = null;
-            throw new InvalidOperationException($"Version {legacy.Version} is only published as an Electron installer, which this app cannot apply. Download it manually from GitHub Releases.");
-        }
         if (!latestReturned && info is null) throw new InvalidOperationException("No stable release was returned by GitHub.");
         Set(s => s with
         {

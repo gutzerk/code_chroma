@@ -29,7 +29,7 @@ public sealed class UpdateOperations(
     }
 }
 
-/// <summary>User choices about updates, stored as update-settings.json with the same shape the Electron app wrote.</summary>
+/// <summary>User choices about updates, stored as update-settings.json.</summary>
 public sealed record UpdateSettings(string? SkippedVersion = null, bool AutoDownload = false);
 
 public static class UpdateSettingsStore

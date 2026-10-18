@@ -86,8 +86,8 @@ boxes-vs-tree selector (the old `?strategy=` / `VITE_CANVAS_STRATEGY` switch was
 
 The desktop app is the C# / Avalonia shell (Velopack packaging and updater) hosting the web canvas
 over the bundled C# bridge (`dotnet/CodeChroma.Bridge`); Electron, PyInstaller and `desktop/` were
-removed (last Electron commit: local tag `electron-last-build`; `ElectronMigration` still imports old
-user data). Run it with `dotnet run --project dotnet/CodeChroma.Shell.App -- --repo <path>`; build,
+removed (last Electron commit: local tag `electron-last-build`; there were no Electron users, so no
+migration code). Run it with `dotnet run --project dotnet/CodeChroma.Shell.App -- --repo <path>`; build,
 packaging, installers, updater and bridge-gap notes live in
 [`docs/architecture/desktop-app.md`](docs/architecture/desktop-app.md). End-user install is
 `curl -fsSL https://raw.githubusercontent.com/gutzerk/code_chroma/main/distribution/install.sh | sh`
@@ -135,7 +135,7 @@ Open the relevant file before making a non-trivial change in that area.
 | [`docs/architecture/web-collision-drag.md`](docs/architecture/web-collision-drag.md) | `collision/`: solo collision-avoidance + Miro-style multi-select/group-drag |
 | [`docs/architecture/web-panels.md`](docs/architecture/web-panels.md) | `src/terminal/` (xterm), `src/breadcrumb/`, `src/games/` (rail games menu + Snake) — the small IDE-chrome panels |
 | [`docs/architecture/web-engine-client.md`](docs/architecture/web-engine-client.md) | `src/engine-client/`, `src/state/`, and the `src/agents/` cross-reference |
-| [`docs/architecture/desktop-app.md`](docs/architecture/desktop-app.md) | C# desktop shell: build/run, Velopack packaging, installers, updater, Electron migration |
+| [`docs/architecture/desktop-app.md`](docs/architecture/desktop-app.md) | C# desktop shell: build/run, Velopack packaging, installers, updater |
 | [`docs/architecture/architecture-assessment.md`](docs/architecture/architecture-assessment.md) | Whole-repo architecture assessment: what's done well, what needs fixing, top risks to future features — a point-in-time review, not a living reference |
 | [`docs/architecture/skill-artifact-merge.md`](docs/architecture/skill-artifact-merge.md) | The "fresh source + authored overlay + id-splice + fingerprint staleness" idiom shared by `resolve_patterns._merge`, `resolve_c1`/`c1_changes`, and `resolve_brief` |
 | [`docs/architecture/wiki-generator.md`](docs/architecture/wiki-generator.md) | On-demand, docstring-only repo wiki: `GraphEngine.generate_wiki()`, `wiki/generator.py` + `wiki/writer.py`, Python-only docstring/module-variable extraction, the gap report, `.codechroma/wiki/` output |

@@ -1,4 +1,4 @@
-using System.Net;
+﻿using System.Net;
 using CodeChroma.Shell.Tests.Support;
 
 namespace CodeChroma.Shell.Tests.Updater;
@@ -7,18 +7,11 @@ public class UpdateCheckTests
 {
     private static readonly string Hex = new('a', 64);
 
-    private static readonly string[] LegacyAssets =
-    [
-        "CodeChroma-2.0.0-arm64.dmg", "CodeChroma-2.0.0-x64.dmg", "CodeChroma-Setup.exe", "CodeChroma-2.0.0-x64.AppImage",
-    ];
-
-    private static readonly string[] NativeAssets =
+    private static readonly string[] AllAssets =
     [
         "CodeChroma-2.0.0-osx-arm64.zip", "CodeChroma-2.0.0-osx-x64.zip", "CodeChroma-2.0.0-win-x64.zip",
         "CodeChroma-2.0.0-win-x64-Installer.exe", "CodeChroma-2.0.0-linux-x86_64.AppImage",
     ];
-
-    private static readonly string[] AllAssets = [.. LegacyAssets, .. NativeAssets];
 
     private const string Trusted = "https://github.com/gutzerk/code_chroma/releases/download/v2.0.0/";
 
@@ -35,38 +28,22 @@ public class UpdateCheckTests
     [InlineData(ShellOs.MacOs, ShellArch.X64, "CodeChroma-2.0.0-osx-x64.zip")]
     [InlineData(ShellOs.Windows, ShellArch.X64, "CodeChroma-2.0.0-win-x64.zip")]
     [InlineData(ShellOs.Linux, ShellArch.X64, "CodeChroma-2.0.0-linux-x86_64.AppImage")]
-    public async Task Prefers_the_native_package_over_the_electron_installer_on_every_platform(ShellOs os, ShellArch arch, string expected)
+    public async Task Selects_the_package_for_every_platform(ShellOs os, ShellArch arch, string expected)
     {
         var checker = Checker(_ => StubHandler.Json(HttpStatusCode.OK, Release("v2.0.0", AllAssets)));
 
         var info = await checker.CheckAsync("1.0.0", new(os, arch));
 
         Assert.Equal(expected, info!.AssetName);
-        Assert.Equal(AssetKind.Native, info.Kind);
         Assert.Equal(("v2.0.0", "notes"), (info.Version, info.Notes));
     }
 
     [Theory]
-    [InlineData(ShellOs.MacOs, ShellArch.Arm64, "CodeChroma-2.0.0-arm64.dmg")]
-    [InlineData(ShellOs.MacOs, ShellArch.X64, "CodeChroma-2.0.0-x64.dmg")]
-    [InlineData(ShellOs.Windows, ShellArch.X64, "CodeChroma-Setup.exe")]
-    [InlineData(ShellOs.Linux, ShellArch.X64, "CodeChroma-2.0.0-x64.AppImage")]
-    public async Task A_release_with_only_electron_installers_is_still_reported_but_marked_legacy(ShellOs os, ShellArch arch, string expected)
-    {
-        var checker = Checker(_ => StubHandler.Json(HttpStatusCode.OK, Release("v2.0.0", LegacyAssets)));
-
-        var info = await checker.CheckAsync("1.0.0", new(os, arch));
-
-        Assert.Equal((expected, AssetKind.ElectronLegacy), (info!.AssetName, info.Kind));
-    }
-
-    [Theory]
-    [InlineData("CodeChroma-2.0.0-x64-Setup.exe", true)]
-    [InlineData("CodeChroma-Setup.exe", true)]
+    [InlineData("CodeChroma-2.0.0-win-x64.zip", true)]
     [InlineData("CodeChroma-2.0.0-win-x64-Installer.exe", false)]
     [InlineData("CodeChroma-2.0.0-win-x64.zip.sha256", false)]
-    [InlineData("Other-2.0.0-x64-Setup.exe", false)]
-    public void Windows_selection_accepts_the_setup_names_and_ignores_the_velopack_installer(string asset, bool selected)
+    [InlineData("Other-2.0.0-win-x64.zip", false)]
+    public void Windows_selection_accepts_the_zip_and_ignores_the_velopack_installer(string asset, bool selected)
     {
         var match = AssetSelector.Select([new ReleaseAsset(asset, Trusted + asset)], new(ShellOs.Windows, ShellArch.X64));
 
@@ -178,7 +155,7 @@ public class UpdateCheckTests
             step++;
             if (step == 1)
             {
-                var ok = StubHandler.Json(HttpStatusCode.OK, Release("v2.0.0", NativeAssets));
+                var ok = StubHandler.Json(HttpStatusCode.OK, Release("v2.0.0", AllAssets));
                 ok.Headers.ETag = new System.Net.Http.Headers.EntityTagHeaderValue("\"abc\"");
                 return ok;
             }

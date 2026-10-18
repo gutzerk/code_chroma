@@ -91,7 +91,7 @@ public class RecentReposTests
     }
 
     [Fact]
-    public void Reads_a_file_written_by_the_electron_shell()
+    public void Reads_a_file_in_the_camel_case_store_format()
     {
         using var temp = new TempDir();
         var store = RecentRepos.StorePath(temp.Path);

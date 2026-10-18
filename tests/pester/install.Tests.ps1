@@ -182,15 +182,14 @@ Describe 'Uninstall-CodeChroma' {
         $env:USERPROFILE = Join-Path $TestDrive 'Profile'
         New-Item -ItemType Directory -Force -Path (Join-Path $env:APPDATA 'CodeChroma') | Out-Null
         New-Item -ItemType Directory -Force -Path (Join-Path $env:USERPROFILE '.codechroma') | Out-Null
-        Mock Get-CodeChromaUninstallString { return '"C:\Apps\CodeChroma\Uninstall CodeChroma.exe" /currentuser' } -ParameterFilter { $Flavor -eq 'electron' }
-        Mock Get-CodeChromaUninstallString { return $null } -ParameterFilter { $Flavor -eq 'dotnet' }
+        Mock Get-CodeChromaUninstallString { return '"C:\Users\me\AppData\Local\CodeChroma\Update.exe" --uninstall' }
     }
 
     It 'runs the registered uninstaller silently and keeps user data' {
         Uninstall-CodeChroma
 
         $script:started.Count | Should -Be 1
-        $script:started[0].Args | Should -Contain '/S'
+        $script:started[0].Args | Should -Contain 'uninstall'
         (Join-Path $env:APPDATA 'CodeChroma') | Should -Exist
         (Join-Path $env:USERPROFILE '.codechroma') | Should -Exist
     }
@@ -203,9 +202,6 @@ Describe 'Uninstall-CodeChroma' {
     }
 
     It 'runs the Velopack uninstaller as Update.exe uninstall --silent' {
-        Mock Get-CodeChromaUninstallString { return '"C:\Users\me\AppData\Local\CodeChroma\Update.exe" --uninstall' } -ParameterFilter { $Flavor -eq 'dotnet' }
-        Mock Get-CodeChromaUninstallString { return $null } -ParameterFilter { $Flavor -eq 'electron' }
-
         Uninstall-CodeChroma
 
         $script:started.Count | Should -Be 1
@@ -213,16 +209,8 @@ Describe 'Uninstall-CodeChroma' {
         ($script:started[0].Args -join ' ') | Should -Be 'uninstall --silent'
     }
 
-    It 'removes both flavors when both are installed' {
-        Mock Get-CodeChromaUninstallString { return '"C:\Users\me\AppData\Local\CodeChroma\Update.exe" --uninstall' } -ParameterFilter { $Flavor -eq 'dotnet' }
-
-        Uninstall-CodeChroma
-
-        $script:started.Count | Should -Be 2
-    }
-
     It 'is a clean no-op when nothing is installed' {
-        Mock Get-CodeChromaUninstallString { return $null } -ParameterFilter { $Flavor -eq 'electron' }
+        Mock Get-CodeChromaUninstallString { return $null }
 
         { Uninstall-CodeChroma } | Should -Not -Throw
 
@@ -305,49 +293,11 @@ Describe 'Install-CodeChroma (Velopack Setup specifics)' {
         Should -Invoke Write-Warning -ParameterFilter { $Message -match 'SHA-256 checksum only' }
     }
 
-    It 'treats the same version of the other flavor as not installed' {
-        Mock Get-CodeChromaInstalledVersion { return '1.2.3' } -ParameterFilter { $Flavor -eq 'electron' }
-        Mock Get-CodeChromaInstalledVersion { return $null } -ParameterFilter { $Flavor -eq 'dotnet' }
-
-        Install-CodeChroma -ManifestUrl 'https://example.invalid/latest.json' -Dotnet
-
-        $script:started.Count | Should -Be 1
-    }
-
     It 'skips when the same version of the C# app is installed' {
-        Mock Get-CodeChromaInstalledVersion { return '1.2.3' } -ParameterFilter { $Flavor -eq 'dotnet' }
+        Mock Get-CodeChromaInstalledVersion { return '1.2.3' }
 
         Install-CodeChroma -ManifestUrl 'https://example.invalid/latest.json' -Dotnet
 
         $script:started.Count | Should -Be 0
-    }
-
-    It 'retires an installed Electron copy after the install succeeded' {
-        Mock Get-CodeChromaUninstallString { return '"C:\Apps\CodeChroma\Uninstall CodeChroma.exe" /currentuser' } -ParameterFilter { $Flavor -eq 'electron' }
-
-        Install-CodeChroma -ManifestUrl 'https://example.invalid/latest.json' -Dotnet -Silent
-
-        $script:started.Count | Should -Be 2
-        $script:started[1].FilePath | Should -Match 'Uninstall CodeChroma\.exe$'
-        $script:started[1].Args | Should -Contain '/S'
-    }
-
-    It 'keeps the Electron copy when the C# installer failed' {
-        Mock Get-CodeChromaUninstallString { return '"C:\Apps\CodeChroma\Uninstall CodeChroma.exe"' } -ParameterFilter { $Flavor -eq 'electron' }
-        Mock Start-CodeChromaProcess { return 5 }
-
-        { Install-CodeChroma -ManifestUrl 'https://example.invalid/latest.json' -Dotnet } | Should -Throw '*exited with code 5*'
-
-        Should -Invoke Get-CodeChromaUninstallString -Times 0
-    }
-
-    It 'only warns when the Electron uninstaller fails' {
-        Mock Get-CodeChromaUninstallString { return '"C:\Apps\CodeChroma\Uninstall CodeChroma.exe"' } -ParameterFilter { $Flavor -eq 'electron' }
-        $script:calls = 0
-        Mock Start-CodeChromaProcess { $script:calls++; if ($script:calls -eq 1) { return 0 } else { return 9 } }
-
-        { Install-CodeChroma -ManifestUrl 'https://example.invalid/latest.json' -Dotnet } | Should -Not -Throw
-
-        Should -Invoke Write-Warning -ParameterFilter { $Message -match 'Could not remove the Electron build' }
     }
 }

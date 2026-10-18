@@ -71,7 +71,7 @@ public class UpdateOperationsTests
     }
 
     [Fact]
-    public void Settings_round_trip_in_the_electron_file_format_and_ignore_bad_values()
+    public void Settings_round_trip_in_the_settings_file_format_and_ignore_bad_values()
     {
         using var temp = new TempDir();
         var path = UpdateSettingsStore.PathIn(temp.Path);

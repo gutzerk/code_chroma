@@ -7,7 +7,7 @@ public class AppPathsTests
     [InlineData(ShellOs.MacOs, "/Users/me", "/Users/me/.config", null, "/Users/me/Library/Application Support/CodeChroma")]
     [InlineData(ShellOs.Linux, "/home/me", "/home/me/.config", null, "/home/me/.config/CodeChroma")]
     [InlineData(ShellOs.Linux, "/home/me", "/home/me/.config", "/xdg", "/xdg/CodeChroma")]
-    public void User_data_lives_where_Electron_kept_it_so_both_shells_share_recent_projects(ShellOs os, string home, string appData, string? xdg, string expected)
+    public void User_data_lives_in_the_per_os_default_directory(ShellOs os, string home, string appData, string? xdg, string expected)
     {
         var dir = AppPaths.UserDataDir(os, home, appData, xdg);
 

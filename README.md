@@ -39,8 +39,7 @@ reinstall).
 **Update:** the app checks for a new release at start-up, every 6 hours and when its window regains
 focus; open **Updates** to download, skip a version or turn on automatic download. In-app updates are
 verified by SHA-256 checksum only (not signed or attested) and roll back automatically if the new
-version fails to start. Coming from the old Electron app? Your recent repos and settings are imported
-on first launch. **Uninstall:**
+version fails to start. **Uninstall:**
 re-run the installer with `--uninstall` (`-Uninstall` on Windows); add `--purge` / `-Purge` to also
 delete settings and caches.
 

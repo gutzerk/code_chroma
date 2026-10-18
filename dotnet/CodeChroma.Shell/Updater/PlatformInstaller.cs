@@ -89,8 +89,6 @@ public sealed partial class PlatformInstaller(
     public Task<bool> InstallAsync(UpdateInfo info, CancellationToken ct = default)
     {
         var plan = InstallPlanner.For(platform);
-        if (info.Kind != AssetKind.Native)
-            throw new InvalidOperationException($"This release only carries the Electron installer ({info.AssetName}); install it manually from GitHub Releases.");
         location.AssertUserInstallation();
         var version = info.Version.TrimStart('v');
         if (!SafeVersion().IsMatch(version)) throw new InvalidOperationException($"refusing to apply an update with an unsafe version string: {info.Version}");

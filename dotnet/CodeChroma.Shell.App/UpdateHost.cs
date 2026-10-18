@@ -4,11 +4,10 @@ using Avalonia.Threading;
 
 namespace CodeChroma.Shell.App;
 
-/// <summary>Owns the update lifecycle for the window: first-run Electron migration, the scheduled checks, the page bridge and the menu flow.</summary>
+/// <summary>Owns the update lifecycle for the window: the scheduled checks, the page bridge and the menu flow.</summary>
 public sealed class UpdateHost
 {
     private readonly Window window;
-    private readonly string userDataDir;
     private readonly Func<IEnumerable<TabView>> views;
     private readonly UpdateScheduler scheduler;
     private readonly UpdateService service;
@@ -18,7 +17,6 @@ public sealed class UpdateHost
     public UpdateHost(Window window, string userDataDir, string version, Func<IEnumerable<TabView>> views, Action quit)
     {
         this.window = window;
-        this.userDataDir = userDataDir;
         this.views = views;
         settingsPath = UpdateSettingsStore.PathIn(userDataDir);
         var location = InstallLocation.Current();
@@ -36,10 +34,9 @@ public sealed class UpdateHost
             exit => { if (exit) quit(); }, json => Dispatcher.UIThread.Post(() => PushToPages(json)));
     }
 
-    /// <summary>Imports an installed Electron copy's state once, reports a finished install, then starts the periodic checks.</summary>
+    /// <summary>Reports a finished install, then starts the periodic checks.</summary>
     public void Start()
     {
-        MigrateFromElectron();
         _ = ReportLastInstallAsync();
         _ = BackgroundCheckAsync(CheckTrigger.Startup);
         var timer = new DispatcherTimer { Interval = UpdateConstants.PeriodicCheck };
@@ -102,21 +99,6 @@ public sealed class UpdateHost
         if (service.State.LastInstall is not { } outcome) return;
         await Dispatcher.UIThread.InvokeAsync(() => Dialogs.ShowMessageAsync(window, "CodeChroma update", $"Update to {outcome.Version}: {outcome.Result}", outcome.Detail));
         service.DismissLastInstall();
-    }
-
-    private void MigrateFromElectron()
-    {
-        try
-        {
-            var home = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
-            var electron = ElectronMigration.Detect(ShellPlatform.Current.Os, home, Environment.GetEnvironmentVariable("LOCALAPPDATA"),
-                Environment.GetEnvironmentVariable("APPDATA"), Environment.GetEnvironmentVariable("XDG_CONFIG_HOME"));
-            if (electron.HasUserData) ElectronMigration.ImportUserData(electron.UserDataDir, userDataDir);
-        }
-        catch (Exception e) when (e is IOException or UnauthorizedAccessException)
-        {
-            // A failed import must never stop the app starting; the user simply keeps a fresh profile.
-        }
     }
 
     private void PushToPages(string json)

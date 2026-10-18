@@ -5,9 +5,7 @@
   Produces, in OutDir (plus a .sha256 sidecar each):
     CodeChroma-<Version>-win-x64-Installer.exe   fresh install (Velopack Setup, per-user, no UAC)
     CodeChroma-<Version>-win-x64.zip             update payload: the in-app updater swaps its current/ folder in
-  The names deliberately avoid the Electron installer suffixes (-Setup.exe, -x64.dmg, ...) so installed Electron
-  updaters never pick them up. scripts/gen_distribution_manifest.py and tests/unit/test_distribution_consistency.py
-  pin these names.
+  scripts/gen_distribution_manifest.py and tests/unit/test_distribution_consistency.py pin these names.
 #>
 param(
     [Parameter(Mandatory)][string]$Version,

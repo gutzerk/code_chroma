@@ -177,9 +177,21 @@ class PtySession:
                 self._answer_conpty_query(text)
                 self._on_output(text)
             if not self._process.isalive():
+                await self._drain_windows()
                 break
         if not self._closed:
             self.close()
+
+    async def _drain_windows(self) -> None:
+        """Flushes output ConPTY still buffers after the child has exited."""
+        while not self._closed:
+            try:
+                text = await asyncio.to_thread(self._process.read, read_chunk_size())
+            except (EOFError, OSError):
+                return
+            if not text:
+                return
+            self._on_output(text)
 
     def _answer_conpty_query(self, text: str) -> None:
         """Replies to ConPTY's startup query ourselves, since no terminal may be attached yet."""

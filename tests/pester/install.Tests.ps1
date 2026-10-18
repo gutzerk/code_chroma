@@ -5,7 +5,7 @@ BeforeAll {
     . (Join-Path $PSScriptRoot '..\..\distribution\install.ps1')
 
     function New-Fixture {
-        param([string]$Root, [string]$Version = '1.2.3', [byte[]]$Payload = ([Text.Encoding]::UTF8.GetBytes('setup bytes')), [hashtable]$ManifestOverrides = @{}, [string]$Target = 'windows-x64', [string]$AssetName = 'CodeChroma-Setup.exe')
+        param([string]$Root, [string]$Version = '1.2.3', [byte[]]$Payload = ([Text.Encoding]::UTF8.GetBytes('setup bytes')), [hashtable]$ManifestOverrides = @{}, [string]$Target = 'dotnet-windows-x64', [string]$AssetName = 'CodeChroma-1.2.3-win-x64-Installer.exe')
         $sha = [BitConverter]::ToString([Security.Cryptography.SHA256]::Create().ComputeHash($Payload)).Replace('-', '').ToLowerInvariant()
         $tag = "v$Version"
         $manifest = [ordered]@{
@@ -52,29 +52,28 @@ Describe 'Install-CodeChroma' {
         Use-Fixture (New-Fixture -Root $TestDrive)
     }
 
-    It 'runs the installer interactively by default after verifying the checksum' {
+    It 'runs the Setup interactively by default after verifying the checksum' {
         Install-CodeChroma -ManifestUrl 'https://example.invalid/latest.json'
 
         $script:started.Count | Should -Be 1
-        $script:started[0].Args | Should -Not -Contain '/S'
+        $script:started[0].Args | Should -BeNullOrEmpty
     }
 
-    It 'runs a silent per-user install with -Silent' {
+    It 'runs a silent install with -Silent' {
         Install-CodeChroma -ManifestUrl 'https://example.invalid/latest.json' -Silent
 
-        $script:started[0].Args | Should -Contain '/S'
-        $script:started[0].Args | Should -Contain '/currentuser'
+        $script:started[0].Args | Should -Contain '--silent'
     }
 
     It 'downloads the version-pinned installer, never the mutable latest alias' {
         Install-CodeChroma -ManifestUrl 'https://example.invalid/latest.json'
 
-        ($script:requested -join ' ') | Should -Match '/releases/download/v1\.2\.3/CodeChroma-Setup\.exe'
+        ($script:requested -join ' ') | Should -Match '/releases/download/v1\.2\.3/CodeChroma-1\.2\.3-win-x64-Installer\.exe'
         ($script:requested -join ' ') | Should -Not -Match '/releases/latest/'
     }
 
     It 'refuses a checksum mismatch and never starts the installer' {
-        Use-Fixture (New-Fixture -Root $TestDrive -ManifestOverrides @{ sha256 = @{ 'windows-x64' = ('0' * 64) } })
+        Use-Fixture (New-Fixture -Root $TestDrive -ManifestOverrides @{ sha256 = @{ 'dotnet-windows-x64' = ('0' * 64) } })
 
         { Install-CodeChroma -ManifestUrl 'https://example.invalid/latest.json' } | Should -Throw '*checksum*'
 
@@ -82,7 +81,7 @@ Describe 'Install-CodeChroma' {
     }
 
     It 'refuses a download whose size disagrees with the manifest' {
-        Use-Fixture (New-Fixture -Root $TestDrive -ManifestOverrides @{ size = @{ 'windows-x64' = 3 } })
+        Use-Fixture (New-Fixture -Root $TestDrive -ManifestOverrides @{ size = @{ 'dotnet-windows-x64' = 3 } })
 
         { Install-CodeChroma -ManifestUrl 'https://example.invalid/latest.json' } | Should -Throw '*size*'
 
@@ -96,7 +95,7 @@ Describe 'Install-CodeChroma' {
     }
 
     It 'refuses an installer URL outside the canonical GitHub repo' {
-        Use-Fixture (New-Fixture -Root $TestDrive -ManifestOverrides @{ assets = @{ 'windows-x64' = 'https://evil.example/CodeChroma-Setup.exe' } })
+        Use-Fixture (New-Fixture -Root $TestDrive -ManifestOverrides @{ assets = @{ 'dotnet-windows-x64' = 'https://evil.example/CodeChroma-Installer.exe' } })
 
         { Install-CodeChroma -ManifestUrl 'https://example.invalid/latest.json' } | Should -Throw '*not hosted*'
 
@@ -106,7 +105,7 @@ Describe 'Install-CodeChroma' {
     It 'fails when the manifest has no Windows build' {
         Use-Fixture (New-Fixture -Root $TestDrive -ManifestOverrides @{ assets = @{ 'linux-x64' = 'https://github.com/gutzerk/code_chroma/x' } })
 
-        { Install-CodeChroma -ManifestUrl 'https://example.invalid/latest.json' } | Should -Throw '*windows-x64*'
+        { Install-CodeChroma -ManifestUrl 'https://example.invalid/latest.json' } | Should -Throw '*dotnet-windows-x64*'
     }
 
     It 'rejects an unsupported architecture' {
@@ -251,17 +250,10 @@ Describe 'Invoke-CodeChromaInstaller argument parsing' {
         Should -Invoke Install-CodeChroma -ParameterFilter { $Silent -and $Force }
     }
 
-    It 'routes -Dotnet to the installer' {
+    It 'still accepts the legacy -Dotnet switch' {
         Invoke-CodeChromaInstaller @('-Dotnet', '-Silent')
 
         Should -Invoke Install-CodeChroma -ParameterFilter { $Dotnet -and $Silent }
-    }
-
-    It 'routes CODECROMA_APP=dotnet like -Dotnet' {
-        $env:CODECROMA_APP = 'dotnet'
-        try { Invoke-CodeChromaInstaller @() } finally { Remove-Item Env:\CODECROMA_APP }
-
-        Should -Invoke Install-CodeChroma -ParameterFilter { $Dotnet }
     }
 
     It 'rejects unknown options' {
@@ -269,9 +261,9 @@ Describe 'Invoke-CodeChromaInstaller argument parsing' {
     }
 }
 
-Describe 'Install-CodeChroma -Dotnet (the C# app, Velopack Setup)' {
+Describe 'Install-CodeChroma (Velopack Setup specifics)' {
     BeforeEach {
-        Use-Fixture (New-Fixture -Root $TestDrive -Target 'dotnet-windows-x64' -AssetName 'CodeChroma-1.2.3-win-x64-Installer.exe')
+        Use-Fixture (New-Fixture -Root $TestDrive)
         Mock Get-CodeChromaUninstallString { return $null }
     }
 
@@ -291,8 +283,8 @@ Describe 'Install-CodeChroma -Dotnet (the C# app, Velopack Setup)' {
         $script:started[0].Args | Should -BeNullOrEmpty
     }
 
-    It 'does not fall back to the Electron installer when the manifest has no dotnet build' {
-        Use-Fixture (New-Fixture -Root $TestDrive)
+    It 'does not fall back to another build when the manifest has no dotnet build' {
+        Use-Fixture (New-Fixture -Root $TestDrive -Target 'windows-x64' -AssetName 'CodeChroma-Setup.exe')
 
         { Install-CodeChroma -ManifestUrl 'https://example.invalid/latest.json' -Dotnet } | Should -Throw '*dotnet-windows-x64*'
 
@@ -300,7 +292,7 @@ Describe 'Install-CodeChroma -Dotnet (the C# app, Velopack Setup)' {
     }
 
     It 'refuses a checksum mismatch before running the Setup' {
-        Use-Fixture (New-Fixture -Root $TestDrive -Target 'dotnet-windows-x64' -AssetName 'CodeChroma-1.2.3-win-x64-Installer.exe' -ManifestOverrides @{ sha256 = @{ 'dotnet-windows-x64' = ('0' * 64) } })
+        Use-Fixture (New-Fixture -Root $TestDrive -ManifestOverrides @{ sha256 = @{ 'dotnet-windows-x64' = ('0' * 64) } })
 
         { Install-CodeChroma -ManifestUrl 'https://example.invalid/latest.json' -Dotnet } | Should -Throw '*checksum*'
 

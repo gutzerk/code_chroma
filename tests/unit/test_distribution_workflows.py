@@ -9,7 +9,6 @@ ROOT = Path(__file__).resolve().parents[2]
 WORKFLOWS = ROOT / ".github" / "workflows"
 RELEASE = (WORKFLOWS / "release-please.yml").read_text(encoding="utf-8")
 CI = (WORKFLOWS / "ci.yml").read_text(encoding="utf-8")
-SMOKE_PATH = WORKFLOWS / "packaging-smoke.yml"
 CONFIG = json.loads((ROOT / "release-please-config.json").read_text(encoding="utf-8"))
 
 
@@ -66,7 +65,7 @@ def test_release_builds_wait_for_a_green_ci_gate():
     jobs = _jobs(RELEASE)
 
     assert "gate" in jobs
-    for build in ("macos", "windows", "linux"):
+    for build in DOTNET_JOBS:
         assert "gate" in jobs[build]["needs"]
 
 
@@ -75,25 +74,14 @@ def test_an_incomplete_release_raises_an_alert():
 
     alert = jobs["alert"]
     assert "failure()" in alert["if"]
-    assert set(alert["needs"]) >= {"macos", "windows", "linux", "manifest"}
+    assert set(alert["needs"]) >= set(DOTNET_JOBS) | {"manifest"}
 
 
-@pytest.mark.parametrize("build", ["macos", "windows"])
-def test_signing_hooks_are_forwarded_only_when_secrets_exist(build):
-    steps = _jobs(RELEASE)[build]["steps"]
-    hook = next(s for s in steps if "signing" in s.get("name", ""))
-
-    prefix = "MAC" if build == "macos" else "WIN"
-    assert any(k.startswith(f"{prefix}_CSC_LINK") for k in hook["env"])
-    assert "GITHUB_ENV" in hook["run"]
-    assert '-n "$' in hook["run"] or "-not [string]::IsNullOrEmpty" in hook["run"]
-
-
-@pytest.mark.parametrize("lock", ["desktop/package-lock.json", "web/package-lock.json"])
+@pytest.mark.parametrize("lock", ["web/package-lock.json"])
 def test_lock_file_versions_follow_the_release_version(lock):
     extra = CONFIG["packages"]["."]["extra-files"]
 
-    paths = {(e["path"], e["jsonpath"]) for e in extra}
+    paths = {(e["path"], e["jsonpath"]) for e in extra if "jsonpath" in e}
     assert (lock, "$.version") in paths
     assert (lock, "$.packages[''].version") in paths
 
@@ -108,16 +96,6 @@ def test_ci_lints_shell_workflows_and_powershell_and_runs_pester_on_windows():
     assert "Invoke-Pester" in text
     windows = [j for j in jobs.values() if j.get("runs-on") == "windows-latest"]
     assert windows
-
-
-def test_packaging_smoke_runs_on_pull_requests_without_publishing():
-    smoke = yaml.safe_load(SMOKE_PATH.read_text(encoding="utf-8"))
-    text = SMOKE_PATH.read_text(encoding="utf-8")
-
-    assert "pull_request" in smoke[True]
-    assert "pyinstaller" in text.lower()
-    assert "--dir" in text
-    assert "action-gh-release" not in text and "attest-build" not in text
 
 
 @pytest.mark.parametrize("script", ["install.sh", "install.ps1"])
@@ -136,28 +114,15 @@ def test_cmd_bootstrap_forwards_arguments_and_restricts_protocol_by_default():
     assert "test hook" in text.lower()
 
 
-LEGACY = ["install_desktop.sh", "install_linux.sh", "install_desktop.ps1"]
-
-
-@pytest.mark.parametrize("script", LEGACY)
-def test_legacy_scripts_are_thin_forwarders_to_the_distribution_installer(script):
-    text = (ROOT / "scripts" / script).read_text(encoding="utf-8")
-
-    assert "distribution/install." in text
-    assert "gutzerk/code_chroma" in text
-    assert "UshakovDV/code-chroma" not in text
-    assert len(text.splitlines()) < 40
-
-
 DOTNET_JOBS = ["dotnet-windows", "dotnet-macos", "dotnet-linux"]
-ELECTRON_JOBS = ["macos", "windows", "linux"]
 
 
 @pytest.mark.parametrize("job", DOTNET_JOBS)
-def test_dotnet_release_jobs_are_off_unless_the_repo_variable_enables_them(job):
+def test_dotnet_release_jobs_run_on_every_release_without_a_repository_variable(job):
     spec = _jobs(RELEASE)[job]
 
-    assert "vars.CODECROMA_BUILD_DOTNET == 'true'" in spec["if"]
+    assert "release_created" in spec["if"]
+    assert "CODECROMA_BUILD_DOTNET" not in yaml.dump(spec)
     assert "gate" in spec["needs"]
 
 
@@ -173,18 +138,17 @@ def test_dotnet_release_jobs_publish_drafts_and_pin_the_velopack_cli(job):
     assert "pyinstaller" not in text
 
 
-@pytest.mark.parametrize("job", ELECTRON_JOBS)
-def test_the_electron_jobs_are_still_there_and_unconditional_on_the_dotnet_variable(job):
-    text = yaml.dump(_jobs(RELEASE)[job])
+def test_the_release_workflow_has_no_electron_or_pyinstaller_step():
+    text = RELEASE.lower()
 
-    assert "CODECROMA_BUILD_DOTNET" not in text
-    assert "electron" in text.lower()
+    assert "electron" not in text
+    assert "pyinstaller" not in text
 
 
-def test_a_skipped_dotnet_job_does_not_skip_the_manifest_but_a_failed_one_does():
+def test_the_manifest_and_alert_wait_for_every_dotnet_job():
     manifest = _jobs(RELEASE)["manifest"]
 
-    assert set(manifest["needs"]) >= set(DOTNET_JOBS) | set(ELECTRON_JOBS)
+    assert set(manifest["needs"]) >= set(DOTNET_JOBS)
     assert "!cancelled()" in manifest["if"] and "!failure()" in manifest["if"]
     assert set(_jobs(RELEASE)["alert"]["needs"]) >= set(DOTNET_JOBS)
 

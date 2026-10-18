@@ -8,18 +8,12 @@ from scripts.gen_distribution_manifest import main
 
 VERSION = "1.2.3"
 FILES = {
-    "macos-arm64": f"CodeChroma-{VERSION}-arm64.dmg",
-    "macos-x64": f"CodeChroma-{VERSION}-x64.dmg",
-    "windows-x64": f"CodeChroma-{VERSION}-x64-Setup.exe",
-    "linux-x64": f"CodeChroma-{VERSION}-x64.deb",
-    "linux-appimage": f"CodeChroma-{VERSION}-x64.AppImage",
     "dotnet-windows-x64": f"CodeChroma-{VERSION}-win-x64-Installer.exe",
     "dotnet-windows-x64-update": f"CodeChroma-{VERSION}-win-x64.zip",
     "dotnet-macos-arm64": f"CodeChroma-{VERSION}-osx-arm64.zip",
     "dotnet-macos-x64": f"CodeChroma-{VERSION}-osx-x64.zip",
     "dotnet-linux-x64": f"CodeChroma-{VERSION}-linux-x86_64.AppImage",
 }
-ELECTRON_TARGETS = ["macos-arm64", "macos-x64", "windows-x64", "linux-x64", "linux-appimage"]
 REPO = "gutzerk/code_chroma"
 
 
@@ -99,8 +93,8 @@ def test_custom_tag_and_repo_flow_into_the_urls(tmp_path):
 
     manifest = _generate(tmp_path, "--tag", "code-chroma-v1.2.3", "--repo", "acme/widgets")
 
-    assert manifest["assets"]["linux-appimage"] == (
-        f"https://github.com/acme/widgets/releases/download/code-chroma-v1.2.3/{FILES['linux-appimage']}"
+    assert manifest["assets"]["dotnet-linux-x64"] == (
+        f"https://github.com/acme/widgets/releases/download/code-chroma-v1.2.3/{FILES['dotnet-linux-x64']}"
     )
 
 
@@ -128,7 +122,7 @@ def test_a_sidecar_with_a_malformed_digest_aborts_generation(tmp_path):
     _populate(tmp_path / "build", FILES)
     sidecars = tmp_path / "sidecars"
     sidecars.mkdir()
-    (sidecars / f"{FILES['linux-appimage']}.sha256").write_text("not-a-digest  file\n")
+    (sidecars / f"{FILES['dotnet-linux-x64']}.sha256").write_text("not-a-digest  file\n")
 
     with pytest.raises(SystemExit) as raised:
         _run(VERSION, "--build-dir", str(tmp_path / "build"), "--sidecars", str(sidecars),
@@ -141,7 +135,7 @@ def test_a_sidecar_that_disagrees_with_the_file_aborts_generation(tmp_path):
     _populate(tmp_path / "build", FILES)
     sidecars = tmp_path / "sidecars"
     sidecars.mkdir()
-    (sidecars / f"{FILES['linux-appimage']}.sha256").write_text("0" * 64 + "  file\n")
+    (sidecars / f"{FILES['dotnet-linux-x64']}.sha256").write_text("0" * 64 + "  file\n")
 
     with pytest.raises(SystemExit) as raised:
         _run(VERSION, "--build-dir", str(tmp_path / "build"), "--sidecars", str(sidecars),
@@ -151,27 +145,9 @@ def test_a_sidecar_that_disagrees_with_the_file_aborts_generation(tmp_path):
 
 
 def test_missing_installers_skip_their_target_and_none_at_all_fails(tmp_path):
-    _populate(tmp_path / "build", {"linux-appimage": FILES["linux-appimage"]})
+    _populate(tmp_path / "build", {"dotnet-linux-x64": FILES["dotnet-linux-x64"]})
     manifest = _generate(tmp_path)
 
-    assert set(manifest["assets"]) == {"linux-appimage"}
+    assert set(manifest["assets"]) == {"dotnet-linux-x64"}
     with pytest.raises(SystemExit):
         _run(VERSION, "--build-dir", str(tmp_path / "empty"), "--out", str(tmp_path / "e.json"))
-
-
-def test_a_release_with_only_electron_installers_has_no_dotnet_targets(tmp_path):
-    _populate(tmp_path / "build", {t: FILES[t] for t in ELECTRON_TARGETS})
-
-    manifest = _generate(tmp_path)
-
-    assert set(manifest["assets"]) == set(ELECTRON_TARGETS)
-
-
-@pytest.mark.parametrize("target", ELECTRON_TARGETS)
-def test_a_release_carrying_both_flavors_keeps_the_electron_targets_on_the_electron_installers(tmp_path, target):  # noqa: E501
-    _populate(tmp_path / "build", FILES)
-
-    manifest = _generate(tmp_path)
-
-    assert manifest["assets"][target].endswith(f"/{FILES[target]}")
-    assert manifest["sha256"][target] == hashlib.sha256(f"payload for {target}".encode()).hexdigest()  # noqa: E501

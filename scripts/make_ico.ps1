@@ -1,6 +1,6 @@
-# Builds dotnet/CodeChroma.Shell.App/Assets/icon.ico (PNG-compressed, 16-256px) from desktop/build/icon.png.
+# Builds dotnet/CodeChroma.Shell.App/Assets/icon.ico (PNG-compressed, 16-256px) from Assets/icon.png.
 param(
-    [string]$Source = (Join-Path $PSScriptRoot '..\desktop\build\icon.png'),
+    [string]$Source = (Join-Path $PSScriptRoot '..\dotnet\CodeChroma.Shell.App\Assets\icon.png'),
     [string]$Output = (Join-Path $PSScriptRoot '..\dotnet\CodeChroma.Shell.App\Assets\icon.ico')
 )
 Add-Type -AssemblyName System.Drawing

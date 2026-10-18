@@ -51,25 +51,6 @@ printf 'sudo %s\\n' "$*" >> "$SUDO_LOG"
 exit 0
 """
 
-LOGGING_APT = """#!/bin/sh
-printf 'apt-get %s\\n' "$*" >> "$SUDO_LOG"
-exit 0
-"""
-
-HDIUTIL = """#!/bin/sh
-if [ "$1" = attach ]; then
-  while [ "$#" -gt 0 ]; do
-    if [ "$1" = -mountpoint ]; then mount="$2"; break; fi
-    shift
-  done
-  mkdir -p "$mount/CodeChroma.app"
-  printf '%s' "$APP_PAYLOAD" > "$mount/CodeChroma.app/Contents"
-elif [ "$1" = detach ]; then
-  rm -rf "$2"
-fi
-exit 0
-"""
-
 FAILING_CP = """#!/bin/sh
 for arg in "$@"; do
   case "$arg" in
@@ -132,8 +113,6 @@ class Sandbox:
             "curl": CURL,
             "uname": UNAME,
             "sudo": LOGGING_SUDO,
-            "apt-get": LOGGING_APT,
-            "hdiutil": HDIUTIL,
             "cp": FAILING_CP,
             "gh": GH,
             "pgrep": PGREP,
@@ -211,9 +190,9 @@ class Sandbox:
 
 
 PLATFORMS = {
-    "mac-arm": ("Darwin", "arm64", "macos-arm64", "CodeChroma-1.2.3-arm64.dmg"),
-    "mac-x64": ("Darwin", "x86_64", "macos-x64", "CodeChroma-1.2.3-x64.dmg"),
-    "linux-x64": ("Linux", "x86_64", "linux-appimage", "CodeChroma-1.2.3-x64.AppImage"),
+    "mac-arm": ("Darwin", "arm64", "dotnet-macos-arm64", "CodeChroma-1.2.3-osx-arm64.zip"),
+    "mac-x64": ("Darwin", "x86_64", "dotnet-macos-x64", "CodeChroma-1.2.3-osx-x64.zip"),
+    "linux-x64": ("Linux", "x86_64", "dotnet-linux-x64", "CodeChroma-1.2.3-linux-x86_64.AppImage"),
 }
 
 
@@ -255,27 +234,14 @@ def test_linux_user_install_registers_launcher_entry_and_command(tmp_path):
     assert link.is_symlink() or link.exists()
 
 
-@pytest.mark.parametrize(
-    ("key", "expected"),
-    [
-        ("mac-arm", ["sudo rm", "sudo cp -R", "/Applications"]),
-        ("mac-x64", ["sudo rm", "sudo cp -R", "/Applications"]),
-        ("linux-x64", ["apt-get install -y"]),
-    ],
-)
-def test_system_scope_explains_then_uses_sudo_and_skips_user_dir(tmp_path, key, expected):
-    system, machine, _target, asset = PLATFORMS[key]
-    target = "linux-x64" if key == "linux-x64" else PLATFORMS[key][2]
-    box = Sandbox(tmp_path, system, machine, target, asset.replace("AppImage", "deb"))
+def test_system_scope_is_refused_before_downloading(tmp_path):
+    box = make(tmp_path, "linux-x64")
 
     result = box.run("--system")
 
-    assert result.returncode == 0, result.stderr
-    assert "administrator" in result.stdout.lower()
-    calls = box.sudo_calls()
-    for needle in expected:
-        assert needle in calls
-    assert not (box.home / "Applications").exists()
+    assert result.returncode != 0
+    assert "per user only" in result.stderr
+    assert box.curl_urls() == []
 
 
 @pytest.mark.parametrize(
@@ -284,7 +250,7 @@ def test_system_scope_explains_then_uses_sudo_and_skips_user_dir(tmp_path, key, 
      ("MINGW64_NT-10.0", "x86_64")],
 )
 def test_unsupported_platform_fails_before_any_download(tmp_path, system, machine):
-    box = Sandbox(tmp_path, system, machine, "macos-arm64", "CodeChroma-1.2.3-arm64.dmg")
+    box = Sandbox(tmp_path, system, machine, "dotnet-macos-arm64", "CodeChroma-1.2.3-osx-arm64.zip")
 
     result = box.run()
 
@@ -295,7 +261,7 @@ def test_unsupported_platform_fails_before_any_download(tmp_path, system, machin
 
 def test_manifest_without_this_target_is_rejected(tmp_path):
     box = make(tmp_path, "mac-arm")
-    box.target = "macos-x64"
+    box.target = "dotnet-macos-x64"
     box.publish(b"x")
 
     result = box.run()
@@ -533,111 +499,32 @@ def test_installer_has_no_python_dependency():
     assert "python " not in text
 
 
-DOTNET_PLATFORMS = {
-    "mac-arm": ("Darwin", "arm64", "dotnet-macos-arm64", "CodeChroma-1.2.3-osx-arm64.zip"),
-    "mac-x64": ("Darwin", "x86_64", "dotnet-macos-x64", "CodeChroma-1.2.3-osx-x64.zip"),
-    "linux-x64": ("Linux", "x86_64", "dotnet-linux-x64", "CodeChroma-1.2.3-linux-x86_64.AppImage"),
-}
-
-
-def make_dotnet(tmp_path: Path, key: str, **kwargs) -> Sandbox:
-    system, machine, target, asset = DOTNET_PLATFORMS[key]
-    return Sandbox(tmp_path, system, machine, target, asset, **kwargs)
-
-
-@pytest.mark.parametrize("key", list(DOTNET_PLATFORMS))
-def test_dotnet_flavor_installs_per_user_at_the_same_path_as_the_electron_app(tmp_path, key):
-    box = make_dotnet(tmp_path, key)
-
-    result = box.run("--dotnet")
-
-    assert result.returncode == 0, result.stderr
-    assert box.sudo_calls() == ""
-    assert installed_path(box).read_bytes() == box.payload
-    assert "flavor=dotnet" in (box.home / ".local" / "state" / "codechroma" / "installed").read_text()  # noqa: E501
-
-
-@pytest.mark.parametrize("key", list(DOTNET_PLATFORMS))
-def test_dotnet_flavor_says_updates_are_checksum_only(tmp_path, key):
-    box = make_dotnet(tmp_path, key)
-
-    result = box.run("--dotnet")
-
-    assert "SHA-256 checksum only" in result.stderr + result.stdout
-    assert "user-data folder" in result.stdout
-
-
-def test_the_app_environment_variable_selects_the_dotnet_flavor(tmp_path):
-    box = make_dotnet(tmp_path, "linux-x64")
-
-    result = box.run(CODECROMA_APP="dotnet")
-
-    assert result.returncode == 0, result.stderr
-    assert installed_path(box).read_bytes() == box.payload
-
-
-def test_dotnet_flavor_refuses_system_scope_before_downloading(tmp_path):
-    box = make_dotnet(tmp_path, "linux-x64")
-
-    result = box.run("--dotnet", "--system")
-
-    assert result.returncode != 0
-    assert "per user only" in result.stderr
-    assert box.curl_urls() == []
-
-
-def test_an_unknown_app_flavor_is_refused(tmp_path):
-    box = make_dotnet(tmp_path, "linux-x64")
-
-    result = box.run(CODECROMA_APP="swift")
-
-    assert result.returncode != 0
-    assert "unknown app flavor" in result.stderr
-
-
-@pytest.mark.parametrize("key", ["mac-arm", "linux-x64"])
-def test_dotnet_checksum_mismatch_installs_nothing(tmp_path, key):
-    box = make_dotnet(tmp_path, key)
-
-    result = box.run("--dotnet", CORRUPT_FIRST="5")
-
-    assert result.returncode != 0
-    assert "checksum" in result.stderr
-    assert not (box.home / "Applications").exists()
-
-
-def test_a_manifest_without_the_dotnet_target_is_rejected_not_silently_replaced_by_electron(tmp_path):  # noqa: E501
+def test_the_legacy_dotnet_switch_is_accepted_and_changes_nothing(tmp_path):
     box = make(tmp_path, "linux-x64")
 
     result = box.run("--dotnet")
 
+    assert result.returncode == 0, result.stderr
+    assert installed_path(box).read_bytes() == box.payload
+
+
+@pytest.mark.parametrize("key", list(PLATFORMS))
+def test_install_says_updates_are_checksum_only_and_user_data_is_kept(tmp_path, key):
+    box = make(tmp_path, key)
+
+    result = box.run()
+
+    assert "SHA-256 checksum only" in result.stderr + result.stdout
+    assert "settings and recent projects are kept" in result.stdout
+    assert "flavor=dotnet" in (box.home / ".local" / "state" / "codechroma" / "installed").read_text()  # noqa: E501
+
+
+def test_a_manifest_carrying_only_other_targets_is_rejected(tmp_path):
+    box = make(tmp_path, "linux-x64")
+    box.target = "linux-appimage"
+    box.publish(b"x")
+
+    result = box.run()
+
     assert result.returncode != 0
     assert "no binary for dotnet-linux-x64" in result.stderr
-
-
-def test_the_same_version_of_the_other_flavor_is_not_treated_as_installed(tmp_path):
-    electron = make(tmp_path, "linux-x64")
-    electron.run()
-    dotnet = make_dotnet(tmp_path, "linux-x64")
-    dotnet.curl_log.unlink()
-
-    again = dotnet.run("--dotnet")
-    skipped = dotnet.run("--dotnet")
-
-    assert again.returncode == 0, again.stderr
-    assert installed_path(dotnet).read_bytes() == dotnet.payload
-    assert "already installed" in skipped.stdout
-    assert dotnet.asset_downloads() == 1
-
-
-def test_dotnet_uninstall_removes_the_app_and_keeps_user_data(tmp_path):
-    box = make_dotnet(tmp_path, "mac-arm")
-    box.run("--dotnet")
-    data = box.home / "Library" / "Application Support" / "CodeChroma"
-    data.mkdir(parents=True)
-
-    result = box.run("--uninstall")
-
-    assert result.returncode == 0, result.stderr
-    assert not (box.home / "Applications" / "CodeChroma.app").exists()
-    assert data.exists()

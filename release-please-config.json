@@ -5,9 +5,6 @@
       "draft": true,
       "force-tag-creation": true,
       "extra-files": [
-        { "type": "json", "path": "desktop/package.json", "jsonpath": "$.version" },
-        { "type": "json", "path": "desktop/package-lock.json", "jsonpath": "$.version" },
-        { "type": "json", "path": "desktop/package-lock.json", "jsonpath": "$.packages[''].version" },
         { "type": "json", "path": "web/package.json", "jsonpath": "$.version" },
         { "type": "json", "path": "web/package-lock.json", "jsonpath": "$.version" },
         { "type": "json", "path": "web/package-lock.json", "jsonpath": "$.packages[''].version" },

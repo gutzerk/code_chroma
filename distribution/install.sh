@@ -1,13 +1,12 @@
 #!/bin/sh
 # One-command installer for CodeChroma on macOS (arm64/x64) and Linux (x64). It reads the release's
-# latest.json manifest and installs the pre-built GUI installer from the matching GitHub Release.
+# latest.json manifest and installs the pre-built C# app (Velopack package) from the matching GitHub Release.
 # No local checkout, no build, no python.
 #
 #   curl -fsSL https://raw.githubusercontent.com/gutzerk/code_chroma/main/distribution/install.sh | sh
-#   curl -fsSL .../install.sh | sh -s -- --system      # macOS /Applications or the Linux .deb (sudo)
 #   curl -fsSL .../install.sh | sh -s -- --uninstall   # remove the app; add --purge to drop user data
 #
-# Options: --dotnet  --system  --force  --uninstall  --purge  --help   (--dotnet = the C# app; default is the Electron app)
+# Options: --force  --uninstall  --purge  --help   (--dotnet is accepted and ignored: the C# app is the only app)
 # Test hooks (weaken security, never set in production): CODECROMA_MANIFEST_URL,
 # CODECROMA_MAX_BYTES, CODECROMA_GH_BIN.
 set -eu
@@ -27,19 +26,18 @@ err()  { printf '  \033[31mx\033[0m %s\n' "$1" >&2; exit 1; }
 # Keep only safe file-name characters; a hostile asset name must never reach a shell path unchecked.
 safe_name() { printf '%s' "${1##*/}" | tr -cd 'A-Za-z0-9._-'; }
 need() { command -v "$1" >/dev/null 2>&1 || err "requires '$1' -- install it first."; }
-usage() { printf 'usage: install.sh [--dotnet] [--system] [--force] [--uninstall [--purge]]\n'; }
+usage() { printf 'usage: install.sh [--force] [--uninstall [--purge]]\n'; }
 
-# --dotnet (or CODECROMA_APP=dotnet) installs the C# app (Velopack package) instead of the Electron one.
-# Both live at the same per-user paths and share the same user-data folder, so it also migrates an Electron install.
-APP_FLAVOR="${CODECROMA_APP:-electron}"
+# The C# app installs per user at the paths the old Electron build used and keeps its user-data folder.
+APP_FLAVOR="dotnet"
 INSTALL_SCOPE="user"
 FORCE=0
 UNINSTALL=0
 PURGE=0
 for arg in "$@"; do
     case "$arg" in
-        --system) INSTALL_SCOPE="system" ;;
-        --dotnet) APP_FLAVOR="dotnet" ;;
+        --system) usage >&2; err "there is no system-wide package of the C# app; it installs per user only." ;;
+        --dotnet) ;;
         --force) FORCE=1 ;;
         --uninstall) UNINSTALL=1 ;;
         --purge) PURGE=1 ;;
@@ -79,23 +77,10 @@ uninstall() {
     found=0
     if [ "$os" = "macos" ]; then
         if [ -d "${APP_DIR}/CodeChroma.app" ]; then rm -rf "${APP_DIR}/CodeChroma.app"; found=1; fi
-        if [ "$INSTALL_SCOPE" = "system" ] && [ -d /Applications/CodeChroma.app ]; then
-            log "removing /Applications/CodeChroma.app needs administrator authorization."
-            need sudo
-            sudo rm -rf /Applications/CodeChroma.app
-            found=1
-        fi
     else
         if [ -e "${APP_DIR}/CodeChroma.AppImage" ]; then rm -f "${APP_DIR}/CodeChroma.AppImage"; found=1; fi
         rm -f "${XDG_DATA_HOME:-${HOME}/.local/share}/applications/codechroma.desktop"
         if [ -L "${HOME}/.local/bin/codechroma" ]; then rm -f "${HOME}/.local/bin/codechroma"; fi
-        if [ "$INSTALL_SCOPE" = "system" ] && command -v dpkg >/dev/null 2>&1 \
-            && dpkg -s codechroma-desktop >/dev/null 2>&1; then
-            log "removing the codechroma-desktop package needs administrator authorization."
-            need sudo
-            sudo apt-get remove -y codechroma-desktop
-            found=1
-        fi
     fi
     rm -rf "$STATE_DIR"
     if [ "$found" -eq 1 ]; then log "CodeChroma removed."; else log "CodeChroma is not installed; nothing to remove."; fi
@@ -104,18 +89,10 @@ uninstall() {
 
 if [ "$UNINSTALL" -eq 1 ]; then uninstall; exit 0; fi
 
-case "$APP_FLAVOR" in electron|dotnet) ;; *) err "unknown app flavor '${APP_FLAVOR}' (use electron or dotnet)" ;; esac
-if [ "$APP_FLAVOR" = "dotnet" ] && [ "$INSTALL_SCOPE" = "system" ]; then
-    err "--dotnet installs per user only (there is no system-wide package of the C# app yet)."
-fi
-
 case "$os-$arch" in
-    macos-arm64)   if [ "$APP_FLAVOR" = "dotnet" ]; then target="dotnet-macos-arm64"; else target="macos-arm64"; fi ;;
-    macos-x86_64)  if [ "$APP_FLAVOR" = "dotnet" ]; then target="dotnet-macos-x64"; else target="macos-x64"; fi ;;
-    linux-x86_64)
-        if [ "$APP_FLAVOR" = "dotnet" ]; then target="dotnet-linux-x64"
-        elif [ "$INSTALL_SCOPE" = "system" ]; then target="linux-x64"; else target="linux-appimage"; fi
-        ;;
+    macos-arm64)   target="dotnet-macos-arm64" ;;
+    macos-x86_64)  target="dotnet-macos-x64" ;;
+    linux-x86_64)  target="dotnet-linux-x64" ;;
     *) err "no CodeChroma build for ${os}/${arch}; only macOS arm64/x64 and Linux x64 are released." ;;
 esac
 
@@ -137,15 +114,7 @@ json_get() {
 }
 
 TMP="$(mktemp -d)"
-MOUNT=""
-cleanup() {
-    if [ -n "$MOUNT" ]; then
-        hdiutil detach "$MOUNT" -quiet >/dev/null 2>&1 || true
-        rmdir "$MOUNT" 2>/dev/null || true
-    fi
-    rm -rf "$TMP"
-}
-trap cleanup EXIT
+trap 'rm -rf "$TMP"' EXIT
 MANIFEST_FILE="${TMP}/latest.json"
 
 case "${CODECROMA_MANIFEST_URL:-}" in
@@ -179,15 +148,11 @@ fi
 # --- already installed? ---------------------------------------------------------
 installed_version=""
 installed_path=""
-installed_flavor="electron"
 if [ -f "$STATE_FILE" ]; then
     installed_version="$(sed -n 's/^version=//p' "$STATE_FILE" | head -n 1)"
     installed_path="$(sed -n 's/^path=//p' "$STATE_FILE" | head -n 1)"
-    state_flavor="$(sed -n 's/^flavor=//p' "$STATE_FILE" | head -n 1)"
-    [ -z "$state_flavor" ] || installed_flavor="$state_flavor"
 fi
-# The same version number exists in both flavors, so only an install of the same flavor counts.
-if [ "$FORCE" -eq 0 ] && [ -n "$VERSION" ] && [ "$installed_version" = "$VERSION" ] && [ "$installed_flavor" = "$APP_FLAVOR" ] \
+if [ "$FORCE" -eq 0 ] && [ -n "$VERSION" ] && [ "$installed_version" = "$VERSION" ] \
     && [ -n "$installed_path" ] && [ -e "$installed_path" ]; then
     log "CodeChroma ${VERSION} is already installed at ${installed_path} (use --force to reinstall)."
     exit 0
@@ -231,17 +196,13 @@ else
     warn "gh is not installed or not logged in: only the SHA-256 checksum was verified, not build provenance (attestation)."
     warn "install and log in to the GitHub CLI for full verification: https://cli.github.com"
 fi
-if [ "$APP_FLAVOR" = "dotnet" ]; then
-    warn "the C# app's in-app updates are verified by their SHA-256 checksum only (not signed or attested), unlike the Electron build's Sigstore check."
-fi
+warn "the app's in-app updates are verified by their SHA-256 checksum only (they are not signed or attested)."
 
 # --- install by platform -------------------------------------------------------
 remember() { # path
     mkdir -p "$STATE_DIR"
     printf 'version=%s\npath=%s\nscope=%s\nflavor=%s\n' "$VERSION" "$1" "$INSTALL_SCOPE" "$APP_FLAVOR" > "$STATE_FILE"
-    if [ "$APP_FLAVOR" = "dotnet" ]; then
-        log "your settings and recent projects are kept: the C# app uses the same user-data folder as the Electron build."
-    fi
+    log "your settings and recent projects are kept (an older Electron build's user data is imported on first launch)."
 }
 
 quit_running_app() {
@@ -268,67 +229,37 @@ swap_dir() {
 
 case "$os" in
     macos)
-        if [ "$APP_FLAVOR" = "dotnet" ]; then
-            need ditto
-            mkdir -p "${TMP}/extract"
-            ditto -x -k "$DEST" "${TMP}/extract" || err "could not unpack the downloaded app package."
-            SRC_APP="${TMP}/extract/CodeChroma.app"
-            [ -d "$SRC_APP" ] || err "CodeChroma.app not found in the downloaded package."
-        else
-            need hdiutil
-            MOUNT="$(mktemp -d /tmp/codechroma-install.XXXXXX)"
-            hdiutil attach "$DEST" -nobrowse -mountpoint "$MOUNT" >/dev/null
-            SRC_APP="$MOUNT/CodeChroma.app"
-            [ -d "$SRC_APP" ] || err "CodeChroma.app not found in the downloaded DMG."
-        fi
+        need ditto
+        mkdir -p "${TMP}/extract"
+        ditto -x -k "$DEST" "${TMP}/extract" || err "could not unpack the downloaded app package."
+        SRC_APP="${TMP}/extract/CodeChroma.app"
+        [ -d "$SRC_APP" ] || err "CodeChroma.app not found in the downloaded package."
         quit_running_app
-        if [ "$INSTALL_SCOPE" = "system" ]; then
-            log "System-wide install will replace /Applications/CodeChroma.app. This writes to the shared Applications folder, so macOS will request administrator authorization."
-            need sudo
-            sudo -v
-            sudo cp -R "$SRC_APP" "/Applications/CodeChroma.app.new-$$" \
-                || { sudo rm -rf "/Applications/CodeChroma.app.new-$$"; err "copy failed; the installed app was left untouched."; }
-            sudo rm -rf /Applications/CodeChroma.app
-            sudo mv "/Applications/CodeChroma.app.new-$$" /Applications/CodeChroma.app
-            remember /Applications/CodeChroma.app
-            log "done. launch with:  open /Applications/CodeChroma.app"
-        else
-            mkdir -p "$APP_DIR"
-            cp -R "$SRC_APP" "${APP_DIR}/CodeChroma.app.new-$$" \
-                || { rm -rf "${APP_DIR}/CodeChroma.app.new-$$"; err "copy failed; the installed app was left untouched."; }
-            swap_dir "${APP_DIR}/CodeChroma.app.new-$$" "${APP_DIR}/CodeChroma.app"
-            remember "${APP_DIR}/CodeChroma.app"
-            log "done. launch with:  open ${APP_DIR}/CodeChroma.app"
-        fi
+        mkdir -p "$APP_DIR"
+        cp -R "$SRC_APP" "${APP_DIR}/CodeChroma.app.new-$$" \
+            || { rm -rf "${APP_DIR}/CodeChroma.app.new-$$"; err "copy failed; the installed app was left untouched."; }
+        swap_dir "${APP_DIR}/CodeChroma.app.new-$$" "${APP_DIR}/CodeChroma.app"
+        remember "${APP_DIR}/CodeChroma.app"
+        log "done. launch with:  open ${APP_DIR}/CodeChroma.app"
         ;;
     linux)
-        if [ "$INSTALL_SCOPE" = "system" ]; then
-            command -v apt-get >/dev/null 2>&1 || err "system installation requires apt-get."
-            log "System-wide install will install ${ASSET} through apt into system package locations (including /usr) and may install dependencies. Administrator authorization is required."
-            need sudo
-            sudo -v
-            sudo apt-get install -y "$DEST"
-            remember /usr/bin/codechroma-desktop
-            log "done. launch with:  codechroma-desktop"
-        else
-            if command -v ldconfig >/dev/null 2>&1 && ! ldconfig -p 2>/dev/null | grep -q 'libfuse\.so\.2'; then
-                warn "libfuse2 was not found; the AppImage needs it (Debian/Ubuntu: sudo apt install libfuse2)."
-            fi
-            APP_PATH="${APP_DIR}/CodeChroma.AppImage"
-            mkdir -p "$APP_DIR"
-            cp "$DEST" "${APP_PATH}.new-$$" \
-                || { rm -f "${APP_PATH}.new-$$"; err "copy failed; the installed app was left untouched."; }
-            chmod 755 "${APP_PATH}.new-$$"
-            mv -f "${APP_PATH}.new-$$" "$APP_PATH" || { rm -f "${APP_PATH}.new-$$"; err "could not replace the installed AppImage."; }
-            ENTRY_DIR="${XDG_DATA_HOME:-${HOME}/.local/share}/applications"
-            mkdir -p "$ENTRY_DIR" "${HOME}/.local/bin"
-            printf '[Desktop Entry]\nType=Application\nName=CodeChroma\nComment=Zoomable architecture map of your code\nExec=%s\nTerminal=false\nCategories=Development;\n' \
-                "$APP_PATH" > "${ENTRY_DIR}/codechroma.desktop"
-            ln -sf "$APP_PATH" "${HOME}/.local/bin/codechroma"
-            remember "$APP_PATH"
-            log "done. launch with:  ${APP_PATH}  (or: codechroma, if ~/.local/bin is on PATH)"
-            warn "The AppImage is installed for this user only; no system directories or package database were changed."
+        if command -v ldconfig >/dev/null 2>&1 && ! ldconfig -p 2>/dev/null | grep -q 'libfuse\.so\.2'; then
+            warn "libfuse2 was not found; the AppImage needs it (Debian/Ubuntu: sudo apt install libfuse2)."
         fi
+        APP_PATH="${APP_DIR}/CodeChroma.AppImage"
+        mkdir -p "$APP_DIR"
+        cp "$DEST" "${APP_PATH}.new-$$" \
+            || { rm -f "${APP_PATH}.new-$$"; err "copy failed; the installed app was left untouched."; }
+        chmod 755 "${APP_PATH}.new-$$"
+        mv -f "${APP_PATH}.new-$$" "$APP_PATH" || { rm -f "${APP_PATH}.new-$$"; err "could not replace the installed AppImage."; }
+        ENTRY_DIR="${XDG_DATA_HOME:-${HOME}/.local/share}/applications"
+        mkdir -p "$ENTRY_DIR" "${HOME}/.local/bin"
+        printf '[Desktop Entry]\nType=Application\nName=CodeChroma\nComment=Zoomable architecture map of your code\nExec=%s\nTerminal=false\nCategories=Development;\n' \
+            "$APP_PATH" > "${ENTRY_DIR}/codechroma.desktop"
+        ln -sf "$APP_PATH" "${HOME}/.local/bin/codechroma"
+        remember "$APP_PATH"
+        log "done. launch with:  ${APP_PATH}  (or: codechroma, if ~/.local/bin is on PATH)"
+        warn "The AppImage is installed for this user only; no system directories or package database were changed."
         ;;
 esac
 

@@ -6,7 +6,7 @@
 #   & ([scriptblock]::Create((irm https://raw.githubusercontent.com/gutzerk/code_chroma/main/distribution/install.ps1))) -Silent
 # Options: -Silent (no wizard, per-user)  -Force (reinstall the same version)
 #          -Uninstall (remove the app)  -Purge (with -Uninstall: also delete user data)
-#          -Dotnet (install the C# app, a Velopack Setup, instead of the Electron app; it then removes an
+#          -Dotnet (accepted and ignored: the C# app, a Velopack Setup, is the only app. It removes an
 #          installed Electron copy and keeps its user data. Its in-app updates are SHA-256 checked only.)
 # Test hooks (weaken security, never set in production): CODECROMA_MANIFEST_URL, CODECROMA_PS_LIBRARY.
 
@@ -115,11 +115,11 @@ function Install-CodeChroma {
         [string]$ManifestUrl = $(if ($env:CODECROMA_MANIFEST_URL) { $env:CODECROMA_MANIFEST_URL } else { $script:DefaultManifestUrl }),
         [switch]$Silent,
         [switch]$Force,
-        [switch]$Dotnet,
+        [switch]$Dotnet,  # kept so older command lines still work; the C# app is the only app
         [long]$MaxBytes = $script:DefaultMaxBytes
     )
-    $target = if ($Dotnet) { 'dotnet-windows-x64' } else { 'windows-x64' }
-    $flavor = if ($Dotnet) { 'dotnet' } else { 'electron' }
+    $target = 'dotnet-windows-x64'
+    $flavor = 'dotnet'
     if ($env:OS -ne 'Windows_NT') { throw 'This installer supports Windows only.' }
     $arch = Get-CodeChromaArch
     if ($arch -ne 'AMD64') { throw "Unsupported architecture '$arch': CodeChroma for Windows is released for x64 only." }
@@ -143,14 +143,14 @@ function Install-CodeChroma {
         }
         $version = [string]$manifest.version
 
-        # The same version number exists in both flavors, so only an install of the same flavor counts.
+        # Only a Velopack install counts; a leftover Electron copy of the same version does not.
         $installed = Get-CodeChromaInstalledVersion -Flavor $flavor
         if (-not $Force -and $installed -and $installed -eq $version) {
             Write-Host "CodeChroma $version is already installed (use -Force to reinstall)."
             return
         }
 
-        $installerPath = Join-Path $tempDir $(if ($Dotnet) { 'CodeChroma-Installer.exe' } else { 'CodeChroma-Setup.exe' })
+        $installerPath = Join-Path $tempDir 'CodeChroma-Installer.exe'
         Write-Host "Downloading CodeChroma $version..."
         try { Invoke-CodeChromaDownload -Uri $url -OutFile $installerPath -MaxBytes $MaxBytes }
         catch { throw "Could not download the CodeChroma installer: $($_.Exception.Message)" }
@@ -176,18 +176,13 @@ function Install-CodeChroma {
             Write-Warning 'gh is not installed or not logged in: only the SHA-256 checksum was verified, not build provenance (attestation). Install the GitHub CLI (https://cli.github.com) for full verification.'
         }
 
-        if ($Dotnet) {
-            Write-Warning 'The C# app''s in-app updates are verified by their SHA-256 checksum only (not signed or attested), unlike the Electron build''s Sigstore check.'
-            $installerArgs = @()
-            if ($Silent) { $installerArgs += '--silent' }
-        } else {
-            $installerArgs = @('/currentuser')
-            if ($Silent) { $installerArgs += '/S' } else { Write-Host 'Starting the CodeChroma setup wizard...' }
-        }
+        Write-Warning 'The app''s in-app updates are verified by their SHA-256 checksum only (they are not signed or attested).'
+        $installerArgs = @()
+        if ($Silent) { $installerArgs += '--silent' }
         $code = Start-CodeChromaProcess -FilePath $installerPath -ArgumentList $installerArgs
         if ($code -ne 0) { throw "The CodeChroma installer exited with code $code." }
         Write-Host 'CodeChroma installation completed.'
-        if ($Dotnet) { Remove-CodeChromaElectron }
+        Remove-CodeChromaElectron
     } finally {
         if (Test-Path -LiteralPath $tempDir) {
             try { Remove-Item -LiteralPath $tempDir -Recurse -Force }
@@ -218,7 +213,7 @@ function Uninstall-CodeChroma {
 
 function Invoke-CodeChromaInstaller {
     param([string[]]$Arguments = @())
-    $options = @{ Silent = $false; Force = $false; Uninstall = $false; Purge = $false; Dotnet = ($env:CODECROMA_APP -eq 'dotnet') }
+    $options = @{ Silent = $false; Force = $false; Uninstall = $false; Purge = $false; Dotnet = $false }
     foreach ($arg in $Arguments) {
         $name = $arg.TrimStart('-')
         if ($arg.StartsWith('-') -and $options.ContainsKey($name)) { $options[$name] = $true }

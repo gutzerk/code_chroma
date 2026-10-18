@@ -3,7 +3,7 @@
 
 This is the only manifest generator: the release workflow's ``manifest`` job calls it with the
 released ``.sha256`` sidecars plus ``gh release view --json assets`` (sizes), and developers call it
-on a local ``desktop/dist`` to smoke-test the installers. Both paths produce identical JSON.
+on a local directory of packed builds to smoke-test the installers. Both produce identical JSON.
 
 Fields are additive: ``version``/``assets``/``sha256`` are what already-installed versions read;
 ``size``, ``channel``, ``date`` and ``min_supported_version`` were added later.
@@ -23,18 +23,11 @@ from pathlib import Path
 REPO = "gutzerk/code_chroma"
 
 # Target -> artifact glob; test_distribution_consistency.py guards drift from builder and workflow.
-# The first five are the Electron installers (still shipping); the ``dotnet-*`` targets are the C# app's  # noqa: E501
-# Velopack packages (distribution/velopack/pack.*). Their names avoid the Electron suffixes on purpose, so  # noqa: E501
-# installed Electron updaters (which select by suffix) never pick them up. ``dotnet-windows-x64`` is the  # noqa: E501
-# Setup for fresh installs and ``dotnet-windows-x64-update`` the zip the in-app updater swaps in; on macOS  # noqa: E501
-# the zip (a CodeChroma.app) serves both, and on Linux the AppImage does. The C# app is verified by
-# SHA-256 only (no Sigstore), so ``sha256`` is the whole trust for those targets.
+# Velopack packages of the C# app (distribution/velopack/pack.*). ``dotnet-windows-x64`` is the
+# Setup for fresh installs and ``dotnet-windows-x64-update`` the zip the in-app updater swaps in;
+# on macOS the zip (a CodeChroma.app) serves both, and on Linux the AppImage does. The C# app
+# is verified by SHA-256 only (no Sigstore), so ``sha256`` is the whole trust for those targets.
 PLATFORMS = [
-    {"target": "macos-arm64", "glob": "CodeChroma-*-arm64.dmg"},
-    {"target": "macos-x64", "glob": "CodeChroma-*-x64.dmg"},
-    {"target": "windows-x64", "glob": "CodeChroma-*-x64-Setup.exe"},
-    {"target": "linux-x64", "glob": "CodeChroma-*-x64.deb"},
-    {"target": "linux-appimage", "glob": "CodeChroma-*-x64.AppImage"},
     {"target": "dotnet-windows-x64", "glob": "CodeChroma-*-win-x64-Installer.exe"},
     {"target": "dotnet-windows-x64-update", "glob": "CodeChroma-*-win-x64.zip"},
     {"target": "dotnet-macos-arm64", "glob": "CodeChroma-*-osx-arm64.zip"},
@@ -130,7 +123,7 @@ def build_manifest(
 def main(argv: list[str] | None = None) -> None:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawTextHelpFormatter)
     ap.add_argument("version", help="Version to write into the manifest, e.g. 1.2.3")
-    ap.add_argument("--build-dir", default="desktop/dist", help="Directory with built installers")
+    ap.add_argument("--build-dir", default="dist-dotnet", help="Directory with built installers")
     ap.add_argument("--sidecars", help="Directory with .sha256 sidecars (default: --build-dir)")
     ap.add_argument("--assets-json", help="`gh release view --json assets` output, for sizes")
     ap.add_argument("--tag", help="Release tag used in asset URLs (default: v<version>)")

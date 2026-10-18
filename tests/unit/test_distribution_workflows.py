@@ -169,7 +169,8 @@ def test_dotnet_release_jobs_publish_drafts_and_pin_the_velopack_cli(job):
     assert "dotnet tool install --global vpk --version 1.2.161" in text
     assert "distribution/velopack/pack." in text
     assert "dotnet publish dotnet/CodeChroma.Shell.App" in text
-    assert "bridge/codechroma-bridge" in text
+    assert "-p:BundleCSharpBridge=true" in text
+    assert "pyinstaller" not in text
 
 
 @pytest.mark.parametrize("job", ELECTRON_JOBS)

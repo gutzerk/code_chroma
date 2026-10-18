@@ -159,8 +159,23 @@ baseline numbers, the test audit and what remains.
   against them node for node.
 - ⚠ Node order, dict insertion order and counter tie-breaks are part of the contract (C# reproduces them with
   `OrderedMap`/`Counter`); the digest's `generated_at` is the only field excluded from comparison.
+- ⚠ `GraphCore.Reanalyze` only knows the import table it was given. Pass `new GraphCore(liveResolver: new LiveImportResolver(registry, root))`
+  so every reanalyze re-resolves all imports against the live tree (like Python's `resolve_import` on each run); without it,
+  creating `b.py` leaves an unchanged `a.py`'s `import b` unresolved. The graph and its `DependencyIndex` are published as one
+  immutable pair, so readers never see a graph with another run's index.
 - `scripts/bench_graph_core.py` times analyze/reanalyze on the fixtures; `--stages <repo> [dump.json]` times
   just builder, digest and clustering and dumps the contract JSON that `dotnet/CodeChroma.Bench` reads.
+
+## C# design-pattern port (017)
+
+`dotnet/CodeChroma.Core/Patterns/` ports `patterns/detector.py` + `serialize.py`: `PatternDetector.DetectCandidates(graph, shapes)`,
+`PatternSerialize` (JSON shape, `FingerprintFor`) and `PatternsContext` (the skill's `{classes, heuristic_candidates}` payload).
+🔴 `Graph` carries no class shapes in C# (unlike Python's `Graph.class_shapes`), so `ClassShapeExtractor` (Python + Go only, like
+the Python side) re-reads source on demand; `CoreGraphEngine.PatternCandidates()`/`PatternsContext()` cache the result and drop it on
+`Reanalyze`. This keeps the graph parity goldens untouched. Parity: `tests/fixtures/patterns_repo/` +
+`python -m tests.pattern_golden` write `tests/fixtures/pattern_golden/*.expected.json`; `tests/unit/test_pattern_golden_export.py`
+guards freshness and `PatternParityTests` (C#) must reproduce candidates and fingerprint byte for byte. Bridge side:
+`Diagrams/PatternsResolver.cs` (port of `patterns_resolver.py`), `GET /repos/{id}/patterns` and `/patterns/context`.
 
 ## C# analyzer port
 

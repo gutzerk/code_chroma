@@ -11,7 +11,8 @@ import {
 } from "react";
 import { canvasLayoutStore } from "../state/canvasLayoutStore";
 import { selectionStore } from "../state/selectionStore";
-import { gridStep } from "./canvasGrid";
+import { gridStep, gridStepFor } from "./canvasGrid";
+import { useSavedCanvasStyle, viewportTextureImage } from "../canvas-style/canvasStyleStore";
 import { clamp } from "../util/clamp";
 import { readSavedCameraView, writeSavedCameraView } from "./canvasCameraStore";
 
@@ -234,6 +235,7 @@ export const CanvasViewport = forwardRef<CanvasViewportHandle, CanvasViewportPro
     // or at-origin view.
     const [view, setView] = useState<ViewState>(() => readSavedCameraView() ?? RESET_VIEW);
     const [isFocusing, setIsFocusing] = useState(false);
+    const canvasStyle = useSavedCanvasStyle();
     const viewportRef = useRef<HTMLDivElement | null>(null);
     const contentRef = useRef<HTMLDivElement | null>(null);
     const panRef = useRef<PanState | null>(null);
@@ -828,9 +830,13 @@ export const CanvasViewport = forwardRef<CanvasViewportHandle, CanvasViewportPro
         // is also the only feedback a drag on genuinely empty space produces.
         style={
           {
-            "--canvas-grid-size": `${gridStep(view.scale)}px`,
+            "--canvas-grid-size": `${canvasStyle ? gridStepFor(view.scale, canvasStyle.spacing) : gridStep(view.scale)}px`,
             "--canvas-grid-x": `${view.x}px`,
             "--canvas-grid-y": `${view.y}px`,
+            ...(canvasStyle && {
+              "--canvas-bg": canvasStyle.bg,
+              "--canvas-texture-image": viewportTextureImage(canvasStyle),
+            }),
           } as CSSProperties
         }
         // Capture, so a block that stops its own pointerdown (a draggable box) still clears a finished

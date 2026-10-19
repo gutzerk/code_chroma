@@ -1,0 +1,5 @@
+.shell-body .canvas-area { display: block; position: relative; }
+.shell-body .canvas-stage { position: absolute; inset: 0; min-width: 0; }
+.shell-body .shell-agents-slot:not([hidden]) { display: contents; }
+.shell-body .left-panel { bottom: 64px; }
+.project-tree-panel--embedded { padding: 0; background: transparent; border-radius: 0; overflow: visible; }

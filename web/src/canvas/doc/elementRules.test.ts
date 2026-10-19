@@ -19,6 +19,7 @@ const ALL_KINDS: CanvasRenderKind[] = [
   "group",
   "note",
   "sequence",
+  "question",
 ];
 
 /** Image of how each kind must land in the registry — every `renderer` that used to be decided by
@@ -36,6 +37,7 @@ const EXPECTED: Record<CanvasRenderKind, { renderer: RendererKind; overlay?: "im
   group: { renderer: "group", activation: "inspector" },
   note: { renderer: "note", activation: "inspector" },
   sequence: { renderer: "sequence", activation: "inspector" },
+  question: { renderer: "question", activation: "inspector" },
 };
 
 describe("BLOCK_RULES", () => {
@@ -61,7 +63,7 @@ describe("BLOCK_RULES", () => {
     // A sequence layer positions from meta (own-component), never by user drag.
     expect(BLOCK_RULES.sequence.lockedLayout).toBe(true);
     for (const kind of ALL_KINDS) {
-      if (kind === "epic" || kind === "spec" || kind === "task" || kind === "sequence") continue;
+      if (kind === "epic" || kind === "spec" || kind === "task" || kind === "sequence" || kind === "question") continue;
       expect(BLOCK_RULES[kind].lockedLayout).toBeFalsy();
     }
   });

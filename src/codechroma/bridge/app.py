@@ -30,6 +30,7 @@ from codechroma.bridge.routes import ROUTERS
 from codechroma.bridge.services import BridgeServices
 from codechroma.bridge.skill_sync import SKILL_EXCLUDE_PATTERNS, sync_all_skills
 from codechroma.config import settings
+from codechroma.questions.mcp_server import MOUNT_PATH, QuestionMcp
 from codechroma.terminal.server import router as terminal_router
 
 # "uvicorn.error" is the logger uvicorn wires to the console at INFO, so these show in-terminal.
@@ -89,11 +90,13 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     services: BridgeServices = app.state.services
     services.connections.bind_loop(asyncio.get_running_loop())
     services.registry.start_all()
-    await auto_start_agents(services)
+    await auto_start_agents(services, app.state.question_mcp)
     status_poller = asyncio.create_task(_poll_agent_statuses(services))
     idle_sweeper = asyncio.create_task(_unload_idle_workspaces(services))
     try:
-        yield
+        # The MCP session manager's task group must live exactly as long as the bridge.
+        async with app.state.question_mcp.running():
+            yield
     finally:
         idle_sweeper.cancel()
         status_poller.cancel()
@@ -121,6 +124,8 @@ def create_app(repo_root: Path | None = None) -> FastAPI:
         logger.exception("bridge: could not install skills into %s", root)
     app = FastAPI(lifespan=lifespan)
     app.state.services = BridgeServices.create(root)
+    services = app.state.services
+    app.state.question_mcp = QuestionMcp(services.questions, services.registry.get)
 
     allowed_origins = os.environ.get(
         "codechroma_BRIDGE_CORS_ORIGINS",
@@ -140,6 +145,9 @@ def create_app(repo_root: Path | None = None) -> FastAPI:
     app.include_router(terminal_router)
     for router in ROUTERS:
         app.include_router(router)
+
+    # Before the SPA catch-all; every request must carry a per-workspace bearer token.
+    app.mount(MOUNT_PATH, app.state.question_mcp.asgi)
 
     @app.get("/health")
     def health() -> dict:

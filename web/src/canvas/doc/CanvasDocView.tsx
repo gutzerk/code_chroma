@@ -15,6 +15,7 @@ import { leadingOrderDigits, stringMeta } from "./elementMeta";
 import { GroupFrame } from "./GroupFrame";
 import { LaneArea } from "./LaneArea";
 import { NoteElement } from "./NoteElement";
+import { QuestionElement } from "./question/QuestionElement";
 import { SequenceDiagram } from "./SequenceDiagram";
 import {
   applyCanvasPositions,
@@ -238,7 +239,7 @@ export function CanvasDocView() {
   const memberIdsByLayer = useMemo(() => {
     const map = new Map<string, string[]>();
     for (const element of Object.values(renderableElements)) {
-      if (!isDiagramLayer(element.layer) || BLOCK_RULES[element.render].renderer === "group") continue;
+      if (!isDiagramLayer(element.layer) || ["group", "question"].includes(BLOCK_RULES[element.render].renderer)) continue;
       const ids = map.get(element.layer);
       if (ids) ids.push(element.id);
       else map.set(element.layer, [element.id]);
@@ -348,6 +349,8 @@ export function CanvasDocView() {
                     <GroupFrame key={element.id} element={element} members={members} sizes={measuredSizes} />
                   );
                 }
+              case "question":
+                return <QuestionElement key={element.id} element={element} />;
               case "sequence":
                 // A `sequence` layer's members render through the per-layer SequenceDiagram above,
                 // never here as individual boxes.

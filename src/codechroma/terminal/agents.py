@@ -19,6 +19,7 @@ import os
 from codechroma.assistant import DEFAULT_CLI, load_assistant_settings
 from codechroma.bridge.resources import resource_path
 from codechroma.config import settings
+from codechroma.questions.launch import McpEndpoint, write_claude_config
 
 ALLOWED_AGENTS: dict[str, list[str]] = {
     "shell": (
@@ -45,29 +46,35 @@ def _default_model() -> str:
 
 def agent_cli(
     agent: str, resume_session_id: str | None = None, initial_prompt: str | None = None,
+    mcp: McpEndpoint | None = None,
 ) -> tuple[list[str], dict[str, str]] | None:
     """Return an allow-listed agent's argv and provider environment, or None."""
     if agent == "agent":
         from codechroma.llm.resolve_cli import resolve_cli
 
         resolution = resolve_cli(AGENT_CALL_SITE, _default_model())
-        plugin_args = _codechroma_plugin_args(
-            resolution.adapter_key == "claude"
-            and (resolution.provider_assigned or resolution.binary == DEFAULT_CLI)
+        is_claude = resolution.adapter_key == "claude" and (
+            resolution.provider_assigned or resolution.binary == DEFAULT_CLI
         )
         return [
             resolution.binary,
-            *plugin_args,
+            *_mcp_args(is_claude, mcp),
+            *_codechroma_plugin_args(is_claude),
             *_resume_prompt(resume_session_id, initial_prompt),
-        ], resolution.env_overrides
+        ], {**resolution.env_overrides, **_mcp_env(is_claude, mcp)}
     argv_entry = ALLOWED_AGENTS.get(agent)
     if argv_entry is None:
         return None
     if agent == "claude":
         # Keep the default binary unless the user pointed the assistant at something else.
         binary = load_assistant_settings().effective_cli
-        plugin_args = _codechroma_plugin_args(binary == DEFAULT_CLI)
-        return [binary, *plugin_args, *_resume_prompt(resume_session_id, initial_prompt)], {}
+        is_claude = binary == DEFAULT_CLI
+        return [
+            binary,
+            *_mcp_args(is_claude, mcp),
+            *_codechroma_plugin_args(is_claude),
+            *_resume_prompt(resume_session_id, initial_prompt),
+        ], _mcp_env(is_claude, mcp)
     # Generic kinds (e.g. shell): a resume still appends the flag; a first message never does.
     if resume_session_id:
         return [*argv_entry, RESUME_FLAG, resume_session_id], {}
@@ -84,6 +91,18 @@ def _codechroma_plugin_args(is_claude: bool) -> list[str]:
     if not is_claude:
         return []
     return ["--plugin-dir", str(resource_path("skills").parent)]
+
+
+def _mcp_args(is_claude: bool, mcp: McpEndpoint | None) -> list[str]:
+    """Registers the CodeChroma MCP server; it must precede `--plugin-dir` (variadic option)."""
+    if not is_claude or mcp is None:
+        return []
+    return ["--mcp-config", str(write_claude_config(mcp))]
+
+
+def _mcp_env(is_claude: bool, mcp: McpEndpoint | None) -> dict[str, str]:
+    """Env the AskUserQuestion hook reads to find the bridge; empty without an endpoint."""
+    return mcp.env() if is_claude and mcp is not None else {}
 
 
 def _resume_prompt(resume_session_id: str | None, initial_prompt: str | None) -> list[str]:

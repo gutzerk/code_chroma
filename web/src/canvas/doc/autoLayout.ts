@@ -93,7 +93,7 @@ export async function layoutNewElements(
     (element) =>
       layers.has(element.layer) &&
       !newIdSet.has(element.id) &&
-      !["group", "note", "sequence"].includes(element.render),
+      !["group", "note", "sequence", "question"].includes(element.render),
   );
   if (nodes.length > 0 && pinnedElements.length > 0) {
     const pinned = pinnedElements.map((element) => ({

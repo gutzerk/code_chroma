@@ -1,0 +1,17 @@
+{
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "AskUserQuestion",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "py=$(command -v python3 || command -v python); [ -n \"$py\" ] || exit 0; exec \"$py\" \"${CLAUDE_PLUGIN_ROOT}/hooks/ask_user_question_hook.py\"",
+            "timeout": 600,
+            "onFailure": "block"
+          }
+        ]
+      }
+    ]
+  }
+}

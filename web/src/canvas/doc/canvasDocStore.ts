@@ -152,12 +152,23 @@ async function fetchAndApplyCanvasDoc(
       canvasDocStore.deferLayout(layer);
       for (const id of ids) canvasDocStore.autoPlacedIds.add(id);
       layoutUnplaced(engineClient, doc, layer, ids)
+        .then(() => true)
         .catch((cause: unknown) => {
           canvasDocStore.unlayoutableLayers.add(layer);
           reportAsyncError("canvas auto-layout", cause);
           if (canvasDocStore.isLatestFetchSeq(seq) && !isStale()) canvasDocStore.setDoc(doc);
+          return false;
         })
-        .finally(() => canvasDocStore.releaseLayout(layer));
+        .then((laidOut) => {
+          canvasDocStore.releaseLayout(layer);
+          // The layout PATCH may have changed nothing (or its ping lost the race), so re-apply the
+          // latest doc once the layer is released; the refetch takes its own newest seq.
+          if (laidOut && !isStale()) {
+            fetchAndApplyCanvasDoc(engineClient, isStale).catch((cause: unknown) =>
+              reportAsyncError("canvas doc fetch", cause),
+            );
+          }
+        });
     }
     return;
   }

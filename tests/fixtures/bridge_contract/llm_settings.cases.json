@@ -1,0 +1,239 @@
+{
+  "group": "llm_settings",
+  "sources": ["src/codechroma/bridge/routes/llm_settings.py", "src/codechroma/llm/providers_store.py", "src/codechroma/llm/call_site_settings.py"],
+  "repo": {"base": "sample_repo"},
+  "cases": [
+    {
+      "id": "no_providers_are_listed_until_one_is_created",
+      "steps": [
+        {"http": {"method": "GET", "path": "/llm/providers"}, "expect": {"status": 200, "json": []}}
+      ]
+    },
+    {
+      "id": "a_cli_provider_is_created_with_defaults_and_listed",
+      "steps": [
+        {
+          "http": {"method": "POST", "path": "/llm/providers", "json": {"label": "My claude", "kind": "cli", "adapter": "claude"}},
+          "capture": {"pid": "$.id"},
+          "expect": {"status": 201, "json": {
+            "id": {"$any": true}, "label": "My claude", "kind": "cli", "adapter": "claude", "transport": null,
+            "base_url": null, "api_key_set": false, "api_key_path": null, "is_local": false,
+            "test_model": null, "verify_ssl": true
+          }}
+        },
+        {
+          "http": {"method": "GET", "path": "/llm/providers"},
+          "expect": {"status": 200, "checks": [
+            {"path": "$", "count": 1},
+            {"path": "$[0].id", "equals": "{{pid}}"}
+          ]}
+        }
+      ]
+    },
+    {
+      "id": "an_api_key_is_masked_in_every_response",
+      "steps": [
+        {
+          "http": {"method": "POST", "path": "/llm/providers", "json": {"label": "Direct", "kind": "api", "transport": "anthropic", "api_key": "sk-secret", "test_model": "m"}},
+          "expect": {"status": 201, "checks": [
+            {"path": "$.api_key_set", "equals": true},
+            {"path": "$.api_key", "absent": true},
+            {"path": "$.transport", "equals": "anthropic"}
+          ]}
+        },
+        {
+          "http": {"method": "GET", "path": "/llm/providers"},
+          "expect": {"status": 200, "checks": [{"path": "$[0].api_key_set", "equals": true}, {"path": "$[0].api_key", "absent": true}]}
+        }
+      ]
+    },
+    {
+      "id": "a_local_api_provider_needs_no_key",
+      "steps": [
+        {
+          "http": {"method": "POST", "path": "/llm/providers", "json": {"label": "Ollama", "kind": "api", "transport": "openai-compatible", "base_url": "http://localhost:11434/v1", "is_local": true}},
+          "expect": {"status": 201, "checks": [{"path": "$.is_local", "equals": true}, {"path": "$.base_url", "equals": "http://localhost:11434/v1"}]}
+        }
+      ]
+    },
+    {
+      "id": "an_invalid_provider_is_refused_with_every_reason",
+      "steps": [
+        {"http": {"method": "POST", "path": "/llm/providers", "json": {"label": "x", "kind": "weird"}}, "expect": {"status": 400, "json": {"detail": "kind must be one of ('cli', 'api')"}}},
+        {"http": {"method": "POST", "path": "/llm/providers", "json": {"kind": "cli", "adapter": "claude"}}, "expect": {"status": 400, "json": {"detail": "label must be a non-empty string"}}},
+        {"http": {"method": "POST", "path": "/llm/providers", "json": {"label": "x", "kind": "cli", "adapter": "vim"}}, "expect": {"status": 400, "json": {"detail": "adapter must be one of ['claude', 'codex', 'kimi-cli']"}}},
+        {"http": {"method": "POST", "path": "/llm/providers", "json": {"label": "x", "kind": "cli", "adapter": "codex", "base_url": "http://p"}}, "expect": {"status": 400, "json": {"detail": "base_url/api_key/api_key_path are only valid for the claude adapter"}}},
+        {"http": {"method": "POST", "path": "/llm/providers", "json": {"label": "x", "kind": "cli", "adapter": "claude", "api_key": "a", "api_key_path": "/b"}}, "expect": {"status": 400, "json": {"detail": "provide an api_key OR an api_key_path, not both"}}},
+        {"http": {"method": "POST", "path": "/llm/providers", "json": {"label": "x", "kind": "api", "transport": "carrier-pigeon", "api_key": "k"}}, "expect": {"status": 400, "json": {"detail": "transport must be one of ('anthropic', 'gemini', 'openai-compatible')"}}},
+        {"http": {"method": "POST", "path": "/llm/providers", "json": {"label": "x", "kind": "api", "transport": "openai-compatible"}}, "expect": {"status": 400, "json": {"detail": "base_url is required for an openai-compatible transport; a non-local api provider needs an api_key or api_key_path"}}}
+      ]
+    },
+    {
+      "id": "an_update_merges_onto_the_stored_provider_and_keeps_a_masked_key",
+      "steps": [
+        {
+          "http": {"method": "POST", "path": "/llm/providers", "json": {"label": "Direct", "kind": "api", "transport": "anthropic", "api_key": "sk-secret"}},
+          "capture": {"pid": "$.id"},
+          "expect": {"status": 201}
+        },
+        {
+          "http": {"method": "PUT", "path": "/llm/providers/{{pid}}", "json": {"label": "Renamed", "api_key_set": true}},
+          "expect": {"status": 200, "checks": [
+            {"path": "$.id", "equals": "{{pid}}"},
+            {"path": "$.label", "equals": "Renamed"},
+            {"path": "$.api_key_set", "equals": true},
+            {"path": "$.transport", "equals": "anthropic"}
+          ]}
+        }
+      ]
+    },
+    {
+      "id": "an_update_that_breaks_the_provider_is_refused",
+      "steps": [
+        {
+          "http": {"method": "POST", "path": "/llm/providers", "json": {"label": "C", "kind": "cli", "adapter": "claude"}},
+          "capture": {"pid": "$.id"},
+          "expect": {"status": 201}
+        },
+        {"http": {"method": "PUT", "path": "/llm/providers/{{pid}}", "json": {"adapter": "vim"}}, "expect": {"status": 400, "json": {"detail": "adapter must be one of ['claude', 'codex', 'kimi-cli']"}}}
+      ]
+    },
+    {
+      "id": "an_unknown_provider_is_a_404_on_update_delete_test_and_models",
+      "steps": [
+        {"http": {"method": "PUT", "path": "/llm/providers/${verb}", "json": {"label": "x"}}, "expect": {"status": 404, "json": {"detail": "unknown provider: '${verb}'"}}},
+        {"http": {"method": "DELETE", "path": "/llm/providers/${verb}"}, "expect": {"status": 404, "json": {"detail": "unknown provider: '${verb}'"}}},
+        {"http": {"method": "POST", "path": "/llm/providers/${verb}/test"}, "expect": {"status": 404, "json": {"detail": "unknown provider: '${verb}'"}}},
+        {"http": {"method": "GET", "path": "/llm/providers/${verb}/models"}, "expect": {"status": 404, "json": {"detail": "unknown provider: '${verb}'"}}}
+      ],
+      "matrix": {"verb": ["nope"]}
+    },
+    {
+      "id": "a_draft_test_validates_before_testing",
+      "steps": [
+        {"http": {"method": "POST", "path": "/llm/providers/test", "json": {"label": "x", "kind": "weird"}}, "expect": {"status": 400, "json": {"detail": "kind must be one of ('cli', 'api')"}}}
+      ]
+    },
+    {
+      "id": "a_provider_is_deleted_with_no_content",
+      "steps": [
+        {
+          "http": {"method": "POST", "path": "/llm/providers", "json": {"label": "C", "kind": "cli", "adapter": "claude"}},
+          "capture": {"pid": "$.id"},
+          "expect": {"status": 201}
+        },
+        {"http": {"method": "DELETE", "path": "/llm/providers/{{pid}}"}, "expect": {"status": 204}},
+        {"http": {"method": "GET", "path": "/llm/providers"}, "expect": {"status": 200, "json": []}}
+      ]
+    },
+    {
+      "id": "call_sites_list_the_simple_sites_and_the_visible_groups_unassigned",
+      "steps": [
+        {
+          "http": {"method": "GET", "path": "/llm/call-sites"},
+          "expect": {"status": 200, "checks": [
+            {"path": "$.simple[*].id", "equals": ["ai_summarizer", "initial_diagram_bootstrap"]},
+            {"path": "$.simple[0].capability", "equals": "simple"},
+            {"path": "$.simple[0].label", "equals": "AI summarizer"},
+            {"path": "$.simple[0].assignment", "equals": null},
+            {"path": "$.groups[*].id", "equals": ["diagrams", "planning"]},
+            {"path": "$.groups[0].label", "equals": "Diagrams"},
+            {"path": "$.groups[0].members[*].id", "equals": ["c1_agent", "impact-changes_review_agent", "patterns_agent", "impact_agent"]},
+            {"path": "$.groups[0].assignment", "equals": null},
+            {"path": "$.groups[0].cli_available", "type": "boolean"}
+          ]}
+        }
+      ]
+    },
+    {
+      "id": "a_simple_call_site_is_assigned_listed_and_blocks_its_providers_delete",
+      "steps": [
+        {
+          "http": {"method": "POST", "path": "/llm/providers", "json": {"label": "Local", "kind": "api", "transport": "anthropic", "is_local": true}},
+          "capture": {"pid": "$.id"},
+          "expect": {"status": 201}
+        },
+        {
+          "http": {"method": "PUT", "path": "/llm/call-sites/ai_summarizer", "json": {"provider_id": "{{pid}}", "model": "m1", "mode": "api"}},
+          "expect": {"status": 200, "checks": [
+            {"path": "$.id", "equals": "ai_summarizer"},
+            {"path": "$.assignment", "equals": {"provider_id": "{{pid}}", "model": "m1", "mode": "api"}}
+          ]}
+        },
+        {
+          "http": {"method": "GET", "path": "/llm/call-sites"},
+          "expect": {"status": 200, "checks": [{"path": "$.simple[0].assignment.model", "equals": "m1"}]}
+        },
+        {
+          "http": {"method": "DELETE", "path": "/llm/providers/{{pid}}"},
+          "expect": {"status": 409, "json": {"detail": {"error": "provider is still assigned to one or more call sites", "blocking_call_sites": ["ai_summarizer"]}}}
+        },
+        {
+          "http": {"method": "PUT", "path": "/llm/call-sites/ai_summarizer", "json": {}},
+          "expect": {"status": 200, "checks": [{"path": "$.assignment", "equals": null}]}
+        },
+        {"http": {"method": "DELETE", "path": "/llm/providers/{{pid}}"}, "expect": {"status": 204}}
+      ]
+    },
+    {
+      "id": "a_bad_call_site_assignment_is_refused",
+      "steps": [
+        {"http": {"method": "PUT", "path": "/llm/call-sites/nope", "json": {}}, "expect": {"status": 404, "json": {"detail": "unknown call site: 'nope'"}}},
+        {"http": {"method": "PUT", "path": "/llm/call-sites/c1_agent", "json": {"provider_id": "x"}}, "expect": {"status": 400, "json": {"detail": "'c1_agent' is agentic; assign its group via PUT /llm/call-site-groups/{group_id} instead"}}},
+        {"http": {"method": "PUT", "path": "/llm/call-sites/ai_summarizer", "json": {"provider_id": "ghost", "model": "m", "mode": "api"}}, "expect": {"status": 400, "json": {"detail": "provider_id must reference an existing provider"}}}
+      ]
+    },
+    {
+      "id": "a_call_site_mode_must_match_the_providers_kind",
+      "steps": [
+        {
+          "http": {"method": "POST", "path": "/llm/providers", "json": {"label": "C", "kind": "cli", "adapter": "claude"}},
+          "capture": {"pid": "$.id"},
+          "expect": {"status": 201}
+        },
+        {"http": {"method": "PUT", "path": "/llm/call-sites/ai_summarizer", "json": {"provider_id": "{{pid}}", "model": "m", "mode": "api"}}, "expect": {"status": 400, "json": {"detail": "mode=api requires a provider of kind=api"}}},
+        {"http": {"method": "PUT", "path": "/llm/call-sites/ai_summarizer", "json": {"provider_id": "{{pid}}", "model": " ", "mode": "weird"}}, "expect": {"status": 400, "json": {"detail": "model must be a non-empty string; mode must be one of ('cli', 'api')"}}}
+      ]
+    },
+    {
+      "id": "an_agentic_group_takes_only_a_cli_provider_and_lists_the_blocked_members_on_delete",
+      "steps": [
+        {
+          "http": {"method": "POST", "path": "/llm/providers", "json": {"label": "C", "kind": "cli", "adapter": "claude"}},
+          "capture": {"cli_id": "$.id"},
+          "expect": {"status": 201}
+        },
+        {
+          "http": {"method": "POST", "path": "/llm/providers", "json": {"label": "A", "kind": "api", "transport": "anthropic", "is_local": true}},
+          "capture": {"api_id": "$.id"},
+          "expect": {"status": 201}
+        },
+        {"http": {"method": "PUT", "path": "/llm/call-site-groups/diagrams", "json": {"provider_id": "{{api_id}}", "model": "m"}}, "expect": {"status": 400, "json": {"detail": "an agentic group can only be assigned a provider of kind=cli"}}},
+        {
+          "http": {"method": "PUT", "path": "/llm/call-site-groups/diagrams", "json": {"provider_id": "{{cli_id}}", "model": "opus"}},
+          "expect": {"status": 200, "checks": [{"path": "$.assignment", "equals": {"provider_id": "{{cli_id}}", "model": "opus"}}]}
+        },
+        {
+          "http": {"method": "GET", "path": "/llm/call-site-groups/diagrams"},
+          "expect": {"status": 200, "checks": [{"path": "$.assignment.model", "equals": "opus"}, {"path": "$.members", "count": 4}]}
+        },
+        {
+          "http": {"method": "DELETE", "path": "/llm/providers/{{cli_id}}"},
+          "expect": {"status": 409, "json": {"detail": {"error": "provider is still assigned to one or more call sites", "blocking_call_sites": ["c1_agent", "impact-changes_review_agent", "patterns_agent", "impact_agent"]}}}
+        },
+        {"http": {"method": "PUT", "path": "/llm/call-site-groups/diagrams", "json": {}}, "expect": {"status": 200, "checks": [{"path": "$.assignment", "equals": null}]}}
+      ]
+    },
+    {
+      "id": "the_hidden_agents_group_is_readable_by_id_but_not_listed",
+      "steps": [
+        {
+          "http": {"method": "GET", "path": "/llm/call-site-groups/agents"},
+          "expect": {"status": 200, "checks": [{"path": "$.id", "equals": "agents"}, {"path": "$.label", "equals": "Agent windows"}, {"path": "$.members[0].id", "equals": "parallel_agents"}]}
+        },
+        {"http": {"method": "GET", "path": "/llm/call-site-groups/nope"}, "expect": {"status": 404, "json": {"detail": "unknown call site group: 'nope'"}}},
+        {"http": {"method": "PUT", "path": "/llm/call-site-groups/nope", "json": {}}, "expect": {"status": 404, "json": {"detail": "unknown call site group: 'nope'"}}}
+      ]
+    }
+  ]
+}

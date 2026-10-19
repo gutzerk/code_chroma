@@ -26,13 +26,10 @@ VITE_ENGINE_BRIDGE_URL=http://localhost:8000 npm run dev
 
 - **`src/canvas/`** — `Block` is the recursive nested-block component: a block expands in place and
   lazily fetches its children via `EngineClient` on first expand.
-- **`src/breadcrumb/`** — `Breadcrumb` renders the deepest currently-expanded path, derived from
-  `ExpansionStore`; clicking a crumb scrolls that already-expanded ancestor into view.
 - **`src/engine-client/`** — `EngineClient` is a **Facade** over the bridge's HTTP API.
   `mockBridge.ts` is a fixture-backed stand-in used when no real bridge is configured.
-  `fixtures.ts` is generated, not hand-written — the real `GraphEngine.analyze()` output over
-  `../examples/shadow-app`, reshaped by `scripts/export_shadow_app_fixture.py` (repo root).
-  Regenerate it after editing that example.
+  `fixtures.ts` is a committed static snapshot of a former demo repo (`examples/shadow-app`, since
+  removed along with its generator script); edit it by hand if the mock needs to change.
 - **`src/state/`** — `ExpansionStore` (`expansionState.ts`) is the single in-memory store for every
   block's expand/collapse state and the derived breadcrumb path. Nothing here is persisted or
   URL-encoded.

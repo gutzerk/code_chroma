@@ -35,6 +35,7 @@ export function AgentTerminalDock() {
     const onKeyDown = (event: KeyboardEvent) => {
       if (!(event.ctrlKey || event.metaKey) || !event.shiftKey || event.altKey) return;
       if (event.key.toLowerCase() !== "o") return;
+      if (agentDockStore.getAgentIds().length === 0) return;
       event.preventDefault();
       agentDockStore.openAndFocus();
     };

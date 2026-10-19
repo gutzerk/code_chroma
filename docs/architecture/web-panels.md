@@ -66,8 +66,9 @@ to revive if it comes back, it would be rebuilt from scratch.
   here, so it stands out from the grey chrome row at a glance — but the border only turns green once
   `aria-pressed` is true, so idle vs. a game actually running still reads as a distinct on/off, not
   one flat look throughout.
-- **`src/breadcrumb/`** — `Breadcrumb.tsx`, derived from `ExpansionStore`; renders the deepest
-  expanded node path. No longer mounted anywhere: `RootCanvas.tsx`'s `.canvas-chrome` used to show it
+- **`src/breadcrumb/`** — the `Breadcrumb.tsx` component was deleted (it was unmounted dead code);
+  history: it was derived from `ExpansionStore` and rendered the deepest expanded node path, and was
+  no longer mounted anywhere: `RootCanvas.tsx`'s `.canvas-chrome` used to show it
   next to `BranchSwitcher`, but on a PR workspace that put an unrelated node-path string (e.g.
   "pr-69 / specs / …") right beside the branch chip, reading as broken/unrelated UI. `RootCanvas`
   now renders a plain `PR #<number> · <head_ref>` label there instead (only when the active
@@ -103,8 +104,8 @@ the **real** xterm (`AgentTerminal` -> `useXtermSession`) fed through a `Termina
 client is `drawDiagramScript.ts`'s scripted session: it types a Claude Code banner and prompt, asks
 "Which diagram would you like?" with arrow-key navigation over `DIAGRAM_CHOICES` (System context, Design patterns, Change impact),
 prints scripted work lines on Enter, then runs the real `runRecipeAndLayout(engineClient, <recipe>)`
-against the prebuilt `c1.json` / `patterns.json` / `impact.json` that `desktop/src/tutorialProject.ts`
-ships, and fits the canvas. The window itself reuses the real `.agent-window` chrome (run-agent icon,
+against the prebuilt `c1.json` / `patterns.json` / `impact.json` that `dotnet/CodeChroma.Shell/Projects/TutorialProject.cs`
+(`tutorial-project.json`) ships, and fits the canvas. The window itself reuses the real `.agent-window` chrome (run-agent icon,
 `agent-window-title`, inset terminal well), which the floating `AgentWindow` and the docked
 `DockedAgentPanel` now share, so a real agent window and the tutorial's look the same; only the terminal
 content differs (the provider's own TUI there, the script here).
@@ -158,7 +159,7 @@ with the real card markup, and `RootCanvas`'s Run agent starts the second one
 data: `tutorialPlan.ts` adds two `pattern` elements with `meta.plan_kind: "add"` (the "PLAN · ADD" top
 band) and edges via `patchCanvasDoc`, and when agent 2 finishes `buildPlan` clears the plan meta and
 sets the real `node_id`s. The code of both features (`search_todos`/`search`,
-`count_open_todos`/`count_open`) already ships in `desktop/src/tutorialProject.ts`, so those ids
+`count_open_todos`/`count_open`) already ships in the shell's `TutorialProject.cs`, so those ids
 resolve. The second diagram is always System context (C1). A `ScriptedClient` remembers unfinished
 scenes and replays them when the terminal reconnects (React StrictMode remounts it in dev).
 

@@ -101,7 +101,7 @@ export function borderSegment(
 
 /** A block's footprint as a rect in `.canvas-content` coordinates. The canvas transform is only ever
  * a scale plus a translate, so converting the two opposite corners is enough. */
-export function localRectOf(
+function localRectOf(
   element: HTMLElement,
   toLocal: (x: number, y: number) => DOMPoint,
 ): Rect {

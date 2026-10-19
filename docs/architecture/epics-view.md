@@ -441,3 +441,5 @@ id passes through untouched, an out-of-scope item with no `tasks` key doesn't cr
 `web/src/canvas/epics/brief/EpicBriefView.test.tsx` (scope cards in a row, tasks in a column, the
 gap badge, the dashed-draft treatment, the spokes banner, the per-task repo tag, and — 010 — the
 Specs frame's absence for a stage-less item in both the empty and generated states).
+
+C# bridge note: `Epics/` ports the markdown requirements and speckit delivery adapters, the assembler and the brief normalization/splice; YAML frontmatter is parsed with YamlDotNet and plain scalars are typed like PyYAML. Contract: `tests/fixtures/bridge_contract/epics.cases.json`.

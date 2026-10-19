@@ -53,9 +53,6 @@ dev = [
     "ruff (>=0.15.20,<0.16.0)",
     "httpx (>=0.28.0,<0.29.0)",
     "mypy (>=1.18.0,<2.0.0)",
-    # Marker, not a version bump: pyinstaller caps itself at <3.16, which otherwise makes the
-    # whole lock unresolvable against this project's >=3.14,<4.0 range.
-    "pyinstaller (>=6.21.0,<7.0.0) ; python_version < '3.16'",
     "types-pyyaml (>=6.0.12.20260906,<7.0.0.0)"
 ]
 

@@ -375,8 +375,8 @@ bucket the full-rebuild skill's own escalation call owns (Update does not run th
 an undetermined file just doesn't appear in any component's `files[]` until a future Generate or a
 call that resolves it).
 
-`find_affected_components`/`changed_paths_since_last_run` still exist (their own tests still cover
-the old path-grep matching behavior) but the update route no longer calls either — full recompute
+`find_affected_components` still exists (its own tests still cover the old path-grep matching
+behavior; `changed_paths_since_last_run` was removed as dead code) but the update route no longer calls it — full recompute
 replaced them as the mechanism, per research.md §10's "diffing a freshly-recomputed manifest against
 the stored one gives an exact, correct answer... in one mechanism instead of separate detection logic
 per case." Tests: `tests/unit/test_wiki_general_affected.py`'s `_diff_manifest` cases (a moved file
@@ -385,7 +385,7 @@ marks both components `Rewritten`, an emptied component `Deleted`, an unrelated 
 against `sample_repo`, deterministic naming, `edges[]`/`generated_at_commit` recomputed together).
 
 🔴 `stamp_generated_commit`'s own staleness plumbing is unchanged by the above: the changed-paths
-concept `changed_paths_since_last_run(ws, manifest)` used to feed `find_affected_components` came from
+concept the removed `changed_paths_since_last_run(ws, manifest)` used to feed `find_affected_components` from
 `WorkspaceGit.changed_since(base_commit)` (`manifest["generated_at_commit"]` vs. what's on disk now),
 never from `WorkspaceGit.divergent_files()` (which is hard-coded to diff against `"HEAD"` for the main
 workspace, so it only ever sees *uncommitted* edits) — that fix (2026-09-16) still matters for
@@ -584,3 +584,5 @@ the real create/rewrite/delete sequence against `sample_repo` including a determ
 `Created` component, `edges[]`/`generated_at_commit` recomputed together on a clean finish) ·
 the `stale` field's extra cases folded into the existing `test_bridge_wiki_general_routes.py` and
 `test_wiki_general_end_to_end.py` status assertions.
+
+C# bridge note: the whole surface is ported -- status, interactive status, `generate`, `update`, `clustering`, output, cancel and `wiki-general-context` (`Routes/WikiGeneralRoutes.cs`, `Skills/WikiGeneral*.cs`). `generate` registers `WikiGeneralPipeline.Run` as the `wiki-general` agent's `RunBody` (`Skills/WikiGeneral.cs::Specs`): the same deterministic fan-out as `wiki_general_pipeline.py` (`engine.BuildClusters` -> `WikiGeneralNaming` ids -> `WikiGeneralWorker` zero-tool Claude jobs bounded by `WikiGeneralPipelineSettings` -> pages and `manifest.json` written only after every job succeeded). It then runs `WikiGeneralCheck.Run` (the in-process port of `check_wiki_general.py`, same exit tiers 0/1/2 and line texts; the plain-wiki gap lookup is `WikiContext.Build(...).Gaps`) and reports an error unless it returns OK. Only the Claude adapter supports minimal-context workers; any other CLI fails up front with `UnsupportedAdapterException`. `update` is `WikiGeneralUpdate.ComputeDelta` (re-sync, re-cluster, `DiffManifest` state machine) then `ApplyDelta` (deletions, `files[]`/`edges[]` refresh), then starts the `wiki-general-update` agent as a CLI run with the created/rewritten JSON in its prompt, exactly like the Python route. `generate` and the interactive `generating` status both go through `WikiGeneral.PrepareNewRun` (clear the tree, bootstrap and sync the plain wiki) and hold `WikiGeneral.RunLock`. `GET .../clustering` serializes `ClusterResult` plus per-file candidates via `WikiGeneralUpdate.ClusteringBody`. Tests: `WikiGeneralCheckTests`, `WikiGeneralUpdateTests`, `WikiGeneralRouteTests` (end to end against the scripted fake CLI with a hand-built graph; the real Claude path is not exercised). Contract: `wiki_general.cases.json` (the `clustering` case needs the `real-engine` capability, so the snapshot-backed C# host lists it as unsupported unless `CODECHROMA_PYTHON` is set).

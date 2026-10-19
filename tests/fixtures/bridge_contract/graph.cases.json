@@ -1,0 +1,252 @@
+{
+  "group": "graph",
+  "sources": [
+    "tests/unit/test_bridge_children_route.py",
+    "tests/unit/test_bridge_connections_route.py",
+    "tests/unit/test_bridge_structure_route.py",
+    "tests/unit/test_bridge_source_route.py"
+  ],
+  "repo": {"base": "sample_repo"},
+  "cases": [
+    {
+      "id": "root_ref",
+      "steps": [
+        {
+          "http": {"method": "GET", "path": "/repos/main/nodes/root"},
+          "expect": {"status": 200, "json": {
+            "node_id": "root", "name": "repo", "level": "folder", "parent_id": null,
+            "has_children": true, "child_count": 4
+          }}
+        }
+      ]
+    },
+    {
+      "id": "unregistered_repo_id_falls_back_to_main",
+      "steps": [
+        {
+          "http": {"method": "GET", "path": "/repos/${id}/nodes/root"},
+          "expect": {"status": 200, "checks": [{"path": "$.child_count", "equals": 4}]}
+        }
+      ],
+      "matrix": {"id": ["default", "main", "never-registered"]}
+    },
+    {
+      "id": "root_children_are_the_top_level_folders",
+      "steps": [
+        {
+          "http": {"method": "GET", "path": "/repos/main/nodes/root/children"},
+          "expect": {"status": 200, "json": [
+            {"node_id": "dir::billing", "name": "billing", "level": "folder", "parent_id": "root",
+             "has_children": true, "child_count": 3, "source": null, "language": null, "doc_only": false},
+            {"node_id": "dir::shared", "name": "shared", "level": "folder", "parent_id": "root",
+             "has_children": true, "child_count": 1, "source": null, "language": null, "doc_only": false},
+            {"node_id": "dir::users", "name": "users", "level": "folder", "parent_id": "root",
+             "has_children": true, "child_count": 1, "source": null, "language": null, "doc_only": false},
+            {"node_id": "dir::web", "name": "web", "level": "folder", "parent_id": "root",
+             "has_children": true, "child_count": 2, "source": null, "language": null, "doc_only": false}
+          ]}
+        }
+      ]
+    },
+    {
+      "id": "a_file_node_carries_its_whole_source_and_language",
+      "steps": [
+        {
+          "http": {"method": "GET", "path": "/repos/main/nodes/component::billing/service.py"},
+          "expect": {"status": 200, "checks": [
+            {"path": "$.node_id", "equals": "component::billing/service.py"},
+            {"path": "$.level", "equals": "file"},
+            {"path": "$.parent_id", "equals": "dir::billing"},
+            {"path": "$.language", "equals": "python"},
+            {"path": "$.source", "contains": "class BillingService"},
+            {"path": "$.source", "contains": "slugify(account_name)"}
+          ]}
+        }
+      ]
+    },
+    {
+      "id": "a_class_node_carries_only_its_own_line_range",
+      "steps": [
+        {
+          "http": {"method": "GET", "path": "/repos/main/nodes/component::billing/service.py/children"},
+          "expect": {"status": 200, "json": [
+            {"node_id": "billing/service.py::class::BillingService", "name": "BillingService",
+             "level": "class", "parent_id": "component::billing/service.py", "has_children": true,
+             "child_count": 2,
+             "source": "class BillingService:\n    \"\"\"Handles invoice creation for billed accounts.\"\"\"\n\n    def __init__(self):\n        self._invoices = {}\n\n    def create_invoice(self, account_name: str, amount: float) -> str:\n        \"\"\"Create an invoice for the named account.\"\"\"\n        invoice_id = slugify(account_name)\n        self._invoices[invoice_id] = amount\n        return invoice_id",
+             "language": "python", "doc_only": false}
+          ]}
+        }
+      ]
+    },
+    {
+      "id": "a_function_node_has_no_children",
+      "steps": [
+        {
+          "http": {"method": "GET", "path": "/repos/main/nodes/shared/text_utils.py::function::slugify/children"},
+          "expect": {"status": 200, "json": []}
+        }
+      ]
+    },
+    {
+      "id": "an_unknown_node_is_404_not_200_null",
+      "steps": [
+        {
+          "http": {"method": "GET", "path": "/repos/main/nodes/function::does-not-exist"},
+          "expect": {"status": 404}
+        }
+      ]
+    },
+    {
+      "id": "connections_tag_the_arrow_sense_and_origin",
+      "steps": [
+        {
+          "http": {"method": "GET", "path": "/repos/main/nodes/billing/service.py::class::BillingService/connections"},
+          "expect": {"status": 200, "json": [
+            {"from_id": "billing/service.py::class::BillingService",
+             "to_id": "shared/text_utils.py::function::slugify",
+             "from_to": "depends_on", "origin": "billing/service.py:5"}
+          ]}
+        },
+        {
+          "http": {"method": "GET", "path": "/repos/main/nodes/shared/text_utils.py::function::slugify/connections"},
+          "expect": {"status": 200, "checks": [
+            {"path": "$[*].from_to", "contains": "depended_on_by"},
+            {"path": "$[*].to_id", "contains": "shared/text_utils.py::function::slugify"}
+          ]}
+        }
+      ]
+    },
+    {
+      "id": "binary_files_are_listed_with_null_source",
+      "requires": ["real-engine"],
+      "repo": {"files": {"data.bin": {"base64": "AIr/IGJpbmFyeSBub3QgdXRmLTg="}}},
+      "steps": [
+        {
+          "http": {"method": "GET", "path": "/repos/main/nodes/root/children"},
+          "expect": {"status": 200, "checks": [
+            {"path": "$[name=data.bin].source", "equals": [null]}
+          ]}
+        }
+      ]
+    },
+    {
+      "id": "a_docs_only_folder_is_flagged_doc_only",
+      "requires": ["real-engine"],
+      "repo": {"files": {
+        "docs-only/README.md": {"text": "# Docs"},
+        "docs-only/guide.rst": {"text": "Guide"}
+      }},
+      "steps": [
+        {
+          "http": {"method": "GET", "path": "/repos/main/nodes/root/children"},
+          "expect": {"status": 200, "checks": [
+            {"path": "$[name=docs-only].doc_only", "equals": [true]},
+            {"path": "$[name=billing].doc_only", "equals": [false]}
+          ]}
+        }
+      ]
+    },
+    {
+      "id": "structure_lists_top_level_folders_with_real_node_ids",
+      "steps": [
+        {
+          "http": {"method": "GET", "path": "/repos/main/structure"},
+          "expect": {"status": 200, "checks": [
+            {"path": "$.root", "equals": "root"},
+            {"path": "$.depth", "equals": 2},
+            {"path": "$.nodes[*].node_id", "equals": ["dir::billing", "dir::shared", "dir::users", "dir::web"]}
+          ]}
+        }
+      ]
+    },
+    {
+      "id": "structure_honours_root_and_depth_and_orders_folders_before_files",
+      "steps": [
+        {
+          "http": {"method": "GET", "path": "/repos/main/structure", "query": {"root": "dir::billing", "depth": 1}},
+          "expect": {"status": 200, "json": {
+            "root": "dir::billing", "depth": 1, "truncated": true,
+            "nodes": [
+              {"node_id": "dir::billing/models", "path": "billing/models", "name": "models",
+               "level": "folder", "summary": "Pillar `models`: level=pillar; source=billing/models.",
+               "doc_only": false, "child_count": 1, "truncated": true},
+              {"node_id": "component::billing/reporter.go", "path": "billing/reporter.go",
+               "name": "reporter.go", "level": "file",
+               "summary": "Component `reporter.go`: level=component; source=billing/reporter.go.",
+               "doc_only": false, "child_count": 0, "truncated": false},
+              {"node_id": "component::billing/service.py", "path": "billing/service.py",
+               "name": "service.py", "level": "file",
+               "summary": "Component `service.py`: level=component; source=billing/service.py.",
+               "doc_only": false, "child_count": 0, "truncated": false}
+            ]
+          }}
+        }
+      ]
+    },
+    {
+      "id": "structure_never_includes_file_source",
+      "steps": [
+        {
+          "http": {"method": "GET", "path": "/repos/main/structure", "query": {"depth": 5}},
+          "expect": {"status": 200, "checks": [{"path": "$..source", "absent": true}]}
+        }
+      ]
+    },
+    {
+      "id": "structure_stops_at_the_node_budget_and_says_so",
+      "steps": [
+        {
+          "http": {"method": "GET", "path": "/repos/main/structure", "query": {"max_nodes": 3}},
+          "expect": {"status": 200, "checks": [
+            {"path": "$.truncated", "equals": true},
+            {"path": "$.nodes[*].node_id", "equals": ["dir::billing", "dir::shared", "dir::users"]}
+          ]}
+        }
+      ]
+    },
+    {
+      "id": "structure_unknown_root_is_404",
+      "steps": [
+        {
+          "http": {"method": "GET", "path": "/repos/main/structure", "query": {"root": "dir::nope"}},
+          "expect": {"status": 404}
+        }
+      ]
+    },
+    {
+      "id": "source_returns_the_whole_file_without_a_range",
+      "steps": [
+        {
+          "http": {"method": "GET", "path": "/repos/main/source", "query": {"path": "web/widget.ts"}},
+          "expect": {"status": 200, "checks": [
+            {"path": "$.path", "equals": "web/widget.ts"},
+            {"path": "$.language", "equals": "typescript"},
+            {"path": "$.content", "contains": "renderUserSlug"}
+          ]}
+        }
+      ]
+    },
+    {
+      "id": "source_slices_an_inclusive_one_based_range",
+      "steps": [
+        {
+          "http": {"method": "GET", "path": "/repos/main/source", "query": {"path": "web/widget.ts", "start": 2, "end": 4}},
+          "expect": {"status": 200, "checks": [
+            {"path": "$.content", "contains": "export function renderUserSlug"}
+          ]}
+        }
+      ]
+    },
+    {
+      "id": "source_refuses_files_it_cannot_serve",
+      "steps": [
+        {
+          "http": {"method": "GET", "path": "/repos/main/source", "query": {"path": "${path}"}},
+          "expect": {"status": 404}
+        }
+      ],
+      "matrix": {"path": ["../outside.txt", "nope/missing.ts"]}
+    }
+  ]
+}

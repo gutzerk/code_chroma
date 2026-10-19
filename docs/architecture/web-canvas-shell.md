@@ -482,3 +482,7 @@ token rather than a new hex), and keep every font size at or above `--text-2xs` 
 renders smaller. A global `:focus-visible` accent ring is defined at the top too, so interactive
 elements get one consistent focus treatment. Scrollbars use the shared theme tokens globally: thin
 tracks stay transparent, with rounded thumbs that become more visible on hover and drag.
+
+## Avalonia port (in progress, `dotnet/`)
+
+An Avalonia (C#, net8.0, Avalonia 11.3.12) port of the canvas lives under `dotnet/`: the pure logic (routing, collision solver, native layered layout instead of elkjs, scene graph with culling, viewport, stores) and, from 016 Phase 5, native equivalents of the expand-in-place hierarchy (`HierarchyView`, fed by the C# graph core), rubber-band select, group drag, undo, the code popup with syntax highlighting, trace playback, the Diff toggle with change cards, and the agent-window layer. This React canvas stays the reference and is unchanged; the audit, ELK decision, baseline numbers, the Phase 5 feature table (which Playwright journey each headless test replaces), what is left, and the list of `web/src/canvas/` files that become removal candidates once the C# canvas passes the same journeys are in [`docs/planning/013-avalonia-canvas.md`](../planning/013-avalonia-canvas.md). Shared test cases live in `tests/fixtures/canvas_logic/*.json`; run `dotnet test dotnet/CodeChroma.Canvas.sln`.

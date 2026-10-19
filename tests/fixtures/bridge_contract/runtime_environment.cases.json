@@ -1,0 +1,64 @@
+{
+  "group": "runtime_environment",
+  "sources": ["src/codechroma/bridge/routes/runtime.py", "src/codechroma/llm/runtime_env.py"],
+  "repo": {"base": "sample_repo"},
+  "cases": [
+    {
+      "id": "environment_diagnostics_have_the_documented_shape",
+      "steps": [
+        {
+          "http": {"method": "GET", "path": "/runtime/environment"},
+          "expect": {"status": 200, "checks": [
+            {"path": "$.generation", "type": "number"},
+            {"path": "$.source", "type": "string"},
+            {"path": "$.path", "type": "array"},
+            {"path": "$.variable_names", "type": "array"},
+            {"path": "$.warnings", "type": "array"}
+          ]}
+        }
+      ]
+    },
+    {
+      "id": "refresh_and_focus_return_diagnostics",
+      "matrix": {"verb": ["refresh", "focus"]},
+      "steps": [
+        {
+          "http": {"method": "POST", "path": "/runtime/${verb}"},
+          "expect": {"status": 200, "checks": [
+            {"path": "$.generation", "type": "number"},
+            {"path": "$.variable_names", "type": "array"}
+          ]}
+        }
+      ]
+    },
+    {
+      "id": "a_configured_missing_cli_path_is_diagnosed_without_a_fallback",
+      "steps": [
+        {
+          "http": {"method": "PUT", "path": "/runtime/settings", "json": {"shell": null, "timeout_seconds": 5, "cli_paths": {"claude": "/custom/claude"}}},
+          "expect": {"status": 200}
+        },
+        {
+          "http": {"method": "GET", "path": "/runtime/cli/claude"},
+          "expect": {"status": 200, "checks": [
+            {"path": "$.resolution.source", "equals": "explicit executable path"},
+            {"path": "$.resolution.failure_reason", "equals": "Configured CLI path '/custom/claude' does not exist."},
+            {"path": "$.environment.generation", "type": "number"}
+          ]}
+        }
+      ]
+    },
+    {
+      "id": "an_unknown_cli_is_reported_as_not_found",
+      "steps": [
+        {
+          "http": {"method": "GET", "path": "/runtime/cli/no-such-cli-anywhere"},
+          "expect": {"status": 200, "checks": [
+            {"path": "$.resolution.executable", "type": "null"},
+            {"path": "$.resolution.name", "equals": "no-such-cli-anywhere"}
+          ]}
+        }
+      ]
+    }
+  ]
+}

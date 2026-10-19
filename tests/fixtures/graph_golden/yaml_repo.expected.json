@@ -1,0 +1,778 @@
+{
+ "schema_version": 1,
+ "nodes": [
+  {
+   "id": "dir::.github",
+   "name": ".github",
+   "level": "system",
+   "parent_ids": [],
+   "source_path": ".github",
+   "symbol_ids": [],
+   "repository_id": null,
+   "depends_on_ids": [],
+   "doc_only": false
+  },
+  {
+   "id": "dir::.github/actions",
+   "name": "actions",
+   "level": "pillar",
+   "parent_ids": [
+    "dir::.github"
+   ],
+   "source_path": ".github/actions",
+   "symbol_ids": [],
+   "repository_id": null,
+   "depends_on_ids": [],
+   "doc_only": false
+  },
+  {
+   "id": "dir::.github/actions/my-action",
+   "name": "my-action",
+   "level": "pillar",
+   "parent_ids": [
+    "dir::.github/actions"
+   ],
+   "source_path": ".github/actions/my-action",
+   "symbol_ids": [],
+   "repository_id": null,
+   "depends_on_ids": [],
+   "doc_only": false
+  },
+  {
+   "id": "component::.github/actions/my-action/action.yml",
+   "name": "action.yml",
+   "level": "component",
+   "parent_ids": [
+    "dir::.github/actions/my-action"
+   ],
+   "source_path": ".github/actions/my-action/action.yml",
+   "symbol_ids": [],
+   "repository_id": null,
+   "depends_on_ids": [],
+   "doc_only": false
+  },
+  {
+   "id": ".github/actions/my-action/action.yml::class::My Action",
+   "name": "My Action",
+   "level": "service",
+   "parent_ids": [
+    "component::.github/actions/my-action/action.yml"
+   ],
+   "source_path": ".github/actions/my-action/action.yml",
+   "symbol_ids": [],
+   "repository_id": null,
+   "depends_on_ids": [],
+   "doc_only": false
+  },
+  {
+   "id": ".github/actions/my-action/action.yml::function::My Action.step_1",
+   "name": "Resolve pinned contracts/ submodule",
+   "level": "function",
+   "parent_ids": [
+    ".github/actions/my-action/action.yml::class::My Action"
+   ],
+   "source_path": ".github/actions/my-action/action.yml",
+   "symbol_ids": [],
+   "repository_id": null,
+   "depends_on_ids": [],
+   "doc_only": false
+  },
+  {
+   "id": "logicblock::.github/actions/my-action/action.yml::function::My Action.step_1::0",
+   "name": "Body",
+   "level": "logic_block",
+   "parent_ids": [
+    ".github/actions/my-action/action.yml::function::My Action.step_1"
+   ],
+   "source_path": ".github/actions/my-action/action.yml:6-8",
+   "symbol_ids": [],
+   "repository_id": null,
+   "depends_on_ids": [],
+   "doc_only": false
+  },
+  {
+   "id": "code::logicblock::.github/actions/my-action/action.yml::function::My Action.step_1::0",
+   "name": ".github/actions/my-action/action.yml:6-8",
+   "level": "code",
+   "parent_ids": [
+    "logicblock::.github/actions/my-action/action.yml::function::My Action.step_1::0"
+   ],
+   "source_path": ".github/actions/my-action/action.yml:6-8",
+   "symbol_ids": [],
+   "repository_id": null,
+   "depends_on_ids": [],
+   "doc_only": false
+  },
+  {
+   "id": "dir::.github/workflows",
+   "name": "workflows",
+   "level": "pillar",
+   "parent_ids": [
+    "dir::.github"
+   ],
+   "source_path": ".github/workflows",
+   "symbol_ids": [],
+   "repository_id": null,
+   "depends_on_ids": [],
+   "doc_only": false
+  },
+  {
+   "id": "component::.github/workflows/ci.yml",
+   "name": "ci.yml",
+   "level": "component",
+   "parent_ids": [
+    "dir::.github/workflows"
+   ],
+   "source_path": ".github/workflows/ci.yml",
+   "symbol_ids": [],
+   "repository_id": null,
+   "depends_on_ids": [],
+   "doc_only": false
+  },
+  {
+   "id": ".github/workflows/ci.yml::class::build",
+   "name": "Build and test",
+   "level": "service",
+   "parent_ids": [
+    "component::.github/workflows/ci.yml"
+   ],
+   "source_path": ".github/workflows/ci.yml",
+   "symbol_ids": [],
+   "repository_id": null,
+   "depends_on_ids": [],
+   "doc_only": false
+  },
+  {
+   "id": ".github/workflows/ci.yml::function::build.step_1",
+   "name": "Checkout",
+   "level": "function",
+   "parent_ids": [
+    ".github/workflows/ci.yml::class::build"
+   ],
+   "source_path": ".github/workflows/ci.yml",
+   "symbol_ids": [],
+   "repository_id": null,
+   "depends_on_ids": [],
+   "doc_only": false
+  },
+  {
+   "id": "logicblock::.github/workflows/ci.yml::function::build.step_1::0",
+   "name": "Body",
+   "level": "logic_block",
+   "parent_ids": [
+    ".github/workflows/ci.yml::function::build.step_1"
+   ],
+   "source_path": ".github/workflows/ci.yml:12-14",
+   "symbol_ids": [],
+   "repository_id": null,
+   "depends_on_ids": [],
+   "doc_only": false
+  },
+  {
+   "id": "code::logicblock::.github/workflows/ci.yml::function::build.step_1::0",
+   "name": ".github/workflows/ci.yml:12-14",
+   "level": "code",
+   "parent_ids": [
+    "logicblock::.github/workflows/ci.yml::function::build.step_1::0"
+   ],
+   "source_path": ".github/workflows/ci.yml:12-14",
+   "symbol_ids": [],
+   "repository_id": null,
+   "depends_on_ids": [],
+   "doc_only": false
+  },
+  {
+   "id": ".github/workflows/ci.yml::function::build.step_2",
+   "name": "Run tests",
+   "level": "function",
+   "parent_ids": [
+    ".github/workflows/ci.yml::class::build"
+   ],
+   "source_path": ".github/workflows/ci.yml",
+   "symbol_ids": [],
+   "repository_id": null,
+   "depends_on_ids": [],
+   "doc_only": false
+  },
+  {
+   "id": "logicblock::.github/workflows/ci.yml::function::build.step_2::0",
+   "name": "Body",
+   "level": "logic_block",
+   "parent_ids": [
+    ".github/workflows/ci.yml::function::build.step_2"
+   ],
+   "source_path": ".github/workflows/ci.yml:14-16",
+   "symbol_ids": [],
+   "repository_id": null,
+   "depends_on_ids": [],
+   "doc_only": false
+  },
+  {
+   "id": "code::logicblock::.github/workflows/ci.yml::function::build.step_2::0",
+   "name": ".github/workflows/ci.yml:14-16",
+   "level": "code",
+   "parent_ids": [
+    "logicblock::.github/workflows/ci.yml::function::build.step_2::0"
+   ],
+   "source_path": ".github/workflows/ci.yml:14-16",
+   "symbol_ids": [],
+   "repository_id": null,
+   "depends_on_ids": [],
+   "doc_only": false
+  }
+ ],
+ "digest": {
+  "totals": {
+   "file_count": 2,
+   "class_count": 2,
+   "function_count": 3,
+   "edge_count": 0
+  },
+  "caps": {
+   "max_callees_per_symbol": 12,
+   "max_callers_per_symbol": 12,
+   "max_imports_per_file": 20,
+   "trivial_max_body_lines": 2,
+   "max_detailed_files": 500,
+   "max_total_symbol_entries": 6000
+  },
+  "truncated": false,
+  "files_omitted": 0,
+  "files": [
+   {
+    "path": ".github/actions/my-action/action.yml",
+    "node_id": "component::.github/actions/my-action/action.yml",
+    "imports": [],
+    "imports_overflow": 0,
+    "classes": [
+     {
+      "id": ".github/actions/my-action/action.yml::class::My Action",
+      "node_id": ".github/actions/my-action/action.yml::class::My Action",
+      "name": "My Action",
+      "is_trivial": false,
+      "calls": [],
+      "calls_overflow": 0,
+      "called_by": [],
+      "called_by_overflow": 0,
+      "methods": [
+       {
+        "id": ".github/actions/my-action/action.yml::function::My Action.step_1",
+        "node_id": ".github/actions/my-action/action.yml::function::My Action.step_1",
+        "name": "Resolve pinned contracts/ submodule",
+        "is_trivial": false,
+        "calls": [],
+        "calls_overflow": 0,
+        "called_by": [],
+        "called_by_overflow": 0
+       }
+      ],
+      "methods_omitted": 0
+     }
+    ],
+    "classes_omitted": 0,
+    "functions": [],
+    "functions_omitted": 0
+   },
+   {
+    "path": ".github/workflows/ci.yml",
+    "node_id": "component::.github/workflows/ci.yml",
+    "imports": [],
+    "imports_overflow": 0,
+    "classes": [
+     {
+      "id": ".github/workflows/ci.yml::class::build",
+      "node_id": ".github/workflows/ci.yml::class::build",
+      "name": "Build and test",
+      "is_trivial": false,
+      "calls": [],
+      "calls_overflow": 0,
+      "called_by": [],
+      "called_by_overflow": 0,
+      "methods": [
+       {
+        "id": ".github/workflows/ci.yml::function::build.step_1",
+        "node_id": ".github/workflows/ci.yml::function::build.step_1",
+        "name": "Checkout",
+        "is_trivial": false,
+        "calls": [],
+        "calls_overflow": 0,
+        "called_by": [],
+        "called_by_overflow": 0
+       },
+       {
+        "id": ".github/workflows/ci.yml::function::build.step_2",
+        "node_id": ".github/workflows/ci.yml::function::build.step_2",
+        "name": "Run tests",
+        "is_trivial": false,
+        "calls": [],
+        "calls_overflow": 0,
+        "called_by": [],
+        "called_by_overflow": 0
+       }
+      ],
+      "methods_omitted": 0
+     }
+    ],
+    "classes_omitted": 0,
+    "functions": [],
+    "functions_omitted": 0
+   }
+  ]
+ },
+ "digest_tight": {
+  "totals": {
+   "file_count": 2,
+   "class_count": 2,
+   "function_count": 3,
+   "edge_count": 0
+  },
+  "caps": {
+   "max_callees_per_symbol": 1,
+   "max_callers_per_symbol": 1,
+   "max_imports_per_file": 1,
+   "trivial_max_body_lines": 2,
+   "max_detailed_files": 2,
+   "max_total_symbol_entries": 6000
+  },
+  "truncated": false,
+  "files_omitted": 0,
+  "files": [
+   {
+    "path": ".github/actions/my-action/action.yml",
+    "node_id": "component::.github/actions/my-action/action.yml",
+    "imports": [],
+    "imports_overflow": 0,
+    "classes": [
+     {
+      "id": ".github/actions/my-action/action.yml::class::My Action",
+      "node_id": ".github/actions/my-action/action.yml::class::My Action",
+      "name": "My Action",
+      "is_trivial": false,
+      "calls": [],
+      "calls_overflow": 0,
+      "called_by": [],
+      "called_by_overflow": 0,
+      "methods": [
+       {
+        "id": ".github/actions/my-action/action.yml::function::My Action.step_1",
+        "node_id": ".github/actions/my-action/action.yml::function::My Action.step_1",
+        "name": "Resolve pinned contracts/ submodule",
+        "is_trivial": false,
+        "calls": [],
+        "calls_overflow": 0,
+        "called_by": [],
+        "called_by_overflow": 0
+       }
+      ],
+      "methods_omitted": 0
+     }
+    ],
+    "classes_omitted": 0,
+    "functions": [],
+    "functions_omitted": 0
+   },
+   {
+    "path": ".github/workflows/ci.yml",
+    "node_id": "component::.github/workflows/ci.yml",
+    "imports": [],
+    "imports_overflow": 0,
+    "classes": [
+     {
+      "id": ".github/workflows/ci.yml::class::build",
+      "node_id": ".github/workflows/ci.yml::class::build",
+      "name": "Build and test",
+      "is_trivial": false,
+      "calls": [],
+      "calls_overflow": 0,
+      "called_by": [],
+      "called_by_overflow": 0,
+      "methods": [
+       {
+        "id": ".github/workflows/ci.yml::function::build.step_1",
+        "node_id": ".github/workflows/ci.yml::function::build.step_1",
+        "name": "Checkout",
+        "is_trivial": false,
+        "calls": [],
+        "calls_overflow": 0,
+        "called_by": [],
+        "called_by_overflow": 0
+       },
+       {
+        "id": ".github/workflows/ci.yml::function::build.step_2",
+        "node_id": ".github/workflows/ci.yml::function::build.step_2",
+        "name": "Run tests",
+        "is_trivial": false,
+        "calls": [],
+        "calls_overflow": 0,
+        "called_by": [],
+        "called_by_overflow": 0
+       }
+      ],
+      "methods_omitted": 0
+     }
+    ],
+    "classes_omitted": 0,
+    "functions": [],
+    "functions_omitted": 0
+   }
+  ]
+ },
+ "clusters": {
+  "components": [],
+  "containers": [],
+  "component_edges": [],
+  "container_edges": [],
+  "undetermined_files": [],
+  "file_edge_weights": [],
+  "undetermined_candidates": {}
+ },
+ "structure": {
+  "default": {
+   "args": {},
+   "result": {
+    "root": "root",
+    "depth": 2,
+    "truncated": true,
+    "nodes": [
+     {
+      "node_id": "dir::.github",
+      "path": ".github",
+      "name": ".github",
+      "level": "folder",
+      "summary": "System `.github`: level=system; source=.github.",
+      "doc_only": false,
+      "child_count": 2,
+      "truncated": false,
+      "children": [
+       {
+        "node_id": "dir::.github/actions",
+        "path": ".github/actions",
+        "name": "actions",
+        "level": "folder",
+        "summary": "Pillar `actions`: level=pillar; source=.github/actions.",
+        "doc_only": false,
+        "child_count": 1,
+        "truncated": true
+       },
+       {
+        "node_id": "dir::.github/workflows",
+        "path": ".github/workflows",
+        "name": "workflows",
+        "level": "folder",
+        "summary": "Pillar `workflows`: level=pillar; source=.github/workflows.",
+        "doc_only": false,
+        "child_count": 1,
+        "truncated": true
+       }
+      ]
+     }
+    ]
+   }
+  },
+  "depth_1": {
+   "args": {
+    "depth": 1
+   },
+   "result": {
+    "root": "root",
+    "depth": 1,
+    "truncated": true,
+    "nodes": [
+     {
+      "node_id": "dir::.github",
+      "path": ".github",
+      "name": ".github",
+      "level": "folder",
+      "summary": "System `.github`: level=system; source=.github.",
+      "doc_only": false,
+      "child_count": 2,
+      "truncated": true
+     }
+    ]
+   }
+  },
+  "depth_5": {
+   "args": {
+    "depth": 5
+   },
+   "result": {
+    "root": "root",
+    "depth": 5,
+    "truncated": false,
+    "nodes": [
+     {
+      "node_id": "dir::.github",
+      "path": ".github",
+      "name": ".github",
+      "level": "folder",
+      "summary": "System `.github`: level=system; source=.github.",
+      "doc_only": false,
+      "child_count": 2,
+      "truncated": false,
+      "children": [
+       {
+        "node_id": "dir::.github/actions",
+        "path": ".github/actions",
+        "name": "actions",
+        "level": "folder",
+        "summary": "Pillar `actions`: level=pillar; source=.github/actions.",
+        "doc_only": false,
+        "child_count": 1,
+        "truncated": false,
+        "children": [
+         {
+          "node_id": "dir::.github/actions/my-action",
+          "path": ".github/actions/my-action",
+          "name": "my-action",
+          "level": "folder",
+          "summary": "Pillar `my-action`: level=pillar; source=.github/actions/my-action.",
+          "doc_only": false,
+          "child_count": 1,
+          "truncated": false,
+          "children": [
+           {
+            "node_id": "component::.github/actions/my-action/action.yml",
+            "path": ".github/actions/my-action/action.yml",
+            "name": "action.yml",
+            "level": "file",
+            "summary": "Component `action.yml`: level=component; source=.github/actions/my-action/action.yml.",
+            "doc_only": false,
+            "child_count": 0,
+            "truncated": false
+           }
+          ]
+         }
+        ]
+       },
+       {
+        "node_id": "dir::.github/workflows",
+        "path": ".github/workflows",
+        "name": "workflows",
+        "level": "folder",
+        "summary": "Pillar `workflows`: level=pillar; source=.github/workflows.",
+        "doc_only": false,
+        "child_count": 1,
+        "truncated": false,
+        "children": [
+         {
+          "node_id": "component::.github/workflows/ci.yml",
+          "path": ".github/workflows/ci.yml",
+          "name": "ci.yml",
+          "level": "file",
+          "summary": "Component `ci.yml`: level=component; source=.github/workflows/ci.yml.",
+          "doc_only": false,
+          "child_count": 0,
+          "truncated": false
+         }
+        ]
+       }
+      ]
+     }
+    ]
+   }
+  },
+  "depth_99_is_clamped": {
+   "args": {
+    "depth": 99
+   },
+   "result": {
+    "root": "root",
+    "depth": 5,
+    "truncated": false,
+    "nodes": [
+     {
+      "node_id": "dir::.github",
+      "path": ".github",
+      "name": ".github",
+      "level": "folder",
+      "summary": "System `.github`: level=system; source=.github.",
+      "doc_only": false,
+      "child_count": 2,
+      "truncated": false,
+      "children": [
+       {
+        "node_id": "dir::.github/actions",
+        "path": ".github/actions",
+        "name": "actions",
+        "level": "folder",
+        "summary": "Pillar `actions`: level=pillar; source=.github/actions.",
+        "doc_only": false,
+        "child_count": 1,
+        "truncated": false,
+        "children": [
+         {
+          "node_id": "dir::.github/actions/my-action",
+          "path": ".github/actions/my-action",
+          "name": "my-action",
+          "level": "folder",
+          "summary": "Pillar `my-action`: level=pillar; source=.github/actions/my-action.",
+          "doc_only": false,
+          "child_count": 1,
+          "truncated": false,
+          "children": [
+           {
+            "node_id": "component::.github/actions/my-action/action.yml",
+            "path": ".github/actions/my-action/action.yml",
+            "name": "action.yml",
+            "level": "file",
+            "summary": "Component `action.yml`: level=component; source=.github/actions/my-action/action.yml.",
+            "doc_only": false,
+            "child_count": 0,
+            "truncated": false
+           }
+          ]
+         }
+        ]
+       },
+       {
+        "node_id": "dir::.github/workflows",
+        "path": ".github/workflows",
+        "name": "workflows",
+        "level": "folder",
+        "summary": "Pillar `workflows`: level=pillar; source=.github/workflows.",
+        "doc_only": false,
+        "child_count": 1,
+        "truncated": false,
+        "children": [
+         {
+          "node_id": "component::.github/workflows/ci.yml",
+          "path": ".github/workflows/ci.yml",
+          "name": "ci.yml",
+          "level": "file",
+          "summary": "Component `ci.yml`: level=component; source=.github/workflows/ci.yml.",
+          "doc_only": false,
+          "child_count": 0,
+          "truncated": false
+         }
+        ]
+       }
+      ]
+     }
+    ]
+   }
+  },
+  "max_children_1": {
+   "args": {
+    "max_children": 1
+   },
+   "result": {
+    "root": "root",
+    "depth": 2,
+    "truncated": true,
+    "nodes": [
+     {
+      "node_id": "dir::.github",
+      "path": ".github",
+      "name": ".github",
+      "level": "folder",
+      "summary": "System `.github`: level=system; source=.github.",
+      "doc_only": false,
+      "child_count": 2,
+      "truncated": true,
+      "children": [
+       {
+        "node_id": "dir::.github/actions",
+        "path": ".github/actions",
+        "name": "actions",
+        "level": "folder",
+        "summary": "Pillar `actions`: level=pillar; source=.github/actions.",
+        "doc_only": false,
+        "child_count": 1,
+        "truncated": true
+       }
+      ]
+     }
+    ]
+   }
+  },
+  "max_nodes_3": {
+   "args": {
+    "depth": 5,
+    "max_nodes": 3
+   },
+   "result": {
+    "root": "root",
+    "depth": 5,
+    "truncated": true,
+    "nodes": [
+     {
+      "node_id": "dir::.github",
+      "path": ".github",
+      "name": ".github",
+      "level": "folder",
+      "summary": "System `.github`: level=system; source=.github.",
+      "doc_only": false,
+      "child_count": 2,
+      "truncated": false,
+      "children": [
+       {
+        "node_id": "dir::.github/actions",
+        "path": ".github/actions",
+        "name": "actions",
+        "level": "folder",
+        "summary": "Pillar `actions`: level=pillar; source=.github/actions.",
+        "doc_only": false,
+        "child_count": 1,
+        "truncated": true
+       },
+       {
+        "node_id": "dir::.github/workflows",
+        "path": ".github/workflows",
+        "name": "workflows",
+        "level": "folder",
+        "summary": "Pillar `workflows`: level=pillar; source=.github/workflows.",
+        "doc_only": false,
+        "child_count": 1,
+        "truncated": true
+       }
+      ]
+     }
+    ]
+   }
+  },
+  "root_first_system_depth_1": {
+   "args": {
+    "root_id": "dir::.github",
+    "depth": 1
+   },
+   "result": {
+    "root": "dir::.github",
+    "depth": 1,
+    "truncated": true,
+    "nodes": [
+     {
+      "node_id": "dir::.github/actions",
+      "path": ".github/actions",
+      "name": "actions",
+      "level": "folder",
+      "summary": "Pillar `actions`: level=pillar; source=.github/actions.",
+      "doc_only": false,
+      "child_count": 1,
+      "truncated": true
+     },
+     {
+      "node_id": "dir::.github/workflows",
+      "path": ".github/workflows",
+      "name": "workflows",
+      "level": "folder",
+      "summary": "Pillar `workflows`: level=pillar; source=.github/workflows.",
+      "doc_only": false,
+      "child_count": 1,
+      "truncated": true
+     }
+    ]
+   }
+  },
+  "unknown_root": {
+   "args": {
+    "root_id": "dir::does-not-exist"
+   },
+   "error": "unknown_root"
+  }
+ },
+ "context_digest": {
+  "external_import_roots": [],
+  "declared_dependencies": [],
+  "readme_excerpt": null
+ }
+}

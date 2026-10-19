@@ -51,6 +51,17 @@ def test_corrupt_database_backup_includes_wal_and_shm(tmp_path):
     assert (backup_dir / "graph.db-shm").read_bytes() == b"corrupt shm"
 
 
+def test_save_replaces_rows_left_by_a_different_repository_id(tmp_path):
+    store = _store(tmp_path)
+    node = HierarchyNode(id="n1", name="System", level=HierarchyLevel.SYSTEM, parent_ids=[])
+    store.save(Repository(id="old", root_path="/old"), [node], [], [])
+
+    store.save(Repository(id="new", root_path="/new"), [node], [], [])
+
+    assert list(store.load("new").nodes) == ["n1"]
+    assert store.load("old").nodes == {}
+
+
 def test_save_and_load_round_trips_nodes_symbols_and_summaries(tmp_path):
     store = _store(tmp_path)
     repo = Repository(id="r1", root_path="/repo", primary_language="python")

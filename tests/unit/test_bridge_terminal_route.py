@@ -1,33 +1,20 @@
 """TestClient coverage: the PTY terminal route is mounted on the graph bridge server itself."""
 
 import json
-import shutil
-import subprocess
 import time
-from pathlib import Path
 
 import pytest
 from fastapi.testclient import TestClient
 
 from codechroma.terminal import server as terminal_server
+from tests.conftest import copy_sample_repo
 from tests.unit.portable_commands import ECHO
-
-FIXTURE_REPO = Path(__file__).parent.parent / "fixtures" / "sample_repo"
-
-
-def _init_repo(root: Path) -> None:
-    subprocess.run(["git", "init"], cwd=root, check=True, capture_output=True)
-    subprocess.run(["git", "config", "user.email", "test@example.com"], cwd=root, check=True)
-    subprocess.run(["git", "config", "user.name", "Test"], cwd=root, check=True)
-    subprocess.run(["git", "add", "-A"], cwd=root, check=True, capture_output=True)
-    subprocess.run(["git", "commit", "-m", "initial"], cwd=root, check=True, capture_output=True)
 
 
 @pytest.fixture
 def bridge_server(tmp_path, monkeypatch, make_bridge):
     repo = tmp_path / "repo"
-    shutil.copytree(FIXTURE_REPO, repo)
-    _init_repo(repo)
+    copy_sample_repo(repo)
 
     bridge = make_bridge(repo)
     return bridge

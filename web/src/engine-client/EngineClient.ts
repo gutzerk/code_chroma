@@ -259,6 +259,7 @@ export const AGENT_EVENT_TYPES = [
   "agent-removed",
   "agent-status",
   "branch-changed",
+  "branch-removed",
 ] as const;
 
 type AgentEventType = (typeof AGENT_EVENT_TYPES)[number];

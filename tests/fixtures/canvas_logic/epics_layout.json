@@ -1,0 +1,50 @@
+{
+  "_doc": "epicsLayout.test.ts. Boxes are {id, render, key, layer?, group?, size?: [w,h], meta?}. Checks: sameX/sameY/ltX/gtY/ltY a b; xBeyond a b delta (a.x > b.x + delta); distinctPositions; distinctX id... ; the position convention is bottom-left for epic/spec/task, so 'below' means a larger y. 'descriptionRepeat' = [char, times] expands to one long line.",
+  "layouts": [
+    {"name": "epic columns with stories stacked under their epic",
+     "boxes": [
+       {"id": "epic-1", "render": "epic", "key": "EP-1"}, {"id": "epic-2", "render": "epic", "key": "EP-2"},
+       {"id": "epic-3", "render": "epic", "key": "EP-3"}, {"id": "epic-4", "render": "epic", "key": "EP-4"},
+       {"id": "story-1", "render": "spec", "key": "EP-3::logging"}, {"id": "story-2", "render": "spec", "key": "EP-3::config"}],
+     "checks": [["distinctPositions"], ["sameX", "story-1", "epic-3"], ["gtY", "story-1", "epic-3"], ["sameX", "story-2", "epic-3"],
+                ["ltY", "story-2", "story-1"], ["distinctX", "epic-1", "epic-2", "epic-3", "epic-4"]]},
+    {"name": "full graph: phases form a row, tasks hang under their phase, regardless of input order (merged: the vitest suite ran this fixture twice)",
+     "boxes": [
+       {"id": "t011", "render": "task", "key": "EP-4::phase-3::T011"}, {"id": "epic", "render": "epic", "key": "EP-4"},
+       {"id": "spec-appearance", "render": "spec", "key": "EP-4::phase-3"}, {"id": "t012", "render": "task", "key": "EP-4::phase-3::T012"},
+       {"id": "spec-foundation", "render": "spec", "key": "EP-4::phase-2"}, {"id": "t003", "render": "task", "key": "EP-4::phase-2::T003"}],
+     "checks": [["distinctPositions"], ["gtY", "spec-foundation", "epic"], ["gtY", "spec-appearance", "epic"],
+                ["ltX", "spec-foundation", "spec-appearance"], ["sameY", "spec-foundation", "spec-appearance"],
+                ["sameX", "t003", "spec-foundation"], ["gtY", "t003", "spec-foundation"],
+                ["sameX", "t011", "spec-appearance"], ["gtY", "t011", "spec-appearance"], ["sameX", "t012", "spec-appearance"], ["gtY", "t012", "t011"]]},
+    {"name": "a wide summary card pushes the next root column past its right edge",
+     "boxes": [
+       {"id": "epic", "render": "epic", "key": "EP-4"}, {"id": "summary", "render": "spec", "key": "EP-4::summary", "size": [480, 180]},
+       {"id": "epic1", "render": "epic", "key": "EP-1"}],
+     "checks": [["sameX", "summary", "epic"], ["gtY", "summary", "epic"], ["xBeyond", "epic1", "epic", 480]]}
+  ],
+  "layerNames": [
+    {"layer": "epics", "isEpics": true}, {"layer": "epics/EP-2", "isEpics": true}, {"layer": "c1", "isEpics": false}, {"layer": "epicsx", "isEpics": false}
+  ],
+  "fitWidth": [
+    {"name": "structured list sizes to its widest line", "description": "Settings exposes background, block-style and arrow-color pickers.\nStyle engine resolves the chosen settings into theme variables the canvas consumes.\nA sane default applies; choices persist.", "expected": 768.44},
+    {"name": "a shorter list is floored at the content minimum", "description": "Short.\nAlso short.", "expected": 640},
+    {"name": "prose sizes to the reading column", "description": "Today the canvas has one fixed look: a hardcoded background...", "expected": 860},
+    {"name": "a bare title sizes to the floor", "description": "", "expected": 640},
+    {"name": "a very long list line is capped", "description": "x\n", "lineRepeat": ["x", 400], "expected": 1480}
+  ],
+  "fitHeight": [
+    {"name": "specs card: rows x line + chrome + per-story padding", "specs": true, "width": 800,
+     "description": "US1 · Choose canvas appearance (P1 · MVP)\nЯдро эпика: дать контроль над внешним видом.\nA.\nB.\nC.\n\nUS2 · Set maximum element count (P2)\nЛимит элементов ниже числа на карте.\nA.\nB.\n\nUS3 · High-contrast stand presentation (P3)\nДемо-лид включает high-contrast для читаемости.\nA.",
+     "expected": 394},
+    {"name": "structured list: rows x line + chrome", "specs": false, "width": 800, "description": "A.\nB.\nC.", "expected": 151},
+    {"name": "prose wraps to the fitted width (wide)", "specs": false, "width": 800, "descriptionRepeat": ["x", 400], "expected": 193},
+    {"name": "prose wraps to the fitted width (narrow gives more lines)", "specs": false, "width": 400, "descriptionRepeat": ["x", 400], "expected": 298},
+    {"name": "bare title keeps the render-kind default height", "specs": false, "width": 800, "description": "", "expected": 72}
+  ],
+  "storyGroups": [
+    {"name": "intro + one story", "description": "An intro line.\n\nUS1 · A story (P1)\nWhy line.\nA.\nB."},
+    {"name": "three stories, one intro", "description": "Intro here.\n\nUS1 · One (P1)\nA.\n\nUS2 · Two (P2)\nB.\nC.\n\nUS3 · Three (P3)\nD."},
+    {"name": "stray paragraph between stories", "description": "US1 · One (P1)\nA.\n\nstray filler\n\nUS2 · Two (P2)\nB."}
+  ]
+}

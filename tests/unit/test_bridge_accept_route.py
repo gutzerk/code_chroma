@@ -1,35 +1,16 @@
 """TestClient coverage for POST /repos/{repo_id}/diff/{node_id}/accept on bridge/routes/diffs.py."""
 
-import shutil
-import subprocess
-from pathlib import Path
 
 import pytest
 from fastapi.testclient import TestClient
 
-FIXTURE_REPO = Path(__file__).parent.parent / "fixtures" / "sample_repo"
-
-
-def _init_repo(root: Path) -> None:
-    subprocess.run(["git", "init"], cwd=root, check=True, capture_output=True)
-    subprocess.run(["git", "config", "user.email", "test@example.com"], cwd=root, check=True)
-    subprocess.run(["git", "config", "user.name", "Test"], cwd=root, check=True)
-    subprocess.run(["git", "add", "-A"], cwd=root, check=True, capture_output=True)
-    subprocess.run(["git", "commit", "-m", "initial"], cwd=root, check=True, capture_output=True)
-
-
-def _git(root: Path, *args: str) -> str:
-    result = subprocess.run(
-        ["git", *args], cwd=root, check=True, capture_output=True, text=True
-    )
-    return result.stdout
+from tests.conftest import copy_sample_repo, git
 
 
 @pytest.fixture
 def client(tmp_path, monkeypatch, make_bridge):
     repo = tmp_path / "repo"
-    shutil.copytree(FIXTURE_REPO, repo)
-    _init_repo(repo)
+    copy_sample_repo(repo)
 
     bridge = make_bridge(repo)
     return TestClient(bridge.app), repo
@@ -60,7 +41,7 @@ def test_accept_commits_only_the_targeted_function(client):
     assert payload["status"] == "committed"
     assert payload["file_path"] == "billing/models/invoice.py"
 
-    committed_text = _git(repo, "show", "HEAD:billing/models/invoice.py")
+    committed_text = git(repo, "show", "HEAD:billing/models/invoice.py")
     assert "return 0.0" in committed_text
     assert "PATCHED" not in committed_text
 
@@ -69,7 +50,7 @@ def test_accept_commits_only_the_targeted_function(client):
     assert total_node_id not in remaining_ids
     assert any(node_id.endswith("::function::format_invoice_id") for node_id in remaining_ids)
 
-    log = _git(repo, "log", "--oneline")
+    log = git(repo, "log", "--oneline")
     assert len(log.strip().splitlines()) == 2
 
 
@@ -87,7 +68,7 @@ def test_accept_commits_a_whole_new_file(client):
     response = test_client.post(f"/repos/default/diff/{component_node_id}/accept")
 
     assert response.status_code == 200
-    tracked = _git(repo, "ls-files", "--", "billing/refunds.py")
+    tracked = git(repo, "ls-files", "--", "billing/refunds.py")
     assert "billing/refunds.py" in tracked
 
     remaining = test_client.get("/repos/default/diff").json()
@@ -105,7 +86,7 @@ def test_accept_commits_a_whole_file_deletion(client):
     response = test_client.post(f"/repos/default/diff/{deleted_node_id}/accept")
 
     assert response.status_code == 200
-    tracked = _git(repo, "ls-files", "--", "billing/service.py")
+    tracked = git(repo, "ls-files", "--", "billing/service.py")
     assert tracked == ""
 
     remaining = test_client.get("/repos/default/diff").json()
@@ -126,9 +107,9 @@ def test_accept_leaves_git_status_clean_for_the_committed_file(client):
     response = test_client.post(f"/repos/default/diff/{total_node_id}/accept")
 
     assert response.status_code == 200
-    status = _git(repo, "status", "--porcelain")
+    status = git(repo, "status", "--porcelain")
     assert "billing/models/invoice.py" not in status
-    assert _git(repo, "diff", "HEAD", "--", "billing/models/invoice.py") == ""
+    assert git(repo, "diff", "HEAD", "--", "billing/models/invoice.py") == ""
 
 
 def test_accept_commits_a_class_level_diff_without_duplicating_its_body(client):
@@ -146,10 +127,10 @@ def test_accept_commits_a_class_level_diff_without_duplicating_its_body(client):
     response = test_client.post(f"/repos/default/diff/{class_node_id}/accept")
 
     assert response.status_code == 200
-    committed_text = _git(repo, "show", "HEAD:billing/models/invoice.py")
+    committed_text = git(repo, "show", "HEAD:billing/models/invoice.py")
     assert 'currency = "USD"' in committed_text
     assert committed_text.count('"""A single billing invoice."""') == 1
-    assert "billing/models/invoice.py" not in _git(repo, "status", "--porcelain")
+    assert "billing/models/invoice.py" not in git(repo, "status", "--porcelain")
 
 
 def test_accept_returns_404_for_a_node_with_no_pending_change(client):

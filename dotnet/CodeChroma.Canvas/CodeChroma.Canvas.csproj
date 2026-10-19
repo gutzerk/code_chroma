@@ -1,0 +1,31 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <TreatWarningsAsErrors>false</TreatWarningsAsErrors>
+    <RootNamespace>CodeChroma.Canvas</RootNamespace>
+    <Description>Pure, UI-free model and logic for the CodeChroma canvas: scene graph, viewport, routing, collision and layout.</Description>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\CodeChroma.Core\CodeChroma.Core.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Using Include="CodeChroma.Canvas.Geometry" />
+    <Using Include="CodeChroma.Canvas.Connectors" />
+    <Using Include="CodeChroma.Canvas.Collision" />
+    <Using Include="CodeChroma.Canvas.Model" />
+    <Using Include="CodeChroma.Canvas.Layout" />
+    <Using Include="CodeChroma.Canvas.Scene" />
+    <Using Include="CodeChroma.Canvas.State" />
+    <Using Include="CodeChroma.Canvas.Catalog" />
+    <Using Include="CodeChroma.Canvas.Highlighting" />
+    <Using Include="CodeChroma.Canvas.Hierarchy" />
+    <Using Include="CodeChroma.Canvas.Tracing" />
+    <Using Include="CodeChroma.Canvas.Diff" />
+  </ItemGroup>
+
+</Project>

@@ -1,0 +1,2168 @@
+{
+  "group": "canvas",
+  "sources": [
+    "src/codechroma/bridge/routes/canvas.py",
+    "src/codechroma/bridge/routes/_canvas_write.py",
+    "src/codechroma/canvas/apply_batch.py",
+    "src/codechroma/canvas/document.py"
+  ],
+  "repo": {
+    "base": "sample_repo"
+  },
+  "cases": [
+    {
+      "id": "a_fresh_repo_has_an_empty_document",
+      "steps": [
+        {
+          "http": {
+            "method": "GET",
+            "path": "/repos/main/canvas"
+          },
+          "expect": {
+            "status": 200,
+            "json": {
+              "schema_version": 1,
+              "doc_id": {
+                "$any": true
+              },
+              "updated_at": {
+                "$any": true
+              },
+              "elements": {},
+              "edges": {}
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "a_patch_adds_a_note_and_the_document_returns_it",
+      "steps": [
+        {
+          "http": {
+            "method": "PATCH",
+            "path": "/repos/main/canvas",
+            "json": {
+              "ops": [
+                {
+                  "op": "add_note",
+                  "temp_id": "t1",
+                  "label": "hi"
+                }
+              ]
+            }
+          },
+          "expect": {
+            "status": 200,
+            "checks": [
+              {
+                "path": "$.ok",
+                "equals": true
+              },
+              {
+                "path": "$.batch_id",
+                "type": "string"
+              },
+              {
+                "path": "$.id_map.t1",
+                "type": "string"
+              },
+              {
+                "path": "$.affected",
+                "count": 1
+              }
+            ]
+          },
+          "capture": {
+            "note": "$.id_map.t1"
+          }
+        },
+        {
+          "http": {
+            "method": "GET",
+            "path": "/repos/main/canvas"
+          },
+          "expect": {
+            "status": 200,
+            "checks": [
+              {
+                "path": "$.elements['{{note}}'].label",
+                "equals": "hi"
+              },
+              {
+                "path": "$.elements['{{note}}'].render",
+                "equals": "note"
+              },
+              {
+                "path": "$.elements['{{note}}'].layer",
+                "equals": "default"
+              },
+              {
+                "path": "$.elements['{{note}}'].created_by",
+                "equals": "ai"
+              },
+              {
+                "path": "$.elements['{{note}}'].position.x",
+                "equals": 0
+              },
+              {
+                "path": "$.elements['{{note}}'].position.y",
+                "equals": 0
+              },
+              {
+                "path": "$.elements['{{note}}'].size",
+                "equals": null
+              },
+              {
+                "path": "$.elements['{{note}}'].style",
+                "equals": null
+              },
+              {
+                "path": "$.elements['{{note}}'].meta",
+                "equals": {}
+              },
+              {
+                "path": "$.elements['{{note}}'].id",
+                "equals": "{{note}}"
+              }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "temp_ids_chain_a_group_notes_and_an_edge_in_one_batch",
+      "steps": [
+        {
+          "http": {
+            "method": "PATCH",
+            "path": "/repos/main/canvas",
+            "json": {
+              "ops": [
+                {
+                  "op": "add_group",
+                  "temp_id": "g",
+                  "label": "Group"
+                },
+                {
+                  "op": "add_note",
+                  "temp_id": "a",
+                  "label": "A",
+                  "group_id": "g",
+                  "position": {
+                    "x": 3,
+                    "y": 4
+                  },
+                  "size": {
+                    "w": 10,
+                    "h": 20
+                  }
+                },
+                {
+                  "op": "add_note",
+                  "temp_id": "b",
+                  "label": "B"
+                },
+                {
+                  "op": "add_edge",
+                  "temp_id": "x",
+                  "from": "a",
+                  "to": "b",
+                  "label": "calls",
+                  "hero": true,
+                  "transport": "https",
+                  "origin": "a.py:3"
+                }
+              ]
+            }
+          },
+          "expect": {
+            "status": 200,
+            "checks": [
+              {
+                "path": "$.ok",
+                "equals": true
+              },
+              {
+                "path": "$.affected",
+                "count": 4
+              }
+            ]
+          },
+          "capture": {
+            "g": "$.id_map.g",
+            "a": "$.id_map.a",
+            "x": "$.id_map.x"
+          }
+        },
+        {
+          "http": {
+            "method": "GET",
+            "path": "/repos/main/canvas"
+          },
+          "expect": {
+            "status": 200,
+            "checks": [
+              {
+                "path": "$.elements['{{g}}'].render",
+                "equals": "group"
+              },
+              {
+                "path": "$.elements['{{a}}'].group_id",
+                "equals": "{{g}}"
+              },
+              {
+                "path": "$.elements['{{a}}'].position.x",
+                "equals": 3
+              },
+              {
+                "path": "$.elements['{{a}}'].size.w",
+                "equals": 10
+              },
+              {
+                "path": "$.edges['{{x}}'].label",
+                "equals": "calls"
+              },
+              {
+                "path": "$.edges['{{x}}'].from",
+                "equals": "{{a}}"
+              },
+              {
+                "path": "$.edges['{{x}}'].kind",
+                "equals": "uses"
+              },
+              {
+                "path": "$.edges['{{x}}'].hero",
+                "equals": true
+              },
+              {
+                "path": "$.edges['{{x}}'].transport",
+                "equals": "https"
+              },
+              {
+                "path": "$.edges['{{x}}'].origin",
+                "equals": "a.py:3"
+              },
+              {
+                "path": "$.edges['{{x}}'].style",
+                "equals": null
+              }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "styles_keep_only_the_allow_listed_keys",
+      "steps": [
+        {
+          "http": {
+            "method": "PATCH",
+            "path": "/repos/main/canvas",
+            "json": {
+              "ops": [
+                {
+                  "op": "add_note",
+                  "temp_id": "a",
+                  "label": "A",
+                  "style": {
+                    "color": "red",
+                    "position": "fixed",
+                    "border-style": "dashed"
+                  }
+                },
+                {
+                  "op": "add_note",
+                  "temp_id": "b",
+                  "label": "B",
+                  "style": {
+                    "position": "fixed"
+                  }
+                }
+              ]
+            }
+          },
+          "expect": {
+            "status": 200,
+            "checks": [
+              {
+                "path": "$.ok",
+                "equals": true
+              }
+            ]
+          },
+          "capture": {
+            "a": "$.id_map.a",
+            "b": "$.id_map.b"
+          }
+        },
+        {
+          "http": {
+            "method": "GET",
+            "path": "/repos/main/canvas"
+          },
+          "expect": {
+            "status": 200,
+            "checks": [
+              {
+                "path": "$.elements['{{a}}'].style",
+                "equals": {
+                  "color": "red",
+                  "border-style": "dashed"
+                }
+              },
+              {
+                "path": "$.elements['{{b}}'].style",
+                "equals": null
+              }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "a_batch_with_a_bad_op_is_rejected_whole_with_its_code",
+      "steps": [
+        {
+          "http": {
+            "method": "PATCH",
+            "path": "/repos/main/canvas",
+            "json": {
+              "ops": [
+                {
+                  "op": "delete_element",
+                  "id": "missing"
+                }
+              ]
+            }
+          },
+          "expect": {
+            "status": 200,
+            "json": {
+              "ok": false,
+              "errors": [
+                {
+                  "op_index": 0,
+                  "code": "unknown_target",
+                  "message": {
+                    "$any": true
+                  }
+                }
+              ]
+            }
+          }
+        },
+        {
+          "http": {
+            "method": "PATCH",
+            "path": "/repos/main/canvas",
+            "json": {
+              "ops": [
+                {
+                  "op": "frobnicate"
+                }
+              ]
+            }
+          },
+          "expect": {
+            "status": 200,
+            "json": {
+              "ok": false,
+              "errors": [
+                {
+                  "op_index": 0,
+                  "code": "unknown_op",
+                  "message": {
+                    "$any": true
+                  }
+                }
+              ]
+            }
+          }
+        },
+        {
+          "http": {
+            "method": "PATCH",
+            "path": "/repos/main/canvas",
+            "json": {
+              "ops": [
+                "not an object"
+              ]
+            }
+          },
+          "expect": {
+            "status": 200,
+            "json": {
+              "ok": false,
+              "errors": [
+                {
+                  "op_index": 0,
+                  "code": "invalid_op",
+                  "message": {
+                    "$any": true
+                  }
+                }
+              ]
+            }
+          }
+        },
+        {
+          "http": {
+            "method": "PATCH",
+            "path": "/repos/main/canvas",
+            "json": {
+              "ops": [
+                {
+                  "op": "add_element",
+                  "label": "no render"
+                }
+              ]
+            }
+          },
+          "expect": {
+            "status": 200,
+            "json": {
+              "ok": false,
+              "errors": [
+                {
+                  "op_index": 0,
+                  "code": "missing_field",
+                  "message": {
+                    "$any": true
+                  }
+                }
+              ]
+            }
+          }
+        },
+        {
+          "http": {
+            "method": "PATCH",
+            "path": "/repos/main/canvas",
+            "json": {
+              "ops": [
+                {
+                  "op": "add_element",
+                  "render": "bogus"
+                }
+              ]
+            }
+          },
+          "expect": {
+            "status": 200,
+            "json": {
+              "ok": false,
+              "errors": [
+                {
+                  "op_index": 0,
+                  "code": "invalid_field",
+                  "message": {
+                    "$any": true
+                  }
+                }
+              ]
+            }
+          }
+        },
+        {
+          "http": {
+            "method": "PATCH",
+            "path": "/repos/main/canvas",
+            "json": {
+              "ops": [
+                {
+                  "op": "add_note",
+                  "label": "n",
+                  "node_id": "component::x"
+                }
+              ]
+            }
+          },
+          "expect": {
+            "status": 200,
+            "json": {
+              "ok": false,
+              "errors": [
+                {
+                  "op_index": 0,
+                  "code": "invalid_field",
+                  "message": {
+                    "$any": true
+                  }
+                }
+              ]
+            }
+          }
+        },
+        {
+          "http": {
+            "method": "PATCH",
+            "path": "/repos/main/canvas",
+            "json": {
+              "ops": [
+                {
+                  "op": "add_element",
+                  "render": "custom",
+                  "position": "nope"
+                }
+              ]
+            }
+          },
+          "expect": {
+            "status": 200,
+            "json": {
+              "ok": false,
+              "errors": [
+                {
+                  "op_index": 0,
+                  "code": "invalid_field",
+                  "message": {
+                    "$any": true
+                  }
+                }
+              ]
+            }
+          }
+        },
+        {
+          "http": {
+            "method": "PATCH",
+            "path": "/repos/main/canvas",
+            "json": {
+              "ops": [
+                {
+                  "op": "add_edge",
+                  "from": "ghost",
+                  "to": "ghost2"
+                }
+              ]
+            }
+          },
+          "expect": {
+            "status": 200,
+            "json": {
+              "ok": false,
+              "errors": [
+                {
+                  "op_index": 0,
+                  "code": "unknown_target",
+                  "message": {
+                    "$any": true
+                  }
+                }
+              ]
+            }
+          }
+        },
+        {
+          "http": {
+            "method": "PATCH",
+            "path": "/repos/main/canvas",
+            "json": {
+              "ops": [
+                {
+                  "op": "update_element",
+                  "label": "no id"
+                }
+              ]
+            }
+          },
+          "expect": {
+            "status": 200,
+            "json": {
+              "ok": false,
+              "errors": [
+                {
+                  "op_index": 0,
+                  "code": "missing_field",
+                  "message": {
+                    "$any": true
+                  }
+                }
+              ]
+            }
+          }
+        },
+        {
+          "http": {
+            "method": "PATCH",
+            "path": "/repos/main/canvas",
+            "json": {
+              "ops": [
+                {
+                  "op": "add_note",
+                  "label": "ok"
+                },
+                {
+                  "op": "frobnicate"
+                }
+              ]
+            }
+          },
+          "expect": {
+            "status": 200,
+            "json": {
+              "ok": false,
+              "errors": [
+                {
+                  "op_index": 1,
+                  "code": "unknown_op",
+                  "message": {
+                    "$any": true
+                  }
+                }
+              ]
+            }
+          }
+        },
+        {
+          "http": {
+            "method": "PATCH",
+            "path": "/repos/main/canvas",
+            "json": {
+              "ops": [
+                {
+                  "op": "delete_element",
+                  "id": "m1"
+                },
+                {
+                  "op": "delete_edge",
+                  "id": "m2"
+                }
+              ]
+            }
+          },
+          "expect": {
+            "status": 200,
+            "json": {
+              "ok": false,
+              "errors": [
+                {
+                  "op_index": 0,
+                  "code": "unknown_target",
+                  "message": {
+                    "$any": true
+                  }
+                },
+                {
+                  "op_index": 1,
+                  "code": "unknown_target",
+                  "message": {
+                    "$any": true
+                  }
+                }
+              ]
+            }
+          }
+        },
+        {
+          "http": {
+            "method": "GET",
+            "path": "/repos/main/canvas"
+          },
+          "expect": {
+            "status": 200,
+            "checks": [
+              {
+                "path": "$.elements",
+                "count": 0
+              }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "an_oversized_batch_or_explanation_is_rejected",
+      "steps": [
+        {
+          "http": {
+            "method": "PATCH",
+            "path": "/repos/main/canvas",
+            "json": {
+              "ops": [
+                {
+                  "op": "add_note",
+                  "label": "0"
+                },
+                {
+                  "op": "add_note",
+                  "label": "1"
+                },
+                {
+                  "op": "add_note",
+                  "label": "2"
+                },
+                {
+                  "op": "add_note",
+                  "label": "3"
+                },
+                {
+                  "op": "add_note",
+                  "label": "4"
+                },
+                {
+                  "op": "add_note",
+                  "label": "5"
+                },
+                {
+                  "op": "add_note",
+                  "label": "6"
+                },
+                {
+                  "op": "add_note",
+                  "label": "7"
+                },
+                {
+                  "op": "add_note",
+                  "label": "8"
+                },
+                {
+                  "op": "add_note",
+                  "label": "9"
+                },
+                {
+                  "op": "add_note",
+                  "label": "10"
+                },
+                {
+                  "op": "add_note",
+                  "label": "11"
+                },
+                {
+                  "op": "add_note",
+                  "label": "12"
+                },
+                {
+                  "op": "add_note",
+                  "label": "13"
+                },
+                {
+                  "op": "add_note",
+                  "label": "14"
+                },
+                {
+                  "op": "add_note",
+                  "label": "15"
+                },
+                {
+                  "op": "add_note",
+                  "label": "16"
+                },
+                {
+                  "op": "add_note",
+                  "label": "17"
+                },
+                {
+                  "op": "add_note",
+                  "label": "18"
+                },
+                {
+                  "op": "add_note",
+                  "label": "19"
+                },
+                {
+                  "op": "add_note",
+                  "label": "20"
+                },
+                {
+                  "op": "add_note",
+                  "label": "21"
+                },
+                {
+                  "op": "add_note",
+                  "label": "22"
+                },
+                {
+                  "op": "add_note",
+                  "label": "23"
+                },
+                {
+                  "op": "add_note",
+                  "label": "24"
+                },
+                {
+                  "op": "add_note",
+                  "label": "25"
+                },
+                {
+                  "op": "add_note",
+                  "label": "26"
+                },
+                {
+                  "op": "add_note",
+                  "label": "27"
+                },
+                {
+                  "op": "add_note",
+                  "label": "28"
+                },
+                {
+                  "op": "add_note",
+                  "label": "29"
+                },
+                {
+                  "op": "add_note",
+                  "label": "30"
+                },
+                {
+                  "op": "add_note",
+                  "label": "31"
+                },
+                {
+                  "op": "add_note",
+                  "label": "32"
+                },
+                {
+                  "op": "add_note",
+                  "label": "33"
+                },
+                {
+                  "op": "add_note",
+                  "label": "34"
+                },
+                {
+                  "op": "add_note",
+                  "label": "35"
+                },
+                {
+                  "op": "add_note",
+                  "label": "36"
+                },
+                {
+                  "op": "add_note",
+                  "label": "37"
+                },
+                {
+                  "op": "add_note",
+                  "label": "38"
+                },
+                {
+                  "op": "add_note",
+                  "label": "39"
+                },
+                {
+                  "op": "add_note",
+                  "label": "40"
+                },
+                {
+                  "op": "add_note",
+                  "label": "41"
+                },
+                {
+                  "op": "add_note",
+                  "label": "42"
+                },
+                {
+                  "op": "add_note",
+                  "label": "43"
+                },
+                {
+                  "op": "add_note",
+                  "label": "44"
+                },
+                {
+                  "op": "add_note",
+                  "label": "45"
+                },
+                {
+                  "op": "add_note",
+                  "label": "46"
+                },
+                {
+                  "op": "add_note",
+                  "label": "47"
+                },
+                {
+                  "op": "add_note",
+                  "label": "48"
+                },
+                {
+                  "op": "add_note",
+                  "label": "49"
+                },
+                {
+                  "op": "add_note",
+                  "label": "50"
+                },
+                {
+                  "op": "add_note",
+                  "label": "51"
+                },
+                {
+                  "op": "add_note",
+                  "label": "52"
+                },
+                {
+                  "op": "add_note",
+                  "label": "53"
+                },
+                {
+                  "op": "add_note",
+                  "label": "54"
+                },
+                {
+                  "op": "add_note",
+                  "label": "55"
+                },
+                {
+                  "op": "add_note",
+                  "label": "56"
+                },
+                {
+                  "op": "add_note",
+                  "label": "57"
+                },
+                {
+                  "op": "add_note",
+                  "label": "58"
+                },
+                {
+                  "op": "add_note",
+                  "label": "59"
+                },
+                {
+                  "op": "add_note",
+                  "label": "60"
+                },
+                {
+                  "op": "add_note",
+                  "label": "61"
+                },
+                {
+                  "op": "add_note",
+                  "label": "62"
+                },
+                {
+                  "op": "add_note",
+                  "label": "63"
+                },
+                {
+                  "op": "add_note",
+                  "label": "64"
+                },
+                {
+                  "op": "add_note",
+                  "label": "65"
+                },
+                {
+                  "op": "add_note",
+                  "label": "66"
+                },
+                {
+                  "op": "add_note",
+                  "label": "67"
+                },
+                {
+                  "op": "add_note",
+                  "label": "68"
+                },
+                {
+                  "op": "add_note",
+                  "label": "69"
+                },
+                {
+                  "op": "add_note",
+                  "label": "70"
+                },
+                {
+                  "op": "add_note",
+                  "label": "71"
+                },
+                {
+                  "op": "add_note",
+                  "label": "72"
+                },
+                {
+                  "op": "add_note",
+                  "label": "73"
+                },
+                {
+                  "op": "add_note",
+                  "label": "74"
+                },
+                {
+                  "op": "add_note",
+                  "label": "75"
+                },
+                {
+                  "op": "add_note",
+                  "label": "76"
+                },
+                {
+                  "op": "add_note",
+                  "label": "77"
+                },
+                {
+                  "op": "add_note",
+                  "label": "78"
+                },
+                {
+                  "op": "add_note",
+                  "label": "79"
+                },
+                {
+                  "op": "add_note",
+                  "label": "80"
+                },
+                {
+                  "op": "add_note",
+                  "label": "81"
+                },
+                {
+                  "op": "add_note",
+                  "label": "82"
+                },
+                {
+                  "op": "add_note",
+                  "label": "83"
+                },
+                {
+                  "op": "add_note",
+                  "label": "84"
+                },
+                {
+                  "op": "add_note",
+                  "label": "85"
+                },
+                {
+                  "op": "add_note",
+                  "label": "86"
+                },
+                {
+                  "op": "add_note",
+                  "label": "87"
+                },
+                {
+                  "op": "add_note",
+                  "label": "88"
+                },
+                {
+                  "op": "add_note",
+                  "label": "89"
+                },
+                {
+                  "op": "add_note",
+                  "label": "90"
+                },
+                {
+                  "op": "add_note",
+                  "label": "91"
+                },
+                {
+                  "op": "add_note",
+                  "label": "92"
+                },
+                {
+                  "op": "add_note",
+                  "label": "93"
+                },
+                {
+                  "op": "add_note",
+                  "label": "94"
+                },
+                {
+                  "op": "add_note",
+                  "label": "95"
+                },
+                {
+                  "op": "add_note",
+                  "label": "96"
+                },
+                {
+                  "op": "add_note",
+                  "label": "97"
+                },
+                {
+                  "op": "add_note",
+                  "label": "98"
+                },
+                {
+                  "op": "add_note",
+                  "label": "99"
+                },
+                {
+                  "op": "add_note",
+                  "label": "100"
+                }
+              ]
+            }
+          },
+          "expect": {
+            "status": 200,
+            "json": {
+              "ok": false,
+              "errors": [
+                {
+                  "op_index": -1,
+                  "code": "too_many_ops",
+                  "message": {
+                    "$any": true
+                  }
+                }
+              ]
+            }
+          }
+        },
+        {
+          "http": {
+            "method": "PATCH",
+            "path": "/repos/main/canvas",
+            "json": {
+              "ops": [
+                {
+                  "op": "add_note",
+                  "label": "x"
+                }
+              ],
+              "explanation": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+            }
+          },
+          "expect": {
+            "status": 200,
+            "json": {
+              "ok": false,
+              "errors": [
+                {
+                  "op_index": -1,
+                  "code": "explanation_too_long",
+                  "message": {
+                    "$any": true
+                  }
+                }
+              ]
+            }
+          }
+        },
+        {
+          "http": {
+            "method": "PATCH",
+            "path": "/repos/main/canvas",
+            "json": {
+              "ops": [
+                {
+                  "op": "add_note",
+                  "label": "ok"
+                }
+              ],
+              "explanation": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+            }
+          },
+          "expect": {
+            "status": 200,
+            "checks": [
+              {
+                "path": "$.ok",
+                "equals": true
+              }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "an_update_patches_fields_merges_meta_and_replaces_style",
+      "steps": [
+        {
+          "fs": "write",
+          "path": ".codechroma/canvas-core.json",
+          "text": "{\"schema_version\": 1, \"doc_id\": \"doc-1\", \"updated_at\": \"\", \"positions\": {}, \"elements\": {\"n1\": {\"id\": \"n1\", \"render\": \"note\", \"layer\": \"default\", \"label\": \"note 1\", \"description\": \"\", \"node_id\": null, \"position\": {\"x\": 0.0, \"y\": 0.0}, \"size\": null, \"group_id\": null, \"meta\": {}, \"created_by\": \"user\", \"style\": null}, \"n2\": {\"id\": \"n2\", \"render\": \"note\", \"layer\": \"default\", \"label\": \"note 2\", \"description\": \"\", \"node_id\": null, \"position\": {\"x\": 0.0, \"y\": 0.0}, \"size\": null, \"group_id\": null, \"meta\": {\"recipe_key\": \"k\", \"keep\": 1}, \"created_by\": \"user\", \"style\": {\"color\": \"blue\"}}, \"n3\": {\"id\": \"n3\", \"render\": \"note\", \"layer\": \"default\", \"label\": \"note 3\", \"description\": \"\", \"node_id\": null, \"position\": {\"x\": 0.0, \"y\": 0.0}, \"size\": null, \"group_id\": \"g1\", \"meta\": {}, \"created_by\": \"user\", \"style\": null}, \"g1\": {\"id\": \"g1\", \"render\": \"group\", \"layer\": \"default\", \"label\": \"G\", \"description\": \"\", \"node_id\": null, \"position\": {\"x\": 0.0, \"y\": 0.0}, \"size\": null, \"group_id\": null, \"meta\": {}, \"created_by\": \"user\", \"style\": null}}, \"edges\": {\"e1\": {\"id\": \"e1\", \"from\": \"n1\", \"to\": \"n2\", \"label\": \"\", \"kind\": \"uses\", \"layer\": \"default\", \"style\": null, \"hero\": false, \"transport\": null, \"origin\": null}, \"e2\": {\"id\": \"e2\", \"from\": \"n3\", \"to\": \"n1\", \"label\": \"\", \"kind\": \"uses\", \"layer\": \"default\", \"style\": null, \"hero\": false, \"transport\": null, \"origin\": null}}}"
+        },
+        {
+          "http": {
+            "method": "PATCH",
+            "path": "/repos/main/canvas",
+            "json": {
+              "ops": [
+                {
+                  "op": "update_element",
+                  "id": "n2",
+                  "label": "renamed",
+                  "position": {
+                    "x": 99,
+                    "y": 5
+                  },
+                  "size": {
+                    "w": 7,
+                    "h": 8
+                  },
+                  "meta": {
+                    "added": true
+                  },
+                  "style": {
+                    "background": "red",
+                    "evil": "x"
+                  },
+                  "created_by": "ai"
+                }
+              ]
+            }
+          },
+          "expect": {
+            "status": 200,
+            "json": {
+              "ok": true,
+              "batch_id": {
+                "$any": true
+              },
+              "id_map": {},
+              "affected": [
+                "n2"
+              ]
+            }
+          }
+        },
+        {
+          "http": {
+            "method": "GET",
+            "path": "/repos/main/canvas"
+          },
+          "expect": {
+            "status": 200,
+            "checks": [
+              {
+                "path": "$.elements.n2.label",
+                "equals": "renamed"
+              },
+              {
+                "path": "$.elements.n2.position.x",
+                "equals": 99
+              },
+              {
+                "path": "$.elements.n2.size.h",
+                "equals": 8
+              },
+              {
+                "path": "$.elements.n2.meta",
+                "equals": {
+                  "recipe_key": "k",
+                  "keep": 1,
+                  "added": true
+                }
+              },
+              {
+                "path": "$.elements.n2.style",
+                "equals": {
+                  "background": "red"
+                }
+              },
+              {
+                "path": "$.elements.n2.created_by",
+                "equals": "user"
+              }
+            ]
+          }
+        },
+        {
+          "http": {
+            "method": "PATCH",
+            "path": "/repos/main/canvas",
+            "json": {
+              "ops": [
+                {
+                  "op": "update_element",
+                  "id": "n2",
+                  "style": null,
+                  "size": null
+                }
+              ]
+            }
+          },
+          "expect": {
+            "status": 200,
+            "checks": [
+              {
+                "path": "$.ok",
+                "equals": true
+              }
+            ]
+          }
+        },
+        {
+          "http": {
+            "method": "GET",
+            "path": "/repos/main/canvas"
+          },
+          "expect": {
+            "status": 200,
+            "checks": [
+              {
+                "path": "$.elements.n2.style",
+                "equals": null
+              },
+              {
+                "path": "$.elements.n2.size",
+                "equals": null
+              }
+            ]
+          }
+        },
+        {
+          "http": {
+            "method": "PATCH",
+            "path": "/repos/main/canvas",
+            "json": {
+              "ops": [
+                {
+                  "op": "update_element",
+                  "id": "g1",
+                  "node_id": "component::x"
+                }
+              ]
+            }
+          },
+          "expect": {
+            "status": 200,
+            "json": {
+              "ok": false,
+              "errors": [
+                {
+                  "op_index": 0,
+                  "code": "invalid_field",
+                  "message": {
+                    "$any": true
+                  }
+                }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "an_edge_update_patches_fields_and_clears_style",
+      "steps": [
+        {
+          "fs": "write",
+          "path": ".codechroma/canvas-core.json",
+          "text": "{\"schema_version\": 1, \"doc_id\": \"doc-1\", \"updated_at\": \"\", \"positions\": {}, \"elements\": {\"n1\": {\"id\": \"n1\", \"render\": \"note\", \"layer\": \"default\", \"label\": \"note 1\", \"description\": \"\", \"node_id\": null, \"position\": {\"x\": 0.0, \"y\": 0.0}, \"size\": null, \"group_id\": null, \"meta\": {}, \"created_by\": \"user\", \"style\": null}, \"n2\": {\"id\": \"n2\", \"render\": \"note\", \"layer\": \"default\", \"label\": \"note 2\", \"description\": \"\", \"node_id\": null, \"position\": {\"x\": 0.0, \"y\": 0.0}, \"size\": null, \"group_id\": null, \"meta\": {}, \"created_by\": \"user\", \"style\": null}}, \"edges\": {\"e1\": {\"id\": \"e1\", \"from\": \"n1\", \"to\": \"n2\", \"label\": \"\", \"kind\": \"uses\", \"layer\": \"default\", \"style\": {\"color\": \"red\"}, \"hero\": false, \"transport\": null, \"origin\": null}}}"
+        },
+        {
+          "http": {
+            "method": "PATCH",
+            "path": "/repos/main/canvas",
+            "json": {
+              "ops": [
+                {
+                  "op": "update_edge",
+                  "id": "e1",
+                  "label": "now",
+                  "kind": "calls",
+                  "hero": true,
+                  "style": null,
+                  "transport": "mcp"
+                }
+              ]
+            }
+          },
+          "expect": {
+            "status": 200,
+            "json": {
+              "ok": true,
+              "batch_id": {
+                "$any": true
+              },
+              "id_map": {},
+              "affected": [
+                "e1"
+              ]
+            }
+          }
+        },
+        {
+          "http": {
+            "method": "GET",
+            "path": "/repos/main/canvas"
+          },
+          "expect": {
+            "status": 200,
+            "checks": [
+              {
+                "path": "$.edges.e1.label",
+                "equals": "now"
+              },
+              {
+                "path": "$.edges.e1.kind",
+                "equals": "calls"
+              },
+              {
+                "path": "$.edges.e1.hero",
+                "equals": true
+              },
+              {
+                "path": "$.edges.e1.style",
+                "equals": null
+              },
+              {
+                "path": "$.edges.e1.transport",
+                "equals": "mcp"
+              }
+            ]
+          }
+        },
+        {
+          "http": {
+            "method": "PATCH",
+            "path": "/repos/main/canvas",
+            "json": {
+              "ops": [
+                {
+                  "op": "update_edge",
+                  "id": "e1",
+                  "to": "n1"
+                }
+              ]
+            }
+          },
+          "expect": {
+            "status": 200,
+            "checks": [
+              {
+                "path": "$.ok",
+                "equals": true
+              }
+            ]
+          }
+        },
+        {
+          "http": {
+            "method": "GET",
+            "path": "/repos/main/canvas"
+          },
+          "expect": {
+            "status": 200,
+            "checks": [
+              {
+                "path": "$.edges.e1.to",
+                "equals": "n1"
+              }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "deleting_an_element_cascades_to_its_edges_and_ungroups_its_members",
+      "steps": [
+        {
+          "fs": "write",
+          "path": ".codechroma/canvas-core.json",
+          "text": "{\"schema_version\": 1, \"doc_id\": \"doc-1\", \"updated_at\": \"\", \"positions\": {}, \"elements\": {\"n1\": {\"id\": \"n1\", \"render\": \"note\", \"layer\": \"default\", \"label\": \"note 1\", \"description\": \"\", \"node_id\": null, \"position\": {\"x\": 0.0, \"y\": 0.0}, \"size\": null, \"group_id\": null, \"meta\": {}, \"created_by\": \"user\", \"style\": null}, \"n2\": {\"id\": \"n2\", \"render\": \"note\", \"layer\": \"default\", \"label\": \"note 2\", \"description\": \"\", \"node_id\": null, \"position\": {\"x\": 0.0, \"y\": 0.0}, \"size\": null, \"group_id\": null, \"meta\": {\"recipe_key\": \"k\", \"keep\": 1}, \"created_by\": \"user\", \"style\": {\"color\": \"blue\"}}, \"n3\": {\"id\": \"n3\", \"render\": \"note\", \"layer\": \"default\", \"label\": \"note 3\", \"description\": \"\", \"node_id\": null, \"position\": {\"x\": 0.0, \"y\": 0.0}, \"size\": null, \"group_id\": \"g1\", \"meta\": {}, \"created_by\": \"user\", \"style\": null}, \"g1\": {\"id\": \"g1\", \"render\": \"group\", \"layer\": \"default\", \"label\": \"G\", \"description\": \"\", \"node_id\": null, \"position\": {\"x\": 0.0, \"y\": 0.0}, \"size\": null, \"group_id\": null, \"meta\": {}, \"created_by\": \"user\", \"style\": null}}, \"edges\": {\"e1\": {\"id\": \"e1\", \"from\": \"n1\", \"to\": \"n2\", \"label\": \"\", \"kind\": \"uses\", \"layer\": \"default\", \"style\": null, \"hero\": false, \"transport\": null, \"origin\": null}, \"e2\": {\"id\": \"e2\", \"from\": \"n3\", \"to\": \"n1\", \"label\": \"\", \"kind\": \"uses\", \"layer\": \"default\", \"style\": null, \"hero\": false, \"transport\": null, \"origin\": null}}}"
+        },
+        {
+          "http": {
+            "method": "PATCH",
+            "path": "/repos/main/canvas",
+            "json": {
+              "ops": [
+                {
+                  "op": "delete_element",
+                  "id": "n1"
+                },
+                {
+                  "op": "delete_element",
+                  "id": "g1"
+                }
+              ]
+            }
+          },
+          "expect": {
+            "status": 200,
+            "json": {
+              "ok": true,
+              "batch_id": {
+                "$any": true
+              },
+              "id_map": {},
+              "affected": [
+                "e1",
+                "e2",
+                "g1",
+                "n1",
+                "n3"
+              ]
+            }
+          }
+        },
+        {
+          "http": {
+            "method": "GET",
+            "path": "/repos/main/canvas"
+          },
+          "expect": {
+            "status": 200,
+            "checks": [
+              {
+                "path": "$.elements.n1",
+                "absent": true
+              },
+              {
+                "path": "$.elements.g1",
+                "absent": true
+              },
+              {
+                "path": "$.edges",
+                "count": 0
+              },
+              {
+                "path": "$.elements.n3.group_id",
+                "equals": null
+              },
+              {
+                "path": "$.elements",
+                "count": 2
+              }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "deleting_an_edge_already_cascaded_away_in_the_same_batch_is_a_no_op",
+      "steps": [
+        {
+          "fs": "write",
+          "path": ".codechroma/canvas-core.json",
+          "text": "{\"schema_version\": 1, \"doc_id\": \"doc-1\", \"updated_at\": \"\", \"positions\": {}, \"elements\": {\"n1\": {\"id\": \"n1\", \"render\": \"note\", \"layer\": \"default\", \"label\": \"note 1\", \"description\": \"\", \"node_id\": null, \"position\": {\"x\": 0.0, \"y\": 0.0}, \"size\": null, \"group_id\": null, \"meta\": {}, \"created_by\": \"user\", \"style\": null}, \"n2\": {\"id\": \"n2\", \"render\": \"note\", \"layer\": \"default\", \"label\": \"note 2\", \"description\": \"\", \"node_id\": null, \"position\": {\"x\": 0.0, \"y\": 0.0}, \"size\": null, \"group_id\": null, \"meta\": {\"recipe_key\": \"k\", \"keep\": 1}, \"created_by\": \"user\", \"style\": {\"color\": \"blue\"}}, \"n3\": {\"id\": \"n3\", \"render\": \"note\", \"layer\": \"default\", \"label\": \"note 3\", \"description\": \"\", \"node_id\": null, \"position\": {\"x\": 0.0, \"y\": 0.0}, \"size\": null, \"group_id\": \"g1\", \"meta\": {}, \"created_by\": \"user\", \"style\": null}, \"g1\": {\"id\": \"g1\", \"render\": \"group\", \"layer\": \"default\", \"label\": \"G\", \"description\": \"\", \"node_id\": null, \"position\": {\"x\": 0.0, \"y\": 0.0}, \"size\": null, \"group_id\": null, \"meta\": {}, \"created_by\": \"user\", \"style\": null}}, \"edges\": {\"e1\": {\"id\": \"e1\", \"from\": \"n1\", \"to\": \"n2\", \"label\": \"\", \"kind\": \"uses\", \"layer\": \"default\", \"style\": null, \"hero\": false, \"transport\": null, \"origin\": null}, \"e2\": {\"id\": \"e2\", \"from\": \"n3\", \"to\": \"n1\", \"label\": \"\", \"kind\": \"uses\", \"layer\": \"default\", \"style\": null, \"hero\": false, \"transport\": null, \"origin\": null}}}"
+        },
+        {
+          "http": {
+            "method": "PATCH",
+            "path": "/repos/main/canvas",
+            "json": {
+              "ops": [
+                {
+                  "op": "delete_element",
+                  "id": "n1"
+                },
+                {
+                  "op": "delete_edge",
+                  "id": "e1"
+                },
+                {
+                  "op": "update_edge",
+                  "id": "e2",
+                  "label": "x"
+                }
+              ]
+            }
+          },
+          "expect": {
+            "status": 200,
+            "checks": [
+              {
+                "path": "$.ok",
+                "equals": true
+              }
+            ]
+          }
+        },
+        {
+          "http": {
+            "method": "GET",
+            "path": "/repos/main/canvas"
+          },
+          "expect": {
+            "status": 200,
+            "checks": [
+              {
+                "path": "$.edges",
+                "count": 0
+              }
+            ]
+          }
+        },
+        {
+          "http": {
+            "method": "PATCH",
+            "path": "/repos/main/canvas",
+            "json": {
+              "ops": [
+                {
+                  "op": "delete_edge",
+                  "id": "e1"
+                }
+              ]
+            }
+          },
+          "expect": {
+            "status": 200,
+            "json": {
+              "ok": false,
+              "errors": [
+                {
+                  "op_index": 0,
+                  "code": "unknown_target",
+                  "message": {
+                    "$any": true
+                  }
+                }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "deleting_more_than_twenty_things_needs_confirmation",
+      "steps": [
+        {
+          "fs": "write",
+          "path": ".codechroma/canvas-core.json",
+          "text": "{\"schema_version\": 1, \"doc_id\": \"doc-1\", \"updated_at\": \"\", \"positions\": {}, \"elements\": {\"n0\": {\"id\": \"n0\", \"render\": \"note\", \"layer\": \"default\", \"label\": \"note 0\", \"description\": \"\", \"node_id\": null, \"position\": {\"x\": 0.0, \"y\": 0.0}, \"size\": null, \"group_id\": null, \"meta\": {}, \"created_by\": \"user\", \"style\": null}, \"n1\": {\"id\": \"n1\", \"render\": \"note\", \"layer\": \"default\", \"label\": \"note 1\", \"description\": \"\", \"node_id\": null, \"position\": {\"x\": 0.0, \"y\": 0.0}, \"size\": null, \"group_id\": null, \"meta\": {}, \"created_by\": \"user\", \"style\": null}, \"n2\": {\"id\": \"n2\", \"render\": \"note\", \"layer\": \"default\", \"label\": \"note 2\", \"description\": \"\", \"node_id\": null, \"position\": {\"x\": 0.0, \"y\": 0.0}, \"size\": null, \"group_id\": null, \"meta\": {}, \"created_by\": \"user\", \"style\": null}, \"n3\": {\"id\": \"n3\", \"render\": \"note\", \"layer\": \"default\", \"label\": \"note 3\", \"description\": \"\", \"node_id\": null, \"position\": {\"x\": 0.0, \"y\": 0.0}, \"size\": null, \"group_id\": null, \"meta\": {}, \"created_by\": \"user\", \"style\": null}, \"n4\": {\"id\": \"n4\", \"render\": \"note\", \"layer\": \"default\", \"label\": \"note 4\", \"description\": \"\", \"node_id\": null, \"position\": {\"x\": 0.0, \"y\": 0.0}, \"size\": null, \"group_id\": null, \"meta\": {}, \"created_by\": \"user\", \"style\": null}, \"n5\": {\"id\": \"n5\", \"render\": \"note\", \"layer\": \"default\", \"label\": \"note 5\", \"description\": \"\", \"node_id\": null, \"position\": {\"x\": 0.0, \"y\": 0.0}, \"size\": null, \"group_id\": null, \"meta\": {}, \"created_by\": \"user\", \"style\": null}, \"n6\": {\"id\": \"n6\", \"render\": \"note\", \"layer\": \"default\", \"label\": \"note 6\", \"description\": \"\", \"node_id\": null, \"position\": {\"x\": 0.0, \"y\": 0.0}, \"size\": null, \"group_id\": null, \"meta\": {}, \"created_by\": \"user\", \"style\": null}, \"n7\": {\"id\": \"n7\", \"render\": \"note\", \"layer\": \"default\", \"label\": \"note 7\", \"description\": \"\", \"node_id\": null, \"position\": {\"x\": 0.0, \"y\": 0.0}, \"size\": null, \"group_id\": null, \"meta\": {}, \"created_by\": \"user\", \"style\": null}, \"n8\": {\"id\": \"n8\", \"render\": \"note\", \"layer\": \"default\", \"label\": \"note 8\", \"description\": \"\", \"node_id\": null, \"position\": {\"x\": 0.0, \"y\": 0.0}, \"size\": null, \"group_id\": null, \"meta\": {}, \"created_by\": \"user\", \"style\": null}, \"n9\": {\"id\": \"n9\", \"render\": \"note\", \"layer\": \"default\", \"label\": \"note 9\", \"description\": \"\", \"node_id\": null, \"position\": {\"x\": 0.0, \"y\": 0.0}, \"size\": null, \"group_id\": null, \"meta\": {}, \"created_by\": \"user\", \"style\": null}, \"n10\": {\"id\": \"n10\", \"render\": \"note\", \"layer\": \"default\", \"label\": \"note 10\", \"description\": \"\", \"node_id\": null, \"position\": {\"x\": 0.0, \"y\": 0.0}, \"size\": null, \"group_id\": null, \"meta\": {}, \"created_by\": \"user\", \"style\": null}, \"n11\": {\"id\": \"n11\", \"render\": \"note\", \"layer\": \"default\", \"label\": \"note 11\", \"description\": \"\", \"node_id\": null, \"position\": {\"x\": 0.0, \"y\": 0.0}, \"size\": null, \"group_id\": null, \"meta\": {}, \"created_by\": \"user\", \"style\": null}, \"n12\": {\"id\": \"n12\", \"render\": \"note\", \"layer\": \"default\", \"label\": \"note 12\", \"description\": \"\", \"node_id\": null, \"position\": {\"x\": 0.0, \"y\": 0.0}, \"size\": null, \"group_id\": null, \"meta\": {}, \"created_by\": \"user\", \"style\": null}, \"n13\": {\"id\": \"n13\", \"render\": \"note\", \"layer\": \"default\", \"label\": \"note 13\", \"description\": \"\", \"node_id\": null, \"position\": {\"x\": 0.0, \"y\": 0.0}, \"size\": null, \"group_id\": null, \"meta\": {}, \"created_by\": \"user\", \"style\": null}, \"n14\": {\"id\": \"n14\", \"render\": \"note\", \"layer\": \"default\", \"label\": \"note 14\", \"description\": \"\", \"node_id\": null, \"position\": {\"x\": 0.0, \"y\": 0.0}, \"size\": null, \"group_id\": null, \"meta\": {}, \"created_by\": \"user\", \"style\": null}, \"n15\": {\"id\": \"n15\", \"render\": \"note\", \"layer\": \"default\", \"label\": \"note 15\", \"description\": \"\", \"node_id\": null, \"position\": {\"x\": 0.0, \"y\": 0.0}, \"size\": null, \"group_id\": null, \"meta\": {}, \"created_by\": \"user\", \"style\": null}, \"n16\": {\"id\": \"n16\", \"render\": \"note\", \"layer\": \"default\", \"label\": \"note 16\", \"description\": \"\", \"node_id\": null, \"position\": {\"x\": 0.0, \"y\": 0.0}, \"size\": null, \"group_id\": null, \"meta\": {}, \"created_by\": \"user\", \"style\": null}, \"n17\": {\"id\": \"n17\", \"render\": \"note\", \"layer\": \"default\", \"label\": \"note 17\", \"description\": \"\", \"node_id\": null, \"position\": {\"x\": 0.0, \"y\": 0.0}, \"size\": null, \"group_id\": null, \"meta\": {}, \"created_by\": \"user\", \"style\": null}, \"n18\": {\"id\": \"n18\", \"render\": \"note\", \"layer\": \"default\", \"label\": \"note 18\", \"description\": \"\", \"node_id\": null, \"position\": {\"x\": 0.0, \"y\": 0.0}, \"size\": null, \"group_id\": null, \"meta\": {}, \"created_by\": \"user\", \"style\": null}, \"n19\": {\"id\": \"n19\", \"render\": \"note\", \"layer\": \"default\", \"label\": \"note 19\", \"description\": \"\", \"node_id\": null, \"position\": {\"x\": 0.0, \"y\": 0.0}, \"size\": null, \"group_id\": null, \"meta\": {}, \"created_by\": \"user\", \"style\": null}, \"n20\": {\"id\": \"n20\", \"render\": \"note\", \"layer\": \"default\", \"label\": \"note 20\", \"description\": \"\", \"node_id\": null, \"position\": {\"x\": 0.0, \"y\": 0.0}, \"size\": null, \"group_id\": null, \"meta\": {}, \"created_by\": \"user\", \"style\": null}}, \"edges\": {}}"
+        },
+        {
+          "http": {
+            "method": "PATCH",
+            "path": "/repos/main/canvas",
+            "json": {
+              "ops": [
+                {
+                  "op": "delete_element",
+                  "id": "n0"
+                },
+                {
+                  "op": "delete_element",
+                  "id": "n1"
+                },
+                {
+                  "op": "delete_element",
+                  "id": "n2"
+                },
+                {
+                  "op": "delete_element",
+                  "id": "n3"
+                },
+                {
+                  "op": "delete_element",
+                  "id": "n4"
+                },
+                {
+                  "op": "delete_element",
+                  "id": "n5"
+                },
+                {
+                  "op": "delete_element",
+                  "id": "n6"
+                },
+                {
+                  "op": "delete_element",
+                  "id": "n7"
+                },
+                {
+                  "op": "delete_element",
+                  "id": "n8"
+                },
+                {
+                  "op": "delete_element",
+                  "id": "n9"
+                },
+                {
+                  "op": "delete_element",
+                  "id": "n10"
+                },
+                {
+                  "op": "delete_element",
+                  "id": "n11"
+                },
+                {
+                  "op": "delete_element",
+                  "id": "n12"
+                },
+                {
+                  "op": "delete_element",
+                  "id": "n13"
+                },
+                {
+                  "op": "delete_element",
+                  "id": "n14"
+                },
+                {
+                  "op": "delete_element",
+                  "id": "n15"
+                },
+                {
+                  "op": "delete_element",
+                  "id": "n16"
+                },
+                {
+                  "op": "delete_element",
+                  "id": "n17"
+                },
+                {
+                  "op": "delete_element",
+                  "id": "n18"
+                },
+                {
+                  "op": "delete_element",
+                  "id": "n19"
+                },
+                {
+                  "op": "delete_element",
+                  "id": "n20"
+                }
+              ]
+            }
+          },
+          "expect": {
+            "status": 200,
+            "json": {
+              "ok": false,
+              "errors": [
+                {
+                  "op_index": -1,
+                  "code": "mass_delete_guard",
+                  "message": {
+                    "$any": true
+                  }
+                }
+              ]
+            }
+          }
+        },
+        {
+          "http": {
+            "method": "GET",
+            "path": "/repos/main/canvas"
+          },
+          "expect": {
+            "status": 200,
+            "checks": [
+              {
+                "path": "$.elements",
+                "count": 21
+              }
+            ]
+          }
+        },
+        {
+          "http": {
+            "method": "PATCH",
+            "path": "/repos/main/canvas",
+            "json": {
+              "ops": [
+                {
+                  "op": "delete_element",
+                  "id": "n0"
+                },
+                {
+                  "op": "delete_element",
+                  "id": "n1"
+                },
+                {
+                  "op": "delete_element",
+                  "id": "n2"
+                },
+                {
+                  "op": "delete_element",
+                  "id": "n3"
+                },
+                {
+                  "op": "delete_element",
+                  "id": "n4"
+                },
+                {
+                  "op": "delete_element",
+                  "id": "n5"
+                },
+                {
+                  "op": "delete_element",
+                  "id": "n6"
+                },
+                {
+                  "op": "delete_element",
+                  "id": "n7"
+                },
+                {
+                  "op": "delete_element",
+                  "id": "n8"
+                },
+                {
+                  "op": "delete_element",
+                  "id": "n9"
+                },
+                {
+                  "op": "delete_element",
+                  "id": "n10"
+                },
+                {
+                  "op": "delete_element",
+                  "id": "n11"
+                },
+                {
+                  "op": "delete_element",
+                  "id": "n12"
+                },
+                {
+                  "op": "delete_element",
+                  "id": "n13"
+                },
+                {
+                  "op": "delete_element",
+                  "id": "n14"
+                },
+                {
+                  "op": "delete_element",
+                  "id": "n15"
+                },
+                {
+                  "op": "delete_element",
+                  "id": "n16"
+                },
+                {
+                  "op": "delete_element",
+                  "id": "n17"
+                },
+                {
+                  "op": "delete_element",
+                  "id": "n18"
+                },
+                {
+                  "op": "delete_element",
+                  "id": "n19"
+                },
+                {
+                  "op": "delete_element",
+                  "id": "n20"
+                }
+              ],
+              "confirm_mass_delete": true
+            }
+          },
+          "expect": {
+            "status": 200,
+            "checks": [
+              {
+                "path": "$.ok",
+                "equals": true
+              }
+            ]
+          }
+        },
+        {
+          "http": {
+            "method": "GET",
+            "path": "/repos/main/canvas"
+          },
+          "expect": {
+            "status": 200,
+            "checks": [
+              {
+                "path": "$.elements",
+                "count": 0
+              }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "cascaded_edge_deletes_count_toward_the_mass_delete_guard",
+      "steps": [
+        {
+          "fs": "write",
+          "path": ".codechroma/canvas-core.json",
+          "text": "{\"schema_version\": 1, \"doc_id\": \"doc-1\", \"updated_at\": \"\", \"positions\": {}, \"elements\": {\"nhub\": {\"id\": \"nhub\", \"render\": \"note\", \"layer\": \"default\", \"label\": \"note hub\", \"description\": \"\", \"node_id\": null, \"position\": {\"x\": 0.0, \"y\": 0.0}, \"size\": null, \"group_id\": null, \"meta\": {}, \"created_by\": \"user\", \"style\": null}, \"n0\": {\"id\": \"n0\", \"render\": \"note\", \"layer\": \"default\", \"label\": \"note 0\", \"description\": \"\", \"node_id\": null, \"position\": {\"x\": 0.0, \"y\": 0.0}, \"size\": null, \"group_id\": null, \"meta\": {}, \"created_by\": \"user\", \"style\": null}, \"n1\": {\"id\": \"n1\", \"render\": \"note\", \"layer\": \"default\", \"label\": \"note 1\", \"description\": \"\", \"node_id\": null, \"position\": {\"x\": 0.0, \"y\": 0.0}, \"size\": null, \"group_id\": null, \"meta\": {}, \"created_by\": \"user\", \"style\": null}, \"n2\": {\"id\": \"n2\", \"render\": \"note\", \"layer\": \"default\", \"label\": \"note 2\", \"description\": \"\", \"node_id\": null, \"position\": {\"x\": 0.0, \"y\": 0.0}, \"size\": null, \"group_id\": null, \"meta\": {}, \"created_by\": \"user\", \"style\": null}, \"n3\": {\"id\": \"n3\", \"render\": \"note\", \"layer\": \"default\", \"label\": \"note 3\", \"description\": \"\", \"node_id\": null, \"position\": {\"x\": 0.0, \"y\": 0.0}, \"size\": null, \"group_id\": null, \"meta\": {}, \"created_by\": \"user\", \"style\": null}, \"n4\": {\"id\": \"n4\", \"render\": \"note\", \"layer\": \"default\", \"label\": \"note 4\", \"description\": \"\", \"node_id\": null, \"position\": {\"x\": 0.0, \"y\": 0.0}, \"size\": null, \"group_id\": null, \"meta\": {}, \"created_by\": \"user\", \"style\": null}, \"n5\": {\"id\": \"n5\", \"render\": \"note\", \"layer\": \"default\", \"label\": \"note 5\", \"description\": \"\", \"node_id\": null, \"position\": {\"x\": 0.0, \"y\": 0.0}, \"size\": null, \"group_id\": null, \"meta\": {}, \"created_by\": \"user\", \"style\": null}, \"n6\": {\"id\": \"n6\", \"render\": \"note\", \"layer\": \"default\", \"label\": \"note 6\", \"description\": \"\", \"node_id\": null, \"position\": {\"x\": 0.0, \"y\": 0.0}, \"size\": null, \"group_id\": null, \"meta\": {}, \"created_by\": \"user\", \"style\": null}, \"n7\": {\"id\": \"n7\", \"render\": \"note\", \"layer\": \"default\", \"label\": \"note 7\", \"description\": \"\", \"node_id\": null, \"position\": {\"x\": 0.0, \"y\": 0.0}, \"size\": null, \"group_id\": null, \"meta\": {}, \"created_by\": \"user\", \"style\": null}, \"n8\": {\"id\": \"n8\", \"render\": \"note\", \"layer\": \"default\", \"label\": \"note 8\", \"description\": \"\", \"node_id\": null, \"position\": {\"x\": 0.0, \"y\": 0.0}, \"size\": null, \"group_id\": null, \"meta\": {}, \"created_by\": \"user\", \"style\": null}, \"n9\": {\"id\": \"n9\", \"render\": \"note\", \"layer\": \"default\", \"label\": \"note 9\", \"description\": \"\", \"node_id\": null, \"position\": {\"x\": 0.0, \"y\": 0.0}, \"size\": null, \"group_id\": null, \"meta\": {}, \"created_by\": \"user\", \"style\": null}, \"n10\": {\"id\": \"n10\", \"render\": \"note\", \"layer\": \"default\", \"label\": \"note 10\", \"description\": \"\", \"node_id\": null, \"position\": {\"x\": 0.0, \"y\": 0.0}, \"size\": null, \"group_id\": null, \"meta\": {}, \"created_by\": \"user\", \"style\": null}}, \"edges\": {\"e0\": {\"id\": \"e0\", \"from\": \"nhub\", \"to\": \"n0\", \"label\": \"\", \"kind\": \"uses\", \"layer\": \"default\", \"style\": null, \"hero\": false, \"transport\": null, \"origin\": null}, \"e1\": {\"id\": \"e1\", \"from\": \"nhub\", \"to\": \"n1\", \"label\": \"\", \"kind\": \"uses\", \"layer\": \"default\", \"style\": null, \"hero\": false, \"transport\": null, \"origin\": null}, \"e2\": {\"id\": \"e2\", \"from\": \"nhub\", \"to\": \"n2\", \"label\": \"\", \"kind\": \"uses\", \"layer\": \"default\", \"style\": null, \"hero\": false, \"transport\": null, \"origin\": null}, \"e3\": {\"id\": \"e3\", \"from\": \"nhub\", \"to\": \"n3\", \"label\": \"\", \"kind\": \"uses\", \"layer\": \"default\", \"style\": null, \"hero\": false, \"transport\": null, \"origin\": null}, \"e4\": {\"id\": \"e4\", \"from\": \"nhub\", \"to\": \"n4\", \"label\": \"\", \"kind\": \"uses\", \"layer\": \"default\", \"style\": null, \"hero\": false, \"transport\": null, \"origin\": null}, \"e5\": {\"id\": \"e5\", \"from\": \"nhub\", \"to\": \"n5\", \"label\": \"\", \"kind\": \"uses\", \"layer\": \"default\", \"style\": null, \"hero\": false, \"transport\": null, \"origin\": null}, \"e6\": {\"id\": \"e6\", \"from\": \"nhub\", \"to\": \"n6\", \"label\": \"\", \"kind\": \"uses\", \"layer\": \"default\", \"style\": null, \"hero\": false, \"transport\": null, \"origin\": null}, \"e7\": {\"id\": \"e7\", \"from\": \"nhub\", \"to\": \"n7\", \"label\": \"\", \"kind\": \"uses\", \"layer\": \"default\", \"style\": null, \"hero\": false, \"transport\": null, \"origin\": null}, \"e8\": {\"id\": \"e8\", \"from\": \"nhub\", \"to\": \"n8\", \"label\": \"\", \"kind\": \"uses\", \"layer\": \"default\", \"style\": null, \"hero\": false, \"transport\": null, \"origin\": null}, \"e9\": {\"id\": \"e9\", \"from\": \"nhub\", \"to\": \"n9\", \"label\": \"\", \"kind\": \"uses\", \"layer\": \"default\", \"style\": null, \"hero\": false, \"transport\": null, \"origin\": null}, \"e10\": {\"id\": \"e10\", \"from\": \"nhub\", \"to\": \"n10\", \"label\": \"\", \"kind\": \"uses\", \"layer\": \"default\", \"style\": null, \"hero\": false, \"transport\": null, \"origin\": null}, \"eb0\": {\"id\": \"eb0\", \"from\": \"n0\", \"to\": \"nhub\", \"label\": \"\", \"kind\": \"uses\", \"layer\": \"default\", \"style\": null, \"hero\": false, \"transport\": null, \"origin\": null}, \"eb1\": {\"id\": \"eb1\", \"from\": \"n1\", \"to\": \"nhub\", \"label\": \"\", \"kind\": \"uses\", \"layer\": \"default\", \"style\": null, \"hero\": false, \"transport\": null, \"origin\": null}, \"eb2\": {\"id\": \"eb2\", \"from\": \"n2\", \"to\": \"nhub\", \"label\": \"\", \"kind\": \"uses\", \"layer\": \"default\", \"style\": null, \"hero\": false, \"transport\": null, \"origin\": null}, \"eb3\": {\"id\": \"eb3\", \"from\": \"n3\", \"to\": \"nhub\", \"label\": \"\", \"kind\": \"uses\", \"layer\": \"default\", \"style\": null, \"hero\": false, \"transport\": null, \"origin\": null}, \"eb4\": {\"id\": \"eb4\", \"from\": \"n4\", \"to\": \"nhub\", \"label\": \"\", \"kind\": \"uses\", \"layer\": \"default\", \"style\": null, \"hero\": false, \"transport\": null, \"origin\": null}, \"eb5\": {\"id\": \"eb5\", \"from\": \"n5\", \"to\": \"nhub\", \"label\": \"\", \"kind\": \"uses\", \"layer\": \"default\", \"style\": null, \"hero\": false, \"transport\": null, \"origin\": null}, \"eb6\": {\"id\": \"eb6\", \"from\": \"n6\", \"to\": \"nhub\", \"label\": \"\", \"kind\": \"uses\", \"layer\": \"default\", \"style\": null, \"hero\": false, \"transport\": null, \"origin\": null}, \"eb7\": {\"id\": \"eb7\", \"from\": \"n7\", \"to\": \"nhub\", \"label\": \"\", \"kind\": \"uses\", \"layer\": \"default\", \"style\": null, \"hero\": false, \"transport\": null, \"origin\": null}, \"eb8\": {\"id\": \"eb8\", \"from\": \"n8\", \"to\": \"nhub\", \"label\": \"\", \"kind\": \"uses\", \"layer\": \"default\", \"style\": null, \"hero\": false, \"transport\": null, \"origin\": null}, \"eb9\": {\"id\": \"eb9\", \"from\": \"n9\", \"to\": \"nhub\", \"label\": \"\", \"kind\": \"uses\", \"layer\": \"default\", \"style\": null, \"hero\": false, \"transport\": null, \"origin\": null}, \"eb10\": {\"id\": \"eb10\", \"from\": \"n10\", \"to\": \"nhub\", \"label\": \"\", \"kind\": \"uses\", \"layer\": \"default\", \"style\": null, \"hero\": false, \"transport\": null, \"origin\": null}}}"
+        },
+        {
+          "http": {
+            "method": "PATCH",
+            "path": "/repos/main/canvas",
+            "json": {
+              "ops": [
+                {
+                  "op": "delete_element",
+                  "id": "nhub"
+                }
+              ]
+            }
+          },
+          "expect": {
+            "status": 200,
+            "json": {
+              "ok": false,
+              "errors": [
+                {
+                  "op_index": -1,
+                  "code": "mass_delete_guard",
+                  "message": {
+                    "$any": true
+                  }
+                }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "diagram_layers_are_assembled_from_core_geometry_and_projection_content",
+      "steps": [
+        {
+          "fs": "write",
+          "path": ".codechroma/canvas-core.json",
+          "text": "{\"schema_version\": 1, \"doc_id\": \"doc-1\", \"updated_at\": \"\", \"positions\": {\"c1x\": {\"position\": {\"x\": 5, \"y\": 6}, \"size\": {\"w\": 10, \"h\": 20}}}, \"elements\": {\"n1\": {\"id\": \"n1\", \"render\": \"note\", \"layer\": \"default\", \"label\": \"note 1\", \"description\": \"\", \"node_id\": null, \"position\": {\"x\": 0.0, \"y\": 0.0}, \"size\": null, \"group_id\": null, \"meta\": {}, \"created_by\": \"user\", \"style\": null}}, \"edges\": {}}"
+        },
+        {
+          "fs": "write",
+          "path": ".codechroma/diagrams/c1/projection.json",
+          "text": "{\"elements\": {\"c1x\": {\"id\": \"c1x\", \"render\": \"c1\", \"layer\": \"c1\", \"label\": \"Billing\", \"description\": \"\", \"node_id\": null, \"position\": {\"x\": 0.0, \"y\": 0.0}, \"size\": null, \"group_id\": null, \"meta\": {\"recipe_key\": \"billing\"}, \"created_by\": \"ai\", \"style\": null}}, \"edges\": {}}"
+        },
+        {
+          "http": {
+            "method": "GET",
+            "path": "/repos/main/canvas"
+          },
+          "expect": {
+            "status": 200,
+            "checks": [
+              {
+                "path": "$.elements.c1x.label",
+                "equals": "Billing"
+              },
+              {
+                "path": "$.elements.c1x.position.x",
+                "equals": 5
+              },
+              {
+                "path": "$.elements.c1x.size.w",
+                "equals": 10
+              },
+              {
+                "path": "$.elements.n1.label",
+                "equals": "note 1"
+              },
+              {
+                "path": "$.elements",
+                "count": 2
+              },
+              {
+                "path": "$.doc_id",
+                "equals": "doc-1"
+              }
+            ]
+          }
+        },
+        {
+          "http": {
+            "method": "PATCH",
+            "path": "/repos/main/canvas",
+            "json": {
+              "ops": [
+                {
+                  "op": "update_element",
+                  "id": "c1x",
+                  "position": {
+                    "x": 40,
+                    "y": 41
+                  }
+                },
+                {
+                  "op": "add_note",
+                  "temp_id": "t",
+                  "label": "fresh",
+                  "layer": "c1"
+                }
+              ]
+            }
+          },
+          "expect": {
+            "status": 200,
+            "checks": [
+              {
+                "path": "$.ok",
+                "equals": true
+              }
+            ]
+          }
+        },
+        {
+          "http": {
+            "method": "GET",
+            "path": "/repos/main/canvas"
+          },
+          "expect": {
+            "status": 200,
+            "checks": [
+              {
+                "path": "$.elements['c1x'].position.x",
+                "equals": 40
+              },
+              {
+                "path": "$.elements['c1x'].label",
+                "equals": "Billing"
+              },
+              {
+                "path": "$.elements",
+                "count": 3
+              }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "an_unreadable_canvas_file_loads_as_an_empty_document",
+      "steps": [
+        {
+          "fs": "write",
+          "path": ".codechroma/canvas-core.json",
+          "text": "{ not json"
+        },
+        {
+          "http": {
+            "method": "GET",
+            "path": "/repos/main/canvas"
+          },
+          "expect": {
+            "status": 200,
+            "checks": [
+              {
+                "path": "$.elements",
+                "count": 0
+              }
+            ]
+          }
+        },
+        {
+          "http": {
+            "method": "PATCH",
+            "path": "/repos/main/canvas",
+            "json": {
+              "ops": [
+                {
+                  "op": "add_note",
+                  "label": "after"
+                }
+              ]
+            }
+          },
+          "expect": {
+            "status": 200,
+            "checks": [
+              {
+                "path": "$.ok",
+                "equals": true
+              }
+            ]
+          }
+        },
+        {
+          "http": {
+            "method": "GET",
+            "path": "/repos/main/canvas"
+          },
+          "expect": {
+            "status": 200,
+            "checks": [
+              {
+                "path": "$.elements..label",
+                "contains": "after"
+              }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "a_patch_pings_connected_canvases_with_its_batch",
+      "steps": [
+        {
+          "ws": "connect",
+          "name": "events",
+          "path": "/repos/main/events",
+          "expect": "accepted"
+        },
+        {
+          "http": {
+            "method": "PATCH",
+            "path": "/repos/main/canvas",
+            "json": {
+              "ops": [
+                {
+                  "op": "add_note",
+                  "temp_id": "t1",
+                  "label": "ping"
+                }
+              ]
+            }
+          },
+          "expect": {
+            "status": 200,
+            "checks": [
+              {
+                "path": "$.ok",
+                "equals": true
+              }
+            ]
+          },
+          "capture": {
+            "batch": "$.batch_id",
+            "new": "$.id_map.t1"
+          }
+        },
+        {
+          "ws": "receive",
+          "name": "events",
+          "timeout_ms": 15000,
+          "skip_until_match": true,
+          "expect": {
+            "json": {
+              "type": "canvas",
+              "batch_id": "{{batch}}",
+              "affected": [
+                "{{new}}"
+              ],
+              "new_elements": [
+                "{{new}}"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "the_default_repo_id_reaches_the_main_canvas",
+      "steps": [
+        {
+          "http": {
+            "method": "PATCH",
+            "path": "/repos/default/canvas",
+            "json": {
+              "ops": [
+                {
+                  "op": "add_note",
+                  "label": "via default"
+                }
+              ]
+            }
+          },
+          "expect": {
+            "status": 200,
+            "checks": [
+              {
+                "path": "$.ok",
+                "equals": true
+              }
+            ]
+          }
+        },
+        {
+          "http": {
+            "method": "GET",
+            "path": "/repos/main/canvas"
+          },
+          "expect": {
+            "status": 200,
+            "checks": [
+              {
+                "path": "$.elements..label",
+                "contains": "via default"
+              }
+            ]
+          }
+        }
+      ]
+    }
+  ]
+}

@@ -3,7 +3,7 @@ import type { AgentClient } from "./agentClient";
 import type { AgentRecord } from "../state/types";
 import { PR_CLIENT_STUB } from "./stubAgentClient";
 import { agentStore } from "./agentStore";
-import { switchBranch } from "./branchActions";
+import { settleRemovedWorkspace, switchBranch } from "./branchActions";
 import { branchStore } from "./branchStore";
 
 function record(overrides: Partial<AgentRecord> = {}): AgentRecord {
@@ -99,5 +99,23 @@ describe("switchBranch", () => {
     await switchBranch(agentClient(), "feature-x");
 
     expect(agentStore.getActiveWorkspace()).toBe("elsewhere");
+  });
+});
+
+describe("settleRemovedWorkspace", () => {
+  it("hands the canvas back to main when the active workspace is removed", () => {
+    agentStore.setActiveWorkspace("feature-x");
+
+    settleRemovedWorkspace(agentClient(), "feature-x");
+
+    expect(agentStore.getActiveWorkspace()).toBe("main");
+  });
+
+  it("leaves the active workspace alone when another one is removed", () => {
+    agentStore.setActiveWorkspace("feature-y");
+
+    settleRemovedWorkspace(agentClient(), "feature-x");
+
+    expect(agentStore.getActiveWorkspace()).toBe("feature-y");
   });
 });

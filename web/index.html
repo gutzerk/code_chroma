@@ -4,6 +4,12 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>CodeChroma — Architecture Canvas</title>
+    <!-- WebView.Avalonia on macOS runs ExecuteScriptAsync via this Blazor hook and NREs if it returns null. -->
+    <script>
+      window.__dispatchMessageCallback = function (source) {
+        try { (0, eval)(source); return "ok"; } catch (e) { return "error: " + e; }
+      };
+    </script>
     <!-- UI font (DM Sans) + terminal/mono font (JetBrains Mono) for the soft rounded restyle —
          styles.css's --font-ui/--font-mono fall back to system stacks if this request fails. -->
     <link rel="preconnect" href="https://fonts.googleapis.com" />

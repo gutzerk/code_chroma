@@ -7,7 +7,7 @@ import { canvasDocStore, patchCanvasDoc } from "./canvasDocStore";
 import { dragOffsetStore } from "./dragOffsetStore";
 
 /** Drag-to-reposition for a plain canvas-doc element (no group/collision system of its own) --
- * shared by HierarchyElement and NoteElement. CanvasNodeBox has its own solo/group-aware version
+ * used by NoteElement. CanvasNodeBox has its own solo/group-aware version
  * instead, since a group drag needs to commit every selected box's position in one batch. */
 export function useCanvasElementDrag(
   element: CanvasElement,

@@ -1,12 +1,10 @@
 # Quickstart: try the canvas on the built-in demo project
 
 This walks through running the nested expand-in-place canvas locally and exploring it, using
-**`examples/shadow-app`** — a small but real Python (FastAPI-style) backend and React frontend,
+the bundled **shadow-app** fixture (a snapshot of the former `examples/shadow-app` demo, no longer in the repo) — a small but real Python (FastAPI-style) backend and React frontend,
 with Protocol/ABC-based clients and repositories. The folder/file layer of the demo tree isn't
-hand-written: it's a plain filesystem walk over that example, generated into
-`src/engine-client/fixtures.ts` by `scripts/export_examples_fixture.py`. Regenerate it after adding
-or removing files under `examples/` with `poetry run python scripts/export_examples_fixture.py`
-from the repo root. The class/function layer below each file *is* hand-authored demo data (real
+hand-written: it's a plain filesystem walk over that example, committed as a static snapshot in
+`src/engine-client/fixtures.ts` (its generator script was removed with `examples/`). The class/function layer below each file *is* hand-authored demo data (real
 symbol extraction isn't wired up yet — see below), so don't expect it to track the example's actual
 source line-for-line.
 
@@ -94,7 +92,7 @@ By default this runs against the fixture mock, so it always shows two canned cha
 **real** git working tree, point the canvas at the bridge backend (run from the repo root):
 
 ```bash
-# terminal 1 — the bridge (analyzes ./examples by default; it lives inside this git repo)
+# terminal 1 — the bridge (analyzes the repo root by default; set codechroma_BRIDGE_REPO_PATH to target another repo)
 poetry run uvicorn codechroma.bridge.server:app --port 8000
 # terminal 2 — the web app, pointed at the bridge (its CORS allows :5173 by default)
 VITE_ENGINE_BRIDGE_URL=http://localhost:8000 npm run dev

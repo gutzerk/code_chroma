@@ -4,23 +4,13 @@ from __future__ import annotations
 
 import os
 import shutil
-import subprocess
 from pathlib import Path
 
 import pytest
 from fastapi.testclient import TestClient
 
 from codechroma.bridge.agents import worktree
-
-FIXTURE_REPO = Path(__file__).parent.parent / "fixtures" / "sample_repo"
-
-
-def _init_repo(root: Path) -> None:
-    subprocess.run(["git", "init"], cwd=root, check=True, capture_output=True)
-    subprocess.run(["git", "config", "user.email", "test@example.com"], cwd=root, check=True)
-    subprocess.run(["git", "config", "user.name", "Test"], cwd=root, check=True)
-    subprocess.run(["git", "add", "-A"], cwd=root, check=True, capture_output=True)
-    subprocess.run(["git", "commit", "-m", "initial"], cwd=root, check=True, capture_output=True)
+from tests.conftest import copy_sample_repo
 
 
 def _stub_claude(bin_dir: Path) -> None:
@@ -37,8 +27,7 @@ def _stub_claude(bin_dir: Path) -> None:
 def repo(tmp_path, monkeypatch, use_test_runtime):
     use_test_runtime()
     root = tmp_path / "repo"
-    shutil.copytree(FIXTURE_REPO, root)
-    _init_repo(root)
+    copy_sample_repo(root)
     monkeypatch.setenv(worktree.WORKSPACES_DIR_ENV, str(tmp_path / "worktrees"))
     return root
 

@@ -1,0 +1,13 @@
+<Window xmlns="https://github.com/avaloniaui" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml" x:Class="CodeChroma.Shell.App.MainWindow" Title="CodeChroma" Icon="/Assets/icon.png" Width="1400" Height="900" MinWidth="900" MinHeight="600">
+  <DockPanel>
+    <Border DockPanel.Dock="Top" Background="#1b1d23" BorderBrush="#2a3040" BorderThickness="0,0,0,1">
+      <DockPanel>
+        <Button x:Name="MoreButton" DockPanel.Dock="Right" Content="…" Classes="tiny" Margin="4,0" Padding="10,2" FontSize="16" VerticalAlignment="Center" />
+        <ScrollViewer HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Disabled">
+          <StackPanel x:Name="TabStrip" Orientation="Horizontal" Height="38" />
+        </ScrollViewer>
+      </DockPanel>
+    </Border>
+    <Grid x:Name="Content" />
+  </DockPanel>
+</Window>

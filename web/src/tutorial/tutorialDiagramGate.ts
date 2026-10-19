@@ -15,11 +15,18 @@ export function withTutorialDiagramGate(client: EngineClient): EngineClient {
     isTutorialProject ??= target
       .getNode(ROOT_NODE_ID)
       .then((root) => {
-        const tutorial = root?.name === TUTORIAL_ROOT_NAME;
+        if (!root) {
+          isTutorialProject = null;
+          return false;
+        }
+        const tutorial = root.name === TUTORIAL_ROOT_NAME;
         if (tutorial) tutorialSimStore.enableGate();
         return tutorial;
       })
-      .catch(() => false);
+      .catch(() => {
+        isTutorialProject = null;
+        return false;
+      });
     return isTutorialProject;
   };
   return new Proxy(client, {

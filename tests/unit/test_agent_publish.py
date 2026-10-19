@@ -12,12 +12,7 @@ from pathlib import Path
 import pytest
 
 from codechroma.bridge.agents import publish, worktree
-
-
-def _git(root: Path, *args: str) -> str:
-    return subprocess.run(
-        ["git", *args], cwd=root, check=True, capture_output=True, text=True
-    ).stdout
+from tests.conftest import git
 
 
 def _stub_gh(bin_dir: Path, body: str) -> None:
@@ -74,16 +69,16 @@ def bin_dir(tmp_path, monkeypatch, use_test_runtime):
 @pytest.fixture
 def repo(tmp_path, monkeypatch):
     origin = tmp_path / "origin.git"
-    _git(tmp_path, "init", "--bare", str(origin))
+    git(tmp_path, "init", "--bare", str(origin))
     root = tmp_path / "repo"
     root.mkdir()
-    _git(root, "init", "-b", "main")
-    _git(root, "config", "user.email", "test@example.com")
-    _git(root, "config", "user.name", "Test")
-    _git(root, "remote", "add", "origin", "https://github.com/acme/app.git")
+    git(root, "init", "-b", "main")
+    git(root, "config", "user.email", "test@example.com")
+    git(root, "config", "user.name", "Test")
+    git(root, "remote", "add", "origin", "https://github.com/acme/app.git")
     (root / "app.py").write_text("value = 1\n", encoding="utf-8")
-    _git(root, "add", "-A")
-    _git(root, "commit", "-m", "initial")
+    git(root, "add", "-A")
+    git(root, "commit", "-m", "initial")
     monkeypatch.setenv(worktree.WORKSPACES_DIR_ENV, str(tmp_path / "worktrees"))
     return root
 
@@ -92,15 +87,15 @@ def repo(tmp_path, monkeypatch):
 def agent(repo, tmp_path):
     path = worktree.worktree_path(repo, "refund-flow")
     worktree.add(repo, "agent/refund-flow", path)
-    _git(path, "config", "user.email", "agent@example.com")
-    _git(path, "config", "user.name", "Agent")
+    git(path, "config", "user.email", "agent@example.com")
+    git(path, "config", "user.name", "Agent")
     return path
 
 
 def _commit_work(agent_path: Path) -> None:
     (agent_path / "refund.py").write_text("def refund():\n    return 1\n", encoding="utf-8")
-    _git(agent_path, "add", "-A")
-    _git(agent_path, "commit", "-m", "agent work")
+    git(agent_path, "add", "-A")
+    git(agent_path, "commit", "-m", "agent work")
 
 
 def test_no_gh_on_path_is_reported_before_the_click(agent, monkeypatch):
@@ -132,7 +127,7 @@ def test_a_gitlab_origin_reads_as_not_github(agent, monkeypatch):
     monkeypatch.setattr(
         "codechroma.bridge.prs.github.run_gh", lambda *_args: None
     )
-    _git(agent, "remote", "set-url", "origin", "https://gitlab.com/acme/app.git")
+    git(agent, "remote", "set-url", "origin", "https://gitlab.com/acme/app.git")
 
     result = publish.preflight(agent, "agent/refund-flow", "main")
 
@@ -182,12 +177,12 @@ exit 1
 
 def test_create_pr_pushes_the_branch_and_returns_the_url(agent, repo, bin_dir, tmp_path):
     _stub_gh(bin_dir, AUTH_OK_NO_PR)
-    _git(agent, "remote", "set-url", "origin", str(tmp_path / "origin.git"))
+    git(agent, "remote", "set-url", "origin", str(tmp_path / "origin.git"))
     _commit_work(agent)
 
     url = publish.create_pr(agent, "agent/refund-flow", "main")
 
-    pushed = _git(tmp_path / "origin.git", "branch", "--list", "agent/refund-flow")
+    pushed = git(tmp_path / "origin.git", "branch", "--list", "agent/refund-flow")
     assert url == "https://github.com/acme/app/pull/123"
     assert "agent/refund-flow" in pushed
 
@@ -195,26 +190,26 @@ def test_create_pr_pushes_the_branch_and_returns_the_url(agent, repo, bin_dir, t
 def test_create_pr_commits_the_dirty_files_when_asked(agent, bin_dir, tmp_path):
     _stub_gh(bin_dir, AUTH_OK_NO_PR)
     _stub_claude(bin_dir, 'echo "chore: commit late file"')
-    _git(agent, "remote", "set-url", "origin", str(tmp_path / "origin.git"))
+    git(agent, "remote", "set-url", "origin", str(tmp_path / "origin.git"))
     _commit_work(agent)
     (agent / "late.py").write_text("late = True\n", encoding="utf-8")
 
     publish.create_pr(agent, "agent/refund-flow", "main", commit_dirty=True)
 
     assert publish.dirty_files(agent) == []
-    assert "late.py" in _git(agent, "show", "--name-only", "--format=", "HEAD")
+    assert "late.py" in git(agent, "show", "--name-only", "--format=", "HEAD")
 
 
 def test_create_pr_uses_claudes_generated_commit_message(agent, bin_dir, tmp_path):
     _stub_gh(bin_dir, AUTH_OK_NO_PR)
     _stub_claude(bin_dir, 'echo "feat(refund): add late file"')
-    _git(agent, "remote", "set-url", "origin", str(tmp_path / "origin.git"))
+    git(agent, "remote", "set-url", "origin", str(tmp_path / "origin.git"))
     _commit_work(agent)
     (agent / "late.py").write_text("late = True\n", encoding="utf-8")
 
     publish.create_pr(agent, "agent/refund-flow", "main", commit_dirty=True)
 
-    assert _git(agent, "log", "-1", "--format=%s").strip() == "feat(refund): add late file"
+    assert git(agent, "log", "-1", "--format=%s").strip() == "feat(refund): add late file"
 
 
 def test_create_pr_falls_back_to_a_fixed_message_when_claude_is_missing(
@@ -226,13 +221,13 @@ def test_create_pr_falls_back_to_a_fixed_message_when_claude_is_missing(
         "codechroma.llm.runtime_env.shutil.which",
         lambda name, **kwargs: None if name == "claude" else real_which(name, **kwargs),
     )
-    _git(agent, "remote", "set-url", "origin", str(tmp_path / "origin.git"))
+    git(agent, "remote", "set-url", "origin", str(tmp_path / "origin.git"))
     _commit_work(agent)
     (agent / "late.py").write_text("late = True\n", encoding="utf-8")
 
     publish.create_pr(agent, "agent/refund-flow", "main", commit_dirty=True)
 
-    assert _git(agent, "log", "-1", "--format=%s").strip() == publish._FALLBACK_COMMIT_MESSAGE
+    assert git(agent, "log", "-1", "--format=%s").strip() == publish._FALLBACK_COMMIT_MESSAGE
 
 
 def test_create_pr_retries_the_message_after_a_commit_msg_hook_rejection(
@@ -248,7 +243,7 @@ def test_create_pr_retries_the_message_after_a_commit_msg_hook_rejection(
         esac
         """,
     )
-    _git(agent, "remote", "set-url", "origin", str(tmp_path / "origin.git"))
+    git(agent, "remote", "set-url", "origin", str(tmp_path / "origin.git"))
     _commit_work(agent)
     # Installed after the fixtures' own commits, which predate this test's hook-compliance concern.
     _install_conventional_commit_hook(repo)
@@ -256,19 +251,19 @@ def test_create_pr_retries_the_message_after_a_commit_msg_hook_rejection(
 
     publish.create_pr(agent, "agent/refund-flow", "main", commit_dirty=True)
 
-    assert _git(agent, "log", "-1", "--format=%s").strip() == "fix(refund): satisfy the commit hook"
+    assert git(agent, "log", "-1", "--format=%s").strip() == "fix(refund): satisfy the commit hook"
 
 
 def test_create_pr_leaves_the_dirty_files_out_when_not_asked(agent, bin_dir, tmp_path):
     _stub_gh(bin_dir, AUTH_OK_NO_PR)
-    _git(agent, "remote", "set-url", "origin", str(tmp_path / "origin.git"))
+    git(agent, "remote", "set-url", "origin", str(tmp_path / "origin.git"))
     _commit_work(agent)
     (agent / "late.py").write_text("late = True\n", encoding="utf-8")
 
     publish.create_pr(agent, "agent/refund-flow", "main", commit_dirty=False)
 
     assert publish.dirty_files(agent) == ["late.py"]
-    assert "late.py" not in _git(agent, "show", "--name-only", "--format=", "HEAD")
+    assert "late.py" not in git(agent, "show", "--name-only", "--format=", "HEAD")
 
 
 def test_create_pr_returns_the_existing_url_rather_than_opening_a_second(agent, bin_dir, tmp_path):
@@ -283,7 +278,7 @@ esac
 exit 1
 """,
     )
-    _git(agent, "remote", "set-url", "origin", str(tmp_path / "origin.git"))
+    git(agent, "remote", "set-url", "origin", str(tmp_path / "origin.git"))
     _commit_work(agent)
 
     url = publish.create_pr(agent, "agent/refund-flow", "main")
@@ -293,7 +288,7 @@ exit 1
 
 def test_a_failed_push_surfaces_gits_own_message(agent, bin_dir):
     _stub_gh(bin_dir, AUTH_OK_NO_PR)
-    _git(agent, "remote", "set-url", "origin", "https://github.com/acme/does-not-resolve.invalid")
+    git(agent, "remote", "set-url", "origin", "https://github.com/acme/does-not-resolve.invalid")
     _commit_work(agent)
 
     with pytest.raises(publish.PublishError):

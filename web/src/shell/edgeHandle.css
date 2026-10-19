@@ -1,0 +1,35 @@
+.edge-handle {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 14px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  cursor: col-resize;
+  touch-action: none;
+  z-index: 2;
+}
+.edge-handle-right { right: -7px; }
+.edge-handle-left { left: -7px; }
+.edge-handle-dots {
+  width: 4px;
+  height: 28px;
+  background-image: radial-gradient(var(--text-3) 1.2px, transparent 1.4px);
+  background-size: 4px 7px;
+}
+.edge-handle-button {
+  width: 22px;
+  height: 26px;
+  border: 0;
+  border-radius: 999px;
+  background: var(--surface-3);
+  color: var(--text-1);
+  display: grid;
+  place-items: center;
+  padding: 0;
+  cursor: pointer;
+}
+.edge-handle-button:hover { background: var(--bg-raised-2); color: var(--accent); }

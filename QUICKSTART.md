@@ -72,7 +72,7 @@ Options:
 
 The canvas always renders as nested expandable blocks — there is no boxes-vs-tree strategy switch
 anymore. (The old `?strategy=` URL param and `VITE_CANVAS_STRATEGY` env var were removed.) The
-indented tree now lives in its own **Project tree** side panel; see the rail table in [Section 4](#4-explore).
+indented tree now lives in the **Files** tab of the floating left panel; see [Section 4](#4-explore).
 
 ## 4. Explore
 
@@ -83,7 +83,7 @@ indented tree now lives in its own **Project tree** side panel; see the rail tab
 - **Pan/zoom**: drag to pan, scroll to zoom, per-block **Center**, and **Fit All**.
 
 Edit a file in your repo and save — the canvas re-fetches and reconciles in place (new nodes appear
-collapsed, deleted ones collapse out, open code/diff windows refresh) without resetting your view
+collapsed, deleted ones collapse out, open code/diff views refresh) without resetting your view
 or camera.
 
 ### One canvas, layers
@@ -92,40 +92,46 @@ The canvas is a single document, not a set of mutually exclusive full-screen vie
 **hierarchy** (System → … → Code) is one layer, and each **diagram** — C1, Design Patterns, Change
 Impact, Epics, Sequence, trace playback, or a custom type — is another layer on top of it. Layers
 are shown together (diagrams over the hierarchy) and toggled independently, all from the **Diagrams**
-tab of the agent panel (below). The old "switch the whole canvas to C1 / Patterns / Epics" toolbar
+tab of the left panel (below). The old "switch the whole canvas to C1 / Patterns / Epics" toolbar
 buttons are gone.
 
-### Left rail (icon strip, top to bottom)
+### Floating panels
 
-The app draws its own small SVG icons (not emoji); the symbols below are the closest plain-text
-stand-ins, next to what each icon literally depicts and what the button does.
+The canvas fills the window; panels float over it.
 
-| Icon | Depicts | Control | What it does |
-|---|---|---|---|
-| `−` `⊙` `+` | — | Zoom out / reset & re-center / zoom in | Camera zoom controls |
-| `>_` | a window with a `>` prompt | Terminal | Opens/closes the docked embedded terminal panel |
-| ▤ | lines nested in a block | Project tree | Opens/closes the indented project-tree side panel (a navigational index over the same hierarchy the canvas shows) |
-| ★ / e.g. `C1` | icon or text label | Draw… | Opens an agent that asks what diagram to draw, then draws it onto the canvas via the `codechroma-draw-diagram` skill |
+- **Left panel** (**Diagrams** / **Files** tabs). Drag its edge dots to resize; the ‹ on its edge
+  collapses it to a slim strip with the two tab icons, and clicking one reopens it.
+  - **Diagrams** — the one place every diagram layer is listed and managed. Each row has a checkbox,
+    a colour dot (the same colour as the diagram's frame on the canvas), the name, `type · n boxes`,
+    an eye that hides the diagram from the canvas and from **Fit All**, and a ⋯ menu with Delete
+    (confirm dialog; removes the diagram outright). **Draw…** at the top lists C1, Patterns, Impact,
+    Epics and Custom…, and starts an agent that draws that kind via the `codechroma-draw-diagram`
+    skill. **Arrange selected** (tick two or more rows): **Side by side**, **Stack** or **Grid** lays
+    the ticked diagrams out and zooms to fit them; click the active option again to put them back,
+    or press Ctrl+Z (one step undoes the whole arrange). Dragging a box or diagram afterwards
+    forgets the saved positions.
+  - **Files** — the indented project tree (a navigational index over the same hierarchy the canvas
+    shows). Clicking a code-capable row opens its source in the **Code** overlay.
+- **Agents panel** (always on the right): a tab per agent session over that agent's terminal. Its
+  edge carries ‹ (full screen: every agent side by side, Esc or › to leave) and › (collapse to a
+  strip of `a1`, `a2`… buttons that reopen the panel on that agent). See "Run agent" below.
+- **Code overlay**: clicking a function block or a Files row opens its source over the agents panel
+  (file tabs, ✕ or Esc to close); the agent terminals keep running underneath.
+- **Zoom** (bottom-left): `−`, the zoom percentage, `+` and **Fit All**.
+- **Terminal**: the top bar's terminal button opens the embedded shell as a dock along the bottom,
+  between the two side panels.
 
-**Diff**: the Diff toggle button is hidden from the rail for now (its logic is kept in the code but
-not surfaced), so diff framing isn't currently reachable from the UI.
-
-### Agent panel (beside the canvas: **Agents** / **Diagrams** tabs)
-
-- **Diagrams tab** — the one place every diagram layer is listed and managed. Each row toggles that
-  layer's visibility (collapse or expand) on the canvas; a chevron plus a delete button (with a
-  confirm dialog) remove the diagram outright. The "On canvas" set stays in sync with what's drawn,
-  including diagrams an agent wrote directly via the skill.
-- **Agents tab** — one card per agent session, mirroring its canvas window (see "Run agent" below).
+**Diff**: the Diff toggle button is not surfaced in the UI for now (its logic is kept in the code),
+so diff framing isn't currently reachable from the UI.
 
 ### Top bar
 
 | Control | What it does |
 |---|---|
-| Breadcrumb trail | Shows the deepest expanded path; click a segment to center the camera on that ancestor |
+| Terminal / Report issue / Games / Settings | Open the embedded terminal dock, the issue dialog, the games menu and the assistant settings |
 | Branch: `<name>` | Opens a dropdown of local branches; picking one runs a real `git checkout` (blocked if you have uncommitted changes) |
 | Pull-request | Opens a dialog to paste a GitHub PR URL/number and browse it as a read-only workspace |
-| Run agent | Launches a new autonomous Claude Code session in its own git worktree, shown as its own window on the canvas |
+| Run agent | Launches a new autonomous Claude Code session in its own git worktree, shown as a new tab in the agents panel |
 
 ### Per-block buttons (in every block's header)
 
@@ -137,15 +143,15 @@ not surfaced), so diff framing isn't currently reachable from the UI.
 
 Expand/collapse itself isn't a separate button — click anywhere on the block's own row/header.
 
-### Floating "Fit All" button
+### "Fit All"
 
-Sits over the canvas; fits the camera to every currently expanded block, in whichever view is
-active.
+In the zoom dock (bottom-left); fits the camera to every currently shown block, inside the area not
+covered by the floating panels.
 
 ## 4a. Diagrams (C1, Patterns, Impact, Epics, Sequence, custom)
 
 There is no dedicated per-diagram button anymore — every diagram is a **layer** of the one canvas,
-created with the rail's **Draw…** button and managed from the agent panel's **Diagrams** tab (see
+created with the Diagrams tab's **Draw…** button and managed from the left panel's **Diagrams** tab (see
 [Section 4](#4-explore)). That tab lists each on-canvas diagram as a row with a visibility toggle and
 a delete button.
 
@@ -171,7 +177,7 @@ The built-in types the Draw… agent can produce:
   (missing-file bootstrap, not a background job). Clicking **Draw…** and picking a type is the normal
   way to generate a diagram; opening the canvas never starts a run on its own. If a repo already has
   a diagram artifact, the canvas just fetches it.
-- **Without a key**, use the rail's **Draw…** button (it opens an agent run; the empty-state Retry
+- **Without a key**, use the Diagrams tab's **Draw…** button (it opens an agent run; the empty-state Retry
   path starts a multi-minute `claude -p` run), or open the target repo's terminal panel (or any
   Claude Code session in that repo — launching installs a `codechroma-draw-diagram` skill into
   `.claude/skills/` there automatically) and ask your assistant to "generate/update the C1 diagram".
@@ -181,7 +187,7 @@ The built-in types the Draw… agent can produce:
 
 ## 4b. Custom diagrams
 
-Click the rail's **Draw…** button and pick a type when the agent asks — or use the agent panel's
+Click the Diagrams tab's **Draw…** button and pick a type — or use the left panel's
 Diagrams tab to manage what's already on canvas. **Custom diagrams generate only when you trigger a
 draw** — never automatically.
 

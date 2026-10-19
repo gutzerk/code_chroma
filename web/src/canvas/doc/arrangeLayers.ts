@@ -63,8 +63,11 @@ function slots(boxes: LayerBox[], mode: ArrangeLayout, origin: { x: number; y: n
 }
 
 /** Packs the selected diagram layers rigidly (members keep relative offsets) and parks the rest after them. */
+/** Clears a DiagramFrame's padding (about 40px sides, 96px top) so arranged frames never touch. */
+export const ARRANGE_GAP = 200;
+
 export function arrangeLayers(input: ArrangeInput): { moves: ArrangeMove[]; packedBounds: Rect } {
-  const { doc, selectedLayers, hiddenLayers, mode, gap = 80, sizes } = input;
+  const { doc, selectedLayers, hiddenLayers, mode, gap = ARRANGE_GAP, sizes } = input;
   const layers = collectLayers(doc, new Set(hiddenLayers));
   const selectedIds = [...new Set(selectedLayers)].filter((l) => layers.has(l));
   const selected = selectedIds.map((l) => measure(layers.get(l)!, sizes));

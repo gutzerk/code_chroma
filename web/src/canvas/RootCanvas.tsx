@@ -1,3 +1,4 @@
+import type { CSSProperties } from "react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ROOT_NODE_ID, type HierarchyNodeRef, type LayoutKind } from "../state/types";
 import { reportAsyncError } from "../util/reportError";
@@ -29,6 +30,7 @@ import { ArrangeControls } from "../shell/ArrangeControls";
 import { AgentsPanel } from "../shell/AgentsPanel";
 import { AgentsCollapsedStrip } from "../shell/AgentsCollapsedStrip";
 import { AgentsFullscreen } from "../shell/AgentsFullscreen";
+import { InspectorOverlay, useInspectorOverlaySync } from "../shell/InspectorOverlay";
 import { CodeOverlay, openCodeFor } from "../shell/CodeOverlay";
 import { COLLAPSED_STRIP_WIDTH, useShellState } from "../shell/shellStore";
 import "../shell/shellLayout.css";
@@ -101,6 +103,7 @@ export function RootCanvas() {
   const [rootNode, setRootNode] = useState<HierarchyNodeRef | null>(null);
   const [viewScale, setViewScale] = useState(1);
   const shell = useShellState();
+  useInspectorOverlaySync();
   const breadcrumbPath = useDeepestExpandedPath();
   const expandedNodeIds = useExpandedNodeIdsByOrder();
   const codeVisibleNodeIds = useCodeVisibleNodeIdsByOrder();
@@ -482,7 +485,16 @@ export function RootCanvas() {
         <TutorialChat />
         <TutorialAgentMock />
         <div className="canvas-area" data-testid="canvas-area">
-          <div className="canvas-stage">
+          <div
+            className="canvas-stage"
+            style={
+              {
+                "--shell-left": `${leftInset}px`,
+                "--shell-right": `${rightInset}px`,
+                "--shell-bottom": `${bottomInset}px`,
+              } as CSSProperties
+            }
+          >
             <CanvasViewport ref={viewportRef} insets={insets} onViewChange={(view) => setViewScale(view.scale)}>
               <CanvasFocusContext.Provider value={(nodeId) => viewportRef.current?.focusOnNode(nodeId)}>
                 <CodePopupContext.Provider value={openCodeFor}>
@@ -531,7 +543,14 @@ export function RootCanvas() {
             <TerminalPanel hidden={!isTerminalPanelOpen} leftInset={leftInset} rightInset={rightInset} />
           )}
           <div className="shell-agents-slot" hidden={shell.agents.mode !== "normal"}>
-            <AgentsPanel codeOverlay={<CodeOverlay />} onRunAgent={runAgent} />
+            <AgentsPanel
+              codeOverlay={
+                <>
+                  <CodeOverlay />
+                  <InspectorOverlay />
+                </>
+              }
+              onRunAgent={runAgent} />
           </div>
           <AgentsCollapsedStrip />
           <AgentsFullscreen />

@@ -10,6 +10,7 @@ import { agentStore } from "../agents/agentStore";
 import { expansionStore } from "../state/expansionState";
 import { diffOverlayStore } from "../state/diffOverlayStore";
 import { shellStore } from "../shell/shellStore";
+import { inspectorStore } from "./inspectorStore";
 import { terminalPanelStore } from "../terminal/terminalPanelStore";
 import { collapsedLayersStore } from "./doc/collapsedLayersStore";
 import { codeViewModeStore } from "./codeViewModeStore";
@@ -127,6 +128,7 @@ afterEach(() => {
   diffOverlayStore.clear();
   agentStore.reset();
   shellStore.reset();
+  inspectorStore.reset();
   collapsedLayersStore.reset();
   codeViewModeStore.reset();
   terminalPanelStore.reset();
@@ -182,6 +184,20 @@ describe("RootCanvas agents panel", () => {
 
     expect(screen.queryByTestId("agents-strip")).toBeNull();
     expect(shellStore.getState().agents.mode).toBe("normal");
+  });
+});
+
+describe("RootCanvas inspector overlay", () => {
+  it("shows the inspector over the agents panel and closing the overlay closes it", async () => {
+    renderCanvas();
+    await waitFor(() => expect(screen.getByTestId("agents-panel")).toBeTruthy());
+
+    act(() => inspectorStore.open("function::calculate_total", "calculate_total"));
+
+    const overlay = await screen.findByTestId("inspector-overlay");
+    expect(screen.getByTestId("agents-panel").contains(overlay)).toBe(true);
+    act(() => shellStore.closeCodeOverlay());
+    expect(inspectorStore.getIsOpen()).toBe(false);
   });
 });
 

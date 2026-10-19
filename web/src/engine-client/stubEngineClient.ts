@@ -6,6 +6,11 @@ import type {
   SidecarPayload,
 } from "./EngineClient";
 import {
+  EMPTY_OPEN_QUESTIONS,
+  type OpenQuestionsPayload,
+  type QuestionAck,
+} from "../canvas/doc/question/questionAdapter";
+import {
   EMPTY_IMPACT_CHANGES,
   EMPTY_CANVAS_DOC,
   EMPTY_DIAGRAM,
@@ -43,6 +48,19 @@ export const CANVAS_STUB = {
     batch_id: "",
     id_map: {},
     affected: [],
+  }),
+  getOpenQuestions: async (): Promise<OpenQuestionsPayload> => EMPTY_OPEN_QUESTIONS,
+  answerQuestion: async (questionId: string): Promise<QuestionAck> => ({
+    question_id: questionId,
+    state: "answered",
+  }),
+  skipQuestion: async (questionId: string): Promise<QuestionAck> => ({
+    question_id: questionId,
+    state: "skipped",
+  }),
+  reviseQuestion: async (questionId: string): Promise<QuestionAck> => ({
+    question_id: questionId,
+    state: "open",
   }),
   getDiagramsStatus: async (): Promise<DiagramsStatus> => ({}),
   deleteDiagram: async (): Promise<{ deleted: boolean }> => ({ deleted: true }),

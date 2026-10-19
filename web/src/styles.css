@@ -7193,6 +7193,146 @@ button[data-copy-state="idle"][aria-label]:hover:not(:disabled) {
   color: inherit;
 }
 
+/* An agent question (017): a card with AI-ranked option cards, custom answer and decision history. */
+.question-element {
+  z-index: 2;
+  box-sizing: border-box;
+}
+
+.question-card {
+  background: var(--bg-raised);
+  border: 1px solid #c48af8;
+  border-radius: var(--radius-card);
+  color: var(--text-soft);
+  padding: 20px;
+  box-shadow: 0 5px 16px #0003;
+}
+
+.question-card small {
+  color: var(--text-muted-soft);
+  font-size: 11px;
+  letter-spacing: 0.8px;
+  text-transform: uppercase;
+}
+
+.question-title {
+  margin: 10px 0 14px;
+  font-size: 19px;
+  color: #e3d5f3;
+}
+
+.question-progress {
+  height: 4px;
+  margin: 12px 0 4px;
+  border-radius: 8px;
+  background: var(--border);
+}
+
+.question-progress-bar {
+  height: 100%;
+  border-radius: 8px;
+  background: #c48af8;
+}
+
+.question-options {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+  gap: 12px;
+  margin: 14px 0;
+}
+
+.question-option {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  text-align: left;
+  padding: 16px;
+  border: 1px solid var(--border);
+  border-top: 3px solid #4fc3f7;
+  border-radius: 10px;
+  background: var(--bg-panel);
+  color: var(--text-soft);
+  font: inherit;
+  cursor: pointer;
+}
+
+.question-option:hover:not(:disabled) {
+  background: var(--bg-raised-2);
+}
+
+.question-option:disabled {
+  cursor: default;
+  opacity: 0.6;
+}
+
+.question-option--best { border: 2px solid #6fcf97; padding-top: 40px; }
+.question-option--middle { border: 2px solid #e5b95c; }
+.question-option--last { border: 2px solid #e08085; }
+
+.question-option-badge {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  padding: 3px 8px;
+  border-radius: 5px;
+  background: #223e30;
+  color: #a9e6be;
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.question-option-desc,
+.question-option-diagram { color: var(--text-muted-soft); font-size: 13px; }
+.question-option-pro { color: #6fcf97; font-size: 13px; }
+.question-option-con { color: #e08085; font-size: 13px; }
+.question-option-why { font-size: 12px; line-height: 1.5; color: var(--text-muted-soft); }
+.question-option--best .question-option-why { color: #6fcf97; }
+.question-option--middle .question-option-why { color: #e5b95c; }
+.question-option--last .question-option-why { color: #e08085; }
+
+.question-custom {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 12px 0;
+}
+
+.question-custom input {
+  flex: 1;
+  min-width: 0;
+  padding: 10px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--bg-panel);
+  color: var(--text-soft);
+  font: inherit;
+}
+
+.question-quiet {
+  padding: 8px 12px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: transparent;
+  color: var(--text-soft);
+  font: inherit;
+  cursor: pointer;
+}
+
+.question-quiet:hover:not(:disabled) { background: var(--bg-raised-2); }
+.question-quiet:disabled { opacity: 0.5; cursor: default; }
+.question-result { color: #acd5b8; }
+.question-error { color: #e08085; font-size: 13px; }
+.question-note { color: var(--text-muted-soft); font-size: 12px; }
+
+.question-history {
+  margin-top: 20px;
+  padding-top: 14px;
+  border-top: 1px solid var(--border);
+  font-size: 13px;
+  color: var(--text-muted-soft);
+}
+
 /* IDE-style project-tree side panel — a full-height, scrollable sidebar beside the canvas, below
    the context bar (it lives inside .canvas-main-row, next to .canvas-stage). Width comes from the
    resizable size (default DEFAULT_WIDTH in ProjectTreePanel.tsx); the right-edge handle widens it

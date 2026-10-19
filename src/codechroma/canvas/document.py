@@ -30,11 +30,11 @@ SCHEMA_VERSION = 1
 # predates it.
 RENDER_KINDS = (
     "hierarchy", "c1", "pattern", "impact", "epic", "spec", "task", "custom", "group", "note",
-    "sequence",
+    "sequence", "question",
 )
 
 # Layers with no diagram of their own; must match diagramCatalog.ts's `NON_DIAGRAM_LAYERS` by hand.
-NON_DIAGRAM_LAYERS = frozenset({"default", "hierarchy"})
+NON_DIAGRAM_LAYERS = frozenset({"default", "hierarchy", "questions"})
 
 
 def _new_id() -> str:

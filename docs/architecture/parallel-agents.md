@@ -449,3 +449,7 @@ branch through an agent attached to it (`_guard_shared_worktree`, keyed off `Age
   `tests/integration/test_{workspace_switch,nested_worktree_excluded}.py`,
   `web/src/agents/*.test.{ts,tsx}`,
   `web/src/engine-client/workspacePings.test.ts`, `web/e2e/agent-windows.spec.ts`.
+
+## Canvas questions (017)
+
+Claude agent windows launch with the CodeChroma MCP server (`ask_user`) registered through `agent_cli`'s `mcp` parameter, plus the `codechroma_BRIDGE_URL`/`codechroma_QUESTION_TOKEN` env vars; see [`ai-questions.md`](ai-questions.md) "Agent wiring". A bridge restart invalidates old tokens, so agent windows are respawned with fresh ones.

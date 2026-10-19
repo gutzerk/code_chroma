@@ -2,7 +2,7 @@ import type { CanvasRenderKind } from "../../state/types";
 
 /** Which canvas-doc component draws an element's kind. Several render kinds share one renderer —
  * every diagram box (c1/pattern/impact/epic/custom) renders through CanvasNodeBox. */
-export type RendererKind = "hierarchy" | "note" | "group" | "node-box" | "sequence";
+export type RendererKind = "hierarchy" | "note" | "group" | "node-box" | "sequence" | "question";
 
 /** What clicking a block does — `"epic-brief"` marks a work-item box (epic/story): its primary click
  * opens the right-side Inspector showing the WorkItem's full text (010-epics-tree-render Part 5),
@@ -58,7 +58,7 @@ export type BlockRule = OwnComponentRule | NodeBoxRule;
 /** A rule for a kind that renders through its own component (no CanvasNodeBox box shell). */
 export interface OwnComponentRule {
   kind: CanvasRenderKind;
-  renderer: "hierarchy" | "note" | "group" | "sequence";
+  renderer: "hierarchy" | "note" | "group" | "sequence" | "question";
   activation: ActivationKind;
   /** The "changes"/diff overlay that feeds this kind — impact only today. */
   overlay?: "impact";
@@ -102,6 +102,13 @@ export const BLOCK_RULES: Record<CanvasRenderKind, BlockRule> = {
     // Messages are positioned by the SequenceDiagram component purely from meta.order/from/to --
     // never user-dragged, like the epic tree. The whole layer renders as one own-component, so
     // individual sequence elements carry no box shell.
+    lockedLayout: true,
+  },
+  question: {
+    kind: "question",
+    renderer: "question",
+    activation: "inspector",
+    // An agent's question is answered in place (QuestionCard), never dragged or auto-laid-out.
     lockedLayout: true,
   },
   c1: {
@@ -169,7 +176,7 @@ export const BLOCK_RULES: Record<CanvasRenderKind, BlockRule> = {
  * shell), so it's excluded here along with hierarchy/note/group. */
 export type StyledRenderKind = Exclude<
   CanvasRenderKind,
-  "hierarchy" | "note" | "group" | "sequence"
+  "hierarchy" | "note" | "group" | "sequence" | "question"
 >;
 
 /** The box shell for a node-box kind. `StyledRenderKind` only contains `renderer === "node-box"`

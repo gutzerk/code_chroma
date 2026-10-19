@@ -114,6 +114,12 @@ class BridgeAppConfig(_Config):
     status_poll_seconds: float = 0.25
 
 
+class QuestionsConfig(_Config):
+    """questions/mcp_server.py"""
+
+    ask_wait_seconds: float = 300.0
+
+
 class WorkspacesConfig(_Config):
     """bridge/workspaces.py"""
 
@@ -256,6 +262,7 @@ class Settings(_Config):
     skill_agent: SkillAgentConfig = SkillAgentConfig()
     skill_agent_timeouts: SkillAgentTimeoutsConfig = SkillAgentTimeoutsConfig()
     bridge_app: BridgeAppConfig = BridgeAppConfig()
+    questions: QuestionsConfig = QuestionsConfig()
     workspaces: WorkspacesConfig = WorkspacesConfig()
     pr_workspaces: PRWorkspacesConfig = PRWorkspacesConfig()
     agents: AgentsConfig = AgentsConfig()

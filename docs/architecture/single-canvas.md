@@ -1079,3 +1079,9 @@ regression, and undo-recording), `web/src/canvas/CanvasViewport.test.tsx` (empty
 selection, a marquee's own ending click doesn't), `web/src/canvas/doc/NoteElement.test.tsx`
 ("selection" describe block), `web/src/canvas/UndoManager.test.tsx` (`kinds` prop, cross-kind
 recency), `web/src/state/undoStore.test.ts` (`undoLatest`).
+
+## `question` render kind and `questions` layer (017-ai-questions-grill-session)
+
+- `canvas/document.py` `RENDER_KINDS` gained `"question"` (mirrored in `state/types.ts` `CanvasRenderKind`); `questions` is a non-diagram layer (`diagramCatalog.ts` `NON_DIAGRAM_LAYERS`), so it never gets a diagram frame.
+- `elementRules.ts`: `BLOCK_RULES.question` has its own `renderer: "question"` and `lockedLayout: true`; it is excluded from `StyledRenderKind`. `CanvasDocView.tsx` renders it via `question/QuestionElement` and leaves question elements out of `memberIdsByLayer`.
+- Writes go through `apply_batch` like any element (`questions/store.py`). Wire shapes, routes, broker and gotchas: [`ai-questions.md`](ai-questions.md).

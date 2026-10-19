@@ -1,4 +1,9 @@
 import type {
+  OpenQuestionsPayload,
+  QuestionAck,
+  QuestionAnswerBody,
+} from "../canvas/doc/question/questionAdapter";
+import type {
   AgentEvent,
   CanvasBatch,
   CanvasBatchResult,
@@ -87,6 +92,19 @@ export abstract class DelegatingEngineClient implements EngineClient {
   }
   runRecipe(recipe: string): Promise<CanvasBatchResult> {
     return this.inner.runRecipe(recipe);
+  }
+
+  getOpenQuestions(): Promise<OpenQuestionsPayload> {
+    return this.inner.getOpenQuestions();
+  }
+  answerQuestion(questionId: string, body: QuestionAnswerBody): Promise<QuestionAck> {
+    return this.inner.answerQuestion(questionId, body);
+  }
+  skipQuestion(questionId: string): Promise<QuestionAck> {
+    return this.inner.skipQuestion(questionId);
+  }
+  reviseQuestion(questionId: string): Promise<QuestionAck> {
+    return this.inner.reviseQuestion(questionId);
   }
 
   getDiagramsStatus(): Promise<DiagramsStatus> {

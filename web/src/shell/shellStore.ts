@@ -55,7 +55,6 @@ function readPersisted(): ShellState {
     if (typeof p.agents?.width === "number") out.agents.width = clamp(p.agents.width, AGENTS_MIN_WIDTH, AGENTS_MAX_WIDTH);
     if (p.terminal?.open === true) out.terminal.open = true;
     if (typeof p.terminal?.height === "number") out.terminal.height = Math.max(TERMINAL_MIN_HEIGHT, p.terminal.height);
-    if (p.arrangeMode === "side" || p.arrangeMode === "stack" || p.arrangeMode === "grid") out.arrangeMode = p.arrangeMode;
     if (Array.isArray(p.hiddenLayers)) out.hiddenLayers = p.hiddenLayers.filter((x): x is string => typeof x === "string");
     return out;
   } catch {
@@ -102,6 +101,8 @@ class ShellStore extends Store {
   openAgent = (id: string): void =>
     this.set({ ...this.state, agents: { ...this.state.agents, mode: this.state.agents.mode === "full" ? "full" : "normal", activeId: id } });
   setActiveAgent = (id: string | null): void => this.set({ ...this.state, agents: { ...this.state.agents, activeId: id } });
+  /** Reopens the collapsed agents panel with no agent to select. */
+  expandAgents = (): void => this.set({ ...this.state, agents: { ...this.state.agents, mode: "normal" } });
   /** ‹ on the agents handle. */
   agentsFull = (): void => this.set({ ...this.state, agents: { ...this.state.agents, mode: "full" } });
   /** › on the agents handle: full returns to normal first, normal collapses. */

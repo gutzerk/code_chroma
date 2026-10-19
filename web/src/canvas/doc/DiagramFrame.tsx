@@ -6,6 +6,7 @@ import { useGroupDrag } from "../collision/useGroupDrag";
 import { elementDragPointerDown } from "../useDragOffset";
 import { unionBoundsOf } from "./boundingBox";
 import { canvasDocStore, commitCanvasPositions } from "./canvasDocStore";
+import { clearArrange } from "./arrangeController";
 import { diagramFrameColorClass } from "./diagramFrameColor";
 import { dragOffsetStore } from "./dragOffsetStore";
 import { CopyButton } from "../strategies/nodeChrome";
@@ -47,6 +48,10 @@ export interface DiagramFrameProps {
    * being dragged individually, not just once that drag commits. */
   members: CanvasElement[];
   sizes: ReadonlyMap<string, MeasuredBoxSize>;
+  /** Small-caps type shown beside the name (`diagramDisplayName`'s `typeLabel`); omitted hides the meta line. */
+  typeLabel?: string;
+  /** Box count shown after the type label. */
+  boxCount?: number;
 }
 
 /**
@@ -66,7 +71,7 @@ export interface DiagramFrameProps {
  * Renders nothing once its layer has no visible members left (collapsed via the Diagrams tab, or
  * every element removed).
  */
-export function DiagramFrame({ layer, label, members, sizes }: DiagramFrameProps) {
+export function DiagramFrame({ layer, label, members, sizes, typeLabel, boxCount }: DiagramFrameProps) {
   const engineClient = useEngineClient();
   const bounds = unionBoundsOf(members, sizes);
 
@@ -101,6 +106,7 @@ export function DiagramFrame({ layer, label, members, sizes }: DiagramFrameProps
         trackedIdsRef.current.delete(id);
       }
       commitCanvasPositions(engineClient, positions);
+      clearArrange();
     },
   });
 
@@ -132,15 +138,26 @@ export function DiagramFrame({ layer, label, members, sizes }: DiagramFrameProps
       labelClassName="canvas-diagram-frame-label"
       label={label}
       labelAction={
-        // The frame body is a drag handle, so keep a press on the button from starting a drag.
-        <span className="canvas-diagram-frame-copy" onPointerDown={(e) => e.stopPropagation()}>
-          <CopyButton
-            text={label}
-            name={`${label} diagram`}
-            variant="canvas-diagram-frame"
-            testId="canvas-diagram-frame-copy"
-          />
-        </span>
+        <>
+          {typeLabel !== undefined && (
+            <span
+              className="canvas-diagram-frame-meta"
+              data-testid="canvas-diagram-frame-meta"
+              style={{ marginLeft: 8, fontSize: "0.65rem", letterSpacing: "0.06em", opacity: 0.7 }}
+            >
+              {`${typeLabel} · ${boxCount ?? members.length} ${(boxCount ?? members.length) === 1 ? "box" : "boxes"}`.toUpperCase()}
+            </span>
+          )}
+          {/* The frame body is a drag handle, so keep a press on the button from starting a drag. */}
+          <span className="canvas-diagram-frame-copy" onPointerDown={(e) => e.stopPropagation()}>
+            <CopyButton
+              text={label}
+              name={`${label} diagram`}
+              variant="canvas-diagram-frame"
+              testId="canvas-diagram-frame-copy"
+            />
+          </span>
+        </>
       }
       interactiveProps={{
         role: "button",

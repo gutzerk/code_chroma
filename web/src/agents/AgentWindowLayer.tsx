@@ -9,27 +9,19 @@ import {
 import { useAgentClient } from "./AgentClientContext";
 import { flagDiagramsReady } from "./agentDiagramsReady";
 import { agentStore, useActiveWorkspace, useAgents, useGitPreflight, usePendingClose } from "./agentStore";
-import { AgentWindow } from "./AgentWindow";
-import { agentDockStore, useDockedAgentIds } from "./agentDockStore";
+import { shellStore } from "../shell/shellStore";
 import { branchStore } from "./branchStore";
 import { CloseAgentDialog } from "./CloseAgentDialog";
 import { GitInitDialog } from "./GitInitDialog";
 import { settleActiveWorkspace, settleRemovedWorkspace } from "./branchActions";
 import { WorkspaceStatusBanner } from "./WorkspaceStatusBanner";
-import { confirmCloseAgentWindow, restoreAgentWindow } from "./windowActions";
+import { confirmCloseAgentWindow } from "./windowActions";
 
-/**
- * Everything that lives above the canvas in *screen* coordinates: one window per agent and the
- * git-init dialog.
- *
- * ⚠ These windows are deliberately not registered with feature 002's collision store — a different
- * coordinate space entirely, and explicitly out of scope there.
- */
+/** Agent sync and dialogs: live list/branch updates, notifications, git-init and close confirmation; the terminals live in the shell panels. */
 export function AgentWindowLayer() {
   const agentClient = useAgentClient();
   const engineClient = useEngineClient();
   const agents = useAgents();
-  const dockedAgentIds = useDockedAgentIds();
   const activeWorkspace = useActiveWorkspace();
   const preflight = useGitPreflight();
   const pendingClose = usePendingClose();
@@ -46,10 +38,6 @@ export function AgentWindowLayer() {
 
   useEffect(refresh, [refresh]);
 
-  useEffect(() => {
-    agentDockStore.retain(agents.map((agent) => agent.id));
-  }, [agents]);
-
   const refreshBranchList = useCallback(() => {
     void agentClient
       .getBranch()
@@ -62,13 +50,6 @@ export function AgentWindowLayer() {
   useEffect(refreshBranchList, [refreshBranchList]);
 
   useEffect(ensureNotificationPermission, []);
-
-  // A monitor unplugged mid-session shrinks the browser window in place -- pull any window that
-  // landed off-screen back into view (see agentStore.reclampToViewport).
-  useEffect(() => {
-    window.addEventListener("resize", agentStore.reclampToViewport);
-    return () => window.removeEventListener("resize", agentStore.reclampToViewport);
-  }, []);
 
   // Live pings: another window (or the bridge itself) can add, remove or re-status an agent. Each
   // one is applied in place rather than triggering a refetch — a status flip must not rebuild the
@@ -83,13 +64,8 @@ export function AgentWindowLayer() {
           const kind = statusChangeKind(before?.status, message.status);
           agentStore.setStatus(message.id, message.status);
           if (kind && before && !isAgentWindowFocused(before)) {
-            // restoreAgentWindow, not a branch switch: the agent that just pinged may belong to a
-            // branch main no longer has checked out, but its own worktree runs regardless, and its
-            // window is reachable either way (AgentWindow.tsx no longer hides it for that reason).
-            notifyAgentStatus(before, kind, () => {
-              agentDockStore.activate(before.id);
-              restoreAgentWindow(agentClient, before.id);
-            });
+            // Opens the agents panel on it, not a branch switch: its worktree runs regardless.
+            notifyAgentStatus(before, kind, () => shellStore.openAgent(before.id));
           }
           // A finished "Draw a diagram" task may have written into its own forked worktree, where
           // the canvas never looks -- badge its rail row so the result is one click away.
@@ -121,15 +97,6 @@ export function AgentWindowLayer() {
       data-active-workspace={activeWorkspace}
     >
       <WorkspaceStatusBanner />
-      {/* Every agent is represented here; minimized windows hide without unmounting so xterm stays
-          attached, while docked agents render their terminal in AgentTerminalDock. */}
-      {agents.map((agent) => (
-        <AgentWindow
-          key={agent.id}
-          agent={agent}
-          docked={dockedAgentIds.includes(agent.id)}
-        />
-      ))}
       {preflight && preflight.state !== "ready" && (
         <GitInitDialog
           preflight={preflight}

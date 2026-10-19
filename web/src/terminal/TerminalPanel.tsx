@@ -2,12 +2,23 @@ import { useEffect, useRef } from "react";
 import { useSelectedAgent } from "./terminalPanelStore";
 import { useXtermSession } from "./useXtermSession";
 import { useResizableSize } from "../canvas/useResizableSize";
+import { shellStore, useShellState } from "../shell/shellStore";
+import "./terminalDock.css";
 
 /** Bottom panel hosting a real PTY terminal (xterm.js) wired to a TerminalSession — spawns
  * a plain login shell rooted at the analyzed repo (--repo-path; src/codechroma/terminal/server.py),
  * not a chat-style message list. It docks under the canvas rather than beside it so the C1
  * inspector can own the full-height right edge; a top-edge handle resizes its height. */
-export function TerminalPanel({ hidden = false }: { hidden?: boolean }) {
+export function TerminalPanel({
+  hidden = false,
+  leftInset = 0,
+  rightInset = 0,
+}: {
+  hidden?: boolean;
+  leftInset?: number;
+  rightInset?: number;
+}) {
+  const shellHeight = useShellState().terminal.height;
   const agent = useSelectedAgent();
   const containerRef = useRef<HTMLDivElement | null>(null);
   const panelRef = useRef<HTMLDivElement | null>(null);
@@ -27,16 +38,21 @@ export function TerminalPanel({ hidden = false }: { hidden?: boolean }) {
   // tick; both drivers feed the same debounced refit, so the extra calls just coalesce.
   useEffect(() => {
     scheduleRefit();
-  }, [size, scheduleRefit]);
+  }, [size, shellHeight, scheduleRefit]);
+
+  // A drag persists its height through the shell store (which clamps to its own minimum).
+  useEffect(() => {
+    if (size) shellStore.setTerminalHeight(size.height);
+  }, [size]);
 
   return (
     <div
-      className={`terminal-panel${hidden ? " terminal-panel-hidden" : ""}${
+      className={`terminal-panel terminal-dock${hidden ? " terminal-panel-hidden" : ""}${
         isResizing ? " terminal-panel-resizing" : ""
       }`}
       data-testid="terminal-panel"
       ref={panelRef}
-      style={size ? { height: size.height } : undefined}
+      style={{ left: leftInset, right: rightInset, height: size?.height ?? shellHeight }}
     >
       <div
         className="terminal-panel-resize-handle"

@@ -2,7 +2,8 @@ import { useMemo } from "react";
 import type { HierarchyNodeRef } from "../state/types";
 import { TreeNode } from "./strategies/tree/TreeNode";
 import { ResizableRail } from "./ResizableRail";
-import { openFilesStore, useActiveFileId, useOpenFiles } from "./openFilesStore";
+import { useActiveFileId, useOpenFiles } from "./openFilesStore";
+import { openCodeFor } from "../shell/CodeOverlay";
 
 const DEFAULT_WIDTH = 240;
 const MIN_WIDTH = 180;
@@ -23,10 +24,13 @@ export function ProjectTreePanel({
   rootNode,
   hidden,
   onActivate,
+  embedded = false,
 }: {
   rootNode: HierarchyNodeRef;
   hidden: boolean;
   onActivate: (nodeId: string) => void;
+  /** Renders just the tree (no resizable rail) for the shell's Files tab. */
+  embedded?: boolean;
 }) {
   // Subscribe once here (not per Tree row): the shared row reads `openFileIds`/`activeFileId` from
   // props instead of subscribing to the sidebar store itself, so a tab change re-renders this panel
@@ -40,6 +44,23 @@ export function ProjectTreePanel({
     () => new Set(openFiles.map((f) => f.node_id)),
     [openFiles],
   );
+  const tree = (
+    <TreeNode
+      node={rootNode}
+      onActivate={(node) => onActivate(node.node_id)}
+      openCodeOnActivate
+      onOpenCode={openCodeFor}
+      openFileIds={openFileIds}
+      activeFileId={activeFileId}
+    />
+  );
+  if (embedded) {
+    return (
+      <div className="project-tree-panel project-tree-panel--embedded" data-testid="project-tree-panel" hidden={hidden}>
+        {tree}
+      </div>
+    );
+  }
   return (
     <ResizableRail
       className="project-tree-panel"
@@ -51,14 +72,7 @@ export function ProjectTreePanel({
       minWidth={MIN_WIDTH}
       hidden={hidden}
     >
-      <TreeNode
-        node={rootNode}
-        onActivate={(node) => onActivate(node.node_id)}
-        openCodeOnActivate
-        onOpenCode={(node) => openFilesStore.toggle(node)}
-        openFileIds={openFileIds}
-        activeFileId={activeFileId}
-      />
+      {tree}
     </ResizableRail>
   );
 }

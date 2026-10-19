@@ -6,7 +6,6 @@ import logging
 import threading
 from collections.abc import Callable
 from dataclasses import asdict, dataclass
-from datetime import UTC, datetime
 from pathlib import Path
 
 from codechroma.bridge import diagram_seed, skill_sync
@@ -14,7 +13,7 @@ from codechroma.bridge.agents import main_branch, worktree
 from codechroma.bridge.git_cmd import ensure_excluded, run_git_raw
 from codechroma.bridge.workspaces import BRANCH_ID_PREFIX
 from codechroma.errors import codechromaError
-from codechroma.io import load_json, write_json
+from codechroma.io import load_json, utc_now_iso, write_json
 
 logger = logging.getLogger("uvicorn.error")
 
@@ -208,7 +207,7 @@ class BranchManager:
 
 
 def _now() -> str:
-    return datetime.now(UTC).isoformat(timespec="seconds").replace("+00:00", "Z")
+    return utc_now_iso()
 
 
 def _valid_branch_name(root: Path, branch: str) -> bool:

@@ -162,8 +162,7 @@ resolution), `tests/unit/test_trace_run.py` (call/return capture, caller linking
 handled exceptions under both `settrace` and `sys.monitoring`, clean-`sys.exit` handling,
 `write_trace`'s on-disk shape), `tests/unit/test_bridge_trace_route.py` (`GET /traces[/{id}]`,
 seq-ordering, the trace-dir watcher's `{"type": "trace"}` ping, and the `trace-ingest` →
-`trace-stream` relay) · `web/src/state/traceStore.test.ts`, `web/src/canvas/TraceFlowOverlay.test.tsx`,
-`web/e2e/trace-playback.spec.ts`.
+`trace-stream` relay) · `web/src/state/traceStore.test.ts`, `web/src/canvas/TraceFlowOverlay.test.tsx`.
 
 ## Known gaps / design deltas
 

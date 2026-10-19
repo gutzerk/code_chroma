@@ -1,0 +1,27 @@
+{
+  "_doc": "highlighting/registry.test.ts (8 tests, 7 languages) widened to every alias in registry.ts. Canonical ids are the TextMate-grammar names the Avalonia view binds to.",
+  "aliases": [
+    {"canonical": "python", "aliases": ["python", "py", "Python"]},
+    {"canonical": "go", "aliases": ["go", "golang", "Go"]},
+    {"canonical": "java", "aliases": ["java", "Java"]},
+    {"canonical": "yaml", "aliases": ["yaml", "yml", "YAML"]},
+    {"canonical": "typescript", "aliases": ["typescript", "ts", "Typescript"]},
+    {"canonical": "javascript", "aliases": ["javascript", "js", "node"]},
+    {"canonical": "jsx", "aliases": ["jsx", "react"]},
+    {"canonical": "tsx", "aliases": ["tsx"]},
+    {"canonical": "c", "aliases": ["c"]},
+    {"canonical": "cpp", "aliases": ["cpp", "c++", "cxx"]},
+    {"canonical": "csharp", "aliases": ["csharp", "c#", "cs"]},
+    {"canonical": "ruby", "aliases": ["ruby", "rb"]},
+    {"canonical": "rust", "aliases": ["rust", "rs"]},
+    {"canonical": "swift", "aliases": ["swift"]},
+    {"canonical": "kotlin", "aliases": ["kotlin", "kt"]},
+    {"canonical": "json", "aliases": ["json"]},
+    {"canonical": "css", "aliases": ["css"]},
+    {"canonical": "markdown", "aliases": ["markdown", "md"]},
+    {"canonical": "sql", "aliases": ["sql"]},
+    {"canonical": "bash", "aliases": ["bash", "sh", "shell"]},
+    {"canonical": "toml", "aliases": ["toml"]},
+    {"canonical": "plaintext", "aliases": ["cobol", "", "unknown-lang"]}
+  ]
+}

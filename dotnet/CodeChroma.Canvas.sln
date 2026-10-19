@@ -1,0 +1,40 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio Version 17
+VisualStudioVersion = 17.0.31903.59
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "CodeChroma.Canvas", "CodeChroma.Canvas\CodeChroma.Canvas.csproj", "{B92CE129-357D-427B-AC16-B0F3B45AA471}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "CodeChroma.Canvas.Tests", "CodeChroma.Canvas.Tests\CodeChroma.Canvas.Tests.csproj", "{45F6BB31-DE34-49E1-B106-EA6A316C4442}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "CodeChroma.Canvas.Avalonia", "CodeChroma.Canvas.Avalonia\CodeChroma.Canvas.Avalonia.csproj", "{964F7930-B97B-4039-BD9D-2C6B1C8F110F}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "CodeChroma.Canvas.Avalonia.Tests", "CodeChroma.Canvas.Avalonia.Tests\CodeChroma.Canvas.Avalonia.Tests.csproj", "{1ACD833C-91AC-49C6-9D3C-8544111E74F5}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Release|Any CPU = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{B92CE129-357D-427B-AC16-B0F3B45AA471}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{B92CE129-357D-427B-AC16-B0F3B45AA471}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{B92CE129-357D-427B-AC16-B0F3B45AA471}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{B92CE129-357D-427B-AC16-B0F3B45AA471}.Release|Any CPU.Build.0 = Release|Any CPU
+		{45F6BB31-DE34-49E1-B106-EA6A316C4442}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{45F6BB31-DE34-49E1-B106-EA6A316C4442}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{45F6BB31-DE34-49E1-B106-EA6A316C4442}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{45F6BB31-DE34-49E1-B106-EA6A316C4442}.Release|Any CPU.Build.0 = Release|Any CPU
+		{964F7930-B97B-4039-BD9D-2C6B1C8F110F}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{964F7930-B97B-4039-BD9D-2C6B1C8F110F}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{964F7930-B97B-4039-BD9D-2C6B1C8F110F}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{964F7930-B97B-4039-BD9D-2C6B1C8F110F}.Release|Any CPU.Build.0 = Release|Any CPU
+		{1ACD833C-91AC-49C6-9D3C-8544111E74F5}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{1ACD833C-91AC-49C6-9D3C-8544111E74F5}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{1ACD833C-91AC-49C6-9D3C-8544111E74F5}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{1ACD833C-91AC-49C6-9D3C-8544111E74F5}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+EndGlobal

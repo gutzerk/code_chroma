@@ -1,0 +1,179 @@
+{
+  "group": "impact",
+  "sources": ["src/codechroma/bridge/impact.py", "src/codechroma/bridge/impact_context.py", "src/codechroma/bridge/impact_resolver.py", "src/codechroma/bridge/overlays.py", "src/codechroma/bridge/review.py"],
+  "repo": {"base": "sample_repo"},
+  "cases": [
+    {
+      "id": "no_impact_diagram_is_empty_and_never_stale",
+      "requires": ["real-engine"],
+      "steps": [
+        {
+          "http": {"method": "GET", "path": "/repos/main/impact"},
+          "expect": {"status": 200, "checks": [
+            {"path": "$.has_diagram", "equals": false},
+            {"path": "$.nodes", "count": 0},
+            {"path": "$.stale", "equals": false},
+            {"path": "$.seed_count", "equals": 0},
+            {"path": "$.source", "equals": "diff"}
+          ]}
+        }
+      ]
+    },
+    {
+      "id": "a_box_without_a_resolved_node_id_is_dropped",
+      "requires": ["real-engine"],
+      "steps": [
+        {"fs": "write", "path": ".codechroma/diagrams/impact/impact.json", "text": "{\"source\": \"diff\", \"nodes\": [{\"id\": \"keep\", \"name\": \"Utils\", \"node_id\": \"component::shared/text_utils.py\"}, {\"id\": \"loose\", \"name\": \"Loose\"}, 7]}"},
+        {
+          "http": {"method": "GET", "path": "/repos/main/impact"},
+          "expect": {"status": 200, "checks": [
+            {"path": "$.has_diagram", "equals": true},
+            {"path": "$.nodes", "count": 1},
+            {"path": "$.nodes[0].node_id", "equals": "component::shared/text_utils.py"},
+            {"path": "$.diagnostics.dropped[*].reason", "equals": ["unresolved_path", "invalid_shape"]}
+          ]}
+        }
+      ]
+    },
+    {
+      "id": "an_unknown_plan_status_is_coerced_to_null",
+      "requires": ["real-engine"],
+      "steps": [
+        {"fs": "write", "path": ".codechroma/diagrams/impact/impact.json", "text": "{\"nodes\": [{\"id\": \"a\", \"name\": \"A\", \"node_id\": \"component::shared/text_utils.py\", \"meta\": {\"status\": \"weird\"}}]}"},
+        {
+          "http": {"method": "GET", "path": "/repos/main/impact"},
+          "expect": {"status": 200, "checks": [
+            {"path": "$.nodes[0].meta.status", "type": "null"},
+            {"path": "$.diagnostics.dropped[*].reason", "equals": ["status_coerced"]}
+          ]}
+        }
+      ]
+    },
+    {
+      "id": "a_reviewed_impact_goes_stale_when_the_diff_moves",
+      "requires": ["real-engine"],
+      "steps": [
+        {"fs": "write", "path": ".codechroma/diagrams/impact/impact.json", "text": "{\"fingerprint\": \"old\", \"nodes\": [{\"id\": \"a\", \"name\": \"A\", \"node_id\": \"component::shared/text_utils.py\"}]}"},
+        {
+          "http": {"method": "GET", "path": "/repos/main/impact"},
+          "expect": {"status": 200, "checks": [
+            {"path": "$.reviewed_fingerprint", "equals": "old"},
+            {"path": "$.fingerprint", "type": "string"},
+            {"path": "$.stale", "equals": true}
+          ]}
+        }
+      ]
+    },
+    {
+      "id": "a_changed_file_badges_its_impact_box_and_the_review_result",
+      "requires": ["real-engine"],
+      "steps": [
+        {"fs": "write", "path": ".codechroma/diagrams/impact/impact.json", "text": "{\"nodes\": [{\"id\": \"utils\", \"name\": \"Utils\", \"node_id\": \"component::shared/text_utils.py\"}]}"},
+        {"fs": "replace", "path": "shared/text_utils.py", "find": "return text.strip().lower().replace(\" \", \"-\")", "with": "return \"patched\""},
+        {
+          "http": {"method": "GET", "path": "/repos/main/impact-changes"},
+          "expect": {"status": 200, "checks": [
+            {"path": "$.has_review", "equals": false},
+            {"path": "$.stale", "equals": false},
+            {"path": "$.changed_file_count", "equals": 1},
+            {"path": "$.blocks", "count": 1},
+            {"path": "$.blocks[0].block", "equals": "utils"},
+            {"path": "$.blocks[0].status", "equals": "modified"},
+            {"path": "$.blocks[0].change_count", "equals": 2},
+            {"path": "$.blocks[0].path", "equals": "shared/text_utils.py"},
+            {"path": "$.blocks[0].files[0].path", "equals": "shared/text_utils.py"},
+            {"path": "$.unassigned", "count": 0}
+          ]}
+        },
+        {
+          "http": {"method": "GET", "path": "/repos/main/impact"},
+          "expect": {"status": 200, "checks": [
+            {"path": "$.nodes[0].overlays.changes.status", "equals": "modified"},
+            {"path": "$.changes.changed_file_count", "equals": 1}
+          ]}
+        },
+        {
+          "http": {"method": "GET", "path": "/repos/main/impact/review"},
+          "expect": {"status": 200, "checks": [
+            {"path": "$.axis", "equals": "explanatory"},
+            {"path": "$.has_review", "equals": false},
+            {"path": "$.entries", "count": 1},
+            {"path": "$.entries[0].explanation.status", "equals": "modified"}
+          ]}
+        },
+        {
+          "http": {"method": "GET", "path": "/repos/main/impact-changes-path"},
+          "expect": {"status": 200, "checks": [
+            {"path": "$.fingerprint", "type": "string"},
+            {"path": "$.impact_changes_path", "type": "string"}
+          ]}
+        }
+      ]
+    },
+    {
+      "id": "an_authored_review_merges_prose_ghosts_and_relationships",
+      "requires": ["real-engine"],
+      "steps": [
+        {"fs": "write", "path": ".codechroma/diagrams/impact/impact.json", "text": "{\"nodes\": [{\"id\": \"utils\", \"name\": \"Utils\", \"node_id\": \"component::shared/text_utils.py\"}, {\"id\": \"other\", \"name\": \"Other\", \"node_id\": \"dir::shared\"}]}"},
+        {"fs": "write", "path": ".codechroma/impact-changes.json", "text": "{\"fingerprint\": \"stale-one\", \"summary\": \"S\", \"blocks\": [{\"block\": \"utils\", \"before\": \"b\", \"after\": \"a\", \"explanation\": \"e\", \"status\": \"added\"}], \"ghosts\": [{\"id\": \"gone\", \"parent\": \"utils\", \"name\": \"Gone\"}, {\"id\": \"orphan\", \"parent\": \"missing\"}], \"relationships\": [{\"from\": \"utils\", \"to\": \"other\", \"label\": \"calls\", \"status\": \"weird\"}, {\"from\": \"utils\", \"to\": \"utils\"}]}"},
+        {
+          "http": {"method": "GET", "path": "/repos/main/impact-changes"},
+          "expect": {"status": 200, "checks": [
+            {"path": "$.has_review", "equals": true},
+            {"path": "$.reviewed_fingerprint", "equals": "stale-one"},
+            {"path": "$.stale", "equals": true},
+            {"path": "$.summary", "equals": "S"},
+            {"path": "$.blocks", "count": 1},
+            {"path": "$.blocks[0].status", "equals": "added"},
+            {"path": "$.blocks[0].before", "equals": "b"},
+            {"path": "$.ghosts", "count": 1},
+            {"path": "$.ghosts[0].node_id", "equals": "impact-ghost::utils/gone"},
+            {"path": "$.ghosts[0].status", "equals": "removed"},
+            {"path": "$.relationships", "count": 1},
+            {"path": "$.relationships[0].status", "equals": "modified"},
+            {"path": "$.relationships[0].label", "equals": "calls"}
+          ]}
+        }
+      ]
+    },
+    {
+      "id": "the_context_envelope_slices_a_changed_function_with_its_neighbours",
+      "requires": ["real-engine"],
+      "steps": [
+        {"fs": "replace", "path": "shared/text_utils.py", "find": "return text.strip().lower().replace(\" \", \"-\")", "with": "return \"patched\""},
+        {
+          "http": {"method": "GET", "path": "/repos/main/impact/context"},
+          "expect": {"status": 200, "checks": [
+            {"path": "$.generation_data.source", "equals": "diff"},
+            {"path": "$.generation_data.fingerprint", "type": "string"},
+            {"path": "$.generation_data.seed_count", "equals": 2},
+            {"path": "$.generation_data.nodes[node_id=shared/text_utils.py::function::slugify].reason", "equals": ["modified"]},
+            {"path": "$.generation_data.nodes[node_id=shared/text_utils.py::function::slugify].level", "equals": ["function"]},
+            {"path": "$.generation_data.nodes[node_id=component::shared/text_utils.py].level", "equals": ["file"]}
+          ]}
+        }
+      ]
+    },
+    {
+      "id": "a_plan_source_with_no_feature_has_no_seeds",
+      "requires": ["real-engine"],
+      "steps": [
+        {
+          "http": {"method": "GET", "path": "/repos/main/impact/context", "query": {"source": "plan"}},
+          "expect": {"status": 200, "checks": [
+            {"path": "$.generation_data.source", "equals": "plan"},
+            {"path": "$.generation_data.nodes", "count": 0},
+            {"path": "$.generation_data.seed_count", "equals": 0}
+          ]}
+        }
+      ]
+    },
+    {
+      "id": "a_kind_without_a_review_axis_has_no_review_flow",
+      "requires": ["real-engine"],
+      "steps": [
+        {"http": {"method": "GET", "path": "/repos/main/c1/review"}, "expect": {"status": 404}}
+      ]
+    }
+  ]
+}

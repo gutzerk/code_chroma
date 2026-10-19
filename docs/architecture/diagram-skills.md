@@ -16,8 +16,8 @@ Three things had drifted, all of them consequences of "one skill per diagram typ
   repo has no skill for.
 - **Rules diverged.** Numeric budgets existed only in c1. The label-length rule only in impact. The
   `style` rule in three of four. The `kind`/icon vocabulary only in c1.
-- **Two lists of skill names were hand-kept.** `skill_sync.SKILL_NAMES` and `packaging/bridge.spec`
-  — and they had already diverged: the frozen build shipped **no impact skill at all**.
+- **Two lists of skill names were hand-kept.** `skill_sync.SKILL_NAMES` and a second copy in the old bridge packaging
+  spec (since removed) — and they had already diverged: that build shipped **no impact skill at all**.
 
 ## Layout
 
@@ -62,8 +62,8 @@ merge. `skill_sync.RETIRED_SKILL_NAMES` + `prune_retired_skills()` (called from 
 exist for exactly this. Retired names also stay in `SKILL_EXCLUDE_PATTERNS`, so a leftover never
 reads as the user's own untracked work in the window before it is removed.
 
-⚠ `packaging/bridge.spec` now **imports** `SKILL_NAMES` instead of re-typing it. The hand-kept copy
-is what silently dropped `codechroma-impact` and `codechroma-impact-review` from every frozen build.
+⚠ Historical: a removed packaging spec used to re-type this list and silently dropped
+`codechroma-impact` and `codechroma-impact-review` from one build; `SKILL_NAMES` is now the only list.
 
 💡 `skills.is_synced_skill_path` matches the `codechroma-` prefix, not exact names, so it needed no
 change.

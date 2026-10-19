@@ -1,9 +1,9 @@
-"""The process-wide bridge app, for `uvicorn codechroma.bridge.server:app` and the frozen desktop.
+"""The process-wide bridge app, for `uvicorn codechroma.bridge.server:app` and the C# shell.
 
 Everything that used to live here as module globals and 1058 lines of routes now lives in
 `bridge/app.py` (the factory), `bridge/services.py` (the collaborators) and `bridge/routes/*`
-(one APIRouter per feature area). This module exists so the two entry points that name it --
-`launch.py`'s uvicorn command line and `packaging/bridge_main.py` -- keep working unchanged.
+(one APIRouter per feature area). This module exists so the entry point that names it --
+`launch.py`'s uvicorn command line -- keeps working unchanged.
 
 Importing this module still builds and analyzes a repository, because `app` has to exist at module
 scope for uvicorn. Anything that does not need that (every test) should import `create_app` from

@@ -123,7 +123,7 @@ function DraggableTopLevelBox({
       onPointerDown={(event: ReactPointerEvent<HTMLElement>) => {
         if ((event.target as HTMLElement).closest(PAN_IGNORE_SELECTOR)) return;
         // A held Shift means the user is starting a marquee, not this box's own drag -- see
-        // HierarchyElement.tsx's identical check for why this must reach CanvasViewport instead.
+        // CanvasNodeBox.tsx's identical check for why this must reach CanvasViewport instead.
         if (event.shiftKey) return;
         // The box drag owns this gesture — without this the viewport would pan alongside it.
         event.stopPropagation();

@@ -599,7 +599,8 @@ export type AgentEvent =
   | { type: "agent-added"; agent: AgentRecord }
   | { type: "agent-removed"; id: string }
   | { type: "agent-status"; id: string; status: AgentStatus }
-  | { type: "branch-changed"; branch: string };
+  | { type: "branch-changed"; branch: string }
+  | { type: "branch-removed"; id: string };
 
 /** How far a workspace's graph is from being drawable (GET /workspaces/{id}/status). A worktree is
  * brought up lazily on first activation, and `analyzing` renders a real indicator — never an empty

@@ -55,7 +55,7 @@ def _make_controlling_tty() -> None:
 
 
 def _terminal_env() -> dict[str, str]:
-    """The bridge's env plus the terminal identity a Finder-launched desktop app never inherits."""
+    """The bridge's env plus the terminal identity a Finder-launched shell app never inherits."""
     env = dict(os.environ)
     env["TERM"] = "xterm-256color"
     env["COLORTERM"] = "truecolor"
@@ -78,6 +78,7 @@ class PtySession:
         rows: int | None = None,
         cols: int | None = None,
         env: dict[str, str] | None = None,
+        client_attached: bool = False,
     ):
         rows = rows if rows is not None else default_rows()
         cols = cols if cols is not None else default_cols()
@@ -85,6 +86,8 @@ class PtySession:
         self._on_exit = on_exit
         self._closed = False
         self._answered_conpty_query = False
+        # While a terminal client is attached it answers ConPTY's query itself; we must not too.
+        self.client_attached = client_attached
         self.last_size: tuple[int, int] | None = None
         # A multi-byte character can straddle two reads; an incremental decoder carries the tail.
         self._decoder = codecs.getincrementaldecoder("utf-8")("replace")
@@ -174,13 +177,27 @@ class PtySession:
                 self._answer_conpty_query(text)
                 self._on_output(text)
             if not self._process.isalive():
+                await self._drain_windows()
                 break
         if not self._closed:
             self.close()
 
+    async def _drain_windows(self) -> None:
+        """Flushes output ConPTY still buffers after the child has exited."""
+        while not self._closed:
+            try:
+                text = await asyncio.to_thread(self._process.read, read_chunk_size())
+            except (EOFError, OSError):
+                return
+            if not text:
+                return
+            self._on_output(text)
+
     def _answer_conpty_query(self, text: str) -> None:
         """Replies to ConPTY's startup query ourselves, since no terminal may be attached yet."""
-        if not self._answered_conpty_query and _DEVICE_ATTRIBUTES_QUERY in text:
+        if not settings.windows or self.client_attached or self._answered_conpty_query:
+            return
+        if _DEVICE_ATTRIBUTES_QUERY in text:
             self._answered_conpty_query = True
             self._write_to_pty(_DEVICE_ATTRIBUTES_REPLY.encode("utf-8"))
 

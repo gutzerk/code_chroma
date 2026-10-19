@@ -34,7 +34,11 @@ about the split. The bullets below describe the original single-file shape; trea
   `render` to `group`/`note`), `add_edge`, `update_element`, `update_edge`, `delete_element`
   (cascades to any edge referencing the deleted element), `delete_edge`. Caps: `MAX_OPS_PER_BATCH`
   (100), `MAX_EXPLANATION_CHARS` (1000), `MASS_DELETE_GUARD` (20 — more delete ops than this rejects
-  the batch outright rather than silently wiping a layer).
+  the batch outright rather than silently wiping a layer). 🔵 Contract: an `add_element` with no
+  `position` lands at (0,0), the server never lays it out; the web client's `fetchAndApplyCanvasDoc`
+  (`canvasDocStore.ts`) detects boxes piled on the origin (`pileLayout.findUnplaced`), runs the ELK
+  pass (`layoutUnplaced`) and persists the result through a follow-up `update_element` PATCH, then
+  re-applies the doc, so any writer (skill, recipe, MCP) may omit positions.
 - `bridge/routes/canvas.py` — `GET /repos/{id}/canvas` (the whole document) and
   `PATCH /repos/{id}/canvas` (one batch envelope `{layer, explanation, ops}`, returns
   `{ok, batch_id, id_map, affected}` or `{ok: false, errors}`). A successful `PATCH` saves the
@@ -278,8 +282,8 @@ only detaches the document-level pointermove/pointerup listeners; it never calls
 `dragOffsetStore.clear()` — normally only reached from a commit callback — never ran. `DiagramFrame` and
 `CanvasNodeBox`'s group path now keep a `trackedIdsRef` of every id their own `onGroupPreview` has
 pushed a live offset for (deleted from as `onGroupCommit` clears each one), and clear whatever's left of
-it in a mount-lifetime `useEffect`'s unmount cleanup; `useCanvasElementDrag`'s solo path (`NoteElement`/
-`HierarchyElement`) does the same for its own single id. A drag that commits normally is unaffected —
+it in a mount-lifetime `useEffect`'s unmount cleanup; `useCanvasElementDrag`'s solo path (`NoteElement`)
+does the same for its own single id. A drag that commits normally is unaffected —
 the ref is already empty by the time unmount happens.
 
 Color comes from `diagramFrameColor.ts`'s `diagramFrameColorClass(layer)`: the four builtin recipe
@@ -417,7 +421,7 @@ of each candidate:**
   contrary to the plan's deletion list — both measure via `document.querySelectorAll` against the
   shared pan/zoom SVG coordinate space, so they work unchanged mounted anywhere inside one
   `CanvasViewport`, regardless of whether the hierarchy renders via the old direct
-  `<strategy.NodeRenderer>` or the new `HierarchyElement`. Only `C1PlanConnectionsOverlay` (C1-only,
+  `<strategy.NodeRenderer>` or the (since deleted) `HierarchyElement`. Only `C1PlanConnectionsOverlay` (C1-only,
   sourced from `c1PlanStore`) was deleted, out of `PlanConnectionsOverlay.tsx`.
 - **`UndoManager.tsx`/`state/undoStore.ts`/`useSavedLayoutAndFitLoop.ts` were kept** — all three are
   load-bearing for `strategies/boxes/TopLevelChildren.tsx`'s own top-level box drag/undo, a real
@@ -665,7 +669,7 @@ position depends on the first's measured width, so the root's true rect could st
 or two after that one call. Fixed by retrying `centerOnNode` a few more frames, but **only** for the
 `boxes` strategy specifically (`strategy.id === "boxes"`) — an early version retried unconditionally
 and, even bounded to just 4 frames, that was long enough to occasionally clobber a real camera action
-a fast test gesture triggered in the same window (confirmed via `change-cards.spec.ts`/
+a fast test gesture triggered in the same window (confirmed via the since-removed `change-cards.spec.ts`/
 `pr-review.spec.ts` regressing when a PR-workspace switch remounted this effect immediately before
 toggling Diff). The `tree` strategy (the app default, used by most e2e specs including these two) has
 no such measurement dependency and keeps the original single call, unchanged.
@@ -1066,10 +1070,9 @@ box type:
   number across the given kinds' stacks) and `UndoManager`'s `activeKind: LayoutKind` prop became
   `kinds: readonly LayoutKind[]`; `RootCanvas.tsx` passes `["hierarchy", "canvas"]`. Restoring a
   popped "canvas" entry does not call `recordCommit` again, or it would clobber the entry it just
-  popped. Not covered by this pass: `NoteElement.tsx`/`HierarchyElement.tsx` each still call
-  `canvasDocStore.moveElement`/`patchCanvasDoc` directly in their own `onEnd`, bypassing
-  `CanvasNodeBox.tsx`'s `commitPositions` chokepoint entirely, so note and pinned-hierarchy-element
-  drags remain non-undoable — same fix shape would apply if wanted later.
+  popped. Not covered by this pass: `NoteElement.tsx` (and the since-deleted `HierarchyElement.tsx`) still
+  calls `canvasDocStore.moveElement`/`patchCanvasDoc` directly in its own `onEnd`, bypassing
+  `CanvasNodeBox.tsx`'s `commitPositions` chokepoint entirely, so note drags remain non-undoable — same fix shape would apply if wanted later.
 
 Tests: `web/src/canvas/doc/CanvasNodeBox.test.tsx`'s "group drag" describe block (the reselect-jump
 regression, and undo-recording), `web/src/canvas/CanvasViewport.test.tsx` (empty-canvas click clears

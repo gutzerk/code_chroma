@@ -1,0 +1,12 @@
+{
+  "_doc": "Replaces the dropped Prism token tests (go/python/yaml/jsx Highlighter, 9 tests) with the contract of the in-house tokenizer: kinds for a few lines per language. Only non-plain tokens are listed. Tokens must always reassemble to the source (asserted separately for every canonical language).",
+  "kinds": [
+    {"name": "python keyword, string and comment", "language": "python", "source": "def f(): return 'x'  # hi", "expect": [["keyword", "def"], ["keyword", "return"], ["string", "'x'"], ["comment", "# hi"]]},
+    {"name": "go keyword and number", "language": "go", "source": "func main() { return 42 }", "expect": [["keyword", "func"], ["keyword", "return"], ["number", "42"]]},
+    {"name": "csharp block comment and string", "language": "cs", "source": "var s = \"a\"; /* c */", "expect": [["keyword", "var"], ["string", "\"a\""], ["comment", "/* c */"]]},
+    {"name": "yaml comment line", "language": "yml", "source": "a: true # note", "expect": [["keyword", "true"], ["comment", "# note"]]},
+    {"name": "sql keywords are case insensitive", "language": "sql", "source": "SELECT 1 -- x", "expect": [["keyword", "SELECT"], ["number", "1"], ["comment", "-- x"]]},
+    {"name": "unknown language yields no coloured tokens", "language": "cobol", "source": "def x = 'y' # z", "expect": []},
+    {"name": "an identifier containing a keyword is not a keyword", "language": "python", "source": "define = 1", "expect": [["number", "1"]]}
+  ]
+}

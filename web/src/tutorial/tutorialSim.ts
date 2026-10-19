@@ -99,6 +99,13 @@ class TutorialSimStore extends Store {
 
   enableGate = (): void => this.set({ gateOn: true });
 
+  /** Ends the lesson for good: gate off and every simulated thing back to its initial state. */
+  disableGate = (): void => {
+    this.clearTimer();
+    this.snapshot = { ...INITIAL, gateOn: false };
+    this.emit();
+  };
+
   reveal = (kind: string): void => this.set({ revealed: [...this.snapshot.revealed, kind] });
 
   isHidden = (kind: string): boolean =>

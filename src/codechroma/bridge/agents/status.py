@@ -48,7 +48,6 @@ def default_tail_lines() -> int:
     return settings.agent_status.default_tail_lines
 
 
-# Via resource_path, not __file__: a frozen bundle keeps data files under _MEIPASS.
 MANIFEST_DIR = resource_path("detect")
 
 

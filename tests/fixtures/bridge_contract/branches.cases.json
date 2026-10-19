@@ -1,0 +1,113 @@
+{
+  "group": "branches",
+  "sources": ["src/codechroma/bridge/routes/branches.py", "src/codechroma/bridge/branches/manager.py"],
+  "repo": {"base": "sample_repo"},
+  "cases": [
+    {
+      "id": "no_branch_workspaces_are_open_at_first",
+      "steps": [
+        {"http": {"method": "GET", "path": "/branches"}, "expect": {"status": 200, "json": {"branches": []}}}
+      ]
+    },
+    {
+      "id": "choices_name_the_current_branch_and_who_holds_it",
+      "steps": [
+        {
+          "http": {"method": "GET", "path": "/branches/choices"},
+          "expect": {"status": 200, "checks": [
+            {"path": "$.current", "type": "string"},
+            {"path": "$.branches", "count": 1},
+            {"path": "$.branches[0].open", "equals": true},
+            {"path": "$.branches[0].workspace", "equals": "main"}
+          ]}
+        }
+      ]
+    },
+    {
+      "id": "exactly_one_of_branch_or_new_branch_is_required",
+      "steps": [
+        {"http": {"method": "POST", "path": "/branches", "json": {}}, "expect": {"status": 400, "json": {"detail": "send exactly one of branch or new_branch"}}},
+        {"http": {"method": "POST", "path": "/branches", "json": {"branch": "a", "new_branch": "b"}}, "expect": {"status": 400, "json": {"detail": "send exactly one of branch or new_branch"}}}
+      ]
+    },
+    {
+      "id": "a_start_point_must_be_a_branch_name",
+      "steps": [
+        {"http": {"method": "POST", "path": "/branches", "json": {"new_branch": "x", "start_point": 5}}, "expect": {"status": 400, "json": {"detail": "start_point must be a branch name"}}}
+      ]
+    },
+    {
+      "id": "opening_an_unknown_branch_is_a_404",
+      "steps": [
+        {"http": {"method": "POST", "path": "/branches", "json": {"branch": "nope"}}, "expect": {"status": 404, "json": {"detail": "nope"}}}
+      ]
+    },
+    {
+      "id": "the_branch_main_has_checked_out_cannot_be_opened_twice",
+      "steps": [
+        {
+          "http": {"method": "GET", "path": "/branches/choices"},
+          "capture": {"current": "$.current"},
+          "expect": {"status": 200}
+        },
+        {
+          "http": {"method": "POST", "path": "/branches", "json": {"branch": "{{current}}"}},
+          "expect": {"status": 409, "checks": [
+            {"path": "$.detail.workspace", "equals": "main"},
+            {"path": "$.detail.message", "equals": "branch '{{current}}' is already open in main"}
+          ]}
+        }
+      ]
+    },
+    {
+      "id": "a_new_branch_is_refused_when_its_name_is_invalid_or_taken_or_its_start_unknown",
+      "steps": [
+        {"http": {"method": "POST", "path": "/branches", "json": {"new_branch": "bad name"}}, "expect": {"status": 409, "json": {"detail": "'bad name' is not a valid branch name"}}},
+        {"http": {"method": "POST", "path": "/branches", "json": {"new_branch": "feature/x", "start_point": "ghost"}}, "expect": {"status": 404, "json": {"detail": "ghost"}}}
+      ]
+    },
+    {
+      "id": "a_new_branch_opens_in_its_own_worktree_and_closes_again",
+      "steps": [
+        {
+          "http": {"method": "POST", "path": "/branches", "json": {"new_branch": "feature/x"}},
+          "expect": {"status": 200, "checks": [
+            {"path": "$.id", "equals": "br_feature-x"},
+            {"path": "$.branch", "equals": "feature/x"},
+            {"path": "$.worktree", "type": "string"},
+            {"path": "$.created_at", "type": "string"},
+            {"path": "$.worktree_lost", "equals": false}
+          ]}
+        },
+        {"http": {"method": "GET", "path": "/branches"}, "expect": {"status": 200, "checks": [{"path": "$.branches", "count": 1}, {"path": "$.branches[0].id", "equals": "br_feature-x"}]}},
+        {
+          "http": {"method": "GET", "path": "/branches/choices"},
+          "expect": {"status": 200, "checks": [
+            {"path": "$.branches", "count": 2},
+            {"path": "$.branches[*].workspace", "contains": "br_feature-x"}
+          ]}
+        },
+        {"http": {"method": "POST", "path": "/branches", "json": {"new_branch": "feature/x"}}, "expect": {"status": 409, "json": {"detail": "branch 'feature/x' already exists"}}},
+        {"http": {"method": "DELETE", "path": "/branches/br_feature-x", "query": {"worktree_too": "true"}}, "expect": {"status": 200, "json": {"status": "deleted", "id": "br_feature-x"}}},
+        {"http": {"method": "GET", "path": "/branches"}, "expect": {"status": 200, "json": {"branches": []}}}
+      ]
+    },
+    {
+      "id": "an_existing_branch_is_reopened_after_its_worktree_was_removed",
+      "steps": [
+        {"http": {"method": "POST", "path": "/branches", "json": {"new_branch": "feature/y"}}, "expect": {"status": 200}},
+        {"http": {"method": "DELETE", "path": "/branches/br_feature-y", "query": {"worktree_too": "true"}}, "expect": {"status": 200}},
+        {
+          "http": {"method": "POST", "path": "/branches", "json": {"branch": "feature/y"}},
+          "expect": {"status": 200, "checks": [{"path": "$.id", "equals": "br_feature-y"}, {"path": "$.branch", "equals": "feature/y"}]}
+        }
+      ]
+    },
+    {
+      "id": "closing_an_unknown_branch_workspace_is_a_404",
+      "steps": [
+        {"http": {"method": "DELETE", "path": "/branches/br_nope"}, "expect": {"status": 404}}
+      ]
+    }
+  ]
+}

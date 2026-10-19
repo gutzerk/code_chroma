@@ -95,5 +95,4 @@ themselves. Tests: `tests/unit/test_change_cards.py`'s `by_node_status` cases,
 `web/src/state/hierarchyChangesStore.test.ts`, `web/src/canvas/strategies/useNodeChrome.test.ts`,
 `web/src/state/refreshDiffs.test.ts` (including the ancestor-cache and `scheduleRefreshDiffs`
 coalescing cases), `web/src/state/expansionState.test.ts`'s `getCachedAncestorPath` cases,
-`web/src/canvas/useDiffToggle.test.ts`'s cancel/snapshot-restore cases, `web/e2e/change-cards.spec.ts`'s
-recolor cases.
+`web/src/canvas/useDiffToggle.test.ts`'s cancel/snapshot-restore cases.

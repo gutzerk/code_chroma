@@ -21,7 +21,6 @@ import re
 import threading
 from collections.abc import Callable
 from dataclasses import asdict, dataclass, field
-from datetime import UTC, datetime
 from pathlib import Path
 from typing import TYPE_CHECKING, cast
 
@@ -32,7 +31,7 @@ from codechroma.bridge.git_cmd import ensure_excluded
 from codechroma.bridge.workspaces import MAIN_ID, PR_ID_PREFIX
 from codechroma.config import settings
 from codechroma.errors import codechromaError
-from codechroma.io import load_json, write_json
+from codechroma.io import load_json, utc_now_iso, write_json
 
 if TYPE_CHECKING:
     from codechroma.bridge.prs.manager import PrRecord
@@ -460,7 +459,7 @@ class AgentManager:
                 kind=kind,
                 branch=branch,
                 worktree=str(path),
-                created_at=datetime.now(UTC).isoformat(timespec="seconds").replace("+00:00", "Z"),
+                created_at=utc_now_iso(),
                 window={**DEFAULT_WINDOW, "z": len(self._agents) + 1},
                 shares_workspace_with=shares_workspace_with,
                 base_branch=base_branch,

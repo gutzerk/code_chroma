@@ -19,12 +19,7 @@ MAX_EXPLANATION_CHARS = 1000
 # A batch deleting more elements/edges than this needs the caller's explicit confirmation.
 MASS_DELETE_GUARD = 20
 
-_ADD_ELEMENT_OPS = {"add_element", "add_group", "add_note"}
 _DELETE_OPS = {"delete_element", "delete_edge"}
-VALID_OPS = _ADD_ELEMENT_OPS | {
-    "add_edge", "update_element", "update_edge", "delete_element", "delete_edge",
-}
-
 _DEFAULT_RENDER = {"add_group": "group", "add_note": "note"}
 
 # Neither kind's own web component (NoteElement.tsx/GroupFrame.tsx) ever reads node_id.

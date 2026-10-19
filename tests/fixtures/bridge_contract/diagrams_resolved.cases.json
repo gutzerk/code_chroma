@@ -1,0 +1,101 @@
+{
+  "group": "diagrams_resolved",
+  "sources": ["src/codechroma/bridge/diagram_resolver.py", "src/codechroma/bridge/diagram_migration.py", "src/codechroma/bridge/coverage.py", "src/codechroma/bridge/routes/diagrams.py"],
+  "repo": {"base": "sample_repo"},
+  "cases": [
+    {
+      "id": "a_feature_plan_resolves_paths_and_drops_bad_relations_with_diagnostics",
+      "requires": ["diagram-resolver"],
+      "steps": [
+        {"fs": "write", "path": ".codechroma/diagrams/feature-plan/token-auth/token-auth.json", "text": "{\"nodes\": [{\"id\": \"a\", \"name\": \"A\", \"path\": \"shared\"}, {\"id\": \"b\", \"name\": \"B\", \"parent\": \"nope\"}, {\"id\": \"a\", \"name\": \"dup\"}, 7], \"relations\": [{\"from\": \"a\", \"to\": \"b\", \"label\": \"x\"}, {\"from\": \"a\", \"to\": \"a\"}, {\"from\": \"a\", \"to\": \"zz\"}, \"junk\"]}"},
+        {
+          "http": {"method": "GET", "path": "/repos/main/feature-plan/token-auth"},
+          "expect": {"status": 200, "checks": [
+            {"path": "$.has_diagram", "equals": true},
+            {"path": "$.nodes", "count": 2},
+            {"path": "$.nodes[0].node_id", "equals": "dir::shared"},
+            {"path": "$.nodes[1].node_id", "absent": true},
+            {"path": "$.nodes[1].meta.no_code_reason", "equals": "conceptual"},
+            {"path": "$.nodes[1].parent", "type": "null"},
+            {"path": "$.relations", "count": 1},
+            {"path": "$.relations[0].style", "type": "null"},
+            {"path": "$.groups", "count": 0},
+            {"path": "$.diagnostics.dropped_count", "equals": 6},
+            {"path": "$.diagnostics.dropped[*].reason", "equals": ["duplicate_sibling_id", "invalid_shape", "dangling_endpoint", "self_relation", "dangling_endpoint", "invalid_shape"]}
+          ]}
+        }
+      ]
+    },
+    {
+      "id": "a_missing_feature_plan_is_empty_but_well_formed",
+      "requires": ["diagram-resolver"],
+      "steps": [
+        {
+          "http": {"method": "GET", "path": "/repos/main/feature-plan/none-yet"},
+          "expect": {"status": 200, "checks": [
+            {"path": "$.has_diagram", "equals": false},
+            {"path": "$.nodes", "count": 0},
+            {"path": "$.diagnostics.dropped_count", "equals": 0}
+          ]}
+        }
+      ]
+    },
+    {
+      "id": "a_custom_diagram_carries_groups_staleness_and_coverage",
+      "requires": ["diagram-resolver"],
+      "steps": [
+        {"http": {"method": "PUT", "path": "/diagram-types/flow", "json": {"title": "Flow", "style": "boxes-arrows", "instructions": "x", "layout": {"direction": "TB"}, "grouping": {"enabled": true}, "relation_kinds": []}}, "expect": {"status": 200}},
+        {"fs": "write", "path": ".codechroma/diagrams/custom/flow/flow.json", "text": "{\"fingerprint\": \"old\", \"nodes\": [{\"id\": \"a\", \"name\": \"A\", \"group\": \"zeta\"}, {\"id\": \"b\", \"name\": \"B\", \"group\": \"alpha\", \"path\": \"web\"}, {\"id\": \"c\", \"name\": \"C\"}], \"relations\": []}"},
+        {
+          "http": {"method": "GET", "path": "/repos/main/custom/flow"},
+          "expect": {"status": 200, "checks": [
+            {"path": "$.groups", "equals": ["alpha", "zeta"]},
+            {"path": "$.has_diagram", "equals": true},
+            {"path": "$.fingerprint", "type": "string"},
+            {"path": "$.reviewed_fingerprint", "equals": "old"},
+            {"path": "$.stale", "equals": true},
+            {"path": "$.unmapped[*].path", "equals": ["billing", "shared", "users"]}
+          ]}
+        },
+        {
+          "http": {"method": "GET", "path": "/repos/main/custom/flow/context"},
+          "expect": {"status": 200, "json": {"coverage": null, "staleness": null, "generation_data": null}}
+        }
+      ]
+    },
+    {
+      "id": "a_legacy_nested_c1_is_converted_to_the_flat_shape_in_place",
+      "requires": ["diagram-resolver"],
+      "steps": [
+        {"fs": "write", "path": ".codechroma/diagrams/c1/c1.json", "text": "{\"system\": {\"name\": \"Sample\", \"description\": \"d\", \"children\": [{\"id\": \"web\", \"name\": \"Web\", \"path\": \"web\"}, {\"id\": \"web\", \"name\": \"Web again\"}]}, \"actors\": [{\"id\": \"user\", \"name\": \"User\", \"type\": \"person\"}], \"relationships\": [{\"from\": \"user\", \"to\": \"system\", \"label\": \"uses\"}, {\"from\": \"ghost\", \"to\": \"system\"}]}"},
+        {
+          "http": {"method": "GET", "path": "/repos/main/c1"},
+          "expect": {"status": 200, "checks": [
+            {"path": "$.type", "equals": "c1"},
+            {"path": "$.nodes[*].id", "equals": ["system", "web", "web-2", "user"]},
+            {"path": "$.nodes[1].node_id", "equals": "dir::web"},
+            {"path": "$.nodes[3].kind", "equals": "person"},
+            {"path": "$.relations", "count": 1},
+            {"path": "$.needs_regeneration", "absent": true}
+          ]}
+        },
+        {
+          "http": {"method": "GET", "path": "/repos/main/c1"},
+          "expect": {"status": 200, "checks": [{"path": "$.nodes", "count": 4}]}
+        }
+      ]
+    },
+    {
+      "id": "epics_and_sequence_resolve_only_what_was_authored",
+      "requires": ["diagram-resolver"],
+      "steps": [
+        {"http": {"method": "GET", "path": "/repos/main/epics"}, "expect": {"status": 200, "checks": [{"path": "$.has_diagram", "equals": false}, {"path": "$.nodes", "count": 0}]}},
+        {"http": {"method": "GET", "path": "/repos/main/sequence"}, "expect": {"status": 200, "json": {}}},
+        {"fs": "write", "path": ".codechroma/diagrams/sequence/sequence.json", "text": "{\"nodes\": [{\"id\": \"p1\", \"name\": \"P1\"}, {\"id\": \"p2\", \"name\": \"P2\"}], \"relations\": [{\"from\": \"p1\", \"to\": \"p1\", \"label\": \"self\"}, {\"from\": \"p1\", \"to\": \"p2\", \"label\": \"call\"}]}"},
+        {"http": {"method": "GET", "path": "/repos/main/sequence"}, "expect": {"status": 200, "checks": [
+          {"path": "$.type", "equals": "sequence"}, {"path": "$.has_diagram", "equals": true}, {"path": "$.relations", "count": 1}, {"path": "$.groups", "count": 0}
+        ]}}
+      ]
+    }
+  ]
+}

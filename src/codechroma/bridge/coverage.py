@@ -23,7 +23,6 @@ nobody should ever spend an architecture block on IDE config.
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Protocol
 
 from codechroma.engine import ROOT_SENTINEL, GraphEngine
 from codechroma.graph.models import (
@@ -57,22 +56,6 @@ class Uncovered:
 def within(path: str, owner: str) -> bool:
     """True when `path` is `owner` itself or sits inside it — the repo's one containment rule."""
     return path == owner or path.startswith(f"{owner}/")
-
-
-class _HasPath(Protocol):
-    path: str | None
-
-
-def deepest_owner[Block: _HasPath](path: str, blocks: list[Block]) -> Block | None:
-    """The block whose path is the longest prefix of `path` — the most specific one wins."""
-    best: Block | None = None
-    for block in blocks:
-        own = block.path or ""
-        if not within(path, own):
-            continue
-        if best is None or len(own) > len(best.path or ""):
-            best = block
-    return best
 
 
 def covers(path: str, paths: set[str]) -> bool:

@@ -24,12 +24,12 @@ test("expands in place from root down to a leaf with no navigation", async ({ pa
     await expect(treeNode(page, nodeId)).toHaveAttribute("data-expand-state", "expanded");
   }
 
-  // Activating a source file opens it in the code sidebar; it does not expand the file into another
+  // Activating a source file opens it in the code overlay; it does not expand the file into another
   // hierarchy level or navigate away from the current tree.
   await clickTreeNodeName(page, "email_client.py");
   const fileRow = treeNode(page, "file::shadow-app/backend/clients/email_client.py");
   await expect(fileRow).toHaveClass(/tree-node-active/);
-  await expect(page.getByTestId("code-sidebar")).toBeVisible();
+  await expect(page.getByTestId("code-overlay")).toBeVisible();
   await expect(fileRow).toHaveAttribute("data-expand-state", "collapsed");
   expect(page.url()).toBe(urlBefore);
   await expect(treeNode(page, "folder::shadow-app/backend/clients")).toHaveAttribute(

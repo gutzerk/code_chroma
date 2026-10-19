@@ -599,7 +599,7 @@ type) plus each type's own remaining-logic test (`test_patterns_resolver.py`,
 output matches pre-036 golden fixtures) · `tests/contract/test_new_diagram_type_shared_path.py`
 (a brand-new custom type needs no code, only content + a style) · `test_recipes.py` /
 `test_recipe_routes.py`. Web: `DiagramHealthNote.test.tsx`, `DrawDiagramButton.test.tsx`,
-`agentDiagramsReady.test.ts`, `AgentRail.test.tsx`, `AgentWindowLayer.test.tsx`,
+`agentDiagramsReady.test.ts`, `DiagramsTab.test.tsx`, `AgentWindowLayer.test.tsx`,
 `nodeAccent.test.tsx`.
 
 ## Highlighting/expanding a process on an already-drawn diagram
@@ -864,8 +864,7 @@ Separate from authoring, and the reason a user could ask for a diagram and see n
   just the picture catching up with what is already on disk.
 - 🔴 A "Draw…" task launched from a **read-only PR workspace** is forked into its own worktree, so the
   skill writes where the canvas is not looking. `agents/agentDiagramsReady.ts` checks that agent's
-  own workspace on the working→idle transition and badges its `AgentRail` row
-  (`agentStore.diagramsReady`). It skips the check when the agent shares the active workspace, where
+  own workspace on the working→idle transition and sets `agentStore.diagramsReady` (the `AgentRail` row badge that rendered it was removed in the shell redesign, so nothing displays it today). It skips the check when the agent shares the active workspace, where
   the two mechanisms above already handle it.
 - 🔴 **The fingerprint-diff auto-refresh above only fires on a *transition*** (`DrawDiagramButton.tsx`'s
   `refetchStatus`: `before`, the previous status fetch, held in an in-memory `lastStatusRef`). A
@@ -889,15 +888,10 @@ Separate from authoring, and the reason a user could ask for a diagram and see n
   not know") is covered by a canvas-side pass: `canvasDocStore.ts`'s `fetchAndApplyCanvasDoc` runs ELK (`pileLayout.ts`) on
   any layer that arrives with every box on the origin, whoever drew it (the server cascade
   `_DEFAULT_ADD_STEP_*` was removed; a position-less add now lands at `(0,0)`).
-- **A fourth trigger: expanding a collapsed diagram from the Diagrams tab.** `AgentRail.tsx`'s
-  `onToggleLayer` calls `runRecipeAndLayout` (`diagramCatalog.ts`'s shared function — also what the
-  Diagrams tab's remove-then-redraw flow uses) whenever a click flips a
-  layer from collapsed to expanded — never on collapse, which has nothing to refresh. This is an
-  unconditional re-run, not a fingerprint check: expanding is a deliberate, low-frequency user action,
-  so there is no need to gate it the way the automatic triggers above are gated. `refreshingLayer`
-  disables that one row's button while its own refresh is in flight; `diagramRefreshError` renders a
-  hard failure inline (`data-testid="diagram-rail-error"`) — this tab has its own error slots per
-  action now (add/remove/delete/refresh), unlike `DrawDiagramButton`'s single inline error.
+- **The old fourth trigger (expanding a collapsed diagram from `AgentRail`'s Diagrams tab, which re-ran
+  `runRecipeAndLayout`) no longer exists.** `shell/DiagramsTab.tsx` has no collapse/expand: its eye hides
+  a layer through `shellStore.hiddenLayers` with no refresh, and the row list is just
+  `listActiveDiagramLayers`. A redraw goes through Draw… only.
 - 🔴 **The Diagrams tab's row list used to hide any layer that wasn't a `BUILTIN_RECIPES` name or a
   `custom/<id>`.** `listActiveDiagramLayers` (`diagramCatalog.ts`) filtered against that fixed
   allow-list, but `PATCH /repos/{id}/canvas` accepts any `layer` string (`routes/canvas.py`,
@@ -909,8 +903,7 @@ Separate from authoring, and the reason a user could ask for a diagram and see n
   custom row does — `isRecipeBackedLayer` (same file) gates `onToggleLayer`'s refresh call on exactly
   the old allow-list check, so expanding a freeform row is a pure visibility toggle instead of a 404.
   Regression tests: `diagramCatalog.test.ts`'s freeform-layer case,
-  `AgentRail.test.tsx`'s "expands a one-off, non-recipe-backed layer without calling the recipe
-  route".
+  the old `AgentRail.test.tsx` case that guarded the freeform-row expand (the component and its test were deleted; `isRecipeBackedLayer` remains in `diagramCatalog.ts`).
 
 ## Corrections from a real trial-and-error run (2026-09)
 

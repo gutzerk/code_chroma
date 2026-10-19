@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { arrangeLayers } from "./arrangeLayers";
+import { ARRANGE_GAP, arrangeLayers } from "./arrangeLayers";
 import { unionBoundsOf } from "./boundingBox";
 import { EMPTY_CANVAS_DOC, type CanvasDoc, type CanvasElement } from "../../state/types";
 
@@ -38,7 +38,7 @@ describe("arrangeLayers", () => {
     const next = apply(doc, moves);
     const b = bounds(next.filter((e) => e.layer === "B"));
     const a = bounds(next.filter((e) => e.layer === "A"));
-    expect(a.left - b.right).toBe(80);
+    expect(a.left - b.right).toBe(ARRANGE_GAP);
     expect(a.top).toBe(b.top);
   });
 
@@ -50,7 +50,7 @@ describe("arrangeLayers", () => {
     const next = apply(doc, moves);
     const a = bounds(next.filter((e) => e.layer === "A"));
     const b = bounds(next.filter((e) => e.layer === "B"));
-    expect(b.top - a.bottom).toBe(80);
+    expect(b.top - a.bottom).toBe(ARRANGE_GAP);
     expect(b.left).toBe(a.left);
   });
 
@@ -94,8 +94,8 @@ describe("arrangeLayers", () => {
 
     const sideU = bounds(apply(doc, side.moves).filter((e) => e.layer === "U"));
     const stackU = bounds(apply(doc, stack.moves).filter((e) => e.layer === "U"));
-    expect(sideU.top).toBe(side.packedBounds.top + side.packedBounds.height + 80);
-    expect(stackU.left).toBe(stack.packedBounds.left + stack.packedBounds.width + 80);
+    expect(sideU.top).toBe(side.packedBounds.top + side.packedBounds.height + ARRANGE_GAP);
+    expect(stackU.left).toBe(stack.packedBounds.left + stack.packedBounds.width + ARRANGE_GAP);
   });
 
   it("ignores hidden, hierarchy and default layers", () => {

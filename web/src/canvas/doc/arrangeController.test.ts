@@ -1,3 +1,4 @@
+import { ARRANGE_GAP } from "./arrangeLayers";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { applyArrange, clearArrange } from "./arrangeController";
 import { canvasDocStore } from "./canvasDocStore";
@@ -44,7 +45,7 @@ describe("arrangeController", () => {
 
     applyArrange("side", { engineClient: client, selectedLayers: ["A", "B"], fitToBounds });
 
-    expect(pos("b").x).toBe(50 + 50 + 80 + 50);
+    expect(pos("b").x).toBe(50 + 50 + ARRANGE_GAP + 50);
     expect(shellStore.getState().arrangeMode).toBe("side");
     expect(patchCanvas).toHaveBeenCalledTimes(1);
     expect(undoStore.undo("canvas")).not.toBeNull();

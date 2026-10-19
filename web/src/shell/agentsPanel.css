@@ -150,3 +150,13 @@
 .agent-header .agent-window-branch { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
 .agents-fullscreen-title .agent-header { margin-left: auto; padding: 0; border: 0; flex: 1; justify-content: flex-end; }
+
+.agents-panel-empty button {
+  margin-left: 6px;
+  padding: 4px 12px;
+  border: 0;
+  border-radius: var(--radius-btn);
+  background: var(--accent-bg);
+  color: var(--text-1);
+  cursor: pointer;
+}

@@ -123,8 +123,8 @@ shows a "Path not found" note instead.
 ## 7. What's *not* in this demo
 
 Auto-grouping of large child sets and search aren't built yet. Everything else — expand-in-place,
-pan/zoom (drag to pan, scroll to zoom, a **Center** button per block, **Fit All**), a draggable
-code popup, call/reference connection lines between visible blocks, an embedded terminal panel, the
+pan/zoom (drag to pan, scroll to zoom, a **Center** button per block, **Fit All**), a code
+overlay, call/reference connection lines between visible blocks, an embedded terminal panel, the
 function/file code view above, and the C1 system-context view — is live in this build.
 
 Nothing you do here modifies real code — this whole demo is read-only, in-memory fixture data, and
@@ -133,7 +133,7 @@ nothing is persisted or reflected in the URL — reloading the page resets every
 ## 8. Where the hierarchy and the diagrams live
 
 There is no rendering-strategy switch — `VITE_CANVAS_STRATEGY`/`?strategy=` was removed. The code
-hierarchy (System → … → Code) is shown as an indented **Project tree** panel, while the main canvas
+hierarchy (System → … → Code) is shown as an indented project tree in the left panel's **Files** tab, while the main canvas
 renders diagram layers (C1, Design Patterns, Epics, Sequence, trace, custom) as nested boxes.
 
 ## Next steps

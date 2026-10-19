@@ -470,7 +470,7 @@ A literal "floating rounded cards on dark ground" palette (`--bg-ground`, `--bg-
 `--bg-canvas`, `--bg-raised`, `--bg-raised-2`, `--bg-inset`, `--text-soft`, `--text-muted-soft`,
 `--icon`, `--accent-bg`, `--success`, `--select-ring`, `--dot-grid`) sits above the semantic layer
 and is aliased onto it, so the restyle re-themes the whole app without touching the ~7000 rules that
-still reference `--surface-*`/`--text-*`/`--accent`. `--radius-panel` (22px), `--radius-card`
+still reference `--surface-*`/`--text-*`/`--accent`. The canvas background/dot grid is the one part users can override: a saved Canvas style (Settings → Canvas style, `canvas-style/canvasStyleStore.ts`) reaches `.canvas-viewport` as `--canvas-bg`/`--canvas-texture-image` vars set by `CanvasViewport`, overriding `--dot-grid`; see [`assistant-settings.md`](assistant-settings.md). `--radius-panel` (22px), `--radius-card`
 (14–16px) and `--radius-btn` (14px) are the new radius steps; pills (tabs, Run agent, Fit All,
 chips, counters) use `border-radius: var(--radius-full)` instead. The five main-window regions (top
 bar `.canvas-chrome`, left rail `.app-rail`, agent panel `.agent-terminal-dock`, center canvas

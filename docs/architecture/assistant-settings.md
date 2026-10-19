@@ -61,8 +61,15 @@ Not repo-scoped — no `Services` dependency.
 
 - `web/src/assistant/SettingsRailButton.tsx` — the gear button on the canvas chrome,
   self-contained open state (mirrors `PrRailButton`). Opens `SettingsDialog.tsx`, a category-list
-  home ("LLM" and "Updates"; "Report an issue" is its own top-bar button — see
+  home ("LLM", "Canvas style" and "Updates"; "Report an issue" is its own top-bar button — see
   [`report-issue.md`](report-issue.md)) rather than this form directly.
+- `web/src/canvas-style/` — the "Canvas style" category: `CanvasStylePanel.tsx` (theme presets,
+  background colour, None/Dots/Lines texture with colour/opacity/spacing, light-background warning,
+  reset) over `canvasStyleStore.ts`, a global `Store` persisted in `localStorage` key
+  `codechroma.canvasStyle` (no bridge involved). `null` = never customised = the built-in canvas
+  look; `CanvasViewport.tsx` sets a saved style as the `--canvas-bg`/`--canvas-texture-image` vars
+  that `.canvas-viewport` paints (falling back to the built-in look) and feeds its spacing to `gridStepFor` (`canvasGrid.ts`). Only the canvas
+  background changes -- block and edge colours stay as the diagram sets them.
 - `web/src/assistant/AssistantSection.tsx` — the actual form, unchanged behavior from the old
   `SettingsDialog.tsx`: a provider dropdown (claude/codex → `cli`) and a token field (→ `api_key`),
   with Save. There is no instruction field (per-project instructions live in the separately

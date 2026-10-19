@@ -40,6 +40,9 @@ for package in (
 datas += [(str(PROJECT_ROOT / "web" / "dist"), "codechroma_data/web")]
 for skill in SKILL_NAMES:
     datas.append((str(PROJECT_ROOT / ".claude" / "skills" / skill), f"codechroma_data/skills/{skill}"))
+# Plugin-only skill (asks via the bridge's MCP server) and the AskUserQuestion hook: not synced to repos.
+datas.append((str(PROJECT_ROOT / ".claude" / "skills" / "codechroma-grill"), "codechroma_data/skills/codechroma-grill"))
+datas.append((str(PROJECT_ROOT / ".claude" / "hooks"), "codechroma_data/hooks"))
 # The runtime plugin directory shares the bundled skills above; it is loaded only for Claude agents.
 datas.append(
     (

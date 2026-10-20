@@ -11,10 +11,12 @@ export type RailIconName =
   | "patterns"
   | "branch"
   | "epics"
+  | "draw"
   | "custom"
   | "impact"
   | "settings"
   | "report-issue"
+  | "workflows"
   | "llm-providers"
   | "updates"
   | "canvas-style"
@@ -38,6 +40,7 @@ export function RailIcon({ name }: RailIconProps) {
 }
 
 const PATHS: Record<RailIconName, ReactElement> = {
+  draw: <path d="M10 2l4 4-7 7-5 1 1-5zM8.5 3.5l4 4" fill="none" stroke="currentColor" strokeWidth="1.3" strokeLinejoin="round" />,
   // Window with a `>` prompt.
   terminal: (
     <>
@@ -164,6 +167,16 @@ const PATHS: Record<RailIconName, ReactElement> = {
         strokeLinecap="round"
         d="M6.6 2.4l.4-1.2h2l.4 1.2 1.1.5 1.1-.5 1 1.7-.4 1.1.4 1.1-.1 1.2 1.1.9.8 1.9-1.2 1.1-.6.7.1 1.3-1.7.9-1.2-.1-1 .4-.6.7-2-.3-1.1-.3v-1.1l-1.1-.8-.9.2-1.5-.6-.3-2 .6-1.2 1-.2v-1.2l.9-1.2.9.2.8-.4z"
       />
+    </>
+  ),
+  // Three stacked steps joined by a rail.
+  workflows: (
+    <>
+      <path fill="none" stroke="currentColor" strokeWidth="1.3" d="M4 3.5v9" />
+      <circle cx="4" cy="3.5" r="1.7" fill="currentColor" />
+      <circle cx="4" cy="8" r="1.7" fill="currentColor" />
+      <circle cx="4" cy="12.5" r="1.7" fill="currentColor" />
+      <path stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" d="M8 3.5h6M8 8h6M8 12.5h6" />
     </>
   ),
   // A speech bubble with an exclamation mark — report a bug or suggest an idea.

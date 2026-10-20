@@ -47,6 +47,7 @@ public sealed partial class WorkflowRunner
     private readonly Func<string, string?> _sessionFinder;
     private readonly object _lock = new();
     private readonly Dictionary<string, Handle> _handles = [];
+    private readonly HashSet<string> _chatBusy = [];
 
     private sealed class Handle(Run run, WorkflowDef def, string worktree)
     {
@@ -57,6 +58,7 @@ public sealed partial class WorkflowRunner
         public TaskCompletionSource StopSignal { get; set; } = NewSignal();
         public Task Loop { get; set; } = Task.CompletedTask;
         public bool StopRequested { get; set; }
+        public volatile bool Busy;
         public string? Bypass { get; set; }
         public string? Rerun { get; set; }
         public string? Note { get; set; }
@@ -218,7 +220,8 @@ public sealed partial class WorkflowRunner
             Transition(handle, RunCommand.StopNow);
             if (handle.Run.State == RunStates.Stopped)
             {
-                SetCurrentStatus(handle, "stopped");
+                if (handle.Run.CurrentStepId is { } waiting && Record(handle, waiting) is { Status: "held" or "needs_you" } unstarted) unstarted.Status = "pending";
+                else SetCurrentStatus(handle, "stopped");
                 Persist(handle, "run.stopped");
                 return Clone(handle.Run);
             }
@@ -310,8 +313,18 @@ public sealed partial class WorkflowRunner
 
     private static BridgeException Illegal(Handle h, string command) => new(409, $"cannot {command} a run that is {h.Run.State}");
 
-    private static void Transition(Handle h, RunCommand command) =>
+    private static void Transition(Handle h, RunCommand command)
+    {
+        if (h.Busy) throw new BridgeException(409, "the run is being redone; try again in a moment");
         h.Run.State = RunStateMachine.TryApply(h.Run.State, command) ?? throw Illegal(h, command.ToString());
+    }
+
+    /// <summary>Only the claude CLI takes the --resume/--tools/--strict-mcp-config flags the runner passes.</summary>
+    private static bool IsClaude(SkillAgent agent)
+    {
+        try { return agent.ResolveCli().AdapterKey == "claude"; }
+        catch (CliLookupException) { return false; }
+    }
 
     private static int IndexOf(Handle h, string stepId) => h.Def.Steps.FindIndex(s => s.Id == stepId);
 
@@ -377,46 +390,27 @@ public sealed partial class WorkflowRunner
             {
                 var step = h.Def.Steps[i];
                 lock (_lock) h.Run.CurrentStepId = step.Id;
-                await h.Gate.WaitAsync(CancellationToken.None);
-                if (h.StopRequested) { FinishStop(h); return; }
-
-                var parked = false;
-                bool rerun;
-                lock (_lock)
+                bool parked, rerun;
+                while (true)
                 {
-                    var record = Record(h, step.Id);
-                    var bypass = h.Bypass == step.Id;
-                    h.Bypass = null;
-                    rerun = h.Rerun == step.Id || record.Status == "stopped";
-                    if (h.Rerun == step.Id) h.Rerun = null;
-                    if (!bypass && !rerun && h.Run.Breakpoints.Contains(step.Id) && record.Status == "pending")
-                    {
-                        Transition(h, RunCommand.ReachBreakpoint);
-                        record.Status = "held";
-                        Persist(h, "run.held");
-                        parked = true;
-                    }
-                    else if (step.Kind == "review")
-                    {
-                        Transition(h, RunCommand.ReviewStep);
-                        record.Status = "needs_you";
-                        Persist(h, "run.step");
-                        parked = true;
-                    }
-                    else
-                    {
-                        record.Status = "running";
-                        Persist(h, "run.step");
-                    }
+                    await h.Gate.WaitAsync(CancellationToken.None);
+                    if (h.StopRequested) { FinishStop(h); return; }
+                    if (TryBegin(h, step, out parked, out rerun)) break;
                 }
                 if (parked) return;
 
                 var outcome = await RunAgentStep(h, step, rerun);
                 if (outcome == Outcome.Stopped) { FinishStop(h); return; }
-                await h.Gate.WaitAsync(CancellationToken.None);
-                if (h.StopRequested) { FinishStop(h); return; }
-                if (outcome == Outcome.Failed) { FailRun(h, step); return; }
-                if (CompleteStep(h, i)) return;
+                bool? ended;
+                while (true)
+                {
+                    await h.Gate.WaitAsync(CancellationToken.None);
+                    if (h.StopRequested) { FinishStop(h); return; }
+                    if (outcome == Outcome.Failed) { FailRun(h, step); return; }
+                    ended = CompleteStep(h, i);
+                    if (ended is not null) break;
+                }
+                if (ended == true) return;
             }
         }
         catch (Exception error)
@@ -435,6 +429,42 @@ public sealed partial class WorkflowRunner
         }
     }
 
+    /// <summary>Starts or parks the step; false when a pause or stop landed since the gate check (the caller waits and tries again).</summary>
+    private bool TryBegin(Handle h, WorkflowStep step, out bool parked, out bool rerun)
+    {
+        parked = false;
+        rerun = false;
+        lock (_lock)
+        {
+            if (h.Run.State != RunStates.Running) return false;
+            var record = Record(h, step.Id);
+            var bypass = h.Bypass == step.Id;
+            h.Bypass = null;
+            rerun = h.Rerun == step.Id || record.Status == "stopped";
+            if (h.Rerun == step.Id) h.Rerun = null;
+            if (!bypass && !rerun && h.Run.Breakpoints.Contains(step.Id) && record.Status == "pending")
+            {
+                Transition(h, RunCommand.ReachBreakpoint);
+                record.Status = "held";
+                Persist(h, "run.held");
+                parked = true;
+            }
+            else if (step.Kind == "review")
+            {
+                Transition(h, RunCommand.ReviewStep);
+                record.Status = "needs_you";
+                Persist(h, "run.step");
+                parked = true;
+            }
+            else
+            {
+                record.Status = "running";
+                Persist(h, "run.step");
+            }
+            return true;
+        }
+    }
+
     /// <summary>The worktree diff stat and CLI session id, read outside the lock because they shell out.</summary>
     private (string? Diff, string? Session) Capture(Handle h) => (DiffStat(h.Worktree), _sessionFinder(h.Worktree));
 
@@ -445,13 +475,14 @@ public sealed partial class WorkflowRunner
         record.SessionId = stats.Session ?? record.SessionId;
     }
 
-    /// <summary>Marks the step done and moves the run on; true when the loop must end (held or finished).</summary>
-    private bool CompleteStep(Handle h, int index)
+    /// <summary>Marks the step done and moves the run on: true when the loop must end (held or finished), false to go on, null when a pause or stop landed first (the caller waits and tries again).</summary>
+    private bool? CompleteStep(Handle h, int index)
     {
         var step = h.Def.Steps[index];
         var stats = Capture(h);
         lock (_lock)
         {
+            if (h.Run.State != RunStates.Running) return null;
             Snapshot(Record(h, step.Id), "done", stats);
             if (index == h.Def.Steps.Count - 1)
             {
@@ -516,7 +547,7 @@ public sealed partial class WorkflowRunner
         }
         var prompt = BuildPrompt(step, rerun, session is not null, h.Note);
         h.Note = null;
-        IReadOnlyList<string> extra = rerun && session is not null ? ["--resume", session] : [];
+        IReadOnlyList<string> extra = rerun && session is not null && IsClaude(_agent) ? ["--resume", session] : [];
         var done = new TaskCompletionSource<JobState>(TaskCreationOptions.RunContinuationsAsynchronously);
         var gate = h.Gate;
         JobState started;

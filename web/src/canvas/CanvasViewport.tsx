@@ -11,7 +11,8 @@ import {
 } from "react";
 import { canvasLayoutStore } from "../state/canvasLayoutStore";
 import { selectionStore } from "../state/selectionStore";
-import { gridStep } from "./canvasGrid";
+import { gridStep, gridStepFor } from "./canvasGrid";
+import { useSavedCanvasStyle, viewportTextureImage } from "../canvas-style/canvasStyleStore";
 import { clamp } from "../util/clamp";
 import { readSavedCameraView, writeSavedCameraView } from "./canvasCameraStore";
 
@@ -31,10 +32,31 @@ export interface CanvasViewportHandle {
   zoomIn: () => void;
   zoomOut: () => void;
   resetView: () => void;
+  /** Shifts the camera by a screen-space delta without changing zoom. */
+  panBy: (dx: number, dy: number) => void;
+  /** Fits a world-space (content coordinate) rect into the visible rect, with padding. */
+  fitToBounds: (rect: { x: number; y: number; width: number; height: number }) => void;
+}
+
+/** Pixels of the stage covered by floating panels; the visible rect is the stage minus these. */
+export interface ViewportInsets {
+  left: number;
+  right: number;
+  bottom: number;
+}
+
+const NO_INSETS: ViewportInsets = { left: 0, right: 0, bottom: 0 };
+
+export interface CameraView {
+  x: number;
+  y: number;
+  scale: number;
 }
 
 interface CanvasViewportProps {
   children: ReactNode;
+  insets?: ViewportInsets;
+  onViewChange?: (view: CameraView) => void;
 }
 
 interface ViewState {
@@ -58,6 +80,7 @@ const BUTTON_ZOOM_STEP = 1.12;
 const FOCUS_MAX_SCALE = 3.5;
 const FOCUS_FIT_PADDING = 0.7;
 const FOCUS_ANIMATION_MS = 550;
+const BOUNDS_FIT_PADDING = 0.9;
 
 // How long the viewport must stay still (no resize) before recentering re-arms. Recentering is
 // debounced onto this settle so the viewport's startup settle-shrink (side panels mounting a beat
@@ -71,18 +94,25 @@ const FIT_SETTLE_FRAMES = 2;
 
 /** Solves for the scale/translate that makes `targetRect` fill `viewportRect`, centered — undoing
  * the current transform (via `v`) first to work in untransformed (logical) coordinates. */
-function computeFitView(v: ViewState, viewportRect: DOMRect, targetRect: DOMRect): ViewState {
+function computeFitView(
+  v: ViewState,
+  viewportRect: DOMRect,
+  targetRect: DOMRect,
+  insets: ViewportInsets = NO_INSETS,
+): ViewState {
+  const visibleWidth = viewportRect.width - insets.left - insets.right;
+  const visibleHeight = viewportRect.height - insets.bottom;
   const logicalWidth = targetRect.width / v.scale;
   const logicalHeight = targetRect.height / v.scale;
   const logicalCenterX = (targetRect.left - viewportRect.left - v.x) / v.scale + logicalWidth / 2;
   const logicalCenterY = (targetRect.top - viewportRect.top - v.y) / v.scale + logicalHeight / 2;
 
-  const fitScale = Math.min(viewportRect.width / logicalWidth, viewportRect.height / logicalHeight);
+  const fitScale = Math.min(visibleWidth / logicalWidth, visibleHeight / logicalHeight);
   const newScale = clamp(fitScale * FOCUS_FIT_PADDING, MIN_SCALE, FOCUS_MAX_SCALE);
 
   return {
-    x: viewportRect.width / 2 - logicalCenterX * newScale,
-    y: viewportRect.height / 2 - logicalCenterY * newScale,
+    x: insets.left + visibleWidth / 2 - logicalCenterX * newScale,
+    y: visibleHeight / 2 - logicalCenterY * newScale,
     scale: newScale,
   };
 }
@@ -228,13 +258,16 @@ function clickTargetBelowArrow(clientX: number, clientY: number): HTMLElement | 
  * empty areas inside expanded (and inline-code) blocks pan while a plain click still toggles the
  * block under it. The click a completed drag would synthesize is swallowed so it can't also toggle. */
 export const CanvasViewport = forwardRef<CanvasViewportHandle, CanvasViewportProps>(
-  function CanvasViewport({ children }, ref) {
+  function CanvasViewport({ children, insets = NO_INSETS, onViewChange }, ref) {
     // Restore the persisted camera at mount (lazy initializer so localStorage is read once). Reset
     // to the fresh origin when nothing is saved -- readSavedCameraView returns null for an absent
     // or at-origin view.
     const [view, setView] = useState<ViewState>(() => readSavedCameraView() ?? RESET_VIEW);
     const [isFocusing, setIsFocusing] = useState(false);
+    const canvasStyle = useSavedCanvasStyle();
     const viewportRef = useRef<HTMLDivElement | null>(null);
+    const insetsRef = useRef(insets);
+    insetsRef.current = insets;
     const contentRef = useRef<HTMLDivElement | null>(null);
     const panRef = useRef<PanState | null>(null);
     const marqueeRef = useRef<MarqueeState | null>(null);
@@ -299,7 +332,11 @@ export const CanvasViewport = forwardRef<CanvasViewportHandle, CanvasViewportPro
 
     function viewportCenter(): { x: number; y: number } {
       const rect = viewportRef.current?.getBoundingClientRect();
-      return { x: (rect?.width ?? 0) / 2, y: (rect?.height ?? 0) / 2 };
+      const i = insetsRef.current;
+      return {
+        x: i.left + ((rect?.width ?? 0) - i.left - i.right) / 2,
+        y: ((rect?.height ?? 0) - i.bottom) / 2,
+      };
     }
 
     function locateNodeRects(nodeId: string): { viewportRect: DOMRect; targetRect: DOMRect } | null {
@@ -336,8 +373,9 @@ export const CanvasViewport = forwardRef<CanvasViewportHandle, CanvasViewportPro
         const { viewportRect, targetRect } = rects;
         const currentCenterX = targetRect.left + targetRect.width / 2 - viewportRect.left;
         const currentCenterY = targetRect.top + targetRect.height / 2 - viewportRect.top;
-        const targetCenterX = viewportRect.width / 2;
-        const targetCenterY = viewportRect.height / 2;
+        const i = insetsRef.current;
+        const targetCenterX = i.left + (viewportRect.width - i.left - i.right) / 2;
+        const targetCenterY = (viewportRect.height - i.bottom) / 2;
         setView((v) => ({
           ...v,
           x: v.x + (targetCenterX - currentCenterX),
@@ -363,7 +401,7 @@ export const CanvasViewport = forwardRef<CanvasViewportHandle, CanvasViewportPro
         previousViewRef.current = view;
         lastFocusedNodeIdRef.current = nodeId;
 
-        setView((v) => computeFitView(v, rects.viewportRect, rects.targetRect));
+        setView((v) => computeFitView(v, rects.viewportRect, rects.targetRect, insetsRef.current));
         playFocusAnimation();
       },
       fitToNode(nodeId: string) {
@@ -376,7 +414,7 @@ export const CanvasViewport = forwardRef<CanvasViewportHandle, CanvasViewportPro
         lastFocusedNodeIdRef.current = null;
         previousViewRef.current = null;
 
-        setView((v) => computeFitView(v, rects.viewportRect, rects.targetRect));
+        setView((v) => computeFitView(v, rects.viewportRect, rects.targetRect, insetsRef.current));
         playFocusAnimation();
       },
       fitToNodes(nodeIds: string[]): boolean {
@@ -404,7 +442,7 @@ export const CanvasViewport = forwardRef<CanvasViewportHandle, CanvasViewportPro
         if (!unionRect) return false;
 
         const fitRect = unionRect;
-        setView((v) => computeFitView(v, viewportRect, fitRect));
+        setView((v) => computeFitView(v, viewportRect, fitRect, insetsRef.current));
         playFocusAnimation();
 
         // Report "done" only when every requested node is present AND the framed rect has held
@@ -459,7 +497,7 @@ export const CanvasViewport = forwardRef<CanvasViewportHandle, CanvasViewportPro
         );
         if (!unionRect) return;
 
-        setView((v) => computeFitView(v, viewportRect, unionRect));
+        setView((v) => computeFitView(v, viewportRect, unionRect, insetsRef.current));
         playFocusAnimation();
       },
       fitToSelector(selector: string): boolean {
@@ -471,7 +509,7 @@ export const CanvasViewport = forwardRef<CanvasViewportHandle, CanvasViewportPro
         const viewportRect = viewportEl.getBoundingClientRect();
         const { rect: unionRect } = unionRects(viewportEl.querySelectorAll<HTMLElement>(selector));
         if (!unionRect) return false;
-        setView((v) => computeFitView(v, viewportRect, unionRect));
+        setView((v) => computeFitView(v, viewportRect, unionRect, insetsRef.current));
         playFocusAnimation();
         return true;
       },
@@ -483,8 +521,29 @@ export const CanvasViewport = forwardRef<CanvasViewportHandle, CanvasViewportPro
         const { x, y } = viewportCenter();
         zoomAround(x, y, 1 / BUTTON_ZOOM_STEP);
       },
+      panBy(dx, dy) {
+        setView((v) => ({ ...v, x: v.x + dx, y: v.y + dy }));
+      },
       resetView() {
         setView(RESET_VIEW);
+      },
+      fitToBounds(rect) {
+        const viewportEl = viewportRef.current;
+        if (!viewportEl || rect.width <= 0 || rect.height <= 0) return;
+        lastFocusedNodeIdRef.current = null;
+        previousViewRef.current = null;
+        const stage = viewportEl.getBoundingClientRect();
+        const i = insetsRef.current;
+        const visibleWidth = stage.width - i.left - i.right;
+        const visibleHeight = stage.height - i.bottom;
+        const fitScale = Math.min(visibleWidth / rect.width, visibleHeight / rect.height);
+        const scale = clamp(fitScale * BOUNDS_FIT_PADDING, MIN_SCALE, FOCUS_MAX_SCALE);
+        setView({
+          x: i.left + visibleWidth / 2 - (rect.x + rect.width / 2) * scale,
+          y: visibleHeight / 2 - (rect.y + rect.height / 2) * scale,
+          scale,
+        });
+        playFocusAnimation();
       },
     }));
 
@@ -597,6 +656,12 @@ export const CanvasViewport = forwardRef<CanvasViewportHandle, CanvasViewportPro
     useEffect(() => {
       if (view.x === 0 && view.y === 0 && view.scale === 1) return;
       writeSavedCameraView(view);
+    }, [view]);
+
+    const onViewChangeRef = useRef(onViewChange);
+    onViewChangeRef.current = onViewChange;
+    useEffect(() => {
+      onViewChangeRef.current?.(view);
     }, [view]);
 
     // Broadcast "block layout changed" so the SVG overlays (connection lines, plan frames) re-measure
@@ -828,9 +893,13 @@ export const CanvasViewport = forwardRef<CanvasViewportHandle, CanvasViewportPro
         // is also the only feedback a drag on genuinely empty space produces.
         style={
           {
-            "--canvas-grid-size": `${gridStep(view.scale)}px`,
+            "--canvas-grid-size": `${canvasStyle ? gridStepFor(view.scale, canvasStyle.spacing) : gridStep(view.scale)}px`,
             "--canvas-grid-x": `${view.x}px`,
             "--canvas-grid-y": `${view.y}px`,
+            ...(canvasStyle && {
+              "--canvas-bg": canvasStyle.bg,
+              "--canvas-texture-image": viewportTextureImage(canvasStyle),
+            }),
           } as CSSProperties
         }
         // Capture, so a block that stops its own pointerdown (a draggable box) still clears a finished

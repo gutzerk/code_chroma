@@ -8,6 +8,7 @@ import { openOrigin } from "../openOrigin";
 import { CanvasNodeBox } from "./CanvasNodeBox";
 import { ConcurrencyIslandArea } from "./ConcurrencyIslandArea";
 import { DiagramFrame } from "./DiagramFrame";
+import { diagramDisplayName } from "./diagramDisplay";
 import { isDiagramLayer, labelForDiagramLayer, useCustomDiagramTypes } from "./diagramCatalog";
 import { BLOCK_RULES } from "./elementRules";
 import { elementRect } from "./elementRect";
@@ -140,7 +141,9 @@ export function CanvasDocView() {
   const renderableElements = useMemo(
     () =>
       Object.fromEntries(
-        Object.entries(doc.elements).filter(([, element]) => !collapsedLayers.has(element.layer)),
+        Object.entries(doc.elements).filter(
+          ([, element]) => !collapsedLayers.has(element.layer),
+        ),
       ),
     [doc.elements, collapsedLayers],
   );
@@ -301,15 +304,20 @@ export function CanvasDocView() {
               onOpenOrigin={(origin) => void openOrigin(origin, engineClient)}
             />
           </DiagramRelationshipsSvg>
-          {[...memberIdsByLayer.entries()].map(([layer, memberIds]) => (
-            <DiagramFrame
-              key={`diagram-${layer}`}
-              layer={layer}
-              label={labelForDiagramLayer(layer, customTypes)}
-              members={resolveMembers(memberIds, visibleDoc.elements)}
-              sizes={measuredSizes}
-            />
-          ))}
+          {[...memberIdsByLayer.entries()].map(([layer, memberIds]) => {
+            const display = diagramDisplayName(layer, doc, customTypes);
+            return (
+              <DiagramFrame
+                key={`diagram-${layer}`}
+                layer={layer}
+                label={labelForDiagramLayer(layer, customTypes)}
+                typeLabel={display.typeLabel}
+                boxCount={display.boxCount}
+                members={resolveMembers(memberIds, visibleDoc.elements)}
+                sizes={measuredSizes}
+              />
+            );
+          })}
           {laneBuckets.map(({ layer, value, ids }) => (
             <LaneArea
               key={`lane-${layer}-${value}`}

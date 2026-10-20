@@ -20,6 +20,7 @@ import { SidecarSummaryCard } from "./doc/SidecarSummaryCard";
 import { WikiGeneralNotice } from "./WikiGeneralNotice";
 import { EpicBriefPanel } from "./doc/EpicBriefPanel";
 import { DescriptionPopup } from "./doc/DescriptionPopup";
+import { useOpenFilesLiveRefresh } from "./useOpenFilesLiveRefresh";
 import { useDiagramReadinessWatcher } from "./doc/useDiagramReadinessWatcher";
 import { GamesMenu } from "../games/GamesMenu";
 import { useHasCanvasLayer } from "./doc/canvasDocStore";
@@ -164,6 +165,7 @@ export function RootCanvas() {
   const traceState = useTraceState();
   const isTraceActive = traceState.isActive;
   const liveVersion = useLiveVersion();
+  useOpenFilesLiveRefresh(engineClient, liveVersion);
   const viewportRef = useRef<CanvasViewportHandle | null>(null);
   // Seed the count-change auto-fit baselines from the RESTORED expansion: when the store comes
   // back with N expanded/CV nodes already mounted (a reload restoring persisted state), the first

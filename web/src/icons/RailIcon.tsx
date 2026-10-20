@@ -17,6 +17,7 @@ export type RailIconName =
   | "report-issue"
   | "llm-providers"
   | "updates"
+  | "canvas-style"
   | "c1"
   | "hierarchy"
   | "layer"
@@ -190,6 +191,16 @@ const PATHS: Record<RailIconName, ReactElement> = {
         strokeLinejoin="round"
         d="M13.2 8A5.2 5.2 0 1 1 11.6 4.3M13.4 2.2v2.4h-2.4M8 5.6v4.2M6.2 8.2L8 10l1.8-1.8"
       />
+    </>
+  ),
+  // A dotted square — the canvas background/texture settings.
+  "canvas-style": (
+    <>
+      <rect x="2.2" y="2.2" width="11.6" height="11.6" rx="1.6" fill="none" stroke="currentColor" strokeWidth="1.3" />
+      <circle cx="5.6" cy="5.6" r="0.9" fill="currentColor" />
+      <circle cx="10.4" cy="5.6" r="0.9" fill="currentColor" />
+      <circle cx="5.6" cy="10.4" r="0.9" fill="currentColor" />
+      <circle cx="10.4" cy="10.4" r="0.9" fill="currentColor" />
     </>
   ),
   // A chip (the model) plugged into a socket — the LLM provider/call-site settings panel.

@@ -377,11 +377,12 @@ public sealed class SkillAgent(SkillAgentSpec spec, CliResolver resolver, Runtim
             var pending = new List<string>();
             var stderrTail = new StringBuilder();
             var buffer = _output.GetOrAdd(repoId, _ => []);
-            var readers = Task.WhenAll(ReadEvents(process, repoRoot, adapter, buffer, pending, debugLog, stop, options.PauseGate), ReadTail(process, stderrTail, debugLog, stop));
-            using var flusher = new CancellationTokenSource();
-            var flushLoop = FlushLoop(repoId, pending, onOutput, flusher.Token, options.PauseGate);
             using var deadline = CancellationTokenSource.CreateLinkedTokenSource(stop);
             deadline.CancelAfter(TimeSpan.FromSeconds(TimeoutSeconds()));
+            var gate = PausableDeadline(options.PauseGate, deadline);
+            var readers = Task.WhenAll(ReadEvents(process, repoRoot, adapter, buffer, pending, debugLog, stop, gate), ReadTail(process, stderrTail, debugLog, stop));
+            using var flusher = new CancellationTokenSource();
+            var flushLoop = FlushLoop(repoId, pending, onOutput, flusher.Token, gate);
             var timedOut = false;
             try
             {
@@ -416,6 +417,16 @@ public sealed class SkillAgent(SkillAgentSpec spec, CliResolver resolver, Runtim
         Restore(repoRoot, repoId, snapshot);
         return new JobState("error", Spec.InvalidError);
     }
+
+    /// <summary>A pause gate that stops the run's timeout while it holds the reader and restarts the full timeout when it releases.</summary>
+    private Func<CancellationToken, Task> PausableDeadline(Func<CancellationToken, Task> gate, CancellationTokenSource deadline) => async token =>
+    {
+        var wait = gate(token);
+        if (wait.IsCompleted) { await wait; return; }
+        deadline.CancelAfter(Timeout.InfiniteTimeSpan);
+        await wait;
+        deadline.CancelAfter(TimeSpan.FromSeconds(TimeoutSeconds()));
+    };
 
     /// <summary>Windows caps a command line near 32k characters, so a long inlined prompt goes to a file the CLI is told to read first.</summary>
     private string FitCommandLine(string prompt, string repoRoot, PromptFile promptFile)

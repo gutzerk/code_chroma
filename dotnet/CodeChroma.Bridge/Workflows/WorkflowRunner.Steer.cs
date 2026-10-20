@@ -3,6 +3,7 @@ using System.Text.Json.Nodes;
 using CodeChroma.Bridge.Agents;
 using CodeChroma.Bridge.Http;
 using CodeChroma.Bridge.Skills;
+using CodeChroma.Bridge.Stores;
 using CodeChroma.Bridge.Workspaces;
 
 namespace CodeChroma.Bridge.Workflows;
@@ -19,6 +20,7 @@ public sealed partial class WorkflowRunner
     {
         if (string.IsNullOrWhiteSpace(text)) throw new BridgeException(400, "text is required");
         var chat = _chat ?? throw new BridgeException(409, "no run agent is configured");
+        if (!IsClaude(chat)) throw new BridgeException(409, "the run agent chat needs the claude CLI");
         string key, prompt, worktree, token;
         string? stepId, session = null;
         RunMessage user;
@@ -27,40 +29,55 @@ public sealed partial class WorkflowRunner
             var h = Require(runId);
             stepId = target is "run" or "" ? null : ResolveStep(h, target);
             key = runId + ":" + (stepId ?? "run");
-            if (chat.GetState(key).State == "generating") throw new BridgeException(409, "that agent is still answering");
-            user = AddMessage(h, stepId ?? "run", "user", text.Trim());
-            prompt = stepId is null ? RunAgentPrompt(h, text) : StepAgentPrompt(h, stepId, text);
-            if (stepId is not null) session = Record(h, stepId).SessionId;
-            worktree = h.Worktree;
-            token = h.McpToken;
-            Persist(h, "run.message");
+            if (chat.GetState(key).State == "generating" || !_chatBusy.Add(key)) throw new BridgeException(409, "that agent is still answering");
+            try
+            {
+                user = AddMessage(h, stepId ?? "run", "user", text.Trim());
+                prompt = stepId is null ? RunAgentPrompt(h, text) : StepAgentPrompt(h, stepId, text);
+                if (stepId is not null) session = Record(h, stepId).SessionId;
+                worktree = h.Worktree;
+                token = h.McpToken;
+                Persist(h, "run.message");
+            }
+            catch
+            {
+                _chatBusy.Remove(key);
+                throw;
+            }
         }
-        var extra = new List<string> { "--tools", string.Join(',', ReadOnlyTools) };
-        if (stepId is null && _mcpUrl?.Invoke(runId) is { } url)
-            extra.AddRange(["--strict-mcp-config", "--mcp-config", McpConfig(url, token)]);
-        if (session is not null) extra.AddRange(["--resume", session]);
-
-        string reply;
         try
         {
-            reply = await AskAgent(chat, key, worktree, prompt, extra);
-        }
-        catch (BridgeException error)
-        {
+            // --strict-mcp-config for every chat: --tools does not limit MCP tools, so ambient MCP servers must not load.
+            var extra = new List<string> { "--tools", string.Join(',', ReadOnlyTools), "--strict-mcp-config" };
+            if (stepId is null && _mcpUrl?.Invoke(runId) is { } url) extra.AddRange(["--mcp-config", McpConfig(url, token)]);
+            if (session is not null) extra.AddRange(["--resume", session]);
+
+            string reply;
+            try
+            {
+                reply = await AskAgent(chat, key, worktree, prompt, extra);
+            }
+            catch (BridgeException error)
+            {
+                lock (_lock)
+                {
+                    var h = Require(runId);
+                    AddMessage(h, stepId ?? "run", "system", "The agent could not answer: " + error.Message);
+                    Persist(h, "run.message");
+                }
+                throw;
+            }
             lock (_lock)
             {
                 var h = Require(runId);
-                AddMessage(h, stepId ?? "run", "system", "The agent could not answer: " + error.Message);
+                var answer = AddMessage(h, stepId ?? "run", "agent", reply.Length > 0 ? reply : "(no answer)");
                 Persist(h, "run.message");
+                return new MessageReply { Reply = answer.Text, MessageId = answer.Id };
             }
-            throw;
         }
-        lock (_lock)
+        finally
         {
-            var h = Require(runId);
-            var answer = AddMessage(h, stepId ?? "run", "agent", reply.Length > 0 ? reply : "(no answer)");
-            Persist(h, "run.message");
-            return new MessageReply { Reply = answer.Text, MessageId = answer.Id };
+            lock (_lock) _chatBusy.Remove(key);
         }
     }
 
@@ -153,10 +170,18 @@ public sealed partial class WorkflowRunner
     public async Task<JsonObject?> HandleMcp(string runId, string? bearer, JsonObject request)
     {
         string token;
-        lock (_lock) token = Require(runId).McpToken;
+        try
+        {
+            lock (_lock) token = Require(runId).McpToken;
+        }
+        catch (BridgeException)
+        {
+            throw new BridgeException(401, "bad run token");
+        }
         if (bearer != "Bearer " + token) throw new BridgeException(401, "bad run token");
         var id = request["id"]?.DeepClone();
-        var method = request["method"]?.GetValue<string>() ?? "";
+        var method = Json.Str(request["method"]) ?? "";
+        var parameters = request["params"] as JsonObject;
         if (id is null) return null;
         JsonObject result;
         switch (method)
@@ -164,7 +189,7 @@ public sealed partial class WorkflowRunner
             case "initialize":
                 result = new JsonObject
                 {
-                    ["protocolVersion"] = request["params"]?["protocolVersion"]?.GetValue<string>() ?? "2025-03-26",
+                    ["protocolVersion"] = Json.Str(parameters?["protocolVersion"]) ?? "2025-03-26",
                     ["capabilities"] = new JsonObject { ["tools"] = new JsonObject() },
                     ["serverInfo"] = new JsonObject { ["name"] = McpServerName, ["version"] = "1" },
                 };
@@ -173,7 +198,7 @@ public sealed partial class WorkflowRunner
                 result = new JsonObject { ["tools"] = McpTools() };
                 break;
             case "tools/call":
-                result = await CallTool(runId, request["params"]?["name"]?.GetValue<string>() ?? "", request["params"]?["arguments"] as JsonObject ?? []);
+                result = await CallTool(runId, Json.Str(parameters?["name"]) ?? "", parameters?["arguments"] as JsonObject ?? []);
                 break;
             case "ping":
                 result = new JsonObject();
@@ -209,12 +234,13 @@ public sealed partial class WorkflowRunner
                     text = "Run paused.";
                     break;
                 case "stop":
-                    var mode = args["mode"]?.GetValue<string>() ?? "now";
+                    if (args["mode"] is { } given && Json.Str(given) is null) return ToolResult("mode must be a string", true);
+                    var mode = Json.Str(args["mode"]) ?? "now";
                     await Stop(runId, mode);
                     text = mode == "afterStep" ? "The run will stop after this step." : "Run stopped.";
                     break;
                 case "propose_redo":
-                    ProposeRedo(runId, args["from"]?.GetValue<string>() ?? "", args["note"]?.GetValue<string>());
+                    ProposeRedo(runId, Json.Str(args["from"]) ?? "", Json.Str(args["note"]));
                     text = "Redo proposed; the user decides.";
                     break;
                 default:
@@ -277,17 +303,34 @@ public sealed partial class WorkflowRunner
             if (!RunStateMachine.IsLegal(h.Run.State, RunCommand.Redo)) throw Illegal(h, "redo");
         }
         await h.Loop;
+        int index, attempt;
+        string checkpoint;
         lock (_lock)
         {
+            if (h.Busy) throw new BridgeException(409, "the run is already being redone");
             if (!RunStateMachine.IsLegal(h.Run.State, RunCommand.Redo)) throw Illegal(h, "redo");
-            var index = IndexOf(h, from);
+            index = IndexOf(h, from);
             if (index < 0) throw new BridgeException(404, $"unknown step: {from}");
             if (h.Def.Steps[index].Kind != "agent") throw new BridgeException(409, "only an agent step can be redone");
-            var checkpoint = h.Run.Steps.Find(s => s.StepId == from)?.CheckpointRef
+            checkpoint = h.Run.Steps.Find(s => s.StepId == from)?.CheckpointRef
                 ?? throw new BridgeException(409, "that step never started, so it has no checkpoint; resume the run instead");
-            var attempt = h.Run.Attempt;
-            var branch = KeepAttempt(h, $"{h.Run.Id}/attempt-{attempt}", checkpoint);
-
+            attempt = h.Run.Attempt;
+            h.Busy = true;
+        }
+        // The git work (commit, branch, reset) runs outside the runner-wide lock; Busy makes every state change wait meanwhile.
+        string branch;
+        try
+        {
+            branch = KeepAttempt(h, $"{h.Run.Id}/attempt-{attempt}", checkpoint);
+        }
+        catch
+        {
+            h.Busy = false;
+            throw;
+        }
+        lock (_lock)
+        {
+            h.Busy = false;
             h.Run.Attempts.RemoveAll(a => a.N == attempt + 1);
             var current = h.Run.Attempts.Find(a => a.N == attempt);
             if (current is null) h.Run.Attempts.Add(current = new RunAttempt { N = attempt });
@@ -338,7 +381,10 @@ public sealed partial class WorkflowRunner
         if (edit.SaveToWorkflow)
         {
             h.Run.PromptOverrides.Remove(step.Id);
-            Store.SaveWorkflow(h.Def);
+            // The in-memory definition carries this run's temporary overrides of other steps; save the stored one with only this step changed.
+            var stored = Store.GetWorkflow(h.Def.Id) ?? throw new BridgeException(409, $"the workflow {h.Def.Id} no longer exists");
+            if (stored.Steps.Find(s => s.Id == step.Id) is { } storedStep) storedStep.Prompt = edit.Prompt;
+            Store.SaveWorkflow(stored);
         }
         else
         {

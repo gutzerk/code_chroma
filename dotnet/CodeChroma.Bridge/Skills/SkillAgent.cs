@@ -24,6 +24,14 @@ public sealed class SkillRunSettings
     public double FlushIntervalSeconds { get; init; } = 0.15;
 }
 
+/// <summary>Per-run extras of a CLI run: arguments appended to the argv and a gate awaited between output events.</summary>
+public sealed record RunOptions(IReadOnlyList<string> ExtraArgs)
+{
+    public static RunOptions Default { get; } = new([]);
+
+    public Func<CancellationToken, Task> PauseGate { get; init; } = static _ => Task.CompletedTask;
+}
+
 /// <summary>Per-kind timeouts and default model (config.py's SkillAgentTimeoutsConfig).</summary>
 public static class SkillTimeouts
 {
@@ -33,23 +41,28 @@ public static class SkillTimeouts
     private static readonly Dictionary<string, int> Seconds = new()
     {
         ["c1"] = 600, ["patterns"] = 600, ["impact-changes"] = 300, ["epic-brief"] = 300, ["custom"] = 600,
-        ["canvas-chat"] = 180, ["wiki-general"] = 3600, ["wiki-general-update"] = 300,
+        ["canvas-chat"] = 180, ["wiki-general"] = 3600, ["workflow-step"] = 1800, ["workflow-chat"] = 300, ["wiki-general-update"] = 300,
     };
 
     public static int For(string kind) => Seconds.GetValueOrDefault(kind, Default);
 }
 
-/// <summary>One background skill-run kind: its call-site name, prompt, artifact location and validity check.</summary>
+/// <summary>One background skill-run kind: its call-site name, prompt, artifact location and validity check (null artifact: exit code 0 alone completes it).</summary>
 public sealed record SkillAgentSpec(
     string Name,
     string? Prompt,
     string Model,
-    Func<string, string, string> Artifact,
-    Func<JsonNode?, bool> Validate,
+    Func<string, string, string>? Artifact,
+    Func<JsonNode?, bool>? Validate,
     string TimeoutEnvVar,
     int DefaultTimeoutSeconds,
-    string InvalidError,
-    RunBody? RunBody = null);
+    string? InvalidError,
+    RunBody? RunBody = null)
+{
+    /// <summary>A kind with no artifact to protect or validate.</summary>
+    public static SkillAgentSpec NoArtifact(string name, string? prompt, string model, string timeoutEnvVar, int defaultTimeoutSeconds) =>
+        new(name, prompt, model, null, null, timeoutEnvVar, defaultTimeoutSeconds, null);
+}
 
 /// <summary>
 /// Runs a CodeChroma skill headlessly through a CLI, protecting the artifact it rewrites: the file is snapshotted
@@ -95,7 +108,8 @@ public sealed class SkillAgent(SkillAgentSpec spec, CliResolver resolver, Runtim
     }
 
     /// <summary>Starts a background run unless one is in flight; the workspace is only for a run body.</summary>
-    public async Task<JobState> Start(string repoId, string repoRoot, OnChange onChange, OnOutput? onOutput = null, string? prompt = null, Workspace? workspace = null)
+    public async Task<JobState> Start(string repoId, string repoRoot, OnChange onChange, OnOutput? onOutput = null, string? prompt = null, Workspace? workspace = null,
+        RunOptions? options = null)
     {
         var state = new JobState("generating", null);
         var run = new Run { Stop = new CancellationTokenSource() };
@@ -138,7 +152,7 @@ public sealed class SkillAgent(SkillAgentSpec spec, CliResolver resolver, Runtim
         await onChange(repoId, state);
         _ = Task.Run(async () =>
         {
-            try { await RunAsync(repoId, repoRoot, onChange, onOutput, prompt, cli, workspace, resolved, stop); }
+            try { await RunAsync(repoId, repoRoot, onChange, onOutput, prompt, cli, workspace, resolved, stop, options); }
             finally { run.Done.TrySetResult(); }
         });
         return state;
@@ -238,6 +252,7 @@ public sealed class SkillAgent(SkillAgentSpec spec, CliResolver resolver, Runtim
 
     public bool HasArtifact(string repoRoot, string repoId)
     {
+        if (Spec.Artifact is null || Spec.Validate is null) return true;
         try
         {
             return Spec.Validate(JsonNode.Parse(File.ReadAllText(Spec.Artifact(repoRoot, repoId))));
@@ -249,14 +264,14 @@ public sealed class SkillAgent(SkillAgentSpec spec, CliResolver resolver, Runtim
     }
 
     private async Task RunAsync(string repoId, string repoRoot, OnChange onChange, OnOutput? onOutput, string? prompt, CliResolution cli,
-        Workspace? workspace, RuntimeCli resolved, CancellationToken stop)
+        Workspace? workspace, RuntimeCli resolved, CancellationToken stop, RunOptions? options)
     {
         JobState state;
         try
         {
             state = Spec.RunBody is not null
                 ? await RunBody(repoId, repoRoot, workspace, onOutput, stop)
-                : await RunCli(repoId, repoRoot, onOutput, prompt, cli, resolved, stop);
+                : await RunCli(repoId, repoRoot, onOutput, prompt, cli, resolved, stop, options);
         }
         catch (OperationCanceledException) when (stop.IsCancellationRequested || !_runs.ContainsKey(repoId))
         {
@@ -305,7 +320,8 @@ public sealed class SkillAgent(SkillAgentSpec spec, CliResolver resolver, Runtim
         return new JobState("error", Spec.InvalidError);
     }
 
-    private async Task<JobState> RunCli(string repoId, string repoRoot, OnOutput? onOutput, string? prompt, CliResolution cli, RuntimeCli resolved, CancellationToken stop)
+    private async Task<JobState> RunCli(string repoId, string repoRoot, OnOutput? onOutput, string? prompt, CliResolution cli, RuntimeCli resolved, CancellationToken stop,
+        RunOptions? options)
     {
         var snapshot = Snapshot(repoRoot, repoId);
         var adapter = CliAdapters.All[cli.AdapterKey];
@@ -315,7 +331,8 @@ public sealed class SkillAgent(SkillAgentSpec spec, CliResolver resolver, Runtim
         var staticPrompt = prompt ?? Spec.Prompt ?? throw new InvalidOperationException("RunCli needs a prompt");
         // An explicit --model re-triggers the CLI rejection; omit it when ANTHROPIC_MODEL carries the model.
         var argvModel = cli.EnvOverrides.ContainsKey("ANTHROPIC_MODEL") ? "" : cli.Model;
-        var argv = adapter.BuildArgv(resolved.Executable, staticPrompt, argvModel, env);
+        options ??= RunOptions.Default;
+        var argv = adapter.BuildArgv(resolved.Executable, staticPrompt, argvModel, env, options.ExtraArgs);
         var info = new ProcessStartInfo(argv[0])
         {
             WorkingDirectory = repoRoot, UseShellExecute = false, RedirectStandardOutput = true, RedirectStandardError = true,
@@ -348,9 +365,9 @@ public sealed class SkillAgent(SkillAgentSpec spec, CliResolver resolver, Runtim
             var pending = new List<string>();
             var stderrTail = new StringBuilder();
             var buffer = _output.GetOrAdd(repoId, _ => []);
-            var readers = Task.WhenAll(ReadEvents(process, repoRoot, adapter, buffer, pending, debugLog, stop), ReadTail(process, stderrTail, debugLog, stop));
+            var readers = Task.WhenAll(ReadEvents(process, repoRoot, adapter, buffer, pending, debugLog, stop, options.PauseGate), ReadTail(process, stderrTail, debugLog, stop));
             using var flusher = new CancellationTokenSource();
-            var flushLoop = FlushLoop(repoId, pending, onOutput, flusher.Token);
+            var flushLoop = FlushLoop(repoId, pending, onOutput, flusher.Token, options.PauseGate);
             using var deadline = CancellationTokenSource.CreateLinkedTokenSource(stop);
             deadline.CancelAfter(TimeSpan.FromSeconds(TimeoutSeconds()));
             var timedOut = false;
@@ -393,11 +410,12 @@ public sealed class SkillAgent(SkillAgentSpec spec, CliResolver resolver, Runtim
         try { await process.WaitForExitAsync(); } catch (InvalidOperationException) { }
     }
 
-    private async Task ReadEvents(Process process, string repoRoot, ICliAdapter adapter, List<string> buffer, List<string> pending, TextWriter? debugLog, CancellationToken token)
+    private async Task ReadEvents(Process process, string repoRoot, ICliAdapter adapter, List<string> buffer, List<string> pending, TextWriter? debugLog, CancellationToken token, Func<CancellationToken, Task> pauseGate)
     {
         while (await process.StandardOutput.ReadLineAsync(token) is { } raw)
         {
             DebugWrite(debugLog, raw + "\n");
+            await pauseGate(token);
             var lines = adapter.ParseLine(raw, repoRoot);
             if (lines.Count == 0) continue;
             lock (buffer)
@@ -421,11 +439,12 @@ public sealed class SkillAgent(SkillAgentSpec spec, CliResolver resolver, Runtim
         }
     }
 
-    private async Task FlushLoop(string repoId, List<string> pending, OnOutput? onOutput, CancellationToken token)
+    private async Task FlushLoop(string repoId, List<string> pending, OnOutput? onOutput, CancellationToken token, Func<CancellationToken, Task> pauseGate)
     {
         while (true)
         {
             await Task.Delay(TimeSpan.FromSeconds(_settings.FlushIntervalSeconds), token);
+            await pauseGate(token);
             await FlushOnce(repoId, pending, onOutput);
         }
     }
@@ -464,6 +483,7 @@ public sealed class SkillAgent(SkillAgentSpec spec, CliResolver resolver, Runtim
     /// <summary>Kept in memory, not a .bak file, so a failed run leaves nothing behind in the repo.</summary>
     private byte[]? Snapshot(string repoRoot, string repoId)
     {
+        if (Spec.Artifact is null) return null;
         try
         {
             return File.ReadAllBytes(Spec.Artifact(repoRoot, repoId));
@@ -476,6 +496,7 @@ public sealed class SkillAgent(SkillAgentSpec spec, CliResolver resolver, Runtim
 
     private void Restore(string repoRoot, string repoId, byte[]? snapshot)
     {
+        if (Spec.Artifact is null) return;
         var path = Spec.Artifact(repoRoot, repoId);
         try
         {

@@ -1,4 +1,13 @@
 import type {
+  MessageReply,
+  RedoRequest,
+  ReviewDecision,
+  Run,
+  RunEvent,
+  StopMode,
+  WorkflowDef,
+} from "../workflows/types";
+import type {
   OpenQuestionsPayload,
   QuestionAck,
   QuestionAnswerBody,
@@ -166,6 +175,55 @@ export abstract class DelegatingEngineClient implements EngineClient {
   }
   subscribeAgents(onEvent: (message: AgentEvent) => void): () => void {
     return this.inner.subscribeAgents(onEvent);
+  }
+  listWorkflows(): Promise<WorkflowDef[]> {
+    return this.inner.listWorkflows();
+  }
+  createWorkflow(workflow: WorkflowDef): Promise<WorkflowDef> {
+    return this.inner.createWorkflow(workflow);
+  }
+
+  listRuns(): Promise<Run[]> {
+    return this.inner.listRuns();
+  }
+  getRun(runId: string): Promise<Run> {
+    return this.inner.getRun(runId);
+  }
+  startRun(workflowId: string): Promise<Run> {
+    return this.inner.startRun(workflowId);
+  }
+  pauseRun(runId: string): Promise<Run> {
+    return this.inner.pauseRun(runId);
+  }
+  resumeRun(runId: string): Promise<Run> {
+    return this.inner.resumeRun(runId);
+  }
+  stopRun(runId: string, mode: StopMode): Promise<Run> {
+    return this.inner.stopRun(runId, mode);
+  }
+  keepRunning(runId: string): Promise<Run> {
+    return this.inner.keepRunning(runId);
+  }
+  setBreakpoint(runId: string, stepId: string, on: boolean): Promise<Run> {
+    return this.inner.setBreakpoint(runId, stepId, on);
+  }
+  resumeRunFrom(runId: string, stepId: string): Promise<Run> {
+    return this.inner.resumeRunFrom(runId, stepId);
+  }
+  reviewRun(runId: string, decision: ReviewDecision, note?: string): Promise<Run> {
+    return this.inner.reviewRun(runId, decision, note);
+  }
+  sendRunMessage(runId: string, target: string, text: string): Promise<MessageReply> {
+    return this.inner.sendRunMessage(runId, target, text);
+  }
+  redoRun(runId: string, request: RedoRequest): Promise<Run> {
+    return this.inner.redoRun(runId, request);
+  }
+  cancelRedo(runId: string): Promise<Run> {
+    return this.inner.cancelRedo(runId);
+  }
+  subscribeRuns(onEvent: (event: RunEvent | undefined) => void): () => void {
+    return this.inner.subscribeRuns(onEvent);
   }
   getEpicsItem(itemId: string, expand?: string): Promise<EpicWorkItem> {
     return this.inner.getEpicsItem(itemId, expand);

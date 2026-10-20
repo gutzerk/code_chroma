@@ -132,7 +132,7 @@ export function DrawDiagramButton({
         }
         onClick={onDrawDiagram}
       >
-        <RailIcon name="custom" />
+        <RailIcon name="draw" /><span>Draw…</span>
       </RailButton>
       {error && (
         <p className="draw-diagram-button-error" data-testid="draw-diagram-button-error">

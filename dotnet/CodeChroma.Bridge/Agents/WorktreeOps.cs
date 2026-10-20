@@ -74,6 +74,55 @@ public static class WorktreeOps
         RunOrThrow(repoRoot, "git worktree remove", [.. args]);
     }
 
+    /// <summary>`git reset --hard &lt;commit&gt;` inside a worktree: moves its branch and files back to the commit.</summary>
+    private static void ResetHard(string worktreePath, string commit) =>
+        RunOrThrow(worktreePath, "git reset", "reset", "--hard", commit);
+
+    /// <summary>Commits the worktree's state under `message`, keeps that head on a new branch (a numeric suffix if the name is taken), resets to `resetTo`, and returns the branch used.</summary>
+    public static string SetAside(string repoRoot, string worktree, string branch, string resetTo, string message)
+    {
+        CommitAll(worktree, message);
+        var head = GitRunner.Run(worktree, "rev-parse", "HEAD")?.Trim();
+        if (string.IsNullOrEmpty(head)) throw new WorktreeException("could not read the worktree head");
+        var unique = CreateUniqueBranch(repoRoot, branch, head);
+        try
+        {
+            ResetHard(worktree, resetTo);
+        }
+        catch (WorktreeException error)
+        {
+            GitRunner.RunRaw(repoRoot, "branch", "-D", unique);
+            throw new WorktreeException($"could not reset the worktree after keeping the attempt on {unique} (the branch was removed again): {error.Message}");
+        }
+        return unique;
+    }
+
+    /// <summary>Creates `branch` (or `branch-2`, `-3`, ...) at `startPoint`; a failed create only retries when that name really exists.</summary>
+    private static string CreateUniqueBranch(string repoRoot, string branch, string startPoint)
+    {
+        for (var n = 1; ; n++)
+        {
+            var candidate = n == 1 ? branch : $"{branch}-{n}";
+            var result = GitRunner.RunRaw(repoRoot, "branch", candidate, startPoint);
+            if (result is { ExitCode: 0 }) return candidate;
+            if (result is null || !BranchExists(repoRoot, candidate))
+                throw new WorktreeException("git branch create " + (result is null ? "could not be run" : $"failed: {result.Value.Stderr.Trim()}"));
+        }
+    }
+
+    private static bool BranchExists(string repoRoot, string branch) =>
+        GitRunner.RunRaw(repoRoot, "show-ref", "--verify", "--quiet", "refs/heads/" + branch) is { ExitCode: 0 };
+
+    /// <summary>Stages everything and commits it (even when empty) under a fixed identity; returns the new head.</summary>
+    public static string? CommitAll(string worktree, string message)
+    {
+        if (GitRunner.RunRaw(worktree, "add", "-A") is not { ExitCode: 0 }) return null;
+        var commit = GitRunner.RunRaw(worktree, "-c", "user.name=CodeChroma", "-c", "user.email=codechroma@localhost", "-c", "commit.gpgsign=false",
+            "commit", "--allow-empty", "--no-verify", "-m", message);
+        if (commit is not { ExitCode: 0 }) return null;
+        return GitRunner.Run(worktree, "rev-parse", "HEAD")?.Trim();
+    }
+
     public static void DeleteBranch(string repoRoot, string branch, bool force = true) =>
         RunOrThrow(repoRoot, "git branch delete", "branch", force ? "-D" : "-d", branch);
 

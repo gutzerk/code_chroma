@@ -1,3 +1,13 @@
+import { MockWorkflowEngine } from "../workflows/mockWorkflows";
+import type {
+  MessageReply,
+  RedoRequest,
+  ReviewDecision,
+  Run,
+  RunEvent,
+  StopMode,
+  WorkflowDef,
+} from "../workflows/types";
 import type {
   OpenQuestionsPayload,
   QuestionAck,
@@ -1927,5 +1937,58 @@ export class MockBridgeEngineClient implements EngineClient {
   subscribeAgents(onEvent: (message: AgentEvent) => void): () => void {
     const unsubscribes = AGENT_EVENT_TYPES.map((type) => this.on<AgentEvent>(type, onEvent));
     return () => unsubscribes.forEach((unsubscribe) => unsubscribe());
+  }
+
+  // Workflow runs live in an in-memory engine that follows the contract's transition table.
+  readonly workflowEngine = new MockWorkflowEngine((event) => this.emit("run", event));
+
+  async listWorkflows(): Promise<WorkflowDef[]> {
+    return this.workflowEngine.listWorkflows();
+  }
+  async createWorkflow(workflow: WorkflowDef): Promise<WorkflowDef> {
+    return this.workflowEngine.createWorkflow(workflow);
+  }
+
+  async listRuns(): Promise<Run[]> {
+    return this.workflowEngine.listRuns();
+  }
+  async getRun(runId: string): Promise<Run> {
+    return this.workflowEngine.getRun(runId);
+  }
+  async startRun(workflowId: string): Promise<Run> {
+    return this.workflowEngine.startRun(workflowId);
+  }
+  async pauseRun(runId: string): Promise<Run> {
+    return this.workflowEngine.pause(runId);
+  }
+  async resumeRun(runId: string): Promise<Run> {
+    return this.workflowEngine.resume(runId);
+  }
+  async stopRun(runId: string, mode: StopMode): Promise<Run> {
+    return this.workflowEngine.stop(runId, mode);
+  }
+  async keepRunning(runId: string): Promise<Run> {
+    return this.workflowEngine.keepRunning(runId);
+  }
+  async setBreakpoint(runId: string, stepId: string, on: boolean): Promise<Run> {
+    return this.workflowEngine.setBreakpoint(runId, stepId, on);
+  }
+  async resumeRunFrom(runId: string, stepId: string): Promise<Run> {
+    return this.workflowEngine.resumeFrom(runId, stepId);
+  }
+  async reviewRun(runId: string, decision: ReviewDecision, note?: string): Promise<Run> {
+    return this.workflowEngine.review(runId, decision, note);
+  }
+  async sendRunMessage(runId: string, target: string, text: string): Promise<MessageReply> {
+    return this.workflowEngine.message(runId, target, text);
+  }
+  async redoRun(runId: string, request: RedoRequest): Promise<Run> {
+    return this.workflowEngine.redo(runId, request);
+  }
+  async cancelRedo(runId: string): Promise<Run> {
+    return this.workflowEngine.cancelRedo(runId);
+  }
+  subscribeRuns(onEvent: (event: RunEvent | undefined) => void): () => void {
+    return this.on("run", onEvent);
   }
 }

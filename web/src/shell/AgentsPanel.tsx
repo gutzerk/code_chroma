@@ -19,40 +19,58 @@ export interface AgentsPanelProps {
   onRunAgent?: () => void;
 }
 
-/** The right-hand floating agents panel: a tab per agent over that agent's terminal. */
+/** The right-hand floating agents panel: a tab per agent over that agent's terminal, or every agent as a column in full screen. */
 export function AgentsPanel({ codeOverlay, onRunAgent }: AgentsPanelProps) {
   const agents = useAgents();
   const agentClient = useAgentClient();
   const current = useCurrentBranch();
   const { agents: shellAgents, codeOverlayOpen } = useShellState();
+  const full = shellAgents.mode === "full";
   const panelRef = useRef<HTMLDivElement | null>(null);
-  const { size, isResizing, handleProps } = useResizableSize(panelRef, {
+  const { size, isResizing, handleProps, resetSize } = useResizableSize(panelRef, {
     axis: "x",
     edge: "left",
     minWidth: AGENTS_MIN_WIDTH,
   });
 
   useEffect(() => {
-    if (!isResizing && size) shellStore.setAgentsWidth(Math.min(size.width, AGENTS_MAX_WIDTH));
-  }, [isResizing, size]);
+    if (isResizing || !size) return;
+    shellStore.setAgentsWidth(Math.min(size.width, AGENTS_MAX_WIDTH));
+    resetSize();
+  }, [isResizing, size, resetSize]);
+
+  useEffect(() => {
+    if (!full) return undefined;
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") shellStore.agentsStepOut();
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [full]);
 
   const activeId = agents.some((a) => a.id === shellAgents.activeId) ? shellAgents.activeId : (agents[0]?.id ?? null);
+  const count = Math.max(agents.length, 1);
+  const columns = count >= 4 ? Math.ceil(Math.sqrt(count)) : count;
 
   return (
     <div
       ref={panelRef}
-      className="agents-panel"
+      className={`agents-panel${full ? " is-full" : ""}`}
       data-testid="agents-panel"
-      style={{ width: size?.width ?? shellAgents.width }}
+      style={full ? undefined : { width: size?.width ?? shellAgents.width }}
     >
       <EdgeHandle
         edge="left"
         testId="agents-handle"
-        resizeHandleProps={handleProps}
-        actions={[
-          { label: "Full screen agents", glyph: "‹", onClick: shellStore.agentsFull },
-          { label: "Collapse agents", glyph: "›", onClick: shellStore.agentsStepOut },
-        ]}
+        resizeHandleProps={full ? undefined : handleProps}
+        actions={
+          full
+            ? [{ label: "Exit full screen agents", glyph: "›", onClick: shellStore.agentsStepOut }]
+            : [
+                { label: "Full screen agents", glyph: "‹", onClick: shellStore.agentsFull },
+                { label: "Collapse agents", glyph: "›", onClick: shellStore.agentsStepOut },
+              ]
+        }
       />
       {agents.length === 0 ? (
         <div className="agents-panel-empty" data-testid="agents-empty">
@@ -66,29 +84,48 @@ export function AgentsPanel({ codeOverlay, onRunAgent }: AgentsPanelProps) {
           )}
         </div>
       ) : (
-        <div className="agents-panel-tabs" role="tablist" aria-label="Agents">
-          {agents.map((agent) => (
-            <button
-              key={agent.id}
-              type="button"
-              role="tab"
-              aria-selected={agent.id === activeId}
-              className={`agents-tab${agent.id === activeId ? " is-active" : ""}${
-                isAgentOnBranch(agent, current) ? "" : " agents-tab-off-branch"
-              }`}
-              data-testid={`agents-tab-${agent.id}`}
-              onClick={() => selectAgent(agentClient, agent.id)}
-            >
-              <AgentLed status={agent.status} />
-              <span>{agent.title}</span>
-            </button>
-          ))}
-        </div>
+        !full && (
+          <div className="agents-panel-tabs" role="tablist" aria-label="Agents">
+            {agents.map((agent) => (
+              <button
+                key={agent.id}
+                type="button"
+                role="tab"
+                aria-selected={agent.id === activeId}
+                className={`agents-tab${agent.id === activeId ? " is-active" : ""}${
+                  isAgentOnBranch(agent, current) ? "" : " agents-tab-off-branch"
+                }`}
+                data-testid={`agents-tab-${agent.id}`}
+                onClick={() => selectAgent(agentClient, agent.id)}
+              >
+                <AgentLed status={agent.status} />
+                <span>{agent.title}</span>
+              </button>
+            ))}
+          </div>
+        )
       )}
-      {agents.map((agent) => agent.id === activeId && <AgentHeader key={agent.id} agent={agent} />)}
-      <div className="agents-panel-bodies">
+      {!full && agents.map((agent) => agent.id === activeId && <AgentHeader key={agent.id} agent={agent} />)}
+      <div
+        className="agents-panel-bodies"
+        data-testid={full ? "agents-fullscreen" : undefined}
+        style={full ? { gridTemplateColumns: `repeat(${columns}, minmax(0, 1fr))` } : undefined}
+      >
         {agents.map((agent) => (
-          <AgentTerminalBody key={agent.id} agent={agent} hidden={agent.id !== activeId} />
+          <section
+            key={agent.id}
+            className="agents-column"
+            data-testid={full ? `agents-column-${agent.id}` : undefined}
+          >
+            {full && (
+              <div className="agents-column-title">
+                <AgentLed status={agent.status} />
+                <span>{agent.title}</span>
+                <AgentHeader agent={agent} />
+              </div>
+            )}
+            <AgentTerminalBody agent={agent} hidden={!full && agent.id !== activeId} />
+          </section>
         ))}
         {codeOverlayOpen && (
           <div className="agents-panel-overlay" data-testid="agents-code-overlay">

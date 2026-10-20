@@ -19,15 +19,17 @@ const TABS: { id: LeftTab; label: string }[] = [
 export function LeftPanel({ diagramsTab, filesTab }: LeftPanelProps) {
   const { left } = useShellState();
   const panelRef = useRef<HTMLElement | null>(null);
-  const { size, isResizing, handleProps } = useResizableSize(panelRef, {
+  const { size, isResizing, handleProps, resetSize } = useResizableSize(panelRef, {
     axis: "x",
     edge: "right",
     minWidth: LEFT_MIN_WIDTH,
   });
 
   useEffect(() => {
-    if (!isResizing && size) shellStore.setLeftWidth(size.width);
-  }, [size, isResizing]);
+    if (isResizing || !size) return;
+    shellStore.setLeftWidth(size.width);
+    resetSize();
+  }, [size, isResizing, resetSize]);
 
   if (left.mode === "collapsed") return <LeftCollapsedStrip />;
 

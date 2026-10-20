@@ -346,8 +346,8 @@ The old `nav.app-rail`, `AgentTerminalDock`, `AgentRail`, `AgentLedStrip`, `Code
 - **`shell/shellStore.ts`** — the single source of truth for shell chrome, persisted per workspace in
   `localStorage` as `codechroma.shell.<workspace>` (re-read by `shellStore.load()` after a workspace
   switch). State: `left {mode: open|collapsed, tab: diagrams|files, width}`, `agents {mode:
-  normal|full|collapsed, activeId, width}`, `terminal {open, height}`, `codeOverlayOpen` (transient,
-  never persisted), `arrangeMode` (`side|stack|grid|null`) and `hiddenLayers`. Widths clamp to
+  normal|full|collapsed, activeId, width}`, `terminal {height}` (open/closed stays in `terminalPanelStore`), `codeOverlayOpen` (transient,
+  never persisted) and `arrangeMode` (`side|stack|grid|null`, not restored on load: its snapshot is in memory). Hidden diagrams live in `collapsedLayersStore`. `App.tsx` calls `shellStore.load()` and `clearArrange()` on a workspace switch. Widths clamp to
   240-520 (left) and 340-720 (agents); `full` is not restored (a reload lands on `normal`).
   Transitions: left `open <-> collapsed` (`openLeft(tab?)` / `collapseLeft`); agents `normal -> full`
   (`agentsFull`, the ‹ on the handle), `full -> normal` and `normal -> collapsed` (`agentsStepOut`,
@@ -367,8 +367,8 @@ The old `nav.app-rail`, `AgentTerminalDock`, `AgentRail`, `AgentLedStrip`, `Code
 - **`ZoomDock.tsx`** — bottom-left −, percent, +, Fit All (the same `CanvasViewportHandle` calls the
   rail used; `data-testid="fit-all-button"` kept). The percent follows `CanvasViewport`'s new
   `onViewChange`.
-- **Agents panel** — right side, always present: `AgentsPanel.tsx`, `AgentsCollapsedStrip.tsx`,
-  `AgentsFullscreen.tsx`; see [`parallel-agents.md`](parallel-agents.md).
+- **Agents panel** — right side, always present: `AgentsPanel.tsx`, `AgentsCollapsedStrip.tsx`
+  (full screen is the same panel restyled over the canvas); see [`parallel-agents.md`](parallel-agents.md).
 - **Code overlay** — `CodeOverlay.tsx`, rendered by `AgentsPanel` over its body (the agent terminals
   stay mounted underneath). `openCodeFor(node)` toggles the node in `openFilesStore` (MRU order, the
   same store `CodeSidebar` used: `open`/`toggle`/`activate`/`close`) and opens the overlay while any
@@ -386,10 +386,11 @@ The old `nav.app-rail`, `AgentTerminalDock`, `AgentRail`, `AgentLedStrip`, `Code
   `route-probe-trigger`). `computeFitView`, `fitToNode(s)`, `focusOnNode`, `centerOnNode`,
   `fitToAllNodes`, `fitToSelector`, the new `fitToBounds(rect)` (world-space rect, 0.9 padding; used by
   Arrange) and `viewportCenter()` (zoom buttons) all target the *visible* rect, the stage minus the
-  insets. When insets change, `RootCanvas` calls `fitToAllNodes()` after a 300ms debounce, skipped on
-  mount (a restored camera stays put) and while `camera.isSuppressed()`. ⚠ The stage no longer
-  resizes when a panel opens, so the viewport's resize re-centring (`VIEW_SETTLE_MS` gate) is not what
-  moves the camera for panel changes; the inset refit is. The viewport's debounced settle gate (`VIEW_SETTLE_MS`) that stops a startup resize from re-centring a restored camera is unchanged. The viewport also clears its click-swallow
+  insets. When insets change, `RootCanvas` pans the camera by the shift of the visible rect's centre
+  (`CanvasViewport.panBy`), keeping zoom and the user's place instead of re-fitting; the first render
+  does nothing. ⚠ The stage no longer resizes when a panel opens, so the viewport's resize
+  re-centring (`VIEW_SETTLE_MS` gate) is not what moves the camera for panel changes. Panel widths and
+  the terminal height reach the store (and so the insets) only when a drag ends. The viewport's debounced settle gate (`VIEW_SETTLE_MS`) that stops a startup resize from re-centring a restored camera is unchanged. The viewport also clears its click-swallow
   flag on `pointerdown` capture so a draggable box that stops propagation cannot leave a stale flag.
 - **Narrow windows** — the plan's "one side panel at a time under 1100px" and "agents full-screen
   only under 720px" rules are not implemented in the code.

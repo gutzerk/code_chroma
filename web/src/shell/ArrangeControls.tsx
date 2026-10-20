@@ -1,7 +1,9 @@
+import { useMemo } from "react";
 import type { Rect } from "../canvas/connectors/orthogonalRoute";
 import { applyArrange } from "../canvas/doc/arrangeController";
 import { useEngineClient } from "../engine-client/EngineClientContext";
 import "./arrangeControls.css";
+import { useCollapsedLayers } from "../canvas/doc/collapsedLayersStore";
 import { useSelectedLayers } from "./diagramSelectionStore";
 import { useShellState, type ArrangeMode } from "./shellStore";
 
@@ -18,7 +20,9 @@ export interface ArrangeControlsProps {
 /** The "Arrange selected" segmented control of the Diagrams tab. */
 export function ArrangeControls({ fitToBounds }: ArrangeControlsProps) {
   const engineClient = useEngineClient();
-  const selected = useSelectedLayers();
+  const picked = useSelectedLayers();
+  const collapsed = useCollapsedLayers();
+  const selected = useMemo(() => picked.filter((layer) => !collapsed.has(layer)), [picked, collapsed]);
   const { arrangeMode } = useShellState();
   const disabled = selected.length < 1;
   return (

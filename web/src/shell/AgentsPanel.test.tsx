@@ -153,4 +153,39 @@ describe("AgentsPanel", () => {
     expect(screen.getByTestId("overlay-content")).toBeInTheDocument();
     expect(screen.getByTestId("agent-terminal-ag1")).toBeInTheDocument();
   });
+
+  it("full screen shows every agent as a column in the same panel, with one terminal per agent", () => {
+    seed(2);
+    shellStore.agentsFull();
+
+    renderPanel();
+
+    expect(screen.getByTestId("agents-column-ag1")).toBeInTheDocument();
+    expect(screen.getByTestId("agents-column-ag2")).toBeInTheDocument();
+    expect(screen.getByTestId("agents-fullscreen").style.gridTemplateColumns).toContain("repeat(2");
+    expect(screen.getAllByTestId("agent-terminal-ag1")).toHaveLength(1);
+  });
+
+  it("wraps four or more agents into a grid", () => {
+    seed(4);
+    shellStore.agentsFull();
+
+    renderPanel();
+
+    expect(screen.getByTestId("agents-fullscreen").style.gridTemplateColumns).toContain("repeat(2");
+  });
+
+  it("returns to normal on the exit button and on Escape", () => {
+    seed(1);
+    shellStore.agentsFull();
+    renderPanel();
+
+    fireEvent.click(screen.getByLabelText("Exit full screen agents"));
+    const afterButton = shellStore.getState().agents.mode;
+    act(() => shellStore.agentsFull());
+    fireEvent.keyDown(window, { key: "Escape" });
+
+    expect(afterButton).toBe("normal");
+    expect(shellStore.getState().agents.mode).toBe("normal");
+  });
 });

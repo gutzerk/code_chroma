@@ -31,6 +31,8 @@ export interface CanvasViewportHandle {
   zoomIn: () => void;
   zoomOut: () => void;
   resetView: () => void;
+  /** Shifts the camera by a screen-space delta without changing zoom. */
+  panBy: (dx: number, dy: number) => void;
   /** Fits a world-space (content coordinate) rect into the visible rect, with padding. */
   fitToBounds: (rect: { x: number; y: number; width: number; height: number }) => void;
 }
@@ -516,6 +518,9 @@ export const CanvasViewport = forwardRef<CanvasViewportHandle, CanvasViewportPro
       zoomOut() {
         const { x, y } = viewportCenter();
         zoomAround(x, y, 1 / BUTTON_ZOOM_STEP);
+      },
+      panBy(dx, dy) {
+        setView((v) => ({ ...v, x: v.x + dx, y: v.y + dy }));
       },
       resetView() {
         setView(RESET_VIEW);

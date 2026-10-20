@@ -59,7 +59,7 @@ export function diagramDisplayName(
   const boxCount = Object.values(doc.elements).filter(
     (element) =>
       element.layer === layer &&
-      !["group", "note"].includes(BLOCK_RULES[element.render].renderer),
+      !["group", "note"].includes(BLOCK_RULES[element.render]?.renderer ?? ""),
   ).length;
   return { name: labelForDiagramLayer(layer, customTypes, doc), typeLabel: typeLabelFor(layer), boxCount };
 }

@@ -1,5 +1,5 @@
 import { openFilesStore } from "../canvas/openFilesStore";
-import { projectTreePanelStore } from "../canvas/projectTreePanelStore";
+import { layoutStore } from "../canvas/layout/layoutStore";
 import { inspectorStore } from "../canvas/inspectorStore";
 import { expansionStore } from "../state/expansionState";
 import { tutorialSimStore } from "./tutorialSim";
@@ -58,12 +58,13 @@ export const TUTORIAL_STEPS: readonly TutorialStep[] = [
   {
     id: "open-tree",
     stage: 1,
-    text: "CodeChroma shows your project as a map, but the real source code is always one click away. This button opens the code tree. Click it.",
-    target: ".project-tree-toggle-button",
+    text: "CodeChroma shows your project as a map, but the real source code is always one click away. This button opens the Files tree. Click it.",
+    target: ".collapsed-left-bar__files",
     placement: "right",
     advance: "click",
     onEnter: () => {
-      projectTreePanelStore.reset();
+      layoutStore.reset();
+      layoutStore.closeLeft();
       openFilesStore.reset();
     },
   },
@@ -199,10 +200,11 @@ export const TUTORIAL_STEPS: readonly TutorialStep[] = [
   {
     id: "agents-tab",
     stage: 4,
-    text: "Stage 4: agents and plans. Diagrams are drawn by agents, and agents can also change your code. This panel lists them, and the agent that drew your diagram is already there. Open the Agents tab.",
-    target: '[data-testid="agent-task-rail-tab-agents"]',
+    text: "Stage 4: agents and plans. Diagrams are drawn by agents, and agents can also change your code. This panel lists them, and the agent that drew your diagram is already there. The agents panel is on the right.",
+    target: '[data-testid="agent-task-rail"]',
     placement: "left",
-    advance: "click",
+    advance: "next",
+    nextLabel: "Next",
   },
   {
     id: "open-agent1",
@@ -287,34 +289,36 @@ export const TUTORIAL_STEPS: readonly TutorialStep[] = [
   {
     id: "diagrams-tab",
     stage: 4,
-    text: "Two diagrams on one canvas can get crowded. The Diagrams tab lets you hide any of them. Open it.",
-    target: '[data-testid="agent-task-rail-tab-diagrams"]',
-    placement: "left",
-    advance: "click",
+    text: "Two diagrams on one canvas can get crowded. The Diagrams tab lets you hide any of them. It is on the left.",
+    target: '[data-testid="left-panel"]',
+    placement: "right",
+    advance: "next",
+    nextLabel: "Next",
   },
   {
     id: "hide-diagram",
     stage: 4,
-    text: "Click the System context row to hide that diagram from the canvas.",
-    target: '[data-testid="diagram-rail-c1"]',
-    placement: "left",
+    text: "Click the eye on the System context row to hide that diagram from the canvas.",
+    target: '[data-testid="left-panel-row-c1"] .left-panel-eye',
+    placement: "right",
     advance: "click",
   },
   {
     id: "show-diagram",
     stage: 4,
-    text: "It is hidden, not deleted. Click the row again to bring it back.",
-    target: '[data-testid="diagram-rail-c1"]',
-    placement: "left",
+    text: "It is hidden, not deleted. Click the eye again to bring it back.",
+    target: '[data-testid="left-panel-row-c1"] .left-panel-eye',
+    placement: "right",
     advance: "click",
   },
   {
     id: "back-to-agents",
     stage: 4,
-    text: "Time to check on agent 2. Go back to the Agents tab.",
-    target: '[data-testid="agent-task-rail-tab-agents"]',
+    text: "Time to check on agent 2. Look at the agents panel again.",
+    target: '[data-testid="agent-task-rail"]',
     placement: "left",
-    advance: "click",
+    advance: "next",
+    nextLabel: "Next",
   },
   {
     id: "open-agent2",
@@ -406,10 +410,11 @@ export const TUTORIAL_STEPS: readonly TutorialStep[] = [
   {
     id: "impact-agents-tab",
     stage: 5,
-    text: "You don't need a new agent to ask about this pull request. The agent that drew the diagram is still here and knows it. Open the Agents tab.",
-    target: '[data-testid="agent-task-rail-tab-agents"]',
+    text: "You don't need a new agent to ask about this pull request. The agent that drew the diagram is still here and knows it. The agents panel is on the right.",
+    target: '[data-testid="agent-task-rail"]',
     placement: "left",
-    advance: "click",
+    advance: "next",
+    nextLabel: "Next",
   },
   {
     id: "impact-open-agent",

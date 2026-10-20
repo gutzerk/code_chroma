@@ -1,0 +1,20 @@
+.agent-task-rail-handles {
+  display: flex;
+  flex: 0 0 auto;
+  justify-content: flex-end;
+  gap: 4px;
+}
+
+.agent-task-rail-handle {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  padding: 0;
+  border: none;
+  border-radius: 8px;
+  background: #262b38;
+  color: inherit;
+  cursor: pointer;
+}

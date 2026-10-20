@@ -2,7 +2,6 @@ import { useEffect } from "react";
 import { undoStore } from "../state/undoStore";
 import type { LayoutKind } from "../state/types";
 import type { Offset } from "./useDragOffset";
-import { clearArrange } from "./doc/arrangeController";
 
 /** The id of the window-level event UndoManager dispatches so the right diagram view restores its
  * saved layout — see useSavedLayoutAndFitLoop's subscription. */
@@ -37,7 +36,6 @@ export function UndoManager({ kinds }: UndoManagerProps): null {
       const popped = undoStore.undoLatest(kinds);
       if (!popped) return;
       event.preventDefault();
-      if (popped.kind === "canvas") clearArrange();
       window.dispatchEvent(
         new CustomEvent<UndoEventDetail>(UNDO_EVENT, {
           detail: { kind: popped.kind, layout: popped.layout },

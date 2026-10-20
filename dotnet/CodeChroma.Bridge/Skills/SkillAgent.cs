@@ -340,7 +340,7 @@ public sealed class SkillAgent(SkillAgentSpec spec, CliResolver resolver, Runtim
         var bareArgs = options.Bare && options.ExtraArgs.Count == 0 && BareSkill.Enabled() ? adapter.BareArgs(options.BareTools) : [];
         if (bareArgs.Count > 0)
         {
-            var inlined = staticPrompt.StartsWith('/') ? BareSkill.Compose(staticPrompt, repoRoot) : staticPrompt;
+            var inlined = staticPrompt.StartsWith('/') ? BareSkill.Compose(staticPrompt, repoRoot, repoId) : staticPrompt;
             if (inlined is null) bareArgs = [];
             else staticPrompt = FitCommandLine(inlined, repoRoot);
         }

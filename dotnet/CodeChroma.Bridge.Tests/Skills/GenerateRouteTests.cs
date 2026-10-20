@@ -59,10 +59,12 @@ public sealed class GenerateRouteTests : IDisposable
         Assert.Equal("System", diagram!["nodes"]![0]!["name"]!.GetValue<string>());
         var call = Assert.Single(_cli.Invocations());
         var prompt = call["args"]![1]!.GetValue<string>();
-        Assert.Contains("Task: type: c1", prompt);
-        var file = File.ReadAllText(Path.Combine(_host.Root, ".codechroma", "prompts", "c1_agent.md"));
-        Assert.Contains("## references/type-c1.md", file);
-        Assert.DoesNotContain("name: codechroma-draw-diagram", file);
+        Assert.Contains("Draw the C1 (system context) diagram", prompt);
+        Assert.Contains("curl -s http://localhost:8000/repos/main/context-digest", prompt);
+        Assert.Contains(Path.Combine(_host.Root, ".codechroma", "diagrams", "c1", "c1.json"), prompt);
+        Assert.DoesNotContain("{BRIDGE}", prompt);
+        Assert.DoesNotContain("name: codechroma-draw-diagram", prompt);
+        Assert.Contains("Task: (re)generate the C1", prompt);
     }
 
     [Fact]

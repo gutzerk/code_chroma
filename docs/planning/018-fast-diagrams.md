@@ -24,5 +24,5 @@ A local embedding model picks the relevant components and a tool prints a compac
 - Publish the release (`publish-model.yml`, manual) and verify first-run download on a clean machine.
 - Raise recall: the 10-query Sonnet benchmark found 13 of 21 expected components (see `context-tool.md`); look at per-component file budgets and phrase-aware file choice.
 - Verify codex / kimi-cli isolation flags against their real `--help` (neither CLI is installed on the dev machine, so `BareArgs` is still empty for them).
-- Convert the other headless kinds to short inline skill bodies and measure each (they already run bare with the full skill text inlined).
+- Short bodies exist for c1, patterns, impact, sequence (`references/bare-*.md`); measure patterns/impact/sequence once the C# bridge gets headless routes for them. Epics, reviews, epic-brief and wiki-general-update still inline their full `SKILL.md`.
 - Measure Opus (not run: the owner asked not to use it).

@@ -8,12 +8,16 @@ namespace CodeChroma.Bridge.Skills;
 public static partial class BareSkill
 {
     public const string DisableEnv = "codechroma_BARE_AGENTS";
+    private const string DrawSkill = "codechroma-draw-diagram";
+
+    /// <summary>The loopback URL this bridge listens on, set once the server is up; short skills embed it so the agent needs no environment.</summary>
+    public static string? BridgeUrl { get; set; }
 
     /// <summary>The kill switch for bare runs: set codechroma_BARE_AGENTS=0 to fall back to registered-skill runs.</summary>
     public static bool Enabled() => Environment.GetEnvironmentVariable(DisableEnv)?.Trim() != "0";
 
     /// <summary>The inlined prompt, or null when the prompt is not a slash command or its skill is not installed (then the run stays as it was).</summary>
-    public static string? Compose(string prompt, string repoRoot)
+    public static string? Compose(string prompt, string repoRoot, string workspaceId)
     {
         if (SlashCommand().Match(prompt) is not { Success: true } match) return null;
         var skill = match.Groups[1].Value;
@@ -21,12 +25,35 @@ public static partial class BareSkill
         if (SkillSync.SkillSource(skill) is not { } source || !File.Exists(Path.Combine(source, "SKILL.md"))) return null;
         var text = new StringBuilder();
         text.Append("Repository root: ").AppendLine(repoRoot).AppendLine();
+        if (ShortBody(skill, args, source) is { } kind)
+        {
+            text.AppendLine(Fill(File.ReadAllText(kind.File), kind.Type, source, repoRoot, workspaceId)).AppendLine();
+            return text.Append("Task: ").Append(ReadInstruction().Replace(DiagramType().Replace(args, "").Trim(), "").Trim()).ToString();
+        }
         text.AppendLine($"The `{skill}` skill follows; apply it to the task at the end. Files it names under `references/` and `scripts/` are inlined or live in `.claude/skills/{skill}/` under the repository root.").AppendLine();
         text.AppendLine(StripFrontmatter(File.ReadAllText(Path.Combine(source, "SKILL.md")))).AppendLine();
         foreach (var name in References().Matches(args).Select(m => m.Value).Distinct())
             if (Path.Combine(source, name) is var file && File.Exists(file))
                 text.AppendLine($"## {name}").AppendLine().AppendLine(File.ReadAllText(file)).AppendLine();
         return text.Append("Task: ").Append(args).ToString();
+    }
+
+    /// <summary>`references/bare-<type>.md` when the draw skill has a short body for the `type:` named in the args.</summary>
+    private static (string Type, string File)? ShortBody(string skill, string args, string source)
+    {
+        if (skill != DrawSkill || DiagramType().Match(args) is not { Success: true } m) return null;
+        var type = m.Groups[1].Value;
+        var file = Path.Combine(source, "references", $"bare-{type}.md");
+        return File.Exists(file) ? (type, file) : null;
+    }
+
+    private static string Fill(string body, string type, string source, string repoRoot, string workspaceId)
+    {
+        var bridge = BridgeUrl ?? "http://localhost:8000";
+        var python = OperatingSystem.IsWindows() ? "python" : "python3";
+        var check = $"{python} \"{Path.Combine(source, "scripts", "check_diagram.py")}\" --kind {type} --url {bridge} --repo {workspaceId}";
+        return body.Replace("{BRIDGE}", bridge).Replace("{WORKSPACE}", workspaceId).Replace("{REPO_ROOT}", repoRoot)
+            .Replace("{OUTPUT_PATH}", Path.Combine(repoRoot, ".codechroma", "diagrams", type, type + ".json")).Replace("{CHECK_COMMAND}", check);
     }
 
     private static string StripFrontmatter(string markdown)
@@ -38,6 +65,13 @@ public static partial class BareSkill
 
     [GeneratedRegex(@"\A/([A-Za-z0-9_\-]+)(?:\s+(.*))?\z", RegexOptions.Singleline)]
     private static partial Regex SlashCommand();
+
+    [GeneratedRegex(@"\Atype:\s*([a-z0-9\-]+)")]
+    private static partial Regex DiagramType();
+
+    /// <summary>The "— read references/… before writing anything —" clause of a registered-skill prompt, which a short body makes wrong.</summary>
+    [GeneratedRegex(@"—\s*read references/.*?before writing anything\s*—", RegexOptions.Singleline)]
+    private static partial Regex ReadInstruction();
 
     [GeneratedRegex(@"references/[\w.\-]+\.md")]
     private static partial Regex References();

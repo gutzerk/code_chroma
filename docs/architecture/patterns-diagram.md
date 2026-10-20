@@ -229,7 +229,7 @@ that collapses several classes (the skill's "Merging" rule) carries `node_ids[]`
 `PatternsContextNode` in addition to the primary `node_id`; the resolver passes both through
 verbatim, and `patternsGraphLayout.ts` exposes them as `PatternNodeLayout.nodeIds`
 (`node.node_ids ?? [node.node_id]`, non-null entries only — an external/no-code box ends with an
-empty list). `PatternNodeBox`'s click dispatches on that list: multiple nodes → `inspectorStore.openMany`
+empty list). `PatternNodeBox`'s click dispatches on that list (⚠ `InspectorPanel` is no longer mounted by `RootCanvas` since the shell redesign, so an `inspectorStore.open` from a canvas box currently shows nothing (see [`web-canvas-shell.md`](web-canvas-shell.md) "Shell layout").): multiple nodes → `inspectorStore.openMany`
 (one inspector level with a tab per node — `InspectorPanel`'s `InspectorGroupTabs` swaps the shown
 `InspectorLevel`), a single node → flat `inspectorStore.open`, none → nothing. `openMany` is additive;
 the drill stack treats the group as one `InspectorEntry` (synthetic `group::<firstId>` id), so back/

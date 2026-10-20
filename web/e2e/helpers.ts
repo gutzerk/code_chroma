@@ -15,4 +15,15 @@ export function treeNode(page: Page, nodeId: string): Locator {
 export async function gotoApp(page: Page): Promise<void> {
   await page.goto("/?autoexpand=off");
   await page.waitForSelector('[data-testid="app-root"]');
+  await openFilesTab(page);
+}
+
+/** Shows the Project Tree: it lives in the left panel's Files tab. */
+export async function openFilesTab(page: Page): Promise<void> {
+  await page.getByRole("tab", { name: "Files" }).click();
+}
+
+/** Shows the Diagrams tab of the left panel. */
+export async function openDiagramsTab(page: Page): Promise<void> {
+  await page.getByRole("tab", { name: "Diagrams" }).click();
 }

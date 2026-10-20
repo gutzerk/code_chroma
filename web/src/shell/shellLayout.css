@@ -1,0 +1,8 @@
+.shell-body .canvas-area { display: block; position: relative; }
+.shell-body .canvas-stage { position: absolute; inset: 0; min-width: 0; }
+.shell-body .shell-agents-slot:not([hidden]) { display: contents; }
+.shell-body .left-panel { bottom: 64px; }
+.project-tree-panel--embedded { padding: 0; background: transparent; border-radius: 0; overflow: visible; }
+.shell-body .wiki-general-notice { left: calc(var(--shell-left, 0px) + 8px); bottom: calc(var(--shell-bottom, 0px) + 20px); max-width: min(32rem, calc(100% - var(--shell-left, 0px) - var(--shell-right, 0px) - 16px)); }
+.shell-body .diagram-health-note { left: calc(var(--shell-left, 0px) + 8px); bottom: calc(var(--shell-bottom, 0px) + 4.5rem); }
+.shell-body .route-probe-trigger-button { right: calc(var(--shell-right, 0px) + 1rem); bottom: calc(var(--shell-bottom, 0px) + 1.5rem); }

@@ -1,5 +1,5 @@
 using System.Text.Json.Nodes;
-using System.Text.RegularExpressions;
+using CodeChroma.Bridge.Workflows;
 using CodeChroma.Bridge.Http;
 using CodeChroma.Bridge.Stores;
 using CodeChroma.Bridge.Workspaces;
@@ -14,17 +14,14 @@ public interface IDiagramResolver
 }
 
 /// <summary>The stored artifact as the payload; stands in until the kind-specific resolvers are ported.</summary>
-public sealed partial class RawDiagramResolver : IDiagramResolver
+public sealed class RawDiagramResolver : IDiagramResolver
 {
     private static readonly string[] SynthesizedPrefixes = ["custom/", "feature-plan/", "epics/"];
-
-    [GeneratedRegex(@"^[A-Za-z0-9][A-Za-z0-9._-]*$")]
-    private static partial Regex SafeId();
 
     public JsonObject? Resolve(Workspace ws, string kind)
     {
         var known = Workspace.DiagramKinds.Contains(kind)
-            || SynthesizedPrefixes.Any(prefix => kind.StartsWith(prefix, StringComparison.Ordinal) && SafeId().IsMatch(kind[prefix.Length..]));
+            || SynthesizedPrefixes.Any(prefix => kind.StartsWith(prefix, StringComparison.Ordinal) && RunStore.IsSafeId(kind[prefix.Length..]));
         return known ? DiagramRoutes.LoadArtifact(ws, kind) as JsonObject ?? new JsonObject() : null;
     }
 }

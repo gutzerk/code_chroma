@@ -1,4 +1,13 @@
 import type {
+  MessageReply,
+  RedoRequest,
+  ReviewDecision,
+  Run,
+  RunEvent,
+  StopMode,
+  WorkflowDef,
+} from "../workflows/types";
+import type {
   OpenQuestionsPayload,
   QuestionAck,
   QuestionAnswerBody,
@@ -214,6 +223,31 @@ export interface EngineClient {
    * `branch-changed`) on the same shared events socket — no second socket for the agent layer.
    * Returns an unsubscribe fn. The mock never fires. */
   subscribeAgents(onEvent: (message: AgentEvent) => void): () => void;
+  /** Every workflow definition (GET /repos/{id}/workflows). */
+  listWorkflows(): Promise<WorkflowDef[]>;
+  /** Every run record (GET /repos/{id}/runs). */
+  listRuns(): Promise<Run[]>;
+  /** One run record (GET /repos/{id}/runs/{runId}) -- what a `run` event makes the client re-fetch. */
+  getRun(runId: string): Promise<Run>;
+  /** Starts a run of a workflow (POST /repos/{id}/workflows/{wfId}/runs). */
+  startRun(workflowId: string): Promise<Run>;
+  /** Steer commands (POST /repos/{id}/runs/{runId}/...); each returns the updated run. */
+  pauseRun(runId: string): Promise<Run>;
+  resumeRun(runId: string): Promise<Run>;
+  stopRun(runId: string, mode: StopMode): Promise<Run>;
+  keepRunning(runId: string): Promise<Run>;
+  setBreakpoint(runId: string, stepId: string, on: boolean): Promise<Run>;
+  resumeRunFrom(runId: string, stepId: string): Promise<Run>;
+  reviewRun(runId: string, decision: ReviewDecision, note?: string): Promise<Run>;
+  /** Messages the run agent (target "run") or one step's agent (a step id); never changes run state. */
+  sendRunMessage(runId: string, target: string, text: string): Promise<MessageReply>;
+  /** Confirms a proposed redo (POST .../redo); the old attempt is set aside and attempt n+1 starts. */
+  redoRun(runId: string, request: RedoRequest): Promise<Run>;
+  /** Dismisses the redo proposal; the run stays stopped. */
+  cancelRedo(runId: string): Promise<Run>;
+  /** Subscribes to `run` pings on the shared events socket. A resync after a socket reopen calls the
+   * listener with no event, meaning "re-fetch everything". */
+  subscribeRuns(onEvent: (event: RunEvent | undefined) => void): () => void;
   /** One fully-loaded work item (GET /repos/{id}/epics/items/{id}); `expand` names one stage node
    * id to populate its sections. Rejects with a readable message on 404. */
   getEpicsItem(itemId: string, expand?: string): Promise<EpicWorkItem>;
@@ -271,6 +305,7 @@ type EventType =
   | "changed"
   | "trace"
   | "canvas"
+  | "run"
   | DiagramEventKind
   | `${SkillRunKind}-status`
   | `${SkillRunKind}-output`
@@ -624,6 +659,70 @@ export class HttpEngineClient implements EngineClient {
   subscribeAgents(onEvent: (message: AgentEvent) => void): () => void {
     const unsubscribes = AGENT_EVENT_TYPES.map((type) => this.on<AgentEvent>(type, onEvent));
     return () => unsubscribes.forEach((unsubscribe) => unsubscribe());
+  }
+
+  listWorkflows(): Promise<WorkflowDef[]> {
+    return this.getJson<WorkflowDef[]>("/workflows");
+  }
+
+  listRuns(): Promise<Run[]> {
+    return this.getJson<Run[]>("/runs");
+  }
+
+  getRun(runId: string): Promise<Run> {
+    return this.getJson<Run>(`/runs/${encodeURIComponent(runId)}`);
+  }
+
+  startRun(workflowId: string): Promise<Run> {
+    return this.postJson<Run>(`/workflows/${encodeURIComponent(workflowId)}/runs`);
+  }
+
+  private runCommand(runId: string, command: string, body?: unknown): Promise<Run> {
+    return this.postJson<Run>(`/runs/${encodeURIComponent(runId)}/${command}`, body);
+  }
+
+  pauseRun(runId: string): Promise<Run> {
+    return this.runCommand(runId, "pause");
+  }
+
+  resumeRun(runId: string): Promise<Run> {
+    return this.runCommand(runId, "resume");
+  }
+
+  stopRun(runId: string, mode: StopMode): Promise<Run> {
+    return this.runCommand(runId, "stop", { mode });
+  }
+
+  keepRunning(runId: string): Promise<Run> {
+    return this.runCommand(runId, "keep-running");
+  }
+
+  setBreakpoint(runId: string, stepId: string, on: boolean): Promise<Run> {
+    return this.runCommand(runId, "breakpoints", { stepId, on });
+  }
+
+  resumeRunFrom(runId: string, stepId: string): Promise<Run> {
+    return this.runCommand(runId, "resume-from", { stepId });
+  }
+
+  reviewRun(runId: string, decision: ReviewDecision, note?: string): Promise<Run> {
+    return this.runCommand(runId, "review", note === undefined ? { decision } : { decision, note });
+  }
+
+  sendRunMessage(runId: string, target: string, text: string): Promise<MessageReply> {
+    return this.postJson<MessageReply>(`/runs/${encodeURIComponent(runId)}/message`, { target, text });
+  }
+
+  redoRun(runId: string, request: RedoRequest): Promise<Run> {
+    return this.runCommand(runId, "redo", request);
+  }
+
+  cancelRedo(runId: string): Promise<Run> {
+    return this.runCommand(runId, "redo/cancel");
+  }
+
+  subscribeRuns(onEvent: (event: RunEvent | undefined) => void): () => void {
+    return this.on("run", onEvent);
   }
 
   async getEpicsItem(itemId: string, expand?: string): Promise<EpicWorkItem> {

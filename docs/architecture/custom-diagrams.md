@@ -26,7 +26,7 @@ and every per-repo `/repos/{id}/custom/{type_id}...` route below — a definitio
 authoring UI anymore; it's saved by hand or by a direct API/skill `PUT`. `RecipeMenu.tsx` (the old
 "Add a picture" dropdown that both listed saved types and opened the wizard via "New custom type…")
 is gone too, replaced by `DrawDiagramButton.tsx` (always launches the drawing agent, no listing) plus
-the left panel's Diagrams tab (`shell/DiagramsTab.tsx`, formerly `AgentRail`'s; it now lists only the diagrams currently on the canvas, not saved types that are off it) —
+`AgentRail`'s Diagrams tab (which now lists every saved type's generated diagram, on canvas or not) —
 see [`single-canvas.md`](single-canvas.md).
 
 A `Custom` rail entry that renders a diagram type **the user describes once, in plain language, and
@@ -168,7 +168,7 @@ diagram-management unification later deleted the library's own `-path`/interview
 (the previous section). The `codechroma-draw-diagram` skill (custom type) writes its artifact straight
 to `custom_path` on disk when a user runs it from the canvas terminal panel, and never posts
 `/generate`. There is therefore no "Generate"/"Regenerate" button in the UI to auto-fire or gate —
-the Diagrams tab only reads whatever the skill already wrote, via the plain GET above. A
+`AgentRail`'s Diagrams tab only reads whatever the skill already wrote, via the plain GET above. A
 box's position lives on the shared
 canvas document (`Element.position`), not a per-type `-layout` file, so the layout pair had nothing
 left to serve either.
@@ -210,7 +210,8 @@ turns the resolved `{nodes, relations}` into `RecipeNode`/`RecipeEdge` objects w
 `NODE_STYLES.custom` (`web/src/canvas/doc/elementRules.ts`), and `web/src/canvas/doc/autoLayout.ts`
 runs dagre once over newly-added elements, persisting the result as the document's own position. The
 rail's draw entry is `canvas/doc/DrawDiagramButton.tsx` (always launches the drawing agent, no
-listing of saved types); the left panel's Diagrams tab (`shell/DiagramsTab.tsx`) lists the diagrams on the canvas and removes/deletes them (it no longer lists saved library types that are off the canvas) — see
+listing of saved types); `AgentRail`'s Diagrams tab is what lists every saved library type's
+generated diagram now (on canvas or not) and adds/removes/deletes it — see
 [`single-canvas.md`](single-canvas.md) for the full rendering pipeline and that tab's behavior; none
 of it is style-specific.
 
@@ -227,7 +228,7 @@ whatever the skill wrote.
 in-app UI left that authors a new library entry through a multi-turn question flow. A definition is
 now saved by hand (editing a JSON file under `~/.codechroma/diagram-types/`) or by a direct
 `PUT /diagram-types/{type_id}` from a skill/API caller; `GET /diagram-types` still drives whatever
-lists saved types (the old `AgentRail` Diagrams tab did; the current `DiagramsTab` only uses it to name custom layers).
+lists saved types (today, `AgentRail`'s Diagrams tab).
 
 ## ⚠ Known limitation: a cross-axis nudge on a dragged box's saved position
 

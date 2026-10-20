@@ -5,6 +5,7 @@ import { treeNode } from "./helpers";
 test("auto-expands the Project Tree on first load", async ({ page }) => {
   await page.goto("/");
   await page.waitForSelector('[data-testid="app-root"]');
+  await page.getByRole("tab", { name: "Files", exact: true }).click();
 
   for (const nodeId of [
     "root",

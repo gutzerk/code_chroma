@@ -1,5 +1,5 @@
 import { useEffect, useRef } from "react";
-import { projectTreePanelStore } from "../canvas/projectTreePanelStore";
+import { layoutStore } from "../canvas/layout/layoutStore";
 import { tutorialSimStore } from "./tutorialSim";
 import { tutorialStore } from "./tutorialStore";
 import { TUTORIAL_ROOT_NAME } from "./tutorialSteps";
@@ -10,7 +10,8 @@ export function useStartTutorial(rootName: string | null): void {
   useEffect(() => {
     if (started.current || rootName !== TUTORIAL_ROOT_NAME) return;
     started.current = true;
-    projectTreePanelStore.reset();
+    layoutStore.reset();
+    layoutStore.closeLeft();
     tutorialSimStore.enableGate();
     tutorialStore.start();
   }, [rootName]);

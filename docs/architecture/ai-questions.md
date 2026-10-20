@@ -49,7 +49,7 @@ user click ─► POST /repos/{id}/questions/{qid}/answer|skip ─► store.sett
 secret (`secrets.token_bytes(32)`), sent as `Authorization: Bearer ...`. `workspace_id_for(token)`
 splits on the last `.`, compares with `hmac.compare_digest` and raises `QuestionAuthError` when
 forged or missing. The token is stable for the process lifetime only; it changes on every bridge
-restart, so a long-lived agent session must be relaunched to get a new one.
+restart, so a long-lived agent window must be relaunched to get a new one.
 
 ## Routes (`bridge/routes/questions.py`)
 

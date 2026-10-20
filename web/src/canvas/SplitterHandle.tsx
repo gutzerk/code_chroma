@@ -3,7 +3,7 @@ import type { ResizeHandleProps } from "./useResizableSize";
 
 export interface SplitterHandleProps {
   /** Positions/sizes the strip — the same box a plain resize handle used (e.g.
-   * `project-tree-panel-resize-handle`), so adopting this component changes no layout. */
+   * `code-sidebar-resize-handle`), so adopting this component changes no layout. */
   className: string;
   dataTestid: string;
   /** Drag-to-resize pointer handlers; omit for a collapse-only splitter with nothing to resize

@@ -118,7 +118,7 @@
 
 Not yet built (still accurate): auto-grouping of large child sets, and search.
 
-- **`src/agents/`** — the parallel-agent sync layer (the terminals are in `src/shell/`); see [`parallel-agents.md`](parallel-agents.md) for the whole
-  feature. In `web/` terms it is one more mounted layer (`AgentWindowLayer`, sync and dialogs only), its own store
+- **`src/agents/`** — the parallel-agent window layer; see [`parallel-agents.md`](parallel-agents.md) for the whole
+  feature. In `web/` terms it is one more screen-space overlay (`AgentWindowLayer`), its own store
   (`agentStore`, planStore-shaped) and its own HTTP facade (`agentClient`, separate from
   `EngineClient` because `/agents` is not under `/repos/{id}`).

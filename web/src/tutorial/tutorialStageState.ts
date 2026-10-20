@@ -5,7 +5,7 @@ import { removeLayerAndRefresh, runRecipeAndLayout } from "../canvas/doc/diagram
 import { seedLayerPositions } from "../canvas/doc/layerPositionCache";
 import { inspectorStore } from "../canvas/inspectorStore";
 import { openFilesStore } from "../canvas/openFilesStore";
-import { projectTreePanelStore } from "../canvas/projectTreePanelStore";
+import { layoutStore } from "../canvas/layout/layoutStore";
 import type { EngineClient } from "../engine-client/EngineClient";
 import { selectionStore } from "../state/selectionStore";
 import { TUTORIAL_LAYOUTS } from "./tutorialLayouts";
@@ -27,7 +27,8 @@ export async function applyStageState(stage: number, engineClient: EngineClient)
   inspectorStore.close();
   selectionStore.clear();
   collapsedLayersStore.reset();
-  projectTreePanelStore.reset();
+  layoutStore.reset();
+  if (stage === 1) layoutStore.closeLeft();
   openFilesStore.reset();
 
   const placed = collectActiveLayers(canvasDocStore.getDoc());

@@ -45,8 +45,8 @@ test("dragging the terminal panel's top-edge handle grows it up to 60% of the vi
   expect(boxCapped.height).toBeLessThanOrEqual(viewport.height * 0.6 + 2);
 });
 
-// The canvas is full-bleed; the bottom dock floats over it without resizing it.
-test("growing the terminal panel leaves the full-bleed canvas viewport unchanged", async ({ page }) => {
+// The canvas viewport shrinks to the space above the bottom dock; it does not extend under it.
+test("growing the terminal panel keeps the canvas viewport above the dock", async ({ page }) => {
   await gotoApp(page);
 
   const canvas = page.getByTestId("app-canvas");
@@ -70,8 +70,9 @@ test("growing the terminal panel leaves the full-bleed canvas viewport unchanged
   const canvasAfter = await canvas.boundingBox();
   const terminalBox = await terminal.boundingBox();
   if (!canvasAfter || !terminalBox) throw new Error("canvas or terminal panel disappeared");
-  expect(canvasAfter).toEqual(canvasBefore);
-  expect(terminalBox.y + terminalBox.height).toBeLessThanOrEqual(canvasAfter.y + canvasAfter.height + 1);
+  expect(canvasAfter.height).toBeLessThan(canvasBefore.height);
+  expect(canvasAfter.y).toBeCloseTo(canvasBefore.y, 0);
+  expect(canvasAfter.y + canvasAfter.height).toBeCloseTo(terminalBox.y, 0);
 });
 
 // Growing the panel must reflow the xterm grid to more rows (like a real terminal window), not leave

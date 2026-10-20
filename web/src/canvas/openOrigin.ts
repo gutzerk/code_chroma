@@ -1,7 +1,6 @@
 import type { EngineClient } from "../engine-client/EngineClient";
 import type { HierarchyNodeRef } from "../state/types";
 import { openFilesStore } from "./openFilesStore";
-import { shellStore } from "../shell/shellStore";
 
 /** Parses an edge `origin` (`file:line`) into its parts, or null when it isn't that shape. */
 export function parseOrigin(origin: string): { path: string; line: number } | null {
@@ -47,5 +46,4 @@ export async function openOrigin(
     language: fragment.language ?? undefined,
   };
   openFilesStore.open(ref);
-  shellStore.openCodeOverlay();
 }

@@ -34,9 +34,19 @@ public sealed class SkillAgents
             "impact-changes_review_agent", Prompts.Render("impact_review_agent"), SkillTimeouts.Model,
             (root, _) => ImpactChangesPath(root), data => data is JsonObject, "codechroma_IMPACT_REVIEW_TIMEOUT_SECONDS",
             SkillTimeouts.For("impact-changes"), "review produced no valid impact-changes.json"));
+        yield return new KindSpec("workflow-step", WorkflowSpec("workflow_step_agent", "STEP", "workflow-step"));
+        yield return new KindSpec("workflow-chat", WorkflowSpec("workflow_chat_agent", "CHAT", "workflow-chat") with
+        {
+            Artifact = (_, key) => Workflows.WorkflowRunner.Marker("chat", key),
+            Validate = data => data is JsonObject,
+            InvalidError = "workflow chat left no marker",
+        });
         yield return new KindSpec("epic-brief", Epics.EpicBrief.Spec());
         foreach (var wiki in WikiGeneral.Specs()) yield return wiki;
     }
+
+    private static SkillAgentSpec WorkflowSpec(string name, string envPart, string kind) =>
+        SkillAgentSpec.NoArtifact(name, null, SkillTimeouts.Model, $"codechroma_WORKFLOW_{envPart}_TIMEOUT_SECONDS", SkillTimeouts.For(kind));
 
     public static string ImpactChangesPath(string repoRoot) => Path.Combine(repoRoot, ".codechroma", "impact-changes.json");
 

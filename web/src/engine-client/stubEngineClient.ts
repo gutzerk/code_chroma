@@ -1,3 +1,4 @@
+import type { Run, WorkflowDef } from "../workflows/types";
 import type {
   DiagramPayload,
   DiagramPayloadFor,
@@ -98,6 +99,30 @@ const IDLE_WIKI_GENERAL: WikiGeneralStatus = {
   empty: false,
 };
 
+/** Shared thrower for every run command the stub cannot perform. */
+const noRuns = async (): Promise<never> => {
+  throw new Error("no runs in the stub");
+};
+
+/** Inert defaults for the workflow-run slice: no workflows, no runs, commands reject. */
+export const WORKFLOW_STUB = {
+  listWorkflows: async (): Promise<WorkflowDef[]> => [],
+  listRuns: async (): Promise<Run[]> => [],
+  getRun: noRuns,
+  startRun: noRuns,
+  pauseRun: noRuns,
+  resumeRun: noRuns,
+  stopRun: noRuns,
+  keepRunning: noRuns,
+  setBreakpoint: noRuns,
+  resumeRunFrom: noRuns,
+  reviewRun: noRuns,
+  sendRunMessage: noRuns,
+  redoRun: noRuns,
+  cancelRedo: noRuns,
+  subscribeRuns: (): (() => void) => () => {},
+};
+
 /** Inert default for the feature-011 diagram-type library slice — no saved types. Spread the same
  * way as IMPACT_CHANGES_STUB (and folded into it below), so a test that never touches the Diagrams
  * tab needn't declare any of this. The in-app interview that used to author a new type is retired
@@ -137,6 +162,7 @@ export const IMPACT_CHANGES_STUB = {
   getWikiGeneralStatus: async (): Promise<WikiGeneralStatus> => IDLE_WIKI_GENERAL,
   updateWikiGeneral: async (): Promise<DiagramGenerationStatus> => ({ state: "idle", error: null }),
   subscribeAgents: (): (() => void) => () => {},
+  ...WORKFLOW_STUB,
   ...DIAGRAM_TYPE_LIBRARY_STUB,
   ...CANVAS_STUB,
 };

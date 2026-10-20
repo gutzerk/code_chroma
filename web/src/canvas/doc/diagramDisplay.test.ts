@@ -62,3 +62,13 @@ describe("diagramDisplayName", () => {
     expect(display.boxCount).toBe(1);
   });
 });
+
+describe("diagramDisplayName with an unknown render kind", () => {
+  it("counts the element as a box instead of throwing", () => {
+    const doc = { ...EMPTY_CANVAS_DOC, elements: { x: el("x", "c1", "from-a-newer-schema" as CanvasElement["render"]) } };
+
+    const { boxCount } = diagramDisplayName("c1", doc);
+
+    expect(boxCount).toBe(1);
+  });
+});

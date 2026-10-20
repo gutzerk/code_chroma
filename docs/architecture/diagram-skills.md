@@ -890,7 +890,7 @@ Separate from authoring, and the reason a user could ask for a diagram and see n
   `_DEFAULT_ADD_STEP_*` was removed; a position-less add now lands at `(0,0)`).
 - **The old fourth trigger (expanding a collapsed diagram from `AgentRail`'s Diagrams tab, which re-ran
   `runRecipeAndLayout`) no longer exists.** `shell/DiagramsTab.tsx` has no collapse/expand: its eye hides
-  a layer through `shellStore.hiddenLayers` with no refresh, and the row list is just
+  a layer through `collapsedLayersStore` with no refresh, and the row list is just
   `listActiveDiagramLayers`. A redraw goes through Draw… only.
 - 🔴 **The Diagrams tab's row list used to hide any layer that wasn't a `BUILTIN_RECIPES` name or a
   `custom/<id>`.** `listActiveDiagramLayers` (`diagramCatalog.ts`) filtered against that fixed

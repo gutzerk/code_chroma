@@ -317,7 +317,7 @@ branch through an agent attached to it (`_guard_shared_worktree`, keyed off `Age
     `shellStore.agents.activeId` if that agent still exists, else the first. With no agents the panel
     shows "No agents running." and a Run agent button (`RootCanvas.runAgent`). It is resizable from
     its left `EdgeHandle` (340-720px, persisted), which carries ‹ (full screen) and › (collapse).
-  - `full` (`AgentsFullscreen.tsx`): every agent as an equal-width column (a `ceil(sqrt(n))`-column
+  - `full` (the same `AgentsPanel`, restyled to cover the canvas, so there is still one terminal per agent): every agent as an equal-width column (a `ceil(sqrt(n))`-column
     grid from four agents up), each with its title, `AgentHeader` and terminal; › (or Esc) returns to
     `normal`.
   - `collapsed` (`AgentsCollapsedStrip.tsx`, 44px): `a1..a5` buttons with a status LED that reopen the
@@ -337,7 +337,7 @@ branch through an agent attached to it (`_guard_shared_worktree`, keyed off `Age
     The bridge-side window fields stay.
 - 🔴 The Diagrams tab moved: diagrams are listed and managed in the **left panel's Diagrams tab**
   (`shell/DiagramsTab.tsx`, see [`single-canvas.md`](single-canvas.md)), no longer in an `AgentRail`
-  tab. Its row's eye toggles `shellStore.hiddenLayers` (hide, not the old collapse) and its delete
+  tab. Its row's eye toggles `collapsedLayersStore` (the existing hide/collapse set) and its delete
   action still goes through `deleteDiagramAndRefresh` behind `DeleteDiagramDialog`.
 - ⚠ The `diagramsReady` badge (`agentStore.diagramsReady`, `agents/agentDiagramsReady.ts`, set on the
   working-to-idle transition of a "Draw a diagram" task forked from a read-only PR workspace) is still

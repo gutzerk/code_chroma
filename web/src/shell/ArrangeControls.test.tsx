@@ -3,6 +3,7 @@ import { act, fireEvent, render, screen } from "@testing-library/react";
 import { ArrangeControls } from "./ArrangeControls";
 import { diagramSelectionStore } from "./diagramSelectionStore";
 import { shellStore } from "./shellStore";
+import { collapsedLayersStore } from "../canvas/doc/collapsedLayersStore";
 import { EngineClientProvider } from "../engine-client/EngineClientContext";
 import { canvasDocStore } from "../canvas/doc/canvasDocStore";
 import { clearArrange } from "../canvas/doc/arrangeController";
@@ -61,5 +62,18 @@ describe("ArrangeControls", () => {
     expect(screen.getByRole("button", { name: "Grid" }).getAttribute("aria-pressed")).toBe("true");
     expect(screen.getByRole("button", { name: "Stack" }).getAttribute("aria-pressed")).toBe("false");
     expect(fit).toHaveBeenCalledOnce();
+  });
+
+  it("disables the buttons when every selected diagram is hidden", () => {
+    canvasDocStore.setDoc({ ...EMPTY_CANVAS_DOC, elements: { a: el("a", "A", 0) } });
+    act(() => {
+      diagramSelectionStore.toggle("A");
+      collapsedLayersStore.collapse("A");
+    });
+
+    renderControls();
+
+    expect((screen.getByRole("button", { name: "Stack" }) as HTMLButtonElement).disabled).toBe(true);
+    act(() => collapsedLayersStore.reset());
   });
 });

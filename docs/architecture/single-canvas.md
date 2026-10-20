@@ -1096,11 +1096,10 @@ the canvas has no way to lay out several diagrams together are obsolete.
   calling `attachAgent(agentClient, null, buildPickedDrawTask(...))`; during the tutorial it opens the
   mock agent instead. `DrawDiagramButton` stays mounted hidden in `RootCanvas` for its auto-add effect
   when a draw finishes.
-- **Hidden vs collapsed layers.** The eye toggles `shellStore.hiddenLayers` (persisted per workspace);
-  `CanvasDocView` drops elements whose layer is in `collapsedLayers` **or** `hiddenLayers` before
-  mounting, so a hidden diagram is out of the DOM and therefore out of Fit All, selection and the
-  connection overlays. `collapsedLayersStore` is unchanged and distinct (nothing in the new tab sets it);
-  nothing is deleted from `CanvasDoc` either way.
+- **Hidden layers.** The eye toggles `collapsedLayersStore` (persisted per workspace);
+  `CanvasDocView` drops elements whose layer is in it before mounting, so a hidden diagram is out of
+  the DOM and therefore out of Fit All, selection and the connection overlays. Arrange ignores hidden
+  layers and disables itself when every selected diagram is hidden. Nothing is deleted from `CanvasDoc`.
 - **Arrange selected** (`shell/ArrangeControls.tsx` under the list, "ARRANGE SELECTED · n"; buttons
   Side by side / Stack / Grid, disabled with nothing ticked). The pure function is
   `canvas/doc/arrangeLayers.ts`: it collects diagram layers (not hidden), measures each with

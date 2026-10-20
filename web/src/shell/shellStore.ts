@@ -89,8 +89,10 @@ class ShellStore extends Store {
     this.set({ ...this.state, left: { ...this.state.left, mode: "open", tab: tab ?? this.state.left.tab } });
   collapseLeft = (): void => this.set({ ...this.state, left: { ...this.state.left, mode: "collapsed" } });
   setLeftTab = (tab: LeftTab): void => this.set({ ...this.state, left: { ...this.state.left, tab } });
-  setLeftWidth = (width: number): void =>
-    this.set({ ...this.state, left: { ...this.state.left, width: clamp(width, LEFT_MIN_WIDTH, LEFT_MAX_WIDTH) } });
+  setLeftWidth = (width: number): void => {
+    const next = clamp(width, LEFT_MIN_WIDTH, LEFT_MAX_WIDTH);
+    if (next !== this.state.left.width) this.set({ ...this.state, left: { ...this.state.left, width: next } });
+  };
 
   /** Reopens the agents panel, on an agent when given (collapsed strip a1/a2 buttons); full screen stays full. */
   openAgent = (id?: string): void =>
@@ -110,11 +112,15 @@ class ShellStore extends Store {
       ...this.state,
       agents: { ...this.state.agents, mode: this.state.agents.mode === "full" ? "normal" : "collapsed" },
     });
-  setAgentsWidth = (width: number): void =>
-    this.set({ ...this.state, agents: { ...this.state.agents, width: clamp(width, AGENTS_MIN_WIDTH, AGENTS_MAX_WIDTH) } });
+  setAgentsWidth = (width: number): void => {
+    const next = clamp(width, AGENTS_MIN_WIDTH, AGENTS_MAX_WIDTH);
+    if (next !== this.state.agents.width) this.set({ ...this.state, agents: { ...this.state.agents, width: next } });
+  };
 
-  setTerminalHeight = (height: number): void =>
-    this.set({ ...this.state, terminal: { ...this.state.terminal, height: Math.max(TERMINAL_MIN_HEIGHT, height) } });
+  setTerminalHeight = (height: number): void => {
+    const next = Math.max(TERMINAL_MIN_HEIGHT, height);
+    if (next !== this.state.terminal.height) this.set({ ...this.state, terminal: { ...this.state.terminal, height: next } });
+  };
 
   /** A box click: leaves agents full screen for normal so the overlay has a panel to sit over. */
   openCodeOverlay = (): void =>

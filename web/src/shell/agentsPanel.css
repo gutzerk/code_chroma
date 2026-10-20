@@ -37,8 +37,7 @@
   display: flex;
   flex-direction: column;
 }
-.agents-panel-bodies .agent-body,
-.agents-fullscreen-column .agent-body {
+.agents-panel-bodies .agent-body {
   flex: 1;
   min-height: 0;
   display: flex;
@@ -98,45 +97,6 @@
   border-radius: 6px;
   padding: 4px;
 }
-.agents-fullscreen {
-  position: absolute;
-  inset: 0;
-  z-index: 30;
-  display: grid;
-  gap: 8px;
-  padding: 8px;
-  background: var(--surface-0);
-}
-.agents-fullscreen-column {
-  display: flex;
-  flex-direction: column;
-  min-width: 0;
-  min-height: 0;
-  background: var(--surface-1);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-card);
-}
-.agents-fullscreen-title {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  padding: 8px 40px 8px 12px;
-  color: var(--text-1);
-  border-bottom: 1px solid var(--border-subtle);
-}
-.agents-fullscreen-back {
-  position: absolute;
-  top: 12px;
-  right: 12px;
-  z-index: 2;
-  border: 0;
-  border-radius: 999px;
-  background: var(--surface-3);
-  color: var(--text-1);
-  width: 26px;
-  height: 26px;
-  cursor: pointer;
-}
 
 .agent-header {
   display: flex;
@@ -149,7 +109,6 @@
 }
 .agent-header .agent-window-branch { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
-.agents-fullscreen-title .agent-header { margin-left: auto; padding: 0; border: 0; flex: 1; justify-content: flex-end; }
 
 .agents-panel-empty button {
   margin-left: 6px;
@@ -160,3 +119,25 @@
   color: var(--text-1);
   cursor: pointer;
 }
+
+.agents-column { display: contents; }
+.agents-panel.is-full { left: 12px; width: auto; z-index: 30; }
+.agents-panel.is-full .agents-panel-bodies { display: grid; gap: 8px; padding: 8px; }
+.agents-panel.is-full .agents-column {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+  background: var(--surface-1);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-card);
+}
+.agents-column-title {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 40px 8px 12px;
+  color: var(--text-1);
+  border-bottom: 1px solid var(--border-subtle);
+}
+.agents-column-title .agent-header { margin-left: auto; padding: 0; border: 0; flex: 1; justify-content: flex-end; }

@@ -22,7 +22,7 @@ export function TerminalPanel({
   const agent = useSelectedAgent();
   const containerRef = useRef<HTMLDivElement | null>(null);
   const panelRef = useRef<HTMLDivElement | null>(null);
-  const { size, isResizing, handleProps } = useResizableSize(panelRef, {
+  const { size, isResizing, handleProps, resetSize } = useResizableSize(panelRef, {
     axis: "y",
     edge: "top",
     minHeight: 160,
@@ -42,8 +42,10 @@ export function TerminalPanel({
 
   // A drag persists its height through the shell store (which clamps to its own minimum).
   useEffect(() => {
-    if (!isResizing && size) shellStore.setTerminalHeight(size.height);
-  }, [size, isResizing]);
+    if (isResizing || !size) return;
+    shellStore.setTerminalHeight(size.height);
+    resetSize();
+  }, [size, isResizing, resetSize]);
 
   return (
     <div

@@ -29,7 +29,7 @@ import { DiagramsTab } from "../shell/DiagramsTab";
 import { ArrangeControls } from "../shell/ArrangeControls";
 import { AgentsPanel } from "../shell/AgentsPanel";
 import { AgentsCollapsedStrip } from "../shell/AgentsCollapsedStrip";
-import { AgentsFullscreen } from "../shell/AgentsFullscreen";
+import { useOpenFilesLiveRefresh } from "../shell/useOpenFilesLiveRefresh";
 import { InspectorOverlay, useInspectorOverlaySync } from "../shell/InspectorOverlay";
 import { CodeOverlay, openCodeFor } from "../shell/CodeOverlay";
 import { COLLAPSED_STRIP_WIDTH, useShellState } from "../shell/shellStore";
@@ -425,17 +425,17 @@ export function RootCanvas() {
     () => ({ left: leftInset, right: rightInset, bottom: bottomInset }),
     [leftInset, rightInset, bottomInset],
   );
-  // Re-fit once the panels settle (300ms debounce); skipped on mount so a restored camera stays put.
-  const insetsMountedRef = useRef(false);
+  // A panel opening or closing shifts the visible rect's centre: pan by that much so the view stays
+  // put relative to what is visible, instead of re-fitting and discarding the user's zoom and pan.
+  const previousInsetsRef = useRef(insets);
   useEffect(() => {
-    if (!insetsMountedRef.current) {
-      insetsMountedRef.current = true;
-      return;
-    }
-    if (camera.isSuppressed()) return;
-    const timer = setTimeout(() => viewportRef.current?.fitToAllNodes(), 300);
-    return () => clearTimeout(timer);
-  }, [insets, camera]);
+    const prev = previousInsetsRef.current;
+    previousInsetsRef.current = insets;
+    const dx = (insets.left - prev.left - (insets.right - prev.right)) / 2;
+    const dy = -(insets.bottom - prev.bottom) / 2;
+    if (dx !== 0 || dy !== 0) viewportRef.current?.panBy(dx, dy);
+  }, [insets]);
+  useOpenFilesLiveRefresh(engineClient, liveVersion);
   const fitToBounds = useCallback(
     (rect: Rect) =>
       viewportRef.current?.fitToBounds({ x: rect.left, y: rect.top, width: rect.width, height: rect.height }),
@@ -542,7 +542,7 @@ export function RootCanvas() {
           {terminalMounted && (
             <TerminalPanel hidden={!isTerminalPanelOpen} leftInset={leftInset} rightInset={rightInset} />
           )}
-          <div className="shell-agents-slot" hidden={shell.agents.mode !== "normal"}>
+          <div className="shell-agents-slot" hidden={shell.agents.mode === "collapsed"}>
             <AgentsPanel
               codeOverlay={
                 <>
@@ -553,7 +553,6 @@ export function RootCanvas() {
               onRunAgent={runAgent} />
           </div>
           <AgentsCollapsedStrip />
-          <AgentsFullscreen />
         </div>
         <EpicBriefPanel />
       </div>

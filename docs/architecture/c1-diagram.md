@@ -328,7 +328,7 @@ a true system-context view that should take seconds).
 
   The real `dir::`/`component::`/`class::`/`function::` hierarchy is **not** in there any more: at
   the **code boundary** a block hands off to `canvas/InspectorPanel.tsx`, a full-height right dock
-  (30vw, draggable to 50%). A box that grew a folder tree inside it re-ranked dagre around its new
+  (30vw, draggable to 50%; no longer mounted, see note below). ⚠ `InspectorPanel` is no longer mounted by `RootCanvas` since the shell redesign, so an `inspectorStore.open` from a canvas box currently shows nothing (see [`web-canvas-shell.md`](web-canvas-shell.md) "Shell layout"). A box that grew a folder tree inside it re-ranked dagre around its new
   measured size, which moved every other box and dragged the relationship arrows with it. ⚠
   `childRefs` is checked **first**, mirroring
   `getChildren`'s own precedence: the review attaches a ghost to a block that may already be a bridged

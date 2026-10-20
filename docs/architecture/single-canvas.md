@@ -143,7 +143,7 @@ what changed since.
   but still commits position as the document's own absolute truth (no separate saved-layout store to
   reconcile against), so `useCollisionAvoidance`'s returned `resetOffset` is load-bearing here: the
   box zeroes its own hook offset at commit (see the double-count regression notes below). Click opens
-  the shared `InspectorPanel` via `inspectorStore.open` when the element carries a `node_id`.
+  `inspectorStore.open` when the element carries a `node_id` (⚠ `InspectorPanel` is no longer mounted by `RootCanvas` since the shell redesign, so that call has no visible effect today).
 - `canvas/doc/NoteElement.tsx` — a free-text sticky note; click to edit, blur commits the label.
   New UI, no old-view equivalent.
 - `canvas/doc/elementRect.ts` — `elementRect(element, sizes) -> Rect`: an element's on-screen
@@ -229,9 +229,9 @@ what changed since.
 - `canvas/doc/CanvasDocView.tsx` — the single view: iterates `doc.elements`, filters out hidden
   layers before mapping (so they don't mount, not just CSS-hide), dispatches `note` → `NoteElement`, `group` → `GroupFrame`, everything else →
   `CanvasNodeBox`, all in one loop. As of Stage 4 it also takes `rootNode`/`strategyName` props and seeds a
-  `"hierarchy"` element the first time the document has none (see below) — the rail/breadcrumb/
-  `InspectorPanel` chrome around it is inherited from `RootCanvas`, which now mounts it
-  unconditionally.
+  `"hierarchy"` element the first time the document has none (see below) — the shell chrome
+  around it (top bar, left/agents panels, zoom dock; no rail or inspector any more) is inherited from
+  `RootCanvas`, which mounts it unconditionally.
 
 Tests: `canvas/doc/elementRules.test.ts` (the style-parity + behavior registry guard, home of the old
 `nodeStyles.test.tsx`), `canvas/doc/CanvasDocView.test.tsx`
@@ -450,8 +450,7 @@ of each candidate:**
 
 🔴 **This section originally described a dropdown that both listed every diagram and opened a
 custom-type wizard.** The diagram-management unification retired both jobs off this component:
-listing/adding/removing/deleting a diagram moved to `AgentRail`'s Diagrams tab (its own doc coverage
-is in [`parallel-agents.md`](parallel-agents.md)), and the custom-type wizard is gone outright (see
+listing/adding/removing/deleting a diagram moved to a Diagrams tab (first `AgentRail`'s, now the left panel's `shell/DiagramsTab.tsx`, see "Shell redesign" at the end of this file), and the custom-type wizard is gone outright (see
 [`custom-diagrams.md`](custom-diagrams.md)). What's below is kept for the *why* behind mechanisms
 that are still live, just relocated — `runRecipeAndLayout`/`removeLayerAndRefresh`/
 `deleteDiagramAndRefresh` now live in `canvas/doc/diagramCatalog.ts` (shared by the button and the
@@ -465,9 +464,9 @@ built-in recipes (`c1`/`patterns`/`impact`/`epics`, hardcoded name+label pairs �
 listed entry called `runRecipeAndLayout(engineClient, name)`: `POST`s the recipe, `getCanvas()`s the
 result into `canvasDocStore`, then folds `autoLayout.layoutNewElements`'s positions for the batch's
 own `id_map` values into one more `update_element` batch — new boxes never land on top of old ones.
-This part is unchanged today, just called from `AgentRail`'s Diagrams tab's expand-refresh instead of
+This part is unchanged today, just reached from the Draw… flow and the Diagrams tab instead of
 a dropdown item (the "Available to add" section that used to live there was removed — a soft-removed
-diagram is redrawn via Draw…, see `AgentRail`'s docstring). 🔵
+diagram is redrawn via Draw…). 🔵
 `getRecipeStatus`/`cancelRecipe`/`getRecipeOutput` from the plan's original EngineClient-collapse list
 were never added: a recipe run is a synchronous re-projection of an already-generated artifact (see
 the Python section above), not a background skill job, so there is nothing for those three methods to
@@ -492,7 +491,7 @@ Three later additions, all covered in [`diagram-skills.md`](diagram-skills.md), 
   `removeLayerAndRefresh` clears that layer's entry. Soft by design — the batch has already
   committed by then, so the note can never block a render.
 
-**Add/remove is `AgentRail`'s Diagrams tab now, not a menu toggle.** `removeLayerAndRefresh`
+**Add/remove is the Diagrams tab now (`DiagramsTab`, formerly `AgentRail`'s), not a menu toggle.** `removeLayerAndRefresh`
 `delete_element`s every element in a layer, plus any edge tagged with the layer whose *both*
 endpoints survive (an edge with either endpoint inside the deleted set is already dropped by
 `apply_batch.py`'s own cascade, so re-deleting it would fail as `unknown_target`). Always sends
@@ -527,7 +526,7 @@ still-deferred gap. Test: `canvas/doc/diagramCatalog.test.ts`.
 ever dim a layer, never delete it, was confusing next to an action that actually removes one.
 
 **Collapse/expand, a real toggle, unaffected by the button's shrink:** a diagram-level collapse/expand
-landed as AgentRail's "Diagrams" tab (see [`parallel-agents.md`](parallel-agents.md)), backed by
+landed as a Diagrams tab (see "Shell redesign" below for its current home), backed by
 `canvas/doc/collapsedLayersStore.ts`. `CanvasDocView` filters `doc.elements`/`doc.edges` before
 rendering by a workspace-scoped client store keyed on `Element.layer`, and never deletes anything:
 `renderableElements` (built once per render from `doc.elements` minus whatever `useCollapsedLayers()`
@@ -535,11 +534,9 @@ reports) feeds both the element map and `visibleDoc`'s edge list, so a collapsed
 disappear for free via the same "edge whose endpoint is missing" filter that already existed for a
 partial batch. The Diagrams tab's own remove/delete rows are the only way to actually delete a
 diagram's elements/edges from `CanvasDoc`. 🔵 The filter is layer-name-agnostic, so it also works,
-unmodified, on the seeded root hierarchy element's own `"hierarchy"` layer — `RootCanvas.tsx`'s rail
-button that used to switch the code-popup/inline mode (`code-view-mode-button`) was repurposed into a
-`collapsedLayersStore.toggle("hierarchy")` call (`RailIcon name="hierarchy"`), so the whole code tree
-can be hidden/shown the same non-destructive way a diagram layer can, even though `"hierarchy"` stays
-out of `isDiagramLayer`'s allow-list and so never appears in AgentRail's Diagrams tab.
+unmodified, on the seeded root hierarchy element's own `"hierarchy"` layer (the rail button that once
+toggled it is gone with the rail; `collapsedLayersStore` itself is still loaded per workspace in `App.tsx`),
+and `"hierarchy"` stays out of `isDiagramLayer`'s allow-list so it never appears in the Diagrams tab.
 
 **Readiness gating + "Draw" handoff.** Picking `c1`/`patterns`/`impact`/a custom type used to be a
 dead click when that type's artifact didn't exist yet on disk (`run_recipe` re-projects an
@@ -582,7 +579,7 @@ tagged `context_kind: "task"`).
 
 A `Store`-based `{itemId: string | null}` — `open(itemId)`/`close()` — plus a panel component reusing
 the `.inspector-panel` CSS shell (header/close button/body) around `EpicBriefView`. Mounted
-unconditionally in `RootCanvas` beside `InspectorPanel`; renders `null` while closed, so it needs no
+unconditionally in `RootCanvas` (beside `.app-body`); renders `null` while closed, so it needs no
 latched-mount handling the way the terminal/wizard panels do (nothing in it needs to survive
 close/reopen).
 
@@ -613,7 +610,7 @@ Added `runRecipe(recipe: string): Promise<CanvasBatchResult>` (`POST /recipes/{r
 `impactRecipeResult`/`customRecipeResult`/`epicsRecipeResult` (one JS port of each Python `to_ops`
 adapter, reading the existing `MOCK_C1`/`MOCK_PATTERNS`/`MOCK_EPICS_INDEX`/`mockCustomDiagrams`
 fixtures) plus `buildMockRecipeOps` (a JS port of `build_batch_ops`'s reconciliation rule, keyed the
-same way by `meta.recipe_key`), so `npm run dev`'s default mock mode can demo Draw…/AgentRail's
+same way by `meta.recipe_key`), so `npm run dev`'s default mock mode can demo Draw…/the Diagrams tab's
 Diagrams tab for real, including a stable second run.
 
 🔴 **The plan's "~20 diagram methods collapse to 8" claim does not hold as literally written — verified
@@ -791,7 +788,7 @@ side of this rename.
   from `canvasDocStore`'s `useHasCanvasLayer("c1")`, **not** `collectActiveLayers(useCanvasDoc())`:
   `useCanvasDoc` returns a fresh object on every emit, so subscribing to it from `RootCanvas` re-rendered
   the whole tree on every drag commit, canvas PATCH and live ping. The boolean selector bails out
-  unless the answer itself changes. `AgentRail`/`DrawDiagramButton` still use `collectActiveLayers`
+  unless the answer itself changes. `DiagramsTab`/`DrawDiagramButton` still use `collectActiveLayers`
   directly — they need the whole set, not one layer's membership. Mounted in
   `RootCanvas` next to `DeletedDiffOverlay`, outside the pan/zoom camera, exactly where it always
   floated.
@@ -1085,3 +1082,49 @@ recency), `web/src/state/undoStore.test.ts` (`undoLatest`).
 - `canvas/document.py` `RENDER_KINDS` gained `"question"` (mirrored in `state/types.ts` `CanvasRenderKind`); `questions` is a non-diagram layer (`diagramCatalog.ts` `NON_DIAGRAM_LAYERS`), so it never gets a diagram frame.
 - `elementRules.ts`: `BLOCK_RULES.question` has its own `renderer: "question"` and `lockedLayout: true`; it is excluded from `StyledRenderKind`. `CanvasDocView.tsx` renders it via `question/QuestionElement` and leaves question elements out of `memberIdsByLayer`.
 - Writes go through `apply_batch` like any element (`questions/store.py`). Wire shapes, routes, broker and gotchas: [`ai-questions.md`](ai-questions.md).
+
+## Shell redesign: Diagrams tab, hidden layers, Arrange selected, diagram name and colour
+
+The shell redesign (see [`web-canvas-shell.md`](web-canvas-shell.md) "Shell layout") left canvas behaviour
+alone and added four canvas-adjacent pieces. 🔴 This is the first bulk-arrange: earlier notes that said
+the canvas has no way to lay out several diagrams together are obsolete.
+
+- **Diagrams tab** (`web/src/shell/DiagramsTab.tsx`): one row per `listActiveDiagramLayers(doc)` layer
+  with a checkbox (`diagramSelectionStore`, pruned when a layer disappears), a colour dot, the name and
+  `type · n boxes`, an eye and a ⋯ menu whose Delete runs `deleteDiagramAndRefresh` behind
+  `DeleteDiagramDialog`. `Draw…` opens `DrawPopover` (C1, Patterns, Impact, Epics, Custom…), each item
+  calling `attachAgent(agentClient, null, buildPickedDrawTask(...))`; during the tutorial it opens the
+  mock agent instead. `DrawDiagramButton` stays mounted hidden in `RootCanvas` for its auto-add effect
+  when a draw finishes.
+- **Hidden layers.** The eye toggles `collapsedLayersStore` (persisted per workspace);
+  `CanvasDocView` drops elements whose layer is in it before mounting, so a hidden diagram is out of
+  the DOM and therefore out of Fit All, selection and the connection overlays. Arrange ignores hidden
+  layers and disables itself when every selected diagram is hidden. Nothing is deleted from `CanvasDoc`.
+- **Arrange selected** (`shell/ArrangeControls.tsx` under the list, "ARRANGE SELECTED · n"; buttons
+  Side by side / Stack / Grid, disabled with nothing ticked). The pure function is
+  `canvas/doc/arrangeLayers.ts`: it collects diagram layers (not hidden), measures each with
+  `unionBoundsOf`, packs the selected ones from their top-left-most corner (`side` = one row, `stack` =
+  one column, `grid` = `ceil(sqrt(n))` columns, 80px gaps) and parks the unselected diagrams below
+  (side/grid) or beside (stack) the packed block. Every member of a layer shifts by the same delta, so
+  box layout and styling are untouched, and no element is rescaled: it returns `moves` (one position per
+  element) plus `packedBounds`. `canvas/doc/arrangeController.ts` applies them: the first arrange takes a
+  module-level snapshot of the pre-arrange positions (and seeds `layerPositionCache`, so remove/re-add
+  keeps them), commits all moves through `commitCanvasPositions` as **one batch (one undo entry)**, sets
+  `shellStore.arrangeMode` and zooms to `packedBounds` with `CanvasViewport.fitToBounds` (so "scale to
+  fit" is a camera change, not a data change). Switching mode keeps the original snapshot; clicking the
+  active mode again calls `restoreArrange`, committing the snapshot back as another batch. `clearArrange()`
+  (drops the snapshot and the mode) runs on a manual box drag (`CanvasNodeBox.commitPositions` and group
+  commit), a whole-diagram drag (`DiagramFrame`) and on Ctrl+Z of a `canvas` undo entry
+  (`UndoManager`). Collision code is not involved: arrange moves whole diagrams, and collision only
+  resolves user drops. Tests: `arrangeLayers.test.ts`, `arrangeController.test.ts`,
+  `shell/ArrangeControls.test.tsx`, e2e `arrange.spec.ts`.
+- **Diagram naming and colour** (`canvas/doc/diagramDisplay.ts`). `diagramDisplayName(layer, doc,
+  customTypes)` returns `{name, typeLabel, boxCount}`: the name is still `labelForDiagramLayer`; the type
+  label is `C1`/`Patterns`/`Impact`/`Epics`/`Sequence`, `Epics` for `epics/*` and `Custom` otherwise; the
+  box count excludes `group` and `note` renderers. `diagramAccent(layer)` is the one colour source:
+  `{className, color}` where c1/patterns/impact/epics keep their named token (`canvas-diagram-frame-<name>`,
+  `var(--<name>)`) and everything else takes `groupColorIndex(layer)` into `DIAGRAM_HASHED_COLORS`
+  (a test keeps those hex values in sync with the `canvas-diagram-frame-color-<n>` rules in
+  `styles.css`). The list-row dot reads `color`; `DiagramFrame` takes its class via `diagramFrameColorClass` (now a thin wrapper over `diagramAccent`) and shows
+  `NAME` plus a small-caps `TYPE · n BOXES` line (`typeLabel`/`boxCount` props passed by
+  `CanvasDocView`), so row and frame always match.

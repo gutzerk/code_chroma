@@ -43,7 +43,7 @@ npm run verify:ui   # Manual, approval-gated canvas click-through (docs/planning
 ```
 
 `verify:ui` (`scripts/verify-ui.mjs`) is a human-in-the-loop pass, not CI: it prompts for consent,
-opens Chromium in a visible window, and clicks every rail toggle + diff flow against the mock
+opens Chromium in a visible window, and clicks every shell toggle + diff flow against the mock
 bridge on `:5173`, classifying backend-absence errors (terminal xterm/ws) as expected. It is never
 part of `npm test`, `npm run e2e`, or CI — only run it deliberately when a person wants to watch
 the whole surface work.

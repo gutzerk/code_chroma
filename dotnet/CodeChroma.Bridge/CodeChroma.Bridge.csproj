@@ -14,6 +14,10 @@
   </ItemGroup>
 
   <ItemGroup>
+    <Content Include="../../skills/**/*" Exclude="../../skills/**/__pycache__/**" Link="skills/%(RecursiveDir)%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+
+  <ItemGroup>
     <ProjectReference Include="../CodeChroma.Core/CodeChroma.Core.csproj" />
   </ItemGroup>
 

@@ -58,6 +58,7 @@ builder.Services.AddAgentsAndPrs(repoRoot);
 builder.Services.AddCors();
 
 var app = builder.Build();
+SkillSync.InstallIntoWorktree(repoRoot);
 app.Lifetime.ApplicationStarted.Register(() => BareSkill.BridgeUrl = ProcessDiagram.LocalAddress(app.Services.GetRequiredService<Microsoft.AspNetCore.Hosting.Server.IServer>()));
 
 app.UseWebSockets();

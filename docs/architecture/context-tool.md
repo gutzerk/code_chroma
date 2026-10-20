@@ -28,6 +28,10 @@ A process diagram used to take an agent 25–30 steps (read wiki, query the grap
 - Kill switch: `codechroma_BARE_AGENTS=0`. A run with `ExtraArgs` (workflow steps/chat, which pass `--resume`/MCP config) is never bare.
 - Not affected: terminal and parallel agents (`Terminal/TerminalAgents.cs`, call-site `parallel_agents`), which keep `--plugin-dir` and the full context.
 
+## Where the skills come from
+
+`skills/` in the repo root is the only source; the bridge build copies it beside the executable, `SkillSync.SkillsRoot()` reads it (env `CODECHROMA_SKILLS_DIR` or `<bridge folder>/skills`), and `SyncAll` installs it into the opened project's `.claude/skills` at start. The short bodies (`bare-*.md`, `process-bare.md`) live there too. Details: [`diagram-skills.md`](diagram-skills.md).
+
 ## Gotchas
 
 - 🔴 The agent's process gets a rebuilt environment, so the context command carries `--repo-path` and `--models-dir` explicitly; don't rely on inherited env vars.

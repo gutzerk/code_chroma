@@ -2,18 +2,19 @@ using CodeChroma.Bridge.Workspaces;
 
 namespace CodeChroma.Bridge.Agents;
 
-/// <summary>Installs the packaged codechroma-* skills into a worktree's .claude/skills so agents there write canvas artifacts.</summary>
+/// <summary>Installs the shipped codechroma-* skills (skills/ beside the bridge) into a project's or worktree's .claude/skills so agents there write canvas artifacts.</summary>
 public static class SkillSync
 {
     public const string SkillsEnv = "CODECHROMA_SKILLS_DIR";
 
-    /// <summary>The single per-skill list: a new skill is one name here plus its directory under .claude/skills.</summary>
+    /// <summary>The single per-skill list: a new skill is one name here plus its directory under skills/.</summary>
     public static readonly IReadOnlyList<string> SkillNames =
     [
         "codechroma-draw-diagram",
         "codechroma-review-diagram",
         "codechroma-epic-brief",
         "codechroma-wiki-general-update",
+        "codechroma-grill",
     ];
 
     /// <summary>Merged or retired away, but still installed in repos an earlier version analyzed; pruned on every sync.</summary>
@@ -29,19 +30,16 @@ public static class SkillSync
     /// <summary>Every path a fresh agent, PR or branch worktree must never show as its own uncommitted work.</summary>
     public static readonly IReadOnlyList<string> WorktreeExcludes = [".codechroma/", .. ExcludePatterns];
 
-    /// <summary>Where the packaged skills live: $CODECHROMA_SKILLS_DIR, else the nearest .claude/skills above the bridge or the working directory, else ./skills beside it.</summary>
+    /// <summary>Folder name of the shipped skills, in the repo root and beside the bridge executable (the build copies one to the other).</summary>
+    public const string SkillsFolder = "skills";
+
+    /// <summary>Where the shipped skills live: $CODECHROMA_SKILLS_DIR, else the skills folder beside the bridge; no searching.</summary>
     public static string? SkillsRoot()
     {
         var configured = Environment.GetEnvironmentVariable(SkillsEnv)?.Trim();
         if (!string.IsNullOrEmpty(configured) && Directory.Exists(configured)) return Path.GetFullPath(configured);
-        foreach (var start in new[] { AppContext.BaseDirectory, Directory.GetCurrentDirectory() })
-            for (var dir = new DirectoryInfo(start); dir is not null; dir = dir.Parent)
-            {
-                var candidate = Path.Combine(dir.FullName, ".claude", "skills");
-                if (Directory.Exists(Path.Combine(candidate, SkillNames[0]))) return candidate;
-            }
-        var beside = Path.Combine(AppContext.BaseDirectory, "skills");
-        return Directory.Exists(beside) ? beside : null;
+        var beside = Path.Combine(AppContext.BaseDirectory, SkillsFolder);
+        return Directory.Exists(Path.Combine(beside, SkillNames[0])) ? beside : null;
     }
 
     /// <summary>The directory handed to `claude --plugin-dir`: the parent of the skills dir.</summary>
@@ -83,7 +81,7 @@ public static class SkillSync
         PruneRetired(repoRoot);
     }
 
-    /// <summary>A fresh worktree never reaches the launcher's own sync, so this excludes and installs directly.</summary>
+    /// <summary>Excludes the skill copies from git and installs them: for the opened project at bridge start and for every fresh worktree.</summary>
     public static void InstallIntoWorktree(string root)
     {
         GitExclude.Ensure(root, [.. WorktreeExcludes]);

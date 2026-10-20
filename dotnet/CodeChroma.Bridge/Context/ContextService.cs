@@ -11,11 +11,13 @@ public sealed class ContextCache(string repoRoot)
 {
     public string Directory { get; } = Path.Combine(repoRoot, ".codechroma", "context-cache");
 
-    public string WikiDirectory { get; } = Path.Combine(repoRoot, ".codechroma", "wiki-general");
+    public string WikiDirectory { get; } = Skills.WikiGeneral.Dir(repoRoot);
 
     private string DataPath => Path.Combine(Directory, "data.json");
 
     private string EmbeddingsPath => Path.Combine(Directory, "title_emb.bin");
+
+    private string FingerprintPath => Path.Combine(Directory, "fingerprint.txt");
 
     public bool HasWiki() => File.Exists(Path.Combine(WikiDirectory, "manifest.json"));
 
@@ -27,7 +29,12 @@ public sealed class ContextCache(string repoRoot)
         return Convert.ToHexString(SHA256.HashData([.. manifest, .. tail]))[..16].ToLowerInvariant();
     }
 
-    public bool IsFresh(string fingerprint) => Load() is { } cached && cached.Data.Fingerprint == fingerprint;
+    /// <summary>True when the stored data was built for <paramref name="fingerprint"/>; reads only the small sidecar, not the data.</summary>
+    public bool IsFresh(string fingerprint)
+    {
+        try { return File.Exists(DataPath) && File.Exists(EmbeddingsPath) && File.ReadAllText(FingerprintPath).Trim() == fingerprint; }
+        catch (IOException) { return false; }
+    }
 
     public (ContextData Data, float[][] Titles)? Load()
     {
@@ -48,19 +55,23 @@ public sealed class ContextCache(string repoRoot)
         }
     }
 
-    /// <summary>Builds and stores the data when stale; titles are embedded with <paramref name="embedder"/>.</summary>
-    public void Ensure(Graph graph, IEmbedder embedder)
+    /// <summary>Builds and stores the data when stale; the embedder is only created (and disposed) when titles need embedding.</summary>
+    public void Ensure(Graph graph, Func<IEmbedder> createEmbedder)
     {
         var fingerprint = Fingerprint(graph);
         if (IsFresh(fingerprint)) return;
         var data = ContextCacheBuilder.Build(WikiDirectory, graph, fingerprint);
-        var vectors = embedder.Embed([.. data.Pages.Select(p => p.Title)]);
+        var embedder = createEmbedder();
+        float[][] vectors;
+        try { vectors = embedder.Embed([.. data.Pages.Select(p => p.Title)]); }
+        finally { (embedder as IDisposable)?.Dispose(); }
         var size = vectors.Length == 0 ? 0 : vectors[0].Length;
         var raw = new byte[vectors.Length * size * sizeof(float)];
         for (var i = 0; i < vectors.Length; i++) Buffer.BlockCopy(vectors[i], 0, raw, i * size * sizeof(float), size * sizeof(float));
         System.IO.Directory.CreateDirectory(Directory);
         File.WriteAllBytes(EmbeddingsPath, raw);
         File.WriteAllText(DataPath, JsonSerializer.Serialize(data));
+        File.WriteAllText(FingerprintPath, fingerprint);
     }
 }
 

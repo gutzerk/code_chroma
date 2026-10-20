@@ -73,7 +73,7 @@ public sealed partial class WorkflowRunner
             key, cwd,
             (_, state) => { if (state.State != "generating") done.TrySetResult(state); return Task.CompletedTask; },
             (_, batch) => { lock (lines) lines.AddRange(batch); return Task.CompletedTask; },
-            prompt, null, new RunOptions(extra));
+            prompt, null, new RunOptions(extra) { Bare = false });
         if (started.State != "generating") done.TrySetResult(started);
         var result = await done.Task;
         if (result.State != "idle") throw new BridgeException(502, result.Error ?? "the agent failed");

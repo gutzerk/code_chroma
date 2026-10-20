@@ -526,7 +526,7 @@ public sealed partial class WorkflowRunner
                 h.Run.Id, h.Worktree,
                 (_, state) => { if (state.State != "generating") done.TrySetResult(state); return Task.CompletedTask; },
                 (_, lines) => { OnLines(h, record, lines); return Task.CompletedTask; },
-                prompt, null, new RunOptions(extra) { PauseGate = gate.WaitAsync });
+                prompt, null, new RunOptions(extra) { PauseGate = gate.WaitAsync, Bare = false });
         }
         catch (Exception error)
         {

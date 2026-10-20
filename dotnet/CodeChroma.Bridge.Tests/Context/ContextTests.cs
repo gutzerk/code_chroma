@@ -97,7 +97,7 @@ public class ContextTests : IDisposable
     public void Cache_is_reused_until_the_manifest_changes()
     {
         var cache = new ContextCache(_root);
-        cache.Ensure(TinyGraph(), new KeywordEmbedder());
+        cache.Ensure(TinyGraph(), () => new KeywordEmbedder());
         var fresh = cache.IsFresh(cache.Fingerprint(TinyGraph()));
 
         File.AppendAllText(Path.Combine(cache.WikiDirectory, "manifest.json"), " ");
@@ -116,7 +116,7 @@ public class ContextTests : IDisposable
         var graph = new CoreGraphEngine(repo, new NativeAnalysisExporter()).GraphSnapshot()!;
         var cache = new ContextCache(repo);
 
-        cache.Ensure(graph, embedder);
+        cache.Ensure(graph, () => new OnnxEmbedder(Path.Combine(modelDir, "model_quantized.onnx"), Path.Combine(modelDir, "tokenizer.json")));
         var (data, titles) = cache.Load()!.Value;
         var selection = ContextSelector.Select(data, titles, embedder.Embed(["agent worktree", "pull request handoff"]));
         var text = ContextRenderer.Render(data, selection, ["agent worktree", "pull request handoff"]);

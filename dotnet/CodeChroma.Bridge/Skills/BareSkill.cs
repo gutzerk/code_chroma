@@ -1,13 +1,14 @@
 using System.Text;
 using System.Text.RegularExpressions;
 using CodeChroma.Bridge.Agents;
+using CodeChroma.Bridge.Workspaces;
 
 namespace CodeChroma.Bridge.Skills;
 
 /// <summary>Turns a `/skill args` slash-command prompt into a self-contained prompt, so the CLI needs no skill registration or other context.</summary>
 public static partial class BareSkill
 {
-    public const string DisableEnv = "codechroma_BARE_AGENTS";
+    private const string DisableEnv = "codechroma_BARE_AGENTS";
     private const string DrawSkill = "codechroma-draw-diagram";
 
     /// <summary>The loopback URL this bridge listens on, set once the server is up; short skills embed it so the agent needs no environment.</summary>
@@ -16,10 +17,10 @@ public static partial class BareSkill
     /// <summary>The kill switch for bare runs: set codechroma_BARE_AGENTS=0 to fall back to registered-skill runs.</summary>
     public static bool Enabled() => Environment.GetEnvironmentVariable(DisableEnv)?.Trim() != "0";
 
-    /// <summary>The inlined prompt, or null when the prompt is not a slash command or its skill is not installed (then the run stays as it was).</summary>
+    /// <summary>The inlined prompt; a prompt that is not a slash command comes back unchanged, and null means its skill is not installed (the run then stays as it was).</summary>
     public static string? Compose(string prompt, string repoRoot, string workspaceId)
     {
-        if (SlashCommand().Match(prompt) is not { Success: true } match) return null;
+        if (SlashCommand().Match(prompt) is not { Success: true } match) return prompt;
         var skill = match.Groups[1].Value;
         var args = match.Groups[2].Value.Trim();
         if (SkillSync.SkillSource(skill) is not { } source || !File.Exists(Path.Combine(source, "SKILL.md"))) return null;
@@ -47,13 +48,15 @@ public static partial class BareSkill
         return File.Exists(file) ? (type, file) : null;
     }
 
+    /// <summary>The command that runs the draw skill's self-check script with the given arguments.</summary>
+    public static string CheckCommand(string skillSource, string arguments) =>
+        $"{(OperatingSystem.IsWindows() ? "python" : "python3")} \"{Path.Combine(skillSource, "scripts", "check_diagram.py")}\" {arguments}";
+
     private static string Fill(string body, string type, string source, string repoRoot, string workspaceId)
     {
         var bridge = BridgeUrl ?? "http://localhost:8000";
-        var python = OperatingSystem.IsWindows() ? "python" : "python3";
-        var check = $"{python} \"{Path.Combine(source, "scripts", "check_diagram.py")}\" --kind {type} --url {bridge} --repo {workspaceId}";
         return body.Replace("{BRIDGE}", bridge).Replace("{WORKSPACE}", workspaceId).Replace("{REPO_ROOT}", repoRoot)
-            .Replace("{OUTPUT_PATH}", Path.Combine(repoRoot, ".codechroma", "diagrams", type, type + ".json")).Replace("{CHECK_COMMAND}", check);
+            .Replace("{OUTPUT_PATH}", Workspace.DiagramPath(repoRoot, type)).Replace("{CHECK_COMMAND}", CheckCommand(source, $"--kind {type} --url {bridge} --repo {workspaceId}"));
     }
 
     private static string StripFrontmatter(string markdown)

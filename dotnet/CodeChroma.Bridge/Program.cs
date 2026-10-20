@@ -59,7 +59,7 @@ builder.Services.AddCors();
 
 var app = builder.Build();
 SkillSync.InstallIntoWorktree(repoRoot);
-app.Lifetime.ApplicationStarted.Register(() => BareSkill.BridgeUrl = ProcessDiagram.LocalAddress(app.Services.GetRequiredService<Microsoft.AspNetCore.Hosting.Server.IServer>()));
+app.Lifetime.ApplicationStarted.Register(() => BareSkill.BridgeUrl = BridgeAddress.Local(app.Services.GetRequiredService<Microsoft.AspNetCore.Hosting.Server.IServer>()));
 
 app.UseWebSockets();
 var spaDir = Path.Combine(AppContext.BaseDirectory, "web");

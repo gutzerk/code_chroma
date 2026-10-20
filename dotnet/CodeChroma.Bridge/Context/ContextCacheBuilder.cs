@@ -8,7 +8,7 @@ namespace CodeChroma.Bridge.Context;
 public static partial class ContextCacheBuilder
 {
     /// <summary>Bumped whenever the built data changes shape, so existing caches rebuild.</summary>
-    public const int Version = 2;
+    internal const int Version = 2;
 
     public static ContextData Build(string wikiDir, Graph graph, string fingerprint)
     {
@@ -21,7 +21,7 @@ public static partial class ContextCacheBuilder
         return new ContextData(fingerprint, containers, pages, edges);
     }
 
-    public static bool IsTestFile(string path)
+    internal static bool IsTestFile(string path)
     {
         var name = Path.GetFileName(path);
         return name.EndsWith("_test.go") || name.Contains(".test.") || name.Contains(".spec.") || name.StartsWith("test_") || name.EndsWith("Tests.cs") || name.EndsWith("_test.py");

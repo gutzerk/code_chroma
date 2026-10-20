@@ -19,15 +19,6 @@ public sealed class ProcessDiagram(SkillAgents agents, DiagramLibrary library, M
 
     public static string JobKey(string repoId, string typeId) => $"{repoId}:{typeId}";
 
-    public static string ArtifactPath(string repoRoot, string typeId) => Path.Combine(repoRoot, ".codechroma", "diagrams", "custom", typeId, typeId + ".json");
-
-    /// <summary>The loopback URL the local bridge listens on, or null before the server is up.</summary>
-    public static string? LocalAddress(IServer server)
-    {
-        var address = server.Features.Get<IServerAddressesFeature>()?.Addresses.FirstOrDefault();
-        return address?.Replace("[::]", "127.0.0.1").Replace("0.0.0.0", "127.0.0.1").Replace("+", "127.0.0.1").Replace("*", "127.0.0.1").TrimEnd('/');
-    }
-
     public async Task<JobState> Start(Workspace ws, string typeId, string request, OnChange onChange, OnOutput onOutput)
     {
         var key = JobKey(ws.Id, typeId);
@@ -35,15 +26,11 @@ public sealed class ProcessDiagram(SkillAgents agents, DiagramLibrary library, M
         var cache = new ContextCache(ws.Root);
         if (!cache.HasWiki()) return new JobState("error", "generate the architecture map (wiki-general) first; the fast diagram path reads it");
         if (ws.Engine.GraphSnapshot() is not { } graph) return new JobState("error", "this engine has no graph snapshot for the context cache");
-        if (SkillText(typeId, definition, ws.Root, LocalAddress(server), request) is not { } prompt) return new JobState("error", "the diagram skill files were not found");
+        if (SkillText(typeId, definition, ws.Root, BridgeAddress.Local(server), request) is not { } prompt) return new JobState("error", "the diagram skill files were not found");
         try
         {
             await models.EnsureAsync();
-            await Task.Run(() =>
-            {
-                using var embedder = new OnnxEmbedder(models.ModelPath, models.TokenizerPath);
-                cache.Ensure(graph, embedder);
-            });
+            await Task.Run(() => cache.Ensure(graph, () => new OnnxEmbedder(models.ModelPath, models.TokenizerPath)));
         }
         catch (Exception error) when (error is HttpRequestException or IOException or InvalidOperationException or Microsoft.ML.OnnxRuntime.OnnxRuntimeException)
         {
@@ -57,11 +44,9 @@ public sealed class ProcessDiagram(SkillAgents agents, DiagramLibrary library, M
     {
         if (SkillSync.SkillSource(SkillName) is not { } source) return null;
         var rules = Path.Combine(source, "references", "process-bare.md");
-        var checker = Path.Combine(source, "scripts", "check_diagram.py");
-        if (!File.Exists(rules) || !File.Exists(checker)) return null;
-        var output = ArtifactPath(repoRoot, typeId);
-        var python = OperatingSystem.IsWindows() ? "python" : "python3";
-        var check = $"{python} \"{checker}\" --kind custom --type {typeId} --json \"{output}\"" + (bridgeUrl is null ? "" : $" --url {bridgeUrl}");
+        if (!File.Exists(rules) || !File.Exists(Path.Combine(source, "scripts", "check_diagram.py"))) return null;
+        var output = Workspace.DiagramPath(repoRoot, "custom/" + typeId);
+        var check = BareSkill.CheckCommand(source, $"--kind custom --type {typeId} --json \"{output}\"" + (bridgeUrl is null ? "" : $" --url {bridgeUrl}"));
         var style = Json.Str(definition["style"]) ?? "boxes-arrows";
         var text = File.ReadAllText(rules).Replace("{CONTEXT_TOOL}", ContextTool.CommandPrefix() + $" --repo-path \"{repoRoot}\" --models-dir \"{models.Directory}\"")
             .Replace("{CHECK_COMMAND}", check).Replace("{TYPE_ID}", typeId).Replace("{STYLE}", style);

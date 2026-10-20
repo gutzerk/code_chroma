@@ -5,7 +5,7 @@ import { AgentClientProvider } from "../agents/AgentClientContext";
 import { MockAgentClient } from "../agents/mockAgentClient";
 import { EngineClientProvider } from "../engine-client/EngineClientContext";
 import { TerminalClientProvider } from "../terminal/TerminalClientContext";
-import { EPICS_STUB, EPIC_BRIEF_STUB, IMPACT_CHANGES_STUB, PATTERNS_STUB, diagramStub } from "../engine-client/stubEngineClient";
+import { WORKFLOW_STUB, EPICS_STUB, EPIC_BRIEF_STUB, IMPACT_CHANGES_STUB, PATTERNS_STUB, diagramStub } from "../engine-client/stubEngineClient";
 import { agentStore } from "../agents/agentStore";
 import { expansionStore } from "../state/expansionState";
 import { diffOverlayStore } from "../state/diffOverlayStore";
@@ -77,6 +77,7 @@ function makeCanvasState() {
 
 function client(overrides: Partial<EngineClient> = {}): EngineClient {
   return {
+    ...WORKFLOW_STUB,
     ...IMPACT_CHANGES_STUB,
     ...EPICS_STUB,
     ...EPIC_BRIEF_STUB,
@@ -187,28 +188,13 @@ describe("RootCanvas left panel", () => {
 });
 
 describe("RootCanvas agents panel", () => {
-  it("collapses to the bar and restores the rail", async () => {
+  it("keeps the activity panel mounted when collapsed and reopens it", async () => {
     renderCanvas();
-    await waitFor(() => expect(screen.getByTestId("agent-task-rail")).toBeTruthy());
-
-    fireEvent.click(screen.getByRole("button", { name: "Collapse agents panel" }));
-
-    expect(screen.queryByTestId("agent-task-rail")).toBeNull();
-    expect(screen.getByTestId("agents-collapsed-bar")).toBeTruthy();
-
-    act(() => layoutStore.setAgentsMode("normal"));
-
-    expect(screen.getByTestId("agent-task-rail")).toBeTruthy();
-  });
-
-  it("shows the full-screen view and keeps the collapsed left bar", async () => {
-    renderCanvas();
-    await waitFor(() => expect(screen.getByTestId("agent-task-rail")).toBeTruthy());
-
-    fireEvent.click(screen.getByRole("button", { name: "Expand agents to full screen" }));
-
-    expect(screen.getByTestId("agent-full-screen")).toBeTruthy();
-    expect(screen.getByTestId("collapsed-left-bar")).toBeTruthy();
+    await screen.findByTestId("activity-panel");
+    fireEvent.click(screen.getByRole("button", { name: "Collapse agents and workflows" }));
+    expect(screen.getByTestId("activity-panel")).toHaveClass("is-collapsed");
+    fireEvent.click(screen.getByRole("button", { name: "Expand agents and workflows" }));
+    expect(screen.getByTestId("activity-panel")).not.toHaveClass("is-collapsed");
   });
 
   it("closes an open inspector when collapsing the panel", async () => {
@@ -216,20 +202,20 @@ describe("RootCanvas agents panel", () => {
     await waitFor(() => expect(screen.getByTestId("app-root")).toBeTruthy());
     act(() => inspectorStore.open("function::calculate_total", "calculate_total"));
 
-    fireEvent.click(screen.getByRole("button", { name: "Collapse agents panel" }));
+    fireEvent.click(screen.getByRole("button", { name: "Collapse agents and workflows" }));
 
     expect(inspectorStore.getIsOpen()).toBe(false);
   });
 });
 
 describe("RootCanvas agent launch error", () => {
-  it("does not show an agent launch error in the app shell or open its terminal", async () => {
+  it("shows an agent launch error in the activity panel without opening the shell terminal", async () => {
     renderCanvas();
     await waitFor(() => expect(screen.getByTestId("app-canvas")).toBeTruthy());
 
     act(() => agentStore.setLaunchError("the limit of 5 concurrent agents is reached"));
 
     expect(terminalPanelStore.getIsOpen()).toBe(false);
-    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+    expect(screen.getByRole("alert")).toHaveTextContent("the limit of 5 concurrent agents is reached");
   });
 });

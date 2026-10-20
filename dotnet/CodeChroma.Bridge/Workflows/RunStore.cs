@@ -24,6 +24,18 @@ public sealed partial class RunStore(string repoRoot)
 
     public void SaveWorkflow(WorkflowDef def) => Write(Path.Combine(WorkflowsDir, def.Id + ".json"), JsonSerializer.Serialize(def, WorkflowJson.Options));
 
+    public bool TryCreateWorkflow(WorkflowDef def)
+    {
+        if (!IsSafeId(def.Id)) throw new ArgumentException("Invalid workflow id");
+        lock (_io)
+        {
+            var path = Path.Combine(WorkflowsDir, def.Id + ".json");
+            if (File.Exists(path)) return false;
+            JsonFile.WriteText(path, JsonSerializer.Serialize(def, WorkflowJson.Options));
+            return true;
+        }
+    }
+
     public List<Run> ListRuns() => ReadAll<Run>(RunsDir);
 
     /// <summary>The ids of the saved runs in file order, without reading any of them.</summary>

@@ -11,18 +11,9 @@ to revive if it comes back, it would be rebuilt from scratch.
   `src/codechroma/terminal/server.py` over a real WebSocket. This is the one place the web app talks
   to a real Python backend by default, rather than a mock. The panel is a **bottom** dock inside
   `.canvas-area` (see [`web-canvas-shell.md`](web-canvas-shell.md)), not the right-hand one it originally was.
-  Since the shell redesign `TerminalPanel` takes `leftInset`/`rightInset` props and positions itself
-  absolutely (`.terminal-dock`, `terminal/terminalDock.css`): `RootCanvas` passes the left panel's and
-  agents panel's current widths (or the 44px strips), so the dock sits *between* the side panels and
-  never underlaps them. Its height starts from `shellStore.terminal.height` (default 220, min 120) and a
-  top-edge drag writes back through `shellStore.setTerminalHeight`, persisted per workspace with the
-  rest of the shell state; `shellStore` height changes also trigger the debounced refit. Open/closed is
-  still `terminalPanelStore` (the top bar's Terminal button toggles it; the panel stays mounted but
-  hidden after the first open via `useLatchedMount`, so scrollback survives). The canvas viewport
-  treats the open dock as a bottom inset (terminal height + 12px) when fitting.
   🔴 **`useXtermSession.ts` is the only place an xterm is constructed.** `TerminalPanel.tsx` and
-  `AgentTerminal.tsx` (one per agent, hosted by `shell/AgentTerminalBody.tsx`) both go through it, because they were near-duplicates
-  that drifted: the agent copy had silently missed the panel's resize debounce, so a panel drag
+  `AgentTerminal.tsx` (one per agent window) both go through it, because they were near-duplicates
+  that drifted: the agent copy had silently missed the panel's resize debounce, so a window drag
   fired `fit()` plus a SIGWINCH on every pointermove and smeared the TUI it was resizing. What that
   hook owns, and why each part is not optional for an agent TUI:
   - `allowProposedApi: true` + `Unicode11Addon` + `unicode.activeVersion = "11"`. Without it xterm
@@ -38,7 +29,7 @@ to revive if it comes back, it would be rebuilt from scratch.
   - The debounced, size-deduped `refit`, the 0x0 guard for a hidden host box, and `onBinary`.
   - Copy-on-select: `term.onSelectionChange` writes the new (non-empty) selection to
     `navigator.clipboard`, the same way a native terminal (iTerm, GNOME Terminal) works — no
-    Cmd/Ctrl+C needed. Applies to both the panel and every agent terminal since they share this hook.
+    Cmd/Ctrl+C needed. Applies to both the panel and every agent window since they share this hook.
     A missing/denied Clipboard API fails silently (`.catch(() => {})`) rather than throwing.
     Debounced (`SELECTION_COPY_DEBOUNCE_MS`, 150ms) same as `scheduleRefit` above — a drag-select
     fires `onSelectionChange` on every extended cell, so only the settled end state is copied.
@@ -47,7 +38,7 @@ to revive if it comes back, it would be rebuilt from scratch.
   in `.app-rail`): `GamesMenu.tsx` opens a dropdown (`GAMES`, currently just
   `{ id: "snake", label: "Snake", Component: SnakeGame }` — add another game by extending that array,
   no menu rewrite needed) and picking an entry opens `GameWindow.tsx`, a thin `ModalDialog` wrapper
-  (no drag/resize, unneeded for a small game). `snake/snakeLogic.ts` is the pure
+  (no drag/resize — `AgentWindow`'s is unneeded for a small game). `snake/snakeLogic.ts` is the pure
   rule engine (grid movement, wall/self collision, food, score) with an injectable `rng` so
   `snakeLogic.test.ts` can pin food placement; `snake/SnakeGame.tsx` is just a `<canvas>` tick loop
   (`setInterval`, arrow keys, Space to pause/resume, Enter to restart once `state.gameOver`) driven by
@@ -115,9 +106,9 @@ client is `drawDiagramScript.ts`'s scripted session: it types a Claude Code bann
 prints scripted work lines on Enter, then runs the real `runRecipeAndLayout(engineClient, <recipe>)`
 against the prebuilt `c1.json` / `patterns.json` / `impact.json` that `dotnet/CodeChroma.Shell/Projects/TutorialProject.cs`
 (`tutorial-project.json`) ships, and fits the canvas. The window itself reuses the real `.agent-window` chrome (run-agent icon,
-`agent-window-title`, inset terminal well), kept so the tutorial's mock looks like an agent window; the real
-agents now live in `shell/AgentsPanel.tsx` (the floating `AgentWindow` and `DockedAgentPanel` it used to
-share chrome with are gone), and only the terminal content differs (the provider's own TUI there, the script here).
+`agent-window-title`, inset terminal well), which the floating `AgentWindow` and the docked
+`DockedAgentPanel` now share, so a real agent window and the tutorial's look the same; only the terminal
+content differs (the provider's own TUI there, the script here).
 `advance: "auto"` steps wait for `advanceTutorialFrom(stepId)`. Gotchas: the panel is hidden, not
 unmounted, when the run ends; in dev, React StrictMode's double mount makes xterm log an uncaught
 `Viewport.syncScrollArea ... 'dimensions'` error on every terminal open (not specific to the tutorial,
@@ -162,7 +153,8 @@ a left-docked agent window.
 **Stage 4 (Agents and plans)** (its first agent window docks at the left edge, `AGENT_LEFT` in `TutorialAgentMock.tsx`, so the new one fits on the right) adds two pretend agents on top of the real panels. The first agent is
 the stage-2 terminal (`createDrawDiagramClient`, built on `scriptedSession.ts`: a `Scene` is a typed
 prompt, an optional arrow-key question, scripted work lines and a done line); `tutorialSimStore.scene`
-asks it to play the next exchange. The pretend agents (`tutorial-1`, `tutorial-2`) were listed by the removed `AgentRail`; check `TutorialAgentMock` before relying on how they surface now, and `RootCanvas`'s Run agent starts the second one
+asks it to play the next exchange. `AgentRail` lists the pretend agents (`tutorial-1`, `tutorial-2`)
+with the real card markup, and `RootCanvas`'s Run agent starts the second one
 (`implementScript.ts`) instead of `attachAgent` while the tutorial runs. The plan is real canvas
 data: `tutorialPlan.ts` adds two `pattern` elements with `meta.plan_kind: "add"` (the "PLAN · ADD" top
 band) and edges via `patchCanvasDoc`, and when agent 2 finishes `buildPlan` clears the plan meta and

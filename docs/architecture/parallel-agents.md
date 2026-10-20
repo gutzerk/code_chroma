@@ -1,7 +1,7 @@
 # Parallel agents (`src/codechroma/bridge/agents/`) — one `claude` per git worktree, or attached
 
 Several Claude sessions at once, each on its own branch in its own `git worktree` by default, each a
-tab in the canvas's agents panel. `<main_root>/.codechroma/agents.json` is the registry (it spans every worktree,
+window on the canvas. `<main_root>/.codechroma/agents.json` is the registry (it spans every worktree,
 so it lives in the main repo); an agent's own artifacts need no special handling — they already sit
 in the `.codechroma/` of its worktree.
 
@@ -149,19 +149,22 @@ branch through an agent attached to it (`_guard_shared_worktree`, keyed off `Age
     (`openAgentOnItsBranch`: check the agent's `base_branch` out on main first, *then* restore the
     window) — removed after an incident where a dirty main tree made that checkout fail, and keep
     failing on every retry, permanently trapping the window behind `display: none` with no reachable
-    close button (the then-rail's only click action was retrying the same failing checkout). An agent's own
+    close button (the rail's only click action was retrying the same failing checkout). An agent's own
     worktree is untouched by whatever main has checked out either way, so there was no technical
-    reason for the coupling. The agent tab never consults `isAgentOnBranch` for visibility — every agent
-    is reachable regardless of branch (the floating `AgentWindow` this once guarded was replaced by the
-    agents panel).
-    `isAgentOnBranch`/`baseBranchOf` still exist, purely for the agents panel's dimmed off-branch tab
-    (`agents-tab-off-branch`) and for `settleActiveWorkspace` (hands the canvas back to main when the *active
+    reason for the coupling. `AgentWindow` no longer ORs `isAgentOnBranch` into its `hidden` check at
+    all — visibility is `minimized`, full stop, for every agent regardless of branch.
+    `isAgentOnBranch`/`baseBranchOf` still exist, purely for the rail's own dimmed/`on <base_branch>`
+    display (below) and for `settleActiveWorkspace` (hands the canvas back to main when the *active
     workspace* it was drawing — a separate concept from window visibility — goes out of scope,
     including on a `branch-changed` ping from another browser window).
-  - An out-of-scope agent keeps its tab in the agents panel, dimmed (`.agents-tab-off-branch`) purely
-    as information; selecting it behaves exactly like any other tab, never a checkout. The old
-    `on <base_branch>` caption and the per-row close button of the removed `AgentRail` card are gone;
-    close is the `×` in `AgentHeader` (below).
+  - An out-of-scope agent keeps its rail row, dimmed (`.agent-rail-item-off-branch`) and labelled
+    `on <base_branch>` purely as information; clicking it minimizes/restores its window exactly like
+    any other agent's row, never a checkout. ⚠ A hidden agent whose row disappeared too would be
+    unreachable and easy to forget while it still runs — that's still true, it just no longer needs a
+    branch match to reach the window itself. An off-branch row also carries its own close button
+    (`.agent-rail-close`, `AgentRail.tsx`) beside the card — a quick way to remove such an agent
+    without opening its window first, kept from the incident fix above even though every window is
+    reachable again now.
 - `diagram_seed.py` — copies main's `.codechroma/{c1,patterns}.json` (+ their `-layout.json` siblings)
   into a new agent's worktree once, at `create()` time (`_seed_diagrams`, right after
   `_install_skills`), so a fresh agent opens with main's last diagrams instead of the canvas seeing
@@ -202,7 +205,7 @@ branch through an agent attached to it (`_guard_shared_worktree`, keyed off `Age
   `"task"` context first message still reaches an `agent` window). The caller merges the resolver's
   env overrides under `agent_run_env`'s `codechroma_WORKSPACE_ID`, so the workspace id wins any
   collision. The resolved binary is stored back on the record as `resolved_cli` (persisted,
-  additive), surfaced via `to_payload` so the agents panel header can show which CLI actually launched. A
+  additive), surfaced via `to_payload` so the window/rail can show which CLI actually launched. A
   plain `claude` record (FR-012) is untouched: it takes the assistant's `effective_cli` directly and
   leaves `resolved_cli` empty, which the front end maps back to the `claude` label. The status
   detector for an `agent` window holds (no `detect/agent.toml`) — never wrong, just never classifies;
@@ -258,7 +261,7 @@ branch through an agent attached to it (`_guard_shared_worktree`, keyed off `Age
   (`manager.py`'s `_sibling_session_ids`) feeds it every *other* record's already-claimed
   `session_id` for that same worktree. Without this, restarting/resuming the sibling that hasn't
   been touched most recently would silently resume the other one's live conversation instead of
-  starting fresh — clicking that agent's card looked like "the wrong agent's session opened."
+  starting fresh — clicking that agent's rail card looked like "the wrong agent's session opened."
 - `publish.py` — "Create PR": `git push -u origin <branch>` then `gh pr create --fill`. Every
   blocker is a preflight reason the button renders **as its disabled label**, never a post-click
   error. Uncommitted files are not a blocker but a forced choice (commit them, or publish without).
@@ -287,77 +290,144 @@ branch through an agent attached to it (`_guard_shared_worktree`, keyed off `Age
   `AgentSessionRegistry`); with no `workspace`, it spawns a per-socket PTY exactly as the plain
   terminal panel always has.
   If creating an agent succeeds but starting its process fails (for example, `claude` is missing from
-  the bridge's PATH), the canvas opens the agents panel on that agent and renders the launch error in its own
+  the bridge's PATH), the canvas opens that agent's window and renders the launch error in its own
   terminal area; the unrelated app shell terminal is not opened.
-- Canvas side: `web/src/agents/` and `web/src/shell/`. 🔴 **The floating agent windows, the rail
-  cards, the left-docked terminal dock and the LED strip no longer exist** (`AgentWindow`, `AgentRail`,
-  `AgentTerminalDock`, `AgentLedStrip`, `agentDockStore` and the Ctrl/Cmd+Shift+O dock shortcut were
-  deleted in the shell redesign). Agents live in one right-hand **agents panel**, see below.
-  `AgentWindowLayer` survived with a narrower job: it is the agent *sync and dialog* layer
-  (`.agent-layer`, `data-active-workspace` for e2e) and renders no terminals. It fetches the agent
-  list and branch on mount, applies `subscribeAgents` pings in place (`agent-added`/`agent-removed`/
-  `agent-status`, `branch-changed`, `branch-removed`; a status flip must not rebuild the list and
-  remount every terminal), fires desktop notifications (a notification click calls
-  `shellStore.openAgent(id)`, which reopens the panel on that agent), and hosts `WorkspaceStatusBanner`,
-  `GitInitDialog` and `CloseAgentDialog`. The LED colour map lives once in `styles.css` under
-  `.agent-led-*`, and `App.tsx` passes `useActiveWorkspace()` as the engine client's `repoId`, so
-  switching agents moves **every** canvas request at once. `HttpEngineClient` drops pings whose
-  `workspace` isn't the one it is drawing (absent key = `main`).
+- Canvas side: `web/src/agents/`. `AgentWindowLayer` is `position: fixed` **above** `.canvas-stage` —
+  screen coordinates on purpose, so a window never scales with zoom. ⚠ Not registered with feature
+  002's `collisionStore`: different coordinate space, explicitly out of scope there. 🔴 Minimizing
+  uses `display: none` and the layer renders **every** agent, minimized or not — it used to filter
+  them out before rendering, which unmounted the xterm and made each restore a full reattach; the
+  CSS, the comment in `AgentWindow.tsx` and `AgentWindow.test.tsx` all assumed otherwise, and only
+  `AgentWindowLayer.test.tsx` + `e2e/agent-windows.spec.ts` now pin it. The LED colour map lives once
+  in `styles.css` under `.agent-led-*`, and `App.tsx` passes `useActiveWorkspace()` as the engine
+  client's `repoId`, so switching agents moves **every** canvas request at once. `HttpEngineClient`
+  drops pings whose `workspace` isn't the one it is drawing (absent key = `main`). The layer also
+  carries `data-active-workspace` for the e2e specs: once a workspace is `ready` nothing on screen says
+  which one it is, and the spec used to infer it from the branch switcher being disabled — a proxy that
+  stopped existing when the switcher became usable everywhere.
 - 🔴 **A window owns its active workspace.** `agentStore.workspaceChosen` is set by a `?workspace=` URL
   param or any `setActiveWorkspace` call, and once set `setList` ignores the bridge's
   `active_workspace` — otherwise a second window on the same project (a PR tab, a branch tab) would be
   dragged onto whatever the first one last opened. The bridge no longer pushes `workspace-activated`
   at all; the persisted value only seeds a window that names no workspace. The desktop shell always
   names one (`?workspace=main` for a repo tab), see [`desktop-app.md`](desktop-app.md).
-- **Agents panel** (`web/src/shell/AgentsPanel.tsx`, one panel always on the right; geometry and mode
-  in `shellStore.agents`, see [`web-canvas-shell.md`](web-canvas-shell.md) "Shell layout"):
-  - `normal`: a tab per agent (`role="tab"`, `AgentLed` + title, `agents-tab-<id>`), the active agent's
-    `AgentHeader`, then `AgentTerminalBody` for every agent (all stay mounted, only the active one is
-    unhidden, so PTY scrollback and the attach survive tab switches). The active id is
-    `shellStore.agents.activeId` if that agent still exists, else the first. With no agents the panel
-    shows "No agents running." and a Run agent button (`RootCanvas.runAgent`). It is resizable from
-    its left `EdgeHandle` (340-720px, persisted), which carries ‹ (full screen) and › (collapse).
-  - `full` (the same `AgentsPanel`, restyled to cover the canvas, so there is still one terminal per agent): every agent as an equal-width column (a `ceil(sqrt(n))`-column
-    grid from four agents up), each with its title, `AgentHeader` and terminal; › (or Esc) returns to
-    `normal`.
-  - `collapsed` (`AgentsCollapsedStrip.tsx`, 44px): `a1..a5` buttons with a status LED that reopen the
-    panel on that agent (`shellStore.openAgent`), a `+n` menu for agents past five, and a lone ‹ when
-    there are no agents. The panel slot is only `hidden`, so terminals stay mounted.
-  - `AgentTerminalBody.tsx` is the old window body: `AgentTerminal` (xterm carries the input line) or,
-    for `worktree_lost`, the "worktree is gone. Close the agent and create a new one." notice.
-  - Code overlay: `CodeOverlay` renders over the panel body (`.agents-panel-overlay`); the terminals
-    underneath stay mounted and closing it leaves the agents state alone.
-  - `AgentHeader.tsx` carries the controls of the old window title bar that still apply: the resolved
-    CLI, the branch, a "worktree lost" warning with **Recreate** (`agentClient.recreateWorktree`), the
-    Create PR button (`CreatePrButton`, hidden for lost worktrees and PR-forked agents) and **×**.
-    There is no minimize or dock any more.
-  - Launching (`launchAgent.ts`) still ends in `openAgentWindow(client, id)`, which persists
-    `minimized: false` and a z to the bridge; the panel does not read either field, and the other
-    geometry helpers in `windowActions.ts` (`minimizeAgentWindow`, `persist`) have no UI caller left.
-    The bridge-side window fields stay.
-- 🔴 The Diagrams tab moved: diagrams are listed and managed in the **left panel's Diagrams tab**
-  (`shell/DiagramsTab.tsx`, see [`single-canvas.md`](single-canvas.md)), no longer in an `AgentRail`
-  tab. Its row's eye toggles `collapsedLayersStore` (the existing hide/collapse set) and its delete
-  action still goes through `deleteDiagramAndRefresh` behind `DeleteDiagramDialog`.
-- ⚠ The `diagramsReady` badge (`agentStore.diagramsReady`, `agents/agentDiagramsReady.ts`, set on the
-  working-to-idle transition of a "Draw a diagram" task forked from a read-only PR workspace) is still
-  computed by `AgentWindowLayer`, but the `AgentRail` row that showed it (`diagram-ready-<id>`) is
-  gone; no agents-panel UI renders it today.
-- 🔴 `agents/windowActions.ts` still owns `restoreAgentWindow`'s workspace-switch rules (no UI caller
-  now): switching the active workspace to an agent's id clears every workspace-scoped store, which is
-  wrong for an agent that **shares** the current workspace (`AgentRecord.shares_workspace_with`, an
-  `attach_to` agent) or was forked from the current PR (`source_pr === active`), so those skip the
-  switch; a failed `activateWorkspace` reports through `agentStore.setLaunchError`. `launchAgent.ts`
-  goes through `openAgentWindow`, which never touches the active workspace, so "Run agent" keeps
-  whatever Epic focus was set.
-- `WorkspaceStatusBanner` is a direct child of `.agent-layer`; ⚠ `.agent-layer > *` re-declares
-  `pointer-events: auto` on it while the layer itself stays `pointer-events: none`.
-- 🔴 `GitInitDialog` goes through `agents/ModalDialog.tsx`, which **portals it to `<body>`** , so
-  it paints above the floating shell panels regardless of where `.agent-layer` sits; the fixed
-  `z-index: 200` on `.agent-dialog-backdrop` only has to beat the other top-level overlays. The wrapper also makes it modal in behaviour, not just in looks:
+- A window can be docked into the resizable left-side `AgentTerminalDock` in `.canvas-main-row`.
+  `agentDockStore` keeps a session-local ordered list of attached agent ids and the selected tab;
+  every docked terminal stays mounted while switching tabs. Collapsed, the dock shrinks to a 28px
+  strip holding a column of status LEDs, one per docked agent; clicking one selects it and expands the
+  dock, and clicking anywhere else on the strip expands it too. Ctrl/Cmd+Shift+O (window-level, capture
+  phase) expands the dock and focuses the active terminal via `agentDockStore.openAndFocus()`'s
+  `focusRequest` counter → `AgentTerminal`'s `focusRequest` prop. Inactive tabs are filled pills (they
+  look clickable); the active tab is flat, bold and non-interactive-looking. (The right-side `AgentRail` no longer uses
+  `AgentLedStrip`: its collapsed form is `AgentsCollapsedBar`, see "Agent panel modes" below.) Docking hides the floating window without
+  persisting `minimized`, so after reload it naturally returns as a window. Detach removes that tab
+  and opens the agent window; the tab's close action follows the normal `closeAgentWindow` flow. The
+  dock's collapse state persists in browser storage and hides terminal panels without unmounting
+  them. 🔵 There is no in-toolbar toggle button anymore — the dock's own resize-handle strip doubles
+  as the collapse/expand control via `canvas/SplitterHandle.tsx` (the shared hover-reveal arrow used
+  by every panel-edge splitter, see [`web-canvas-shell.md`](web-canvas-shell.md)); the strip stays
+  rendered while collapsed so the arrow remains reachable, it just stops accepting a resize drag.
+  Detach/close controls in the active terminal header do not shrink away at the dock's minimum width.
+- `AgentRail` renders its own full-height panel (`.agent-task-rail`, header "AGENT TASKS" + a count
+  chip) beside `.canvas-stage` inside `.canvas-main-row` — a sibling of the canvas, not a rail/toolbar
+  item, so cards have room for more than an icon. It is the **only** always-visible list of agents:
+  one two-line card per agent for its whole lifetime (bold title, then a status/branch caption), so
+  the list's shape never changes — clicking toggles minimize/restore (`minimizeAgentWindow` /
+  `restoreAgentWindow`, uniformly, never a checkout — see "Branch scope" above) and `aria-pressed`
+  means a floating window is open or the agent is docked. Clicking a docked row switches the selected
+  terminal tab. An agent belonging to another branch reads as dimmed here
+  (`.agent-rail-item-off-branch`) and captioned `on <base_branch>` instead of its status, purely as
+  information; its click behaves exactly like any other row's. 🔴 A row can also carry a small accent
+  dot (`.agent-rail-diagram-badge`, test id `diagram-ready-<id>`, from `agentStore.diagramsReady`):
+  a "Draw a diagram" task launched from a **read-only PR workspace** is forked into its own worktree,
+  so its artifact lands where the canvas is not looking and the agent finishes with nothing on
+  screen. `agents/agentDiagramsReady.ts` checks that agent's *own* workspace on the working→idle
+  transition and badges the row; the click clears it and activates that workspace, where
+  `useDiagramReadinessWatcher` adds the diagram by itself. It is skipped when the agent already shares the
+  active workspace. See [`diagram-skills.md`](diagram-skills.md). Minimizing
+  therefore adds **nothing** to the screen; there used to be a second widget, `AgentDock`, a
+  readable-title strip of the minimized ones in the bottom-left corner, and it was removed as a
+  redundant duplicate of the rail card (`AgentWindowLayer.test.tsx` and `e2e/agent-windows.spec.ts`
+  both assert the corner stays empty on minimize). ⚠ The card's status dot is a bare
+  `<span class="agent-led …">`, **not** `<AgentLed>`: that component sets a native `title`, which
+  would raise a second OS tooltip inside a button whose whole point is `.rail-tooltip` — which, since
+  the panel sits at the viewport's right edge, opens downward (`.agent-task-rail .rail-tooltip`)
+  rather than flying right off-screen. `.agent-rail-item` is a plain unscoped rule now (the panel is
+  its only parent), and the pressed rule outranks `:hover` so an open agent keeps its accent. 🔴 The
+  tooltip only drops to `top: calc(100% + 6px)` on `:hover`/`:focus-visible`, the same rule that flips
+  it visible — parked there permanently (even while `visibility: hidden`) it still occupies layout
+  space past the last card, which inflated `.agent-task-rail-body`'s `scrollHeight` and forced a
+  scrollbar even with a single agent; at rest it now sits at `top: 0`, inside the button's own box.
+  `.agent-task-rail-body` also carries its own thin, dark `::-webkit-scrollbar`/`scrollbar-color`
+  styling rather than the browser default.
+- 🔴 **`AgentRail`'s "Diagrams" tab is the one place a diagram is shown and managed** — the
+  diagram-management unification retired the old "Add a picture" dropdown's (`RecipeMenu.tsx`, now
+  `canvas/doc/DrawDiagramButton.tsx`) listing/toggle job onto this tab; that button now only launches
+  a drawing agent (see `single-canvas.md`'s `RecipeMenu.tsx`/`DrawDiagramButton.tsx` section). Two
+  sections (`.agent-task-rail-tabs`, ad hoc `role="tablist"` local state — same pattern as
+  `LlmSettingsPanel`'s section tabs, no shared `Tabs` component exists in this repo):
+  - **On canvas** — one row per diagram layer currently placed (`listActiveDiagramLayers(doc)`,
+    `canvas/doc/diagramCatalog.ts` — shared with `DrawDiagramButton`'s `BUILTIN_RECIPES`/label lookup
+    so both agree on what counts as a diagram and what it's called). Clicking a row toggles
+    `collapsedLayersStore.toggle(layer)` (`canvas/doc/collapsedLayersStore.ts`) instead of opening a
+    window: collapsed hides that layer's elements/edges from `CanvasDocView` without deleting anything
+    from `CanvasDoc`, so re-expanding is instant and keeps whatever position the diagram was laid out
+    or dragged to. Each row also carries one button: a hard delete (`deleteDiagramAndRefresh`, behind
+    `DeleteDiagramDialog`'s confirm — also deletes the on-disk artifact). Collapse hides, delete
+    destroys the artifact — both reachable from one row.
+
+  🔴 The mount guard covers both lists: `AgentRail` returns `null` only when `agents.length === 0 &&
+  diagramLayers.length === 0`, so a workspace with an on-canvas diagram and no agents still shows the
+  panel (defaulting to the Diagrams tab).
+  ⚠ Superseded: the Diagrams tab moved to the canvas left panel (`canvas/leftpanel/`, see
+  [`web-canvas-shell.md`](web-canvas-shell.md)); `AgentRail` now lists agents only and always renders in
+  `normal` mode.
+- 🔴 Minimize/restore lives in `agents/windowActions.ts`, not at the call sites. Restore used to be
+  store-only in the panel while minimize persisted through `PATCH /agents/{id}/window`, so reopening a
+  window and reloading brought it back minimized. All three call sites (window title bar, rail, panel)
+  now go through `minimizeAgentWindow` / `restoreAgentWindow`, and restore folds in `bringToFront` so
+  a reopened window lands on top.
+- 🔴 `restoreAgentWindow` also switches `agentStore`'s active workspace (see `App.tsx`'s
+  `resetWorkspaceStores` call above), which clears every workspace-scoped store — `epicsFocusStore`
+  included — on the assumption that a new active workspace means genuinely different underlying data.
+  That's wrong for an attached agent: per the `attach_to` note above, it's aliased onto the *same*
+  `Workspace` as whatever it attached to, so switching to its id and resetting the canvas was pure
+  churn, and visibly broke the "Run agent" button's always-attach launch — it silently dropped
+  whatever the Epics view (or any other workspace-scoped view) was focused on. `launchAgent.ts` now
+  always goes through the new `openAgentWindow` (`windowActions.ts`) after creation, which
+  unminimizes/raises the window without touching the active workspace; every remaining caller
+  supplies an explicit `attachTo`, so the workspace-switching `restoreAgentWindow` is never reached
+  from launch. Rail clicks (`AgentRail.tsx`, restoring a minimized
+  agent directly, no checkout in between) are unaffected — clicking an existing agent in the rail is a
+  deliberate "go look at this one" and still follows through `restoreAgentWindow`. `restoreAgentWindow` itself now also
+  skips the workspace switch when the restored agent **shares** the current workspace (an attached
+  agent reads the frontend's `AgentRecord.shares_workspace_with`): restoring such a minimized
+  window renders the same data, so re-activating its id would again trip `resetWorkspaceStores` and
+  drop the Epic focus — the same bug the `launchAgent` change fixed, hit from the rail/notification
+  restore path instead. The same skip now also covers an agent forked from the current PR
+  (`AgentRecord.source_pr === active`): it shares nothing with the PR worktree (its own branch/worktree,
+  per `pr-workspaces.md`), yet reopening it is still a child-of-the-PR action, so the canvas must stay
+  on the PR being reviewed rather than yanking away to the agent's id. `restoreAgentWindow`'s own
+  `client.activateWorkspace` failure used to be swallowed silently ("best effort"); it now reports
+  through `agentStore.setLaunchError`, since a failed activation with no feedback reads to the user as
+  a rail click that did nothing.
+- There is no more `AgentPanel`/`.agent-corner` wrapper — it was removed as a redundant duplicate of
+  the rail card (see `AgentRail` above). Each `AgentWindow` (and `WorkspaceStatusBanner`) is now a
+  direct child of `.agent-layer` itself, not of an inner flow box. ⚠ `.agent-layer > *` re-declares
+  `pointer-events: auto` on exactly those direct children while the layer itself stays
+  `pointer-events: none`, so the canvas underneath keeps receiving clicks everywhere no window covers
+  it. (`GitInitDialog` doesn't need this: `ModalDialog` portals it to `<body>`, outside `.agent-layer`
+  entirely — see below.)
+- 🔴 `GitInitDialog` goes through `agents/ModalDialog.tsx`, which **portals it to `<body>`** — a
+  window's `zIndex` is `agentStore.bringToFront`'s ever-growing counter, so a dialog rendered inside
+  `.agent-layer` would eventually lose the numbers race and paint *behind* the window it belongs to;
+  the fixed `z-index: 200` on `.agent-dialog-backdrop` only has to beat the other top-level overlays
+  (`.code-popup-backdrop` is 100). The wrapper also makes it modal in behaviour, not just in looks:
   focus moves in and is restored on unmount, Tab is trapped, Escape cancels (suppressed while the
   request is in flight), and the backdrop absorbs every click aimed at what's underneath.
-- ⚠ `AgentHeader`'s **×** (`closeAgentWindow`, `agents/windowActions.ts`; the old title bar's dock and minimize buttons are gone) closes the session, removes the tab, and calls
+- ⚠ An agent window's title bar has **three** controls: "⇤" (dock on the canvas), "–"
+  (`minimizeAgentWindow`) and "×"
+  (`closeAgentWindow`, `agents/windowActions.ts`). "×" closes the session, removes the card, and calls
   `DELETE /agents/{id}` with **no** query flags by default — the worktree directory and the `agent/<id>`
   branch are left exactly as they are, so the work can be picked back up by attaching a new agent to
   that surviving branch (`attachAgent.ts`). The one exception: when the closing agent is the **last
@@ -380,8 +450,31 @@ branch through an agent attached to it (`_guard_shared_worktree`, keyed off `Age
   `tests/unit/test_bridge_{agents,workspace}_route.py`, `tests/unit/test_bridge_agents_autostart.py`,
   `tests/integration/test_{workspace_switch,nested_worktree_excluded}.py`,
   `web/src/agents/*.test.{ts,tsx}`,
-  `web/src/shell/Agents*.test.tsx`, `web/src/engine-client/workspacePings.test.ts`, `web/e2e/agents-panel.spec.ts`.
+  `web/src/engine-client/workspacePings.test.ts`, `web/e2e/agent-windows.spec.ts`.
 
 ## Canvas questions (017)
 
-Claude agents launch with the CodeChroma MCP server (`ask_user`) registered through `agent_cli`'s `mcp` parameter, plus the `codechroma_BRIDGE_URL`/`codechroma_QUESTION_TOKEN` env vars; see [`ai-questions.md`](ai-questions.md) "Agent wiring". A bridge restart invalidates old tokens, so agents are respawned with fresh ones.
+Claude agent windows launch with the CodeChroma MCP server (`ask_user`) registered through `agent_cli`'s `mcp` parameter, plus the `codechroma_BRIDGE_URL`/`codechroma_QUESTION_TOKEN` env vars; see [`ai-questions.md`](ai-questions.md) "Agent wiring". A bridge restart invalidates old tokens, so agent windows are respawned with fresh ones.
+
+## Agent panel modes (layout store)
+
+`layoutStore.agentsMode` (`canvas/layout/layoutStore.ts`) replaces the old open/collapsed `useState` in
+`RootCanvas`:
+
+- `normal`: `AgentRail` in the canvas row. It carries "Collapse agents panel" (-> `collapsed`) and
+  "Expand agents to full screen" (-> `full`) handle buttons.
+- `collapsed`: `AgentsCollapsedBar`, one `a1`, `a2`... button per agent in a row at the top right, with a
+  status dot; clicking one returns to `normal` and selects that agent.
+- `full`: `AgentFullScreen`, a `role=tablist` of `AgentTab`s (dot, name, status), a 44px "New agent"
+  `+`, and exactly one window for the selected agent (its `AgentTerminal`), an input and a status line
+  (`cli · status · branch`); the edge handle "Back to side panel" returns to `normal`. Entering `full`
+  forces `leftOpen=false` (the collapsed left bar stays). The full-screen input is not wired to the
+  xterm session (it is a local draft only; type in the terminal). The floating agent windows are hidden
+  (`.agent-layer[data-hidden]`), and the shown agent's own window/dock terminal is unmounted so only one
+  xterm is attached to its PTY (scrollback is lost on that remount; the bridge redraws the screen).
+  Leaving `full` restores the left panel to its pre-full state.
+- `--agent-dock-left` (set once on the `.canvas-main-row` by `RootCanvas` from `chromeInsets`)
+  positions the terminal dock and clears the floating left panel.
+
+Being in a non-`normal` mode (also on mount) closes an open code popup and inspector (`RootCanvas` effect). Tests:
+`AgentRail.test.tsx`, `AgentsCollapsedBar.test.tsx`, `AgentFullScreen.test.tsx`, `e2e/layout-panels.spec.ts`.

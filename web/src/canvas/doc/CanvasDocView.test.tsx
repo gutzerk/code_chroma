@@ -4,7 +4,6 @@ import { CanvasDocView } from "./CanvasDocView";
 import { EngineClientProvider } from "../../engine-client/EngineClientContext";
 import { canvasDocStore } from "./canvasDocStore";
 import { collapsedLayersStore } from "./collapsedLayersStore";
-import { shellStore } from "../../shell/shellStore";
 import { expansionStore } from "../../state/expansionState";
 import { selectionStore } from "../../state/selectionStore";
 import {
@@ -93,7 +92,6 @@ function client(
 afterEach(() => {
   canvasDocStore.reset();
   collapsedLayersStore.reset();
-  shellStore.reset();
   expansionStore.reset();
   selectionStore.clear();
 });
@@ -234,7 +232,7 @@ describe("CanvasDocView", () => {
     expect(canvasDocStore.getDoc().edges.edge1).toBeDefined();
   });
 
-  it("does not render a layer hidden through the shell store, nor its frame", async () => {
+  it("does not render a collapsed layer, nor its frame", async () => {
     const doc = docWith([
       elementOf({ id: "e1", render: "impact", label: "Shell hidden box", layer: "c1" }),
       elementOf({ id: "e3", render: "impact", label: "Shown box", layer: "patterns" }),

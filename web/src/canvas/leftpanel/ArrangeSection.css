@@ -1,0 +1,40 @@
+.arrange-section {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.arrange-section-label {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  color: #8b91a1;
+  text-transform: uppercase;
+}
+
+.arrange-section-buttons {
+  display: flex;
+  gap: 6px;
+}
+
+.arrange-section-button {
+  flex: 1;
+  height: 30px;
+  border: 0;
+  border-radius: 10px;
+  background: #1c2029;
+  color: #c4c8d4;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.arrange-section-button[aria-pressed="true"] {
+  background: #b794ff;
+  color: #0b0d12;
+  font-weight: 600;
+}
+
+.arrange-section-button:disabled {
+  opacity: 0.5;
+  cursor: default;
+}

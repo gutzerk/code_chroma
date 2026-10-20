@@ -340,6 +340,28 @@ body {
   background: #2a2f3c;
 }
 
+/* Deliberately quieter than a control: the dot is the content, so the tile itself recedes. Scoped
+   under .app-rail to outrank the `.app-rail button` base, which is otherwise more specific. */
+.app-rail .agent-rail-item {
+  background: transparent;
+  border-color: var(--border-subtle);
+}
+
+.app-rail .agent-rail-item:hover {
+  border-color: #5a6070;
+}
+
+/* Outranks the hover rule above, so hovering an open agent doesn't wash out its accent. */
+.app-rail .agent-rail-item[aria-pressed="true"] {
+  border-color: var(--accent);
+}
+
+/* 10px per the restyle spec: the card itself is bigger, and the dot is its only non-text content. */
+.agent-rail-item .agent-led {
+  width: 10px;
+  height: 10px;
+  flex-shrink: 0;
+}
 
 /* Branch chip — a pill like the project tab, not a bare icon+label pair floating in the bar. */
 .branch-switcher {
@@ -776,7 +798,8 @@ body {
    re-expand the agent/diagrams panel once collapsed (unlike the other panels' arrows, which are a
    drag-resize affordance first and a collapse toggle second), so it earns a larger, easier target.
    Still centered the same way as the shared rule (top/left 50% + translate(-50%, -50%)). */
-.agent-task-rail-resize-handle .panel-splitter-arrow {
+.agent-task-rail-resize-handle .panel-splitter-arrow,
+.agent-terminal-dock-resize-handle .panel-splitter-arrow {
   width: 26px;
   height: 52px;
   border-radius: 10px;
@@ -881,11 +904,40 @@ body {
   overflow-y: auto;
 }
 
+/* Wraps one agent card plus its off-branch close button (only rendered for that state) — a plain
+   div, not a button, since a `<button>` can never nest another interactive `<button>` inside it. */
+.agent-rail-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+/* One agent card. No longer an icon-square rail button — a full-width block since it now lives in
+   its own panel rather than squeezed into the .canvas-chrome toolbar row. No border: the card
+   itself is a distinct background shade from the panel behind it, and the selected state is an
+   inset ring rather than a border/outline. */
+.agent-rail-item {
+  position: relative;
+  display: flex;
+  align-items: center;
+  flex: 1 1 auto;
+  min-width: 0;
+  gap: 12px;
+  padding: 14px 16px;
+  background: #212633;
+  border: none;
+  border-radius: var(--radius-card);
+  color: var(--text-1);
+  cursor: pointer;
+  text-align: left;
+  transition: background 120ms ease;
+}
 
 /* Closing an off-branch agent must never require its stuck "switch back to my branch" checkout to
    succeed first — see AgentRail.tsx's own comment on why this exists beside, not inside, the card.
    `.diagram-rail-delete` (hard, removes the artifact too — a diagram row's own sibling control,
    same comment) shares this box. */
+.agent-rail-close,
 .diagram-rail-delete {
   flex-shrink: 0;
   width: 22px;
@@ -902,6 +954,7 @@ body {
   line-height: 1;
 }
 
+.agent-rail-close:hover,
 .diagram-rail-delete:hover:not(:disabled) {
   background: var(--surface-3);
   color: var(--text-1);
@@ -913,15 +966,66 @@ body {
   cursor: default;
 }
 
-
-.terminal-toggle-button[aria-pressed="true"] {
+.agent-rail-item:hover {
   background: var(--bg-raised-2);
-  color: var(--accent);
 }
 
-/* The project-tree toggle highlights when the sidebar (and with it the code sidebar) is open — an
-   IDE-style "explorer's open" accent. Mirrors terminal's panel-open treatment. */
-.project-tree-toggle-button[aria-pressed="true"] {
+/* Selected state: an inset ring, not an outer border/outline — a 1.5px ring that sits inside the
+   card's own edge so it never nudges the card's footprint or the gap to its neighbors. */
+.agent-rail-item[aria-pressed="true"] {
+  box-shadow: inset 0 0 0 1.5px var(--select-ring);
+}
+
+/* An agent belonging to another branch: still listed and still clickable (the click checks its branch
+   back out), but visibly not part of what's on screen right now. */
+.agent-rail-item-off-branch {
+  opacity: 0.55;
+}
+
+.agent-rail-item-off-branch:hover {
+  opacity: 1;
+}
+
+.agent-rail-preview {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  min-width: 0;
+  line-height: 1.3;
+  overflow: hidden;
+}
+
+.agent-rail-title {
+  max-width: 100%;
+  overflow: hidden;
+  color: var(--text-1);
+  font-size: 0.9375rem;
+  font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.agent-rail-status {
+  max-width: 100%;
+  overflow: hidden;
+  color: var(--text-2);
+  font-size: 0.8125rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* This agent drew a diagram in its OWN forked worktree, which the canvas is not showing. The only
+   on-screen cue that the result exists at all; cleared the moment the row is clicked. */
+.agent-rail-diagram-badge {
+  flex: 0 0 auto;
+  width: 8px;
+  height: 8px;
+  margin-left: auto;
+  border-radius: 50%;
+  background: var(--accent);
+}
+
+.terminal-toggle-button[aria-pressed="true"] {
   background: var(--bg-raised-2);
   color: var(--accent);
 }
@@ -3136,6 +3240,134 @@ button[data-copy-state="idle"][aria-label]:hover:not(:disabled) {
   font-weight: 600;
 }
 
+.code-popup-backdrop {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: rgba(0, 0, 0, 0.55);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 1rem;
+  z-index: 100;
+}
+
+.code-popup {
+  position: relative;
+  background: var(--surface-code);
+  border: 1px solid var(--border-strong);
+  border-radius: 8px;
+  max-width: 95vw;
+  max-height: 95vh;
+  min-width: 320px;
+  /* min() against max-height so the floor can never exceed the ceiling on short viewports — a
+     plain 200px min-height would force the popup taller than 95vh and off-screen (the backdrop
+     doesn't scroll), with min-height winning the conflict per the CSS spec. */
+  min-height: min(200px, 95vh);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+/* Bottom-right corner drag handle — the popup already opens content-sized up to 95% of the
+   viewport, so this just lets the user fine-tune (shrink or nudge) that window afterward. */
+.code-popup-resize-handle {
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  width: 16px;
+  height: 16px;
+  cursor: nwse-resize;
+  touch-action: none;
+  background: linear-gradient(
+    135deg,
+    transparent 0%,
+    transparent 45%,
+    #6b7180 45%,
+    #6b7180 55%,
+    transparent 55%,
+    transparent 100%
+  );
+  z-index: 1;
+}
+
+.code-popup-resizing {
+  user-select: none;
+}
+
+/* The title bar is the drag handle — full width across the top so it reads like a real window
+   title bar. cursor: grab signals it; grabbing + no-select apply while a drag is in progress. */
+.code-popup-titlebar {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.5rem 0.6rem;
+  border-bottom: 1px solid var(--border-strong);
+  background: var(--surface-4);
+  cursor: grab;
+  user-select: none;
+  touch-action: none;
+}
+
+.code-popup-dragging .code-popup-titlebar {
+  cursor: grabbing;
+}
+
+.code-popup-grip {
+  color: #6b7180;
+  font-size: 0.9rem;
+  line-height: 1;
+}
+
+.code-popup-title {
+  font-weight: 600;
+  font-size: 0.95rem;
+}
+
+.code-popup-title-params {
+  font-size: 0.8rem;
+  color: var(--text-2);
+  font-family: monospace;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* The node name/params now live in the title bar, so CodeView's own header is redundant here. */
+.code-popup .block-code-view-header {
+  display: none;
+}
+
+/* DiffView's header carries Apply/Discard, which the popup's titlebar has no equivalent for, so
+   it stays visible there — only its redundant name label is hidden. */
+.code-popup .diff-view-header {
+  display: flex;
+}
+
+.code-popup .diff-view-header .block-code-view-name {
+  display: none;
+}
+
+.code-popup-close {
+  flex-shrink: 0;
+  margin-left: auto;
+  width: 1.6rem;
+  height: 1.6rem;
+  line-height: 1;
+  padding: 0;
+  border: 1px solid var(--control-border);
+  border-radius: 4px;
+  background: var(--surface-code);
+  color: var(--control-idle);
+  cursor: pointer;
+}
+
+.code-popup-close:hover {
+  color: #fff;
+  border-color: var(--control-hover-border);
+}
 
 /* DescriptionPopup — a small modal for a block's full, untruncated description (opened by the "?"
    button next to a line-clamped .block-description/.diagram-node-box-desc). Deliberately simpler
@@ -3703,6 +3935,18 @@ button[data-copy-state="idle"][aria-label]:hover:not(:disabled) {
   pointer-events: auto;
 }
 
+/* Reveal the collapse arrow on hover over the whole panel, not just its hairline-thin splitter
+   strip -- easier to discover/reach than hunting for the exact 6px edge. .agent-terminal-dock's
+   handle is already a descendant of the aside (ResizableRail nests it inside), so a plain ancestor
+   hover is enough; .agent-task-rail's handle is an external flex sibling instead (kept that way so
+   it's still hoverable even while the rail itself is `hidden` when collapsed -- see the comment by
+   .agent-task-rail-resize-handle), so reaching it from a panel hover needs :has() on their shared
+   row parent. */
+.agent-terminal-dock:hover .panel-splitter-arrow {
+  opacity: 1;
+  transform: translate(-50%, -50%) scale(1);
+  pointer-events: auto;
+}
 
 .canvas-main-row:has(.agent-task-rail:hover) .agent-task-rail-resize-handle .panel-splitter-arrow {
   opacity: 1;
@@ -4509,6 +4753,11 @@ button[data-copy-state="idle"][aria-label]:hover:not(:disabled) {
   pointer-events: auto;
 }
 
+/* Agents full-screen mode: the floating windows stay mounted (xterm attached) but are not shown. */
+.agent-layer[data-hidden="true"] {
+  visibility: hidden;
+}
+
 /* The one place each status colour is defined — the rail, the panel and the window title bar all
    read it, rather than each carrying its own copy of the palette. */
 .agent-led {
@@ -4673,6 +4922,232 @@ button[data-copy-state="idle"][aria-label]:hover:not(:disabled) {
   cursor: nwse-resize;
 }
 
+.agent-terminal-dock {
+  position: relative;
+  display: flex;
+  flex: 0 0 auto;
+  flex-direction: column;
+  min-width: 0;
+  overflow: visible;
+  border-radius: var(--radius-panel);
+  background: var(--bg-panel);
+}
+
+.agent-terminal-dock[hidden] {
+  display: none;
+}
+
+/* The floating left panel overlays the row: the dock's left edge follows chromeInsets().terminalLeft
+   (set by RootCanvas as --agent-dock-left) relative to the row's own 12px base inset. */
+.canvas-main-row > .agent-terminal-dock,
+.canvas-main-row > .code-sidebar {
+  margin-left: calc(var(--agent-dock-left, 12px) - var(--chrome-inset, 12px));
+}
+
+/* Only the first in-flow panel clears the floating left panel; the dock beside a code sidebar doesn't. */
+.canvas-main-row > .code-sidebar + .agent-terminal-dock {
+  margin-left: 0;
+}
+
+.agent-terminal-dock--resizing {
+  user-select: none;
+}
+
+.agent-terminal-dock-resize-handle {
+  position: absolute;
+  z-index: 1;
+  top: 0;
+  right: -3px;
+  bottom: 0;
+  width: 6px;
+  cursor: ew-resize;
+  touch-action: none;
+}
+
+/* Collapsed means a drag would have nothing left to resize -- the strip stays visible (its hover
+   arrow is now the only way to expand again) but claims neither a resize nor a pointer cursor. */
+.agent-terminal-dock--collapsed .agent-terminal-dock-resize-handle {
+  cursor: default;
+}
+
+.agent-led-strip {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  padding: 10px 0;
+}
+
+.agent-led-strip--clickable {
+  cursor: pointer;
+}
+
+.agent-led-strip--clickable:not(.agent-led-strip--framed) {
+  flex: 1 1 auto;
+}
+
+.agent-led-strip--framed {
+  width: 28px;
+  flex-shrink: 0;
+  border-radius: var(--radius-panel);
+  background: var(--bg-panel);
+}
+
+.agent-led-strip-button {
+  display: flex;
+  width: 22px;
+  height: 22px;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  border: none;
+  border-radius: var(--radius-full);
+  background: transparent;
+  cursor: pointer;
+}
+
+.agent-led-strip-button:hover {
+  background: var(--bg-raised-2);
+}
+
+.agent-terminal-dock-panels {
+  overflow: hidden;
+  border-radius: inherit;
+  display: flex;
+  flex: 1 1 auto;
+  min-width: 0;
+  min-height: 0;
+  flex-direction: column;
+}
+
+.agent-terminal-dock-panels[hidden] {
+  display: none;
+}
+
+.agent-terminal-dock-toolbar {
+  display: flex;
+  flex: 0 0 auto;
+  min-width: 0;
+  align-items: center;
+  padding: 14px 14px 0;
+  background: transparent;
+}
+
+.agent-terminal-dock-tabs {
+  display: flex;
+  flex: 1 1 auto;
+  min-width: 0;
+  gap: 2px;
+  overflow-x: auto;
+  padding: 0;
+}
+
+/* The docked agent tab — a pill, not a browser-style top-rounded tab, matching the restyle's
+   "agent tab pill" (34px tall, #222733 when the tab shown is the active one). */
+.agent-terminal-dock-tab {
+  display: inline-flex;
+  min-width: 0;
+  max-width: 12rem;
+  height: 34px;
+  align-items: center;
+  gap: 8px;
+  padding: 0 12px;
+  border: none;
+  border-radius: var(--radius-full);
+  background: var(--bg-raised);
+  color: var(--text-2);
+  font-size: 0.8125rem;
+  font-weight: 500;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: background 120ms ease, color 120ms ease;
+}
+
+.agent-terminal-dock-tab span:last-child {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.agent-terminal-dock-tab:not(.is-active):hover {
+  background: var(--bg-raised-2);
+}
+
+.agent-terminal-dock-tab.is-active {
+  background: transparent;
+  color: var(--text-1);
+  font-weight: 600;
+  cursor: default;
+}
+
+.agent-terminal-dock-panel {
+  display: flex;
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+  flex-direction: column;
+}
+
+.agent-terminal-dock-panel[hidden] {
+  display: none;
+}
+
+/* The docked panel's status row — a card (14px radius, --bg-raised) rather than a hairline-bordered
+   title bar, holding the status dot, agent name, cli/branch and the detach/close actions. */
+.agent-terminal-dock-header .agent-window-icon {
+  margin-right: -0.1rem;
+}
+
+.agent-terminal-dock-header {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: 0.5rem;
+  min-width: 0;
+  margin: 8px 12px 0;
+  padding: 10px 12px;
+  border-radius: var(--radius-card);
+  background: var(--bg-raised);
+  color: var(--text-soft);
+  font-size: 0.78rem;
+}
+
+.agent-terminal-dock-header .agent-window-button,
+.agent-terminal-dock-header .agent-window-pr-button,
+.agent-terminal-dock-header .agent-window-pr-link {
+  flex-shrink: 0;
+}
+
+.agent-terminal-dock-header .agent-window-pr-button {
+  max-width: 6rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.agent-terminal-dock-header .agent-window-cli {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.agent-terminal-dock-title {
+  flex: 0 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.agent-terminal-dock-header .agent-window-branch {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.agent-terminal-dock-panel .agent-window-terminal {
+  min-width: 0;
+}
 
 /* Shared by PrDialog's lost-worktree row and AgentWindow's own — outlived the panel it was written for. */
 .agent-panel-warning {
@@ -6506,6 +6981,7 @@ button[data-copy-state="idle"][aria-label]:hover:not(:disabled) {
 }
 
 
+
 /* A group's frame — a background rect sized to enclose its current members (GroupFrame.tsx
    recomputes left/top/width/height every render), not a styled box of its own like the other
    render kinds. z-index 0 keeps it behind every box (all z-index 1) regardless of DOM order; no
@@ -6869,31 +7345,31 @@ button[data-copy-state="idle"][aria-label]:hover:not(:disabled) {
   color: var(--text-muted-soft);
 }
 
-/* IDE-style project-tree side panel — a full-height, scrollable sidebar beside the canvas, below
-   the context bar (it lives inside .canvas-main-row, next to .canvas-stage). Width comes from the
-   resizable size (default DEFAULT_WIDTH in ProjectTreePanel.tsx); the right-edge handle widens it
-   to reveal more of a row's name or its inline code. */
-.project-tree-panel {
+/* Code sidebar (variant A) — a resizable panel right beside the project tree showing source for
+   every opened file. Sits in .canvas-main-row after the tree panel; tabs run most-recently-viewed
+   with an overflow "▾" dropdown once more files are open than fit, and the active file renders
+   through the shared CodeView. Anchored left, so its left-edge handle widens it toward the canvas. */
+.code-sidebar {
   position: relative;
   display: flex;
   flex-direction: column;
   flex-shrink: 0;
-  overflow-y: auto;
-  /* Hide the horizontal scrollbar strip at the panel's bottom — rows already ellipsize, so a wide
-     tree must not draw a scroll track padding under the content. */
-  overflow-x: hidden;
-  padding: 0.4rem 0.25rem 0.6rem 0.35rem;
+  min-width: 0;
   border-radius: var(--radius-panel);
   background: var(--bg-panel);
 }
 
-.project-tree-panel--resizing {
+.code-sidebar--resizing {
   user-select: none;
 }
 
-/* Right-edge drag handle — the panel anchors left, so dragging right widens it. Mirrors the
-   inspector's left-edge handle (the inspector anchors right), same ew-resize affordance. */
-.project-tree-panel-resize-handle {
+/* `hidden` must win over the display:flex above (attribute selector beats the display rule) —
+   collapsing the project tree also hides the code sidebar via RootCanvas. */
+.code-sidebar[hidden] {
+  display: none;
+}
+
+.code-sidebar-resize-handle {
   position: absolute;
   right: -3px;
   top: 0;
@@ -6904,55 +7380,156 @@ button[data-copy-state="idle"][aria-label]:hover:not(:disabled) {
   z-index: 1;
 }
 
-/* The on-canvas .tree-node rows are styled for a wide drag-to-rearrange canvas; in the narrow
-   sidebar they borrow the row styling but need tighter padding and a text-ellipsis name so long
-   paths don't blow the panel's fixed width. */
-.project-tree-panel .tree-node-row {
-  padding: 0.1rem 0.25rem;
+.code-sidebar-tabs {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  padding: 4px 4px 0;
+  overflow: hidden;
+  border-bottom: 1px solid var(--border);
+  background: var(--surface-2);
+  flex-shrink: 0;
 }
 
-.project-tree-panel .tree-node-name {
+.code-sidebar-tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 8px;
+  font-size: 0.75rem;
+  color: var(--text-2);
+  border: 1px solid transparent;
+  border-bottom: none;
+  border-radius: 6px 6px 0 0;
+  cursor: pointer;
   white-space: nowrap;
+  max-width: 11rem;
+  min-width: 0;
+}
+
+.code-sidebar-tab:hover {
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.code-sidebar-tab.is-active {
+  background: var(--surface-1);
+  color: var(--text-1);
+  border-color: var(--border);
+}
+
+.code-sidebar-tab-name {
   overflow: hidden;
   text-overflow: ellipsis;
 }
 
-.project-tree-panel .tree-node-children {
-  --tree-indent: 14px;
+.code-sidebar-tab-close {
+  color: var(--text-3);
+  cursor: pointer;
+  line-height: 1;
 }
 
-/* Every row whose file is open in the code sidebar is marked "open" (a subtle persistent highlight);
-   the currently-active one additionally gets a stronger accent + the green marker dot, so the user
-   can see at a glance which files are open and which tab is live. Scoped to the panel; the on-canvas
-   tree never carries these classes. */
-.project-tree-panel .tree-node.tree-node-open-file {
-  background: rgba(63, 185, 123, 0.1);
-  border-radius: 4px;
+.code-sidebar-tab-close:hover {
+  color: #ff7b7b;
 }
 
-.project-tree-panel .tree-node.tree-node-active {
-  background: rgba(63, 185, 123, 0.2);
-  outline: 1px solid rgba(63, 185, 123, 0.5);
-  border-radius: 4px;
+.code-sidebar-tabs-overflow {
+  position: relative;
+  margin-left: auto;
 }
 
-.project-tree-panel .tree-node.tree-node-active .tree-node-name {
+.code-sidebar-overflow-button {
+  border: none;
+  background: transparent;
+  color: var(--text-2);
+  cursor: pointer;
+  padding: 2px 6px;
+  font-size: 0.8rem;
+}
+
+.code-sidebar-overflow-button:hover {
   color: var(--text-1);
 }
 
-.project-tree-panel .tree-node.tree-node-active .tree-node-label::after {
-  content: "●";
-  margin-left: auto;
-  color: var(--added);
-  font-size: 0.6rem;
+.code-sidebar-overflow-menu {
+  position: absolute;
+  top: 100%;
+  right: 0;
+  z-index: 20;
+  min-width: 14rem;
+  max-height: 20rem;
+  overflow-y: auto;
+  margin-top: 2px;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
+  padding: 4px;
+  list-style: none;
+  margin: 2px 0 0;
 }
 
-/* `hidden` must win over the display:flex above (CSS specificity: attribute selector is enough) —
-   useLatchedMount keeps the panel mounted but hidden when closed. */
-.project-tree-panel[hidden] {
-  display: none;
+.code-sidebar-overflow-menu li {
+  margin: 0;
+  padding: 0;
 }
 
+.code-sidebar-overflow-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 4px 8px;
+  border: none;
+  background: transparent;
+  color: var(--text-2);
+  font-size: 0.8rem;
+  text-align: left;
+  cursor: pointer;
+  border-radius: 4px;
+}
+
+.code-sidebar-overflow-item:hover {
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.code-sidebar-overflow-item.is-active {
+  color: var(--text-1);
+  background: rgba(79, 140, 255, 0.14);
+}
+
+.code-sidebar-overflow-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  flex: 1;
+}
+
+.code-sidebar-overflow-close {
+  color: var(--text-3);
+  cursor: pointer;
+  line-height: 1;
+}
+
+.code-sidebar-overflow-close:hover {
+  color: #ff7b7b;
+}
+
+.code-sidebar-body {
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.code-sidebar-body .block-code-view {
+  height: 100%;
+  max-height: none;
+  border: none;
+}
+
+.code-sidebar-empty {
+  padding: 1rem;
+  color: var(--text-3);
+  font-size: 0.8rem;
+}
 
 .pr-dialog-impact-row {
   display: flex;

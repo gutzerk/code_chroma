@@ -89,9 +89,9 @@ tasks card. Each task authors `meta.us` (when it belongs to a story) and `meta.p
 epics row is named by its first top-level epic's short title (label minus the `EP-x · ` prefix,
 via `labelForDiagramLayer`/`epicsLayerShortTitle` in `diagramCatalog.ts`), falling back to "Epics"
 when the layer has no top-level epic. Clicking an
-any epics-layer box (epic title, content card, phase header or task) calls `inspectorStore.open` for the SAME right-side
+any epics-layer box (epic title, content card, phase header or task) opens the SAME right-side
 InspectorPanel as a code box, showing the block's full text and its place in the epic — instead of a
-code tree or the conceptual description popup. (⚠ `InspectorPanel` is no longer mounted by `RootCanvas` since the shell redesign, so that call shows nothing today; `InspectorNote` is still used by this view.) The block renders via `EpicBlockContent` in
+code tree or the conceptual description popup. The block renders via `EpicBlockContent` in
 `web/src/canvas/doc/EpicBlockPanel.tsx` (carried on `InspectorEntry.epicBlock`, because the block has
 no real `node_id` or work-item id). A resolvable work item's drilldown
 (`web/src/canvas/epics/InspectorWorkItem.tsx`, reached via `InspectorEntry.workItemId`) covers the

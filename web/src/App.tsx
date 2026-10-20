@@ -6,8 +6,6 @@ import { EngineClientProvider } from "./engine-client/EngineClientContext";
 import { TerminalClientProvider } from "./terminal/TerminalClientContext";
 import { RootCanvas } from "./canvas/RootCanvas";
 import { resetWorkspaceStores } from "./state/createStore";
-import { shellStore } from "./shell/shellStore";
-import { clearArrange } from "./canvas/doc/arrangeController";
 import { collapsedLayersStore } from "./canvas/doc/collapsedLayersStore";
 import { expansionStore } from "./state/expansionState";
 
@@ -36,8 +34,6 @@ export function App() {
       resetWorkspaceStores();
       collapsedLayersStore.load();
       expansionStore.load();
-      shellStore.load();
-      clearArrange();
     }
   }, [workspaceId]);
 

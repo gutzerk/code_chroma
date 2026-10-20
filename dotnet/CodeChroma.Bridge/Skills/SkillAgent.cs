@@ -30,6 +30,11 @@ public sealed record RunOptions(IReadOnlyList<string> ExtraArgs)
     public static RunOptions Default { get; } = new([]);
 
     public Func<CancellationToken, Task> PauseGate { get; init; } = static _ => Task.CompletedTask;
+
+    /// <summary>Run slash-command prompts without the CLI's ambient context, with the skill text inlined (see <see cref="BareSkill"/>).</summary>
+    public bool Bare { get; init; } = true;
+
+    public string BareTools { get; init; } = CliAdapters.DefaultBareTools;
 }
 
 /// <summary>Per-kind timeouts and default model (config.py's SkillAgentTimeoutsConfig).</summary>
@@ -332,7 +337,14 @@ public sealed class SkillAgent(SkillAgentSpec spec, CliResolver resolver, Runtim
         // An explicit --model re-triggers the CLI rejection; omit it when ANTHROPIC_MODEL carries the model.
         var argvModel = cli.EnvOverrides.ContainsKey("ANTHROPIC_MODEL") ? "" : cli.Model;
         options ??= RunOptions.Default;
-        var argv = adapter.BuildArgv(resolved.Executable, staticPrompt, argvModel, env, options.ExtraArgs);
+        var bareArgs = options.Bare && options.ExtraArgs.Count == 0 && BareSkill.Enabled() ? adapter.BareArgs(options.BareTools) : [];
+        if (bareArgs.Count > 0)
+        {
+            var inlined = staticPrompt.StartsWith('/') ? BareSkill.Compose(staticPrompt, repoRoot) : staticPrompt;
+            if (inlined is null) bareArgs = [];
+            else staticPrompt = FitCommandLine(inlined, repoRoot);
+        }
+        var argv = adapter.BuildArgv(resolved.Executable, staticPrompt, argvModel, env, [.. bareArgs, .. options.ExtraArgs]);
         var info = new ProcessStartInfo(argv[0])
         {
             WorkingDirectory = repoRoot, UseShellExecute = false, RedirectStandardOutput = true, RedirectStandardError = true,
@@ -404,6 +416,20 @@ public sealed class SkillAgent(SkillAgentSpec spec, CliResolver resolver, Runtim
         Restore(repoRoot, repoId, snapshot);
         return new JobState("error", Spec.InvalidError);
     }
+
+    /// <summary>Windows caps a command line near 32k characters, so a long inlined prompt goes to a file the CLI is told to read first.</summary>
+    private string FitCommandLine(string prompt, string repoRoot)
+    {
+        if (prompt.Length <= MaxArgvPromptChars) return prompt;
+        var directory = Path.Combine(repoRoot, ".codechroma", "prompts");
+        Directory.CreateDirectory(directory);
+        var file = Path.Combine(directory, Spec.Name + ".md");
+        File.WriteAllText(file, prompt);
+        var task = prompt[(prompt.LastIndexOf("\nTask: ", StringComparison.Ordinal) + 1)..];
+        return $"Your complete instructions are in {file}. Read that file in full with your Read tool before anything else, then carry out its task.\n\n{task}";
+    }
+
+    private const int MaxArgvPromptChars = 20_000;
 
     internal static async Task WaitQuietly(Process process)
     {
@@ -518,7 +544,7 @@ public sealed class SkillAgent(SkillAgentSpec spec, CliResolver resolver, Runtim
         try
         {
             Directory.CreateDirectory(dir);
-            return new StreamWriter(Path.Combine(dir, $"{Spec.Name}-{repoId.Replace('/', '_')}-{DateTime.UtcNow:yyyyMMddTHHmmssZ}.log"), append: true, Encoding.UTF8);
+            return new StreamWriter(Path.Combine(dir, $"{Spec.Name}-{repoId.Replace('/', '_').Replace(':', '_')}-{DateTime.UtcNow:yyyyMMddTHHmmssZ}.log"), append: true, Encoding.UTF8);
         }
         catch (IOException)
         {

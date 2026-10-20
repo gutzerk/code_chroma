@@ -9,6 +9,7 @@ import { RailButton } from "../RailButton";
 import { tutorialSimStore } from "../../tutorial/tutorialSim";
 import { tutorialStore } from "../../tutorial/tutorialStore";
 import { canvasDocStore, collectActiveLayers, useCanvasDoc } from "./canvasDocStore";
+import { QuickDrawPanel } from "./QuickDrawPanel";
 import {
   computeReadyDiagrams,
   runRecipeAndLayout,
@@ -71,6 +72,7 @@ export function DrawDiagramButton() {
   const customTypes = useCustomDiagramTypes(engineClient);
   const [status, setStatus] = useState<DiagramsStatus | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [quickOpen, setQuickOpen] = useState(false);
   // The previous readiness map, so a refetch can tell "already there" from "just arrived". A ref,
   // not state: only the auto-add below reads it, and it must see the value the last fetch wrote.
   // Seeded from sessionStorage rather than `null`: a plain in-memory ref resets on every reload, so
@@ -204,6 +206,17 @@ export function DrawDiagramButton() {
       >
         <RailIcon name="custom" />
       </RailButton>
+      <RailButton
+        className="draw-diagram-button"
+        testId="quick-draw-button"
+        label="Quick draw"
+        tooltip="Draw a saved diagram type from a sentence, without opening an agent"
+        pressed={quickOpen}
+        onClick={() => setQuickOpen((open) => !open)}
+      >
+        <RailIcon name="custom" />
+      </RailButton>
+      {quickOpen && <QuickDrawPanel onClose={() => setQuickOpen(false)} />}
       {error && (
         <p className="draw-diagram-button-error" data-testid="draw-diagram-button-error">
           {error}

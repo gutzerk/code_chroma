@@ -178,6 +178,12 @@ export interface EngineClient {
     kind: SkillRunKind,
     options?: DiagramGenerationOptions,
   ): Promise<DiagramGenerationStatus>;
+  /** Quick draw: a headless, context-free run that draws a saved custom diagram type from a free-text
+   * request (POST /repos/{id}/custom/{typeId}/generate). Needs the architecture map and the local
+   * embedding model; resolves with an error state carrying the bridge's reason when either is missing. */
+  generateProcessDiagram(typeId: string, request: string): Promise<DiagramGenerationStatus>;
+  /** State of that run (GET /repos/{id}/custom/{typeId}/generate/status). */
+  getProcessDiagramStatus(typeId: string): Promise<DiagramGenerationStatus>;
   /** Cancels an in-flight background run for `kind` (POST /repos/{id}/{kind}/cancel), killing the
    * `claude` process and resetting the job to idle. Safe to call when nothing is running. */
   cancelDiagram(kind: SkillRunKind): Promise<DiagramGenerationStatus>;
@@ -516,6 +522,14 @@ export class HttpEngineClient implements EngineClient {
 
   getDiagramStatus(kind: SkillRunKind): Promise<DiagramGenerationStatus> {
     return this.getJson<DiagramGenerationStatus>(`/${kind}/status`);
+  }
+
+  generateProcessDiagram(typeId: string, request: string): Promise<DiagramGenerationStatus> {
+    return this.postJson<DiagramGenerationStatus>(`/custom/${encodeURIComponent(typeId)}/generate`, { request });
+  }
+
+  getProcessDiagramStatus(typeId: string): Promise<DiagramGenerationStatus> {
+    return this.getJson<DiagramGenerationStatus>(`/custom/${encodeURIComponent(typeId)}/generate/status`);
   }
 
   cancelDiagram(kind: SkillRunKind): Promise<DiagramGenerationStatus> {

@@ -1663,6 +1663,14 @@ export class MockBridgeEngineClient implements EngineClient {
     return { state: "idle", error: null };
   }
 
+  async generateProcessDiagram(_typeId: string, _request: string): Promise<DiagramGenerationStatus> {
+    return { state: "error", error: "Quick draw needs the live bridge." };
+  }
+
+  async getProcessDiagramStatus(_typeId: string): Promise<DiagramGenerationStatus> {
+    return { state: "idle", error: null };
+  }
+
   async cancelDiagram(_kind: SkillRunKind): Promise<DiagramGenerationStatus> {
     return { state: "idle", error: null };
   }

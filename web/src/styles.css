@@ -1057,13 +1057,6 @@ body {
   color: var(--accent);
 }
 
-/* The project-tree toggle highlights when the sidebar (and with it the code sidebar) is open — an
-   IDE-style "explorer's open" accent. Mirrors terminal's panel-open treatment. */
-.project-tree-toggle-button[aria-pressed="true"] {
-  background: var(--bg-raised-2);
-  color: var(--accent);
-}
-
 .agents-toggle-button[aria-pressed="true"] {
   background: var(--bg-raised-2);
   color: var(--accent);
@@ -2337,7 +2330,9 @@ body {
   flex: 1;
   overflow: hidden;
   touch-action: none;
-  background-image: radial-gradient(var(--dot-grid) 1.3px, transparent 1.3px);
+  /* A saved Canvas style (canvas-style/) supplies --canvas-bg and --canvas-texture-image; unset keeps the built-in look. */
+  background-color: var(--canvas-bg, transparent);
+  background-image: var(--canvas-texture-image, radial-gradient(var(--dot-grid) 1.3px, transparent 1.3px));
   background-size: var(--canvas-grid-size, 24px) var(--canvas-grid-size, 24px);
   background-position: var(--canvas-grid-x, 0px) var(--canvas-grid-y, 0px);
 }
@@ -4785,6 +4780,11 @@ button[data-copy-state="idle"][aria-label]:hover:not(:disabled) {
   pointer-events: auto;
 }
 
+/* Agents full-screen mode: the floating windows stay mounted (xterm attached) but are not shown. */
+.agent-layer[data-hidden="true"] {
+  visibility: hidden;
+}
+
 /* The one place each status colour is defined — the rail, the panel and the window title bar all
    read it, rather than each carrying its own copy of the palette. */
 .agent-led {
@@ -4962,6 +4962,18 @@ button[data-copy-state="idle"][aria-label]:hover:not(:disabled) {
 
 .agent-terminal-dock[hidden] {
   display: none;
+}
+
+/* The floating left panel overlays the row: the dock's left edge follows chromeInsets().terminalLeft
+   (set by RootCanvas as --agent-dock-left) relative to the row's own 12px base inset. */
+.canvas-main-row > .agent-terminal-dock,
+.canvas-main-row > .code-sidebar {
+  margin-left: calc(var(--agent-dock-left, 12px) - var(--chrome-inset, 12px));
+}
+
+/* Only the first in-flow panel clears the floating left panel; the dock beside a code sidebar doesn't. */
+.canvas-main-row > .code-sidebar + .agent-terminal-dock {
+  margin-left: 0;
 }
 
 .agent-terminal-dock--resizing {
@@ -7360,90 +7372,6 @@ button[data-copy-state="idle"][aria-label]:hover:not(:disabled) {
   color: var(--text-muted-soft);
 }
 
-/* IDE-style project-tree side panel — a full-height, scrollable sidebar beside the canvas, below
-   the context bar (it lives inside .canvas-main-row, next to .canvas-stage). Width comes from the
-   resizable size (default DEFAULT_WIDTH in ProjectTreePanel.tsx); the right-edge handle widens it
-   to reveal more of a row's name or its inline code. */
-.project-tree-panel {
-  position: relative;
-  display: flex;
-  flex-direction: column;
-  flex-shrink: 0;
-  overflow-y: auto;
-  /* Hide the horizontal scrollbar strip at the panel's bottom — rows already ellipsize, so a wide
-     tree must not draw a scroll track padding under the content. */
-  overflow-x: hidden;
-  padding: 0.4rem 0.25rem 0.6rem 0.35rem;
-  border-radius: var(--radius-panel);
-  background: var(--bg-panel);
-}
-
-.project-tree-panel--resizing {
-  user-select: none;
-}
-
-/* Right-edge drag handle — the panel anchors left, so dragging right widens it. Mirrors the
-   inspector's left-edge handle (the inspector anchors right), same ew-resize affordance. */
-.project-tree-panel-resize-handle {
-  position: absolute;
-  right: -3px;
-  top: 0;
-  bottom: 0;
-  width: 6px;
-  cursor: ew-resize;
-  touch-action: none;
-  z-index: 1;
-}
-
-/* The on-canvas .tree-node rows are styled for a wide drag-to-rearrange canvas; in the narrow
-   sidebar they borrow the row styling but need tighter padding and a text-ellipsis name so long
-   paths don't blow the panel's fixed width. */
-.project-tree-panel .tree-node-row {
-  padding: 0.1rem 0.25rem;
-}
-
-.project-tree-panel .tree-node-name {
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-.project-tree-panel .tree-node-children {
-  --tree-indent: 14px;
-}
-
-/* Every row whose file is open in the code sidebar is marked "open" (a subtle persistent highlight);
-   the currently-active one additionally gets a stronger accent + the green marker dot, so the user
-   can see at a glance which files are open and which tab is live. Scoped to the panel; the on-canvas
-   tree never carries these classes. */
-.project-tree-panel .tree-node.tree-node-open-file {
-  background: rgba(63, 185, 123, 0.1);
-  border-radius: 4px;
-}
-
-.project-tree-panel .tree-node.tree-node-active {
-  background: rgba(63, 185, 123, 0.2);
-  outline: 1px solid rgba(63, 185, 123, 0.5);
-  border-radius: 4px;
-}
-
-.project-tree-panel .tree-node.tree-node-active .tree-node-name {
-  color: var(--text-1);
-}
-
-.project-tree-panel .tree-node.tree-node-active .tree-node-label::after {
-  content: "●";
-  margin-left: auto;
-  color: var(--added);
-  font-size: 0.6rem;
-}
-
-/* `hidden` must win over the display:flex above (CSS specificity: attribute selector is enough) —
-   useLatchedMount keeps the panel mounted but hidden when closed. */
-.project-tree-panel[hidden] {
-  display: none;
-}
-
 /* Code sidebar (variant A) — a resizable panel right beside the project tree showing source for
    every opened file. Sits in .canvas-main-row after the tree panel; tabs run most-recently-viewed
    with an overflow "▾" dropdown once more files are open than fit, and the active file renders
@@ -7462,7 +7390,7 @@ button[data-copy-state="idle"][aria-label]:hover:not(:disabled) {
   user-select: none;
 }
 
-/* `hidden` must win over the display:flex above (same gotcha as .project-tree-panel[hidden]) —
+/* `hidden` must win over the display:flex above (attribute selector beats the display rule) —
    collapsing the project tree also hides the code sidebar via RootCanvas. */
 .code-sidebar[hidden] {
   display: none;
@@ -7691,3 +7619,198 @@ button[data-copy-state="idle"][aria-label]:hover:not(:disabled) {
 .block.node-shape-cache { border-radius: 4px 18px 4px 18px; }
 .diagram-node-box.node-shape-external,
 .block.node-shape-external { border-style: dashed; border-color: var(--kind-external); }
+
+/* Canvas style (web/src/canvas-style/CanvasStylePanel.tsx) — Settings → Canvas style: theme presets, background, texture. */
+.canvas-style-dialog {
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  width: 480px;
+  max-width: calc(100vw - 32px);
+  max-height: calc(100vh - 32px);
+  overflow-y: auto;
+  box-shadow: var(--shadow-3);
+}
+
+.canvas-style-dialog .llm-dialog-header {
+  justify-content: flex-start;
+  margin: 0;
+}
+
+.canvas-style-back {
+  width: 36px;
+  height: 36px;
+  background: transparent;
+  color: var(--text-2);
+  border: 0;
+  border-radius: 8px;
+  font-size: 22px;
+  cursor: pointer;
+}
+
+.canvas-style-lede,
+.canvas-style-footer p {
+  margin: 0;
+  color: var(--text-2);
+  font-size: var(--text-sm);
+}
+
+.canvas-style-footer p {
+  text-align: center;
+  font-size: var(--text-xs);
+}
+
+.canvas-style-section {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.canvas-style-section h3 {
+  margin: 0;
+  color: var(--text-1);
+  font-size: var(--text-sm);
+  font-weight: 500;
+}
+
+.canvas-style-section-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  color: var(--text-2);
+  font-size: var(--text-xs);
+}
+
+.canvas-style-tiles {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.canvas-style-tile {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 8px;
+  background: transparent;
+  color: var(--text-1);
+  border: 1px solid var(--surface-4);
+  border-radius: 12px;
+  font-size: var(--text-sm);
+  text-align: left;
+  cursor: pointer;
+}
+
+.canvas-style-tile[aria-pressed="true"] {
+  background: var(--accent-bg);
+  border-color: var(--accent);
+}
+
+.canvas-style-swatch {
+  display: block;
+  height: 48px;
+  border: 1px solid var(--surface-4);
+  border-radius: 8px;
+}
+
+.canvas-style-swatch--short {
+  height: 44px;
+}
+
+.canvas-style-color-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.canvas-style-picker {
+  flex: none;
+  box-sizing: border-box;
+  width: 44px;
+  height: 44px;
+  padding: 0;
+  background: transparent;
+  border: 1px solid var(--surface-4);
+  border-radius: 10px;
+  cursor: pointer;
+}
+
+.canvas-style-hex {
+  flex: 1;
+  min-width: 0;
+  box-sizing: border-box;
+  min-height: 44px;
+  padding: 0 14px;
+  background: var(--surface-2);
+  color: var(--text-1);
+  border: 1px solid var(--surface-4);
+  border-radius: 10px;
+  font-family: var(--font-mono);
+  text-transform: uppercase;
+}
+
+.canvas-style-hex[aria-invalid="true"] {
+  border-color: var(--danger);
+}
+
+.canvas-style-error {
+  margin: 6px 0 0;
+  color: color-mix(in oklab, var(--danger) 55%, white);
+  font-size: var(--text-xs);
+}
+
+.canvas-style-warning {
+  padding: 12px 14px;
+  background: color-mix(in oklab, var(--warning) 12%, var(--surface-1));
+  border: 1px solid color-mix(in oklab, var(--warning) 40%, transparent);
+  border-radius: 12px;
+  color: var(--warning);
+  font-size: var(--text-sm);
+}
+
+.canvas-style-texture-controls {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 16px;
+  background: var(--surface-2);
+  border: 1px solid var(--surface-3);
+  border-radius: 12px;
+}
+
+.canvas-style-label {
+  color: var(--text-1);
+  font-size: var(--text-sm);
+  font-weight: 500;
+}
+
+.canvas-style-sliders {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 20px;
+}
+
+.canvas-style-slider-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  color: var(--text-1);
+  font-size: var(--text-sm);
+}
+
+.canvas-style-slider-head span {
+  color: var(--text-2);
+  font-family: var(--font-mono);
+}
+
+.canvas-style-slider input[type="range"] {
+  width: 100%;
+  accent-color: var(--accent);
+}
+
+.canvas-style-footer {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}

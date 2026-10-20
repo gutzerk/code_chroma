@@ -8,6 +8,7 @@ import { openOrigin } from "../openOrigin";
 import { CanvasNodeBox } from "./CanvasNodeBox";
 import { ConcurrencyIslandArea } from "./ConcurrencyIslandArea";
 import { DiagramFrame } from "./DiagramFrame";
+import { diagramDisplayName } from "./diagramDisplay";
 import { isDiagramLayer, labelForDiagramLayer, useCustomDiagramTypes } from "./diagramCatalog";
 import { BLOCK_RULES } from "./elementRules";
 import { elementRect } from "./elementRect";
@@ -101,7 +102,7 @@ function useCanvasUndo(engineClient: ReturnType<typeof useEngineClient>): void {
  * The single canvas-document view (016-single-canvas-dashboard). Iterates every element and renders
  * it by its `render` key: `note` through NoteElement, `group` through GroupFrame (a background rect enclosing its
  * members' current bounds, not a box of its own), everything else (c1/pattern/impact/epic/custom)
- * through the one CanvasNodeBox. AgentRail's Diagrams tab is the one place to remove a diagram
+ * through the one CanvasNodeBox. the left panel's Diagrams tab is the one place to remove a diagram
  * outright or soft-remove it from the canvas (deleting its layer's elements/edges from the
  * document); a layer hidden via `collapsedLayersStore` (that same tab's collapse/expand) stays
  * fully on the document and is
@@ -135,12 +136,14 @@ export function CanvasDocView() {
   const collapsedLayers = useCollapsedLayers();
   // Hides a collapsed diagram's elements from rendering only -- `doc.elements` itself is untouched,
   // so re-expanding needs no server round trip. `hierarchy`/`default` are never in `collapsedLayers`
-  // (nothing ever collapses them -- see AgentRail's Diagrams tab, which only ever lists real diagram
+  // (nothing ever collapses them -- see the left panel's Diagrams tab, which only ever lists real diagram
   // layers), so this can stay a plain layer-membership filter with no special-cased layer names.
   const renderableElements = useMemo(
     () =>
       Object.fromEntries(
-        Object.entries(doc.elements).filter(([, element]) => !collapsedLayers.has(element.layer)),
+        Object.entries(doc.elements).filter(
+          ([, element]) => !collapsedLayers.has(element.layer),
+        ),
       ),
     [doc.elements, collapsedLayers],
   );
@@ -301,15 +304,20 @@ export function CanvasDocView() {
               onOpenOrigin={(origin) => void openOrigin(origin, engineClient)}
             />
           </DiagramRelationshipsSvg>
-          {[...memberIdsByLayer.entries()].map(([layer, memberIds]) => (
-            <DiagramFrame
-              key={`diagram-${layer}`}
-              layer={layer}
-              label={labelForDiagramLayer(layer, customTypes)}
-              members={resolveMembers(memberIds, visibleDoc.elements)}
-              sizes={measuredSizes}
-            />
-          ))}
+          {[...memberIdsByLayer.entries()].map(([layer, memberIds]) => {
+            const display = diagramDisplayName(layer, doc, customTypes);
+            return (
+              <DiagramFrame
+                key={`diagram-${layer}`}
+                layer={layer}
+                label={labelForDiagramLayer(layer, customTypes)}
+                typeLabel={display.typeLabel}
+                boxCount={display.boxCount}
+                members={resolveMembers(memberIds, visibleDoc.elements)}
+                sizes={measuredSizes}
+              />
+            );
+          })}
           {laneBuckets.map(({ layer, value, ids }) => (
             <LaneArea
               key={`lane-${layer}-${value}`}

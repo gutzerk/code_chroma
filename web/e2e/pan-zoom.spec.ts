@@ -37,7 +37,7 @@ test("expanding the Project Tree does not move the diagrams canvas", async ({ pa
   const initialTransform = await content.evaluate((el) => getComputedStyle(el).transform);
 
   await clickTreeNodeName(page, "examples");
-  await expect(page.getByTestId("project-tree-panel").getByText("shadow-app")).toBeVisible();
+  await expect(page.getByTestId("left-panel-files").getByText("shadow-app")).toBeVisible();
 
   await expect(content).toHaveCSS("transform", initialTransform);
 });

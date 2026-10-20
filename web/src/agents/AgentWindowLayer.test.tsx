@@ -1,3 +1,4 @@
+import { layoutStore } from "../canvas/layout/layoutStore";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import type { AgentRecord } from "../state/types";
@@ -139,6 +140,7 @@ beforeEach(() => {
   window.localStorage.removeItem("codechroma.agentDockCollapsed");
   agentStore.reset();
   agentDockStore.reset();
+  layoutStore.reset();
   vi.mocked(flagDiagramsReady).mockClear();
 });
 
@@ -149,6 +151,23 @@ afterEach(() => {
 });
 
 describe("AgentWindowLayer", () => {
+  it("renders no floating terminal for the agent the full-screen view shows", async () => {
+    layoutStore.setAgentsMode("full");
+    layoutStore.selectAgent("refund-flow");
+    renderLayer([record(), record({ id: "flaky-tests", title: "flaky tests" })]);
+
+    await waitFor(() => expect(screen.getByTestId("agent-window-flaky-tests")).toBeInTheDocument());
+
+    expect(screen.queryByTestId("agent-window-refund-flow")).toBeNull();
+  });
+
+  it("clears a selection whose agent no longer exists", async () => {
+    layoutStore.selectAgent("ghost");
+    renderLayer([record()]);
+
+    await waitFor(() => expect(layoutStore.getState().selectedAgentId).toBeNull());
+  });
+
   // Filtering minimized agents out of the render unmounted their xterm, so every restore paid for a
   // full reattach — the one path where a redraw can still disagree with what the agent last drew.
   it("keeps a minimized agent's window mounted and hidden rather than unmounting it", async () => {

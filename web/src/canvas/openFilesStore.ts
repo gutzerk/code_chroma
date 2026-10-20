@@ -23,6 +23,13 @@ class OpenFilesStore extends Store {
     this.emit();
   };
 
+  /** Swaps in a fresh copy of an already-open file in place, keeping its tab position and active state. */
+  replace = (node: HierarchyNodeRef): void => {
+    if (!this.files.some((f) => f.node_id === node.node_id)) return;
+    this.files = this.files.map((f) => (f.node_id === node.node_id ? node : f));
+    this.emit();
+  };
+
   /** Activates an already-open file without reordering its MRU position. */
   activate = (nodeId: string): void => {
     if (this.activeId === nodeId) return;

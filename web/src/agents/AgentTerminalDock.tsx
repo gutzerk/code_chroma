@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from "react";
 import { ResizableRail } from "../canvas/ResizableRail";
 import type { AgentRecord } from "../state/types";
 import { AgentTerminal } from "./AgentTerminal";
+import { useFullScreenAgentId } from "./useFullScreenAgentId";
 import { useAgentClient } from "./AgentClientContext";
 import { agentStore, useAgents, useAgentStartError } from "./agentStore";
 import {
@@ -120,6 +121,8 @@ function DockedAgentPanel({
 }) {
   const agentClient = useAgentClient();
   const startError = useAgentStartError(agent.id);
+  // The full-screen view renders this agent's terminal; mounting a second would fight over the PTY.
+  const fullScreenAgentId = useFullScreenAgentId();
   const [recovering, setRecovering] = useState(false);
   const [recoverError, setRecoverError] = useState<string | null>(null);
   const running = agent.status !== "stopped" && agent.status !== "exited";
@@ -192,7 +195,7 @@ function DockedAgentPanel({
             Recreate
           </button>
         </div>
-      ) : (
+      ) : fullScreenAgentId === agent.id ? null : (
         <AgentTerminal
           workspace={agent.id}
           running={running}

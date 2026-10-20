@@ -29,7 +29,7 @@ export interface BuiltinRecipe {
 
 /** The recipe registry's built-in names/labels (`src/codechroma/canvas/recipes.py`'s `RECIPES`) —
  * every `custom/<id>` type is fetched instead of hardcoded (see `useCustomDiagramTypes` below).
- * Shared between `DrawDiagramButton`'s task-prompt wording and `AgentRail`'s Diagrams tab, so both
+ * Shared between `DrawDiagramButton`'s task-prompt wording and the left panel's Diagrams tab, so both
  * agree on what a diagram layer is and what it's called. */
 export const BUILTIN_RECIPES: BuiltinRecipe[] = [
   { name: "c1", label: "C1", accessibleName: "C1 — system context diagram", generated: true },
@@ -162,7 +162,7 @@ export const WATCHED_DIAGRAM_EVENT_KINDS: DiagramEventKind[] = ["c1", "epics", "
 /** Fetches `GET /repos/{id}/diagrams/status` once, then keeps it fresh on every diagram ping -- the
  * Diagrams tab's own copy of the readiness map `DrawDiagramButton` keeps for its own task text,
  * same duplication `useCustomDiagramTypes` above already accepts. This hook only refreshes the
- * readiness map; auto-adding a ready-but-unplaced diagram is `DrawDiagramButton`'s `refetchStatus`
+ * readiness map; auto-adding a ready-but-unplaced diagram is `useDiagramReadinessWatcher`'s `refetchStatus`
  * (since that's the mounted component with the status subscriptions), not this hook's concern. */
 export function useDiagramsStatus(engineClient: EngineClient): DiagramsStatus | null {
   const [status, setStatus] = useState<DiagramsStatus | null>(null);
@@ -197,7 +197,7 @@ export interface ReadyDiagrams {
 
 /** Splits every built-in recipe and saved custom type into ready/missing, given the latest readiness
  * map and the layers already on the canvas. Shared by `DrawDiagramButton` (to word its task prompt)
- * and `AgentRail`'s Diagrams tab (to offer a "ready but not placed" diagram back onto the canvas)
+ * and the left panel's Diagrams tab (to offer a "ready but not placed" diagram back onto the canvas)
  * so the two can never disagree about what's ready.
  *
  * 🔴 Fails open. `status === null` means the route hasn't answered (or couldn't), and this filter's
@@ -234,7 +234,7 @@ export function computeReadyDiagrams(
  * needs no extra bookkeeping to tell new from kept (016-single-canvas-dashboard: "only new_elements
  * get auto-positioned"). Adds the picked recipe's layer alongside whatever else is already on the
  * canvas -- several diagrams can coexist at once. Shared by `DrawDiagramButton`'s auto-add-when-ready
- * effect and `AgentRail`'s Diagrams tab (both its expand-refresh and its "add back" action).
+ * effect and the left panel's Diagrams tab (both its expand-refresh and its "add back" action).
  *
  * Before falling back to a fresh ELK layout, each new element is checked against
  * `layerPositionCache` -- a hit means this same recipe key sat on the canvas before a
@@ -323,7 +323,7 @@ export async function runRecipeAndLayout(
  * apply_batch.py's `_apply_delete_element`, which already drops an edge once either endpoint is
  * gone) so a diagram removed from the canvas comes off outright — the underlying artifact on disk is
  * untouched, so `runRecipeAndLayout` can bring it straight back with no redraw (this is what
- * `AgentRail`'s Diagrams tab now offers as its own "remove from canvas" row action, replacing
+ * the left panel's Diagrams tab now offers as its own "remove from canvas" row action, replacing
  * `RecipeMenu`'s old click-to-toggle). `confirmMassDelete` is always on: the click that reaches this
  * function already IS the user's confirmation, and a real diagram routinely exceeds apply_batch's
  * unconfirmed mass-delete guard.

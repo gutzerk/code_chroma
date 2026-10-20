@@ -21,7 +21,7 @@ afterEach(() => {
 
 describe("CodeSidebar", () => {
   it("renders nothing when no files are open", () => {
-    render(<CodeSidebar hidden={false} />);
+    render(<CodeSidebar />);
     expect(screen.queryByTestId("code-sidebar")).toBeNull();
   });
 
@@ -30,7 +30,7 @@ describe("CodeSidebar", () => {
     const b = makeFile("b.py", "b.py");
     act(() => openFilesStore.open(a));
     act(() => openFilesStore.open(b));
-    render(<CodeSidebar hidden={false} />);
+    render(<CodeSidebar />);
 
     const tabs = screen.getAllByTestId("code-sidebar-tab");
     // b opened last, so it is first (MRU front) and active.
@@ -47,7 +47,7 @@ describe("CodeSidebar", () => {
     act(() => openFilesStore.open(c));
     // Re-open a -> a is now most recent.
     act(() => openFilesStore.open(a));
-    render(<CodeSidebar hidden={false} />);
+    render(<CodeSidebar />);
 
     const tabs = screen.getAllByTestId("code-sidebar-tab");
     expect(tabs[0].textContent).toContain("a.py");
@@ -56,7 +56,7 @@ describe("CodeSidebar", () => {
   it("renders an empty file blank, not the no-file message", () => {
     const empty = { ...makeFile("init.py", "__init__.py"), source: "" };
     act(() => openFilesStore.open(empty));
-    render(<CodeSidebar hidden={false} />);
+    render(<CodeSidebar />);
 
     // The empty file is active, so no "No file selected" placeholder appears.
     expect(screen.queryByText("No file selected")).toBeNull();
@@ -94,7 +94,7 @@ describe("CodeSidebar", () => {
   it("closes a file via its tab close button", () => {
     const a = makeFile("a.py", "a.py");
     act(() => openFilesStore.open(a));
-    render(<CodeSidebar hidden={false} />);
+    render(<CodeSidebar />);
 
     act(() => screen.getByLabelText("Close a.py").click());
     // Sidebar hides again when nothing is open.
@@ -104,7 +104,7 @@ describe("CodeSidebar", () => {
   it("closes a tab via the close glyph's keyboard (Enter)", () => {
     const a = makeFile("a.py", "a.py");
     act(() => openFilesStore.open(a));
-    render(<CodeSidebar hidden={false} />);
+    render(<CodeSidebar />);
 
     act(() => {
       fireEvent.keyDown(screen.getByLabelText("Close a.py"), { key: "Enter" });
@@ -117,7 +117,7 @@ describe("CodeSidebar", () => {
     const b = makeFile("b.py", "b.py");
     act(() => openFilesStore.open(a));
     act(() => openFilesStore.open(b)); // b active (MRU front)
-    render(<CodeSidebar hidden={false} />);
+    render(<CodeSidebar />);
 
     // Focus the a tab (second tab) and press Enter -> a becomes active.
     const aTab = screen.getAllByTestId("code-sidebar-tab")[1];
@@ -131,7 +131,7 @@ describe("CodeSidebar", () => {
     for (let i = 0; i < 10; i++) {
       act(() => openFilesStore.open(makeFile(`f${i}.py`, `f${i}.py`)));
     }
-    render(<CodeSidebar hidden={false} />);
+    render(<CodeSidebar />);
 
     // The overflow button is present.
     const overflow = screen.getByLabelText("Show all open files");

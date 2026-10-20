@@ -2,9 +2,9 @@
 
 The frontend half of CodeChroma's architecture canvas: the codebase renders as a zoomable map of
 nested blocks on one continuous DOM/CSS canvas. The code hierarchy (System → … → Code) is shown as
-an indented **Project tree** side panel, while the canvas renders that hierarchy plus every diagram
+an indented tree in the left panel's **Files** tab, while the canvas renders that hierarchy plus every diagram
 (C1, Design Patterns, Epics, Sequence, trace, custom) as a layer on the same surface — expand
-blocks in place at any depth, pan and zoom, and toggle diagram layers from the **Diagrams** tab.
+blocks in place at any depth, pan and zoom, and toggle diagram layers from the left panel's **Diagrams** tab (collapse it to a bar of color boxes; the agents panel has normal, collapsed and full-screen modes).
 
 ## Dev setup
 

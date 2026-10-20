@@ -4,7 +4,7 @@ import { recipeChromeKey } from "../../state/useSidecar";
 /**
  * Remembers a layer's element positions across a remove-then-re-add cycle.
  *
- * `AgentRail`'s Diagrams tab "remove from canvas" row action (`removeLayerAndRefresh`) `delete_element`s every box in a layer, so a
+ * the left panel's Diagrams tab "remove from canvas" row action (`removeLayerAndRefresh`) `delete_element`s every box in a layer, so a
  * user-dragged position has nowhere left to live once its element is gone — picking the same recipe
  * again (`runRecipeAndLayout`) used to always fall through to a fresh ELK pass (`autoLayout.ts`),
  * silently discarding wherever the user had put things. This cache is the fix: `removeLayerAndRefresh`

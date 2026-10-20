@@ -7,9 +7,14 @@ const GRID_BASE = 28;
  * stays put whatever step is chosen, since CanvasViewport phases the grid by the pan offset — so a
  * step change while zooming is invisible rather than a jump. */
 export function gridStep(scale: number): number {
-  let step = GRID_BASE * scale;
-  if (!Number.isFinite(step) || step <= 0) return GRID_BASE;
-  while (step < GRID_BASE) step *= 2;
-  while (step >= GRID_BASE * 2) step /= 2;
+  return gridStepFor(scale, GRID_BASE);
+}
+
+/** gridStep with a custom base spacing (the canvas-style setting); kept separate so gridStep stays safe to pass to .map. */
+export function gridStepFor(scale: number, base: number): number {
+  let step = base * scale;
+  if (!Number.isFinite(step) || step <= 0) return base;
+  while (step < base) step *= 2;
+  while (step >= base * 2) step /= 2;
   return step;
 }

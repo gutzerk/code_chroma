@@ -172,6 +172,7 @@ import graph by grep when it's present.
 - **One-line comments/docstrings only.** A `PostToolUse` hook
   (`.claude/hooks/check-test-and-doc-style.py`) blocks edits that introduce multi-line `#` comment
   runs or multi-line docstrings on classes/functions — fails open (never blocks on its own errors).
+- **Skills live in `skills/`** (repo root), never edited under `.claude/skills/`: that folder is gitignored output the bridge re-creates from `skills/` (`SkillSync.SyncAll`) in every project it opens. See [`docs/architecture/diagram-skills.md`](docs/architecture/diagram-skills.md).
 - **Arrange-Act-Assert in tests**, enforced by the same hook: no setup statements (`Assign`/
   `AnnAssign`/`AugAssign`) after a test function's final `assert`.
 - The same hook also runs an advisory-only check (`_check_duplicate_shape`): if two `test_*`

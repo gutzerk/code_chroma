@@ -22,7 +22,7 @@ Three things had drifted, all of them consequences of "one skill per diagram typ
 ## Layout
 
 ```
-.claude/skills/codechroma-draw-diagram/
+skills/codechroma-draw-diagram/
   SKILL.md                       #  52 lines — router only
   references/
     drawing-rules.md             # 298 — shared rules, the one shared shape + style catalog, fallback
@@ -36,8 +36,13 @@ Three things had drifted, all of them consequences of "one skill per diagram typ
     check_diagram.py               # one self-check, including --kind sequence
 ```
 
-⚠ **The source of truth is the repo root's `.claude/skills/`**, resolved by
-`bridge/resources.py`'s `_SOURCE_RELATIVE["skills"]`. `examples/.claude/skills/` used to hold a
+⚠ **The source of truth is the repo root's `skills/`** (not `.claude/skills/`, which is gitignored output).
+Python resolves it via `bridge/resources.py`'s `_SOURCE_RELATIVE["skills"]`; the C# bridge copies it next to
+its executable at build/publish (`CodeChroma.Bridge.csproj` `Content` item) and `SkillSync.SkillsRoot()`
+reads exactly `$CODECHROMA_SKILLS_DIR` or `<bridge folder>/skills` — no searching. At bridge start
+`Program.cs` calls `SkillSync.InstallIntoWorktree(repoRoot)`, i.e. `SyncAll` + git-exclude, so the opened
+project's `.claude/skills/codechroma-*` is refreshed from it (worktrees get the same on creation);
+headless bare runs and `--plugin-dir` agents read `SkillsRoot()` directly. `examples/.claude/skills/` used to hold a
 byte-identical mirror that nothing read; it was deleted and `examples/.claude/` is now gitignored,
 because it was machine output from dogfooding the bridge against `examples/`.
 

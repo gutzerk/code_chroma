@@ -62,7 +62,11 @@ public static class JsonFile
 
     public static JsonObject LoadObject(string path) => Load(path) as JsonObject ?? new JsonObject();
 
-    public static void Write(string path, JsonNode payload)
+    public static void Write(string path, JsonNode payload) =>
+        WriteText(path, payload.ToJsonString(new JsonSerializerOptions { WriteIndented = true }));
+
+    /// <summary>Atomically replaces the file with already-serialized text (temp file + move, retried on Windows locks).</summary>
+    public static void WriteText(string path, string text)
     {
         lock (Gate)
         {
@@ -70,7 +74,7 @@ public static class JsonFile
             var temp = $"{path}.{Environment.ProcessId}.{Guid.NewGuid():N}.tmp";
             try
             {
-                File.WriteAllText(temp, payload.ToJsonString(new JsonSerializerOptions { WriteIndented = true }));
+                File.WriteAllText(temp, text);
                 for (var attempt = 0; ; attempt++)
                 {
                     try { File.Move(temp, path, overwrite: true); break; }
@@ -95,6 +99,12 @@ public static class JsonFile
 public static class Json
 {
     public static string? Str(JsonNode? node) => node is JsonValue v && v.TryGetValue(out string? s) ? s : null;
+
+    /// <summary>The string value, or null when it is absent, not a string or empty.</summary>
+    public static string? NonEmptyStr(JsonNode? node) => Str(node) is { Length: > 0 } s ? s : null;
+
+    /// <summary>True only for a JSON true.</summary>
+    public static bool Bool(JsonNode? node) => node is JsonValue v && v.TryGetValue(out bool b) && b;
 
     public static bool IsString(JsonNode? node) => Str(node) is not null;
 

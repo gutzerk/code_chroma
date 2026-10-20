@@ -81,7 +81,7 @@ public sealed partial class WorkflowRunner
 
     public RunStore Store { get; }
 
-    private static readonly HashSet<char> InvalidMarkerChars = [.. Path.GetInvalidFileNameChars(), '\\'];
+    private static readonly HashSet<char> InvalidMarkerChars = [.. Path.GetInvalidFileNameChars(), '\\', ':'];
 
     /// <summary>The scratch file a chat agent is pointed at as its artifact; it lives outside the repo so no rollback touches the code.</summary>
     public static string Marker(string prefix, string key) =>

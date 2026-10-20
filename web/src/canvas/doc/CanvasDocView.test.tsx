@@ -232,6 +232,25 @@ describe("CanvasDocView", () => {
     expect(canvasDocStore.getDoc().edges.edge1).toBeDefined();
   });
 
+  it("does not render a collapsed layer, nor its frame", async () => {
+    const doc = docWith([
+      elementOf({ id: "e1", render: "impact", label: "Shell hidden box", layer: "c1" }),
+      elementOf({ id: "e3", render: "impact", label: "Shown box", layer: "patterns" }),
+    ]);
+    collapsedLayersStore.toggle("c1");
+
+    render(
+      <EngineClientProvider repoId="default" client={client(doc)}>
+        <CanvasDocView />
+      </EngineClientProvider>,
+    );
+
+    await waitFor(() => expect(screen.getByText("Shown box")).toBeInTheDocument());
+    expect(screen.queryByText("Shell hidden box")).not.toBeInTheDocument();
+    expect(screen.getAllByTestId("canvas-diagram-frame")).toHaveLength(1);
+    expect(canvasDocStore.getDoc().elements.e1).toBeDefined();
+  });
+
   it("draws nothing for a legacy hierarchy element an old document still carries", async () => {
     const doc = docWith([
       elementOf({ id: "e1", render: "hierarchy", node_id: "root", layer: "hierarchy" }),

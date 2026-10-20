@@ -42,6 +42,20 @@ export function buildDrawDiagramTask(labels: string[], anyAlreadyReady: boolean)
   );
 }
 
+/** The draw-agent task for one already-picked diagram kind (`DrawPopover`), so the agent skips the "which kind?" question. */
+export function buildPickedDrawTask(kindLabel: string, custom = false): string {
+  if (custom) {
+    return (
+      "The user wants a custom diagram of this project. Ask what it should show (or which saved custom " +
+      "type to draw), then use the codechroma-draw-diagram skill (custom type) to draw it."
+    );
+  }
+  return (
+    `The user wants a ${kindLabel} diagram of this project. Do not ask which kind -- use the ` +
+    `codechroma-draw-diagram skill and pick the ${kindLabel} type from its router table to draw it.`
+  );
+}
+
 /**
  * The rail's "Draw…" button (016-single-canvas-dashboard Stage 4, shrunk in the diagram-management
  * unification that retired `RecipeMenu`'s dropdown and the custom-diagram-type wizard): a single

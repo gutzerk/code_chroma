@@ -7,7 +7,8 @@ namespace CodeChroma.Bridge.Skills;
 /// <summary>One argv-building / output-parsing implementation per CLI tool, always run unattended with JSONL output.</summary>
 public interface ICliAdapter
 {
-    IReadOnlyList<string> BuildArgv(string binary, string prompt, string model, IReadOnlyDictionary<string, string>? env);
+    /// <summary>`extra` is placed where the CLI accepts options (before a trailing positional prompt).</summary>
+    IReadOnlyList<string> BuildArgv(string binary, string prompt, string model, IReadOnlyDictionary<string, string>? env, IReadOnlyList<string>? extra = null);
 
     IReadOnlyList<string> ParseLine(string raw, string repoRoot);
 }
@@ -37,13 +38,14 @@ public static class CliAdapters
 /// <summary>`claude -p ... --output-format stream-json`.</summary>
 public sealed class ClaudeAdapter : ICliAdapter
 {
-    public IReadOnlyList<string> BuildArgv(string binary, string prompt, string model, IReadOnlyDictionary<string, string>? env)
+    public IReadOnlyList<string> BuildArgv(string binary, string prompt, string model, IReadOnlyDictionary<string, string>? env, IReadOnlyList<string>? extra = null)
     {
         var argv = new List<string> { binary, "-p", prompt };
         if (model.Length > 0) argv.AddRange(["--model", model]);
         argv.AddRange(["--permission-mode", "bypassPermissions", "--output-format", "stream-json", "--verbose"]);
         var key = env is not null ? env.GetValueOrDefault("ANTHROPIC_API_KEY") : Environment.GetEnvironmentVariable("ANTHROPIC_API_KEY");
         if (!string.IsNullOrEmpty(key)) argv.Add("--bare");
+        argv.AddRange(extra ?? []);
         return argv;
     }
 
@@ -79,8 +81,8 @@ public sealed class CodexAdapter : ICliAdapter
     private const int MaxMessage = 200;
     private static readonly string[] ToolTypes = ["command_execution", "file_change", "mcp_tool_call", "web_search", "plan_update"];
 
-    public IReadOnlyList<string> BuildArgv(string binary, string prompt, string model, IReadOnlyDictionary<string, string>? env) =>
-        [binary, "exec", "--model", model, "--sandbox", "workspace-write", "--json", prompt];
+    public IReadOnlyList<string> BuildArgv(string binary, string prompt, string model, IReadOnlyDictionary<string, string>? env, IReadOnlyList<string>? extra = null) =>
+        [binary, "exec", "--model", model, "--sandbox", "workspace-write", "--json", .. extra ?? [], prompt];
 
     public IReadOnlyList<string> ParseLine(string raw, string repoRoot)
     {
@@ -122,8 +124,8 @@ public sealed class KimiAdapter : ICliAdapter
 {
     private const int MaxMessage = 200;
 
-    public IReadOnlyList<string> BuildArgv(string binary, string prompt, string model, IReadOnlyDictionary<string, string>? env) =>
-        [binary, "--prompt", prompt, "--model", model, "--output-format", "stream-json"];
+    public IReadOnlyList<string> BuildArgv(string binary, string prompt, string model, IReadOnlyDictionary<string, string>? env, IReadOnlyList<string>? extra = null) =>
+        [binary, "--prompt", prompt, "--model", model, "--output-format", "stream-json", .. extra ?? []];
 
     public IReadOnlyList<string> ParseLine(string raw, string repoRoot)
     {

@@ -95,6 +95,13 @@ public class CliAdapterTests
     public void Kimi_events_render_to_one_line(string raw, string expected) =>
         Assert.Equal([expected], new KimiAdapter().ParseLine(raw, "/repo"));
 
+    [Theory]
+    [InlineData("claude", new[] { "claude", "-p", "P", "--permission-mode", "bypassPermissions", "--output-format", "stream-json", "--verbose", "--resume", "s1" })]
+    [InlineData("codex", new[] { "codex", "exec", "--model", "", "--sandbox", "workspace-write", "--json", "--resume", "s1", "P" })]
+    [InlineData("kimi-cli", new[] { "kimi-cli", "--prompt", "P", "--model", "", "--output-format", "stream-json", "--resume", "s1" })]
+    public void Extra_args_land_where_each_adapter_accepts_options(string key, string[] expected) =>
+        Assert.Equal(expected, CliAdapters.All[key].BuildArgv(key, "P", "", NoKey, ["--resume", "s1"]));
+
     [Fact]
     public void Kimi_ignores_a_successful_tool_result() => Assert.Empty(new KimiAdapter().ParseLine("""{"role": "tool", "content": "ok"}""", "/repo"));
 

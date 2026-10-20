@@ -77,7 +77,7 @@ public static class AgentRoutes
         {
             var body = await Reply.LenientBody(request);
             var record = OrNotFound(agents, agentId);
-            var resume = body["resume"] is JsonValue flag && flag.TryGetValue<bool>(out var resumed) && resumed;
+            var resume = Json.Bool(body["resume"]);
             var sessionId = resume ? agents.CaptureSessionId(agentId) : null;
             if (resume && string.IsNullOrEmpty(sessionId)) return Reply.Error(409, "this agent has no recorded session to resume");
             var pending = resume ? null : agents.ConsumeContext(agentId);
@@ -128,7 +128,7 @@ public static class AgentRoutes
             var record = OrNotFound(agents, agentId);
             var body = await Reply.LenientBody(request);
             var main = await Task.Run(() => WorktreeOps.MainBranch(repoRoot));
-            var commitDirty = body["commit_dirty"] is JsonValue flag && flag.TryGetValue<bool>(out var dirty) && dirty;
+            var commitDirty = Json.Bool(body["commit_dirty"]);
             var url = await Task.Run(() => Publish.CreatePr(record.Worktree, record.Branch, main, commitDirty, record.SourcePr, paths));
             record.PrUrl = url;
             agents.Save();

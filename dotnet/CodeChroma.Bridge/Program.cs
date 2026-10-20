@@ -27,6 +27,7 @@ builder.Services.AddSingleton<ProviderStore>();
 builder.Services.AddSingleton<CallSiteStore>();
 builder.Services.AddSingleton<DiagramLibrary>();
 builder.Services.AddSkillServices();
+builder.Services.AddSingleton<WorkflowRunners>();
 builder.Services.AddSingleton(new BranchManager(repoRoot));
 builder.Services.AddSingleton(sp =>
 {
@@ -81,6 +82,7 @@ LayoutRoutes.Map(app);
 EpicsRoutes.Map(app);
 ContextRoutes.Map(app);
 WikiGeneralRoutes.Map(app);
+WorkflowRoutes.Map(app);
 
 app.Run();
 

@@ -52,6 +52,18 @@ public sealed class FakeCliHarness : IDisposable
 
     public static JsonObject Write(string path, string text) => new() { ["write"] = new JsonObject { ["path"] = path, ["text"] = text } };
 
+    public static JsonObject BlockUntilFile(string path) => new() { ["block_until_file"] = path };
+
+    public static JsonObject StdoutSlow(int intervalMs, params string[] lines) =>
+        new() { ["stdout_slow"] = new JsonObject { ["interval_ms"] = intervalMs, ["lines"] = new JsonArray(lines.Select(l => (JsonNode?)l).ToArray()) } };
+
+    /// <summary>Replays runs[n] on the n-th launch (the last repeats), so each workflow step can behave differently.</summary>
+    public void ScriptRuns(params JsonObject[][] runs) =>
+        File.WriteAllText(Path.Combine(Directory, "fakecli.script.json"), new JsonObject
+        {
+            ["runs"] = new JsonArray(runs.Select(r => (JsonNode?)new JsonObject { ["steps"] = new JsonArray(r.Select(s => (JsonNode?)s).ToArray()) }).ToArray()),
+        }.ToJsonString());
+
     public static JsonObject Exit(int code) => new() { ["exit"] = code };
 
     public static JsonObject Sleep(int milliseconds) => new() { ["sleep_ms"] = milliseconds };

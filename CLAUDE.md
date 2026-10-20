@@ -141,6 +141,7 @@ Open the relevant file before making a non-trivial change in that area.
 | [`docs/architecture/skill-artifact-merge.md`](docs/architecture/skill-artifact-merge.md) | The "fresh source + authored overlay + id-splice + fingerprint staleness" idiom shared by `resolve_patterns._merge`, `resolve_c1`/`c1_changes`, and `resolve_brief` |
 | [`docs/architecture/wiki-generator.md`](docs/architecture/wiki-generator.md) | On-demand, docstring-only repo wiki: `GraphEngine.generate_wiki()`, `wiki/generator.py` + `wiki/writer.py`, Python-only docstring/module-variable extraction, the gap report, `.codechroma/wiki/` output |
 | [`docs/architecture/wiki-general.md`](docs/architecture/wiki-general.md) | The AI-generated semantic architecture map (C1→C2→C3→C4), a sibling of the plain wiki: `codechroma-wiki-general` skill + `check_wiki_general.py`, the `wiki_general_agent.py` `SkillAgent` (not a diagram type), `routes/wiki_general.py`, the canvas's first real Generate button (`WikiGeneralNotice.tsx`) |
+| [`docs/architecture/workflows.md`](docs/architecture/workflows.md) | Steerable workflow runs (C# bridge only): `Workflows/` (`RunStateMachine`, `RunStore`, `WorkflowRunner`), `Routes/WorkflowRoutes.cs`, run states/commands/events, git checkpoints, the pause gate, FakeCli slow/blocking modes |
 
 `docs/planning/` (format doc: `docs/planning/README.md`) and `specs/<NNN>-<slug>/` (Spec Kit output)
 are a different kind of doc — pre-build feature specs, not current-state reference. See "Repo-wide

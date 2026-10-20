@@ -231,6 +231,7 @@ export interface EngineClient {
   subscribeAgents(onEvent: (message: AgentEvent) => void): () => void;
   /** Every workflow definition (GET /repos/{id}/workflows). */
   listWorkflows(): Promise<WorkflowDef[]>;
+  createWorkflow(workflow: WorkflowDef): Promise<WorkflowDef>;
   /** Every run record (GET /repos/{id}/runs). */
   listRuns(): Promise<Run[]>;
   /** One run record (GET /repos/{id}/runs/{runId}) -- what a `run` event makes the client re-fetch. */
@@ -677,6 +678,10 @@ export class HttpEngineClient implements EngineClient {
 
   listWorkflows(): Promise<WorkflowDef[]> {
     return this.getJson<WorkflowDef[]>("/workflows");
+  }
+
+  createWorkflow(workflow: WorkflowDef): Promise<WorkflowDef> {
+    return this.postJson<WorkflowDef>("/workflows", workflow);
   }
 
   listRuns(): Promise<Run[]> {

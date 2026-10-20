@@ -154,6 +154,7 @@ export function StepRail({
                 </span>
                 <span className="step-slug">{slug}</span>
                 <span className="step-status">{STATUS_META[step.status].text}</span>
+                {step.diffStat && <span className="step-diff-summary">{step.diffStat}</span>}
                 {step.fromAttempt !== undefined && (
                   <span className="step-tag step-tag-kept" data-testid={`kept-${slug}`}>
                     {`from attempt ${step.fromAttempt}`}

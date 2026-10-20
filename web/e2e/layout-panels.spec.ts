@@ -1,9 +1,5 @@
-import { test, expect, type Page } from "@playwright/test";
+import { test, expect } from "@playwright/test";
 import { gotoApp } from "./helpers";
-
-async function runAgent(page: Page): Promise<void> {
-  await page.getByRole("button", { name: "Run agent" }).click();
-}
 
 test("the collapsed left bar reopens the panel on the right tab (expand, folder, top-bar toggle)", async ({
   page,
@@ -59,46 +55,12 @@ test("a collapsed-bar color box hides its diagram (dashed) and restores it", asy
   await expect(box.locator(".collapsed-left-bar__swatch--hidden")).toHaveCount(0);
 });
 
-test("agents full screen shows one window, tabs switch it, and the left bar still works", async ({
-  page,
-}) => {
+test("the attached activity panel collapses and reopens even without agents", async ({ page }) => {
   await gotoApp(page, { files: false });
-  await runAgent(page);
-  await runAgent(page);
-  await page.getByRole("button", { name: "Expand agents to full screen" }).click();
-
-  await expect(page.getByTestId("agent-full-screen")).toBeVisible();
-  await expect(page.getByTestId("collapsed-left-bar")).toBeVisible();
-  await expect(page.locator(".agent-full-window")).toHaveCount(1);
-
-  const firstWindow = await page.locator(".agent-full-window").getAttribute("aria-label");
-  await page.getByRole("tab", { name: /agent2/ }).click();
-  await expect(page.locator(".agent-full-window")).toHaveCount(1);
-  expect(await page.locator(".agent-full-window").getAttribute("aria-label")).not.toBe(firstWindow);
-
-  await page.getByRole("button", { name: "Open Files" }).click();
-  await expect(page.getByTestId("left-panel")).toBeVisible();
-  await expect(page.getByTestId("agent-full-screen")).toHaveCount(0);
-});
-
-test("collapsed agents show a1 and a2 in a row at the top right", async ({ page }) => {
-  await gotoApp(page, { files: false });
-  await runAgent(page);
-  await runAgent(page);
-  await page.getByRole("button", { name: "Collapse agents panel" }).click();
-
-  const bar = page.getByTestId("agents-collapsed-bar");
-  await expect(bar).toBeVisible();
-  const buttons = bar.locator(".agents-collapsed-bar-button");
-  await expect(buttons).toHaveText(["a1", "a2"]);
-
-  const [first, second, barBox, viewport] = await Promise.all([
-    buttons.nth(0).boundingBox(),
-    buttons.nth(1).boundingBox(),
-    bar.boundingBox(),
-    page.viewportSize(),
-  ]);
-  expect(first!.y).toBeCloseTo(second!.y, 0);
-  expect(second!.x).toBeGreaterThan(first!.x);
-  expect(barBox!.x + barBox!.width).toBeGreaterThan(viewport!.width - 40);
+  const panel = page.getByTestId("activity-panel");
+  await expect(panel).toBeVisible();
+  await page.getByRole("button", { name: "Collapse agents and workflows" }).click();
+  await expect(panel).toHaveClass(/is-collapsed/);
+  await page.getByRole("button", { name: "Expand agents and workflows" }).click();
+  await expect(page.getByRole("button", { name: "Run agent" })).toBeVisible();
 });

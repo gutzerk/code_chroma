@@ -11,6 +11,7 @@ export type RailIconName =
   | "patterns"
   | "branch"
   | "epics"
+  | "draw"
   | "custom"
   | "impact"
   | "settings"
@@ -39,6 +40,7 @@ export function RailIcon({ name }: RailIconProps) {
 }
 
 const PATHS: Record<RailIconName, ReactElement> = {
+  draw: <path d="M10 2l4 4-7 7-5 1 1-5zM8.5 3.5l4 4" fill="none" stroke="currentColor" strokeWidth="1.3" strokeLinejoin="round" />,
   // Window with a `>` prompt.
   terminal: (
     <>

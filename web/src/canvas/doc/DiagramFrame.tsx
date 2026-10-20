@@ -6,7 +6,6 @@ import { useGroupDrag } from "../collision/useGroupDrag";
 import { elementDragPointerDown } from "../useDragOffset";
 import { unionBoundsOf } from "./boundingBox";
 import { canvasDocStore, commitCanvasPositions } from "./canvasDocStore";
-import { clearArrange } from "./arrangeController";
 import { diagramFrameColorClass } from "./diagramFrameColor";
 import { dragOffsetStore } from "./dragOffsetStore";
 import { CopyButton } from "../strategies/nodeChrome";
@@ -106,7 +105,6 @@ export function DiagramFrame({ layer, label, members, sizes, typeLabel, boxCount
         trackedIdsRef.current.delete(id);
       }
       commitCanvasPositions(engineClient, positions);
-      clearArrange();
     },
   });
 

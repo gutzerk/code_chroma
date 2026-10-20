@@ -1,5 +1,7 @@
 import { afterEach, describe, expect, it } from "vitest";
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { AgentClientProvider } from "../agents/AgentClientContext";
+import { MockAgentClient } from "../agents/mockAgentClient";
 import { EngineClientProvider } from "../engine-client/EngineClientContext";
 import { CANVAS_STUB } from "../engine-client/stubEngineClient";
 import type { EngineClient } from "../engine-client/EngineClient";
@@ -8,6 +10,7 @@ import { EMPTY_CANVAS_DOC, type CanvasElement } from "../state/types";
 import { DiagramsTab } from "./DiagramsTab";
 import { diagramSelectionStore } from "./diagramSelectionStore";
 import { shellStore } from "./shellStore";
+import { collapsedLayersStore } from "../canvas/doc/collapsedLayersStore";
 
 function el(id: string, layer: string): CanvasElement {
   return {
@@ -28,9 +31,11 @@ function renderTab(props: Parameters<typeof DiagramsTab>[0] = {}) {
     elements: Object.fromEntries([el("a", "c1"), el("b", "c1"), el("c", "patterns")].map((e) => [e.id, e])),
   });
   return render(
-    <EngineClientProvider repoId="default" client={client}>
-      <DiagramsTab {...props} />
-    </EngineClientProvider>,
+    <AgentClientProvider client={new MockAgentClient()}>
+      <EngineClientProvider repoId="default" client={client}>
+        <DiagramsTab {...props} />
+      </EngineClientProvider>
+    </AgentClientProvider>,
   );
 }
 
@@ -55,7 +60,7 @@ describe("DiagramsTab", () => {
 
     fireEvent.click(screen.getByLabelText("Hide C1"));
 
-    expect(shellStore.getState().hiddenLayers).toEqual(["c1"]);
+    expect(collapsedLayersStore.isCollapsed("c1")).toBe(true);
     expect(screen.getByLabelText("Show C1")).toBeInTheDocument();
   });
 
@@ -67,13 +72,12 @@ describe("DiagramsTab", () => {
     expect(diagramSelectionStore.getSelected()).toEqual(["patterns"]);
   });
 
-  it("calls onDraw and renders the arrange slot", () => {
-    let drawn = 0;
-    renderTab({ onDraw: () => (drawn += 1), arrangeSlot: <div data-testid="slot" /> });
+  it("opens the draw popover and renders the arrange slot", () => {
+    renderTab({ arrangeSlot: <div data-testid="slot" /> });
 
     fireEvent.click(screen.getByTestId("diagrams-tab-draw"));
 
-    expect(drawn).toBe(1);
+    expect(screen.getByRole("menu")).toBeInTheDocument();
     expect(screen.getByTestId("slot")).toBeInTheDocument();
   });
 

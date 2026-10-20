@@ -1,6 +1,8 @@
 import { useState } from "react";
 import { AgentLed } from "../agents/AgentLed";
+import { useAgentClient } from "../agents/AgentClientContext";
 import { useAgents } from "../agents/agentStore";
+import { selectAgent } from "./selectAgent";
 import { shellStore, useShellState } from "./shellStore";
 import "./agentsPanel.css";
 
@@ -9,6 +11,7 @@ const MAX_BUTTONS = 5;
 /** The slim collapsed form of the agents panel: a1/a2... buttons that reopen the panel on that agent. */
 export function AgentsCollapsedStrip() {
   const agents = useAgents();
+  const agentClient = useAgentClient();
   const { agents: shellAgents } = useShellState();
   const [menuOpen, setMenuOpen] = useState(false);
   if (shellAgents.mode !== "collapsed") return null;
@@ -17,7 +20,7 @@ export function AgentsCollapsedStrip() {
   const extra = agents.slice(MAX_BUTTONS);
   const open = (id: string) => {
     setMenuOpen(false);
-    shellStore.openAgent(id);
+    selectAgent(agentClient, id);
   };
 
   return (
@@ -28,7 +31,7 @@ export function AgentsCollapsedStrip() {
           className="agents-strip-button"
           aria-label="Open agents"
           data-testid="agents-strip-open"
-          onClick={() => shellStore.expandAgents()}
+          onClick={() => shellStore.openAgent()}
         >
           ‹
         </button>

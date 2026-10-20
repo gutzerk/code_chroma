@@ -10,22 +10,20 @@ import {
 import { diagramAccent, diagramDisplayName } from "../canvas/doc/diagramDisplay";
 import { DrawPopover } from "./DrawPopover";
 import { diagramSelectionStore, useSelectedLayers } from "./diagramSelectionStore";
-import { shellStore, useShellState } from "./shellStore";
+import { collapsedLayersStore, useCollapsedLayers } from "../canvas/doc/collapsedLayersStore";
 import "./diagramsTab.css";
 
 export interface DiagramsTabProps {
-  /** Called by the "Draw…" button; when omitted the button toggles the built-in kind popover. */
-  onDraw?: () => void;
   /** Rendered below the list (the Arrange controls). */
   arrangeSlot?: ReactNode;
 }
 
 /** The left panel's Diagrams tab: one row per diagram on the canvas with select, colour, name and hide. */
-export function DiagramsTab({ onDraw, arrangeSlot }: DiagramsTabProps) {
+export function DiagramsTab({ arrangeSlot }: DiagramsTabProps) {
   const engineClient = useEngineClient();
   const doc = useCanvasDoc();
   const customTypes = useCustomDiagramTypes(engineClient);
-  const { hiddenLayers } = useShellState();
+  const hiddenLayers = useCollapsedLayers();
   const selected = useSelectedLayers();
   const layers = useMemo(() => listActiveDiagramLayers(doc), [doc]);
   const [popoverOpen, setPopoverOpen] = useState(false);
@@ -51,19 +49,14 @@ export function DiagramsTab({ onDraw, arrangeSlot }: DiagramsTabProps) {
       .finally(() => setDeleteBusy(false));
   };
 
-  const onDrawClick = () => {
-    if (onDraw) onDraw();
-    else setPopoverOpen((open) => !open);
-  };
-
   return (
     <div className="diagrams-tab" data-testid="diagrams-tab">
       <div className="diagrams-tab-header">
         <span className="diagrams-tab-title">{`ON CANVAS · ${layers.length}`}</span>
-        <button type="button" className="diagrams-tab-draw" data-testid="diagrams-tab-draw" onClick={onDrawClick}>
+        <button type="button" className="diagrams-tab-draw" data-testid="diagrams-tab-draw" onClick={() => setPopoverOpen((open) => !open)}>
           Draw…
         </button>
-        {popoverOpen && !onDraw && <DrawPopover onClose={() => setPopoverOpen(false)} />}
+        {popoverOpen && <DrawPopover onClose={() => setPopoverOpen(false)} />}
       </div>
       {layers.length === 0 ? (
         <p className="diagrams-tab-empty">No diagrams on the canvas yet.</p>
@@ -71,7 +64,7 @@ export function DiagramsTab({ onDraw, arrangeSlot }: DiagramsTabProps) {
         <ul className="diagrams-tab-list">
           {layers.map((layer) => {
             const { name, typeLabel, boxCount } = diagramDisplayName(layer, doc, customTypes);
-            const hidden = hiddenLayers.includes(layer);
+            const hidden = hiddenLayers.has(layer);
             return (
               <li
                 key={layer}
@@ -98,7 +91,7 @@ export function DiagramsTab({ onDraw, arrangeSlot }: DiagramsTabProps) {
                   className="diagrams-tab-icon-btn"
                   aria-label={hidden ? `Show ${name}` : `Hide ${name}`}
                   aria-pressed={hidden}
-                  onClick={() => shellStore.toggleLayerHidden(layer)}
+                  onClick={() => collapsedLayersStore.toggle(layer)}
                 >
                   {hidden ? "◌" : "👁"}
                 </button>

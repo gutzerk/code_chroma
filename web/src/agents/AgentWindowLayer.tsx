@@ -9,7 +9,7 @@ import {
 import { useAgentClient } from "./AgentClientContext";
 import { flagDiagramsReady } from "./agentDiagramsReady";
 import { agentStore, useActiveWorkspace, useAgents, useGitPreflight, usePendingClose } from "./agentStore";
-import { shellStore } from "../shell/shellStore";
+import { selectAgent } from "../shell/selectAgent";
 import { branchStore } from "./branchStore";
 import { CloseAgentDialog } from "./CloseAgentDialog";
 import { GitInitDialog } from "./GitInitDialog";
@@ -65,7 +65,7 @@ export function AgentWindowLayer() {
           agentStore.setStatus(message.id, message.status);
           if (kind && before && !isAgentWindowFocused(before)) {
             // Opens the agents panel on it, not a branch switch: its worktree runs regardless.
-            notifyAgentStatus(before, kind, () => shellStore.openAgent(before.id));
+            notifyAgentStatus(before, kind, () => selectAgent(agentClient, before.id));
           }
           // A finished "Draw a diagram" task may have written into its own forked worktree, where
           // the canvas never looks -- badge its rail row so the result is one click away.

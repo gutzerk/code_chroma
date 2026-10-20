@@ -11,7 +11,6 @@ import { selectionStore } from "../../state/selectionStore";
 import { tutorialStore } from "../../tutorial/tutorialStore";
 import { useIsSelected, useSelectedCount } from "../../state/selectionStore";
 import { canvasDocStore, commitCanvasPositions } from "./canvasDocStore";
-import { clearArrange } from "./arrangeController";
 import { dragOffsetStore, useLiveDragOffsets } from "./dragOffsetStore";
 import { NODE_STYLES, type StyledRenderKind } from "./elementRules";
 import { descriptionPopupStore } from "./descriptionPopupStore";
@@ -135,10 +134,7 @@ export function CanvasNodeBox({ element, onMeasure }: CanvasNodeBoxProps) {
   // Commits one or several boxes' new positions in a single PATCH -- `commitCanvasPositions`
   // (canvasDocStore.ts) is the one shared write/rollback + "canvas" undo-recording shape, also used
   // by DiagramFrame's whole-diagram drag, so neither commit path needs its own undoStore call.
-  const commitPositions = (positions: Record<string, Offset>) => {
-    commitCanvasPositions(engineClient, positions);
-    clearArrange();
-  };
+  const commitPositions = (positions: Record<string, Offset>) => commitCanvasPositions(engineClient, positions);
 
   const solo = useCollisionAvoidance({
     id: element.id,

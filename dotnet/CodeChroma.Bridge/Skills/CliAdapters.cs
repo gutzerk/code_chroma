@@ -11,10 +11,15 @@ public interface ICliAdapter
     IReadOnlyList<string> BuildArgv(string binary, string prompt, string model, IReadOnlyDictionary<string, string>? env, IReadOnlyList<string>? extra = null);
 
     IReadOnlyList<string> ParseLine(string raw, string repoRoot);
+
+    /// <summary>Extra options that strip the CLI's ambient context (skills, MCP, settings) for a bare run limited to <paramref name="tools"/>; empty when the CLI has no verified switch.</summary>
+    IReadOnlyList<string> BareArgs(string tools) => [];
 }
 
 public static class CliAdapters
 {
+    public const string DefaultBareTools = "Bash,Read,Write,Edit,Glob,Grep";
+
     public static IReadOnlyDictionary<string, ICliAdapter> All { get; } = new Dictionary<string, ICliAdapter>
     {
         ["claude"] = new ClaudeAdapter(),
@@ -51,6 +56,14 @@ public sealed class ClaudeAdapter : ICliAdapter
 
     public IReadOnlyList<string> ParseLine(string raw, string repoRoot) =>
         CliAdapters.ParseEvent(raw) is { } evt ? SkillOutput.Render(evt, repoRoot) : [];
+
+    /// <summary>Works with OAuth logins, unlike `--bare` (which needs an API key): no slash commands, MCP, user/project settings or session file.</summary>
+    public IReadOnlyList<string> BareArgs(string tools) =>
+    [
+        "--tools", tools, "--allowedTools", .. tools.Split(','), "--disable-slash-commands", "--strict-mcp-config",
+        "--setting-sources", "local", "--no-session-persistence",
+        "--system-prompt", "Follow the instructions in the user message exactly.",
+    ];
 
     /// <summary>A zero-tool, single-shot call for a wiki-general pipeline worker.</summary>
     public IReadOnlyList<string> BuildWorkerArgv(string binary, string prompt, string model, string schemaJson)

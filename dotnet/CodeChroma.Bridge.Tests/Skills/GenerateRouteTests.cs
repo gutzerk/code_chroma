@@ -1,5 +1,6 @@
 using System.Net.Http.Json;
 using System.Text.Json.Nodes;
+using CodeChroma.Bridge.Skills;
 using CodeChroma.Bridge.Stores;
 using CodeChroma.Bridge.Tests.Support;
 using Microsoft.Extensions.DependencyInjection;
@@ -57,7 +58,26 @@ public sealed class GenerateRouteTests : IDisposable
         Assert.Equal("Drawing.", output!["lines"]![0]!.GetValue<string>());
         Assert.Equal("System", diagram!["nodes"]![0]!["name"]!.GetValue<string>());
         var call = Assert.Single(_cli.Invocations());
-        Assert.StartsWith("/codechroma-draw-diagram type: c1", call["args"]![1]!.GetValue<string>());
+        var prompt = call["args"]![1]!.GetValue<string>();
+        Assert.Contains("Task: type: c1", prompt);
+        var file = File.ReadAllText(Path.Combine(_host.Root, ".codechroma", "prompts", "c1_agent.md"));
+        Assert.Contains("## references/type-c1.md", file);
+        Assert.DoesNotContain("name: codechroma-draw-diagram", file);
+    }
+
+    [Fact]
+    public async Task A_bare_run_adds_the_context_stripping_flags_and_sends_the_given_prompt()
+    {
+        _cli.Script(Write(C1Path, """{"type":"c1","nodes":[{"id":"system","name":"System"}],"relations":[]}"""), ResultEvent(), Exit(0));
+        var agent = _host.Factory.Services.GetRequiredService<SkillAgents>()["c1"];
+
+        await agent.Start("main", _host.Root, (_, _) => Task.CompletedTask, null, "the whole skill text", options: new RunOptions([]) { Bare = true });
+        await Status("c1");
+
+        var args = Assert.Single(_cli.Invocations())["args"]!.AsArray().Select(a => a!.GetValue<string>()).ToList();
+        Assert.Equal("the whole skill text", args[1]);
+        Assert.Contains("--disable-slash-commands", args);
+        Assert.Contains("--strict-mcp-config", args);
     }
 
     [Fact]
@@ -110,7 +130,7 @@ public sealed class GenerateRouteTests : IDisposable
         var final = await Status("impact-changes");
 
         Assert.Equal("idle", final["state"]!.GetValue<string>());
-        Assert.StartsWith("/codechroma-review-diagram", _cli.Invocations()[0]["args"]![1]!.GetValue<string>());
+        Assert.Contains("Task: review this repository's current git diff", _cli.Invocations()[0]["args"]![1]!.GetValue<string>());
     }
 
     [Fact]

@@ -1,0 +1,43 @@
+name: Publish embedding model
+
+# Manual: copies the int8 jina-code ONNX model and tokenizer from Hugging Face to the `models-v1` GitHub release.
+# The app downloads them from there on first use and checks them against the SHA-256 pinned in
+# dotnet/CodeChroma.Bridge/Embeddings/ModelStore.cs. Bump the tag (models-v2) when the pinned files change.
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+env:
+  TAG: models-v1
+  HF: https://huggingface.co/jinaai/jina-embeddings-v2-base-code/resolve/main
+  MODEL_SHA256: ed45870251c9f0cf656e78aab0d37a23489066df8a222bb1c8caf8a45f2cb16d
+  TOKENIZER_SHA256: b01c78a902aa4facb2f47f95449f48e2f7bbfea5d2472ee2f6ce92323c6f86e5
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Download from Hugging Face
+        run: |
+          mkdir model && cd model
+          curl -fsSL -o model_quantized.onnx "$HF/onnx/model_quantized.onnx"
+          curl -fsSL -o tokenizer.json "$HF/tokenizer.json"
+          echo "$MODEL_SHA256  model_quantized.onnx" | sha256sum -c -
+          echo "$TOKENIZER_SHA256  tokenizer.json" | sha256sum -c -
+      - name: Pinned hashes match the C# source
+        run: |
+          grep -q "$MODEL_SHA256" dotnet/CodeChroma.Bridge/Embeddings/ModelStore.cs
+          grep -q "$TOKENIZER_SHA256" dotnet/CodeChroma.Bridge/Embeddings/ModelStore.cs
+      - name: Upload to the release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if ! gh release view "$TAG" >/dev/null 2>&1; then
+            # not "latest": the installers resolve releases/latest/download/latest.json
+            gh release create "$TAG" --latest=false --title "Embedding model (jina-code int8)" \
+              --notes "ONNX model and tokenizer downloaded by the app on first use. Not an app release."
+          fi
+          gh release upload "$TAG" model/model_quantized.onnx model/tokenizer.json --clobber

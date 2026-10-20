@@ -30,6 +30,9 @@ public sealed class SkillAgents
                 (root, _) => Path.Combine(root, ".codechroma", "diagrams", kind, kind + ".json"),
                 HasValidFlatDiagram, $"codechroma_{kind.ToUpperInvariant()}_TIMEOUT_SECONDS", SkillTimeouts.For(kind),
                 $"generation produced no valid {kind}.json"));
+        yield return new KindSpec(ProcessDiagram.Kind, new SkillAgentSpec(
+            "c1_agent", null, SkillTimeouts.Model, (root, key) => ProcessDiagram.ArtifactPath(root, SkillAgent.ItemFromKey(key)),
+            HasValidFlatDiagram, "codechroma_PROCESS_DIAGRAM_TIMEOUT_SECONDS", SkillTimeouts.For("custom"), "generation produced no valid diagram"));
         yield return new KindSpec("impact-changes", new SkillAgentSpec(
             "impact-changes_review_agent", Prompts.Render("impact_review_agent"), SkillTimeouts.Model,
             (root, _) => ImpactChangesPath(root), data => data is JsonObject, "codechroma_IMPACT_REVIEW_TIMEOUT_SECONDS",

@@ -154,6 +154,8 @@ export const IMPACT_CHANGES_STUB = {
   subscribeSidecar: (): (() => void) => () => {},
   generateDiagram: async (): Promise<DiagramGenerationStatus> => IDLE,
   getDiagramStatus: async (): Promise<DiagramGenerationStatus> => IDLE,
+  generateProcessDiagram: async (): Promise<DiagramGenerationStatus> => IDLE,
+  getProcessDiagramStatus: async (): Promise<DiagramGenerationStatus> => IDLE,
   cancelDiagram: async (): Promise<DiagramGenerationStatus> => IDLE,
   subscribeDiagram: (): (() => void) => () => {},
   subscribeDiagramStatus: (): (() => void) => () => {},

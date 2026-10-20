@@ -277,3 +277,7 @@ export function useIsLaunchingAgent(): boolean {
 export function useMaxAgents(): number {
   return useSyncExternalStore(agentStore.subscribe, agentStore.getMaxAgents);
 }
+
+export function useAgentLaunchError(): string | null {
+  return useSyncExternalStore(agentStore.subscribe, agentStore.getLaunchError);
+}

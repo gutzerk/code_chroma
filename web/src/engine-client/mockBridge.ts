@@ -1945,6 +1945,10 @@ export class MockBridgeEngineClient implements EngineClient {
   async listWorkflows(): Promise<WorkflowDef[]> {
     return this.workflowEngine.listWorkflows();
   }
+  async createWorkflow(workflow: WorkflowDef): Promise<WorkflowDef> {
+    return this.workflowEngine.createWorkflow(workflow);
+  }
+
   async listRuns(): Promise<Run[]> {
     return this.workflowEngine.listRuns();
   }

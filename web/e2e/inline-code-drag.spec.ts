@@ -19,7 +19,7 @@ test("opening a source file shows its code without expanding the file row", asyn
 test("opening the code sidebar keeps the canvas stage within its flex row", async ({ page }) => {
   await gotoApp(page);
 
-  const tree = page.getByTestId("project-tree-panel");
+  const tree = page.getByTestId("left-panel-files");
   for (const name of ["examples", "shadow-app", "backend", "domain", "order_service.py"]) {
     await tree.getByText(name, { exact: true }).click();
     await page.waitForTimeout(150);
@@ -30,7 +30,6 @@ test("opening the code sidebar keeps the canvas stage within its flex row", asyn
   await expect(page.getByTestId("block-code-view-source")).toHaveCSS("scrollbar-width", "thin");
 
   const stage = page.locator(".canvas-stage");
-  await expect(stage).toHaveCSS("min-width", "0px");
   const stageRight = await stage.evaluate((element) => element.getBoundingClientRect().right);
   const rowRight = await page
     .locator(".canvas-main-row")

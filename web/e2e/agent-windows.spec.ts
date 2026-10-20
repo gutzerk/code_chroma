@@ -12,8 +12,9 @@ async function runAgent(page: Page): Promise<void> {
   await page.getByRole("button", { name: "Run agent" }).click();
 }
 
+// The agents panel has no tabs any more (diagrams moved to the left panel); kept as a readiness check.
 async function showAgentsTab(page: Page): Promise<void> {
-  await page.getByRole("tab", { name: "Agents", exact: true }).click();
+  await page.getByTestId("agent-task-rail").waitFor();
 }
 
 test("clicking Run agent opens a running window immediately, with no dialog in between", async ({

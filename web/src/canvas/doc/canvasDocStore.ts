@@ -70,13 +70,15 @@ class CanvasDocStore extends Store {
    * selected box -- looping `moveElement` would work too, but would re-render every canvas box once
    * per selected id instead of once total. */
   moveElements(positions: Record<string, { x: number; y: number }>): void {
-    let elements = this._doc.elements;
+    const elements = { ...this._doc.elements };
+    let changed = false;
     for (const [id, position] of Object.entries(positions)) {
       const element = elements[id];
       if (!element) continue;
-      elements = { ...elements, [id]: { ...element, position } };
+      elements[id] = { ...element, position };
+      changed = true;
     }
-    if (elements === this._doc.elements) return;
+    if (!changed) return;
     this._doc = { ...this._doc, elements };
     this.emit();
   }
@@ -101,7 +103,7 @@ export function useCanvasDocLoaded(): boolean {
 }
 
 /** Which layers have at least one element on the canvas doc -- the one "is this diagram present"
- * check, shared so `AgentRail`'s Diagrams tab, `DrawDiagramButton`'s readiness split, and any
+ * check, shared so the left panel's Diagrams tab, `DrawDiagramButton`'s readiness split, and any
  * single-layer gate (e.g. RootCanvas's C1 summary panel) read the same fact instead of each
  * re-deriving it from `doc.elements`. */
 export function collectActiveLayers(doc: CanvasDoc): Set<string> {

@@ -101,7 +101,7 @@ function useCanvasUndo(engineClient: ReturnType<typeof useEngineClient>): void {
  * The single canvas-document view (016-single-canvas-dashboard). Iterates every element and renders
  * it by its `render` key: `note` through NoteElement, `group` through GroupFrame (a background rect enclosing its
  * members' current bounds, not a box of its own), everything else (c1/pattern/impact/epic/custom)
- * through the one CanvasNodeBox. AgentRail's Diagrams tab is the one place to remove a diagram
+ * through the one CanvasNodeBox. the left panel's Diagrams tab is the one place to remove a diagram
  * outright or soft-remove it from the canvas (deleting its layer's elements/edges from the
  * document); a layer hidden via `collapsedLayersStore` (that same tab's collapse/expand) stays
  * fully on the document and is
@@ -135,7 +135,7 @@ export function CanvasDocView() {
   const collapsedLayers = useCollapsedLayers();
   // Hides a collapsed diagram's elements from rendering only -- `doc.elements` itself is untouched,
   // so re-expanding needs no server round trip. `hierarchy`/`default` are never in `collapsedLayers`
-  // (nothing ever collapses them -- see AgentRail's Diagrams tab, which only ever lists real diagram
+  // (nothing ever collapses them -- see the left panel's Diagrams tab, which only ever lists real diagram
   // layers), so this can stay a plain layer-membership filter with no special-cased layer names.
   const renderableElements = useMemo(
     () =>

@@ -318,9 +318,8 @@ branch through an agent attached to it (`_guard_shared_worktree`, keyed off `Age
   dock, and clicking anywhere else on the strip expands it too. Ctrl/Cmd+Shift+O (window-level, capture
   phase) expands the dock and focuses the active terminal via `agentDockStore.openAndFocus()`'s
   `focusRequest` counter → `AgentTerminal`'s `focusRequest` prop. Inactive tabs are filled pills (they
-  look clickable); the active tab is flat, bold and non-interactive-looking. The same shared
-  `AgentLedStrip` (with `SplitterHandle`, and the same click-anywhere-to-open) is the collapsed form of the right-side
-  Agents/Diagrams `AgentRail` too, so both panels collapse identically. Docking hides the floating window without
+  look clickable); the active tab is flat, bold and non-interactive-looking. (The right-side `AgentRail` no longer uses
+  `AgentLedStrip`: its collapsed form is `AgentsCollapsedBar`, see "Agent panel modes" below.) Docking hides the floating window without
   persisting `minimized`, so after reload it naturally returns as a window. Detach removes that tab
   and opens the agent window; the tab's close action follows the normal `closeAgentWindow` flow. The
   dock's collapse state persists in browser storage and hides terminal panels without unmounting
@@ -344,7 +343,7 @@ branch through an agent attached to it (`_guard_shared_worktree`, keyed off `Age
   so its artifact lands where the canvas is not looking and the agent finishes with nothing on
   screen. `agents/agentDiagramsReady.ts` checks that agent's *own* workspace on the working→idle
   transition and badges the row; the click clears it and activates that workspace, where
-  `DrawDiagramButton`'s watcher adds the diagram by itself. It is skipped when the agent already shares the
+  `useDiagramReadinessWatcher` adds the diagram by itself. It is skipped when the agent already shares the
   active workspace. See [`diagram-skills.md`](diagram-skills.md). Minimizing
   therefore adds **nothing** to the screen; there used to be a second widget, `AgentDock`, a
   readable-title strip of the minimized ones in the bottom-left corner, and it was removed as a
@@ -380,6 +379,9 @@ branch through an agent attached to it (`_guard_shared_worktree`, keyed off `Age
   🔴 The mount guard covers both lists: `AgentRail` returns `null` only when `agents.length === 0 &&
   diagramLayers.length === 0`, so a workspace with an on-canvas diagram and no agents still shows the
   panel (defaulting to the Diagrams tab).
+  ⚠ Superseded: the Diagrams tab moved to the canvas left panel (`canvas/leftpanel/`, see
+  [`web-canvas-shell.md`](web-canvas-shell.md)); `AgentRail` now lists agents only and always renders in
+  `normal` mode.
 - 🔴 Minimize/restore lives in `agents/windowActions.ts`, not at the call sites. Restore used to be
   store-only in the panel while minimize persisted through `PATCH /agents/{id}/window`, so reopening a
   window and reloading brought it back minimized. All three call sites (window title bar, rail, panel)
@@ -453,3 +455,26 @@ branch through an agent attached to it (`_guard_shared_worktree`, keyed off `Age
 ## Canvas questions (017)
 
 Claude agent windows launch with the CodeChroma MCP server (`ask_user`) registered through `agent_cli`'s `mcp` parameter, plus the `codechroma_BRIDGE_URL`/`codechroma_QUESTION_TOKEN` env vars; see [`ai-questions.md`](ai-questions.md) "Agent wiring". A bridge restart invalidates old tokens, so agent windows are respawned with fresh ones.
+
+## Agent panel modes (layout store)
+
+`layoutStore.agentsMode` (`canvas/layout/layoutStore.ts`) replaces the old open/collapsed `useState` in
+`RootCanvas`:
+
+- `normal`: `AgentRail` in the canvas row. It carries "Collapse agents panel" (-> `collapsed`) and
+  "Expand agents to full screen" (-> `full`) handle buttons.
+- `collapsed`: `AgentsCollapsedBar`, one `a1`, `a2`... button per agent in a row at the top right, with a
+  status dot; clicking one returns to `normal` and selects that agent.
+- `full`: `AgentFullScreen`, a `role=tablist` of `AgentTab`s (dot, name, status), a 44px "New agent"
+  `+`, and exactly one window for the selected agent (its `AgentTerminal`), an input and a status line
+  (`cli · status · branch`); the edge handle "Back to side panel" returns to `normal`. Entering `full`
+  forces `leftOpen=false` (the collapsed left bar stays). The full-screen input is not wired to the
+  xterm session (it is a local draft only; type in the terminal). The floating agent windows are hidden
+  (`.agent-layer[data-hidden]`), and the shown agent's own window/dock terminal is unmounted so only one
+  xterm is attached to its PTY (scrollback is lost on that remount; the bridge redraws the screen).
+  Leaving `full` restores the left panel to its pre-full state.
+- `--agent-dock-left` (set once on the `.canvas-main-row` by `RootCanvas` from `chromeInsets`)
+  positions the terminal dock and clears the floating left panel.
+
+Being in a non-`normal` mode (also on mount) closes an open code popup and inspector (`RootCanvas` effect). Tests:
+`AgentRail.test.tsx`, `AgentsCollapsedBar.test.tsx`, `AgentFullScreen.test.tsx`, `e2e/layout-panels.spec.ts`.

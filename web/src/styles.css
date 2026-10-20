@@ -1030,13 +1030,6 @@ body {
   color: var(--accent);
 }
 
-/* The project-tree toggle highlights when the sidebar (and with it the code sidebar) is open — an
-   IDE-style "explorer's open" accent. Mirrors terminal's panel-open treatment. */
-.project-tree-toggle-button[aria-pressed="true"] {
-  background: var(--bg-raised-2);
-  color: var(--accent);
-}
-
 .agents-toggle-button[aria-pressed="true"] {
   background: var(--bg-raised-2);
   color: var(--accent);
@@ -4758,6 +4751,11 @@ button[data-copy-state="idle"][aria-label]:hover:not(:disabled) {
   pointer-events: auto;
 }
 
+/* Agents full-screen mode: the floating windows stay mounted (xterm attached) but are not shown. */
+.agent-layer[data-hidden="true"] {
+  visibility: hidden;
+}
+
 /* The one place each status colour is defined — the rail, the panel and the window title bar all
    read it, rather than each carrying its own copy of the palette. */
 .agent-led {
@@ -4935,6 +4933,18 @@ button[data-copy-state="idle"][aria-label]:hover:not(:disabled) {
 
 .agent-terminal-dock[hidden] {
   display: none;
+}
+
+/* The floating left panel overlays the row: the dock's left edge follows chromeInsets().terminalLeft
+   (set by RootCanvas as --agent-dock-left) relative to the row's own 12px base inset. */
+.canvas-main-row > .agent-terminal-dock,
+.canvas-main-row > .code-sidebar {
+  margin-left: calc(var(--agent-dock-left, 12px) - var(--chrome-inset, 12px));
+}
+
+/* Only the first in-flow panel clears the floating left panel; the dock beside a code sidebar doesn't. */
+.canvas-main-row > .code-sidebar + .agent-terminal-dock {
+  margin-left: 0;
 }
 
 .agent-terminal-dock--resizing {
@@ -7333,90 +7343,6 @@ button[data-copy-state="idle"][aria-label]:hover:not(:disabled) {
   color: var(--text-muted-soft);
 }
 
-/* IDE-style project-tree side panel — a full-height, scrollable sidebar beside the canvas, below
-   the context bar (it lives inside .canvas-main-row, next to .canvas-stage). Width comes from the
-   resizable size (default DEFAULT_WIDTH in ProjectTreePanel.tsx); the right-edge handle widens it
-   to reveal more of a row's name or its inline code. */
-.project-tree-panel {
-  position: relative;
-  display: flex;
-  flex-direction: column;
-  flex-shrink: 0;
-  overflow-y: auto;
-  /* Hide the horizontal scrollbar strip at the panel's bottom — rows already ellipsize, so a wide
-     tree must not draw a scroll track padding under the content. */
-  overflow-x: hidden;
-  padding: 0.4rem 0.25rem 0.6rem 0.35rem;
-  border-radius: var(--radius-panel);
-  background: var(--bg-panel);
-}
-
-.project-tree-panel--resizing {
-  user-select: none;
-}
-
-/* Right-edge drag handle — the panel anchors left, so dragging right widens it. Mirrors the
-   inspector's left-edge handle (the inspector anchors right), same ew-resize affordance. */
-.project-tree-panel-resize-handle {
-  position: absolute;
-  right: -3px;
-  top: 0;
-  bottom: 0;
-  width: 6px;
-  cursor: ew-resize;
-  touch-action: none;
-  z-index: 1;
-}
-
-/* The on-canvas .tree-node rows are styled for a wide drag-to-rearrange canvas; in the narrow
-   sidebar they borrow the row styling but need tighter padding and a text-ellipsis name so long
-   paths don't blow the panel's fixed width. */
-.project-tree-panel .tree-node-row {
-  padding: 0.1rem 0.25rem;
-}
-
-.project-tree-panel .tree-node-name {
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-.project-tree-panel .tree-node-children {
-  --tree-indent: 14px;
-}
-
-/* Every row whose file is open in the code sidebar is marked "open" (a subtle persistent highlight);
-   the currently-active one additionally gets a stronger accent + the green marker dot, so the user
-   can see at a glance which files are open and which tab is live. Scoped to the panel; the on-canvas
-   tree never carries these classes. */
-.project-tree-panel .tree-node.tree-node-open-file {
-  background: rgba(63, 185, 123, 0.1);
-  border-radius: 4px;
-}
-
-.project-tree-panel .tree-node.tree-node-active {
-  background: rgba(63, 185, 123, 0.2);
-  outline: 1px solid rgba(63, 185, 123, 0.5);
-  border-radius: 4px;
-}
-
-.project-tree-panel .tree-node.tree-node-active .tree-node-name {
-  color: var(--text-1);
-}
-
-.project-tree-panel .tree-node.tree-node-active .tree-node-label::after {
-  content: "●";
-  margin-left: auto;
-  color: var(--added);
-  font-size: 0.6rem;
-}
-
-/* `hidden` must win over the display:flex above (CSS specificity: attribute selector is enough) —
-   useLatchedMount keeps the panel mounted but hidden when closed. */
-.project-tree-panel[hidden] {
-  display: none;
-}
-
 /* Code sidebar (variant A) — a resizable panel right beside the project tree showing source for
    every opened file. Sits in .canvas-main-row after the tree panel; tabs run most-recently-viewed
    with an overflow "▾" dropdown once more files are open than fit, and the active file renders
@@ -7435,7 +7361,7 @@ button[data-copy-state="idle"][aria-label]:hover:not(:disabled) {
   user-select: none;
 }
 
-/* `hidden` must win over the display:flex above (same gotcha as .project-tree-panel[hidden]) —
+/* `hidden` must win over the display:flex above (attribute selector beats the display rule) —
    collapsing the project tree also hides the code sidebar via RootCanvas. */
 .code-sidebar[hidden] {
   display: none;

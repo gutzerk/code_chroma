@@ -1,4 +1,5 @@
 import { useCallback, useEffect } from "react";
+import { layoutStore, useLayoutState } from "../canvas/layout/layoutStore";
 import { useEngineClient } from "../engine-client/EngineClientContext";
 import {
   ensureNotificationPermission,
@@ -15,6 +16,7 @@ import { branchStore } from "./branchStore";
 import { CloseAgentDialog } from "./CloseAgentDialog";
 import { GitInitDialog } from "./GitInitDialog";
 import { settleActiveWorkspace, settleRemovedWorkspace } from "./branchActions";
+import { useFullScreenAgentId } from "./useFullScreenAgentId";
 import { WorkspaceStatusBanner } from "./WorkspaceStatusBanner";
 import { confirmCloseAgentWindow, restoreAgentWindow } from "./windowActions";
 
@@ -27,6 +29,8 @@ import { confirmCloseAgentWindow, restoreAgentWindow } from "./windowActions";
  */
 export function AgentWindowLayer() {
   const agentClient = useAgentClient();
+  const { agentsMode } = useLayoutState();
+  const fullAgentId = useFullScreenAgentId();
   const engineClient = useEngineClient();
   const agents = useAgents();
   const dockedAgentIds = useDockedAgentIds();
@@ -48,6 +52,7 @@ export function AgentWindowLayer() {
 
   useEffect(() => {
     agentDockStore.retain(agents.map((agent) => agent.id));
+    layoutStore.reconcileAgents(agents.map((agent) => agent.id));
   }, [agents]);
 
   const refreshBranchList = useCallback(() => {
@@ -119,6 +124,8 @@ export function AgentWindowLayer() {
       // Which workspace the canvas is drawing, in the DOM: otherwise nothing on screen says so once a
       // workspace is `ready`, and a test has to infer it from an unrelated control's state.
       data-active-workspace={activeWorkspace}
+      // Full-screen mode shows one window itself; the floating ones are hidden.
+      data-hidden={agentsMode === "full"}
     >
       <WorkspaceStatusBanner />
       {/* Every agent is represented here; minimized windows hide without unmounting so xterm stays
@@ -127,7 +134,9 @@ export function AgentWindowLayer() {
         <AgentWindow
           key={agent.id}
           agent={agent}
-          docked={dockedAgentIds.includes(agent.id)}
+          // The full-screen view owns that agent's terminal: a second xterm on one PTY would fight
+          // over its size and duplicate output (scrollback restarts from the PTY's screen redraw).
+          docked={dockedAgentIds.includes(agent.id) || agent.id === fullAgentId}
         />
       ))}
       {preflight && preflight.state !== "ready" && (

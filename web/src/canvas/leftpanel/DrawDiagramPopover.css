@@ -1,0 +1,54 @@
+.draw-diagram-popover {
+  position: absolute;
+  top: 10px;
+  width: 240px;
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 12px;
+  border-radius: 16px;
+  background: #262b38;
+  color: #e9ebf2;
+}
+
+.draw-diagram-popover-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.draw-diagram-popover-close {
+  width: 24px;
+  height: 24px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: #8b91a1;
+  cursor: pointer;
+}
+
+.draw-diagram-popover-option {
+  height: 32px;
+  border: 0;
+  border-radius: 10px;
+  background: #1c2029;
+  color: #c4c8d4;
+  font-size: 12px;
+  text-align: left;
+  padding: 0 10px;
+  cursor: pointer;
+}
+
+.draw-diagram-popover-option:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.draw-diagram-popover-error {
+  margin: 0;
+  font-size: 11px;
+  color: #ff8c8c;
+}

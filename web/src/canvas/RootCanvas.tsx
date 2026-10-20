@@ -60,6 +60,7 @@ import { PrRailButton } from "../pr/PrRailButton";
 import { usePrWorkspaces } from "../pr/prStore";
 import { SettingsRailButton } from "../assistant/SettingsRailButton";
 import { ReportIssueRailButton } from "../assistant/ReportIssueRailButton";
+import { WorkflowsRailButton } from "../workflows/WorkflowsRailButton";
 import { traceStore, useTraceState } from "../state/traceStore";
 import { revealNode } from "../state/revealNode";
 import { autoExpandInitial } from "../state/autoExpandInitial";
@@ -465,6 +466,7 @@ export function RootCanvas() {
         )}
         <BranchSwitcher />
         <div className="canvas-chrome-spacer" />
+        <WorkflowsRailButton />
         <ReportIssueRailButton />
         <GamesMenu />
         <div className="canvas-chrome-separator" />

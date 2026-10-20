@@ -2,6 +2,8 @@ import { useEffect, useState } from "react";
 import { UpdatesPanel } from "./UpdatesPanel";
 import { ModalDialog } from "../agents/ModalDialog";
 import { RailIcon } from "../icons/RailIcon";
+import { CanvasStylePanel } from "../canvas-style/CanvasStylePanel";
+import { matchPreset, useSavedCanvasStyle } from "../canvas-style/canvasStyleStore";
 import { LlmSettingsPanel } from "../llm-settings/LlmSettingsPanel";
 import { listCallSites, listProviders } from "../llm-settings/llmSettingsClient";
 
@@ -35,12 +37,15 @@ function useLlmSummary(): string | null {
  * provider connections, per-feature routing, and the agent-window fallback -- lives behind the one
  * "LLM" row rather than being split between here and a second rail button. */
 export function SettingsDialog({ onDismiss }: { onDismiss: () => void }) {
-  const [openCategory, setOpenCategory] = useState<"llm" | "updates" | null>(null);
+  const [openCategory, setOpenCategory] = useState<"llm" | "updates" | "canvas-style" | null>(null);
   const summary = useLlmSummary();
+  const savedStyle = useSavedCanvasStyle();
+  const styleSummary = savedStyle ? (matchPreset(savedStyle)?.name ?? "Custom") : "Default";
 
   // One modal at a time, never stacked: two live ModalDialogs both bind a capturing document
   // keydown listener, so Escape in the child would dismiss the parent too.
   if (openCategory === "updates") return <UpdatesPanel onDismiss={() => setOpenCategory(null)} />;
+  if (openCategory === "canvas-style") return <CanvasStylePanel onDismiss={() => setOpenCategory(null)} />;
   if (openCategory === "llm") return <LlmSettingsPanel onDismiss={() => setOpenCategory(null)} />;
 
   return (
@@ -75,6 +80,28 @@ export function SettingsDialog({ onDismiss }: { onDismiss: () => void }) {
                   {summary}
                 </span>
               )}
+            </span>
+            <span className="settings-home-row-chevron" aria-hidden="true">
+              ›
+            </span>
+          </button>
+        </li>
+        <li>
+          <button
+            type="button"
+            className="settings-home-row"
+            data-testid="settings-open-canvas-style"
+            onClick={() => setOpenCategory("canvas-style")}
+          >
+            <span className="settings-home-row-icon">
+              <RailIcon name="canvas-style" />
+            </span>
+            <span className="settings-home-row-text">
+              <span className="settings-home-row-title">Canvas style</span>
+              <span className="settings-home-row-desc">Background color and texture for every diagram</span>
+              <span className="settings-home-row-summary" data-testid="settings-canvas-style-summary">
+                {styleSummary}
+              </span>
             </span>
             <span className="settings-home-row-chevron" aria-hidden="true">
               ›

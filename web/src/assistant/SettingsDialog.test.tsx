@@ -109,3 +109,14 @@ describe("SettingsDialog", () => {
     expect(onDismiss).toHaveBeenCalled();
   });
 });
+
+describe("SettingsDialog canvas style", () => {
+  it("opens the canvas style panel from its row", async () => {
+    renderDialog();
+    await waitFor(() => expect(screen.getByTestId("settings-llm-summary")).toBeTruthy());
+
+    fireEvent.click(screen.getByTestId("settings-open-canvas-style"));
+
+    expect(screen.getByTestId("canvas-style-dialog")).toBeTruthy();
+  });
+});

@@ -1328,7 +1328,7 @@ const MOCK_DIAGRAMS: { [K in "c1" | "patterns" | "impact" | "epics"]: DiagramPay
 };
 
 // --- 016-single-canvas-dashboard, Stage 4: a JS port of canvas/recipes.py's to_ops + build_batch_ops,
-// simplified for the mock -- enough to demo Draw…/AgentRail's Diagrams tab against fixture data in
+// simplified for the mock -- enough to demo Draw…/the left panel's Diagrams tab against fixture data in
 // `npm run dev`.
 
 interface MockRecipeNode {

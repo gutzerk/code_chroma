@@ -474,7 +474,7 @@ the Python section above), not a background skill job, so there is nothing for t
 poll/cancel/stream.
 
 Three later additions, all covered in [`diagram-skills.md`](diagram-skills.md), still live in
-`DrawDiagramButton.tsx` (it still needs readiness to word its task prompt and to drive auto-add):
+`DrawDiagramButton.tsx` and (since the watcher extraction) `useDiagramReadinessWatcher.ts`, which now owns the status fetch, subscriptions and auto-add (a failed recipe run keeps the kind's old baseline so the next ping retries, and its message goes to `diagramWatcherErrorStore`, shown beside the Draw button):
 
 - **It subscribes.** A diagram that finished while the app was in the background used to stay "not
   ready" until reopened. One `refetchStatus` is shared by the mount effect and a `subscribeDiagram`
@@ -558,7 +558,7 @@ calling each kind's own `skill_agents[kind].has_artifact(...)` (the same validat
 `only_if_missing` uses, so a corrupted or half-written artifact reads as not-ready, not ready), then
 adds one `custom/<id>` entry per `library.list_types()` via `bool(ws.load_diagram(...))`.
 `fingerprint` is `_content_fingerprint`'s `hash_lines` hash of the diagram's raw JSON (`None` when
-there's no diagram) — `DrawDiagramButton`'s `refetchStatus` diffs it against the previous fetch to
+there's no diagram) — `useDiagramReadinessWatcher`'s `refetchStatus` diffs it against the previous fetch to
 catch an in-place edit of a diagram already placed on the canvas and re-runs that kind's recipe, no
 pending-request gate needed (see `diagram-skills.md`'s "Delivery" section). `epics` has no readiness
 concept at all (file-derived, never AI-generated); `BuiltinRecipe.generated` marks that, and it always

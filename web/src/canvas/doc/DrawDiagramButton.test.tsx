@@ -11,6 +11,12 @@ import { EMPTY_CANVAS_DOC, type CanvasDoc, type DiagramsStatus } from "../../sta
 import { canvasDocStore } from "./canvasDocStore";
 import { writeCachedDiagramsStatus } from "./diagramStatusCache";
 import { DrawDiagramButton } from "./DrawDiagramButton";
+import { useDiagramReadinessWatcher } from "./useDiagramReadinessWatcher";
+
+function ButtonWithWatcher() {
+  useDiagramReadinessWatcher();
+  return <DrawDiagramButton />;
+}
 
 function docWithC1(): CanvasDoc {
   return {
@@ -37,7 +43,7 @@ function renderButton(client: Partial<EngineClient>, agentClient: Partial<AgentC
   return render(
     <EngineClientProvider repoId="main" client={{ ...IMPACT_CHANGES_STUB, ...client } as EngineClient}>
       <AgentClientProvider client={{ ...PR_CLIENT_STUB, ...agentClient } as unknown as AgentClient}>
-        <DrawDiagramButton />
+        <ButtonWithWatcher />
       </AgentClientProvider>
     </EngineClientProvider>,
   );

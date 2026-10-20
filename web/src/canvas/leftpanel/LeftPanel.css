@@ -1,0 +1,168 @@
+.left-panel {
+  position: absolute;
+  left: var(--chrome-inset, 12px);
+  top: 12px;
+  bottom: 68px;
+  width: var(--left-panel-width, 262px);
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 12px;
+  border-radius: 22px;
+  background: #15181f;
+  color: #c4c8d4;
+}
+
+.left-panel-tabs {
+  display: flex;
+  padding: 3px;
+  border-radius: 999px;
+  background: #0f1117;
+}
+
+.left-panel-tab {
+  flex: 1;
+  height: 28px;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: #8b91a1;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.left-panel-tab[aria-selected="true"] {
+  background: #262b38;
+  color: #e9ebf2;
+}
+
+.left-panel-body {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 10px;
+  min-height: 0;
+  overflow-y: auto;
+}
+
+.left-panel-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 4px 4px 0;
+}
+
+.left-panel-label {
+  color: #8b91a1;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+}
+
+.left-panel-empty {
+  margin: 0;
+  padding: 0 4px;
+  color: #8b91a1;
+  font-size: 12px;
+}
+
+.left-panel-list {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.left-panel-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px;
+  border-radius: 12px;
+}
+
+.left-panel-row[data-selected="true"] {
+  background: #1d2130;
+}
+
+.left-panel-row input[type="checkbox"] {
+  width: 15px;
+  height: 15px;
+  margin: 0;
+  accent-color: #b794ff;
+}
+
+.left-panel-swatch {
+  flex: 0 0 10px;
+  height: 10px;
+  border-radius: 3px;
+}
+
+.left-panel-row-text {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.left-panel-row-name {
+  overflow: hidden;
+  color: #e9ebf2;
+  font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.left-panel-row[data-hidden="true"] .left-panel-row-name {
+  color: #8b91a1;
+}
+
+.left-panel-row-meta {
+  color: #8b91a1;
+  font-size: 11px;
+}
+
+.left-panel-icon-btn {
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: #c4c8d4;
+  cursor: pointer;
+}
+
+.left-panel-row[data-hidden="true"] .left-panel-eye {
+  color: #5b6170;
+}
+
+.left-panel-files {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+}
+
+.left-panel-edge {
+  position: absolute;
+  top: 50%;
+  left: 261px;
+  width: 26px;
+  height: 56px;
+  transform: translateY(-50%);
+  display: grid;
+  place-items: center;
+  padding: 0;
+  border: 0;
+  border-radius: 0 12px 12px 0;
+  background: #262b38;
+  color: #e9ebf2;
+  cursor: pointer;
+}

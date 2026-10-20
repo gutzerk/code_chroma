@@ -19,7 +19,7 @@ const MAX_TABS = 8;
  * collapse behind the trailing "▾" button, which opens a dropdown listing every open file — picking
  * one activates it. The active file's source renders through the shared `CodeView`.
  */
-export function CodeSidebar({ hidden }: { hidden: boolean }) {
+export function CodeSidebar({ hidden = false }: { hidden?: boolean } = {}) {
   const files = useOpenFiles();
   const activeId = useActiveFileId();
   const [menuOpen, setMenuOpen] = useState(false);

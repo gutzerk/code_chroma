@@ -1,7 +1,8 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import { ROOT_NODE_ID, type HierarchyNodeRef, type LayoutKind } from "../state/types";
 import { reportAsyncError } from "../util/reportError";
 import { UndoManager } from "./UndoManager";
+import { LeftPanelToggle } from "./LeftPanelToggle";
 import { useEngineClient } from "../engine-client/EngineClientContext";
 import { ConnectionsOverlay } from "./ConnectionsOverlay";
 import { ChangeConnectionsOverlay } from "./ChangeConnectionsOverlay";
@@ -19,36 +20,36 @@ import { SidecarSummaryCard } from "./doc/SidecarSummaryCard";
 import { WikiGeneralNotice } from "./WikiGeneralNotice";
 import { EpicBriefPanel } from "./doc/EpicBriefPanel";
 import { DescriptionPopup } from "./doc/DescriptionPopup";
-import { DrawDiagramButton } from "./doc/DrawDiagramButton";
+import { useDiagramReadinessWatcher } from "./doc/useDiagramReadinessWatcher";
 import { GamesMenu } from "../games/GamesMenu";
 import { useHasCanvasLayer } from "./doc/canvasDocStore";
 import { CodePopupContext } from "./CodePopupContext";
 import { CodePopup } from "./CodePopup";
 import { InspectorPanel } from "./InspectorPanel";
 import { inspectorStore, useIsInspectorOpen } from "./inspectorStore";
-import { ProjectTreePanel } from "./ProjectTreePanel";
+import { LeftPanel } from "./leftpanel/LeftPanel";
+import { CollapsedLeftBar } from "./leftpanel/CollapsedLeftBar";
+import { ArrangeSection } from "./leftpanel/ArrangeSection";
+import { DrawDiagramPopover } from "./leftpanel/DrawDiagramPopover";
+import { chromeInsets, LAYOUT_CSS_VARS } from "./layout/layoutMetrics";
+import { useLayoutState } from "./layout/layoutStore";
 import { CodeSidebar } from "./CodeSidebar";
 import { TutorialAgentMock } from "../tutorial/TutorialAgentMock";
 import { TutorialChat } from "../tutorial/TutorialChat";
 import { tutorialSimStore } from "../tutorial/tutorialSim";
 import { tutorialStore } from "../tutorial/tutorialStore";
 import { useStartTutorial } from "../tutorial/useStartTutorial";
-import {
-  projectTreePanelStore,
-  useIsProjectTreePanelOpen,
-} from "./projectTreePanelStore";
 import { useLatchedMount } from "./panelStore";
 import { RailIcon } from "../icons/RailIcon";
 import runAgentIcon from "../icons/run-agent.svg";
 import { RailButton } from "./RailButton";
-import { SplitterHandle } from "./SplitterHandle";
-import { AgentLedStrip } from "../agents/AgentLedStrip";
+import { AgentsCollapsedBar } from "../agents/AgentsCollapsedBar";
+import { AgentFullScreen } from "../agents/AgentFullScreen";
 import { AgentRail } from "../agents/AgentRail";
 import { AgentTerminalDock } from "../agents/AgentTerminalDock";
 import { AgentWindowLayer } from "../agents/AgentWindowLayer";
 import {
   useActiveWorkspace,
-  useAgents,
   useIsAtAgentCapacity,
   useIsLaunchingAgent,
   useMaxAgents,
@@ -102,8 +103,10 @@ export function RootCanvas() {
   const engineClient = useEngineClient();
   const [rootNode, setRootNode] = useState<HierarchyNodeRef | null>(null);
   const [codePopupNode, setCodePopupNode] = useState<HierarchyNodeRef | null>(null);
-  const [isAgentPanelOpen, setIsAgentPanelOpen] = useState(true);
-  const allAgents = useAgents();
+  const { agentsMode, leftOpen } = useLayoutState();
+  const { terminalLeft } = chromeInsets({ leftOpen, agentsMode });
+  const [drawOpen, setDrawOpen] = useState(false);
+  const stageRef = useRef<HTMLDivElement | null>(null);
   const breadcrumbPath = useDeepestExpandedPath();
   const expandedNodeIds = useExpandedNodeIdsByOrder();
   const codeVisibleNodeIds = useCodeVisibleNodeIdsByOrder();
@@ -124,17 +127,27 @@ export function RootCanvas() {
   const isLaunchingAgent = useIsLaunchingAgent();
   const maxAgents = useMaxAgents();
   const isInspectorOpen = useIsInspectorOpen();
-  const isProjectTreePanelOpen = useIsProjectTreePanelOpen();
   // Latched: each panel stays mounted (hidden via CSS) after its first open, so PTY scrollback
   // and a dragged panel width survive close/reopen.
   const terminalMounted = useLatchedMount(isTerminalPanelOpen);
   const inspectorMounted = useLatchedMount(isInspectorOpen);
-  const projectTreeMounted = useLatchedMount(isProjectTreePanelOpen);
   useStartTutorial(rootNode?.name ?? null);
+  useDiagramReadinessWatcher();
+  // The agents panel leaving "normal" (the rail's own collapse/expand-full handles write the store
+  // directly) must still drop the code popup and inspector that sat beside it.
+  useEffect(() => {
+    if (agentsMode === "normal") return;
+    setCodePopupNode(null);
+    inspectorStore.close();
+  }, [agentsMode]);
+  const getStageViewport = useCallback(() => {
+    const el = stageRef.current;
+    return el ? { width: el.clientWidth, height: el.clientHeight } : undefined;
+  }, []);
   const isDiffActive = useIsDiffActive();
   const isReadOnly = useIsWorkspaceReadOnly();
   // The "impact" recipe's layer is the one-canvas model's replacement for the old "view is open"
-  // flag (AgentRail's Diagrams tab is the one place a diagram gets added/removed now -- see
+  // flag (the left panel's Diagrams tab is the one place a diagram gets added/removed now -- see
   // diagramCatalog.ts). This only
   // gates the *floating summary panel* below, not useImpactChangesSidecar's `enabled` --
   // impactChangesSidecarStore (which the hook populates) drives diff badges on every hierarchy/Impact
@@ -275,7 +288,9 @@ export function RootCanvas() {
     return () => tutorialSimStore.setFitAll(null);
   }, [fitAll]);
   useEffect(() => {
-    tutorialSimStore.setFitSelector((selector) => viewportRef.current?.fitToSelector(selector) ?? false);
+    tutorialSimStore.setFitSelector(
+      (selector) => viewportRef.current?.fitToSelector(selector) ?? false,
+    );
     return () => tutorialSimStore.setFitSelector(null);
   }, []);
 
@@ -441,6 +456,12 @@ export function RootCanvas() {
           sits at the window's true left edge and Run agent at its true right edge, instead of being
           scoped to the canvas area beside the rail. */}
       <div className="canvas-chrome" data-testid="app-chrome">
+        <LeftPanelToggle />
+        {rootNode?.name && (
+          <span className="canvas-chrome-repo-name" data-testid="repo-name">
+            {rootNode.name}
+          </span>
+        )}
         {activePr && (
           <span className="canvas-chrome-workspace-label" data-testid="active-pr-label">
             {`PR #${activePr.number} · ${activePr.head_ref}`}
@@ -501,37 +522,24 @@ export function RootCanvas() {
           >
             <RailIcon name="terminal" />
           </RailButton>
-          <RailButton
-            className="project-tree-toggle-button"
-            label={isProjectTreePanelOpen ? "Close project tree panel" : "Open project tree panel"}
-            pressed={isProjectTreePanelOpen}
-            onClick={projectTreePanelStore.toggle}
-          >
-            <RailIcon name="hierarchy" />
-          </RailButton>
           {/* Diff / AI-plan / Replay rail buttons hidden for now; underlying logic kept above. */}
-          <DrawDiagramButton />
         </nav>
         <TutorialChat />
         <TutorialAgentMock />
-        <div className="canvas-area" data-testid="canvas-area">
+        <div className="canvas-area" data-testid="canvas-area" style={LAYOUT_CSS_VARS as CSSProperties}>
           {/* Row for the canvas plus the agent task panel beside it — a full-height sibling of the
               canvas, not a toolbar item, so cards have room to be more than an icon and a tooltip.
               The project tree stays the leftmost item (the very edge, right after .app-rail), with
               the code sidebar beside it and the docked agent windows to their right. */}
-          <div className="canvas-main-row">
-            {projectTreeMounted && rootNode && (
-              <ProjectTreePanel
-                rootNode={rootNode}
-                hidden={!isProjectTreePanelOpen}
-                onActivate={navigateTreeTo}
-              />
-            )}
-            <CodeSidebar hidden={!isProjectTreePanelOpen} />
+          <div
+            className="canvas-main-row"
+            style={{ "--agent-dock-left": `${terminalLeft}px` } as CSSProperties}
+          >
+            <CodeSidebar hidden={!leftOpen} />
             <AgentTerminalDock />
             {/* Own positioning context so the absolutely-positioned overlays below keep anchoring to
                 the visible canvas, not to the canvas plus the breadcrumb strip above it. */}
-            <div className="canvas-stage">
+            <div className="canvas-stage" ref={stageRef}>
               <CanvasViewport ref={viewportRef}>
                 <CanvasFocusContext.Provider
                   value={(nodeId) => viewportRef.current?.focusOnNode(nodeId)}
@@ -571,37 +579,25 @@ export function RootCanvas() {
               {isDiffActive && <DeletedDiffOverlay />}
               {isTraceActive && <TraceControls />}
             </div>
-            {/* Always rendered (unlike AgentRail itself, which fully hides): this is the only
-                remaining way to re-expand the panel once collapsed, since collapsing now hides
-                AgentRail entirely rather than shrinking it to a visible strip. */}
-            <SplitterHandle
-              className="agent-task-rail-resize-handle"
-              dataTestid="agent-panel-toggle-handle"
-              collapsed={!isAgentPanelOpen}
-              onToggle={() => {
-                if (isAgentPanelOpen) {
-                  setCodePopupNode(null);
-                  inspectorStore.close();
-                }
-                setIsAgentPanelOpen(!isAgentPanelOpen);
-              }}
-              ariaLabel={`${isAgentPanelOpen ? "Collapse" : "Expand"} agents and diagrams panel`}
-              arrow={isAgentPanelOpen ? "›" : "‹"}
-            />
-            {!isAgentPanelOpen && (
-              <AgentLedStrip
-                framed
-                agents={allAgents}
-                testId="agent-rail-led"
-                onSelect={() => setIsAgentPanelOpen(true)}
-                onBackgroundClick={() => setIsAgentPanelOpen(true)}
-              />
-            )}
-            <AgentRail hidden={!isAgentPanelOpen} />
+            {agentsMode === "normal" && <AgentRail />}
           </div>
           {/* Docked under the canvas, inside .canvas-area, so the inspector to the right of it stays
               full viewport height and the terminal spans only the canvas's own width. */}
           {terminalMounted && <TerminalPanel hidden={!isTerminalPanelOpen} />}
+          {/* Floating chrome over the canvas area; z-order comes from layoutMetrics Z_*. */}
+          {leftOpen ? (
+            <LeftPanel
+              rootNode={rootNode}
+              onActivate={navigateTreeTo}
+              onDraw={() => setDrawOpen(true)}
+              arrange={<ArrangeSection getViewport={getStageViewport} />}
+            />
+          ) : (
+            <CollapsedLeftBar />
+          )}
+          {drawOpen && <DrawDiagramPopover onClose={() => setDrawOpen(false)} />}
+          {agentsMode === "collapsed" && <AgentsCollapsedBar />}
+          {agentsMode === "full" && <AgentFullScreen />}
         </div>
         {inspectorMounted && <InspectorPanel hidden={!isInspectorOpen} />}
         <EpicBriefPanel />

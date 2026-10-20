@@ -21,7 +21,7 @@ import {
 } from "./workflowStore";
 
 /** The run screen: header, attempt switcher, banner, step rail (or its one-line collapse), redo card, output pane and run chat. */
-export function WorkflowRunScreen() {
+export function WorkflowRunScreen({ onAddWorkflow }: { onAddWorkflow?: () => void } = {}) {
   const client = useEngineClient();
   const workflows = useWorkflows();
   const runs = useRuns();
@@ -73,7 +73,8 @@ export function WorkflowRunScreen() {
       {!run || !viewRun || !workflow || !toggle ? (
         <div className="workflow-start" data-testid="workflow-start">
           <h2 className="workflow-title">Workflows</h2>
-          {workflows.length === 0 && <p>No workflows defined in .codechroma/workflows.</p>}
+          {workflows.length === 0 && <p>No workflows yet. Add a workflow to get started.</p>}
+          {onAddWorkflow && <button type="button" className="workflow-start-button" onClick={onAddWorkflow}>＋ Add new workflow</button>}
           {workflows.map((w) => (
             <button
               key={w.id}
@@ -154,6 +155,10 @@ export function WorkflowRunScreen() {
               {banner}
             </p>
           )}
+          <div className="workflow-progress" role="progressbar" aria-label="Workflow progress" aria-valuemin={0} aria-valuemax={viewRun.steps.length} aria-valuenow={viewRun.steps.filter((s) => s.status === "done").length}>
+            {viewRun.steps.map((step) => <span key={step.stepId} data-status={step.status} title={`${stepLabel(step.stepId)}: ${STATUS_META[step.status].text}`} />)}
+          </div>
+          {!collapsed && <button type="button" className="workflow-collapse-steps" onClick={() => workflowStore.setRailCollapsed(true)}>Hide steps ⌃</button>}
           <div className="workflow-body">
             {collapsed ? (
               <button

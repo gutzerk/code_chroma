@@ -187,6 +187,10 @@ export abstract class DelegatingEngineClient implements EngineClient {
   listWorkflows(): Promise<WorkflowDef[]> {
     return this.inner.listWorkflows();
   }
+  createWorkflow(workflow: WorkflowDef): Promise<WorkflowDef> {
+    return this.inner.createWorkflow(workflow);
+  }
+
   listRuns(): Promise<Run[]> {
     return this.inner.listRuns();
   }

@@ -107,6 +107,7 @@ const noRuns = async (): Promise<never> => {
 /** Inert defaults for the workflow-run slice: no workflows, no runs, commands reject. */
 export const WORKFLOW_STUB = {
   listWorkflows: async (): Promise<WorkflowDef[]> => [],
+  createWorkflow: async (workflow: WorkflowDef) => workflow,
   listRuns: async (): Promise<Run[]> => [],
   getRun: noRuns,
   startRun: noRuns,

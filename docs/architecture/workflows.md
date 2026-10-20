@@ -1,5 +1,12 @@
 # Workflows (steerable runs)
 
+Open the Workflows tab in the attached right panel. Run workflow opens a picker that always offers
+Add new workflow. The editor accepts a name and ordered agent/review steps with instructions.
+`POST /repos/{repoId}/workflows` validates and persists the definition in `.codechroma/workflows`;
+duplicate ids return 409 and read-only workspaces cannot create definitions. Saved workflows are
+immediately available to run. The segmented progress bar stays visible when the steps collapse.
+
+
 C# bridge only (the Python bridge has no mirror). Plan: Phase 0 foundation + Stage 1 runner of the "steer a running workflow" plan.
 
 ## Files

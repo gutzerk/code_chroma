@@ -2,7 +2,6 @@ import { useCallback, useEffect, useState } from "react";
 import { ResizableRail } from "../canvas/ResizableRail";
 import type { AgentRecord } from "../state/types";
 import { AgentTerminal } from "./AgentTerminal";
-import { useFullScreenAgentId } from "./useFullScreenAgentId";
 import { useAgentClient } from "./AgentClientContext";
 import { agentStore, useAgents, useAgentStartError } from "./agentStore";
 import {
@@ -15,7 +14,7 @@ import {
 import runAgentIcon from "../icons/run-agent.svg";
 import { AgentLed } from "./AgentLed";
 import { AgentLedStrip } from "./AgentLedStrip";
-import { closeAgentWindow, openAgentWindow } from "./windowActions";
+import { closeAgentWindow } from "./windowActions";
 import { CreatePrButton } from "./CreatePrButton";
 
 const DEFAULT_WIDTH = 440;
@@ -110,7 +109,7 @@ export function AgentTerminalDock() {
   );
 }
 
-function DockedAgentPanel({
+export function DockedAgentPanel({
   agent,
   active,
   focusRequest,
@@ -121,8 +120,6 @@ function DockedAgentPanel({
 }) {
   const agentClient = useAgentClient();
   const startError = useAgentStartError(agent.id);
-  // The full-screen view renders this agent's terminal; mounting a second would fight over the PTY.
-  const fullScreenAgentId = useFullScreenAgentId();
   const [recovering, setRecovering] = useState(false);
   const [recoverError, setRecoverError] = useState<string | null>(null);
   const running = agent.status !== "stopped" && agent.status !== "exited";
@@ -161,18 +158,6 @@ function DockedAgentPanel({
         {!agent.worktree_lost && !agent.source_pr && <CreatePrButton agent={agent} />}
         <button
           type="button"
-          className="agent-window-button agent-terminal-dock-action"
-          aria-label={`Detach ${agent.title} to a window`}
-          data-testid={`agent-detach-${agent.id}`}
-          onClick={() => {
-            agentDockStore.detach(agent.id);
-            openAgentWindow(agentClient, agent.id);
-          }}
-        >
-          ↗
-        </button>
-        <button
-          type="button"
           className="agent-window-button"
           aria-label={`Close ${agent.title}`}
           data-testid={`agent-dock-close-${agent.id}`}
@@ -195,7 +180,7 @@ function DockedAgentPanel({
             Recreate
           </button>
         </div>
-      ) : fullScreenAgentId === agent.id ? null : (
+      ) : (
         <AgentTerminal
           workspace={agent.id}
           running={running}

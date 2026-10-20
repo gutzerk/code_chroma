@@ -155,13 +155,16 @@ function message(err: unknown): string {
 
 /** Loads workflows and runs, then re-fetches off every `run` ping; returns the unsubscribe fn. */
 export function bindWorkflows(client: EngineClient): () => void {
+  let disposed = false;
+  workflowStore.reset();
   const refreshAll = (): void => {
     void Promise.all([client.listWorkflows(), client.listRuns()])
       .then(([workflows, runs]) => {
+        if (disposed) return;
         workflowStore.setWorkflows(workflows);
         workflowStore.setRuns(runs);
       })
-      .catch((err) => workflowStore.setError(message(err)));
+      .catch((err) => { if (!disposed) workflowStore.setError(message(err)); });
   };
   refreshAll();
   const inFlight = new Set<string>();
@@ -174,17 +177,18 @@ export function bindWorkflows(client: EngineClient): () => void {
     inFlight.add(runId);
     void client
       .getRun(runId)
-      .then((run) => workflowStore.upsertRun(run))
-      .catch((err) => workflowStore.setError(message(err)))
+      .then((run) => { if (!disposed) workflowStore.upsertRun(run); })
+      .catch((err) => { if (!disposed) workflowStore.setError(message(err)); })
       .finally(() => {
         inFlight.delete(runId);
-        if (dirty.delete(runId)) refreshRun(runId);
+        if (!disposed && dirty.delete(runId)) refreshRun(runId);
       });
   };
-  return client.subscribeRuns((event) => {
+  const unsubscribe = client.subscribeRuns((event) => {
     if (!event) return refreshAll();
     refreshRun(event.runId);
   });
+  return () => { disposed = true; unsubscribe(); };
 }
 
 /** Runs one steer command and folds the returned Run into the store; failures surface as an error line. */

@@ -38,6 +38,23 @@ public static class WorkflowRoutes
         app.MapGet("/repos/{repoId}/workflows", (string repoId, WorkspaceRegistry registry, WorkflowRunners runners) =>
             JsonResult(runners.For(registry.Get(repoId)).Store.ListWorkflows()));
 
+        app.MapPost("/repos/{repoId}/workflows", async (string repoId, HttpRequest request, WorkspaceRegistry registry, WorkflowRunners runners) =>
+        {
+            var ws = registry.Get(repoId);
+            if (ws.ReadOnly) return Reply.Error(409, "a pull-request workspace is read-only");
+            WorkflowDef? def;
+            try { def = await JsonSerializer.DeserializeAsync<WorkflowDef>(request.Body, WorkflowJson.Options); }
+            catch (JsonException) { return Reply.Error(400, "Invalid workflow JSON"); }
+            if (def is null || string.IsNullOrWhiteSpace(def.Id) || !RunStore.IsSafeId(def.Id) || string.IsNullOrWhiteSpace(def.Name) || def.Steps is null || def.Steps.Count == 0 ||
+                def.Steps.Any(s => s is null || string.IsNullOrWhiteSpace(s.Id) || !RunStore.IsSafeId(s.Id) || string.IsNullOrWhiteSpace(s.Slug) ||
+                    (s.Kind != "agent" && s.Kind != "review") || string.IsNullOrWhiteSpace(s.Prompt)) ||
+                def.Steps.Select(s => s.Id).Distinct().Count() != def.Steps.Count)
+                return Reply.Error(400, "A workflow needs an id, name and uniquely identified agent or review steps with prompts");
+            var store = runners.For(registry.Get(repoId)).Store;
+            if (!store.TryCreateWorkflow(def)) return Reply.Error(409, "Workflow already exists");
+            return JsonResult(def);
+        });
+
         app.MapGet("/repos/{repoId}/runs", (string repoId, WorkspaceRegistry registry, WorkflowRunners runners) =>
             JsonResult(runners.For(registry.Get(repoId)).List()));
 

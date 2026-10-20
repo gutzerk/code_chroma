@@ -42,18 +42,13 @@ import { tutorialStore } from "../tutorial/tutorialStore";
 import { useStartTutorial } from "../tutorial/useStartTutorial";
 import { useLatchedMount } from "./panelStore";
 import { RailIcon } from "../icons/RailIcon";
-import runAgentIcon from "../icons/run-agent.svg";
 import { RailButton } from "./RailButton";
-import { AgentsCollapsedBar } from "../agents/AgentsCollapsedBar";
-import { AgentFullScreen } from "../agents/AgentFullScreen";
-import { AgentRail } from "../agents/AgentRail";
-import { AgentTerminalDock } from "../agents/AgentTerminalDock";
+import { ActivityPanel } from "../agents/ActivityPanel";
 import { AgentWindowLayer } from "../agents/AgentWindowLayer";
 import {
   useActiveWorkspace,
   useIsAtAgentCapacity,
   useIsLaunchingAgent,
-  useMaxAgents,
 } from "../agents/agentStore";
 import { useAgentClient } from "../agents/AgentClientContext";
 import { attachAgent } from "../agents/attachAgent";
@@ -65,7 +60,6 @@ import { PrRailButton } from "../pr/PrRailButton";
 import { usePrWorkspaces } from "../pr/prStore";
 import { SettingsRailButton } from "../assistant/SettingsRailButton";
 import { ReportIssueRailButton } from "../assistant/ReportIssueRailButton";
-import { WorkflowsRailButton } from "../workflows/WorkflowsRailButton";
 import { traceStore, useTraceState } from "../state/traceStore";
 import { revealNode } from "../state/revealNode";
 import { autoExpandInitial } from "../state/autoExpandInitial";
@@ -127,7 +121,6 @@ export function RootCanvas() {
   const viewContext = useCurrentViewContext();
   const isAtAgentCapacity = useIsAtAgentCapacity();
   const isLaunchingAgent = useIsLaunchingAgent();
-  const maxAgents = useMaxAgents();
   const isInspectorOpen = useIsInspectorOpen();
   // Latched: each panel stays mounted (hidden via CSS) after its first open, so PTY scrollback
   // and a dragged panel width survive close/reopen.
@@ -472,30 +465,12 @@ export function RootCanvas() {
         )}
         <BranchSwitcher />
         <div className="canvas-chrome-spacer" />
-        <WorkflowsRailButton />
         <ReportIssueRailButton />
         <GamesMenu />
         <div className="canvas-chrome-separator" />
         <PrRailButton />
         <SettingsRailButton />
-        <RailButton
-          className="agents-toggle-button"
-          label="Run agent"
-          disabled={isAtAgentCapacity || isLaunchingAgent}
-          tooltip={
-            isAtAgentCapacity
-              ? `${maxAgents} agents is the limit — close one to start another`
-              : "Attaches to the workspace you're currently viewing"
-          }
-          onClick={() => {
-            // The lesson's second agent is a simulation; it never reaches the bridge.
-            if (tutorialStore.isActive()) tutorialSimStore.startAgent2();
-            else void attachAgent(agentClient, viewContext);
-          }}
-        >
-          <img className="agents-toggle-icon" src={runAgentIcon} alt="" aria-hidden="true" />
-          <span className="agents-toggle-label">Run agent</span>
-        </RailButton>
+
       </div>
       <div className="app-body" data-testid="app-body">
         <nav className="app-rail" data-testid="app-rail" aria-label="View controls">
@@ -540,7 +515,6 @@ export function RootCanvas() {
             style={{ "--agent-dock-left": `${terminalLeft}px` } as CSSProperties}
           >
             <CodeSidebar hidden={!leftOpen || leftTab !== "files"} />
-            <AgentTerminalDock />
             {/* Own positioning context so the absolutely-positioned overlays below keep anchoring to
                 the visible canvas, not to the canvas plus the breadcrumb strip above it. */}
             <div className="canvas-stage" ref={stageRef}>
@@ -583,7 +557,10 @@ export function RootCanvas() {
               {isDiffActive && <DeletedDiffOverlay />}
               {isTraceActive && <TraceControls />}
             </div>
-            {agentsMode === "normal" && <AgentRail />}
+            <ActivityPanel disabled={isAtAgentCapacity || isLaunchingAgent} onRunAgent={() => {
+              if (tutorialStore.isActive()) tutorialSimStore.startAgent2();
+              else void attachAgent(agentClient, viewContext);
+            }} />
           </div>
           {/* Docked under the canvas, inside .canvas-area, so the inspector to the right of it stays
               full viewport height and the terminal spans only the canvas's own width. */}
@@ -600,8 +577,6 @@ export function RootCanvas() {
             <CollapsedLeftBar />
           )}
           {drawOpen && <DrawDiagramPopover onClose={() => setDrawOpen(false)} />}
-          {agentsMode === "collapsed" && <AgentsCollapsedBar />}
-          {agentsMode === "full" && <AgentFullScreen />}
         </div>
         {inspectorMounted && <InspectorPanel hidden={!isInspectorOpen} />}
         <EpicBriefPanel />

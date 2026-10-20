@@ -4,7 +4,7 @@ import { gotoApp } from "./helpers";
 // Drives the in-memory MockWorkflowEngine (no bridge); a step takes ~2.5s, so stop/resume land mid-step.
 test("stop the run, then resume from the stopped step", async ({ page }) => {
   await gotoApp(page);
-  await page.getByTestId("workflows-toggle-button").click();
+  await page.getByRole("tab", { name: /Workflows/ }).click();
   await page.getByRole("button", { name: "Start run: Ship a feature" }).click();
   await expect(page.getByTestId("run-state")).toHaveText("Running");
 
@@ -19,7 +19,7 @@ test("stop the run, then resume from the stopped step", async ({ page }) => {
 
 test("pause and resume from the header, reachable by keyboard", async ({ page }) => {
   await gotoApp(page);
-  await page.getByTestId("workflows-toggle-button").click();
+  await page.getByRole("tab", { name: /Workflows/ }).click();
   await page.getByRole("button", { name: "Start run: Ship a feature" }).click();
   await expect(page.getByTestId("run-state")).toHaveText("Running");
 

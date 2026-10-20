@@ -10,30 +10,20 @@ import {
 import { useAgentClient } from "./AgentClientContext";
 import { flagDiagramsReady } from "./agentDiagramsReady";
 import { agentStore, useActiveWorkspace, useAgents, useGitPreflight, usePendingClose } from "./agentStore";
-import { AgentWindow } from "./AgentWindow";
-import { agentDockStore, useDockedAgentIds } from "./agentDockStore";
+import { agentDockStore } from "./agentDockStore";
 import { branchStore } from "./branchStore";
 import { CloseAgentDialog } from "./CloseAgentDialog";
 import { GitInitDialog } from "./GitInitDialog";
 import { settleActiveWorkspace, settleRemovedWorkspace } from "./branchActions";
-import { useFullScreenAgentId } from "./useFullScreenAgentId";
 import { WorkspaceStatusBanner } from "./WorkspaceStatusBanner";
 import { confirmCloseAgentWindow, restoreAgentWindow } from "./windowActions";
 
-/**
- * Everything that lives above the canvas in *screen* coordinates: one window per agent and the
- * git-init dialog.
- *
- * ⚠ These windows are deliberately not registered with feature 002's collision store — a different
- * coordinate space entirely, and explicitly out of scope there.
- */
+/** Agent lifecycle, live updates, workspace status and launch/close dialogs. Terminals live in ActivityPanel. */
 export function AgentWindowLayer() {
   const agentClient = useAgentClient();
   const { agentsMode } = useLayoutState();
-  const fullAgentId = useFullScreenAgentId();
   const engineClient = useEngineClient();
   const agents = useAgents();
-  const dockedAgentIds = useDockedAgentIds();
   const activeWorkspace = useActiveWorkspace();
   const preflight = useGitPreflight();
   const pendingClose = usePendingClose();
@@ -128,17 +118,6 @@ export function AgentWindowLayer() {
       data-hidden={agentsMode === "full"}
     >
       <WorkspaceStatusBanner />
-      {/* Every agent is represented here; minimized windows hide without unmounting so xterm stays
-          attached, while docked agents render their terminal in AgentTerminalDock. */}
-      {agents.map((agent) => (
-        <AgentWindow
-          key={agent.id}
-          agent={agent}
-          // The full-screen view owns that agent's terminal: a second xterm on one PTY would fight
-          // over its size and duplicate output (scrollback restarts from the PTY's screen redraw).
-          docked={dockedAgentIds.includes(agent.id) || agent.id === fullAgentId}
-        />
-      ))}
       {preflight && preflight.state !== "ready" && (
         <GitInitDialog
           preflight={preflight}

@@ -1,5 +1,13 @@
 # Web canvas shell (`web/src/canvas/`)
 
+The right side is an attached `agents/ActivityPanel`, present even with no agents. Its Agents and
+Workflows tabs have separate compact launch actions. Agent terminals live in `DockedAgentPanel`,
+remain mounted across tab/collapse changes, and have no detach-to-window action. `AgentWindowLayer`
+now owns lifecycle subscriptions and dialogs only. The panel uses the diagrams panel's pill tabs,
+surface and matching edge handle. Workflow steps retain a segmented progress bar while collapsed;
+step output, diff statistics, review controls and run chat come from the workflow bridge.
+
+
 Has grown well past the "minimal canvas + navigation base" the docs in `web/README.md` and
 `web/QUICKSTART.md` still describe — those files understate the current feature set and shouldn't be
 trusted as-is (see caveat in [`web-engine-client.md`](web-engine-client.md)).

@@ -56,6 +56,12 @@ export class MockWorkflowEngine {
     return structuredClone(this.workflows);
   }
 
+  createWorkflow(workflow: WorkflowDef): WorkflowDef {
+    if (this.workflows.some((w) => w.id === workflow.id)) throw new Error("Workflow already exists");
+    this.workflows.push(structuredClone(workflow));
+    return structuredClone(workflow);
+  }
+
   listRuns(): Run[] {
     return [...this.runs.values()].map((run) => structuredClone(run));
   }

@@ -7,7 +7,7 @@ test("expanding the Project Tree does not add hierarchy boxes to the diagrams ca
   await gotoApp(page);
   const hierarchyElement = page.getByTestId("canvas-hierarchy-element");
 
-  await expect(page.getByTestId("project-tree-panel")).toBeVisible();
+  await expect(page.getByTestId("left-panel-files")).toBeVisible();
   await expect(hierarchyElement).toHaveCount(0);
 
   await clickTreeNodeName(page, "examples");

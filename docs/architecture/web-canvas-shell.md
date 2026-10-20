@@ -140,10 +140,8 @@ canvas instead of collapsing onto whichever diagram happened to carry code-backe
   is laid out IDE-style as one horizontal row: a 64px icon **rail** (`.app-rail`, zoom then the
   terminal/code-view/diff/plan/trace toggles then `DrawDiagramButton`, split by one
   `.app-rail-separator` — `RailButton.tsx` wraps each control, `RailIcon.tsx` supplies the glyphs),
-  then an optional **project-tree panel** (`ProjectTreePanel.tsx` + `projectTreePanelStore.ts`, a
-  togglable IDE-style sidebar between the rail and the canvas, latched and closed by default —
-  see `web-canvas-shell.md`'s "Project tree panel" note below for how it reuses the canvas tree),
-  then the canvas area, then the **inspector** panel (plus the standalone `EpicBriefPanel`, mounted
+  then the canvas area (the **left panel**, Diagrams/Files, is no longer a row item: it floats over
+  the canvas area, see "Layout store, left panel and agents modes" below), then the **inspector** panel (plus the standalone `EpicBriefPanel`, mounted
   unconditionally beside it, rendering nothing while closed). There is no agents toggle on this
   rail — the agent launch buttons ("Run agent"/"Add agent here") live in `.canvas-chrome`, the
   context bar atop the canvas area, alongside the branch switcher and, on a PR workspace, a
@@ -165,23 +163,21 @@ canvas instead of collapsing onto whichever diagram happened to carry code-backe
   layout is still do later window/panel resizes re-center.
 
   `.canvas-area` itself is `.canvas-chrome` (the context bar) stacked over `.canvas-main-row`, a flex
-  row ordered `ProjectTreePanel` → `CodeSidebar` → `AgentTerminalDock` → `.canvas-stage` (the pan/zoom
-  viewport, with `min-width: 0` so it shrinks beside panels) → `AgentRail` — the code-tree sidebar is
-  pinned at the row's outer edge (right after `.app-rail`) and every docked/floating-agent surface
-  lives to its right, on either side of the canvas. `AgentRail` is
+  row (`canvas-main-row`) ordered `CodeSidebar` → `AgentTerminalDock` →
+  `.canvas-stage` (the pan/zoom viewport) → `AgentRail` (only in agents mode `normal`). The left panel
+  (or its collapsed bar) is an absolutely-positioned sibling of that row inside `.canvas-area`, so
+  toggling it never moves the stage (`pan-zoom.spec` "app-chrome never moves"); `CodeSidebar` and the
+  dock clear it with `margin-left: calc(var(--agent-dock-left) - 12px)` (`RootCanvas` sets the var from
+  `chromeInsets`; a dock beside a code sidebar gets 0). `AgentRail` is
   its own full-height panel beside the stage — one card per agent (title, status/branch caption,
   bigger and two-line, not the icon-only rail items the name might suggest), dimmed for an agent whose
   branch main doesn't currently have checked out (see [`parallel-agents.md`](parallel-agents.md) for
-  the branch-scoping rules), plus a second "Diagrams" tab for collapsing/expanding a diagram layer on
-  the canvas without deleting it (also in `parallel-agents.md`). The panel always renders — even with
-  neither agents nor diagrams it stays mounted (empty tabs + zero counts) so the UI never loses the
-  strip that lets the user get an agent or diagram started. 🔵 There is no corner toggle button for
-  it anymore: a `SplitterHandle` (`canvas/SplitterHandle.tsx`) sits as its own always-rendered
-  `.agent-task-rail-resize-handle` flex item immediately to its left — hidden by default, it
-  highlights and reveals a small arrow button only on hover/focus (`.panel-splitter` /
-  `.panel-splitter-arrow` in `styles.css`), which is what hides or restores the panel (still without
-  closing agent windows or changing diagram visibility; hiding it also still closes an open code
-  popup and code inspector). The same `SplitterHandle` also replaced `AgentTerminalDock`'s old
+  the branch-scoping rules), with no tabs (the Diagrams tab moved to the left panel). 🔵 The rail carries its own two
+  store-driven handle buttons ("Collapse agents panel" -> `agentsMode: collapsed`, "Expand agents to
+  full screen" -> `full`); the old `SplitterHandle` + `AgentLedStrip` pair in `RootCanvas` is gone.
+  Leaving `normal` still closes an open code popup and code inspector: `RootCanvas` does that in an
+  effect on the `agentsMode` transition, since the handles write the store directly. `SplitterHandle`
+  still serves `AgentTerminalDock`: it replaced the dock's old
   in-toolbar toggle button: its existing resize-handle strip now doubles as the collapse/expand
   control, so there's nothing left to click inside the dock's toolbar itself. Since the left rail is
   icon-only, `RailButton` renders the other controls' names as a real
@@ -382,12 +378,20 @@ unhandled rejection and a permanently-stuck loading state.
 See [`web-collision-drag.md`](web-collision-drag.md) for the `collision/` subsystem, which lives in
 this same `src/canvas/` directory but is documented separately given its size.
 
-### Project tree panel (`src/canvas/ProjectTreePanel.tsx`)
+### Project tree panel (former `ProjectTreePanel.tsx`, deleted)
+
+⚠ `ProjectTreePanel.tsx` and the `projectTreePanelStore` adapter are gone: the tree lives in the left
+panel's **Files** tab (`leftpanel/LeftPanel.tsx`, `data-testid="left-panel-files"`, same `TreeNode`)
+and the open/closed flag is `layoutStore.leftOpen` (the old rail `project-tree-toggle-button` was removed; the top-bar `LeftPanelToggle` and the collapsed
+bar's folder button, which opens the Files tab, replace it; the tutorial calls `layoutStore.reset()`
+and then `closeLeft()` where it used to reset the panel). `CodeSidebar` is `hidden` while the left panel
+is closed, as it was with the old tree toggle. The notes below describe the original component's behavior, which `LeftPanel`'s Files tab
+now carries.
 
 The tree now lives in this sidebar rather than on the canvas: `RootCanvas` collapses the seeded
 `hierarchy` layer on load (`collapsedLayersStore.collapse("hierarchy")`), so the canvas opens
 diagrams-only, and the panel — the sole tree surface — is **open by default**
-(`projectTreePanelStore = new PanelStore(true)`). The old "Code tree" rail toggle (which flipped the
+(the left panel starts open). The old "Code tree" rail toggle (which flipped the
 hierarchy layer on/off the canvas) was removed as redundant with the panel.
 
 Layout: the panel sits inside `.canvas-main-row` beside `.canvas-stage` and **below** the
@@ -436,7 +440,7 @@ full port of those overlays to the sidebar's scroll coordinates is out of scope.
 
 A second resizable panel right beside the project tree (variant A) showing the source of every file
 opened there. Clicking a code-capable row in the tree calls `TreeNode`'s `onOpenCode` (set only by
-the ProjectTreePanel, via `openFilesStore.toggle(node)`) instead of the shared inline/popup toggle —
+the left panel's Files tab, via `openFilesStore.toggle(node)`) instead of the shared inline/popup toggle —
 which is why the panel's rows also hide the Show/Hide-code button (its `openCodeOnActivate` flag
 prefers `onOpenCode` when both are passed). Re-clicking the active row closes it (toggle).
 
@@ -451,7 +455,7 @@ prefers `onOpenCode` when both are passed). Re-clicking the active row closes it
   files; picking one activates it — the dropdown reuses the shared `useDisclosureMenu` (outside-click
   and Escape-to-close, same as BranchSwitcher/GamesMenu). The panel is resizable via the shared
   `ResizableRail` (right-edge `useResizableSize`), like the tree panel. Mounted unconditionally in
-  `.canvas-main-row` after `ProjectTreePanel`; it renders nothing while no file is open (`return
+  `.canvas-main-row` as its first item; it renders nothing while no file is open (`return
   null`), and its `[hidden]` override ties it to the tree panel's open state (collapsing the tree
   collapses the code panel too).
 
@@ -486,3 +490,54 @@ tracks stay transparent, with rounded thumbs that become more visible on hover a
 ## Avalonia port (in progress, `dotnet/`)
 
 An Avalonia (C#, net8.0, Avalonia 11.3.12) port of the canvas lives under `dotnet/`: the pure logic (routing, collision solver, native layered layout instead of elkjs, scene graph with culling, viewport, stores) and, from 016 Phase 5, native equivalents of the expand-in-place hierarchy (`HierarchyView`, fed by the C# graph core), rubber-band select, group drag, undo, the code popup with syntax highlighting, trace playback, the Diff toggle with change cards, and the agent-window layer. This React canvas stays the reference and is unchanged; the audit, ELK decision, baseline numbers, the Phase 5 feature table (which Playwright journey each headless test replaces), what is left, and the list of `web/src/canvas/` files that become removal candidates once the C# canvas passes the same journeys are in [`docs/planning/013-avalonia-canvas.md`](../planning/013-avalonia-canvas.md). Shared test cases live in `tests/fixtures/canvas_logic/*.json`; run `dotnet test dotnet/CodeChroma.Canvas.sln`.
+
+## Layout store, left panel and agents modes
+
+`canvas/layout/layoutStore.ts` is the one global store for the chrome layout: `leftOpen`, `leftTab`
+(`diagrams`|`files`), `agentsMode` (`normal`|`collapsed`|`full`) and `selectedAgentId`. `openLeft(tab)`
+also drops `full` back to `normal`; `setAgentsMode("full")` forces `leftOpen=false` (the left panel
+and the full-screen agents view never coexist, but the collapsed left bar stays visible) and remembers
+the prior `leftOpen`, which `setAgentsMode("normal"|"collapsed")` restores on leaving `full`
+(`openLeft` discards it). `reconcileAgents(ids)` (called by `AgentWindowLayer`) clears a
+`selectedAgentId` whose agent closed; the full view falls back to the first agent
+(`agents/useFullScreenAgentId.ts`), and a rail card click calls `selectAgent`.
+`layoutMetrics.ts` holds the `Z_*` z-index tokens (left panel 2, terminal 2, agents 3, handles 4,
+collapsed left bar 4, code 5, popover 6) and the pure `chromeInsets({leftOpen, agentsMode})`:
+terminal/dock left (`LEFT_PANEL_CLEARANCE` = inset 12 + panel 262 + gap 12 when open, else 12), terminal
+right (`AGENTS_NORMAL_INSET` 424 / `AGENTS_COLLAPSED_INSET` 68), arrange origin, Draw popover position;
+every number is a named constant, and `LAYOUT_CSS_VARS` (`--chrome-inset`, `--left-panel-width`) is set
+once on `.canvas-area` so `LeftPanel.css` and the dock margin use the same values. Only `RootCanvas` publishes the left value, as the row-level CSS variable
+`--agent-dock-left` (the dock and code sidebar read it; `terminalRight` is used by `ArrangeSection`).
+
+`RootCanvas` mounts, inside `.canvas-area` (z-order from `Z_*`): `leftOpen ? <LeftPanel/> :
+<CollapsedLeftBar/>`; agents `normal` -> `AgentRail` (in the row), `collapsed` -> `AgentsCollapsedBar`
+(a1/a2 row, top right), `full` -> `AgentFullScreen`. The top-bar `LeftPanelToggle` and the collapsed bar's
+expand button, folder and color boxes all go through `layoutStore`/`collapsedLayersStore`.
+
+- `LeftPanel`: Diagrams tab (rows with checkbox -> `diagramSelectionStore`, color swatch, eye ->
+  `collapsedLayersStore`, delete; `Draw...` opens `DrawDiagramPopover`, whose open state `RootCanvas`
+  owns; `ArrangeSection` reads the `.canvas-stage` size through a `getViewport` callback at apply
+  time) and Files tab (the tree). `LeftPanel` and `CollapsedLeftBar` share `leftpanel/useDiagramRows.ts`
+  (`{layer,name,hidden,toggleLabel,toggle}[]`). `DrawDiagramButton` takes only `onOpen`; diagram
+  auto-add is `canvas/doc/useDiagramReadinessWatcher.ts`, called once from `RootCanvas` so it keeps
+  running while the panel is collapsed.
+- `CollapsedLeftBar`: expand button, Files folder, one 34x34 swatch box per diagram (dashed when
+  hidden, `aria-pressed`).
+- Arrange (`leftpanel/ArrangeSection.tsx`, `arrangeLayout.ts`): side by side / stack / 2-column grid over
+  the ticked diagrams. Translate-only: positions move, element scale is not applied. Written through
+  `commitCanvasPositions` (the `apply_batch` write point); clicking the active mode again restores the
+  pre-arrange positions (`arrangeStore`). The origin comes from `chromeInsets` and the saved camera at
+  click time.
+- `AgentWindowLayer` hides floating windows (`visibility: hidden`, `data-hidden`) in `full`, and renders
+  no window (and `AgentTerminalDock` no panel terminal) for the agent `AgentFullScreen` shows, so one
+  PTY never has two xterms; that agent's terminal remounts (screen redraw, scrollback is not kept) on
+  entering or leaving `full` and on switching tabs.
+- Tests: `layoutStore.test.ts`, `layoutMetrics.test.ts`, `LeftPanel.test.tsx`, `CollapsedLeftBar.test.tsx`,
+  `AgentsCollapsedBar.test.tsx`, `AgentFullScreen.test.tsx`, `RootCanvas.test.tsx`, and
+  `web/e2e/layout-panels.spec.ts`.
+
+## Canvas style settings and open-file live refresh
+
+- `web/src/canvas-style/` (settings "Canvas style": background colour and None/Dots/Lines texture, persisted in `localStorage` `codechroma.canvasStyle`) is independent of the layout store; `CanvasViewport` paints a saved style via `--canvas-bg`/`--canvas-texture-image` and `gridStepFor` (see [`assistant-settings.md`](assistant-settings.md)). `CanvasViewport` also accepts optional `insets`, `panBy` and `fitToBounds` (unused by the current `RootCanvas`, covered by `CanvasViewportInsets.test.tsx`).
+- `canvas/useOpenFilesLiveRefresh.ts` (called by `RootCanvas`) re-reads every open file's node after each live ping via `openFilesStore.replace`, so the code sidebar follows edits on disk.
+- `canvas/doc/diagramDisplay.ts` supplies `diagramDisplayName`/`diagramAccent`; `DiagramFrame` shows the `TYPE · n BOXES` meta line and `diagramFrameColorClass` delegates to it.

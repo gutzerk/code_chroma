@@ -106,7 +106,7 @@ different tree with `codechroma_BRIDGE_REPO_PATH=/path/to/repo` (must be inside 
 The **C1** layer is a system-context view on the canvas: the project as one box, with the
 people/external systems it talks to around it and labeled relationship arrows between them.
 Diagrams (C1, Design Patterns, Epics, Sequence, trace, custom) are layers of the one canvas, shown
-over the hierarchy and toggled from the **Diagrams** tab. Against this fixture demo it shows a
+over the hierarchy and toggled from the left panel's **Diagrams** tab. Against this fixture demo it shows a
 canned diagram (a developer actor and a payment-provider external system); against a real bridge it
 reads `.codechroma/c1.json`, which the bridge can bootstrap-generate via Claude on first launch (if
 `ANTHROPIC_API_KEY` is set) or which an AI assistant writes on request via the `codechroma-c1`
@@ -133,7 +133,7 @@ nothing is persisted or reflected in the URL — reloading the page resets every
 ## 8. Where the hierarchy and the diagrams live
 
 There is no rendering-strategy switch — `VITE_CANVAS_STRATEGY`/`?strategy=` was removed. The code
-hierarchy (System → … → Code) is shown as an indented **Project tree** panel, while the main canvas
+hierarchy (System → … → Code) is shown as an indented tree in the left panel's **Files** tab, while the main canvas
 renders diagram layers (C1, Design Patterns, Epics, Sequence, trace, custom) as nested boxes.
 
 ## Next steps

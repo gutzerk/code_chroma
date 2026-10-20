@@ -817,7 +817,7 @@ highlighting doesn't:
 - **Delivery goes through the same auto-place path as every other type — the skill must NOT run the
   recipe itself.** `get_diagrams_status` lists each `feature-plan/<slug>` on disk (ready +
   fingerprint), `"feature-plan"` is a `DiagramEventKind` in `WATCHED_DIAGRAM_EVENT_KINDS`, so
-  `DrawDiagramButton.refetchStatus` auto-adds the layer via `runRecipeAndLayout` (which is what runs
+  `useDiagramReadinessWatcher`'s `refetchStatus` auto-adds the layer via `runRecipeAndLayout` (which is what runs
   the client-side ELK layout) and refreshes it on a fingerprint change. 🔴 A server-side
   `POST /recipes/feature-plan/<slug>/run` commits the boxes with no layout pass (layout lives in the
   canvas), so the old "skill POSTs the run" delivery left feature plans unlaid-out (issue #120).
@@ -847,7 +847,7 @@ Separate from authoring, and the reason a user could ask for a diagram and see n
   per-kind `subscribeDiagram` pings, so a kind flips to ready without any user action needed. ⚠
   Custom sends one coarse `{"type": "custom"}` ping (never `custom/<id>`), so that branch also
   refetches the type list; `DiagramEventKind` gained the bare `"custom"` literal.
-- `DrawDiagramButton`'s `refetchStatus` auto-adds **every** kind that becomes ready and isn't yet on
+- `useDiagramReadinessWatcher`'s `refetchStatus` auto-adds **every** kind that becomes ready and isn't yet on
   the canvas, with no pending-request gate (`canvas/doc/pendingDrawRequests.ts` was removed). The
   add is unconditional so a diagram drawn by *any* path appears — the "Draw…" button, a
   terminal/agent-window run on the same workspace, another agent. It stays safe because pings are
@@ -858,7 +858,7 @@ Separate from authoring, and the reason a user could ask for a diagram and see n
   `style` to an existing C1 block) is another — a content edit doesn't flip `ready`, so it used to sit
   invisible until the user removed and re-added the layer by hand. `get_diagrams_status` now also
   returns each kind's content `fingerprint` (`_content_fingerprint` in `bridge/routes/diagrams.py`, a
-  `hash_lines` hash of the raw diagram JSON); `DrawDiagramButton.tsx`'s `refetchStatus` re-runs the
+  `hash_lines` hash of the raw diagram JSON); `useDiagramReadinessWatcher.ts`'s `refetchStatus` re-runs the
   recipe for any kind already placed on the canvas whose fingerprint just changed — a recipe re-run
   only ever touches content fields, never position/size (`recipes.py`), so it is never a surprise,
   just the picture catching up with what is already on disk.

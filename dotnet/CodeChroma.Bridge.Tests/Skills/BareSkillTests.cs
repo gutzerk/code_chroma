@@ -33,7 +33,7 @@ public class BareSkillTests
     }
 
     [Fact]
-    public void A_prompt_that_is_not_a_slash_command_is_left_alone() => Assert.Null(BareSkill.Compose("just do it", Root, "main"));
+    public void A_prompt_that_is_not_a_slash_command_is_left_alone() => Assert.Equal("just do it", BareSkill.Compose("just do it", Root, "main"));
 
     [Fact]
     public void The_short_bodies_are_much_smaller_than_the_full_skill_prompt()

@@ -22,7 +22,7 @@ public sealed class WorkflowRunners(SkillAgents agents, IServer server)
     /// <summary>Where the run agent's CLI reaches this bridge's per-run MCP endpoint, or null before the server is listening.</summary>
     private string? McpUrl(string repoId, string runId)
     {
-        if (ProcessDiagram.LocalAddress(server) is not { } local) return null;
+        if (BridgeAddress.Local(server) is not { } local) return null;
         return $"{local}/mcp/runs/{Uri.EscapeDataString(repoId)}/{Uri.EscapeDataString(runId)}";
     }
 }

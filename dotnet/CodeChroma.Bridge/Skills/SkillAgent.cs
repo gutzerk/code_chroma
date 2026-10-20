@@ -31,7 +31,7 @@ public sealed record RunOptions(IReadOnlyList<string> ExtraArgs)
 
     public Func<CancellationToken, Task> PauseGate { get; init; } = static _ => Task.CompletedTask;
 
-    /// <summary>Run slash-command prompts without the CLI's ambient context, with the skill text inlined (see <see cref="BareSkill"/>).</summary>
+    /// <summary>Run without the CLI's ambient context, with a slash-command skill inlined (see <see cref="BareSkill"/>); workflow runs opt out.</summary>
     public bool Bare { get; init; } = true;
 
     public string BareTools { get; init; } = CliAdapters.DefaultBareTools;
@@ -337,12 +337,12 @@ public sealed class SkillAgent(SkillAgentSpec spec, CliResolver resolver, Runtim
         // An explicit --model re-triggers the CLI rejection; omit it when ANTHROPIC_MODEL carries the model.
         var argvModel = cli.EnvOverrides.ContainsKey("ANTHROPIC_MODEL") ? "" : cli.Model;
         options ??= RunOptions.Default;
-        var bareArgs = options.Bare && options.ExtraArgs.Count == 0 && BareSkill.Enabled() ? adapter.BareArgs(options.BareTools) : [];
+        using var promptFile = new PromptFile();
+        var bareArgs = options.Bare && BareSkill.Enabled() ? adapter.BareArgs(options.BareTools) : [];
         if (bareArgs.Count > 0)
         {
-            var inlined = staticPrompt.StartsWith('/') ? BareSkill.Compose(staticPrompt, repoRoot, repoId) : staticPrompt;
-            if (inlined is null) bareArgs = [];
-            else staticPrompt = FitCommandLine(inlined, repoRoot);
+            if (BareSkill.Compose(staticPrompt, repoRoot, repoId) is { } inlined) staticPrompt = FitCommandLine(inlined, repoRoot, promptFile);
+            else bareArgs = [];
         }
         var argv = adapter.BuildArgv(resolved.Executable, staticPrompt, argvModel, env, [.. bareArgs, .. options.ExtraArgs]);
         var info = new ProcessStartInfo(argv[0])
@@ -418,18 +418,30 @@ public sealed class SkillAgent(SkillAgentSpec spec, CliResolver resolver, Runtim
     }
 
     /// <summary>Windows caps a command line near 32k characters, so a long inlined prompt goes to a file the CLI is told to read first.</summary>
-    private string FitCommandLine(string prompt, string repoRoot)
+    private string FitCommandLine(string prompt, string repoRoot, PromptFile promptFile)
     {
         if (prompt.Length <= MaxArgvPromptChars) return prompt;
         var directory = Path.Combine(repoRoot, ".codechroma", "prompts");
         Directory.CreateDirectory(directory);
-        var file = Path.Combine(directory, Spec.Name + ".md");
+        var file = promptFile.FilePath = Path.Combine(directory, $"{Spec.Name}-{Guid.NewGuid():N}.md");
         File.WriteAllText(file, prompt);
         var task = prompt[(prompt.LastIndexOf("\nTask: ", StringComparison.Ordinal) + 1)..];
         return $"Your complete instructions are in {file}. Read that file in full with your Read tool before anything else, then carry out its task.\n\n{task}";
     }
 
     private const int MaxArgvPromptChars = 20_000;
+
+    /// <summary>The temporary file holding a long inlined prompt; removed when the run ends.</summary>
+    private sealed class PromptFile : IDisposable
+    {
+        public string? FilePath { get; set; }
+
+        public void Dispose()
+        {
+            if (FilePath is null) return;
+            try { File.Delete(FilePath); } catch (IOException) { }
+        }
+    }
 
     internal static async Task WaitQuietly(Process process)
     {

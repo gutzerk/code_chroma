@@ -49,15 +49,14 @@ public static class SkillSync
 
     public static string SkillRelativePath(string name) => Path.Combine(".claude", "skills", name);
 
-    /// <summary>Copies a skill into repoRoot/.claude/skills, replacing any stale copy; null when skipped.</summary>
+    /// <summary>Makes repoRoot/.claude/skills/&lt;name&gt; match the source, touching only files that differ; null when skipped.</summary>
     public static string? SyncSkill(string repoRoot, string name, string? source = null)
     {
         var resolved = source ?? SkillSource(name);
         var target = Path.Combine(repoRoot, SkillRelativePath(name));
         if (resolved is null || !Directory.Exists(resolved) || Path.GetFullPath(target) == Path.GetFullPath(resolved)) return null;
-        if (Directory.Exists(target)) ForceDelete(target);
         Directory.CreateDirectory(Path.GetDirectoryName(target)!);
-        CopyDirectory(resolved, target);
+        MirrorDirectory(resolved, target);
         return target;
     }
 
@@ -92,11 +91,22 @@ public static class SkillSync
         }
     }
 
-    private static void CopyDirectory(string from, string to)
+    /// <summary>Copies new or changed files and removes extras, so an unchanged skill is not rewritten on every bridge start.</summary>
+    private static void MirrorDirectory(string from, string to)
     {
         Directory.CreateDirectory(to);
-        foreach (var file in Directory.GetFiles(from)) File.Copy(file, Path.Combine(to, Path.GetFileName(file)), overwrite: true);
-        foreach (var directory in Directory.GetDirectories(from)) CopyDirectory(directory, Path.Combine(to, Path.GetFileName(directory)));
+        var files = Directory.GetFiles(from).Select(Path.GetFileName).ToHashSet();
+        foreach (var file in Directory.GetFiles(from))
+        {
+            var target = Path.Combine(to, Path.GetFileName(file));
+            if (File.Exists(target) && File.ReadAllBytes(file).AsSpan().SequenceEqual(File.ReadAllBytes(target))) continue;
+            if (File.Exists(target)) File.SetAttributes(target, FileAttributes.Normal);
+            File.Copy(file, target, overwrite: true);
+        }
+        foreach (var extra in Directory.GetFiles(to).Where(f => !files.Contains(Path.GetFileName(f)))) { File.SetAttributes(extra, FileAttributes.Normal); File.Delete(extra); }
+        var directories = Directory.GetDirectories(from).Select(Path.GetFileName).ToHashSet();
+        foreach (var directory in Directory.GetDirectories(from)) MirrorDirectory(directory, Path.Combine(to, Path.GetFileName(directory)));
+        foreach (var extra in Directory.GetDirectories(to).Where(d => !directories.Contains(Path.GetFileName(d)))) ForceDelete(extra);
     }
 
     private static void ForceDelete(string directory)
@@ -141,7 +151,7 @@ public static class DiagramSeed
         CopyIfMissing(Path.Combine(mainRoot, ".codechroma", "canvas-core.json"), Path.Combine(prRoot, ".codechroma", "canvas-core.json"));
     }
 
-    private static string Artifact(string root, string kind) => Path.Combine(root, ".codechroma", "diagrams", kind, kind + ".json");
+    private static string Artifact(string root, string kind) => Workspace.DiagramPath(root, kind);
 
     private static void CopyIfMissing(string source, string target)
     {

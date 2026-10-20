@@ -1,4 +1,5 @@
 using System.Security.Cryptography;
+using CodeChroma.Bridge.Stores;
 
 namespace CodeChroma.Bridge.Embeddings;
 
@@ -23,12 +24,10 @@ public static class EmbeddingModel
 /// <summary>Finds the model under ~/.codechroma/models and downloads it once, verified against the pinned SHA-256.</summary>
 public sealed class ModelStore(string directory, HttpClient http, string baseUrl = EmbeddingModel.ReleaseBase, IReadOnlyList<ModelFile>? files = null)
 {
-    public static string DefaultDirectory() =>
-        Environment.GetEnvironmentVariable("codechroma_MODELS_DIR") is { Length: > 0 } configured
-            ? Path.GetFullPath(configured)
-            : Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), ".codechroma", "models");
+    public static string DefaultDirectory() => UserPaths.Resolve("codechroma_MODELS_DIR", "models");
 
     private readonly IReadOnlyList<ModelFile> _files = files ?? EmbeddingModel.Files;
+    private readonly HashSet<string> _verified = [];
 
     public string Directory { get; } = directory;
 
@@ -40,15 +39,16 @@ public sealed class ModelStore(string directory, HttpClient http, string baseUrl
 
     public bool IsInstalled() => _files.All(f => File.Exists(Path.Combine(ModelDirectory, f.Name)));
 
-    /// <summary>Downloads whatever is missing or corrupt; a failure leaves no partial file behind.</summary>
+    /// <summary>Downloads whatever is missing or corrupt (each file is hashed once per process); a failure leaves no partial file behind.</summary>
     public async Task EnsureAsync(IProgress<(string File, long Bytes)>? progress = null, CancellationToken ct = default)
     {
         System.IO.Directory.CreateDirectory(ModelDirectory);
         foreach (var file in _files)
         {
             var target = Path.Combine(ModelDirectory, file.Name);
-            if (File.Exists(target) && await HashOf(target, ct) == file.Sha256) continue;
-            await Fetch(file, target, progress, ct);
+            if (_verified.Contains(target)) continue;
+            if (!File.Exists(target) || await HashOf(target, ct) != file.Sha256) await Fetch(file, target, progress, ct);
+            _verified.Add(target);
         }
     }
 

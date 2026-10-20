@@ -31,17 +31,17 @@ public static class ContextRenderer
     public static string Render(ContextData data, Selection selection, IReadOnlyList<string> phrases)
     {
         var text = "";
+        var words = QueryWords(phrases);
         foreach (var step in Steps)
         {
-            text = Render(data, selection, phrases, step);
+            text = Render(data, selection, phrases, words, step);
             if (text.Length <= TargetChars) break;
         }
         return text;
     }
 
-    private static string Render(ContextData data, Selection selection, IReadOnlyList<string> phrases, (Budget Top, Budget Mid, Budget Low) step)
+    private static string Render(ContextData data, Selection selection, IReadOnlyList<string> phrases, IReadOnlyList<string> words, (Budget Top, Budget Mid, Budget Low) step)
     {
-        var words = QueryWords(phrases);
         var text = new StringBuilder();
         text.Append("# Context for: ").AppendLine(string.Join(", ", phrases)).AppendLine().AppendLine(Hint).AppendLine();
         Architecture(text, data, selection);
@@ -63,13 +63,13 @@ public static class ContextRenderer
     private static void Architecture(StringBuilder text, ContextData data, Selection selection)
     {
         var selected = selection.Seeds.Concat(selection.Neighbours).ToList();
-        var shown = selected.Select(p => p.Container).Distinct().ToList();
+        var shown = selected.Select(p => p.Container).ToHashSet();
         text.AppendLine("## Architecture (containers; the components below are listed under the one they belong to)").AppendLine();
         foreach (var container in data.Containers.Where(c => shown.Contains(c.Id)))
         {
             text.Append("- **").Append(container.Name.ToLowerInvariant()).Append("** — ").AppendLine(container.Purpose);
             if (container.Description.Length > 0) text.Append("  ").AppendLine(Cut(container.Description, ContextLimits.MaxArchBody));
-            var listed = selected.Where(p => p.Container == container.Id).Select(p => p.Id).ToList();
+            var listed = selected.Where(p => p.Container == container.Id).Select(p => p.Id).ToHashSet();
             var unlisted = data.Pages.Where(p => p.Container == container.Id && !listed.Contains(p.Id)).Select(p => p.Id).ToList();
             text.Append("  listed below: ").AppendLine(string.Join(", ", listed));
             if (unlisted.Count > 0)
@@ -86,7 +86,8 @@ public static class ContextRenderer
     {
         text.Append("### ").Append(page.Id).Append(" — ").AppendLine(page.Title);
         if (withCalls && page.Description.Length > 0) text.AppendLine(Cut(page.Description, ContextLimits.MaxBody));
-        foreach (var file in OrderFiles(page.Files, words).Take(maxFiles))
+        var ordered = OrderFiles(page.Files, words).ToList();
+        foreach (var file in ordered.Take(maxFiles))
         {
             text.Append('`').Append(file.Path).AppendLine("`");
             var symbols = file.Symbols.Select((sym, index) => (sym, index)).OrderByDescending(x => Hits(words, x.sym.Name)).ThenByDescending(x => x.sym.Calls.Count).ThenBy(x => x.index).Take(maxSymbols).OrderBy(x => x.index).Select(x => x.sym).ToList();
@@ -100,7 +101,7 @@ public static class ContextRenderer
             }
             else if (symbols.Count > 0) text.Append("  ").AppendLine(string.Join(", ", symbols.Select(s => s.Name)));
         }
-        var hidden = OrderFiles(page.Files, words).Skip(maxFiles).Select(f => f.Path).Concat(page.OtherFiles).ToList();
+        var hidden = ordered.Skip(maxFiles).Select(f => f.Path).Concat(page.OtherFiles).ToList();
         if (hidden.Count > 0) text.Append("(+").Append(hidden.Count).Append(" more files: ").Append(string.Join(", ", hidden.Take(8).Select(Path.GetFileName))).AppendLine(hidden.Count > 8 ? ", …)" : ")");
         text.AppendLine();
     }

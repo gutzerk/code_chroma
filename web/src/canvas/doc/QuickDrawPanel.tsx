@@ -25,20 +25,25 @@ export function QuickDrawPanel({ onClose }: { onClose: () => void }) {
     [],
   );
 
+  const fail = (err: unknown, fallback: string) => {
+    setRunning(false);
+    setError(err instanceof Error ? err.message : fallback);
+  };
+
+  const settle = (status: { state: string; error?: string | null }, onDone: () => void) => {
+    if (status.state === "error") fail(new Error(status.error ?? "the run failed"), "");
+    else onDone();
+  };
+
   const poll = (id: string) => {
     timer.current = window.setTimeout(() => {
       void engineClient
         .getProcessDiagramStatus(id)
         .then((status) => {
-          if (status.state === "generating") return poll(id);
-          setRunning(false);
-          if (status.state === "error") setError(status.error ?? "the run failed");
-          else onClose();
+          if (status.state === "generating") poll(id);
+          else settle(status, onClose);
         })
-        .catch((err: unknown) => {
-          setRunning(false);
-          setError(err instanceof Error ? err.message : "lost contact with the bridge");
-        });
+        .catch((err: unknown) => fail(err, "lost contact with the bridge"));
     }, POLL_MS);
   };
 
@@ -47,16 +52,8 @@ export function QuickDrawPanel({ onClose }: { onClose: () => void }) {
     setRunning(true);
     engineClient
       .generateProcessDiagram(chosen, request.trim())
-      .then((status) => {
-        if (status.state === "error") {
-          setRunning(false);
-          setError(status.error ?? "the run failed");
-        } else poll(chosen);
-      })
-      .catch((err: unknown) => {
-        setRunning(false);
-        setError(err instanceof Error ? err.message : "couldn't start the run");
-      });
+      .then((status) => settle(status, () => poll(chosen)))
+      .catch((err: unknown) => fail(err, "couldn't start the run"));
   };
 
   return (

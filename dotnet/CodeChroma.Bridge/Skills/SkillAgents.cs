@@ -1,5 +1,6 @@
 using System.Text.Json.Nodes;
 using CodeChroma.Bridge.Stores;
+using CodeChroma.Bridge.Workspaces;
 
 namespace CodeChroma.Bridge.Skills;
 
@@ -27,11 +28,11 @@ public sealed class SkillAgents
         foreach (var kind in new[] { "c1", "patterns", "impact", "epics", "sequence" })
             yield return new KindSpec(kind, new SkillAgentSpec(
                 $"{kind}_agent", Prompts.Render($"{kind}_agent"), SkillTimeouts.Model,
-                (root, _) => Path.Combine(root, ".codechroma", "diagrams", kind, kind + ".json"),
+                (root, _) => Workspace.DiagramPath(root, kind),
                 HasValidFlatDiagram, $"codechroma_{kind.ToUpperInvariant()}_TIMEOUT_SECONDS", SkillTimeouts.For(kind),
                 $"generation produced no valid {kind}.json"));
         yield return new KindSpec(ProcessDiagram.Kind, new SkillAgentSpec(
-            "c1_agent", null, SkillTimeouts.Model, (root, key) => ProcessDiagram.ArtifactPath(root, SkillAgent.ItemFromKey(key)),
+            "c1_agent", null, SkillTimeouts.Model, (root, key) => Workspace.DiagramPath(root, "custom/" + SkillAgent.ItemFromKey(key)),
             HasValidFlatDiagram, "codechroma_PROCESS_DIAGRAM_TIMEOUT_SECONDS", SkillTimeouts.For("custom"), "generation produced no valid diagram"));
         yield return new KindSpec("impact-changes", new SkillAgentSpec(
             "impact-changes_review_agent", Prompts.Render("impact_review_agent"), SkillTimeouts.Model,

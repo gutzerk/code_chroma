@@ -9,7 +9,6 @@ import { CanvasNodeBox } from "./CanvasNodeBox";
 import { ConcurrencyIslandArea } from "./ConcurrencyIslandArea";
 import { DiagramFrame } from "./DiagramFrame";
 import { diagramDisplayName } from "./diagramDisplay";
-import { useShellState } from "../../shell/shellStore";
 import { isDiagramLayer, labelForDiagramLayer, useCustomDiagramTypes } from "./diagramCatalog";
 import { BLOCK_RULES } from "./elementRules";
 import { elementRect } from "./elementRect";
@@ -139,15 +138,14 @@ export function CanvasDocView() {
   // so re-expanding needs no server round trip. `hierarchy`/`default` are never in `collapsedLayers`
   // (nothing ever collapses them -- see AgentRail's Diagrams tab, which only ever lists real diagram
   // layers), so this can stay a plain layer-membership filter with no special-cased layer names.
-  const hiddenLayers = useShellState().hiddenLayers;
   const renderableElements = useMemo(
     () =>
       Object.fromEntries(
         Object.entries(doc.elements).filter(
-          ([, element]) => !collapsedLayers.has(element.layer) && !hiddenLayers.includes(element.layer),
+          ([, element]) => !collapsedLayers.has(element.layer),
         ),
       ),
-    [doc.elements, collapsedLayers, hiddenLayers],
+    [doc.elements, collapsedLayers],
   );
 
   const visibleElements = useMemo(

@@ -254,9 +254,17 @@ export function applyCanvasPositions(
  * applies + persists them via `applyCanvasPositions`. Shared by `CanvasNodeBox`'s own solo/group drag
  * and `DiagramFrame`'s whole-diagram drag, so there's exactly one place that decides what a "canvas"
  * undo entry looks like. */
+let userCommitListener: (() => void) | null = null;
+
+/** Registers the one callback run after a user-driven position commit (arrange uses it to drop its snapshot). */
+export function onUserCommit(listener: () => void): void {
+  userCommitListener = listener;
+}
+
 export function commitCanvasPositions(
   engineClient: EngineClient,
   positions: Record<string, { x: number; y: number }>,
+  options: { programmatic?: boolean } = {},
 ): void {
   const doc = canvasDocStore.getDoc();
   const prior: Record<string, { x: number; y: number }> = {};
@@ -269,4 +277,5 @@ export function commitCanvasPositions(
   }
   if (changed) undoStore.recordCommit("canvas", prior);
   applyCanvasPositions(engineClient, positions);
+  if (!options.programmatic) userCommitListener?.();
 }

@@ -239,7 +239,7 @@ describe("CanvasDocView", () => {
       elementOf({ id: "e1", render: "impact", label: "Shell hidden box", layer: "c1" }),
       elementOf({ id: "e3", render: "impact", label: "Shown box", layer: "patterns" }),
     ]);
-    shellStore.toggleLayerHidden("c1");
+    collapsedLayersStore.toggle("c1");
 
     render(
       <EngineClientProvider repoId="default" client={client(doc)}>

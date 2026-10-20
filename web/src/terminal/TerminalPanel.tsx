@@ -42,8 +42,8 @@ export function TerminalPanel({
 
   // A drag persists its height through the shell store (which clamps to its own minimum).
   useEffect(() => {
-    if (size) shellStore.setTerminalHeight(size.height);
-  }, [size]);
+    if (!isResizing && size) shellStore.setTerminalHeight(size.height);
+  }, [size, isResizing]);
 
   return (
     <div

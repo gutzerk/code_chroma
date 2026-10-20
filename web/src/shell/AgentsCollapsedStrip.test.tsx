@@ -3,7 +3,18 @@ import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import type { AgentRecord } from "../state/types";
 import { agentStore } from "../agents/agentStore";
 import { branchStore } from "../agents/branchStore";
+import { AgentClientProvider } from "../agents/AgentClientContext";
+import { MockAgentClient } from "../agents/mockAgentClient";
 import { shellStore } from "./shellStore";
+import { AgentsCollapsedStrip } from "./AgentsCollapsedStrip";
+
+function renderStrip() {
+  return render(
+    <AgentClientProvider client={new MockAgentClient()}>
+      <AgentsCollapsedStrip />
+    </AgentClientProvider>,
+  );
+}
 
 vi.mock("@xterm/xterm", () => {
   class Terminal {
@@ -69,13 +80,12 @@ afterEach(() => {
   cleanup();
 });
 
-import { AgentsCollapsedStrip } from "./AgentsCollapsedStrip";
 
 describe("AgentsCollapsedStrip", () => {
   it("renders nothing unless collapsed", () => {
     seed(2);
 
-    render(<AgentsCollapsedStrip />);
+    renderStrip();
 
     expect(screen.queryByTestId("agents-strip")).toBeNull();
   });
@@ -83,7 +93,7 @@ describe("AgentsCollapsedStrip", () => {
   it("opens the panel on the clicked agent", () => {
     seed(2);
     shellStore.agentsStepOut();
-    render(<AgentsCollapsedStrip />);
+    renderStrip();
 
     fireEvent.click(screen.getByTestId("agents-strip-ag2"));
 
@@ -93,7 +103,7 @@ describe("AgentsCollapsedStrip", () => {
   it("shows five buttons and a +n menu for the rest", () => {
     seed(7);
     shellStore.agentsStepOut();
-    render(<AgentsCollapsedStrip />);
+    renderStrip();
 
     const more = screen.getByTestId("agents-strip-more");
     fireEvent.click(more);

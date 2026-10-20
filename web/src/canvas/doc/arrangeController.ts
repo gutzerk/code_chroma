@@ -1,10 +1,11 @@
 import type { EngineClient } from "../../engine-client/EngineClient";
 import { shellStore, type ArrangeMode } from "../../shell/shellStore";
+import { collapsedLayersStore } from "./collapsedLayersStore";
 import type { CanvasPosition } from "../../state/types";
 import type { Rect } from "../connectors/orthogonalRoute";
 import type { MeasuredBoxSize } from "../useMeasuredSizes";
 import { arrangeLayers } from "./arrangeLayers";
-import { canvasDocStore, commitCanvasPositions } from "./canvasDocStore";
+import { canvasDocStore, commitCanvasPositions, onUserCommit } from "./canvasDocStore";
 import { captureLayerPositions } from "./layerPositionCache";
 
 export interface ArrangeDeps {
@@ -22,9 +23,11 @@ export function clearArrange(): void {
   if (shellStore.getState().arrangeMode !== null) shellStore.setArrangeMode(null);
 }
 
+onUserCommit(clearArrange);
+
 /** Puts every arranged element back where it was before the first arrange, as one undo entry. */
 export function restoreArrange(deps: Pick<ArrangeDeps, "engineClient">): void {
-  if (snapshot) commitCanvasPositions(deps.engineClient, snapshot);
+  if (snapshot) commitCanvasPositions(deps.engineClient, snapshot, { programmatic: true });
   clearArrange();
 }
 
@@ -38,7 +41,7 @@ export function applyArrange(mode: ArrangeMode, deps: ArrangeDeps): void {
   const { moves, packedBounds } = arrangeLayers({
     doc,
     selectedLayers: deps.selectedLayers,
-    hiddenLayers: shellStore.getState().hiddenLayers,
+    hiddenLayers: [...collapsedLayersStore.getCollapsed()],
     mode,
     sizes: deps.sizes,
   });
@@ -60,7 +63,7 @@ export function applyArrange(mode: ArrangeMode, deps: ArrangeDeps): void {
 
   const positions: Record<string, CanvasPosition> = {};
   for (const m of moves) positions[m.id] = m.position;
-  commitCanvasPositions(deps.engineClient, positions);
+  commitCanvasPositions(deps.engineClient, positions, { programmatic: true });
   shellStore.setArrangeMode(mode);
   deps.fitToBounds(packedBounds);
 }

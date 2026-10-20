@@ -1,9 +1,11 @@
 import { useEffect, useRef, type ReactNode } from "react";
 import { useResizableSize } from "../canvas/useResizableSize";
 import { AgentLed } from "../agents/AgentLed";
+import { useAgentClient } from "../agents/AgentClientContext";
 import { useAgents } from "../agents/agentStore";
 import { isAgentOnBranch } from "../agents/branchScope";
 import { useCurrentBranch } from "../agents/branchStore";
+import { selectAgent } from "./selectAgent";
 import { EdgeHandle } from "./EdgeHandle";
 import { AgentHeader } from "./AgentHeader";
 import { AgentTerminalBody } from "./AgentTerminalBody";
@@ -20,6 +22,7 @@ export interface AgentsPanelProps {
 /** The right-hand floating agents panel: a tab per agent over that agent's terminal. */
 export function AgentsPanel({ codeOverlay, onRunAgent }: AgentsPanelProps) {
   const agents = useAgents();
+  const agentClient = useAgentClient();
   const current = useCurrentBranch();
   const { agents: shellAgents, codeOverlayOpen } = useShellState();
   const panelRef = useRef<HTMLDivElement | null>(null);
@@ -74,7 +77,7 @@ export function AgentsPanel({ codeOverlay, onRunAgent }: AgentsPanelProps) {
                 isAgentOnBranch(agent, current) ? "" : " agents-tab-off-branch"
               }`}
               data-testid={`agents-tab-${agent.id}`}
-              onClick={() => shellStore.setActiveAgent(agent.id)}
+              onClick={() => selectAgent(agentClient, agent.id)}
             >
               <AgentLed status={agent.status} />
               <span>{agent.title}</span>

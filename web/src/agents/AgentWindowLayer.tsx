@@ -1,4 +1,5 @@
 import { useCallback, useEffect } from "react";
+import { layoutStore, useLayoutState } from "../canvas/layout/layoutStore";
 import { useEngineClient } from "../engine-client/EngineClientContext";
 import {
   ensureNotificationPermission,
@@ -9,19 +10,30 @@ import {
 import { useAgentClient } from "./AgentClientContext";
 import { flagDiagramsReady } from "./agentDiagramsReady";
 import { agentStore, useActiveWorkspace, useAgents, useGitPreflight, usePendingClose } from "./agentStore";
-import { selectAgent } from "../shell/selectAgent";
+import { AgentWindow } from "./AgentWindow";
+import { agentDockStore, useDockedAgentIds } from "./agentDockStore";
 import { branchStore } from "./branchStore";
 import { CloseAgentDialog } from "./CloseAgentDialog";
 import { GitInitDialog } from "./GitInitDialog";
 import { settleActiveWorkspace, settleRemovedWorkspace } from "./branchActions";
+import { useFullScreenAgentId } from "./useFullScreenAgentId";
 import { WorkspaceStatusBanner } from "./WorkspaceStatusBanner";
-import { confirmCloseAgentWindow } from "./windowActions";
+import { confirmCloseAgentWindow, restoreAgentWindow } from "./windowActions";
 
-/** Agent sync and dialogs: live list/branch updates, notifications, git-init and close confirmation; the terminals live in the shell panels. */
+/**
+ * Everything that lives above the canvas in *screen* coordinates: one window per agent and the
+ * git-init dialog.
+ *
+ * ⚠ These windows are deliberately not registered with feature 002's collision store — a different
+ * coordinate space entirely, and explicitly out of scope there.
+ */
 export function AgentWindowLayer() {
   const agentClient = useAgentClient();
+  const { agentsMode } = useLayoutState();
+  const fullAgentId = useFullScreenAgentId();
   const engineClient = useEngineClient();
   const agents = useAgents();
+  const dockedAgentIds = useDockedAgentIds();
   const activeWorkspace = useActiveWorkspace();
   const preflight = useGitPreflight();
   const pendingClose = usePendingClose();
@@ -38,6 +50,11 @@ export function AgentWindowLayer() {
 
   useEffect(refresh, [refresh]);
 
+  useEffect(() => {
+    agentDockStore.retain(agents.map((agent) => agent.id));
+    layoutStore.reconcileAgents(agents.map((agent) => agent.id));
+  }, [agents]);
+
   const refreshBranchList = useCallback(() => {
     void agentClient
       .getBranch()
@@ -50,6 +67,13 @@ export function AgentWindowLayer() {
   useEffect(refreshBranchList, [refreshBranchList]);
 
   useEffect(ensureNotificationPermission, []);
+
+  // A monitor unplugged mid-session shrinks the browser window in place -- pull any window that
+  // landed off-screen back into view (see agentStore.reclampToViewport).
+  useEffect(() => {
+    window.addEventListener("resize", agentStore.reclampToViewport);
+    return () => window.removeEventListener("resize", agentStore.reclampToViewport);
+  }, []);
 
   // Live pings: another window (or the bridge itself) can add, remove or re-status an agent. Each
   // one is applied in place rather than triggering a refetch — a status flip must not rebuild the
@@ -64,8 +88,13 @@ export function AgentWindowLayer() {
           const kind = statusChangeKind(before?.status, message.status);
           agentStore.setStatus(message.id, message.status);
           if (kind && before && !isAgentWindowFocused(before)) {
-            // Opens the agents panel on it, not a branch switch: its worktree runs regardless.
-            notifyAgentStatus(before, kind, () => selectAgent(agentClient, before.id));
+            // restoreAgentWindow, not a branch switch: the agent that just pinged may belong to a
+            // branch main no longer has checked out, but its own worktree runs regardless, and its
+            // window is reachable either way (AgentWindow.tsx no longer hides it for that reason).
+            notifyAgentStatus(before, kind, () => {
+              agentDockStore.activate(before.id);
+              restoreAgentWindow(agentClient, before.id);
+            });
           }
           // A finished "Draw a diagram" task may have written into its own forked worktree, where
           // the canvas never looks -- badge its rail row so the result is one click away.
@@ -95,8 +124,21 @@ export function AgentWindowLayer() {
       // Which workspace the canvas is drawing, in the DOM: otherwise nothing on screen says so once a
       // workspace is `ready`, and a test has to infer it from an unrelated control's state.
       data-active-workspace={activeWorkspace}
+      // Full-screen mode shows one window itself; the floating ones are hidden.
+      data-hidden={agentsMode === "full"}
     >
       <WorkspaceStatusBanner />
+      {/* Every agent is represented here; minimized windows hide without unmounting so xterm stays
+          attached, while docked agents render their terminal in AgentTerminalDock. */}
+      {agents.map((agent) => (
+        <AgentWindow
+          key={agent.id}
+          agent={agent}
+          // The full-screen view owns that agent's terminal: a second xterm on one PTY would fight
+          // over its size and duplicate output (scrollback restarts from the PTY's screen redraw).
+          docked={dockedAgentIds.includes(agent.id) || agent.id === fullAgentId}
+        />
+      ))}
       {preflight && preflight.state !== "ready" && (
         <GitInitDialog
           preflight={preflight}

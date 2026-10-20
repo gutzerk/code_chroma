@@ -10,22 +10,17 @@ given its size.
   fallback → honest `blocked: true`), `collisionStore.ts` the rectangle registry, and
   `useCollisionAvoidance.ts` wires both into `useDragOffset`'s two new **optional** hooks,
   `onPreview` (rAF-throttled) and `resolveFinal`. 🔴 Opting in is a call-site decision:
-  `CodeView`/`DiffView` still call `useDragOffset()` bare and are meant to overlap — a
+  `CodeView`/`CodePopup`/`DiffView` still call `useDragOffset()` bare and are meant to overlap — a
   code panel is a window over the map (`CodeView`/`DiffView` do this through the shared
   `usePanelDragResize.tsx` combinator now, which also carries the `PanelDragGrip`/
-  `PanelResizeHandle` markup both used to duplicate; `CodePopup`, which also called the bare hook, was deleted with the code overlay redesign). Participants today are the C1 box anchors, the Patterns view's nodes, the Epics view's
+  `PanelResizeHandle` markup both used to duplicate; `CodePopup` still calls the bare hook
+  directly). Participants today are the C1 box anchors, the Patterns view's nodes, the Epics view's
   work-item boxes, the hierarchy view's top-level System boxes (`TopLevelChildren.tsx`), `PlanPanel`
   and `C1ChangePanel`, and the one-canvas recipe boxes (`CanvasNodeBox`, solo drag only — its 2+
   multi-select group drag stays a free `useGroupDrag` move; see [`single-canvas.md`](single-canvas.md)),
   each a mover *and* an obstacle; boxes below the top level still use flow
-  layout and are out of scope. There is no per-block bulk arrange, but the Diagrams tab's **Arrange selected**
-  (`canvas/doc/arrangeLayers.ts` + `arrangeController.ts`, see [`single-canvas.md`](single-canvas.md) "Shell
-  redesign") moves whole *diagrams* rigidly, so it never runs `resolveDrop`: it commits one
-  `commitCanvasPositions` batch (one undo entry, and it never moves blocks inside a diagram relative to each
-  other). It interacts with drag in two places: a box drop (`CanvasNodeBox` solo and group commit) or a
-  whole-diagram drag (`DiagramFrame`) calls `clearArrange()` so the arrange mode and its restore snapshot are
-  discarded once the user places something by hand, and Ctrl+Z of a `canvas` undo entry
-  (`UndoManager`) also calls it. Existing overlaps in a saved `c1-layout.json` still resolve as blocks get dragged.
+  layout and are out of scope, and there is deliberately **no** bulk "Arrange" (it would move blocks the user never touched,
+  with no undo) — existing overlaps in a saved `c1-layout.json` resolve as blocks get dragged.
   ⚠ Box placement staying manual is *why* edge routing is not: since nothing may reposition a box to
   make room for a line, the line has to go around the box instead. That is
   `connectors/obstacleRouter.ts` (see [`c1-diagram.md`](c1-diagram.md)), which reads box rects purely

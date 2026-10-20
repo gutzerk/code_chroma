@@ -61,7 +61,7 @@ Four things about it are load-bearing for how a TUI actually renders, and all fo
 The browser side is `web/src/terminal/useXtermSession.ts` — see
 [`docs/architecture/web-panels.md`](web-panels.md).
 
-- ⚠ **ConPTY blocks on its startup `ESC[c` query.** Until something replies, a Windows child's output is withheld entirely. `PtySession._answer_conpty_query` answers it server-side (once), because an agent's PTY starts before any xterm attaches and a late attach only gets a screen redraw. Without it the agent window is blank (issue #128). Test: `tests/unit/test_pty_session_windows.py`.
+- ⚠ **ConPTY blocks on its startup `ESC[c` query.** Until something replies, a Windows child's output is withheld entirely. `PtySession._answer_conpty_query` answers it server-side (once), because an agent window's PTY starts before any xterm attaches and a late attach only gets a screen redraw. Without it the agent window is blank (issue #128). Test: `tests/unit/test_pty_session_windows.py`.
 
 
 ## C# host (`dotnet/CodeChroma.Bridge/Terminal/`, `Routes/TerminalRoutes.cs`)

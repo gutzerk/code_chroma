@@ -1,5 +1,6 @@
+import { layoutStore } from "../canvas/layout/layoutStore";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { cleanup, render, screen, waitFor } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import type { AgentRecord } from "../state/types";
 import { EngineClientProvider } from "../engine-client/EngineClientContext";
 import type { EngineClient } from "../engine-client/EngineClient";
@@ -10,7 +11,9 @@ import { AgentClientProvider } from "./AgentClientContext";
 import type { AgentClient } from "./agentClient";
 import { PR_CLIENT_STUB } from "./stubAgentClient";
 import { agentStore } from "./agentStore";
+import { agentDockStore } from "./agentDockStore";
 import { flagDiagramsReady } from "./agentDiagramsReady";
+import { AgentTerminalDock } from "./AgentTerminalDock";
 import { AgentWindowLayer } from "./AgentWindowLayer";
 
 // Its own behavior is covered in agentDiagramsReady.test.ts; here only the branch that calls it is.
@@ -113,6 +116,7 @@ function renderLayer(agents: AgentRecord[], engineOverrides: Partial<EngineClien
     <EngineClientProvider repoId="main" client={engineClient}>
       <AgentClientProvider client={agentClient(agents)}>
         <TerminalClientProvider client={terminalClient()}>
+          <AgentTerminalDock />
           <AgentWindowLayer />
         </TerminalClientProvider>
       </AgentClientProvider>
@@ -133,17 +137,133 @@ function renderLayerWithPing(agents: AgentRecord[]) {
 }
 
 beforeEach(() => {
+  window.localStorage.removeItem("codechroma.agentDockCollapsed");
   agentStore.reset();
+  agentDockStore.reset();
+  layoutStore.reset();
   vi.mocked(flagDiagramsReady).mockClear();
 });
 
 afterEach(() => {
   cleanup();
+  window.localStorage.removeItem("codechroma.agentDockCollapsed");
+  agentDockStore.reset();
 });
 
 describe("AgentWindowLayer", () => {
+  it("renders no floating terminal for the agent the full-screen view shows", async () => {
+    layoutStore.setAgentsMode("full");
+    layoutStore.selectAgent("refund-flow");
+    renderLayer([record(), record({ id: "flaky-tests", title: "flaky tests" })]);
+
+    await waitFor(() => expect(screen.getByTestId("agent-window-flaky-tests")).toBeInTheDocument());
+
+    expect(screen.queryByTestId("agent-window-refund-flow")).toBeNull();
+  });
+
+  it("clears a selection whose agent no longer exists", async () => {
+    layoutStore.selectAgent("ghost");
+    renderLayer([record()]);
+
+    await waitFor(() => expect(layoutStore.getState().selectedAgentId).toBeNull());
+  });
+
   // Filtering minimized agents out of the render unmounted their xterm, so every restore paid for a
   // full reattach — the one path where a redraw can still disagree with what the agent last drew.
+  it("keeps a minimized agent's window mounted and hidden rather than unmounting it", async () => {
+    renderLayer([record()]);
+
+    await waitFor(() => expect(screen.getByTestId("agent-window-refund-flow")).toBeInTheDocument());
+
+    expect(screen.getByTestId("agent-window-refund-flow")).toHaveClass("agent-window-hidden");
+    expect(screen.getByTestId("agent-terminal-refund-flow")).toBeInTheDocument();
+  });
+
+  it("docks agents as tabs, switches between mounted terminals, and detaches the active agent", async () => {
+    const second = record({
+      id: "flaky-tests",
+      title: "flaky tests",
+      window: { ...record().window, x: 220, minimized: false, z: 2 },
+    });
+    renderLayer([record({ window: { ...record().window, minimized: false } }), second]);
+
+    await waitFor(() => expect(screen.getByTestId("agent-dock-refund-flow")).toBeInTheDocument());
+    fireEvent.click(screen.getByTestId("agent-dock-refund-flow"));
+    fireEvent.click(screen.getByTestId("agent-dock-flaky-tests"));
+
+    expect(screen.getByTestId("agent-dock-tab-refund-flow")).toHaveAttribute("aria-selected", "false");
+    expect(screen.getByTestId("agent-dock-panel-refund-flow")).toHaveAttribute("hidden");
+    expect(screen.getByTestId("agent-dock-panel-flaky-tests")).not.toHaveAttribute("hidden");
+    expect(screen.getByTestId("agent-terminal-refund-flow")).toBeInTheDocument();
+    expect(screen.getByTestId("agent-terminal-flaky-tests")).toBeInTheDocument();
+
+    fireEvent.click(screen.getByTestId("agent-dock-tab-refund-flow"));
+    fireEvent.click(screen.getByTestId("agent-detach-refund-flow"));
+
+    expect(screen.queryByTestId("agent-dock-tab-refund-flow")).not.toBeInTheDocument();
+    expect(screen.getByTestId("agent-dock-tab-flaky-tests")).toBeInTheDocument();
+    expect(screen.getByTestId("agent-dock-panel-flaky-tests")).not.toHaveAttribute("hidden");
+    expect(screen.getByTestId("agent-window-refund-flow")).not.toHaveClass("agent-window-hidden");
+  });
+
+  it("collapses the docked panel without unmounting its terminal and persists the toggle", async () => {
+    renderLayer([record({ window: { ...record().window, minimized: false } })]);
+
+    await waitFor(() => expect(screen.getByTestId("agent-dock-refund-flow")).toBeInTheDocument());
+    fireEvent.click(screen.getByTestId("agent-dock-refund-flow"));
+
+    const terminal = screen.getByTestId("agent-terminal-refund-flow");
+    const toggle = screen.getByTestId("agent-terminal-dock-resize-handle-arrow");
+    fireEvent.click(toggle);
+
+    expect(screen.getByTestId("agent-terminal-dock")).toHaveClass("agent-terminal-dock--collapsed");
+    expect(toggle).toHaveAttribute("aria-expanded", "false");
+    expect(terminal).toBeInTheDocument();
+    expect(window.localStorage.getItem("codechroma.agentDockCollapsed")).toBe("true");
+
+    fireEvent.click(toggle);
+
+    expect(screen.getByTestId("agent-terminal-dock")).not.toHaveClass(
+      "agent-terminal-dock--collapsed",
+    );
+    expect(toggle).toHaveAttribute("aria-expanded", "true");
+    expect(terminal).toBeInTheDocument();
+  });
+
+  it("expands the collapsed dock when its empty body is clicked", async () => {
+    renderLayer([record({ window: { ...record().window, minimized: false } })]);
+    await waitFor(() => expect(screen.getByTestId("agent-dock-refund-flow")).toBeInTheDocument());
+    fireEvent.click(screen.getByTestId("agent-dock-refund-flow"));
+    fireEvent.click(screen.getByTestId("agent-terminal-dock-resize-handle-arrow"));
+
+    fireEvent.click(screen.getByTestId("agent-dock-led"));
+
+    expect(screen.getByTestId("agent-terminal-dock")).not.toHaveClass(
+      "agent-terminal-dock--collapsed",
+    );
+  });
+
+  it("expands the collapsed dock with Ctrl+Shift+O", async () => {
+    renderLayer([record({ window: { ...record().window, minimized: false } })]);
+    await waitFor(() => expect(screen.getByTestId("agent-dock-refund-flow")).toBeInTheDocument());
+    fireEvent.click(screen.getByTestId("agent-dock-refund-flow"));
+    fireEvent.click(screen.getByTestId("agent-terminal-dock-resize-handle-arrow"));
+
+    fireEvent.keyDown(window, { key: "O", ctrlKey: true, shiftKey: true });
+
+    expect(screen.getByTestId("agent-terminal-dock")).not.toHaveClass(
+      "agent-terminal-dock--collapsed",
+    );
+  });
+
+  it("leaves Ctrl+Shift+O alone when no agent is docked", async () => {
+    renderLayer([]);
+
+    const notPrevented = fireEvent.keyDown(window, { key: "O", ctrlKey: true, shiftKey: true });
+
+    expect(notPrevented).toBe(true);
+  });
+
   it("falls back to main when a branch-removed ping names the active workspace", async () => {
     const ping = renderLayerWithPing([]);
     agentStore.setActiveWorkspace("feature-x");
@@ -153,6 +273,115 @@ describe("AgentWindowLayer", () => {
     await waitFor(() => expect(agentStore.getActiveWorkspace()).toBe("main"));
   });
 
+  it("keeps the detach action in the dock header as a non-shrinking control", async () => {
+    const narrowHeaderAgent = record({
+      title: "An agent with a long title that should not crowd the controls",
+      branch: "agent/a-very-long-branch-name-that-can-be-truncated",
+      window: { ...record().window, minimized: false },
+    });
+    renderLayer([narrowHeaderAgent]);
+
+    await waitFor(() => expect(screen.getByTestId("agent-dock-refund-flow")).toBeInTheDocument());
+    fireEvent.click(screen.getByTestId("agent-dock-refund-flow"));
+
+    expect(screen.getByTestId("agent-detach-refund-flow")).toHaveClass("agent-terminal-dock-action");
+  });
+
+  // A monitor unplugged mid-session shrinks the browser window in place, which used to leave a
+  // window's title bar off-screen with no way to drag it back (agentStore.clampToViewport only ever
+  // ran against a freshly-loaded/upserted record, never in response to the browser itself resizing).
+  it("pulls a window back on-screen when the browser viewport shrinks in place", async () => {
+    const originalWidth = window.innerWidth;
+    const originalHeight = window.innerHeight;
+    window.innerWidth = 2400;
+    window.innerHeight = 1400;
+    try {
+      renderLayer([
+        record({ window: { x: 2000, y: 1200, width: 720, height: 480, minimized: false, z: 1 } }),
+      ]);
+      await waitFor(() =>
+        expect(screen.getByTestId("agent-window-refund-flow")).toHaveStyle({ left: "2000px" }),
+      );
+
+      window.innerWidth = 1024;
+      window.innerHeight = 768;
+      window.dispatchEvent(new Event("resize"));
+
+      await waitFor(() =>
+        expect(screen.getByTestId("agent-window-refund-flow")).not.toHaveStyle({ left: "2000px" }),
+      );
+    } finally {
+      window.innerWidth = originalWidth;
+      window.innerHeight = originalHeight;
+    }
+  });
+
+  // There is no more panel, and nothing else lives in this corner either.
+  it("renders no agent-corner element at all", async () => {
+    renderLayer([record()]);
+
+    await waitFor(() => expect(screen.getByTestId("agent-window-refund-flow")).toBeInTheDocument());
+
+    expect(document.querySelector(".agent-corner")).toBeNull();
+  });
+
+  // An agent's own worktree runs regardless of what main has checked out (main can't touch it
+  // either way), so its window must stay reachable too -- a dirty main tree that refuses a checkout
+  // must never be able to trap an agent's window behind it. See AgentRail.tsx's own comment for the
+  // incident this replaced (a window hidden this way, with the checkout that would reveal it again
+  // refusing forever).
+  it("still shows an agent's window even when its own branch differs from the one main has checked out", async () => {
+    const onFeatureX = record({
+      id: "on-feature-x",
+      base_branch: "feature-x",
+      window: { ...record().window, minimized: false },
+    });
+    const client: AgentClient = {
+      ...agentClient([onFeatureX]),
+      getBranch: async () => ({ current: "main", branches: ["main", "feature-x"] }),
+    };
+
+    render(
+      <EngineClientProvider repoId="main" client={IMPACT_CHANGES_STUB as unknown as EngineClient}>
+        <AgentClientProvider client={client}>
+          <TerminalClientProvider client={terminalClient()}>
+            <AgentWindowLayer />
+          </TerminalClientProvider>
+        </AgentClientProvider>
+      </EngineClientProvider>,
+    );
+
+    await waitFor(() => expect(screen.getByTestId("agent-window-on-feature-x")).toBeInTheDocument());
+    expect(screen.getByTestId("agent-window-on-feature-x")).not.toHaveClass("agent-window-hidden");
+  });
+
+  it("shows an agent's window whose own branch still matches the one main has checked out", async () => {
+    const onMain = record({
+      id: "on-main",
+      base_branch: "main",
+      window: { ...record().window, minimized: false },
+    });
+    const client: AgentClient = {
+      ...agentClient([onMain]),
+      getBranch: async () => ({ current: "main", branches: ["main", "feature-x"] }),
+    };
+
+    render(
+      <EngineClientProvider repoId="main" client={IMPACT_CHANGES_STUB as unknown as EngineClient}>
+        <AgentClientProvider client={client}>
+          <TerminalClientProvider client={terminalClient()}>
+            <AgentWindowLayer />
+          </TerminalClientProvider>
+        </AgentClientProvider>
+      </EngineClientProvider>,
+    );
+
+    await waitFor(() => expect(screen.getByTestId("agent-window-on-main")).toBeInTheDocument());
+    expect(screen.getByTestId("agent-window-on-main")).not.toHaveClass("agent-window-hidden");
+  });
+
+  // launchAgent (no panel left to own this) publishes a blocked preflight straight to the store;
+  // the layer must still surface it as GitInitDialog rather than swallowing it.
   it("shows the git-init dialog once launchAgent publishes a blocked preflight to the store", async () => {
     renderLayer([]);
     await waitFor(() => expect(screen.queryByTestId("git-init-dialog")).not.toBeInTheDocument());
@@ -164,7 +393,7 @@ describe("AgentWindowLayer", () => {
 
   it("shows the close-confirmation dialog for the agent awaiting its worktree's fate", async () => {
     renderLayer([record()]);
-    await waitFor(() => expect(agentStore.getAgent("refund-flow")).toBeDefined());
+    await waitFor(() => expect(screen.getByTestId("agent-window-refund-flow")).toBeInTheDocument());
     expect(screen.queryByTestId("close-agent-dialog")).not.toBeInTheDocument();
 
     agentStore.setPendingClose("refund-flow");

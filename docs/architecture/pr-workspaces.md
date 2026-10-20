@@ -36,7 +36,7 @@ unchanged, because `App.tsx` already routes every canvas request through `repoId
   refuses to remove the PR's worktree/branch through it — see [`parallel-agents.md`](parallel-agents.md)
   for the full trade-off. `AgentRecord.source_pr` still
   records which PR it's attached to, purely so the canvas can hide `CreatePrButton`
-  (`web/src/shell/AgentHeader.tsx`) for it — opening a second, unrelated PR from that shared worktree
+  (`web/src/agents/AgentWindow.tsx`) for it — opening a second, unrelated PR from that shared worktree
   would contradict the user's "this agent is working on PR #282" mental model. `source_pr` is `None`
   for every other agent.
 - **`git_long.py`** is the runner for the network commands `git_cmd` is wrong for: `run_git_raw` is

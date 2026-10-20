@@ -12,7 +12,7 @@ https://github.com/user-attachments/assets/51791ff0-7b0e-4c2c-b70b-2a4588432f22
 
 **Navigate any codebase like a map, not a maze.**
 
-- **zoomable canvas** — the code hierarchy (System → … → Code) lives in a left Project tree, and every diagram (C1, patterns, epics, …) sits as a layer on the same canvas.
+- **zoomable canvas** — the code hierarchy (System → … → Code) lives in the left panel's Files tab, and every diagram (C1, patterns, epics, …) sits as a layer on the same canvas.
 - **live sync** — edit a file and the map updates in place: new blocks appear, deleted ones fade out, no reload.
 - **diagrams as layers** — C1, Design Patterns, Change Impact, Epics, Sequence, or a custom type — show, hide, or delete.
 - **AI agents** — describe a diagram in plain language and a built-in agent draws it; run parallel Claude Code sessions, each in its own worktree.

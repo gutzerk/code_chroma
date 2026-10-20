@@ -4,6 +4,7 @@ import { CanvasDocView } from "./CanvasDocView";
 import { EngineClientProvider } from "../../engine-client/EngineClientContext";
 import { canvasDocStore } from "./canvasDocStore";
 import { collapsedLayersStore } from "./collapsedLayersStore";
+import { shellStore } from "../../shell/shellStore";
 import { expansionStore } from "../../state/expansionState";
 import { selectionStore } from "../../state/selectionStore";
 import {
@@ -92,6 +93,7 @@ function client(
 afterEach(() => {
   canvasDocStore.reset();
   collapsedLayersStore.reset();
+  shellStore.reset();
   expansionStore.reset();
   selectionStore.clear();
 });
@@ -230,6 +232,25 @@ describe("CanvasDocView", () => {
     expect(screen.queryByTestId("canvas-doc-relationship")).not.toBeInTheDocument();
     expect(canvasDocStore.getDoc().elements.e1).toBeDefined();
     expect(canvasDocStore.getDoc().edges.edge1).toBeDefined();
+  });
+
+  it("does not render a layer hidden through the shell store, nor its frame", async () => {
+    const doc = docWith([
+      elementOf({ id: "e1", render: "impact", label: "Shell hidden box", layer: "c1" }),
+      elementOf({ id: "e3", render: "impact", label: "Shown box", layer: "patterns" }),
+    ]);
+    collapsedLayersStore.toggle("c1");
+
+    render(
+      <EngineClientProvider repoId="default" client={client(doc)}>
+        <CanvasDocView />
+      </EngineClientProvider>,
+    );
+
+    await waitFor(() => expect(screen.getByText("Shown box")).toBeInTheDocument());
+    expect(screen.queryByText("Shell hidden box")).not.toBeInTheDocument();
+    expect(screen.getAllByTestId("canvas-diagram-frame")).toHaveLength(1);
+    expect(canvasDocStore.getDoc().elements.e1).toBeDefined();
   });
 
   it("draws nothing for a legacy hierarchy element an old document still carries", async () => {

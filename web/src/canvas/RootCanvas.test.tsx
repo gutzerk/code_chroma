@@ -9,7 +9,7 @@ import { EPICS_STUB, EPIC_BRIEF_STUB, IMPACT_CHANGES_STUB, PATTERNS_STUB, diagra
 import { agentStore } from "../agents/agentStore";
 import { expansionStore } from "../state/expansionState";
 import { diffOverlayStore } from "../state/diffOverlayStore";
-import { projectTreePanelStore } from "./projectTreePanelStore";
+import { shellStore } from "../shell/shellStore";
 import { inspectorStore } from "./inspectorStore";
 import { terminalPanelStore } from "../terminal/terminalPanelStore";
 import { collapsedLayersStore } from "./doc/collapsedLayersStore";
@@ -127,10 +127,10 @@ afterEach(() => {
   expansionStore.reset();
   diffOverlayStore.clear();
   agentStore.reset();
-  projectTreePanelStore.reset();
+  shellStore.reset();
+  inspectorStore.reset();
   collapsedLayersStore.reset();
   codeViewModeStore.reset();
-  inspectorStore.reset();
   terminalPanelStore.reset();
   vi.restoreAllMocks();
 });
@@ -138,77 +138,65 @@ afterEach(() => {
 /** How the seeded hierarchy renders once expanded onto the canvas. The boxes-vs-tree *choice* is
  * gone — the hierarchy always renders as nested boxes (`block` inside a `canvas-hierarchy-element`),
  * and the old `?strategy=` param no longer selects anything (see `strategies/types.ts`). */
-describe("RootCanvas project tree panel", () => {
-  // The singleton starts open by default in production (PanelStore(true)); afterEach resets it to
-  // closed, so each test re-opens it to model a fresh load before rendering.
-  const openPanel = () => act(() => projectTreePanelStore.open());
-
-  it("renders the open panel with the tree, and its rail toggle closes it", async () => {
-    openPanel();
+describe("RootCanvas files tab", () => {
+  it("renders the project tree in the Files tab", async () => {
     renderCanvas();
-
-    // The open project-tree panel holds the tree.
     await waitFor(() => expect(screen.getByTestId("project-tree-panel")).toBeTruthy());
+
+    act(() => shellStore.setLeftTab("files"));
+
     expect(
       screen.getByTestId("project-tree-panel").querySelectorAll("[data-testid='tree-node']").length,
     ).toBeGreaterThan(0);
-
-    // Its rail toggle closes it (latched mount keeps it in the DOM, hidden).
-    const toggle = screen.getByLabelText("Close project tree panel");
-    act(() => toggle.click());
-    expect(screen.getByTestId("project-tree-panel").closest("[hidden]")).not.toBeNull();
-  });
-
-  it("renders the hierarchy root inside the panel", async () => {
-    openPanel();
-    renderCanvas({ getNode: async () => ROOT });
-
-    const panel = await screen.findByTestId("project-tree-panel");
-    waitFor(() => expect(panel.textContent).toContain("repo"));
   });
 
   it("hides the tree from the canvas by default", async () => {
-    openPanel();
     renderCanvas();
 
-    // The canvas shows no tree rows -- the seeded hierarchy layer is collapsed at load.
     await waitFor(() => expect(screen.getByTestId("project-tree-panel")).toBeTruthy());
     const canvas = screen.getByTestId("canvas-doc-view");
     expect(canvas.querySelectorAll("[data-testid='tree-node']").length).toBe(0);
   });
 });
 
-describe("RootCanvas agents and diagrams panel", () => {
-  it("collapses and restores the panel without resetting its selected section", async () => {
+describe("RootCanvas left panel", () => {
+  it("collapses to a strip whose Files icon reopens the Files tab", async () => {
     renderCanvas();
-    await waitFor(() => expect(screen.getByTestId("agent-task-rail")).toBeTruthy());
+    await waitFor(() => expect(screen.getByTestId("left-panel")).toBeTruthy());
 
-    fireEvent.click(screen.getByTestId("agent-task-rail-tab-agents"));
-    fireEvent.click(screen.getByRole("button", { name: "Collapse agents and diagrams panel" }));
+    fireEvent.click(screen.getByTestId("left-panel-handle-collapse-panel"));
+    expect(screen.queryByTestId("left-panel")).toBeNull();
+    fireEvent.click(screen.getByLabelText("Open Files"));
 
-    const panel = screen.getByTestId("agent-task-rail");
-    expect(panel).toHaveAttribute("hidden");
-    expect(screen.getByRole("button", { name: "Expand agents and diagrams panel" })).toHaveAttribute(
-      "aria-expanded",
-      "false",
-    );
-
-    fireEvent.click(screen.getByRole("button", { name: "Expand agents and diagrams panel" }));
-
-    expect(panel).not.toHaveAttribute("hidden");
-    expect(screen.getByTestId("agent-task-rail-tab-agents")).toHaveAttribute(
-      "aria-selected",
-      "true",
-    );
+    expect(screen.getByTestId("left-panel")).toBeTruthy();
+    expect(shellStore.getState().left.tab).toBe("files");
   });
+});
 
-  it("closes an open inspector when collapsing the panel", async () => {
+describe("RootCanvas agents panel", () => {
+  it("collapses to a strip and reopens", async () => {
     renderCanvas();
-    await waitFor(() => expect(screen.getByTestId("app-root")).toBeTruthy());
+    await waitFor(() => expect(screen.getByTestId("agents-panel")).toBeTruthy());
+
+    fireEvent.click(screen.getByLabelText("Collapse agents"));
+    expect(screen.getByTestId("agents-strip")).toBeTruthy();
+    fireEvent.click(screen.getByTestId("agents-strip-open"));
+
+    expect(screen.queryByTestId("agents-strip")).toBeNull();
+    expect(shellStore.getState().agents.mode).toBe("normal");
+  });
+});
+
+describe("RootCanvas inspector overlay", () => {
+  it("shows the inspector over the agents panel and closing the overlay closes it", async () => {
+    renderCanvas();
+    await waitFor(() => expect(screen.getByTestId("agents-panel")).toBeTruthy());
+
     act(() => inspectorStore.open("function::calculate_total", "calculate_total"));
 
-    fireEvent.click(screen.getByRole("button", { name: "Collapse agents and diagrams panel" }));
-
+    const overlay = await screen.findByTestId("inspector-overlay");
+    expect(screen.getByTestId("agents-panel").contains(overlay)).toBe(true);
+    act(() => shellStore.closeCodeOverlay());
     expect(inspectorStore.getIsOpen()).toBe(false);
   });
 });

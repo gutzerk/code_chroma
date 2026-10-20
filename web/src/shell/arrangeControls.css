@@ -1,0 +1,24 @@
+.arrange-controls { display: flex; flex-direction: column; gap: 8px; padding: 12px; }
+.arrange-controls-label { font-size: 11px; letter-spacing: 0.08em; color: var(--text-2); }
+.arrange-controls-segments {
+  display: flex;
+  gap: 2px;
+  padding: 2px;
+  background: var(--surface-inset);
+  border-radius: var(--radius-btn);
+}
+.arrange-controls-btn {
+  flex: 1;
+  border: 0;
+  padding: 6px 8px;
+  border-radius: calc(var(--radius-btn) - 2px);
+  background: transparent;
+  color: var(--text-2);
+  font: inherit;
+  font-size: 12px;
+  cursor: pointer;
+}
+.arrange-controls-btn:hover:not(:disabled) { background: var(--surface-3); color: var(--text-1); }
+.arrange-controls-btn[aria-pressed="true"] { background: var(--bg-raised-2); color: var(--text-1); }
+.arrange-controls-btn:disabled { opacity: 0.45; cursor: default; }
+.arrange-controls-hint { font-size: 11px; color: var(--text-3); line-height: 1.4; }

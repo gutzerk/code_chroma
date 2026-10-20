@@ -1,0 +1,24 @@
+.zoom-dock {
+  position: absolute;
+  left: 16px;
+  bottom: 16px;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 6px;
+  background: var(--surface-1);
+  color: var(--text-1);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-btn);
+  z-index: 20;
+}
+.zoom-dock-button {
+  border: 0;
+  border-radius: var(--radius-btn);
+  background: transparent;
+  color: var(--text-1);
+  cursor: pointer;
+  padding: 4px 10px;
+}
+.zoom-dock-button:hover { background: var(--surface-3); }
+.zoom-dock-percent { min-width: 44px; text-align: center; color: var(--text-2); }

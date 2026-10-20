@@ -19,9 +19,11 @@ test("zooms toward the cursor on wheel and pans on drag", async ({ page }) => {
 
   const afterZoomTransform = await content.evaluate((el) => getComputedStyle(el).transform);
 
-  await page.mouse.move(box.x + box.width - 20, box.y + box.height - 20);
+  const px = box.x + box.width / 2;
+  const py = box.y + box.height / 2;
+  await page.mouse.move(px, py);
   await page.mouse.down();
-  await page.mouse.move(box.x + box.width - 120, box.y + box.height - 120, { steps: 5 });
+  await page.mouse.move(px - 100, py - 100, { steps: 5 });
   await page.mouse.up();
 
   await expect
@@ -72,7 +74,7 @@ test("Ctrl+wheel zooms the canvas without moving the top chrome or Fit All butto
   expect(await fitAllButton.boundingBox()).toEqual(fitAllBoxBefore);
 });
 
-test("zoom buttons and reset control the canvas scale", async ({ page }) => {
+test("zoom buttons and fit control the canvas scale", async ({ page }) => {
   await gotoApp(page);
 
   const content = page.getByTestId("canvas-content");
@@ -84,7 +86,7 @@ test("zoom buttons and reset control the canvas scale", async ({ page }) => {
     .poll(() => content.evaluate((el) => getComputedStyle(el).transform))
     .not.toBe(initialTransform);
 
-  await page.getByRole("button", { name: "Reset zoom" }).click();
+  await page.getByRole("button", { name: "Zoom out" }).click();
   await expect
     .poll(() => content.evaluate((el) => getComputedStyle(el).transform))
     .toBe(initialTransform);

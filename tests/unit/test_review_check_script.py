@@ -11,7 +11,6 @@ from pathlib import Path
 
 SCRIPT = (
     Path(__file__).parent.parent.parent
-    / ".claude"
     / "skills"
     / "codechroma-review-diagram"
     / "scripts"

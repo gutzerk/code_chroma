@@ -145,3 +145,8 @@ from code and is not verified on real hardware.
 and does `result.ToString()` on the null result, an unhandleable NRE inside a native callback that aborts the app. Two guards: `UpdateHost`
 only receives tabs that are on the bridge origin (`MainWindow` filters with `IsBridgeOrigin`; empty tabs get no scripts), and `web/index.html`
 defines `window.__dispatchMessageCallback` (evals the source, always returns a string) so scripts sent to a loaded page never return null.
+
+## CLI lookup and clipboard notes
+
+- `CodeChroma.Bridge/Stores/CliLocator.cs` searches the process PATH, then well-known install dirs (`~/.local/bin`, `/opt/homebrew/bin`, `/usr/local/bin`, npm global, GitHub CLI dirs), because a GUI-launched app inherits a minimal PATH (agents `claude` / `gh` not found).
+- `DesktopScript.cs` adds a guarded fallback for Ctrl/Cmd+C/X/V/A that only acts when the webview raised no native clipboard event (unverified on macOS).

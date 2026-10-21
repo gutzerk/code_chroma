@@ -326,16 +326,15 @@ export function CallSitesSection() {
                     >
                       Fetch models
                     </button>
-                    {isDirty(site, draft) && (
-                      <button
-                        type="button"
-                        className="llm-button-primary"
-                        data-testid={`llm-call-site-assign-${site.id}`}
-                        onClick={() => void assign(site)}
-                      >
-                        Apply
-                      </button>
-                    )}
+                    <button
+                      type="button"
+                      className="llm-button-primary"
+                      data-testid={`llm-call-site-assign-${site.id}`}
+                      disabled={!isDirty(site, draft)}
+                      onClick={() => void assign(site)}
+                    >
+                      Apply
+                    </button>
                     {site.assignment && (
                       <button
                         type="button"

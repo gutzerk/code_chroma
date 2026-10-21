@@ -8,8 +8,8 @@
   gap: 6px;
   padding: 12px;
   border-radius: 16px;
-  background: #262b38;
-  color: #e9ebf2;
+  background: var(--bg-raised-2);
+  color: var(--text-1);
 }
 
 .draw-diagram-popover-header {
@@ -24,9 +24,9 @@
   width: 24px;
   height: 24px;
   border: 0;
-  border-radius: 8px;
+  border-radius: 999px;
   background: transparent;
-  color: #8b91a1;
+  color: var(--text-2);
   cursor: pointer;
 }
 
@@ -34,11 +34,11 @@
   height: 32px;
   border: 0;
   border-radius: 10px;
-  background: #1c2029;
-  color: #c4c8d4;
+  background: var(--bg-raised);
+  color: var(--text-1);
   font-size: 12px;
   text-align: left;
-  padding: 0 10px;
+  padding: 0 12px;
   cursor: pointer;
 }
 

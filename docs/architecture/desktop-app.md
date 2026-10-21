@@ -140,6 +140,11 @@ branches, traces, settings, patterns, impact/review, plain wiki) is ported. Work
 
 ## Tests
 
+`TcpPortFinder` probes a free port and releases it; successive calls may return the same port.
+`RealProcessBridgeTests.Free_port_is_bindable_and_excludes_a_listening_port` holds the first listener
+open while requesting and binding the second port, then closes both even if an assertion fails.
+The probe does not reserve a port for the child bridge between discovery and startup.
+
 `dotnet/CodeChroma.Shell.Tests/` (updater, tabs, stores, bridge manager, `UpdatesBridge`), `dotnet/CodeChroma.Bridge.Tests/`,
 `tests/unit/test_distribution_*.py`, `tests/pester/install.Tests.ps1`. Smoke on a display: `dotnet/CodeChroma.Shell.App/smoke/smoke.mjs`.
 macOS and Linux behaviour (WKWebView/WebKitGTK rendering, Unix PTY, install/update/rollback/uninstall) was reviewed

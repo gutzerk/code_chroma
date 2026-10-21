@@ -268,9 +268,10 @@ gap.
 Reads the tree from disk directly (there is no resolved HTTP GET to read instead — this is a
 full-replace markdown tree, not a server-merged artifact the way a diagram is). Checks: unique
 container/component ids, every component's `container` names a real container, every container owns
-at least one component, every manifest-listed page actually exists on disk. One live HTTP call: every
+at least one component, every manifest-listed page actually exists on disk. One live HTTP lookup: every
 declared `File:`/`Class:`/`Function:` reference's path (stripped of any `::Symbol` suffix) is checked
-against `GET /repos/{id}/wiki-context` — a path the real wiki has no page for comes back in the
+against `GET /repos/{id}/wiki-context`, sent in batches of `_FETCH_BATCH_SIZE` (50) paths so a large
+wiki never trips HTTP 414 URI Too Long — a path the real wiki has no page for comes back in the
 response's `gaps[]` and fails the run as `HALLUCINATED`. A page that exists but isn't linked from its
 parent prints `LINK-MISSING`, advisory only. Exit codes: `0` OK, `1` FAILED, `2` ERROR (couldn't read
 the manifest, a page, or reach the bridge at all) — simpler than `check_diagram.py`'s four-tier

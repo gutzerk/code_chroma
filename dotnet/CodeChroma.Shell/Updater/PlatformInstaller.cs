@@ -62,7 +62,7 @@ public sealed class ProcessHelperLauncher : IHelperLauncher
 {
     public void StartDetached(HelperLaunch launch)
     {
-        var info = new ProcessStartInfo(launch.FileName) { UseShellExecute = false, CreateNoWindow = true };
+        var info = new ProcessStartInfo(launch.FileName) { UseShellExecute = false, CreateNoWindow = true, WorkingDirectory = Path.GetTempPath() };
         foreach (var arg in launch.Arguments) info.ArgumentList.Add(arg);
         Process.Start(info)?.Dispose();
     }

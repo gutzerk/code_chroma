@@ -35,6 +35,44 @@ public static class Dialogs
         return accepted;
     }
 
+    public enum UpdateChoice { Later, Install, Skip }
+
+    /// <summary>Update prompt: rendered release notes in a scroll area capped to the owner window, with Install / Skip this version / Later.</summary>
+    public static async Task<UpdateChoice> ShowUpdateAsync(Window owner, string version, string? notice, string? notes)
+    {
+        var choice = UpdateChoice.Later;
+        var install = new Button { Content = "Install", IsDefault = true };
+        var skip = new Button { Content = "Skip this version" };
+        var later = new Button { Content = "Later", IsCancel = true };
+        var body = new StackPanel { Spacing = 6 };
+        if (!string.IsNullOrWhiteSpace(notice)) body.Children.Add(new TextBlock { Text = notice, TextWrapping = TextWrapping.Wrap, Opacity = 0.7 });
+        foreach (var block in MarkdownText.Render(notes)) body.Children.Add(block);
+        var header = new TextBlock { Text = $"CodeChroma {version} is available", FontWeight = FontWeight.SemiBold, FontSize = 16, TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 0, 0, 10) };
+        var buttons = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 8, HorizontalAlignment = HorizontalAlignment.Right, Margin = new Thickness(0, 12, 0, 0), Children = { install, skip, later } };
+        var scroll = new ScrollViewer { Content = body, VerticalScrollBarVisibility = Avalonia.Controls.Primitives.ScrollBarVisibility.Auto, HorizontalScrollBarVisibility = Avalonia.Controls.Primitives.ScrollBarVisibility.Disabled };
+        var grid = new Grid { Margin = new Thickness(20), RowDefinitions = new RowDefinitions("Auto,*,Auto") };
+        Grid.SetRow(scroll, 1);
+        Grid.SetRow(buttons, 2);
+        grid.Children.Add(header);
+        grid.Children.Add(scroll);
+        grid.Children.Add(buttons);
+        var window = new Window
+        {
+            Title = "Update available",
+            Content = grid,
+            Width = Math.Min(560, Math.Max(320, owner.Bounds.Width * 0.9)),
+            SizeToContent = SizeToContent.Height,
+            MaxHeight = Math.Max(240, owner.Bounds.Height * 0.85),
+            CanResize = false,
+            WindowStartupLocation = WindowStartupLocation.CenterOwner,
+        };
+        install.Click += (_, _) => { choice = UpdateChoice.Install; window.Close(); };
+        skip.Click += (_, _) => { choice = UpdateChoice.Skip; window.Close(); };
+        later.Click += (_, _) => window.Close();
+        await window.ShowDialog(owner);
+        return choice;
+    }
+
     public static Task ShowAboutAsync(Window owner, string version)
     {
         var about = AppInfo.About(version);

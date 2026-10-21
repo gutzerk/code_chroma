@@ -36,6 +36,18 @@ public sealed partial class RunStore(string repoRoot)
         }
     }
 
+    public bool DeleteWorkflow(string id)
+    {
+        if (!IsSafeId(id)) return false;
+        lock (_io)
+        {
+            var path = Path.Combine(WorkflowsDir, id + ".json");
+            if (!File.Exists(path)) return false;
+            File.Delete(path);
+            return true;
+        }
+    }
+
     public List<Run> ListRuns() => ReadAll<Run>(RunsDir);
 
     /// <summary>The ids of the saved runs in file order, without reading any of them.</summary>

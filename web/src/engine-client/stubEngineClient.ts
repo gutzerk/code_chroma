@@ -1,4 +1,4 @@
-import type { Run, WorkflowDef } from "../workflows/types";
+import type { Run, SkillInfo, WorkflowDef } from "../workflows/types";
 import type {
   DiagramPayload,
   DiagramPayloadFor,
@@ -108,6 +108,9 @@ const noRuns = async (): Promise<never> => {
 export const WORKFLOW_STUB = {
   listWorkflows: async (): Promise<WorkflowDef[]> => [],
   createWorkflow: async (workflow: WorkflowDef) => workflow,
+  deleteWorkflow: async (): Promise<void> => {},
+  listSkills: async (): Promise<SkillInfo[]> => [],
+  skipStep: noRuns,
   listRuns: async (): Promise<Run[]> => [],
   getRun: noRuns,
   startRun: noRuns,
@@ -155,6 +158,8 @@ export const IMPACT_CHANGES_STUB = {
   subscribeSidecar: (): (() => void) => () => {},
   generateDiagram: async (): Promise<DiagramGenerationStatus> => IDLE,
   getDiagramStatus: async (): Promise<DiagramGenerationStatus> => IDLE,
+  generateProcessDiagram: async (): Promise<DiagramGenerationStatus> => IDLE,
+  getProcessDiagramStatus: async (): Promise<DiagramGenerationStatus> => IDLE,
   cancelDiagram: async (): Promise<DiagramGenerationStatus> => IDLE,
   subscribeDiagram: (): (() => void) => () => {},
   subscribeDiagramStatus: (): (() => void) => () => {},

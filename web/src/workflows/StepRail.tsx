@@ -2,6 +2,7 @@ import { useState } from "react";
 import type { Run, StepRecord, WorkflowDef } from "./types";
 import {
   ACTION_LABEL,
+  KIND_META,
   STATUS_META,
   showBreakpointToggle,
   stepActions,
@@ -31,6 +32,8 @@ function perform(
       return void actions.review(run.id, "approve");
     case "sendBack":
       return void actions.review(run.id, "sendBack", note.trim() || undefined);
+    case "skip":
+      return void actions.skip(run.id, step.stepId);
   }
 }
 
@@ -55,6 +58,7 @@ function StepControls({
   const [note, setNote] = useState("");
   return (
     <div id={panelId} className="step-controls" role="group" aria-label={`${slug} controls`}>
+      {def?.skill && <p className="step-skill">{`Skill: ${def.skill}`}</p>}
       {def && <p className="step-prompt">{def.prompt}</p>}
       {rowActions.length === 0 && <p className="step-none">No actions right now.</p>}
       {step.status === "needs_you" && (
@@ -152,6 +156,17 @@ export function StepRail({
                 <span className="step-icon" aria-hidden="true">
                   {STATUS_META[step.status].icon}
                 </span>
+                {def && (
+                  <span
+                    className="step-kind"
+                    data-kind={def.kind}
+                    style={{ color: KIND_META[def.kind].color }}
+                    title={KIND_META[def.kind].text}
+                  >
+                    <span aria-hidden="true">{KIND_META[def.kind].icon}</span>
+                    <span className="visually-hidden">{KIND_META[def.kind].text}</span>
+                  </span>
+                )}
                 <span className="step-slug">{slug}</span>
                 <span className="step-status">{STATUS_META[step.status].text}</span>
                 {step.diffStat && <span className="step-diff-summary">{step.diffStat}</span>}

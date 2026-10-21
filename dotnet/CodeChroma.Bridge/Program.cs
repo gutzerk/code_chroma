@@ -1,5 +1,7 @@
 using CodeChroma.Bridge;
 using CodeChroma.Bridge.Agents;
+using CodeChroma.Bridge.Context;
+using CodeChroma.Bridge.Embeddings;
 using CodeChroma.Bridge.Engine;
 using CodeChroma.Bridge.Http;
 using CodeChroma.Bridge.Live;
@@ -7,6 +9,12 @@ using CodeChroma.Bridge.Routes;
 using CodeChroma.Bridge.Skills;
 using CodeChroma.Bridge.Stores;
 using CodeChroma.Bridge.Workspaces;
+
+if (args.Length > 0 && args[0] == "context")
+{
+    Console.OutputEncoding = System.Text.Encoding.UTF8;
+    return ContextTool.Run(args[1..], Console.Out, Console.Error);
+}
 
 var cli = BridgeCli.Parse(args);
 var builder = WebApplication.CreateBuilder(cli.Remaining);
@@ -27,6 +35,8 @@ builder.Services.AddSingleton<ProviderStore>();
 builder.Services.AddSingleton<CallSiteStore>();
 builder.Services.AddSingleton<DiagramLibrary>();
 builder.Services.AddSkillServices();
+builder.Services.AddSingleton(_ => new ModelStore(ModelStore.DefaultDirectory(), new HttpClient()));
+builder.Services.AddSingleton<ProcessDiagram>();
 builder.Services.AddSingleton<WorkflowRunners>();
 builder.Services.AddSingleton(new BranchManager(repoRoot));
 builder.Services.AddSingleton(sp =>
@@ -48,6 +58,8 @@ builder.Services.AddAgentsAndPrs(repoRoot);
 builder.Services.AddCors();
 
 var app = builder.Build();
+SkillSync.InstallIntoWorktree(repoRoot);
+app.Lifetime.ApplicationStarted.Register(() => BareSkill.BridgeUrl = BridgeAddress.Local(app.Services.GetRequiredService<Microsoft.AspNetCore.Hosting.Server.IServer>()));
 
 app.UseWebSockets();
 var spaDir = Path.Combine(AppContext.BaseDirectory, "web");
@@ -83,8 +95,10 @@ EpicsRoutes.Map(app);
 ContextRoutes.Map(app);
 WikiGeneralRoutes.Map(app);
 WorkflowRoutes.Map(app);
+ProcessDiagramRoutes.Map(app);
 
 app.Run();
+return 0;
 
 /// <summary>Starts the watchers with the host and sweeps idle workspaces every minute.</summary>
 internal sealed class RegistryLifecycle(WorkspaceRegistry registry) : BackgroundService

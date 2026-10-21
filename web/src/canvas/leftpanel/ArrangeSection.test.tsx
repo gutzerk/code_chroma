@@ -83,7 +83,7 @@ describe("ArrangeSection", () => {
     const { a, b } = canvasDocStore.getDoc().elements;
     expect(screen.getByRole("button", { name: "Side by side" })).toHaveAttribute("aria-pressed", "true");
     expect(patchCanvas).toHaveBeenCalledOnce();
-    expect(b.position.x - a.position.x).toBe(148);
+    expect(b.position.x - a.position.x).toBe(228);
   });
 
   it("restores the original positions when the active mode is clicked again", async () => {

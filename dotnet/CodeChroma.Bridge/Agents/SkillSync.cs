@@ -2,18 +2,19 @@ using CodeChroma.Bridge.Workspaces;
 
 namespace CodeChroma.Bridge.Agents;
 
-/// <summary>Installs the packaged codechroma-* skills into a worktree's .claude/skills so agents there write canvas artifacts.</summary>
+/// <summary>Installs the shipped codechroma-* skills (skills/ beside the bridge) into a project's or worktree's .claude/skills so agents there write canvas artifacts.</summary>
 public static class SkillSync
 {
     public const string SkillsEnv = "CODECHROMA_SKILLS_DIR";
 
-    /// <summary>The single per-skill list: a new skill is one name here plus its directory under .claude/skills.</summary>
+    /// <summary>The single per-skill list: a new skill is one name here plus its directory under skills/.</summary>
     public static readonly IReadOnlyList<string> SkillNames =
     [
         "codechroma-draw-diagram",
         "codechroma-review-diagram",
         "codechroma-epic-brief",
         "codechroma-wiki-general-update",
+        "codechroma-grill",
     ];
 
     /// <summary>Merged or retired away, but still installed in repos an earlier version analyzed; pruned on every sync.</summary>
@@ -29,19 +30,16 @@ public static class SkillSync
     /// <summary>Every path a fresh agent, PR or branch worktree must never show as its own uncommitted work.</summary>
     public static readonly IReadOnlyList<string> WorktreeExcludes = [".codechroma/", .. ExcludePatterns];
 
-    /// <summary>Where the packaged skills live: $CODECHROMA_SKILLS_DIR, else the nearest .claude/skills above the bridge or the working directory, else ./skills beside it.</summary>
+    /// <summary>Folder name of the shipped skills, in the repo root and beside the bridge executable (the build copies one to the other).</summary>
+    public const string SkillsFolder = "skills";
+
+    /// <summary>Where the shipped skills live: $CODECHROMA_SKILLS_DIR, else the skills folder beside the bridge; no searching.</summary>
     public static string? SkillsRoot()
     {
         var configured = Environment.GetEnvironmentVariable(SkillsEnv)?.Trim();
         if (!string.IsNullOrEmpty(configured) && Directory.Exists(configured)) return Path.GetFullPath(configured);
-        foreach (var start in new[] { AppContext.BaseDirectory, Directory.GetCurrentDirectory() })
-            for (var dir = new DirectoryInfo(start); dir is not null; dir = dir.Parent)
-            {
-                var candidate = Path.Combine(dir.FullName, ".claude", "skills");
-                if (Directory.Exists(Path.Combine(candidate, SkillNames[0]))) return candidate;
-            }
-        var beside = Path.Combine(AppContext.BaseDirectory, "skills");
-        return Directory.Exists(beside) ? beside : null;
+        var beside = Path.Combine(AppContext.BaseDirectory, SkillsFolder);
+        return Directory.Exists(Path.Combine(beside, SkillNames[0])) ? beside : null;
     }
 
     /// <summary>The directory handed to `claude --plugin-dir`: the parent of the skills dir.</summary>
@@ -51,15 +49,14 @@ public static class SkillSync
 
     public static string SkillRelativePath(string name) => Path.Combine(".claude", "skills", name);
 
-    /// <summary>Copies a skill into repoRoot/.claude/skills, replacing any stale copy; null when skipped.</summary>
+    /// <summary>Makes repoRoot/.claude/skills/&lt;name&gt; match the source, touching only files that differ; null when skipped.</summary>
     public static string? SyncSkill(string repoRoot, string name, string? source = null)
     {
         var resolved = source ?? SkillSource(name);
         var target = Path.Combine(repoRoot, SkillRelativePath(name));
         if (resolved is null || !Directory.Exists(resolved) || Path.GetFullPath(target) == Path.GetFullPath(resolved)) return null;
-        if (Directory.Exists(target)) ForceDelete(target);
         Directory.CreateDirectory(Path.GetDirectoryName(target)!);
-        CopyDirectory(resolved, target);
+        MirrorDirectory(resolved, target);
         return target;
     }
 
@@ -83,7 +80,7 @@ public static class SkillSync
         PruneRetired(repoRoot);
     }
 
-    /// <summary>A fresh worktree never reaches the launcher's own sync, so this excludes and installs directly.</summary>
+    /// <summary>Excludes the skill copies from git and installs them: for the opened project at bridge start and for every fresh worktree.</summary>
     public static void InstallIntoWorktree(string root)
     {
         GitExclude.Ensure(root, [.. WorktreeExcludes]);
@@ -94,11 +91,22 @@ public static class SkillSync
         }
     }
 
-    private static void CopyDirectory(string from, string to)
+    /// <summary>Copies new or changed files and removes extras, so an unchanged skill is not rewritten on every bridge start.</summary>
+    private static void MirrorDirectory(string from, string to)
     {
         Directory.CreateDirectory(to);
-        foreach (var file in Directory.GetFiles(from)) File.Copy(file, Path.Combine(to, Path.GetFileName(file)), overwrite: true);
-        foreach (var directory in Directory.GetDirectories(from)) CopyDirectory(directory, Path.Combine(to, Path.GetFileName(directory)));
+        var files = Directory.GetFiles(from).Select(Path.GetFileName).ToHashSet();
+        foreach (var file in Directory.GetFiles(from))
+        {
+            var target = Path.Combine(to, Path.GetFileName(file));
+            if (File.Exists(target) && File.ReadAllBytes(file).AsSpan().SequenceEqual(File.ReadAllBytes(target))) continue;
+            if (File.Exists(target)) File.SetAttributes(target, FileAttributes.Normal);
+            File.Copy(file, target, overwrite: true);
+        }
+        foreach (var extra in Directory.GetFiles(to).Where(f => !files.Contains(Path.GetFileName(f)))) { File.SetAttributes(extra, FileAttributes.Normal); File.Delete(extra); }
+        var directories = Directory.GetDirectories(from).Select(Path.GetFileName).ToHashSet();
+        foreach (var directory in Directory.GetDirectories(from)) MirrorDirectory(directory, Path.Combine(to, Path.GetFileName(directory)));
+        foreach (var extra in Directory.GetDirectories(to).Where(d => !directories.Contains(Path.GetFileName(d)))) ForceDelete(extra);
     }
 
     private static void ForceDelete(string directory)
@@ -143,7 +151,7 @@ public static class DiagramSeed
         CopyIfMissing(Path.Combine(mainRoot, ".codechroma", "canvas-core.json"), Path.Combine(prRoot, ".codechroma", "canvas-core.json"));
     }
 
-    private static string Artifact(string root, string kind) => Path.Combine(root, ".codechroma", "diagrams", kind, kind + ".json");
+    private static string Artifact(string root, string kind) => Workspace.DiagramPath(root, kind);
 
     private static void CopyIfMissing(string source, string target)
     {

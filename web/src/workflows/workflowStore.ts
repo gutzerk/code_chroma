@@ -204,12 +204,22 @@ async function steer(command: () => Promise<Run>): Promise<void> {
 /** The run commands the UI issues, bound to one client. */
 export function workflowActions(client: EngineClient) {
   return {
-    start: async (workflowId: string): Promise<void> => {
+    start: async (workflowId: string, inputs?: Record<string, string>): Promise<void> => {
       await steer(async () => {
-        const run = await client.startRun(workflowId);
+        const run = await client.startRun(workflowId, inputs);
         workflowStore.setActiveRun(run.id);
         return run;
       });
+    },
+    skip: (runId: string, stepId: string) => steer(() => client.skipStep(runId, stepId)),
+    deleteWorkflow: async (workflowId: string): Promise<void> => {
+      try {
+        workflowStore.setError(null);
+        await client.deleteWorkflow(workflowId);
+        workflowStore.setWorkflows(await client.listWorkflows());
+      } catch (err) {
+        workflowStore.setError(message(err));
+      }
     },
     pause: (runId: string) => steer(() => client.pauseRun(runId)),
     resume: (runId: string) => steer(() => client.resumeRun(runId)),

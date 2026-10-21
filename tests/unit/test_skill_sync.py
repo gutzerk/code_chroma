@@ -58,13 +58,15 @@ def test_skips_when_the_source_is_missing(tmp_path):
     assert not (repo / ".claude").exists()
 
 
-@pytest.mark.parametrize("name", ["codechroma-epic-brief", "codechroma-draw-diagram"])
-def test_skips_when_the_target_repo_is_this_project(name):
-    project_root = skill_source(name).parents[2]
+def test_skips_when_the_source_already_is_the_target(tmp_path):
+    source = tmp_path / ".claude" / "skills" / "codechroma-epic-brief"
+    source.mkdir(parents=True)
+    (source / "SKILL.md").write_text("x", encoding="utf-8")
 
-    target = sync_skill(project_root, name)
+    target = sync_skill(tmp_path, "codechroma-epic-brief", source=source)
 
     assert target is None
+    assert (source / "SKILL.md").exists()
 
 
 def test_the_draw_diagram_router_names_every_type_it_routes_to():

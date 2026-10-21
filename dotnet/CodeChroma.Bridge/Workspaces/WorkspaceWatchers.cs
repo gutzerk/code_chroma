@@ -10,6 +10,8 @@ public sealed class WorkspaceWatchers : IDisposable
     private readonly Debouncer _repo;
     private readonly Dictionary<string, Debouncer> _diagrams = [];
     private readonly Debouncer _traces;
+    private readonly Debouncer _newDirectories;
+    private readonly HashSet<string> _pendingDirectories = [];
 
     public WorkspaceWatchers(Workspace workspace)
     {
@@ -18,6 +20,7 @@ public sealed class WorkspaceWatchers : IDisposable
         foreach (var kind in Workspace.DiagramKinds)
             _diagrams[kind] = new Debouncer(TimeSpan.FromMilliseconds(BridgeLimits.WatcherDebounceMs), () => workspace.Emit(new JsonObject { ["type"] = kind }));
         _traces = new Debouncer(TimeSpan.FromMilliseconds(BridgeLimits.WatcherDebounceMs), () => workspace.Emit(new JsonObject { ["type"] = "trace" }));
+        _newDirectories = new Debouncer(TimeSpan.FromMilliseconds(BridgeLimits.WatcherDebounceMs), NotifyNewDirectories);
         _watcher = new FileSystemWatcher(workspace.Root)
         {
             IncludeSubdirectories = true,
@@ -25,13 +28,40 @@ public sealed class WorkspaceWatchers : IDisposable
             NotifyFilter = NotifyFilters.LastWrite | NotifyFilters.FileName | NotifyFilters.DirectoryName | NotifyFilters.Size,
         };
         _watcher.Changed += (_, e) => Route(e.FullPath);
-        _watcher.Created += (_, e) => Route(e.FullPath);
+        _watcher.Created += (_, e) =>
+        {
+            Route(e.FullPath);
+            if (!Directory.Exists(e.FullPath)) return;
+            lock (_pendingDirectories) _pendingDirectories.Add(e.FullPath + Path.DirectorySeparatorChar);
+            _newDirectories.Trigger();
+        };
         _watcher.Deleted += (_, e) => Route(e.FullPath);
         _watcher.Error += (_, _) => _repo.Trigger();
         _watcher.Renamed += (_, e) => { Route(e.OldFullPath); Route(e.FullPath); };
     }
 
     public void Start() => _watcher.EnableRaisingEvents = true;
+
+    private void NotifyNewDirectories()
+    {
+        string[] directories;
+        lock (_pendingDirectories)
+        {
+            directories = _pendingDirectories.ToArray();
+            _pendingDirectories.Clear();
+        }
+        // On Linux, files can be written before inotify attaches to a newly created directory.
+        // Recheck known artifacts after the burst of directory creation has settled.
+        bool UnderNewDirectory(string path) => directories.Any(directory => path.StartsWith(directory, StringComparison.Ordinal));
+        foreach (var kind in Workspace.DiagramKinds)
+        {
+            var path = _workspace.DiagramPath(kind);
+            if (UnderNewDirectory(path) && File.Exists(path)) _diagrams[kind].Trigger();
+        }
+        var traces = _workspace.TracesDir + Path.DirectorySeparatorChar;
+        if (UnderNewDirectory(traces) && Directory.Exists(traces) && Directory.EnumerateFiles(traces).Any())
+            _traces.Trigger();
+    }
 
     private void Route(string fullPath)
     {
@@ -70,6 +100,7 @@ public sealed class WorkspaceWatchers : IDisposable
         _watcher.EnableRaisingEvents = false;
         _watcher.Dispose();
         _repo.Dispose();
+        _newDirectories.Dispose();
         _traces.Dispose();
         foreach (var d in _diagrams.Values) d.Dispose();
     }

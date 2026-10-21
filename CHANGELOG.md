@@ -1,5 +1,22 @@
 # Changelog
 
+## [1.1.0](https://github.com/gutzerk/code_chroma/compare/v1.0.0...v1.1.0) (2026-10-21)
+
+
+### Features
+
+* fast process diagrams via a local semantic context tool and bare CLI runs ([c0fb8b3](https://github.com/gutzerk/code_chroma/commit/c0fb8b32e006f5dc4f468086e823aa2f1719a335))
+* ship skills from skills/ and install them into every project the bridge opens ([eeaabc5](https://github.com/gutzerk/code_chroma/commit/eeaabc59a7339b8735a639565134a6be1430a6a6))
+* short inline skill bodies for the c1, patterns, impact and sequence diagrams ([51378e8](https://github.com/gutzerk/code_chroma/commit/51378e8896ee09794a7519c7d763b3355d619bb5))
+
+
+### Bug Fixes
+
+* align diagram prompts and skill rules where they contradicted each other ([d9b1576](https://github.com/gutzerk/code_chroma/commit/d9b15765c0ca9c0580bafcb0472018013be920e4))
+* close the workflow runner races found in the PR 148 review ([036bc18](https://github.com/gutzerk/code_chroma/commit/036bc18237bf12f9523af9126cb1ca7e76e408c1))
+* pin actions/checkout in publish-model workflow to a commit sha ([ba8db5c](https://github.com/gutzerk/code_chroma/commit/ba8db5c0cfef8e787e263b1378f69c2bb1578a5e))
+* point tests and plugin root at skills/ after the move out of .claude/skills ([447bf99](https://github.com/gutzerk/code_chroma/commit/447bf9903ce1ea383bb2e03387e1e24e1b1fc2ef))
+
 ## [1.0.0](https://github.com/gutzerk/code_chroma/compare/v0.12.1...v1.0.0) (2026-10-20)
 
 

@@ -41,18 +41,16 @@ export function RailIcon({ name }: RailIconProps) {
 
 const PATHS: Record<RailIconName, ReactElement> = {
   draw: <path d="M10 2l4 4-7 7-5 1 1-5zM8.5 3.5l4 4" fill="none" stroke="currentColor" strokeWidth="1.3" strokeLinejoin="round" />,
-  // Window with a `>` prompt.
+  // Prompt chevron over a cursor underscore (the canvas design's terminal glyph).
   terminal: (
-    <>
-      <path fill="none" stroke="currentColor" strokeWidth="1.3" d="M1.65 3.15h12.7v9.7H1.65z" />
-      <path
-        fill="none"
-        stroke="currentColor"
-        strokeWidth="1.3"
-        strokeLinecap="round"
-        d="m4.2 6.4 1.8 1.6-1.8 1.6M8.2 10.2h3.4"
-      />
-    </>
+    <path
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.3"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      d="M2.67 11.33 6.67 8 2.67 4.67M8 12.67h5.33"
+    />
   ),
   // Floating window over a dimmed backdrop — the popup code view.
   "code-popup": (
@@ -179,19 +177,16 @@ const PATHS: Record<RailIconName, ReactElement> = {
       <path stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" d="M8 3.5h6M8 8h6M8 12.5h6" />
     </>
   ),
-  // A speech bubble with an exclamation mark — report a bug or suggest an idea.
+  // A plain speech bubble (the canvas design glyph) — report a bug or suggest an idea.
   "report-issue": (
-    <>
-      <path
-        fill="none"
-        stroke="currentColor"
-        strokeWidth="1.3"
-        strokeLinejoin="round"
-        d="M1.8 2.6h12.4v8.4H6.9l-2.8 2.6v-2.6H1.8z"
-      />
-      <path fill="currentColor" d="M7.4 5h1.2v3.4H7.4z" />
-      <circle cx="8" cy="9.7" r="0.75" fill="currentColor" />
-    </>
+    <path
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.3"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      d="M2.67 3.33h10.67v7.33H6l-3.33 2.67z"
+    />
   ),
   // A down arrow inside an open ring — check for and install app updates.
   updates: (

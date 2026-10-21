@@ -10,7 +10,7 @@
   height: 46px;
   padding: 0 6px;
   border-radius: 16px;
-  background: #15181f;
+  background: var(--bg-panel);
 }
 
 .agents-collapsed-bar-button {
@@ -20,7 +20,7 @@
   padding: 0;
   border: none;
   border-radius: 12px;
-  background: #1c2029;
+  background: var(--bg-raised);
   color: inherit;
   cursor: pointer;
   font-size: 10px;
@@ -33,5 +33,5 @@
   right: 3px;
   width: 6px;
   height: 6px;
-  background: #4ade80;
+  background: var(--success);
 }

@@ -8,7 +8,7 @@
   font-size: 11px;
   font-weight: 600;
   letter-spacing: 0.08em;
-  color: #8b91a1;
+  color: var(--text-2);
   text-transform: uppercase;
 }
 
@@ -22,15 +22,15 @@
   height: 30px;
   border: 0;
   border-radius: 10px;
-  background: #1c2029;
-  color: #c4c8d4;
+  background: var(--bg-raised);
+  color: var(--text-strong);
   font-size: 12px;
   cursor: pointer;
 }
 
 .arrange-section-button[aria-pressed="true"] {
-  background: #b794ff;
-  color: #0b0d12;
+  background: var(--plan);
+  color: var(--bg-ground);
   font-weight: 600;
 }
 

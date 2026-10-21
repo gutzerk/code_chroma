@@ -489,6 +489,14 @@ bar `.canvas-chrome`, left rail `.app-rail`, agent panel `.agent-terminal-dock`,
 `.canvas-stage`, right sidebar `.agent-task-rail`) render as separate 6px-gapped cards with no hard
 borders and no drop shadows — depth comes only from the background-shade steps above.
 
+The palette values match the Claude Design "Canvas MVP" and "Steer a running workflow" handoffs
+(ground `#0b0d12`, panel `#15181f`, canvas `#101218`, raised `#1c2029`/`#262b38`, text `#e9ebf2` /
+`#c4c8d4` / `#8b91a1`, accent `#8fb0ff`, success `#4ade80`, attention `--warning` `#fbbf24`, stopped
+`--stop` `#f87171`, run agent / selection `--plan` `#b794ff`). `--danger` stays `#dc2626` because it
+fills destructive buttons under white text; use `--stop` for the lighter stopped-run/breakpoint hue.
+The workflow step rail's status icons (18px circles) and breakpoint gutter are styled from
+`data-status` in `workflows/workflows.css`.
+
 Two conventions when touching it: use a token for any value that repeats more than once (add a new
 token rather than a new hex), and keep every font size at or above `--text-2xs` (0.68rem) — nothing
 renders smaller. A global `:focus-visible` accent ring is defined at the top too, so interactive

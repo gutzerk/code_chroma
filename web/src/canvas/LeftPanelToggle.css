@@ -8,14 +8,14 @@
   padding: 0;
   border: 0;
   border-radius: 50%;
-  background: #15181f;
-  color: #e9ebf2;
+  background: var(--bg-panel);
+  color: var(--text-1);
   cursor: pointer;
 }
 
 .left-panel-toggle[aria-pressed="true"] {
-  background: #2b3550;
-  color: #b8ccff;
+  background: var(--accent-bg);
+  color: var(--accent-hover);
 }
 
 .left-panel-toggle svg {

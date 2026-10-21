@@ -97,7 +97,6 @@ ContextRoutes.Map(app);
 WikiGeneralRoutes.Map(app);
 WorkflowRoutes.Map(app);
 ProcessDiagramRoutes.Map(app);
-DiagramContextRoutes.Map(app);
 if (Environment.GetEnvironmentVariable("codechroma_MODEL_WARMUP")?.Trim() != "0") _ = Task.Run(() => app.Services.GetRequiredService<DiagramContext>().WarmModelAsync());
 
 app.Run();

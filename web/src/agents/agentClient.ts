@@ -14,8 +14,8 @@ import type {
 } from "../state/types";
 import { errorMessageFrom, jsonInit } from "../util/httpJson";
 
-/** Which diagram a task agent draws (`c1`, `patterns`, `sequence`, `custom`) and what the user asked
- * for; the bridge uses it to select architecture-map context for the agent. */
+/** Marks a task agent as drawing a diagram (`c1`, `patterns`, `sequence`, `custom`, or `any` before the
+ * user has said which); the bridge then tells the agent how to run the `context` command itself. */
 export interface DiagramTaskHint {
   type: string;
   request?: string;

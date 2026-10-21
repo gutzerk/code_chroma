@@ -64,9 +64,9 @@ public static class AgentRoutes
             var body = await Reply.LenientBody(request);
             var invalid = Validate(body, out var title, out var kind, out var attachTo, out var context, out var contextKind);
             if (invalid is not null) return Reply.Error(400, invalid);
-            if (contextKind == "task" && context is not null && attachTo is not null && Json.Str(body["diagram_type"]) is { } diagramType && DiagramContext.Types.Contains(diagramType)
-                && TryWorkspace(registry, attachTo) is { } target && await diagramContext.WriteFileAsync(target, diagramType, Json.Str(body["diagram_request"])) is { } contextFile)
-                context += $" Context already selected from the architecture map for this diagram is in {contextFile} -- read it first and open other files only to confirm details.";
+            if (contextKind == "task" && context is not null && attachTo is not null && Json.Str(body["diagram_type"]) is { } diagramType && (diagramType == DiagramContext.AnyType || DiagramContext.Types.Contains(diagramType))
+                && TryWorkspace(registry, attachTo) is { } target && await diagramContext.CommandAsync(target) is { } contextCommand)
+                context += $" Once you know what the user wants to see, get the relevant code first: run `{contextCommand} \"phrase\" \"phrase\" ...` with 3-6 short phrases taken from their request (one component, flow or concept each), read its output, then draw from it and open a file only to confirm a detail.";
             AgentRecord record;
             try { record = await Task.Run(() => agents.Create(title, kind, attachTo, context, contextKind)); }
             catch (UnknownAgentException) { return Reply.Error(404, $"unknown attach_to: {attachTo}"); }

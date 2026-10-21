@@ -9,6 +9,9 @@ public sealed class DiagramContext(ModelStore models)
     /// <summary>The diagram types that get gathered context; impact reads the diff and epics read requirements, so neither does.</summary>
     public static readonly IReadOnlySet<string> Types = new HashSet<string> { "c1", "patterns", "sequence", "custom" };
 
+    /// <summary>The hint of a launch that has not asked the user what to draw yet; it gets the command but no fixed phrases.</summary>
+    public const string AnyType = "any";
+
     private static readonly SemaphoreSlim BuildGate = new(1, 1);
 
     /// <summary>The phrases the selector scores the components against: fixed seeds for the whole-repo types, the user's request otherwise.</summary>
@@ -48,14 +51,15 @@ public sealed class DiagramContext(ModelStore models)
         }
     }
 
-    /// <summary>Writes the gathered context to <c>.codechroma/context/&lt;type&gt;.md</c> and returns its path; null when none could be gathered.</summary>
-    public async Task<string?> WriteFileAsync(Workspace ws, string type, string? request, CancellationToken ct = default)
+    /// <summary>The <c>context</c> command an interactive agent runs itself with phrases from the user's request; null (and a model download starts) when the map, graph or model is not ready.</summary>
+    public async Task<string?> CommandAsync(Workspace ws, CancellationToken ct = default)
     {
-        if (await GatherAsync(ws, type, request, ct) is not { } text) return null;
-        var path = Path.Combine(ws.Root, ".codechroma", "context", type + ".md");
-        Directory.CreateDirectory(Path.GetDirectoryName(path)!);
-        await File.WriteAllTextAsync(path, text, ct);
-        return path;
+        if (!models.IsInstalled())
+        {
+            _ = WarmModelAsync();
+            return null;
+        }
+        return await PrepareAsync(ws, ct) ? ContextTool.CommandPrefix() + $" --repo-path \"{ws.Root}\" --models-dir \"{models.Directory}\"" : null;
     }
 
     /// <summary>Makes the model and the context cache ready (after a wiki-general run, and at startup); true when both are usable.</summary>

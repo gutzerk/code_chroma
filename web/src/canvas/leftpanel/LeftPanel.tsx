@@ -34,6 +34,7 @@ export function LeftPanel({
   arrange?: ReactNode;
 }) {
   const { leftTab } = useLayoutState();
+  const hasOpenCode = useOpenFiles().length > 0 && leftTab === "files";
   return (
     <aside
       className="left-panel"
@@ -56,6 +57,7 @@ export function LeftPanel({
         ))}
       </div>
       {leftTab === "diagrams" ? <DiagramsTab onDraw={onDraw} arrange={arrange} /> : <FilesTab rootNode={rootNode} onActivate={onActivate} />}
+      {!hasOpenCode && (
       <button
         type="button"
         className="left-panel-edge"
@@ -66,6 +68,7 @@ export function LeftPanel({
           <path d="M15 6l-6 6 6 6" />
         </svg>
       </button>
+      )}
     </aside>
   );
 }

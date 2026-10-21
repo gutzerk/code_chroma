@@ -8,7 +8,6 @@ import { RailButton } from "../RailButton";
 import { tutorialSimStore } from "../../tutorial/tutorialSim";
 import { tutorialStore } from "../../tutorial/tutorialStore";
 import { collectActiveLayers, useCanvasDoc } from "./canvasDocStore";
-import { QuickDrawPanel } from "./QuickDrawPanel";
 import { computeReadyDiagrams, useCustomDiagramTypes } from "./diagramCatalog";
 import { readCachedDiagramsStatus } from "./diagramStatusCache";
 import { useDiagramWatcherError } from "./diagramWatcherErrorStore";
@@ -83,7 +82,6 @@ export function DrawDiagramButton({
   const activeLayers = useMemo(() => collectActiveLayers(doc), [doc]);
   const customTypes = useCustomDiagramTypes(engineClient);
   const [launchError, setError] = useState<string | null>(null);
-  const [quickOpen, setQuickOpen] = useState(false);
   const watcherError = useDiagramWatcherError();
   const error = launchError ?? watcherError;
 
@@ -136,17 +134,6 @@ export function DrawDiagramButton({
       >
         <RailIcon name="custom" />
       </RailButton>
-      <RailButton
-        className="draw-diagram-button"
-        testId="quick-draw-button"
-        label="Quick draw"
-        tooltip="Draw a saved diagram type from a sentence, without opening an agent"
-        pressed={quickOpen}
-        onClick={() => setQuickOpen((open) => !open)}
-      >
-        <RailIcon name="custom" />
-      </RailButton>
-      {quickOpen && <QuickDrawPanel onClose={() => setQuickOpen(false)} />}
       {error && (
         <p className="draw-diagram-button-error" data-testid="draw-diagram-button-error">
           {error}

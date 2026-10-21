@@ -80,7 +80,6 @@ export function TreeNode({
       } else {
         chrome.toggleCode({ stopPropagation: () => {} });
       }
-      if (!canExpand) onActivate?.(node);
       return;
     }
     if (chrome.openInInspector) chrome.openInInspector();

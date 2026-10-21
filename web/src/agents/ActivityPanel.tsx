@@ -157,6 +157,7 @@ export function ActivityPanel({
                 type="button"
                 role="tab"
                 aria-selected={activeId === agent.id}
+                data-diagram={agent.context_kind === "task" || undefined}
                 key={agent.id}
                 onClick={() => {
                   agentStore.clearDiagramsReady(agent.id);
@@ -167,6 +168,9 @@ export function ActivityPanel({
                 <span className="activity-agent-name">
                   <AgentLed status={agent.status} />
                   {agent.title}
+                  {agent.context_kind === "task" && (
+                    <span className="activity-agent-badge">Diagram</span>
+                  )}
                 </span>
                 <span className="activity-agent-meta">
                   {[agent.resolved_cli ?? agent.kind, agent.branch, agentStatusLabel(agent.status)].join(" · ")}

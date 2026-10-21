@@ -81,6 +81,7 @@ npm run e2e                 # Playwright
 
 ## contributing
 
+See [CONTRIBUTING.md](CONTRIBUTING.md) for setup, contributor rules, checks and the PR workflow.
 File issues and feature ideas under `docs/planning/`. See [`CLAUDE.md`](./CLAUDE.md) for the architecture map and repo-wide conventions.
 
 ## license

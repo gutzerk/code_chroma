@@ -23,7 +23,7 @@ describe("HttpEngineClient workflow routes", () => {
     ["redoRun", (c: HttpEngineClient) => c.redoRun("r1", { from: "s2", note: "n" }), "/repos/default/runs/r1/redo", { from: "s2", note: "n" }],
     ["cancelRedo", (c: HttpEngineClient) => c.cancelRedo("r1"), "/repos/default/runs/r1/redo/cancel", undefined],
     ["reviewRun with note", (c: HttpEngineClient) => c.reviewRun("r1", "sendBack", "fix"), "/repos/default/runs/r1/review", { decision: "sendBack", note: "fix" }],
-    ["startRun", (c: HttpEngineClient) => c.startRun("wf"), "/repos/default/workflows/wf/runs", undefined],
+    ["startRun", (c: HttpEngineClient) => c.startRun("wf"), "/repos/default/workflows/wf/runs", { inputs: {} }],
   ])("%s POSTs the contract route", async (_name, call, path, body) => {
     const fetchMock = stubFetch();
 

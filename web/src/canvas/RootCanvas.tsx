@@ -60,7 +60,6 @@ import { PrRailButton } from "../pr/PrRailButton";
 import { usePrWorkspaces } from "../pr/prStore";
 import { SettingsRailButton } from "../assistant/SettingsRailButton";
 import { ReportIssueRailButton } from "../assistant/ReportIssueRailButton";
-import { WorkflowsRailButton } from "../workflows/WorkflowsRailButton";
 import { traceStore, useTraceState } from "../state/traceStore";
 import { revealNode } from "../state/revealNode";
 import { autoExpandInitial } from "../state/autoExpandInitial";
@@ -100,7 +99,7 @@ export function RootCanvas() {
   const engineClient = useEngineClient();
   const [rootNode, setRootNode] = useState<HierarchyNodeRef | null>(null);
   const [codePopupNode, setCodePopupNode] = useState<HierarchyNodeRef | null>(null);
-  const { agentsMode, leftOpen } = useLayoutState();
+  const { agentsMode, leftOpen, leftTab } = useLayoutState();
   const { terminalLeft } = chromeInsets({ leftOpen, agentsMode });
   const [drawOpen, setDrawOpen] = useState(false);
   const stageRef = useRef<HTMLDivElement | null>(null);
@@ -466,7 +465,6 @@ export function RootCanvas() {
         )}
         <BranchSwitcher />
         <div className="canvas-chrome-spacer" />
-        <WorkflowsRailButton />
         <ReportIssueRailButton />
         <GamesMenu />
         <div className="canvas-chrome-separator" />
@@ -516,7 +514,7 @@ export function RootCanvas() {
             className="canvas-main-row"
             style={{ "--agent-dock-left": `${terminalLeft}px` } as CSSProperties}
           >
-            <CodeSidebar hidden={!leftOpen} />
+            <CodeSidebar hidden={!leftOpen || leftTab !== "files"} />
             {/* Own positioning context so the absolutely-positioned overlays below keep anchoring to
                 the visible canvas, not to the canvas plus the breadcrumb strip above it. */}
             <div className="canvas-stage" ref={stageRef}>

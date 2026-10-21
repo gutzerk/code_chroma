@@ -6,6 +6,7 @@ import type {
   Run,
   RunEvent,
   StopMode,
+  SkillInfo,
   WorkflowDef,
 } from "../workflows/types";
 import type {
@@ -1963,8 +1964,20 @@ export class MockBridgeEngineClient implements EngineClient {
   async getRun(runId: string): Promise<Run> {
     return this.workflowEngine.getRun(runId);
   }
-  async startRun(workflowId: string): Promise<Run> {
-    return this.workflowEngine.startRun(workflowId);
+  async startRun(workflowId: string, inputs?: Record<string, string>): Promise<Run> {
+    return this.workflowEngine.startRun(workflowId, inputs);
+  }
+  async deleteWorkflow(workflowId: string): Promise<void> {
+    this.workflowEngine.deleteWorkflow(workflowId);
+  }
+  async listSkills(): Promise<SkillInfo[]> {
+    return [
+      { name: "codechroma-draw-diagram", description: "Draw a diagram on the canvas" },
+      { name: "codechroma-review-diagram", description: "Review the current change" },
+    ];
+  }
+  async skipStep(runId: string, stepId: string): Promise<Run> {
+    return this.workflowEngine.skip(runId, stepId);
   }
   async pauseRun(runId: string): Promise<Run> {
     return this.workflowEngine.pause(runId);

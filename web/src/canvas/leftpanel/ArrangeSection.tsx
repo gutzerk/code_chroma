@@ -2,6 +2,7 @@ import { useEngineClient } from "../../engine-client/EngineClientContext";
 import type { CanvasElement } from "../../state/types";
 import { readSavedCameraView } from "../canvasCameraStore";
 import { canvasDocStore, commitCanvasPositions, useCanvasDoc } from "../doc/canvasDocStore";
+import { PADDING as FRAME_PADDING } from "../doc/DiagramFrame";
 import { elementRect } from "../doc/elementRect";
 import { chromeInsets } from "../layout/layoutMetrics";
 import { useLayoutState } from "../layout/layoutStore";
@@ -39,7 +40,19 @@ function boxesFor(layers: readonly string[], elements: CanvasElement[]): Diagram
   const boxes: DiagramBox[] = [];
   for (const layer of layers) {
     const bounds = unionRects(elements.filter((e) => e.layer === layer).map((e) => elementRect(e)));
-    if (bounds) boxes.push({ layer, bounds });
+    // Slot the diagram's dashed frame (members plus its padding band), not just its boxes, so
+    // neighbouring frames never overlap.
+    if (bounds) {
+      boxes.push({
+        layer,
+        bounds: {
+          left: bounds.left - FRAME_PADDING.side,
+          top: bounds.top - FRAME_PADDING.top,
+          width: bounds.width + FRAME_PADDING.side * 2,
+          height: bounds.height + FRAME_PADDING.top + FRAME_PADDING.bottom,
+        },
+      });
+    }
   }
   return boxes;
 }

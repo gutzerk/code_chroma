@@ -29,6 +29,23 @@ export function TerminalPanel({ hidden = false }: { hidden?: boolean }) {
     scheduleRefit();
   }, [size, scheduleRefit]);
 
+  // Publishes the open panel's height so floating chrome (the left panel) stops above it.
+  useEffect(() => {
+    const panel = panelRef.current;
+    const host = panel?.parentElement;
+    if (!panel || !host) return;
+    const publish = () =>
+      host.style.setProperty("--terminal-height", hidden ? "0px" : `${panel.offsetHeight + 6}px`);
+    publish();
+    if (typeof ResizeObserver === "undefined") return () => host.style.removeProperty("--terminal-height");
+    const observer = new ResizeObserver(publish);
+    observer.observe(panel);
+    return () => {
+      observer.disconnect();
+      host.style.removeProperty("--terminal-height");
+    };
+  }, [hidden]);
+
   return (
     <div
       className={`terminal-panel${hidden ? " terminal-panel-hidden" : ""}${

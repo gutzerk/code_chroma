@@ -30,15 +30,15 @@ function run(state: RunState, overrides: Partial<Run> = {}): Run {
 
 describe("stepActions status matrix", () => {
   const cases: [StepStatus, RunState, StepAction[]][] = [
-    ["pending", "running", []],
-    ["pending", "held", ["resumeFrom"]],
-    ["pending", "stopped", ["resumeFrom"]],
+    ["pending", "running", ["skip"]],
+    ["pending", "held", ["resumeFrom", "skip"]],
+    ["pending", "stopped", ["resumeFrom", "skip"]],
     ["running", "running", ["stopAfter"]],
     ["paused", "paused", ["resume"]],
     ["stopping", "stopping", []],
-    ["held", "held", ["continue"]],
-    ["stopped", "stopped", ["resumeFrom"]],
-    ["needs_you", "needs_you", ["approve", "sendBack"]],
+    ["held", "held", ["continue", "skip"]],
+    ["stopped", "stopped", ["resumeFrom", "skip"]],
+    ["needs_you", "needs_you", ["approve", "sendBack", "skip"]],
     ["done", "running", []],
   ];
 

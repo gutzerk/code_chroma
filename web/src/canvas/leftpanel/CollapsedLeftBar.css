@@ -9,7 +9,7 @@
   gap: 4px;
   padding: 0 6px;
   border-radius: 16px;
-  background: #15181f;
+  background: var(--bg-panel);
 }
 
 .collapsed-left-bar button {
@@ -25,8 +25,8 @@
   width: 34px;
   height: 28px;
   border-radius: 10px;
-  background: #262b38;
-  color: #c4c8d4;
+  background: var(--bg-raised-2);
+  color: var(--text-strong);
 }
 
 .collapsed-left-bar__files {
@@ -34,21 +34,21 @@
   height: 34px;
   border-radius: 12px;
   background: transparent;
-  color: #c4c8d4;
+  color: var(--text-strong);
 }
 
 .collapsed-left-bar__divider {
   width: 1px;
   height: 22px;
   margin: 0 2px;
-  background: #262b38;
+  background: var(--bg-raised-2);
 }
 
 .collapsed-left-bar__diagram {
   width: 34px;
   height: 34px;
   border-radius: 12px;
-  background: #1c2029;
+  background: var(--bg-raised);
 }
 
 .collapsed-left-bar__swatch {
@@ -61,5 +61,5 @@
 
 .collapsed-left-bar__swatch--hidden {
   background: transparent;
-  border: 1.5px dashed #5b6170;
+  border: 1.5px dashed var(--text-faint);
 }

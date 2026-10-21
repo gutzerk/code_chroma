@@ -140,6 +140,11 @@ branches, traces, settings, patterns, impact/review, plain wiki) is ported. Work
 
 ## Tests
 
+`TcpPortFinder` probes a free port and releases it; successive calls may return the same port.
+`RealProcessBridgeTests.Free_port_is_bindable_and_excludes_a_listening_port` holds the first listener
+open while requesting and binding the second port, then closes both even if an assertion fails.
+The probe does not reserve a port for the child bridge between discovery and startup.
+
 `dotnet/CodeChroma.Shell.Tests/` (updater, tabs, stores, bridge manager, `UpdatesBridge`), `dotnet/CodeChroma.Bridge.Tests/`,
 `tests/unit/test_distribution_*.py`, `tests/pester/install.Tests.ps1`. Smoke on a display: `dotnet/CodeChroma.Shell.App/smoke/smoke.mjs`.
 macOS and Linux behaviour (WKWebView/WebKitGTK rendering, Unix PTY, install/update/rollback/uninstall) was reviewed
@@ -149,3 +154,8 @@ from code and is not verified on real hardware.
 and does `result.ToString()` on the null result, an unhandleable NRE inside a native callback that aborts the app. Two guards: `UpdateHost`
 only receives tabs that are on the bridge origin (`MainWindow` filters with `IsBridgeOrigin`; empty tabs get no scripts), and `web/index.html`
 defines `window.__dispatchMessageCallback` (evals the source, always returns a string) so scripts sent to a loaded page never return null.
+
+## CLI lookup and clipboard notes
+
+- `CodeChroma.Bridge/Stores/CliLocator.cs` searches the process PATH, then well-known install dirs (`~/.local/bin`, `/opt/homebrew/bin`, `/usr/local/bin`, npm global, GitHub CLI dirs), because a GUI-launched app inherits a minimal PATH (agents `claude` / `gh` not found).
+- `DesktopScript.cs` adds a guarded fallback for Ctrl/Cmd+C/X/V/A that only acts when the webview raised no native clipboard event (unverified on macOS).

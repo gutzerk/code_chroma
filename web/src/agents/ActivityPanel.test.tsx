@@ -54,6 +54,16 @@ describe("ActivityPanel", () => {
     expect(screen.queryByTestId(`agent-window-${agent.id}`)).toBeNull();
     expect(screen.queryByRole("button", { name: /Detach/ })).toBeNull();
   });
+  it("highlights only the agents launched to draw a diagram", async () => {
+    const drawing = await new MockAgentClient().create("Drawer");
+    const plain = await new MockAgentClient().create("Planner");
+    agentStore.upsert({ ...drawing, context_kind: "task" });
+    agentStore.upsert(plain);
+    setup();
+    const tabs = screen.getByRole("tablist", { name: "Running agents" });
+    expect(tabs.querySelectorAll("[data-diagram]")).toHaveLength(1);
+    expect(tabs.querySelectorAll(".activity-agent-badge")).toHaveLength(1);
+  });
   it("creates a workflow from the empty state and makes it available to run", async () => {
     const client = new MockBridgeEngineClient();
     vi.spyOn(client, "listWorkflows").mockResolvedValueOnce([]);

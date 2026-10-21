@@ -30,11 +30,11 @@ A process diagram used to take an agent 25–30 steps (read wiki, query the grap
 
 ## Context for every diagram type but impact
 
-`Context/DiagramContext.cs` gathers the same context in-process (no CLI hop) for `c1`, `patterns`, `sequence` and `custom`; `impact` (reads the diff) and `epics` (read requirements) get none. Phrases: fixed seed phrases for `c1`/`patterns` (they have no request), the user's request for `sequence`/`custom` (`DiagramContext.Phrases`).
+`Context/DiagramContext.cs` gathers the same context in-process (no CLI hop) for `c1`, `patterns`, `sequence` and `custom`; `impact` (reads the diff) and `epics` (read requirements) get none. Phrases: fixed seed phrases for the headless `c1` run, which has no request (`DiagramContext.Phrases`); interactive agents choose their own.
 - **Model on install/first launch:** the bridge starts a background `WarmModelAsync` at startup (skipped with `codechroma_MODEL_WARMUP=0`; the test host sets it), so the 162 MB model downloads right after the app is installed or updated, not on the first diagram. The installer scripts only place the app, so the pinned hashes stay in `ModelStore.cs`.
 - **Cache on wiki runs:** `WikiGeneralRoutes.StampOnSuccess` calls `DiagramContext.PrepareAsync` (model + `ContextCache.Ensure`) in the background after every successful wiki-general generate or update.
 - **Headless c1:** `POST /repos/{id}/c1/generate` gathers the context and passes it as `RunOptions.Context`, which `SkillAgent.RunCli` appends under "Pre-gathered context".
-- **Interactive agents (Draw popover):** `AgentClient.create(..., diagram: {type, request?})` sends `diagram_type`/`diagram_request` to `POST /agents`; for a task agent the bridge writes `.codechroma/context/<type>.md` and appends a one-line "read this first" pointer to the task (the context is a file because the task is typed into the terminal as one line). `POST /repos/{id}/diagram-context {type, request?}` does the same and returns the file path.
+- **Interactive agents (Draw button and popover):** `AgentClient.create(..., diagram: {type})` sends `diagram_type` (`c1`/`patterns`/`custom` from the popover, `any` from the generic "Draw…" button, nothing for impact/epics) to `POST /agents`. For a task agent the bridge prepares the model and cache, then appends the exact `context --repo-path … --models-dir …` command to the task. The agent runs it itself with 3-6 phrases taken from what the user asks to see, reads the output, then draws — the same flow as the process diagram. Nothing is pre-gathered for these agents.
 - **Fallback:** if the architecture map, graph or model is not ready, nothing is gathered (a missing model starts downloading) and the agent searches the repo itself, as before.
 
 ## Where the skills come from

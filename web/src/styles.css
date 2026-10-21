@@ -8,19 +8,23 @@
      tiers used directly by the top bar / rail / agent panel / canvas / sidebar rules below, and
      also aliased onto the generic --surface-N / --text-N / --accent tokens underneath so every
      existing component re-themes for free without a per-rule rewrite. */
-  --bg-ground: #0f1115; /* window background behind the panels */
-  --bg-panel: #181b23; /* left rail, agent panel, right sidebar */
-  --bg-canvas: #151820; /* center canvas */
-  --bg-raised: #1e222c; /* cards, chips, buttons inside panels */
+  --bg-ground: #0b0d12; /* window background behind the panels */
+  --bg-panel: #15181f; /* left rail, agent panel, right sidebar */
+  --bg-canvas: #101218; /* center canvas */
+  --bg-raised: #1c2029; /* cards, chips, buttons inside panels */
   --bg-raised-2: #262b38; /* hover, active segment, counters */
   --bg-inset: #12141a; /* terminal, switcher track */
   --text-soft: #e9ebf2;
   --text-muted-soft: #8b91a1;
-  --icon: #a3a9ba;
+  --icon: #c4c8d4;
   --accent-bg: #2b3550; /* Generate button background */
   --success: #4ade80; /* agent status indicator */
   --select-ring: #3b4a73; /* selected card ring */
   --dot-grid: #262b38; /* canvas grid dots */
+  --bg-track: #0f1117; /* segmented-tab track */
+  --text-faint: #5b6170; /* hidden / disabled glyphs, hairline arrows */
+  --row-select: rgba(183, 148, 255, 0.1); /* ticked diagram row tint */
+  --ring-idle: #3f4659; /* empty status ring */
 
   /* Radii for the floating-card restyle. */
   --radius-panel: 22px;
@@ -50,9 +54,9 @@
   /* Text. */
   --text-1: var(--text-soft); /* primary labels */
   --text-2: var(--text-muted-soft); /* secondary / muted */
-  --text-3: #6b7280; /* tertiary / de-emphasised */
+  --text-3: #6f7686; /* tertiary / de-emphasised */
   --text-invert: #0d0f14; /* text sitting on a filled accent */
-  --text-strong: #c7cbd6; /* slightly dimmer-than-1 emphasis */
+  --text-strong: #c4c8d4; /* slightly dimmer-than-1 emphasis */
 
   /* Accent / primary actions. */
   --accent: #8fb0ff;
@@ -62,7 +66,7 @@
 
   /* Status / kind hues — the per-view vocabulary (see .canvas-chrome aria-pressed rules). */
   --added: #6fcf97; /* diff added */
-  --plan: #c48af8; /* purple accent — C1 person-actor box, multi-select outline, shared card chrome
+  --plan: #b794ff; /* purple accent — C1 person-actor box, multi-select outline, shared card chrome
      (name predates the retired Plan overlay it originally colored) */
   --trace: #f0a500; /* execution trace */
   --c1: #4fc3f7; /* system-context view */
@@ -70,8 +74,10 @@
   --impact: #fb923c; /* change-impact view */
   --epics: #34d399; /* epics view */
   --games: #4ade80; /* games control — matches the snake body color, stands out from the rest of the chrome */
-  --danger: #dc2626;
-  --warning: #eab308;
+  --danger: #dc2626; /* filled destructive buttons (white text) */
+  --stop: #f87171; /* stopped run / breakpoint hue from the steer-workflow handoff */
+  --accent-hover: #b8ccff; /* pressed toggle glyph / link hover */
+  --warning: #fbbf24;
   --inspector: #2dd4bf; /* block currently shown in the inspector panel */
 
   /* Node-box kind palette -- the add/create/modify/delete + conceptual/unresolved hues from
@@ -198,21 +204,21 @@ body {
    restyle's one "filled" control in the bar. */
 .canvas-chrome .agents-toggle-button {
   width: auto;
-  height: 44px;
+  height: 34px;
   gap: 8px;
-  padding: 0 22px;
+  padding: 0 18px;
   background: var(--accent);
-  color: #0f1320;
+  color: var(--bg-ground);
   border-radius: var(--radius-full);
   font-weight: 600;
-  font-size: 0.875rem;
+  font-size: 0.8125rem;
   white-space: nowrap;
 }
 
 .canvas-chrome .agents-toggle-button:hover:not(:disabled) {
   background: var(--accent);
   filter: brightness(1.06);
-  color: #0f1320;
+  color: var(--bg-ground);
 }
 
 .canvas-chrome .report-issue-toggle-button {
@@ -2606,7 +2612,7 @@ body {
 .block-selected {
   outline: 3px solid var(--plan);
   outline-offset: 2px;
-  box-shadow: 0 0 0 1px var(--plan), 0 0 14px 2px rgba(196, 138, 248, 0.55);
+  box-shadow: 0 0 0 1px var(--plan), 0 0 14px 2px rgba(183, 148, 255, 0.55);
 }
 
 .tree-node.block-selected > .tree-node-main-row .tree-node-label {

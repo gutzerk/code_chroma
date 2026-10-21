@@ -13,8 +13,8 @@
   height: 26px;
   padding: 0;
   border: none;
-  border-radius: 8px;
-  background: #262b38;
+  border-radius: 999px;
+  background: var(--bg-raised-2);
   color: inherit;
   cursor: pointer;
 }

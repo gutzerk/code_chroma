@@ -87,7 +87,7 @@
 }
 
 .left-panel-row[data-selected="true"] {
-  background: #1d2130;
+  background: var(--row-select);
 }
 
 .left-panel-row input[type="checkbox"] {

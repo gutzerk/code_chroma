@@ -320,6 +320,7 @@ public sealed class WorkflowRunnerTests : IDisposable
         Assert.Equal(2, afterStep.Count);
         Assert.Contains("Your task was: do hello", Args(afterStep[1]));
         Assert.DoesNotContain("--mcp-config", Args(afterStep[1]));
+        Assert.Contains("--strict-mcp-config", Args(afterStep[1]));
         Assert.DoesNotContain("run agent", Args(afterStep[1]));
         Assert.Equal(3, afterRun.Count);
         Assert.Contains("run agent", Args(afterRun[2]));
@@ -455,6 +456,110 @@ public sealed class WorkflowRunnerTests : IDisposable
         Assert.Contains("do it differently", Args(_cli.Invocations()[1]));
         Assert.Equal(save, workflowFile.Contains("do it differently"));
         Assert.Equal(!save, run.PromptOverrides.ContainsKey("one"));
+    }
+
+    [Fact]
+    public async Task Stopping_a_held_run_keeps_its_step_unstarted_so_resuming_it_is_not_an_interrupted_attempt()
+    {
+        Define(("one", "agent"), ("two", "agent"));
+        var release = Path.Combine(_cli.Directory, "release");
+        _cli.Script(BlockUntilFile(release), ResultEvent(), Exit(0));
+        var runner = Runner();
+        var started = await runner.Start("wf");
+        runner.SetBreakpoint(started.Id, "two", true);
+        File.WriteAllText(release, "go");
+        await UntilState(runner, started.Id, "held");
+
+        var stopped = await runner.Stop(started.Id, "now");
+        runner.ResumeFrom(started.Id, "two");
+        await UntilState(runner, started.Id, "done");
+
+        Assert.Equal("pending", Step(stopped, "two").Status);
+        Assert.DoesNotContain("interrupted", Args(_cli.Invocations()[1]));
+    }
+
+    [Fact]
+    public async Task Saving_a_step_edit_to_the_workflow_leaves_other_steps_temporary_prompts_out_of_it()
+    {
+        Define(("one", "agent"), ("two", "agent"));
+        _cli.ScriptRuns([ResultEvent(), Exit(0)], [Hang()], [ResultEvent(), Exit(0)], [Hang()], [ResultEvent(), Exit(0)]);
+        var runner = Runner();
+        var started = await runner.Start("wf");
+        await Until(() => _cli.Invocations().Count == 2, "step two launch");
+        await runner.Stop(started.Id, "now");
+        await runner.Redo(started.Id, "one", null, new StepEdit { Prompt = "temporary one", SaveToWorkflow = false });
+        await Until(() => _cli.Invocations().Count == 4, "second step two launch");
+        await runner.Stop(started.Id, "now");
+
+        await runner.Redo(started.Id, "two", null, new StepEdit { Prompt = "saved two", SaveToWorkflow = true });
+        await UntilState(runner, started.Id, "done");
+        var workflowFile = File.ReadAllText(Path.Combine(_repo.Root, ".codechroma", "workflows", "wf.json"));
+
+        Assert.Contains("saved two", workflowFile);
+        Assert.DoesNotContain("temporary one", workflowFile);
+        Assert.Equal("temporary one", runner.Get(started.Id).PromptOverrides["one"]);
+    }
+
+    [Fact]
+    public async Task Two_simultaneous_messages_to_one_agent_let_exactly_one_through()
+    {
+        Define(("one", "agent"));
+        var release = Path.Combine(_cli.Directory, "release");
+        _cli.ScriptRuns([Hang()], [BlockUntilFile(release), Stdout(Say("answer")), ResultEvent(), Exit(0)]);
+        var runner = Runner();
+        var started = await runner.Start("wf");
+        await Until(() => _cli.Invocations().Count == 1, "step launch");
+
+        var first = Task.Run(() => runner.Message(started.Id, "run", "a"));
+        var second = Task.Run(() => runner.Message(started.Id, "run", "b"));
+        await Task.Delay(500);
+        File.WriteAllText(release, "go");
+        var outcomes = await Task.WhenAll(Settle(first), Settle(second));
+        await runner.Stop(started.Id, "now");
+
+        Assert.Single(outcomes, outcome => outcome == "ok");
+        Assert.Single(outcomes, outcome => outcome == "409");
+        Assert.Equal(2, _cli.Invocations().Count);
+    }
+
+    private static async Task<string> Settle(Task<MessageReply> message)
+    {
+        try
+        {
+            await message;
+            return "ok";
+        }
+        catch (BridgeException error)
+        {
+            return error.Status.ToString();
+        }
+    }
+
+    [Fact]
+    public async Task The_run_mcp_answers_malformed_requests_as_errors_and_does_not_reveal_which_runs_exist()
+    {
+        Define(("one", "agent"));
+        _cli.ScriptRuns([Hang()], [Stdout(Say("ok")), ResultEvent(), Exit(0)]);
+        var runner = Runner();
+        var started = await runner.Start("wf");
+        await Until(() => _cli.Invocations().Count == 1, "step launch");
+        await runner.Message(started.Id, "run", "hi");
+        var args = _cli.Invocations()[1]["args"]!.AsArray().Select(a => a!.GetValue<string>()).ToList();
+        var bearer = JsonNode.Parse(args[args.IndexOf("--mcp-config") + 1])!["mcpServers"]![WorkflowRunner.McpServerName]!["headers"]!["Authorization"]!.GetValue<string>();
+
+        var unknownRun = await Assert.ThrowsAsync<BridgeException>(() => runner.HandleMcp("run-nope", bearer, new JsonObject { ["id"] = 1, ["method"] = "ping" }));
+        var numericMethod = await runner.HandleMcp(started.Id, bearer, new JsonObject { ["id"] = 1, ["method"] = 5 });
+        var scalarParams = await runner.HandleMcp(started.Id, bearer, new JsonObject { ["id"] = 2, ["method"] = "tools/call", ["params"] = 7 });
+        var objectMode = await runner.HandleMcp(started.Id, bearer, new JsonObject
+        {
+            ["id"] = 3, ["method"] = "tools/call", ["params"] = new JsonObject { ["name"] = "stop", ["arguments"] = new JsonObject { ["mode"] = new JsonObject() } },
+        });
+        await runner.Stop(started.Id, "now");
+
+        Assert.Equal(401, unknownRun.Status);
+        Assert.Equal(-32601, numericMethod!["error"]!["code"]!.GetValue<int>());
+        Assert.True(scalarParams!["result"]!["isError"]!.GetValue<bool>());
+        Assert.True(objectMode!["result"]!["isError"]!.GetValue<bool>());
     }
 
     [Fact]

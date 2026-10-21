@@ -5,10 +5,10 @@ import pytest
 from codechroma.bridge import resources
 
 
-def test_source_tree_skills_path_points_at_the_repos_own_claude_dir():
+def test_source_tree_skills_path_points_at_the_repos_own_skills_dir():
     path = resources.resource_path("skills")
 
-    assert path == resources.SOURCE_ROOT / ".claude" / "skills"
+    assert path == resources.SOURCE_ROOT / "skills"
 
 
 def test_source_tree_web_path_points_at_the_vite_build_output():

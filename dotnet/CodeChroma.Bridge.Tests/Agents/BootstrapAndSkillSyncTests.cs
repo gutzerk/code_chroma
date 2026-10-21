@@ -257,12 +257,20 @@ public class SkillSyncTests : IDisposable
     }
 
     [Fact]
+    public void The_shipped_skills_sit_in_a_skills_folder_beside_the_bridge_without_any_searching()
+    {
+        var root = SkillSync.SkillsRoot();
+
+        Assert.Equal(Path.Combine(AppContext.BaseDirectory, "skills"), root);
+        foreach (var name in SkillSync.SkillNames) Assert.True(File.Exists(Path.Combine(root!, name, "SKILL.md")), name);
+    }
+
+    [Fact]
     public void The_plugin_dir_is_the_parent_of_the_skills_dir()
     {
         var plugin = SkillSync.PluginDir();
 
-        Assert.NotNull(plugin);
-        Assert.Equal(".claude", Path.GetFileName(plugin));
+        Assert.Equal(AppContext.BaseDirectory.TrimEnd(Path.DirectorySeparatorChar), plugin);
     }
 
     [Fact]

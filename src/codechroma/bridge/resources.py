@@ -7,7 +7,7 @@ from pathlib import Path
 SOURCE_ROOT = Path(__file__).resolve().parents[3]
 
 _SOURCE_RELATIVE = {
-    "skills": Path(".claude") / "skills",
+    "skills": Path("skills"),
     "web": Path("web") / "dist",
     "detect": Path("src") / "codechroma" / "bridge" / "agents" / "detect",
 }

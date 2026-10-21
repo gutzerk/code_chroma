@@ -134,6 +134,14 @@ export abstract class DelegatingEngineClient implements EngineClient {
   getDiagramStatus(kind: SkillRunKind): Promise<DiagramGenerationStatus> {
     return this.inner.getDiagramStatus(kind);
   }
+  generateProcessDiagram(typeId: string, request: string): Promise<DiagramGenerationStatus> {
+    return this.inner.generateProcessDiagram(typeId, request);
+  }
+
+  getProcessDiagramStatus(typeId: string): Promise<DiagramGenerationStatus> {
+    return this.inner.getProcessDiagramStatus(typeId);
+  }
+
   cancelDiagram(kind: SkillRunKind): Promise<DiagramGenerationStatus> {
     return this.inner.cancelDiagram(kind);
   }

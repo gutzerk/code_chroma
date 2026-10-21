@@ -105,7 +105,9 @@ you used**:
 A `FileWatcher` on that exact path (a `DirWatcher` on `.codechroma/diagrams/custom/`) pushes a live update to
 the canvas — wrong path, nothing appears, no error.
 
-**Never overwrite an existing diagram silently.** Before writing the file, check whether an artifact
+**Never overwrite an existing diagram silently** (interactive runs; a headless run started by the
+bridge with a "(re)generate" task has no one to ask — it overwrites, and the bridge restores the old
+file if the run fails). Before writing the file, check whether an artifact
 for this kind already exists at the resolved path (`ls` the exact absolute path, or `[ -f ... ]`). If it
 does, do **not** replace it on your own — the canvas shows one diagram per layer, and replacing it
 destroys the previous one with no undo (`.codechroma/` is gitignored). Instead:
@@ -157,9 +159,8 @@ stage box that isn't a real piece of code takes `node_id: null` with `meta.no_co
 ## Density budgets
 
 These are a **pathology ceiling, never a size target.** Hitting one means the diagram has gone
-wrong — not that you're near a recommended size. `c1` in particular has no numeric authoring target at
-all (see its own reference's "How much to decompose"); the other types should stay well under these
-numbers in ordinary use. Treat these as the wall, never the goal.
+wrong — not that you're near a recommended size. `c1` in particular should stay far below its ceiling (a handful of
+actors around one system box); the other types should stay well under these numbers in ordinary use. Treat these as the wall, never the goal.
 
 | kind | max_nodes | max_relations | max_name_chars | max_edge_label_chars |
 |---|---|---|---|---|
@@ -281,13 +282,12 @@ only use a slug from this list.
 One command shape, run from the repo the bridge serves:
 
 ```bash
-python3 .claude/skills/codechroma-draw-diagram/scripts/check_diagram.py --kind <c1|patterns|impact|custom|epics> [--type <type-id>] [--source=diff|plan] [--feature=<dir>] [--json <file>]
+python3 .claude/skills/codechroma-draw-diagram/scripts/check_diagram.py --kind <c1|patterns|impact|sequence|custom|epics> [--type <type-id>] [--source=diff|plan] [--feature=<dir>] [--json <file>]
 ```
 
 `epics` reads the bridge's resolved `epics.json` when given no `--json`; a per-epic diagram
 (`epics/<epic_id>`, no resolved-GET route) is checked by pointing `--json` at the file it was written
-to (`type-epics.md`).
-```
+to (the epics prompt carries its own rules; there is no `type-epics.md`).
 
 It fetches the bridge's resolved diagram, prints one line per finding, and exits non-zero unless
 everything passes. Don't hand-grep the JSON instead — the response is serialized without spaces, so a
@@ -351,8 +351,8 @@ the only per-type variation, nothing else in the shape differs (see
 
 - `id` unique across the file; `path`/`node_id` copied verbatim or left null for a purely conceptual
   box; every box gets a real `description`.
-- `parent` — another node's own `id`, for decomposition/nesting (c1's blocks) or instance→participant
-  grouping (patterns). Never a display hierarchy of its own — `group` is the clustering signal.
+- `parent` — another node's own `id`, for instance→participant grouping (patterns). `c1` never
+  nests. Never a display hierarchy of its own — `group` is the clustering signal.
 - `group` — a cluster label; only rendered when the diagram's style has `supports_groups`.
 - `kind`/`icon`/`style` — see Icons and the per-box and per-arrow `style` rule below; `style` on a
   relation follows the same allow-listed CSS properties.
@@ -389,7 +389,7 @@ failing, so getting this wrong never breaks the diagram.
 
 ## Drawing a type this skill does not know
 
-The user wants a diagram none of the four rows covers. In this order:
+The user wants a diagram none of the router rows covers. In this order:
 
 1. **`GET /diagram-types`.** If a saved type is close, use it — go to `references/type-custom.md`
    and author that type's instance. A saved type always wins over improvising.

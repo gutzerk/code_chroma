@@ -30,6 +30,11 @@ public sealed record RunOptions(IReadOnlyList<string> ExtraArgs)
     public static RunOptions Default { get; } = new([]);
 
     public Func<CancellationToken, Task> PauseGate { get; init; } = static _ => Task.CompletedTask;
+
+    /// <summary>Run without the CLI's ambient context, with a slash-command skill inlined (see <see cref="BareSkill"/>); workflow runs opt out.</summary>
+    public bool Bare { get; init; } = true;
+
+    public string BareTools { get; init; } = CliAdapters.DefaultBareTools;
 }
 
 /// <summary>Per-kind timeouts and default model (config.py's SkillAgentTimeoutsConfig).</summary>
@@ -332,7 +337,14 @@ public sealed class SkillAgent(SkillAgentSpec spec, CliResolver resolver, Runtim
         // An explicit --model re-triggers the CLI rejection; omit it when ANTHROPIC_MODEL carries the model.
         var argvModel = cli.EnvOverrides.ContainsKey("ANTHROPIC_MODEL") ? "" : cli.Model;
         options ??= RunOptions.Default;
-        var argv = adapter.BuildArgv(resolved.Executable, staticPrompt, argvModel, env, options.ExtraArgs);
+        using var promptFile = new PromptFile();
+        var bareArgs = options.Bare && BareSkill.Enabled() ? adapter.BareArgs(options.BareTools) : [];
+        if (bareArgs.Count > 0)
+        {
+            if (BareSkill.Compose(staticPrompt, repoRoot, repoId) is { } inlined) staticPrompt = FitCommandLine(inlined, repoRoot, promptFile);
+            else bareArgs = [];
+        }
+        var argv = adapter.BuildArgv(resolved.Executable, staticPrompt, argvModel, env, [.. bareArgs, .. options.ExtraArgs]);
         var info = new ProcessStartInfo(argv[0])
         {
             WorkingDirectory = repoRoot, UseShellExecute = false, RedirectStandardOutput = true, RedirectStandardError = true,
@@ -365,11 +377,12 @@ public sealed class SkillAgent(SkillAgentSpec spec, CliResolver resolver, Runtim
             var pending = new List<string>();
             var stderrTail = new StringBuilder();
             var buffer = _output.GetOrAdd(repoId, _ => []);
-            var readers = Task.WhenAll(ReadEvents(process, repoRoot, adapter, buffer, pending, debugLog, stop, options.PauseGate), ReadTail(process, stderrTail, debugLog, stop));
-            using var flusher = new CancellationTokenSource();
-            var flushLoop = FlushLoop(repoId, pending, onOutput, flusher.Token, options.PauseGate);
             using var deadline = CancellationTokenSource.CreateLinkedTokenSource(stop);
             deadline.CancelAfter(TimeSpan.FromSeconds(TimeoutSeconds()));
+            var gate = PausableDeadline(options.PauseGate, deadline);
+            var readers = Task.WhenAll(ReadEvents(process, repoRoot, adapter, buffer, pending, debugLog, stop, gate), ReadTail(process, stderrTail, debugLog, stop));
+            using var flusher = new CancellationTokenSource();
+            var flushLoop = FlushLoop(repoId, pending, onOutput, flusher.Token, gate);
             var timedOut = false;
             try
             {
@@ -403,6 +416,42 @@ public sealed class SkillAgent(SkillAgentSpec spec, CliResolver resolver, Runtim
         if (HasArtifact(repoRoot, repoId)) return IdleState;
         Restore(repoRoot, repoId, snapshot);
         return new JobState("error", Spec.InvalidError);
+    }
+
+    /// <summary>A pause gate that stops the run's timeout while it holds the reader and restarts the full timeout when it releases.</summary>
+    private Func<CancellationToken, Task> PausableDeadline(Func<CancellationToken, Task> gate, CancellationTokenSource deadline) => async token =>
+    {
+        var wait = gate(token);
+        if (wait.IsCompleted) { await wait; return; }
+        deadline.CancelAfter(Timeout.InfiniteTimeSpan);
+        await wait;
+        deadline.CancelAfter(TimeSpan.FromSeconds(TimeoutSeconds()));
+    };
+
+    /// <summary>Windows caps a command line near 32k characters, so a long inlined prompt goes to a file the CLI is told to read first.</summary>
+    private string FitCommandLine(string prompt, string repoRoot, PromptFile promptFile)
+    {
+        if (prompt.Length <= MaxArgvPromptChars) return prompt;
+        var directory = Path.Combine(repoRoot, ".codechroma", "prompts");
+        Directory.CreateDirectory(directory);
+        var file = promptFile.FilePath = Path.Combine(directory, $"{Spec.Name}-{Guid.NewGuid():N}.md");
+        File.WriteAllText(file, prompt);
+        var task = prompt[(prompt.LastIndexOf("\nTask: ", StringComparison.Ordinal) + 1)..];
+        return $"Your complete instructions are in {file}. Read that file in full with your Read tool before anything else, then carry out its task.\n\n{task}";
+    }
+
+    private const int MaxArgvPromptChars = 20_000;
+
+    /// <summary>The temporary file holding a long inlined prompt; removed when the run ends.</summary>
+    private sealed class PromptFile : IDisposable
+    {
+        public string? FilePath { get; set; }
+
+        public void Dispose()
+        {
+            if (FilePath is null) return;
+            try { File.Delete(FilePath); } catch (IOException) { }
+        }
     }
 
     internal static async Task WaitQuietly(Process process)
@@ -518,7 +567,7 @@ public sealed class SkillAgent(SkillAgentSpec spec, CliResolver resolver, Runtim
         try
         {
             Directory.CreateDirectory(dir);
-            return new StreamWriter(Path.Combine(dir, $"{Spec.Name}-{repoId.Replace('/', '_')}-{DateTime.UtcNow:yyyyMMddTHHmmssZ}.log"), append: true, Encoding.UTF8);
+            return new StreamWriter(Path.Combine(dir, $"{Spec.Name}-{repoId.Replace('/', '_').Replace(':', '_')}-{DateTime.UtcNow:yyyyMMddTHHmmssZ}.log"), append: true, Encoding.UTF8);
         }
         catch (IOException)
         {

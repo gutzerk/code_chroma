@@ -14,10 +14,15 @@
   </ItemGroup>
 
   <ItemGroup>
+    <Content Include="../../skills/**/*" Exclude="../../skills/**/__pycache__/**" Link="skills/%(RecursiveDir)%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+
+  <ItemGroup>
     <ProjectReference Include="../CodeChroma.Core/CodeChroma.Core.csproj" />
   </ItemGroup>
 
   <ItemGroup>
+    <PackageReference Include="Microsoft.ML.OnnxRuntime" Version="1.20.1" />
     <PackageReference Include="Porta.Pty" Version="1.0.7" />
   </ItemGroup>
 

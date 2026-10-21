@@ -469,3 +469,70 @@
   outline: 3px solid #7c3aed;
   outline-offset: 2px;
 }
+
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
+
+.step-kind {
+  display: inline-grid;
+  place-items: center;
+  font-size: 0.8125rem;
+}
+
+.step-skill {
+  margin: 0;
+  font-size: 0.75rem;
+  color: var(--text-2);
+}
+
+.step-row[data-status="skipped"] .step-slug {
+  text-decoration: line-through;
+  opacity: 0.6;
+}
+
+.run-overview-row {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 8px 10px;
+  border-left: 3px solid var(--border);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.run-overview-open {
+  align-self: flex-start;
+  border: 0;
+  padding: 0;
+  background: transparent;
+  color: var(--text-1);
+  font-weight: 600;
+  cursor: pointer;
+  text-align: left;
+}
+
+.run-overview-stage {
+  font-size: 0.75rem;
+}
+
+.workflow-progress span[data-status="skipped"] {
+  background: #6b7280;
+}
+
+.workflow-list-heading {
+  margin: 8px 0 0;
+  font-size: 0.75rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--text-2);
+}
+
+.workflow-back {
+  align-self: flex-start;
+}

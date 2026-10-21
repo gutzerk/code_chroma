@@ -48,6 +48,8 @@ epics-preview.html
 .claude/tmp/
 .claude/plans/
 .claude/reports/
+# Installed copies of the skills in skills/ (the bridge syncs them into every opened project)
+.claude/skills/codechroma-*/
 verify_tmp*.cjs
 
 # .NET build output (dotnet/)

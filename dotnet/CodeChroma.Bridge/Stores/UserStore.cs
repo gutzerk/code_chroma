@@ -31,7 +31,7 @@ public sealed class UserPaths
         DiagramTypes = Path.Combine(directory, "diagram-types"),
     };
 
-    private static string Resolve(string envVar, string fileName)
+    internal static string Resolve(string envVar, string fileName)
     {
         var configured = Environment.GetEnvironmentVariable(envVar);
         if (!string.IsNullOrEmpty(configured)) return Path.GetFullPath(ExpandUser(configured));

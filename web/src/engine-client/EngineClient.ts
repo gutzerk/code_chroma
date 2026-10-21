@@ -5,6 +5,7 @@ import type {
   Run,
   RunEvent,
   StopMode,
+  SkillInfo,
   WorkflowDef,
 } from "../workflows/types";
 import type {
@@ -178,6 +179,12 @@ export interface EngineClient {
     kind: SkillRunKind,
     options?: DiagramGenerationOptions,
   ): Promise<DiagramGenerationStatus>;
+  /** Quick draw: a headless, context-free run that draws a saved custom diagram type from a free-text
+   * request (POST /repos/{id}/custom/{typeId}/generate). Needs the architecture map and the local
+   * embedding model; resolves with an error state carrying the bridge's reason when either is missing. */
+  generateProcessDiagram(typeId: string, request: string): Promise<DiagramGenerationStatus>;
+  /** State of that run (GET /repos/{id}/custom/{typeId}/generate/status). */
+  getProcessDiagramStatus(typeId: string): Promise<DiagramGenerationStatus>;
   /** Cancels an in-flight background run for `kind` (POST /repos/{id}/{kind}/cancel), killing the
    * `claude` process and resetting the job to idle. Safe to call when nothing is running. */
   cancelDiagram(kind: SkillRunKind): Promise<DiagramGenerationStatus>;
@@ -226,12 +233,18 @@ export interface EngineClient {
   /** Every workflow definition (GET /repos/{id}/workflows). */
   listWorkflows(): Promise<WorkflowDef[]>;
   createWorkflow(workflow: WorkflowDef): Promise<WorkflowDef>;
+  /** Deletes a workflow definition (DELETE /repos/{id}/workflows/{wfId}); refused while a run is in progress. */
+  deleteWorkflow(workflowId: string): Promise<void>;
+  /** The skills installed in the project, for a step's skill picker (GET /repos/{id}/skills). */
+  listSkills(): Promise<SkillInfo[]>;
+  /** Skips a step that has not run (POST /repos/{id}/runs/{runId}/skip). */
+  skipStep(runId: string, stepId: string): Promise<Run>;
   /** Every run record (GET /repos/{id}/runs). */
   listRuns(): Promise<Run[]>;
   /** One run record (GET /repos/{id}/runs/{runId}) -- what a `run` event makes the client re-fetch. */
   getRun(runId: string): Promise<Run>;
   /** Starts a run of a workflow (POST /repos/{id}/workflows/{wfId}/runs). */
-  startRun(workflowId: string): Promise<Run>;
+  startRun(workflowId: string, inputs?: Record<string, string>): Promise<Run>;
   /** Steer commands (POST /repos/{id}/runs/{runId}/...); each returns the updated run. */
   pauseRun(runId: string): Promise<Run>;
   resumeRun(runId: string): Promise<Run>;
@@ -519,6 +532,14 @@ export class HttpEngineClient implements EngineClient {
     return this.getJson<DiagramGenerationStatus>(`/${kind}/status`);
   }
 
+  generateProcessDiagram(typeId: string, request: string): Promise<DiagramGenerationStatus> {
+    return this.postJson<DiagramGenerationStatus>(`/custom/${encodeURIComponent(typeId)}/generate`, { request });
+  }
+
+  getProcessDiagramStatus(typeId: string): Promise<DiagramGenerationStatus> {
+    return this.getJson<DiagramGenerationStatus>(`/custom/${encodeURIComponent(typeId)}/generate/status`);
+  }
+
   cancelDiagram(kind: SkillRunKind): Promise<DiagramGenerationStatus> {
     return this.postJson<DiagramGenerationStatus>(`/${kind}/cancel`);
   }
@@ -678,8 +699,20 @@ export class HttpEngineClient implements EngineClient {
     return this.getJson<Run>(`/runs/${encodeURIComponent(runId)}`);
   }
 
-  startRun(workflowId: string): Promise<Run> {
-    return this.postJson<Run>(`/workflows/${encodeURIComponent(workflowId)}/runs`);
+  startRun(workflowId: string, inputs?: Record<string, string>): Promise<Run> {
+    return this.postJson<Run>(`/workflows/${encodeURIComponent(workflowId)}/runs`, { inputs: inputs ?? {} });
+  }
+
+  async deleteWorkflow(workflowId: string): Promise<void> {
+    await this.deleteJson(`/workflows/${encodeURIComponent(workflowId)}`);
+  }
+
+  listSkills(): Promise<SkillInfo[]> {
+    return this.getJson<SkillInfo[]>("/skills");
+  }
+
+  skipStep(runId: string, stepId: string): Promise<Run> {
+    return this.runCommand(runId, "skip", { stepId });
   }
 
   private runCommand(runId: string, command: string, body?: unknown): Promise<Run> {

@@ -169,6 +169,7 @@ describe("RootCanvas left panel", () => {
         source: "x = 1",
       }),
     );
+    act(() => layoutStore.openLeft("files"));
     renderCanvas();
     expect(screen.getByTestId("code-sidebar")).not.toHaveAttribute("hidden");
 

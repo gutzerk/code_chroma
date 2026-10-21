@@ -315,6 +315,8 @@ A network error, timeout, or non-2xx response is caught and reported as `support
 models: [], error: <message>` — the provider *is* a kind that supports listing, the attempt just
 failed this time, which the UI renders differently from "this kind can't list models at all."
 
+> **C# bridge: bare runs.** Headless `SkillAgent` runs there no longer inherit the CLI's skills, MCP, settings or CLAUDE.md (claude only; see [`context-tool.md`](context-tool.md)); `codechroma_BARE_AGENTS=0` turns it off. The Python `_run_cli` above is unchanged.
+
 ## The routes (`bridge/routes/llm_settings.py`)
 
 Not repo-scoped — no `Services` dependency, same as `routes/assistant.py`. Full contract:

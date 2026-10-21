@@ -11,7 +11,6 @@ from codechroma.io import load_module_from_path
 
 SKILL = (
     Path(__file__).parent.parent.parent
-    / ".claude"
     / "skills"
     / "codechroma-wiki-general-update"
 )

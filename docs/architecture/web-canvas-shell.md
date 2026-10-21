@@ -391,6 +391,8 @@ this same `src/canvas/` directory but is documented separately given its size.
 ⚠ `ProjectTreePanel.tsx` and the `projectTreePanelStore` adapter are gone: the tree lives in the left
 panel's **Files** tab (`leftpanel/LeftPanel.tsx`, `data-testid="left-panel-files"`, same `TreeNode`)
 and the open/closed flag is `layoutStore.leftOpen` (the old rail `project-tree-toggle-button` was removed; the top-bar `LeftPanelToggle` and the collapsed
+
+**Panel look (design mockup):** both side panels use the shared `canvas/PanelHandle.css` pill (grip dots + chevron, centred on the panel edge; the dots are only drawn where the panel resizes — the agents panel, not the fixed-width left one). The Files tab restyles the shared `TreeNode` through `.left-panel-files` rules in `leftpanel/LeftPanel.css` (flat 28px monospace rows, no kind icons or copy buttons, open file = `#2b3550` row with a green dot); agent tabs in `ActivityPanel` are two-line cards (name + `cli · branch · status`).
 bar's folder button, which opens the Files tab, replace it; the tutorial calls `layoutStore.reset()`
 and then `closeLeft()` where it used to reset the panel). `CodeSidebar` is `hidden` while the left panel
 is closed, as it was with the old tree toggle. The notes below describe the original component's behavior, which `LeftPanel`'s Files tab

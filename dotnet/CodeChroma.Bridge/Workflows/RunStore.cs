@@ -60,6 +60,18 @@ public sealed partial class RunStore(string repoRoot)
 
     public void Save(Run run) => Write(Path.Combine(RunsDir, run.Id + ".json"), JsonSerializer.Serialize(run, WorkflowJson.Options));
 
+    public bool DeleteRun(string id)
+    {
+        if (!IsSafeId(id)) return false;
+        lock (_io)
+        {
+            var path = Path.Combine(RunsDir, id + ".json");
+            if (!File.Exists(path)) return false;
+            File.Delete(path);
+            return true;
+        }
+    }
+
     private void Write(string path, string json)
     {
         lock (_io) JsonFile.WriteText(path, json);

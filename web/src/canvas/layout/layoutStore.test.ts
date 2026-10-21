@@ -88,4 +88,13 @@ describe("layoutStore", () => {
 
     expect(layoutStore.getState().selectedAgentId).toBe("a1");
   });
+
+  it("toggleAgentsWide flips between default and wide", () => {
+    layoutStore.toggleAgentsWide();
+    const stretched = layoutStore.getState().agentsWidth;
+    layoutStore.toggleAgentsWide();
+
+    expect(stretched).toBe("wide");
+    expect(layoutStore.getState().agentsWidth).toBe("default");
+  });
 });

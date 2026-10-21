@@ -137,7 +137,7 @@
 
 .workflow-body {
   display: grid;
-  grid-template-columns: minmax(220px, 280px) 1fr;
+  grid-template-columns: minmax(0, 1fr);
   gap: 12px;
   min-height: 0;
   flex: 1;
@@ -554,19 +554,7 @@
   cursor: pointer;
 }
 
-.run-overview {
-  list-style: none;
-  margin: 0;
-  padding: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
 
-.run-overview-attempts {
-  margin: 4px 0 0;
-  font-size: 0.8125rem;
-}
 
 .workflow-canvas-ring {
   outline: 3px solid #7c3aed;
@@ -599,34 +587,9 @@
   opacity: 0.6;
 }
 
-.run-overview-row {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-  padding: 8px 10px;
-  border-left: 3px solid var(--border);
-  border-radius: 8px;
-  background: rgba(255, 255, 255, 0.03);
-}
 
-.run-overview-open {
-  align-self: flex-start;
-  border: 0;
-  padding: 0;
-  background: transparent;
-  color: var(--text-1);
-  font-weight: 600;
-  cursor: pointer;
-  text-align: left;
-}
 
-.run-overview-stage {
-  font-size: 0.75rem;
-}
 
-.workflow-progress span[data-status="skipped"] {
-  background: #6b7280;
-}
 
 .workflow-list-heading {
   margin: 8px 0 0;
@@ -636,6 +599,408 @@
   color: var(--text-2);
 }
 
-.workflow-back {
-  align-self: flex-start;
+
+/* Workflows tab: container-width driven layout (data-layout is set from a ResizeObserver) */
+.workflows-tab {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  height: 100%;
+  min-height: 0;
+  padding: 12px;
+  overflow: hidden;
+  color: var(--text-1);
+}
+
+.wf-toolbar {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.wf-columns {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 12px;
+  flex: 1;
+  min-height: 0;
+}
+
+.wf-list-col,
+.wf-detail-col {
+  min-width: 0;
+  min-height: 0;
+  overflow-y: auto;
+}
+
+.workflows-tab[data-layout="side"] .wf-columns {
+  grid-template-columns: minmax(220px, 300px) minmax(0, 1fr);
+}
+
+.workflows-tab[data-layout="full"] .wf-columns {
+  grid-template-columns: minmax(240px, 300px) minmax(0, 1fr);
+}
+
+.workflows-tab[data-layout="full"] .workflow-body[data-full] {
+  grid-template-columns: minmax(280px, 360px) minmax(0, 1fr);
+}
+
+.workflow-body[data-full] .wf-live {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-height: 0;
+}
+
+.wf-timeline-col {
+  min-width: 0;
+  overflow-y: auto;
+}
+
+.wf-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0 12px;
+  min-height: 28px;
+  max-width: 100%;
+  background: var(--bg-raised);
+  border: none;
+  border-radius: var(--radius-full);
+  color: var(--text-1);
+  font: inherit;
+  font-size: var(--text-xs);
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.wf-btn:hover:not(:disabled) {
+  background: var(--bg-raised-2);
+}
+
+.wf-btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.wf-btn:focus-visible,
+.wf-run-open:focus-visible,
+.wf-menu-item:focus-visible,
+.wf-tab:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+
+.wf-btn-primary {
+  background: var(--accent-bg);
+  color: var(--accent);
+  font-weight: 600;
+}
+
+.wf-btn-danger:not(:disabled) {
+  background: rgba(248, 113, 113, 0.16);
+  color: var(--stop);
+}
+
+.wf-btn-icon {
+  padding: 0;
+  min-width: 28px;
+  justify-content: center;
+}
+
+.wf-icon {
+  flex: none;
+}
+
+.wf-truncate {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.wf-lists {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.wf-section-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.wf-run-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.wf-run-card {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 8px 10px;
+  border-left: 3px solid var(--border);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.03);
+  min-width: 0;
+}
+
+.wf-run-card[data-selected] {
+  background: rgba(143, 176, 255, 0.1);
+}
+
+.wf-run-open {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+  min-width: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--text-1);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.wf-saved-head {
+  cursor: default;
+}
+
+.wf-run-name {
+  max-width: 100%;
+  font-weight: 600;
+  font-size: 0.875rem;
+}
+
+.wf-run-stage {
+  max-width: 100%;
+  font-size: 0.75rem;
+  color: var(--text-2);
+}
+
+.wf-run-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.wf-seg {
+  display: flex;
+  gap: 3px;
+}
+
+.wf-seg span {
+  flex: 1;
+  height: 6px;
+  border-radius: 3px;
+  background: rgba(255, 255, 255, 0.12);
+}
+
+.wf-seg span[data-status="done"] {
+  background: #4ade80;
+}
+
+.wf-seg span[data-status="running"] {
+  background: var(--accent);
+}
+
+.wf-seg span[data-status="paused"],
+.wf-seg span[data-status="needs_you"],
+.wf-seg span[data-status="held"],
+.wf-seg span[data-status="stopping"] {
+  background: #facc15;
+}
+
+.wf-seg span[data-status="stopped"] {
+  background: var(--stop);
+}
+
+.wf-seg span[data-status="skipped"] {
+  background: #6b7280;
+}
+
+.wf-menu {
+  position: relative;
+}
+
+.wf-menu-list {
+  position: absolute;
+  right: 0;
+  top: calc(100% + 4px);
+  z-index: 20;
+  list-style: none;
+  margin: 0;
+  padding: 4px;
+  min-width: 160px;
+  background: var(--bg-raised);
+  border-radius: 8px;
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.45);
+}
+
+.wf-menu-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  min-height: 28px;
+  padding: 0 8px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--text-1);
+  font: inherit;
+  font-size: var(--text-xs);
+  text-align: left;
+  cursor: pointer;
+}
+
+.wf-menu-item:hover:not(:disabled) {
+  background: var(--bg-raised-2);
+}
+
+.wf-menu-item:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.wf-menu-item[data-danger] {
+  color: var(--stop);
+}
+
+.wf-tabs {
+  display: flex;
+  gap: 4px;
+}
+
+.wf-tab {
+  padding: 0 12px;
+  min-height: 28px;
+  border: 0;
+  border-radius: var(--radius-full);
+  background: transparent;
+  color: var(--text-2);
+  font: inherit;
+  font-size: var(--text-xs);
+  cursor: pointer;
+}
+
+.wf-tab[aria-selected="true"] {
+  background: var(--bg-raised);
+  color: var(--text-1);
+}
+
+.wf-dialog {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  min-width: min(360px, 90vw);
+  max-width: 90vw;
+}
+
+.wf-dialog-title {
+  margin: 0;
+  font-size: 1rem;
+}
+
+.wf-dialog-text {
+  margin: 0;
+  font-size: 0.875rem;
+  color: var(--text-2);
+}
+
+.wf-dialog-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.wf-form,
+.wf-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 0.875rem;
+}
+
+.wf-field input,
+.wf-field select {
+  min-height: 28px;
+  padding: 0 8px;
+  background: var(--bg-raised);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  color: var(--text-1);
+  font: inherit;
+}
+
+/* Step timeline: numbered nodes joined by a rail, with a context label between steps */
+.step-timeline .step-row {
+  position: relative;
+}
+
+.step-between {
+  margin: 4px 0 4px 34px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 0.75rem;
+  color: var(--text-2);
+}
+
+.step-number {
+  display: inline-grid;
+  place-items: center;
+  flex: none;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: var(--bg-raised);
+  font-size: 0.75rem;
+}
+
+.step-row[data-status="done"] .step-number {
+  background: rgba(74, 222, 128, 0.2);
+}
+
+.step-row[data-status="running"] .step-number {
+  background: var(--accent-bg);
+  color: var(--accent);
+}
+
+.step-slug {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.step-collapsed-item,
+.step-collapsed-show {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  margin-right: 8px;
+}
+
+.workflows-tab[data-layout="narrow"] .step-status,
+.workflows-tab[data-layout="narrow"] .step-diff-summary {
+  display: none;
+}
+
+.wf-attempts {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  font-size: 0.75rem;
+  color: var(--text-2);
 }

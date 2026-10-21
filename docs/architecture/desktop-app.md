@@ -125,6 +125,10 @@ credential-free `https://github.com/<repo>/releases/(latest/)?download/...` with
 - ⚠ Releases are unsigned: SmartScreen and Gatekeeper show an "unverified publisher" warning; a `.deb` or
   system-wide install is not updated in place.
 
+## Embedding model download
+
+The fast process-diagram path needs a 162 MB ONNX model; it is not in the installer. On first use the bridge downloads it from the `models-v1` GitHub release into `~/.codechroma/models` and checks its SHA-256 ([`context-tool.md`](context-tool.md)). Offline, the generate route reports "embedding model unavailable".
+
 ## Bridge gaps vs the Python bridge
 
 The C# bridge replaces the Python one in the shipped app. Known, owner-confirmed differences (plan 017 table A):

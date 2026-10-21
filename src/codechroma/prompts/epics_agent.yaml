@@ -1,6 +1,6 @@
 prompt: |-
-  /codechroma-draw-diagram type: epics — read references/type-epics.md and
-  references/drawing-rules.md before writing anything — draw ONE epic (the one the user named, or
+  /codechroma-draw-diagram type: epics — read references/drawing-rules.md before writing anything — (these
+  rules are the whole brief; there is no separate type-epics reference) draw ONE epic (the one the user named, or
   the currently focused epic) as a brief drill-down diagram: the epic's content cards, plus a group
   frame and one "spec" box per phase, and under each spec box ONE box per task (one box per task,
   not a rolled-up counter — a real epic like EP-4 is epic → phase clusters → spec boxes → per-task

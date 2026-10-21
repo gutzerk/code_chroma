@@ -42,7 +42,10 @@ public sealed class Workspace : IDisposable
 
     public string TracesDir => Path.Combine(Root, ".codechroma", "traces");
 
-    public string DiagramPath(string kind) => Path.Combine(Root, ".codechroma", "diagrams", kind, Path.GetFileName(kind) + ".json");
+    public string DiagramPath(string kind) => DiagramPath(Root, kind);
+
+    /// <summary>The artifact file of a diagram kind (`custom/<id>` and `feature-plan/<slug>` included) under a repo root.</summary>
+    public static string DiagramPath(string root, string kind) => Path.Combine(root, ".codechroma", "diagrams", kind, Path.GetFileName(kind) + ".json");
 
     /// <summary>Pings connected canvases; main's pings stay bare, others carry their workspace id.</summary>
     public void Emit(JsonObject message)

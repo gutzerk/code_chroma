@@ -22,7 +22,7 @@ linked diagrams before finishing — see `references/drawing-rules.md` "Splittin
 | `custom` | `.codechroma/diagrams/custom/<type-id>/<type-id>.json` (`GET /repos/{id}/custom/<type-id>-path`) | a **saved, user-authored diagram type** whose rules live in its own definition, not in this skill — "generate the data-flow diagram", "regenerate the ownership map", "deepen the layering diagram", or any run that was handed a `type_id` | `references/type-custom.md` | `check_diagram.py --kind custom --type <type-id>` |
 
 > Pick exactly one row. Read that row's reference file in full before you write anything. Do not
-> carry a rule from one row into another — the five schemas are different shapes on purpose.
+> carry a rule from one row into another — the schemas are different shapes on purpose.
 
 > If the message that started this run already names a `references/type-*.md` file, that file wins
 > over this table.

@@ -28,6 +28,22 @@ public class CliAdapterTests
     }
 
     [Fact]
+    public void Claude_bare_args_drop_ambient_context_without_needing_an_api_key()
+    {
+        var bare = new ClaudeAdapter().BareArgs("Bash,Write");
+
+        Assert.Contains("--disable-slash-commands", bare);
+        Assert.Contains("--strict-mcp-config", bare);
+        Assert.DoesNotContain("--bare", bare);
+        Assert.Equal(["--tools", "Bash,Write", "--allowedTools", "Bash", "Write"], bare.Take(5));
+    }
+
+    [Theory]
+    [InlineData("codex")]
+    [InlineData("kimi-cli")]
+    public void Adapters_without_a_verified_bare_switch_add_nothing(string key) => Assert.Empty(CliAdapters.All[key].BareArgs("Bash"));
+
+    [Fact]
     public void Claude_argv_omits_the_model_flag_when_the_model_is_empty()
     {
         var argv = new ClaudeAdapter().BuildArgv("claude", "p", "", NoKey);

@@ -17,6 +17,7 @@ function setup() {
 }
 
 async function openRedo(client: MockBridgeEngineClient) {
+  await waitFor(() => expect(workflowStore.getWorkflows()).toHaveLength(1));
   await act(async () => {
     await workflowActions(client).start("ship-feature");
   });

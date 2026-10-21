@@ -3,12 +3,13 @@ import { useResizableSize } from "../canvas/useResizableSize";
 import { layoutStore, useLayoutState } from "../canvas/layout/layoutStore";
 import { agentStore, useAgents, useAgentLaunchError } from "./agentStore";
 import { useAgentClient } from "./AgentClientContext";
-import { AgentLed } from "./AgentLed";
+import { AgentLed, agentStatusLabel } from "./AgentLed";
 import { DockedAgentPanel } from "./AgentTerminalDock";
 import { restoreAgentWindow } from "./windowActions";
 import { WorkflowRunScreen } from "../workflows/WorkflowRunScreen";
 import { WorkflowPicker } from "../workflows/WorkflowPicker";
 import { useRuns, useWorkflows } from "../workflows/workflowStore";
+import "../canvas/PanelHandle.css";
 import "./ActivityPanel.css";
 
 /** Attached panel. Terminals stay mounted when tabs or visibility change. */
@@ -35,6 +36,7 @@ export function ActivityPanel({
     maxViewportFraction: 0.7,
   });
   const resizable = agentsMode === "normal";
+  const collapsed = agentsMode === "collapsed";
   const working = agents.filter((a) => a.status === "working" || a.status === "running").length;
   const activeRuns = runs.filter((r) => !["done", "stopped"].includes(r.state)).length;
   const reopenItems = [
@@ -77,20 +79,29 @@ export function ActivityPanel({
           {...handleProps}
         />
       )}
-      <button
-        type="button"
-        className="activity-edge"
-        aria-label={
-          agentsMode === "collapsed"
-            ? "Expand agents and workflows"
-            : "Collapse agents and workflows"
-        }
-        onClick={() =>
-          layoutStore.setAgentsMode(agentsMode === "collapsed" ? "normal" : "collapsed")
-        }
-      >
-        {agentsMode === "collapsed" ? "‹" : "›"}
-      </button>
+      <div className="panel-handle panel-handle--left-edge" data-testid="activity-edge">
+        {resizable && (
+          <span className="panel-handle-grip" aria-hidden="true" {...handleProps}>
+            <span />
+            <span />
+            <span />
+          </span>
+        )}
+        <button
+          type="button"
+          className="panel-handle-btn"
+          aria-label={
+            collapsed ? "Expand agents and workflows" : "Collapse agents and workflows"
+          }
+          onClick={() =>
+            layoutStore.setAgentsMode(collapsed ? "normal" : "collapsed")
+          }
+        >
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+            <path d={collapsed ? "M15 6l-6 6 6 6" : "M9 6l6 6-6 6"} />
+          </svg>
+        </button>
+      </div>
       <div className="activity-content" hidden={agentsMode === "collapsed"}>
         <div className="left-panel-tabs" role="tablist" aria-label="Activity">
           <button
@@ -153,8 +164,13 @@ export function ActivityPanel({
                   restoreAgentWindow(client, agent.id);
                 }}
               >
-                <AgentLed status={agent.status} />
-                {agent.title}
+                <span className="activity-agent-name">
+                  <AgentLed status={agent.status} />
+                  {agent.title}
+                </span>
+                <span className="activity-agent-meta">
+                  {[agent.resolved_cli ?? agent.kind, agent.branch, agentStatusLabel(agent.status)].join(" · ")}
+                </span>
               </button>
             ))}
           </div>

@@ -396,6 +396,8 @@ and then `closeLeft()` where it used to reset the panel). `CodeSidebar` is `hidd
 is closed, as it was with the old tree toggle. The notes below describe the original component's behavior, which `LeftPanel`'s Files tab
 now carries.
 
+**Panel look (design mockup):** both side panels use the shared `canvas/PanelHandle.css` pill (grip dots + chevron, centred on the panel edge; the dots are only drawn where the panel resizes — the agents panel, not the fixed-width left one). The Files tab restyles the shared `TreeNode` through `.left-panel-files` rules in `leftpanel/LeftPanel.css` (flat 28px monospace rows, no kind icons or copy buttons, open file = `#2b3550` row with a green dot); agent tabs in `ActivityPanel` are two-line cards (name + `cli · branch · status`).
+
 The tree now lives in this sidebar rather than on the canvas: `RootCanvas` collapses the seeded
 `hierarchy` layer on load (`collapsedLayersStore.collapse("hierarchy")`), so the canvas opens
 diagrams-only, and the panel — the sole tree surface — is **open by default**

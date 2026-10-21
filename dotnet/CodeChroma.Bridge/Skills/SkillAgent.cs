@@ -341,9 +341,10 @@ public sealed class SkillAgent(SkillAgentSpec spec, CliResolver resolver, Runtim
         var bareArgs = options.Bare && BareSkill.Enabled() ? adapter.BareArgs(options.BareTools) : [];
         if (bareArgs.Count > 0)
         {
-            if (BareSkill.Compose(staticPrompt, repoRoot, repoId) is { } inlined) staticPrompt = FitCommandLine(inlined, repoRoot, promptFile);
+            if (BareSkill.Compose(staticPrompt, repoRoot, repoId) is { } inlined) staticPrompt = inlined;
             else bareArgs = [];
         }
+        staticPrompt = FitCommandLine(staticPrompt, repoRoot, promptFile);
         var argv = adapter.BuildArgv(resolved.Executable, staticPrompt, argvModel, env, [.. bareArgs, .. options.ExtraArgs]);
         var info = new ProcessStartInfo(argv[0])
         {
@@ -431,13 +432,25 @@ public sealed class SkillAgent(SkillAgentSpec spec, CliResolver resolver, Runtim
     /// <summary>Windows caps a command line near 32k characters, so a long inlined prompt goes to a file the CLI is told to read first.</summary>
     private string FitCommandLine(string prompt, string repoRoot, PromptFile promptFile)
     {
-        if (prompt.Length <= MaxArgvPromptChars) return prompt;
+        if (EscapedLength(prompt) <= MaxArgvPromptChars) return prompt;
         var directory = Path.Combine(repoRoot, ".codechroma", "prompts");
         Directory.CreateDirectory(directory);
         var file = promptFile.FilePath = Path.Combine(directory, $"{Spec.Name}-{Guid.NewGuid():N}.md");
         File.WriteAllText(file, prompt);
-        var task = prompt[(prompt.LastIndexOf("\nTask: ", StringComparison.Ordinal) + 1)..];
-        return $"Your complete instructions are in {file}. Read that file in full with your Read tool before anything else, then carry out its task.\n\n{task}";
+        var marker = prompt.LastIndexOf("\nTask: ", StringComparison.Ordinal);
+        var task = marker < 0 ? "" : $"\n\n{prompt[(marker + 1)..]}";
+        if (EscapedLength(task) > MaxArgvPromptChars) task = "";
+        return $"Your complete instructions are in {file}. Read that file in full with your Read tool before anything else, then carry out its task.{task}";
+    }
+
+    /// <summary>A prompt's length once quoted into a Windows command line, where every quote and backslash may gain an escape.</summary>
+    private static int EscapedLength(string text)
+    {
+        if (text.Length > MaxArgvPromptChars) return text.Length;
+        var length = text.Length;
+        foreach (var c in text)
+            if (c is '"' or '\\') length++;
+        return length;
     }
 
     private const int MaxArgvPromptChars = 20_000;

@@ -99,8 +99,10 @@ public static class SkillSync
         foreach (var file in Directory.GetFiles(from))
         {
             var target = Path.Combine(to, Path.GetFileName(file));
-            if (File.Exists(target) && File.ReadAllBytes(file).AsSpan().SequenceEqual(File.ReadAllBytes(target))) continue;
-            if (File.Exists(target)) File.SetAttributes(target, FileAttributes.Normal);
+            var exists = File.Exists(target);
+            if (exists && new FileInfo(file).Length == new FileInfo(target).Length
+                && File.ReadAllBytes(file).AsSpan().SequenceEqual(File.ReadAllBytes(target))) continue;
+            if (exists) File.SetAttributes(target, FileAttributes.Normal);
             File.Copy(file, target, overwrite: true);
         }
         foreach (var extra in Directory.GetFiles(to).Where(f => !files.Contains(Path.GetFileName(f)))) { File.SetAttributes(extra, FileAttributes.Normal); File.Delete(extra); }

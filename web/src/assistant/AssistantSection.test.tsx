@@ -56,11 +56,11 @@ describe("AssistantSection", () => {
     await waitFor(() => expect(screen.getByTestId("assistant-provider")).toBeTruthy());
     expect(screen.getByTestId("assistant-provider")).toHaveValue("");
     expect(screen.getByTestId("assistant-provider-state")).toHaveTextContent("Default");
-    // No provider selected yet -- Apply only appears once the choice diverges from saved.
-    expect(screen.queryByTestId("assistant-provider-apply")).toBeNull();
+    // Apply is always visible but disabled until the choice diverges from saved.
+    expect(screen.getByTestId("assistant-provider-apply")).toBeDisabled();
 
     fireEvent.change(screen.getByTestId("assistant-provider"), { target: { value: "p2" } });
-    await waitFor(() => expect(screen.getByTestId("assistant-provider-apply")).toBeTruthy());
+    await waitFor(() => expect(screen.getByTestId("assistant-provider-apply")).toBeEnabled());
   });
 
   it("pre-selects the routed provider and model when assigned", async () => {

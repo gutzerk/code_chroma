@@ -180,17 +180,15 @@ export function AssistantSection() {
           >
             Fetch models
           </button>
-          {isProviderDirty() && (
-            <button
-              type="button"
-              className="llm-button-primary"
-              data-testid="assistant-provider-apply"
-              disabled={providerBusy}
-              onClick={() => void applyProvider()}
-            >
-              Apply
-            </button>
-          )}
+          <button
+            type="button"
+            className="llm-button-primary"
+            data-testid="assistant-provider-apply"
+            disabled={providerBusy || !isProviderDirty()}
+            onClick={() => void applyProvider()}
+          >
+            Apply
+          </button>
           {providerSavedDraft?.providerId && (
             <button
               type="button"
@@ -209,10 +207,9 @@ export function AssistantSection() {
           )}
         </div>
 
-        {providerSavedDraft?.providerId &&
-          providerSavedDraft.providerId !== providerDraft?.providerId && (
-            <p className="llm-status-ok">Saved — will apply to new agent windows.</p>
-          )}
+        {providerSavedDraft?.providerId && !isProviderDirty() && (
+          <p className="llm-status-ok">Saved — will apply to new agent windows.</p>
+        )}
         {providerError && <p className="llm-status-fail">{providerError}</p>}
         {providerSavedDraft &&
           modelCatalogStatus(providerDraft?.providerId ?? "") &&

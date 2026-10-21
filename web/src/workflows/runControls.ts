@@ -8,7 +8,8 @@ export type StepAction =
   | "continue"
   | "resumeFrom"
   | "approve"
-  | "sendBack";
+  | "sendBack"
+  | "skip";
 
 /** Per-status text and glyph (icon + text, so a status is never conveyed by colour alone). */
 export const STATUS_META: Record<StepStatus, { text: string; icon: string }> = {
@@ -20,6 +21,24 @@ export const STATUS_META: Record<StepStatus, { text: string; icon: string }> = {
   stopped: { text: "Stopped", icon: "■" },
   needs_you: { text: "Needs you", icon: "?" },
   done: { text: "Done", icon: "✓" },
+  skipped: { text: "Skipped", icon: "⤼" },
+};
+
+/** Icon and accent per step kind, so an agent step and a review step read differently at a glance. */
+export const KIND_META: Record<"agent" | "review", { text: string; icon: string; color: string }> = {
+  agent: { text: "Agent", icon: "✦", color: "#8fb0ff" },
+  review: { text: "Your review", icon: "☑", color: "#facc15" },
+};
+
+/** Accent colour per run state for the run list and header. */
+export const RUN_STATE_COLOR: Record<RunState, string> = {
+  running: "#8fb0ff",
+  paused: "#facc15",
+  stopping: "#facc15",
+  held: "#facc15",
+  stopped: "#f87171",
+  needs_you: "#facc15",
+  done: "#4ade80",
 };
 
 export const RUN_STATE_TEXT: Record<RunState, string> = {
@@ -40,6 +59,7 @@ export const ACTION_LABEL: Record<StepAction, string> = {
   resumeFrom: "Resume from here",
   approve: "Approve",
   sendBack: "Send back",
+  skip: "Skip this step",
 };
 
 /** The 22px breakpoint gutter is interactive on unstarted steps only. */
@@ -51,19 +71,20 @@ export function showBreakpointToggle(step: StepRecord): boolean {
 export function stepActions(run: Run, step: StepRecord): StepAction[] {
   switch (step.status) {
     case "pending":
-      return run.state === "stopped" || run.state === "held" ? ["resumeFrom"] : [];
+      return run.state === "stopped" || run.state === "held" ? ["resumeFrom", "skip"] : ["skip"];
     case "running":
       return [run.stopAfter === step.stepId ? "keepRunning" : "stopAfter"];
     case "paused":
       return ["resume"];
     case "held":
-      return ["continue"];
+      return ["continue", "skip"];
     case "stopped":
-      return ["resumeFrom"];
+      return ["resumeFrom", "skip"];
     case "needs_you":
-      return ["approve", "sendBack"];
+      return ["approve", "sendBack", "skip"];
     case "stopping":
     case "done":
+    case "skipped":
       return [];
   }
 }

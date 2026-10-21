@@ -7,15 +7,15 @@
   padding: 8px 12px;
   border: none;
   border-radius: 14px;
-  background: #1c2029;
+  background: var(--bg-raised);
   color: inherit;
   cursor: pointer;
   text-align: left;
 }
 
 .agent-tab--selected {
-  background: #262b38;
-  box-shadow: inset 0 0 0 1px #3b4a73;
+  background: var(--bg-raised-2);
+  box-shadow: inset 0 0 0 1px var(--select-ring);
 }
 
 .agent-tab-name {

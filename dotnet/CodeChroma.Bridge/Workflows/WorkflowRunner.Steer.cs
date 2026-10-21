@@ -158,7 +158,7 @@ public sealed partial class WorkflowRunner
         var step = h.Def.Steps.Find(s => s.Id == stepId)!;
         var record = h.Run.Steps.Find(s => s.StepId == stepId);
         return $"""
-            You are the agent of step "{step.Slug}" in the workflow "{h.Def.Name}". Your task was: {step.Prompt}
+            You are the agent of step "{step.Slug}" in the workflow "{h.Def.Name}". Your task was: {ResolvePrompt(h, step)}
             Its status is {record?.Status ?? "pending"}. Your output so far: {Tail(record?.Output ?? "")}
             Answer the question below from what you did. You can read the working tree but you cannot change anything, and you must not continue or redo the task.
 

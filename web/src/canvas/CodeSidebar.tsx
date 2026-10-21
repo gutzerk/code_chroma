@@ -1,6 +1,7 @@
 import { useState } from "react";
 import type { HierarchyNodeRef } from "../state/types";
 import { CodeView } from "./CodeView";
+import { MarkdownPreview, isMarkdownFile } from "./MarkdownPreview";
 import { ResizableRail } from "./ResizableRail";
 import { useDisclosureMenu } from "../util/useDisclosureMenu";
 import { openFilesStore, useActiveFileId, useOpenFiles } from "./openFilesStore";
@@ -26,6 +27,7 @@ export function CodeSidebar({ hidden = false }: { hidden?: boolean } = {}) {
   const { containerRef, triggerRef, onListKeyDown } = useDisclosureMenu(menuOpen, () =>
     setMenuOpen(false),
   );
+  const [rawIds, setRawIds] = useState<ReadonlySet<string>>(new Set());
   const active = files.find((f) => f.node_id === activeId) ?? null;
 
   // No empty panel between tree and canvas when nothing is open — skip rendering entirely. (This
@@ -103,11 +105,42 @@ export function CodeSidebar({ hidden = false }: { hidden?: boolean } = {}) {
             )}
           </div>
         )}
+        <button
+          type="button"
+          className="code-sidebar-close-all"
+          aria-label="Close all open files"
+          data-testid="code-sidebar-close-all"
+          onClick={() => files.forEach((f) => openFilesStore.close(f.node_id))}
+        >
+          ✕
+        </button>
       </div>
+      {isMarkdownFile(active!.name) && (
+        <div className="code-sidebar-mode" role="group" aria-label="Markdown view">
+          <button
+            type="button"
+            aria-pressed={!rawIds.has(active!.node_id)}
+            onClick={() => setRawIds((s) => new Set([...s].filter((id) => id !== active!.node_id)))}
+          >
+            Rendered
+          </button>
+          <button
+            type="button"
+            aria-pressed={rawIds.has(active!.node_id)}
+            onClick={() => setRawIds((s) => new Set(s).add(active!.node_id))}
+          >
+            Source
+          </button>
+        </div>
+      )}
       {/* active is always set here: the store keeps activeId pointing at an open file, we returned
           early when the list is empty, and this panel stays mounted (latched) hidden otherwise. */}
       <div className="code-sidebar-body" id="code-sidebar-body" data-testid="code-sidebar-body">
-        <CodeView node={active!} className="code-sidebar-view" />
+        {isMarkdownFile(active!.name) && !rawIds.has(active!.node_id) ? (
+          <MarkdownPreview source={active!.source ?? ""} />
+        ) : (
+          <CodeView node={active!} className="code-sidebar-view" />
+        )}
       </div>
     </ResizableRail>
   );

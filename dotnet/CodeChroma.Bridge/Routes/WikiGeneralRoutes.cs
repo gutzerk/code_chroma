@@ -1,4 +1,5 @@
 using System.Text.Json.Nodes;
+using CodeChroma.Bridge.Context;
 using CodeChroma.Bridge.Http;
 using CodeChroma.Bridge.Skills;
 using CodeChroma.Bridge.Stores;
@@ -20,9 +21,13 @@ public static class WikiGeneralRoutes
     };
 
     /// <summary>A clean finish records the commit this tree now reflects before the ping goes out.</summary>
-    private static OnChange StampOnSuccess(Workspace ws, OnChange inner) => (key, state) =>
+    private static OnChange StampOnSuccess(Workspace ws, OnChange inner, DiagramContext context) => (key, state) =>
     {
-        if (state.State != "generating" && state.Error is null) WikiGeneral.StampGeneratedCommit(ws);
+        if (state.State != "generating" && state.Error is null)
+        {
+            WikiGeneral.StampGeneratedCommit(ws);
+            _ = Task.Run(() => context.PrepareAsync(ws));
+        }
         return inner(key, state);
     };
 
@@ -40,7 +45,7 @@ public static class WikiGeneralRoutes
             return Reply.Json(Merge(state, has, stale, !WikiGeneral.HasDocumentableContent(ws.Root)));
         });
 
-        app.MapPost("/repos/{repoId}/wiki-general/status", async (string repoId, HttpRequest request, WorkspaceRegistry registry, SkillAgents agents) =>
+        app.MapPost("/repos/{repoId}/wiki-general/status", async (string repoId, HttpRequest request, WorkspaceRegistry registry, SkillAgents agents, DiagramContext context) =>
         {
             var ws = registry.Get(repoId);
             var body = await Reply.LenientBody(request);
@@ -49,7 +54,7 @@ public static class WikiGeneralRoutes
             var agent = agents[kind];
             var other = agents[kind == WikiGeneral.Kind ? WikiGeneral.KindUpdate : WikiGeneral.Kind];
             var (onChange, _) = SkillJobCallbacks.For(WikiGeneral.Kind, ws.Emit);
-            onChange = StampOnSuccess(ws, onChange);
+            onChange = StampOnSuccess(ws, onChange, context);
             var state = Json.Str(body["state"]);
             if (state == "generating")
             {
@@ -92,13 +97,13 @@ public static class WikiGeneralRoutes
             return Results.Json(await SkillJobCallbacks.StopAndNotify(Active(agents, ws), ws.Id, WikiGeneral.Kind, ws.Emit), BridgeJson.Default.JobState);
         });
 
-        app.MapPost("/repos/{repoId}/wiki-general/generate", async (string repoId, WorkspaceRegistry registry, SkillAgents agents) =>
+        app.MapPost("/repos/{repoId}/wiki-general/generate", async (string repoId, WorkspaceRegistry registry, SkillAgents agents, DiagramContext context) =>
         {
             var ws = registry.Get(repoId);
             if (ws.ReadOnly) return Reply.Error(409, ReadOnlyMessage);
             var agent = agents[WikiGeneral.Kind];
             var (onChange, onOutput) = SkillJobCallbacks.For(WikiGeneral.Kind, ws.Emit);
-            onChange = StampOnSuccess(ws, onChange);
+            onChange = StampOnSuccess(ws, onChange, context);
             var gate = WikiGeneral.RunLock(ws.Id);
             await gate.WaitAsync();
             try
@@ -117,13 +122,13 @@ public static class WikiGeneralRoutes
             }
         });
 
-        app.MapPost("/repos/{repoId}/wiki-general/update", async (string repoId, WorkspaceRegistry registry, SkillAgents agents) =>
+        app.MapPost("/repos/{repoId}/wiki-general/update", async (string repoId, WorkspaceRegistry registry, SkillAgents agents, DiagramContext context) =>
         {
             var ws = registry.Get(repoId);
             if (ws.ReadOnly) return Reply.Error(409, ReadOnlyMessage);
             var agent = agents[WikiGeneral.KindUpdate];
             var (onChange, onOutput) = SkillJobCallbacks.For(WikiGeneral.Kind, ws.Emit);
-            onChange = StampOnSuccess(ws, onChange);
+            onChange = StampOnSuccess(ws, onChange, context);
             var gate = WikiGeneral.RunLock(ws.Id);
             await gate.WaitAsync();
             try

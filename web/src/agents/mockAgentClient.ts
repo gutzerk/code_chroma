@@ -13,7 +13,7 @@ import type {
   WorkspaceStatus,
 } from "../state/types";
 import { parsePrNumber } from "../pr/prUrl";
-import type { AgentClient } from "./agentClient";
+import type { AgentClient, DiagramTaskHint } from "./agentClient";
 
 const MAX_AGENTS = 5;
 
@@ -52,6 +52,7 @@ export class MockAgentClient implements AgentClient {
     attachTo?: string,
     _context?: string | null,
     _contextKind?: "view" | "task",
+    _diagram?: DiagramTaskHint,
   ): Promise<AgentRecord> {
     if (this.agents.length >= MAX_AGENTS) {
       throw new Error(`the limit of ${MAX_AGENTS} concurrent agents is reached`);

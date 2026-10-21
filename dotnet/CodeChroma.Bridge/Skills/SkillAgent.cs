@@ -35,6 +35,9 @@ public sealed record RunOptions(IReadOnlyList<string> ExtraArgs)
     public bool Bare { get; init; } = true;
 
     public string BareTools { get; init; } = CliAdapters.DefaultBareTools;
+
+    /// <summary>Pre-gathered architecture context (see <c>DiagramContext</c>) appended to the prompt; null leaves the agent to search itself.</summary>
+    public string? Context { get; init; }
 }
 
 /// <summary>Per-kind timeouts and default model (config.py's SkillAgentTimeoutsConfig).</summary>
@@ -344,6 +347,8 @@ public sealed class SkillAgent(SkillAgentSpec spec, CliResolver resolver, Runtim
             if (BareSkill.Compose(staticPrompt, repoRoot, repoId) is { } inlined) staticPrompt = inlined;
             else bareArgs = [];
         }
+        if (!string.IsNullOrWhiteSpace(options.Context))
+            staticPrompt += "\n\n## Pre-gathered context\n\nThis was selected from the repository's architecture map for this diagram. Start from it and open a file only to confirm a detail it does not settle.\n\n" + options.Context;
         staticPrompt = FitCommandLine(staticPrompt, repoRoot, promptFile);
         var argv = adapter.BuildArgv(resolved.Executable, staticPrompt, argvModel, env, [.. bareArgs, .. options.ExtraArgs]);
         var info = new ProcessStartInfo(argv[0])

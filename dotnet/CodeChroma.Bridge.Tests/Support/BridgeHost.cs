@@ -14,6 +14,8 @@ public sealed class BridgeHost : IDisposable
     /// <summary>True when CODECHROMA_PYTHON is set: the host then analyzes with the Python analyzers and the C# core.</summary>
     public static bool RealEngine { get; } = !string.IsNullOrEmpty(Environment.GetEnvironmentVariable(PythonAnalysisExporter.PythonEnvVar));
 
+    static BridgeHost() => Environment.SetEnvironmentVariable("codechroma_MODEL_WARMUP", "0");
+
     public string Root { get; }
     public WebApplicationFactory<Program> Factory { get; }
     public HttpClient Client { get; }

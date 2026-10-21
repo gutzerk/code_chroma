@@ -8,7 +8,7 @@ arrows between them. Nothing is decomposed — no `parent`, no `path`, no `node_
 
 ## Steps
 
-1. **Context — read the "Pre-gathered context" section at the end of this prompt first (components picked from the architecture map); then, in one parallel batch of tool calls:**
+1. **Context — if the prompt ends with a "Pre-gathered context" section (components picked from the architecture map), read it first; then, in one parallel batch of tool calls:**
    - `curl -s {BRIDGE}/repos/{WORKSPACE}/context-digest` — who the system serves and what it integrates with (primary source).
    - `curl -s {BRIDGE}/repos/{WORKSPACE}/wiki-general-context` — read only `root` (the system narrative) if `has_wiki_general` is true; ignore `containers[]`.
    - Look for a human context doc: `docs/c1-diagram.md`, `docs/architecture/*context*.md`. Treat anything marked target/aspirational as not current.

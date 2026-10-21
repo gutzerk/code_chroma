@@ -37,6 +37,26 @@ export function ActivityPanel({
   const resizable = agentsMode === "normal";
   const working = agents.filter((a) => a.status === "working" || a.status === "running").length;
   const activeRuns = runs.filter((r) => !["done", "stopped"].includes(r.state)).length;
+  const reopenItems = [
+    {
+      tab: "agents" as const,
+      glyph: "◉",
+      label: "Agents",
+      total: agents.length,
+      active: working,
+      ariaLabel: `Open agents (${agents.length}, ${working} working)`,
+      title: `Agents: ${agents.length} (${working} working)`,
+    },
+    {
+      tab: "workflows" as const,
+      glyph: "▷",
+      label: "Flows",
+      total: runs.length,
+      active: activeRuns,
+      ariaLabel: `Open workflows (${runs.length} runs, ${activeRuns} active)`,
+      title: `Workflow runs: ${runs.length} (${activeRuns} active)`,
+    },
+  ];
   const activeId = agents.some((a) => a.id === selectedAgentId) ? selectedAgentId : agents[0]?.id;
   useEffect(() => {
     if (selectedAgentId) setTab("agents");
@@ -103,7 +123,7 @@ export function ActivityPanel({
               ＋ Run agent
             </button>
           ) : (
-            <button type="button" aria-label="Run workflow" onClick={() => setPicker(!picker)}>
+            <button type="button" aria-label="Run workflow" onClick={() => setPicker((open) => !open)}>
               ▷ Run workflow
             </button>
           )}
@@ -159,34 +179,23 @@ export function ActivityPanel({
       </div>
       {agentsMode === "collapsed" && (
         <div className="activity-reopen" data-testid="activity-reopen">
-          <button
-            type="button"
-            className="activity-reopen-item"
-            aria-label={`Open agents (${agents.length}, ${working} working)`}
-            title={`Agents: ${agents.length} (${working} working)`}
-            onClick={() => {
-              setTab("agents");
-              layoutStore.setAgentsMode("normal");
-            }}
-          >
-            <span className="activity-reopen-glyph" aria-hidden="true">◉</span>
-            <span className="activity-reopen-count" data-active={working > 0}>{agents.length}</span>
-            <span className="activity-reopen-label">Agents</span>
-          </button>
-          <button
-            type="button"
-            className="activity-reopen-item"
-            aria-label={`Open workflows (${runs.length} runs, ${activeRuns} active)`}
-            title={`Workflow runs: ${runs.length} (${activeRuns} active)`}
-            onClick={() => {
-              setTab("workflows");
-              layoutStore.setAgentsMode("normal");
-            }}
-          >
-            <span className="activity-reopen-glyph" aria-hidden="true">▷</span>
-            <span className="activity-reopen-count" data-active={activeRuns > 0}>{runs.length}</span>
-            <span className="activity-reopen-label">Flows</span>
-          </button>
+          {reopenItems.map((item) => (
+            <button
+              key={item.tab}
+              type="button"
+              className="activity-reopen-item"
+              aria-label={item.ariaLabel}
+              title={item.title}
+              onClick={() => {
+                setTab(item.tab);
+                layoutStore.setAgentsMode("normal");
+              }}
+            >
+              <span className="activity-reopen-glyph" aria-hidden="true">{item.glyph}</span>
+              <span className="activity-reopen-count" data-active={item.active > 0}>{item.total}</span>
+              <span className="activity-reopen-label">{item.label}</span>
+            </button>
+          ))}
         </div>
       )}
     </aside>

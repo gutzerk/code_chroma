@@ -42,21 +42,23 @@ public static class WorkflowRoutes
         {
             var ws = registry.Get(repoId);
             if (ws.ReadOnly) return Reply.Error(409, "a pull-request workspace is read-only");
-            WorkflowDef? def;
-            try { def = await JsonSerializer.DeserializeAsync<WorkflowDef>(request.Body, WorkflowJson.Options); }
-            catch (JsonException) { return Reply.Error(400, "Invalid workflow JSON"); }
-            if (def is null || string.IsNullOrWhiteSpace(def.Id) || !RunStore.IsSafeId(def.Id) || string.IsNullOrWhiteSpace(def.Name) || def.Steps is null || def.Steps.Count == 0 ||
-                def.Steps.Any(s => s is null || string.IsNullOrWhiteSpace(s.Id) || !RunStore.IsSafeId(s.Id) || string.IsNullOrWhiteSpace(s.Slug) ||
-                    (s.Kind != "agent" && s.Kind != "review") || string.IsNullOrWhiteSpace(s.Prompt)) ||
-                def.Steps.Select(s => s.Id).Distinct().Count() != def.Steps.Count)
-                return Reply.Error(400, "A workflow needs an id, name and uniquely identified agent or review steps with prompts");
-            def.Inputs ??= [];
-            if (def.Inputs.Any(i => i is null || !RunStore.IsSafeId(i.Name)) || def.Inputs.Select(i => i.Name).Distinct().Count() != def.Inputs.Count)
-                return Reply.Error(400, "Workflow inputs need unique simple names");
-            if (def.Steps.Any(s => s.Skill is { } skill && (skill.Length == 0 || !RunStore.IsSafeId(skill))))
-                return Reply.Error(400, "A step skill must be a skill name");
+            var (def, error) = await ReadDefinition(request);
+            if (def is null) return Reply.Error(400, error!);
             var store = runners.For(registry.Get(repoId)).Store;
             if (!store.TryCreateWorkflow(def)) return Reply.Error(409, "Workflow already exists");
+            return JsonResult(def);
+        });
+
+        app.MapPut("/repos/{repoId}/workflows/{workflowId}", async (string repoId, string workflowId, HttpRequest request, WorkspaceRegistry registry, WorkflowRunners runners) =>
+        {
+            var ws = registry.Get(repoId);
+            if (ws.ReadOnly) return Reply.Error(409, "a pull-request workspace is read-only");
+            var (def, error) = await ReadDefinition(request);
+            if (def is null) return Reply.Error(400, error!);
+            if (def.Id != workflowId) return Reply.Error(400, "The workflow id in the body must match the URL");
+            var store = runners.For(ws).Store;
+            if (store.GetWorkflow(workflowId) is null) return Reply.Error(404, $"unknown workflow: {workflowId}");
+            store.SaveWorkflow(def);
             return JsonResult(def);
         });
 
@@ -85,6 +87,21 @@ public static class WorkflowRoutes
                     if (Json.NonEmptyStr(value) is { } text) inputs[name] = text;
             return await MutateAsync(registry.Get(repoId), runners, runner => runner.Start(workflowId, inputs));
         });
+
+        app.MapDelete("/repos/{repoId}/runs/{runId}", (string repoId, string runId, WorkspaceRegistry registry, WorkflowRunners runners) =>
+            Mutate(registry.Get(repoId), runners, runner =>
+            {
+                runner.DeleteRun(runId);
+                return new { deleted = runId };
+            }));
+
+        app.MapDelete("/repos/{repoId}/runs", (string repoId, string? state, WorkspaceRegistry registry, WorkflowRunners runners) =>
+            state != "finished"
+                ? Reply.Error(400, "state must be finished")
+                : Mutate(registry.Get(repoId), runners, runner => new { deleted = runner.ClearFinished() }));
+
+        app.MapPost("/repos/{repoId}/runs/{runId}/restart", async (string repoId, string runId, WorkspaceRegistry registry, WorkflowRunners runners) =>
+            await MutateAsync(registry.Get(repoId), runners, runner => runner.Restart(runId)));
 
         app.MapPost("/repos/{repoId}/runs/{runId}/skip", async (string repoId, string runId, HttpRequest request, WorkspaceRegistry registry, WorkflowRunners runners) =>
         {
@@ -182,6 +199,32 @@ public static class WorkflowRoutes
             skills.Add(new { name, description });
         }
         return skills;
+    }
+
+    /// <summary>Parses and validates a workflow definition body shared by create and update.</summary>
+    private static async Task<(WorkflowDef? Def, string? Error)> ReadDefinition(HttpRequest request)
+    {
+        WorkflowDef? def;
+        try { def = await JsonSerializer.DeserializeAsync<WorkflowDef>(request.Body, WorkflowJson.Options); }
+        catch (JsonException) { return (null, "Invalid workflow JSON"); }
+        if (def is null || string.IsNullOrWhiteSpace(def.Id) || !RunStore.IsSafeId(def.Id) || string.IsNullOrWhiteSpace(def.Name) || def.Steps is null || def.Steps.Count == 0 ||
+            def.Steps.Any(s => s is null || string.IsNullOrWhiteSpace(s.Id) || !RunStore.IsSafeId(s.Id) || string.IsNullOrWhiteSpace(s.Slug) ||
+                (s.Kind != "agent" && s.Kind != "review") || (s.Kind == "agent" && string.IsNullOrWhiteSpace(s.Prompt))) ||
+            def.Steps.Select(s => s.Id).Distinct().Count() != def.Steps.Count)
+            return (null, "A workflow needs an id, name and uniquely identified agent steps with prompts or review steps");
+        if (def.Steps.Any(s => s.Context != "previous" && s.Context != "fresh")) return (null, "A step context must be previous or fresh");
+        for (var i = 0; i < def.Steps.Count; i++)
+        {
+            var back = def.Steps[i].SendBackTo;
+            if (back is null) continue;
+            if (!def.Steps.Take(i).Any(s => s.Id == back && s.Kind == "agent")) return (null, "sendBackTo must name an earlier agent step");
+        }
+        def.Inputs ??= [];
+        if (def.Inputs.Any(i => i is null || !RunStore.IsSafeId(i.Name)) || def.Inputs.Select(i => i.Name).Distinct().Count() != def.Inputs.Count)
+            return (null, "Workflow inputs need unique simple names");
+        if (def.Steps.Any(s => s.Skill is { } skill && (skill.Length == 0 || !RunStore.IsSafeId(skill))))
+            return (null, "A step skill must be a skill name");
+        return (def, null);
     }
 
     private static string? Str(JsonObject body, string key) => Json.NonEmptyStr(body[key]);

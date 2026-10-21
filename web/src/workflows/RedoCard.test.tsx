@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { MockBridgeEngineClient } from "../engine-client/mockBridge";
 import { EngineClientProvider } from "../engine-client/EngineClientContext";
-import { WorkflowRunScreen } from "./WorkflowRunScreen";
+import { WorkflowsTab } from "./WorkflowsTab";
 import { workflowActions, workflowStore } from "./workflowStore";
 
 function setup() {
@@ -10,7 +10,7 @@ function setup() {
   client.workflowEngine.stepMs = 0;
   render(
     <EngineClientProvider repoId="default" client={client}>
-      <WorkflowRunScreen />
+      <WorkflowsTab />
     </EngineClientProvider>,
   );
   return client;
@@ -128,7 +128,7 @@ describe("RedoCard", () => {
     fireEvent.click(within(card).getByTestId("redo-confirm"));
     await waitFor(() => expect(screen.getByTestId("attempt-switcher")).toBeInTheDocument());
 
-    fireEvent.click(screen.getByRole("button", { name: "← All workflow runs" }));
+    fireEvent.click(screen.getByRole("button", { name: "All workflow runs" }));
 
     expect(screen.getByTestId("run-attempt-run1-1")).toHaveTextContent("set aside on run1/attempt-1");
     expect(screen.getByTestId("run-attempt-run1-2")).toHaveTextContent("current");

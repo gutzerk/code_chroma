@@ -233,6 +233,14 @@ export interface EngineClient {
   /** Every workflow definition (GET /repos/{id}/workflows). */
   listWorkflows(): Promise<WorkflowDef[]>;
   createWorkflow(workflow: WorkflowDef): Promise<WorkflowDef>;
+  /** Replaces a workflow definition (PUT /repos/{id}/workflows/{wfId}); only runs loaded afterwards see it. */
+  updateWorkflow(workflow: WorkflowDef): Promise<WorkflowDef>;
+  /** Deletes a finished run (DELETE /repos/{id}/runs/{runId}); refused unless done or stopped. */
+  deleteRun(runId: string): Promise<void>;
+  /** Deletes every done/stopped run (DELETE /repos/{id}/runs?state=finished). */
+  clearFinishedRuns(): Promise<void>;
+  /** Resets a done/stopped run to step 1 with the same id and inputs (POST /repos/{id}/runs/{runId}/restart). */
+  restartRun(runId: string): Promise<Run>;
   /** Deletes a workflow definition (DELETE /repos/{id}/workflows/{wfId}); refused while a run is in progress. */
   deleteWorkflow(workflowId: string): Promise<void>;
   /** The skills installed in the project, for a step's skill picker (GET /repos/{id}/skills). */
@@ -689,6 +697,25 @@ export class HttpEngineClient implements EngineClient {
 
   createWorkflow(workflow: WorkflowDef): Promise<WorkflowDef> {
     return this.postJson<WorkflowDef>("/workflows", workflow);
+  }
+
+  updateWorkflow(workflow: WorkflowDef): Promise<WorkflowDef> {
+    return this.request<WorkflowDef>(
+      `/workflows/${encodeURIComponent(workflow.id)}`,
+      HttpEngineClient.jsonInit("PUT", workflow),
+    );
+  }
+
+  async deleteRun(runId: string): Promise<void> {
+    await this.deleteJson(`/runs/${encodeURIComponent(runId)}`);
+  }
+
+  async clearFinishedRuns(): Promise<void> {
+    await this.deleteJson("/runs?state=finished");
+  }
+
+  restartRun(runId: string): Promise<Run> {
+    return this.runCommand(runId, "restart");
   }
 
   listRuns(): Promise<Run[]> {

@@ -1,8 +1,8 @@
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { MockBridgeEngineClient } from "../engine-client/mockBridge";
 import { EngineClientProvider } from "../engine-client/EngineClientContext";
-import { WorkflowRunScreen } from "./WorkflowRunScreen";
+import { WorkflowsTab } from "./WorkflowsTab";
 import { workflowActions, workflowStore } from "./workflowStore";
 
 function setup() {
@@ -10,7 +10,7 @@ function setup() {
   client.workflowEngine.stepMs = 0;
   render(
     <EngineClientProvider repoId="default" client={client}>
-      <WorkflowRunScreen />
+      <WorkflowsTab />
     </EngineClientProvider>,
   );
   return client;
@@ -24,7 +24,7 @@ async function startRun(client: MockBridgeEngineClient) {
   await screen.findByTestId("step-rail");
 }
 
-describe("WorkflowRunScreen", () => {
+describe("WorkflowsTab run detail", () => {
   beforeEach(() => workflowStore.reset());
   afterEach(cleanup);
 
@@ -66,22 +66,22 @@ describe("WorkflowRunScreen", () => {
     const client = setup();
     await startRun(client);
 
-    fireEvent.click(screen.getByRole("button", { name: "Pause" }));
+    fireEvent.click(screen.getByTestId("header-toggle"));
 
     await waitFor(() => expect(screen.getByTestId("run-state")).toHaveTextContent("Paused"));
     expect(screen.getByTestId("run-banner")).toHaveTextContent("Paused at plan");
-    fireEvent.click(screen.getByRole("button", { name: "Resume" }));
+    fireEvent.click(screen.getByTestId("header-toggle"));
     await waitFor(() => expect(screen.getByTestId("run-state")).toHaveTextContent("Running"));
   });
 
-  it("stops the run now and offers Resume from here on the stopped step", async () => {
+  it("cancels the run and offers Resume from here on the stopped step", async () => {
     const client = setup();
     await startRun(client);
 
-    fireEvent.click(screen.getByRole("button", { name: "Stop run" }));
+    fireEvent.click(screen.getByTestId("cancel-run"));
 
     await waitFor(() => expect(screen.getByTestId("run-state")).toHaveTextContent("Stopped"));
-    expect(screen.getByRole("button", { name: "Stop run" })).toBeDisabled();
+    expect(screen.getByTestId("cancel-run")).toBeDisabled();
     fireEvent.click(screen.getByRole("button", { name: "plan, Stopped" }));
     fireEvent.click(screen.getByRole("button", { name: "Resume from here: plan" }));
     await waitFor(() => expect(screen.getByTestId("run-state")).toHaveTextContent("Running"));
@@ -101,8 +101,8 @@ describe("WorkflowRunScreen", () => {
     act(() => client.workflowEngine.advance("run1"));
 
     await waitFor(() => expect(screen.getByTestId("run-state")).toHaveTextContent("Held"));
-    expect(screen.getByRole("button", { name: "Continue" })).toBeEnabled();
-    fireEvent.click(screen.getByRole("button", { name: "Continue" }));
+    expect(screen.getByTestId("header-toggle")).toHaveTextContent("Continue");
+    fireEvent.click(screen.getByTestId("header-toggle"));
     await waitFor(() => expect(screen.getByTestId("run-state")).toHaveTextContent("Running"));
   });
 
@@ -142,12 +142,101 @@ describe("WorkflowRunScreen", () => {
     const buttons = screen.getAllByRole("button");
 
     expect(buttons.length).toBeGreaterThan(5);
+    expect(document.body.textContent).not.toMatch(/[▶✓✦☐⏸]/);
     for (const button of buttons) {
       expect(button.tagName).toBe("BUTTON");
       expect(button.tabIndex).toBe(0);
     }
-    const stop = screen.getByRole("button", { name: "Stop run" });
+    const stop = screen.getByTestId("cancel-run");
     stop.focus();
     expect(document.activeElement).toBe(stop);
+  });
+
+  it("labels the context between steps", async () => {
+    const client = setup();
+    await startRun(client);
+
+    expect(screen.queryByTestId("between-plan")).toBeNull();
+    expect(screen.getByTestId("between-implement")).toHaveTextContent("Passes output to step 1");
+    expect(screen.getByTestId("between-review")).toHaveTextContent("You review the diff");
+  });
+
+  it("lists the run under Active and offers Saved workflows with Edit and Run", async () => {
+    const client = setup();
+    await startRun(client);
+    fireEvent.click(screen.getByRole("button", { name: "All workflow runs" }));
+
+    expect(screen.getByRole("heading", { name: /Active \(1\)/ })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Edit workflow Ship a feature" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Start run: Ship a feature" })).toBeInTheDocument();
+  });
+
+  it("restarts a finished run only after confirming", async () => {
+    const client = setup();
+    await startRun(client);
+    fireEvent.click(screen.getByTestId("cancel-run"));
+    await waitFor(() => expect(screen.getByTestId("run-state")).toHaveTextContent("Stopped"));
+
+    fireEvent.click(screen.getByTestId("restart-run"));
+    expect(screen.getByTestId("confirm-dialog")).toBeInTheDocument();
+    fireEvent.click(screen.getByTestId("confirm-yes"));
+
+    await waitFor(() => expect(screen.getByTestId("run-state")).toHaveTextContent("Running"));
+  });
+});
+
+describe("WorkflowsTab responsive layout", () => {
+  let observe: ((width: number) => void) | null = null;
+  beforeEach(() => {
+    workflowStore.reset();
+    vi.stubGlobal(
+      "ResizeObserver",
+      class {
+        constructor(cb: (entries: { contentRect: { width: number } }[]) => void) {
+          observe = (width) => cb([{ contentRect: { width } }]);
+        }
+        observe() {}
+        disconnect() {}
+      },
+    );
+  });
+  afterEach(() => {
+    cleanup();
+    vi.unstubAllGlobals();
+  });
+
+  it("collapses secondary actions into a menu at 320px and below", async () => {
+    const client = setup();
+    await startRun(client);
+
+    act(() => observe?.(300));
+
+    expect(screen.getByTestId("workflows-tab")).toHaveAttribute("data-layout", "narrow");
+    expect(screen.queryByTestId("stop-after")).toBeNull();
+    fireEvent.click(screen.getByTestId("overflow-menu"));
+    expect(screen.getByRole("menuitem", { name: "Cancel run" })).toBeInTheDocument();
+  });
+
+  it("shows the run list beside the detail at 640px and wider", async () => {
+    const client = setup();
+    await startRun(client);
+
+    act(() => observe?.(700));
+
+    expect(screen.getByTestId("workflows-tab")).toHaveAttribute("data-layout", "side");
+    expect(screen.getByTestId("run-overview")).toBeInTheDocument();
+    expect(screen.getByTestId("workflow-screen")).toBeInTheDocument();
+    expect(screen.queryByTestId("live-view")).toBeNull();
+  });
+
+  it("adds the live Agent / Output / Diff view at 1100px and wider", async () => {
+    const client = setup();
+    await startRun(client);
+
+    act(() => observe?.(1200));
+
+    expect(screen.getByTestId("live-view")).toBeInTheDocument();
+    fireEvent.click(screen.getByTestId("live-tab-diff"));
+    expect(screen.getByTestId("live-tab-diff")).toHaveAttribute("aria-selected", "true");
   });
 });

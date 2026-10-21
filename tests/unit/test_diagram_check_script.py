@@ -11,7 +11,7 @@ from pathlib import Path
 import pytest
 
 SKILL = (
-    Path(__file__).parent.parent.parent / ".claude" / "skills" / "codechroma-draw-diagram"
+    Path(__file__).parent.parent.parent / "skills" / "codechroma-draw-diagram"
 )
 SCRIPT = SKILL / "scripts" / "check_diagram.py"
 RULES = SKILL / "references" / "drawing-rules.md"

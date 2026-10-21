@@ -29,28 +29,6 @@
   width: 44px;
   padding: 6px;
 }
-.activity-edge,
-.left-panel-edge {
-  border: 0;
-  width: 22px;
-  height: 40px;
-  background: #262b38;
-  color: #c4c8d4;
-  cursor: pointer;
-}
-.activity-edge {
-  position: absolute;
-  left: -20px;
-  top: 50%;
-  transform: translateY(-50%);
-  border-radius: 10px 0 0 10px;
-  font-size: 18px;
-}
-.left-panel-edge {
-  left: auto;
-  right: -20px;
-  border-radius: 0 10px 10px 0;
-}
 .activity-actions {
   display: flex;
   align-items: center;
@@ -92,25 +70,46 @@
 }
 .activity-agent-tabs {
   display: flex;
-  flex-wrap: wrap;
-  gap: 4px;
+  gap: 6px;
   padding-bottom: 8px;
 }
 .activity-agent-tabs button {
   display: flex;
-  align-items: center;
-  gap: 6px;
-  padding: 6px 9px;
-  font-size: 11px;
+  flex: 1 1 0;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+  min-width: 0;
+  padding: 8px 12px;
   border: 0;
-  border-radius: 9px;
+  border-radius: 14px;
   background: #1c2029;
-  color: #8b91a1;
+  color: #e9ebf2;
+  text-align: left;
   cursor: pointer;
 }
 .activity-agent-tabs button[aria-selected="true"] {
   background: #262b38;
-  color: #e9ebf2;
+  box-shadow: inset 0 0 0 1px #3b4a73;
+}
+.activity-agent-name {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  max-width: 100%;
+  overflow: hidden;
+  font-size: 13px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+.activity-agent-meta {
+  max-width: 100%;
+  overflow: hidden;
+  color: #8b91a1;
+  font-family: "JetBrains Mono", ui-monospace, monospace;
+  font-size: 11px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 .activity-agent-content .agent-terminal-dock-panel {
   flex: 1;

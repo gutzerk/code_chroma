@@ -105,7 +105,7 @@ export function RootCanvas() {
   const engineClient = useEngineClient();
   const [rootNode, setRootNode] = useState<HierarchyNodeRef | null>(null);
   const [codePopupNode, setCodePopupNode] = useState<HierarchyNodeRef | null>(null);
-  const { agentsMode, leftOpen } = useLayoutState();
+  const { agentsMode, leftOpen, leftTab } = useLayoutState();
   const { terminalLeft } = chromeInsets({ leftOpen, agentsMode });
   const [drawOpen, setDrawOpen] = useState(false);
   const stageRef = useRef<HTMLDivElement | null>(null);
@@ -539,7 +539,7 @@ export function RootCanvas() {
             className="canvas-main-row"
             style={{ "--agent-dock-left": `${terminalLeft}px` } as CSSProperties}
           >
-            <CodeSidebar hidden={!leftOpen} />
+            <CodeSidebar hidden={!leftOpen || leftTab !== "files"} />
             <AgentTerminalDock />
             {/* Own positioning context so the absolutely-positioned overlays below keep anchoring to
                 the visible canvas, not to the canvas plus the breadcrumb strip above it. */}

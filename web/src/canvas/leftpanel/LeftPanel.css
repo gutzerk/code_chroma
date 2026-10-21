@@ -2,7 +2,7 @@
   position: absolute;
   left: var(--chrome-inset, 12px);
   top: 12px;
-  bottom: 68px;
+  bottom: calc(68px + var(--terminal-height, 0px));
   width: var(--left-panel-width, 262px);
   box-sizing: border-box;
   display: flex;
@@ -44,6 +44,7 @@
   flex-direction: column;
   gap: 10px;
   min-height: 0;
+  overflow-x: hidden;
   overflow-y: auto;
 }
 
@@ -147,7 +148,8 @@
 .left-panel-files {
   flex: 1;
   min-height: 0;
-  overflow: auto;
+  overflow-x: hidden;
+  overflow-y: auto;
 }
 
 .left-panel-edge {

@@ -19,6 +19,24 @@ public static class DesktopScript
             focusThisTab: function () { return post({ type: "focus-tab" }); },
             closeThisProject: function () { return post({ type: "close-project" }); }
           };
+          var sawClipboardEvent = false;
+          ["copy", "cut", "paste"].forEach(function (name) { document.addEventListener(name, function () { sawClipboardEvent = true; }, true); });
+          document.addEventListener("keydown", function (e) {
+            if (!(e.ctrlKey || e.metaKey) || e.altKey || e.defaultPrevented) return;
+            var key = e.key.toLowerCase();
+            if (key !== "c" && key !== "x" && key !== "v" && key !== "a") return;
+            sawClipboardEvent = false;
+            var target = document.activeElement;
+            setTimeout(function () {
+              if (sawClipboardEvent) return;
+              var editable = target && (target.tagName === "INPUT" || target.tagName === "TEXTAREA" || target.isContentEditable);
+              try {
+                if (key === "a") { if (editable && target.select) target.select(); else document.execCommand("selectAll"); }
+                else if (key === "v") { if (editable && navigator.clipboard) navigator.clipboard.readText().then(function (t) { document.execCommand("insertText", false, t); }); }
+                else if (navigator.clipboard) { var s = String(window.getSelection()); if (s) { navigator.clipboard.writeText(s); if (key === "x" && editable) document.execCommand("delete"); } }
+              } catch (err) { }
+            }, 60);
+          }, true);
           var pending = {}, listeners = [], nextCall = 0;
           window.__ccUpdatesReply = function (id, ok, json) {
             var call = pending[id]; delete pending[id];

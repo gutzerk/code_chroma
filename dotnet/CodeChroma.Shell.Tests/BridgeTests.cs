@@ -205,17 +205,25 @@ public class RealProcessBridgeTests
     private static string Dotnet => Environment.GetEnvironmentVariable("DOTNET_HOST_PATH") ?? "dotnet";
 
     [Fact]
-    public void Free_port_is_actually_bindable_and_not_repeated_concurrently()
+    public void Free_port_is_bindable_and_excludes_a_listening_port()
     {
         var finder = new TcpPortFinder();
         var first = finder.FindFreePort();
-        var second = finder.FindFreePort();
-
         var listener = new TcpListener(IPAddress.Loopback, first);
         listener.Start();
-        listener.Stop();
+        try
+        {
+            var second = finder.FindFreePort();
+            var secondListener = new TcpListener(IPAddress.Loopback, second);
+            try
+            {
+                secondListener.Start();
 
-        Assert.NotEqual(first, second);
+                Assert.NotEqual(first, second);
+            }
+            finally { secondListener.Stop(); }
+        }
+        finally { listener.Stop(); }
     }
 
     [Fact]

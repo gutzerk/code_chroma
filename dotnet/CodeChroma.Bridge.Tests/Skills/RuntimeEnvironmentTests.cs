@@ -35,7 +35,7 @@ public sealed class RuntimeEnvironmentTests : IDisposable
         {
             _probes.Add("probe");
             return new ProbeResult([], "failed", [], "fish");
-        }));
+        }), registryPath: () => "");
     }
 
     private ShellProbe Captures(string path, params (string, string)[] extra) => (_, _, _, _) =>
@@ -212,6 +212,29 @@ public sealed class RuntimeEnvironmentTests : IDisposable
         var entries = RuntimeEnvironment.PathEntries($"relative{Path.PathSeparator}{a}{Path.PathSeparator}{b}", $"{a}{Path.PathSeparator}");
 
         Assert.Equal([a, b], entries);
+    }
+
+    [Fact]
+    public void Posix_style_entries_are_dropped_on_windows()
+    {
+        if (!OperatingSystem.IsWindows()) return;
+        var a = Path.Combine(_home, "a");
+
+        var entries = RuntimeEnvironment.PathEntries($"/c/Users/x/bin;{a}");
+
+        Assert.Equal([a], entries);
+    }
+
+    [Fact]
+    public void Windows_snapshot_includes_registry_path_added_after_launch()
+    {
+        var late = Path.Combine(_home, "late");
+        var inherited = new Dictionary<string, string> { ["HOME"] = _home, ["USERPROFILE"] = _home, ["PATH"] = Path.Combine(_home, "inherited") };
+        var service = new RuntimeEnvironment(null, inherited, "win32", registryPath: () => late);
+
+        var snapshot = service.Snapshot();
+
+        Assert.Contains(late, snapshot.Path);
     }
 
     [Fact]

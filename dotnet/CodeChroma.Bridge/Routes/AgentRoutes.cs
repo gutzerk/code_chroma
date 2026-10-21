@@ -1,5 +1,6 @@
 using System.Text.Json.Nodes;
 using CodeChroma.Bridge.Agents;
+using CodeChroma.Bridge.Context;
 using CodeChroma.Bridge.Http;
 using CodeChroma.Bridge.Live;
 using CodeChroma.Bridge.Prs;
@@ -58,11 +59,14 @@ public static class AgentRoutes
             ["max_agents"] = AgentManager.MaxAgents,
         })));
 
-        app.MapPost("/agents", (HttpRequest request, AgentManager agents, AgentSessionRegistry sessions, WorkspaceRegistry registry, ConnectionManager connections) => Reply.GuardAsync(async () =>
+        app.MapPost("/agents", (HttpRequest request, AgentManager agents, AgentSessionRegistry sessions, WorkspaceRegistry registry, ConnectionManager connections, DiagramContext diagramContext) => Reply.GuardAsync(async () =>
         {
             var body = await Reply.LenientBody(request);
             var invalid = Validate(body, out var title, out var kind, out var attachTo, out var context, out var contextKind);
             if (invalid is not null) return Reply.Error(400, invalid);
+            if (contextKind == "task" && context is not null && attachTo is not null && Json.Str(body["diagram_type"]) is { } diagramType && DiagramContext.Types.Contains(diagramType)
+                && TryWorkspace(registry, attachTo) is { } target && await diagramContext.WriteFileAsync(target, diagramType, Json.Str(body["diagram_request"])) is { } contextFile)
+                context += $" Context already selected from the architecture map for this diagram is in {contextFile} -- read it first and open other files only to confirm details.";
             AgentRecord record;
             try { record = await Task.Run(() => agents.Create(title, kind, attachTo, context, contextKind)); }
             catch (UnknownAgentException) { return Reply.Error(404, $"unknown attach_to: {attachTo}"); }
@@ -233,6 +237,12 @@ public static class AgentRoutes
             var same = string.Equals(Path.GetFullPath(record.Worktree).TrimEnd('\\', '/'), main, OperatingSystem.IsWindows() ? StringComparison.OrdinalIgnoreCase : StringComparison.Ordinal);
             if (same) throw new BridgeException(409, $"stop {record.Title} first — it works directly in the main worktree");
         }
+    }
+
+    private static Workspace? TryWorkspace(WorkspaceRegistry registry, string id)
+    {
+        try { return registry.Get(id); }
+        catch (BridgeException) { return null; }
     }
 
     private static AgentRecord OrNotFound(AgentManager agents, string agentId)

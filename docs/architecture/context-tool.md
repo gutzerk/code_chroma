@@ -28,6 +28,15 @@ A process diagram used to take an agent 25–30 steps (read wiki, query the grap
 - Kill switch: `codechroma_BARE_AGENTS=0`. Workflow steps/chat pass `RunOptions.Bare = false` (they need `--resume`/MCP config) and are never bare.
 - Not affected: terminal and parallel agents (`Terminal/TerminalAgents.cs`, call-site `parallel_agents`), which keep `--plugin-dir` and the full context.
 
+## Context for every diagram type but impact
+
+`Context/DiagramContext.cs` gathers the same context in-process (no CLI hop) for `c1`, `patterns`, `sequence` and `custom`; `impact` (reads the diff) and `epics` (read requirements) get none. Phrases: fixed seed phrases for `c1`/`patterns` (they have no request), the user's request for `sequence`/`custom` (`DiagramContext.Phrases`).
+- **Model on install/first launch:** the bridge starts a background `WarmModelAsync` at startup (skipped with `codechroma_MODEL_WARMUP=0`; the test host sets it), so the 162 MB model downloads right after the app is installed or updated, not on the first diagram. The installer scripts only place the app, so the pinned hashes stay in `ModelStore.cs`.
+- **Cache on wiki runs:** `WikiGeneralRoutes.StampOnSuccess` calls `DiagramContext.PrepareAsync` (model + `ContextCache.Ensure`) in the background after every successful wiki-general generate or update.
+- **Headless c1:** `POST /repos/{id}/c1/generate` gathers the context and passes it as `RunOptions.Context`, which `SkillAgent.RunCli` appends under "Pre-gathered context".
+- **Interactive agents (Draw popover):** `AgentClient.create(..., diagram: {type, request?})` sends `diagram_type`/`diagram_request` to `POST /agents`; for a task agent the bridge writes `.codechroma/context/<type>.md` and appends a one-line "read this first" pointer to the task (the context is a file because the task is typed into the terminal as one line). `POST /repos/{id}/diagram-context {type, request?}` does the same and returns the file path.
+- **Fallback:** if the architecture map, graph or model is not ready, nothing is gathered (a missing model starts downloading) and the agent searches the repo itself, as before.
+
 ## Where the skills come from
 
 `skills/` in the repo root is the only source; the bridge build copies it beside the executable, `SkillSync.SkillsRoot()` reads it (env `CODECHROMA_SKILLS_DIR` or `<bridge folder>/skills`), and `SyncAll` installs it into the opened project's `.claude/skills` at start. The short bodies (`bare-*.md`, `process-bare.md`) live there too. Details: [`diagram-skills.md`](diagram-skills.md).

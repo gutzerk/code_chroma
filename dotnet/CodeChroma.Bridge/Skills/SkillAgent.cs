@@ -444,7 +444,14 @@ public sealed class SkillAgent(SkillAgentSpec spec, CliResolver resolver, Runtim
     }
 
     /// <summary>A prompt's length once quoted into a Windows command line, where every quote and backslash may gain an escape.</summary>
-    private static int EscapedLength(string text) => text.Length + text.Count(c => c is '"' or '\\');
+    private static int EscapedLength(string text)
+    {
+        if (text.Length > MaxArgvPromptChars) return text.Length;
+        var length = text.Length;
+        foreach (var c in text)
+            if (c is '"' or '\\') length++;
+        return length;
+    }
 
     private const int MaxArgvPromptChars = 20_000;
 

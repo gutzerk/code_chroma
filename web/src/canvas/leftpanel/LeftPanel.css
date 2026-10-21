@@ -145,15 +145,12 @@
   color: #5b6170;
 }
 
+/* Files tab: a flat monospace tree (28px rows, no kind icons or row actions), like the design mockup. */
 .left-panel-files {
   flex: 1;
   min-height: 0;
   overflow-x: hidden;
   overflow-y: auto;
-}
-
-/* Files tab: a flat monospace tree (28px rows, no kind icons or row actions), like the design mockup. */
-.left-panel-files {
   font-family: "JetBrains Mono", ui-monospace, monospace;
   font-size: 12px;
   color: #c4c8d4;

@@ -3,7 +3,7 @@ import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testi
 import { MockBridgeEngineClient } from "../engine-client/mockBridge";
 import { EngineClientProvider } from "../engine-client/EngineClientContext";
 import { WorkflowRunScreen } from "./WorkflowRunScreen";
-import { workflowStore } from "./workflowStore";
+import { workflowActions, workflowStore } from "./workflowStore";
 
 function setup() {
   const client = new MockBridgeEngineClient();
@@ -17,7 +17,9 @@ function setup() {
 }
 
 async function openRedo(client: MockBridgeEngineClient) {
-  fireEvent.click(await screen.findByRole("button", { name: "Start run: Ship a feature" }));
+  await act(async () => {
+    await workflowActions(client).start("ship-feature");
+  });
   await screen.findByTestId("step-rail");
   act(() => client.workflowEngine.advance("run1"));
   act(() => client.workflowEngine.advance("run1"));
@@ -125,7 +127,7 @@ describe("RedoCard", () => {
     fireEvent.click(within(card).getByTestId("redo-confirm"));
     await waitFor(() => expect(screen.getByTestId("attempt-switcher")).toBeInTheDocument());
 
-    fireEvent.click(screen.getByRole("button", { name: "All runs" }));
+    fireEvent.click(screen.getByRole("button", { name: "← All workflow runs" }));
 
     expect(screen.getByTestId("run-attempt-run1-1")).toHaveTextContent("set aside on run1/attempt-1");
     expect(screen.getByTestId("run-attempt-run1-2")).toHaveTextContent("current");

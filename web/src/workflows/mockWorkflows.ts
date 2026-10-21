@@ -62,6 +62,35 @@ export class MockWorkflowEngine {
     return structuredClone(workflow);
   }
 
+  deleteWorkflow(workflowId: string): void {
+    const active = [...this.runs.values()].some(
+      (run) => run.workflowId === workflowId && run.state !== "done" && run.state !== "stopped",
+    );
+    if (active) throw new Error("The workflow has a run in progress; stop it first");
+    const index = this.workflows.findIndex((w) => w.id === workflowId);
+    if (index < 0) throw new Error(`unknown workflow ${workflowId}`);
+    this.workflows.splice(index, 1);
+  }
+
+  /** Marks a step that has not run as skipped; the current parked step also moves the run on. */
+  skip(runId: string, stepId: string): Run {
+    const run = this.require(runId);
+    const step = this.step(run, stepId);
+    if (!step) throw new Error(`unknown step ${stepId}`);
+    if (run.currentStepId !== stepId) {
+      if (step.status !== "pending") throw new Error("Only a step that has not started can be skipped");
+      step.status = "skipped";
+      this.notify(run, "run.step");
+      return structuredClone(run);
+    }
+    if (!["held", "needs_you", "stopped"].includes(run.state)) {
+      throw new Error("Stop the run at this step before skipping it");
+    }
+    step.status = "skipped";
+    this.advanceFrom(run);
+    return structuredClone(run);
+  }
+
   listRuns(): Run[] {
     return [...this.runs.values()].map((run) => structuredClone(run));
   }
@@ -70,9 +99,11 @@ export class MockWorkflowEngine {
     return structuredClone(this.require(runId));
   }
 
-  startRun(workflowId: string): Run {
+  startRun(workflowId: string, inputs: Record<string, string> = {}): Run {
     const workflow = this.workflows.find((wf) => wf.id === workflowId);
     if (!workflow) throw new Error(`unknown workflow ${workflowId}`);
+    const missing = (workflow.inputs ?? []).find((input) => !inputs[input.name]?.trim());
+    if (missing) throw new Error(`input is required: ${missing.label || missing.name}`);
     this.counter += 1;
     const run: Run = {
       id: `run${this.counter}`,
@@ -86,6 +117,7 @@ export class MockWorkflowEngine {
       steps: workflow.steps.map((step) => blankStep(step.id)),
       messages: [],
       redoProposal: null,
+      inputs,
     };
     this.runs.set(run.id, run);
     this.begin(run, workflow.steps[0].id);
@@ -203,7 +235,8 @@ export class MockWorkflowEngine {
   private advanceFrom(run: Run): void {
     this.clearTimer();
     const ids = this.stepIds(run);
-    const nextId = ids[ids.indexOf(run.currentStepId ?? "") + 1];
+    const after = ids.slice(ids.indexOf(run.currentStepId ?? "") + 1);
+    const nextId = after.find((id) => this.step(run, id)?.status !== "skipped");
     const next = nextId ? this.step(run, nextId) : undefined;
     if (!next) {
       run.state = "done";

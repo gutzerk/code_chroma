@@ -3,7 +3,7 @@ import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testi
 import { MockBridgeEngineClient } from "../engine-client/mockBridge";
 import { EngineClientProvider } from "../engine-client/EngineClientContext";
 import { WorkflowRunScreen } from "./WorkflowRunScreen";
-import { workflowStore } from "./workflowStore";
+import { workflowActions, workflowStore } from "./workflowStore";
 
 function setup() {
   const client = new MockBridgeEngineClient();
@@ -16,8 +16,10 @@ function setup() {
   return client;
 }
 
-async function startRun() {
-  fireEvent.click(await screen.findByRole("button", { name: "Start run: Ship a feature" }));
+async function startRun(client: MockBridgeEngineClient) {
+  await act(async () => {
+    await workflowActions(client).start("ship-feature");
+  });
   await screen.findByTestId("step-rail");
 }
 
@@ -35,7 +37,7 @@ describe("RunChat", () => {
 
   it("routes @slug to only that step", async () => {
     const client = setup();
-    await startRun();
+    await startRun(client);
     const spy = vi.spyOn(client, "sendRunMessage");
 
     say("@implement hello");
@@ -48,8 +50,8 @@ describe("RunChat", () => {
   });
 
   it("offers an @ picker and inserts the chosen slug", async () => {
-    setup();
-    await startRun();
+    const client = setup();
+    await startRun(client);
 
     fireEvent.change(screen.getByTestId("chat-input"), { target: { value: "ask @impl" } });
     fireEvent.click(within(screen.getByTestId("chat-picker")).getByRole("button", { name: "@implement" }));
@@ -59,7 +61,7 @@ describe("RunChat", () => {
 
   it("asking while running does not change run or step state", async () => {
     const client = setup();
-    await startRun();
+    await startRun(client);
 
     say("how is it going?");
 
@@ -71,8 +73,8 @@ describe("RunChat", () => {
   });
 
   it("collapses the rail on input focus and reopens it on click", async () => {
-    setup();
-    await startRun();
+    const client = setup();
+    await startRun(client);
 
     fireEvent.focus(screen.getByTestId("chat-input"));
 
@@ -84,8 +86,8 @@ describe("RunChat", () => {
   });
 
   it("collapses the rail on send too", async () => {
-    setup();
-    await startRun();
+    const client = setup();
+    await startRun(client);
 
     say("status?");
 
@@ -94,7 +96,7 @@ describe("RunChat", () => {
 
   it("renders system events inline and rings the canvas node for a chip link", async () => {
     const client = setup();
-    await startRun();
+    await startRun(client);
     const node = document.createElement("div");
     node.setAttribute("data-node-id", "fn:hello");
     document.body.appendChild(node);
@@ -114,7 +116,7 @@ describe("RunChat", () => {
 
   it("sends the Send-back note with the review decision", async () => {
     const client = setup();
-    await startRun();
+    await startRun(client);
     act(() => client.workflowEngine.advance("run1"));
     act(() => client.workflowEngine.advance("run1"));
     await waitFor(() => expect(screen.getByTestId("run-state")).toHaveTextContent("Needs you"));

@@ -17,19 +17,34 @@ export type StepStatus =
   | "held"
   | "stopped"
   | "needs_you"
-  | "done";
+  | "done"
+  | "skipped";
 
 export interface WorkflowStepDef {
   id: string;
   slug: string;
   kind: "agent" | "review";
   prompt: string;
+  /** A skill of the project the agent is told to use for this step. */
+  skill?: string | null;
+}
+
+/** A value asked for when a run starts; `{{name}}` in a step prompt is replaced by it. */
+export interface WorkflowInput {
+  name: string;
+  label: string;
 }
 
 export interface WorkflowDef {
   id: string;
   name: string;
   steps: WorkflowStepDef[];
+  inputs?: WorkflowInput[];
+}
+
+export interface SkillInfo {
+  name: string;
+  description: string;
 }
 
 export interface StepRecord {
@@ -96,6 +111,7 @@ export interface Run {
   attempt: number;
   attempts: { n: number; branch: string | null; steps?: StepRecord[] }[];
   promptOverrides?: Record<string, string>;
+  inputs?: Record<string, string>;
   breakpoints: string[];
   steps: StepRecord[];
   messages?: RunMessage[];

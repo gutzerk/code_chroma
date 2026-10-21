@@ -9,6 +9,13 @@ public sealed class WorkflowStep
     public string Slug { get; set; } = "";
     public string Kind { get; set; } = "agent";
     public string Prompt { get; set; } = "";
+    public string? Skill { get; set; }
+}
+
+public sealed class WorkflowInput
+{
+    public string Name { get; set; } = "";
+    public string Label { get; set; } = "";
 }
 
 public sealed class WorkflowDef
@@ -16,6 +23,7 @@ public sealed class WorkflowDef
     public string Id { get; set; } = "";
     public string Name { get; set; } = "";
     public List<WorkflowStep> Steps { get; set; } = [];
+    public List<WorkflowInput> Inputs { get; set; } = [];
 }
 
 public sealed class RunAttempt
@@ -93,6 +101,7 @@ public sealed class Run
     public List<RunMessage> Messages { get; set; } = [];
     public RedoProposal? RedoProposal { get; set; }
     public Dictionary<string, string> PromptOverrides { get; set; } = [];
+    public Dictionary<string, string> Inputs { get; set; } = [];
 }
 
 /// <summary>The camelCase wire and disk shape of definitions and run records.</summary>

@@ -3,7 +3,7 @@ import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testi
 import { MockBridgeEngineClient } from "../engine-client/mockBridge";
 import { EngineClientProvider } from "../engine-client/EngineClientContext";
 import { WorkflowRunScreen } from "./WorkflowRunScreen";
-import { workflowStore } from "./workflowStore";
+import { workflowActions, workflowStore } from "./workflowStore";
 
 function setup() {
   const client = new MockBridgeEngineClient();
@@ -16,8 +16,10 @@ function setup() {
   return client;
 }
 
-async function startRun() {
-  fireEvent.click(await screen.findByRole("button", { name: "Start run: Ship a feature" }));
+async function startRun(client: MockBridgeEngineClient) {
+  await act(async () => {
+    await workflowActions(client).start("ship-feature");
+  });
   await screen.findByTestId("step-rail");
 }
 
@@ -26,9 +28,9 @@ describe("WorkflowRunScreen", () => {
   afterEach(cleanup);
 
   it("starts a run and shows steps with icon plus text status", async () => {
-    setup();
+    const client = setup();
 
-    await startRun();
+    await startRun(client);
 
     const row = screen.getByTestId("step-row-plan");
     expect(row).toHaveAttribute("data-status", "running");
@@ -37,8 +39,8 @@ describe("WorkflowRunScreen", () => {
   });
 
   it("puts the breakpoint gutter on unstarted steps only", async () => {
-    setup();
-    await startRun();
+    const client = setup();
+    await startRun(client);
 
     expect(screen.queryByRole("button", { name: "Breakpoint before plan" })).toBeNull();
     expect(screen.getByRole("button", { name: "Breakpoint before implement" })).toBeInTheDocument();
@@ -46,8 +48,8 @@ describe("WorkflowRunScreen", () => {
   });
 
   it("keeps one row expanded at a time with aria-expanded", async () => {
-    setup();
-    await startRun();
+    const client = setup();
+    await startRun(client);
     const plan = screen.getByRole("button", { name: "plan, Running" });
     const implement = screen.getByRole("button", { name: "implement, Pending" });
 
@@ -60,8 +62,8 @@ describe("WorkflowRunScreen", () => {
   });
 
   it("pauses and resumes from the header", async () => {
-    setup();
-    await startRun();
+    const client = setup();
+    await startRun(client);
 
     fireEvent.click(screen.getByRole("button", { name: "Pause" }));
 
@@ -72,8 +74,8 @@ describe("WorkflowRunScreen", () => {
   });
 
   it("stops the run now and offers Resume from here on the stopped step", async () => {
-    setup();
-    await startRun();
+    const client = setup();
+    await startRun(client);
 
     fireEvent.click(screen.getByRole("button", { name: "Stop run" }));
 
@@ -86,7 +88,7 @@ describe("WorkflowRunScreen", () => {
 
   it("holds before a breakpoint step and Continue releases it", async () => {
     const client = setup();
-    await startRun();
+    await startRun(client);
     fireEvent.click(screen.getByRole("button", { name: "Breakpoint before implement" }));
     await waitFor(() =>
       expect(screen.getByRole("button", { name: "Breakpoint before implement" })).toHaveAttribute(
@@ -105,7 +107,7 @@ describe("WorkflowRunScreen", () => {
 
   it("re-fetches the run when a run event arrives from outside", async () => {
     const client = setup();
-    await startRun();
+    await startRun(client);
 
     act(() => {
       client.workflowEngine.advance("run1");
@@ -118,7 +120,7 @@ describe("WorkflowRunScreen", () => {
 
   it("gates a review step on Approve and Send back", async () => {
     const client = setup();
-    await startRun();
+    await startRun(client);
     act(() => client.workflowEngine.advance("run1"));
     act(() => client.workflowEngine.advance("run1"));
     await waitFor(() => expect(screen.getByTestId("run-state")).toHaveTextContent("Needs you"));
@@ -132,8 +134,8 @@ describe("WorkflowRunScreen", () => {
   });
 
   it("makes every control a focusable native button", async () => {
-    setup();
-    await startRun();
+    const client = setup();
+    await startRun(client);
     fireEvent.click(screen.getByRole("button", { name: "plan, Running" }));
 
     const buttons = screen.getAllByRole("button");

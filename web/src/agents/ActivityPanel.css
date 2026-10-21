@@ -128,13 +128,61 @@
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 12px;
+  gap: 10px;
+  width: 100%;
+  padding: 10px 0;
+}
+.activity-reopen-item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
   width: 100%;
   border: 0;
-  padding: 10px 0;
+  padding: 6px 0;
+  border-radius: 10px;
   background: transparent;
-  color: #8fb0ff;
+  color: #8b91a1;
   cursor: pointer;
+}
+.activity-reopen-item:hover {
+  background: #1c2029;
+  color: #e9ebf2;
+}
+.activity-reopen-glyph {
+  font-size: 15px;
+  color: #8fb0ff;
+}
+.activity-reopen-count {
+  min-width: 18px;
+  padding: 0 5px;
+  border-radius: 999px;
+  background: #262b38;
+  color: #e9ebf2;
+  font-size: 11px;
+  text-align: center;
+}
+.activity-reopen-count[data-active="true"] {
+  background: #4ade8033;
+  color: #4ade80;
+}
+.activity-reopen-label {
+  font-size: 9px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+.activity-resize-handle {
+  position: absolute;
+  left: -6px;
+  top: 0;
+  bottom: 0;
+  width: 8px;
+  cursor: ew-resize;
+  touch-action: none;
+  z-index: 1;
+}
+.activity-panel.is-resizing {
+  user-select: none;
 }
 .activity-workflows .workflow-screen {
   padding: 0;
@@ -352,4 +400,62 @@
   left: auto;
   right: 0;
   transform: none;
+}
+
+.workflow-picker-row {
+  display: flex;
+  align-items: stretch;
+  gap: 6px;
+}
+.workflow-picker-row .workflow-picker-run {
+  flex: 1;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  text-align: left;
+  padding: 12px;
+}
+.workflow-picker-delete {
+  flex-shrink: 0;
+}
+.workflow-picker-actions {
+  display: flex;
+  gap: 6px;
+}
+.workflow-builder-section {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.workflow-builder-section small {
+  color: #8b91a1;
+}
+.workflow-builder-step[data-kind="review"] {
+  border-color: #facc1555;
+}
+.workflow-builder-step[data-kind="agent"] {
+  border-color: #8fb0ff44;
+}
+.workflow-builder-step[data-invalid="true"] {
+  border-color: #f87171;
+}
+.workflow-builder-step-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  background: transparent;
+  text-align: left;
+}
+.workflow-builder-step-head small {
+  margin-left: auto;
+  color: #8b91a1;
+}
+.workflow-field-error {
+  margin: 0;
+  color: #f87171;
+  font-size: 11px;
+}
+.workflow-picker input[aria-invalid="true"] {
+  border-color: #f87171;
 }

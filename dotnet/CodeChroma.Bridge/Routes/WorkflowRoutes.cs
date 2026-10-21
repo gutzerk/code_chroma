@@ -50,10 +50,25 @@ public static class WorkflowRoutes
                     (s.Kind != "agent" && s.Kind != "review") || string.IsNullOrWhiteSpace(s.Prompt)) ||
                 def.Steps.Select(s => s.Id).Distinct().Count() != def.Steps.Count)
                 return Reply.Error(400, "A workflow needs an id, name and uniquely identified agent or review steps with prompts");
+            def.Inputs ??= [];
+            if (def.Inputs.Any(i => i is null || !RunStore.IsSafeId(i.Name)) || def.Inputs.Select(i => i.Name).Distinct().Count() != def.Inputs.Count)
+                return Reply.Error(400, "Workflow inputs need unique simple names");
+            if (def.Steps.Any(s => s.Skill is { } skill && (skill.Length == 0 || !RunStore.IsSafeId(skill))))
+                return Reply.Error(400, "A step skill must be a skill name");
             var store = runners.For(registry.Get(repoId)).Store;
             if (!store.TryCreateWorkflow(def)) return Reply.Error(409, "Workflow already exists");
             return JsonResult(def);
         });
+
+        app.MapDelete("/repos/{repoId}/workflows/{workflowId}", (string repoId, string workflowId, WorkspaceRegistry registry, WorkflowRunners runners) =>
+            Mutate(registry.Get(repoId), runners, runner =>
+            {
+                runner.DeleteWorkflow(workflowId);
+                return new { deleted = workflowId };
+            }));
+
+        app.MapGet("/repos/{repoId}/skills", (string repoId, WorkspaceRegistry registry) =>
+            JsonResult(ListSkills(registry.Get(repoId).Root)));
 
         app.MapGet("/repos/{repoId}/runs", (string repoId, WorkspaceRegistry registry, WorkflowRunners runners) =>
             JsonResult(runners.For(registry.Get(repoId)).List()));
@@ -61,8 +76,22 @@ public static class WorkflowRoutes
         app.MapGet("/repos/{repoId}/runs/{runId}", (string repoId, string runId, WorkspaceRegistry registry, WorkflowRunners runners) =>
             Reply.Guard(() => JsonResult(runners.For(registry.Get(repoId)).Get(runId))));
 
-        app.MapPost("/repos/{repoId}/workflows/{workflowId}/runs", (string repoId, string workflowId, WorkspaceRegistry registry, WorkflowRunners runners) =>
-            MutateAsync(registry.Get(repoId), runners, runner => runner.Start(workflowId)));
+        app.MapPost("/repos/{repoId}/workflows/{workflowId}/runs", async (string repoId, string workflowId, HttpRequest request, WorkspaceRegistry registry, WorkflowRunners runners) =>
+        {
+            var body = await Reply.LenientBody(request);
+            var inputs = new Dictionary<string, string>();
+            if (body["inputs"] is JsonObject raw)
+                foreach (var (name, value) in raw)
+                    if (Json.NonEmptyStr(value) is { } text) inputs[name] = text;
+            return await MutateAsync(registry.Get(repoId), runners, runner => runner.Start(workflowId, inputs));
+        });
+
+        app.MapPost("/repos/{repoId}/runs/{runId}/skip", async (string repoId, string runId, HttpRequest request, WorkspaceRegistry registry, WorkflowRunners runners) =>
+        {
+            var body = await Reply.LenientBody(request);
+            if (Str(body, "stepId") is not { } stepId) return Reply.Error(400, "stepId is required");
+            return Mutate(registry.Get(repoId), runners, runner => runner.Skip(runId, stepId));
+        });
 
         app.MapPost("/repos/{repoId}/runs/{runId}/pause", (string repoId, string runId, WorkspaceRegistry registry, WorkflowRunners runners) =>
             Mutate(registry.Get(repoId), runners, runner => runner.Pause(runId)));
@@ -130,6 +159,29 @@ public static class WorkflowRoutes
                 return response is null ? Results.StatusCode(202) : Results.Text(response.ToJsonString(), "application/json; charset=utf-8");
             });
         });
+    }
+
+    /// <summary>The skills installed in the project (.claude/skills/*/SKILL.md), with the description from each front matter.</summary>
+    private static List<object> ListSkills(string root)
+    {
+        var dir = Path.Combine(root, ".claude", "skills");
+        var skills = new List<object>();
+        if (!Directory.Exists(dir)) return skills;
+        foreach (var folder in Directory.EnumerateDirectories(dir).OrderBy(p => p, StringComparer.Ordinal))
+        {
+            var file = Path.Combine(folder, "SKILL.md");
+            var name = Path.GetFileName(folder);
+            if (!File.Exists(file) || !RunStore.IsSafeId(name)) continue;
+            var description = "";
+            try
+            {
+                foreach (var line in File.ReadLines(file).Skip(1).TakeWhile(l => l.Trim() != "---"))
+                    if (line.StartsWith("description:", StringComparison.Ordinal)) { description = line["description:".Length..].Trim().Trim('"', '\''); break; }
+            }
+            catch (IOException) { }
+            skills.Add(new { name, description });
+        }
+        return skills;
     }
 
     private static string? Str(JsonObject body, string key) => Json.NonEmptyStr(body[key]);

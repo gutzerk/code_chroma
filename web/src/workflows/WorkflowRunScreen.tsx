@@ -21,7 +21,7 @@ import {
 } from "./workflowStore";
 
 /** The run screen: header, attempt switcher, banner, step rail (or its one-line collapse), redo card, output pane and run chat. */
-export function WorkflowRunScreen({ onAddWorkflow }: { onAddWorkflow?: () => void } = {}) {
+export function WorkflowRunScreen() {
   const client = useEngineClient();
   const workflows = useWorkflows();
   const runs = useRuns();
@@ -32,7 +32,7 @@ export function WorkflowRunScreen({ onAddWorkflow }: { onAddWorkflow?: () => voi
   const viewAttempt = useViewAttempt();
   const [pickedFrom, setPickedFrom] = useState<string | null>(null);
   const actions = useMemo(() => workflowActions(client), [client]);
-
+  
   useEffect(() => bindWorkflows(client), [client]);
 
   const run = runs.find((r) => r.id === activeRunId);
@@ -72,19 +72,12 @@ export function WorkflowRunScreen({ onAddWorkflow }: { onAddWorkflow?: () => voi
       )}
       {!run || !viewRun || !workflow || !toggle ? (
         <div className="workflow-start" data-testid="workflow-start">
-          <h2 className="workflow-title">Workflows</h2>
-          {workflows.length === 0 && <p>No workflows yet. Add a workflow to get started.</p>}
-          {onAddWorkflow && <button type="button" className="workflow-start-button" onClick={onAddWorkflow}>＋ Add new workflow</button>}
-          {workflows.map((w) => (
-            <button
-              key={w.id}
-              type="button"
-              className="workflow-start-button"
-              onClick={() => void actions.start(w.id)}
-            >
-              {`Start run: ${w.name}`}
-            </button>
-          ))}
+          <h2 className="workflow-title">Workflow runs</h2>
+          {runs.length === 0 && (
+            <p className="workflow-empty">
+              No runs yet. Use Run workflow above to start one.
+            </p>
+          )}
           <RunOverview runs={runs} workflows={workflows} onOpen={workflowStore.setActiveRun} />
         </div>
       ) : (
@@ -120,7 +113,7 @@ export function WorkflowRunScreen({ onAddWorkflow }: { onAddWorkflow?: () => voi
                 className="workflow-header-button"
                 onClick={() => workflowStore.setActiveRun(null)}
               >
-                All runs
+                ← All workflow runs
               </button>
             </div>
           </header>

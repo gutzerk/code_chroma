@@ -204,6 +204,99 @@ public sealed class WorkflowRunnerTests : IDisposable
     }
 
     [Fact]
+    public async Task A_skipped_pending_step_is_passed_over_and_a_skipped_last_step_still_finishes_the_run()
+    {
+        Define(("one", "agent"), ("two", "agent"), ("three", "agent"));
+        var release = Path.Combine(_cli.Directory, "release");
+        _cli.Script(BlockUntilFile(release), ResultEvent(), Exit(0));
+        var runner = Runner();
+        var started = await runner.Start("wf");
+        await Until(() => _cli.Invocations().Count == 1, "first launch");
+
+        runner.Skip(started.Id, "two");
+        runner.Skip(started.Id, "three");
+        File.WriteAllText(release, "go");
+        await UntilState(runner, started.Id, "done");
+
+        var done = runner.Get(started.Id);
+        Assert.Equal("skipped", Step(done, "two").Status);
+        Assert.Equal("skipped", Step(done, "three").Status);
+        Assert.Equal(1, _cli.Invocations().Count);
+    }
+
+    [Fact]
+    public async Task Skipping_a_started_step_is_refused()
+    {
+        Define(("one", "agent"), ("two", "agent"));
+        var release = Path.Combine(_cli.Directory, "release");
+        _cli.Script(BlockUntilFile(release), ResultEvent(), Exit(0));
+        var runner = Runner();
+        var started = await runner.Start("wf");
+        await Until(() => _cli.Invocations().Count == 1, "first launch");
+
+        var error = Assert.Throws<BridgeException>(() => runner.Skip(started.Id, "one"));
+        File.WriteAllText(release, "go");
+
+        Assert.Equal(409, error.Status);
+        await UntilState(runner, started.Id, "done");
+    }
+
+    [Fact]
+    public async Task Skipping_the_held_step_moves_the_run_on_to_the_next_one()
+    {
+        Define(("one", "agent"), ("two", "agent"), ("three", "agent"));
+        _cli.Script(ResultEvent(), Exit(0));
+        var runner = Runner();
+        var started = await runner.Start("wf");
+        runner.SetBreakpoint(started.Id, "two", true);
+        await UntilState(runner, started.Id, "held");
+
+        runner.Skip(started.Id, "two");
+        await UntilState(runner, started.Id, "done");
+
+        Assert.Equal("skipped", Step(runner.Get(started.Id), "two").Status);
+        Assert.Equal("done", Step(runner.Get(started.Id), "three").Status);
+    }
+
+    [Fact]
+    public async Task A_workflow_with_inputs_refuses_a_run_without_them()
+    {
+        Define(("one", "agent"));
+        var path = Path.Combine(_repo.Root, ".codechroma", "workflows", "wf.json");
+        var def = JsonSerializer.Deserialize<WorkflowDef>(File.ReadAllText(path), WorkflowJson.Options)!;
+        def.Inputs = [new WorkflowInput { Name = "pr", Label = "PR number" }];
+        File.WriteAllText(path, JsonSerializer.Serialize(def, WorkflowJson.Options));
+        _cli.Script(ResultEvent(), Exit(0));
+        var runner = Runner();
+
+        var error = await Assert.ThrowsAsync<BridgeException>(() => runner.Start("wf"));
+        var started = await runner.Start("wf", new Dictionary<string, string> { ["pr"] = "42" });
+        await UntilState(runner, started.Id, "done");
+
+        Assert.Equal(400, error.Status);
+        Assert.Equal("42", runner.Get(started.Id).Inputs["pr"]);
+    }
+
+    [Fact]
+    public async Task A_workflow_is_deleted_only_when_none_of_its_runs_is_in_progress()
+    {
+        Define(("one", "agent"));
+        var release = Path.Combine(_cli.Directory, "release");
+        _cli.Script(BlockUntilFile(release), ResultEvent(), Exit(0));
+        var runner = Runner();
+        var started = await runner.Start("wf");
+        await Until(() => _cli.Invocations().Count == 1, "first launch");
+
+        var refused = Assert.Throws<BridgeException>(() => runner.DeleteWorkflow("wf"));
+        File.WriteAllText(release, "go");
+        await UntilState(runner, started.Id, "done");
+        runner.DeleteWorkflow("wf");
+
+        Assert.Equal(409, refused.Status);
+        Assert.Null(runner.Store.GetWorkflow("wf"));
+    }
+
+    [Fact]
     public async Task A_breakpoint_on_a_started_step_is_refused()
     {
         Define(("one", "agent"));

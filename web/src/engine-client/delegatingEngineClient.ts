@@ -5,6 +5,7 @@ import type {
   Run,
   RunEvent,
   StopMode,
+  SkillInfo,
   WorkflowDef,
 } from "../workflows/types";
 import type {
@@ -197,8 +198,17 @@ export abstract class DelegatingEngineClient implements EngineClient {
   getRun(runId: string): Promise<Run> {
     return this.inner.getRun(runId);
   }
-  startRun(workflowId: string): Promise<Run> {
-    return this.inner.startRun(workflowId);
+  startRun(workflowId: string, inputs?: Record<string, string>): Promise<Run> {
+    return this.inner.startRun(workflowId, inputs);
+  }
+  deleteWorkflow(workflowId: string): Promise<void> {
+    return this.inner.deleteWorkflow(workflowId);
+  }
+  listSkills(): Promise<SkillInfo[]> {
+    return this.inner.listSkills();
+  }
+  skipStep(runId: string, stepId: string): Promise<Run> {
+    return this.inner.skipStep(runId, stepId);
   }
   pauseRun(runId: string): Promise<Run> {
     return this.inner.pauseRun(runId);

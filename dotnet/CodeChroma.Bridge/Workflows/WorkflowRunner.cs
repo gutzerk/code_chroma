@@ -135,10 +135,26 @@ public sealed partial class WorkflowRunner
         lock (_lock) return Require(runId).Loop;
     }
 
-    public async Task<Run> Start(string workflowId)
+    /// <summary>Deletes a workflow definition; a run still in progress blocks it.</summary>
+    public void DeleteWorkflow(string workflowId)
+    {
+        if (Store.GetWorkflow(workflowId) is null) throw new BridgeException(404, $"unknown workflow: {workflowId}");
+        if (List().Any(r => r.WorkflowId == workflowId && r.State is RunStates.Running or RunStates.Paused or RunStates.Stopping or RunStates.Held or RunStates.NeedsYou))
+            throw new BridgeException(409, "the workflow has a run in progress; stop it first");
+        Store.DeleteWorkflow(workflowId);
+    }
+
+    public async Task<Run> Start(string workflowId, IReadOnlyDictionary<string, string>? inputs = null)
     {
         var def = Store.GetWorkflow(workflowId) ?? throw new BridgeException(404, $"unknown workflow: {workflowId}");
         if (def.Steps.Count == 0) throw new BridgeException(409, "the workflow has no steps");
+        var given = new Dictionary<string, string>();
+        foreach (var input in def.Inputs)
+        {
+            var value = inputs is not null && inputs.TryGetValue(input.Name, out var v) ? v.Trim() : "";
+            if (value.Length == 0) throw new BridgeException(400, $"input is required: {(string.IsNullOrWhiteSpace(input.Label) ? input.Name : input.Label)}");
+            given[input.Name] = value;
+        }
         var runId = "run-" + Guid.NewGuid().ToString("N")[..10];
         var branch = "workflow/" + runId;
         var worktree = WorktreeFor(_repoRoot, runId);
@@ -148,6 +164,7 @@ public sealed partial class WorkflowRunner
             Id = runId, WorkflowId = def.Id, State = RunStates.Running, CurrentStepId = def.Steps[0].Id, Attempt = 1,
             Attempts = [new RunAttempt { N = 1, Branch = branch }],
             Steps = def.Steps.Select(s => new StepRecord { StepId = s.Id, Attempt = 1, Status = "pending" }).ToList(),
+            Inputs = given,
         };
         lock (_lock)
         {
@@ -263,7 +280,8 @@ public sealed partial class WorkflowRunner
             if (decision == "approve")
             {
                 review.Status = "done";
-                if (index == h.Def.Steps.Count - 1)
+                var nextIndex = NextIndex(h, index);
+                if (nextIndex < 0)
                 {
                     Transition(h, RunCommand.ApproveLast);
                     h.Run.CurrentStepId = null;
@@ -272,7 +290,7 @@ public sealed partial class WorkflowRunner
                 }
                 Transition(h, RunCommand.Approve);
                 Persist(h, "run.step");
-                Drive(h, index + 1);
+                Drive(h, nextIndex);
                 return Clone(h.Run);
             }
             if (decision != "sendBack") throw new BridgeException(400, "decision must be approve or sendBack");
@@ -389,7 +407,11 @@ public sealed partial class WorkflowRunner
             for (var i = index; i < h.Def.Steps.Count; i++)
             {
                 var step = h.Def.Steps[i];
-                lock (_lock) h.Run.CurrentStepId = step.Id;
+                lock (_lock)
+                {
+                    if (Record(h, step.Id).Status == "skipped") continue;
+                    h.Run.CurrentStepId = step.Id;
+                }
                 bool parked, rerun;
                 while (true)
                 {
@@ -484,7 +506,8 @@ public sealed partial class WorkflowRunner
         {
             if (h.Run.State != RunStates.Running) return null;
             Snapshot(Record(h, step.Id), "done", stats);
-            if (index == h.Def.Steps.Count - 1)
+            var nextIndex = NextIndex(h, index);
+            if (nextIndex < 0)
             {
                 Transition(h, RunCommand.FinishAll);
                 h.Run.CurrentStepId = null;
@@ -495,7 +518,7 @@ public sealed partial class WorkflowRunner
             if (h.Run.StopAfter == step.Id)
             {
                 Transition(h, RunCommand.StepEndHeld);
-                var next = h.Def.Steps[index + 1];
+                var next = h.Def.Steps[nextIndex];
                 h.Run.StopAfter = null;
                 h.Run.CurrentStepId = next.Id;
                 Record(h, next.Id).Status = "held";
@@ -545,7 +568,7 @@ public sealed partial class WorkflowRunner
             var checkpoint = Checkpoint(h.Worktree, step.Slug);
             lock (_lock) record.CheckpointRef = checkpoint;
         }
-        var prompt = BuildPrompt(step, rerun, session is not null, h.Note);
+        var prompt = BuildPrompt(ResolvePrompt(h, step), rerun, session is not null, h.Note);
         h.Note = null;
         IReadOnlyList<string> extra = rerun && session is not null && IsClaude(_agent) ? ["--resume", session] : [];
         var done = new TaskCompletionSource<JobState>(TaskCreationOptions.RunContinuationsAsynchronously);
@@ -582,14 +605,69 @@ public sealed partial class WorkflowRunner
         }
     }
 
-    private static string BuildPrompt(WorkflowStep step, bool rerun, bool hasSession, string? note)
+    /// <summary>The step prompt with the run's inputs filled in and its skill named first.</summary>
+    private static string ResolvePrompt(Handle h, WorkflowStep step)
     {
-        if (!rerun) return step.Prompt;
-        if (note is not null) return $"Reviewer feedback: {note}\n\nAddress it. The original task of this step:\n{step.Prompt}";
+        var prompt = step.Prompt;
+        foreach (var (name, value) in h.Run.Inputs) prompt = prompt.Replace("{{" + name + "}}", value);
+        return string.IsNullOrWhiteSpace(step.Skill) ? prompt : $"Use the \"{step.Skill}\" skill for this step.\n\n{prompt}";
+    }
+
+    /// <summary>The next step after <paramref name="index"/> that has not been skipped, or -1.</summary>
+    private static int NextIndex(Handle h, int index)
+    {
+        for (var i = index + 1; i < h.Def.Steps.Count; i++)
+            if (Record(h, h.Def.Steps[i].Id).Status != "skipped") return i;
+        return -1;
+    }
+
+    /// <summary>Skips a step that has not run: a later step is just marked, the parked current step also moves the run on.</summary>
+    public Run Skip(string runId, string stepId)
+    {
+        lock (_lock)
+        {
+            var h = Require(runId);
+            if (h.Busy) throw new BridgeException(409, "the run is being redone; try again in a moment");
+            var record = h.Run.Steps.FirstOrDefault(s => s.StepId == stepId) ?? throw new BridgeException(404, $"unknown step: {stepId}");
+            var index = IndexOf(h, stepId);
+            if (h.Run.State == RunStates.Stopping) throw Illegal(h, "skip");
+            if (h.Run.CurrentStepId != stepId)
+            {
+                if (record.Status != "pending") throw new BridgeException(409, "only a step that has not started can be skipped");
+                record.Status = "skipped";
+                h.Run.Breakpoints.Remove(stepId);
+                Persist(h, "run.step");
+                return Clone(h.Run);
+            }
+            if (h.Run.State is not (RunStates.Held or RunStates.NeedsYou or RunStates.Stopped) || record.Status is "done" or "skipped")
+                throw new BridgeException(409, "stop the run at this step before skipping it");
+            record.Status = "skipped";
+            h.Run.Breakpoints.Remove(stepId);
+            var nextIndex = NextIndex(h, index);
+            if (nextIndex < 0)
+            {
+                h.Run.State = RunStates.Done;
+                h.Run.CurrentStepId = null;
+                h.Run.StopAfter = null;
+                Persist(h, "run.done");
+                return Clone(h.Run);
+            }
+            Transition(h, h.Run.State == RunStates.NeedsYou ? RunCommand.Approve : RunCommand.ResumeFrom);
+            h.Run.CurrentStepId = h.Def.Steps[nextIndex].Id;
+            Persist(h, "run.step");
+            Drive(h, nextIndex);
+            return Clone(h.Run);
+        }
+    }
+
+    private static string BuildPrompt(string resolved, bool rerun, bool hasSession, string? note)
+    {
+        if (!rerun) return resolved;
+        if (note is not null) return $"Reviewer feedback: {note}\n\nAddress it. The original task of this step:\n{resolved}";
         var lead = hasSession
             ? "Your previous attempt at this step was interrupted. Continue and finish it."
             : "A previous attempt at this step was interrupted; its partial changes are in the working tree. Finish the step.";
-        return $"{lead}\n\n{step.Prompt}";
+        return $"{lead}\n\n{resolved}";
     }
 
     private static string? Checkpoint(string worktree, string slug) => WorktreeOps.CommitAll(worktree, $"workflow checkpoint before {slug}");

@@ -100,7 +100,6 @@
   overflow: hidden;
   font-size: 13px;
   font-weight: 600;
-  text-overflow: ellipsis;
   white-space: nowrap;
 }
 .activity-agent-meta {

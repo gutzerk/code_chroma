@@ -36,6 +36,7 @@ export function ActivityPanel({
     maxViewportFraction: 0.7,
   });
   const resizable = agentsMode === "normal";
+  const collapsed = agentsMode === "collapsed";
   const working = agents.filter((a) => a.status === "working" || a.status === "running").length;
   const activeRuns = runs.filter((r) => !["done", "stopped"].includes(r.state)).length;
   const reopenItems = [
@@ -90,16 +91,14 @@ export function ActivityPanel({
           type="button"
           className="panel-handle-btn"
           aria-label={
-            agentsMode === "collapsed"
-              ? "Expand agents and workflows"
-              : "Collapse agents and workflows"
+            collapsed ? "Expand agents and workflows" : "Collapse agents and workflows"
           }
           onClick={() =>
-            layoutStore.setAgentsMode(agentsMode === "collapsed" ? "normal" : "collapsed")
+            layoutStore.setAgentsMode(collapsed ? "normal" : "collapsed")
           }
         >
           <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-            <path d={agentsMode === "collapsed" ? "M15 6l-6 6 6 6" : "M9 6l6 6-6 6"} />
+            <path d={collapsed ? "M15 6l-6 6 6 6" : "M9 6l6 6-6 6"} />
           </svg>
         </button>
       </div>

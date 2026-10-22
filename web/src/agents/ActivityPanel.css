@@ -488,17 +488,17 @@
   flex: 1;
 }
 /* Full screen: the agents row on top, the agent list on the left, the selected terminal beside it. */
-.activity-panel.is-full .activity-agent-content {
+.activity-panel.is-full .activity-agent-content:not([hidden]) {
   display: grid;
   grid-template-columns: 280px minmax(0, 1fr);
   grid-template-rows: auto minmax(0, 1fr);
   column-gap: 12px;
   row-gap: 10px;
 }
-.activity-panel.is-full .activity-agent-content > .activity-switcher {
+.activity-panel.is-full .activity-agent-content:not([hidden]) > .activity-switcher {
   grid-column: 1 / -1;
 }
-.activity-panel.is-full .activity-agent-content > :not(.activity-switcher):not(.activity-agent-list) {
+.activity-panel.is-full .activity-agent-content:not([hidden]) > :not(.activity-switcher):not(.activity-agent-list) {
   grid-column: 2;
   grid-row: 2;
 }
@@ -614,14 +614,15 @@
   flex-direction: column;
   gap: 2px;
 }
-.agent-stop-button {
-  flex: none;
-  height: 34px;
-  padding: 0 12px;
-  border: 1px solid #4a2626;
-  border-radius: 8px;
-  background: transparent;
-  color: #f87171;
-  cursor: pointer;
-  font-size: 13px;
+
+/* Normal width: the usage strip takes its own row under the title. */
+.activity-panel:not(.is-full) .agent-usage-strip {
+  flex: 1 1 100%;
+  gap: 14px;
+  padding: 4px 0 0;
+}
+.activity-panel:not(.is-full) .agent-usage-context {
+  flex: 1;
+  width: auto;
+  min-width: 120px;
 }

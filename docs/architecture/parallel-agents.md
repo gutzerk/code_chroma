@@ -486,7 +486,7 @@ Claude agent windows launch with the CodeChroma MCP server (`ask_user`) register
   terminals never remount) and the canvas's left panel is left alone. Opening an agent window
   (`openAgentWindow`) never leaves full screen. The older `AgentFullScreen` component is no longer mounted.
   The selected agent's header (`DockedAgentPanel` with `full`) shows a title and meta line, the usage
-  strip and Stop agent (see "Session usage" below).
+  strip and a larger red close button (no Stop agent; see "Session usage" below).
 - `--agent-dock-left` (set once on the `.canvas-main-row` by `RootCanvas` from `chromeInsets`)
   positions the terminal dock and clears the floating left panel.
 

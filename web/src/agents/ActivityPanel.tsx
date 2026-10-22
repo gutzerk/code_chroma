@@ -6,7 +6,7 @@ import { useAgents, useAgentLaunchError } from "./agentStore";
 import { DockedAgentPanel } from "./AgentTerminalDock";
 import { WorkflowsTab } from "../workflows/WorkflowsTab";
 import { useRuns, useWorkflows } from "../workflows/workflowStore";
-import { AgentSwitcherRow } from "./activity/AgentSwitcherRow";
+import { AgentList, AgentSwitcherRow } from "./activity/AgentSwitcherRow";
 import { CollapsedStrip, type ActivityTab } from "./activity/CollapsedStrip";
 import { CollapseIcon, ExpandIcon } from "./activity/icons";
 import "../canvas/PanelHandle.css";
@@ -128,6 +128,7 @@ export function ActivityPanel({
             disabled={disabled}
             onRunAgent={onRunAgent}
           />
+          {full && <AgentList agents={agents} activeId={activeId ?? undefined} />}
           {agents.length === 0 && (
             <p className="activity-empty">
               No agents running. Run an agent to start working in this workspace.
@@ -139,6 +140,7 @@ export function ActivityPanel({
               agent={agent}
               active={tab === "agents" && activeId === agent.id && !collapsed}
               focusRequest={focusRequest}
+              full={full}
             />
           ))}
         </div>

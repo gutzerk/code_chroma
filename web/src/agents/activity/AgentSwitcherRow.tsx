@@ -4,6 +4,7 @@ import type { AgentsMode } from "../../canvas/layout/layoutStore";
 import type { AgentRecord } from "../../state/types";
 import { agentStore } from "../agentStore";
 import { useAgentClient } from "../AgentClientContext";
+import type { AgentClient } from "../agentClient";
 import { AgentLed, agentStatusLabel } from "../AgentLed";
 import { restoreAgentWindow } from "../windowActions";
 import { ChevronDownIcon, FullScreenIcon, PlusIcon } from "./icons";
@@ -12,7 +13,43 @@ function agentMeta(agent: AgentRecord): string {
   return [agent.resolved_cli ?? agent.kind, agent.branch, agentStatusLabel(agent.status)].join(" · ");
 }
 
-/** The single 40px agents row: agent dropdown (a row of tabs in full screen) plus run and full screen buttons. */
+function selectAgent(client: AgentClient, agent: AgentRecord) {
+  agentStore.clearDiagramsReady(agent.id);
+  layoutStore.selectAgent(agent.id);
+  restoreAgentWindow(client, agent.id);
+}
+
+/** Full screen's left column: every agent with its status and branch; the terminal sits beside it. */
+export function AgentList({ agents, activeId }: { agents: AgentRecord[]; activeId: string | undefined }) {
+  const client = useAgentClient();
+  return (
+    <nav className="activity-agent-list" aria-label="Agents">
+      <div className="activity-agent-list-heading">Agents · {agents.length}</div>
+      {agents.map((agent) => (
+        <button
+          key={agent.id}
+          type="button"
+          className="activity-agent-list-item"
+          aria-current={agent.id === activeId || undefined}
+          data-testid={`agent-tab-${agent.id}`}
+          data-diagram={agent.context_kind === "task" || undefined}
+          title={agentMeta(agent)}
+          onClick={() => selectAgent(client, agent)}
+        >
+          <AgentLed status={agent.status} />
+          <span className="activity-switcher-text">
+            <span className="activity-switcher-title">{agent.title}</span>
+            <span className="activity-switcher-meta">
+              {agentStatusLabel(agent.status)} · {agent.branch}
+            </span>
+          </span>
+        </button>
+      ))}
+    </nav>
+  );
+}
+
+/** The single 40px agents row: agent dropdown (the left list replaces it in full screen) plus run and full screen buttons. */
 export function AgentSwitcherRow({
   agents,
   activeId,
@@ -41,34 +78,13 @@ export function AgentSwitcherRow({
     return () => document.removeEventListener("pointerdown", onDown);
   }, [open]);
   const select = (agent: AgentRecord) => {
-    agentStore.clearDiagramsReady(agent.id);
-    layoutStore.selectAgent(agent.id);
-    restoreAgentWindow(client, agent.id);
+    selectAgent(client, agent);
     setOpen(false);
   };
   return (
     <div className="activity-switcher" ref={rootRef}>
       {full ? (
-        <div className="activity-switcher-tabs" role="tablist" aria-label="Agents">
-          {agents.map((agent) => (
-            <button
-              key={agent.id}
-              type="button"
-              role="tab"
-              aria-selected={agent.id === activeId}
-              className="activity-switcher-tab"
-              data-testid={`agent-tab-${agent.id}`}
-              data-diagram={agent.context_kind === "task" || undefined}
-              title={agentMeta(agent)}
-              onClick={() => select(agent)}
-            >
-              <AgentLed status={agent.status} />
-              <span className="activity-switcher-title">{agent.title}</span>
-              <span className="activity-switcher-meta">{agentStatusLabel(agent.status)}</span>
-            </button>
-          ))}
-          {agents.length === 0 && <span className="activity-switcher-title">No agents</span>}
-        </div>
+        <span className="activity-switcher-spacer" />
       ) : (
       <button
         type="button"

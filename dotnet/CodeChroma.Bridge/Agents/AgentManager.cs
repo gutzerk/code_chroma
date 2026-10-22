@@ -26,6 +26,7 @@ public sealed partial class AgentManager
 
     private readonly object _lock = new();
     private readonly List<AgentRecord> _agents = [];
+    private readonly List<string> _runCleanups = [];
     private string _activeWorkspace = Workspace.MainId;
     private string? _pendingActive;
 
@@ -167,21 +168,44 @@ public sealed partial class AgentManager
     public AgentRecord CreateInRun(string title, string runId, string forkSession)
     {
         if (!RunStore.IsSafeId(runId)) throw new WorktreeException($"invalid run id: {runId}");
-        var path = Path.GetFullPath(WorkflowRunner.WorktreeFor(MainRoot, runId));
-        if (!Directory.Exists(path)) throw new UnknownAgentException($"run {runId} has no worktree");
-        var branch = MainBranchOps.CurrentBranch(path) ?? $"wf-{runId}";
-        return Add(title, (agentId, displayTitle, createdAt) => new AgentRecord
+        return Add(title, (agentId, displayTitle, createdAt) =>
         {
-            Id = agentId,
-            Title = displayTitle,
-            Kind = AgentRecord.DefaultKind,
-            Branch = branch,
-            Worktree = path,
-            CreatedAt = createdAt,
-            BaseBranch = MainBranchOps.CurrentBranch(MainRoot),
-            SourceRun = runId,
-            ForkSession = forkSession,
+            var path = Path.GetFullPath(WorkflowRunner.WorktreeFor(MainRoot, runId));
+            if (_runCleanups.Any(p => SamePath(p, path))) throw new BridgeException(409, "the run workspace is being cleaned up");
+            if (!Directory.Exists(path)) throw new UnknownAgentException($"run {runId} has no worktree");
+            return new AgentRecord
+            {
+                Id = agentId,
+                Title = displayTitle,
+                Kind = AgentRecord.DefaultKind,
+                Branch = MainBranchOps.CurrentBranch(path) ?? $"wf-{runId}",
+                Worktree = path,
+                CreatedAt = createdAt,
+                BaseBranch = MainBranchOps.CurrentBranch(MainRoot),
+                SourceRun = runId,
+                ForkSession = forkSession,
+            };
         });
+    }
+
+    /// <summary>Reserves a workspace until cleanup finishes; attached agent windows must be closed first.</summary>
+    public IDisposable ReserveRunCleanup(string worktree)
+    {
+        lock (_lock)
+        {
+            if (_agents.Any(a => SamePath(a.Worktree, worktree)))
+                throw new BridgeException(409, "close the agents attached to this run before deleting or restarting it");
+            if (_runCleanups.Any(p => SamePath(p, worktree)))
+                throw new BridgeException(409, "the run workspace is being cleaned up");
+            _runCleanups.Add(worktree);
+        }
+        return new CleanupReservation(() => { lock (_lock) _runCleanups.Remove(worktree); });
+    }
+
+    private sealed class CleanupReservation(Action release) : IDisposable
+    {
+        private Action? _release = release;
+        public void Dispose() => Interlocked.Exchange(ref _release, null)?.Invoke();
     }
 
     /// <summary>Under the agent limit, builds a record for a fresh id (title falls back to it), stacks its window on top and persists.</summary>

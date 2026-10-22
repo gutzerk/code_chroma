@@ -25,7 +25,10 @@ public static class WorkflowValidation
         if (AgentProblem(def, adapterOf) is { } agentProblem) return agentProblem;
         def.Inputs = (def.Inputs ?? []).Where(i => i is not null).ToList();
         var stepInputs = def.Steps.Where(s => s.Input is not null).Select(s => s.Input!).ToList();
-        var all = stepInputs.Concat(def.Inputs).ToList();
+        if (def.Inputs.Select(i => i.Name).Distinct().Count() != def.Inputs.Count)
+            return "Workflow inputs need unique simple names";
+        // Saved definitions mirror each step input at workflow level.
+        var all = stepInputs.Concat(def.Inputs.Where(i => !stepInputs.Any(s => s.Name == i.Name && s.Label == i.Label))).ToList();
         if (all.Any(i => !RunStore.IsSafeId(i.Name)) || all.Select(i => i.Name).Distinct().Count() != all.Count)
             return "Workflow inputs need unique simple names";
         def.Inputs = stepInputs;

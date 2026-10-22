@@ -21,6 +21,17 @@ export interface DiagramTaskHint {
   request?: string;
 }
 
+/** A claude agent's session usage for the full-screen strip; `costUsd` is null for an unpriced model. */
+export interface AgentUsage {
+  contextTokens: number;
+  contextWindow: number;
+  inputTokens: number;
+  outputTokens: number;
+  cacheReadTokens: number;
+  cacheHitRatio: number;
+  costUsd: number | null;
+}
+
 /** Facade over the bridge's workspace-control routes — `/agents`, `/workspaces` and `/prs`. Unlike
  * EngineClient these are *not* under `/repos/{id}`: each list spans every workspace, so all three are
  * owned by the main repository. The PR methods live here rather than in their own client because this
@@ -56,6 +67,8 @@ export interface AgentClient {
   createPr(id: string, commitDirty: boolean): Promise<AgentRecord & { pr_url: string }>;
   /** Checks the branch out again after its directory was deleted by hand. */
   recreateWorktree(id: string): Promise<AgentRecord>;
+  /** The agent's session usage, or null before a claude session exists (GET /agents/{id}/usage). */
+  usage?(id: string): Promise<AgentUsage | null>;
   /** Makes a workspace the canvas's data source and kicks off its lazy bring-up. */
   activateWorkspace(id: string): Promise<WorkspaceStatus>;
   /** analyzing / ready / error plus a progress line, polled while a worktree's graph comes up. */
@@ -159,6 +172,10 @@ export class HttpAgentClient implements AgentClient {
 
   recreateWorktree(id: string): Promise<AgentRecord> {
     return this.request<AgentRecord>(`/agents/${id}/recreate-worktree`, this.json("POST"));
+  }
+
+  usage(id: string): Promise<AgentUsage | null> {
+    return this.request<AgentUsage | null>(`/agents/${id}/usage`);
   }
 
   activateWorkspace(id: string): Promise<WorkspaceStatus> {

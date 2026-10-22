@@ -38,6 +38,8 @@ export interface WorkflowStepDef {
   showSummary?: boolean;
   /** Review step: step id a send-back reruns from (null = default target). */
   sendBackTo?: string | null;
+  /** Agent step: the one value asked for when the run starts; `{{name}}` in this step's prompt is replaced by it. */
+  input?: WorkflowInput | null;
 }
 
 /** A value asked for when a run starts; `{{name}}` in a step prompt is replaced by it. */
@@ -51,6 +53,12 @@ export interface WorkflowDef {
   name: string;
   steps: WorkflowStepDef[];
   inputs?: WorkflowInput[];
+}
+
+/** Every value a run must be given: each step's own input, then any older workflow-level ones. */
+export function workflowInputs(workflow: WorkflowDef): WorkflowInput[] {
+  const all = [...workflow.steps.flatMap((s) => (s.input ? [s.input] : [])), ...(workflow.inputs ?? [])];
+  return all.filter((input, i) => all.findIndex((other) => other.name === input.name) === i);
 }
 
 export interface SkillInfo {

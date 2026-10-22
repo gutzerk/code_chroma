@@ -85,12 +85,12 @@ describe("header controls", () => {
     expect(headerToggle(state)).toEqual({ label, enabled });
   });
 
-  it("allows Stop run only while running", () => {
-    const stoppable = (["running", "paused", "held", "stopped", "done"] as RunState[]).filter(
+  it("allows Cancel while the run is live, including held and awaiting review", () => {
+    const stoppable = (["running", "paused", "held", "needs_you", "stopped", "done"] as RunState[]).filter(
       canStopRun,
     );
 
-    expect(stoppable).toEqual(["running"]);
+    expect(stoppable).toEqual(["running", "paused", "held", "needs_you"]);
   });
 });
 

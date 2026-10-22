@@ -25,7 +25,3 @@ test("the pull-request button names itself on hover", async ({ page }) => {
 
   await expect(prButton.locator(".rail-tooltip")).toHaveText("Review a GitHub pull request");
 });
-
-// The Files rail button this file used to also cover was removed with the Explorer panel. Its one
-// unique claim — a disabled button swaps its tooltip for the reason — now lives at its own level,
-// in RailButton.test.tsx, since no rail control is disabled on a plain first load any more.

@@ -77,7 +77,7 @@ function shortEpicTitle(label: string): string {
  * `Foundation`), or null when the layer has no top-level epic to name it by — the Diagrams tab's
  * epics-row label falls back to the layer's own `epics/<id>` id in that case. First top-level epic
  * is the one whose recipe_key equals itself (`parentEpicKey(id) === id`), i.e. not a nested story. */
-export function epicsLayerShortTitle(doc: CanvasDoc, layer: string): string | null {
+function epicsLayerShortTitle(doc: CanvasDoc, layer: string): string | null {
   const epic = Object.values(doc.elements).find(
     (element) =>
       element.layer === layer && parentEpicKey(stringMeta(element, "recipe_key") || element.id) === (stringMeta(element, "recipe_key") || element.id),
@@ -126,7 +126,7 @@ export function isRecipeBackedLayer(layer: string): boolean {
  * layer; false for a freeform layer a skill/agent PATCHed straight onto the canvas with no backing
  * route. Deleting one of those layers still removes it from the canvas via `removeLayerAndRefresh`;
  * it just skips the file-delete call that would otherwise 404. */
-export function hasDeletableDiagramArtifact(layer: string): boolean {
+function hasDeletableDiagramArtifact(layer: string): boolean {
   const builtin = BUILTIN_RECIPES.find((recipe) => recipe.name === layer);
   // No builtin match means isRecipeBackedLayer's own builtin check is already false, so it
   // reduces to exactly the synthesized-prefix check this would otherwise repeat.
@@ -153,36 +153,11 @@ export function useCustomDiagramTypes(engineClient: EngineClient): DiagramTypeSu
 
 /** The channels a newly-written diagram arrives on. Bare `"custom"` is one coarse ping shared by
  * every saved type (`workspaces.py`'s `on_custom_change`), so a `"custom"` ping also means "refetch
- * the type list", not just "refetch status" -- both `DrawDiagramButton` and `useDiagramsStatus` below
+ * the type list", not just "refetch status" -- both `DrawDiagramButton` and `useDiagramReadinessWatcher`
  * watch the same set so they never disagree about what counts as a diagram ping. `epics` is in here
  * (unlike the status fetch alone, which already covers it) so a freshly written `epics.json` also
  * drives the auto-place-the-layer flow, not just the readiness map. */
 export const WATCHED_DIAGRAM_EVENT_KINDS: DiagramEventKind[] = ["c1", "epics", "patterns", "impact", "sequence", "custom", "feature-plan"];
-
-/** Fetches `GET /repos/{id}/diagrams/status` once, then keeps it fresh on every diagram ping -- the
- * Diagrams tab's own copy of the readiness map `DrawDiagramButton` keeps for its own task text,
- * same duplication `useCustomDiagramTypes` above already accepts. This hook only refreshes the
- * readiness map; auto-adding a ready-but-unplaced diagram is `useDiagramReadinessWatcher`'s `refetchStatus`
- * (since that's the mounted component with the status subscriptions), not this hook's concern. */
-export function useDiagramsStatus(engineClient: EngineClient): DiagramsStatus | null {
-  const [status, setStatus] = useState<DiagramsStatus | null>(null);
-
-  const refetch = useCallback(() => {
-    void engineClient.getDiagramsStatus().then(setStatus).catch(() => {});
-  }, [engineClient]);
-
-  useEffect(() => {
-    refetch();
-    const unsubscribes = WATCHED_DIAGRAM_EVENT_KINDS.map((kind) =>
-      engineClient.subscribeDiagram(kind, refetch),
-    );
-    return () => {
-      for (const unsubscribe of unsubscribes) unsubscribe();
-    };
-  }, [engineClient, refetch]);
-
-  return status;
-}
 
 export interface ReadyDiagrams {
   readyBuiltins: BuiltinRecipe[];

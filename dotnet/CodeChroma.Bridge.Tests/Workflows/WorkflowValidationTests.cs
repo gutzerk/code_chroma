@@ -18,6 +18,23 @@ public sealed class WorkflowValidationTests
 
     private static WorkflowDef Def(params WorkflowStep[] steps) => new() { Id = "wf", Name = "Flow", Steps = steps.ToList() };
 
+    [Theory]
+    [InlineData("step")]
+    [InlineData("workflow")]
+    [InlineData("conflict")]
+    public void Accepting_mirrored_inputs_still_refuses_duplicate_or_conflicting_inputs(string scenario)
+    {
+        var def = Def(Agent("one"), Agent("two"));
+        def.Steps[0].Input = new WorkflowInput { Name = "ticket", Label = "Ticket" };
+        if (scenario == "step") def.Steps[1].Input = new WorkflowInput { Name = "ticket", Label = "Ticket" };
+        else if (scenario == "workflow") def.Inputs = [new WorkflowInput { Name = "ticket", Label = "Ticket" }, new WorkflowInput { Name = "ticket", Label = "Ticket" }];
+        else def.Inputs = [new WorkflowInput { Name = "ticket", Label = "Different question" }];
+
+        var error = WorkflowValidation.Validate(def, AdapterOf);
+
+        Assert.Equal("Workflow inputs need unique simple names", error);
+    }
+
     [Fact]
     public void A_continue_chain_on_the_default_claude_provider_is_valid()
     {

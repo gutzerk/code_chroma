@@ -47,6 +47,7 @@ public sealed partial class WorkflowRunner
     private readonly Func<string, string?>? _mcpUrl;
     private readonly Func<string, string?> _sessionFinder;
     private readonly Func<string, string, TranscriptUsage?> _usageReader;
+    private readonly Func<string, IDisposable>? _reserveCleanup;
     private readonly object _lock = new();
     private readonly Dictionary<string, Handle> _handles = [];
     private readonly HashSet<string> _chatBusy = [];
@@ -71,9 +72,10 @@ public sealed partial class WorkflowRunner
     private enum Outcome { Completed, Failed, Stopped }
 
     public WorkflowRunner(string repoRoot, SkillAgent agent, Action<JsonObject> emit, Func<string, string?>? sessionFinder = null,
-        SkillAgent? chatAgent = null, Func<string, string?>? mcpUrl = null, Func<string, string, TranscriptUsage?>? usageReader = null)
+        SkillAgent? chatAgent = null, Func<string, string?>? mcpUrl = null, Func<string, string, TranscriptUsage?>? usageReader = null, Func<string, IDisposable>? reserveCleanup = null)
     {
         _repoRoot = repoRoot;
+        _reserveCleanup = reserveCleanup;
         _chat = chatAgent;
         _mcpUrl = mcpUrl;
         _agent = agent;
@@ -156,6 +158,7 @@ public sealed partial class WorkflowRunner
     /// <summary>Removes a done or stopped run: its record, worktree and branches (the git cleanup is best-effort and runs outside the lock).</summary>
     public void DeleteRun(string runId)
     {
+        using var reservation = _reserveCleanup?.Invoke(WorktreeFor(_repoRoot, runId));
         string id;
         lock (_lock)
         {
@@ -175,29 +178,20 @@ public sealed partial class WorkflowRunner
         WipeGit(id, WorktreeFor(_repoRoot, id));
     }
 
-    /// <summary>Removes every done or stopped run and returns their ids.</summary>
+    /// <summary>Removes finished runs whose workspaces are free, skipping attached agents or concurrent mutations.</summary>
     public List<string> ClearFinished()
     {
-        var victims = new List<string>();
-        lock (_lock)
+        var deleted = new List<string>();
+        foreach (var id in Store.RunIds())
         {
-            foreach (var id in Store.RunIds())
+            try
             {
-                if (_handles.TryGetValue(id, out var h))
-                {
-                    if (h.Busy || !RunStates.IsFinished(h.Run.State)) continue;
-                    Detach(id, h);
-                }
-                else
-                {
-                    if (Store.GetRun(id) is not { } saved || !RunStates.IsFinished(saved.State)) continue;
-                    Detach(id, null);
-                }
-                victims.Add(id);
+                DeleteRun(id);
+                deleted.Add(id);
             }
+            catch (BridgeException error) when (error.Status is 404 or 409) { }
         }
-        foreach (var id in victims) WipeGit(id, WorktreeFor(_repoRoot, id));
-        return victims;
+        return deleted;
     }
 
     /// <summary>Drops the run's handle and record and announces it; the caller wipes git outside the lock.</summary>
@@ -230,6 +224,7 @@ public sealed partial class WorkflowRunner
             if (h.Busy || !RunStates.IsFinished(h.Run.State)) throw Illegal(h, "restart");
         }
         await h.Loop;
+        using var reservation = _reserveCleanup?.Invoke(h.Worktree);
         lock (_lock)
         {
             if (h.Busy || !RunStates.IsFinished(h.Run.State)) throw Illegal(h, "restart");

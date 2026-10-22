@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, within } from "@testing-library/react";
 import { ActivityPanel } from "./ActivityPanel";
 import { agentStore } from "./agentStore";
 import { AgentClientProvider } from "./AgentClientContext";
@@ -85,16 +85,17 @@ describe("ActivityPanel", () => {
 
     expect(screen.getByTestId("agent-count")).toHaveTextContent("1/2");
   });
-  it("lists agents as a row of tabs in full screen and keeps full screen when switching", async () => {
+  it("lists agents in a left column in full screen and keeps full screen when switching", async () => {
     agentStore.upsert(await new MockAgentClient().create("Planner"));
     agentStore.upsert(await new MockAgentClient().create("Builder"));
     layoutStore.setAgentsMode("full");
     setup();
 
-    fireEvent.click(screen.getByRole("tab", { name: /Builder/ }));
+    const list = screen.getByRole("navigation", { name: "Agents" });
+    fireEvent.click(within(list).getByRole("button", { name: /Builder/ }));
 
     expect(screen.queryByRole("button", { name: "Select agent" })).toBeNull();
-    expect(screen.getAllByRole("tab", { name: /Planner|Builder/ })).toHaveLength(2);
+    expect(within(list).getAllByRole("button", { name: /Planner|Builder/ })).toHaveLength(2);
     expect(layoutStore.getState().agentsMode).toBe("full");
     expect(layoutStore.getState().selectedAgentId).toBe(agentStore.getAgents()[1].id);
   });

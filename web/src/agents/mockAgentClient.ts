@@ -119,6 +119,12 @@ export class MockAgentClient implements AgentClient {
     return agent;
   }
 
+  async openStepSession(title: string, runId: string, sessionId: string): Promise<AgentRecord> {
+    const agent = await this.create(title);
+    Object.assign(agent, { worktree: `/mock/worktrees/wf-${runId}`, branch: `wf-${runId}`, source_run: runId, fork_session: sessionId });
+    return agent;
+  }
+
   /** "main" or another agent's own branch/worktree — thrown on an id that isn't either. */
   private attachTarget(
     attachTo: string,

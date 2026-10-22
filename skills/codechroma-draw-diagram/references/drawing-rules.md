@@ -100,7 +100,10 @@ cover.
 ## Bridge contract
 
 **Base URL:** use `$CODECHROMA_BRIDGE_URL` if set (the desktop app's terminal panel exports the real
-dynamic port there); otherwise default to `http://localhost:8000`.
+port there); otherwise default to `http://localhost:8000`. The port is stable per repository but can
+change across app restarts: if a call is refused, re-read `origin` from
+`$CODECHROMA_BRIDGE_REPO_PATH/.codechroma/bridge.json` (rewritten on every bridge start) and retry
+there, instead of reusing a port from the task text.
 
 **Workspace id:** every `/repos/{repo_id}/...` path uses `${CODECHROMA_WORKSPACE_ID:-default}`. The
 bridge sets `CODECHROMA_WORKSPACE_ID` on this run (e.g. `pr-29` when reviewing a pull request); the

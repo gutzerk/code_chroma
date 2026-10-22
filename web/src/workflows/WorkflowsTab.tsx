@@ -1,6 +1,8 @@
 import { useEffect, useMemo, useState } from "react";
 import "./workflows.css";
+import { layoutStore, useLayoutState } from "../canvas/layout/layoutStore";
 import { useEngineClient } from "../engine-client/EngineClientContext";
+import { AllWorkflows } from "./AllWorkflows";
 import { Icon } from "./icons";
 import { RunDetail } from "./RunDetail";
 import { RunWorkflowDialog } from "./RunWorkflowDialog";
@@ -20,7 +22,7 @@ import { workflowInputs, type WorkflowDef } from "./types";
 
 type Dialog = { kind: "run"; workflow?: WorkflowDef } | { kind: "editor"; workflow?: WorkflowDef } | null;
 
-/** The Workflows tab: run lists and saved workflows, plus the run detail; the layout follows the container width. */
+/** The Workflows tab: run lists plus the run detail, or the All workflows screen; the layout follows the container width. */
 export function WorkflowsTab() {
   const client = useEngineClient();
   const workflows = useWorkflows();
@@ -28,6 +30,9 @@ export function WorkflowsTab() {
   const activeRunId = useActiveRunId();
   const error = useWorkflowError();
   const [dialog, setDialog] = useState<Dialog>(null);
+  const [allOpen, setAllOpen] = useState(false);
+  const { agentsMode } = useLayoutState();
+  const panelFull = agentsMode === "full";
   const [ref, layout] = useContainerLayout();
   const actions = useMemo(() => workflowActions(client), [client]);
 
@@ -38,26 +43,35 @@ export function WorkflowsTab() {
   const showDetail = side || activeRunId !== null;
 
   const runSaved = (workflow: WorkflowDef) => {
+    setAllOpen(false);
     if (workflowInputs(workflow).length) setDialog({ kind: "run", workflow });
     else void actions.start(workflow.id);
   };
 
-  return (
-    <div className="workflows-tab" ref={ref} data-layout={layout} data-testid="workflows-tab">
-      {error && (
-        <p className="workflow-error" role="alert">
-          {error}
-        </p>
-      )}
+  const runsView = (
+    <>
       <div className="wf-toolbar">
         <button type="button" className="wf-btn wf-btn-primary" data-testid="run-workflow" onClick={() => setDialog({ kind: "run" })}>
           <Icon name="play" />
           Run workflow
         </button>
-        <button type="button" className="wf-btn" data-testid="new-workflow" onClick={() => setDialog({ kind: "editor" })}>
-          <Icon name="plus" />
-          New workflow
-        </button>
+        {side && (
+          <div className="wf-toolbar-end">
+            <button type="button" className="wf-btn wf-btn-icon" aria-label="All workflows" title="All workflows" onClick={() => setAllOpen(true)}>
+              <Icon name="list" />
+            </button>
+            <button
+              type="button"
+              className="wf-btn wf-btn-icon"
+              aria-label={panelFull ? "Exit full screen" : "Full screen"}
+              title={panelFull ? "Exit full screen" : "Full screen"}
+              aria-pressed={panelFull}
+              onClick={() => layoutStore.setAgentsMode(panelFull ? "normal" : "full")}
+            >
+              <Icon name={panelFull ? "shrink" : "expand"} />
+            </button>
+          </div>
+        )}
       </div>
       <div className="wf-columns">
         {showList && (
@@ -69,8 +83,7 @@ export function WorkflowsTab() {
               layout={layout}
               actions={actions}
               onOpen={workflowStore.setActiveRun}
-              onEdit={(workflow) => setDialog({ kind: "editor", workflow })}
-              onRun={runSaved}
+              onAllWorkflows={() => setAllOpen(true)}
             />
           </div>
         )}
@@ -84,6 +97,29 @@ export function WorkflowsTab() {
           </div>
         )}
       </div>
+    </>
+  );
+
+  return (
+    <div className="workflows-tab" ref={ref} data-layout={layout} data-testid="workflows-tab">
+      {error && (
+        <p className="workflow-error" role="alert">
+          {error}
+        </p>
+      )}
+      {allOpen ? (
+        <AllWorkflows
+          workflows={workflows}
+          runs={runs}
+          actions={actions}
+          onBack={() => setAllOpen(false)}
+          onNew={() => setDialog({ kind: "editor" })}
+          onEdit={(workflow) => setDialog({ kind: "editor", workflow })}
+          onRun={runSaved}
+        />
+      ) : (
+        runsView
+      )}
       {dialog?.kind === "run" && <RunWorkflowDialog workflow={dialog.workflow} onClose={() => setDialog(null)} />}
       {dialog?.kind === "editor" && <WorkflowEditorDialog workflow={dialog.workflow} onClose={() => setDialog(null)} />}
     </div>

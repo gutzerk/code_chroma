@@ -741,7 +741,7 @@ renders it identically to a resolver-authored conceptual box.
 
 ## Router precedence: the named type wins, "flow" does not mean sequence
 
-🔴 Agents were drawing `sequence` for almost every "flow" request (data flow, request path, lineage). The router (`SKILL.md`) now opens with "First: draw the type the user named" and never substitutes a nearby row; the `sequence` row triggers only on an explicit sequence diagram or strict call order over time; a "Data flow vs Sequence" disambiguation row sends data-flow requests to a saved type or the Fallback. Interactive agents get this text inlined (`BareSkill.ComposeInteractive`), so it must stay in `SKILL.md`, not only in a reference. Guard: `tests/unit/test_draw_skill_routing.py`.
+🔴 Agents were drawing `sequence` for almost every "flow" request (data flow, request path, lineage). The router (`SKILL.md`) now opens with "First: draw the type the user named" and never substitutes a nearby row; the `sequence` row triggers only on an explicit sequence diagram or strict call order over time; a "Data flow vs Sequence" disambiguation row sends data-flow requests to a saved type or the Fallback. Interactive agents get this text inlined (`BareSkill.ComposeInteractive`), so it must stay in `SKILL.md`, not only in a reference.
 
 ## Sequence diagram — messages become elements, not edges
 

@@ -404,11 +404,22 @@ def test_github_prs_ignores_the_import_cap(client, monkeypatch):
     assert response.json()["prs"] == []
 
 
-def test_github_prs_works_with_an_upstream_remote_instead_of_origin(client, monkeypatch):
+@pytest.mark.parametrize(
+    "remote_args",
+    [
+        [
+            ("remote", "remove", "origin"),
+            ("remote", "add", "upstream", "git@github.com:acme/app.git"),
+        ],
+        [("remote", "set-url", "origin", "git@gh-work:acme/app.git")],
+    ],
+    ids=["upstream-remote-instead-of-origin", "custom-ssh-alias"],
+)
+def test_github_prs_works_with_a_non_default_remote(client, monkeypatch, remote_args):
     test_client, repo, _server, _bin = client
     _mock_gh_resolution(monkeypatch, [])
-    git(repo, "remote", "remove", "origin")
-    git(repo, "remote", "add", "upstream", "git@github.com:acme/app.git")
+    for args in remote_args:
+        git(repo, *args)
 
     response = test_client.get("/prs/github")
 
@@ -416,36 +427,23 @@ def test_github_prs_works_with_an_upstream_remote_instead_of_origin(client, monk
     assert response.json()["prs"] == []
 
 
-def test_github_prs_works_with_a_custom_ssh_alias(client, monkeypatch):
-    test_client, repo, _server, _bin = client
-    _mock_gh_resolution(monkeypatch, [])
-    git(repo, "remote", "set-url", "origin", "git@gh-work:acme/app.git")
-
-    response = test_client.get("/prs/github")
-
-    assert response.status_code == 200
-    assert response.json()["prs"] == []
-
-
-def test_github_prs_reports_a_missing_gh_as_its_own_blocker(client, monkeypatch):
+@pytest.mark.parametrize(
+    ("patches", "detail"),
+    [
+        ({"has_gh": False}, "GitHub CLI required"),
+        ({"has_gh": True, "is_authenticated": False}, "Log in: gh auth login"),
+    ],
+    ids=["missing-gh", "authentication-failure"],
+)
+def test_github_prs_reports_each_blocker_separately(client, monkeypatch, patches, detail):
     test_client, _repo, _server, _bin = client
-    monkeypatch.setattr(pr_github, "has_gh", lambda: False)
+    for name, value in patches.items():
+        monkeypatch.setattr(pr_github, name, (lambda *_args, _v=value: _v))
 
     response = test_client.get("/prs/github")
 
     assert response.status_code == 409
-    assert response.json()["detail"] == "GitHub CLI required"
-
-
-def test_github_prs_reports_authentication_failure_separately(client, monkeypatch):
-    test_client, _repo, _server, _bin = client
-    monkeypatch.setattr(pr_github, "has_gh", lambda: True)
-    monkeypatch.setattr(pr_github, "is_authenticated", lambda _root: False)
-
-    response = test_client.get("/prs/github")
-
-    assert response.status_code == 409
-    assert response.json()["detail"] == "Log in: gh auth login"
+    assert response.json()["detail"] == detail
 
 
 def test_github_prs_reports_repository_detection_failure_separately(client, monkeypatch):

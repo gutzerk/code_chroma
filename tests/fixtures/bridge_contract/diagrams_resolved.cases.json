@@ -96,6 +96,14 @@
           {"path": "$.type", "equals": "sequence"}, {"path": "$.has_diagram", "equals": true}, {"path": "$.relations", "count": 2}, {"path": "$.groups", "count": 0}
         ]}}
       ]
+    },
+    {
+      "id": "a_custom_diagram_written_to_disk_pings_connected_canvases",
+      "steps": [
+        {"ws": "connect", "name": "events", "path": "/repos/main/events", "expect": "accepted"},
+        {"fs": "write", "path": ".codechroma/diagrams/custom/dataflow/dataflow.json", "text": "{\"nodes\": [{\"id\": \"a\", \"name\": \"A\"}], \"relations\": []}"},
+        {"ws": "receive", "name": "events", "timeout_ms": 15000, "skip_until_match": true, "expect": {"json": {"type": "custom"}}}
+      ]
     }
   ]
 }

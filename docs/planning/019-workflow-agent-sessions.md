@@ -1,6 +1,6 @@
 # 019 — Workflow agent sessions: per-step agent, input, provider/model
 
-Status: In progress (Stages 0-2 done on `feat/workflow-agent-sessions`, branched from `stage`)
+Status: In progress (Stages 0-3 done on `feat/workflow-agent-sessions`, branched from `stage`)
 
 Design: the "Agents & Workflows Panel Redesign" canvas, https://claude.ai/artifact/UpBEzW3ptZkPhw1dqXQFDR (boards 2, 3, 6, 7, 7b, 8, 9, 10, 11). C# bridge only, like the rest of workflows (`docs/architecture/workflows.md`).
 
@@ -53,6 +53,7 @@ A workflow step can only start a fresh agent, with or without the previous step'
 
 ### Stage 3 — Redo and send back
 
+- Done (runner only). `Review` is now async (the route uses `MutateAsync`) because send back awaits the parked loop and does the redo git work. A continue step being redone forks its own source rather than the nearest earlier session, which is what its own mode would do anyway; the source must be on the same provider. The web `RedoCard` keeps/reruns/setsAside copy for send back is not changed here (web stages).
 - `WorkflowRunner.Steer.cs` `Redo` and `WorkflowRunner.Review` (sendBack) share one "rerun from" path: keep the attempt branch, reset to the step's checkpoint, pick the nearest earlier agent step with a session on a claude CLI, resume it forked with the note plus step N's instructions; else fresh agent in step N's mode.
 - Send back now creates an attempt and resets code like redo (it currently reruns on top of the rejected work); update `RedoCard` keeps/reruns/setsAside text accordingly.
 - Tests: redo resumes step N-1's session (argv), redo with no earlier session starts fresh, send back resets the worktree to the checkpoint, the source session is never resumed without `--fork-session`.

@@ -145,7 +145,7 @@ public static class WorkflowRoutes
         {
             var body = await Reply.LenientBody(request);
             var decision = Str(body, "decision") ?? "";
-            return Mutate(registry.Get(repoId), runners, runner => runner.Review(runId, decision, Str(body, "note")));
+            return await MutateAsync(registry.Get(repoId), runners, runner => runner.Review(runId, decision, Str(body, "note")));
         });
 
         app.MapPost("/repos/{repoId}/runs/{runId}/message", async (string repoId, string runId, HttpRequest request, WorkspaceRegistry registry, WorkflowRunners runners) =>

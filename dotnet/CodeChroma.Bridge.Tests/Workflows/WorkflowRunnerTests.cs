@@ -79,7 +79,7 @@ public sealed class WorkflowRunnerTests : IDisposable
         var started = await runner.Start("wf");
         await UntilState(runner, started.Id, "needs_you");
         var parked = runner.Get(started.Id);
-        var approved = runner.Review(started.Id, "approve", null);
+        var approved = await runner.Review(started.Id, "approve", null);
 
         Assert.Equal("done", approved.State);
         Assert.Equal("done", Step(approved, "build").Status);
@@ -103,7 +103,7 @@ public sealed class WorkflowRunnerTests : IDisposable
         var started = await runner.Start("wf");
         await UntilState(runner, started.Id, "needs_you");
 
-        var sent = runner.Review(started.Id, "sendBack", "rename the helper");
+        var sent = await runner.Review(started.Id, "sendBack", "rename the helper");
         await Until(() => _cli.Invocations().Count == 2, "second launch");
         await UntilState(runner, started.Id, "needs_you");
 
@@ -511,7 +511,7 @@ public sealed class WorkflowRunnerTests : IDisposable
         var started = await runner.Start("wf");
         await UntilState(runner, started.Id, "needs_you");
 
-        runner.Review(started.Id, "sendBack", "again");
+        await runner.Review(started.Id, "sendBack", "again");
         await Until(() => _cli.Invocations().Count == 3, "third launch");
         await UntilState(runner, started.Id, "needs_you");
 
@@ -808,6 +808,75 @@ public sealed class WorkflowRunnerTests : IDisposable
         Assert.Equal(3, _cli.Invocations().Count);
         Assert.Contains("use b", Args(_cli.Invocations()[2]));
         Assert.Contains("run.redo.started", _events);
+    }
+
+    [Fact]
+    public async Task Redo_forks_the_nearest_earlier_step_session_with_the_note_and_the_step_task()
+    {
+        _session = "sess-1";
+        DefineSteps(Agent("one", StepAgents.New), Agent("two", StepAgents.New));
+        _cli.Script(ResultEvent(), Exit(0));
+        var runner = Runner();
+        var started = await runner.Start("wf");
+        await UntilState(runner, started.Id, "done");
+
+        await runner.Redo(started.Id, "two", "use b", null);
+        await Until(() => runner.Get(started.Id) is { State: "done", Attempt: 2 }, "second attempt");
+        var calls = _cli.Invocations();
+
+        Assert.Equal(3, calls.Count);
+        Assert.Contains("\"--resume\",\"sess-1\",\"--fork-session\"", Args(calls[2]));
+        Assert.Contains("use b", Args(calls[2]));
+        Assert.Contains("do two", Args(calls[2]));
+        Assert.Equal("one", Step(runner.Get(started.Id), "two").ResumedFrom);
+    }
+
+    [Fact]
+    public async Task Redo_without_an_earlier_session_starts_a_fresh_agent_in_the_step_mode()
+    {
+        DefineSteps(Agent("one", StepAgents.New), Agent("two"));
+        _cli.Script(Stdout(Say("marker-from-one")), ResultEvent(), Exit(0));
+        var runner = Runner();
+        var started = await runner.Start("wf");
+        await UntilState(runner, started.Id, "done");
+
+        await runner.Redo(started.Id, "two", "use b", null);
+        await Until(() => runner.Get(started.Id) is { State: "done", Attempt: 2 }, "second attempt");
+        var calls = _cli.Invocations();
+
+        Assert.Equal(3, calls.Count);
+        Assert.DoesNotContain("--resume", Args(calls[2]));
+        Assert.Contains("use b", Args(calls[2]));
+        Assert.Contains("marker-from-one", Args(calls[2]));
+        Assert.Null(Step(runner.Get(started.Id), "two").ResumedFrom);
+    }
+
+    [Fact]
+    public async Task Send_back_resets_the_worktree_to_the_checkpoint_in_a_new_attempt_and_forks_the_earlier_session()
+    {
+        _session = "sess-1";
+        DefineSteps(Agent("prep", StepAgents.New), Agent("build", StepAgents.New), new WorkflowStep { Id = "check", Slug = "check", Kind = "review" });
+        _cli.ScriptRuns([ResultEvent(), Exit(0)], [Write("bad.txt", "bad\n"), ResultEvent(), Exit(0)], [Write("good.txt", "good\n"), ResultEvent(), Exit(0)]);
+        var runner = Runner();
+        var started = await runner.Start("wf");
+        await UntilState(runner, started.Id, "needs_you");
+
+        var sent = await runner.Review(started.Id, "sendBack", "try again");
+        await Until(() => runner.Get(started.Id) is { State: "needs_you", Attempt: 2 }, "back at the gate");
+        var run = runner.Get(started.Id);
+        var worktree = Worktree(started.Id);
+        var calls = _cli.Invocations();
+
+        Assert.Equal("running", sent.State);
+        Assert.Equal([1, 2], run.Attempts.Select(a => a.N));
+        Assert.Contains("bad", GitSandbox.GitIn(_repo.Root, "show", started.Id + "/attempt-1:bad.txt"));
+        Assert.False(File.Exists(Path.Combine(worktree, "bad.txt")));
+        Assert.True(File.Exists(Path.Combine(worktree, "good.txt")));
+        Assert.StartsWith("--- sent back: try again ---", Step(run, "build").Output);
+        Assert.Equal("prep", Step(run, "build").ResumedFrom);
+        Assert.Equal(3, calls.Count);
+        Assert.Contains("try again", Args(calls[2]));
+        Assert.All(calls.Where(c => Args(c).Contains("--resume")), c => Assert.Contains("--fork-session", Args(c)));
     }
 
     [Fact]

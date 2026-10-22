@@ -26,6 +26,24 @@ public sealed class CliResolver(UserPaths paths, ProviderStore providers, CallSi
         return new CliResolution("claude", AssistantRoutes.EffectiveCli(paths), assistantModel, new Dictionary<string, string>(), false);
     }
 
+    /// <summary>One provider's CLI with an explicit model (null: the provider's test model); throws for an unknown or non-CLI provider.</summary>
+    public CliResolution ResolveProvider(string providerId, string? model)
+    {
+        if (providers.Find(providerId) is not { } provider || Json.Str(provider["kind"]) != "cli"
+            || Json.Str(provider["adapter"]) is not { } adapter || !CliAdapters.All.ContainsKey(adapter))
+            throw new CliLookupException($"unknown CLI provider: {providerId}");
+        var chosen = model ?? Json.Str(provider["test_model"]) ?? "";
+        return new CliResolution(adapter, adapter, chosen, EnvOverrides(provider, chosen), true);
+    }
+
+    /// <summary>The same CLI on another model; a provider that pins the model through ANTHROPIC_MODEL gets it there too.</summary>
+    public static CliResolution WithModel(CliResolution cli, string model)
+    {
+        if (!cli.EnvOverrides.ContainsKey("ANTHROPIC_MODEL")) return cli with { Model = model };
+        var env = new Dictionary<string, string>(cli.EnvOverrides) { ["ANTHROPIC_MODEL"] = model };
+        return cli with { Model = model, EnvOverrides = env };
+    }
+
     /// <summary>The effective assignment: an agentic call site uses its group's, a simple one its own.</summary>
     private JsonObject? LoadAssignment(string callSiteId)
     {

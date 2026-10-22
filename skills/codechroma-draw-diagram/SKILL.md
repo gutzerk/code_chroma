@@ -11,6 +11,16 @@ If the self-check prints `SPLIT` (over ~15 nodes), warn the user and propose spl
 linked diagrams before finishing — see `references/drawing-rules.md` "Splitting a crowded diagram".
 **Never report success on a run that didn't print `OK`** from the self-check.
 
+## First: draw the type the user named
+
+Use the user's own name for the diagram. **Never substitute a different type because it feels close.**
+`sequence` is **only** for an explicit sequence diagram (or "in what order do these calls happen").
+"Data flow", "dataflow", "DFD", "lineage", "pipeline", "how data moves", "where data goes", "ownership",
+"layers", "dependencies" or any other named kind is **not** `sequence`, even though the word "flow"
+appears in it. If the name matches no row below, that is the **Fallback** case, not a reason to pick
+the nearest row. Before finishing, state in one line which type you drew and why; if it is not the
+type the user named, you picked wrongly — start over.
+
 ## Router — pick by artifact, not by adjective
 
 | type id | write to | draw this when the request is about… | read this reference | self-check |
@@ -18,7 +28,7 @@ linked diagrams before finishing — see `references/drawing-rules.md` "Splittin
 | `c1` | `.codechroma/diagrams/c1/c1.json` (`GET /repos/{id}/c1-path`) | the **whole system** as one box plus the people and external systems around it, each decomposed into layers of sub-blocks down to real code — "regenerate the C1 diagram", "add Stripe to the system context", "the C1 view is missing our auth provider", "break the domain layer into sub-blocks" | `references/type-c1.md` | `check_diagram.py --kind c1` |
 | `patterns` | `.codechroma/diagrams/patterns/patterns.json` (`GET /repos/{id}/patterns-path`) | the real **GoF/architectural pattern instances** in this repo (Strategy, Facade, Adapter, Registry, Repository, Singleton, Observer) plus the infra/external boxes that connect them — "regenerate the patterns diagram", "confirm the detected patterns", "the patterns view only shows a few blocks", "add the missing connections between patterns" | `references/type-patterns.md` | `check_diagram.py --kind patterns` |
 | `impact` | `.codechroma/diagrams/impact/impact.json` (`GET /repos/{id}/impact-path`) | only the **slice a change or plan touches** — a git diff or a feature's spec files — plus the one-hop neighbours worth a box, background collapsed: "show me what this PR affects", "regenerate the impact diagram", "the impact view should also show the callers of X", "explain what each block does" | `references/type-impact.md` | `check_diagram.py --kind impact --source=diff` (or `--source=plan --feature=<dir>`) |
-| `sequence` | `.codechroma/diagrams/sequence/sequence.json` (`GET /repos/{id}/sequence-path`) | the **ordered calls between systems/classes in one flow**, left-to-right participants top-to-bottom messages — "show me how a request is handled", "draw a sequence diagram of checkout", "what order do these get called in", "the flow of this trace" | `references/type-sequence.md` | `check_diagram.py --kind sequence` |
+| `sequence` | `.codechroma/diagrams/sequence/sequence.json` (`GET /repos/{id}/sequence-path`) | the **ordered calls between systems/classes in one flow**, left-to-right participants top-to-bottom messages — "draw a sequence diagram of checkout", "what order do these get called in", "show the messages between these services over time", "draw the recorded trace as a sequence" | `references/type-sequence.md` | `check_diagram.py --kind sequence` |
 | `custom` | `.codechroma/diagrams/custom/<type-id>/<type-id>.json` (`GET /repos/{id}/custom/<type-id>-path`) | a **saved, user-authored diagram type** whose rules live in its own definition, not in this skill — "generate the data-flow diagram", "regenerate the ownership map", "deepen the layering diagram", or any run that was handed a `type_id` | `references/type-custom.md` | `check_diagram.py --kind custom --type <type-id>` |
 
 > Pick exactly one row. Read that row's reference file in full before you write anything. Do not
@@ -33,7 +43,8 @@ linked diagrams before finishing — see `references/drawing-rules.md` "Splittin
 |---|---|
 | C1 vs Patterns | `c1` draws **the whole system decomposed into layers**; `patterns` draws **the GoF/architectural instances that exist inside it**. "How is this system built?" → C1. "Which patterns does it use?" → patterns. |
 | C1 vs Impact | `c1` draws **everything**; `impact` draws **only the slice this change or plan touches**. Any mention of a PR, a diff, "what this affects", or a feature's spec directory → impact. |
-| C1/Impact vs Sequence | C1/impact/patterns box up *which* systems exist and touch each other; `sequence` draws *how one flow unfolds in time*. "What depends on what" → impact/patterns; "in what order do the calls happen / how is this handled" → sequence. Any mention of a trace flow, a request's path, or "first X then Y" → sequence. |
+| C1/Impact vs Sequence | C1/impact/patterns box up *which* systems exist and touch each other; `sequence` draws *how one flow unfolds in time*. "What depends on what" → impact/patterns; "in what order do the calls happen / how is this handled" → sequence. Pick it only when the user says **sequence**, or asks for strict call *order over time* ("first X then Y", a recorded trace). "Flow", "request path" or "how X works" alone do **not** mean sequence. |
+| Data flow vs Sequence | A **data-flow** diagram (dataflow, DFD, lineage, "where does the data go", pipelines) shows *what data moves between which stores and processes* — arrows are data, not calls, and there is no time axis. It is **never** `sequence`. Use a saved `dataflow`-like type if `GET /diagram-types` lists one (`custom`), else follow **Fallback** (save a type, or draw once). |
 | Custom vs everything | Pick `custom` when the request **names a saved type, or a `type_id` was passed**. When unsure, `GET /diagram-types` and see whether one matches; a saved type always wins over a built-in. |
 | Nothing above fits — no matching row, no matching saved custom type, a genuine one-off request | Don't improvise from here. Jump straight to **Fallback** below. |
 

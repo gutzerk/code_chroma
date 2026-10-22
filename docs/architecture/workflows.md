@@ -2,9 +2,10 @@
 
 Open the Workflows tab in the attached right panel (`web/src/workflows/WorkflowsTab.tsx`). It has
 "Run workflow" (`RunWorkflowDialog`, asks for run inputs) and "New workflow" (`WorkflowEditorDialog`, a
-`ModalDialog` with name, run inputs, step list and a per-step editor; Save / Save and run). Sections:
+`ModalDialog` with name, run inputs, step list and a per-step editor; Save / Save and run). A run input is a single question field: its `{{name}}` identifier is derived from the question (`deriveInputName`, unique, shown beside the field) and any number of inputs can be inserted into any step's instructions with the "Insert {{name}}" chips. Sections:
 Active (`RunsList` cards with a segmented progress bar, Pause/Stop/Cancel run, "Review now" on a
 `needs_you` run), Finished (Restart, Delete, "Clear finished") and Saved workflows (Edit, Run, Delete).
+Run and saved-workflow cards open (run detail / editor) from a click anywhere that is not one of their buttons (`openOnBackgroundClick`). Cancel run (`canStopRun`) is enabled in running, paused, held and needs_you, matching the bridge's `StopNow` rows, so a run awaiting review can be cancelled and then deleted.
 Run detail (`RunDetail`, numbered `StepRail` timeline) labels what passes between steps
 (`runControls.betweenLabel`). Layout follows the tab's own width (`useContainerLayout`): at 320px
 secondary actions move into a "⋯" menu, from ~640px list and detail sit side by side, from ~1100px a

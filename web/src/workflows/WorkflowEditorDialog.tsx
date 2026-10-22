@@ -23,7 +23,7 @@ export function validateDraft(name: string, inputs: WorkflowInput[], steps: Step
   if (!name.trim()) errors.name = "Give the workflow a name.";
   inputs.forEach((input, i) => {
     const problem = !input.name.trim()
-      ? "Give the input a name."
+      ? "Give the input a question."
       : !INPUT_NAME.test(input.name.trim())
         ? "Use letters, digits, - or _ and start with a letter."
         : inputs.findIndex((other) => other.name.trim() === input.name.trim()) !== i
@@ -37,6 +37,18 @@ export function validateDraft(name: string, inputs: WorkflowInput[], steps: Step
     if (missing.length > 0) (errors.steps ??= {})[i] = `Fill in the ${missing.join(" and ")}.`;
   });
   return errors;
+}
+
+/** The identifier an input gets from its question (letters, digits, - and _), unique among the others. */
+export function deriveInputName(label: string, others: string[]): string {
+  const base =
+    label
+      .trim()
+      .replace(/[^A-Za-z0-9_-]+/g, "-")
+      .replace(/^[^A-Za-z]+|-+$/g, "") || "input";
+  let name = base;
+  for (let n = 2; others.includes(name); n += 1) name = `${base}-${n}`;
+  return name;
 }
 
 function toDraft(step: WorkflowStepDef): StepDraft {
@@ -101,6 +113,20 @@ export function WorkflowEditorDialog({
     [next[i], next[to]] = [next[to], next[i]];
     setSteps(next);
     setSelected(to);
+  };
+
+  const setLabel = (i: number, label: string) =>
+    setInputs(
+      inputs.map((x, j) => {
+        if (j !== i) return x;
+        const others = inputs.filter((_, k) => k !== i).map((o) => o.name);
+        const followed = !x.name || x.name === deriveInputName(x.label, others);
+        return { ...x, label, name: followed ? deriveInputName(label, others) : x.name };
+      }),
+    );
+
+  const insertInput = (name: string) => {
+    if (step.kind === "agent") patch(at, { prompt: `${step.prompt}${step.prompt && !/\s$/.test(step.prompt) ? " " : ""}{{${name}}}` });
   };
 
   const remove = (i: number) => {
@@ -200,23 +226,18 @@ export function WorkflowEditorDialog({
           <section className="workflow-editor-section">
             <strong>Run inputs</strong>
             <small>
-              Asked for when the run starts. Use {"{{name}}"} in instructions to insert the value.
+              Asked for when the run starts. Add as many as you need, and insert them in any step's instructions.
             </small>
             {inputs.map((input, i) => (
               <div className="workflow-editor-input" key={i}>
                 <input
-                  aria-label={`Input ${i + 1} name`}
-                  value={input.name}
-                  placeholder="pr"
-                  aria-invalid={Boolean(errors.inputs?.[i])}
-                  onChange={(e) => setInputs(inputs.map((x, j) => (j === i ? { ...x, name: e.target.value } : x)))}
-                />
-                <input
                   aria-label={`Input ${i + 1} question`}
                   value={input.label}
                   placeholder="Which PR number?"
-                  onChange={(e) => setInputs(inputs.map((x, j) => (j === i ? { ...x, label: e.target.value } : x)))}
+                  aria-invalid={Boolean(errors.inputs?.[i])}
+                  onChange={(e) => setLabel(i, e.target.value)}
                 />
+                <small className="workflow-editor-input-name">{input.name ? `{{${input.name}}}` : ""}</small>
                 <button type="button" aria-label={`Remove input ${i + 1}`} onClick={() => setInputs(inputs.filter((_, j) => j !== i))}>
                   Remove
                 </button>
@@ -292,6 +313,17 @@ export function WorkflowEditorDialog({
                   onChange={(e) => patch(at, { prompt: e.target.value })}
                 />
                 <small>Use {"{{input}}"} to insert a run input by name.</small>
+                {inputs.length > 0 && (
+                  <span className="workflow-editor-chips" aria-label="Insert a run input">
+                    {inputs
+                      .filter((input) => input.name)
+                      .map((input) => (
+                        <button type="button" key={input.name} onClick={() => insertInput(input.name)}>
+                          {`Insert {{${input.name}}}`}
+                        </button>
+                      ))}
+                  </span>
+                )}
               </label>
               <div className="workflow-editor-field">
                 <span id="ctx-label">Context</span>

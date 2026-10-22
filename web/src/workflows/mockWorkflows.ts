@@ -206,6 +206,10 @@ export class MockWorkflowEngine {
 
   stop(runId: string, mode: StopMode): Run {
     const run = this.require(runId);
+    if (run.state === "held" || run.state === "needs_you" || run.state === "paused") {
+      if (mode === "now") this.stopWaiting(run);
+      return structuredClone(run);
+    }
     if (run.state !== "running") return structuredClone(run);
     if (mode === "afterStep") {
       run.stopAfter = run.currentStepId;
@@ -221,6 +225,17 @@ export class MockWorkflowEngine {
     this.system(run, "Run stopped.");
     this.notify(run, "run.stopped");
     return structuredClone(run);
+  }
+
+  /** Cancels a waiting run (held, awaiting review or paused): an unstarted step stays pending. */
+  private stopWaiting(run: Run): void {
+    this.clearTimer();
+    const current = this.step(run, run.currentStepId);
+    if (current && (current.status === "held" || current.status === "needs_you")) current.status = "pending";
+    else this.setStatus(run, run.currentStepId, "stopped");
+    run.state = "stopped";
+    this.system(run, "Run stopped.");
+    this.notify(run, "run.stopped");
   }
 
   keepRunning(runId: string): Run {

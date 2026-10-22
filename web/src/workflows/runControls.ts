@@ -1,5 +1,5 @@
 import type { IconName } from "./icons";
-import type { Run, RunState, StepRecord, StepStatus, WorkflowStepDef } from "./types";
+import { continueSourceIndex, type Run, type RunState, type StepRecord, type StepStatus, type WorkflowStepDef } from "./types";
 
 /** One action a step row or the run header can offer. */
 export type StepAction =
@@ -126,12 +126,70 @@ export function stateBanner(run: Run, stepLabel: (stepId: string | null) => stri
 }
 
 /** The label between step `index - 1` and `index` (index 0 has none): how context flows into that step. */
-export function betweenLabel(def: WorkflowStepDef | undefined, index: number): string | null {
+export function betweenLabel(steps: WorkflowStepDef[], index: number): string | null {
+  const def = steps[index];
   if (!def || index <= 0) return null;
   if (def.kind === "review") return "You review the diff";
   if (def.agent === "new") return "Fresh start · no context";
-  if (def.agent?.startsWith("continue")) return "Resumes an earlier agent session";
-  return `Passes output to step ${index}`;
+  if (def.agent?.startsWith("continue")) {
+    const source = continueSourceIndex(steps, index);
+    return source < 0 ? "Resumes an earlier agent session" : `Resumes step ${source + 1}'s agent session`;
+  }
+  return `Passes output to step ${index} · hand-off`;
+}
+
+/** Badge thresholds: amber past this many steps in one session... */
+export const CHAIN_WARN_STEPS = 3;
+/** ...or once the session's context passes this share of the window. */
+export const CONTEXT_WARN_RATIO = 0.6;
+export const CONTEXT_WINDOW_TOKENS = 200_000;
+
+/** "Agent · <provider or default> · new | new + hand-off | continue: <source slug>"; null for a review step. */
+export function stepModeLabel(steps: WorkflowStepDef[], index: number): string | null {
+  const def = steps[index];
+  if (!def || def.kind !== "agent") return null;
+  const provider = def.provider || "default";
+  let mode = "new + hand-off";
+  if (def.agent === "new") mode = "new";
+  else if (def.agent?.startsWith("continue")) {
+    const source = continueSourceIndex(steps, index);
+    mode = `continue: ${source < 0 ? "?" : steps[source].slug}`;
+  }
+  return `Agent · ${provider} · ${mode}`;
+}
+
+/** How many steps a continue chain ending at `index` spans (1 for a step that does not continue), like the bridge's StepAgents.ChainLength. */
+export function chainLength(steps: WorkflowStepDef[], index: number): number {
+  let length = 1;
+  for (let i = continueSourceIndex(steps, index); i >= 0 && length <= steps.length; i = continueSourceIndex(steps, i)) length++;
+  return length;
+}
+
+export interface SessionBadge {
+  steps: number;
+  warn: boolean;
+  text: string;
+}
+
+/** The "Continuing an N-step session" badge of a continue step, or null; the record's chain length and usage win over the definition walk. */
+export function sessionBadge(steps: WorkflowStepDef[], index: number, record?: StepRecord): SessionBadge | null {
+  if (continueSourceIndex(steps, index) < 0) return null;
+  const n = record?.chainLength ?? chainLength(steps, index);
+  const context = record?.usage?.contextTokens ?? 0;
+  const warn = n > CHAIN_WARN_STEPS || context > CONTEXT_WARN_RATIO * CONTEXT_WINDOW_TOKENS;
+  return { steps: n, warn, text: `Continuing ${n === 8 || n === 11 || n === 18 ? "an" : "a"} ${n}-step session` };
+}
+
+/** The teal chip of a step that resumed an earlier step's session: from the record when it ran, else from the definition. */
+export function resumesChip(steps: WorkflowStepDef[], index: number, record?: StepRecord): string | null {
+  const fromRecord = record?.resumedFrom ? steps.findIndex((s) => s.id === record.resumedFrom) : -1;
+  const source = fromRecord >= 0 ? fromRecord : continueSourceIndex(steps, index);
+  return source < 0 ? null : `Resumes step ${source + 1}'s agent session`;
+}
+
+/** "Open agent" needs a finished agent step with a recorded session. */
+export function canOpenAgent(def: WorkflowStepDef | undefined, step: StepRecord): boolean {
+  return def?.kind === "agent" && step.status === "done" && !!step.sessionId;
 }
 
 /** Run states that are over (restartable and deletable) versus live. */

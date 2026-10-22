@@ -65,6 +65,20 @@ public static class AgentRoutes
             var body = await Reply.LenientBody(request);
             var invalid = Validate(body, out var title, out var kind, out var attachTo, out var context, out var contextKind);
             if (invalid is not null) return Reply.Error(400, invalid);
+            if (body.ContainsKey("run_id") || body.ContainsKey("fork_session"))
+            {
+                if (Json.Str(body["run_id"]) is not { Length: > 0 } runId || Json.Str(body["fork_session"]) is not { Length: > 0 } forkSession)
+                    return Reply.Error(400, "run_id and fork_session must both be given");
+                if (kind != AgentRecord.DefaultKind) return Reply.Error(400, "fork_session needs kind 'claude'");
+                AgentRecord forked;
+                try { forked = await Task.Run(() => agents.CreateInRun(title, runId, forkSession)); }
+                catch (UnknownAgentException error) { return Reply.Error(404, error.Message); }
+                catch (WorktreeException error) { return Reply.Error(400, error.Message); }
+                registry.Register(forked.Id, forked.Worktree);
+                var forkedPayload = forked.ToPayload();
+                await connections.Broadcast(new JsonObject { ["type"] = "agent-added", ["agent"] = forkedPayload.DeepClone() });
+                return Reply.Json(forkedPayload);
+            }
             var diagramType = contextKind == "task" && Json.Str(body["diagram_type"]) is { } hinted && (hinted == DiagramContext.AnyType || DiagramContext.Types.Contains(hinted)) ? hinted : null;
             AgentRecord record;
             try { record = await Task.Run(() => agents.Create(title, kind, attachTo, context, contextKind, diagramType)); }
@@ -83,6 +97,8 @@ public static class AgentRoutes
             var resume = Json.Bool(body["resume"]);
             var sessionId = resume ? agents.CaptureSessionId(agentId) : null;
             if (resume && string.IsNullOrEmpty(sessionId)) return Reply.Error(409, "this agent has no recorded session to resume");
+            var fork = !resume && record.ForkSession is { Length: > 0 };
+            if (fork) sessionId = record.ForkSession;
             var pending = resume ? null : agents.ConsumeContext(agentId);
             var taskText = pending is { Kind: "task" } ? pending.Value.Text : null;
             var bare = false;
@@ -99,7 +115,7 @@ public static class AgentRoutes
                     visible = bare ? BareSkill.InteractiveVisiblePrompt : null;
                 }
             }
-            var launch = terminalAgents.Resolve(record.Kind, sessionId, taskText, bare, visible);
+            var launch = terminalAgents.Resolve(record.Kind, sessionId, taskText, bare, visible, forkSession: fork);
             if (launch is null) return Reply.Error(400, $"unknown agent kind: {record.Kind}");
             var env = new Dictionary<string, string>(launch.Env);
             BridgeAddress.ExportIdentity(env, agentId, BareSkill.BridgeUrl);

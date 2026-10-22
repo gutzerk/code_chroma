@@ -7,7 +7,19 @@ Active (`RunsList` cards with a segmented progress bar, Pause/Stop/Cancel run, "
 `needs_you` run), Finished (Restart, Delete, "Clear finished") and Saved workflows (Edit, Run, Delete).
 Run and saved-workflow cards open (run detail / editor) from a click anywhere that is not one of their buttons (`openOnBackgroundClick`). Cancel run (`canStopRun`) is enabled in running, paused, held and needs_you, matching the bridge's `StopNow` rows, so a run awaiting review can be cancelled and then deleted.
 Run detail (`RunDetail`, numbered `StepRail` timeline) labels what passes between steps
-(`runControls.betweenLabel`). Layout follows the tab's own width (`useContainerLayout`): at 320px
+(`runControls.betweenLabel(steps, index)`: "Passes output to step N · hand-off", "Fresh start · no
+context", "Resumes step N's agent session", "You review the diff"). Under each agent step a meta line
+shows `stepModeLabel` ("Agent · <provider or default> · new | new + hand-off | continue: <source
+slug>"), on continue steps the `sessionBadge` "Continuing a N-step session" (N = `StepRecord.chainLength`
+when the bridge sends it, else `chainLength` walks `continueSourceIndex` in the definition; amber past
+`CHAIN_WARN_STEPS` = 3 or when `usage.contextTokens` exceeds `CONTEXT_WARN_RATIO` 0.6 of
+`CONTEXT_WINDOW_TOKENS` 200k, constants in `runControls.ts`) and the teal `resumesChip` ("Resumes step
+N's agent session", from `resumedFrom` when set). Steps have no Message button (plan 019 boards 3, 8, 9);
+a finished (`done`) agent step with a `sessionId` gets **Open agent** in its expanded row
+(`canOpenAgent`, hidden on read-only attempts and without an agent client), which calls
+`launchAgent.openStepAgent`: `POST /agents {kind:"claude", run_id, fork_session}` then start, opening
+a terminal agent in the Agents tab, in the run worktree, running `claude --resume <sessionId>
+--fork-session` (see `parallel-agents.md`). The run-level chat (`RunChat`) stays. Layout follows the tab's own width (`useContainerLayout`): at 320px
 secondary actions move into a "⋯" menu, from ~640px list and detail sit side by side, from ~1100px a
 third column shows the live step (Agent/Output/Diff tabs).
 `POST /repos/{repoId}/workflows` and `PUT /repos/{repoId}/workflows/{id}` share one validator and

@@ -3,6 +3,7 @@ using System.Text.Json.Nodes;
 using System.Text.RegularExpressions;
 using CodeChroma.Bridge.Prs;
 using CodeChroma.Bridge.Stores;
+using CodeChroma.Bridge.Workflows;
 using CodeChroma.Bridge.Workspaces;
 
 namespace CodeChroma.Bridge.Agents;
@@ -169,6 +170,37 @@ public sealed partial class AgentManager
         return record;
     }
 
+    /// <summary>A claude agent in a workflow run's own worktree that forks `forkSession` on start ("Open agent" on a finished step).</summary>
+    public AgentRecord CreateInRun(string title, string runId, string forkSession)
+    {
+        if (!RunStore.IsSafeId(runId)) throw new WorktreeException($"invalid run id: {runId}");
+        var path = Path.GetFullPath(WorkflowRunner.WorktreeFor(MainRoot, runId));
+        if (!Directory.Exists(path)) throw new UnknownAgentException($"run {runId} has no worktree");
+        var branch = MainBranchOps.CurrentBranch(path) ?? $"wf-{runId}";
+        AgentRecord record;
+        lock (_lock)
+        {
+            if (_agents.Count >= MaxAgents) throw new AgentLimitException($"the limit of {MaxAgents} concurrent agents is reached");
+            var agentId = UniqueId(title);
+            record = new AgentRecord
+            {
+                Id = agentId,
+                Title = title.Trim().Length > 0 ? title.Trim() : agentId,
+                Kind = AgentRecord.DefaultKind,
+                Branch = branch,
+                Worktree = path,
+                CreatedAt = DateTime.UtcNow.ToString("yyyy-MM-dd'T'HH:mm:ss'Z'", CultureInfo.InvariantCulture),
+                BaseBranch = MainBranchOps.CurrentBranch(MainRoot),
+                SourceRun = runId,
+                ForkSession = forkSession,
+            };
+            record.Window["z"] = _agents.Count + 1;
+            _agents.Add(record);
+        }
+        Save();
+        return record;
+    }
+
     private PrRecord? PrTarget(string attachTo)
     {
         if (!PrWorkspaceId().IsMatch(attachTo)) return null;
@@ -231,6 +263,7 @@ public sealed partial class AgentManager
     private void GuardSharedWorktree(string agentId, AgentRecord record)
     {
         if (SamePath(record.Worktree, MainRoot)) throw new WorktreeException("cannot delete main's own worktree or branch through an agent");
+        if (record.SourceRun is not null) throw new WorktreeException($"{record.Worktree} belongs to workflow run '{record.SourceRun}' -- delete the run instead");
         if (record.SharesWorkspaceWith is not null)
             throw new WorktreeException($"{record.Worktree} is shared with '{record.SharesWorkspaceWith}' -- cannot delete it through this agent");
         var sharing = _agents.FirstOrDefault(other => other.Id != agentId && other.Worktree == record.Worktree);
@@ -290,6 +323,8 @@ public sealed partial class AgentManager
         HashSet<string> siblings;
         lock (_lock)
             siblings = _agents.Where(o => o != record && o.SessionId is { Length: > 0 } && SamePath(o.Worktree, record.Worktree)).Select(o => o.SessionId!).ToHashSet();
+        if (record.ForkSession is { Length: > 0 } source) siblings.Add(source);
+        if (record.SourceRun is { } runId) siblings.UnionWith(RunStepSessions(runId));
         var found = Transcripts.FindSessionId(record.Worktree, exclude: siblings);
         if (found is not null && found != record.SessionId)
         {
@@ -297,6 +332,13 @@ public sealed partial class AgentManager
             Save();
         }
         return record.SessionId;
+    }
+
+    /// <summary>Every step session of a workflow run, so an agent opened in its worktree never claims one of them as its own.</summary>
+    private IEnumerable<string> RunStepSessions(string runId)
+    {
+        if (new RunStore(MainRoot).GetRun(runId) is not { } run) return [];
+        return run.Steps.Concat(run.Attempts.SelectMany(a => a.Steps ?? [])).Select(s => s.SessionId).OfType<string>();
     }
 
     /// <summary>Pending (context, kind), cleared so a resume or restart never re-injects it.</summary>

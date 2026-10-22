@@ -50,3 +50,33 @@ export async function launchAgent(
     agentStore.setIsLaunching(false);
   }
 }
+
+/** "Open agent" on a finished workflow step: a claude agent in the run's worktree forking that step's session, opened in the Agents tab. */
+export async function openStepAgent(
+  client: AgentClient,
+  title: string,
+  runId: string,
+  sessionId: string,
+): Promise<void> {
+  if (agentStore.getIsAtCapacity() || agentStore.getIsLaunching()) return;
+  agentStore.setLaunchError(null);
+  agentStore.setIsLaunching(true);
+  let createdId: string | null = null;
+  try {
+    const created = await client.openStepSession(title, runId, sessionId);
+    createdId = created.id;
+    agentStore.upsert(created);
+    agentStore.upsert(await client.start(created.id));
+    openAgentWindow(client, created.id);
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    if (createdId) {
+      agentStore.setStartError(createdId, message);
+      openAgentWindow(client, createdId);
+    } else {
+      agentStore.setLaunchError(message);
+    }
+  } finally {
+    agentStore.setIsLaunching(false);
+  }
+}

@@ -1,6 +1,6 @@
 # 019 — Workflow agent sessions: per-step agent, input, provider/model
 
-Status: In progress (Stage 0 done on `feat/workflow-agent-sessions`, branched from `stage`)
+Status: In progress (Stages 0-1 done on `feat/workflow-agent-sessions`, branched from `stage`)
 
 Design: the "Agents & Workflows Panel Redesign" canvas, https://claude.ai/artifact/UpBEzW3ptZkPhw1dqXQFDR (boards 2, 3, 6, 7, 7b, 8, 9, 10, 11). C# bridge only, like the rest of workflows (`docs/architecture/workflows.md`).
 
@@ -37,6 +37,7 @@ A workflow step can only start a fresh agent, with or without the previous step'
 
 ### Stage 1 — Runner
 
+- Done. `--fork-session` checked against the installed `claude --help` ("When resuming, create a new session ID ... use with --resume or --continue"). The continue check runs before the checkpoint and the launch (`WorkflowRunner.PlanLaunch`); a model-only override goes through `CliResolver.WithModel`.
 - `SkillAgent`: `RunOptions` gains `Cli` (a `CliResolution` override); `Start` uses it instead of `resolver.Resolve(Spec.Name, Spec.Model)` when set. `CliResolver.ResolveProvider(providerId, model)` builds the resolution from one provider, reusing `EnvOverrides`.
 - `WorkflowRunner.RunAgentStep`: resolve the step's CLI once (step override or call-site default) and use that resolution for `IsClaude`, not the runner-wide agent. Prompt = skill line + instructions + `\n\n` + filled `extraPrompt`. `handoff` keeps `WithContext`; `new` skips it; `continue` resolves the source record, fails the run when its `SessionId` is null or the CLI is not claude, else passes `--resume <id> --fork-session` and sets `ResumedFrom`.
 - Reruns (`ResumeFrom` after Stop) keep resuming the step's own session as today.

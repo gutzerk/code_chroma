@@ -18,6 +18,7 @@ public sealed class WorkflowRunnerTests : IDisposable
     private readonly GitSandbox _repo = new();
     private readonly List<string> _events = [];
     private string? _session;
+    private ProviderStore? _providers;
 
     private static string Say(string text) => "{\"type\":\"assistant\",\"message\":{\"content\":[{\"type\":\"text\",\"text\":\"" + text + "\"}]}}";
 
@@ -30,7 +31,7 @@ public sealed class WorkflowRunnerTests : IDisposable
     private WorkflowRunner Runner()
     {
         var paths = UserPaths.Under(_repo.Sibling("stores"));
-        var providers = new ProviderStore(paths);
+        var providers = _providers ??= new ProviderStore(paths);
         var resolver = new CliResolver(paths, providers, new CallSiteStore(paths, providers));
         var runtime = new RuntimeEnvironment(() => new RuntimeSettings(null, 10, new Dictionary<string, string> { ["claude"] = _cli.ExePath }));
         var agents = new SkillAgents(resolver, runtime, new SkillRunSettings { FlushIntervalSeconds = 0.02 });
@@ -286,6 +287,133 @@ public sealed class WorkflowRunnerTests : IDisposable
     }
 
     private static WorkflowStep Agent(string id, string agent = StepAgents.Handoff) => new() { Id = id, Slug = id, Kind = "agent", Prompt = "do " + id, Agent = agent };
+
+    private ProviderStore Providers() => _providers ??= new ProviderStore(UserPaths.Under(_repo.Sibling("stores")));
+
+    private string AddProvider(JsonObject payload) => Json.Str(Providers().Create(payload)["id"])!;
+
+    [Fact]
+    public async Task Each_agent_mode_launches_with_its_own_argv_and_a_continue_forks_its_source()
+    {
+        _session = "sess-1";
+        DefineSteps(Agent("one", StepAgents.New), Agent("two", StepAgents.Continue), Agent("three", "continue:one"), Agent("four"));
+        _cli.Script(Stdout(Say("marker-from-earlier")), ResultEvent(), Exit(0));
+        var runner = Runner();
+
+        var started = await runner.Start("wf");
+        await UntilState(runner, started.Id, "done");
+        var calls = _cli.Invocations();
+        var run = runner.Get(started.Id);
+
+        Assert.DoesNotContain("--resume", Args(calls[0]));
+        Assert.Contains("\"--resume\",\"sess-1\",\"--fork-session\"", Args(calls[1]));
+        Assert.DoesNotContain("Context from the previous step", Args(calls[1]));
+        Assert.Contains("\"--resume\",\"sess-1\",\"--fork-session\"", Args(calls[2]));
+        Assert.DoesNotContain("--resume", Args(calls[3]));
+        Assert.Contains("marker-from-earlier", Args(calls[3]));
+        Assert.Null(Step(run, "one").ResumedFrom);
+        Assert.Equal("one", Step(run, "two").ResumedFrom);
+        Assert.Equal("one", Step(run, "three").ResumedFrom);
+        Assert.Null(Step(run, "four").ResumedFrom);
+    }
+
+    [Fact]
+    public async Task A_step_input_is_appended_after_the_instructions_with_run_inputs_filled()
+    {
+        var step = new WorkflowStep { Id = "one", Slug = "one", Kind = "agent", Agent = StepAgents.New, Prompt = "look at {{pr}}", ExtraPrompt = "focus on the tests of {{pr}}", Input = new WorkflowInput { Name = "pr", Label = "PR" } };
+        DefineSteps(step);
+        _cli.Script(ResultEvent(), Exit(0));
+        var runner = Runner();
+
+        var started = await runner.Start("wf", new Dictionary<string, string> { ["pr"] = "42" });
+        await UntilState(runner, started.Id, "done");
+
+        Assert.Contains("look at 42\\n\\nfocus on the tests of 42", Args(_cli.Invocations()[0]));
+    }
+
+    [Fact]
+    public async Task A_step_provider_and_model_reach_the_cli_env_and_argv()
+    {
+        var provider = AddProvider(new JsonObject { ["label"] = "Gateway", ["kind"] = "cli", ["adapter"] = "claude", ["base_url"] = "http://llm.local" });
+        var onProvider = Agent("one", StepAgents.New);
+        onProvider.Provider = provider;
+        onProvider.Model = "gateway-model";
+        var onModel = Agent("two", StepAgents.New);
+        onModel.Model = "other-model";
+        DefineSteps(onProvider, onModel);
+        _cli.Script(["ANTHROPIC_BASE_URL", "ANTHROPIC_MODEL"], ResultEvent(), Exit(0));
+        var runner = Runner();
+
+        var started = await runner.Start("wf");
+        await UntilState(runner, started.Id, "done");
+        var calls = _cli.Invocations();
+
+        Assert.Equal("http://llm.local", Json.Str(calls[0]["env"]!["ANTHROPIC_BASE_URL"]));
+        Assert.Equal("gateway-model", Json.Str(calls[0]["env"]!["ANTHROPIC_MODEL"]));
+        Assert.NotEqual("http://llm.local", Json.Str(calls[1]["env"]!["ANTHROPIC_BASE_URL"]));
+        Assert.Contains("\"--model\",\"other-model\"", Args(calls[1]));
+    }
+
+    [Fact]
+    public async Task A_continue_whose_source_has_no_session_stops_the_run_without_a_launch()
+    {
+        DefineSteps(Agent("one", StepAgents.New), Agent("two", StepAgents.Continue));
+        _cli.Script(ResultEvent(), Exit(0));
+        var runner = Runner();
+
+        var started = await runner.Start("wf");
+        await UntilState(runner, started.Id, "stopped");
+        var run = runner.Get(started.Id);
+
+        Assert.Single(_cli.Invocations());
+        Assert.Equal("stopped", Step(run, "two").Status);
+        Assert.Contains("✗ cannot continue two: one has no agent session", Step(run, "two").Output);
+    }
+
+    [Fact]
+    public async Task A_continue_from_a_skipped_step_stops_the_run_without_a_launch()
+    {
+        _session = "sess-1";
+        DefineSteps(Agent("one", StepAgents.New), Agent("two", StepAgents.New), Agent("three", "continue:two"));
+        var release = Path.Combine(_cli.Directory, "release");
+        _cli.Script(BlockUntilFile(release), ResultEvent(), Exit(0));
+        var runner = Runner();
+        var started = await runner.Start("wf");
+        await Until(() => _cli.Invocations().Count == 1, "first launch");
+
+        runner.Skip(started.Id, "two");
+        File.WriteAllText(release, "go");
+        await UntilState(runner, started.Id, "stopped");
+        var run = runner.Get(started.Id);
+
+        Assert.Single(_cli.Invocations());
+        Assert.Contains("✗ cannot continue three: two was skipped", Step(run, "three").Output);
+    }
+
+    [Fact]
+    public async Task A_provider_changed_to_a_non_claude_cli_after_save_stops_a_continue_at_run_time()
+    {
+        _session = "sess-1";
+        var provider = AddProvider(new JsonObject { ["label"] = "Switching", ["kind"] = "cli", ["adapter"] = "claude" });
+        var first = Agent("one", StepAgents.New);
+        first.Provider = provider;
+        var second = Agent("two", StepAgents.Continue);
+        second.Provider = provider;
+        DefineSteps(first, second);
+        var release = Path.Combine(_cli.Directory, "release");
+        _cli.Script(BlockUntilFile(release), ResultEvent(), Exit(0));
+        var runner = Runner();
+        var started = await runner.Start("wf");
+        await Until(() => _cli.Invocations().Count == 1, "first launch");
+
+        Providers().Update(provider, new JsonObject { ["adapter"] = "codex" });
+        File.WriteAllText(release, "go");
+        await UntilState(runner, started.Id, "stopped");
+        var run = runner.Get(started.Id);
+
+        Assert.Single(_cli.Invocations());
+        Assert.Contains("✗ cannot continue two: only claude can continue a session", Step(run, "two").Output);
+    }
 
     [Fact]
     public async Task A_handoff_step_gets_the_prior_output_while_a_new_one_does_not()

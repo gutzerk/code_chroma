@@ -23,30 +23,41 @@ def _to_ops(resolved: dict, render: str) -> RecipeResult:
     return graph_to_ops(reshape(resolved, render))
 
 
-def test_render_for_maps_every_diagrams_kind():
-    assert render_for("c1") == "c1"
-    assert render_for("patterns") == "pattern"
-    assert render_for("impact") == "impact"
-    assert render_for("epics") == "epic"
-    assert render_for("sequence") == "sequence"
+@pytest.mark.parametrize(
+    ("kind", "expected"),
+    [
+        ("c1", "c1"),
+        ("patterns", "pattern"),
+        ("impact", "impact"),
+        ("epics", "epic"),
+        ("sequence", "sequence"),
+        ("custom/my-type", "custom"),
+        ("feature-plan/token-auth", "custom"),
+        ("epics/EP-4", "epic"),
+        ("epics/EP-4-01", "epic"),
+    ],
+    ids=[
+        "c1",
+        "patterns",
+        "impact",
+        "epics",
+        "sequence",
+        "any-custom-type",
+        "any-feature-plan-slug",
+        "epic-id",
+        "epic-story-id",
+    ],
+)
+def test_render_for_maps_a_kind_to_its_render(kind, expected):
+    assert render_for(kind) == expected
 
 
-def test_render_for_maps_any_custom_type_to_custom():
-    assert render_for("custom/my-type") == "custom"
-
-
-def test_render_for_maps_any_feature_plan_slug_to_custom():
-    assert render_for("feature-plan/token-auth") == "custom"
-
-
-def test_render_for_maps_any_epic_id_to_epic():
-    assert render_for("epics/EP-4") == "epic"
-    assert render_for("epics/EP-4-01") == "epic"
-
-
-def test_recipe_for_rejects_a_bare_epics_prefix():
+@pytest.mark.parametrize(
+    "layer", ["epics/", "custom/", "feature-plan/"], ids=["epics", "custom", "feature-plan"]
+)
+def test_recipe_for_rejects_a_bare_prefix(layer):
     with pytest.raises(KeyError):
-        recipe_for("epics/")
+        recipe_for(layer)
 
 
 def test_reshape_flattens_nodes_and_resolves_edges_by_id():
@@ -230,11 +241,6 @@ def test_sequence_reshape_drops_a_message_naming_no_participant():
     assert result.edges == []
 
 
-def test_recipe_for_rejects_a_bare_custom_prefix():
-    with pytest.raises(KeyError):
-        recipe_for("custom/")
-
-
 @pytest.mark.parametrize(
     "layer,render",
     [
@@ -250,11 +256,6 @@ def test_recipe_for_maps_to_the_shared_recipe(layer, render):
     resolved = {"nodes": [{"id": "n1", "name": "Box"}], "relations": []}
     assert recipe.layer == layer
     assert recipe.to_ops(resolved).nodes[0].render == render
-
-
-def test_recipe_for_rejects_a_bare_feature_plan_prefix():
-    with pytest.raises(KeyError):
-        recipe_for("feature-plan/")
 
 
 def test_build_batch_ops_adds_new_ai_elements_on_first_run():

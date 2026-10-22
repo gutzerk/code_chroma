@@ -1,5 +1,7 @@
 """Unit tests for AnalyzerRegistry, PythonAnalyzer, TypeScriptAnalyzer, and GoAnalyzer."""
 
+import pytest
+
 from codechroma.analyzers.go_analyzer import GoAnalyzer
 from codechroma.analyzers.python_analyzer import PythonAnalyzer
 from codechroma.analyzers.registry import AnalyzerRegistry
@@ -52,11 +54,6 @@ def standalone():
     assert "helper" in render.references
     assert render.parent_symbol_id == by_kind[(SymbolKind.CLASS, "Widget")].id
     assert render.body_statements
-
-
-def test_python_analyzer_handles_unparseable_source_without_raising():
-    symbols = PythonAnalyzer().parse("broken.py", b"def foo(:\n")
-    assert any(s.kind == SymbolKind.MODULE for s in symbols)
 
 
 def test_typescript_analyzer_extracts_module_and_function():
@@ -126,6 +123,14 @@ func standalone() int {
     assert render.body_statements
 
 
-def test_go_analyzer_handles_unparseable_source_without_raising():
-    symbols = GoAnalyzer().parse("broken.go", b"func foo( {\n")
+@pytest.mark.parametrize(
+    ("analyzer", "path", "source"),
+    [
+        (PythonAnalyzer, "broken.py", b"def foo(:\n"),
+        (GoAnalyzer, "broken.go", b"func foo( {\n"),
+    ],
+    ids=["python", "go"],
+)
+def test_analyzer_handles_unparseable_source_without_raising(analyzer, path, source):
+    symbols = analyzer().parse(path, source)
     assert any(s.kind == SymbolKind.MODULE for s in symbols)

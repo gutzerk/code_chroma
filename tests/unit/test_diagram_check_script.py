@@ -176,26 +176,48 @@ def test_too_many_hero_relations_is_advisory_and_never_fails_the_run(tmp_path):
     assert "TOOMANYHERO 3 hero relation(s), budget 2" in result.stdout
 
 
-def test_hero_relations_inside_budget_say_nothing(tmp_path):
-    diagram = _flat(
-        4,
-        relations=[{"from": f"n{i}", "to": f"n{i + 1}", "hero": i == 0} for i in range(3)],
-    )
-
-    result = _run(tmp_path, "impact", diagram)
-
-    assert "TOOMANYHERO" not in result.stdout
+_TRIANGLE = [
+    {"from": "n0", "to": "n1", "label": "a"},
+    {"from": "n1", "to": "n2", "label": "b"},
+    {"from": "n2", "to": "n0", "label": "c"},
+]
 
 
-def test_hero_budget_is_not_checked_for_a_kind_without_one(tmp_path):
-    diagram = _flat(
-        4,
-        relations=[{"from": f"n{i}", "to": f"n{i + 1}", "hero": True} for i in range(3)],
-    )
+@pytest.mark.parametrize(
+    ("kind", "diagram", "finding"),
+    [
+        (
+            "impact",
+            _flat(
+                4,
+                relations=[{"from": f"n{i}", "to": f"n{i + 1}", "hero": i == 0} for i in range(3)],
+            ),
+            "TOOMANYHERO",
+        ),
+        (
+            "patterns",
+            _flat(
+                4,
+                relations=[{"from": f"n{i}", "to": f"n{i + 1}", "hero": True} for i in range(3)],
+            ),
+            "TOOMANYHERO",
+        ),
+        ("impact", _flat(4), "CYCLES"),
+        ("impact", _flat(2), "ARTICULATION"),
+        ("impact", _flat(3, relations=_TRIANGLE), "ARTICULATION"),
+    ],
+    ids=[
+        "hero-relations-inside-budget",
+        "hero-budget-unchecked-for-a-kind-without-one",
+        "chain-has-no-cycle",
+        "two-node-chain-has-no-bridge",
+        "node-inside-a-cycle-is-never-a-bridge",
+    ],
+)
+def test_advisory_stays_silent(tmp_path, kind, diagram, finding):
+    result = _run(tmp_path, kind, diagram)
 
-    result = _run(tmp_path, "patterns", diagram)
-
-    assert "TOOMANYHERO" not in result.stdout
+    assert finding not in result.stdout
 
 
 def test_an_overlong_edge_label_is_advisory_and_never_fails_the_run(tmp_path):
@@ -232,14 +254,6 @@ def test_a_directed_cycle_is_reported_as_an_advisory_not_a_failure(tmp_path):
 
     assert result.returncode == 0
     assert "CYCLES 'n0' -> 'n1' -> 'n2' -> 'n0'" in result.stdout
-
-
-def test_a_chain_has_no_cycle_finding(tmp_path):
-    diagram = _flat(4)
-
-    result = _run(tmp_path, "impact", diagram)
-
-    assert "CYCLES" not in result.stdout
 
 
 def test_a_self_loop_is_only_a_CYCLES_finding_when_self_edges_are_allowed(tmp_path):
@@ -280,31 +294,6 @@ def test_a_bridge_node_is_reported_as_an_articulation_advisory(tmp_path):
 
     assert result.returncode == 0
     assert "ARTICULATION 'n1' is a bridge" in result.stdout
-
-
-def test_a_chain_without_a_bridge_is_quiet(tmp_path):
-    # n0 -> n1 (a two-node edge): no interior node whose removal disconnects anything.
-    diagram = _flat(2)
-
-    result = _run(tmp_path, "impact", diagram)
-
-    assert "ARTICULATION" not in result.stdout
-
-
-def test_a_node_inside_a_cycle_is_never_a_bridge(tmp_path):
-    # n0 <-> n1 <-> n2: every node is in a >1 SCC, so none is a single fragile connexion.
-    diagram = _flat(
-        3,
-        relations=[
-            {"from": "n0", "to": "n1", "label": "a"},
-            {"from": "n1", "to": "n2", "label": "b"},
-            {"from": "n2", "to": "n0", "label": "c"},
-        ],
-    )
-
-    result = _run(tmp_path, "impact", diagram)
-
-    assert "ARTICULATION" not in result.stdout
 
 
 def test_a_high_degree_node_is_a_hub_but_not_a_bridge(tmp_path):

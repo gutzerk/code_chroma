@@ -188,17 +188,11 @@ describe("useImpactChangesSidecar", () => {
     expect(client.getSidecar).not.toHaveBeenCalled();
   });
 
-  it("never auto-starts a review run when no review exists yet — only rereview() may", async () => {
-    const { client, generateDiagram } = clientFor([changes()]);
-
-    renderHook(() => useImpactChangesSidecar(client, true));
-
-    await waitFor(() => expect(client.getSidecar).toHaveBeenCalled());
-    expect(generateDiagram).not.toHaveBeenCalled();
-  });
-
-  it("never auto-starts a review run when the existing one reviewed a different diff", async () => {
-    const { client, generateDiagram } = clientFor([STALE]);
+  it.each([
+    ["no review exists yet -- only rereview() may", () => changes()],
+    ["the existing one reviewed a different diff", () => STALE],
+  ])("never auto-starts a review run when %s", async (_name, makeSidecar) => {
+    const { client, generateDiagram } = clientFor([makeSidecar()]);
 
     renderHook(() => useImpactChangesSidecar(client, true));
 

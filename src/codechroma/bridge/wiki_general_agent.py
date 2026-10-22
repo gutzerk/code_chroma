@@ -58,9 +58,6 @@ NO_DOCUMENTABLE_CONTENT_ERROR = "repository has no code yet -- nothing to docume
 # prepare_new_run's "a run is already in flight" signal -- distinct from a real error message.
 ALREADY_RUNNING = "__wiki_general_already_running__"
 
-# Kept in sync by hand with codechroma-wiki-general-update/scripts/check_wiki_general.py's _REF_RE.
-_REF_RE = re.compile(r"^\s*-\s+(?:File|Class|Function):\s+`([^`]+)`\s*$", re.MULTILINE)
-
 # Shared by both routes that can start a run -- closes the "is the other kind running?" race.
 _run_locks: dict[str, asyncio.Lock] = {}
 
@@ -210,38 +207,6 @@ def is_stale(ws: Workspace, manifest: dict | None = None) -> bool:
         return False
     head = ws.git_sync.current_head()
     return head is not None and data.get("generated_at_commit") != head
-
-
-def find_affected_components(ws: Workspace, changed_paths: set[str]) -> dict:
-    """Which c3/<id>.md pages reference a changed path; a path matching none lands in "gaps"."""
-    # Never a real "gap" to report -- the bridge's own bookkeeping, not code a page could reference.
-    changed_paths = {p for p in changed_paths if ".codechroma" not in Path(p).parts}
-    directory = wiki_general_dir(ws.root, ws.id)
-    manifest = load_json_or_none(wiki_general_manifest_path(ws.root, ws.id)) or {}
-    affected: list[dict] = []
-    matched: set[str] = set()
-    for component in manifest.get("components", []):
-        component_id = component.get("id") if isinstance(component, dict) else None
-        # A bare filename only -- manifest ids are model-written; never let one escape c3/ via "..".
-        if not isinstance(component_id, str) or component_id != Path(component_id).name:
-            continue
-        try:
-            text = (directory / "c3" / f"{component_id}.md").read_text(encoding="utf-8")
-        except OSError:
-            continue
-        referenced = {ref.split("::", 1)[0] for ref in _REF_RE.findall(text)}
-        hit = referenced & changed_paths
-        if not hit:
-            continue
-        matched |= hit
-        affected.append({
-            "id": component_id,
-            "name": component.get("name", component_id),
-            "container": component.get("container"),
-            "changed_paths": sorted(hit),
-        })
-    gaps = sorted(changed_paths - matched)
-    return {"affected": affected, "gaps": gaps}
 
 
 def _serialize_edges(edges: list[ClusterEdge]) -> list[dict]:

@@ -13,11 +13,6 @@ from codechroma.llm.providers_store import (
 )
 
 
-@pytest.fixture(autouse=True)
-def _isolated_store(tmp_path, monkeypatch):
-    monkeypatch.setenv("codechroma_LLM_PROVIDERS_FILE", str(tmp_path / "providers.json"))
-
-
 def test_no_providers_when_nothing_saved():
     assert load_providers() == {}
 

@@ -38,22 +38,22 @@ public static class WorkflowRoutes
         app.MapGet("/repos/{repoId}/workflows", (string repoId, WorkspaceRegistry registry, WorkflowRunners runners) =>
             JsonResult(runners.For(registry.Get(repoId)).Store.ListWorkflows()));
 
-        app.MapPost("/repos/{repoId}/workflows", async (string repoId, HttpRequest request, WorkspaceRegistry registry, WorkflowRunners runners) =>
+        app.MapPost("/repos/{repoId}/workflows", async (string repoId, HttpRequest request, WorkspaceRegistry registry, WorkflowRunners runners, SkillAgents agents, ProviderStore providers) =>
         {
             var ws = registry.Get(repoId);
             if (ws.ReadOnly) return Reply.Error(409, "a pull-request workspace is read-only");
-            var (def, error) = await ReadDefinition(request);
+            var (def, error) = await ReadDefinition(request, agents, providers);
             if (def is null) return Reply.Error(400, error!);
             var store = runners.For(registry.Get(repoId)).Store;
             if (!store.TryCreateWorkflow(def)) return Reply.Error(409, "Workflow already exists");
             return JsonResult(def);
         });
 
-        app.MapPut("/repos/{repoId}/workflows/{workflowId}", async (string repoId, string workflowId, HttpRequest request, WorkspaceRegistry registry, WorkflowRunners runners) =>
+        app.MapPut("/repos/{repoId}/workflows/{workflowId}", async (string repoId, string workflowId, HttpRequest request, WorkspaceRegistry registry, WorkflowRunners runners, SkillAgents agents, ProviderStore providers) =>
         {
             var ws = registry.Get(repoId);
             if (ws.ReadOnly) return Reply.Error(409, "a pull-request workspace is read-only");
-            var (def, error) = await ReadDefinition(request);
+            var (def, error) = await ReadDefinition(request, agents, providers);
             if (def is null) return Reply.Error(400, error!);
             if (def.Id != workflowId) return Reply.Error(400, "The workflow id in the body must match the URL");
             var store = runners.For(ws).Store;
@@ -202,34 +202,22 @@ public static class WorkflowRoutes
     }
 
     /// <summary>Parses and validates a workflow definition body shared by create and update.</summary>
-    private static async Task<(WorkflowDef? Def, string? Error)> ReadDefinition(HttpRequest request)
+    private static async Task<(WorkflowDef? Def, string? Error)> ReadDefinition(HttpRequest request, SkillAgents agents, ProviderStore providers)
     {
         WorkflowDef? def;
         try { def = await JsonSerializer.DeserializeAsync<WorkflowDef>(request.Body, WorkflowJson.Options); }
         catch (JsonException) { return (null, "Invalid workflow JSON"); }
-        if (def is null || string.IsNullOrWhiteSpace(def.Id) || !RunStore.IsSafeId(def.Id) || string.IsNullOrWhiteSpace(def.Name) || def.Steps is null || def.Steps.Count == 0 ||
-            def.Steps.Any(s => s is null || string.IsNullOrWhiteSpace(s.Id) || !RunStore.IsSafeId(s.Id) || string.IsNullOrWhiteSpace(s.Slug) ||
-                (s.Kind != "agent" && s.Kind != "review") || (s.Kind == "agent" && string.IsNullOrWhiteSpace(s.Prompt))) ||
-            def.Steps.Select(s => s.Id).Distinct().Count() != def.Steps.Count)
-            return (null, "A workflow needs an id, name and uniquely identified agent steps with prompts or review steps");
-        if (def.Steps.Any(s => s.Context != "previous" && s.Context != "fresh")) return (null, "A step context must be previous or fresh");
-        for (var i = 0; i < def.Steps.Count; i++)
-        {
-            var back = def.Steps[i].SendBackTo;
-            if (back is null) continue;
-            if (!def.Steps.Take(i).Any(s => s.Id == back && s.Kind == "agent")) return (null, "sendBackTo must name an earlier agent step");
-        }
-        if (def.Steps.Any(s => s.Kind == "review" && s.Input is not null)) return (null, "Only agent steps can ask for an input");
-        def.Inputs = (def.Inputs ?? []).Where(i => i is not null).ToList();
-        var stepInputs = def.Steps.Where(s => s.Input is not null).Select(s => s.Input!).ToList();
-        var all = stepInputs.Concat(def.Inputs).ToList();
-        if (all.Any(i => !RunStore.IsSafeId(i.Name)) || all.Select(i => i.Name).Distinct().Count() != all.Count)
-            return (null, "Workflow inputs need unique simple names");
-        def.Inputs = stepInputs;
-        if (def.Steps.Any(s => s.Skill is { } skill && (skill.Length == 0 || !RunStore.IsSafeId(skill))))
-            return (null, "A step skill must be a skill name");
-        return (def, null);
+        var error = WorkflowValidation.Validate(def, AdapterOf(agents, providers));
+        return error is null ? (def, null) : (null, error);
     }
+
+    /// <summary>A provider id's CLI adapter (null: the workflow-step call-site default), or null for an unknown or non-CLI provider.</summary>
+    private static Func<string?, string?> AdapterOf(SkillAgents agents, ProviderStore providers) => providerId =>
+        providerId is null
+            ? agents["workflow-step"].ResolveCli().AdapterKey
+            : providers.Find(providerId) is { } provider && Json.Str(provider["kind"]) == "cli" && Json.Str(provider["adapter"]) is { } adapter && CliAdapters.All.ContainsKey(adapter)
+                ? adapter
+                : null;
 
     private static string? Str(JsonObject body, string key) => Json.NonEmptyStr(body[key]);
 

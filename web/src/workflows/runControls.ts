@@ -129,7 +129,8 @@ export function stateBanner(run: Run, stepLabel: (stepId: string | null) => stri
 export function betweenLabel(def: WorkflowStepDef | undefined, index: number): string | null {
   if (!def || index <= 0) return null;
   if (def.kind === "review") return "You review the diff";
-  if (def.context === "fresh") return "Fresh start · no context";
+  if (def.agent === "new") return "Fresh start · no context";
+  if (def.agent?.startsWith("continue")) return "Resumes an earlier agent session";
   return `Passes output to step ${index}`;
 }
 

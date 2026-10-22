@@ -28,8 +28,13 @@ export interface WorkflowStepDef {
   prompt: string;
   /** A skill of the project the agent is told to use for this step. */
   skill?: string | null;
-  /** "previous" (default) prepends the prior step's output and diff stat; "fresh" starts clean. */
-  context?: "previous" | "fresh";
+  /** Agent step: a new agent, a new one handed the previous step's output, or a continue that resumes an earlier step's claude session. */
+  agent?: StepAgent;
+  /** Agent step: free text added after the instructions, for this step only. */
+  extraPrompt?: string | null;
+  /** Agent step: an LLM settings provider id; null runs the workflow-step call-site default. */
+  provider?: string | null;
+  model?: string | null;
   /** Becomes a breakpoint when a run starts. */
   pauseBefore?: boolean;
   /** Review step: show the diff. */
@@ -40,6 +45,21 @@ export interface WorkflowStepDef {
   sendBackTo?: string | null;
   /** Agent step: the one value asked for when the run starts; `{{name}}` in this step's prompt is replaced by it. */
   input?: WorkflowInput | null;
+}
+
+/** "continue" resumes the nearest earlier agent step; "continue:<stepId>" names it. */
+export type StepAgent = "new" | "handoff" | "continue" | `continue:${string}`;
+
+/** The step a continue resumes, or -1 (also -1 for a step that does not continue). */
+export function continueSourceIndex(steps: WorkflowStepDef[], index: number): number {
+  const agent = steps[index]?.agent;
+  if (agent === "continue") {
+    for (let i = index - 1; i >= 0; i--) if (steps[i].kind === "agent") return i;
+    return -1;
+  }
+  if (!agent?.startsWith("continue:")) return -1;
+  const id = agent.slice("continue:".length);
+  return steps.findIndex((s, i) => i < index && s.id === id && s.kind === "agent");
 }
 
 /** A value asked for when a run starts; `{{name}}` in a step prompt is replaced by it. */
@@ -76,6 +96,17 @@ export interface StepRecord {
   sessionId: string | null;
   /** Set on a step kept from an earlier attempt of a redo. */
   fromAttempt?: number;
+  /** Token counts of the step's session; context = input + cache read + cache creation. */
+  usage?: StepUsage | null;
+  /** The step whose session this step resumed. */
+  resumedFrom?: string | null;
+}
+
+export interface StepUsage {
+  contextTokens: number;
+  inputTokens: number;
+  outputTokens: number;
+  cacheReadTokens: number;
 }
 
 export interface MessageChip {

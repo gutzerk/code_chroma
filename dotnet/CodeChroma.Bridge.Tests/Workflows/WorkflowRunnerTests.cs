@@ -285,12 +285,12 @@ public sealed class WorkflowRunnerTests : IDisposable
         File.WriteAllText(Path.Combine(dir, "wf.json"), JsonSerializer.Serialize(def, WorkflowJson.Options));
     }
 
-    private static WorkflowStep Agent(string id, string context = "previous") => new() { Id = id, Slug = id, Kind = "agent", Prompt = "do " + id, Context = context };
+    private static WorkflowStep Agent(string id, string agent = StepAgents.Handoff) => new() { Id = id, Slug = id, Kind = "agent", Prompt = "do " + id, Agent = agent };
 
     [Fact]
-    public async Task A_previous_context_step_gets_the_prior_output_while_a_fresh_one_does_not()
+    public async Task A_handoff_step_gets_the_prior_output_while_a_new_one_does_not()
     {
-        DefineSteps(Agent("one"), Agent("two"), Agent("three", "fresh"));
+        DefineSteps(Agent("one"), Agent("two"), Agent("three", StepAgents.New));
         _cli.Script(Stdout(Say("marker-from-earlier")), ResultEvent(), Exit(0));
         var runner = Runner();
 

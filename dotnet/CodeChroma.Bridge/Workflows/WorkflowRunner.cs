@@ -735,10 +735,10 @@ public sealed partial class WorkflowRunner
 
     private static List<string> PauseBeforeIds(WorkflowDef def) => def.Steps.Where(s => s.PauseBefore).Select(s => s.Id).ToList();
 
-    /// <summary>A "previous"-context first attempt gets the last finished step's output tail and diff stat ahead of its own prompt.</summary>
+    /// <summary>A handoff first attempt gets the last finished step's output tail and diff stat ahead of its own prompt.</summary>
     private string WithContext(Handle h, WorkflowStep step, string prompt, bool rerun)
     {
-        if (rerun || step.Context == "fresh") return prompt;
+        if (rerun || step.Agent != StepAgents.Handoff) return prompt;
         string slug, output;
         string? diffStat;
         lock (_lock)

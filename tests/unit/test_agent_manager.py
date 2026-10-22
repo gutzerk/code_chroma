@@ -265,22 +265,34 @@ def test_an_agent_still_resumes_its_own_session_among_siblings(repo, tmp_path, m
     assert manager.capture_session_id(helper.id) == "helpers-own-session"
 
 
-def test_a_new_agent_never_takes_the_id_that_shadows_the_main_workspace(repo):
+@pytest.mark.parametrize(
+    ("title", "expected"),
+    [("main", "main-2"), ("PR 12", "pr-12-2")],
+    ids=["main-workspace", "pull-request"],
+)
+def test_a_new_agent_never_takes_an_id_that_shadows_a_reserved_workspace(repo, title, expected):
     manager = AgentManager(repo)
 
-    record = manager.create("main")
+    record = manager.create(title)
 
-    assert record.id == "main-2"
+    assert record.id == expected
 
 
-def test_reconcile_renames_an_existing_agent_that_shadows_the_main_workspace(repo, tmp_path):
-    old = _legacy_worktree(repo, tmp_path, "main", "agent/main")
-    _write_registry(repo, [_record("main", "agent/main", old)])
+@pytest.mark.parametrize(
+    ("shadowed", "expected"),
+    [("main", "main-2"), ("pr-12", "pr-12-2")],
+    ids=["main-workspace", "pull-request"],
+)
+def test_reconcile_renames_an_existing_agent_that_shadows_a_reserved_workspace(
+    repo, tmp_path, shadowed, expected
+):
+    old = _legacy_worktree(repo, tmp_path, shadowed, f"agent/{shadowed}")
+    _write_registry(repo, [_record(shadowed, f"agent/{shadowed}", old)])
 
     manager = AgentManager(repo)
     manager.reconcile()
 
-    assert [record.id for record in manager.list()] == ["main-2"]
+    assert [record.id for record in manager.list()] == [expected]
 
 
 def test_the_renamed_agent_keeps_its_branch_and_its_worktree(repo, tmp_path):
@@ -324,24 +336,6 @@ def test_a_new_agent_never_takes_an_id_whose_branch_survives_a_pruned_worktree(r
     second = manager.create("agent1")
 
     assert second.id != first.id
-
-
-def test_a_new_agent_never_takes_an_id_that_shadows_a_pull_request(repo):
-    manager = AgentManager(repo)
-
-    record = manager.create("PR 12")
-
-    assert record.id == "pr-12-2"
-
-
-def test_reconcile_renames_an_existing_agent_that_shadows_a_pull_request(repo, tmp_path):
-    old = _legacy_worktree(repo, tmp_path, "pr-12", "agent/pr-12")
-    _write_registry(repo, [_record("pr-12", "agent/pr-12", old)])
-
-    manager = AgentManager(repo)
-    manager.reconcile()
-
-    assert [record.id for record in manager.list()] == ["pr-12-2"]
 
 
 def test_a_registered_non_agent_workspace_can_become_active(repo):

@@ -1,5 +1,7 @@
 # Parallel agents (`src/codechroma/bridge/agents/`) — one `claude` per git worktree, or attached
 
+> Removed dead components: `AgentRail`, `AgentWindow`, `AgentFullScreen`, `AgentTab` and `useFullScreenAgentId` (plus their tests/CSS) are deleted -- `ActivityPanel` + `AgentTerminalDock` replaced them. Mentions of those names below are historical; the live flow is `windowActions.ts` + `ActivityPanel`.
+
 Several Claude sessions at once, each on its own branch in its own `git worktree` by default, each a
 window on the canvas. `<main_root>/.codechroma/agents.json` is the registry (it spans every worktree,
 so it lives in the main repo); an agent's own artifacts need no special handling — they already sit

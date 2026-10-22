@@ -1,10 +1,20 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import type { EngineClient } from "../engine-client/EngineClient";
 import { EngineClientProvider } from "../engine-client/EngineClientContext";
+import type { Provider } from "../llm-settings/llmSettingsClient";
 import { WorkflowEditorDialog, deriveInputName, validateDraft, type StepDraft } from "./WorkflowEditorDialog";
 import { workflowStore } from "./workflowStore";
 import type { Run, WorkflowDef } from "./types";
+
+const llm = vi.hoisted(() => ({
+  listProviders: vi.fn(),
+  fetchProviderModels: vi.fn(),
+}));
+vi.mock("../llm-settings/llmSettingsClient", () => llm);
+
+const provider = (id: string, adapter: string): Provider =>
+  ({ id, label: id, kind: "cli", adapter }) as Provider;
 
 function fakeClient() {
   return {
@@ -49,7 +59,11 @@ describe("validateDraft", () => {
 });
 
 describe("WorkflowEditorDialog", () => {
-  beforeEach(() => workflowStore.reset());
+  beforeEach(() => {
+    workflowStore.reset();
+    llm.listProviders.mockResolvedValue([provider("claude", "claude"), provider("codex", "codex")]);
+    llm.fetchProviderModels.mockResolvedValue({ supported: true, models: [{ id: "sonnet", label: null }, { id: "opus", label: null }] });
+  });
   afterEach(cleanup);
 
   it("creates a workflow with a fresh id", async () => {
@@ -101,7 +115,7 @@ describe("WorkflowEditorDialog", () => {
     expect(screen.getByRole("option", { name: "Step 1: Plan" })).toBeInTheDocument();
     expect(screen.getByRole("option", { name: "Step 2: Build" })).toBeInTheDocument();
     expect(screen.getByTestId("between-2")).toHaveTextContent("You review the diff");
-    expect(screen.getByTestId("between-1")).toHaveTextContent("Passes output to step 2");
+    expect(screen.getByTestId("between-1")).toHaveTextContent("hand-off → step 2");
   });
 
   it("blocks saving an agent step without instructions", async () => {
@@ -169,6 +183,156 @@ describe("WorkflowEditorDialog", () => {
     fireEvent.click(screen.getByRole("button", { name: "Step 2: Build" }));
 
     expect((screen.getByLabelText(/^Ask for input/) as HTMLInputElement).value).toBe("PR number");
+  });
+});
+
+describe("WorkflowEditorDialog agent sessions", () => {
+  beforeEach(() => {
+    workflowStore.reset();
+    llm.listProviders.mockResolvedValue([provider("claude", "claude"), provider("codex", "codex")]);
+    llm.fetchProviderModels.mockResolvedValue({ supported: true, models: [{ id: "sonnet", label: null }, { id: "opus", label: null }] });
+  });
+  afterEach(cleanup);
+
+  const chain = (over: Partial<WorkflowDef["steps"][number]>[]): WorkflowDef => ({
+    id: "wf-2",
+    name: "Chain",
+    steps: [
+      { id: "a", slug: "Plan", kind: "agent", prompt: "plan", agent: "new", ...over[0] },
+      { id: "b", slug: "Build", kind: "agent", prompt: "build", agent: "handoff", ...over[1] },
+      { id: "c", slug: "Check", kind: "review", prompt: "", ...over[2] },
+      { id: "d", slug: "Ship", kind: "agent", prompt: "ship", agent: "continue", ...over[3] },
+    ],
+  });
+
+  const pick = (n: number, slug: string) => fireEvent.click(screen.getByRole("button", { name: `Step ${n}: ${slug}` }));
+  const providersLoaded = () => act(async () => {});
+
+  it("opens an older definition without an agent as hand-off and a fresh context as new", () => {
+    const old = chain([{}, { agent: undefined }, {}, { agent: undefined, context: "fresh" } as never]);
+    open(fakeClient(), { workflow: old, onClose: vi.fn() });
+
+    pick(2, "Build");
+
+    expect(screen.getByRole("radio", { name: "New + hand-off" })).toBeChecked();
+    expect(screen.getByRole("button", { name: "Step 2: Build" })).toHaveTextContent("Agent · default · new + hand-off");
+    expect(screen.getByRole("button", { name: "Step 4: Ship" })).toHaveTextContent("Agent · default · new");
+  });
+
+  it("lets step 1 only be New", () => {
+    open(fakeClient(), { workflow: chain([]), onClose: vi.fn() });
+
+    expect(screen.getByRole("radio", { name: "New" })).toBeChecked();
+    expect(screen.getByRole("radio", { name: "New + hand-off" })).toBeDisabled();
+    expect(screen.getByRole("radio", { name: "Continue" })).toBeDisabled();
+    expect(screen.getByText("Step 1 can only be New.")).toBeInTheDocument();
+  });
+
+  it("switches modes and relabels the rail and the connector", () => {
+    open(fakeClient(), { workflow: chain([]), onClose: vi.fn() });
+    pick(2, "Build");
+
+    fireEvent.click(screen.getByRole("radio", { name: "Continue" }));
+    const continued = [screen.getByTestId("between-1").textContent, screen.getByRole("button", { name: "Step 2: Build" }).textContent];
+    fireEvent.click(screen.getByRole("radio", { name: "New" }));
+
+    expect(continued[0]).toBe("resumes step 1's agent");
+    expect(continued[1]).toContain("Agent · default · continue: Plan");
+    expect(screen.getByTestId("between-1")).toHaveTextContent("Fresh start · no context");
+    expect(screen.getByRole("button", { name: "Step 2: Build" })).toHaveTextContent("Agent · default · new");
+  });
+
+  it("lists only earlier agent steps as continue sources, nearest first", () => {
+    open(fakeClient(), { workflow: chain([]), onClose: vi.fn() });
+
+    pick(4, "Ship");
+    const options = within(screen.getByLabelText("Continue from")).getAllByRole("option").map((o) => o.textContent);
+
+    expect(options).toEqual(["Nearest earlier · Step 2 · Build", "Step 1 · Plan", "Step 2 · Build"]);
+    expect(screen.getByTestId("between-3")).toHaveTextContent("resumes step 2's agent");
+  });
+
+  it("turns Continue off with a reason when the step's provider is not claude", async () => {
+    open(fakeClient(), { workflow: chain([]), onClose: vi.fn() });
+    await providersLoaded();
+    pick(2, "Build");
+
+    fireEvent.change(screen.getByLabelText("Provider"), { target: { value: "codex" } });
+
+    expect(screen.getByRole("radio", { name: "Continue" })).toBeDisabled();
+    expect(screen.getByText("Continue is off. Only claude can resume a session, and this step uses codex.")).toBeInTheDocument();
+  });
+
+  it.each([
+    ["a provider mismatch", chain([{ provider: "codex" }, {}, {}, { agent: "continue:a", provider: "claude" }]), "Step 1 runs on codex and this step on claude"],
+    ["a review step as source", chain([{}, {}, {}, { agent: "continue:c" }]), 'A "You" step has no agent session to continue'],
+    [
+      "no earlier agent step",
+      { id: "w", name: "W", steps: [{ id: "r", slug: "Look", kind: "review", prompt: "" }, { id: "x", slug: "Go", kind: "agent", prompt: "go", agent: "continue" }] } as WorkflowDef,
+      "no earlier agent step to continue",
+    ],
+  ])("blocks save on %s", async (_case, workflow, message) => {
+    const client = fakeClient();
+    open(client, { workflow, onClose: vi.fn() });
+    await providersLoaded();
+
+    fireEvent.click(screen.getByRole("button", { name: "Save" }));
+    await act(async () => {});
+
+    expect(screen.getByRole("alert")).toHaveTextContent(message);
+    expect(client.updateWorkflow).not.toHaveBeenCalled();
+  });
+
+  it("only warns when a continue switches model, and still saves", async () => {
+    const client = fakeClient();
+    const onClose = vi.fn();
+    open(client, { workflow: chain([{ provider: "claude", model: "sonnet" }, {}, {}, { agent: "continue:a", provider: "claude", model: "opus" }]), onClose });
+    await providersLoaded();
+    pick(4, "Ship");
+
+    const warning = screen.getByText(/Switching model drops the prompt cache and re-reads the session at full price/);
+    fireEvent.click(screen.getByRole("button", { name: "Save" }));
+
+    await waitFor(() => expect(onClose).toHaveBeenCalled());
+    expect(warning).toHaveAttribute("role", "status");
+    expect(screen.queryByRole("alert")).toBeNull();
+  });
+
+  it("round-trips step input, provider, model and the continue source through save", async () => {
+    const client = fakeClient();
+    const onClose = vi.fn();
+    open(client, { workflow: chain([{ extraPrompt: "kept" }]), onClose });
+    await providersLoaded();
+    pick(4, "Ship");
+
+    fireEvent.change(screen.getByLabelText("Continue from"), { target: { value: "b" } });
+    fireEvent.change(screen.getByLabelText(/^Step input/), { target: { value: "Focus on login." } });
+    pick(2, "Build");
+    fireEvent.change(screen.getByLabelText("Provider"), { target: { value: "claude" } });
+    fireEvent.change(await screen.findByRole("combobox", { name: "Model" }), { target: { value: "opus" } });
+    pick(4, "Ship");
+    fireEvent.change(screen.getByLabelText("Provider"), { target: { value: "claude" } });
+    fireEvent.change(await screen.findByRole("combobox", { name: "Model" }), { target: { value: "opus" } });
+    fireEvent.click(screen.getByRole("button", { name: "Save" }));
+
+    await waitFor(() => expect(onClose).toHaveBeenCalled());
+    const saved = client.updateWorkflow.mock.calls[0][0].steps;
+    expect(saved[0]).toMatchObject({ agent: "new", extraPrompt: "kept" });
+    expect(saved[1]).toMatchObject({ agent: "handoff", provider: "claude", model: "opus" });
+    expect(saved[3]).toMatchObject({ agent: "continue:b", extraPrompt: "Focus on login.", provider: "claude", model: "opus" });
+    expect(saved[2]).not.toHaveProperty("provider");
+  });
+
+  it("explains what Send back resets and whose agent resumes", () => {
+    open(fakeClient(), { workflow: chain([]), onClose: vi.fn() });
+
+    pick(3, "Check");
+
+    expect(
+      screen.getByText(
+        "Resets the code to before step 2 and resumes step 1's agent, which hasn't seen the rejected work. Starts a fresh agent if step 1 has no session.",
+      ),
+    ).toBeInTheDocument();
   });
 });
 

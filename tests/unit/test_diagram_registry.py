@@ -109,16 +109,14 @@ _ITEM_KINDS = pytest.mark.parametrize(
 )
 
 
-@_ITEM_KINDS
-def test_item_dir_is_the_registry_owned_directory(prefix, item):
+@pytest.mark.parametrize(
+    ("prefix", "dir_of"),
+    [("feature-plan", DiagramRegistry.feature_plan_dir), ("epics", DiagramRegistry.epics_dir)],
+)
+def test_item_dir_is_the_registry_owned_directory(prefix, dir_of):
     expected = Path("/r") / ".codechroma" / "diagrams" / prefix
-    actual = (
-        DiagramRegistry.feature_plan_dir(Path("/r"))
-        if prefix == "feature-plan"
-        else DiagramRegistry.epics_dir(Path("/r"))
-    )
 
-    assert actual == expected
+    assert dir_of(Path("/r")) == expected
 
 
 @_ITEM_KINDS

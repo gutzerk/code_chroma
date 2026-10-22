@@ -62,6 +62,10 @@ describe("assignLanes", () => {
     expect(lanes.map((lane) => lane.offset)).toEqual(offsets);
   });
 
+  it("ranks a lone arrow first", () => {
+    expect(assignLanes([{ pair: "a b" }], (item) => item.pair)).toEqual([{ offset: 0, rank: 0 }]);
+  });
+
   it("puts opposite-direction arrows between the same two blocks in different lanes", () => {
     const lanes = assignLanes(
       [{ from: "a", to: "b" }, { from: "b", to: "a" }],
@@ -93,10 +97,18 @@ describe("assignPorts", () => {
 
 describe("simplify", () => {
   it.each([
-    ["a collinear corner so a straight route carries no invisible elbow", [{ x: 0, y: 0 }, { x: 10, y: 0 }, { x: 20, y: 0 }], 2],
-    ["a repeated corner", [{ x: 0, y: 0 }, { x: 0, y: 0 }, { x: 0, y: 10 }], 2],
-  ])("drops %s", (_name, points, length) => {
-    expect(simplify(points)).toHaveLength(length);
+    [
+      "a collinear corner so a straight route carries no invisible elbow",
+      [{ x: 0, y: 0 }, { x: 10, y: 0 }, { x: 20, y: 0 }],
+      [{ x: 0, y: 0 }, { x: 20, y: 0 }],
+    ],
+    [
+      "a repeated corner",
+      [{ x: 0, y: 0 }, { x: 0, y: 0 }, { x: 0, y: 10 }],
+      [{ x: 0, y: 0 }, { x: 0, y: 10 }],
+    ],
+  ])("drops %s", (_name, points, expected) => {
+    expect(simplify(points)).toEqual(expected);
   });
 });
 

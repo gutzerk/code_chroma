@@ -36,7 +36,8 @@ public sealed record AgentLaunch(IReadOnlyList<string> Argv, IReadOnlyDictionary
 /// </summary>
 public sealed class TerminalAgents(UserPaths paths, ProviderStore providers, CallSiteStore callSites)
 {
-    public const string ResumeFlag = "--resume";
+    public const string ResumeFlag = ClaudeAdapter.ResumeFlag;
+    public const string ForkSessionFlag = ClaudeAdapter.ForkSessionFlag;
     public const string AgentCallSite = "parallel_agents";
     public const string DefaultCli = "claude";
 
@@ -50,8 +51,8 @@ public sealed class TerminalAgents(UserPaths paths, ProviderStore providers, Cal
         ["agent"] = [],
     };
 
-    /// <summary>An allow-listed agent's argv and provider environment, or null for an unknown kind.</summary>
-    public AgentLaunch? Resolve(string agent, string? resumeSessionId = null, string? initialPrompt = null, bool bare = false, string? visiblePrompt = null)
+    /// <summary>An allow-listed agent's argv and provider environment, or null for an unknown kind; `forkSession` (claude only) resumes into a new session.</summary>
+    public AgentLaunch? Resolve(string agent, string? resumeSessionId = null, string? initialPrompt = null, bool bare = false, string? visiblePrompt = null, bool forkSession = false)
     {
         if (agent == "agent")
         {
@@ -63,7 +64,8 @@ public sealed class TerminalAgents(UserPaths paths, ProviderStore providers, Cal
         if (agent == "claude")
         {
             var binary = AssistantRoutes.EffectiveCli(paths);
-            return new AgentLaunch(Argv(binary, binary == DefaultCli, "claude", resumeSessionId, initialPrompt, bare, visiblePrompt), new Dictionary<string, string>());
+            var argv = Argv(binary, binary == DefaultCli, "claude", resumeSessionId, initialPrompt, bare, visiblePrompt);
+            return new AgentLaunch(forkSession && !string.IsNullOrEmpty(resumeSessionId) ? [.. argv, ForkSessionFlag] : argv, new Dictionary<string, string>());
         }
         return new AgentLaunch(string.IsNullOrEmpty(resumeSessionId) ? entry : [.. entry, ResumeFlag, resumeSessionId], new Dictionary<string, string>());
     }

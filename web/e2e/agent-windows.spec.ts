@@ -53,6 +53,7 @@ test("closing an attached agent removes it and respects agent capacity", async (
 test("creates a workflow in the editor and keeps progress visible when steps collapse", async ({ page }) => {
   await gotoApp(page);
   await page.getByRole("tab", { name: /Workflows/ }).click();
+  await page.getByRole("button", { name: /^All workflows · / }).click();
   await page.getByRole("button", { name: "New workflow", exact: true }).click();
   const editor = page.getByRole("dialog", { name: "Workflow editor" });
   await editor.getByLabel("Workflow name").fill("Inspect project");

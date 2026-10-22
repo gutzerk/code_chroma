@@ -14,6 +14,12 @@ public interface ICliAdapter
 
     /// <summary>Extra options that strip the CLI's ambient context (skills, MCP, settings) for a bare run limited to <paramref name="tools"/>; empty when the CLI has no verified switch.</summary>
     IReadOnlyList<string> BareArgs(string tools) => [];
+
+    /// <summary>Whether the CLI can resume (and fork) an earlier session by id.</summary>
+    bool CanResume => false;
+
+    /// <summary>The options that resume <paramref name="session"/>, forked into a new session when <paramref name="fork"/>; empty when the CLI cannot resume.</summary>
+    IReadOnlyList<string> ResumeArgs(string session, bool fork) => [];
 }
 
 public static class CliAdapters
@@ -26,6 +32,13 @@ public static class CliAdapters
         ["codex"] = new CodexAdapter(),
         ["kimi-cli"] = new KimiAdapter(),
     };
+
+    /// <summary>Whether the adapter named <paramref name="adapterKey"/> can resume a session; false for an unknown or missing adapter.</summary>
+    public static bool CanResume(string? adapterKey) => adapterKey is not null && All.TryGetValue(adapterKey, out var adapter) && adapter.CanResume;
+
+    /// <summary>The resume options of the adapter named <paramref name="adapterKey"/>, empty when it cannot resume.</summary>
+    public static IReadOnlyList<string> ResumeArgs(string adapterKey, string session, bool fork) =>
+        All.TryGetValue(adapterKey, out var adapter) ? adapter.ResumeArgs(session, fork) : [];
 
     internal static JsonObject? ParseEvent(string raw)
     {
@@ -43,6 +56,13 @@ public static class CliAdapters
 /// <summary>`claude -p ... --output-format stream-json`.</summary>
 public sealed class ClaudeAdapter : ICliAdapter
 {
+    public const string ResumeFlag = "--resume";
+    public const string ForkSessionFlag = "--fork-session";
+
+    public bool CanResume => true;
+
+    public IReadOnlyList<string> ResumeArgs(string session, bool fork) => fork ? [ResumeFlag, session, ForkSessionFlag] : [ResumeFlag, session];
+
     public IReadOnlyList<string> BuildArgv(string binary, string prompt, string model, IReadOnlyDictionary<string, string>? env, IReadOnlyList<string>? extra = null)
     {
         var argv = new List<string> { binary, "-p", prompt };

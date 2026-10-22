@@ -38,3 +38,8 @@ export function useAgentClient(): AgentClient {
   }
   return client;
 }
+
+/** The agent client when one is provided, else null: for views (the workflow run rail) that also render without one. */
+export function useOptionalAgentClient(): AgentClient | null {
+  return useContext(AgentClientReactContext);
+}

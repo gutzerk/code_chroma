@@ -18,6 +18,8 @@ public sealed class WorkflowRunnerTests : IDisposable
     private readonly GitSandbox _repo = new();
     private readonly List<string> _events = [];
     private string? _session;
+    private ProviderStore? _providers;
+    private TranscriptUsage? _usage;
 
     private static string Say(string text) => "{\"type\":\"assistant\",\"message\":{\"content\":[{\"type\":\"text\",\"text\":\"" + text + "\"}]}}";
 
@@ -30,12 +32,12 @@ public sealed class WorkflowRunnerTests : IDisposable
     private WorkflowRunner Runner()
     {
         var paths = UserPaths.Under(_repo.Sibling("stores"));
-        var providers = new ProviderStore(paths);
+        var providers = _providers ??= new ProviderStore(paths);
         var resolver = new CliResolver(paths, providers, new CallSiteStore(paths, providers));
         var runtime = new RuntimeEnvironment(() => new RuntimeSettings(null, 10, new Dictionary<string, string> { ["claude"] = _cli.ExePath }));
         var agents = new SkillAgents(resolver, runtime, new SkillRunSettings { FlushIntervalSeconds = 0.02 });
         return new WorkflowRunner(_repo.Root, agents["workflow-step"], message => { lock (_events) _events.Add(message["event"]!.GetValue<string>()); }, _ => _session,
-            agents["workflow-chat"], runId => "http://127.0.0.1:1/mcp/" + runId);
+            agents["workflow-chat"], runId => "http://127.0.0.1:1/mcp/" + runId, (_, _) => _usage);
     }
 
     private void Define(params (string Id, string Kind)[] steps)
@@ -77,7 +79,7 @@ public sealed class WorkflowRunnerTests : IDisposable
         var started = await runner.Start("wf");
         await UntilState(runner, started.Id, "needs_you");
         var parked = runner.Get(started.Id);
-        var approved = runner.Review(started.Id, "approve", null);
+        var approved = await runner.Review(started.Id, "approve", null);
 
         Assert.Equal("done", approved.State);
         Assert.Equal("done", Step(approved, "build").Status);
@@ -101,7 +103,7 @@ public sealed class WorkflowRunnerTests : IDisposable
         var started = await runner.Start("wf");
         await UntilState(runner, started.Id, "needs_you");
 
-        var sent = runner.Review(started.Id, "sendBack", "rename the helper");
+        var sent = await runner.Review(started.Id, "sendBack", "rename the helper");
         await Until(() => _cli.Invocations().Count == 2, "second launch");
         await UntilState(runner, started.Id, "needs_you");
 
@@ -285,12 +287,177 @@ public sealed class WorkflowRunnerTests : IDisposable
         File.WriteAllText(Path.Combine(dir, "wf.json"), JsonSerializer.Serialize(def, WorkflowJson.Options));
     }
 
-    private static WorkflowStep Agent(string id, string context = "previous") => new() { Id = id, Slug = id, Kind = "agent", Prompt = "do " + id, Context = context };
+    private static WorkflowStep Agent(string id, string agent = StepAgents.Handoff) => new() { Id = id, Slug = id, Kind = "agent", Prompt = "do " + id, Agent = agent };
+
+    private ProviderStore Providers() => _providers ??= new ProviderStore(UserPaths.Under(_repo.Sibling("stores")));
+
+    private string AddProvider(JsonObject payload) => Json.Str(Providers().Create(payload)["id"])!;
 
     [Fact]
-    public async Task A_previous_context_step_gets_the_prior_output_while_a_fresh_one_does_not()
+    public async Task Each_agent_mode_launches_with_its_own_argv_and_a_continue_forks_its_source()
     {
-        DefineSteps(Agent("one"), Agent("two"), Agent("three", "fresh"));
+        _session = "sess-1";
+        DefineSteps(Agent("one", StepAgents.New), Agent("two", StepAgents.Continue), Agent("three", "continue:one"), Agent("four"));
+        _cli.Script(Stdout(Say("marker-from-earlier")), ResultEvent(), Exit(0));
+        var runner = Runner();
+
+        var started = await runner.Start("wf");
+        await UntilState(runner, started.Id, "done");
+        var calls = _cli.Invocations();
+        var run = runner.Get(started.Id);
+
+        Assert.DoesNotContain("--resume", Args(calls[0]));
+        Assert.Contains("\"--resume\",\"sess-1\",\"--fork-session\"", Args(calls[1]));
+        Assert.DoesNotContain("Context from the previous step", Args(calls[1]));
+        Assert.Contains("\"--resume\",\"sess-1\",\"--fork-session\"", Args(calls[2]));
+        Assert.DoesNotContain("--resume", Args(calls[3]));
+        Assert.Contains("marker-from-earlier", Args(calls[3]));
+        Assert.Null(Step(run, "one").ResumedFrom);
+        Assert.Equal("one", Step(run, "two").ResumedFrom);
+        Assert.Equal("one", Step(run, "three").ResumedFrom);
+        Assert.Null(Step(run, "four").ResumedFrom);
+    }
+
+    [Fact]
+    public async Task A_finished_step_records_its_session_usage_and_each_step_its_chain_length()
+    {
+        _session = "sess-1";
+        _usage = new TranscriptUsage(130_000, 1000, 400, 120_000, "claude-opus-5-5");
+        DefineSteps(Agent("one", StepAgents.New), Agent("two"), Agent("three", StepAgents.Continue), Agent("four", "continue:three"), Agent("five", "continue:one"));
+        _cli.Script(ResultEvent(), Exit(0));
+        var runner = Runner();
+
+        var started = await runner.Start("wf");
+        await UntilState(runner, started.Id, "done");
+        var run = runner.Get(started.Id);
+        var usage = Step(run, "one").Usage;
+
+        Assert.NotNull(usage);
+        Assert.Equal(130_000, usage.ContextTokens);
+        Assert.Equal(120_000, usage.CacheReadTokens);
+        Assert.Equal("claude-opus-5-5", usage.Model);
+        Assert.Equal(ModelSpecs.DefaultContextWindow, usage.ContextWindow);
+        Assert.Equal([1, 1, 2, 3, 2], run.Steps.Select(s => s.ChainLength));
+        Assert.All(run.Steps, s => Assert.True(s.ChainWarning));
+    }
+
+    [Theory]
+    [InlineData(1, 100_000, false)]
+    [InlineData(2, 120_000, false)]
+    [InlineData(2, 120_001, true)]
+    [InlineData(3, 0, false)]
+    [InlineData(4, 0, true)]
+    public void A_chain_warns_past_three_steps_or_sixty_percent_of_the_window(int chainLength, long contextTokens, bool warns)
+    {
+        var usage = new StepUsage { ContextTokens = contextTokens, ContextWindow = ModelSpecs.ContextWindow("claude-opus-5-5") };
+
+        var warning = WorkflowLimits.ChainWarning(chainLength, usage);
+
+        Assert.Equal(warns, warning);
+    }
+
+    [Fact]
+    public async Task A_step_input_is_appended_after_the_instructions_with_run_inputs_filled()
+    {
+        var step = new WorkflowStep { Id = "one", Slug = "one", Kind = "agent", Agent = StepAgents.New, Prompt = "look at {{pr}}", ExtraPrompt = "focus on the tests of {{pr}}", Input = new WorkflowInput { Name = "pr", Label = "PR" } };
+        DefineSteps(step);
+        _cli.Script(ResultEvent(), Exit(0));
+        var runner = Runner();
+
+        var started = await runner.Start("wf", new Dictionary<string, string> { ["pr"] = "42" });
+        await UntilState(runner, started.Id, "done");
+
+        Assert.Contains("look at 42\\n\\nfocus on the tests of 42", Args(_cli.Invocations()[0]));
+    }
+
+    [Fact]
+    public async Task A_step_provider_and_model_reach_the_cli_env_and_argv()
+    {
+        var provider = AddProvider(new JsonObject { ["label"] = "Gateway", ["kind"] = "cli", ["adapter"] = "claude", ["base_url"] = "http://llm.local" });
+        var onProvider = Agent("one", StepAgents.New);
+        onProvider.Provider = provider;
+        onProvider.Model = "gateway-model";
+        var onModel = Agent("two", StepAgents.New);
+        onModel.Model = "other-model";
+        DefineSteps(onProvider, onModel);
+        _cli.Script(["ANTHROPIC_BASE_URL", "ANTHROPIC_MODEL"], ResultEvent(), Exit(0));
+        var runner = Runner();
+
+        var started = await runner.Start("wf");
+        await UntilState(runner, started.Id, "done");
+        var calls = _cli.Invocations();
+
+        Assert.Equal("http://llm.local", Json.Str(calls[0]["env"]!["ANTHROPIC_BASE_URL"]));
+        Assert.Equal("gateway-model", Json.Str(calls[0]["env"]!["ANTHROPIC_MODEL"]));
+        Assert.NotEqual("http://llm.local", Json.Str(calls[1]["env"]!["ANTHROPIC_BASE_URL"]));
+        Assert.Contains("\"--model\",\"other-model\"", Args(calls[1]));
+    }
+
+    [Fact]
+    public async Task A_continue_whose_source_has_no_session_stops_the_run_without_a_launch()
+    {
+        DefineSteps(Agent("one", StepAgents.New), Agent("two", StepAgents.Continue));
+        _cli.Script(ResultEvent(), Exit(0));
+        var runner = Runner();
+
+        var started = await runner.Start("wf");
+        await UntilState(runner, started.Id, "stopped");
+        var run = runner.Get(started.Id);
+
+        Assert.Single(_cli.Invocations());
+        Assert.Equal("stopped", Step(run, "two").Status);
+        Assert.Contains("✗ cannot continue two: one has no agent session", Step(run, "two").Output);
+    }
+
+    [Fact]
+    public async Task A_continue_from_a_skipped_step_stops_the_run_without_a_launch()
+    {
+        _session = "sess-1";
+        DefineSteps(Agent("one", StepAgents.New), Agent("two", StepAgents.New), Agent("three", "continue:two"));
+        var release = Path.Combine(_cli.Directory, "release");
+        _cli.Script(BlockUntilFile(release), ResultEvent(), Exit(0));
+        var runner = Runner();
+        var started = await runner.Start("wf");
+        await Until(() => _cli.Invocations().Count == 1, "first launch");
+
+        runner.Skip(started.Id, "two");
+        File.WriteAllText(release, "go");
+        await UntilState(runner, started.Id, "stopped");
+        var run = runner.Get(started.Id);
+
+        Assert.Single(_cli.Invocations());
+        Assert.Contains("✗ cannot continue three: two was skipped", Step(run, "three").Output);
+    }
+
+    [Fact]
+    public async Task A_provider_changed_to_a_non_claude_cli_after_save_stops_a_continue_at_run_time()
+    {
+        _session = "sess-1";
+        var provider = AddProvider(new JsonObject { ["label"] = "Switching", ["kind"] = "cli", ["adapter"] = "claude" });
+        var first = Agent("one", StepAgents.New);
+        first.Provider = provider;
+        var second = Agent("two", StepAgents.Continue);
+        second.Provider = provider;
+        DefineSteps(first, second);
+        var release = Path.Combine(_cli.Directory, "release");
+        _cli.Script(BlockUntilFile(release), ResultEvent(), Exit(0));
+        var runner = Runner();
+        var started = await runner.Start("wf");
+        await Until(() => _cli.Invocations().Count == 1, "first launch");
+
+        Providers().Update(provider, new JsonObject { ["adapter"] = "codex" });
+        File.WriteAllText(release, "go");
+        await UntilState(runner, started.Id, "stopped");
+        var run = runner.Get(started.Id);
+
+        Assert.Single(_cli.Invocations());
+        Assert.Contains("✗ cannot continue two: only claude can continue a session", Step(run, "two").Output);
+    }
+
+    [Fact]
+    public async Task A_handoff_step_gets_the_prior_output_while_a_new_one_does_not()
+    {
+        DefineSteps(Agent("one"), Agent("two"), Agent("three", StepAgents.New));
         _cli.Script(Stdout(Say("marker-from-earlier")), ResultEvent(), Exit(0));
         var runner = Runner();
 
@@ -345,7 +512,7 @@ public sealed class WorkflowRunnerTests : IDisposable
         var started = await runner.Start("wf");
         await UntilState(runner, started.Id, "needs_you");
 
-        runner.Review(started.Id, "sendBack", "again");
+        await runner.Review(started.Id, "sendBack", "again");
         await Until(() => _cli.Invocations().Count == 3, "third launch");
         await UntilState(runner, started.Id, "needs_you");
 
@@ -642,6 +809,75 @@ public sealed class WorkflowRunnerTests : IDisposable
         Assert.Equal(3, _cli.Invocations().Count);
         Assert.Contains("use b", Args(_cli.Invocations()[2]));
         Assert.Contains("run.redo.started", _events);
+    }
+
+    [Fact]
+    public async Task Redo_forks_the_nearest_earlier_step_session_with_the_note_and_the_step_task()
+    {
+        _session = "sess-1";
+        DefineSteps(Agent("one", StepAgents.New), Agent("two", StepAgents.New));
+        _cli.Script(ResultEvent(), Exit(0));
+        var runner = Runner();
+        var started = await runner.Start("wf");
+        await UntilState(runner, started.Id, "done");
+
+        await runner.Redo(started.Id, "two", "use b", null);
+        await Until(() => runner.Get(started.Id) is { State: "done", Attempt: 2 }, "second attempt");
+        var calls = _cli.Invocations();
+
+        Assert.Equal(3, calls.Count);
+        Assert.Contains("\"--resume\",\"sess-1\",\"--fork-session\"", Args(calls[2]));
+        Assert.Contains("use b", Args(calls[2]));
+        Assert.Contains("do two", Args(calls[2]));
+        Assert.Equal("one", Step(runner.Get(started.Id), "two").ResumedFrom);
+    }
+
+    [Fact]
+    public async Task Redo_without_an_earlier_session_starts_a_fresh_agent_in_the_step_mode()
+    {
+        DefineSteps(Agent("one", StepAgents.New), Agent("two"));
+        _cli.Script(Stdout(Say("marker-from-one")), ResultEvent(), Exit(0));
+        var runner = Runner();
+        var started = await runner.Start("wf");
+        await UntilState(runner, started.Id, "done");
+
+        await runner.Redo(started.Id, "two", "use b", null);
+        await Until(() => runner.Get(started.Id) is { State: "done", Attempt: 2 }, "second attempt");
+        var calls = _cli.Invocations();
+
+        Assert.Equal(3, calls.Count);
+        Assert.DoesNotContain("--resume", Args(calls[2]));
+        Assert.Contains("use b", Args(calls[2]));
+        Assert.Contains("marker-from-one", Args(calls[2]));
+        Assert.Null(Step(runner.Get(started.Id), "two").ResumedFrom);
+    }
+
+    [Fact]
+    public async Task Send_back_resets_the_worktree_to_the_checkpoint_in_a_new_attempt_and_forks_the_earlier_session()
+    {
+        _session = "sess-1";
+        DefineSteps(Agent("prep", StepAgents.New), Agent("build", StepAgents.New), new WorkflowStep { Id = "check", Slug = "check", Kind = "review" });
+        _cli.ScriptRuns([ResultEvent(), Exit(0)], [Write("bad.txt", "bad\n"), ResultEvent(), Exit(0)], [Write("good.txt", "good\n"), ResultEvent(), Exit(0)]);
+        var runner = Runner();
+        var started = await runner.Start("wf");
+        await UntilState(runner, started.Id, "needs_you");
+
+        var sent = await runner.Review(started.Id, "sendBack", "try again");
+        await Until(() => runner.Get(started.Id) is { State: "needs_you", Attempt: 2 }, "back at the gate");
+        var run = runner.Get(started.Id);
+        var worktree = Worktree(started.Id);
+        var calls = _cli.Invocations();
+
+        Assert.Equal("running", sent.State);
+        Assert.Equal([1, 2], run.Attempts.Select(a => a.N));
+        Assert.Contains("bad", GitSandbox.GitIn(_repo.Root, "show", started.Id + "/attempt-1:bad.txt"));
+        Assert.False(File.Exists(Path.Combine(worktree, "bad.txt")));
+        Assert.True(File.Exists(Path.Combine(worktree, "good.txt")));
+        Assert.StartsWith("--- sent back: try again ---", Step(run, "build").Output);
+        Assert.Equal("prep", Step(run, "build").ResumedFrom);
+        Assert.Equal(3, calls.Count);
+        Assert.Contains("try again", Args(calls[2]));
+        Assert.All(calls.Where(c => Args(c).Contains("--resume")), c => Assert.Contains("--fork-session", Args(c)));
     }
 
     [Fact]

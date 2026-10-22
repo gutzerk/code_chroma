@@ -771,10 +771,6 @@
   cursor: pointer;
 }
 
-.wf-saved-head {
-  cursor: default;
-}
-
 .wf-run-name {
   max-width: 100%;
   font-weight: 600;
@@ -1007,4 +1003,182 @@
 
 .wf-run-clickable {
   cursor: pointer;
+}
+
+.step-meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px;
+  margin: 2px 0 0 52px;
+  font-size: 0.6875rem;
+  color: var(--text-2);
+}
+
+.step-meta .step-tag {
+  margin-left: 0;
+}
+
+.step-tag-session[data-warn="true"] {
+  border-color: var(--warning);
+  color: var(--warning);
+}
+
+.step-tag-resumes {
+  border-color: #2dd4bf;
+  color: #2dd4bf;
+}
+
+/* Top bar end group and the All workflows screen (board 11) */
+.wf-toolbar-end {
+  display: flex;
+  gap: 6px;
+  margin-left: auto;
+}
+
+.wf-all-open {
+  width: 100%;
+  justify-content: flex-start;
+  min-height: 32px;
+  border-radius: var(--radius-btn);
+}
+
+.wf-all-open > .wf-truncate {
+  flex: 1;
+  text-align: left;
+}
+
+.wf-all {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  flex: 1;
+  min-height: 0;
+}
+
+.wf-all-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.wf-all-title {
+  margin: 0;
+  font-size: var(--text-xs);
+  font-weight: 600;
+  color: var(--text-strong);
+  white-space: nowrap;
+}
+
+.wf-all-search {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex: 1;
+  min-width: 140px;
+  max-width: 320px;
+  margin-left: auto;
+  padding: 0 10px;
+  min-height: 28px;
+  border-radius: var(--radius-full);
+  background: var(--bg-inset);
+  color: var(--text-2);
+}
+
+.wf-all-search input {
+  flex: 1;
+  min-width: 0;
+  background: none;
+  border: none;
+  outline: none;
+  color: var(--text-1);
+  font: inherit;
+  font-size: var(--text-xs);
+}
+
+.wf-all-search:focus-within {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+
+.wf-all-scroll {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+}
+
+.wf-all-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: var(--text-xs);
+}
+
+.wf-all-table th,
+.wf-all-table td {
+  padding: 8px;
+  text-align: left;
+  vertical-align: middle;
+  border-bottom: 1px solid var(--border);
+}
+
+.wf-all-table thead th {
+  color: var(--text-2);
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+.wf-all-name {
+  max-width: 220px;
+  color: var(--text-strong);
+  font-weight: 600;
+}
+
+.wf-all-name > span {
+  display: block;
+}
+
+.wf-all-muted {
+  color: var(--text-2);
+}
+
+.wf-all-chips {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.wf-all-chip {
+  padding: 2px 8px;
+  border-radius: var(--radius-full);
+  white-space: nowrap;
+  background: rgba(143, 176, 255, 0.14);
+  color: var(--accent);
+}
+
+.wf-all-chip[data-mode="handoff"] {
+  background: rgba(183, 148, 255, 0.16);
+  color: var(--plan);
+}
+
+.wf-all-chip[data-mode="continue"] {
+  background: rgba(74, 222, 128, 0.14);
+  color: var(--success);
+}
+
+.wf-all-chip[data-mode="you"] {
+  background: rgba(251, 191, 36, 0.14);
+  color: var(--warning);
+}
+
+.wf-sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
 }

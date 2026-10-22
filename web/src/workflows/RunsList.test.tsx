@@ -26,11 +26,11 @@ const run = (over: Partial<Run>): Run => ({
 function setup(runs: Run[]) {
   const actions = { stop: vi.fn() } as unknown as WorkflowActions;
   const onOpen = vi.fn();
-  const onEdit = vi.fn();
+  const onAllWorkflows = vi.fn();
   render(
-    <RunsList runs={runs} workflows={[workflow]} activeRunId={null} layout="full" actions={actions} onOpen={onOpen} onEdit={onEdit} onRun={vi.fn()} />,
+    <RunsList runs={runs} workflows={[workflow]} activeRunId={null} layout="full" actions={actions} onOpen={onOpen} onAllWorkflows={onAllWorkflows} />,
   );
-  return { actions, onOpen, onEdit };
+  return { actions, onOpen, onAllWorkflows };
 }
 
 describe("RunsList", () => {
@@ -46,12 +46,13 @@ describe("RunsList", () => {
     expect(onOpen).toHaveBeenCalledWith("r1");
   });
 
-  it("opens a saved workflow for editing from its card background", () => {
-    const { onEdit } = setup([]);
+  it("replaces the saved workflows section with an All workflows button", () => {
+    const { onAllWorkflows } = setup([]);
 
-    fireEvent.click(screen.getByTestId("saved-wf"));
+    fireEvent.click(screen.getByRole("button", { name: "All workflows · 1" }));
 
-    expect(onEdit).toHaveBeenCalledWith(workflow);
+    expect(onAllWorkflows).toHaveBeenCalled();
+    expect(screen.queryByRole("list", { name: "Saved workflows" })).toBeNull();
   });
 
   it("lets a run awaiting review be cancelled", () => {

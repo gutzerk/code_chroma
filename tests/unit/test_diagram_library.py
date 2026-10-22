@@ -93,38 +93,62 @@ def test_delete_type_removes_it():
     assert library.load_type("data-flow") is None
 
 
-def test_validate_definition_accepts_the_fully_shaped_fixture():
-    assert library.validate_definition(_definition()) == []
+@pytest.mark.parametrize(
+    ("overrides", "kwargs"),
+    [
+        ({}, {}),
+        ({"relation_kinds": []}, {}),
+        ({"style": {"supports_groups": True}}, {}),
+        ({}, {}),
+        ({"overlays": ["changes"]}, {"known_overlay_providers": {"changes"}}),
+        ({"context": None}, {"known_context_providers": {"patterns"}}),
+        ({"review": None}, {}),
+    ],
+    ids=[
+        "fully-shaped-fixture",
+        "empty-relation-kinds",
+        "inline-style-dict",
+        "new-fields-defaulted-when-absent",
+        "known-overlay",
+        "null-context",
+        "null-review",
+    ],
+)
+def test_validate_definition_accepts(overrides, kwargs):
+    definition = {**_definition(), **overrides}
+
+    assert library.validate_definition(definition, **kwargs) == []
 
 
-def test_validate_definition_rejects_a_string_layout_instead_of_an_object():
-    definition = {**_definition(), "layout": "horizontal"}
+@pytest.mark.parametrize(
+    ("overrides", "kwargs", "field"),
+    [
+        ({"layout": "horizontal"}, {}, "layout"),
+        ({"grouping": "none"}, {}, "grouping"),
+        ({"relation_kinds": ["request", "response"]}, {}, "relation_kinds"),
+        ({"overlays": "changes"}, {}, "overlays"),
+        ({"overlays": ["changes"]}, {"known_overlay_providers": {"plan"}}, "overlays"),
+        ({"context": "bogus"}, {"known_context_providers": {"patterns"}}, "context"),
+        ({"checks": {"shape": "nested"}}, {}, "checks"),
+        ({"review": {"axis": "vibes", "agent_factory": "x"}}, {}, "review"),
+    ],
+    ids=[
+        "string-layout",
+        "string-grouping",
+        "bare-string-relation-kinds",
+        "non-list-overlays",
+        "unknown-overlay",
+        "unknown-context-provider",
+        "bad-checks-shape",
+        "review-with-unknown-axis",
+    ],
+)
+def test_validate_definition_rejects(overrides, kwargs, field):
+    definition = {**_definition(), **overrides}
 
-    problems = library.validate_definition(definition)
+    problems = library.validate_definition(definition, **kwargs)
 
-    assert any("layout" in problem for problem in problems)
-
-
-def test_validate_definition_rejects_a_string_grouping_instead_of_an_object():
-    definition = {**_definition(), "grouping": "none"}
-
-    problems = library.validate_definition(definition)
-
-    assert any("grouping" in problem for problem in problems)
-
-
-def test_validate_definition_rejects_bare_string_relation_kinds():
-    definition = {**_definition(), "relation_kinds": ["request", "response"]}
-
-    problems = library.validate_definition(definition)
-
-    assert any("relation_kinds" in problem for problem in problems)
-
-
-def test_validate_definition_accepts_empty_relation_kinds():
-    definition = {**_definition(), "relation_kinds": []}
-
-    assert library.validate_definition(definition) == []
+    assert any(field in problem for problem in problems)
 
 
 def test_delete_type_missing_returns_false():
@@ -154,76 +178,6 @@ def test_load_type_malformed_file_returns_none(tmp_path):
 def test_save_type_rejects_invalid_definition(definition, match):
     with pytest.raises(ValueError, match=match):
         library.save_type(definition)
-
-
-def test_validate_definition_accepts_an_inline_style_dict():
-    definition = {**_definition(), "style": {"supports_groups": True}}
-
-    assert library.validate_definition(definition) == []
-
-
-def test_validate_definition_defaults_new_fields_when_absent():
-    assert library.validate_definition(_definition()) == []
-
-
-def test_validate_definition_rejects_a_non_list_overlays():
-    definition = {**_definition(), "overlays": "changes"}
-
-    problems = library.validate_definition(definition)
-
-    assert any("overlays" in problem for problem in problems)
-
-
-def test_validate_definition_rejects_an_unknown_overlay_when_known_set_given():
-    definition = {**_definition(), "overlays": ["changes"]}
-
-    problems = library.validate_definition(definition, known_overlay_providers={"plan"})
-
-    assert any("overlays" in problem for problem in problems)
-
-
-def test_validate_definition_accepts_a_known_overlay():
-    definition = {**_definition(), "overlays": ["changes"]}
-
-    problems = library.validate_definition(definition, known_overlay_providers={"changes"})
-
-    assert problems == []
-
-
-def test_validate_definition_rejects_an_unknown_context_provider():
-    definition = {**_definition(), "context": "bogus"}
-
-    problems = library.validate_definition(definition, known_context_providers={"patterns"})
-
-    assert any("context" in problem for problem in problems)
-
-
-def test_validate_definition_accepts_a_null_context():
-    definition = {**_definition(), "context": None}
-
-    assert library.validate_definition(definition, known_context_providers={"patterns"}) == []
-
-
-def test_validate_definition_rejects_a_bad_checks_shape():
-    definition = {**_definition(), "checks": {"shape": "nested"}}
-
-    problems = library.validate_definition(definition)
-
-    assert any("checks" in problem for problem in problems)
-
-
-def test_validate_definition_rejects_a_review_with_unknown_axis():
-    definition = {**_definition(), "review": {"axis": "vibes", "agent_factory": "x"}}
-
-    problems = library.validate_definition(definition)
-
-    assert any("review" in problem for problem in problems)
-
-
-def test_validate_definition_accepts_a_null_review():
-    definition = {**_definition(), "review": None}
-
-    assert library.validate_definition(definition) == []
 
 
 def test_save_type_enforces_max_types(monkeypatch):

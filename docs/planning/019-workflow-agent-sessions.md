@@ -1,6 +1,6 @@
 # 019 — Workflow agent sessions: per-step agent, input, provider/model
 
-Status: In progress (Stages 0-1 done on `feat/workflow-agent-sessions`, branched from `stage`)
+Status: In progress (Stages 0-2 done on `feat/workflow-agent-sessions`, branched from `stage`)
 
 Design: the "Agents & Workflows Panel Redesign" canvas, https://claude.ai/artifact/UpBEzW3ptZkPhw1dqXQFDR (boards 2, 3, 6, 7, 7b, 8, 9, 10, 11). C# bridge only, like the rest of workflows (`docs/architecture/workflows.md`).
 
@@ -45,6 +45,7 @@ A workflow step can only start a fresh agent, with or without the previous step'
 
 ### Stage 2 — Usage and chain length
 
+- Done. Thresholds and the window table are constants in `Workflows/WorkflowLimits.cs` (the C# bridge has no config file to put them in). The run DTO carries per step `chainLength` and a server-computed `chainWarning`, and `usage` gains `model` and `contextWindow`, so the web needs neither the walk nor the thresholds.
 - `Agents/Transcripts.cs`: `ReadUsage(sessionId, worktree)` reads the last assistant entry's `usage` in the claude JSONL transcript (input + cache read + cache creation = context size). Injectable like `sessionFinder`.
 - Runner writes `StepRecord.Usage` in `Snapshot`. Chain length is computed from the definition (follow continue links), exposed on the run DTO per step so the web does not repeat the walk.
 - `config`: `workflowChainWarnSteps` (3), `workflowContextWarnRatio` (0.6), and a model to context-window table (default 200k).

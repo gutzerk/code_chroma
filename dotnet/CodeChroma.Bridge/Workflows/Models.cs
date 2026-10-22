@@ -70,6 +70,12 @@ public sealed class StepRecord
 
     /// <summary>The step whose session this step resumed (forked), when it did.</summary>
     public string? ResumedFrom { get; set; }
+
+    /// <summary>How many steps the session this step runs in spans (1 unless it continues); recomputed from the definition on every read.</summary>
+    public int ChainLength { get; set; } = 1;
+
+    /// <summary>The chain is long or the context is near the model's window (<see cref="WorkflowLimits"/>); recomputed on every read.</summary>
+    public bool ChainWarning { get; set; }
 }
 
 /// <summary>Token counts of a step's session as its CLI transcript reports them; context = input + cache read + cache creation.</summary>
@@ -79,6 +85,10 @@ public sealed class StepUsage
     public long InputTokens { get; set; }
     public long OutputTokens { get; set; }
     public long CacheReadTokens { get; set; }
+    public string? Model { get; set; }
+
+    /// <summary>The context window of <see cref="Model"/> per <see cref="WorkflowLimits.ContextWindow"/>.</summary>
+    public long ContextWindow { get; set; }
 }
 
 /// <summary>The per-step agent modes and how a continue step finds its source.</summary>

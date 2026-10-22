@@ -1,6 +1,6 @@
 import { createScriptedClient, type ScriptedClient } from "./scriptedSession";
 
-export const DIAGRAM_CHOICES = [{ label: "Design patterns", recipe: "patterns" }] as const;
+const DIAGRAM_CHOICES = [{ label: "Design patterns", recipe: "patterns" }] as const;
 
 export interface DrawDiagramHooks {
   onChosen: () => void;

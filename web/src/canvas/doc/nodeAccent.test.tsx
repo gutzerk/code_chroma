@@ -105,16 +105,10 @@ describe("accentFor", () => {
   // "Band + meta row, ghost no-code": plan_kind no longer touches accentFor's border classes at
   // all -- it only ever drives NodeTopBand now (see that describe block below).
   // diagram_resolver.py's _stamp_no_code_reason: a resolver-computed reason a box has no node_id.
-  it("gives a conceptual no-code box its solid-border ghost class", () => {
-    const accent = accentFor(element("custom", { no_code_reason: "conceptual" }));
+  it.each(["conceptual", "unresolved"])("gives a %s no-code box its solid-border ghost class", (reason) => {
+    const accent = accentFor(element("custom", { no_code_reason: reason }));
 
-    expect(accent.className).toBe("no-code-conceptual");
-  });
-
-  it("gives an unresolved no-code box its own solid-border ghost class", () => {
-    const accent = accentFor(element("custom", { no_code_reason: "unresolved" }));
-
-    expect(accent.className).toBe("no-code-unresolved");
+    expect(accent.className).toBe(`no-code-${reason}`);
   });
 
   it("gives no no-code class for a planned box -- 'planned' isn't a recognized reason", () => {
@@ -148,14 +142,11 @@ describe("NodeTopBand", () => {
     expect(screen.getByTestId("canvas-node-order-badge")).toHaveTextContent("1");
   });
 
-  it("renders nothing when neither plan_kind nor order is authored", () => {
-    render(<NodeTopBand element={element("custom", {})} />);
-
-    expect(screen.queryByTestId("canvas-node-top-band")).not.toBeInTheDocument();
-  });
-
-  it("renders nothing for an unrecognized plan_kind value", () => {
-    render(<NodeTopBand element={element("custom", { plan_kind: "rename" })} />);
+  it.each([
+    ["neither plan_kind nor order is authored", {}],
+    ["an unrecognized plan_kind value", { plan_kind: "rename" }],
+  ])("renders nothing when %s", (_name, meta) => {
+    render(<NodeTopBand element={element("custom", meta)} />);
 
     expect(screen.queryByTestId("canvas-node-top-band")).not.toBeInTheDocument();
   });
@@ -163,45 +154,24 @@ describe("NodeTopBand", () => {
 
 // The ADD/MODIFY/DELETE labeled chip, driven by Impact's authored meta.status (type-impact.md).
 describe("ImpactStatusChip", () => {
-  it("renders ADD for a new-status impact box", () => {
-    render(<ImpactStatusChip element={element("impact", { status: "new" })} />);
+  it.each([
+    ["ADD for a new-status impact box", { status: "new" }, undefined, "ADD"],
+    // Form (data/Форма для задачи): a mark prefixes the status, not the bare label.
+    ["MODIFY for a modified-status impact box", { status: "modified" }, undefined, "~ MODIFY"],
+    ["the real change count as '· N' when supplied", { status: "modified" }, 17, "~ MODIFY · 17"],
+    ["DELETE for a deleted-status impact box", { status: "deleted" }, undefined, "− DELETE"],
+  ])("renders %s", (_name, meta, count, text) => {
+    render(<ImpactStatusChip element={element("impact", meta)} count={count} />);
 
-    expect(screen.getByTestId("impact-status-chip")).toHaveTextContent("ADD");
+    expect(screen.getByTestId("impact-status-chip")).toHaveTextContent(text);
   });
 
-  it("renders MODIFY for a modified-status impact box", () => {
-    render(<ImpactStatusChip element={element("impact", { status: "modified" })} />);
-
-    // Form (data/Форма для задачи): a mark prefixes the status — "~ MODIFY", not the bare label.
-    expect(screen.getByTestId("impact-status-chip")).toHaveTextContent("~ MODIFY");
-  });
-
-  it("appends the real change count as '· N' when supplied", () => {
-    render(<ImpactStatusChip element={element("impact", { status: "modified" })} count={17} />);
-
-    expect(screen.getByTestId("impact-status-chip")).toHaveTextContent("~ MODIFY · 17");
-  });
-
-  it("renders DELETE for a deleted-status impact box", () => {
-    render(<ImpactStatusChip element={element("impact", { status: "deleted" })} />);
-
-    expect(screen.getByTestId("impact-status-chip")).toHaveTextContent("− DELETE");
-  });
-
-  it("renders nothing for a context-status impact box", () => {
-    render(<ImpactStatusChip element={element("impact", { status: "context" })} />);
-
-    expect(screen.queryByTestId("impact-status-chip")).not.toBeInTheDocument();
-  });
-
-  it("renders nothing when status is absent", () => {
-    render(<ImpactStatusChip element={element("impact", {})} />);
-
-    expect(screen.queryByTestId("impact-status-chip")).not.toBeInTheDocument();
-  });
-
-  it("renders nothing for a non-impact render kind even with a valid status", () => {
-    render(<ImpactStatusChip element={element("custom", { status: "new" })} />);
+  it.each([
+    ["a context-status impact box", "impact", { status: "context" }],
+    ["an impact box with no status", "impact", {}],
+    ["a non-impact render kind even with a valid status", "custom", { status: "new" }],
+  ] as const)("renders nothing for %s", (_name, kind, meta) => {
+    render(<ImpactStatusChip element={element(kind, meta)} />);
 
     expect(screen.queryByTestId("impact-status-chip")).not.toBeInTheDocument();
   });
@@ -209,28 +179,21 @@ describe("ImpactStatusChip", () => {
 
 // meta.no_code_reason (diagram_resolver.py's _stamp_no_code_reason) as its own labeled chip.
 describe("NoCodeChip", () => {
-  it("renders CONCEPTUAL as an outlined meta-row chip, not the impact chip's filled shape", () => {
-    render(<NoCodeChip element={element("custom", { no_code_reason: "conceptual" })} />);
+  it.each([
+    ["conceptual", "CONCEPTUAL"],
+    ["unresolved", "UNRESOLVED"],
+  ])("renders %s as an outlined meta-row chip with its own color class", (reason, label) => {
+    render(<NoCodeChip element={element("custom", { no_code_reason: reason })} />);
 
-    expect(screen.getByTestId("no-code-chip")).toHaveTextContent("CONCEPTUAL");
-    expect(screen.getByTestId("no-code-chip")).toHaveClass("node-meta-chip", "node-meta-chip--no-code-conceptual");
+    expect(screen.getByTestId("no-code-chip")).toHaveTextContent(label);
+    expect(screen.getByTestId("no-code-chip")).toHaveClass("node-meta-chip", `node-meta-chip--no-code-${reason}`);
   });
 
-  it("renders UNRESOLVED as a meta-row chip with its own color class", () => {
-    render(<NoCodeChip element={element("custom", { no_code_reason: "unresolved" })} />);
-
-    expect(screen.getByTestId("no-code-chip")).toHaveTextContent("UNRESOLVED");
-    expect(screen.getByTestId("no-code-chip")).toHaveClass("node-meta-chip", "node-meta-chip--no-code-unresolved");
-  });
-
-  it("renders nothing for a planned box -- 'planned' isn't a recognized reason", () => {
-    render(<NoCodeChip element={element("custom", { no_code_reason: "planned" })} />);
-
-    expect(screen.queryByTestId("no-code-chip")).not.toBeInTheDocument();
-  });
-
-  it("renders nothing when no_code_reason is absent", () => {
-    render(<NoCodeChip element={element("custom", {})} />);
+  it.each([
+    ["a planned box -- 'planned' isn't a recognized reason", { no_code_reason: "planned" }],
+    ["a box with no no_code_reason", {}],
+  ])("renders nothing for %s", (_name, meta) => {
+    render(<NoCodeChip element={element("custom", meta)} />);
 
     expect(screen.queryByTestId("no-code-chip")).not.toBeInTheDocument();
   });

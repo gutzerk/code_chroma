@@ -183,44 +183,37 @@ def test_duplicate_sibling_id_is_reported_as_duplicate(tmp_path):
     assert "DUPLICATE 'dup' is claimed by 2 blocks" in result.stdout
 
 
-def test_unknown_kind_is_advisory_only(tmp_path):
+@pytest.mark.parametrize(
+    ("field", "value", "finding"),
+    [
+        ("kind", "databse", "BADKIND engine kind='databse' is not a recognized icon kind"),
+        ("icon", "aws", "BADICON engine icon='aws' is not a recognized brand icon"),
+    ],
+    ids=["unknown-kind", "unknown-icon"],
+)
+def test_unknown_kind_or_icon_on_a_child_is_advisory_only(tmp_path, field, value, finding):
     child = {"id": "engine", "name": "Engine", "path": "src", "node_id": "dir::src"}
-    children = [{**child, "kind": "databse"}]
+    children = [{**child, field: value}]
 
     result = _run(tmp_path, _diagram(children), "--shape-advisory")
 
     assert result.returncode == 0
-    assert "BADKIND engine kind='databse' is not a recognized icon kind" in result.stdout
+    assert finding in result.stdout
 
 
-def test_recognized_kind_is_silent(tmp_path):
+@pytest.mark.parametrize(
+    ("field", "value", "code"),
+    [("kind", "database", "BADKIND"), ("icon", "stripe", "BADICON")],
+    ids=["recognized-kind", "recognized-icon"],
+)
+def test_recognized_kind_or_icon_on_a_child_is_silent(tmp_path, field, value, code):
     child = {"id": "engine", "name": "Engine", "path": "src", "node_id": "dir::src"}
-    children = [{**child, "kind": "database"}]
+    children = [{**child, field: value}]
 
     result = _run(tmp_path, _diagram(children), "--shape-advisory")
 
     assert result.returncode == 0
-    assert "BADKIND" not in result.stdout
-
-
-def test_unknown_icon_on_a_child_is_advisory_only(tmp_path):
-    child = {"id": "engine", "name": "Engine", "path": "src", "node_id": "dir::src"}
-    children = [{**child, "icon": "aws"}]
-
-    result = _run(tmp_path, _diagram(children), "--shape-advisory")
-
-    assert result.returncode == 0
-    assert "BADICON engine icon='aws' is not a recognized brand icon" in result.stdout
-
-
-def test_recognized_icon_on_a_child_is_silent(tmp_path):
-    child = {"id": "engine", "name": "Engine", "path": "src", "node_id": "dir::src"}
-    children = [{**child, "icon": "stripe"}]
-
-    result = _run(tmp_path, _diagram(children), "--shape-advisory")
-
-    assert result.returncode == 0
-    assert "BADICON" not in result.stdout
+    assert code not in result.stdout
 
 
 def test_unknown_icon_on_an_actor_is_reported(tmp_path):

@@ -561,10 +561,10 @@ expand button, folder and color boxes all go through `layoutStore`/`collapsedLay
 - Arrange (`leftpanel/ArrangeSection.tsx`, `arrangeLayout.ts`): side by side / stack / 2-column grid over
   the ticked diagrams. Translate-only: positions move, element scale is not applied. Written through
   `commitCanvasPositions` (the `apply_batch` write point); clicking the active mode again restores the
-  pre-arrange positions (`arrangeStore`). The origin comes from `chromeInsets` and the saved camera at
-  click time. Epics content reflow retains the layer anchor on both axes so fitting a card after
-  Arrange or a frame drag does not snap the diagram back to x=0. Internal block offsets remain
-  unchanged when switching Arrange modes, and turning the mode off restores the original positions.
+  diagram locations (`arrangeStore`). The store accumulates only the translations introduced by
+  Arrange; leaving the mode subtracts those from the current positions, preserving any blocks the
+  user moved while arranging instead of overwriting them with the initial snapshot. This also holds
+  across mode switches. The origin comes from `chromeInsets` and the saved camera at click time.
 - `AgentWindowLayer` hides floating windows (`visibility: hidden`, `data-hidden`) in `full`, and renders
   no window (and `AgentTerminalDock` no panel terminal) for the agent `AgentFullScreen` shows, so one
   PTY never has two xterms; that agent's terminal remounts (screen redraw, scrollback is not kept) on

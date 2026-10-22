@@ -9,6 +9,8 @@ public sealed class WorkspaceWatchers : IDisposable
     private readonly FileSystemWatcher _watcher;
     private readonly Debouncer _repo;
     private readonly Dictionary<string, Debouncer> _diagrams = [];
+    private readonly Debouncer _custom;
+    private readonly Debouncer _featurePlans;
     private readonly Debouncer _traces;
     private readonly Debouncer _newDirectories;
     private readonly HashSet<string> _pendingDirectories = [];
@@ -19,6 +21,8 @@ public sealed class WorkspaceWatchers : IDisposable
         _repo = new Debouncer(TimeSpan.FromMilliseconds(BridgeLimits.RepoDebounceMs), OnRepoChange);
         foreach (var kind in Workspace.DiagramKinds)
             _diagrams[kind] = new Debouncer(TimeSpan.FromMilliseconds(BridgeLimits.WatcherDebounceMs), () => workspace.Emit(new JsonObject { ["type"] = kind }));
+        _custom = new Debouncer(TimeSpan.FromMilliseconds(BridgeLimits.WatcherDebounceMs), () => workspace.Emit(new JsonObject { ["type"] = "custom" }));
+        _featurePlans = new Debouncer(TimeSpan.FromMilliseconds(BridgeLimits.WatcherDebounceMs), () => workspace.Emit(new JsonObject { ["type"] = "feature-plan" }));
         _traces = new Debouncer(TimeSpan.FromMilliseconds(BridgeLimits.WatcherDebounceMs), () => workspace.Emit(new JsonObject { ["type"] = "trace" }));
         _newDirectories = new Debouncer(TimeSpan.FromMilliseconds(BridgeLimits.WatcherDebounceMs), NotifyNewDirectories);
         _watcher = new FileSystemWatcher(workspace.Root)
@@ -58,6 +62,16 @@ public sealed class WorkspaceWatchers : IDisposable
             var path = _workspace.DiagramPath(kind);
             if (UnderNewDirectory(path) && File.Exists(path)) _diagrams[kind].Trigger();
         }
+        foreach (var (folder, debouncer) in new[] { ("custom", _custom), ("feature-plan", _featurePlans) })
+        {
+            var folderPath = Path.Combine(_workspace.Root, ".codechroma", "diagrams", folder);
+            if (!Directory.Exists(folderPath)) continue;
+            foreach (var directory in Directory.EnumerateDirectories(folderPath))
+            {
+                var path = Path.Combine(directory, Path.GetFileName(directory) + ".json");
+                if (UnderNewDirectory(path) && File.Exists(path)) debouncer.Trigger();
+            }
+        }
         var traces = _workspace.TracesDir + Path.DirectorySeparatorChar;
         if (UnderNewDirectory(traces) && Directory.Exists(traces) && Directory.EnumerateFiles(traces).Any())
             _traces.Trigger();
@@ -69,6 +83,16 @@ public sealed class WorkspaceWatchers : IDisposable
         if (parts is [".codechroma", "diagrams", var kind, var file] && file == kind + ".json" && _diagrams.TryGetValue(kind, out var diagram))
         {
             diagram.Trigger();
+            return;
+        }
+        if (parts is [".codechroma", "diagrams", "custom", var customType, var customFile] && customFile == customType + ".json")
+        {
+            _custom.Trigger();
+            return;
+        }
+        if (parts is [".codechroma", "diagrams", "feature-plan", var slug, var planFile] && planFile == slug + ".json")
+        {
+            _featurePlans.Trigger();
             return;
         }
         if (parts is [".codechroma", "traces", _])
@@ -102,6 +126,8 @@ public sealed class WorkspaceWatchers : IDisposable
         _repo.Dispose();
         _newDirectories.Dispose();
         _traces.Dispose();
+        _custom.Dispose();
+        _featurePlans.Dispose();
         foreach (var d in _diagrams.Values) d.Dispose();
     }
 }

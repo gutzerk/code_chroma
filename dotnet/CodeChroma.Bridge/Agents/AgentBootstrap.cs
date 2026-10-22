@@ -28,6 +28,7 @@ public static class AgentBootstrap
     private static readonly HashSet<string> HeavyDirs = [.. BridgeLimits.IgnoredDirs, ".claude"];
     private static readonly string[] SecretGlobs = [".env", ".env.*", "*.pem", "*.key", "id_rsa", "id_rsa.*"];
     private static readonly HashSet<string> AlwaysIgnored = [".git", ".codechroma"];
+    private static readonly string[] MacMediaFolders = ["Music", "Pictures", "Movies", "Library"];
 
     /// <summary>Repository state plus, when initialization is possible, the plan for the first commit.</summary>
     public static JsonObject Preflight(string root)
@@ -121,6 +122,16 @@ public static class AgentBootstrap
 
     private sealed record ScannedFile(string Relative, long Size);
 
+    /// <summary>True for a direct child of the home folder that macOS guards with a TCC prompt (Music, Pictures, Movies, Library).</summary>
+    public static bool IsMacProtectedFolder(string path, string? home = null, bool? isMac = null)
+    {
+        home ??= Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
+        if (string.IsNullOrEmpty(home) || !(isMac ?? OperatingSystem.IsMacOS())) return false;
+        var parent = Path.GetDirectoryName(Path.TrimEndingDirectorySeparator(Path.GetFullPath(path)));
+        return parent is not null && SamePath(parent, Path.GetFullPath(home))
+            && MacMediaFolders.Contains(Path.GetFileName(path), StringComparer.Ordinal);
+    }
+
     private static List<ScannedFile> Walk(string root)
     {
         var found = new List<ScannedFile>();
@@ -135,6 +146,7 @@ public static class AgentBootstrap
             foreach (var entry in entries)
             {
                 if (AlwaysIgnored.Contains(Path.GetFileName(entry))) continue;
+                if (IsMacProtectedFolder(entry)) continue;
                 var attributes = File.GetAttributes(entry);
                 if (attributes.HasFlag(FileAttributes.Directory) && !attributes.HasFlag(FileAttributes.ReparsePoint))
                 {

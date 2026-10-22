@@ -25,7 +25,7 @@ cover a path; see `drawing-rules.md` for the full substitution/fallback rule.
 **1. The structural material — classes, their shape, and how they call each other:**
 
 ```bash
-curl -s http://localhost:8000/repos/${CODECHROMA_WORKSPACE_ID:-default}/patterns/context
+curl -s ${CODECHROMA_BRIDGE_URL:-http://localhost:8000}/repos/${CODECHROMA_WORKSPACE_ID:-default}/patterns/context
 ```
 
 Returns `{"classes": [...], "heuristic_candidates": [...]}`. Each class entry carries `id` (a
@@ -50,8 +50,8 @@ connected to what it wraps), skim the likely entrypoint/startup/service-registry
 **2. Real repo paths, for any infra/external node you add that should link to real code:**
 
 ```bash
-curl -s 'http://localhost:8000/repos/${CODECHROMA_WORKSPACE_ID:-default}/structure?depth=2'
-curl -s 'http://localhost:8000/repos/${CODECHROMA_WORKSPACE_ID:-default}/structure?root=dir::src&depth=2'
+curl -s "${CODECHROMA_BRIDGE_URL:-http://localhost:8000}/repos/${CODECHROMA_WORKSPACE_ID:-default}/structure?depth=2"
+curl -s "${CODECHROMA_BRIDGE_URL:-http://localhost:8000}/repos/${CODECHROMA_WORKSPACE_ID:-default}/structure?root=dir::src&depth=2"
 ```
 
 Copy `path`/`node_id` verbatim from `patterns/context` (for classes) or `structure` (for
@@ -63,7 +63,7 @@ confirming a Facade's callers, or checking a non-candidate class's real usage be
 `heuristic_candidates` already seeded), fetch just that file:
 
 ```bash
-curl -s 'http://localhost:8000/repos/${CODECHROMA_WORKSPACE_ID:-default}/dependency-digest?path=src/codechroma/patterns/detector.py'
+curl -s "${CODECHROMA_BRIDGE_URL:-http://localhost:8000}/repos/${CODECHROMA_WORKSPACE_ID:-default}/dependency-digest?path=src/codechroma/patterns/detector.py"
 ```
 
 Don't fetch the whole digest by default — it's for spot-checks, not part of the standard two-call flow.
@@ -71,7 +71,7 @@ Don't fetch the whole digest by default — it's for spot-checks, not part of th
 ## Where the file goes
 
 ```bash
-curl -s http://localhost:8000/repos/${CODECHROMA_WORKSPACE_ID:-default}/patterns-path
+curl -s ${CODECHROMA_BRIDGE_URL:-http://localhost:8000}/repos/${CODECHROMA_WORKSPACE_ID:-default}/patterns-path
 # -> {"repo_root":"/abs/path/to/repo","patterns_path":"/abs/path/to/repo/.codechroma/diagrams/patterns/patterns.json"}
 ```
 

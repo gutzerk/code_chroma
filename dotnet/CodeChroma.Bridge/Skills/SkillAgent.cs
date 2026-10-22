@@ -38,6 +38,9 @@ public sealed record RunOptions(IReadOnlyList<string> ExtraArgs)
 
     /// <summary>Pre-gathered architecture context (see <c>DiagramContext</c>) appended to the prompt; null leaves the agent to search itself.</summary>
     public string? Context { get; init; }
+
+    /// <summary>Runs after a clean exit with a valid artifact; a non-null message turns the run into that error.</summary>
+    public Func<string?>? PostRunCheck { get; init; }
 }
 
 /// <summary>Per-kind timeouts and default model (config.py's SkillAgentTimeoutsConfig).</summary>
@@ -335,7 +338,7 @@ public sealed class SkillAgent(SkillAgentSpec spec, CliResolver resolver, Runtim
         var adapter = CliAdapters.All[cli.AdapterKey];
         var env = new Dictionary<string, string>(resolved.Env);
         foreach (var (k, v) in cli.EnvOverrides) env[k] = v;
-        env["codechroma_WORKSPACE_ID"] = repoId;
+        BridgeAddress.ExportIdentity(env, repoId, BareSkill.BridgeUrl);
         var staticPrompt = prompt ?? Spec.Prompt ?? throw new InvalidOperationException("RunCli needs a prompt");
         // An explicit --model re-triggers the CLI rejection; omit it when ANTHROPIC_MODEL carries the model.
         var argvModel = cli.EnvOverrides.ContainsKey("ANTHROPIC_MODEL") ? "" : cli.Model;
@@ -419,7 +422,8 @@ public sealed class SkillAgent(SkillAgentSpec spec, CliResolver resolver, Runtim
                 return new JobState("error", FailureMessage(process.ExitCode, stderrTail.ToString(), GetOutput(repoId)));
             }
         }
-        if (HasArtifact(repoRoot, repoId)) return IdleState;
+        if (HasArtifact(repoRoot, repoId))
+            return options.PostRunCheck?.Invoke() is { } problem ? new JobState("error", problem) : IdleState;
         Restore(repoRoot, repoId, snapshot);
         return new JobState("error", Spec.InvalidError);
     }

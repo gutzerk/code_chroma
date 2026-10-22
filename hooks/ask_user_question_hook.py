@@ -23,6 +23,12 @@ def _ask(base_url: str, workspace_id: str, token: str, payload: dict, timeout: f
         return json.loads(response.read())
 
 
+def env(name: str, default: str = "") -> str:
+    """The CODECHROMA_* variable, falling back to the lower-cased spelling older builds used."""
+    legacy = name.replace("CODECHROMA_", "codechroma_", 1)
+    return os.environ.get(name) or os.environ.get(legacy) or default
+
+
 def build_payload(question: dict, index: int, total: int, session_id: str) -> dict:
     """One AskUserQuestion entry as an `ask_user` request; option 1 is the recommendation."""
     options = [
@@ -35,7 +41,7 @@ def build_payload(question: dict, index: int, total: int, session_id: str) -> di
     return {
         "question": question.get("question", ""), "options": options, "session_id": session_id,
         "total": total, "allow_custom": True, "allow_skip": True,
-        "agent_id": os.environ.get("codechroma_WORKSPACE_ID"),
+        "agent_id": env("CODECHROMA_WORKSPACE_ID") or None,
     }
 
 
@@ -62,9 +68,9 @@ def decision(tool_input: dict, answers: dict[str, str]) -> dict:
 
 def main() -> int:
     """Reads the hook event on stdin; prints a decision only when every question was answered."""
-    base_url = os.environ.get("codechroma_BRIDGE_URL", "").rstrip("/")
-    token = os.environ.get("codechroma_QUESTION_TOKEN", "")
-    workspace_id = os.environ.get("codechroma_WORKSPACE_ID", "")
+    base_url = env("CODECHROMA_BRIDGE_URL").rstrip("/")
+    token = env("CODECHROMA_QUESTION_TOKEN")
+    workspace_id = env("CODECHROMA_WORKSPACE_ID")
     if not (base_url and token and workspace_id):
         return 0
     try:

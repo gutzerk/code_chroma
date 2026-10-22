@@ -3,6 +3,7 @@ import type { AgentClient } from "./agentClient";
 import type { AgentRecord } from "../state/types";
 import { PR_CLIENT_STUB } from "./stubAgentClient";
 import { agentStore } from "./agentStore";
+import { layoutStore } from "../canvas/layout/layoutStore";
 import { workspaceStore } from "./workspaceStore";
 import {
   closeAgentWindow,
@@ -72,6 +73,7 @@ function record(overrides: Partial<AgentRecord> = {}): AgentRecord {
 beforeEach(() => {
   agentStore.reset();
   workspaceStore.reset();
+  layoutStore.reset();
 });
 
 afterEach(() => {
@@ -194,6 +196,22 @@ describe("openAgentWindow", () => {
     openAgentWindow(client(), "helper");
 
     expect(agentStore.getActiveWorkspace()).toBe("refund-flow");
+  });
+
+  it("keeps full screen when switching to another agent", () => {
+    layoutStore.setAgentsMode("full");
+
+    openAgentWindow(client(), "helper");
+
+    expect(layoutStore.getState().agentsMode).toBe("full");
+  });
+
+  it("reopens a collapsed agents strip", () => {
+    layoutStore.setAgentsMode("collapsed");
+
+    openAgentWindow(client(), "helper");
+
+    expect(layoutStore.getState().agentsMode).toBe("normal");
   });
 });
 

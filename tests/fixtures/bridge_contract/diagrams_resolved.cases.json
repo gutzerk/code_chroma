@@ -93,7 +93,7 @@
         {"http": {"method": "GET", "path": "/repos/main/sequence"}, "expect": {"status": 200, "json": {}}},
         {"fs": "write", "path": ".codechroma/diagrams/sequence/sequence.json", "text": "{\"nodes\": [{\"id\": \"p1\", \"name\": \"P1\"}, {\"id\": \"p2\", \"name\": \"P2\"}], \"relations\": [{\"from\": \"p1\", \"to\": \"p1\", \"label\": \"self\"}, {\"from\": \"p1\", \"to\": \"p2\", \"label\": \"call\"}]}"},
         {"http": {"method": "GET", "path": "/repos/main/sequence"}, "expect": {"status": 200, "checks": [
-          {"path": "$.type", "equals": "sequence"}, {"path": "$.has_diagram", "equals": true}, {"path": "$.relations", "count": 1}, {"path": "$.groups", "count": 0}
+          {"path": "$.type", "equals": "sequence"}, {"path": "$.has_diagram", "equals": true}, {"path": "$.relations", "count": 2}, {"path": "$.groups", "count": 0}
         ]}}
       ]
     }

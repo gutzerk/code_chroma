@@ -60,8 +60,10 @@ Logic is UI-free in `CodeChroma.Shell`; `CodeChroma.Shell.App` only renders.
 - 🔴 `Program.Main` calls `VelopackApp.Build().Run()` first so Velopack's install/uninstall hooks work. Real
   install/uninstall hooks are still unverified on a real install.
 - The environment for agent PTYs and skills comes from the bridge's `RuntimeEnvironment` (login-shell PATH, see
-  [`runtime-environment.md`](runtime-environment.md)); the bridge exports `codechroma_BRIDGE_URL` (the real
-  dynamic port) so a terminal-panel agent, which has no browser, can reach it.
+  [`runtime-environment.md`](runtime-environment.md)); every agent terminal and headless skill run gets `CODECHROMA_WORKSPACE_ID` (the agent/job id) and
+  `CODECHROMA_BRIDGE_URL` (the real dynamic port, `BareSkill.BridgeUrl`) from `BridgeAddress.ExportIdentity`, so a
+  terminal-panel agent, which has no browser, can reach the right bridge. 🔴 Both names are upper-case: env
+  names are case-sensitive on macOS/Linux, and the skills and check scripts read exactly these two.
 - The bridge serves the SPA (`web/` folder next to it), so there is no `file://` origin and no CORS; both client
   contexts map the build-time `same-origin` sentinel to `window.location.origin`
   (`web/src/engine-client/sameOrigin.test.ts`).
@@ -155,6 +157,10 @@ from code and is not verified on real hardware.
 and does `result.ToString()` on the null result, an unhandleable NRE inside a native callback that aborts the app. Two guards: `UpdateHost`
 only receives tabs that are on the bridge origin (`MainWindow` filters with `IsBridgeOrigin`; empty tabs get no scripts), and `web/index.html`
 defines `window.__dispatchMessageCallback` (evals the source, always returns a string) so scripts sent to a loaded page never return null.
+
+## macOS privacy (TCC) prompts
+
+Issue #189: macOS asked to allow Apple Music / media library / photo access. The app declares no usage-description keys and needs none. The only code that walks an arbitrary folder is `AgentBootstrap.Walk` (first-commit plan for a non-repo folder); opening a home-level folder made it recurse into `~/Music`, `~/Pictures`, `~/Movies` and `~/Library`, and macOS attributes that access to CodeChroma. `AgentBootstrap.IsMacProtectedFolder` now skips those direct children of the home folder on macOS (`MacProtectedFolderTests`). 🔴 Unverified on a real macOS build: `vpk` generates `Info.plist`, so no custom keys or entitlements are shipped; if a prompt persists, find the other trigger (a spawned CLI or login shell run from `~`) rather than adding usage strings.
 
 ## CLI lookup and clipboard notes
 

@@ -40,6 +40,11 @@ const THEME = {
   brightWhite: "#e6e6e6",
 };
 
+/** Ctrl/Cmd+V (optionally with Shift): the chords that should become a native paste. */
+export function isPasteChord(event: Pick<KeyboardEvent, "ctrlKey" | "metaKey" | "altKey" | "key">): boolean {
+  return (event.ctrlKey || event.metaKey) && !event.altKey && event.key.toLowerCase() === "v";
+}
+
 export interface XtermSessionOptions {
   /** Allow-listed agent key on the bridge, e.g. "shell" or "claude". */
   agent: string;
@@ -127,6 +132,11 @@ export function useXtermSession(
     term.loadAddon(unicode11);
     term.unicode.activeVersion = "11";
     term.open(container);
+    // Leave Ctrl/Cmd+V to the browser: xterm cancelling the keydown suppresses the native paste event,
+    // and the desktop shell's clipboard fallback then raises a WebView "Insert" prompt instead of pasting.
+    term.attachCustomKeyEventHandler(
+      (event) => !(event.type === "keydown" && isPasteChord(event)),
+    );
 
     // WebGL is the difference between a repaint and a smear on a dense TUI, but a lost context
     // renders nothing at all — dispose on loss and let xterm fall back to the DOM renderer.

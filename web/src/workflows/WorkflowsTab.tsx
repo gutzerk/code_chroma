@@ -16,7 +16,7 @@ import {
   workflowActions,
   workflowStore,
 } from "./workflowStore";
-import type { WorkflowDef } from "./types";
+import { workflowInputs, type WorkflowDef } from "./types";
 
 type Dialog = { kind: "run"; workflow?: WorkflowDef } | { kind: "editor"; workflow?: WorkflowDef } | null;
 
@@ -38,7 +38,7 @@ export function WorkflowsTab() {
   const showDetail = side || activeRunId !== null;
 
   const runSaved = (workflow: WorkflowDef) => {
-    if (workflow.inputs?.length) setDialog({ kind: "run", workflow });
+    if (workflowInputs(workflow).length) setDialog({ kind: "run", workflow });
     else void actions.start(workflow.id);
   };
 

@@ -13,8 +13,9 @@ from urllib.parse import urlsplit
 
 from codechroma.config import settings
 
-URL_ENV = "codechroma_BRIDGE_URL"
-TOKEN_ENV = "codechroma_QUESTION_TOKEN"
+URL_ENV = "CODECHROMA_BRIDGE_URL"
+TOKEN_ENV = "CODECHROMA_QUESTION_TOKEN"
+WORKSPACE_ENV = "CODECHROMA_WORKSPACE_ID"
 SERVER_NAME = "codechroma"
 _LOOPBACK = "127.0.0.1"
 
@@ -71,6 +72,15 @@ def discover_base_url(argv: list[str] | None = None) -> str | None:
         if value.isdigit():
             return f"http://{_LOOPBACK}:{int(value)}"
     return None
+
+
+def identity_env(workspace_id: str) -> dict[str, str]:
+    """Env that tells skills and check scripts which workspace and bridge they belong to."""
+    base_url = discover_base_url()
+    env = {WORKSPACE_ENV: workspace_id}
+    if base_url:
+        env[URL_ENV] = base_url
+    return env
 
 
 def write_claude_config(endpoint: McpEndpoint) -> Path:

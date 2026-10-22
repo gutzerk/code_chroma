@@ -4,7 +4,7 @@ Issue [#88](https://github.com/gutzerk/code_chroma/issues/88): lets a user file 
 idea without leaving the app. The dialog first asks the bridge (`GET /issues/status`,
 `src/codechroma/bridge/routes/issues.py`) whether `gh` is installed and logged in. If so, "Create
 issue" posts through `POST /issues` (`gh issue create --repo gutzerk/code_chroma`, the user's own
-`gh` credentials — the app stores no token) and the footer links the created issue. If `gh` can't post
+`gh` credentials — the app stores no token) and a separate "Issue created" dialog (link, a thanks-for-feedback note, OK) replaces the form. If `gh` can't post
 (or there is no bridge, or `POST /issues` answers 409), the footer says so and the dialog falls back
 to opening a prefilled URL in the system browser/a new tab, which needs no credentials. Any other
 failure (e.g. 502) shows an error and does **not** open the browser: `gh` may already have filed the
@@ -36,8 +36,8 @@ open state lives in the button itself (mirrors `SettingsRailButton`).
   path, matching the issue's privacy requirement.
 - `buildIssueUrl` truncates the body (never the title/label) if the assembled URL would exceed
   `MAX_URL_LENGTH` (8000 chars), so a long description can't silently produce a dead link.
-- States: `idle` → `submitting` (button reads "Creating…", disabled) → `success` (footer note
-  swaps to "Opened in your browser…") or `error` (inline `role="alert"` message, form content
+- States: `idle` → `submitting` (button reads "Creating…", disabled) → `success` (the form is replaced by
+  the confirmation dialog, `issue-created-dialog`, with the link or "Opened in your browser…" and OK) or `error` (inline `role="alert"` message, form content
   untouched — nothing is cleared on failure).
 - Back/Cancel both call `requestClose()`: if the title or description is non-empty and the dialog
   hasn't already succeeded, it swaps the dialog body for a small inline "Discard this issue?"

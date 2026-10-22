@@ -1257,7 +1257,8 @@ body {
   filter: brightness(1.15);
 }
 
-.wiki-general-generate-button {
+.wiki-general-generate-button,
+.wiki-general-update-button {
   flex: 0 0 auto;
   height: 34px;
   padding: 0 16px;
@@ -1270,7 +1271,8 @@ body {
   cursor: pointer;
 }
 
-.wiki-general-generate-button:hover {
+.wiki-general-generate-button:hover,
+.wiki-general-update-button:hover {
   filter: brightness(1.15);
 }
 
@@ -4905,6 +4907,31 @@ button[data-copy-state="idle"][aria-label]:hover:not(:disabled) {
 
 .agent-window-button:hover {
   color: #ffffff;
+}
+
+/* The docked panel's close: a red, centred square so it reads as the destructive action. */
+.agent-terminal-dock-header .agent-window-close {
+  display: inline-grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border-radius: 8px;
+  background: #f8717126;
+  color: #f87171;
+  font-size: 1.15rem;
+  line-height: 1;
+}
+
+.agent-terminal-dock-header .agent-window-close:hover {
+  background: #f87171;
+  color: #15181f;
+}
+
+.activity-panel.is-full .agent-terminal-dock-header .agent-window-close {
+  width: 34px;
+  height: 34px;
+  font-size: 1.4rem;
 }
 
 /* The task badge beside the status-row's agent name. */

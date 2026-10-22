@@ -172,6 +172,7 @@ body,
 #root {
   height: 100%;
   margin: 0;
+  overflow: hidden;
 }
 
 body {
@@ -2305,7 +2306,14 @@ body {
   min-width: 0;
   min-height: 0;
   overflow-x: auto;
+  overflow-y: hidden;
+  /* Still scrollable by wheel/trackpad, but no always-visible bar on macOS (#191). */
+  scrollbar-width: none;
   gap: 6px;
+}
+
+.canvas-main-row::-webkit-scrollbar {
+  display: none;
 }
 
 /* The visible canvas box: positioning context for Fit All, the deleted-diff overlay and the trace

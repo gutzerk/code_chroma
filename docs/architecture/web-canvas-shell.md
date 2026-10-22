@@ -19,6 +19,8 @@ Has grown well past the "minimal canvas + navigation base" the docs in `web/READ
 `web/QUICKSTART.md` still describe — those files understate the current feature set and shouldn't be
 trusted as-is (see caveat in [`web-engine-client.md`](web-engine-client.md)).
 
+🔴 **Zoom range and scrollbars (#185, #191):** `canvasGrid.ts#MIN_SCALE` (0.05) is the zoom-out floor for wheel, buttons and fit (max stays 2.5), so a multi-diagram canvas fits a small display; the dot grid re-steps itself. `html/body/#root` are `overflow: hidden` and `.canvas-main-row` scrolls horizontally with its scrollbar hidden (`overflow-y: hidden`, `scrollbar-width: none`), so macOS shows no stray page/row bars; tests in `CanvasViewport.test.tsx` ("zoom-out floor").
+
 Everything is one continuous in-memory DOM/CSS canvas — no per-node routing. A pluggable-camera
 pan/zoom system sits on top of that canvas (wheel-zoom toward cursor, drag-to-pan, zoom in/out/reset
 buttons, per-block "Center" focus, and a "Fit All" that fits the whole canvas) — see

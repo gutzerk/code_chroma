@@ -92,7 +92,7 @@ export function CreateIssueDialog({ onDismiss }: { onDismiss: () => void }) {
   const hasContent = title.trim() !== "" || description.trim() !== "";
 
   function requestClose() {
-    if (hasContent && phase !== "success") {
+    if (hasContent) {
       setConfirmingDiscard(true);
       return;
     }

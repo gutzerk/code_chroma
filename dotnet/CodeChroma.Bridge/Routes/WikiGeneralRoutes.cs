@@ -12,8 +12,11 @@ public static class WikiGeneralRoutes
 {
     private const string ReadOnlyMessage = "a pull-request workspace is read-only";
 
-    private static SkillAgent Active(SkillAgents agents, Workspace ws) =>
-        agents[WikiGeneral.KindUpdate].GetState(ws.Id).State == "generating" ? agents[WikiGeneral.KindUpdate] : agents[WikiGeneral.Kind];
+    private static SkillAgent Active(SkillAgents agents, Workspace ws)
+    {
+        var update = agents[WikiGeneral.KindUpdate].GetState(ws.Id);
+        return update.State == "generating" || update.Error is not null ? agents[WikiGeneral.KindUpdate] : agents[WikiGeneral.Kind];
+    }
 
     private static JsonObject Merge(JobState state, bool has, bool stale, bool empty) => new()
     {
@@ -65,6 +68,7 @@ public static class WikiGeneralRoutes
                     if (other.GetState(ws.Id).State == "generating")
                         return Reply.Error(409, $"a {(kind == WikiGeneral.Kind ? "update" : "generate")} run is already in progress");
                     if (agent.GetState(ws.Id).State == "generating") return Results.Json(agent.GetState(ws.Id), BridgeJson.Default.JobState);
+                    if (kind == WikiGeneral.Kind) await other.Forget(ws.Id);
                     if (kind == WikiGeneral.Kind && !WikiGeneral.HasDocumentableContent(ws.Root))
                         return Results.Json(await agent.MarkDone(ws.Id, onChange, WikiGeneral.NoDocumentableContentError), BridgeJson.Default.JobState);
                     if (await Task.Run(() => WikiGeneral.PrepareNewRun(ws)) is { } syncError)
@@ -110,6 +114,7 @@ public static class WikiGeneralRoutes
             {
                 if (agents[WikiGeneral.KindUpdate].GetState(ws.Id).State == "generating") return Reply.Error(409, "a update run is already in progress");
                 if (agent.GetState(ws.Id).State == "generating") return Results.Json(agent.GetState(ws.Id), BridgeJson.Default.JobState);
+                await agents[WikiGeneral.KindUpdate].Forget(ws.Id);
                 if (!WikiGeneral.HasDocumentableContent(ws.Root))
                     return Results.Json(await agent.MarkDone(ws.Id, onChange, WikiGeneral.NoDocumentableContentError), BridgeJson.Default.JobState);
                 var syncError = await Task.Run(() => WikiGeneral.PrepareNewRun(ws));

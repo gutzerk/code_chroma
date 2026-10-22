@@ -1,4 +1,5 @@
-import type { Run, RunState, StepRecord, StepStatus } from "./types";
+import type { IconName } from "./icons";
+import type { Run, RunState, StepRecord, StepStatus, WorkflowStepDef } from "./types";
 
 /** One action a step row or the run header can offer. */
 export type StepAction =
@@ -11,23 +12,23 @@ export type StepAction =
   | "sendBack"
   | "skip";
 
-/** Per-status text and glyph (icon + text, so a status is never conveyed by colour alone). */
-export const STATUS_META: Record<StepStatus, { text: string; icon: string }> = {
-  pending: { text: "Pending", icon: "○" },
-  running: { text: "Running", icon: "▶" },
-  paused: { text: "Paused", icon: "❚❚" },
-  stopping: { text: "Stopping", icon: "◌" },
-  held: { text: "Held", icon: "⏸" },
-  stopped: { text: "Stopped", icon: "■" },
-  needs_you: { text: "Needs you", icon: "?" },
-  done: { text: "Done", icon: "✓" },
-  skipped: { text: "Skipped", icon: "⤼" },
+/** Per-status text and glyph (icon name + text, so a status is never conveyed by colour alone). */
+export const STATUS_META: Record<StepStatus, { text: string; icon: IconName }> = {
+  pending: { text: "Pending", icon: "circle" },
+  running: { text: "Running", icon: "play" },
+  paused: { text: "Paused", icon: "pause" },
+  stopping: { text: "Stopping", icon: "stopping" },
+  held: { text: "Held", icon: "hold" },
+  stopped: { text: "Stopped", icon: "stop" },
+  needs_you: { text: "Needs you", icon: "alert" },
+  done: { text: "Done", icon: "check" },
+  skipped: { text: "Skipped", icon: "skip" },
 };
 
 /** Icon and accent per step kind, so an agent step and a review step read differently at a glance. */
-export const KIND_META: Record<"agent" | "review", { text: string; icon: string; color: string }> = {
-  agent: { text: "Agent", icon: "✦", color: "#8fb0ff" },
-  review: { text: "Your review", icon: "☑", color: "#facc15" },
+export const KIND_META: Record<"agent" | "review", { text: string; icon: IconName; color: string }> = {
+  agent: { text: "Agent", icon: "agent", color: "#8fb0ff" },
+  review: { text: "Your review", icon: "review", color: "#facc15" },
 };
 
 /** Accent colour per run state for the run list and header. */
@@ -122,4 +123,38 @@ export function stateBanner(run: Run, stepLabel: (stepId: string | null) => stri
     case "running":
       return run.stopAfter ? `Will hold after ${stepLabel(run.stopAfter)}.` : null;
   }
+}
+
+/** The label between step `index - 1` and `index` (index 0 has none): how context flows into that step. */
+export function betweenLabel(def: WorkflowStepDef | undefined, index: number): string | null {
+  if (!def || index <= 0) return null;
+  if (def.kind === "review") return "You review the diff";
+  if (def.context === "fresh") return "Fresh start · no context";
+  return `Passes output to step ${index}`;
+}
+
+/** Run states that are over (restartable and deletable) versus live. */
+export function isFinished(state: RunState): boolean {
+  return state === "done" || state === "stopped";
+}
+
+/** Shared confirm wording so the list and the detail header say the same thing. */
+export const CONFIRM_MESSAGES = {
+  restart: "Restarting wipes the previous result (worktree, outputs, messages and attempts) and starts again from step 1.",
+};
+
+/** Steps done or skipped, for a progress readout. */
+export function finishedCount(run: Run): number {
+  return run.steps.filter((s) => s.status === "done" || s.status === "skipped").length;
+}
+
+export type PanelLayout = "narrow" | "normal" | "side" | "full";
+
+/** Layout class for a container width; 0 (unmeasured) reads as normal. */
+export function layoutForWidth(width: number): PanelLayout {
+  if (width <= 0) return "normal";
+  if (width <= 320) return "narrow";
+  if (width >= 1100) return "full";
+  if (width >= 640) return "side";
+  return "normal";
 }

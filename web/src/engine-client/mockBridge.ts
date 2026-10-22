@@ -1967,6 +1967,18 @@ export class MockBridgeEngineClient implements EngineClient {
   async startRun(workflowId: string, inputs?: Record<string, string>): Promise<Run> {
     return this.workflowEngine.startRun(workflowId, inputs);
   }
+  async updateWorkflow(workflow: WorkflowDef): Promise<WorkflowDef> {
+    return this.workflowEngine.updateWorkflow(workflow);
+  }
+  async deleteRun(runId: string): Promise<void> {
+    this.workflowEngine.deleteRun(runId);
+  }
+  async clearFinishedRuns(): Promise<void> {
+    this.workflowEngine.clearFinished();
+  }
+  async restartRun(runId: string): Promise<Run> {
+    return this.workflowEngine.restartRun(runId);
+  }
   async deleteWorkflow(workflowId: string): Promise<void> {
     this.workflowEngine.deleteWorkflow(workflowId);
   }

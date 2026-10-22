@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { act, cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { ActivityPanel } from "./ActivityPanel";
 import { agentStore } from "./agentStore";
 import { AgentClientProvider } from "./AgentClientContext";
@@ -31,14 +31,19 @@ beforeEach(() => {
   workflowStore.reset();
 });
 afterEach(cleanup);
+vi.mock("../workflows/WorkflowsTab", () => ({
+  WorkflowsTab: () => <button type="button">Run workflow</button>,
+}));
 describe("ActivityPanel", () => {
-  it("keeps an empty panel open and puts launch actions only on their related tab", async () => {
+  it("keeps the header and switcher row on the agents tab only for run agent", () => {
     setup();
-    expect(screen.getByRole("button", { name: /Run agent/ })).toBeVisible();
-    expect(screen.queryByRole("button", { name: /Run workflow/ })).toBeNull();
+
+    expect(screen.getByRole("button", { name: "Run agent" })).toBeVisible();
+    expect(screen.getByRole("tab", { name: /Agents/ })).toHaveAttribute("aria-selected", "true");
     fireEvent.click(screen.getByRole("tab", { name: /Workflows/ }));
-    expect(await screen.findByRole("button", { name: /Run workflow/ })).toBeVisible();
-    expect(screen.queryByRole("button", { name: /Run agent/ })).toBeNull();
+
+    expect(screen.getByRole("button", { name: "Run workflow" })).toBeVisible();
+    expect(screen.queryByRole("button", { name: "Run agent" })).toBeNull();
   });
   it("preserves terminal elements across tabs and collapse without floating windows", async () => {
     const agent = await new MockAgentClient().create("Planner");
@@ -54,31 +59,48 @@ describe("ActivityPanel", () => {
     expect(screen.queryByTestId(`agent-window-${agent.id}`)).toBeNull();
     expect(screen.queryByRole("button", { name: /Detach/ })).toBeNull();
   });
+  it("selects an agent from the dropdown", async () => {
+    const client = new MockAgentClient();
+    agentStore.upsert(await client.create("Planner"));
+    agentStore.upsert(await client.create("Builder"));
+    setup();
+
+    fireEvent.click(screen.getByRole("button", { name: "Select agent" }));
+    fireEvent.click(screen.getByRole("option", { name: /Builder/ }));
+
+    expect(layoutStore.getState().selectedAgentId).toBe(agentStore.getAgents()[1].id);
+  });
+  it("stretches and goes full screen from the switcher row", () => {
+    setup();
+
+    fireEvent.click(screen.getByRole("button", { name: "Stretch panel" }));
+    expect(layoutStore.getState().agentsWidth).toBe("wide");
+    fireEvent.click(screen.getByRole("button", { name: "Restore panel width" }));
+    expect(layoutStore.getState().agentsWidth).toBe("default");
+    fireEvent.click(screen.getByRole("button", { name: "Full screen" }));
+
+    expect(layoutStore.getState().agentsMode).toBe("full");
+  });
+  it("collapses to a strip with counts and a per-agent avatar that reopens it", async () => {
+    const agent = await new MockAgentClient().create("Planner Bot");
+    agentStore.upsert(agent);
+    setup();
+
+    fireEvent.click(screen.getByRole("button", { name: "Collapse agents and workflows" }));
+    expect(screen.getByTestId("strip-agents-count")).toHaveTextContent("1");
+    fireEvent.click(screen.getByRole("button", { name: /Open Planner Bot/ }));
+
+    expect(layoutStore.getState()).toMatchObject({ agentsMode: "normal", selectedAgentId: agent.id });
+  });
   it("highlights only the agents launched to draw a diagram", async () => {
     const drawing = await new MockAgentClient().create("Drawer");
     const plain = await new MockAgentClient().create("Planner");
     agentStore.upsert({ ...drawing, context_kind: "task" });
     agentStore.upsert(plain);
     setup();
-    const tabs = screen.getByRole("tablist", { name: "Running agents" });
-    expect(tabs.querySelectorAll("[data-diagram]")).toHaveLength(1);
-    expect(tabs.querySelectorAll(".activity-agent-badge")).toHaveLength(1);
-  });
-  it("creates a workflow from the empty state and makes it available to run", async () => {
-    const client = new MockBridgeEngineClient();
-    vi.spyOn(client, "listWorkflows").mockResolvedValueOnce([]);
-    setup(client);
-    fireEvent.click(screen.getByRole("tab", { name: /Workflows/ }));
-    fireEvent.click(await screen.findByRole("button", { name: /Run workflow/ }));
-    fireEvent.change(screen.getByLabelText("Name"), { target: { value: "My workflow" } });
-    fireEvent.change(screen.getByLabelText("Instructions"), {
-      target: { value: "Inspect this repository" },
-    });
-    await act(async () => fireEvent.click(screen.getByRole("button", { name: "Save workflow" })));
-    expect(await screen.findByRole("button", { name: "Start run: My workflow" })).toBeVisible();
-    fireEvent.click(screen.getByRole("button", { name: "Start run: My workflow" }));
-    expect(await screen.findByRole("progressbar")).toHaveAttribute("aria-valuemax", "1");
-    fireEvent.click(screen.getByRole("button", { name: /Hide steps/ }));
-    expect(screen.getByRole("progressbar")).toBeVisible();
+    fireEvent.click(screen.getByRole("button", { name: "Select agent" }));
+    const menu = screen.getByRole("listbox", { name: "Agents" });
+    expect(menu.querySelectorAll("[data-diagram]")).toHaveLength(1);
+    expect(menu.querySelectorAll(".activity-agent-badge")).toHaveLength(1);
   });
 });

@@ -1,14 +1,14 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type CSSProperties } from "react";
 import { useResizableSize } from "../canvas/useResizableSize";
 import { layoutStore, useLayoutState } from "../canvas/layout/layoutStore";
-import { agentStore, useAgents, useAgentLaunchError } from "./agentStore";
-import { useAgentClient } from "./AgentClientContext";
-import { AgentLed, agentStatusLabel } from "./AgentLed";
+import { useAgents, useAgentLaunchError } from "./agentStore";
 import { DockedAgentPanel } from "./AgentTerminalDock";
-import { restoreAgentWindow } from "./windowActions";
-import { WorkflowRunScreen } from "../workflows/WorkflowRunScreen";
-import { WorkflowPicker } from "../workflows/WorkflowPicker";
+import { WorkflowsTab } from "../workflows/WorkflowsTab";
 import { useRuns, useWorkflows } from "../workflows/workflowStore";
+import { AgentSwitcherRow } from "./activity/AgentSwitcherRow";
+import { CollapsedStrip, type ActivityTab } from "./activity/CollapsedStrip";
+import { CollapseIcon, ExpandIcon } from "./activity/icons";
+import { useStretchWidth } from "./activity/useStretchWidth";
 import "../canvas/PanelHandle.css";
 import "./ActivityPanel.css";
 
@@ -21,10 +21,8 @@ export function ActivityPanel({
   disabled?: boolean;
 }) {
   const agents = useAgents();
-  const client = useAgentClient();
-  const { agentsMode, selectedAgentId } = useLayoutState();
-  const [tab, setTab] = useState<"agents" | "workflows">("agents");
-  const [picker, setPicker] = useState(false);
+  const { agentsMode, agentsWidth, leftOpen, selectedAgentId } = useLayoutState();
+  const [tab, setTab] = useState<ActivityTab>("agents");
   const runs = useRuns();
   const workflows = useWorkflows();
   const launchError = useAgentLaunchError();
@@ -35,41 +33,24 @@ export function ActivityPanel({
     minWidth: 320,
     maxViewportFraction: 0.7,
   });
-  const resizable = agentsMode === "normal";
+  const resizable = agentsMode === "normal" && agentsWidth === "default";
   const collapsed = agentsMode === "collapsed";
-  const working = agents.filter((a) => a.status === "working" || a.status === "running").length;
-  const activeRuns = runs.filter((r) => !["done", "stopped"].includes(r.state)).length;
-  const reopenItems = [
-    {
-      tab: "agents" as const,
-      glyph: "◉",
-      label: "Agents",
-      total: agents.length,
-      active: working,
-      ariaLabel: `Open agents (${agents.length}, ${working} working)`,
-      title: `Agents: ${agents.length} (${working} working)`,
-    },
-    {
-      tab: "workflows" as const,
-      glyph: "▷",
-      label: "Flows",
-      total: runs.length,
-      active: activeRuns,
-      ariaLabel: `Open workflows (${runs.length} runs, ${activeRuns} active)`,
-      title: `Workflow runs: ${runs.length} (${activeRuns} active)`,
-    },
-  ];
+  const wide = agentsMode === "normal" && agentsWidth === "wide";
+  const wideWidth = useStretchWidth(panelRef, wide, leftOpen);
+  let style: CSSProperties | undefined;
+  if (wideWidth !== null) style = { width: wideWidth, flexBasis: wideWidth };
+  else if (resizable && size) style = { width: size.width, flexBasis: size.width };
   const activeId = agents.some((a) => a.id === selectedAgentId) ? selectedAgentId : agents[0]?.id;
   useEffect(() => {
     if (selectedAgentId) setTab("agents");
   }, [selectedAgentId]);
   return (
     <aside
-      className={`activity-panel${agentsMode === "collapsed" ? " is-collapsed" : ""}${agentsMode === "full" ? " is-full" : ""}${isResizing ? " is-resizing" : ""}`}
+      className={`activity-panel${collapsed ? " is-collapsed" : ""}${agentsMode === "full" ? " is-full" : ""}${wide ? " is-wide" : ""}${isResizing ? " is-resizing" : ""}`}
       aria-label="Agents and workflows"
       data-testid="activity-panel"
       ref={panelRef}
-      style={resizable && size ? { width: size.width, flexBasis: size.width } : undefined}
+      style={style}
     >
       {resizable && (
         <div
@@ -87,57 +68,46 @@ export function ActivityPanel({
             <span />
           </span>
         )}
-        <button
-          type="button"
-          className="panel-handle-btn"
-          aria-label={
-            collapsed ? "Expand agents and workflows" : "Collapse agents and workflows"
-          }
-          onClick={() =>
-            layoutStore.setAgentsMode(collapsed ? "normal" : "collapsed")
-          }
-        >
-          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-            <path d={collapsed ? "M15 6l-6 6 6 6" : "M9 6l6 6-6 6"} />
-          </svg>
-        </button>
+        {collapsed && (
+          <button
+            type="button"
+            className="panel-handle-btn"
+            aria-label="Expand agents and workflows"
+            onClick={() => layoutStore.setAgentsMode("normal")}
+          >
+            <ExpandIcon size={12} />
+          </button>
+        )}
       </div>
-      <div className="activity-content" hidden={agentsMode === "collapsed"}>
-        <div className="left-panel-tabs" role="tablist" aria-label="Activity">
+      <div className="activity-content" hidden={collapsed}>
+        <div className="activity-header">
+          <div className="activity-segmented" role="tablist" aria-label="Activity">
+            <button
+              type="button"
+              role="tab"
+              aria-selected={tab === "agents"}
+              onClick={() => setTab("agents")}
+            >
+              Agents <span className="activity-count">{agents.length}</span>
+            </button>
+            <button
+              type="button"
+              role="tab"
+              aria-selected={tab === "workflows"}
+              onClick={() => setTab("workflows")}
+            >
+              Workflows <span className="activity-count">{workflows.length}</span>
+            </button>
+          </div>
           <button
             type="button"
-            className="left-panel-tab"
-            role="tab"
-            aria-selected={tab === "agents"}
-            onClick={() => setTab("agents")}
+            className="activity-icon-btn"
+            aria-label="Collapse agents and workflows"
+            title="Collapse"
+            onClick={() => layoutStore.setAgentsMode("collapsed")}
           >
-            Agents · {agents.length}
+            <CollapseIcon />
           </button>
-          <button
-            type="button"
-            className="left-panel-tab"
-            role="tab"
-            aria-selected={tab === "workflows"}
-            onClick={() => setTab("workflows")}
-          >
-            Workflows · {workflows.length}
-          </button>
-        </div>
-        <div className="activity-actions">
-          <span>
-            {tab === "agents"
-              ? `${agents.length} agents · ${working} working`
-              : `${activeRuns} active runs`}
-          </span>
-          {tab === "agents" ? (
-            <button type="button" aria-label="Run agent" disabled={disabled} onClick={onRunAgent}>
-              ＋ Run agent
-            </button>
-          ) : (
-            <button type="button" aria-label="Run workflow" onClick={() => setPicker((open) => !open)}>
-              ▷ Run workflow
-            </button>
-          )}
         </div>
         {launchError && tab === "agents" && <p role="alert">{launchError}</p>}
         <div
@@ -146,43 +116,24 @@ export function ActivityPanel({
           aria-label="Agents"
           hidden={tab !== "agents"}
         >
+          <AgentSwitcherRow
+            agents={agents}
+            activeId={activeId ?? undefined}
+            agentsMode={agentsMode}
+            agentsWidth={agentsWidth}
+            disabled={disabled}
+            onRunAgent={onRunAgent}
+          />
           {agents.length === 0 && (
             <p className="activity-empty">
               No agents running. Run an agent to start working in this workspace.
             </p>
           )}
-          <div className="activity-agent-tabs" role="tablist" aria-label="Running agents">
-            {agents.map((agent) => (
-              <button
-                type="button"
-                role="tab"
-                aria-selected={activeId === agent.id}
-                data-diagram={agent.context_kind === "task" || undefined}
-                key={agent.id}
-                onClick={() => {
-                  agentStore.clearDiagramsReady(agent.id);
-                  layoutStore.selectAgent(agent.id);
-                  restoreAgentWindow(client, agent.id);
-                }}
-              >
-                <span className="activity-agent-name">
-                  <AgentLed status={agent.status} />
-                  {agent.title}
-                  {agent.context_kind === "task" && (
-                    <span className="activity-agent-badge">Diagram</span>
-                  )}
-                </span>
-                <span className="activity-agent-meta">
-                  {[agent.resolved_cli ?? agent.kind, agent.branch, agentStatusLabel(agent.status)].join(" · ")}
-                </span>
-              </button>
-            ))}
-          </div>
           {agents.map((agent) => (
             <DockedAgentPanel
               key={agent.id}
               agent={agent}
-              active={tab === "agents" && activeId === agent.id && agentsMode !== "collapsed"}
+              active={tab === "agents" && activeId === agent.id && !collapsed}
               focusRequest={0}
             />
           ))}
@@ -193,30 +144,20 @@ export function ActivityPanel({
           aria-label="Workflows"
           hidden={tab !== "workflows"}
         >
-          {picker && <WorkflowPicker onClose={() => setPicker(false)} />}
-          <WorkflowRunScreen />
+          <WorkflowsTab />
         </div>
       </div>
-      {agentsMode === "collapsed" && (
-        <div className="activity-reopen" data-testid="activity-reopen">
-          {reopenItems.map((item) => (
-            <button
-              key={item.tab}
-              type="button"
-              className="activity-reopen-item"
-              aria-label={item.ariaLabel}
-              title={item.title}
-              onClick={() => {
-                setTab(item.tab);
-                layoutStore.setAgentsMode("normal");
-              }}
-            >
-              <span className="activity-reopen-glyph" aria-hidden="true">{item.glyph}</span>
-              <span className="activity-reopen-count" data-active={item.active > 0}>{item.total}</span>
-              <span className="activity-reopen-label">{item.label}</span>
-            </button>
-          ))}
-        </div>
+      {collapsed && (
+        <CollapsedStrip
+          agents={agents}
+          runs={runs}
+          disabled={disabled}
+          onRunAgent={onRunAgent}
+          onOpenTab={(next) => {
+            setTab(next);
+            layoutStore.setAgentsMode("normal");
+          }}
+        />
       )}
     </aside>
   );

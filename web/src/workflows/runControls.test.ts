@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
 import {
+  betweenLabel,
   canStopRun,
+  layoutForWidth,
   headerToggle,
   showBreakpointToggle,
   stateBanner,
@@ -109,4 +111,32 @@ describe("stateBanner", () => {
       expect(stateBanner(run(state), label)).toBeTruthy();
     },
   );
+});
+
+describe("betweenLabel", () => {
+  const agent = { id: "a", slug: "a", kind: "agent" as const, prompt: "p" };
+
+  it("has no label before the first step", () => {
+    expect(betweenLabel(agent, 0)).toBeNull();
+  });
+
+  it.each([
+    [{ ...agent }, 2, "Passes output to step 2"],
+    [{ ...agent, context: "fresh" as const }, 1, "Fresh start · no context"],
+    [{ ...agent, kind: "review" as const }, 1, "You review the diff"],
+  ])("labels %j at index %i", (def, index, expected) => {
+    expect(betweenLabel(def, index)).toBe(expected);
+  });
+});
+
+describe("layoutForWidth", () => {
+  it.each([
+    [0, "normal"],
+    [320, "narrow"],
+    [321, "normal"],
+    [640, "side"],
+    [1100, "full"],
+  ])("maps %i px to %s", (width, expected) => {
+    expect(layoutForWidth(width)).toBe(expected);
+  });
 });

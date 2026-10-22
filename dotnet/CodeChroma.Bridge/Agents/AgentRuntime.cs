@@ -1,3 +1,5 @@
+using CodeChroma.Bridge.Http;
+using CodeChroma.Bridge.Skills;
 using CodeChroma.Bridge.Live;
 using CodeChroma.Bridge.Prs;
 using CodeChroma.Bridge.Routes;
@@ -91,7 +93,8 @@ public sealed class AgentRuntime(
             log.LogError("agents: unknown kind {Kind} for {Agent}, skipping auto-start", record.Kind, record.Id);
             return;
         }
-        var env = new Dictionary<string, string>(launch.Env) { ["codechroma_WORKSPACE_ID"] = record.Id };
+        var env = new Dictionary<string, string>(launch.Env);
+        BridgeAddress.ExportIdentity(env, record.Id, BareSkill.BridgeUrl);
         AgentSession session;
         try { session = sessions.Start(record.Id, launch.Argv, record.Worktree, record.Kind, env, paths); }
         catch (AgentStartException error)

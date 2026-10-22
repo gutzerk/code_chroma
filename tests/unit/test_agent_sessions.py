@@ -57,7 +57,7 @@ def test_agent_session_satisfies_the_terminal_port():
 def test_agent_run_env_points_the_skills_at_the_agents_own_workspace():
     env = agent_run_env("agent1-2")
 
-    assert env == {"codechroma_WORKSPACE_ID": "agent1-2"}
+    assert env == {"CODECHROMA_WORKSPACE_ID": "agent1-2"}
 
 
 class _IdleLater:

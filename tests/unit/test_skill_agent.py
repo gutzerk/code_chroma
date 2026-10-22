@@ -262,7 +262,7 @@ def test_run_passes_the_workspace_id_to_the_claude_env(monkeypatch, tmp_path):
 
     asyncio.run(_drive())
 
-    assert seen_env.get("codechroma_WORKSPACE_ID") == "pr-7"
+    assert seen_env.get("CODECHROMA_WORKSPACE_ID") == "pr-7"
 
 
 def test_mark_generating_flips_idle_to_generating_with_no_subprocess(tmp_path):

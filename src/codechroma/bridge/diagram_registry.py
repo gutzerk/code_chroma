@@ -118,7 +118,10 @@ def _resolve_sequence(ws: Workspace) -> dict:
     data = ws.load_diagram("sequence")
     if not data:
         return {}
-    resolved = resolve_diagram(ws.engine, {**data, "type": "sequence"})
+    # A participant may message itself, so the sequence style applies even when the file omits it.
+    resolved = resolve_diagram(
+        ws.engine, {**data, "type": "sequence"}, style_source=data.get("style") or "sequence"
+    )
     resolved["has_diagram"] = bool(data)
     return resolved
 

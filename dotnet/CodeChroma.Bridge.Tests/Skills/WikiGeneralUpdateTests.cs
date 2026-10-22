@@ -74,4 +74,37 @@ public sealed class WikiGeneralUpdateTests
         Assert.Equal(["app", "lib"], Ids(manifest["containers"]));
         Assert.Equal("c3/lib.md", manifest["components"]!.AsArray()[2]!["path"]!.GetValue<string>());
     }
+
+    [Fact]
+    public void A_new_group_reuses_the_id_of_a_component_that_no_longer_exists_and_a_clash_suffixes_the_name()
+    {
+        var fresh = WikiGeneralTestData.Clusters(("c1", "top::app", ["app/a.py"]), ("c2", "top::app", ["app/b.py"]), ("c3", "top::dead", ["z/dead/new.py"]), ("c4", "top::dead", ["y/dead/other.py"]));
+
+        var delta = WikiGeneralUpdate.DiffManifest(fresh, Manifest());
+
+        var created = delta["components"]!["created"]!.AsArray().Select(n => n!.AsObject()).ToList();
+        Assert.Equal(["dead", "dead-2"], created.Select(c => c["id"]!.GetValue<string>()).ToList());
+        Assert.Equal(["Dead", "Dead 2"], created.Select(c => c["name"]!.GetValue<string>()).ToList());
+    }
+
+    [Fact]
+    public void Verifying_the_pages_reports_missing_and_untouched_pages_but_accepts_a_fresh_write()
+    {
+        using var host = new BridgeHost();
+        var dir = WikiGeneral.Dir(host.Root);
+        Directory.CreateDirectory(Path.Combine(dir, "c3"));
+        var started = DateTime.UtcNow.AddSeconds(-1);
+        string[] pages = ["c3/a.md", "c3/b.md"];
+        File.WriteAllText(Path.Combine(dir, "c3", "a.md"), "# A\n");
+
+        var missing = WikiGeneralUpdate.VerifyPagesWritten(host.Root, pages, started);
+        File.WriteAllText(Path.Combine(dir, "c3", "b.md"), "# B\n");
+        var fresh = WikiGeneralUpdate.VerifyPagesWritten(host.Root, pages, started);
+        var untouched = WikiGeneralUpdate.VerifyPagesWritten(host.Root, pages, DateTime.UtcNow.AddMinutes(5));
+
+        Assert.Contains("did not write 1 of 2", missing);
+        Assert.Null(fresh);
+        Assert.Contains("wrote none", untouched);
+        Assert.Null(WikiGeneralUpdate.VerifyPagesWritten(host.Root, [], started));
+    }
 }

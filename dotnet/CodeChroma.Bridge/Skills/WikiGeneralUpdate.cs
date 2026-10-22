@@ -71,20 +71,31 @@ public static partial class WikiGeneralUpdate
 
         var resolved = new Dictionary<string, string>();
         var matchedOldIds = new HashSet<string>();
-        var created = new List<JsonObject>();
+        var unmatched = new List<(string Id, IReadOnlyList<string> Files)>();
         foreach (var (internalId, files) in freshGroups)
         {
             if (BestMatchingOldId(files, oldIdByFile) is { } match)
             {
                 resolved[internalId] = match;
                 matchedOldIds.Add(match);
-                continue;
             }
-            var (newId, newName) = WikiGeneralNaming.DeterministicName(files, topLevel);
-            newId = WikiGeneralNaming.DedupeId(newId, usedIds);
+            else unmatched.Add((internalId, files));
+        }
+
+        // A superseded old id is free again, so a new group may reuse it instead of getting a "-2".
+        usedIds.ExceptWith(oldIds.Except(matchedOldIds));
+        var created = new List<JsonObject>();
+        foreach (var (internalId, files) in unmatched)
+        {
+            var (baseId, newName) = WikiGeneralNaming.DeterministicName(files, topLevel);
+            var newId = WikiGeneralNaming.DedupeId(baseId, usedIds);
             usedIds.Add(newId);
             resolved[internalId] = newId;
-            created.Add(new JsonObject { ["id"] = newId, ["name"] = newName, ["files"] = Strings(SortedFiles(files)), ["internal_id"] = internalId });
+            created.Add(new JsonObject
+            {
+                ["id"] = newId, ["name"] = WikiGeneralNaming.UniqueDisplay(newName, baseId, newId),
+                ["files"] = Strings(SortedFiles(files)), ["internal_id"] = internalId,
+            });
         }
 
         var freshNeighborsReal = new Dictionary<string, HashSet<string>>();
@@ -262,8 +273,32 @@ public static partial class WikiGeneralUpdate
         manifest["containers"] = new JsonArray(containers.Select(c => (JsonNode?)c.DeepClone()).ToArray());
         manifest["components"] = new JsonArray(components.Select(c => (JsonNode?)c.DeepClone()).ToArray());
         manifest["edges"] = delta["edges"]!.DeepClone();
+        manifest["generated_at"] = DateTime.UtcNow.ToString("yyyy-MM-dd'T'HH:mm:ss.ffffff'+00:00'", System.Globalization.CultureInfo.InvariantCulture);
         JsonFile.Write(manifestPath, manifest);
         return delta;
+    }
+
+    /// <summary>The pages a run was told to write: created and rewritten components then containers, as wiki-relative paths.</summary>
+    public static List<string> PagesToWrite(JsonObject delta)
+    {
+        var pages = new List<string>();
+        foreach (var entry in DictList(delta["components"]!["created"]).Concat(DictList(delta["components"]!["rewritten"])))
+            if (Text(entry["id"]) is { } id) pages.Add($"c3/{id}.md");
+        foreach (var entry in DictList(delta["containers"]!["created"]).Concat(DictList(delta["containers"]!["rewritten"])))
+            if (Text(entry["id"]) is { } id) pages.Add($"c2/{id}.md");
+        return pages;
+    }
+
+    /// <summary>An error message when the run left a promised page missing or wrote nothing at all, else null (an exit code alone proves nothing).</summary>
+    public static string? VerifyPagesWritten(string root, IReadOnlyList<string> pages, DateTime startedUtc)
+    {
+        if (pages.Count == 0) return null;
+        var wikiDir = WikiGeneral.Dir(root);
+        var missing = pages.Where(page => !File.Exists(Path.Combine(wikiDir, page))).ToList();
+        if (missing.Count > 0)
+            return $"update finished but did not write {missing.Count} of {pages.Count} page(s): {string.Join(", ", missing.Take(5))}{(missing.Count > 5 ? ", ..." : "")}";
+        var touched = pages.Any(page => File.GetLastWriteTimeUtc(Path.Combine(wikiDir, page)) >= startedUtc);
+        return touched ? null : $"update finished but wrote none of the {pages.Count} page(s) it was asked to refresh";
     }
 
     /// <summary>The GET .../clustering body: the fixed grouping Phase A consumes, never invents.</summary>

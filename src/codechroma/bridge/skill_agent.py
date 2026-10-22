@@ -39,6 +39,7 @@ from codechroma.llm.runtime_env import (
     launch_failed,
     resolve_runtime_cli,
 )
+from codechroma.questions.launch import identity_env
 
 if TYPE_CHECKING:
     from codechroma.bridge.workspaces import Workspace
@@ -148,6 +149,8 @@ class SkillAgent:
         self.model = model
         self.artifact = artifact
         self.validate = validate
+        # repo id -> a check run after a clean, valid exit; a returned message becomes the error.
+        self.post_run_checks: dict[str, Callable[[], str | None]] = {}
         self.timeout_env_var = timeout_env_var
         self.default_timeout_seconds = default_timeout_seconds
         self.invalid_error = invalid_error
@@ -392,7 +395,7 @@ class SkillAgent:
         # An explicit --model re-triggers the CLI rejection; omit when ANTHROPIC_MODEL carries it.
         argv_model = "" if "ANTHROPIC_MODEL" in env_overrides else model
         # The run's workspace id (e.g. "pr-29"): which /repos/{id} slices and worktree to use.
-        run_env = {**env_overrides, "codechroma_WORKSPACE_ID": repo_id}
+        run_env = {**env_overrides, **identity_env(repo_id)}
         # build_argv's --bare check needs this run's actual env, not the bridge process's own.
         argv = adapter.build_argv(binary, static_prompt, argv_model, env=run_env)
         debug_log = open_debug_log(self.name, repo_id)
@@ -461,6 +464,11 @@ class SkillAgent:
         if not self.has_artifact(repo_root, repo_id):
             restore()
             return {"state": "error", "error": self.invalid_error}
+
+        check = self.post_run_checks.pop(repo_id, None)
+        problem = check() if check is not None else None
+        if problem is not None:
+            return {"state": "error", "error": problem}
 
         return {"state": "idle", "error": None}
 

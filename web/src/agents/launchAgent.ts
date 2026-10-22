@@ -1,3 +1,4 @@
+import type { AgentRecord } from "../state/types";
 import type { AgentClient, DiagramTaskHint } from "./agentClient";
 import { agentStore } from "./agentStore";
 import type { ViewContext } from "./viewContext";
@@ -17,24 +18,41 @@ export async function launchAgent(
   task?: string,
   diagram?: DiagramTaskHint,
 ): Promise<void> {
+  await runLaunch(client, async () => {
+    const preflight = await client.gitPreflight();
+    if (preflight.state !== "ready") {
+      agentStore.setGitPreflight(preflight);
+      return null;
+    }
+    return task
+      ? client.create("", "agent", attachTo, task, "task", diagram)
+      : client.create("", "agent", attachTo, context?.description ?? null);
+  });
+}
+
+/** "Open agent" on a finished workflow step: a claude agent in the run's worktree forking that step's session, opened in the Agents tab. */
+export async function openStepAgent(
+  client: AgentClient,
+  title: string,
+  runId: string,
+  sessionId: string,
+): Promise<void> {
+  await runLaunch(client, () => client.openStepSession(title, runId, sessionId));
+}
+
+/** The shared launch bookkeeping: capacity guard, create (null: stop quietly), start, open its window; a failure after create opens it with the error. */
+async function runLaunch(client: AgentClient, create: () => Promise<AgentRecord | null>): Promise<void> {
   if (agentStore.getIsAtCapacity() || agentStore.getIsLaunching()) return;
   agentStore.setLaunchError(null);
   agentStore.setIsLaunching(true);
   let createdId: string | null = null;
   try {
-    const preflight = await client.gitPreflight();
-    if (preflight.state !== "ready") {
-      agentStore.setGitPreflight(preflight);
-      return;
-    }
-    const created = task
-      ? await client.create("", "agent", attachTo, task, "task", diagram)
-      : await client.create("", "agent", attachTo, context?.description ?? null);
+    const created = await create();
+    if (!created) return;
     createdId = created.id;
     agentStore.setStartError(created.id, null);
     agentStore.upsert(created);
-    const started = await client.start(created.id);
-    agentStore.upsert(started);
+    agentStore.upsert(await client.start(created.id));
     // Every remaining caller supplies an explicit attachTo, so the new agent shares a workspace
     // the canvas already shows the right data for — just open its window, no workspace switch.
     openAgentWindow(client, created.id);

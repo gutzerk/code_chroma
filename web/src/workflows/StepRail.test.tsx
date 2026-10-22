@@ -1,7 +1,10 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { AgentClientProvider } from "../agents/AgentClientContext";
+import { MockAgentClient } from "../agents/mockAgentClient";
+import { agentStore } from "../agents/agentStore";
 import { StepRail } from "./StepRail";
-import type { Run, StepRecord, StepStatus, WorkflowDef } from "./types";
+import type { Run, StepRecord, StepStatus, WorkflowDef, WorkflowStepDef } from "./types";
 import type { WorkflowActions } from "./workflowStore";
 
 const workflow: WorkflowDef = {
@@ -35,9 +38,9 @@ function fakeActions() {
   };
 }
 
-function renderRail(run: Run, props: Partial<Parameters<typeof StepRail>[0]> = {}) {
+function renderRail(run: Run, props: Partial<Parameters<typeof StepRail>[0]> = {}, agentClient?: MockAgentClient) {
   const actions = fakeActions();
-  render(
+  const rail = (
     <StepRail
       run={run}
       workflow={workflow}
@@ -45,8 +48,9 @@ function renderRail(run: Run, props: Partial<Parameters<typeof StepRail>[0]> = {
       expandedStepId={null}
       onToggle={() => {}}
       {...props}
-    />,
+    />
   );
+  render(agentClient ? <AgentClientProvider client={agentClient}>{rail}</AgentClientProvider> : rail);
   return actions;
 }
 
@@ -167,5 +171,111 @@ describe("StepRail", () => {
     expect(screen.queryByTestId("breakpoint-review")).toBeNull();
     expect(screen.queryByTestId("action-stopAfter-implement")).toBeNull();
     expect(screen.getByTestId("step-row-implement")).not.toHaveAttribute("data-current");
+  });
+});
+
+const agentStep = (id: string, slug: string, extra: Partial<WorkflowStepDef> = {}): WorkflowStepDef => ({
+  id, slug, kind: "agent", prompt: "", ...extra,
+});
+
+/** Five agent steps, each continuing the one before it from step 2 on. */
+const chain: WorkflowDef = {
+  id: "w",
+  name: "Chain",
+  steps: [
+    agentStep("c1", "one", { provider: "anthropic" }),
+    agentStep("c2", "two", { agent: "continue" }),
+    agentStep("c3", "three", { agent: "continue:c2" }),
+    agentStep("c4", "four", { agent: "continue" }),
+    agentStep("c5", "five", { agent: "new" }),
+  ],
+};
+
+const chainRun = (extra: Partial<StepRecord> = {}) =>
+  makeRun(chain.steps.map((s) => step(s.id, "done", s.id === "c3" ? extra : {})), { workflowId: "w", state: "done" });
+
+describe("StepRail agent sessions", () => {
+  afterEach(cleanup);
+
+  it.each([
+    ["plan", "Agent · default · new"],
+    ["review", null],
+  ])("labels the %s step's mode", (slug, expected) => {
+    renderRail(makeRun(threeSteps()));
+
+    const mode = screen.queryByTestId(`mode-${slug}`);
+
+    expect(mode?.textContent ?? null).toBe(expected);
+  });
+
+  it.each([
+    ["one", "Agent · anthropic · new"],
+    ["two", "Agent · default · continue: one"],
+    ["three", "Agent · default · continue: two"],
+    ["five", "Agent · default · new"],
+  ])("labels %s with its provider and mode", (slug, expected) => {
+    renderRail(chainRun(), { workflow: chain });
+
+    expect(screen.getByTestId(`mode-${slug}`)).toHaveTextContent(expected);
+  });
+
+  it("badges continue steps with the chain length and none on the others", () => {
+    renderRail(chainRun(), { workflow: chain });
+
+    expect(screen.queryByTestId("session-badge-one")).toBeNull();
+    expect(screen.getByTestId("session-badge-two")).toHaveTextContent("Continuing a 2-step session");
+    expect(screen.getByTestId("session-badge-three")).toHaveAttribute("data-warn", "false");
+    expect(screen.getByTestId("session-badge-four")).toHaveTextContent("Continuing a 4-step session");
+    expect(screen.getByTestId("session-badge-four")).toHaveAttribute("data-warn", "true");
+    expect(screen.queryByTestId("session-badge-five")).toBeNull();
+  });
+
+  it.each([
+    [{ chainWarning: true }, "true"],
+    [{ chainWarning: false, chainLength: 4 }, "false"],
+    [{ chainLength: 4 }, "true"],
+  ])("takes the badge colour from the bridge's verdict on the record %j", (extra, warn) => {
+    renderRail(chainRun(extra), { workflow: chain });
+
+    expect(screen.getByTestId("session-badge-three")).toHaveAttribute("data-warn", warn);
+  });
+
+  it("chips a continue step with the step whose session it resumes", () => {
+    renderRail(chainRun(), { workflow: chain });
+
+    expect(screen.getByTestId("resumes-three")).toHaveTextContent("Resumes step 2's agent session");
+    expect(screen.queryByTestId("resumes-one")).toBeNull();
+  });
+
+  it("prefers the record's resumedFrom for the chip", () => {
+    renderRail(chainRun({ resumedFrom: "c1" }), { workflow: chain });
+
+    expect(screen.getByTestId("resumes-three")).toHaveTextContent("Resumes step 1's agent session");
+  });
+
+  it("hides Open agent on a finished step without a session", () => {
+    renderRail(makeRun(threeSteps()), { expandedStepId: "s1" }, new MockAgentClient());
+
+    expect(screen.queryByTestId("open-agent-plan")).toBeNull();
+  });
+
+  it("hides Open agent on a running step even with a session", () => {
+    const run = makeRun([step("s1", "done"), step("s2", "running", { sessionId: "sess-2" })]);
+    renderRail(run, { expandedStepId: "s2" }, new MockAgentClient());
+
+    expect(screen.queryByTestId("open-agent-implement")).toBeNull();
+  });
+
+  it("opens a finished step's session forked in the run worktree", async () => {
+    agentStore.reset();
+    const client = new MockAgentClient();
+    const spy = vi.spyOn(client, "openStepSession");
+    const run = makeRun([step("s1", "done", { sessionId: "sess-1" })]);
+    renderRail(run, { expandedStepId: "s1" }, client);
+
+    fireEvent.click(screen.getByTestId("open-agent-plan"));
+
+    await waitFor(() => expect(spy).toHaveBeenCalledWith("plan r1", "r1", "sess-1"));
+    await waitFor(() => expect(agentStore.getAgents().some((a) => a.fork_session === "sess-1")).toBe(true));
   });
 });

@@ -9,7 +9,7 @@ import {
   stepActions,
   type StepAction,
 } from "./runControls";
-import type { Run, RunState, StepRecord, StepStatus } from "./types";
+import type { Run, RunState, StepRecord, StepStatus, WorkflowStepDef } from "./types";
 
 function step(stepId: string, status: StepStatus): StepRecord {
   return { stepId, attempt: 1, status, output: "", diffStat: null, checkpointRef: null, sessionId: null };
@@ -115,17 +115,24 @@ describe("stateBanner", () => {
 
 describe("betweenLabel", () => {
   const agent = { id: "a", slug: "a", kind: "agent" as const, prompt: "p" };
+  const steps = (next: Partial<WorkflowStepDef>): WorkflowStepDef[] => [
+    { ...agent, id: "s1", slug: "plan" },
+    { ...agent, id: "s2", slug: "build", ...next },
+  ];
 
   it("has no label before the first step", () => {
-    expect(betweenLabel(agent, 0)).toBeNull();
+    expect(betweenLabel([agent], 0)).toBeNull();
   });
 
   it.each([
-    [{ ...agent }, 2, "Passes output to step 2"],
-    [{ ...agent, context: "fresh" as const }, 1, "Fresh start · no context"],
-    [{ ...agent, kind: "review" as const }, 1, "You review the diff"],
-  ])("labels %j at index %i", (def, index, expected) => {
-    expect(betweenLabel(def, index)).toBe(expected);
+    [{}, "Passes output to step 1 · hand-off"],
+    [{ agent: "handoff" as const }, "Passes output to step 1 · hand-off"],
+    [{ agent: "new" as const }, "Fresh start · no context"],
+    [{ kind: "review" as const }, "You review the diff"],
+    [{ agent: "continue" as const }, "Resumes step 1's agent session"],
+    [{ agent: "continue:s1" as const }, "Resumes step 1's agent session"],
+  ])("labels %j", (next, expected) => {
+    expect(betweenLabel(steps(next), 1)).toBe(expected);
   });
 });
 

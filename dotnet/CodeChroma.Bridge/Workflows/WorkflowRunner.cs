@@ -46,6 +46,8 @@ public sealed partial class WorkflowRunner
     private readonly SkillAgent? _chat;
     private readonly Func<string, string?>? _mcpUrl;
     private readonly Func<string, string?> _sessionFinder;
+    private readonly Func<string, string, TranscriptUsage?> _usageReader;
+    private readonly Func<string, IDisposable>? _reserveCleanup;
     private readonly object _lock = new();
     private readonly Dictionary<string, Handle> _handles = [];
     private readonly HashSet<string> _chatBusy = [];
@@ -61,7 +63,7 @@ public sealed partial class WorkflowRunner
         public bool StopRequested { get; set; }
         public volatile bool Busy;
         public string? Bypass { get; set; }
-        public string? Rerun { get; set; }
+        public string? Redo { get; set; }
         public string? Note { get; set; }
         public long LastSave { get; set; }
         public string McpToken { get; } = Guid.NewGuid().ToString("N");
@@ -70,14 +72,16 @@ public sealed partial class WorkflowRunner
     private enum Outcome { Completed, Failed, Stopped }
 
     public WorkflowRunner(string repoRoot, SkillAgent agent, Action<JsonObject> emit, Func<string, string?>? sessionFinder = null,
-        SkillAgent? chatAgent = null, Func<string, string?>? mcpUrl = null)
+        SkillAgent? chatAgent = null, Func<string, string?>? mcpUrl = null, Func<string, string, TranscriptUsage?>? usageReader = null, Func<string, IDisposable>? reserveCleanup = null)
     {
         _repoRoot = repoRoot;
+        _reserveCleanup = reserveCleanup;
         _chat = chatAgent;
         _mcpUrl = mcpUrl;
         _agent = agent;
         _emit = emit;
         _sessionFinder = sessionFinder ?? (worktree => Transcripts.FindSessionId(worktree));
+        _usageReader = usageReader ?? ((session, worktree) => Transcripts.ReadUsage(session, worktree));
         Store = new RunStore(repoRoot);
         Recover();
     }
@@ -116,10 +120,16 @@ public sealed partial class WorkflowRunner
         lock (_lock)
         {
             var runs = new List<Run>();
+            var defs = new Dictionary<string, WorkflowDef?>();
             foreach (var id in Store.RunIds())
             {
-                if (_handles.TryGetValue(id, out var h)) runs.Add(Clone(h.Run));
-                else if (Store.GetRun(id) is { } saved) runs.Add(saved);
+                if (_handles.TryGetValue(id, out var h)) runs.Add(View(h));
+                else if (Store.GetRun(id) is { } saved)
+                {
+                    if (!defs.TryGetValue(saved.WorkflowId, out var def)) defs[saved.WorkflowId] = def = Store.GetWorkflow(saved.WorkflowId);
+                    if (def is not null) Decorate(saved, def);
+                    runs.Add(saved);
+                }
             }
             return runs;
         }
@@ -127,7 +137,7 @@ public sealed partial class WorkflowRunner
 
     public Run Get(string runId)
     {
-        lock (_lock) return Clone(Require(runId).Run);
+        lock (_lock) return View(Require(runId));
     }
 
     /// <summary>Completes when the run's current driving loop has parked or finished.</summary>
@@ -148,6 +158,7 @@ public sealed partial class WorkflowRunner
     /// <summary>Removes a done or stopped run: its record, worktree and branches (the git cleanup is best-effort and runs outside the lock).</summary>
     public void DeleteRun(string runId)
     {
+        using var reservation = _reserveCleanup?.Invoke(WorktreeFor(_repoRoot, runId));
         string id;
         lock (_lock)
         {
@@ -167,29 +178,20 @@ public sealed partial class WorkflowRunner
         WipeGit(id, WorktreeFor(_repoRoot, id));
     }
 
-    /// <summary>Removes every done or stopped run and returns their ids.</summary>
+    /// <summary>Removes finished runs whose workspaces are free, skipping attached agents or concurrent mutations.</summary>
     public List<string> ClearFinished()
     {
-        var victims = new List<string>();
-        lock (_lock)
+        var deleted = new List<string>();
+        foreach (var id in Store.RunIds())
         {
-            foreach (var id in Store.RunIds())
+            try
             {
-                if (_handles.TryGetValue(id, out var h))
-                {
-                    if (h.Busy || !RunStates.IsFinished(h.Run.State)) continue;
-                    Detach(id, h);
-                }
-                else
-                {
-                    if (Store.GetRun(id) is not { } saved || !RunStates.IsFinished(saved.State)) continue;
-                    Detach(id, null);
-                }
-                victims.Add(id);
+                DeleteRun(id);
+                deleted.Add(id);
             }
+            catch (BridgeException error) when (error.Status is 404 or 409) { }
         }
-        foreach (var id in victims) WipeGit(id, WorktreeFor(_repoRoot, id));
-        return victims;
+        return deleted;
     }
 
     /// <summary>Drops the run's handle and record and announces it; the caller wipes git outside the lock.</summary>
@@ -222,6 +224,7 @@ public sealed partial class WorkflowRunner
             if (h.Busy || !RunStates.IsFinished(h.Run.State)) throw Illegal(h, "restart");
         }
         await h.Loop;
+        using var reservation = _reserveCleanup?.Invoke(h.Worktree);
         lock (_lock)
         {
             if (h.Busy || !RunStates.IsFinished(h.Run.State)) throw Illegal(h, "restart");
@@ -252,7 +255,7 @@ public sealed partial class WorkflowRunner
             Store.Save(run);
             Emit(fresh, "run.step");
             Drive(fresh, 0);
-            return Clone(run);
+            return View(fresh);
         }
     }
 
@@ -307,7 +310,7 @@ public sealed partial class WorkflowRunner
             SetCurrentStatus(h, "running", from: "paused");
             h.Gate.Open();
             Persist(h, "run.resumed");
-            return Clone(h.Run);
+            return View(h);
         }
     }
 
@@ -329,7 +332,7 @@ public sealed partial class WorkflowRunner
         var index = IndexOf(h, h.Run.CurrentStepId!);
         Persist(h, "run.resumed");
         Drive(h, index);
-        return Clone(h.Run);
+        return View(h);
     }
 
     public async Task<Run> Stop(string runId, string mode)
@@ -354,7 +357,7 @@ public sealed partial class WorkflowRunner
                 if (handle.Run.CurrentStepId is { } waiting && Record(handle, waiting) is { Status: "held" or "needs_you" } unstarted) unstarted.Status = "pending";
                 else SetCurrentStatus(handle, "stopped");
                 Persist(handle, "run.stopped");
-                return Clone(handle.Run);
+                return View(handle);
             }
             SetCurrentStatus(handle, "stopping", from: before == RunStates.Paused ? "paused" : "running");
             handle.StopRequested = true;
@@ -383,11 +386,13 @@ public sealed partial class WorkflowRunner
         }
     });
 
-    public Run Review(string runId, string decision, string? note)
+    public async Task<Run> Review(string runId, string decision, string? note)
     {
+        Handle h;
+        string target;
         lock (_lock)
         {
-            var h = Require(runId);
+            h = Require(runId);
             if (h.Run.State != RunStates.NeedsYou) throw Illegal(h, "review");
             var index = IndexOf(h, h.Run.CurrentStepId!);
             var review = Record(h, h.Run.CurrentStepId!);
@@ -400,28 +405,23 @@ public sealed partial class WorkflowRunner
                     Transition(h, RunCommand.ApproveLast);
                     h.Run.CurrentStepId = null;
                     Persist(h, "run.done");
-                    return Clone(h.Run);
+                    return View(h);
                 }
                 Transition(h, RunCommand.Approve);
                 Persist(h, "run.step");
                 Drive(h, nextIndex);
-                return Clone(h.Run);
+                return View(h);
             }
             if (decision != "sendBack") throw new BridgeException(400, "decision must be approve or sendBack");
             var configured = h.Def.Steps[index].SendBackTo;
-            var target = configured is not null ? h.Def.Steps.FindIndex(0, index, x => x.Id == configured && x.Kind == "agent") : -1;
-            if (target < 0) target = Enumerable.Range(0, index).Reverse().FirstOrDefault(i => h.Def.Steps[i].Kind == "agent", -1);
-            if (target < 0) throw new BridgeException(409, "there is no earlier agent step to send back to");
-            Transition(h, RunCommand.SendBack);
-            review.Status = "pending";
-            var step = h.Def.Steps[target];
-            h.Rerun = step.Id;
-            h.Note = string.IsNullOrWhiteSpace(note) ? "Please revise your work." : note;
-            AppendOutput(Record(h, step.Id), $"\n--- sent back: {h.Note} ---\n");
-            Persist(h, "run.step");
-            Drive(h, target);
-            return Clone(h.Run);
+            var found = configured is not null ? h.Def.Steps.FindIndex(0, index, x => x.Id == configured && x.Kind == "agent") : -1;
+            if (found < 0) found = StepAgents.NearestAgentBefore(h.Def, index);
+            if (found < 0) throw new BridgeException(409, "there is no earlier agent step to send back to");
+            target = h.Def.Steps[found].Id;
         }
+        await h.Loop;
+        // Send back is a redo of the target step: a new attempt, the code reset to its checkpoint, the note in its prompt.
+        return await RerunFrom(h, target, string.IsNullOrWhiteSpace(note) ? "Please revise your work." : note, null, RunCommand.SendBack, "send back");
     }
 
     private Run Command(string runId, string eventName, Action<Handle> body)
@@ -431,7 +431,7 @@ public sealed partial class WorkflowRunner
             var h = Require(runId);
             body(h);
             Persist(h, eventName);
-            return Clone(h.Run);
+            return View(h);
         }
     }
 
@@ -453,7 +453,7 @@ public sealed partial class WorkflowRunner
         h.Run.State = RunStateMachine.TryApply(h.Run.State, command) ?? throw Illegal(h, command.ToString());
     }
 
-    /// <summary>Only the claude CLI takes the --resume/--tools/--strict-mcp-config flags the runner passes.</summary>
+    /// <summary>Only the claude CLI takes the --resume/--fork-session/--tools/--strict-mcp-config flags the runner passes.</summary>
     private static bool IsClaude(SkillAgent agent)
     {
         try { return agent.ResolveCli().AdapterKey == "claude"; }
@@ -501,6 +501,25 @@ public sealed partial class WorkflowRunner
 
     private void Emit(Handle h, string eventName) => _emit(new JsonObject { ["type"] = "run", ["runId"] = h.Run.Id, ["event"] = eventName });
 
+    /// <summary>A copy of the run for callers, with each step's chain length and warning computed from the definition.</summary>
+    private static Run View(Handle h)
+    {
+        var run = Clone(h.Run);
+        Decorate(run, h.Def);
+        return run;
+    }
+
+    private static void Decorate(Run run, WorkflowDef def)
+    {
+        var lengths = StepAgents.ChainLengths(def);
+        var indexOf = def.Steps.Select((s, i) => (s.Id, i)).ToDictionary(x => x.Id, x => x.i);
+        foreach (var record in run.Steps)
+        {
+            record.ChainLength = indexOf.TryGetValue(record.StepId, out var index) ? lengths[index] : 1;
+            record.ChainWarning = WorkflowLimits.ChainWarning(record.ChainLength, record.Usage);
+        }
+    }
+
     private static Run Clone(Run run) => JsonSerializer.Deserialize<Run>(JsonSerializer.Serialize(run, WorkflowJson.Options), WorkflowJson.Options)!;
 
     private void Drive(Handle h, int index)
@@ -528,16 +547,16 @@ public sealed partial class WorkflowRunner
                     if (Record(h, step.Id).Status == "skipped") continue;
                     h.Run.CurrentStepId = step.Id;
                 }
-                bool parked, rerun;
+                bool parked, rerun, redo;
                 while (true)
                 {
                     await h.Gate.WaitAsync(CancellationToken.None);
                     if (h.StopRequested) { FinishStop(h); return; }
-                    if (TryBegin(h, step, out parked, out rerun)) break;
+                    if (TryBegin(h, step, out parked, out rerun, out redo)) break;
                 }
                 if (parked) return;
 
-                var outcome = await RunAgentStep(h, step, rerun);
+                var outcome = await RunAgentStep(h, step, rerun, redo);
                 if (outcome == Outcome.Stopped) { FinishStop(h); return; }
                 bool? ended;
                 while (true)
@@ -568,18 +587,20 @@ public sealed partial class WorkflowRunner
     }
 
     /// <summary>Starts or parks the step; false when a pause or stop landed since the gate check (the caller waits and tries again).</summary>
-    private bool TryBegin(Handle h, WorkflowStep step, out bool parked, out bool rerun)
+    private bool TryBegin(Handle h, WorkflowStep step, out bool parked, out bool rerun, out bool redo)
     {
         parked = false;
         rerun = false;
+        redo = false;
         lock (_lock)
         {
             if (h.Run.State != RunStates.Running) return false;
             var record = Record(h, step.Id);
             var bypass = h.Bypass == step.Id;
             h.Bypass = null;
-            rerun = h.Rerun == step.Id || record.Status == "stopped";
-            if (h.Rerun == step.Id) h.Rerun = null;
+            redo = h.Redo == step.Id;
+            if (redo) h.Redo = null;
+            rerun = !redo && record.Status == "stopped";
             if (!bypass && !rerun && h.Run.Breakpoints.Contains(step.Id) && record.Status == "pending")
             {
                 Transition(h, RunCommand.ReachBreakpoint);
@@ -603,14 +624,24 @@ public sealed partial class WorkflowRunner
         }
     }
 
-    /// <summary>The worktree diff stat and CLI session id, read outside the lock because they shell out.</summary>
-    private (string? Diff, string? Session) Capture(Handle h) => (DiffStat(h.Worktree), _sessionFinder(h.Worktree));
+    /// <summary>The worktree diff stat, CLI session id and its token usage, read outside the lock because they shell out or read files.</summary>
+    private (string? Diff, string? Session, StepUsage? Usage) Capture(Handle h)
+    {
+        var session = _sessionFinder(h.Worktree);
+        var usage = session is null ? null : _usageReader(session, h.Worktree);
+        return (DiffStat(h.Worktree), session, usage is null ? null : new StepUsage
+        {
+            ContextTokens = usage.ContextTokens, InputTokens = usage.InputTokens, OutputTokens = usage.OutputTokens,
+            CacheReadTokens = usage.CacheReadTokens, Model = usage.Model, ContextWindow = ModelSpecs.ContextWindow(usage.Model),
+        });
+    }
 
-    private static void Snapshot(StepRecord record, string status, (string? Diff, string? Session) stats)
+    private static void Snapshot(StepRecord record, string status, (string? Diff, string? Session, StepUsage? Usage) stats)
     {
         record.Status = status;
         record.DiffStat = stats.Diff;
         record.SessionId = stats.Session ?? record.SessionId;
+        record.Usage = stats.Usage ?? record.Usage;
     }
 
     /// <summary>Marks the step done and moves the run on: true when the loop must end (held or finished), false to go on, null when a pause or stop landed first (the caller waits and tries again).</summary>
@@ -670,7 +701,14 @@ public sealed partial class WorkflowRunner
         }
     }
 
-    private async Task<Outcome> RunAgentStep(Handle h, WorkflowStep step, bool rerun)
+    /// <summary>How a step launches: extra argv, the step it forks, or why it cannot start (a continue never falls back to a fresh agent).</summary>
+    private readonly record struct Launch(IReadOnlyList<string> Args, string? ResumedFrom, bool Fresh, string? Error)
+    {
+        /// <summary>Resumes <paramref name="session"/> (step <paramref name="fromStepId"/>'s) forked into a new session.</summary>
+        public static Launch Fork(string adapter, string session, string fromStepId) => new(CliAdapters.ResumeArgs(adapter, session, true), fromStepId, false, null);
+    }
+
+    private async Task<Outcome> RunAgentStep(Handle h, WorkflowStep step, bool rerun, bool redo)
     {
         StepRecord record;
         string? session;
@@ -679,14 +717,33 @@ public sealed partial class WorkflowRunner
             record = Record(h, step.Id);
             session = record.SessionId;
         }
+        CliResolution cli;
+        try
+        {
+            cli = _agent.ResolveCli(step.Provider, step.Model);
+        }
+        catch (CliLookupException error)
+        {
+            lock (_lock) AppendOutput(record, "✗ " + error.Message);
+            return Outcome.Failed;
+        }
+        Launch launch;
+        lock (_lock) launch = redo ? PlanRedo(h, step, cli.AdapterKey) : PlanLaunch(h, step, rerun, session, cli.AdapterKey);
+        if (launch.Error is not null)
+        {
+            lock (_lock) AppendOutput(record, $"✗ cannot continue {step.Slug}: {launch.Error}");
+            return Outcome.Failed;
+        }
         if (record.CheckpointRef is null)
         {
             var checkpoint = Checkpoint(h.Worktree, step.Slug);
             lock (_lock) record.CheckpointRef = checkpoint;
         }
-        var prompt = BuildPrompt(WithContext(h, step, ResolvePrompt(h, step), rerun), rerun, session is not null, h.Note);
+        var resolved = ResolvePrompt(h, step);
+        var task = launch.Fresh ? WithContext(h, step, resolved, rerun) : resolved;
+        var prompt = redo ? RedoPrompt(task, h.Note) : BuildPrompt(task, rerun, session is not null);
         h.Note = null;
-        IReadOnlyList<string> extra = rerun && session is not null && IsClaude(_agent) ? ["--resume", session] : [];
+        if (launch.ResumedFrom is not null) lock (_lock) record.ResumedFrom = launch.ResumedFrom;
         var done = new TaskCompletionSource<JobState>(TaskCreationOptions.RunContinuationsAsynchronously);
         var gate = h.Gate;
         JobState started;
@@ -696,7 +753,7 @@ public sealed partial class WorkflowRunner
                 h.Run.Id, h.Worktree,
                 (_, state) => { if (state.State != "generating") done.TrySetResult(state); return Task.CompletedTask; },
                 (_, lines) => { OnLines(h, record, lines); return Task.CompletedTask; },
-                prompt, null, new RunOptions(extra) { PauseGate = gate.WaitAsync, Bare = false });
+                prompt, null, new RunOptions(launch.Args) { PauseGate = gate.WaitAsync, Bare = false, Cli = cli });
         }
         catch (Exception error)
         {
@@ -712,6 +769,22 @@ public sealed partial class WorkflowRunner
         return Outcome.Failed;
     }
 
+    /// <summary>A rerun resumes the step's own session; a continue forks its source's session or fails; anything else starts fresh.</summary>
+    private static Launch PlanLaunch(Handle h, WorkflowStep step, bool rerun, string? session, string adapter)
+    {
+        var canResume = CliAdapters.CanResume(adapter);
+        if (rerun && session is not null && canResume) return new Launch(CliAdapters.ResumeArgs(adapter, session, false), null, false, null);
+        if (!StepAgents.IsContinue(step.Agent)) return new Launch([], null, true, null);
+        var source = StepAgents.SourceIndex(h.Def, IndexOf(h, step.Id));
+        if (source < 0) return new Launch([], null, false, "there is no earlier agent step to continue");
+        var from = h.Def.Steps[source];
+        var fromRecord = Record(h, from.Id);
+        if (fromRecord.Status == "skipped") return new Launch([], null, false, $"{from.Slug} was skipped, so it has no agent session");
+        if (fromRecord.SessionId is not { } sourceSession) return new Launch([], null, false, $"{from.Slug} has no agent session");
+        if (!canResume) return new Launch([], null, false, "only claude can continue a session");
+        return Launch.Fork(adapter, sourceSession, from.Id);
+    }
+
     private void OnLines(Handle h, StepRecord record, IReadOnlyList<string> lines)
     {
         lock (_lock)
@@ -721,10 +794,10 @@ public sealed partial class WorkflowRunner
         }
     }
 
-    /// <summary>The step prompt with the run's inputs filled in and its skill named first.</summary>
+    /// <summary>The step prompt plus its step input, with the run's inputs filled in and its skill named first.</summary>
     private static string ResolvePrompt(Handle h, WorkflowStep step)
     {
-        var prompt = step.Prompt;
+        var prompt = string.IsNullOrWhiteSpace(step.ExtraPrompt) ? step.Prompt : step.Prompt + "\n\n" + step.ExtraPrompt;
         foreach (var (name, value) in h.Run.Inputs)
         {
             var ownedByOther = h.Def.Steps.Any(s => s.Id != step.Id && s.Input?.Name == name);
@@ -735,10 +808,10 @@ public sealed partial class WorkflowRunner
 
     private static List<string> PauseBeforeIds(WorkflowDef def) => def.Steps.Where(s => s.PauseBefore).Select(s => s.Id).ToList();
 
-    /// <summary>A "previous"-context first attempt gets the last finished step's output tail and diff stat ahead of its own prompt.</summary>
+    /// <summary>A handoff first attempt gets the last finished step's output tail and diff stat ahead of its own prompt.</summary>
     private string WithContext(Handle h, WorkflowStep step, string prompt, bool rerun)
     {
-        if (rerun || step.Context == "fresh") return prompt;
+        if (rerun || step.Agent != StepAgents.Handoff) return prompt;
         string slug, output;
         string? diffStat;
         lock (_lock)
@@ -788,7 +861,7 @@ public sealed partial class WorkflowRunner
                 record.Status = "skipped";
                 h.Run.Breakpoints.Remove(stepId);
                 Persist(h, "run.step");
-                return Clone(h.Run);
+                return View(h);
             }
             if (h.Run.State is not (RunStates.Held or RunStates.NeedsYou or RunStates.Stopped) || record.Status is "done" or "skipped")
                 throw new BridgeException(409, "stop the run at this step before skipping it");
@@ -801,20 +874,19 @@ public sealed partial class WorkflowRunner
                 h.Run.CurrentStepId = null;
                 h.Run.StopAfter = null;
                 Persist(h, "run.done");
-                return Clone(h.Run);
+                return View(h);
             }
             Transition(h, h.Run.State == RunStates.NeedsYou ? RunCommand.Approve : RunCommand.ResumeFrom);
             h.Run.CurrentStepId = h.Def.Steps[nextIndex].Id;
             Persist(h, "run.step");
             Drive(h, nextIndex);
-            return Clone(h.Run);
+            return View(h);
         }
     }
 
-    private static string BuildPrompt(string resolved, bool rerun, bool hasSession, string? note)
+    private static string BuildPrompt(string resolved, bool rerun, bool hasSession)
     {
         if (!rerun) return resolved;
-        if (note is not null) return $"Reviewer feedback: {note}\n\nAddress it. The original task of this step:\n{resolved}";
         var lead = hasSession
             ? "Your previous attempt at this step was interrupted. Continue and finish it."
             : "A previous attempt at this step was interrupted; its partial changes are in the working tree. Finish the step.";

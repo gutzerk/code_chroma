@@ -99,9 +99,9 @@ export function headerToggle(state: RunState): HeaderToggle {
   return { label: "Pause", enabled: state === "running" };
 }
 
-/** Stop run is only legal while the run is actually running (the contract's transition table). */
+/** Cancel is legal in every live state (the bridge's StopNow row), including held and awaiting review. */
 export function canStopRun(state: RunState): boolean {
-  return state === "running";
+  return state === "running" || state === "paused" || state === "held" || state === "needs_you";
 }
 
 /** The banner sentence for a non-running state, or null when nothing needs saying. */

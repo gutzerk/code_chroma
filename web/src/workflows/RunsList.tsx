@@ -89,6 +89,14 @@ function RunHead({
   );
 }
 
+/** Opens the card unless the click landed on one of its own controls. */
+function openOnBackgroundClick(open: () => void) {
+  return (e: React.MouseEvent<HTMLElement>) => {
+    if ((e.target as HTMLElement).closest("button, a, input, select, [role='menu'], [role='menuitem']")) return;
+    open();
+  };
+}
+
 function ActiveCard({
   run,
   workflow,
@@ -111,7 +119,7 @@ function ActiveCard({
     { label: "Cancel run", icon: "cancel", danger: true, disabled: !canStopRun(run.state), onSelect: () => void actions.stop(run.id, "now") },
   ];
   return (
-    <li className="wf-run-card" data-testid={`run-row-${run.id}`} data-state={run.state} data-selected={selected || undefined} style={{ borderLeftColor: RUN_STATE_COLOR[run.state] }}>
+    <li className="wf-run-card wf-run-clickable" onClick={openOnBackgroundClick(() => onOpen(run.id))} data-testid={`run-row-${run.id}`} data-state={run.state} data-selected={selected || undefined} style={{ borderLeftColor: RUN_STATE_COLOR[run.state] }}>
       <RunHead run={run} workflow={workflow} selected={selected} onOpen={onOpen} />
       <SegmentBar
         steps={run.steps}
@@ -173,7 +181,7 @@ function FinishedRow({
   onDelete: (run: Run) => void;
 }) {
   return (
-    <li className="wf-run-card wf-run-finished" data-testid={`run-row-${run.id}`} data-state={run.state} data-selected={selected || undefined} style={{ borderLeftColor: RUN_STATE_COLOR[run.state] }}>
+    <li className="wf-run-card wf-run-finished wf-run-clickable" onClick={openOnBackgroundClick(() => onOpen(run.id))} data-testid={`run-row-${run.id}`} data-state={run.state} data-selected={selected || undefined} style={{ borderLeftColor: RUN_STATE_COLOR[run.state] }}>
       <RunHead run={run} workflow={workflow} selected={selected} onOpen={onOpen} />
       <Attempts run={run} />
       <div className="wf-run-actions">
@@ -214,7 +222,7 @@ function SavedRow({
     { label: "Delete", icon: "trash", danger: true, onSelect: () => onDelete(workflow) },
   ];
   return (
-    <li className="wf-run-card" data-testid={`saved-${workflow.id}`}>
+    <li className="wf-run-card wf-run-clickable" onClick={openOnBackgroundClick(() => onEdit(workflow))} data-testid={`saved-${workflow.id}`}>
       <div className="wf-run-open wf-saved-head">
         <span className="wf-run-name wf-truncate" title={workflow.name}>
           {workflow.name}

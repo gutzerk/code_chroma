@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import type { EngineClient } from "../engine-client/EngineClient";
 import { EngineClientProvider } from "../engine-client/EngineClientContext";
-import { WorkflowEditorDialog, validateDraft, type StepDraft } from "./WorkflowEditorDialog";
+import { WorkflowEditorDialog, deriveInputName, validateDraft, type StepDraft } from "./WorkflowEditorDialog";
 import { workflowStore } from "./workflowStore";
 import type { Run, WorkflowDef } from "./types";
 
@@ -142,5 +142,27 @@ describe("WorkflowEditorDialog", () => {
 
     await waitFor(() => expect(onClose).toHaveBeenCalled());
     expect(client.startRun).toHaveBeenCalledWith("wf-1", undefined);
+  });
+
+  it("asks only for a question per input, derives its name and inserts it into a step", async () => {
+    const client = fakeClient();
+    open(client, { onClose: vi.fn() });
+
+    fireEvent.click(screen.getByRole("button", { name: "Add input" }));
+    fireEvent.click(screen.getByRole("button", { name: "Add input" }));
+    fireEvent.change(screen.getByLabelText("Input 1 question"), { target: { value: "Which PR?" } });
+    fireEvent.change(screen.getByLabelText("Input 2 question"), { target: { value: "Which PR?" } });
+    fireEvent.click(screen.getByRole("button", { name: "Insert {{Which-PR-2}}" }));
+
+    expect(screen.queryByLabelText("Input 1 name")).toBeNull();
+    expect((screen.getByLabelText(/^Instructions/) as HTMLTextAreaElement).value).toBe("{{Which-PR-2}}");
+  });
+});
+
+describe("deriveInputName", () => {
+  it("makes a valid unique identifier from a question", () => {
+    const name = deriveInputName("  1st: which PR?? ", ["st-which-PR"]);
+
+    expect(name).toBe("st-which-PR-2");
   });
 });

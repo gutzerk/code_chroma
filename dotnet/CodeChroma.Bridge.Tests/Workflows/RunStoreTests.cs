@@ -18,6 +18,21 @@ public sealed class RunStoreTests
         Assert.Single(store.ListWorkflows());
     }
 
+    [Fact]
+    public void Deleting_a_definition_removes_it_once()
+    {
+        using var repo = new GitSandbox();
+        var store = new RunStore(repo.Root);
+        store.TryCreateWorkflow(new WorkflowDef { Id = "doomed", Name = "Doomed" });
+
+        var first = store.DeleteWorkflow("doomed");
+        var second = store.DeleteWorkflow("doomed");
+
+        Assert.True(first);
+        Assert.False(second);
+        Assert.Null(store.GetWorkflow("doomed"));
+    }
+
     [Theory]
     [InlineData("../escape")]
     [InlineData("a/b")]

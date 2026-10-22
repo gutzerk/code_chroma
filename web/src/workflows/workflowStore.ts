@@ -243,6 +243,8 @@ export function workflowActions(client: EngineClient) {
       });
     },
     skip: (runId: string, stepId: string) => steer(() => client.skipStep(runId, stepId)),
+    createWorkflow: (def: WorkflowDef) =>
+      mutate(() => client.createWorkflow(def), async () => workflowStore.setWorkflows(await client.listWorkflows())),
     deleteWorkflow: (workflowId: string) =>
       mutate(() => client.deleteWorkflow(workflowId), async () => workflowStore.setWorkflows(await client.listWorkflows())),
     updateWorkflow: (def: WorkflowDef) =>

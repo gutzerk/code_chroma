@@ -21,6 +21,7 @@ vi.mock("@xterm/xterm", () => {
       terminals.push(this);
     }
     loadAddon(): void {}
+    attachCustomKeyEventHandler(): void {}
     open(): void {}
     focus(): void {}
     write(data: string): void {

@@ -39,15 +39,10 @@ const draft = (over: Partial<StepDraft>): StepDraft => ({
 });
 
 describe("validateDraft", () => {
-  it("requires a name, instructions on agent steps and unique input names", () => {
-    const errors = validateDraft(
-      " ",
-      [{ name: "pr", label: "" }, { name: "pr", label: "" }],
-      [draft({ prompt: "" }), draft({ kind: "review", prompt: "" })],
-    );
+  it("requires a name and instructions on agent steps", () => {
+    const errors = validateDraft(" ", [draft({ prompt: "" }), draft({ kind: "review", prompt: "" })]);
 
     expect(errors.name).toBeDefined();
-    expect(errors.inputs?.[1]).toMatch(/unique/);
     expect(errors.steps?.[0]).toMatch(/instructions/);
     expect(errors.steps?.[1]).toBeUndefined();
   });
@@ -144,18 +139,36 @@ describe("WorkflowEditorDialog", () => {
     expect(client.startRun).toHaveBeenCalledWith("wf-1", undefined);
   });
 
-  it("asks only for a question per input, derives its name and inserts it into a step", async () => {
+  it("gives each agent step one input field, derives its name and saves it on the step", async () => {
     const client = fakeClient();
     open(client, { onClose: vi.fn() });
 
-    fireEvent.click(screen.getByRole("button", { name: "Add input" }));
-    fireEvent.click(screen.getByRole("button", { name: "Add input" }));
-    fireEvent.change(screen.getByLabelText("Input 1 question"), { target: { value: "Which PR?" } });
-    fireEvent.change(screen.getByLabelText("Input 2 question"), { target: { value: "Which PR?" } });
-    fireEvent.click(screen.getByRole("button", { name: "Insert {{Which-PR-2}}" }));
+    fireEvent.change(screen.getByLabelText("Workflow name"), { target: { value: "Review" } });
+    fireEvent.change(screen.getByLabelText(/^Instructions/), { target: { value: "Review the PR" } });
+    fireEvent.change(screen.getByLabelText(/^Ask for input/), { target: { value: "Which PR?" } });
+    fireEvent.click(screen.getByRole("button", { name: "Insert" }));
+    fireEvent.click(screen.getByRole("button", { name: "Save" }));
 
-    expect(screen.queryByLabelText("Input 1 name")).toBeNull();
-    expect((screen.getByLabelText(/^Instructions/) as HTMLTextAreaElement).value).toBe("{{Which-PR-2}}");
+    await waitFor(() => expect(client.createWorkflow).toHaveBeenCalled());
+    const saved = client.createWorkflow.mock.calls[0][0];
+    expect(screen.queryByText("Run inputs")).toBeNull();
+    expect(saved.inputs).toEqual([]);
+    expect(saved.steps[0].input).toEqual({ name: "Which-PR", label: "Which PR?" });
+    expect(saved.steps[0].prompt).toBe("Review the PR {{Which-PR}}");
+  });
+
+  it("binds an older workflow-level input to the step that mentions it", async () => {
+    const client = fakeClient();
+    const legacy: WorkflowDef = {
+      ...existing,
+      inputs: [{ name: "pr", label: "PR number" }],
+      steps: existing.steps.map((st) => (st.id === "b" ? { ...st, prompt: "build {{pr}}" } : st)),
+    };
+    open(client, { workflow: legacy, onClose: vi.fn() });
+
+    fireEvent.click(screen.getByRole("button", { name: "Step 2: Build" }));
+
+    expect((screen.getByLabelText(/^Ask for input/) as HTMLInputElement).value).toBe("PR number");
   });
 });
 

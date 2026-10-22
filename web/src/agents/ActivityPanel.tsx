@@ -35,12 +35,12 @@ export function ActivityPanel({
     maxViewportFraction: full ? 0.95 : 0.7,
     onExceedMax: full ? undefined : () => layoutStore.setAgentsMode("full"),
   });
-  const resizable = agentsMode === "normal" || full;
   const collapsed = agentsMode === "collapsed";
+  const resizable = !collapsed;
   useEffect(() => resetSize(), [agentsMode]); // eslint-disable-line react-hooks/exhaustive-deps
   let style: CSSProperties | undefined;
-  if (full) style = size ? { left: "auto", width: size.width } : { left: chromeInsets({ leftOpen, agentsMode }).agentsFullLeft };
-  else if (resizable && size) style = { width: size.width, flexBasis: size.width };
+  if (full && !size) style = { left: chromeInsets({ leftOpen, agentsMode }).agentsFullLeft };
+  else if (resizable && size) style = full ? { left: "auto", width: size.width } : { width: size.width };
   const activeId = agents.some((a) => a.id === selectedAgentId) ? selectedAgentId : agents[0]?.id;
   useEffect(() => {
     if (selectedAgentId) setTab("agents");

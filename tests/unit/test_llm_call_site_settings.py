@@ -17,12 +17,6 @@ from codechroma.llm.call_sites import CALL_SITES, GROUPS, group_of
 from codechroma.llm.providers_store import create_provider
 
 
-@pytest.fixture(autouse=True)
-def _isolated_stores(tmp_path, monkeypatch):
-    monkeypatch.setenv("codechroma_LLM_PROVIDERS_FILE", str(tmp_path / "providers.json"))
-    monkeypatch.setenv("codechroma_LLM_CALL_SITE_SETTINGS_FILE", str(tmp_path / "call-sites.json"))
-
-
 @pytest.fixture
 def api_provider():
     return create_provider({

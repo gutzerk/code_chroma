@@ -20,12 +20,13 @@ import asyncio
 import re
 import shutil
 from collections import Counter
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import TYPE_CHECKING
 
 from codechroma.analyzers.registry import AnalyzerRegistry
 from codechroma.bridge.skill_agent import SkillAgent, build_skill_agent
-from codechroma.bridge.wiki_general_naming import dedupe_id, deterministic_name
+from codechroma.bridge.wiki_general_naming import dedupe_id, deterministic_name, unique_display
 from codechroma.dependencies.clustering import (
     ClusterEdge,
     ClusterResult,
@@ -297,20 +298,27 @@ def _diff_level(
 
     resolved: dict[str, str] = {}
     matched_old_ids: set[str] = set()
-    created: list[dict] = []
+    unmatched: list[tuple[str, list[str]]] = []
     for internal_id, files in fresh_groups:
         match = _best_matching_old_id(files, old_id_by_file)
         if match is not None:
             resolved[internal_id] = match
             matched_old_ids.add(match)
         else:
-            new_id, new_name = deterministic_name(files, top_level=top_level)
-            new_id = dedupe_id(new_id, used_ids)
-            used_ids.add(new_id)
-            resolved[internal_id] = new_id
-            created.append({
-                "id": new_id, "name": new_name, "files": sorted(files), "internal_id": internal_id
-            })
+            unmatched.append((internal_id, files))
+
+    # A superseded old id is free again, so a new group may reuse it instead of getting a "-2".
+    used_ids -= old_ids - matched_old_ids
+    created: list[dict] = []
+    for internal_id, files in unmatched:
+        base_id, new_name = deterministic_name(files, top_level=top_level)
+        new_id = dedupe_id(base_id, used_ids)
+        used_ids.add(new_id)
+        resolved[internal_id] = new_id
+        created.append({
+            "id": new_id, "name": unique_display(new_name, base_id, new_id),
+            "files": sorted(files), "internal_id": internal_id,
+        })
 
     fresh_neighbors_real: dict[str, set[str]] = {}
     for a, b in fresh_edges:
@@ -500,8 +508,35 @@ def apply_update_delta(ws: Workspace, delta: dict) -> dict:
     manifest["containers"] = containers
     manifest["components"] = components
     manifest["edges"] = delta["edges"]
+    manifest["generated_at"] = datetime.now(UTC).isoformat()
     write_json(manifest_path, manifest)
     return delta
+
+
+def pages_to_write(delta: dict) -> list[str]:
+    """The wiki-relative pages an update run must write: created plus rewritten, c3 then c2."""
+    pages = [
+        f"c3/{entry['id']}.md"
+        for bucket in ("created", "rewritten") for entry in delta["components"][bucket]
+    ]
+    pages += [
+        f"c2/{entry['id']}.md"
+        for bucket in ("created", "rewritten") for entry in delta["containers"][bucket]
+    ]
+    return pages
+
+
+def verify_pages_written(wiki_dir: Path, pages: list[str], started_at: float) -> str | None:
+    """An error message when a promised page is missing or none was written, else None."""
+    if not pages:
+        return None
+    missing = [page for page in pages if not (wiki_dir / page).is_file()]
+    if missing:
+        shown = ", ".join(missing[:5]) + (", ..." if len(missing) > 5 else "")
+        return f"update finished but did not write {len(missing)} of {len(pages)} page(s): {shown}"
+    if not any((wiki_dir / page).stat().st_mtime >= started_at for page in pages):
+        return f"update finished but wrote none of the {len(pages)} page(s) it was asked to refresh"
+    return None
 
 
 def compute_clustering(ws: Workspace) -> dict:

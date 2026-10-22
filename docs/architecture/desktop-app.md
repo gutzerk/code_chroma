@@ -60,8 +60,10 @@ Logic is UI-free in `CodeChroma.Shell`; `CodeChroma.Shell.App` only renders.
 - 🔴 `Program.Main` calls `VelopackApp.Build().Run()` first so Velopack's install/uninstall hooks work. Real
   install/uninstall hooks are still unverified on a real install.
 - The environment for agent PTYs and skills comes from the bridge's `RuntimeEnvironment` (login-shell PATH, see
-  [`runtime-environment.md`](runtime-environment.md)); the bridge exports `codechroma_BRIDGE_URL` (the real
-  dynamic port) so a terminal-panel agent, which has no browser, can reach it.
+  [`runtime-environment.md`](runtime-environment.md)); every agent terminal and headless skill run gets `CODECHROMA_WORKSPACE_ID` (the agent/job id) and
+  `CODECHROMA_BRIDGE_URL` (the real dynamic port, `BareSkill.BridgeUrl`) from `BridgeAddress.ExportIdentity`, so a
+  terminal-panel agent, which has no browser, can reach the right bridge. 🔴 Both names are upper-case: env
+  names are case-sensitive on macOS/Linux, and the skills and check scripts read exactly these two.
 - The bridge serves the SPA (`web/` folder next to it), so there is no `file://` origin and no CORS; both client
   contexts map the build-time `same-origin` sentinel to `window.location.origin`
   (`web/src/engine-client/sameOrigin.test.ts`).

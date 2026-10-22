@@ -30,6 +30,13 @@ def dedupe_id(candidate: str, taken: set[str]) -> str:
     return f"{candidate}-{n}"
 
 
+def unique_display(display: str, base_id: str, real_id: str) -> str:
+    """The display name with the dedupe counter appended, so two same-named groups stay distinct."""
+    if real_id == base_id or not real_id.startswith(f"{base_id}-"):
+        return display
+    return f"{display} {real_id[len(base_id) + 1:]}"
+
+
 def deterministic_name(files: list[str], *, top_level: bool) -> tuple[str, str]:
     """(kebab-case id, display name) from the group's heaviest folder/file -- no model call."""
     if top_level:
@@ -48,8 +55,8 @@ def assign_ids(
     used_ids: set[str] = set()
     resolved: dict[str, tuple[str, str]] = {}
     for internal_id, files in groups:
-        real_id, display = deterministic_name(files, top_level=top_level)
-        real_id = dedupe_id(real_id, used_ids)
+        base_id, display = deterministic_name(files, top_level=top_level)
+        real_id = dedupe_id(base_id, used_ids)
         used_ids.add(real_id)
-        resolved[internal_id] = (real_id, display)
+        resolved[internal_id] = (real_id, unique_display(display, base_id, real_id))
     return resolved

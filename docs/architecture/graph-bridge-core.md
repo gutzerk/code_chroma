@@ -365,6 +365,10 @@ so live saves are cheap. Exercised by
 
 `dotnet/CodeChroma.Bridge` is a partial ASP.NET Core port that replays the same `tests/fixtures/bridge_contract` cases as this Python bridge; the Python bridge remains the reference and is not removed. Its graph comes from `CodeChroma.Core` fed by the in-process C# analyzers (`CodeChroma.Core/Analyzers`, `NativeAnalysisExporter`, registered directly in `Program.cs`; there is no backend env-var switch and the shipped bridge never runs Python). The Python analysis exporter (`python -m codechroma.analysis_export`, also used by `tests/graph_golden.py`) survives only as a parity oracle: `PythonAnalysisExporter` lives in `CodeChroma.Bridge.Tests/Support/` and `BridgeHost` plugs it in when `CODECHROMA_PYTHON` is set (see 011, Phase 5). See 012 for the ported/unported route table.
 
+### Agent and skill environment
+
+Every PTY agent (`AgentRoutes` start, `AgentRuntime` autostart) and every headless skill run (`SkillAgent.RunCli`) gets `CODECHROMA_WORKSPACE_ID=<agent or job id>` and, once the server is listening, `CODECHROMA_BRIDGE_URL=<loopback URL>` through `BridgeAddress.ExportIdentity` (URL from `BareSkill.BridgeUrl`, set on `ApplicationStarted`). Python: `bridge/agents/sessions.agent_run_env` and `skill_agent._run_cli` use `questions.launch.identity_env` (URL from the env override or uvicorn `--port`). 🔴 The names are upper-case; `RuntimeEnvironment.Clean` / `llm.runtime_env._clean` keep exactly these two and drop other `codechroma_*` internals. The workspace id of an agent terminal is its agent id (`agent1`), not `main`: `agents.json`'s `active_workspace` only picks the canvas tab, and `default`/`main` resolve to the main checkout. `hooks/ask_user_question_hook.py` still accepts the old lower-case spelling.
+
 ### C# route table: canvas, recipes, diffs
 
 | Route | C# file | Notes |

@@ -26,9 +26,20 @@ public sealed class CharBudget(int maxChars, int used = 0)
 public sealed record WikiContextPage(string Path, string Kind, string Content);
 
 /// <summary>What GET /repos/{id}/wiki-context returns.</summary>
-public sealed record WikiContextBundle(bool HasWiki, string? Root, IReadOnlyList<WikiContextPage> Pages, IReadOnlyList<string> Gaps, bool Truncated)
+public sealed record WikiContextBundle(bool HasWiki, string? Root, IReadOnlyList<WikiContextPage> Pages, IReadOnlyList<string> Gaps, bool Truncated,
+    IReadOnlyList<string>? Omitted = null, string? Warning = null)
 {
     public static WikiContextBundle Missing { get; } = new(false, null, [], [], false);
+
+    /// <summary>Marks the requested paths the size cap cut off, with a sentence telling the caller to ask again.</summary>
+    public static WikiContextBundle WithTruncation(bool hasWiki, string? root, IReadOnlyList<WikiContextPage> pages, IReadOnlyList<string> gaps,
+        bool truncated, IReadOnlyList<string> requested, ISet<string> included)
+    {
+        if (!truncated) return new WikiContextBundle(hasWiki, root, pages, gaps, false);
+        var omitted = requested.Where(path => !included.Contains(path) && !gaps.Contains(path)).ToList();
+        var warning = $"truncated: only part of the wiki fit the size cap, so {omitted.Count} requested path(s) have no page here -- request them again, one or two paths at a time.";
+        return new WikiContextBundle(hasWiki, root, pages, gaps, true, omitted, warning);
+    }
 
     public JsonObject ToJson() => new()
     {
@@ -37,6 +48,8 @@ public sealed record WikiContextBundle(bool HasWiki, string? Root, IReadOnlyList
         ["pages"] = new JsonArray(Pages.Select(p => (JsonNode?)new JsonObject { ["path"] = p.Path, ["kind"] = p.Kind, ["content"] = p.Content }).ToArray()),
         ["gaps"] = new JsonArray(Gaps.Select(g => (JsonNode?)JsonValue.Create(g)).ToArray()),
         ["truncated"] = Truncated,
+        ["omitted"] = new JsonArray((Omitted ?? []).Select(o => (JsonNode?)JsonValue.Create(o)).ToArray()),
+        ["warning"] = Warning,
     };
 }
 
@@ -130,7 +143,7 @@ public static class WikiContext
                 seen.Add(path);
             }
         }
-        return new WikiContextBundle(true, rootText, pages, gaps, budget.Truncated);
+        return WikiContextBundle.WithTruncation(true, rootText, pages, gaps, budget.Truncated, paths, seen);
     }
 
     /// <summary>The bundle for a workspace, freshly synced; a missing wiki reports has_wiki false.</summary>

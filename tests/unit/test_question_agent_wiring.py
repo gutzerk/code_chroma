@@ -31,8 +31,8 @@ def test_claude_argv_registers_the_mcp_config_before_the_plugin_dir():
     assert argv[1] == "--mcp-config"
     assert argv[3] == "--plugin-dir"
     assert env == {
-        "codechroma_BRIDGE_URL": "http://127.0.0.1:8123",
-        "codechroma_QUESTION_TOKEN": "agent-1.sig",
+        "CODECHROMA_BRIDGE_URL": "http://127.0.0.1:8123",
+        "CODECHROMA_QUESTION_TOKEN": "agent-1.sig",
     }
 
 
@@ -55,7 +55,7 @@ def test_claude_argv_is_unchanged_without_an_endpoint():
 
 
 def test_discover_base_url_reads_the_uvicorn_port_from_argv(monkeypatch):
-    monkeypatch.delenv("codechroma_BRIDGE_URL", raising=False)
+    monkeypatch.delenv("CODECHROMA_BRIDGE_URL", raising=False)
 
     url = discover_base_url(["uvicorn", "app:app", "--port", "9100"])
 
@@ -63,7 +63,7 @@ def test_discover_base_url_reads_the_uvicorn_port_from_argv(monkeypatch):
 
 
 def test_discover_base_url_is_none_without_a_port(monkeypatch):
-    monkeypatch.delenv("codechroma_BRIDGE_URL", raising=False)
+    monkeypatch.delenv("CODECHROMA_BRIDGE_URL", raising=False)
 
     assert discover_base_url(["pytest", "-n", "2"]) is None
 
@@ -77,7 +77,7 @@ def test_loopback_url_needs_an_explicit_port(given, expected):
 
 
 def test_endpoint_for_signs_a_token_that_names_the_workspace(monkeypatch):
-    monkeypatch.delenv("codechroma_BRIDGE_URL", raising=False)
+    monkeypatch.delenv("CODECHROMA_BRIDGE_URL", raising=False)
     mcp = QuestionMcp(broker=None, workspace_for=lambda _id: None)
     mcp.remember_base_url("http://localhost:8765/")
 
@@ -143,7 +143,7 @@ def test_hook_decision_echoes_the_input_and_adds_answers():
 
 def test_hook_prints_nothing_when_the_bridge_env_is_absent(monkeypatch, capsys):
     hook = _load_hook()
-    for name in ("codechroma_BRIDGE_URL", "codechroma_QUESTION_TOKEN", "codechroma_WORKSPACE_ID"):
+    for name in ("CODECHROMA_BRIDGE_URL", "CODECHROMA_QUESTION_TOKEN", "CODECHROMA_WORKSPACE_ID"):
         monkeypatch.delenv(name, raising=False)
 
     code = hook.main()
@@ -156,9 +156,9 @@ def test_hook_fails_open_when_the_bridge_is_unreachable(monkeypatch, capsys):
     import io
 
     hook = _load_hook()
-    monkeypatch.setenv("codechroma_BRIDGE_URL", "http://127.0.0.1:1")
-    monkeypatch.setenv("codechroma_QUESTION_TOKEN", "t")
-    monkeypatch.setenv("codechroma_WORKSPACE_ID", "w")
+    monkeypatch.setenv("CODECHROMA_BRIDGE_URL", "http://127.0.0.1:1")
+    monkeypatch.setenv("CODECHROMA_QUESTION_TOKEN", "t")
+    monkeypatch.setenv("CODECHROMA_WORKSPACE_ID", "w")
     event = {"tool_input": {"questions": [{"question": "A?", "options": []}]}}
     monkeypatch.setattr("sys.stdin", io.StringIO(json.dumps(event)))
 

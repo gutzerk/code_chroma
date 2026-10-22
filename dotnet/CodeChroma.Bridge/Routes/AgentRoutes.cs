@@ -99,7 +99,8 @@ public static class AgentRoutes
             }
             var launch = terminalAgents.Resolve(record.Kind, sessionId, taskText, bare);
             if (launch is null) return Reply.Error(400, $"unknown agent kind: {record.Kind}");
-            var env = new Dictionary<string, string>(launch.Env) { ["codechroma_WORKSPACE_ID"] = agentId };
+            var env = new Dictionary<string, string>(launch.Env);
+            BridgeAddress.ExportIdentity(env, agentId, BareSkill.BridgeUrl);
             var session = await Task.Run(() => sessions.Start(agentId, launch.Argv, record.Worktree, record.Kind, env, paths));
             var updated = agents.MarkStarted(agentId, session.Pid, TerminalAgents.ResolvedCliFor(record.Kind, launch.Argv));
             if (pending is { Kind: not "task" } view)

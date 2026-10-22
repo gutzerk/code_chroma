@@ -23,6 +23,10 @@ public static partial class WikiGeneralNaming
         return $"{candidate}-{n}";
     }
 
+    /// <summary>The display name with the dedupe counter appended, so two same-named groups stay distinct.</summary>
+    public static string UniqueDisplay(string display, string baseId, string realId) =>
+        realId == baseId || !realId.StartsWith($"{baseId}-", StringComparison.Ordinal) ? display : $"{display} {realId[(baseId.Length + 1)..]}";
+
     /// <summary>Python's str.title(): a letter is upper-cased when the one before it is not a letter, else lower-cased.</summary>
     private static string Title(string text)
     {
@@ -76,10 +80,10 @@ public static partial class WikiGeneralNaming
         var resolved = new List<(string, string, string)>();
         foreach (var (internalId, files) in groups)
         {
-            var (id, display) = DeterministicName(files, topLevel);
-            id = DedupeId(id, used);
+            var (baseId, display) = DeterministicName(files, topLevel);
+            var id = DedupeId(baseId, used);
             used.Add(id);
-            resolved.Add((internalId, id, display));
+            resolved.Add((internalId, id, UniqueDisplay(display, baseId, id)));
         }
         return resolved;
     }

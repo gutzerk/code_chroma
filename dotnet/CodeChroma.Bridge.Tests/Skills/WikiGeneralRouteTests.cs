@@ -114,7 +114,8 @@ public sealed class WikiGeneralRouteTests : IDisposable
         _engine.Graph = WikiGeneralTestData.Graph("lib/c.py");
         _engine.Clusters = WikiGeneralTestData.Clusters(("c-a", "top::app", ["app/a.py"]), ("c-b", "top::app", ["app/b.py"]), ("c-c", "top::lib", ["lib/c.py"]));
         var before = _cli.Invocations().Count;
-        _cli.Script(Stdout("""{"type":"result","is_error":false}"""), Exit(0));
+        _cli.Script(Write(Path.Combine(Dir, "c3", "lib.md"), "# Lib\n"), Write(Path.Combine(Dir, "c2", "lib.md"), "# Lib\n"),
+            Stdout("""{"type":"result","is_error":false}"""), Exit(0));
 
         var started = await Post("update");
         var final = await Settled();
@@ -125,6 +126,46 @@ public sealed class WikiGeneralRouteTests : IDisposable
         Assert.Contains(manifest["components"]!.AsArray(), c => c!["id"]!.GetValue<string>() == "lib" && c["path"]!.GetValue<string>() == "c3/lib.md");
         var prompt = _cli.Invocations()[before]["args"]![1]!.GetValue<string>();
         Assert.Contains("\"id\": \"lib\"", prompt);
+    }
+
+    [Fact]
+    public async Task Update_that_exits_cleanly_without_writing_the_promised_pages_is_an_error()
+    {
+        _cli.Script(Stdout(Worker), Exit(0));
+        await Post("generate");
+        await Settled();
+        _engine.Graph = WikiGeneralTestData.Graph("lib/c.py");
+        _engine.Clusters = WikiGeneralTestData.Clusters(("c-a", "top::app", ["app/a.py"]), ("c-b", "top::app", ["app/b.py"]), ("c-c", "top::lib", ["lib/c.py"]));
+        _cli.Script(Stdout("""{"type":"result","is_error":false}"""), Exit(0));
+
+        await Post("update");
+        var final = await Settled();
+
+        Assert.Equal("error", final["state"]!.GetValue<string>());
+        Assert.Contains("did not write", final["error"]!.GetValue<string>());
+    }
+
+    [Fact]
+    public async Task Update_plan_previews_then_a_post_applies_it_and_marks_the_job_generating()
+    {
+        _cli.Script(Stdout(Worker), Exit(0));
+        await Post("generate");
+        await Settled();
+        _engine.Graph = WikiGeneralTestData.Graph("lib/c.py");
+        _engine.Clusters = WikiGeneralTestData.Clusters(("c-a", "top::app", ["app/a.py"]), ("c-b", "top::app", ["app/b.py"]), ("c-c", "top::lib", ["lib/c.py"]));
+        var before = File.ReadAllText(Path.Combine(Dir, "manifest.json"));
+
+        var preview = (await _host.Client.GetFromJsonAsync<JsonObject>("/repos/main/wiki-general/update-plan"))!;
+        var untouched = File.ReadAllText(Path.Combine(Dir, "manifest.json"));
+        var response = await _host.Client.PostAsync("/repos/main/wiki-general/update-plan", null);
+        var started = (await response.Content.ReadFromJsonAsync<JsonObject>())!;
+        var again = await _host.Client.PostAsync("/repos/main/wiki-general/update-plan", null);
+
+        Assert.Equal(before, untouched);
+        Assert.Equal("lib", preview["components"]!["created"]!.AsArray().Single()!["id"]!.GetValue<string>());
+        Assert.Equal("generating", started["state"]!.GetValue<string>());
+        Assert.Equal("lib", started["delta"]!["components"]!["created"]!.AsArray().Single()!["id"]!.GetValue<string>());
+        Assert.Equal(System.Net.HttpStatusCode.Conflict, again.StatusCode);
     }
 
     [Fact]

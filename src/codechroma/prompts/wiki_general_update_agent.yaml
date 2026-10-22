@@ -1,9 +1,8 @@
 prompt: |-
   /codechroma-wiki-general-update patch this repository's semantic architecture map --
   read SKILL.md in full before writing anything. A commit changed the repo; the bridge already
-  recomputed the full C2-join clustering and diffed it against the stored manifest (data-model.md's
-  Update state machine), applying every deletion for you -- page removed, manifest entry removed,
-  parent link removed. You do not replan the tree and you never decide what changed or where a file
+  recomputed the full C2-join clustering and diffed it against the stored manifest, applying every
+  deletion for you -- page removed, manifest entry removed, parent link removed. You do not replan the tree and you never decide what changed or where a file
   belongs; you only write/refresh the pages listed below.
 
   Newly created components (id/name/container/files, deterministic -- do not rename or regroup), as

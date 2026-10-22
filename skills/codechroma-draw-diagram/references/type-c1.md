@@ -48,7 +48,7 @@ here — that's `patterns`/`custom`'s job, not this one.
 **The digest — WHO the system serves and WHAT it integrates with, the primary source for this type:**
 
 ```bash
-curl -s http://localhost:8000/repos/${CODECHROMA_WORKSPACE_ID:-default}/context-digest
+curl -s ${CODECHROMA_BRIDGE_URL:-http://localhost:8000}/repos/${CODECHROMA_WORKSPACE_ID:-default}/context-digest
 ```
 
 Reconcile the digest (and wiki-general's `root`, if any) against what the docs-first read above
@@ -60,7 +60,7 @@ for spot-checks, never as a default fetch:
   boundary, or is it a driver this project configures and runs itself?), check the specific file:
 
   ```bash
-  curl -s 'http://localhost:8000/repos/${CODECHROMA_WORKSPACE_ID:-default}/dependency-digest?path=src/codechroma/bridge/server.py'
+  curl -s "${CODECHROMA_BRIDGE_URL:-http://localhost:8000}/repos/${CODECHROMA_WORKSPACE_ID:-default}/dependency-digest?path=src/codechroma/bridge/server.py"
   ```
 
 `c1` no longer decomposes anything, so `/structure` and `/wiki-context` aren't needed for this
@@ -69,7 +69,7 @@ type — there's nothing below the system box to give a `path` to.
 ## Where the file goes
 
 ```bash
-curl -s http://localhost:8000/repos/${CODECHROMA_WORKSPACE_ID:-default}/c1-path
+curl -s ${CODECHROMA_BRIDGE_URL:-http://localhost:8000}/repos/${CODECHROMA_WORKSPACE_ID:-default}/c1-path
 # -> {"repo_root":"/abs/path/to/repo","c1_path":"/abs/path/to/repo/.codechroma/diagrams/c1/c1.json"}
 ```
 

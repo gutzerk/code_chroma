@@ -180,7 +180,28 @@ file-wide unique, which is also why `AMBIGUOUS` and `SIBLING` were retired (see 
 | `2` | the diagram could not be read at all |
 
 Advisory (print, never gate): `COVERAGE`, `DEPTH`, `NESTING-EDGE`, `CYCLES`, `ARTICULATION`,
-`BADKIND`, `BADICON`, `UNLABELED`, `DROPPED`.
+`BADKIND`, `BADICON`, `UNLABELED`, `DROPPED node …`.
+
+🔴 **`DROPPED relation …` fails the run (exit 1).** A relation the bridge discarded while resolving
+(dangling endpoint, a self-relation the style disallows, invalid shape) is an arrow or message the author drew
+that is not on the canvas; relaying it as an advisory let a run print `OK` with messages missing. The
+`sequence` kind additionally skips `CYCLES`/`ARTICULATION` (`graph_advisories: False` in its check config):
+one workflow triggering another is a cycle by nature. The sequence resolvers (`_resolve_sequence`,
+`DiagramRoutes.cs`) default the style to `sequence` when the file omits it, so a participant's message to
+itself is kept (before this the missing style silently dropped it).
+
+**Bridge env for skills.** Every agent terminal and headless skill run exports upper-case
+`CODECHROMA_WORKSPACE_ID` and `CODECHROMA_BRIDGE_URL` (see `graph-bridge-core.md`). `check_diagram.py`,
+`check_review.py` and `check_wiki_general.py` default `--url`/`--repo` to them (empty counts as unset), and the
+skills' curl examples use `${CODECHROMA_BRIDGE_URL:-http://localhost:8000}` inside double quotes (single quotes
+never expand `${…}`). `drawing-rules.md` also tells the agent to read wiki pages in full, to re-request
+`omitted[]` paths, to treat non-code files (workflows, scripts) as path-only participants with no invented
+`node_id`, and to end with what it did not read, fetch or see (the rendered canvas).
+
+**One source for skills.** `skills/` is the only source; the C# build copies it beside the bridge (so the
+app bundle's `check_*.py` is a build copy, not a second source) and `SkillSync` installs it into each opened
+repo's `.claude/skills`. `SkillSync.PruneRetired` also deletes `.claude/skills/codeatlas-*` (the product's
+former name), the duplicate install an old build left behind.
 
 `CYCLES` (011-draw-relations-borrow): a directed cycle in `relations[]` — found by `_check_cycles`
 (Tarjan SCC) in both the flat and hierarchical strategies. Advisory because a cycle is often
@@ -451,7 +472,7 @@ dump; editing the repo after generating doesn't change the served bundle, since 
 for every path they're about to examine, after Step 0 above:
 
 - `has_wiki: true` — read `root` plus each entry in `pages[]` (root-to-leaf, deduped, capped by
-  `settings.wiki_context.max_chars` with `truncated` reported per Constitution Principle II) instead
+  `settings.wiki_context.max_chars` with `truncated` reported per Constitution Principle II; when it is, `omitted[]` names the requested paths with no page in `pages[]` and `warning` says to request them again one at a time, since `gaps[]` stays empty) instead
   of a full `/structure`/`/patterns/context`/`/impact/context` dump. A path lands in `gaps[]` only
   when no page for it exists on disk at all — that type's normal context call is the fallback for
   **that one path only** — see `docs/architecture/wiki-generator.md`.

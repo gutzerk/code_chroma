@@ -41,7 +41,7 @@ def _clean(env: Mapping[str, str]) -> dict[str, str]:
             k == "CODECHROMA_RESOLVING_ENVIRONMENT"
             or (
                 k.lower().startswith("codechroma_")
-                and k not in {"codechroma_BRIDGE_URL", "codechroma_WORKSPACE_ID"}
+                and k not in {"CODECHROMA_BRIDGE_URL", "CODECHROMA_WORKSPACE_ID"}
             )
             or k.startswith("BASH_FUNC_")
         )

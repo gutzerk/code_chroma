@@ -89,7 +89,8 @@ public static class DiagramRoutes
             case "sequence":
                 if (data.Count == 0) return new JsonObject();
                 data["type"] = "sequence";
-                var sequence = DiagramResolver.Resolve(ws.Engine, data);
+                // A participant may message itself, so the sequence style applies even when the file omits it.
+                var sequence = DiagramResolver.Resolve(ws.Engine, data, data["style"] ?? JsonValue.Create("sequence"));
                 sequence["has_diagram"] = true;
                 return sequence;
             default:

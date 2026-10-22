@@ -85,6 +85,21 @@ describe("useReflowEpics", () => {
     expect((ops.find((o) => o.id === "specs") as { position?: { y?: number } }).position?.y).toBeGreaterThan(560);
   });
 
+  it.each([900, -350])("keeps the horizontal translation %s of an arranged diagram during content reflow", async (x) => {
+    const epic = element({ id: "epic", render: "epic", meta: { recipe_key: "EP-4" }, size: { w: 640, h: 72 }, position: { x, y: 560 } });
+    const specs = element({ id: "specs", meta: { specs: "1", recipe_key: "EP-4::specs" }, size: { w: 640, h: 220 }, position: { x, y: 804 } });
+    const doc = docWith({ epic, specs });
+    const measured = contentSizesOf([["specs", 580]]);
+
+    renderHook(() => useReflowEpics({} as EngineClient, doc, measured));
+    await Promise.resolve();
+    await Promise.resolve();
+    const ops = patchMock.mock.calls[0][0] as Array<{ id: string; position: { x: number; y: number } }>;
+
+    expect(ops.find((op) => op.id === "epic")?.position).toEqual({ x, y: 560 });
+    expect(ops.find((op) => op.id === "specs")?.position.x).toBe(x);
+  });
+
   it("shrinks an over-reserved root epic box to its measured height, anchoring the top edge", async () => {
     // The root epic title reserves more height (150) than its text actually renders (117) -- the empty
     // dark band under the label. The measured 117 qualifies as a shrink (|117 - 150| > 2), so the

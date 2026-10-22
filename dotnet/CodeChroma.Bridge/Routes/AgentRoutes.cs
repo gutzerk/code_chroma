@@ -1,8 +1,10 @@
 using System.Text.Json.Nodes;
 using CodeChroma.Bridge.Agents;
+using CodeChroma.Bridge.Context;
 using CodeChroma.Bridge.Http;
 using CodeChroma.Bridge.Live;
 using CodeChroma.Bridge.Prs;
+using CodeChroma.Bridge.Skills;
 using CodeChroma.Bridge.Stores;
 using CodeChroma.Bridge.Terminal;
 using CodeChroma.Bridge.Workspaces;
@@ -63,8 +65,9 @@ public static class AgentRoutes
             var body = await Reply.LenientBody(request);
             var invalid = Validate(body, out var title, out var kind, out var attachTo, out var context, out var contextKind);
             if (invalid is not null) return Reply.Error(400, invalid);
+            var diagramType = contextKind == "task" && Json.Str(body["diagram_type"]) is { } hinted && (hinted == DiagramContext.AnyType || DiagramContext.Types.Contains(hinted)) ? hinted : null;
             AgentRecord record;
-            try { record = await Task.Run(() => agents.Create(title, kind, attachTo, context, contextKind)); }
+            try { record = await Task.Run(() => agents.Create(title, kind, attachTo, context, contextKind, diagramType)); }
             catch (UnknownAgentException) { return Reply.Error(404, $"unknown attach_to: {attachTo}"); }
             catch (WorktreeException error) { return Reply.Error(400, error.Message); }
             registry.Register(record.Id, record.Worktree, sharesWorkspaceWith: record.SharesWorkspaceWith);
@@ -73,7 +76,7 @@ public static class AgentRoutes
             return Reply.Json(payload);
         }));
 
-        app.MapPost("/agents/{agentId}/start", (string agentId, HttpRequest request, AgentManager agents, AgentSessionRegistry sessions, TerminalAgents terminalAgents, UserPaths paths, ConnectionManager connections) => Reply.GuardAsync(async () =>
+        app.MapPost("/agents/{agentId}/start", (string agentId, HttpRequest request, AgentManager agents, AgentSessionRegistry sessions, TerminalAgents terminalAgents, UserPaths paths, ConnectionManager connections, WorkspaceRegistry registry, DiagramContext diagramContext) => Reply.GuardAsync(async () =>
         {
             var body = await Reply.LenientBody(request);
             var record = OrNotFound(agents, agentId);
@@ -82,7 +85,19 @@ public static class AgentRoutes
             if (resume && string.IsNullOrEmpty(sessionId)) return Reply.Error(409, "this agent has no recorded session to resume");
             var pending = resume ? null : agents.ConsumeContext(agentId);
             var taskText = pending is { Kind: "task" } ? pending.Value.Text : null;
-            var launch = terminalAgents.Resolve(record.Kind, sessionId, taskText);
+            var bare = false;
+            if (taskText is not null && record.DiagramType is { } diagramType)
+            {
+                var workspaceId = record.SharesWorkspaceWith ?? record.Id;
+                var target = TryWorkspace(registry, workspaceId);
+                var command = target is null ? null : await diagramContext.CommandAsync(target);
+                if (BareSkill.ComposeInteractive(diagramType, target?.Root ?? record.Worktree, workspaceId, command) is { } composed)
+                {
+                    taskText = composed;
+                    bare = BareSkill.Enabled();
+                }
+            }
+            var launch = terminalAgents.Resolve(record.Kind, sessionId, taskText, bare);
             if (launch is null) return Reply.Error(400, $"unknown agent kind: {record.Kind}");
             var env = new Dictionary<string, string>(launch.Env) { ["codechroma_WORKSPACE_ID"] = agentId };
             var session = await Task.Run(() => sessions.Start(agentId, launch.Argv, record.Worktree, record.Kind, env, paths));
@@ -233,6 +248,12 @@ public static class AgentRoutes
             var same = string.Equals(Path.GetFullPath(record.Worktree).TrimEnd('\\', '/'), main, OperatingSystem.IsWindows() ? StringComparison.OrdinalIgnoreCase : StringComparison.Ordinal);
             if (same) throw new BridgeException(409, $"stop {record.Title} first — it works directly in the main worktree");
         }
+    }
+
+    private static Workspace? TryWorkspace(WorkspaceRegistry registry, string id)
+    {
+        try { return registry.Get(id); }
+        catch (BridgeException) { return null; }
     }
 
     private static AgentRecord OrNotFound(AgentManager agents, string agentId)

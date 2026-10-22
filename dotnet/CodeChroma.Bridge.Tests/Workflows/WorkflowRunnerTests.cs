@@ -304,6 +304,25 @@ public sealed class WorkflowRunnerTests : IDisposable
     }
 
     [Fact]
+    public async Task A_step_input_is_required_and_only_fills_its_own_step()
+    {
+        var first = new WorkflowStep { Id = "one", Slug = "one", Kind = "agent", Prompt = "look at {{pr}}", Input = new WorkflowInput { Name = "pr", Label = "PR number" } };
+        var second = new WorkflowStep { Id = "two", Slug = "two", Kind = "agent", Prompt = "again {{pr}}" };
+        DefineSteps(first, second);
+        _cli.Script(ResultEvent(), Exit(0));
+        var runner = Runner();
+
+        var error = await Assert.ThrowsAsync<BridgeException>(() => runner.Start("wf"));
+        var started = await runner.Start("wf", new Dictionary<string, string> { ["pr"] = "42" });
+        await UntilState(runner, started.Id, "done");
+        var calls = _cli.Invocations();
+
+        Assert.Equal(400, error.Status);
+        Assert.Contains("look at 42", calls[0]["args"]!.ToJsonString());
+        Assert.Contains("again {{pr}}", calls[1]["args"]!.ToJsonString());
+    }
+
+    [Fact]
     public async Task A_review_step_may_have_an_empty_prompt_and_pause_before_becomes_a_breakpoint()
     {
         DefineSteps(Agent("one"), new WorkflowStep { Id = "two", Slug = "two", Kind = "agent", Prompt = "do two", PauseBefore = true }, new WorkflowStep { Id = "check", Slug = "check", Kind = "review" });

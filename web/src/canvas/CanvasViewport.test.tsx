@@ -3,7 +3,7 @@ import { afterEach, describe, expect, it } from "vitest";
 import { act, fireEvent, render, screen } from "@testing-library/react";
 import { CanvasViewport, type CanvasViewportHandle } from "./CanvasViewport";
 import { selectionStore } from "../state/selectionStore";
-import { gridStep } from "./canvasGrid";
+import { gridStep, MIN_SCALE } from "./canvasGrid";
 import { clearSavedCameraView } from "./canvasCameraStore";
 
 afterEach(() => {
@@ -344,6 +344,35 @@ describe("CanvasViewport fitToAllNodes", () => {
     const { scale } = readTransform();
     const expectedScale = Math.min(1000 / 500, 800 / 400) * 0.7;
     expect(scale).toBeCloseTo(expectedScale, 5);
+  });
+});
+
+describe("CanvasViewport zoom-out floor", () => {
+  it("fits content far larger than the viewport below the old 0.25 floor", () => {
+    const ref = createRef<CanvasViewportHandle>();
+    render(
+      <CanvasViewport ref={ref}>
+        <div data-canvas-element data-testid="big" />
+      </CanvasViewport>,
+    );
+    mockRect(screen.getByTestId("app-canvas"), { left: 0, top: 0, width: 800, height: 600 });
+    mockRect(screen.getByTestId("big"), { left: 0, top: 0, width: 8000, height: 6000 });
+
+    act(() => ref.current?.fitToAllNodes());
+
+    expect(readTransform().scale).toBeCloseTo(0.07, 5);
+  });
+
+  it("repeated zoom-out stops at MIN_SCALE, below 0.25", () => {
+    const ref = createRef<CanvasViewportHandle>();
+    render(<CanvasViewport ref={ref}>{null}</CanvasViewport>);
+
+    act(() => {
+      for (let i = 0; i < 60; i++) ref.current?.zoomOut();
+    });
+
+    expect(readTransform().scale).toBeCloseTo(MIN_SCALE, 5);
+    expect(MIN_SCALE).toBeLessThan(0.25);
   });
 });
 

@@ -169,9 +169,3 @@
 .workflow-editor-input-name {
   opacity: 0.7;
 }
-
-.workflow-editor-chips {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 4px;
-}

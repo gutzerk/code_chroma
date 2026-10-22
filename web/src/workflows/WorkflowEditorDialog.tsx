@@ -4,33 +4,22 @@ import { messageOf } from "../util/reportError";
 import { useEngineClient } from "../engine-client/EngineClientContext";
 import { KIND_META } from "./runControls";
 import { useRuns, workflowActions, workflowStore } from "./workflowStore";
-import type { SkillInfo, WorkflowDef, WorkflowInput, WorkflowStepDef } from "./types";
+import { workflowInputs, type SkillInfo, type WorkflowDef, type WorkflowInput, type WorkflowStepDef } from "./types";
 import "./workflows.css";
 import "./WorkflowEditorDialog.css";
 
 export type StepDraft = WorkflowStepDef & { skill: string };
-type Errors = { name?: string; inputs?: Record<number, string>; steps?: Record<number, string> };
+type Errors = { name?: string; steps?: Record<number, string> };
 
-const INPUT_NAME = /^[A-Za-z][A-Za-z0-9_-]*$/;
 
 function newStep(): StepDraft {
   return { id: crypto.randomUUID(), slug: "", kind: "agent", prompt: "", skill: "", context: "previous" };
 }
 
 /** What stops a draft from being saved, keyed by the field group it belongs to. */
-export function validateDraft(name: string, inputs: WorkflowInput[], steps: StepDraft[]): Errors {
+export function validateDraft(name: string, steps: StepDraft[]): Errors {
   const errors: Errors = {};
   if (!name.trim()) errors.name = "Give the workflow a name.";
-  inputs.forEach((input, i) => {
-    const problem = !input.name.trim()
-      ? "Give the input a question."
-      : !INPUT_NAME.test(input.name.trim())
-        ? "Use letters, digits, - or _ and start with a letter."
-        : inputs.findIndex((other) => other.name.trim() === input.name.trim()) !== i
-          ? "Input names must be unique."
-          : null;
-    if (problem) (errors.inputs ??= {})[i] = problem;
-  });
   steps.forEach((step, i) => {
     const needsPrompt = step.kind === "agent";
     const missing = [!step.slug.trim() && "title", needsPrompt && !step.prompt.trim() && "instructions"].filter(Boolean);
@@ -51,8 +40,25 @@ export function deriveInputName(label: string, others: string[]): string {
   return name;
 }
 
+/** The input names every step but `except` already uses, so a new one stays unique. */
+function otherInputNames(steps: StepDraft[], except: number): string[] {
+  return steps.flatMap((s, i) => (i !== except && s.input ? [s.input.name] : []));
+}
+
 function toDraft(step: WorkflowStepDef): StepDraft {
-  return { ...step, skill: step.skill ?? "", context: step.context ?? "previous" };
+  return { ...step, skill: step.skill ?? "", context: step.context ?? "previous", input: step.input ?? null };
+}
+
+/** Binds older workflow-level inputs to steps: the agent step that mentions it, else the first agent step without one. */
+function bindLegacyInputs(steps: StepDraft[], legacy: WorkflowInput[]): StepDraft[] {
+  const bound = steps.map((s) => ({ ...s }));
+  for (const input of legacy) {
+    if (bound.some((s) => s.input?.name === input.name)) continue;
+    const mention = bound.find((s) => s.kind === "agent" && !s.input && s.prompt.includes(`{{${input.name}}}`));
+    const target = mention ?? bound.find((s) => s.kind === "agent" && !s.input);
+    if (target) target.input = input;
+  }
+  return bound;
 }
 
 /** The label between a step and the one after it, as the run timeline shows it. */
@@ -75,9 +81,10 @@ export function WorkflowEditorDialog({
   const client = useEngineClient();
   const runs = useRuns();
   const [name, setName] = useState(workflow?.name ?? "");
-  const [inputs, setInputs] = useState<WorkflowInput[]>(workflow?.inputs ?? []);
   const [steps, setSteps] = useState<StepDraft[]>(() =>
-    workflow?.steps.length ? workflow.steps.map(toDraft) : [{ ...newStep(), slug: "Plan" }],
+    workflow?.steps.length
+      ? bindLegacyInputs(workflow.steps.map(toDraft), workflow.inputs ?? [])
+      : [{ ...newStep(), slug: "Plan" }],
   );
   const [selected, setSelected] = useState(0);
   const [skills, setSkills] = useState<SkillInfo[]>([]);
@@ -115,18 +122,16 @@ export function WorkflowEditorDialog({
     setSelected(to);
   };
 
-  const setLabel = (i: number, label: string) =>
-    setInputs(
-      inputs.map((x, j) => {
-        if (j !== i) return x;
-        const others = inputs.filter((_, k) => k !== i).map((o) => o.name);
-        const followed = !x.name || x.name === deriveInputName(x.label, others);
-        return { ...x, label, name: followed ? deriveInputName(label, others) : x.name };
-      }),
-    );
+  const setQuestion = (i: number, label: string) =>
+    patch(i, {
+      input: label.trim()
+        ? { name: steps[i].input?.name ?? deriveInputName(label, otherInputNames(steps, i)), label }
+        : null,
+    });
 
-  const insertInput = (name: string) => {
-    if (step.kind === "agent") patch(at, { prompt: `${step.prompt}${step.prompt && !/\s$/.test(step.prompt) ? " " : ""}{{${name}}}` });
+  const insertInput = () => {
+    const name = step.input?.name;
+    if (name && step.kind === "agent") patch(at, { prompt: `${step.prompt}${step.prompt && !/\s$/.test(step.prompt) ? " " : ""}{{${name}}}` });
   };
 
   const remove = (i: number) => {
@@ -141,7 +146,7 @@ export function WorkflowEditorDialog({
   const build = (): WorkflowDef => ({
     id: workflow?.id ?? `workflow-${crypto.randomUUID()}`,
     name: name.trim(),
-    inputs: inputs.map((i) => ({ name: i.name.trim(), label: i.label.trim() || i.name.trim() })),
+    inputs: [],
     steps: steps.map((s, i): WorkflowStepDef => {
       const base = { id: s.id, kind: s.kind, slug: s.slug.trim().replace(/\s+/g, "-") };
       if (s.kind === "review") {
@@ -157,6 +162,7 @@ export function WorkflowEditorDialog({
         ...base,
         prompt: s.prompt.trim(),
         context: i === 0 ? "fresh" : (s.context ?? "previous"),
+        input: s.input && s.input.label.trim() ? { name: s.input.name, label: s.input.label.trim() } : null,
         pauseBefore: s.pauseBefore ?? false,
         ...(s.skill ? { skill: s.skill } : {}),
       };
@@ -164,9 +170,9 @@ export function WorkflowEditorDialog({
   });
 
   const save = async (andRun: boolean) => {
-    const found = validateDraft(name, inputs, steps);
+    const found = validateDraft(name, steps);
     setErrors(found);
-    if (found.name || found.inputs || found.steps) {
+    if (found.name || found.steps) {
       const firstBad = Object.keys(found.steps ?? {})[0];
       if (firstBad !== undefined) setSelected(Number(firstBad));
       return;
@@ -179,7 +185,7 @@ export function WorkflowEditorDialog({
       if (workflow) await client.updateWorkflow(def);
       else await client.createWorkflow(def);
       workflowStore.setWorkflows(await client.listWorkflows());
-      if (andRun && (def.inputs?.length ?? 0) > 0) {
+      if (andRun && workflowInputs(def).length > 0) {
         setNotice("Saved. This workflow asks for inputs, so start it from the Workflows tab.");
         setBusy(false);
         return;
@@ -223,32 +229,6 @@ export function WorkflowEditorDialog({
 
       <div className="workflow-editor-columns">
         <div className="workflow-editor-left">
-          <section className="workflow-editor-section">
-            <strong>Run inputs</strong>
-            <small>
-              Asked for when the run starts. Add as many as you need, and insert them in any step's instructions.
-            </small>
-            {inputs.map((input, i) => (
-              <div className="workflow-editor-input" key={i}>
-                <input
-                  aria-label={`Input ${i + 1} question`}
-                  value={input.label}
-                  placeholder="Which PR number?"
-                  aria-invalid={Boolean(errors.inputs?.[i])}
-                  onChange={(e) => setLabel(i, e.target.value)}
-                />
-                <small className="workflow-editor-input-name">{input.name ? `{{${input.name}}}` : ""}</small>
-                <button type="button" aria-label={`Remove input ${i + 1}`} onClick={() => setInputs(inputs.filter((_, j) => j !== i))}>
-                  Remove
-                </button>
-                {errors.inputs?.[i] && <p className="agent-dialog-error" role="alert">{errors.inputs[i]}</p>}
-              </div>
-            ))}
-            <button type="button" onClick={() => setInputs([...inputs, { name: "", label: "" }])}>
-              Add input
-            </button>
-          </section>
-
           <ol className="workflow-editor-steps" aria-label="Steps">
             {steps.map((s, i) => {
               const meta = KIND_META[s.kind];
@@ -313,16 +293,21 @@ export function WorkflowEditorDialog({
                   onChange={(e) => patch(at, { prompt: e.target.value })}
                 />
                 <small>Use {"{{input}}"} to insert a run input by name.</small>
-                {inputs.length > 0 && (
-                  <span className="workflow-editor-chips" aria-label="Insert a run input">
-                    {inputs
-                      .filter((input) => input.name)
-                      .map((input) => (
-                        <button type="button" key={input.name} onClick={() => insertInput(input.name)}>
-                          {`Insert {{${input.name}}}`}
-                        </button>
-                      ))}
-                  </span>
+              </label>
+              <label className="workflow-editor-field">
+                Ask for input when the run starts (optional)
+                <input
+                  value={step.input?.label ?? ""}
+                  placeholder="Which PR number?"
+                  onChange={(e) => setQuestion(at, e.target.value)}
+                />
+                {step.input && (
+                  <small className="workflow-editor-input-name">
+                    {`Use {{${step.input.name}}} in the instructions to insert the answer. `}
+                    <button type="button" onClick={insertInput}>
+                      Insert
+                    </button>
+                  </small>
                 )}
               </label>
               <div className="workflow-editor-field">

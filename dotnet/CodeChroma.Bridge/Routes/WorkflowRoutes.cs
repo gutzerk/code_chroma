@@ -219,9 +219,13 @@ public static class WorkflowRoutes
             if (back is null) continue;
             if (!def.Steps.Take(i).Any(s => s.Id == back && s.Kind == "agent")) return (null, "sendBackTo must name an earlier agent step");
         }
-        def.Inputs ??= [];
-        if (def.Inputs.Any(i => i is null || !RunStore.IsSafeId(i.Name)) || def.Inputs.Select(i => i.Name).Distinct().Count() != def.Inputs.Count)
+        if (def.Steps.Any(s => s.Kind == "review" && s.Input is not null)) return (null, "Only agent steps can ask for an input");
+        def.Inputs = (def.Inputs ?? []).Where(i => i is not null).ToList();
+        var stepInputs = def.Steps.Where(s => s.Input is not null).Select(s => s.Input!).ToList();
+        var all = stepInputs.Concat(def.Inputs).ToList();
+        if (all.Any(i => !RunStore.IsSafeId(i.Name)) || all.Select(i => i.Name).Distinct().Count() != all.Count)
             return (null, "Workflow inputs need unique simple names");
+        def.Inputs = stepInputs;
         if (def.Steps.Any(s => s.Skill is { } skill && (skill.Length == 0 || !RunStore.IsSafeId(skill))))
             return (null, "A step skill must be a skill name");
         return (def, null);

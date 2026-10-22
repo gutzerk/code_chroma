@@ -4,7 +4,7 @@ import { ModalDialog } from "../agents/ModalDialog";
 import { useEngineClient } from "../engine-client/EngineClientContext";
 import { Icon } from "./icons";
 import { useWorkflows, workflowActions, workflowStore } from "./workflowStore";
-import type { WorkflowDef } from "./types";
+import { workflowInputs, type WorkflowDef } from "./types";
 
 /** Asks for the values a workflow's inputs need before its run starts. */
 function InputsForm({
@@ -20,7 +20,7 @@ function InputsForm({
 }) {
   const [values, setValues] = useState<Record<string, string>>({});
   const [touched, setTouched] = useState(false);
-  const inputs = workflow.inputs ?? [];
+  const inputs = workflowInputs(workflow);
   const missing = inputs.some((input) => !values[input.name]?.trim());
   return (
     <form
@@ -74,7 +74,7 @@ export function RunWorkflowDialog({
     if (!workflow) return;
     setBusy(true);
     setError(null);
-    await workflowActions(client).start(workflow.id, workflow.inputs?.length ? values : undefined);
+    await workflowActions(client).start(workflow.id, workflowInputs(workflow).length ? values : undefined);
     setBusy(false);
     const failure = workflowStore.getError();
     if (failure) setError(failure);

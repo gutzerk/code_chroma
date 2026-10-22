@@ -12,7 +12,7 @@ import {
   isFinished,
   type PanelLayout,
 } from "./runControls";
-import type { Run, StepRecord, WorkflowDef } from "./types";
+import { workflowInputs, type Run, type StepRecord, type WorkflowDef } from "./types";
 import type { WorkflowActions } from "./workflowStore";
 
 /** A segmented progress bar, one segment per step. */
@@ -215,7 +215,7 @@ function SavedRow({
   onRun: (workflow: WorkflowDef) => void;
   onDelete: (workflow: WorkflowDef) => void;
 }) {
-  const inputs = workflow.inputs?.length ?? 0;
+  const inputs = workflowInputs(workflow).length;
   const detail = `${workflow.steps.length} steps${inputs ? ` · ${inputs} input${inputs > 1 ? "s" : ""}` : ""}`;
   const secondary: MenuItem[] = [
     { label: "Edit", icon: "edit", onSelect: () => onEdit(workflow) },

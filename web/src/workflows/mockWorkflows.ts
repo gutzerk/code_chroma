@@ -1,16 +1,17 @@
 import { computeRedoCard, currentRecord } from "./redoPlan";
 import { isFinished } from "./runControls";
-import type {
-  MessageReply,
-  RedoRequest,
-  RunMessage,
-  ReviewDecision,
-  Run,
-  RunEvent,
-  RunEventName,
-  StepRecord,
-  StopMode,
-  WorkflowDef,
+import {
+  workflowInputs,
+  type MessageReply,
+  type RedoRequest,
+  type RunMessage,
+  type ReviewDecision,
+  type Run,
+  type RunEvent,
+  type RunEventName,
+  type StepRecord,
+  type StopMode,
+  type WorkflowDef,
 } from "./types";
 
 /** The fixture workflow the mock bridge serves (mirrors a hand-authored .codechroma/workflows file). */
@@ -140,7 +141,7 @@ export class MockWorkflowEngine {
   startRun(workflowId: string, inputs: Record<string, string> = {}): Run {
     const workflow = this.workflows.find((wf) => wf.id === workflowId);
     if (!workflow) throw new Error(`unknown workflow ${workflowId}`);
-    const missing = (workflow.inputs ?? []).find((input) => !inputs[input.name]?.trim());
+    const missing = workflowInputs(workflow).find((input) => !inputs[input.name]?.trim());
     if (missing) throw new Error(`input is required: ${missing.label || missing.name}`);
     this.counter += 1;
     const run = this.freshRecord(`run${this.counter}`, workflow, inputs);

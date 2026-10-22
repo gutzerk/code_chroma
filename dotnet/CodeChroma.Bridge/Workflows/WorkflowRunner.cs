@@ -269,7 +269,7 @@ public sealed partial class WorkflowRunner
         var def = Store.GetWorkflow(workflowId) ?? throw new BridgeException(404, $"unknown workflow: {workflowId}");
         if (def.Steps.Count == 0) throw new BridgeException(409, "the workflow has no steps");
         var given = new Dictionary<string, string>();
-        foreach (var input in def.Inputs)
+        foreach (var input in def.AllInputs())
         {
             var value = inputs is not null && inputs.TryGetValue(input.Name, out var v) ? v.Trim() : "";
             if (value.Length == 0) throw new BridgeException(400, $"input is required: {(string.IsNullOrWhiteSpace(input.Label) ? input.Name : input.Label)}");
@@ -725,7 +725,11 @@ public sealed partial class WorkflowRunner
     private static string ResolvePrompt(Handle h, WorkflowStep step)
     {
         var prompt = step.Prompt;
-        foreach (var (name, value) in h.Run.Inputs) prompt = prompt.Replace("{{" + name + "}}", value);
+        foreach (var (name, value) in h.Run.Inputs)
+        {
+            var ownedByOther = h.Def.Steps.Any(s => s.Id != step.Id && s.Input?.Name == name);
+            if (!ownedByOther) prompt = prompt.Replace("{{" + name + "}}", value);
+        }
         return string.IsNullOrWhiteSpace(step.Skill) ? prompt : $"Use the \"{step.Skill}\" skill for this step.\n\n{prompt}";
     }
 

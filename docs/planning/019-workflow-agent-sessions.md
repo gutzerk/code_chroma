@@ -1,6 +1,6 @@
 # 019 — Workflow agent sessions: per-step agent, input, provider/model
 
-Status: In progress (Stages 0-3 done on `feat/workflow-agent-sessions`, branched from `stage`)
+Status: Done (Stages 0-7 merged on `feat/workflow-agent-sessions`, branched from `stage`)
 
 Design: the "Agents & Workflows Panel Redesign" canvas, https://claude.ai/artifact/UpBEzW3ptZkPhw1dqXQFDR (boards 2, 3, 6, 7, 7b, 8, 9, 10, 11). C# bridge only, like the rest of workflows (`docs/architecture/workflows.md`).
 
@@ -60,6 +60,7 @@ A workflow step can only start a fresh agent, with or without the previous step'
 
 ### Stage 4 — Editor (boards 6, 7, 7b)
 
+- Done in `WorkflowEditorDialog.tsx` (`agentCheck`, `stepMeta`, `betweenLabel`). The per-step "Ask for input when the run starts" field stays in place of the board 6 Inputs strip, since run inputs already live on steps on `stage`. The default provider (call-site assignment) is not resolved client-side, so a continue on it is only checked by the server.
 - `WorkflowEditorDialog.tsx`: remove run inputs from the left panel; step pane order = Who does it, Agent cards (New / New + hand-off / Continue with a source select listing earlier agent steps), Provider + Model selects (from `GET /llm/providers` and `/llm/providers/{id}/models`), Instructions, Inputs strip (`{{name}}` chips, + Input, "You fill these in when the run starts"), Step input textarea, Skill, Pause before. Step 1 forces `new` (today it forces `fresh`).
 - Rail labels "Agent · <provider> · <mode>", connectors "hand-off → step N" and teal "resumes step N's agent".
 - Inline validation mirrors the server (board 7b): Continue disabled with a reason when the provider is not claude; errors for provider mismatch, review/no earlier agent source; amber warning when the model differs from the source.

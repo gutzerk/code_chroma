@@ -74,6 +74,18 @@ public class BridgeManagerTests
     }
 
     [Fact]
+    public async Task A_ready_bridge_records_its_live_origin_in_the_repo()
+    {
+        using var repo = new TempDir();
+        var launcher = new FakeLauncher { OnStart = p => p.Say("[codechroma-live] bridge ready at http://127.0.0.1:41000") };
+
+        await Manager(launcher).StartAsync("bridge.exe", repo.Path);
+
+        var json = System.Text.Json.JsonDocument.Parse(File.ReadAllText(Path.Combine(repo.Path, BridgeEndpointFile.RelativePath)));
+        Assert.Equal(("http://127.0.0.1:41000", 41000), (json.RootElement.GetProperty("origin").GetString(), json.RootElement.GetProperty("port").GetInt32()));
+    }
+
+    [Fact]
     public async Task Ready_line_handshake_completes_without_a_health_answer()
     {
         var launcher = new FakeLauncher();

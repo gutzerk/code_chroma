@@ -122,7 +122,7 @@ describe("betweenLabel", () => {
 
   it.each([
     [{ ...agent }, 2, "Passes output to step 2"],
-    [{ ...agent, context: "fresh" as const }, 1, "Fresh start · no context"],
+    [{ ...agent, agent: "new" as const }, 1, "Fresh start · no context"],
     [{ ...agent, kind: "review" as const }, 1, "You review the diff"],
   ])("labels %j at index %i", (def, index, expected) => {
     expect(betweenLabel(def, index)).toBe(expected);

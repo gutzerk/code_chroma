@@ -28,8 +28,8 @@ const existing: WorkflowDef = {
   id: "wf-1",
   name: "Ship",
   steps: [
-    { id: "a", slug: "Plan", kind: "agent", prompt: "plan it", context: "fresh" },
-    { id: "b", slug: "Build", kind: "agent", prompt: "build it", context: "previous" },
+    { id: "a", slug: "Plan", kind: "agent", prompt: "plan it", agent: "new" },
+    { id: "b", slug: "Build", kind: "agent", prompt: "build it", agent: "handoff" },
     { id: "c", slug: "Check", kind: "review", prompt: "" },
   ],
 };
@@ -65,7 +65,7 @@ describe("WorkflowEditorDialog", () => {
     const saved = client.createWorkflow.mock.calls[0][0];
     expect(saved.id).toMatch(/^workflow-/);
     expect(saved.name).toBe("My flow");
-    expect(saved.steps[0].context).toBe("fresh");
+    expect(saved.steps[0].agent).toBe("new");
   });
 
   it("edits an existing workflow, keeps the id and warns when a run uses it", async () => {

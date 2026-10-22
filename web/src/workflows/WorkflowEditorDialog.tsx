@@ -13,7 +13,7 @@ type Errors = { name?: string; steps?: Record<number, string> };
 
 
 function newStep(): StepDraft {
-  return { id: crypto.randomUUID(), slug: "", kind: "agent", prompt: "", skill: "", context: "previous" };
+  return { id: crypto.randomUUID(), slug: "", kind: "agent", prompt: "", skill: "", agent: "new" };
 }
 
 /** What stops a draft from being saved, keyed by the field group it belongs to. */
@@ -46,7 +46,7 @@ function otherInputNames(steps: StepDraft[], except: number): string[] {
 }
 
 function toDraft(step: WorkflowStepDef): StepDraft {
-  return { ...step, skill: step.skill ?? "", context: step.context ?? "previous", input: step.input ?? null };
+  return { ...step, skill: step.skill ?? "", agent: step.agent ?? "handoff", input: step.input ?? null };
 }
 
 /** Binds older workflow-level inputs to steps: the agent step that mentions it, else the first agent step without one. */
@@ -64,7 +64,8 @@ function bindLegacyInputs(steps: StepDraft[], legacy: WorkflowInput[]): StepDraf
 /** The label between a step and the one after it, as the run timeline shows it. */
 export function betweenLabel(next: StepDraft, nextNumber: number): string {
   if (next.kind === "review") return "You review the diff";
-  if (next.context === "fresh") return "Fresh start · no context";
+  if (next.agent === "new") return "Fresh start · no context";
+  if (next.agent?.startsWith("continue")) return "Resumes an earlier agent session";
   return `Passes output to step ${nextNumber}`;
 }
 
@@ -161,7 +162,10 @@ export function WorkflowEditorDialog({
       return {
         ...base,
         prompt: s.prompt.trim(),
-        context: i === 0 ? "fresh" : (s.context ?? "previous"),
+        agent: i === 0 ? "new" : (s.agent ?? "new"),
+        ...(s.extraPrompt?.trim() ? { extraPrompt: s.extraPrompt.trim() } : {}),
+        ...(s.provider ? { provider: s.provider } : {}),
+        ...(s.model ? { model: s.model } : {}),
         input: s.input && s.input.label.trim() ? { name: s.input.name, label: s.input.label.trim() } : null,
         pauseBefore: s.pauseBefore ?? false,
         ...(s.skill ? { skill: s.skill } : {}),
@@ -316,16 +320,16 @@ export function WorkflowEditorDialog({
                   <button
                     type="button"
                     disabled={at === 0}
-                    aria-pressed={at > 0 && step.context !== "fresh"}
-                    onClick={() => patch(at, { context: "previous" })}
+                    aria-pressed={at > 0 && step.agent === "handoff"}
+                    onClick={() => patch(at, { agent: "handoff" })}
                   >
                     {at > 0 ? `Continue from step ${at}` : "Continue from previous step"}
                   </button>
                   <button
                     type="button"
                     disabled={at === 0}
-                    aria-pressed={at === 0 || step.context === "fresh"}
-                    onClick={() => patch(at, { context: "fresh" })}
+                    aria-pressed={at === 0 || step.agent === "new"}
+                    onClick={() => patch(at, { agent: "new" })}
                   >
                     Start fresh
                   </button>

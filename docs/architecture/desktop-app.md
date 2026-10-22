@@ -156,6 +156,10 @@ and does `result.ToString()` on the null result, an unhandleable NRE inside a na
 only receives tabs that are on the bridge origin (`MainWindow` filters with `IsBridgeOrigin`; empty tabs get no scripts), and `web/index.html`
 defines `window.__dispatchMessageCallback` (evals the source, always returns a string) so scripts sent to a loaded page never return null.
 
+## macOS privacy (TCC) prompts
+
+Issue #189: macOS asked to allow Apple Music / media library / photo access. The app declares no usage-description keys and needs none. The only code that walks an arbitrary folder is `AgentBootstrap.Walk` (first-commit plan for a non-repo folder); opening a home-level folder made it recurse into `~/Music`, `~/Pictures`, `~/Movies` and `~/Library`, and macOS attributes that access to CodeChroma. `AgentBootstrap.IsMacProtectedFolder` now skips those direct children of the home folder on macOS (`MacProtectedFolderTests`). 🔴 Unverified on a real macOS build: `vpk` generates `Info.plist`, so no custom keys or entitlements are shipped; if a prompt persists, find the other trigger (a spawned CLI or login shell run from `~`) rather than adding usage strings.
+
 ## CLI lookup and clipboard notes
 
 - `CodeChroma.Bridge/Stores/CliLocator.cs` searches the process PATH, then well-known install dirs (`~/.local/bin`, `/opt/homebrew/bin`, `/usr/local/bin`, npm global, GitHub CLI dirs), because a GUI-launched app inherits a minimal PATH (agents `claude` / `gh` not found).

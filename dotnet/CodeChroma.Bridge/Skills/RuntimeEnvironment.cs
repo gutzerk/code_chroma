@@ -339,7 +339,7 @@ public sealed class RuntimeEnvironment
         foreach (var (k, v) in env)
         {
             if (k == "CODECHROMA_RESOLVING_ENVIRONMENT" || k.StartsWith("BASH_FUNC_")) continue;
-            if (k.StartsWith("codechroma_", StringComparison.OrdinalIgnoreCase) && k is not ("codechroma_BRIDGE_URL" or "codechroma_WORKSPACE_ID")) continue;
+            if (k.StartsWith("codechroma_", StringComparison.OrdinalIgnoreCase) && k is not ("CODECHROMA_BRIDGE_URL" or "CODECHROMA_WORKSPACE_ID")) continue;
             result[k] = v;
         }
         return result;

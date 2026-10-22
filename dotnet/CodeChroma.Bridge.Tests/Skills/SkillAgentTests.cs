@@ -106,7 +106,7 @@ public sealed class SkillAgentTests : IDisposable
     [Fact]
     public async Task The_cli_is_launched_in_the_repo_with_the_prompt_the_model_and_the_workspace_id()
     {
-        _cli.Script(["codechroma_WORKSPACE_ID"], Write(Artifact(), "{}"), Exit(0));
+        _cli.Script(["CODECHROMA_WORKSPACE_ID"], Write(Artifact(), "{}"), Exit(0));
         var agent = Agent();
 
         await agent.Start("job-a", _root, OnChange, prompt: "per-run prompt");
@@ -115,7 +115,7 @@ public sealed class SkillAgentTests : IDisposable
         var call = Assert.Single(_cli.Invocations());
         var args = call["args"]!.AsArray().Select(a => a!.GetValue<string>()).ToList();
         Assert.Equal(["-p", "per-run prompt", "--model", "haiku"], args.Take(4));
-        Assert.Equal("job-a", call["env"]!["codechroma_WORKSPACE_ID"]!.GetValue<string>());
+        Assert.Equal("job-a", call["env"]!["CODECHROMA_WORKSPACE_ID"]!.GetValue<string>());
         Assert.Equal(Path.GetFullPath(_root).TrimEnd('\\', '/'), Path.GetFullPath(call["cwd"]!.GetValue<string>()).TrimEnd('\\', '/'), ignoreCase: OperatingSystem.IsWindows());
     }
 

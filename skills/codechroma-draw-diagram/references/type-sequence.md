@@ -24,7 +24,7 @@ you're drawing.
 **3. The ordered call scaffold — a real recorded run, if one exists:**
 
 ```bash
-curl -s http://localhost:8000/repos/${CODECHROMA_WORKSPACE_ID:-default}/sequence/context
+curl -s ${CODECHROMA_BRIDGE_URL:-http://localhost:8000}/repos/${CODECHROMA_WORKSPACE_ID:-default}/sequence/context
 ```
 
 Returns the recorded-execution scaffold from `GET /repos/{id}/traces` when a trace exists:
@@ -36,7 +36,8 @@ your **template** — the machine-recorded truth of which systems call which.
 
 - **`traces` is empty** (no recorded run): author the sequence from `structure`/`dependency-digest`
   and your judgement of the flow, same as any other type — the scaffold is a convenience, not a
-  requirement.
+  requirement. Always **fetch it anyway** (it is one call) so the report can say "no recorded run" as
+  a fact; a GitHub workflow or shell script never has one.
 - The scaffold's `participants` are the real graph `node_id`s (copy `from`/`to`/`node_id` verbatim —
   path honesty). The scaffold only shows **direct call hops between distinct symbols**; `return`
   events are dropped, and nested/self-calls are collapsed. **Your job** is the judgment the recording
@@ -51,7 +52,7 @@ your **template** — the machine-recorded truth of which systems call which.
 ## Where the file goes
 
 ```bash
-curl -s http://localhost:8000/repos/${CODECHROMA_WORKSPACE_ID:-default}/sequence-path
+curl -s ${CODECHROMA_BRIDGE_URL:-http://localhost:8000}/repos/${CODECHROMA_WORKSPACE_ID:-default}/sequence-path
 # -> {"repo_root":"/abs/path/to/repo","sequence_path":"/abs/path/to/repo/.codechroma/diagrams/sequence/sequence.json"}
 ```
 
@@ -116,7 +117,19 @@ Rules:
   adds infra/external boxes — a sequence is a single flow; a participant that doesn't take part has
   no reason to be on the canvas, and there is no cross-cluster wiring.
 - **Self-calls**: a participant calling itself is allowed (`SELF` is exempt for `sequence` because
-  recursion/self-messaging is real in a flow).
+  recursion/self-messaging is real in a flow). The bridge keeps them even when the file omits
+  `"style": "sequence"`, and the self-check **fails** (`DROPPED relation …`) if it still discards a
+  message, so a self-message can no longer vanish behind an `OK`. Point such a message at the
+  participant that really performs the step; do not retarget it at an unrelated participant to make
+  it disappear.
+- **Flows made of CI jobs and scripts**: a workflow, job or script step is a participant (or part of
+  one) only if it really performs the action. Draw signing, attestation and similar steps as messages
+  from the workflow/job participant that runs them, not as calls into a script that does not.
+  Failure and "nothing to do" paths (half-moved channels, a newer version blocking a move, re-runs)
+  get their own `async`/labelled messages or an `alt` description when they matter; if you fold
+  several variants (e.g. four images) into one flow, say so in the report.
+- A cycle between two workflows (one triggers the other) and a few articulation points are expected in
+  a sequence; the checker does not report them for this kind.
 - Every message connects two participants that both exist — the resolver drops a message whose
   `from`/`to` matches no participant, and has no room to invent one.
 

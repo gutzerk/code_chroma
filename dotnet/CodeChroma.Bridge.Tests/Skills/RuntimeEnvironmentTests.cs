@@ -95,12 +95,12 @@ public sealed class RuntimeEnvironmentTests : IDisposable
 
         var env = service.SpawnEnv(new Dictionary<string, string>
         {
-            ["CODECHROMA_RESOLVING_ENVIRONMENT"] = "1", ["codechroma_RUNTIME_SETTINGS_FILE"] = "x", ["codechroma_WORKSPACE_ID"] = "agent",
+            ["CODECHROMA_RESOLVING_ENVIRONMENT"] = "1", ["codechroma_RUNTIME_SETTINGS_FILE"] = "x", ["CODECHROMA_WORKSPACE_ID"] = "agent",
         });
 
         Assert.DoesNotContain("CODECHROMA_RESOLVING_ENVIRONMENT", env.Keys);
         Assert.DoesNotContain("codechroma_RUNTIME_SETTINGS_FILE", env.Keys);
-        Assert.Equal("agent", env["codechroma_WORKSPACE_ID"]);
+        Assert.Equal("agent", env["CODECHROMA_WORKSPACE_ID"]);
     }
 
     [Fact]

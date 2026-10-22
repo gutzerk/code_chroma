@@ -151,10 +151,18 @@ public sealed partial class WorkflowRunner
         string id;
         lock (_lock)
         {
-            var h = Require(runId);
-            if (h.Busy || !RunStates.IsFinished(h.Run.State)) throw new BridgeException(409, $"cannot delete a run that is {h.Run.State}");
-            id = h.Run.Id;
-            Detach(h.Run.Id, h);
+            id = runId;
+            if (_handles.TryGetValue(runId, out var h))
+            {
+                if (h.Busy || !RunStates.IsFinished(h.Run.State)) throw new BridgeException(409, $"cannot delete a run that is {h.Run.State}");
+                Detach(runId, h);
+            }
+            else
+            {
+                var saved = Store.GetRun(runId) ?? throw new BridgeException(404, $"unknown run: {runId}");
+                if (!RunStates.IsFinished(saved.State)) throw new BridgeException(409, $"cannot delete a run that is {saved.State}");
+                Detach(runId, null);
+            }
         }
         WipeGit(id, WorktreeFor(_repoRoot, id));
     }
@@ -180,7 +188,7 @@ public sealed partial class WorkflowRunner
                 victims.Add(id);
             }
         }
-        Parallel.ForEach(victims, new ParallelOptions { MaxDegreeOfParallelism = 4 }, id => WipeGit(id, WorktreeFor(_repoRoot, id)));
+        foreach (var id in victims) WipeGit(id, WorktreeFor(_repoRoot, id));
         return victims;
     }
 
@@ -737,7 +745,7 @@ public sealed partial class WorkflowRunner
             for (var i = index - 1; i >= 0 && previous is null; i--)
             {
                 var record = Record(h, h.Def.Steps[i].Id);
-                if (record.Status == "skipped") continue;
+                if (record.Status == "skipped" || h.Def.Steps[i].Kind == "review") continue;
                 previous = record;
                 previousIndex = i;
             }

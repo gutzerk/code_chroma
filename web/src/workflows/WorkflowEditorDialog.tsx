@@ -124,7 +124,7 @@ export function WorkflowEditorDialog({
           prompt: "",
           showDiff: s.showDiff ?? false,
           showSummary: s.showSummary ?? false,
-          sendBackTo: s.sendBackTo ?? null,
+          sendBackTo: steps.slice(0, i).some((e) => e.id === s.sendBackTo && e.kind === "agent") ? s.sendBackTo : null,
         };
       }
       return {

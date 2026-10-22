@@ -111,7 +111,12 @@ export function DrawDiagramButton({
       customTypes,
       activeLayers,
     );
-    void attachAgent(agentClient, null, buildDrawDiagramTask(allLabels, anyGeneratedReady)).catch(
+    void attachAgent(
+      agentClient,
+      null,
+      buildDrawDiagramTask(allLabels, anyGeneratedReady),
+      { type: "any" },
+    ).catch(
       (err: unknown) => setError(err instanceof Error ? err.message : "couldn't open an agent"),
     );
   };

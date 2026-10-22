@@ -70,8 +70,10 @@ public sealed class UpdateHost
         var state = await service.CheckAsync();
         if (state.Phase == UpdatePhase.Available)
         {
-            var detail = $"{state.VerificationNotice}\n\n{state.Notes}".Trim();
-            if (!await Dialogs.ConfirmAsync(window, "Update available", $"CodeChroma {state.LatestVersion} is available", detail, "Download", "Later")) return;
+            var choice = await Dialogs.ShowUpdateAsync(window, state.LatestVersion ?? "", state.VerificationNotice, state.Notes);
+            if (choice == Dialogs.UpdateChoice.Skip && state.LatestVersion is not null)
+                UpdateSettingsStore.Write(settingsPath, UpdateSettingsStore.Read(settingsPath) with { SkippedVersion = state.LatestVersion });
+            if (choice != Dialogs.UpdateChoice.Install) return;
             state = await service.DownloadAsync();
         }
         if (state.Phase == UpdatePhase.Ready)

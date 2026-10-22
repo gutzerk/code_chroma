@@ -14,6 +14,13 @@ import type {
 } from "../state/types";
 import { errorMessageFrom, jsonInit } from "../util/httpJson";
 
+/** Marks a task agent as drawing a diagram (`c1`, `patterns`, `sequence`, `custom`, or `any` before the
+ * user has said which); the bridge then tells the agent how to run the `context` command itself. */
+export interface DiagramTaskHint {
+  type: string;
+  request?: string;
+}
+
 /** Facade over the bridge's workspace-control routes — `/agents`, `/workspaces` and `/prs`. Unlike
  * EngineClient these are *not* under `/repos/{id}`: each list spans every workspace, so all three are
  * owned by the main repository. The PR methods live here rather than in their own client because this
@@ -25,13 +32,15 @@ export interface AgentClient {
    * PR's head commit instead — the PR's own read-only worktree is never touched. `context`'s
    * `contextKind` picks how the fresh agent receives it on its first start: "view" (default) is the
    * acknowledge-only current-view description; "task" is a real, actionable first message (e.g.
-   * "Make a diagram"), injected as-is. */
+   * "Make a diagram"), injected as-is. `diagram` names the diagram type (and optional request) the
+   * task draws, so the bridge can add the context it selects from the architecture map. */
   create(
     title: string,
     kind?: string,
     attachTo?: string,
     context?: string | null,
     contextKind?: "view" | "task",
+    diagram?: DiagramTaskHint,
   ): Promise<AgentRecord>;
   /** Brings up the PTY in the agent's worktree; `resume` continues its recorded conversation. */
   start(id: string, resume?: boolean): Promise<AgentRecord>;
@@ -97,10 +106,19 @@ export class HttpAgentClient implements AgentClient {
     attachTo?: string,
     context?: string | null,
     contextKind?: "view" | "task",
+    diagram?: DiagramTaskHint,
   ): Promise<AgentRecord> {
     return this.request<AgentRecord>(
       "/agents",
-      this.json("POST", { title, kind, attach_to: attachTo, context, context_kind: contextKind }),
+      this.json("POST", {
+        title,
+        kind,
+        attach_to: attachTo,
+        context,
+        context_kind: contextKind,
+        diagram_type: diagram?.type,
+        diagram_request: diagram?.request,
+      }),
     );
   }
 

@@ -199,6 +199,25 @@ def test_valid_code_reference_resolves_and_passes(tmp_path, monkeypatch):
     assert exit_code == 0
 
 
+def test_http_gap_fetcher_batches_paths_and_unions_gaps(monkeypatch):
+    module = _load_module()
+    urls: list[str] = []
+
+    def fake_urlopen(url, timeout=10):
+        urls.append(url)
+        return _FakeResponse({"gaps": [f"gap{len(urls)}"]})
+
+    monkeypatch.setattr(module.urllib.request, "urlopen", fake_urlopen)
+    fetch = module._http_gap_fetcher("http://bridge", "repo")
+    paths = [f"src/pkg/module_{i}.py" for i in range(620)]
+
+    gaps = fetch(paths)
+
+    assert len(urls) == -(-620 // module._FETCH_BATCH_SIZE)
+    assert max(len(url) for url in urls) < 4000
+    assert gaps == {f"gap{n}" for n in range(1, len(urls) + 1)}
+
+
 def test_hallucinated_code_reference_fails(tmp_path, monkeypatch, capsys):
     module = _load_module()
     monkeypatch.setattr(

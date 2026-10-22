@@ -11,7 +11,8 @@ test("launches agents directly into the right panel and switches their terminals
   await page.getByRole("button", { name: "Run agent" }).click();
   await expect(page.getByTestId("agent-dock-panel-agent2")).toBeVisible();
   await expect(first).toBeHidden();
-  await page.getByRole("tab", { name: /agent1/ }).click();
+  await page.getByRole("button", { name: "Select agent" }).click();
+  await page.getByRole("option", { name: /agent1/ }).click();
   await expect(first).toBeVisible();
   await expect(page.getByTestId("agent-terminal-agent1")).toHaveAttribute("data-e2e-mark", "original");
   await expect(page.getByRole("button", { name: /Detach/ })).toHaveCount(0);
@@ -49,15 +50,14 @@ test("closing an attached agent removes it and respects agent capacity", async (
   await expect(page.getByTestId("agent-layer")).toHaveAttribute("data-active-workspace", "main");
 });
 
-test("creates a workflow from the run picker and keeps progress visible when steps collapse", async ({ page }) => {
+test("creates a workflow in the editor and keeps progress visible when steps collapse", async ({ page }) => {
   await gotoApp(page);
   await page.getByRole("tab", { name: /Workflows/ }).click();
-  await page.getByRole("button", { name: "Run workflow", exact: true }).click();
-  const picker = page.locator(".workflow-picker");
-  await picker.getByRole("button", { name: /Add new workflow/ }).click();
-  await picker.getByLabel("Name", { exact: true }).fill("Inspect project");
-  await picker.getByLabel("Instructions").fill("Inspect the project and summarize its structure.");
-  await picker.getByRole("button", { name: "Save workflow" }).click();
+  await page.getByRole("button", { name: "New workflow", exact: true }).click();
+  const editor = page.getByRole("dialog", { name: "Workflow editor" });
+  await editor.getByLabel("Workflow name").fill("Inspect project");
+  await editor.getByLabel("Instructions").fill("Inspect the project and summarize its structure.");
+  await editor.getByRole("button", { name: "Save", exact: true }).click();
   await page.getByRole("button", { name: "Start run: Inspect project" }).click();
   await expect(page.getByRole("progressbar")).toHaveAttribute("aria-valuemax", "1");
   await page.getByRole("button", { name: /Hide steps/ }).click();

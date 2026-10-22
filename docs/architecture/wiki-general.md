@@ -268,9 +268,10 @@ gap.
 Reads the tree from disk directly (there is no resolved HTTP GET to read instead — this is a
 full-replace markdown tree, not a server-merged artifact the way a diagram is). Checks: unique
 container/component ids, every component's `container` names a real container, every container owns
-at least one component, every manifest-listed page actually exists on disk. One live HTTP call: every
+at least one component, every manifest-listed page actually exists on disk. One live HTTP lookup: every
 declared `File:`/`Class:`/`Function:` reference's path (stripped of any `::Symbol` suffix) is checked
-against `GET /repos/{id}/wiki-context` — a path the real wiki has no page for comes back in the
+against `GET /repos/{id}/wiki-context`, sent in batches of `_FETCH_BATCH_SIZE` (50) paths so a large
+wiki never trips HTTP 414 URI Too Long — a path the real wiki has no page for comes back in the
 response's `gaps[]` and fails the run as `HALLUCINATED`. A page that exists but isn't linked from its
 parent prints `LINK-MISSING`, advisory only. Exit codes: `0` OK, `1` FAILED, `2` ERROR (couldn't read
 the manifest, a page, or reach the bridge at all) — simpler than `check_diagram.py`'s four-tier
@@ -586,3 +587,7 @@ the `stale` field's extra cases folded into the existing `test_bridge_wiki_gener
 `test_wiki_general_end_to_end.py` status assertions.
 
 C# bridge note: the whole surface is ported -- status, interactive status, `generate`, `update`, `clustering`, output, cancel and `wiki-general-context` (`Routes/WikiGeneralRoutes.cs`, `Skills/WikiGeneral*.cs`). `generate` registers `WikiGeneralPipeline.Run` as the `wiki-general` agent's `RunBody` (`Skills/WikiGeneral.cs::Specs`): the same deterministic fan-out as `wiki_general_pipeline.py` (`engine.BuildClusters` -> `WikiGeneralNaming` ids -> `WikiGeneralWorker` zero-tool Claude jobs bounded by `WikiGeneralPipelineSettings` -> pages and `manifest.json` written only after every job succeeded). It then runs `WikiGeneralCheck.Run` (the in-process port of `check_wiki_general.py`, same exit tiers 0/1/2 and line texts; the plain-wiki gap lookup is `WikiContext.Build(...).Gaps`) and reports an error unless it returns OK. Only the Claude adapter supports minimal-context workers; any other CLI fails up front with `UnsupportedAdapterException`. `update` is `WikiGeneralUpdate.ComputeDelta` (re-sync, re-cluster, `DiffManifest` state machine) then `ApplyDelta` (deletions, `files[]`/`edges[]` refresh), then starts the `wiki-general-update` agent as a CLI run with the created/rewritten JSON in its prompt, exactly like the Python route. `generate` and the interactive `generating` status both go through `WikiGeneral.PrepareNewRun` (clear the tree, bootstrap and sync the plain wiki) and hold `WikiGeneral.RunLock`. `GET .../clustering` serializes `ClusterResult` plus per-file candidates via `WikiGeneralUpdate.ClusteringBody`. Tests: `WikiGeneralCheckTests`, `WikiGeneralUpdateTests`, `WikiGeneralRouteTests` (end to end against the scripted fake CLI with a hand-built graph; the real Claude path is not exercised). Contract: `wiki_general.cases.json` (the `clustering` case needs the `real-engine` capability, so the snapshot-backed C# host lists it as unsupported unless `CODECHROMA_PYTHON` is set).
+
+## Long prompts on Windows (C# bridge)
+
+`SkillAgent.RunCli` always passes the prompt through `FitCommandLine`: when its quoted length (`EscapedLength`, each `"`/`\` counts double) exceeds 20 000 chars the prompt is written to `.codechroma/prompts/` and the CLI is told to read it. The wiki-general **Update** prompt embeds the created/rewritten delta JSON, so a large commit otherwise overflowed Windows' 32 767-char command line ("The filename or extension is too long").

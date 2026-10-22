@@ -10,8 +10,10 @@ refresh keeps the previous immutable generation usable while the worker runs.
 
 On macOS/Linux shell selection uses the explicit runtime setting, an executable `SHELL`,
 the passwd login shell, then `/bin/sh`. There are invocation adapters for POSIX shells,
-fish, Nu, csh/tcsh, xonsh, and PowerShell. Windows normally uses the inherited environment;
-an explicit PowerShell override enables profile capture there too.
+fish, Nu, csh/tcsh, xonsh, and PowerShell. Windows normally uses the inherited environment
+plus the current user/machine registry PATH (re-read on every capture, so tools installed after launch
+are found) and extra well-known dirs (scoop, WinGet, Volta, nodejs); POSIX-style `/c/...` PATH entries
+are dropped. An explicit PowerShell override enables profile capture there too.
 
 The shell launches a small isolated Python helper (the C# bridge has its own port in `dotnet/CodeChroma.Bridge/Skills/RuntimeEnvironment.cs`). The helper emits JSON between cryptographically random markers. Startup output is
 spooled to a temporary file and the parser reads a bounded tail. Stderr is discarded.

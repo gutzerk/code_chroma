@@ -277,6 +277,121 @@ public sealed class WorkflowRunnerTests : IDisposable
         Assert.Equal("42", runner.Get(started.Id).Inputs["pr"]);
     }
 
+    private void DefineSteps(params WorkflowStep[] steps)
+    {
+        var def = new WorkflowDef { Id = "wf", Name = "Test flow", Steps = steps.ToList() };
+        var dir = Path.Combine(_repo.Root, ".codechroma", "workflows");
+        Directory.CreateDirectory(dir);
+        File.WriteAllText(Path.Combine(dir, "wf.json"), JsonSerializer.Serialize(def, WorkflowJson.Options));
+    }
+
+    private static WorkflowStep Agent(string id, string context = "previous") => new() { Id = id, Slug = id, Kind = "agent", Prompt = "do " + id, Context = context };
+
+    [Fact]
+    public async Task A_previous_context_step_gets_the_prior_output_while_a_fresh_one_does_not()
+    {
+        DefineSteps(Agent("one"), Agent("two"), Agent("three", "fresh"));
+        _cli.Script(Stdout(Say("marker-from-earlier")), ResultEvent(), Exit(0));
+        var runner = Runner();
+
+        var started = await runner.Start("wf");
+        await UntilState(runner, started.Id, "done");
+        var calls = _cli.Invocations();
+
+        Assert.DoesNotContain("marker-from-earlier", calls[0]["args"]!.ToJsonString());
+        Assert.Contains("marker-from-earlier", calls[1]["args"]!.ToJsonString());
+        Assert.DoesNotContain("marker-from-earlier", calls[2]["args"]!.ToJsonString());
+    }
+
+    [Fact]
+    public async Task A_review_step_may_have_an_empty_prompt_and_pause_before_becomes_a_breakpoint()
+    {
+        DefineSteps(Agent("one"), new WorkflowStep { Id = "two", Slug = "two", Kind = "agent", Prompt = "do two", PauseBefore = true }, new WorkflowStep { Id = "check", Slug = "check", Kind = "review" });
+        _cli.Script(ResultEvent(), Exit(0));
+        var runner = Runner();
+
+        var started = await runner.Start("wf");
+        await UntilState(runner, started.Id, "held");
+
+        Assert.Equal(["two"], started.Breakpoints);
+        Assert.Equal("two", runner.Get(started.Id).CurrentStepId);
+    }
+
+    [Fact]
+    public async Task Send_back_reruns_the_configured_agent_step_instead_of_the_nearest_one()
+    {
+        DefineSteps(Agent("one"), Agent("two"), new WorkflowStep { Id = "check", Slug = "check", Kind = "review", SendBackTo = "one" });
+        _cli.Script(ResultEvent(), Exit(0));
+        var runner = Runner();
+        var started = await runner.Start("wf");
+        await UntilState(runner, started.Id, "needs_you");
+
+        runner.Review(started.Id, "sendBack", "again");
+        await Until(() => _cli.Invocations().Count == 3, "third launch");
+        await UntilState(runner, started.Id, "needs_you");
+
+        Assert.Contains("sent back: again", Step(runner.Get(started.Id), "one").Output);
+        Assert.DoesNotContain("sent back", Step(runner.Get(started.Id), "two").Output);
+    }
+
+    [Fact]
+    public async Task A_run_is_deleted_only_when_done_or_stopped_and_clear_finished_removes_the_rest()
+    {
+        Define(("one", "agent"));
+        var release = Path.Combine(_cli.Directory, "release");
+        _cli.Script(BlockUntilFile(release), ResultEvent(), Exit(0));
+        var runner = Runner();
+        var running = await runner.Start("wf");
+        await Until(() => _cli.Invocations().Count == 1, "first launch");
+
+        var refused = Assert.Throws<BridgeException>(() => runner.DeleteRun(running.Id));
+        File.WriteAllText(release, "go");
+        await UntilState(runner, running.Id, "done");
+        var other = await runner.Start("wf");
+        await UntilState(runner, other.Id, "done");
+        var cleared = runner.ClearFinished();
+
+        Assert.Equal(409, refused.Status);
+        Assert.Equal(2, cleared.Count);
+        Assert.Empty(runner.List());
+        Assert.False(Directory.Exists(Worktree(running.Id)));
+        Assert.Contains("run.deleted", _events);
+    }
+
+    [Fact]
+    public async Task Restart_wipes_the_attempt_and_runs_the_same_run_again_from_step_one()
+    {
+        Define(("one", "agent"));
+        _cli.Script(Write("out.txt", "x\n"), ResultEvent(), Exit(0));
+        var runner = Runner();
+        var started = await runner.Start("wf", new Dictionary<string, string>());
+        await UntilState(runner, started.Id, "done");
+
+        var restarted = await runner.Restart(started.Id);
+        await Until(() => _cli.Invocations().Count == 2, "restart launch");
+        await UntilState(runner, started.Id, "done");
+
+        Assert.Equal(started.Id, restarted.Id);
+        Assert.Equal(1, runner.Get(started.Id).Attempt);
+        Assert.Single(runner.Get(started.Id).Attempts);
+        Assert.Equal("done", Step(runner.Get(started.Id), "one").Status);
+    }
+
+    [Fact]
+    public async Task A_running_run_cannot_be_restarted()
+    {
+        Define(("one", "agent"));
+        _cli.Script(Hang());
+        var runner = Runner();
+        var started = await runner.Start("wf");
+        await Until(() => _cli.Invocations().Count == 1, "first launch");
+
+        var refused = await Assert.ThrowsAsync<BridgeException>(() => runner.Restart(started.Id));
+        await runner.Stop(started.Id, "now");
+
+        Assert.Equal(409, refused.Status);
+    }
+
     [Fact]
     public async Task A_workflow_is_deleted_only_when_none_of_its_runs_is_in_progress()
     {

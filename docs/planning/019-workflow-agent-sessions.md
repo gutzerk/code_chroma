@@ -1,6 +1,6 @@
 # 019 — Workflow agent sessions: per-step agent, input, provider/model
 
-Status: In progress (Stage 0 done on `feat/workflow-agent-sessions`, branched from `stage`)
+Status: In progress (Stages 0-3 done on `feat/workflow-agent-sessions`, branched from `stage`)
 
 Design: the "Agents & Workflows Panel Redesign" canvas, https://claude.ai/artifact/UpBEzW3ptZkPhw1dqXQFDR (boards 2, 3, 6, 7, 7b, 8, 9, 10, 11). C# bridge only, like the rest of workflows (`docs/architecture/workflows.md`).
 
@@ -37,6 +37,7 @@ A workflow step can only start a fresh agent, with or without the previous step'
 
 ### Stage 1 — Runner
 
+- Done. `--fork-session` checked against the installed `claude --help` ("When resuming, create a new session ID ... use with --resume or --continue"). The continue check runs before the checkpoint and the launch (`WorkflowRunner.PlanLaunch`); a model-only override goes through `CliResolver.WithModel`.
 - `SkillAgent`: `RunOptions` gains `Cli` (a `CliResolution` override); `Start` uses it instead of `resolver.Resolve(Spec.Name, Spec.Model)` when set. `CliResolver.ResolveProvider(providerId, model)` builds the resolution from one provider, reusing `EnvOverrides`.
 - `WorkflowRunner.RunAgentStep`: resolve the step's CLI once (step override or call-site default) and use that resolution for `IsClaude`, not the runner-wide agent. Prompt = skill line + instructions + `\n\n` + filled `extraPrompt`. `handoff` keeps `WithContext`; `new` skips it; `continue` resolves the source record, fails the run when its `SessionId` is null or the CLI is not claude, else passes `--resume <id> --fork-session` and sets `ResumedFrom`.
 - Reruns (`ResumeFrom` after Stop) keep resuming the step's own session as today.
@@ -44,6 +45,7 @@ A workflow step can only start a fresh agent, with or without the previous step'
 
 ### Stage 2 — Usage and chain length
 
+- Done. Thresholds and the window table are constants in `Workflows/WorkflowLimits.cs` (the C# bridge has no config file to put them in). The run DTO carries per step `chainLength` and a server-computed `chainWarning`, and `usage` gains `model` and `contextWindow`, so the web needs neither the walk nor the thresholds.
 - `Agents/Transcripts.cs`: `ReadUsage(sessionId, worktree)` reads the last assistant entry's `usage` in the claude JSONL transcript (input + cache read + cache creation = context size). Injectable like `sessionFinder`.
 - Runner writes `StepRecord.Usage` in `Snapshot`. Chain length is computed from the definition (follow continue links), exposed on the run DTO per step so the web does not repeat the walk.
 - `config`: `workflowChainWarnSteps` (3), `workflowContextWarnRatio` (0.6), and a model to context-window table (default 200k).
@@ -51,6 +53,7 @@ A workflow step can only start a fresh agent, with or without the previous step'
 
 ### Stage 3 — Redo and send back
 
+- Done (runner only). `Review` is now async (the route uses `MutateAsync`) because send back awaits the parked loop and does the redo git work. A continue step being redone forks its own source rather than the nearest earlier session, which is what its own mode would do anyway; the source must be on the same provider. The web `RedoCard` keeps/reruns/setsAside copy for send back is not changed here (web stages).
 - `WorkflowRunner.Steer.cs` `Redo` and `WorkflowRunner.Review` (sendBack) share one "rerun from" path: keep the attempt branch, reset to the step's checkpoint, pick the nearest earlier agent step with a session on a claude CLI, resume it forked with the note plus step N's instructions; else fresh agent in step N's mode.
 - Send back now creates an attempt and resets code like redo (it currently reruns on top of the rejected work); update `RedoCard` keeps/reruns/setsAside text accordingly.
 - Tests: redo resumes step N-1's session (argv), redo with no earlier session starts fresh, send back resets the worktree to the checkpoint, the source session is never resumed without `--fork-session`.

@@ -41,6 +41,9 @@ public sealed record RunOptions(IReadOnlyList<string> ExtraArgs)
 
     /// <summary>Runs after a clean exit with a valid artifact; a non-null message turns the run into that error.</summary>
     public Func<string?>? PostRunCheck { get; init; }
+
+    /// <summary>The CLI to run instead of the call site's own resolution (a workflow step's provider/model override).</summary>
+    public CliResolution? Cli { get; init; }
 }
 
 /// <summary>Per-kind timeouts and default model (config.py's SkillAgentTimeoutsConfig).</summary>
@@ -135,7 +138,7 @@ public sealed class SkillAgent(SkillAgentSpec spec, CliResolver resolver, Runtim
         RuntimeCli resolved;
         try
         {
-            cli = resolver.Resolve(Spec.Name, Spec.Model);
+            cli = options?.Cli ?? resolver.Resolve(Spec.Name, Spec.Model);
             resolved = await Task.Run(() => runtime.Resolve(cli.Binary, cli.EnvOverrides));
         }
         catch (CliLookupException error)
@@ -228,6 +231,14 @@ public sealed class SkillAgent(SkillAgentSpec spec, CliResolver resolver, Runtim
 
     /// <summary>The CLI this call site resolves to right now, for a run body that spawns its own workers.</summary>
     public CliResolution ResolveCli() => resolver.Resolve(Spec.Name, Spec.Model);
+
+    /// <summary>A provider's CLI when one is given, else the call site's; a model overrides either one's.</summary>
+    public CliResolution ResolveCli(string? providerId, string? model)
+    {
+        if (providerId is not null) return resolver.ResolveProvider(providerId, model);
+        var cli = ResolveCli();
+        return model is null ? cli : CliResolver.WithModel(cli, model);
+    }
 
     /// <summary>The runnable executable and environment for a resolved CLI; blocking, so call it off the request path.</summary>
     public RuntimeCli ResolveRuntime(CliResolution cli) => runtime.Resolve(cli.Binary, cli.EnvOverrides);

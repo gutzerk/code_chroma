@@ -283,7 +283,7 @@ public sealed partial class WorkflowRunner
             h.Run.RedoProposal = new RedoProposal { From = from, Card = BuildCard(h, index, note ?? "") };
             AddMessage(h, "run", "system", $"Redo from {from} proposed.");
             Persist(h, "run.redo.proposed");
-            return Clone(h.Run);
+            return View(h);
         }
     }
 
@@ -303,12 +303,18 @@ public sealed partial class WorkflowRunner
             if (!RunStateMachine.IsLegal(h.Run.State, RunCommand.Redo)) throw Illegal(h, "redo");
         }
         await h.Loop;
+        return await RerunFrom(h, from, note, edit, RunCommand.Redo, "redo");
+    }
+
+    /// <summary>Redo and send back: keep the attempt on a branch, reset to the step's checkpoint and rerun it (see <see cref="PlanRedo"/>).</summary>
+    private async Task<Run> RerunFrom(Handle h, string from, string? note, StepEdit? edit, RunCommand command, string verb)
+    {
         int index, attempt;
         string checkpoint;
         lock (_lock)
         {
             if (h.Busy) throw new BridgeException(409, "the run is already being redone");
-            if (!RunStateMachine.IsLegal(h.Run.State, RunCommand.Redo)) throw Illegal(h, "redo");
+            if (!RunStateMachine.IsLegal(h.Run.State, command)) throw Illegal(h, verb);
             index = IndexOf(h, from);
             if (index < 0) throw new BridgeException(404, $"unknown step: {from}");
             if (h.Def.Steps[index].Kind != "agent") throw new BridgeException(409, "only an agent step can be redone");
@@ -340,6 +346,7 @@ public sealed partial class WorkflowRunner
             h.Run.Attempt = attempt + 1;
 
             var trimmed = string.IsNullOrWhiteSpace(note) ? null : note.Trim();
+            var label = command == RunCommand.SendBack ? "sent back" : "redo note";
             var fresh = new List<StepRecord>();
             for (var i = 0; i < h.Def.Steps.Count; i++)
             {
@@ -353,25 +360,45 @@ public sealed partial class WorkflowRunner
                 }
                 else
                 {
-                    fresh.Add(new StepRecord { StepId = id, Attempt = attempt + 1, Output = i == index && trimmed is not null ? $"--- redo note: {trimmed} ---" : "" });
+                    fresh.Add(new StepRecord { StepId = id, Attempt = attempt + 1, Output = i == index && trimmed is not null ? $"--- {label}: {trimmed} ---" : "" });
                 }
             }
             h.Run.Steps = fresh;
             ApplyStepEdit(h, index, edit);
 
-            Transition(h, RunCommand.Redo);
+            Transition(h, command);
             h.Run.CurrentStepId = from;
             h.Run.StopAfter = null;
             h.Run.RedoProposal = null;
             h.Bypass = from;
-            h.Rerun = trimmed is null ? null : from;
+            h.Redo = from;
             h.Note = trimmed;
-            AddMessage(h, "run", "system", $"Attempt {attempt + 1} started from {from}; attempt {attempt} is kept on {branch}.");
+            var lead = command == RunCommand.SendBack ? $"Sent back to {from}: attempt {attempt + 1}" : $"Attempt {attempt + 1}";
+            AddMessage(h, "run", "system", $"{lead} started from {from}; attempt {attempt} is kept on {branch}.");
             Persist(h, "run.redo.started");
             Drive(h, index);
-            return Clone(h.Run);
+            return View(h);
         }
     }
+
+    /// <summary>A rerun forks the nearest earlier session that never saw the rejected work (a continue step: its own source), else starts fresh in the step's mode.</summary>
+    private static Launch PlanRedo(Handle h, WorkflowStep step, bool claude)
+    {
+        if (claude && !StepAgents.IsContinue(step.Agent))
+        {
+            for (var i = IndexOf(h, step.Id) - 1; i >= 0; i--)
+            {
+                var earlier = h.Def.Steps[i];
+                if (earlier.Kind != "agent" || earlier.Provider != step.Provider) continue;
+                if (Record(h, earlier.Id) is { Status: not "skipped", SessionId: { } earlierSession })
+                    return new Launch(["--resume", earlierSession, "--fork-session"], earlier.Id, false, null);
+            }
+        }
+        return PlanLaunch(h, step, false, null, claude);
+    }
+
+    private static string RedoPrompt(string task, string? note) =>
+        note is null ? task : $"Reviewer feedback on an earlier attempt at this step, which was rejected and undone: {note}\n\nAddress it. The task of this step:\n{task}";
 
     private void ApplyStepEdit(Handle h, int index, StepEdit? edit)
     {
@@ -407,6 +434,6 @@ public sealed partial class WorkflowRunner
     private static StepRecord CloneStep(StepRecord s) => new()
     {
         StepId = s.StepId, Attempt = s.Attempt, Status = s.Status, Output = s.Output, DiffStat = s.DiffStat,
-        CheckpointRef = s.CheckpointRef, SessionId = s.SessionId, FromAttempt = s.FromAttempt,
+        CheckpointRef = s.CheckpointRef, SessionId = s.SessionId, FromAttempt = s.FromAttempt, Usage = s.Usage, ResumedFrom = s.ResumedFrom,
     };
 }

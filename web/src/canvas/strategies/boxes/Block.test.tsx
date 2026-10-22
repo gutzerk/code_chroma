@@ -564,14 +564,14 @@ function renderFolderBlock(docOnly: boolean | undefined) {
 }
 
 describe("Block doc_only folder styling", () => {
-  it("adds the block-doc-only class for a folder node with doc_only true", () => {
-    renderFolderBlock(true);
-    expect(screen.getByTestId("block")).toHaveClass("block-doc-only");
-  });
+  it.each([
+    ["adds", true, true],
+    ["omits", undefined, false],
+  ])("%s the block-doc-only class for a folder node with doc_only %s", (_verb, docOnly, present) => {
+    renderFolderBlock(docOnly);
 
-  it("omits the block-doc-only class for a folder node with doc_only false or absent", () => {
-    renderFolderBlock(undefined);
-    expect(screen.getByTestId("block")).not.toHaveClass("block-doc-only");
+    if (present) expect(screen.getByTestId("block")).toHaveClass("block-doc-only");
+    else expect(screen.getByTestId("block")).not.toHaveClass("block-doc-only");
   });
 });
 
@@ -681,16 +681,18 @@ describe("Block copy button", () => {
 });
 
 describe("Block selection", () => {
-  it("stamps data-select-id (the marquee's own lookup key) only when selectable", () => {
-    renderRoot(undefined, undefined, true);
+  it.each([
+    ["stamps", true],
+    ["never stamps", false],
+  ])("%s data-select-id (the marquee's own lookup key) when selectable is %s", (_verb, selectable) => {
+    if (selectable) renderRoot(undefined, undefined, true);
+    else renderRoot();
 
-    expect(screen.getByTestId("block")).toHaveAttribute("data-select-id", FIXTURE_NODES.root.node_id);
-  });
-
-  it("never stamps data-select-id for a non-selectable block (the default)", () => {
-    renderRoot();
-
-    expect(screen.getByTestId("block")).not.toHaveAttribute("data-select-id");
+    if (selectable) {
+      expect(screen.getByTestId("block")).toHaveAttribute("data-select-id", FIXTURE_NODES.root.node_id);
+    } else {
+      expect(screen.getByTestId("block")).not.toHaveAttribute("data-select-id");
+    }
   });
 
   it("shift-clicking a selectable block selects it instead of expanding it", () => {

@@ -172,6 +172,8 @@ properties and `load_*`/`layout_store` reads (pure path/IO, no engine); `Workspa
 `build`/`start`/`stop` and the callbacks, iterating `DIAGRAMS` for the diagram watchers and
 `DIAGRAMS.custom_dir(root)` for the custom watcher so a new diagram kind needs no edit there;
 `WorkspaceGit` is the thin `sync`/`diff_base`/`divergent_files` shim over `GitSync` + `git_cmd`.
+
+🔴 C# bridge: `Workspaces/WorkspaceWatchers.cs` routes only `.codechroma/diagrams/<kind>/<kind>.json` for the fixed `Workspace.DiagramKinds` to a per-kind ping. A custom (`diagrams/custom/<id>/<id>.json`) or feature-plan (`diagrams/feature-plan/<slug>/<slug>.json`) file needs its own debouncer that emits `{"type":"custom"}` / `{"type":"feature-plan"}`, as the Python `custom_watcher`/`feature_plan_watcher` do; without it an agent-written custom diagram never pings the canvas and is not drawn until a manual recipe run (issue #203). Guard: contract case `a_custom_diagram_written_to_disk_pings_connected_canvases`.
 `WorkspaceRegistry` maps an id onto one; `"main"` is `create_app`'s `repo_root` (defaulting to
 `codechroma_BRIDGE_REPO_PATH`) and is analyzed **as the app is built**, so the graph is ready on the
 first request — and since uvicorn runs the lifespan before it binds the socket, `launch.py`'s

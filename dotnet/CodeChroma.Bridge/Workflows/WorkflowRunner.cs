@@ -453,7 +453,7 @@ public sealed partial class WorkflowRunner
         h.Run.State = RunStateMachine.TryApply(h.Run.State, command) ?? throw Illegal(h, command.ToString());
     }
 
-    /// <summary>Only the claude CLI takes the --resume/--tools/--strict-mcp-config flags the runner passes.</summary>
+    /// <summary>Only the claude CLI takes the --resume/--fork-session/--tools/--strict-mcp-config flags the runner passes.</summary>
     private static bool IsClaude(SkillAgent agent)
     {
         try { return agent.ResolveCli().AdapterKey == "claude"; }
@@ -670,6 +670,9 @@ public sealed partial class WorkflowRunner
         }
     }
 
+    /// <summary>How a step launches: extra argv, the step it forks, or why it cannot start (a continue never falls back to a fresh agent).</summary>
+    private readonly record struct Launch(IReadOnlyList<string> Args, string? ResumedFrom, bool Fresh, string? Error);
+
     private async Task<Outcome> RunAgentStep(Handle h, WorkflowStep step, bool rerun)
     {
         StepRecord record;
@@ -679,14 +682,32 @@ public sealed partial class WorkflowRunner
             record = Record(h, step.Id);
             session = record.SessionId;
         }
+        CliResolution cli;
+        try
+        {
+            cli = _agent.ResolveCli(step.Provider, step.Model);
+        }
+        catch (CliLookupException error)
+        {
+            lock (_lock) AppendOutput(record, "✗ " + error.Message);
+            return Outcome.Failed;
+        }
+        Launch launch;
+        lock (_lock) launch = PlanLaunch(h, step, rerun, session, cli.AdapterKey == "claude");
+        if (launch.Error is not null)
+        {
+            lock (_lock) AppendOutput(record, $"✗ cannot continue {step.Slug}: {launch.Error}");
+            return Outcome.Failed;
+        }
         if (record.CheckpointRef is null)
         {
             var checkpoint = Checkpoint(h.Worktree, step.Slug);
             lock (_lock) record.CheckpointRef = checkpoint;
         }
-        var prompt = BuildPrompt(WithContext(h, step, ResolvePrompt(h, step), rerun), rerun, session is not null, h.Note);
+        var resolved = ResolvePrompt(h, step);
+        var prompt = BuildPrompt(launch.Fresh ? WithContext(h, step, resolved, rerun) : resolved, rerun, session is not null, h.Note);
         h.Note = null;
-        IReadOnlyList<string> extra = rerun && session is not null && IsClaude(_agent) ? ["--resume", session] : [];
+        if (launch.ResumedFrom is not null) lock (_lock) record.ResumedFrom = launch.ResumedFrom;
         var done = new TaskCompletionSource<JobState>(TaskCreationOptions.RunContinuationsAsynchronously);
         var gate = h.Gate;
         JobState started;
@@ -696,7 +717,7 @@ public sealed partial class WorkflowRunner
                 h.Run.Id, h.Worktree,
                 (_, state) => { if (state.State != "generating") done.TrySetResult(state); return Task.CompletedTask; },
                 (_, lines) => { OnLines(h, record, lines); return Task.CompletedTask; },
-                prompt, null, new RunOptions(extra) { PauseGate = gate.WaitAsync, Bare = false });
+                prompt, null, new RunOptions(launch.Args) { PauseGate = gate.WaitAsync, Bare = false, Cli = cli });
         }
         catch (Exception error)
         {
@@ -712,6 +733,21 @@ public sealed partial class WorkflowRunner
         return Outcome.Failed;
     }
 
+    /// <summary>A rerun resumes the step's own session; a continue forks its source's session or fails; anything else starts fresh.</summary>
+    private static Launch PlanLaunch(Handle h, WorkflowStep step, bool rerun, string? session, bool claude)
+    {
+        if (rerun && session is not null && claude) return new Launch(["--resume", session], null, false, null);
+        if (!StepAgents.IsContinue(step.Agent)) return new Launch([], null, true, null);
+        var source = StepAgents.SourceIndex(h.Def, IndexOf(h, step.Id));
+        if (source < 0) return new Launch([], null, false, "there is no earlier agent step to continue");
+        var from = h.Def.Steps[source];
+        var fromRecord = Record(h, from.Id);
+        if (fromRecord.Status == "skipped") return new Launch([], null, false, $"{from.Slug} was skipped, so it has no agent session");
+        if (fromRecord.SessionId is not { } sourceSession) return new Launch([], null, false, $"{from.Slug} has no agent session");
+        if (!claude) return new Launch([], null, false, "only claude can continue a session");
+        return new Launch(["--resume", sourceSession, "--fork-session"], from.Id, false, null);
+    }
+
     private void OnLines(Handle h, StepRecord record, IReadOnlyList<string> lines)
     {
         lock (_lock)
@@ -721,10 +757,10 @@ public sealed partial class WorkflowRunner
         }
     }
 
-    /// <summary>The step prompt with the run's inputs filled in and its skill named first.</summary>
+    /// <summary>The step prompt plus its step input, with the run's inputs filled in and its skill named first.</summary>
     private static string ResolvePrompt(Handle h, WorkflowStep step)
     {
-        var prompt = step.Prompt;
+        var prompt = string.IsNullOrWhiteSpace(step.ExtraPrompt) ? step.Prompt : step.Prompt + "\n\n" + step.ExtraPrompt;
         foreach (var (name, value) in h.Run.Inputs)
         {
             var ownedByOther = h.Def.Steps.Any(s => s.Id != step.Id && s.Input?.Name == name);

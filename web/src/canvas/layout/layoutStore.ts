@@ -3,11 +3,13 @@ import { Store } from "../../state/createStore";
 
 export type LeftTab = "diagrams" | "files";
 export type AgentsMode = "normal" | "collapsed" | "full";
+export type AgentsWidth = "default" | "wide";
 
 export interface LayoutState {
   leftOpen: boolean;
   leftTab: LeftTab;
   agentsMode: AgentsMode;
+  agentsWidth: AgentsWidth;
   selectedAgentId: string | null;
 }
 
@@ -15,6 +17,7 @@ const INITIAL: LayoutState = {
   leftOpen: true,
   leftTab: "diagrams",
   agentsMode: "normal",
+  agentsWidth: "default",
   selectedAgentId: null,
 };
 
@@ -58,6 +61,10 @@ class LayoutStore extends Store {
     this.leftOpenBeforeFull = null;
     this.set(restored === null ? { agentsMode: mode } : { agentsMode: mode, leftOpen: restored });
   };
+
+
+  toggleAgentsWide = (): void =>
+    this.set({ agentsWidth: this.state.agentsWidth === "wide" ? "default" : "wide" });
 
   selectAgent = (id: string | null): void => this.set({ selectedAgentId: id });
 

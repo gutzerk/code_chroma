@@ -1,5 +1,6 @@
 import { useSyncExternalStore } from "react";
 import type { EngineClient } from "../engine-client/EngineClient";
+import { messageOf } from "../util/reportError";
 import { Store } from "../state/createStore";
 import type { RedoRequest, ReviewDecision, Run, StopMode, WorkflowDef } from "./types";
 
@@ -91,6 +92,14 @@ class WorkflowStore extends Store {
     this.emit();
   };
 
+  /** Drops runs locally (a delete the caller or a `run.deleted` ping already confirmed). */
+  removeRuns = (ids: string[]): void => {
+    const gone = new Set(ids);
+    this.setRuns(this.runs.filter((r) => !gone.has(r.id)));
+  };
+
+  removeRun = (id: string): void => this.removeRuns([id]);
+
   setRuns = (runs: Run[]): void => {
     this.runs = runs;
     if (this.activeRunId && !runs.some((r) => r.id === this.activeRunId)) this.activeRunId = null;
@@ -149,22 +158,32 @@ export function useWorkflowError(): string | null {
   return useSyncExternalStore(workflowStore.subscribe, workflowStore.getError);
 }
 
-function message(err: unknown): string {
-  return err instanceof Error ? err.message : String(err);
-}
-
 /** Loads workflows and runs, then re-fetches off every `run` ping; returns the unsubscribe fn. */
 export function bindWorkflows(client: EngineClient): () => void {
   let disposed = false;
   workflowStore.reset();
+  let allInFlight = false;
+  let allDirty = false;
   const refreshAll = (): void => {
+    if (allInFlight) {
+      allDirty = true;
+      return;
+    }
+    allInFlight = true;
     void Promise.all([client.listWorkflows(), client.listRuns()])
       .then(([workflows, runs]) => {
         if (disposed) return;
         workflowStore.setWorkflows(workflows);
         workflowStore.setRuns(runs);
       })
-      .catch((err) => { if (!disposed) workflowStore.setError(message(err)); });
+      .catch((err) => { if (!disposed) workflowStore.setError(messageOf(err)); })
+      .finally(() => {
+        allInFlight = false;
+        if (!disposed && allDirty) {
+          allDirty = false;
+          refreshAll();
+        }
+      });
   };
   refreshAll();
   const inFlight = new Set<string>();
@@ -178,7 +197,7 @@ export function bindWorkflows(client: EngineClient): () => void {
     void client
       .getRun(runId)
       .then((run) => { if (!disposed) workflowStore.upsertRun(run); })
-      .catch((err) => { if (!disposed) workflowStore.setError(message(err)); })
+      .catch((err) => { if (!disposed) workflowStore.setError(messageOf(err)); })
       .finally(() => {
         inFlight.delete(runId);
         if (!disposed && dirty.delete(runId)) refreshRun(runId);
@@ -186,6 +205,7 @@ export function bindWorkflows(client: EngineClient): () => void {
   };
   const unsubscribe = client.subscribeRuns((event) => {
     if (!event) return refreshAll();
+    if (event.event === "run.deleted") return workflowStore.removeRun(event.runId);
     refreshRun(event.runId);
   });
   return () => { disposed = true; unsubscribe(); };
@@ -197,7 +217,18 @@ async function steer(command: () => Promise<Run>): Promise<void> {
     workflowStore.setError(null);
     workflowStore.upsertRun(await command());
   } catch (err) {
-    workflowStore.setError(message(err));
+    workflowStore.setError(messageOf(err));
+  }
+}
+
+/** Runs one mutation, then its local follow-up; failures surface as an error line. */
+async function mutate(fn: () => Promise<unknown>, refresh: () => void | Promise<void>): Promise<void> {
+  try {
+    workflowStore.setError(null);
+    await fn();
+    await refresh();
+  } catch (err) {
+    workflowStore.setError(messageOf(err));
   }
 }
 
@@ -212,15 +243,18 @@ export function workflowActions(client: EngineClient) {
       });
     },
     skip: (runId: string, stepId: string) => steer(() => client.skipStep(runId, stepId)),
-    deleteWorkflow: async (workflowId: string): Promise<void> => {
-      try {
-        workflowStore.setError(null);
-        await client.deleteWorkflow(workflowId);
-        workflowStore.setWorkflows(await client.listWorkflows());
-      } catch (err) {
-        workflowStore.setError(message(err));
-      }
-    },
+    deleteWorkflow: (workflowId: string) =>
+      mutate(() => client.deleteWorkflow(workflowId), async () => workflowStore.setWorkflows(await client.listWorkflows())),
+    updateWorkflow: (def: WorkflowDef) =>
+      mutate(() => client.updateWorkflow(def), async () => workflowStore.setWorkflows(await client.listWorkflows())),
+    deleteRun: (runId: string) =>
+      mutate(() => client.deleteRun(runId), () => workflowStore.removeRun(runId)),
+    clearFinished: () =>
+      mutate(
+        () => client.clearFinishedRuns(),
+        async () => workflowStore.setRuns(await client.listRuns()),
+      ),
+    restart: (runId: string) => steer(() => client.restartRun(runId)),
     pause: (runId: string) => steer(() => client.pauseRun(runId)),
     resume: (runId: string) => steer(() => client.resumeRun(runId)),
     stop: (runId: string, mode: StopMode) => steer(() => client.stopRun(runId, mode)),

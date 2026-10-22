@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { MockBridgeEngineClient } from "../engine-client/mockBridge";
 import { EngineClientProvider } from "../engine-client/EngineClientContext";
-import { WorkflowRunScreen } from "./WorkflowRunScreen";
+import { WorkflowsTab } from "./WorkflowsTab";
 import { workflowActions, workflowStore } from "./workflowStore";
 
 function setup() {
@@ -10,7 +10,7 @@ function setup() {
   client.workflowEngine.stepMs = 0;
   render(
     <EngineClientProvider repoId="default" client={client}>
-      <WorkflowRunScreen />
+      <WorkflowsTab />
     </EngineClientProvider>,
   );
   return client;

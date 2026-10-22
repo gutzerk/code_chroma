@@ -36,6 +36,7 @@ public sealed class PauseGate
 public sealed partial class WorkflowRunner
 {
     private const int MaxOutputChars = 200_000;
+    private const int ContextTailChars = 4000;
     private const long OutputSaveIntervalMs = 1000;
     private static readonly string[] ActiveStates = [RunStates.Running, RunStates.Paused, RunStates.Stopping];
 
@@ -144,6 +145,125 @@ public sealed partial class WorkflowRunner
         Store.DeleteWorkflow(workflowId);
     }
 
+    /// <summary>Removes a done or stopped run: its record, worktree and branches (the git cleanup is best-effort and runs outside the lock).</summary>
+    public void DeleteRun(string runId)
+    {
+        string id;
+        lock (_lock)
+        {
+            id = runId;
+            if (_handles.TryGetValue(runId, out var h))
+            {
+                if (h.Busy || !RunStates.IsFinished(h.Run.State)) throw new BridgeException(409, $"cannot delete a run that is {h.Run.State}");
+                Detach(runId, h);
+            }
+            else
+            {
+                var saved = Store.GetRun(runId) ?? throw new BridgeException(404, $"unknown run: {runId}");
+                if (!RunStates.IsFinished(saved.State)) throw new BridgeException(409, $"cannot delete a run that is {saved.State}");
+                Detach(runId, null);
+            }
+        }
+        WipeGit(id, WorktreeFor(_repoRoot, id));
+    }
+
+    /// <summary>Removes every done or stopped run and returns their ids.</summary>
+    public List<string> ClearFinished()
+    {
+        var victims = new List<string>();
+        lock (_lock)
+        {
+            foreach (var id in Store.RunIds())
+            {
+                if (_handles.TryGetValue(id, out var h))
+                {
+                    if (h.Busy || !RunStates.IsFinished(h.Run.State)) continue;
+                    Detach(id, h);
+                }
+                else
+                {
+                    if (Store.GetRun(id) is not { } saved || !RunStates.IsFinished(saved.State)) continue;
+                    Detach(id, null);
+                }
+                victims.Add(id);
+            }
+        }
+        foreach (var id in victims) WipeGit(id, WorktreeFor(_repoRoot, id));
+        return victims;
+    }
+
+    /// <summary>Drops the run's handle and record and announces it; the caller wipes git outside the lock.</summary>
+    private void Detach(string id, Handle? h)
+    {
+        if (h is not null) h.Busy = true;
+        _handles.Remove(id);
+        Store.DeleteRun(id);
+        _emit(new JsonObject { ["type"] = "run", ["runId"] = id, ["event"] = "run.deleted" });
+    }
+
+    /// <summary>Best-effort removal of the run worktree and its workflow/ and attempt branches.</summary>
+    private void WipeGit(string id, string worktree)
+    {
+        try { WorktreeOps.Remove(_repoRoot, worktree, force: true); } catch (Exception) { }
+        try { if (Directory.Exists(worktree)) Directory.Delete(worktree, true); } catch (Exception) { }
+        try { WorktreeOps.Prune(_repoRoot); } catch (Exception) { }
+        var listed = GitRunner.Run(_repoRoot, "branch", "--list", "--format=%(refname:short)", $"workflow/{id}", $"{id}/attempt-*") ?? "";
+        foreach (var branch in listed.Split('\n', StringSplitOptions.RemoveEmptyEntries).Select(b => b.Trim()).Where(b => b.Length > 0))
+            try { WorktreeOps.DeleteBranch(_repoRoot, branch); } catch (Exception) { }
+    }
+
+    /// <summary>Wipes a finished run's attempt (worktree, branches, outputs, messages) and starts the same run again from step one.</summary>
+    public async Task<Run> Restart(string runId)
+    {
+        Handle h;
+        lock (_lock)
+        {
+            h = Require(runId);
+            if (h.Busy || !RunStates.IsFinished(h.Run.State)) throw Illegal(h, "restart");
+        }
+        await h.Loop;
+        lock (_lock)
+        {
+            if (h.Busy || !RunStates.IsFinished(h.Run.State)) throw Illegal(h, "restart");
+            h.Busy = true;
+        }
+        var branch = "workflow/" + runId;
+        try
+        {
+            await Task.Run(() =>
+            {
+                WipeGit(runId, h.Worktree);
+                WorktreeOps.Add(_repoRoot, branch, h.Worktree);
+            });
+        }
+        catch
+        {
+            lock (_lock) h.Busy = false;
+            throw;
+        }
+        lock (_lock)
+        {
+            h.Busy = false;
+            // A restart picks up the stored definition, so edits made since the run began apply.
+            var def = Store.GetWorkflow(h.Run.WorkflowId) ?? h.Def;
+            var run = NewRun(runId, def, branch, h.Run.Inputs);
+            var fresh = new Handle(run, def, h.Worktree);
+            _handles[runId] = fresh;
+            Store.Save(run);
+            Emit(fresh, "run.step");
+            Drive(fresh, 0);
+            return Clone(run);
+        }
+    }
+
+    private static Run NewRun(string runId, WorkflowDef def, string branch, Dictionary<string, string> inputs) => new()
+    {
+        Id = runId, WorkflowId = def.Id, State = RunStates.Running, CurrentStepId = def.Steps[0].Id, Attempt = 1,
+        Attempts = [new RunAttempt { N = 1, Branch = branch }],
+        Steps = def.Steps.Select(s => new StepRecord { StepId = s.Id, Attempt = 1, Status = "pending" }).ToList(),
+        Inputs = inputs, Breakpoints = PauseBeforeIds(def),
+    };
+
     public async Task<Run> Start(string workflowId, IReadOnlyDictionary<string, string>? inputs = null)
     {
         var def = Store.GetWorkflow(workflowId) ?? throw new BridgeException(404, $"unknown workflow: {workflowId}");
@@ -159,13 +279,7 @@ public sealed partial class WorkflowRunner
         var branch = "workflow/" + runId;
         var worktree = WorktreeFor(_repoRoot, runId);
         await Task.Run(() => WorktreeOps.Add(_repoRoot, branch, worktree));
-        var run = new Run
-        {
-            Id = runId, WorkflowId = def.Id, State = RunStates.Running, CurrentStepId = def.Steps[0].Id, Attempt = 1,
-            Attempts = [new RunAttempt { N = 1, Branch = branch }],
-            Steps = def.Steps.Select(s => new StepRecord { StepId = s.Id, Attempt = 1, Status = "pending" }).ToList(),
-            Inputs = given,
-        };
+        var run = NewRun(runId, def, branch, given);
         lock (_lock)
         {
             var handle = new Handle(run, def, worktree);
@@ -294,7 +408,9 @@ public sealed partial class WorkflowRunner
                 return Clone(h.Run);
             }
             if (decision != "sendBack") throw new BridgeException(400, "decision must be approve or sendBack");
-            var target = Enumerable.Range(0, index).Reverse().FirstOrDefault(i => h.Def.Steps[i].Kind == "agent", -1);
+            var configured = h.Def.Steps[index].SendBackTo;
+            var target = configured is not null ? h.Def.Steps.FindIndex(0, index, x => x.Id == configured && x.Kind == "agent") : -1;
+            if (target < 0) target = Enumerable.Range(0, index).Reverse().FirstOrDefault(i => h.Def.Steps[i].Kind == "agent", -1);
             if (target < 0) throw new BridgeException(409, "there is no earlier agent step to send back to");
             Transition(h, RunCommand.SendBack);
             review.Status = "pending";
@@ -568,7 +684,7 @@ public sealed partial class WorkflowRunner
             var checkpoint = Checkpoint(h.Worktree, step.Slug);
             lock (_lock) record.CheckpointRef = checkpoint;
         }
-        var prompt = BuildPrompt(ResolvePrompt(h, step), rerun, session is not null, h.Note);
+        var prompt = BuildPrompt(WithContext(h, step, ResolvePrompt(h, step), rerun), rerun, session is not null, h.Note);
         h.Note = null;
         IReadOnlyList<string> extra = rerun && session is not null && IsClaude(_agent) ? ["--resume", session] : [];
         var done = new TaskCompletionSource<JobState>(TaskCreationOptions.RunContinuationsAsynchronously);
@@ -611,6 +727,37 @@ public sealed partial class WorkflowRunner
         var prompt = step.Prompt;
         foreach (var (name, value) in h.Run.Inputs) prompt = prompt.Replace("{{" + name + "}}", value);
         return string.IsNullOrWhiteSpace(step.Skill) ? prompt : $"Use the \"{step.Skill}\" skill for this step.\n\n{prompt}";
+    }
+
+    private static List<string> PauseBeforeIds(WorkflowDef def) => def.Steps.Where(s => s.PauseBefore).Select(s => s.Id).ToList();
+
+    /// <summary>A "previous"-context first attempt gets the last finished step's output tail and diff stat ahead of its own prompt.</summary>
+    private string WithContext(Handle h, WorkflowStep step, string prompt, bool rerun)
+    {
+        if (rerun || step.Context == "fresh") return prompt;
+        string slug, output;
+        string? diffStat;
+        lock (_lock)
+        {
+            var index = IndexOf(h, step.Id);
+            StepRecord? previous = null;
+            var previousIndex = -1;
+            for (var i = index - 1; i >= 0 && previous is null; i--)
+            {
+                var record = Record(h, h.Def.Steps[i].Id);
+                if (record.Status == "skipped" || h.Def.Steps[i].Kind == "review") continue;
+                previous = record;
+                previousIndex = i;
+            }
+            if (previous is null) return prompt;
+            slug = h.Def.Steps[previousIndex].Slug;
+            output = previous.Output;
+            diffStat = previous.DiffStat;
+        }
+        var sb = new System.Text.StringBuilder("Context from the previous step (" + slug + "):\n");
+        if (output.Length > 0) sb.Append("Output tail:\n").Append(output.Length <= ContextTailChars ? output : "..." + output[^ContextTailChars..]).Append('\n');
+        if (diffStat is not null) sb.Append("Changes: ").Append(diffStat).Append('\n');
+        return sb.Append("\nYour task:\n").Append(prompt).ToString();
     }
 
     /// <summary>The next step after <paramref name="index"/> that has not been skipped, or -1.</summary>

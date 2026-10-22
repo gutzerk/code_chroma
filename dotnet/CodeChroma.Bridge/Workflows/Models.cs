@@ -10,6 +10,11 @@ public sealed class WorkflowStep
     public string Kind { get; set; } = "agent";
     public string Prompt { get; set; } = "";
     public string? Skill { get; set; }
+    public string Context { get; set; } = "previous";
+    public bool PauseBefore { get; set; }
+    public bool ShowDiff { get; set; }
+    public bool ShowSummary { get; set; }
+    public string? SendBackTo { get; set; }
 }
 
 public sealed class WorkflowInput

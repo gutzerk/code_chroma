@@ -1,5 +1,30 @@
 # Changelog
 
+## [1.4.0](https://github.com/gutzerk/code_chroma/compare/v1.3.1...v1.4.0) (2026-10-22)
+
+
+### Features
+
+* **agents:** session usage strip in the agents full screen (019 stage 7) ([8701fab](https://github.com/gutzerk/code_chroma/commit/8701fabc00344ca950c8c21fff37991c7b877fb5))
+* **workflows:** agent mode cards, per-step provider/model and step input in the editor (019 stage 4) ([3f679dd](https://github.com/gutzerk/code_chroma/commit/3f679ddee2b01863f7ed498909234448331ff0d3))
+* **workflows:** All workflows screen and panel top bar (019 stage 6) ([3897bbe](https://github.com/gutzerk/code_chroma/commit/3897bbec667679cd3d04eccf01325f9cbd537391))
+* **workflows:** per-step agent mode, extra prompt, provider and model in the definition (019 stage 0) ([c65e712](https://github.com/gutzerk/code_chroma/commit/c65e712c2e9697374e3846dd304317ecd4a19931))
+* **workflows:** per-step CLI, step input and continue sessions in the runner (019 stage 1) ([46fe88b](https://github.com/gutzerk/code_chroma/commit/46fe88b67b88c7b13c280f3a9960533ef0983a6d))
+* **workflows:** record step token usage and continue-chain length (019 stage 2) ([1f629c5](https://github.com/gutzerk/code_chroma/commit/1f629c56c6a9cac5e90141cb930ecfd4e2d6da44))
+* **workflows:** redo and send back share one rerun path that forks an earlier session (019 stage 3) ([f515e22](https://github.com/gutzerk/code_chroma/commit/f515e22e43fef475a5fee6d4cc1a00d718b6dc9b))
+* **workflows:** step mode labels, session badge, resume chip and Open agent in run views (019 stage 5) ([fe51dae](https://github.com/gutzerk/code_chroma/commit/fe51daedc3ff4796fd3371fa32ea2ed94a2a8184))
+* write live bridge origin to .codechroma/bridge.json on every start ([#216](https://github.com/gutzerk/code_chroma/issues/216)) ([1aa037e](https://github.com/gutzerk/code_chroma/commit/1aa037ee79d3dea04c69f032c3b7a6498c4cf65b))
+
+
+### Bug Fixes
+
+* **canvas:** align diagram colors and preserve arranged positions ([1dfb679](https://github.com/gutzerk/code_chroma/commit/1dfb6795513bd66f9ecfe202ae9522cbc80c36ce))
+* **canvas:** retain user block edits across arrange mode changes ([f5827d6](https://github.com/gutzerk/code_chroma/commit/f5827d6ec9cc0ddb56d772d2d229e44e2658062c))
+* **ci:** retry transient PowerShell Gallery download failures ([bc0c6bf](https://github.com/gutzerk/code_chroma/commit/bc0c6bff6f9b4c0e827b8c945a12dfd41961addb))
+* **shell-tests:** keep the fake bridge alive when a client aborts mid-response ([1e7cc5c](https://github.com/gutzerk/code_chroma/commit/1e7cc5cda091ef4cded36f7bb5b93bc5a247c6d0))
+* stable per-repository bridge port with free-port fallback ([#216](https://github.com/gutzerk/code_chroma/issues/216)) ([0435433](https://github.com/gutzerk/code_chroma/commit/04354333281e06a51547e764591a49bee7567c05))
+* **workflows:** protect agent workspaces and round-trip inputs ([16df855](https://github.com/gutzerk/code_chroma/commit/16df855653c39827f84950220c51984192d05e46))
+
 ## [1.3.1](https://github.com/gutzerk/code_chroma/compare/v1.3.0...v1.3.1) (2026-10-22)
 
 

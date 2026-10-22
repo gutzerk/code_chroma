@@ -8,7 +8,7 @@ import { WorkflowsTab } from "../workflows/WorkflowsTab";
 import { useRuns, useWorkflows } from "../workflows/workflowStore";
 import { AgentList, AgentSwitcherRow } from "./activity/AgentSwitcherRow";
 import { CollapsedStrip, type ActivityTab } from "./activity/CollapsedStrip";
-import { CollapseIcon, ExpandIcon } from "./activity/icons";
+import { CollapseIcon, ExpandIcon, HandleChevronLeft, HandleChevronRight } from "./activity/icons";
 import "../canvas/PanelHandle.css";
 import "./ActivityPanel.css";
 
@@ -27,17 +27,19 @@ export function ActivityPanel({
   const workflows = useWorkflows();
   const launchError = useAgentLaunchError();
   const panelRef = useRef<HTMLElement | null>(null);
-  const { size, isResizing, handleProps } = useResizableSize(panelRef, {
+  const full = agentsMode === "full";
+  const { size, isResizing, handleProps, resetSize } = useResizableSize(panelRef, {
     axis: "x",
     edge: "left",
     minWidth: 320,
-    maxViewportFraction: 0.7,
+    maxViewportFraction: full ? 0.95 : 0.7,
+    onExceedMax: full ? undefined : () => layoutStore.setAgentsMode("full"),
   });
-  const resizable = agentsMode === "normal";
+  const resizable = agentsMode === "normal" || full;
   const collapsed = agentsMode === "collapsed";
-  const full = agentsMode === "full";
+  useEffect(() => resetSize(), [agentsMode]); // eslint-disable-line react-hooks/exhaustive-deps
   let style: CSSProperties | undefined;
-  if (full) style = { left: chromeInsets({ leftOpen, agentsMode }).agentsFullLeft };
+  if (full) style = size ? { left: "auto", width: size.width } : { left: chromeInsets({ leftOpen, agentsMode }).agentsFullLeft };
   else if (resizable && size) style = { width: size.width, flexBasis: size.width };
   const activeId = agents.some((a) => a.id === selectedAgentId) ? selectedAgentId : agents[0]?.id;
   useEffect(() => {
@@ -65,6 +67,18 @@ export function ActivityPanel({
         />
       )}
       <div className="panel-handle panel-handle--left-edge" data-testid="activity-edge">
+        {!collapsed && (
+          <button
+            type="button"
+            className="panel-handle-btn"
+            aria-label={full ? "Restore panel width" : "Stretch panel"}
+            title={full ? "Restore panel width" : "Stretch panel"}
+            aria-pressed={full}
+            onClick={layoutStore.toggleAgentsFull}
+          >
+            {full ? <HandleChevronRight /> : <HandleChevronLeft />}
+          </button>
+        )}
         {resizable && (
           <span className="panel-handle-grip" aria-hidden="true" {...handleProps}>
             <span />

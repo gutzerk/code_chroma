@@ -92,4 +92,15 @@ describe("ActivityPanel", () => {
 
     expect(layoutStore.getState()).toMatchObject({ agentsMode: "normal", selectedAgentId: agent.id });
   });
+  it("highlights only the agents launched to draw a diagram", async () => {
+    const drawing = await new MockAgentClient().create("Drawer");
+    const plain = await new MockAgentClient().create("Planner");
+    agentStore.upsert({ ...drawing, context_kind: "task" });
+    agentStore.upsert(plain);
+    setup();
+    fireEvent.click(screen.getByRole("button", { name: "Select agent" }));
+    const menu = screen.getByRole("listbox", { name: "Agents" });
+    expect(menu.querySelectorAll("[data-diagram]")).toHaveLength(1);
+    expect(menu.querySelectorAll(".activity-agent-badge")).toHaveLength(1);
+  });
 });

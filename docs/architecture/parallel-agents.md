@@ -466,11 +466,34 @@ Claude agent windows launch with the CodeChroma MCP server (`ask_user`) register
 - `normal`: `ActivityPanel` in the canvas row, resizable; its edge handle carries the collapse chevron.
 - `collapsed`: `activity/CollapsedStrip`; clicking an avatar returns to `normal` and selects that agent.
 - `full`: the same `ActivityPanel` stretched over the canvas (`.is-full`) from the diagrams panel edge
-  (or the canvas-area edge when that panel is collapsed); agents show as a row of tabs and the left panel
-  is left alone. Opening an agent window (`openAgentWindow`) never leaves full screen. The older
-  `AgentFullScreen` component is no longer mounted.
+  (or the canvas-area edge when that panel is collapsed); agents show as a left column
+  (`activity/AgentSwitcherRow.tsx`'s `AgentList`, a CSS grid on `.is-full .activity-agent-content` so the
+  terminals never remount) and the canvas's left panel is left alone. Opening an agent window
+  (`openAgentWindow`) never leaves full screen. The older `AgentFullScreen` component is no longer mounted.
+  The selected agent's header (`DockedAgentPanel` with `full`) shows a title and meta line, the usage
+  strip and Stop agent (see "Session usage" below).
 - `--agent-dock-left` (set once on the `.canvas-main-row` by `RootCanvas` from `chromeInsets`)
   positions the terminal dock and clears the floating left panel.
 
 Being in a non-`normal` mode (also on mount) closes an open code popup and inspector (`RootCanvas` effect). Tests:
 `AgentRail.test.tsx`, `AgentsCollapsedBar.test.tsx`, `AgentFullScreen.test.tsx`, `e2e/layout-panels.spec.ts`.
+
+## Session usage (019 Stage 7)
+
+`GET /agents/{id}/usage` (`Routes/AgentRoutes.cs`, C# bridge only) returns `{contextTokens, contextWindow,
+inputTokens, outputTokens, cacheReadTokens, cacheHitRatio, costUsd, model}` for a claude agent's recorded
+session (`SessionId`, captured on demand when still empty), or `null` for a non-claude agent, no session
+yet, or a transcript with no billed reply. `Agents/AgentUsage.cs` builds it: context comes from
+`Transcripts.ReadUsage` (the last main-thread reply; `<synthetic>` entries are skipped) and its window
+from `WorkflowLimits.ContextWindow`; tokens, cache hit and cost come from `Transcripts.ReadTotals`, which
+sums every assistant reply once per `message.id` (sidechains included, since they are billed) per model.
+`inputTokens` counts uncached input plus cache reads and writes, and `cacheHitRatio` is cache reads over
+that. `Workflows/ModelPrices.cs` holds USD per MTok (input, output, cache read, 5-minute cache write) per
+model id or its dated snapshot; `costUsd` is null when any model with tokens has no price.
+
+The web reads it through the optional `AgentClient.usage` (`HttpAgentClient` only; the mock has none, so
+the strip stays hidden there). `activity/UsageStrip.tsx`'s `useAgentUsage` fetches only for the selected
+agent while full screen is open, again on each status change and every `USAGE_POLL_MS` (5 s), and
+`UsageStrip` renders "Context 62k / 200k · 31%" with a `role="meter"` bar, "Tokens 184k in · 12k out",
+"Cache hit 78%" and "Cost $0.84" (omitted when `costUsd` is null). Tests:
+`dotnet/CodeChroma.Bridge.Tests/Agents/AgentUsageTests.cs`, `web/src/agents/activity/UsageStrip.test.tsx`.

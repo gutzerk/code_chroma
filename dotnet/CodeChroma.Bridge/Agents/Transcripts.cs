@@ -6,6 +6,13 @@ namespace CodeChroma.Bridge.Agents;
 /// <summary>A session's token counts from its last main-thread assistant entry; context = input + cache read + cache creation.</summary>
 public sealed record TranscriptUsage(long ContextTokens, long InputTokens, long OutputTokens, long CacheReadTokens, string? Model);
 
+/// <summary>Billed token counts: uncached input, output, cache reads and cache writes.</summary>
+public sealed record TokenCounts(long Input, long Output, long CacheRead, long CacheWrite)
+{
+    public static TokenCounts operator +(TokenCounts a, TokenCounts b) =>
+        new(a.Input + b.Input, a.Output + b.Output, a.CacheRead + b.CacheRead, a.CacheWrite + b.CacheWrite);
+}
+
 /// <summary>
 /// Finds the Claude Code session id for a worktree, so `claude --resume` continues its chat. The directory name Claude Code
 /// derives from a project path is never guessed: every transcript records its own cwd, so the id comes from the newest
@@ -15,6 +22,7 @@ public static class Transcripts
 {
     public const int MaxScannedTranscripts = 500;
     public const int HeadLines = 12;
+    public const string SyntheticModel = "<synthetic>";
 
     /// <summary>$CLAUDE_CONFIG_DIR/projects, else ~/.claude/projects: the override the CLI honours.</summary>
     public static string ProjectsDir()
@@ -77,10 +85,38 @@ public static class Transcripts
     }
 
     /// <summary>The last main-thread assistant entry's token usage in a session's transcript, or null when it has none.</summary>
-    public static TranscriptUsage? ReadUsage(string sessionId, string worktree, string? projectsRoot = null)
+    public static TranscriptUsage? ReadUsage(string sessionId, string worktree, string? projectsRoot = null) =>
+        TranscriptPath(sessionId, worktree, projectsRoot ?? ProjectsDir()) is { } path ? LastUsage(path) : null;
+
+    /// <summary>Every billed assistant reply's tokens in a session's transcript summed per model, or null when there is no transcript.</summary>
+    public static IReadOnlyDictionary<string, TokenCounts>? ReadTotals(string sessionId, string worktree, string? projectsRoot = null)
+    {
+        var path = TranscriptPath(sessionId, worktree, projectsRoot ?? ProjectsDir());
+        if (path is null) return null;
+        string[] lines;
+        try { lines = File.ReadAllLines(path); }
+        catch (Exception error) when (error is IOException or UnauthorizedAccessException) { return null; }
+        var seen = new HashSet<string>();
+        var totals = new Dictionary<string, TokenCounts>();
+        foreach (var line in lines)
+        {
+            if (!line.Contains("\"usage\"", StringComparison.Ordinal)) continue;
+            JsonObject? entry;
+            try { entry = JsonNode.Parse(line) as JsonObject; }
+            catch (JsonException) { continue; }
+            if (entry is null || Text(entry["type"]) != "assistant" || entry["message"] is not JsonObject message || message["usage"] is not JsonObject usage) continue;
+            if (Text(message["id"]) is { } messageId && !seen.Add(messageId)) continue;
+            var counts = new TokenCounts(Count(usage["input_tokens"]), Count(usage["output_tokens"]), Count(usage["cache_read_input_tokens"]), Count(usage["cache_creation_input_tokens"]));
+            if (counts.Input + counts.Output + counts.CacheRead + counts.CacheWrite == 0) continue;
+            var model = Text(message["model"]) ?? "";
+            totals[model] = totals.TryGetValue(model, out var sum) ? sum + counts : counts;
+        }
+        return totals;
+    }
+
+    private static string? TranscriptPath(string sessionId, string worktree, string root)
     {
         if (sessionId.Length == 0 || sessionId.IndexOfAny(Path.GetInvalidFileNameChars()) >= 0) return null;
-        var root = projectsRoot ?? ProjectsDir();
         List<string> candidates;
         try
         {
@@ -89,8 +125,7 @@ public static class Transcripts
         }
         catch (Exception error) when (error is IOException or UnauthorizedAccessException) { return null; }
         var target = Path.GetFullPath(worktree);
-        var path = candidates.Count > 1 ? candidates.FirstOrDefault(p => SessionIdForCwd(p, target) is not null) ?? candidates[0] : candidates.FirstOrDefault();
-        return path is null ? null : LastUsage(path);
+        return candidates.Count > 1 ? candidates.FirstOrDefault(p => SessionIdForCwd(p, target) is not null) ?? candidates[0] : candidates.FirstOrDefault();
     }
 
     private static TranscriptUsage? LastUsage(string path)
@@ -104,7 +139,7 @@ public static class Transcripts
             JsonObject? entry;
             try { entry = JsonNode.Parse(lines[i]) as JsonObject; }
             catch (JsonException) { continue; }
-            if (entry is null || Text(entry["type"]) != "assistant" || entry["isSidechain"] is JsonValue side && side.TryGetValue<bool>(out var sidechain) && sidechain) continue;
+            if (entry is null || Text(entry["type"]) != "assistant" || entry["message"] is JsonObject { } synthetic && Text(synthetic["model"]) == SyntheticModel || entry["isSidechain"] is JsonValue side && side.TryGetValue<bool>(out var sidechain) && sidechain) continue;
             if (entry["message"] is not JsonObject message || message["usage"] is not JsonObject usage) continue;
             var input = Count(usage["input_tokens"]);
             var cacheRead = Count(usage["cache_read_input_tokens"]);

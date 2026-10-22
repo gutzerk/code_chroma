@@ -39,6 +39,9 @@ public static partial class BareSkill
         return text.Append("Task: ").Append(args).ToString();
     }
 
+    /// <summary>The short first message an interactive diagram window shows; the inlined skill itself rides in the hidden system prompt.</summary>
+    public const string InteractiveVisiblePrompt = "Help me draw a diagram of this project.";
+
     /// <summary>The first message of an interactive diagram agent: the draw skill inlined (the short body of a known type, else the router) and how to start, with no other context.</summary>
     public static string? ComposeInteractive(string type, string repoRoot, string workspaceId, string? contextCommand)
     {

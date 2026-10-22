@@ -54,8 +54,18 @@ describe("MockWorkflowEngine transitions", () => {
     mock.resume(run.id);
     expect(mock.getRun(run.id).state).toBe("running");
     mock.pause(run.id);
-    mock.stop(run.id, "now");
+    mock.stop(run.id, "afterStep");
     expect(mock.getRun(run.id).state).toBe("paused");
+  });
+
+  it("cancels a paused run like the bridge's StopNow row", () => {
+    const { mock } = engine();
+    const run = mock.startRun("ship-feature");
+
+    mock.pause(run.id);
+    mock.stop(run.id, "now");
+
+    expect(mock.getRun(run.id).state).toBe("stopped");
   });
 });
 

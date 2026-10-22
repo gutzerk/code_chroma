@@ -189,7 +189,7 @@ branch through an agent attached to it (`_guard_shared_worktree`, keyed off `Age
   (`terminal/server.py`'s `_bridge_managed_session`). Trade-off, on purpose: a reattach shows the
   current screen, not history above the fold. 🔴 Entirely separate from `skill_agent`'s registry: if
   the two touched, regenerating a C1 diagram would kill the user's sessions. `atexit` + the lifespan
-  kill leave no orphans. `agent_run_env(agent_id)` injects `codechroma_WORKSPACE_ID=<agent id>` into
+  kill leave no orphans. `agent_run_env(agent_id)` injects `CODECHROMA_WORKSPACE_ID=<agent id>` (and `CODECHROMA_BRIDGE_URL` when the bridge's URL is known, `questions.launch.identity_env`; C#: `BridgeAddress.ExportIdentity`) into
   the PTY env (both `routes/agents.py`'s `start` and `autostart.py` pass it via
   `AgentSessionRegistry.start(..., env=...)` → `PtySession(env=...)`). Without it the diagram skills
   fall back to the `default` (main) workspace and write `.codechroma/*.json` into main while the agent
@@ -205,7 +205,7 @@ branch through an agent attached to it (`_guard_shared_worktree`, keyed off `Age
   (`terminal/agents.py`), which routes `kind="agent"` through `llm/resolve_cli` under the
   `parallel_agents` call site's `agents` group and folds resume/initial-prompt into the argv (so a
   `"task"` context first message still reaches an `agent` window). The caller merges the resolver's
-  env overrides under `agent_run_env`'s `codechroma_WORKSPACE_ID`, so the workspace id wins any
+  env overrides under `agent_run_env`'s `CODECHROMA_WORKSPACE_ID`, so the workspace id wins any
   collision. The resolved binary is stored back on the record as `resolved_cli` (persisted,
   additive), surfaced via `to_payload` so the window/rail can show which CLI actually launched. A
   plain `claude` record (FR-012) is untouched: it takes the assistant's `effective_cli` directly and
@@ -456,25 +456,19 @@ branch through an agent attached to it (`_guard_shared_worktree`, keyed off `Age
 
 ## Canvas questions (017)
 
-Claude agent windows launch with the CodeChroma MCP server (`ask_user`) registered through `agent_cli`'s `mcp` parameter, plus the `codechroma_BRIDGE_URL`/`codechroma_QUESTION_TOKEN` env vars; see [`ai-questions.md`](ai-questions.md) "Agent wiring". A bridge restart invalidates old tokens, so agent windows are respawned with fresh ones.
+Claude agent windows launch with the CodeChroma MCP server (`ask_user`) registered through `agent_cli`'s `mcp` parameter, plus the `CODECHROMA_BRIDGE_URL`/`CODECHROMA_QUESTION_TOKEN` env vars; see [`ai-questions.md`](ai-questions.md) "Agent wiring". A bridge restart invalidates old tokens, so agent windows are respawned with fresh ones.
 
 ## Agent panel modes (layout store)
 
 `layoutStore.agentsMode` (`canvas/layout/layoutStore.ts`) replaces the old open/collapsed `useState` in
 `RootCanvas`:
 
-- `normal`: `AgentRail` in the canvas row. It carries "Collapse agents panel" (-> `collapsed`) and
-  "Expand agents to full screen" (-> `full`) handle buttons.
-- `collapsed`: `AgentsCollapsedBar`, one `a1`, `a2`... button per agent in a row at the top right, with a
-  status dot; clicking one returns to `normal` and selects that agent.
-- `full`: `AgentFullScreen`, a `role=tablist` of `AgentTab`s (dot, name, status), a 44px "New agent"
-  `+`, and exactly one window for the selected agent (its `AgentTerminal`), an input and a status line
-  (`cli · status · branch`); the edge handle "Back to side panel" returns to `normal`. Entering `full`
-  forces `leftOpen=false` (the collapsed left bar stays). The full-screen input is not wired to the
-  xterm session (it is a local draft only; type in the terminal). The floating agent windows are hidden
-  (`.agent-layer[data-hidden]`), and the shown agent's own window/dock terminal is unmounted so only one
-  xterm is attached to its PTY (scrollback is lost on that remount; the bridge redraws the screen).
-  Leaving `full` restores the left panel to its pre-full state.
+- `normal`: `ActivityPanel` in the canvas row, resizable; its edge handle carries the collapse chevron.
+- `collapsed`: `activity/CollapsedStrip`; clicking an avatar returns to `normal` and selects that agent.
+- `full`: the same `ActivityPanel` stretched over the canvas (`.is-full`) from the diagrams panel edge
+  (or the canvas-area edge when that panel is collapsed); agents show as a row of tabs and the left panel
+  is left alone. Opening an agent window (`openAgentWindow`) never leaves full screen. The older
+  `AgentFullScreen` component is no longer mounted.
 - `--agent-dock-left` (set once on the `.canvas-main-row` by `RootCanvas` from `chromeInsets`)
   positions the terminal dock and clears the floating left panel.
 

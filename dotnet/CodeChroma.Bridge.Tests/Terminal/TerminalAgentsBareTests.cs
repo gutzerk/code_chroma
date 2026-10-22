@@ -33,6 +33,15 @@ public sealed class TerminalAgentsBareTests : IDisposable
     }
 
     [Fact]
+    public void A_bare_window_with_a_visible_prompt_hides_the_skill_in_the_system_prompt()
+    {
+        var argv = _agents.Resolve("claude", null, "LONG SKILL TEXT", bare: true, visiblePrompt: "Help me draw")!.Argv;
+
+        Assert.Equal("Help me draw", argv[1]);
+        Assert.Equal("LONG SKILL TEXT", argv[argv.ToList().IndexOf("--system-prompt") + 1]);
+    }
+
+    [Fact]
     public void A_normal_window_keeps_its_arguments()
     {
         var argv = _agents.Resolve("claude", null, "draw it")!.Argv;

@@ -15,6 +15,7 @@ public sealed class WorkflowStep
     public bool ShowDiff { get; set; }
     public bool ShowSummary { get; set; }
     public string? SendBackTo { get; set; }
+    public WorkflowInput? Input { get; set; }
 }
 
 public sealed class WorkflowInput
@@ -29,6 +30,10 @@ public sealed class WorkflowDef
     public string Name { get; set; } = "";
     public List<WorkflowStep> Steps { get; set; } = [];
     public List<WorkflowInput> Inputs { get; set; } = [];
+
+    /// <summary>Every value a run must be given: each step's own input, then any older workflow-level ones.</summary>
+    public List<WorkflowInput> AllInputs() =>
+        Steps.Where(s => s.Input is not null).Select(s => s.Input!).Concat(Inputs).GroupBy(i => i.Name).Select(g => g.First()).ToList();
 }
 
 public sealed class RunAttempt

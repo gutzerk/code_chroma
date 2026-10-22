@@ -41,7 +41,7 @@ else is on the canvas.
 **Always check for this feature's own artifact first, before deciding anything else:**
 
 ```bash
-curl -s "http://localhost:8000/repos/${CODECHROMA_WORKSPACE_ID:-default}/feature-plan/<slug>"
+curl -s "${CODECHROMA_BRIDGE_URL:-http://localhost:8000}/repos/${CODECHROMA_WORKSPACE_ID:-default}/feature-plan/<slug>"
 ```
 
 - **`has_diagram: true`** — this feature already has its own Feature-plan diagram. Deepen or correct
@@ -50,7 +50,7 @@ curl -s "http://localhost:8000/repos/${CODECHROMA_WORKSPACE_ID:-default}/feature
 - **`has_diagram: false`** — this feature has no diagram yet. What you do next depends on the canvas:
 
   ```bash
-  curl -s "http://localhost:8000/repos/${CODECHROMA_WORKSPACE_ID:-default}/canvas"
+  curl -s "${CODECHROMA_BRIDGE_URL:-http://localhost:8000}/repos/${CODECHROMA_WORKSPACE_ID:-default}/canvas"
   ```
 
   - **Nothing is drawn on the canvas at all** (no elements, or only the seeded root) — draw a brand
@@ -104,7 +104,7 @@ of this feature's plan. Its mere presence is the marker; there is no separate bo
 ## 6. Where the file goes
 
 ```bash
-curl -s "http://localhost:8000/repos/${CODECHROMA_WORKSPACE_ID:-default}/feature-plan/<slug>-path"
+curl -s "${CODECHROMA_BRIDGE_URL:-http://localhost:8000}/repos/${CODECHROMA_WORKSPACE_ID:-default}/feature-plan/<slug>-path"
 # -> {"repo_root":"/abs/path/to/repo","feature_plan_path":"/abs/path/to/repo/.codechroma/diagrams/feature-plan/<slug>/<slug>.json"}
 ```
 

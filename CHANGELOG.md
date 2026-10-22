@@ -1,5 +1,32 @@
 # Changelog
 
+## [1.3.0](https://github.com/gutzerk/code_chroma/compare/v1.2.0...v1.3.0) (2026-10-22)
+
+
+### Features
+
+* **bridge:** gather architecture-map context for c1, patterns, sequence and custom diagrams ([63e9fda](https://github.com/gutzerk/code_chroma/commit/63e9fda6188058c7cb699ec899b7cb92b8ed5f05))
+* **bridge:** gather architecture-map context for diagram agents ([362f79c](https://github.com/gutzerk/code_chroma/commit/362f79c309e83c24a4a99c7ea609ce0e9f12f6e9))
+* **bridge:** start diagram task agents bare, with the draw skill inlined ([9710620](https://github.com/gutzerk/code_chroma/commit/971062054c307ce6fd185667a2c0742e271f4260))
+* **web:** highlight diagram-drawing agents in the activity panel ([180931c](https://github.com/gutzerk/code_chroma/commit/180931ca06b83d86b2f32eaf29a402e6ce6c4a26))
+* **web:** highlight diagram-drawing agents in the activity panel ([86a1f27](https://github.com/gutzerk/code_chroma/commit/86a1f27a9338f477670ac55d2466f9e21fa26270))
+* **workflows:** redesign the agents/workflows panel and workflow backend ([fec4a7a](https://github.com/gutzerk/code_chroma/commit/fec4a7aac97471ba91637e9e3429ff517a9e86c2))
+* **workflows:** redesign the agents/workflows panel and workflow backend ([448337f](https://github.com/gutzerk/code_chroma/commit/448337f0bec983c48e560b77229e166ebd7bc934))
+
+
+### Bug Fixes
+
+* **bridge:** keep long wiki update prompts off the Windows command line; style side panels like the design ([3f5acaf](https://github.com/gutzerk/code_chroma/commit/3f5acaf678b3ccc8e641cad36e1d51b3e07366a8))
+* **bridge:** let interactive diagram agents run the context command themselves ([065e721](https://github.com/gutzerk/code_chroma/commit/065e7211f9c1e4ac83056452e6d4ae94c782fe6c))
+* **bridge:** warm the embedding model only when the desktop app asks for it ([88c036a](https://github.com/gutzerk/code_chroma/commit/88c036a26762df8f371cf311d491b4f836d72f35))
+* **shell:** let the Windows update helper move the install dir aside ([a3200f6](https://github.com/gutzerk/code_chroma/commit/a3200f6a87f7a2e0efb45a820682f2f3a3b197d2))
+* **shell:** render update notes as markdown, fit screen, add Install/Skip/Later ([fd647d3](https://github.com/gutzerk/code_chroma/commit/fd647d37002a935f0b3cb91fd8141e7d08295490))
+* wiki update on Windows (command line too long) and side panel styling ([c5ddf33](https://github.com/gutzerk/code_chroma/commit/c5ddf337ef06ca47bc4bf674985e356debdc675e))
+* **wiki-general:** batch wiki-context lookups to avoid HTTP 414 ([dc119f5](https://github.com/gutzerk/code_chroma/commit/dc119f532738b46a07fd90b259cad9173305ad61))
+* **wiki-general:** batch wiki-context path lookups so large wikis don't hit HTTP 414 ([8fc0cdd](https://github.com/gutzerk/code_chroma/commit/8fc0cdd89ae9ae39accc228b9776f22f41284d8a))
+* Windows CLI path lookup and update dialog rendering ([7e6eeeb](https://github.com/gutzerk/code_chroma/commit/7e6eeebd10a3ddaa9ba49ac79a19202230ce9be0))
+* **workflows:** review fixes for delete, clear-finished, previous-step context and sendBackTo ([03d3a0b](https://github.com/gutzerk/code_chroma/commit/03d3a0b76da9c5eb8933c399a51bd00a6b66fc01))
+
 ## [1.2.0](https://github.com/gutzerk/code_chroma/compare/v1.1.0...v1.2.0) (2026-10-21)
 
 

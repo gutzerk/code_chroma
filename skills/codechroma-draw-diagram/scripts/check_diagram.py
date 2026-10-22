@@ -33,9 +33,10 @@ cycle is often legitimate (state-machine, retry-loop) and only ever worth flaggi
 because a single fragile connexion is a judgement call too, and BADKIND/BADICON because an
 unrecognized `kind`/`icon` degrades to no icon rather than to a broken
 block. DROPPED
-just
-relays the bridge's own resolve-time diagnostics. NOSTATUS/BADSTATUS relay an Impact box whose
-`meta.status` is missing or not one of the four values the skill/canvas expect.
+relays the bridge's own resolve-time diagnostics: a dropped node advises, but a dropped relation
+(a self-message the style disallows, say) FAILS the run so it is never a silent OK.
+NOSTATUS/BADSTATUS relay an Impact box whose `meta.status` is missing or not one of the four
+values the skill/canvas expect.
 
 037-total-diagram-unification: replaces the four per-kind `_inspect_*` functions with a
 two-strategy dispatch (`_inspect_hierarchical`/`_inspect_flat`) keyed by each kind's own
@@ -221,6 +222,7 @@ _BUILTIN_CHECKS = {
         "required_meta": [],
         "membership_source": None,
         "allow_self": True,
+        "graph_advisories": False,
         "check_islands": {"hint": _SEQUENCE_ISLAND_HINT},
     },
 }
@@ -307,8 +309,8 @@ def main(argv: list[str] | None = None) -> int:
 
 def _parse_args(argv: list[str] | None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Check one resolved Code Atlas diagram.")
-    default_url = os.environ.get("CODECHROMA_BRIDGE_URL", "http://localhost:8000")
-    default_repo = os.environ.get("CODECHROMA_WORKSPACE_ID", "") or "default"
+    default_url = os.environ.get("CODECHROMA_BRIDGE_URL", "").strip() or "http://localhost:8000"
+    default_repo = os.environ.get("CODECHROMA_WORKSPACE_ID", "").strip() or "default"
     kinds = sorted({*_BUILTIN_CHECKS, "custom", "feature-plan"})
     parser.add_argument("--kind", required=True, choices=kinds, help="diagram kind")
     parser.add_argument("--url", default=default_url, help="bridge base URL")
@@ -880,7 +882,7 @@ def _check_unlabeled(unlabeled_severity: str, report: _Report) -> None:
 
 
 def _check_diagnostics(diagram: object, report: _Report) -> None:
-    """Relays what the bridge itself dropped while resolving -- advisory, never a failure."""
+    """Relays what the bridge dropped: a lost relation fails the run, a lost node advises."""
     diagnostics = diagram.get("diagnostics") if isinstance(diagram, dict) else None
     if not isinstance(diagnostics, dict) or not diagnostics.get("dropped_count"):
         return
@@ -888,9 +890,12 @@ def _check_diagnostics(diagram: object, report: _Report) -> None:
     dropped = dropped if isinstance(dropped, list) else []
     entries = [entry for entry in dropped if isinstance(entry, dict)]
     for entry in entries:
-        report.advisories.append(
-            f"DROPPED {entry.get('what')} {entry.get('id')} {entry.get('reason')}"
-        )
+        line = f"DROPPED {entry.get('what')} {entry.get('id')} {entry.get('reason')}"
+        if entry.get("what") == "relation":
+            # A lost relation is a lost arrow/message the author drew -- never a silent OK.
+            report.broken.append(f"{line} -- the bridge discarded it, so it is not on the canvas")
+        else:
+            report.advisories.append(line)
     if not diagnostics.get("truncated"):
         return
     shown = diagnostics.get("shown")
@@ -1284,8 +1289,10 @@ def _inspect_flat(diagram: object, checks: dict, args: argparse.Namespace) -> _R
         _collect_relation(relation, endpoints, touched, report)
     _check_duplicates(report, "nodes")
     _check_relations(endpoints, report, bool(checks.get("allow_self")), "node")
-    _check_cycles(endpoints, report, bool(checks.get("allow_self")))
-    _check_articulation(endpoints, report)
+    # A sequence flow is cyclic and funnelled by nature (one workflow triggers another).
+    if checks.get("graph_advisories", True):
+        _check_cycles(endpoints, report, bool(checks.get("allow_self")))
+        _check_articulation(endpoints, report)
     # epics turns `check_orphans` off: its connectivity lives in recipe_key/group frames, not edges.
     if checks.get("check_orphans", True):
         _check_orphans(orphan_candidates, touched, report)

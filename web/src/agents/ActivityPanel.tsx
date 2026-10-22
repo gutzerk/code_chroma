@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState, type CSSProperties } from "react";
 import { useResizableSize } from "../canvas/useResizableSize";
 import { layoutStore, useLayoutState } from "../canvas/layout/layoutStore";
+import { chromeInsets } from "../canvas/layout/layoutMetrics";
 import { useAgents, useAgentLaunchError } from "./agentStore";
 import { DockedAgentPanel } from "./AgentTerminalDock";
 import { WorkflowsTab } from "../workflows/WorkflowsTab";
@@ -8,7 +9,6 @@ import { useRuns, useWorkflows } from "../workflows/workflowStore";
 import { AgentSwitcherRow } from "./activity/AgentSwitcherRow";
 import { CollapsedStrip, type ActivityTab } from "./activity/CollapsedStrip";
 import { CollapseIcon, ExpandIcon } from "./activity/icons";
-import { useStretchWidth } from "./activity/useStretchWidth";
 import "../canvas/PanelHandle.css";
 import "./ActivityPanel.css";
 
@@ -21,7 +21,7 @@ export function ActivityPanel({
   disabled?: boolean;
 }) {
   const agents = useAgents();
-  const { agentsMode, agentsWidth, leftOpen, selectedAgentId } = useLayoutState();
+  const { agentsMode, leftOpen, selectedAgentId } = useLayoutState();
   const [tab, setTab] = useState<ActivityTab>("agents");
   const runs = useRuns();
   const workflows = useWorkflows();
@@ -33,20 +33,24 @@ export function ActivityPanel({
     minWidth: 320,
     maxViewportFraction: 0.7,
   });
-  const resizable = agentsMode === "normal" && agentsWidth === "default";
+  const resizable = agentsMode === "normal";
   const collapsed = agentsMode === "collapsed";
-  const wide = agentsMode === "normal" && agentsWidth === "wide";
-  const wideWidth = useStretchWidth(panelRef, wide, leftOpen);
+  const full = agentsMode === "full";
   let style: CSSProperties | undefined;
-  if (wideWidth !== null) style = { width: wideWidth, flexBasis: wideWidth };
+  if (full) style = { left: chromeInsets({ leftOpen, agentsMode }).agentsFullLeft };
   else if (resizable && size) style = { width: size.width, flexBasis: size.width };
   const activeId = agents.some((a) => a.id === selectedAgentId) ? selectedAgentId : agents[0]?.id;
   useEffect(() => {
     if (selectedAgentId) setTab("agents");
   }, [selectedAgentId]);
+  // Entering full screen (or switching agents inside it) moves the cursor into that agent's terminal.
+  const [focusRequest, setFocusRequest] = useState(0);
+  useEffect(() => {
+    if (full && activeId) setFocusRequest((n) => n + 1);
+  }, [full, activeId]);
   return (
     <aside
-      className={`activity-panel${collapsed ? " is-collapsed" : ""}${agentsMode === "full" ? " is-full" : ""}${wide ? " is-wide" : ""}${isResizing ? " is-resizing" : ""}`}
+      className={`activity-panel${collapsed ? " is-collapsed" : ""}${full ? " is-full" : ""}${isResizing ? " is-resizing" : ""}`}
       aria-label="Agents and workflows"
       data-testid="activity-panel"
       ref={panelRef}
@@ -78,6 +82,16 @@ export function ActivityPanel({
             <ExpandIcon size={12} />
           </button>
         )}
+        {!collapsed && (
+          <button
+            type="button"
+            className="panel-handle-btn"
+            aria-label="Collapse agents and workflows"
+            onClick={() => layoutStore.setAgentsMode("collapsed")}
+          >
+            <CollapseIcon size={12} />
+          </button>
+        )}
       </div>
       <div className="activity-content" hidden={collapsed}>
         <div className="activity-header">
@@ -99,15 +113,6 @@ export function ActivityPanel({
               Workflows <span className="activity-count">{workflows.length}</span>
             </button>
           </div>
-          <button
-            type="button"
-            className="activity-icon-btn"
-            aria-label="Collapse agents and workflows"
-            title="Collapse"
-            onClick={() => layoutStore.setAgentsMode("collapsed")}
-          >
-            <CollapseIcon />
-          </button>
         </div>
         {launchError && tab === "agents" && <p role="alert">{launchError}</p>}
         <div
@@ -120,7 +125,6 @@ export function ActivityPanel({
             agents={agents}
             activeId={activeId ?? undefined}
             agentsMode={agentsMode}
-            agentsWidth={agentsWidth}
             disabled={disabled}
             onRunAgent={onRunAgent}
           />
@@ -134,7 +138,7 @@ export function ActivityPanel({
               key={agent.id}
               agent={agent}
               active={tab === "agents" && activeId === agent.id && !collapsed}
-              focusRequest={0}
+              focusRequest={focusRequest}
             />
           ))}
         </div>

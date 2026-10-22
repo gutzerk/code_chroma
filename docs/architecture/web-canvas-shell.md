@@ -3,12 +3,16 @@
 > Removed dead components: `AgentRail`, `AgentWindow`, `AgentFullScreen`, `AgentTab` and `useFullScreenAgentId` (plus their tests/CSS) are deleted -- `ActivityPanel` + `AgentTerminalDock` replaced them. Mentions of those names below are historical; the live flow is `windowActions.ts` + `ActivityPanel`.
 
 The right side is an attached `agents/ActivityPanel`, present even with no agents. Its header is a
-segmented "Agents N | Workflows N" control plus a collapse button. The Agents tab is one 40px
-`agents/activity/AgentSwitcherRow` (agent dropdown with status dot, title and "cli · branch · status";
-buttons Run agent, Stretch panel, Full screen) above the terminal. Stretch is `layoutStore.agentsWidth`
-`"wide"` (`useStretchWidth`, `layoutMetrics.agentsWideWidth`): the panel widens leftwards to the
-diagrams panel edge, or the collapsed left bar's edge; full screen stays `agentsMode: "full"`. The
-Workflows tab renders `workflows/WorkflowsTab` (see [`workflows.md`](workflows.md)). Collapsed, the
+segmented "Agents N | Workflows N" control; the collapse button is the chevron on its left edge handle
+(`panel-handle-btn`, same look as the diagrams panel's), beneath the resize grip. The Agents tab is one
+40px `agents/activity/AgentSwitcherRow` (agent dropdown with status dot, title, an "i/N" count chip and
+"cli · branch · status"; buttons Run agent, Full screen) above the terminal. There is no stretch
+button. Full screen (`agentsMode: "full"`) leaves the left panel as it is and reaches the diagrams
+panel's edge, or the canvas-area edge (12px inset) once that panel is collapsed
+(`chromeInsets().agentsFullLeft`, applied as the panel's `left`). In full screen the dropdown becomes a
+row of `role="tab"` chips for every agent, switching agents keeps full screen (`openAgentWindow` only
+reopens a *collapsed* strip), and entering full or switching inside it focuses the shown agent's
+terminal (`focusRequest`). The Workflows tab renders `workflows/WorkflowsTab` (see [`workflows.md`](workflows.md)). Collapsed, the
 panel is a 52px `agents/activity/CollapsedStrip` (SVG icons from `activity/icons.tsx`, count badges with
 a yellow "!" when a run needs you, one initials circle with status dot per agent, a + button,
 `.rail-tooltip` tooltips; `AgentsCollapsedBar` is gone). Agent terminals live in `DockedAgentPanel`,
@@ -20,6 +24,8 @@ matching edge handle.
 Has grown well past the "minimal canvas + navigation base" the docs in `web/README.md` and
 `web/QUICKSTART.md` still describe — those files understate the current feature set and shouldn't be
 trusted as-is (see caveat in [`web-engine-client.md`](web-engine-client.md)).
+
+🔴 **Zoom range and scrollbars (#185, #191):** `canvasGrid.ts#MIN_SCALE` (0.05) is the zoom-out floor for wheel, buttons and fit (max stays 2.5), so a multi-diagram canvas fits a small display; the dot grid re-steps itself. `html/body/#root` are `overflow: hidden` and `.canvas-main-row` scrolls horizontally with its scrollbar hidden (`overflow-y: hidden`, `scrollbar-width: none`), so macOS shows no stray page/row bars; tests in `CanvasViewport.test.tsx` ("zoom-out floor").
 
 Everything is one continuous in-memory DOM/CSS canvas — no per-node routing. A pluggable-camera
 pan/zoom system sits on top of that canvas (wheel-zoom toward cursor, drag-to-pan, zoom in/out/reset

@@ -11,7 +11,7 @@ import {
 } from "react";
 import { canvasLayoutStore } from "../state/canvasLayoutStore";
 import { selectionStore } from "../state/selectionStore";
-import { gridStep, gridStepFor } from "./canvasGrid";
+import { gridStep, gridStepFor, MIN_SCALE } from "./canvasGrid";
 import { useSavedCanvasStyle, viewportTextureImage } from "../canvas-style/canvasStyleStore";
 import { clamp } from "../util/clamp";
 import { readSavedCameraView, writeSavedCameraView } from "./canvasCameraStore";
@@ -70,7 +70,6 @@ interface ViewState {
  * persisted view to restore. */
 const RESET_VIEW: ViewState = { x: 0, y: 0, scale: 1 };
 
-const MIN_SCALE = 0.25;
 const MAX_SCALE = 2.5;
 const BUTTON_ZOOM_STEP = 1.12;
 

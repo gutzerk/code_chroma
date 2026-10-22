@@ -127,9 +127,10 @@ public static class AgentBootstrap
     {
         home ??= Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
         if (string.IsNullOrEmpty(home) || !(isMac ?? OperatingSystem.IsMacOS())) return false;
-        var parent = Path.GetDirectoryName(Path.TrimEndingDirectorySeparator(Path.GetFullPath(path)));
+        var full = Path.TrimEndingDirectorySeparator(Path.GetFullPath(path));
+        var parent = Path.GetDirectoryName(full);
         return parent is not null && SamePath(parent, Path.GetFullPath(home))
-            && MacMediaFolders.Contains(Path.GetFileName(path), StringComparer.Ordinal);
+            && MacMediaFolders.Contains(Path.GetFileName(full), StringComparer.Ordinal);
     }
 
     private static List<ScannedFile> Walk(string root)

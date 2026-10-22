@@ -27,20 +27,13 @@ function corners(d: string): { x: number; y: number }[] {
 }
 
 describe("chooseSides", () => {
-  it("leaves and enters through facing vertical sides when the boxes sit side by side", () => {
-    expect(chooseSides(rect(0, 0), rect(400, 20))).toEqual(["right", "left"]);
-  });
-
-  it("leaves and enters through facing horizontal sides when one box sits below the other", () => {
-    expect(chooseSides(rect(0, 0), rect(20, 400))).toEqual(["bottom", "top"]);
-  });
-
-  it("prefers the axis the boxes are actually separated along over the larger centre delta", () => {
-    expect(chooseSides(rect(0, 0, 400, 40), rect(30, 200, 400, 40))).toEqual(["bottom", "top"]);
-  });
-
-  it("falls back to the dominant delta when the boxes overlap on both axes", () => {
-    expect(chooseSides(rect(0, 0), rect(60, 20))).toEqual(["right", "left"]);
+  it.each([
+    ["leaves and enters through facing vertical sides when the boxes sit side by side", rect(0, 0), rect(400, 20), ["right", "left"]],
+    ["leaves and enters through facing horizontal sides when one box sits below the other", rect(0, 0), rect(20, 400), ["bottom", "top"]],
+    ["prefers the axis the boxes are actually separated along over the larger centre delta", rect(0, 0, 400, 40), rect(30, 200, 400, 40), ["bottom", "top"]],
+    ["falls back to the dominant delta when the boxes overlap on both axes", rect(0, 0), rect(60, 20), ["right", "left"]],
+  ])("%s", (_name, from, to, sides) => {
+    expect(chooseSides(from, to)).toEqual(sides);
   });
 });
 
@@ -60,13 +53,13 @@ describe("anchorOf", () => {
 });
 
 describe("assignLanes", () => {
-  it("gives one arrow between a pair the centre lane", () => {
-    expect(assignLanes([{ pair: "a b" }], (item) => item.pair)).toEqual([{ offset: 0, rank: 0 }]);
-  });
-
-  it("spreads two arrows between the same pair symmetrically apart", () => {
-    const lanes = assignLanes([{ pair: "a b" }, { pair: "a b" }], (item) => item.pair, 14);
-    expect(lanes.map((lane) => lane.offset)).toEqual([-7, 7]);
+  it.each([
+    ["gives one arrow between a pair the centre lane", [{ pair: "a b" }], undefined, [0]],
+    ["spreads two arrows between the same pair symmetrically apart", [{ pair: "a b" }, { pair: "a b" }], 14, [-7, 7]],
+    ["keeps arrows between different pairs on their own centre lanes", [{ pair: "a b" }, { pair: "c d" }], undefined, [0, 0]],
+  ])("%s", (_name, items, gap, offsets) => {
+    const lanes = assignLanes(items, (item) => item.pair, gap);
+    expect(lanes.map((lane) => lane.offset)).toEqual(offsets);
   });
 
   it("puts opposite-direction arrows between the same two blocks in different lanes", () => {
@@ -75,11 +68,6 @@ describe("assignLanes", () => {
       (item) => pairKeyOf(item.from, item.to),
     );
     expect(lanes[0].offset).not.toBe(lanes[1].offset);
-  });
-
-  it("keeps arrows between different pairs on their own centre lanes", () => {
-    const lanes = assignLanes([{ pair: "a b" }, { pair: "c d" }], (item) => item.pair);
-    expect(lanes.map((lane) => lane.offset)).toEqual([0, 0]);
   });
 });
 
@@ -95,33 +83,20 @@ describe("assignPorts", () => {
     expect(offsets).toEqual([-7, 7]);
   });
 
-  it("keeps arrows on different box+sides on their own centre ports", () => {
-    expect(assignPorts(["boxA|right", "boxB|left"])).toEqual([0, 0]);
+  it.each([
+    ["one arrow on a box+side the centre port", ["boxA|right"], [0]],
+    ["arrows on different box+sides on their own centre ports", ["boxA|right", "boxB|left"], [0, 0]],
+  ])("gives %s", (_name, keys, offsets) => {
+    expect(assignPorts(keys)).toEqual(offsets);
   });
 });
 
 describe("simplify", () => {
-  it("drops a collinear corner so a straight route carries no invisible elbow", () => {
-    expect(
-      simplify([
-        { x: 0, y: 0 },
-        { x: 10, y: 0 },
-        { x: 20, y: 0 },
-      ]),
-    ).toEqual([
-      { x: 0, y: 0 },
-      { x: 20, y: 0 },
-    ]);
-  });
-
-  it("drops a repeated corner", () => {
-    expect(
-      simplify([
-        { x: 0, y: 0 },
-        { x: 0, y: 0 },
-        { x: 0, y: 10 },
-      ]),
-    ).toHaveLength(2);
+  it.each([
+    ["a collinear corner so a straight route carries no invisible elbow", [{ x: 0, y: 0 }, { x: 10, y: 0 }, { x: 20, y: 0 }], 2],
+    ["a repeated corner", [{ x: 0, y: 0 }, { x: 0, y: 0 }, { x: 0, y: 10 }], 2],
+  ])("drops %s", (_name, points, length) => {
+    expect(simplify(points)).toHaveLength(length);
   });
 });
 

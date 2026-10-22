@@ -5,10 +5,7 @@ import pytest
 from codechroma.diagrams import library
 from codechroma.diagrams.registry import BUILTIN_TYPES, get_definition
 
-
-@pytest.fixture(autouse=True)
-def isolated_library(tmp_path, monkeypatch):
-    monkeypatch.setenv(library.DIAGRAM_TYPES_DIR_ENV, str(tmp_path / "diagram-types"))
+pytestmark = pytest.mark.usefixtures("isolated_library")
 
 
 def test_every_builtin_kind_resolves_to_its_own_definition():

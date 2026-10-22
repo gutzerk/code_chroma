@@ -1,5 +1,7 @@
 # Web canvas shell (`web/src/canvas/`)
 
+> Removed dead components: `AgentRail`, `AgentWindow`, `AgentFullScreen`, `AgentTab` and `useFullScreenAgentId` (plus their tests/CSS) are deleted -- `ActivityPanel` + `AgentTerminalDock` replaced them. Mentions of those names below are historical; the live flow is `windowActions.ts` + `ActivityPanel`.
+
 The right side is an attached `agents/ActivityPanel`, present even with no agents. Its header is a
 segmented "Agents N | Workflows N" control plus a collapse button. The Agents tab is one 40px
 `agents/activity/AgentSwitcherRow` (agent dropdown with status dot, title and "cli · branch · status";

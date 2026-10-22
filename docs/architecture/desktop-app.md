@@ -143,7 +143,7 @@ branches, traces, settings, patterns, impact/review, plain wiki) is ported. Work
 
 ## Tests
 
-`TcpPortFinder.FindFreePort(repoPath)` returns a stable port per repository (FNV-1a of the canonical repo path, mapped into 20000–31999) so the bridge URL survives app restarts and agent tasks stay valid; if that port is taken it probes the next 63 in the range, then falls back to an OS-assigned port.
+`TcpPortFinder.FindFreePort(repoPath)` returns a stable port per repository (FNV-1a of the canonical repo path, mapped into 20000–31999) so the bridge URL survives app restarts and agent tasks stay valid; if that port is taken it probes the next 63 in the range, then falls back to an OS-assigned port. Once a bridge is ready, `BridgeEndpointFile` (re)writes `<repo>/.codechroma/bridge.json` (`origin`, `port`, `updated_at`) so agents that outlive a restart re-read the live URL; it is not deleted on exit, so a refused connection means re-read and retry.
 `RealProcessBridgeTests.A_taken_port_falls_back_to_another_bindable_one` holds the preferred port open
 while requesting and binding the fallback, then closes both even if an assertion fails; a respawned bridge
 keeps its port (`RealBridgeEndToEndTests`).

@@ -4,10 +4,7 @@ import pytest
 
 from codechroma.diagrams import library
 
-
-@pytest.fixture(autouse=True)
-def isolated_library(tmp_path, monkeypatch):
-    monkeypatch.setenv(library.DIAGRAM_TYPES_DIR_ENV, str(tmp_path / "diagram-types"))
+pytestmark = pytest.mark.usefixtures("isolated_library")
 
 
 def _definition(type_id: str = "data-flow") -> dict:

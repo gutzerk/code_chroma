@@ -86,6 +86,7 @@ public static class AgentRoutes
             var pending = resume ? null : agents.ConsumeContext(agentId);
             var taskText = pending is { Kind: "task" } ? pending.Value.Text : null;
             var bare = false;
+            string? visible = null;
             if (taskText is not null && record.DiagramType is { } diagramType)
             {
                 var workspaceId = record.SharesWorkspaceWith ?? record.Id;
@@ -95,9 +96,10 @@ public static class AgentRoutes
                 {
                     taskText = composed;
                     bare = BareSkill.Enabled();
+                    visible = bare ? BareSkill.InteractiveVisiblePrompt : null;
                 }
             }
-            var launch = terminalAgents.Resolve(record.Kind, sessionId, taskText, bare);
+            var launch = terminalAgents.Resolve(record.Kind, sessionId, taskText, bare, visible);
             if (launch is null) return Reply.Error(400, $"unknown agent kind: {record.Kind}");
             var env = new Dictionary<string, string>(launch.Env) { ["codechroma_WORKSPACE_ID"] = agentId };
             var session = await Task.Run(() => sessions.Start(agentId, launch.Argv, record.Worktree, record.Kind, env, paths));

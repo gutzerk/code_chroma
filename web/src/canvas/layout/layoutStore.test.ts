@@ -25,18 +25,19 @@ describe("layoutStore", () => {
     expect(layoutStore.getState().leftOpen).toBe(false);
   });
 
-  it("opening the left panel in full mode returns agents to normal", () => {
+  it("opening the left panel in full mode stays in full", () => {
+    layoutStore.closeLeft();
     layoutStore.setAgentsMode("full");
 
-    layoutStore.toggleLeft();
+    layoutStore.openLeft("diagrams");
 
-    expect(layoutStore.getState()).toMatchObject({ leftOpen: true, agentsMode: "normal" });
+    expect(layoutStore.getState()).toMatchObject({ leftOpen: true, agentsMode: "full" });
   });
 
-  it("entering full closes the left panel", () => {
+  it("entering full leaves the left panel as it was", () => {
     layoutStore.setAgentsMode("full");
 
-    expect(layoutStore.getState()).toMatchObject({ leftOpen: false, agentsMode: "full" });
+    expect(layoutStore.getState()).toMatchObject({ leftOpen: true, agentsMode: "full" });
   });
 
   it("collapsing agents keeps the left panel open", () => {
@@ -56,23 +57,6 @@ describe("layoutStore", () => {
     expect(calls).toBe(1);
   });
 
-  it("leaving full restores a left panel that was open before", () => {
-    layoutStore.setAgentsMode("full");
-
-    layoutStore.setAgentsMode("normal");
-
-    expect(layoutStore.getState()).toMatchObject({ leftOpen: true, agentsMode: "normal" });
-  });
-
-  it("leaving full keeps a left panel that was closed before", () => {
-    layoutStore.closeLeft();
-    layoutStore.setAgentsMode("full");
-
-    layoutStore.setAgentsMode("normal");
-
-    expect(layoutStore.getState()).toMatchObject({ leftOpen: false, agentsMode: "normal" });
-  });
-
   it("reconcileAgents clears a selection whose agent is gone", () => {
     layoutStore.selectAgent("a2");
 
@@ -87,14 +71,5 @@ describe("layoutStore", () => {
     layoutStore.reconcileAgents(["a1"]);
 
     expect(layoutStore.getState().selectedAgentId).toBe("a1");
-  });
-
-  it("toggleAgentsWide flips between default and wide", () => {
-    layoutStore.toggleAgentsWide();
-    const stretched = layoutStore.getState().agentsWidth;
-    layoutStore.toggleAgentsWide();
-
-    expect(stretched).toBe("wide");
-    expect(layoutStore.getState().agentsWidth).toBe("default");
   });
 });

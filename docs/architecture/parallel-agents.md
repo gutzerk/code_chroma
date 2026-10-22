@@ -461,18 +461,12 @@ Claude agent windows launch with the CodeChroma MCP server (`ask_user`) register
 `layoutStore.agentsMode` (`canvas/layout/layoutStore.ts`) replaces the old open/collapsed `useState` in
 `RootCanvas`:
 
-- `normal`: `AgentRail` in the canvas row. It carries "Collapse agents panel" (-> `collapsed`) and
-  "Expand agents to full screen" (-> `full`) handle buttons.
-- `collapsed`: `AgentsCollapsedBar`, one `a1`, `a2`... button per agent in a row at the top right, with a
-  status dot; clicking one returns to `normal` and selects that agent.
-- `full`: `AgentFullScreen`, a `role=tablist` of `AgentTab`s (dot, name, status), a 44px "New agent"
-  `+`, and exactly one window for the selected agent (its `AgentTerminal`), an input and a status line
-  (`cli · status · branch`); the edge handle "Back to side panel" returns to `normal`. Entering `full`
-  forces `leftOpen=false` (the collapsed left bar stays). The full-screen input is not wired to the
-  xterm session (it is a local draft only; type in the terminal). The floating agent windows are hidden
-  (`.agent-layer[data-hidden]`), and the shown agent's own window/dock terminal is unmounted so only one
-  xterm is attached to its PTY (scrollback is lost on that remount; the bridge redraws the screen).
-  Leaving `full` restores the left panel to its pre-full state.
+- `normal`: `ActivityPanel` in the canvas row, resizable; its edge handle carries the collapse chevron.
+- `collapsed`: `activity/CollapsedStrip`; clicking an avatar returns to `normal` and selects that agent.
+- `full`: the same `ActivityPanel` stretched over the canvas (`.is-full`) from the diagrams panel edge
+  (or the canvas-area edge when that panel is collapsed); agents show as a row of tabs and the left panel
+  is left alone. Opening an agent window (`openAgentWindow`) never leaves full screen. The older
+  `AgentFullScreen` component is no longer mounted.
 - `--agent-dock-left` (set once on the `.canvas-main-row` by `RootCanvas` from `chromeInsets`)
   positions the terminal dock and clears the floating left panel.
 

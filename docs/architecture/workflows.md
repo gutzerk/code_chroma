@@ -1,11 +1,17 @@
 # Workflows (steerable runs)
 
-Open the Workflows tab in the attached right panel (`web/src/workflows/WorkflowsTab.tsx`). It has
-"Run workflow" (`RunWorkflowDialog`, asks for run inputs) and "New workflow" (`WorkflowEditorDialog`, a
-`ModalDialog` with name, run inputs, step list and a per-step editor; Save / Save and run). Run inputs belong to steps: an agent step has one optional "Ask for input when the run starts" field (a single question, no separate name; the `{{name}}` identifier is derived from it by `deriveInputName` and an Insert button appends it to the instructions). There is no workflow-level input list in the editor; an older workflow's `inputs` are bound to the step that mentions them on load. Sections:
+Open the Workflows tab in the attached right panel (`web/src/workflows/WorkflowsTab.tsx`). Its top bar has
+"Run workflow" (`RunWorkflowDialog`, asks for run inputs); at the side (>=640px) and full layouts it adds an
+"All workflows" icon button and a Full screen / Exit full screen toggle (`layoutStore.setAgentsMode`). Saved
+workflows live on the All workflows screen (`AllWorkflows.tsx`, opened from that icon or the full-width
+"All workflows · N" button under the run lists; Back returns to the runs): a searchable table (Workflow, Steps as
+chips coloured by agent mode new / hand-off / continue and "You" for review steps, Inputs, Last run, Actions:
+Edit, Run, a menu with Duplicate (a create with id `<id>-copy[-n]` and name "<name> copy"), Rename (the PUT)
+and Delete (confirmed, `DELETE /workflows/{wfId}`)). "New workflow" is only on that screen
+(`WorkflowEditorDialog`, a `ModalDialog` with name, run inputs, step list and a per-step editor; Save / Save and run). Run inputs belong to steps: an agent step has one optional "Ask for input when the run starts" field (a single question, no separate name; the `{{name}}` identifier is derived from it by `deriveInputName` and an Insert button appends it to the instructions). There is no workflow-level input list in the editor; an older workflow's `inputs` are bound to the step that mentions them on load. Sections:
 Active (`RunsList` cards with a segmented progress bar, Pause/Stop/Cancel run, "Review now" on a
-`needs_you` run), Finished (Restart, Delete, "Clear finished") and Saved workflows (Edit, Run, Delete).
-Run and saved-workflow cards open (run detail / editor) from a click anywhere that is not one of their buttons (`openOnBackgroundClick`). Cancel run (`canStopRun`) is enabled in running, paused, held and needs_you, matching the bridge's `StopNow` rows, so a run awaiting review can be cancelled and then deleted.
+`needs_you` run) and Finished (Restart, Delete, "Clear finished").
+Run cards open the run detail from a click anywhere that is not one of their buttons (`openOnBackgroundClick`). Cancel run (`canStopRun`) is enabled in running, paused, held and needs_you, matching the bridge's `StopNow` rows, so a run awaiting review can be cancelled and then deleted.
 Run detail (`RunDetail`, numbered `StepRail` timeline) labels what passes between steps
 (`runControls.betweenLabel`). Layout follows the tab's own width (`useContainerLayout`): at 320px
 secondary actions move into a "⋯" menu, from ~640px list and detail sit side by side, from ~1100px a
@@ -39,7 +45,7 @@ C# bridge only (the Python bridge has no mirror). Plan: Phase 0 foundation + Sta
 
 ## Routes and events
 
-Under `/repos/{id}`: `GET /workflows`, `PUT /workflows/{wfId}` (update; 400 id mismatch/invalid, 404, runs already loaded keep their copy), `GET /runs`, `GET /runs/{runId}`, `DELETE /runs/{runId}` (done/stopped only, else 409; removes record, worktree and branches, event `run.deleted`), `DELETE /runs?state=finished` (clears every done/stopped run, `{deleted:[ids]}`), `POST /runs/{runId}/restart` (done/stopped only: wipes worktree, branches, outputs and messages and runs the SAME run again from step 1 with its inputs, re-reading the stored definition), `POST /workflows/{wfId}/runs`, `POST /runs/{runId}/pause|resume|stop{mode}|keep-running|breakpoints{stepId,on}|resume-from{stepId}|review{decision,note}|message|redo|redo/cancel`. All POSTs return the Run; PR (read-only) workspaces get 409. Events go over the repo socket as `{ type: "run", runId, event }` (`run.paused|resumed|stopping|stopped|held|step|done|message|redo.proposed|redo.started`); clients re-fetch the run (`workflowStore` coalesces list refetches and refetches per run), except `run.deleted`, which the store applies locally via `removeRun(id)`; `deleteRun`/`clearFinished` also drop the deleted runs locally instead of refetching the list.
+Under `/repos/{id}`: `GET /workflows`, `POST /workflows` (create; 409 when the id exists), `PUT /workflows/{wfId}` (update; 400 id mismatch/invalid, 404, runs already loaded keep their copy), `DELETE /workflows/{wfId}` (`WorkflowRunner.DeleteWorkflow` then `RunStore.DeleteWorkflow`; 404 unknown, 409 while a run of it is running/paused/stopping/held/needs_you or on a read-only workspace; finished runs of it are kept), `GET /runs`, `GET /runs/{runId}`, `DELETE /runs/{runId}` (done/stopped only, else 409; removes record, worktree and branches, event `run.deleted`), `DELETE /runs?state=finished` (clears every done/stopped run, `{deleted:[ids]}`), `POST /runs/{runId}/restart` (done/stopped only: wipes worktree, branches, outputs and messages and runs the SAME run again from step 1 with its inputs, re-reading the stored definition), `POST /workflows/{wfId}/runs`, `POST /runs/{runId}/pause|resume|stop{mode}|keep-running|breakpoints{stepId,on}|resume-from{stepId}|review{decision,note}|message|redo|redo/cancel`. All POSTs return the Run; PR (read-only) workspaces get 409. Events go over the repo socket as `{ type: "run", runId, event }` (`run.paused|resumed|stopping|stopped|held|step|done|message|redo.proposed|redo.started`); clients re-fetch the run (`workflowStore` coalesces list refetches and refetches per run), except `run.deleted`, which the store applies locally via `removeRun(id)`; `deleteRun`/`clearFinished` also drop the deleted runs locally instead of refetching the list.
 
 ## Run agent, messages, redo (Stages 3-4)
 

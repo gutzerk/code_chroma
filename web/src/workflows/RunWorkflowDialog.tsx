@@ -100,7 +100,7 @@ export function RunWorkflowDialog({
       {workflow ? (
         <InputsForm key={workflow.id} workflow={workflow} busy={busy} onCancel={onClose} onStart={(v) => void start(v)} />
       ) : (
-        <p>No saved workflows yet. Create one with New workflow.</p>
+        <p>No saved workflows yet. Create one from All workflows.</p>
       )}
     </ModalDialog>
   );

@@ -71,6 +71,7 @@ A workflow step can only start a fresh agent, with or without the previous step'
 
 ### Stage 6 — Workflow lists (boards 2, 8, 9, 11)
 
+- Done. The delete route, `WorkflowRunner.DeleteWorkflow` (409 while a run is active, 404 unknown) and the client `deleteWorkflow` already existed; this stage added `WorkflowDeleteRouteTests` and a `RunStoreTests` delete case, the `createWorkflow` store action (Duplicate), `AllWorkflows.tsx` and the top bar. The full screen toggle is one button (Full screen / Exit full screen) at the side and full layouts; the normal and narrow layouts keep only Run workflow, reaching All workflows through the list button.
 - `RunsList.tsx`: drop the Saved workflows section; add the "All workflows · N" button.
 - New `AllWorkflows.tsx`: table (Workflow, Steps chips colored by mode, Inputs, Last run, Actions: Edit, Run, ⋯ Duplicate/Rename/Delete), search, back, New workflow. Duplicate is a create with a new id; Rename is the existing PUT; Delete needs `DELETE /workflows/{wfId}` (new; 409 while a run of it is active).
 - `WorkflowsTab.tsx` top bar: Run workflow, All workflows icon, full screen/collapse; New workflow removed.

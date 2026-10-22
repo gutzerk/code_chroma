@@ -3,6 +3,9 @@ using System.Text.Json.Nodes;
 
 namespace CodeChroma.Bridge.Agents;
 
+/// <summary>A session's token counts from its last main-thread assistant entry; context = input + cache read + cache creation.</summary>
+public sealed record TranscriptUsage(long ContextTokens, long InputTokens, long OutputTokens, long CacheReadTokens, string? Model);
+
 /// <summary>
 /// Finds the Claude Code session id for a worktree, so `claude --resume` continues its chat. The directory name Claude Code
 /// derives from a project path is never guessed: every transcript records its own cwd, so the id comes from the newest
@@ -72,6 +75,48 @@ public static class Transcripts
         catch (Exception error) when (error is IOException or UnauthorizedAccessException) { return null; }
         return null;
     }
+
+    /// <summary>The last main-thread assistant entry's token usage in a session's transcript, or null when it has none.</summary>
+    public static TranscriptUsage? ReadUsage(string sessionId, string worktree, string? projectsRoot = null)
+    {
+        if (sessionId.Length == 0 || sessionId.IndexOfAny(Path.GetInvalidFileNameChars()) >= 0) return null;
+        var root = projectsRoot ?? ProjectsDir();
+        List<string> candidates;
+        try
+        {
+            if (!Directory.Exists(root)) return null;
+            candidates = Directory.EnumerateDirectories(root).Select(d => Path.Combine(d, sessionId + ".jsonl")).Where(File.Exists).ToList();
+        }
+        catch (Exception error) when (error is IOException or UnauthorizedAccessException) { return null; }
+        var target = Path.GetFullPath(worktree);
+        var path = candidates.Count > 1 ? candidates.FirstOrDefault(p => SessionIdForCwd(p, target) is not null) ?? candidates[0] : candidates.FirstOrDefault();
+        return path is null ? null : LastUsage(path);
+    }
+
+    private static TranscriptUsage? LastUsage(string path)
+    {
+        string[] lines;
+        try { lines = File.ReadAllLines(path); }
+        catch (Exception error) when (error is IOException or UnauthorizedAccessException) { return null; }
+        for (var i = lines.Length - 1; i >= 0; i--)
+        {
+            if (!lines[i].Contains("\"usage\"", StringComparison.Ordinal)) continue;
+            JsonObject? entry;
+            try { entry = JsonNode.Parse(lines[i]) as JsonObject; }
+            catch (JsonException) { continue; }
+            if (entry is null || Text(entry["type"]) != "assistant" || entry["isSidechain"] is JsonValue side && side.TryGetValue<bool>(out var sidechain) && sidechain) continue;
+            if (entry["message"] is not JsonObject message || message["usage"] is not JsonObject usage) continue;
+            var input = Count(usage["input_tokens"]);
+            var cacheRead = Count(usage["cache_read_input_tokens"]);
+            var cacheCreation = Count(usage["cache_creation_input_tokens"]);
+            return new TranscriptUsage(input + cacheRead + cacheCreation, input, Count(usage["output_tokens"]), cacheRead, Text(message["model"]));
+        }
+        return null;
+    }
+
+    private static string? Text(JsonNode? node) => node is JsonValue v && v.TryGetValue<string>(out var s) ? s : null;
+
+    private static long Count(JsonNode? node) => node is JsonValue v && v.TryGetValue<long>(out var n) ? n : 0;
 
     private static bool SamePath(string a, string b)
     {

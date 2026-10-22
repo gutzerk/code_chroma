@@ -46,6 +46,7 @@ public sealed partial class WorkflowRunner
     private readonly SkillAgent? _chat;
     private readonly Func<string, string?>? _mcpUrl;
     private readonly Func<string, string?> _sessionFinder;
+    private readonly Func<string, string, TranscriptUsage?> _usageReader;
     private readonly object _lock = new();
     private readonly Dictionary<string, Handle> _handles = [];
     private readonly HashSet<string> _chatBusy = [];
@@ -70,7 +71,7 @@ public sealed partial class WorkflowRunner
     private enum Outcome { Completed, Failed, Stopped }
 
     public WorkflowRunner(string repoRoot, SkillAgent agent, Action<JsonObject> emit, Func<string, string?>? sessionFinder = null,
-        SkillAgent? chatAgent = null, Func<string, string?>? mcpUrl = null)
+        SkillAgent? chatAgent = null, Func<string, string?>? mcpUrl = null, Func<string, string, TranscriptUsage?>? usageReader = null)
     {
         _repoRoot = repoRoot;
         _chat = chatAgent;
@@ -78,6 +79,7 @@ public sealed partial class WorkflowRunner
         _agent = agent;
         _emit = emit;
         _sessionFinder = sessionFinder ?? (worktree => Transcripts.FindSessionId(worktree));
+        _usageReader = usageReader ?? ((session, worktree) => Transcripts.ReadUsage(session, worktree));
         Store = new RunStore(repoRoot);
         Recover();
     }
@@ -118,8 +120,12 @@ public sealed partial class WorkflowRunner
             var runs = new List<Run>();
             foreach (var id in Store.RunIds())
             {
-                if (_handles.TryGetValue(id, out var h)) runs.Add(Clone(h.Run));
-                else if (Store.GetRun(id) is { } saved) runs.Add(saved);
+                if (_handles.TryGetValue(id, out var h)) runs.Add(View(h));
+                else if (Store.GetRun(id) is { } saved)
+                {
+                    if (Store.GetWorkflow(saved.WorkflowId) is { } def) Decorate(saved, def);
+                    runs.Add(saved);
+                }
             }
             return runs;
         }
@@ -127,7 +133,7 @@ public sealed partial class WorkflowRunner
 
     public Run Get(string runId)
     {
-        lock (_lock) return Clone(Require(runId).Run);
+        lock (_lock) return View(Require(runId));
     }
 
     /// <summary>Completes when the run's current driving loop has parked or finished.</summary>
@@ -252,7 +258,7 @@ public sealed partial class WorkflowRunner
             Store.Save(run);
             Emit(fresh, "run.step");
             Drive(fresh, 0);
-            return Clone(run);
+            return View(fresh);
         }
     }
 
@@ -307,7 +313,7 @@ public sealed partial class WorkflowRunner
             SetCurrentStatus(h, "running", from: "paused");
             h.Gate.Open();
             Persist(h, "run.resumed");
-            return Clone(h.Run);
+            return View(h);
         }
     }
 
@@ -329,7 +335,7 @@ public sealed partial class WorkflowRunner
         var index = IndexOf(h, h.Run.CurrentStepId!);
         Persist(h, "run.resumed");
         Drive(h, index);
-        return Clone(h.Run);
+        return View(h);
     }
 
     public async Task<Run> Stop(string runId, string mode)
@@ -354,7 +360,7 @@ public sealed partial class WorkflowRunner
                 if (handle.Run.CurrentStepId is { } waiting && Record(handle, waiting) is { Status: "held" or "needs_you" } unstarted) unstarted.Status = "pending";
                 else SetCurrentStatus(handle, "stopped");
                 Persist(handle, "run.stopped");
-                return Clone(handle.Run);
+                return View(handle);
             }
             SetCurrentStatus(handle, "stopping", from: before == RunStates.Paused ? "paused" : "running");
             handle.StopRequested = true;
@@ -400,12 +406,12 @@ public sealed partial class WorkflowRunner
                     Transition(h, RunCommand.ApproveLast);
                     h.Run.CurrentStepId = null;
                     Persist(h, "run.done");
-                    return Clone(h.Run);
+                    return View(h);
                 }
                 Transition(h, RunCommand.Approve);
                 Persist(h, "run.step");
                 Drive(h, nextIndex);
-                return Clone(h.Run);
+                return View(h);
             }
             if (decision != "sendBack") throw new BridgeException(400, "decision must be approve or sendBack");
             var configured = h.Def.Steps[index].SendBackTo;
@@ -420,7 +426,7 @@ public sealed partial class WorkflowRunner
             AppendOutput(Record(h, step.Id), $"\n--- sent back: {h.Note} ---\n");
             Persist(h, "run.step");
             Drive(h, target);
-            return Clone(h.Run);
+            return View(h);
         }
     }
 
@@ -431,7 +437,7 @@ public sealed partial class WorkflowRunner
             var h = Require(runId);
             body(h);
             Persist(h, eventName);
-            return Clone(h.Run);
+            return View(h);
         }
     }
 
@@ -500,6 +506,24 @@ public sealed partial class WorkflowRunner
     }
 
     private void Emit(Handle h, string eventName) => _emit(new JsonObject { ["type"] = "run", ["runId"] = h.Run.Id, ["event"] = eventName });
+
+    /// <summary>A copy of the run for callers, with each step's chain length and warning computed from the definition.</summary>
+    private static Run View(Handle h)
+    {
+        var run = Clone(h.Run);
+        Decorate(run, h.Def);
+        return run;
+    }
+
+    private static void Decorate(Run run, WorkflowDef def)
+    {
+        foreach (var record in run.Steps)
+        {
+            var index = def.Steps.FindIndex(s => s.Id == record.StepId);
+            record.ChainLength = index < 0 ? 1 : StepAgents.ChainLength(def, index);
+            record.ChainWarning = WorkflowLimits.ChainWarning(record.ChainLength, record.Usage);
+        }
+    }
 
     private static Run Clone(Run run) => JsonSerializer.Deserialize<Run>(JsonSerializer.Serialize(run, WorkflowJson.Options), WorkflowJson.Options)!;
 
@@ -603,14 +627,24 @@ public sealed partial class WorkflowRunner
         }
     }
 
-    /// <summary>The worktree diff stat and CLI session id, read outside the lock because they shell out.</summary>
-    private (string? Diff, string? Session) Capture(Handle h) => (DiffStat(h.Worktree), _sessionFinder(h.Worktree));
+    /// <summary>The worktree diff stat, CLI session id and its token usage, read outside the lock because they shell out or read files.</summary>
+    private (string? Diff, string? Session, StepUsage? Usage) Capture(Handle h)
+    {
+        var session = _sessionFinder(h.Worktree);
+        var usage = session is null ? null : _usageReader(session, h.Worktree);
+        return (DiffStat(h.Worktree), session, usage is null ? null : new StepUsage
+        {
+            ContextTokens = usage.ContextTokens, InputTokens = usage.InputTokens, OutputTokens = usage.OutputTokens,
+            CacheReadTokens = usage.CacheReadTokens, Model = usage.Model, ContextWindow = WorkflowLimits.ContextWindow(usage.Model),
+        });
+    }
 
-    private static void Snapshot(StepRecord record, string status, (string? Diff, string? Session) stats)
+    private static void Snapshot(StepRecord record, string status, (string? Diff, string? Session, StepUsage? Usage) stats)
     {
         record.Status = status;
         record.DiffStat = stats.Diff;
         record.SessionId = stats.Session ?? record.SessionId;
+        record.Usage = stats.Usage ?? record.Usage;
     }
 
     /// <summary>Marks the step done and moves the run on: true when the loop must end (held or finished), false to go on, null when a pause or stop landed first (the caller waits and tries again).</summary>
@@ -824,7 +858,7 @@ public sealed partial class WorkflowRunner
                 record.Status = "skipped";
                 h.Run.Breakpoints.Remove(stepId);
                 Persist(h, "run.step");
-                return Clone(h.Run);
+                return View(h);
             }
             if (h.Run.State is not (RunStates.Held or RunStates.NeedsYou or RunStates.Stopped) || record.Status is "done" or "skipped")
                 throw new BridgeException(409, "stop the run at this step before skipping it");
@@ -837,13 +871,13 @@ public sealed partial class WorkflowRunner
                 h.Run.CurrentStepId = null;
                 h.Run.StopAfter = null;
                 Persist(h, "run.done");
-                return Clone(h.Run);
+                return View(h);
             }
             Transition(h, h.Run.State == RunStates.NeedsYou ? RunCommand.Approve : RunCommand.ResumeFrom);
             h.Run.CurrentStepId = h.Def.Steps[nextIndex].Id;
             Persist(h, "run.step");
             Drive(h, nextIndex);
-            return Clone(h.Run);
+            return View(h);
         }
     }
 

@@ -283,7 +283,7 @@ public sealed partial class WorkflowRunner
             h.Run.RedoProposal = new RedoProposal { From = from, Card = BuildCard(h, index, note ?? "") };
             AddMessage(h, "run", "system", $"Redo from {from} proposed.");
             Persist(h, "run.redo.proposed");
-            return Clone(h.Run);
+            return View(h);
         }
     }
 
@@ -369,7 +369,7 @@ public sealed partial class WorkflowRunner
             AddMessage(h, "run", "system", $"Attempt {attempt + 1} started from {from}; attempt {attempt} is kept on {branch}.");
             Persist(h, "run.redo.started");
             Drive(h, index);
-            return Clone(h.Run);
+            return View(h);
         }
     }
 
@@ -407,6 +407,6 @@ public sealed partial class WorkflowRunner
     private static StepRecord CloneStep(StepRecord s) => new()
     {
         StepId = s.StepId, Attempt = s.Attempt, Status = s.Status, Output = s.Output, DiffStat = s.DiffStat,
-        CheckpointRef = s.CheckpointRef, SessionId = s.SessionId, FromAttempt = s.FromAttempt,
+        CheckpointRef = s.CheckpointRef, SessionId = s.SessionId, FromAttempt = s.FromAttempt, Usage = s.Usage, ResumedFrom = s.ResumedFrom,
     };
 }

@@ -19,6 +19,7 @@ public sealed class WorkflowRunnerTests : IDisposable
     private readonly List<string> _events = [];
     private string? _session;
     private ProviderStore? _providers;
+    private TranscriptUsage? _usage;
 
     private static string Say(string text) => "{\"type\":\"assistant\",\"message\":{\"content\":[{\"type\":\"text\",\"text\":\"" + text + "\"}]}}";
 
@@ -36,7 +37,7 @@ public sealed class WorkflowRunnerTests : IDisposable
         var runtime = new RuntimeEnvironment(() => new RuntimeSettings(null, 10, new Dictionary<string, string> { ["claude"] = _cli.ExePath }));
         var agents = new SkillAgents(resolver, runtime, new SkillRunSettings { FlushIntervalSeconds = 0.02 });
         return new WorkflowRunner(_repo.Root, agents["workflow-step"], message => { lock (_events) _events.Add(message["event"]!.GetValue<string>()); }, _ => _session,
-            agents["workflow-chat"], runId => "http://127.0.0.1:1/mcp/" + runId);
+            agents["workflow-chat"], runId => "http://127.0.0.1:1/mcp/" + runId, (_, _) => _usage);
     }
 
     private void Define(params (string Id, string Kind)[] steps)
@@ -315,6 +316,43 @@ public sealed class WorkflowRunnerTests : IDisposable
         Assert.Equal("one", Step(run, "two").ResumedFrom);
         Assert.Equal("one", Step(run, "three").ResumedFrom);
         Assert.Null(Step(run, "four").ResumedFrom);
+    }
+
+    [Fact]
+    public async Task A_finished_step_records_its_session_usage_and_each_step_its_chain_length()
+    {
+        _session = "sess-1";
+        _usage = new TranscriptUsage(130_000, 1000, 400, 120_000, "claude-opus-5-5");
+        DefineSteps(Agent("one", StepAgents.New), Agent("two"), Agent("three", StepAgents.Continue), Agent("four", "continue:three"), Agent("five", "continue:one"));
+        _cli.Script(ResultEvent(), Exit(0));
+        var runner = Runner();
+
+        var started = await runner.Start("wf");
+        await UntilState(runner, started.Id, "done");
+        var run = runner.Get(started.Id);
+        var usage = Step(run, "one").Usage;
+
+        Assert.NotNull(usage);
+        Assert.Equal(130_000, usage.ContextTokens);
+        Assert.Equal(120_000, usage.CacheReadTokens);
+        Assert.Equal("claude-opus-5-5", usage.Model);
+        Assert.Equal(WorkflowLimits.DefaultContextWindow, usage.ContextWindow);
+        Assert.Equal([1, 1, 2, 3, 2], run.Steps.Select(s => s.ChainLength));
+        Assert.All(run.Steps, s => Assert.True(s.ChainWarning));
+    }
+
+    [Theory]
+    [InlineData(1, 100_000, false)]
+    [InlineData(2, 119_999, false)]
+    [InlineData(2, 120_000, true)]
+    [InlineData(3, 0, true)]
+    public void A_chain_warns_at_three_steps_or_sixty_percent_of_the_window(int chainLength, long contextTokens, bool warns)
+    {
+        var usage = new StepUsage { ContextTokens = contextTokens, ContextWindow = WorkflowLimits.ContextWindow("claude-opus-5-5") };
+
+        var warning = WorkflowLimits.ChainWarning(chainLength, usage);
+
+        Assert.Equal(warns, warning);
     }
 
     [Fact]

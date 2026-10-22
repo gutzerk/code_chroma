@@ -2,7 +2,6 @@ import { useSyncExternalStore } from "react";
 import type { EngineClient } from "../engine-client/EngineClient";
 import { messageOf } from "../util/reportError";
 import { Store } from "../state/createStore";
-import { isFinished } from "./runControls";
 import type { RedoRequest, ReviewDecision, Run, StopMode, WorkflowDef } from "./types";
 
 const NO_WORKFLOWS: WorkflowDef[] = [];
@@ -253,7 +252,7 @@ export function workflowActions(client: EngineClient) {
     clearFinished: () =>
       mutate(
         () => client.clearFinishedRuns(),
-        () => workflowStore.removeRuns(workflowStore.getRuns().filter((r) => isFinished(r.state)).map((r) => r.id)),
+        async () => workflowStore.setRuns(await client.listRuns()),
       ),
     restart: (runId: string) => steer(() => client.restartRun(runId)),
     pause: (runId: string) => steer(() => client.pauseRun(runId)),

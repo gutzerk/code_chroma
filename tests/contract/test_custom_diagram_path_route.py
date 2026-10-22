@@ -27,7 +27,7 @@ def _isolated_library(tmp_path, monkeypatch):
     monkeypatch.setenv(library.DIAGRAM_TYPES_DIR_ENV, str(tmp_path / "diagram-types"))
 
 
-def test_custom_path_returns_the_artifact_location_for_a_saved_type(bridge):
+def test_custom_path_returns_the_artifact_location_not_the_bare_type_payload(bridge):
     with TestClient(bridge.app) as client:
         client.put("/diagram-types/data-flow", json=VALID_DEFINITION)
         response = client.get("/repos/default/custom/data-flow-path")
@@ -36,15 +36,7 @@ def test_custom_path_returns_the_artifact_location_for_a_saved_type(bridge):
     expected = diagram_json_path(Path(body["repo_root"]), "custom/data-flow")
     assert response.status_code == 200
     assert Path(body["custom_path"]) == expected
-
-
-def test_custom_path_is_not_captured_by_the_bare_type_route(bridge):
-    with TestClient(bridge.app) as client:
-        client.put("/diagram-types/data-flow", json=VALID_DEFINITION)
-        response = client.get("/repos/default/custom/data-flow-path")
-
-    assert "custom_path" in response.json()
-    assert "nodes" not in response.json()
+    assert "nodes" not in body
 
 
 def test_custom_path_rejects_a_malformed_id(bridge):

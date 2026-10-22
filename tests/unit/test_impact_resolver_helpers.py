@@ -1,7 +1,5 @@
 """Direct coverage for impact_resolver's pure helpers: path, seeded-node filter, status coercion."""
 
-from pathlib import Path
-
 import pytest
 
 from codechroma.bridge.diagram_diagnostics import Diagnostics
@@ -86,7 +84,3 @@ def test_coerce_statuses_reports_nothing_when_all_are_valid():
     result = _coerce_statuses(resolved)
 
     assert result["diagnostics"]["dropped_count"] == 0
-
-
-def test_impact_path_accepts_any_path_object():
-    assert isinstance(impact_path(Path("repo")), Path)

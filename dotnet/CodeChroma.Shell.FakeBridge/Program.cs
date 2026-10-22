@@ -20,8 +20,15 @@ Console.Out.Flush();
 while (true)
 {
     var context = await listener.GetContextAsync();
-    var body = Encoding.UTF8.GetBytes(context.Request.Url!.AbsolutePath == "/health" ? "ok" : $"<html><body id=\"root\" data-repo=\"{repo}\">{repo}</body></html>");
-    context.Response.ContentType = context.Request.Url.AbsolutePath == "/health" ? "text/plain" : "text/html";
-    await context.Response.OutputStream.WriteAsync(body);
-    context.Response.Close();
+    try
+    {
+        var body = Encoding.UTF8.GetBytes(context.Request.Url!.AbsolutePath == "/health" ? "ok" : $"<html><body id=\"root\" data-repo=\"{repo}\">{repo}</body></html>");
+        context.Response.ContentType = context.Request.Url.AbsolutePath == "/health" ? "text/plain" : "text/html";
+        await context.Response.OutputStream.WriteAsync(body);
+        context.Response.Close();
+    }
+    catch (Exception e) when (e is HttpListenerException or IOException or ObjectDisposedException)
+    {
+        // a client that aborted mid-response (e.g. a timed-out health probe) must not take the bridge down
+    }
 }

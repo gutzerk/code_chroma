@@ -151,6 +151,7 @@ public sealed class WikiGeneralRouteTests : IDisposable
         _cli.Script(Stdout(Worker), Exit(0));
         await Post("generate");
         await Settled();
+        await StaleAfterStamp();
         _engine.Graph = WikiGeneralTestData.Graph("lib/c.py");
         _engine.Clusters = WikiGeneralTestData.Clusters(("c-a", "top::app", ["app/a.py"]), ("c-b", "top::app", ["app/b.py"]), ("c-c", "top::lib", ["lib/c.py"]));
         var before = File.ReadAllText(Path.Combine(Dir, "manifest.json"));

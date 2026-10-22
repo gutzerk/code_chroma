@@ -1,4 +1,4 @@
-import type { AgentClient } from "./agentClient";
+import type { AgentClient, DiagramTaskHint } from "./agentClient";
 import { agentStore } from "./agentStore";
 import type { ViewContext } from "./viewContext";
 import { launchAgent } from "./launchAgent";
@@ -13,6 +13,7 @@ export async function attachAgent(
   client: AgentClient,
   context?: ViewContext | null,
   task?: string,
+  diagram?: DiagramTaskHint,
 ): Promise<void> {
-  await launchAgent(client, agentStore.getActiveWorkspace(), context, task);
+  await launchAgent(client, agentStore.getActiveWorkspace(), context, task, diagram);
 }

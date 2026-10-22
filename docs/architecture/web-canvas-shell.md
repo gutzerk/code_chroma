@@ -1,11 +1,18 @@
 # Web canvas shell (`web/src/canvas/`)
 
-The right side is an attached `agents/ActivityPanel`, present even with no agents. Its Agents and
-Workflows tabs have separate compact launch actions. Agent terminals live in `DockedAgentPanel`,
+The right side is an attached `agents/ActivityPanel`, present even with no agents. Its header is a
+segmented "Agents N | Workflows N" control plus a collapse button. The Agents tab is one 40px
+`agents/activity/AgentSwitcherRow` (agent dropdown with status dot, title and "cli · branch · status";
+buttons Run agent, Stretch panel, Full screen) above the terminal. Stretch is `layoutStore.agentsWidth`
+`"wide"` (`useStretchWidth`, `layoutMetrics.agentsWideWidth`): the panel widens leftwards to the
+diagrams panel edge, or the collapsed left bar's edge; full screen stays `agentsMode: "full"`. The
+Workflows tab renders `workflows/WorkflowsTab` (see [`workflows.md`](workflows.md)). Collapsed, the
+panel is a 52px `agents/activity/CollapsedStrip` (SVG icons from `activity/icons.tsx`, count badges with
+a yellow "!" when a run needs you, one initials circle with status dot per agent, a + button,
+`.rail-tooltip` tooltips; `AgentsCollapsedBar` is gone). Agent terminals live in `DockedAgentPanel`,
 remain mounted across tab/collapse changes, and have no detach-to-window action. `AgentWindowLayer`
-now owns lifecycle subscriptions and dialogs only. The panel uses the diagrams panel's pill tabs,
-surface and matching edge handle. Workflow steps retain a segmented progress bar while collapsed;
-step output, diff statistics, review controls and run chat come from the workflow bridge.
+now owns lifecycle subscriptions and dialogs only. The panel uses the diagrams panel's surface and
+matching edge handle.
 
 
 Has grown well past the "minimal canvas + navigation base" the docs in `web/README.md` and
@@ -395,6 +402,8 @@ bar's folder button, which opens the Files tab, replace it; the tutorial calls `
 and then `closeLeft()` where it used to reset the panel). `CodeSidebar` is `hidden` while the left panel
 is closed, as it was with the old tree toggle. The notes below describe the original component's behavior, which `LeftPanel`'s Files tab
 now carries.
+
+**Panel look (design mockup):** both side panels use the shared `canvas/PanelHandle.css` pill (grip dots + chevron, centred on the panel edge; the dots are only drawn where the panel resizes — the agents panel, not the fixed-width left one). The Files tab restyles the shared `TreeNode` through `.left-panel-files` rules in `leftpanel/LeftPanel.css` (flat 28px monospace rows, no kind icons or copy buttons, open file = `#2b3550` row with a green dot); agents in `ActivityPanel` are chosen from the switcher dropdown (name + `cli · branch · status`); an agent launched to draw a diagram (`context_kind === "task"`, set only by the Draw button, the draw popover and the PR impact launch) gets a blue outline and a "Diagram" badge (`data-diagram`, `.activity-agent-badge`).
 
 The tree now lives in this sidebar rather than on the canvas: `RootCanvas` collapses the seeded
 `hierarchy` layer on load (`collapsedLayersStore.collapse("hierarchy")`), so the canvas opens

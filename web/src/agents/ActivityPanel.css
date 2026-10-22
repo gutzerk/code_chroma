@@ -25,56 +25,16 @@
   display: none;
 }
 .activity-panel.is-collapsed {
-  flex-basis: 44px;
-  width: 44px;
+  flex-basis: 52px;
+  width: 52px;
   padding: 6px;
 }
-.activity-edge,
-.left-panel-edge {
-  border: 0;
-  width: 22px;
-  height: 40px;
-  background: #262b38;
-  color: #c4c8d4;
-  cursor: pointer;
-}
-.activity-edge {
+.activity-panel.is-wide {
   position: absolute;
-  left: -20px;
-  top: 50%;
-  transform: translateY(-50%);
-  border-radius: 10px 0 0 10px;
-  font-size: 18px;
-}
-.left-panel-edge {
-  left: auto;
-  right: -20px;
-  border-radius: 0 10px 10px 0;
-}
-.activity-actions {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px;
-  min-height: 28px;
-}
-.activity-actions > span {
-  font-size: 11px;
-  color: #8b91a1;
-}
-.activity-actions button,
-.workflow-picker button {
-  padding: 5px 10px;
-  border: 0;
-  border-radius: 8px;
-  background: #262b38;
-  color: #e9ebf2;
-  cursor: pointer;
-  font-size: 11px;
-}
-.activity-actions button:disabled {
-  opacity: 0.45;
-  cursor: default;
+  top: 12px;
+  right: 12px;
+  bottom: 12px;
+  margin: 0;
 }
 .activity-agent-content,
 .activity-workflows {
@@ -90,27 +50,16 @@
   line-height: 1.6;
   padding: 12px;
 }
-.activity-agent-tabs {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 4px;
-  padding-bottom: 8px;
-}
-.activity-agent-tabs button {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  padding: 6px 9px;
-  font-size: 11px;
-  border: 0;
-  border-radius: 9px;
-  background: #1c2029;
-  color: #8b91a1;
-  cursor: pointer;
-}
-.activity-agent-tabs button[aria-selected="true"] {
-  background: #262b38;
-  color: #e9ebf2;
+.activity-agent-badge {
+  flex-shrink: 0;
+  padding: 1px 6px;
+  border-radius: 999px;
+  background: #8fb0ff26;
+  color: #8fb0ff;
+  font-size: 9px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
 }
 .activity-agent-content .agent-terminal-dock-panel {
   flex: 1;
@@ -119,57 +68,10 @@
 .activity-agent-content .agent-terminal-dock-header {
   flex-wrap: wrap;
   padding: 8px 0;
-  font-size: 11px;
+  font-size: 12px;
 }
 .activity-agent-content .agent-terminal-dock-title {
   display: none;
-}
-.activity-reopen {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 10px;
-  width: 100%;
-  padding: 10px 0;
-}
-.activity-reopen-item {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 2px;
-  width: 100%;
-  border: 0;
-  padding: 6px 0;
-  border-radius: 10px;
-  background: transparent;
-  color: #8b91a1;
-  cursor: pointer;
-}
-.activity-reopen-item:hover {
-  background: #1c2029;
-  color: #e9ebf2;
-}
-.activity-reopen-glyph {
-  font-size: 15px;
-  color: #8fb0ff;
-}
-.activity-reopen-count {
-  min-width: 18px;
-  padding: 0 5px;
-  border-radius: 999px;
-  background: #262b38;
-  color: #e9ebf2;
-  font-size: 11px;
-  text-align: center;
-}
-.activity-reopen-count[data-active="true"] {
-  background: #4ade8033;
-  color: #4ade80;
-}
-.activity-reopen-label {
-  font-size: 9px;
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
 }
 .activity-resize-handle {
   position: absolute;
@@ -267,31 +169,6 @@
     monospace;
   color: #4ade80;
 }
-.workflow-progress {
-  display: flex;
-  gap: 4px;
-  flex-shrink: 0;
-}
-.workflow-progress span {
-  flex: 1;
-  height: 4px;
-  border-radius: 999px;
-  background: #262b38;
-}
-.workflow-progress span[data-status="done"] {
-  background: #4ade80;
-}
-.workflow-progress span[data-status="running"] {
-  background: #8fb0ff;
-}
-.workflow-progress span[data-status="paused"],
-.workflow-progress span[data-status="needs_you"],
-.workflow-progress span[data-status="held"] {
-  background: #facc15;
-}
-.workflow-progress span[data-status="stopped"] {
-  background: #f87171;
-}
 .workflow-collapse-steps {
   align-self: flex-end;
   border: 0;
@@ -299,60 +176,6 @@
   color: #8b91a1;
   font-size: 10px;
   cursor: pointer;
-}
-.workflow-picker {
-  position: absolute;
-  inset: 0;
-  z-index: 2;
-  overflow: auto;
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  padding: 12px;
-  background: #15181f;
-  border: 1px solid #262b38;
-  border-radius: 12px;
-}
-.workflow-picker-heading {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-}
-.workflow-picker > button {
-  display: flex;
-  justify-content: space-between;
-  text-align: left;
-  padding: 12px;
-}
-.workflow-picker form,
-.workflow-picker label {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  font-size: 11px;
-}
-.workflow-picker fieldset {
-  border: 1px solid #262b38;
-  border-radius: 10px;
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-.workflow-picker input,
-.workflow-picker select,
-.workflow-picker textarea {
-  box-sizing: border-box;
-  width: 100%;
-  border: 1px solid #262b38;
-  border-radius: 6px;
-  padding: 7px;
-  background: #0f1117;
-  color: #e9ebf2;
-  font: inherit;
-}
-.workflow-picker textarea {
-  min-height: 75px;
-  resize: vertical;
 }
 .left-panel .draw-diagram-button {
   display: inline-flex;
@@ -389,38 +212,10 @@
   margin: 0;
 }
 
-.activity-panel .rail-tooltip {
-  left: auto;
-  right: 0;
-  max-width: 100%;
-  white-space: normal;
-}
-
 .canvas-chrome > button:last-child .rail-tooltip {
   left: auto;
   right: 0;
   transform: none;
-}
-
-.workflow-picker-row {
-  display: flex;
-  align-items: stretch;
-  gap: 6px;
-}
-.workflow-picker-row .workflow-picker-run {
-  flex: 1;
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  text-align: left;
-  padding: 12px;
-}
-.workflow-picker-delete {
-  flex-shrink: 0;
-}
-.workflow-picker-actions {
-  display: flex;
-  gap: 6px;
 }
 .workflow-builder-section {
   display: flex;
@@ -456,6 +251,233 @@
   color: #f87171;
   font-size: 11px;
 }
-.workflow-picker input[aria-invalid="true"] {
-  border-color: #f87171;
+
+.activity-header {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+.activity-segmented {
+  display: flex;
+  flex: 1;
+  min-width: 0;
+  gap: 2px;
+  padding: 3px;
+  border-radius: 10px;
+  background: var(--bg-track);
+}
+.activity-segmented button {
+  flex: 1 1 0;
+  min-width: 0;
+  height: 28px;
+  padding: 0 8px;
+  overflow: hidden;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--text-muted-soft);
+  cursor: pointer;
+  font-size: 14px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.activity-segmented button[aria-selected="true"] {
+  background: var(--bg-raised-2);
+  color: var(--text-soft);
+}
+.activity-count {
+  margin-left: 4px;
+  color: var(--text-muted-soft);
+  font-size: 12px;
+}
+.activity-icon-btn {
+  display: inline-grid;
+  flex-shrink: 0;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  border: 0;
+  border-radius: 8px;
+  background: var(--bg-raised);
+  color: var(--text-soft);
+  cursor: pointer;
+}
+.activity-icon-btn:hover:not(:disabled),
+.activity-icon-btn[aria-pressed="true"] {
+  background: var(--bg-raised-2);
+}
+.activity-icon-btn:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+.activity-switcher {
+  position: relative;
+  display: flex;
+  flex-shrink: 0;
+  align-items: center;
+  gap: 6px;
+  height: 40px;
+  padding-bottom: 8px;
+  box-sizing: content-box;
+}
+.activity-switcher-trigger {
+  display: flex;
+  flex: 1;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  height: 40px;
+  padding: 0 10px;
+  border: 0;
+  border-radius: 10px;
+  background: var(--bg-raised);
+  color: var(--text-soft);
+  cursor: pointer;
+  text-align: left;
+}
+.activity-switcher-trigger:disabled {
+  cursor: default;
+}
+.activity-switcher-text {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-width: 0;
+}
+.activity-switcher-title {
+  overflow: hidden;
+  font-size: 14px;
+  font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.activity-switcher-meta {
+  overflow: hidden;
+  color: var(--text-muted-soft);
+  font-family: "JetBrains Mono", ui-monospace, monospace;
+  font-size: 12px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.activity-switcher-menu {
+  position: absolute;
+  top: 44px;
+  left: 0;
+  right: 0;
+  z-index: 5;
+  max-height: 260px;
+  margin: 0;
+  padding: 4px;
+  overflow: auto;
+  list-style: none;
+  border-radius: 10px;
+  background: var(--bg-raised-2);
+}
+.activity-switcher-menu button {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 6px 8px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--text-soft);
+  cursor: pointer;
+  text-align: left;
+}
+.activity-switcher-menu button:hover,
+.activity-switcher-menu button[aria-selected="true"] {
+  background: var(--bg-raised);
+}
+.activity-strip {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 8px 0;
+}
+.activity-strip-btn {
+  position: relative;
+  display: grid;
+  place-items: center;
+  width: 36px;
+  height: 36px;
+  padding: 0;
+  border: 0;
+  border-radius: 10px;
+  background: transparent;
+  color: var(--text-muted-soft);
+  cursor: pointer;
+}
+.activity-strip-btn:hover:not(:disabled),
+.activity-strip-btn:focus-visible {
+  background: var(--bg-raised);
+  color: var(--text-soft);
+}
+.activity-strip-btn:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+.activity-strip-btn:hover .rail-tooltip,
+.activity-strip-btn:focus-visible .rail-tooltip {
+  opacity: 1;
+  visibility: visible;
+}
+.activity-strip-btn .rail-tooltip {
+  left: auto;
+  right: calc(100% + 10px);
+}
+.activity-strip-divider {
+  width: 24px;
+  height: 1px;
+  background: var(--bg-raised-2);
+}
+.activity-badge {
+  position: absolute;
+  top: -2px;
+  right: -4px;
+  min-width: 16px;
+  padding: 0 4px;
+  border-radius: 999px;
+  background: var(--bg-raised-2);
+  color: var(--text-soft);
+  font-size: 12px;
+  line-height: 16px;
+  text-align: center;
+}
+.activity-badge[data-active="true"] {
+  background: #4ade8033;
+  color: var(--success);
+}
+.activity-badge[data-needs-you="true"] {
+  background: #facc15;
+  color: var(--text-invert);
+  font-weight: 700;
+}
+.activity-avatar {
+  position: relative;
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  background: var(--bg-raised-2);
+  color: var(--text-soft);
+  font-size: 12px;
+  font-weight: 600;
+}
+.activity-strip .activity-avatar-dot {
+  position: absolute;
+  right: -2px;
+  bottom: -2px;
+  width: 8px;
+  height: 8px;
+  box-shadow: 0 0 0 2px var(--bg-panel);
+}
+.activity-switcher-menu button[data-diagram] {
+  box-shadow: inset 0 0 0 1px #8fb0ff66;
 }

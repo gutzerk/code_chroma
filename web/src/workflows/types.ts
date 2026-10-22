@@ -24,9 +24,20 @@ export interface WorkflowStepDef {
   id: string;
   slug: string;
   kind: "agent" | "review";
+  /** May be "" for a review step. */
   prompt: string;
   /** A skill of the project the agent is told to use for this step. */
   skill?: string | null;
+  /** "previous" (default) prepends the prior step's output and diff stat; "fresh" starts clean. */
+  context?: "previous" | "fresh";
+  /** Becomes a breakpoint when a run starts. */
+  pauseBefore?: boolean;
+  /** Review step: show the diff. */
+  showDiff?: boolean;
+  /** Review step: show the previous step's summary. */
+  showSummary?: boolean;
+  /** Review step: step id a send-back reruns from (null = default target). */
+  sendBackTo?: string | null;
 }
 
 /** A value asked for when a run starts; `{{name}}` in a step prompt is replaced by it. */
@@ -131,7 +142,8 @@ export type RunEventName =
   | "run.done"
   | "run.redo.proposed"
   | "run.redo.started"
-  | "run.message";
+  | "run.message"
+  | "run.deleted";
 
 /** The ping on the shared events socket; the client reacts by re-fetching GET /runs/{runId}. */
 export interface RunEvent {

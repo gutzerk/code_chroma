@@ -1,7 +1,9 @@
 import { useState } from "react";
 import type { Run, StepRecord, WorkflowDef } from "./types";
+import { Icon } from "./icons";
 import {
   ACTION_LABEL,
+  betweenLabel,
   KIND_META,
   STATUS_META,
   showBreakpointToggle,
@@ -59,7 +61,7 @@ function StepControls({
   return (
     <div id={panelId} className="step-controls" role="group" aria-label={`${slug} controls`}>
       {def?.skill && <p className="step-skill">{`Skill: ${def.skill}`}</p>}
-      {def && <p className="step-prompt">{def.prompt}</p>}
+      {def && def.prompt && <p className="step-prompt">{def.prompt}</p>}
       {rowActions.length === 0 && <p className="step-none">No actions right now.</p>}
       {step.status === "needs_you" && (
         <label className="step-note">
@@ -89,7 +91,7 @@ function StepControls({
   );
 }
 
-/** The run steps as a rail: status as icon + text, a breakpoint gutter on unstarted steps, one expanded row. */
+/** The run steps as a numbered vertical timeline: context labels between steps, status as icon + text, a breakpoint gutter on unstarted steps, one expanded row. */
 export function StepRail({
   run,
   workflow,
@@ -111,8 +113,8 @@ export function StepRail({
 }) {
   const rerunIndex = rerunFrom === null ? -1 : workflow.steps.findIndex((s) => s.id === rerunFrom);
   return (
-    <ol className="step-rail" aria-label="Workflow steps" data-testid="step-rail">
-      {run.steps.map((step) => {
+    <ol className="step-rail step-timeline" aria-label="Workflow steps" data-testid="step-rail">
+      {run.steps.map((step, index) => {
         const defIndex = workflow.steps.findIndex((s) => s.id === step.stepId);
         const willRerun = rerunIndex >= 0 && defIndex >= rerunIndex;
         const def = workflow.steps[defIndex];
@@ -121,6 +123,7 @@ export function StepRail({
         const hasBreakpoint = run.breakpoints.includes(step.stepId);
         const rowActions = readOnly ? [] : stepActions(run, step);
         const panelId = `step-panel-${run.id}-${step.stepId}`;
+        const between = betweenLabel(def, index);
         return (
           <li
             key={step.stepId}
@@ -130,6 +133,11 @@ export function StepRail({
             data-current={(!readOnly && run.currentStepId === step.stepId) || undefined}
             data-will-rerun={willRerun || undefined}
           >
+            {between && (
+              <p className="step-between" data-testid={`between-${slug}`} title={between}>
+                {between}
+              </p>
+            )}
             <div className="step-row-line">
               {!readOnly && showBreakpointToggle(step) ? (
                 <button
@@ -153,8 +161,11 @@ export function StepRail({
                 aria-label={`${slug}, ${STATUS_META[step.status].text}`}
                 onClick={() => onToggle(step.stepId)}
               >
+                <span className="step-number" aria-hidden="true">
+                  {index + 1}
+                </span>
                 <span className="step-icon" aria-hidden="true">
-                  {STATUS_META[step.status].icon}
+                  <Icon name={STATUS_META[step.status].icon} />
                 </span>
                 {def && (
                   <span
@@ -163,7 +174,7 @@ export function StepRail({
                     style={{ color: KIND_META[def.kind].color }}
                     title={KIND_META[def.kind].text}
                   >
-                    <span aria-hidden="true">{KIND_META[def.kind].icon}</span>
+                    <Icon name={KIND_META[def.kind].icon} />
                     <span className="visually-hidden">{KIND_META[def.kind].text}</span>
                   </span>
                 )}
@@ -177,7 +188,8 @@ export function StepRail({
                 )}
                 {willRerun && (
                   <span className="step-tag step-tag-rerun" data-testid={`will-rerun-${slug}`}>
-                    {"↻ Will rerun"}
+                    <Icon name="redo" />
+                    {"Will rerun"}
                   </span>
                 )}
                 {willRerun && def?.kind === "agent" && (

@@ -61,6 +61,18 @@ test("the attached activity panel collapses and reopens even without agents", as
   await expect(panel).toBeVisible();
   await page.getByRole("button", { name: "Collapse agents and workflows" }).click();
   await expect(panel).toHaveClass(/is-collapsed/);
+  await expect(page.getByTestId("activity-reopen")).toBeVisible();
   await page.getByRole("button", { name: "Expand agents and workflows" }).click();
   await expect(page.getByRole("button", { name: "Run agent" })).toBeVisible();
+});
+
+test("the activity panel stretches left and restores its width", async ({ page }) => {
+  await gotoApp(page, { files: false });
+  const panel = page.getByTestId("activity-panel");
+  const before = (await panel.boundingBox())!.width;
+  await page.getByRole("button", { name: "Stretch panel" }).click();
+  await expect(panel).toHaveClass(/is-wide/);
+  expect((await panel.boundingBox())!.width).toBeGreaterThan(before);
+  await page.getByRole("button", { name: "Restore panel width" }).click();
+  await expect(panel).not.toHaveClass(/is-wide/);
 });

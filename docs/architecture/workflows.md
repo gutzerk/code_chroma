@@ -1,17 +1,25 @@
 # Workflows (steerable runs)
 
-Open the Workflows tab in the attached right panel. Run workflow opens a picker that always offers
-Add new workflow. The editor accepts a name and ordered agent/review steps with instructions.
-`POST /repos/{repoId}/workflows` validates and persists the definition in `.codechroma/workflows`;
-duplicate ids return 409 and read-only workspaces cannot create definitions. Saved workflows are
-immediately available to run. The segmented progress bar stays visible when the steps collapse.
+Open the Workflows tab in the attached right panel (`web/src/workflows/WorkflowsTab.tsx`). It has
+"Run workflow" (`RunWorkflowDialog`, asks for run inputs) and "New workflow" (`WorkflowEditorDialog`, a
+`ModalDialog` with name, run inputs, step list and a per-step editor; Save / Save and run). Sections:
+Active (`RunsList` cards with a segmented progress bar, Pause/Stop/Cancel run, "Review now" on a
+`needs_you` run), Finished (Restart, Delete, "Clear finished") and Saved workflows (Edit, Run, Delete).
+Run detail (`RunDetail`, numbered `StepRail` timeline) labels what passes between steps
+(`runControls.betweenLabel`). Layout follows the tab's own width (`useContainerLayout`): at 320px
+secondary actions move into a "⋯" menu, from ~640px list and detail sit side by side, from ~1100px a
+third column shows the live step (Agent/Output/Diff tabs).
+`POST /repos/{repoId}/workflows` and `PUT /repos/{repoId}/workflows/{id}` share one validator and
+persist the definition in `.codechroma/workflows`; duplicate ids return 409 on create and read-only
+workspaces cannot write definitions.
 
 
 C# bridge only (the Python bridge has no mirror). Plan: Phase 0 foundation + Stage 1 runner of the "steer a running workflow" plan.
 
 ## Files
 
-- Definition: `<repo>/.codechroma/workflows/<id>.json` = `{ id, name, steps: [{ id, slug, kind: "agent"|"review", prompt }] }` (hand-authored; no builder UI yet).
+- Definition: `<repo>/.codechroma/workflows/<id>.json` = `{ id, name, inputs[], steps: [{ id, slug, kind: "agent"|"review", prompt, skill?, context: "previous"|"fresh", pauseBefore, showDiff, showSummary, sendBackTo }] }`. `prompt` is required for agent steps only; a review step may leave it empty. `context` defaults to `previous` (an old file without it reads as `previous`). `pauseBefore` becomes a breakpoint when the run starts. `showDiff`/`showSummary` are review-step display flags. `sendBackTo` (an earlier agent step id) overrides which step "send back" reruns; otherwise the nearest earlier agent step.
+- Step context: a non-rerun agent step with `context: "previous"` gets the nearest earlier non-skipped step's output tail (4000 chars) and diff stat prepended to its prompt; `fresh` gets only its own prompt and never `--resume`. Reruns (send back, resume) are unchanged.
 - Run record: `<repo>/.codechroma/runs/<runId>.json` = `Run { id, workflowId, state, currentStepId, stopAfter, attempt, attempts[{n,branch}], breakpoints[], steps[StepRecord] }`, `StepRecord { stepId, attempt, status, output, diffStat, checkpointRef, sessionId }`. camelCase, written atomically by `RunStore`.
 - Code: `dotnet/CodeChroma.Bridge/Workflows/` (`RunStateMachine.cs` pure table, `Models.cs`, `RunStore.cs`, `WorkflowRunner.cs`), `Routes/WorkflowRoutes.cs` (also holds `WorkflowRunners`, one runner per workspace).
 
@@ -30,7 +38,7 @@ C# bridge only (the Python bridge has no mirror). Plan: Phase 0 foundation + Sta
 
 ## Routes and events
 
-Under `/repos/{id}`: `GET /workflows`, `GET /runs`, `GET /runs/{runId}`, `POST /workflows/{wfId}/runs`, `POST /runs/{runId}/pause|resume|stop{mode}|keep-running|breakpoints{stepId,on}|resume-from{stepId}|review{decision,note}|message|redo|redo/cancel`. All POSTs return the Run; PR (read-only) workspaces get 409. Events go over the repo socket as `{ type: "run", runId, event }` (`run.paused|resumed|stopping|stopped|held|step|done|message|redo.proposed|redo.started`); clients re-fetch the run.
+Under `/repos/{id}`: `GET /workflows`, `PUT /workflows/{wfId}` (update; 400 id mismatch/invalid, 404, runs already loaded keep their copy), `GET /runs`, `GET /runs/{runId}`, `DELETE /runs/{runId}` (done/stopped only, else 409; removes record, worktree and branches, event `run.deleted`), `DELETE /runs?state=finished` (clears every done/stopped run, `{deleted:[ids]}`), `POST /runs/{runId}/restart` (done/stopped only: wipes worktree, branches, outputs and messages and runs the SAME run again from step 1 with its inputs, re-reading the stored definition), `POST /workflows/{wfId}/runs`, `POST /runs/{runId}/pause|resume|stop{mode}|keep-running|breakpoints{stepId,on}|resume-from{stepId}|review{decision,note}|message|redo|redo/cancel`. All POSTs return the Run; PR (read-only) workspaces get 409. Events go over the repo socket as `{ type: "run", runId, event }` (`run.paused|resumed|stopping|stopped|held|step|done|message|redo.proposed|redo.started`); clients re-fetch the run (`workflowStore` coalesces list refetches and refetches per run), except `run.deleted`, which the store applies locally via `removeRun(id)`; `deleteRun`/`clearFinished` also drop the deleted runs locally instead of refetching the list.
 
 ## Run agent, messages, redo (Stages 3-4)
 

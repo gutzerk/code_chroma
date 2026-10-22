@@ -106,7 +106,7 @@ weaken security and must never be set in production: `CODECROMA_MANIFEST_URL`, `
 `UpdateScripts`, starts it detached, then the host quits), `UpdateSettingsStore`/`UpdateScheduler`,
 `InstallOutcomeStore`, `UpdatesBridge`. `CodeChroma.Shell.App/UpdateHost.cs` wires it: scheduled checks at startup,
 every 6 h and on window focus (per-user installs only), Help -> Check for Updates, and the "updated / rolled back"
-report. The canvas's `window.codechromaUpdates` (`web/src/assistant/UpdatesPanel.tsx`) round-trips over the WebView
+report. The "update available" prompt is `Dialogs.ShowUpdateAsync` (release notes rendered by `MarkdownText`, scrollable and capped to the window height; Install / Skip this version / Later — Later reappears next launch, Skip persists `skippedVersion`). The canvas's `window.codechromaUpdates` (`web/src/assistant/UpdatesPanel.tsx`) round-trips over the WebView
 channel; `UpdatesBridge.ToJson` adds `verificationNotice`, `provenance` and `lastInstall`.
 `UpdateConstants` is the single source for the repo slug, intervals and wording; download URLs must be
 credential-free `https://github.com/<repo>/releases/(latest/)?download/...` with no `.`/`..`/`%2e` segments.
@@ -121,6 +121,7 @@ credential-free `https://github.com/<repo>/releases/(latest/)?download/...` with
   via `pgrep`) the previous copy is restored and relaunched. The result lands in `<userData>/update-result.json`
   (`updated`/`rolled-back`/`failed`) and surfaces as `UpdateState.LastInstall`. Windows swaps `...\CodeChroma\current`
   with a hidden PowerShell, macOS replaces `~/Applications/CodeChroma.app` via `ditto`, Linux keeps `.previous`.
+  🔴 On Windows a directory that is any process's cwd cannot be renamed, so the helper starts with the temp dir as its cwd (`ProcessHelperLauncher`, plus `Set-Location` in the script) and, before the swap, waits up to 10 s for processes running from `$Target` (bridge/agent children) and then force-stops them; otherwise the update fails with "could not move the current version aside".
   No delta updates (full package each time). `apply-update.sh` unsets `APPIMAGE APPDIR ARGV0 OWD` and removes itself.
 - ⚠ Releases are unsigned: SmartScreen and Gatekeeper show an "unverified publisher" warning; a `.deb` or
   system-wide install is not updated in place.

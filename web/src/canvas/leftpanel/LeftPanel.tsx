@@ -12,6 +12,7 @@ import { TreeNode } from "../strategies/tree/TreeNode";
 import { colorForLayer } from "./diagramColors";
 import { diagramSelectionStore, useSelectedDiagrams } from "./diagramSelectionStore";
 import { useDiagramRows } from "./useDiagramRows";
+import "../PanelHandle.css";
 import "./LeftPanel.css";
 
 const TABS: { id: LeftTab; label: string }[] = [
@@ -58,16 +59,18 @@ export function LeftPanel({
       </div>
       {leftTab === "diagrams" ? <DiagramsTab onDraw={onDraw} arrange={arrange} /> : <FilesTab rootNode={rootNode} onActivate={onActivate} />}
       {!hasOpenCode && (
-      <button
-        type="button"
-        className="left-panel-edge"
-        aria-label="Collapse diagrams panel"
-        onClick={layoutStore.closeLeft}
-      >
-        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-          <path d="M15 6l-6 6 6 6" />
-        </svg>
-      </button>
+        <div className="panel-handle panel-handle--right-edge">
+          <button
+            type="button"
+            className="panel-handle-btn"
+            aria-label="Collapse diagrams panel"
+            onClick={layoutStore.closeLeft}
+          >
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+              <path d="M15 6l-6 6 6 6" />
+            </svg>
+          </button>
+        </div>
       )}
     </aside>
   );

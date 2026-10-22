@@ -1,6 +1,7 @@
 using System.Text.Json.Nodes;
 using CodeChroma.Bridge.Agents;
 using CodeChroma.Bridge.Routes;
+using CodeChroma.Bridge.Skills;
 using CodeChroma.Bridge.Stores;
 
 namespace CodeChroma.Bridge.Terminal;
@@ -50,19 +51,19 @@ public sealed class TerminalAgents(UserPaths paths, ProviderStore providers, Cal
     };
 
     /// <summary>An allow-listed agent's argv and provider environment, or null for an unknown kind.</summary>
-    public AgentLaunch? Resolve(string agent, string? resumeSessionId = null, string? initialPrompt = null)
+    public AgentLaunch? Resolve(string agent, string? resumeSessionId = null, string? initialPrompt = null, bool bare = false)
     {
         if (agent == "agent")
         {
             var resolution = ResolveProviderCli(AgentCallSite);
-            var plugin = PluginArgs(resolution.AdapterKey == "claude" && (resolution.ProviderAssigned || resolution.Binary == DefaultCli));
-            return new AgentLaunch([resolution.Binary, .. plugin, .. ResumePrompt(resumeSessionId, initialPrompt)], resolution.Env);
+            var isClaude = resolution.AdapterKey == "claude" && (resolution.ProviderAssigned || resolution.Binary == DefaultCli);
+            return new AgentLaunch(Argv(resolution.Binary, isClaude, resolution.AdapterKey, resumeSessionId, initialPrompt, bare), resolution.Env);
         }
         if (!Allowed.TryGetValue(agent, out var entry)) return null;
         if (agent == "claude")
         {
             var binary = AssistantRoutes.EffectiveCli(paths);
-            return new AgentLaunch([binary, .. PluginArgs(binary == DefaultCli), .. ResumePrompt(resumeSessionId, initialPrompt)], new Dictionary<string, string>());
+            return new AgentLaunch(Argv(binary, binary == DefaultCli, "claude", resumeSessionId, initialPrompt, bare), new Dictionary<string, string>());
         }
         return new AgentLaunch(string.IsNullOrEmpty(resumeSessionId) ? entry : [.. entry, ResumeFlag, resumeSessionId], new Dictionary<string, string>());
     }
@@ -114,6 +115,16 @@ public sealed class TerminalAgents(UserPaths paths, ProviderStore providers, Cal
             return File.ReadLines(path).Select(l => l.Trim()).FirstOrDefault(l => l.Length > 0 && !l.StartsWith('#'));
         }
         catch (IOException) { return null; }
+    }
+
+    /// <summary>The argv of an agent window; a bare one gets the prompt first and the CLI's ambient context stripped (no plugin, settings, MCP or slash commands), keeping the session file so Resume works.</summary>
+    private static string[] Argv(string binary, bool isClaude, string adapterKey, string? resumeSessionId, string? initialPrompt, bool bare)
+    {
+        var bareArgs = bare && string.IsNullOrEmpty(resumeSessionId) && CliAdapters.All.TryGetValue(adapterKey, out var adapter)
+            ? adapter.BareArgs(CliAdapters.DefaultBareTools).Where(a => a != "--no-session-persistence").ToArray()
+            : [];
+        if (bareArgs.Length > 0) return [binary, .. ResumePrompt(null, initialPrompt), .. bareArgs];
+        return [binary, .. PluginArgs(isClaude), .. ResumePrompt(resumeSessionId, initialPrompt)];
     }
 
     /// <summary>Load CodeChroma skills for this Claude Code process without changing its project.</summary>

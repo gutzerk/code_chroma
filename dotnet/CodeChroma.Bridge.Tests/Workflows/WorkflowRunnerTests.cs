@@ -336,19 +336,20 @@ public sealed class WorkflowRunnerTests : IDisposable
         Assert.Equal(130_000, usage.ContextTokens);
         Assert.Equal(120_000, usage.CacheReadTokens);
         Assert.Equal("claude-opus-5-5", usage.Model);
-        Assert.Equal(WorkflowLimits.DefaultContextWindow, usage.ContextWindow);
+        Assert.Equal(ModelSpecs.DefaultContextWindow, usage.ContextWindow);
         Assert.Equal([1, 1, 2, 3, 2], run.Steps.Select(s => s.ChainLength));
         Assert.All(run.Steps, s => Assert.True(s.ChainWarning));
     }
 
     [Theory]
     [InlineData(1, 100_000, false)]
-    [InlineData(2, 119_999, false)]
-    [InlineData(2, 120_000, true)]
-    [InlineData(3, 0, true)]
-    public void A_chain_warns_at_three_steps_or_sixty_percent_of_the_window(int chainLength, long contextTokens, bool warns)
+    [InlineData(2, 120_000, false)]
+    [InlineData(2, 120_001, true)]
+    [InlineData(3, 0, false)]
+    [InlineData(4, 0, true)]
+    public void A_chain_warns_past_three_steps_or_sixty_percent_of_the_window(int chainLength, long contextTokens, bool warns)
     {
-        var usage = new StepUsage { ContextTokens = contextTokens, ContextWindow = WorkflowLimits.ContextWindow("claude-opus-5-5") };
+        var usage = new StepUsage { ContextTokens = contextTokens, ContextWindow = ModelSpecs.ContextWindow("claude-opus-5-5") };
 
         var warning = WorkflowLimits.ChainWarning(chainLength, usage);
 

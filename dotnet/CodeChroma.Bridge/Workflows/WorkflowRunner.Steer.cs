@@ -382,19 +382,19 @@ public sealed partial class WorkflowRunner
     }
 
     /// <summary>A rerun forks the nearest earlier session that never saw the rejected work (a continue step: its own source), else starts fresh in the step's mode.</summary>
-    private static Launch PlanRedo(Handle h, WorkflowStep step, bool claude)
+    private static Launch PlanRedo(Handle h, WorkflowStep step, string adapter)
     {
-        if (claude && !StepAgents.IsContinue(step.Agent))
+        if (CliAdapters.CanResume(adapter) && !StepAgents.IsContinue(step.Agent))
         {
             for (var i = IndexOf(h, step.Id) - 1; i >= 0; i--)
             {
                 var earlier = h.Def.Steps[i];
                 if (earlier.Kind != "agent" || earlier.Provider != step.Provider) continue;
                 if (Record(h, earlier.Id) is { Status: not "skipped", SessionId: { } earlierSession })
-                    return new Launch(["--resume", earlierSession, "--fork-session"], earlier.Id, false, null);
+                    return Launch.Fork(adapter, earlierSession, earlier.Id);
             }
         }
-        return PlanLaunch(h, step, false, null, claude);
+        return PlanLaunch(h, step, false, null, adapter);
     }
 
     private static string RedoPrompt(string task, string? note) =>

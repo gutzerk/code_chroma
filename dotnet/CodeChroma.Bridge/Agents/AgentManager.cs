@@ -123,11 +123,8 @@ public sealed partial class AgentManager
     {
         context = AgentRecord.CleanContext(context);
         contextKind = AgentRecord.CoerceContextKind(contextKind);
-        AgentRecord record;
-        lock (_lock)
+        return Add(title, (agentId, displayTitle, createdAt) =>
         {
-            if (_agents.Count >= MaxAgents) throw new AgentLimitException($"the limit of {MaxAgents} concurrent agents is reached");
-            var agentId = UniqueId(title);
             var prTarget = attachTo is not null ? PrTarget(attachTo) : null;
             string branch, path;
             string? baseBranch;
@@ -148,14 +145,14 @@ public sealed partial class AgentManager
                 (branch, path) = AttachTarget(attachTo);
                 baseBranch = BaseBranchFor(attachTo);
             }
-            record = new AgentRecord
+            return new AgentRecord
             {
                 Id = agentId,
-                Title = title.Trim().Length > 0 ? title.Trim() : agentId,
+                Title = displayTitle,
                 Kind = kind,
                 Branch = branch,
                 Worktree = path,
-                CreatedAt = DateTime.UtcNow.ToString("yyyy-MM-dd'T'HH:mm:ss'Z'", CultureInfo.InvariantCulture),
+                CreatedAt = createdAt,
                 SharesWorkspaceWith = attachTo,
                 BaseBranch = baseBranch,
                 SourcePr = prTarget is not null ? attachTo : null,
@@ -163,11 +160,7 @@ public sealed partial class AgentManager
                 ContextKind = contextKind,
                 DiagramType = diagramType,
             };
-            record.Window["z"] = _agents.Count + 1;
-            _agents.Add(record);
-        }
-        Save();
-        return record;
+        });
     }
 
     /// <summary>A claude agent in a workflow run's own worktree that forks `forkSession` on start ("Open agent" on a finished step).</summary>
@@ -177,23 +170,29 @@ public sealed partial class AgentManager
         var path = Path.GetFullPath(WorkflowRunner.WorktreeFor(MainRoot, runId));
         if (!Directory.Exists(path)) throw new UnknownAgentException($"run {runId} has no worktree");
         var branch = MainBranchOps.CurrentBranch(path) ?? $"wf-{runId}";
+        return Add(title, (agentId, displayTitle, createdAt) => new AgentRecord
+        {
+            Id = agentId,
+            Title = displayTitle,
+            Kind = AgentRecord.DefaultKind,
+            Branch = branch,
+            Worktree = path,
+            CreatedAt = createdAt,
+            BaseBranch = MainBranchOps.CurrentBranch(MainRoot),
+            SourceRun = runId,
+            ForkSession = forkSession,
+        });
+    }
+
+    /// <summary>Under the agent limit, builds a record for a fresh id (title falls back to it), stacks its window on top and persists.</summary>
+    private AgentRecord Add(string title, Func<string, string, string, AgentRecord> build)
+    {
         AgentRecord record;
         lock (_lock)
         {
             if (_agents.Count >= MaxAgents) throw new AgentLimitException($"the limit of {MaxAgents} concurrent agents is reached");
             var agentId = UniqueId(title);
-            record = new AgentRecord
-            {
-                Id = agentId,
-                Title = title.Trim().Length > 0 ? title.Trim() : agentId,
-                Kind = AgentRecord.DefaultKind,
-                Branch = branch,
-                Worktree = path,
-                CreatedAt = DateTime.UtcNow.ToString("yyyy-MM-dd'T'HH:mm:ss'Z'", CultureInfo.InvariantCulture),
-                BaseBranch = MainBranchOps.CurrentBranch(MainRoot),
-                SourceRun = runId,
-                ForkSession = forkSession,
-            };
+            record = build(agentId, title.Trim().Length > 0 ? title.Trim() : agentId, DateTime.UtcNow.ToString("yyyy-MM-dd'T'HH:mm:ss'Z'", CultureInfo.InvariantCulture));
             record.Window["z"] = _agents.Count + 1;
             _agents.Add(record);
         }

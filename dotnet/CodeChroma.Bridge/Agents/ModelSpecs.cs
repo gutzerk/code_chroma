@@ -1,15 +1,17 @@
-using CodeChroma.Bridge.Agents;
-
-namespace CodeChroma.Bridge.Workflows;
+namespace CodeChroma.Bridge.Agents;
 
 /// <summary>USD per million tokens for one model: uncached input, output, cache read and 5-minute cache write.</summary>
 public sealed record ModelPrice(decimal Input, decimal Output, decimal CacheRead, decimal CacheWrite);
 
-/// <summary>First-party API list prices per model, beside <see cref="WorkflowLimits"/>'s context windows; unknown models have no price.</summary>
-public static class ModelPrices
+/// <summary>Per-model facts read from a model id: context window and first-party API list price; unknown models get the default window and no price.</summary>
+public static class ModelSpecs
 {
+    public const long DefaultContextWindow = 200_000;
+    public const long LongContextWindow = 1_000_000;
+    private const string LongContextSuffix = "[1m]";
+
     /// <summary>Model ids; a dated snapshot ("-20260101" or "@20260101") of one prices the same.</summary>
-    private static readonly (string Prefix, ModelPrice Price)[] Table =
+    private static readonly (string Prefix, ModelPrice Price)[] Prices =
     [
         ("claude-fable-5-1", new(10m, 50m, 0.25m, 12.5m)),
         ("claude-mythos-5-1", new(10m, 50m, 0.25m, 12.5m)),
@@ -26,11 +28,22 @@ public static class ModelPrices
         ("claude-opus-5", new(5m, 25m, 0.5m, 6.25m)),
     ];
 
-    public static ModelPrice? For(string? model)
+    /// <summary>The base id (no "[1m]" suffix, trimmed) and whether the id asked for the long context window.</summary>
+    private static (string Id, bool LongContext) Parse(string model)
+    {
+        var id = model.Trim();
+        var longContext = id.EndsWith(LongContextSuffix, StringComparison.OrdinalIgnoreCase);
+        return (longContext ? id[..^LongContextSuffix.Length].Trim() : id, longContext);
+    }
+
+    public static long ContextWindow(string? model) =>
+        !string.IsNullOrEmpty(model) && Parse(model).LongContext ? LongContextWindow : DefaultContextWindow;
+
+    public static ModelPrice? Price(string? model)
     {
         if (string.IsNullOrEmpty(model)) return null;
-        var id = model.Replace("[1m]", "", StringComparison.OrdinalIgnoreCase).Trim();
-        foreach (var (prefix, price) in Table)
+        var id = Parse(model).Id;
+        foreach (var (prefix, price) in Prices)
             if (id.StartsWith(prefix, StringComparison.OrdinalIgnoreCase) && (id.Length == prefix.Length || IsDateSuffix(id, prefix.Length)))
                 return price;
         return null;
@@ -42,7 +55,7 @@ public static class ModelPrices
         decimal total = 0;
         foreach (var (model, counts) in byModel)
         {
-            if (For(model) is not { } price) return null;
+            if (Price(model) is not { } price) return null;
             total += (counts.Input * price.Input + counts.Output * price.Output + counts.CacheRead * price.CacheRead + counts.CacheWrite * price.CacheWrite) / 1_000_000m;
         }
         return total;

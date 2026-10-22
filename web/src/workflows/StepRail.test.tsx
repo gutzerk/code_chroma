@@ -198,7 +198,7 @@ describe("StepRail agent sessions", () => {
   afterEach(cleanup);
 
   it.each([
-    ["plan", "Agent · default · new + hand-off"],
+    ["plan", "Agent · default · new"],
     ["review", null],
   ])("labels the %s step's mode", (slug, expected) => {
     renderRail(makeRun(threeSteps()));
@@ -209,7 +209,7 @@ describe("StepRail agent sessions", () => {
   });
 
   it.each([
-    ["one", "Agent · anthropic · new + hand-off"],
+    ["one", "Agent · anthropic · new"],
     ["two", "Agent · default · continue: one"],
     ["three", "Agent · default · continue: two"],
     ["five", "Agent · default · new"],
@@ -231,10 +231,10 @@ describe("StepRail agent sessions", () => {
   });
 
   it.each([
-    [{ usage: { contextTokens: 120_000, inputTokens: 0, outputTokens: 0, cacheReadTokens: 0 } }, "false"],
-    [{ usage: { contextTokens: 120_001, inputTokens: 0, outputTokens: 0, cacheReadTokens: 0 } }, "true"],
+    [{ chainWarning: true }, "true"],
+    [{ chainWarning: false, chainLength: 4 }, "false"],
     [{ chainLength: 4 }, "true"],
-  ])("turns the badge amber from the record %j", (extra, warn) => {
+  ])("takes the badge colour from the bridge's verdict on the record %j", (extra, warn) => {
     renderRail(chainRun(extra), { workflow: chain });
 
     expect(screen.getByTestId("session-badge-three")).toHaveAttribute("data-warn", warn);

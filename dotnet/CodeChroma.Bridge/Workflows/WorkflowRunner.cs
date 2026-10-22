@@ -118,12 +118,14 @@ public sealed partial class WorkflowRunner
         lock (_lock)
         {
             var runs = new List<Run>();
+            var defs = new Dictionary<string, WorkflowDef?>();
             foreach (var id in Store.RunIds())
             {
                 if (_handles.TryGetValue(id, out var h)) runs.Add(View(h));
                 else if (Store.GetRun(id) is { } saved)
                 {
-                    if (Store.GetWorkflow(saved.WorkflowId) is { } def) Decorate(saved, def);
+                    if (!defs.TryGetValue(saved.WorkflowId, out var def)) defs[saved.WorkflowId] = def = Store.GetWorkflow(saved.WorkflowId);
+                    if (def is not null) Decorate(saved, def);
                     runs.Add(saved);
                 }
             }
@@ -418,7 +420,7 @@ public sealed partial class WorkflowRunner
             if (decision != "sendBack") throw new BridgeException(400, "decision must be approve or sendBack");
             var configured = h.Def.Steps[index].SendBackTo;
             var found = configured is not null ? h.Def.Steps.FindIndex(0, index, x => x.Id == configured && x.Kind == "agent") : -1;
-            if (found < 0) found = Enumerable.Range(0, index).Reverse().FirstOrDefault(i => h.Def.Steps[i].Kind == "agent", -1);
+            if (found < 0) found = StepAgents.NearestAgentBefore(h.Def, index);
             if (found < 0) throw new BridgeException(409, "there is no earlier agent step to send back to");
             target = h.Def.Steps[found].Id;
         }
@@ -514,10 +516,11 @@ public sealed partial class WorkflowRunner
 
     private static void Decorate(Run run, WorkflowDef def)
     {
+        var lengths = StepAgents.ChainLengths(def);
+        var indexOf = def.Steps.Select((s, i) => (s.Id, i)).ToDictionary(x => x.Id, x => x.i);
         foreach (var record in run.Steps)
         {
-            var index = def.Steps.FindIndex(s => s.Id == record.StepId);
-            record.ChainLength = index < 0 ? 1 : StepAgents.ChainLength(def, index);
+            record.ChainLength = indexOf.TryGetValue(record.StepId, out var index) ? lengths[index] : 1;
             record.ChainWarning = WorkflowLimits.ChainWarning(record.ChainLength, record.Usage);
         }
     }
@@ -634,7 +637,7 @@ public sealed partial class WorkflowRunner
         return (DiffStat(h.Worktree), session, usage is null ? null : new StepUsage
         {
             ContextTokens = usage.ContextTokens, InputTokens = usage.InputTokens, OutputTokens = usage.OutputTokens,
-            CacheReadTokens = usage.CacheReadTokens, Model = usage.Model, ContextWindow = WorkflowLimits.ContextWindow(usage.Model),
+            CacheReadTokens = usage.CacheReadTokens, Model = usage.Model, ContextWindow = ModelSpecs.ContextWindow(usage.Model),
         });
     }
 
@@ -704,7 +707,11 @@ public sealed partial class WorkflowRunner
     }
 
     /// <summary>How a step launches: extra argv, the step it forks, or why it cannot start (a continue never falls back to a fresh agent).</summary>
-    private readonly record struct Launch(IReadOnlyList<string> Args, string? ResumedFrom, bool Fresh, string? Error);
+    private readonly record struct Launch(IReadOnlyList<string> Args, string? ResumedFrom, bool Fresh, string? Error)
+    {
+        /// <summary>Resumes <paramref name="session"/> (step <paramref name="fromStepId"/>'s) forked into a new session.</summary>
+        public static Launch Fork(string adapter, string session, string fromStepId) => new(CliAdapters.ResumeArgs(adapter, session, true), fromStepId, false, null);
+    }
 
     private async Task<Outcome> RunAgentStep(Handle h, WorkflowStep step, bool rerun, bool redo)
     {
@@ -726,7 +733,7 @@ public sealed partial class WorkflowRunner
             return Outcome.Failed;
         }
         Launch launch;
-        lock (_lock) launch = redo ? PlanRedo(h, step, cli.AdapterKey == "claude") : PlanLaunch(h, step, rerun, session, cli.AdapterKey == "claude");
+        lock (_lock) launch = redo ? PlanRedo(h, step, cli.AdapterKey) : PlanLaunch(h, step, rerun, session, cli.AdapterKey);
         if (launch.Error is not null)
         {
             lock (_lock) AppendOutput(record, $"✗ cannot continue {step.Slug}: {launch.Error}");
@@ -768,9 +775,10 @@ public sealed partial class WorkflowRunner
     }
 
     /// <summary>A rerun resumes the step's own session; a continue forks its source's session or fails; anything else starts fresh.</summary>
-    private static Launch PlanLaunch(Handle h, WorkflowStep step, bool rerun, string? session, bool claude)
+    private static Launch PlanLaunch(Handle h, WorkflowStep step, bool rerun, string? session, string adapter)
     {
-        if (rerun && session is not null && claude) return new Launch(["--resume", session], null, false, null);
+        var canResume = CliAdapters.CanResume(adapter);
+        if (rerun && session is not null && canResume) return new Launch(CliAdapters.ResumeArgs(adapter, session, false), null, false, null);
         if (!StepAgents.IsContinue(step.Agent)) return new Launch([], null, true, null);
         var source = StepAgents.SourceIndex(h.Def, IndexOf(h, step.Id));
         if (source < 0) return new Launch([], null, false, "there is no earlier agent step to continue");
@@ -778,8 +786,8 @@ public sealed partial class WorkflowRunner
         var fromRecord = Record(h, from.Id);
         if (fromRecord.Status == "skipped") return new Launch([], null, false, $"{from.Slug} was skipped, so it has no agent session");
         if (fromRecord.SessionId is not { } sourceSession) return new Launch([], null, false, $"{from.Slug} has no agent session");
-        if (!claude) return new Launch([], null, false, "only claude can continue a session");
-        return new Launch(["--resume", sourceSession, "--fork-session"], from.Id, false, null);
+        if (!canResume) return new Launch([], null, false, "only claude can continue a session");
+        return Launch.Fork(adapter, sourceSession, from.Id);
     }
 
     private void OnLines(Handle h, StepRecord record, IReadOnlyList<string> lines)

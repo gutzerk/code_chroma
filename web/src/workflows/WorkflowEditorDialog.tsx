@@ -3,9 +3,17 @@ import { ModalDialog } from "../agents/ModalDialog";
 import { messageOf } from "../util/reportError";
 import { useEngineClient } from "../engine-client/EngineClientContext";
 import { fetchProviderModels, listProviders, type Provider, type ProviderModelsResult } from "../llm-settings/llmSettingsClient";
-import { KIND_META } from "./runControls";
+import { KIND_META, stepModeLabel } from "./runControls";
 import { useRuns, workflowActions, workflowStore } from "./workflowStore";
-import { continueSourceIndex, workflowInputs, type SkillInfo, type WorkflowDef, type WorkflowInput, type WorkflowStepDef } from "./types";
+import {
+  agentMode,
+  continueSourceIndex,
+  continueStepId,
+  continueTargetIndex,
+  nearestAgentBefore,
+  workflowInputs,
+  type AgentMode,
+  type SkillInfo, type WorkflowDef, type WorkflowInput, type WorkflowStepDef } from "./types";
 import "./workflows.css";
 import "./WorkflowEditorDialog.css";
 
@@ -49,8 +57,7 @@ function otherInputNames(steps: StepDraft[], except: number): string[] {
 }
 
 function toDraft(step: WorkflowStepDef): StepDraft {
-  const legacy = (step as { context?: string }).context;
-  return { ...step, skill: step.skill ?? "", agent: step.agent ?? (legacy === "fresh" ? "new" : "handoff"), input: step.input ?? null };
+  return { ...step, skill: step.skill ?? "", agent: step.agent ?? "handoff", input: step.input ?? null };
 }
 
 /** Binds older workflow-level inputs to steps: the agent step that mentions it, else the first agent step without one. */
@@ -63,17 +70,6 @@ function bindLegacyInputs(steps: StepDraft[], legacy: WorkflowInput[]): StepDraf
     if (target) target.input = input;
   }
   return bound;
-}
-
-type AgentMode = "new" | "handoff" | "continue";
-
-const isContinue = (agent: StepDraft["agent"]) => Boolean(agent?.startsWith("continue"));
-
-/** The step a continue names, even a later or review one, so the editor can say what is wrong; -1 when none. */
-function continueTarget(steps: StepDraft[], i: number): number {
-  const agent = steps[i].agent;
-  if (agent === "continue") return continueSourceIndex(steps, i);
-  return agent?.startsWith("continue:") ? steps.findIndex((s) => s.id === agent.slice("continue:".length)) : -1;
 }
 
 function providerName(providers: ProviderInfo[] | null, id: string | null | undefined): string {
@@ -91,9 +87,9 @@ export function agentCheck(steps: StepDraft[], i: number, providers: ProviderInf
   if (i === 0) check.continueOff = "Step 1 can only be New.";
   else if (provider && provider.adapter !== "claude")
     check.continueOff = `Continue is off. Only claude can resume a session, and this step uses ${provider.label}.`;
-  if (!isContinue(step.agent) || check.error || i === 0) return check;
+  if (agentMode(step.agent) !== "continue" || check.error || i === 0) return check;
   if (check.continueOff) return { ...check, error: `Can't save. Only claude can resume a session, and this step uses ${provider?.label}.` };
-  const j = continueTarget(steps, i);
+  const j = continueTargetIndex(steps, i);
   if (j < 0) return { ...check, error: "Can't save. There is no earlier agent step to continue. Switch to New." };
   if (j >= i) return { ...check, error: `Can't save. Step ${j + 1} comes after this step. Pick an earlier one.` };
   const source = steps[j];
@@ -110,22 +106,16 @@ export function agentCheck(steps: StepDraft[], i: number, providers: ProviderInf
 
 /** The rail's second line for a step: who does it, on which provider, in which agent mode. */
 export function stepMeta(steps: StepDraft[], i: number, providers: ProviderInfo[] | null): string {
-  const step = steps[i];
-  if (step.kind === "review") return "You";
-  const provider = step.provider ? providerName(providers, step.provider) : "default";
-  const agent = i === 0 ? "new" : step.agent;
-  let mode = "new";
-  if (agent === "handoff") mode = "new + hand-off";
-  else if (isContinue(agent)) mode = `continue: ${steps[continueTarget(steps, i)]?.slug || "?"}`;
-  return `Agent · ${provider} · ${mode}`;
+  return stepModeLabel(steps, i, (id) => providerName(providers, id)) ?? "You";
 }
 
 /** The label between step `index` and the one before it, as the run timeline shows it. */
 export function betweenLabel(steps: StepDraft[], index: number): string {
   const next = steps[index];
   if (next.kind === "review") return "You review the diff";
-  if (next.agent === "new") return "Fresh start · no context";
-  if (isContinue(next.agent)) {
+  const mode = agentMode(next.agent);
+  if (mode === "new") return "Fresh start · no context";
+  if (mode === "continue") {
     const source = continueSourceIndex(steps, index);
     return source >= 0 ? `resumes step ${source + 1}'s agent` : "resumes an earlier agent";
   }
@@ -134,11 +124,10 @@ export function betweenLabel(steps: StepDraft[], index: number): string {
 
 /** The Send back explanation for review step `at`: which step it reruns and whose agent resumes. */
 function sendBackHint(steps: StepDraft[], at: number): string | null {
-  const nearestAgent = (before: number) => steps.slice(0, before).map((s) => s.kind).lastIndexOf("agent");
   const chosen = steps.findIndex((s, j) => j < at && s.id === steps[at].sendBackTo && s.kind === "agent");
-  const target = chosen >= 0 ? chosen : nearestAgent(at);
+  const target = chosen >= 0 ? chosen : nearestAgentBefore(steps, at);
   if (target < 0) return null;
-  const prior = nearestAgent(target);
+  const prior = nearestAgentBefore(steps, target);
   if (prior < 0) return `Resets the code to before step ${target + 1} and reruns it with a fresh agent.`;
   return `Resets the code to before step ${target + 1} and resumes step ${prior + 1}'s agent, which hasn't seen the rejected work. Starts a fresh agent if step ${prior + 1} has no session.`;
 }
@@ -259,7 +248,7 @@ export function WorkflowEditorDialog({
       return {
         ...base,
         prompt: s.prompt.trim(),
-        agent: i === 0 ? "new" : (s.agent ?? "new"),
+        agent: i === 0 ? "new" : s.agent,
         ...(s.extraPrompt?.trim() ? { extraPrompt: s.extraPrompt.trim() } : {}),
         ...(s.provider ? { provider: s.provider } : {}),
         ...(s.model ? { model: s.model } : {}),
@@ -315,14 +304,14 @@ export function WorkflowEditorDialog({
   const earlierAgents = steps.slice(0, at).filter((s) => s.kind === "agent");
   const stepError = errors.steps?.[at];
   const check = checks[at];
-  const mode: AgentMode = at === 0 || !step.agent ? "new" : isContinue(step.agent) ? "continue" : step.agent === "handoff" ? "handoff" : "new";
+  const mode: AgentMode = at === 0 ? "new" : agentMode(step.agent);
   const agentCards: { mode: AgentMode; title: string; text: string; disabled: boolean }[] = [
     { mode: "new", title: "New", text: "Fresh agent with only this step's instructions.", disabled: false },
     { mode: "handoff", title: "New + hand-off", text: `Fresh agent, plus step ${at}'s output and changes.`, disabled: at === 0 },
     { mode: "continue", title: "Continue", text: "Resumes an earlier step's agent. claude only.", disabled: Boolean(check.continueOff) && mode !== "continue" },
   ];
-  const nearest = at > 0 ? steps.slice(0, at).map((s) => s.kind).lastIndexOf("agent") : -1;
-  const target = step.kind === "agent" && step.agent?.startsWith("continue:") ? continueTarget(steps, at) : -1;
+  const nearest = nearestAgentBefore(steps, at);
+  const target = step.kind === "agent" && continueStepId(step.agent) !== null ? continueTargetIndex(steps, at) : -1;
   const sourceOptions = steps.flatMap((s, j) => ((j < at && s.kind === "agent") || j === target ? [j] : []));
   const sourceLabel = (j: number) => {
     const s = steps[j];
@@ -367,7 +356,7 @@ export function WorkflowEditorDialog({
                     <div
                       className="workflow-editor-between"
                       data-testid={`between-${i}`}
-                      data-mode={s.kind === "review" ? "review" : isContinue(s.agent) ? "continue" : s.agent}
+                      data-mode={s.kind === "review" ? "review" : agentMode(s.agent)}
                     >
                       {betweenLabel(steps, i)}
                     </div>
@@ -442,7 +431,7 @@ export function WorkflowEditorDialog({
                             aria-label="Continue from"
                             aria-invalid={Boolean(check.error)}
                             disabled={mode !== "continue"}
-                            value={step.agent?.startsWith("continue:") ? step.agent.slice("continue:".length) : ""}
+                            value={continueStepId(step.agent) ?? ""}
                             onChange={(e) => patch(at, { agent: e.target.value ? `continue:${e.target.value}` : "continue" })}
                           >
                             <option value="">

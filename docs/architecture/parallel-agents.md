@@ -498,17 +498,17 @@ Being in a non-`normal` mode (also on mount) closes an open code popup and inspe
 `GET /agents/{id}/usage` (`Routes/AgentRoutes.cs`, C# bridge only) returns `{contextTokens, contextWindow,
 inputTokens, outputTokens, cacheReadTokens, cacheHitRatio, costUsd, model}` for a claude agent's recorded
 session (`SessionId`, captured on demand when still empty), or `null` for a non-claude agent, no session
-yet, or a transcript with no billed reply. `Agents/AgentUsage.cs` builds it: context comes from
-`Transcripts.ReadUsage` (the last main-thread reply; `<synthetic>` entries are skipped) and its window
-from `WorkflowLimits.ContextWindow`; tokens, cache hit and cost come from `Transcripts.ReadTotals`, which
-sums every assistant reply once per `message.id` (sidechains included, since they are billed) per model.
+yet, or a transcript with no billed reply. `Agents/AgentUsage.cs` builds it from one streamed pass, `Transcripts.ReadSession`: context comes from
+the last main-thread reply (`<synthetic>` entries and sidechains are skipped) and its window from
+`ModelSpecs.ContextWindow`; tokens, cache hit and cost sum every assistant reply once per `message.id`
+(sidechains included, since they are billed) per model.
 `inputTokens` counts uncached input plus cache reads and writes, and `cacheHitRatio` is cache reads over
-that. `Workflows/ModelPrices.cs` holds USD per MTok (input, output, cache read, 5-minute cache write) per
+that. `Agents/ModelSpecs.cs` holds the context windows (1M for an id ending in `[1m]`, else 200k) and USD per MTok (input, output, cache read, 5-minute cache write) per
 model id or its dated snapshot; `costUsd` is null when any model with tokens has no price.
 
 The web reads it through the optional `AgentClient.usage` (`HttpAgentClient` only; the mock has none, so
 the strip stays hidden there). `activity/UsageStrip.tsx`'s `useAgentUsage` fetches only for the selected
-agent while full screen is open, again on each status change and every `USAGE_POLL_MS` (5 s), and
+agent while full screen is open, again on each status change and, while the agent is running and the page is visible, every `USAGE_POLL_MS` (5 s), and
 `UsageStrip` renders "Context 62k / 200k · 31%" with a `role="meter"` bar, "Tokens 184k in · 12k out",
 "Cache hit 78%" and "Cost $0.84" (omitted when `costUsd` is null). Tests:
 `dotnet/CodeChroma.Bridge.Tests/Agents/AgentUsageTests.cs`, `web/src/agents/activity/UsageStrip.test.tsx`.

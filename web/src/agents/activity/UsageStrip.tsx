@@ -15,7 +15,7 @@ function percent(ratio: number): number {
   return Math.round(Math.min(Math.max(ratio, 0), 1) * 100);
 }
 
-/** Reads the agent's usage while `enabled`, again on every status change and every poll tick. */
+/** Reads the agent's usage while `enabled` and again on every status change; polls only while it runs and the page is visible. */
 export function useAgentUsage(client: AgentClient, agentId: string, status: string, enabled: boolean) {
   const [usage, setUsage] = useState<AgentUsage | null>(null);
   useEffect(() => {
@@ -27,7 +27,7 @@ export function useAgentUsage(client: AgentClient, agentId: string, status: stri
         () => undefined,
       );
     void read();
-    const timer = window.setInterval(read, USAGE_POLL_MS);
+    const timer = status === "running" ? window.setInterval(() => document.visibilityState === "visible" && void read(), USAGE_POLL_MS) : undefined;
     return () => {
       live = false;
       window.clearInterval(timer);

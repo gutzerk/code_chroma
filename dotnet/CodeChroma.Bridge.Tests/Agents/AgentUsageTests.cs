@@ -1,7 +1,6 @@
 using System.Text.Json.Nodes;
 using CodeChroma.Bridge.Agents;
 using CodeChroma.Bridge.Tests.Support;
-using CodeChroma.Bridge.Workflows;
 
 namespace CodeChroma.Bridge.Tests.Agents;
 
@@ -47,7 +46,7 @@ public sealed class AgentUsageTests : IDisposable
         var usage = AgentUsage.Read(record, "s1", _root)!;
 
         Assert.Equal(120_000, usage["contextTokens"]!.GetValue<long>());
-        Assert.Equal(WorkflowLimits.DefaultContextWindow, usage["contextWindow"]!.GetValue<long>());
+        Assert.Equal(ModelSpecs.DefaultContextWindow, usage["contextWindow"]!.GetValue<long>());
         Assert.Equal(250_000, usage["inputTokens"]!.GetValue<long>());
         Assert.Equal(10_500, usage["outputTokens"]!.GetValue<long>());
         Assert.Equal(119_000, usage["cacheReadTokens"]!.GetValue<long>());
@@ -86,7 +85,7 @@ public sealed class AgentUsageTests : IDisposable
     [InlineData("claude-sonnet-5-5", 2.0)]
     public void A_model_id_or_its_dated_snapshot_finds_its_input_price(string model, double input)
     {
-        var price = ModelPrices.For(model);
+        var price = ModelSpecs.Price(model);
 
         Assert.Equal((decimal)input, price!.Input);
     }

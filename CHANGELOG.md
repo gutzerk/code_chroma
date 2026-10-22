@@ -1,5 +1,30 @@
 # Changelog
 
+## [1.2.0](https://github.com/gutzerk/code_chroma/compare/v1.1.0...v1.2.0) (2026-10-21)
+
+
+### Features
+
+* attach agents and workflows to the canvas activity panel ([b8a82cc](https://github.com/gutzerk/code_chroma/commit/b8a82ccaf070dbc607b5e5c670b25f40e757276e))
+* attach agents and workflows to the canvas activity panel ([2c25041](https://github.com/gutzerk/code_chroma/commit/2c25041d4ba1936ea7b701006792e35c80f59681))
+* **web:** attach agents and workflows to the canvas activity panel ([f5562cd](https://github.com/gutzerk/code_chroma/commit/f5562cdf2ff853d4f0c8f015cdefd3564449c8ac))
+* workflow skills, inputs, skip and delete; resizable activity panel; collapsed panel summary ([b8a82cc](https://github.com/gutzerk/code_chroma/commit/b8a82ccaf070dbc607b5e5c670b25f40e757276e))
+* workflow skills, inputs, skip and delete; resizable activity panel; collapsed panel summary ([2c25041](https://github.com/gutzerk/code_chroma/commit/2c25041d4ba1936ea7b701006792e35c80f59681))
+* workflow skills, inputs, skip and delete; resizable activity panel; collapsed panel summary ([a29b713](https://github.com/gutzerk/code_chroma/commit/a29b713e4f1959ee258627026421ce590d9c8e6a))
+
+
+### Bug Fixes
+
+* align canvas tokens, icons and workflow rail styling with design handoff ([b8a82cc](https://github.com/gutzerk/code_chroma/commit/b8a82ccaf070dbc607b5e5c670b25f40e757276e))
+* align canvas tokens, icons and workflow rail styling with design handoff ([2c25041](https://github.com/gutzerk/code_chroma/commit/2c25041d4ba1936ea7b701006792e35c80f59681))
+* code sidebar close/markdown/highlight, arrange by frame, terminal and panel overlaps, drop quick draw ([b8a82cc](https://github.com/gutzerk/code_chroma/commit/b8a82ccaf070dbc607b5e5c670b25f40e757276e))
+* code sidebar close/markdown/highlight, arrange by frame, terminal and panel overlaps, drop quick draw ([2c25041](https://github.com/gutzerk/code_chroma/commit/2c25041d4ba1936ea7b701006792e35c80f59681))
+* code sidebar close/markdown/highlight, arrange by frame, terminal and panel overlaps, drop quick draw ([ac7bb21](https://github.com/gutzerk/code_chroma/commit/ac7bb2168f9056ef6b0e1eaea2dd7f0a70339fad))
+* find gh/claude in well-known dirs, clipboard shortcut fallback, always-visible Apply ([b8a82cc](https://github.com/gutzerk/code_chroma/commit/b8a82ccaf070dbc607b5e5c670b25f40e757276e))
+* find gh/claude in well-known dirs, clipboard shortcut fallback, always-visible Apply ([2c25041](https://github.com/gutzerk/code_chroma/commit/2c25041d4ba1936ea7b701006792e35c80f59681))
+* find gh/claude in well-known dirs, clipboard shortcut fallback, always-visible Apply ([#169](https://github.com/gutzerk/code_chroma/issues/169)) ([6cd8969](https://github.com/gutzerk/code_chroma/commit/6cd896930da761b772b97321d4cd40506650c688))
+* **web:** align canvas tokens, icons and workflow rail styling with design handoff ([#170](https://github.com/gutzerk/code_chroma/issues/170)) ([742d6e7](https://github.com/gutzerk/code_chroma/commit/742d6e7190e2e5b5387ccd9ddf8b492f60a2e7df))
+
 ## [1.1.0](https://github.com/gutzerk/code_chroma/compare/v1.0.0...v1.1.0) (2026-10-21)
 
 

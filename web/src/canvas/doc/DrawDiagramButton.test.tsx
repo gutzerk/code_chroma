@@ -77,7 +77,7 @@ describe("DrawDiagramButton", () => {
       pr_url: null,
       pid: null,
       window: { x: 0, y: 0, width: 720, height: 480, minimized: false, z: 1 },
-      status: "starting" as const,
+      status: "running" as const,
       exit_code: null,
       worktree_lost: false,
     }));
@@ -115,7 +115,7 @@ describe("DrawDiagramButton", () => {
       pr_url: null,
       pid: null,
       window: { x: 0, y: 0, width: 720, height: 480, minimized: false, z: 1 },
-      status: "starting" as const,
+      status: "running" as const,
       exit_code: null,
       worktree_lost: false,
     }));

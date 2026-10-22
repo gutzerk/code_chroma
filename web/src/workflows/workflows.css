@@ -1008,3 +1008,27 @@
 .wf-run-clickable {
   cursor: pointer;
 }
+
+.step-meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px;
+  margin: 2px 0 0 52px;
+  font-size: 0.6875rem;
+  color: var(--text-2);
+}
+
+.step-meta .step-tag {
+  margin-left: 0;
+}
+
+.step-tag-session[data-warn="true"] {
+  border-color: var(--warning);
+  color: var(--warning);
+}
+
+.step-tag-resumes {
+  border-color: #2dd4bf;
+  color: #2dd4bf;
+}

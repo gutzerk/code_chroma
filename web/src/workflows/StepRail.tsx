@@ -1,13 +1,19 @@
 import { useState } from "react";
+import { useOptionalAgentClient } from "../agents/AgentClientContext";
+import { openStepAgent } from "../agents/launchAgent";
 import type { Run, StepRecord, WorkflowDef } from "./types";
 import { Icon } from "./icons";
 import {
   ACTION_LABEL,
   betweenLabel,
+  canOpenAgent,
   KIND_META,
+  resumesChip,
+  sessionBadge,
   STATUS_META,
   showBreakpointToggle,
   stepActions,
+  stepModeLabel,
   type StepAction,
 } from "./runControls";
 import type { WorkflowActions } from "./workflowStore";
@@ -48,6 +54,7 @@ function StepControls({
   panelId,
   actions,
   rowActions,
+  onOpenAgent,
 }: {
   run: Run;
   step: StepRecord;
@@ -56,13 +63,15 @@ function StepControls({
   panelId: string;
   actions: WorkflowActions;
   rowActions: StepAction[];
+  /** Set on a finished agent step with a session: opens it forked in the Agents tab. */
+  onOpenAgent?: () => void;
 }) {
   const [note, setNote] = useState("");
   return (
     <div id={panelId} className="step-controls" role="group" aria-label={`${slug} controls`}>
       {def?.skill && <p className="step-skill">{`Skill: ${def.skill}`}</p>}
       {def && def.prompt && <p className="step-prompt">{def.prompt}</p>}
-      {rowActions.length === 0 && <p className="step-none">No actions right now.</p>}
+      {rowActions.length === 0 && !onOpenAgent && <p className="step-none">No actions right now.</p>}
       {step.status === "needs_you" && (
         <label className="step-note">
           <span>Send-back note</span>
@@ -87,6 +96,19 @@ function StepControls({
           {ACTION_LABEL[action]}
         </button>
       ))}
+      {onOpenAgent && (
+        <button
+          type="button"
+          className="step-action"
+          data-testid={`open-agent-${slug}`}
+          aria-label={`Open agent: ${slug}`}
+          title="Opens this step's agent session (forked) in the Agents tab, in the run worktree"
+          onClick={onOpenAgent}
+        >
+          <Icon name="agent" />
+          Open agent
+        </button>
+      )}
     </div>
   );
 }
@@ -111,6 +133,7 @@ export function StepRail({
   /** While a redo card is open, the step it would restart from; that row and later ones will rerun. */
   rerunFrom?: string | null;
 }) {
+  const agentClient = useOptionalAgentClient();
   const rerunIndex = rerunFrom === null ? -1 : workflow.steps.findIndex((s) => s.id === rerunFrom);
   return (
     <ol className="step-rail step-timeline" aria-label="Workflow steps" data-testid="step-rail">
@@ -123,7 +146,15 @@ export function StepRail({
         const hasBreakpoint = run.breakpoints.includes(step.stepId);
         const rowActions = readOnly ? [] : stepActions(run, step);
         const panelId = `step-panel-${run.id}-${step.stepId}`;
-        const between = betweenLabel(def, index);
+        const between = defIndex >= 0 ? betweenLabel(workflow.steps, defIndex) : null;
+        const modeLabel = defIndex >= 0 ? stepModeLabel(workflow.steps, defIndex) : null;
+        const badge = defIndex >= 0 ? sessionBadge(workflow.steps, defIndex, step) : null;
+        const chip = defIndex >= 0 ? resumesChip(workflow.steps, defIndex, step) : null;
+        const sessionId = step.sessionId;
+        const onOpenAgent =
+          agentClient && sessionId && canOpenAgent(def, step)
+            ? () => void openStepAgent(agentClient, `${slug} ${run.id}`, run.id, sessionId)
+            : undefined;
         return (
           <li
             key={step.stepId}
@@ -199,6 +230,27 @@ export function StepRail({
                 )}
               </button>
             </div>
+            {(modeLabel || badge || chip) && (
+              <p className="step-meta" data-testid={`step-meta-${slug}`}>
+                {modeLabel && <span data-testid={`mode-${slug}`}>{modeLabel}</span>}
+                {badge && (
+                  <span
+                    className="step-tag step-tag-session"
+                    data-testid={`session-badge-${slug}`}
+                    data-warn={badge.warn}
+                    title={step.usage ? `${step.usage.contextTokens.toLocaleString()} context tokens` : undefined}
+                  >
+                    {badge.warn && <Icon name="alert" />}
+                    {badge.text}
+                  </span>
+                )}
+                {chip && (
+                  <span className="step-tag step-tag-resumes" data-testid={`resumes-${slug}`}>
+                    {chip}
+                  </span>
+                )}
+              </p>
+            )}
             {expanded && (
               <StepControls
                 run={run}
@@ -208,6 +260,7 @@ export function StepRail({
                 panelId={panelId}
                 actions={actions}
                 rowActions={rowActions}
+                onOpenAgent={readOnly ? undefined : onOpenAgent}
               />
             )}
           </li>

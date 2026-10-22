@@ -510,6 +510,10 @@ export interface AgentRecord {
    * means its own worktree. Restoring its window must not re-activate a workspace the canvas is
    * already drawing. */
   shares_workspace_with?: string | null;
+  /** The workflow run whose worktree this agent was opened in ("Open agent" on a step). */
+  source_run?: string | null;
+  /** The step session its fresh starts fork with `--resume <id> --fork-session`. */
+  fork_session?: string | null;
   worktree: string;
   created_at: string;
   /** Set once a conversation exists; null disables Resume rather than starting a fresh chat. */

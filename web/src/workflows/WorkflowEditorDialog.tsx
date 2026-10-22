@@ -2,15 +2,18 @@ import { useEffect, useState } from "react";
 import { ModalDialog } from "../agents/ModalDialog";
 import { messageOf } from "../util/reportError";
 import { useEngineClient } from "../engine-client/EngineClientContext";
+import { fetchProviderModels, listProviders, type Provider, type ProviderModelsResult } from "../llm-settings/llmSettingsClient";
 import { KIND_META } from "./runControls";
 import { useRuns, workflowActions, workflowStore } from "./workflowStore";
-import { workflowInputs, type SkillInfo, type WorkflowDef, type WorkflowInput, type WorkflowStepDef } from "./types";
+import { continueSourceIndex, workflowInputs, type SkillInfo, type WorkflowDef, type WorkflowInput, type WorkflowStepDef } from "./types";
 import "./workflows.css";
 import "./WorkflowEditorDialog.css";
 
 export type StepDraft = WorkflowStepDef & { skill: string };
 type Errors = { name?: string; steps?: Record<number, string> };
-
+/** An agent step's live checks (board 7b): a Save-blocking error, a non-blocking warning, why Continue is off. */
+export type AgentCheck = { error?: string; warning?: string; continueOff?: string };
+export type ProviderInfo = Pick<Provider, "id" | "label" | "kind" | "adapter">;
 
 function newStep(): StepDraft {
   return { id: crypto.randomUUID(), slug: "", kind: "agent", prompt: "", skill: "", agent: "new" };
@@ -46,7 +49,8 @@ function otherInputNames(steps: StepDraft[], except: number): string[] {
 }
 
 function toDraft(step: WorkflowStepDef): StepDraft {
-  return { ...step, skill: step.skill ?? "", agent: step.agent ?? "handoff", input: step.input ?? null };
+  const legacy = (step as { context?: string }).context;
+  return { ...step, skill: step.skill ?? "", agent: step.agent ?? (legacy === "fresh" ? "new" : "handoff"), input: step.input ?? null };
 }
 
 /** Binds older workflow-level inputs to steps: the agent step that mentions it, else the first agent step without one. */
@@ -61,12 +65,82 @@ function bindLegacyInputs(steps: StepDraft[], legacy: WorkflowInput[]): StepDraf
   return bound;
 }
 
-/** The label between a step and the one after it, as the run timeline shows it. */
-export function betweenLabel(next: StepDraft, nextNumber: number): string {
+type AgentMode = "new" | "handoff" | "continue";
+
+const isContinue = (agent: StepDraft["agent"]) => Boolean(agent?.startsWith("continue"));
+
+/** The step a continue names, even a later or review one, so the editor can say what is wrong; -1 when none. */
+function continueTarget(steps: StepDraft[], i: number): number {
+  const agent = steps[i].agent;
+  if (agent === "continue") return continueSourceIndex(steps, i);
+  return agent?.startsWith("continue:") ? steps.findIndex((s) => s.id === agent.slice("continue:".length)) : -1;
+}
+
+function providerName(providers: ProviderInfo[] | null, id: string | null | undefined): string {
+  return id ? (providers?.find((p) => p.id === id)?.label ?? id) : "the default provider";
+}
+
+/** The checks WorkflowValidation.cs runs on save, for step `i`; `providers` is null until the list loads. */
+export function agentCheck(steps: StepDraft[], i: number, providers: ProviderInfo[] | null): AgentCheck {
+  const step = steps[i];
+  if (step.kind !== "agent") return {};
+  const check: AgentCheck = {};
+  const provider = step.provider ? providers?.find((p) => p.id === step.provider) : undefined;
+  if (step.provider && providers && (!provider || provider.kind !== "cli"))
+    check.error = `Can't save. ${providerName(providers, step.provider)} isn't a CLI provider a step can run on.`;
+  if (i === 0) check.continueOff = "Step 1 can only be New.";
+  else if (provider && provider.adapter !== "claude")
+    check.continueOff = `Continue is off. Only claude can resume a session, and this step uses ${provider.label}.`;
+  if (!isContinue(step.agent) || check.error || i === 0) return check;
+  if (check.continueOff) return { ...check, error: `Can't save. Only claude can resume a session, and this step uses ${provider?.label}.` };
+  const j = continueTarget(steps, i);
+  if (j < 0) return { ...check, error: "Can't save. There is no earlier agent step to continue. Switch to New." };
+  if (j >= i) return { ...check, error: `Can't save. Step ${j + 1} comes after this step. Pick an earlier one.` };
+  const source = steps[j];
+  if (source.kind !== "agent") return { ...check, error: `Can't save. A "You" step has no agent session to continue.` };
+  if ((step.provider || null) !== (source.provider || null))
+    return {
+      ...check,
+      error: `Can't save. Step ${j + 1} runs on ${providerName(providers, source.provider)} and this step on ${providerName(providers, step.provider)}. Pick another step or switch to New.`,
+    };
+  if ((step.model || null) !== (source.model || null))
+    check.warning = "Allowed. Switching model drops the prompt cache and re-reads the session at full price.";
+  return check;
+}
+
+/** The rail's second line for a step: who does it, on which provider, in which agent mode. */
+export function stepMeta(steps: StepDraft[], i: number, providers: ProviderInfo[] | null): string {
+  const step = steps[i];
+  if (step.kind === "review") return "You";
+  const provider = step.provider ? providerName(providers, step.provider) : "default";
+  const agent = i === 0 ? "new" : step.agent;
+  let mode = "new";
+  if (agent === "handoff") mode = "new + hand-off";
+  else if (isContinue(agent)) mode = `continue: ${steps[continueTarget(steps, i)]?.slug || "?"}`;
+  return `Agent · ${provider} · ${mode}`;
+}
+
+/** The label between step `index` and the one before it, as the run timeline shows it. */
+export function betweenLabel(steps: StepDraft[], index: number): string {
+  const next = steps[index];
   if (next.kind === "review") return "You review the diff";
   if (next.agent === "new") return "Fresh start · no context";
-  if (next.agent?.startsWith("continue")) return "Resumes an earlier agent session";
-  return `Passes output to step ${nextNumber}`;
+  if (isContinue(next.agent)) {
+    const source = continueSourceIndex(steps, index);
+    return source >= 0 ? `resumes step ${source + 1}'s agent` : "resumes an earlier agent";
+  }
+  return `hand-off → step ${index + 1}`;
+}
+
+/** The Send back explanation for review step `at`: which step it reruns and whose agent resumes. */
+function sendBackHint(steps: StepDraft[], at: number): string | null {
+  const nearestAgent = (before: number) => steps.slice(0, before).map((s) => s.kind).lastIndexOf("agent");
+  const chosen = steps.findIndex((s, j) => j < at && s.id === steps[at].sendBackTo && s.kind === "agent");
+  const target = chosen >= 0 ? chosen : nearestAgent(at);
+  if (target < 0) return null;
+  const prior = nearestAgent(target);
+  if (prior < 0) return `Resets the code to before step ${target + 1} and reruns it with a fresh agent.`;
+  return `Resets the code to before step ${target + 1} and resumes step ${prior + 1}'s agent, which hasn't seen the rejected work. Starts a fresh agent if step ${prior + 1} has no session.`;
 }
 
 /** The modal workflow editor: create a workflow or edit one, step by step. */
@@ -93,6 +167,8 @@ export function WorkflowEditorDialog({
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
+  const [providers, setProviders] = useState<ProviderInfo[] | null>(null);
+  const [models, setModels] = useState<Record<string, ProviderModelsResult | null>>({});
 
   useEffect(() => {
     let live = true;
@@ -105,11 +181,31 @@ export function WorkflowEditorDialog({
     };
   }, [client]);
 
+  useEffect(() => {
+    let live = true;
+    listProviders()
+      .then((found) => live && setProviders(found))
+      .catch(() => {});
+    return () => {
+      live = false;
+    };
+  }, []);
+
   const inUse = Boolean(
     workflow && runs.some((r) => r.workflowId === workflow.id && r.state !== "done" && r.state !== "stopped"),
   );
   const at = Math.min(selected, steps.length - 1);
   const step = steps[at];
+  const checks = steps.map((_, i) => agentCheck(steps, i, providers));
+  const providerId = step.kind === "agent" ? step.provider : null;
+
+  useEffect(() => {
+    if (!providerId || providerId in models) return;
+    setModels((m) => ({ ...m, [providerId]: null }));
+    fetchProviderModels(providerId)
+      .then((found) => setModels((m) => ({ ...m, [providerId]: found })))
+      .catch(() => setModels((m) => ({ ...m, [providerId]: { supported: false, models: [] } })));
+  }, [providerId, models]);
 
   const patch = (i: number, change: Partial<StepDraft>) =>
     setSteps(steps.map((s, j) => (j === i ? { ...s, ...change } : s)));
@@ -139,7 +235,8 @@ export function WorkflowEditorDialog({
     const gone = steps[i].id;
     const next = steps
       .filter((_, j) => j !== i)
-      .map((s) => (s.sendBackTo === gone ? { ...s, sendBackTo: null } : s));
+      .map((s) => (s.sendBackTo === gone ? { ...s, sendBackTo: null } : s))
+      .map((s) => (s.agent === `continue:${gone}` ? { ...s, agent: "continue" as const } : s));
     setSteps(next);
     setSelected(Math.max(0, i - 1));
   };
@@ -181,6 +278,11 @@ export function WorkflowEditorDialog({
       if (firstBad !== undefined) setSelected(Number(firstBad));
       return;
     }
+    const agentBad = checks.findIndex((c) => c.error);
+    if (agentBad >= 0) {
+      setSelected(agentBad);
+      return;
+    }
     setBusy(true);
     setError(null);
     setNotice(null);
@@ -212,6 +314,29 @@ export function WorkflowEditorDialog({
 
   const earlierAgents = steps.slice(0, at).filter((s) => s.kind === "agent");
   const stepError = errors.steps?.[at];
+  const check = checks[at];
+  const mode: AgentMode = at === 0 || !step.agent ? "new" : isContinue(step.agent) ? "continue" : step.agent === "handoff" ? "handoff" : "new";
+  const agentCards: { mode: AgentMode; title: string; text: string; disabled: boolean }[] = [
+    { mode: "new", title: "New", text: "Fresh agent with only this step's instructions.", disabled: false },
+    { mode: "handoff", title: "New + hand-off", text: `Fresh agent, plus step ${at}'s output and changes.`, disabled: at === 0 },
+    { mode: "continue", title: "Continue", text: "Resumes an earlier step's agent. claude only.", disabled: Boolean(check.continueOff) && mode !== "continue" },
+  ];
+  const nearest = at > 0 ? steps.slice(0, at).map((s) => s.kind).lastIndexOf("agent") : -1;
+  const target = step.kind === "agent" && step.agent?.startsWith("continue:") ? continueTarget(steps, at) : -1;
+  const sourceOptions = steps.flatMap((s, j) => ((j < at && s.kind === "agent") || j === target ? [j] : []));
+  const sourceLabel = (j: number) => {
+    const s = steps[j];
+    const note = s.kind === "review" ? " (you)" : j > at ? " (later step)" : s.provider ? ` (${providerName(providers, s.provider)})` : "";
+    return `Step ${j + 1} · ${s.slug || "untitled"}${note}`;
+  };
+  const providerOptions = (providers ?? []).filter((p) => p.kind === "cli" || p.id === step.provider);
+  if (step.provider && !providerOptions.some((p) => p.id === step.provider))
+    providerOptions.push({ id: step.provider, label: step.provider, kind: "cli", adapter: null });
+  const catalog = step.provider ? models[step.provider] : null;
+  const listed = Boolean(catalog?.supported && catalog.models.length > 0);
+  const modelOptions = [...(catalog?.models ?? [])];
+  if (step.model && !modelOptions.some((m) => m.id === step.model)) modelOptions.push({ id: step.model, label: null });
+  const backHint = step.kind === "review" ? sendBackHint(steps, at) : null;
 
   return (
     <ModalDialog label="Workflow editor" className="agent-dialog-wide workflow-editor" onDismiss={busy ? undefined : onClose}>
@@ -239,22 +364,26 @@ export function WorkflowEditorDialog({
               return (
                 <li key={s.id}>
                   {i > 0 && (
-                    <div className="workflow-editor-between" data-testid={`between-${i}`}>
-                      {betweenLabel(s, i + 1)}
+                    <div
+                      className="workflow-editor-between"
+                      data-testid={`between-${i}`}
+                      data-mode={s.kind === "review" ? "review" : isContinue(s.agent) ? "continue" : s.agent}
+                    >
+                      {betweenLabel(steps, i)}
                     </div>
                   )}
                   <button
                     type="button"
                     className="workflow-editor-step"
                     data-selected={i === at}
-                    data-invalid={Boolean(errors.steps?.[i])}
+                    data-invalid={Boolean(errors.steps?.[i] || checks[i].error)}
                     aria-current={i === at}
                     aria-label={`Step ${i + 1}: ${s.slug || "untitled"}`}
                     onClick={() => setSelected(i)}
                   >
                     <span className="workflow-editor-num">{i + 1}</span>
                     <span className="workflow-editor-step-title">{s.slug || "untitled"}</span>
-                    <small style={{ color: meta.color }}>{s.kind === "agent" ? "Agent" : "You"}</small>
+                    <small style={{ color: meta.color }}>{stepMeta(steps, i, providers)}</small>
                   </button>
                 </li>
               );
@@ -289,6 +418,84 @@ export function WorkflowEditorDialog({
 
           {step.kind === "agent" ? (
             <>
+              <fieldset className="workflow-editor-agent">
+                <legend>Agent</legend>
+                <div className="workflow-editor-agent-cards">
+                  {agentCards.map((card) => (
+                    <label key={card.mode} className="workflow-editor-agent-card" data-checked={mode === card.mode} data-disabled={card.disabled}>
+                      <input
+                        type="radio"
+                        name={`agent-${step.id}`}
+                        aria-label={card.title}
+                        checked={mode === card.mode}
+                        disabled={card.disabled}
+                        onChange={() => patch(at, { agent: card.mode })}
+                      />
+                      <span className="workflow-editor-agent-text">
+                        <strong>
+                          {card.title}
+                          {card.mode === "new" && <small> · default</small>}
+                        </strong>
+                        <small>{card.text}</small>
+                        {card.mode === "continue" && at > 0 && (
+                          <select
+                            aria-label="Continue from"
+                            aria-invalid={Boolean(check.error)}
+                            disabled={mode !== "continue"}
+                            value={step.agent?.startsWith("continue:") ? step.agent.slice("continue:".length) : ""}
+                            onChange={(e) => patch(at, { agent: e.target.value ? `continue:${e.target.value}` : "continue" })}
+                          >
+                            <option value="">
+                              {nearest >= 0 ? `Nearest earlier · Step ${nearest + 1} · ${steps[nearest].slug || "untitled"}` : "Nearest earlier agent step"}
+                            </option>
+                            {sourceOptions.map((j) => (
+                              <option key={steps[j].id} value={steps[j].id}>
+                                {sourceLabel(j)}
+                              </option>
+                            ))}
+                          </select>
+                        )}
+                      </span>
+                    </label>
+                  ))}
+                </div>
+                {check.continueOff && <small className="workflow-editor-agent-reason">{check.continueOff}</small>}
+                {check.error && <p className="agent-dialog-error" role="alert">{check.error}</p>}
+                {check.warning && <p className="workflow-editor-warning" role="status">{check.warning}</p>}
+              </fieldset>
+              <div className="workflow-editor-pair">
+                <label className="workflow-editor-field">
+                  Provider
+                  <select value={step.provider ?? ""} onChange={(e) => patch(at, { provider: e.target.value || null, model: null })}>
+                    <option value="">Default (workflow setting)</option>
+                    {providerOptions.map((p) => (
+                      <option key={p.id} value={p.id}>
+                        {p.label}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <label className="workflow-editor-field">
+                  Model
+                  {listed ? (
+                    <select value={step.model ?? ""} onChange={(e) => patch(at, { model: e.target.value || null })}>
+                      <option value="">Default (workflow setting)</option>
+                      {modelOptions.map((m) => (
+                        <option key={m.id} value={m.id}>
+                          {m.label || m.id}
+                        </option>
+                      ))}
+                    </select>
+                  ) : (
+                    <input
+                      value={step.model ?? ""}
+                      disabled={!step.provider}
+                      placeholder="Default (workflow setting)"
+                      onChange={(e) => patch(at, { model: e.target.value.trim() ? e.target.value : null })}
+                    />
+                  )}
+                </label>
+              </div>
               <label className="workflow-editor-field">
                 Instructions
                 <textarea
@@ -314,27 +521,16 @@ export function WorkflowEditorDialog({
                   </small>
                 )}
               </label>
-              <div className="workflow-editor-field">
-                <span id="ctx-label">Context</span>
-                <div className="workflow-editor-segment" role="group" aria-labelledby="ctx-label">
-                  <button
-                    type="button"
-                    disabled={at === 0}
-                    aria-pressed={at > 0 && step.agent === "handoff"}
-                    onClick={() => patch(at, { agent: "handoff" })}
-                  >
-                    {at > 0 ? `Continue from step ${at}` : "Continue from previous step"}
-                  </button>
-                  <button
-                    type="button"
-                    disabled={at === 0}
-                    aria-pressed={at === 0 || step.agent === "new"}
-                    onClick={() => patch(at, { agent: "new" })}
-                  >
-                    Start fresh
-                  </button>
-                </div>
-              </div>
+              <label className="workflow-editor-field">
+                Step input (optional)
+                <textarea
+                  className="agent-dialog-textarea workflow-editor-extra"
+                  value={step.extraPrompt ?? ""}
+                  placeholder="Extra notes for this step…"
+                  onChange={(e) => patch(at, { extraPrompt: e.target.value || null })}
+                />
+                <small>Added after the instructions, for this step only</small>
+              </label>
               <label className="workflow-editor-field">
                 Skill (optional)
                 <select value={step.skill} onChange={(e) => patch(at, { skill: e.target.value })}>
@@ -386,6 +582,7 @@ export function WorkflowEditorDialog({
                     </option>
                   ))}
                 </select>
+                {backHint && <small className="workflow-editor-hint">{backHint}</small>}
               </label>
             </>
           )}

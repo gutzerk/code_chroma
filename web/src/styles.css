@@ -1229,6 +1229,13 @@ body {
   z-index: 40;
 }
 
+/* The open left panel floats over the canvas's bottom-left: keep the notes beside it, not under it. */
+.canvas-area:has(.left-panel) .wiki-general-notice,
+.canvas-area:has(.left-panel) .c1-coverage-note,
+.canvas-area:has(.left-panel) .diagram-health-note {
+  left: calc(var(--chrome-inset, 12px) + var(--left-panel-width, 262px) + 12px);
+}
+
 /* The generating row grows tall once the output feed is showing -- top-align instead of the
    idle row's vertical centering, and give the spinner/button a nudge so they sit level with the
    first text line rather than the whole (now much taller) row. */
@@ -2303,6 +2310,7 @@ body {
    (gutzerk/code_chroma#61). Each panel in the row is its own rounded floating card, so the 6px gap
    between them is what reads as separation instead of a hard border line. */
 .canvas-main-row {
+  position: relative;
   display: flex;
   flex: 1;
   min-width: 0;

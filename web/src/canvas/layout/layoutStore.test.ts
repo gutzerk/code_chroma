@@ -72,4 +72,13 @@ describe("layoutStore", () => {
 
     expect(layoutStore.getState().selectedAgentId).toBe("a1");
   });
+
+  it("toggleAgentsFull flips between normal and full", () => {
+    layoutStore.toggleAgentsFull();
+    const stretched = layoutStore.getState().agentsMode;
+    layoutStore.toggleAgentsFull();
+
+    expect(stretched).toBe("full");
+    expect(layoutStore.getState().agentsMode).toBe("normal");
+  });
 });

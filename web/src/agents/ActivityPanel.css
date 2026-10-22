@@ -1,16 +1,18 @@
 /* Same surface, tabs and edge handle as the diagrams panel. */
 .activity-panel {
-  position: relative;
-  flex: 0 0 400px;
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  bottom: 12px;
   width: 400px;
   min-width: 0;
-  margin: 12px 12px 12px 20px;
+  margin: 0;
   padding: 12px;
   box-sizing: border-box;
   border-radius: 22px;
   background: #15181f;
   color: #c4c8d4;
-  z-index: 3;
+  z-index: 41;
 }
 .activity-content {
   display: flex;
@@ -25,7 +27,6 @@
   display: none;
 }
 .activity-panel.is-collapsed {
-  flex-basis: 52px;
   width: 52px;
   padding: 6px;
 }

@@ -574,7 +574,7 @@ export function RootCanvas() {
               arrange={<ArrangeSection getViewport={getStageViewport} />}
             />
           ) : (
-            <CollapsedLeftBar />
+            agentsMode !== "full" && <CollapsedLeftBar />
           )}
           {drawOpen && <DrawDiagramPopover onClose={() => setDrawOpen(false)} />}
         </div>

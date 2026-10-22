@@ -110,6 +110,23 @@ describe("ArrangeSection", () => {
     );
   });
 
+  it("keeps user edits made in Arrange when switching modes and returning to free placement", async () => {
+    const patchCanvas = setup();
+    await act(async () => fireEvent.click(screen.getByRole("button", { name: "Side by side" })));
+    const placed = canvasDocStore.getDoc().elements.a.position;
+    const moved = { x: placed.x + 75, y: placed.y - 130 };
+    await act(async () => {
+      await patchCanvas({ ops: [{ id: "a", position: moved }] });
+      canvasDocStore.moveElements({ a: moved });
+    });
+    await act(async () => fireEvent.click(screen.getByRole("button", { name: "Stack" })));
+
+    await act(async () => fireEvent.click(screen.getByRole("button", { name: "Stack" })));
+
+    expect(canvasDocStore.getDoc().elements.a.position).toEqual({ x: 575, y: 370 });
+    expect(canvasDocStore.getDoc().elements.b.position).toEqual({ x: 900, y: 900 });
+  });
+
   it("restores the original positions when the active mode is clicked again", async () => {
     setup();
     await act(async () => {

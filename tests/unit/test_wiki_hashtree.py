@@ -1,4 +1,4 @@
-"""Unit tests for wiki/hashtree.py's HashNode, build_tree(), diff_tree(), and persistence."""
+"""Unit tests for wiki/hashtree.py: HashNode, build_tree(), diff_tree(), persistence, fallback."""
 
 import pytest
 
@@ -136,3 +136,15 @@ def test_persist_tree_then_load_previous_tree_round_trips(repo_root):
     loaded = load_previous_tree(output_dir)
 
     assert loaded == tree
+
+
+def test_load_previous_tree_is_none_for_a_missing_hashtree_file(tmp_path):
+    assert load_previous_tree(tmp_path / "wiki") is None
+
+
+def test_load_previous_tree_is_none_for_a_corrupt_hashtree_file(tmp_path):
+    output_dir = tmp_path / "wiki"
+    output_dir.mkdir(parents=True)
+    (output_dir / ".hashtree.json").write_text("not valid json{{{", encoding="utf-8")
+
+    assert load_previous_tree(output_dir) is None

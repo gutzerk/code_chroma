@@ -10,11 +10,7 @@ from codechroma.bridge.diagram_registry import DIAGRAMS, DiagramRegistry
 from codechroma.bridge.services import _build_skill_agents
 from codechroma.diagrams import library
 
-
-@pytest.fixture(autouse=True)
-def _isolated_library(tmp_path, monkeypatch):
-    """Every test gets its own throwaway library dir -- never the real ~/.codechroma library."""
-    monkeypatch.setenv(library.DIAGRAM_TYPES_DIR_ENV, str(tmp_path / "diagram-types"))
+pytestmark = pytest.mark.usefixtures("isolated_library")
 
 
 def _definition(type_id: str = "data-flow") -> dict:

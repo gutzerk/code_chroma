@@ -134,16 +134,24 @@ def test_add_edge_sanitizes_style_to_the_allowed_keys():
     assert edge.style == {"border-color": "var(--warning)"}
 
 
-def test_update_edge_clears_style_when_set_to_null():
+@pytest.mark.parametrize(
+    ("op", "target"), [("update_edge", "e1"), ("update_element", "el")], ids=["edge", "element"]
+)
+def test_update_clears_style_when_set_to_null(op, target):
     doc = CanvasDoc(
-        elements={"a": Element(id="a", render="c1"), "b": Element(id="b", render="c1")},
+        elements={
+            "a": Element(id="a", render="c1"),
+            "b": Element(id="b", render="c1"),
+            "el": Element(id="el", render="c1", style={"color": "red"}),
+        },
         edges={"e1": Edge(id="e1", **{"from": "a"}, to="b", style={"color": "red"})},
     )
 
-    result = apply_batch(doc, [{"op": "update_edge", "id": "e1", "style": None}])
+    result = apply_batch(doc, [{"op": op, "id": target, "style": None}])
 
     assert result.ok
-    assert result.doc.edges["e1"].style is None
+    cleared = result.doc.edges[target] if op == "update_edge" else result.doc.elements[target]
+    assert cleared.style is None
 
 
 def test_update_element_patches_position_and_label():
@@ -170,15 +178,6 @@ def test_update_element_replaces_style_wholesale_not_merged():
 
     assert result.ok
     assert result.doc.elements["e1"].style == {"background": "green"}
-
-
-def test_update_element_clears_style_when_set_to_null():
-    doc = CanvasDoc(elements={"e1": Element(id="e1", render="c1", style={"color": "red"})})
-
-    result = apply_batch(doc, [{"op": "update_element", "id": "e1", "style": None}])
-
-    assert result.ok
-    assert result.doc.elements["e1"].style is None
 
 
 def test_update_edge_patches_label():
@@ -281,13 +280,19 @@ def test_too_many_ops_rejects_the_batch():
     assert result.errors[0].code == "too_many_ops"
 
 
-def test_mass_delete_guard_rejects_over_the_threshold():
-    doc = CanvasDoc(elements={
-        f"e{i}": Element(id=f"e{i}", render="c1") for i in range(MASS_DELETE_GUARD + 1)
-    })
-    ops = [{"op": "delete_element", "id": f"e{i}"} for i in range(MASS_DELETE_GUARD + 1)]
+@pytest.mark.parametrize(
+    ("apply", "extra_ops"),
+    [(apply_batch, 0), (apply_batch_chunked, MAX_OPS_PER_BATCH)],
+    ids=["plain", "chunked-across-chunks"],
+)
+def test_mass_delete_guard_rejects_over_the_threshold(apply, extra_ops):
+    count = MASS_DELETE_GUARD + 1 if apply is apply_batch else MAX_OPS_PER_BATCH + 5
+    doc = CanvasDoc(elements={f"e{i}": Element(id=f"e{i}", render="c1") for i in range(count)})
+    ops = [{"op": "delete_element", "id": f"e{i}"} for i in range(MASS_DELETE_GUARD + 1)] + [
+        {"op": "add_note", "label": str(i)} for i in range(extra_ops)
+    ]
 
-    result = apply_batch(doc, ops)
+    result = apply(doc, ops)
 
     assert not result.ok
     assert result.errors[0].code == "mass_delete_guard"
@@ -394,13 +399,16 @@ def test_mass_delete_guard_counts_cascaded_edge_deletions_too():
     assert result.errors[0].code == "mass_delete_guard"
 
 
-def test_confirm_mass_delete_bypasses_the_guard():
-    doc = CanvasDoc(elements={
-        f"e{i}": Element(id=f"e{i}", render="c1") for i in range(MASS_DELETE_GUARD + 1)
-    })
-    ops = [{"op": "delete_element", "id": f"e{i}"} for i in range(MASS_DELETE_GUARD + 1)]
+@pytest.mark.parametrize(
+    ("apply", "count"),
+    [(apply_batch, MASS_DELETE_GUARD + 1), (apply_batch_chunked, MAX_OPS_PER_BATCH + 5)],
+    ids=["plain", "chunked-across-chunks"],
+)
+def test_confirm_mass_delete_bypasses_the_guard(apply, count):
+    doc = CanvasDoc(elements={f"e{i}": Element(id=f"e{i}", render="c1") for i in range(count)})
+    ops = [{"op": "delete_element", "id": f"e{i}"} for i in range(count)]
 
-    result = apply_batch(doc, ops, confirm_mass_delete=True)
+    result = apply(doc, ops, confirm_mass_delete=True)
 
     assert result.ok
     assert result.doc.elements == {}
@@ -479,31 +487,6 @@ def test_chunked_batch_rewrites_a_cross_chunk_temp_id_ref():
     edge = result.doc.edges[result.id_map["e"]]
     assert edge.from_ == result.id_map["a"]
     assert edge.to == result.id_map["b"]
-
-
-def test_chunked_batch_mass_delete_guard_counts_across_chunks():
-    doc = CanvasDoc(elements={
-        f"e{i}": Element(id=f"e{i}", render="c1") for i in range(MAX_OPS_PER_BATCH + 5)
-    })
-    ops = ([{"op": "delete_element", "id": f"e{i}"} for i in range(MASS_DELETE_GUARD + 1)]
-           + [{"op": "add_note", "label": str(i)} for i in range(MAX_OPS_PER_BATCH)])
-
-    result = apply_batch_chunked(doc, ops)
-
-    assert not result.ok
-    assert result.errors[0].code == "mass_delete_guard"
-
-
-def test_chunked_batch_confirm_mass_delete_bypasses_the_guard_across_chunks():
-    doc = CanvasDoc(elements={
-        f"e{i}": Element(id=f"e{i}", render="c1") for i in range(MAX_OPS_PER_BATCH + 5)
-    })
-    ops = [{"op": "delete_element", "id": f"e{i}"} for i in range(MAX_OPS_PER_BATCH + 5)]
-
-    result = apply_batch_chunked(doc, ops, confirm_mass_delete=True)
-
-    assert result.ok
-    assert result.doc.elements == {}
 
 
 def test_chunked_batch_failure_leaves_the_original_doc_untouched():

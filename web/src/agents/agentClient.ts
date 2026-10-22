@@ -53,6 +53,8 @@ export interface AgentClient {
     contextKind?: "view" | "task",
     diagram?: DiagramTaskHint,
   ): Promise<AgentRecord>;
+  /** A claude agent in workflow run `runId`'s worktree whose first start forks `sessionId` (`--resume <id> --fork-session`). */
+  openStepSession(title: string, runId: string, sessionId: string): Promise<AgentRecord>;
   /** Brings up the PTY in the agent's worktree; `resume` continues its recorded conversation. */
   start(id: string, resume?: boolean): Promise<AgentRecord>;
   /** Kills the PTY and keeps the worktree and branch — the work is not the process. */
@@ -132,6 +134,13 @@ export class HttpAgentClient implements AgentClient {
         diagram_type: diagram?.type,
         diagram_request: diagram?.request,
       }),
+    );
+  }
+
+  openStepSession(title: string, runId: string, sessionId: string): Promise<AgentRecord> {
+    return this.request<AgentRecord>(
+      "/agents",
+      this.json("POST", { title, kind: "claude", run_id: runId, fork_session: sessionId }),
     );
   }
 

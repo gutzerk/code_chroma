@@ -454,6 +454,21 @@ branch through an agent attached to it (`_guard_shared_worktree`, keyed off `Age
   `web/src/agents/*.test.{ts,tsx}`,
   `web/src/engine-client/workspacePings.test.ts`, `web/e2e/agent-windows.spec.ts`.
 
+## Open agent on a workflow step (019 Stage 5, C# bridge)
+
+`POST /agents` also takes `run_id` + `fork_session` (both or neither, `kind` must be `claude`, else
+400). `AgentManager.CreateInRun` puts the record in that run's own worktree
+(`WorkflowRunner.WorktreeFor(MainRoot, runId)`, 404 when it is gone), on the worktree's current branch,
+with `source_run` and `fork_session` persisted on the record (both also in the payload). A
+non-resume `POST /agents/{id}/start` then launches `claude --resume <fork_session> --fork-session`
+(`TerminalAgents.Resolve(..., forkSession: true)`, claude kind only), so the step's own session is
+never written to; `{resume:true}` resumes the agent's own (forked) session as usual.
+`CaptureSessionId` excludes `fork_session` and every step session recorded on the run, so the agent
+never claims a step's transcript in the shared worktree. Deleting the worktree or branch through
+such an agent is refused (the run owns them). Runs are looked up under the main repository only.
+Web: `AgentClient.openStepSession`, `launchAgent.openStepAgent`, the Open agent button in
+`workflows/StepRail.tsx`. Tests: `CodeChroma.Bridge.Tests/Agents/OpenStepAgentTests.cs`.
+
 ## Canvas questions (017)
 
 Claude agent windows launch with the CodeChroma MCP server (`ask_user`) registered through `agent_cli`'s `mcp` parameter, plus the `CODECHROMA_BRIDGE_URL`/`CODECHROMA_QUESTION_TOKEN` env vars; see [`ai-questions.md`](ai-questions.md) "Agent wiring". A bridge restart invalidates old tokens, so agent windows are respawned with fresh ones.

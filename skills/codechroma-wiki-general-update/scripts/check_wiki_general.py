@@ -30,6 +30,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 
 _FETCH_TIMEOUT_SECONDS = 10
+_FETCH_BATCH_SIZE = 50  # keeps each wiki-context URL well under common ~8KB server limits
 _REF_RE = re.compile(r"^\s*-\s+(?:File|Class|Function):\s+`([^`]+)`\s*$", re.MULTILINE)
 _CONNECTS_RE = re.compile(r"^\s*-\s+Connects:\s+`([^`]+)`\s*$", re.MULTILINE)
 _LINK_RE = re.compile(r"\[[^\]]+\]\(([^)#]+)(?:#[^)]*)?\)")
@@ -251,12 +252,18 @@ def _check_page(path: Path, kind: str, report: _Report) -> set[str]:
 def _http_gap_fetcher(url: str, repo: str):
     """The CLI's own gap-fetching strategy -- a real HTTP round trip to a running bridge."""
 
-    def fetch(paths: list[str]) -> set[str]:
+    def fetch_batch(paths: list[str]) -> set[str]:
         query = urllib.parse.quote(",".join(paths), safe=",/")
         request_url = f"{url.rstrip('/')}/repos/{repo}/wiki-context?paths={query}"
         with urllib.request.urlopen(request_url, timeout=_FETCH_TIMEOUT_SECONDS) as response:
             bundle = json.loads(response.read().decode("utf-8"))
         return set(bundle.get("gaps") or []) if isinstance(bundle, dict) else set(paths)
+
+    def fetch(paths: list[str]) -> set[str]:
+        gaps: set[str] = set()
+        for start in range(0, len(paths), _FETCH_BATCH_SIZE):
+            gaps |= fetch_batch(paths[start : start + _FETCH_BATCH_SIZE])
+        return gaps
 
     return fetch
 

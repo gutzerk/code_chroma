@@ -80,6 +80,7 @@ export function AgentSwitcherRow({
                 type="button"
                 role="option"
                 aria-selected={agent.id === activeId}
+                data-diagram={agent.context_kind === "task" || undefined}
                 onClick={() => select(agent)}
               >
                 <AgentLed status={agent.status} />
@@ -87,6 +88,7 @@ export function AgentSwitcherRow({
                   <span className="activity-switcher-title">{agent.title}</span>
                   <span className="activity-switcher-meta">{agentMeta(agent)}</span>
                 </span>
+                {agent.context_kind === "task" && <span className="activity-agent-badge">Diagram</span>}
               </button>
             </li>
           ))}

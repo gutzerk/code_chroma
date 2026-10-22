@@ -88,10 +88,12 @@ export function useReflowEpics(
     const anchorEl = anchorId ? doc.elements[anchorId] : undefined;
     const currentTop = anchorEl?.size ? anchorEl.position.y - anchorEl.size.h : 0;
     const yOffset = anchorId ? currentTop - anchorTop : 0;
+    // Arrange and whole-diagram dragging translate both axes; content fitting must keep that anchor.
+    const xOffset = anchorId && anchorEl ? anchorEl.position.x - positions[anchorId].x : 0;
     const ops = Object.entries(positions).map(([id, position]) => ({
       op: "update_element" as const,
       id,
-      position: { x: position.x, y: position.y + yOffset },
+      position: { x: position.x + xOffset, y: position.y + yOffset },
       ...(sizes[id] ? { size: sizes[id] } : {}),
     }));
     if (ops.length > 0) {

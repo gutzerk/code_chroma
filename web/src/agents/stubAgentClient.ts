@@ -1,4 +1,4 @@
-import type { GithubOpenPr, PrImportPreflight, PrWorkspace, PrWorkspaceList } from "../state/types";
+import type { AgentRecord, GithubOpenPr, PrImportPreflight, PrWorkspace, PrWorkspaceList } from "../state/types";
 
 /** An empty pull-request list — what GET /prs returns when no review is open. */
 const EMPTY_PR_LIST: PrWorkspaceList = {
@@ -31,4 +31,7 @@ export const PR_CLIENT_STUB = {
     throw new Error("no bridge in this test");
   },
   closePr: async (): Promise<void> => {},
+  openStepSession: async (): Promise<AgentRecord> => {
+    throw new Error("no bridge in this test");
+  },
 };

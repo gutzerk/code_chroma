@@ -12,7 +12,7 @@ import {
   isFinished,
   type PanelLayout,
 } from "./runControls";
-import { workflowInputs, type Run, type StepRecord, type WorkflowDef } from "./types";
+import type { Run, StepRecord, WorkflowDef } from "./types";
 import type { WorkflowActions } from "./workflowStore";
 
 /** A segmented progress bar, one segment per step. */
@@ -202,63 +202,12 @@ function FinishedRow({
   );
 }
 
-function SavedRow({
-  workflow,
-  layout,
-  onEdit,
-  onRun,
-  onDelete,
-}: {
-  workflow: WorkflowDef;
-  layout: PanelLayout;
-  onEdit: (workflow: WorkflowDef) => void;
-  onRun: (workflow: WorkflowDef) => void;
-  onDelete: (workflow: WorkflowDef) => void;
-}) {
-  const inputs = workflowInputs(workflow).length;
-  const detail = `${workflow.steps.length} steps${inputs ? ` · ${inputs} input${inputs > 1 ? "s" : ""}` : ""}`;
-  const secondary: MenuItem[] = [
-    { label: "Edit", icon: "edit", onSelect: () => onEdit(workflow) },
-    { label: "Delete", icon: "trash", danger: true, onSelect: () => onDelete(workflow) },
-  ];
-  return (
-    <li className="wf-run-card wf-run-clickable" onClick={openOnBackgroundClick(() => onEdit(workflow))} data-testid={`saved-${workflow.id}`}>
-      <div className="wf-run-open wf-saved-head">
-        <span className="wf-run-name wf-truncate" title={workflow.name}>
-          {workflow.name}
-        </span>
-        <span className="wf-run-stage wf-truncate">{detail}</span>
-      </div>
-      <div className="wf-run-actions">
-        <button type="button" className="wf-btn wf-btn-primary" aria-label={`Start run: ${workflow.name}`} onClick={() => onRun(workflow)}>
-          <Icon name="play" />
-          Run
-        </button>
-        {layout === "narrow" ? (
-          <OverflowMenu items={secondary} />
-        ) : (
-          <>
-            <button type="button" className="wf-btn" aria-label={`Edit workflow ${workflow.name}`} onClick={() => onEdit(workflow)}>
-              <Icon name="edit" />
-              Edit
-            </button>
-            <button type="button" className="wf-btn wf-btn-icon" aria-label={`Delete workflow ${workflow.name}`} onClick={() => onDelete(workflow)}>
-              <Icon name="trash" />
-            </button>
-          </>
-        )}
-      </div>
-    </li>
-  );
-}
-
 type Pending =
   | { kind: "restart"; run: Run }
   | { kind: "deleteRun"; run: Run }
-  | { kind: "clear" }
-  | { kind: "deleteWorkflow"; workflow: WorkflowDef };
+  | { kind: "clear" };
 
-/** The sectioned lists: Active runs, Finished runs (restart/delete/clear) and Saved workflows (edit/run). */
+/** The sectioned lists: Active runs and Finished runs (restart/delete/clear), then the button to the All workflows screen. */
 export function RunsList({
   runs,
   workflows,
@@ -266,8 +215,7 @@ export function RunsList({
   layout,
   actions,
   onOpen,
-  onEdit,
-  onRun,
+  onAllWorkflows,
 }: {
   runs: Run[];
   workflows: WorkflowDef[];
@@ -275,8 +223,7 @@ export function RunsList({
   layout: PanelLayout;
   actions: WorkflowActions;
   onOpen: (runId: string) => void;
-  onEdit: (workflow: WorkflowDef) => void;
-  onRun: (workflow: WorkflowDef) => void;
+  onAllWorkflows: () => void;
 }) {
   const [pending, setPending] = useState<Pending | null>(null);
   const active = runs.filter((r) => !isFinished(r.state));
@@ -292,8 +239,6 @@ export function RunsList({
         return { label: "Delete run", message: `Delete run ${pending.run.id}? Its worktree and result are removed.`, confirmLabel: "Delete", run: () => void actions.deleteRun(pending.run.id) };
       case "clear":
         return { label: "Clear finished", message: "Delete every finished run?", confirmLabel: "Clear", run: () => void actions.clearFinished() };
-      case "deleteWorkflow":
-        return { label: "Delete workflow", message: `Delete "${pending.workflow.name}"?`, confirmLabel: "Delete", run: () => void actions.deleteWorkflow(pending.workflow.id) };
     }
   };
   const dialog = confirm();
@@ -340,18 +285,11 @@ export function RunsList({
           </ul>
         )}
       </section>
-      <section aria-labelledby="wf-saved-h">
-        <h3 id="wf-saved-h" className="workflow-list-heading">{`Saved workflows (${workflows.length})`}</h3>
-        {workflows.length === 0 ? (
-          <p className="workflow-empty">No saved workflows. Use New workflow to create one.</p>
-        ) : (
-          <ul className="wf-run-list" aria-label="Saved workflows">
-            {workflows.map((w) => (
-              <SavedRow key={w.id} workflow={w} layout={layout} onEdit={onEdit} onRun={onRun} onDelete={(wf) => setPending({ kind: "deleteWorkflow", workflow: wf })} />
-            ))}
-          </ul>
-        )}
-      </section>
+      <button type="button" className="wf-btn wf-all-open" data-testid="all-workflows-open" onClick={onAllWorkflows}>
+        <Icon name="list" />
+        <span className="wf-truncate">{`All workflows · ${workflows.length}`}</span>
+        <Icon name="chevron-right" />
+      </button>
       {dialog && (
         <ConfirmDialog
           label={dialog.label}

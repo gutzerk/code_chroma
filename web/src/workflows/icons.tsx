@@ -22,7 +22,13 @@ export type IconName =
   | "skip"
   | "chevron-up"
   | "chevron-down"
-  | "redo";
+  | "redo"
+  | "list"
+  | "chevron-right"
+  | "search"
+  | "copy"
+  | "expand"
+  | "shrink";
 
 const PATHS: Record<IconName, ReactNode> = {
   pause: <path d="M6 4h4v16H6zM14 4h4v16h-4z" fill="currentColor" stroke="none" />,
@@ -62,6 +68,22 @@ const PATHS: Record<IconName, ReactNode> = {
   skip: <path d="M5 5l9 7-9 7zM18 5v14" />,
   "chevron-up": <path d="M6 15l6-6 6 6" />,
   "chevron-down": <path d="M6 9l6 6 6-6" />,
+  "chevron-right": <path d="M9 6l6 6-6 6" />,
+  list: <path d="M9 6h11M9 12h11M9 18h11M4 6h.5M4 12h.5M4 18h.5" />,
+  search: (
+    <>
+      <circle cx="11" cy="11" r="6" />
+      <path d="M20 20l-4.5-4.5" />
+    </>
+  ),
+  copy: (
+    <>
+      <rect x="8" y="8" width="12" height="12" rx="2" />
+      <path d="M16 8V5a1 1 0 0 0-1-1H5a1 1 0 0 0-1 1v10a1 1 0 0 0 1 1h3" />
+    </>
+  ),
+  expand: <path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5" />,
+  shrink: <path d="M9 4v5H4M15 4v5h5M9 20v-5H4M15 20v-5h5" />,
 };
 
 /** One inline SVG icon; decorative unless the caller labels the control around it. */

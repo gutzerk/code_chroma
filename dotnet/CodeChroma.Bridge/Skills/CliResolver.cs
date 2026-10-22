@@ -14,9 +14,7 @@ public sealed class CliResolver(UserPaths paths, ProviderStore providers, CallSi
     {
         var assignment = LoadAssignment(callSiteId);
         if (assignment is not null && Json.Str(assignment["mode"]) == "cli"
-            && providers.Find(Json.Str(assignment["provider_id"]) ?? "") is { } provider
-            && Json.Str(provider["kind"]) == "cli"
-            && Json.Str(provider["adapter"]) is { } adapter && CliAdapters.All.ContainsKey(adapter))
+            && CliProvider(Json.Str(assignment["provider_id"]) ?? "") is ({ } provider, { } adapter))
         {
             var model = Json.Str(assignment["model"])!;
             return new CliResolution(adapter, adapter, model, EnvOverrides(provider, model), true);
@@ -24,6 +22,32 @@ public sealed class CliResolver(UserPaths paths, ProviderStore providers, CallSi
         var assistant = AssistantRoutes.Load(paths);
         var assistantModel = Json.Str(assistant["model"]) is { Length: > 0 } m ? m : defaultModel;
         return new CliResolution("claude", AssistantRoutes.EffectiveCli(paths), assistantModel, new Dictionary<string, string>(), false);
+    }
+
+    /// <summary>One provider's CLI with an explicit model (null: the provider's test model); throws for an unknown or non-CLI provider.</summary>
+    public CliResolution ResolveProvider(string providerId, string? model)
+    {
+        if (CliProvider(providerId) is not ({ } provider, { } adapter)) throw new CliLookupException($"unknown CLI provider: {providerId}");
+        var chosen = model ?? Json.Str(provider["test_model"]) ?? "";
+        return new CliResolution(adapter, adapter, chosen, EnvOverrides(provider, chosen), true);
+    }
+
+    /// <summary>The CLI adapter a provider id runs (null: the call site's own resolution), or null for an unknown or non-CLI provider.</summary>
+    public string? AdapterOf(string? providerId, string callSiteId, string defaultModel) =>
+        providerId is null ? Resolve(callSiteId, defaultModel).AdapterKey : CliProvider(providerId).Adapter;
+
+    /// <summary>A provider that is a CLI with a known adapter, with that adapter; (null, null) otherwise.</summary>
+    private (JsonObject? Provider, string? Adapter) CliProvider(string providerId) =>
+        providers.Find(providerId) is { } provider && Json.Str(provider["kind"]) == "cli" && Json.Str(provider["adapter"]) is { } adapter && CliAdapters.All.ContainsKey(adapter)
+            ? (provider, adapter)
+            : (null, null);
+
+    /// <summary>The same CLI on another model; a provider that pins the model through ANTHROPIC_MODEL gets it there too.</summary>
+    public static CliResolution WithModel(CliResolution cli, string model)
+    {
+        if (!cli.EnvOverrides.ContainsKey("ANTHROPIC_MODEL")) return cli with { Model = model };
+        var env = new Dictionary<string, string>(cli.EnvOverrides) { ["ANTHROPIC_MODEL"] = model };
+        return cli with { Model = model, EnvOverrides = env };
     }
 
     /// <summary>The effective assignment: an agentic call site uses its group's, a simple one its own.</summary>

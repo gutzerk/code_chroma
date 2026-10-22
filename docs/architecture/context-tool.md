@@ -26,7 +26,16 @@ A process diagram used to take an agent 25–30 steps (read wiki, query the grap
 - 🔴 A short body is a condensed copy of its `type-*.md`: when a type's rules or schema change, change `bare-<t>.md` too (the full references remain the source for interactive agent windows).
 - Prompts over ~20 000 characters are written to a unique `.codechroma/prompts/<call-site>-<guid>.md` and the argv says to read that file first (Windows command-line limit); the file is deleted when the run ends.
 - Kill switch: `codechroma_BARE_AGENTS=0`. Workflow steps/chat pass `RunOptions.Bare = false` (they need `--resume`/MCP config) and are never bare.
-- Not affected: terminal and parallel agents (`Terminal/TerminalAgents.cs`, call-site `parallel_agents`), which keep `--plugin-dir` and the full context.
+- Terminal and parallel agents (`Terminal/TerminalAgents.cs`, call-site `parallel_agents`) keep `--plugin-dir` and the full context, except task agents that draw a diagram (see "Context for every diagram type but impact").
+
+## Context for every diagram type but impact
+
+`Context/DiagramContext.cs` gathers the same context in-process (no CLI hop) for `c1`, `patterns`, `sequence` and `custom`; `impact` (reads the diff) and `epics` (read requirements) get none. Phrases: fixed seed phrases for the headless `c1` run, which has no request (`DiagramContext.Phrases`); interactive agents choose their own.
+- **Model on install/first launch:** the desktop app sets `codechroma_MODEL_WARMUP=1` for the bridge it spawns (`Shell.App/Program.cs`), which then starts a background `WarmModelAsync`, so the 162 MB model downloads right after the app is installed or updated, not on the first diagram. A bridge started any other way (tests, `uvicorn`, the launcher) does not warm up; its first diagram context starts the download instead. The installer scripts only place the app, so the pinned hashes stay in `ModelStore.cs`.
+- **Cache on wiki runs:** `WikiGeneralRoutes.StampOnSuccess` calls `DiagramContext.PrepareAsync` (model + `ContextCache.Ensure`) in the background after every successful wiki-general generate or update.
+- **Headless c1:** `POST /repos/{id}/c1/generate` gathers the context and passes it as `RunOptions.Context`, which `SkillAgent.RunCli` appends under "Pre-gathered context".
+- **Interactive agents (Draw button and popover) start bare too:** `AgentClient.create(..., diagram: {type})` sends `diagram_type` (`c1`/`patterns`/`custom` from the popover, `any` from the generic "Draw…" button, nothing for impact/epics), stored on the `AgentRecord`. At `POST /agents/{id}/start` the bridge replaces the natural-language task with `BareSkill.ComposeInteractive`: the draw skill inlined (the short `bare-<type>.md` for a known type, else `SKILL.md` with absolute paths to its references), a "ask the user what to draw" start, and the exact `context --repo-path … --models-dir …` command. `TerminalAgents.Resolve(..., bare: true)` then launches the terminal CLI with the prompt first and `BareArgs` (no `--plugin-dir`, slash commands, MCP or user/project settings; the session file is kept so Resume works). The agent asks the user, runs `context` with 3-6 phrases from the answer, reads the output and draws. `codechroma_BARE_AGENTS=0` turns this off; non-claude CLIs without a bare switch keep the normal launch.
+- **Fallback:** if the architecture map, graph or model is not ready, nothing is gathered (a missing model starts downloading) and the agent searches the repo itself, as before.
 
 ## Where the skills come from
 

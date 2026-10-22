@@ -87,8 +87,16 @@ describe("attachAgent", () => {
     await attachAgent(client(create), null, "What would you like to draw?");
 
     expect(create).toHaveBeenCalledWith(
-      "", "agent", "main", "What would you like to draw?", "task",
+      "", "agent", "main", "What would you like to draw?", "task", undefined,
     );
+  });
+
+  it("forwards the diagram hint so the bridge can add architecture context", async () => {
+    const create = vi.fn(async (title: string) => agentRecord(title || "helper"));
+
+    await attachAgent(client(create), null, "Draw it", { type: "patterns" });
+
+    expect(create).toHaveBeenCalledWith("", "agent", "main", "Draw it", "task", { type: "patterns" });
   });
 
   it("passes a PR workspace id as attachTo when a PR is the active workspace", async () => {

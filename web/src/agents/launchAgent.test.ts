@@ -126,7 +126,7 @@ describe("launchAgent", () => {
     );
 
     expect(create).toHaveBeenCalledWith(
-      "", "agent", undefined, "What would you like to draw?", "task",
+      "", "agent", undefined, "What would you like to draw?", "task", undefined,
     );
   });
 

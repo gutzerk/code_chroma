@@ -118,7 +118,7 @@ public sealed partial class AgentManager
     // --- writes ---
 
     /// <summary>Slug, branch, worktree, record, persist; attach_to reuses a target's own worktree.</summary>
-    public AgentRecord Create(string title, string kind = AgentRecord.DefaultKind, string? attachTo = null, string? context = null, string contextKind = "view")
+    public AgentRecord Create(string title, string kind = AgentRecord.DefaultKind, string? attachTo = null, string? context = null, string contextKind = "view", string? diagramType = null)
     {
         context = AgentRecord.CleanContext(context);
         contextKind = AgentRecord.CoerceContextKind(contextKind);
@@ -160,6 +160,7 @@ public sealed partial class AgentManager
                 SourcePr = prTarget is not null ? attachTo : null,
                 Context = context,
                 ContextKind = contextKind,
+                DiagramType = diagramType,
             };
             record.Window["z"] = _agents.Count + 1;
             _agents.Add(record);

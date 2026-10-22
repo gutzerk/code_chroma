@@ -1,4 +1,4 @@
-import type { AgentClient } from "./agentClient";
+import type { AgentClient, DiagramTaskHint } from "./agentClient";
 import { agentStore } from "./agentStore";
 import type { ViewContext } from "./viewContext";
 import { openAgentWindow } from "./windowActions";
@@ -15,6 +15,7 @@ export async function launchAgent(
   attachTo?: string,
   context?: ViewContext | null,
   task?: string,
+  diagram?: DiagramTaskHint,
 ): Promise<void> {
   if (agentStore.getIsAtCapacity() || agentStore.getIsLaunching()) return;
   agentStore.setLaunchError(null);
@@ -27,7 +28,7 @@ export async function launchAgent(
       return;
     }
     const created = task
-      ? await client.create("", "agent", attachTo, task, "task")
+      ? await client.create("", "agent", attachTo, task, "task", diagram)
       : await client.create("", "agent", attachTo, context?.description ?? null);
     createdId = created.id;
     agentStore.setStartError(created.id, null);

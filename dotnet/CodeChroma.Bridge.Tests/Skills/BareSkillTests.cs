@@ -43,4 +43,25 @@ public class BareSkillTests
 
         Assert.True(short1.Length < full.Length / 3, $"short {short1.Length} vs full {full.Length}");
     }
+
+    [Theory]
+    [InlineData("c1", "Draw the C1")]
+    [InlineData("any", "Router")]
+    public void An_interactive_start_inlines_the_skill_and_asks_the_user_what_to_draw(string type, string expected)
+    {
+        var prompt = BareSkill.ComposeInteractive(type, Root, "main", "ctx-tool --repo-path x")!;
+
+        Assert.Contains(expected, prompt);
+        Assert.Contains("ask what they want to see", prompt);
+        Assert.Contains("ctx-tool --repo-path x \"phrase\"", prompt);
+        Assert.DoesNotContain("{BRIDGE}", prompt);
+    }
+
+    [Fact]
+    public void An_interactive_start_without_a_context_command_does_not_mention_one()
+    {
+        var prompt = BareSkill.ComposeInteractive("c1", Root, "main", null)!;
+
+        Assert.DoesNotContain("\"phrase\"", prompt);
+    }
 }

@@ -26,7 +26,7 @@ public interface IBridgeProcessLauncher
 
 public interface IPortFinder
 {
-    int FindFreePort();
+    int FindFreePort(string repoPath);
 }
 
 public interface IHealthProbe
@@ -36,7 +36,7 @@ public interface IHealthProbe
 
 public sealed record BridgeHandle(int Port, string Origin, IBridgeProcess Process);
 
-/// <summary>Starts one bridge on a free port; ready = the "bridge ready at" line (launch.py contract) or /health answering.</summary>
+/// <summary>Starts one bridge on the repo's stable port (free fallback); ready = the "bridge ready at" line (launch.py contract) or /health answering.</summary>
 public sealed partial class BridgeManager(IBridgeProcessLauncher launcher, IPortFinder ports, IHealthProbe health, TimeSpan? pollInterval = null)
 {
     public static readonly TimeSpan DefaultReadyTimeout = TimeSpan.FromMinutes(10);
@@ -46,7 +46,7 @@ public sealed partial class BridgeManager(IBridgeProcessLauncher launcher, IPort
 
     public async Task<BridgeHandle> StartAsync(string executable, string repoPath, Action<string>? onProgress = null, TimeSpan? readyTimeout = null, CancellationToken ct = default)
     {
-        var port = ports.FindFreePort();
+        var port = ports.FindFreePort(repoPath);
         var origin = $"http://127.0.0.1:{port}";
         var ready = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         void OnLine(string raw)
@@ -133,13 +133,39 @@ public static class RepoPaths
     }
 }
 
+/// <summary>Same repo, same port across restarts (hash of its canonical path, so agent URLs stay valid); next free port when taken.</summary>
 public sealed class TcpPortFinder : IPortFinder
 {
-    public int FindFreePort()
+    public const int RangeStart = 20000;
+    public const int RangeSize = 12000;
+    private const int Attempts = 64;
+
+    public int FindFreePort(string repoPath)
     {
+        var preferred = PreferredPort(repoPath);
+        for (var step = 0; step < Attempts; step++)
+        {
+            var port = RangeStart + (preferred - RangeStart + step) % RangeSize;
+            if (TryBind(port)) return port;
+        }
         var probe = new TcpListener(IPAddress.Loopback, 0);
         probe.Start();
         try { return ((IPEndPoint)probe.LocalEndpoint).Port; }
+        finally { probe.Stop(); }
+    }
+
+    public static int PreferredPort(string repoPath)
+    {
+        var hash = 2166136261u;
+        foreach (var b in System.Text.Encoding.UTF8.GetBytes(RepoPaths.Canonical(repoPath))) hash = (hash ^ b) * 16777619u;
+        return RangeStart + (int)(hash % RangeSize);
+    }
+
+    private static bool TryBind(int port)
+    {
+        var probe = new TcpListener(IPAddress.Loopback, port);
+        try { probe.Start(); return true; }
+        catch (SocketException) { return false; }
         finally { probe.Stop(); }
     }
 }

@@ -161,14 +161,27 @@ describe("WorkflowsTab run detail", () => {
     expect(screen.getByTestId("between-review")).toHaveTextContent("You review the diff");
   });
 
-  it("lists the run under Active and offers Saved workflows with Edit and Run", async () => {
+  it("lists the run under Active with no Saved workflows section and no New workflow button", async () => {
     const client = setup();
     await startRun(client);
     fireEvent.click(screen.getByRole("button", { name: "All workflow runs" }));
 
     expect(screen.getByRole("heading", { name: /Active \(1\)/ })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Edit workflow Ship a feature" })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Start run: Ship a feature" })).toBeInTheDocument();
+    expect(screen.queryByRole("heading", { name: /Saved workflows/ })).toBeNull();
+    expect(screen.queryByTestId("new-workflow")).toBeNull();
+    expect(screen.getByRole("button", { name: "All workflows · 1" })).toBeInTheDocument();
+  });
+
+  it("opens the All workflows screen, which carries New workflow, and goes back", async () => {
+    setup();
+    await waitFor(() => expect(workflowStore.getWorkflows()).toHaveLength(1));
+
+    fireEvent.click(screen.getByRole("button", { name: "All workflows · 1" }));
+
+    expect(screen.getByTestId("all-workflows")).toBeInTheDocument();
+    expect(screen.getByTestId("new-workflow")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Back to runs" }));
+    expect(screen.getByTestId("run-overview")).toBeInTheDocument();
   });
 
   it("restarts a finished run only after confirming", async () => {
@@ -227,6 +240,29 @@ describe("WorkflowsTab responsive layout", () => {
     expect(screen.getByTestId("run-overview")).toBeInTheDocument();
     expect(screen.getByTestId("workflow-screen")).toBeInTheDocument();
     expect(screen.queryByTestId("live-view")).toBeNull();
+  });
+
+  it("puts Run workflow, All workflows and Full screen in the top bar at the wide layout", async () => {
+    setup();
+    await waitFor(() => expect(workflowStore.getWorkflows()).toHaveLength(1));
+
+    act(() => observe?.(760));
+
+    const bar = screen.getByTestId("run-workflow").parentElement!;
+    const labels = within(bar).getAllByRole("button").map((b) => b.getAttribute("aria-label") ?? b.textContent);
+    expect(labels).toEqual(["Run workflow", "All workflows", "Full screen"]);
+    fireEvent.click(within(bar).getByRole("button", { name: "All workflows" }));
+    expect(screen.getByTestId("all-workflows")).toBeInTheDocument();
+  });
+
+  it("keeps the top bar to Run workflow at the normal width", async () => {
+    setup();
+    await waitFor(() => expect(workflowStore.getWorkflows()).toHaveLength(1));
+
+    act(() => observe?.(500));
+
+    expect(screen.queryByRole("button", { name: "All workflows" })).toBeNull();
+    expect(screen.getByTestId("run-workflow")).toBeInTheDocument();
   });
 
   it("adds the live Agent / Output / Diff view at 1100px and wider", async () => {

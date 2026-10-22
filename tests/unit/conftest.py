@@ -2,6 +2,8 @@
 
 import pytest
 
+from codechroma.diagrams import library
+
 
 @pytest.fixture(autouse=True)
 def _isolate_codechroma_settings(tmp_path, monkeypatch):
@@ -12,3 +14,9 @@ def _isolate_codechroma_settings(tmp_path, monkeypatch):
     monkeypatch.setenv(
         "codechroma_LLM_CALL_SITE_SETTINGS_FILE", str(tmp_path / "llm-call-site-settings.json")
     )
+
+
+@pytest.fixture
+def isolated_library(tmp_path, monkeypatch):
+    """Points the diagram-type library at a scratch dir, never the real ~/.codechroma one."""
+    monkeypatch.setenv(library.DIAGRAM_TYPES_DIR_ENV, str(tmp_path / "diagram-types"))

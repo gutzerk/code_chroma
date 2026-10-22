@@ -142,26 +142,23 @@ describe("reclampToViewport", () => {
 });
 
 describe("clampToViewport", () => {
-  it("pulls a window saved on a monitor that is no longer attached back on-screen", () => {
-    const offScreen = agent("far", {
-      window: { x: 4000, y: 3000, width: 720, height: 480, minimized: false, z: 1 },
-    });
+  it.each([
+    [
+      "pulls a window saved on a monitor that is no longer attached back on-screen",
+      { x: 4000, y: 3000, width: 720, height: 480 },
+      { x: 1160, y: 680 },
+    ],
+    [
+      "shrinks a window wider than the viewport",
+      { x: 0, y: 0, width: 3000, height: 2000 },
+      { width: 1280, height: 800 },
+    ],
+  ])("%s", (_name, box, expected) => {
+    const source = agent("clamp-me", { window: { ...box, minimized: false, z: 1 } });
 
-    const clamped = clampToViewport(offScreen, { width: 1280, height: 800 });
+    const clamped = clampToViewport(source, { width: 1280, height: 800 });
 
-    expect(clamped.window.x).toBe(1160);
-    expect(clamped.window.y).toBe(680);
-  });
-
-  it("shrinks a window wider than the viewport", () => {
-    const huge = agent("huge", {
-      window: { x: 0, y: 0, width: 3000, height: 2000, minimized: false, z: 1 },
-    });
-
-    const clamped = clampToViewport(huge, { width: 1280, height: 800 });
-
-    expect(clamped.window.width).toBe(1280);
-    expect(clamped.window.height).toBe(800);
+    expect(clamped.window).toMatchObject(expected);
   });
 
   it("returns the same object when nothing needs moving", () => {
@@ -197,16 +194,13 @@ describe("initialWorkspace", () => {
     window.history.replaceState({}, "", "/");
   });
 
-  it("defaults to main when no workspace is named in the URL", () => {
-    window.history.replaceState({}, "", "/");
+  it.each([
+    ["defaults to main when no workspace is named in the URL", "/", "main"],
+    ["reads a satellite window's workspace id from the ?workspace= query param", "/?workspace=pr-9", "pr-9"],
+  ])("%s", (_name, url, expected) => {
+    window.history.replaceState({}, "", url);
 
-    expect(initialWorkspace()).toBe("main");
-  });
-
-  it("reads a satellite window's workspace id from the ?workspace= query param", () => {
-    window.history.replaceState({}, "", "/?workspace=pr-9");
-
-    expect(initialWorkspace()).toBe("pr-9");
+    expect(initialWorkspace()).toBe(expected);
   });
 });
 

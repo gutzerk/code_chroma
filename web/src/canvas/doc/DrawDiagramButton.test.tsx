@@ -10,7 +10,7 @@ import { IMPACT_CHANGES_STUB } from "../../engine-client/stubEngineClient";
 import { EMPTY_CANVAS_DOC, type CanvasDoc, type DiagramsStatus } from "../../state/types";
 import { canvasDocStore } from "./canvasDocStore";
 import { writeCachedDiagramsStatus } from "./diagramStatusCache";
-import { DrawDiagramButton } from "./DrawDiagramButton";
+import { DrawDiagramButton, buildDrawDiagramTask } from "./DrawDiagramButton";
 import { useDiagramReadinessWatcher } from "./useDiagramReadinessWatcher";
 
 function ButtonWithWatcher() {
@@ -77,7 +77,7 @@ describe("DrawDiagramButton", () => {
       pr_url: null,
       pid: null,
       window: { x: 0, y: 0, width: 720, height: 480, minimized: false, z: 1 },
-      status: "starting" as const,
+      status: "running" as const,
       exit_code: null,
       worktree_lost: false,
     }));
@@ -115,7 +115,7 @@ describe("DrawDiagramButton", () => {
       pr_url: null,
       pid: null,
       window: { x: 0, y: 0, width: 720, height: 480, minimized: false, z: 1 },
-      status: "starting" as const,
+      status: "running" as const,
       exit_code: null,
       worktree_lost: false,
     }));
@@ -182,5 +182,41 @@ describe("DrawDiagramButton: a diagram edited before a page reload", () => {
     });
 
     expect(runRecipe).not.toHaveBeenCalled();
+  });
+});
+
+describe("buildDrawDiagramTask", () => {
+  it("asks directly when 4 or fewer kinds are missing", () => {
+    const task = buildDrawDiagramTask(["C1", "Design patterns", "Change impact"], false);
+
+    expect(task).toContain("Ask which kind they'd like -- C1, Design patterns, Change impact --");
+    expect(task).not.toContain("multiple-choice tool call");
+  });
+
+  it("tells the agent to answer in plain text once more than 4 kinds are missing", () => {
+    // A real-world trigger: 3 missing built-ins plus 2+ custom diagram types the user has saved.
+    const labels = ["C1", "Design patterns", "Change impact", "Server Comms", "MCP Lifecycle"];
+
+    const task = buildDrawDiagramTask(labels, false);
+
+    expect(task).toContain("not a multiple-choice tool call");
+    expect(task).toContain(labels.join(", "));
+  });
+
+  it("says 'another' once at least one diagram is already drawn", () => {
+    const task = buildDrawDiagramTask(["Change impact"], true);
+
+    expect(task).toContain("wants another diagram");
+  });
+
+  it("asks what new diagram is wanted once nothing at all is missing", () => {
+    // The button is unconditionally clickable now, including once every built-in/custom type is
+    // already generated -- this is the empty-missingLabels case buildDrawDiagramTask must still
+    // produce a sensible prompt for.
+    const task = buildDrawDiagramTask([], true);
+
+    expect(task).toContain("already drawn");
+    expect(task).toContain("ask what new diagram");
+    expect(task).not.toContain("Ask which kind");
   });
 });

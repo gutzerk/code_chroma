@@ -1,12 +1,16 @@
 # Web canvas shell (`web/src/canvas/`)
 
 The right side is an attached `agents/ActivityPanel`, present even with no agents. Its header is a
-segmented "Agents N | Workflows N" control plus a collapse button. The Agents tab is one 40px
-`agents/activity/AgentSwitcherRow` (agent dropdown with status dot, title and "cli · branch · status";
-buttons Run agent, Stretch panel, Full screen) above the terminal. Stretch is `layoutStore.agentsWidth`
-`"wide"` (`useStretchWidth`, `layoutMetrics.agentsWideWidth`): the panel widens leftwards to the
-diagrams panel edge, or the collapsed left bar's edge; full screen stays `agentsMode: "full"`. The
-Workflows tab renders `workflows/WorkflowsTab` (see [`workflows.md`](workflows.md)). Collapsed, the
+segmented "Agents N | Workflows N" control; the collapse button is the chevron on its left edge handle
+(`panel-handle-btn`, same look as the diagrams panel's), beneath the resize grip. The Agents tab is one
+40px `agents/activity/AgentSwitcherRow` (agent dropdown with status dot, title, an "i/N" count chip and
+"cli · branch · status"; buttons Run agent, Full screen) above the terminal. There is no stretch
+button. Full screen (`agentsMode: "full"`) leaves the left panel as it is and reaches the diagrams
+panel's edge, or the canvas-area edge (12px inset) once that panel is collapsed
+(`chromeInsets().agentsFullLeft`, applied as the panel's `left`). In full screen the dropdown becomes a
+row of `role="tab"` chips for every agent, switching agents keeps full screen (`openAgentWindow` only
+reopens a *collapsed* strip), and entering full or switching inside it focuses the shown agent's
+terminal (`focusRequest`). The Workflows tab renders `workflows/WorkflowsTab` (see [`workflows.md`](workflows.md)). Collapsed, the
 panel is a 52px `agents/activity/CollapsedStrip` (SVG icons from `activity/icons.tsx`, count badges with
 a yellow "!" when a run needs you, one initials circle with status dot per agent, a + button,
 `.rail-tooltip` tooltips; `AgentsCollapsedBar` is gone). Agent terminals live in `DockedAgentPanel`,

@@ -70,16 +70,33 @@ describe("ActivityPanel", () => {
 
     expect(layoutStore.getState().selectedAgentId).toBe(agentStore.getAgents()[1].id);
   });
-  it("stretches and goes full screen from the switcher row", () => {
+  it("has one full screen button and no stretch button", () => {
     setup();
 
-    fireEvent.click(screen.getByRole("button", { name: "Stretch panel" }));
-    expect(layoutStore.getState().agentsWidth).toBe("wide");
-    fireEvent.click(screen.getByRole("button", { name: "Restore panel width" }));
-    expect(layoutStore.getState().agentsWidth).toBe("default");
     fireEvent.click(screen.getByRole("button", { name: "Full screen" }));
 
+    expect(screen.queryByRole("button", { name: /Stretch panel/ })).toBeNull();
     expect(layoutStore.getState().agentsMode).toBe("full");
+  });
+  it("shows how many agents there are on the dropdown trigger", async () => {
+    agentStore.upsert(await new MockAgentClient().create("Planner"));
+    agentStore.upsert(await new MockAgentClient().create("Builder"));
+    setup();
+
+    expect(screen.getByTestId("agent-count")).toHaveTextContent("1/2");
+  });
+  it("lists agents as a row of tabs in full screen and keeps full screen when switching", async () => {
+    agentStore.upsert(await new MockAgentClient().create("Planner"));
+    agentStore.upsert(await new MockAgentClient().create("Builder"));
+    layoutStore.setAgentsMode("full");
+    setup();
+
+    fireEvent.click(screen.getByRole("tab", { name: /Builder/ }));
+
+    expect(screen.queryByRole("button", { name: "Select agent" })).toBeNull();
+    expect(screen.getAllByRole("tab", { name: /Planner|Builder/ })).toHaveLength(2);
+    expect(layoutStore.getState().agentsMode).toBe("full");
+    expect(layoutStore.getState().selectedAgentId).toBe(agentStore.getAgents()[1].id);
   });
   it("collapses to a strip with counts and a per-agent avatar that reopens it", async () => {
     const agent = await new MockAgentClient().create("Planner Bot");

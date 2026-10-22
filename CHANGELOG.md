@@ -1,5 +1,28 @@
 # Changelog
 
+## [1.3.1](https://github.com/gutzerk/code_chroma/compare/v1.3.0...v1.3.1) (2026-10-22)
+
+
+### Bug Fixes
+
+* agent panel full screen, agent tabs, collapse handle, paste and hidden draw skill ([98b523c](https://github.com/gutzerk/code_chroma/commit/98b523ce949ad4d460f144608250e22b7c6ef0fb))
+* **agents:** agent window full-screen, switcher, focus, paste and hidden skill text ([282323b](https://github.com/gutzerk/code_chroma/commit/282323b55f8be5e7bd1aa771e30c692f2bd67d73))
+* **bridge:** ping canvases when a custom or feature-plan diagram is written ([d988bbe](https://github.com/gutzerk/code_chroma/commit/d988bbe357ed1309cc9a4d3a5526f75e423d0cb9))
+* **bridge:** ping canvases when a custom or feature-plan diagram is written ([5c028fb](https://github.com/gutzerk/code_chroma/commit/5c028fb264bc48353b413857f0761e2d731f2aad))
+* **bridge:** skip macOS-protected home folders when walking a non-git folder ([fb0f040](https://github.com/gutzerk/code_chroma/commit/fb0f0409769e86d51d9d9cfa5977208d28b1b70d))
+* **bridge:** surface wiki update errors in status and update sequence self-relation contract ([09c29c6](https://github.com/gutzerk/code_chroma/commit/09c29c60d61dc7de9db5e10a175c69ced4a31f0b))
+* **shell:** ignore trailing separator when matching macOS-protected folders ([00092d9](https://github.com/gutzerk/code_chroma/commit/00092d977b3b5ba1db65fc9100b7c1cf6515ded9))
+* **shell:** skip macOS-protected home folders when scanning a non-repo folder ([8fe2441](https://github.com/gutzerk/code_chroma/commit/8fe24415189612350b3b5a0cd70fd536d931265f)), closes [#189](https://github.com/gutzerk/code_chroma/issues/189)
+* **skills,bridge:** export agent env, verify wiki update writes, fix diagram check gaps ([d08af91](https://github.com/gutzerk/code_chroma/commit/d08af91c205c3937a753f7bae90aa6d998080e5c))
+* **skills:** export bridge identity env vars and harden wiki/diagram skill flows ([3f27f12](https://github.com/gutzerk/code_chroma/commit/3f27f122e0824ac78e1b0adf3d74e18d7e1a9430))
+* **skills:** stop routing data-flow and other flow requests to the sequence diagram ([1fd3098](https://github.com/gutzerk/code_chroma/commit/1fd3098b3ee5fe535a095f5fd8f428c168c7ee72))
+* **skills:** stop routing data-flow and other flow requests to the sequence diagram ([665ad26](https://github.com/gutzerk/code_chroma/commit/665ad263e93bc41b07d2efa99ea879a3cdd46432))
+* **web:** lower canvas zoom-out floor and hide stray scrollbars ([77218b9](https://github.com/gutzerk/code_chroma/commit/77218b9b4a4e561fdbfbf557b09e8cc606ec7461))
+* **web:** lower canvas zoom-out floor and hide stray scrollbars ([7df0729](https://github.com/gutzerk/code_chroma/commit/7df07291846c1c6da8108e9b08424d113c404294))
+* **workflows:** bind run inputs to steps with a single question field ([13b5b83](https://github.com/gutzerk/code_chroma/commit/13b5b831a9ad6b69b5ed87e860c338bc75269a56))
+* **workflows:** clickable cards, cancel awaiting-review runs, single-field run inputs ([82828be](https://github.com/gutzerk/code_chroma/commit/82828be7289bf3d8b82be6a0e7aee5e592526b2c))
+* **workflows:** clickable cards, cancel waiting runs, per-step single input ([fdb13fd](https://github.com/gutzerk/code_chroma/commit/fdb13fdf8325490270dd1027c07e7f423a3799db))
+
 ## [1.3.0](https://github.com/gutzerk/code_chroma/compare/v1.2.0...v1.3.0) (2026-10-22)
 
 

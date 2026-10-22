@@ -97,7 +97,7 @@ def test_snapshot_is_immutable_and_diagnostics_hide_secrets(service):
         }
     )
     assert (
-        service.spawn_env({"codechroma_WORKSPACE_ID": "agent"})["codechroma_WORKSPACE_ID"]
+        service.spawn_env({"CODECHROMA_WORKSPACE_ID": "agent"})["CODECHROMA_WORKSPACE_ID"]
         == "agent"
     )
 

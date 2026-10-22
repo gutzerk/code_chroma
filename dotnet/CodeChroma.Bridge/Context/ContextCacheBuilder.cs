@@ -8,7 +8,7 @@ namespace CodeChroma.Bridge.Context;
 public static partial class ContextCacheBuilder
 {
     /// <summary>Bumped whenever the built data changes shape, so existing caches rebuild.</summary>
-    internal const int Version = 2;
+    internal const int Version = 3;
 
     public static ContextData Build(string wikiDir, Graph graph, string fingerprint)
     {
@@ -18,6 +18,14 @@ public static partial class ContextCacheBuilder
         var pages = (manifest["components"]?.AsArray() ?? []).OfType<JsonObject>().Select(c => ReadPage(wikiDir, c, symbols)).ToList();
         var edges = (manifest["edges"]?.AsArray() ?? []).OfType<JsonObject>()
             .Select(e => new EdgeInfo((string)e["from"]!, (string)e["to"]!, e["count"]?.GetValue<int>() ?? 1)).ToList();
+        // wiki-general clusters code only, so CI workflows and scripts get their own pages (repo root = two levels above wiki-general).
+        var repoRoot = Path.GetFullPath(Path.Combine(wikiDir, "..", ".."));
+        var automation = AutomationPages.Pages(repoRoot);
+        if (automation.Count > 0)
+        {
+            containers.Add(AutomationPages.Container());
+            pages.AddRange(automation);
+        }
         return new ContextData(fingerprint, containers, pages, edges);
     }
 

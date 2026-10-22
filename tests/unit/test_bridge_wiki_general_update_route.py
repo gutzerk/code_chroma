@@ -226,7 +226,10 @@ def test_update_recomputes_edges_and_stamps_generated_at_commit_together(bridge,
         "codechroma.llm.runtime_env.shutil.which", lambda _name, **_kwargs: "/usr/bin/claude"
     )
     directory = _seed_clustering_manifest(bridge.repo, generated_at_commit="stale-sha")
-    monkeypatch.setattr(asyncio, "create_subprocess_exec", fake_claude_exec(returncode=0))
+    monkeypatch.setattr(
+        asyncio, "create_subprocess_exec",
+        fake_claude_exec(returncode=0, on_spawn=lambda: _write_listed_pages(directory)),
+    )
 
     with TestClient(bridge.app) as client:
         with client.websocket_connect("/repos/default/events") as websocket:
@@ -236,6 +239,15 @@ def test_update_recomputes_edges_and_stamps_generated_at_commit_together(bridge,
     stamped = json.loads((directory / "manifest.json").read_text(encoding="utf-8"))
     assert stamped["generated_at_commit"] != "stale-sha"
     assert stamped["edges"] == []  # billing and web have no cross-component call/import traffic
+
+
+def _write_listed_pages(directory):
+    """Stands in for the agent: writes (or re-writes) every page the updated manifest lists."""
+    manifest = json.loads((directory / "manifest.json").read_text(encoding="utf-8"))
+    for entry in [*manifest["containers"], *manifest["components"]]:
+        page = directory / entry["path"]
+        page.parent.mkdir(parents=True, exist_ok=True)
+        page.write_text(f"# {entry['name']}\n", encoding="utf-8")
 
 
 def _receive_final_status(websocket, attempts: int = 20) -> dict:
@@ -256,7 +268,12 @@ def test_update_stamps_generated_at_commit_once_it_succeeds(bridge, monkeypatch)
         "def slugify(text): return text\n", encoding="utf-8"
     )
     manifest_path = bridge.repo / ".codechroma" / "wiki-general" / "manifest.json"
-    monkeypatch.setattr(asyncio, "create_subprocess_exec", fake_claude_exec(returncode=0))
+    monkeypatch.setattr(
+        asyncio, "create_subprocess_exec",
+        fake_claude_exec(
+            returncode=0, on_spawn=lambda: _write_listed_pages(manifest_path.parent)
+        ),
+    )
 
     with TestClient(bridge.app) as client:
         with client.websocket_connect("/repos/default/events") as websocket:
@@ -265,3 +282,56 @@ def test_update_stamps_generated_at_commit_once_it_succeeds(bridge, monkeypatch)
 
     stamped = json.loads(manifest_path.read_text(encoding="utf-8"))
     assert stamped["generated_at_commit"] != "stale-sha"
+
+
+def test_update_that_exits_cleanly_but_writes_no_pages_is_an_error(bridge, monkeypatch):
+    monkeypatch.setattr(
+        "codechroma.llm.runtime_env.shutil.which", lambda _name, **_kwargs: "/usr/bin/claude"
+    )
+    directory = _seed_clustering_manifest(bridge.repo, generated_at_commit="stale-sha")
+    monkeypatch.setattr(asyncio, "create_subprocess_exec", fake_claude_exec(returncode=0))
+
+    with TestClient(bridge.app) as client:
+        with client.websocket_connect("/repos/default/events") as websocket:
+            client.post("/repos/default/wiki-general/update")
+            final = _receive_final_status(websocket)
+        status = client.get("/repos/default/wiki-general/status").json()
+
+    stamped = json.loads((directory / "manifest.json").read_text(encoding="utf-8"))
+    assert final["state"] == "error"
+    assert "update finished but" in final["error"]
+    assert status["stale"] is True
+    assert stamped["generated_at_commit"] == "stale-sha"
+
+
+def test_update_refreshes_the_manifest_generated_at(bridge, monkeypatch):
+    monkeypatch.setattr("codechroma.llm.runtime_env.shutil.which", lambda _name, **_kwargs: None)
+    directory = _seed_clustering_manifest(bridge.repo)
+
+    with TestClient(bridge.app) as client:
+        client.post("/repos/default/wiki-general/update")
+
+    stamped = json.loads((directory / "manifest.json").read_text(encoding="utf-8"))
+    assert stamped["generated_at"].startswith("20")
+
+
+def test_update_plan_previews_without_applying_and_post_applies_once(bridge, monkeypatch):
+    directory = _seed_clustering_manifest(bridge.repo)
+    notifications = bridge.repo / "notifications"
+    notifications.mkdir()
+    (notifications / "email.py").write_text("def send_email(): pass\n", encoding="utf-8")
+    (notifications / "sms.py").write_text("def send_sms(): pass\n", encoding="utf-8")
+    before = (directory / "manifest.json").read_text(encoding="utf-8")
+
+    with TestClient(bridge.app) as client:
+        preview = client.get("/repos/default/wiki-general/update-plan").json()
+        unchanged = (directory / "manifest.json").read_text(encoding="utf-8")
+        started = client.post("/repos/default/wiki-general/update-plan").json()
+        second = client.post("/repos/default/wiki-general/update-plan")
+
+    assert unchanged == before
+    assert [e["id"] for e in preview["components"]["created"]] == ["notifications"]
+    assert preview["components"]["deleted"] == ["misc"]
+    assert started["state"] == "generating"
+    assert started["delta"]["components"]["created"] == preview["components"]["created"]
+    assert second.status_code == 409

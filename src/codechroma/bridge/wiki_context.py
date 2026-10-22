@@ -31,6 +31,22 @@ class WikiContextBundle:
     pages: list[WikiContextPage] = field(default_factory=list)
     gaps: list[str] = field(default_factory=list)
     truncated: bool = False
+    omitted: list[str] = field(default_factory=list)
+    warning: str | None = None
+
+
+def truncation_note(
+    requested: list[str], included: set[str], gaps: list[str], truncated: bool
+) -> tuple[list[str], str | None]:
+    """The requested paths the size cap cut off, plus a sentence telling the caller to ask again."""
+    if not truncated:
+        return [], None
+    omitted = [path for path in requested if path not in included and path not in gaps]
+    warning = (
+        f"truncated: only part of the wiki fit the size cap, so {len(omitted)} requested path(s) "
+        "have no page here -- request them again, one or two paths at a time."
+    )
+    return omitted, warning
 
 
 def _folder_page_path(wiki_dir: Path, folder_path: str) -> Path:
@@ -104,6 +120,8 @@ def build_wiki_context(wiki_dir: Path, paths: list[str]) -> WikiContextBundle:
             pages.append(WikiContextPage(path=path, kind=kind, content=content))
             seen.add(path)
 
+    omitted, warning = truncation_note(paths, seen, gaps, budget.truncated)
     return WikiContextBundle(
-        has_wiki=True, root=root_text, pages=pages, gaps=gaps, truncated=budget.truncated
+        has_wiki=True, root=root_text, pages=pages, gaps=gaps, truncated=budget.truncated,
+        omitted=omitted, warning=warning,
     )

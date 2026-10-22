@@ -24,8 +24,11 @@ public static class SkillSync
         "codechroma-impact-review", "codechroma-plan", "codechroma-research", "codechroma-wiki-general", "codechroma-diagram-type",
     ];
 
+    /// <summary>The product's former name: skills installed as codeatlas-* by an old build duplicate the codechroma-* ones and are pruned.</summary>
+    public const string LegacyPrefix = "codeatlas-";
+
     public static readonly IReadOnlyList<string> ExcludePatterns =
-        [.. SkillNames.Concat(RetiredSkillNames).Select(name => $".claude/skills/{name}/")];
+        [.. SkillNames.Concat(RetiredSkillNames).Select(name => $".claude/skills/{name}/"), $".claude/skills/{LegacyPrefix}*/"];
 
     /// <summary>Every path a fresh agent, PR or branch worktree must never show as its own uncommitted work.</summary>
     public static readonly IReadOnlyList<string> WorktreeExcludes = [".codechroma/", .. ExcludePatterns];
@@ -71,6 +74,13 @@ public static class SkillSync
             try { ForceDelete(target); } catch (IOException) { }
             removed.Add(target);
         }
+        var skillsDir = Path.Combine(repoRoot, ".claude", "skills");
+        if (Directory.Exists(skillsDir))
+            foreach (var legacy in Directory.GetDirectories(skillsDir, LegacyPrefix + "*"))
+            {
+                try { ForceDelete(legacy); } catch (IOException) { continue; }
+                removed.Add(legacy);
+            }
         return removed;
     }
 

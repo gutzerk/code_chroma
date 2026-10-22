@@ -12,7 +12,10 @@ def test_no_wiki_directory_returns_has_wiki_false(bridge):
     with TestClient(bridge.app) as client:
         payload = client.get("/repos/default/wiki-context").json()
 
-    assert payload == {"has_wiki": False, "root": None, "pages": [], "gaps": [], "truncated": False}
+    assert payload == {
+        "has_wiki": False, "root": None, "pages": [], "gaps": [], "truncated": False,
+        "omitted": [], "warning": None,
+    }
 
 
 def test_no_wiki_directory_never_calls_sync_wiki(bridge):

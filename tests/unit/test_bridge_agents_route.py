@@ -741,7 +741,7 @@ def test_start_passes_the_agents_workspace_id_to_the_pty_env(started_client, mon
 
     test_client.post("/agents/runner/start", json={})
 
-    assert seen.get("codechroma_WORKSPACE_ID") == "runner"
+    assert seen.get("CODECHROMA_WORKSPACE_ID") == "runner"
 
 
 def test_start_is_idempotent_for_an_already_running_agent(started_client):

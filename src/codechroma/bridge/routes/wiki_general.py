@@ -30,6 +30,7 @@ is in flight, and the update route's callbacks ride the same "wiki-general"-flav
 from __future__ import annotations
 
 import json
+import time
 
 from fastapi import APIRouter, HTTPException, Request
 
@@ -45,9 +46,12 @@ from codechroma.bridge.wiki_general_agent import (
     compute_update_delta,
     has_documentable_content,
     is_stale,
+    pages_to_write,
     prepare_new_run,
     run_lock,
     stamp_generated_commit,
+    verify_pages_written,
+    wiki_general_dir,
     wiki_general_manifest_path,
 )
 from codechroma.bridge.workspaces import Workspace
@@ -165,7 +169,36 @@ async def update_wiki_general(ws: WritableWs, services: Services) -> dict:
             created_containers_json=json.dumps(delta["containers"]["created"], indent=2),
             rewritten_containers_json=json.dumps(delta["containers"]["rewritten"], indent=2),
         )
+        pages = pages_to_write(delta)
+        started_at = time.time() - 1
+        wiki_dir = wiki_general_dir(ws.root, ws.id)
+        agent.post_run_checks[ws.id] = lambda: verify_pages_written(wiki_dir, pages, started_at)
         return await agent.start(ws.id, ws.root, on_status_change, on_output, prompt)
+
+
+@router.get("/repos/{repo_id}/wiki-general/update-plan")
+def preview_wiki_general_update(ws: Ws) -> dict:
+    """The created/rewritten/deleted/unaffected lists an update would act on, applying nothing."""
+    return compute_update_delta(ws)
+
+
+@router.post("/repos/{repo_id}/wiki-general/update-plan")
+async def start_interactive_wiki_general_update(ws: WritableWs, services: Services) -> dict:
+    """Applies deletions and flips the job to generating with no subprocess, for a terminal run."""
+    agent = services.skill_agents[KIND_UPDATE]
+    on_status_change, _ = job_callbacks(KIND, ws.emit)
+    on_status_change = _stamp_on_success(ws, on_status_change)
+    async with run_lock(ws.id):
+        _refuse_if_other_running(services.skill_agents[KIND], ws, "generate")
+        if agent.get_state(ws.id)["state"] == "generating":
+            raise HTTPException(status_code=409, detail="an update run is already in progress")
+        try:
+            delta = apply_update_delta(ws, compute_update_delta(ws))
+        except Exception as exc:
+            await agent.mark_done(ws.id, on_status_change, str(exc))
+            raise HTTPException(status_code=500, detail=str(exc)) from exc
+        state = await agent.mark_generating(ws.id, on_status_change)
+        return {**state, "delta": delta}
 
 
 @router.get("/repos/{repo_id}/wiki-general/clustering")

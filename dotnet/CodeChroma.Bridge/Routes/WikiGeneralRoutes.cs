@@ -148,7 +148,46 @@ public static class WikiGeneralRoutes
                 var prompt = Prompts.Render("wiki_general_update_agent",
                     ("created_components_json", Dump("components", "created")), ("rewritten_components_json", Dump("components", "rewritten")),
                     ("created_containers_json", Dump("containers", "created")), ("rewritten_containers_json", Dump("containers", "rewritten")));
-                return Results.Json(await agent.Start(ws.Id, ws.Root, onChange, onOutput, prompt), BridgeJson.Default.JobState);
+                var pages = WikiGeneralUpdate.PagesToWrite(delta);
+                var startedUtc = DateTime.UtcNow.AddSeconds(-1);
+                var options = new RunOptions([]) { PostRunCheck = () => WikiGeneralUpdate.VerifyPagesWritten(ws.Root, pages, startedUtc) };
+                return Results.Json(await agent.Start(ws.Id, ws.Root, onChange, onOutput, prompt, options: options), BridgeJson.Default.JobState);
+            }
+            finally
+            {
+                gate.Release();
+            }
+        });
+
+        app.MapGet("/repos/{repoId}/wiki-general/update-plan", (string repoId, WorkspaceRegistry registry) =>
+            Reply.Guard(() => Reply.Json(WikiGeneralUpdate.ComputeDelta(registry.Get(repoId)))));
+
+        // For a skill run in a terminal: applies the deletions and flips the job to generating with no subprocess.
+        app.MapPost("/repos/{repoId}/wiki-general/update-plan", async (string repoId, WorkspaceRegistry registry, SkillAgents agents, DiagramContext context) =>
+        {
+            var ws = registry.Get(repoId);
+            if (ws.ReadOnly) return Reply.Error(409, ReadOnlyMessage);
+            var agent = agents[WikiGeneral.KindUpdate];
+            var (onChange, _) = SkillJobCallbacks.For(WikiGeneral.Kind, ws.Emit);
+            onChange = StampOnSuccess(ws, onChange, context);
+            var gate = WikiGeneral.RunLock(ws.Id);
+            await gate.WaitAsync();
+            try
+            {
+                if (agents[WikiGeneral.Kind].GetState(ws.Id).State == "generating") return Reply.Error(409, "a generate run is already in progress");
+                if (agent.GetState(ws.Id).State == "generating") return Reply.Error(409, "an update run is already in progress");
+                JsonObject delta;
+                try
+                {
+                    delta = await Task.Run(() => WikiGeneralUpdate.ApplyDelta(ws, WikiGeneralUpdate.ComputeDelta(ws)));
+                }
+                catch (Exception error)
+                {
+                    await agent.MarkDone(ws.Id, onChange, error.Message);
+                    return Reply.Error(500, error.Message);
+                }
+                var state = await agent.MarkGenerating(ws.Id, onChange);
+                return Reply.Json(new JsonObject { ["state"] = state.State, ["error"] = state.Error, ["delta"] = delta.DeepClone() });
             }
             finally
             {

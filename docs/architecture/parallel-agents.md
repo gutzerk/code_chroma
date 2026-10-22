@@ -187,7 +187,7 @@ branch through an agent attached to it (`_guard_shared_worktree`, keyed off `Age
   (`terminal/server.py`'s `_bridge_managed_session`). Trade-off, on purpose: a reattach shows the
   current screen, not history above the fold. 🔴 Entirely separate from `skill_agent`'s registry: if
   the two touched, regenerating a C1 diagram would kill the user's sessions. `atexit` + the lifespan
-  kill leave no orphans. `agent_run_env(agent_id)` injects `codechroma_WORKSPACE_ID=<agent id>` into
+  kill leave no orphans. `agent_run_env(agent_id)` injects `CODECHROMA_WORKSPACE_ID=<agent id>` (and `CODECHROMA_BRIDGE_URL` when the bridge's URL is known, `questions.launch.identity_env`; C#: `BridgeAddress.ExportIdentity`) into
   the PTY env (both `routes/agents.py`'s `start` and `autostart.py` pass it via
   `AgentSessionRegistry.start(..., env=...)` → `PtySession(env=...)`). Without it the diagram skills
   fall back to the `default` (main) workspace and write `.codechroma/*.json` into main while the agent
@@ -203,7 +203,7 @@ branch through an agent attached to it (`_guard_shared_worktree`, keyed off `Age
   (`terminal/agents.py`), which routes `kind="agent"` through `llm/resolve_cli` under the
   `parallel_agents` call site's `agents` group and folds resume/initial-prompt into the argv (so a
   `"task"` context first message still reaches an `agent` window). The caller merges the resolver's
-  env overrides under `agent_run_env`'s `codechroma_WORKSPACE_ID`, so the workspace id wins any
+  env overrides under `agent_run_env`'s `CODECHROMA_WORKSPACE_ID`, so the workspace id wins any
   collision. The resolved binary is stored back on the record as `resolved_cli` (persisted,
   additive), surfaced via `to_payload` so the window/rail can show which CLI actually launched. A
   plain `claude` record (FR-012) is untouched: it takes the assistant's `effective_cli` directly and
@@ -454,7 +454,7 @@ branch through an agent attached to it (`_guard_shared_worktree`, keyed off `Age
 
 ## Canvas questions (017)
 
-Claude agent windows launch with the CodeChroma MCP server (`ask_user`) registered through `agent_cli`'s `mcp` parameter, plus the `codechroma_BRIDGE_URL`/`codechroma_QUESTION_TOKEN` env vars; see [`ai-questions.md`](ai-questions.md) "Agent wiring". A bridge restart invalidates old tokens, so agent windows are respawned with fresh ones.
+Claude agent windows launch with the CodeChroma MCP server (`ask_user`) registered through `agent_cli`'s `mcp` parameter, plus the `CODECHROMA_BRIDGE_URL`/`CODECHROMA_QUESTION_TOKEN` env vars; see [`ai-questions.md`](ai-questions.md) "Agent wiring". A bridge restart invalidates old tokens, so agent windows are respawned with fresh ones.
 
 ## Agent panel modes (layout store)
 

@@ -1,3 +1,4 @@
+import { agentMeta } from "./activity/AgentSwitcherRow";
 import { useCallback, useEffect, useState } from "react";
 import { ResizableRail } from "../canvas/ResizableRail";
 import type { AgentRecord } from "../state/types";
@@ -12,7 +13,7 @@ import {
   useIsAgentDockCollapsed,
 } from "./agentDockStore";
 import runAgentIcon from "../icons/run-agent.svg";
-import { AgentLed, agentStatusLabel } from "./AgentLed";
+import { AgentLed } from "./AgentLed";
 import { UsageStrip, useAgentUsage } from "./activity/UsageStrip";
 import { AgentLedStrip } from "./AgentLedStrip";
 import { closeAgentWindow } from "./windowActions";
@@ -156,9 +157,7 @@ export function DockedAgentPanel({
         {full ? (
           <span className="agent-full-heading">
             <span className="agent-full-title">{agent.title}</span>
-            <span className="agent-full-meta">
-              {[agent.resolved_cli ?? agent.kind, agent.branch, agentStatusLabel(agent.status)].join(" · ")}
-            </span>
+            <span className="agent-full-meta">{agentMeta(agent)}</span>
           </span>
         ) : (
           <>

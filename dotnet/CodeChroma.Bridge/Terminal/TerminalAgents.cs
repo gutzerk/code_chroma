@@ -36,8 +36,8 @@ public sealed record AgentLaunch(IReadOnlyList<string> Argv, IReadOnlyDictionary
 /// </summary>
 public sealed class TerminalAgents(UserPaths paths, ProviderStore providers, CallSiteStore callSites)
 {
-    public const string ResumeFlag = "--resume";
-    public const string ForkSessionFlag = "--fork-session";
+    public const string ResumeFlag = ClaudeAdapter.ResumeFlag;
+    public const string ForkSessionFlag = ClaudeAdapter.ForkSessionFlag;
     public const string AgentCallSite = "parallel_agents";
     public const string DefaultCli = "claude";
 

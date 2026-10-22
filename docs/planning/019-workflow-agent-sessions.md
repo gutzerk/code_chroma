@@ -45,7 +45,7 @@ A workflow step can only start a fresh agent, with or without the previous step'
 
 ### Stage 2 — Usage and chain length
 
-- Done. Thresholds and the window table are constants in `Workflows/WorkflowLimits.cs` (the C# bridge has no config file to put them in). The run DTO carries per step `chainLength` and a server-computed `chainWarning`, and `usage` gains `model` and `contextWindow`, so the web needs neither the walk nor the thresholds.
+- Done. Thresholds are constants in `Workflows/WorkflowLimits.cs` and the window table in `Agents/ModelSpecs.cs` (the C# bridge has no config file to put them in). The run DTO carries per step `chainLength` and a server-computed `chainWarning`, and `usage` gains `model` and `contextWindow`, so the web needs neither the walk nor the thresholds.
 - `Agents/Transcripts.cs`: `ReadUsage(sessionId, worktree)` reads the last assistant entry's `usage` in the claude JSONL transcript (input + cache read + cache creation = context size). Injectable like `sessionFinder`.
 - Runner writes `StepRecord.Usage` in `Snapshot`. Chain length is computed from the definition (follow continue links), exposed on the run DTO per step so the web does not repeat the walk.
 - `config`: `workflowChainWarnSteps` (3), `workflowContextWarnRatio` (0.6), and a model to context-window table (default 200k).
@@ -88,7 +88,7 @@ A workflow step can only start a fresh agent, with or without the previous step'
 - Agents tab full screen (`ActivityPanel` `is-full`): left list of agents only, terminal in the main area, header usage strip (Context meter n/window, Tokens in/out, Cache hit, Cost) and Stop agent. No right panel.
 - Usage comes from Stage 2's `ReadUsage` over the agent's session via a new `GET /agents/{id}/usage`, pushed on the agent's existing change events. Cost uses a per-model price table in config; hidden when the model is unknown.
 - Tests: usage route with a transcript fixture; strip renders and hides cost when unknown.
-- Done: the route is `GET /agents/{id}/usage` (the agent routes are not under `/repos/{id}`) and returns `null` with no claude session. Tokens, cache hit and cost sum every billed reply (`Transcripts.ReadTotals`, one count per `message.id`); context is the last main-thread reply. Prices live in `Workflows/ModelPrices.cs`, a code table beside `WorkflowLimits` rather than user config. The web refetches on the agent's status changes and polls every 5 s only while full screen shows that agent. See `docs/architecture/parallel-agents.md` "Session usage".
+- Done: the route is `GET /agents/{id}/usage` (the agent routes are not under `/repos/{id}`) and returns `null` with no claude session. Tokens, cache hit and cost sum every billed reply (`Transcripts.ReadSession`, one streamed pass, one count per `message.id`); context is the last main-thread reply. Prices and windows live in `Agents/ModelSpecs.cs`, a code table rather than user config. The web refetches on the agent's status changes and polls every 5 s only while full screen shows that agent, it is running and the page is visible. See `docs/architecture/parallel-agents.md` "Session usage".
 
 ### Stage 8 — Docs
 

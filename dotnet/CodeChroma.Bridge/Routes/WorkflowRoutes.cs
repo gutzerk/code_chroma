@@ -38,22 +38,22 @@ public static class WorkflowRoutes
         app.MapGet("/repos/{repoId}/workflows", (string repoId, WorkspaceRegistry registry, WorkflowRunners runners) =>
             JsonResult(runners.For(registry.Get(repoId)).Store.ListWorkflows()));
 
-        app.MapPost("/repos/{repoId}/workflows", async (string repoId, HttpRequest request, WorkspaceRegistry registry, WorkflowRunners runners, SkillAgents agents, ProviderStore providers) =>
+        app.MapPost("/repos/{repoId}/workflows", async (string repoId, HttpRequest request, WorkspaceRegistry registry, WorkflowRunners runners, SkillAgents agents, CliResolver resolver) =>
         {
             var ws = registry.Get(repoId);
             if (ws.ReadOnly) return Reply.Error(409, "a pull-request workspace is read-only");
-            var (def, error) = await ReadDefinition(request, agents, providers);
+            var (def, error) = await ReadDefinition(request, agents, resolver);
             if (def is null) return Reply.Error(400, error!);
             var store = runners.For(registry.Get(repoId)).Store;
             if (!store.TryCreateWorkflow(def)) return Reply.Error(409, "Workflow already exists");
             return JsonResult(def);
         });
 
-        app.MapPut("/repos/{repoId}/workflows/{workflowId}", async (string repoId, string workflowId, HttpRequest request, WorkspaceRegistry registry, WorkflowRunners runners, SkillAgents agents, ProviderStore providers) =>
+        app.MapPut("/repos/{repoId}/workflows/{workflowId}", async (string repoId, string workflowId, HttpRequest request, WorkspaceRegistry registry, WorkflowRunners runners, SkillAgents agents, CliResolver resolver) =>
         {
             var ws = registry.Get(repoId);
             if (ws.ReadOnly) return Reply.Error(409, "a pull-request workspace is read-only");
-            var (def, error) = await ReadDefinition(request, agents, providers);
+            var (def, error) = await ReadDefinition(request, agents, resolver);
             if (def is null) return Reply.Error(400, error!);
             if (def.Id != workflowId) return Reply.Error(400, "The workflow id in the body must match the URL");
             var store = runners.For(ws).Store;
@@ -202,22 +202,27 @@ public static class WorkflowRoutes
     }
 
     /// <summary>Parses and validates a workflow definition body shared by create and update.</summary>
-    private static async Task<(WorkflowDef? Def, string? Error)> ReadDefinition(HttpRequest request, SkillAgents agents, ProviderStore providers)
+    private static async Task<(WorkflowDef? Def, string? Error)> ReadDefinition(HttpRequest request, SkillAgents agents, CliResolver resolver)
     {
         WorkflowDef? def;
         try { def = await JsonSerializer.DeserializeAsync<WorkflowDef>(request.Body, WorkflowJson.Options); }
         catch (JsonException) { return (null, "Invalid workflow JSON"); }
-        var error = WorkflowValidation.Validate(def, AdapterOf(agents, providers));
+        var error = WorkflowValidation.Validate(def, AdapterOf(agents, resolver));
         return error is null ? (def, null) : (null, error);
     }
 
-    /// <summary>A provider id's CLI adapter (null: the workflow-step call-site default), or null for an unknown or non-CLI provider.</summary>
-    private static Func<string?, string?> AdapterOf(SkillAgents agents, ProviderStore providers) => providerId =>
-        providerId is null
-            ? agents["workflow-step"].ResolveCli().AdapterKey
-            : providers.Find(providerId) is { } provider && Json.Str(provider["kind"]) == "cli" && Json.Str(provider["adapter"]) is { } adapter && CliAdapters.All.ContainsKey(adapter)
-                ? adapter
-                : null;
+    /// <summary>A provider id's CLI adapter (null: the workflow-step call-site default), or null for an unknown or non-CLI provider; each id is looked up once per validation.</summary>
+    private static Func<string?, string?> AdapterOf(SkillAgents agents, CliResolver resolver)
+    {
+        var spec = agents["workflow-step"].Spec;
+        var cache = new Dictionary<string, string?>();
+        return providerId =>
+        {
+            var key = providerId ?? "";
+            if (!cache.TryGetValue(key, out var adapter)) cache[key] = adapter = resolver.AdapterOf(providerId, spec.Name, spec.Model);
+            return adapter;
+        };
+    }
 
     private static string? Str(JsonObject body, string key) => Json.NonEmptyStr(body[key]);
 

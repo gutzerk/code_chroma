@@ -4,7 +4,7 @@ import { ConfirmDialog } from "./ConfirmDialog";
 import { Icon } from "./icons";
 import { OverflowMenu } from "./OverflowMenu";
 import { RUN_STATE_COLOR, RUN_STATE_TEXT } from "./runControls";
-import { workflowInputs, type Run, type WorkflowDef, type WorkflowStepDef } from "./types";
+import { agentMode, workflowInputs, type Run, type WorkflowDef, type WorkflowStepDef } from "./types";
 import type { WorkflowActions } from "./workflowStore";
 
 type ChipMode = "new" | "handoff" | "continue" | "you";
@@ -13,9 +13,7 @@ const CHIP_TEXT: Record<ChipMode, string> = { new: "New", handoff: "Hand-off", c
 
 /** How a step's chip reads: review steps are "You", agent steps by their agent mode (missing reads as hand-off, like the bridge). */
 export function stepChipMode(step: WorkflowStepDef): ChipMode {
-  if (step.kind === "review") return "you";
-  const agent = step.agent ?? "handoff";
-  return agent.startsWith("continue") ? "continue" : agent === "new" ? "new" : "handoff";
+  return step.kind === "review" ? "you" : agentMode(step.agent);
 }
 
 /** A new id for a copy of `id` that no saved workflow uses yet. */

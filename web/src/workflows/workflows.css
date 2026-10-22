@@ -771,10 +771,6 @@
   cursor: pointer;
 }
 
-.wf-saved-head {
-  cursor: default;
-}
-
 .wf-run-name {
   max-width: 100%;
   font-weight: 600;

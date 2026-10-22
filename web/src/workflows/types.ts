@@ -50,16 +50,39 @@ export interface WorkflowStepDef {
 /** "continue" resumes the nearest earlier agent step; "continue:<stepId>" names it. */
 export type StepAgent = "new" | "handoff" | "continue" | `continue:${string}`;
 
-/** The step a continue resumes, or -1 (also -1 for a step that does not continue). */
-export function continueSourceIndex(steps: WorkflowStepDef[], index: number): number {
+export type AgentMode = "new" | "handoff" | "continue";
+
+const CONTINUE_PREFIX = "continue:";
+
+/** The mode of a step's agent field; missing reads as hand-off, like the bridge. */
+export function agentMode(agent: StepAgent | null | undefined): AgentMode {
+  if (agent === "continue" || agent?.startsWith(CONTINUE_PREFIX)) return "continue";
+  return agent === "new" ? "new" : "handoff";
+}
+
+/** The step id a "continue:<id>" names, or null (plain "continue" and the other modes name none). */
+export function continueStepId(agent: StepAgent | null | undefined): string | null {
+  return agent?.startsWith(CONTINUE_PREFIX) ? agent.slice(CONTINUE_PREFIX.length) : null;
+}
+
+/** The index of the last agent step before `index`, or -1. */
+export function nearestAgentBefore(steps: WorkflowStepDef[], index: number): number {
+  for (let i = index - 1; i >= 0; i--) if (steps[i].kind === "agent") return i;
+  return -1;
+}
+
+/** The step a continue names, even a later or review one (so the editor can say what is wrong); -1 when it names none. */
+export function continueTargetIndex(steps: WorkflowStepDef[], index: number): number {
   const agent = steps[index]?.agent;
-  if (agent === "continue") {
-    for (let i = index - 1; i >= 0; i--) if (steps[i].kind === "agent") return i;
-    return -1;
-  }
-  if (!agent?.startsWith("continue:")) return -1;
-  const id = agent.slice("continue:".length);
-  return steps.findIndex((s, i) => i < index && s.id === id && s.kind === "agent");
+  if (agent === "continue") return nearestAgentBefore(steps, index);
+  const id = continueStepId(agent);
+  return id === null ? -1 : steps.findIndex((s) => s.id === id);
+}
+
+/** The step a continue resumes, or -1 (also -1 for a step that does not continue or names an invalid source). */
+export function continueSourceIndex(steps: WorkflowStepDef[], index: number): number {
+  const target = continueTargetIndex(steps, index);
+  return target >= 0 && target < index && steps[target].kind === "agent" ? target : -1;
 }
 
 /** A value asked for when a run starts; `{{name}}` in a step prompt is replaced by it. */
@@ -102,6 +125,8 @@ export interface StepRecord {
   resumedFrom?: string | null;
   /** How many steps the continue chain ending here spans; computed from the definition when absent. */
   chainLength?: number | null;
+  /** The bridge's verdict that the chain is long or the context is near the model's window (WorkflowLimits). */
+  chainWarning?: boolean | null;
 }
 
 export interface StepUsage {
@@ -109,6 +134,8 @@ export interface StepUsage {
   inputTokens: number;
   outputTokens: number;
   cacheReadTokens: number;
+  model?: string | null;
+  contextWindow?: number;
 }
 
 export interface MessageChip {

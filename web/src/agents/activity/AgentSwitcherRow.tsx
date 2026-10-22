@@ -9,7 +9,8 @@ import { AgentLed, agentStatusLabel } from "../AgentLed";
 import { restoreAgentWindow } from "../windowActions";
 import { ChevronDownIcon, FullScreenIcon, PlusIcon } from "./icons";
 
-function agentMeta(agent: AgentRecord): string {
+/** "<cli> · <branch> · <status>", the agent subtitle every agent list shows. */
+export function agentMeta(agent: AgentRecord): string {
   return [agent.resolved_cli ?? agent.kind, agent.branch, agentStatusLabel(agent.status)].join(" · ");
 }
 
@@ -39,9 +40,7 @@ export function AgentList({ agents, activeId }: { agents: AgentRecord[]; activeI
           <AgentLed status={agent.status} />
           <span className="activity-switcher-text">
             <span className="activity-switcher-title">{agent.title}</span>
-            <span className="activity-switcher-meta">
-              {agentStatusLabel(agent.status)} · {agent.branch}
-            </span>
+            <span className="activity-switcher-meta">{agentMeta(agent)}</span>
           </span>
         </button>
       ))}

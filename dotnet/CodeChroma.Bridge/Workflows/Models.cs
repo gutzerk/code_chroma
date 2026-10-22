@@ -87,7 +87,7 @@ public sealed class StepUsage
     public long CacheReadTokens { get; set; }
     public string? Model { get; set; }
 
-    /// <summary>The context window of <see cref="Model"/> per <see cref="WorkflowLimits.ContextWindow"/>.</summary>
+    /// <summary>The context window of <see cref="Model"/> per <see cref="Agents.ModelSpecs.ContextWindow"/>.</summary>
     public long ContextWindow { get; set; }
 }
 
@@ -121,10 +121,27 @@ public static class StepAgents
     public static int SourceIndex(WorkflowDef def, int index)
     {
         var agent = def.Steps[index].Agent;
-        if (agent == Continue) return Enumerable.Range(0, index).Reverse().FirstOrDefault(i => def.Steps[i].Kind == "agent", -1);
+        if (agent == Continue) return NearestAgentBefore(def, index);
         if (agent is null || !agent.StartsWith(ContinuePrefix, StringComparison.Ordinal)) return -1;
         var id = agent[ContinuePrefix.Length..];
         return def.Steps.FindIndex(0, index, s => s.Id == id && s.Kind == "agent");
+    }
+
+    /// <summary>The index of the last agent step before <paramref name="index"/>, or -1.</summary>
+    public static int NearestAgentBefore(WorkflowDef def, int index)
+    {
+        for (var i = index - 1; i >= 0; i--)
+            if (def.Steps[i].Kind == "agent") return i;
+        return -1;
+    }
+
+    /// <summary>Every step's chain length in one forward pass (a source always comes before the step that continues it).</summary>
+    public static int[] ChainLengths(WorkflowDef def)
+    {
+        var lengths = new int[def.Steps.Count];
+        for (var i = 0; i < lengths.Length; i++)
+            lengths[i] = SourceIndex(def, i) is >= 0 and var source ? lengths[source] + 1 : 1;
+        return lengths;
     }
 
     /// <summary>How many steps a continue chain ending at <paramref name="index"/> spans (1 for a step that does not continue).</summary>

@@ -1,3 +1,5 @@
+using CodeChroma.Bridge.Skills;
+
 namespace CodeChroma.Bridge.Workflows;
 
 /// <summary>The checks a workflow definition must pass before it is saved; continue never falls back, so a continue that cannot resume is refused here.</summary>
@@ -49,7 +51,7 @@ public static class WorkflowValidation
             var source = StepAgents.SourceIndex(def, i);
             if (source < 0) return $"{step.Slug} continues a session, but there is no earlier agent step to continue";
             var from = def.Steps[source];
-            if (adapterOf(step.Provider) != "claude") return $"{step.Slug}: only claude can continue a session";
+            if (!CliAdapters.CanResume(adapterOf(step.Provider))) return $"{step.Slug}: only claude can continue a session";
             if (step.Provider != from.Provider) return $"{step.Slug} continues {from.Slug}, so it must use the same provider";
         }
         return null;

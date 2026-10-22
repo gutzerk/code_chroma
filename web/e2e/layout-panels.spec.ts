@@ -66,13 +66,18 @@ test("the attached activity panel collapses and reopens even without agents", as
   await expect(page.getByRole("button", { name: "Run agent" })).toBeVisible();
 });
 
-test("the activity panel stretches left and restores its width", async ({ page }) => {
+test("full screen reaches the diagrams panel edge, or the screen edge once it is collapsed", async ({
+  page,
+}) => {
   await gotoApp(page, { files: false });
   const panel = page.getByTestId("activity-panel");
-  const before = (await panel.boundingBox())!.width;
-  await page.getByRole("button", { name: "Stretch panel" }).click();
-  await expect(panel).toHaveClass(/is-wide/);
-  expect((await panel.boundingBox())!.width).toBeGreaterThan(before);
-  await page.getByRole("button", { name: "Restore panel width" }).click();
-  await expect(panel).not.toHaveClass(/is-wide/);
+  const left = page.getByTestId("left-panel");
+  await page.getByRole("button", { name: "Full screen" }).click();
+  await expect(panel).toHaveClass(/is-full/);
+  const leftRight = (await left.boundingBox())!.x + (await left.boundingBox())!.width;
+  expect((await panel.boundingBox())!.x).toBeGreaterThanOrEqual(leftRight);
+
+  await page.getByRole("button", { name: "Collapse diagrams panel" }).click();
+  await expect(panel).toHaveClass(/is-full/);
+  expect((await panel.boundingBox())!.x).toBeLessThan(leftRight);
 });

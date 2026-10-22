@@ -1,30 +1,28 @@
 import { useEffect, useRef, useState } from "react";
 import { layoutStore } from "../../canvas/layout/layoutStore";
-import type { AgentsMode, AgentsWidth } from "../../canvas/layout/layoutStore";
+import type { AgentsMode } from "../../canvas/layout/layoutStore";
 import type { AgentRecord } from "../../state/types";
 import { agentStore } from "../agentStore";
 import { useAgentClient } from "../AgentClientContext";
 import { AgentLed, agentStatusLabel } from "../AgentLed";
 import { restoreAgentWindow } from "../windowActions";
-import { ChevronDownIcon, FullScreenIcon, PlusIcon, StretchIcon } from "./icons";
+import { ChevronDownIcon, FullScreenIcon, PlusIcon } from "./icons";
 
 function agentMeta(agent: AgentRecord): string {
   return [agent.resolved_cli ?? agent.kind, agent.branch, agentStatusLabel(agent.status)].join(" · ");
 }
 
-/** The single 40px agents row: agent dropdown plus run, stretch and full screen buttons. */
+/** The single 40px agents row: agent dropdown (a row of tabs in full screen) plus run and full screen buttons. */
 export function AgentSwitcherRow({
   agents,
   activeId,
   agentsMode,
-  agentsWidth,
   disabled,
   onRunAgent,
 }: {
   agents: AgentRecord[];
   activeId: string | undefined;
   agentsMode: AgentsMode;
-  agentsWidth: AgentsWidth;
   disabled: boolean;
   onRunAgent: () => void;
 }) {
@@ -33,7 +31,7 @@ export function AgentSwitcherRow({
   const rootRef = useRef<HTMLDivElement | null>(null);
   const active = agents.find((a) => a.id === activeId);
   const full = agentsMode === "full";
-  const wide = agentsWidth === "wide";
+  const activeIndex = agents.findIndex((a) => a.id === activeId);
   useEffect(() => {
     if (!open) return;
     const onDown = (e: PointerEvent) => {
@@ -50,6 +48,28 @@ export function AgentSwitcherRow({
   };
   return (
     <div className="activity-switcher" ref={rootRef}>
+      {full ? (
+        <div className="activity-switcher-tabs" role="tablist" aria-label="Agents">
+          {agents.map((agent) => (
+            <button
+              key={agent.id}
+              type="button"
+              role="tab"
+              aria-selected={agent.id === activeId}
+              className="activity-switcher-tab"
+              data-testid={`agent-tab-${agent.id}`}
+              data-diagram={agent.context_kind === "task" || undefined}
+              title={agentMeta(agent)}
+              onClick={() => select(agent)}
+            >
+              <AgentLed status={agent.status} />
+              <span className="activity-switcher-title">{agent.title}</span>
+              <span className="activity-switcher-meta">{agentStatusLabel(agent.status)}</span>
+            </button>
+          ))}
+          {agents.length === 0 && <span className="activity-switcher-title">No agents</span>}
+        </div>
+      ) : (
       <button
         type="button"
         className="activity-switcher-trigger"
@@ -70,9 +90,19 @@ export function AgentSwitcherRow({
         ) : (
           <span className="activity-switcher-title">No agents</span>
         )}
+        {agents.length > 0 && (
+          <span
+            className="activity-switcher-count"
+            data-testid="agent-count"
+            title={`${agents.length} ${agents.length === 1 ? "agent" : "agents"} active`}
+          >
+            {activeIndex >= 0 ? `${activeIndex + 1}/${agents.length}` : agents.length}
+          </span>
+        )}
         <ChevronDownIcon size={14} />
       </button>
-      {open && (
+      )}
+      {!full && open && (
         <ul className="activity-switcher-menu" role="listbox" aria-label="Agents">
           {agents.map((agent) => (
             <li key={agent.id} role="presentation">
@@ -103,17 +133,6 @@ export function AgentSwitcherRow({
         onClick={onRunAgent}
       >
         <PlusIcon />
-      </button>
-      <button
-        type="button"
-        className="activity-icon-btn"
-        aria-label={wide ? "Restore panel width" : "Stretch panel"}
-        title={wide ? "Restore panel width" : "Stretch panel"}
-        aria-pressed={wide}
-        disabled={full}
-        onClick={layoutStore.toggleAgentsWide}
-      >
-        <StretchIcon />
       </button>
       <button
         type="button"

@@ -66,9 +66,9 @@ public sealed partial class BridgeManager(IBridgeProcessLauncher launcher, IPort
             while (DateTime.UtcNow < deadline)
             {
                 ct.ThrowIfCancellationRequested();
-                if (ready.Task.IsCompleted) return new BridgeHandle(port, origin, process);
+                if (ready.Task.IsCompleted) return Ready(repoPath, port, origin, process);
                 if (process.HasExited) throw new InvalidOperationException(process.ExitDescription ?? "bridge exited");
-                if (await health.IsHealthyAsync(origin, ct)) return new BridgeHandle(port, origin, process);
+                if (await health.IsHealthyAsync(origin, ct)) return Ready(repoPath, port, origin, process);
                 await Task.WhenAny(ready.Task, process.Exited, Task.Delay(poll, ct));
             }
         }
@@ -79,6 +79,12 @@ public sealed partial class BridgeManager(IBridgeProcessLauncher launcher, IPort
         }
         await StopAsync(process);
         throw new TimeoutException($"bridge did not become ready within {(int)timeout.TotalMilliseconds}ms");
+    }
+
+    private static BridgeHandle Ready(string repoPath, int port, string origin, IBridgeProcess process)
+    {
+        BridgeEndpointFile.Write(repoPath, port, origin);
+        return new BridgeHandle(port, origin, process);
     }
 
     public static async Task StopAsync(IBridgeProcess? process, TimeSpan? grace = null)
@@ -116,6 +122,26 @@ public sealed class BridgeRegistry(BridgeManager manager, string executable)
             try { await BridgeManager.StopAsync((await task).Process); }
             catch (Exception e) when (e is InvalidOperationException or TimeoutException or IOException or System.ComponentModel.Win32Exception or OperationCanceledException) { }
         }
+    }
+}
+
+/// <summary>Records the live bridge URL in the repo so agents re-read it after a restart instead of trusting a port baked into a task.</summary>
+public static class BridgeEndpointFile
+{
+    public const string RelativePath = ".codechroma/bridge.json";
+
+    public static void Write(string repoPath, int port, string origin)
+    {
+        try
+        {
+            var path = Path.Combine(repoPath, ".codechroma", "bridge.json");
+            Directory.CreateDirectory(Path.GetDirectoryName(path)!);
+            var json = System.Text.Json.JsonSerializer.Serialize(new { origin, port, updated_at = DateTimeOffset.UtcNow });
+            var temp = path + ".tmp";
+            File.WriteAllText(temp, json);
+            File.Move(temp, path, overwrite: true);
+        }
+        catch (Exception e) when (e is IOException or UnauthorizedAccessException) { }
     }
 }
 

@@ -65,6 +65,8 @@ A workflow step can only start a fresh agent, with or without the previous step'
 
 ### Stage 5 — Run views (boards 3, 8, 9)
 
+- Done (web + agent launch route). `runControls.ts`: `stepModeLabel`, `chainLength`, `sessionBadge` (thresholds `CHAIN_WARN_STEPS` 3, `CONTEXT_WARN_RATIO` 0.6 of `CONTEXT_WINDOW_TOKENS` 200k), `resumesChip`, `canOpenAgent`, `betweenLabel(steps, index)` with hand-off vs resume. `StepRecord.chainLength` (optional) is read when the runner sends it, else computed. The run views had no step Message button left in code; board 9's "Message the step agent…" box was design-only, so the open question is settled as removed; `RunChat` (and its `@step` routing) is unchanged. Open agent: `POST /agents {kind:"claude", run_id, fork_session}` + start runs `claude --resume <id> --fork-session` in the run worktree (`AgentManager.CreateInRun`, `TerminalAgents.Resolve(forkSession)`).
+
 - `StepRail.tsx` / `RunDetail.tsx`: mode labels, "Continuing a N-step session" badge (amber past the thresholds), "Resumes step N's agent session" chip; `runControls.betweenLabel` describes hand-off vs resume.
 - Remove the step Message button; add "Open agent" on finished steps with a session (calls the parallel-agents launch with resume args; new bridge param on the agent launch route, claude only).
 - Tests: `StepRail.test.tsx` labels and badge thresholds; Open agent hidden without a session.

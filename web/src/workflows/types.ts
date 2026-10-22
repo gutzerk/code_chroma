@@ -100,6 +100,8 @@ export interface StepRecord {
   usage?: StepUsage | null;
   /** The step whose session this step resumed. */
   resumedFrom?: string | null;
+  /** How many steps the continue chain ending here spans; computed from the definition when absent. */
+  chainLength?: number | null;
 }
 
 export interface StepUsage {

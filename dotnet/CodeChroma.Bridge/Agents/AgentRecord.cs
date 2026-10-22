@@ -32,6 +32,12 @@ public sealed class AgentRecord
     /// <summary>The pr-N this agent was forked from, if any.</summary>
     public string? SourcePr { get; set; }
 
+    /// <summary>The workflow run whose worktree this agent was opened in ("Open agent" on a step), if any.</summary>
+    public string? SourceRun { get; set; }
+
+    /// <summary>A claude session a fresh (non-resume) start forks with `--resume id --fork-session`; the source stays untouched.</summary>
+    public string? ForkSession { get; set; }
+
     /// <summary>The first-launch context handed to the agent once, then cleared.</summary>
     public string? Context { get; set; }
 
@@ -58,6 +64,7 @@ public sealed class AgentRecord
         ["id"] = Id, ["title"] = Title, ["kind"] = Kind, ["branch"] = Branch, ["worktree"] = Worktree, ["session_id"] = SessionId,
         ["created_at"] = CreatedAt, ["pr_url"] = PrUrl, ["window"] = Window.DeepClone(), ["pid"] = Pid,
         ["shares_workspace_with"] = SharesWorkspaceWith, ["base_branch"] = BaseBranch, ["source_pr"] = SourcePr,
+        ["source_run"] = SourceRun, ["fork_session"] = ForkSession,
         ["context"] = Context, ["context_kind"] = ContextKind, ["resolved_cli"] = ResolvedCli, ["diagram_type"] = DiagramType,
     };
 
@@ -67,6 +74,7 @@ public sealed class AgentRecord
         ["id"] = Id, ["title"] = Title, ["kind"] = Kind, ["branch"] = Branch, ["worktree"] = Worktree, ["created_at"] = CreatedAt,
         ["session_id"] = SessionId, ["pr_url"] = PrUrl, ["pid"] = Pid, ["window"] = Window.DeepClone(),
         ["shares_workspace_with"] = SharesWorkspaceWith, ["base_branch"] = BaseBranch, ["source_pr"] = SourcePr,
+        ["source_run"] = SourceRun, ["fork_session"] = ForkSession,
         ["context"] = Context, ["context_kind"] = ContextKind, ["resolved_cli"] = ResolvedCli,
         ["status"] = Status, ["exit_code"] = ExitCode, ["worktree_lost"] = WorktreeLost,
     };
@@ -95,6 +103,8 @@ public sealed class AgentRecord
             SharesWorkspaceWith = Json.Str(o["shares_workspace_with"]),
             BaseBranch = Json.Str(o["base_branch"]),
             SourcePr = Json.Str(o["source_pr"]),
+            SourceRun = Json.Str(o["source_run"]),
+            ForkSession = Json.Str(o["fork_session"]),
             Context = CleanContext(o["context"]),
             ContextKind = CoerceContextKind(Json.Str(o["context_kind"])),
             DiagramType = Json.Str(o["diagram_type"]),

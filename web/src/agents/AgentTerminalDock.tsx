@@ -12,7 +12,8 @@ import {
   useIsAgentDockCollapsed,
 } from "./agentDockStore";
 import runAgentIcon from "../icons/run-agent.svg";
-import { AgentLed } from "./AgentLed";
+import { AgentLed, agentStatusLabel } from "./AgentLed";
+import { UsageStrip, useAgentUsage } from "./activity/UsageStrip";
 import { AgentLedStrip } from "./AgentLedStrip";
 import { closeAgentWindow } from "./windowActions";
 import { CreatePrButton } from "./CreatePrButton";
@@ -113,12 +114,16 @@ export function DockedAgentPanel({
   agent,
   active,
   focusRequest,
+  full = false,
 }: {
   agent: AgentRecord;
   active: boolean;
   focusRequest: number;
+  /** The Agents tab's full screen: a title and meta line, the usage strip and Stop agent. */
+  full?: boolean;
 }) {
   const agentClient = useAgentClient();
+  const usage = useAgentUsage(agentClient, agent.id, agent.status, full && active);
   const startError = useAgentStartError(agent.id);
   const [recovering, setRecovering] = useState(false);
   const [recoverError, setRecoverError] = useState<string | null>(null);
@@ -148,13 +153,35 @@ export function DockedAgentPanel({
       <div className="agent-terminal-dock-header">
         <img className="agent-window-icon" src={runAgentIcon} alt="" aria-hidden="true" />
         <AgentLed status={agent.status} />
-        <span className="agent-terminal-dock-title">{agent.title}</span>
-        {agent.resolved_cli && (
-          <span className="agent-window-cli" title={`launched as ${agent.resolved_cli}`}>
-            {agent.resolved_cli}
+        {full ? (
+          <span className="agent-full-heading">
+            <span className="agent-full-title">{agent.title}</span>
+            <span className="agent-full-meta">
+              {[agent.resolved_cli ?? agent.kind, agent.branch, agentStatusLabel(agent.status)].join(" · ")}
+            </span>
           </span>
+        ) : (
+          <>
+            <span className="agent-terminal-dock-title">{agent.title}</span>
+            {agent.resolved_cli && (
+              <span className="agent-window-cli" title={`launched as ${agent.resolved_cli}`}>
+                {agent.resolved_cli}
+              </span>
+            )}
+            <span className="agent-window-branch">{agent.branch}</span>
+          </>
         )}
-        <span className="agent-window-branch">{agent.branch}</span>
+        {usage && <UsageStrip usage={usage} />}
+        {full && running && (
+          <button
+            type="button"
+            className="agent-stop-button"
+            data-testid={`agent-stop-${agent.id}`}
+            onClick={() => void agentClient.stop(agent.id).then(agentStore.upsert, () => undefined)}
+          >
+            Stop agent
+          </button>
+        )}
         {!agent.worktree_lost && !agent.source_pr && <CreatePrButton agent={agent} />}
         <button
           type="button"

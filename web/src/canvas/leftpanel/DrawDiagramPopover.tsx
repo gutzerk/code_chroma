@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { attachAgent } from "../../agents/attachAgent";
+import type { DiagramTaskHint } from "../../agents/agentClient";
 import { useAgentClient } from "../../agents/AgentClientContext";
 import { useIsAtAgentCapacity, useIsLaunchingAgent } from "../../agents/agentStore";
 import { tutorialSimStore } from "../../tutorial/tutorialSim";
@@ -15,6 +16,13 @@ export const DRAW_OPTIONS = [
   { id: "epics", label: "Epics", phrase: "epics" },
   { id: "custom", label: "Custom…", phrase: "custom" },
 ] as const;
+
+type DrawOptionId = (typeof DRAW_OPTIONS)[number]["id"];
+
+/** Types that get architecture-map context (impact reads the diff, epics read requirements). */
+function diagramHint(id: DrawOptionId): DiagramTaskHint | undefined {
+  return id === "c1" || id === "patterns" || id === "custom" ? { type: id } : undefined;
+}
 
 /** The agent task for one chosen diagram type (Custom asks the user what to draw). */
 export function buildDrawOptionTask(phrase: string): string {
@@ -43,14 +51,14 @@ export function DrawDiagramPopover({ onClose }: DrawDiagramPopoverProps) {
   const [error, setError] = useState<string | null>(null);
   const { drawPopover } = chromeInsets({ leftOpen, agentsMode });
 
-  const choose = (phrase: string) => {
+  const choose = (id: DrawOptionId, phrase: string) => {
     setError(null);
     if (tutorialStore.isActive()) {
       tutorialSimStore.openAgent();
       onClose();
       return;
     }
-    attachAgent(agentClient, null, buildDrawOptionTask(phrase))
+    attachAgent(agentClient, null, buildDrawOptionTask(phrase), diagramHint(id))
       .then(onClose)
       .catch((err: unknown) =>
         setError(err instanceof Error ? err.message : "couldn't open an agent"),
@@ -82,7 +90,7 @@ export function DrawDiagramPopover({ onClose }: DrawDiagramPopoverProps) {
           type="button"
           className="draw-diagram-popover-option"
           disabled={atCapacity || isLaunching}
-          onClick={() => choose(option.phrase)}
+          onClick={() => choose(option.id, option.phrase)}
         >
           {option.label}
         </button>

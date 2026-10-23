@@ -92,7 +92,7 @@ export function CreateIssueDialog({ onDismiss }: { onDismiss: () => void }) {
   const hasContent = title.trim() !== "" || description.trim() !== "";
 
   function requestClose() {
-    if (hasContent && phase !== "success") {
+    if (hasContent) {
       setConfirmingDiscard(true);
       return;
     }
@@ -129,16 +129,40 @@ export function CreateIssueDialog({ onDismiss }: { onDismiss: () => void }) {
   }
 
   function footerNote() {
-    if (createdUrl) {
-      return <>Issue created: <a href={createdUrl} target="_blank" rel="noreferrer">{createdUrl}</a></>;
-    }
-    if (phase === "success") {
-      return `Opened in your browser -- finish posting it there.${fellBack ? " (automatic posting failed)" : ""}`;
-    }
     if (canPostViaGh) {
       return <>Will be posted to <span className="issue-footer-repo">{REPO}</span> on GitHub via your GitHub CLI</>;
     }
     return <>Can't post automatically (GitHub CLI missing or not logged in) -- will open <span className="issue-footer-repo">{REPO}</span> in your browser</>;
+  }
+
+  if (phase === "success") {
+    return (
+      <ModalDialog
+        label="Issue created"
+        testId="issue-created-dialog"
+        className="issue-dialog issue-confirm-dialog"
+        onDismiss={onDismiss}
+      >
+        <h3 className="issue-confirm-title">{createdUrl ? "Issue created" : "Issue ready to post"}</h3>
+        {createdUrl ? (
+          <p className="issue-confirm-body">
+            <a href={createdUrl} target="_blank" rel="noreferrer">{createdUrl}</a>
+          </p>
+        ) : (
+          <p className="issue-confirm-body">
+            Opened in your browser -- finish posting it there.{fellBack ? " (automatic posting failed)" : ""}
+          </p>
+        )}
+        <p className="issue-confirm-body">
+          We value your feedback and will look into the problem as soon as possible.
+        </p>
+        <div className="issue-confirm-actions">
+          <button type="button" className="issue-button-primary" onClick={onDismiss}>
+            OK
+          </button>
+        </div>
+      </ModalDialog>
+    );
   }
 
   if (confirmingDiscard) {

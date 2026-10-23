@@ -13,7 +13,7 @@ import type {
   WorkspaceStatus,
 } from "../state/types";
 import { parsePrNumber } from "../pr/prUrl";
-import type { AgentClient } from "./agentClient";
+import type { AgentClient, DiagramTaskHint } from "./agentClient";
 
 const MAX_AGENTS = 5;
 
@@ -52,6 +52,7 @@ export class MockAgentClient implements AgentClient {
     attachTo?: string,
     _context?: string | null,
     _contextKind?: "view" | "task",
+    _diagram?: DiagramTaskHint,
   ): Promise<AgentRecord> {
     if (this.agents.length >= MAX_AGENTS) {
       throw new Error(`the limit of ${MAX_AGENTS} concurrent agents is reached`);
@@ -115,6 +116,12 @@ export class MockAgentClient implements AgentClient {
       worktree_lost: false,
     };
     this.agents.push(agent);
+    return agent;
+  }
+
+  async openStepSession(title: string, runId: string, sessionId: string): Promise<AgentRecord> {
+    const agent = await this.create(title);
+    Object.assign(agent, { worktree: `/mock/worktrees/wf-${runId}`, branch: `wf-${runId}`, source_run: runId, fork_session: sessionId });
     return agent;
   }
 

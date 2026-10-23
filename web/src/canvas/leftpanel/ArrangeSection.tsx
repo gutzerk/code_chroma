@@ -99,7 +99,7 @@ export function ArrangeSection({ getViewport, camera }: ArrangeSectionProps) {
         y: element.position.y + offset.dy,
       };
     }
-    arrangeStore.enter(next, original);
+    arrangeStore.enter(next, original, positions);
     commitCanvasPositions(engineClient, positions);
   };
 
@@ -108,10 +108,10 @@ export function ArrangeSection({ getViewport, camera }: ArrangeSectionProps) {
       apply(next);
       return;
     }
-    const restored = arrangeStore.leave();
     const existing = canvasDocStore.getDoc().elements;
-    const live = Object.fromEntries(Object.entries(restored).filter(([id]) => id in existing));
-    if (Object.keys(live).length > 0) commitCanvasPositions(engineClient, live);
+    const current = Object.fromEntries(Object.entries(existing).map(([id, e]) => [id, e.position]));
+    const restored = arrangeStore.leave(current);
+    if (Object.keys(restored).length > 0) commitCanvasPositions(engineClient, restored);
   };
 
   const count = selected.filter((l) =>

@@ -22,6 +22,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import re
 import sys
 import urllib.parse
@@ -30,6 +31,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 
 _FETCH_TIMEOUT_SECONDS = 10
+_FETCH_BATCH_SIZE = 50  # keeps each wiki-context URL well under common ~8KB server limits
 _REF_RE = re.compile(r"^\s*-\s+(?:File|Class|Function):\s+`([^`]+)`\s*$", re.MULTILINE)
 _CONNECTS_RE = re.compile(r"^\s*-\s+Connects:\s+`([^`]+)`\s*$", re.MULTILINE)
 _LINK_RE = re.compile(r"\[[^\]]+\]\(([^)#]+)(?:#[^)]*)?\)")
@@ -116,8 +118,13 @@ def main(argv: list[str] | None = None) -> int:
 
 def _parse_args(argv: list[str] | None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Check the just-written wiki-general tree.")
-    parser.add_argument("--url", default="http://localhost:8000", help="bridge base URL")
-    parser.add_argument("--repo", default="default", help="repo id in the bridge route")
+    default_url = os.environ.get("CODECHROMA_BRIDGE_URL", "").strip()
+    default_url = default_url or "http://localhost:8000"
+    default_repo = os.environ.get("CODECHROMA_WORKSPACE_ID", "").strip() or "default"
+    parser.add_argument("--url", default=default_url, help="bridge URL (env CODECHROMA_BRIDGE_URL)")
+    parser.add_argument(
+        "--repo", default=default_repo, help="repo id in the bridge route (CODECHROMA_WORKSPACE_ID)"
+    )
     parser.add_argument("--dir", default=".", help="repo root on disk (defaults to cwd)")
     parser.add_argument(
         "--strip-connects",
@@ -251,12 +258,26 @@ def _check_page(path: Path, kind: str, report: _Report) -> set[str]:
 def _http_gap_fetcher(url: str, repo: str):
     """The CLI's own gap-fetching strategy -- a real HTTP round trip to a running bridge."""
 
-    def fetch(paths: list[str]) -> set[str]:
+    def fetch_batch(paths: list[str]) -> set[str]:
         query = urllib.parse.quote(",".join(paths), safe=",/")
         request_url = f"{url.rstrip('/')}/repos/{repo}/wiki-context?paths={query}"
         with urllib.request.urlopen(request_url, timeout=_FETCH_TIMEOUT_SECONDS) as response:
             bundle = json.loads(response.read().decode("utf-8"))
-        return set(bundle.get("gaps") or []) if isinstance(bundle, dict) else set(paths)
+        if not isinstance(bundle, dict):
+            return set(paths)
+        gaps = set(bundle.get("gaps") or [])
+        omitted = [p for p in bundle.get("omitted") or [] if isinstance(p, str)]
+        if len(paths) > 1:
+            # The size cap cut some pages off: ask for them in smaller batches, never assume.
+            for path in omitted:
+                gaps |= fetch_batch([path])
+        return gaps
+
+    def fetch(paths: list[str]) -> set[str]:
+        gaps: set[str] = set()
+        for start in range(0, len(paths), _FETCH_BATCH_SIZE):
+            gaps |= fetch_batch(paths[start : start + _FETCH_BATCH_SIZE])
+        return gaps
 
     return fetch
 

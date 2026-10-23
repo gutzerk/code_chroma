@@ -201,6 +201,18 @@ export abstract class DelegatingEngineClient implements EngineClient {
   startRun(workflowId: string, inputs?: Record<string, string>): Promise<Run> {
     return this.inner.startRun(workflowId, inputs);
   }
+  updateWorkflow(workflow: WorkflowDef): Promise<WorkflowDef> {
+    return this.inner.updateWorkflow(workflow);
+  }
+  deleteRun(runId: string): Promise<void> {
+    return this.inner.deleteRun(runId);
+  }
+  clearFinishedRuns(): Promise<void> {
+    return this.inner.clearFinishedRuns();
+  }
+  restartRun(runId: string): Promise<Run> {
+    return this.inner.restartRun(runId);
+  }
   deleteWorkflow(workflowId: string): Promise<void> {
     return this.inner.deleteWorkflow(workflowId);
   }

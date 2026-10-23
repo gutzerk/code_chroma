@@ -10,6 +10,8 @@ public static class RunStates
     public const string Stopped = "stopped";
     public const string NeedsYou = "needs_you";
     public const string Done = "done";
+
+    public static bool IsFinished(string state) => state is Done or Stopped;
 }
 
 public enum RunCommand

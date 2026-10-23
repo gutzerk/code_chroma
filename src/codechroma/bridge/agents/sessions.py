@@ -31,6 +31,7 @@ from codechroma.bridge.agents.status import StatusDetector, load_manifest_for
 from codechroma.config import settings
 from codechroma.errors import codechromaError
 from codechroma.llm.runtime_env import CliLookupError, launch_failed, resolve_runtime_cli
+from codechroma.questions.launch import identity_env
 from codechroma.terminal.pty_session import PtySession, default_cols, default_rows
 from codechroma.terminal.screen_tap import ScreenTap
 
@@ -57,7 +58,7 @@ def agent_run_env(agent_id: str, extra: dict[str, str] | None = None) -> dict[st
     — without it a change the agent canvas never reads lands in main. Provider env overrides from a
     resolved launch (`extra`, 061) are merged underneath, so the workspace id wins on any collision.
     """
-    return {**(extra or {}), "codechroma_WORKSPACE_ID": agent_id}
+    return {**(extra or {}), **identity_env(agent_id)}
 
 
 class AgentStartError(codechromaError):

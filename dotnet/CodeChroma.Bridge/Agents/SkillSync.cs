@@ -24,8 +24,11 @@ public static class SkillSync
         "codechroma-impact-review", "codechroma-plan", "codechroma-research", "codechroma-wiki-general", "codechroma-diagram-type",
     ];
 
+    /// <summary>The product's former name: skills installed as codeatlas-* by an old build duplicate the codechroma-* ones and are pruned.</summary>
+    public const string LegacyPrefix = "codeatlas-";
+
     public static readonly IReadOnlyList<string> ExcludePatterns =
-        [.. SkillNames.Concat(RetiredSkillNames).Select(name => $".claude/skills/{name}/")];
+        [.. SkillNames.Concat(RetiredSkillNames).Select(name => $".claude/skills/{name}/"), $".claude/skills/{LegacyPrefix}*/"];
 
     /// <summary>Every path a fresh agent, PR or branch worktree must never show as its own uncommitted work.</summary>
     public static readonly IReadOnlyList<string> WorktreeExcludes = [".codechroma/", .. ExcludePatterns];
@@ -71,6 +74,13 @@ public static class SkillSync
             try { ForceDelete(target); } catch (IOException) { }
             removed.Add(target);
         }
+        var skillsDir = Path.Combine(repoRoot, ".claude", "skills");
+        if (Directory.Exists(skillsDir))
+            foreach (var legacy in Directory.GetDirectories(skillsDir, LegacyPrefix + "*"))
+            {
+                try { ForceDelete(legacy); } catch (IOException) { continue; }
+                removed.Add(legacy);
+            }
         return removed;
     }
 
@@ -99,8 +109,10 @@ public static class SkillSync
         foreach (var file in Directory.GetFiles(from))
         {
             var target = Path.Combine(to, Path.GetFileName(file));
-            if (File.Exists(target) && File.ReadAllBytes(file).AsSpan().SequenceEqual(File.ReadAllBytes(target))) continue;
-            if (File.Exists(target)) File.SetAttributes(target, FileAttributes.Normal);
+            var exists = File.Exists(target);
+            if (exists && new FileInfo(file).Length == new FileInfo(target).Length
+                && File.ReadAllBytes(file).AsSpan().SequenceEqual(File.ReadAllBytes(target))) continue;
+            if (exists) File.SetAttributes(target, FileAttributes.Normal);
             File.Copy(file, target, overwrite: true);
         }
         foreach (var extra in Directory.GetFiles(to).Where(f => !files.Contains(Path.GetFileName(f)))) { File.SetAttributes(extra, FileAttributes.Normal); File.Delete(extra); }

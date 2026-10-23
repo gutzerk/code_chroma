@@ -39,6 +39,29 @@ public static partial class BareSkill
         return text.Append("Task: ").Append(args).ToString();
     }
 
+    /// <summary>The short first message an interactive diagram window shows; the inlined skill itself rides in the hidden system prompt.</summary>
+    public const string InteractiveVisiblePrompt = "Help me draw a diagram of this project.";
+
+    /// <summary>The first message of an interactive diagram agent: the draw skill inlined (the short body of a known type, else the router) and how to start, with no other context.</summary>
+    public static string? ComposeInteractive(string type, string repoRoot, string workspaceId, string? contextCommand)
+    {
+        if (SkillSync.SkillSource(DrawSkill) is not { } source || !File.Exists(Path.Combine(source, "SKILL.md"))) return null;
+        var text = new StringBuilder();
+        text.Append("Repository root: ").AppendLine(repoRoot).AppendLine();
+        var shortBody = Path.Combine(source, "references", $"bare-{type}.md");
+        if (File.Exists(shortBody)) text.AppendLine(Fill(File.ReadAllText(shortBody), type, source, repoRoot, workspaceId));
+        else
+        {
+            text.AppendLine($"The `{DrawSkill}` skill follows. Files it names under `references/` and `scripts/` are in `{source}`; read them by those absolute paths.").AppendLine();
+            text.AppendLine(StripFrontmatter(File.ReadAllText(Path.Combine(source, "SKILL.md"))));
+        }
+        text.AppendLine().AppendLine("## How this session starts").AppendLine();
+        text.AppendLine("The user has not said yet what to draw. Greet them in one short line and ask what they want to see (the whole project is a fine answer). Do nothing else until they answer.");
+        if (contextCommand is not null)
+            text.AppendLine($"Once they answer, run `{contextCommand} \"phrase\" \"phrase\" ...` with 3-6 short phrases taken from their request (one component, flow or concept each), read its output, then draw from it and open a file only to confirm a detail.");
+        return text.ToString();
+    }
+
     /// <summary>`references/bare-<type>.md` when the draw skill has a short body for the `type:` named in the args.</summary>
     private static (string Type, string File)? ShortBody(string skill, string args, string source)
     {

@@ -22,10 +22,6 @@ export function diagramAccent(layer: string): DiagramAccent {
   if (builtin && TOKEN_LAYERS.has(layer)) {
     return { className: `canvas-diagram-frame-${layer}`, color: `var(--${layer})` };
   }
-  if (builtin) {
-    const index = groupColorIndex(layer);
-    return { className: `canvas-diagram-frame-${layer}`, color: DIAGRAM_HASHED_COLORS[index] };
-  }
   const index = groupColorIndex(layer);
   return { className: `canvas-diagram-frame-color-${index}`, color: DIAGRAM_HASHED_COLORS[index] };
 }

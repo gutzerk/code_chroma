@@ -33,7 +33,7 @@ public class RealBridgeEndToEndTests
     }
 
     [Fact]
-    public async Task A_killed_bridge_is_respawned_on_a_new_port_for_that_repo_only()
+    public async Task A_killed_bridge_is_respawned_on_the_same_port_for_that_repo_only()
     {
         var registry = Registry();
         using var a = new TempDir();
@@ -46,7 +46,7 @@ public class RealBridgeEndToEndTests
             await BridgeManager.StopAsync(first.Process);
             var again = await registry.EnsureAsync(a.Path);
 
-            Assert.NotEqual(first.Port, again.Port);
+            Assert.Equal(first.Port, again.Port);
             Assert.Same(other, await registry.EnsureAsync(b.Path));
             Assert.Equal("ok", await GetAsync($"{again.Origin}/health"));
         }

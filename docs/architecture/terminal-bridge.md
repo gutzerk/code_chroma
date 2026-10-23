@@ -38,7 +38,7 @@ Four things about it are load-bearing for how a TUI actually renders, and all fo
   `TERM`** — the bridge's captured runtime environment repairs `PATH` and not `TERM` — so inheriting the bridge's
   environment verbatim meant a colourless, degraded TUI in the packaged app only. That base (before
   the overrides) is `dict(os.environ)`, which is how `codechroma_BRIDGE_REPO_PATH` and (under the C# shell's bridge)
-  `codechroma_BRIDGE_URL` — set to the real dynamic port — reach the
+  `CODECHROMA_BRIDGE_URL` — set to the real dynamic port — reach the
   shell a `codechroma-*` skill runs in; see [`desktop-app.md`](desktop-app.md).
 - 🔴 **Output is decoded incrementally**, not per `os.read`. A multi-byte character straddling the
   4096-byte read boundary used to become U+FFFD on both sides, which is most of a TUI's box drawing

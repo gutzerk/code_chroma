@@ -2,6 +2,7 @@ using System.Collections.Concurrent;
 using System.Text.Json;
 using System.Text.Json.Nodes;
 using CodeChroma.Bridge.Http;
+using CodeChroma.Bridge.Agents;
 using Microsoft.AspNetCore.Hosting.Server;
 using Microsoft.AspNetCore.Hosting.Server.Features;
 using CodeChroma.Bridge.Skills;
@@ -12,12 +13,12 @@ using CodeChroma.Bridge.Workspaces;
 namespace CodeChroma.Bridge.Routes;
 
 /// <summary>One WorkflowRunner per workspace, created on first use and wired to that workspace's event socket.</summary>
-public sealed class WorkflowRunners(SkillAgents agents, IServer server)
+public sealed class WorkflowRunners(SkillAgents agents, IServer server, AgentManager agentManager)
 {
     private readonly ConcurrentDictionary<string, WorkflowRunner> _runners = new();
 
     public WorkflowRunner For(Workspace ws) =>
-        _runners.GetOrAdd(ws.Id, _ => new WorkflowRunner(ws.Root, agents["workflow-step"], ws.Emit, null, agents["workflow-chat"], runId => McpUrl(ws.Id, runId)));
+        _runners.GetOrAdd(ws.Id, _ => new WorkflowRunner(ws.Root, agents["workflow-step"], ws.Emit, null, agents["workflow-chat"], runId => McpUrl(ws.Id, runId), reserveCleanup: agentManager.ReserveRunCleanup));
 
     /// <summary>Where the run agent's CLI reaches this bridge's per-run MCP endpoint, or null before the server is listening.</summary>
     private string? McpUrl(string repoId, string runId)
@@ -38,25 +39,27 @@ public static class WorkflowRoutes
         app.MapGet("/repos/{repoId}/workflows", (string repoId, WorkspaceRegistry registry, WorkflowRunners runners) =>
             JsonResult(runners.For(registry.Get(repoId)).Store.ListWorkflows()));
 
-        app.MapPost("/repos/{repoId}/workflows", async (string repoId, HttpRequest request, WorkspaceRegistry registry, WorkflowRunners runners) =>
+        app.MapPost("/repos/{repoId}/workflows", async (string repoId, HttpRequest request, WorkspaceRegistry registry, WorkflowRunners runners, SkillAgents agents, CliResolver resolver) =>
         {
             var ws = registry.Get(repoId);
             if (ws.ReadOnly) return Reply.Error(409, "a pull-request workspace is read-only");
-            WorkflowDef? def;
-            try { def = await JsonSerializer.DeserializeAsync<WorkflowDef>(request.Body, WorkflowJson.Options); }
-            catch (JsonException) { return Reply.Error(400, "Invalid workflow JSON"); }
-            if (def is null || string.IsNullOrWhiteSpace(def.Id) || !RunStore.IsSafeId(def.Id) || string.IsNullOrWhiteSpace(def.Name) || def.Steps is null || def.Steps.Count == 0 ||
-                def.Steps.Any(s => s is null || string.IsNullOrWhiteSpace(s.Id) || !RunStore.IsSafeId(s.Id) || string.IsNullOrWhiteSpace(s.Slug) ||
-                    (s.Kind != "agent" && s.Kind != "review") || string.IsNullOrWhiteSpace(s.Prompt)) ||
-                def.Steps.Select(s => s.Id).Distinct().Count() != def.Steps.Count)
-                return Reply.Error(400, "A workflow needs an id, name and uniquely identified agent or review steps with prompts");
-            def.Inputs ??= [];
-            if (def.Inputs.Any(i => i is null || !RunStore.IsSafeId(i.Name)) || def.Inputs.Select(i => i.Name).Distinct().Count() != def.Inputs.Count)
-                return Reply.Error(400, "Workflow inputs need unique simple names");
-            if (def.Steps.Any(s => s.Skill is { } skill && (skill.Length == 0 || !RunStore.IsSafeId(skill))))
-                return Reply.Error(400, "A step skill must be a skill name");
+            var (def, error) = await ReadDefinition(request, agents, resolver);
+            if (def is null) return Reply.Error(400, error!);
             var store = runners.For(registry.Get(repoId)).Store;
             if (!store.TryCreateWorkflow(def)) return Reply.Error(409, "Workflow already exists");
+            return JsonResult(def);
+        });
+
+        app.MapPut("/repos/{repoId}/workflows/{workflowId}", async (string repoId, string workflowId, HttpRequest request, WorkspaceRegistry registry, WorkflowRunners runners, SkillAgents agents, CliResolver resolver) =>
+        {
+            var ws = registry.Get(repoId);
+            if (ws.ReadOnly) return Reply.Error(409, "a pull-request workspace is read-only");
+            var (def, error) = await ReadDefinition(request, agents, resolver);
+            if (def is null) return Reply.Error(400, error!);
+            if (def.Id != workflowId) return Reply.Error(400, "The workflow id in the body must match the URL");
+            var store = runners.For(ws).Store;
+            if (store.GetWorkflow(workflowId) is null) return Reply.Error(404, $"unknown workflow: {workflowId}");
+            store.SaveWorkflow(def);
             return JsonResult(def);
         });
 
@@ -85,6 +88,21 @@ public static class WorkflowRoutes
                     if (Json.NonEmptyStr(value) is { } text) inputs[name] = text;
             return await MutateAsync(registry.Get(repoId), runners, runner => runner.Start(workflowId, inputs));
         });
+
+        app.MapDelete("/repos/{repoId}/runs/{runId}", (string repoId, string runId, WorkspaceRegistry registry, WorkflowRunners runners) =>
+            Mutate(registry.Get(repoId), runners, runner =>
+            {
+                runner.DeleteRun(runId);
+                return new { deleted = runId };
+            }));
+
+        app.MapDelete("/repos/{repoId}/runs", (string repoId, string? state, WorkspaceRegistry registry, WorkflowRunners runners) =>
+            state != "finished"
+                ? Reply.Error(400, "state must be finished")
+                : Mutate(registry.Get(repoId), runners, runner => new { deleted = runner.ClearFinished() }));
+
+        app.MapPost("/repos/{repoId}/runs/{runId}/restart", async (string repoId, string runId, WorkspaceRegistry registry, WorkflowRunners runners) =>
+            await MutateAsync(registry.Get(repoId), runners, runner => runner.Restart(runId)));
 
         app.MapPost("/repos/{repoId}/runs/{runId}/skip", async (string repoId, string runId, HttpRequest request, WorkspaceRegistry registry, WorkflowRunners runners) =>
         {
@@ -128,7 +146,7 @@ public static class WorkflowRoutes
         {
             var body = await Reply.LenientBody(request);
             var decision = Str(body, "decision") ?? "";
-            return Mutate(registry.Get(repoId), runners, runner => runner.Review(runId, decision, Str(body, "note")));
+            return await MutateAsync(registry.Get(repoId), runners, runner => runner.Review(runId, decision, Str(body, "note")));
         });
 
         app.MapPost("/repos/{repoId}/runs/{runId}/message", async (string repoId, string runId, HttpRequest request, WorkspaceRegistry registry, WorkflowRunners runners) =>
@@ -182,6 +200,29 @@ public static class WorkflowRoutes
             skills.Add(new { name, description });
         }
         return skills;
+    }
+
+    /// <summary>Parses and validates a workflow definition body shared by create and update.</summary>
+    private static async Task<(WorkflowDef? Def, string? Error)> ReadDefinition(HttpRequest request, SkillAgents agents, CliResolver resolver)
+    {
+        WorkflowDef? def;
+        try { def = await JsonSerializer.DeserializeAsync<WorkflowDef>(request.Body, WorkflowJson.Options); }
+        catch (JsonException) { return (null, "Invalid workflow JSON"); }
+        var error = WorkflowValidation.Validate(def, AdapterOf(agents, resolver));
+        return error is null ? (def, null) : (null, error);
+    }
+
+    /// <summary>A provider id's CLI adapter (null: the workflow-step call-site default), or null for an unknown or non-CLI provider; each id is looked up once per validation.</summary>
+    private static Func<string?, string?> AdapterOf(SkillAgents agents, CliResolver resolver)
+    {
+        var spec = agents["workflow-step"].Spec;
+        var cache = new Dictionary<string, string?>();
+        return providerId =>
+        {
+            var key = providerId ?? "";
+            if (!cache.TryGetValue(key, out var adapter)) cache[key] = adapter = resolver.AdapterOf(providerId, spec.Name, spec.Model);
+            return adapter;
+        };
     }
 
     private static string? Str(JsonObject body, string key) => Json.NonEmptyStr(body[key]);

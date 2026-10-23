@@ -16,7 +16,12 @@ from __future__ import annotations
 import re
 from pathlib import Path
 
-from codechroma.bridge.wiki_context import WikiContextBundle, WikiContextPage, safe_file_text
+from codechroma.bridge.wiki_context import (
+    WikiContextBundle,
+    WikiContextPage,
+    safe_file_text,
+    truncation_note,
+)
 from codechroma.config import settings
 from codechroma.io import CharBudget, read_text
 from codechroma.wiki.writer import NO_BREAKDOWN as _NO_BREAKDOWN
@@ -109,6 +114,10 @@ def build_job_context(wiki_dir: Path, paths: list[str]) -> WikiContextBundle:
             break
         pages.append(WikiContextPage(path=path, kind="file", content=content))
 
+    omitted, warning = truncation_note(
+        paths, {page.path for page in pages}, gaps, budget.truncated
+    )
     return WikiContextBundle(
-        has_wiki=True, root=None, pages=pages, gaps=gaps, truncated=budget.truncated
+        has_wiki=True, root=None, pages=pages, gaps=gaps, truncated=budget.truncated,
+        omitted=omitted, warning=warning,
     )

@@ -83,13 +83,14 @@ public sealed class RuntimeEnvironment
     private readonly Dictionary<string, string> _inherited;
     private readonly string _platform;
     private readonly string _home;
+    private readonly Func<string> _registryPath;
     private readonly Dictionary<(string Name, string Path, int Generation), ResolutionRecord> _records = [];
     private Task<EnvironmentSnapshot>? _future;
     private EnvironmentSnapshot? _snapshot;
     private long _lastCapture = long.MinValue / 2;
 
     public RuntimeEnvironment(Func<RuntimeSettings>? settings = null, IReadOnlyDictionary<string, string>? inherited = null,
-        string? platform = null, ShellProbe? probe = null)
+        string? platform = null, ShellProbe? probe = null, Func<string>? registryPath = null)
     {
         _readSettings = settings is not null;
         _settings = settings ?? (() => RuntimeSettings.Defaults);
@@ -99,6 +100,7 @@ public sealed class RuntimeEnvironment
         _home = _inherited.GetValueOrDefault("HOME") ?? _inherited.GetValueOrDefault("USERPROFILE")
             ?? Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
         _probe = probe ?? DefaultProbe;
+        _registryPath = registryPath ?? RegistryPath;
     }
 
     public RuntimeSettings Options { get; set; }
@@ -184,6 +186,7 @@ public sealed class RuntimeEnvironment
                 }
             }
             var inherited = Clean(_inherited);
+            if (_platform == "win32") inherited["PATH"] = WindowsPath(inherited.GetValueOrDefault("PATH") ?? "");
             var exported = Clean(captured);
             var merged = new Dictionary<string, string>(inherited, Comparer);
             foreach (var (k, v) in exported) merged[k] = v;
@@ -197,6 +200,7 @@ public sealed class RuntimeEnvironment
         catch (Exception exception)
         {
             var merged = Clean(_inherited);
+            if (_platform == "win32") merged["PATH"] = WindowsPath(merged.GetValueOrDefault("PATH") ?? "");
             var path = PathEntries(merged.GetValueOrDefault("PATH") ?? "", string.Join(Path.PathSeparator, FallbackDirs()));
             merged["PATH"] = string.Join(Path.PathSeparator, path);
             return Publish(merged, [], path, "inherited environment + fallback locations", shell, kind, started, warnings,
@@ -274,7 +278,7 @@ public sealed class RuntimeEnvironment
             ? $"Configured CLI path '{configured}' {(File.Exists(expanded) || Directory.Exists(expanded) ? "is not executable" : "does not exist")}."
             : $"'{name}' executable not found on PATH ({source}). Install it, click Re-detect, or configure its executable path. Shell aliases/functions are not executable CLI paths.";
         lock (_lock) _records[key] = new ResolutionRecord(name, null, source, snapshot.Generation, now, message);
-        if (!explicitDir && _platform != "win32")
+        if (!explicitDir)
         {
             var pending = Refresh("unresolved CLI");
             if (pending.IsCompletedSuccessfully && pending.Result.Generation != snapshot.Generation) return Resolve(name, extra, recheck: true);
@@ -335,17 +339,30 @@ public sealed class RuntimeEnvironment
         foreach (var (k, v) in env)
         {
             if (k == "CODECHROMA_RESOLVING_ENVIRONMENT" || k.StartsWith("BASH_FUNC_")) continue;
-            if (k.StartsWith("codechroma_", StringComparison.OrdinalIgnoreCase) && k is not ("codechroma_BRIDGE_URL" or "codechroma_WORKSPACE_ID")) continue;
+            if (k.StartsWith("codechroma_", StringComparison.OrdinalIgnoreCase) && k is not ("CODECHROMA_BRIDGE_URL" or "CODECHROMA_WORKSPACE_ID")) continue;
             result[k] = v;
         }
         return result;
     }
 
+    /// <summary>The process PATH plus the current user and machine PATH, so tools installed after launch are found.</summary>
+    private string WindowsPath(string processPath)
+    {
+        try { return string.Join(Path.PathSeparator, PathEntries(processPath, _registryPath())); }
+        catch (Exception exception) when (exception is System.Security.SecurityException or IOException) { return processPath; }
+    }
+
+    private static string RegistryPath() => string.Join(Path.PathSeparator,
+        Environment.GetEnvironmentVariable("PATH", EnvironmentVariableTarget.User) ?? "",
+        Environment.GetEnvironmentVariable("PATH", EnvironmentVariableTarget.Machine) ?? "");
+
     private IReadOnlyList<string> FallbackDirs() => _platform == "win32"
-        ? [Path.Combine(_home, ".local", "bin"), Path.Combine(_home, "AppData", "Roaming", "npm")]
+        ? [Path.Combine(_home, ".local", "bin"), Path.Combine(_home, "AppData", "Roaming", "npm"), Path.Combine(_home, "scoop", "shims"),
+            Path.Combine(_home, "AppData", "Local", "Microsoft", "WinGet", "Links"), Path.Combine(_home, "AppData", "Local", "Volta", "bin"),
+            Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles), "nodejs")]
         : [Path.Combine(_home, ".local/bin"), Path.Combine(_home, "bin"), "/opt/homebrew/bin", "/usr/local/bin", "/usr/bin", "/bin", "/usr/sbin", "/sbin"];
 
-    /// <summary>Absolute, de-duplicated PATH entries in order; relative entries never search the repository.</summary>
+    /// <summary>Absolute, de-duplicated PATH entries in order; relative entries (and POSIX-style `/c/...` ones on Windows) are dropped.</summary>
     public static IReadOnlyList<string> PathEntries(params string[] values)
     {
         var seen = new HashSet<string>(OperatingSystem.IsWindows() ? StringComparer.OrdinalIgnoreCase : StringComparer.Ordinal);
@@ -353,7 +370,7 @@ public sealed class RuntimeEnvironment
         foreach (var value in values)
             foreach (var entry in value.Split(Path.PathSeparator))
             {
-                if (entry.Length == 0 || !Path.IsPathRooted(entry)) continue;
+                if (entry.Length == 0 || !Path.IsPathRooted(entry) || (OperatingSystem.IsWindows() && entry[0] == '/')) continue;
                 var normalized = Path.GetFullPath(entry).TrimEnd(Path.DirectorySeparatorChar);
                 if (normalized.Length == 0) normalized = Path.DirectorySeparatorChar.ToString();
                 if (seen.Add(normalized)) result.Add(normalized);
@@ -468,7 +485,7 @@ public sealed class RuntimeEnvironment
                 return new ProbeResult(captured, null, warnings, kind);
             }
         }
-        return new ProbeResult([], error ?? "Shell did not return a valid JSON environment", warnings, kind);
+        return new ProbeResult([], error ?? "Shell did not return a valid environment", warnings, kind);
     }
 
     private static (string[] Arguments, string Kind) ShellCommand(string shell, string marker)

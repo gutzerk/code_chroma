@@ -34,6 +34,7 @@ vi.mock("@xterm/xterm", () => {
     unicode = { activeVersion: "6" };
 
     loadAddon(): void {}
+    attachCustomKeyEventHandler(): void {}
 
     open(): void {}
 

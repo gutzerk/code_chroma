@@ -2,6 +2,7 @@ using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
 using System.Text.Json.Nodes;
+using CodeChroma.Bridge.Context;
 using CodeChroma.Bridge.Diagrams;
 using CodeChroma.Bridge.Http;
 using CodeChroma.Bridge.Skills;
@@ -40,14 +41,15 @@ public static class DiagramRoutes
         foreach (var kind in GenerateKinds)
         {
             var k = kind;
-            app.MapPost($"/repos/{{repoId}}/{k}/generate", async (string repoId, HttpRequest request, WorkspaceRegistry r, SkillAgents agents) =>
+            app.MapPost($"/repos/{{repoId}}/{k}/generate", async (string repoId, HttpRequest request, WorkspaceRegistry r, SkillAgents agents, DiagramContext context) =>
             {
                 var ws = r.Get(repoId);
                 var agent = agents[k];
                 var onlyIfMissing = request.Query["only_if_missing"].ToString().Equals("true", StringComparison.OrdinalIgnoreCase);
                 if (onlyIfMissing && k == "c1" && agent.HasArtifact(ws.Root, ws.Id)) return Results.Json(agent.GetState(ws.Id), BridgeJson.Default.JobState);
                 var (onChange, onOutput) = SkillJobCallbacks.For(k, ws.Emit);
-                return Results.Json(await agent.Start(ws.Id, ws.Root, onChange, onOutput), BridgeJson.Default.JobState);
+                var gathered = DiagramContext.Types.Contains(k) ? await context.GatherAsync(ws, k, null) : null;
+                return Results.Json(await agent.Start(ws.Id, ws.Root, onChange, onOutput, options: gathered is null ? null : new RunOptions([]) { Context = gathered }), BridgeJson.Default.JobState);
             });
             app.MapGet($"/repos/{{repoId}}/{k}/status", (string repoId, WorkspaceRegistry r, SkillAgents agents) =>
                 Results.Json(agents[k].GetState(r.Get(repoId).Id), BridgeJson.Default.JobState));
@@ -87,7 +89,8 @@ public static class DiagramRoutes
             case "sequence":
                 if (data.Count == 0) return new JsonObject();
                 data["type"] = "sequence";
-                var sequence = DiagramResolver.Resolve(ws.Engine, data);
+                // A participant may message itself, so the sequence style applies even when the file omits it.
+                var sequence = DiagramResolver.Resolve(ws.Engine, data, data["style"] ?? JsonValue.Create("sequence"));
                 sequence["has_diagram"] = true;
                 return sequence;
             default:

@@ -35,6 +35,15 @@ public sealed record RunOptions(IReadOnlyList<string> ExtraArgs)
     public bool Bare { get; init; } = true;
 
     public string BareTools { get; init; } = CliAdapters.DefaultBareTools;
+
+    /// <summary>Pre-gathered architecture context (see <c>DiagramContext</c>) appended to the prompt; null leaves the agent to search itself.</summary>
+    public string? Context { get; init; }
+
+    /// <summary>Runs after a clean exit with a valid artifact; a non-null message turns the run into that error.</summary>
+    public Func<string?>? PostRunCheck { get; init; }
+
+    /// <summary>The CLI to run instead of the call site's own resolution (a workflow step's provider/model override).</summary>
+    public CliResolution? Cli { get; init; }
 }
 
 /// <summary>Per-kind timeouts and default model (config.py's SkillAgentTimeoutsConfig).</summary>
@@ -129,7 +138,7 @@ public sealed class SkillAgent(SkillAgentSpec spec, CliResolver resolver, Runtim
         RuntimeCli resolved;
         try
         {
-            cli = resolver.Resolve(Spec.Name, Spec.Model);
+            cli = options?.Cli ?? resolver.Resolve(Spec.Name, Spec.Model);
             resolved = await Task.Run(() => runtime.Resolve(cli.Binary, cli.EnvOverrides));
         }
         catch (CliLookupException error)
@@ -222,6 +231,14 @@ public sealed class SkillAgent(SkillAgentSpec spec, CliResolver resolver, Runtim
 
     /// <summary>The CLI this call site resolves to right now, for a run body that spawns its own workers.</summary>
     public CliResolution ResolveCli() => resolver.Resolve(Spec.Name, Spec.Model);
+
+    /// <summary>A provider's CLI when one is given, else the call site's; a model overrides either one's.</summary>
+    public CliResolution ResolveCli(string? providerId, string? model)
+    {
+        if (providerId is not null) return resolver.ResolveProvider(providerId, model);
+        var cli = ResolveCli();
+        return model is null ? cli : CliResolver.WithModel(cli, model);
+    }
 
     /// <summary>The runnable executable and environment for a resolved CLI; blocking, so call it off the request path.</summary>
     public RuntimeCli ResolveRuntime(CliResolution cli) => runtime.Resolve(cli.Binary, cli.EnvOverrides);
@@ -332,7 +349,7 @@ public sealed class SkillAgent(SkillAgentSpec spec, CliResolver resolver, Runtim
         var adapter = CliAdapters.All[cli.AdapterKey];
         var env = new Dictionary<string, string>(resolved.Env);
         foreach (var (k, v) in cli.EnvOverrides) env[k] = v;
-        env["codechroma_WORKSPACE_ID"] = repoId;
+        BridgeAddress.ExportIdentity(env, repoId, BareSkill.BridgeUrl);
         var staticPrompt = prompt ?? Spec.Prompt ?? throw new InvalidOperationException("RunCli needs a prompt");
         // An explicit --model re-triggers the CLI rejection; omit it when ANTHROPIC_MODEL carries the model.
         var argvModel = cli.EnvOverrides.ContainsKey("ANTHROPIC_MODEL") ? "" : cli.Model;
@@ -341,9 +358,12 @@ public sealed class SkillAgent(SkillAgentSpec spec, CliResolver resolver, Runtim
         var bareArgs = options.Bare && BareSkill.Enabled() ? adapter.BareArgs(options.BareTools) : [];
         if (bareArgs.Count > 0)
         {
-            if (BareSkill.Compose(staticPrompt, repoRoot, repoId) is { } inlined) staticPrompt = FitCommandLine(inlined, repoRoot, promptFile);
+            if (BareSkill.Compose(staticPrompt, repoRoot, repoId) is { } inlined) staticPrompt = inlined;
             else bareArgs = [];
         }
+        if (!string.IsNullOrWhiteSpace(options.Context))
+            staticPrompt += "\n\n## Pre-gathered context\n\nThis was selected from the repository's architecture map for this diagram. Start from it and open a file only to confirm a detail it does not settle.\n\n" + options.Context;
+        staticPrompt = FitCommandLine(staticPrompt, repoRoot, promptFile);
         var argv = adapter.BuildArgv(resolved.Executable, staticPrompt, argvModel, env, [.. bareArgs, .. options.ExtraArgs]);
         var info = new ProcessStartInfo(argv[0])
         {
@@ -413,7 +433,8 @@ public sealed class SkillAgent(SkillAgentSpec spec, CliResolver resolver, Runtim
                 return new JobState("error", FailureMessage(process.ExitCode, stderrTail.ToString(), GetOutput(repoId)));
             }
         }
-        if (HasArtifact(repoRoot, repoId)) return IdleState;
+        if (HasArtifact(repoRoot, repoId))
+            return options.PostRunCheck?.Invoke() is { } problem ? new JobState("error", problem) : IdleState;
         Restore(repoRoot, repoId, snapshot);
         return new JobState("error", Spec.InvalidError);
     }
@@ -431,13 +452,25 @@ public sealed class SkillAgent(SkillAgentSpec spec, CliResolver resolver, Runtim
     /// <summary>Windows caps a command line near 32k characters, so a long inlined prompt goes to a file the CLI is told to read first.</summary>
     private string FitCommandLine(string prompt, string repoRoot, PromptFile promptFile)
     {
-        if (prompt.Length <= MaxArgvPromptChars) return prompt;
+        if (EscapedLength(prompt) <= MaxArgvPromptChars) return prompt;
         var directory = Path.Combine(repoRoot, ".codechroma", "prompts");
         Directory.CreateDirectory(directory);
         var file = promptFile.FilePath = Path.Combine(directory, $"{Spec.Name}-{Guid.NewGuid():N}.md");
         File.WriteAllText(file, prompt);
-        var task = prompt[(prompt.LastIndexOf("\nTask: ", StringComparison.Ordinal) + 1)..];
-        return $"Your complete instructions are in {file}. Read that file in full with your Read tool before anything else, then carry out its task.\n\n{task}";
+        var marker = prompt.LastIndexOf("\nTask: ", StringComparison.Ordinal);
+        var task = marker < 0 ? "" : $"\n\n{prompt[(marker + 1)..]}";
+        if (EscapedLength(task) > MaxArgvPromptChars) task = "";
+        return $"Your complete instructions are in {file}. Read that file in full with your Read tool before anything else, then carry out its task.{task}";
+    }
+
+    /// <summary>A prompt's length once quoted into a Windows command line, where every quote and backslash may gain an escape.</summary>
+    private static int EscapedLength(string text)
+    {
+        if (text.Length > MaxArgvPromptChars) return text.Length;
+        var length = text.Length;
+        foreach (var c in text)
+            if (c is '"' or '\\') length++;
+        return length;
     }
 
     private const int MaxArgvPromptChars = 20_000;

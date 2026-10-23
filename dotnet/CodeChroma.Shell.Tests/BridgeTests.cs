@@ -46,7 +46,7 @@ internal sealed class FakeLauncher : IBridgeProcessLauncher
 internal sealed class SequencePorts : IPortFinder
 {
     private int next = 41000;
-    public int FindFreePort() => next++;
+    public int FindFreePort(string repoPath) => next++;
 }
 
 internal sealed class ScriptedHealth(Func<string, bool> healthy) : IHealthProbe
@@ -71,6 +71,18 @@ public class BridgeManagerTests
         var spec = Assert.Single(launcher.Started).Spec;
         Assert.Equal(("bridge.exe", "/repos/atlas", 41000), (spec.Executable, spec.RepoPath, spec.Port));
         Assert.Equal(("http://127.0.0.1:41000", 41000), (handle.Origin, handle.Port));
+    }
+
+    [Fact]
+    public async Task A_ready_bridge_records_its_live_origin_in_the_repo()
+    {
+        using var repo = new TempDir();
+        var launcher = new FakeLauncher { OnStart = p => p.Say("[codechroma-live] bridge ready at http://127.0.0.1:41000") };
+
+        await Manager(launcher).StartAsync("bridge.exe", repo.Path);
+
+        var json = System.Text.Json.JsonDocument.Parse(File.ReadAllText(Path.Combine(repo.Path, BridgeEndpointFile.RelativePath)));
+        Assert.Equal(("http://127.0.0.1:41000", 41000), (json.RootElement.GetProperty("origin").GetString(), json.RootElement.GetProperty("port").GetInt32()));
     }
 
     [Fact]
@@ -205,23 +217,34 @@ public class RealProcessBridgeTests
     private static string Dotnet => Environment.GetEnvironmentVariable("DOTNET_HOST_PATH") ?? "dotnet";
 
     [Fact]
-    public void Free_port_is_bindable_and_excludes_a_listening_port()
+    public void A_repo_gets_the_same_port_on_every_call()
     {
         var finder = new TcpPortFinder();
-        var first = finder.FindFreePort();
-        var listener = new TcpListener(IPAddress.Loopback, first);
+
+        var first = finder.FindFreePort("/repos/atlas");
+        var second = finder.FindFreePort("/repos/atlas");
+
+        Assert.Equal((first, TcpPortFinder.PreferredPort("/repos/atlas")), (second, first));
+    }
+
+    [Fact]
+    public void A_taken_port_falls_back_to_another_bindable_one()
+    {
+        var finder = new TcpPortFinder();
+        var preferred = finder.FindFreePort("/repos/atlas");
+        var listener = new TcpListener(IPAddress.Loopback, preferred);
         listener.Start();
         try
         {
-            var second = finder.FindFreePort();
-            var secondListener = new TcpListener(IPAddress.Loopback, second);
+            var fallback = finder.FindFreePort("/repos/atlas");
+            var fallbackListener = new TcpListener(IPAddress.Loopback, fallback);
             try
             {
-                secondListener.Start();
+                fallbackListener.Start();
 
-                Assert.NotEqual(first, second);
+                Assert.NotEqual(preferred, fallback);
             }
-            finally { secondListener.Stop(); }
+            finally { fallbackListener.Stop(); }
         }
         finally { listener.Stop(); }
     }
@@ -246,7 +269,7 @@ public class RealProcessBridgeTests
     [Fact]
     public async Task A_real_http_health_probe_answers_false_when_nothing_listens()
     {
-        var port = new TcpPortFinder().FindFreePort();
+        var port = new TcpPortFinder().FindFreePort("/repos/atlas");
 
         Assert.False(await new HttpHealthProbe(new HttpClient()).IsHealthyAsync($"http://127.0.0.1:{port}", CancellationToken.None));
     }

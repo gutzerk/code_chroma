@@ -29,7 +29,7 @@ describe("diagramAccent", () => {
 
   it("hashed layers carry the hex that styles.css gives the matching frame class", () => {
     const css = readFileSync(resolve(__dirname, "../../styles.css"), "utf-8");
-    const layers = ["custom/abc", "feature-plan/x", "freeform", "custom/zzz"];
+    const layers = ["sequence", "custom/abc", "feature-plan/x", "freeform", "custom/zzz"];
 
     const hexes = layers.map((layer) => {
       const { className } = diagramAccent(layer);

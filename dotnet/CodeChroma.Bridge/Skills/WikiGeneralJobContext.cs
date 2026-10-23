@@ -105,6 +105,6 @@ public static partial class WikiGeneralJobContext
             if (!budget.TryAdd(content)) break;
             pages.Add(new WikiContextPage(path, "file", content));
         }
-        return new WikiContextBundle(true, null, pages, gaps, budget.Truncated);
+        return WikiContextBundle.WithTruncation(true, null, pages, gaps, budget.Truncated, paths, pages.Select(p => p.Path).ToHashSet());
     }
 }

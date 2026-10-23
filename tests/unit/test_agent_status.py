@@ -44,20 +44,23 @@ def test_transient_full_screen_modes_hold_rather_than_falling_back_to_idle(detec
     assert detector.classify(screen(dump), "", "", "claude") is None
 
 
-def test_a_braille_spinner_in_the_title_reads_as_working(detector):
-    assert detector.classify([""], "⠙ Claude", "", "claude") == STATUS_WORKING
-
-
-def test_osc_progress_running_reads_as_working(detector):
-    assert detector.classify([""], "", "running", "claude") == STATUS_WORKING
-
-
-def test_osc_progress_none_reads_as_idle(detector):
-    assert detector.classify([""], "", "none", "claude") == STATUS_IDLE
-
-
-def test_an_unreported_progress_is_silence_rather_than_idle(detector):
-    assert detector.classify(["some output nobody has a rule for"], "", "", "claude") is None
+@pytest.mark.parametrize(
+    ("lines", "title", "progress", "expected"),
+    [
+        ([""], "⠙ Claude", "", STATUS_WORKING),
+        ([""], "", "running", STATUS_WORKING),
+        ([""], "", "none", STATUS_IDLE),
+        (["some output nobody has a rule for"], "", "", None),
+    ],
+    ids=[
+        "braille-spinner-in-title-reads-as-working",
+        "osc-progress-running-reads-as-working",
+        "osc-progress-none-reads-as-idle",
+        "unreported-progress-is-silence-rather-than-idle",
+    ],
+)
+def test_title_and_osc_signals_classify_as_expected(detector, lines, title, progress, expected):
+    assert detector.classify(lines, title, progress, "claude") == expected
 
 
 def test_a_foreign_foreground_process_holds_the_previous_status(detector):

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { chromeInsets, Z_AGENTS, Z_CODE, Z_POPOVER } from "./layoutMetrics";
+import { agentsWideWidth, chromeInsets, Z_AGENTS, Z_CODE, Z_POPOVER } from "./layoutMetrics";
 
 describe("chromeInsets", () => {
   it("returns open-panel offsets with normal agents", () => {
@@ -27,5 +27,19 @@ describe("chromeInsets", () => {
   it("keeps the z-index ladder ordered", () => {
     expect(Z_AGENTS).toBeLessThan(Z_CODE);
     expect(Z_CODE).toBeLessThan(Z_POPOVER);
+  });
+});
+
+describe("agentsWideWidth", () => {
+  it("stops at the open left panel edge", () => {
+    expect(agentsWideWidth(1400, true)).toBe(1400 - 286 - 12);
+  });
+
+  it("stops at the collapsed left bar edge when the left panel is closed", () => {
+    expect(agentsWideWidth(1400, false)).toBe(1400 - 68 - 12);
+  });
+
+  it("never drops below the minimum width", () => {
+    expect(agentsWideWidth(300, true)).toBe(400);
   });
 });

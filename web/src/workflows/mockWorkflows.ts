@@ -1,15 +1,17 @@
 import { computeRedoCard, currentRecord } from "./redoPlan";
-import type {
-  MessageReply,
-  RedoRequest,
-  RunMessage,
-  ReviewDecision,
-  Run,
-  RunEvent,
-  RunEventName,
-  StepRecord,
-  StopMode,
-  WorkflowDef,
+import { isFinished } from "./runControls";
+import {
+  workflowInputs,
+  type MessageReply,
+  type RedoRequest,
+  type RunMessage,
+  type ReviewDecision,
+  type Run,
+  type RunEvent,
+  type RunEventName,
+  type StepRecord,
+  type StopMode,
+  type WorkflowDef,
 } from "./types";
 
 /** The fixture workflow the mock bridge serves (mirrors a hand-authored .codechroma/workflows file). */
@@ -62,9 +64,46 @@ export class MockWorkflowEngine {
     return structuredClone(workflow);
   }
 
+  updateWorkflow(workflow: WorkflowDef): WorkflowDef {
+    const index = this.workflows.findIndex((w) => w.id === workflow.id);
+    if (index < 0) throw new Error(`unknown workflow ${workflow.id}`);
+    this.workflows[index] = structuredClone(workflow);
+    return structuredClone(workflow);
+  }
+
+  /** Removes one done/stopped run. */
+  deleteRun(runId: string): void {
+    const run = this.require(runId);
+    if (!isFinished(run.state)) throw new Error("Only a finished run can be deleted");
+    this.runs.delete(runId);
+    this.notify(run, "run.deleted");
+  }
+
+  /** Removes every done/stopped run. */
+  clearFinished(): void {
+    for (const run of [...this.runs.values()].filter((r) => isFinished(r.state))) {
+      this.runs.delete(run.id);
+      this.notify(run, "run.deleted");
+    }
+  }
+
+  /** Resets a done/stopped run to step 1, keeping its id and inputs. */
+  restartRun(runId: string): Run {
+    const run = this.require(runId);
+    if (!isFinished(run.state)) throw new Error("Only a finished run can be restarted");
+    const workflow = this.workflows.find((wf) => wf.id === run.workflowId);
+    if (!workflow) throw new Error(`unknown workflow ${run.workflowId}`);
+    this.clearTimer();
+    const fresh = this.freshRecord(run.id, workflow, run.inputs ?? {});
+    this.runs.set(run.id, fresh);
+    this.launch(fresh, workflow);
+    this.notify(fresh, "run.step");
+    return structuredClone(fresh);
+  }
+
   deleteWorkflow(workflowId: string): void {
     const active = [...this.runs.values()].some(
-      (run) => run.workflowId === workflowId && run.state !== "done" && run.state !== "stopped",
+      (run) => run.workflowId === workflowId && !isFinished(run.state),
     );
     if (active) throw new Error("The workflow has a run in progress; stop it first");
     const index = this.workflows.findIndex((w) => w.id === workflowId);
@@ -102,27 +141,42 @@ export class MockWorkflowEngine {
   startRun(workflowId: string, inputs: Record<string, string> = {}): Run {
     const workflow = this.workflows.find((wf) => wf.id === workflowId);
     if (!workflow) throw new Error(`unknown workflow ${workflowId}`);
-    const missing = (workflow.inputs ?? []).find((input) => !inputs[input.name]?.trim());
+    const missing = workflowInputs(workflow).find((input) => !inputs[input.name]?.trim());
     if (missing) throw new Error(`input is required: ${missing.label || missing.name}`);
     this.counter += 1;
-    const run: Run = {
-      id: `run${this.counter}`,
-      workflowId,
+    const run = this.freshRecord(`run${this.counter}`, workflow, inputs);
+    this.runs.set(run.id, run);
+    this.launch(run, workflow);
+    this.notify(run, "run.step");
+    return structuredClone(run);
+  }
+
+  private freshRecord(id: string, workflow: WorkflowDef, inputs: Record<string, string>): Run {
+    return {
+      id,
+      workflowId: workflow.id,
       state: "running",
       currentStepId: workflow.steps[0].id,
       stopAfter: null,
       attempt: 1,
       attempts: [{ n: 1, branch: null }],
-      breakpoints: [],
+      breakpoints: workflow.steps.filter((s) => s.pauseBefore).map((s) => s.id),
       steps: workflow.steps.map((step) => blankStep(step.id)),
       messages: [],
       redoProposal: null,
       inputs,
     };
-    this.runs.set(run.id, run);
-    this.begin(run, workflow.steps[0].id);
-    this.notify(run, "run.step");
-    return structuredClone(run);
+  }
+
+  /** Begins step 1, or holds there when it carries a pause-before breakpoint. */
+  private launch(run: Run, workflow: WorkflowDef): void {
+    const first = workflow.steps[0].id;
+    if (run.breakpoints.includes(first)) {
+      run.state = "held";
+      this.setStatus(run, first, "held");
+      return;
+    }
+    this.begin(run, first);
   }
 
   pause(runId: string): Run {
@@ -153,6 +207,10 @@ export class MockWorkflowEngine {
 
   stop(runId: string, mode: StopMode): Run {
     const run = this.require(runId);
+    if (run.state === "held" || run.state === "needs_you" || run.state === "paused") {
+      if (mode === "now") this.stopWaiting(run);
+      return structuredClone(run);
+    }
     if (run.state !== "running") return structuredClone(run);
     if (mode === "afterStep") {
       run.stopAfter = run.currentStepId;
@@ -168,6 +226,17 @@ export class MockWorkflowEngine {
     this.system(run, "Run stopped.");
     this.notify(run, "run.stopped");
     return structuredClone(run);
+  }
+
+  /** Cancels a waiting run (held, awaiting review or paused): an unstarted step stays pending. */
+  private stopWaiting(run: Run): void {
+    this.clearTimer();
+    const current = this.step(run, run.currentStepId);
+    if (current && (current.status === "held" || current.status === "needs_you")) current.status = "pending";
+    else this.setStatus(run, run.currentStepId, "stopped");
+    run.state = "stopped";
+    this.system(run, "Run stopped.");
+    this.notify(run, "run.stopped");
   }
 
   keepRunning(runId: string): Run {

@@ -24,7 +24,7 @@ system-wide narrative doesn't help judge it. `impact/context` below is the one c
 type needs:
 
 ```bash
-curl -s "http://localhost:8000/repos/${CODECHROMA_WORKSPACE_ID:-default}/impact/context?source=diff"
+curl -s "${CODECHROMA_BRIDGE_URL:-http://localhost:8000}/repos/${CODECHROMA_WORKSPACE_ID:-default}/impact/context?source=diff"
 # or, when working from a feature's spec files, the plan slice (name the feature directory):
 curl -s ".../impact/context?source=plan&feature=specs/006-graph-research-endpoint"
 ```
@@ -44,7 +44,7 @@ as a broken node.
 ## Where the file goes
 
 ```bash
-curl -s "http://localhost:8000/repos/${CODECHROMA_WORKSPACE_ID:-default}/impact-path"
+curl -s "${CODECHROMA_BRIDGE_URL:-http://localhost:8000}/repos/${CODECHROMA_WORKSPACE_ID:-default}/impact-path"
 # -> {"repo_root":"/abs/path/to/repo","impact_path":"/abs/path/to/repo/.codechroma/diagrams/impact/impact.json"}
 ```
 

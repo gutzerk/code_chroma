@@ -4,31 +4,38 @@ import type { ArrangeMode } from "./arrangeLayout";
 
 type Positions = Record<string, { x: number; y: number }>;
 
-/** Active arrange mode plus the pre-arrange positions that clicking the active mode restores. */
+/** Active mode and Arrange-only translations, so leaving it keeps subsequent user moves. */
 class ArrangeStore extends Store {
   private mode: ArrangeMode = "free";
-  private snapshot: Positions = {};
+  private translations: Positions = {};
 
   getMode = (): ArrangeMode => this.mode;
-  getSnapshot = (): Positions => this.snapshot;
 
-  /** Records the original positions only on the first arrange out of free; later switches keep them. */
-  enter = (mode: Exclude<ArrangeMode, "free">, original: Positions): void => {
-    if (this.mode === "free") this.snapshot = original;
-    else this.snapshot = { ...original, ...this.snapshot };
+  /** Accumulates only each mode change's translations, excluding intervening user moves. */
+  enter = (mode: Exclude<ArrangeMode, "free">, original: Positions, arranged: Positions): void => {
+    for (const [id, next] of Object.entries(arranged)) {
+      const before = original[id];
+      if (!before) continue;
+      const prior = this.translations[id] ?? { x: 0, y: 0 };
+      this.translations[id] = { x: prior.x + next.x - before.x, y: prior.y + next.y - before.y };
+    }
     this.mode = mode;
     this.emit();
   };
 
-  leave = (): Positions => {
-    const restored = this.snapshot;
+  leave = (current: Positions): Positions => {
+    const restored: Positions = {};
+    for (const [id, translation] of Object.entries(this.translations)) {
+      const position = current[id];
+      if (position) restored[id] = { x: position.x - translation.x, y: position.y - translation.y };
+    }
     this.reset();
     return restored;
   };
 
   reset = (): void => {
     this.mode = "free";
-    this.snapshot = {};
+    this.translations = {};
     this.emit();
   };
 }

@@ -60,8 +60,10 @@ Logic is UI-free in `CodeChroma.Shell`; `CodeChroma.Shell.App` only renders.
 - 🔴 `Program.Main` calls `VelopackApp.Build().Run()` first so Velopack's install/uninstall hooks work. Real
   install/uninstall hooks are still unverified on a real install.
 - The environment for agent PTYs and skills comes from the bridge's `RuntimeEnvironment` (login-shell PATH, see
-  [`runtime-environment.md`](runtime-environment.md)); the bridge exports `codechroma_BRIDGE_URL` (the real
-  dynamic port) so a terminal-panel agent, which has no browser, can reach it.
+  [`runtime-environment.md`](runtime-environment.md)); every agent terminal and headless skill run gets `CODECHROMA_WORKSPACE_ID` (the agent/job id) and
+  `CODECHROMA_BRIDGE_URL` (the real dynamic port, `BareSkill.BridgeUrl`) from `BridgeAddress.ExportIdentity`, so a
+  terminal-panel agent, which has no browser, can reach the right bridge. 🔴 Both names are upper-case: env
+  names are case-sensitive on macOS/Linux, and the skills and check scripts read exactly these two.
 - The bridge serves the SPA (`web/` folder next to it), so there is no `file://` origin and no CORS; both client
   contexts map the build-time `same-origin` sentinel to `window.location.origin`
   (`web/src/engine-client/sameOrigin.test.ts`).
@@ -106,7 +108,7 @@ weaken security and must never be set in production: `CODECROMA_MANIFEST_URL`, `
 `UpdateScripts`, starts it detached, then the host quits), `UpdateSettingsStore`/`UpdateScheduler`,
 `InstallOutcomeStore`, `UpdatesBridge`. `CodeChroma.Shell.App/UpdateHost.cs` wires it: scheduled checks at startup,
 every 6 h and on window focus (per-user installs only), Help -> Check for Updates, and the "updated / rolled back"
-report. The canvas's `window.codechromaUpdates` (`web/src/assistant/UpdatesPanel.tsx`) round-trips over the WebView
+report (`Dialogs.ShowInstallResultAsync`: headline, explanation, detail, Continue). Accepting an update shows `Dialogs.ShowProgress` (indeterminate, non-dismissable) while it downloads. The "update available" prompt is `Dialogs.ShowUpdateAsync` (release notes rendered by `MarkdownText`, scrollable and capped to the window height; Install / Skip this version / Later — Later reappears next launch, Skip persists `skippedVersion`). The canvas's `window.codechromaUpdates` (`web/src/assistant/UpdatesPanel.tsx`) round-trips over the WebView
 channel; `UpdatesBridge.ToJson` adds `verificationNotice`, `provenance` and `lastInstall`.
 `UpdateConstants` is the single source for the repo slug, intervals and wording; download URLs must be
 credential-free `https://github.com/<repo>/releases/(latest/)?download/...` with no `.`/`..`/`%2e` segments.
@@ -122,6 +124,7 @@ credential-free `https://github.com/<repo>/releases/(latest/)?download/...` with
   (`updated`/`rolled-back`/`failed`) and surfaces as `UpdateState.LastInstall`. Windows swaps `...\CodeChroma\current`
   with a hidden PowerShell, macOS replaces `~/Applications/CodeChroma.app` via `ditto`, Linux keeps `.previous`.
   🔴 The helper writes `updated` *before* launching the new version (the 8 s health check only overwrites it with `rolled-back`), because the new app reads the result file once at startup; writing it after the health check made the "updated" report show a launch late. `UpdateHost.QuitForUpdate` closes the window and force-exits (`Environment.Exit`) after 10 s, so a hung bridge shutdown cannot leave the helper waiting out its 120 s for the PID.
+  🔴 On Windows a directory that is any process's cwd cannot be renamed, so the helper starts with the temp dir as its cwd (`ProcessHelperLauncher`, plus `Set-Location` in the script) and, before the swap, waits up to 10 s for processes running from `$Target` (bridge/agent children) and then force-stops them; otherwise the update fails with "could not move the current version aside".
   No delta updates (full package each time). `apply-update.sh` unsets `APPIMAGE APPDIR ARGV0 OWD` and removes itself.
 - ⚠ Releases are unsigned: SmartScreen and Gatekeeper show an "unverified publisher" warning; a `.deb` or
   system-wide install is not updated in place.
@@ -141,9 +144,10 @@ branches, traces, settings, patterns, impact/review, plain wiki) is ported. Work
 
 ## Tests
 
-`TcpPortFinder` probes a free port and releases it; successive calls may return the same port.
-`RealProcessBridgeTests.Free_port_is_bindable_and_excludes_a_listening_port` holds the first listener
-open while requesting and binding the second port, then closes both even if an assertion fails.
+`TcpPortFinder.FindFreePort(repoPath)` returns a stable port per repository (FNV-1a of the canonical repo path, mapped into 20000–31999) so the bridge URL survives app restarts and agent tasks stay valid; if that port is taken it probes the next 63 in the range, then falls back to an OS-assigned port. Once a bridge is ready, `BridgeEndpointFile` (re)writes `<repo>/.codechroma/bridge.json` (`origin`, `port`, `updated_at`) so agents that outlive a restart re-read the live URL; it is not deleted on exit, so a refused connection means re-read and retry.
+`RealProcessBridgeTests.A_taken_port_falls_back_to_another_bindable_one` holds the preferred port open
+while requesting and binding the fallback, then closes both even if an assertion fails; a respawned bridge
+keeps its port (`RealBridgeEndToEndTests`).
 The probe does not reserve a port for the child bridge between discovery and startup.
 
 `dotnet/CodeChroma.Shell.Tests/` (updater, tabs, stores, bridge manager, `UpdatesBridge`), `dotnet/CodeChroma.Bridge.Tests/`,
@@ -155,6 +159,10 @@ from code and is not verified on real hardware.
 and does `result.ToString()` on the null result, an unhandleable NRE inside a native callback that aborts the app. Two guards: `UpdateHost`
 only receives tabs that are on the bridge origin (`MainWindow` filters with `IsBridgeOrigin`; empty tabs get no scripts), and `web/index.html`
 defines `window.__dispatchMessageCallback` (evals the source, always returns a string) so scripts sent to a loaded page never return null.
+
+## macOS privacy (TCC) prompts
+
+Issue #189: macOS asked to allow Apple Music / media library / photo access. The app declares no usage-description keys and needs none. The only code that walks an arbitrary folder is `AgentBootstrap.Walk` (first-commit plan for a non-repo folder); opening a home-level folder made it recurse into `~/Music`, `~/Pictures`, `~/Movies` and `~/Library`, and macOS attributes that access to CodeChroma. `AgentBootstrap.IsMacProtectedFolder` now skips those direct children of the home folder on macOS (`MacProtectedFolderTests`). 🔴 Unverified on a real macOS build: `vpk` generates `Info.plist`, so no custom keys or entitlements are shipped; if a prompt persists, find the other trigger (a spawned CLI or login shell run from `~`) rather than adding usage strings.
 
 ## CLI lookup and clipboard notes
 

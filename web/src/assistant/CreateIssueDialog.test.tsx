@@ -85,6 +85,8 @@ describe("CreateIssueDialog", () => {
     fireEvent.click(screen.getByRole("button", { name: "Create issue" }));
 
     expect(await screen.findByText(/Opened in your browser/)).toBeTruthy();
+    expect(screen.getByText(/We value your feedback/)).toBeTruthy();
+    expect(screen.queryByLabelText("Title")).toBeNull();
   });
 
   it("asks for confirmation before discarding a filled-in form", () => {

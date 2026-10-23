@@ -140,6 +140,8 @@ export interface ProviderModelsResult {
   supported: boolean;
   models: ProviderModel[];
   error?: string | null;
+  /** True when `models` is the built-in suggestion list rather than the provider's own answer. */
+  static?: boolean;
 }
 
 export function fetchProviderModels(id: string): Promise<ProviderModelsResult> {

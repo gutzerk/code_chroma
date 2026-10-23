@@ -1,5 +1,7 @@
 # Parallel agents (`src/codechroma/bridge/agents/`) — one `claude` per git worktree, or attached
 
+> Removed dead components: `AgentRail`, `AgentWindow`, `AgentFullScreen`, `AgentTab` and `useFullScreenAgentId` (plus their tests/CSS) are deleted -- `ActivityPanel` + `AgentTerminalDock` replaced them. Mentions of those names below are historical; the live flow is `windowActions.ts` + `ActivityPanel`.
+
 Several Claude sessions at once, each on its own branch in its own `git worktree` by default, each a
 window on the canvas. `<main_root>/.codechroma/agents.json` is the registry (it spans every worktree,
 so it lives in the main repo); an agent's own artifacts need no special handling — they already sit
@@ -187,7 +189,7 @@ branch through an agent attached to it (`_guard_shared_worktree`, keyed off `Age
   (`terminal/server.py`'s `_bridge_managed_session`). Trade-off, on purpose: a reattach shows the
   current screen, not history above the fold. 🔴 Entirely separate from `skill_agent`'s registry: if
   the two touched, regenerating a C1 diagram would kill the user's sessions. `atexit` + the lifespan
-  kill leave no orphans. `agent_run_env(agent_id)` injects `codechroma_WORKSPACE_ID=<agent id>` into
+  kill leave no orphans. `agent_run_env(agent_id)` injects `CODECHROMA_WORKSPACE_ID=<agent id>` (and `CODECHROMA_BRIDGE_URL` when the bridge's URL is known, `questions.launch.identity_env`; C#: `BridgeAddress.ExportIdentity`) into
   the PTY env (both `routes/agents.py`'s `start` and `autostart.py` pass it via
   `AgentSessionRegistry.start(..., env=...)` → `PtySession(env=...)`). Without it the diagram skills
   fall back to the `default` (main) workspace and write `.codechroma/*.json` into main while the agent
@@ -203,7 +205,7 @@ branch through an agent attached to it (`_guard_shared_worktree`, keyed off `Age
   (`terminal/agents.py`), which routes `kind="agent"` through `llm/resolve_cli` under the
   `parallel_agents` call site's `agents` group and folds resume/initial-prompt into the argv (so a
   `"task"` context first message still reaches an `agent` window). The caller merges the resolver's
-  env overrides under `agent_run_env`'s `codechroma_WORKSPACE_ID`, so the workspace id wins any
+  env overrides under `agent_run_env`'s `CODECHROMA_WORKSPACE_ID`, so the workspace id wins any
   collision. The resolved binary is stored back on the record as `resolved_cli` (persisted,
   additive), surfaced via `to_payload` so the window/rail can show which CLI actually launched. A
   plain `claude` record (FR-012) is untouched: it takes the assistant's `effective_cli` directly and
@@ -452,29 +454,61 @@ branch through an agent attached to it (`_guard_shared_worktree`, keyed off `Age
   `web/src/agents/*.test.{ts,tsx}`,
   `web/src/engine-client/workspacePings.test.ts`, `web/e2e/agent-windows.spec.ts`.
 
+## Open agent on a workflow step (019 Stage 5, C# bridge)
+
+`POST /agents` also takes `run_id` + `fork_session` (both or neither, `kind` must be `claude`, else
+400). `AgentManager.CreateInRun` puts the record in that run's own worktree
+(`WorkflowRunner.WorktreeFor(MainRoot, runId)`, 404 when it is gone), on the worktree's current branch,
+with `source_run` and `fork_session` persisted on the record (both also in the payload). A
+non-resume `POST /agents/{id}/start` then launches `claude --resume <fork_session> --fork-session`
+(`TerminalAgents.Resolve(..., forkSession: true)`, claude kind only), so the step's own session is
+never written to; `{resume:true}` resumes the agent's own (forked) session as usual.
+`CaptureSessionId` excludes `fork_session` and every step session recorded on the run, so the agent
+never claims a step's transcript in the shared worktree. Deleting the worktree or branch through
+such an agent is refused (the run owns them). Runs are looked up under the main repository only.
+Web: `AgentClient.openStepSession`, `launchAgent.openStepAgent`, the Open agent button in
+`workflows/StepRail.tsx`. Tests: `CodeChroma.Bridge.Tests/Agents/OpenStepAgentTests.cs`.
+
 ## Canvas questions (017)
 
-Claude agent windows launch with the CodeChroma MCP server (`ask_user`) registered through `agent_cli`'s `mcp` parameter, plus the `codechroma_BRIDGE_URL`/`codechroma_QUESTION_TOKEN` env vars; see [`ai-questions.md`](ai-questions.md) "Agent wiring". A bridge restart invalidates old tokens, so agent windows are respawned with fresh ones.
+Claude agent windows launch with the CodeChroma MCP server (`ask_user`) registered through `agent_cli`'s `mcp` parameter, plus the `CODECHROMA_BRIDGE_URL`/`CODECHROMA_QUESTION_TOKEN` env vars; see [`ai-questions.md`](ai-questions.md) "Agent wiring". A bridge restart invalidates old tokens, so agent windows are respawned with fresh ones.
 
 ## Agent panel modes (layout store)
 
 `layoutStore.agentsMode` (`canvas/layout/layoutStore.ts`) replaces the old open/collapsed `useState` in
 `RootCanvas`:
 
-- `normal`: `AgentRail` in the canvas row. It carries "Collapse agents panel" (-> `collapsed`) and
-  "Expand agents to full screen" (-> `full`) handle buttons.
-- `collapsed`: `AgentsCollapsedBar`, one `a1`, `a2`... button per agent in a row at the top right, with a
-  status dot; clicking one returns to `normal` and selects that agent.
-- `full`: `AgentFullScreen`, a `role=tablist` of `AgentTab`s (dot, name, status), a 44px "New agent"
-  `+`, and exactly one window for the selected agent (its `AgentTerminal`), an input and a status line
-  (`cli · status · branch`); the edge handle "Back to side panel" returns to `normal`. Entering `full`
-  forces `leftOpen=false` (the collapsed left bar stays). The full-screen input is not wired to the
-  xterm session (it is a local draft only; type in the terminal). The floating agent windows are hidden
-  (`.agent-layer[data-hidden]`), and the shown agent's own window/dock terminal is unmounted so only one
-  xterm is attached to its PTY (scrollback is lost on that remount; the bridge redraws the screen).
-  Leaving `full` restores the left panel to its pre-full state.
+- `normal`: `ActivityPanel` in the canvas row, resizable; its edge handle carries the collapse chevron.
+- `collapsed`: `activity/CollapsedStrip`; clicking an avatar returns to `normal` and selects that agent.
+- `full`: the same `ActivityPanel` stretched over the canvas (`.is-full`) from the diagrams panel edge
+  (or the canvas-area edge when that panel is collapsed); agents show as a left column
+  (`activity/AgentSwitcherRow.tsx`'s `AgentList`, a CSS grid on `.is-full .activity-agent-content` so the
+  terminals never remount) and the canvas's left panel is left alone. Opening an agent window
+  (`openAgentWindow`) never leaves full screen. The older `AgentFullScreen` component is no longer mounted.
+  The selected agent's header (`DockedAgentPanel` with `full`) shows a title and meta line, the usage
+  strip and a larger red close button (no Stop agent; see "Session usage" below).
 - `--agent-dock-left` (set once on the `.canvas-main-row` by `RootCanvas` from `chromeInsets`)
   positions the terminal dock and clears the floating left panel.
 
 Being in a non-`normal` mode (also on mount) closes an open code popup and inspector (`RootCanvas` effect). Tests:
 `AgentRail.test.tsx`, `AgentsCollapsedBar.test.tsx`, `AgentFullScreen.test.tsx`, `e2e/layout-panels.spec.ts`.
+
+## Session usage (019 Stage 7)
+
+`GET /agents/{id}/usage` (`Routes/AgentRoutes.cs`, C# bridge only) returns `{contextTokens, contextWindow,
+inputTokens, outputTokens, cacheReadTokens, cacheHitRatio, costUsd, model}` for a claude agent's recorded
+session (`SessionId`, captured on demand when still empty), or `null` for a non-claude agent, no session
+yet, or a transcript with no billed reply. `Agents/AgentUsage.cs` builds it from one streamed pass, `Transcripts.ReadSession`: context comes from
+the last main-thread reply (`<synthetic>` entries and sidechains are skipped) and its window from
+`ModelSpecs.ContextWindow`; tokens, cache hit and cost sum every assistant reply once per `message.id`
+(sidechains included, since they are billed) per model.
+`inputTokens` counts uncached input plus cache reads and writes, and `cacheHitRatio` is cache reads over
+that. `Agents/ModelSpecs.cs` holds the context windows (1M for an id ending in `[1m]`, else 200k) and USD per MTok (input, output, cache read, 5-minute cache write) per
+model id or its dated snapshot; `costUsd` is null when any model with tokens has no price.
+
+The web reads it through the optional `AgentClient.usage` (`HttpAgentClient` only; the mock has none, so
+the strip stays hidden there). `activity/UsageStrip.tsx`'s `useAgentUsage` fetches only for the selected
+agent while full screen is open, again on each status change and, while the agent is running and the page is visible, every `USAGE_POLL_MS` (5 s), and
+`UsageStrip` renders "Context 62k / 200k · 31%" with a `role="meter"` bar, "Tokens 184k in · 12k out",
+"Cache hit 78%" and "Cost $0.84" (omitted when `costUsd` is null). Tests:
+`dotnet/CodeChroma.Bridge.Tests/Agents/AgentUsageTests.cs`, `web/src/agents/activity/UsageStrip.test.tsx`.

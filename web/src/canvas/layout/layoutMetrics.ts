@@ -1,26 +1,28 @@
 import type { AgentsMode } from "./layoutStore";
 
 export const Z_LEFT_PANEL = 2;
-export const Z_TERMINAL = 2;
 export const Z_AGENTS = 3;
-export const Z_HANDLES = 4;
 export const Z_COLLAPSED_LEFT_BAR = 4;
 export const Z_CODE = 5;
 export const Z_POPOVER = 6;
 
 /** Gap (px) between the canvas-area edge and floating chrome (left panel, collapsed bars). */
-export const CHROME_INSET = 12;
-export const LEFT_PANEL_WIDTH = 262;
+const CHROME_INSET = 12;
+const LEFT_PANEL_WIDTH = 262;
 /** Breathing room between the open left panel and whatever sits beside it. */
-export const LEFT_PANEL_GAP = 12;
+const LEFT_PANEL_GAP = 12;
 /** Left edge (px) of in-flow content when the left panel is open. */
-export const LEFT_PANEL_CLEARANCE = CHROME_INSET + LEFT_PANEL_WIDTH + LEFT_PANEL_GAP;
+const LEFT_PANEL_CLEARANCE = CHROME_INSET + LEFT_PANEL_WIDTH + LEFT_PANEL_GAP;
 /** Left edge (px) of the draw popover when the left panel is collapsed (clears the collapsed bar). */
-export const COLLAPSED_LEFT_BAR_CLEARANCE = 68;
+const COLLAPSED_LEFT_BAR_CLEARANCE = 68;
 /** Right inset (px) taken by the agents panel in normal mode. */
-export const AGENTS_NORMAL_INSET = 424;
+const AGENTS_NORMAL_INSET = 424;
 /** Right inset (px) taken by the agents handle strip when collapsed or full. */
 export const AGENTS_COLLAPSED_INSET = 68;
+/** Gap (px) between the canvas-area right edge and the stretched agents panel. */
+export const AGENTS_WIDE_RIGHT_GAP = 12;
+/** Narrowest width (px) the stretched agents panel may take. */
+export const AGENTS_WIDE_MIN_WIDTH = 400;
 export const ARRANGE_X_OPEN = LEFT_PANEL_CLEARANCE + 4;
 export const ARRANGE_X_CLOSED = 28;
 export const ARRANGE_Y_OPEN = 28;
@@ -54,4 +56,10 @@ export function chromeInsets(state: ChromeInsetsInput): ChromeInsets {
     arrangeOrigin: { x: leftOpen ? ARRANGE_X_OPEN : ARRANGE_X_CLOSED, y: leftOpen ? ARRANGE_Y_OPEN : ARRANGE_Y_CLOSED },
     drawPopover: { left: leftOpen ? LEFT_PANEL_CLEARANCE : COLLAPSED_LEFT_BAR_CLEARANCE, top: POPOVER_TOP },
   };
+}
+
+/** Width (px) of the stretched agents panel: from the left panel (or collapsed bar) edge to the right gap; full screen with the left panel closed runs to the chrome inset. */
+export function agentsWideWidth(areaWidth: number, leftOpen: boolean, full = false): number {
+  const leftEdge = full && !leftOpen ? CHROME_INSET : chromeInsets({ leftOpen, agentsMode: "normal" }).drawPopover.left;
+  return Math.max(AGENTS_WIDE_MIN_WIDTH, Math.round(areaWidth - leftEdge - AGENTS_WIDE_RIGHT_GAP));
 }

@@ -99,11 +99,12 @@ public static class Transcripts
         if (path is null) return null;
         TranscriptUsage? last = null;
         var byMessage = new Dictionary<string, (string Model, TokenCounts Counts)>();
-        var anonymous = new List<(string Model, TokenCounts Counts)>();
+        var lineNumber = 0;
         try
         {
             foreach (var line in File.ReadLines(path))
             {
+                lineNumber++;
                 if (!line.Contains("\"usage\"", StringComparison.Ordinal)) continue;
                 JsonObject? entry;
                 try { entry = JsonNode.Parse(line) as JsonObject; }
@@ -115,13 +116,12 @@ public static class Transcripts
                 if (model != SyntheticModel && !sidechain)
                     last = new TranscriptUsage(counts.Input + counts.CacheRead + counts.CacheWrite, counts.Input, counts.Output, counts.CacheRead, model);
                 if (counts.Input + counts.Output + counts.CacheRead + counts.CacheWrite == 0) continue;
-                if (Json.Str(message["id"]) is { } messageId) byMessage[messageId] = (model ?? "", counts);
-                else anonymous.Add((model ?? "", counts));
+                byMessage[Json.Str(message["id"]) ?? $"#{lineNumber}"] = (model ?? "", counts);
             }
         }
         catch (Exception error) when (error is IOException or UnauthorizedAccessException) { return null; }
         var totals = new Dictionary<string, TokenCounts>();
-        foreach (var (model, counts) in byMessage.Values.Concat(anonymous))
+        foreach (var (model, counts) in byMessage.Values)
             totals[model] = totals.TryGetValue(model, out var sum) ? sum + counts : counts;
         return new TranscriptSession(last, totals);
     }

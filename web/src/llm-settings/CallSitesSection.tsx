@@ -126,7 +126,13 @@ export function CallSitesSection() {
       };
     }
     const count = entry.models.length;
-    const text = count === 0 ? "No models returned" : `${count} model${count === 1 ? "" : "s"} available`;
+    const noun = `${count} model${count === 1 ? "" : "s"}`;
+    const text =
+      count === 0
+        ? "No models returned"
+        : entry.static
+          ? `${noun} suggested (built-in list, not live) — any name can be typed`
+          : `${noun} available`;
     return { text, isError: false };
   };
 

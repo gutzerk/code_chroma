@@ -1,15 +1,13 @@
 import { useState } from "react";
 import { ConfirmDialog } from "./ConfirmDialog";
 import { Icon } from "./icons";
-import { OverflowMenu, type MenuItem } from "./OverflowMenu";
 import {
   CONFIRM_MESSAGES,
   RUN_STATE_COLOR,
   RUN_STATE_TEXT,
   STATUS_META,
-  canStopRun,
-  headerToggle,
   isFinished,
+  stepPosition,
   type PanelLayout,
 } from "./runControls";
 import type { Run, StepRecord, WorkflowDef } from "./types";
@@ -27,11 +25,11 @@ export function SegmentBar({
 }) {
   const finished = steps.filter((s) => s.status === "done" || s.status === "skipped").length;
   return (
-    <div className="wf-seg" role="progressbar" aria-label={label} aria-valuemin={0} aria-valuemax={steps.length} aria-valuenow={finished}>
+    <span className="wf-seg" role="progressbar" aria-label={label} aria-valuemin={0} aria-valuemax={steps.length} aria-valuenow={finished}>
       {steps.map((step) => (
         <span key={step.stepId} data-status={step.status} title={`${slugOf(step.stepId)}: ${STATUS_META[step.status].text}`} />
       ))}
-    </div>
+    </span>
   );
 }
 
@@ -39,135 +37,79 @@ export function SegmentBar({
 function Attempts({ run }: { run: Run }) {
   if (run.attempts.length < 2) return null;
   return (
-    <ul className="wf-attempts" aria-label={`Attempts of ${run.id}`}>
+    <span className="wf-attempts" aria-label={`Attempts of ${run.id}`}>
       {run.attempts.map((a) => (
-        <li key={a.n} className="wf-truncate" data-testid={`run-attempt-${run.id}-${a.n}`}>
+        <span key={a.n} className="wf-truncate" data-testid={`run-attempt-${run.id}-${a.n}`}>
           {a.branch ? `Attempt ${a.n} (set aside on ${a.branch})` : `Attempt ${a.n}`}
           {a.n === run.attempt ? " - current" : ""}
-        </li>
+        </span>
       ))}
-    </ul>
+    </span>
   );
 }
 
-function stageText(run: Run, workflow: WorkflowDef | undefined): string {
-  const current = run.steps.find((s) => s.stepId === run.currentStepId);
-  if (!current) return run.state === "done" ? "All steps finished" : "";
-  const slug = workflow?.steps.find((s) => s.id === current.stepId)?.slug ?? current.stepId;
-  return `${slug} · ${STATUS_META[current.status].text}`;
+function runName(run: Run, workflow: WorkflowDef | undefined): string {
+  return workflow?.name ?? run.workflowId;
 }
 
-/** The part of a run row that opens the run; name and stage truncate with an ellipsis. */
-function RunHead({
-  run,
-  workflow,
-  selected,
-  onOpen,
-}: {
-  run: Run;
-  workflow: WorkflowDef | undefined;
-  selected: boolean;
-  onOpen: (runId: string) => void;
-}) {
-  const name = workflow?.name ?? run.workflowId;
-  const stage = stageText(run, workflow);
-  return (
-    <button
-      type="button"
-      className="wf-run-open"
-      aria-label={`Open run ${run.id} (${RUN_STATE_TEXT[run.state]})`}
-      aria-current={selected || undefined}
-      onClick={() => onOpen(run.id)}
-    >
-      <span className="wf-run-name wf-truncate" title={name}>
-        {name}
-      </span>
-      <span className="wf-run-stage wf-truncate" style={{ color: RUN_STATE_COLOR[run.state] }} title={stage}>
-        {`${RUN_STATE_TEXT[run.state]}${stage ? ` · ${stage}` : ""}`}
-      </span>
-    </button>
-  );
+function stageText(run: Run): string {
+  const { index, total } = stepPosition(run);
+  if (run.state === "stopped") return `Stopped at ${index} of ${total}`;
+  if (run.state === "done") return "Done";
+  return `${RUN_STATE_TEXT[run.state]} · step ${index} of ${total}`;
 }
 
-/** Opens the card unless the click landed on one of its own controls. */
-function openOnBackgroundClick(open: () => void) {
-  return (e: React.MouseEvent<HTMLElement>) => {
-    if ((e.target as HTMLElement).closest("button, a, input, select, [role='menu'], [role='menuitem']")) return;
-    open();
-  };
-}
-
+/** One live run: name with its state mark, "Running · step 2 of 4" and the segmented progress bar. */
 function ActiveCard({
   run,
   workflow,
   selected,
-  layout,
-  actions,
   onOpen,
 }: {
   run: Run;
   workflow: WorkflowDef | undefined;
   selected: boolean;
-  layout: PanelLayout;
-  actions: WorkflowActions;
   onOpen: (runId: string) => void;
 }) {
-  const toggle = headerToggle(run.state);
-  const running = run.state === "running";
-  const secondary: MenuItem[] = [
-    { label: "Stop", icon: "stop", disabled: !running, onSelect: () => void actions.stop(run.id, "afterStep") },
-    { label: "Cancel run", icon: "cancel", danger: true, disabled: !canStopRun(run.state), onSelect: () => void actions.stop(run.id, "now") },
-  ];
+  const name = runName(run, workflow);
   return (
-    <li className="wf-run-card wf-run-clickable" onClick={openOnBackgroundClick(() => onOpen(run.id))} data-testid={`run-row-${run.id}`} data-state={run.state} data-selected={selected || undefined} style={{ borderLeftColor: RUN_STATE_COLOR[run.state] }}>
-      <RunHead run={run} workflow={workflow} selected={selected} onOpen={onOpen} />
-      <SegmentBar
-        steps={run.steps}
-        label={`Progress of ${run.id}`}
-        slugOf={(id) => workflow?.steps.find((s) => s.id === id)?.slug ?? id}
-      />
-      <Attempts run={run} />
-      <div className="wf-run-actions">
-        {run.state === "needs_you" ? (
-          <button type="button" className="wf-btn wf-btn-primary" data-testid={`review-now-${run.id}`} onClick={() => onOpen(run.id)}>
-            <Icon name="alert" />
-            Review now
-          </button>
-        ) : (
-          <button
-            type="button"
-            className="wf-btn"
-            data-testid={`toggle-${run.id}`}
-            disabled={!toggle.enabled}
-            onClick={() => void (running ? actions.pause(run.id) : actions.resume(run.id))}
-          >
-            <Icon name={running ? "pause" : "play"} />
-            {toggle.label}
-          </button>
-        )}
-        {layout === "narrow" ? (
-          <OverflowMenu items={secondary} />
-        ) : (
-          <>
-            <button type="button" className="wf-btn" disabled={!running} onClick={() => void actions.stop(run.id, "afterStep")}>
-              <Icon name="stop" />
-              Stop
-            </button>
-            <button type="button" className="wf-btn wf-btn-danger" disabled={!canStopRun(run.state)} onClick={() => void actions.stop(run.id, "now")}>
-              Cancel run
-            </button>
-          </>
-        )}
-      </div>
+    <li data-testid={`run-row-${run.id}`}>
+      <button
+        type="button"
+        className="wf-run-card"
+        data-state={run.state}
+        aria-label={`Open run ${run.id} (${RUN_STATE_TEXT[run.state]})`}
+        aria-current={selected || undefined}
+        onClick={() => onOpen(run.id)}
+      >
+        <span className="wf-run-top">
+          <span className="wf-run-name wf-truncate" title={name}>
+            {name}
+          </span>
+          {run.state === "needs_you" ? (
+            <span className="wf-run-alert" aria-hidden="true">
+              !
+            </span>
+          ) : (
+            <span className="wf-run-dot" aria-hidden="true" style={{ background: RUN_STATE_COLOR[run.state] }} />
+          )}
+        </span>
+        <span className="wf-run-stage" style={{ color: run.state === "running" ? undefined : RUN_STATE_COLOR[run.state] }}>
+          {stageText(run)}
+        </span>
+        <SegmentBar steps={run.steps} label={`Progress of ${run.id}`} slugOf={(id) => workflow?.steps.find((s) => s.id === id)?.slug ?? id} />
+        <Attempts run={run} />
+      </button>
     </li>
   );
 }
 
+/** One finished run: a done check or stopped square, name, outcome; restart and delete sit inline outside the side layout. */
 function FinishedRow({
   run,
   workflow,
   selected,
-  layout,
+  inlineActions,
   onOpen,
   onRestart,
   onDelete,
@@ -175,39 +117,56 @@ function FinishedRow({
   run: Run;
   workflow: WorkflowDef | undefined;
   selected: boolean;
-  layout: PanelLayout;
+  inlineActions: boolean;
   onOpen: (runId: string) => void;
   onRestart: (run: Run) => void;
   onDelete: (run: Run) => void;
 }) {
+  const name = runName(run, workflow);
   return (
-    <li className="wf-run-card wf-run-finished wf-run-clickable" onClick={openOnBackgroundClick(() => onOpen(run.id))} data-testid={`run-row-${run.id}`} data-state={run.state} data-selected={selected || undefined} style={{ borderLeftColor: RUN_STATE_COLOR[run.state] }}>
-      <RunHead run={run} workflow={workflow} selected={selected} onOpen={onOpen} />
-      <Attempts run={run} />
-      <div className="wf-run-actions">
-        <button type="button" className="wf-btn" aria-label={`Restart run ${run.id}`} onClick={() => onRestart(run)}>
-          <Icon name="restart" />
-          Restart
-        </button>
-        {layout === "narrow" ? (
-          <OverflowMenu items={[{ label: "Delete", icon: "trash", danger: true, onSelect: () => onDelete(run) }]} />
-        ) : (
-          <button type="button" className="wf-btn wf-btn-danger" aria-label={`Delete run ${run.id}`} onClick={() => onDelete(run)}>
-            <Icon name="trash" />
-            Delete
+    <li className="wf-finished-row" data-testid={`run-row-${run.id}`} data-state={run.state} data-selected={selected || undefined}>
+      <button
+        type="button"
+        className="wf-finished-open"
+        aria-label={`Open run ${run.id} (${RUN_STATE_TEXT[run.state]})`}
+        aria-current={selected || undefined}
+        onClick={() => onOpen(run.id)}
+      >
+        <span className="wf-finished-mark" role="img" aria-label={RUN_STATE_TEXT[run.state]} data-state={run.state}>
+          {run.state === "done" ? (
+            <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" aria-hidden="true">
+              <path d="M5 12l5 5 9-10" />
+            </svg>
+          ) : (
+            <svg width="8" height="8" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+              <rect x="3" y="3" width="18" height="18" rx="3" />
+            </svg>
+          )}
+        </span>
+        <span className="wf-finished-text">
+          <span className="wf-finished-name wf-truncate" title={name}>
+            {name}
+          </span>
+          <span className="wf-finished-sub wf-truncate">{stageText(run)}</span>
+        </span>
+      </button>
+      {inlineActions && (
+        <>
+          <button type="button" className="wf-icon-btn" aria-label={`Restart run ${run.id}`} title="Restart run" onClick={() => onRestart(run)}>
+            <Icon name="restart" size={14} />
           </button>
-        )}
-      </div>
+          <button type="button" className="wf-icon-btn" aria-label={`Delete run ${run.id}`} title="Delete run" onClick={() => onDelete(run)}>
+            <Icon name="trash" size={14} />
+          </button>
+        </>
+      )}
     </li>
   );
 }
 
-type Pending =
-  | { kind: "restart"; run: Run }
-  | { kind: "deleteRun"; run: Run }
-  | { kind: "clear" };
+type Pending = { kind: "restart"; run: Run } | { kind: "deleteRun"; run: Run } | { kind: "clear" };
 
-/** The sectioned lists: Active runs and Finished runs (restart/delete/clear), then the button to the All workflows screen. */
+/** The run overview: Active runs as cards, Finished runs as compact rows (restart, delete, clear). */
 export function RunsList({
   runs,
   workflows,
@@ -215,7 +174,6 @@ export function RunsList({
   layout,
   actions,
   onOpen,
-  onAllWorkflows,
 }: {
   runs: Run[];
   workflows: WorkflowDef[];
@@ -223,7 +181,6 @@ export function RunsList({
   layout: PanelLayout;
   actions: WorkflowActions;
   onOpen: (runId: string) => void;
-  onAllWorkflows: () => void;
 }) {
   const [pending, setPending] = useState<Pending | null>(null);
   const active = runs.filter((r) => !isFinished(r.state));
@@ -246,37 +203,37 @@ export function RunsList({
   return (
     <div className="wf-lists" data-testid="run-overview">
       <section aria-labelledby="wf-active-h">
-        <h3 id="wf-active-h" className="workflow-list-heading">{`Active (${active.length})`}</h3>
+        <h3 id="wf-active-h" className="workflow-list-heading">{`Active · ${active.length}`}</h3>
         {active.length === 0 ? (
           <p className="workflow-empty">No active runs.</p>
         ) : (
           <ul className="wf-run-list" aria-label="Active runs">
             {active.map((run) => (
-              <ActiveCard key={run.id} run={run} workflow={find(run)} selected={run.id === activeRunId} layout={layout} actions={actions} onOpen={onOpen} />
+              <ActiveCard key={run.id} run={run} workflow={find(run)} selected={run.id === activeRunId} onOpen={onOpen} />
             ))}
           </ul>
         )}
       </section>
       <section aria-labelledby="wf-finished-h">
         <div className="wf-section-head">
-          <h3 id="wf-finished-h" className="workflow-list-heading">{`Finished (${finished.length})`}</h3>
+          <h3 id="wf-finished-h" className="workflow-list-heading">{`Finished · ${finished.length}`}</h3>
           {finished.length > 0 && (
-            <button type="button" className="wf-btn" data-testid="clear-finished" onClick={() => setPending({ kind: "clear" })}>
-              Clear finished
+            <button type="button" className="wf-clear" data-testid="clear-finished" onClick={() => setPending({ kind: "clear" })}>
+              {layout === "full" ? "Clear finished" : "Clear"}
             </button>
           )}
         </div>
         {finished.length === 0 ? (
           <p className="workflow-empty">Nothing finished yet.</p>
         ) : (
-          <ul className="wf-run-list" aria-label="Finished runs">
+          <ul className="wf-finished-list" aria-label="Finished runs">
             {finished.map((run) => (
               <FinishedRow
                 key={run.id}
                 run={run}
                 workflow={find(run)}
                 selected={run.id === activeRunId}
-                layout={layout}
+                inlineActions={layout !== "side"}
                 onOpen={onOpen}
                 onRestart={(r) => setPending({ kind: "restart", run: r })}
                 onDelete={(r) => setPending({ kind: "deleteRun", run: r })}
@@ -285,11 +242,6 @@ export function RunsList({
           </ul>
         )}
       </section>
-      <button type="button" className="wf-btn wf-all-open" data-testid="all-workflows-open" onClick={onAllWorkflows}>
-        <Icon name="list" />
-        <span className="wf-truncate">{`All workflows · ${workflows.length}`}</span>
-        <Icon name="chevron-right" />
-      </button>
       {dialog && (
         <ConfirmDialog
           label={dialog.label}

@@ -73,7 +73,7 @@ describe("WorkflowEditorDialog", () => {
 
     fireEvent.change(screen.getByLabelText("Workflow name"), { target: { value: "My flow" } });
     fireEvent.change(screen.getByLabelText(/^Instructions/), { target: { value: "do {{pr}}" } });
-    fireEvent.click(screen.getByRole("button", { name: "Save" }));
+    fireEvent.click(screen.getByRole("button", { name: /^Save( changes)?$/ }));
 
     await waitFor(() => expect(onClose).toHaveBeenCalled());
     const saved = client.createWorkflow.mock.calls[0][0];
@@ -88,9 +88,9 @@ describe("WorkflowEditorDialog", () => {
     workflowStore.setRuns([{ id: "r", workflowId: "wf-1", state: "running" } as Run]);
     open(client, { workflow: existing, onClose });
 
-    expect(screen.getByText(/A run is using this workflow/)).toBeInTheDocument();
+    expect(screen.getByText(/1 run is using this workflow now/)).toBeInTheDocument();
     fireEvent.change(screen.getByLabelText("Workflow name"), { target: { value: "Ship 2" } });
-    fireEvent.click(screen.getByRole("button", { name: "Save" }));
+    fireEvent.click(screen.getByRole("button", { name: "Save changes" }));
 
     await waitFor(() => expect(onClose).toHaveBeenCalled());
     expect(client.updateWorkflow.mock.calls[0][0]).toMatchObject({ id: "wf-1", name: "Ship 2" });
@@ -101,7 +101,7 @@ describe("WorkflowEditorDialog", () => {
     workflowStore.setRuns([{ id: "r", workflowId: "wf-1", state: "done" } as Run]);
     open(fakeClient(), { workflow: existing, onClose: vi.fn() });
 
-    expect(screen.queryByText(/A run is using this workflow/)).toBeNull();
+    expect(screen.queryByText(/is using this workflow/)).toBeNull();
   });
 
   it("gives a review step no instructions field and limits send-back to earlier agent steps", () => {
@@ -110,11 +110,11 @@ describe("WorkflowEditorDialog", () => {
     fireEvent.click(screen.getByRole("button", { name: "Step 3: Check" }));
 
     expect(screen.queryByLabelText(/^Instructions/)).toBeNull();
-    expect(screen.getByLabelText("Show the diff")).toBeInTheDocument();
-    expect(screen.getByLabelText(/Show the previous agent/)).toBeInTheDocument();
-    expect(screen.getByRole("option", { name: "Step 1: Plan" })).toBeInTheDocument();
-    expect(screen.getByRole("option", { name: "Step 2: Build" })).toBeInTheDocument();
-    expect(screen.getByTestId("between-2")).toHaveTextContent("You review the diff");
+    expect(screen.getByLabelText("Changes made by step 2 (diff on the canvas)")).toBeInTheDocument();
+    expect(screen.getByLabelText("Step 2 agent's summary")).toBeInTheDocument();
+    expect(screen.getByRole("option", { name: "Step 1 · Plan" })).toBeInTheDocument();
+    expect(screen.getByRole("option", { name: "Step 2 · Build" })).toBeInTheDocument();
+    expect(screen.getByTestId("between-2")).toHaveTextContent("diff → you");
     expect(screen.getByTestId("between-1")).toHaveTextContent("hand-off → step 2");
   });
 
@@ -123,7 +123,7 @@ describe("WorkflowEditorDialog", () => {
     open(client, { onClose: vi.fn() });
 
     fireEvent.change(screen.getByLabelText("Workflow name"), { target: { value: "X" } });
-    fireEvent.click(screen.getByRole("button", { name: "Save" }));
+    fireEvent.click(screen.getByRole("button", { name: /^Save( changes)?$/ }));
 
     expect(await screen.findByText(/Fill in the instructions/)).toBeInTheDocument();
     expect(client.createWorkflow).not.toHaveBeenCalled();
@@ -132,7 +132,7 @@ describe("WorkflowEditorDialog", () => {
   it("moves and deletes steps", async () => {
     open(fakeClient(), { workflow: existing, onClose: vi.fn() });
 
-    fireEvent.click(screen.getByRole("button", { name: "Move down" }));
+    fireEvent.click(screen.getByRole("button", { name: "Move step down" }));
     const order = () => screen.getAllByRole("button", { name: /^Step \d:/ }).map((b) => b.getAttribute("aria-label"));
     expect(order()).toEqual(["Step 1: Build", "Step 2: Plan", "Step 3: Check"]);
 
@@ -147,10 +147,58 @@ describe("WorkflowEditorDialog", () => {
     const onClose = vi.fn();
     open(client, { workflow: existing, onClose });
 
+    fireEvent.click(screen.getByRole("button", { name: "Save changes" }));
+
+    await waitFor(() => expect(onClose).toHaveBeenCalled());
+    expect(client.updateWorkflow).toHaveBeenCalled();
+  });
+
+  it("saves and runs a new workflow", async () => {
+    const client = fakeClient();
+    client.listWorkflows.mockResolvedValue([existing]);
+    const onClose = vi.fn();
+    open(client, { onClose });
+    fireEvent.change(screen.getByLabelText("Workflow name"), { target: { value: "Quick" } });
+    fireEvent.change(screen.getByLabelText(/^Instructions/), { target: { value: "go" } });
+
     fireEvent.click(screen.getByRole("button", { name: "Save and run" }));
 
     await waitFor(() => expect(onClose).toHaveBeenCalled());
-    expect(client.startRun).toHaveBeenCalledWith("wf-1", undefined);
+    expect(client.startRun).toHaveBeenCalled();
+  });
+});
+
+describe("WorkflowEditorDialog design details", () => {
+  beforeEach(() => workflowStore.reset());
+  afterEach(cleanup);
+
+  it("shows the step count line, per-step mode and the footer summary", () => {
+    open(fakeClient(), { workflow: existing, onClose: vi.fn() });
+
+    expect(screen.getByText("Step 1 of 3")).toBeInTheDocument();
+    expect(screen.getByText("Agent · default · new + hand-off")).toBeInTheDocument();
+    expect(screen.getByText("Your step")).toBeInTheDocument();
+    expect(screen.getByText("3 steps · 2 agent · 1 you")).toBeInTheDocument();
+  });
+
+  it("flags unsaved changes when editing", () => {
+    open(fakeClient(), { workflow: existing, onClose: vi.fn() });
+
+    fireEvent.change(screen.getByLabelText("Workflow name"), { target: { value: "Ship 2" } });
+
+    expect(screen.getByText("Unsaved changes")).toBeInTheDocument();
+  });
+
+  it("deletes the workflow after confirming", async () => {
+    const client = { ...fakeClient(), deleteWorkflow: vi.fn(async () => {}) };
+    const onClose = vi.fn();
+    open(client as ReturnType<typeof fakeClient>, { workflow: existing, onClose });
+
+    fireEvent.click(screen.getByRole("button", { name: "Delete workflow" }));
+    fireEvent.click(screen.getByTestId("confirm-yes"));
+
+    await waitFor(() => expect(onClose).toHaveBeenCalled());
+    expect(client.deleteWorkflow).toHaveBeenCalledWith("wf-1");
   });
 
   it("gives each agent step one input field, derives its name and saves it on the step", async () => {
@@ -161,7 +209,7 @@ describe("WorkflowEditorDialog", () => {
     fireEvent.change(screen.getByLabelText(/^Instructions/), { target: { value: "Review the PR" } });
     fireEvent.change(screen.getByLabelText(/^Ask for input/), { target: { value: "Which PR?" } });
     fireEvent.click(screen.getByRole("button", { name: "Insert" }));
-    fireEvent.click(screen.getByRole("button", { name: "Save" }));
+    fireEvent.click(screen.getByRole("button", { name: /^Save( changes)?$/ }));
 
     await waitFor(() => expect(client.createWorkflow).toHaveBeenCalled());
     const saved = client.createWorkflow.mock.calls[0][0];
@@ -238,7 +286,7 @@ describe("WorkflowEditorDialog agent sessions", () => {
 
     expect(continued[0]).toBe("resumes step 1's agent");
     expect(continued[1]).toContain("Agent · default · continue: Plan");
-    expect(screen.getByTestId("between-1")).toHaveTextContent("Fresh start · no context");
+    expect(screen.getByTestId("between-1")).toHaveTextContent(/^$/);
     expect(screen.getByRole("button", { name: "Step 2: Build" })).toHaveTextContent("Agent · default · new");
   });
 
@@ -276,7 +324,7 @@ describe("WorkflowEditorDialog agent sessions", () => {
     open(client, { workflow, onClose: vi.fn() });
     await providersLoaded();
 
-    fireEvent.click(screen.getByRole("button", { name: "Save" }));
+    fireEvent.click(screen.getByRole("button", { name: /^Save( changes)?$/ }));
     await act(async () => {});
 
     expect(screen.getByRole("alert")).toHaveTextContent(message);
@@ -291,7 +339,7 @@ describe("WorkflowEditorDialog agent sessions", () => {
     pick(4, "Ship");
 
     const warning = screen.getByText(/Switching model drops the prompt cache and re-reads the session at full price/);
-    fireEvent.click(screen.getByRole("button", { name: "Save" }));
+    fireEvent.click(screen.getByRole("button", { name: /^Save( changes)?$/ }));
 
     await waitFor(() => expect(onClose).toHaveBeenCalled());
     expect(warning).toHaveAttribute("role", "status");
@@ -313,7 +361,7 @@ describe("WorkflowEditorDialog agent sessions", () => {
     pick(4, "Ship");
     fireEvent.change(screen.getByLabelText("Provider"), { target: { value: "claude" } });
     fireEvent.change(await screen.findByRole("combobox", { name: "Model" }), { target: { value: "opus" } });
-    fireEvent.click(screen.getByRole("button", { name: "Save" }));
+    fireEvent.click(screen.getByRole("button", { name: /^Save( changes)?$/ }));
 
     await waitFor(() => expect(onClose).toHaveBeenCalled());
     const saved = client.updateWorkflow.mock.calls[0][0].steps;

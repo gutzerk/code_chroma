@@ -81,7 +81,8 @@ describe("WorkflowsTab run detail", () => {
     fireEvent.click(screen.getByTestId("cancel-run"));
 
     await waitFor(() => expect(screen.getByTestId("run-state")).toHaveTextContent("Stopped"));
-    expect(screen.getByTestId("cancel-run")).toBeDisabled();
+    expect(screen.queryByTestId("cancel-run")).toBeNull();
+    expect(screen.getByTestId("delete-run")).toBeEnabled();
     fireEvent.click(screen.getByRole("button", { name: "plan, Stopped" }));
     fireEvent.click(screen.getByRole("button", { name: "Resume from here: plan" }));
     await waitFor(() => expect(screen.getByTestId("run-state")).toHaveTextContent("Running"));
@@ -157,31 +158,59 @@ describe("WorkflowsTab run detail", () => {
     await startRun(client);
 
     expect(screen.queryByTestId("between-plan")).toBeNull();
-    expect(screen.getByTestId("between-implement")).toHaveTextContent("Passes output to step 1");
-    expect(screen.getByTestId("between-review")).toHaveTextContent("You review the diff");
+    expect(screen.getByTestId("between-implement")).toHaveTextContent("Passes plan output to step 2");
+    expect(screen.getByTestId("between-review")).toHaveTextContent("You review the diff from step 2");
   });
 
-  it("lists the run under Active with no Saved workflows section and no New workflow button", async () => {
+  it("lists the run under Active with its step position", async () => {
     const client = setup();
     await startRun(client);
     fireEvent.click(screen.getByRole("button", { name: "All workflow runs" }));
 
-    expect(screen.getByRole("heading", { name: /Active \(1\)/ })).toBeInTheDocument();
-    expect(screen.queryByRole("heading", { name: /Saved workflows/ })).toBeNull();
-    expect(screen.queryByTestId("new-workflow")).toBeNull();
-    expect(screen.getByRole("button", { name: "All workflows · 1" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Active · 1" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Open run run1 (Running)" })).toHaveTextContent("Running · step 1 of 4");
+    expect(screen.queryByTestId("saved-ship-feature")).toBeNull();
   });
 
-  it("opens the All workflows screen, which carries New workflow, and goes back", async () => {
-    setup();
-    await waitFor(() => expect(workflowStore.getWorkflows()).toHaveLength(1));
+  it("shows saved workflows only on the All workflows screen, with Edit, Run and the actions menu", async () => {
+    const client = setup();
+    await startRun(client);
 
-    fireEvent.click(screen.getByRole("button", { name: "All workflows · 1" }));
+    act(() => workflowStore.setView("all"));
 
-    expect(screen.getByTestId("all-workflows")).toBeInTheDocument();
-    expect(screen.getByTestId("new-workflow")).toBeInTheDocument();
-    fireEvent.click(screen.getByRole("button", { name: "Back to runs" }));
-    expect(screen.getByTestId("run-overview")).toBeInTheDocument();
+    const row = screen.getByTestId("saved-ship-feature");
+    expect(within(row).getByText("4 steps · 3 agent · 1 you")).toBeInTheDocument();
+    expect(within(row).getByText("review · you")).toBeInTheDocument();
+    expect(within(row).getByText("Running now")).toBeInTheDocument();
+    expect(within(row).getByRole("button", { name: "Edit workflow Ship a feature" })).toBeInTheDocument();
+    expect(within(row).getByRole("button", { name: "Run Ship a feature" })).toBeInTheDocument();
+    fireEvent.click(within(row).getByRole("button", { name: "More actions for Ship a feature" }));
+    expect(screen.getAllByRole("menuitem").map((i) => i.textContent)).toEqual(["Duplicate", "Rename", "Delete"]);
+    fireEvent.click(screen.getByTestId("all-back"));
+    expect(screen.queryByTestId("all-workflows")).toBeNull();
+    expect(screen.getByTestId("workflow-screen")).toBeInTheDocument();
+  });
+
+  it("filters All workflows by the search text", async () => {
+    const client = setup();
+    await startRun(client);
+    act(() => workflowStore.setView("all"));
+
+    fireEvent.change(screen.getByPlaceholderText("Search workflows"), { target: { value: "zzz" } });
+
+    expect(screen.queryByTestId("saved-ship-feature")).toBeNull();
+    expect(screen.getByText("No workflow matches the search.")).toBeInTheDocument();
+  });
+
+  it("duplicates a workflow from the actions menu", async () => {
+    const client = setup();
+    await startRun(client);
+    act(() => workflowStore.setView("all"));
+    fireEvent.click(screen.getByRole("button", { name: "More actions for Ship a feature" }));
+
+    fireEvent.click(screen.getByRole("menuitem", { name: "Duplicate" }));
+
+    await waitFor(() => expect(workflowStore.getWorkflows().map((w) => w.name)).toContain("Ship a feature copy"));
   });
 
   it("restarts a finished run only after confirming", async () => {
@@ -242,27 +271,14 @@ describe("WorkflowsTab responsive layout", () => {
     expect(screen.queryByTestId("live-view")).toBeNull();
   });
 
-  it("puts Run workflow, All workflows and Full screen in the top bar at the wide layout", async () => {
+  it("leaves Run workflow, All workflows and Full screen to the activity header", async () => {
     setup();
     await waitFor(() => expect(workflowStore.getWorkflows()).toHaveLength(1));
 
     act(() => observe?.(760));
 
-    const bar = screen.getByTestId("run-workflow").parentElement!;
-    const labels = within(bar).getAllByRole("button").map((b) => b.getAttribute("aria-label") ?? b.textContent);
-    expect(labels).toEqual(["Run workflow", "All workflows", "Full screen"]);
-    fireEvent.click(within(bar).getByRole("button", { name: "All workflows" }));
-    expect(screen.getByTestId("all-workflows")).toBeInTheDocument();
-  });
-
-  it("keeps the top bar to Run workflow at the normal width", async () => {
-    setup();
-    await waitFor(() => expect(workflowStore.getWorkflows()).toHaveLength(1));
-
-    act(() => observe?.(500));
-
+    expect(screen.queryByTestId("run-workflow")).toBeNull();
     expect(screen.queryByRole("button", { name: "All workflows" })).toBeNull();
-    expect(screen.getByTestId("run-workflow")).toBeInTheDocument();
   });
 
   it("adds the live Agent / Output / Diff view at 1100px and wider", async () => {

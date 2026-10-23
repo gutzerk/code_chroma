@@ -8,6 +8,9 @@ const NO_WORKFLOWS: WorkflowDef[] = [];
 const NO_RUNS: Run[] = [];
 const HIGHLIGHT_MS = 1600;
 
+export type WorkflowView = "runs" | "all";
+export type WorkflowDialog = { kind: "run"; workflow?: WorkflowDef } | { kind: "editor"; workflow?: WorkflowDef } | null;
+
 /** Workflow definitions, run records, the open run and the one expanded step row. */
 class WorkflowStore extends Store {
   private workflows = NO_WORKFLOWS;
@@ -19,6 +22,25 @@ class WorkflowStore extends Store {
   private viewAttempt: number | null = null;
   private highlightedNodeId: string | null = null;
   private highlightTimer: ReturnType<typeof setTimeout> | null = null;
+  private view: WorkflowView = "runs";
+  private dialog: WorkflowDialog = null;
+
+  getView = (): WorkflowView => this.view;
+
+  getDialog = (): WorkflowDialog => this.dialog;
+
+  /** Switches between the runs overview and the All workflows screen. */
+  setView = (view: WorkflowView): void => {
+    if (this.view === view) return;
+    this.view = view;
+    this.emit();
+  };
+
+  /** Opens (or with null closes) the run or editor dialog; the header and the tab share it. */
+  setDialog = (dialog: WorkflowDialog): void => {
+    this.dialog = dialog;
+    this.emit();
+  };
 
   getWorkflows = (): WorkflowDef[] => this.workflows;
 
@@ -117,6 +139,8 @@ class WorkflowStore extends Store {
     this.activeRunId = null;
     this.resetView();
     this.error = null;
+    this.view = "runs";
+    this.dialog = null;
     this.highlightedNodeId = null;
     if (this.highlightTimer) clearTimeout(this.highlightTimer);
     this.highlightTimer = null;
@@ -136,6 +160,14 @@ export function useRuns(): Run[] {
 
 export function useActiveRunId(): string | null {
   return useSyncExternalStore(workflowStore.subscribe, workflowStore.getActiveRunId);
+}
+
+export function useWorkflowView(): WorkflowView {
+  return useSyncExternalStore(workflowStore.subscribe, workflowStore.getView);
+}
+
+export function useWorkflowDialog(): WorkflowDialog {
+  return useSyncExternalStore(workflowStore.subscribe, workflowStore.getDialog);
 }
 
 export function useExpandedStepId(): string | null {
@@ -239,6 +271,7 @@ export function workflowActions(client: EngineClient) {
       await steer(async () => {
         const run = await client.startRun(workflowId, inputs);
         workflowStore.setActiveRun(run.id);
+        workflowStore.setView("runs");
         return run;
       });
     },
@@ -249,6 +282,16 @@ export function workflowActions(client: EngineClient) {
       mutate(() => client.deleteWorkflow(workflowId), async () => workflowStore.setWorkflows(await client.listWorkflows())),
     updateWorkflow: (def: WorkflowDef) =>
       mutate(() => client.updateWorkflow(def), async () => workflowStore.setWorkflows(await client.listWorkflows())),
+    duplicateWorkflow: (def: WorkflowDef) =>
+      mutate(
+        async () => {
+          const taken = new Set((await client.listWorkflows()).map((w) => w.id));
+          let id = `${def.id}-copy`;
+          for (let n = 2; taken.has(id); n += 1) id = `${def.id}-copy-${n}`;
+          await client.createWorkflow({ ...def, id, name: `${def.name} copy` });
+        },
+        async () => workflowStore.setWorkflows(await client.listWorkflows()),
+      ),
     deleteRun: (runId: string) =>
       mutate(() => client.deleteRun(runId), () => workflowStore.removeRun(runId)),
     clearFinished: () =>

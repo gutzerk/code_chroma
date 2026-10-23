@@ -18,3 +18,10 @@ export async function gotoApp(page: Page, opts: { files?: boolean } = {}): Promi
   await page.waitForSelector('[data-testid="app-root"]');
   if (opts.files ?? true) await page.getByRole("tab", { name: "Files", exact: true }).click();
 }
+
+// Starts a run of a saved workflow: saved workflows live on the All workflows screen (header list button).
+export async function startSavedRun(page: Page, name: string): Promise<void> {
+  await page.getByRole("tab", { name: /Workflows/ }).click();
+  await page.getByRole("button", { name: "All workflows", exact: true }).click();
+  await page.getByRole("button", { name: `Run ${name}`, exact: true }).click();
+}

@@ -21,24 +21,17 @@ public sealed partial class RunStore(string repoRoot, string? sharedWorkflowsDir
 
     public static bool IsSafeId(string id) => SafeId().IsMatch(id);
 
-    /// <summary>The machine-wide workflows directory, or null when this store has none (then only the repo's own workflows exist).</summary>
-    public string? SharedWorkflowsDir => sharedWorkflowsDir;
-
-    public List<WorkflowDef> ListWorkflows()
-    {
-        var own = ReadAll<WorkflowDef>(WorkflowsDir);
-        var shared = SharedWorkflowsDir is null ? [] : ReadAll<WorkflowDef>(SharedWorkflowsDir).Where(d => own.All(o => o.Id != d.Id));
-        return own.Concat(shared).Select(Normalized).ToList();
-    }
+    /// <summary>Every workflow, the repo's own copy winning over a shared one with the same id.</summary>
+    public List<WorkflowDef> ListWorkflows() => Dirs().SelectMany(ReadAll<WorkflowDef>).DistinctBy(def => def.Id).Select(Normalized).ToList();
 
     public WorkflowDef? GetWorkflow(string id) =>
         IsSafeId(id) && Dirs().Select(dir => Read<WorkflowDef>(Path.Combine(dir, id + ".json"))).FirstOrDefault(def => def is not null) is { } found ? Normalized(found) : null;
 
     /// <summary>The repo's own directory first, then the shared one.</summary>
-    private IEnumerable<string> Dirs() => SharedWorkflowsDir is null ? [WorkflowsDir] : [WorkflowsDir, SharedWorkflowsDir];
+    private IEnumerable<string> Dirs() => sharedWorkflowsDir is null ? [WorkflowsDir] : [WorkflowsDir, sharedWorkflowsDir];
 
     /// <summary>The directory holding this id now, else the shared one (the repo's when there is none).</summary>
-    private string DirFor(string id) => Dirs().FirstOrDefault(dir => File.Exists(Path.Combine(dir, id + ".json"))) ?? SharedWorkflowsDir ?? WorkflowsDir;
+    private string DirFor(string id) => Dirs().FirstOrDefault(dir => File.Exists(Path.Combine(dir, id + ".json"))) ?? sharedWorkflowsDir ?? WorkflowsDir;
 
     private static WorkflowDef Normalized(WorkflowDef def)
     {
@@ -54,7 +47,7 @@ public sealed partial class RunStore(string repoRoot, string? sharedWorkflowsDir
         lock (_io)
         {
             if (Dirs().Any(dir => File.Exists(Path.Combine(dir, def.Id + ".json")))) return false;
-            var path = Path.Combine(SharedWorkflowsDir ?? WorkflowsDir, def.Id + ".json");
+            var path = Path.Combine(sharedWorkflowsDir ?? WorkflowsDir, def.Id + ".json");
             JsonFile.WriteText(path, JsonSerializer.Serialize(def, WorkflowJson.Options));
             return true;
         }

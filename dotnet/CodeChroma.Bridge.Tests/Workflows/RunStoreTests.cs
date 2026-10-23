@@ -38,47 +38,32 @@ public sealed class RunStoreTests
     {
         using var first = new GitSandbox();
         using var second = new GitSandbox();
-        var shared = Path.Combine(Path.GetTempPath(), "cc-shared-wf-" + Guid.NewGuid().ToString("N")[..8]);
-        try
-        {
-            new RunStore(first.Root, shared).TryCreateWorkflow(new WorkflowDef { Id = "everywhere", Name = "Everywhere" });
+        var shared = first.Sibling("shared-wf");
+        new RunStore(first.Root, shared).TryCreateWorkflow(new WorkflowDef { Id = "everywhere", Name = "Everywhere" });
 
-            var seen = new RunStore(second.Root, shared);
+        var seen = new RunStore(second.Root, shared);
 
-            Assert.Equal("Everywhere", seen.GetWorkflow("everywhere")!.Name);
-            Assert.Single(seen.ListWorkflows());
-            Assert.False(Directory.Exists(seen.WorkflowsDir));
-        }
-        finally
-        {
-            if (Directory.Exists(shared)) Directory.Delete(shared, true);
-        }
+        Assert.Equal("Everywhere", seen.GetWorkflow("everywhere")!.Name);
+        Assert.Single(seen.ListWorkflows());
+        Assert.False(Directory.Exists(seen.WorkflowsDir));
     }
 
     [Fact]
     public void A_repo_workflow_wins_over_a_shared_one_with_the_same_id_and_is_saved_in_place()
     {
         using var repo = new GitSandbox();
-        var shared = Path.Combine(Path.GetTempPath(), "cc-shared-wf-" + Guid.NewGuid().ToString("N")[..8]);
-        try
-        {
-            new RunStore(repo.Root).TryCreateWorkflow(new WorkflowDef { Id = "both", Name = "Repo" });
-            var store = new RunStore(repo.Root, shared);
-            Directory.CreateDirectory(shared);
-            File.WriteAllText(Path.Combine(shared, "both.json"), """{"id":"both","name":"Shared"}""");
+        var shared = repo.Sibling("shared-wf");
+        new RunStore(repo.Root).TryCreateWorkflow(new WorkflowDef { Id = "both", Name = "Repo" });
+        var store = new RunStore(repo.Root, shared);
+        File.WriteAllText(Path.Combine(shared, "both.json"), """{"id":"both","name":"Shared"}""");
 
-            store.SaveWorkflow(new WorkflowDef { Id = "both", Name = "Repo edited" });
+        store.SaveWorkflow(new WorkflowDef { Id = "both", Name = "Repo edited" });
 
-            Assert.Equal("Repo edited", store.GetWorkflow("both")!.Name);
-            Assert.Single(store.ListWorkflows());
-            Assert.False(store.TryCreateWorkflow(new WorkflowDef { Id = "both" }));
-            Assert.True(store.DeleteWorkflow("both"));
-            Assert.Null(store.GetWorkflow("both"));
-        }
-        finally
-        {
-            if (Directory.Exists(shared)) Directory.Delete(shared, true);
-        }
+        Assert.Equal("Repo edited", store.GetWorkflow("both")!.Name);
+        Assert.Single(store.ListWorkflows());
+        Assert.False(store.TryCreateWorkflow(new WorkflowDef { Id = "both" }));
+        Assert.True(store.DeleteWorkflow("both"));
+        Assert.Null(store.GetWorkflow("both"));
     }
 
     [Theory]

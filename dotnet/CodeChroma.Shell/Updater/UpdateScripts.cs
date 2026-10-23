@@ -62,6 +62,7 @@ public static class UpdateScripts
             exit 1
         fi
 
+        report updated "ok"
         launch "$target"
         elapsed=0
         healthy=1
@@ -90,7 +91,6 @@ public static class UpdateScripts
             exit 1
         fi
         [ "$keep" = 1 ] || rm -rf "$previous"
-        report updated "ok"
 
         """;
 
@@ -167,6 +167,8 @@ public static class UpdateScripts
             exit 1
         }
 
+        # Reported before launch so the new version sees it at startup; a failed health check overwrites it with rolled-back.
+        Write-Result 'updated' 'ok'
         $proc = Start-App
         $exited = $proc.WaitForExit($HealthSeconds * 1000)
         if ($exited -and $proc.ExitCode -ne 0) {
@@ -180,7 +182,6 @@ public static class UpdateScripts
             exit 1
         }
         if (-not $KeepPrevious) { Remove-Item -LiteralPath $Previous -Recurse -Force -ErrorAction SilentlyContinue }
-        Write-Result 'updated' 'ok'
 
         """;
 }

@@ -1,3 +1,5 @@
+import { useOpenAgentQuestions } from "../canvas/doc/question/useOpenAgentQuestions";
+import { QUESTION_STRINGS as S } from "../canvas/doc/question/questionStrings";
 import type { AgentStatus } from "../state/types";
 
 /** Human wording for each status, so the LED's colour is never the only carrier of the meaning. */
@@ -13,15 +15,21 @@ const LABELS: Record<AgentStatus, string> = {
 
 /** The one status dot, shared by the panel and the window title bar. The colour map lives in
  * styles.css under `.agent-led-*`, in one place, rather than being duplicated per call site. */
-export function AgentLed({ status }: { status: AgentStatus }) {
+export function AgentLed({ status, agentId }: { status: AgentStatus; agentId?: string }) {
+  const asking = useOpenAgentQuestions(agentId ?? "").length > 0 && agentId !== undefined;
+  const label = asking ? `${LABELS[status] ?? status} · ${S.questionCount(1)}` : LABELS[status] ?? status;
   return (
-    <span
-      className={`agent-led agent-led-${status}`}
-      data-testid={`agent-led-${status}`}
-      role="img"
-      aria-label={LABELS[status] ?? status}
-      title={LABELS[status] ?? status}
-    />
+    <>
+      <span
+        className={`agent-led agent-led-${status}${asking ? " agent-led--asking" : ""}`}
+        data-testid={`agent-led-${status}`}
+        data-asking={asking || undefined}
+        role="img"
+        aria-label={label}
+        title={label}
+      />
+      {asking && <span className="agent-led-badge" aria-hidden="true">?</span>}
+    </>
   );
 }
 

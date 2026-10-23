@@ -31,13 +31,15 @@ async function mount(ops: CanvasOp[]) {
 }
 
 describe("question answer flow (mock bridge)", () => {
-  it("answers by clicking an option, collapsing the card and closing the open list", async () => {
+  it("answers by selecting an option and pressing Send, collapsing the card and closing the open list", async () => {
     const client = await mount([addQuestion(1, "First?")]);
 
     expect(await listOpenQuestions(client)).toHaveLength(1);
     fireEvent.click(screen.getByTestId("question-option-b"));
+    expect(await listOpenQuestions(client)).toHaveLength(1);
+    fireEvent.click(screen.getByRole("button", { name: "Send" }));
 
-    await waitFor(() => expect(screen.getByText("✓ Services")).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByText(/✓ .*Services/)).toBeInTheDocument());
     expect(await listOpenQuestions(client)).toHaveLength(0);
   });
 
@@ -45,26 +47,26 @@ describe("question answer flow (mock bridge)", () => {
     await mount([addQuestion(1, "First?")]);
 
     fireEvent.change(screen.getByLabelText("Your own answer"), { target: { value: "Something else" } });
-    fireEvent.click(screen.getByRole("button", { name: "Answer & continue" }));
+    fireEvent.click(screen.getByRole("button", { name: "Send" }));
 
-    await waitFor(() => expect(screen.getByText("✓ Something else")).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByText(/Something else/)).toBeInTheDocument());
   });
 
   it("skips a question", async () => {
     await mount([addQuestion(1, "First?")]);
 
-    fireEvent.click(screen.getByRole("button", { name: "Skip for now" }));
+    fireEvent.click(screen.getByRole("button", { name: "Skip" }));
 
-    await waitFor(() => expect(screen.getByText("Skipped")).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByText(/Skipped/)).toBeInTheDocument());
   });
 
   it("revise reopens the question and drops later steps", async () => {
     const client = await mount([addQuestion(1, "First?"), addQuestion(2, "Second?")]);
     const first = Object.values((await client.getCanvas()).elements).find((el) => el.label === "First?")!;
     await client.answerQuestion(first.id, { answer: "Services", option_id: "b" });
-    await waitFor(() => expect(screen.getByText("✓ Services")).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByText(/✓ .*Services/)).toBeInTheDocument());
 
-    fireEvent.click(screen.getByRole("button", { name: "Change answer" }));
+    fireEvent.click(screen.getByRole("button", { name: "Change" }));
 
     await waitFor(() => expect(screen.queryByText("Second?")).toBeNull());
     expect(screen.getByText("First?")).toBeInTheDocument();
@@ -77,6 +79,8 @@ describe("question answer flow (mock bridge)", () => {
 
     await client.answerQuestion(first.id, { answer: "Services", option_id: "b" });
 
-    await waitFor(() => expect(screen.getByTestId("question-history")).toHaveTextContent("Services"));
+    fireEvent.click(await screen.findByRole("button", { name: /Earlier: Services/ }));
+
+    expect(screen.getByTestId("question-history")).toHaveTextContent("Services");
   });
 });

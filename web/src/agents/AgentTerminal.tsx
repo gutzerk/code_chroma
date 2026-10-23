@@ -1,5 +1,6 @@
 import { useEffect, useRef } from "react";
 import { useXtermSession } from "../terminal/useXtermSession";
+import { AgentQuestionHost } from "./AgentQuestionHost";
 import { useAgentStartError } from "./agentStore";
 
 /** The xterm body of one agent window, attached to that agent's long-lived PTY on the bridge.
@@ -51,10 +52,12 @@ export function AgentTerminal({
     );
   }
   return (
-    <div
-      className="agent-window-terminal"
-      ref={containerRef}
-      data-testid={`agent-terminal-${workspace}`}
-    />
+    <AgentQuestionHost agentId={workspace} onFocusTerminal={focus}>
+      <div
+        className="agent-window-terminal"
+        ref={containerRef}
+        data-testid={`agent-terminal-${workspace}`}
+      />
+    </AgentQuestionHost>
   );
 }

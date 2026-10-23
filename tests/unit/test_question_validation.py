@@ -142,6 +142,64 @@ def test_tracker_forgets_after_ten_minutes_of_silence():
     assert tracker.count("w", "s") == 0
 
 
+def test_tracker_does_not_track_a_missing_session():
+    tracker = RejectionTracker()
+
+    tracker.record("w", None)
+
+    assert tracker.count("w", None) == 0
+
+
+def test_tracker_evicts_stale_entries_and_caps_size():
+    now = [0.0]
+    tracker = RejectionTracker(clock=lambda: now[0], max_entries=2)
+    tracker.record("w", "old")
+    now[0] = 700.0
+    tracker.record("w", "a")
+    tracker.record("w", "b")
+    tracker.record("w", "c")
+
+    assert len(tracker._entries) == 2
+    assert tracker.count("w", "c") == 1
+    assert tracker.count("w", "old") == 0
+
+
+def test_degraded_pass_through_consumes_the_count(bridge, monkeypatch):
+    _fast(monkeypatch, 0.05)
+    mcp = _mcp(bridge)
+    bad = AskRequest(question="Q?", session_id="s", options=[QuestionOption(id="a", title="A")])
+
+    async def run() -> None:
+        for _ in range(3):
+            with pytest.raises(QuestionRejected):
+                await mcp.ask("main", bad)
+        await mcp.ask("main", bad)
+        with pytest.raises(QuestionRejected):
+            await mcp.ask("main", bad)
+
+    asyncio.run(run())
+
+    assert mcp.rejections.count("main", "s") == 1
+
+
+def test_sessionless_agents_on_different_connections_do_not_share_a_counter(bridge, monkeypatch):
+    _fast(monkeypatch, 0.05)
+    mcp = _mcp(bridge)
+    bad = AskRequest(question="Q?", options=[QuestionOption(id="a", title="A")])
+
+    async def run() -> None:
+        for _ in range(3):
+            with pytest.raises(QuestionRejected):
+                await mcp.ask("main", bad, connection="A")
+        with pytest.raises(QuestionRejected):
+            await mcp.ask("main", bad, connection="B")
+
+    asyncio.run(run())
+
+    assert mcp.rejections.count("main", "conn:A") == 3
+    assert mcp.rejections.count("main", "conn:B") == 1
+
+
 def test_incomplete_ask_is_rejected_with_the_tool_error(bridge):
     request = AskRequest(question="Q?", options=[QuestionOption(id="a", title="A")] * 2)
 
@@ -214,6 +272,13 @@ def test_draw_diagram_over_the_node_budget_is_rejected(bridge):
         asyncio.run(_mcp(bridge).draw_diagram("main", "T", nodes, [], None, None))
 
 
+def test_draw_diagram_with_an_empty_title_is_rejected(bridge):
+    nodes = [_node("a")]
+
+    with pytest.raises(QuestionRejected, match="title is empty"):
+        asyncio.run(_mcp(bridge).draw_diagram("main", "  ", nodes, [], None, None))
+
+
 def test_draw_diagram_attaches_the_ref_to_the_question_option(bridge):
     store.open_question(bridge.main, _request(), "q1")
 
@@ -284,3 +349,43 @@ def test_decision_diagram_checker_reports_budget_and_unknown_edges():
     found = checker.problems(draft)
 
     assert len(found) == 2
+
+
+_PARITY_DRAFTS = {
+    "empty_title": {"title": " ", "nodes": [{"id": "a", "label": "A"}], "edges": []},
+    "long_title": {"title": "t" * 81, "nodes": [{"id": "a", "label": "A"}], "edges": []},
+    "long_id": {"title": "T", "nodes": [{"id": "a" * 41, "label": "A"}], "edges": []},
+    "empty_id": {"title": "T", "nodes": [{"id": " ", "label": "A"}], "edges": []},
+    "long_label": {"title": "T", "nodes": [{"id": "a", "label": "l" * 61}], "edges": []},
+    "long_description": {
+        "title": "T", "nodes": [{"id": "a", "label": "A", "description": "d" * 301}], "edges": [],
+    },
+    "self_loop": {
+        "title": "T", "nodes": [{"id": "a", "label": "A"}],
+        "edges": [{"from": "a", "to": "a"}],
+    },
+    "duplicate_edge": {
+        "title": "T", "nodes": [{"id": "a", "label": "A"}, {"id": "b", "label": "B"}],
+        "edges": [{"from": "a", "to": "b"}, {"from": "a", "to": "b"}],
+    },
+    "unknown_edge_and_dup_ids": {
+        "title": "T", "nodes": [{"id": "a", "label": "A"}, {"id": "a", "label": ""}],
+        "edges": [{"from": "a", "to": "zz"}],
+    },
+    "no_nodes": {"title": "T", "nodes": [], "edges": []},
+    "clean": {"title": "T", "nodes": [{"id": "a", "label": "A"}], "edges": []},
+}
+
+
+@pytest.mark.parametrize("name", sorted(_PARITY_DRAFTS))
+def test_server_diagram_validator_matches_the_skill_checker(name):
+    from codechroma.questions import diagrams
+
+    draft = _PARITY_DRAFTS[name]
+    nodes = [diagrams.DiagramNode(**n) for n in draft["nodes"]]
+    edges = [diagrams.DiagramEdge(**e) for e in draft["edges"]]
+
+    server = diagrams.validate_diagram(nodes, edges, draft["title"])
+
+    assert server == _load_checker().problems(draft)
+    assert bool(server) == (name != "clean")

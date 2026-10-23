@@ -252,3 +252,69 @@ def test_request_diagram_hands_needs_to_the_blocked_ask(bridge):
     question_id, result = asyncio.run(scenario())
 
     assert result == {"needs": "diagram", "question_id": question_id}
+
+
+def test_repeated_request_diagram_clicks_count_once_and_report_no_waiter(bridge):
+    question_id = _ask(bridge)
+    url = f"/repos/main/questions/{question_id}/request-diagram"
+
+    with TestClient(bridge.app) as client:
+        first = client.post(url).json()
+        second = client.post(url).json()
+
+    meta = store.find_element(bridge.main, question_id).meta
+    assert meta["diagram_requests"] == 1
+    assert first["waiting"] is False
+    assert second["waiting"] is False
+
+
+def test_find_diagram_requested_matches_a_reworded_ask_without_session(bridge):
+    question_id = _ask(bridge, session_id="s1")
+    store.request_diagram(bridge.main, store.find_element(bridge.main, question_id), "now")
+    reworded = AskRequest(question="Different words?", options=OPTIONS)
+
+    found = store.find_diagram_requested(bridge.main, reworded)
+
+    assert found.meta["question_id"] == question_id
+
+
+def test_find_diagram_requested_skips_older_duplicates_of_the_same_session(bridge):
+    old = _ask(bridge, session_id="s1")
+    new = _ask(bridge, session_id="s1")
+    for qid in (old, new):
+        store.request_diagram(bridge.main, store.find_element(bridge.main, qid), "now")
+    request = AskRequest(question="How to structure checkout?", options=OPTIONS, session_id="s1")
+
+    found = store.find_diagram_requested(bridge.main, request)
+
+    assert found.meta["question_id"] == new
+    assert store.find_element(bridge.main, old).meta["state"] == "skipped"
+
+
+def test_draw_diagram_bands_do_not_overlap_after_a_diagram_is_deleted(bridge):
+    from codechroma.canvas.document import CanvasDoc
+    from codechroma.questions import diagrams
+
+    nodes = [diagrams.DiagramNode(id="a", label="a")]
+    roots = [store.draw_diagram(bridge.main, "T", nodes, [], None, None) for _ in range(2)]
+    ws = bridge.main
+    store._commit(ws, lambda _doc: [{"op": "delete_element", "id": roots[0]}])
+
+    third = store.draw_diagram(ws, "T", nodes, [], None, None)
+
+    doc = CanvasDoc.load(ws.canvas_core_path, ws.diagrams_root)
+    assert doc.elements[third].position.y > doc.elements[roots[1]].position.y
+
+
+def test_draw_diagram_with_an_unknown_option_leaves_no_orphan_diagram(bridge):
+    from codechroma.canvas.document import CanvasDoc
+    from codechroma.questions import diagrams
+
+    question_id = _ask(bridge)
+    nodes = [diagrams.DiagramNode(id="a", label="a")]
+
+    with pytest.raises(store.QuestionWriteError):
+        store.draw_diagram(bridge.main, "T", nodes, [], question_id, "nope")
+
+    doc = CanvasDoc.load(bridge.main.canvas_core_path, bridge.main.diagrams_root)
+    assert not [e for e in doc.elements.values() if e.meta.get("diagram_root")]

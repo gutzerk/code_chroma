@@ -10,6 +10,10 @@ from codechroma.questions.validation import QuestionRejected, rejection_text
 
 LAYER = "decisions"
 MAX_NODES = 12
+MAX_ID = 40
+MAX_TITLE = 80
+MAX_LABEL = 60
+MAX_DESCRIPTION = 300
 _COLUMNS = 4
 _CELL_W, _CELL_H = 200, 100
 _NODE_W, _NODE_H = 160, 60
@@ -35,21 +39,44 @@ class DiagramEdge(BaseModel):
     label: str = ""
 
 
-def validate_diagram(nodes: list[DiagramNode], edges: list[DiagramEdge]) -> list[str]:
-    """One line per budget or reference problem; empty when the graph may be drawn."""
-    problems: list[str] = []
+def validate_diagram(
+    nodes: list[DiagramNode], edges: list[DiagramEdge], title: str | None = None
+) -> list[str]:
+    """One line per budget, length or reference problem; mirrors the skill's check script."""
+    found: list[str] = []
+    if title is not None:
+        if not title.strip():
+            found.append("title is empty")
+        elif len(title) > MAX_TITLE:
+            found.append(f"title is longer than {MAX_TITLE} characters")
     if not 1 <= len(nodes) <= MAX_NODES:
-        problems.append(f"give 1-{MAX_NODES} nodes, got {len(nodes)}")
+        found.append(f"give 1-{MAX_NODES} nodes, got {len(nodes)}")
     ids = [node.id for node in nodes]
     if len(set(ids)) != len(ids):
-        problems.append("node ids are not unique")
-    problems.extend(f'node "{n.id}": empty label' for n in nodes if not n.label.strip())
-    problems.extend(
-        f"edge {e.from_}->{e.to}: unknown node"
-        for e in edges
-        if e.from_ not in ids or e.to not in ids
-    )
-    return problems
+        found.append("node ids are not unique")
+    for n in nodes:
+        if not n.id.strip():
+            found.append("node with empty id")
+        elif len(n.id) > MAX_ID:
+            found.append(f'node "{n.id}": id is longer than {MAX_ID} characters')
+        if not n.label.strip():
+            found.append(f'node "{n.id}": empty label')
+        elif len(n.label) > MAX_LABEL:
+            found.append(f'node "{n.id}": label is longer than {MAX_LABEL} characters')
+        if len(n.description) > MAX_DESCRIPTION:
+            found.append(
+                f'node "{n.id}": description is longer than {MAX_DESCRIPTION} characters'
+            )
+    seen: set[tuple[str, str]] = set()
+    for e in edges:
+        if e.from_ not in ids or e.to not in ids:
+            found.append(f"edge {e.from_}->{e.to}: unknown node")
+        elif e.from_ == e.to:
+            found.append(f"edge {e.from_}->{e.to}: self-loop")
+        elif (e.from_, e.to) in seen:
+            found.append(f"edge {e.from_}->{e.to}: duplicate")
+        seen.add((e.from_, e.to))
+    return found
 
 
 def diagram_ops(
@@ -85,8 +112,10 @@ def diagram_ops(
     return ops
 
 
-def check(nodes: list[DiagramNode], edges: list[DiagramEdge]) -> None:
+def check(
+    nodes: list[DiagramNode], edges: list[DiagramEdge], title: str | None = None
+) -> None:
     """Raises QuestionRejected with every problem, in the tool-error shape."""
-    problems = validate_diagram(nodes, edges)
+    problems = validate_diagram(nodes, edges, title)
     if problems:
         raise QuestionRejected(rejection_text(problems, "diagram"))

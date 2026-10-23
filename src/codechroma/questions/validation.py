@@ -10,6 +10,7 @@ from codechroma.questions.models import AskRequest
 MIN_OPTIONS = 2
 MAX_OPTIONS = 4
 RESET_AFTER_SECONDS = 600.0
+MAX_TRACKED = 1000
 _REQUIRED_TEXT = ("title", "description", "pro", "con", "why")
 _FOOTER = (
     "Call ask_user again with all fields. Keep the original intent and options. "
@@ -64,25 +65,38 @@ def rejection_text(problems: list[str], subject: str = "question") -> str:
 
 
 class RejectionTracker:
-    """Counts consecutive rejections per (workspace, session) so a stubborn agent is let through."""
+    """Counts consecutive rejections per (workspace, session); a None session is never tracked."""
 
-    def __init__(self, clock: Callable[[], float] = time.monotonic) -> None:
+    def __init__(
+        self, clock: Callable[[], float] = time.monotonic, max_entries: int = MAX_TRACKED
+    ) -> None:
         self._clock = clock
-        self._entries: dict[tuple[str, str | None], tuple[int, float]] = {}
+        self._max_entries = max_entries
+        self._entries: dict[tuple[str, str], tuple[int, float]] = {}
 
     def count(self, workspace_id: str, session_id: str | None) -> int:
         """Rejections so far; zero once the entry has been silent for ten minutes."""
-        entry = self._entries.get((workspace_id, session_id))
+        entry = self._entries.get((workspace_id, session_id)) if session_id else None
         if entry is None or self._clock() - entry[1] > RESET_AFTER_SECONDS:
             return 0
         return entry[0]
 
     def record(self, workspace_id: str, session_id: str | None) -> int:
-        """Counts one more rejection and returns the new total."""
+        """Counts one more rejection and returns the new total (0 when untracked)."""
+        if not session_id:
+            return 0
         total = self.count(workspace_id, session_id) + 1
+        self._evict()
         self._entries[(workspace_id, session_id)] = (total, self._clock())
         return total
 
     def reset(self, workspace_id: str, session_id: str | None) -> None:
-        """Forgets the count after a valid question or an answer."""
+        """Forgets the count after a valid question, an answer or a degraded pass-through."""
         self._entries.pop((workspace_id, session_id), None)
+
+    def _evict(self) -> None:
+        now = self._clock()
+        for key in [k for k, (_, at) in self._entries.items() if now - at > RESET_AFTER_SECONDS]:
+            del self._entries[key]
+        while len(self._entries) >= self._max_entries:
+            del self._entries[next(iter(self._entries))]

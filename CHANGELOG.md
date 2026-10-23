@@ -1,5 +1,20 @@
 # Changelog
 
+## [1.5.0](https://github.com/gutzerk/code_chroma/compare/v1.4.0...v1.5.0) (2026-10-23)
+
+
+### Features
+
+* **web:** float the agents panel over the canvas and sync full-screen controls ([b3e4d04](https://github.com/gutzerk/code_chroma/commit/b3e4d04eafd170ddbbc2704bfd27a07f54a83c42))
+* **web:** float the agents panel over the canvas and sync full-screen controls ([cd10ece](https://github.com/gutzerk/code_chroma/commit/cd10ece4d28e58406250833456549d0a244c694d))
+
+
+### Bug Fixes
+
+* agent panel close/usage, full-screen tab isolation, wiki Update style, issue-created dialog ([e45c89a](https://github.com/gutzerk/code_chroma/commit/e45c89a3f0a529af74c7f0bec07d3cecd199b3b3))
+* agent panel close/usage, full-screen tab isolation, wiki Update style, issue-created dialog ([4a6cdb8](https://github.com/gutzerk/code_chroma/commit/4a6cdb84ceaa4b7b92c7fec6d09120d7a7674e19))
+* **web:** address review of the floating agents panel ([9cbb4d0](https://github.com/gutzerk/code_chroma/commit/9cbb4d0b42a19e807037255f5318b4b77620c233))
+
 ## [1.4.0](https://github.com/gutzerk/code_chroma/compare/v1.3.1...v1.4.0) (2026-10-22)
 
 

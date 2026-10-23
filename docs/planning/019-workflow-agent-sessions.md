@@ -85,7 +85,7 @@ A workflow step can only start a fresh agent, with or without the previous step'
 
 ### Stage 7 — Agents full screen (board 10)
 
-- Agents tab full screen (`ActivityPanel` `is-full`): left list of agents only, terminal in the main area, header usage strip (Context meter n/window, Tokens in/out, Cache hit, Cost) and Stop agent. No right panel.
+- Agents tab full screen (`ActivityPanel` `is-full`): left list of agents only, terminal in the main area, header usage strip (Context meter n/window, Tokens in/out, Cache hit, Cost) and a larger close button instead of Stop agent. No right panel.
 - Usage comes from Stage 2's `ReadUsage` over the agent's session via a new `GET /agents/{id}/usage`, pushed on the agent's existing change events. Cost uses a per-model price table in config; hidden when the model is unknown.
 - Tests: usage route with a transcript fixture; strip renders and hides cost when unknown.
 - Done: the route is `GET /agents/{id}/usage` (the agent routes are not under `/repos/{id}`) and returns `null` with no claude session. Tokens, cache hit and cost sum every billed reply (`Transcripts.ReadSession`, one streamed pass, one count per `message.id`); context is the last main-thread reply. Prices and windows live in `Agents/ModelSpecs.cs`, a code table rather than user config. The web refetches on the agent's status changes and polls every 5 s only while full screen shows that agent, it is running and the page is visible. See `docs/architecture/parallel-agents.md` "Session usage".

@@ -95,4 +95,36 @@ describe("useResizableSize", () => {
 
     expect(size.width).toBe(640);
   });
+
+  it("calls onExceedMax once and drops the size when dragged well past the max", () => {
+    window.innerWidth = 1000;
+    let exceeded = 0;
+    render(
+      <Panel
+        options={{ axis: "x", edge: "left", minWidth: 320, maxViewportFraction: 0.5, onExceedMax: () => (exceeded += 1) }}
+      />,
+    );
+    startSize(400, 700);
+
+    const size = drag({ x: 900, y: 300 }, { x: 600, y: 300 });
+
+    expect(exceeded).toBe(1);
+    expect(size.width).toBe(0);
+  });
+
+  it("stays under the max without calling onExceedMax inside the slack", () => {
+    window.innerWidth = 1000;
+    let exceeded = 0;
+    render(
+      <Panel
+        options={{ axis: "x", edge: "left", minWidth: 320, maxViewportFraction: 0.5, onExceedMax: () => (exceeded += 1) }}
+      />,
+    );
+    startSize(400, 700);
+
+    const size = drag({ x: 900, y: 300 }, { x: 760, y: 300 });
+
+    expect(exceeded).toBe(0);
+    expect(size.width).toBe(500);
+  });
 });

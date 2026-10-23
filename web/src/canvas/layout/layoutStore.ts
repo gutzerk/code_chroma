@@ -43,6 +43,8 @@ class LayoutStore extends Store {
   /** Full screen leaves the left panel as it is: the agents panel stretches to whichever edge is showing. */
   setAgentsMode = (mode: AgentsMode): void => this.set({ agentsMode: mode });
 
+  toggleAgentsFull = (): void => this.set({ agentsMode: this.state.agentsMode === "full" ? "normal" : "full" });
+
   selectAgent = (id: string | null): void => this.set({ selectedAgentId: id });
 
   /** Drops a selection whose agent no longer exists. */

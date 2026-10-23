@@ -123,8 +123,10 @@ function Slider({
 /** Settings → Canvas style: background colour and texture of the canvas; block and line colours stay as the diagram sets them. */
 export function CanvasStylePanel({ onDismiss }: { onDismiss: () => void }) {
   const saved = useSavedCanvasStyle();
-  const style: CanvasStyle = saved ?? CANVAS_STYLE_DEFAULT;
+  const [style, setStyle] = useState<CanvasStyle>(saved ?? CANVAS_STYLE_DEFAULT);
   const preset = matchPreset(style);
+  const dirty = JSON.stringify(style) !== JSON.stringify(saved ?? CANVAS_STYLE_DEFAULT);
+  const update = (patch: Partial<CanvasStyle>) => setStyle((current) => ({ ...current, ...patch }));
 
   return (
     <ModalDialog label="Canvas style" testId="canvas-style-dialog" className="canvas-style-dialog" onDismiss={onDismiss}>
@@ -151,7 +153,7 @@ export function CanvasStylePanel({ onDismiss }: { onDismiss: () => void }) {
               className="canvas-style-tile"
               aria-pressed={preset?.id === p.id}
               data-testid={`canvas-style-preset-${p.id}`}
-              onClick={() => canvasStyleStore.set(p)}
+              onClick={() => setStyle({ bg: p.bg, texture: p.texture, textureColor: p.textureColor, opacity: p.opacity, spacing: p.spacing })}
             >
               <span className="canvas-style-swatch" style={swatchStyle(p.texture, p.bg, p.textureColor, p.opacity)} />
               <span>{p.name}</span>
@@ -167,7 +169,7 @@ export function CanvasStylePanel({ onDismiss }: { onDismiss: () => void }) {
           testId="canvas-style-bg"
           value={style.bg}
           example="#0B1A2A"
-          onChange={(bg) => canvasStyleStore.update({ bg })}
+          onChange={(bg) => update({ bg })}
         />
         {isLightBackground(style.bg) && (
           <div role="status" className="canvas-style-warning" data-testid="canvas-style-light-warning">
@@ -186,7 +188,7 @@ export function CanvasStylePanel({ onDismiss }: { onDismiss: () => void }) {
               className="canvas-style-tile"
               aria-pressed={style.texture === t.id}
               data-testid={`canvas-style-texture-${t.id}`}
-              onClick={() => canvasStyleStore.update({ texture: t.id })}
+              onClick={() => update({ texture: t.id })}
             >
               <span
                 className="canvas-style-swatch canvas-style-swatch--short"
@@ -204,7 +206,7 @@ export function CanvasStylePanel({ onDismiss }: { onDismiss: () => void }) {
               testId="canvas-style-tc"
               value={style.textureColor}
               example="#294766"
-              onChange={(textureColor) => canvasStyleStore.update({ textureColor })}
+              onChange={(textureColor) => update({ textureColor })}
             />
             <div className="canvas-style-sliders">
               <Slider
@@ -214,7 +216,7 @@ export function CanvasStylePanel({ onDismiss }: { onDismiss: () => void }) {
                 max={70}
                 value={style.opacity}
                 suffix="%"
-                onChange={(opacity) => canvasStyleStore.update({ opacity })}
+                onChange={(opacity) => update({ opacity })}
               />
               <Slider
                 id="canvas-style-spacing"
@@ -223,7 +225,7 @@ export function CanvasStylePanel({ onDismiss }: { onDismiss: () => void }) {
                 max={64}
                 value={style.spacing}
                 suffix=" px"
-                onChange={(spacing) => canvasStyleStore.update({ spacing })}
+                onChange={(spacing) => update({ spacing })}
               />
             </div>
           </div>
@@ -236,11 +238,22 @@ export function CanvasStylePanel({ onDismiss }: { onDismiss: () => void }) {
           className="llm-button-ghost"
           data-testid="canvas-style-reset"
           disabled={saved === null}
-          onClick={() => canvasStyleStore.restoreDefault()}
+          onClick={() => {
+            canvasStyleStore.restoreDefault();
+            setStyle(CANVAS_STYLE_DEFAULT);
+          }}
         >
           Reset to default
         </button>
-        <p>Changes apply instantly and are saved in this browser.</p>
+        <button
+          type="button"
+          className="llm-button-primary"
+          data-testid="canvas-style-apply"
+          disabled={!dirty}
+          onClick={() => canvasStyleStore.set(style)}
+        >
+          Apply
+        </button>
       </div>
     </ModalDialog>
   );

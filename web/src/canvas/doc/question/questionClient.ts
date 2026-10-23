@@ -28,6 +28,10 @@ export function reviseQuestion(client: EngineClient, q: QuestionView): Promise<Q
   return client.reviseQuestion(q.questionId);
 }
 
+export function requestDiagram(client: EngineClient, q: QuestionView): Promise<QuestionAck> {
+  return client.requestQuestionDiagram(q.questionId);
+}
+
 export function listOpenQuestions(client: EngineClient): Promise<QuestionAck[]> {
   return client.getOpenQuestions().then((payload) => payload.questions);
 }

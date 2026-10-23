@@ -106,39 +106,25 @@ def test_ask_route_rejects_a_token_for_another_workspace(bridge):
     assert response.status_code == 401
 
 
-def test_hook_payload_marks_the_first_option_as_the_recommendation():
+def test_hook_denies_the_native_tool_and_names_ask_user_when_the_bridge_answers(
+    monkeypatch, capsys
+):
+    import io
+
     hook = _load_hook()
-    question = {"question": "DB?", "options": [{"label": "PG"}, {"label": "SQLite"}]}
+    monkeypatch.setenv("CODECHROMA_BRIDGE_URL", "http://127.0.0.1:1")
+    monkeypatch.setenv("CODECHROMA_QUESTION_TOKEN", "t")
+    monkeypatch.setenv("CODECHROMA_WORKSPACE_ID", "w")
+    monkeypatch.setattr(hook, "bridge_answers", lambda _url: True)
+    event = {"tool_input": {"questions": [{"question": "A?", "options": []}]}}
+    monkeypatch.setattr("sys.stdin", io.StringIO(json.dumps(event)))
 
-    payload = hook.build_payload(question, 0, 1, "s")
+    code = hook.main()
 
-    assert [o["rank"] for o in payload["options"]] == [1, None]
-    assert payload["options"][1]["title"] == "SQLite"
-
-
-def test_hook_collects_answers_keyed_by_question_text():
-    hook = _load_hook()
-    questions = [{"question": "A?", "options": []}, {"question": "B?", "options": []}]
-
-    answers = hook.collect_answers(questions, lambda p: {"answer": p["question"] + "!"})
-
-    assert answers == {"A?": "A?!", "B?": "B?!"}
-
-
-@pytest.mark.parametrize("result", [{"pending": True, "question_id": "q"}, {"skipped": True}])
-def test_hook_collects_nothing_when_a_question_is_pending_or_skipped(result):
-    hook = _load_hook()
-
-    assert hook.collect_answers([{"question": "A?"}], lambda _p: result) is None
-
-
-def test_hook_decision_echoes_the_input_and_adds_answers():
-    hook = _load_hook()
-
-    out = hook.decision({"questions": [{"question": "A?"}]}, {"A?": "yes"})["hookSpecificOutput"]
-
-    assert out["permissionDecision"] == "allow"
-    assert out["updatedInput"] == {"questions": [{"question": "A?"}], "answers": {"A?": "yes"}}
+    out = json.loads(capsys.readouterr().out)["hookSpecificOutput"]
+    assert code == 0
+    assert out["permissionDecision"] == "deny"
+    assert "mcp__codechroma__ask_user" in out["permissionDecisionReason"]
 
 
 def test_hook_prints_nothing_when_the_bridge_env_is_absent(monkeypatch, capsys):
@@ -183,3 +169,21 @@ def test_grill_skill_has_name_and_description_frontmatter():
 
     assert text.startswith("---\nname: codechroma-grill\ndescription: ")
     assert "ask_user_result" in text
+
+
+def test_hook_fails_open_without_the_token_that_marks_a_wired_mcp_server(monkeypatch, capsys):
+    import io
+
+    hook = _load_hook()
+    monkeypatch.setenv("CODECHROMA_BRIDGE_URL", "http://127.0.0.1:1")
+    monkeypatch.setenv("CODECHROMA_WORKSPACE_ID", "w")
+    monkeypatch.delenv("CODECHROMA_QUESTION_TOKEN", raising=False)
+    monkeypatch.delenv("codechroma_QUESTION_TOKEN", raising=False)
+    monkeypatch.setattr(hook, "bridge_answers", lambda _url: True)
+    event = {"tool_input": {"questions": [{"question": "A?", "options": []}]}}
+    monkeypatch.setattr("sys.stdin", io.StringIO(json.dumps(event)))
+
+    code = hook.main()
+
+    assert code == 0
+    assert capsys.readouterr().out == ""

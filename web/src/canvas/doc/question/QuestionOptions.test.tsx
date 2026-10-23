@@ -4,38 +4,53 @@ import { QuestionOptions } from "./QuestionOptions";
 import { OPTIONS } from "./fixtures";
 
 describe("QuestionOptions", () => {
-  it("colours options by AI rank and badges only the recommended one", () => {
-    render(<QuestionOptions options={OPTIONS} onChoose={() => {}} />);
+  it("pills only the rank-1 option as Recommended, never colouring the tile by rank", () => {
+    render(<QuestionOptions options={OPTIONS} selectedId="b" onSelect={() => {}} />);
 
-    expect(screen.getByTestId("question-option-a")).toHaveAttribute("data-tier", "best");
-    expect(screen.getByTestId("question-option-b")).toHaveAttribute("data-tier", "middle");
-    expect(screen.getByTestId("question-option-c")).toHaveAttribute("data-tier", "last");
     expect(screen.getAllByText("Recommended")).toHaveLength(1);
+    expect(screen.getByTestId("question-option-a")).toContainElement(screen.getByText("Recommended"));
+    expect(screen.getByTestId("question-option-b").className).toBe("question-option");
   });
 
-  it("shows pro and con text and the linked diagram ref", () => {
-    render(<QuestionOptions options={OPTIONS} onChoose={() => {}} />);
+  it("exposes a radiogroup with the selected tile checked", () => {
+    render(<QuestionOptions options={OPTIONS} selectedId="b" onSelect={() => {}} />);
 
-    expect(screen.getByText("Simple")).toBeInTheDocument();
-    expect(screen.getByText("Coordination")).toBeInTheDocument();
-    expect(screen.getByText("Diagram: el-9")).toBeInTheDocument();
+    expect(screen.getByRole("radiogroup")).toBeInTheDocument();
+    expect(screen.getByRole("radio", { name: /Services/ })).toHaveAttribute("aria-checked", "true");
+    expect(screen.getByRole("radio", { name: /Events/ })).toHaveAttribute("aria-checked", "false");
   });
 
-  it("reports the chosen option id and honours disabled", () => {
-    const onChoose = vi.fn();
-    const { rerender } = render(<QuestionOptions options={OPTIONS} onChoose={onChoose} />);
+  it("compact shows description and chips only for the selected tile", () => {
+    render(<QuestionOptions options={OPTIONS} selectedId="b" variant="compact" onSelect={() => {}} />);
+
+    expect(screen.getByText("Independent")).toBeInTheDocument();
+    expect(screen.getByText("✓ Scalable")).toBeInTheDocument();
+    expect(screen.queryByText("One deployment")).toBeNull();
+  });
+
+  it("full shows description and chips on every tile", () => {
+    render(<QuestionOptions options={OPTIONS} selectedId="b" variant="full" onSelect={() => {}} />);
+
+    expect(screen.getByText("One deployment")).toBeInTheDocument();
+    expect(screen.getByText("✕ Complexity")).toBeInTheDocument();
+  });
+
+  it("reports the clicked option id and honours disabled", () => {
+    const onSelect = vi.fn();
+    const { rerender } = render(<QuestionOptions options={OPTIONS} selectedId={null} onSelect={onSelect} />);
 
     fireEvent.click(screen.getByTestId("question-option-b"));
-    rerender(<QuestionOptions options={OPTIONS} onChoose={onChoose} disabled />);
+    rerender(<QuestionOptions options={OPTIONS} selectedId={null} onSelect={onSelect} disabled />);
     fireEvent.click(screen.getByTestId("question-option-c"));
 
-    expect(onChoose).toHaveBeenCalledTimes(1);
-    expect(onChoose).toHaveBeenCalledWith("b");
+    expect(onSelect).toHaveBeenCalledTimes(1);
+    expect(onSelect).toHaveBeenCalledWith("b");
   });
 
-  it("leaves unranked options without a tier", () => {
-    render(<QuestionOptions options={[{ ...OPTIONS[0], rank: null }]} onChoose={() => {}} />);
+  it("leaves unranked options without a tier or pill", () => {
+    render(<QuestionOptions options={[{ ...OPTIONS[0], rank: null }]} selectedId={null} onSelect={() => {}} />);
 
     expect(screen.getByTestId("question-option-a")).not.toHaveAttribute("data-tier");
+    expect(screen.queryByText("Recommended")).toBeNull();
   });
 });

@@ -10,7 +10,7 @@ namespace CodeChroma.Bridge.Workflows;
 /// </summary>
 public sealed partial class RunStore(string repoRoot, string? sharedWorkflowsDir = null)
 {
-    private readonly object _io = new();
+    private static readonly object _io = new();
 
     public string WorkflowsDir => Path.Combine(repoRoot, ".codechroma", "workflows");
 
@@ -58,13 +58,10 @@ public sealed partial class RunStore(string repoRoot, string? sharedWorkflowsDir
         if (!IsSafeId(id)) return false;
         lock (_io)
         {
-            var found = false;
-            foreach (var path in Dirs().Select(dir => Path.Combine(dir, id + ".json")).Where(File.Exists))
-            {
-                File.Delete(path);
-                found = true;
-            }
-            return found;
+            var path = Path.Combine(DirFor(id), id + ".json");
+            if (!File.Exists(path)) return false;
+            File.Delete(path);
+            return true;
         }
     }
 

@@ -63,7 +63,8 @@ public sealed class RunStoreTests
         Assert.Single(store.ListWorkflows());
         Assert.False(store.TryCreateWorkflow(new WorkflowDef { Id = "both" }));
         Assert.True(store.DeleteWorkflow("both"));
-        Assert.Null(store.GetWorkflow("both"));
+        Assert.Equal("Shared", store.GetWorkflow("both")!.Name);
+        Assert.True(File.Exists(Path.Combine(shared, "both.json")));
     }
 
     [Theory]

@@ -23,7 +23,7 @@ public sealed class UserPaths
         Workflows = Resolve("codechroma_WORKFLOWS_DIR", "workflows"),
     };
 
-    /// <summary>All four stores under one directory (tests).</summary>
+    /// <summary>Every store under one directory (tests).</summary>
     public static UserPaths Under(string directory) => new()
     {
         Assistant = Path.Combine(directory, "assistant-settings.json"),

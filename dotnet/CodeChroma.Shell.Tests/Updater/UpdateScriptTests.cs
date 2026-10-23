@@ -48,6 +48,19 @@ public class UpdateScriptTests
     }
 
     [PosixShellFact]
+    public void The_updated_result_is_already_written_when_the_new_version_starts()
+    {
+        using var run = new PosixRun();
+        run.WriteApp(run.Target, "exit 0");
+        run.WriteApp(run.Staged, $"cp '{HostShell.ForSh(PlatformInstaller.ResultPath(run.UserData))}' '{run.Marker}'");
+
+        var (code, output) = run.Run("exec", keep: "0");
+
+        Assert.True(code == 0, output);
+        Assert.Contains("\"updated\"", File.ReadAllText(run.Marker.Replace('/', Path.DirectorySeparatorChar)));
+    }
+
+    [PosixShellFact]
     public void Linux_keeps_the_previous_appimage_after_a_healthy_update()
     {
         using var run = new PosixRun();
@@ -193,6 +206,20 @@ public class UpdateScriptTests
         Assert.Equal("current.update-1", File.ReadAllText(Path.Combine(run.Target, "version.txt")));
         Assert.False(Directory.Exists(run.Previous));
         Assert.Equal("updated", InstallOutcomeStore.Read(run.UserData)?.Result);
+    }
+
+    [WindowsPowerShellFact]
+    public void Windows_writes_the_updated_result_before_the_new_exe_starts()
+    {
+        using var run = new WindowsRun();
+        var seen = run.Temp.Sub("seen-result.json");
+        run.WriteApp(run.Target, "exit /b 0");
+        run.WriteApp(run.Staged, $"copy \"{PlatformInstaller.ResultPath(run.UserData)}\" \"{seen}\" >nul");
+
+        var (code, output) = run.Run();
+
+        Assert.True(code == 0, output);
+        Assert.Contains("\"updated\"", File.ReadAllText(seen));
     }
 
     [WindowsPowerShellFact]

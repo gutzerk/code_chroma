@@ -14,8 +14,14 @@ from codechroma.questions.mcp_server import QuestionAuthError
 from codechroma.questions.models import AskRequest, QuestionOption
 
 OPTIONS = [
-    QuestionOption(id="a", title="Modular monolith", rank=1, pro="simple", con="coupled"),
-    QuestionOption(id="b", title="Microservices"),
+    QuestionOption(
+        id="a", title="Modular monolith", rank=1, description="one deploy", pro="simple",
+        con="coupled", why="fits the team",
+    ),
+    QuestionOption(
+        id="b", title="Microservices", rank=2, description="many deploys", pro="isolated",
+        con="ops cost", why="scales apart",
+    ),
 ]
 
 
@@ -152,7 +158,7 @@ def test_answer_route_wakes_a_blocked_ask(bridge):
 
 
 def test_ask_returns_pending_on_timeout_and_result_fetches_the_later_answer(bridge, monkeypatch):
-    fast = SimpleNamespace(questions=SimpleNamespace(ask_wait_seconds=0.05))
+    fast = SimpleNamespace(questions=SimpleNamespace(ask_wait_seconds=0.05, max_rejections=3))
     monkeypatch.setattr("codechroma.questions.mcp_server.settings", fast)
     mcp = bridge.app.state.question_mcp
 
@@ -206,3 +212,109 @@ def test_revise_reopens_the_question_and_deletes_later_steps_of_its_session(brid
     assert reopened.meta["answer"] is None
     assert store.find_element(bridge.main, second) is None
     assert reopened.layer == "questions"
+
+
+def test_request_diagram_marks_the_element_and_counts_the_request(bridge):
+    question_id = _ask(bridge)
+
+    with TestClient(bridge.app) as client:
+        response = client.post(f"/repos/main/questions/{question_id}/request-diagram")
+
+    meta = store.find_element(bridge.main, question_id).meta
+    assert response.json()["state"] == "open"
+    assert meta["diagram_requested"] is True
+    assert meta["diagram_requests"] == 1
+    assert meta["diagram_requested_at"]
+
+
+def test_request_diagram_is_refused_when_every_option_has_a_diagram(bridge):
+    options = [o.model_copy(update={"diagram_ref": "x"}) for o in OPTIONS]
+    question_id = uuid.uuid4().hex
+    store.open_question(bridge.main, AskRequest(question="Q?", options=options), question_id)
+
+    with TestClient(bridge.app) as client:
+        response = client.post(f"/repos/main/questions/{question_id}/request-diagram")
+
+    assert response.status_code == 422
+
+
+def test_request_diagram_hands_needs_to_the_blocked_ask(bridge):
+    mcp = bridge.app.state.question_mcp
+
+    async def scenario():
+        task = asyncio.create_task(mcp.ask("main", AskRequest(question="Pick", options=OPTIONS)))
+        await asyncio.sleep(0.2)
+        question_id = store.list_questions(bridge.main)[0].meta["question_id"]
+        url = f"/repos/main/questions/{question_id}/request-diagram"
+        await asyncio.to_thread(lambda: TestClient(bridge.app).post(url))
+        return question_id, await task
+
+    question_id, result = asyncio.run(scenario())
+
+    assert result == {"needs": "diagram", "question_id": question_id}
+
+
+def test_repeated_request_diagram_clicks_count_once_and_report_no_waiter(bridge):
+    question_id = _ask(bridge)
+    url = f"/repos/main/questions/{question_id}/request-diagram"
+
+    with TestClient(bridge.app) as client:
+        first = client.post(url).json()
+        second = client.post(url).json()
+
+    meta = store.find_element(bridge.main, question_id).meta
+    assert meta["diagram_requests"] == 1
+    assert first["waiting"] is False
+    assert second["waiting"] is False
+
+
+def test_find_diagram_requested_matches_a_reworded_ask_without_session(bridge):
+    question_id = _ask(bridge, session_id="s1")
+    store.request_diagram(bridge.main, store.find_element(bridge.main, question_id), "now")
+    reworded = AskRequest(question="Different words?", options=OPTIONS)
+
+    found = store.find_diagram_requested(bridge.main, reworded)
+
+    assert found.meta["question_id"] == question_id
+
+
+def test_find_diagram_requested_skips_older_duplicates_of_the_same_session(bridge):
+    old = _ask(bridge, session_id="s1")
+    new = _ask(bridge, session_id="s1")
+    for qid in (old, new):
+        store.request_diagram(bridge.main, store.find_element(bridge.main, qid), "now")
+    request = AskRequest(question="How to structure checkout?", options=OPTIONS, session_id="s1")
+
+    found = store.find_diagram_requested(bridge.main, request)
+
+    assert found.meta["question_id"] == new
+    assert store.find_element(bridge.main, old).meta["state"] == "skipped"
+
+
+def test_draw_diagram_bands_do_not_overlap_after_a_diagram_is_deleted(bridge):
+    from codechroma.canvas.document import CanvasDoc
+    from codechroma.questions import diagrams
+
+    nodes = [diagrams.DiagramNode(id="a", label="a")]
+    roots = [store.draw_diagram(bridge.main, "T", nodes, [], None, None) for _ in range(2)]
+    ws = bridge.main
+    store._commit(ws, lambda _doc: [{"op": "delete_element", "id": roots[0]}])
+
+    third = store.draw_diagram(ws, "T", nodes, [], None, None)
+
+    doc = CanvasDoc.load(ws.canvas_core_path, ws.diagrams_root)
+    assert doc.elements[third].position.y > doc.elements[roots[1]].position.y
+
+
+def test_draw_diagram_with_an_unknown_option_leaves_no_orphan_diagram(bridge):
+    from codechroma.canvas.document import CanvasDoc
+    from codechroma.questions import diagrams
+
+    question_id = _ask(bridge)
+    nodes = [diagrams.DiagramNode(id="a", label="a")]
+
+    with pytest.raises(store.QuestionWriteError):
+        store.draw_diagram(bridge.main, "T", nodes, [], question_id, "nope")
+
+    doc = CanvasDoc.load(bridge.main.canvas_core_path, bridge.main.diagrams_root)
+    assert not [e for e in doc.elements.values() if e.meta.get("diagram_root")]

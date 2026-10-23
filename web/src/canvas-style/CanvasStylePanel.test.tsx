@@ -8,13 +8,22 @@ afterEach(() => {
 });
 
 describe("CanvasStylePanel", () => {
-  it("applies a preset and marks it pressed", () => {
+  it("applies a preset on Apply and marks it pressed", () => {
+    render(<CanvasStylePanel onDismiss={vi.fn()} />);
+
+    fireEvent.click(screen.getByTestId("canvas-style-preset-navy"));
+    fireEvent.click(screen.getByTestId("canvas-style-apply"));
+
+    expect(canvasStyleStore.getSaved()?.bg).toBe("#070c1a");
+    expect(screen.getByTestId("canvas-style-preset-navy").getAttribute("aria-pressed")).toBe("true");
+  });
+
+  it("does not save until Apply is pressed", () => {
     render(<CanvasStylePanel onDismiss={vi.fn()} />);
 
     fireEvent.click(screen.getByTestId("canvas-style-preset-navy"));
 
-    expect(canvasStyleStore.getSaved()?.bg).toBe("#070c1a");
-    expect(screen.getByTestId("canvas-style-preset-navy").getAttribute("aria-pressed")).toBe("true");
+    expect(canvasStyleStore.getSaved()).toBeNull();
   });
 
   it("hides texture controls for none and shows them for dots", () => {
@@ -43,11 +52,14 @@ describe("CanvasStylePanel", () => {
     expect(screen.getByTestId("canvas-style-light-warning")).toBeTruthy();
   });
 
-  it("resets to the built-in canvas", () => {
+  it("resets the draft and clears the saved style on Apply", () => {
     render(<CanvasStylePanel onDismiss={vi.fn()} />);
     fireEvent.click(screen.getByTestId("canvas-style-preset-dusk"));
+    fireEvent.click(screen.getByTestId("canvas-style-apply"));
 
     fireEvent.click(screen.getByTestId("canvas-style-reset"));
+    expect(canvasStyleStore.getSaved()).not.toBeNull();
+    fireEvent.click(screen.getByTestId("canvas-style-apply"));
 
     expect(canvasStyleStore.getSaved()).toBeNull();
   });

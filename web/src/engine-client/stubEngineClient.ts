@@ -63,6 +63,10 @@ export const CANVAS_STUB = {
     question_id: questionId,
     state: "open",
   }),
+  requestQuestionDiagram: async (questionId: string): Promise<QuestionAck> => ({
+    question_id: questionId,
+    state: "open",
+  }),
   getDiagramsStatus: async (): Promise<DiagramsStatus> => ({}),
   deleteDiagram: async (): Promise<{ deleted: boolean }> => ({ deleted: true }),
 };

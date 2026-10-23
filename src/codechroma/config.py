@@ -118,6 +118,7 @@ class QuestionsConfig(_Config):
     """questions/mcp_server.py"""
 
     ask_wait_seconds: float = 300.0
+    max_rejections: int = 3
 
 
 class WorkspacesConfig(_Config):

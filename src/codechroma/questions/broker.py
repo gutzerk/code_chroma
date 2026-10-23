@@ -32,6 +32,12 @@ class QuestionBroker:
         """Settles as skipped; returns whether a live waiter was woken."""
         return self._settle(question_id, QuestionResult(skipped=True))
 
+    def request_diagram(self, question_id: str) -> bool:
+        """Wakes the blocked `ask_user` with `needs: diagram`; true if a waiter was woken."""
+        return self._settle(
+            question_id, QuestionResult(needs="diagram", question_id=question_id)
+        )
+
     def lookup(self, question_id: str) -> QuestionResult:
         """`ask_user_result`: the settled result, else a pending marker carrying the id."""
         return self._results.get(question_id) or QuestionResult(

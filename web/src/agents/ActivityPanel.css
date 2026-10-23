@@ -5,7 +5,6 @@
   right: 12px;
   bottom: 12px;
   width: 400px;
-  max-width: calc(100% - 24px);
   min-width: 0;
   margin: 0;
   padding: 12px;
@@ -81,97 +80,6 @@
 .activity-panel.is-resizing {
   user-select: none;
 }
-.activity-workflows .workflow-screen {
-  padding: 0;
-  overflow: hidden;
-}
-.activity-workflows .workflow-body {
-  display: flex;
-  flex-direction: column;
-  flex: 1;
-  min-height: 0;
-  overflow: auto;
-  gap: 8px;
-}
-.activity-workflows .step-rail {
-  flex-shrink: 0;
-  overflow: visible;
-}
-.activity-workflows .workflow-output {
-  min-height: 85px;
-  flex-shrink: 0;
-  border-radius: 10px;
-  background: #1c2029;
-}
-.activity-workflows .workflow-title {
-  font-size: 13px;
-}
-.activity-workflows .workflow-header {
-  gap: 6px;
-}
-.activity-workflows .workflow-header-actions {
-  gap: 4px;
-  margin-left: 0;
-}
-.activity-workflows .workflow-header-button,
-.activity-workflows .step-action {
-  padding: 4px 8px;
-  font-size: 10px;
-}
-.activity-workflows .workflow-state {
-  font-size: 10px;
-  padding: 2px 6px;
-}
-.activity-workflows .workflow-banner,
-.activity-workflows .workflow-error {
-  font-size: 11px;
-  padding: 6px 8px;
-}
-.activity-workflows .step-head {
-  font-size: 11px;
-  min-width: 0;
-  flex-wrap: wrap;
-  text-align: left;
-}
-.activity-workflows .step-status {
-  margin-left: auto;
-  font-size: 10px;
-  color: #8b91a1;
-}
-.activity-workflows .step-icon {
-  display: grid;
-  place-items: center;
-  border-radius: 50%;
-  background: #262b38;
-  width: 18px;
-  height: 18px;
-}
-.activity-workflows .step-row {
-  border: 0;
-  border-radius: 10px;
-}
-.activity-workflows .step-row[data-status="done"] .step-icon {
-  background: #4ade801a;
-  color: #4ade80;
-}
-.activity-workflows .step-row[data-status="running"] .step-icon {
-  background: #8fb0ff22;
-  color: #8fb0ff;
-}
-.activity-workflows .step-diff-summary {
-  font:
-    10px Consolas,
-    monospace;
-  color: #4ade80;
-}
-.workflow-collapse-steps {
-  align-self: flex-end;
-  border: 0;
-  background: transparent;
-  color: #8b91a1;
-  font-size: 10px;
-  cursor: pointer;
-}
 .left-panel .draw-diagram-button {
   display: inline-flex;
   align-items: center;
@@ -190,7 +98,6 @@
 }
 @media (max-width: 1000px) {
   .activity-panel {
-    flex-basis: 340px;
     width: 340px;
   }
 }
@@ -200,9 +107,7 @@
   color: #e9ebf2;
   cursor: pointer;
 }
-.activity-panel.is-full {
-  width: auto;
-}
+
 
 .canvas-chrome > button:last-child .rail-tooltip {
   left: auto;
@@ -256,32 +161,126 @@
   min-width: 0;
   gap: 2px;
   padding: 3px;
-  border-radius: 10px;
-  background: var(--bg-track);
+  border-radius: 8px;
+  background: #1a1e27;
 }
 .activity-segmented button {
   flex: 1 1 0;
   min-width: 0;
-  height: 28px;
+  height: 32px;
   padding: 0 8px;
   overflow: hidden;
   border: 0;
-  border-radius: 8px;
+  border-radius: 6px;
   background: transparent;
   color: var(--text-muted-soft);
   cursor: pointer;
   font-size: 14px;
+  font-weight: 500;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 .activity-segmented button[aria-selected="true"] {
-  background: var(--bg-raised-2);
+  background: #2a3142;
   color: var(--text-soft);
+  font-weight: 600;
 }
 .activity-count {
-  margin-left: 4px;
-  color: var(--text-muted-soft);
-  font-size: 12px;
+  margin-left: 2px;
+  color: inherit;
+  font-size: inherit;
+}
+.activity-header[data-tab] {
+  gap: 8px;
+  padding-bottom: 10px;
+  border-bottom: 1px solid #2c3242;
+}
+.activity-panel:not([data-size="default"]) .activity-segmented {
+  flex: none;
+  box-sizing: border-box;
+  width: 320px;
+}
+.activity-spacer {
+  flex: 1;
+}
+.activity-break {
+  display: none;
+}
+/* Default width: tabs and collapse share the first row, the workflow actions take the second. */
+.activity-panel[data-size="default"] .activity-header[data-tab] {
+  flex-wrap: wrap;
+  row-gap: 8px;
+}
+.activity-panel[data-size="default"] .activity-header[data-tab] > * {
+  order: 3;
+}
+.activity-panel[data-size="default"] .activity-header[data-tab] > .activity-segmented,
+.activity-panel[data-size="default"] .activity-header[data-tab] > .activity-collapse {
+  order: 1;
+}
+.activity-panel[data-size="default"] .activity-header[data-tab] > .activity-break {
+  display: block;
+  order: 2;
+  flex-basis: 100%;
+  height: 0;
+}
+.activity-panel[data-size="default"] .activity-header[data-tab] > .activity-spacer {
+  display: none;
+}
+.activity-panel[data-size="default"] .activity-header[data-tab] > .activity-primary {
+  flex: 1;
+  justify-content: center;
+}
+.activity-primary,
+.activity-outline {
+  display: inline-flex;
+  flex-shrink: 0;
+  align-items: center;
+  gap: 6px;
+  height: 34px;
+  padding: 0 12px;
+  border: 0;
+  border-radius: 8px;
+  background: #8fb0ff;
+  color: #0f1320;
+  cursor: pointer;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+.activity-primary:hover:not(:disabled) {
+  background: #a5c0ff;
+}
+.activity-primary:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+.activity-outline {
+  border: 1px solid #2c3242;
+  background: transparent;
+  color: #e6e9f0;
+  font-weight: 400;
+}
+.activity-outline:hover {
+  background: #1a1e27;
+}
+.activity-panel[data-size="full"] .activity-primary,
+.activity-panel[data-size="full"] .activity-outline {
+  height: 36px;
+  font-size: 14px;
+}
+.activity-ghost {
+  background: transparent;
+  color: #a8b0c2;
+  width: 34px;
+  height: 34px;
+  border-radius: 6px;
+}
+.activity-ghost:hover:not(:disabled),
+.activity-ghost[aria-pressed="true"] {
+  background: #1a1e27;
+  color: #e6e9f0;
 }
 .activity-icon-btn {
   display: inline-grid;
@@ -485,17 +484,17 @@
   flex: 1;
 }
 /* Full screen: the agents row on top, the agent list on the left, the selected terminal beside it. */
-.activity-panel.is-full .activity-agent-content:not([hidden]) {
+.activity-panel.is-full .activity-agent-content {
   display: grid;
   grid-template-columns: 280px minmax(0, 1fr);
   grid-template-rows: auto minmax(0, 1fr);
   column-gap: 12px;
   row-gap: 10px;
 }
-.activity-panel.is-full .activity-agent-content:not([hidden]) > .activity-switcher {
+.activity-panel.is-full .activity-agent-content > .activity-switcher {
   grid-column: 1 / -1;
 }
-.activity-panel.is-full .activity-agent-content:not([hidden]) > :not(.activity-switcher):not(.activity-agent-list) {
+.activity-panel.is-full .activity-agent-content > :not(.activity-switcher):not(.activity-agent-list) {
   grid-column: 2;
   grid-row: 2;
 }
@@ -611,15 +610,14 @@
   flex-direction: column;
   gap: 2px;
 }
-
-/* Normal width: the usage strip takes its own row under the title. */
-.activity-panel:not(.is-full) .agent-usage-strip {
-  flex: 1 1 100%;
-  gap: 14px;
-  padding: 4px 0 0;
-}
-.activity-panel:not(.is-full) .agent-usage-context {
-  flex: 1;
-  width: auto;
-  min-width: 120px;
+.agent-stop-button {
+  flex: none;
+  height: 34px;
+  padding: 0 12px;
+  border: 1px solid #4a2626;
+  border-radius: 8px;
+  background: transparent;
+  color: #f87171;
+  cursor: pointer;
+  font-size: 13px;
 }

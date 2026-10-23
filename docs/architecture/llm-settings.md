@@ -285,8 +285,8 @@ OAuth/keychain). The check still keys off `ANTHROPIC_API_KEY` specifically, neve
 
 ### A provider's own model catalog (`llm/model_catalog.py`)
 
-`fetch_models(provider)` asks a provider what models it actually serves, live — no hardcoded
-catalog — so the Model routing tab's "Fetch models" action can offer real options instead of a
+`fetch_models(provider)` asks a provider what models it actually serves, live (with a built-in
+fallback list when it can't be asked, below) — so the Model routing tab's "Fetch models" action can offer real options instead of a
 blind free-text guess (the motivating case: a `kind="cli"`, `adapter="claude"` provider pointed at
 a third-party proxy via `base_url`, where `claude --model` rejects any name it doesn't
 recognize before the request ever reaches the proxy). Returns
@@ -308,8 +308,13 @@ recognize before the request ever reaches the proxy). Returns
   against that `base_url` — the natural counterpart of "A `claude` provider's own endpoint" above.
   Supported even with no key (some proxies need none); only `base_url` being unset makes it
   unsupported.
-- Everything else (`kind="cli"` with no `base_url`, or an adapter other than `claude`) — unsupported,
-  no network call, no cost, same ethos as `_group_cli_available()`'s PATH-only check.
+- **Built-in fallback** (`_STATIC_MODELS`, mirrored in C# `ModelCatalog.StaticModels`): whenever a
+  provider can't be asked live — no key (anthropic/gemini), no `base_url` (openai-compatible), or a
+  CLI adapter (`claude` with no `base_url`, `codex`, `kimi-cli`) — it returns `supported: true`,
+  the suggestion list for that transport/adapter, `error: null` and `static: true` (the UI says
+  "suggested (built-in list, not live)"). The `claude` CLI list adds the `opus`/`sonnet`/`haiku`
+  aliases. The ids are hand-maintained suggestions — bump them when models change; the field stays
+  free text. Only an unknown adapter is still `supported: false`, no network call.
 
 A network error, timeout, or non-2xx response is caught and reported as `supported: true,
 models: [], error: <message>` — the provider *is* a kind that supports listing, the attempt just

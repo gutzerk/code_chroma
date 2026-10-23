@@ -17,16 +17,31 @@ from starlette.responses import Response
 
 from codechroma.bridge.workspaces import Workspace
 from codechroma.config import settings
-from codechroma.questions import store
+from codechroma.questions import diagrams, store
 from codechroma.questions.broker import QuestionBroker
 from codechroma.questions.launch import McpEndpoint, bearer_token, discover_base_url, loopback_url
 from codechroma.questions.models import AskRequest, QuestionOption
+from codechroma.questions.validation import (
+    QuestionRejected,
+    RejectionTracker,
+    rejection_text,
+    unknown_refs,
+    validate_ask,
+)
 
 SERVER_NAME = "codechroma"
 MOUNT_PATH = "/mcp"
 _INSTRUCTIONS = (
-    "Ask the user a decision question on the CodeChroma canvas instead of in chat text. "
-    "Give 2-4 options, mark your recommendation with rank 1, and add a short pro and con."
+    "Ask every decision question through ask_user, never in chat text and never with another "
+    "question tool. Each call needs: question, and 2-4 options that each have id, title, "
+    "description, pro, con and why; exactly one option has rank 1 (your recommendation), the "
+    "others a unique rank. A call that breaks this is rejected with the list of problems: fix "
+    "them and call again with the same intent. For a question that changes structure "
+    "(boundaries, data flow, ownership, a new component) use kind \"diagram\": first draw one "
+    "small diagram per option with draw_option_diagram, then pass each returned diagram_ref on "
+    "its option. If ask_user returns {needs: \"diagram\"}, the user wants diagrams: draw them "
+    "with draw_option_diagram and call ask_user again with the same session_id and question. "
+    "If it returns {pending: true}, poll ask_user_result."
 )
 
 
@@ -56,11 +71,13 @@ class QuestionMcp:
 
     def __init__(self, broker: QuestionBroker, workspace_for: Callable[[str], Workspace]) -> None:
         self.broker = broker
+        self.rejections = RejectionTracker()
         self._workspace_for = workspace_for
         self._secret = secrets.token_bytes(32)
         self._server = MCPServer(SERVER_NAME, instructions=_INSTRUCTIONS)
         self._server.tool(name="ask_user")(self._ask_user_tool)
         self._server.tool(name="ask_user_result")(self._ask_user_result_tool)
+        self._server.tool(name="draw_option_diagram")(self._draw_option_diagram_tool)
         self._app: Starlette | None = None
         self.asgi = _Delegate(self)
         self.base_url: str | None = None
@@ -98,18 +115,61 @@ class QuestionMcp:
         finally:
             self._app = None
 
-    async def ask(self, workspace_id: str, request: AskRequest) -> dict[str, Any]:
+    async def ask(
+        self, workspace_id: str, request: AskRequest, connection: str | None = None
+    ) -> dict[str, Any]:
         """Opens the question on the canvas, blocks for the answer, or returns pending."""
         ws = self._workspace_for(workspace_id)
-        question_id = uuid.uuid4().hex
+        extra = await self._check(ws, workspace_id, request, connection)
+        reasked = await asyncio.to_thread(store.find_diagram_requested, ws, request)
+        question_id = reasked.meta["question_id"] if reasked else uuid.uuid4().hex
+        if reasked:
+            self.broker.forget(question_id)
         self.broker.open(question_id)
         try:
-            await asyncio.to_thread(store.open_question, ws, request, question_id)
+            if reasked:
+                await asyncio.to_thread(store.reask, ws, reasked, request, extra)
+            else:
+                await asyncio.to_thread(store.open_question, ws, request, question_id, extra)
             result = await self.broker.wait(question_id, settings.questions.ask_wait_seconds)
         except BaseException:
             self.broker.close(question_id)
             raise
         return result.to_tool_dict()
+
+    async def _check(
+        self, ws: Workspace, workspace_id: str, request: AskRequest, connection: str | None = None
+    ) -> dict | None:
+        """Raises QuestionRejected on a contract break; at the retry limit lets one through."""
+        if request.degraded:
+            return {"degraded": True}
+        problems = validate_ask(request)
+        if not problems and any(option.diagram_ref for option in request.options):
+            known = await asyncio.to_thread(store.known_element_ids, ws)
+            problems = unknown_refs(request, known)
+        tracker = self.rejections
+        key = request.session_id or (f"conn:{connection}" if connection else None)
+        if not problems:
+            tracker.reset(workspace_id, key)
+            return None
+        text = rejection_text(problems)
+        if tracker.count(workspace_id, key) < settings.questions.max_rejections:
+            tracker.record(workspace_id, key)
+            raise QuestionRejected(text)
+        tracker.reset(workspace_id, key)
+        return {"degraded": True, "validation": text}
+
+    async def draw_diagram(
+        self, workspace_id: str, title: str, nodes: list[diagrams.DiagramNode],
+        edges: list[diagrams.DiagramEdge], question_id: str | None, option_id: str | None,
+    ) -> dict[str, Any]:
+        """Draws one option diagram after the node budget check; returns its `diagram_ref`."""
+        diagrams.check(nodes, edges, title)
+        ws = self._workspace_for(workspace_id)
+        root = await asyncio.to_thread(
+            store.draw_diagram, ws, title, nodes, edges, question_id, option_id
+        )
+        return {"diagram_ref": root}
 
     async def result(self, workspace_id: str, question_id: str) -> dict[str, Any]:
         """The settled answer, read from the broker or (after a restart) the canvas element."""
@@ -143,8 +203,27 @@ class QuestionMcp:
             question=question, options=options or [], kind=kind, session_id=session_id,
             allow_custom=allow_custom, allow_skip=allow_skip, total=total, agent_id=agent_id,
         )
-        return await self.ask(self._workspace_id(ctx), request)
+        connection = (ctx.headers or {}).get("mcp-session-id")
+        return await self.ask(self._workspace_id(ctx), request, connection)
 
     async def _ask_user_result_tool(self, question_id: str, ctx: Context) -> dict[str, Any]:
         """Fetch the answer of an earlier ask_user call that returned pending."""
         return await self.result(self._workspace_id(ctx), question_id)
+
+    async def _draw_option_diagram_tool(
+        self,
+        title: str,
+        nodes: list[diagrams.DiagramNode],
+        ctx: Context,
+        edges: list[diagrams.DiagramEdge] | None = None,
+        question_id: str | None = None,
+        option_id: str | None = None,
+    ) -> dict[str, Any]:
+        """Draw a small decision diagram (max 12 nodes) for one option; returns its diagram_ref.
+
+        Nodes are {id, label, description?, status?}; status "new" marks a part that does not exist
+        yet. Edges are {from, to, label?}. Pass the returned diagram_ref on the option in ask_user.
+        """
+        return await self.draw_diagram(
+            self._workspace_id(ctx), title, nodes, edges or [], question_id, option_id
+        )

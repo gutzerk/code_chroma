@@ -22,7 +22,7 @@ public static class AgentUsage
         return new JsonObject
         {
             ["contextTokens"] = last?.ContextTokens ?? 0,
-            ["contextWindow"] = ModelSpecs.ContextWindow(last?.Model),
+            ["contextWindow"] = ModelSpecs.ContextWindow(last?.Model, last?.ContextTokens ?? 0),
             ["inputTokens"] = input,
             ["outputTokens"] = sum.Output,
             ["cacheReadTokens"] = sum.CacheRead,

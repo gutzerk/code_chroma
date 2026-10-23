@@ -25,16 +25,16 @@ describe("layoutStore", () => {
     expect(layoutStore.getState().leftOpen).toBe(false);
   });
 
-  it("opening the left panel in full mode stays in full", () => {
-    layoutStore.closeLeft();
+  it("opening the left panel in full mode keeps full", () => {
     layoutStore.setAgentsMode("full");
+    layoutStore.closeLeft();
 
-    layoutStore.openLeft("diagrams");
+    layoutStore.toggleLeft();
 
     expect(layoutStore.getState()).toMatchObject({ leftOpen: true, agentsMode: "full" });
   });
 
-  it("entering full leaves the left panel as it was", () => {
+  it("entering full keeps the left panel open", () => {
     layoutStore.setAgentsMode("full");
 
     expect(layoutStore.getState()).toMatchObject({ leftOpen: true, agentsMode: "full" });
@@ -55,6 +55,15 @@ describe("layoutStore", () => {
 
     expect(layoutStore.getState().selectedAgentId).toBe("a2");
     expect(calls).toBe(1);
+  });
+
+  it("leaving full keeps a closed left panel closed", () => {
+    layoutStore.setAgentsMode("full");
+    layoutStore.closeLeft();
+
+    layoutStore.setAgentsMode("normal");
+
+    expect(layoutStore.getState()).toMatchObject({ leftOpen: false, agentsMode: "normal" });
   });
 
   it("reconcileAgents clears a selection whose agent is gone", () => {

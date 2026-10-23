@@ -70,13 +70,17 @@ describe("ActivityPanel", () => {
 
     expect(layoutStore.getState().selectedAgentId).toBe(agentStore.getAgents()[1].id);
   });
-  it("has one full screen button and no stretch button", () => {
+  it("keeps the edge stretch arrow and the header full screen button in sync", () => {
     setup();
 
+    fireEvent.click(screen.getByRole("button", { name: "Stretch panel" }));
+    expect(layoutStore.getState().agentsMode).toBe("full");
+    expect(screen.getByRole("button", { name: "Exit full screen" })).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "Exit full screen" }));
+    expect(screen.getByRole("button", { name: "Stretch panel" })).toBeTruthy();
     fireEvent.click(screen.getByRole("button", { name: "Full screen" }));
 
-    expect(screen.queryByRole("button", { name: /Stretch panel/ })).toBeNull();
-    expect(layoutStore.getState().agentsMode).toBe("full");
+    expect(screen.getByRole("button", { name: "Restore panel width" })).toBeTruthy();
   });
   it("shows how many agents there are on the dropdown trigger", async () => {
     agentStore.upsert(await new MockAgentClient().create("Planner"));

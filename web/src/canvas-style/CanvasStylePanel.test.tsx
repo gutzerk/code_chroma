@@ -52,12 +52,14 @@ describe("CanvasStylePanel", () => {
     expect(screen.getByTestId("canvas-style-light-warning")).toBeTruthy();
   });
 
-  it("resets to the built-in canvas", () => {
+  it("resets the draft and clears the saved style on Apply", () => {
     render(<CanvasStylePanel onDismiss={vi.fn()} />);
     fireEvent.click(screen.getByTestId("canvas-style-preset-dusk"));
     fireEvent.click(screen.getByTestId("canvas-style-apply"));
 
     fireEvent.click(screen.getByTestId("canvas-style-reset"));
+    expect(canvasStyleStore.getSaved()).not.toBeNull();
+    fireEvent.click(screen.getByTestId("canvas-style-apply"));
 
     expect(canvasStyleStore.getSaved()).toBeNull();
   });

@@ -240,11 +240,8 @@ export function CanvasStylePanel({ onDismiss }: { onDismiss: () => void }) {
           type="button"
           className="llm-button-ghost"
           data-testid="canvas-style-reset"
-          disabled={saved === null}
-          onClick={() => {
-            canvasStyleStore.restoreDefault();
-            setStyle(CANVAS_STYLE_DEFAULT);
-          }}
+          disabled={sameStyle(style, CANVAS_STYLE_DEFAULT)}
+          onClick={() => setStyle(CANVAS_STYLE_DEFAULT)}
         >
           Reset to default
         </button>
@@ -253,7 +250,7 @@ export function CanvasStylePanel({ onDismiss }: { onDismiss: () => void }) {
           className="llm-button-primary"
           data-testid="canvas-style-apply"
           disabled={!dirty}
-          onClick={() => canvasStyleStore.set(style)}
+          onClick={() => (sameStyle(style, CANVAS_STYLE_DEFAULT) ? canvasStyleStore.restoreDefault() : canvasStyleStore.set(style))}
         >
           Apply
         </button>

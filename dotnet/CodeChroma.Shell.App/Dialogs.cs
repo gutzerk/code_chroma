@@ -51,7 +51,7 @@ public static class Dialogs
         {
             "updated" => ("UPDATED", "#4cc38a", $"CodeChroma is now on {version}", "The update installed and the new version started cleanly.", "Release notes for this version are on the project's GitHub releases page."),
             "rolled-back" => ("ROLLED BACK", "#f0b44c", $"Update to {version} was rolled back", "The new version exited during startup, so the previous version was restored.", retryHint),
-            _ => ("FAILED", "#ee6b6b", $"Update to {version} failed", "The previous version is still installed and nothing was lost.", retryHint),
+            _ => ("FAILED", "#ee6b6b", $"Update to {version} failed", "The previous version is still installed.", retryHint),
         };
         var accentColor = Color.Parse(accent);
         var panel = new StackPanel { Margin = new Thickness(24), Spacing = 12, MinWidth = 380, MaxWidth = 520 };
@@ -72,7 +72,7 @@ public static class Dialogs
                 Background = new SolidColorBrush(Color.Parse("#212736")),
                 CornerRadius = new CornerRadius(6),
                 Padding = new Thickness(10),
-                Child = new TextBlock { Text = detail, FontFamily = new FontFamily("Consolas,Menlo,monospace"), FontSize = 12, TextWrapping = TextWrapping.Wrap },
+                Child = new ScrollViewer { MaxHeight = 200, Content = new TextBlock { Text = detail, FontFamily = new FontFamily("Consolas,Menlo,monospace"), FontSize = 12, TextWrapping = TextWrapping.Wrap } },
             });
         }
         panel.Children.Add(new TextBlock { Text = next, TextWrapping = TextWrapping.Wrap, Opacity = 0.7 });

@@ -132,10 +132,6 @@ class CanvasStyleStore extends Store {
 
   getSaved = (): CanvasStyle | null => this.saved;
 
-  update(patch: Partial<CanvasStyle>): void {
-    this.commit({ ...(this.saved ?? CANVAS_STYLE_DEFAULT), ...patch });
-  }
-
   set(style: CanvasStyle): void {
     this.commit({ ...style });
   }

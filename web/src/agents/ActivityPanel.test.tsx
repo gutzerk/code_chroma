@@ -32,7 +32,7 @@ beforeEach(() => {
 });
 afterEach(cleanup);
 vi.mock("../workflows/WorkflowsTab", () => ({
-  WorkflowsTab: () => <button type="button">Run workflow</button>,
+  WorkflowsTab: () => <div data-testid="workflows-tab-stub" />,
 }));
 describe("ActivityPanel", () => {
   it("keeps the header and switcher row on the agents tab only for run agent", () => {
@@ -70,7 +70,7 @@ describe("ActivityPanel", () => {
 
     expect(layoutStore.getState().selectedAgentId).toBe(agentStore.getAgents()[1].id);
   });
-  it("keeps the edge stretch arrow and the header full screen button in sync", () => {
+  it("keeps the edge stretch arrow and the header full-screen button in sync", () => {
     setup();
 
     fireEvent.click(screen.getByRole("button", { name: "Stretch panel" }));
@@ -81,6 +81,14 @@ describe("ActivityPanel", () => {
     fireEvent.click(screen.getByRole("button", { name: "Full screen" }));
 
     expect(screen.getByRole("button", { name: "Restore panel width" })).toBeTruthy();
+  });
+  it("keeps the switcher row to the agent dropdown and collapses from the edge handle", () => {
+    setup();
+
+    expect(screen.getAllByRole("button", { name: /Full screen|Stretch panel/ })).toHaveLength(2);
+    fireEvent.click(screen.getByRole("button", { name: "Collapse panel" }));
+
+    expect(layoutStore.getState().agentsMode).toBe("collapsed");
   });
   it("shows how many agents there are on the dropdown trigger", async () => {
     agentStore.upsert(await new MockAgentClient().create("Planner"));

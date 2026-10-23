@@ -1,7 +1,8 @@
-"""What models a stored `Provider` itself claims to serve -- queried live, never a hardcoded list.
+"""What models a stored `Provider` claims to serve -- queried live, else a built-in suggestion list.
 
 Feeds the Model routing tab's "Fetch models" action (`CallSitesSection.tsx`): a provider that can
-answer is asked directly, so the picker never guesses a name the target doesn't actually recognize.
+answer is asked directly; one that can't (no key/URL, or a CLI) gets `_STATIC_MODELS`
+(flagged `static`).
 `fetch_models` never raises -- same "never a non-2xx for a reachability failure" convention as
 `bridge/routes/llm_settings.py`'s `_run_provider_test`.
 """
@@ -17,28 +18,49 @@ from codechroma.llm.providers_store import Provider
 _ANTHROPIC_DEFAULT_BASE_URL = "https://api.anthropic.com"
 _UNSUPPORTED: dict = {"supported": False, "models": [], "error": None}
 
+_ANTHROPIC_MODELS = ["claude-fable-5-1", "claude-opus-5-5", "claude-sonnet-5-5", "claude-haiku-5-5"]
+_STATIC_MODELS: dict[str, list[str]] = {
+    "transport:anthropic": _ANTHROPIC_MODELS,
+    "transport:gemini": ["gemini-2.5-pro", "gemini-2.5-flash", "gemini-2.5-flash-lite"],
+    "transport:openai-compatible": ["gpt-5.2", "gpt-5.2-pro"],
+    "adapter:claude": ["opus", "sonnet", "haiku", *_ANTHROPIC_MODELS],
+    "adapter:codex": ["gpt-5.2", "gpt-5.2-codex"],
+    "adapter:kimi-cli": ["kimi-k2-turbo-preview", "kimi-k2-thinking"],
+}
+
+
+def _static_models(key: str) -> dict:
+    """The built-in suggestion list for `key`, flagged `static` so the UI can say it isn't live."""
+    models = [{"id": model, "label": None} for model in _STATIC_MODELS[key]]
+    return {"supported": True, "models": models, "error": None, "static": True}
+
 
 def fetch_models(provider: Provider) -> dict:
-    """`{"supported", "models": [{"id", "label"}], "error"}` -- never raises."""
+    """`{"supported", "models": [{"id", "label"}], "error"}` -- never raises.
+
+    Falls back to a built-in list (`"static": True`) whenever the provider can't be asked live.
+    """
     if provider.kind == "api" and provider.transport == "openai-compatible":
         if not provider.base_url:
-            return dict(_UNSUPPORTED)
+            return _static_models("transport:openai-compatible")
         return _fetch_openai_compatible(provider)
     if provider.kind == "api" and provider.transport == "anthropic":
         key = resolve_provider_key(provider)
         if not key:
-            return dict(_UNSUPPORTED)
+            return _static_models("transport:anthropic")
         base_url = provider.base_url or _ANTHROPIC_DEFAULT_BASE_URL
         return _fetch_anthropic_shape(base_url, key, verify=provider.verify_ssl)
     if provider.kind == "api" and provider.transport == "gemini":
         key = resolve_provider_key(provider)
         if not key:
-            return dict(_UNSUPPORTED)
+            return _static_models("transport:gemini")
         base_url = provider.base_url or GEMINI_DEFAULT_BASE_URL
         return _fetch_gemini_shape(base_url, key, verify=provider.verify_ssl)
     if provider.kind == "cli" and provider.adapter == "claude" and provider.base_url:
         key = resolve_provider_key(provider)
         return _fetch_anthropic_shape(provider.base_url, key, verify=provider.verify_ssl)
+    if provider.kind == "cli" and f"adapter:{provider.adapter}" in _STATIC_MODELS:
+        return _static_models(f"adapter:{provider.adapter}")
     return dict(_UNSUPPORTED)
 
 

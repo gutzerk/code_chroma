@@ -19,6 +19,10 @@ const COLLAPSED_LEFT_BAR_CLEARANCE = 68;
 const AGENTS_NORMAL_INSET = 424;
 /** Right inset (px) taken by the agents handle strip when collapsed or full. */
 export const AGENTS_COLLAPSED_INSET = 68;
+/** Gap (px) between the canvas-area right edge and the stretched agents panel. */
+export const AGENTS_WIDE_RIGHT_GAP = 12;
+/** Narrowest width (px) the stretched agents panel may take. */
+export const AGENTS_WIDE_MIN_WIDTH = 400;
 export const ARRANGE_X_OPEN = LEFT_PANEL_CLEARANCE + 4;
 export const ARRANGE_X_CLOSED = 28;
 export const ARRANGE_Y_OPEN = 28;
@@ -41,7 +45,6 @@ export interface ChromeInsets {
   terminalRight: number;
   arrangeOrigin: { x: number; y: number };
   drawPopover: { left: number; top: number };
-  agentsFullLeft: number;
 }
 
 /** Pure chrome offsets (px) derived from the left panel and agents panel state. */
@@ -52,7 +55,11 @@ export function chromeInsets(state: ChromeInsetsInput): ChromeInsets {
     terminalRight: agentsMode === "normal" ? AGENTS_NORMAL_INSET : AGENTS_COLLAPSED_INSET,
     arrangeOrigin: { x: leftOpen ? ARRANGE_X_OPEN : ARRANGE_X_CLOSED, y: leftOpen ? ARRANGE_Y_OPEN : ARRANGE_Y_CLOSED },
     drawPopover: { left: leftOpen ? LEFT_PANEL_CLEARANCE : COLLAPSED_LEFT_BAR_CLEARANCE, top: POPOVER_TOP },
-    // Full-screen agents reach the diagrams panel edge, or the canvas-area edge once it is collapsed.
-    agentsFullLeft: leftOpen ? LEFT_PANEL_CLEARANCE : CHROME_INSET,
   };
+}
+
+/** Width (px) of the stretched agents panel: from the left panel (or collapsed bar) edge to the right gap; full screen with the left panel closed runs to the chrome inset. */
+export function agentsWideWidth(areaWidth: number, leftOpen: boolean, full = false): number {
+  const leftEdge = full && !leftOpen ? CHROME_INSET : chromeInsets({ leftOpen, agentsMode: "normal" }).drawPopover.left;
+  return Math.max(AGENTS_WIDE_MIN_WIDTH, Math.round(areaWidth - leftEdge - AGENTS_WIDE_RIGHT_GAP));
 }

@@ -116,6 +116,9 @@ export abstract class DelegatingEngineClient implements EngineClient {
   reviseQuestion(questionId: string): Promise<QuestionAck> {
     return this.inner.reviseQuestion(questionId);
   }
+  requestQuestionDiagram(questionId: string): Promise<QuestionAck> {
+    return this.inner.requestQuestionDiagram(questionId);
+  }
 
   getDiagramsStatus(): Promise<DiagramsStatus> {
     return this.inner.getDiagramsStatus();

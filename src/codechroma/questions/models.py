@@ -33,6 +33,7 @@ class AskRequest(BaseModel):
     allow_skip: bool = True
     total: int | None = None
     agent_id: str | None = None
+    degraded: bool = False
 
 
 class QuestionResult(BaseModel):
@@ -42,10 +43,13 @@ class QuestionResult(BaseModel):
     option_id: str | None = None
     skipped: bool = False
     pending: bool = False
+    needs: str | None = None
     question_id: str | None = None
 
     def to_tool_dict(self) -> dict:
-        """The JSON the tool returns; a pending result carries only the id to poll."""
+        """The JSON the tool returns; pending and needs results carry only what the agent needs."""
+        if self.needs:
+            return {"needs": self.needs, "question_id": self.question_id}
         if self.pending:
             return {"pending": True, "question_id": self.question_id}
         return {"answer": self.answer, "option_id": self.option_id, "skipped": self.skipped}

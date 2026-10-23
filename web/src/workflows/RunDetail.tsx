@@ -1,8 +1,7 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, type ReactNode } from "react";
 import "./workflows.css";
 import { useEngineClient } from "../engine-client/EngineClientContext";
 import { ConfirmDialog } from "./ConfirmDialog";
-import { SegmentBar } from "./RunsList";
 import { Icon } from "./icons";
 import { OverflowMenu, type MenuItem } from "./OverflowMenu";
 import { RedoCard } from "./RedoCard";
@@ -11,6 +10,7 @@ import { StepRail } from "./StepRail";
 import { stepsForAttempt } from "./redoPlan";
 import {
   CONFIRM_MESSAGES,
+  RUN_STATE_COLOR,
   RUN_STATE_TEXT,
   STATUS_META,
   canStopRun,
@@ -37,57 +37,64 @@ const LIVE_TABS: { id: LiveTab; label: string }[] = [
   { id: "diff", label: "Diff" },
 ];
 
-/** The shown step, live: Agent / Output / Diff tabs (the full-screen third column). */
-function LiveView({ run, workflow, step }: { run: Run; workflow: WorkflowDef; step: StepRecord | undefined }) {
-  const [tab, setTab] = useState<LiveTab>("output");
-  const def = workflow.steps.find((s) => s.id === step?.stepId);
-  const messages = (run.messages ?? []).filter((m) => m.target === step?.stepId);
+/** One transcript line, tinted the way the agent terminal reads: tool steps grey, passing checks green. */
+function TranscriptLine({ text }: { text: string }) {
+  const tone = text.startsWith("●") ? "tool" : /^\s*✓/.test(text) ? "ok" : undefined;
   return (
-    <div className="wf-live" data-testid="live-view">
-      <div className="wf-tabs" role="tablist" aria-label="Live view">
-        {LIVE_TABS.map((t) => (
-          <button
-            key={t.id}
-            type="button"
-            role="tab"
-            className="wf-tab"
-            aria-selected={tab === t.id}
-            data-testid={`live-tab-${t.id}`}
-            onClick={() => setTab(t.id)}
-          >
-            {t.label}
-          </button>
-        ))}
-      </div>
-      <div className="workflow-output" role="log" aria-label="Step output" data-testid="step-output">
-        {!step || !def ? (
-          <p>Select a step to see it live.</p>
-        ) : tab === "agent" ? (
-          <>
-            <h3 className="workflow-output-title">{def.slug}</h3>
-            <p className="step-skill">{`${STATUS_META[step.status].text}${def.skill ? ` · Skill: ${def.skill}` : ""}`}</p>
-            {def.prompt && <p className="step-prompt">{def.prompt}</p>}
-            {messages.map((m) => (
-              <p key={m.id} className="step-prompt">{`${m.role}: ${m.text}`}</p>
-            ))}
-          </>
-        ) : tab === "output" ? (
-          <>
-            <h3 className="workflow-output-title">{def.slug}</h3>
-            <pre className="workflow-output-text">{step.output || "No output yet."}</pre>
-          </>
-        ) : (
-          <>
-            <h3 className="workflow-output-title">{def.slug}</h3>
-            <p className="workflow-diffstat">{step.diffStat ?? "No changes yet."}</p>
-          </>
-        )}
-      </div>
+    <div className="live-line" data-tone={tone}>
+      {text || " "}
     </div>
   );
 }
 
-/** One run in full: header controls, attempts, banner, step timeline, redo card, output and chat. */
+/** The shown step, live (full layout third column): header with the Agent / Output / Diff tabs, the body, then the chat footer. */
+function LiveView({ run, workflow, step, footer }: { run: Run; workflow: WorkflowDef; step: StepRecord | undefined; footer: ReactNode }) {
+  const [tab, setTab] = useState<LiveTab>("agent");
+  const stepIndex = workflow.steps.findIndex((s) => s.id === step?.stepId);
+  const def = workflow.steps[stepIndex];
+  const messages = (run.messages ?? []).filter((m) => m.target === step?.stepId);
+  const sub = [`workflow/${run.id}`, step?.diffStat].filter(Boolean).join(" · ");
+  return (
+    <div className="wf-live" data-testid="live-view">
+      <div className="wf-live-head">
+        <span className="wf-live-dot" aria-hidden="true" style={{ background: RUN_STATE_COLOR[run.state] }} />
+        <span className="wf-live-title">
+          <span>{def ? `Step ${stepIndex + 1} · ${def.slug}` : "No step selected"}</span>
+          <small>{sub}</small>
+        </span>
+        <div className="wf-tabs" role="tablist" aria-label="Step view">
+          {LIVE_TABS.map((t) => (
+            <button key={t.id} type="button" role="tab" className="wf-tab" aria-selected={tab === t.id} data-testid={`live-tab-${t.id}`} onClick={() => setTab(t.id)}>
+              {t.label}
+            </button>
+          ))}
+        </div>
+      </div>
+      <div className="wf-live-body" role="log" aria-label="Step output" data-testid="step-output">
+        {!step || !def ? (
+          <p>Select a step to see it live.</p>
+        ) : tab === "agent" ? (
+          <>
+            {def.prompt && <div className="live-line" data-tone="prompt">{`> ${def.prompt.split("\n")[0]}`}</div>}
+            {step.output.split("\n").map((line, i) => (
+              <TranscriptLine key={i} text={line} />
+            ))}
+            {messages.map((m) => (
+              <div key={m.id} className="live-line">{`${m.role}: ${m.text}`}</div>
+            ))}
+          </>
+        ) : tab === "output" ? (
+          <pre className="workflow-output-text">{step.output || "No output yet."}</pre>
+        ) : (
+          <p className="workflow-diffstat">{step.diffStat ?? "No changes yet."}</p>
+        )}
+      </div>
+      {footer}
+    </div>
+  );
+}
+
+/** One run in full: header and controls, attempts, banner, step timeline, redo card and chat; the full layout adds the live step column. */
 export function RunDetail({
   runId,
   layout,
@@ -104,7 +111,7 @@ export function RunDetail({
   const collapsed = useRailCollapsed();
   const viewAttempt = useViewAttempt();
   const [pickedFrom, setPickedFrom] = useState<string | null>(null);
-  const [confirmRestart, setConfirmRestart] = useState(false);
+  const [confirm, setConfirm] = useState<"restart" | "delete" | null>(null);
   const actions = useMemo(() => workflowActions(client), [client]);
 
   const run = runs.find((r) => r.id === runId);
@@ -141,15 +148,20 @@ export function RunDetail({
   const banner = stateBanner(run, stepLabel);
   const toggle = headerToggle(run.state);
   const running = run.state === "running";
+  const finished = isFinished(run.state);
   const full = layout === "full";
   const narrow = layout === "narrow";
   const stopAfterToggle = () =>
     void (run.stopAfter ? actions.keepRunning(run.id) : actions.stop(run.id, "afterStep"));
+  const editWorkflow = () => workflowStore.setDialog({ kind: "editor", workflow });
 
   const secondary: MenuItem[] = [
     { label: run.stopAfter ? "Keep running" : "Stop after step", icon: "stop", disabled: !running, onSelect: stopAfterToggle },
-    { label: "Restart", icon: "restart", disabled: !isFinished(run.state), onSelect: () => setConfirmRestart(true) },
-    { label: "Cancel run", icon: "cancel", danger: true, disabled: !canStopRun(run.state), onSelect: () => void actions.stop(run.id, "now") },
+    { label: "Restart", icon: "restart", disabled: !finished, onSelect: () => setConfirm("restart") },
+    { label: "Edit workflow", icon: "edit", onSelect: editWorkflow },
+    finished
+      ? { label: "Delete run", icon: "trash", danger: true, onSelect: () => setConfirm("delete") }
+      : { label: "Cancel run", icon: "cancel", danger: true, disabled: !canStopRun(run.state), onSelect: () => void actions.stop(run.id, "now") },
   ];
 
   const timeline = collapsed ? (
@@ -177,118 +189,128 @@ export function RunDetail({
       onToggle={workflowStore.toggleExpanded}
       readOnly={readOnly}
       rerunFrom={redoFrom}
+      showOutput={!full}
     />
   );
 
+  const chat = <RunChat run={run} workflow={workflow} actions={actions} />;
+
   return (
     <section className="workflow-screen" aria-label="Workflow run" data-testid="workflow-screen" data-layout={layout}>
-      <header className="workflow-header">
-        {onBack && (
-          <button type="button" className="wf-btn wf-btn-icon" aria-label="All workflow runs" data-testid="run-back" onClick={onBack}>
-            <Icon name="back" />
-          </button>
-        )}
-        <h2 className="workflow-title wf-truncate" title={workflow.name}>
-          {workflow.name}
-        </h2>
-        <span className="workflow-state" data-testid="run-state" data-state={run.state}>
-          {RUN_STATE_TEXT[run.state]}
-        </span>
-        <div className="workflow-header-actions">
-          <button
-            type="button"
-            className="wf-btn"
-            data-testid="header-toggle"
-            disabled={!toggle.enabled}
-            onClick={() => void (running ? actions.pause(run.id) : actions.resume(run.id))}
-          >
-            <Icon name={running ? "pause" : "play"} />
-            {toggle.label}
-          </button>
-          {narrow ? (
-            <OverflowMenu items={secondary} />
-          ) : (
-            <>
-              <button type="button" className="wf-btn" data-testid="stop-after" disabled={!running} onClick={stopAfterToggle}>
-                {run.stopAfter ? "Keep running" : "Stop after step"}
+      <div className="wf-run-col">
+        <header className="workflow-header">
+          <div className="workflow-heading">
+            {onBack && (
+              <button type="button" className="wf-back" aria-label="All workflow runs" data-testid="run-back" onClick={onBack}>
+                <Icon name="back" size={16} />
               </button>
-              <button type="button" className="wf-btn" data-testid="restart-run" disabled={!isFinished(run.state)} onClick={() => setConfirmRestart(true)}>
-                <Icon name="restart" />
-                Restart
-              </button>
-              <button type="button" className="wf-btn wf-btn-danger" data-testid="cancel-run" disabled={!canStopRun(run.state)} onClick={() => void actions.stop(run.id, "now")}>
-                Cancel
-              </button>
-            </>
-          )}
-        </div>
-      </header>
-      {run.attempts.length > 1 && (
-        <div className="attempt-switcher" role="group" aria-label="Attempts" data-testid="attempt-switcher">
-          {run.attempts.map((a) => (
+            )}
+            <div className="workflow-heading-text">
+              <h2 className="workflow-title wf-truncate" title={workflow.name}>
+                {workflow.name}
+              </h2>
+              <p className="workflow-sub wf-truncate">{`Run ${run.id} · workflow/${run.id}`}</p>
+            </div>
+            <span className="workflow-state" data-testid="run-state" data-state={run.state}>
+              {RUN_STATE_TEXT[run.state]}
+            </span>
+          </div>
+          <div className="workflow-header-actions">
             <button
-              key={a.n}
               type="button"
               className="wf-btn"
-              aria-pressed={a.n === viewed}
-              data-testid={`attempt-${a.n}`}
-              onClick={() => workflowStore.setViewAttempt(a.n === run.attempt ? null : a.n)}
+              data-testid="header-toggle"
+              disabled={!toggle.enabled}
+              onClick={() => void (running ? actions.pause(run.id) : actions.resume(run.id))}
             >
-              {`Attempt ${a.n}`}
+              {toggle.label}
             </button>
-          ))}
-        </div>
-      )}
-      {readOnly && (
-        <p className="workflow-banner" role="status" data-testid="attempt-readonly">
-          {`Attempt ${viewed} is read-only. It was set aside by a redo.`}
-        </p>
-      )}
-      {banner && (
-        <p className="workflow-banner" role="status" data-testid="run-banner">
-          {banner}
-        </p>
-      )}
-      <SegmentBar steps={viewRun.steps} label="Workflow progress" slugOf={stepLabel} />
-      {!collapsed && (
-        <button type="button" className="workflow-collapse-steps wf-btn" onClick={() => workflowStore.setRailCollapsed(true)}>
-          <Icon name="chevron-up" />
-          Hide steps
-        </button>
-      )}
-      <div className="workflow-body" data-full={full || undefined}>
+            {narrow ? (
+              <>
+                <span className="wf-spacer" />
+                <OverflowMenu items={secondary} />
+              </>
+            ) : (
+              <>
+                <button type="button" className="wf-btn" data-testid="stop-after" disabled={!running} onClick={stopAfterToggle}>
+                  {run.stopAfter ? "Keep running" : "Stop after step"}
+                </button>
+                <button type="button" className="wf-btn" data-testid="restart-run" disabled={!finished} onClick={() => setConfirm("restart")}>
+                  Restart
+                </button>
+                <button type="button" className="wf-btn" data-testid="edit-workflow" onClick={editWorkflow}>
+                  Edit workflow
+                </button>
+                <span className="wf-spacer" />
+                {finished ? (
+                  <button type="button" className="wf-btn wf-btn-danger" data-testid="delete-run" onClick={() => setConfirm("delete")}>
+                    Delete run
+                  </button>
+                ) : (
+                  <button type="button" className="wf-btn wf-btn-danger" data-testid="cancel-run" disabled={!canStopRun(run.state)} onClick={() => void actions.stop(run.id, "now")}>
+                    Cancel run
+                  </button>
+                )}
+              </>
+            )}
+          </div>
+        </header>
         <div className="wf-timeline-col">
+          {run.attempts.length > 1 && (
+            <div className="attempt-switcher" role="group" aria-label="Attempts" data-testid="attempt-switcher">
+              {run.attempts.map((a) => (
+                <button
+                  key={a.n}
+                  type="button"
+                  className="wf-btn"
+                  aria-pressed={a.n === viewed}
+                  data-testid={`attempt-${a.n}`}
+                  onClick={() => workflowStore.setViewAttempt(a.n === run.attempt ? null : a.n)}
+                >
+                  {`Attempt ${a.n}`}
+                </button>
+              ))}
+            </div>
+          )}
+          {readOnly && (
+            <p className="workflow-banner" role="status" data-testid="attempt-readonly">
+              {`Attempt ${viewed} is read-only. It was set aside by a redo.`}
+            </p>
+          )}
+          {banner && (
+            <p className="workflow-banner" role="status" data-testid="run-banner">
+              {banner}
+            </p>
+          )}
           {timeline}
           {proposal && redoFrom && (
             <RedoCard run={run} workflow={workflow} proposal={proposal} actions={actions} from={redoFrom} onFromChange={setPickedFrom} />
           )}
         </div>
-        {full ? (
-          <LiveView run={run} workflow={workflow} step={shownStep} />
-        ) : (
-          <div className="workflow-output" role="log" aria-label="Step output" data-testid="step-output">
-            {shownStep ? (
-              <>
-                <h3 className="workflow-output-title">{stepLabel(shownStep.stepId)}</h3>
-                <pre className="workflow-output-text">{shownStep.output || "No output yet."}</pre>
-                {shownStep.diffStat && <p className="workflow-diffstat">{shownStep.diffStat}</p>}
-              </>
-            ) : (
-              <p>Select a step to see its output.</p>
-            )}
-          </div>
-        )}
+        {!full && chat}
       </div>
-      <RunChat run={run} workflow={workflow} actions={actions} />
-      {confirmRestart && (
+      {full && <LiveView run={run} workflow={workflow} step={shownStep} footer={chat} />}
+      {confirm === "restart" && (
         <ConfirmDialog
           label="Restart run"
           message={CONFIRM_MESSAGES.restart}
           confirmLabel="Restart"
-          onCancel={() => setConfirmRestart(false)}
+          onCancel={() => setConfirm(null)}
           onConfirm={() => {
-            setConfirmRestart(false);
+            setConfirm(null);
             void actions.restart(run.id);
+          }}
+        />
+      )}
+      {confirm === "delete" && (
+        <ConfirmDialog
+          label="Delete run"
+          message={`Delete run ${run.id}? Its worktree and result are removed.`}
+          confirmLabel="Delete"
+          onCancel={() => setConfirm(null)}
+          onConfirm={() => {
+            setConfirm(null);
+            void actions.deleteRun(run.id);
           }}
         />
       )}

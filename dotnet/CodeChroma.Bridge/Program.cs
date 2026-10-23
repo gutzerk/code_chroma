@@ -77,6 +77,7 @@ WorkspaceAndSocketRoutes.Map(app, repoRoot);
 GraphRoutes.Map(app);
 DiagramRoutes.Map(app);
 AssistantRoutes.Map(app);
+CanvasStyleRoutes.Map(app);
 RuntimeRoutes.Map(app);
 LlmSettingsRoutes.Map(app);
 TraceRoutes.Map(app);

@@ -92,18 +92,19 @@ public static class Transcripts
     public static TranscriptUsage? ReadUsage(string sessionId, string worktree, string? projectsRoot = null) =>
         ReadSession(sessionId, worktree, projectsRoot)?.Last;
 
-    /// <summary>One streamed pass over a session's transcript: the last main-thread usage and every billed reply's tokens summed per model; null when there is no transcript.</summary>
+    /// <summary>One streamed pass over a session's transcript: the last main-thread usage and every billed reply's tokens summed per model (a reply streamed as several entries counts its last, final usage); null when there is no transcript.</summary>
     public static TranscriptSession? ReadSession(string sessionId, string worktree, string? projectsRoot = null)
     {
         var path = TranscriptPath(sessionId, worktree, projectsRoot ?? ProjectsDir());
         if (path is null) return null;
         TranscriptUsage? last = null;
-        var seen = new HashSet<string>();
-        var totals = new Dictionary<string, TokenCounts>();
+        var byMessage = new Dictionary<string, (string Model, TokenCounts Counts)>();
+        var lineNumber = 0;
         try
         {
             foreach (var line in File.ReadLines(path))
             {
+                lineNumber++;
                 if (!line.Contains("\"usage\"", StringComparison.Ordinal)) continue;
                 JsonObject? entry;
                 try { entry = JsonNode.Parse(line) as JsonObject; }
@@ -114,12 +115,14 @@ public static class Transcripts
                 var sidechain = entry["isSidechain"] is JsonValue side && side.TryGetValue<bool>(out var isSide) && isSide;
                 if (model != SyntheticModel && !sidechain)
                     last = new TranscriptUsage(counts.Input + counts.CacheRead + counts.CacheWrite, counts.Input, counts.Output, counts.CacheRead, model);
-                if (Json.Str(message["id"]) is { } messageId && !seen.Add(messageId)) continue;
                 if (counts.Input + counts.Output + counts.CacheRead + counts.CacheWrite == 0) continue;
-                totals[model ?? ""] = totals.TryGetValue(model ?? "", out var sum) ? sum + counts : counts;
+                byMessage[Json.Str(message["id"]) ?? $"#{lineNumber}"] = (model ?? "", counts);
             }
         }
         catch (Exception error) when (error is IOException or UnauthorizedAccessException) { return null; }
+        var totals = new Dictionary<string, TokenCounts>();
+        foreach (var (model, counts) in byMessage.Values)
+            totals[model] = totals.TryGetValue(model, out var sum) ? sum + counts : counts;
         return new TranscriptSession(last, totals);
     }
 

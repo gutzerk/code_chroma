@@ -26,40 +26,25 @@ const run = (over: Partial<Run>): Run => ({
 function setup(runs: Run[]) {
   const actions = { stop: vi.fn() } as unknown as WorkflowActions;
   const onOpen = vi.fn();
-  const onAllWorkflows = vi.fn();
-  render(
-    <RunsList runs={runs} workflows={[workflow]} activeRunId={null} layout="full" actions={actions} onOpen={onOpen} onAllWorkflows={onAllWorkflows} />,
-  );
-  return { actions, onOpen, onAllWorkflows };
+  render(<RunsList runs={runs} workflows={[workflow]} activeRunId={null} layout="full" actions={actions} onOpen={onOpen} />);
+  return { actions, onOpen };
 }
 
 describe("RunsList", () => {
   afterEach(cleanup);
 
-  it("opens a run when the card background is clicked but not when a button is", () => {
+  it("opens a run when its card is clicked", () => {
     const { onOpen } = setup([run({ state: "running", steps: [{ stepId: "s1", attempt: 1, status: "running", output: "", diffStat: null, checkpointRef: null, sessionId: null }] })]);
 
-    fireEvent.click(screen.getByRole("button", { name: "Stop" }));
-    expect(onOpen).not.toHaveBeenCalled();
-    fireEvent.click(screen.getByTestId("run-row-r1"));
+    fireEvent.click(screen.getByRole("button", { name: /Open run r1/ }));
 
     expect(onOpen).toHaveBeenCalledWith("r1");
   });
 
-  it("replaces the saved workflows section with an All workflows button", () => {
-    const { onAllWorkflows } = setup([]);
+  it("has no saved workflows section; those live on the All workflows screen", () => {
+    setup([]);
 
-    fireEvent.click(screen.getByRole("button", { name: "All workflows · 1" }));
-
-    expect(onAllWorkflows).toHaveBeenCalled();
     expect(screen.queryByRole("list", { name: "Saved workflows" })).toBeNull();
-  });
-
-  it("lets a run awaiting review be cancelled", () => {
-    const { actions } = setup([run({})]);
-
-    fireEvent.click(screen.getByRole("button", { name: "Cancel run" }));
-
-    expect(actions.stop).toHaveBeenCalledWith("r1", "now");
+    expect(screen.queryByTestId("all-workflows-open")).toBeNull();
   });
 });

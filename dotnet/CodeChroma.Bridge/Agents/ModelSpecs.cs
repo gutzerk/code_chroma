@@ -39,6 +39,10 @@ public static class ModelSpecs
     public static long ContextWindow(string? model) =>
         !string.IsNullOrEmpty(model) && Parse(model).LongContext ? LongContextWindow : DefaultContextWindow;
 
+    /// <summary>The window for a model id, widened to the long one when the context already outgrew the default (transcripts drop the "[1m]" suffix).</summary>
+    public static long ContextWindow(string? model, long contextTokens) =>
+        contextTokens > DefaultContextWindow ? LongContextWindow : ContextWindow(model);
+
     public static ModelPrice? Price(string? model)
     {
         if (string.IsNullOrEmpty(model)) return null;

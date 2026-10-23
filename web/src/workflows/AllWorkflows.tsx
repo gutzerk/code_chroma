@@ -1,53 +1,55 @@
-import { useState } from "react";
+import { Fragment, useMemo, useState } from "react";
 import { ModalDialog } from "../agents/ModalDialog";
 import { ConfirmDialog } from "./ConfirmDialog";
 import { Icon } from "./icons";
 import { OverflowMenu } from "./OverflowMenu";
-import { RUN_STATE_COLOR, RUN_STATE_TEXT } from "./runControls";
-import { agentMode, workflowInputs, type Run, type WorkflowDef, type WorkflowStepDef } from "./types";
+import { RUN_STATE_COLOR, RUN_STATE_TEXT, stepMode } from "./runControls";
+import { workflowInputs, type Run, type WorkflowDef } from "./types";
 import type { WorkflowActions } from "./workflowStore";
 
-type ChipMode = "new" | "handoff" | "continue" | "you";
-
-const CHIP_TEXT: Record<ChipMode, string> = { new: "New", handoff: "Hand-off", continue: "Continue", you: "You" };
-
-/** How a step's chip reads: review steps are "You", agent steps by their agent mode (missing reads as hand-off, like the bridge). */
-export function stepChipMode(step: WorkflowStepDef): ChipMode {
-  return step.kind === "review" ? "you" : agentMode(step.agent);
+/** "4 steps · 3 agent · 1 you" */
+function stepSummary(workflow: WorkflowDef): string {
+  const you = workflow.steps.filter((s) => s.kind === "review").length;
+  const agent = workflow.steps.length - you;
+  const parts = [`${workflow.steps.length} step${workflow.steps.length === 1 ? "" : "s"}`];
+  if (agent) parts.push(`${agent} agent`);
+  if (you) parts.push(`${you} you`);
+  return parts.join(" · ");
 }
 
-/** A new id for a copy of `id` that no saved workflow uses yet. */
-export function copyId(id: string, taken: string[]): string {
-  const base = `${id}-copy`;
-  if (!taken.includes(base)) return base;
-  let n = 2;
-  while (taken.includes(`${base}-${n}`)) n++;
-  return `${base}-${n}`;
+/** The latest run of a workflow as "Running now" / "Done" / "Stopped" plus a run count. */
+function lastRun(runs: Run[], workflowId: string): { text: string; color?: string; count: string } {
+  const own = runs.filter((r) => r.workflowId === workflowId);
+  const count = `${own.length} run${own.length === 1 ? "" : "s"}`;
+  const latest = own[own.length - 1];
+  if (!latest) return { text: "Never run", count };
+  const text = latest.state === "running" ? "Running now" : RUN_STATE_TEXT[latest.state];
+  return { text, color: latest.state === "stopped" ? RUN_STATE_COLOR.stopped : undefined, count };
 }
 
 function RenameDialog({ workflow, onCancel, onSave }: { workflow: WorkflowDef; onCancel: () => void; onSave: (name: string) => void }) {
   const [name, setName] = useState(workflow.name);
-  const trimmed = name.trim();
+  const valid = name.trim().length > 0;
   return (
     <ModalDialog label="Rename workflow" testId="rename-dialog" className="wf-dialog" onDismiss={onCancel}>
-      <h3 className="wf-dialog-title">Rename workflow</h3>
       <form
         className="wf-form"
         onSubmit={(e) => {
           e.preventDefault();
-          if (trimmed) onSave(trimmed);
+          if (valid) onSave(name.trim());
         }}
       >
+        <h3 className="wf-dialog-title">Rename workflow</h3>
         <label className="wf-field">
           <span>Name</span>
-          <input value={name} onChange={(e) => setName(e.target.value)} />
+          <input value={name} autoFocus onChange={(e) => setName(e.target.value)} />
         </label>
         <div className="wf-dialog-actions">
           <button type="button" className="wf-btn" onClick={onCancel}>
             Cancel
           </button>
-          <button type="submit" className="wf-btn wf-btn-primary" data-testid="rename-save" disabled={!trimmed}>
-            Save
+          <button type="submit" className="wf-btn wf-btn-primary" disabled={!valid}>
+            Rename
           </button>
         </div>
       </form>
@@ -55,20 +57,12 @@ function RenameDialog({ workflow, onCancel, onSave }: { workflow: WorkflowDef; o
   );
 }
 
-function LastRun({ run }: { run: Run | undefined }) {
-  if (!run) return <span className="wf-all-muted">Never run</span>;
-  return <span style={{ color: RUN_STATE_COLOR[run.state] }}>{`${RUN_STATE_TEXT[run.state]} · ${run.id}`}</span>;
-}
-
-type Pending = { kind: "rename" | "delete"; workflow: WorkflowDef } | null;
-
-/** The All workflows screen (board 11): search, the saved workflows as a table, New workflow, and per-row Edit / Run / Duplicate / Rename / Delete. */
+/** The All workflows screen: every saved workflow as a table row (steps by mode, inputs, last run, actions). */
 export function AllWorkflows({
   workflows,
   runs,
   actions,
   onBack,
-  onNew,
   onEdit,
   onRun,
 }: {
@@ -76,125 +70,112 @@ export function AllWorkflows({
   runs: Run[];
   actions: WorkflowActions;
   onBack: () => void;
-  onNew: () => void;
   onEdit: (workflow: WorkflowDef) => void;
   onRun: (workflow: WorkflowDef) => void;
 }) {
   const [query, setQuery] = useState("");
-  const [pending, setPending] = useState<Pending>(null);
-  const needle = query.trim().toLowerCase();
-  const shown = needle
-    ? workflows.filter((w) => w.name.toLowerCase().includes(needle) || w.steps.some((s) => s.slug.toLowerCase().includes(needle)))
-    : workflows;
-  const lastRun = (w: WorkflowDef) => runs.filter((r) => r.workflowId === w.id).at(-1);
-
-  const duplicate = (w: WorkflowDef) =>
-    void actions.createWorkflow({ ...structuredClone(w), id: copyId(w.id, workflows.map((x) => x.id)), name: `${w.name} copy` });
+  const [renaming, setRenaming] = useState<WorkflowDef | null>(null);
+  const [deleting, setDeleting] = useState<WorkflowDef | null>(null);
+  const shown = useMemo(() => {
+    const needle = query.trim().toLowerCase();
+    return needle ? workflows.filter((w) => w.name.toLowerCase().includes(needle)) : workflows;
+  }, [workflows, query]);
 
   return (
     <div className="wf-all" data-testid="all-workflows">
       <div className="wf-all-head">
-        <button type="button" className="wf-btn wf-btn-icon" aria-label="Back to runs" title="Back to runs" onClick={onBack}>
-          <Icon name="back" />
+        <button type="button" className="wf-back" aria-label="Back to runs" data-testid="all-back" onClick={onBack}>
+          <Icon name="back" size={16} />
         </button>
-        <h3 className="wf-all-title">{`All workflows · ${workflows.length}`}</h3>
-        <label className="wf-all-search">
-          <Icon name="search" />
-          <input type="search" placeholder="Search workflows" aria-label="Search workflows" value={query} onChange={(e) => setQuery(e.target.value)} />
+        <h1 className="wf-all-title">
+          All workflows <span>{`· ${workflows.length}`}</span>
+        </h1>
+        <label className="wf-search">
+          <Icon name="search" size={15} />
+          <span className="visually-hidden">Search workflows</span>
+          <input placeholder="Search workflows" value={query} onChange={(e) => setQuery(e.target.value)} />
         </label>
-        <button type="button" className="wf-btn wf-btn-primary" data-testid="new-workflow" onClick={onNew}>
-          <Icon name="plus" />
-          New workflow
-        </button>
       </div>
       {shown.length === 0 ? (
-        <p className="workflow-empty">{workflows.length ? "No workflow matches the search." : "No saved workflows. Use New workflow to create one."}</p>
+        <p className="workflow-empty">{workflows.length === 0 ? "No saved workflows. Use New workflow to create one." : "No workflow matches the search."}</p>
       ) : (
-        <div className="wf-all-scroll">
-          <table className="wf-all-table" aria-label="Saved workflows">
-            <thead>
-              <tr>
-                <th scope="col">Workflow</th>
-                <th scope="col">Steps</th>
-                <th scope="col">Inputs</th>
-                <th scope="col">Last run</th>
-                <th scope="col">
-                  <span className="wf-sr-only">Actions</span>
-                </th>
-              </tr>
-            </thead>
-            <tbody>
-              {shown.map((w) => {
-                const inputs = workflowInputs(w);
-                return (
-                  <tr key={w.id} data-testid={`all-row-${w.id}`}>
-                    <th scope="row" className="wf-all-name">
-                      <span className="wf-truncate" title={w.name}>
-                        {w.name}
-                      </span>
-                    </th>
-                    <td>
-                      <ul className="wf-all-chips" aria-label={`Steps of ${w.name}`}>
-                        {w.steps.map((s) => {
-                          const mode = stepChipMode(s);
-                          return (
-                            <li key={s.id} className="wf-all-chip" data-mode={mode} title={`${s.slug}: ${CHIP_TEXT[mode]}`}>
-                              {`${s.slug} · ${CHIP_TEXT[mode]}`}
-                            </li>
-                          );
-                        })}
-                      </ul>
-                    </td>
-                    <td className="wf-all-muted">{inputs.length ? inputs.map((i) => i.label || i.name).join(", ") : "None"}</td>
-                    <td>
-                      <LastRun run={lastRun(w)} />
-                    </td>
-                    <td>
-                      <div className="wf-run-actions">
-                        <button type="button" className="wf-btn" aria-label={`Edit workflow ${w.name}`} onClick={() => onEdit(w)}>
-                          <Icon name="edit" />
-                          Edit
-                        </button>
-                        <button type="button" className="wf-btn wf-btn-primary" aria-label={`Start run: ${w.name}`} onClick={() => onRun(w)}>
-                          <Icon name="play" />
-                          Run
-                        </button>
-                        <OverflowMenu
-                          label={`More actions for ${w.name}`}
-                          items={[
-                            { label: "Duplicate", icon: "copy", onSelect: () => duplicate(w) },
-                            { label: "Rename", icon: "edit", onSelect: () => setPending({ kind: "rename", workflow: w }) },
-                            { label: "Delete", icon: "trash", danger: true, onSelect: () => setPending({ kind: "delete", workflow: w }) },
-                          ]}
-                        />
-                      </div>
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
+        <div className="wf-table" role="table" aria-label="Workflows">
+          <div className="wf-row wf-row-head" role="row">
+            <span role="columnheader">Workflow</span>
+            <span role="columnheader">Steps</span>
+            <span role="columnheader">Inputs</span>
+            <span role="columnheader">Last run</span>
+            <span role="columnheader" className="wf-col-actions">
+              Actions
+            </span>
+          </div>
+          {shown.map((workflow) => {
+            const last = lastRun(runs, workflow.id);
+            const inputs = workflowInputs(workflow);
+            return (
+              <div className="wf-row" role="row" key={workflow.id} data-testid={`saved-${workflow.id}`}>
+                <div role="cell">
+                  <div className="wf-cell-name">{workflow.name}</div>
+                  <div className="wf-cell-sub">{stepSummary(workflow)}</div>
+                </div>
+                <div role="cell" className="wf-chips">
+                  {workflow.steps.map((step, i) => (
+                    <Fragment key={step.id}>
+                      {i > 0 && <span className="wf-chip-arrow">→</span>}
+                      <span className="wf-chip" data-mode={stepMode(step)}>{`${step.slug} · ${stepMode(step)}`}</span>
+                    </Fragment>
+                  ))}
+                </div>
+                <div role="cell" className="wf-cell-inputs">
+                  {inputs.length ? inputs.map((input) => <code key={input.name} className="wf-input-chip">{`{{${input.name}}}`}</code>) : "None"}
+                </div>
+                <div role="cell">
+                  <div className="wf-cell-last" style={{ color: last.color }}>
+                    {last.text}
+                  </div>
+                  <div className="wf-cell-sub">{last.count}</div>
+                </div>
+                <div role="cell" className="wf-cell-actions">
+                  <button type="button" className="wf-btn" aria-label={`Edit workflow ${workflow.name}`} onClick={() => onEdit(workflow)}>
+                    Edit
+                  </button>
+                  <button type="button" className="wf-btn wf-btn-primary" aria-label={`Run ${workflow.name}`} onClick={() => onRun(workflow)}>
+                    <Icon name="play" size={12} />
+                    Run
+                  </button>
+                  <OverflowMenu
+                    label={`More actions for ${workflow.name}`}
+                    items={[
+                      { label: "Duplicate", onSelect: () => void actions.duplicateWorkflow(workflow) },
+                      { label: "Rename", onSelect: () => setRenaming(workflow) },
+                      { label: "Delete", danger: true, onSelect: () => setDeleting(workflow) },
+                    ]}
+                  />
+                </div>
+              </div>
+            );
+          })}
         </div>
       )}
-      {pending?.kind === "rename" && (
+      {renaming && (
         <RenameDialog
-          workflow={pending.workflow}
-          onCancel={() => setPending(null)}
+          workflow={renaming}
+          onCancel={() => setRenaming(null)}
           onSave={(name) => {
-            setPending(null);
-            void actions.updateWorkflow({ ...pending.workflow, name });
+            void actions.updateWorkflow({ ...renaming, name });
+            setRenaming(null);
           }}
         />
       )}
-      {pending?.kind === "delete" && (
+      {deleting && (
         <ConfirmDialog
           label="Delete workflow"
-          message={`Delete "${pending.workflow.name}"? Its past runs stay in the run list.`}
+          message={`Delete "${deleting.name}"?`}
           confirmLabel="Delete"
-          onCancel={() => setPending(null)}
+          onCancel={() => setDeleting(null)}
           onConfirm={() => {
-            setPending(null);
-            void actions.deleteWorkflow(pending.workflow.id);
+            void actions.deleteWorkflow(deleting.id);
+            setDeleting(null);
           }}
         />
       )}

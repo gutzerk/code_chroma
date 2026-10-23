@@ -13,6 +13,7 @@ public sealed class UpdateHost
     private readonly UpdateService service;
     private readonly UpdatesBridge bridge;
     private readonly string settingsPath;
+    private static readonly TimeSpan ForceExitAfter = TimeSpan.FromSeconds(10);
 
     public UpdateHost(Window window, string userDataDir, string version, Func<IEnumerable<TabView>> views, Action quit)
     {
@@ -31,7 +32,14 @@ public sealed class UpdateHost
         service = new UpdateService(version, operations, new FileUpdateCache(FileUpdateCache.PathIn(userDataDir)), _ => self?.Push(),
             readOutcome: () => InstallOutcomeStore.Read(userDataDir), acknowledgeOutcome: () => InstallOutcomeStore.Acknowledge(userDataDir));
         bridge = self = new UpdatesBridge(service, () => UpdateSettingsStore.Read(settingsPath), s => UpdateSettingsStore.Write(settingsPath, s),
-            exit => { if (exit) quit(); }, json => Dispatcher.UIThread.Post(() => PushToPages(json)));
+            exit => { if (exit) QuitForUpdate(quit); }, json => Dispatcher.UIThread.Post(() => PushToPages(json)));
+    }
+
+    /// <summary>Quits so the swap helper can run, and force-exits if a hung shutdown would leave the helper waiting for this process.</summary>
+    private static void QuitForUpdate(Action quit)
+    {
+        quit();
+        _ = Task.Delay(ForceExitAfter).ContinueWith(_ => Environment.Exit(0), TaskScheduler.Default);
     }
 
     /// <summary>Reports a finished install, then starts the periodic checks.</summary>
@@ -74,12 +82,13 @@ public sealed class UpdateHost
             if (choice == Dialogs.UpdateChoice.Skip && state.LatestVersion is not null)
                 UpdateSettingsStore.Write(settingsPath, UpdateSettingsStore.Read(settingsPath) with { SkippedVersion = state.LatestVersion });
             if (choice != Dialogs.UpdateChoice.Install) return;
-            state = await service.DownloadAsync();
+            using (Dialogs.ShowProgress(window, "Updating CodeChroma", $"Downloading CodeChroma {state.LatestVersion}..."))
+                state = await service.DownloadAsync();
         }
         if (state.Phase == UpdatePhase.Ready)
         {
             if (await Dialogs.ConfirmAsync(window, "Update ready", "Restart to finish the update?", state.VerificationNotice ?? "", "Restart and Update", "Later"))
-                state = await service.RestartAsync(exit => { if (exit) window.Close(); });
+                state = await service.RestartAsync(exit => { if (exit) QuitForUpdate(window.Close); });
         }
         if (state.Phase == UpdatePhase.UpToDate) await Dialogs.ShowMessageAsync(window, "Check for Updates", "CodeChroma is up to date", $"Version {state.CurrentVersion}");
         else if (state.Phase == UpdatePhase.Error) await Dialogs.ShowMessageAsync(window, "Update failed", state.Error ?? "Unknown error");
@@ -99,7 +108,7 @@ public sealed class UpdateHost
     private async Task ReportLastInstallAsync()
     {
         if (service.State.LastInstall is not { } outcome) return;
-        await Dispatcher.UIThread.InvokeAsync(() => Dialogs.ShowMessageAsync(window, "CodeChroma update", $"Update to {outcome.Version}: {outcome.Result}", outcome.Detail));
+        await Dispatcher.UIThread.InvokeAsync(() => Dialogs.ShowInstallResultAsync(window, outcome.Version, outcome.Result, outcome.Detail));
         service.DismissLastInstall();
     }
 

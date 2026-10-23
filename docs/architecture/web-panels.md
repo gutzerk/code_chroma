@@ -12,7 +12,7 @@ to revive if it comes back, it would be rebuilt from scratch.
   to a real Python backend by default, rather than a mock. The panel is a **bottom** dock inside
   `.canvas-area` (see [`web-canvas-shell.md`](web-canvas-shell.md)), not the right-hand one it originally was.
   🔴 **`useXtermSession.ts` is the only place an xterm is constructed.** `TerminalPanel.tsx` and
-  `AgentTerminal.tsx` (one per agent window) both go through it, because they were near-duplicates
+  `AgentTerminal.tsx` (one per agent window; it wraps the xterm in `AgentQuestionHost`, see [`ai-questions.md`](ai-questions.md)) both go through it, because they were near-duplicates
   that drifted: the agent copy had silently missed the panel's resize debounce, so a window drag
   fired `fit()` plus a SIGWINCH on every pointermove and smeared the TUI it was resizing. What that
   hook owns, and why each part is not optional for an agent TUI:

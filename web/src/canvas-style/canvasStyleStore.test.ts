@@ -1,8 +1,9 @@
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   CANVAS_STYLE_DEFAULT,
   CANVAS_STYLE_PRESETS,
   canvasStyleStore,
+  type CanvasStyle,
   isLightBackground,
   matchPreset,
   normalizeHex,
@@ -62,5 +63,55 @@ describe("canvasStyleStore", () => {
 
     expect(canvasStyleStore.getSaved()).toBeNull();
     expect(window.localStorage.getItem("codechroma.canvasStyle")).toBeNull();
+  });
+});
+
+describe("canvasStyleStore bridge sync", () => {
+  const remote = { bg: "#102030", texture: "dots", textureColor: "#abcdef", opacity: 30, spacing: 24 };
+  const stubBridge = (get: unknown) => {
+    vi.stubEnv("VITE_ENGINE_BRIDGE_URL", "http://bridge.test");
+    const fetchMock = vi.fn(async (_url: string, init?: RequestInit) =>
+      new Response(init?.method === "PUT" || init?.method === "DELETE" ? "null" : JSON.stringify(get), { status: 200 }),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+    return fetchMock;
+  };
+
+  afterEach(() => {
+    vi.unstubAllEnvs();
+    vi.unstubAllGlobals();
+  });
+
+  it("adopts the machine-wide style another project saved", async () => {
+    stubBridge(remote);
+
+    await canvasStyleStore.hydrate();
+
+    expect(canvasStyleStore.getSaved()).toEqual(remote);
+  });
+
+  it("publishes a style this browser already had when the bridge has none", async () => {
+    const fetchMock = stubBridge(null);
+    canvasStyleStore.set(remote as CanvasStyle);
+    fetchMock.mockClear();
+
+    await canvasStyleStore.hydrate();
+
+    expect(fetchMock.mock.calls.map(([url, init]) => `${init?.method ?? "GET"} ${url}`)).toEqual([
+      "GET http://bridge.test/canvas-style",
+      "PUT http://bridge.test/canvas-style",
+    ]);
+  });
+
+  it("writes every change through to the bridge", () => {
+    const fetchMock = stubBridge(null);
+
+    canvasStyleStore.set(remote as CanvasStyle);
+    canvasStyleStore.restoreDefault();
+
+    expect(fetchMock.mock.calls.map(([url, init]) => `${init?.method} ${url}`)).toEqual([
+      "PUT http://bridge.test/canvas-style",
+      "DELETE http://bridge.test/canvas-style",
+    ]);
   });
 });

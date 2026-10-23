@@ -121,6 +121,7 @@ credential-free `https://github.com/<repo>/releases/(latest/)?download/...` with
   via `pgrep`) the previous copy is restored and relaunched. The result lands in `<userData>/update-result.json`
   (`updated`/`rolled-back`/`failed`) and surfaces as `UpdateState.LastInstall`. Windows swaps `...\CodeChroma\current`
   with a hidden PowerShell, macOS replaces `~/Applications/CodeChroma.app` via `ditto`, Linux keeps `.previous`.
+  🔴 The helper writes `updated` *before* launching the new version (the 8 s health check only overwrites it with `rolled-back`), because the new app reads the result file once at startup; writing it after the health check made the "updated" report show a launch late. `UpdateHost.QuitForUpdate` closes the window and force-exits (`Environment.Exit`) after 10 s, so a hung bridge shutdown cannot leave the helper waiting out its 120 s for the PID.
   No delta updates (full package each time). `apply-update.sh` unsets `APPIMAGE APPDIR ARGV0 OWD` and removes itself.
 - ⚠ Releases are unsigned: SmartScreen and Gatekeeper show an "unverified publisher" warning; a `.deb` or
   system-wide install is not updated in place.

@@ -17,15 +17,15 @@ public static class ModelCatalog
         var key = ResolveKey(provider);
         if (kind == "api" && transport == "openai-compatible")
         {
-            if (string.IsNullOrEmpty(baseUrl)) return Unsupported();
+            if (string.IsNullOrEmpty(baseUrl)) return Static("transport:openai-compatible");
             var headers = key is null ? [] : new Dictionary<string, string> { ["Authorization"] = $"Bearer {key}" };
             return await Shape(http, $"{baseUrl.TrimEnd('/')}/models", headers, "data", item => Str(item, "id"), _ => null);
         }
         if (kind == "api" && transport == "anthropic")
-            return key is null ? Unsupported() : await Anthropic(http, baseUrl ?? "https://api.anthropic.com", key);
+            return key is null ? Static("transport:anthropic") : await Anthropic(http, baseUrl ?? "https://api.anthropic.com", key);
         if (kind == "api" && transport == "gemini")
         {
-            if (key is null) return Unsupported();
+            if (key is null) return Static("transport:gemini");
             var url = $"{(baseUrl ?? "https://generativelanguage.googleapis.com").TrimEnd('/')}/v1beta/models";
             return await Shape(http, url, new Dictionary<string, string> { ["x-goog-api-key"] = key }, "models",
                 item => Str(item, "name") is { } n && n.StartsWith("models/", StringComparison.Ordinal) ? n["models/".Length..] : null,
@@ -33,7 +33,28 @@ public static class ModelCatalog
         }
         if (kind == "cli" && Json.Str(provider["adapter"]) == "claude" && !string.IsNullOrEmpty(baseUrl))
             return await Anthropic(http, baseUrl, key);
+        if (kind == "cli" && StaticModels.ContainsKey($"adapter:{Json.Str(provider["adapter"])}"))
+            return Static($"adapter:{Json.Str(provider["adapter"])}");
         return Unsupported();
+    }
+
+    private static readonly string[] AnthropicModels = ["claude-fable-5-1", "claude-opus-5-5", "claude-sonnet-5-5", "claude-haiku-5-5"];
+
+    private static readonly Dictionary<string, string[]> StaticModels = new()
+    {
+        ["transport:anthropic"] = AnthropicModels,
+        ["transport:gemini"] = ["gemini-2.5-pro", "gemini-2.5-flash", "gemini-2.5-flash-lite"],
+        ["transport:openai-compatible"] = ["gpt-5.2", "gpt-5.2-pro"],
+        ["adapter:claude"] = ["opus", "sonnet", "haiku", .. AnthropicModels],
+        ["adapter:codex"] = ["gpt-5.2", "gpt-5.2-codex"],
+        ["adapter:kimi-cli"] = ["kimi-k2-turbo-preview", "kimi-k2-thinking"],
+    };
+
+    private static JsonObject Static(string key)
+    {
+        var models = new JsonArray();
+        foreach (var id in StaticModels[key]) models.Add(new JsonObject { ["id"] = id, ["label"] = null });
+        return new JsonObject { ["supported"] = true, ["models"] = models, ["error"] = null, ["static"] = true };
     }
 
     private static Task<JsonObject> Anthropic(HttpClient http, string baseUrl, string? key)

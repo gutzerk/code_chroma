@@ -1,8 +1,8 @@
 # AI questions and grill sessions (`src/codechroma/questions/`, `web/src/canvas/doc/question/`) — 017
 
 An agent (Claude, Codex) asks a decision question through a bridge-hosted MCP tool instead of chat
-text. The question becomes a `question` element on the one canvas, the user clicks an option (or
-types their own), and the answer returns to the blocked agent call. A run of questions sharing a
+text. The question becomes a `question` element on the one canvas, the user selects an option and presses Send (or
+types their own answer), and the answer returns to the blocked agent call. A run of questions sharing a
 `session_id` is a grill session. Planning doc: `docs/planning/017-ai-questions-grill-session.md`.
 Phases 1 (backend) and 2 (canvas UI) are implemented; phase 3 (agent wiring) is a stub below; phase 4
 (diagram options) is not started.
@@ -84,7 +84,32 @@ implemented; phase 4 may revisit it for diagram options).
 - `questionClient.ts` (`answerOption`, `answerCustom`, `skipQuestion`, `reviseQuestion` over
   `EngineClient`), `questionStrings.ts` (all labels; i18n strings, not hardcoded),
   `QuestionElement.tsx` (the `CanvasDocView` renderer; default width 620; refreshes via the bridge
-  "canvas" ping), `QuestionCard.tsx`, `QuestionOptions.tsx` (rank, pro/con styling).
+  "canvas" ping), `QuestionCard.tsx`, `QuestionOptions.tsx`, `ConnectedQuestionCard.tsx` (the card wired to
+  the bridge; used by the canvas element and the agent terminal alike).
+- **Soft-tiles card (020).** One `QuestionCard` with `variant: "compact" | "full"` (`full` on the canvas and in B1).
+  A click or `1`-`9`/arrows only *selects* an option (`role="radiogroup"`/`radio`); **Send** or Enter confirms,
+  and the rank-1 option starts selected. Rank shows only as a soft-green "Recommended" pill (the `why` text is
+  its tooltip); there are no rank borders. Colours are `--question-*` tokens on `:root` in `styles.css`. The
+  card handles its own keys (`onKeyDown` on the card, no global listeners): Esc skips when `allowSkip`,
+  Shift+Tab / Ctrl+Enter / after an answer call `onReturnFocus` (the terminal's `focus()`). An answered card
+  collapses to one line ("✓ Q2 · title · answer · Change"); "Earlier: … · Change" opens `DecisionHistory`.
+
+### Agent terminal host (020)
+
+`web/src/agents/AgentQuestionHost.tsx` wraps the xterm element in `AgentTerminal` (so the docked panel, floating
+windows, `ActivityPanel` and the tutorial mock all get it). `useOpenAgentQuestions(agentId)` filters open `question`
+elements by `meta.agent_id` and sorts by `meta.step`; the host shows only the first (oldest). It measures its own
+width (ResizeObserver) and `pickQuestionLayout({width, full, hasDiagram})` picks: **B1** (agents panel full mode and
+width >= 1100: question + diagram left, terminal 520px right), **A4** (width >= 880 and some option has a
+`diagram_ref`: 420px diagram pane left, compact card under the terminal) or **A2** (compact card under the
+terminal). `hasDiagram` is "any option has one" (not just the selected one) so the pane does not flicker, and an option
+without a diagram shows "No diagram for this option". The terminal div keeps one tree position across layouts, so a
+switch never remounts xterm. A new question does not steal focus; Ctrl+Enter in the terminal focuses the card.
+`QuestionDiagram.tsx` renders `diagram_ref` and its children (group members + arrow targets, max 40) as a
+read-only scaled view with option tabs, zoom and a full-screen overlay (Esc closes); it is a light renderer, not
+`CanvasNodeBox`, which is interactive. Attention: `AgentLed` takes `agentId` and turns accent-coloured with a "?" badge
+while that agent has an open question, and the Agents tab shows a "N questions" pill (`useOpenQuestionCount`).
+`devAskQuestion.ts` (mock bridge, dev only) asks a demo question when Enter is pressed in an agent terminal.
 - `elementRules.ts`: `BLOCK_RULES.question` = `{renderer: "question", activation: "inspector",
   lockedLayout: true}` (never dragged or auto-laid-out); excluded from `StyledRenderKind`.
 - `CanvasDocView.tsx`: `case "question"` renders `QuestionElement`; question elements are excluded
@@ -98,8 +123,9 @@ Python: `tests/unit/test_question_broker.py` (wake on answer/skip, timeout then 
 `tests/unit/test_bridge_questions_route.py` (element meta, session steps, GET/answer/skip/revise,
 refusals, blocked-ask wake, pending then `ask_user_result`, restart read-back from the element, token
 forgery). Web (vitest): `QuestionCard.test.tsx`, `QuestionOptions.test.tsx`,
-`questionAdapter.test.ts`, `questionFlow.test.tsx`, plus the `question` case in `elementRules.test.ts`.
-Not yet written: the planned Playwright journey.
+`questionAdapter.test.ts`, `questionFlow.test.tsx`, `pickQuestionLayout.test.ts`, `QuestionDiagram.test.tsx`,
+`web/src/agents/AgentQuestionHost.test.tsx`, plus the `question` case in `elementRules.test.ts`.
+Not yet written: the Playwright journey (ask in the docked panel, answer in the terminal, resize across the layout thresholds).
 
 ## Gotchas
 
@@ -112,12 +138,25 @@ Not yet written: the planned Playwright journey.
 - `commit_canvas_batch` is imported lazily in `store.py` (import cycle with `bridge.routes`).
 - Answers are plain text, never executed; the endpoint relies on the loopback bridge plus the token.
 
+## Question contract and option diagrams (021)
+
+The `ask_user` server, not a skill, enforces the question format, so it holds for any CLI that gets the MCP config.
+
+- **Contract** (`questions/validation.py`). `validate_ask` returns one line per problem: non-empty question; 2-4 options with unique ids, each with non-empty `title`, `description`, `pro`, `con`, `why`; exactly one `rank: 1`, ranks unique; `kind: "diagram"` needs a `diagram_ref` on at least one option. `QuestionMcp._check` also rejects a `diagram_ref` that names no canvas element (`store.known_element_ids`). A break raises `QuestionRejected`, which the MCP SDK returns as an `isError` tool result (header "CodeChroma rejected the question.", one bullet per problem, a fixed "Call ask_user again..." footer). `POST /repos/{id}/questions/ask` maps it to 422. No question element is created. Old stored questions render as before; validation runs only on new calls.
+- **Retry limit.** `RejectionTracker` (`QuestionMcp.rejections`, in memory) counts rejections per (workspace id, `session_id`) and forgets after 10 minutes of silence, or a valid question. Below `settings.questions.max_rejections` (3) the call is rejected; at the limit it is accepted unchanged with `meta.degraded = true` and `meta.validation` (the last rejection text). The card shows no error, only fewer parts.
+- **Tool description.** `_INSTRUCTIONS` in `mcp_server.py` carries the whole contract, when to use `kind: "diagram"`, and the `needs`/`pending` results, so it reaches the agent without any project skill.
+- **`draw_option_diagram` tool** (`questions/diagrams.py`, `store.draw_diagram`). Args `title`, `nodes [{id, label, description?, status?}]`, `edges [{from, to, label?}]`, optional `question_id` + `option_id`. At most 12 nodes (`MAX_NODES`), unique ids, edges between known nodes, else `QuestionRejected`. It writes a `group` root plus `custom` member elements and edges on layer `decisions` (a non-diagram layer in `document.py` and `diagramCatalog.ts`), one vertical band per root, `status: "new"` in `meta` for parts that do not exist yet. Returns `{diagram_ref: <root id>}`; with `question_id`/`option_id` the ref is also written onto that option. Skill: `skills/codechroma-decision-diagram` (a quality guide on top of the tool, `scripts/check_decision_diagram.py` as the draft checker), listed in `SKILL_NAMES` and `SkillSync.cs`.
+- **"Add diagram" button.** `POST .../{qid}/request-diagram` (422 when every option has a diagram) sets `meta.diagram_requested`, `diagram_requested_at`, `diagram_requests` (+1) and wakes the blocked `ask_user` with `{needs: "diagram", question_id}` (`QuestionResult.needs`, `broker.request_diagram`; with no live waiter it is stored so `ask_user_result` returns it). The agent draws diagrams and calls `ask_user` again with the same `session_id` and question text: `store.find_diagram_requested` finds the open element and `store.reask` updates it in place (same id, options replaced, `diagram_requested` cleared). The card (`QuestionCard` `onRequestDiagram`, `EngineClient.requestQuestionDiagram`, mock bridge parity) shows "Add diagram" while an option lacks a ref and fewer than 2 requests were made, and a disabled "Diagram requested" while waiting.
+- **Native `AskUserQuestion`.** `hooks/ask_user_question_hook.py` now denies the call naming `mcp__codechroma__ask_user` and its fields when `GET {bridge}/mcp/` answers (any HTTP status). It keeps the old reroute only when the bridge is unreachable; `build_payload` no longer invents `rank` and sets `degraded: true` (an `AskRequest.degraded` flag, honoured only on the HTTP ask route, skips validation).
+- 🔴 Not covered: questions typed as terminal text (not detected) and the C# bridge (no `/mcp`). Codex gets only the server contract and its tool-error handling is unverified.
+- Tests: `tests/unit/test_question_validation.py`, `test_bridge_questions_route.py` (request-diagram), `test_question_agent_wiring.py` (hook), `QuestionCard.test.tsx`.
+
 ## Agent wiring (phase 3)
 
 - **MCP registration.** `terminal/agents.py` `agent_cli(..., mcp=)` adds `--mcp-config <file>` for the `claude` and provider-routed `agent` kinds, only when the resolved CLI is Claude. The config (`questions/launch.py`, `McpEndpoint.claude_config()`) is `{type: http, url: <base>/mcp/, headers: {Authorization: Bearer <token>}, timeout: (ask_wait_seconds + 60) * 1000}`, written to `<tempdir>/codechroma-mcp/<agent id>.json` (a file, because inline JSON is mangled by PTY quoting on Windows). 🔴 `--mcp-config` is variadic, so it must precede `--plugin-dir` and the positional initial prompt.
 - **Port and token.** The terminal router shares the graph bridge's process and port. The workspace id is the agent id; the token is `QuestionMcp.token_for(agent_id)`. The base URL comes from `CODECHROMA_BRIDGE_URL`, else uvicorn's `--port` in `sys.argv` (boot-time auto-start), else the `/agents/{id}/start` request's base URL rewritten to 127.0.0.1. With none of these (and on the C# bridge, which does not host `/mcp`) nothing is injected and argv is unchanged. The agent env also gets `CODECHROMA_BRIDGE_URL` and `CODECHROMA_QUESTION_TOKEN`.
 - **Skill.** `.claude/skills/codechroma-grill/SKILL.md` tells the agent to ask via `ask_user`, one question at a time, 2-3 options with description/pro/con/rank/why (rank 1 recommended), and to poll `ask_user_result` on `{pending: true}`. It is shipped with the bridge but deliberately not in `SKILL_NAMES`, so it is not synced into analyzed repos.
-- **AskUserQuestion hook.** `hooks/hooks.json` (plugin root, so no edit to user settings) matches `AskUserQuestion` with `timeout: 600` and `onFailure: "block"`; `ask_user_question_hook.py` (stdlib only) posts each question to `POST /repos/{id}/questions/ask` (same bearer token) and prints `permissionDecision: allow` with the original input plus an `answers` map. It fails open (prints nothing, exit 0) when the env vars are absent, the bridge is unreachable, an answer is skipped/pending, or its 570 s deadline passes, so Claude's native dialog appears. Multi-select questions are asked as single-select.
+- **AskUserQuestion hook** (021 changed it to deny first, see above). `hooks/hooks.json` (plugin root, so no edit to user settings) matches `AskUserQuestion` with `timeout: 600` and `onFailure: "block"`; `ask_user_question_hook.py` (stdlib only) posts each question to `POST /repos/{id}/questions/ask` (same bearer token) and prints `permissionDecision: allow` with the original input plus an `answers` map. It fails open (prints nothing, exit 0) when the env vars are absent, the bridge is unreachable, an answer is skipped/pending, or its 570 s deadline passes, so Claude's native dialog appears. Multi-select questions are asked as single-select.
 - **Codex.** Not wired: no per-run MCP override could be verified (`codex` was not installed when this was built). Needs `-c mcp_servers.codechroma.*` or a generated `CODEX_HOME`, plus an `AGENTS.md` snippet.
 - **Verified:** real uvicorn + `mcp` client: the bearer header reaches `ctx.headers`, `ask_user` blocks until answered over REST, a forged token errors, and the hook script runs end to end. **Not verified in a real `claude` process:** plugin-dir `hooks/hooks.json` loading, the `AskUserQuestion` matcher, `onFailure`, `updatedInput.answers` auto-answering, per-server `timeout`, and the frozen-bundle `hooks` layout.
 - Tests: `tests/unit/test_question_agent_wiring.py`.

@@ -150,6 +150,7 @@ def test_runtime_plugin_directory_contains_the_existing_bundled_skills():
         "/codechroma:codechroma-epic-brief",
         "/codechroma:codechroma-wiki-general-update",
         "/codechroma:codechroma-grill",
+        "/codechroma:codechroma-decision-diagram",
     }
 
 

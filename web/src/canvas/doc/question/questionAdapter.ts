@@ -29,6 +29,10 @@ export interface QuestionView {
   options: QuestionOption[];
   allowCustom: boolean;
   allowSkip: boolean;
+  /** The user pressed "Add diagram" and the agent has not answered yet. */
+  diagramRequested: boolean;
+  /** How many times "Add diagram" was pressed; the button is offered at most twice. */
+  diagramRequests: number;
 }
 
 /** Body of POST /repos/{id}/questions/{qid}/answer. */
@@ -94,6 +98,8 @@ export function toQuestionView(element: CanvasElement): QuestionView {
     options,
     allowCustom: meta.allow_custom !== false,
     allowSkip: meta.allow_skip !== false,
+    diagramRequested: meta.diagram_requested === true,
+    diagramRequests: num(meta.diagram_requests) ?? 0,
   };
 }
 

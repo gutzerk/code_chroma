@@ -8,6 +8,7 @@ from codechroma.bridge.workspaces import Workspace
 from codechroma.canvas.apply_batch import BatchResult, apply_batch
 from codechroma.canvas.document import CanvasDoc, Element
 from codechroma.canvas.locks import canvas_lock
+from codechroma.questions import diagrams
 from codechroma.questions.models import AskRequest, QuestionResult
 
 
@@ -41,7 +42,13 @@ def _next_step(doc: CanvasDoc, session_id: str | None) -> int:
     )
 
 
-def open_question(ws: Workspace, request: AskRequest, question_id: str) -> str:
+def _options_meta(request: AskRequest) -> list[dict]:
+    return [option.model_dump() for option in request.options]
+
+
+def open_question(
+    ws: Workspace, request: AskRequest, question_id: str, extra_meta: dict | None = None
+) -> str:
     """Adds the `question` element for a caller-chosen id; returns the element id."""
 
     def build(doc: CanvasDoc) -> list[dict]:
@@ -57,7 +64,8 @@ def open_question(ws: Workspace, request: AskRequest, question_id: str) -> str:
             "allow_custom": request.allow_custom,
             "allow_skip": request.allow_skip,
             "agent_id": request.agent_id,
-            "options": [option.model_dump() for option in request.options],
+            "options": _options_meta(request),
+            **(extra_meta or {}),
         }
         return [{
             "op": "add_element", "temp_id": "q", "render": "question", "layer": "questions",
@@ -116,3 +124,77 @@ def reopen(ws: Workspace, element: Element) -> list[str]:
     })
     _commit(ws, lambda _doc: ops)
     return later
+
+
+def known_element_ids(ws: Workspace) -> set[str]:
+    """Every element id on the canvas, for checking `diagram_ref`."""
+    return set(CanvasDoc.load(ws.canvas_core_path, ws.diagrams_root).elements)
+
+
+def find_diagram_requested(ws: Workspace, request: AskRequest) -> Element | None:
+    """The open question of this session and text whose diagram the user asked for, if any."""
+    if not request.session_id:
+        return None
+    for element in list_questions(ws):
+        meta = element.meta
+        if (
+            meta.get("state") == "open" and meta.get("diagram_requested")
+            and meta.get("session_id") == request.session_id and element.label == request.question
+        ):
+            return element
+    return None
+
+
+def reask(ws: Workspace, element: Element, request: AskRequest, extra_meta: dict | None) -> None:
+    """Updates the question in place with the re-asked options; the diagram request is cleared."""
+    meta = {
+        "options": _options_meta(request), "kind": request.kind, "diagram_requested": False,
+        "allow_custom": request.allow_custom, "allow_skip": request.allow_skip,
+        **(extra_meta or {}),
+    }
+    _commit(ws, lambda _doc: [{"op": "update_element", "id": element.id, "meta": meta}])
+
+
+def request_diagram(ws: Workspace, element: Element, requested_at: str) -> None:
+    """Records the user's "Add diagram" request on the element's meta."""
+    meta = {
+        "diagram_requested": True, "diagram_requested_at": requested_at,
+        "diagram_requests": int(element.meta.get("diagram_requests") or 0) + 1,
+    }
+    _commit(ws, lambda _doc: [{"op": "update_element", "id": element.id, "meta": meta}])
+
+
+def _question_in(doc: CanvasDoc, question_id: str) -> Element:
+    for element in doc.elements.values():
+        if element.render == "question" and element.meta.get("question_id") == question_id:
+            return element
+    raise QuestionWriteError(f"unknown question {question_id!r}")
+
+
+def draw_diagram(
+    ws: Workspace, title: str, nodes: list[diagrams.DiagramNode],
+    edges: list[diagrams.DiagramEdge], question_id: str | None, option_id: str | None,
+) -> str:
+    """Draws one option diagram on the `decisions` layer and returns its root id (the ref)."""
+
+    def build(doc: CanvasDoc) -> list[dict]:
+        if question_id:
+            options = _question_in(doc, question_id).meta.get("options", [])
+            if option_id not in {o["id"] for o in options}:
+                raise QuestionWriteError(f"unknown option {option_id!r} on that question")
+        band = sum(1 for e in doc.elements.values() if e.meta.get("diagram_root"))
+        return diagrams.diagram_ops(title, nodes, edges, band, option_id)
+
+    root_id = _commit(ws, build)["id_map"]["root"]
+    if question_id:
+
+        def attach(doc: CanvasDoc) -> list[dict]:
+            target = _question_in(doc, question_id)
+            options = [
+                {**o, "diagram_ref": root_id} if o["id"] == option_id else o
+                for o in target.meta.get("options", [])
+            ]
+            return [{"op": "update_element", "id": target.id, "meta": {"options": options}}]
+
+        _commit(ws, attach)
+    return root_id

@@ -1,4 +1,4 @@
-"""PreToolUse hook: reroutes Claude's AskUserQuestion to the CodeChroma canvas; fails open."""
+"""PreToolUse hook: sends Claude's AskUserQuestion to `ask_user`; reroutes only if that is down."""
 
 from __future__ import annotations
 
@@ -6,10 +6,18 @@ import json
 import os
 import sys
 import time
+import urllib.error
 import urllib.request
 import uuid
 
 DEADLINE_SECONDS = 570.0
+PROBE_SECONDS = 2.0
+DENY_REASON = (
+    "Do not use AskUserQuestion. Ask through the mcp__codechroma__ask_user tool: question, and "
+    "2-4 options that each have id, title, description, pro, con and why; exactly one option "
+    "has rank 1 (your recommendation). Use kind \"diagram\" with draw_option_diagram for "
+    "structural questions."
+)
 
 
 def _ask(base_url: str, workspace_id: str, token: str, payload: dict, timeout: float) -> dict:
@@ -23,6 +31,25 @@ def _ask(base_url: str, workspace_id: str, token: str, payload: dict, timeout: f
         return json.loads(response.read())
 
 
+def bridge_answers(base_url: str) -> bool:
+    """Whether the bridge's /mcp endpoint responds at all (any HTTP status counts)."""
+    try:
+        urllib.request.urlopen(f"{base_url}/mcp/", timeout=PROBE_SECONDS).close()
+    except urllib.error.HTTPError:
+        return True
+    except Exception:
+        return False
+    return True
+
+
+def deny_decision() -> dict:
+    """The hook output that refuses the native tool and names the one to use instead."""
+    return {"hookSpecificOutput": {
+        "hookEventName": "PreToolUse", "permissionDecision": "deny",
+        "permissionDecisionReason": DENY_REASON,
+    }}
+
+
 def env(name: str, default: str = "") -> str:
     """The CODECHROMA_* variable, falling back to the lower-cased spelling older builds used."""
     legacy = name.replace("CODECHROMA_", "codechroma_", 1)
@@ -30,18 +57,18 @@ def env(name: str, default: str = "") -> str:
 
 
 def build_payload(question: dict, index: int, total: int, session_id: str) -> dict:
-    """One AskUserQuestion entry as an `ask_user` request; option 1 is the recommendation."""
+    """One AskUserQuestion entry as a degraded `ask_user` request (no pros, cons or rank)."""
     options = [
         {
             "id": str(i), "title": option.get("label", ""),
-            "description": option.get("description", ""), "rank": 1 if i == 0 else None,
+            "description": option.get("description", ""),
         }
         for i, option in enumerate(question.get("options", []))
     ]
     return {
         "question": question.get("question", ""), "options": options, "session_id": session_id,
         "total": total, "allow_custom": True, "allow_skip": True,
-        "agent_id": env("CODECHROMA_WORKSPACE_ID") or None,
+        "agent_id": env("CODECHROMA_WORKSPACE_ID") or None, "degraded": True,
     }
 
 
@@ -77,6 +104,9 @@ def main() -> int:
         tool_input = json.load(sys.stdin).get("tool_input") or {}
         questions = tool_input.get("questions") or []
         if not questions:
+            return 0
+        if bridge_answers(base_url):
+            sys.stdout.write(json.dumps(deny_decision()))
             return 0
         deadline = time.monotonic() + DEADLINE_SECONDS
 

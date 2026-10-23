@@ -41,7 +41,7 @@ export const BUILTIN_RECIPES: BuiltinRecipe[] = [
 
 /** The only two layer names that are never a diagram: the seeded hierarchy tree, and
  * `apply_batch`'s own fallback layer for a batch that named none (e.g. a standalone note). */
-const NON_DIAGRAM_LAYERS = new Set(["hierarchy", "default", "questions"]);
+const NON_DIAGRAM_LAYERS = new Set(["hierarchy", "default", "questions", "decisions"]);
 
 /** Every "<prefix>/<id>" layer kind that's lazily synthesized rather than a `BUILTIN_RECIPES` entry
  * (mirrors `canvas/recipes.py`'s `_SYNTHESIZED_PREFIXES`) — extend this, not `isRecipeBackedLayer`. */

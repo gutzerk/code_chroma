@@ -523,8 +523,8 @@ An Avalonia (C#, net8.0, Avalonia 11.3.12) port of the canvas lives under `dotne
 `canvas/layout/layoutStore.ts` is the one global store for the chrome layout: `leftOpen`, `leftTab`
 (`diagrams`|`files`), `agentsMode` (`normal`|`collapsed`|`full`) and `selectedAgentId`. `openLeft(tab)` and
 `setAgentsMode` are independent: full screen never touches `leftOpen`. In `full` the agents panel
-spans from the open diagrams panel's edge (or from the collapsed bar when the user closed it) to the
-right gap, and its left-edge grip still resizes it (up to 95% of the viewport). `reconcileAgents(ids)` (called by `AgentWindowLayer`) clears a
+spans from the open diagrams panel's edge (or from the chrome inset when it is closed, the collapsed left bar is hidden in full) to the
+right gap; the left-edge resize grip exists only in `normal` (dragging it past 70% of the viewport enters full), so a drag can't override the stretched width. `reconcileAgents(ids)` (called by `AgentWindowLayer`) clears a
 `selectedAgentId` whose agent closed; the full view falls back to the first agent
 (`agents/useFullScreenAgentId.ts`), and a rail card click calls `selectAgent`.
 `layoutMetrics.ts` holds the `Z_*` z-index tokens (left panel 2, terminal 2, agents 3, handles 4,

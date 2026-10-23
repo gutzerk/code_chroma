@@ -111,19 +111,6 @@ export function stepMeta(steps: StepDraft[], i: number, providers: ProviderInfo[
   return stepModeLabel(steps, i, (id) => providerName(providers, id)) ?? "Your step";
 }
 
-/** The label between step `index` and the one before it, as the run timeline shows it. */
-export function betweenLabel(steps: StepDraft[], index: number): string {
-  const next = steps[index];
-  if (next.kind === "review") return "You review the diff";
-  const mode = agentMode(next.agent);
-  if (mode === "new") return "Fresh start · no context";
-  if (mode === "continue") {
-    const source = continueSourceIndex(steps, index);
-    return source >= 0 ? `resumes step ${source + 1}'s agent` : "resumes an earlier agent";
-  }
-  return `hand-off → step ${index + 1}`;
-}
-
 /** The Send back explanation for review step `at`: which step it reruns and whose agent resumes. */
 function sendBackHint(steps: StepDraft[], at: number): string | null {
   const chosen = steps.findIndex((s, j) => j < at && s.id === steps[at].sendBackTo && s.kind === "agent");
@@ -195,6 +182,7 @@ export function WorkflowEditorDialog({
   const [providers, setProviders] = useState<ProviderInfo[] | null>(null);
   const [models, setModels] = useState<Record<string, ProviderModelsResult | null>>({});
   const [confirmDelete, setConfirmDelete] = useState(false);
+  const [confirmDiscard, setConfirmDiscard] = useState(false);
 
   useEffect(() => {
     let live = true;
@@ -296,8 +284,10 @@ export function WorkflowEditorDialog({
     }),
   });
 
-  const [initial] = useState(() => (workflow ? JSON.stringify(build()) : ""));
-  const dirty = Boolean(workflow) && JSON.stringify(build()) !== initial;
+  const snapshot = (): string => JSON.stringify({ ...build(), id: "" });
+  const [initial] = useState(snapshot);
+  const dirty = snapshot() !== initial;
+  const requestClose = (): void => (dirty ? setConfirmDiscard(true) : onClose());
 
   const save = async (andRun: boolean) => {
     const found = validateDraft(name, steps);
@@ -379,7 +369,7 @@ export function WorkflowEditorDialog({
   const backHint = step.kind === "review" ? sendBackHint(steps, at) : null;
 
   return (
-    <ModalDialog label="Workflow editor" className="wfe" onDismiss={busy ? undefined : onClose}>
+    <ModalDialog label="Workflow editor" className="wfe" onDismiss={busy ? undefined : requestClose}>
       <div className="wfe-head">
         <h2 className="wfe-title">{workflow ? "Edit workflow" : "New workflow"}</h2>
         <label className="wfe-name">
@@ -391,7 +381,7 @@ export function WorkflowEditorDialog({
             onChange={(e) => setName(e.target.value)}
           />
         </label>
-        <button type="button" className="wfe-close" aria-label="Close" disabled={busy} onClick={onClose}>
+        <button type="button" className="wfe-close" aria-label="Close" disabled={busy} onClick={requestClose}>
           <Icon name="cancel" size={18} />
         </button>
       </div>
@@ -706,7 +696,7 @@ export function WorkflowEditorDialog({
         <span className="wfe-foot-note" data-dirty={dirty || undefined}>
           {dirty ? "Unsaved changes" : summary(steps)}
         </span>
-        <button type="button" className="wfe-ghost" disabled={busy} onClick={onClose}>
+        <button type="button" className="wfe-ghost" disabled={busy} onClick={requestClose}>
           Cancel
         </button>
         {workflow ? (
@@ -725,6 +715,15 @@ export function WorkflowEditorDialog({
           </>
         )}
       </div>
+      {confirmDiscard && (
+        <ConfirmDialog
+          label="Discard changes"
+          message="Your unsaved changes to this workflow will be lost."
+          confirmLabel="Discard"
+          onCancel={() => setConfirmDiscard(false)}
+          onConfirm={onClose}
+        />
+      )}
       {confirmDelete && workflow && (
         <ConfirmDialog
           label="Delete workflow"

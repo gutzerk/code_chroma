@@ -19,8 +19,8 @@ export function usePanelSize(panelRef: RefObject<HTMLElement | null>): PanelSize
     apply(el.getBoundingClientRect().width);
     if (typeof ResizeObserver === "undefined") return;
     const observer = new ResizeObserver((entries) => {
-      const width = entries[0]?.contentRect.width;
-      if (width !== undefined) apply(width + PANEL_PADDING);
+      const width = entries[0]?.borderBoxSize?.[0]?.inlineSize ?? el.getBoundingClientRect().width;
+      apply(width);
     });
     observer.observe(el);
     return () => observer.disconnect();

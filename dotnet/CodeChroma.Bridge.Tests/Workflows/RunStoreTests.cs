@@ -33,6 +33,40 @@ public sealed class RunStoreTests
         Assert.Null(store.GetWorkflow("doomed"));
     }
 
+    [Fact]
+    public void A_workflow_created_in_one_repo_is_listed_in_another_through_the_shared_directory()
+    {
+        using var first = new GitSandbox();
+        using var second = new GitSandbox();
+        var shared = first.Sibling("shared-wf");
+        new RunStore(first.Root, shared).TryCreateWorkflow(new WorkflowDef { Id = "everywhere", Name = "Everywhere" });
+
+        var seen = new RunStore(second.Root, shared);
+
+        Assert.Equal("Everywhere", seen.GetWorkflow("everywhere")!.Name);
+        Assert.Single(seen.ListWorkflows());
+        Assert.False(Directory.Exists(seen.WorkflowsDir));
+    }
+
+    [Fact]
+    public void A_repo_workflow_wins_over_a_shared_one_with_the_same_id_and_is_saved_in_place()
+    {
+        using var repo = new GitSandbox();
+        var shared = repo.Sibling("shared-wf");
+        new RunStore(repo.Root).TryCreateWorkflow(new WorkflowDef { Id = "both", Name = "Repo" });
+        var store = new RunStore(repo.Root, shared);
+        File.WriteAllText(Path.Combine(shared, "both.json"), """{"id":"both","name":"Shared"}""");
+
+        store.SaveWorkflow(new WorkflowDef { Id = "both", Name = "Repo edited" });
+
+        Assert.Equal("Repo edited", store.GetWorkflow("both")!.Name);
+        Assert.Single(store.ListWorkflows());
+        Assert.False(store.TryCreateWorkflow(new WorkflowDef { Id = "both" }));
+        Assert.True(store.DeleteWorkflow("both"));
+        Assert.Equal("Shared", store.GetWorkflow("both")!.Name);
+        Assert.True(File.Exists(Path.Combine(shared, "both.json")));
+    }
+
     [Theory]
     [InlineData("../escape")]
     [InlineData("a/b")]

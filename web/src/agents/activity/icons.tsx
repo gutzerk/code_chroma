@@ -66,6 +66,11 @@ export const ChevronDownIcon = ({ size }: IconProps) => (
     <path d="M6 9l6 6 6-6" />
   </Icon>
 );
+export const ExitFullScreenIcon = ({ size }: IconProps) => (
+  <Icon size={size}>
+    <path d="M9 4v5H4M15 4v5h5M9 20v-5H4M15 20v-5h5" />
+  </Icon>
+);
 export const HandleChevronLeft = () => (
   <Icon size={12}>
     <path d="M15 6l-6 6 6 6" />
@@ -74,5 +79,10 @@ export const HandleChevronLeft = () => (
 export const HandleChevronRight = () => (
   <Icon size={12}>
     <path d="M9 6l6 6-6 6" />
+  </Icon>
+);
+export const HandleCollapse = () => (
+  <Icon size={12}>
+    <path d="M6 6l6 6-6 6M18 5v14" />
   </Icon>
 );

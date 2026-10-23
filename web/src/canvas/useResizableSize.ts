@@ -117,6 +117,7 @@ export function useResizableSize(
       resizeRef.current = null;
       setIsResizing(false);
       setSize(null);
+      if (event.currentTarget.hasPointerCapture?.(event.pointerId)) event.currentTarget.releasePointerCapture(event.pointerId);
       onExceedMax();
       return;
     }

@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { cleanup, fireEvent, render, screen, within } from "@testing-library/react";
-import { AllWorkflows, copyId, stepChipMode } from "./AllWorkflows";
+import { AllWorkflows } from "./AllWorkflows";
 import type { Run, WorkflowDef } from "./types";
 import type { WorkflowActions } from "./workflowStore";
 
@@ -29,8 +29,8 @@ const run: Run = {
 };
 
 function setup(workflows: WorkflowDef[] = [ship, docs]) {
-  const actions = { createWorkflow: vi.fn(), updateWorkflow: vi.fn(), deleteWorkflow: vi.fn() } as unknown as WorkflowActions;
-  const props = { onBack: vi.fn(), onNew: vi.fn(), onEdit: vi.fn(), onRun: vi.fn() };
+  const actions = { duplicateWorkflow: vi.fn(), updateWorkflow: vi.fn(), deleteWorkflow: vi.fn() } as unknown as WorkflowActions;
+  const props = { onBack: vi.fn(), onEdit: vi.fn(), onRun: vi.fn() };
   render(<AllWorkflows workflows={workflows} runs={[run]} actions={actions} {...props} />);
   return { actions, ...props };
 }
@@ -45,40 +45,40 @@ describe("AllWorkflows", () => {
   it("shows one row per workflow with mode chips, inputs and the last run", () => {
     setup();
 
-    const row = screen.getByTestId("all-row-ship");
+    const row = screen.getByTestId("saved-ship");
 
-    expect(screen.getByRole("heading", { name: "All workflows · 2" })).toBeInTheDocument();
-    const chips = within(row).getAllByRole("listitem");
-    expect(chips.map((c) => c.getAttribute("data-mode"))).toEqual(["new", "handoff", "continue", "you"]);
-    expect(row).toHaveTextContent("Ticket");
-    expect(row).toHaveTextContent("Done · run7");
-    expect(screen.getByTestId("all-row-docs")).toHaveTextContent("Never run");
+    expect(screen.getByRole("heading", { name: /All workflows/ })).toHaveTextContent("· 2");
+    const chips = row.querySelectorAll(".wf-chip");
+    expect([...chips].map((c) => c.getAttribute("data-mode"))).toEqual(["new", "hand-off", "continue", "you"]);
+    expect(row).toHaveTextContent("{{ticket}}");
+    expect(row).toHaveTextContent("Done");
+    expect(screen.getByTestId("saved-docs")).toHaveTextContent("Never run");
   });
 
-  it("filters rows by name or step slug", () => {
+  it("filters rows by name", () => {
     setup();
 
-    fireEvent.change(screen.getByRole("searchbox", { name: "Search workflows" }), { target: { value: "WRITE" } });
+    fireEvent.change(screen.getByPlaceholderText("Search workflows"), { target: { value: "WRITE" } });
 
-    expect(screen.queryByTestId("all-row-ship")).toBeNull();
-    expect(screen.getByTestId("all-row-docs")).toBeInTheDocument();
+    expect(screen.queryByTestId("saved-ship")).toBeNull();
+    expect(screen.getByTestId("saved-docs")).toBeInTheDocument();
   });
 
   it("says so when nothing matches the search", () => {
     setup();
 
-    fireEvent.change(screen.getByRole("searchbox", { name: "Search workflows" }), { target: { value: "zzz" } });
+    fireEvent.change(screen.getByPlaceholderText("Search workflows"), { target: { value: "zzz" } });
 
     expect(screen.getByText("No workflow matches the search.")).toBeInTheDocument();
   });
 
-  it("duplicates a workflow under a new id and a copy name", () => {
+  it("duplicates a workflow from the actions menu", () => {
     const { actions } = setup();
 
     openMenu("Ship a feature");
     fireEvent.click(screen.getByRole("menuitem", { name: "Duplicate" }));
 
-    expect(actions.createWorkflow).toHaveBeenCalledWith({ ...ship, id: "ship-copy", name: "Ship a feature copy" });
+    expect(actions.duplicateWorkflow).toHaveBeenCalledWith(ship);
   });
 
   it("renames a workflow through the update", () => {
@@ -87,7 +87,7 @@ describe("AllWorkflows", () => {
     openMenu("Write docs");
     fireEvent.click(screen.getByRole("menuitem", { name: "Rename" }));
     fireEvent.change(screen.getByRole("textbox", { name: "Name" }), { target: { value: "  Docs pass " } });
-    fireEvent.click(screen.getByTestId("rename-save"));
+    fireEvent.click(within(screen.getByTestId("rename-dialog")).getByRole("button", { name: "Rename" }));
 
     expect(actions.updateWorkflow).toHaveBeenCalledWith({ ...docs, name: "Docs pass" });
     expect(screen.queryByTestId("rename-dialog")).toBeNull();
@@ -104,31 +104,15 @@ describe("AllWorkflows", () => {
     expect(actions.deleteWorkflow).toHaveBeenCalledWith("docs");
   });
 
-  it("wires Edit, Run, New workflow and Back to the callers", () => {
-    const { onBack, onNew, onEdit, onRun } = setup();
+  it("wires Edit, Run and Back to the callers", () => {
+    const { onBack, onEdit, onRun } = setup();
 
     fireEvent.click(screen.getByRole("button", { name: "Edit workflow Write docs" }));
-    fireEvent.click(screen.getByRole("button", { name: "Start run: Write docs" }));
-    fireEvent.click(screen.getByTestId("new-workflow"));
-    fireEvent.click(screen.getByRole("button", { name: "Back to runs" }));
+    fireEvent.click(screen.getByRole("button", { name: "Run Write docs" }));
+    fireEvent.click(screen.getByTestId("all-back"));
 
     expect(onEdit).toHaveBeenCalledWith(docs);
     expect(onRun).toHaveBeenCalledWith(docs);
-    expect(onNew).toHaveBeenCalled();
     expect(onBack).toHaveBeenCalled();
-  });
-});
-
-describe("AllWorkflows helpers", () => {
-  it.each([
-    [[], "ship-copy"],
-    [["ship-copy"], "ship-copy-2"],
-    [["ship-copy", "ship-copy-2"], "ship-copy-3"],
-  ])("picks a free copy id when %j are taken", (taken, expected) => {
-    expect(copyId("ship", taken)).toBe(expected);
-  });
-
-  it("reads a step without an agent mode as hand-off", () => {
-    expect(stepChipMode({ id: "x", slug: "x", kind: "agent", prompt: "" })).toBe("handoff");
   });
 });

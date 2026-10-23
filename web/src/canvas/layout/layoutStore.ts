@@ -40,7 +40,6 @@ class LayoutStore extends Store {
     else this.openLeft();
   };
 
-  /** Full screen leaves the left panel as it is: the agents panel stretches to whichever edge is showing. */
   setAgentsMode = (mode: AgentsMode): void => this.set({ agentsMode: mode });
 
   toggleAgentsFull = (): void => this.set({ agentsMode: this.state.agentsMode === "full" ? "normal" : "full" });

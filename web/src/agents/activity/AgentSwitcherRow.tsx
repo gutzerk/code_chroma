@@ -1,13 +1,12 @@
 import { useEffect, useRef, useState } from "react";
 import { layoutStore } from "../../canvas/layout/layoutStore";
-import type { AgentsMode } from "../../canvas/layout/layoutStore";
 import type { AgentRecord } from "../../state/types";
 import { agentStore } from "../agentStore";
 import { useAgentClient } from "../AgentClientContext";
 import type { AgentClient } from "../agentClient";
 import { AgentLed, agentStatusLabel } from "../AgentLed";
 import { restoreAgentWindow } from "../windowActions";
-import { ChevronDownIcon, FullScreenIcon, PlusIcon } from "./icons";
+import { ChevronDownIcon } from "./icons";
 
 /** "<cli> · <branch> · <status>", the agent subtitle every agent list shows. */
 export function agentMeta(agent: AgentRecord): string {
@@ -48,25 +47,20 @@ export function AgentList({ agents, activeId }: { agents: AgentRecord[]; activeI
   );
 }
 
-/** The single 40px agents row: agent dropdown (the left list replaces it in full screen) plus run and full screen buttons. */
+/** The single 40px agents row: the agent dropdown. */
 export function AgentSwitcherRow({
   agents,
   activeId,
-  agentsMode,
-  disabled,
-  onRunAgent,
+  full = false,
 }: {
   agents: AgentRecord[];
   activeId: string | undefined;
-  agentsMode: AgentsMode;
-  disabled: boolean;
-  onRunAgent: () => void;
+  full?: boolean;
 }) {
   const client = useAgentClient();
   const [open, setOpen] = useState(false);
   const rootRef = useRef<HTMLDivElement | null>(null);
   const active = agents.find((a) => a.id === activeId);
-  const full = agentsMode === "full";
   const activeIndex = agents.findIndex((a) => a.id === activeId);
   useEffect(() => {
     if (!open) return;
@@ -139,26 +133,6 @@ export function AgentSwitcherRow({
           ))}
         </ul>
       )}
-      <button
-        type="button"
-        className="activity-icon-btn"
-        aria-label="Run agent"
-        title="Run agent"
-        disabled={disabled}
-        onClick={onRunAgent}
-      >
-        <PlusIcon />
-      </button>
-      <button
-        type="button"
-        className="activity-icon-btn"
-        aria-label={full ? "Exit full screen" : "Full screen"}
-        title={full ? "Exit full screen" : "Full screen"}
-        aria-pressed={full}
-        onClick={() => layoutStore.setAgentsMode(full ? "normal" : "full")}
-      >
-        <FullScreenIcon />
-      </button>
     </div>
   );
 }

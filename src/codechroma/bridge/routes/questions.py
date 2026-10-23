@@ -111,7 +111,8 @@ def request_diagram(ws: Ws, services: Services, question_id: str) -> dict:
     options = element.meta.get("options", [])
     if not options or all(o.get("diagram_ref") for o in options):
         raise HTTPException(status_code=422, detail="every option already has a diagram")
-    store.request_diagram(ws, element, datetime.now(UTC).isoformat())
+    if not element.meta.get("diagram_requested"):
+        store.request_diagram(ws, element, datetime.now(UTC).isoformat())
     waiting = services.questions.request_diagram(question_id)
     return _ack(question_id, "open", None, waiting)
 

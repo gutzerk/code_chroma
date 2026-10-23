@@ -7,27 +7,49 @@ import json
 import sys
 
 MAX_NODES = 12
+MAX_ID = 40
+MAX_TITLE = 80
+MAX_LABEL = 60
+MAX_DESCRIPTION = 300
 
 
 def problems(spec: dict) -> list[str]:
-    """One line per budget, label or reference problem."""
+    """One line per budget, label, length or reference problem (mirrors questions/diagrams.py)."""
     nodes, edges = spec.get("nodes") or [], spec.get("edges") or []
+    title = spec.get("title") or ""
     found: list[str] = []
-    if not (spec.get("title") or "").strip():
+    if not title.strip():
         found.append("title is empty")
+    elif len(title) > MAX_TITLE:
+        found.append(f"title is longer than {MAX_TITLE} characters")
     if not 1 <= len(nodes) <= MAX_NODES:
         found.append(f"give 1-{MAX_NODES} nodes, got {len(nodes)}")
     ids = [node.get("id") for node in nodes]
     if len(set(ids)) != len(ids):
         found.append("node ids are not unique")
-    found.extend(
-        f"node {n.get('id')!r}: empty label" for n in nodes if not n.get("label", "").strip()
-    )
-    found.extend(
-        f"edge {e.get('from')}->{e.get('to')}: unknown node"
-        for e in edges
-        if e.get("from") not in ids or e.get("to") not in ids
-    )
+    for n in nodes:
+        name = n.get("id")
+        if not (name or "").strip():
+            found.append("node with empty id")
+        elif len(name) > MAX_ID:
+            found.append(f'node "{name}": id is longer than {MAX_ID} characters')
+        label = n.get("label") or ""
+        if not label.strip():
+            found.append(f'node "{name}": empty label')
+        elif len(label) > MAX_LABEL:
+            found.append(f'node "{name}": label is longer than {MAX_LABEL} characters')
+        if len(n.get("description") or "") > MAX_DESCRIPTION:
+            found.append(f'node "{name}": description is longer than {MAX_DESCRIPTION} characters')
+    seen: set[tuple] = set()
+    for e in edges:
+        src, dst = e.get("from"), e.get("to")
+        if src not in ids or dst not in ids:
+            found.append(f"edge {src}->{dst}: unknown node")
+        elif src == dst:
+            found.append(f"edge {src}->{dst}: self-loop")
+        elif (src, dst) in seen:
+            found.append(f"edge {src}->{dst}: duplicate")
+        seen.add((src, dst))
     return found
 
 

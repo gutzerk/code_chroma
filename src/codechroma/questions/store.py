@@ -132,17 +132,25 @@ def known_element_ids(ws: Workspace) -> set[str]:
 
 
 def find_diagram_requested(ws: Workspace, request: AskRequest) -> Element | None:
-    """The open question of this session and text whose diagram the user asked for, if any."""
-    if not request.session_id:
+    """The open diagram-requested card this re-ask continues; duplicates of it are skipped."""
+    pending = [
+        e for e in list_questions(ws)
+        if e.meta.get("state") == "open" and e.meta.get("diagram_requested")
+    ]
+    same_session = [
+        e for e in pending if request.session_id and e.meta.get("session_id") == request.session_id
+    ]
+    same_text = [e for e in pending if e.label == request.question]
+    pool = (
+        [e for e in same_session if e in same_text] or same_session or same_text
+        or (pending if len(pending) == 1 else [])
+    )
+    if not pool:
         return None
-    for element in list_questions(ws):
-        meta = element.meta
-        if (
-            meta.get("state") == "open" and meta.get("diagram_requested")
-            and meta.get("session_id") == request.session_id and element.label == request.question
-        ):
-            return element
-    return None
+    keep, stale = pool[-1], pool[:-1]
+    for old in stale:
+        settle(ws, old.id, "skipped", QuestionResult(skipped=True))
+    return keep
 
 
 def reask(ws: Workspace, element: Element, request: AskRequest, extra_meta: dict | None) -> None:
@@ -171,30 +179,45 @@ def _question_in(doc: CanvasDoc, question_id: str) -> Element:
     raise QuestionWriteError(f"unknown question {question_id!r}")
 
 
+def _next_band(doc: CanvasDoc) -> int:
+    bands = [
+        int(e.position.y // diagrams._BAND_H) for e in doc.elements.values()
+        if e.meta.get("diagram_root")
+    ]
+    return max(bands, default=-1) + 1
+
+
 def draw_diagram(
     ws: Workspace, title: str, nodes: list[diagrams.DiagramNode],
     edges: list[diagrams.DiagramEdge], question_id: str | None, option_id: str | None,
 ) -> str:
     """Draws one option diagram on the `decisions` layer and returns its root id (the ref)."""
-
-    def build(doc: CanvasDoc) -> list[dict]:
+    with canvas_lock(ws.id):
+        doc = CanvasDoc.load(ws.canvas_core_path, ws.diagrams_root)
+        target = None
         if question_id:
-            options = _question_in(doc, question_id).meta.get("options", [])
-            if option_id not in {o["id"] for o in options}:
-                raise QuestionWriteError(f"unknown option {option_id!r} on that question")
-        band = sum(1 for e in doc.elements.values() if e.meta.get("diagram_root"))
-        return diagrams.diagram_ops(title, nodes, edges, band, option_id)
-
-    root_id = _commit(ws, build)["id_map"]["root"]
-    if question_id:
-
-        def attach(doc: CanvasDoc) -> list[dict]:
             target = _question_in(doc, question_id)
+            if option_id not in {o["id"] for o in target.meta.get("options", [])}:
+                raise QuestionWriteError(f"unknown option {option_id!r} on that question")
+        ops = diagrams.diagram_ops(title, nodes, edges, _next_band(doc), option_id)
+        result = apply_batch(doc, ops, explanation="ai question")
+        if result.ok and target is not None:
+            assert result.doc is not None
+            root_id = result.id_map["root"]
             options = [
                 {**o, "diagram_ref": root_id} if o["id"] == option_id else o
                 for o in target.meta.get("options", [])
             ]
-            return [{"op": "update_element", "id": target.id, "meta": {"options": options}}]
-
-        _commit(ws, attach)
-    return root_id
+            attach = [{"op": "update_element", "id": target.id, "meta": {"options": options}}]
+            second = apply_batch(result.doc, attach, explanation="ai question")
+            result = (
+                BatchResult(
+                    ok=True, doc=second.doc, id_map=result.id_map,
+                    affected=sorted({*result.affected, *second.affected}),
+                )
+                if second.ok else second
+            )
+        response = commit_canvas_batch(ws, result)
+    if not response["ok"]:
+        raise QuestionWriteError(str(response["errors"]))
+    return response["id_map"]["root"]

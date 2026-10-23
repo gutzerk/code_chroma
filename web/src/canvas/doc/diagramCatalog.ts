@@ -39,8 +39,9 @@ export const BUILTIN_RECIPES: BuiltinRecipe[] = [
   { name: "sequence", label: "Sequence", accessibleName: "Sequence — порядок вызовов", generated: true },
 ];
 
-/** The only two layer names that are never a diagram: the seeded hierarchy tree, and
- * `apply_batch`'s own fallback layer for a batch that named none (e.g. a standalone note). */
+/** Layer names that are never a diagram: the seeded hierarchy tree, `apply_batch`'s fallback layer
+ * for a batch that named none, and the question / decision-diagram layers. Mirrors
+ * `canvas/document.py`'s `NON_DIAGRAM_LAYERS` (kept in sync by `test_non_diagram_layers_parity`). */
 const NON_DIAGRAM_LAYERS = new Set(["hierarchy", "default", "questions", "decisions"]);
 
 /** Every "<prefix>/<id>" layer kind that's lazily synthesized rather than a `BUILTIN_RECIPES` entry

@@ -115,10 +115,12 @@ class QuestionMcp:
         finally:
             self._app = None
 
-    async def ask(self, workspace_id: str, request: AskRequest) -> dict[str, Any]:
+    async def ask(
+        self, workspace_id: str, request: AskRequest, connection: str | None = None
+    ) -> dict[str, Any]:
         """Opens the question on the canvas, blocks for the answer, or returns pending."""
         ws = self._workspace_for(workspace_id)
-        extra = await self._check(ws, workspace_id, request)
+        extra = await self._check(ws, workspace_id, request, connection)
         reasked = await asyncio.to_thread(store.find_diagram_requested, ws, request)
         question_id = reasked.meta["question_id"] if reasked else uuid.uuid4().hex
         if reasked:
@@ -135,8 +137,10 @@ class QuestionMcp:
             raise
         return result.to_tool_dict()
 
-    async def _check(self, ws: Workspace, workspace_id: str, request: AskRequest) -> dict | None:
-        """Raises QuestionRejected on a contract break; at the retry limit lets it through."""
+    async def _check(
+        self, ws: Workspace, workspace_id: str, request: AskRequest, connection: str | None = None
+    ) -> dict | None:
+        """Raises QuestionRejected on a contract break; at the retry limit lets one through."""
         if request.degraded:
             return {"degraded": True}
         problems = validate_ask(request)
@@ -144,13 +148,15 @@ class QuestionMcp:
             known = await asyncio.to_thread(store.known_element_ids, ws)
             problems = unknown_refs(request, known)
         tracker = self.rejections
+        key = request.session_id or (f"conn:{connection}" if connection else None)
         if not problems:
-            tracker.reset(workspace_id, request.session_id)
+            tracker.reset(workspace_id, key)
             return None
         text = rejection_text(problems)
-        if tracker.count(workspace_id, request.session_id) < settings.questions.max_rejections:
-            tracker.record(workspace_id, request.session_id)
+        if tracker.count(workspace_id, key) < settings.questions.max_rejections:
+            tracker.record(workspace_id, key)
             raise QuestionRejected(text)
+        tracker.reset(workspace_id, key)
         return {"degraded": True, "validation": text}
 
     async def draw_diagram(
@@ -158,7 +164,7 @@ class QuestionMcp:
         edges: list[diagrams.DiagramEdge], question_id: str | None, option_id: str | None,
     ) -> dict[str, Any]:
         """Draws one option diagram after the node budget check; returns its `diagram_ref`."""
-        diagrams.check(nodes, edges)
+        diagrams.check(nodes, edges, title)
         ws = self._workspace_for(workspace_id)
         root = await asyncio.to_thread(
             store.draw_diagram, ws, title, nodes, edges, question_id, option_id
@@ -197,7 +203,8 @@ class QuestionMcp:
             question=question, options=options or [], kind=kind, session_id=session_id,
             allow_custom=allow_custom, allow_skip=allow_skip, total=total, agent_id=agent_id,
         )
-        return await self.ask(self._workspace_id(ctx), request)
+        connection = (ctx.headers or {}).get("mcp-session-id")
+        return await self.ask(self._workspace_id(ctx), request, connection)
 
     async def _ask_user_result_tool(self, question_id: str, ctx: Context) -> dict[str, Any]:
         """Fetch the answer of an earlier ask_user call that returned pending."""

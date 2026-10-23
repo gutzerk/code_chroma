@@ -1,6 +1,7 @@
 import { useSyncExternalStore } from "react";
 import { Store } from "../state/createStore";
 import { clamp } from "../util/clamp";
+import { bridgeRequest, jsonInit } from "../util/httpJson";
 
 export type CanvasTexture = "none" | "dots" | "lines";
 
@@ -97,17 +98,23 @@ function isTexture(value: unknown): value is CanvasTexture {
 function parseSaved(raw: string | null): CanvasStyle | null {
   if (!raw) return null;
   try {
-    const data = JSON.parse(raw) as Partial<CanvasStyle>;
-    const bg = typeof data.bg === "string" ? normalizeHex(data.bg) : null;
-    const textureColor = typeof data.textureColor === "string" ? normalizeHex(data.textureColor) : null;
-    if (!bg || !textureColor || !isTexture(data.texture)) return null;
-    const opacity = clamp(Number(data.opacity), 0, 70);
-    const spacing = clamp(Number(data.spacing), 12, 64);
-    if (!Number.isFinite(opacity) || !Number.isFinite(spacing)) return null;
-    return { bg, texture: data.texture, textureColor, opacity, spacing };
+    return parseStyle(JSON.parse(raw));
   } catch {
     return null;
   }
+}
+
+/** A valid style from an untrusted object (storage or the bridge), else null. */
+function parseStyle(value: unknown): CanvasStyle | null {
+  if (!value || typeof value !== "object") return null;
+  const data = value as Partial<CanvasStyle>;
+  const bg = typeof data.bg === "string" ? normalizeHex(data.bg) : null;
+  const textureColor = typeof data.textureColor === "string" ? normalizeHex(data.textureColor) : null;
+  if (!bg || !textureColor || !isTexture(data.texture)) return null;
+  const opacity = clamp(Number(data.opacity), 0, 70);
+  const spacing = clamp(Number(data.spacing), 12, 64);
+  if (!Number.isFinite(opacity) || !Number.isFinite(spacing)) return null;
+  return { bg, texture: data.texture, textureColor, opacity, spacing };
 }
 
 function readSaved(): CanvasStyle | null {
@@ -121,6 +128,27 @@ function readSaved(): CanvasStyle | null {
 /** The user's canvas look; null means "never customized", which keeps the app's built-in canvas. */
 class CanvasStyleStore extends Store {
   private saved: CanvasStyle | null = readSaved();
+
+  /**
+   * Every project has its own bridge port, hence its own browser storage, so the bridge keeps the one machine-wide copy:
+   * adopt it when it has one, otherwise publish what this browser already had. Offline or mock runs keep the local copy.
+   */
+  async hydrate(): Promise<void> {
+    const before = this.saved;
+    try {
+      const remote = parseStyle(await bridgeRequest<unknown>("/canvas-style"));
+      if (this.saved !== before) return;
+      if (remote) {
+        this.saved = remote;
+        this.persistLocal();
+        this.emit();
+      } else if (this.saved) {
+        await bridgeRequest("/canvas-style", jsonInit("PUT", this.saved));
+      }
+    } catch {
+      // No bridge, or it is unreachable: the browser copy stays in charge.
+    }
+  }
 
   getSaved = (): CanvasStyle | null => this.saved;
 
@@ -147,6 +175,12 @@ class CanvasStyleStore extends Store {
   }
 
   private persist(): void {
+    this.persistLocal();
+    const request = this.saved ? bridgeRequest("/canvas-style", jsonInit("PUT", this.saved)) : bridgeRequest("/canvas-style", jsonInit("DELETE"));
+    request.catch(() => undefined);
+  }
+
+  private persistLocal(): void {
     try {
       if (this.saved) window.localStorage.setItem(STORAGE_KEY, JSON.stringify(this.saved));
       else window.localStorage.removeItem(STORAGE_KEY);
@@ -157,6 +191,7 @@ class CanvasStyleStore extends Store {
 }
 
 export const canvasStyleStore = new CanvasStyleStore().markGlobalStore();
+void canvasStyleStore.hydrate();
 
 export function useSavedCanvasStyle(): CanvasStyle | null {
   return useSyncExternalStore(canvasStyleStore.subscribe, canvasStyleStore.getSaved);

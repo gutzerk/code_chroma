@@ -21,23 +21,36 @@ class _FakeResponse:
 
 
 @pytest.mark.parametrize(
-    "provider",
+    ("provider", "expected_id"),
     [
-        Provider(id="p", label="l", kind="api", transport="openai-compatible"),
-        Provider(id="p", label="l", kind="api", transport="anthropic"),
-        Provider(id="p", label="l", kind="api", transport="gemini"),
-        Provider(id="p", label="l", kind="cli", adapter="claude"),
-        Provider(id="p", label="l", kind="cli", adapter="codex", base_url="http://x"),
+        (Provider(id="p", label="l", kind="api", transport="openai-compatible"), "gpt-5.2"),
+        (Provider(id="p", label="l", kind="api", transport="anthropic"), "claude-sonnet-5-5"),
+        (Provider(id="p", label="l", kind="api", transport="gemini"), "gemini-2.5-pro"),
+        (Provider(id="p", label="l", kind="cli", adapter="claude"), "sonnet"),
+        (Provider(id="p", label="l", kind="cli", adapter="codex", base_url="http://x"), "gpt-5.2"),
+        (Provider(id="p", label="l", kind="cli", adapter="kimi-cli"), "kimi-k2-thinking"),
     ],
     ids=[
         "openai_compatible_without_base_url",
         "anthropic_without_key",
         "gemini_without_key",
         "cli_claude_without_base_url",
-        "cli_non_claude_adapter",
+        "cli_codex_adapter",
+        "cli_kimi_adapter",
     ],
 )
-def test_unsupported_provider(provider):
+def test_unreachable_provider_falls_back_to_static_list(provider, expected_id):
+    result = fetch_models(provider)
+
+    assert result["supported"] is True
+    assert result["static"] is True
+    assert result["error"] is None
+    assert expected_id in [model["id"] for model in result["models"]]
+
+
+def test_unknown_cli_adapter_is_unsupported():
+    provider = Provider(id="p", label="l", kind="cli", adapter="mystery")
+
     result = fetch_models(provider)
 
     assert result == {"supported": False, "models": [], "error": None}

@@ -72,7 +72,7 @@ public sealed partial class WorkflowRunner
     private enum Outcome { Completed, Failed, Stopped }
 
     public WorkflowRunner(string repoRoot, SkillAgent agent, Action<JsonObject> emit, Func<string, string?>? sessionFinder = null,
-        SkillAgent? chatAgent = null, Func<string, string?>? mcpUrl = null, Func<string, string, TranscriptUsage?>? usageReader = null, Func<string, IDisposable>? reserveCleanup = null)
+        SkillAgent? chatAgent = null, Func<string, string?>? mcpUrl = null, Func<string, string, TranscriptUsage?>? usageReader = null, Func<string, IDisposable>? reserveCleanup = null, string? sharedWorkflowsDir = null)
     {
         _repoRoot = repoRoot;
         _reserveCleanup = reserveCleanup;
@@ -82,7 +82,7 @@ public sealed partial class WorkflowRunner
         _emit = emit;
         _sessionFinder = sessionFinder ?? (worktree => Transcripts.FindSessionId(worktree));
         _usageReader = usageReader ?? ((session, worktree) => Transcripts.ReadUsage(session, worktree));
-        Store = new RunStore(repoRoot);
+        Store = new RunStore(repoRoot, sharedWorkflowsDir);
         Recover();
     }
 
@@ -632,7 +632,7 @@ public sealed partial class WorkflowRunner
         return (DiffStat(h.Worktree), session, usage is null ? null : new StepUsage
         {
             ContextTokens = usage.ContextTokens, InputTokens = usage.InputTokens, OutputTokens = usage.OutputTokens,
-            CacheReadTokens = usage.CacheReadTokens, Model = usage.Model, ContextWindow = ModelSpecs.ContextWindow(usage.Model),
+            CacheReadTokens = usage.CacheReadTokens, Model = usage.Model, ContextWindow = ModelSpecs.ContextWindow(usage.Model, usage.ContextTokens),
         });
     }
 

@@ -65,8 +65,12 @@ Not repo-scoped — no `Services` dependency.
   [`report-issue.md`](report-issue.md)) rather than this form directly.
 - `web/src/canvas-style/` — the "Canvas style" category: `CanvasStylePanel.tsx` (theme presets,
   background colour, None/Dots/Lines texture with colour/opacity/spacing, light-background warning,
-  reset; edits go to a local draft and only the Apply button commits them to the store) over `canvasStyleStore.ts`, a global `Store` persisted in `localStorage` key
-  `codechroma.canvasStyle` (no bridge involved). `null` = never customised = the built-in canvas
+  reset; edits go to a local draft and only the Apply button commits them to the store) over `canvasStyleStore.ts`, a global `Store` whose machine-wide copy is the bridge's
+  `~/.codechroma/canvas-style.json` (`codechroma_CANVAS_STYLE_FILE` overrides; `GET/PUT/DELETE /canvas-style`,
+  `Routes/CanvasStyleRoutes.cs`, C# bridge only): every project has its own bridge port and so its own browser storage,
+  so the style set in one project reaches the others through that file. The store reads `localStorage` key
+  `codechroma.canvasStyle` first (instant paint), then `hydrate()` adopts the bridge copy, or uploads the browser's own
+  style when the bridge has none; every committed style (Apply) writes both. Without a bridge (mock) only `localStorage` is used. `null` = never customised = the built-in canvas
   look; `CanvasViewport.tsx` sets a saved style as the `--canvas-bg`/`--canvas-texture-image` vars
   that `.canvas-viewport` paints (falling back to the built-in look) and feeds its spacing to `gridStepFor` (`canvasGrid.ts`). Only the canvas
   background changes -- block and edge colours stay as the diagram sets them.

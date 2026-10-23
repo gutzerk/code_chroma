@@ -62,15 +62,23 @@ export function isLightBackground(hex: string): boolean {
   return luminance(hex) > LIGHT_LUMINANCE;
 }
 
-export function matchPreset(style: CanvasStyle): CanvasStylePreset | undefined {
-  return CANVAS_STYLE_PRESETS.find(
-    (p) =>
-      p.bg === style.bg &&
-      p.texture === style.texture &&
-      p.textureColor === style.textureColor &&
-      p.opacity === style.opacity &&
-      p.spacing === style.spacing,
+export function sameStyle(a: CanvasStyle, b: CanvasStyle): boolean {
+  return (
+    a.bg === b.bg &&
+    a.texture === b.texture &&
+    a.textureColor === b.textureColor &&
+    a.opacity === b.opacity &&
+    a.spacing === b.spacing
   );
+}
+
+/** A preset's style fields without its id and name. */
+export function toStyle({ bg, texture, textureColor, opacity, spacing }: CanvasStyle): CanvasStyle {
+  return { bg, texture, textureColor, opacity, spacing };
+}
+
+export function matchPreset(style: CanvasStyle): CanvasStylePreset | undefined {
+  return CANVAS_STYLE_PRESETS.find((p) => sameStyle(p, style));
 }
 
 /** The CSS background-image for a texture at the given alpha and dot radius (px); "none" paints nothing. */

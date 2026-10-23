@@ -11,6 +11,7 @@ public sealed class UserPaths
     public required string Providers { get; init; }
     public required string CallSites { get; init; }
     public required string DiagramTypes { get; init; }
+    public required string Workflows { get; init; }
 
     public static UserPaths FromEnvironment() => new()
     {
@@ -19,6 +20,7 @@ public sealed class UserPaths
         Providers = Resolve("codechroma_LLM_PROVIDERS_FILE", "llm-providers.json"),
         CallSites = Resolve("codechroma_LLM_CALL_SITE_SETTINGS_FILE", "llm-call-site-settings.json"),
         DiagramTypes = Resolve("codechroma_DIAGRAM_TYPES_DIR", "diagram-types"),
+        Workflows = Resolve("codechroma_WORKFLOWS_DIR", "workflows"),
     };
 
     /// <summary>All four stores under one directory (tests).</summary>
@@ -29,6 +31,7 @@ public sealed class UserPaths
         Providers = Path.Combine(directory, "llm-providers.json"),
         CallSites = Path.Combine(directory, "llm-call-site-settings.json"),
         DiagramTypes = Path.Combine(directory, "diagram-types"),
+        Workflows = Path.Combine(directory, "workflows"),
     };
 
     internal static string Resolve(string envVar, string fileName)

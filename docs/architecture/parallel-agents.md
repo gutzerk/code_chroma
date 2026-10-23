@@ -501,9 +501,9 @@ session (`SessionId`, captured on demand when still empty), or `null` for a non-
 yet, or a transcript with no billed reply. `Agents/AgentUsage.cs` builds it from one streamed pass, `Transcripts.ReadSession`: context comes from
 the last main-thread reply (`<synthetic>` entries and sidechains are skipped) and its window from
 `ModelSpecs.ContextWindow`; tokens, cache hit and cost sum every assistant reply once per `message.id`
-(sidechains included, since they are billed) per model.
+(sidechains included, since they are billed) per model; a reply streamed as several transcript entries counts its last entry, whose `output_tokens` is final.
 `inputTokens` counts uncached input plus cache reads and writes, and `cacheHitRatio` is cache reads over
-that. `Agents/ModelSpecs.cs` holds the context windows (1M for an id ending in `[1m]`, else 200k) and USD per MTok (input, output, cache read, 5-minute cache write) per
+that. `Agents/ModelSpecs.cs` holds the context windows (1M for an id ending in `[1m]` or a context already past 200k, since transcripts drop the suffix; else 200k) and USD per MTok (input, output, cache read, 5-minute cache write) per
 model id or its dated snapshot; `costUsd` is null when any model with tokens has no price.
 
 The web reads it through the optional `AgentClient.usage` (`HttpAgentClient` only; the mock has none, so

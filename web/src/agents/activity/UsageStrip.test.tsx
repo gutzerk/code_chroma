@@ -77,7 +77,8 @@ describe("UsageStrip", () => {
     );
 
     const header = (await screen.findByTestId("agent-usage-strip")).parentElement!;
-    expect(within(header).getByRole("button", { name: "Stop agent" })).toBeVisible();
+    expect(within(header).getByRole("button", { name: "Close Planner" })).toBeVisible();
+    expect(within(header).queryByRole("button", { name: "Stop agent" })).toBeNull();
     expect(within(screen.getByRole("navigation", { name: "Agents" })).getByText("Planner")).toBeVisible();
     expect(withUsage.usage).toHaveBeenCalledWith(agent.id);
   });

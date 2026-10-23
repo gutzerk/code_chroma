@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import type { AgentClient, AgentUsage } from "../agentClient";
 
-/** How often the open full screen re-reads the selected agent's usage between status changes. */
+/** How often the active agent panel re-reads the selected agent's usage between status changes. */
 export const USAGE_POLL_MS = 5000;
 
 /** 184000 → "184k", 1200000 → "1.2M", 950 → "950". */
@@ -36,7 +36,7 @@ export function useAgentUsage(client: AgentClient, agentId: string, status: stri
   return enabled ? usage : null;
 }
 
-/** Context meter, tokens in/out, cache hit and cost (when priced) for the full-screen agent header. */
+/** Context meter, tokens in/out, cache hit and cost (when priced) for the agent header (a row of its own in the normal panel). */
 export function UsageStrip({ usage }: { usage: AgentUsage }) {
   const used = usage.contextWindow > 0 ? percent(usage.contextTokens / usage.contextWindow) : 0;
   return (

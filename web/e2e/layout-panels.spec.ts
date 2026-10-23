@@ -55,7 +55,7 @@ test("a collapsed-bar color box hides its diagram (dashed) and restores it", asy
   await expect(box.locator(".collapsed-left-bar__swatch--hidden")).toHaveCount(0);
 });
 
-test("the attached activity panel collapses and reopens even without agents", async ({ page }) => {
+test("the floating activity panel collapses and reopens even without agents", async ({ page }) => {
   await gotoApp(page, { files: false });
   const panel = page.getByTestId("activity-panel");
   await expect(panel).toBeVisible();

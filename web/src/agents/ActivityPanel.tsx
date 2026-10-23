@@ -8,11 +8,11 @@ import { WorkflowsTab } from "../workflows/WorkflowsTab";
 import { useRuns, useWorkflows } from "../workflows/workflowStore";
 import { AgentList, AgentSwitcherRow } from "./activity/AgentSwitcherRow";
 import { CollapsedStrip, type ActivityTab } from "./activity/CollapsedStrip";
-import { CollapseIcon, ExpandIcon } from "./activity/icons";
+import { CollapseIcon, ExpandIcon, HandleChevronLeft, HandleChevronRight } from "./activity/icons";
 import "../canvas/PanelHandle.css";
 import "./ActivityPanel.css";
 
-/** Attached panel. Terminals stay mounted when tabs or visibility change. */
+/** Floating panel over the canvas. Terminals stay mounted when tabs or visibility change. */
 export function ActivityPanel({
   onRunAgent,
   disabled = false,
@@ -27,18 +27,26 @@ export function ActivityPanel({
   const workflows = useWorkflows();
   const launchError = useAgentLaunchError();
   const panelRef = useRef<HTMLElement | null>(null);
-  const { size, isResizing, handleProps } = useResizableSize(panelRef, {
+  const full = agentsMode === "full";
+  const { size, isResizing, handleProps, resetSize } = useResizableSize(panelRef, {
     axis: "x",
     edge: "left",
     minWidth: 320,
-    maxViewportFraction: 0.7,
+    maxViewportFraction: full ? 0.95 : 0.7,
+    onExceedMax: full ? undefined : () => layoutStore.setAgentsMode("full"),
   });
-  const resizable = agentsMode === "normal";
   const collapsed = agentsMode === "collapsed";
-  const full = agentsMode === "full";
+  const resizable = !collapsed;
+  // Collapsing keeps a dragged width; entering or leaving full starts from the mode's own width.
+  useEffect(() => resetSize(), [full]); // eslint-disable-line react-hooks/exhaustive-deps
+  // Dragging a full-screen panel back under the normal limit hands it back to normal mode.
+  useEffect(() => {
+    if (full && size && size.width <= window.innerWidth * 0.7) layoutStore.setAgentsMode("normal");
+  }, [full, size]);
+  const fullLeft = chromeInsets({ leftOpen, agentsMode }).agentsFullLeft;
   let style: CSSProperties | undefined;
-  if (full) style = { left: chromeInsets({ leftOpen, agentsMode }).agentsFullLeft };
-  else if (resizable && size) style = { width: size.width, flexBasis: size.width };
+  if (full && !size) style = { left: fullLeft };
+  else if (resizable && size) style = full ? { left: "auto", width: size.width, maxWidth: `calc(100% - ${fullLeft + 12}px)` } : { width: size.width };
   const activeId = agents.some((a) => a.id === selectedAgentId) ? selectedAgentId : agents[0]?.id;
   useEffect(() => {
     if (selectedAgentId) setTab("agents");
@@ -65,6 +73,18 @@ export function ActivityPanel({
         />
       )}
       <div className="panel-handle panel-handle--left-edge" data-testid="activity-edge">
+        {!collapsed && (
+          <button
+            type="button"
+            className="panel-handle-btn"
+            aria-label={full ? "Restore panel width" : "Stretch panel"}
+            title={full ? "Restore panel width" : "Stretch panel"}
+            aria-pressed={full}
+            onClick={layoutStore.toggleAgentsFull}
+          >
+            {full ? <HandleChevronRight /> : <HandleChevronLeft />}
+          </button>
+        )}
         {resizable && (
           <span className="panel-handle-grip" aria-hidden="true" {...handleProps}>
             <span />

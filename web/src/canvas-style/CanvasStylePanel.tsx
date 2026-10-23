@@ -7,7 +7,9 @@ import {
   isLightBackground,
   matchPreset,
   normalizeHex,
+  sameStyle,
   textureImage,
+  toStyle,
   useSavedCanvasStyle,
   type CanvasStyle,
   type CanvasTexture,
@@ -123,9 +125,10 @@ function Slider({
 /** Settings → Canvas style: background colour and texture of the canvas; block and line colours stay as the diagram sets them. */
 export function CanvasStylePanel({ onDismiss }: { onDismiss: () => void }) {
   const saved = useSavedCanvasStyle();
-  const [style, setStyle] = useState<CanvasStyle>(saved ?? CANVAS_STYLE_DEFAULT);
+  const baseline = saved ?? CANVAS_STYLE_DEFAULT;
+  const [style, setStyle] = useState<CanvasStyle>(baseline);
   const preset = matchPreset(style);
-  const dirty = JSON.stringify(style) !== JSON.stringify(saved ?? CANVAS_STYLE_DEFAULT);
+  const dirty = !sameStyle(style, baseline);
   const update = (patch: Partial<CanvasStyle>) => setStyle((current) => ({ ...current, ...patch }));
 
   return (
@@ -153,7 +156,7 @@ export function CanvasStylePanel({ onDismiss }: { onDismiss: () => void }) {
               className="canvas-style-tile"
               aria-pressed={preset?.id === p.id}
               data-testid={`canvas-style-preset-${p.id}`}
-              onClick={() => setStyle({ bg: p.bg, texture: p.texture, textureColor: p.textureColor, opacity: p.opacity, spacing: p.spacing })}
+              onClick={() => setStyle(toStyle(p))}
             >
               <span className="canvas-style-swatch" style={swatchStyle(p.texture, p.bg, p.textureColor, p.opacity)} />
               <span>{p.name}</span>

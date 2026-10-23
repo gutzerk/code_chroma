@@ -1,5 +1,35 @@
 # Changelog
 
+## [1.6.0](https://github.com/gutzerk/code_chroma/compare/v1.5.0...v1.6.0) (2026-10-23)
+
+
+### Features
+
+* **llm:** built-in model suggestions when a provider can't list models live ([af79917](https://github.com/gutzerk/code_chroma/commit/af79917e3f4260b76709829eb7a0dd58ac655d2c))
+* **llm:** built-in model suggestions when a provider can't list models live ([f259165](https://github.com/gutzerk/code_chroma/commit/f25916514dcbbe1b3839db34ecec90201b2b5dac))
+* **questions:** enforce the ask_user contract and add option diagrams ([50cdfb9](https://github.com/gutzerk/code_chroma/commit/50cdfb91dbf783a26244aa01849dc25b698e737b))
+* **questions:** enforce the ask_user contract and add option diagrams ([a530acd](https://github.com/gutzerk/code_chroma/commit/a530acd9064b06b6a4cfff54af3794d3cdf8d3be))
+* share the canvas style across projects through the bridge ([ddead66](https://github.com/gutzerk/code_chroma/commit/ddead66076e81ff63d2531f04af091f9d0932428)), closes [#236](https://github.com/gutzerk/code_chroma/issues/236)
+* **web:** apply the workflow and agents panel design on top of the agent-sessions workflow logic ([68f77b1](https://github.com/gutzerk/code_chroma/commit/68f77b126e7b311ce28046779d3da4df8e3a11bb))
+* **web:** show agent questions in the terminal, agent LEDs and activity panel ([2d41887](https://github.com/gutzerk/code_chroma/commit/2d418878b9750742fc9acdf7df8287515f19b72a))
+* **web:** workflow and agents panel design on top of agent-sessions logic ([ef82f94](https://github.com/gutzerk/code_chroma/commit/ef82f94eb6a8813caa2cbcb56f880ab062021b4a))
+
+
+### Bug Fixes
+
+* apply button for canvas style, restyle update result dialog ([b3ee85c](https://github.com/gutzerk/code_chroma/commit/b3ee85ce8a8f779168dc4b5d4035430363a76775))
+* Apply button for canvas style, restyle update result dialog ([aad77d3](https://github.com/gutzerk/code_chroma/commit/aad77d3b67de46820c4b10850256b3e74f3800e6))
+* canvas style reset/apply semantics, cap update detail height ([4100129](https://github.com/gutzerk/code_chroma/commit/41001296065e7778aa95537afaea1f848d986b4b))
+* delete only the resolved workflow copy and lock the shared directory process-wide ([75e9f58](https://github.com/gutzerk/code_chroma/commit/75e9f58a4c3b3e3975852791719f6dcd0f0d2420))
+* machine-wide workflows and accurate session token usage ([2a5c1e9](https://github.com/gutzerk/code_chroma/commit/2a5c1e9bba5fded3aea9fb84352dccf22edccac1))
+* machine-wide workflows, canvas style and accurate session token usage ([b060885](https://github.com/gutzerk/code_chroma/commit/b060885066a87ec22fbb42989be97a61d2bf489f))
+* **questions:** address 021 review findings ([a8a3b67](https://github.com/gutzerk/code_chroma/commit/a8a3b673b0f0e104e6fb8414240c72bff3692b0b))
+* surface gh errors on issue create, show update progress, clearer post-update dialog ([4733f7b](https://github.com/gutzerk/code_chroma/commit/4733f7ba6c6a75e9afe4644ff82e021c33268e2d))
+* surface gh errors on issue create, show update progress, clearer post-update dialog ([6c9e34f](https://github.com/gutzerk/code_chroma/commit/6c9e34fe917e15900e37a37a0abb43451cf182d4))
+* **updater:** report the update result before launching the new version ([985419c](https://github.com/gutzerk/code_chroma/commit/985419cec71f644e757abbf2360bb4837bf6acf7))
+* **updater:** report the update result before launching the new version ([6452030](https://github.com/gutzerk/code_chroma/commit/6452030517b0c9f0c20a5b4465a0909ef1cea9ea))
+* **web:** address review of the workflow and agents panel design ([f7a0d3a](https://github.com/gutzerk/code_chroma/commit/f7a0d3ac6b0ed4b7a3a79dc430464a4292c47ab4))
+
 ## [1.5.0](https://github.com/gutzerk/code_chroma/compare/v1.4.0...v1.5.0) (2026-10-23)
 
 

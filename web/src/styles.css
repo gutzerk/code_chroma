@@ -4,6 +4,27 @@
    c1/patterns) are intentionally named so each view's color story stays stable and editable in one
    place. Radii/shadows/type map the values already in use onto shared steps. */
 :root {
+  --question-surface: #1a1e27;
+  --question-border: #3a3550;
+  --question-accent: #a995c9;
+  --question-accent-ink: #1a1124;
+  --question-avatar-bg: #2f2840;
+  --question-avatar-fg: #c3b2e0;
+  --question-option-bg: #20242d;
+  --question-option-border: #2f3440;
+  --question-selected-bg: #262236;
+  --question-selected-border: #6c5b8a;
+  --question-rec-bg: #1c2620;
+  --question-rec-border: #3d5546;
+  --question-rec-fg: #9cc7a8;
+  --question-pro-bg: #1b241e;
+  --question-pro-fg: #9cc7a8;
+  --question-con-bg: #2a1e20;
+  --question-con-fg: #d1a3a6;
+  --question-send-bg: #3a3149;
+  --question-send-border: #6c5b8a;
+  --question-send-fg: #ece4f7;
+  --question-new: #6f9a7c;
   /* Soft-rounded "floating cards on dark ground" palette (restyle spec) — the window-specific
      tiers used directly by the top bar / rail / agent panel / canvas / sidebar rules below, and
      also aliased onto the generic --surface-N / --text-N / --accent tokens underneath so every
@@ -7292,145 +7313,242 @@ button[data-copy-state="idle"][aria-label]:hover:not(:disabled) {
   color: inherit;
 }
 
-/* An agent question (017): a card with AI-ranked option cards, custom answer and decision history. */
+/* An agent question (017/020): "soft tiles" card, shared by the canvas (full) and the agent terminal (compact). */
 .question-element {
   z-index: 2;
   box-sizing: border-box;
 }
 
 .question-card {
-  background: var(--bg-raised);
-  border: 1px solid #c48af8;
-  border-radius: var(--radius-card);
+  background: var(--question-surface);
+  border: 1px solid var(--question-border);
+  border-radius: 16px;
   color: var(--text-soft);
-  padding: 20px;
-  box-shadow: 0 5px 16px #0003;
+  padding: 16px;
+  box-sizing: border-box;
 }
 
-.question-card small {
+.question-card--full { border-radius: 18px; padding: 20px; }
+
+.question-card:focus-within { border-color: var(--question-selected-border); }
+
+.question-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 12px;
   color: var(--text-muted-soft);
-  font-size: 11px;
-  letter-spacing: 0.8px;
-  text-transform: uppercase;
 }
+
+.question-avatar {
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 8px;
+  background: var(--question-avatar-bg);
+  color: var(--question-avatar-fg);
+  font-weight: 700;
+}
+
+.question-header-gap { flex: 1; }
+.question-hint { color: var(--question-accent); font-family: var(--font-mono); font-size: 11px; }
+
+.question-progress { display: flex; gap: 4px; }
+.question-progress-seg { width: 18px; height: 3px; border-radius: 2px; background: var(--border); }
+.question-progress-seg--on { background: var(--question-accent); }
 
 .question-title {
-  margin: 10px 0 14px;
-  font-size: 19px;
+  margin: 12px 0;
+  font-size: 17px;
+  font-weight: 600;
   color: #e3d5f3;
 }
 
-.question-progress {
-  height: 4px;
-  margin: 12px 0 4px;
-  border-radius: 8px;
-  background: var(--border);
-}
+.question-card--full .question-title { font-size: 20px; }
 
-.question-progress-bar {
-  height: 100%;
-  border-radius: 8px;
-  background: #c48af8;
-}
-
-.question-options {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
-  gap: 12px;
-  margin: 14px 0;
-}
+.question-options { display: flex; flex-direction: column; gap: 8px; margin: 0 0 12px; }
+.question-card--full .question-options { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); }
 
 .question-option {
-  position: relative;
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 6px;
   text-align: left;
-  padding: 16px;
-  border: 1px solid var(--border);
-  border-top: 3px solid #4fc3f7;
-  border-radius: 10px;
-  background: var(--bg-panel);
+  padding: 10px 12px;
+  border: 1px solid var(--question-option-border);
+  border-radius: 12px;
+  background: var(--question-option-bg);
   color: var(--text-soft);
   font: inherit;
   cursor: pointer;
 }
 
-.question-option:hover:not(:disabled) {
-  background: var(--bg-raised-2);
+.question-option[aria-checked="true"] {
+  background: var(--question-selected-bg);
+  border-color: var(--question-selected-border);
 }
 
-.question-option:disabled {
-  cursor: default;
-  opacity: 0.6;
+.question-option:hover:not(:disabled) { border-color: var(--question-selected-border); }
+.question-option:disabled { cursor: default; opacity: 0.6; }
+
+.question-option-head { display: flex; align-items: center; gap: 10px; }
+
+.question-option-num {
+  display: grid;
+  place-items: center;
+  flex: 0 0 auto;
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  background: var(--border);
+  font-size: 12px;
+  font-weight: 600;
 }
 
-.question-option--best { border: 2px solid #6fcf97; padding-top: 40px; }
-.question-option--middle { border: 2px solid #e5b95c; }
-.question-option--last { border: 2px solid #e08085; }
+.question-option[aria-checked="true"] .question-option-num {
+  background: var(--question-accent);
+  color: var(--question-accent-ink);
+}
+
+.question-option-title { flex: 1; min-width: 0; }
+.question-option-chevron { color: var(--text-muted-soft); }
 
 .question-option-badge {
-  position: absolute;
-  top: 10px;
-  right: 10px;
-  padding: 3px 8px;
-  border-radius: 5px;
-  background: #223e30;
-  color: #a9e6be;
+  padding: 2px 8px;
+  border: 1px solid var(--question-rec-border);
+  border-radius: 999px;
+  background: var(--question-rec-bg);
+  color: var(--question-rec-fg);
   font-size: 11px;
   font-weight: 600;
 }
 
-.question-option-desc,
-.question-option-diagram { color: var(--text-muted-soft); font-size: 13px; }
-.question-option-pro { color: #6fcf97; font-size: 13px; }
-.question-option-con { color: #e08085; font-size: 13px; }
-.question-option-why { font-size: 12px; line-height: 1.5; color: var(--text-muted-soft); }
-.question-option--best .question-option-why { color: #6fcf97; }
-.question-option--middle .question-option-why { color: #e5b95c; }
-.question-option--last .question-option-why { color: #e08085; }
+.question-option-desc { color: var(--text-muted-soft); font-size: 13px; }
+.question-option-chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.question-chip { padding: 2px 8px; border-radius: 999px; font-size: 12px; }
+.question-chip--pro { background: var(--question-pro-bg); color: var(--question-pro-fg); }
+.question-chip--con { background: var(--question-con-bg); color: var(--question-con-fg); }
 
-.question-custom {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-  margin: 12px 0;
-}
+.question-custom { display: flex; gap: 8px; margin: 0 0 10px; }
 
 .question-custom input {
   flex: 1;
   min-width: 0;
-  padding: 10px;
-  border: 1px solid var(--border);
-  border-radius: 8px;
-  background: var(--bg-panel);
+  height: 44px;
+  box-sizing: border-box;
+  padding: 0 12px;
+  border: 1px solid var(--question-option-border);
+  border-radius: 12px;
+  background: var(--question-option-bg);
   color: var(--text-soft);
   font: inherit;
 }
 
-.question-quiet {
-  padding: 8px 12px;
-  border: 1px solid var(--border);
-  border-radius: 8px;
-  background: transparent;
-  color: var(--text-soft);
+.question-send {
+  height: 44px;
+  padding: 0 18px;
+  border: 1px solid var(--question-send-border);
+  border-radius: 12px;
+  background: var(--question-send-bg);
+  color: var(--question-send-fg);
   font: inherit;
   cursor: pointer;
 }
 
-.question-quiet:hover:not(:disabled) { background: var(--bg-raised-2); }
+.question-send:disabled { opacity: 0.5; cursor: default; }
+
+.question-footer { display: flex; justify-content: space-between; gap: 8px; }
+.question-footer-actions { display: flex; gap: 8px; margin-left: auto; }
+
+.question-quiet {
+  padding: 4px 6px;
+  border: 0;
+  background: transparent;
+  color: var(--text-muted-soft);
+  font: inherit;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.question-quiet:hover:not(:disabled) { color: var(--text-soft); text-decoration: underline; }
 .question-quiet:disabled { opacity: 0.5; cursor: default; }
-.question-result { color: #acd5b8; }
-.question-error { color: #e08085; font-size: 13px; }
+.question-card--done { display: flex; align-items: center; gap: 8px; padding: 8px 12px; }
+.question-result { margin: 0; color: var(--question-rec-fg); flex: 1; min-width: 0; }
+.question-error { color: var(--question-con-fg); font-size: 13px; }
 .question-note { color: var(--text-muted-soft); font-size: 12px; }
 
 .question-history {
-  margin-top: 20px;
-  padding-top: 14px;
+  margin-top: 12px;
+  padding-top: 10px;
   border-top: 1px solid var(--border);
   font-size: 13px;
   color: var(--text-muted-soft);
 }
+
+/* Agent terminal + its open question: one grid whose areas switch with the measured host size (020). */
+.agent-question-host {
+  flex: 1;
+  min-height: 0;
+  min-width: 0;
+  position: relative;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  grid-template-rows: minmax(120px, 1fr) auto;
+  grid-template-areas: "terminal" "card";
+}
+
+.agent-question-host > .agent-window-terminal { grid-area: terminal; min-height: 120px; }
+
+.aq-card { grid-area: card; min-height: 0; max-height: 55%; overflow-y: auto; margin: 0 12px 12px; }
+
+.agent-question-host[data-layout="A4"] {
+  grid-template-columns: 420px minmax(0, 1fr);
+  grid-template-rows: minmax(120px, 1fr) auto;
+  grid-template-areas: "diagram terminal" "diagram card";
+}
+
+.agent-question-host[data-layout="B1"] {
+  grid-template-columns: minmax(0, 1fr) 520px;
+  grid-template-rows: minmax(0, 1fr);
+  grid-template-areas: "card terminal";
+}
+
+.agent-question-host[data-layout="B1"] .aq-card { max-height: none; margin: 12px 0 12px 12px; }
+
+.aq-diagram {
+  grid-area: diagram;
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  margin: 12px 0 12px 12px;
+  border: 1px solid var(--question-option-border);
+  border-radius: 12px;
+  background: var(--question-option-bg);
+  overflow: hidden;
+}
+
+.aq-diagram--box { grid-area: auto; margin: 12px 0 0; min-height: 220px; }
+.aq-diagram--full { position: absolute; inset: 0; z-index: 5; margin: 0; border-radius: 0; background: var(--question-surface); }
+
+.aq-diagram-head { display: flex; align-items: center; gap: 8px; padding: 8px 10px; font-size: 12px; color: var(--text-muted-soft); }
+.aq-diagram-head b { color: var(--text-soft); font-weight: 600; }
+.aq-diagram-tabs { display: flex; gap: 4px; flex-wrap: wrap; }
+.aq-diagram-tab { padding: 3px 8px; border: 1px solid var(--question-option-border); border-radius: 8px; background: transparent; color: inherit; font: inherit; cursor: pointer; }
+.aq-diagram-tab[aria-selected="true"] { background: var(--question-selected-bg); border-color: var(--question-selected-border); color: var(--text-soft); }
+.aq-diagram-body { position: relative; flex: 1; min-height: 0; overflow: hidden; }
+.aq-diagram-empty { display: grid; place-items: center; height: 100%; color: var(--text-muted-soft); font-size: 13px; }
+.aq-diagram-tools { position: absolute; right: 8px; bottom: 8px; display: flex; gap: 4px; }
+.aq-diagram-tools button { width: 28px; height: 28px; border: 1px solid var(--question-option-border); border-radius: 8px; background: var(--question-surface); color: var(--text-soft); cursor: pointer; }
+.aq-diagram-stage { position: absolute; left: 0; top: 0; transform-origin: 0 0; }
+.aq-diagram-node { position: absolute; box-sizing: border-box; padding: 6px 8px; border: 1px solid var(--question-option-border); border-radius: 8px; background: var(--question-surface); color: var(--text-soft); font-size: 12px; overflow: hidden; }
+.aq-diagram-node[data-new="true"] { border: 1px dashed var(--question-new); }
+.aq-diagram-edges { position: absolute; left: 0; top: 0; pointer-events: none; overflow: visible; stroke: var(--text-muted-soft); }
+
+.agent-led--asking { background: var(--question-accent); }
+.agent-led-badge { margin-left: 2px; color: var(--question-accent); font-size: 10px; font-weight: 700; }
+.activity-question-pill { margin-left: 6px; padding: 1px 6px; border-radius: 999px; background: var(--question-avatar-bg); color: var(--question-avatar-fg); font-size: 11px; }
 
 /* Code sidebar (variant A) — a resizable panel right beside the project tree showing source for
    every opened file. Sits in .canvas-main-row after the tree panel; tabs run most-recently-viewed

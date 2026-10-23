@@ -16,6 +16,7 @@ export function viewOf(overrides: Partial<QuestionView> = {}): QuestionView {
   return {
     questionId: "q1", elementId: "q1", title: "How should checkout be structured?", state: "open",
     answer: null, sessionId: "s1", step: 2, total: 4, options: OPTIONS, allowCustom: true, allowSkip: true,
+    diagramRequested: false, diagramRequests: 0,
     ...overrides,
   };
 }

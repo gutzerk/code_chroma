@@ -21,8 +21,6 @@ const INITIAL: LayoutState = {
 /** Shared canvas chrome layout: left panel open/tab and agents panel mode; global (survives workspace switches). */
 class LayoutStore extends Store {
   private state: LayoutState = INITIAL;
-  // The left panel's open state from before entering full, restored when leaving it.
-  private leftOpenBeforeFull: boolean | null = null;
 
   getState = (): LayoutState => this.state;
 
@@ -32,12 +30,7 @@ class LayoutStore extends Store {
   }
 
   openLeft = (tab?: LeftTab): void => {
-    this.leftOpenBeforeFull = null;
-    this.set({
-      leftOpen: true,
-      leftTab: tab ?? this.state.leftTab,
-      agentsMode: this.state.agentsMode === "full" ? "normal" : this.state.agentsMode,
-    });
+    this.set({ leftOpen: true, leftTab: tab ?? this.state.leftTab });
   };
 
   closeLeft = (): void => this.set({ leftOpen: false });
@@ -47,17 +40,9 @@ class LayoutStore extends Store {
     else this.openLeft();
   };
 
-  setAgentsMode = (mode: AgentsMode): void => {
-    const wasFull = this.state.agentsMode === "full";
-    if (mode === "full") {
-      if (!wasFull) this.leftOpenBeforeFull = this.state.leftOpen;
-      this.set({ agentsMode: mode, leftOpen: false });
-      return;
-    }
-    const restored = wasFull ? this.leftOpenBeforeFull : null;
-    this.leftOpenBeforeFull = null;
-    this.set(restored === null ? { agentsMode: mode } : { agentsMode: mode, leftOpen: restored });
-  };
+  setAgentsMode = (mode: AgentsMode): void => this.set({ agentsMode: mode });
+
+  toggleAgentsFull = (): void => this.set({ agentsMode: this.state.agentsMode === "full" ? "normal" : "full" });
 
   selectAgent = (id: string | null): void => this.set({ selectedAgentId: id });
 
@@ -69,7 +54,6 @@ class LayoutStore extends Store {
 
   reset = (): void => {
     this.state = INITIAL;
-    this.leftOpenBeforeFull = null;
     this.emit();
   };
 }

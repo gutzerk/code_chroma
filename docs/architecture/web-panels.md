@@ -19,6 +19,9 @@ to revive if it comes back, it would be rebuilt from scratch.
   - `allowProposedApi: true` + `Unicode11Addon` + `unicode.activeVersion = "11"`. Without it xterm
     measures with the Unicode 6 width table and every braille spinner, box-drawing frame and emoji
     lands at the wrong cell width.
+  - A custom key handler that lets Ctrl/Cmd+V through to the browser (`isPasteChord`): xterm cancelling
+    that keydown suppressed the native paste event, so the desktop shell's clipboard fallback
+    (`DesktopScript.cs`) raised a WebView "Insert" prompt instead of pasting.
   - An explicit `fontFamily` (xterm's default is `courier-new`, which has none of those glyphs) and
     `lineHeight: 1` — anything larger breaks box borders into dashes.
   - `WebglAddon` with an `onContextLoss` dispose so a lost context degrades to the DOM renderer

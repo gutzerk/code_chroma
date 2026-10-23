@@ -268,9 +268,10 @@ gap.
 Reads the tree from disk directly (there is no resolved HTTP GET to read instead — this is a
 full-replace markdown tree, not a server-merged artifact the way a diagram is). Checks: unique
 container/component ids, every component's `container` names a real container, every container owns
-at least one component, every manifest-listed page actually exists on disk. One live HTTP call: every
+at least one component, every manifest-listed page actually exists on disk. One live HTTP lookup: every
 declared `File:`/`Class:`/`Function:` reference's path (stripped of any `::Symbol` suffix) is checked
-against `GET /repos/{id}/wiki-context` — a path the real wiki has no page for comes back in the
+against `GET /repos/{id}/wiki-context`, sent in batches of `_FETCH_BATCH_SIZE` (50) paths so a large
+wiki never trips HTTP 414 URI Too Long — a path the real wiki has no page for comes back in the
 response's `gaps[]` and fails the run as `HALLUCINATED`. A page that exists but isn't linked from its
 parent prints `LINK-MISSING`, advisory only. Exit codes: `0` OK, `1` FAILED, `2` ERROR (couldn't read
 the manifest, a page, or reach the bridge at all) — simpler than `check_diagram.py`'s four-tier
@@ -337,7 +338,7 @@ current HEAD; `GET /repos/{id}/wiki-general/status` folds the result into a new 
 An unstamped manifest (predates this feature, or a page edited by hand outside a run) reads as stale
 by construction — there's nothing to compare it against that would ever call it fresh.
 
-**The incremental skill — `.claude/skills/codechroma-wiki-general-update/`.** Sibling to
+**The incremental skill — `skills/codechroma-wiki-general-update/` (installed to `.claude/skills/`).** `SKILL.md` is self-contained since the retired full-rebuild skill and `data-model.md` no longer ship: it carries the c3 and c2 page formats, the root-index link rule for new containers, the one-file-per-`wiki-context`-request rule (a multi-path response over the size cap sets `truncated`, `omitted[]` and `warning`; `gaps[]` stays empty), the `update-plan` fallback for terminal runs, and reads `$CODECHROMA_BRIDGE_URL`/`$CODECHROMA_WORKSPACE_ID` (the check script's `--url`/`--repo` default to them). Update naming: a superseded old id is freed before new groups are named (no phantom `rbac-2` when `rbac` was just deleted) and a deduped id also suffixes the display name (`Hubconst 2`), in `wiki_general_naming.unique_display` / `WikiGeneralNaming.UniqueDisplay`. Older notes follow. Sibling to
 `codechroma-wiki-general`, its own `KIND_UPDATE = "wiki-general-update"` `SkillAgent` (registered in
 `services.py` alongside the full-rebuild one; `SkillAgentTimeoutsConfig.timeout_seconds
 ["wiki-general-update"]` defaults to a shorter 300s, since it touches far fewer pages).
@@ -375,9 +376,8 @@ bucket the full-rebuild skill's own escalation call owns (Update does not run th
 an undetermined file just doesn't appear in any component's `files[]` until a future Generate or a
 call that resolves it).
 
-`find_affected_components` still exists (its own tests still cover the old path-grep matching
-behavior; `changed_paths_since_last_run` was removed as dead code) but the update route no longer calls it — full recompute
-replaced them as the mechanism, per research.md §10's "diffing a freshly-recomputed manifest against
+`find_affected_components` and `changed_paths_since_last_run` were removed as dead code — the update route
+no longer needed them; full recompute replaced them as the mechanism, per research.md §10's "diffing a freshly-recomputed manifest against
 the stored one gives an exact, correct answer... in one mechanism instead of separate detection logic
 per case." Tests: `tests/unit/test_wiki_general_affected.py`'s `_diff_manifest` cases (a moved file
 marks both components `Rewritten`, an emptied component `Deleted`, an unrelated one `Unaffected`),
@@ -385,7 +385,7 @@ marks both components `Rewritten`, an emptied component `Deleted`, an unrelated 
 against `sample_repo`, deterministic naming, `edges[]`/`generated_at_commit` recomputed together).
 
 🔴 `stamp_generated_commit`'s own staleness plumbing is unchanged by the above: the changed-paths
-concept the removed `changed_paths_since_last_run(ws, manifest)` used to feed `find_affected_components` from
+concept the removed `changed_paths_since_last_run(ws, manifest)` used to feed the removed `find_affected_components` from
 `WorkspaceGit.changed_since(base_commit)` (`manifest["generated_at_commit"]` vs. what's on disk now),
 never from `WorkspaceGit.divergent_files()` (which is hard-coded to diff against `"HEAD"` for the main
 workspace, so it only ever sees *uncommitted* edits) — that fix (2026-09-16) still matters for
@@ -463,7 +463,9 @@ subscription.
   | `GET /repos/{id}/wiki-general/status` | `{state, error, has_wiki_general, stale, empty}` — job state (whichever of the two `SkillAgent`s is generating, else the full-rebuild one's) merged with `agent.has_artifact()`, `wiki_general_agent.is_stale(ws)`, and `not has_documentable_content(ws)` |
   | `POST /repos/{id}/wiki-general/status` | Interactive-run counterpart (`agent.mark_generating`/`mark_done`) — a terminal-panel agent running the skill directly, not via the button, reports its own progress the same way, mirroring `diagram-skills.md`'s "Reporting generation status from an interactive run"; a `state: "generating"` body calls `prepare_new_run(agent, ws, guard_content=kind == KIND)`, which refuses codeless-repo runs for the full-rebuild `kind` only, then clears/syncs unless a run is already generating; a clean finish stamps `generated_at_commit` |
   | `POST /repos/{id}/wiki-general/generate` | `WritableWs` — the **first** agent-driven generate route a canvas button calls directly (no live C1/Patterns "Retry" button exists to copy from), so it needed the read-only guard those never picked up; `prepare_new_run` refuses with `NO_DOCUMENTABLE_CONTENT_ERROR` (no skill launched) on a codeless repo, otherwise clears/syncs unless a run is already generating, refuses if an update run is; stamps `generated_at_commit` on success |
-  | `POST /repos/{id}/wiki-general/update` | `WritableWs` — the incremental skill's route; never clears the tree, refuses if a generate run is in flight, stamps `generated_at_commit` on success |
+  | `POST /repos/{id}/wiki-general/update` | `WritableWs` — the incremental skill's route; never clears the tree, refuses if a generate run is in flight, stamps `generated_at_commit` on success. 🔴 A clean CLI exit is not success: `pages_to_write(delta)` lists every created/rewritten c3/c2 page and `verify_pages_written` (C#: `WikiGeneralUpdate.VerifyPagesWritten` via `RunOptions.PostRunCheck`) turns a run that left one missing, or wrote none, into an `error` job (`stale` stays true). The manifest's `generated_at` is refreshed on every apply |
+  | `GET /repos/{id}/wiki-general/update-plan` | Read-only preview of the delta (`created`/`rewritten`/`deleted`/`unaffected` per level plus `edges`); changes nothing |
+  | `POST /repos/{id}/wiki-general/update-plan` | `WritableWs` — for a skill run in a terminal that has no lists in its prompt: applies the deletions, flips the update job to `generating` with **no subprocess**, returns `{state, error, delta}`. The skill writes the pages itself and reports through `POST .../status` with `kind: wiki-general-update`. Call it once (a second call sees the applied manifest; 409 while an update is generating) |
   | `GET /repos/{id}/wiki-general/clustering` | The fixed C2-join grouping (`compute_clustering`) — 🔵 `run_pipeline` calls the function directly, not this route; nothing in the frontend calls it either since 058 retired the skill that used to `curl` it from inside a run. Left in place (harmless, exercised by its own route test) rather than removed as part of this change. See "C2-join clustering" above |
   | `GET /repos/{id}/wiki-general/output` | Progress lines for whichever kind is active |
   | `POST /repos/{id}/wiki-general/cancel` | `WritableWs`; cancels whichever kind is active via `stop_and_notify` (`routes/_skill_jobs.py`) |
@@ -576,7 +578,7 @@ read merging with, not duplicating, lines the live subscription already appended
 after construction, true once per commit, false for an uncommitted edit, the unborn-HEAD first-commit
 edge case) · `tests/unit/test_workspaces.py` (`on_repo_change()` pings `"wiki-general"` after a real
 commit, not after a plain edit) · `tests/unit/test_wiki_general_affected.py`
-(`find_affected_components()`'s own still-covered path-grep behavior, plus `_diff_manifest()`'s
+(`_diff_manifest()`'s
 Update state machine — a moved file marks both its old and new component `Rewritten`, an emptied
 component `Deleted`, an unrelated one `Unaffected`) · `tests/unit/test_bridge_wiki_general_update_route.py`
 (`/update` never wipes existing pages, the two kinds refuse to run concurrently in either direction,
@@ -586,3 +588,7 @@ the `stale` field's extra cases folded into the existing `test_bridge_wiki_gener
 `test_wiki_general_end_to_end.py` status assertions.
 
 C# bridge note: the whole surface is ported -- status, interactive status, `generate`, `update`, `clustering`, output, cancel and `wiki-general-context` (`Routes/WikiGeneralRoutes.cs`, `Skills/WikiGeneral*.cs`). `generate` registers `WikiGeneralPipeline.Run` as the `wiki-general` agent's `RunBody` (`Skills/WikiGeneral.cs::Specs`): the same deterministic fan-out as `wiki_general_pipeline.py` (`engine.BuildClusters` -> `WikiGeneralNaming` ids -> `WikiGeneralWorker` zero-tool Claude jobs bounded by `WikiGeneralPipelineSettings` -> pages and `manifest.json` written only after every job succeeded). It then runs `WikiGeneralCheck.Run` (the in-process port of `check_wiki_general.py`, same exit tiers 0/1/2 and line texts; the plain-wiki gap lookup is `WikiContext.Build(...).Gaps`) and reports an error unless it returns OK. Only the Claude adapter supports minimal-context workers; any other CLI fails up front with `UnsupportedAdapterException`. `update` is `WikiGeneralUpdate.ComputeDelta` (re-sync, re-cluster, `DiffManifest` state machine) then `ApplyDelta` (deletions, `files[]`/`edges[]` refresh), then starts the `wiki-general-update` agent as a CLI run with the created/rewritten JSON in its prompt, exactly like the Python route. `generate` and the interactive `generating` status both go through `WikiGeneral.PrepareNewRun` (clear the tree, bootstrap and sync the plain wiki) and hold `WikiGeneral.RunLock`. `GET .../clustering` serializes `ClusterResult` plus per-file candidates via `WikiGeneralUpdate.ClusteringBody`. Tests: `WikiGeneralCheckTests`, `WikiGeneralUpdateTests`, `WikiGeneralRouteTests` (end to end against the scripted fake CLI with a hand-built graph; the real Claude path is not exercised). Contract: `wiki_general.cases.json` (the `clustering` case needs the `real-engine` capability, so the snapshot-backed C# host lists it as unsupported unless `CODECHROMA_PYTHON` is set).
+
+## Long prompts on Windows (C# bridge)
+
+`SkillAgent.RunCli` always passes the prompt through `FitCommandLine`: when its quoted length (`EscapedLength`, each `"`/`\` counts double) exceeds 20 000 chars the prompt is written to `.codechroma/prompts/` and the CLI is told to read it. The wiki-general **Update** prompt embeds the created/rewritten delta JSON, so a large commit otherwise overflowed Windows' 32 767-char command line ("The filename or extension is too long").

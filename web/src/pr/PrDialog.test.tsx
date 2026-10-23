@@ -190,7 +190,7 @@ describe("PrDialog", () => {
     fireEvent.click(screen.getByTestId("pr-dialog-open"));
 
     await waitFor(() => expect(create).toHaveBeenCalled());
-    expect(create).toHaveBeenCalledWith("", "agent", "pr-7", IMPACT_DIAGRAM_TASK, "task");
+    expect(create).toHaveBeenCalledWith("", "agent", "pr-7", IMPACT_DIAGRAM_TASK, "task", undefined);
   });
 
   it("starts no agent when the impact box is left alone", async () => {

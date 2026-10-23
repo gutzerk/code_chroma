@@ -24,7 +24,8 @@ export function minimizeAgentWindow(client: AgentClient, id: string): void {
  * already knows the canvas is showing the right data (e.g. an agent attached to the current
  * workspace) and must not trigger a workspace-switch reset just to become visible. */
 export function openAgentWindow(client: AgentClient, id: string): void {
-  layoutStore.setAgentsMode("normal");
+  // Only a collapsed strip needs reopening; full screen must survive switching agents.
+  if (layoutStore.getState().agentsMode === "collapsed") layoutStore.setAgentsMode("normal");
   layoutStore.selectAgent(id);
   persist(client, id, { minimized: false, z: agentStore.bringToFront(id) });
 }

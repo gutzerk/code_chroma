@@ -445,19 +445,6 @@ export const EMPTY_IMPACT_CHANGES: ImpactChanges = {
   general_pr_comments: [],
 };
 
-/** Which assistant the app runs (skill-agent diagram gen, parallel-agent windows) — GET
- * /assistant/settings returns this masked shape; PUT accepts a saveable superset. */
-export interface AssistantSettings {
-  cli: string;
-  /** Selected model; null/unset means "use each generator's built-in default". */
-  model: string | null;
-  /** True when a raw key is stored (the key itself is never sent back to the UI). */
-  api_key_set: boolean;
-  /** A credentials file path, when the user chose file-based creds. */
-  api_key_path: string | null;
-  schema_version?: number;
-}
-
 export type ExpandState = "collapsed" | "expanded";
 
 /** A function whose current on-disk source differs from its git-HEAD source (GET
@@ -523,6 +510,10 @@ export interface AgentRecord {
    * means its own worktree. Restoring its window must not re-activate a workspace the canvas is
    * already drawing. */
   shares_workspace_with?: string | null;
+  /** The workflow run whose worktree this agent was opened in ("Open agent" on a step). */
+  source_run?: string | null;
+  /** The step session its fresh starts fork with `--resume <id> --fork-session`. */
+  fork_session?: string | null;
   worktree: string;
   created_at: string;
   /** Set once a conversation exists; null disables Resume rather than starting a fresh chat. */

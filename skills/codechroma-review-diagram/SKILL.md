@@ -28,7 +28,7 @@ as shown below.
 **Write to the workspace the canvas is actually drawing**, not the one this agent run launched from.
 
 ```bash
-curl -s "http://localhost:8000/agents"
+curl -s "${CODECHROMA_BRIDGE_URL:-http://localhost:8000}/agents"
 # -> {"agents":[...], "active_workspace":"pr-29", ...}  — the id the canvas is drawing
 ```
 
@@ -41,7 +41,7 @@ id in every route call, so your review lands in the worktree the canvas draws.
 **The bridge has already done the mapping. Fetch it and work from it.**
 
 ```bash
-curl -s "http://localhost:8000/repos/${TARGET_WORKSPACE}/impact-changes"
+curl -s "${CODECHROMA_BRIDGE_URL:-http://localhost:8000}/repos/${TARGET_WORKSPACE}/impact-changes"
 ```
 
 Returns `fingerprint` (copy verbatim), `blocks[]` (every touched box: `block` — the box's own real
@@ -74,7 +74,7 @@ in `_build`" is not.
 **Ask the bridge — do not guess from your working directory.**
 
 ```bash
-curl -s "http://localhost:8000/repos/${TARGET_WORKSPACE}/impact-changes-path"
+curl -s "${CODECHROMA_BRIDGE_URL:-http://localhost:8000}/repos/${TARGET_WORKSPACE}/impact-changes-path"
 # -> {"repo_root":"...","impact_changes_path":"/abs/path/.codechroma/impact-changes.json","fingerprint":"…"}
 ```
 
@@ -155,7 +155,7 @@ normal change set — let `summary` cover the rest of the shape.
 
    ```bash
    python3 .claude/skills/codechroma-review-diagram/scripts/check_review.py \
-       --url http://localhost:8000 --repo "${TARGET_WORKSPACE}" --kind impact
+       --url ${CODECHROMA_BRIDGE_URL:-http://localhost:8000} --repo "${TARGET_WORKSPACE}" --kind impact
    ```
 
    Fix and re-run until it prints `OK`.

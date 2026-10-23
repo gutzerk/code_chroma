@@ -18,7 +18,7 @@ function bannerRow(visible: string, styled: string): string {
 }
 
 /** The Claude Code welcome box every scripted agent opens with. */
-export function claudeBanner(cwd = "~/codechroma-tutorial"): string {
+function claudeBanner(cwd = "~/codechroma-tutorial"): string {
   return [
     `${ORANGE}╭${"─".repeat(BANNER_WIDTH)}╮${RESET}`,
     bannerRow(

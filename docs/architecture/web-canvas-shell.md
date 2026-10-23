@@ -1,16 +1,25 @@
 # Web canvas shell (`web/src/canvas/`)
 
-The right side is an attached `agents/ActivityPanel`, present even with no agents. Its Agents and
-Workflows tabs have separate compact launch actions. Agent terminals live in `DockedAgentPanel`,
+> Removed dead components: `AgentRail`, `AgentWindow`, `AgentFullScreen`, `AgentTab` and `useFullScreenAgentId` (plus their tests/CSS) are deleted -- `ActivityPanel` + `AgentTerminalDock` replaced them. Mentions of those names below are historical; the live flow is `windowActions.ts` + `ActivityPanel`.
+
+The right side is an attached `agents/ActivityPanel`, present even with no agents. Its header is a
+segmented "Agents N | Workflows N" control plus a collapse button. The Agents tab is one 40px
+`agents/activity/AgentSwitcherRow` (agent dropdown with status dot, title, an "i/N" count chip and
+"cli · branch · status"; Run agent, Full screen and Collapse live in the header, Stretch / grip / Collapse on the left-edge handle) above the terminal. The panel floats over the canvas like the left panel (`position: absolute` in `.canvas-main-row`, z-index 41), so the canvas shows behind it. Stretch, the header Full screen button and dragging the edge past its limit are one state, `agentsMode: "full"` (`layoutStore.toggleAgentsFull`; `useStretchWidth`, `layoutMetrics.agentsWideWidth`): the panel spans from the open diagrams panel's edge, or to the chrome inset when that panel is closed, and all three controls reflect it. In full screen the dropdown is replaced by `AgentList`, a left column of every agent, switching agents keeps full screen (`openAgentWindow` only reopens a *collapsed* strip), and entering full or switching inside it focuses the shown agent's terminal (`focusRequest`). The
+Workflows tab renders `workflows/WorkflowsTab` (see [`workflows.md`](workflows.md)). Collapsed, the
+panel is a 52px `agents/activity/CollapsedStrip` (SVG icons from `activity/icons.tsx`, count badges with
+a yellow "!" when a run needs you, one initials circle with status dot per agent, a + button,
+`.rail-tooltip` tooltips; `AgentsCollapsedBar` is gone). Agent terminals live in `DockedAgentPanel`,
 remain mounted across tab/collapse changes, and have no detach-to-window action. `AgentWindowLayer`
-now owns lifecycle subscriptions and dialogs only. The panel uses the diagrams panel's pill tabs,
-surface and matching edge handle. Workflow steps retain a segmented progress bar while collapsed;
-step output, diff statistics, review controls and run chat come from the workflow bridge.
+now owns lifecycle subscriptions and dialogs only. The panel uses the diagrams panel's surface and
+matching edge handle.
 
 
 Has grown well past the "minimal canvas + navigation base" the docs in `web/README.md` and
 `web/QUICKSTART.md` still describe — those files understate the current feature set and shouldn't be
 trusted as-is (see caveat in [`web-engine-client.md`](web-engine-client.md)).
+
+🔴 **Zoom range and scrollbars (#185, #191):** `canvasGrid.ts#MIN_SCALE` (0.05) is the zoom-out floor for wheel, buttons and fit (max stays 2.5), so a multi-diagram canvas fits a small display; the dot grid re-steps itself. `html/body/#root` are `overflow: hidden` and `.canvas-main-row` scrolls horizontally with its scrollbar hidden (`overflow-y: hidden`, `scrollbar-width: none`), so macOS shows no stray page/row bars; tests in `CanvasViewport.test.tsx` ("zoom-out floor").
 
 Everything is one continuous in-memory DOM/CSS canvas — no per-node routing. A pluggable-camera
 pan/zoom system sits on top of that canvas (wheel-zoom toward cursor, drag-to-pan, zoom in/out/reset
@@ -396,6 +405,8 @@ and then `closeLeft()` where it used to reset the panel). `CodeSidebar` is `hidd
 is closed, as it was with the old tree toggle. The notes below describe the original component's behavior, which `LeftPanel`'s Files tab
 now carries.
 
+**Panel look (design mockup):** both side panels use the shared `canvas/PanelHandle.css` pill (grip dots + chevron, centred on the panel edge; the dots are only drawn where the panel resizes — the agents panel, not the fixed-width left one). The Files tab restyles the shared `TreeNode` through `.left-panel-files` rules in `leftpanel/LeftPanel.css` (flat 28px monospace rows, no kind icons or copy buttons, open file = `#2b3550` row with a green dot); agents in `ActivityPanel` are chosen from the switcher dropdown (name + `cli · branch · status`); an agent launched to draw a diagram (`context_kind === "task"`, set only by the Draw button, the draw popover and the PR impact launch) gets a blue outline and a "Diagram" badge (`data-diagram`, `.activity-agent-badge`).
+
 The tree now lives in this sidebar rather than on the canvas: `RootCanvas` collapses the seeded
 `hierarchy` layer on load (`collapsedLayersStore.collapse("hierarchy")`), so the canvas opens
 diagrams-only, and the panel — the sole tree surface — is **open by default**
@@ -510,11 +521,10 @@ An Avalonia (C#, net8.0, Avalonia 11.3.12) port of the canvas lives under `dotne
 ## Layout store, left panel and agents modes
 
 `canvas/layout/layoutStore.ts` is the one global store for the chrome layout: `leftOpen`, `leftTab`
-(`diagrams`|`files`), `agentsMode` (`normal`|`collapsed`|`full`) and `selectedAgentId`. `openLeft(tab)`
-also drops `full` back to `normal`; `setAgentsMode("full")` forces `leftOpen=false` (the left panel
-and the full-screen agents view never coexist, but the collapsed left bar stays visible) and remembers
-the prior `leftOpen`, which `setAgentsMode("normal"|"collapsed")` restores on leaving `full`
-(`openLeft` discards it). `reconcileAgents(ids)` (called by `AgentWindowLayer`) clears a
+(`diagrams`|`files`), `agentsMode` (`normal`|`collapsed`|`full`) and `selectedAgentId`. `openLeft(tab)` and
+`setAgentsMode` are independent: full screen never touches `leftOpen`. In `full` the agents panel
+spans from the open diagrams panel's edge (or from the chrome inset when it is closed, the collapsed left bar is hidden in full) to the
+right gap; the left-edge resize grip exists only in `normal` (dragging it past 70% of the viewport enters full), so a drag can't override the stretched width. `reconcileAgents(ids)` (called by `AgentWindowLayer`) clears a
 `selectedAgentId` whose agent closed; the full view falls back to the first agent
 (`agents/useFullScreenAgentId.ts`), and a rail card click calls `selectAgent`.
 `layoutMetrics.ts` holds the `Z_*` z-index tokens (left panel 2, terminal 2, agents 3, handles 4,
@@ -538,12 +548,16 @@ expand button, folder and color boxes all go through `layoutStore`/`collapsedLay
   auto-add is `canvas/doc/useDiagramReadinessWatcher.ts`, called once from `RootCanvas` so it keeps
   running while the panel is collapsed.
 - `CollapsedLeftBar`: expand button, Files folder, one 34x34 swatch box per diagram (dashed when
-  hidden, `aria-pressed`).
+  hidden, `aria-pressed`). Both panel layouts use `diagramDisplay.diagramAccent` for swatches, matching
+  the canvas frame border. Only C1, patterns, impact and epics have named CSS tokens; sequence and
+  custom layers use the indexed frame palette.
 - Arrange (`leftpanel/ArrangeSection.tsx`, `arrangeLayout.ts`): side by side / stack / 2-column grid over
   the ticked diagrams. Translate-only: positions move, element scale is not applied. Written through
   `commitCanvasPositions` (the `apply_batch` write point); clicking the active mode again restores the
-  pre-arrange positions (`arrangeStore`). The origin comes from `chromeInsets` and the saved camera at
-  click time.
+  diagram locations (`arrangeStore`). The store accumulates only the translations introduced by
+  Arrange; leaving the mode subtracts those from the current positions, preserving any blocks the
+  user moved while arranging instead of overwriting them with the initial snapshot. This also holds
+  across mode switches. The origin comes from `chromeInsets` and the saved camera at click time.
 - `AgentWindowLayer` hides floating windows (`visibility: hidden`, `data-hidden`) in `full`, and renders
   no window (and `AgentTerminalDock` no panel terminal) for the agent `AgentFullScreen` shows, so one
   PTY never has two xterms; that agent's terminal remounts (screen redraw, scrollback is not kept) on

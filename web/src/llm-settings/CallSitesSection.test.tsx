@@ -305,6 +305,35 @@ describe("CallSitesSection", () => {
     );
   });
 
+  it("labels a built-in model list as suggested rather than available", async () => {
+    listCallSites.mockResolvedValue({
+      simple: [
+        { id: "ai_summarizer", label: "AI summarizer", capability: "simple", description: "what it does", assignment: null },
+      ],
+      groups: [],
+    });
+    listProviders.mockResolvedValue([API_PROVIDER]);
+    fetchProviderModels.mockResolvedValue({
+      supported: true,
+      static: true,
+      models: [{ id: "sonnet", label: null }],
+    });
+
+    render(<CallSitesSection />);
+    await waitFor(() => expect(screen.getByText("AI summarizer")).toBeTruthy());
+
+    fireEvent.change(screen.getByTestId("llm-call-site-provider-ai_summarizer"), {
+      target: { value: "p1" },
+    });
+    fireEvent.click(screen.getByTestId("llm-call-site-fetch-models-ai_summarizer"));
+
+    await waitFor(() =>
+      expect(screen.getByTestId("llm-call-site-models-status-ai_summarizer").textContent).toBe(
+        "1 model suggested (built-in list, not live) — any name can be typed",
+      ),
+    );
+  });
+
   it("shows the error text when the models fetch throws", async () => {
     listCallSites.mockResolvedValue({
       simple: [

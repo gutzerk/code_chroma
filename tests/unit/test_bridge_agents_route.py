@@ -77,10 +77,27 @@ def test_post_agents_persists_the_view_context(client):
     assert body["context"] == "the C1 diagram"
 
 
-def test_post_agents_rejects_a_non_string_context(client):
+@pytest.mark.parametrize(
+    "payload",
+    [
+        {"title": "refund flow", "context": 42},
+        {"title": "refund flow", "context": "hi", "context_kind": "nonsense"},
+        {"title": "helper", "attach_to": 123},
+        {"title": 123},
+        {"title": "x", "kind": "rm -rf"},
+    ],
+    ids=[
+        "non-string-context",
+        "unknown-context-kind",
+        "non-string-attach-to",
+        "non-string-title",
+        "unknown-kind",
+    ],
+)
+def test_post_agents_rejects_an_invalid_payload(client, payload):
     test_client, _repo, _server = client
 
-    response = test_client.post("/agents", json={"title": "refund flow", "context": 42})
+    response = test_client.post("/agents", json=payload)
 
     assert response.status_code == 400
 
@@ -106,16 +123,6 @@ def test_post_agents_defaults_context_kind_to_view(client):
     body = test_client.post("/agents", json={"title": "refund flow", "context": "hi"}).json()
 
     assert body["context_kind"] == "view"
-
-
-def test_post_agents_rejects_an_unknown_context_kind(client):
-    test_client, _repo, _server = client
-
-    response = test_client.post(
-        "/agents", json={"title": "refund flow", "context": "hi", "context_kind": "nonsense"}
-    )
-
-    assert response.status_code == 400
 
 
 def test_post_agents_installs_the_skills_into_the_worktree(client):
@@ -196,14 +203,6 @@ def test_post_agents_attach_to_an_unknown_id_is_404(client):
     response = test_client.post("/agents", json={"title": "helper", "attach_to": "nobody"})
 
     assert response.status_code == 404
-
-
-def test_post_agents_rejects_a_non_string_attach_to(client):
-    test_client, _repo, _server = client
-
-    response = test_client.post("/agents", json={"title": "helper", "attach_to": 123})
-
-    assert response.status_code == 400
 
 
 def _pr_worktree(tmp_path: Path) -> Path:
@@ -290,22 +289,6 @@ def test_post_agents_falls_back_to_a_generated_title_when_none_is_given(client):
 
     assert response.status_code == 200
     assert response.json()["title"] == response.json()["id"]
-
-
-def test_post_agents_rejects_a_non_string_title(client):
-    test_client, _repo, _server = client
-
-    response = test_client.post("/agents", json={"title": 123})
-
-    assert response.status_code == 400
-
-
-def test_post_agents_rejects_an_unknown_kind(client):
-    test_client, _repo, _server = client
-
-    response = test_client.post("/agents", json={"title": "x", "kind": "rm -rf"})
-
-    assert response.status_code == 400
 
 
 def test_a_sixth_agent_is_refused_with_409(client):
@@ -741,7 +724,7 @@ def test_start_passes_the_agents_workspace_id_to_the_pty_env(started_client, mon
 
     test_client.post("/agents/runner/start", json={})
 
-    assert seen.get("codechroma_WORKSPACE_ID") == "runner"
+    assert seen.get("CODECHROMA_WORKSPACE_ID") == "runner"
 
 
 def test_start_is_idempotent_for_an_already_running_agent(started_client):

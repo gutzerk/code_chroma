@@ -25,18 +25,19 @@ describe("layoutStore", () => {
     expect(layoutStore.getState().leftOpen).toBe(false);
   });
 
-  it("opening the left panel in full mode returns agents to normal", () => {
+  it("opening the left panel in full mode keeps full", () => {
     layoutStore.setAgentsMode("full");
+    layoutStore.closeLeft();
 
     layoutStore.toggleLeft();
 
-    expect(layoutStore.getState()).toMatchObject({ leftOpen: true, agentsMode: "normal" });
+    expect(layoutStore.getState()).toMatchObject({ leftOpen: true, agentsMode: "full" });
   });
 
-  it("entering full closes the left panel", () => {
+  it("entering full keeps the left panel open", () => {
     layoutStore.setAgentsMode("full");
 
-    expect(layoutStore.getState()).toMatchObject({ leftOpen: false, agentsMode: "full" });
+    expect(layoutStore.getState()).toMatchObject({ leftOpen: true, agentsMode: "full" });
   });
 
   it("collapsing agents keeps the left panel open", () => {
@@ -56,17 +57,9 @@ describe("layoutStore", () => {
     expect(calls).toBe(1);
   });
 
-  it("leaving full restores a left panel that was open before", () => {
+  it("leaving full keeps a closed left panel closed", () => {
     layoutStore.setAgentsMode("full");
-
-    layoutStore.setAgentsMode("normal");
-
-    expect(layoutStore.getState()).toMatchObject({ leftOpen: true, agentsMode: "normal" });
-  });
-
-  it("leaving full keeps a left panel that was closed before", () => {
     layoutStore.closeLeft();
-    layoutStore.setAgentsMode("full");
 
     layoutStore.setAgentsMode("normal");
 
@@ -87,5 +80,14 @@ describe("layoutStore", () => {
     layoutStore.reconcileAgents(["a1"]);
 
     expect(layoutStore.getState().selectedAgentId).toBe("a1");
+  });
+
+  it("toggleAgentsFull flips between normal and full", () => {
+    layoutStore.toggleAgentsFull();
+    const stretched = layoutStore.getState().agentsMode;
+    layoutStore.toggleAgentsFull();
+
+    expect(stretched).toBe("full");
+    expect(layoutStore.getState().agentsMode).toBe("normal");
   });
 });

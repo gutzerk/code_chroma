@@ -140,6 +140,17 @@ public static class UpdateScripts
             Start-Sleep -Milliseconds 500
         }
 
+        # The helper inherits the app's cwd (inside $Target), and a directory that is any process's cwd cannot be renamed.
+        Set-Location -LiteralPath ([IO.Path]::GetTempPath())
+        # The bridge and agent children can outlive the shell for a moment and keep files in $Target open.
+        $root = $Target.TrimEnd('\') + '\'
+        foreach ($i in 1..20) {
+            $left = @(Get-Process -ErrorAction SilentlyContinue | Where-Object { $_.Id -ne $PID -and $_.Path -and $_.Path.StartsWith($root, [StringComparison]::OrdinalIgnoreCase) })
+            if ($left.Count -eq 0) { break }
+            if ($i -ge 10) { $left | Stop-Process -Force -ErrorAction SilentlyContinue }
+            Start-Sleep -Milliseconds 500
+        }
+
         if (Test-Path -LiteralPath $Previous) { Remove-Item -LiteralPath $Previous -Recurse -Force }
         if (Test-Path -LiteralPath $Target) {
             if (-not (Move-WithRetry $Target $Previous)) {

@@ -237,6 +237,18 @@ public class SkillSyncTests : IDisposable
     }
 
     [Fact]
+    public void Syncing_removes_a_skill_installed_under_the_former_codeatlas_name()
+    {
+        var stale = Path.Combine(_repo.Root, ".claude", "skills", "codeatlas-draw-diagram");
+        Directory.CreateDirectory(stale);
+        File.WriteAllText(Path.Combine(stale, "SKILL.md"), "old");
+
+        SkillSync.PruneRetired(_repo.Root);
+
+        Assert.False(Directory.Exists(stale));
+    }
+
+    [Fact]
     public void Install_into_worktree_syncs_every_shipped_skill_and_excludes_them_from_git_status()
     {
         SkillSync.InstallIntoWorktree(_repo.Root);

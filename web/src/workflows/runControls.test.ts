@@ -1,13 +1,17 @@
 import { describe, expect, it } from "vitest";
 import {
+  betweenLabel,
   canStopRun,
+  layoutForWidth,
   headerToggle,
   showBreakpointToggle,
   stateBanner,
   stepActions,
+  stepMode,
+  stepPosition,
   type StepAction,
 } from "./runControls";
-import type { Run, RunState, StepRecord, StepStatus } from "./types";
+import type { Run, RunState, StepRecord, StepStatus, WorkflowStepDef } from "./types";
 
 function step(stepId: string, status: StepStatus): StepRecord {
   return { stepId, attempt: 1, status, output: "", diffStat: null, checkpointRef: null, sessionId: null };
@@ -83,12 +87,12 @@ describe("header controls", () => {
     expect(headerToggle(state)).toEqual({ label, enabled });
   });
 
-  it("allows Stop run only while running", () => {
-    const stoppable = (["running", "paused", "held", "stopped", "done"] as RunState[]).filter(
+  it("allows Cancel while the run is live, including held and awaiting review", () => {
+    const stoppable = (["running", "paused", "held", "needs_you", "stopped", "done"] as RunState[]).filter(
       canStopRun,
     );
 
-    expect(stoppable).toEqual(["running"]);
+    expect(stoppable).toEqual(["running", "paused", "held", "needs_you"]);
   });
 });
 
@@ -109,4 +113,68 @@ describe("stateBanner", () => {
       expect(stateBanner(run(state), label)).toBeTruthy();
     },
   );
+});
+
+describe("betweenLabel", () => {
+  const agent = { id: "a", slug: "a", kind: "agent" as const, prompt: "p" };
+  const steps = (next: Partial<WorkflowStepDef>): WorkflowStepDef[] => [
+    { ...agent, id: "s1", slug: "plan" },
+    { ...agent, id: "s2", slug: "build", ...next },
+  ];
+
+  it("has no label before the first step", () => {
+    expect(betweenLabel([agent], 0)).toBeNull();
+  });
+
+  it.each([
+    [{}, "Passes previous output to step 2"],
+    [{ agent: "handoff" as const }, "Passes previous output to step 2"],
+    [{ agent: "new" as const }, "Fresh start · no context"],
+    [{ kind: "review" as const }, "You review the diff from step 1"],
+    [{ agent: "continue" as const }, "Resumes step 1's agent session"],
+    [{ agent: "continue:s1" as const }, "Resumes step 1's agent session"],
+  ])("labels %j", (next, expected) => {
+    expect(betweenLabel(steps(next), 1)).toBe(expected);
+  });
+});
+
+describe("layoutForWidth", () => {
+  it.each([
+    [0, "normal"],
+    [320, "narrow"],
+    [321, "normal"],
+    [640, "side"],
+    [1100, "full"],
+  ])("maps %i px to %s", (width, expected) => {
+    expect(layoutForWidth(width)).toBe(expected);
+  });
+});
+
+describe("stepMode", () => {
+  const agent = { id: "a", slug: "a", kind: "agent" as const, prompt: "p" };
+
+  it.each([
+    [{ ...agent }, "hand-off"],
+    [{ ...agent, agent: "handoff" as const }, "hand-off"],
+    [{ ...agent, agent: "new" as const }, "new"],
+    [{ ...agent, agent: "continue" as const }, "continue"],
+    [{ ...agent, kind: "review" as const }, "you"],
+  ])("reads %j as %s", (def, expected) => {
+    expect(stepMode(def)).toBe(expected);
+  });
+});
+
+describe("stepPosition", () => {
+  it("counts the current step one-based and falls back to the last step", () => {
+    const steps = [step("a", "done"), step("b", "running"), step("c", "pending")];
+
+    expect(stepPosition(run("running", { steps, currentStepId: "b" }))).toEqual({ index: 2, total: 3 });
+    expect(stepPosition(run("done", { steps, currentStepId: null }))).toEqual({ index: 3, total: 3 });
+  });
+
+  it("points at the first unfinished step for a live run without a current step", () => {
+    const steps = [step("a", "done"), step("b", "pending"), step("c", "pending")];
+
+    expect(stepPosition(run("held", { steps, currentStepId: null }))).toEqual({ index: 2, total: 3 });
+  });
 });

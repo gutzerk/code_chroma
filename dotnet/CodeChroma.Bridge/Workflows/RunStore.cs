@@ -18,9 +18,15 @@ public sealed partial class RunStore(string repoRoot)
 
     public static bool IsSafeId(string id) => SafeId().IsMatch(id);
 
-    public List<WorkflowDef> ListWorkflows() => ReadAll<WorkflowDef>(WorkflowsDir);
+    public List<WorkflowDef> ListWorkflows() => ReadAll<WorkflowDef>(WorkflowsDir).Select(Normalized).ToList();
 
-    public WorkflowDef? GetWorkflow(string id) => IsSafeId(id) ? Read<WorkflowDef>(Path.Combine(WorkflowsDir, id + ".json")) : null;
+    public WorkflowDef? GetWorkflow(string id) => IsSafeId(id) && Read<WorkflowDef>(Path.Combine(WorkflowsDir, id + ".json")) is { } def ? Normalized(def) : null;
+
+    private static WorkflowDef Normalized(WorkflowDef def)
+    {
+        StepAgents.Normalize(def);
+        return def;
+    }
 
     public void SaveWorkflow(WorkflowDef def) => Write(Path.Combine(WorkflowsDir, def.Id + ".json"), JsonSerializer.Serialize(def, WorkflowJson.Options));
 
@@ -59,6 +65,18 @@ public sealed partial class RunStore(string repoRoot)
     public Run? GetRun(string id) => IsSafeId(id) ? Read<Run>(Path.Combine(RunsDir, id + ".json")) : null;
 
     public void Save(Run run) => Write(Path.Combine(RunsDir, run.Id + ".json"), JsonSerializer.Serialize(run, WorkflowJson.Options));
+
+    public bool DeleteRun(string id)
+    {
+        if (!IsSafeId(id)) return false;
+        lock (_io)
+        {
+            var path = Path.Combine(RunsDir, id + ".json");
+            if (!File.Exists(path)) return false;
+            File.Delete(path);
+            return true;
+        }
+    }
 
     private void Write(string path, string json)
     {

@@ -49,9 +49,10 @@ def _parse_args(argv: list[str] | None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         description="Check a written diagram review (explanatory axis)."
     )
-    default_url = os.environ.get("CODECHROMA_BRIDGE_URL", "http://localhost:8000")
+    default_url = os.environ.get("CODECHROMA_BRIDGE_URL", "").strip() or "http://localhost:8000"
     parser.add_argument("--url", default=default_url, help="bridge base URL")
-    parser.add_argument("--repo", default="default", help="repo id in the bridge route")
+    default_repo = os.environ.get("CODECHROMA_WORKSPACE_ID", "").strip() or "default"
+    parser.add_argument("--repo", default=default_repo, help="repo id in the bridge route")
     parser.add_argument(
         "--kind", required=True, help="diagram kind with a review flow, e.g. impact"
     )

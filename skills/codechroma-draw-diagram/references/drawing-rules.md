@@ -22,7 +22,7 @@ enough is the single most common way this fetch order gets missed.
 ### Step 0 — wiki-general (the semantic C1→C2→C3→C4 map)
 
 ```bash
-curl -s "http://localhost:8000/repos/${CODECHROMA_WORKSPACE_ID:-default}/wiki-general-context"
+curl -s "${CODECHROMA_BRIDGE_URL:-http://localhost:8000}/repos/${CODECHROMA_WORKSPACE_ID:-default}/wiki-general-context"
 ```
 
 - **`has_wiki_general: true`** — read `root` (the system-level narrative) and every entry in
@@ -41,7 +41,7 @@ curl -s "http://localhost:8000/repos/${CODECHROMA_WORKSPACE_ID:-default}/wiki-ge
 ### Step 1 — the older, directory-mirroring wiki
 
 ```bash
-curl -s "http://localhost:8000/repos/${CODECHROMA_WORKSPACE_ID:-default}/wiki-context?paths=<comma-separated repo-relative paths you need>"
+curl -s "${CODECHROMA_BRIDGE_URL:-http://localhost:8000}/repos/${CODECHROMA_WORKSPACE_ID:-default}/wiki-context?paths=<comma-separated repo-relative paths you need>"
 ```
 
 - **`has_wiki: true`** — read `root` and each entry in `pages[]` (already root-to-leaf, deduped)
@@ -55,6 +55,24 @@ curl -s "http://localhost:8000/repos/${CODECHROMA_WORKSPACE_ID:-default}/wiki-co
   abandon the run, rather than proceeding on a context you can't trust.
 - **A wiki page isn't detailed enough** (any type) — don't re-fetch the whole `wiki-context` bundle.
   Ask for more on that one path: `/structure?root=<node_id>&depth=1`, or just read the file directly.
+
+### Reading the wiki properly (every run)
+
+- 🔴 **Read what the bridge returned, not its first few hundred characters.** Read `root`, then the
+  page of every path you will draw, in full, before you write a node. If you did not read a page, say
+  so in your final report instead of implying you did.
+- 🔴 **`truncated: true` is a warning, not a footnote.** The bundle hit its size cap and the pages
+  for `omitted[]` (also summarised in `warning`) are *not* in `pages[]`, even though `gaps[]` is
+  empty. Request each omitted path again on its own (`wiki-context?paths=<one path>`) before you
+  conclude it has no page.
+- **No page for a file** (`gaps[]`) is normal for shell scripts, CI workflow YAML, Dockerfiles and
+  other non-code files: the wiki documents code only. Read that file's source directly, and list it
+  in your final report as "worked from source, no wiki page".
+- **Non-code participants** (a person, a registry, a cloud service, an approver) have no code to
+  link: give them no `path`/`node_id` and set `meta.external: true` (or leave them conceptual) rather
+  than pointing them at an unrelated file. Files that are not code (workflows, scripts) have no
+  function- or job-level node ids in the graph: point at the file by `path` only, never invent a
+  `node_id` such as `file::job::name`.
 
 ### Step 2 — your type's own context tools
 
@@ -82,13 +100,23 @@ cover.
 ## Bridge contract
 
 **Base URL:** use `$CODECHROMA_BRIDGE_URL` if set (the desktop app's terminal panel exports the real
-dynamic port there); otherwise default to `http://localhost:8000`.
+port there); otherwise default to `http://localhost:8000`. The port is stable per repository but can
+change across app restarts: if a call is refused, re-read `origin` from
+`$CODECHROMA_BRIDGE_REPO_PATH/.codechroma/bridge.json` (rewritten on every bridge start) and retry
+there, instead of reusing a port from the task text.
 
 **Workspace id:** every `/repos/{repo_id}/...` path uses `${CODECHROMA_WORKSPACE_ID:-default}`. The
 bridge sets `CODECHROMA_WORKSPACE_ID` on this run (e.g. `pr-29` when reviewing a pull request); the
 main workspace leaves it unset, so `:-default` resolves to `default`. Use the **same id** for the
 `*-path` endpoint as for the context endpoints, so a PR run writes its artifact into its own
 worktree, not the main checkout.
+
+**If the variables are missing** (a terminal that CodeChroma did not launch): do not assume
+`localhost:8000`, and do not hunt for ports with `ps`/`lsof` unless the user cannot tell you. Ask
+the user for the bridge URL and workspace id, or stop and say you could not reach the bridge. The
+agent windows CodeChroma starts always export both `CODECHROMA_BRIDGE_URL` and
+`CODECHROMA_WORKSPACE_ID`; the self-check script reads the same two variables, so you do not need to
+pass `--url`/`--repo` when they are set. Tell the user which one you used.
 
 **Ask the bridge for the write path — do not derive it from cwd.** The canvas only reads these
 artifacts from the repo the bridge was launched against, which is often *not* your shell's cwd.
@@ -122,7 +150,7 @@ Only skip the check when the endpoint's response (or your own `ls`) shows no fil
 three POSTs by hand:
 
 ```bash
-curl -s -X POST "http://localhost:8000/repos/${CODECHROMA_WORKSPACE_ID:-default}/c1/status" \
+curl -s -X POST "${CODECHROMA_BRIDGE_URL:-http://localhost:8000}/repos/${CODECHROMA_WORKSPACE_ID:-default}/c1/status" \
   -H 'Content-Type: application/json' -d '{"state":"generating"}'
 ```
 
@@ -325,6 +353,21 @@ Same six per type; each `type-*.md` adds only what differs.
 | `ORPHAN <id>` | wire it in, or drop it |
 | `SHAREDNODE <node_id>` | advisory (flat kinds; not `impact`) — give each box its own class/function id, or `null` + `no_code_reason: conceptual` |
 | `ISLAND <ids…>` | wire in the missing relation, or merge/drop the cluster |
+| `DROPPED relation <from -> to> <reason>` | the bridge discarded that arrow/message while resolving (dangling endpoint, self-relation the style does not allow, invalid shape), so it is **not on the canvas**: fix the file; this fails the run |
+
+### Final report: say what you did not do
+
+Your last message must separate what the self-check proved from what it cannot. Name each of these
+that applies, in one line apiece, instead of leaving them implied:
+
+- wiki or source you did not read (and why), and any path you worked out from source because the
+  wiki had no page;
+- a recorded-run scaffold you did not fetch or that was empty (a flow you read from YAML or code is
+  your own reading, say so);
+- that you **cannot see the rendered canvas**: layout, colours and `var(--…)` styles are unverified
+  unless the user looks;
+- simplifications that blur detail (several flows drawn as one, a step drawn as a call into a script
+  when it is a workflow step, failure paths only mentioned in message details).
 
 ## The one shared diagram shape
 
@@ -409,7 +452,7 @@ The user wants a diagram none of the router rows covers. In this order:
    `canvas/document.py` — don't guess these by trial and error):
 
    ```bash
-   curl -s -X PATCH "http://localhost:8000/repos/${CODECHROMA_WORKSPACE_ID:-default}/canvas" \
+   curl -s -X PATCH "${CODECHROMA_BRIDGE_URL:-http://localhost:8000}/repos/${CODECHROMA_WORKSPACE_ID:-default}/canvas" \
      -H 'Content-Type: application/json' -d '{
        "layer": "my-diagram",
        "explanation": "short reason for this batch",
@@ -476,7 +519,7 @@ The user wants a diagram none of the router rows covers. In this order:
    this by hand before you report success:
 
    ```bash
-   curl -s "http://localhost:8000/repos/${CODECHROMA_WORKSPACE_ID:-default}/canvas"
+   curl -s "${CODECHROMA_BRIDGE_URL:-http://localhost:8000}/repos/${CODECHROMA_WORKSPACE_ID:-default}/canvas"
    ```
 
    Filter to the elements/edges whose `layer` is the one you just wrote, then check:

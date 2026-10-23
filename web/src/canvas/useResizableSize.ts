@@ -43,7 +43,11 @@ export interface ResizableOptions {
   minHeight?: number;
   /** Clamps the resized axis to this fraction of the viewport — width for "x", height for "y". */
   maxViewportFraction?: number;
+  /** Called once, ending the drag, when the pointer pulls this far (px) past the max width -- e.g. to go full screen. */
+  onExceedMax?: () => void;
 }
+
+const EXCEED_SLACK = 48;
 
 /** Drag-to-resize state for a panel handle: spread `handleProps` onto the handle element and apply
  * `size` as explicit width/height once set — before the first drag, `size` is null and the panel's
@@ -65,6 +69,7 @@ export function useResizableSize(
     minWidth = MIN_WIDTH,
     minHeight = MIN_HEIGHT,
     maxViewportFraction = MAX_VIEWPORT_FRACTION,
+    onExceedMax,
   } = options;
   const [size, setSize] = useState<Size | null>(null);
   const [isResizing, setIsResizing] = useState(false);
@@ -108,6 +113,14 @@ export function useResizableSize(
     const heightFraction = axis === "y" ? maxViewportFraction : MAX_VIEWPORT_FRACTION;
     const maxWidth = (window.innerWidth * widthFraction) / resize.scale;
     const maxHeight = (window.innerHeight * heightFraction) / resize.scale;
+    if (onExceedMax && axis === "x" && resize.startWidth + dx > maxWidth + EXCEED_SLACK) {
+      resizeRef.current = null;
+      setIsResizing(false);
+      setSize(null);
+      if (event.currentTarget.hasPointerCapture?.(event.pointerId)) event.currentTarget.releasePointerCapture(event.pointerId);
+      onExceedMax();
+      return;
+    }
     setSize({
       width:
         axis === "y" ? resize.startWidth : clamp(resize.startWidth + dx, minWidth, maxWidth),

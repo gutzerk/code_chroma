@@ -172,6 +172,8 @@ properties and `load_*`/`layout_store` reads (pure path/IO, no engine); `Workspa
 `build`/`start`/`stop` and the callbacks, iterating `DIAGRAMS` for the diagram watchers and
 `DIAGRAMS.custom_dir(root)` for the custom watcher so a new diagram kind needs no edit there;
 `WorkspaceGit` is the thin `sync`/`diff_base`/`divergent_files` shim over `GitSync` + `git_cmd`.
+
+🔴 C# bridge: `Workspaces/WorkspaceWatchers.cs` routes only `.codechroma/diagrams/<kind>/<kind>.json` for the fixed `Workspace.DiagramKinds` to a per-kind ping. A custom (`diagrams/custom/<id>/<id>.json`) or feature-plan (`diagrams/feature-plan/<slug>/<slug>.json`) file needs its own debouncer that emits `{"type":"custom"}` / `{"type":"feature-plan"}`, as the Python `custom_watcher`/`feature_plan_watcher` do; without it an agent-written custom diagram never pings the canvas and is not drawn until a manual recipe run (issue #203). Guard: contract case `a_custom_diagram_written_to_disk_pings_connected_canvases`.
 `WorkspaceRegistry` maps an id onto one; `"main"` is `create_app`'s `repo_root` (defaulting to
 `codechroma_BRIDGE_REPO_PATH`) and is analyzed **as the app is built**, so the graph is ready on the
 first request — and since uvicorn runs the lifespan before it binds the socket, `launch.py`'s
@@ -364,6 +366,10 @@ so live saves are cheap. Exercised by
 ## C# bridge status (docs/planning/012)
 
 `dotnet/CodeChroma.Bridge` is a partial ASP.NET Core port that replays the same `tests/fixtures/bridge_contract` cases as this Python bridge; the Python bridge remains the reference and is not removed. Its graph comes from `CodeChroma.Core` fed by the in-process C# analyzers (`CodeChroma.Core/Analyzers`, `NativeAnalysisExporter`, registered directly in `Program.cs`; there is no backend env-var switch and the shipped bridge never runs Python). The Python analysis exporter (`python -m codechroma.analysis_export`, also used by `tests/graph_golden.py`) survives only as a parity oracle: `PythonAnalysisExporter` lives in `CodeChroma.Bridge.Tests/Support/` and `BridgeHost` plugs it in when `CODECHROMA_PYTHON` is set (see 011, Phase 5). See 012 for the ported/unported route table.
+
+### Agent and skill environment
+
+Every PTY agent (`AgentRoutes` start, `AgentRuntime` autostart) and every headless skill run (`SkillAgent.RunCli`) gets `CODECHROMA_WORKSPACE_ID=<agent or job id>` and, once the server is listening, `CODECHROMA_BRIDGE_URL=<loopback URL>` through `BridgeAddress.ExportIdentity` (URL from `BareSkill.BridgeUrl`, set on `ApplicationStarted`). Python: `bridge/agents/sessions.agent_run_env` and `skill_agent._run_cli` use `questions.launch.identity_env` (URL from the env override or uvicorn `--port`). 🔴 The names are upper-case; `RuntimeEnvironment.Clean` / `llm.runtime_env._clean` keep exactly these two and drop other `codechroma_*` internals. The workspace id of an agent terminal is its agent id (`agent1`), not `main`: `agents.json`'s `active_workspace` only picks the canvas tab, and `default`/`main` resolve to the main checkout. `hooks/ask_user_question_hook.py` still accepts the old lower-case spelling.
 
 ### C# route table: canvas, recipes, diffs
 

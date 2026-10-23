@@ -20,7 +20,7 @@ path; see `drawing-rules.md` for the full substitution/fallback rule.
 **1. The diagram type's own definition — this is your authoring brief, not a fixed schema:**
 
 ```bash
-curl -s http://localhost:8000/diagram-types/<type-id>
+curl -s ${CODECHROMA_BRIDGE_URL:-http://localhost:8000}/diagram-types/<type-id>
 ```
 
 Returns the definition: `title`, `description`, `style` (which render style to target — see
@@ -31,13 +31,13 @@ free text written by the user describing exactly what to put on this diagram and
 yourself and follow it literally; it is the single source of truth for what "done" looks like here,
 since the same reference authors every diagram type differently depending on what it says.
 
-If you don't know the `type_id`, list them: `curl -s http://localhost:8000/diagram-types`.
+If you don't know the `type_id`, list them: `curl -s ${CODECHROMA_BRIDGE_URL:-http://localhost:8000}/diagram-types`.
 
 **2. Real repo paths, for any node that should link to real code:**
 
 ```bash
-curl -s 'http://localhost:8000/repos/${CODECHROMA_WORKSPACE_ID:-default}/structure?depth=2'
-curl -s 'http://localhost:8000/repos/${CODECHROMA_WORKSPACE_ID:-default}/structure?root=dir::src&depth=2'
+curl -s "${CODECHROMA_BRIDGE_URL:-http://localhost:8000}/repos/${CODECHROMA_WORKSPACE_ID:-default}/structure?depth=2"
+curl -s "${CODECHROMA_BRIDGE_URL:-http://localhost:8000}/repos/${CODECHROMA_WORKSPACE_ID:-default}/structure?root=dir::src&depth=2"
 ```
 
 Copy `path`/`node_id` verbatim — see "Path honesty" in `drawing-rules.md`.
@@ -45,7 +45,7 @@ Copy `path`/`node_id` verbatim — see "Path honesty" in `drawing-rules.md`.
 **3. Optional, only when the definition's `context_sources` names it:**
 
 ```bash
-curl -s 'http://localhost:8000/repos/${CODECHROMA_WORKSPACE_ID:-default}/dependency-digest?path=<some/file.py>'
+curl -s "${CODECHROMA_BRIDGE_URL:-http://localhost:8000}/repos/${CODECHROMA_WORKSPACE_ID:-default}/dependency-digest?path=<some/file.py>"
 # omit ?path= for the whole repo's resolved caller/callee map
 ```
 
@@ -63,7 +63,7 @@ style only; the self-check's `SELF` finding still applies to every other style.
 ## Where the file goes
 
 ```bash
-curl -s http://localhost:8000/repos/${CODECHROMA_WORKSPACE_ID:-default}/custom/<type-id>-path
+curl -s ${CODECHROMA_BRIDGE_URL:-http://localhost:8000}/repos/${CODECHROMA_WORKSPACE_ID:-default}/custom/<type-id>-path
 # -> {"repo_root":"/abs/path/to/repo","custom_path":"/abs/path/to/repo/.codechroma/diagrams/custom/<type-id>/<type-id>.json"}
 ```
 

@@ -1,5 +1,120 @@
 # Changelog
 
+## [1.5.0](https://github.com/gutzerk/code_chroma/compare/v1.4.0...v1.5.0) (2026-10-23)
+
+
+### Features
+
+* **web:** float the agents panel over the canvas and sync full-screen controls ([b3e4d04](https://github.com/gutzerk/code_chroma/commit/b3e4d04eafd170ddbbc2704bfd27a07f54a83c42))
+* **web:** float the agents panel over the canvas and sync full-screen controls ([cd10ece](https://github.com/gutzerk/code_chroma/commit/cd10ece4d28e58406250833456549d0a244c694d))
+
+
+### Bug Fixes
+
+* agent panel close/usage, full-screen tab isolation, wiki Update style, issue-created dialog ([e45c89a](https://github.com/gutzerk/code_chroma/commit/e45c89a3f0a529af74c7f0bec07d3cecd199b3b3))
+* agent panel close/usage, full-screen tab isolation, wiki Update style, issue-created dialog ([4a6cdb8](https://github.com/gutzerk/code_chroma/commit/4a6cdb84ceaa4b7b92c7fec6d09120d7a7674e19))
+* **web:** address review of the floating agents panel ([9cbb4d0](https://github.com/gutzerk/code_chroma/commit/9cbb4d0b42a19e807037255f5318b4b77620c233))
+
+## [1.4.0](https://github.com/gutzerk/code_chroma/compare/v1.3.1...v1.4.0) (2026-10-22)
+
+
+### Features
+
+* **agents:** session usage strip in the agents full screen (019 stage 7) ([8701fab](https://github.com/gutzerk/code_chroma/commit/8701fabc00344ca950c8c21fff37991c7b877fb5))
+* **workflows:** agent mode cards, per-step provider/model and step input in the editor (019 stage 4) ([3f679dd](https://github.com/gutzerk/code_chroma/commit/3f679ddee2b01863f7ed498909234448331ff0d3))
+* **workflows:** All workflows screen and panel top bar (019 stage 6) ([3897bbe](https://github.com/gutzerk/code_chroma/commit/3897bbec667679cd3d04eccf01325f9cbd537391))
+* **workflows:** per-step agent mode, extra prompt, provider and model in the definition (019 stage 0) ([c65e712](https://github.com/gutzerk/code_chroma/commit/c65e712c2e9697374e3846dd304317ecd4a19931))
+* **workflows:** per-step CLI, step input and continue sessions in the runner (019 stage 1) ([46fe88b](https://github.com/gutzerk/code_chroma/commit/46fe88b67b88c7b13c280f3a9960533ef0983a6d))
+* **workflows:** record step token usage and continue-chain length (019 stage 2) ([1f629c5](https://github.com/gutzerk/code_chroma/commit/1f629c56c6a9cac5e90141cb930ecfd4e2d6da44))
+* **workflows:** redo and send back share one rerun path that forks an earlier session (019 stage 3) ([f515e22](https://github.com/gutzerk/code_chroma/commit/f515e22e43fef475a5fee6d4cc1a00d718b6dc9b))
+* **workflows:** step mode labels, session badge, resume chip and Open agent in run views (019 stage 5) ([fe51dae](https://github.com/gutzerk/code_chroma/commit/fe51daedc3ff4796fd3371fa32ea2ed94a2a8184))
+* write live bridge origin to .codechroma/bridge.json on every start ([#216](https://github.com/gutzerk/code_chroma/issues/216)) ([1aa037e](https://github.com/gutzerk/code_chroma/commit/1aa037ee79d3dea04c69f032c3b7a6498c4cf65b))
+
+
+### Bug Fixes
+
+* **canvas:** align diagram colors and preserve arranged positions ([1dfb679](https://github.com/gutzerk/code_chroma/commit/1dfb6795513bd66f9ecfe202ae9522cbc80c36ce))
+* **canvas:** retain user block edits across arrange mode changes ([f5827d6](https://github.com/gutzerk/code_chroma/commit/f5827d6ec9cc0ddb56d772d2d229e44e2658062c))
+* **ci:** retry transient PowerShell Gallery download failures ([bc0c6bf](https://github.com/gutzerk/code_chroma/commit/bc0c6bff6f9b4c0e827b8c945a12dfd41961addb))
+* **shell-tests:** keep the fake bridge alive when a client aborts mid-response ([1e7cc5c](https://github.com/gutzerk/code_chroma/commit/1e7cc5cda091ef4cded36f7bb5b93bc5a247c6d0))
+* stable per-repository bridge port with free-port fallback ([#216](https://github.com/gutzerk/code_chroma/issues/216)) ([0435433](https://github.com/gutzerk/code_chroma/commit/04354333281e06a51547e764591a49bee7567c05))
+* **workflows:** protect agent workspaces and round-trip inputs ([16df855](https://github.com/gutzerk/code_chroma/commit/16df855653c39827f84950220c51984192d05e46))
+
+## [1.3.1](https://github.com/gutzerk/code_chroma/compare/v1.3.0...v1.3.1) (2026-10-22)
+
+
+### Bug Fixes
+
+* agent panel full screen, agent tabs, collapse handle, paste and hidden draw skill ([98b523c](https://github.com/gutzerk/code_chroma/commit/98b523ce949ad4d460f144608250e22b7c6ef0fb))
+* **agents:** agent window full-screen, switcher, focus, paste and hidden skill text ([282323b](https://github.com/gutzerk/code_chroma/commit/282323b55f8be5e7bd1aa771e30c692f2bd67d73))
+* **bridge:** ping canvases when a custom or feature-plan diagram is written ([d988bbe](https://github.com/gutzerk/code_chroma/commit/d988bbe357ed1309cc9a4d3a5526f75e423d0cb9))
+* **bridge:** ping canvases when a custom or feature-plan diagram is written ([5c028fb](https://github.com/gutzerk/code_chroma/commit/5c028fb264bc48353b413857f0761e2d731f2aad))
+* **bridge:** skip macOS-protected home folders when walking a non-git folder ([fb0f040](https://github.com/gutzerk/code_chroma/commit/fb0f0409769e86d51d9d9cfa5977208d28b1b70d))
+* **bridge:** surface wiki update errors in status and update sequence self-relation contract ([09c29c6](https://github.com/gutzerk/code_chroma/commit/09c29c60d61dc7de9db5e10a175c69ced4a31f0b))
+* **shell:** ignore trailing separator when matching macOS-protected folders ([00092d9](https://github.com/gutzerk/code_chroma/commit/00092d977b3b5ba1db65fc9100b7c1cf6515ded9))
+* **shell:** skip macOS-protected home folders when scanning a non-repo folder ([8fe2441](https://github.com/gutzerk/code_chroma/commit/8fe24415189612350b3b5a0cd70fd536d931265f)), closes [#189](https://github.com/gutzerk/code_chroma/issues/189)
+* **skills,bridge:** export agent env, verify wiki update writes, fix diagram check gaps ([d08af91](https://github.com/gutzerk/code_chroma/commit/d08af91c205c3937a753f7bae90aa6d998080e5c))
+* **skills:** export bridge identity env vars and harden wiki/diagram skill flows ([3f27f12](https://github.com/gutzerk/code_chroma/commit/3f27f122e0824ac78e1b0adf3d74e18d7e1a9430))
+* **skills:** stop routing data-flow and other flow requests to the sequence diagram ([1fd3098](https://github.com/gutzerk/code_chroma/commit/1fd3098b3ee5fe535a095f5fd8f428c168c7ee72))
+* **skills:** stop routing data-flow and other flow requests to the sequence diagram ([665ad26](https://github.com/gutzerk/code_chroma/commit/665ad263e93bc41b07d2efa99ea879a3cdd46432))
+* **web:** lower canvas zoom-out floor and hide stray scrollbars ([77218b9](https://github.com/gutzerk/code_chroma/commit/77218b9b4a4e561fdbfbf557b09e8cc606ec7461))
+* **web:** lower canvas zoom-out floor and hide stray scrollbars ([7df0729](https://github.com/gutzerk/code_chroma/commit/7df07291846c1c6da8108e9b08424d113c404294))
+* **workflows:** bind run inputs to steps with a single question field ([13b5b83](https://github.com/gutzerk/code_chroma/commit/13b5b831a9ad6b69b5ed87e860c338bc75269a56))
+* **workflows:** clickable cards, cancel awaiting-review runs, single-field run inputs ([82828be](https://github.com/gutzerk/code_chroma/commit/82828be7289bf3d8b82be6a0e7aee5e592526b2c))
+* **workflows:** clickable cards, cancel waiting runs, per-step single input ([fdb13fd](https://github.com/gutzerk/code_chroma/commit/fdb13fdf8325490270dd1027c07e7f423a3799db))
+
+## [1.3.0](https://github.com/gutzerk/code_chroma/compare/v1.2.0...v1.3.0) (2026-10-22)
+
+
+### Features
+
+* **bridge:** gather architecture-map context for c1, patterns, sequence and custom diagrams ([63e9fda](https://github.com/gutzerk/code_chroma/commit/63e9fda6188058c7cb699ec899b7cb92b8ed5f05))
+* **bridge:** gather architecture-map context for diagram agents ([362f79c](https://github.com/gutzerk/code_chroma/commit/362f79c309e83c24a4a99c7ea609ce0e9f12f6e9))
+* **bridge:** start diagram task agents bare, with the draw skill inlined ([9710620](https://github.com/gutzerk/code_chroma/commit/971062054c307ce6fd185667a2c0742e271f4260))
+* **web:** highlight diagram-drawing agents in the activity panel ([180931c](https://github.com/gutzerk/code_chroma/commit/180931ca06b83d86b2f32eaf29a402e6ce6c4a26))
+* **web:** highlight diagram-drawing agents in the activity panel ([86a1f27](https://github.com/gutzerk/code_chroma/commit/86a1f27a9338f477670ac55d2466f9e21fa26270))
+* **workflows:** redesign the agents/workflows panel and workflow backend ([fec4a7a](https://github.com/gutzerk/code_chroma/commit/fec4a7aac97471ba91637e9e3429ff517a9e86c2))
+* **workflows:** redesign the agents/workflows panel and workflow backend ([448337f](https://github.com/gutzerk/code_chroma/commit/448337f0bec983c48e560b77229e166ebd7bc934))
+
+
+### Bug Fixes
+
+* **bridge:** keep long wiki update prompts off the Windows command line; style side panels like the design ([3f5acaf](https://github.com/gutzerk/code_chroma/commit/3f5acaf678b3ccc8e641cad36e1d51b3e07366a8))
+* **bridge:** let interactive diagram agents run the context command themselves ([065e721](https://github.com/gutzerk/code_chroma/commit/065e7211f9c1e4ac83056452e6d4ae94c782fe6c))
+* **bridge:** warm the embedding model only when the desktop app asks for it ([88c036a](https://github.com/gutzerk/code_chroma/commit/88c036a26762df8f371cf311d491b4f836d72f35))
+* **shell:** let the Windows update helper move the install dir aside ([a3200f6](https://github.com/gutzerk/code_chroma/commit/a3200f6a87f7a2e0efb45a820682f2f3a3b197d2))
+* **shell:** render update notes as markdown, fit screen, add Install/Skip/Later ([fd647d3](https://github.com/gutzerk/code_chroma/commit/fd647d37002a935f0b3cb91fd8141e7d08295490))
+* wiki update on Windows (command line too long) and side panel styling ([c5ddf33](https://github.com/gutzerk/code_chroma/commit/c5ddf337ef06ca47bc4bf674985e356debdc675e))
+* **wiki-general:** batch wiki-context lookups to avoid HTTP 414 ([dc119f5](https://github.com/gutzerk/code_chroma/commit/dc119f532738b46a07fd90b259cad9173305ad61))
+* **wiki-general:** batch wiki-context path lookups so large wikis don't hit HTTP 414 ([8fc0cdd](https://github.com/gutzerk/code_chroma/commit/8fc0cdd89ae9ae39accc228b9776f22f41284d8a))
+* Windows CLI path lookup and update dialog rendering ([7e6eeeb](https://github.com/gutzerk/code_chroma/commit/7e6eeebd10a3ddaa9ba49ac79a19202230ce9be0))
+* **workflows:** review fixes for delete, clear-finished, previous-step context and sendBackTo ([03d3a0b](https://github.com/gutzerk/code_chroma/commit/03d3a0b76da9c5eb8933c399a51bd00a6b66fc01))
+
+## [1.2.0](https://github.com/gutzerk/code_chroma/compare/v1.1.0...v1.2.0) (2026-10-21)
+
+
+### Features
+
+* attach agents and workflows to the canvas activity panel ([b8a82cc](https://github.com/gutzerk/code_chroma/commit/b8a82ccaf070dbc607b5e5c670b25f40e757276e))
+* attach agents and workflows to the canvas activity panel ([2c25041](https://github.com/gutzerk/code_chroma/commit/2c25041d4ba1936ea7b701006792e35c80f59681))
+* **web:** attach agents and workflows to the canvas activity panel ([f5562cd](https://github.com/gutzerk/code_chroma/commit/f5562cdf2ff853d4f0c8f015cdefd3564449c8ac))
+* workflow skills, inputs, skip and delete; resizable activity panel; collapsed panel summary ([b8a82cc](https://github.com/gutzerk/code_chroma/commit/b8a82ccaf070dbc607b5e5c670b25f40e757276e))
+* workflow skills, inputs, skip and delete; resizable activity panel; collapsed panel summary ([2c25041](https://github.com/gutzerk/code_chroma/commit/2c25041d4ba1936ea7b701006792e35c80f59681))
+* workflow skills, inputs, skip and delete; resizable activity panel; collapsed panel summary ([a29b713](https://github.com/gutzerk/code_chroma/commit/a29b713e4f1959ee258627026421ce590d9c8e6a))
+
+
+### Bug Fixes
+
+* align canvas tokens, icons and workflow rail styling with design handoff ([b8a82cc](https://github.com/gutzerk/code_chroma/commit/b8a82ccaf070dbc607b5e5c670b25f40e757276e))
+* align canvas tokens, icons and workflow rail styling with design handoff ([2c25041](https://github.com/gutzerk/code_chroma/commit/2c25041d4ba1936ea7b701006792e35c80f59681))
+* code sidebar close/markdown/highlight, arrange by frame, terminal and panel overlaps, drop quick draw ([b8a82cc](https://github.com/gutzerk/code_chroma/commit/b8a82ccaf070dbc607b5e5c670b25f40e757276e))
+* code sidebar close/markdown/highlight, arrange by frame, terminal and panel overlaps, drop quick draw ([2c25041](https://github.com/gutzerk/code_chroma/commit/2c25041d4ba1936ea7b701006792e35c80f59681))
+* code sidebar close/markdown/highlight, arrange by frame, terminal and panel overlaps, drop quick draw ([ac7bb21](https://github.com/gutzerk/code_chroma/commit/ac7bb2168f9056ef6b0e1eaea2dd7f0a70339fad))
+* find gh/claude in well-known dirs, clipboard shortcut fallback, always-visible Apply ([b8a82cc](https://github.com/gutzerk/code_chroma/commit/b8a82ccaf070dbc607b5e5c670b25f40e757276e))
+* find gh/claude in well-known dirs, clipboard shortcut fallback, always-visible Apply ([2c25041](https://github.com/gutzerk/code_chroma/commit/2c25041d4ba1936ea7b701006792e35c80f59681))
+* find gh/claude in well-known dirs, clipboard shortcut fallback, always-visible Apply ([#169](https://github.com/gutzerk/code_chroma/issues/169)) ([6cd8969](https://github.com/gutzerk/code_chroma/commit/6cd896930da761b772b97321d4cd40506650c688))
+* **web:** align canvas tokens, icons and workflow rail styling with design handoff ([#170](https://github.com/gutzerk/code_chroma/issues/170)) ([742d6e7](https://github.com/gutzerk/code_chroma/commit/742d6e7190e2e5b5387ccd9ddf8b492f60a2e7df))
+
 ## [1.1.0](https://github.com/gutzerk/code_chroma/compare/v1.0.0...v1.1.0) (2026-10-21)
 
 

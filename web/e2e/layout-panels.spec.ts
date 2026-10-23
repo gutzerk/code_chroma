@@ -55,12 +55,24 @@ test("a collapsed-bar color box hides its diagram (dashed) and restores it", asy
   await expect(box.locator(".collapsed-left-bar__swatch--hidden")).toHaveCount(0);
 });
 
-test("the attached activity panel collapses and reopens even without agents", async ({ page }) => {
+test("the floating activity panel collapses and reopens even without agents", async ({ page }) => {
   await gotoApp(page, { files: false });
   const panel = page.getByTestId("activity-panel");
   await expect(panel).toBeVisible();
   await page.getByRole("button", { name: "Collapse agents and workflows" }).click();
   await expect(panel).toHaveClass(/is-collapsed/);
+  await expect(page.getByTestId("activity-reopen")).toBeVisible();
   await page.getByRole("button", { name: "Expand agents and workflows" }).click();
   await expect(page.getByRole("button", { name: "Run agent" })).toBeVisible();
+});
+
+test("the activity panel stretches to full screen and restores its width", async ({ page }) => {
+  await gotoApp(page, { files: false });
+  const panel = page.getByTestId("activity-panel");
+  const before = (await panel.boundingBox())!.width;
+  await page.getByRole("button", { name: "Stretch panel" }).click();
+  await expect(panel).toHaveClass(/is-full/);
+  expect((await panel.boundingBox())!.width).toBeGreaterThan(before);
+  await page.getByRole("button", { name: "Restore panel width" }).click();
+  await expect(panel).not.toHaveClass(/is-full/);
 });

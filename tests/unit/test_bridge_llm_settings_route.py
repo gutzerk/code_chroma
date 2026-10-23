@@ -121,13 +121,32 @@ def test_test_unknown_provider_is_404(client):
     assert client.post("/llm/providers/nope/test").status_code == 404
 
 
-def test_test_cli_provider_reports_found_or_not(client):
-    created = _make_cli_provider(client)
+_CLI_PAYLOAD = {"label": "Claude CLI", "kind": "cli", "adapter": "claude"}
+_API_PAYLOAD = {
+    "label": "Local",
+    "kind": "api",
+    "transport": "openai-compatible",
+    "base_url": "http://localhost:11434/v1",
+    "is_local": True,
+}
 
-    response = client.post(f"/llm/providers/{created['id']}/test")
+
+def _probe(client, mode, payload):
+    """Probes a persisted provider or a draft; returns (response, expected provider id)."""
+    if mode == "draft":
+        return client.post("/llm/providers/test", json=payload), None
+    created = client.post("/llm/providers", json=payload)
+    assert created.status_code == 201
+    provider_id = created.json()["id"]
+    return client.post(f"/llm/providers/{provider_id}/test"), provider_id
+
+
+@pytest.mark.parametrize("mode", ["persisted", "draft"])
+def test_test_cli_provider_reports_found_or_not(client, mode):
+    response, provider_id = _probe(client, mode, _CLI_PAYLOAD)
 
     assert response.status_code == 200
-    assert response.json()["provider_id"] == created["id"]
+    assert response.json()["provider_id"] == provider_id
     assert isinstance(response.json()["ok"], bool)
 
 
@@ -152,10 +171,9 @@ def test_test_cli_provider_with_base_url_probes_the_endpoint(client, monkeypatch
     assert "connection refused" in body["error"]
 
 
-def test_test_openai_compatible_provider_without_test_model_is_a_clear_failure(client):
-    created = _make_api_provider(client)
-
-    response = client.post(f"/llm/providers/{created['id']}/test")
+@pytest.mark.parametrize("mode", ["persisted", "draft"])
+def test_test_openai_compatible_provider_without_test_model_is_a_clear_failure(client, mode):
+    response, _provider_id = _probe(client, mode, _API_PAYLOAD)
 
     body = response.json()
     assert body["ok"] is False
@@ -252,16 +270,6 @@ def test_test_provider_draft_validation_failure_is_400(client):
     assert response.status_code == 400
 
 
-def test_test_provider_draft_cli_reports_found_or_not(client):
-    response = client.post(
-        "/llm/providers/test", json={"label": "Claude CLI", "kind": "cli", "adapter": "claude"}
-    )
-
-    assert response.status_code == 200
-    assert response.json()["provider_id"] is None
-    assert isinstance(response.json()["ok"], bool)
-
-
 def test_test_provider_draft_does_not_persist_anything(client):
     response = client.post(
         "/llm/providers/test", json={"label": "Claude CLI", "kind": "cli", "adapter": "claude"}
@@ -299,17 +307,6 @@ def test_test_provider_draft_cli_claude_with_base_url_probes_the_endpoint(
     assert body["ok"] is expect_ok
     if expect_fragment:
         assert expect_fragment in body["error"]
-
-
-def test_test_provider_draft_openai_compatible_without_test_model_is_a_clear_failure(client):
-    response = client.post("/llm/providers/test", json={
-        "label": "Local", "kind": "api", "transport": "openai-compatible",
-        "base_url": "http://localhost:11434/v1", "is_local": True,
-    })
-
-    body = response.json()
-    assert body["ok"] is False
-    assert "test model" in body["error"]
 
 
 def test_list_call_sites_covers_every_catalog_id_exactly_once(client):
@@ -390,10 +387,16 @@ def test_assigned_group_reports_cli_available_from_its_own_provider_adapter(
     assert entry["cli_available"] is True
 
 
-def test_put_call_site_unknown_id_is_404(client):
-    response = client.put("/llm/call-sites/not_real", json={
-        "provider_id": "x", "model": "m", "mode": "api",
-    })
+@pytest.mark.parametrize(
+    ("path", "body"),
+    [
+        ("/llm/call-sites/not_real", {"provider_id": "x", "model": "m", "mode": "api"}),
+        ("/llm/call-site-groups/not_real", {"provider_id": "x", "model": "m"}),
+    ],
+    ids=["call-site", "group"],
+)
+def test_put_unknown_call_site_or_group_id_is_404(client, path, body):
+    response = client.put(path, json=body)
 
     assert response.status_code == 404
 
@@ -415,13 +418,27 @@ def test_put_call_site_assigns_and_joins(client):
     assert listed["assignment"]["provider_id"] == created["id"]
 
 
-def test_put_call_site_clears_assignment(client):
-    created = _make_api_provider(client)
-    client.put("/llm/call-sites/ai_summarizer", json={
-        "provider_id": created["id"], "model": "llama3", "mode": "api",
-    })
+@pytest.mark.parametrize(
+    ("make_provider", "path", "assignment"),
+    [
+        (
+            _make_api_provider,
+            "/llm/call-sites/ai_summarizer",
+            {"model": "llama3", "mode": "api"},
+        ),
+        (
+            _make_cli_provider,
+            "/llm/call-site-groups/diagrams",
+            {"model": "claude-opus"},
+        ),
+    ],
+    ids=["call-site", "group"],
+)
+def test_put_clears_assignment(client, make_provider, path, assignment):
+    created = make_provider(client)
+    client.put(path, json={"provider_id": created["id"], **assignment})
 
-    response = client.put("/llm/call-sites/ai_summarizer", json={})
+    response = client.put(path, json={})
 
     assert response.status_code == 200
     assert response.json()["assignment"] is None
@@ -435,14 +452,6 @@ def test_put_call_site_rejects_agentic_call_site(client):
     })
 
     assert response.status_code == 400
-
-
-def test_put_call_site_group_unknown_id_is_404(client):
-    response = client.put("/llm/call-site-groups/not_real", json={
-        "provider_id": "x", "model": "m",
-    })
-
-    assert response.status_code == 404
 
 
 def test_put_call_site_group_assigns_and_joins(client):
@@ -475,18 +484,6 @@ def test_put_call_site_group_assignment_covers_every_member(client):
         )
         assert any(m["id"] == member for m in entry["members"])
         assert entry["assignment"]["provider_id"] == created["id"]
-
-
-def test_put_call_site_group_clears_assignment(client):
-    created = _make_cli_provider(client)
-    client.put("/llm/call-site-groups/diagrams", json={
-        "provider_id": created["id"], "model": "claude-opus",
-    })
-
-    response = client.put("/llm/call-site-groups/diagrams", json={})
-
-    assert response.status_code == 200
-    assert response.json()["assignment"] is None
 
 
 def test_put_call_site_group_rejects_api_provider(client):

@@ -25,7 +25,7 @@ public sealed class ContextCache(string repoRoot)
     public string Fingerprint(Graph graph)
     {
         var manifest = File.ReadAllBytes(Path.Combine(WikiDirectory, "manifest.json"));
-        var tail = System.Text.Encoding.UTF8.GetBytes($"|{graph.SymbolList.Count}|{EmbeddingModel.Name}|v{ContextCacheBuilder.Version}");
+        var tail = System.Text.Encoding.UTF8.GetBytes($"|{graph.SymbolList.Count}|{EmbeddingModel.Name}|v{ContextCacheBuilder.Version}|{AutomationPages.Signature(repoRoot)}");
         return Convert.ToHexString(SHA256.HashData([.. manifest, .. tail]))[..16].ToLowerInvariant();
     }
 

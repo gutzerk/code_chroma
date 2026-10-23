@@ -96,20 +96,14 @@ describe("labelForDiagramLayer", () => {
     { id: "my-type", title: "My Type", description: "", style: "" },
   ];
 
-  it("resolves a builtin layer to its recipe label", () => {
-    expect(labelForDiagramLayer("c1", [])).toBe("C1");
-  });
-
-  it("resolves a custom layer to its saved type's title", () => {
-    expect(labelForDiagramLayer("custom/my-type", customTypes)).toBe("My Type");
-  });
-
-  it("falls back to the raw layer key for an unknown custom type", () => {
-    expect(labelForDiagramLayer("custom/not-loaded-yet", [])).toBe("custom/not-loaded-yet");
-  });
-
-  it("labels a feature-plan/<slug> layer with its slug", () => {
-    expect(labelForDiagramLayer("feature-plan/token-auth", [])).toBe("Feature plan: token-auth");
+  it.each([
+    ["resolves a builtin layer to its recipe label", "c1", "C1"],
+    ["resolves a custom layer to its saved type's title", "custom/my-type", "My Type"],
+    ["falls back to the raw layer key for an unknown custom type", "custom/not-loaded-yet", "custom/not-loaded-yet"],
+    ["labels a feature-plan/<slug> layer with its slug", "feature-plan/token-auth", "Feature plan: token-auth"],
+    ["falls back to the epic id when a per-epic layer has no top-level epic box", "epics/EP-2", "EP-2"],
+  ])("%s", (_name, layer, label) => {
+    expect(labelForDiagramLayer(layer, customTypes)).toBe(label);
   });
 
   it("names the epics layer by its first top-level epic's short title when a doc is supplied", () => {
@@ -132,31 +126,17 @@ describe("labelForDiagramLayer", () => {
     ]);
     expect(labelForDiagramLayer("epics/EP-2", [], doc)).toBe("Patterns hub");
   });
-
-  it("falls back to the epic id when a per-epic layer has no top-level epic box", () => {
-    expect(labelForDiagramLayer("epics/EP-2", [])).toBe("EP-2");
-  });
 });
 
 describe("isRecipeBackedLayer", () => {
-  it("is true for a builtin recipe layer", () => {
-    expect(isRecipeBackedLayer("c1")).toBe(true);
-  });
-
-  it("is true for any custom/<id> layer", () => {
-    expect(isRecipeBackedLayer("custom/my-type")).toBe(true);
-  });
-
-  it("is true for any feature-plan/<slug> layer", () => {
-    expect(isRecipeBackedLayer("feature-plan/token-auth")).toBe(true);
-  });
-
-  it("is true for any per-epic epics/<id> layer", () => {
-    expect(isRecipeBackedLayer("epics/EP-2")).toBe(true);
-  });
-
-  it("is false for a freeform, non-recipe-backed layer", () => {
-    expect(isRecipeBackedLayer("Serving Unit TLS Process (LMP-126)")).toBe(false);
+  it.each([
+    ["a builtin recipe layer", "c1", true],
+    ["any custom/<id> layer", "custom/my-type", true],
+    ["any feature-plan/<slug> layer", "feature-plan/token-auth", true],
+    ["any per-epic epics/<id> layer", "epics/EP-2", true],
+    ["a freeform, non-recipe-backed layer", "Serving Unit TLS Process (LMP-126)", false],
+  ])("is %s -> %s", (_name, layer, expected) => {
+    expect(isRecipeBackedLayer(layer)).toBe(expected);
   });
 });
 

@@ -108,6 +108,10 @@ const noRuns = async (): Promise<never> => {
 export const WORKFLOW_STUB = {
   listWorkflows: async (): Promise<WorkflowDef[]> => [],
   createWorkflow: async (workflow: WorkflowDef) => workflow,
+  updateWorkflow: async (workflow: WorkflowDef) => workflow,
+  deleteRun: async (): Promise<void> => {},
+  clearFinishedRuns: async (): Promise<void> => {},
+  restartRun: noRuns,
   deleteWorkflow: async (): Promise<void> => {},
   listSkills: async (): Promise<SkillInfo[]> => [],
   skipStep: noRuns,

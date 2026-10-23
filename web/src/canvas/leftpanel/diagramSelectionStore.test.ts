@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it } from "vitest";
+import { diagramAccent } from "../doc/diagramDisplay";
 import { colorForLayer } from "./diagramColors";
 import { diagramSelectionStore } from "./diagramSelectionStore";
 
@@ -25,8 +26,10 @@ describe("diagramSelectionStore", () => {
 });
 
 describe("colorForLayer", () => {
-  it("is deterministic and a hex colour", () => {
-    expect(colorForLayer("c1")).toBe(colorForLayer("c1"));
-    expect(colorForLayer("c1")).toMatch(/^#[0-9a-f]{6}$/);
-  });
+  it.each(["c1", "patterns", "impact", "epics", "sequence", "custom/abc", "feature-plan/x", "freeform"])(
+    "matches the canvas frame accent for %s",
+    (layer) => {
+      expect(colorForLayer(layer)).toBe(diagramAccent(layer).color);
+    },
+  );
 });

@@ -78,9 +78,12 @@ public sealed class UpdateHost
         var state = await service.CheckAsync();
         if (state.Phase == UpdatePhase.Available)
         {
-            var detail = $"{state.VerificationNotice}\n\n{state.Notes}".Trim();
-            if (!await Dialogs.ConfirmAsync(window, "Update available", $"CodeChroma {state.LatestVersion} is available", detail, "Download", "Later")) return;
-            state = await service.DownloadAsync();
+            var choice = await Dialogs.ShowUpdateAsync(window, state.LatestVersion ?? "", state.VerificationNotice, state.Notes);
+            if (choice == Dialogs.UpdateChoice.Skip && state.LatestVersion is not null)
+                UpdateSettingsStore.Write(settingsPath, UpdateSettingsStore.Read(settingsPath) with { SkippedVersion = state.LatestVersion });
+            if (choice != Dialogs.UpdateChoice.Install) return;
+            using (Dialogs.ShowProgress(window, "Updating CodeChroma", $"Downloading CodeChroma {state.LatestVersion}..."))
+                state = await service.DownloadAsync();
         }
         if (state.Phase == UpdatePhase.Ready)
         {
@@ -105,7 +108,7 @@ public sealed class UpdateHost
     private async Task ReportLastInstallAsync()
     {
         if (service.State.LastInstall is not { } outcome) return;
-        await Dispatcher.UIThread.InvokeAsync(() => Dialogs.ShowMessageAsync(window, "CodeChroma update", $"Update to {outcome.Version}: {outcome.Result}", outcome.Detail));
+        await Dispatcher.UIThread.InvokeAsync(() => Dialogs.ShowInstallResultAsync(window, outcome.Version, outcome.Result, outcome.Detail));
         service.DismissLastInstall();
     }
 

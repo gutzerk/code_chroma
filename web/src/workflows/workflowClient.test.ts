@@ -24,6 +24,7 @@ describe("HttpEngineClient workflow routes", () => {
     ["cancelRedo", (c: HttpEngineClient) => c.cancelRedo("r1"), "/repos/default/runs/r1/redo/cancel", undefined],
     ["reviewRun with note", (c: HttpEngineClient) => c.reviewRun("r1", "sendBack", "fix"), "/repos/default/runs/r1/review", { decision: "sendBack", note: "fix" }],
     ["startRun", (c: HttpEngineClient) => c.startRun("wf"), "/repos/default/workflows/wf/runs", { inputs: {} }],
+    ["restartRun", (c: HttpEngineClient) => c.restartRun("r1"), "/repos/default/runs/r1/restart", undefined],
   ])("%s POSTs the contract route", async (_name, call, path, body) => {
     const fetchMock = stubFetch();
 
@@ -33,6 +34,20 @@ describe("HttpEngineClient workflow routes", () => {
     expect(url).toBe(`http://localhost:8000${path}`);
     expect(init.method).toBe("POST");
     expect(init.body === undefined ? undefined : JSON.parse(String(init.body))).toEqual(body);
+  });
+
+  it.each([
+    ["updateWorkflow", (c: HttpEngineClient) => c.updateWorkflow({ id: "wf", name: "W", steps: [] }), "/repos/default/workflows/wf", "PUT"],
+    ["deleteRun", (c: HttpEngineClient) => c.deleteRun("r1"), "/repos/default/runs/r1", "DELETE"],
+    ["clearFinishedRuns", (c: HttpEngineClient) => c.clearFinishedRuns(), "/repos/default/runs?state=finished", "DELETE"],
+  ])("%s uses the contract verb and route", async (_name, call, path, method) => {
+    const fetchMock = stubFetch();
+
+    await call(new HttpEngineClient("http://localhost:8000", "default"));
+
+    const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit];
+    expect(url).toBe(`http://localhost:8000${path}`);
+    expect(init.method).toBe(method);
   });
 
   it("delivers run pings to subscribeRuns", () => {

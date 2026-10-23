@@ -13,6 +13,7 @@ internal static class Program
     {
         VelopackApp.Build().Run();
         Args = args;
+        Environment.SetEnvironmentVariable("codechroma_MODEL_WARMUP", "1");
         BuildAvaloniaApp().StartWithClassicDesktopLifetime(args);
     }
 

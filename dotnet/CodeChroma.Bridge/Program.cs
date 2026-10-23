@@ -37,6 +37,7 @@ builder.Services.AddSingleton<DiagramLibrary>();
 builder.Services.AddSkillServices();
 builder.Services.AddSingleton(_ => new ModelStore(ModelStore.DefaultDirectory(), new HttpClient()));
 builder.Services.AddSingleton<ProcessDiagram>();
+builder.Services.AddSingleton<DiagramContext>();
 builder.Services.AddSingleton<WorkflowRunners>();
 builder.Services.AddSingleton(new BranchManager(repoRoot));
 builder.Services.AddSingleton(sp =>
@@ -96,6 +97,7 @@ ContextRoutes.Map(app);
 WikiGeneralRoutes.Map(app);
 WorkflowRoutes.Map(app);
 ProcessDiagramRoutes.Map(app);
+if (Environment.GetEnvironmentVariable("codechroma_MODEL_WARMUP")?.Trim() == "1") _ = Task.Run(() => app.Services.GetRequiredService<DiagramContext>().WarmModelAsync());
 
 app.Run();
 return 0;

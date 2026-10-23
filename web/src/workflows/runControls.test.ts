@@ -171,4 +171,10 @@ describe("stepPosition", () => {
     expect(stepPosition(run("running", { steps, currentStepId: "b" }))).toEqual({ index: 2, total: 3 });
     expect(stepPosition(run("done", { steps, currentStepId: null }))).toEqual({ index: 3, total: 3 });
   });
+
+  it("points at the first unfinished step for a live run without a current step", () => {
+    const steps = [step("a", "done"), step("b", "pending"), step("c", "pending")];
+
+    expect(stepPosition(run("held", { steps, currentStepId: null }))).toEqual({ index: 2, total: 3 });
+  });
 });

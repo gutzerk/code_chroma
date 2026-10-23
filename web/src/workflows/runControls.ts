@@ -149,7 +149,10 @@ export function stepMode(def: WorkflowStepDef): "you" | "new" | "hand-off" | "co
 /** "step 2 of 4" for the step a run is on (the last one once the run is over). */
 export function stepPosition(run: Run): { index: number; total: number } {
   const current = run.steps.findIndex((s) => s.stepId === run.currentStepId);
-  return { index: current >= 0 ? current + 1 : run.steps.length, total: run.steps.length };
+  if (current >= 0) return { index: current + 1, total: run.steps.length };
+  const firstOpen = run.steps.findIndex((s) => s.status !== "done" && s.status !== "skipped");
+  const index = isFinished(run.state) || firstOpen < 0 ? run.steps.length : firstOpen + 1;
+  return { index, total: run.steps.length };
 }
 
 /** Fallback before the bridge has judged a step: amber past this many steps in one session. */

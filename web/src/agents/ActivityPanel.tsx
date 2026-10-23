@@ -6,7 +6,7 @@ import { DockedAgentPanel } from "./AgentTerminalDock";
 import { WorkflowsTab } from "../workflows/WorkflowsTab";
 import { AgentsHeaderActions } from "./activity/AgentsHeaderActions";
 import { WorkflowsHeaderActions } from "../workflows/WorkflowsHeaderActions";
-import { useRuns } from "../workflows/workflowStore";
+import { useRuns, workflowStore } from "../workflows/workflowStore";
 import { isFinished } from "../workflows/runControls";
 import { AgentList, AgentSwitcherRow } from "./activity/AgentSwitcherRow";
 import { CollapsedStrip, type ActivityTab } from "./activity/CollapsedStrip";
@@ -41,13 +41,16 @@ export function ActivityPanel({
   });
   const panelSize = usePanelSize(panelRef);
   const collapsed = agentsMode === "collapsed";
-  const resizable = !collapsed;
+  const resizable = agentsMode === "normal";
   const stretchWidth = useStretchWidth(panelRef, isFull, leftOpen);
   useEffect(() => resetSize(), [agentsMode]); // eslint-disable-line react-hooks/exhaustive-deps
   let style: CSSProperties | undefined;
   if (resizable && size) style = { width: size.width, flexBasis: size.width };
   else if (stretchWidth !== null) style = { width: stretchWidth, flexBasis: stretchWidth };
   const activeId = agents.some((a) => a.id === selectedAgentId) ? selectedAgentId : agents[0]?.id;
+  useEffect(() => {
+    if (tab !== "workflows" || collapsed) workflowStore.setDialog(null);
+  }, [tab, collapsed]);
   useEffect(() => {
     if (selectedAgentId) setTab("agents");
   }, [selectedAgentId]);

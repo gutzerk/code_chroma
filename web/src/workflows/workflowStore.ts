@@ -285,7 +285,7 @@ export function workflowActions(client: EngineClient) {
     duplicateWorkflow: (def: WorkflowDef) =>
       mutate(
         async () => {
-          const taken = new Set(workflowStore.getWorkflows().map((w) => w.id));
+          const taken = new Set((await client.listWorkflows()).map((w) => w.id));
           let id = `${def.id}-copy`;
           for (let n = 2; taken.has(id); n += 1) id = `${def.id}-copy-${n}`;
           await client.createWorkflow({ ...def, id, name: `${def.name} copy` });

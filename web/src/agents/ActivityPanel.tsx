@@ -1,4 +1,6 @@
-import { useEffect, useRef, useState, type CSSProperties } from "react";
+import { useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
+import { useOpenQuestionCount } from "../canvas/doc/question/useOpenAgentQuestions";
+import { QUESTION_STRINGS as S } from "../canvas/doc/question/questionStrings";
 import { useResizableSize } from "../canvas/useResizableSize";
 import { layoutStore, useLayoutState } from "../canvas/layout/layoutStore";
 import { useAgents, useAgentLaunchError } from "./agentStore";
@@ -25,6 +27,8 @@ export function ActivityPanel({
   disabled?: boolean;
 }) {
   const agents = useAgents();
+  const agentIds = useMemo(() => agents.map((a) => a.id), [agents]);
+  const openQuestions = useOpenQuestionCount(agentIds);
   const { agentsMode, leftOpen, selectedAgentId } = useLayoutState();
   const [tab, setTab] = useState<ActivityTab>("agents");
   const runs = useRuns();
@@ -128,6 +132,9 @@ export function ActivityPanel({
               onClick={() => setTab("agents")}
             >
               Agents <span className="activity-count">{`· ${agents.length}`}</span>
+              {openQuestions > 0 && (
+                <span className="activity-question-pill">{S.questionCount(openQuestions)}</span>
+              )}
             </button>
             <button
               type="button"

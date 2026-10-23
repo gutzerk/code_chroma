@@ -34,7 +34,7 @@ export function AgentLedStrip({
             onSelect(agent);
           }}
         >
-          <AgentLed status={agent.status} />
+          <AgentLed status={agent.status} agentId={agent.id} />
         </button>
       ))}
     </div>

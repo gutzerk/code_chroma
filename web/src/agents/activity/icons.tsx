@@ -66,3 +66,13 @@ export const ChevronDownIcon = ({ size }: IconProps) => (
     <path d="M6 9l6 6 6-6" />
   </Icon>
 );
+export const HandleChevronLeft = () => (
+  <Icon size={12}>
+    <path d="M15 6l-6 6 6 6" />
+  </Icon>
+);
+export const HandleChevronRight = () => (
+  <Icon size={12}>
+    <path d="M9 6l6 6-6 6" />
+  </Icon>
+);

@@ -120,11 +120,11 @@ export function DockedAgentPanel({
   agent: AgentRecord;
   active: boolean;
   focusRequest: number;
-  /** The Agents tab's full screen: a title and meta line, the usage strip and Stop agent. */
+  /** The Agents tab's full screen: a title and meta line, the usage strip and a larger close button. */
   full?: boolean;
 }) {
   const agentClient = useAgentClient();
-  const usage = useAgentUsage(agentClient, agent.id, agent.status, full && active);
+  const usage = useAgentUsage(agentClient, agent.id, agent.status, active);
   const startError = useAgentStartError(agent.id);
   const [recovering, setRecovering] = useState(false);
   const [recoverError, setRecoverError] = useState<string | null>(null);
@@ -171,20 +171,10 @@ export function DockedAgentPanel({
           </>
         )}
         {usage && <UsageStrip usage={usage} />}
-        {full && running && (
-          <button
-            type="button"
-            className="agent-stop-button"
-            data-testid={`agent-stop-${agent.id}`}
-            onClick={() => void agentClient.stop(agent.id).then(agentStore.upsert, () => undefined)}
-          >
-            Stop agent
-          </button>
-        )}
         {!agent.worktree_lost && !agent.source_pr && <CreatePrButton agent={agent} />}
         <button
           type="button"
-          className="agent-window-button"
+          className="agent-window-button agent-window-close"
           aria-label={`Close ${agent.title}`}
           data-testid={`agent-dock-close-${agent.id}`}
           onClick={() => closeAgentWindow(agentClient, agent.id)}

@@ -126,17 +126,30 @@ export function stateBanner(run: Run, stepLabel: (stepId: string | null) => stri
 }
 
 /** The label between step `index - 1` and `index` (index 0 has none): how context flows into that step. */
-export function betweenLabel(steps: WorkflowStepDef[], index: number): string | null {
+export function betweenLabel(steps: WorkflowStepDef[], index: number, previousSlug = "previous"): string | null {
   const def = steps[index];
   if (!def || index <= 0) return null;
-  if (def.kind === "review") return "You review the diff";
+  if (def.kind === "review") return `You review the diff from step ${index}`;
   const mode = agentMode(def.agent);
   if (mode === "new") return "Fresh start · no context";
   if (mode === "continue") {
     const source = continueSourceIndex(steps, index);
     return source < 0 ? "Resumes an earlier agent session" : `Resumes step ${source + 1}'s agent session`;
   }
-  return `Passes output to step ${index} · hand-off`;
+  return `Passes ${previousSlug} output to step ${index + 1}`;
+}
+
+/** How a step gets its context, in the words the workflow lists and run timeline both use. */
+export function stepMode(def: WorkflowStepDef): "you" | "new" | "hand-off" | "continue" {
+  if (def.kind === "review") return "you";
+  const mode = agentMode(def.agent);
+  return mode === "handoff" ? "hand-off" : mode;
+}
+
+/** "step 2 of 4" for the step a run is on (the last one once the run is over). */
+export function stepPosition(run: Run): { index: number; total: number } {
+  const current = run.steps.findIndex((s) => s.stepId === run.currentStepId);
+  return { index: current >= 0 ? current + 1 : run.steps.length, total: run.steps.length };
 }
 
 /** Fallback before the bridge has judged a step: amber past this many steps in one session. */

@@ -65,7 +65,7 @@ Not repo-scoped — no `Services` dependency.
   [`report-issue.md`](report-issue.md)) rather than this form directly.
 - `web/src/canvas-style/` — the "Canvas style" category: `CanvasStylePanel.tsx` (theme presets,
   background colour, None/Dots/Lines texture with colour/opacity/spacing, light-background warning,
-  reset) over `canvasStyleStore.ts`, a global `Store` persisted in `localStorage` key
+  reset; edits go to a local draft and only the Apply button commits them to the store) over `canvasStyleStore.ts`, a global `Store` persisted in `localStorage` key
   `codechroma.canvasStyle` (no bridge involved). `null` = never customised = the built-in canvas
   look; `CanvasViewport.tsx` sets a saved style as the `--canvas-bg`/`--canvas-texture-image` vars
   that `.canvas-viewport` paints (falling back to the built-in look) and feeds its spacing to `gridStepFor` (`canvasGrid.ts`). Only the canvas

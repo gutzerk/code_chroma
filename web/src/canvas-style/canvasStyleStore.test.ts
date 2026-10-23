@@ -53,7 +53,7 @@ describe("canvasStyleStore", () => {
   it("starts uncustomized, persists updates and restores the default", () => {
     expect(canvasStyleStore.getSaved()).toBeNull();
 
-    canvasStyleStore.update({ texture: "dots" });
+    canvasStyleStore.set({ ...CANVAS_STYLE_DEFAULT, texture: "dots" });
 
     expect(canvasStyleStore.getSaved()).toEqual({ ...CANVAS_STYLE_DEFAULT, texture: "dots" });
     expect(window.localStorage.getItem("codechroma.canvasStyle")).toContain('"dots"');

@@ -37,17 +37,42 @@ public static class Dialogs
         public void Dispose() => window.Close();
     }
 
-    /// <summary>Post-update report: a status headline, what happened, and a Continue button.</summary>
+    /// <summary>Post-update report: a coloured status chip, headline, what happened, any detail, and a Continue button.</summary>
     public static Task ShowInstallResultAsync(Window owner, string version, string result, string? detail)
     {
-        var (headline, explanation) = result switch
+        var (chip, accent, headline, explanation, next) = result switch
         {
-            "updated" => ($"CodeChroma is now on {version}", "The update installed and the new version started cleanly."),
-            "rolled-back" => ($"Update to {version} was rolled back", "The new version exited during startup, so the previous version was restored. You can retry from Help, Check for Updates."),
-            _ => ($"Update to {version} failed", "The previous version is still installed. You can retry from Help, Check for Updates."),
+            "updated" => ("UPDATED", "#4cc38a", $"CodeChroma is now on {version}", "The update installed and the new version started cleanly.", "Release notes for this version are on the project's GitHub releases page."),
+            "rolled-back" => ("ROLLED BACK", "#f0b44c", $"Update to {version} was rolled back", "The new version exited during startup, so the previous version was restored.", "Retry from Help, Check for Updates. If it keeps happening, use Report an issue and include the details below."),
+            _ => ("FAILED", "#ee6b6b", $"Update to {version} failed", "The previous version is still installed and nothing was lost.", "Retry from Help, Check for Updates. If it keeps happening, use Report an issue and include the details below."),
         };
-        var extra = string.IsNullOrWhiteSpace(detail) || detail == "ok" ? explanation : $"{explanation}\n\n{detail}";
-        return ShowMessageAsync(owner, "CodeChroma update", headline, extra, "Continue");
+        var ok = new Button { Content = "Continue", HorizontalAlignment = HorizontalAlignment.Right, IsDefault = true };
+        var panel = new StackPanel { Margin = new Thickness(24), Spacing = 12, MinWidth = 380, MaxWidth = 520 };
+        panel.Children.Add(new Border
+        {
+            Background = new SolidColorBrush(Color.Parse(accent), 0.18),
+            CornerRadius = new CornerRadius(10),
+            Padding = new Thickness(10, 3),
+            HorizontalAlignment = HorizontalAlignment.Left,
+            Child = new TextBlock { Text = chip, FontSize = 11, FontWeight = FontWeight.Bold, Foreground = new SolidColorBrush(Color.Parse(accent)) },
+        });
+        panel.Children.Add(new TextBlock { Text = headline, FontWeight = FontWeight.SemiBold, FontSize = 18, TextWrapping = TextWrapping.Wrap });
+        panel.Children.Add(new TextBlock { Text = explanation, TextWrapping = TextWrapping.Wrap });
+        if (!string.IsNullOrWhiteSpace(detail) && detail != "ok")
+        {
+            panel.Children.Add(new Border
+            {
+                Background = new SolidColorBrush(Color.Parse("#212736")),
+                CornerRadius = new CornerRadius(6),
+                Padding = new Thickness(10),
+                Child = new TextBlock { Text = detail, FontFamily = new FontFamily("Consolas,Menlo,monospace"), FontSize = 12, TextWrapping = TextWrapping.Wrap },
+            });
+        }
+        panel.Children.Add(new TextBlock { Text = next, TextWrapping = TextWrapping.Wrap, Opacity = 0.7 });
+        panel.Children.Add(ok);
+        var window = new Window { Title = "CodeChroma update", Content = panel, SizeToContent = SizeToContent.WidthAndHeight, CanResize = false, WindowStartupLocation = WindowStartupLocation.CenterOwner };
+        ok.Click += (_, _) => window.Close();
+        return window.ShowDialog(owner);
     }
 
     public static async Task<bool> ConfirmAsync(Window owner, string title, string message, string detail, string yes, string no)

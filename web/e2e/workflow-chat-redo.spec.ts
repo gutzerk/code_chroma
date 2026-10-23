@@ -1,11 +1,10 @@
 import { test, expect } from "@playwright/test";
-import { gotoApp } from "./helpers";
+import { gotoApp, startSavedRun } from "./helpers";
 
 // Drives the in-memory MockWorkflowEngine (no bridge): ask a step, get a redo proposal, redo, switch attempts.
 test("ask a step, redo from the proposal, and view attempt 1 read-only", async ({ page }) => {
   await gotoApp(page);
-  await page.getByRole("tab", { name: /Workflows/ }).click();
-  await page.getByRole("button", { name: "Start run: Ship a feature" }).click();
+  await startSavedRun(page, "Ship a feature");
   await expect(page.getByTestId("run-state")).toHaveText("Running");
 
   await page.getByTestId("chat-input").fill("@implement what are you doing?");

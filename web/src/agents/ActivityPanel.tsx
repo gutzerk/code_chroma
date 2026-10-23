@@ -1,14 +1,18 @@
 import { useEffect, useRef, useState, type CSSProperties } from "react";
 import { useResizableSize } from "../canvas/useResizableSize";
 import { layoutStore, useLayoutState } from "../canvas/layout/layoutStore";
-import { chromeInsets } from "../canvas/layout/layoutMetrics";
 import { useAgents, useAgentLaunchError } from "./agentStore";
 import { DockedAgentPanel } from "./AgentTerminalDock";
 import { WorkflowsTab } from "../workflows/WorkflowsTab";
-import { useRuns, useWorkflows } from "../workflows/workflowStore";
+import { AgentsHeaderActions } from "./activity/AgentsHeaderActions";
+import { WorkflowsHeaderActions } from "../workflows/WorkflowsHeaderActions";
+import { useRuns } from "../workflows/workflowStore";
+import { isFinished } from "../workflows/runControls";
 import { AgentList, AgentSwitcherRow } from "./activity/AgentSwitcherRow";
 import { CollapsedStrip, type ActivityTab } from "./activity/CollapsedStrip";
-import { CollapseIcon, ExpandIcon } from "./activity/icons";
+import { ExpandIcon, HandleChevronLeft, HandleChevronRight, HandleCollapse } from "./activity/icons";
+import { usePanelSize } from "./activity/usePanelSize";
+import { useStretchWidth } from "./activity/useStretchWidth";
 import "../canvas/PanelHandle.css";
 import "./ActivityPanel.css";
 
@@ -24,21 +28,25 @@ export function ActivityPanel({
   const { agentsMode, leftOpen, selectedAgentId } = useLayoutState();
   const [tab, setTab] = useState<ActivityTab>("agents");
   const runs = useRuns();
-  const workflows = useWorkflows();
+  const activeRuns = runs.filter((r) => !isFinished(r.state)).length;
   const launchError = useAgentLaunchError();
   const panelRef = useRef<HTMLElement | null>(null);
-  const { size, isResizing, handleProps } = useResizableSize(panelRef, {
+  const isFull = agentsMode === "full";
+  const { size, isResizing, handleProps, resetSize } = useResizableSize(panelRef, {
     axis: "x",
     edge: "left",
     minWidth: 320,
-    maxViewportFraction: 0.7,
+    maxViewportFraction: isFull ? 0.95 : 0.7,
+    onExceedMax: isFull ? undefined : () => layoutStore.setAgentsMode("full"),
   });
-  const resizable = agentsMode === "normal";
+  const panelSize = usePanelSize(panelRef);
   const collapsed = agentsMode === "collapsed";
-  const full = agentsMode === "full";
+  const resizable = !collapsed;
+  const stretchWidth = useStretchWidth(panelRef, isFull, leftOpen);
+  useEffect(() => resetSize(), [agentsMode]); // eslint-disable-line react-hooks/exhaustive-deps
   let style: CSSProperties | undefined;
-  if (full) style = { left: chromeInsets({ leftOpen, agentsMode }).agentsFullLeft };
-  else if (resizable && size) style = { width: size.width, flexBasis: size.width };
+  if (resizable && size) style = { width: size.width, flexBasis: size.width };
+  else if (stretchWidth !== null) style = { width: stretchWidth, flexBasis: stretchWidth };
   const activeId = agents.some((a) => a.id === selectedAgentId) ? selectedAgentId : agents[0]?.id;
   useEffect(() => {
     if (selectedAgentId) setTab("agents");
@@ -46,13 +54,14 @@ export function ActivityPanel({
   // Entering full screen (or switching agents inside it) moves the cursor into that agent's terminal.
   const [focusRequest, setFocusRequest] = useState(0);
   useEffect(() => {
-    if (full && activeId) setFocusRequest((n) => n + 1);
-  }, [full, activeId]);
+    if (isFull && activeId) setFocusRequest((n) => n + 1);
+  }, [isFull, activeId]);
   return (
     <aside
-      className={`activity-panel${collapsed ? " is-collapsed" : ""}${full ? " is-full" : ""}${isResizing ? " is-resizing" : ""}`}
+      className={`activity-panel${collapsed ? " is-collapsed" : ""}${isFull ? " is-full" : ""}${isResizing ? " is-resizing" : ""}`}
       aria-label="Agents and workflows"
       data-testid="activity-panel"
+      data-size={panelSize}
       ref={panelRef}
       style={style}
     >
@@ -65,12 +74,35 @@ export function ActivityPanel({
         />
       )}
       <div className="panel-handle panel-handle--left-edge" data-testid="activity-edge">
+        {!collapsed && (
+          <button
+            type="button"
+            className="panel-handle-btn"
+            aria-label={isFull ? "Restore panel width" : "Stretch panel"}
+            title={isFull ? "Restore panel width" : "Stretch panel"}
+            aria-pressed={isFull}
+            onClick={layoutStore.toggleAgentsFull}
+          >
+            {isFull ? <HandleChevronRight /> : <HandleChevronLeft />}
+          </button>
+        )}
         {resizable && (
           <span className="panel-handle-grip" aria-hidden="true" {...handleProps}>
             <span />
             <span />
             <span />
           </span>
+        )}
+        {!collapsed && agentsMode === "normal" && (
+          <button
+            type="button"
+            className="panel-handle-btn"
+            aria-label="Collapse panel"
+            title="Collapse panel"
+            onClick={() => layoutStore.setAgentsMode("collapsed")}
+          >
+            <HandleCollapse />
+          </button>
         )}
         {collapsed && (
           <button
@@ -82,19 +114,9 @@ export function ActivityPanel({
             <ExpandIcon size={12} />
           </button>
         )}
-        {!collapsed && (
-          <button
-            type="button"
-            className="panel-handle-btn"
-            aria-label="Collapse agents and workflows"
-            onClick={() => layoutStore.setAgentsMode("collapsed")}
-          >
-            <CollapseIcon size={12} />
-          </button>
-        )}
       </div>
       <div className="activity-content" hidden={collapsed}>
-        <div className="activity-header">
+        <div className="activity-header" data-tab={tab}>
           <div className="activity-segmented" role="tablist" aria-label="Activity">
             <button
               type="button"
@@ -102,7 +124,7 @@ export function ActivityPanel({
               aria-selected={tab === "agents"}
               onClick={() => setTab("agents")}
             >
-              Agents <span className="activity-count">{agents.length}</span>
+              Agents <span className="activity-count">{`· ${agents.length}`}</span>
             </button>
             <button
               type="button"
@@ -110,9 +132,14 @@ export function ActivityPanel({
               aria-selected={tab === "workflows"}
               onClick={() => setTab("workflows")}
             >
-              Workflows <span className="activity-count">{workflows.length}</span>
+              Workflows <span className="activity-count">{`· ${activeRuns}`}</span>
             </button>
           </div>
+          {tab === "workflows" ? (
+            <WorkflowsHeaderActions agentsMode={agentsMode} disabled={disabled} />
+          ) : (
+            <AgentsHeaderActions agentsMode={agentsMode} disabled={disabled} onRunAgent={onRunAgent} />
+          )}
         </div>
         {launchError && tab === "agents" && <p role="alert">{launchError}</p>}
         <div
@@ -121,14 +148,8 @@ export function ActivityPanel({
           aria-label="Agents"
           hidden={tab !== "agents"}
         >
-          <AgentSwitcherRow
-            agents={agents}
-            activeId={activeId ?? undefined}
-            agentsMode={agentsMode}
-            disabled={disabled}
-            onRunAgent={onRunAgent}
-          />
-          {full && <AgentList agents={agents} activeId={activeId ?? undefined} />}
+          <AgentSwitcherRow agents={agents} activeId={activeId ?? undefined} full={isFull} />
+          {isFull && <AgentList agents={agents} activeId={activeId ?? undefined} />}
           {agents.length === 0 && (
             <p className="activity-empty">
               No agents running. Run an agent to start working in this workspace.
@@ -140,7 +161,7 @@ export function ActivityPanel({
               agent={agent}
               active={tab === "agents" && activeId === agent.id && !collapsed}
               focusRequest={focusRequest}
-              full={full}
+              full={isFull}
             />
           ))}
         </div>

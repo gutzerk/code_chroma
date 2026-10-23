@@ -7,6 +7,8 @@ import {
   showBreakpointToggle,
   stateBanner,
   stepActions,
+  stepMode,
+  stepPosition,
   type StepAction,
 } from "./runControls";
 import type { Run, RunState, StepRecord, StepStatus, WorkflowStepDef } from "./types";
@@ -125,10 +127,10 @@ describe("betweenLabel", () => {
   });
 
   it.each([
-    [{}, "Passes output to step 1 · hand-off"],
-    [{ agent: "handoff" as const }, "Passes output to step 1 · hand-off"],
+    [{}, "Passes previous output to step 2"],
+    [{ agent: "handoff" as const }, "Passes previous output to step 2"],
     [{ agent: "new" as const }, "Fresh start · no context"],
-    [{ kind: "review" as const }, "You review the diff"],
+    [{ kind: "review" as const }, "You review the diff from step 1"],
     [{ agent: "continue" as const }, "Resumes step 1's agent session"],
     [{ agent: "continue:s1" as const }, "Resumes step 1's agent session"],
   ])("labels %j", (next, expected) => {
@@ -145,5 +147,28 @@ describe("layoutForWidth", () => {
     [1100, "full"],
   ])("maps %i px to %s", (width, expected) => {
     expect(layoutForWidth(width)).toBe(expected);
+  });
+});
+
+describe("stepMode", () => {
+  const agent = { id: "a", slug: "a", kind: "agent" as const, prompt: "p" };
+
+  it.each([
+    [{ ...agent }, "hand-off"],
+    [{ ...agent, agent: "handoff" as const }, "hand-off"],
+    [{ ...agent, agent: "new" as const }, "new"],
+    [{ ...agent, agent: "continue" as const }, "continue"],
+    [{ ...agent, kind: "review" as const }, "you"],
+  ])("reads %j as %s", (def, expected) => {
+    expect(stepMode(def)).toBe(expected);
+  });
+});
+
+describe("stepPosition", () => {
+  it("counts the current step one-based and falls back to the last step", () => {
+    const steps = [step("a", "done"), step("b", "running"), step("c", "pending")];
+
+    expect(stepPosition(run("running", { steps, currentStepId: "b" }))).toEqual({ index: 2, total: 3 });
+    expect(stepPosition(run("done", { steps, currentStepId: null }))).toEqual({ index: 3, total: 3 });
   });
 });

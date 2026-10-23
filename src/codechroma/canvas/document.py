@@ -34,7 +34,7 @@ RENDER_KINDS = (
 )
 
 # Layers with no diagram of their own; must match diagramCatalog.ts's `NON_DIAGRAM_LAYERS` by hand.
-NON_DIAGRAM_LAYERS = frozenset({"default", "hierarchy", "questions"})
+NON_DIAGRAM_LAYERS = frozenset({"default", "hierarchy", "questions", "decisions"})
 
 
 def _new_id() -> str:

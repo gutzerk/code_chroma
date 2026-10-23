@@ -161,6 +161,8 @@ export interface EngineClient {
   skipQuestion(questionId: string): Promise<QuestionAck>;
   /** Reopens an answered question and restarts later steps (POST .../{qid}/revise -- assumed route). */
   reviseQuestion(questionId: string): Promise<QuestionAck>;
+  /** Asks the blocked agent to add a diagram per option (POST .../{qid}/request-diagram). */
+  requestQuestionDiagram(questionId: string): Promise<QuestionAck>;
   /** Which diagram artifacts already exist on disk (GET /repos/{id}/diagrams/status) — the
    * "Diagrams" menu's readiness signal, so it never offers a click that silently does nothing. */
   getDiagramsStatus(): Promise<DiagramsStatus>;
@@ -613,6 +615,10 @@ export class HttpEngineClient implements EngineClient {
 
   reviseQuestion(questionId: string): Promise<QuestionAck> {
     return this.postJson<QuestionAck>(`/questions/${encodeURIComponent(questionId)}/revise`);
+  }
+
+  requestQuestionDiagram(questionId: string): Promise<QuestionAck> {
+    return this.postJson<QuestionAck>(`/questions/${encodeURIComponent(questionId)}/request-diagram`);
   }
 
   getDiagramsStatus(): Promise<DiagramsStatus> {

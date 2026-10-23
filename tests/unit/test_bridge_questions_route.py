@@ -14,8 +14,14 @@ from codechroma.questions.mcp_server import QuestionAuthError
 from codechroma.questions.models import AskRequest, QuestionOption
 
 OPTIONS = [
-    QuestionOption(id="a", title="Modular monolith", rank=1, pro="simple", con="coupled"),
-    QuestionOption(id="b", title="Microservices"),
+    QuestionOption(
+        id="a", title="Modular monolith", rank=1, description="one deploy", pro="simple",
+        con="coupled", why="fits the team",
+    ),
+    QuestionOption(
+        id="b", title="Microservices", rank=2, description="many deploys", pro="isolated",
+        con="ops cost", why="scales apart",
+    ),
 ]
 
 
@@ -152,7 +158,7 @@ def test_answer_route_wakes_a_blocked_ask(bridge):
 
 
 def test_ask_returns_pending_on_timeout_and_result_fetches_the_later_answer(bridge, monkeypatch):
-    fast = SimpleNamespace(questions=SimpleNamespace(ask_wait_seconds=0.05))
+    fast = SimpleNamespace(questions=SimpleNamespace(ask_wait_seconds=0.05, max_rejections=3))
     monkeypatch.setattr("codechroma.questions.mcp_server.settings", fast)
     mcp = bridge.app.state.question_mcp
 
@@ -206,3 +212,43 @@ def test_revise_reopens_the_question_and_deletes_later_steps_of_its_session(brid
     assert reopened.meta["answer"] is None
     assert store.find_element(bridge.main, second) is None
     assert reopened.layer == "questions"
+
+
+def test_request_diagram_marks_the_element_and_counts_the_request(bridge):
+    question_id = _ask(bridge)
+
+    with TestClient(bridge.app) as client:
+        response = client.post(f"/repos/main/questions/{question_id}/request-diagram")
+
+    meta = store.find_element(bridge.main, question_id).meta
+    assert response.json()["state"] == "open"
+    assert meta["diagram_requested"] is True
+    assert meta["diagram_requests"] == 1
+    assert meta["diagram_requested_at"]
+
+
+def test_request_diagram_is_refused_when_every_option_has_a_diagram(bridge):
+    options = [o.model_copy(update={"diagram_ref": "x"}) for o in OPTIONS]
+    question_id = uuid.uuid4().hex
+    store.open_question(bridge.main, AskRequest(question="Q?", options=options), question_id)
+
+    with TestClient(bridge.app) as client:
+        response = client.post(f"/repos/main/questions/{question_id}/request-diagram")
+
+    assert response.status_code == 422
+
+
+def test_request_diagram_hands_needs_to_the_blocked_ask(bridge):
+    mcp = bridge.app.state.question_mcp
+
+    async def scenario():
+        task = asyncio.create_task(mcp.ask("main", AskRequest(question="Pick", options=OPTIONS)))
+        await asyncio.sleep(0.2)
+        question_id = store.list_questions(bridge.main)[0].meta["question_id"]
+        url = f"/repos/main/questions/{question_id}/request-diagram"
+        await asyncio.to_thread(lambda: TestClient(bridge.app).post(url))
+        return question_id, await task
+
+    question_id, result = asyncio.run(scenario())
+
+    assert result == {"needs": "diagram", "question_id": question_id}

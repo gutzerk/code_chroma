@@ -7,6 +7,8 @@ unification), which itself replaced two per-axis skills (`codechroma-c1-review`,
 `codechroma-impact-review`; see "037: five named registries" below). The *interview*
 (`codechroma-diagram-type`) is a third, unrelated job.
 
+> `codechroma-decision-diagram` is a separate skill, not a router row: it draws abstract per-option diagrams for agent questions through the `draw_option_diagram` MCP tool onto the `decisions` layer, never into `.codechroma/diagrams/`. Details: `ai-questions.md` "Question contract and option diagrams".
+
 ## Why it was merged
 
 Three things had drifted, all of them consequences of "one skill per diagram type":

@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from datetime import UTC, datetime
+
 from fastapi import APIRouter, HTTPException, Request
 from pydantic import BaseModel
 
@@ -11,6 +13,7 @@ from codechroma.questions import store
 from codechroma.questions.launch import bearer_token
 from codechroma.questions.mcp_server import QuestionAuthError
 from codechroma.questions.models import AskRequest, QuestionResult
+from codechroma.questions.validation import QuestionRejected
 
 router = APIRouter()
 
@@ -66,7 +69,10 @@ async def ask_question(repo_id: str, request: Request, body: AskRequest) -> dict
         authorized = False
     if not authorized:
         raise HTTPException(status_code=401, detail="invalid or missing workspace token")
-    return await mcp.ask(repo_id, body)
+    try:
+        return await mcp.ask(repo_id, body)
+    except QuestionRejected as rejected:
+        raise HTTPException(status_code=422, detail=str(rejected)) from rejected
 
 
 @router.post("/repos/{repo_id}/questions/{question_id}/answer")
@@ -96,6 +102,18 @@ def skip_question(ws: Ws, services: Services, question_id: str) -> dict:
         raise HTTPException(status_code=422, detail="this question cannot be skipped")
     store.settle(ws, element.id, "skipped", QuestionResult(skipped=True))
     return _ack(question_id, "skipped", None, services.questions.skip(question_id))
+
+
+@router.post("/repos/{repo_id}/questions/{question_id}/request-diagram")
+def request_diagram(ws: Ws, services: Services, question_id: str) -> dict:
+    """Records an "Add diagram" request and hands `needs: diagram` to the blocked agent call."""
+    element = _open_element(ws, question_id)
+    options = element.meta.get("options", [])
+    if not options or all(o.get("diagram_ref") for o in options):
+        raise HTTPException(status_code=422, detail="every option already has a diagram")
+    store.request_diagram(ws, element, datetime.now(UTC).isoformat())
+    waiting = services.questions.request_diagram(question_id)
+    return _ack(question_id, "open", None, waiting)
 
 
 @router.post("/repos/{repo_id}/questions/{question_id}/revise")

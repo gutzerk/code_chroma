@@ -106,14 +106,36 @@ def test_ask_route_rejects_a_token_for_another_workspace(bridge):
     assert response.status_code == 401
 
 
-def test_hook_payload_marks_the_first_option_as_the_recommendation():
+def test_hook_payload_invents_no_rank_and_is_flagged_degraded():
     hook = _load_hook()
     question = {"question": "DB?", "options": [{"label": "PG"}, {"label": "SQLite"}]}
 
     payload = hook.build_payload(question, 0, 1, "s")
 
-    assert [o["rank"] for o in payload["options"]] == [1, None]
+    assert all("rank" not in option for option in payload["options"])
     assert payload["options"][1]["title"] == "SQLite"
+    assert payload["degraded"] is True
+
+
+def test_hook_denies_the_native_tool_and_names_ask_user_when_the_bridge_answers(
+    monkeypatch, capsys
+):
+    import io
+
+    hook = _load_hook()
+    monkeypatch.setenv("CODECHROMA_BRIDGE_URL", "http://127.0.0.1:1")
+    monkeypatch.setenv("CODECHROMA_QUESTION_TOKEN", "t")
+    monkeypatch.setenv("CODECHROMA_WORKSPACE_ID", "w")
+    monkeypatch.setattr(hook, "bridge_answers", lambda _url: True)
+    event = {"tool_input": {"questions": [{"question": "A?", "options": []}]}}
+    monkeypatch.setattr("sys.stdin", io.StringIO(json.dumps(event)))
+
+    code = hook.main()
+
+    out = json.loads(capsys.readouterr().out)["hookSpecificOutput"]
+    assert code == 0
+    assert out["permissionDecision"] == "deny"
+    assert "mcp__codechroma__ask_user" in out["permissionDecisionReason"]
 
 
 def test_hook_collects_answers_keyed_by_question_text():

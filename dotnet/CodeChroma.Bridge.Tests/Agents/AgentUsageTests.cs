@@ -55,6 +55,28 @@ public sealed class AgentUsageTests : IDisposable
     }
 
     [Fact]
+    public void A_reply_streamed_as_several_entries_counts_its_final_output()
+    {
+        var record = Agent("claude",
+            Reply("m1", "claude-opus-5-5", 10, 1_000, 0, 5),
+            Reply("m1", "claude-opus-5-5", 10, 1_000, 0, 900));
+
+        var usage = AgentUsage.Read(record, "s1", _root)!;
+
+        Assert.Equal(900, usage["outputTokens"]!.GetValue<long>());
+    }
+
+    [Fact]
+    public void A_context_past_the_default_window_reports_the_long_window()
+    {
+        var record = Agent("claude", Reply("m1", "claude-opus-5-5", 10, 300_000, 0, 50));
+
+        var usage = AgentUsage.Read(record, "s1", _root)!;
+
+        Assert.Equal(ModelSpecs.LongContextWindow, usage["contextWindow"]!.GetValue<long>());
+    }
+
+    [Fact]
     public void An_unknown_model_leaves_the_cost_null_but_keeps_the_tokens()
     {
         var record = Agent("claude", Reply("m1", "claude-unknown-9", 1_000, 3_000, 0, 50));

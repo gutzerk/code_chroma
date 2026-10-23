@@ -4,8 +4,11 @@ using CodeChroma.Bridge.Stores;
 
 namespace CodeChroma.Bridge.Workflows;
 
-/// <summary>Workflow definitions under .codechroma/workflows and run records under .codechroma/runs, one JSON file each.</summary>
-public sealed partial class RunStore(string repoRoot)
+/// <summary>
+/// Workflow definitions and run records, one JSON file each. Runs live under the repo's .codechroma/runs. New workflows go to the
+/// machine-wide shared directory so every repo sees them; a repo's own .codechroma/workflows still loads and wins on the same id.
+/// </summary>
+public sealed partial class RunStore(string repoRoot, string? sharedWorkflowsDir = null)
 {
     private readonly object _io = new();
 
@@ -18,9 +21,24 @@ public sealed partial class RunStore(string repoRoot)
 
     public static bool IsSafeId(string id) => SafeId().IsMatch(id);
 
-    public List<WorkflowDef> ListWorkflows() => ReadAll<WorkflowDef>(WorkflowsDir).Select(Normalized).ToList();
+    /// <summary>The machine-wide workflows directory, or null when this store has none (then only the repo's own workflows exist).</summary>
+    public string? SharedWorkflowsDir => sharedWorkflowsDir;
 
-    public WorkflowDef? GetWorkflow(string id) => IsSafeId(id) && Read<WorkflowDef>(Path.Combine(WorkflowsDir, id + ".json")) is { } def ? Normalized(def) : null;
+    public List<WorkflowDef> ListWorkflows()
+    {
+        var own = ReadAll<WorkflowDef>(WorkflowsDir);
+        var shared = SharedWorkflowsDir is null ? [] : ReadAll<WorkflowDef>(SharedWorkflowsDir).Where(d => own.All(o => o.Id != d.Id));
+        return own.Concat(shared).Select(Normalized).ToList();
+    }
+
+    public WorkflowDef? GetWorkflow(string id) =>
+        IsSafeId(id) && Dirs().Select(dir => Read<WorkflowDef>(Path.Combine(dir, id + ".json"))).FirstOrDefault(def => def is not null) is { } found ? Normalized(found) : null;
+
+    /// <summary>The repo's own directory first, then the shared one.</summary>
+    private IEnumerable<string> Dirs() => SharedWorkflowsDir is null ? [WorkflowsDir] : [WorkflowsDir, SharedWorkflowsDir];
+
+    /// <summary>The directory holding this id now, else the shared one (the repo's when there is none).</summary>
+    private string DirFor(string id) => Dirs().FirstOrDefault(dir => File.Exists(Path.Combine(dir, id + ".json"))) ?? SharedWorkflowsDir ?? WorkflowsDir;
 
     private static WorkflowDef Normalized(WorkflowDef def)
     {
@@ -28,15 +46,15 @@ public sealed partial class RunStore(string repoRoot)
         return def;
     }
 
-    public void SaveWorkflow(WorkflowDef def) => Write(Path.Combine(WorkflowsDir, def.Id + ".json"), JsonSerializer.Serialize(def, WorkflowJson.Options));
+    public void SaveWorkflow(WorkflowDef def) => Write(Path.Combine(DirFor(def.Id), def.Id + ".json"), JsonSerializer.Serialize(def, WorkflowJson.Options));
 
     public bool TryCreateWorkflow(WorkflowDef def)
     {
         if (!IsSafeId(def.Id)) throw new ArgumentException("Invalid workflow id");
         lock (_io)
         {
-            var path = Path.Combine(WorkflowsDir, def.Id + ".json");
-            if (File.Exists(path)) return false;
+            if (Dirs().Any(dir => File.Exists(Path.Combine(dir, def.Id + ".json")))) return false;
+            var path = Path.Combine(SharedWorkflowsDir ?? WorkflowsDir, def.Id + ".json");
             JsonFile.WriteText(path, JsonSerializer.Serialize(def, WorkflowJson.Options));
             return true;
         }
@@ -47,10 +65,13 @@ public sealed partial class RunStore(string repoRoot)
         if (!IsSafeId(id)) return false;
         lock (_io)
         {
-            var path = Path.Combine(WorkflowsDir, id + ".json");
-            if (!File.Exists(path)) return false;
-            File.Delete(path);
-            return true;
+            var found = false;
+            foreach (var path in Dirs().Select(dir => Path.Combine(dir, id + ".json")).Where(File.Exists))
+            {
+                File.Delete(path);
+                found = true;
+            }
+            return found;
         }
     }
 

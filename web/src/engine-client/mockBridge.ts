@@ -1787,6 +1787,15 @@ export class MockBridgeEngineClient implements EngineClient {
     return this.setQuestionMeta(questionId, { state: "open", answer: null, option_id: null });
   }
 
+  async requestQuestionDiagram(questionId: string): Promise<QuestionAck> {
+    const count = Number(this.canvasDoc.elements[questionId]?.meta.diagram_requests ?? 0) + 1;
+    return this.setQuestionMeta(questionId, {
+      diagram_requested: true,
+      diagram_requested_at: new Date().toISOString(),
+      diagram_requests: count,
+    });
+  }
+
   async getDiagramsStatus(): Promise<DiagramsStatus> {
     await delay(150);
     const hasLayer = (layer: string): boolean =>

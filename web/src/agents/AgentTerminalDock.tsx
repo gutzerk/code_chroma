@@ -79,7 +79,7 @@ export function AgentTerminalDock() {
                 data-testid={`agent-dock-tab-${agent.id}`}
                 onClick={() => agentDockStore.activate(agent.id)}
               >
-                <AgentLed status={agent.status} />
+                <AgentLed status={agent.status} agentId={agent.id} />
                 <span>{agent.title}</span>
               </button>
             ))}
@@ -153,7 +153,7 @@ export function DockedAgentPanel({
     >
       <div className="agent-terminal-dock-header">
         <img className="agent-window-icon" src={runAgentIcon} alt="" aria-hidden="true" />
-        <AgentLed status={agent.status} />
+        <AgentLed status={agent.status} agentId={agent.id} />
         {full ? (
           <span className="agent-full-heading">
             <span className="agent-full-title">{agent.title}</span>

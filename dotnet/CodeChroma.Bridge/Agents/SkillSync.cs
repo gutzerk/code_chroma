@@ -15,6 +15,7 @@ public static class SkillSync
         "codechroma-epic-brief",
         "codechroma-wiki-general-update",
         "codechroma-grill",
+        "codechroma-decision-diagram",
     ];
 
     /// <summary>Merged or retired away, but still installed in repos an earlier version analyzed; pruned on every sync.</summary>

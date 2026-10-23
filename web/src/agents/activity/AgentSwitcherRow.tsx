@@ -36,7 +36,7 @@ export function AgentList({ agents, activeId }: { agents: AgentRecord[]; activeI
           title={agentMeta(agent)}
           onClick={() => selectAgent(client, agent)}
         >
-          <AgentLed status={agent.status} />
+          <AgentLed status={agent.status} agentId={agent.id} />
           <span className="activity-switcher-text">
             <span className="activity-switcher-title">{agent.title}</span>
             <span className="activity-switcher-meta">{agentMeta(agent)}</span>
@@ -90,7 +90,7 @@ export function AgentSwitcherRow({
       >
         {active ? (
           <>
-            <AgentLed status={active.status} />
+            <AgentLed status={active.status} agentId={active.id} />
             <span className="activity-switcher-text">
               <span className="activity-switcher-title">{active.title}</span>
               <span className="activity-switcher-meta">{agentMeta(active)}</span>
@@ -122,7 +122,7 @@ export function AgentSwitcherRow({
                 data-diagram={agent.context_kind === "task" || undefined}
                 onClick={() => select(agent)}
               >
-                <AgentLed status={agent.status} />
+                <AgentLed status={agent.status} agentId={agent.id} />
                 <span className="activity-switcher-text">
                   <span className="activity-switcher-title">{agent.title}</span>
                   <span className="activity-switcher-meta">{agentMeta(agent)}</span>

@@ -29,6 +29,7 @@ SKILL_NAMES = (
     "codechroma-epic-brief",
     "codechroma-wiki-general-update",
     "codechroma-grill",
+    "codechroma-decision-diagram",
 )
 
 # 🔴 Merged/retired away, but still installed in repos an earlier version analyzed -- prune below.

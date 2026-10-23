@@ -7,9 +7,9 @@ namespace CodeChroma.Shell.App;
 
 public static class Dialogs
 {
-    public static Task ShowMessageAsync(Window owner, string title, string message, string? detail = null)
+    public static Task ShowMessageAsync(Window owner, string title, string message, string? detail = null, string okText = "OK")
     {
-        var ok = new Button { Content = "OK", HorizontalAlignment = HorizontalAlignment.Right, IsDefault = true };
+        var ok = new Button { Content = okText, HorizontalAlignment = HorizontalAlignment.Right, IsDefault = true };
         var panel = new StackPanel { Margin = new Thickness(20), Spacing = 10, MinWidth = 320 };
         panel.Children.Add(new TextBlock { Text = message, FontWeight = FontWeight.SemiBold, FontSize = 16, TextWrapping = TextWrapping.Wrap });
         if (detail is not null) panel.Children.Add(new TextBlock { Text = detail, TextWrapping = TextWrapping.Wrap, MaxWidth = 480 });
@@ -17,6 +17,37 @@ public static class Dialogs
         var window = new Window { Title = title, Content = panel, SizeToContent = SizeToContent.WidthAndHeight, CanResize = false, WindowStartupLocation = WindowStartupLocation.CenterOwner };
         ok.Click += (_, _) => window.Close();
         return window.ShowDialog(owner);
+    }
+
+    /// <summary>Non-dismissable busy window shown while an update downloads; dispose to close it.</summary>
+    public static IDisposable ShowProgress(Window owner, string title, string message)
+    {
+        var bar = new ProgressBar { IsIndeterminate = true, MinWidth = 320 };
+        var panel = new StackPanel { Margin = new Thickness(20), Spacing = 12 };
+        panel.Children.Add(new TextBlock { Text = message, FontWeight = FontWeight.SemiBold, FontSize = 16, TextWrapping = TextWrapping.Wrap, MaxWidth = 480 });
+        panel.Children.Add(bar);
+        var window = new Window { Title = title, Content = panel, SizeToContent = SizeToContent.WidthAndHeight, CanResize = false, ShowInTaskbar = false, WindowStartupLocation = WindowStartupLocation.CenterOwner };
+        window.Closing += (_, e) => { if (!e.IsProgrammatic) e.Cancel = true; };
+        window.Show(owner);
+        return new ProgressHandle(window);
+    }
+
+    private sealed class ProgressHandle(Window window) : IDisposable
+    {
+        public void Dispose() => window.Close();
+    }
+
+    /// <summary>Post-update report: a status headline, what happened, and a Continue button.</summary>
+    public static Task ShowInstallResultAsync(Window owner, string version, string result, string? detail)
+    {
+        var (headline, explanation) = result switch
+        {
+            "updated" => ($"CodeChroma is now on {version}", "The update installed and the new version started cleanly."),
+            "rolled-back" => ($"Update to {version} was rolled back", "The new version exited during startup, so the previous version was restored. You can retry from Help, Check for Updates."),
+            _ => ($"Update to {version} failed", "The previous version is still installed. You can retry from Help, Check for Updates."),
+        };
+        var extra = string.IsNullOrWhiteSpace(detail) || detail == "ok" ? explanation : $"{explanation}\n\n{detail}";
+        return ShowMessageAsync(owner, "CodeChroma update", headline, extra, "Continue");
     }
 
     public static async Task<bool> ConfirmAsync(Window owner, string title, string message, string detail, string yes, string no)

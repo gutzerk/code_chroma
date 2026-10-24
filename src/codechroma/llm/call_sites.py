@@ -128,7 +128,7 @@ class CallSiteGroup:
     members: tuple[str, ...]
 
 
-# Groups hidden by the "Model routing" tab; edited on "Agent windows" instead.
+# Groups the legacy "Model routing" list omits; the Features view (FEATURES) shows every group.
 HIDDEN_GROUPS = frozenset({"agents"})
 
 GROUPS: dict[str, CallSiteGroup] = {
@@ -152,6 +152,57 @@ GROUPS: dict[str, CallSiteGroup] = {
 
 _GROUP_BY_MEMBER: dict[str, str] = {
     member: group.id for group in GROUPS.values() for member in group.members
+}
+
+
+@dataclass(frozen=True)
+class Feature:
+    id: str
+    label: str
+    description: str
+    needs: str  # "agents" | "quick"
+    members: tuple[str, ...]
+
+
+FEATURES: dict[str, Feature] = {
+    feature.id: feature
+    for feature in (
+        Feature(
+            "diagrams",
+            "Diagrams",
+            "Draws and reviews the C1, Patterns and Impact diagrams.",
+            "agents",
+            GROUPS["diagrams"].members,
+        ),
+        Feature(
+            "planning",
+            "Planning & wiki",
+            "Writes epic briefs and the architecture map.",
+            "agents",
+            GROUPS["planning"].members,
+        ),
+        Feature(
+            "agents",
+            "Agent windows",
+            "Powers the interactive agent windows on the canvas.",
+            "agents",
+            GROUPS["agents"].members,
+        ),
+        Feature(
+            "ai_summarizer",
+            "Code summaries",
+            "Summarizes each node while a repo is analyzed.",
+            "quick",
+            ("ai_summarizer",),
+        ),
+        Feature(
+            "initial_diagram_bootstrap",
+            "First patterns draft",
+            "Drafts the first Patterns diagram before any is saved.",
+            "quick",
+            ("initial_diagram_bootstrap",),
+        ),
+    )
 }
 
 

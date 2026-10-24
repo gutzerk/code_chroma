@@ -204,11 +204,11 @@
           "expect": {"status": 201}
         },
         {
-          "http": {"method": "POST", "path": "/llm/providers", "json": {"label": "A", "kind": "api", "transport": "anthropic", "is_local": true}},
+          "http": {"method": "POST", "path": "/llm/providers", "json": {"label": "A", "kind": "api", "transport": "openai-compatible", "base_url": "http://localhost:1/v1", "is_local": true}},
           "capture": {"api_id": "$.id"},
           "expect": {"status": 201}
         },
-        {"http": {"method": "PUT", "path": "/llm/call-site-groups/diagrams", "json": {"provider_id": "{{api_id}}", "model": "m"}}, "expect": {"status": 400, "json": {"detail": "an agentic group can only be assigned a provider of kind=cli"}}},
+        {"http": {"method": "PUT", "path": "/llm/call-site-groups/diagrams", "json": {"provider_id": "{{api_id}}", "model": "m"}}, "expect": {"status": 400, "json": {"detail": "an agentic group needs a provider that can drive a CLI agent"}}},
         {
           "http": {"method": "PUT", "path": "/llm/call-site-groups/diagrams", "json": {"provider_id": "{{cli_id}}", "model": "opus"}},
           "expect": {"status": 200, "checks": [{"path": "$.assignment", "equals": {"provider_id": "{{cli_id}}", "model": "opus"}}]}

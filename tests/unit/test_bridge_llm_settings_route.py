@@ -316,8 +316,7 @@ def test_list_call_sites_covers_every_catalog_id_exactly_once(client):
     body = response.json()
     simple_ids = [entry["id"] for entry in body["simple"]]
     grouped_ids = [member["id"] for group in body["groups"] for member in group["members"]]
-    # The `agents` group is tab-hidden but still owns its call sites, so include its members to
-    # reach "every catalog id exactly once".
+    # The `agents` group is hidden from this legacy list but still owns its call sites.
     hidden_members = [
         CALL_SITES[member].id
         for group in GROUPS.values()
@@ -512,3 +511,85 @@ def test_put_call_site_unknown_provider_is_400(client):
     })
 
     assert response.status_code == 400
+
+
+def _make_anthropic_provider(client):
+    response = client.post("/llm/providers", json={
+        "label": "Anthropic", "kind": "api", "transport": "anthropic", "api_key": "sk-x",
+    })
+    assert response.status_code == 201
+    return response.json()
+
+
+def test_default_starts_unset(client):
+    assert client.get("/llm/default").json() == {"default": None}
+
+
+def test_put_default_then_get_then_delete(client):
+    provider = _make_anthropic_provider(client)
+
+    put = client.put("/llm/default", json={"provider_id": provider["id"], "model": "sonnet"})
+    got = client.get("/llm/default").json()["default"]
+    deleted = client.delete("/llm/default")
+
+    assert put.status_code == 200
+    assert got["provider_id"] == provider["id"] and got["model"] == "sonnet"
+    assert deleted.json() == {"default": None}
+    assert client.get("/llm/default").json() == {"default": None}
+
+
+def test_put_default_rejects_a_fallback_that_cannot_run_agents(client):
+    provider = _make_anthropic_provider(client)
+    local = _make_api_provider(client)
+
+    response = client.put("/llm/default", json={
+        "provider_id": provider["id"], "model": "m",
+        "agent_fallback": {"provider_id": local["id"], "model": "x"},
+    })
+
+    assert response.status_code == 400
+
+
+def test_features_follow_the_default_and_report_overrides(client):
+    provider = _make_anthropic_provider(client)
+    client.put("/llm/default", json={"provider_id": provider["id"], "model": "sonnet"})
+    other = _make_cli_provider(client)
+    client.put("/llm/call-site-groups/diagrams", json={"provider_id": other["id"], "model": "x"})
+
+    rows = {row["id"]: row for row in client.get("/llm/features").json()["features"]}
+
+    assert set(rows) == {
+        "diagrams", "planning", "agents", "ai_summarizer", "initial_diagram_bootstrap"
+    }
+    assert rows["diagrams"]["source"] == "custom"
+    assert rows["planning"]["source"] == "default"
+    assert rows["planning"]["effective"]["provider_name"] == "Anthropic"
+    assert rows["ai_summarizer"]["effective"]["model"] == "sonnet"
+    assert provider["id"] in rows["ai_summarizer"]["compatible_provider_ids"]
+
+
+def test_features_without_a_default_are_legacy(client):
+    rows = client.get("/llm/features").json()["features"]
+
+    assert {row["source"] for row in rows} == {"legacy"}
+    assert all(row["effective"]["provider_id"] is None for row in rows)
+
+
+def test_providers_report_capabilities_and_usage(client):
+    provider = _make_anthropic_provider(client)
+    client.put("/llm/default", json={"provider_id": provider["id"], "model": "m"})
+
+    entry = client.get("/llm/providers").json()[0]
+
+    assert entry["capabilities"] == {"agents": True, "quick": True}
+    assert entry["used_by"] == 5
+
+
+def test_deleting_the_default_connection_is_blocked(client):
+    provider = _make_anthropic_provider(client)
+    client.put("/llm/default", json={"provider_id": provider["id"], "model": "m"})
+
+    response = client.delete(f"/llm/providers/{provider['id']}")
+
+    assert response.status_code == 409
+    assert "default" in response.json()["detail"]["blocking_call_sites"]

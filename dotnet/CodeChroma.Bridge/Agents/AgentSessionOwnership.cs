@@ -21,20 +21,25 @@ public static class AgentSessionOwnership
         var assembly = typeof(AgentSessionOwnership).Assembly.Location;
         var apphost = Path.Combine(Path.GetDirectoryName(assembly)!, "CodeChroma.Bridge" + (OperatingSystem.IsWindows() ? ".exe" : ""));
         var published = Path.Combine(AppContext.BaseDirectory, "codechroma-bridge" + (OperatingSystem.IsWindows() ? ".exe" : ""));
-        var command = File.Exists(published) ? Quote(published) : File.Exists(apphost) ? Quote(apphost) : "dotnet " + Quote(assembly);
+        var executable = File.Exists(published) ? published : File.Exists(apphost) ? apphost : null;
+        var command = executable is not null
+            ? (OperatingSystem.IsWindows() ? "& " : "") + Quote(executable)
+            : "dotnet " + Quote(assembly);
+        var hook = new JsonObject { ["type"] = "command", ["command"] = command + " agent-session", ["timeout"] = 5 };
+        if (OperatingSystem.IsWindows()) hook["shell"] = "powershell";
         return new JsonObject
         {
             ["hooks"] = new JsonObject
             {
                 ["SessionStart"] = new JsonArray(new JsonObject
                 {
-                    ["hooks"] = new JsonArray(new JsonObject { ["type"] = "command", ["command"] = command + " agent-session", ["timeout"] = 5 }),
+                    ["hooks"] = new JsonArray(hook),
                 }),
             },
         }.ToJsonString();
     }
 
-    private static string Quote(string path) => "'" + path.Replace('\\', '/').Replace("'", "'\"'\"'") + "'";
+    private static string Quote(string path) => "'" + path.Replace('\\', '/').Replace("'", OperatingSystem.IsWindows() ? "''" : "'\"'\"'") + "'";
 
     /// <summary>Runs as a hook helper without booting the bridge or requiring Python or a listening HTTP server.</summary>
     public static int Record(TextReader input, string? file)

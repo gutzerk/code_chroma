@@ -15,8 +15,10 @@ never consults the providers store.
 from __future__ import annotations
 
 import os
+from pathlib import Path
 
 from codechroma.assistant import DEFAULT_CLI, load_assistant_settings
+from codechroma.bridge.agents.session_ownership import FILE_ENV, INITIAL_ID_ENV, hook_settings
 from codechroma.bridge.resources import resource_path
 from codechroma.config import settings
 from codechroma.questions.launch import McpEndpoint, write_claude_config
@@ -47,6 +49,7 @@ def _default_model() -> str:
 def agent_cli(
     agent: str, resume_session_id: str | None = None, initial_prompt: str | None = None,
     mcp: McpEndpoint | None = None, new_session_id: str | None = None,
+    session_tracking_file: Path | None = None,
 ) -> tuple[list[str], dict[str, str]] | None:
     """Return an allow-listed agent's argv and provider environment, or None."""
     if agent == "agent":
@@ -58,11 +61,15 @@ def agent_cli(
         )
         return [
             resolution.binary,
+            *_tracking_args(is_claude, session_tracking_file),
             *_mcp_args(is_claude, mcp),
             *_codechroma_plugin_args(is_claude),
             *_new_session_args(is_claude, resume_session_id, new_session_id),
             *_resume_prompt(resume_session_id, initial_prompt),
-        ], {**resolution.env_overrides, **_mcp_env(is_claude, mcp)}
+        ], {
+            **resolution.env_overrides, **_mcp_env(is_claude, mcp),
+            **_tracking_env(is_claude, session_tracking_file, resume_session_id or new_session_id),
+        }
     argv_entry = ALLOWED_AGENTS.get(agent)
     if argv_entry is None:
         return None
@@ -72,11 +79,15 @@ def agent_cli(
         is_claude = binary == DEFAULT_CLI
         return [
             binary,
+            *_tracking_args(is_claude, session_tracking_file),
             *_mcp_args(is_claude, mcp),
             *_codechroma_plugin_args(is_claude),
             *_new_session_args(is_claude, resume_session_id, new_session_id),
             *_resume_prompt(resume_session_id, initial_prompt),
-        ], _mcp_env(is_claude, mcp)
+        ], {
+            **_mcp_env(is_claude, mcp),
+            **_tracking_env(is_claude, session_tracking_file, resume_session_id or new_session_id),
+        }
     # Generic kinds (e.g. shell): a resume still appends the flag; a first message never does.
     if resume_session_id:
         return [*argv_entry, RESUME_FLAG, resume_session_id], {}
@@ -86,6 +97,16 @@ def agent_cli(
 def resolved_cli_for(kind: str, argv: list[str]) -> str:
     """The label to persist on `AgentRecord.resolved_cli` -- only `agent` windows report one."""
     return argv[0] if kind == "agent" else ""
+
+
+def _tracking_args(is_claude: bool, file: Path | None) -> list[str]:
+    return ["--settings", hook_settings()] if is_claude and file is not None else []
+
+
+def _tracking_env(is_claude: bool, file: Path | None, session_id: str | None) -> dict[str, str]:
+    if not is_claude or file is None:
+        return {}
+    return {FILE_ENV: str(file), INITIAL_ID_ENV: session_id or ""}
 
 
 def _codechroma_plugin_args(is_claude: bool) -> list[str]:

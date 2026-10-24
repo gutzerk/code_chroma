@@ -11,6 +11,11 @@ to revive if it comes back, it would be rebuilt from scratch.
   `src/codechroma/terminal/server.py` over a real WebSocket. This is the one place the web app talks
   to a real Python backend by default, rather than a mock. The panel is a **bottom** dock inside
   `.canvas-area` (see [`web-canvas-shell.md`](web-canvas-shell.md)), not the right-hand one it originally was.
+  Its toolbar creates independent shell tabs, closes the active tab (disconnecting its PTY), or hides
+  the panel while keeping every session and buffer alive. Switching tabs preserves their xterms;
+  closing the final tab hides the panel, and opening it again creates a fresh shell.
+  A ResizeObserver reports the dock's visible height to `RootCanvas`, which sets `--terminal-clearance`
+  for the floating diagrams panel so it stays above the terminal during resizing.
   🔴 **`useXtermSession.ts` is the only place an xterm is constructed.** `TerminalPanel.tsx` and
   `AgentTerminal.tsx` (one per agent window; it wraps the xterm in `AgentQuestionHost`, see [`ai-questions.md`](ai-questions.md)) both go through it, because they were near-duplicates
   that drifted: the agent copy had silently missed the panel's resize debounce, so a window drag

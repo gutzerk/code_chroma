@@ -13,7 +13,7 @@ export function agentMeta(agent: AgentRecord): string {
   return [agent.resolved_cli ?? agent.kind, agent.branch, agentStatusLabel(agent.status)].join(" · ");
 }
 
-function selectAgent(client: AgentClient, agent: AgentRecord) {
+export function selectAgent(client: AgentClient, agent: AgentRecord) {
   agentStore.clearDiagramsReady(agent.id);
   layoutStore.selectAgent(agent.id);
   restoreAgentWindow(client, agent.id);
@@ -80,6 +80,7 @@ export function AgentSwitcherRow({
         aria-haspopup="listbox"
         aria-expanded={open}
         aria-label="Select agent"
+        title="Switch agents: Ctrl/Cmd+Alt+Left/Right"
         disabled={agents.length === 0}
         onClick={() => setOpen((v) => !v)}
       >

@@ -10,7 +10,8 @@ import { AgentsHeaderActions } from "./activity/AgentsHeaderActions";
 import { WorkflowsHeaderActions } from "../workflows/WorkflowsHeaderActions";
 import { useRuns, workflowStore } from "../workflows/workflowStore";
 import { isFinished } from "../workflows/runControls";
-import { AgentList, AgentSwitcherRow } from "./activity/AgentSwitcherRow";
+import { AgentList, AgentSwitcherRow, selectAgent } from "./activity/AgentSwitcherRow";
+import { useAgentClient } from "./AgentClientContext";
 import { CollapsedStrip, type ActivityTab } from "./activity/CollapsedStrip";
 import { ExpandIcon, HandleChevronLeft, HandleChevronRight, HandleCollapse } from "./activity/icons";
 import { usePanelSize } from "./activity/usePanelSize";
@@ -27,6 +28,7 @@ export function ActivityPanel({
   disabled?: boolean;
 }) {
   const agents = useAgents();
+  const agentClient = useAgentClient();
   const agentIds = useMemo(() => agents.map((a) => a.id), [agents]);
   const openQuestions = useOpenQuestionCount(agentIds);
   const { agentsMode, leftOpen, selectedAgentId } = useLayoutState();
@@ -60,6 +62,22 @@ export function ActivityPanel({
   }, [selectedAgentId]);
   // Entering full screen (or switching agents inside it) moves the cursor into that agent's terminal.
   const [focusRequest, setFocusRequest] = useState(0);
+  useEffect(() => {
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (!(event.ctrlKey || event.metaKey) || !event.altKey || event.shiftKey || event.isComposing) return;
+      if (event.key !== "ArrowLeft" && event.key !== "ArrowRight") return;
+      if (agents.length === 0 || document.querySelector('[aria-modal="true"]')) return;
+      event.preventDefault();
+      event.stopPropagation();
+      const index = Math.max(0, agents.findIndex((agent) => agent.id === activeId));
+      const next = agents[(index + (event.key === "ArrowRight" ? 1 : agents.length - 1)) % agents.length];
+      selectAgent(agentClient, next);
+      setTab("agents");
+      setFocusRequest((n) => n + 1);
+    };
+    window.addEventListener("keydown", onKeyDown, true);
+    return () => window.removeEventListener("keydown", onKeyDown, true);
+  }, [agents, activeId, agentClient]);
   useEffect(() => {
     if (isFull && activeId) setFocusRequest((n) => n + 1);
   }, [isFull, activeId]);

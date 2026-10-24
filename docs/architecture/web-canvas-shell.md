@@ -2,10 +2,10 @@
 
 > Removed dead components: `AgentRail`, `AgentWindow`, `AgentFullScreen`, `AgentTab` and `useFullScreenAgentId` (plus their tests/CSS) are deleted -- `ActivityPanel` + `AgentTerminalDock` replaced them. Mentions of those names below are historical; the live flow is `windowActions.ts` + `ActivityPanel`.
 
-The right side is an attached `agents/ActivityPanel`, present even with no agents. Its header is a
-segmented "Agents N | Workflows N" control plus a collapse button. The Agents tab is one 40px
+The right side is a floating `agents/ActivityPanel`, present even with no agents. Its header is a
+segmented "Agents N | Workflows N" control (N on Workflows counts unfinished runs) plus the mode buttons. In normal mode the Agents tab is one 40px
 `agents/activity/AgentSwitcherRow` (agent dropdown with status dot, title, an "i/N" count chip and
-"cli · branch · status"; Run agent, Full screen and Collapse live in the header, Stretch / grip / Collapse on the left-edge handle) above the terminal. The panel floats over the canvas like the left panel (`position: absolute` in `.canvas-main-row`, z-index 41), so the canvas shows behind it. Stretch, the header Full screen button and dragging the edge past its limit are one state, `agentsMode: "full"` (`layoutStore.toggleAgentsFull`; `useStretchWidth`, `layoutMetrics.agentsWideWidth`): the panel spans from the open diagrams panel's edge, or to the chrome inset when that panel is closed, and all three controls reflect it. In full screen the dropdown is replaced by `AgentList`, a left column of every agent, switching agents keeps full screen (`openAgentWindow` only reopens a *collapsed* strip), and entering full or switching inside it focuses the shown agent's terminal (`focusRequest`). The
+"cli · branch · status"; Run agent, Full screen and Collapse live in the header, Stretch / grip / Collapse on the left-edge handle) above the terminal; in full mode the row is not rendered (the `AgentList` column replaces it). The panel floats over the canvas like the left panel (`position: absolute` in `.canvas-main-row`, z-index 41), so the canvas shows behind it. Stretch, the header Full screen button and dragging the edge past its limit are one state, `agentsMode: "full"` (`layoutStore.toggleAgentsFull`; `useStretchWidth`, `layoutMetrics.agentsWideWidth`): the panel spans from the open diagrams panel's edge, or to the chrome inset when that panel is closed, and all three controls reflect it. In full screen the dropdown is replaced by `AgentList`, a left column of every agent, switching agents keeps full screen (`openAgentWindow` only reopens a *collapsed* strip), and entering full or switching inside it focuses the shown agent's terminal (`focusRequest`). The
 Workflows tab renders `workflows/WorkflowsTab` (see [`workflows.md`](workflows.md)). Collapsed, the
 panel is a 52px `agents/activity/CollapsedStrip` (SVG icons from `activity/icons.tsx`, count badges with
 a yellow "!" when a run needs you, one initials circle with status dot per agent, a + button,
@@ -525,8 +525,7 @@ An Avalonia (C#, net8.0, Avalonia 11.3.12) port of the canvas lives under `dotne
 `setAgentsMode` are independent: full screen never touches `leftOpen`. In `full` the agents panel
 spans from the open diagrams panel's edge (or from the chrome inset when it is closed, the collapsed left bar is hidden in full) to the
 right gap; the left-edge resize grip exists only in `normal` (dragging it past 70% of the viewport enters full), so a drag can't override the stretched width. `reconcileAgents(ids)` (called by `AgentWindowLayer`) clears a
-`selectedAgentId` whose agent closed; the full view falls back to the first agent
-(`agents/useFullScreenAgentId.ts`), and a rail card click calls `selectAgent`.
+`selectedAgentId` whose agent closed; `ActivityPanel` falls back to the first agent when the selection is gone, and an `AgentList` row click calls `selectAgent`.
 `layoutMetrics.ts` holds the `Z_*` z-index tokens (left panel 2, terminal 2, agents 3, handles 4,
 collapsed left bar 4, code 5, popover 6) and the pure `chromeInsets({leftOpen, agentsMode})`:
 terminal/dock left (`LEFT_PANEL_CLEARANCE` = inset 12 + panel 262 + gap 12 when open, else 12), terminal

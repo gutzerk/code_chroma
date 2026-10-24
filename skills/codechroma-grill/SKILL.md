@@ -11,7 +11,7 @@ question as chat text, and do not use `AskUserQuestion` when `ask_user` is avail
 
 - One question per call, and wait for its answer before asking the next. A later question may
   depend on an earlier answer.
-- Give 2-3 `options`, each with `id`, `title`, `description`, `pro`, `con`, `rank` and `why`.
+- Give 2-4 `options`, each with `id`, `title`, `description`, `pro`, `con`, `rank` and `why`.
   - `rank` orders your preference: exactly one option has `rank: 1`, the one you recommend.
   - `why` is one sentence on why it ranks where it does; `pro` and `con` are short and concrete.
 - A call missing any of those fields, or without exactly one `rank: 1`, is rejected with the list of

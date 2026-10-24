@@ -65,9 +65,16 @@ export function QuestionDiagram({ doc, options, selectedId, onSelect, variant }:
 
   useLayoutEffect(() => {
     const body = bodyRef.current;
-    if (!body || !layout) return;
-    const { clientWidth, clientHeight } = body;
-    if (clientWidth > 0 && clientHeight > 0) setFit(Math.min(clientWidth / layout.width, clientHeight / layout.height, 1));
+    if (!body || !layout) return undefined;
+    const measure = () => {
+      const { clientWidth, clientHeight } = body;
+      if (clientWidth > 0 && clientHeight > 0) setFit(Math.min(clientWidth / layout.width, clientHeight / layout.height, 1));
+    };
+    measure();
+    if (typeof ResizeObserver === "undefined") return undefined;
+    const observer = new ResizeObserver(measure);
+    observer.observe(body);
+    return () => observer.disconnect();
   }, [layout, full, variant]);
 
   useEffect(() => {

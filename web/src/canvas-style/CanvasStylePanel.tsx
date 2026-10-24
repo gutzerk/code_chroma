@@ -126,10 +126,12 @@ function Slider({
 export function CanvasStylePanel({ onDismiss }: { onDismiss: () => void }) {
   const saved = useSavedCanvasStyle();
   const baseline = saved ?? CANVAS_STYLE_DEFAULT;
-  const [style, setStyle] = useState<CanvasStyle>(baseline);
+  // The user's edit only; null means "show the saved style".
+  const [draft, setDraft] = useState<CanvasStyle | null>(null);
+  const style = draft ?? baseline;
   const preset = matchPreset(style);
-  const dirty = !sameStyle(style, baseline);
-  const update = (patch: Partial<CanvasStyle>) => setStyle((current) => ({ ...current, ...patch }));
+  const dirty = draft !== null && !sameStyle(draft, baseline);
+  const update = (patch: Partial<CanvasStyle>) => setDraft((current) => ({ ...(current ?? baseline), ...patch }));
 
   return (
     <ModalDialog label="Canvas style" testId="canvas-style-dialog" className="canvas-style-dialog" onDismiss={onDismiss}>
@@ -156,7 +158,7 @@ export function CanvasStylePanel({ onDismiss }: { onDismiss: () => void }) {
               className="canvas-style-tile"
               aria-pressed={preset?.id === p.id}
               data-testid={`canvas-style-preset-${p.id}`}
-              onClick={() => setStyle(toStyle(p))}
+              onClick={() => setDraft(toStyle(p))}
             >
               <span className="canvas-style-swatch" style={swatchStyle(p.texture, p.bg, p.textureColor, p.opacity)} />
               <span>{p.name}</span>
@@ -241,7 +243,7 @@ export function CanvasStylePanel({ onDismiss }: { onDismiss: () => void }) {
           className="llm-button-ghost"
           data-testid="canvas-style-reset"
           disabled={sameStyle(style, CANVAS_STYLE_DEFAULT)}
-          onClick={() => setStyle(CANVAS_STYLE_DEFAULT)}
+          onClick={() => setDraft(CANVAS_STYLE_DEFAULT)}
         >
           Reset to default
         </button>
@@ -250,7 +252,11 @@ export function CanvasStylePanel({ onDismiss }: { onDismiss: () => void }) {
           className="llm-button-primary"
           data-testid="canvas-style-apply"
           disabled={!dirty}
-          onClick={() => (sameStyle(style, CANVAS_STYLE_DEFAULT) ? canvasStyleStore.restoreDefault() : canvasStyleStore.set(style))}
+          onClick={() => {
+            if (sameStyle(style, CANVAS_STYLE_DEFAULT)) canvasStyleStore.restoreDefault();
+            else canvasStyleStore.set(style);
+            setDraft(null);
+          }}
         >
           Apply
         </button>

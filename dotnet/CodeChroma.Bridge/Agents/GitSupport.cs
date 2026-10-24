@@ -108,33 +108,47 @@ public static class Gh
 
     public static bool Available => CliLocator.Find("gh") is not null;
 
-    public static string? Run(string cwd, params string[] args)
+    public static string? Run(string cwd, params string[] args) => Execute(cwd, args, out _);
+
+    /// <summary>Runs `gh` without prompts or stdin; null on failure, with stderr (or the reason) in <paramref name="error"/>.</summary>
+    public static string? Execute(string cwd, string[] args, out string error)
     {
+        error = "";
         var binary = CliLocator.Find("gh");
-        if (binary is null) return null;
+        if (binary is null)
+        {
+            error = "gh was not found";
+            return null;
+        }
         var info = new ProcessStartInfo(binary)
         {
             WorkingDirectory = cwd,
             RedirectStandardOutput = true,
             RedirectStandardError = true,
+            RedirectStandardInput = true,
             StandardOutputEncoding = Encoding.UTF8,
             StandardErrorEncoding = Encoding.UTF8,
         };
+        info.Environment["GH_PROMPT_DISABLED"] = "1";
         foreach (var arg in args) info.ArgumentList.Add(arg);
         try
         {
             using var process = Process.Start(info)!;
+            process.StandardInput.Close();
             var stdout = process.StandardOutput.ReadToEndAsync();
-            _ = process.StandardError.ReadToEndAsync();
+            var stderr = process.StandardError.ReadToEndAsync();
             if (!process.WaitForExit(TimeSpan.FromSeconds(TimeoutSeconds)))
             {
                 try { process.Kill(entireProcessTree: true); } catch (InvalidOperationException) { }
+                error = "gh timed out";
                 return null;
             }
+            error = stderr.GetAwaiter().GetResult();
             return process.ExitCode == 0 ? stdout.GetAwaiter().GetResult() : null;
         }
-        catch (Exception error) when (error is System.ComponentModel.Win32Exception or InvalidOperationException)
+        catch (Exception failure) when (failure is System.ComponentModel.Win32Exception or InvalidOperationException)
         {
+            error = failure.Message;
             return null;
         }
     }

@@ -445,7 +445,10 @@ export function RootCanvas() {
     previousCodeVisibleCountRef.current = codeVisibleNodeIds.length;
   }, [codeVisibleNodeIds, isTraceActive, camera]);
 
+  const focusOnNode = useCallback((nodeId: string) => viewportRef.current?.focusOnNode(nodeId), []);
+
   return (
+    <CanvasFocusContext.Provider value={focusOnNode}>
     <div className="app-root" data-testid="app-root">
       <UndoManager kinds={UNDO_KINDS} />
       {/* Row 1 of the floating-card shell: a full-width top bar above the rail, so the branch chip
@@ -519,13 +522,9 @@ export function RootCanvas() {
                 the visible canvas, not to the canvas plus the breadcrumb strip above it. */}
             <div className="canvas-stage" ref={stageRef}>
               <CanvasViewport ref={viewportRef}>
-                <CanvasFocusContext.Provider
-                  value={(nodeId) => viewportRef.current?.focusOnNode(nodeId)}
-                >
-                  <CodePopupContext.Provider value={setCodePopupNode}>
-                    <CanvasDocView />
-                  </CodePopupContext.Provider>
-                </CanvasFocusContext.Provider>
+                <CodePopupContext.Provider value={setCodePopupNode}>
+                  <CanvasDocView />
+                </CodePopupContext.Provider>
                 {rootNode && <ConnectionsOverlay />}
                 {rootNode && isDiffActive && <ChangeConnectionsOverlay />}
                 {rootNode && isTraceActive && <TraceFlowOverlay />}
@@ -593,5 +592,6 @@ export function RootCanvas() {
         />
       )}
     </div>
+    </CanvasFocusContext.Provider>
   );
 }

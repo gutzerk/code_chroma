@@ -478,10 +478,10 @@ Claude agent windows launch with the CodeChroma MCP server (`ask_user`) register
 `layoutStore.agentsMode` (`canvas/layout/layoutStore.ts`) replaces the old open/collapsed `useState` in
 `RootCanvas`:
 
-- `normal`: `ActivityPanel` in the canvas row, resizable; its edge handle carries the collapse chevron.
+- `normal`: floating `ActivityPanel` (absolute in the canvas row), resizable; collapse is available from both the edge handle and the header's Collapse button.
 - `collapsed`: `activity/CollapsedStrip`; clicking an avatar returns to `normal` and selects that agent.
 - `full`: the same `ActivityPanel` stretched over the canvas (`.is-full`) from the diagrams panel edge
-  (or the canvas-area edge when that panel is collapsed); agents show as a left column
+  (or the chrome inset when that panel is closed, via `agentsWideWidth`); the agents dropdown row is not rendered and agents show as a left column
   (`activity/AgentSwitcherRow.tsx`'s `AgentList`, a CSS grid on `.is-full .activity-agent-content` so the
   terminals never remount) and the canvas's left panel is left alone. Opening an agent window
   (`openAgentWindow`) never leaves full screen. The older `AgentFullScreen` component is no longer mounted.

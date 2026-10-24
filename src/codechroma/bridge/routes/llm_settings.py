@@ -96,7 +96,7 @@ def test_provider(provider_id: str) -> dict:
 
 @router.get("/llm/providers/{provider_id}/models")
 async def get_provider_models(provider_id: str) -> dict:
-    """A provider's own model catalog, queried live -- feeds the Model routing "Fetch models"."""
+    """A provider model catalog, queried live else a built-in list."""
     provider = providers_store.find_provider(provider_id)
     if provider is None:
         raise HTTPException(status_code=404, detail=f"unknown provider: {provider_id!r}")

@@ -58,8 +58,8 @@ export function chromeInsets(state: ChromeInsetsInput): ChromeInsets {
   };
 }
 
-/** Width (px) of the stretched agents panel: from the left panel (or collapsed bar) edge to the right gap; full screen with the left panel closed runs to the chrome inset. */
-export function agentsWideWidth(areaWidth: number, leftOpen: boolean, full = false): number {
-  const leftEdge = full && !leftOpen ? CHROME_INSET : chromeInsets({ leftOpen, agentsMode: "normal" }).drawPopover.left;
+/** Width (px) of the full-screen agents panel: from the left panel edge (or the chrome inset when it is closed) to the right gap. */
+export function agentsWideWidth(areaWidth: number, leftOpen: boolean): number {
+  const leftEdge = chromeInsets({ leftOpen, agentsMode: "normal" }).terminalLeft;
   return Math.max(AGENTS_WIDE_MIN_WIDTH, Math.round(areaWidth - leftEdge - AGENTS_WIDE_RIGHT_GAP));
 }

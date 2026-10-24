@@ -36,10 +36,7 @@ def _static_models(key: str) -> dict:
 
 
 def fetch_models(provider: Provider) -> dict:
-    """`{"supported", "models": [{"id", "label"}], "error"}` -- never raises.
-
-    Falls back to a built-in list (`"static": True`) whenever the provider can't be asked live.
-    """
+    """`{"supported", "models", "error"}`, or the built-in list (`"static": True`)."""
     if provider.kind == "api" and provider.transport == "openai-compatible":
         if not provider.base_url:
             return _static_models("transport:openai-compatible")

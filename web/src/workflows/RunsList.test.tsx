@@ -24,7 +24,7 @@ const run = (over: Partial<Run>): Run => ({
 });
 
 function setup(runs: Run[]) {
-  const actions = { stop: vi.fn() } as unknown as WorkflowActions;
+  const actions = {} as unknown as WorkflowActions;
   const onOpen = vi.fn();
   render(<RunsList runs={runs} workflows={[workflow]} activeRunId={null} layout="full" actions={actions} onOpen={onOpen} />);
   return { actions, onOpen };
@@ -45,6 +45,5 @@ describe("RunsList", () => {
     setup([]);
 
     expect(screen.queryByRole("list", { name: "Saved workflows" })).toBeNull();
-    expect(screen.queryByTestId("all-workflows-open")).toBeNull();
   });
 });

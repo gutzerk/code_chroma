@@ -45,6 +45,8 @@ export interface QuestionAnswerBody {
 export interface QuestionAck {
   question_id: string;
   state: QuestionState;
+  /** True while an agent call is still blocked on this question. */
+  waiting?: boolean;
   answer?: string | null;
 }
 
@@ -125,4 +127,14 @@ export function rankTier(option: QuestionOption, options: QuestionOption[]): Ran
   if (option.rank === Math.min(...ranks)) return "best";
   if (ranks.length > 1 && option.rank === Math.max(...ranks)) return "last";
   return "middle";
+}
+
+/** The recommended (rank-1) option's id, or null when nothing is ranked. */
+function preselectedOptionId(question: QuestionView): string | null {
+  return question.options.find((o) => rankTier(o, question.options) === "best")?.id ?? null;
+}
+
+/** The picked option when it still exists in the question, else the recommended one (a re-ask can replace the options). */
+export function resolveSelection(question: QuestionView, pickedId: string | null): string | null {
+  return pickedId !== null && question.options.some((o) => o.id === pickedId) ? pickedId : preselectedOptionId(question);
 }

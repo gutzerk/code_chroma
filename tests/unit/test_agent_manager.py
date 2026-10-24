@@ -1,7 +1,6 @@
 """AgentManager against a real temporary repository: worktree migration and id shadowing."""
 
 import json
-import os
 import shutil
 import subprocess
 import threading
@@ -225,44 +224,13 @@ def test_attach_to_the_same_workspace_twice_yields_two_agents_sharing_one_worktr
     assert first.branch == second.branch == target.branch
 
 
-def _write_transcript(
-    projects: Path, project: str, session_id: str, cwd: str, mtime: float
-) -> None:
-    directory = projects / project
-    directory.mkdir(parents=True, exist_ok=True)
-    path = directory / f"{session_id}.jsonl"
-    path.write_text(
-        json.dumps({"type": "user", "cwd": cwd, "sessionId": session_id}) + "\n", encoding="utf-8"
-    )
-    os.utime(path, (mtime, mtime))
-
-
-def test_an_agent_never_resumes_a_session_a_worktree_sibling_claimed(repo, tmp_path, monkeypatch):
-    monkeypatch.setenv("CLAUDE_CONFIG_DIR", str(tmp_path / "claude_home"))
-    projects = tmp_path / "claude_home" / "projects"
+def test_session_id_is_persisted_as_owned_by_the_agent(repo):
     manager = AgentManager(repo)
-    target = manager.create("main line")
-    helper = manager.create("helper", attach_to=target.id)
-    cwd = str(Path(target.worktree).resolve())
-    _write_transcript(projects, "-shared", "targets-only-session", cwd, 1000)
+    record = manager.create("session owner")
 
-    assert manager.capture_session_id(target.id) == "targets-only-session"
-    # Both records share a worktree, so without exclusion helper would also match this transcript.
-    assert manager.capture_session_id(helper.id) is None
+    manager.set_session_id(record.id, "owned-session")
 
-
-def test_an_agent_still_resumes_its_own_session_among_siblings(repo, tmp_path, monkeypatch):
-    monkeypatch.setenv("CLAUDE_CONFIG_DIR", str(tmp_path / "claude_home"))
-    projects = tmp_path / "claude_home" / "projects"
-    manager = AgentManager(repo)
-    target = manager.create("main line")
-    helper = manager.create("helper", attach_to=target.id)
-    cwd = str(Path(target.worktree).resolve())
-    _write_transcript(projects, "-shared", "helpers-own-session", cwd, 1000)
-    _write_transcript(projects, "-shared", "targets-newer-session", cwd, 2000)
-
-    assert manager.capture_session_id(target.id) == "targets-newer-session"
-    assert manager.capture_session_id(helper.id) == "helpers-own-session"
+    assert AgentManager(repo).get(record.id).session_id == "owned-session"
 
 
 @pytest.mark.parametrize(

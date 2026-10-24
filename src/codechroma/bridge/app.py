@@ -103,7 +103,6 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
         services.registry.stop_all()
         # Closing the app kills the agents on purpose: no orphan writing to files behind your back.
         services.agent_sessions.stop_all()
-        services.cancel_session_id_tasks()
         services.mark_all_agents_stopped()
         # Covers every headless runner (diagrams + review + epic-brief) this app owns.
         await services.cancel_skill_agents()

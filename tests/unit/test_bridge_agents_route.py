@@ -7,12 +7,13 @@ import shutil
 import subprocess
 import time
 from pathlib import Path
+from uuid import UUID
 
 import pytest
 from fastapi.testclient import TestClient
 
 from codechroma.bridge.agents import publish, worktree
-from codechroma.bridge.agents.manager import max_agents
+from codechroma.bridge.agents.manager import AgentManager, max_agents
 from codechroma.terminal import server as terminal_server
 from tests.conftest import copy_sample_repo, diagram_json_path, pr_record
 
@@ -566,7 +567,7 @@ def started_client(client, tmp_path, monkeypatch, use_test_runtime):
 
 
 def test_start_brings_up_the_pty_and_reports_a_pid(started_client):
-    test_client, _repo, bridge = started_client
+    test_client, repo, bridge = started_client
     test_client.post("/agents", json={"title": "runner"})
 
     response = test_client.post("/agents/runner/start", json={})
@@ -577,6 +578,10 @@ def test_start_brings_up_the_pty_and_reports_a_pid(started_client):
     assert body["status"] == "idle"
     assert body["pid"] is not None
     assert bridge.agent_sessions.is_running("runner")
+    session_id = body["session_id"]
+    assert UUID(session_id).version == 4
+    assert bridge.agent_sessions.get("runner").argv[-2:] == ["--session-id", session_id]
+    assert AgentManager(repo).get("runner").session_id == session_id
 
 
 @pytest.mark.parametrize("attach_to", [None, "main"])
@@ -735,6 +740,7 @@ def test_start_is_idempotent_for_an_already_running_agent(started_client):
     second = test_client.post("/agents/runner/start", json={}).json()
 
     assert first["pid"] == second["pid"]
+    assert first["session_id"] == second["session_id"]
 
 
 def test_resume_is_refused_without_a_recorded_session(started_client):
@@ -756,6 +762,20 @@ def test_start_reports_a_missing_claude_binary_instead_of_a_dead_agent(client, m
 
     assert response.status_code == 409
     assert "not found on PATH" in response.json()["detail"]
+
+
+def test_fresh_claude_start_persists_the_session_id_passed_to_the_cli(client, monkeypatch):
+    test_client, repo, bridge = client
+    test_client.post("/agents", json={"title": "runner"})
+    launched = {}
+    _stub_agent_start(monkeypatch, bridge, launched)
+
+    response = test_client.post("/agents/runner/start", json={})
+
+    session_id = response.json()["session_id"]
+    assert response.status_code == 200
+    assert launched["argv"][-2:] == ["--session-id", session_id]
+    assert AgentManager(repo).get("runner").session_id == session_id
 
 
 def test_start_on_an_unknown_agent_is_404(client):
@@ -862,11 +882,10 @@ def test_a_lost_worktree_can_be_recreated_from_its_branch(client):
     assert (Path(created["worktree"]) / "shared" / "text_utils.py").exists()
 
 
-def test_resume_runs_claude_with_the_recorded_session_id(started_client, tmp_path, monkeypatch):
+def test_resume_runs_claude_with_the_recorded_session_id(started_client):
     test_client, _repo, bridge = started_client
-    created = test_client.post("/agents", json={"title": "runner"}).json()
-    _write_transcript(tmp_path, Path(created["worktree"]), "abc-123")
-    monkeypatch.setenv("CLAUDE_CONFIG_DIR", str(tmp_path / "claude"))
+    test_client.post("/agents", json={"title": "runner"})
+    bridge.agent_manager.set_session_id("runner", "abc-123")
 
     test_client.post("/agents/runner/start", json={"resume": True})
 
@@ -879,15 +898,6 @@ def _fake_running_pid(repo: Path) -> None:
     stored = json.loads(path.read_text(encoding="utf-8"))
     stored["agents"][0]["pid"] = 999999
     path.write_text(json.dumps(stored), encoding="utf-8")
-
-
-def _write_transcript(root: Path, worktree: Path, session_id: str) -> None:
-    """A transcript recorded in `worktree`, so session discovery has something to find."""
-    directory = root / "claude" / "projects" / "whatever-the-escaping-is"
-    directory.mkdir(parents=True, exist_ok=True)
-    (directory / f"{session_id}.jsonl").write_text(
-        json.dumps({"type": "user", "cwd": str(worktree.resolve()), "sessionId": session_id}) + "\n"
-, encoding="utf-8")
 
 
 def test_pr_preflight_reports_the_reason_before_the_button_renders(client, monkeypatch):

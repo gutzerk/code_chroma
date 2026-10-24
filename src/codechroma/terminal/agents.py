@@ -46,7 +46,7 @@ def _default_model() -> str:
 
 def agent_cli(
     agent: str, resume_session_id: str | None = None, initial_prompt: str | None = None,
-    mcp: McpEndpoint | None = None,
+    mcp: McpEndpoint | None = None, new_session_id: str | None = None,
 ) -> tuple[list[str], dict[str, str]] | None:
     """Return an allow-listed agent's argv and provider environment, or None."""
     if agent == "agent":
@@ -60,6 +60,7 @@ def agent_cli(
             resolution.binary,
             *_mcp_args(is_claude, mcp),
             *_codechroma_plugin_args(is_claude),
+            *_new_session_args(is_claude, resume_session_id, new_session_id),
             *_resume_prompt(resume_session_id, initial_prompt),
         ], {**resolution.env_overrides, **_mcp_env(is_claude, mcp)}
     argv_entry = ALLOWED_AGENTS.get(agent)
@@ -73,6 +74,7 @@ def agent_cli(
             binary,
             *_mcp_args(is_claude, mcp),
             *_codechroma_plugin_args(is_claude),
+            *_new_session_args(is_claude, resume_session_id, new_session_id),
             *_resume_prompt(resume_session_id, initial_prompt),
         ], _mcp_env(is_claude, mcp)
     # Generic kinds (e.g. shell): a resume still appends the flag; a first message never does.
@@ -111,4 +113,13 @@ def _resume_prompt(resume_session_id: str | None, initial_prompt: str | None) ->
         return [RESUME_FLAG, resume_session_id]
     if initial_prompt:
         return [initial_prompt]
+    return []
+
+
+def _new_session_args(
+    is_claude: bool, resume_session_id: str | None, new_session_id: str | None
+) -> list[str]:
+    """Pins a fresh Claude conversation to an id the bridge can persist before another terminal."""
+    if is_claude and not resume_session_id and new_session_id:
+        return ["--session-id", new_session_id]
     return []

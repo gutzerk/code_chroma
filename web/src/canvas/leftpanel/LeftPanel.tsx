@@ -24,13 +24,10 @@ const TABS: { id: LeftTab; label: string }[] = [
 export function LeftPanel({
   rootNode,
   onActivate,
-  onDraw,
   arrange,
 }: {
   rootNode: HierarchyNodeRef | null;
   onActivate: (nodeId: string) => void;
-  /** Opens the Draw popover (owned by the parent); absent launches the agent directly. */
-  onDraw?: () => void;
   /** The Arrange section, rendered at the bottom of the Diagrams tab. */
   arrange?: ReactNode;
 }) {
@@ -57,7 +54,7 @@ export function LeftPanel({
           </button>
         ))}
       </div>
-      {leftTab === "diagrams" ? <DiagramsTab onDraw={onDraw} arrange={arrange} /> : <FilesTab rootNode={rootNode} onActivate={onActivate} />}
+      {leftTab === "diagrams" ? <DiagramsTab arrange={arrange} /> : <FilesTab rootNode={rootNode} onActivate={onActivate} />}
       {!hasOpenCode && (
         <div className="panel-handle panel-handle--right-edge">
           <button
@@ -102,7 +99,7 @@ function FilesTab({
   );
 }
 
-function DiagramsTab({ onDraw, arrange }: { onDraw?: () => void; arrange?: ReactNode }) {
+function DiagramsTab({ arrange }: { arrange?: ReactNode }) {
   const engineClient = useEngineClient();
   const doc = useCanvasDoc();
   const rows = useDiagramRows();
@@ -142,7 +139,7 @@ function DiagramsTab({ onDraw, arrange }: { onDraw?: () => void; arrange?: React
     <div className="left-panel-body" role="tabpanel" aria-label="Diagrams">
       <div className="left-panel-header">
         <span className="left-panel-label">ON CANVAS · {layers.length}</span>
-        <DrawDiagramButton onOpen={onDraw} />
+        <DrawDiagramButton />
       </div>
       {layers.length === 0 ? (
         <p className="left-panel-empty">No diagrams yet — click Draw… to create one.</p>

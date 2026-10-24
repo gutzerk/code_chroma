@@ -126,9 +126,9 @@ public sealed class TerminalAgents(UserPaths paths, ProviderStore providers, Cal
             ? adapter.BareArgs(CliAdapters.DefaultBareTools).Where(a => a != "--no-session-persistence").ToArray()
             : [];
         var promptAt = Array.IndexOf(bareArgs, "--system-prompt");
-        if (bareArgs.Length > 0 && !string.IsNullOrEmpty(visiblePrompt) && !string.IsNullOrEmpty(initialPrompt) && promptAt >= 0 && promptAt + 1 < bareArgs.Length)
+        if (bareArgs.Length > 0 && visiblePrompt is not null && !string.IsNullOrEmpty(initialPrompt) && promptAt >= 0 && promptAt + 1 < bareArgs.Length)
         {
-            // The long skill rides in the system prompt so the window shows only the short visible message.
+            // The long skill rides in the system prompt so the window shows only the short visible message (none when empty: the CLI waits for the user).
             bareArgs[promptAt + 1] = initialPrompt;
             return [binary, .. ResumePrompt(null, visiblePrompt), .. bareArgs];
         }

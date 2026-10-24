@@ -31,7 +31,6 @@ import { inspectorStore, useIsInspectorOpen } from "./inspectorStore";
 import { LeftPanel } from "./leftpanel/LeftPanel";
 import { CollapsedLeftBar } from "./leftpanel/CollapsedLeftBar";
 import { ArrangeSection } from "./leftpanel/ArrangeSection";
-import { DrawDiagramPopover } from "./leftpanel/DrawDiagramPopover";
 import { chromeInsets, LAYOUT_CSS_VARS } from "./layout/layoutMetrics";
 import { useLayoutState } from "./layout/layoutStore";
 import { CodeSidebar } from "./CodeSidebar";
@@ -101,7 +100,6 @@ export function RootCanvas() {
   const [codePopupNode, setCodePopupNode] = useState<HierarchyNodeRef | null>(null);
   const { agentsMode, leftOpen, leftTab } = useLayoutState();
   const { terminalLeft } = chromeInsets({ leftOpen, agentsMode });
-  const [drawOpen, setDrawOpen] = useState(false);
   const stageRef = useRef<HTMLDivElement | null>(null);
   const breadcrumbPath = useDeepestExpandedPath();
   const expandedNodeIds = useExpandedNodeIdsByOrder();
@@ -569,13 +567,11 @@ export function RootCanvas() {
             <LeftPanel
               rootNode={rootNode}
               onActivate={navigateTreeTo}
-              onDraw={() => setDrawOpen(true)}
               arrange={<ArrangeSection getViewport={getStageViewport} />}
             />
           ) : (
             agentsMode !== "full" && <CollapsedLeftBar />
           )}
-          {drawOpen && <DrawDiagramPopover onClose={() => setDrawOpen(false)} />}
         </div>
         {inspectorMounted && <InspectorPanel hidden={!isInspectorOpen} />}
         <EpicBriefPanel />

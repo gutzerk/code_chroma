@@ -540,10 +540,9 @@ once on `.canvas-area` so `LeftPanel.css` and the dock margin use the same value
 expand button, folder and color boxes all go through `layoutStore`/`collapsedLayersStore`.
 
 - `LeftPanel`: Diagrams tab (rows with checkbox -> `diagramSelectionStore`, color swatch, eye ->
-  `collapsedLayersStore`, delete; `Draw...` opens `DrawDiagramPopover`, whose open state `RootCanvas`
-  owns; `ArrangeSection` reads the `.canvas-stage` size through a `getViewport` callback at apply
+  `collapsedLayersStore`, delete; `Draw...` launches a bare drawing agent directly (no type popover); the agent window's terminal itself asks what to draw (the bridge prints the question), so the agent never greets; `ArrangeSection` reads the `.canvas-stage` size through a `getViewport` callback at apply
   time) and Files tab (the tree). `LeftPanel` and `CollapsedLeftBar` share `leftpanel/useDiagramRows.ts`
-  (`{layer,name,hidden,toggleLabel,toggle}[]`). `DrawDiagramButton` takes only `onOpen`; diagram
+  (`{layer,name,hidden,toggleLabel,toggle}[]`). `DrawDiagramButton` takes no props; diagram
   auto-add is `canvas/doc/useDiagramReadinessWatcher.ts`, called once from `RootCanvas` so it keeps
   running while the panel is collapsed.
 - `CollapsedLeftBar`: expand button, Files folder, one 34x34 swatch box per diagram (dashed when

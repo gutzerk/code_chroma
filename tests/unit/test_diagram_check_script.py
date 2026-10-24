@@ -474,3 +474,21 @@ def test_phase_with_unknown_kind_fails_the_shape_tier(tmp_path):
     code = module.main(["--kind", "sequence", "--json", str(path)])
 
     assert code == 3
+
+
+def test_unhashable_relation_ends_do_not_crash_the_checker(tmp_path):
+    diagram = _flat(2, relations=[{"from": ["n0"], "to": {"x": 1}, "label": "uses"}])
+    diagram["nodes"][1]["id"] = ["n1"]
+
+    result = _run(tmp_path, "c1", diagram)
+
+    assert "Traceback" not in result.stderr
+
+
+def test_a_long_title_is_only_flagged_on_sequence_diagrams(tmp_path):
+    diagram = _flat(2)
+    diagram["nodes"][0]["name"] = "Payment Gateway Adapter Service Layer"
+
+    result = _run(tmp_path, "c1", diagram)
+
+    assert "LONGTITLE" not in result.stdout

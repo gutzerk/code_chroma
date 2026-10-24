@@ -1,10 +1,10 @@
 import type { CanvasEdge } from "../../state/types";
 
-/** Collapses parallel edges (same from → to) into one carrying a `×N` count; singles pass through. */
+/** Collapses parallel edges (same from → to, layer and kind) into one carrying a `×N` count; singles pass through. */
 export function bundleEdges(edges: readonly CanvasEdge[]): CanvasEdge[] {
   const groups = new Map<string, CanvasEdge[]>();
   for (const edge of edges) {
-    const key = `${edge.from}\u0000${edge.to}`;
+    const key = [edge.from, edge.to, edge.layer, edge.kind].join("\u0000");
     const group = groups.get(key);
     if (group) group.push(edge);
     else groups.set(key, [edge]);

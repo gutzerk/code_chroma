@@ -1,4 +1,6 @@
-import { useEffect, useMemo } from "react";
+import { useEffect, useMemo, useSyncExternalStore } from "react";
+import { viewSequenceElements } from "./autoLayout";
+import { sequenceViewStore } from "./sequenceViewStore";
 import { FocusPanel } from "./FocusPanel";
 import type { CanvasElement } from "../../state/types";
 import { useEngineClient } from "../../engine-client/EngineClientContext";
@@ -266,6 +268,20 @@ export function CanvasDocView() {
     return map;
   }, [renderableElements]);
 
+  // 022: the Readable/Focus geometry is derived here for display only, never persisted to the doc.
+  const sequenceViewVersion = useSyncExternalStore(sequenceViewStore.subscribe, sequenceViewStore.getLayoutVersion);
+  const viewElements = useMemo(() => {
+    if (sequenceMemberIdsByLayer.size === 0) return visibleDoc.elements;
+    const next = { ...visibleDoc.elements };
+    for (const [layer, ids] of sequenceMemberIdsByLayer) {
+      const messageCount = ids.filter((id) => visibleDoc.elements[id]?.meta?.role === "message").length;
+      const view = sequenceViewStore.get(layer, messageCount);
+      for (const element of viewSequenceElements(visibleDoc, ids, view)) next[element.id] = element;
+    }
+    return next;
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- sequenceViewVersion is the store's change signal
+  }, [visibleDoc, sequenceMemberIdsByLayer, sequenceViewVersion]);
+
   const concurrencyBuckets = useMemo(
     () =>
       bucketPerLayer(
@@ -314,7 +330,7 @@ export function CanvasDocView() {
                 label={labelForDiagramLayer(layer, customTypes)}
                 typeLabel={display.typeLabel}
                 boxCount={display.boxCount}
-                members={resolveMembers(memberIds, visibleDoc.elements)}
+                members={resolveMembers(memberIds, viewElements)}
                 sizes={measuredSizes}
               />
             );
@@ -339,7 +355,7 @@ export function CanvasDocView() {
             <SequenceDiagram
               key={`sequence-${layer}`}
               layer={layer}
-              elements={resolveMembers(memberIds, visibleDoc.elements)}
+              elements={resolveMembers(memberIds, viewElements)}
             />
           ))}
           <FocusPanel doc={visibleDoc} />

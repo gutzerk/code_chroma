@@ -2,7 +2,10 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { sequenceViewStore } from "./sequenceViewStore";
 
 describe("sequenceViewStore", () => {
-  beforeEach(() => sequenceViewStore.reset());
+  beforeEach(() => {
+    window.localStorage.clear();
+    sequenceViewStore.reset();
+  });
 
   it("defaults to readable up to 12 messages and focus above", () => {
     expect(sequenceViewStore.get("a", 12).mode).toBe("readable");

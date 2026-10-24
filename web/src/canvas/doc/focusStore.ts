@@ -22,8 +22,9 @@ class FocusStore extends Store {
     return this.focus ? { id: this.focus.id, direction: this.focus.direction } : null;
   }
 
-  /** Focuses `id`; focusing the already-focused block clears it. */
+  /** Focuses `id`; focusing the already-focused block clears it. A block with no edges has nothing to focus. */
   toggle(doc: CanvasDoc, id: string): void {
+    if (this.focus?.id !== id && litIdsFor(doc, id, "both").size === 1) return;
     this.focus = this.focus?.id === id ? null : { id, direction: "both", lit: litIdsFor(doc, id, "both") };
     this.changed();
   }

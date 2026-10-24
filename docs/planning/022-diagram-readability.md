@@ -1,6 +1,6 @@
 # 022 — Diagram readability: blocks, sequence (two switchable modes), impact
 
-Status: Done — Stages 1–4 and the ▶ player landed; only optional Playwright visual checks for impact/C1 and a live 5-second test on three real diagrams remain
+Status: In progress — Stages 1–4 and the ▶ player landed; open: Playwright visual checks for impact/C1 and the 5-second test on three real diagrams
 
 Source: the "Diagram Readability Options" design canvas (boards Recommendation, A4 Glance + expand, B2 Route overlay, Blocks 1–2, Sequence 1–2, Impact). Builds on `docs/architecture/diagram-skills.md` and `docs/architecture/web-canvas-shell.md`.
 
@@ -61,7 +61,7 @@ Files: `web/src/canvas/doc/SequenceDiagram.tsx` (split into `SequenceReadable.ts
 1. Extract the participant/message derivation now inline in `SequenceDiagram.tsx` into `sequenceModel.ts` (participants, messages sorted by `order`, phases, frames, notes). Both modes consume it, so the existing `SequenceDiagram.test.tsx` cases keep covering the shared part.
 2. `SequenceReadable`: phase bars with a vertical label on the left, numbered labels (`3 · ensure model + cache`), return arrows dashed, AI arrows violet, event arrows dotted green, alt/loop frames, note boxes, column heads with kind and `↗`.
 3. `SequenceFocus`: collapsed phase rows with call count and the participants that talk; one phase open at a time by default; click a column head to focus a participant (its messages lit, others faded); hover a column for file and callers; timeline panel with "you are here".
-4. `layoutSequence` takes the mode: `focus` with collapsed phases shrinks row height for hidden messages. Geometry is derived, not persisted per mode. `useReflowSequence` re-spreads on a mode change as well as on mount (today it runs once on mount; make it depend on the mode so a switch never leaves stale persisted positions). `DiagramFrame` must keep reading the same rects, so frame drag still moves every member.
+4. `layoutSequence` takes the mode: `focus` with collapsed phases shrinks row height for hidden messages. Geometry is derived, not persisted per mode. The mode's geometry is derived at render time (`viewSequenceElements`) and never persisted; `useReflowSequence` stays once-on-mount with the readable layout. `DiagramFrame` must keep reading the same rects, so frame drag still moves every member.
 5. Mode switch control in `DiagramFrame.tsx` header, wired to `sequenceViewStore`.
 6. Optional ▶ player that walks `order` and dims non-hero edges (Options B and C of the recommendation). Ship last; it depends on `order` being reliable.
 7. Tests: store (default by message count, persistence, failure of storage), both renderers, the switch preserving collapse and focus, reflow on mode change. Playwright: draw, flip Readable ↔ Focus, confirm no reload and no console error.

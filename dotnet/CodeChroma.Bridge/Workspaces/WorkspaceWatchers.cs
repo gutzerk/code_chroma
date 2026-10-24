@@ -12,6 +12,7 @@ public sealed class WorkspaceWatchers : IDisposable
     private readonly Debouncer _custom;
     private readonly Debouncer _featurePlans;
     private readonly Debouncer _traces;
+    private readonly Debouncer _canvas;
     private readonly Debouncer _newDirectories;
     private readonly HashSet<string> _pendingDirectories = [];
 
@@ -24,6 +25,7 @@ public sealed class WorkspaceWatchers : IDisposable
         _custom = new Debouncer(TimeSpan.FromMilliseconds(BridgeLimits.WatcherDebounceMs), () => workspace.Emit(new JsonObject { ["type"] = "custom" }));
         _featurePlans = new Debouncer(TimeSpan.FromMilliseconds(BridgeLimits.WatcherDebounceMs), () => workspace.Emit(new JsonObject { ["type"] = "feature-plan" }));
         _traces = new Debouncer(TimeSpan.FromMilliseconds(BridgeLimits.WatcherDebounceMs), () => workspace.Emit(new JsonObject { ["type"] = "trace" }));
+        _canvas = new Debouncer(TimeSpan.FromMilliseconds(BridgeLimits.WatcherDebounceMs), () => workspace.Emit(new JsonObject { ["type"] = "canvas" }));
         _newDirectories = new Debouncer(TimeSpan.FromMilliseconds(BridgeLimits.WatcherDebounceMs), NotifyNewDirectories);
         _watcher = new FileSystemWatcher(workspace.Root)
         {
@@ -95,6 +97,11 @@ public sealed class WorkspaceWatchers : IDisposable
             _featurePlans.Trigger();
             return;
         }
+        if (parts is [".codechroma", "canvas-core.json"] or [".codechroma", "diagrams", _, "projection.json"])
+        {
+            _canvas.Trigger();
+            return;
+        }
         if (parts is [".codechroma", "traces", _])
         {
             _traces.Trigger();
@@ -126,6 +133,7 @@ public sealed class WorkspaceWatchers : IDisposable
         _repo.Dispose();
         _newDirectories.Dispose();
         _traces.Dispose();
+        _canvas.Dispose();
         _custom.Dispose();
         _featurePlans.Dispose();
         foreach (var d in _diagrams.Values) d.Dispose();

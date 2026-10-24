@@ -46,6 +46,10 @@ Logic is UI-free in `CodeChroma.Shell`; `CodeChroma.Shell.App` only renders.
 - `window.codechromaDesktop` is injected after each navigation and talks to the shell over the WebView message
   channel (`DesktopScript`/`DesktopMessage`). The shell accepts messages only while the tab URL origin equals its
   bridge origin; other navigations are cancelled and opened in the system browser.
+- Calls that need an answer (`codechromaUpdates.*`, `saveFile`) go through one page-side `rpc` and are answered by
+  `ShellReply.RunAsync` via `window.__ccReply(callId, ok, json)`. `saveFile(name, mime, base64)` (the canvas's Share
+  menu) posts `save-file` (`id`=file name, `method`=mime, `arg`=base64); `MainWindow.SaveFileAsync` runs
+  `CodeChroma.Shell/FileSaver` over Avalonia's `SaveFilePickerAsync` and replies `{saved}` (`false` = cancelled).
 - Chrome: no native menu bar on Windows/Linux; the tab strip (`#1b1d23` bar, `#6c8cff` active underline) ends in a
   "⋯" flyout (Open Repo, New Tab, Close Tab, Check for Updates, About; Ctrl+O/T/W work). macOS gets a native menu.
   `App.axaml` carries the shared styles. The icon art is `Assets/icon.png`; `Assets/icon.ico` is generated from it by

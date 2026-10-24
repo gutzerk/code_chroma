@@ -41,9 +41,8 @@ public static class QuestionRoutes
         app.MapPost("/repos/{repoId}/questions/{questionId}/answer", async (string repoId, string questionId, HttpRequest request, WorkspaceRegistry registry, QuestionMcp questions) =>
         {
             var body = await Reply.LenientBody(request);
-            return Reply.Guard(() =>
+            return WithCanvasLock(registry.Get(repoId), ws =>
             {
-                var ws = registry.Get(repoId);
                 var element = OpenElement(ws, questionId);
                 if ((body["answer"] is not null && Json.Str(body["answer"]) is null) || (body["option_id"] is not null && Json.Str(body["option_id"]) is null))
                     return Reply.Error(422, "answer and option_id must be strings");
@@ -65,18 +64,16 @@ public static class QuestionRoutes
             });
         });
 
-        app.MapPost("/repos/{repoId}/questions/{questionId}/skip", (string repoId, string questionId, WorkspaceRegistry registry, QuestionMcp questions) => Reply.Guard(() =>
+        app.MapPost("/repos/{repoId}/questions/{questionId}/skip", (string repoId, string questionId, WorkspaceRegistry registry, QuestionMcp questions) => WithCanvasLock(registry.Get(repoId), ws =>
         {
-            var ws = registry.Get(repoId);
             var element = OpenElement(ws, questionId);
             if (!Flag(element, "allow_skip")) return Reply.Error(422, "this question cannot be skipped");
             QuestionStore.Settle(ws, element.Id, "skipped", new QuestionResult { Skipped = true });
             return Reply.Json(Ack(questionId, "skipped", null, questions.Broker.Skip(questionId)));
         }));
 
-        app.MapPost("/repos/{repoId}/questions/{questionId}/request-diagram", (string repoId, string questionId, WorkspaceRegistry registry, QuestionMcp questions) => Reply.Guard(() =>
+        app.MapPost("/repos/{repoId}/questions/{questionId}/request-diagram", (string repoId, string questionId, WorkspaceRegistry registry, QuestionMcp questions) => WithCanvasLock(registry.Get(repoId), ws =>
         {
-            var ws = registry.Get(repoId);
             var element = OpenElement(ws, questionId);
             var options = element.Meta["options"] as JsonArray ?? [];
             if (options.Count == 0) return Reply.Error(422, "this question has no options");
@@ -85,9 +82,8 @@ public static class QuestionRoutes
             return Reply.Json(Ack(questionId, "open", null, questions.Broker.RequestDiagram(questionId)));
         }));
 
-        app.MapPost("/repos/{repoId}/questions/{questionId}/revise", (string repoId, string questionId, WorkspaceRegistry registry, QuestionMcp questions) => Reply.Guard(() =>
+        app.MapPost("/repos/{repoId}/questions/{questionId}/revise", (string repoId, string questionId, WorkspaceRegistry registry, QuestionMcp questions) => WithCanvasLock(registry.Get(repoId), ws =>
         {
-            var ws = registry.Get(repoId);
             var removed = QuestionStore.Reopen(ws, FindElement(ws, questionId));
             questions.Broker.Forget(questionId);
             var ack = Ack(questionId, "open", null, false);
@@ -138,6 +134,12 @@ public static class QuestionRoutes
     }
 
     private static bool Flag(CanvasElement element, string key) => element.Meta[key] is null || Json.Bool(element.Meta[key]);
+
+    // Validate the current state, save it and notify the broker as one transition.
+    private static IResult WithCanvasLock(Workspace ws, Func<Workspace, IResult> action) => Reply.Guard(() =>
+    {
+        lock (CanvasWrite.LockFor(ws.Id)) return action(ws);
+    });
 
     private static CanvasElement FindElement(Workspace ws, string questionId) =>
         QuestionStore.FindElement(ws, questionId) ?? throw new BridgeException(404, "unknown question");

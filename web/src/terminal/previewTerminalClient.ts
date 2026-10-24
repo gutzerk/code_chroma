@@ -3,7 +3,7 @@ import type { TerminalClient, TerminalSession } from "./TerminalClient";
 const QUESTION = "\x1b[1mWhat do you want to see?\x1b[0m A flow, a component, a feature... or just ask for the whole project.\r\n\r\n";
 const INPUT_BOX = "\x1b[2m╭────────────────────────────────────────────────╮\x1b[0m\r\n\x1b[2m│\x1b[0m > ";
 
-/** Dev-only preview (mock canvas, or `?mockTerminal=1`): plays the bridge's drawing-agent banner, then echoes typed text like a CLI input box. */
+/** Dev-only preview (`?mockTerminal=1`): plays the bridge's drawing-agent banner, then echoes typed text like a CLI input box. */
 export class PreviewTerminalClient implements TerminalClient {
   connect(): TerminalSession {
     let onData: (data: string) => void = () => {};

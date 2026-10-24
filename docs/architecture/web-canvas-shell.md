@@ -529,7 +529,7 @@ right gap; the left-edge resize grip exists only in `normal` (dragging it past 7
 `layoutMetrics.ts` holds the `Z_*` z-index tokens (left panel 2, terminal 2, agents 3, handles 4,
 collapsed left bar 4, code 5, popover 6) and the pure `chromeInsets({leftOpen, agentsMode})`:
 terminal/dock left (`LEFT_PANEL_CLEARANCE` = inset 12 + panel 262 + gap 12 when open, else 12), terminal
-right (`AGENTS_NORMAL_INSET` 424 / `AGENTS_COLLAPSED_INSET` 68), arrange origin, Draw popover position;
+right (`AGENTS_NORMAL_INSET` 424 / `AGENTS_COLLAPSED_INSET` 68), arrange origin;
 every number is a named constant, and `LAYOUT_CSS_VARS` (`--chrome-inset`, `--left-panel-width`) is set
 once on `.canvas-area` so `LeftPanel.css` and the dock margin use the same values. Only `RootCanvas` publishes the left value, as the row-level CSS variable
 `--agent-dock-left` (the dock and code sidebar read it; `terminalRight` is used by `ArrangeSection`).

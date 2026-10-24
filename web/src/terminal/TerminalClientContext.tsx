@@ -13,11 +13,9 @@ export function terminalBaseUrl(bridgeUrl: string): string {
     : bridgeUrl;
 }
 
-/** Dev builds with no bridge configured (the mock canvas) get the scripted preview terminal instead of a socket that can never connect. */
+/** Opt-in scripted preview terminal (dev builds only, `?mockTerminal=1`); the default stays the real socket so `npm run dev` + the terminal server keeps working. */
 function isPreviewTerminal(): boolean {
-  if (!import.meta.env.DEV) return false;
-  const mocked = !import.meta.env.VITE_ENGINE_BRIDGE_URL && !import.meta.env.VITE_TERMINAL_BRIDGE_URL;
-  return mocked || new URLSearchParams(window.location.search).has("mockTerminal");
+  return import.meta.env.DEV && new URLSearchParams(window.location.search).has("mockTerminal");
 }
 
 /** VITE_TERMINAL_BRIDGE_URL unset ⇒ default to the local dev terminal server. */

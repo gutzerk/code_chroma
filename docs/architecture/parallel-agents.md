@@ -16,6 +16,8 @@ A Python-only change does not fix the production desktop runtime.
   `--settings`, including for bare diagram agents. The native bridge's `agent-session` helper reads
   the hook JSON from stdin and atomically writes the session ID into the unique file named by
   `CODECHROMA_AGENT_SESSION_FILE`. It does not start a server and requires no Python interpreter.
+  Windows hooks explicitly use PowerShell with its call operator and quoting, so tracking also
+  works when Git Bash is unavailable; Unix hooks use shell quoting.
 - `session_tracking_id` in `agents.json` identifies the current launch's file under the main repo's
   `.codechroma/agent-sessions/`. `AgentManager.CaptureSessionId` reads only that file, retaining the
   stored ID if it is missing or malformed. This follows `/clear` and interactive `/resume` across
@@ -31,6 +33,13 @@ A Python-only change does not fix the production desktop runtime.
   `dotnet test dotnet/CodeChroma.Bridge.Tests/CodeChroma.Bridge.Tests.csproj`.
 
 ## Python development/reference implementation
+
+The Python bridge uses the same `session_tracking_id` and per-launch file format. Both manual
+starts and autostart install a `SessionStart` hook from `agents/session_ownership.py`, run with the
+bridge's Python interpreter and an absolute script path. The helper uses only the standard library
+and works from any worktree. Resume reads only that launch's file, following `/clear` and interactive
+`/resume`; missing or malformed events retain the saved ID. Idempotent starts retain the actual
+PTY's tracking metadata, and late events from earlier launches cannot replace the current session.
 
 > Removed dead components: `AgentRail`, `AgentWindow`, `AgentFullScreen`, `AgentTab` and `useFullScreenAgentId` (plus their tests/CSS) are deleted -- `ActivityPanel` + `AgentTerminalDock` replaced them. Mentions of those names below are historical; the live flow is `windowActions.ts` + `ActivityPanel`.
 

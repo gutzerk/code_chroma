@@ -16,6 +16,7 @@ from codechroma.bridge.agents.manager import (
     UnknownAgentError,
     max_agents,
 )
+from codechroma.bridge.agents.session_ownership import file_for
 from codechroma.bridge.agents.sessions import agent_run_env
 from codechroma.bridge.agents.worktree import WorktreeError
 from codechroma.bridge.deps import Services
@@ -157,7 +158,7 @@ async def post_agent_start(agent_id: str, request: Request, services: Services) 
     body = await json_body(request)
     record = _agent_or_404(services, agent_id)
     resume = body.get("resume") is True
-    session_id = record.session_id if resume else None
+    session_id = services.agent_manager.capture_session_id(agent_id) if resume else None
     if resume and not session_id:
         raise HTTPException(status_code=409, detail="this agent has no recorded session to resume")
     new_session_id = (
@@ -171,6 +172,7 @@ async def post_agent_start(agent_id: str, request: Request, services: Services) 
     resolved = agent_cli(
         record.kind, session_id, initial_prompt=task_text, mcp=mcp.endpoint_for(agent_id),
         new_session_id=new_session_id,
+        session_tracking_file=file_for(services.agent_manager.main_root, str(uuid4())),
     )
     if resolved is None:
         raise HTTPException(status_code=400, detail=f"unknown agent kind: {record.kind}")
@@ -185,8 +187,7 @@ async def post_agent_start(agent_id: str, request: Request, services: Services) 
     updated = services.agent_manager.mark_started(
         agent_id, session.pid, resolved_cli=resolved_cli_for(record.kind, argv)
     )
-    if new_session_id and "--session-id" in argv:
-        updated = services.agent_manager.set_session_id(agent_id, new_session_id)
+    services.agent_manager.record_session_launch(agent_id, session)
     if pending and pending[1] != "task":
         text, _kind = pending
         session.inject_when_idle(

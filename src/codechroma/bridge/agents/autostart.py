@@ -14,6 +14,7 @@ from pathlib import Path
 from uuid import uuid4
 
 from codechroma.bridge.agents.manager import AgentRecord
+from codechroma.bridge.agents.session_ownership import file_for
 from codechroma.bridge.agents.sessions import AgentStartError, agent_run_env
 from codechroma.bridge.services import BridgeServices
 from codechroma.terminal.agents import agent_cli, resolved_cli_for
@@ -34,10 +35,13 @@ async def auto_start_agents(services: BridgeServices, question_mcp=None) -> None
 
 def _auto_start_one(services: BridgeServices, record: AgentRecord, question_mcp=None) -> None:
     """Resumes the last chat when a session id survived, starts fresh otherwise."""
-    session_id = record.session_id
+    session_id = services.agent_manager.capture_session_id(record.id)
     new_session_id = str(uuid4()) if not session_id else None
     mcp = question_mcp.endpoint_for(record.id) if question_mcp is not None else None
-    resolved = agent_cli(record.kind, session_id, mcp=mcp, new_session_id=new_session_id)
+    resolved = agent_cli(
+        record.kind, session_id, mcp=mcp, new_session_id=new_session_id,
+        session_tracking_file=file_for(services.agent_manager.main_root, str(uuid4())),
+    )
     if resolved is None:
         logger.error("agents: unknown kind %r for %s, skipping auto-start", record.kind, record.id)
         return
@@ -54,5 +58,4 @@ def _auto_start_one(services: BridgeServices, record: AgentRecord, question_mcp=
     services.agent_manager.mark_started(
         record.id, session.pid, resolved_cli=resolved_cli_for(record.kind, argv)
     )
-    if new_session_id and "--session-id" in argv:
-        services.agent_manager.set_session_id(record.id, new_session_id)
+    services.agent_manager.record_session_launch(record.id, session)

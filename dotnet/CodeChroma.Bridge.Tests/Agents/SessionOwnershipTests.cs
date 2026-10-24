@@ -122,21 +122,29 @@ public sealed class SessionOwnershipTests
     }
 
     [Fact]
-    public async Task The_native_hook_helper_records_stdin_without_starting_a_server()
+    public async Task The_generated_hook_command_records_stdin_without_starting_a_server()
     {
         using var repo = new GitSandbox();
         var file = AgentSessionOwnership.FileFor(repo.Root, Guid.NewGuid().ToString());
         var id = Guid.NewGuid().ToString();
-        var info = new ProcessStartInfo("dotnet") { RedirectStandardInput = true, RedirectStandardOutput = true, RedirectStandardError = true };
-        info.ArgumentList.Add(typeof(AgentSessionOwnership).Assembly.Location);
-        info.ArgumentList.Add("agent-session");
+        var hook = JsonNode.Parse(AgentSessionOwnership.HookSettings())!["hooks"]!["SessionStart"]![0]!["hooks"]![0]!;
+        var windows = OperatingSystem.IsWindows();
+        var info = new ProcessStartInfo(windows ? "powershell.exe" : "/bin/sh") { RedirectStandardInput = true, RedirectStandardOutput = true, RedirectStandardError = true };
+        if (windows)
+        {
+            Assert.Equal("powershell", (string?)hook["shell"]);
+            info.ArgumentList.Add("-NoProfile");
+            info.ArgumentList.Add("-NonInteractive");
+        }
+        info.ArgumentList.Add(windows ? "-Command" : "-c");
+        info.ArgumentList.Add((string)hook["command"]!);
         info.Environment[AgentSessionOwnership.FileEnv] = file;
         using var helper = Process.Start(info)!;
         await helper.StandardInput.WriteAsync(new JsonObject { ["session_id"] = id }.ToJsonString());
         helper.StandardInput.Close();
         using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(15));
         await helper.WaitForExitAsync(timeout.Token);
-        Assert.Equal(0, helper.ExitCode);
+        Assert.True(helper.ExitCode == 0, await helper.StandardError.ReadToEndAsync());
         Assert.Equal(id, Json.Str(JsonFile.LoadObject(file)["session_id"]));
     }
 

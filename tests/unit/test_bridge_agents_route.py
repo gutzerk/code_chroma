@@ -1,18 +1,20 @@
 """TestClient coverage for the /agents CRUD routes on bridge/routes/agents.py."""
 
 import asyncio
+import io
 import json
 import os
 import shutil
 import subprocess
 import time
 from pathlib import Path
-from uuid import UUID
+from uuid import UUID, uuid4
 
 import pytest
 from fastapi.testclient import TestClient
 
 from codechroma.bridge.agents import publish, worktree
+from codechroma.bridge.agents import session_ownership as ownership
 from codechroma.bridge.agents.manager import AgentManager, max_agents
 from codechroma.terminal import server as terminal_server
 from tests.conftest import copy_sample_repo, diagram_json_path, pr_record
@@ -537,6 +539,7 @@ def _stub_agent_start(monkeypatch, bridge, launched: dict) -> None:
         pid = 4242
         status = "idle"
         exit_code = None
+        is_alive = True
 
         def close(self):
             pass
@@ -545,8 +548,13 @@ def _stub_agent_start(monkeypatch, bridge, launched: dict) -> None:
             pass
 
     def start(agent_id, argv, cwd, **kwargs):
-        launched.update(argv=argv, cwd=cwd)
+        existing = bridge.agent_sessions.get(agent_id)
+        if existing is not None and existing.is_alive:
+            return existing
+        launched.update(argv=argv, cwd=cwd, env=kwargs.get("env", {}))
         session = _Session()
+        session.session_tracking_file = launched["env"].get(ownership.FILE_ENV)
+        session.initial_session_id = launched["env"].get(ownership.INITIAL_ID_ENV)
         bridge.agent_sessions._sessions[agent_id] = session
         return session
 
@@ -602,7 +610,7 @@ def test_claude_agent_launch_loads_the_runtime_plugin_for_worktrees_and_attachme
 
     argv = launched["argv"]
     assert response.status_code == 200
-    assert argv[1:3] == ["--plugin-dir", str(resource_path("skills").parent)]
+    assert argv[argv.index("--plugin-dir") + 1] == str(resource_path("skills").parent)
 
 
 def test_nested_attached_project_skills_and_instructions_are_untouched(
@@ -636,7 +644,9 @@ def test_nested_attached_project_skills_and_instructions_are_untouched(
 
     assert response.status_code == 200
     assert Path(launched["cwd"]) == nested_project
-    assert launched["argv"][1:3] == ["--plugin-dir", str(resource_path("skills").parent)]
+    assert launched["argv"][launched["argv"].index("--plugin-dir") + 1] == str(
+        resource_path("skills").parent
+    )
     assert claude_md.read_text(encoding="utf-8") == "Keep this project instruction.\n"
     assert user_skill.read_text(encoding="utf-8").endswith("User-owned.\n")
 
@@ -776,6 +786,46 @@ def test_fresh_claude_start_persists_the_session_id_passed_to_the_cli(client, mo
     assert response.status_code == 200
     assert launched["argv"][-2:] == ["--session-id", session_id]
     assert AgentManager(repo).get("runner").session_id == session_id
+
+
+@pytest.mark.parametrize("source", ["clear", "resume"])
+@pytest.mark.parametrize("restart", ["manual", "autostart"])
+def test_session_changes_survive_manual_resume_and_autostart(
+    client, monkeypatch, make_bridge, source, restart,
+):
+    from codechroma.bridge.agents.autostart import auto_start_agents
+
+    test_client, repo, bridge = client
+    test_client.post("/agents", json={"title": "runner", "attach_to": "main"})
+    launched = {}
+    _stub_agent_start(monkeypatch, bridge, launched)
+    first = test_client.post("/agents/runner/start", json={}).json()
+    original_file = launched["env"][ownership.FILE_ENV]
+    changed_id = str(uuid4())
+    ownership.record(
+        io.StringIO(json.dumps({"session_id": changed_id, "source": source})), original_file,
+    )
+    # A duplicate start must keep the current process's tracking file.
+    duplicate = test_client.post("/agents/runner/start", json={}).json()
+    restarted = make_bridge(repo)
+    _stub_agent_start(monkeypatch, restarted, launched)
+
+    if restart == "manual":
+        response = TestClient(restarted.app).post("/agents/runner/start", json={"resume": True})
+        response.raise_for_status()
+    else:
+        asyncio.run(auto_start_agents(restarted.services))
+    active_file = launched["env"][ownership.FILE_ENV]
+    ownership.record(
+        io.StringIO(json.dumps({"session_id": str(uuid4())})), original_file,
+    )
+    captured = restarted.agent_manager.capture_session_id("runner")
+
+    assert duplicate["session_id"] == first["session_id"]
+    assert launched["argv"][-2:] == ["--resume", changed_id]
+    assert active_file != original_file
+    assert captured == changed_id
+    assert AgentManager(repo).get("runner").session_id == changed_id
 
 
 def test_start_on_an_unknown_agent_is_404(client):

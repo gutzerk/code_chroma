@@ -27,6 +27,7 @@ import time
 from pathlib import Path
 from typing import Protocol, runtime_checkable
 
+from codechroma.bridge.agents.session_ownership import FILE_ENV, INITIAL_ID_ENV
 from codechroma.bridge.agents.status import StatusDetector, load_manifest_for
 from codechroma.config import settings
 from codechroma.errors import codechromaError
@@ -97,6 +98,8 @@ class AgentSession(AgentSessionPort):
     ) -> None:
         self.agent_id = agent_id
         self.argv = list(argv)
+        self.session_tracking_file = (env or {}).get(FILE_ENV)
+        self.initial_session_id = (env or {}).get(INITIAL_ID_ENV)
         self.exit_code: int | None = None
         self._consumers: set[asyncio.Queue] = set()
         # Seeded with the PTY's own geometry, so the tap renders the screen the agent actually drew.

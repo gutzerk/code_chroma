@@ -1,4 +1,7 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useMemo, useRef, useSyncExternalStore } from "react";
+import { stringMeta } from "./elementMeta";
+import { buildSequenceModel } from "./sequenceModel";
+import { sequenceViewStore } from "./sequenceViewStore";
 import type { CanvasElement } from "../../state/types";
 import { useEngineClient } from "../../engine-client/EngineClientContext";
 import type { MeasuredBoxSize } from "../useMeasuredSizes";
@@ -17,6 +20,7 @@ import { SoftAreaFrame } from "./SoftAreaFrame";
 // padding cleared that but left the two borders flush, reading as one merged box; NESTED_GAP is the
 // deliberate breathing room between an inner frame's edge and this one's.
 const NESTED_GAP = 8;
+const PLAYER_STEP_MS = 900;
 // This frame's own title label (`.canvas-diagram-frame-label`: `top: 12px`, `font-size: 0.85rem`)
 // sits inside the top padding band, above the topmost member's own title -- the border-nesting term
 // above never reserved room for that, so a plain (non-nested) topmost member's title could sit close
@@ -34,6 +38,71 @@ export const PADDING = {
   top: 48 + NESTED_GAP + DIAGRAM_LABEL_CLEARANCE_PX,
   bottom: 32 + NESTED_GAP,
 };
+
+/** `Readable | Focus` segmented control (plus Collapse/Expand all and the focus chip in focus mode). */
+function SequenceModeSwitch({ layer, members }: { layer: string; members: CanvasElement[] }) {
+  useSyncExternalStore(sequenceViewStore.subscribe, sequenceViewStore.getVersion);
+  const messageCount = members.filter((m) => stringMeta(m, "role") === "message").length;
+  const view = sequenceViewStore.get(layer, messageCount);
+  const model = useMemo(() => buildSequenceModel(members), [members]);
+  const phaseIds = model.phases.map((p) => p.id);
+  const stop = (e: { stopPropagation: () => void }) => e.stopPropagation();
+  const orders = [...new Set(model.messages.map((m) => m.order))];
+  const step = sequenceViewStore.getStep(layer);
+  const playing = step !== null;
+  useEffect(() => {
+    if (step === null) return;
+    const timer = setTimeout(() => {
+      const next = orders.find((order) => order > step);
+      sequenceViewStore.setStep(layer, next ?? null);
+    }, PLAYER_STEP_MS);
+    return () => clearTimeout(timer);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- `orders` is derived from `members` each render
+  }, [step, layer]);
+  return (
+    <span
+      className="canvas-diagram-frame-modes"
+      data-testid="sequence-mode-switch"
+      onPointerDown={stop}
+      style={{ marginLeft: 8, display: "inline-flex", gap: 4 }}
+    >
+      {(["readable", "focus"] as const).map((mode) => (
+        <button
+          key={mode}
+          type="button"
+          aria-pressed={view.mode === mode}
+          className={view.mode === mode ? "sequence-mode-btn sequence-mode-btn--on" : "sequence-mode-btn"}
+          onClick={() => sequenceViewStore.setMode(layer, mode)}
+        >
+          {mode === "readable" ? "Readable" : "Focus"}
+        </button>
+      ))}
+      <button
+        type="button"
+        className="sequence-mode-btn"
+        data-testid="sequence-play"
+        onClick={() => sequenceViewStore.setStep(layer, playing ? null : (orders[0] ?? null))}
+      >
+        {playing ? "■ Stop" : "▶ Play"}
+      </button>
+      {view.mode === "focus" && (
+        <>
+          <button type="button" className="sequence-mode-btn" onClick={() => sequenceViewStore.setCollapsed(layer, phaseIds)}>
+            Collapse all
+          </button>
+          <button type="button" className="sequence-mode-btn" onClick={() => sequenceViewStore.setCollapsed(layer, [])}>
+            Expand all
+          </button>
+          {view.focus && (
+            <button type="button" className="sequence-mode-btn" onClick={() => sequenceViewStore.setFocus(layer, null)}>
+              {`Focus: ${view.focus} ✕`}
+            </button>
+          )}
+        </>
+      )}
+    </span>
+  );
+}
 
 export interface DiagramFrameProps {
   /** The diagram's own layer key (`c1`/`patterns`/`impact`/`epics`/`custom/<id>`/a one-off
@@ -119,6 +188,8 @@ export function DiagramFrame({ layer, label, members, sizes, typeLabel, boxCount
 
   if (!bounds) return null;
 
+  const isSequence = members.some((member) => member.render === "sequence");
+
   const classes = [
     "canvas-diagram-frame",
     diagramFrameColorClass(layer),
@@ -146,6 +217,7 @@ export function DiagramFrame({ layer, label, members, sizes, typeLabel, boxCount
               {`${typeLabel} · ${boxCount ?? members.length} ${(boxCount ?? members.length) === 1 ? "box" : "boxes"}`.toUpperCase()}
             </span>
           )}
+          {isSequence && <SequenceModeSwitch layer={layer} members={members} />}
           {/* The frame body is a drag handle, so keep a press on the button from starting a drag. */}
           <span className="canvas-diagram-frame-copy" onPointerDown={(e) => e.stopPropagation()}>
             <CopyButton

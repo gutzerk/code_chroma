@@ -8136,3 +8136,59 @@ button[data-copy-state="idle"][aria-label]:hover:not(:disabled) {
   border-left: 3px solid var(--border);
   color: var(--text-2);
 }
+
+/* 022 sequence readability: phase bands, frames, notes, focus mode, mode switch */
+.sequence-phase-band { position: absolute; border-radius: 4px; background: rgba(120, 130, 150, 0.14); overflow: hidden; }
+.sequence-phase-band--ai { background: rgba(167, 139, 250, 0.2); }
+.sequence-phase-band--request { background: rgba(99, 102, 241, 0.18); }
+.sequence-phase-band--deliver { background: rgba(52, 211, 153, 0.18); }
+.sequence-phase-band-label { writing-mode: vertical-rl; transform: rotate(180deg); font-size: 0.65rem; letter-spacing: 0.06em; padding: 4px 0; white-space: nowrap; }
+.sequence-frame { position: absolute; border: 1px dashed rgba(160, 165, 175, 0.6); border-radius: 4px; }
+.sequence-frame-tag { position: absolute; top: -9px; left: 8px; padding: 0 6px; font-size: 0.65rem; background: var(--bg, #14161a); }
+.sequence-note { position: absolute; max-width: 180px; padding: 4px 8px; font-size: 0.7rem; border: 1px solid rgba(245, 158, 11, 0.6); border-radius: 4px; background: rgba(245, 158, 11, 0.12); }
+.sequence-message-num { opacity: 0.7; font-variant-numeric: tabular-nums; }
+.sequence-message--hero .sequence-message-line { border-top-width: 3px; }
+.sequence-message--ai { --seq-accent-rgb: 167, 139, 250; }
+.sequence-message--event .sequence-message-line { border-top-style: dotted; --seq-accent-rgb: 52, 211, 153; }
+.sequence-message--dim { opacity: 0.2; }
+.sequence-participant--focused .sequence-participant-head { outline: 2px solid rgba(var(--seq-accent-rgb), 0.9); }
+.sequence-participant-kind { display: block; font-size: 0.6rem; opacity: 0.65; }
+.sequence-phase-row { font: inherit; font-size: 0.75rem; padding: 2px 8px; border-radius: 4px; border: 1px solid rgba(160, 165, 175, 0.5); background: rgba(120, 130, 150, 0.16); color: inherit; cursor: pointer; }
+.sequence-phase-row-meta { opacity: 0.7; }
+.sequence-timeline { margin: 0; padding: 8px 8px 8px 28px; width: 220px; font-size: 0.7rem; border: 1px solid rgba(160, 165, 175, 0.4); border-radius: 6px; }
+.sequence-timeline-item { cursor: pointer; padding: 1px 0; opacity: 0.75; }
+.sequence-timeline-item--here { opacity: 1; font-weight: 600; }
+.sequence-mode-btn { font: inherit; font-size: 0.65rem; padding: 1px 8px; border-radius: 10px; border: 1px solid rgba(160, 165, 175, 0.5); background: transparent; color: inherit; cursor: pointer; }
+.sequence-mode-btn--on { background: rgba(99, 102, 241, 0.35); }
+
+/* 022 block anatomy: path + SRC foot, hover-only copy/?, dimmed non-neighbours, zoom levels */
+.canvas-node-box-foot { display: flex; align-items: center; gap: 0.4rem; margin-top: 0.3rem; font-size: 0.68rem; opacity: 0.75; }
+.canvas-node-box-path { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-family: ui-monospace, monospace; }
+.canvas-node-box-src { font: inherit; font-size: 0.65rem; padding: 0 0.35rem; border: 1px solid var(--control-border); border-radius: 4px; background: transparent; color: inherit; cursor: pointer; }
+.node-meta-chip--role { text-transform: uppercase; letter-spacing: 0.05em; }
+[data-canvas-element] .canvas-node-box-buttons { opacity: 0; transition: opacity 0.12s; }
+[data-canvas-element]:hover .canvas-node-box-buttons,
+[data-canvas-element]:focus-within .canvas-node-box-buttons { opacity: 1; }
+.block-focus-dim { opacity: 0.35; transition: opacity 0.12s; }
+.block-focus-self { outline: 2px solid var(--accent, #6366f1); }
+[data-zoom="mid"] .canvas-node-box-foot .canvas-node-box-path,
+[data-zoom="mid"] [data-testid="canvas-node-box-description"],
+[data-zoom="far"] .canvas-node-box-foot,
+[data-zoom="far"] [data-testid="canvas-node-box-description"],
+[data-zoom="far"] [data-testid="canvas-node-meta-row"] { display: none; }
+.canvas-focus-panel { position: absolute; z-index: 5; width: 240px; padding: 10px 12px; font-size: 0.75rem; border: 1px solid var(--control-border); border-radius: 8px; background: var(--panel-bg, #1b1d22); }
+.canvas-focus-panel h4 { margin: 8px 0 4px; font-size: 0.65rem; letter-spacing: 0.08em; opacity: 0.7; }
+.canvas-focus-panel ul { margin: 0; padding-left: 16px; }
+
+/* 022 Stage 4: impact at a glance */
+.canvas-node-box-glance { display: flex; align-items: baseline; gap: 0.5rem; margin-top: 0.25rem; font-size: 0.72rem; }
+.canvas-node-box-glance-line { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.canvas-node-box-glance-callers { flex-shrink: 0; opacity: 0.7; }
+[data-zoom="mid"] .canvas-node-box-glance, [data-zoom="far"] .canvas-node-box-glance { display: none; }
+
+/* 022: corner step chip replaces the STEP text in the top band */
+.canvas-node-step-chip { position: absolute; top: -9px; left: -9px; z-index: 2; min-width: 18px; height: 18px; padding: 0 4px; border-radius: 9px; font-size: 0.65rem; line-height: 18px; text-align: center; font-weight: 600; color: #fff; background: var(--accent, #6366f1); }
+.canvas-node-order-badge { display: none; }
+.sequence-message--active .sequence-message-line { border-top-width: 3px; }
+.sequence-message--active .sequence-message-label { font-weight: 600; }
+.canvas-diagram-frame-modes { pointer-events: auto; vertical-align: middle; }

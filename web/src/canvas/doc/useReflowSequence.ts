@@ -1,4 +1,6 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useSyncExternalStore } from "react";
+import { stringMeta } from "./elementMeta";
+import { sequenceViewStore } from "./sequenceViewStore";
 import type { EngineClient } from "../../engine-client/EngineClient";
 import type { CanvasDoc } from "../../state/types";
 import { patchCanvasDoc } from "./canvasDocStore";
@@ -19,11 +21,14 @@ export function useReflowSequence(engineClient: EngineClient, doc: CanvasDoc): v
   // sequence layers are locked-layout (never user-dragged), so geometry cannot become stale after the
   // first pass -- re-scanning on every `doc` change (each drag commit / patch refetch / live ping
   // rebuilds `doc`) would repeat the full no-op staleness scan forever.
-  const checkedRef = useRef(false);
+  // 022: it also re-runs when the display mode / collapse state changes (the view-store version), so a
+  // Readable ↔ Focus switch never leaves positions spread for the other mode.
+  const viewVersion = useSyncExternalStore(sequenceViewStore.subscribe, sequenceViewStore.getLayoutVersion);
+  const checkedRef = useRef<number | null>(null);
 
   useEffect(() => {
-    if (checkedRef.current) return;
-    checkedRef.current = true;
+    if (checkedRef.current === viewVersion) return;
+    checkedRef.current = viewVersion;
     // Collect every sequence layer's member ids in layer order.
     const byLayer = new Map<string, string[]>();
     for (const [id, element] of Object.entries(doc.elements)) {
@@ -39,8 +44,9 @@ export function useReflowSequence(engineClient: EngineClient, doc: CanvasDoc): v
     // is self-contained (layoutSequence positions are absolute in the document -- no yOffset to
     // re-apply, unlike epics which lays out at y=0).
     const ops = [];
-    for (const [, ids] of byLayer) {
-      const { positions, sizes } = layoutSequence(doc, ids);
+    for (const [layer, ids] of byLayer) {
+      const messageCount = ids.filter((id) => stringMeta(doc.elements[id], "role") === "message").length;
+      const { positions, sizes } = layoutSequence(doc, ids, sequenceViewStore.get(layer, messageCount));
       for (const id of ids) {
         const p = positions[id];
         const s = sizes[id];
@@ -67,5 +73,5 @@ export function useReflowSequence(engineClient: EngineClient, doc: CanvasDoc): v
     void patchCanvasDoc(engineClient, ops, {
       explanation: "re-spread sequence layer to current layout constants",
     }).catch(() => {});
-  }, [engineClient, doc]);
+  }, [engineClient, doc, viewVersion]);
 }

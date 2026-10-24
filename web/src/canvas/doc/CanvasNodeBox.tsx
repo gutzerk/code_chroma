@@ -1,4 +1,6 @@
 import { useCallback, useEffect, useRef } from "react";
+import { ImpactGlance } from "./ImpactGlance";
+import { focusStore, useFocusState } from "./focusStore";
 import type { CanvasElement } from "../../state/types";
 import { useEngineClient } from "../../engine-client/EngineClientContext";
 import { elementDragPointerDown, type Offset } from "../useDragOffset";
@@ -17,7 +19,7 @@ import { descriptionPopupStore } from "./descriptionPopupStore";
 import { accentFor, noCodeReasonMessage } from "./nodeAccentLogic";
 import { NodeMetaRow, NodeTopBand } from "./nodeAccent";
 import { BLOCK_RULES } from "./elementRules";
-import { stringMeta } from "./elementMeta";
+import { leadingOrderDigits, stringMeta } from "./elementMeta";
 import { epicsContentSizeStore } from "./epicsContentSizeStore";
 import { isAcceptance, isContentCard, isEpicsLayerName, isSpecs, isSummary, linesOf } from "./epicsLayout";
 import { specStories } from "./specStories";
@@ -98,6 +100,8 @@ export function CanvasNodeBox({ element, onMeasure }: CanvasNodeBoxProps) {
   // up every box for that entity instead of just the one clicked.
   const isInspectorTarget = useIsInspectorTarget(element.node_id ?? element.id, element.id);
   const style = styleFor(element.render);
+  const focusState = useFocusState(element.id);
+  const stepNumber = leadingOrderDigits(stringMeta(element, "order"));
   // Hard layout (010-epics-tree-render, Part 4): an epic-tree box sits in a pre-structured parent
   // frame, so it is never user-draggable — no solo/group drag, no collision solving, no position
   // writes. Its position comes only from auto-layout / the fit loop. Discrete — everything else
@@ -252,6 +256,8 @@ export function CanvasNodeBox({ element, onMeasure }: CanvasNodeBoxProps) {
       return;
     }
     selectionStore.clear();
+    // 022: a click also focuses the block (neighbours stay lit, the rest fades); display only.
+    focusStore.toggle(canvasDocStore.getDoc(), element.id);
     // The tutorial's "drag this block" step only allows moving: a click must not open the inspector.
     if (tutorialStore.currentStepId() === "move-block") return;
     // An epics-layer box (epic title, content card, phase header or task) has no code behind it --
@@ -316,6 +322,8 @@ export function CanvasNodeBox({ element, onMeasure }: CanvasNodeBoxProps) {
     isDragging ? style.draggingClass : "",
     isSelected ? "block-selected" : "",
     isInspectorTarget ? "block-inspector-target" : "",
+    focusState === "dim" ? "block-focus-dim" : "",
+    focusState === "self" ? "block-focus-self" : "",
     impactChange ? `block-change--${impactChange.status}` : "",
     accent.className ?? "",
     // An epics-layer box (epic title, or a Summary/Acceptance/Спеки content card) carries a shared
@@ -338,6 +346,8 @@ export function CanvasNodeBox({ element, onMeasure }: CanvasNodeBoxProps) {
   // Impact count for the meta-row chip (`useNodeOverlays` also powers `NodeChangeBadge` above) --
   // the box's own attributed change count, echoed as `· N` to mirror the form's `~ MODIFY · 17`.
   const impactCount = impactChange?.change_count ?? 0;
+  // 022: the file path is always visible on a code-backed box (the resolver stamps `meta.path`).
+  const sourcePath = isEpicsLayerName(element.layer) ? undefined : stringMeta(element, "path");
 
   return (
     <>
@@ -375,6 +385,11 @@ export function CanvasNodeBox({ element, onMeasure }: CanvasNodeBoxProps) {
       {...handleProps}
       onPointerDown={elementDragPointerDown(handleProps)}
     >
+      {stepNumber && (
+        <span className="canvas-node-step-chip" data-testid="canvas-node-step-chip">
+          {stepNumber}
+        </span>
+      )}
       <NodeTopBand element={element} />
       <div className={style.rowClass} data-testid="canvas-node-box-row">
         <div
@@ -452,6 +467,30 @@ export function CanvasNodeBox({ element, onMeasure }: CanvasNodeBoxProps) {
               <span className={style.descClass} data-testid="canvas-node-box-description">
                 {element.description}
               </span>
+            )}
+            {isImpact && (
+              <ImpactGlance change={impactChange} doc={canvasDocStore.getDoc()} elementId={element.id} />
+            )}
+            {sourcePath && (
+              <div className="canvas-node-box-foot" data-testid="canvas-node-box-foot">
+                <span className="canvas-node-box-path" title={sourcePath}>
+                  {sourcePath}
+                </span>
+                {element.node_id && (
+                  <button
+                    type="button"
+                    className="canvas-node-box-src"
+                    data-testid="canvas-node-box-src"
+                    aria-label={`Open source of ${element.label}`}
+                    onClick={(event) => {
+                      event.stopPropagation();
+                      inspectorStore.open(element.node_id ?? element.id, element.label, element.id);
+                    }}
+                  >
+                    SRC ↗
+                  </button>
+                )}
+              </div>
             )}
           </div>
           <div className="canvas-node-box-buttons" data-testid="canvas-node-box-buttons">

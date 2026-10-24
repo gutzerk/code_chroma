@@ -445,3 +445,17 @@ def test_shared_node_id_advisory_fires_only_across_groups_and_never_fails(
 
     assert result.returncode == 0
     assert ("SHAREDNODE" in result.stdout) is flagged
+
+
+def test_sequence_message_without_order_fails_the_shape_tier(tmp_path):
+    module = _load_module()
+    path = tmp_path / "seq.json"
+    path.write_text(
+        '{"nodes":[{"id":"a","name":"A"},{"id":"b","name":"B"}],'
+        '"relations":[{"id":"m1","from":"a","to":"b","label":"go"}]}',
+        encoding="utf-8",
+    )
+
+    code = module.main(["--kind", "sequence", "--json", str(path)])
+
+    assert code == 3

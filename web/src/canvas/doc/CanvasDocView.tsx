@@ -1,4 +1,5 @@
 import { useEffect, useMemo } from "react";
+import { FocusPanel } from "./FocusPanel";
 import type { CanvasElement } from "../../state/types";
 import { useEngineClient } from "../../engine-client/EngineClientContext";
 import { DiagramRelationshipsSvg } from "../DiagramSurface";
@@ -341,6 +342,7 @@ export function CanvasDocView() {
               elements={resolveMembers(memberIds, visibleDoc.elements)}
             />
           ))}
+          <FocusPanel doc={visibleDoc} />
           {visibleElements.map((element) => {
             switch (BLOCK_RULES[element.render].renderer) {
               case "hierarchy":

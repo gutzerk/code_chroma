@@ -268,27 +268,70 @@ def test_repeated_request_diagram_clicks_count_once_and_report_no_waiter(bridge)
     assert second["waiting"] is False
 
 
-def test_find_diagram_requested_matches_a_reworded_ask_without_session(bridge):
+def test_find_diagram_requested_ignores_an_unrelated_ask_from_another_session(bridge):
     question_id = _ask(bridge, session_id="s1")
     store.request_diagram(bridge.main, store.find_element(bridge.main, question_id), "now")
-    reworded = AskRequest(question="Different words?", options=OPTIONS)
+    other = AskRequest(question="Unrelated?", options=OPTIONS, session_id="s2")
 
-    found = store.find_diagram_requested(bridge.main, reworded)
-
-    assert found.meta["question_id"] == question_id
+    assert store.find_diagram_requested(bridge.main, other) is None
 
 
-def test_find_diagram_requested_skips_older_duplicates_of_the_same_session(bridge):
+def test_find_diagram_requested_ignores_a_different_text_without_session(bridge):
+    question_id = _ask(bridge)
+    store.request_diagram(bridge.main, store.find_element(bridge.main, question_id), "now")
+
+    assert store.find_diagram_requested(bridge.main, AskRequest(question="Other?")) is None
+
+
+def test_find_diagram_requested_returns_the_newest_card_and_its_older_duplicates(bridge):
     old = _ask(bridge, session_id="s1")
     new = _ask(bridge, session_id="s1")
     for qid in (old, new):
         store.request_diagram(bridge.main, store.find_element(bridge.main, qid), "now")
     request = AskRequest(question="How to structure checkout?", options=OPTIONS, session_id="s1")
 
-    found = store.find_diagram_requested(bridge.main, request)
+    keep, stale = store.find_diagram_requested(bridge.main, request)
 
-    assert found.meta["question_id"] == new
+    assert keep.meta["question_id"] == new
+    assert [e.meta["question_id"] for e in stale] == [old]
+
+
+def test_reask_skips_stale_duplicates_and_refreshes_label_and_meta(bridge):
+    old = _ask(bridge, session_id="s1")
+    new = _ask(bridge, session_id="s1")
+    for qid in (old, new):
+        store.request_diagram(bridge.main, store.find_element(bridge.main, qid), "now")
+    store.reask(
+        bridge.main, store.find_element(bridge.main, new), AskRequest(question="Q1?"),
+        {"degraded": True, "validation": "bad"},
+    )
+    request = AskRequest(question="Reworded?", options=OPTIONS, session_id="s1")
+
+    store.reask(
+        bridge.main, store.find_element(bridge.main, new), request, None,
+        [store.find_element(bridge.main, old)],
+    )
+
+    element = store.find_element(bridge.main, new)
+    assert element.label == "Reworded?"
+    assert element.meta["degraded"] is False
+    assert element.meta["validation"] is None
     assert store.find_element(bridge.main, old).meta["state"] == "skipped"
+
+
+def test_ask_stamps_the_authenticated_workspace_as_agent_id(bridge):
+    mcp = bridge.app.state.question_mcp
+
+    async def scenario():
+        task = asyncio.create_task(
+            mcp.ask("main", AskRequest(question="Pick", options=OPTIONS, agent_id="spoofed"))
+        )
+        await asyncio.sleep(0.2)
+        task.cancel()
+
+    asyncio.run(scenario())
+
+    assert store.list_questions(bridge.main)[0].meta["agent_id"] == "main"
 
 
 def test_draw_diagram_bands_do_not_overlap_after_a_diagram_is_deleted(bridge):

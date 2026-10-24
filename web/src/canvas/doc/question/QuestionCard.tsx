@@ -1,6 +1,6 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { DecisionHistory } from "./DecisionHistory";
-import { rankTier, type QuestionView } from "./questionAdapter";
+import { resolveSelection, type QuestionView } from "./questionAdapter";
 import { QuestionOptions, type QuestionVariant } from "./QuestionOptions";
 import { QUESTION_STRINGS as S } from "./questionStrings";
 
@@ -16,31 +16,29 @@ export interface QuestionCardProps {
   onRevise: (question: QuestionView) => void;
   /** Asks the agent to add a diagram to every option that lacks one. */
   onRequestDiagram?: () => void;
-  /** Reports the highlighted option so a host can show that option's diagram. */
-  onSelectionChange?: (optionId: string | null) => void;
+  /** Controlled highlighted option (a host shares it with the diagram); leave unset for the card to own it. */
+  selectedId?: string | null;
+  /** Called with the new highlighted option when the user picks one. */
+  onSelectedIdChange?: (optionId: string) => void;
   /** Hands focus back to the agent terminal (after an answer, Shift+Tab, Ctrl+Enter). */
   onReturnFocus?: () => void;
-}
-
-/** The recommended (rank-1) option's id, or null when nothing is ranked. */
-function preselected(question: QuestionView): string | null {
-  return question.options.find((o) => rankTier(o, question.options) === "best")?.id ?? null;
 }
 
 /** One agent question: progress, title, selectable option tiles, custom answer, Send, skip and history. */
 export function QuestionCard({
   question, history, variant = "full", busy, error, onChooseOption, onCustomAnswer, onSkip, onRevise, onRequestDiagram,
-  onSelectionChange, onReturnFocus,
+  selectedId: controlledId, onSelectedIdChange, onReturnFocus,
 }: QuestionCardProps) {
   const [draft, setDraft] = useState("");
   const [showHistory, setShowHistory] = useState(false);
-  const [selectedId, setSelectedId] = useState<string | null>(() => preselected(question));
+  const [ownPick, setOwnPick] = useState<string | null>(null);
+  const selectedId = resolveSelection(question, controlledId === undefined ? ownPick : controlledId);
+  const setSelectedId = (id: string) => {
+    setOwnPick(id);
+    onSelectedIdChange?.(id);
+  };
   const { step, total } = question;
   const progress = step !== null && total !== null ? { step, total } : null;
-
-  useEffect(() => {
-    onSelectionChange?.(selectedId);
-  }, [selectedId, onSelectionChange]);
 
   if (question.state !== "open") {
     const result = question.state === "skipped" ? S.skipped : question.answer ?? "";
@@ -83,7 +81,7 @@ export function QuestionCard({
     } else if (event.key === "Tab" && event.shiftKey && onReturnFocus) {
       event.preventDefault();
       onReturnFocus();
-    } else if (event.key === "Escape" && question.allowSkip) {
+    } else if (event.key === "Escape" && question.allowSkip && !busy) {
       event.preventDefault();
       onSkip();
       onReturnFocus?.();

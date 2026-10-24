@@ -35,8 +35,8 @@ describe("agentsWideWidth", () => {
     expect(agentsWideWidth(1400, true)).toBe(1400 - 286 - 12);
   });
 
-  it("stops at the collapsed left bar edge when the left panel is closed", () => {
-    expect(agentsWideWidth(1400, false)).toBe(1400 - 68 - 12);
+  it("stops at the chrome inset when the left panel is closed", () => {
+    expect(agentsWideWidth(1400, false)).toBe(1400 - 12 - 12);
   });
 
   it("never drops below the minimum width", () => {

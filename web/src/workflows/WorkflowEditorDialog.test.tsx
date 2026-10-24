@@ -168,6 +168,23 @@ describe("WorkflowEditorDialog", () => {
   });
 });
 
+describe("WorkflowEditorDialog nested dialogs", () => {
+  beforeEach(() => workflowStore.reset());
+  afterEach(cleanup);
+
+  it("Escape on the delete confirm closes only the confirm, not the editor", () => {
+    const onClose = vi.fn();
+    open(fakeClient(), { workflow: existing, onClose });
+    fireEvent.click(screen.getByRole("button", { name: "Delete workflow" }));
+
+    fireEvent.keyDown(document, { key: "Escape" });
+
+    expect(screen.queryByTestId("confirm-dialog")).toBeNull();
+    expect(screen.getByRole("dialog", { name: "Workflow editor" })).toBeInTheDocument();
+    expect(onClose).not.toHaveBeenCalled();
+  });
+});
+
 describe("WorkflowEditorDialog design details", () => {
   beforeEach(() => workflowStore.reset());
   afterEach(cleanup);
@@ -217,6 +234,21 @@ describe("WorkflowEditorDialog design details", () => {
     expect(saved.inputs).toEqual([]);
     expect(saved.steps[0].input).toEqual({ name: "Which-PR", label: "Which PR?" });
     expect(saved.steps[0].prompt).toBe("Review the PR {{Which-PR}}");
+  });
+
+  it("opens the run dialog after Save and run when the workflow asks for inputs", async () => {
+    const client = fakeClient();
+    client.listWorkflows.mockResolvedValue([]);
+    const onClose = vi.fn();
+    open(client, { onClose });
+    fireEvent.change(screen.getByLabelText("Workflow name"), { target: { value: "Ask" } });
+    fireEvent.change(screen.getByLabelText(/^Instructions/), { target: { value: "Review the PR" } });
+    fireEvent.change(screen.getByLabelText(/^Ask for input/), { target: { value: "Which PR?" } });
+
+    fireEvent.click(screen.getByRole("button", { name: "Save and run" }));
+
+    await waitFor(() => expect(workflowStore.getDialog()?.kind).toBe("run"));
+    expect(client.startRun).not.toHaveBeenCalled();
   });
 
   it("binds an older workflow-level input to the step that mentions it", async () => {

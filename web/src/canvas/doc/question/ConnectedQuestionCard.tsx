@@ -1,28 +1,27 @@
 import { useMemo, useState } from "react";
-import type { CanvasElement } from "../../../state/types";
 import { useEngineClient } from "../../../engine-client/EngineClientContext";
 import { reportAsyncError } from "../../../util/reportError";
 import { useCanvasDoc } from "../canvasDocStore";
-import { sessionHistory, toQuestionView, type QuestionView } from "./questionAdapter";
+import { sessionHistory, type QuestionView } from "./questionAdapter";
 import { answerCustom, answerOption, requestDiagram, reviseQuestion, skipQuestion } from "./questionClient";
 import { QuestionCard } from "./QuestionCard";
 import type { QuestionVariant } from "./QuestionOptions";
 import { QUESTION_STRINGS as S } from "./questionStrings";
 
 export interface ConnectedQuestionCardProps {
-  element: CanvasElement;
+  question: QuestionView;
   variant?: QuestionVariant;
-  onSelectionChange?: (optionId: string | null) => void;
+  selectedId?: string | null;
+  onSelectedIdChange?: (optionId: string) => void;
   onReturnFocus?: () => void;
 }
 
 /** A QuestionCard wired to the bridge: answer, skip and revise for one `question` element. */
-export function ConnectedQuestionCard({ element, variant, onSelectionChange, onReturnFocus }: ConnectedQuestionCardProps) {
+export function ConnectedQuestionCard({ question, variant, selectedId, onSelectedIdChange, onReturnFocus }: ConnectedQuestionCardProps) {
   const client = useEngineClient();
   const doc = useCanvasDoc();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const question = useMemo(() => toQuestionView(element), [element]);
   const history = useMemo(() => sessionHistory(doc.elements, question), [doc.elements, question]);
 
   const run = (action: () => Promise<unknown>) => {
@@ -41,7 +40,8 @@ export function ConnectedQuestionCard({ element, variant, onSelectionChange, onR
       question={question}
       history={history}
       variant={variant}
-      onSelectionChange={onSelectionChange}
+      selectedId={selectedId}
+      onSelectedIdChange={onSelectedIdChange}
       onReturnFocus={onReturnFocus}
       busy={busy}
       error={error}

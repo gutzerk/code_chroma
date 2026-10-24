@@ -10,6 +10,7 @@ import { StepRail } from "./StepRail";
 import { stepsForAttempt } from "./redoPlan";
 import {
   CONFIRM_MESSAGES,
+  canStopAfter,
   RUN_STATE_COLOR,
   RUN_STATE_TEXT,
   STATUS_META,
@@ -156,7 +157,7 @@ export function RunDetail({
   const editWorkflow = () => workflowStore.setDialog({ kind: "editor", workflow });
 
   const secondary: MenuItem[] = [
-    { label: run.stopAfter ? "Keep running" : "Stop after step", icon: "stop", disabled: !running, onSelect: stopAfterToggle },
+    { label: run.stopAfter ? "Keep running" : "Stop after step", icon: "stop", disabled: !canStopAfter(run.state), onSelect: stopAfterToggle },
     { label: "Restart", icon: "restart", disabled: !finished, onSelect: () => setConfirm("restart") },
     { label: "Edit workflow", icon: "edit", onSelect: editWorkflow },
     finished
@@ -232,7 +233,7 @@ export function RunDetail({
               </>
             ) : (
               <>
-                <button type="button" className="wf-btn" data-testid="stop-after" disabled={!running} onClick={stopAfterToggle}>
+                <button type="button" className="wf-btn" data-testid="stop-after" disabled={!canStopAfter(run.state)} onClick={stopAfterToggle}>
                   {run.stopAfter ? "Keep running" : "Stop after step"}
                 </button>
                 <button type="button" className="wf-btn" data-testid="restart-run" disabled={!finished} onClick={() => setConfirm("restart")}>
@@ -305,7 +306,7 @@ export function RunDetail({
       {confirm === "delete" && (
         <ConfirmDialog
           label="Delete run"
-          message={`Delete run ${run.id}? Its worktree and result are removed.`}
+          message={CONFIRM_MESSAGES.deleteRun(run.id)}
           confirmLabel="Delete"
           onCancel={() => setConfirm(null)}
           onConfirm={() => {

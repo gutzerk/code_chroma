@@ -226,7 +226,9 @@ def test_non_2xx_response_reports_supported_with_error_message(monkeypatch):
 
 def test_static_models_match_csharp_catalog():
     source = (_REPO_ROOT / "dotnet/CodeChroma.Bridge/Stores/ModelCatalog.cs").read_text("utf-8")
-    anthropic = re.search(r"AnthropicModels = \[(.*?)\];", source).group(1)
+    found = re.search(r"AnthropicModels = \[(.*?)\];", source)
+    assert found, "AnthropicModels list not found in ModelCatalog.cs"
+    anthropic = found.group(1)
     csharp = {"anthropic": re.findall(r'"([^"]+)"', anthropic)}
     csharp["transport:anthropic"] = csharp["anthropic"]
     for key, body in re.findall(r'\["((?:transport|adapter):[^"]+)"\] = \[(.*?)\],\r?\n', source):
@@ -237,4 +239,5 @@ def test_static_models_match_csharp_catalog():
     python = {key: list(models) for key, models in _STATIC_MODELS.items()}
 
     for key, models in python.items():
+        assert key in csharp, f"{key} missing from ModelCatalog.cs"
         assert csharp[key] == models, key

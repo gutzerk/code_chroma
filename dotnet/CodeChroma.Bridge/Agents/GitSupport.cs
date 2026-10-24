@@ -146,7 +146,7 @@ public static class Gh
             error = stderr.GetAwaiter().GetResult();
             return process.ExitCode == 0 ? stdout.GetAwaiter().GetResult() : null;
         }
-        catch (Exception failure) when (failure is System.ComponentModel.Win32Exception or InvalidOperationException)
+        catch (Exception failure) when (failure is System.ComponentModel.Win32Exception or InvalidOperationException or IOException)
         {
             error = failure.Message;
             return null;

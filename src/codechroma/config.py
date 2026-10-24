@@ -146,13 +146,6 @@ class WorktreeConfig(_Config):
     max_submodule_depth: int = 5
 
 
-class TranscriptsConfig(_Config):
-    """bridge/agents/transcripts.py"""
-
-    max_scanned_transcripts: int = 500
-    head_lines: int = 12
-
-
 class AgentStatusConfig(_Config):
     """bridge/agents/status.py"""
 
@@ -174,8 +167,6 @@ class PublishConfig(_Config):
 class AgentsRoutesConfig(_Config):
     """bridge/routes/agents.py"""
 
-    session_id_poll_attempts: int = 10
-    session_id_poll_seconds: float = 1.0
     # Fresh-start nudge: polls of the PTY screen awaiting Claude's idle prompt (sessions.py).
     context_inject_attempts: int = 60
     context_inject_interval_seconds: float = 0.5
@@ -268,7 +259,6 @@ class Settings(_Config):
     pr_workspaces: PRWorkspacesConfig = PRWorkspacesConfig()
     agents: AgentsConfig = AgentsConfig()
     worktree: WorktreeConfig = WorktreeConfig()
-    transcripts: TranscriptsConfig = TranscriptsConfig()
     agent_status: AgentStatusConfig = AgentStatusConfig()
     publish: PublishConfig = PublishConfig()
     agents_routes: AgentsRoutesConfig = AgentsRoutesConfig()

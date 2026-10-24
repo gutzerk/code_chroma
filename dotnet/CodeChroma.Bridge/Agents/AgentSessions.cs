@@ -37,6 +37,7 @@ public sealed class AgentSession : IAgentSessionPort, IDisposable
     private readonly ScreenTap _tap = new(PtyLaunch.DefaultRows, PtyLaunch.DefaultCols);
     private readonly StatusDetector _detector;
     private readonly PtyHost _pty;
+    private readonly ForegroundProcess _foreground;
     private int? _exitCode;
 
     public AgentSession(string agentId, PtyLaunch launch, string kind = "claude", string? banner = null)
@@ -50,6 +51,7 @@ public sealed class AgentSession : IAgentSessionPort, IDisposable
             _pty = PtyHost.Start(launch, OnOutput, OnExit);
             if (banner is not null) _tap.Feed(banner);
         }
+        _foreground = new ForegroundProcess(_pty.Pid);
     }
 
     public string AgentId { get; }
@@ -72,7 +74,7 @@ public sealed class AgentSession : IAgentSessionPort, IDisposable
 
     /// <summary>The detector's verdict, or null when nothing changed: the LED's one source of truth.</summary>
     public string? PollStatus() =>
-        IsAlive ? _detector.Observe(_tap.Tail(_detector.Rules.TailLines), _tap.Title, _tap.Progress, process: null) : null;
+        IsAlive ? _detector.Observe(_tap.Tail(_detector.Rules.TailLines), _tap.Title, _tap.Progress, process: _foreground.Current()) : null;
 
     /// <summary>A consumer seeded with a screen redraw, so a reattach can never start mid-sequence.</summary>
     public AgentConsumer Attach()

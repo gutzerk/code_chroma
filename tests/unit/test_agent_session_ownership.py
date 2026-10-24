@@ -1,9 +1,11 @@
 """SessionStart hooks track changes without claiming another process's conversation."""
 
+import asyncio
 import io
 import json
 import os
 import subprocess
+import sys
 from types import SimpleNamespace
 from uuid import uuid4
 
@@ -11,8 +13,44 @@ import pytest
 
 from codechroma.bridge.agents import session_ownership as ownership
 from codechroma.bridge.agents.manager import AgentManager, AgentRecord
+from codechroma.bridge.agents.sessions import AgentSessionRegistry
 from codechroma.io import write_json
 from codechroma.terminal.agents import agent_cli
+
+
+def test_real_pty_receives_session_tracking_after_runtime_resolution(tmp_path, use_test_runtime):
+    use_test_runtime()
+    tracking_file = ownership.file_for(tmp_path, str(uuid4()))
+    session_id = str(uuid4())
+    _, env = agent_cli("claude", new_session_id=session_id, session_tracking_file=tracking_file)
+    received = tmp_path / "received.json"
+    script = (
+        "import json,os,pathlib,sys; "
+        "pathlib.Path(sys.argv[1]).write_text(json.dumps({"
+        "key: os.environ.get(key) for key in "
+        "['CODECHROMA_AGENT_SESSION_FILE', 'CODECHROMA_AGENT_SESSION_ID']})); "
+        "sys.stdin.read()"
+    )
+
+    async def launch():
+        registry = AgentSessionRegistry()
+        session = registry.start(
+            "runner", [sys.executable, "-u", "-c", script, str(received)], tmp_path, env=env,
+        )
+        try:
+            async with asyncio.timeout(15):
+                while not received.exists():
+                    await asyncio.sleep(0.01)
+            return session.session_tracking_file, session.initial_session_id
+        finally:
+            registry.stop_all()
+
+    metadata = asyncio.run(launch())
+
+    assert metadata == (str(tracking_file), session_id)
+    assert json.loads(received.read_text(encoding="utf-8")) == {
+        ownership.FILE_ENV: str(tracking_file), ownership.INITIAL_ID_ENV: session_id,
+    }
 
 
 @pytest.mark.parametrize("source", ["clear", "resume"])

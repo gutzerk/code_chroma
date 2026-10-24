@@ -9,6 +9,7 @@ import {
   type PointerEvent,
   type ReactNode,
 } from "react";
+import { zoomLevelFor } from "./layout/layoutMetrics";
 import { canvasLayoutStore } from "../state/canvasLayoutStore";
 import { selectionStore } from "../state/selectionStore";
 import { gridStep, gridStepFor, MIN_SCALE } from "./canvasGrid";
@@ -916,6 +917,7 @@ export const CanvasViewport = forwardRef<CanvasViewportHandle, CanvasViewportPro
           ref={contentRef}
           className={`canvas-content ${isFocusing ? "canvas-content--animated" : ""}`}
           data-testid="canvas-content"
+          data-zoom={zoomLevelFor(view.scale)}
           style={{ transform: `translate(${view.x}px, ${view.y}px) scale(${view.scale})` }}
         >
           {children}

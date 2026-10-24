@@ -498,3 +498,25 @@ def test_build_batch_ops_includes_style_key_when_recipe_node_style_is_set():
     ops = build_batch_ops(doc, "impact", result)
 
     assert ops[0]["style"] == {"color": "#f00"}
+
+
+def test_sequence_reshape_carries_readability_fields():
+    """022: order/lane/path fold into node meta, hero into messages, phases onto participants."""
+    resolved = {
+        "phases": [{"id": "p1", "name": "Prepare", "kind": "prepare", "from_order": 1, "to_order": 1}],
+        "summary": "s",
+        "nodes": [
+            {"id": "a", "name": "A", "lane": "client", "path": "a.py"},
+            {"id": "b", "name": "B"},
+        ],
+        "relations": [{"id": "m1", "from": "a", "to": "b", "order": "1", "hero": True}],
+    }
+
+    shape = reshape(resolved, "sequence")
+
+    participant, _, message = shape.nodes
+    assert participant.meta["lane"] == "client"
+    assert participant.meta["path"] == "a.py"
+    assert participant.meta["phases"][0]["id"] == "p1"
+    assert participant.meta["summary"] == "s"
+    assert message.meta["hero"] is True

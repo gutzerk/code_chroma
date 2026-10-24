@@ -58,3 +58,17 @@ export function agentsWideWidth(areaWidth: number, leftOpen: boolean): number {
   const leftEdge = chromeInsets({ leftOpen, agentsMode: "normal" }).terminalLeft;
   return Math.max(AGENTS_WIDE_MIN_WIDTH, Math.round(areaWidth - leftEdge - AGENTS_WIDE_RIGHT_GAP));
 }
+
+/** Below this camera scale a box shows title + `SRC ↗` only. */
+export const ZOOM_MID_SCALE = 0.6;
+/** Below this camera scale a box shows its title only; colour and title never disappear. */
+export const ZOOM_FAR_SCALE = 0.3;
+
+export type ZoomLevel = "full" | "mid" | "far";
+
+/** The detail level a box renders at for a camera scale (022 zoom levels: 100% / 60% / 30%). */
+export function zoomLevelFor(scale: number): ZoomLevel {
+  if (scale < ZOOM_FAR_SCALE) return "far";
+  if (scale < ZOOM_MID_SCALE) return "mid";
+  return "full";
+}

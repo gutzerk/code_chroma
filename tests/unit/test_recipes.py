@@ -503,7 +503,9 @@ def test_build_batch_ops_includes_style_key_when_recipe_node_style_is_set():
 def test_sequence_reshape_carries_readability_fields():
     """022: order/lane/path fold into node meta, hero into messages, phases onto participants."""
     resolved = {
-        "phases": [{"id": "p1", "name": "Prepare", "kind": "prepare", "from_order": 1, "to_order": 1}],
+        "phases": [
+            {"id": "p1", "name": "Prepare", "kind": "prepare", "from_order": 1, "to_order": 1},
+        ],
         "summary": "s",
         "nodes": [
             {"id": "a", "name": "A", "lane": "client", "path": "a.py"},

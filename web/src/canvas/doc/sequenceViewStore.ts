@@ -105,11 +105,3 @@ class SequenceViewStore extends Store {
 }
 
 export const sequenceViewStore = new SequenceViewStore();
-
-let viewWorkspace = agentStore.getActiveWorkspace();
-agentStore.subscribe(() => {
-  const active = agentStore.getActiveWorkspace();
-  if (active === viewWorkspace) return;
-  viewWorkspace = active;
-  sequenceViewStore.reset();
-});

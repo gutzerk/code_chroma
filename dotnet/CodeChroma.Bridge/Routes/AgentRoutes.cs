@@ -14,9 +14,6 @@ namespace CodeChroma.Bridge.Routes;
 /// <summary>Parallel agents: the cards, their worktrees, their PTYs, and publishing one as a PR (routes/agents.py).</summary>
 public static class AgentRoutes
 {
-    private const int SessionIdPollAttempts = 10;
-    private static readonly TimeSpan SessionIdPollInterval = TimeSpan.FromSeconds(1);
-
     public static void Map(WebApplication app, string repoRoot)
     {
         app.MapGet("/agents/git-preflight", () => Reply.GuardBlocking(() => Reply.Json(AgentBootstrap.Preflight(repoRoot))));
@@ -115,7 +112,9 @@ public static class AgentRoutes
                     visible = bare ? BareSkill.InteractiveVisiblePrompt : null;
                 }
             }
-            var launch = terminalAgents.Resolve(record.Kind, sessionId, taskText, bare, visible, forkSession: fork);
+            var trackingFile = AgentSessionOwnership.FileFor(agents.MainRoot, Guid.NewGuid().ToString());
+            var launch = terminalAgents.Resolve(record.Kind, sessionId, taskText, bare, visible, forkSession: fork,
+                newSessionId: Guid.NewGuid().ToString(), sessionTrackingFile: trackingFile);
             if (launch is null) return Reply.Error(400, $"unknown agent kind: {record.Kind}");
             var env = new Dictionary<string, string>(launch.Env);
             BridgeAddress.ExportIdentity(env, agentId, BareSkill.BridgeUrl);
@@ -125,7 +124,7 @@ public static class AgentRoutes
                 _ = session.InjectWhenIdle(
                     $"[Context] You were just launched from the CodeChroma canvas. The user is currently looking at: {view.Text}. "
                     + "Please acknowledge you understand this context. Do not act on it or start any work — just confirm you've read it and say you're ready.");
-            _ = CaptureSessionIdLater(agents, agentId);
+            agents.RecordSessionLaunch(agentId, session);
             var payload = Payload(sessions, updated);
             await BroadcastStatus(connections, agentId, (string)payload["status"]!);
             return Reply.Json(payload);
@@ -154,7 +153,7 @@ public static class AgentRoutes
         app.MapGet("/agents/{agentId}/usage", (string agentId, AgentManager agents) => Reply.GuardBlocking(() =>
         {
             var record = OrNotFound(agents, agentId);
-            var sessionId = record.Kind == AgentRecord.DefaultKind ? record.SessionId ?? agents.CaptureSessionId(agentId) : null;
+            var sessionId = record.Kind == AgentRecord.DefaultKind ? agents.CaptureSessionId(agentId) : null;
             return Reply.Json(AgentUsage.Read(record, sessionId));
         }));
 
@@ -220,17 +219,6 @@ public static class AgentRoutes
     /// <summary>The LED's only input: one agent-status ping per real change, over the existing socket.</summary>
     public static Task BroadcastStatus(ConnectionManager connections, string agentId, string status) =>
         connections.Broadcast(new JsonObject { ["type"] = "agent-status", ["id"] = agentId, ["status"] = status });
-
-    /// <summary>Polls briefly for the transcript: it does not exist the instant the process spawns.</summary>
-    public static async Task CaptureSessionIdLater(AgentManager agents, string agentId)
-    {
-        for (var attempt = 0; attempt < SessionIdPollAttempts; attempt++)
-        {
-            await Task.Delay(SessionIdPollInterval);
-            try { if (agents.CaptureSessionId(agentId) is not null) return; }
-            catch (UnknownAgentException) { return; }
-        }
-    }
 
     private static string? Validate(JsonObject body, out string title, out string kind, out string? attachTo, out string? context, out string contextKind)
     {

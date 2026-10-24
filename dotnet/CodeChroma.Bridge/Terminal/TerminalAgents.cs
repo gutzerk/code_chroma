@@ -52,22 +52,41 @@ public sealed class TerminalAgents(UserPaths paths, ProviderStore providers, Cal
     };
 
     /// <summary>An allow-listed agent's argv and provider environment, or null for an unknown kind; `forkSession` (claude only) resumes into a new session.</summary>
-    public AgentLaunch? Resolve(string agent, string? resumeSessionId = null, string? initialPrompt = null, bool bare = false, string? visiblePrompt = null, bool forkSession = false)
+    public AgentLaunch? Resolve(string agent, string? resumeSessionId = null, string? initialPrompt = null, bool bare = false, string? visiblePrompt = null, bool forkSession = false, string? newSessionId = null, string? sessionTrackingFile = null)
     {
         if (agent == "agent")
         {
             var resolution = ResolveProviderCli(AgentCallSite);
             var isClaude = resolution.AdapterKey == "claude" && (resolution.ProviderAssigned || resolution.Binary == DefaultCli);
-            return new AgentLaunch(Argv(resolution.Binary, isClaude, resolution.AdapterKey, resumeSessionId, initialPrompt, bare, visiblePrompt), resolution.Env);
+            var argv = Argv(resolution.Binary, isClaude, resolution.AdapterKey, resumeSessionId, initialPrompt, bare, visiblePrompt);
+            return OwnedLaunch(argv, resolution.Env, isClaude, resumeSessionId, forkSession, newSessionId, sessionTrackingFile);
         }
         if (!Allowed.TryGetValue(agent, out var entry)) return null;
         if (agent == "claude")
         {
             var binary = AssistantRoutes.EffectiveCli(paths);
             var argv = Argv(binary, binary == DefaultCli, "claude", resumeSessionId, initialPrompt, bare, visiblePrompt);
-            return new AgentLaunch(forkSession && !string.IsNullOrEmpty(resumeSessionId) ? [.. argv, ForkSessionFlag] : argv, new Dictionary<string, string>());
+            return OwnedLaunch(argv, new Dictionary<string, string>(), binary == DefaultCli, resumeSessionId, forkSession, newSessionId, sessionTrackingFile);
         }
         return new AgentLaunch(string.IsNullOrEmpty(resumeSessionId) ? entry : [.. entry, ResumeFlag, resumeSessionId], new Dictionary<string, string>());
+    }
+
+    private static AgentLaunch OwnedLaunch(string[] argv, IReadOnlyDictionary<string, string> env, bool isClaude, string? resumeSessionId, bool fork, string? newSessionId, string? trackingFile)
+    {
+        if (!isClaude) return new AgentLaunch(argv, env);
+        var options = new List<string>();
+        if (fork && !string.IsNullOrEmpty(resumeSessionId)) options.Add(ForkSessionFlag);
+        var fresh = string.IsNullOrEmpty(resumeSessionId) || fork;
+        if (fresh && !string.IsNullOrEmpty(newSessionId)) options.AddRange(["--session-id", newSessionId]);
+        var ownedEnv = new Dictionary<string, string>(env);
+        if (trackingFile is not null)
+        {
+            options.AddRange(["--settings", AgentSessionOwnership.HookSettings()]);
+            ownedEnv[AgentSessionOwnership.FileEnv] = trackingFile;
+            ownedEnv[AgentSessionOwnership.InitialIdEnv] = (fresh ? newSessionId : resumeSessionId) ?? "";
+        }
+        // Options precede the prompt and the variadic --plugin-dir / --allowedTools options.
+        return new AgentLaunch([argv[0], .. options, .. argv.Skip(1)], ownedEnv);
     }
 
     /// <summary>The label persisted on AgentRecord.ResolvedCli: only `agent` windows report one.</summary>

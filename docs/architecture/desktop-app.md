@@ -1,5 +1,9 @@
 # Desktop app (`dotnet/CodeChroma.Shell*`)
 
+**Implementation rule: change and test `dotnet/CodeChroma.Bridge` first for desktop bridge work.**
+`src/codechroma/bridge/` is the Python development/reference path; changing it alone does not affect
+the shipped app. Production regression tests belong in `dotnet/CodeChroma.Bridge.Tests`.
+
 The desktop app is the C# / Avalonia shell with Velopack packaging and updater. It hosts the
 unchanged React canvas in one WebView per tab and talks to the **C# bridge** (`dotnet/CodeChroma.Bridge`)
 bundled next to it. There is no Electron, PyInstaller or Node at runtime. Node is only used to build

@@ -10,6 +10,9 @@ using CodeChroma.Bridge.Skills;
 using CodeChroma.Bridge.Stores;
 using CodeChroma.Bridge.Workspaces;
 
+if (args.Length > 0 && args[0] == "agent-session")
+    return AgentSessionOwnership.Record(Console.In, Environment.GetEnvironmentVariable(AgentSessionOwnership.FileEnv));
+
 if (args.Length > 0 && args[0] == "context")
 {
     Console.OutputEncoding = System.Text.Encoding.UTF8;

@@ -161,7 +161,7 @@ def test_hooks_json_wires_ask_user_question_with_block_on_failure():
 
     assert entry["matcher"] == "AskUserQuestion"
     assert entry["hooks"][0]["onFailure"] == "block"
-    assert entry["hooks"][0]["timeout"] >= 600
+    assert entry["hooks"][0]["timeout"] <= 30
 
 
 def test_grill_skill_has_name_and_description_frontmatter():

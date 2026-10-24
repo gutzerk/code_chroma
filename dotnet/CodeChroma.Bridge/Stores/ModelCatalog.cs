@@ -2,7 +2,7 @@ using System.Text.Json.Nodes;
 
 namespace CodeChroma.Bridge.Stores;
 
-/// <summary>A provider's own model list, queried live (never raises); mirrors llm/model_catalog.py.</summary>
+/// <summary>A provider's own model list, queried live, else a built-in list (never raises); mirrors llm/model_catalog.py.</summary>
 public static class ModelCatalog
 {
     private static readonly HttpClient Http = new() { Timeout = TimeSpan.FromSeconds(30) };

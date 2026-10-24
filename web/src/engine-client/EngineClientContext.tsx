@@ -2,7 +2,6 @@ import { createContext, useContext, useEffect, useMemo, type ReactNode } from "r
 import type { EngineClient } from "./EngineClient";
 import { HttpEngineClient } from "./EngineClient";
 import { MockBridgeEngineClient } from "./mockBridge";
-import { installDevAskQuestion } from "../canvas/doc/question/devAskQuestion";
 import { withTutorialDiagramGate } from "../tutorial/tutorialDiagramGate";
 
 const EngineClientReactContext = createContext<EngineClient | null>(null);
@@ -44,8 +43,18 @@ export function EngineClientProvider({
   // A workspace switch builds a fresh client; the old one's socket must not be left open forever.
   useEffect(() => () => client.dispose?.(), [client]);
   useEffect(() => {
-    if (!import.meta.env.DEV || import.meta.env.VITE_ENGINE_BRIDGE_URL) return undefined;
-    return installDevAskQuestion(client);
+    if (!import.meta.env.DEV || import.meta.env.VITE_ENGINE_BRIDGE_URL || !import.meta.env.VITE_DEV_ASK_QUESTION) {
+      return undefined;
+    }
+    let uninstall: (() => void) | undefined;
+    let cancelled = false;
+    void import("../canvas/doc/question/devAskQuestion").then((m) => {
+      if (!cancelled) uninstall = m.installDevAskQuestion(client);
+    });
+    return () => {
+      cancelled = true;
+      uninstall?.();
+    };
   }, [client]);
   return (
     <EngineClientReactContext.Provider value={client}>

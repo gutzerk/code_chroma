@@ -140,3 +140,20 @@ describe("MockBridgeEngineClient patchCanvas edge style", () => {
     expect(edge?.style).toEqual({ color: "#00ff00" });
   });
 });
+
+describe("MockBridgeEngineClient.requestQuestionDiagram", () => {
+  it("rejects like the route when every option already has a diagram", async () => {
+    const client = new MockBridgeEngineClient();
+    const result = await client.patchCanvas({
+      ops: [{
+        op: "add_element", render: "question", layer: "questions", label: "Q", position: { x: 0, y: 0 },
+        meta: { state: "open", options: [{ id: "a", title: "A", diagram_ref: "el-1" }] },
+      } as never],
+      layer: "default", explanation: "", confirm_mass_delete: false,
+    });
+    expect(result.ok).toBe(true);
+    const id = Object.values((await client.getCanvas()).elements).find((el) => el.render === "question")?.id as string;
+
+    await expect(client.requestQuestionDiagram(id)).rejects.toThrow("every option already has a diagram");
+  });
+});

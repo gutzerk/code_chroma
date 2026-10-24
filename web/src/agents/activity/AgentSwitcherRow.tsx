@@ -51,11 +51,9 @@ export function AgentList({ agents, activeId }: { agents: AgentRecord[]; activeI
 export function AgentSwitcherRow({
   agents,
   activeId,
-  full = false,
 }: {
   agents: AgentRecord[];
   activeId: string | undefined;
-  full?: boolean;
 }) {
   const client = useAgentClient();
   const [open, setOpen] = useState(false);
@@ -76,9 +74,6 @@ export function AgentSwitcherRow({
   };
   return (
     <div className="activity-switcher" ref={rootRef}>
-      {full ? (
-        <span className="activity-switcher-spacer" />
-      ) : (
       <button
         type="button"
         className="activity-switcher-trigger"
@@ -110,8 +105,7 @@ export function AgentSwitcherRow({
         )}
         <ChevronDownIcon size={14} />
       </button>
-      )}
-      {!full && open && (
+      {open && (
         <ul className="activity-switcher-menu" role="listbox" aria-label="Agents">
           {agents.map((agent) => (
             <li key={agent.id} role="presentation">

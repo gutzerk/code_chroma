@@ -3,19 +3,9 @@ import { ModalDialog } from "../agents/ModalDialog";
 import { ConfirmDialog } from "./ConfirmDialog";
 import { Icon } from "./icons";
 import { OverflowMenu } from "./OverflowMenu";
-import { RUN_STATE_COLOR, RUN_STATE_TEXT, stepMode } from "./runControls";
+import { RUN_STATE_COLOR, RUN_STATE_TEXT, stepMode, stepSummary } from "./runControls";
 import { workflowInputs, type Run, type WorkflowDef } from "./types";
 import type { WorkflowActions } from "./workflowStore";
-
-/** "4 steps · 3 agent · 1 you" */
-function stepSummary(workflow: WorkflowDef): string {
-  const you = workflow.steps.filter((s) => s.kind === "review").length;
-  const agent = workflow.steps.length - you;
-  const parts = [`${workflow.steps.length} step${workflow.steps.length === 1 ? "" : "s"}`];
-  if (agent) parts.push(`${agent} agent`);
-  if (you) parts.push(`${you} you`);
-  return parts.join(" · ");
-}
 
 /** The latest run of a workflow as "Running now" / "Done" / "Stopped" plus a run count. */
 function lastRun(runs: Run[], workflowId: string): { text: string; color?: string; count: string } {
@@ -116,13 +106,13 @@ export function AllWorkflows({
               <div className="wf-row" role="row" key={workflow.id} data-testid={`saved-${workflow.id}`}>
                 <div role="cell">
                   <div className="wf-cell-name">{workflow.name}</div>
-                  <div className="wf-cell-sub">{stepSummary(workflow)}</div>
+                  <div className="wf-cell-sub">{stepSummary(workflow.steps)}</div>
                 </div>
                 <div role="cell" className="wf-chips">
                   {workflow.steps.map((step, i) => (
                     <Fragment key={step.id}>
                       {i > 0 && <span className="wf-chip-arrow">→</span>}
-                      <span className="wf-chip" data-mode={stepMode(step)}>{`${step.slug} · ${stepMode(step)}`}</span>
+                      <span className="wf-chip" data-mode={stepMode(step, i)}>{`${step.slug} · ${stepMode(step, i)}`}</span>
                     </Fragment>
                   ))}
                 </div>

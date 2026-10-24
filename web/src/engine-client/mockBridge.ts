@@ -1759,7 +1759,7 @@ export class MockBridgeEngineClient implements EngineClient {
     const meta = { ...el.meta, ...patch };
     this.canvasDoc = { ...this.canvasDoc, elements: { ...this.canvasDoc.elements, [el.id]: { ...el, meta } } };
     this.emit<CanvasPing>("canvas", { type: "canvas", batch_id: nextMockCanvasId(), affected: [el.id], new_elements: [] });
-    return { question_id: el.id, state: meta.state as QuestionAck["state"], answer: (meta.answer as string | null) ?? null };
+    return { question_id: el.id, state: meta.state as QuestionAck["state"], answer: (meta.answer as string | null) ?? null, waiting: false };
   }
 
   async answerQuestion(questionId: string, body: QuestionAnswerBody): Promise<QuestionAck> {
@@ -1788,7 +1788,13 @@ export class MockBridgeEngineClient implements EngineClient {
   }
 
   async requestQuestionDiagram(questionId: string): Promise<QuestionAck> {
-    const count = Number(this.canvasDoc.elements[questionId]?.meta.diagram_requests ?? 0) + 1;
+    const target = this.canvasDoc.elements[questionId];
+    if (!target) throw new Error(`unknown question: ${questionId}`);
+    if (target.meta.state !== undefined && target.meta.state !== "open") throw new Error("question is already settled");
+    const options = Array.isArray(target.meta.options) ? (target.meta.options as { diagram_ref?: unknown }[]) : [];
+    if (options.length === 0) throw new Error("this question has no options");
+    if (options.every((o) => o.diagram_ref)) throw new Error("every option already has a diagram");
+    const count = Number(target.meta.diagram_requests ?? 0) + 1;
     return this.setQuestionMeta(questionId, {
       diagram_requested: true,
       diagram_requested_at: new Date().toISOString(),

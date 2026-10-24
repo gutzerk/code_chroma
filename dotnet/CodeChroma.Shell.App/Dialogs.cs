@@ -7,12 +7,12 @@ namespace CodeChroma.Shell.App;
 
 public static class Dialogs
 {
-    public static Task ShowMessageAsync(Window owner, string title, string message, string? detail = null, string okText = "OK")
+    public static Task ShowMessageAsync(Window owner, string title, string message, string? detail = null)
     {
         var panel = new StackPanel { Margin = new Thickness(20), Spacing = 10, MinWidth = 320 };
         panel.Children.Add(new TextBlock { Text = message, FontWeight = FontWeight.SemiBold, FontSize = 16, TextWrapping = TextWrapping.Wrap });
         if (detail is not null) panel.Children.Add(new TextBlock { Text = detail, TextWrapping = TextWrapping.Wrap, MaxWidth = 480 });
-        return ShowPanelAsync(owner, title, panel, okText);
+        return ShowPanelAsync(owner, title, panel, "OK");
     }
 
     /// <summary>Shows a modal window around <paramref name="panel"/> with a trailing default button that closes it.</summary>

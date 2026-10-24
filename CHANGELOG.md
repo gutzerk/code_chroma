@@ -1,5 +1,14 @@
 # Changelog
 
+## [1.6.1](https://github.com/gutzerk/code_chroma/compare/v1.6.0...v1.6.1) (2026-10-24)
+
+
+### Bug Fixes
+
+* address stage branch review findings ([1b117d6](https://github.com/gutzerk/code_chroma/commit/1b117d622a9f2161e5c947fa94af0b7ebba10d23))
+* address stage branch review findings (questions, workflows, agents panel, model catalog) ([b860d23](https://github.com/gutzerk/code_chroma/commit/b860d23e9b26b9f908dd2c92235202527404df2a))
+* tidy review nits (dead gh timeout const, IOException in Gh.Execute, clearer parity-test failures) ([8aba2cb](https://github.com/gutzerk/code_chroma/commit/8aba2cbe37dc222cf156c0ec488ed18c085bbafe))
+
 ## [1.6.0](https://github.com/gutzerk/code_chroma/compare/v1.5.0...v1.6.0) (2026-10-23)
 
 

@@ -17,7 +17,7 @@ MAX_DESCRIPTION = 300
 _COLUMNS = 4
 _CELL_W, _CELL_H = 200, 100
 _NODE_W, _NODE_H = 160, 60
-_BAND_H = 3 * _CELL_H + 80
+BAND_H = 3 * _CELL_H + 80
 
 
 class DiagramNode(BaseModel):
@@ -39,16 +39,13 @@ class DiagramEdge(BaseModel):
     label: str = ""
 
 
-def validate_diagram(
-    nodes: list[DiagramNode], edges: list[DiagramEdge], title: str | None = None
-) -> list[str]:
+def validate_diagram(nodes: list[DiagramNode], edges: list[DiagramEdge], title: str) -> list[str]:
     """One line per budget, length or reference problem; mirrors the skill's check script."""
     found: list[str] = []
-    if title is not None:
-        if not title.strip():
-            found.append("title is empty")
-        elif len(title) > MAX_TITLE:
-            found.append(f"title is longer than {MAX_TITLE} characters")
+    if not title.strip():
+        found.append("title is empty")
+    elif len(title) > MAX_TITLE:
+        found.append(f"title is longer than {MAX_TITLE} characters")
     if not 1 <= len(nodes) <= MAX_NODES:
         found.append(f"give 1-{MAX_NODES} nodes, got {len(nodes)}")
     ids = [node.id for node in nodes]
@@ -83,7 +80,7 @@ def diagram_ops(
     title: str, nodes: list[DiagramNode], edges: list[DiagramEdge], band: int, option_id: str | None
 ) -> list[dict]:
     """The `apply_batch` ops for one diagram: a group root, its nodes in a grid, then the arrows."""
-    top = band * _BAND_H
+    top = band * BAND_H
     ops: list[dict] = [{
         "op": "add_group", "temp_id": "root", "layer": LAYER, "label": title,
         "position": {"x": 0, "y": top},
@@ -112,9 +109,7 @@ def diagram_ops(
     return ops
 
 
-def check(
-    nodes: list[DiagramNode], edges: list[DiagramEdge], title: str | None = None
-) -> None:
+def check(nodes: list[DiagramNode], edges: list[DiagramEdge], title: str) -> None:
     """Raises QuestionRejected with every problem, in the tool-error shape."""
     problems = validate_diagram(nodes, edges, title)
     if problems:

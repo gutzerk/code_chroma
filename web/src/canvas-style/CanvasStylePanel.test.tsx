@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { fireEvent, render, screen } from "@testing-library/react";
+import { act, fireEvent, render, screen } from "@testing-library/react";
 import { CanvasStylePanel } from "./CanvasStylePanel";
-import { canvasStyleStore } from "./canvasStyleStore";
+import { CANVAS_STYLE_PRESETS, canvasStyleStore, toStyle } from "./canvasStyleStore";
 
 afterEach(() => {
   canvasStyleStore.restoreDefault();
@@ -52,15 +52,23 @@ describe("CanvasStylePanel", () => {
     expect(screen.getByTestId("canvas-style-light-warning")).toBeTruthy();
   });
 
-  it("resets the draft and clears the saved style on Apply", () => {
+  it("resets the draft to the default and clears the saved style on Apply", () => {
     render(<CanvasStylePanel onDismiss={vi.fn()} />);
     fireEvent.click(screen.getByTestId("canvas-style-preset-dusk"));
     fireEvent.click(screen.getByTestId("canvas-style-apply"));
+    expect(canvasStyleStore.getSaved()).not.toBeNull();
 
     fireEvent.click(screen.getByTestId("canvas-style-reset"));
-    expect(canvasStyleStore.getSaved()).not.toBeNull();
     fireEvent.click(screen.getByTestId("canvas-style-apply"));
 
     expect(canvasStyleStore.getSaved()).toBeNull();
+  });
+
+  it("re-seeds an unedited draft when the saved style changes outside the panel", () => {
+    render(<CanvasStylePanel onDismiss={vi.fn()} />);
+
+    act(() => canvasStyleStore.set(toStyle(CANVAS_STYLE_PRESETS[1])));
+
+    expect(screen.getByTestId(`canvas-style-preset-${CANVAS_STYLE_PRESETS[1].id}`).getAttribute("aria-pressed")).toBe("true");
   });
 });

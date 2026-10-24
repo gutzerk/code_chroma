@@ -295,19 +295,19 @@ recognize before the request ever reaches the proxy). Returns
 
 - `kind="api"`, `transport="openai-compatible"`: `GET {base_url}/models` (OpenAI models-list
   shape, `{"data": [{"id": ...}, ...]}`) — same `base_url` convention `OpenAICompatibleProvider`
-  already posts `/chat/completions` against. Unsupported (no call) when `base_url` is unset.
+  already posts `/chat/completions` against. Falls back to the built-in list (no call) when `base_url` is unset.
 - `kind="api"`, `transport="anthropic"`: `GET {base_url or "https://api.anthropic.com"}/v1/models`
   with `x-api-key`/`anthropic-version` headers (Anthropic Models API shape,
 - `kind="api"`, `transport="gemini"`: `GET {base_url or "https://generativelanguage.googleapis.com"}/v1beta/models`
   with an `x-goog-api-key` header — Gemini's own models-list shape, where the id lives in each
-  item's `name` as `models/<id>` (stripped) and the label in `displayName`. Unsupported (no call)
+  item's `name` as `models/<id>` (stripped) and the label in `displayName`. Built-in list (no call)
   when no key resolves.
   `{"data": [{"id", "display_name"}, ...]}` — `display_name` becomes each model's `label`).
-  Unsupported (no call) when no key resolves via `resolve_provider_key()`.
+  Built-in list (no call) when no key resolves via `resolve_provider_key()`.
 - `kind="cli"`, `adapter="claude"`, `base_url` set: the same Anthropic-shape `GET .../v1/models`
   against that `base_url` — the natural counterpart of "A `claude` provider's own endpoint" above.
-  Supported even with no key (some proxies need none); only `base_url` being unset makes it
-  unsupported.
+  Supported even with no key (some proxies need none); with `base_url` unset it falls to the
+  built-in `claude` list.
 - **Built-in fallback** (`_STATIC_MODELS`, mirrored in C# `ModelCatalog.StaticModels`): whenever a
   provider can't be asked live — no key (anthropic/gemini), no `base_url` (openai-compatible), or a
   CLI adapter (`claude` with no `base_url`, `codex`, `kimi-cli`) — it returns `supported: true`,

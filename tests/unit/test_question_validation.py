@@ -122,13 +122,20 @@ def test_rejection_text_has_header_bullets_and_footer():
     assert lines[3].startswith("Call ask_user again with all fields.")
 
 
-def test_tracker_counts_and_resets():
+def test_tracker_counts_rejections():
     tracker = RejectionTracker()
     tracker.record("w", "s")
     tracker.record("w", "s")
 
     assert tracker.count("w", "s") == 2
+
+
+def test_tracker_reset_forgets_the_count():
+    tracker = RejectionTracker()
+    tracker.record("w", "s")
+
     tracker.reset("w", "s")
+
     assert tracker.count("w", "s") == 0
 
 

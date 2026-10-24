@@ -1,10 +1,15 @@
 """Unit tests for model_catalog.fetch_models against mocked HTTP model-list endpoints."""
 
+import re
+from pathlib import Path
+
 import httpx
 import pytest
 
-from codechroma.llm.model_catalog import fetch_models
+from codechroma.llm.model_catalog import _STATIC_MODELS, fetch_models
 from codechroma.llm.providers_store import Provider
+
+_REPO_ROOT = Path(__file__).resolve().parents[2]
 
 
 class _FakeResponse:
@@ -27,7 +32,7 @@ class _FakeResponse:
         (Provider(id="p", label="l", kind="api", transport="anthropic"), "claude-sonnet-5-5"),
         (Provider(id="p", label="l", kind="api", transport="gemini"), "gemini-2.5-pro"),
         (Provider(id="p", label="l", kind="cli", adapter="claude"), "sonnet"),
-        (Provider(id="p", label="l", kind="cli", adapter="codex", base_url="http://x"), "gpt-5.2"),
+        (Provider(id="p", label="l", kind="cli", adapter="codex"), "gpt-5.2"),
         (Provider(id="p", label="l", kind="cli", adapter="kimi-cli"), "kimi-k2-thinking"),
     ],
     ids=[
@@ -217,3 +222,22 @@ def test_non_2xx_response_reports_supported_with_error_message(monkeypatch):
     assert result["supported"] is True
     assert result["models"] == []
     assert result["error"] is not None
+
+
+def test_static_models_match_csharp_catalog():
+    source = (_REPO_ROOT / "dotnet/CodeChroma.Bridge/Stores/ModelCatalog.cs").read_text("utf-8")
+    found = re.search(r"AnthropicModels = \[(.*?)\];", source)
+    assert found, "AnthropicModels list not found in ModelCatalog.cs"
+    anthropic = found.group(1)
+    csharp = {"anthropic": re.findall(r'"([^"]+)"', anthropic)}
+    csharp["transport:anthropic"] = csharp["anthropic"]
+    for key, body in re.findall(r'\["((?:transport|adapter):[^"]+)"\] = \[(.*?)\],\r?\n', source):
+        csharp[key] = re.findall(r'"([^"]+)"', body) + (
+            csharp["anthropic"] if ".. AnthropicModels" in body else []
+        )
+
+    python = {key: list(models) for key, models in _STATIC_MODELS.items()}
+
+    for key, models in python.items():
+        assert key in csharp, f"{key} missing from ModelCatalog.cs"
+        assert csharp[key] == models, key

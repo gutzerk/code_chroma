@@ -19,6 +19,14 @@ describe("layoutStore", () => {
     expect(layoutStore.getState()).toMatchObject({ leftOpen: true, leftTab: "diagrams" });
   });
 
+  it("openLeft with a tab in full mode keeps full", () => {
+    layoutStore.setAgentsMode("full");
+
+    layoutStore.openLeft("diagrams");
+
+    expect(layoutStore.getState()).toMatchObject({ leftOpen: true, leftTab: "diagrams", agentsMode: "full" });
+  });
+
   it("toggleLeft flips the panel", () => {
     layoutStore.toggleLeft();
 

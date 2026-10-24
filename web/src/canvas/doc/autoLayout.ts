@@ -3,6 +3,8 @@ import type { CanvasDoc, CanvasElement, CanvasPosition, CanvasSize } from "../..
 import { rawMeta, stringMeta } from "./elementMeta";
 import { isEpicsLayer, layoutEpics } from "./epicsLayout";
 import { placeIncrementally } from "./incrementalLayout";
+import { buildSequenceModel } from "./sequenceModel";
+import type { SequenceView } from "./sequenceViewStore";
 
 const DEFAULT_SIZE = { width: 300, height: 72 };
 // Vertical gap below the document's existing content before a fresh batch's own layered block starts.
@@ -163,6 +165,7 @@ export const SEQUENCE_LAYOUT = {
 export function layoutSequence(
   doc: CanvasDoc,
   ids: readonly string[],
+  view?: SequenceView,
 ): { positions: Record<string, CanvasPosition>; sizes: Record<string, CanvasSize> } {
   const positions: Record<string, CanvasPosition> = {};
   const sizes: Record<string, CanvasSize> = {};
@@ -171,6 +174,7 @@ export function layoutSequence(
   const elements = ids
     .map((id) => doc.elements[id])
     .filter((element): element is NonNullable<typeof element> => Boolean(element));
+  const slotOf = sequenceRowSlots(elements, view);
 
   // Participant columns (left-to-right, in element order) and their authored-id → column index.
   const participants = elements.filter((e) => stringMeta(e, "role") === "participant");
@@ -198,7 +202,7 @@ export function layoutSequence(
     const y =
       SEQUENCE_LAYOUT.headH +
       SEQUENCE_LAYOUT.headGap +
-      SEQUENCE_LAYOUT.rowH * (order - 1) +
+      SEQUENCE_LAYOUT.rowH * (slotOf(order) - 1) +
       SEQUENCE_LAYOUT.rowH / 2;
     const xMid = (x1 * SEQUENCE_LAYOUT.colW + x2 * SEQUENCE_LAYOUT.colW) / 2 + SEQUENCE_LAYOUT.colW / 2;
     positions[element.id] = { x: xMid, y };
@@ -210,6 +214,31 @@ export function layoutSequence(
     sizes[element.id] = { w: Math.max(Math.abs(x1 - x2) * SEQUENCE_LAYOUT.colW, 40), h: SEQUENCE_LAYOUT.rowH };
   }
   return { positions, sizes };
+}
+
+/** Order → row (1-based). Readable keeps `order` itself; focus folds each collapsed phase into the
+ * one row its first message holds, so hidden messages stop taking vertical space. */
+function sequenceRowSlots(elements: CanvasElement[], view?: SequenceView): (order: number) => number {
+  if (!view || view.mode !== "focus" || view.collapsed.length === 0) return (order) => order;
+  const { phases, messages } = buildSequenceModel(elements);
+  const folded = phases.filter((p) => view.collapsed.includes(p.id));
+  const slots = new Map<number, number>();
+  let slot = 0;
+  let lastFold = -1;
+  let lastFoldSlot = 0;
+  for (const { order } of messages) {
+    if (slots.has(order)) continue;
+    const fold = folded.findIndex((f) => order >= f.from_order && order <= f.to_order);
+    if (fold >= 0 && fold === lastFold) {
+      slots.set(order, lastFoldSlot);
+      continue;
+    }
+    slot += 1;
+    slots.set(order, slot);
+    lastFold = fold;
+    lastFoldSlot = slot;
+  }
+  return (order) => slots.get(order) ?? order;
 }
 
 /** Shifts a positions map down by `yOffset`, returning a fresh map -- the one transformation every

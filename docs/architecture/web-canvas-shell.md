@@ -574,3 +574,21 @@ expand button, folder and color boxes all go through `layoutStore`/`collapsedLay
 
 - `web/src/share/ShareMenu.tsx` (top bar, right of `GamesMenu`; same `useDisclosureMenu` dropdown shape) lists PNG / HTML / PDF. Picking one calls `captureCanvas.ts` (`prepareCapture`: the whole `canvas-content`, framed by `contentBounds` and rendered with `html-to-image` using a translate-only transform, so pan/zoom never matter), `exportFormats.ts` (`buildExport`: PNG blob; HTML = standalone page embedding an SVG snapshot; PDF = one `jspdf` page sized to the PNG), then `saveFile.ts`.
 - `saveFile` asks where to save: `window.codechromaDesktop.saveFile` (native Save As, see [`desktop-app.md`](desktop-app.md)) in the shell, else `showSaveFilePicker`, else an `<a download>` fallback. A cancelled dialog is silent; failures show a `role="alert"` note under the button.
+
+## Share / export menu
+
+- `web/src/share/ShareMenu.tsx` (top bar, right of `GamesMenu`; same `useDisclosureMenu` dropdown shape) lists PNG / HTML / PDF. Picking one calls `captureCanvas.ts` (`prepareCapture`: the whole `canvas-content`, framed by `contentBounds` and rendered with `html-to-image` using a translate-only transform, so pan/zoom never matter), `exportFormats.ts` (`buildExport`: PNG blob; HTML = standalone page embedding an SVG snapshot; PDF = one `jspdf` page sized to the PNG), then `saveFile.ts`.
+- `saveFile` asks where to save: `window.codechromaDesktop.saveFile` (native Save As, see [`desktop-app.md`](desktop-app.md)) in the shell, else `showSaveFilePicker`, else an `<a download>` fallback. A cancelled dialog is silent; failures show a `role="alert"` note under the button.
+
+## Sequence modes (022)
+
+See "Sequence readability" in [`diagram-skills.md`](diagram-skills.md): `SequenceDiagram.tsx` dispatches to `SequenceReadable`/`SequenceFocus` from `sequenceViewStore`; the mode switch is in `DiagramFrame.tsx`.
+
+## Block anatomy, zoom levels, lanes, click-to-focus (022 Stage 2)
+
+- **Box foot:** `CanvasNodeBox.tsx` shows `meta.path` (now folded into node meta by both `recipes.py` and `Recipes.cs`) with a `SRC ↗` button that opens the Inspector, plus a role chip from `meta.kind` in `NodeMetaRow`. The `CONCEPTUAL` chip is gone (the ghost styling stays); copy and `?` show only on hover.
+- **Zoom levels:** `layout/layoutMetrics.ts`'s `zoomLevelFor` (`ZOOM_MID_SCALE` 0.6, `ZOOM_FAR_SCALE` 0.3) sets `data-zoom` on `.canvas-content`; CSS drops description/path at `mid` and everything but the title at `far`.
+- **Lanes:** `connectors/elkLayout.ts` lays out RIGHT with one ELK partition per `lane` (first-seen order) when any box has a lane; no lanes keeps the DOWN layout.
+- **Click-to-focus:** `doc/focusStore.ts` + `focusNeighbors.ts` (note: the `highlighting/` folder is syntax highlighting, so this is a small store of its own). A box click lights the box and its direct neighbours, fades the rest (`block-focus-dim`, 35%), and `FocusPanel.tsx` lists CALLED BY / USES with Both / Upstream / Downstream.
+
+**022 follow-ups:** `doc/bundleEdges.ts` merges parallel edges into one `label ×N` before routing (`CanvasEdges.tsx`); a corner `canvas-node-step-chip` shows `meta.order`'s leading digits (the old `STEP n` text is hidden); the sequence ▶ player (`sequenceViewStore.setStep`, button in `DiagramFrame.tsx`) lights one `order` at a time and fades later messages. Group frames already existed (`GroupFrame.tsx`). `e2e/sequence-modes.spec.ts` covers the Readable ↔ Focus flip and the player. Note: the frame label ignores pointer events, so interactive controls in it need `pointer-events: auto` (`.canvas-diagram-frame-modes`).

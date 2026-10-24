@@ -7,7 +7,6 @@ namespace CodeChroma.Bridge.Routes;
 public static class IssueRoutes
 {
     public const string IssueRepo = "gutzerk/code_chroma";
-    private const int GhTimeoutSeconds = 60;
     private static readonly TimeSpan ReadyTtl = TimeSpan.FromSeconds(60);
     private static readonly HashSet<string> AllowedLabels = ["bug", "enhancement", "question", "documentation"];
     private static (DateTime At, bool Ready)? _ready;

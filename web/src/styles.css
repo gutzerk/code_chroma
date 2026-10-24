@@ -3944,6 +3944,41 @@ button[data-copy-state="idle"][aria-label]:hover:not(:disabled) {
   padding: 0.4rem;
 }
 
+.terminal-panel-container[hidden] {
+  display: none;
+}
+
+.terminal-panel-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 8px;
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+.terminal-panel-tabs {
+  display: flex;
+  flex: 1;
+  min-width: 0;
+  overflow-x: auto;
+  gap: 4px;
+}
+
+.terminal-panel-toolbar button {
+  flex-shrink: 0;
+  border: 0;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--text-1);
+  padding: 5px 8px;
+  cursor: pointer;
+}
+
+.terminal-panel-toolbar button:hover,
+.terminal-panel-tabs button[aria-selected="true"] {
+  background: var(--surface-2);
+}
+
 /* ── C1 code inspector ────────────────────────────────────────────────────────────────────────
    Full-height right dock everything below the C1 code boundary opens into, instead of expanding
    inside a diagram box and re-ranking dagre around the box's new size. A direct .app-body child, so

@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { cleanup, fireEvent, render, screen, within } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, within } from "@testing-library/react";
 import { ActivityPanel } from "./ActivityPanel";
 import { agentStore } from "./agentStore";
 import { AgentClientProvider } from "./AgentClientContext";
@@ -35,6 +35,42 @@ vi.mock("../workflows/WorkflowsTab", () => ({
   WorkflowsTab: () => <div data-testid="workflows-tab-stub" />,
 }));
 describe("ActivityPanel", () => {
+  it.each(["ctrlKey", "metaKey"])("cycles agents in both directions with %s+Alt+arrows", async (modifier) => {
+    const client = new MockAgentClient();
+    const first = await client.create("Planner");
+    const second = await client.create("Builder");
+    agentStore.upsert(first);
+    agentStore.upsert(second);
+    setup();
+    fireEvent.click(screen.getByRole("tab", { name: /Workflows/ }));
+    act(() => layoutStore.setAgentsMode("collapsed"));
+
+    fireEvent.keyDown(window, { key: "ArrowRight", [modifier]: true, altKey: true });
+    expect(layoutStore.getState()).toMatchObject({ selectedAgentId: second.id, agentsMode: "normal" });
+    expect(screen.getByRole("tab", { name: /Agents/ })).toHaveAttribute("aria-selected", "true");
+    expect(screen.getByTestId(`terminal-${second.id}`)).toBeVisible();
+
+    fireEvent.keyDown(window, { key: "ArrowRight", [modifier]: true, altKey: true });
+    expect(layoutStore.getState().selectedAgentId).toBe(first.id);
+    act(() => layoutStore.setAgentsMode("full"));
+    fireEvent.keyDown(window, { key: "ArrowLeft", [modifier]: true, altKey: true });
+    expect(layoutStore.getState()).toMatchObject({ selectedAgentId: second.id, agentsMode: "full" });
+  });
+
+  it("leaves unmodified arrows and modal keyboard input alone", async () => {
+    const agent = await new MockAgentClient().create("Planner");
+    agentStore.upsert(agent);
+    setup();
+    fireEvent.keyDown(window, { key: "ArrowRight" });
+    expect(layoutStore.getState().selectedAgentId).toBeNull();
+    const modal = document.createElement("div");
+    modal.setAttribute("aria-modal", "true");
+    document.body.append(modal);
+    fireEvent.keyDown(window, { key: "ArrowRight", ctrlKey: true, altKey: true });
+    modal.remove();
+    expect(layoutStore.getState().selectedAgentId).toBeNull();
+  });
+
   it("keeps the header and switcher row on the agents tab only for run agent", () => {
     setup();
 

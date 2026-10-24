@@ -110,6 +110,11 @@ stand-ins, next to what each icon literally depicts and what the button does.
 **Diff**: the Diff toggle button is hidden from the rail for now (its logic is kept in the code but
 not surfaced), so diff framing isn't currently reachable from the UI.
 
+The terminal toolbar's **+** opens another shell tab. **×** closes the active shell, and **−** hides
+the panel while keeping its sessions running. Click a terminal tab to return to its shell and output.
+Use **Ctrl+Alt+Left/Right** (**Cmd+Alt+Left/Right** on macOS) to cycle agents and focus the selected
+agent's terminal. Switching agents also opens a collapsed agent panel.
+
 ### Agent panel (beside the canvas: **Agents** / **Diagrams** tabs)
 
 - **Diagrams tab** — the one place every diagram layer is listed and managed. Each row toggles that

@@ -106,6 +106,7 @@ export function RootCanvas() {
   const expandedNodeIds = useExpandedNodeIdsByOrder();
   const codeVisibleNodeIds = useCodeVisibleNodeIdsByOrder();
   const isTerminalPanelOpen = useIsTerminalPanelOpen();
+  const [terminalHeight, setTerminalHeight] = useState(0);
   const agentClient = useAgentClient();
   const workspaceId = useActiveWorkspace();
   const prWorkspaces = usePrWorkspaces();
@@ -508,7 +509,10 @@ export function RootCanvas() {
         </nav>
         <TutorialChat />
         <TutorialAgentMock />
-        <div className="canvas-area" data-testid="canvas-area" style={LAYOUT_CSS_VARS as CSSProperties}>
+        <div className="canvas-area" data-testid="canvas-area" style={{
+          ...LAYOUT_CSS_VARS,
+          "--terminal-clearance": `${terminalHeight > 0 ? terminalHeight + 6 : 0}px`,
+        } as CSSProperties}>
           {/* Row for the canvas plus the agent task panel beside it — a full-height sibling of the
               canvas, not a toolbar item, so cards have room to be more than an icon and a tooltip.
               The project tree stays the leftmost item (the very edge, right after .app-rail), with
@@ -563,7 +567,7 @@ export function RootCanvas() {
           </div>
           {/* Docked under the canvas, inside .canvas-area, so the inspector to the right of it stays
               full viewport height and the terminal spans only the canvas's own width. */}
-          {terminalMounted && <TerminalPanel hidden={!isTerminalPanelOpen} />}
+          {terminalMounted && <TerminalPanel hidden={!isTerminalPanelOpen} onHeightChange={setTerminalHeight} />}
           {/* Floating chrome over the canvas area; z-order comes from layoutMetrics Z_*. */}
           {leftOpen ? (
             <LeftPanel

@@ -13,8 +13,6 @@ const LEFT_PANEL_WIDTH = 262;
 const LEFT_PANEL_GAP = 12;
 /** Left edge (px) of in-flow content when the left panel is open. */
 const LEFT_PANEL_CLEARANCE = CHROME_INSET + LEFT_PANEL_WIDTH + LEFT_PANEL_GAP;
-/** Left edge (px) of the draw popover when the left panel is collapsed (clears the collapsed bar). */
-const COLLAPSED_LEFT_BAR_CLEARANCE = 68;
 /** Right inset (px) taken by the agents panel in normal mode. */
 const AGENTS_NORMAL_INSET = 424;
 /** Right inset (px) taken by the agents handle strip when collapsed or full. */
@@ -27,7 +25,6 @@ export const ARRANGE_X_OPEN = LEFT_PANEL_CLEARANCE + 4;
 export const ARRANGE_X_CLOSED = 28;
 export const ARRANGE_Y_OPEN = 28;
 export const ARRANGE_Y_CLOSED = 76;
-export const POPOVER_TOP = 10;
 
 /** CSS custom properties set once on `.canvas-area` so stylesheets share these exact values. */
 export const LAYOUT_CSS_VARS = {
@@ -44,7 +41,6 @@ export interface ChromeInsets {
   terminalLeft: number;
   terminalRight: number;
   arrangeOrigin: { x: number; y: number };
-  drawPopover: { left: number; top: number };
 }
 
 /** Pure chrome offsets (px) derived from the left panel and agents panel state. */
@@ -54,7 +50,6 @@ export function chromeInsets(state: ChromeInsetsInput): ChromeInsets {
     terminalLeft: leftOpen ? LEFT_PANEL_CLEARANCE : CHROME_INSET,
     terminalRight: agentsMode === "normal" ? AGENTS_NORMAL_INSET : AGENTS_COLLAPSED_INSET,
     arrangeOrigin: { x: leftOpen ? ARRANGE_X_OPEN : ARRANGE_X_CLOSED, y: leftOpen ? ARRANGE_Y_OPEN : ARRANGE_Y_CLOSED },
-    drawPopover: { left: leftOpen ? LEFT_PANEL_CLEARANCE : COLLAPSED_LEFT_BAR_CLEARANCE, top: POPOVER_TOP },
   };
 }
 

@@ -44,17 +44,35 @@ public class BareSkillTests
         Assert.True(short1.Length < full.Length / 3, $"short {short1.Length} vs full {full.Length}");
     }
 
-    [Theory]
-    [InlineData("c1", "Draw the C1")]
-    [InlineData("any", "Router")]
-    public void An_interactive_start_inlines_the_skill_and_asks_the_user_what_to_draw(string type, string expected)
+    [Fact]
+    public void An_interactive_start_inlines_the_type_body_and_asks_the_user_what_to_draw()
     {
-        var prompt = BareSkill.ComposeInteractive(type, Root, "main", "ctx-tool --repo-path x")!;
+        var prompt = BareSkill.ComposeInteractive("c1", Root, "main", "ctx-tool --repo-path x")!;
 
-        Assert.Contains(expected, prompt);
+        Assert.Contains("Draw the C1", prompt);
         Assert.Contains("ask what they want to see", prompt);
         Assert.Contains("ctx-tool --repo-path x \"phrase\"", prompt);
         Assert.DoesNotContain("{BRIDGE}", prompt);
+    }
+
+    [Fact]
+    public void An_open_interactive_start_loads_no_skill_until_the_user_answers()
+    {
+        var prompt = BareSkill.ComposeInteractive("any", Root, "main", null)!;
+
+        Assert.Contains("ask what they want to see", prompt);
+        Assert.Contains("is not loaded yet", prompt);
+        Assert.DoesNotContain("Router", prompt);
+    }
+
+    [Fact]
+    public void An_interactive_start_the_terminal_already_asked_about_does_not_ask_again()
+    {
+        var prompt = BareSkill.ComposeInteractive("any", Root, "main", "ctx-tool --repo-path x", askedInTerminal: true)!;
+
+        Assert.Contains("Do not greet or ask again", prompt);
+        Assert.DoesNotContain("ask what they want to see", prompt);
+        Assert.Contains("Start by running `ctx-tool --repo-path x \"phrase\"", prompt);
     }
 
     [Fact]

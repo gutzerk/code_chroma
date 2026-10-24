@@ -546,11 +546,13 @@ body {
 /* The top bar's "Games" dropdown — its own trigger+list shape and classes, unrelated to diagrams.
    Lives in .canvas-chrome (right side, next to PrRailButton/SettingsRailButton) rather than
    .app-rail, so the list hangs from the right edge of the trigger instead of running off-screen. */
-.games-menu {
+.games-menu,
+.share-menu {
   position: relative;
 }
 
-.games-menu-list {
+.games-menu-list,
+.share-menu-list {
   position: absolute;
   right: 0;
   top: calc(100% + 6px);
@@ -565,7 +567,8 @@ body {
   box-shadow: 0 10px 28px rgba(0, 0, 0, 0.45);
 }
 
-.canvas-chrome .games-menu-item {
+.canvas-chrome .games-menu-item,
+.canvas-chrome .share-menu-item {
   display: block;
   width: 100%;
   height: auto;
@@ -579,8 +582,24 @@ body {
   cursor: pointer;
 }
 
-.canvas-chrome .games-menu-item:hover {
+.canvas-chrome .games-menu-item:hover,
+.canvas-chrome .share-menu-item:hover {
   background: rgba(255, 255, 255, 0.08);
+}
+
+/* The top bar's "Share" dropdown reuses the Games dropdown's rules above. */
+.share-menu-error {
+  position: absolute;
+  right: 0;
+  top: calc(100% + 6px);
+  z-index: 61;
+  width: 200px;
+  padding: 0.4rem 0.6rem;
+  background: var(--surface-3);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  color: var(--text-1);
+  font-size: 0.78rem;
 }
 
 /* The floating game window — a fixed size, no drag/resize, just a title bar with minimize/close. */
@@ -5150,7 +5169,7 @@ button[data-copy-state="idle"][aria-label]:hover:not(:disabled) {
 }
 
 /* The docked agent tab — a pill, not a browser-style top-rounded tab, matching the restyle's
-   "agent tab pill" (34px tall, #222733 when the tab shown is the active one). */
+   "agent tab pill" (34px tall). The active tab is the filled pill; inactive tabs are flat until hovered. */
 .agent-terminal-dock-tab {
   display: inline-flex;
   min-width: 0;
@@ -5161,7 +5180,7 @@ button[data-copy-state="idle"][aria-label]:hover:not(:disabled) {
   padding: 0 12px;
   border: none;
   border-radius: var(--radius-full);
-  background: var(--bg-raised);
+  background: transparent;
   color: var(--text-2);
   font-size: 0.8125rem;
   font-weight: 500;
@@ -5180,7 +5199,7 @@ button[data-copy-state="idle"][aria-label]:hover:not(:disabled) {
 }
 
 .agent-terminal-dock-tab.is-active {
-  background: transparent;
+  background: var(--bg-raised);
   color: var(--text-1);
   font-weight: 600;
   cursor: default;

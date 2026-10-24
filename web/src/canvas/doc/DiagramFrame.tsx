@@ -47,7 +47,7 @@ function SequenceModeSwitch({ layer, members }: { layer: string; members: Canvas
   const model = useMemo(() => buildSequenceModel(members), [members]);
   const phaseIds = model.phases.map((p) => p.id);
   const stop = (e: { stopPropagation: () => void }) => e.stopPropagation();
-  const orders = [...new Set(model.messages.map((m) => m.order))];
+  const orders = useMemo(() => [...new Set(model.messages.map((m) => m.order))], [model]);
   const step = sequenceViewStore.getStep(layer);
   const playing = step !== null;
   useEffect(() => {
@@ -57,8 +57,7 @@ function SequenceModeSwitch({ layer, members }: { layer: string; members: Canvas
       sequenceViewStore.setStep(layer, next ?? null);
     }, PLAYER_STEP_MS);
     return () => clearTimeout(timer);
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- `orders` is derived from `members` each render
-  }, [step, layer]);
+  }, [step, layer, orders]);
   return (
     <span
       className="canvas-diagram-frame-modes"

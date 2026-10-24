@@ -241,6 +241,28 @@ function sequenceRowSlots(elements: CanvasElement[], view?: SequenceView): (orde
   return (order) => slots.get(order) ?? order;
 }
 
+/** The sequence layer's elements at the geometry the viewer's mode implies, anchored to the persisted
+ * layout so a frame drag survives; display only -- nothing here is written back to the document. */
+export function viewSequenceElements(
+  doc: CanvasDoc,
+  ids: readonly string[],
+  view: SequenceView,
+): CanvasElement[] {
+  const elements = ids.map((id) => doc.elements[id]).filter((e): e is CanvasElement => Boolean(e));
+  if (view.mode !== "focus" || view.collapsed.length === 0) return elements;
+  const base = layoutSequence(doc, ids);
+  const next = layoutSequence(doc, ids, view);
+  const anchor = elements.find((e) => base.positions[e.id]);
+  if (!anchor) return elements;
+  const dx = anchor.position.x - base.positions[anchor.id].x;
+  const dy = anchor.position.y - base.positions[anchor.id].y;
+  return elements.map((element) => {
+    const p = next.positions[element.id];
+    if (!p) return element;
+    return { ...element, position: { x: p.x + dx, y: p.y + dy }, size: next.sizes[element.id] ?? element.size };
+  });
+}
+
 /** Shifts a positions map down by `yOffset`, returning a fresh map -- the one transformation every
  * `layoutNewElements` branch applies to its laid-out boxes without mutating the layout's own map. */
 function applyYOffset(

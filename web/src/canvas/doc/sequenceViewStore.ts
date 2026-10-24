@@ -79,10 +79,9 @@ class SequenceViewStore extends Store {
   setFocus = (layer: string, focus: string | null): void => this.update(layer, { focus });
   setCollapsed = (layer: string, collapsed: string[]): void => this.update(layer, { collapsed });
 
-  /** Forgets every in-memory choice (and the saved ones for tests); also runs on a workspace switch. */
+  /** Forgets the in-memory choices (saved ones stay and reload per workspace); runs on a workspace switch. */
   reset(): void {
-    this.stored = {};
-    writeStorage({});
+    this.stored = null;
     this.steps.clear();
     this.bump(true);
   }

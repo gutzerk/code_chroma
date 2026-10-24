@@ -35,4 +35,10 @@ describe("focus", () => {
     focusStore.toggle(doc, "b");
     expect(focusStore.stateOf("x")).toBe("none");
   });
+
+  it("ignores a click on a block with no edges", () => {
+    focusStore.toggle(doc, "lonely");
+
+    expect(focusStore.current()).toBeNull();
+  });
 });

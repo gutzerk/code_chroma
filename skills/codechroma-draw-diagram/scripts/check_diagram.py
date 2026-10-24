@@ -873,7 +873,6 @@ def _check_impact_status(diagram: object, kind: str, report: _Report) -> None:
 
 PHASE_KINDS = ("request", "prepare", "ai", "deliver", "custom")
 MAX_TITLE_WORDS = 4
-_FAILURE_WORDS = ("fail", "error", "reject", "denied", "timeout", "invalid")
 
 
 def _check_readability(diagram: object, kind: str, report: _Report) -> None:
@@ -886,11 +885,13 @@ def _check_readability(diagram: object, kind: str, report: _Report) -> None:
         for relation in relations:
             if relation.get("order") in (None, ""):
                 report.shape.append(
-                    f"NO-ORDER {relation.get('id')!r} message has no `order` -- number every message"
+                    f"NO-ORDER {relation.get('id')!r} message has no `order` --"
+                    " number every message"
                 )
         _check_phases(diagram, relations, report)
     for key in ("question", "summary"):
-        if kind == "sequence" and relations and not (isinstance(diagram.get(key), str) and diagram[key].strip()):
+        text = diagram.get(key)
+        if kind == "sequence" and relations and not (isinstance(text, str) and text.strip()):
             report.advisories.append(f"NOSUMMARY the diagram has no top-level `{key}` string")
     names = {n.get("id"): str(n.get("name") or "").strip().lower() for n in nodes}
     for node in nodes:
@@ -906,13 +907,16 @@ def _check_readability(diagram: object, kind: str, report: _Report) -> None:
     for relation in relations:
         label = str(relation.get("label") or "").strip()
         pair = f"{relation.get('from')} -> {relation.get('to')}"
-        if label and label.lower() in (names.get(relation.get("from")), names.get(relation.get("to"))):
+        titles = (names.get(relation.get("from")), names.get(relation.get("to")))
+        if label and label.lower() in titles:
             report.advisories.append(f"ECHO-LABEL {pair} label {label!r} repeats a box title")
-        failing = relation.get("kind") in ("error", "failure") or any(
-            word in label.lower() for word in _FAILURE_WORDS
-        )
-        if failing and not label:
+        if relation.get("kind") in ("error", "failure") and not label:
             report.advisories.append(f"HIDDEN-BRANCH {pair} is a failure path with no label")
+
+
+def _is_number(value: object) -> bool:
+    """True for int/float but not bool (True would otherwise pass an `int` check)."""
+    return isinstance(value, int | float) and not isinstance(value, bool)
 
 
 def _check_phases(diagram: dict, relations: list[dict], report: _Report) -> None:
@@ -929,9 +933,9 @@ def _check_phases(diagram: dict, relations: list[dict], report: _Report) -> None
             continue
         name = phase.get("id") or phase.get("name")
         if phase.get("kind") not in PHASE_KINDS:
-            report.advisories.append(f"BADPHASE {name!r} kind must be one of {PHASE_KINDS}")
+            report.shape.append(f"BADPHASE {name!r} kind must be one of {PHASE_KINDS}")
         start, end = phase.get("from_order"), phase.get("to_order")
-        if not (isinstance(start, int | float) and isinstance(end, int | float) and start <= end):
+        if not (_is_number(start) and _is_number(end) and start <= end):
             report.shape.append(f"BADPHASE {name!r} needs numeric from_order <= to_order")
 
 

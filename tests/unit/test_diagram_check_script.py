@@ -459,3 +459,18 @@ def test_sequence_message_without_order_fails_the_shape_tier(tmp_path):
     code = module.main(["--kind", "sequence", "--json", str(path)])
 
     assert code == 3
+
+
+def test_phase_with_unknown_kind_fails_the_shape_tier(tmp_path):
+    module = _load_module()
+    path = tmp_path / "seq.json"
+    path.write_text(
+        '{"nodes":[{"id":"a","name":"A"},{"id":"b","name":"B"}],'
+        '"relations":[{"id":"m1","from":"a","to":"b","label":"go","order":1}],'
+        '"phases":[{"id":"p","name":"P","kind":"bogus","from_order":1,"to_order":1}]}',
+        encoding="utf-8",
+    )
+
+    code = module.main(["--kind", "sequence", "--json", str(path)])
+
+    assert code == 3

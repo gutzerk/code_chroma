@@ -67,15 +67,30 @@ public sealed class QuestionMcp(Func<string, Workspace> workspaceFor, TimeSpan? 
         var ws = workspaceFor(workspaceId);
         var extra = await Check(ws, workspaceId, request, connection);
         request.AgentId = workspaceId;
-        var found = await Task.Run(() => QuestionStore.FindDiagramRequested(ws, request), cancellation);
-        var reasked = found?.Keep;
-        var questionId = reasked is not null ? Json.Str(reasked.Meta["question_id"])! : Guid.NewGuid().ToString("N");
-        if (reasked is not null) Broker.Forget(questionId);
-        Broker.Open(questionId);
+        var questionId = await Task.Run(() =>
+        {
+            lock (CanvasWrite.LockFor(ws.Id))
+            {
+                var found = QuestionStore.FindDiagramRequested(ws, request);
+                var reasked = found?.Keep;
+                var id = reasked is not null ? Json.Str(reasked.Meta["question_id"])! : Guid.NewGuid().ToString("N");
+                if (reasked is not null) Broker.Forget(id);
+                Broker.Open(id);
+                try
+                {
+                    if (reasked is not null) QuestionStore.Reask(ws, reasked, request, extra, found!.Value.Stale);
+                    else QuestionStore.OpenQuestion(ws, request, id, extra);
+                    return id;
+                }
+                catch
+                {
+                    Broker.Close(id);
+                    throw;
+                }
+            }
+        }, cancellation);
         try
         {
-            if (reasked is not null) await Task.Run(() => QuestionStore.Reask(ws, reasked, request, extra, found!.Value.Stale), cancellation);
-            else await Task.Run(() => QuestionStore.OpenQuestion(ws, request, questionId, extra), cancellation);
             var result = await Broker.Wait(questionId, AskWait, cancellation);
             return result.ToToolJson();
         }
@@ -121,14 +136,18 @@ public sealed class QuestionMcp(Func<string, Workspace> workspaceFor, TimeSpan? 
     /// <summary>The settled answer, read from the broker or (after a restart) the canvas element.</summary>
     public async Task<JsonObject> Result(string workspaceId, string questionId)
     {
-        var found = Broker.Lookup(questionId);
-        if (found.Pending)
+        var ws = workspaceFor(workspaceId);
+        return await Task.Run(() =>
         {
-            var ws = workspaceFor(workspaceId);
-            var element = await Task.Run(() => QuestionStore.FindElement(ws, questionId));
-            if (element is not null && QuestionStore.ResultFrom(element) is { } settled) found = settled;
-        }
-        return found.ToToolJson();
+            lock (CanvasWrite.LockFor(ws.Id))
+            {
+                var element = QuestionStore.FindElement(ws, questionId);
+                if (element is null) return new QuestionResult { Pending = true, QuestionId = questionId }.ToToolJson();
+                var found = Broker.Lookup(questionId);
+                if (found.Pending && QuestionStore.ResultFrom(element) is { } settled) found = settled;
+                return found.ToToolJson();
+            }
+        });
     }
 
     /// <summary>One JSON-RPC request of the MCP endpoint; null for a notification.</summary>

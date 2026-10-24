@@ -105,6 +105,19 @@ functions), not pydantic — matching the existing convention for a small, hand-
   the fixed `GROUPS` table (`CallSiteGroup`: `id`, `label`, `members`) and `group_of()`; none of it
   user-editable, none stored in JSON.
 
+## One default model (planning 023, backend only)
+
+Stage 1 and the Python half of Stage 2 of [`docs/planning/023-llm-settings-default-model.md`](../planning/023-llm-settings-default-model.md) are in; the C# bridge mirror and the web dialog (Models/Connections/Advanced tabs) are not, so the UI and `dotnet/CodeChroma.Bridge` still use only per-feature assignments.
+
+- **Capability** (`providers_store.capabilities(provider) -> Capabilities(agents, quick)`, derived, never stored): `cli`/`claude` is `agents`, and also `quick` when it carries an `api_key`/`api_key_path`; `cli`/`codex`/`kimi-cli` is `agents` only; `api`/`anthropic` is both; other `api` transports are `quick` only.
+- **Default** (`call_site_settings.py`): a `default` section `{provider_id, model, quick_fallback?, agent_fallback?}` in `llm-call-site-settings.json` (`load_default`/`save_default`/`clear_default`/`validate_default`). A fallback is `{provider_id, model}` or, for `quick_fallback` only, `{"offline": true}`.
+- **Resolution** (`load_assignment`): explicit override (`assignments` / `group_assignments`) -> default if capable -> matching fallback -> `None` (the caller keeps its pre-feature behavior, FR-009). The default synthesizes `mode="cli"` for agentic ids and `mode="api"` for simple ones; an offline fallback synthesizes `mode="offline"`, which `build_provider` turns into `None` (no model call, not even the env key).
+- **`api`/`anthropic` agentic runs**: `resolve_cli.py` runs the `claude` adapter with `ANTHROPIC_API_KEY=""`, `ANTHROPIC_AUTH_TOKEN=<key>`, `ANTHROPIC_MODEL` and `ANTHROPIC_BASE_URL` when set. A keyed `cli`/`claude` connection answers one-shot calls through `build_provider` -> `AnthropicProvider` (with its `base_url`). `validate_group` now accepts any `agents`-capable connection.
+- **`blocking_call_sites`** also returns `"default"` while the default or one of its fallbacks references the provider.
+- **`call_sites.FEATURES`**: the five user-facing rows (`diagrams`, `planning`, `agents`, `ai_summarizer`, `initial_diagram_bootstrap`) with label, plain description, `needs` (`agents|quick`) and members; a unit test keeps it in sync with `CALL_SITES`. `HIDDEN_GROUPS` stays only for the legacy `GET /llm/call-sites` list.
+- **Routes**: `GET/PUT/DELETE /llm/default`; `GET /llm/features` (per row `effective {provider_id, provider_name, model}`, `source` = `default|custom|fallback|offline|legacy`, `needs`, `compatible_provider_ids`); `GET /llm/providers` adds `capabilities` and `used_by`. The group-validation message is now "an agentic group needs a provider that can drive a CLI agent" (shared wire-contract case and `LlmStores.cs` updated).
+- **Tests**: `test_llm_default_model.py` (capability table, api/anthropic env, keyed-claude `build_provider`), `test_llm_call_site_settings.py` and `test_bridge_llm_settings_route.py` (resolution order, fallbacks, routes).
+
 ## The two registries (Strategy / Adapter + Registry)
 
 - **`context/llm_provider.py`**: `LLMProvider` Protocol, `AnthropicProvider` (unchanged), and the new

@@ -222,7 +222,7 @@ public sealed class CallSiteStore(UserPaths paths, ProviderStore providers)
             problems.Add("provider_id must reference an existing provider");
             return problems;
         }
-        if (Json.Str(provider["kind"]) != "cli") problems.Add("an agentic group can only be assigned a provider of kind=cli");
+        if (Json.Str(provider["kind"]) != "cli") problems.Add("an agentic group needs a provider that can drive a CLI agent");
         if (Json.Str(payload["model"]) is not { } model || Json.IsBlank(model))
             problems.Add("model must be a non-empty string");
         return problems;

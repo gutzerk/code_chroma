@@ -31,8 +31,20 @@ class CliResolution:
     provider_assigned: bool
 
 
+def _is_anthropic_api(provider: Provider) -> bool:
+    return provider.kind == "api" and provider.transport == "anthropic"
+
+
 def _cli_env_overrides(provider: Provider, model: str) -> dict[str, str]:
-    """Only "claude" providers with a base_url get env vars -- doesn't affect `--bare`'s check."""
+    """Claude providers with a base_url, or an anthropic API key, get env vars (not `--bare`)."""
+    if _is_anthropic_api(provider):
+        overrides = {"ANTHROPIC_API_KEY": "", "ANTHROPIC_MODEL": model}
+        if provider.base_url:
+            overrides["ANTHROPIC_BASE_URL"] = provider.base_url
+        key = resolve_provider_key(provider)
+        if key:
+            overrides["ANTHROPIC_AUTH_TOKEN"] = key
+        return overrides
     if provider.adapter != "claude" or not provider.base_url:
         return {}
     # AUTH_TOKEN not API_KEY (API_KEY wins precedence); ANTHROPIC_MODEL not --model (CLI rejects it)
@@ -55,6 +67,14 @@ def resolve_cli(call_site_id: str, default_model: str) -> CliResolution:
     assignment = load_assignment(call_site_id)
     if assignment is not None and assignment.mode == "cli":
         provider = find_provider(assignment.provider_id)
+        if provider is not None and _is_anthropic_api(provider):
+            return CliResolution(
+                adapter_key="claude",
+                binary="claude",
+                model=assignment.model,
+                env_overrides=_cli_env_overrides(provider, assignment.model),
+                provider_assigned=True,
+            )
         if provider is not None and provider.kind == "cli" and provider.adapter in CLI_ADAPTERS:
             return CliResolution(
                 adapter_key=provider.adapter,

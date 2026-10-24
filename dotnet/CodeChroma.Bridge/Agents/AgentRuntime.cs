@@ -87,7 +87,7 @@ public sealed class AgentRuntime(
     private void AutoStartOne(AgentRecord record)
     {
         var sessionId = agents.CaptureSessionId(record.Id);
-        var launch = terminalAgents.Resolve(record.Kind, sessionId);
+        var launch = terminalAgents.Resolve(record.Kind, sessionId, agentId: record.Id, bridgeUrl: BareSkill.BridgeUrl);
         if (launch is null)
         {
             log.LogError("agents: unknown kind {Kind} for {Agent}, skipping auto-start", record.Kind, record.Id);

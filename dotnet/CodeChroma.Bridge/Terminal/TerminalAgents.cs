@@ -1,5 +1,6 @@
 using System.Text.Json.Nodes;
 using CodeChroma.Bridge.Agents;
+using CodeChroma.Bridge.Questions;
 using CodeChroma.Bridge.Routes;
 using CodeChroma.Bridge.Skills;
 using CodeChroma.Bridge.Stores;
@@ -34,7 +35,7 @@ public sealed record AgentLaunch(IReadOnlyList<string> Argv, IReadOnlyDictionary
 /// The allow-list of commands the terminal server may spawn, keyed by a client-supplied name. The front end names a key, never a
 /// command. The `agent` row is provider-routed: its real argv is resolved at launch through the LLM provider settings.
 /// </summary>
-public sealed class TerminalAgents(UserPaths paths, ProviderStore providers, CallSiteStore callSites)
+public sealed class TerminalAgents(UserPaths paths, ProviderStore providers, CallSiteStore callSites, QuestionMcp? questions = null)
 {
     public const string ResumeFlag = ClaudeAdapter.ResumeFlag;
     public const string ForkSessionFlag = ClaudeAdapter.ForkSessionFlag;
@@ -52,20 +53,22 @@ public sealed class TerminalAgents(UserPaths paths, ProviderStore providers, Cal
     };
 
     /// <summary>An allow-listed agent's argv and provider environment, or null for an unknown kind; `forkSession` (claude only) resumes into a new session.</summary>
-    public AgentLaunch? Resolve(string agent, string? resumeSessionId = null, string? initialPrompt = null, bool bare = false, string? visiblePrompt = null, bool forkSession = false)
+    public AgentLaunch? Resolve(string agent, string? resumeSessionId = null, string? initialPrompt = null, bool bare = false, string? visiblePrompt = null, bool forkSession = false, string? agentId = null, string? bridgeUrl = null)
     {
         if (agent == "agent")
         {
             var resolution = ResolveProviderCli(AgentCallSite);
             var isClaude = resolution.AdapterKey == "claude" && (resolution.ProviderAssigned || resolution.Binary == DefaultCli);
-            return new AgentLaunch(Argv(resolution.Binary, isClaude, resolution.AdapterKey, resumeSessionId, initialPrompt, bare, visiblePrompt), resolution.Env);
+            var mcp = EndpointFor(agentId, bridgeUrl, isClaude, bare);
+            return new AgentLaunch(Argv(resolution.Binary, isClaude, resolution.AdapterKey, resumeSessionId, initialPrompt, bare, visiblePrompt, mcp), WithEnv(resolution.Env, mcp));
         }
         if (!Allowed.TryGetValue(agent, out var entry)) return null;
         if (agent == "claude")
         {
             var binary = AssistantRoutes.EffectiveCli(paths);
-            var argv = Argv(binary, binary == DefaultCli, "claude", resumeSessionId, initialPrompt, bare, visiblePrompt);
-            return new AgentLaunch(forkSession && !string.IsNullOrEmpty(resumeSessionId) ? [.. argv, ForkSessionFlag] : argv, new Dictionary<string, string>());
+            var mcp = EndpointFor(agentId, bridgeUrl, binary == DefaultCli, bare);
+            var argv = Argv(binary, binary == DefaultCli, "claude", resumeSessionId, initialPrompt, bare, visiblePrompt, mcp);
+            return new AgentLaunch(forkSession && !string.IsNullOrEmpty(resumeSessionId) ? [.. argv, ForkSessionFlag] : argv, WithEnv([], mcp));
         }
         return new AgentLaunch(string.IsNullOrEmpty(resumeSessionId) ? entry : [.. entry, ResumeFlag, resumeSessionId], new Dictionary<string, string>());
     }
@@ -78,6 +81,18 @@ public sealed class TerminalAgents(UserPaths paths, ProviderStore providers, Cal
         var bareArgs = adapter.BareArgs(CliAdapters.DefaultBareTools);
         var promptAt = Array.IndexOf(bareArgs.ToArray(), "--system-prompt");
         return promptAt >= 0 && promptAt + 1 < bareArgs.Count();
+    }
+
+    /// <summary>The ask_user endpoint for a Claude window, or null for other CLIs, bare windows, no agent id or before the bridge URL is known.</summary>
+    private McpEndpoint? EndpointFor(string? agentId, string? bridgeUrl, bool isClaude, bool bare) =>
+        questions is not null && isClaude && !bare && !string.IsNullOrEmpty(agentId) && !string.IsNullOrEmpty(bridgeUrl) ? questions.EndpointFor(agentId, bridgeUrl) : null;
+
+    private static Dictionary<string, string> WithEnv(Dictionary<string, string> env, McpEndpoint? mcp)
+    {
+        if (mcp is null) return env;
+        var merged = new Dictionary<string, string>(env);
+        foreach (var (key, value) in mcp.Env()) merged[key] = value;
+        return merged;
     }
 
     /// <summary>The label persisted on AgentRecord.ResolvedCli: only `agent` windows report one.</summary>
@@ -130,7 +145,7 @@ public sealed class TerminalAgents(UserPaths paths, ProviderStore providers, Cal
     }
 
     /// <summary>The argv of an agent window; a bare one gets the prompt first and the CLI's ambient context stripped (no plugin, settings, MCP or slash commands), keeping the session file so Resume works.</summary>
-    private static string[] Argv(string binary, bool isClaude, string adapterKey, string? resumeSessionId, string? initialPrompt, bool bare, string? visiblePrompt)
+    private string[] Argv(string binary, bool isClaude, string adapterKey, string? resumeSessionId, string? initialPrompt, bool bare, string? visiblePrompt, McpEndpoint? mcp = null)
     {
         var bareArgs = bare && string.IsNullOrEmpty(resumeSessionId) && CliAdapters.All.TryGetValue(adapterKey, out var adapter)
             ? adapter.BareArgs(CliAdapters.DefaultBareTools).Where(a => a != "--no-session-persistence").ToArray()
@@ -143,8 +158,11 @@ public sealed class TerminalAgents(UserPaths paths, ProviderStore providers, Cal
             return [binary, .. ResumePrompt(null, visiblePrompt), .. bareArgs];
         }
         if (bareArgs.Length > 0) return [binary, .. ResumePrompt(null, initialPrompt), .. bareArgs];
-        return [binary, .. PluginArgs(isClaude), .. ResumePrompt(resumeSessionId, initialPrompt)];
+        return [binary, .. McpArgs(mcp), .. PluginArgs(isClaude), .. ResumePrompt(resumeSessionId, initialPrompt)];
     }
+
+    /// <summary>Registers the bridge ask_user MCP server; --mcp-config is variadic, so it must precede --plugin-dir and the positional prompt.</summary>
+    private string[] McpArgs(McpEndpoint? mcp) => mcp is null ? [] : ["--mcp-config", mcp.WriteClaudeConfig(questions!.AskWait)];
 
     /// <summary>Load CodeChroma skills for this Claude Code process without changing its project.</summary>
     private static string[] PluginArgs(bool isClaude) => isClaude && SkillSync.PluginDir() is { } dir ? ["--plugin-dir", dir] : [];

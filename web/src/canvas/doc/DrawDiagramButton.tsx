@@ -15,7 +15,7 @@ const DRAW_DIAGRAM_TASK = "Draw a diagram of this project using the codechroma-d
  * The rail's "Draw…" button (016-single-canvas-dashboard Stage 4, shrunk in the diagram-management
  * unification that retired `RecipeMenu`'s dropdown and the custom-diagram-type wizard): a single
  * action, always clickable, that opens an agent window (`codechroma-draw-diagram`) whose terminal
- * itself asks what to draw -- the bridge prints the question, so the agent never greets or asks. It does not list or toggle diagrams anymore -- every diagram that
+ * itself asks what to draw (the bridge prints the question). It does not list or toggle diagrams anymore -- every diagram that
  * exists, ready or already placed, is shown and managed from the left panel's Diagrams tab instead;
  * this button's only job is starting a new draw.
  *

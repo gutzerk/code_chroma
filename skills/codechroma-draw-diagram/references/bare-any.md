@@ -1,0 +1,1 @@
+The `codechroma-draw-diagram` skill is not loaded yet. Once the user has said what to draw, read `{SKILL_DIR}/SKILL.md` and follow it; the files it names under `references/` and `scripts/` are in `{SKILL_DIR}`, so read them by those absolute paths.

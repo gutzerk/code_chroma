@@ -2,6 +2,7 @@ import { createContext, useContext, useMemo, type ReactNode } from "react";
 import { SAME_ORIGIN } from "../engine-client/EngineClientContext";
 import type { TerminalClient } from "./TerminalClient";
 import { WebSocketTerminalClient } from "./TerminalClient";
+import { PreviewTerminalClient } from "./previewTerminalClient";
 
 const TerminalClientReactContext = createContext<TerminalClient | null>(null);
 
@@ -12,8 +13,16 @@ export function terminalBaseUrl(bridgeUrl: string): string {
     : bridgeUrl;
 }
 
+/** Dev builds with no bridge configured (the mock canvas) get the scripted preview terminal instead of a socket that can never connect. */
+function isPreviewTerminal(): boolean {
+  if (!import.meta.env.DEV) return false;
+  const mocked = !import.meta.env.VITE_ENGINE_BRIDGE_URL && !import.meta.env.VITE_TERMINAL_BRIDGE_URL;
+  return mocked || new URLSearchParams(window.location.search).has("mockTerminal");
+}
+
 /** VITE_TERMINAL_BRIDGE_URL unset ⇒ default to the local dev terminal server. */
 function createTerminalClient(): TerminalClient {
+  if (isPreviewTerminal()) return new PreviewTerminalClient();
   const bridgeUrl =
     (import.meta.env.VITE_TERMINAL_BRIDGE_URL as string | undefined) ?? "ws://localhost:8000";
   return new WebSocketTerminalClient(terminalBaseUrl(bridgeUrl));

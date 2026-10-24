@@ -1,6 +1,10 @@
+using System.Text.Json.Nodes;
 using CodeChroma.Bridge.Engine;
 using CodeChroma.Bridge.Http;
 using CodeChroma.Bridge.Workspaces;
+using CoreDependencyDigest = CodeChroma.Core.DependencyDigest;
+using CoreDependencyIndex = CodeChroma.Core.DependencyIndex;
+using CoreContextDigest = CodeChroma.Core.ContextDigest;
 
 namespace CodeChroma.Bridge.Routes;
 
@@ -15,6 +19,9 @@ public static class GraphRoutes
     {
         app.MapGet("/repos/{repoId}/structure", Structure);
         app.MapGet("/repos/{repoId}/source", Source);
+        app.MapGet("/repos/{repoId}/dependency-digest", DependencyDigestRoute);
+        app.MapGet("/repos/{repoId}/context-digest", ContextDigestRoute);
+        app.MapGet("/repos/{repoId}/route", RouteBetween);
         app.MapGet("/repos/{repoId}/nodes/{**rest}", Nodes);
     }
 
@@ -106,6 +113,36 @@ public static class GraphRoutes
         if (text is null) return Detail(404, $"unknown file: {path}");
         var content = start is null && end is null ? text : SourceText.SliceLines(text, start ?? 1, end);
         return Results.Json(new SourceFragment(path, content, SourceText.LanguageFor(path)), BridgeJson.Default.SourceFragment);
+    }
+
+    // --- digests and dependency routes, all built fresh from the engine's graph snapshot ---
+
+    private static IResult DependencyDigestRoute(string repoId, WorkspaceRegistry registry, string? path = null)
+    {
+        var ws = registry.Get(repoId);
+        ws.Sync();
+        if (ws.Engine.GraphSnapshot() is not { } graph) return Detail(404, "this engine has no graph snapshot");
+        var digest = CoreDependencyDigest.Build(graph);
+        if (path is null) return Reply.Json(digest);
+        var entry = digest["files"]!.AsArray().FirstOrDefault(f => (string?)f?["path"] == path);
+        return entry is null ? Detail(404, $"no digest entry for path '{path}'") : Reply.Json(entry);
+    }
+
+    private static IResult ContextDigestRoute(string repoId, WorkspaceRegistry registry)
+    {
+        var ws = registry.Get(repoId);
+        if (ws.Engine.GraphSnapshot() is not { } graph) return Detail(404, "this engine has no graph snapshot");
+        return Reply.Json(CoreContextDigest.Build(graph, ws.Root));
+    }
+
+    private static IResult RouteBetween(string repoId, HttpRequest request, WorkspaceRegistry registry)
+    {
+        var ws = registry.Get(repoId);
+        string from = request.Query["from"], to = request.Query["to"];
+        if (string.IsNullOrEmpty(from) || string.IsNullOrEmpty(to)) return Detail(422, "query parameters 'from' and 'to' are required");
+        if (ws.Engine.GraphSnapshot() is not { } graph) return Detail(404, "this engine has no graph snapshot");
+        var path = new CoreDependencyIndex(graph).FindRoute(from, to);
+        return Reply.Json(new JsonObject { ["path"] = path is null ? null : new JsonArray(path.Select(p => (JsonNode?)JsonValue.Create(p)).ToArray()) });
     }
 
     // --- structure: a bounded folder/file tree with real node ids ---

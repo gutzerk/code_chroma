@@ -140,14 +140,15 @@ def _read_key_file(path: str) -> str | None:
     return None
 
 
-def _build_anthropic_provider(api_key: str) -> LLMProvider | None:
+def _build_anthropic_provider(api_key: str, base_url: str | None = None) -> LLMProvider | None:
     """An AnthropicProvider for `api_key`, or None if the `anthropic` package isn't importable."""
     try:
         from anthropic import Anthropic
     except ImportError:
         return None
     timeout = settings.anthropic_client.request_timeout_seconds
-    return AnthropicProvider(Anthropic(api_key=api_key, timeout=timeout, max_retries=1))
+    client = Anthropic(api_key=api_key, timeout=timeout, max_retries=1, base_url=base_url)
+    return AnthropicProvider(client)
 
 
 def provider_from_env() -> LLMProvider | None:
@@ -249,18 +250,30 @@ def provider_to_llm(provider: Provider) -> LLMProvider | None:
     # transport == "anthropic"
     if not api_key:
         return None
-    return _build_anthropic_provider(api_key)
+    return _build_anthropic_provider(api_key, provider.base_url)
 
 
 def build_provider(assignment: Assignment | None) -> LLMProvider | None:
     """The assigned `LLMProvider` for a `mode="api"` assignment, else today's env-based provider."""
     # mode="cli" has no direct-API path here -- out of scope for the three one-shot generators.
+    if assignment is not None and assignment.mode == "offline":
+        return None
     if assignment is None or assignment.mode != "api":
         return provider_from_env()
     provider = find_provider(assignment.provider_id)
+    if provider is not None and provider.kind == "cli":
+        return _claude_cli_key_provider(provider)
     if provider is None or provider.kind != "api":
         return provider_from_env()
     return provider_to_llm(provider)
+
+
+def _claude_cli_key_provider(provider: Provider) -> LLMProvider | None:
+    """A keyed `claude` CLI connection answers one-shot calls through the Anthropic API."""
+    api_key = resolve_provider_key(provider)
+    if provider.adapter != "claude" or not api_key:
+        return None
+    return _build_anthropic_provider(api_key, provider.base_url)
 
 
 def resolve_model(assignment: Assignment | None, default: str) -> str:

@@ -11,8 +11,8 @@ namespace CodeChroma.Bridge.Routes;
 /// <summary>GET /repos/{id}/{kind}/context: the unified {coverage, staleness, generation_data} envelope per built-in diagram kind.</summary>
 public static class ContextRoutes
 {
-    /// <summary>Kinds with a context envelope here; sequence is not served by the C# bridge yet.</summary>
-    public static readonly IReadOnlyList<string> Kinds = ["c1", "epics", "patterns", "impact"];
+    /// <summary>Kinds with a context envelope here.</summary>
+    public static readonly IReadOnlyList<string> Kinds = ["c1", "epics", "patterns", "impact", "sequence"];
 
     public static void Map(WebApplication app)
     {
@@ -34,6 +34,7 @@ public static class ContextRoutes
             "epics" => EpicsAssembler.For(ws.Root).Index(),
             "patterns" => ws.Engine.PatternsContext(),
             "impact" => ImpactContext.Build(ws, parser, source, feature),
+            "sequence" => SequenceContext.Build(ws),
             _ => null,
         },
     };

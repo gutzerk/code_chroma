@@ -141,7 +141,7 @@ The fast process-diagram path needs a 162 MB ONNX model; it is not in the instal
 
 The C# bridge replaces the Python one in the shipped app. Known, owner-confirmed differences (plan 017 table A):
 summaries are offline-only (no Claude call), the graph is in-memory (no `graph.db`), PR happy path needs `gh`,
-nested-process foreground probing is degraded, and execution tracing capture stays Python (`sys.monitoring`; C#
+nested-process foreground probing (`Terminal/ForegroundProcess.cs`: `ps -o tpgid=` then `ps -o comm=`, cached 1 s off-thread) works on macOS/Linux only and is a no-op on Windows (ConPTY has no `tcgetpgrp`; the detector then applies no process filter, so a nested vim there can still read as an agent state), and execution tracing capture stays Python (`sys.monitoring`; C#
 only plays traces back). Everything else (graph, canvas, recipes, diffs, agents, PRs, epics, PTY, skill/LLM runners,
 branches, traces, settings, patterns, impact/review, plain wiki) is ported. Workflow runs (steerable stop/pause/breakpoints, [`workflows.md`](workflows.md)) exist only in the C# bridge; the Python bridge has no mirror yet; the wiki-general generate/update port is done (all nine routes plus the pipeline); what remains is a verification run against real Claude (plan 017 row 4); see
 [`engine.md`](engine.md) and [`graph-bridge-core.md`](graph-bridge-core.md).

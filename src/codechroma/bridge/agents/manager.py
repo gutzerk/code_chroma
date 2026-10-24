@@ -25,7 +25,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING, cast
 
 from codechroma.bridge import diagram_seed, skill_sync
-from codechroma.bridge.agents import main_branch, transcripts, worktree
+from codechroma.bridge.agents import main_branch, worktree
 from codechroma.bridge.agents.worktree import WorktreeError
 from codechroma.bridge.git_cmd import ensure_excluded
 from codechroma.bridge.workspaces import MAIN_ID, PR_ID_PREFIX
@@ -560,24 +560,13 @@ class AgentManager:
             if Path(sibling.worktree) == path:
                 sibling.worktree_lost = False
 
-    def capture_session_id(self, agent_id: str) -> str | None:
-        """Records the conversation `claude --resume` continues; None while there isn't one."""
+    def set_session_id(self, agent_id: str, session_id: str | None) -> AgentRecord:
+        """Persists the session id passed to this agent's Claude process."""
         record = self.get(agent_id)
-        path = Path(record.worktree)
-        exclude = self._sibling_session_ids(record, path)
-        found = transcripts.find_session_id(path, exclude=exclude)
-        if found and found != record.session_id:
-            record.session_id = found
+        if record.session_id != session_id:
+            record.session_id = session_id
             self.save()
-        return record.session_id
-
-    def _sibling_session_ids(self, record: AgentRecord, path: Path) -> frozenset[str]:
-        """Session ids another agent sharing this worktree (an attach_to peer) already claimed."""
-        return frozenset(
-            other.session_id
-            for other in self._agents.values()
-            if other is not record and other.session_id and Path(other.worktree) == path
-        )
+        return record
 
     def consume_context(self, agent_id: str) -> tuple[str, str] | None:
         """Pending (context, context_kind), cleared so a resume/restart never re-injects it."""

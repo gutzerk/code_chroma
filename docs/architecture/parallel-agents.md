@@ -92,9 +92,9 @@ branch through an agent attached to it (`_guard_shared_worktree`, keyed off `Age
   `lifespan()`, not `reconcile()` itself: `PtySession.__init__` calls
   `asyncio.get_running_loop().add_reader(...)`, and `reconcile()` runs synchronously inside
   `BridgeServices.create()`, called from `create_app()` — before any event loop exists. Resumes the
-  last chat when `AgentManager.capture_session_id()` still has a session id (safe to call
-  unconditionally: it only *upgrades* the stored id when a newer transcript exists, never clears it),
-  starts fresh otherwise. Skips a `worktree_lost` record (no `cwd` to spawn into) and swallows
+  session id already stored on the agent; a fresh launch gets a UUID via Claude's `--session-id`
+  option, so another Claude process in the same worktree cannot be mistaken for this agent. Legacy
+  records without a session id start fresh. Skips a `worktree_lost` record (no `cwd` to spawn into) and swallows
   `AgentStartError`/any exception per record (logged, not raised) so one agent missing its worktree or
   `claude` binary never blocks the rest from coming up. No broadcast on success: no websocket is
   attached this early in boot, so a freshly-connecting client just reads live status off `GET /agents`,
@@ -255,15 +255,10 @@ branch through an agent attached to it (`_guard_shared_worktree`, keyed off `Age
   🔴 Unknown means *hold*, never `idle`; a malformed manifest degrades to "always hold".
   ⚠ The manifest is a runtime data file, so it is read through `resources.py`'s `resource_path`
   (kind `"detect"`) and (for any bundled bridge) must be shipped next to it — otherwise it 404s there.
-- `transcripts.py` — the `claude --resume` session id. 🔴 The `~/.claude/projects/<escaped>` name is
-  **not guessed**: a wrong escape would silently start a *fresh* conversation. Every transcript
-  records its own `cwd`, so the id is read from the newest one whose `cwd` is this worktree.
-  🔴 `cwd` alone can't tell two `attach_to` siblings apart (they share one worktree by design — see
-  above), so `find_session_id` takes an `exclude` set and `AgentManager.capture_session_id`
-  (`manager.py`'s `_sibling_session_ids`) feeds it every *other* record's already-claimed
-  `session_id` for that same worktree. Without this, restarting/resuming the sibling that hasn't
-  been touched most recently would silently resume the other one's live conversation instead of
-  starting fresh — clicking that agent's rail card looked like "the wrong agent's session opened."
+- Session ownership — fresh Claude sessions receive a UUID from CodeChroma through `--session-id`
+  and save it with their agent record. Restarts use that exact ID with `--resume`; transcript `cwd`
+  and modification order are never used to infer ownership, since external terminals can use the
+  same worktree and attached agents intentionally share one.
 - `publish.py` — "Create PR": `git push -u origin <branch>` then `gh pr create --fill`. Every
   blocker is a preflight reason the button renders **as its disabled label**, never a post-click
   error. Uncommitted files are not a blocker but a forced choice (commit them, or publish without).
@@ -448,7 +443,7 @@ branch through an agent attached to it (`_guard_shared_worktree`, keyed off `Age
   or worktree — this is what used to surface as
   `fatal: '<branch>' is already used by worktree at '<path>'` from `worktree.add`.
 - Tests: `tests/unit/test_{workspaces,agent_worktree,agent_manager,agent_bootstrap,agent_status,
-  agent_publish,agent_transcripts,screen_tap,git_diff_base,diagram_seed}.py`,
+  agent_publish,screen_tap,git_diff_base,diagram_seed}.py`,
   `tests/unit/test_bridge_{agents,workspace}_route.py`, `tests/unit/test_bridge_agents_autostart.py`,
   `tests/integration/test_{workspace_switch,nested_worktree_excluded}.py`,
   `web/src/agents/*.test.{ts,tsx}`,

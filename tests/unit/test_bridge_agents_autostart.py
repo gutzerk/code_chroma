@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import os
 import shutil
 from pathlib import Path
@@ -89,8 +90,7 @@ def test_a_recorded_session_id_resumes_instead_of_starting_fresh(
 ):
     first = make_bridge(repo)
     TestClient(first.app).post("/agents", json={"title": "runner"})
-    first.agent_manager.get("runner").session_id = "abc123"
-    first.agent_manager.save()
+    first.agent_manager.set_session_id("runner", "abc123")
     _stub_claude(tmp_path / "bin")
     monkeypatch.setenv("PATH", f"{tmp_path / 'bin'}:{os.environ['PATH']}")
 
@@ -100,6 +100,31 @@ def test_a_recorded_session_id_resumes_instead_of_starting_fresh(
         argv = restarted.agent_sessions.get("runner").argv
 
     assert argv[-2:] == ["--resume", "abc123"]
+
+
+def test_newer_external_transcript_does_not_replace_the_recorded_agent_session(
+    repo, tmp_path, monkeypatch, make_bridge, use_test_runtime
+):
+    first = make_bridge(repo)
+    TestClient(first.app).post("/agents", json={"title": "runner"})
+    first.agent_manager.set_session_id("runner", "owned-session")
+    external = tmp_path / "claude" / "projects" / "same-worktree" / "external-session.jsonl"
+    external.parent.mkdir(parents=True)
+    worktree = first.agent_manager.get("runner").worktree
+    external.write_text(
+        json.dumps({"type": "user", "cwd": worktree, "sessionId": "external-session"}) + "\n",
+        encoding="utf-8",
+    )
+    monkeypatch.setenv("CLAUDE_CONFIG_DIR", str(tmp_path / "claude"))
+    _stub_claude(tmp_path / "bin")
+    monkeypatch.setenv("PATH", f"{tmp_path / 'bin'}:{os.environ['PATH']}")
+
+    use_test_runtime()
+    restarted = make_bridge(repo)
+    with TestClient(restarted.app):
+        argv = restarted.agent_sessions.get("runner").argv
+
+    assert argv[-2:] == ["--resume", "owned-session"]
 
 
 def test_two_agents_sharing_a_worktree_each_auto_start_their_own_pty(

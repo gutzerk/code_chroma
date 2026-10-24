@@ -1,5 +1,10 @@
 # Graph bridge core (`src/codechroma/bridge/`) — the live HTTP+WS front door to `GraphEngine`
 
+**Production changes go to C# first:** the desktop app runs `dotnet/CodeChroma.Bridge`, with
+regression tests in `dotnet/CodeChroma.Bridge.Tests`. This page documents the Python
+development/reference bridge. Updating Python alone does not fix production desktop behavior;
+see [desktop-app.md](desktop-app.md) for the shipped runtime.
+
 The web canvas's real data source: the node/children/connections/diff endpoints the canvas fetches,
 plus `WS /repos/{id}/events` for live pushes.
 

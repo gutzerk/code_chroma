@@ -1,5 +1,5 @@
-/* Workflows tab. Values follow the design boards 8-11 (stretched panel, full screen, All workflows). */
-.workflows-tab {
+/* Tokens live on :root because ModalDialog portals to body. Values follow the design boards 8-11 (stretched panel, full screen, All workflows). */
+:root {
   --wf-bg: #12151b;
   --wf-list: #0f1218;
   --wf-card: #161a22;
@@ -14,6 +14,9 @@
   --wf-ok: #4ade80;
   --wf-warn: #facc15;
   --wf-stop: #f87171;
+}
+
+.workflows-tab {
   display: flex;
   flex-direction: column;
   height: 100%;

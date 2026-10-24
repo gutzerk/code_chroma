@@ -100,15 +100,6 @@
   font-size: 13px;
 }
 
-.wfe-notice {
-  flex: none;
-  margin: 0;
-  padding: 8px 20px;
-  background: #1f2a44;
-  color: #c9d6f5;
-  font-size: 13px;
-}
-
 .wfe-error {
   margin: 0;
   color: #fca5a5;

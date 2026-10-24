@@ -18,7 +18,7 @@ import { useStretchWidth } from "./activity/useStretchWidth";
 import "../canvas/PanelHandle.css";
 import "./ActivityPanel.css";
 
-/** Attached panel. Terminals stay mounted when tabs or visibility change. */
+/** Floating panel. Terminals stay mounted when tabs or visibility change. */
 export function ActivityPanel({
   onRunAgent,
   disabled = false,
@@ -40,8 +40,8 @@ export function ActivityPanel({
     axis: "x",
     edge: "left",
     minWidth: 320,
-    maxViewportFraction: isFull ? 0.95 : 0.7,
-    onExceedMax: isFull ? undefined : () => layoutStore.setAgentsMode("full"),
+    maxViewportFraction: 0.7,
+    onExceedMax: () => layoutStore.setAgentsMode("full"),
   });
   const panelSize = usePanelSize(panelRef);
   const collapsed = agentsMode === "collapsed";
@@ -49,8 +49,8 @@ export function ActivityPanel({
   const stretchWidth = useStretchWidth(panelRef, isFull, leftOpen);
   useEffect(() => resetSize(), [agentsMode]); // eslint-disable-line react-hooks/exhaustive-deps
   let style: CSSProperties | undefined;
-  if (resizable && size) style = { width: size.width, flexBasis: size.width };
-  else if (stretchWidth !== null) style = { width: stretchWidth, flexBasis: stretchWidth };
+  if (resizable && size) style = { width: size.width };
+  else if (stretchWidth !== null) style = { width: stretchWidth };
   const activeId = agents.some((a) => a.id === selectedAgentId) ? selectedAgentId : agents[0]?.id;
   useEffect(() => {
     if (tab !== "workflows" || collapsed) workflowStore.setDialog(null);
@@ -158,7 +158,7 @@ export function ActivityPanel({
           aria-label="Agents"
           hidden={tab !== "agents"}
         >
-          <AgentSwitcherRow agents={agents} activeId={activeId ?? undefined} full={isFull} />
+          {!isFull && <AgentSwitcherRow agents={agents} activeId={activeId ?? undefined} />}
           {isFull && <AgentList agents={agents} activeId={activeId ?? undefined} />}
           {agents.length === 0 && (
             <p className="activity-empty">

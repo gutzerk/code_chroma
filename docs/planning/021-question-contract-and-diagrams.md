@@ -25,7 +25,7 @@ CodeChroma opens other people's repositories on other people's machines. Those p
 | Where the contract lives | The `ask_user` server validates every call. It works for any CLI, because the MCP config is the one thing we pass at launch. Skills and hooks only help. |
 | Failure feedback | A rejected call returns a tool error listing each problem and saying to call `ask_user` again with the same intent. No question is created. |
 | Retry limit | After 3 rejected calls for one agent in one session, accept the question as sent and show it simplified (today's behaviour). The user is never stuck behind a stubborn agent. |
-| Native `AskUserQuestion` | For Claude, the existing `PreToolUse` hook stops rerouting blindly: it denies with a message naming `ask_user` and its required fields. If `ask_user` is not available in that session, it keeps today's reroute. |
+| Native `AskUserQuestion` | For Claude, the existing `PreToolUse` hook stops rerouting blindly: it denies with a message naming `ask_user` and its required fields. If `ask_user` is not reachable in that session, it fails open to the native dialog (no reroute). |
 | Text questions | Not detected. A `Stop`-hook guess would produce false positives. The tool description and the native-tool deny are the guard. |
 | Diagram authorship | The agent draws a "decision diagram" with a new skill. The bridge never invents one. |
 | "Complex" | Marked by the agent with `kind: "diagram"` (already in `AskRequest`). The tool description says when to use it. The server only enforces that a `diagram` question has a diagram. |
@@ -68,7 +68,7 @@ The tool description (`_INSTRUCTIONS` in `mcp_server.py`) is rewritten to carry 
 
 - Check whether the `codechroma` MCP server answers (the env from `McpEndpoint.env()` is already read here). If it does, print the `permissionDecision: "deny"` JSON with a reason that names `mcp__codechroma__ask_user` and the required fields, and exit. The agent retries through `ask_user` and is validated there.
 - If the bridge is unreachable, keep the current fail-open path, which shows the question on the canvas, so a broken bridge never blocks the agent.
-- `build_payload` stops fabricating `rank` and keeps only the reroute fallback. Its output is flagged `meta.degraded`.
+- `build_payload` stops fabricating `rank`; the reroute fallback was dropped later, the hook now fails open.
 
 The hook is delivered the way it is today (plugin `hooks/hooks.json`); we do not edit the project's own settings. Other CLIs get only the server-side contract.
 

@@ -25,12 +25,6 @@ export const STATUS_META: Record<StepStatus, { text: string; icon: IconName }> =
   skipped: { text: "Skipped", icon: "skip" },
 };
 
-/** Icon and accent per step kind, so an agent step and a review step read differently at a glance. */
-export const KIND_META: Record<"agent" | "review", { text: string; icon: IconName; color: string }> = {
-  agent: { text: "Agent", icon: "agent", color: "#8fb0ff" },
-  review: { text: "Your review", icon: "review", color: "#facc15" },
-};
-
 /** Accent colour per run state for the run list and header. */
 export const RUN_STATE_COLOR: Record<RunState, string> = {
   running: "#8fb0ff",
@@ -99,6 +93,21 @@ export function headerToggle(state: RunState): HeaderToggle {
   return { label: "Pause", enabled: state === "running" };
 }
 
+/** "4 steps · 3 agent · 1 you" */
+export function stepSummary(steps: { kind: string }[]): string {
+  const you = steps.filter((s) => s.kind === "review").length;
+  const agent = steps.length - you;
+  const parts = [`${steps.length} step${steps.length === 1 ? "" : "s"}`];
+  if (agent) parts.push(`${agent} agent`);
+  if (you) parts.push(`${you} you`);
+  return parts.join(" · ");
+}
+
+/** Stop after step is legal while running or paused (the bridge's StopAfter rows). */
+export function canStopAfter(state: RunState): boolean {
+  return state === "running" || state === "paused";
+}
+
 /** Cancel is legal in every live state (the bridge's StopNow row), including held and awaiting review. */
 export function canStopRun(state: RunState): boolean {
   return state === "running" || state === "paused" || state === "held" || state === "needs_you";
@@ -140,9 +149,9 @@ export function betweenLabel(steps: WorkflowStepDef[], index: number, previousSl
 }
 
 /** How a step gets its context, in the words the workflow lists and run timeline both use. */
-export function stepMode(def: WorkflowStepDef): "you" | "new" | "hand-off" | "continue" {
+export function stepMode(def: WorkflowStepDef, index: number): "you" | "new" | "hand-off" | "continue" {
   if (def.kind === "review") return "you";
-  const mode = agentMode(def.agent);
+  const mode = index === 0 ? "new" : agentMode(def.agent);
   return mode === "handoff" ? "hand-off" : mode;
 }
 
@@ -213,13 +222,9 @@ export function isFinished(state: RunState): boolean {
 
 /** Shared confirm wording so the list and the detail header say the same thing. */
 export const CONFIRM_MESSAGES = {
+  deleteRun: (id: string) => `Delete run ${id}? Its worktree and result are removed.`,
   restart: "Restarting wipes the previous result (worktree, outputs, messages and attempts) and starts again from step 1.",
 };
-
-/** Steps done or skipped, for a progress readout. */
-export function finishedCount(run: Run): number {
-  return run.steps.filter((s) => s.status === "done" || s.status === "skipped").length;
-}
 
 export type PanelLayout = "narrow" | "normal" | "side" | "full";
 

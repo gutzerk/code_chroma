@@ -131,36 +131,42 @@ def known_element_ids(ws: Workspace) -> set[str]:
     return set(CanvasDoc.load(ws.canvas_core_path, ws.diagrams_root).elements)
 
 
-def find_diagram_requested(ws: Workspace, request: AskRequest) -> Element | None:
-    """The open diagram-requested card this re-ask continues; duplicates of it are skipped."""
+def find_diagram_requested(
+    ws: Workspace, request: AskRequest
+) -> tuple[Element, list[Element]] | None:
+    """The open diagram-requested card this re-ask continues, and its older duplicates."""
     pending = [
         e for e in list_questions(ws)
         if e.meta.get("state") == "open" and e.meta.get("diagram_requested")
     ]
-    same_session = [
-        e for e in pending if request.session_id and e.meta.get("session_id") == request.session_id
-    ]
-    same_text = [e for e in pending if e.label == request.question]
-    pool = (
-        [e for e in same_session if e in same_text] or same_session or same_text
-        or (pending if len(pending) == 1 else [])
-    )
-    if not pool:
-        return None
-    keep, stale = pool[-1], pool[:-1]
-    for old in stale:
-        settle(ws, old.id, "skipped", QuestionResult(skipped=True))
-    return keep
+    if request.session_id:
+        pool = [e for e in pending if e.meta.get("session_id") == request.session_id]
+    else:
+        pool = [e for e in pending if not e.meta.get("session_id") and e.label == request.question]
+    return (pool[-1], pool[:-1]) if pool else None
 
 
-def reask(ws: Workspace, element: Element, request: AskRequest, extra_meta: dict | None) -> None:
-    """Updates the question in place with the re-asked options; the diagram request is cleared."""
+def reask(
+    ws: Workspace, element: Element, request: AskRequest, extra_meta: dict | None,
+    stale: list[Element] | None = None,
+) -> None:
+    """Updates the question in place with the re-asked options and skips its older duplicates."""
     meta = {
         "options": _options_meta(request), "kind": request.kind, "diagram_requested": False,
         "allow_custom": request.allow_custom, "allow_skip": request.allow_skip,
+        "session_id": request.session_id, "total": request.total,
+        "degraded": False, "validation": None,
         **(extra_meta or {}),
     }
-    _commit(ws, lambda _doc: [{"op": "update_element", "id": element.id, "meta": meta}])
+    ops: list[dict] = [
+        {
+            "op": "update_element", "id": old.id,
+            "meta": {"state": "skipped", "answer": None, "option_id": None},
+        }
+        for old in stale or []
+    ]
+    ops.append({"op": "update_element", "id": element.id, "label": request.question, "meta": meta})
+    _commit(ws, lambda _doc: ops)
 
 
 def request_diagram(ws: Workspace, element: Element, requested_at: str) -> None:
@@ -181,7 +187,7 @@ def _question_in(doc: CanvasDoc, question_id: str) -> Element:
 
 def _next_band(doc: CanvasDoc) -> int:
     bands = [
-        int(e.position.y // diagrams._BAND_H) for e in doc.elements.values()
+        int(e.position.y // diagrams.BAND_H) for e in doc.elements.values()
         if e.meta.get("diagram_root")
     ]
     return max(bands, default=-1) + 1

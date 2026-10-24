@@ -8,6 +8,7 @@ import {
   stateBanner,
   stepActions,
   stepMode,
+  canStopAfter,
   stepPosition,
   type StepAction,
 } from "./runControls";
@@ -160,7 +161,19 @@ describe("stepMode", () => {
     [{ ...agent, agent: "continue" as const }, "continue"],
     [{ ...agent, kind: "review" as const }, "you"],
   ])("reads %j as %s", (def, expected) => {
-    expect(stepMode(def)).toBe(expected);
+    expect(stepMode(def, 1)).toBe(expected);
+  });
+});
+
+describe("stepMode at index 0", () => {
+  it("reads the first agent step as new whatever its stored mode", () => {
+    expect(stepMode({ id: "a", slug: "a", kind: "agent", prompt: "p", agent: "handoff" }, 0)).toBe("new");
+  });
+});
+
+describe("canStopAfter", () => {
+  it.each([["running", true], ["paused", true], ["held", false], ["done", false]] as const)("%s -> %s", (state, expected) => {
+    expect(canStopAfter(state)).toBe(expected);
   });
 });
 

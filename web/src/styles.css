@@ -42,7 +42,6 @@
   --success: #4ade80; /* agent status indicator */
   --select-ring: #3b4a73; /* selected card ring */
   --dot-grid: #262b38; /* canvas grid dots */
-  --bg-track: #0f1117; /* segmented-tab track */
   --text-faint: #5b6170; /* hidden / disabled glyphs, hairline arrows */
   --row-select: rgba(183, 148, 255, 0.1); /* ticked diagram row tint */
   --ring-idle: #3f4659; /* empty status ring */
@@ -7352,7 +7351,6 @@ button[data-copy-state="idle"][aria-label]:hover:not(:disabled) {
 }
 
 .question-header-gap { flex: 1; }
-.question-hint { color: var(--question-accent); font-family: var(--font-mono); font-size: 11px; }
 
 .question-progress { display: flex; gap: 4px; }
 .question-progress-seg { width: 18px; height: 3px; border-radius: 2px; background: var(--border); }

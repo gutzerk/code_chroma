@@ -1,10 +1,14 @@
 import type { CanvasOp } from "../../../state/types";
 import type { EngineClient } from "../../../engine-client/EngineClient";
-import { WIRE_OPTIONS } from "./fixtures";
 
 const TERMINAL_ID_PREFIX = "agent-terminal-";
 
-/** Mock-bridge preview only: Enter inside an agent terminal (or `askAgentQuestion()` in the console) asks a demo question as that agent. */
+const DEMO_OPTIONS = [
+  { id: "a", title: "Modular monolith", description: "One deployment", pro: "Simple", con: "Shared release", rank: 1, why: "Fits an MVP", diagram_ref: null },
+  { id: "b", title: "Services", description: "Independent", pro: "Scalable", con: "Coordination", rank: 2, why: "Adds work", diagram_ref: null },
+];
+
+/** Opt-in (VITE_DEV_ASK_QUESTION=1) mock-bridge preview only: Enter inside an agent terminal (or `askAgentQuestion()` in the console) asks a demo question as that agent. */
 export function installDevAskQuestion(client: EngineClient): () => void {
   const ask = (agentId?: string) => {
     const id =
@@ -14,9 +18,9 @@ export function installDevAskQuestion(client: EngineClient): () => void {
       op: "add_element", render: "question", layer: "questions",
       label: "How should checkout be structured?",
       position: { x: 400, y: 200 },
-      meta: { session_id: "demo", step: 1, total: 2, state: "open", agent_id: id ?? "", options: WIRE_OPTIONS },
+      meta: { session_id: "demo", step: 1, total: 2, state: "open", agent_id: id ?? "", options: DEMO_OPTIONS },
     } as CanvasOp;
-    return client.patchCanvas({ ops: [op], layer: "default", explanation: "", confirm_mass_delete: false });
+    return client.patchCanvas({ ops: [op], layer: "questions", explanation: "", confirm_mass_delete: false });
   };
   const onKeyDown = (event: KeyboardEvent) => {
     if (event.key !== "Enter" || !(event.target instanceof Element)) return;

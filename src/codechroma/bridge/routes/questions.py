@@ -109,7 +109,9 @@ def request_diagram(ws: Ws, services: Services, question_id: str) -> dict:
     """Records an "Add diagram" request and hands `needs: diagram` to the blocked agent call."""
     element = _open_element(ws, question_id)
     options = element.meta.get("options", [])
-    if not options or all(o.get("diagram_ref") for o in options):
+    if not options:
+        raise HTTPException(status_code=422, detail="this question has no options")
+    if all(o.get("diagram_ref") for o in options):
         raise HTTPException(status_code=422, detail="every option already has a diagram")
     if not element.meta.get("diagram_requested"):
         store.request_diagram(ws, element, datetime.now(UTC).isoformat())

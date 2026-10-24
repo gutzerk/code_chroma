@@ -109,7 +109,7 @@ public static class AgentRoutes
                 var workspaceId = record.SharesWorkspaceWith ?? record.Id;
                 var target = TryWorkspace(registry, workspaceId);
                 var command = target is null ? null : await diagramContext.CommandAsync(target);
-                var asksInTerminal = diagramType == DiagramContext.AnyType && BareSkill.Enabled();
+                var asksInTerminal = diagramType == DiagramContext.AnyType && BareSkill.Enabled() && terminalAgents.SplitsSystemPrompt(record.Kind);
                 if (BareSkill.ComposeInteractive(diagramType, target?.Root ?? record.Worktree, workspaceId, command, asksInTerminal) is { } composed)
                 {
                     taskText = composed;

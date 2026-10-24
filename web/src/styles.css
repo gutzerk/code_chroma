@@ -8155,7 +8155,7 @@ button[data-copy-state="idle"][aria-label]:hover:not(:disabled) {
 .sequence-participant-kind { display: block; font-size: 0.6rem; opacity: 0.65; }
 .sequence-phase-row { font: inherit; font-size: 0.75rem; padding: 2px 8px; border-radius: 4px; border: 1px solid rgba(160, 165, 175, 0.5); background: rgba(120, 130, 150, 0.16); color: inherit; cursor: pointer; }
 .sequence-phase-row-meta { opacity: 0.7; }
-.sequence-timeline { margin: 0; padding: 8px 8px 8px 28px; width: 220px; font-size: 0.7rem; border: 1px solid rgba(160, 165, 175, 0.4); border-radius: 6px; }
+.sequence-timeline { margin: 0; max-height: 60%; overflow-y: auto; background: var(--bg-raised, #1b1e24); padding: 8px 8px 8px 28px; width: 220px; font-size: 0.7rem; border: 1px solid rgba(160, 165, 175, 0.4); border-radius: 6px; }
 .sequence-timeline-item { cursor: pointer; padding: 1px 0; opacity: 0.75; }
 .sequence-timeline-item--here { opacity: 1; font-weight: 600; }
 .sequence-mode-btn { font: inherit; font-size: 0.65rem; padding: 1px 8px; border-radius: 10px; border: 1px solid rgba(160, 165, 175, 0.5); background: transparent; color: inherit; cursor: pointer; }
@@ -8169,6 +8169,7 @@ button[data-copy-state="idle"][aria-label]:hover:not(:disabled) {
 [data-canvas-element] .canvas-node-box-buttons { opacity: 0; transition: opacity 0.12s; }
 [data-canvas-element]:hover .canvas-node-box-buttons,
 [data-canvas-element]:focus-within .canvas-node-box-buttons { opacity: 1; }
+@media (hover: none) { [data-canvas-element] .canvas-node-box-buttons { opacity: 1; } }
 .block-focus-dim { opacity: 0.35; transition: opacity 0.12s; }
 .block-focus-self { outline: 2px solid var(--accent, #6366f1); }
 [data-zoom="mid"] .canvas-node-box-foot .canvas-node-box-path,

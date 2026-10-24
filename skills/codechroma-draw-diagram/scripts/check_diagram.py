@@ -893,10 +893,11 @@ def _check_readability(diagram: object, kind: str, report: _Report) -> None:
         text = diagram.get(key)
         if kind == "sequence" and relations and not (isinstance(text, str) and text.strip()):
             report.advisories.append(f"NOSUMMARY the diagram has no top-level `{key}` string")
-    names = {n.get("id"): str(n.get("name") or "").strip().lower() for n in nodes}
+    named = [n for n in nodes if isinstance(n.get("id"), str)]
+    names = {n["id"]: str(n.get("name") or "").strip().lower() for n in named}
     for node in nodes:
         name = str(node.get("name") or "").strip()
-        if len(name.split()) > MAX_TITLE_WORDS:
+        if kind == "sequence" and len(name.split()) > MAX_TITLE_WORDS:
             report.advisories.append(
                 f"LONGTITLE {node.get('id')} title is {len(name.split())} words, keep it to"
                 f" {MAX_TITLE_WORDS}"
@@ -907,7 +908,8 @@ def _check_readability(diagram: object, kind: str, report: _Report) -> None:
     for relation in relations:
         label = str(relation.get("label") or "").strip()
         pair = f"{relation.get('from')} -> {relation.get('to')}"
-        titles = (names.get(relation.get("from")), names.get(relation.get("to")))
+        ends = (relation.get("from"), relation.get("to"))
+        titles = tuple(names.get(end) if isinstance(end, str) else None for end in ends)
         if label and label.lower() in titles:
             report.advisories.append(f"ECHO-LABEL {pair} label {label!r} repeats a box title")
         if relation.get("kind") in ("error", "failure") and not label:

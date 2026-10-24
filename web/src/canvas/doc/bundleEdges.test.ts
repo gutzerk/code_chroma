@@ -19,4 +19,15 @@ describe("bundleEdges", () => {
 
     expect(bundleEdges([single])).toEqual([single]);
   });
+
+  it("keeps parallel edges from different layers or kinds apart", () => {
+    const calls = edge("1", "a", "b", "x");
+    const out = bundleEdges([
+      { ...calls, layer: "c1", kind: "calls" },
+      { ...calls, id: "2", layer: "impact", kind: "calls" },
+      { ...calls, id: "3", layer: "c1", kind: "error" },
+    ]);
+
+    expect(out).toHaveLength(3);
+  });
 });

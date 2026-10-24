@@ -50,14 +50,18 @@ function SequenceModeSwitch({ layer, members }: { layer: string; members: Canvas
   const orders = useMemo(() => [...new Set(model.messages.map((m) => m.order))], [model]);
   const step = sequenceViewStore.getStep(layer);
   const playing = step !== null;
+  // `members` is a fresh array each render, so key the timer on the order values, not the array.
+  const ordersRef = useRef(orders);
+  ordersRef.current = orders;
+  const ordersKey = orders.join(",");
   useEffect(() => {
     if (step === null) return;
     const timer = setTimeout(() => {
-      const next = orders.find((order) => order > step);
+      const next = ordersRef.current.find((order) => order > step);
       sequenceViewStore.setStep(layer, next ?? null);
     }, PLAYER_STEP_MS);
     return () => clearTimeout(timer);
-  }, [step, layer, orders]);
+  }, [step, layer, ordersKey]);
   return (
     <span
       className="canvas-diagram-frame-modes"

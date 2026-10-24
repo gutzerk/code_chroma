@@ -243,38 +243,43 @@ export function bindWorkflows(client: EngineClient): () => void {
   return () => { disposed = true; unsubscribe(); };
 }
 
-/** Runs one steer command and folds the returned Run into the store; failures surface as an error line. */
-async function steer(command: () => Promise<Run>): Promise<void> {
+/** Runs one steer command and folds the returned Run into the store; a failure sets the error line and is returned (null on success). */
+async function steer(command: () => Promise<Run>): Promise<string | null> {
   try {
     workflowStore.setError(null);
     workflowStore.upsertRun(await command());
+    return null;
   } catch (err) {
-    workflowStore.setError(messageOf(err));
+    const message = messageOf(err);
+    workflowStore.setError(message);
+    return message;
   }
 }
 
-/** Runs one mutation, then its local follow-up; failures surface as an error line. */
-async function mutate(fn: () => Promise<unknown>, refresh: () => void | Promise<void>): Promise<void> {
+/** Runs one mutation, then its local follow-up; a failure sets the error line and is returned (null on success). */
+async function mutate(fn: () => Promise<unknown>, refresh: () => void | Promise<void>): Promise<string | null> {
   try {
     workflowStore.setError(null);
     await fn();
     await refresh();
+    return null;
   } catch (err) {
-    workflowStore.setError(messageOf(err));
+    const message = messageOf(err);
+    workflowStore.setError(message);
+    return message;
   }
 }
 
 /** The run commands the UI issues, bound to one client. */
 export function workflowActions(client: EngineClient) {
   return {
-    start: async (workflowId: string, inputs?: Record<string, string>): Promise<void> => {
-      await steer(async () => {
+    start: (workflowId: string, inputs?: Record<string, string>): Promise<string | null> =>
+      steer(async () => {
         const run = await client.startRun(workflowId, inputs);
         workflowStore.setActiveRun(run.id);
         workflowStore.setView("runs");
         return run;
-      });
-    },
+      }),
     skip: (runId: string, stepId: string) => steer(() => client.skipStep(runId, stepId)),
     createWorkflow: (def: WorkflowDef) =>
       mutate(() => client.createWorkflow(def), async () => workflowStore.setWorkflows(await client.listWorkflows())),

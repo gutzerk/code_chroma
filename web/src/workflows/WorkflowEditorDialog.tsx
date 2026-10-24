@@ -1,11 +1,10 @@
 import { useEffect, useState, type ReactNode } from "react";
 import { ModalDialog } from "../agents/ModalDialog";
-import { messageOf } from "../util/reportError";
 import { useEngineClient } from "../engine-client/EngineClientContext";
 import { fetchProviderModels, listProviders, type Provider, type ProviderModelsResult } from "../llm-settings/llmSettingsClient";
 import { ConfirmDialog } from "./ConfirmDialog";
 import { Icon } from "./icons";
-import { stepModeLabel } from "./runControls";
+import { stepModeLabel, stepSummary } from "./runControls";
 import { useRuns, workflowActions, workflowStore } from "./workflowStore";
 import {
   agentMode,
@@ -134,15 +133,6 @@ export function connector(steps: StepDraft[], index: number): { text: string; to
   return { text: `hand-off → step ${index + 1}`, tone: "handoff" };
 }
 
-function summary(steps: StepDraft[]): string {
-  const you = steps.filter((s) => s.kind === "review").length;
-  const agent = steps.length - you;
-  const parts = [`${steps.length} step${steps.length === 1 ? "" : "s"}`];
-  if (agent) parts.push(`${agent} agent`);
-  if (you) parts.push(`${you} you`);
-  return parts.join(" · ");
-}
-
 function Field({ label, hint, children }: { label: ReactNode; hint?: ReactNode; children: ReactNode }) {
   return (
     <label className="wfe-field">
@@ -158,11 +148,9 @@ function Field({ label, hint, children }: { label: ReactNode; hint?: ReactNode; 
 /** The modal workflow editor (design boards 6 and 7): create a workflow or edit one, step by step. */
 export function WorkflowEditorDialog({
   workflow,
-  runAfterSave,
   onClose,
 }: {
   workflow?: WorkflowDef;
-  runAfterSave?: boolean;
   onClose: () => void;
 }) {
   const client = useEngineClient();
@@ -178,7 +166,6 @@ export function WorkflowEditorDialog({
   const [errors, setErrors] = useState<Errors>({});
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [notice, setNotice] = useState<string | null>(null);
   const [providers, setProviders] = useState<ProviderInfo[] | null>(null);
   const [models, setModels] = useState<Record<string, ProviderModelsResult | null>>({});
   const [confirmDelete, setConfirmDelete] = useState(false);
@@ -289,6 +276,12 @@ export function WorkflowEditorDialog({
   const dirty = snapshot() !== initial;
   const requestClose = (): void => (dirty ? setConfirmDiscard(true) : onClose());
 
+  const fail = (message: string): void => {
+    workflowStore.setError(null);
+    setError(message);
+    setBusy(false);
+  };
+
   const save = async (andRun: boolean) => {
     const found = validateDraft(name, steps);
     setErrors(found);
@@ -304,41 +297,28 @@ export function WorkflowEditorDialog({
     }
     setBusy(true);
     setError(null);
-    setNotice(null);
-    try {
-      const def = build();
-      if (workflow) await client.updateWorkflow(def);
-      else await client.createWorkflow(def);
-      workflowStore.setWorkflows(await client.listWorkflows());
-      if (andRun && workflowInputs(def).length > 0) {
-        setNotice("Saved. This workflow asks for inputs, so start it from the Workflows tab.");
-        setBusy(false);
-        return;
-      }
-      if (andRun) {
-        await workflowActions(client).start(def.id);
-        const startError = workflowStore.getError();
-        if (startError) {
-          setError(startError);
-          setBusy(false);
-          return;
-        }
-      }
-      onClose();
-    } catch (err) {
-      setError(messageOf(err));
+    const actions = workflowActions(client);
+    const def = build();
+    const failure = await (workflow ? actions.updateWorkflow(def) : actions.createWorkflow(def));
+    if (failure) return fail(failure);
+    if (andRun && workflowInputs(def).length > 0) {
+      const saved = workflowStore.getWorkflows().find((w) => w.id === def.id) ?? def;
+      workflowStore.setDialog({ kind: "run", workflow: saved });
+      return;
     }
-    setBusy(false);
+    if (andRun) {
+      const startFailure = await actions.start(def.id);
+      if (startFailure) return fail(startFailure);
+    }
+    onClose();
   };
 
   const deleteWorkflow = async () => {
     if (!workflow) return;
     setConfirmDelete(false);
     setBusy(true);
-    await workflowActions(client).deleteWorkflow(workflow.id);
-    const failure = workflowStore.getError();
-    setBusy(false);
-    if (failure) setError(failure);
+    const failure = await workflowActions(client).deleteWorkflow(workflow.id);
+    if (failure) fail(failure);
     else onClose();
   };
 
@@ -369,7 +349,7 @@ export function WorkflowEditorDialog({
   const backHint = step.kind === "review" ? sendBackHint(steps, at) : null;
 
   return (
-    <ModalDialog label="Workflow editor" className="wfe" onDismiss={busy ? undefined : requestClose}>
+    <ModalDialog label="Workflow editor" className="wfe" onDismiss={busy || confirmDiscard || confirmDelete ? undefined : requestClose}>
       <div className="wfe-head">
         <h2 className="wfe-title">{workflow ? "Edit workflow" : "New workflow"}</h2>
         <label className="wfe-name">
@@ -682,9 +662,9 @@ export function WorkflowEditorDialog({
         </div>
       </div>
 
-      {(error || notice) && (
-        <p className={error ? "wfe-error wfe-error-bar" : "wfe-notice"} role={error ? "alert" : "status"}>
-          {error ?? notice}
+      {error && (
+        <p className="wfe-error wfe-error-bar" role="alert">
+          {error}
         </p>
       )}
       <div className="wfe-foot">
@@ -694,18 +674,18 @@ export function WorkflowEditorDialog({
           </button>
         )}
         <span className="wfe-foot-note" data-dirty={dirty || undefined}>
-          {dirty ? "Unsaved changes" : summary(steps)}
+          {dirty ? "Unsaved changes" : stepSummary(steps)}
         </span>
         <button type="button" className="wfe-ghost" disabled={busy} onClick={requestClose}>
           Cancel
         </button>
         {workflow ? (
-          <button type="button" className="wfe-primary" disabled={busy} onClick={() => void save(Boolean(runAfterSave))}>
+          <button type="button" className="wfe-primary" disabled={busy} onClick={() => void save(false)}>
             Save changes
           </button>
         ) : (
           <>
-            <button type="button" className="wfe-secondary" disabled={busy} onClick={() => void save(Boolean(runAfterSave))}>
+            <button type="button" className="wfe-secondary" disabled={busy} onClick={() => void save(false)}>
               Save
             </button>
             <button type="button" className="wfe-primary" disabled={busy} onClick={() => void save(true)}>

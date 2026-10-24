@@ -27,10 +27,7 @@ export interface BuiltinRecipe {
   generated?: boolean;
 }
 
-/** The recipe registry's built-in names/labels (`src/codechroma/canvas/recipes.py`'s `RECIPES`) —
- * every `custom/<id>` type is fetched instead of hardcoded (see `useCustomDiagramTypes` below).
- * Shared between `DrawDiagramButton`'s task-prompt wording and the left panel's Diagrams tab, so both
- * agree on what a diagram layer is and what it's called. */
+/** The recipe registry's built-in names/labels (`recipes.py`'s `RECIPES`); `custom/<id>` types are fetched, not hardcoded. */
 export const BUILTIN_RECIPES: BuiltinRecipe[] = [
   { name: "c1", label: "C1", accessibleName: "C1 — system context diagram", generated: true },
   { name: "patterns", label: "Design patterns", generated: true },

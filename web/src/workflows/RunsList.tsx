@@ -14,7 +14,7 @@ import type { Run, StepRecord, WorkflowDef } from "./types";
 import type { WorkflowActions } from "./workflowStore";
 
 /** A segmented progress bar, one segment per step. */
-export function SegmentBar({
+function SegmentBar({
   steps,
   label,
   slugOf,
@@ -193,7 +193,7 @@ export function RunsList({
       case "restart":
         return { label: "Restart run", message: CONFIRM_MESSAGES.restart, confirmLabel: "Restart", run: () => void actions.restart(pending.run.id) };
       case "deleteRun":
-        return { label: "Delete run", message: `Delete run ${pending.run.id}? Its worktree and result are removed.`, confirmLabel: "Delete", run: () => void actions.deleteRun(pending.run.id) };
+        return { label: "Delete run", message: CONFIRM_MESSAGES.deleteRun(pending.run.id), confirmLabel: "Delete", run: () => void actions.deleteRun(pending.run.id) };
       case "clear":
         return { label: "Clear finished", message: "Delete every finished run?", confirmLabel: "Clear", run: () => void actions.clearFinished() };
     }

@@ -22,5 +22,5 @@ export function useStretchWidth(
     return () => observer.disconnect();
   }, [active, panelRef]);
   if (!active || areaWidth === null) return null;
-  return agentsWideWidth(areaWidth, leftOpen, true);
+  return agentsWideWidth(areaWidth, leftOpen);
 }

@@ -76,13 +76,43 @@ describe("QuestionCard", () => {
     expect(onReturnFocus).toHaveBeenCalledTimes(3);
   });
 
-  it("reports the selected option to the host", () => {
-    const onSelectionChange = vi.fn();
-    render(<QuestionCard {...props({ onSelectionChange })} />);
+  it("reports the picked option to the host", () => {
+    const onSelectedIdChange = vi.fn();
+    render(<QuestionCard {...props({ onSelectedIdChange })} />);
 
     fireEvent.click(screen.getByTestId("question-option-b"));
 
-    expect(onSelectionChange).toHaveBeenLastCalledWith("b");
+    expect(onSelectedIdChange).toHaveBeenLastCalledWith("b");
+  });
+
+  it("sends the host-controlled selection, not its own", () => {
+    const p = props({ selectedId: "b" });
+    render(<QuestionCard {...p} />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Send" }));
+
+    expect(p.onChooseOption).toHaveBeenCalledWith("b");
+  });
+
+  it("falls back to the recommended option when the picked one disappeared after a re-ask", () => {
+    const p = props();
+    const { rerender } = render(<QuestionCard {...p} />);
+    fireEvent.click(screen.getByTestId("question-option-c"));
+    const reasked = viewOf({ options: OPTIONS.filter((o) => o.id !== "c") });
+
+    rerender(<QuestionCard {...props({ question: reasked, onChooseOption: p.onChooseOption })} />);
+    fireEvent.click(screen.getByRole("button", { name: "Send" }));
+
+    expect(p.onChooseOption).toHaveBeenCalledWith("a");
+  });
+
+  it("ignores Escape while a request is in flight", () => {
+    const p = props({ busy: true });
+    render(<QuestionCard {...p} />);
+
+    fireEvent.keyDown(screen.getByTestId("question-card"), { key: "Escape" });
+
+    expect(p.onSkip).not.toHaveBeenCalled();
   });
 
   it("submits a trimmed custom answer and clears the input", () => {

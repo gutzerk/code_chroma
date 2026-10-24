@@ -3,7 +3,7 @@ import { useLayoutState } from "../canvas/layout/layoutStore";
 import { useCanvasDoc } from "../canvas/doc/canvasDocStore";
 import { ConnectedQuestionCard } from "../canvas/doc/question/ConnectedQuestionCard";
 import { pickQuestionLayout } from "../canvas/doc/question/pickQuestionLayout";
-import { toQuestionView } from "../canvas/doc/question/questionAdapter";
+import { resolveSelection, toQuestionView } from "../canvas/doc/question/questionAdapter";
 import { QuestionDiagram } from "../canvas/doc/question/QuestionDiagram";
 import { useOpenAgentQuestions } from "../canvas/doc/question/useOpenAgentQuestions";
 
@@ -20,11 +20,15 @@ export function AgentQuestionHost({
 }) {
   const hostRef = useRef<HTMLDivElement | null>(null);
   const [width, setWidth] = useState(0);
-  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [pick, setPick] = useState<{ questionId: string; optionId: string } | null>(null);
   const { agentsMode } = useLayoutState();
   const doc = useCanvasDoc();
   const current = useOpenAgentQuestions(agentId)[0];
   const question = useMemo(() => (current ? toQuestionView(current) : null), [current]);
+  const selectedId = question
+    ? resolveSelection(question, pick?.questionId === question.questionId ? pick.optionId : null)
+    : null;
+  const setSelectedId = (optionId: string) => question && setPick({ questionId: question.questionId, optionId });
 
   useEffect(() => {
     const host = hostRef.current;
@@ -72,13 +76,14 @@ export function AgentQuestionHost({
     >
       {layout === "A4" && diagram}
       {children}
-      {current && (
+      {current && question && (
         <div className="aq-card" data-testid={`agent-question-${agentId}`} role="region" aria-label="Agent question">
           <ConnectedQuestionCard
             key={current.id}
-            element={current}
+            question={question}
             variant={layout === "B1" ? "full" : "compact"}
-            onSelectionChange={setSelectedId}
+            selectedId={selectedId}
+            onSelectedIdChange={setSelectedId}
             onReturnFocus={onFocusTerminal}
           />
           {layout === "B1" && diagram}

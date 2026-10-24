@@ -44,6 +44,12 @@ _INSTRUCTIONS = (
     "If it returns {pending: true}, poll ask_user_result."
 )
 
+_DRAW_DESCRIPTION = (
+    "Draw a small decision diagram (max 12 nodes) for one option; returns its diagram_ref. "
+    'Nodes are {id, label, description?, status?}; status "new" marks a part that does not exist '
+    "yet. Edges are {from, to, label?}. Pass the returned diagram_ref on the option in ask_user."
+)
+
 
 class QuestionAuthError(PermissionError):
     """The request carried no valid per-workspace token."""
@@ -77,7 +83,9 @@ class QuestionMcp:
         self._server = MCPServer(SERVER_NAME, instructions=_INSTRUCTIONS)
         self._server.tool(name="ask_user")(self._ask_user_tool)
         self._server.tool(name="ask_user_result")(self._ask_user_result_tool)
-        self._server.tool(name="draw_option_diagram")(self._draw_option_diagram_tool)
+        self._server.tool(name="draw_option_diagram", description=_DRAW_DESCRIPTION)(
+            self._draw_option_diagram_tool
+        )
         self._app: Starlette | None = None
         self.asgi = _Delegate(self)
         self.base_url: str | None = None
@@ -121,14 +129,16 @@ class QuestionMcp:
         """Opens the question on the canvas, blocks for the answer, or returns pending."""
         ws = self._workspace_for(workspace_id)
         extra = await self._check(ws, workspace_id, request, connection)
-        reasked = await asyncio.to_thread(store.find_diagram_requested, ws, request)
+        request.agent_id = workspace_id
+        found = await asyncio.to_thread(store.find_diagram_requested, ws, request)
+        reasked, stale = found if found else (None, [])
         question_id = reasked.meta["question_id"] if reasked else uuid.uuid4().hex
         if reasked:
             self.broker.forget(question_id)
         self.broker.open(question_id)
         try:
             if reasked:
-                await asyncio.to_thread(store.reask, ws, reasked, request, extra)
+                await asyncio.to_thread(store.reask, ws, reasked, request, extra, stale)
             else:
                 await asyncio.to_thread(store.open_question, ws, request, question_id, extra)
             result = await self.broker.wait(question_id, settings.questions.ask_wait_seconds)
@@ -196,12 +206,11 @@ class QuestionMcp:
         allow_custom: bool = True,
         allow_skip: bool = True,
         total: int | None = None,
-        agent_id: str | None = None,
     ) -> dict[str, Any]:
         """Ask the user a question on the canvas and wait for the answer (or a pending id)."""
         request = AskRequest(
             question=question, options=options or [], kind=kind, session_id=session_id,
-            allow_custom=allow_custom, allow_skip=allow_skip, total=total, agent_id=agent_id,
+            allow_custom=allow_custom, allow_skip=allow_skip, total=total,
         )
         connection = (ctx.headers or {}).get("mcp-session-id")
         return await self.ask(self._workspace_id(ctx), request, connection)
@@ -219,11 +228,7 @@ class QuestionMcp:
         question_id: str | None = None,
         option_id: str | None = None,
     ) -> dict[str, Any]:
-        """Draw a small decision diagram (max 12 nodes) for one option; returns its diagram_ref.
-
-        Nodes are {id, label, description?, status?}; status "new" marks a part that does not exist
-        yet. Edges are {from, to, label?}. Pass the returned diagram_ref on the option in ask_user.
-        """
+        """Draw a small decision diagram (max 12 nodes) for one option; returns its diagram_ref."""
         return await self.draw_diagram(
             self._workspace_id(ctx), title, nodes, edges or [], question_id, option_id
         )

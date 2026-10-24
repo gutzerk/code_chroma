@@ -81,14 +81,13 @@ class RejectionTracker:
             return 0
         return entry[0]
 
-    def record(self, workspace_id: str, session_id: str | None) -> int:
-        """Counts one more rejection and returns the new total (0 when untracked)."""
+    def record(self, workspace_id: str, session_id: str | None) -> None:
+        """Counts one more rejection; untracked without a session id."""
         if not session_id:
-            return 0
+            return
         total = self.count(workspace_id, session_id) + 1
         self._evict()
         self._entries[(workspace_id, session_id)] = (total, self._clock())
-        return total
 
     def reset(self, workspace_id: str, session_id: str | None) -> None:
         """Forgets the count after a valid question, an answer or a degraded pass-through."""

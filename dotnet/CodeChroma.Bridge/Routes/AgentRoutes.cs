@@ -118,7 +118,7 @@ public static class AgentRoutes
                     banner = asksInTerminal ? BareSkill.InteractiveQuestion : null;
                 }
             }
-            var launch = terminalAgents.Resolve(record.Kind, sessionId, taskText, bare, visible, forkSession: fork);
+            var launch = terminalAgents.Resolve(record.Kind, sessionId, taskText, bare, visible, forkSession: fork, agentId: agentId, bridgeUrl: BareSkill.BridgeUrl);
             if (launch is null) return Reply.Error(400, $"unknown agent kind: {record.Kind}");
             var env = new Dictionary<string, string>(launch.Env);
             BridgeAddress.ExportIdentity(env, agentId, BareSkill.BridgeUrl);

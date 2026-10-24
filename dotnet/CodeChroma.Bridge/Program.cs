@@ -39,6 +39,7 @@ builder.Services.AddSingleton(_ => new ModelStore(ModelStore.DefaultDirectory(),
 builder.Services.AddSingleton<ProcessDiagram>();
 builder.Services.AddSingleton<DiagramContext>();
 builder.Services.AddSingleton<WorkflowRunners>();
+builder.Services.AddSingleton(sp => new CodeChroma.Bridge.Questions.QuestionMcp(id => sp.GetRequiredService<WorkspaceRegistry>().Get(id)));
 builder.Services.AddSingleton(new BranchManager(repoRoot));
 builder.Services.AddSingleton(sp =>
 {
@@ -97,6 +98,7 @@ EpicsRoutes.Map(app);
 ContextRoutes.Map(app);
 WikiGeneralRoutes.Map(app);
 WorkflowRoutes.Map(app);
+QuestionRoutes.Map(app);
 ProcessDiagramRoutes.Map(app);
 if (Environment.GetEnvironmentVariable("codechroma_MODEL_WARMUP")?.Trim() == "1") _ = Task.Run(() => app.Services.GetRequiredService<DiagramContext>().WarmModelAsync());
 

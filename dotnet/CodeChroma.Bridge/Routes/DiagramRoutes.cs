@@ -46,7 +46,7 @@ public static class DiagramRoutes
                 var ws = r.Get(repoId);
                 var agent = agents[k];
                 var onlyIfMissing = request.Query["only_if_missing"].ToString().Equals("true", StringComparison.OrdinalIgnoreCase);
-                if (onlyIfMissing && k == "c1" && agent.HasArtifact(ws.Root, ws.Id)) return Results.Json(agent.GetState(ws.Id), BridgeJson.Default.JobState);
+                if (onlyIfMissing && k == "c1" && agent.HasArtifact(ws.C1Root, ws.Id)) return Results.Json(agent.GetState(ws.Id), BridgeJson.Default.JobState);
                 var (onChange, onOutput) = SkillJobCallbacks.For(k, ws.Emit);
                 var gathered = DiagramContext.Types.Contains(k) ? await context.GatherAsync(ws, k, null) : null;
                 return Results.Json(await agent.Start(ws.Id, ws.Root, onChange, onOutput, options: gathered is null ? null : new RunOptions([]) { Context = gathered }), BridgeJson.Default.JobState);
@@ -98,11 +98,13 @@ public static class DiagramRoutes
         }
     }
 
-    public static JsonNode? LoadArtifact(Workspace ws, string kind)
+    public static JsonNode? LoadArtifact(Workspace ws, string kind) => LoadArtifactAt(ws.Root, kind);
+
+    private static JsonNode? LoadArtifactAt(string root, string kind)
     {
         try
         {
-            return JsonNode.Parse(File.ReadAllText(ws.DiagramPath(kind)));
+            return JsonNode.Parse(File.ReadAllText(Workspace.DiagramPath(root, kind)));
         }
         catch (Exception error) when (error is IOException or JsonException)
         {
@@ -153,7 +155,7 @@ public static class DiagramRoutes
             ["fingerprint"] = Fingerprint(diagram),
         };
         // A built-in is ready once its file validates (an empty object is valid); custom and feature-plan once non-empty.
-        foreach (var kind in Workspace.DiagramKinds) Add(kind, DiagramArtifacts.Load(ws, kind), SkillAgents.HasValidFlatDiagram(LoadArtifact(ws, kind)));
+        foreach (var kind in Workspace.DiagramKinds) Add(kind, DiagramArtifacts.Load(ws, kind), SkillAgents.HasValidFlatDiagram(LoadArtifactAt(kind == "c1" ? ws.C1Root : ws.Root, kind)));
         foreach (var entry in library.ListTypes())
             if (Json.Str(entry!["id"]) is { } typeId) Add($"custom/{typeId}", DiagramArtifacts.Load(ws, $"custom/{typeId}"));
         var featureDir = Path.Combine(ws.Root, ".codechroma", "diagrams", "feature-plan");

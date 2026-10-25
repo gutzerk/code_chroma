@@ -101,7 +101,10 @@ export function CanvasNodeBox({ element, onMeasure }: CanvasNodeBoxProps) {
   const isInspectorTarget = useIsInspectorTarget(element.node_id ?? element.id, element.id);
   const style = styleFor(element.render);
   const focusState = useFocusState(element.id);
-  const stepNumber = leadingOrderDigits(stringMeta(element, "order"));
+  const stepNumber =
+    isEpicsLayerName(element.layer) || element.render === "sequence"
+      ? undefined
+      : leadingOrderDigits(stringMeta(element, "order"));
   // Hard layout (010-epics-tree-render, Part 4): an epic-tree box sits in a pre-structured parent
   // frame, so it is never user-draggable — no solo/group drag, no collision solving, no position
   // writes. Its position comes only from auto-layout / the fit loop. Discrete — everything else
@@ -256,8 +259,6 @@ export function CanvasNodeBox({ element, onMeasure }: CanvasNodeBoxProps) {
       return;
     }
     selectionStore.clear();
-    // 022: a click also focuses the block (neighbours stay lit, the rest fades); display only.
-    focusStore.toggle(canvasDocStore.getDoc(), element.id);
     // The tutorial's "drag this block" step only allows moving: a click must not open the inspector.
     if (tutorialStore.currentStepId() === "move-block") return;
     // An epics-layer box (epic title, content card, phase header or task) has no code behind it --
@@ -275,6 +276,8 @@ export function CanvasNodeBox({ element, onMeasure }: CanvasNodeBoxProps) {
       });
       return;
     }
+    // 022: a click also focuses the block (neighbours stay lit, the rest fades); display only.
+    focusStore.toggle(canvasDocStore.getDoc(), element.id);
     // An epic/story box's primary click opens the right-side inspector showing the work item's full
     // text (010-epics-tree-render Part 5). The AI brief is reached from a button inside that level.
     // `stringMeta` restores the runtime type guard (`meta` is `Record<string, unknown>`) — the
@@ -469,7 +472,7 @@ export function CanvasNodeBox({ element, onMeasure }: CanvasNodeBoxProps) {
               </span>
             )}
             {isImpact && (
-              <ImpactGlance change={impactChange} doc={canvasDocStore.getDoc()} elementId={element.id} />
+              <ImpactGlance change={impactChange} elementId={element.id} />
             )}
             {sourcePath && (
               <div className="canvas-node-box-foot" data-testid="canvas-node-box-foot">

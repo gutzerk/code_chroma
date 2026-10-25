@@ -117,7 +117,7 @@ public static class Recipes
     {
         var meta = item["meta"] is JsonObject own ? (JsonObject)own.DeepClone() : [];
         foreach (var key in new[] { "kind", "icon", "parent", "seed", "order", "lane", "path" })
-            if (item[key] is { } value) meta[key] = value.DeepClone();
+            if (item[key] is { } value && (key is "kind" or "icon" or "parent" or "seed" || !meta.ContainsKey(key))) meta[key] = value.DeepClone();
         // A per-node `render` override lets one diagram mix kinds (an epics brief draws epic and spec boxes).
         var resolvedRender = Json.Str(item["render"]) ?? render;
         var label = Json.Truthy(item["name"]) ? PyStr(item["name"]) : Json.Truthy(item["title"]) ? PyStr(item["title"]) : PyStr(item["id"]);

@@ -13,7 +13,8 @@
   --wf-accent: var(--accent);
   --wf-accent-bg: #1f2a44;
   --wf-ok: var(--success);
-  --wf-warn: #facc15;
+  --wf-warn: #facc15; /* intentionally brighter than --warning: workflow 'you'/paused hue */
+  --wf-continue: #2dd4bf;
   --wf-stop: var(--stop);
 }
 /* stylelint-enable color-no-hex */

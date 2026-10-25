@@ -691,11 +691,11 @@ select.wfe-input {
 }
 
 .wfe-link[data-tone="continue"] .wfe-link-line {
-  background: var(--inspector);
+  background: var(--wf-continue);
 }
 
 .wfe-link[data-tone="continue"] .wfe-link-text {
-  color: var(--inspector);
+  color: var(--wf-continue);
 }
 
 .wfe-card-select {

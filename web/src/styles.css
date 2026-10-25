@@ -124,7 +124,11 @@
   --control-hover-border: #888;
 
   /* Radius scale. */
+  --radius-2: 2px;
   --radius-xs: 3px;
+  --radius-5: 5px;
+  --radius-7: 7px;
+  --radius-9: 9px;
   --radius-sm: 4px;
   --radius-md: 6px;
   --radius-lg: 8px;
@@ -153,6 +157,8 @@
      per issue #88 rather than folded into the surface / accent scale above. */
   --issue-dialog-bg: #16171c;
   --issue-dialog-accent: #8faef2;
+  --updates-muted: #a3a7b3; /* updates dialog secondary text/strokes */
+  --epic-muted: #8b93a7; /* epic brief / acceptance-criteria muted text */
 }
 /* stylelint-enable color-no-hex */
 
@@ -2063,7 +2069,7 @@ body {
 .diagram-node-box--epic:not(.diagram-node-box--epic-root) .diagram-node-box-name {
   color: var(--accent);
   background: color-mix(in oklab, var(--accent) 10%, transparent);
-  border-radius: var(--radius-md);
+  border-radius: var(--radius-5);
   padding: 0.05rem 0.35rem;
 }
 
@@ -2078,7 +2084,7 @@ body {
    of the box, so a top hairline separates it (the free-text prose) from the chrome above (title,
    meta chips) and lets the prose read as its own section. */
 .diagram-node-box-desc {
-  color: var(--text-2);
+  color: var(--epic-muted);
   font-size: 0.7rem;
   white-space: normal;
   overflow-wrap: anywhere;
@@ -2307,7 +2313,7 @@ body {
 .epic-stage-item-story {
   flex-shrink: 0;
   font-size: 0.65rem;
-  color: var(--text-2);
+  color: var(--epic-muted);
   background: rgba(139, 147, 167, 0.15);
   padding: 0.05rem 0.4rem;
   border-radius: var(--radius-lg);
@@ -2321,7 +2327,7 @@ body {
   max-width: 26rem;
   margin: 4.5rem auto;
   padding: 1.25rem 1.5rem;
-  color: var(--text-2);
+  color: var(--epic-muted);
   font-size: 0.85rem;
   text-align: center;
 }
@@ -4058,7 +4064,7 @@ button[data-copy-state="idle"][aria-label]:hover:not(:disabled) {
   justify-content: center;
   padding: 0;
   border: 1px solid var(--border-strong);
-  border-radius: var(--radius-md);
+  border-radius: var(--radius-7);
   background: var(--surface-3);
   color: var(--text-1);
   font-size: 0.8rem;
@@ -5598,7 +5604,7 @@ button[data-copy-state="idle"][aria-label]:hover:not(:disabled) {
 }
 
 /* 008-epics-ai-brief: a scrollable DOM-flow document, not dagre boxes -- see EpicBriefView.tsx.
-   Reuses the same color language as .epic-box (var(--surface-2)/var(--text-2)/var(--accent-muted)/var(--border-faint)) so it reads as part
+   Reuses the same color language as .epic-box (var(--surface-2)/var(--epic-muted)/var(--accent-muted)/var(--border-faint)) so it reads as part
    of the same app, not a second design system. */
 .epic-brief-view {
   position: relative;
@@ -5724,7 +5730,7 @@ button[data-copy-state="idle"][aria-label]:hover:not(:disabled) {
   flex-wrap: wrap;
   gap: 0.6rem;
   font-size: 0.7rem;
-  color: var(--text-2);
+  color: var(--epic-muted);
   background: var(--surface-code);
   border: 1px dashed var(--border-faint);
   border-radius: var(--radius-lg);
@@ -5741,7 +5747,7 @@ button[data-copy-state="idle"][aria-label]:hover:not(:disabled) {
 .epic-brief-subgroup-label {
   font-size: 0.68rem;
   font-weight: 700;
-  color: var(--text-2);
+  color: var(--epic-muted);
   margin-bottom: 0.6rem;
   text-transform: uppercase;
   letter-spacing: 0.03em;
@@ -5782,7 +5788,7 @@ button[data-copy-state="idle"][aria-label]:hover:not(:disabled) {
   position: relative;
   background: var(--surface-2);
   border: 1px solid var(--border-faint);
-  border-left: 5px solid var(--scope-item, var(--text-2));
+  border-left: 5px solid var(--scope-item, var(--epic-muted));
   border-radius: var(--radius-xl);
   padding: 0.8rem 1rem;
   flex: 1 1 0;
@@ -5809,9 +5815,9 @@ button[data-copy-state="idle"][aria-label]:hover:not(:disabled) {
 
 .epic-brief-scope-item-count {
   font-size: 0.65rem;
-  color: var(--scope-item, var(--text-2));
+  color: var(--scope-item, var(--epic-muted));
   font-weight: 700;
-  background: color-mix(in srgb, var(--scope-item, var(--text-2)) 18%, transparent);
+  background: color-mix(in srgb, var(--scope-item, var(--epic-muted)) 18%, transparent);
   padding: 0.1rem 0.5rem;
   border-radius: var(--radius-xl);
   flex-shrink: 0;
@@ -5820,7 +5826,7 @@ button[data-copy-state="idle"][aria-label]:hover:not(:disabled) {
 
 .epic-brief-scope-item-desc {
   font-size: 0.74rem;
-  color: var(--text-2);
+  color: var(--epic-muted);
   margin: 0.25rem 0 0.6rem;
   line-height: 1.4;
 }
@@ -5879,7 +5885,7 @@ button[data-copy-state="idle"][aria-label]:hover:not(:disabled) {
 
 .epic-brief-out-block {
   border: 1px dashed var(--text-3);
-  border-radius: var(--radius-lg);
+  border-radius: var(--radius-9);
   padding: 0.55rem 0.75rem;
   font-size: 0.74rem;
   opacity: 0.6;
@@ -5901,7 +5907,7 @@ button[data-copy-state="idle"][aria-label]:hover:not(:disabled) {
   padding: 0.05rem 0.45rem;
   border-radius: var(--radius-xl);
   background: rgba(139, 147, 167, 0.15);
-  color: var(--text-2);
+  color: var(--epic-muted);
   margin-top: 0.35rem;
   font-weight: 600;
 }
@@ -6012,17 +6018,17 @@ button[data-copy-state="idle"][aria-label]:hover:not(:disabled) {
   font-size: 0.65rem;
   font-weight: 700;
   padding: 0.1rem 0.5rem;
-  border-radius: var(--radius-panel);
+  border-radius: var(--radius-full);
   margin-top: 0.5rem;
-  background: color-mix(in srgb, var(--ac-badge, var(--text-2)) 15%, transparent);
-  color: var(--ac-badge, var(--text-2));
+  background: color-mix(in srgb, var(--ac-badge, var(--epic-muted)) 15%, transparent);
+  color: var(--ac-badge, var(--epic-muted));
 }
 
 .epic-brief-trace-dot {
   width: 6px;
   height: 6px;
   border-radius: 50%;
-  background: var(--ac-badge, var(--text-2));
+  background: var(--ac-badge, var(--epic-muted));
   display: inline-block;
 }
 
@@ -6150,7 +6156,7 @@ button[data-copy-state="idle"][aria-label]:hover:not(:disabled) {
 }
 .updates-header h2 {
   margin: 0;
-  color: var(--text-mid);
+  color: var(--updates-muted);
   font-size: 16px;
   font-weight: 500;
 }
@@ -6165,7 +6171,7 @@ button[data-copy-state="idle"][aria-label]:hover:not(:disabled) {
   background: transparent;
   border: 1px solid transparent;
   border-radius: var(--radius-xl);
-  color: var(--text-mid);
+  color: var(--updates-muted);
   cursor: pointer;
 }
 .updates-back:hover {
@@ -6191,7 +6197,7 @@ button[data-copy-state="idle"][aria-label]:hover:not(:disabled) {
 .updates-status p,
 .updates-message {
   margin: 0;
-  color: var(--text-mid);
+  color: var(--updates-muted);
   font-size: 14px;
   line-height: 1.45;
 }
@@ -6212,11 +6218,11 @@ button[data-copy-state="idle"][aria-label]:hover:not(:disabled) {
   min-width: 0;
 }
 .updates-version span {
-  color: var(--text-mid);
+  color: var(--updates-muted);
   font-size: 12px;
 }
 .updates-version strong {
-  color: var(--text-mid);
+  color: var(--updates-muted);
   font-family: var(--font-mono);
   font-size: 18px;
   font-weight: 500;
@@ -6227,14 +6233,14 @@ button[data-copy-state="idle"][aria-label]:hover:not(:disabled) {
   text-align: right;
 }
 .updates-version-latest strong {
-  color: var(--accent);
+  color: var(--issue-dialog-accent);
 }
 .updates-version-arrow {
   flex: 0 0 20px;
   width: 20px;
   height: 20px;
   fill: none;
-  stroke: var(--text-mid);
+  stroke: var(--updates-muted);
   stroke-linecap: round;
   stroke-linejoin: round;
   stroke-width: 1.7;
@@ -6256,8 +6262,8 @@ button[data-copy-state="idle"][aria-label]:hover:not(:disabled) {
   width: 100%;
   min-height: 48px;
   padding: 0 16px;
-  background: var(--accent);
-  border: 1px solid var(--accent);
+  background: var(--issue-dialog-accent);
+  border: 1px solid var(--issue-dialog-accent);
   border-radius: var(--radius-xl);
   color: #0e1220;
   cursor: pointer;
@@ -6280,12 +6286,12 @@ button[data-copy-state="idle"][aria-label]:hover:not(:disabled) {
   gap: 8px;
   min-height: 48px;
   justify-content: center;
-  color: var(--text-mid);
+  color: var(--updates-muted);
 }
 .updates-download progress {
   width: 100%;
   height: 6px;
-  accent-color: var(--accent);
+  accent-color: var(--issue-dialog-accent);
 }
 .updates-secondary-actions {
   display: flex;
@@ -6331,7 +6337,7 @@ button[data-copy-state="idle"][aria-label]:hover:not(:disabled) {
 .updates-changelog-body {
   max-height: 55vh;
   overflow-y: auto;
-  color: var(--text-mid);
+  color: var(--updates-muted);
   line-height: 1.5;
 }
 .updates-changelog-body h4 {
@@ -6355,7 +6361,7 @@ button[data-copy-state="idle"][aria-label]:hover:not(:disabled) {
 .updates-primary:focus-visible,
 .updates-check:focus-visible,
 .updates-release-link:focus-visible {
-  outline: 2px solid var(--accent);
+  outline: 2px solid var(--issue-dialog-accent);
   outline-offset: 2px;
 }
 
@@ -6454,7 +6460,7 @@ button[data-copy-state="idle"][aria-label]:hover:not(:disabled) {
 }
 .issue-header h2 {
   margin: 0;
-  color: var(--text-mid);
+  color: var(--updates-muted);
   font-size: 16px;
   font-weight: 500;
 }
@@ -6621,7 +6627,7 @@ button[data-copy-state="idle"][aria-label]:hover:not(:disabled) {
 }
 .issue-footer-note {
   margin: 0;
-  color: var(--text-mid);
+  color: var(--updates-muted);
   font-size: 12px;
   text-align: center;
 }
@@ -6639,7 +6645,7 @@ button[data-copy-state="idle"][aria-label]:hover:not(:disabled) {
 }
 .issue-confirm-body {
   margin: 0;
-  color: var(--text-mid);
+  color: var(--updates-muted);
   font-size: 14px;
 }
 .issue-confirm-actions {
@@ -7413,7 +7419,7 @@ button[data-copy-state="idle"][aria-label]:hover:not(:disabled) {
 .question-header-gap { flex: 1; }
 
 .question-progress { display: flex; gap: 4px; }
-.question-progress-seg { width: 18px; height: 3px; border-radius: var(--radius-xs); background: var(--border); }
+.question-progress-seg { width: 18px; height: 3px; border-radius: var(--radius-2); background: var(--border); }
 .question-progress-seg--on { background: var(--question-accent); }
 
 .question-title {
@@ -8194,7 +8200,7 @@ button[data-copy-state="idle"][aria-label]:hover:not(:disabled) {
 [data-zoom="mid"] .canvas-node-box-glance, [data-zoom="far"] .canvas-node-box-glance { display: none; }
 
 /* 022: corner step chip replaces the STEP text in the top band */
-.canvas-node-step-chip { position: absolute; top: -9px; left: -9px; z-index: 2; min-width: 18px; height: 18px; padding: 0 4px; border-radius: var(--radius-lg); font-size: 0.65rem; line-height: 18px; text-align: center; font-weight: 600; color: #fff; background: var(--accent, #6366f1); }
+.canvas-node-step-chip { position: absolute; top: -9px; left: -9px; z-index: 2; min-width: 18px; height: 18px; padding: 0 4px; border-radius: var(--radius-full); font-size: 0.65rem; line-height: 18px; text-align: center; font-weight: 600; color: #fff; background: var(--accent, #6366f1); }
 .canvas-node-order-badge { display: none; }
 .sequence-message--active .sequence-message-line { border-top-width: 3px; }
 .sequence-message--active .sequence-message-label { font-weight: 600; }

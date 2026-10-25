@@ -10,6 +10,7 @@ public sealed class WorkspaceRegistry : IDisposable
     private readonly Action<string, JsonObject> _onEvent;
     private readonly TimeProvider _time;
     private readonly bool _startWatchers;
+    private readonly Diagrams.DiagramBootstrap? _bootstrap;
     private readonly Dictionary<string, (string Root, bool ReadOnly)> _roots = [];
     private readonly Dictionary<string, RootExtras> _extras = [];
     private readonly Dictionary<string, string> _canonical = [];
@@ -19,8 +20,9 @@ public sealed class WorkspaceRegistry : IDisposable
     private readonly Dictionary<string, Lazy<Workspace>> _pending = [];
     private readonly object _lock = new();
 
-    public WorkspaceRegistry(string mainRoot, IEngineFactory factory, Action<string, JsonObject> onEvent, TimeProvider time, bool startWatchers)
+    public WorkspaceRegistry(string mainRoot, IEngineFactory factory, Action<string, JsonObject> onEvent, TimeProvider time, bool startWatchers, Diagrams.DiagramBootstrap? bootstrap = null)
     {
+        _bootstrap = bootstrap;
         _factory = factory;
         _onEvent = onEvent;
         _time = time;
@@ -216,6 +218,7 @@ public sealed class WorkspaceRegistry : IDisposable
         };
         // Offline and best-effort: the docstring wiki is written once, the first time a workspace comes up.
         Wiki.WikiBootstrap.IfMissing(workspace);
+        _bootstrap?.IfMissing(workspace);
         return workspace;
     }
 

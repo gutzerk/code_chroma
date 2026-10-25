@@ -80,8 +80,8 @@ public sealed class WorkspaceWatchers : IDisposable
             if (!Directory.Exists(folderPath)) continue;
             foreach (var directory in Directory.EnumerateDirectories(folderPath))
             {
-                var path = Path.Combine(directory, Path.GetFileName(directory) + ".json");
-                if (UnderNewDirectory(path) && File.Exists(path)) debouncer.Trigger();
+                var paths = new[] { Path.Combine(directory, Path.GetFileName(directory) + ".json"), Path.Combine(directory, "projection.json") };
+                if (paths.Any(path => UnderNewDirectory(path) && File.Exists(path))) debouncer.Trigger();
             }
         }
         foreach (var (path, debouncer) in new[] { (ImpactChangesPath, _impactChanges), (WikiGeneralIndexPath, _wikiGeneral) })

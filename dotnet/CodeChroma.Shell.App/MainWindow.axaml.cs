@@ -256,8 +256,11 @@ public sealed partial class MainWindow : Window, IShellUi, ILauncherHost
 
     public Task<BranchPick> PickBranchAsync(string project, BranchChoices choices) => Dialogs.PickBranchAsync(this, project, choices);
 
-    public Task OpenRepoAsync(string repoPath, string? workspaceId) =>
-        controller.OpenRepoAsync(repoPath, tabs.ActiveTab?.Id, workspaceId);
+    public Task OpenRepoAsync(LauncherPanel requester, string repoPath, string? workspaceId)
+    {
+        var tab = tabs.Tabs.FirstOrDefault(t => ReferenceEquals(((TabView)t.View).Launcher, requester));
+        return tab is null ? Task.CompletedTask : controller.OpenRepoAsync(repoPath, tab.Id, workspaceId);
+    }
 
     public async Task<string?> PickFolderAsync(string title)
     {

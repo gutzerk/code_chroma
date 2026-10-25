@@ -53,9 +53,12 @@ Logic is UI-free in `CodeChroma.Shell`; `CodeChroma.Shell.App` only renders.
   (including when the launcher leaves the visual tree). It clones the default branch with full history into
   a unique staging folder beside the destination, then moves the completed checkout into place. Existing
   destinations are refused; failed/cancelled staging folders are removed best-effort. Success uses the normal
-  `OpenRepoAsync` flow, including analysis and recents. Git must be on PATH; private remotes use existing
-  Git credential helpers or SSH keys, with terminal/SSH password prompts disabled. Passwords in URLs and
-  URL query strings are rejected. Local repository paths are also accepted. No bridge route is involved.
+  `OpenRepoAsync` flow, including analysis and recents, bound to the launcher that requested it even if the
+  user switches tabs during cloning. A launcher removed before opening cannot open another tab. Git must be
+  on PATH; private remotes use existing Git credential helpers or SSH keys. Terminal credential prompts are
+  disabled; the default SSH client uses batch mode. Configured `core.sshCommand`, `GIT_SSH`, and
+  `GIT_SSH_COMMAND` clients are preserved and must handle authentication without interactive prompts. Passwords
+  in URLs and URL query strings are rejected. Local repository paths are also accepted. No bridge route is involved.
 - Opening an already-open project asks which branch to show (`Bridge/BranchBridgeClient`: `GET /branches/choices`,
   `POST /branches`; a 409 names the workspace already showing it and the shell focuses that tab).
 - `window.codechromaDesktop` is injected after each navigation and talks to the shell over the WebView message
@@ -175,7 +178,8 @@ macOS and Linux behaviour (WKWebView/WebKitGTK rendering, Unix PTY, install/upda
 from code and is not verified on real hardware.
 
 `RepositoryCloneTests` exercises real local Git clones (history and origin preserved, paths with spaces),
-existing-destination protection, failed-clone cleanup, cancellation and remote/name validation without network access.
+existing-destination protection, failed-clone cleanup, cancellation, configured SSH clients and remote/name
+validation without network access.
 
 🔴 macOS crash: WebView.Avalonia 11.0.0.1 runs `ExecuteScriptAsync(script)` on macOS as `__dispatchMessageCallback("<script>")` (a Blazor-only hook)
 and does `result.ToString()` on the null result, an unhandleable NRE inside a native callback that aborts the app. Two guards: `UpdateHost`

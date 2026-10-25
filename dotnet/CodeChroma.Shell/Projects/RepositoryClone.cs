@@ -63,26 +63,50 @@ public static partial class RepositoryClone
         foreach (var arg in new[] { "clone", "--progress", "--", remote, staging }) start.ArgumentList.Add(arg);
         start.Environment["GIT_TERMINAL_PROMPT"] = "0";
         start.Environment["GCM_INTERACTIVE"] = "Never";
-        if (!start.Environment.ContainsKey("GIT_SSH_COMMAND")) start.Environment["GIT_SSH_COMMAND"] = "ssh -oBatchMode=yes";
         try
         {
+            if (!start.Environment.ContainsKey("GIT_SSH_COMMAND") && !start.Environment.ContainsKey("GIT_SSH")
+                && !await HasConfiguredSshCommandAsync(parent, cancellationToken).ConfigureAwait(false))
+                start.Environment["GIT_SSH_COMMAND"] = "ssh -oBatchMode=yes";
             using var git = Process.Start(start) ?? throw new InvalidOperationException("Could not start Git.");
             var errors = new Queue<string>();
             var stdout = DrainAsync(git.StandardOutput, null, progress);
             var stderr = DrainAsync(git.StandardError, errors, progress);
-            try { await git.WaitForExitAsync(cancellationToken).ConfigureAwait(false); }
-            catch (OperationCanceledException)
-            {
-                try { git.Kill(entireProcessTree: true); }
-                catch (InvalidOperationException) { }
-                await git.WaitForExitAsync(CancellationToken.None).ConfigureAwait(false);
-                throw;
-            }
+            try { await WaitForGitExitAsync(git, cancellationToken).ConfigureAwait(false); }
             finally { await Task.WhenAll(stdout, stderr).ConfigureAwait(false); }
             cancellationToken.ThrowIfCancellationRequested();
             if (git.ExitCode != 0) throw new InvalidOperationException($"Could not clone the repository. Check the URL, network connection, and your Git credentials.\n{string.Join('\n', errors)}");
         }
         catch (Win32Exception e) { throw new InvalidOperationException("Git could not be started. Install Git and make sure it is available on PATH.", e); }
+    }
+
+    private static async Task<bool> HasConfiguredSshCommandAsync(string parent, CancellationToken cancellationToken)
+    {
+        var start = new ProcessStartInfo("git")
+        {
+            WorkingDirectory = parent, UseShellExecute = false, CreateNoWindow = true,
+            RedirectStandardOutput = true, RedirectStandardError = true,
+        };
+        foreach (var arg in new[] { "config", "--get", "core.sshCommand" }) start.ArgumentList.Add(arg);
+        using var git = Process.Start(start) ?? throw new InvalidOperationException("Could not start Git.");
+        var output = git.StandardOutput.ReadToEndAsync();
+        var error = git.StandardError.ReadToEndAsync();
+        try { await WaitForGitExitAsync(git, cancellationToken).ConfigureAwait(false); }
+        finally { await Task.WhenAll(output, error).ConfigureAwait(false); }
+        if (git.ExitCode is not (0 or 1)) throw new InvalidOperationException($"Could not read Git SSH configuration.\n{await error.ConfigureAwait(false)}");
+        return git.ExitCode == 0;
+    }
+
+    private static async Task WaitForGitExitAsync(Process git, CancellationToken cancellationToken)
+    {
+        try { await git.WaitForExitAsync(cancellationToken).ConfigureAwait(false); }
+        catch (OperationCanceledException)
+        {
+            try { git.Kill(entireProcessTree: true); }
+            catch (InvalidOperationException) { }
+            await git.WaitForExitAsync(CancellationToken.None).ConfigureAwait(false);
+            throw;
+        }
     }
 
     private static void RemoveStagingDirectory(string staging)

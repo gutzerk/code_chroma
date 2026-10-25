@@ -1,7 +1,8 @@
 import { toBlob, toSvg } from "html-to-image";
 
 const PADDING = 32;
-const MAX_SIDE = 16000;
+const MAX_SIDE = 12000;
+const MAX_PIXELS = 100_000_000;
 
 export interface CanvasCapture {
   width: number;
@@ -50,17 +51,21 @@ export function prepareCapture(root: Document = document): CanvasCapture | null 
   if (!content || !viewport) return null;
   const bounds = contentBounds(content);
   if (!bounds) return null;
-  const width = Math.min(MAX_SIDE, Math.ceil(bounds.width + PADDING * 2));
-  const height = Math.min(MAX_SIDE, Math.ceil(bounds.height + PADDING * 2));
+  const naturalWidth = bounds.width + PADDING * 2;
+  const naturalHeight = bounds.height + PADDING * 2;
+  const fit = Math.min(1, MAX_SIDE / Math.max(naturalWidth, naturalHeight));
+  const width = Math.ceil(naturalWidth * fit);
+  const height = Math.ceil(naturalHeight * fit);
   const computed = getComputedStyle(viewport).backgroundColor;
   const background = computed === "rgba(0, 0, 0, 0)" ? "#11131a" : computed;
   const options = {
     width,
     height,
-    pixelRatio: Math.min(2, MAX_SIDE / Math.max(width, height)),
+    pixelRatio: Math.min(2, Math.sqrt(MAX_PIXELS / (width * height))),
     backgroundColor: background,
     style: {
-      transform: `translate(${PADDING - bounds.x}px, ${PADDING - bounds.y}px)`,
+      transform: `scale(${fit}) translate(${PADDING - bounds.x}px, ${PADDING - bounds.y}px)`,
+      transformOrigin: "0 0",
       transition: "none",
     },
   };

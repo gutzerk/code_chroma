@@ -51,6 +51,7 @@ export function defaultSequenceMode(messageCount: number): SequenceMode {
  */
 class SequenceViewStore extends Store {
   private stored: Stored | null = null;
+  private storedKey = "";
   private version = 0;
   // Bumps only when the layout-relevant part changes (mode / collapsed), not on step or focus.
   private layoutVersion = 0;
@@ -79,7 +80,7 @@ class SequenceViewStore extends Store {
   setFocus = (layer: string, focus: string | null): void => this.update(layer, { focus });
   setCollapsed = (layer: string, collapsed: string[]): void => this.update(layer, { collapsed });
 
-  /** Forgets the in-memory choices (saved ones stay and reload per workspace); runs on a workspace switch. */
+  /** Forgets the in-memory choices (saved ones stay and reload per workspace). */
   reset(): void {
     this.stored = null;
     this.steps.clear();
@@ -87,7 +88,12 @@ class SequenceViewStore extends Store {
   }
 
   private load(): Stored {
-    return (this.stored ??= readStorage());
+    const key = storageKey();
+    if (!this.stored || this.storedKey !== key) {
+      this.stored = readStorage();
+      this.storedKey = key;
+    }
+    return this.stored;
   }
 
   private update(layer: string, patch: Partial<SequenceView>): void {

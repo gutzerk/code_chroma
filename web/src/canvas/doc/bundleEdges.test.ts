@@ -14,6 +14,13 @@ describe("bundleEdges", () => {
     expect(out[0].hero).toBe(true);
   });
 
+  it("keeps every distinct label of the merged edges", () => {
+    const out = bundleEdges([edge("1", "a", "b", "reads config"), edge("2", "a", "b", "writes cache")]);
+
+    expect(out).toHaveLength(1);
+    expect(out[0].label).toBe("reads config · writes cache ×2");
+  });
+
   it("leaves single edges untouched", () => {
     const single = edge("1", "a", "b", "x");
 

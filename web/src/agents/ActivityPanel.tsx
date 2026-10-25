@@ -69,8 +69,9 @@ export function ActivityPanel({
       if (agents.length === 0 || document.querySelector('[aria-modal="true"]')) return;
       event.preventDefault();
       event.stopPropagation();
-      const index = Math.max(0, agents.findIndex((agent) => agent.id === activeId));
-      const next = agents[(index + (event.key === "ArrowRight" ? 1 : agents.length - 1)) % agents.length];
+      const index = agents.findIndex((agent) => agent.id === activeId);
+      const forward = event.key === "ArrowRight";
+      const next = agents[index < 0 ? (forward ? 0 : agents.length - 1) : (index + (forward ? 1 : agents.length - 1)) % agents.length];
       selectAgent(agentClient, next);
       setTab("agents");
       setFocusRequest((n) => n + 1);

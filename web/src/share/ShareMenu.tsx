@@ -3,7 +3,7 @@ import { RailButton } from "../canvas/RailButton";
 import { RailIcon } from "../icons/RailIcon";
 import { useDisclosureMenu } from "../util/useDisclosureMenu";
 import { prepareCapture } from "./captureCanvas";
-import { buildExport, EXPORT_FORMATS, type ExportFormat } from "./exportFormats";
+import { buildExport, EXPORT_FORMATS, EXPORT_META, type ExportFormat } from "./exportFormats";
 import { saveFile } from "./saveFile";
 
 export interface ShareMenuProps {
@@ -35,8 +35,9 @@ export function ShareMenu({ name }: ShareMenuProps) {
     setBusy(true);
     try {
       const base = fileBase(name);
-      const file = await buildExport(format, capture, base);
-      await saveFile({ name: `${base}.${file.extension}`, mime: file.mime, blob: file.blob });
+      const { mime, extension } = EXPORT_META[format];
+      const blob = buildExport(format, capture, base).then((file) => file.blob);
+      await saveFile({ name: `${base}.${extension}`, mime, blob });
     } catch (e) {
       setError(e instanceof Error ? e.message : "Export failed");
     } finally {

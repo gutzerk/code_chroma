@@ -6,6 +6,7 @@ import { groupColorIndex, GROUP_COLOR_COUNT } from "./groupColor";
 export interface SequenceParticipant {
   element: CanvasElement;
   ref: string;
+  accent: string;
 }
 
 export interface SequenceMessage {
@@ -89,11 +90,11 @@ export function buildSequenceModel(elements: CanvasElement[]): SequenceModel {
   for (const element of elements) {
     if (stringMeta(element, "role") !== "participant") continue;
     const ref = stringMeta(element, "recipe_key") ?? element.id;
-    participants.push({ element, ref });
+    participants.push({ element, ref, accent: sequenceAccentRef(ref) });
     byRef.set(element.id, element);
     byRef.set(ref, element);
   }
-  const accentByRef = new Map(participants.map(({ ref }) => [ref, sequenceAccentRef(ref)]));
+  const accentByRef = new Map(participants.map(({ ref, accent }) => [ref, accent]));
 
   const messages = elements
     .map((element): SequenceMessage | null => {

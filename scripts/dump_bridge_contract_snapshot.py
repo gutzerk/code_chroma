@@ -51,6 +51,10 @@ def main() -> None:
                     "start_line": symbol.start_line,
                     "end_line": symbol.end_line,
                     "language": symbol.language,
+                    "kind": symbol.kind.value,
+                    "name": symbol.name,
+                    "parent_symbol_id": symbol.parent_symbol_id,
+                    "imports": symbol.imports,
                 }
                 for symbol in graph.symbols.values()
             ],

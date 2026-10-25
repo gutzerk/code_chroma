@@ -1,6 +1,10 @@
+using System.Text.Json.Nodes;
 using CodeChroma.Bridge.Engine;
 using CodeChroma.Bridge.Http;
 using CodeChroma.Bridge.Workspaces;
+using ContextDigest = CodeChroma.Core.ContextDigest;
+using DependencyDigest = CodeChroma.Core.DependencyDigest;
+using DependencyIndex = CodeChroma.Core.DependencyIndex;
 
 namespace CodeChroma.Bridge.Routes;
 
@@ -15,6 +19,9 @@ public static class GraphRoutes
     {
         app.MapGet("/repos/{repoId}/structure", Structure);
         app.MapGet("/repos/{repoId}/source", Source);
+        app.MapGet("/repos/{repoId}/context-digest", ContextDigestRoute);
+        app.MapGet("/repos/{repoId}/dependency-digest", DependencyDigestRoute);
+        app.MapGet("/repos/{repoId}/route", RouteBetween);
         app.MapGet("/repos/{repoId}/nodes/{**rest}", Nodes);
     }
 
@@ -106,6 +113,37 @@ public static class GraphRoutes
         if (text is null) return Detail(404, $"unknown file: {path}");
         var content = start is null && end is null ? text : SourceText.SliceLines(text, start ?? 1, end);
         return Results.Json(new SourceFragment(path, content, SourceText.LanguageFor(path)), BridgeJson.Default.SourceFragment);
+    }
+
+    // --- digests and the dependency route ---
+
+    private static IResult ContextDigestRoute(string repoId, WorkspaceRegistry registry)
+    {
+        var ws = registry.Get(repoId);
+        var graph = ws.Engine.GraphSnapshot();
+        return Results.Json(graph is null ? new JsonObject() : ContextDigest.Build(graph, ws.Root), BridgeJson.Default.JsonObject);
+    }
+
+    private static IResult DependencyDigestRoute(string repoId, string? path, WorkspaceRegistry registry)
+    {
+        var ws = registry.Get(repoId);
+        ws.Sync();
+        // Built fresh from the live graph, never persisted (the custom-diagram fingerprint hashes the on-disk file, so a write per read would churn it); graph-less engines fall back to the file.
+        var digest = ws.Engine.GraphSnapshot() is { } graph ? DependencyDigest.Build(graph) : DependencyDigest.Load(ws.Root);
+        if (path is null) return Results.Json(digest, BridgeJson.Default.JsonObject);
+        var entry = digest["files"]?.AsArray().OfType<JsonObject>().FirstOrDefault(f => (string?)f["path"] == path);
+        return entry is null ? Detail(404, $"no digest entry for path '{path}'") : Results.Json(entry, BridgeJson.Default.JsonObject);
+    }
+
+    private static IResult RouteBetween(string repoId, HttpRequest request, WorkspaceRegistry registry)
+    {
+        var from = request.Query["from"].ToString();
+        var to = request.Query["to"].ToString();
+        if (from.Length == 0 || to.Length == 0) return Detail(422, "query parameters 'from' and 'to' are required");
+        var ws = registry.Get(repoId);
+        var path = ws.Engine.GraphSnapshot() is { } graph ? new DependencyIndex(graph).FindRoute(from, to) : null;
+        var body = new JsonObject { ["path"] = path is null ? null : DependencyDigest.Strings(path) };
+        return Results.Json(body, BridgeJson.Default.JsonObject);
     }
 
     // --- structure: a bounded folder/file tree with real node ids ---

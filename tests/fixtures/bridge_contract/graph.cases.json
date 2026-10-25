@@ -4,7 +4,9 @@
     "tests/unit/test_bridge_children_route.py",
     "tests/unit/test_bridge_connections_route.py",
     "tests/unit/test_bridge_structure_route.py",
-    "tests/unit/test_bridge_source_route.py"
+    "tests/unit/test_bridge_source_route.py",
+    "tests/unit/test_bridge_dependency_digest_route.py",
+    "tests/unit/test_bridge_route_probe_route.py"
   ],
   "repo": {"base": "sample_repo"},
   "cases": [
@@ -247,6 +249,77 @@
         }
       ],
       "matrix": {"path": ["../outside.txt", "nope/missing.ts"]}
+    },
+    {
+      "id": "dependency_digest_lists_every_analyzed_file",
+      "steps": [
+        {
+          "http": {"method": "GET", "path": "/repos/main/dependency-digest"},
+          "expect": {"status": 200, "checks": [
+            {"path": "$.files", "type": "array"},
+            {"path": "$.totals.file_count", "type": "number"},
+            {"path": "$.truncated", "equals": false}
+          ]}
+        }
+      ]
+    },
+    {
+      "id": "dependency_digest_path_filter_returns_that_files_entry",
+      "steps": [
+        {
+          "http": {"method": "GET", "path": "/repos/main/dependency-digest", "query": {"path": "billing/service.py"}},
+          "expect": {"status": 200, "checks": [
+            {"path": "$.path", "equals": "billing/service.py"},
+            {"path": "$.node_id", "equals": "component::billing/service.py"}
+          ]}
+        }
+      ]
+    },
+    {
+      "id": "dependency_digest_unknown_path_is_404",
+      "steps": [
+        {
+          "http": {"method": "GET", "path": "/repos/main/dependency-digest", "query": {"path": "nope/nope.py"}},
+          "expect": {"status": 404}
+        }
+      ]
+    },
+    {
+      "id": "context_digest_has_the_four_summary_fields",
+      "steps": [
+        {
+          "http": {"method": "GET", "path": "/repos/main/context-digest"},
+          "expect": {"status": 200, "checks": [
+            {"path": "$.repo_name", "type": "string"},
+            {"path": "$.external_import_roots", "type": "array"},
+            {"path": "$.declared_dependencies", "equals": []},
+            {"path": "$.readme_excerpt", "equals": null}
+          ]}
+        }
+      ]
+    },
+    {
+      "id": "route_direct_call_is_a_two_node_path",
+      "steps": [
+        {
+          "http": {"method": "GET", "path": "/repos/main/route", "query": {
+            "from": "billing/service.py::function::BillingService.create_invoice",
+            "to": "shared/text_utils.py::function::slugify"}},
+          "expect": {"status": 200, "json": {"path": [
+            "billing/service.py::function::BillingService.create_invoice",
+            "shared/text_utils.py::function::slugify"]}}
+        }
+      ]
+    },
+    {
+      "id": "route_unconnected_or_unknown_nodes_give_a_null_path",
+      "steps": [
+        {
+          "http": {"method": "GET", "path": "/repos/main/route", "query": {"from": "${from}", "to": "shared/text_utils.py::function::slugify"}},
+          "expect": {"status": 200, "json": {"path": null}}
+        }
+      ],
+      "matrix": {"from": ["billing/models/invoice.py::function::format_invoice_id", "nope::nope"]}
     }
   ]
 }

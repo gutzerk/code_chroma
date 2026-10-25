@@ -52,6 +52,37 @@ public sealed class JsonSnapshotEngine : IGraphEngine
             _symbols[symbol.Id] = symbol;
         }
         foreach (var kv in doc["summaries"]!.AsObject()) _summaries[kv.Key] = kv.Value!.GetValue<string>();
+        Graph = CoreGraph(doc);
+    }
+
+    /// <summary>The snapshot as a Core graph, when its symbols carry kind and name (the dump script writes them).</summary>
+    private static CodeChroma.Core.Graph? CoreGraph(JsonObject doc)
+    {
+        var symbols = doc["symbols"]!.AsArray().Select(s => s!.AsObject()).ToList();
+        if (symbols.Any(s => s["kind"] is null)) return null;
+        var nodes = doc["nodes"]!.AsArray().Select(n => n!.AsObject()).Select(o => new CodeChroma.Core.HierarchyNode
+        {
+            Id = o["id"]!.GetValue<string>(),
+            Name = o["name"]!.GetValue<string>(),
+            Level = Enum.Parse<CodeChroma.Core.HierarchyLevel>(o["level"]!.GetValue<string>().Replace("_", ""), ignoreCase: true),
+            ParentIds = Strings(o["parent_ids"]),
+            SourcePath = o["source_path"]?.GetValue<string>(),
+            DocOnly = o["doc_only"]!.GetValue<bool>(),
+            DependsOnIds = Strings(o["depends_on_ids"]),
+        }).ToList();
+        var core = symbols.Select(o => new CodeChroma.Core.Symbol
+        {
+            Id = o["id"]!.GetValue<string>(),
+            FilePath = o["file_path"]!.GetValue<string>(),
+            Kind = Enum.Parse<CodeChroma.Core.SymbolKind>(o["kind"]!.GetValue<string>(), ignoreCase: true),
+            Name = o["name"]!.GetValue<string>(),
+            StartLine = o["start_line"]!.GetValue<int>(),
+            EndLine = o["end_line"]!.GetValue<int>(),
+            Language = o["language"]!.GetValue<string>(),
+            ParentSymbolId = o["parent_symbol_id"]?.GetValue<string>(),
+            Imports = o["imports"]!.AsObject().ToDictionary(kv => kv.Key, kv => kv.Value!.GetValue<string>()),
+        }).ToList();
+        return new CodeChroma.Core.Graph(nodes, core);
     }
 
     private static string[] Strings(JsonNode? node) => node!.AsArray().Select(x => x!.GetValue<string>()).ToArray();

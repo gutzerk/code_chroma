@@ -872,6 +872,7 @@ def _check_impact_status(diagram: object, kind: str, report: _Report) -> None:
 
 
 PHASE_KINDS = ("request", "prepare", "ai", "deliver", "custom")
+FRAME_KINDS = ("alt", "loop")
 MAX_TITLE_WORDS = 4
 
 
@@ -884,15 +885,20 @@ def _check_readability(diagram: object, kind: str, report: _Report) -> None:
     if kind == "sequence":
         for relation in relations:
             if relation.get("order") in (None, ""):
-                report.shape.append(
+                report.advisories.append(
                     f"NO-ORDER {relation.get('id')!r} message has no `order` --"
                     " number every message"
                 )
         _check_phases(diagram, relations, report)
-    for key in ("question", "summary"):
-        text = diagram.get(key)
-        if kind == "sequence" and relations and not (isinstance(text, str) and text.strip()):
-            report.advisories.append(f"NOSUMMARY the diagram has no top-level `{key}` string")
+        _check_frames(diagram, report)
+    if kind == "sequence" and relations:
+        missing = [
+            key for key in ("question", "summary")
+            if not (isinstance(diagram.get(key), str) and diagram[key].strip())
+        ]
+        if missing:
+            keys = " and ".join(f"`{key}`" for key in missing)
+            report.advisories.append(f"NOSUMMARY the diagram has no top-level {keys} string")
     named = [n for n in nodes if isinstance(n.get("id"), str)]
     names = {n["id"]: str(n.get("name") or "").strip().lower() for n in named}
     for node in nodes:
@@ -939,6 +945,26 @@ def _check_phases(diagram: dict, relations: list[dict], report: _Report) -> None
         start, end = phase.get("from_order"), phase.get("to_order")
         if not (_is_number(start) and _is_number(end) and start <= end):
             report.shape.append(f"BADPHASE {name!r} needs numeric from_order <= to_order")
+
+
+def _check_frames(diagram: dict, report: _Report) -> None:
+    """Sequence `frames[]` must carry alt/loop and a sane order range."""
+    frames = diagram.get("frames")
+    if frames is None:
+        return
+    if not isinstance(frames, list):
+        report.shape.append("BADFRAME `frames` must be a list")
+        return
+    for frame in frames:
+        if not isinstance(frame, dict):
+            report.shape.append("BADFRAME a frame entry is not a JSON object")
+            continue
+        name = frame.get("label") or frame.get("kind")
+        if frame.get("kind") not in FRAME_KINDS:
+            report.shape.append(f"BADFRAME {name!r} kind must be one of {FRAME_KINDS}")
+        start, end = frame.get("from_order"), frame.get("to_order")
+        if not (_is_number(start) and _is_number(end) and start <= end):
+            report.shape.append(f"BADFRAME {name!r} needs numeric from_order <= to_order")
 
 
 def _check_unlabeled(unlabeled_severity: str, report: _Report) -> None:

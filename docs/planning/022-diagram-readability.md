@@ -33,7 +33,7 @@ Rules for the switch:
 
 Files: `skills/codechroma-draw-diagram/` (`SKILL.md`, `references/drawing-rules.md`, `references/type-sequence.md`, `references/bare-sequence.md`, `scripts/check_diagram.py`), `src/codechroma/diagrams/`, `dotnet/CodeChroma.Bridge/Routes/DiagramRoutes.cs`.
 
-1. `order` and `lane` required on every node/message; `NO-ORDER` fails the self-check.
+1. `order` and `lane` required on every node/message; `NO-ORDER` is an advisory, so older diagrams keep passing.
 2. Edges on the main path get `hero: true`.
 3. Top-level `question` and `summary` strings.
 4. `phases[]` for sequences: `{id, name, kind, from_order, to_order}` where `kind` is one of `request | prepare | ai | deliver | custom`. Optional `frames[]` for `alt | loop` with `{kind, label, from_order, to_order}` and optional `notes[]` anchored to a message.

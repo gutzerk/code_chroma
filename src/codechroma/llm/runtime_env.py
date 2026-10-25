@@ -33,7 +33,7 @@ def _executable(path: str) -> bool:
 
 
 def _clean(env: Mapping[str, str]) -> dict[str, str]:
-    # Keep skill bridge/workspace identity; drop probe/settings internals and bash functions.
+    # Keep skill identity and session hooks; drop probe/settings internals and bash functions.
     return {
         k: v
         for k, v in env.items()
@@ -41,7 +41,10 @@ def _clean(env: Mapping[str, str]) -> dict[str, str]:
             k == "CODECHROMA_RESOLVING_ENVIRONMENT"
             or (
                 k.lower().startswith("codechroma_")
-                and k not in {"CODECHROMA_BRIDGE_URL", "CODECHROMA_WORKSPACE_ID"}
+                and k not in {
+                    "CODECHROMA_BRIDGE_URL", "CODECHROMA_WORKSPACE_ID",
+                    "CODECHROMA_AGENT_SESSION_FILE", "CODECHROMA_AGENT_SESSION_ID",
+                }
             )
             or k.startswith("BASH_FUNC_")
         )

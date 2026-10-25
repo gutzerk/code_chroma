@@ -99,7 +99,10 @@ public sealed class AgentRuntime(
     private void AutoStartOne(AgentRecord record)
     {
         var sessionId = agents.CaptureSessionId(record.Id);
-        var launch = terminalAgents.Resolve(record.Kind, sessionId, agentId: record.Id, bridgeUrl: BareSkill.BridgeUrl);
+        var fork = string.IsNullOrEmpty(sessionId) && record.ForkSession is { Length: > 0 };
+        var launch = terminalAgents.Resolve(record.Kind, fork ? record.ForkSession : sessionId, forkSession: fork, agentId: record.Id, bridgeUrl: BareSkill.BridgeUrl,
+            newSessionId: Guid.NewGuid().ToString(),
+            sessionTrackingFile: AgentSessionOwnership.FileFor(agents.MainRoot, Guid.NewGuid().ToString()));
         if (launch is null)
         {
             log.LogError("agents: unknown kind {Kind} for {Agent}, skipping auto-start", record.Kind, record.Id);
@@ -115,7 +118,7 @@ public sealed class AgentRuntime(
             return;
         }
         agents.MarkStarted(record.Id, session.Pid, TerminalAgents.ResolvedCliFor(record.Kind, launch.Argv));
-        _ = AgentRoutes.CaptureSessionIdLater(agents, record.Id);
+        agents.RecordSessionLaunch(record.Id, session);
     }
 
     /// <summary>Samples every live agent's screen and pushes only the changes the detector settled on.</summary>

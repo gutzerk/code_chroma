@@ -44,6 +44,8 @@ public sealed class AgentSession : IAgentSessionPort, IDisposable
     {
         AgentId = agentId;
         Argv = [.. launch.Argv];
+        SessionTrackingFile = launch.Env?.GetValueOrDefault(AgentSessionOwnership.FileEnv);
+        InitialSessionId = launch.Env?.GetValueOrDefault(AgentSessionOwnership.InitialIdEnv);
         _detector = new StatusDetector(StatusRules.ForKind(kind));
         // callbacks take _gate, so none can observe _pty before it is assigned
         lock (_gate)
@@ -57,6 +59,9 @@ public sealed class AgentSession : IAgentSessionPort, IDisposable
     public string AgentId { get; }
 
     public IReadOnlyList<string> Argv { get; }
+
+    public string? SessionTrackingFile { get; }
+    public string? InitialSessionId { get; }
 
     public int Pid => _pty.Pid;
 

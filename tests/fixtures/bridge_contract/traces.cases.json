@@ -89,6 +89,31 @@
         {"ws": "send", "name": "producer", "json": {"type": "step", "step": {"seq": 0, "node_id": "a"}}},
         {"ws": "receive", "name": "consumer", "expect": {"json": {"type": "step", "step": {"seq": 0, "node_id": "a"}}}}
       ]
+    },
+    {
+      "id": "sequence_context_without_traces_is_an_empty_scaffold",
+      "steps": [
+        {"http": {"method": "GET", "path": "/repos/main/sequence/context"}, "expect": {"status": 200, "checks": [
+          {"path": "$.generation_data.traces", "count": 0},
+          {"path": "$.coverage", "equals": null},
+          {"path": "$.staleness", "equals": null}
+        ]}}
+      ]
+    },
+    {
+      "id": "sequence_context_reduces_a_trace_to_participants_and_direct_call_messages",
+      "steps": [
+        {"fs": "write", "path": ".codechroma/traces/seq1.json", "text": "{\"id\": \"seq1\", \"created_at\": \"2026-07-20T00:00:00+00:00\", \"steps\": [{\"seq\": 2, \"event\": \"call\", \"caller_node_id\": \"a.py::function::b\", \"node_id\": \"a.py::function::c\", \"args\": \"x\"}, {\"seq\": 0, \"event\": \"call\", \"caller_node_id\": \"a.py::function::a\", \"node_id\": \"a.py::function::b\", \"args\": \"x\"}, {\"seq\": 1, \"event\": \"return\", \"node_id\": \"a.py::function::b\"}, {\"seq\": 3, \"event\": \"call\", \"caller_node_id\": \"a.py::function::a\", \"node_id\": \"a.py::function::a\"}, {\"seq\": 4, \"event\": \"call\", \"caller_node_id\": \"a.py::function::b\", \"node_id\": \"a.py::function::c\", \"args\": \"x\"}]}"},
+        {"http": {"method": "GET", "path": "/repos/main/sequence/context"}, "expect": {"status": 200, "checks": [
+          {"path": "$.generation_data.traces", "count": 1},
+          {"path": "$.generation_data.trace.id", "equals": "seq1"},
+          {"path": "$.generation_data.participants[*].name", "equals": ["a", "b", "c"]},
+          {"path": "$.generation_data.messages", "count": 2},
+          {"path": "$.generation_data.messages[*].order", "equals": [1, 2]},
+          {"path": "$.generation_data.messages[*].from_idx", "equals": [0, 1]},
+          {"path": "$.generation_data.messages[*].to_idx", "equals": [1, 2]}
+        ]}}
+      ]
     }
   ]
 }

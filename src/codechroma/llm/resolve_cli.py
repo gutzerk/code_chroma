@@ -38,10 +38,15 @@ def _is_anthropic_api(provider: Provider) -> bool:
 def _cli_env_overrides(provider: Provider, model: str) -> dict[str, str]:
     """Claude providers with a base_url, or an anthropic API key, get env vars (not `--bare`)."""
     if _is_anthropic_api(provider):
-        overrides = {"ANTHROPIC_API_KEY": "", "ANTHROPIC_MODEL": model}
-        if provider.base_url:
-            overrides["ANTHROPIC_BASE_URL"] = provider.base_url
-        key = resolve_provider_key(provider)
+        key = resolve_provider_key(provider) or ""
+        if not provider.base_url:
+            # api.anthropic.com takes an sk-ant key only as x-api-key, never as a Bearer token
+            return {"ANTHROPIC_API_KEY": key, "ANTHROPIC_MODEL": model}
+        overrides = {
+            "ANTHROPIC_BASE_URL": provider.base_url,
+            "ANTHROPIC_API_KEY": "",
+            "ANTHROPIC_MODEL": model,
+        }
         if key:
             overrides["ANTHROPIC_AUTH_TOKEN"] = key
         return overrides

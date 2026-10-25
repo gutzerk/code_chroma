@@ -48,7 +48,7 @@ public static class SequenceContext
             if (Json.Str(step["caller_node_id"]) is not { } caller || Json.Str(step["node_id"]) is not { } callee || caller == callee) continue;
             if (messages.Count >= MaxMessages) break;
             var args = step["args"];
-            var argsKey = Truthy(args) ? args!.ToString() : "";
+            var argsKey = Json.Truthy(args) ? args!.ToString() : "";
             var from = Participant(caller);
             var to = Participant(callee);
             if (!seen.Add((caller, callee, argsKey))) continue;
@@ -64,6 +64,4 @@ public static class SequenceContext
         }
         return (participants, messages);
     }
-
-    private static bool Truthy(JsonNode? node) => node is not null && !(node is JsonValue v && v.ToString() is "" or "0" or "false") && !(node is JsonArray { Count: 0 }) && !(node is JsonObject { Count: 0 });
 }

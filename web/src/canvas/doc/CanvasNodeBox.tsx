@@ -19,7 +19,7 @@ import { descriptionPopupStore } from "./descriptionPopupStore";
 import { accentFor, noCodeReasonMessage } from "./nodeAccentLogic";
 import { NodeMetaRow, NodeTopBand } from "./nodeAccent";
 import { BLOCK_RULES } from "./elementRules";
-import { leadingOrderDigits, stringMeta } from "./elementMeta";
+import { leadingOrderDigits, orderMeta, stringMeta } from "./elementMeta";
 import { epicsContentSizeStore } from "./epicsContentSizeStore";
 import { isAcceptance, isContentCard, isEpicsLayerName, isSpecs, isSummary, linesOf } from "./epicsLayout";
 import { specStories } from "./specStories";
@@ -104,7 +104,7 @@ export function CanvasNodeBox({ element, onMeasure }: CanvasNodeBoxProps) {
   const stepNumber =
     isEpicsLayerName(element.layer) || element.render === "sequence"
       ? undefined
-      : leadingOrderDigits(stringMeta(element, "order"));
+      : leadingOrderDigits(orderMeta(element));
   // Hard layout (010-epics-tree-render, Part 4): an epic-tree box sits in a pre-structured parent
   // frame, so it is never user-draggable — no solo/group drag, no collision solving, no position
   // writes. Its position comes only from auto-layout / the fit loop. Discrete — everything else

@@ -15,7 +15,7 @@ import { diagramDisplayName } from "./diagramDisplay";
 import { isDiagramLayer, labelForDiagramLayer, useCustomDiagramTypes } from "./diagramCatalog";
 import { BLOCK_RULES } from "./elementRules";
 import { elementRect } from "./elementRect";
-import { leadingOrderDigits, stringMeta } from "./elementMeta";
+import { leadingOrderDigits, orderMeta, stringMeta } from "./elementMeta";
 import { GroupFrame } from "./GroupFrame";
 import { LaneArea } from "./LaneArea";
 import { NoteElement } from "./NoteElement";
@@ -286,7 +286,7 @@ export function CanvasDocView() {
     () =>
       bucketPerLayer(
         Object.values(renderableElements),
-        (el) => leadingOrderDigits(stringMeta(el, "order")),
+        (el) => leadingOrderDigits(orderMeta(el)),
         false,
       ),
     [renderableElements],

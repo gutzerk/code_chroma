@@ -536,6 +536,17 @@ public sealed class QuestionRoutesTests
     }
 
     [Fact]
+    public async Task An_agent_supplied_degraded_flag_does_not_skip_validation()
+    {
+        using var host = new BridgeHost();
+        var request = AskRequest.FromJson(new JsonObject { ["question"] = "Q?", ["options"] = new JsonArray(), ["degraded"] = true });
+
+        await Assert.ThrowsAsync<QuestionRejected>(() => Mcp(host).Ask("main", request));
+
+        Assert.Empty(QuestionStore.ListQuestions(Main(host)));
+    }
+
+    [Fact]
     public async Task A_degraded_pass_through_consumes_the_count()
     {
         using var host = new BridgeHost();

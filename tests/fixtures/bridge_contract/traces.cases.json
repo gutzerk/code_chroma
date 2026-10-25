@@ -22,6 +22,20 @@
       ]
     },
     {
+      "id": "the_sequence_scaffold_collapses_repeated_hops_even_without_args",
+      "steps": [
+        {"fs": "write", "path": ".codechroma/traces/seq.json", "text": "{\"id\": \"seq\", \"entry\": \"e()\", \"created_at\": \"2026-07-20T00:00:00+00:00\", \"status\": \"ok\", \"steps\": [{\"event\": \"call\", \"caller_node_id\": \"a\", \"node_id\": \"b\", \"args\": null}, {\"event\": \"call\", \"caller_node_id\": \"a\", \"node_id\": \"b\", \"args\": null}, {\"event\": \"call\", \"caller_node_id\": \"a\", \"node_id\": \"b\", \"args\": {\"x\": 1}}, {\"event\": \"call\", \"caller_node_id\": \"a\", \"node_id\": \"b\", \"args\": {\"x\": 1}}, {\"event\": \"call\", \"caller_node_id\": \"b\", \"node_id\": \"c\", \"args\": \"0\"}, {\"event\": \"call\", \"caller_node_id\": \"b\", \"node_id\": \"c\"}]}"},
+        {
+          "http": {"method": "GET", "path": "/repos/main/sequence/context"},
+          "expect": {"status": 200, "checks": [
+            {"path": "$.generation_data.participants[*].id", "equals": ["a", "b", "c"]},
+            {"path": "$.generation_data.messages[*].order", "equals": [1, 2, 3, 4]},
+            {"path": "$.generation_data.messages[*].args", "equals": [null, {"x": 1}, "0", null]}
+          ]}
+        }
+      ]
+    },
+    {
       "id": "a_meta_sidecar_summarizes_without_parsing_the_steps",
       "steps": [
         {"fs": "write", "path": ".codechroma/traces/big.json", "text": "{\"id\": \"big\", \"steps\": []}"},

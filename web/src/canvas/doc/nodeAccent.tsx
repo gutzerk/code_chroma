@@ -1,6 +1,6 @@
 import type { CanvasElement } from "../../state/types";
 import { BLOCK_RULES } from "./elementRules";
-import { stringMeta } from "./elementMeta";
+import { orderMeta, stringMeta } from "./elementMeta";
 import { NO_CODE_REASON_LABELS } from "./nodeAccentLogic";
 
 // Pure helpers (`accentFor`, `noCodeReasonMessage`, the `NodeAccent` type, the shared
@@ -18,7 +18,7 @@ import { NO_CODE_REASON_LABELS } from "./nodeAccentLogic";
 export function NodeTopBand({ element }: { element: CanvasElement }) {
   const planKind = stringMeta(element, "plan_kind");
   const plan = planKind && planKind in PLAN_KIND_LABELS ? planKind : undefined;
-  const order = stringMeta(element, "order");
+  const order = orderMeta(element);
   if (!plan && !order) return null;
   return (
     <div

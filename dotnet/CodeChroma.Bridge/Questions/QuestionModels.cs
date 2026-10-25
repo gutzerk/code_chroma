@@ -58,6 +58,8 @@ public sealed class AskRequest
     public bool AllowSkip { get; set; } = true;
     public int? Total { get; set; }
     public string? AgentId { get; set; }
+
+    /// <summary>Server-side only: never read from the agent's tool arguments, so an agent cannot skip validation.</summary>
     public bool Degraded { get; set; }
 
     public static AskRequest FromJson(JsonObject o)
@@ -80,7 +82,6 @@ public sealed class AskRequest
             AllowSkip = ArgReader.Flag(o, "allow_skip", true),
             Total = ArgReader.OptionalInt(o, "total", "ask_user"),
             AgentId = ArgReader.OptionalText(o, "agent_id", "ask_user"),
-            Degraded = ArgReader.Flag(o, "degraded", false),
         };
     }
 }

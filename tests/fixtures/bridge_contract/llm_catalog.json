@@ -92,6 +92,58 @@
       "hidden": true
     }
   ],
+  "features": [
+    {
+      "id": "diagrams",
+      "label": "Diagrams",
+      "description": "Draws and reviews the C1, Patterns and Impact diagrams.",
+      "needs": "agents",
+      "members": [
+        "c1_agent",
+        "impact-changes_review_agent",
+        "patterns_agent",
+        "impact_agent"
+      ]
+    },
+    {
+      "id": "planning",
+      "label": "Planning & wiki",
+      "description": "Writes epic briefs and the architecture map.",
+      "needs": "agents",
+      "members": [
+        "epic_brief_agent",
+        "wiki_general_agent",
+        "wiki_general_update_agent"
+      ]
+    },
+    {
+      "id": "agents",
+      "label": "Agent windows",
+      "description": "Powers the interactive agent windows on the canvas.",
+      "needs": "agents",
+      "members": [
+        "parallel_agents"
+      ]
+    },
+    {
+      "id": "ai_summarizer",
+      "label": "Code summaries",
+      "description": "Summarizes each node while a repo is analyzed.",
+      "needs": "quick",
+      "members": [
+        "ai_summarizer"
+      ]
+    },
+    {
+      "id": "initial_diagram_bootstrap",
+      "label": "First patterns draft",
+      "description": "Drafts the first Patterns diagram before any is saved.",
+      "needs": "quick",
+      "members": [
+        "initial_diagram_bootstrap"
+      ]
+    }
+  ],
   "adapters": [
     "claude",
     "codex",

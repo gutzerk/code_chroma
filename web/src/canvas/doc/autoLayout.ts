@@ -1,6 +1,6 @@
 import { layoutBoxes } from "../connectors/diagramLayout";
 import type { CanvasDoc, CanvasElement, CanvasPosition, CanvasSize } from "../../state/types";
-import { rawMeta, stringMeta } from "./elementMeta";
+import { orderMeta, rawMeta, stringMeta } from "./elementMeta";
 import { isEpicsLayer, layoutEpics } from "./epicsLayout";
 import { placeIncrementally } from "./incrementalLayout";
 import { buildSequenceModel } from "./sequenceModel";
@@ -52,7 +52,7 @@ export async function layoutNewElements(
   const specOf = (element: CanvasElement) => ({
     id: element.id,
     ...sizeOf(element),
-    order: stringMeta(element, "order"),
+    order: orderMeta(element),
     lane: stringMeta(element, "lane"),
   });
 

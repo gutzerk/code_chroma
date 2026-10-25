@@ -36,17 +36,14 @@ public sealed record McpEndpoint(string WorkspaceId, string BaseUrl, string Toke
     /// <summary>Writes the MCP config to a temp file (inline JSON gets mangled by PTY quoting); returns its path.</summary>
     public string WriteClaudeConfig(TimeSpan askWait)
     {
-        var directory = Path.Combine(Path.GetTempPath(), "codechroma-mcp");
         var safe = new string(WorkspaceId.Select(c => char.IsAsciiLetterOrDigit(c) || c is '-' or '_' ? c : '_').ToArray());
-        var path = Path.Combine(directory, safe + ".json");
+        var path = Path.Combine(PrivateDirectory(), safe + ".json");
         var json = ClaudeConfig(askWait).ToJsonString();
         if (OperatingSystem.IsWindows())
         {
-            Directory.CreateDirectory(directory);
             File.WriteAllText(path, json);
             return path;
         }
-        Directory.CreateDirectory(directory, UnixFileMode.UserRead | UnixFileMode.UserWrite | UnixFileMode.UserExecute);
         using var stream = new FileStream(path, new FileStreamOptions
         {
             Mode = FileMode.Create, Access = FileAccess.Write, Share = FileShare.None,
@@ -55,5 +52,18 @@ public sealed record McpEndpoint(string WorkspaceId, string BaseUrl, string Toke
         using var writer = new StreamWriter(stream);
         writer.Write(json);
         return path;
+    }
+
+    private static readonly object DirectoryGate = new();
+    private static string? _directory;
+
+    /// <summary>A per-process 0700 dir (mkdtemp); a fixed shared /tmp path can be pre-planted by another user.</summary>
+    private static string PrivateDirectory()
+    {
+        lock (DirectoryGate)
+        {
+            if (_directory is null || !Directory.Exists(_directory)) _directory = Directory.CreateTempSubdirectory("codechroma-mcp-").FullName;
+            return _directory;
+        }
     }
 }

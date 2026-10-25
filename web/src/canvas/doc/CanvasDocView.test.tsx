@@ -460,6 +460,23 @@ describe("CanvasDocView", () => {
     expect(screen.getAllByTestId("canvas-concurrency-island")).toHaveLength(1);
   });
 
+  it("shows a step chip for a numeric order as well as a string one", async () => {
+    const doc = docWith([
+      elementOf({ id: "n1", render: "custom", label: "A", meta: { order: 2 } }),
+      elementOf({ id: "n2", render: "custom", label: "B", meta: { order: "3b" } }),
+    ]);
+    const engineClient = client(doc);
+
+    render(
+      <EngineClientProvider repoId="default" client={engineClient}>
+        <CanvasDocView />
+      </EngineClientProvider>,
+    );
+
+    await waitFor(() => expect(screen.getAllByTestId("canvas-node-step-chip")).toHaveLength(2));
+    expect(screen.getAllByTestId("canvas-node-step-chip").map((chip) => chip.textContent)).toEqual(["2", "3"]);
+  });
+
   it("does not draw a Concurrency island for a lone numbered step", async () => {
     const doc = docWith([
       elementOf({ id: "e1", render: "custom", label: "A", meta: { order: "1" } }),

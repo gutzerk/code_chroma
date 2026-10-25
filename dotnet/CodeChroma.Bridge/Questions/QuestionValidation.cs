@@ -1,0 +1,109 @@
+using CodeChroma.Bridge.Workspaces;
+
+namespace CodeChroma.Bridge.Questions;
+
+/// <summary>The ask_user call broke the contract; the message is the tool error the agent reads.</summary>
+public sealed class QuestionRejected(string message) : BridgeException(422, message);
+
+/// <summary>The request carried no valid per-workspace token.</summary>
+public sealed class QuestionAuthException(string message) : BridgeException(401, message);
+
+/// <summary>The canvas rejected or failed to save a question write.</summary>
+public sealed class QuestionWriteException(string message) : Exception(message);
+
+/// <summary>The ask_user contract: field checks and the fixed-shape rejection text (questions/validation.py).</summary>
+public static class QuestionValidation
+{
+    public const int MinOptions = 2;
+    public const int MaxOptions = 4;
+
+    private const string Footer = "Call ask_user again with all fields. Keep the original intent and options. Do not ask in terminal text.";
+
+    /// <summary>One line per contract problem; empty when the question may be shown.</summary>
+    public static List<string> Validate(AskRequest request)
+    {
+        var problems = new List<string>();
+        if (string.IsNullOrWhiteSpace(request.Question)) problems.Add("question is empty");
+        var options = request.Options;
+        if (options.Count < MinOptions || options.Count > MaxOptions) problems.Add($"give {MinOptions}-{MaxOptions} options, got {options.Count}");
+        if (options.Select(o => o.Id).Distinct().Count() != options.Count) problems.Add("option ids are not unique");
+        foreach (var option in options)
+        {
+            var name = option.DisplayName;
+            foreach (var (field, value) in new[] { ("title", option.Title), ("description", option.Description), ("pro", option.Pro), ("con", option.Con), ("why", option.Why) })
+                if (string.IsNullOrWhiteSpace(value)) problems.Add($"Option \"{name}\": missing {field}");
+        }
+        if (options.Count(o => o.Rank == 1) != 1) problems.Add("exactly one option must have rank 1");
+        var given = options.Where(o => o.Rank is not null).Select(o => o.Rank).ToList();
+        if (given.Distinct().Count() != given.Count) problems.Add("ranks are not unique");
+        if (request.Kind == "diagram" && !options.Any(o => !string.IsNullOrEmpty(o.DiagramRef)))
+            problems.Add("kind \"diagram\" needs a diagram_ref on at least one option");
+        return problems;
+    }
+
+    /// <summary>One line per diagram_ref that names no canvas element.</summary>
+    public static List<string> UnknownRefs(AskRequest request, IReadOnlySet<string> knownIds) =>
+        request.Options
+            .Where(o => !string.IsNullOrEmpty(o.DiagramRef) && !knownIds.Contains(o.DiagramRef))
+            .Select(o => $"Option \"{o.DisplayName}\": diagram_ref '{o.DiagramRef}' is unknown")
+            .ToList();
+
+    /// <summary>The fixed-shape tool error: header, one bullet per problem, then the footer.</summary>
+    public static string RejectionText(IEnumerable<string> problems, string subject = "question") =>
+        string.Join("\n", [$"CodeChroma rejected the {subject}.", .. problems.Select(p => "- " + p), Footer]);
+}
+
+/// <summary>Counts consecutive rejections per (workspace, session); a missing session is never tracked.</summary>
+public sealed class RejectionTracker(Func<double>? clock = null, int maxEntries = RejectionTracker.MaxTracked)
+{
+    public const double ResetAfterSeconds = 600.0;
+    public const int MaxTracked = 1000;
+
+    private readonly Func<double> _clock = clock ?? (() => Environment.TickCount64 / 1000.0);
+    private readonly object _gate = new();
+    private readonly Dictionary<(string, string), (int Count, double At, long Seq)> _entries = [];
+    private long _seq;
+
+    public int EntryCount
+    {
+        get { lock (_gate) return _entries.Count; }
+    }
+
+    /// <summary>Rejections so far; zero once the entry has been silent for ten minutes.</summary>
+    public int Count(string workspaceId, string? sessionId)
+    {
+        lock (_gate) return CountLocked(workspaceId, sessionId);
+    }
+
+    private int CountLocked(string workspaceId, string? sessionId)
+    {
+        if (string.IsNullOrEmpty(sessionId) || !_entries.TryGetValue((workspaceId, sessionId), out var entry)) return 0;
+        return _clock() - entry.At > ResetAfterSeconds ? 0 : entry.Count;
+    }
+
+    public void Record(string workspaceId, string? sessionId)
+    {
+        if (string.IsNullOrEmpty(sessionId)) return;
+        lock (_gate)
+        {
+            var total = CountLocked(workspaceId, sessionId) + 1;
+            Evict();
+            var key = (workspaceId, sessionId);
+            _entries[key] = (total, _clock(), _entries.TryGetValue(key, out var old) ? old.Seq : ++_seq);
+        }
+    }
+
+    /// <summary>Forgets the count after a valid question, an answer or a degraded pass-through.</summary>
+    public void Reset(string workspaceId, string? sessionId)
+    {
+        if (string.IsNullOrEmpty(sessionId)) return;
+        lock (_gate) _entries.Remove((workspaceId, sessionId));
+    }
+
+    private void Evict()
+    {
+        var now = _clock();
+        foreach (var key in _entries.Where(e => now - e.Value.At > ResetAfterSeconds).Select(e => e.Key).ToList()) _entries.Remove(key);
+        while (_entries.Count >= maxEntries) _entries.Remove(_entries.MinBy(e => e.Value.Seq).Key);
+    }
+}

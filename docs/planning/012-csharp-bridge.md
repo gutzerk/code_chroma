@@ -127,3 +127,7 @@ Ported to `dotnet/CodeChroma.Bridge` by the `bridge-skills` branch; all of it ha
 
 Known differences: the custom-diagram staleness fingerprint hashes `.codechroma/dependency-digest.json` with the C# canonical-JSON hash (the C# engine does not write that file, so it is constant); `epic_brief_agent`'s prompt carries compact JSON; the plain-wiki sync that `prepare_new_run` does is skipped; a login shell is captured with `env -0` (POSIX) or `Get-ChildItem env:` (PowerShell) instead of the Python helper.
 Pre-existing, not from this change: on the integration branch `tests/fixtures/sample_repo/.claude/` is tracked (commit 21b0ec0), which makes two Python `graph::structure_*` contract cases fail.
+
+### Agent questions (017) ported
+
+`Questions/`, `Routes/QuestionRoutes.cs`, the `/mcp` JSON-RPC endpoint and the `TerminalAgents` MCP args/env are in C# with contract cases (`questions.cases.json`) and xUnit tests. Deferred: (1) a Python-free `AskUserQuestion` hook (`hooks/ask_user_question_hook.py` still needs `python3`/`python` on PATH; without it the native dialog appears and `codechroma-grill` still asks through `ask_user`); (2) SSE/`Mcp-Session-Id`-based sessions (the endpoint is plain JSON-RPC and only issues the id for the retry counter); (3) `settings.questions.*` is not configurable in C# (`QuestionMcp.AskWait`/`MaxRejections` are code defaults); (4) Codex wiring (not wired in Python either).

@@ -29,12 +29,12 @@ Decisions: all confirmed by the owner on 2026-10-18.
 | # | Missing in C# | Python source | Decision | Notes |
 |---|---|---|---|---|
 | 1 | Design-pattern detection (patterns diagram, `patterns` resolved payload) | `patterns/detector.py` | **Ported 2026-10-18** (Python + Go shapes, resolver, `/patterns`, `/patterns/context`; parity-tested) | Prerequisite for row 2 |
-| 2 | Impact resolved payload, `impact-changes`, `{kind}/review`, `patterns/impact/sequence` context | `bridge/impact*.py`, `review.py` | Port (confirmed) | Needs row 1 + change cards |
+| 2 | Impact resolved payload, `impact-changes`, `{kind}/review`, `patterns/impact/sequence` context | `bridge/impact*.py`, `review.py` | **Ported** (verified in 012's parity table) | Needs row 1 + change cards |
 | 3 | Plain wiki generator, first-open bootstrap, `wiki-context` route | `wiki/`, `bridge/bootstrap_wiki.py`, `bridge/wiki_context.py` | **Port (confirmed)**, docstrings for Python, Go, TypeScript only | Input to wiki-general (row 4) and to the diagram-drawing skills, so not optional |
 | 4 | wiki-general `generate`/`update` (C# returns 501) | `wiki_general_pipeline.py`, `_worker.py`, `_agent.py`, `_job_context.py`, `_naming.py`, `check_wiki_general.py` | **Port (confirmed), implemented** (commit 8e8a134: all nine routes and the pipeline); only the real-Claude verification run remains | Token economy: code does the orchestration and Claude only answers bounded zero-tool calls; the skill fallback has Claude Code plan everything and recursed on large repos (planning 058). Needs row 3 |
 | 5 | AI summaries via Claude | `summarize/ai_summarizer.py` | Offline-only (confirmed) | CLAUDE.md: the live bridge never calls Claude |
 | 6 | SQLite graph persistence | `graph/store.py` | In-memory (confirmed) | Check nothing reads `graph.db` |
-| 7 | PR happy path (needs gh), PR `c1_source_root`, foreground-process probe (nested `vim`) | `bridge/prs/`, `terminal/` | Degrade and document (confirmed) | Known gaps in release notes |
+| 7 | PR happy path (needs gh), foreground-process probe (nested `vim`; macOS/Linux only) | `bridge/prs/`, `terminal/` | Degrade and document (confirmed); PR `c1_source_root` is **ported** (`Workspace.C1Root`) | Known gaps in release notes |
 | 8 | Execution tracing capture | `trace/` | No decision: stays Python (`sys.monitoring`) | C# only plays traces back; document |
 
 Rule: nothing ships in the C# release that silently regresses vs Electron. Each row is either ported, or listed as a known

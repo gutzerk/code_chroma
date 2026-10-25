@@ -62,6 +62,7 @@ public static class ContextRoutes
         var participants = new JsonArray();
         var index = new Dictionary<string, int>();
         var messages = new JsonArray();
+        var seen = new HashSet<(string From, string To, string Args)>();
         int Participant(string nodeId)
         {
             if (index.TryGetValue(nodeId, out var got)) return got;
@@ -72,19 +73,18 @@ public static class ContextRoutes
         }
         foreach (var step in (trace["steps"] as JsonArray) ?? [])
         {
-            if (step is not JsonObject o || Json.Str(o["event"]) != "call") continue;
-            var caller = StringOf(o["caller_node_id"]);
-            var callee = StringOf(o["node_id"]);
-            if (caller is null || callee is null || caller == callee) continue;
             if (messages.Count >= SequenceTraceMessages) break;
+            if (step is not JsonObject o || Json.Str(o["event"]) != "call") continue;
+            var caller = Json.Str(o["caller_node_id"]);
+            var callee = Json.Str(o["node_id"]);
+            if (caller is null || callee is null || caller == callee) continue;
             var from = Participant(caller);
             var to = Participant(callee);
             var args = o["args"];
             // Mirrors the reference: only a string args value can match an earlier message for dedup.
-            var key = StringOf(args) ?? (Falsy(args) ? "" : null);
-            if (key is not null && messages.OfType<JsonObject>().Any(m =>
-                    Json.Str(m["from"]) == caller && Json.Str(m["to"]) == callee && StringOf(m["args"]) == key))
-                continue;
+            var key = Json.Str(args) ?? (Json.Truthy(args) ? null : "");
+            if (key is not null && seen.Contains((caller, callee, key))) continue;
+            if (Json.Str(args) is { } text) seen.Add((caller, callee, text));
             messages.Add(new JsonObject
             {
                 ["order"] = messages.Count + 1, ["from_idx"] = from, ["to_idx"] = to,
@@ -93,18 +93,6 @@ public static class ContextRoutes
         }
         return (participants, messages);
     }
-
-    private static string? StringOf(JsonNode? node) => node is JsonValue v && v.TryGetValue<string>(out var s) ? s : null;
-
-    private static bool Falsy(JsonNode? node) => node switch
-    {
-        null => true,
-        JsonArray a => a.Count == 0,
-        JsonObject o => o.Count == 0,
-        JsonValue v when v.TryGetValue<bool>(out var b) => !b,
-        JsonValue v when v.TryGetValue<double>(out var n) => n == 0,
-        _ => false,
-    };
 
     /// <summary>Live candidates vs what was reviewed, the same signal the resolved patterns diagram carries.</summary>
     private static JsonObject PatternsStaleness(Workspace ws)

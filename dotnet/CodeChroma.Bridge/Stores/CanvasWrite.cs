@@ -18,7 +18,7 @@ public static class WorkspaceCanvasExtensions
     {
         if (ws.Id == Workspace.MainId) return "HEAD";
         // A stored hash stops being the divergence point the moment the agent pulls main in.
-        var reference = string.IsNullOrEmpty(ws.BaseRef) ? Agents.WorktreeOps.MainBranch(ws.Root) : ws.BaseRef;
+        var reference = ws.BaseRef ?? Agents.WorktreeOps.MainBranch(ws.Root);
         var mergeBase = GitRunner.Run(ws.Root, "merge-base", reference, "HEAD")?.Trim();
         return string.IsNullOrEmpty(mergeBase) ? "HEAD" : mergeBase;
     }

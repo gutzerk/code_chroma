@@ -22,19 +22,15 @@ public sealed class WorkspaceWatchers : IDisposable
         _repo = new Debouncer(TimeSpan.FromMilliseconds(BridgeLimits.RepoDebounceMs), OnRepoChange);
         foreach (var kind in Workspace.DiagramKinds)
             _diagrams[kind] = new Debouncer(TimeSpan.FromMilliseconds(BridgeLimits.WatcherDebounceMs), () => workspace.Emit(new JsonObject { ["type"] = kind }));
-        _canvas = new Debouncer(TimeSpan.FromMilliseconds(BridgeLimits.WatcherDebounceMs), () => workspace.Emit(new JsonObject { ["type"] = "canvas" }));
+        Debouncer Pinging(params string[] types) => new(TimeSpan.FromMilliseconds(BridgeLimits.WatcherDebounceMs), () =>
+        {
+            foreach (var type in types) workspace.Emit(new JsonObject { ["type"] = type });
+        });
+        _canvas = Pinging("canvas");
         // A custom or feature-plan type's own projection.json sits in the dir these watch, so each also pings the canvas.
-        _custom = new Debouncer(TimeSpan.FromMilliseconds(BridgeLimits.WatcherDebounceMs), () =>
-        {
-            workspace.Emit(new JsonObject { ["type"] = "custom" });
-            workspace.Emit(new JsonObject { ["type"] = "canvas" });
-        });
-        _featurePlans = new Debouncer(TimeSpan.FromMilliseconds(BridgeLimits.WatcherDebounceMs), () =>
-        {
-            workspace.Emit(new JsonObject { ["type"] = "feature-plan" });
-            workspace.Emit(new JsonObject { ["type"] = "canvas" });
-        });
-        _traces = new Debouncer(TimeSpan.FromMilliseconds(BridgeLimits.WatcherDebounceMs), () => workspace.Emit(new JsonObject { ["type"] = "trace" }));
+        _custom = Pinging("custom", "canvas");
+        _featurePlans = Pinging("feature-plan", "canvas");
+        _traces = Pinging("trace");
         _newDirectories = new Debouncer(TimeSpan.FromMilliseconds(BridgeLimits.WatcherDebounceMs), NotifyNewDirectories);
         _watcher = new FileSystemWatcher(workspace.Root)
         {
@@ -88,6 +84,8 @@ public sealed class WorkspaceWatchers : IDisposable
             _traces.Trigger();
     }
 
+    private static bool IsTypeFile(string name, string file) => file == name + ".json" || file == "projection.json";
+
     private void Route(string fullPath)
     {
         var parts = Path.GetRelativePath(_workspace.Root, fullPath).Split(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
@@ -103,12 +101,12 @@ public sealed class WorkspaceWatchers : IDisposable
             _canvas.Trigger();
             return;
         }
-        if (parts is [".codechroma", "diagrams", "custom", var customType, var customFile] && (customFile == customType + ".json" || customFile == "projection.json"))
+        if (parts is [".codechroma", "diagrams", "custom", var customType, var customFile] && IsTypeFile(customType, customFile))
         {
             _custom.Trigger();
             return;
         }
-        if (parts is [".codechroma", "diagrams", "feature-plan", var slug, var planFile] && (planFile == slug + ".json" || planFile == "projection.json"))
+        if (parts is [".codechroma", "diagrams", "feature-plan", var slug, var planFile] && IsTypeFile(slug, planFile))
         {
             _featurePlans.Trigger();
             return;

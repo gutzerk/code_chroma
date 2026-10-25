@@ -48,11 +48,8 @@ public sealed class ForegroundProcess(int pid, Func<string[], string?>? runPs = 
         try
         {
             var group = _runPs(["-o", "tpgid=", "-p", pid.ToString()])?.Trim();
-            if (!string.IsNullOrEmpty(group) && int.TryParse(group, out var pgid) && pgid > 0)
-            {
-                var command = _runPs(["-o", "comm=", "-p", pgid.ToString()])?.Trim();
-                resolved = string.IsNullOrEmpty(command) ? null : Path.GetFileName(command);
-            }
+            if (int.TryParse(group, out var pgid) && pgid > 0 && _runPs(["-o", "comm=", "-p", pgid.ToString()])?.Trim() is { Length: > 0 } command)
+                resolved = Path.GetFileName(command);
         }
         catch (Exception) { /* a probe that fails just leaves the name unknown */ }
         lock (_gate) _name = resolved;
@@ -60,7 +57,7 @@ public sealed class ForegroundProcess(int pid, Func<string[], string?>? runPs = 
 
     private static string? RunPs(string[] args)
     {
-        var start = new ProcessStartInfo("ps") { RedirectStandardOutput = true, RedirectStandardError = true, UseShellExecute = false };
+        var start = new ProcessStartInfo("ps") { RedirectStandardOutput = true, UseShellExecute = false };
         foreach (var arg in args) start.ArgumentList.Add(arg);
         using var process = Process.Start(start);
         if (process is null) return null;

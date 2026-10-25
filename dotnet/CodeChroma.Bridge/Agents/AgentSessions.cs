@@ -36,6 +36,7 @@ public sealed class AgentSession : IAgentSessionPort, IDisposable
     private readonly List<AgentConsumer> _consumers = [];
     private readonly ScreenTap _tap = new(PtyLaunch.DefaultRows, PtyLaunch.DefaultCols);
     private readonly StatusDetector _detector;
+    private readonly ForegroundProcess _foreground;
     private readonly PtyHost _pty;
     private int? _exitCode;
 
@@ -50,8 +51,6 @@ public sealed class AgentSession : IAgentSessionPort, IDisposable
         lock (_gate) _pty = PtyHost.Start(launch, OnOutput, OnExit);
         _foreground = new ForegroundProcess(_pty.Pid);
     }
-
-    private readonly ForegroundProcess _foreground;
 
     public string AgentId { get; }
 

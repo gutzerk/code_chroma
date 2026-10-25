@@ -22,7 +22,7 @@ public static partial class ContextDigest
         "unittest", "importlib", "inspect", "tempfile", "glob", "csv",
     ];
 
-    private static readonly string[] RequirementSeparators = [" ", "(", ">", "<", "=", "!", "~", "[", ";"];
+    private static readonly char[] RequirementSeparators = [' ', '(', '>', '<', '=', '!', '~', '[', ';'];
     private static readonly string[] ReadmeNames = ["README.md", "readme.md", "README.rst", "README.txt"];
 
     [GeneratedRegex(@"/v\d+$")]
@@ -44,7 +44,7 @@ public static partial class ContextDigest
         {
             ["repo_name"] = Path.GetFileName(Path.GetFullPath(repoRoot).TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar)),
             ["external_import_roots"] = ExternalImportRoots(graph, knownNames),
-            ["declared_dependencies"] = new JsonArray(DeclaredDependencies(repoRoot).Select(n => (JsonNode)JsonValue.Create(n)!).ToArray()),
+            ["declared_dependencies"] = DependencyDigest.Strings(DeclaredDependencies(repoRoot)),
             ["readme_excerpt"] = ReadmeExcerpt(repoRoot),
         };
     }
@@ -70,11 +70,8 @@ public static partial class ContextDigest
     private static List<string> DeclaredDependencies(string repoRoot)
     {
         var names = new List<string>();
-        var pyproject = Path.Combine(repoRoot, "pyproject.toml");
-        if (File.Exists(pyproject)) names.AddRange(PyprojectDependencies(pyproject));
-
-        var packageJson = Path.Combine(repoRoot, "package.json");
-        if (File.Exists(packageJson)) names.AddRange(PackageJsonDependencies(packageJson));
+        names.AddRange(PyprojectDependencies(Path.Combine(repoRoot, "pyproject.toml")));
+        names.AddRange(PackageJsonDependencies(Path.Combine(repoRoot, "package.json")));
 
         names.AddRange(GoModDependencies(repoRoot));
         return names;
@@ -134,19 +131,18 @@ public static partial class ContextDigest
     /// <summary>The bare package name from a requirement string, e.g. "fastapi (&gt;=0.1)" -> "fastapi".</summary>
     private static string DependencyName(string requirement)
     {
-        foreach (var sep in RequirementSeparators)
-        {
-            var at = requirement.IndexOf(sep, StringComparison.Ordinal);
-            if (at >= 0) requirement = requirement[..at];
-        }
-        return requirement.Trim();
+        var at = requirement.IndexOfAny(RequirementSeparators);
+        return (at < 0 ? requirement : requirement[..at]).Trim();
     }
 
     private static string? ReadmeExcerpt(string repoRoot)
     {
         foreach (var name in ReadmeNames)
         {
-            var text = ReadText(Path.Combine(repoRoot, name));
+            var path = Path.Combine(repoRoot, name);
+            if (!File.Exists(path)) continue;
+            // Two chars per code point is the worst case, so this prefix always holds the excerpt.
+            var text = ReadText(path, ReadmeExcerptChars * 2);
             if (text is not null) return TakeCodePoints(text, ReadmeExcerptChars);
         }
         return null;
@@ -155,18 +151,25 @@ public static partial class ContextDigest
     /// <summary>Python slices by code point; this keeps a surrogate pair whole at the cut.</summary>
     private static string TakeCodePoints(string text, int count)
     {
-        var index = 0;
-        for (var seen = 0; seen < count && index < text.Length; seen++)
-            index += char.IsHighSurrogate(text[index]) && index + 1 < text.Length ? 2 : 1;
-        return text[..index];
+        var length = 0;
+        foreach (var rune in text.EnumerateRunes().Take(count)) length += rune.Utf16SequenceLength;
+        return text[..length];
     }
 
-    private static string? ReadText(string path)
+    private static string? ReadText(string path, int maxChars = int.MaxValue)
     {
         try
         {
+            using var reader = new StreamReader(path, new UTF8Encoding(false, true));
+            string text;
+            if (maxChars == int.MaxValue) text = reader.ReadToEnd();
+            else
+            {
+                var buffer = new char[maxChars];
+                text = new string(buffer, 0, reader.ReadBlock(buffer, 0, maxChars));
+            }
             // Python's text-mode read folds CRLF and lone CR to LF, so the excerpt does too.
-            return new UTF8Encoding(false, true).GetString(File.ReadAllBytes(path)).Replace("\r\n", "\n").Replace('\r', '\n');
+            return text.Replace("\r\n", "\n").Replace('\r', '\n');
         }
         catch (Exception e) when (e is IOException or UnauthorizedAccessException or DecoderFallbackException)
         {

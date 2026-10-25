@@ -227,7 +227,7 @@ public static class DependencyDigest
         return count;
     }
 
-    private static JsonArray Strings(IEnumerable<string> values) => new(values.Select(v => (JsonNode)JsonValue.Create(v)!).ToArray());
+    public static JsonArray Strings(IEnumerable<string> values) => new(values.Select(v => (JsonNode)JsonValue.Create(v)!).ToArray());
 
     private static JsonObject SymbolEntry(DependencyIndex index, Graph graph, Symbol symbol, DigestCaps caps)
     {

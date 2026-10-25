@@ -112,6 +112,18 @@ public static class Json
     /// <summary>True only for a JSON true.</summary>
     public static bool Bool(JsonNode? node) => node is JsonValue v && v.TryGetValue(out bool b) && b;
 
+    /// <summary>A JSON boolean, or the fallback when the node is absent or not a boolean.</summary>
+    public static bool BoolOr(JsonNode? node, bool fallback) => node is JsonValue v && v.TryGetValue(out bool b) ? b : fallback;
+
+    /// <summary>A whole JSON number as an int, else null.</summary>
+    public static int? IntOrNull(JsonNode? node) => node is JsonValue v && v.TryGetValue(out double d) && d == Math.Floor(d) ? (int)d : null;
+
+    /// <summary>Deep-copies every key of `source` onto `target`.</summary>
+    public static void CopyInto(JsonObject target, JsonObject? source)
+    {
+        foreach (var (key, value) in source ?? []) target[key] = value?.DeepClone();
+    }
+
     public static bool IsString(JsonNode? node) => Str(node) is not null;
 
     public static bool IsBlank(string? text) => string.IsNullOrWhiteSpace(text);

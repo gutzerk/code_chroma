@@ -97,17 +97,7 @@ public sealed partial class WorkflowRunner
         lock (lines) return string.Join("\n", lines).Trim();
     }
 
-    private static string McpConfig(string url, string token) => new JsonObject
-    {
-        ["mcpServers"] = new JsonObject
-        {
-            [McpServerName] = new JsonObject
-            {
-                ["type"] = "http", ["url"] = url,
-                ["headers"] = new JsonObject { ["Authorization"] = "Bearer " + token },
-            },
-        },
-    }.ToJsonString();
+    private static string McpConfig(string url, string token) => McpJsonRpc.HttpServerConfig(McpServerName, url, token).ToJsonString();
 
     private static string ResolveStep(Handle h, string target)
     {
@@ -179,34 +169,7 @@ public sealed partial class WorkflowRunner
             throw new BridgeException(401, "bad run token");
         }
         if (bearer != "Bearer " + token) throw new BridgeException(401, "bad run token");
-        var id = request["id"]?.DeepClone();
-        var method = Json.Str(request["method"]) ?? "";
-        var parameters = request["params"] as JsonObject;
-        if (id is null) return null;
-        JsonObject result;
-        switch (method)
-        {
-            case "initialize":
-                result = new JsonObject
-                {
-                    ["protocolVersion"] = Json.Str(parameters?["protocolVersion"]) ?? "2025-03-26",
-                    ["capabilities"] = new JsonObject { ["tools"] = new JsonObject() },
-                    ["serverInfo"] = new JsonObject { ["name"] = McpServerName, ["version"] = "1" },
-                };
-                break;
-            case "tools/list":
-                result = new JsonObject { ["tools"] = McpTools() };
-                break;
-            case "tools/call":
-                result = await CallTool(runId, Json.Str(parameters?["name"]) ?? "", parameters?["arguments"] as JsonObject ?? []);
-                break;
-            case "ping":
-                result = new JsonObject();
-                break;
-            default:
-                return new JsonObject { ["jsonrpc"] = "2.0", ["id"] = id, ["error"] = new JsonObject { ["code"] = -32601, ["message"] = "method not found" } };
-        }
-        return new JsonObject { ["jsonrpc"] = "2.0", ["id"] = id, ["result"] = result };
+        return await McpJsonRpc.Handle(request, McpServerName, null, McpTools, (name, args) => CallTool(runId, name, args));
     }
 
     private static JsonArray McpTools() => new(
@@ -215,12 +178,7 @@ public sealed partial class WorkflowRunner
         Tool("propose_redo", "Suggest redoing from a step; the user confirms. Never redoes anything itself.",
             new JsonObject { ["from"] = new JsonObject { ["type"] = "string" }, ["note"] = new JsonObject { ["type"] = "string" } }, "from"));
 
-    private static JsonObject Tool(string name, string description, JsonObject properties, params string[] required) => new()
-    {
-        ["name"] = name,
-        ["description"] = description,
-        ["inputSchema"] = new JsonObject { ["type"] = "object", ["properties"] = properties, ["required"] = new JsonArray(required.Select(r => (JsonNode?)r).ToArray()) },
-    };
+    private static JsonObject Tool(string name, string description, JsonObject properties, params string[] required) => McpJsonRpc.Tool(name, description, properties, required);
 
     private async Task<JsonObject> CallTool(string runId, string name, JsonObject args)
     {
@@ -254,11 +212,7 @@ public sealed partial class WorkflowRunner
         }
     }
 
-    private static JsonObject ToolResult(string text, bool isError) => new()
-    {
-        ["content"] = new JsonArray(new JsonObject { ["type"] = "text", ["text"] = text }),
-        ["isError"] = isError,
-    };
+    private static JsonObject ToolResult(string text, bool isError) => McpJsonRpc.ToolText(text, isError);
 
     private static RedoCard BuildCard(Handle h, int index, string note)
     {

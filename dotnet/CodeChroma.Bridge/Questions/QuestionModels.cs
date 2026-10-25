@@ -31,12 +31,12 @@ public sealed class QuestionOption
         {
             Id = id, Title = title, Description = Json.Str(o["description"]) ?? "", Pro = Json.Str(o["pro"]) ?? "",
             Con = Json.Str(o["con"]) ?? "", Why = Json.Str(o["why"]) ?? "", DiagramRef = Json.Str(o["diagram_ref"]),
-            Rank = IntOrNull(o["rank"]),
+            Rank = Json.IntOrNull(o["rank"]),
         };
     }
 
-    internal static int? IntOrNull(JsonNode? node) =>
-        node is JsonValue v && v.TryGetValue(out double d) && d == Math.Floor(d) ? (int)d : null;
+    /// <summary>The title, or the id for an untitled option.</summary>
+    public string DisplayName => Title.Length > 0 ? Title : Id;
 }
 
 /// <summary>The ask_user input.</summary>
@@ -66,9 +66,9 @@ public sealed class AskRequest
         return new AskRequest
         {
             Question = question, Kind = kind, Options = options, SessionId = Json.Str(o["session_id"]),
-            AllowCustom = o["allow_custom"] is not JsonValue c || !c.TryGetValue(out bool allowCustom) || allowCustom,
-            AllowSkip = o["allow_skip"] is not JsonValue s || !s.TryGetValue(out bool allowSkip) || allowSkip,
-            Total = QuestionOption.IntOrNull(o["total"]), AgentId = Json.Str(o["agent_id"]),
+            AllowCustom = Json.BoolOr(o["allow_custom"], true),
+            AllowSkip = Json.BoolOr(o["allow_skip"], true),
+            Total = Json.IntOrNull(o["total"]), AgentId = Json.Str(o["agent_id"]),
             Degraded = Json.Bool(o["degraded"]),
         };
     }

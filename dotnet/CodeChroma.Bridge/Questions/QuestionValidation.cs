@@ -1,10 +1,12 @@
+using CodeChroma.Bridge.Workspaces;
+
 namespace CodeChroma.Bridge.Questions;
 
 /// <summary>The ask_user call broke the contract; the message is the tool error the agent reads.</summary>
-public sealed class QuestionRejected(string message) : Exception(message);
+public sealed class QuestionRejected(string message) : BridgeException(422, message);
 
 /// <summary>The request carried no valid per-workspace token.</summary>
-public sealed class QuestionAuthException(string message) : Exception(message);
+public sealed class QuestionAuthException(string message) : BridgeException(401, message);
 
 /// <summary>The canvas rejected or failed to save a question write.</summary>
 public sealed class QuestionWriteException(string message) : Exception(message);
@@ -27,7 +29,7 @@ public static class QuestionValidation
         if (options.Select(o => o.Id).Distinct().Count() != options.Count) problems.Add("option ids are not unique");
         foreach (var option in options)
         {
-            var name = option.Title.Length > 0 ? option.Title : option.Id;
+            var name = option.DisplayName;
             foreach (var (field, value) in new[] { ("title", option.Title), ("description", option.Description), ("pro", option.Pro), ("con", option.Con), ("why", option.Why) })
                 if (string.IsNullOrWhiteSpace(value)) problems.Add($"Option \"{name}\": missing {field}");
         }
@@ -43,7 +45,7 @@ public static class QuestionValidation
     public static List<string> UnknownRefs(AskRequest request, IReadOnlySet<string> knownIds) =>
         request.Options
             .Where(o => !string.IsNullOrEmpty(o.DiagramRef) && !knownIds.Contains(o.DiagramRef))
-            .Select(o => $"Option \"{(o.Title.Length > 0 ? o.Title : o.Id)}\": diagram_ref '{o.DiagramRef}' is unknown")
+            .Select(o => $"Option \"{o.DisplayName}\": diagram_ref '{o.DiagramRef}' is unknown")
             .ToList();
 
     /// <summary>The fixed-shape tool error: header, one bullet per problem, then the footer.</summary>

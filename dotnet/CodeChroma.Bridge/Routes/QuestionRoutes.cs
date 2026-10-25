@@ -14,8 +14,7 @@ public static class QuestionRoutes
         app.MapGet("/repos/{repoId}/questions", (string repoId, WorkspaceRegistry registry, QuestionBroker broker) =>
             Reply.Guard(() =>
             {
-                var ws = registry.Get(repoId);
-                var open = QuestionStore.ListQuestions(ws).Where(e => QuestionStore.State(e) == "open")
+                var open = QuestionStore.ListQuestions(registry.Get(repoId)).Where(e => QuestionStore.State(e) == "open")
                     .Select(e => (JsonNode?)View(e, broker.IsWaiting(Json.Str(e.Meta["question_id"]) ?? ""))).ToArray();
                 return Reply.Json(new JsonObject { ["questions"] = new JsonArray(open) });
             }));
@@ -23,26 +22,12 @@ public static class QuestionRoutes
         app.MapPost("/repos/{repoId}/questions/ask", async (string repoId, HttpRequest request, QuestionMcp mcp) =>
         {
             var body = await Reply.LenientBody(request);
-            AskRequest ask;
-            try
-            {
-                ask = AskRequest.FromJson(body);
-            }
-            catch (QuestionRejected rejected)
-            {
-                return Reply.Error(422, rejected.Message);
-            }
-            if (!Authorized(mcp, request, repoId)) return Reply.Error(401, "invalid or missing workspace token");
             return await Reply.GuardAsync(async () =>
             {
-                try
-                {
-                    return Reply.Json(await mcp.Ask(repoId, ask, cancel: request.HttpContext.RequestAborted));
-                }
-                catch (QuestionRejected rejected)
-                {
-                    return Reply.Error(422, rejected.Message);
-                }
+                var ask = AskRequest.FromJson(body);
+                if (mcp.WorkspaceIdFor(McpJsonRpc.BearerToken(request.Headers.Authorization.ToString())) != repoId)
+                    throw new QuestionAuthException("invalid or missing workspace token");
+                return Reply.Json(await mcp.Ask(repoId, ask, cancel: request.HttpContext.RequestAborted));
             });
         });
 
@@ -59,7 +44,7 @@ public static class QuestionRoutes
                 var element = OpenElement(ws, questionId);
                 if (!AllowedFlag(element, "allow_skip")) return Reply.Error(422, "this question cannot be skipped");
                 QuestionStore.Settle(ws, element.Id, "skipped", new QuestionResult(Skipped: true));
-                return Reply.Json(Ack(questionId, "skipped", null, broker.Skip(questionId)));
+                return Reply.Json(Ack(questionId, "skipped", broker.Skip(questionId)));
             }));
 
         app.MapPost("/repos/{repoId}/questions/{questionId}/request-diagram", (string repoId, string questionId, WorkspaceRegistry registry, QuestionBroker broker) =>
@@ -71,7 +56,7 @@ public static class QuestionRoutes
                 if (options.Count == 0) return Reply.Error(422, "this question has no options");
                 if (options.All(o => Json.Truthy(o?["diagram_ref"]))) return Reply.Error(422, "every option already has a diagram");
                 if (!Json.Truthy(element.Meta["diagram_requested"])) QuestionStore.RequestDiagram(ws, element, DateTime.UtcNow.ToString("o"));
-                return Reply.Json(Ack(questionId, "open", null, broker.RequestDiagram(questionId)));
+                return Reply.Json(Ack(questionId, "open", broker.RequestDiagram(questionId)));
             }));
 
         app.MapPost("/repos/{repoId}/questions/{questionId}/revise", (string repoId, string questionId, WorkspaceRegistry registry, QuestionBroker broker) =>
@@ -80,18 +65,13 @@ public static class QuestionRoutes
                 var ws = registry.Get(repoId);
                 var removed = QuestionStore.Reopen(ws, FindElement(ws, questionId));
                 broker.Forget(questionId);
-                var ack = Ack(questionId, "open", null, false);
+                var ack = Ack(questionId, "open", false);
                 ack["removed"] = new JsonArray(removed.Select(id => (JsonNode?)id).ToArray());
                 return Reply.Json(ack);
             }));
 
-        MapMcp(app);
-    }
-
-    /// <summary>POST /mcp (a trailing slash matches too) -- plain JSON-RPC like the per-run endpoint; initialize issues an Mcp-Session-Id so sessionless agents get their own retry counter.</summary>
-    private static void MapMcp(WebApplication app)
-    {
-        async Task<IResult> Handle(HttpRequest request, QuestionMcp mcp)
+        // Plain JSON-RPC like the per-run endpoint; initialize issues an Mcp-Session-Id so sessionless agents get their own retry counter.
+        app.MapPost("/mcp", async (HttpRequest request, QuestionMcp mcp) =>
         {
             var body = await Reply.LenientBody(request);
             return await Reply.GuardAsync(async () =>
@@ -102,30 +82,17 @@ public static class QuestionRoutes
                 if (Json.Str(body["method"]) == "initialize") request.HttpContext.Response.Headers["Mcp-Session-Id"] = Guid.NewGuid().ToString("N");
                 return Results.Text(response.ToJsonString(), "application/json; charset=utf-8");
             });
-        }
-        app.MapPost("/mcp", Handle);
-    }
-
-    private static bool Authorized(QuestionMcp mcp, HttpRequest request, string repoId)
-    {
-        try
-        {
-            return mcp.WorkspaceIdFor(QuestionMcp.BearerToken(request.Headers.Authorization.ToString())) == repoId;
-        }
-        catch (QuestionAuthException)
-        {
-            return false;
-        }
+        });
     }
 
     private static JsonObject View(CanvasElement element, bool waiting)
     {
         var view = new JsonObject { ["element_id"] = element.Id, ["question"] = element.Label, ["waiting"] = waiting };
-        foreach (var (key, value) in element.Meta) view[key] = value?.DeepClone();
+        Json.CopyInto(view, element.Meta);
         return view;
     }
 
-    private static JsonObject Ack(string questionId, string state, string? answer, bool waiting)
+    private static JsonObject Ack(string questionId, string state, bool waiting, string? answer = null)
     {
         var ack = new JsonObject { ["ok"] = true, ["question_id"] = questionId, ["state"] = state, ["waiting"] = waiting };
         if (answer is not null) ack["answer"] = answer;
@@ -141,7 +108,7 @@ public static class QuestionRoutes
         return QuestionStore.State(element) == "open" ? element : throw new BridgeException(409, "question is already settled");
     }
 
-    private static bool AllowedFlag(CanvasElement element, string key) => element.Meta[key] is not JsonValue v || !v.TryGetValue(out bool allowed) || allowed;
+    private static bool AllowedFlag(CanvasElement element, string key) => Json.BoolOr(element.Meta[key], true);
 
     private static IResult Answer(Workspace ws, QuestionBroker broker, string questionId, JsonObject body)
     {
@@ -162,6 +129,6 @@ public static class QuestionRoutes
         }
         if (text.Length == 0) return Reply.Error(422, "answer is empty");
         QuestionStore.Settle(ws, element.Id, "answered", new QuestionResult(Answer: text, OptionId: optionId));
-        return Reply.Json(Ack(questionId, "answered", text, broker.Answer(questionId, text, optionId)));
+        return Reply.Json(Ack(questionId, "answered", broker.Answer(questionId, text, optionId), text));
     }
 }

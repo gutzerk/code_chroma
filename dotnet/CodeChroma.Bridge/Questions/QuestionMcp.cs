@@ -1,7 +1,9 @@
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json.Nodes;
+using CodeChroma.Bridge.Http;
 using CodeChroma.Bridge.Stores;
+using static CodeChroma.Bridge.Http.McpJsonRpc;
 using CodeChroma.Bridge.Workspaces;
 
 namespace CodeChroma.Bridge.Questions;
@@ -25,6 +27,7 @@ public sealed class QuestionMcp
 
     private readonly byte[] _secret = RandomNumberGenerator.GetBytes(32);
     private readonly Func<string, Workspace> _workspaceFor;
+    private readonly System.Collections.Concurrent.ConcurrentDictionary<(string, string), McpEndpoint> _endpoints = new();
 
     public QuestionMcp(QuestionBroker broker, WorkspaceRegistry registry) : this(broker, registry.Get)
     {
@@ -48,8 +51,9 @@ public sealed class QuestionMcp
     /// <summary>The bearer token for one workspace: `workspace_id.hmac`; stable for this process.</summary>
     public string TokenFor(string workspaceId) => workspaceId + "." + Sign(workspaceId);
 
+    /// <summary>The endpoint an agent window reaches us on; one per workspace and URL, so its config file is written once.</summary>
     public McpEndpoint? EndpointFor(string workspaceId, string? baseUrl) =>
-        string.IsNullOrEmpty(baseUrl) ? null : new McpEndpoint(workspaceId, baseUrl.TrimEnd('/'), TokenFor(workspaceId), AskWait);
+        string.IsNullOrEmpty(baseUrl) ? null : _endpoints.GetOrAdd((workspaceId, baseUrl.TrimEnd('/')), key => new McpEndpoint(key.Item1, key.Item2, TokenFor(key.Item1), AskWait));
 
     /// <summary>The workspace id a token names; raises QuestionAuthException if malformed or forged.</summary>
     public string WorkspaceIdFor(string? token)
@@ -61,14 +65,6 @@ public sealed class QuestionMcp
         if (workspaceId.Length == 0 || !CryptographicOperations.FixedTimeEquals(Encoding.UTF8.GetBytes(signature), Encoding.UTF8.GetBytes(Sign(workspaceId))))
             throw new QuestionAuthException("invalid or missing workspace token");
         return workspaceId;
-    }
-
-    /// <summary>The token of an `Authorization: Bearer ...` header, or null when absent or empty.</summary>
-    public static string? BearerToken(string? authorization)
-    {
-        var token = (authorization ?? "").Trim();
-        if (token.StartsWith("Bearer ", StringComparison.Ordinal)) token = token["Bearer ".Length..].Trim();
-        return token.Length == 0 ? null : token;
     }
 
     private string Sign(string workspaceId) => Convert.ToHexString(HMACSHA256.HashData(_secret, Encoding.UTF8.GetBytes(workspaceId))).ToLowerInvariant();
@@ -85,7 +81,7 @@ public sealed class QuestionMcp
         Broker.Open(questionId);
         try
         {
-            if (found is { } reasked) await Task.Run(() => QuestionStore.Reask(ws, reasked.Keep, request, extra, reasked.Stale), cancel);
+            if (found is { } reasked) await Task.Run(() => QuestionStore.Reask(ws, reasked.Keep, request, extra), cancel);
             else await Task.Run(() => QuestionStore.OpenQuestion(ws, request, questionId, extra), cancel);
             return (await Broker.Wait(questionId, AskWait, cancel)).ToToolJson();
         }
@@ -144,44 +140,8 @@ public sealed class QuestionMcp
     /// <summary>One JSON-RPC request of the /mcp endpoint; null for a notification. A bad token raises BridgeException 401.</summary>
     public async Task<JsonObject?> HandleMcp(string? authorization, string? connection, JsonObject request, CancellationToken cancel = default)
     {
-        string workspaceId;
-        try
-        {
-            workspaceId = WorkspaceIdFor(BearerToken(authorization));
-        }
-        catch (QuestionAuthException error)
-        {
-            throw new BridgeException(401, error.Message);
-        }
-        var id = request["id"]?.DeepClone();
-        var method = Json.Str(request["method"]) ?? "";
-        var parameters = request["params"] as JsonObject;
-        if (id is null) return null;
-        JsonObject result;
-        switch (method)
-        {
-            case "initialize":
-                result = new JsonObject
-                {
-                    ["protocolVersion"] = Json.Str(parameters?["protocolVersion"]) ?? "2025-03-26",
-                    ["capabilities"] = new JsonObject { ["tools"] = new JsonObject() },
-                    ["serverInfo"] = new JsonObject { ["name"] = ServerName, ["version"] = "1" },
-                    ["instructions"] = Instructions,
-                };
-                break;
-            case "tools/list":
-                result = new JsonObject { ["tools"] = Tools() };
-                break;
-            case "tools/call":
-                result = await CallTool(workspaceId, connection, Json.Str(parameters?["name"]) ?? "", parameters?["arguments"] as JsonObject ?? [], cancel);
-                break;
-            case "ping":
-                result = new JsonObject();
-                break;
-            default:
-                return new JsonObject { ["jsonrpc"] = "2.0", ["id"] = id, ["error"] = new JsonObject { ["code"] = -32601, ["message"] = "method not found" } };
-        }
-        return new JsonObject { ["jsonrpc"] = "2.0", ["id"] = id, ["result"] = result };
+        var workspaceId = WorkspaceIdFor(McpJsonRpc.BearerToken(authorization));
+        return await McpJsonRpc.Handle(request, ServerName, Instructions, Tools, (name, args) => CallTool(workspaceId, connection, name, args, cancel));
     }
 
     private static JsonObject Str(string description) => new() { ["type"] = "string", ["description"] = description };
@@ -232,13 +192,6 @@ public sealed class QuestionMcp
             }, "title", "nodes"));
     }
 
-    private static JsonObject Tool(string name, string description, JsonObject properties, params string[] required) => new()
-    {
-        ["name"] = name,
-        ["description"] = description,
-        ["inputSchema"] = new JsonObject { ["type"] = "object", ["properties"] = properties, ["required"] = new JsonArray(required.Select(r => (JsonNode?)r).ToArray()) },
-    };
-
     private async Task<JsonObject> CallTool(string workspaceId, string? connection, string name, JsonObject args, CancellationToken cancel)
     {
         try
@@ -257,22 +210,10 @@ public sealed class QuestionMcp
                     return ToolText($"unknown tool: {name}", true);
             }
         }
-        catch (Exception error) when (error is QuestionRejected or QuestionWriteException or BridgeException)
+        catch (Exception error) when (error is QuestionWriteException or BridgeException)
         {
             return ToolText(error.Message, true);
         }
     }
 
-    private static JsonObject ToolResult(JsonObject value, bool isError) => new()
-    {
-        ["content"] = new JsonArray(new JsonObject { ["type"] = "text", ["text"] = value.ToJsonString() }),
-        ["structuredContent"] = value,
-        ["isError"] = isError,
-    };
-
-    private static JsonObject ToolText(string text, bool isError) => new()
-    {
-        ["content"] = new JsonArray(new JsonObject { ["type"] = "text", ["text"] = text }),
-        ["isError"] = isError,
-    };
 }

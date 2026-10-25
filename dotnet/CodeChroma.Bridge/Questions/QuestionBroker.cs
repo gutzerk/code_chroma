@@ -9,7 +9,11 @@ public sealed class QuestionBroker
 
     public void Open(string questionId)
     {
-        lock (_gate) _futures[questionId] = new TaskCompletionSource<QuestionResult>(TaskCreationOptions.RunContinuationsAsynchronously);
+        lock (_gate)
+        {
+            if (_futures.TryGetValue(questionId, out var old)) old.TrySetCanceled();
+            _futures[questionId] = new TaskCompletionSource<QuestionResult>(TaskCreationOptions.RunContinuationsAsynchronously);
+        }
     }
 
     /// <summary>A live, unsettled waiter exists (false after a restart or once settled).</summary>
@@ -37,12 +41,14 @@ public sealed class QuestionBroker
         TaskCompletionSource<QuestionResult>? future;
         lock (_gate) _futures.TryGetValue(questionId, out future);
         if (future is null) return Lookup(questionId);
-        using var stop = CancellationTokenSource.CreateLinkedTokenSource(cancel);
-        var first = await Task.WhenAny(future.Task, Task.Delay(timeout, stop.Token));
-        await stop.CancelAsync();
-        if (first == future.Task) return await future.Task;
-        cancel.ThrowIfCancellationRequested();
-        return Lookup(questionId);
+        try
+        {
+            return await future.Task.WaitAsync(timeout, cancel);
+        }
+        catch (TimeoutException)
+        {
+            return Lookup(questionId);
+        }
     }
 
     /// <summary>Drops a settled result (the question was reopened).</summary>

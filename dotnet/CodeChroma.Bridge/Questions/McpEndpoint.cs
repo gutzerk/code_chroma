@@ -1,40 +1,33 @@
 using System.Text.Json.Nodes;
+using CodeChroma.Bridge.Http;
+using CodeChroma.Bridge.Stores;
 
 namespace CodeChroma.Bridge.Questions;
 
 /// <summary>Where one workspace's agent reaches the bridge: its base URL and bearer token (questions/launch.py).</summary>
-public sealed record McpEndpoint(string WorkspaceId, string BaseUrl, string Token, TimeSpan AskWait)
+public sealed class McpEndpoint(string workspaceId, string baseUrl, string token, TimeSpan askWait)
 {
     public const string UrlEnv = "CODECHROMA_BRIDGE_URL";
     public const string TokenEnv = "CODECHROMA_QUESTION_TOKEN";
 
-    public string McpUrl => BaseUrl + "/mcp/";
+    private readonly Lazy<string> _configPath = new(() => WriteConfig(workspaceId, baseUrl, token, askWait));
+
+    public string WorkspaceId => workspaceId;
+    public string BaseUrl => baseUrl;
+    public string Token => token;
+    public string McpUrl => baseUrl + "/mcp/";
 
     /// <summary>Env for the agent process, read by the AskUserQuestion hook (the workspace id comes from BridgeAddress.ExportIdentity).</summary>
-    public IReadOnlyDictionary<string, string> Env() => new Dictionary<string, string> { [UrlEnv] = BaseUrl, [TokenEnv] = Token };
+    public IReadOnlyDictionary<string, string> Env() => new Dictionary<string, string> { [UrlEnv] = baseUrl, [TokenEnv] = token };
 
-    /// <summary>The --mcp-config document: one http server with a bearer header and a timeout past the ask wait.</summary>
-    public JsonObject ClaudeConfig() => new()
-    {
-        ["mcpServers"] = new JsonObject
-        {
-            [QuestionMcp.ServerName] = new JsonObject
-            {
-                ["type"] = "http", ["url"] = McpUrl,
-                ["headers"] = new JsonObject { ["Authorization"] = "Bearer " + Token },
-                ["timeout"] = (int)(AskWait.TotalSeconds + 60) * 1000,
-            },
-        },
-    };
+    /// <summary>The --mcp-config file, written on first use (inline JSON gets mangled by PTY quoting).</summary>
+    public string ConfigPath => _configPath.Value;
 
-    /// <summary>Writes the config to a private temp file (inline JSON gets mangled by PTY quoting) and returns its path.</summary>
-    public string WriteClaudeConfig()
+    private static string WriteConfig(string workspaceId, string baseUrl, string token, TimeSpan askWait)
     {
-        var directory = Path.Combine(Path.GetTempPath(), "codechroma-mcp");
-        Directory.CreateDirectory(directory);
-        var safe = new string(WorkspaceId.Select(c => char.IsLetterOrDigit(c) || c is '-' or '_' ? c : '_').ToArray());
-        var path = Path.Combine(directory, safe + ".json");
-        File.WriteAllText(path, ClaudeConfig().ToJsonString());
+        var path = TempFiles.JsonPath("codechroma-mcp", workspaceId);
+        var config = McpJsonRpc.HttpServerConfig(QuestionMcp.ServerName, baseUrl + "/mcp/", token, (int)(askWait.TotalSeconds + 60) * 1000);
+        TempFiles.Write(path, config.ToJsonString());
         if (!OperatingSystem.IsWindows()) File.SetUnixFileMode(path, UnixFileMode.UserRead | UnixFileMode.UserWrite);
         return path;
     }

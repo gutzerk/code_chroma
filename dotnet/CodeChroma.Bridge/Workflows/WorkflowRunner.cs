@@ -1,5 +1,6 @@
 using System.Text.Json;
 using System.Text.Json.Nodes;
+using CodeChroma.Bridge.Stores;
 using CodeChroma.Bridge.Agents;
 using CodeChroma.Bridge.Http;
 using CodeChroma.Bridge.Skills;
@@ -88,17 +89,10 @@ public sealed partial class WorkflowRunner
 
     public RunStore Store { get; }
 
-    private static readonly HashSet<char> InvalidMarkerChars = [.. Path.GetInvalidFileNameChars(), '\\', ':'];
-
     /// <summary>The scratch file a chat agent is pointed at as its artifact; it lives outside the repo so no rollback touches the code.</summary>
-    public static string Marker(string prefix, string key) =>
-        Path.Combine(Path.GetTempPath(), "codechroma-workflow-steps", new string($"{prefix}-{key}".Select(c => InvalidMarkerChars.Contains(c) ? '_' : c).ToArray()) + ".json");
+    public static string Marker(string prefix, string key) => TempFiles.JsonPath("codechroma-workflow-steps", $"{prefix}-{key}");
 
-    private static void WriteMarker(string path)
-    {
-        Directory.CreateDirectory(Path.GetDirectoryName(path)!);
-        File.WriteAllText(path, "{}");
-    }
+    private static void WriteMarker(string path) => TempFiles.Write(path, "{}");
 
     public static string WorktreeFor(string repoRoot, string runId) => WorktreeOps.WorktreePath(repoRoot, "wf-" + runId);
 

@@ -44,11 +44,7 @@ export function defaultSequenceMode(messageCount: number): SequenceMode {
   return messageCount > FOCUS_DEFAULT_MESSAGE_COUNT ? "focus" : "readable";
 }
 
-/**
- * Per-diagram display preference for sequence layers: mode, collapsed phases and focused participant.
- * A display preference only -- never written to sequence.json. Lives outside component state so
- * collapse and focus survive a Readable ↔ Focus switch. The ▶ player's step is transient (not saved).
- */
+/** Per-diagram sequence display prefs (mode, collapsed phases, focus); never written to sequence.json. */
 class SequenceViewStore extends Store {
   private stored: Stored | null = null;
   private storedKey = "";

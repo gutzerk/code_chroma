@@ -1,13 +1,15 @@
+import { useSyncExternalStore } from "react";
 import type { CanvasDoc, ImpactBlockChange } from "../../state/types";
-import { useCanvasDoc } from "./canvasDocStore";
-import { neighboursOf } from "./focusNeighbors";
+import { canvasDocStore } from "./canvasDocStore";
+import { beforeAfterLine, callerCountsOf } from "./impactGlanceLogic";
 
-/** The one-line "before → after" for a touched box, or null when the review wrote neither side. */
-export function beforeAfterLine(change: ImpactBlockChange): string | null {
-  const before = change.before?.trim();
-  const after = change.after?.trim();
-  if (before && after) return `${before} → ${after}`;
-  return after || before || null;
+/** This box's caller count; subscribes to a number, so a doc change re-renders only boxes whose count moved. */
+function useCallerCount(elementId: string, doc: CanvasDoc | undefined): number {
+  const live = useSyncExternalStore(
+    canvasDocStore.subscribe,
+    () => callerCountsOf(canvasDocStore.getDoc()).get(elementId) ?? 0,
+  );
+  return doc ? (callerCountsOf(doc).get(elementId) ?? 0) : live;
 }
 
 /** Impact at a glance (022 Stage 4): per touched box, the one-line before/after and its caller count. */
@@ -20,10 +22,9 @@ export function ImpactGlance({
   doc?: CanvasDoc;
   elementId: string;
 }) {
-  const liveDoc = useCanvasDoc();
+  const callers = useCallerCount(elementId, doc);
   if (!change) return null;
   const line = beforeAfterLine(change);
-  const callers = neighboursOf(doc ?? liveDoc, elementId).calledBy.length;
   if (!line && callers === 0) return null;
   return (
     <div className="canvas-node-box-glance" data-testid="impact-glance">

@@ -119,48 +119,11 @@ public sealed class TerminalAgents(UserPaths paths, ProviderStore providers, Cal
 
     private sealed record CliResolution(string AdapterKey, string Binary, Dictionary<string, string> Env, bool ProviderAssigned);
 
+    /// <summary>The shared CliResolver, as the Python agent window shares resolve_cli: overrides, the default, and anthropic API providers.</summary>
     private CliResolution ResolveProviderCli(string callSiteId)
     {
-        var assignment = AssignmentFor(callSiteId);
-        if (assignment is not null && Json.Str(assignment["mode"]) == "cli"
-            && providers.Find(Json.Str(assignment["provider_id"]) ?? "") is { } provider
-            && Json.Str(provider["kind"]) == "cli" && Json.Str(provider["adapter"]) is { } adapter && LlmCatalog.Adapters.Contains(adapter))
-            return new CliResolution(adapter, adapter, EnvOverrides(provider, Json.Str(assignment["model"]) ?? ""), true);
-        return new CliResolution("claude", AssistantRoutes.EffectiveCli(paths), [], false);
-    }
-
-    private JsonObject? AssignmentFor(string callSiteId)
-    {
-        if (LlmCatalog.GroupOf(callSiteId) is { } group)
-        {
-            if (!callSites.GroupAssignments().TryGetValue(group, out var grouped)) return null;
-            return new JsonObject { ["provider_id"] = grouped["provider_id"]!.DeepClone(), ["model"] = grouped["model"]!.DeepClone(), ["mode"] = "cli" };
-        }
-        return callSites.Assignments().GetValueOrDefault(callSiteId);
-    }
-
-    /// <summary>Only claude providers with a base_url get env vars. AUTH_TOKEN not API_KEY (API_KEY wins precedence); ANTHROPIC_MODEL not --model (the CLI rejects it).</summary>
-    private static Dictionary<string, string> EnvOverrides(JsonObject provider, string model)
-    {
-        var overrides = new Dictionary<string, string>();
-        if (Json.Str(provider["adapter"]) != "claude" || Json.Str(provider["base_url"]) is not { Length: > 0 } baseUrl) return overrides;
-        overrides["ANTHROPIC_BASE_URL"] = baseUrl;
-        overrides["ANTHROPIC_API_KEY"] = "";
-        overrides["ANTHROPIC_MODEL"] = model;
-        if (ProviderKey(provider) is { Length: > 0 } key) overrides["ANTHROPIC_AUTH_TOKEN"] = key;
-        if (provider["verify_ssl"] is JsonValue verify && verify.TryGetValue<bool>(out var check) && !check) overrides["NODE_TLS_REJECT_UNAUTHORIZED"] = "0";
-        return overrides;
-    }
-
-    private static string? ProviderKey(JsonObject provider)
-    {
-        if (Json.Str(provider["api_key"]) is { Length: > 0 } key) return key;
-        if (Json.Str(provider["api_key_path"]) is not { Length: > 0 } path) return null;
-        try
-        {
-            return File.ReadLines(path).Select(l => l.Trim()).FirstOrDefault(l => l.Length > 0 && !l.StartsWith('#'));
-        }
-        catch (IOException) { return null; }
+        var resolved = new Skills.CliResolver(paths, providers, callSites).Resolve(callSiteId, "");
+        return new CliResolution(resolved.AdapterKey, resolved.Binary, new Dictionary<string, string>(resolved.EnvOverrides), resolved.ProviderAssigned);
     }
 
     /// <summary>The argv of an agent window; a bare one gets the prompt first and the CLI's ambient context stripped (no plugin, settings, MCP or slash commands), keeping the session file so Resume works.</summary>

@@ -4,13 +4,19 @@ from __future__ import annotations
 
 import importlib.util
 import json
+import tempfile
 from pathlib import Path
 
 import pytest
 from fastapi.testclient import TestClient
 
 from codechroma.bridge.resources import resource_path
-from codechroma.questions.launch import McpEndpoint, discover_base_url, loopback_url
+from codechroma.questions.launch import (
+    McpEndpoint,
+    discover_base_url,
+    loopback_url,
+    write_claude_config,
+)
 from codechroma.questions.mcp_server import QuestionMcp
 from codechroma.terminal.agents import agent_cli
 
@@ -23,6 +29,16 @@ def _load_hook():
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
     return module
+
+
+def test_mcp_config_is_written_to_a_private_per_process_dir():
+    path = write_claude_config(ENDPOINT)
+
+    assert path.parent.name.startswith("codechroma-mcp-")
+    assert path.parent != Path(tempfile.gettempdir()) / "codechroma-mcp"
+    assert json.loads(path.read_text(encoding="utf-8"))["mcpServers"]["codechroma"]["url"] == (
+        "http://127.0.0.1:8123/mcp/"
+    )
 
 
 def test_claude_argv_registers_the_mcp_config_before_the_plugin_dir():

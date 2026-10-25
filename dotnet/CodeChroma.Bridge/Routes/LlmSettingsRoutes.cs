@@ -4,13 +4,47 @@ using CodeChroma.Bridge.Stores;
 
 namespace CodeChroma.Bridge.Routes;
 
-/// <summary>/llm/providers and /llm/call-sites: machine-local, not repo-scoped. API-provider connection tests are not ported.</summary>
+/// <summary>/llm/providers, /llm/default, /llm/features and /llm/call-sites: machine-local, not repo-scoped. API-provider connection tests are not ported.</summary>
 public static class LlmSettingsRoutes
 {
     public static void Map(WebApplication app)
     {
-        app.MapGet("/llm/providers", (ProviderStore providers) =>
-            Reply.Json(new JsonArray(providers.Load().Values.Select(p => (JsonNode?)ProviderStore.Masked(p)).ToArray())));
+        app.MapGet("/llm/providers", (ProviderStore providers, CallSiteStore sites) =>
+        {
+            var used = FeatureRows(providers, sites).Select(r => Json.Str(r["effective"]!["provider_id"])).ToList();
+            return Reply.Json(new JsonArray(providers.Load().Values.Select(p =>
+            {
+                var row = ProviderStore.Masked(p);
+                var caps = ProviderStore.Capabilities(p);
+                row["capabilities"] = new JsonObject { ["agents"] = caps.Agents, ["quick"] = caps.Quick };
+                row["used_by"] = used.Count(id => id == Json.Str(p["id"]));
+                return (JsonNode?)row;
+            }).ToArray()));
+        });
+
+        app.MapGet("/llm/default", (CallSiteStore sites) => Reply.Json(new JsonObject { ["default"] = sites.Default() }));
+
+        app.MapPut("/llm/default", async (HttpRequest request, CallSiteStore sites) =>
+        {
+            try
+            {
+                sites.SaveDefault(await Reply.LenientBody(request));
+                return Reply.Json(new JsonObject { ["default"] = sites.Default() });
+            }
+            catch (ArgumentException error)
+            {
+                return Reply.Error(400, error.Message);
+            }
+        });
+
+        app.MapDelete("/llm/default", (CallSiteStore sites) =>
+        {
+            sites.ClearDefault();
+            return Reply.Json(new JsonObject { ["default"] = null });
+        });
+
+        app.MapGet("/llm/features", (ProviderStore providers, CallSiteStore sites) =>
+            Reply.Json(new JsonObject { ["features"] = new JsonArray(FeatureRows(providers, sites).Select(r => (JsonNode?)r).ToArray()) }));
 
         app.MapPost("/llm/providers", async (HttpRequest request, ProviderStore providers) =>
         {
@@ -133,6 +167,42 @@ public static class LlmSettingsRoutes
     private static IResult Unknown(string providerId) => Reply.Error(404, $"unknown provider: '{providerId}'");
 
     private static IResult UnknownGroup(string groupId) => Reply.Error(404, $"unknown call site group: '{groupId}'");
+
+    /// <summary>One row per user-facing feature: its effective provider/model, where that came from, and which providers fit it.</summary>
+    private static List<JsonObject> FeatureRows(ProviderStore providers, CallSiteStore sites)
+    {
+        var loaded = providers.Load();
+        var assignments = sites.Assignments();
+        var groupAssignments = sites.GroupAssignments();
+        var rows = new List<JsonObject>();
+        foreach (var feature in LlmCatalog.Features)
+        {
+            var overridden = LlmCatalog.Group(feature.Id) is not null
+                ? groupAssignments.GetValueOrDefault(feature.Id)
+                : assignments.GetValueOrDefault(feature.Id);
+            var (effective, source) = overridden is not null ? (overridden, "custom") : sites.ResolveDefault(feature.Needs);
+            var providerId = Json.NonEmptyStr(effective?["provider_id"]);
+            var provider = providerId is null ? null : loaded.GetValueOrDefault(providerId);
+            rows.Add(new JsonObject
+            {
+                ["id"] = feature.Id,
+                ["label"] = feature.Label,
+                ["description"] = feature.Description,
+                ["needs"] = feature.Needs,
+                ["effective"] = new JsonObject
+                {
+                    ["provider_id"] = providerId,
+                    ["provider_name"] = provider is null ? null : Json.Str(provider["label"]),
+                    ["model"] = Json.NonEmptyStr(effective?["model"]),
+                },
+                ["source"] = source,
+                ["compatible_provider_ids"] = new JsonArray(loaded
+                    .Where(kv => ProviderStore.Capabilities(kv.Value).Can(feature.Needs))
+                    .Select(kv => (JsonNode?)kv.Key).ToArray()),
+            });
+        }
+        return rows;
+    }
 
     private static JsonObject JoinedCallSite(string id, JsonObject? assignment)
     {

@@ -103,12 +103,12 @@ public sealed class WorkspaceWatchers : IDisposable
             diagram.Trigger();
             return;
         }
-        if (parts is [".codechroma", "diagrams", "custom", _, ..] && parts.Length >= 5)
+        if (parts is [".codechroma", "diagrams", "custom", var customType, var customFile] && (customFile == customType + ".json" || customFile == "projection.json"))
         {
             _custom.Trigger();
             return;
         }
-        if (parts is [".codechroma", "diagrams", "feature-plan", _, ..] && parts.Length >= 5)
+        if (parts is [".codechroma", "diagrams", "feature-plan", var planType, var planFile] && (planFile == planType + ".json" || planFile == "projection.json"))
         {
             _featurePlans.Trigger();
             return;

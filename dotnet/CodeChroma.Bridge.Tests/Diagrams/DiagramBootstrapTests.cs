@@ -107,4 +107,18 @@ public sealed class DiagramBootstrapTests : IDisposable
         Assert.Equal(1, llm.Calls);
         Assert.Equal("Strategy - pay", (string?)patterns["nodes"]![0]!["name"]);
     }
+
+    [Fact]
+    public void A_failed_patterns_generation_is_not_retried_by_the_same_bootstrap()
+    {
+        var llm = new StubLlm("not json");
+        var ws = Open(candidates: Candidate());
+        var bootstrap = new DiagramBootstrap(Quick(llm));
+
+        bootstrap.IfMissing(ws);
+        bootstrap.IfMissing(ws);
+
+        Assert.Equal(1, llm.Calls);
+        Assert.False(File.Exists(ws.DiagramPath("patterns")));
+    }
 }

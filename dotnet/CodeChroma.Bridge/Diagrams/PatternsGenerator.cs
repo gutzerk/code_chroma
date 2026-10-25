@@ -23,12 +23,22 @@ public static class PatternsGenerator
         try
         {
             var text = await provider.Complete(prompt, model, BridgeLimits.PatternsGeneratorMaxTokens, Prompts.Render("patterns_generator", "system"));
-            return Build(candidates, JsonNode.Parse(text));
+            return Build(candidates, JsonNode.Parse(StripFence(text)));
         }
-        catch (Exception error) when (error is not OperationCanceledException)
+        catch (Exception)
         {
             return null;
         }
+    }
+
+    /// <summary>The completion with a surrounding markdown code fence removed.</summary>
+    private static string StripFence(string text)
+    {
+        var trimmed = text.Trim();
+        if (!trimmed.StartsWith("```", StringComparison.Ordinal)) return trimmed;
+        var open = trimmed.IndexOf('\n');
+        var close = trimmed.LastIndexOf("```", StringComparison.Ordinal);
+        return open < 0 || close <= open ? trimmed : trimmed[(open + 1)..close].Trim();
     }
 
     /// <summary>Merges each confirmation onto its candidate's own shape, flattened to nodes and relations; null when nothing matches.</summary>

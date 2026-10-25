@@ -48,4 +48,27 @@ public class PatternsGeneratorTests
         Assert.Equal("a", (string?)result["nodes"]![1]!["parent"]);
         Assert.Single(result["relations"]!.AsArray());
     }
+
+    private sealed class TimeoutLlm : ILlmCompletion
+    {
+        public Task<string> Complete(string user, string model, int maxTokens, string? system = null) => throw new TaskCanceledException();
+    }
+
+    [Fact]
+    public async Task A_provider_timeout_yields_null_instead_of_throwing()
+    {
+        var result = await PatternsGenerator.Generate([Candidate("a")], new TimeoutLlm(), "m");
+
+        Assert.Null(result);
+    }
+
+    [Fact]
+    public async Task A_markdown_fenced_reply_is_still_parsed()
+    {
+        var reply = "```json\n{\"confirmations\":[{\"id\":\"a\",\"confirmed\":true,\"name\":\"N\",\"description\":\"D\"}]}\n```";
+
+        var result = await PatternsGenerator.Generate([Candidate("a")], new StubLlm(reply), "m");
+
+        Assert.NotNull(result);
+    }
 }

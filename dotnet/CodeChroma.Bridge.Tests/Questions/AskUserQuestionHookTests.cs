@@ -51,6 +51,14 @@ public sealed class AskUserQuestionHookTests : IDisposable
     }
 
     [Fact]
+    public void A_payload_of_an_unexpected_shape_exits_zero_silently()
+    {
+        var (code, output) = Run("""{"tool_input":"oops"}""", answers: true);
+
+        Assert.Equal((0, ""), (code, output));
+    }
+
+    [Fact]
     public void An_unreachable_bridge_stays_silent()
     {
         var (_, output) = Run(WithQuestions, answers: false);

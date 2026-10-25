@@ -15,13 +15,18 @@ public static class AgentSessionOwnership
         return Path.Combine(root, ".codechroma", "agent-sessions", id.ToString() + ".json");
     }
 
-    public static string HookSettings(bool sessionTracking = true, bool askUserQuestion = false)
+    public static string HookSettings(bool sessionTracking = true, bool askUserQuestion = false) =>
+        TryHookSettings(sessionTracking, askUserQuestion) ?? new JsonObject { ["hooks"] = new JsonObject() }.ToJsonString();
+
+    /// <summary>The `--settings` document, or null when no bridge executable can be resolved to run the hooks.</summary>
+    public static string? TryHookSettings(bool sessionTracking = true, bool askUserQuestion = false)
     {
         // Use the native apphost when published and dotnet + our assembly during development/tests.
         var assembly = typeof(AgentSessionOwnership).Assembly.Location;
         var apphost = Path.Combine(Path.GetDirectoryName(assembly)!, "CodeChroma.Bridge" + (OperatingSystem.IsWindows() ? ".exe" : ""));
         var published = Path.Combine(AppContext.BaseDirectory, "codechroma-bridge" + (OperatingSystem.IsWindows() ? ".exe" : ""));
         var executable = File.Exists(published) ? published : File.Exists(apphost) ? apphost : null;
+        if (executable is null && string.IsNullOrEmpty(assembly)) return null;
         var command = executable is not null
             ? (OperatingSystem.IsWindows() ? "& " : "") + Quote(executable)
             : "dotnet " + Quote(assembly);

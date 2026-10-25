@@ -1,3 +1,4 @@
+using System.Collections.Concurrent;
 using CodeChroma.Bridge.Skills;
 using CodeChroma.Bridge.Stores;
 using CodeChroma.Bridge.Workspaces;
@@ -11,11 +12,22 @@ public sealed class DiagramBootstrap(Func<(ILlmCompletion? Provider, string Mode
     /// <summary>The bootstrap with no model access: c1 still gets its deterministic draft, patterns is never written.</summary>
     public static DiagramBootstrap Offline { get; } = new(() => (null, BridgeLimits.PatternsGeneratorModel));
 
+    private readonly ConcurrentDictionary<string, byte> _attempted = new(StringComparer.OrdinalIgnoreCase);
+
+    /// <summary>Writes the missing diagrams before returning (c1, then the model call for patterns).</summary>
     public void IfMissing(Workspace ws)
     {
         if (ws.ReadOnly) return;
         Guarded("c1", () => C1(ws));
         Guarded("patterns", () => Patterns(ws));
+    }
+
+    /// <summary>Writes c1 now and patterns in the background, so a slow model call never holds up opening the workspace.</summary>
+    public void Start(Workspace ws)
+    {
+        if (ws.ReadOnly) return;
+        Guarded("c1", () => C1(ws));
+        _ = Task.Run(() => Guarded("patterns", () => Patterns(ws)));
     }
 
     private static void Guarded(string kind, Action bootstrap)
@@ -40,6 +52,8 @@ public sealed class DiagramBootstrap(Func<(ILlmCompletion? Provider, string Mode
         if (File.Exists(path)) return;
         var (provider, model) = quick();
         if (provider is null) return;
+        // One attempt per process: a failing model must not be re-billed on every workspace reload.
+        if (!_attempted.TryAdd(path, 0)) return;
         var candidates = ws.Engine.PatternCandidates();
         if (candidates.Count == 0) return;
         if (PatternsGenerator.Generate(candidates, provider, model).GetAwaiter().GetResult() is { } diagram) JsonFile.Write(path, diagram);

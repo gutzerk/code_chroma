@@ -39,18 +39,18 @@ public static class AskUserQuestionHook
             if (payload?["tool_input"]?["questions"] is { } questions && Json.Truthy(questions) && (bridgeAnswers ?? ProbeBridge)(baseUrl))
                 output.Write(DenyDecision());
         }
-        catch (Exception error) when (error is JsonException or IOException or InvalidOperationException) { }
+        catch (Exception) { }
         return 0;
     }
 
-    /// <summary>Whether the bridge's /mcp endpoint responds at all (any HTTP status counts).</summary>
+    /// <summary>Whether the bridge's /mcp endpoint answers; a 404 or a server error means it is not our bridge.</summary>
     private static bool ProbeBridge(string baseUrl)
     {
         try
         {
             using var http = new HttpClient { Timeout = TimeSpan.FromMilliseconds(ProbeMilliseconds) };
-            using var _ = http.GetAsync($"{baseUrl}/mcp/").GetAwaiter().GetResult();
-            return true;
+            using var response = http.GetAsync($"{baseUrl}/mcp/").GetAwaiter().GetResult();
+            return (int)response.StatusCode is < 500 and not 404;
         }
         catch (Exception)
         {

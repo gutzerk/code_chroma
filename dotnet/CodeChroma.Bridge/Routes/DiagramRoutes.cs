@@ -98,7 +98,7 @@ public static class DiagramRoutes
         }
     }
 
-    public static JsonNode? LoadArtifact(Workspace ws, string kind) => LoadArtifactAt(ws.Root, kind);
+    public static JsonNode? LoadArtifact(Workspace ws, string kind) => LoadArtifactAt(kind == "c1" ? ws.C1Root : ws.Root, kind);
 
     private static JsonNode? LoadArtifactAt(string root, string kind)
     {
@@ -155,7 +155,7 @@ public static class DiagramRoutes
             ["fingerprint"] = Fingerprint(diagram),
         };
         // A built-in is ready once its file validates (an empty object is valid); custom and feature-plan once non-empty.
-        foreach (var kind in Workspace.DiagramKinds) Add(kind, DiagramArtifacts.Load(ws, kind), SkillAgents.HasValidFlatDiagram(LoadArtifactAt(kind == "c1" ? ws.C1Root : ws.Root, kind)));
+        foreach (var kind in Workspace.DiagramKinds) Add(kind, DiagramArtifacts.Load(ws, kind), SkillAgents.HasValidFlatDiagram(LoadArtifact(ws, kind)));
         foreach (var entry in library.ListTypes())
             if (Json.Str(entry!["id"]) is { } typeId) Add($"custom/{typeId}", DiagramArtifacts.Load(ws, $"custom/{typeId}"));
         var featureDir = Path.Combine(ws.Root, ".codechroma", "diagrams", "feature-plan");

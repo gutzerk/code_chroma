@@ -55,7 +55,7 @@ Red-first evidence: with an empty ASP.NET app and stubbed registry the xUnit run
 
 | Group | Covered by contract | Not covered |
 |---|---|---|
-| graph | node ref, root ref, children, connections, structure (4 behaviours), source, repo-id fallback to main | `context-digest`, `dependency-digest`, `route` (need the Plan 1 digest); binary-file and doc-only folder cases exist but are `requires: real-engine` (C# skips; needs a real engine) |
+| graph | node ref, root ref, children, connections, structure (4 behaviours), source, repo-id fallback to main | `context-digest`, `dependency-digest`, `route` (now ported: `Routes/GraphRoutes.cs`, cases in `graph.cases.json`); binary-file and doc-only folder cases exist but are `requires: real-engine` (C# skips; needs a real engine) |
 | diagrams | `{kind}-path`, `DELETE`, missing/written c1, `diagrams/status`, job status/output/cancel for `c1`, `impact-changes` | resolvers (c1/patterns/impact/epics/sequence enrichment, staleness, overlays), `generate`, layout routes, `context`, `review`, custom and feature-plan routes, wiki context routes. The C# fingerprint is SHA-256 over canonical JSON, not Python's `hash_lines`; the contract only checks it is a string. |
 | workspaces | status, activate (main/unknown) | agent worktree activation, agents, PR and branch workspaces |
 | transport | health, origin guard (HTTP + WS), `/events` live pings (repo change, diagram file, status), terminal error frames | terminal PTY host (C# sends error frame + close 1011 for a valid agent), input/resize/binary frames, `/trace-stream`, `/trace-ingest` |

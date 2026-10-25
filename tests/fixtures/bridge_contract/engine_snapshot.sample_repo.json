@@ -745,182 +745,290 @@
       "file_path": "billing/reporter.go",
       "start_line": 1,
       "end_line": 22,
-      "language": "go"
+      "language": "go",
+      "kind": "module",
+      "name": "reporter",
+      "parent_symbol_id": null,
+      "imports": {}
     },
     {
       "id": "billing/reporter.go::class::Report",
       "file_path": "billing/reporter.go",
       "start_line": 5,
       "end_line": 7,
-      "language": "go"
+      "language": "go",
+      "kind": "class",
+      "name": "Report",
+      "parent_symbol_id": "billing/reporter.go::module::billing.reporter",
+      "imports": {}
     },
     {
       "id": "billing/reporter.go::function::RenderReport",
       "file_path": "billing/reporter.go",
       "start_line": 10,
       "end_line": 12,
-      "language": "go"
+      "language": "go",
+      "kind": "function",
+      "name": "RenderReport",
+      "parent_symbol_id": "billing/reporter.go::module::billing.reporter",
+      "imports": {}
     },
     {
       "id": "billing/reporter.go::function::formatCurrency",
       "file_path": "billing/reporter.go",
       "start_line": 15,
       "end_line": 17,
-      "language": "go"
+      "language": "go",
+      "kind": "function",
+      "name": "formatCurrency",
+      "parent_symbol_id": "billing/reporter.go::module::billing.reporter",
+      "imports": {}
     },
     {
       "id": "billing/reporter.go::function::SendReport",
       "file_path": "billing/reporter.go",
       "start_line": 19,
       "end_line": 21,
-      "language": "go"
+      "language": "go",
+      "kind": "function",
+      "name": "SendReport",
+      "parent_symbol_id": "billing/reporter.go::module::billing.reporter",
+      "imports": {}
     },
     {
       "id": "billing/service.py::module::billing.service",
       "file_path": "billing/service.py",
       "start_line": 1,
       "end_line": 16,
-      "language": "python"
+      "language": "python",
+      "kind": "module",
+      "name": "service",
+      "parent_symbol_id": null,
+      "imports": {
+        "slugify": "shared.text_utils"
+      }
     },
     {
       "id": "billing/service.py::class::BillingService",
       "file_path": "billing/service.py",
       "start_line": 5,
       "end_line": 15,
-      "language": "python"
+      "language": "python",
+      "kind": "class",
+      "name": "BillingService",
+      "parent_symbol_id": "billing/service.py::module::billing.service",
+      "imports": {}
     },
     {
       "id": "billing/service.py::function::BillingService.__init__",
       "file_path": "billing/service.py",
       "start_line": 8,
       "end_line": 9,
-      "language": "python"
+      "language": "python",
+      "kind": "function",
+      "name": "__init__",
+      "parent_symbol_id": "billing/service.py::class::BillingService",
+      "imports": {}
     },
     {
       "id": "billing/service.py::function::BillingService.create_invoice",
       "file_path": "billing/service.py",
       "start_line": 11,
       "end_line": 15,
-      "language": "python"
+      "language": "python",
+      "kind": "function",
+      "name": "create_invoice",
+      "parent_symbol_id": "billing/service.py::class::BillingService",
+      "imports": {}
     },
     {
       "id": "billing/models/invoice.py::module::billing.models.invoice",
       "file_path": "billing/models/invoice.py",
       "start_line": 1,
       "end_line": 15,
-      "language": "python"
+      "language": "python",
+      "kind": "module",
+      "name": "invoice",
+      "parent_symbol_id": null,
+      "imports": {}
     },
     {
       "id": "billing/models/invoice.py::class::Invoice",
       "file_path": "billing/models/invoice.py",
       "start_line": 4,
       "end_line": 9,
-      "language": "python"
+      "language": "python",
+      "kind": "class",
+      "name": "Invoice",
+      "parent_symbol_id": "billing/models/invoice.py::module::billing.models.invoice",
+      "imports": {}
     },
     {
       "id": "billing/models/invoice.py::function::Invoice.total",
       "file_path": "billing/models/invoice.py",
       "start_line": 7,
       "end_line": 9,
-      "language": "python"
+      "language": "python",
+      "kind": "function",
+      "name": "total",
+      "parent_symbol_id": "billing/models/invoice.py::class::Invoice",
+      "imports": {}
     },
     {
       "id": "billing/models/invoice.py::function::format_invoice_id",
       "file_path": "billing/models/invoice.py",
       "start_line": 12,
       "end_line": 14,
-      "language": "python"
+      "language": "python",
+      "kind": "function",
+      "name": "format_invoice_id",
+      "parent_symbol_id": "billing/models/invoice.py::module::billing.models.invoice",
+      "imports": {}
     },
     {
       "id": "shared/text_utils.py::module::shared.text_utils",
       "file_path": "shared/text_utils.py",
       "start_line": 1,
       "end_line": 7,
-      "language": "python"
+      "language": "python",
+      "kind": "module",
+      "name": "text_utils",
+      "parent_symbol_id": null,
+      "imports": {}
     },
     {
       "id": "shared/text_utils.py::function::slugify",
       "file_path": "shared/text_utils.py",
       "start_line": 4,
       "end_line": 6,
-      "language": "python"
+      "language": "python",
+      "kind": "function",
+      "name": "slugify",
+      "parent_symbol_id": "shared/text_utils.py::module::shared.text_utils",
+      "imports": {}
     },
     {
       "id": "users/service.py::module::users.service",
       "file_path": "users/service.py",
       "start_line": 1,
       "end_line": 25,
-      "language": "python"
+      "language": "python",
+      "kind": "module",
+      "name": "service",
+      "parent_symbol_id": null,
+      "imports": {
+        "slugify": "shared.text_utils"
+      }
     },
     {
       "id": "users/service.py::class::UserService",
       "file_path": "users/service.py",
       "start_line": 5,
       "end_line": 19,
-      "language": "python"
+      "language": "python",
+      "kind": "class",
+      "name": "UserService",
+      "parent_symbol_id": "users/service.py::module::users.service",
+      "imports": {}
     },
     {
       "id": "users/service.py::function::UserService.__init__",
       "file_path": "users/service.py",
       "start_line": 8,
       "end_line": 9,
-      "language": "python"
+      "language": "python",
+      "kind": "function",
+      "name": "__init__",
+      "parent_symbol_id": "users/service.py::class::UserService",
+      "imports": {}
     },
     {
       "id": "users/service.py::function::UserService.create_user",
       "file_path": "users/service.py",
       "start_line": 11,
       "end_line": 15,
-      "language": "python"
+      "language": "python",
+      "kind": "function",
+      "name": "create_user",
+      "parent_symbol_id": "users/service.py::class::UserService",
+      "imports": {}
     },
     {
       "id": "users/service.py::function::UserService.get_user",
       "file_path": "users/service.py",
       "start_line": 17,
       "end_line": 19,
-      "language": "python"
+      "language": "python",
+      "kind": "function",
+      "name": "get_user",
+      "parent_symbol_id": "users/service.py::class::UserService",
+      "imports": {}
     },
     {
       "id": "users/service.py::function::list_active_users",
       "file_path": "users/service.py",
       "start_line": 22,
       "end_line": 24,
-      "language": "python"
+      "language": "python",
+      "kind": "function",
+      "name": "list_active_users",
+      "parent_symbol_id": "users/service.py::module::users.service",
+      "imports": {}
     },
     {
       "id": "web/UserCard.tsx::module::web.UserCard",
       "file_path": "web/UserCard.tsx",
       "start_line": 1,
       "end_line": 9,
-      "language": "typescript"
+      "language": "typescript",
+      "kind": "module",
+      "name": "UserCard",
+      "parent_symbol_id": null,
+      "imports": {}
     },
     {
       "id": "web/UserCard.tsx::function::UserCard",
       "file_path": "web/UserCard.tsx",
       "start_line": 2,
       "end_line": 4,
-      "language": "typescript"
+      "language": "typescript",
+      "kind": "function",
+      "name": "UserCard",
+      "parent_symbol_id": "web/UserCard.tsx::module::web.UserCard",
+      "imports": {}
     },
     {
       "id": "web/UserCard.tsx::function::trackUserCardView",
       "file_path": "web/UserCard.tsx",
       "start_line": 6,
       "end_line": 8,
-      "language": "typescript"
+      "language": "typescript",
+      "kind": "function",
+      "name": "trackUserCardView",
+      "parent_symbol_id": "web/UserCard.tsx::module::web.UserCard",
+      "imports": {}
     },
     {
       "id": "web/widget.ts::module::web.widget",
       "file_path": "web/widget.ts",
       "start_line": 1,
       "end_line": 6,
-      "language": "typescript"
+      "language": "typescript",
+      "kind": "module",
+      "name": "widget",
+      "parent_symbol_id": null,
+      "imports": {}
     },
     {
       "id": "web/widget.ts::function::renderUserSlug",
       "file_path": "web/widget.ts",
       "start_line": 2,
       "end_line": 5,
-      "language": "typescript"
+      "language": "typescript",
+      "kind": "function",
+      "name": "renderUserSlug",
+      "parent_symbol_id": "web/widget.ts::module::web.widget",
+      "imports": {}
     }
   ],
   "summaries": {

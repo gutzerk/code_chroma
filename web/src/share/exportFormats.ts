@@ -15,6 +15,12 @@ export const EXPORT_FORMATS: { id: ExportFormat; label: string }[] = [
   { id: "pdf", label: "PDF document" },
 ];
 
+export const EXPORT_META: Record<ExportFormat, { mime: string; extension: string }> = {
+  png: { mime: "image/png", extension: "png" },
+  html: { mime: "text/html", extension: "html" },
+  pdf: { mime: "application/pdf", extension: "pdf" },
+};
+
 function escapeHtml(text: string): string {
   return text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/"/g, "&quot;");
 }

@@ -39,9 +39,10 @@ describe("ShareMenu", () => {
 
     fireEvent.click(screen.getByTestId("share-menu-item-png"));
 
-    await waitFor(() =>
-      expect(saveSpy).toHaveBeenCalledWith({ name: "my-repo-diagram.png", mime: "image/png", blob }),
-    );
+    await waitFor(() => expect(saveSpy).toHaveBeenCalled());
+    const request = saveSpy.mock.calls[0][0];
+    expect(request).toMatchObject({ name: "my-repo-diagram.png", mime: "image/png" });
+    await expect(request.blob).resolves.toBe(blob);
     expect(formats.buildExport).toHaveBeenCalledWith("png", expect.anything(), "my-repo-diagram");
   });
 

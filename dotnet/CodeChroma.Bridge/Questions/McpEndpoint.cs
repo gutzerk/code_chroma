@@ -37,14 +37,23 @@ public sealed record McpEndpoint(string WorkspaceId, string BaseUrl, string Toke
     public string WriteClaudeConfig(TimeSpan askWait)
     {
         var directory = Path.Combine(Path.GetTempPath(), "codechroma-mcp");
-        Directory.CreateDirectory(directory);
         var safe = new string(WorkspaceId.Select(c => char.IsAsciiLetterOrDigit(c) || c is '-' or '_' ? c : '_').ToArray());
         var path = Path.Combine(directory, safe + ".json");
-        File.WriteAllText(path, ClaudeConfig(askWait).ToJsonString());
-        if (!OperatingSystem.IsWindows())
+        var json = ClaudeConfig(askWait).ToJsonString();
+        if (OperatingSystem.IsWindows())
         {
-            try { File.SetUnixFileMode(path, UnixFileMode.UserRead | UnixFileMode.UserWrite); } catch (IOException) { }
+            Directory.CreateDirectory(directory);
+            File.WriteAllText(path, json);
+            return path;
         }
+        Directory.CreateDirectory(directory, UnixFileMode.UserRead | UnixFileMode.UserWrite | UnixFileMode.UserExecute);
+        using var stream = new FileStream(path, new FileStreamOptions
+        {
+            Mode = FileMode.Create, Access = FileAccess.Write, Share = FileShare.None,
+            UnixCreateMode = UnixFileMode.UserRead | UnixFileMode.UserWrite,
+        });
+        using var writer = new StreamWriter(stream);
+        writer.Write(json);
         return path;
     }
 }

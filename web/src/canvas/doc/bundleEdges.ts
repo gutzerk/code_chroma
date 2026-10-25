@@ -1,6 +1,6 @@
 import type { CanvasEdge } from "../../state/types";
 
-/** Collapses parallel edges (same from → to, layer, kind, origin and transport) into one carrying a `×N` count; singles pass through. */
+/** Collapses parallel edges (same from → to, layer, kind, origin and transport) into one carrying a `×N` count and every distinct label; singles pass through. */
 export function bundleEdges(edges: readonly CanvasEdge[]): CanvasEdge[] {
   const groups = new Map<string, CanvasEdge[]>();
   for (const edge of edges) {
@@ -12,7 +12,8 @@ export function bundleEdges(edges: readonly CanvasEdge[]): CanvasEdge[] {
   return [...groups.values()].map((group) => {
     if (group.length === 1) return group[0];
     const first = group[0];
-    const base = first.label || first.kind || "";
+    const labels = [...new Set(group.map((edge) => edge.label).filter(Boolean))];
+    const base = labels.length ? labels.join(" · ") : first.kind || "";
     return {
       ...first,
       label: base ? `${base} ×${group.length}` : `×${group.length}`,

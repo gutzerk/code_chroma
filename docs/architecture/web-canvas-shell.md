@@ -487,7 +487,18 @@ per-view status colors (`--added`, `--trace`, `--c1`, `--patterns`; `--plan` is 
 C1 person-actor box and the multi-select outline, so don't read the name as still meaning "plan"),
 the icon-control
 gray trio (`--control-*`), radius, shadow, and type steps. Rules reference `var(--token)` instead
-of literal hex, so one edit re-themes the whole app.
+of literal hex, so one edit re-themes the whole app. Radii in CSS go through `--radius-xs…2xl/full`
+(3/4/6/8/10/12px/999px), muted greys through `--text-2`/`--text-mid`/`--text-strong`, error reds
+through `--error` (text/delete) and `--stop` (stopped run), and blues through `--accent`; spacing
+has no token scale yet. Don't
+add new hex or `border-radius: Npx` literals in CSS files. Every `font-family`/`font` shorthand in CSS
+uses `var(--font-ui)` or `var(--font-mono)` (DM Sans / JetBrains Mono, the two faces `index.html`
+loads); the old IBM Plex and bare `monospace` stacks are gone. `workflows.css` and
+`WorkflowEditorDialog.css` read the `--wf-*` palette (defined on `:root` in `workflows.css`, with
+`--wf-ok` aliasing `--success`), and `LeftPanel.css` reads the global tokens; remaining hex there are
+one-off tinted fills. `web/.stylelintrc.cjs` (run by `npm run lint` / `npm run lint:css`) makes a
+raw `font-family`, `font` shorthand with a literal family, or `border-radius` (any longhand) with a px/rem value a lint error (the intentional `.node-shape-*` shapes carry a `stylelint-disable-line`) and a hex color a warning; the `:root` token
+blocks in `styles.css` and `workflows.css` are wrapped in `stylelint-disable color-no-hex`.
 
 A literal "floating rounded cards on dark ground" palette (`--bg-ground`, `--bg-panel`,
 `--bg-canvas`, `--bg-raised`, `--bg-raised-2`, `--bg-inset`, `--text-soft`, `--text-muted-soft`,

@@ -8,7 +8,7 @@
   align-items: center;
   gap: 4px;
   padding: 0 6px;
-  border-radius: 16px;
+  border-radius: var(--radius-card);
   background: var(--bg-panel);
 }
 
@@ -24,7 +24,7 @@
 .collapsed-left-bar__expand {
   width: 34px;
   height: 28px;
-  border-radius: 10px;
+  border-radius: var(--radius-xl);
   background: var(--bg-raised-2);
   color: var(--text-strong);
 }
@@ -32,7 +32,7 @@
 .collapsed-left-bar__files {
   width: 34px;
   height: 34px;
-  border-radius: 12px;
+  border-radius: var(--radius-2xl);
   background: transparent;
   color: var(--text-strong);
 }
@@ -47,7 +47,7 @@
 .collapsed-left-bar__diagram {
   width: 34px;
   height: 34px;
-  border-radius: 12px;
+  border-radius: var(--radius-2xl);
   background: var(--bg-raised);
 }
 
@@ -55,7 +55,7 @@
   display: block;
   width: 16px;
   height: 16px;
-  border-radius: 5px;
+  border-radius: var(--radius-md);
   box-sizing: border-box;
 }
 

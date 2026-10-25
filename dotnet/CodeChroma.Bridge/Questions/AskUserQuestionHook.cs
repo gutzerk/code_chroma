@@ -1,6 +1,7 @@
 using System.Text.Json;
 using System.Text.Json.Nodes;
 using CodeChroma.Bridge.Http;
+using CodeChroma.Bridge.Stores;
 
 namespace CodeChroma.Bridge.Questions;
 
@@ -35,22 +36,12 @@ public static class AskUserQuestionHook
         try
         {
             var payload = JsonNode.Parse(input.ReadToEnd());
-            if (payload?["tool_input"]?["questions"] is { } questions && Truthy(questions) && (bridgeAnswers ?? ProbeBridge)(baseUrl))
+            if (payload?["tool_input"]?["questions"] is { } questions && Json.Truthy(questions) && (bridgeAnswers ?? ProbeBridge)(baseUrl))
                 output.Write(DenyDecision());
         }
         catch (Exception error) when (error is JsonException or IOException or InvalidOperationException) { }
         return 0;
     }
-
-    private static bool Truthy(JsonNode node) => node switch
-    {
-        JsonArray array => array.Count > 0,
-        JsonObject obj => obj.Count > 0,
-        JsonValue value when value.TryGetValue<string>(out var text) => text.Length > 0,
-        JsonValue value when value.TryGetValue<bool>(out var flag) => flag,
-        JsonValue value when value.TryGetValue<double>(out var number) => number != 0,
-        _ => true,
-    };
 
     /// <summary>Whether the bridge's /mcp endpoint responds at all (any HTTP status counts).</summary>
     private static bool ProbeBridge(string baseUrl)

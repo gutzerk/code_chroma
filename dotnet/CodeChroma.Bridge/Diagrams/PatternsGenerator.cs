@@ -23,7 +23,7 @@ public static class PatternsGenerator
         try
         {
             var text = await provider.Complete(prompt, model, BridgeLimits.PatternsGeneratorMaxTokens, Prompts.Render("patterns_generator", "system"));
-            return Build(candidates, serialized, JsonNode.Parse(text));
+            return Build(candidates, JsonNode.Parse(text));
         }
         catch (Exception error) when (error is not OperationCanceledException)
         {
@@ -32,7 +32,7 @@ public static class PatternsGenerator
     }
 
     /// <summary>Merges each confirmation onto its candidate's own shape, flattened to nodes and relations; null when nothing matches.</summary>
-    public static JsonObject? Build(IReadOnlyList<PatternInstance> candidates, IReadOnlyList<JsonObject> serialized, JsonNode? data)
+    public static JsonObject? Build(IReadOnlyList<PatternInstance> candidates, JsonNode? data)
     {
         if (data is not JsonObject || data["confirmations"] is not JsonArray confirmations) return null;
         var byId = new Dictionary<string, JsonObject>(StringComparer.Ordinal);
@@ -41,7 +41,7 @@ public static class PatternsGenerator
         var nodes = new JsonArray();
         var relations = new JsonArray();
         var matched = false;
-        foreach (var instance in serialized)
+        foreach (var instance in candidates.Select(PatternSerialize.SerializeInstance))
         {
             if (!byId.TryGetValue(instance["id"]!.GetValue<string>(), out var confirmation)) continue;
             var merged = Merge(instance, confirmation);

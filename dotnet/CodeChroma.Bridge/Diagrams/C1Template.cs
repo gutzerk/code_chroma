@@ -65,11 +65,10 @@ public static class C1Template
             ["description"] = $"The {name} codebase.",
         });
         var relations = new JsonArray();
-        var seenCandidates = new HashSet<string>(StringComparer.Ordinal);
         var seenNames = new HashSet<string>(StringComparer.Ordinal);
         foreach (var candidate in Candidates(digest))
         {
-            if (!KnownExternalSystems.TryGetValue(candidate, out var entry) || !seenCandidates.Add(candidate)) continue;
+            if (!KnownExternalSystems.TryGetValue(candidate, out var entry)) continue;
             // Two keys can share a display name (psycopg2/asyncpg -> PostgreSQL); one box per name.
             if (!seenNames.Add(entry.Name)) continue;
             var actor = new JsonObject

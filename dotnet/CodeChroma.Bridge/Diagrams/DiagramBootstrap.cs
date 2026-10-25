@@ -38,10 +38,10 @@ public sealed class DiagramBootstrap(Func<(ILlmCompletion? Provider, string Mode
     {
         var path = ws.DiagramPath("patterns");
         if (File.Exists(path)) return;
-        var candidates = ws.Engine.PatternCandidates();
-        if (candidates.Count == 0) return;
         var (provider, model) = quick();
         if (provider is null) return;
+        var candidates = ws.Engine.PatternCandidates();
+        if (candidates.Count == 0) return;
         if (PatternsGenerator.Generate(candidates, provider, model).GetAwaiter().GetResult() is { } diagram) JsonFile.Write(path, diagram);
     }
 }

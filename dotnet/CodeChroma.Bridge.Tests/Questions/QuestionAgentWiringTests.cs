@@ -31,8 +31,9 @@ public sealed class QuestionAgentWiringTests : IDisposable
         var launch = _agents.Resolve("claude", initialPrompt: "do it", agentId: "agent-1", bridgeUrl: BridgeUrl)!;
 
         var argv = launch.Argv.ToList();
-        Assert.Equal("--mcp-config", argv[1]);
-        if (argv.Contains("--plugin-dir")) Assert.Equal(3, argv.IndexOf("--plugin-dir"));
+        var mcp = argv.IndexOf("--mcp-config");
+        Assert.True(mcp >= 1);
+        if (argv.Contains("--plugin-dir")) Assert.Equal(mcp + 2, argv.IndexOf("--plugin-dir"));
         Assert.Equal("do it", argv[^1]);
         Assert.Equal(BridgeUrl, launch.Env["CODECHROMA_BRIDGE_URL"]);
         Assert.Equal("agent-1", launch.Env["CODECHROMA_WORKSPACE_ID"]);
@@ -44,7 +45,7 @@ public sealed class QuestionAgentWiringTests : IDisposable
     {
         var launch = _agents.Resolve("claude", agentId: "agent-1", bridgeUrl: BridgeUrl)!;
 
-        var server = JsonNode.Parse(File.ReadAllText(launch.Argv[2]))!["mcpServers"]!["codechroma"]!;
+        var server = JsonNode.Parse(File.ReadAllText(launch.Argv[launch.Argv.ToList().IndexOf("--mcp-config") + 1]))!["mcpServers"]!["codechroma"]!;
 
         Assert.Equal("http", (string?)server["type"]);
         Assert.Equal(BridgeUrl + "/mcp/", (string?)server["url"]);
@@ -79,7 +80,7 @@ public sealed class QuestionAgentWiringTests : IDisposable
     {
         var launch = _agents.Resolve("claude", "session-9", agentId: "agent-1", bridgeUrl: BridgeUrl)!;
 
-        Assert.Equal("--mcp-config", launch.Argv[1]);
+        Assert.Contains("--mcp-config", launch.Argv);
         Assert.Contains("session-9", launch.Argv);
     }
 

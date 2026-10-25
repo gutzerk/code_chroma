@@ -358,6 +358,21 @@ public sealed class CallSiteStore(UserPaths paths, ProviderStore providers)
         return 0;
     });
 
+    /// <summary>The effective assignment: the group's (agentic) or the site's own (simple) override, else the default or its fallback.</summary>
+    public JsonObject? EffectiveAssignment(string callSiteId)
+    {
+        if (LlmCatalog.GroupOf(callSiteId) is { } group)
+        {
+            var assigned = GroupAssignments().GetValueOrDefault(group);
+            return assigned is null ? ResolveDefault("agents").Assignment : new JsonObject
+            {
+                ["provider_id"] = assigned["provider_id"]!.DeepClone(), ["model"] = assigned["model"]!.DeepClone(), ["mode"] = "cli",
+            };
+        }
+        if (Assignments().GetValueOrDefault(callSiteId) is { } own) return own;
+        return LlmCatalog.CallSite(callSiteId) is null ? null : ResolveDefault("quick").Assignment;
+    }
+
     /// <summary>The default (or its fallback) as {provider_id, model, mode} for agents/quick work, with its source label.</summary>
     public (JsonObject? Assignment, string Source) ResolveDefault(string needs)
     {

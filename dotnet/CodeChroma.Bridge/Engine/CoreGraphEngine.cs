@@ -40,6 +40,7 @@ public sealed class CoreGraphEngine : IGraphEngine
         _exporter = exporter;
         _core = new GraphCore(liveResolver: exporter is NativeAnalysisExporter native ? new LiveImportResolver(native.Registry, root) : null);
         _core.Analyze(exporter.Full(root));
+        WriteDigest();
     }
 
     /// <summary>Wraps an already-built analysis input (tests and snapshots); reanalysis needs an exporter.</summary>
@@ -84,7 +85,15 @@ public sealed class CoreGraphEngine : IGraphEngine
         {
             _core.Reanalyze(_exporter.Delta(_root, changedPaths));
             _patterns = null;
+            WriteDigest();
         }
+    }
+
+    private void WriteDigest()
+    {
+        if (_root.Length == 0) return;
+        try { DependencyDigest.Write(_root, DependencyDigest.Build(_core.Snapshot)); }
+        catch (Exception ex) { Console.Error.WriteLine($"dependency digest build/write failed for {_root}: {ex.Message}"); }
     }
 
     public CodeChroma.Core.Graph? GraphSnapshot() => _core.Snapshot;

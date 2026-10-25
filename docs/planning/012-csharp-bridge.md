@@ -1,6 +1,6 @@
 # 012 — FastAPI bridge + WebSocket → ASP.NET Core (Plan 2)
 
-Status: **In progress** (the C# bridge is the only bridge in the desktop app; wiki-general generate/update port is still open, see 017; wire contract green on both backends for graph, diagrams, workspaces, transport, assistant, runtime settings, llm settings, traces, issues, diagram types and branches; the graph is served by `CodeChroma.Core`).
+Status: **Done for functional parity** (the C# bridge is the only bridge in the desktop app and matches every Python bridge route, watcher event, bootstrap and agent hook; the open items are listed under "Remaining work"). Wire contract green on both backends; the graph is served by `CodeChroma.Core`.
 
 > Update 2026-10-18: Electron (`desktop/`, `electron-builder.yml`, PyInstaller, `cryptoCompat.ts`, the install forwarders) was removed from the tree; the last Electron commit is the local tag `electron-last-build`. Mentions below of Electron as the shipping app or reference describe the plan's history. Current state: [`docs/architecture/desktop-app.md`](../architecture/desktop-app.md).
 
@@ -67,17 +67,29 @@ C# cases skipped by capability (listed and asserted by `Unsupported_cases_are_ex
 
 Minimal APIs, `System.Text.Json` source generation (`Http/BridgeJson.cs`, snake_case), built-in WebSockets, origin guard middleware, `WorkspaceRegistry` (lazy bring-up, 600 s idle unload with a 60 s sweep, injectable `TimeProvider`), one recursive `FileSystemWatcher` per workspace routed to a 1000 ms repo debouncer or 500 ms per-diagram debouncers, git CLI runner with the 10 s / 120 s timeouts (`GitRunner`), the same git-status signature sync as `GitSync`. All limits are in `Workspaces/BridgeLimits.cs` and pinned by a test.
 
-Known differences: the repo watcher ignores the same directory names as the engine but does not honour `.gitignore`; Python's `ensure_excluded`/skill sync is not ported; CORS is configured but not contract-tested; text reading normalizes newlines like Python but `splitlines` edge separators (form feed, U+2028) are not mirrored.
+Known differences: the repo watcher ignores the same directory names as the engine but does not honour `.gitignore`; CORS is configured but not contract-tested; text reading normalizes newlines like Python but `splitlines` edge separators (form feed, U+2028) are not mirrored.
 
 ## Remaining work
 
-1. Audit and extract the remaining ~40 route test files (start with agents/llm_settings validation tables, then PR routes, branches, canvas/recipes, epics, wiki_general), adding `requires` tags where an engine or an agent runtime is needed.
-2. Port those route groups in the plan's order (agents next), each green against the shared cases.
-3. Replace `UnavailableEngineFactory` with `CodeChroma.Core` once Plan 1 lands; then run the `real-engine` and `diagram-resolver` cases and add the digest routes.
-4. ConPTY/PTY terminal host and frame input handling; screen detection fixtures from `tests/fixtures/agent_screens`.
-5. LLM/skill-agent subprocess runners (`claude -p`), trace proxying to the Python tracer, `/trace-*` sockets.
-6. Self-contained trimmed (or AOT) publish and the installer-size measurement against the 72 MB PyInstaller folder; frozen-bridge cold start for a fair comparison with Step 0.
-7. CI job for `dotnet test` (`.github/` was out of scope here).
+Functional parity is complete (table below). What stays open is not a bridge function:
+
+1. Self-contained trimmed (or AOT) publish and the installer-size measurement against the 72 MB PyInstaller folder; frozen-bridge cold start for a fair comparison with Step 0 (packaging, not function).
+2. Web default-model dialog (023 Stage 3, `web/`; the C# `/llm/default` and `/llm/features` routes exist).
+3. A paid verification run of wiki-general on a real Claude (017, run only on request).
+
+Deliberate owner decisions that are not gaps: offline summaries only in the live bridge, in-memory graph, trace capture stays in Python, no foreground-process probe on Windows (same as Python).
+
+### Parity table (checked route by route against `origin/stage`)
+
+| Python bridge area | C# state |
+|---|---|
+| HTTP/WS routes (graph, workspaces, diagrams, digests, `route`, sequence/context, wiki, wiki-general, wiki-context, `{kind}/review`, generate kinds, layout, canvas, recipes, agents, prs, epics, traces, llm/assistant/runtime settings, issues, questions, `/mcp`, `/llm/default`, `/llm/features`) | same, contract-covered |
+| `dependency-digest.json` written after analyze/reanalyze; custom-diagram staleness hashes it | done (`CoreGraphEngine.WriteDigest`, `DiagramArtifacts.DigestFingerprint`) |
+| First-open bootstrap: deterministic `c1` draft and model-confirmed `patterns` (`bootstrap_diagrams.py`) | done (`Diagrams/DiagramBootstrap.cs`, `C1Template.cs`, `PatternsGenerator.cs`, `Skills/QuickLlm.cs`); contract case `a_fresh_repo_gets_a_draft_c1_with_a_system_node` |
+| Watcher events | `impact-changes`, `wiki-general` (index file and HEAD move), `custom`/`feature-plan` plus `canvas` for any file under their folders; contract cases in `transport.cases.json` |
+| `AskUserQuestion` PreToolUse hook | done: the bridge binary is the hook (`ask-user-question` subcommand, `Questions/AskUserQuestionHook.cs`); `--settings` is passed whenever the window has tracking or an MCP endpoint, never for a bare window |
+| PR and agent workspaces read C1 through `c1_source_root` | done (`Workspace.C1Root`; `c1/generate?only_if_missing` and `diagrams/status`) |
+| `ensure_excluded`, skill sync, plain wiki bootstrap, `PrepareNewRun` wiki sync | same |
 
 ## Removal candidates (nothing deleted yet)
 
@@ -92,19 +104,17 @@ Engine: `CoreEngineFactory` analyzes with the Python analyzers (`python -m codec
 | Route group | State |
 |---|---|
 | assistant (GET/PUT settings, test probe partial) | ported, contract |
-| runtime settings GET/PUT | ported, contract; `environment`, `cli/{name}`, `refresh`, `focus` not ported |
-| llm_settings (providers, call-sites, groups, models) | ported, contract; API-provider completion test not ported |
+| runtime settings GET/PUT | ported, contract; `environment`, `cli/{name}`, `refresh`, `focus` ported later (see below) |
+| llm_settings (providers, call-sites, groups, models) | ported, contract; API-provider completion test ported later (see below) |
 | traces (list/get, trace-stream, trace-ingest, `trace` ping) | ported, contract |
 | issues (status, create via `gh`) | ported; validation contract only |
-| custom diagram types + custom/feature-plan paths/delete, diagrams/status custom entries | ported, contract; resolved GET payloads not ported |
+| custom diagram types + custom/feature-plan paths/delete, diagrams/status custom entries | ported, contract; resolved GET payloads ported later (see below) |
 | branches (list, choices, open/create, close) | ported, contract; skills are not synced into branch worktrees |
 | canvas GET/PATCH, recipes run, diff/change-cards/accept | ported, contract (`canvas`, `recipes`, `diffs` case files; function-level diff cases are `requires: real-engine`) |
-| not ported | agents, prs, epics, wiki_general, skill runners (`claude -p`), generate routes, resolvers, PTY terminal host |
 | branches (list, choices, open/create, close) | ported, contract; skills installed and diagrams seeded into branch worktrees, agent worktrees count as holders |
 | agents (cards, git-preflight/init, branch switcher, start/stop/resume, window, pr-preflight, pr, recreate-worktree, delete), autostart, status LED poller | ported, contract (`agents.cases.json`); `claude -p` commit-message generation is a plain process call |
 | prs (preflight, list, github list, open, refresh, close) | ported, contract (`prs.cases.json`: validation and 404 paths; the gh/fetch happy path needs a GitHub remote and is covered by unit-level logic only) |
 | PTY terminal host `WS /ws/terminal` | ported, contract (`terminal.cases.json`) plus real-process xUnit tests |
-| not ported | canvas (GET/PATCH), recipes, diffs/change-cards/accept, epics, wiki_general, skill runners (`claude -p`), generate routes, resolvers |
 
 PTY choice: `Porta.Pty` 1.0.7 (MIT, netstandard2.0, ConPTY on Windows, native `openpty` shim on Linux/macOS) behind `Terminal/PtyHost.cs`, which adds incremental UTF-8 decoding, the ConPTY startup `ESC[c` reply, exit reporting and kill. Newer Porta.Pty versions target net10 only. `Terminal/ScreenTap.cs` is a managed VT emulator (pyte replacement) for reattach redraws and the status detector; `Agents/StatusDetector.cs` reads the shipped `detect/*.toml` (embedded). Known gap: the foreground-process probe (`tcgetpgrp`+`ps`) is not ported, so the detector never treats a nested `vim` as foreign.
 
@@ -123,7 +133,6 @@ Ported to `dotnet/CodeChroma.Bridge` by the `bridge-skills` branch; all of it ha
 | Epics | `Epics/` (markdown requirements source, speckit delivery source, assembler, brief normalization, tasks.md splice) and `Routes/EpicsRoutes.cs` (items, brief start/poll/cancel/output/path, diagram-path) |
 | wiki-general | status, interactive status (with the generate/update mutual exclusion and commit stamp), output, cancel, `wiki-general-context`; `generate`/`update` answer 501 |
 | Diagrams | `Diagrams/` shared resolver (diagnostics, path to node_id, origins, coverage, staleness, legacy c1 migration); resolved GET for c1, epics, sequence, custom and feature-plan; `custom/{id}/context`, `c1/context`, `epics/context`; hierarchy layout GET/POST |
-| Still not ported | patterns and impact resolved payloads (need the pattern detector and change cards), `impact-changes` payload, `{kind}/review`, `patterns/impact/sequence` context, `wiki-context` (needs the plain wiki generator), wiki-general pipeline/update, PR workspaces' `c1_source_root` |
 
-Known differences: the custom-diagram staleness fingerprint hashes `.codechroma/dependency-digest.json` with the C# canonical-JSON hash (the C# engine does not write that file, so it is constant); `epic_brief_agent`'s prompt carries compact JSON; the plain-wiki sync that `prepare_new_run` does is skipped; a login shell is captured with `env -0` (POSIX) or `Get-ChildItem env:` (PowerShell) instead of the Python helper.
+Known differences: the custom-diagram staleness fingerprint hashes `.codechroma/dependency-digest.json` with a C# canonical-JSON hash (stable per backend, not byte-equal to Python's); `epic_brief_agent`'s prompt carries compact JSON; a login shell is captured with `env -0` (POSIX) or `Get-ChildItem env:` (PowerShell) instead of the Python helper.
 Pre-existing, not from this change: on the integration branch `tests/fixtures/sample_repo/.claude/` is tracked (commit 21b0ec0), which makes two Python `graph::structure_*` contract cases fail.

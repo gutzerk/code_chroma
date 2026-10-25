@@ -48,7 +48,10 @@ public sealed class AgentSession : IAgentSessionPort, IDisposable
         _detector = new StatusDetector(StatusRules.ForKind(kind));
         // callbacks take _gate, so none can observe _pty before it is assigned
         lock (_gate) _pty = PtyHost.Start(launch, OnOutput, OnExit);
+        _foreground = new ForegroundProcess(_pty.Pid);
     }
+
+    private readonly ForegroundProcess _foreground;
 
     public string AgentId { get; }
 
@@ -73,7 +76,7 @@ public sealed class AgentSession : IAgentSessionPort, IDisposable
 
     /// <summary>The detector's verdict, or null when nothing changed: the LED's one source of truth.</summary>
     public string? PollStatus() =>
-        IsAlive ? _detector.Observe(_tap.Tail(_detector.Rules.TailLines), _tap.Title, _tap.Progress, process: null) : null;
+        IsAlive ? _detector.Observe(_tap.Tail(_detector.Rules.TailLines), _tap.Title, _tap.Progress, _foreground.Name(DateTime.UtcNow)) : null;
 
     /// <summary>A consumer seeded with a screen redraw, so a reattach can never start mid-sequence.</summary>
     public AgentConsumer Attach()

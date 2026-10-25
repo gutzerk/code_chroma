@@ -2163,6 +2163,14 @@
           }
         }
       ]
+    },
+    {
+      "id": "a_canvas_core_written_outside_the_route_still_pings_the_canvas",
+      "steps": [
+        {"ws": "connect", "name": "events", "path": "/repos/main/events"},
+        {"fs": "write", "path": ".codechroma/canvas-core.json", "text": "{}"},
+        {"ws": "receive", "name": "events", "skip_until_match": true, "timeout_ms": 10000, "expect": {"json": {"type": "canvas"}}}
+      ]
     }
   ]
 }

@@ -13,12 +13,13 @@ public static class WorkspaceCanvasExtensions
     /// <summary>The directory every diagram's own `&lt;kind&gt;/projection.json` lives under.</summary>
     public static string DiagramsRoot(this Workspace ws) => Path.Combine(ws.Root, ".codechroma", "diagrams");
 
-    /// <summary>What the diff and review layers compare against: HEAD for main, else the merge-base with the integration branch.</summary>
+    /// <summary>What the diff and review layers compare against: HEAD for main, else the merge-base with the workspace's base ref (a PR's fetched base) or the integration branch.</summary>
     public static string DiffBase(this Workspace ws)
     {
         if (ws.Id == Workspace.MainId) return "HEAD";
         // A stored hash stops being the divergence point the moment the agent pulls main in.
-        var mergeBase = GitRunner.Run(ws.Root, "merge-base", Agents.WorktreeOps.MainBranch(ws.Root), "HEAD")?.Trim();
+        var reference = string.IsNullOrEmpty(ws.BaseRef) ? Agents.WorktreeOps.MainBranch(ws.Root) : ws.BaseRef;
+        var mergeBase = GitRunner.Run(ws.Root, "merge-base", reference, "HEAD")?.Trim();
         return string.IsNullOrEmpty(mergeBase) ? "HEAD" : mergeBase;
     }
 

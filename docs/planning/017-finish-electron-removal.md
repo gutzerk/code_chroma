@@ -1,6 +1,6 @@
 # 017 - Finish the Electron removal
 
-Status: **In progress**. Electron is deleted (plan row 11 done 2026-10-18: `desktop/`, Electron/PyInstaller CI steps, `packaging/bridge.spec`, `cryptoCompat.ts`, the install forwarders; the last Electron commit is the local tag `electron-last-build`; there were no Electron users, so `ElectronMigration`, the legacy update-asset handling and `install.ps1`'s Electron cleanup were also removed). Open: wiki-general port (row 4), the macOS/Linux/CI verification, and the soak row (the row 9 migration-release decision is moot, see below). Continues [016](016-remove-electron.md) (read its Phase 0-5 definitions and "Decisions taken"
+Status: **In progress**. Electron is deleted (plan row 11 done 2026-10-18: `desktop/`, Electron/PyInstaller CI steps, `packaging/bridge.spec`, `cryptoCompat.ts`, the install forwarders; the last Electron commit is the local tag `electron-last-build`; there were no Electron users, so `ElectronMigration`, the legacy update-asset handling and `install.ps1`'s Electron cleanup were also removed). Open: the real-Claude check of the finished wiki-general port (row 4), the macOS/Linux/CI verification, and the soak row (the row 9 migration-release decision is moot, see below). Continues [016](016-remove-electron.md) (read its Phase 0-5 definitions and "Decisions taken"
 first). 016's "Where we are" table is stale; the real state is below.
 
 Goal: ship the C# app (Avalonia shell + bundled C# bridge) as the only desktop app, reach existing Electron users through
@@ -31,11 +31,11 @@ Decisions: all confirmed by the owner on 2026-10-18.
 | 1 | Design-pattern detection (patterns diagram, `patterns` resolved payload) | `patterns/detector.py` | **Ported 2026-10-18** (Python + Go shapes, resolver, `/patterns`, `/patterns/context`; parity-tested) | Prerequisite for row 2 |
 | 2 | Impact resolved payload, `impact-changes`, `{kind}/review`, `patterns/impact/sequence` context | `bridge/impact*.py`, `review.py` | Port (confirmed) | Needs row 1 + change cards |
 | 3 | Plain wiki generator, first-open bootstrap, `wiki-context` route | `wiki/`, `bridge/bootstrap_wiki.py`, `bridge/wiki_context.py` | **Port (confirmed)**, docstrings for Python, Go, TypeScript only | Input to wiki-general (row 4) and to the diagram-drawing skills, so not optional |
-| 4 | wiki-general `generate`/`update` (C# returns 501) | `wiki_general_pipeline.py`, `_worker.py`, `_agent.py`, `_job_context.py`, `_naming.py`, `check_wiki_general.py` | **Port (confirmed)** | Token economy: code does the orchestration and Claude only answers bounded zero-tool calls; the skill fallback has Claude Code plan everything and recursed on large repos (planning 058). Needs row 3 |
-| 5 | AI summaries via Claude | `summarize/ai_summarizer.py` | Offline-only (confirmed) | CLAUDE.md: the live bridge never calls Claude |
-| 6 | SQLite graph persistence | `graph/store.py` | In-memory (confirmed) | Check nothing reads `graph.db` |
+| 4 | wiki-general `generate`/`update` (C# returns 501) | `wiki_general_pipeline.py`, `_worker.py`, `_agent.py`, `_job_context.py`, `_naming.py`, `check_wiki_general.py` | **Port done** (commit 8e8a134, all routes + pipeline in C#); only a real Claude run is left | Token economy: code does the orchestration and Claude only answers bounded zero-tool calls; the skill fallback has Claude Code plan everything and recursed on large repos (planning 058). Needs row 3 |
+| 5 | AI summaries via Claude | `summarize/ai_summarizer.py` | Offline-only (confirmed): not ported | CLAUDE.md: the live bridge never calls Claude |
+| 6 | SQLite graph persistence | `graph/store.py` | In-memory (confirmed): not ported | Only the engine reads `graph.db`; parity with the live Python bridge |
 | 7 | PR happy path (needs gh), PR `c1_source_root`, foreground-process probe (nested `vim`) | `bridge/prs/`, `terminal/` | Degrade and document (confirmed) | Known gaps in release notes |
-| 8 | Execution tracing capture | `trace/` | No decision: stays Python (`sys.monitoring`) | C# only plays traces back; document |
+| 8 | Execution tracing capture | `trace/` | Not ported (decided): capture stays the Python CLI `codechroma-trace` | C# only plays traces back; an optional later `POST /repos/{id}/trace/run` could launch the CLI, needing a node-id cross-test against `FrameMapper` |
 
 Rule: nothing ships in the C# release that silently regresses vs Electron. Each row is either ported, or listed as a known
 gap in the release notes with an owner decision recorded here.

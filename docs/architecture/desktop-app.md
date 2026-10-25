@@ -1,5 +1,9 @@
 # Desktop app (`dotnet/CodeChroma.Shell*`)
 
+**Implementation rule: change and test `dotnet/CodeChroma.Bridge` first for desktop bridge work.**
+`src/codechroma/bridge/` is the Python development/reference path; changing it alone does not affect
+the shipped app. Production regression tests belong in `dotnet/CodeChroma.Bridge.Tests`.
+
 The desktop app is the C# / Avalonia shell with Velopack packaging and updater. It hosts the
 unchanged React canvas in one WebView per tab and talks to the **C# bridge** (`dotnet/CodeChroma.Bridge`)
 bundled next to it. There is no Electron, PyInstaller or Node at runtime. Node is only used to build
@@ -137,9 +141,9 @@ The fast process-diagram path needs a 162 MB ONNX model; it is not in the instal
 
 The C# bridge replaces the Python one in the shipped app. Known, owner-confirmed differences (plan 017 table A):
 summaries are offline-only (no Claude call), the graph is in-memory (no `graph.db`), PR happy path needs `gh`,
-nested-process foreground probing is degraded, and execution tracing capture stays Python (`sys.monitoring`; C#
+nested-process foreground probing is degraded, and execution tracing capture stays the Python CLI `codechroma-trace` (`sys.monitoring`; decided not to port, C#
 only plays traces back). Everything else (graph, canvas, recipes, diffs, agents, PRs, epics, PTY, skill/LLM runners,
-branches, traces, settings, patterns, impact/review, plain wiki) is ported. Workflow runs (steerable stop/pause/breakpoints, [`workflows.md`](workflows.md)) exist only in the C# bridge; the Python bridge has no mirror yet; the wiki-general generate/update port is in progress (plan 017 row 4); see
+branches, traces, settings, patterns, impact/review, plain wiki, wiki-general generate/update) is ported. Workflow runs (steerable stop/pause/breakpoints, [`workflows.md`](workflows.md)) exist only in the C# bridge; the Python bridge has no mirror yet; the wiki-general port is done (all routes + pipeline, `Routes/WikiGeneralRoutes.cs`, `Skills/WikiGeneral*.cs`, commit 8e8a134) and only awaits a real Claude run (plan 017 row 4); see
 [`engine.md`](engine.md) and [`graph-bridge-core.md`](graph-bridge-core.md).
 
 ## Tests

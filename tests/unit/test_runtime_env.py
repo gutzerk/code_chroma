@@ -111,6 +111,23 @@ def test_explicit_override_preserves_launcher_symlink_and_never_falls_back(servi
         service.resolve("claude", recheck=True)
 
 
+def test_session_hook_environment_survives_resolution_and_cached_resolution(service):
+    executable(Path(service.home) / "inherited", "claude")
+    overrides = {
+        "CODECHROMA_AGENT_SESSION_FILE": str(Path(service.home) / "owned.json"),
+        "CODECHROMA_AGENT_SESSION_ID": "53d8c13b-4828-4624-84a9-bf6623be0c7e",
+        "CODECHROMA_RESOLVING_ENVIRONMENT": "1",
+    }
+
+    first = service.resolve("claude", overrides)
+    cached = service.resolve("claude", overrides)
+
+    assert first.env["CODECHROMA_AGENT_SESSION_FILE"] == overrides["CODECHROMA_AGENT_SESSION_FILE"]
+    assert first.env["CODECHROMA_AGENT_SESSION_ID"] == overrides["CODECHROMA_AGENT_SESSION_ID"]
+    assert cached.env == first.env
+    assert "CODECHROMA_RESOLVING_ENVIRONMENT" not in first.env
+
+
 @pytest.mark.skipif(os.name == "nt", reason="requires POSIX executable symlinks")
 def test_symlink_not_canonicalized(service):
     target = executable(Path(service.home) / "versions", "claude")

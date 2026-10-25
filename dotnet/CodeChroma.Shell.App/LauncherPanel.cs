@@ -18,7 +18,7 @@ public interface ILauncherHost
     Task<string?> PickFolderAsync(string title);
 }
 
-/// <summary>The open-project screen of an empty tab, laid out like the original launcher: tutorial, title, recent panel, open/new buttons.</summary>
+/// <summary>The empty-tab launcher: tutorial, recent projects, and options to open, create, or clone a project.</summary>
 public sealed class LauncherPanel : UserControl
 {
     private static readonly IBrush Muted = new SolidColorBrush(Color.Parse("#8b93a7"));
@@ -38,6 +38,17 @@ public sealed class LauncherPanel : UserControl
     private readonly TextBlock newLocation = new() { Text = "No location chosen", Foreground = Muted, FontSize = 11, VerticalAlignment = VerticalAlignment.Center, TextTrimming = TextTrimming.CharacterEllipsis };
     private readonly Button newBrowse = new() { Content = "Location…" };
     private readonly Button newCreate = new() { Content = "Create and open", Classes = { "primary" } };
+    private readonly Button cloneToggle = new() { Content = "Clone repository…" };
+    private readonly StackPanel cloneForm = new() { Spacing = 8, IsVisible = false };
+    private readonly TextBox cloneUrl = new() { Watermark = "https://github.com/owner/repo.git" };
+    private readonly TextBox cloneName = new() { Watermark = "Local project name" };
+    private readonly TextBlock cloneLocation = new() { Text = "No destination chosen", Foreground = Muted, FontSize = 11, VerticalAlignment = VerticalAlignment.Center, TextTrimming = TextTrimming.CharacterEllipsis };
+    private readonly Button cloneBrowse = new() { Content = "Destination…" };
+    private readonly Button cloneOpen = new() { Content = "Clone and open", Classes = { "primary" } };
+    private readonly Button cloneCancel = new() { Content = "Cancel clone", IsVisible = false };
+    private string? cloneParentDir;
+    private string suggestedCloneName = "";
+    private CancellationTokenSource? cloneCancellation;
     private string? newParentDir;
     private bool busy;
 
@@ -46,7 +57,23 @@ public sealed class LauncherPanel : UserControl
         this.host = host;
         openButton.Click += async (_, _) => { if (!busy && await host.PickFolderAsync("Open repository") is { } path) await OpenAsync(path, null); };
         tutorialButton.Click += async (_, _) => await GuardAsync(async () => await OpenAsync(TutorialProject.Create(host.UserDataDir), null));
-        newToggle.Click += (_, _) => newForm.IsVisible = !newForm.IsVisible;
+        newToggle.Click += (_, _) => { newForm.IsVisible = !newForm.IsVisible; cloneForm.IsVisible = false; };
+        cloneToggle.Click += (_, _) => { cloneForm.IsVisible = !cloneForm.IsVisible; newForm.IsVisible = false; };
+        cloneUrl.TextChanged += (_, _) =>
+        {
+            var next = RepositoryClone.SuggestedName(cloneUrl.Text ?? "");
+            if (string.IsNullOrWhiteSpace(cloneName.Text) || cloneName.Text == suggestedCloneName) cloneName.Text = next;
+            suggestedCloneName = next;
+        };
+        cloneBrowse.Click += async (_, _) =>
+        {
+            if (await host.PickFolderAsync("Where to clone the repository") is not { } picked) return;
+            cloneParentDir = picked;
+            cloneLocation.Text = picked;
+        };
+        cloneOpen.Click += async (_, _) => await CloneAsync();
+        cloneCancel.Click += (_, _) => { cloneCancellation?.Cancel(); cloneCancel.IsEnabled = false; };
+        DetachedFromVisualTree += (_, _) => cloneCancellation?.Cancel();
         newBrowse.Click += async (_, _) =>
         {
             if (await host.PickFolderAsync("Where to create the project") is not { } picked) return;
@@ -61,6 +88,13 @@ public sealed class LauncherPanel : UserControl
         newForm.Children.Add(newName);
         newForm.Children.Add(new StackPanel { Orientation = Orientation.Horizontal, Spacing = 8, Children = { newBrowse, newLocation } });
         newForm.Children.Add(newCreate);
+        cloneForm.Children.Add(new TextBlock { Text = "Repository URL", Foreground = Muted, FontSize = 12 });
+        cloneForm.Children.Add(cloneUrl);
+        cloneForm.Children.Add(new TextBlock { Text = "Local project name", Foreground = Muted, FontSize = 12 });
+        cloneForm.Children.Add(cloneName);
+        cloneForm.Children.Add(new StackPanel { Orientation = Orientation.Horizontal, Spacing = 8, Children = { cloneBrowse, cloneLocation } });
+        cloneForm.Children.Add(new TextBlock { Text = "Clones into a new folder inside the destination. Private repositories use your configured Git credentials or SSH keys.", Foreground = Muted, FontSize = 11, TextWrapping = TextWrapping.Wrap });
+        cloneForm.Children.Add(new StackPanel { Orientation = Orientation.Horizontal, Spacing = 8, Children = { cloneOpen, cloneCancel } });
         recentsPanel = new Border
         {
             BorderBrush = Line,
@@ -104,8 +138,9 @@ public sealed class LauncherPanel : UserControl
                     },
                 },
                 recentsPanel,
-                new StackPanel { Orientation = Orientation.Horizontal, Spacing = 8, HorizontalAlignment = HorizontalAlignment.Center, Children = { openButton, newToggle } },
+                new StackPanel { Orientation = Orientation.Horizontal, Spacing = 8, HorizontalAlignment = HorizontalAlignment.Center, Children = { openButton, newToggle, cloneToggle } },
                 newForm,
+                cloneForm,
                 status,
             },
         };
@@ -142,6 +177,35 @@ public sealed class LauncherPanel : UserControl
         catch (Exception e) when (e is InvalidOperationException or IOException) { SetStatus(e.Message, true); }
     }
 
+    private async Task CloneAsync()
+    {
+        if (busy) return;
+        using var cancellation = new CancellationTokenSource();
+        cloneCancellation = cancellation;
+        SetBusy(true);
+        cloneCancel.IsVisible = true;
+        cloneCancel.IsEnabled = true;
+        SetStatus("Cloning repository…", false);
+        try
+        {
+            if (cloneParentDir is null) throw new InvalidOperationException("Choose where to clone the repository.");
+            var progress = new Progress<string>(line => { if (cloneCancellation == cancellation) SetStatus(line, false); });
+            var path = await RepositoryClone.CloneAsync(cloneUrl.Text ?? "", cloneParentDir, cloneName.Text ?? "", progress, cancellation.Token);
+            cloneCancellation = null;
+            cloneCancel.IsVisible = false;
+            SetStatus("Starting…", false);
+            await host.OpenRepoAsync(path, null);
+        }
+        catch (OperationCanceledException) { SetStatus("Clone cancelled.", false); }
+        catch (Exception e) when (e is InvalidOperationException or IOException or UnauthorizedAccessException) { SetStatus(e.Message, true); }
+        finally
+        {
+            cloneCancellation = null;
+            cloneCancel.IsVisible = false;
+            SetBusy(false);
+        }
+    }
+
     private void SetStatus(string text, bool error)
     {
         status.Text = text;
@@ -151,7 +215,9 @@ public sealed class LauncherPanel : UserControl
     private void SetBusy(bool value)
     {
         busy = value;
-        foreach (var button in new[] { openButton, tutorialButton, newToggle, newCreate, newBrowse }) button.IsEnabled = !value;
+        foreach (var button in new[] { openButton, tutorialButton, newToggle, newCreate, newBrowse, cloneToggle, cloneBrowse, cloneOpen }) button.IsEnabled = !value;
+        cloneUrl.IsEnabled = !value;
+        cloneName.IsEnabled = !value;
         recents.IsEnabled = !value;
     }
 

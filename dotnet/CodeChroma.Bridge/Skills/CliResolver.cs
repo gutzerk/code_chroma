@@ -12,7 +12,7 @@ public sealed class CliResolver(UserPaths paths, ProviderStore providers, CallSi
 {
     public CliResolution Resolve(string callSiteId, string defaultModel)
     {
-        var assignment = LoadAssignment(callSiteId);
+        var assignment = sites.EffectiveAssignment(callSiteId);
         if (assignment is not null && Json.Str(assignment["mode"]) == "cli"
             && CliProvider(Json.Str(assignment["provider_id"]) ?? "") is ({ } provider, { } adapter))
         {
@@ -54,21 +54,6 @@ public sealed class CliResolver(UserPaths paths, ProviderStore providers, CallSi
         if (!cli.EnvOverrides.ContainsKey("ANTHROPIC_MODEL")) return cli with { Model = model };
         var env = new Dictionary<string, string>(cli.EnvOverrides) { ["ANTHROPIC_MODEL"] = model };
         return cli with { Model = model, EnvOverrides = env };
-    }
-
-    /// <summary>The effective assignment: the group's (agentic) or the site's own (simple) override, else the default or its fallback.</summary>
-    private JsonObject? LoadAssignment(string callSiteId)
-    {
-        if (LlmCatalog.GroupOf(callSiteId) is { } group)
-        {
-            var assigned = sites.GroupAssignments().GetValueOrDefault(group);
-            return assigned is null ? sites.ResolveDefault("agents").Assignment : new JsonObject
-            {
-                ["provider_id"] = assigned["provider_id"]!.DeepClone(), ["model"] = assigned["model"]!.DeepClone(), ["mode"] = "cli",
-            };
-        }
-        if (sites.Assignments().GetValueOrDefault(callSiteId) is { } own) return own;
-        return LlmCatalog.CallSite(callSiteId) is null ? null : sites.ResolveDefault("quick").Assignment;
     }
 
     /// <summary>Claude providers with a base_url, or an anthropic API key, get env vars; ANTHROPIC_MODEL not --model.</summary>

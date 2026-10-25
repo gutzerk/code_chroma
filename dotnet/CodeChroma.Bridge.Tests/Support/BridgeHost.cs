@@ -46,6 +46,7 @@ public sealed class BridgeHost : IDisposable
                     ? new CoreEngineFactory(new PythonAnalysisExporter())
                     : new SnapshotEngineFactory(snapshot));
                 services.AddSingleton(UserPaths.Under(Path.Combine(_tempDir, "user-stores")));
+                services.AddSingleton(CodeChroma.Bridge.Diagrams.DiagramBootstrap.Offline);
                 configure?.Invoke(services);
             });
         });

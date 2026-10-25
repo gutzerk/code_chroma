@@ -15,28 +15,37 @@ public static class AgentSessionOwnership
         return Path.Combine(root, ".codechroma", "agent-sessions", id.ToString() + ".json");
     }
 
-    public static string HookSettings()
+    public static string HookSettings(bool sessionTracking = true, bool askUserQuestion = false) =>
+        TryHookSettings(sessionTracking, askUserQuestion) ?? new JsonObject { ["hooks"] = new JsonObject() }.ToJsonString();
+
+    /// <summary>The `--settings` document, or null when no bridge executable can be resolved to run the hooks.</summary>
+    public static string? TryHookSettings(bool sessionTracking = true, bool askUserQuestion = false)
     {
         // Use the native apphost when published and dotnet + our assembly during development/tests.
         var assembly = typeof(AgentSessionOwnership).Assembly.Location;
         var apphost = Path.Combine(Path.GetDirectoryName(assembly)!, "CodeChroma.Bridge" + (OperatingSystem.IsWindows() ? ".exe" : ""));
         var published = Path.Combine(AppContext.BaseDirectory, "codechroma-bridge" + (OperatingSystem.IsWindows() ? ".exe" : ""));
         var executable = File.Exists(published) ? published : File.Exists(apphost) ? apphost : null;
+        if (executable is null && string.IsNullOrEmpty(assembly)) return null;
         var command = executable is not null
             ? (OperatingSystem.IsWindows() ? "& " : "") + Quote(executable)
             : "dotnet " + Quote(assembly);
-        var hook = new JsonObject { ["type"] = "command", ["command"] = command + " agent-session", ["timeout"] = 5 };
-        if (OperatingSystem.IsWindows()) hook["shell"] = "powershell";
-        return new JsonObject
+        JsonObject Hook(string subcommand, int timeout)
         {
-            ["hooks"] = new JsonObject
+            var hook = new JsonObject { ["type"] = "command", ["command"] = command + " " + subcommand, ["timeout"] = timeout };
+            if (OperatingSystem.IsWindows()) hook["shell"] = "powershell";
+            return hook;
+        }
+        var hooks = new JsonObject();
+        if (sessionTracking)
+            hooks["SessionStart"] = new JsonArray(new JsonObject { ["hooks"] = new JsonArray(Hook("agent-session", 5)) });
+        if (askUserQuestion)
+            hooks["PreToolUse"] = new JsonArray(new JsonObject
             {
-                ["SessionStart"] = new JsonArray(new JsonObject
-                {
-                    ["hooks"] = new JsonArray(hook),
-                }),
-            },
-        }.ToJsonString();
+                ["matcher"] = Questions.AskUserQuestionHook.ToolMatcher,
+                ["hooks"] = new JsonArray(Hook(Questions.AskUserQuestionHook.Command, 15)),
+            });
+        return new JsonObject { ["hooks"] = hooks }.ToJsonString();
     }
 
     private static string Quote(string path) => "'" + path.Replace('\\', '/').Replace("'", OperatingSystem.IsWindows() ? "''" : "'\"'\"'") + "'";

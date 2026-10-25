@@ -61,7 +61,7 @@ public sealed class TerminalAgents(UserPaths paths, ProviderStore providers, Cal
             var isClaude = resolution.AdapterKey == "claude" && (resolution.ProviderAssigned || resolution.Binary == DefaultCli);
             var mcp = EndpointFor(agentId, bridgeUrl, isClaude, bare);
             var argv = Argv(resolution.Binary, isClaude, resolution.AdapterKey, resumeSessionId, initialPrompt, bare, visiblePrompt, mcp);
-            return OwnedLaunch(argv, WithEnv(resolution.Env, mcp), isClaude, resumeSessionId, forkSession, newSessionId, sessionTrackingFile);
+            return OwnedLaunch(argv, WithEnv(resolution.Env, mcp), isClaude, resumeSessionId, forkSession, newSessionId, sessionTrackingFile, mcp is not null);
         }
         if (!Allowed.TryGetValue(agent, out var entry)) return null;
         if (agent == "claude")
@@ -69,7 +69,7 @@ public sealed class TerminalAgents(UserPaths paths, ProviderStore providers, Cal
             var binary = AssistantRoutes.EffectiveCli(paths);
             var mcp = EndpointFor(agentId, bridgeUrl, binary == DefaultCli, bare);
             var argv = Argv(binary, binary == DefaultCli, "claude", resumeSessionId, initialPrompt, bare, visiblePrompt, mcp);
-            return OwnedLaunch(argv, WithEnv([], mcp), binary == DefaultCli, resumeSessionId, forkSession, newSessionId, sessionTrackingFile);
+            return OwnedLaunch(argv, WithEnv([], mcp), binary == DefaultCli, resumeSessionId, forkSession, newSessionId, sessionTrackingFile, mcp is not null);
         }
         return new AgentLaunch(string.IsNullOrEmpty(resumeSessionId) ? entry : [.. entry, ResumeFlag, resumeSessionId], new Dictionary<string, string>());
     }
@@ -96,7 +96,7 @@ public sealed class TerminalAgents(UserPaths paths, ProviderStore providers, Cal
         return merged;
     }
 
-    private static AgentLaunch OwnedLaunch(string[] argv, IReadOnlyDictionary<string, string> env, bool isClaude, string? resumeSessionId, bool fork, string? newSessionId, string? trackingFile)
+    private static AgentLaunch OwnedLaunch(string[] argv, IReadOnlyDictionary<string, string> env, bool isClaude, string? resumeSessionId, bool fork, string? newSessionId, string? trackingFile, bool hasMcp)
     {
         if (!isClaude) return new AgentLaunch(argv, env);
         var options = new List<string>();
@@ -104,9 +104,9 @@ public sealed class TerminalAgents(UserPaths paths, ProviderStore providers, Cal
         var fresh = string.IsNullOrEmpty(resumeSessionId) || fork;
         if (fresh && !string.IsNullOrEmpty(newSessionId)) options.AddRange(["--session-id", newSessionId]);
         var ownedEnv = new Dictionary<string, string>(env);
+        if ((trackingFile is not null || hasMcp) && AgentSessionOwnership.TryHookSettings(trackingFile is not null, hasMcp) is { } settings) options.AddRange(["--settings", settings]);
         if (trackingFile is not null)
         {
-            options.AddRange(["--settings", AgentSessionOwnership.HookSettings()]);
             ownedEnv[AgentSessionOwnership.FileEnv] = trackingFile;
             ownedEnv[AgentSessionOwnership.InitialIdEnv] = (fresh ? newSessionId : resumeSessionId) ?? "";
         }

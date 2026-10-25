@@ -96,7 +96,7 @@ public sealed class TerminalAgents(UserPaths paths, ProviderStore providers, Cal
         return merged;
     }
 
-    private static AgentLaunch OwnedLaunch(string[] argv, IReadOnlyDictionary<string, string> env, bool isClaude, string? resumeSessionId, bool fork, string? newSessionId, string? trackingFile, bool hasMcp = false)
+    private static AgentLaunch OwnedLaunch(string[] argv, IReadOnlyDictionary<string, string> env, bool isClaude, string? resumeSessionId, bool fork, string? newSessionId, string? trackingFile, bool hasMcp)
     {
         if (!isClaude) return new AgentLaunch(argv, env);
         var options = new List<string>();

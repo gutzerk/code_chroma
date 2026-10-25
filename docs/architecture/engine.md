@@ -127,7 +127,7 @@
    consumed by `context/digest.py`'s C1 digest and `bridge/patterns_context.py`) and a capped
    file→class→function `build_dependency_digest`, persisted to `.codechroma/dependency-digest.json` on
    every `analyze()`/`reanalyze()` (`engine.py`'s `_write_dependency_digest()`; a digest failure is
-   logged and swallowed, never fails the run). Served via
+   logged and swallowed, never fails the run; the C# `CoreGraphEngine` writes the same file after `Analyze`/`Reanalyze` with `DependencyDigest.Write`, swallowing errors the same way). Served via
    `GET /repos/{id}/dependency-digest[?path=<file>]` (`bridge/routes/graph.py`), which the
    `codechroma-draw-diagram` skill (c1/patterns types) uses to spot-check one file rather than
    fetching the whole digest. Tests: `tests/unit/test_dependency_digest.py`,

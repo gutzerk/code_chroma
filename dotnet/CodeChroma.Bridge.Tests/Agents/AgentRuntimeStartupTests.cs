@@ -27,13 +27,13 @@ public class AgentRuntimeStartupTests
             Assert.Equal(StartupProbe.Address, probe.Launch.Env[BridgeAddress.BridgeUrlEnv]);
             Assert.Equal(probe.AgentId, host.Factory.Services.GetRequiredService<QuestionMcp>()
                 .WorkspaceIdFor(probe.Launch.Env[McpEndpoint.TokenEnv]));
-            var config = JsonNode.Parse(File.ReadAllText(probe.Launch.Argv[2]))!;
+            var config = JsonNode.Parse(File.ReadAllText(probe.Launch.Argv[probe.Launch.Argv.ToList().IndexOf("--mcp-config") + 1]))!;
             Assert.Equal(StartupProbe.Address + "/mcp/", (string?)config["mcpServers"]!["codechroma"]!["url"]);
         }
         finally
         {
             BareSkill.BridgeUrl = previous;
-            if (probe.Launch is { } launch && launch.Argv.Contains("--mcp-config")) File.Delete(launch.Argv[2]);
+            if (probe.Launch is { } launch && launch.Argv.Contains("--mcp-config")) File.Delete(launch.Argv[launch.Argv.ToList().IndexOf("--mcp-config") + 1]);
         }
     }
 

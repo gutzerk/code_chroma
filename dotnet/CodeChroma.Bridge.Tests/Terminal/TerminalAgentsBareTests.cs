@@ -33,6 +33,14 @@ public sealed class TerminalAgentsBareTests : IDisposable
     }
 
     [Fact]
+    public void A_bare_window_carries_no_hook_settings()
+    {
+        var argv = _agents.Resolve("claude", null, "draw it", bare: true)!.Argv;
+
+        Assert.DoesNotContain("--settings", argv);
+    }
+
+    [Fact]
     public void A_bare_window_with_a_visible_prompt_hides_the_skill_in_the_system_prompt()
     {
         var argv = _agents.Resolve("claude", null, "LONG SKILL TEXT", bare: true, visiblePrompt: "Help me draw")!.Argv;

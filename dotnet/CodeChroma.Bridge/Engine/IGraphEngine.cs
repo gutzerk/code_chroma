@@ -54,4 +54,7 @@ public interface IEngineFactory
 {
     /// <summary>Analyzes <paramref name="root"/> and returns a ready engine.</summary>
     IGraphEngine Create(string root);
+
+    /// <summary>As <see cref="Create(string)"/>, but a read-only root must not be written into.</summary>
+    IGraphEngine Create(string root, bool readOnly) => Create(root);
 }

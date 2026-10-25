@@ -522,3 +522,11 @@ def test_sequence_reshape_carries_readability_fields():
     assert participant.meta["phases"][0]["id"] == "p1"
     assert participant.meta["summary"] == "s"
     assert message.meta["hero"] is True
+
+
+def test_a_nodes_own_meta_path_is_not_overridden_by_its_top_level_path():
+    resolved = {"nodes": [{"id": "n", "name": "N", "path": "top.py", "meta": {"path": "own.py"}}]}
+
+    shape = reshape(resolved, "custom")
+
+    assert shape.nodes[0].meta["path"] == "own.py"

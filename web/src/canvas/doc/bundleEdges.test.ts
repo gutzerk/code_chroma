@@ -20,6 +20,15 @@ describe("bundleEdges", () => {
     expect(bundleEdges([single])).toEqual([single]);
   });
 
+  it("keeps parallel edges with different origins apart", () => {
+    const out = bundleEdges([
+      { ...edge("1", "a", "b", "x"), origin: "a.py:1" },
+      { ...edge("2", "a", "b", "x"), origin: "a.py:9" },
+    ]);
+
+    expect(out).toHaveLength(2);
+  });
+
   it("keeps parallel edges from different layers or kinds apart", () => {
     const calls = edge("1", "a", "b", "x");
     const out = bundleEdges([

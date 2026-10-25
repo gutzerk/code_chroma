@@ -447,12 +447,30 @@ def test_shared_node_id_advisory_fires_only_across_groups_and_never_fails(
     assert ("SHAREDNODE" in result.stdout) is flagged
 
 
-def test_sequence_message_without_order_fails_the_shape_tier(tmp_path):
+def test_sequence_message_without_order_is_only_an_advisory(tmp_path, capsys):
     module = _load_module()
     path = tmp_path / "seq.json"
     path.write_text(
         '{"nodes":[{"id":"a","name":"A"},{"id":"b","name":"B"}],'
         '"relations":[{"id":"m1","from":"a","to":"b","label":"go"}]}',
+        encoding="utf-8",
+    )
+
+    code = module.main(["--kind", "sequence", "--json", str(path)])
+
+    out = capsys.readouterr().out
+    assert code == 0
+    assert "NO-ORDER" in out
+    assert out.count("NOSUMMARY") == 1
+
+
+def test_frame_with_a_reversed_range_fails_the_shape_tier(tmp_path):
+    module = _load_module()
+    path = tmp_path / "seq.json"
+    path.write_text(
+        '{"nodes":[{"id":"a","name":"A"},{"id":"b","name":"B"}],'
+        '"relations":[{"id":"m1","from":"a","to":"b","label":"go","order":1}],'
+        '"frames":[{"kind":"alt","label":"F","from_order":3,"to_order":1}]}',
         encoding="utf-8",
     )
 

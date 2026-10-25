@@ -5,6 +5,7 @@ using CodeChroma.Bridge.Embeddings;
 using CodeChroma.Bridge.Engine;
 using CodeChroma.Bridge.Http;
 using CodeChroma.Bridge.Live;
+using CodeChroma.Bridge.Questions;
 using CodeChroma.Bridge.Routes;
 using CodeChroma.Bridge.Skills;
 using CodeChroma.Bridge.Stores;
@@ -12,6 +13,9 @@ using CodeChroma.Bridge.Workspaces;
 
 if (args.Length > 0 && args[0] == "agent-session")
     return AgentSessionOwnership.Record(Console.In, Environment.GetEnvironmentVariable(AgentSessionOwnership.FileEnv));
+
+if (args.Length > 0 && args[0] == AskUserQuestionHook.Command)
+    return AskUserQuestionHook.Run(Console.In, Console.Out);
 
 if (args.Length > 0 && args[0] == "context")
 {

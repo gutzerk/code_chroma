@@ -15,7 +15,7 @@ public static class AgentSessionOwnership
         return Path.Combine(root, ".codechroma", "agent-sessions", id.ToString() + ".json");
     }
 
-    public static string HookSettings()
+    public static string HookSettings(bool sessionTracking = true, bool askUserQuestion = false)
     {
         // Use the native apphost when published and dotnet + our assembly during development/tests.
         var assembly = typeof(AgentSessionOwnership).Assembly.Location;
@@ -25,18 +25,22 @@ public static class AgentSessionOwnership
         var command = executable is not null
             ? (OperatingSystem.IsWindows() ? "& " : "") + Quote(executable)
             : "dotnet " + Quote(assembly);
-        var hook = new JsonObject { ["type"] = "command", ["command"] = command + " agent-session", ["timeout"] = 5 };
-        if (OperatingSystem.IsWindows()) hook["shell"] = "powershell";
-        return new JsonObject
+        JsonObject Hook(string subcommand, int timeout)
         {
-            ["hooks"] = new JsonObject
+            var hook = new JsonObject { ["type"] = "command", ["command"] = command + " " + subcommand, ["timeout"] = timeout };
+            if (OperatingSystem.IsWindows()) hook["shell"] = "powershell";
+            return hook;
+        }
+        var hooks = new JsonObject();
+        if (sessionTracking)
+            hooks["SessionStart"] = new JsonArray(new JsonObject { ["hooks"] = new JsonArray(Hook("agent-session", 5)) });
+        if (askUserQuestion)
+            hooks["PreToolUse"] = new JsonArray(new JsonObject
             {
-                ["SessionStart"] = new JsonArray(new JsonObject
-                {
-                    ["hooks"] = new JsonArray(hook),
-                }),
-            },
-        }.ToJsonString();
+                ["matcher"] = Questions.AskUserQuestionHook.ToolMatcher,
+                ["hooks"] = new JsonArray(Hook(Questions.AskUserQuestionHook.Command, 15)),
+            });
+        return new JsonObject { ["hooks"] = hooks }.ToJsonString();
     }
 
     private static string Quote(string path) => "'" + path.Replace('\\', '/').Replace("'", OperatingSystem.IsWindows() ? "''" : "'\"'\"'") + "'";

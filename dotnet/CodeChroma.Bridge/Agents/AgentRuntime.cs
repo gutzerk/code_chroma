@@ -2,6 +2,7 @@ using CodeChroma.Bridge.Http;
 using CodeChroma.Bridge.Skills;
 using CodeChroma.Bridge.Live;
 using CodeChroma.Bridge.Prs;
+using CodeChroma.Bridge.Questions;
 using CodeChroma.Bridge.Routes;
 using CodeChroma.Bridge.Stores;
 using CodeChroma.Bridge.Terminal;
@@ -30,7 +31,7 @@ public static class AgentsAndPrsServices
 /// </summary>
 public sealed class AgentRuntime(
     AgentManager agents, PrManager prs, BranchManager branches, WorkspaceRegistry registry, AgentSessionRegistry sessions,
-    TerminalAgents terminalAgents, ConnectionManager connections, UserPaths paths, ILogger<AgentRuntime> log) : IHostedService
+    TerminalAgents terminalAgents, ConnectionManager connections, UserPaths paths, ILogger<AgentRuntime> log, QuestionMcp questions) : IHostedService
 {
     public const int StatusPollMs = 250;
 
@@ -90,7 +91,7 @@ public sealed class AgentRuntime(
         var fork = string.IsNullOrEmpty(sessionId) && record.ForkSession is { Length: > 0 };
         var launch = terminalAgents.Resolve(record.Kind, fork ? record.ForkSession : sessionId, forkSession: fork,
             newSessionId: Guid.NewGuid().ToString(),
-            sessionTrackingFile: AgentSessionOwnership.FileFor(agents.MainRoot, Guid.NewGuid().ToString()));
+            sessionTrackingFile: AgentSessionOwnership.FileFor(agents.MainRoot, Guid.NewGuid().ToString()), mcp: questions.EndpointFor(record.Id, BareSkill.BridgeUrl));
         if (launch is null)
         {
             log.LogError("agents: unknown kind {Kind} for {Agent}, skipping auto-start", record.Kind, record.Id);

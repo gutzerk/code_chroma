@@ -1,0 +1,1011 @@
+{
+  "group": "questions",
+  "sources": [
+    "src/codechroma/bridge/routes/questions.py",
+    "src/codechroma/questions/store.py",
+    "src/codechroma/questions/broker.py"
+  ],
+  "repo": {
+    "base": "sample_repo"
+  },
+  "cases": [
+    {
+      "id": "a_fresh_repo_has_no_questions",
+      "steps": [
+        {
+          "http": {
+            "method": "GET",
+            "path": "/repos/main/questions"
+          },
+          "expect": {
+            "status": 200,
+            "json": {
+              "questions": []
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "unknown_questions_are_404_for_every_action",
+      "steps": [
+        {
+          "http": {
+            "method": "POST",
+            "path": "/repos/main/questions/nope/answer",
+            "json": {
+              "option_id": "a"
+            }
+          },
+          "expect": {
+            "status": 404
+          }
+        },
+        {
+          "http": {
+            "method": "POST",
+            "path": "/repos/main/questions/nope/skip"
+          },
+          "expect": {
+            "status": 404
+          }
+        },
+        {
+          "http": {
+            "method": "POST",
+            "path": "/repos/main/questions/nope/revise"
+          },
+          "expect": {
+            "status": 404
+          }
+        },
+        {
+          "http": {
+            "method": "POST",
+            "path": "/repos/main/questions/nope/request-diagram"
+          },
+          "expect": {
+            "status": 404
+          }
+        }
+      ]
+    },
+    {
+      "id": "ask_without_a_valid_token_is_401_and_a_bad_body_is_422",
+      "steps": [
+        {
+          "http": {
+            "method": "POST",
+            "path": "/repos/main/questions/ask",
+            "json": {
+              "question": "Q?"
+            }
+          },
+          "expect": {
+            "status": 401
+          }
+        },
+        {
+          "http": {
+            "method": "POST",
+            "path": "/repos/main/questions/ask",
+            "json": {
+              "question": "Q?"
+            },
+            "headers": {
+              "Authorization": "Bearer main.deadbeef"
+            }
+          },
+          "expect": {
+            "status": 401
+          }
+        },
+        {
+          "http": {
+            "method": "POST",
+            "path": "/repos/main/questions/ask",
+            "json": {
+              "options": []
+            }
+          },
+          "expect": {
+            "status": 422
+          }
+        }
+      ]
+    },
+    {
+      "id": "a_question_element_is_listed_as_not_waiting",
+      "steps": [
+        {
+          "http": {
+            "method": "PATCH",
+            "path": "/repos/main/canvas",
+            "json": {
+              "ops": [
+                {
+                  "op": "add_element",
+                  "temp_id": "q",
+                  "render": "question",
+                  "layer": "questions",
+                  "label": "How to structure checkout?",
+                  "meta": {
+                    "question_id": "q1",
+                    "session_id": null,
+                    "step": 1,
+                    "total": null,
+                    "kind": "choices",
+                    "state": "open",
+                    "answer": null,
+                    "option_id": null,
+                    "allow_custom": true,
+                    "allow_skip": true,
+                    "agent_id": null,
+                    "options": [
+                      {
+                        "id": "a",
+                        "title": "Modular monolith",
+                        "description": "one deploy",
+                        "pro": "simple",
+                        "con": "coupled",
+                        "rank": 1,
+                        "why": "fits",
+                        "diagram_ref": null
+                      },
+                      {
+                        "id": "b",
+                        "title": "Microservices",
+                        "description": "many deploys",
+                        "pro": "isolated",
+                        "con": "ops cost",
+                        "rank": 2,
+                        "why": "scales",
+                        "diagram_ref": null
+                      }
+                    ]
+                  }
+                }
+              ]
+            }
+          },
+          "expect": {
+            "status": 200,
+            "checks": [
+              {
+                "path": "$.ok",
+                "equals": true
+              }
+            ]
+          }
+        },
+        {
+          "http": {
+            "method": "GET",
+            "path": "/repos/main/questions"
+          },
+          "expect": {
+            "status": 200,
+            "checks": [
+              {
+                "path": "$.questions[0].question_id",
+                "equals": "q1"
+              },
+              {
+                "path": "$.questions[0].waiting",
+                "equals": false
+              },
+              {
+                "path": "$.questions[0].question",
+                "equals": "How to structure checkout?"
+              },
+              {
+                "path": "$.questions[0].state",
+                "equals": "open"
+              },
+              {
+                "path": "$.questions[0].options[0].title",
+                "equals": "Modular monolith"
+              }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "answering_with_an_option_records_its_title_and_a_second_settle_conflicts",
+      "steps": [
+        {
+          "http": {
+            "method": "PATCH",
+            "path": "/repos/main/canvas",
+            "json": {
+              "ops": [
+                {
+                  "op": "add_element",
+                  "temp_id": "q",
+                  "render": "question",
+                  "layer": "questions",
+                  "label": "How to structure checkout?",
+                  "meta": {
+                    "question_id": "q1",
+                    "session_id": null,
+                    "step": 1,
+                    "total": null,
+                    "kind": "choices",
+                    "state": "open",
+                    "answer": null,
+                    "option_id": null,
+                    "allow_custom": true,
+                    "allow_skip": true,
+                    "agent_id": null,
+                    "options": [
+                      {
+                        "id": "a",
+                        "title": "Modular monolith",
+                        "description": "one deploy",
+                        "pro": "simple",
+                        "con": "coupled",
+                        "rank": 1,
+                        "why": "fits",
+                        "diagram_ref": null
+                      },
+                      {
+                        "id": "b",
+                        "title": "Microservices",
+                        "description": "many deploys",
+                        "pro": "isolated",
+                        "con": "ops cost",
+                        "rank": 2,
+                        "why": "scales",
+                        "diagram_ref": null
+                      }
+                    ]
+                  }
+                }
+              ]
+            }
+          },
+          "expect": {
+            "status": 200,
+            "checks": [
+              {
+                "path": "$.ok",
+                "equals": true
+              }
+            ]
+          }
+        },
+        {
+          "http": {
+            "method": "POST",
+            "path": "/repos/main/questions/q1/answer",
+            "json": {
+              "option_id": "a"
+            }
+          },
+          "expect": {
+            "status": 200,
+            "checks": [
+              {
+                "path": "$.ok",
+                "equals": true
+              },
+              {
+                "path": "$.state",
+                "equals": "answered"
+              },
+              {
+                "path": "$.waiting",
+                "equals": false
+              },
+              {
+                "path": "$.answer",
+                "equals": "Modular monolith"
+              }
+            ]
+          }
+        },
+        {
+          "http": {
+            "method": "POST",
+            "path": "/repos/main/questions/q1/answer",
+            "json": {
+              "option_id": "b"
+            }
+          },
+          "expect": {
+            "status": 409
+          }
+        },
+        {
+          "http": {
+            "method": "POST",
+            "path": "/repos/main/questions/q1/skip"
+          },
+          "expect": {
+            "status": 409
+          }
+        },
+        {
+          "http": {
+            "method": "GET",
+            "path": "/repos/main/questions"
+          },
+          "expect": {
+            "status": 200,
+            "json": {
+              "questions": []
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "a_custom_answer_is_accepted_but_empty_unknown_and_disallowed_ones_are_422",
+      "steps": [
+        {
+          "http": {
+            "method": "PATCH",
+            "path": "/repos/main/canvas",
+            "json": {
+              "ops": [
+                {
+                  "op": "add_element",
+                  "temp_id": "q",
+                  "render": "question",
+                  "layer": "questions",
+                  "label": "How to structure checkout?",
+                  "meta": {
+                    "question_id": "q1",
+                    "session_id": null,
+                    "step": 1,
+                    "total": null,
+                    "kind": "choices",
+                    "state": "open",
+                    "answer": null,
+                    "option_id": null,
+                    "allow_custom": true,
+                    "allow_skip": true,
+                    "agent_id": null,
+                    "options": [
+                      {
+                        "id": "a",
+                        "title": "Modular monolith",
+                        "description": "one deploy",
+                        "pro": "simple",
+                        "con": "coupled",
+                        "rank": 1,
+                        "why": "fits",
+                        "diagram_ref": null
+                      },
+                      {
+                        "id": "b",
+                        "title": "Microservices",
+                        "description": "many deploys",
+                        "pro": "isolated",
+                        "con": "ops cost",
+                        "rank": 2,
+                        "why": "scales",
+                        "diagram_ref": null
+                      }
+                    ]
+                  }
+                },
+                {
+                  "op": "add_element",
+                  "temp_id": "r",
+                  "render": "question",
+                  "layer": "questions",
+                  "label": "How to structure checkout?",
+                  "meta": {
+                    "question_id": "q2",
+                    "session_id": null,
+                    "step": 1,
+                    "total": null,
+                    "kind": "choices",
+                    "state": "open",
+                    "answer": null,
+                    "option_id": null,
+                    "allow_custom": false,
+                    "allow_skip": true,
+                    "agent_id": null,
+                    "options": [
+                      {
+                        "id": "a",
+                        "title": "Modular monolith",
+                        "description": "one deploy",
+                        "pro": "simple",
+                        "con": "coupled",
+                        "rank": 1,
+                        "why": "fits",
+                        "diagram_ref": null
+                      },
+                      {
+                        "id": "b",
+                        "title": "Microservices",
+                        "description": "many deploys",
+                        "pro": "isolated",
+                        "con": "ops cost",
+                        "rank": 2,
+                        "why": "scales",
+                        "diagram_ref": null
+                      }
+                    ]
+                  }
+                }
+              ]
+            }
+          },
+          "expect": {
+            "status": 200,
+            "checks": [
+              {
+                "path": "$.ok",
+                "equals": true
+              }
+            ]
+          }
+        },
+        {
+          "http": {
+            "method": "POST",
+            "path": "/repos/main/questions/q1/answer",
+            "json": {
+              "answer": "  "
+            }
+          },
+          "expect": {
+            "status": 422
+          }
+        },
+        {
+          "http": {
+            "method": "POST",
+            "path": "/repos/main/questions/q1/answer",
+            "json": {
+              "option_id": "zzz"
+            }
+          },
+          "expect": {
+            "status": 422
+          }
+        },
+        {
+          "http": {
+            "method": "POST",
+            "path": "/repos/main/questions/q2/answer",
+            "json": {
+              "answer": "mine"
+            }
+          },
+          "expect": {
+            "status": 422
+          }
+        },
+        {
+          "http": {
+            "method": "POST",
+            "path": "/repos/main/questions/q1/answer",
+            "json": {
+              "answer": "event sourcing"
+            }
+          },
+          "expect": {
+            "status": 200,
+            "checks": [
+              {
+                "path": "$.answer",
+                "equals": "event sourcing"
+              },
+              {
+                "path": "$.state",
+                "equals": "answered"
+              }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "skipping_settles_and_is_refused_when_not_allowed",
+      "steps": [
+        {
+          "http": {
+            "method": "PATCH",
+            "path": "/repos/main/canvas",
+            "json": {
+              "ops": [
+                {
+                  "op": "add_element",
+                  "temp_id": "q",
+                  "render": "question",
+                  "layer": "questions",
+                  "label": "How to structure checkout?",
+                  "meta": {
+                    "question_id": "q1",
+                    "session_id": null,
+                    "step": 1,
+                    "total": null,
+                    "kind": "choices",
+                    "state": "open",
+                    "answer": null,
+                    "option_id": null,
+                    "allow_custom": true,
+                    "allow_skip": true,
+                    "agent_id": null,
+                    "options": [
+                      {
+                        "id": "a",
+                        "title": "Modular monolith",
+                        "description": "one deploy",
+                        "pro": "simple",
+                        "con": "coupled",
+                        "rank": 1,
+                        "why": "fits",
+                        "diagram_ref": null
+                      },
+                      {
+                        "id": "b",
+                        "title": "Microservices",
+                        "description": "many deploys",
+                        "pro": "isolated",
+                        "con": "ops cost",
+                        "rank": 2,
+                        "why": "scales",
+                        "diagram_ref": null
+                      }
+                    ]
+                  }
+                },
+                {
+                  "op": "add_element",
+                  "temp_id": "r",
+                  "render": "question",
+                  "layer": "questions",
+                  "label": "How to structure checkout?",
+                  "meta": {
+                    "question_id": "q2",
+                    "session_id": null,
+                    "step": 1,
+                    "total": null,
+                    "kind": "choices",
+                    "state": "open",
+                    "answer": null,
+                    "option_id": null,
+                    "allow_custom": true,
+                    "allow_skip": false,
+                    "agent_id": null,
+                    "options": [
+                      {
+                        "id": "a",
+                        "title": "Modular monolith",
+                        "description": "one deploy",
+                        "pro": "simple",
+                        "con": "coupled",
+                        "rank": 1,
+                        "why": "fits",
+                        "diagram_ref": null
+                      },
+                      {
+                        "id": "b",
+                        "title": "Microservices",
+                        "description": "many deploys",
+                        "pro": "isolated",
+                        "con": "ops cost",
+                        "rank": 2,
+                        "why": "scales",
+                        "diagram_ref": null
+                      }
+                    ]
+                  }
+                }
+              ]
+            }
+          },
+          "expect": {
+            "status": 200,
+            "checks": [
+              {
+                "path": "$.ok",
+                "equals": true
+              }
+            ]
+          }
+        },
+        {
+          "http": {
+            "method": "POST",
+            "path": "/repos/main/questions/q2/skip"
+          },
+          "expect": {
+            "status": 422
+          }
+        },
+        {
+          "http": {
+            "method": "POST",
+            "path": "/repos/main/questions/q1/skip"
+          },
+          "expect": {
+            "status": 200,
+            "checks": [
+              {
+                "path": "$.ok",
+                "equals": true
+              },
+              {
+                "path": "$.state",
+                "equals": "skipped"
+              },
+              {
+                "path": "$.waiting",
+                "equals": false
+              }
+            ]
+          }
+        },
+        {
+          "http": {
+            "method": "POST",
+            "path": "/repos/main/questions/q1/skip"
+          },
+          "expect": {
+            "status": 409
+          }
+        }
+      ]
+    },
+    {
+      "id": "revise_reopens_and_deletes_later_steps_of_the_session",
+      "steps": [
+        {
+          "http": {
+            "method": "PATCH",
+            "path": "/repos/main/canvas",
+            "json": {
+              "ops": [
+                {
+                  "op": "add_element",
+                  "temp_id": "q",
+                  "render": "question",
+                  "layer": "questions",
+                  "label": "How to structure checkout?",
+                  "meta": {
+                    "question_id": "q1",
+                    "session_id": "s1",
+                    "step": 1,
+                    "total": null,
+                    "kind": "choices",
+                    "state": "open",
+                    "answer": null,
+                    "option_id": null,
+                    "allow_custom": true,
+                    "allow_skip": true,
+                    "agent_id": null,
+                    "options": [
+                      {
+                        "id": "a",
+                        "title": "Modular monolith",
+                        "description": "one deploy",
+                        "pro": "simple",
+                        "con": "coupled",
+                        "rank": 1,
+                        "why": "fits",
+                        "diagram_ref": null
+                      },
+                      {
+                        "id": "b",
+                        "title": "Microservices",
+                        "description": "many deploys",
+                        "pro": "isolated",
+                        "con": "ops cost",
+                        "rank": 2,
+                        "why": "scales",
+                        "diagram_ref": null
+                      }
+                    ]
+                  }
+                },
+                {
+                  "op": "add_element",
+                  "temp_id": "r",
+                  "render": "question",
+                  "layer": "questions",
+                  "label": "How to structure checkout?",
+                  "meta": {
+                    "question_id": "q2",
+                    "session_id": "s1",
+                    "step": 2,
+                    "total": null,
+                    "kind": "choices",
+                    "state": "open",
+                    "answer": null,
+                    "option_id": null,
+                    "allow_custom": true,
+                    "allow_skip": true,
+                    "agent_id": null,
+                    "options": [
+                      {
+                        "id": "a",
+                        "title": "Modular monolith",
+                        "description": "one deploy",
+                        "pro": "simple",
+                        "con": "coupled",
+                        "rank": 1,
+                        "why": "fits",
+                        "diagram_ref": null
+                      },
+                      {
+                        "id": "b",
+                        "title": "Microservices",
+                        "description": "many deploys",
+                        "pro": "isolated",
+                        "con": "ops cost",
+                        "rank": 2,
+                        "why": "scales",
+                        "diagram_ref": null
+                      }
+                    ]
+                  }
+                }
+              ]
+            }
+          },
+          "expect": {
+            "status": 200,
+            "checks": [
+              {
+                "path": "$.ok",
+                "equals": true
+              }
+            ]
+          }
+        },
+        {
+          "http": {
+            "method": "POST",
+            "path": "/repos/main/questions/q1/answer",
+            "json": {
+              "option_id": "a"
+            }
+          },
+          "expect": {
+            "status": 200
+          }
+        },
+        {
+          "http": {
+            "method": "POST",
+            "path": "/repos/main/questions/q2/answer",
+            "json": {
+              "option_id": "b"
+            }
+          },
+          "expect": {
+            "status": 200
+          }
+        },
+        {
+          "http": {
+            "method": "POST",
+            "path": "/repos/main/questions/q1/revise"
+          },
+          "expect": {
+            "status": 200,
+            "checks": [
+              {
+                "path": "$.state",
+                "equals": "open"
+              },
+              {
+                "path": "$.waiting",
+                "equals": false
+              },
+              {
+                "path": "$.removed",
+                "count": 1
+              }
+            ]
+          }
+        },
+        {
+          "http": {
+            "method": "GET",
+            "path": "/repos/main/questions"
+          },
+          "expect": {
+            "status": 200,
+            "checks": [
+              {
+                "path": "$.questions",
+                "count": 1
+              },
+              {
+                "path": "$.questions[0].question_id",
+                "equals": "q1"
+              },
+              {
+                "path": "$.questions[0].answer",
+                "equals": null
+              },
+              {
+                "path": "$.questions[0].state",
+                "equals": "open"
+              }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "request_diagram_marks_the_card_once_and_is_refused_when_all_options_have_one",
+      "steps": [
+        {
+          "http": {
+            "method": "PATCH",
+            "path": "/repos/main/canvas",
+            "json": {
+              "ops": [
+                {
+                  "op": "add_element",
+                  "temp_id": "q",
+                  "render": "question",
+                  "layer": "questions",
+                  "label": "How to structure checkout?",
+                  "meta": {
+                    "question_id": "q1",
+                    "session_id": null,
+                    "step": 1,
+                    "total": null,
+                    "kind": "choices",
+                    "state": "open",
+                    "answer": null,
+                    "option_id": null,
+                    "allow_custom": true,
+                    "allow_skip": true,
+                    "agent_id": null,
+                    "options": [
+                      {
+                        "id": "a",
+                        "title": "Modular monolith",
+                        "description": "one deploy",
+                        "pro": "simple",
+                        "con": "coupled",
+                        "rank": 1,
+                        "why": "fits",
+                        "diagram_ref": null
+                      },
+                      {
+                        "id": "b",
+                        "title": "Microservices",
+                        "description": "many deploys",
+                        "pro": "isolated",
+                        "con": "ops cost",
+                        "rank": 2,
+                        "why": "scales",
+                        "diagram_ref": null
+                      }
+                    ]
+                  }
+                },
+                {
+                  "op": "add_element",
+                  "temp_id": "r",
+                  "render": "question",
+                  "layer": "questions",
+                  "label": "How to structure checkout?",
+                  "meta": {
+                    "question_id": "q2",
+                    "session_id": null,
+                    "step": 1,
+                    "total": null,
+                    "kind": "choices",
+                    "state": "open",
+                    "answer": null,
+                    "option_id": null,
+                    "allow_custom": true,
+                    "allow_skip": true,
+                    "agent_id": null,
+                    "options": [
+                      {
+                        "id": "a",
+                        "title": "Modular monolith",
+                        "description": "one deploy",
+                        "pro": "simple",
+                        "con": "coupled",
+                        "rank": 1,
+                        "why": "fits",
+                        "diagram_ref": "x"
+                      },
+                      {
+                        "id": "b",
+                        "title": "Microservices",
+                        "description": "many deploys",
+                        "pro": "isolated",
+                        "con": "ops cost",
+                        "rank": 2,
+                        "why": "scales",
+                        "diagram_ref": "x"
+                      }
+                    ]
+                  }
+                }
+              ]
+            }
+          },
+          "expect": {
+            "status": 200,
+            "checks": [
+              {
+                "path": "$.ok",
+                "equals": true
+              }
+            ]
+          }
+        },
+        {
+          "http": {
+            "method": "POST",
+            "path": "/repos/main/questions/q2/request-diagram"
+          },
+          "expect": {
+            "status": 422
+          }
+        },
+        {
+          "http": {
+            "method": "POST",
+            "path": "/repos/main/questions/q1/request-diagram"
+          },
+          "expect": {
+            "status": 200,
+            "checks": [
+              {
+                "path": "$.state",
+                "equals": "open"
+              },
+              {
+                "path": "$.waiting",
+                "equals": false
+              }
+            ]
+          }
+        },
+        {
+          "http": {
+            "method": "POST",
+            "path": "/repos/main/questions/q1/request-diagram"
+          },
+          "expect": {
+            "status": 200,
+            "checks": [
+              {
+                "path": "$.waiting",
+                "equals": false
+              }
+            ]
+          }
+        },
+        {
+          "http": {
+            "method": "GET",
+            "path": "/repos/main/questions"
+          },
+          "expect": {
+            "status": 200,
+            "checks": [
+              {
+                "path": "$.questions[0].diagram_requested",
+                "equals": true
+              },
+              {
+                "path": "$.questions[0].diagram_requests",
+                "equals": 1
+              }
+            ]
+          }
+        }
+      ]
+    }
+  ]
+}

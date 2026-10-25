@@ -4,6 +4,7 @@ using CodeChroma.Bridge.Context;
 using CodeChroma.Bridge.Http;
 using CodeChroma.Bridge.Live;
 using CodeChroma.Bridge.Prs;
+using CodeChroma.Bridge.Questions;
 using CodeChroma.Bridge.Skills;
 using CodeChroma.Bridge.Stores;
 using CodeChroma.Bridge.Terminal;
@@ -87,7 +88,7 @@ public static class AgentRoutes
             return Reply.Json(payload);
         }));
 
-        app.MapPost("/agents/{agentId}/start", (string agentId, HttpRequest request, AgentManager agents, AgentSessionRegistry sessions, TerminalAgents terminalAgents, UserPaths paths, ConnectionManager connections, WorkspaceRegistry registry, DiagramContext diagramContext) => Reply.GuardAsync(async () =>
+        app.MapPost("/agents/{agentId}/start", (string agentId, HttpRequest request, AgentManager agents, AgentSessionRegistry sessions, TerminalAgents terminalAgents, UserPaths paths, ConnectionManager connections, WorkspaceRegistry registry, DiagramContext diagramContext, QuestionMcp questions) => Reply.GuardAsync(async () =>
         {
             var body = await Reply.LenientBody(request);
             var record = OrNotFound(agents, agentId);
@@ -114,7 +115,7 @@ public static class AgentRoutes
             }
             var trackingFile = AgentSessionOwnership.FileFor(agents.MainRoot, Guid.NewGuid().ToString());
             var launch = terminalAgents.Resolve(record.Kind, sessionId, taskText, bare, visible, forkSession: fork,
-                newSessionId: Guid.NewGuid().ToString(), sessionTrackingFile: trackingFile);
+                newSessionId: Guid.NewGuid().ToString(), sessionTrackingFile: trackingFile, mcp: questions.EndpointFor(agentId, BareSkill.BridgeUrl));
             if (launch is null) return Reply.Error(400, $"unknown agent kind: {record.Kind}");
             var env = new Dictionary<string, string>(launch.Env);
             BridgeAddress.ExportIdentity(env, agentId, BareSkill.BridgeUrl);

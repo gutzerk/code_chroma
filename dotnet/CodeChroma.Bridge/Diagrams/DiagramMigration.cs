@@ -142,6 +142,6 @@ public static class DiagramArtifacts
     public static string DigestFingerprint(Workspace ws)
     {
         var digest = JsonFile.Load(Path.Combine(ws.Root, ".codechroma", "dependency-digest.json")) ?? new JsonObject();
-        return Routes.DiagramRoutes.Fingerprint(digest as JsonObject) ?? Routes.DiagramRoutes.Fingerprint(new JsonObject { ["digest"] = "none" })!;
+        return CodeChroma.Core.Patterns.PatternSerialize.HashLines([Routes.DiagramRoutes.Canonical(digest as JsonObject ?? new JsonObject())]);
     }
 }

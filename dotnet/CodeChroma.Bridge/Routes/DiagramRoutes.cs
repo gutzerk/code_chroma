@@ -135,7 +135,7 @@ public static class DiagramRoutes
         return Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(Canonical(diagram)))).ToLowerInvariant()[..16];
     }
 
-    private static string Canonical(JsonNode? node) => node switch
+    internal static string Canonical(JsonNode? node) => node switch
     {
         JsonObject o => "{" + string.Join(",", o.OrderBy(kv => kv.Key, StringComparer.Ordinal).Select(kv => $"\"{kv.Key}\":{Canonical(kv.Value)}")) + "}",
         JsonArray a => "[" + string.Join(",", a.Select(Canonical)) + "]",

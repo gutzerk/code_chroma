@@ -52,6 +52,11 @@ jobs:
         run: poetry run mypy src/codechroma
         continue-on-error: true
 
+      - name: Raise inotify limits for the per-workspace watchers
+        run: |
+          sudo sysctl -w fs.inotify.max_user_instances=8192 fs.inotify.max_user_watches=524288
+          ulimit -n
+
       - run: poetry run pytest -n auto -q
 
   web:

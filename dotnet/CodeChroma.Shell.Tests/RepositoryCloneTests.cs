@@ -3,6 +3,7 @@ using CodeChroma.Shell.Tests.Support;
 
 namespace CodeChroma.Shell.Tests;
 
+[Collection("Git SSH environment")]
 public class RepositoryCloneTests
 {
     [Theory]
@@ -74,8 +75,47 @@ public class RepositoryCloneTests
         var error = await Assert.ThrowsAsync<InvalidOperationException>(() => RepositoryClone.CloneAsync(source, parent, "project"));
 
         Assert.Contains("Could not clone", error.Message);
-        Assert.Contains("not appear to be a git repository", error.Message);
+        Assert.Contains("fatal:", error.Message);
+        Assert.Contains("not a repository", error.Message);
         Assert.Empty(Directory.GetFileSystemEntries(parent));
+    }
+
+    [Theory]
+    [InlineData("core.sshCommand")]
+    [InlineData("GIT_SSH")]
+    [InlineData("GIT_SSH_COMMAND")]
+    public async Task Honors_configured_ssh_clients_without_contacting_a_remote(string setting)
+    {
+        using var temp = new TempDir();
+        var parent = temp.Dir("destination");
+        var script = temp.Sub(OperatingSystem.IsWindows() ? "ssh client.cmd" : "ssh client.sh");
+        File.WriteAllText(script, OperatingSystem.IsWindows()
+            ? "@echo codechroma-configured-ssh 1>&2\r\n@exit /b 1\r\n"
+            : "#!/bin/sh\necho codechroma-configured-ssh >&2\nexit 1\n");
+        if (!OperatingSystem.IsWindows()) File.SetUnixFileMode(script, UnixFileMode.UserRead | UnixFileMode.UserWrite | UnixFileMode.UserExecute);
+        var command = "echo codechroma-configured-ssh >&2; exit 1 #";
+        var variables = new[] { "GIT_SSH", "GIT_SSH_COMMAND", "GIT_SSH_VARIANT", "GIT_CONFIG_GLOBAL", "GIT_CONFIG_NOSYSTEM" };
+        var original = variables.ToDictionary(key => key, Environment.GetEnvironmentVariable);
+        try
+        {
+            Environment.SetEnvironmentVariable("GIT_SSH", null);
+            Environment.SetEnvironmentVariable("GIT_SSH_COMMAND", null);
+            Environment.SetEnvironmentVariable("GIT_SSH_VARIANT", "simple");
+            Environment.SetEnvironmentVariable("GIT_CONFIG_GLOBAL", temp.Sub("empty-config"));
+            Environment.SetEnvironmentVariable("GIT_CONFIG_NOSYSTEM", "1");
+            if (setting == "core.sshCommand") Git(parent, "config", "--global", setting, command);
+            else Environment.SetEnvironmentVariable(setting, setting == "GIT_SSH" ? script : command);
+
+            var error = await Assert.ThrowsAsync<InvalidOperationException>(() => RepositoryClone.CloneAsync("ssh://git@example.invalid/team/project.git", parent, "project"));
+
+            Assert.True(error.Message.Contains("codechroma-configured-ssh"), error.Message);
+            Assert.False(Directory.Exists(Path.Combine(parent, "project")));
+            Assert.Empty(Directory.GetDirectories(parent, ".codechroma-clone-*"));
+        }
+        finally
+        {
+            foreach (var (key, value) in original) Environment.SetEnvironmentVariable(key, value);
+        }
     }
 
     [Fact]
@@ -133,3 +173,6 @@ public class RepositoryCloneTests
         return output.Trim();
     }
 }
+
+[CollectionDefinition("Git SSH environment", DisableParallelization = true)]
+public sealed class GitSshEnvironmentCollection { }

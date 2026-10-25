@@ -13,7 +13,7 @@ public interface ILauncherHost
 
     string UserDataDir { get; }
 
-    Task OpenRepoAsync(string repoPath, string? workspaceId);
+    Task OpenRepoAsync(LauncherPanel requester, string repoPath, string? workspaceId);
 
     Task<string?> PickFolderAsync(string title);
 }
@@ -166,7 +166,7 @@ public sealed class LauncherPanel : UserControl
         if (busy) return;
         SetBusy(true);
         SetStatus("Starting…", false);
-        await host.OpenRepoAsync(repoPath, workspaceId);
+        await host.OpenRepoAsync(this, repoPath, workspaceId);
         SetBusy(false);
     }
 
@@ -194,7 +194,7 @@ public sealed class LauncherPanel : UserControl
             cloneCancellation = null;
             cloneCancel.IsVisible = false;
             SetStatus("Starting…", false);
-            await host.OpenRepoAsync(path, null);
+            await host.OpenRepoAsync(this, path, null);
         }
         catch (OperationCanceledException) { SetStatus("Clone cancelled.", false); }
         catch (Exception e) when (e is InvalidOperationException or IOException or UnauthorizedAccessException) { SetStatus(e.Message, true); }

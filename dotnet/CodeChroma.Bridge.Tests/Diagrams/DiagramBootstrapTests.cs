@@ -121,4 +121,31 @@ public sealed class DiagramBootstrapTests : IDisposable
         Assert.Equal(1, llm.Calls);
         Assert.False(File.Exists(ws.DiagramPath("patterns")));
     }
+
+    [Fact]
+    public void A_borrowed_c1_is_read_from_the_source_root()
+    {
+        var main = Directory.CreateTempSubdirectory("cc-main-").FullName;
+        try
+        {
+            Directory.CreateDirectory(Path.GetDirectoryName(Workspace.DiagramPath(main, "c1"))!);
+            File.WriteAllText(Workspace.DiagramPath(main, "c1"), """{"type":"c1","nodes":[{"id":"system","kind":"system","name":"s"}],"relations":[]}""");
+            var ws = new Workspace("pr", _root, new CandidateEngine([]), (_, _) => { }, true) { C1SourceRoot = main };
+
+            var loaded = DiagramArtifacts.Load(ws, "c1");
+
+            Assert.Equal("system", (string?)loaded["nodes"]![0]!["id"]);
+        }
+        finally { Directory.Delete(main, recursive: true); }
+    }
+
+    [Fact]
+    public void The_digest_serialization_matches_python_json_dumps()
+    {
+        var digest = JsonNode.Parse("""{"b":[1,"é"],"a":{"files":[]}}""");
+
+        var text = DiagramArtifacts.PythonDumps(digest);
+
+        Assert.Equal("{\"a\": {\"files\": []}, \"b\": [1, \"\\u00e9\"]}", text);
+    }
 }

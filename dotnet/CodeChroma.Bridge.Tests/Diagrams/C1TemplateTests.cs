@@ -48,4 +48,12 @@ public class C1TemplateTests
         Assert.Equal("PostgreSQL", (string?)c1["nodes"]![1]!["name"]);
         Assert.Null(c1["nodes"]![2]!["icon"]);
     }
+
+    [Fact]
+    public void A_version_specifier_extras_and_case_still_match_a_known_dependency()
+    {
+        var c1 = C1Template.Generate(Digest(["Redis", "psycopg2>=2.9", "boto3[crypto]"]));
+
+        Assert.Equal(["system", "redis", "psycopg2", "boto3"], c1["nodes"]!.AsArray().Select(n => (string?)n!["id"]).ToArray());
+    }
 }

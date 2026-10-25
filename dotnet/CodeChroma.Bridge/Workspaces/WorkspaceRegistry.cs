@@ -211,14 +211,14 @@ public sealed class WorkspaceRegistry : IDisposable
             entry = _roots[id];
             extras = _extras.GetValueOrDefault(id);
         }
-        var workspace = new Workspace(id, entry.Root, _factory.Create(entry.Root), _onEvent, entry.ReadOnly)
+        var workspace = new Workspace(id, entry.Root, _factory.Create(entry.Root, entry.ReadOnly), _onEvent, entry.ReadOnly)
         {
             BaseRef = extras?.BaseRef,
             C1SourceRoot = extras?.C1SourceRoot,
         };
         // Offline and best-effort: the docstring wiki is written once, the first time a workspace comes up.
         Wiki.WikiBootstrap.IfMissing(workspace);
-        _bootstrap?.IfMissing(workspace);
+        _bootstrap?.Start(workspace);
         return workspace;
     }
 

@@ -66,7 +66,7 @@ public static class C1Template
         });
         var relations = new JsonArray();
         var seenNames = new HashSet<string>(StringComparer.Ordinal);
-        foreach (var candidate in Candidates(digest))
+        foreach (var candidate in Candidates(digest).Select(NormalizeName))
         {
             if (!KnownExternalSystems.TryGetValue(candidate, out var entry)) continue;
             // Two keys can share a display name (psycopg2/asyncpg -> PostgreSQL); one box per name.
@@ -90,6 +90,13 @@ public static class C1Template
             ["relations"] = relations,
             ["draft"] = true,
         };
+    }
+
+    /// <summary>Lower-cases a dependency and drops any extras, version specifier or marker (`psycopg2>=2.9`, `boto3[crypto]`).</summary>
+    private static string NormalizeName(string name)
+    {
+        var end = name.IndexOfAny(['[', '<', '>', '=', '!', '~', ';', '(', ' ']);
+        return (end < 0 ? name : name[..end]).ToLowerInvariant();
     }
 
     private static IEnumerable<string> Candidates(JsonObject digest)

@@ -104,7 +104,7 @@ public sealed class TerminalAgents(UserPaths paths, ProviderStore providers, Cal
         var fresh = string.IsNullOrEmpty(resumeSessionId) || fork;
         if (fresh && !string.IsNullOrEmpty(newSessionId)) options.AddRange(["--session-id", newSessionId]);
         var ownedEnv = new Dictionary<string, string>(env);
-        if (trackingFile is not null || hasMcp) options.AddRange(["--settings", AgentSessionOwnership.HookSettings(trackingFile is not null, hasMcp)]);
+        if ((trackingFile is not null || hasMcp) && AgentSessionOwnership.TryHookSettings(trackingFile is not null, hasMcp) is { } settings) options.AddRange(["--settings", settings]);
         if (trackingFile is not null)
         {
             ownedEnv[AgentSessionOwnership.FileEnv] = trackingFile;

@@ -370,6 +370,8 @@ so live saves are cheap. Exercised by
 
 ## C# bridge status (docs/planning/012)
 
+🔴 Parity rule: a bridge change in `src/codechroma/bridge/` must be ported to `dotnet/CodeChroma.Bridge` in the same change; the full rule is in `AGENTS.md`.
+
 `dotnet/CodeChroma.Bridge` is a partial ASP.NET Core port that replays the same `tests/fixtures/bridge_contract` cases as this Python bridge; the Python bridge remains the reference and is not removed. Its graph comes from `CodeChroma.Core` fed by the in-process C# analyzers (`CodeChroma.Core/Analyzers`, `NativeAnalysisExporter`, registered directly in `Program.cs`; there is no backend env-var switch and the shipped bridge never runs Python). The Python analysis exporter (`python -m codechroma.analysis_export`, also used by `tests/graph_golden.py`) survives only as a parity oracle: `PythonAnalysisExporter` lives in `CodeChroma.Bridge.Tests/Support/` and `BridgeHost` plugs it in when `CODECHROMA_PYTHON` is set (see 011, Phase 5). See 012 for the ported/unported route table.
 
 ### Agent and skill environment

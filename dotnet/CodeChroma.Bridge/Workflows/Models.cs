@@ -71,6 +71,9 @@ public sealed class StepRecord
     /// <summary>The agent's closing prose (no tool or status lines), set when the step finishes; what a hand-off and the next review step show.</summary>
     public string? Result { get; set; }
 
+    /// <summary>What the step agent said through report_status (blocked or question parks the step for the user).</summary>
+    public StepReport? Report { get; set; }
+
     /// <summary>The step whose session this step resumed (forked), when it did.</summary>
     public string? ResumedFrom { get; set; }
 
@@ -79,6 +82,13 @@ public sealed class StepRecord
 
     /// <summary>The chain is long or the context is near the model's window (<see cref="WorkflowLimits"/>); recomputed on every read.</summary>
     public bool ChainWarning { get; set; }
+}
+
+/// <summary>The agent's own word on its step: done, blocked or question, with a one-line note.</summary>
+public sealed class StepReport
+{
+    public string Status { get; set; } = "";
+    public string Note { get; set; } = "";
 }
 
 /// <summary>Token counts of a step's session as its CLI transcript reports them; context = input + cache read + cache creation.</summary>

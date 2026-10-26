@@ -117,6 +117,8 @@ export interface StepRecord {
   diffStat: string | null;
   checkpointRef: string | null;
   sessionId: string | null;
+  /** What the step agent reported through report_status; blocked or question parks the step as needs_you. */
+  report?: { status: "done" | "blocked" | "question"; note: string } | null;
   /** The agent's closing prose (no tool lines), set when the step finishes. */
   result?: string | null;
   /** Set on a step kept from an earlier attempt of a redo. */

@@ -17,6 +17,7 @@ from functools import lru_cache
 from pathlib import Path
 
 from codechroma.config import settings
+from codechroma.diagrams import kinds
 from codechroma.diagrams.styles import STYLES
 from codechroma.io import delete_file_if_exists, load_json, write_json
 
@@ -74,14 +75,15 @@ def list_types() -> list[dict]:
         data = load_json(path)
         if not isinstance(data, dict) or not isinstance(data.get("id"), str):
             continue
-        summaries.append(
-            {
-                "id": data["id"],
-                "title": data.get("title", data["id"]),
-                "description": data.get("description", ""),
-                "style": data.get("style"),
-            }
-        )
+        summary = {
+            "id": data["id"],
+            "title": data.get("title", data["id"]),
+            "description": data.get("description", ""),
+            "style": data.get("style"),
+        }
+        if isinstance(data.get("schematic"), str):
+            summary["schematic"] = data["schematic"]
+        summaries.append(summary)
     return summaries
 
 
@@ -183,6 +185,9 @@ def validate_definition(
         problems.append("context must be null or a registered context provider name")
     if not _valid_checks(definition.get("checks")):
         problems.append(f"checks.shape must be one of {_VALID_CHECK_SHAPES}")
+    schematic = definition.get("schematic")
+    if schematic is not None and schematic not in kinds.schematics():
+        problems.append(f"schematic must be one of {kinds.schematics()}")
     if not _valid_review(definition.get("review"), known_review_agents):
         problems.append("review must be null or an object with a known axis and agent_factory")
     return problems

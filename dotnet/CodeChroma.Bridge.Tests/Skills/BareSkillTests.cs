@@ -76,6 +76,27 @@ public class BareSkillTests
     }
 
     [Fact]
+    public void A_requested_start_states_the_type_and_request_and_never_asks()
+    {
+        var prompt = BareSkill.ComposeInteractive("sequence", Root, "main", "ctx-tool --repo-path x", request: "how a save reaches the db")!;
+
+        Assert.Contains("picked the `sequence` diagram type", prompt);
+        Assert.Contains("how a save reaches the db", prompt);
+        Assert.Contains("do not greet them or ask what to draw", prompt);
+        Assert.DoesNotContain("ask what they want to see", prompt);
+        Assert.Contains("ctx-tool --repo-path x \"phrase\"", prompt);
+    }
+
+    [Fact]
+    public void A_plan_request_draws_the_impact_body_and_names_the_feature_plan_reference()
+    {
+        var prompt = BareSkill.ComposeInteractive("plan", Root, "main", null, request: "token auth")!;
+
+        Assert.Contains("Draw the Impact diagram", prompt);
+        Assert.Contains("feature-plan-mode.md", prompt);
+    }
+
+    [Fact]
     public void An_interactive_start_without_a_context_command_does_not_mention_one()
     {
         var prompt = BareSkill.ComposeInteractive("c1", Root, "main", null)!;

@@ -533,6 +533,9 @@ export interface AgentRecord {
   /** The binary/adapter a provider-routed (`kind === "agent"`) window actually launched, e.g. a
    * claude proxy or codex path. Empty for a legacy/`claude` record, whose label is its fixed kind. */
   resolved_cli?: string;
+  /** What the Draw dialog picked for a drawing agent; absent from a bridge older than the dialog. */
+  diagram_type?: string | null;
+  diagram_request?: string | null;
 }
 
 /** GET /agents — the cards plus which workspace the canvas is drawing and the hard agent cap. */
@@ -862,6 +865,8 @@ export interface DiagramTypeDefinition {
   relation_kinds: DiagramTypeRelationKind[];
   instructions: string;
   context_sources: string[];
+  /** Optional Draw-dialog schematic id (see `drawDialog/schematics.tsx`); the library rejects an unknown one. */
+  schematic?: string;
   created_at: string;
   updated_at: string;
 }
@@ -873,6 +878,15 @@ export interface DiagramTypeSummary {
   title: string;
   description: string;
   style: string;
+  /** Which of the Draw dialog's built-in schematics this type's card uses; absent means the generic custom one. */
+  schematic?: string;
+}
+
+/** A built-in diagram kind the Draw dialog lists (GET /diagram-kinds). */
+export interface BuiltinDiagramKind {
+  id: string;
+  name: string;
+  purpose: string;
 }
 
 /** A generated custom diagram (GET /repos/{id}/custom/{typeId}) is a `Diagram` (036-shared-

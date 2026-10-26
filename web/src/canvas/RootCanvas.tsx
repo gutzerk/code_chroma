@@ -3,6 +3,7 @@ import { ROOT_NODE_ID, type HierarchyNodeRef, type LayoutKind } from "../state/t
 import { reportAsyncError } from "../util/reportError";
 import { UndoManager } from "./UndoManager";
 import { LeftPanelToggle } from "./LeftPanelToggle";
+import { DrawDialog } from "./doc/drawDialog/DrawDialog";
 import { useEngineClient } from "../engine-client/EngineClientContext";
 import { ConnectionsOverlay } from "./ConnectionsOverlay";
 import { ChangeConnectionsOverlay } from "./ChangeConnectionsOverlay";
@@ -563,6 +564,7 @@ export function RootCanvas() {
               <WikiGeneralNotice />
               {isDiffActive && <DeletedDiffOverlay />}
               {isTraceActive && <TraceControls />}
+              <DrawDialog />
             </div>
             <ActivityPanel disabled={isAtAgentCapacity || isLaunchingAgent} onRunAgent={() => {
               if (tutorialStore.isActive()) tutorialSimStore.startAgent2();

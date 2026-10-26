@@ -18,26 +18,52 @@ public static class DesktopScript
             closeWorkspaceWindow: function (id) { return post({ type: "close-workspace", id: id }); },
             focusThisTab: function () { return post({ type: "focus-tab" }); },
             closeThisProject: function () { return post({ type: "close-project" }); },
+            readClipboard: function () { return rpc({ type: "clipboard", method: "read" }); },
+            writeClipboard: function (text) { return rpc({ type: "clipboard", method: "write", arg: text }); },
             saveFile: function (name, mime, base64) { return rpc({ type: "save-file", id: name, method: mime, arg: base64 }); }
           };
-          var sawClipboardEvent = false;
-          ["copy", "cut", "paste"].forEach(function (name) { document.addEventListener(name, function () { sawClipboardEvent = true; }, true); });
           document.addEventListener("keydown", function (e) {
-            if (!(e.ctrlKey || e.metaKey) || e.altKey || e.defaultPrevented) return;
+            if (!(e.ctrlKey || e.metaKey) || e.altKey || e.defaultPrevented || e.isComposing || e.type !== "keydown") return;
             var key = e.key.toLowerCase();
             if (key !== "c" && key !== "x" && key !== "v" && key !== "a") return;
-            sawClipboardEvent = false;
             var target = document.activeElement;
-            setTimeout(function () {
-              if (sawClipboardEvent) return;
-              var editable = target && (target.tagName === "INPUT" || target.tagName === "TEXTAREA" || target.isContentEditable);
-              try {
-                if (key === "a") { if (editable && target.select) target.select(); else document.execCommand("selectAll"); }
-                else if (key === "v") { if (editable && navigator.clipboard) navigator.clipboard.readText().then(function (t) { document.execCommand("insertText", false, t); }); }
-                else if (navigator.clipboard) { var s = String(window.getSelection()); if (s) { navigator.clipboard.writeText(s); if (key === "x" && editable) document.execCommand("delete"); } }
-              } catch (err) { }
-            }, 60);
-          }, true);
+            if (!target) return;
+            var input = target.tagName === "INPUT" || target.tagName === "TEXTAREA";
+            var editable = (input || target.isContentEditable) && !target.readOnly && !target.disabled;
+            if (key === "a") {
+              e.preventDefault();
+              if (input && target.select) target.select(); else document.execCommand("selectAll");
+              return;
+            }
+            if (key === "v") {
+              if (!editable) return;
+              e.preventDefault();
+              var start = target.selectionStart, end = target.selectionEnd;
+              var value = target.value;
+              window.codechromaDesktop.readClipboard().then(function (text) {
+                if (!target.isConnected || document.activeElement !== target) return;
+                if (input && (target.value !== value || target.selectionStart !== start || target.selectionEnd !== end)) return;
+                if (target.classList.contains("xterm-helper-textarea")) {
+                  var data = new DataTransfer();
+                  data.setData("text/plain", text);
+                  target.dispatchEvent(new ClipboardEvent("paste", { clipboardData: data, bubbles: true, cancelable: true }));
+                } else document.execCommand("insertText", false, text);
+              }).catch(function () {});
+              return;
+            }
+            var data = new DataTransfer();
+            target.dispatchEvent(new ClipboardEvent("copy", { clipboardData: data, bubbles: true, cancelable: true }));
+            var text = data.getData("text/plain") || (input ? target.value.slice(target.selectionStart, target.selectionEnd) : String(window.getSelection()));
+            if (!text) return;
+            e.preventDefault();
+            var selection = String(window.getSelection()), value = target.value;
+            var start = target.selectionStart, end = target.selectionEnd;
+            window.codechromaDesktop.writeClipboard(text).then(function () {
+              if (key !== "x" || !editable || document.activeElement !== target) return;
+              if (input ? target.value !== value || target.selectionStart !== start || target.selectionEnd !== end : String(window.getSelection()) !== selection) return;
+              document.execCommand("delete");
+            }).catch(function () {});
+          });
           var pending = {}, listeners = [], nextCall = 0;
           window.__ccReply = function (id, ok, json) {
             var call = pending[id]; delete pending[id];

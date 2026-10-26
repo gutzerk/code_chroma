@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { useRef } from "react";
 import { fireEvent, render, screen } from "@testing-library/react";
 import { useResizableSize, type ResizableOptions } from "./useResizableSize";
@@ -112,6 +112,17 @@ describe("useResizableSize", () => {
     expect(size.width).toBe(0);
   });
 
+  it("enters full mode after exactly 24 pixels beyond the maximum", () => {
+    window.innerWidth = 1000;
+    const onExceedMax = vi.fn();
+    render(<Panel options={{ axis: "x", edge: "left", maxViewportFraction: 0.5, onExceedMax }} />);
+    startSize(400, 700);
+
+    drag({ x: 900, y: 300 }, { x: 776, y: 300 });
+
+    expect(onExceedMax).toHaveBeenCalledOnce();
+  });
+
   it("stays under the max without calling onExceedMax inside the slack", () => {
     window.innerWidth = 1000;
     let exceeded = 0;
@@ -122,7 +133,7 @@ describe("useResizableSize", () => {
     );
     startSize(400, 700);
 
-    const size = drag({ x: 900, y: 300 }, { x: 760, y: 300 });
+    const size = drag({ x: 900, y: 300 }, { x: 780, y: 300 });
 
     expect(exceeded).toBe(0);
     expect(size.width).toBe(500);

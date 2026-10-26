@@ -135,6 +135,21 @@ describe("SequenceDiagram", () => {
     expect(screen.getByText("m2")).toBeInTheDocument();
   });
 
+  it("flips any right-to-left arrow, return or not, so it points at its receiver", () => {
+    const elements = layOut([
+      participant("p1", "Client", "client"),
+      participant("p2", "API", "api"),
+      message("m1", "client", "api", 1),
+      message("m2", "api", "client", 2),
+    ]);
+
+    render(<SequenceDiagram layer="seq" elements={elements} />);
+
+    const lines = document.querySelectorAll<HTMLElement>(".sequence-message-line");
+    expect(lines[0].style.transform).toBe("");
+    expect(lines[1].style.transform).toBe("scaleX(-1)");
+  });
+
   it("renders a return arrow from a real-bridge boolean flag, not just the string form", () => {
     // The backend `recipes.py` emits `return`/`async` as JSON booleans; the mock's string `"true"`
     // is the other accepted form. Both must shape the arrow (H1 regression: `stringMeta` dropped

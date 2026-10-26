@@ -169,18 +169,20 @@ export const CHAIN_WARN_STEPS = 3;
 
 const MODE_TEXT: Record<"new" | "handoff", string> = { new: "new", handoff: "new + hand-off" };
 
-/** "Agent · <provider or default> · new | new + hand-off | continue: <source slug>"; null for a review step; step 1 is always new. */
+/** "Agent · <provider or default> · [<model> ·] new | new + hand-off | continue: <source slug>"; null for a review step; step 1 is always new. The model is the step's own, else the one its session ran on. */
 export function stepModeLabel(
   steps: WorkflowStepDef[],
   index: number,
   providerLabel: (id: string) => string = (id) => id,
+  usedModel?: string | null,
 ): string | null {
   const def = steps[index];
   if (!def || def.kind !== "agent") return null;
   const provider = def.provider ? providerLabel(def.provider) : "default";
   const mode = index === 0 ? "new" : agentMode(def.agent);
   const text = mode === "continue" ? `continue: ${steps[continueTargetIndex(steps, index)]?.slug || "?"}` : MODE_TEXT[mode];
-  return `Agent · ${provider} · ${text}`;
+  const model = def.model || usedModel;
+  return model ? `Agent · ${provider} · ${model} · ${text}` : `Agent · ${provider} · ${text}`;
 }
 
 /** How many steps a continue chain ending at `index` spans (1 for a step that does not continue), like the bridge's StepAgents.ChainLength. */

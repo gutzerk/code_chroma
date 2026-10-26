@@ -40,7 +40,7 @@ const LIVE_TABS: { id: LiveTab; label: string }[] = [
 
 /** One transcript line, tinted the way the agent terminal reads: tool steps grey, passing checks green. */
 function TranscriptLine({ text }: { text: string }) {
-  const tone = text.startsWith("●") ? "tool" : /^\s*✓/.test(text) ? "ok" : undefined;
+  const tone = /^[●⏺]/.test(text) ? "tool" : /^\s*✓/.test(text) ? "ok" : undefined;
   return (
     <div className="live-line" data-tone={tone}>
       {text || " "}

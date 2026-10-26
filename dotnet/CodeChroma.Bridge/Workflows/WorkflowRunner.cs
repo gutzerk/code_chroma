@@ -642,6 +642,7 @@ public sealed partial class WorkflowRunner
         record.DiffStat = stats.Diff;
         record.SessionId = stats.Session ?? record.SessionId;
         record.Usage = stats.Usage ?? record.Usage;
+        if (status == "done") record.Result = StepResults.Extract(record.Output);
     }
 
     /// <summary>Marks the step done and moves the run on: true when the loop must end (held or finished), false to go on, null when a pause or stop landed first (the caller waits and tries again).</summary>
@@ -813,7 +814,7 @@ public sealed partial class WorkflowRunner
     {
         if (rerun || step.Agent != StepAgents.Handoff) return prompt;
         string slug, output;
-        string? diffStat;
+        string? diffStat, result;
         lock (_lock)
         {
             var index = IndexOf(h, step.Id);
@@ -830,9 +831,11 @@ public sealed partial class WorkflowRunner
             slug = h.Def.Steps[previousIndex].Slug;
             output = previous.Output;
             diffStat = previous.DiffStat;
+            result = previous.Result;
         }
         var sb = new System.Text.StringBuilder("Context from the previous step (" + slug + "):\n");
-        if (output.Length > 0) sb.Append("Output tail:\n").Append(output.Length <= ContextTailChars ? output : "..." + output[^ContextTailChars..]).Append('\n');
+        if (!string.IsNullOrWhiteSpace(result)) sb.Append("Result:\n").Append(result).Append('\n');
+        else if (output.Length > 0) sb.Append("Output tail:\n").Append(output.Length <= ContextTailChars ? output : "..." + output[^ContextTailChars..]).Append('\n');
         if (diffStat is not null) sb.Append("Changes: ").Append(diffStat).Append('\n');
         return sb.Append("\nYour task:\n").Append(prompt).ToString();
     }

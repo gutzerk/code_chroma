@@ -68,6 +68,9 @@ public sealed class StepRecord
     public int? FromAttempt { get; set; }
     public StepUsage? Usage { get; set; }
 
+    /// <summary>The agent's closing prose (no tool or status lines), set when the step finishes; what a hand-off and the next review step show.</summary>
+    public string? Result { get; set; }
+
     /// <summary>The step whose session this step resumed (forked), when it did.</summary>
     public string? ResumedFrom { get; set; }
 
@@ -220,4 +223,26 @@ public static class WorkflowJson
         WriteIndented = true,
         DefaultIgnoreCondition = JsonIgnoreCondition.Never,
     };
+}
+
+/// <summary>Picks an agent's final answer out of a step's rendered output lines.</summary>
+public static class StepResults
+{
+    private const int MaxChars = 4000;
+    private static readonly string[] NoiseStarts = ["⏺", "  ↳", "✓", "✗", "---"];
+
+    /// <summary>The last run of prose lines before the trailing status lines, or null when the output has none.</summary>
+    public static string? Extract(string output)
+    {
+        var lines = output.Split('\n');
+        var end = lines.Length;
+        while (end > 0 && (string.IsNullOrWhiteSpace(lines[end - 1]) || IsNoise(lines[end - 1]))) end--;
+        var start = end;
+        while (start > 0 && !string.IsNullOrWhiteSpace(lines[start - 1]) && !IsNoise(lines[start - 1])) start--;
+        if (start == end) return null;
+        var text = string.Join('\n', lines[start..end]).Trim();
+        return text.Length <= MaxChars ? text : "..." + text[^MaxChars..];
+    }
+
+    private static bool IsNoise(string line) => NoiseStarts.Any(n => line.StartsWith(n, StringComparison.Ordinal));
 }

@@ -62,4 +62,27 @@ describe("QuestionDiagram", () => {
     expect(open).toBe(true);
     expect(screen.getByTestId("question-diagram").className).not.toContain("aq-diagram--full");
   });
+
+  it("pans the stage when the body is dragged", () => {
+    render(<QuestionDiagram doc={DOC} options={OPTIONS} selectedId="b" onSelect={() => {}} variant="pane" />);
+    const body = screen.getByTestId("question-diagram-body");
+    const stage = body.querySelector(".aq-diagram-stage") as HTMLElement;
+
+    fireEvent.pointerDown(body, { clientX: 10, clientY: 10, pointerId: 1 });
+    fireEvent.pointerMove(body, { clientX: 40, clientY: 25, pointerId: 1 });
+    fireEvent.pointerUp(body, { pointerId: 1 });
+
+    expect(stage.style.transform).toContain("translate(30px, 15px)");
+  });
+
+  it("zooms with the mouse wheel", () => {
+    render(<QuestionDiagram doc={DOC} options={OPTIONS} selectedId="b" onSelect={() => {}} variant="pane" />);
+    const body = screen.getByTestId("question-diagram-body");
+    const stage = body.querySelector(".aq-diagram-stage") as HTMLElement;
+    const before = stage.style.transform;
+
+    fireEvent.wheel(body, { deltaY: -100 });
+
+    expect(stage.style.transform).not.toBe(before);
+  });
 });

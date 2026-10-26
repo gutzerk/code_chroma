@@ -7605,14 +7605,18 @@ button[data-copy-state="idle"][aria-label]:hover:not(:disabled) {
 .aq-diagram-tabs { display: flex; gap: 4px; flex-wrap: wrap; }
 .aq-diagram-tab { padding: 3px 8px; border: 1px solid var(--question-option-border); border-radius: var(--radius-lg); background: transparent; color: inherit; font: inherit; cursor: pointer; }
 .aq-diagram-tab[aria-selected="true"] { background: var(--question-selected-bg); border-color: var(--question-selected-border); color: var(--text-soft); }
-.aq-diagram-body { position: relative; flex: 1; min-height: 0; overflow: hidden; }
+.aq-diagram-body { position: relative; flex: 1; min-height: 0; overflow: hidden; cursor: grab; touch-action: none; user-select: none; }
+.aq-diagram-body:active { cursor: grabbing; }
 .aq-diagram-empty { display: grid; place-items: center; height: 100%; color: var(--text-muted-soft); font-size: 13px; }
 .aq-diagram-tools { position: absolute; right: 8px; bottom: 8px; display: flex; gap: 4px; }
 .aq-diagram-tools button { width: 28px; height: 28px; border: 1px solid var(--question-option-border); border-radius: var(--radius-lg); background: var(--question-surface); color: var(--text-soft); cursor: pointer; }
 .aq-diagram-stage { position: absolute; left: 0; top: 0; transform-origin: 0 0; }
-.aq-diagram-node { position: absolute; box-sizing: border-box; padding: 6px 8px; border: 1px solid var(--question-option-border); border-radius: var(--radius-lg); background: var(--question-surface); color: var(--text-soft); font-size: 12px; overflow: hidden; }
+.aq-diagram-node { position: absolute; box-sizing: border-box; padding: 6px 8px; border: 1px solid var(--question-option-border); border-radius: var(--radius-lg); background: var(--question-surface); color: var(--text-soft); font-size: 14px; overflow: hidden; display: flex; flex-direction: column; gap: 2px; }
+.aq-diagram-node b { font-weight: 600; }
+.aq-diagram-node span { font-size: 12px; color: var(--text-muted-soft); display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
+.aq-diagram-edge-label { font-size: 13px; fill: var(--text-soft); stroke: none; paint-order: stroke; }
 .aq-diagram-node[data-new="true"] { border: 1px dashed var(--question-new); }
-.aq-diagram-edges { position: absolute; left: 0; top: 0; pointer-events: none; overflow: visible; stroke: var(--text-muted-soft); }
+.aq-diagram-edges { position: absolute; left: 0; top: 0; pointer-events: none; overflow: visible; stroke: var(--text-muted-soft); color: var(--text-muted-soft); stroke-width: 1.5; }
 
 .agent-led--asking { background: var(--question-accent); }
 .agent-led-badge { margin-left: 2px; color: var(--question-accent); font-size: 10px; font-weight: 700; }

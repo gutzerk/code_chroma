@@ -25,7 +25,7 @@ export async function launchAgent(
       return null;
     }
     return task
-      ? client.create("", "agent", attachTo, task, "task", diagram)
+      ? client.create(diagram?.title ?? "", "agent", attachTo, task, "task", diagram)
       : client.create("", "agent", attachTo, context?.description ?? null);
   });
 }

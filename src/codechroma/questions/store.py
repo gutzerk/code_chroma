@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import time
 import uuid
 from collections.abc import Callable
 
@@ -47,6 +48,21 @@ def _options_meta(request: AskRequest) -> list[dict]:
     return [option.model_dump() for option in request.options]
 
 
+def _prune_ops(doc: CanvasDoc, keep: set[str]) -> list[dict]:
+    """Deletes draft diagrams nobody adopted within the TTL, so abandoned asks leave no layer."""
+    cutoff = time.time() - diagrams.DRAFT_TTL_SECONDS
+    stale = {
+        e.id for e in doc.elements.values()
+        if e.id not in keep and diagrams.is_draft_layer(e.layer)
+        and e.meta.get("diagram_root") and float(e.meta.get("drawn_at") or 0) < cutoff
+    }
+    stale |= {
+        e.id for e in doc.elements.values()
+        if e.group_id in stale and e.id not in keep and diagrams.is_draft_layer(e.layer)
+    }
+    return [{"op": "delete_element", "id": i} for i in sorted(stale)]
+
+
 def _adopt_ops(doc: CanvasDoc, request: AskRequest, question_id: str) -> list[dict]:
     """Moves the draft-layer diagrams this question's options reference onto its own layer."""
     target = diagrams.layer_for(question_id, "")
@@ -61,6 +77,7 @@ def _adopt_ops(doc: CanvasDoc, request: AskRequest, question_id: str) -> list[di
         if e.group_id in moved and diagrams.is_draft_layer(e.layer)
     }
     ops: list[dict] = [{"op": "update_element", "id": i, "layer": target} for i in sorted(moved)]
+    ops.extend(_prune_ops(doc, moved))
     ops.extend(
         {"op": "update_edge", "id": edge_id, "layer": target}
         for edge_id, edge in doc.edges.items()
@@ -113,10 +130,11 @@ def list_questions(ws: Workspace) -> list[Element]:
     return [e for e in doc.elements.values() if e.render == "question"]
 
 
-def settle(ws: Workspace, element_id: str, state: str, result: QuestionResult) -> None:
-    """Writes the answered/skipped state onto the element's meta."""
+def settle(ws: Workspace, element: Element, state: str, result: QuestionResult) -> Element:
+    """Writes the answered/skipped state onto the element's meta; returns the settled element."""
     meta = {"state": state, "answer": result.answer, "option_id": result.option_id}
-    _commit(ws, lambda _doc: [{"op": "update_element", "id": element_id, "meta": meta}])
+    _commit(ws, lambda _doc: [{"op": "update_element", "id": element.id, "meta": meta}])
+    return element.model_copy(update={"meta": {**element.meta, **meta}})
 
 
 def result_from(element: Element) -> QuestionResult | None:
@@ -175,7 +193,8 @@ def reask(
 ) -> None:
     """Updates the question in place with the re-asked options and skips its older duplicates."""
     meta = {
-        "options": _options_meta(request), "kind": request.kind, "diagram_requested": False,
+        "options": _options_meta(request), "kind": request.kind,
+        "diagram_requested": False, "revised": False,
         "allow_custom": request.allow_custom, "allow_skip": request.allow_skip,
         "session_id": request.session_id, "total": request.total,
         "degraded": False, "validation": None,
@@ -212,13 +231,18 @@ def _question_in(doc: CanvasDoc, question_id: str) -> Element:
     raise QuestionWriteError(f"unknown question {question_id!r}")
 
 
-def _next_top(doc: CanvasDoc) -> float:
-    """The y just below every existing per-question diagram element (0 when there is none)."""
-    bottoms = [
-        e.position.y + (e.size.h / 2 if e.size else 0) for e in doc.elements.values()
-        if e.layer.startswith(diagrams.LAYER_PREFIX)
-    ]
-    return max(bottoms) + diagrams.GAP if bottoms else 0
+def _next_top(doc: CanvasDoc, layer: str) -> float:
+    """The y just below the question's own diagrams, else below every per-question diagram."""
+    def bottoms(match: Callable[[str], bool]) -> list[float]:
+        return [
+            e.position.y + (e.size.h / 2 if e.size else 0) for e in doc.elements.values()
+            if match(e.layer)
+        ]
+
+    found = bottoms(lambda candidate: candidate == layer) or bottoms(
+        lambda candidate: candidate.startswith(diagrams.LAYER_PREFIX)
+    )
+    return max(found) + diagrams.GAP if found else 0
 
 
 def draw_diagram(
@@ -234,7 +258,7 @@ def draw_diagram(
             if option_id not in {o["id"] for o in target.meta.get("options", [])}:
                 raise QuestionWriteError(f"unknown option {option_id!r} on that question")
         layer = diagrams.layer_for(question_id, uuid.uuid4().hex[:8])
-        ops = diagrams.diagram_ops(title, nodes, edges, _next_top(doc), option_id, layer)
+        ops = diagrams.diagram_ops(title, nodes, edges, _next_top(doc, layer), option_id, layer)
         result = apply_batch(doc, ops, explanation="ai question")
         if result.ok and target is not None:
             assert result.doc is not None

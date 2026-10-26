@@ -60,7 +60,7 @@ def test_mcp_config_file_holds_an_http_server_with_bearer_header_and_timeout():
     assert server["type"] == "http"
     assert server["url"] == "http://127.0.0.1:8123/mcp/"
     assert server["headers"] == {"Authorization": "Bearer agent-1.sig"}
-    assert server["timeout"] > 300_000
+    assert server["timeout"] == 60_000
 
 
 def test_claude_argv_is_unchanged_without_an_endpoint():

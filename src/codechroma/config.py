@@ -117,9 +117,8 @@ class BridgeAppConfig(_Config):
 class QuestionsConfig(_Config):
     """questions/mcp_server.py"""
 
-    ask_wait_seconds: float = 300.0
     max_rejections: int = 3
-    answer_inject_attempts: int = 1200
+    answer_inject_attempts: int = 86400
 
 
 class WorkspacesConfig(_Config):

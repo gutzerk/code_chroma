@@ -1,4 +1,4 @@
-import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useMemo, useId, useState } from "react";
 import { createPortal } from "react-dom";
 import type { CanvasDoc, CanvasElement } from "../../../state/types";
 import { useCanvasDiagramFocus } from "../../CanvasFocusContext";
@@ -48,7 +48,8 @@ export interface QuestionDiagramProps {
 export function QuestionDiagram({ doc, options, selectedId, onSelect, variant }: QuestionDiagramProps) {
   const focusDiagram = useCanvasDiagramFocus();
   const [full, setFull] = useState(false);
-  const bodyRef = useRef<HTMLDivElement | null>(null);
+  const [bodyEl, setBodyEl] = useState<HTMLDivElement | null>(null);
+  const markerId = `aq-arrow-${useId().replace(/:/g, "")}`;
   const [bodySize, setBodySize] = useState({ w: 0, h: 0 });
 
   const selectedIndex = options.findIndex((o) => o.id === selectedId);
@@ -69,7 +70,7 @@ export function QuestionDiagram({ doc, options, selectedId, onSelect, variant }:
   }, [nodes]);
 
   useLayoutEffect(() => {
-    const body = bodyRef.current;
+    const body = bodyEl;
     if (!body || !layout) return undefined;
     const measure = () => setBodySize({ w: body.clientWidth, h: body.clientHeight });
     measure();
@@ -77,7 +78,7 @@ export function QuestionDiagram({ doc, options, selectedId, onSelect, variant }:
     const observer = new ResizeObserver(measure);
     observer.observe(body);
     return () => observer.disconnect();
-  }, [layout, full, variant]);
+  }, [bodyEl, layout, full, variant]);
 
   const base = useMemo(() => {
     if (!layout || bodySize.w <= 0 || bodySize.h <= 0) return { x: 0, y: 0, scale: 1 };
@@ -91,7 +92,7 @@ export function QuestionDiagram({ doc, options, selectedId, onSelect, variant }:
     };
   }, [layout, bodySize]);
 
-  const { view, dragging, zoomBy, reset, bind } = usePanZoom(bodyRef, base, Boolean(layout));
+  const { view, dragging, zoomBy, reset, bind } = usePanZoom(bodyEl, base, Boolean(layout), selected?.id ?? "");
 
   useEffect(() => {
     if (!full) return undefined;
@@ -155,7 +156,7 @@ export function QuestionDiagram({ doc, options, selectedId, onSelect, variant }:
           </>
         )}
       </div>
-      <div className={`aq-diagram-body${dragging ? " aq-diagram-body--dragging" : ""}`} ref={bodyRef} {...(layout ? bind : {})}>
+      <div className={`aq-diagram-body${dragging ? " aq-diagram-body--dragging" : ""}`} ref={setBodyEl} {...(layout ? bind : {})}>
         {layout ? (
           <div
             className="aq-diagram-stage"
@@ -177,7 +178,7 @@ export function QuestionDiagram({ doc, options, selectedId, onSelect, variant }:
             )}
             <svg className="aq-diagram-edges" width={layout.width} height={layout.height}>
               <defs>
-                <marker id="aq-arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse">
+                <marker id={markerId} viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse">
                   <path d="M0,0 L10,5 L0,10 z" className="aq-diagram-arrow" />
                 </marker>
               </defs>
@@ -190,7 +191,7 @@ export function QuestionDiagram({ doc, options, selectedId, onSelect, variant }:
                 const y2 = b.top + b.height / 2 - layout.top;
                 return (
                   <g key={e.id}>
-                    <line x1={x1} y1={y1} x2={x2} y2={y2} markerEnd="url(#aq-arrow)" />
+                    <line x1={x1} y1={y1} x2={x2} y2={y2} markerEnd={`url(#${markerId})`} />
                     {e.label && (
                       <text className="aq-diagram-edge-label" x={(x1 + x2) / 2} y={(y1 + y2) / 2} textAnchor="middle" dominantBaseline="middle">
                         {e.label}

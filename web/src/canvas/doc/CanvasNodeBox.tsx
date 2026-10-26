@@ -308,16 +308,26 @@ export function CanvasNodeBox({ element, onMeasure }: CanvasNodeBoxProps) {
       descriptionPopupStore.open(element.label, noCodeReasonMessage(element, noCodeReason));
       return;
     }
-    // Falls through to the Inspector for a real, resolved node_id -- InspectorPanel's own
-    // useInspectorNode still turns a genuine "no such node" into a clear message with Retry. For a
-    // work item the id is the recipe key (an epic box has no node_id). Re-clicking the box already
-    // open in the inspector closes it instead of reopening the same page.
-    const openId = workItemId ?? element.node_id ?? element.id;
+    // A code box's click only focuses it: the right-side inspector opens from the box's own SRC
+    // button (below), so clicking anywhere else on the block never pops the panel. A work item (epic
+    // brief spec box) has no SRC button, so its click still opens the inspector on the work item,
+    // and re-clicking the box already open closes it.
+    if (!workItemId) return;
     if (isInspectorTarget) {
       inspectorStore.close();
       return;
     }
-    inspectorStore.open(openId, element.label, element.id, workItemId);
+    inspectorStore.open(workItemId, element.label, element.id, workItemId);
+  };
+
+  // The SRC button toggles the inspector on this box's code; InspectorPanel's own useInspectorNode
+  // still turns a genuine "no such node" into a clear message with Retry.
+  const toggleSource = () => {
+    if (isInspectorTarget) {
+      inspectorStore.close();
+      return;
+    }
+    inspectorStore.open(element.node_id ?? element.id, element.label, element.id);
   };
 
   const classes = [
@@ -480,20 +490,6 @@ export function CanvasNodeBox({ element, onMeasure }: CanvasNodeBoxProps) {
                 <span className="canvas-node-box-path" title={sourcePath}>
                   {sourcePath}
                 </span>
-                {element.node_id && (
-                  <button
-                    type="button"
-                    className="canvas-node-box-src"
-                    data-testid="canvas-node-box-src"
-                    aria-label={`Open source of ${element.label}`}
-                    onClick={(event) => {
-                      event.stopPropagation();
-                      inspectorStore.open(element.node_id ?? element.id, element.label, element.id);
-                    }}
-                  >
-                    SRC ↗
-                  </button>
-                )}
               </div>
             )}
           </div>
@@ -503,6 +499,21 @@ export function CanvasNodeBox({ element, onMeasure }: CanvasNodeBoxProps) {
               name={element.label}
               variant="canvas-node-box"
             />
+            {element.node_id && !isEpicsLayerName(element.layer) && (
+              <button
+                type="button"
+                className="canvas-node-box-src"
+                data-testid="canvas-node-box-src"
+                aria-label={`Open source of ${element.label}`}
+                aria-pressed={isInspectorTarget}
+                onClick={(event) => {
+                  event.stopPropagation();
+                  toggleSource();
+                }}
+              >
+                SRC ↗
+              </button>
+            )}
             {style.descClass && element.description && (
               <button
                 type="button"

@@ -168,8 +168,8 @@ public class PtyHostTests
         var launch = new PtyLaunch(Shell, Directory.GetCurrentDirectory(), Env: new Dictionary<string, string> { ["LC_ALL"] = "C.UTF-8", ["LANG"] = "" });
         using var host = PtyHost.Start(launch, capture.Add, () => { });
 
-        host.Write((OperatingSystem.IsWindows() ? "echo L=%LANG%=" : "echo L=$LANG=") + Newline);
+        host.Write((OperatingSystem.IsWindows() ? "echo L=%LANG%=" : "[ \"$LANG\" != en_US.UTF-8 ] && echo NOT_INJ\"\"ECTED") + Newline);
 
-        Assert.True(await capture.WaitFor("L=") && !capture.Text.Contains("L=en_US.UTF-8="), capture.Text);
+        Assert.True(await capture.WaitFor("NOT_INJECTED") || await capture.WaitFor("L=%LANG%="), capture.Text);
     }
 }

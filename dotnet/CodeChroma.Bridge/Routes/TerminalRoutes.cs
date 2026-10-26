@@ -53,7 +53,10 @@ public static class TerminalRoutes
                 await Fail(socket, $"no executable configured for agent: {agent}", UnknownAgentCloseCode);
                 return Results.Empty;
             }
-            await BridgeOwnPty(socket, argv, ResolveCwd(registry, repoRoot, workspace), await Task.Run(() => runtime.SpawnEnv()), aborted);
+            Dictionary<string, string> env;
+            try { env = await runtime.TerminalEnvAsync(null, aborted); }
+            catch (OperationCanceledException) { return Results.Empty; }
+            await BridgeOwnPty(socket, argv, ResolveCwd(registry, repoRoot, workspace), env, aborted);
             return Results.Empty;
         });
     }

@@ -178,13 +178,10 @@ public sealed class AgentSession : IAgentSessionPort, IDisposable
 }
 
 /// <summary>Every live agent PTY, keyed by agent id: the one place their processes are tracked.</summary>
-public sealed class AgentSessionRegistry(Skills.RuntimeEnvironment? runtime = null) : IDisposable
+public sealed class AgentSessionRegistry(Skills.RuntimeEnvironment runtime) : IDisposable
 {
     private readonly Dictionary<string, AgentSession> _sessions = [];
     private readonly object _lock = new();
-
-    /// <summary>The login-shell environment (PATH, hooks' tools) under the caller's overrides, so an agent sees what a normal terminal does.</summary>
-    public IReadOnlyDictionary<string, string>? SpawnEnv(IReadOnlyDictionary<string, string>? env) => runtime is null ? env : runtime.SpawnEnv(env);
 
     public AgentSession? Get(string agentId)
     {
@@ -202,6 +199,7 @@ public sealed class AgentSessionRegistry(Skills.RuntimeEnvironment? runtime = nu
     /// <summary>Spawns the agent, or returns the session already running for it.</summary>
     public AgentSession Start(string agentId, IReadOnlyList<string> argv, string cwd, string kind = "claude", IReadOnlyDictionary<string, string>? env = null, Stores.UserPaths? paths = null, string? banner = null)
     {
+        var spawnEnv = runtime.TerminalEnv(env);
         lock (_lock)
         {
             if (_sessions.TryGetValue(agentId, out var existing) && existing.IsAlive) return existing;
@@ -212,7 +210,7 @@ public sealed class AgentSessionRegistry(Skills.RuntimeEnvironment? runtime = nu
             if (!Directory.Exists(cwd)) throw new AgentStartException($"the agent's worktree is missing: {cwd}");
             try
             {
-                var session = new AgentSession(agentId, new PtyLaunch([executable, .. argv.Skip(1)], cwd, SpawnEnv(env)), kind, banner);
+                var session = new AgentSession(agentId, new PtyLaunch([executable, .. argv.Skip(1)], cwd, spawnEnv), kind, banner);
                 _sessions[agentId] = session;
                 return session;
             }

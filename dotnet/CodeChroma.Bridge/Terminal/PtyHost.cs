@@ -56,10 +56,10 @@ public sealed class PtyHost : IDisposable
     public static PtyHost Start(PtyLaunch launch, Action<string> onOutput, Action onExit)
     {
         var (app, args) = Resolve(launch.Argv);
-        var environment = new Dictionary<string, string>();
+        var environment = new Dictionary<string, string>(OperatingSystem.IsWindows() ? StringComparer.OrdinalIgnoreCase : StringComparer.Ordinal);
         foreach (var (key, value) in launch.Env ?? new Dictionary<string, string>()) environment[key] = value;
-        if (!environment.ContainsKey("LANG") && string.IsNullOrEmpty(Environment.GetEnvironmentVariable("LC_ALL")) && string.IsNullOrEmpty(Environment.GetEnvironmentVariable("LANG")))
-            environment["LANG"] = "en_US.UTF-8";
+        string? Locale(string key) => environment.TryGetValue(key, out var value) ? value : launch.Env is null ? Environment.GetEnvironmentVariable(key) : null;
+        if (string.IsNullOrEmpty(Locale("LC_ALL")) && string.IsNullOrEmpty(Locale("LANG"))) environment["LANG"] = "en_US.UTF-8";
         environment["TERM"] = "xterm-256color";
         environment["COLORTERM"] = "truecolor";
         environment["FORCE_COLOR"] = "1";

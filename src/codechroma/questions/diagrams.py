@@ -3,12 +3,14 @@
 from __future__ import annotations
 
 import math
+import time
 
 from pydantic import BaseModel, ConfigDict, Field
 
 from codechroma.questions.validation import QuestionRejected, rejection_text
 
-LAYER = "decisions"
+LAYER_PREFIX = "decisions/"
+DRAFT_PREFIX = "draft-"
 MAX_NODES = 12
 MAX_ID = 40
 MAX_TITLE = 80
@@ -17,7 +19,28 @@ MAX_DESCRIPTION = 300
 _COLUMNS = 4
 _CELL_W, _CELL_H = 200, 100
 _NODE_W, _NODE_H = 160, 60
-BAND_H = 3 * _CELL_H + 80
+_PAD, _HEADER = 20, 40
+GAP = 60
+DRAFT_TTL_SECONDS = 3600
+
+
+def layer_for(question_id: str | None, draft: str) -> str:
+    """The per-question layer; a diagram drawn before its question lives on a draft layer."""
+    return f"{LAYER_PREFIX}{question_id or DRAFT_PREFIX + draft}"
+
+
+def is_draft_layer(layer: str) -> bool:
+    """True for a layer a diagram was drawn on before its question existed."""
+    return layer.startswith(LAYER_PREFIX + DRAFT_PREFIX)
+
+
+def root_size(count: int) -> tuple[int, int]:
+    """Width and height of the root group that wraps `count` grid nodes."""
+    columns, rows = min(count, _COLUMNS), math.ceil(count / _COLUMNS)
+    return (
+        (columns - 1) * _CELL_W + _NODE_W + 2 * _PAD,
+        (rows - 1) * _CELL_H + _NODE_H + _HEADER + _PAD,
+    )
 
 
 class DiagramNode(BaseModel):
@@ -77,24 +100,24 @@ def validate_diagram(nodes: list[DiagramNode], edges: list[DiagramEdge], title: 
 
 
 def diagram_ops(
-    title: str, nodes: list[DiagramNode], edges: list[DiagramEdge], band: int, option_id: str | None
+    title: str, nodes: list[DiagramNode], edges: list[DiagramEdge], top: int, option_id: str | None,
+    layer: str,
 ) -> list[dict]:
-    """The `apply_batch` ops for one diagram: a group root, its nodes in a grid, then the arrows."""
-    top = band * BAND_H
+    """The `apply_batch` ops for one diagram; positions are centres and the root wraps its nodes."""
+    width, height = root_size(len(nodes))
     ops: list[dict] = [{
-        "op": "add_group", "temp_id": "root", "layer": LAYER, "label": title,
-        "position": {"x": 0, "y": top},
-        "size": {
-            "w": _COLUMNS * _CELL_W + 40, "h": math.ceil(len(nodes) / _COLUMNS) * _CELL_H + 40,
-        },
-        "meta": {"diagram_root": True, "option_id": option_id},
+        "op": "add_group", "temp_id": "root", "layer": layer, "label": title,
+        "position": {"x": width / 2, "y": top + height / 2},
+        "size": {"w": width, "h": height},
+        "meta": {"diagram_root": True, "option_id": option_id, "drawn_at": time.time()},
     }]
     for index, node in enumerate(nodes):
         ops.append({
-            "op": "add_element", "temp_id": f"n:{node.id}", "render": "custom", "layer": LAYER,
+            "op": "add_element", "temp_id": f"n:{node.id}", "render": "custom", "layer": layer,
             "label": node.label, "description": node.description, "group_id": "root",
             "position": {
-                "x": 20 + index % _COLUMNS * _CELL_W, "y": top + 20 + index // _COLUMNS * _CELL_H,
+                "x": _PAD + _NODE_W / 2 + index % _COLUMNS * _CELL_W,
+                "y": top + _HEADER + _NODE_H / 2 + index // _COLUMNS * _CELL_H,
             },
             "size": {"w": _NODE_W, "h": _NODE_H},
             "meta": {"status": node.status} if node.status else {},
@@ -102,11 +125,16 @@ def diagram_ops(
     ops.extend(
         {
             "op": "add_edge", "from": f"n:{e.from_}", "to": f"n:{e.to}", "label": e.label,
-            "layer": LAYER,
+            "layer": layer,
         }
         for e in edges
     )
     return ops
+
+
+def missing_descriptions(nodes: list[DiagramNode]) -> bool:
+    """True when more than half the nodes carry no description (a soft quality warning)."""
+    return sum(1 for n in nodes if not n.description.strip()) * 2 > len(nodes)
 
 
 def check(nodes: list[DiagramNode], edges: list[DiagramEdge], title: str) -> None:

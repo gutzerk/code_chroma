@@ -68,6 +68,12 @@ public sealed class StepRecord
     public int? FromAttempt { get; set; }
     public StepUsage? Usage { get; set; }
 
+    /// <summary>The agent's closing prose (no tool or status lines), set when the step finishes; what a hand-off and the next review step show.</summary>
+    public string? Result { get; set; }
+
+    /// <summary>What the step agent said through report_status (blocked or question parks the step for the user).</summary>
+    public StepReport? Report { get; set; }
+
     /// <summary>The step whose session this step resumed (forked), when it did.</summary>
     public string? ResumedFrom { get; set; }
 
@@ -76,6 +82,13 @@ public sealed class StepRecord
 
     /// <summary>The chain is long or the context is near the model's window (<see cref="WorkflowLimits"/>); recomputed on every read.</summary>
     public bool ChainWarning { get; set; }
+}
+
+/// <summary>The agent's own word on its step: done, blocked or question, with a one-line note.</summary>
+public sealed class StepReport
+{
+    public string Status { get; set; } = "";
+    public string Note { get; set; } = "";
 }
 
 /// <summary>Token counts of a step's session as its CLI transcript reports them; context = input + cache read + cache creation.</summary>
@@ -220,4 +233,33 @@ public static class WorkflowJson
         WriteIndented = true,
         DefaultIgnoreCondition = JsonIgnoreCondition.Never,
     };
+}
+
+/// <summary>Picks an agent's final answer out of a step's rendered output lines.</summary>
+public static class StepResults
+{
+    private const int MaxChars = 4000;
+
+    /// <summary>The prose after the last tool/status line, preserving Markdown within the answer, or null when empty.</summary>
+    public static string? Extract(string output)
+    {
+        var lines = output.Split('\n');
+        var end = lines.Length;
+        while (end > 0 && (string.IsNullOrWhiteSpace(lines[end - 1]) || IsBoundary(lines[end - 1]))) end--;
+        var start = end;
+        while (start > 0 && !IsBoundary(lines[start - 1])) start--;
+        if (start == end) return null;
+        var text = string.Join('\n', lines[start..end]).Trim();
+        return text.Length <= MaxChars ? text : "..." + text[^MaxChars..];
+    }
+
+    private static bool IsBoundary(string line)
+    {
+        var text = line.Trim();
+        return text.StartsWith("⏺ ", StringComparison.Ordinal)
+            || text.StartsWith("↳ error: ", StringComparison.Ordinal)
+            || text.StartsWith("✗ ", StringComparison.Ordinal)
+            || text == "✓ done"
+            || System.Text.RegularExpressions.Regex.IsMatch(text, @"\A✓ done in [0-9]+s\z");
+    }
 }

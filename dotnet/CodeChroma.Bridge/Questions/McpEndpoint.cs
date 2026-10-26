@@ -19,8 +19,8 @@ public sealed record McpEndpoint(string WorkspaceId, string BaseUrl, string Toke
         [BridgeAddress.WorkspaceIdEnv] = WorkspaceId,
     };
 
-    /// <summary>The `--mcp-config` document: one http server with a bearer header and a long timeout.</summary>
-    public JsonObject ClaudeConfig(TimeSpan askWait) => new()
+    /// <summary>The `--mcp-config` document: one http server with a bearer header and a short timeout.</summary>
+    public JsonObject ClaudeConfig() => new()
     {
         ["mcpServers"] = new JsonObject
         {
@@ -28,17 +28,17 @@ public sealed record McpEndpoint(string WorkspaceId, string BaseUrl, string Toke
             {
                 ["type"] = "http", ["url"] = McpUrl,
                 ["headers"] = new JsonObject { ["Authorization"] = "Bearer " + Token },
-                ["timeout"] = (int)((askWait.TotalSeconds + 60) * 1000),
+                ["timeout"] = 60_000,
             },
         },
     };
 
     /// <summary>Writes the MCP config to a temp file (inline JSON gets mangled by PTY quoting); returns its path.</summary>
-    public string WriteClaudeConfig(TimeSpan askWait)
+    public string WriteClaudeConfig()
     {
         var safe = new string(WorkspaceId.Select(c => char.IsAsciiLetterOrDigit(c) || c is '-' or '_' ? c : '_').ToArray());
         var path = Path.Combine(PrivateDirectory(), safe + ".json");
-        var json = ClaudeConfig(askWait).ToJsonString();
+        var json = ClaudeConfig().ToJsonString();
         if (OperatingSystem.IsWindows())
         {
             File.WriteAllText(path, json);

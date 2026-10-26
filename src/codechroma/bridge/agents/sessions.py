@@ -82,7 +82,7 @@ class AgentSessionPort(Protocol):
 
     def resize(self, rows: int, cols: int) -> None: ...
 
-    def inject_when_idle(self, text: str) -> asyncio.Task: ...
+    def inject_when_idle(self, text: str, attempts: int | None = None) -> asyncio.Task: ...
 
 
 class AgentSession(AgentSessionPort):
@@ -102,6 +102,7 @@ class AgentSession(AgentSessionPort):
         self.initial_session_id = (env or {}).get(INITIAL_ID_ENV)
         self.exit_code: int | None = None
         self._consumers: set[asyncio.Queue] = set()
+        self._inject_lock = asyncio.Lock()
         # Seeded with the PTY's own geometry, so the tap renders the screen the agent actually drew.
         self._tap = ScreenTap(rows=default_rows(), cols=default_cols())
         self._detector = StatusDetector(load_manifest_for(kind))
@@ -159,37 +160,43 @@ class AgentSession(AgentSessionPort):
     def write_bytes(self, data: bytes) -> None:
         self._pty.write_bytes(data)
 
-    def inject_when_idle(self, text: str) -> asyncio.Task:
+    def inject_when_idle(self, text: str, attempts: int | None = None) -> asyncio.Task:
         """Types `text` once a fresh agent's TUI reaches its idle prompt (acknowledge-only only).
 
         Spawned from `post_agent_start` on a *fresh* start (never a resume, never autostart): the
         context is delivered as a normal user message it reads on first boot. Polls the same
         `StatusDetector` / `detect/claude.toml` `[idle]` rule the LED uses until it classifies the
         rendered `ScreenTap` as idle, then writes `text + "\\r"`. Gives up quietly if the agent
-        never idles in time or the process dies — typing into a working/blocked agent would corrupt
-        whatever it is already doing. Returns the background task; it never raises.
+        never idles in time or the process dies (`attempts` overrides the context default) —
+        typing into a working/blocked agent would corrupt whatever it is already doing. Returns the
+        background task; it never raises.
         """
         async def run() -> None:
-            if self.exit_code is not None:
-                return
-            attempts = context_inject_attempts()
-            interval = context_inject_interval_seconds()
-            for _attempt in range(attempts):
-                # Not unreachable: exit_code can flip between iterations across the await below.
-                if self.exit_code is not None:
-                    return  # type: ignore[unreachable]
-                tail = self._tap.tail(self._detector.rules.tail_lines)
-                verdict = self._detector.classify(tail, self._tap.title, self._tap.progress, None)
-                if verdict == "idle":
-                    self.write(text + "\r")
-                    return
-                await asyncio.sleep(interval)
-            logger.info(
-                "agents: gave up injecting context into %s (never went idle)", self.agent_id
-            )
+            async with self._inject_lock:
+                await self._inject_once(text, attempts)
+
 
         task = asyncio.create_task(run())
         return task
+
+    async def _inject_once(self, text: str, attempts: int | None) -> None:
+        """One queued injection: waits for idle, types it, then lets the screen settle."""
+        if self.exit_code is not None:
+            return
+        tries = attempts if attempts is not None else context_inject_attempts()
+        interval = context_inject_interval_seconds()
+        for _attempt in range(tries):
+            # Not unreachable: exit_code can flip between iterations across the await below.
+            if self.exit_code is not None:
+                return  # type: ignore[unreachable]
+            tail = self._tap.tail(self._detector.rules.tail_lines)
+            verdict = self._detector.classify(tail, self._tap.title, self._tap.progress, None)
+            if verdict == "idle":
+                self.write(text + "\r")
+                await asyncio.sleep(interval)
+                return
+            await asyncio.sleep(interval)
+        logger.info("agents: gave up injecting context into %s (never went idle)", self.agent_id)
 
     def resize(self, rows: int, cols: int) -> None:
         self._pty.resize(rows, cols)

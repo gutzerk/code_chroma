@@ -144,7 +144,7 @@ public sealed class TerminalAgents(UserPaths paths, ProviderStore providers, Cal
     }
 
     /// <summary>Registers the bridge ask_user MCP server; --mcp-config is variadic, so it must precede --plugin-dir and the positional prompt.</summary>
-    private string[] McpArgs(McpEndpoint? mcp) => mcp is null ? [] : ["--mcp-config", mcp.WriteClaudeConfig(questions!.AskWait)];
+    private string[] McpArgs(McpEndpoint? mcp) => mcp is null ? [] : ["--mcp-config", mcp.WriteClaudeConfig()];
 
     /// <summary>Load CodeChroma skills for this Claude Code process without changing its project.</summary>
     private static string[] PluginArgs(bool isClaude) => isClaude && SkillSync.PluginDir() is { } dir ? ["--plugin-dir", dir] : [];

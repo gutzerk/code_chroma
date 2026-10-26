@@ -8,7 +8,7 @@ import { DockedAgentPanel } from "./AgentTerminalDock";
 import { WorkflowsTab } from "../workflows/WorkflowsTab";
 import { AgentsHeaderActions } from "./activity/AgentsHeaderActions";
 import { WorkflowsHeaderActions } from "../workflows/WorkflowsHeaderActions";
-import { useRuns, workflowStore } from "../workflows/workflowStore";
+import { useRuns, useRunsLoaded, workflowStore } from "../workflows/workflowStore";
 import { isFinished } from "../workflows/runControls";
 import { AgentList, AgentSwitcherRow, selectAgent } from "./activity/AgentSwitcherRow";
 import { useAgentClient } from "./AgentClientContext";
@@ -35,6 +35,8 @@ export function ActivityPanel({
   const [tab, setTab] = useState<ActivityTab>("agents");
   const runs = useRuns();
   const activeRuns = runs.filter((r) => !isFinished(r.state)).length;
+  const runsLoaded = useRunsLoaded();
+  const revealedRuns = useRef(false);
   const launchError = useAgentLaunchError();
   const panelRef = useRef<HTMLElement | null>(null);
   const isFull = agentsMode === "full";
@@ -57,6 +59,14 @@ export function ActivityPanel({
   useEffect(() => {
     if (tab !== "workflows" || collapsed) workflowStore.setDialog(null);
   }, [tab, collapsed]);
+  // Runs saved before the app was closed come back on their own: open the panel and, with no agents to show, land on them.
+  useEffect(() => {
+    if (!runsLoaded || revealedRuns.current) return;
+    revealedRuns.current = true;
+    if (!runs.some((r) => r.state !== "done")) return;
+    if (layoutStore.getState().agentsMode === "collapsed") layoutStore.setAgentsMode("normal");
+    if (agents.length === 0) setTab("workflows");
+  }, [runsLoaded, runs, agents.length]);
   useEffect(() => {
     if (selectedAgentId) setTab("agents");
   }, [selectedAgentId]);

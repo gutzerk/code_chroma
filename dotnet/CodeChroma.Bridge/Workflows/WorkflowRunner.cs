@@ -69,6 +69,14 @@ public sealed partial class WorkflowRunner
         public string McpToken { get; } = Guid.NewGuid().ToString("N");
     }
 
+    private static class StepReports
+    {
+        public const string Done = "done";
+        public const string Blocked = "blocked";
+        public const string Question = "question";
+        public const string Instruction = "\n\nWhen done, call the report_status tool (status done). If you are stuck, blocked or need an answer from the user, call it with status blocked or question and a one-line note instead of finishing.";
+    }
+
     private enum Outcome { Completed, Failed, Stopped }
 
     public WorkflowRunner(string repoRoot, SkillAgent agent, Action<JsonObject> emit, Func<string, string?>? sessionFinder = null,
@@ -415,6 +423,7 @@ public sealed partial class WorkflowRunner
             if (decision != "sendBack") throw new BridgeException(400, "decision must be approve or sendBack");
             var configured = h.Def.Steps[index].SendBackTo;
             var found = configured is not null ? h.Def.Steps.FindIndex(0, index, x => x.Id == configured && x.Kind == "agent") : -1;
+            if (h.Def.Steps[index].Kind == "agent") found = index;
             if (found < 0) found = StepAgents.NearestAgentBefore(h.Def, index);
             if (found < 0) throw new BridgeException(409, "there is no earlier agent step to send back to");
             target = h.Def.Steps[found].Id;
@@ -642,6 +651,7 @@ public sealed partial class WorkflowRunner
         record.DiffStat = stats.Diff;
         record.SessionId = stats.Session ?? record.SessionId;
         record.Usage = stats.Usage ?? record.Usage;
+        if (status == "done") record.Result = StepResults.Extract(record.Output);
     }
 
     /// <summary>Marks the step done and moves the run on: true when the loop must end (held or finished), false to go on, null when a pause or stop landed first (the caller waits and tries again).</summary>
@@ -652,7 +662,16 @@ public sealed partial class WorkflowRunner
         lock (_lock)
         {
             if (h.Run.State != RunStates.Running) return null;
-            Snapshot(Record(h, step.Id), "done", stats);
+            var record = Record(h, step.Id);
+            if (record.Report is { Status: StepReports.Blocked or StepReports.Question } report)
+            {
+                Snapshot(record, "needs_you", stats);
+                AppendOutput(record, $"--- agent needs you ({report.Status}): {report.Note} ---");
+                Transition(h, RunCommand.ReviewStep);
+                Persist(h, "run.step");
+                return true;
+            }
+            Snapshot(record, "done", stats);
             var nextIndex = NextIndex(h, index);
             if (nextIndex < 0)
             {
@@ -739,10 +758,17 @@ public sealed partial class WorkflowRunner
             var checkpoint = Checkpoint(h.Worktree, step.Slug);
             lock (_lock) record.CheckpointRef = checkpoint;
         }
+        lock (_lock) record.Report = null;
         var resolved = ResolvePrompt(h, step);
         var task = launch.Fresh ? WithContext(h, step, resolved, rerun) : resolved;
         var prompt = redo ? RedoPrompt(task, h.Note) : BuildPrompt(task, rerun, session is not null);
         h.Note = null;
+        var args = launch.Args;
+        if (cli.AdapterKey == "claude" && _mcpUrl?.Invoke(h.Run.Id) is { } mcpUrl)
+        {
+            prompt += StepReports.Instruction;
+            args = [.. args, "--mcp-config", McpConfig(mcpUrl, h.McpToken)];
+        }
         if (launch.ResumedFrom is not null) lock (_lock) record.ResumedFrom = launch.ResumedFrom;
         var done = new TaskCompletionSource<JobState>(TaskCreationOptions.RunContinuationsAsynchronously);
         var gate = h.Gate;
@@ -753,7 +779,7 @@ public sealed partial class WorkflowRunner
                 h.Run.Id, h.Worktree,
                 (_, state) => { if (state.State != "generating") done.TrySetResult(state); return Task.CompletedTask; },
                 (_, lines) => { OnLines(h, record, lines); return Task.CompletedTask; },
-                prompt, null, new RunOptions(launch.Args) { PauseGate = gate.WaitAsync, Bare = false, Cli = cli });
+                prompt, null, new RunOptions(args) { PauseGate = gate.WaitAsync, Bare = false, Cli = cli });
         }
         catch (Exception error)
         {
@@ -813,7 +839,7 @@ public sealed partial class WorkflowRunner
     {
         if (rerun || step.Agent != StepAgents.Handoff) return prompt;
         string slug, output;
-        string? diffStat;
+        string? diffStat, result;
         lock (_lock)
         {
             var index = IndexOf(h, step.Id);
@@ -830,9 +856,11 @@ public sealed partial class WorkflowRunner
             slug = h.Def.Steps[previousIndex].Slug;
             output = previous.Output;
             diffStat = previous.DiffStat;
+            result = previous.Result;
         }
         var sb = new System.Text.StringBuilder("Context from the previous step (" + slug + "):\n");
-        if (output.Length > 0) sb.Append("Output tail:\n").Append(output.Length <= ContextTailChars ? output : "..." + output[^ContextTailChars..]).Append('\n');
+        if (!string.IsNullOrWhiteSpace(result)) sb.Append("Result:\n").Append(result).Append('\n');
+        else if (output.Length > 0) sb.Append("Output tail:\n").Append(output.Length <= ContextTailChars ? output : "..." + output[^ContextTailChars..]).Append('\n');
         if (diffStat is not null) sb.Append("Changes: ").Append(diffStat).Append('\n');
         return sb.Append("\nYour task:\n").Append(prompt).ToString();
     }

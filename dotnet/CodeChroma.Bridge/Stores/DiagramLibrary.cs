@@ -27,13 +27,15 @@ public sealed class DiagramLibrary(UserPaths paths)
         foreach (var file in Directory.GetFiles(paths.DiagramTypes, "*.json").Order(StringComparer.Ordinal))
         {
             if (JsonFile.Load(file) is not JsonObject data || Json.Str(data["id"]) is not { } id) continue;
-            summaries.Add(new JsonObject
+            var summary = new JsonObject
             {
                 ["id"] = id,
                 ["title"] = data.ContainsKey("title") ? data["title"]?.DeepClone() : id,
                 ["description"] = data.ContainsKey("description") ? data["description"]?.DeepClone() : "",
                 ["style"] = data["style"]?.DeepClone(),
-            });
+            };
+            if (Json.Str(data["schematic"]) is { } schematic) summary["schematic"] = schematic;
+            summaries.Add(summary);
         }
         return summaries;
     }
@@ -75,6 +77,8 @@ public sealed class DiagramLibrary(UserPaths paths)
         var checks = definition["checks"];
         if (!(checks is null || checks is JsonObject c && Json.Str(c["shape"]) is { } shape && CheckShapes.Contains(shape)))
             problems.Add($"checks.shape must be one of {ProviderStore.PyTuple(CheckShapes)}");
+        if (definition["schematic"] is { } schematicNode && !(Json.Str(schematicNode) is { } schematicId && DiagramKinds.Schematics.Contains(schematicId)))
+            problems.Add($"schematic must be one of {ProviderStore.PyTuple(DiagramKinds.Schematics)}");
         var review = definition["review"];
         if (!(review is null || review is JsonObject r && Json.Str(r["axis"]) == "explanatory" && Json.Str(r["agent_factory"]) == "impact-changes"
             && LlmCatalog.Strings("review_agents").Contains("impact-changes")))

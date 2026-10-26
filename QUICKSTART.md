@@ -109,7 +109,7 @@ stand-ins, next to what each icon literally depicts and what the button does.
 | `−` `⊙` `+` | — | Zoom out / reset & re-center / zoom in | Camera zoom controls |
 | `>_` | a window with a `>` prompt | Terminal | Opens/closes the docked embedded terminal panel |
 | ▤ | lines nested in a block | Project tree | Opens/closes the indented project-tree side panel (a navigational index over the same hierarchy the canvas shows) |
-| ★ / e.g. `C1` | icon or text label | Draw… | Opens an agent that asks what diagram to draw, then draws it onto the canvas via the `codechroma-draw-diagram` skill |
+| ★ / e.g. `C1` | icon or text label | Draw… | Opens the Draw dialog: pick a diagram type, say what to show (scope included, in your own words), and an agent draws it onto the canvas via the `codechroma-draw-diagram` skill |
 
 **Diff**: the Diff toggle button is hidden from the rail for now (its logic is kept in the code but
 not surfaced), so diff framing isn't currently reachable from the UI.
@@ -190,13 +190,13 @@ The built-in types the Draw… agent can produce:
 
 ## 4b. Custom diagrams
 
-Click the rail's **Draw…** button and pick a type when the agent asks — or use the agent panel's
+Click the rail's **Draw…** button, pick a type and describe what to show in the dialog — or use the agent panel's
 Diagrams tab to manage what's already on canvas. **Custom diagrams generate only when you trigger a
 draw** — never automatically.
 
 Two things you can do:
 
-- **Use a saved type.** Pick one when the Draw… agent asks what to draw; if the repo has no generated
+- **Use a saved type.** Pick its card in the Draw… dialog (a saved type with a `schematic` gets its own card, the rest sit behind **Custom type**); if the repo has no generated
   diagram for it yet, the agent generates it. The bridge runs a Claude agent against your repo and
   draws the result (boxes, optional named groups, labeled arrows). Layout — including dragging
   boxes — is saved per repo and comes back the next time you open the same type.

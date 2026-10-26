@@ -35,6 +35,17 @@ vi.mock("../workflows/WorkflowsTab", () => ({
   WorkflowsTab: () => <div data-testid="workflows-tab-stub" />,
 }));
 describe("ActivityPanel", () => {
+  it("opens on the Workflows tab when unfinished runs come back and there are no agents", () => {
+    setup();
+    act(() => layoutStore.setAgentsMode("collapsed"));
+    const run = { id: "r1", workflowId: "w", state: "stopped", currentStepId: null, stopAfter: null, attempt: 1, attempts: [], breakpoints: [], steps: [] };
+
+    act(() => workflowStore.setRuns([run] as never));
+
+    expect(layoutStore.getState().agentsMode).toBe("normal");
+    expect(screen.getByRole("tab", { name: /Workflows/ })).toHaveAttribute("aria-selected", "true");
+  });
+
   it.each(["ctrlKey", "metaKey"])("cycles agents in both directions with %s+Alt+arrows", async (modifier) => {
     const client = new MockAgentClient();
     const first = await client.create("Planner");

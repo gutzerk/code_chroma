@@ -1,4 +1,4 @@
-"""Bridge-hosted MCP server: a blocking `ask_user` tool and its `ask_user_result` poll fallback."""
+"""Bridge-hosted MCP server: a non-blocking `ask_user` tool and its `ask_user_result` read-back."""
 
 from __future__ import annotations
 
@@ -18,9 +18,8 @@ from starlette.responses import Response
 from codechroma.bridge.workspaces import Workspace
 from codechroma.config import settings
 from codechroma.questions import diagrams, store
-from codechroma.questions.broker import QuestionBroker
 from codechroma.questions.launch import McpEndpoint, bearer_token, discover_base_url, loopback_url
-from codechroma.questions.models import AskRequest, QuestionOption
+from codechroma.questions.models import AskRequest, QuestionOption, QuestionResult
 from codechroma.questions.validation import (
     QuestionRejected,
     RejectionTracker,
@@ -39,9 +38,17 @@ _INSTRUCTIONS = (
     "them and call again with the same intent. For a question that changes structure "
     "(boundaries, data flow, ownership, a new component) use kind \"diagram\": first draw one "
     "small diagram per option with draw_option_diagram, then pass each returned diagram_ref on "
-    "its option. If ask_user returns {needs: \"diagram\"}, the user wants diagrams: draw them "
-    "with draw_option_diagram and call ask_user again with the same session_id and question. "
-    "If it returns {pending: true}, poll ask_user_result."
+    "its option. ask_user returns at once with {asked: true}: end your turn then. The user's "
+    "answer arrives as your next message, starting with [CodeChroma answer]. If the next "
+    "message says the user wants diagrams, draw them with draw_option_diagram and call ask_user "
+    "again with the same session_id and question. Never poll and never repeat the question in "
+    "chat. ask_user_result(question_id) reads an answer back if you need it."
+)
+
+NEXT_STEP = "End your turn now. The user's answer will arrive as your next message."
+MISSING_DESCRIPTIONS = (
+    "More than half the nodes have no description; say what changes for each node under "
+    "this option."
 )
 
 _DRAW_DESCRIPTION = (
@@ -75,8 +82,7 @@ class _Delegate:
 class QuestionMcp:
     """One MCP server for every workspace; the bearer token names and authorizes the workspace."""
 
-    def __init__(self, broker: QuestionBroker, workspace_for: Callable[[str], Workspace]) -> None:
-        self.broker = broker
+    def __init__(self, workspace_for: Callable[[str], Workspace]) -> None:
         self.rejections = RejectionTracker()
         self._workspace_for = workspace_for
         self._secret = secrets.token_bytes(32)
@@ -126,7 +132,7 @@ class QuestionMcp:
     async def ask(
         self, workspace_id: str, request: AskRequest, connection: str | None = None
     ) -> dict[str, Any]:
-        """Opens the question on the canvas, blocks for the answer, or returns pending."""
+        """Opens (or re-opens) the question and returns at once; the answer is typed in later."""
         ws = self._workspace_for(workspace_id)
         extra = await self._check(ws, workspace_id, request, connection)
         request.agent_id = workspace_id
@@ -134,18 +140,10 @@ class QuestionMcp:
         reasked, stale = found if found else (None, [])
         question_id = reasked.meta["question_id"] if reasked else uuid.uuid4().hex
         if reasked:
-            self.broker.forget(question_id)
-        self.broker.open(question_id)
-        try:
-            if reasked:
-                await asyncio.to_thread(store.reask, ws, reasked, request, extra, stale)
-            else:
-                await asyncio.to_thread(store.open_question, ws, request, question_id, extra)
-            result = await self.broker.wait(question_id, settings.questions.ask_wait_seconds)
-        except BaseException:
-            self.broker.close(question_id)
-            raise
-        return result.to_tool_dict()
+            await asyncio.to_thread(store.reask, ws, reasked, request, extra, stale)
+        else:
+            await asyncio.to_thread(store.open_question, ws, request, question_id, extra)
+        return {"asked": True, "question_id": question_id, "next": NEXT_STEP}
 
     async def _check(
         self, ws: Workspace, workspace_id: str, request: AskRequest, connection: str | None = None
@@ -179,15 +177,17 @@ class QuestionMcp:
         root = await asyncio.to_thread(
             store.draw_diagram, ws, title, nodes, edges, question_id, option_id
         )
+        if diagrams.missing_descriptions(nodes):
+            return {"diagram_ref": root, "warning": MISSING_DESCRIPTIONS}
         return {"diagram_ref": root}
 
     async def result(self, workspace_id: str, question_id: str) -> dict[str, Any]:
-        """The settled answer, read from the broker or (after a restart) the canvas element."""
-        found = self.broker.lookup(question_id)
-        if found.pending:
-            ws = self._workspace_for(workspace_id)
-            element = await asyncio.to_thread(store.find_element, ws, question_id)
-            found = (element and store.result_from(element)) or found
+        """The settled answer read from the canvas element, or `{pending: true, question_id}`."""
+        ws = self._workspace_for(workspace_id)
+        element = await asyncio.to_thread(store.find_element, ws, question_id)
+        found = (element and store.result_from(element)) or QuestionResult(
+            pending=True, question_id=question_id
+        )
         return found.to_tool_dict()
 
     def _sign(self, workspace_id: str) -> str:
@@ -207,7 +207,7 @@ class QuestionMcp:
         allow_skip: bool = True,
         total: int | None = None,
     ) -> dict[str, Any]:
-        """Ask the user a question on the canvas and wait for the answer (or a pending id)."""
+        """Ask the user a question on the canvas; returns at once, so end your turn."""
         request = AskRequest(
             question=question, options=options or [], kind=kind, session_id=session_id,
             allow_custom=allow_custom, allow_skip=allow_skip, total=total,

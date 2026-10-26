@@ -25,7 +25,7 @@ export async function launchAgent(
       return null;
     }
     return task
-      ? client.create("", "agent", attachTo, task, "task", diagram)
+      ? client.create(diagram?.title ?? "", "agent", attachTo, task, "task", diagram)
       : client.create("", "agent", attachTo, context?.description ?? null);
   });
 }
@@ -38,6 +38,36 @@ export async function openStepAgent(
   sessionId: string,
 ): Promise<void> {
   await runLaunch(client, () => client.openStepSession(title, runId, sessionId));
+}
+
+const stepStarts = new Map<string, Promise<AgentRecord>>();
+
+/** The agent behind a step's embedded terminal: the one already forking that session, else one started now (concurrent callers share the launch). */
+export function ensureStepAgent(client: AgentClient, title: string, runId: string, sessionId: string): Promise<AgentRecord> {
+  const existing = agentStore.getAgents().find((a) => a.source_run === runId && a.fork_session === sessionId);
+  if (existing) return Promise.resolve(existing);
+  const key = `${runId}:${sessionId}`;
+  const inFlight = stepStarts.get(key);
+  if (inFlight) return inFlight;
+  if (agentStore.getIsAtCapacity()) return Promise.reject(new Error("Too many agents are open; close one to talk to this step."));
+  const launch = createAndStart(client, () => client.openStepSession(title, runId, sessionId)).finally(() => stepStarts.delete(key));
+  stepStarts.set(key, launch);
+  return launch;
+}
+
+/** Create, then start; a start failure is recorded on the agent and rethrown. */
+async function createAndStart(client: AgentClient, create: () => Promise<AgentRecord>): Promise<AgentRecord> {
+  const created = await create();
+  agentStore.setStartError(created.id, null);
+  agentStore.upsert(created);
+  try {
+    const started = await client.start(created.id);
+    agentStore.upsert(started);
+    return started;
+  } catch (err) {
+    agentStore.setStartError(created.id, err instanceof Error ? err.message : String(err));
+    throw err;
+  }
 }
 
 /** The shared launch bookkeeping: capacity guard, create (null: stop quietly), start, open its window; a failure after create opens it with the error. */

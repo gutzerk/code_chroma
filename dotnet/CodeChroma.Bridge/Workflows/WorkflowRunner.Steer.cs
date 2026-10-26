@@ -15,26 +15,24 @@ public sealed partial class WorkflowRunner
     private const int OutputTailChars = 1500;
     private static readonly string[] ReadOnlyTools = ["Read", "Grep", "Glob"];
 
-    /// <summary>Routes a question to the run agent ("run") or to one step's agent (step id or slug); it never changes the run state.</summary>
+    /// <summary>Routes a question to the run agent ("run"); a step's agent is talked to in its terminal, and it never changes the run state.</summary>
     public async Task<MessageReply> Message(string runId, string target, string text)
     {
         if (string.IsNullOrWhiteSpace(text)) throw new BridgeException(400, "text is required");
+        if (target is not ("run" or "")) throw new BridgeException(409, "talk to a step's agent in its terminal");
         var chat = _chat ?? throw new BridgeException(409, "no run agent is configured");
         if (!IsClaude(chat)) throw new BridgeException(409, "the run agent chat needs the claude CLI");
         string key, prompt, worktree, token;
-        string? stepId, session = null;
         RunMessage user;
         lock (_lock)
         {
             var h = Require(runId);
-            stepId = target is "run" or "" ? null : ResolveStep(h, target);
-            key = runId + ":" + (stepId ?? "run");
+            key = runId + ":run";
             if (chat.GetState(key).State == "generating" || !_chatBusy.Add(key)) throw new BridgeException(409, "that agent is still answering");
             try
             {
-                user = AddMessage(h, stepId ?? "run", "user", text.Trim());
-                prompt = stepId is null ? RunAgentPrompt(h, text) : StepAgentPrompt(h, stepId, text);
-                if (stepId is not null) session = Record(h, stepId).SessionId;
+                AddMessage(h, "run", "user", text.Trim());
+                prompt = RunAgentPrompt(h, text);
                 worktree = h.Worktree;
                 token = h.McpToken;
                 Persist(h, "run.message");
@@ -49,8 +47,7 @@ public sealed partial class WorkflowRunner
         {
             // --strict-mcp-config for every chat: --tools does not limit MCP tools, so ambient MCP servers must not load.
             var extra = new List<string> { "--tools", string.Join(',', ReadOnlyTools), "--strict-mcp-config" };
-            if (stepId is null && _mcpUrl?.Invoke(runId) is { } url) extra.AddRange(["--mcp-config", McpConfig(url, token)]);
-            if (session is not null) extra.AddRange(["--resume", session]);
+            if (_mcpUrl?.Invoke(runId) is { } url) extra.AddRange(["--mcp-config", McpConfig(url, token)]);
 
             string reply;
             try
@@ -62,7 +59,7 @@ public sealed partial class WorkflowRunner
                 lock (_lock)
                 {
                     var h = Require(runId);
-                    AddMessage(h, stepId ?? "run", "system", "The agent could not answer: " + error.Message);
+                    AddMessage(h, "run", "system", "The agent could not answer: " + error.Message);
                     Persist(h, "run.message");
                 }
                 throw;
@@ -70,7 +67,7 @@ public sealed partial class WorkflowRunner
             lock (_lock)
             {
                 var h = Require(runId);
-                var answer = AddMessage(h, stepId ?? "run", "agent", reply.Length > 0 ? reply : "(no answer)");
+                var answer = AddMessage(h, "run", "agent", reply.Length > 0 ? reply : "(no answer)");
                 Persist(h, "run.message");
                 return new MessageReply { Reply = answer.Text, MessageId = answer.Id };
             }
@@ -109,13 +106,6 @@ public sealed partial class WorkflowRunner
         },
     }.ToJsonString();
 
-    private static string ResolveStep(Handle h, string target)
-    {
-        var wanted = target.TrimStart('@');
-        var step = h.Def.Steps.Find(s => s.Id == wanted) ?? h.Def.Steps.Find(s => s.Slug == wanted);
-        return step?.Id ?? throw new BridgeException(404, $"unknown step: {target}");
-    }
-
     private static RunMessage AddMessage(Handle h, string target, string role, string text)
     {
         var message = new RunMessage { Id = "m-" + Guid.NewGuid().ToString("N")[..8], Target = target, Role = role, Text = text, At = DateTime.UtcNow.ToString("o") };
@@ -150,19 +140,6 @@ public sealed partial class WorkflowRunner
             {StepDigest(h)}
             {(history.Length > 0 ? "Recent conversation:\n" + history + "\n" : "")}
             User question: {text}
-            """;
-    }
-
-    private static string StepAgentPrompt(Handle h, string stepId, string text)
-    {
-        var step = h.Def.Steps.Find(s => s.Id == stepId)!;
-        var record = h.Run.Steps.Find(s => s.StepId == stepId);
-        return $"""
-            You are the agent of step "{step.Slug}" in the workflow "{h.Def.Name}". Your task was: {ResolvePrompt(h, step)}
-            Its status is {record?.Status ?? "pending"}. Your output so far: {Tail(record?.Output ?? "")}
-            Answer the question below from what you did. You can read the working tree but you cannot change anything, and you must not continue or redo the task.
-
-            Question: {text}
             """;
     }
 
@@ -213,7 +190,9 @@ public sealed partial class WorkflowRunner
         Tool("pause", "Pause the run after the current tool call.", new JsonObject()),
         Tool("stop", "Stop the run. mode is now (default) or afterStep.", new JsonObject { ["mode"] = new JsonObject { ["type"] = "string", ["enum"] = new JsonArray("now", "afterStep") } }),
         Tool("propose_redo", "Suggest redoing from a step; the user confirms. Never redoes anything itself.",
-            new JsonObject { ["from"] = new JsonObject { ["type"] = "string" }, ["note"] = new JsonObject { ["type"] = "string" } }, "from"));
+            new JsonObject { ["from"] = new JsonObject { ["type"] = "string" }, ["note"] = new JsonObject { ["type"] = "string" } }, "from"),
+        Tool("report_status", "Step agents only: report done, blocked or question (with a one-line note) when the step ends.",
+            new JsonObject { ["status"] = new JsonObject { ["type"] = "string", ["enum"] = new JsonArray(StepReports.Done, StepReports.Blocked, StepReports.Question) }, ["note"] = new JsonObject { ["type"] = "string" } }, "status"));
 
     private static JsonObject Tool(string name, string description, JsonObject properties, params string[] required) => new()
     {
@@ -242,6 +221,10 @@ public sealed partial class WorkflowRunner
                 case "propose_redo":
                     ProposeRedo(runId, Json.Str(args["from"]) ?? "", Json.Str(args["note"]));
                     text = "Redo proposed; the user decides.";
+                    break;
+                case "report_status":
+                    ReportStatus(runId, Json.Str(args["status"]), Json.Str(args["note"]));
+                    text = "Status recorded.";
                     break;
                 default:
                     return ToolResult($"unknown tool: {name}", true);
@@ -284,6 +267,20 @@ public sealed partial class WorkflowRunner
             AddMessage(h, "run", "system", $"Redo from {from} proposed.");
             Persist(h, "run.redo.proposed");
             return View(h);
+        }
+    }
+
+    /// <summary>Records the step agent's report on the running step; a blocked or question report parks the step when the agent exits.</summary>
+    public void ReportStatus(string runId, string? status, string? note)
+    {
+        if (status is not (StepReports.Done or StepReports.Blocked or StepReports.Question)) throw new BridgeException(400, "status must be done, blocked or question");
+        lock (_lock)
+        {
+            var h = Require(runId);
+            if (h.Run.CurrentStepId is not { } id || Record(h, id) is not { Status: "running" or "paused" or "stopping" } record)
+                throw new BridgeException(409, "no step is running");
+            record.Report = new StepReport { Status = status, Note = (note ?? "").Trim() };
+            Persist(h, "run.step");
         }
     }
 
@@ -434,6 +431,6 @@ public sealed partial class WorkflowRunner
     private static StepRecord CloneStep(StepRecord s) => new()
     {
         StepId = s.StepId, Attempt = s.Attempt, Status = s.Status, Output = s.Output, DiffStat = s.DiffStat,
-        CheckpointRef = s.CheckpointRef, SessionId = s.SessionId, FromAttempt = s.FromAttempt, Usage = s.Usage, ResumedFrom = s.ResumedFrom,
+        CheckpointRef = s.CheckpointRef, SessionId = s.SessionId, FromAttempt = s.FromAttempt, Usage = s.Usage, ResumedFrom = s.ResumedFrom, Report = s.Report,
     };
 }

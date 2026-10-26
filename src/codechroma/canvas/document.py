@@ -35,6 +35,13 @@ RENDER_KINDS = (
 
 # Layers with no diagram of their own; must match diagramCatalog.ts's `NON_DIAGRAM_LAYERS` by hand.
 NON_DIAGRAM_LAYERS = frozenset({"default", "hierarchy", "questions", "decisions"})
+# Per-question option diagrams (`decisions/<question_id>`): diagram layers with no file projection.
+CANVAS_ONLY_LAYER_PREFIX = "decisions/"
+
+
+def is_canvas_only_layer(layer: str) -> bool:
+    """True for a layer whose content lives in canvas core only (no `projection.json`)."""
+    return layer in NON_DIAGRAM_LAYERS or layer.startswith(CANVAS_ONLY_LAYER_PREFIX)
 
 
 def _new_id() -> str:
@@ -151,7 +158,7 @@ def _projection_path(diagrams_root: Path, layer: str) -> Path | None:
 
 def _layer_path(diagrams_root: Path, layer: str) -> Path | None:
     """None for a non-diagram layer (its content belongs in canvas core instead)."""
-    return None if layer in NON_DIAGRAM_LAYERS else _projection_path(diagrams_root, layer)
+    return None if is_canvas_only_layer(layer) else _projection_path(diagrams_root, layer)
 
 
 class CanvasDoc(BaseModel):

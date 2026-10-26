@@ -3,6 +3,7 @@ import { ROOT_NODE_ID, type HierarchyNodeRef, type LayoutKind } from "../state/t
 import { reportAsyncError } from "../util/reportError";
 import { UndoManager } from "./UndoManager";
 import { LeftPanelToggle } from "./LeftPanelToggle";
+import { DrawDialog } from "./doc/drawDialog/DrawDialog";
 import { useEngineClient } from "../engine-client/EngineClientContext";
 import { ConnectionsOverlay } from "./ConnectionsOverlay";
 import { ChangeConnectionsOverlay } from "./ChangeConnectionsOverlay";
@@ -13,7 +14,7 @@ import { LabelClearanceMonitor } from "./LabelClearanceMonitor";
 import { TraceControls } from "./TraceControls";
 import { CanvasViewport, type CanvasViewportHandle } from "./CanvasViewport";
 import { readSavedCameraView } from "./canvasCameraStore";
-import { CanvasFocusContext } from "./CanvasFocusContext";
+import { CanvasDiagramFocusContext, CanvasFocusContext } from "./CanvasFocusContext";
 import { CanvasDocView } from "./doc/CanvasDocView";
 import { DiagramHealthNote } from "./doc/DiagramHealthNote";
 import { SidecarSummaryCard } from "./doc/SidecarSummaryCard";
@@ -446,8 +447,14 @@ export function RootCanvas() {
 
   const focusOnNode = useCallback((nodeId: string) => viewportRef.current?.focusOnNode(nodeId), []);
 
+  const focusDiagram = useCallback(
+    (layer: string) => viewportRef.current?.fitToSelector(`[data-diagram-layer="${CSS.escape(layer)}"]`) ?? false,
+    [],
+  );
+
   return (
     <CanvasFocusContext.Provider value={focusOnNode}>
+    <CanvasDiagramFocusContext.Provider value={focusDiagram}>
     <div className="app-root" data-testid="app-root">
       <UndoManager kinds={UNDO_KINDS} />
       {/* Row 1 of the floating-card shell: a full-width top bar above the rail, so the branch chip
@@ -557,6 +564,7 @@ export function RootCanvas() {
               <WikiGeneralNotice />
               {isDiffActive && <DeletedDiffOverlay />}
               {isTraceActive && <TraceControls />}
+              <DrawDialog />
             </div>
             <ActivityPanel disabled={isAtAgentCapacity || isLaunchingAgent} onRunAgent={() => {
               if (tutorialStore.isActive()) tutorialSimStore.startAgent2();
@@ -592,6 +600,7 @@ export function RootCanvas() {
         />
       )}
     </div>
+    </CanvasDiagramFocusContext.Provider>
     </CanvasFocusContext.Provider>
   );
 }

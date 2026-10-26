@@ -7,9 +7,11 @@ import { OverflowMenu, type MenuItem } from "./OverflowMenu";
 import { RedoCard } from "./RedoCard";
 import { RunChat } from "./RunChat";
 import { StepRail } from "./StepRail";
+import { StepTerminal } from "./StepTerminal";
 import { stepsForAttempt } from "./redoPlan";
 import {
   CONFIRM_MESSAGES,
+  canOpenAgent,
   canStopAfter,
   RUN_STATE_COLOR,
   RUN_STATE_TEXT,
@@ -40,7 +42,7 @@ const LIVE_TABS: { id: LiveTab; label: string }[] = [
 
 /** One transcript line, tinted the way the agent terminal reads: tool steps grey, passing checks green. */
 function TranscriptLine({ text }: { text: string }) {
-  const tone = text.startsWith("●") ? "tool" : /^\s*✓/.test(text) ? "ok" : undefined;
+  const tone = /^[●⏺]/.test(text) ? "tool" : /^\s*✓/.test(text) ? "ok" : undefined;
   return (
     <div className="live-line" data-tone={tone}>
       {text || " "}
@@ -48,12 +50,20 @@ function TranscriptLine({ text }: { text: string }) {
   );
 }
 
+/** Why an agent step has no terminal (yet), or null when nothing needs saying. */
+function terminalHint(step: StepRecord): string | null {
+  if (step.status === "done") return "No session was recorded for this step, so it has no terminal.";
+  if (step.status === "running" || step.status === "paused" || step.status === "pending") return "A terminal opens here when the step finishes.";
+  return null;
+}
+
 /** The shown step, live (full layout third column): header with the Agent / Output / Diff tabs, the body, then the chat footer. */
 function LiveView({ run, workflow, step, footer }: { run: Run; workflow: WorkflowDef; step: StepRecord | undefined; footer: ReactNode }) {
   const [tab, setTab] = useState<LiveTab>("agent");
   const stepIndex = workflow.steps.findIndex((s) => s.id === step?.stepId);
   const def = workflow.steps[stepIndex];
-  const messages = (run.messages ?? []).filter((m) => m.target === step?.stepId);
+  const showTerminal = tab === "agent" && !!step && canOpenAgent(def, step);
+  const hint = tab === "agent" && step && def?.kind === "agent" ? terminalHint(step) : null;
   const sub = [`workflow/${run.id}`, step?.diffStat].filter(Boolean).join(" · ");
   return (
     <div className="wf-live" data-testid="live-view">
@@ -71,18 +81,22 @@ function LiveView({ run, workflow, step, footer }: { run: Run; workflow: Workflo
           ))}
         </div>
       </div>
-      <div className="wf-live-body" role="log" aria-label="Step output" data-testid="step-output">
+      <div className={`wf-live-body${showTerminal ? " wf-live-body-terminal" : ""}`} role="log" aria-label="Step output" data-testid="step-output">
         {!step || !def ? (
           <p>Select a step to see it live.</p>
+        ) : showTerminal ? (
+          <StepTerminal key={step.stepId} runId={run.id} slug={def.slug} step={step} />
         ) : tab === "agent" ? (
           <>
             {def.prompt && <div className="live-line" data-tone="prompt">{`> ${def.prompt.split("\n")[0]}`}</div>}
             {step.output.split("\n").map((line, i) => (
               <TranscriptLine key={i} text={line} />
             ))}
-            {messages.map((m) => (
-              <div key={m.id} className="live-line">{`${m.role}: ${m.text}`}</div>
-            ))}
+            {hint && (
+              <div className="live-line" data-testid="step-terminal-hint">
+                {hint}
+              </div>
+            )}
           </>
         ) : tab === "output" ? (
           <pre className="workflow-output-text">{step.output || "No output yet."}</pre>
@@ -194,7 +208,7 @@ export function RunDetail({
     />
   );
 
-  const chat = <RunChat run={run} workflow={workflow} actions={actions} />;
+  const chat = <RunChat run={run} actions={actions} />;
 
   return (
     <section className="workflow-screen" aria-label="Workflow run" data-testid="workflow-screen" data-layout={layout}>

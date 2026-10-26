@@ -21,11 +21,12 @@ public static class DiagramCatalog
     public static readonly IReadOnlyList<string> WatchedDiagramEventKinds =
         new[] { "c1", "epics", "patterns", "impact", "sequence", "custom", "feature-plan" };
 
-    private static readonly HashSet<string> NonDiagramLayers = new() { "hierarchy", "default" };
+    private static readonly HashSet<string> NonDiagramLayers = new() { "hierarchy", "default", "questions", "decisions" };
+    private const string CanvasOnlyPrefix = "decisions/";
     private static readonly string[] SynthesizedPrefixes = { "custom/", "feature-plan/", "epics/" };
 
-    /// <summary>Everything except the seeded hierarchy tree and the fallback layer is a diagram (a deny-list, on purpose).</summary>
-    public static bool IsDiagramLayer(string layer) => !NonDiagramLayers.Contains(layer);
+    /// <summary>Everything except the seeded hierarchy tree, the fallback and question layers is a diagram (a deny-list, on purpose); `decisions/*` option diagrams are diagrams with no file artifact.</summary>
+    public static bool IsDiagramLayer(string layer) => layer.StartsWith(CanvasOnlyPrefix, StringComparison.Ordinal) || !NonDiagramLayers.Contains(layer);
 
     /// <summary>Whether a recipe run can reconcile this layer (a builtin or a synthesized prefix), as opposed to a one-off layer.</summary>
     public static bool IsRecipeBackedLayer(string layer) =>

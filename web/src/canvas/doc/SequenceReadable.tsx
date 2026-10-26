@@ -213,7 +213,7 @@ function MessageArrow({
       </span>
       <span
         className="sequence-message-line"
-        style={isReturn ? { transform: "scaleX(-1)" } : undefined}
+        style={toCol.position.x < fromCol.position.x ? { transform: "scaleX(-1)" } : undefined}
       />
     </div>
   );

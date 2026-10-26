@@ -21,7 +21,7 @@ from codechroma.questions.validation import (
 
 
 def _fast(monkeypatch, wait: float) -> None:
-    fake = SimpleNamespace(questions=SimpleNamespace(ask_wait_seconds=wait, max_rejections=3))
+    fake = SimpleNamespace(questions=SimpleNamespace(max_rejections=3))
     monkeypatch.setattr("codechroma.questions.mcp_server.settings", fake)
 
 
@@ -255,10 +255,12 @@ def test_draw_diagram_returns_a_ref_that_a_diagram_question_accepts(bridge, monk
 
     result = asyncio.run(run())
 
-    assert result["pending"] is True
+    assert result["asked"] is True
+    layers = {e.layer for e in store.list_questions(bridge.main)}
+    assert layers == {"questions"}
 
 
-def test_draw_diagram_writes_nodes_on_the_decisions_layer_under_one_root(bridge):
+def test_draw_diagram_writes_nodes_on_a_decisions_layer_under_one_root(bridge):
     nodes = [_node("a", status="new"), _node("b")]
     edges = [diagrams.DiagramEdge(**{"from": "a", "to": "b"})]
 
@@ -266,7 +268,9 @@ def test_draw_diagram_writes_nodes_on_the_decisions_layer_under_one_root(bridge)
 
     doc = CanvasDoc.load(bridge.main.canvas_core_path, bridge.main.diagrams_root)
     members = [e for e in doc.elements.values() if e.group_id == root["diagram_ref"]]
-    assert {e.layer for e in members} == {"decisions"}
+    layers = {e.layer for e in members}
+    assert len(layers) == 1
+    assert layers.pop().startswith("decisions/")
     assert sorted(e.label for e in members) == ["a", "b"]
     assert [e.meta.get("status") for e in members if e.label == "a"] == ["new"]
     assert len(doc.edges) == 1
@@ -293,22 +297,6 @@ def test_draw_diagram_attaches_the_ref_to_the_question_option(bridge):
 
     options = store.find_element(bridge.main, "q1").meta["options"]
     assert [o["diagram_ref"] for o in options] == [None, root["diagram_ref"]]
-
-
-def test_request_diagram_wakes_the_blocked_ask_with_needs(bridge, monkeypatch):
-    _fast(monkeypatch, 5)
-    mcp = _mcp(bridge)
-
-    async def run() -> dict:
-        task = asyncio.create_task(mcp.ask("main", _request(session_id="s")))
-        await asyncio.sleep(0.2)
-        question_id = store.list_questions(bridge.main)[0].meta["question_id"]
-        mcp.broker.request_diagram(question_id)
-        return await task
-
-    result = asyncio.run(run())
-
-    assert result["needs"] == "diagram"
 
 
 def test_reask_after_a_diagram_request_updates_the_same_element(bridge, monkeypatch):

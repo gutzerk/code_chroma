@@ -11,13 +11,12 @@ from dataclasses import dataclass
 from pathlib import Path
 from urllib.parse import urlsplit
 
-from codechroma.config import settings
-
 URL_ENV = "CODECHROMA_BRIDGE_URL"
 TOKEN_ENV = "CODECHROMA_QUESTION_TOKEN"
 WORKSPACE_ENV = "CODECHROMA_WORKSPACE_ID"
 SERVER_NAME = "codechroma"
 _LOOPBACK = "127.0.0.1"
+MCP_TIMEOUT_MS = 60_000
 
 
 @dataclass(frozen=True)
@@ -37,11 +36,10 @@ class McpEndpoint:
         return {URL_ENV: self.base_url, TOKEN_ENV: self.token}
 
     def claude_config(self) -> dict:
-        """The `--mcp-config` document: one http server with a bearer header and a long timeout."""
-        timeout_ms = int((settings.questions.ask_wait_seconds + 60) * 1000)
+        """The `--mcp-config` document: one http server with a bearer header and a 60 s timeout."""
         return {"mcpServers": {SERVER_NAME: {
             "type": "http", "url": self.mcp_url,
-            "headers": {"Authorization": f"Bearer {self.token}"}, "timeout": timeout_ms,
+            "headers": {"Authorization": f"Bearer {self.token}"}, "timeout": MCP_TIMEOUT_MS,
         }}}
 
 

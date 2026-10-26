@@ -119,12 +119,22 @@ public class UpdateOperationsTests
 
         var results = new[]
         {
-            scheduler.ShouldNotify("v2.0.0", skipping, CheckTrigger.Periodic),
+            scheduler.ShouldNotify("v2.0.0", skipping, CheckTrigger.Startup),
             scheduler.ShouldNotify("v2.0.0", skipping, CheckTrigger.Manual),
-            scheduler.ShouldNotify("v2.1.0", skipping, CheckTrigger.Periodic),
-            scheduler.ShouldNotify("v2.1.0", skipping, CheckTrigger.Periodic),
+            scheduler.ShouldNotify("v2.1.0", skipping, CheckTrigger.Startup),
+            scheduler.ShouldNotify("v2.1.0", skipping, CheckTrigger.Startup),
         };
 
         Assert.Equal([false, true, true, false], results);
+    }
+
+    [Theory]
+    [InlineData(CheckTrigger.Periodic)]
+    [InlineData(CheckTrigger.Focus)]
+    public void A_periodic_or_focus_result_never_interrupts_the_running_app(CheckTrigger trigger)
+    {
+        var scheduler = new UpdateScheduler(() => Noon);
+
+        Assert.False(scheduler.ShouldNotify("v2.1.0", new UpdateSettings(null), trigger));
     }
 }

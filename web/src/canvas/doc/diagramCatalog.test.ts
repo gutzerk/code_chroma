@@ -433,3 +433,37 @@ describe("computeReadyDiagrams", () => {
     );
   });
 });
+
+describe("decisions/<question_id> layers", () => {
+  it("counts as a diagram layer while the plain decisions layer stays hidden", () => {
+    expect(isDiagramLayer("decisions/q1")).toBe(true);
+    expect(isDiagramLayer("decisions")).toBe(false);
+  });
+
+  it("is not recipe-backed so it is never refreshed through a recipe", () => {
+    expect(isRecipeBackedLayer("decisions/q1")).toBe(false);
+  });
+
+  it("is labelled from the question text, shortened", () => {
+    const question = element("q1", "questions", { render: "question", label: "How should checkout be structured across the whole platform today?" });
+    const doc: CanvasDoc = { ...EMPTY_CANVAS_DOC, elements: { q1: question } };
+
+    const label = labelForDiagramLayer("decisions/q1", [], doc);
+
+    expect(label.length).toBeLessThanOrEqual(48);
+    expect(label.startsWith("How should checkout")).toBe(true);
+  });
+
+  it("falls back to the question id when the question is unknown", () => {
+    expect(labelForDiagramLayer("decisions/q9", [])).toBe("q9");
+  });
+
+  it("deletes canvas content only, without a file delete call", async () => {
+    const calls: string[] = [];
+    const client = { deleteDiagram: async (l: string) => { calls.push(l); return { deleted: true }; } } as unknown as EngineClient;
+
+    await deleteDiagramAndRefresh(client, "decisions/q1");
+
+    expect(calls).toEqual([]);
+  });
+});

@@ -117,6 +117,8 @@ jobs:
             @{ Name = 'PSScriptAnalyzer' }
           )
           foreach ($module in $modules) {
+            $have = Get-Module -ListAvailable -Name $module.Name | Where-Object { -not $module.MinimumVersion -or $_.Version -ge [version]$module.MinimumVersion }
+            if ($have) { continue }
             for ($attempt = 1; $attempt -le 3; $attempt++) {
               try {
                 Install-Module @module -Force -Scope CurrentUser -ErrorAction Stop

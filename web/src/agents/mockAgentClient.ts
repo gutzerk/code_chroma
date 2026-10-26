@@ -3,6 +3,7 @@ import type {
   AgentRecord,
   AgentWindowGeometry,
   BranchInfo,
+  BuiltinDiagramKind,
   GitInitResult,
   GitPreflight,
   GithubOpenPr,
@@ -18,6 +19,17 @@ import type { AgentClient, DiagramTaskHint } from "./agentClient";
 const MAX_AGENTS = 5;
 
 const MAX_PRS = 3;
+
+/** What GET /diagram-kinds serves (src/codechroma/diagrams/kinds.json), for the mock bridge. */
+const MOCK_DIAGRAM_KINDS: BuiltinDiagramKind[] = [
+  { id: "any", name: "Let the agent pick", purpose: "Say what you want to see and the agent chooses the diagram type." },
+  { id: "c1", name: "System context", purpose: "The system, its users and the external services around it." },
+  { id: "patterns", name: "Design patterns", purpose: "The design patterns the code uses and where they sit." },
+  { id: "impact", name: "Change impact", purpose: "What the current change touches and what depends on it." },
+  { id: "plan", name: "Feature plan", purpose: "A described future feature as planned blocks beside the code it touches." },
+  { id: "sequence", name: "Sequence", purpose: "Who calls whom, in order, for one flow." },
+  { id: "custom", name: "Custom type", purpose: "A diagram type of your own or a saved one." },
+];
 
 // The fixed set GitHub is pretending has open pull requests — e2e picks #7 and #42 from here.
 const GITHUB_PR_NUMBERS = [7, 42, 64];
@@ -42,6 +54,10 @@ export class MockAgentClient implements AgentClient {
     this.preflightState = preflight;
   }
 
+  async diagramKinds(): Promise<BuiltinDiagramKind[]> {
+    return MOCK_DIAGRAM_KINDS;
+  }
+
   async list(): Promise<AgentList> {
     return { agents: [...this.agents], active_workspace: this.active, max_agents: MAX_AGENTS };
   }
@@ -52,7 +68,7 @@ export class MockAgentClient implements AgentClient {
     attachTo?: string,
     _context?: string | null,
     _contextKind?: "view" | "task",
-    _diagram?: DiagramTaskHint,
+    diagram?: DiagramTaskHint,
   ): Promise<AgentRecord> {
     if (this.agents.length >= MAX_AGENTS) {
       throw new Error(`the limit of ${MAX_AGENTS} concurrent agents is reached`);
@@ -114,6 +130,8 @@ export class MockAgentClient implements AgentClient {
       status: "stopped",
       exit_code: null,
       worktree_lost: false,
+      diagram_type: diagram?.type ?? null,
+      diagram_request: diagram?.request ?? null,
     };
     this.agents.push(agent);
     return agent;

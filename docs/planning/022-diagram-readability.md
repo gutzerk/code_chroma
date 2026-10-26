@@ -1,6 +1,6 @@
 # 022 — Diagram readability: blocks, sequence (two switchable modes), impact
 
-Status: In progress — Stages 1–4 and the ▶ player landed; open: Playwright visual checks for impact/C1 and the 5-second test on three real diagrams
+Status: In progress — Stages 1–4 and the ▶ player landed; open: Playwright visual checks for impact/C1 and the 5-second test on three real diagrams; non-sequence skill refs and the checker now ask for `question`/`summary`/`hero` (#277), `order`/`lane` stay sequence/process-only
 
 Source: the "Diagram Readability Options" design canvas (boards Recommendation, A4 Glance + expand, B2 Route overlay, Blocks 1–2, Sequence 1–2, Impact). Builds on `docs/architecture/diagram-skills.md` and `docs/architecture/web-canvas-shell.md`.
 

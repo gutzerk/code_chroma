@@ -12,7 +12,7 @@ public sealed record DiagramEdge(string From, string To, string Label = "");
 /// <summary>Small per-option decision diagrams: budget check and the canvas ops that draw one.</summary>
 public static class QuestionDiagrams
 {
-    public const string Layer = "decisions";
+    public const string LayerPrefix = "decisions/";
     public const int MaxNodes = 12;
     public const int MaxId = 40;
     public const int MaxTitle = 80;
@@ -21,7 +21,16 @@ public static class QuestionDiagrams
     private const int Columns = 4;
     private const int CellW = 200, CellH = 100;
     private const int NodeW = 160, NodeH = 60;
-    public const int BandH = 3 * CellH + 80;
+    private const int Pad = 20, Header = 40;
+    public const string DraftPrefix = "draft-";
+    public const int Gap = 60;
+    public const int DraftTtlSeconds = 3600;
+
+    /// <summary>The per-question layer one diagram is drawn on.</summary>
+    public static string LayerFor(string? questionId, string draft) => LayerPrefix + (string.IsNullOrEmpty(questionId) ? DraftPrefix + draft : questionId);
+
+    /// <summary>True for a layer a diagram was drawn on before its question existed.</summary>
+    public static bool IsDraftLayer(string layer) => layer.StartsWith(LayerPrefix + DraftPrefix, StringComparison.Ordinal);
 
     private static int Len(string text) => text.EnumerateRunes().Count();
 
@@ -60,18 +69,21 @@ public static class QuestionDiagrams
         if (problems.Count > 0) throw new QuestionRejected(QuestionValidation.RejectionText(problems, "diagram"));
     }
 
-    /// <summary>The ops for one diagram: a group root, its nodes in a grid, then the arrows.</summary>
-    public static List<JsonNode?> Ops(string title, IReadOnlyList<DiagramNode> nodes, IReadOnlyList<DiagramEdge> edges, int band, string? optionId)
+    /// <summary>The ops for one diagram below `top`: a group root sized to its members, nodes in a grid, then the arrows; positions are centres.</summary>
+    public static List<JsonNode?> Ops(string title, IReadOnlyList<DiagramNode> nodes, IReadOnlyList<DiagramEdge> edges, double top, string? optionId, string layer)
     {
-        var top = band * BandH;
+        var columns = Math.Min(Columns, Math.Max(1, nodes.Count));
+        var rows = (int)Math.Ceiling(nodes.Count / (double)Columns);
+        var width = (double)((columns - 1) * CellW + NodeW + 2 * Pad);
+        var height = (double)((rows - 1) * CellH + NodeH + Header + Pad);
         var ops = new List<JsonNode?>
         {
             new JsonObject
             {
-                ["op"] = "add_group", ["temp_id"] = "root", ["layer"] = Layer, ["label"] = title,
-                ["position"] = new JsonObject { ["x"] = 0.0, ["y"] = (double)top },
-                ["size"] = new JsonObject { ["w"] = (double)(Columns * CellW + 40), ["h"] = (double)((int)Math.Ceiling(nodes.Count / (double)Columns) * CellH + 40) },
-                ["meta"] = new JsonObject { ["diagram_root"] = true, ["option_id"] = optionId },
+                ["op"] = "add_group", ["temp_id"] = "root", ["layer"] = layer, ["label"] = title,
+                ["position"] = new JsonObject { ["x"] = width / 2, ["y"] = top + height / 2 },
+                ["size"] = new JsonObject { ["w"] = width, ["h"] = height },
+                ["meta"] = new JsonObject { ["diagram_root"] = true, ["option_id"] = optionId, ["drawn_at"] = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds() / 1000.0 },
             },
         };
         for (var index = 0; index < nodes.Count; index++)
@@ -79,17 +91,25 @@ public static class QuestionDiagrams
             var node = nodes[index];
             ops.Add(new JsonObject
             {
-                ["op"] = "add_element", ["temp_id"] = "n:" + node.Id, ["render"] = "custom", ["layer"] = Layer,
+                ["op"] = "add_element", ["temp_id"] = "n:" + node.Id, ["render"] = "custom", ["layer"] = layer,
                 ["label"] = node.Label, ["description"] = node.Description, ["group_id"] = "root",
-                ["position"] = new JsonObject { ["x"] = (double)(20 + index % Columns * CellW), ["y"] = (double)(top + 20 + index / Columns * CellH) },
+                ["position"] = new JsonObject { ["x"] = Pad + NodeW / 2.0 + index % Columns * CellW, ["y"] = top + Header + NodeH / 2.0 + index / Columns * CellH },
                 ["size"] = new JsonObject { ["w"] = (double)NodeW, ["h"] = (double)NodeH },
                 ["meta"] = string.IsNullOrEmpty(node.Status) ? new JsonObject() : new JsonObject { ["status"] = node.Status },
             });
         }
         foreach (var e in edges)
-            ops.Add(new JsonObject { ["op"] = "add_edge", ["from"] = "n:" + e.From, ["to"] = "n:" + e.To, ["label"] = e.Label, ["layer"] = Layer });
+            ops.Add(new JsonObject { ["op"] = "add_edge", ["from"] = "n:" + e.From, ["to"] = "n:" + e.To, ["label"] = e.Label, ["layer"] = layer });
         return ops;
     }
+
+    /// <summary>A soft hint (not an error) when more than half the nodes have no description.</summary>
+    public static string? DescriptionWarning(IReadOnlyList<DiagramNode> nodes) =>
+        nodes.Count(n => string.IsNullOrWhiteSpace(n.Description)) * 2 > nodes.Count
+            ? MissingDescriptions
+            : null;
+
+    public const string MissingDescriptions = "More than half the nodes have no description; say what changes for each node under this option.";
 
     /// <summary>Reads `nodes` from tool arguments.</summary>
     public static List<DiagramNode> ParseNodes(JsonNode? raw)

@@ -44,8 +44,7 @@ import would silently break that.
 
 `questions.max_rejections` (default 3, `QuestionsConfig`) is how many incomplete `ask_user` calls one
 agent session may have rejected before the next is accepted as sent, shown simplified
-(`questions/mcp_server.py` `_check`, see `ai-questions.md`); `questions.ask_wait_seconds` is the
-blocking-wait budget.
+(`questions/mcp_server.py` `_check`, see `ai-questions.md`).
 
 To override anything, construct your own `Settings(...)` (each field takes a keyword) rather than
 mutating `settings` — every model is frozen.

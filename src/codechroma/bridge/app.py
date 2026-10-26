@@ -124,7 +124,7 @@ def create_app(repo_root: Path | None = None) -> FastAPI:
     app = FastAPI(lifespan=lifespan)
     app.state.services = BridgeServices.create(root)
     services = app.state.services
-    app.state.question_mcp = QuestionMcp(services.questions, services.registry.get)
+    app.state.question_mcp = QuestionMcp(services.registry.get)
 
     allowed_origins = os.environ.get(
         "codechroma_BRIDGE_CORS_ORIGINS",

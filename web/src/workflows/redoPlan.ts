@@ -38,9 +38,3 @@ export function stepsForAttempt(run: Run, workflow: WorkflowDef, attempt: number
   return out;
 }
 
-/** Splits `@slug rest` into a routing target (step id or "run") and the text. */
-export function parseTarget(workflow: WorkflowDef | undefined, raw: string): { target: string; text: string } {
-  const match = /^@([\w-]+)\s+([\s\S]*)$/.exec(raw.trim());
-  const step = match && workflow?.steps.find((s) => s.slug === match[1]);
-  return step && match ? { target: step.id, text: match[2] } : { target: "run", text: raw.trim() };
-}

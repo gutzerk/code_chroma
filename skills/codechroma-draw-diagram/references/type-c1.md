@@ -124,8 +124,7 @@ Rules:
       LLM API the same adapter calls over HTTPS is external.
 - An actor's `meta.technology` — short protocol/product label (`"HTTPS/REST"`, `"PostgreSQL"`), fold
   it into a relation's `label` too when it matters to the story, rather than relying on it alone.
-- `meta.order`/`meta.lane` (`drawing-rules.md`) are almost never needed here — C1 is a system fan-out,
-  not a process, so there's no "after" or "who performs this step" to record.
+- **5-second read (022):** write top-level `question` (what the diagram answers) and `summary` (one line) strings, and mark the 1-2 main-path relations `hero: true`; the self-check advises `NOSUMMARY`/`NOHERO` otherwise and a diagram without them renders exactly like the old one. `meta.order`/`meta.lane` stay optional here — C1 is a system fan-out, not a process.
 - `relations[].from`/`.to` — `"system"` or an actor's `id`; nothing else exists to reference.
 - Never author `node_id` — the bridge resolves it from `path`, and neither the system nor an actor
   carries one.

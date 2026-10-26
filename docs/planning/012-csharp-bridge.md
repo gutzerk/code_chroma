@@ -87,6 +87,7 @@ Deliberate owner decisions that are not gaps: offline summaries only in the live
 | `dependency-digest.json` written after analyze/reanalyze; custom-diagram staleness hashes it | done (`CoreGraphEngine.WriteDigest`, `DiagramArtifacts.DigestFingerprint`) |
 | First-open bootstrap: deterministic `c1` draft and model-confirmed `patterns` (`bootstrap_diagrams.py`) | done (`Diagrams/DiagramBootstrap.cs`, `C1Template.cs`, `PatternsGenerator.cs`, `Skills/QuickLlm.cs`); contract case `a_fresh_repo_gets_a_draft_c1_with_a_system_node` |
 | Watcher events | `impact-changes`, `wiki-general` (index file and HEAD move), `custom`/`feature-plan` plus `canvas` for any file under their folders; contract cases in `transport.cases.json` |
+| Agent questions (024): non-blocking `ask_user` at `/mcp/`, `/questions` routes, per-question `decisions/<qid>` layers, answers typed into the agent terminal (`Questions/`, `QuestionDelivery.cs`; contract `questions.cases.json`) | done. Gaps: Codex is not wired (Claude windows only); the Python plugin hook (`hooks/ask_user_question_hook.py`) needs Python on PATH (the C# bridge binary is its own hook); the Avalonia canvas has no `question` render kind; not verified against a real `claude` process |
 | `AskUserQuestion` PreToolUse hook | done: the bridge binary is the hook (`ask-user-question` subcommand, `Questions/AskUserQuestionHook.cs`); `--settings` is passed whenever the window has tracking or an MCP endpoint, never for a bare window |
 | PR and agent workspaces read C1 through `c1_source_root` | done (`Workspace.C1Root`; `c1/generate?only_if_missing` and `diagrams/status`) |
 | `ensure_excluded`, skill sync, plain wiki bootstrap, `PrepareNewRun` wiki sync | same |
@@ -136,3 +137,5 @@ Ported to `dotnet/CodeChroma.Bridge` by the `bridge-skills` branch; all of it ha
 
 Known differences: the custom-diagram staleness fingerprint hashes `.codechroma/dependency-digest.json` with a C# canonical-JSON hash (stable per backend, not byte-equal to Python's); `epic_brief_agent`'s prompt carries compact JSON; a login shell is captured with `env -0` (POSIX) or `Get-ChildItem env:` (PowerShell) instead of the Python helper.
 Pre-existing, not from this change: on the integration branch `tests/fixtures/sample_repo/.claude/` is tracked (commit 21b0ec0), which makes two Python `graph::structure_*` contract cases fail.
+
+Draw dialog (025): the Python bridge now validates and persists `diagram_type` / `diagram_request` / `diagram_scope` / `selection_ids` on `POST /agents` (it carried no diagram hint before) and serves `GET /diagram-kinds`, both from the same `kinds.json` as C#. Deliberate gap: only C# composes the drawing agent's first message from the request (Python has no `BareSkill`).

@@ -1,6 +1,6 @@
 ---
 name: codechroma-grill
-description: Ask the user decisions on the CodeChroma canvas instead of in chat text. Use whenever you need the user to choose between approaches, or when the user asks you to "grill me", interview them, or walk through design decisions one question at a time -- you ask through the `ask_user` MCP tool of the `codechroma` server.
+description: Ask the user decisions on the CodeChroma canvas instead of in chat text. Use whenever the user must choose, decide or pick which approach to take, or asks you to "grill me", interview them, or walk through design decisions one question at a time -- you ask through the `ask_user` MCP tool of the `codechroma` server, then end your turn.
 ---
 
 When you need a decision from the user, ask it on the CodeChroma canvas with the `ask_user` MCP tool
@@ -9,7 +9,7 @@ question as chat text, and do not use `AskUserQuestion` when `ask_user` is avail
 
 ## How to ask
 
-- One question per call, and wait for its answer before asking the next. A later question may
+- One question per call, and ask the next only after the answer arrives. A later question may
   depend on an earlier answer.
 - Give 2-4 `options`, each with `id`, `title`, `description`, `pro`, `con`, `rank` and `why`.
   - `rank` orders your preference: exactly one option has `rank: 1`, the one you recommend.
@@ -23,17 +23,22 @@ question as chat text, and do not use `AskUserQuestion` when `ask_user` is avail
 - For a multi-question session reuse one `session_id` and set `total` to the number of questions
   you expect, so the canvas can show progress.
 
-## Using the result
+## After asking
 
-- `{"answer": ..., "option_id": ..., "skipped": false}`: take `answer` as the user's decision (it
-  is the chosen option's title, or the text they typed) and move on.
-- `{"skipped": true}`: the user declined; pick your recommended option yourself, say so in one line,
-  and continue.
-- `{"needs": "diagram", "question_id": "..."}`: the user wants diagrams on this question. Draw one per
-  option with `codechroma-decision-diagram`, then call `ask_user` again with the same `session_id`
-  and question text and each option's `diagram_ref`.
-- `{"pending": true, "question_id": "..."}`: the user has not answered yet. Call `ask_user_result`
-  with that `question_id`, repeatedly if it is still pending, and do not proceed or re-ask the same
-  question in the meantime.
+`ask_user` returns at once with `{"asked": true, "question_id": "...", "next": "End your turn now..."}`.
 
-If the `ask_user` tool is not available in this session, fall back to asking in chat.
+- **Stop and end your turn right away.** Do not poll, do not wait, and never repeat the question in
+  chat. The user's answer arrives as your next message.
+- That message starts with `[CodeChroma answer · Q1/3 · <question_id>]` and ends with
+  `<question> → <outcome>`:
+  - `→ <text>`: take it as the user's decision (the chosen option's title, or the text they typed)
+    and move on.
+  - `→ skipped by the user, decide yourself`: pick your recommended option, say so in one line, and
+    continue.
+  - `→ changed answer: <text>`: the user revised an earlier answer; adjust what you did since.
+- A message starting `[CodeChroma request ...]` means the user wants a diagram per option on that
+  question: draw one per option with `codechroma-decision-diagram`, then call `ask_user` again with
+  the same `session_id` and question text and each option's `diagram_ref`.
+- `ask_user_result` with a `question_id` reads an answer back; only use it if no message arrived.
+
+Only if the `ask_user` tool is not available in this session, ask in chat instead.

@@ -284,7 +284,7 @@ branch through an agent attached to it (`_guard_shared_worktree`, keyed off `Age
   (`terminal/agents.py`), which appends it as a positional argv entry for the `claude` binary — so the
   CLI process starts already answering it, and the window the user opens already shows the agent's
   question instead of an empty prompt waiting on idle-detection. `DrawDiagramButton`'s "Draw…" button
-  (see `single-canvas.md`) is the one caller today: `attachAgent`/`launchAgent` accept an optional `task`
+  (now via `DrawDialog`, see `web-canvas-shell.md`) is the one caller today: `attachAgent`/`launchAgent` accept an optional `task`
   string that, when given, takes priority over `context` and is sent with `contextKind: "task"`.
   🔴 **`context` is control-character-free by construction** (`manager._clean_context`, applied in
   both `create()` and `AgentRecord.from_json`, so a record persisted by an older build is cleaned on
@@ -508,11 +508,11 @@ never written to; `{resume:true}` resumes the agent's own (forked) session as us
 transcript in the shared worktree. Deleting the worktree or branch through
 such an agent is refused (the run owns them). Runs are looked up under the main repository only.
 Web: `AgentClient.openStepSession`, `launchAgent.openStepAgent`, the Open agent button in
-`workflows/StepRail.tsx`. Tests: `CodeChroma.Bridge.Tests/Agents/OpenStepAgentTests.cs`.
+`workflows/StepRail.tsx`. The workflow live view's Agent tab embeds the same forked agent's terminal (`workflows/StepTerminal.tsx`, `launchAgent.startStepAgent`: no window is opened, the agent is re-found by `source_run` + `fork_session`). Tests: `CodeChroma.Bridge.Tests/Agents/OpenStepAgentTests.cs`, `web/src/workflows/StepTerminal.test.tsx`.
 
 ## Canvas questions (017)
 
-Claude agent windows launch with the CodeChroma MCP server (`ask_user`) registered through `agent_cli`'s `mcp` parameter, plus the `CODECHROMA_BRIDGE_URL`/`CODECHROMA_QUESTION_TOKEN` env vars; see [`ai-questions.md`](ai-questions.md) "Agent wiring". A bridge restart invalidates old tokens, so agent windows are respawned with fresh ones.
+Claude agent windows launch with the CodeChroma MCP server (`ask_user`) registered through `agent_cli`'s `mcp` parameter, plus the `CODECHROMA_BRIDGE_URL`/`CODECHROMA_QUESTION_TOKEN` env vars; see [`ai-questions.md`](ai-questions.md) "Agent wiring". A bridge restart invalidates old tokens, so agent windows are respawned with fresh ones. `ask_user` is non-blocking: the agent ends its turn, and the user's answer (or skip, or an "Add diagram" request) is typed into that agent's terminal as its next message via `AgentSession.inject_when_idle` (1200 attempts, about 10 minutes of waiting for idle; `questions/delivery.py`, C# `QuestionDelivery.cs`), so an open question leaves the agent `idle` with the "?" badge rather than `running`.
 
 ## Agent panel modes (layout store)
 
@@ -553,3 +553,7 @@ agent while full screen is open, again on each status change and, while the agen
 `UsageStrip` renders "Context 62k / 200k · 31%" with a `role="meter"` bar, "Tokens 184k in · 12k out",
 "Cache hit 78%" and "Cost $0.84" (omitted when `costUsd` is null). Tests:
 `dotnet/CodeChroma.Bridge.Tests/Agents/AgentUsageTests.cs`, `web/src/agents/activity/UsageStrip.test.tsx`.
+
+## Drawing-agent fields (025)
+
+`POST /agents` also takes `diagram_type` and `diagram_request` (trimmed, one line, at most 2000 chars); they are validated (400 with a reason) and persisted on the agent record next to `context_kind`, only for `context_kind: "task"`. Both bridges carry them (`routes/agents.py` + `agents/manager.py`; `AgentRoutes.cs` + `DiagramHint.cs` + `AgentRecord.cs`) and report them on `GET /agents`. The Draw dialog sends only the type and the request (scope is written in the request, there is no separate scope field). Only the C# bridge composes the first message from them (see `diagram-skills.md`).

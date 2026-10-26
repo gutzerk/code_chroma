@@ -41,7 +41,7 @@ public sealed class QuestionAgentWiringTests : IDisposable
     }
 
     [Fact]
-    public void The_mcp_config_file_holds_an_http_server_with_a_bearer_header_and_a_long_timeout()
+    public void The_mcp_config_file_holds_an_http_server_with_a_bearer_header_and_a_short_timeout()
     {
         var launch = _agents.Resolve("claude", agentId: "agent-1", bridgeUrl: BridgeUrl)!;
 
@@ -50,7 +50,7 @@ public sealed class QuestionAgentWiringTests : IDisposable
         Assert.Equal("http", (string?)server["type"]);
         Assert.Equal(BridgeUrl + "/mcp/", (string?)server["url"]);
         Assert.Equal("Bearer " + launch.Env["CODECHROMA_QUESTION_TOKEN"], (string?)server["headers"]!["Authorization"]);
-        Assert.True((int)server["timeout"]! > 300_000);
+        Assert.Equal(60_000, (int)server["timeout"]!);
     }
 
     [Fact]

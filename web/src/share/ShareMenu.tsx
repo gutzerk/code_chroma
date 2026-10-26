@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { RailButton } from "../canvas/RailButton";
 import { RailIcon } from "../icons/RailIcon";
 import { useDisclosureMenu } from "../util/useDisclosureMenu";
@@ -24,11 +24,19 @@ export function ShareMenu({ name, layers }: ShareMenuProps) {
   const [open, setOpen] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [savedName, setSavedName] = useState<string | null>(null);
   const { containerRef, triggerRef, onListKeyDown } = useDisclosureMenu(open, () => setOpen(false));
+
+  useEffect(() => {
+    if (!savedName) return;
+    const timer = setTimeout(() => setSavedName(null), 4000);
+    return () => clearTimeout(timer);
+  }, [savedName]);
 
   const exportAs = async (format: ExportFormat) => {
     setOpen(false);
     setError(null);
+    setSavedName(null);
     const capture = prepareCapture(document, layers);
     if (!capture) {
       setError("Nothing to export yet");
@@ -39,7 +47,8 @@ export function ShareMenu({ name, layers }: ShareMenuProps) {
       const base = fileBase(name);
       const { mime, extension } = EXPORT_META[format];
       const blob = buildExport(format, capture, base).then((file) => file.blob);
-      await saveFile({ name: `${base}.${extension}`, mime, blob });
+      const fileName = `${base}.${extension}`;
+      if (await saveFile({ name: fileName, mime, blob })) setSavedName(fileName);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Export failed");
     } finally {
@@ -77,6 +86,11 @@ export function ShareMenu({ name, layers }: ShareMenuProps) {
             </li>
           ))}
         </ul>
+      )}
+      {savedName && (
+        <div className="share-menu-error share-menu-success" role="status" data-testid="share-menu-success">
+          {`Exported ${savedName}`}
+        </div>
       )}
       {error && (
         <div className="share-menu-error" role="alert" data-testid="share-menu-error">

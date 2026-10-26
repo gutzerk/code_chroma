@@ -1038,6 +1038,19 @@
   font: 14px/1.7 var(--font-mono);
 }
 
+.wf-live-body-terminal {
+  padding: 0;
+  overflow: hidden;
+}
+
+.wf-step-terminal {
+  height: 100%;
+}
+
+.wf-step-terminal .agent-window-terminal {
+  height: 100%;
+}
+
 .live-line {
   white-space: pre-wrap;
   overflow-wrap: anywhere;
@@ -1224,28 +1237,8 @@
   background: var(--accent-hover);
 }
 
-.chat-picker {
-  position: absolute;
-  bottom: 100%;
-  left: 0;
-  margin: 0 0 4px;
-  padding: 4px;
-  list-style: none;
-  background: #222836;
-  border: 1px solid var(--wf-line-strong);
-  border-radius: var(--radius-lg);
-}
 
-.chat-picker li[aria-selected="true"] {
-  background: var(--wf-line);
-}
 
-.chat-picker-option {
-  background: none;
-  border: none;
-  color: var(--wf-text);
-  cursor: pointer;
-}
 
 /* ---- overflow menu ---- */
 .wf-menu {

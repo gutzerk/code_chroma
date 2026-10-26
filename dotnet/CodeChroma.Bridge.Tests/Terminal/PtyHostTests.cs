@@ -170,6 +170,6 @@ public class PtyHostTests
 
         host.Write((OperatingSystem.IsWindows() ? "echo L=%LANG%=" : "echo L=$LANG=") + Newline);
 
-        Assert.True(await capture.WaitFor("L==") || await capture.WaitFor("L=%LANG%="), capture.Text);
+        Assert.True(await capture.WaitFor("L=") && !capture.Text.Contains("L=en_US.UTF-8="), capture.Text);
     }
 }

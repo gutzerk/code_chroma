@@ -25,6 +25,8 @@ export interface SoftAreaFrameProps {
   labelAction?: ReactNode;
   /** The diagram layer the frame belongs to, so a per-diagram export can keep or drop it. */
   layer?: string;
+  /** Set by `DiagramFrame` only: the selector target for centring the view on this diagram. */
+  diagramLayer?: string;
 }
 
 /**
@@ -46,6 +48,7 @@ export function SoftAreaFrame({
   interactiveProps,
   labelAction,
   layer,
+  diagramLayer,
 }: SoftAreaFrameProps) {
   const { left, top, right, bottom } = bounds;
   return (
@@ -54,6 +57,7 @@ export function SoftAreaFrame({
       data-testid={testId}
       data-canvas-element
       data-layer={layer}
+      data-diagram-layer={diagramLayer}
       style={{
         position: "absolute",
         // Whole pixels only: a fractional live-drag offset shifts a dashed border's antialiasing every frame.

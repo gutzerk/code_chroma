@@ -3,7 +3,7 @@ import type { AgentRecord } from "../../state/types";
 import { layoutStore } from "../../canvas/layout/layoutStore";
 import type { Run } from "../../workflows/types";
 import { agentStore } from "../agentStore";
-import { agentStatusLabel } from "../AgentLed";
+import { AgentLed, agentStatusLabel } from "../AgentLed";
 import { agentInitials } from "./initials";
 import { AgentsIcon, PlusIcon, WorkflowsIcon } from "./icons";
 
@@ -91,7 +91,7 @@ export function CollapsedStrip({
         >
           <span className="activity-avatar">
             {agentInitials(agent.title)}
-            <span className={`agent-led agent-led-${agent.status} activity-avatar-dot`} />
+            <AgentLed status={agent.status} agentId={agent.id} />
           </span>
         </StripButton>
       ))}

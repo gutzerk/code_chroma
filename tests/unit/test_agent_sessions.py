@@ -128,3 +128,28 @@ def test_inject_waits_for_the_agent_to_idle_before_typing(monkeypatch):
     written = _inject(monkeypatch, idle, "ctx", flip=flip)
 
     assert written == ["ctx\r"]
+
+
+def test_inject_attempts_argument_outlasts_the_context_default(monkeypatch):
+    calls: list[int] = []
+
+    def idle_on_fifth_poll(*_):
+        calls.append(1)
+        return "idle" if len(calls) >= 5 else None
+
+    from codechroma.bridge.agents import sessions as sessions_mod
+
+    written: list[str] = []
+
+    async def run() -> None:
+        monkeypatch.setattr(sessions_mod, "context_inject_attempts", lambda: 2)
+        monkeypatch.setattr(sessions_mod, "context_inject_interval_seconds", lambda: 0.001)
+        session = _make_injecting_session(monkeypatch, idle_on_fifth_poll, written)
+        try:
+            await session.inject_when_idle("answer", attempts=10)
+        finally:
+            session.close()
+
+    asyncio.run(run())
+
+    assert written == ["answer\r"]

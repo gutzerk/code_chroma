@@ -1,0 +1,1228 @@
+{
+  "group": "questions",
+  "sources": [
+    "src/codechroma/bridge/routes/questions.py",
+    "src/codechroma/questions/store.py",
+    "dotnet/CodeChroma.Bridge/Routes/QuestionRoutes.cs"
+  ],
+  "repo": {
+    "base": "sample_repo"
+  },
+  "cases": [
+    {
+      "id": "an_open_question_is_listed_as_not_waiting_without_a_live_agent",
+      "steps": [
+        {
+          "http": {
+            "method": "GET",
+            "path": "/repos/main/questions"
+          },
+          "expect": {
+            "status": 200,
+            "checks": [
+              {
+                "path": "$.questions",
+                "count": 0
+              }
+            ]
+          }
+        },
+        {
+          "http": {
+            "method": "PATCH",
+            "path": "/repos/main/canvas",
+            "json": {
+              "ops": [
+                {
+                  "op": "add_element",
+                  "temp_id": "q",
+                  "render": "question",
+                  "layer": "questions",
+                  "label": "Pick one?",
+                  "meta": {
+                    "question_id": "q1",
+                    "session_id": null,
+                    "step": 1,
+                    "total": 2,
+                    "kind": "choices",
+                    "state": "open",
+                    "answer": null,
+                    "option_id": null,
+                    "allow_custom": true,
+                    "allow_skip": true,
+                    "agent_id": "main",
+                    "options": [
+                      {
+                        "id": "a",
+                        "title": "Modular monolith",
+                        "description": "d",
+                        "pro": "p",
+                        "con": "c",
+                        "why": "w",
+                        "rank": 1
+                      },
+                      {
+                        "id": "b",
+                        "title": "Microservices",
+                        "description": "d",
+                        "pro": "p",
+                        "con": "c",
+                        "why": "w",
+                        "rank": 2
+                      }
+                    ]
+                  }
+                }
+              ]
+            }
+          },
+          "expect": {
+            "status": 200,
+            "checks": [
+              {
+                "path": "$.ok",
+                "equals": true
+              }
+            ]
+          }
+        },
+        {
+          "http": {
+            "method": "GET",
+            "path": "/repos/main/questions"
+          },
+          "expect": {
+            "status": 200,
+            "checks": [
+              {
+                "path": "$.questions",
+                "count": 1
+              },
+              {
+                "path": "$.questions[0].question_id",
+                "equals": "q1"
+              },
+              {
+                "path": "$.questions[0].question",
+                "equals": "Pick one?"
+              },
+              {
+                "path": "$.questions[0].waiting",
+                "equals": false
+              },
+              {
+                "path": "$.questions[0].state",
+                "equals": "open"
+              },
+              {
+                "path": "$.questions[0].options",
+                "count": 2
+              }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "answering_with_an_option_records_its_title_and_settles_the_question",
+      "steps": [
+        {
+          "http": {
+            "method": "PATCH",
+            "path": "/repos/main/canvas",
+            "json": {
+              "ops": [
+                {
+                  "op": "add_element",
+                  "temp_id": "q",
+                  "render": "question",
+                  "layer": "questions",
+                  "label": "Pick one?",
+                  "meta": {
+                    "question_id": "q1",
+                    "session_id": null,
+                    "step": 1,
+                    "total": 2,
+                    "kind": "choices",
+                    "state": "open",
+                    "answer": null,
+                    "option_id": null,
+                    "allow_custom": true,
+                    "allow_skip": true,
+                    "agent_id": "main",
+                    "options": [
+                      {
+                        "id": "a",
+                        "title": "Modular monolith",
+                        "description": "d",
+                        "pro": "p",
+                        "con": "c",
+                        "why": "w",
+                        "rank": 1
+                      },
+                      {
+                        "id": "b",
+                        "title": "Microservices",
+                        "description": "d",
+                        "pro": "p",
+                        "con": "c",
+                        "why": "w",
+                        "rank": 2
+                      }
+                    ]
+                  }
+                }
+              ]
+            }
+          },
+          "expect": {
+            "status": 200,
+            "checks": [
+              {
+                "path": "$.ok",
+                "equals": true
+              }
+            ]
+          }
+        },
+        {
+          "http": {
+            "method": "POST",
+            "path": "/repos/main/questions/q1/answer",
+            "json": {
+              "option_id": "a"
+            }
+          },
+          "expect": {
+            "status": 200,
+            "json": {
+              "ok": true,
+              "question_id": "q1",
+              "state": "answered",
+              "waiting": false,
+              "answer": "Modular monolith"
+            }
+          }
+        },
+        {
+          "http": {
+            "method": "GET",
+            "path": "/repos/main/questions"
+          },
+          "expect": {
+            "status": 200,
+            "checks": [
+              {
+                "path": "$.questions",
+                "count": 0
+              }
+            ]
+          }
+        },
+        {
+          "http": {
+            "method": "POST",
+            "path": "/repos/main/questions/q1/answer",
+            "json": {
+              "option_id": "b"
+            }
+          },
+          "expect": {
+            "status": 409,
+            "json": {
+              "detail": "question is already settled"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "a_custom_answer_is_accepted_and_trimmed",
+      "steps": [
+        {
+          "http": {
+            "method": "PATCH",
+            "path": "/repos/main/canvas",
+            "json": {
+              "ops": [
+                {
+                  "op": "add_element",
+                  "temp_id": "q",
+                  "render": "question",
+                  "layer": "questions",
+                  "label": "Pick one?",
+                  "meta": {
+                    "question_id": "q1",
+                    "session_id": null,
+                    "step": 1,
+                    "total": 2,
+                    "kind": "choices",
+                    "state": "open",
+                    "answer": null,
+                    "option_id": null,
+                    "allow_custom": true,
+                    "allow_skip": true,
+                    "agent_id": "main",
+                    "options": [
+                      {
+                        "id": "a",
+                        "title": "Modular monolith",
+                        "description": "d",
+                        "pro": "p",
+                        "con": "c",
+                        "why": "w",
+                        "rank": 1
+                      },
+                      {
+                        "id": "b",
+                        "title": "Microservices",
+                        "description": "d",
+                        "pro": "p",
+                        "con": "c",
+                        "why": "w",
+                        "rank": 2
+                      }
+                    ]
+                  }
+                }
+              ]
+            }
+          },
+          "expect": {
+            "status": 200,
+            "checks": [
+              {
+                "path": "$.ok",
+                "equals": true
+              }
+            ]
+          }
+        },
+        {
+          "http": {
+            "method": "POST",
+            "path": "/repos/main/questions/q1/answer",
+            "json": {
+              "answer": "  something else  "
+            }
+          },
+          "expect": {
+            "status": 200,
+            "json": {
+              "ok": true,
+              "question_id": "q1",
+              "state": "answered",
+              "waiting": false,
+              "answer": "something else"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "an_empty_or_unknown_answer_is_refused",
+      "steps": [
+        {
+          "http": {
+            "method": "PATCH",
+            "path": "/repos/main/canvas",
+            "json": {
+              "ops": [
+                {
+                  "op": "add_element",
+                  "temp_id": "q",
+                  "render": "question",
+                  "layer": "questions",
+                  "label": "Pick one?",
+                  "meta": {
+                    "question_id": "q1",
+                    "session_id": null,
+                    "step": 1,
+                    "total": 2,
+                    "kind": "choices",
+                    "state": "open",
+                    "answer": null,
+                    "option_id": null,
+                    "allow_custom": true,
+                    "allow_skip": true,
+                    "agent_id": "main",
+                    "options": [
+                      {
+                        "id": "a",
+                        "title": "Modular monolith",
+                        "description": "d",
+                        "pro": "p",
+                        "con": "c",
+                        "why": "w",
+                        "rank": 1
+                      },
+                      {
+                        "id": "b",
+                        "title": "Microservices",
+                        "description": "d",
+                        "pro": "p",
+                        "con": "c",
+                        "why": "w",
+                        "rank": 2
+                      }
+                    ]
+                  }
+                }
+              ]
+            }
+          },
+          "expect": {
+            "status": 200,
+            "checks": [
+              {
+                "path": "$.ok",
+                "equals": true
+              }
+            ]
+          }
+        },
+        {
+          "http": {
+            "method": "POST",
+            "path": "/repos/main/questions/q1/answer",
+            "json": {
+              "answer": "   "
+            }
+          },
+          "expect": {
+            "status": 422,
+            "json": {
+              "detail": "answer is empty"
+            }
+          }
+        },
+        {
+          "http": {
+            "method": "POST",
+            "path": "/repos/main/questions/q1/answer",
+            "json": {
+              "option_id": "zzz"
+            }
+          },
+          "expect": {
+            "status": 422,
+            "json": {
+              "detail": "unknown option_id"
+            }
+          }
+        },
+        {
+          "http": {
+            "method": "GET",
+            "path": "/repos/main/questions"
+          },
+          "expect": {
+            "status": 200,
+            "checks": [
+              {
+                "path": "$.questions",
+                "count": 1
+              }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "a_custom_answer_is_refused_when_the_question_does_not_allow_it",
+      "steps": [
+        {
+          "http": {
+            "method": "PATCH",
+            "path": "/repos/main/canvas",
+            "json": {
+              "ops": [
+                {
+                  "op": "add_element",
+                  "temp_id": "q",
+                  "render": "question",
+                  "layer": "questions",
+                  "label": "Pick one?",
+                  "meta": {
+                    "question_id": "q1",
+                    "session_id": null,
+                    "step": 1,
+                    "total": 2,
+                    "kind": "choices",
+                    "state": "open",
+                    "answer": null,
+                    "option_id": null,
+                    "allow_custom": false,
+                    "allow_skip": true,
+                    "agent_id": "main",
+                    "options": [
+                      {
+                        "id": "a",
+                        "title": "Modular monolith",
+                        "description": "d",
+                        "pro": "p",
+                        "con": "c",
+                        "why": "w",
+                        "rank": 1
+                      },
+                      {
+                        "id": "b",
+                        "title": "Microservices",
+                        "description": "d",
+                        "pro": "p",
+                        "con": "c",
+                        "why": "w",
+                        "rank": 2
+                      }
+                    ]
+                  }
+                }
+              ]
+            }
+          },
+          "expect": {
+            "status": 200,
+            "checks": [
+              {
+                "path": "$.ok",
+                "equals": true
+              }
+            ]
+          }
+        },
+        {
+          "http": {
+            "method": "POST",
+            "path": "/repos/main/questions/q1/answer",
+            "json": {
+              "answer": "mine"
+            }
+          },
+          "expect": {
+            "status": 422,
+            "json": {
+              "detail": "this question takes no custom answer"
+            }
+          }
+        },
+        {
+          "http": {
+            "method": "POST",
+            "path": "/repos/main/questions/q1/answer",
+            "json": {
+              "option_id": "a"
+            }
+          },
+          "expect": {
+            "status": 200,
+            "json": {
+              "ok": true,
+              "question_id": "q1",
+              "state": "answered",
+              "waiting": false,
+              "answer": "Modular monolith"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "skipping_settles_the_question_and_a_second_settle_conflicts",
+      "steps": [
+        {
+          "http": {
+            "method": "PATCH",
+            "path": "/repos/main/canvas",
+            "json": {
+              "ops": [
+                {
+                  "op": "add_element",
+                  "temp_id": "q",
+                  "render": "question",
+                  "layer": "questions",
+                  "label": "Pick one?",
+                  "meta": {
+                    "question_id": "q1",
+                    "session_id": null,
+                    "step": 1,
+                    "total": 2,
+                    "kind": "choices",
+                    "state": "open",
+                    "answer": null,
+                    "option_id": null,
+                    "allow_custom": true,
+                    "allow_skip": true,
+                    "agent_id": "main",
+                    "options": [
+                      {
+                        "id": "a",
+                        "title": "Modular monolith",
+                        "description": "d",
+                        "pro": "p",
+                        "con": "c",
+                        "why": "w",
+                        "rank": 1
+                      },
+                      {
+                        "id": "b",
+                        "title": "Microservices",
+                        "description": "d",
+                        "pro": "p",
+                        "con": "c",
+                        "why": "w",
+                        "rank": 2
+                      }
+                    ]
+                  }
+                }
+              ]
+            }
+          },
+          "expect": {
+            "status": 200,
+            "checks": [
+              {
+                "path": "$.ok",
+                "equals": true
+              }
+            ]
+          }
+        },
+        {
+          "http": {
+            "method": "POST",
+            "path": "/repos/main/questions/q1/skip"
+          },
+          "expect": {
+            "status": 200,
+            "json": {
+              "ok": true,
+              "question_id": "q1",
+              "state": "skipped",
+              "waiting": false
+            }
+          }
+        },
+        {
+          "http": {
+            "method": "GET",
+            "path": "/repos/main/questions"
+          },
+          "expect": {
+            "status": 200,
+            "checks": [
+              {
+                "path": "$.questions",
+                "count": 0
+              }
+            ]
+          }
+        },
+        {
+          "http": {
+            "method": "POST",
+            "path": "/repos/main/questions/q1/skip"
+          },
+          "expect": {
+            "status": 409,
+            "json": {
+              "detail": "question is already settled"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "skip_is_refused_when_the_question_cannot_be_skipped",
+      "steps": [
+        {
+          "http": {
+            "method": "PATCH",
+            "path": "/repos/main/canvas",
+            "json": {
+              "ops": [
+                {
+                  "op": "add_element",
+                  "temp_id": "q",
+                  "render": "question",
+                  "layer": "questions",
+                  "label": "Pick one?",
+                  "meta": {
+                    "question_id": "q1",
+                    "session_id": null,
+                    "step": 1,
+                    "total": 2,
+                    "kind": "choices",
+                    "state": "open",
+                    "answer": null,
+                    "option_id": null,
+                    "allow_custom": true,
+                    "allow_skip": false,
+                    "agent_id": "main",
+                    "options": [
+                      {
+                        "id": "a",
+                        "title": "Modular monolith",
+                        "description": "d",
+                        "pro": "p",
+                        "con": "c",
+                        "why": "w",
+                        "rank": 1
+                      },
+                      {
+                        "id": "b",
+                        "title": "Microservices",
+                        "description": "d",
+                        "pro": "p",
+                        "con": "c",
+                        "why": "w",
+                        "rank": 2
+                      }
+                    ]
+                  }
+                }
+              ]
+            }
+          },
+          "expect": {
+            "status": 200,
+            "checks": [
+              {
+                "path": "$.ok",
+                "equals": true
+              }
+            ]
+          }
+        },
+        {
+          "http": {
+            "method": "POST",
+            "path": "/repos/main/questions/q1/skip"
+          },
+          "expect": {
+            "status": 422,
+            "json": {
+              "detail": "this question cannot be skipped"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "an_unknown_question_is_a_404_on_every_action",
+      "steps": [
+        {
+          "http": {
+            "method": "POST",
+            "path": "/repos/main/questions/ghost/answer",
+            "json": {
+              "answer": "x"
+            }
+          },
+          "expect": {
+            "status": 404,
+            "json": {
+              "detail": "unknown question"
+            }
+          }
+        },
+        {
+          "http": {
+            "method": "POST",
+            "path": "/repos/main/questions/ghost/skip"
+          },
+          "expect": {
+            "status": 404,
+            "json": {
+              "detail": "unknown question"
+            }
+          }
+        },
+        {
+          "http": {
+            "method": "POST",
+            "path": "/repos/main/questions/ghost/revise"
+          },
+          "expect": {
+            "status": 404,
+            "json": {
+              "detail": "unknown question"
+            }
+          }
+        },
+        {
+          "http": {
+            "method": "POST",
+            "path": "/repos/main/questions/ghost/request-diagram"
+          },
+          "expect": {
+            "status": 404,
+            "json": {
+              "detail": "unknown question"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "revise_reopens_the_question_and_deletes_later_steps_of_its_session",
+      "steps": [
+        {
+          "http": {
+            "method": "PATCH",
+            "path": "/repos/main/canvas",
+            "json": {
+              "ops": [
+                {
+                  "op": "add_element",
+                  "temp_id": "q1",
+                  "render": "question",
+                  "layer": "questions",
+                  "label": "Pick one?",
+                  "meta": {
+                    "question_id": "q1",
+                    "session_id": "s",
+                    "step": 1,
+                    "total": 2,
+                    "kind": "choices",
+                    "state": "open",
+                    "answer": null,
+                    "option_id": null,
+                    "allow_custom": true,
+                    "allow_skip": true,
+                    "agent_id": "main",
+                    "options": [
+                      {
+                        "id": "a",
+                        "title": "Modular monolith",
+                        "description": "d",
+                        "pro": "p",
+                        "con": "c",
+                        "why": "w",
+                        "rank": 1
+                      },
+                      {
+                        "id": "b",
+                        "title": "Microservices",
+                        "description": "d",
+                        "pro": "p",
+                        "con": "c",
+                        "why": "w",
+                        "rank": 2
+                      }
+                    ]
+                  }
+                },
+                {
+                  "op": "add_element",
+                  "temp_id": "q2",
+                  "render": "question",
+                  "layer": "questions",
+                  "label": "Pick one?",
+                  "meta": {
+                    "question_id": "q2",
+                    "session_id": "s",
+                    "step": 2,
+                    "total": 2,
+                    "kind": "choices",
+                    "state": "open",
+                    "answer": null,
+                    "option_id": null,
+                    "allow_custom": true,
+                    "allow_skip": true,
+                    "agent_id": "main",
+                    "options": [
+                      {
+                        "id": "a",
+                        "title": "Modular monolith",
+                        "description": "d",
+                        "pro": "p",
+                        "con": "c",
+                        "why": "w",
+                        "rank": 1
+                      },
+                      {
+                        "id": "b",
+                        "title": "Microservices",
+                        "description": "d",
+                        "pro": "p",
+                        "con": "c",
+                        "why": "w",
+                        "rank": 2
+                      }
+                    ]
+                  }
+                }
+              ]
+            }
+          },
+          "expect": {
+            "status": 200,
+            "checks": [
+              {
+                "path": "$.ok",
+                "equals": true
+              }
+            ]
+          }
+        },
+        {
+          "http": {
+            "method": "POST",
+            "path": "/repos/main/questions/q1/answer",
+            "json": {
+              "option_id": "a"
+            }
+          },
+          "expect": {
+            "status": 200,
+            "json": {
+              "ok": true,
+              "question_id": "q1",
+              "state": "answered",
+              "waiting": false,
+              "answer": "Modular monolith"
+            }
+          }
+        },
+        {
+          "http": {
+            "method": "POST",
+            "path": "/repos/main/questions/q2/answer",
+            "json": {
+              "option_id": "b"
+            }
+          },
+          "expect": {
+            "status": 200,
+            "json": {
+              "ok": true,
+              "question_id": "q2",
+              "state": "answered",
+              "waiting": false,
+              "answer": "Microservices"
+            }
+          }
+        },
+        {
+          "http": {
+            "method": "POST",
+            "path": "/repos/main/questions/q1/revise"
+          },
+          "expect": {
+            "status": 200,
+            "checks": [
+              {
+                "path": "$.ok",
+                "equals": true
+              },
+              {
+                "path": "$.state",
+                "equals": "open"
+              },
+              {
+                "path": "$.waiting",
+                "equals": false
+              },
+              {
+                "path": "$.removed",
+                "count": 1
+              }
+            ]
+          }
+        },
+        {
+          "http": {
+            "method": "GET",
+            "path": "/repos/main/questions"
+          },
+          "expect": {
+            "status": 200,
+            "checks": [
+              {
+                "path": "$.questions",
+                "count": 1
+              },
+              {
+                "path": "$.questions[0].question_id",
+                "equals": "q1"
+              },
+              {
+                "path": "$.questions[0].answer",
+                "equals": null
+              },
+              {
+                "path": "$.questions[0].revised",
+                "equals": true
+              }
+            ]
+          }
+        },
+        {
+          "http": {
+            "method": "POST",
+            "path": "/repos/main/questions/q2/answer",
+            "json": {
+              "option_id": "b"
+            }
+          },
+          "expect": {
+            "status": 404,
+            "json": {
+              "detail": "unknown question"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "request_diagram_marks_the_question_and_repeated_clicks_count_once",
+      "steps": [
+        {
+          "http": {
+            "method": "PATCH",
+            "path": "/repos/main/canvas",
+            "json": {
+              "ops": [
+                {
+                  "op": "add_element",
+                  "temp_id": "q",
+                  "render": "question",
+                  "layer": "questions",
+                  "label": "Pick one?",
+                  "meta": {
+                    "question_id": "q1",
+                    "session_id": null,
+                    "step": 1,
+                    "total": 2,
+                    "kind": "choices",
+                    "state": "open",
+                    "answer": null,
+                    "option_id": null,
+                    "allow_custom": true,
+                    "allow_skip": true,
+                    "agent_id": "main",
+                    "options": [
+                      {
+                        "id": "a",
+                        "title": "Modular monolith",
+                        "description": "d",
+                        "pro": "p",
+                        "con": "c",
+                        "why": "w",
+                        "rank": 1
+                      },
+                      {
+                        "id": "b",
+                        "title": "Microservices",
+                        "description": "d",
+                        "pro": "p",
+                        "con": "c",
+                        "why": "w",
+                        "rank": 2
+                      }
+                    ]
+                  }
+                }
+              ]
+            }
+          },
+          "expect": {
+            "status": 200,
+            "checks": [
+              {
+                "path": "$.ok",
+                "equals": true
+              }
+            ]
+          }
+        },
+        {
+          "http": {
+            "method": "POST",
+            "path": "/repos/main/questions/q1/request-diagram"
+          },
+          "expect": {
+            "status": 200,
+            "json": {
+              "ok": true,
+              "question_id": "q1",
+              "state": "open",
+              "waiting": false
+            }
+          }
+        },
+        {
+          "http": {
+            "method": "POST",
+            "path": "/repos/main/questions/q1/request-diagram"
+          },
+          "expect": {
+            "status": 200,
+            "json": {
+              "ok": true,
+              "question_id": "q1",
+              "state": "open",
+              "waiting": false
+            }
+          }
+        },
+        {
+          "http": {
+            "method": "GET",
+            "path": "/repos/main/questions"
+          },
+          "expect": {
+            "status": 200,
+            "checks": [
+              {
+                "path": "$.questions[0].diagram_requested",
+                "equals": true
+              },
+              {
+                "path": "$.questions[0].diagram_requests",
+                "equals": 1
+              },
+              {
+                "path": "$.questions[0].diagram_requested_at",
+                "type": "string"
+              }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "request_diagram_is_refused_without_options_or_when_every_option_has_a_diagram",
+      "steps": [
+        {
+          "http": {
+            "method": "PATCH",
+            "path": "/repos/main/canvas",
+            "json": {
+              "ops": [
+                {
+                  "op": "add_element",
+                  "temp_id": "none",
+                  "render": "question",
+                  "layer": "questions",
+                  "label": "Pick one?",
+                  "meta": {
+                    "question_id": "q-none",
+                    "session_id": null,
+                    "step": 1,
+                    "total": 2,
+                    "kind": "choices",
+                    "state": "open",
+                    "answer": null,
+                    "option_id": null,
+                    "allow_custom": true,
+                    "allow_skip": true,
+                    "agent_id": "main",
+                    "options": []
+                  }
+                },
+                {
+                  "op": "add_element",
+                  "temp_id": "full",
+                  "render": "question",
+                  "layer": "questions",
+                  "label": "Pick one?",
+                  "meta": {
+                    "question_id": "q-full",
+                    "session_id": null,
+                    "step": 1,
+                    "total": 2,
+                    "kind": "choices",
+                    "state": "open",
+                    "answer": null,
+                    "option_id": null,
+                    "allow_custom": true,
+                    "allow_skip": true,
+                    "agent_id": "main",
+                    "options": [
+                      {
+                        "id": "a",
+                        "title": "A",
+                        "description": "d",
+                        "pro": "p",
+                        "con": "c",
+                        "why": "w",
+                        "rank": 1,
+                        "diagram_ref": "d1"
+                      },
+                      {
+                        "id": "b",
+                        "title": "B",
+                        "description": "d",
+                        "pro": "p",
+                        "con": "c",
+                        "why": "w",
+                        "rank": 2,
+                        "diagram_ref": "d2"
+                      }
+                    ]
+                  }
+                }
+              ]
+            }
+          },
+          "expect": {
+            "status": 200,
+            "checks": [
+              {
+                "path": "$.ok",
+                "equals": true
+              }
+            ]
+          }
+        },
+        {
+          "http": {
+            "method": "POST",
+            "path": "/repos/main/questions/q-none/request-diagram"
+          },
+          "expect": {
+            "status": 422,
+            "json": {
+              "detail": "this question has no options"
+            }
+          }
+        },
+        {
+          "http": {
+            "method": "POST",
+            "path": "/repos/main/questions/q-full/request-diagram"
+          },
+          "expect": {
+            "status": 422,
+            "json": {
+              "detail": "every option already has a diagram"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "a_question_without_a_token_cannot_ask_over_the_hook_route",
+      "steps": [
+        {
+          "http": {
+            "method": "POST",
+            "path": "/repos/main/questions/ask",
+            "json": {
+              "question": "Pick?",
+              "options": []
+            }
+          },
+          "expect": {
+            "status": 401,
+            "json": {
+              "detail": "invalid or missing workspace token"
+            }
+          }
+        }
+      ]
+    }
+  ]
+}

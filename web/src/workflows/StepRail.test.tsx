@@ -152,6 +152,12 @@ describe("StepRail", () => {
     expect(actions.review).toHaveBeenCalledWith("r1", "sendBack", undefined);
   });
 
+  it("shows what a blocked agent reported on its parked step", () => {
+    renderRail(makeRun([step("s3", "needs_you", { report: { status: "blocked", note: "need the API key" } })]));
+
+    expect(screen.getByText("Agent is blocked: need the API key")).toBeTruthy();
+  });
+
   it("approves a review step", () => {
     const actions = renderRail(makeRun([step("s3", "needs_you")]), { expandedStepId: "s3" });
 

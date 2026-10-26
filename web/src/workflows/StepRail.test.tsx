@@ -59,6 +59,19 @@ const threeSteps = () => [step("s1", "done"), step("s2", "running"), step("s3", 
 describe("StepRail", () => {
   afterEach(cleanup);
 
+  it("shows the previous agent's result on a review step that waits for you", () => {
+    const run = makeRun([
+      step("s1", "done", { output: "⏺ Read(a)\nplanned it", result: "Plan: do A then B" }),
+      step("s2", "done", { output: "⏺ Edit(b)\n✓ done", result: "Built B" }),
+      step("s3", "needs_you"),
+    ]);
+
+    renderRail(run);
+
+    expect(screen.getByTestId("handover-review")).toHaveTextContent("Result from implement");
+    expect(screen.getByTestId("handover-review")).toHaveTextContent("Built B");
+  });
+
   it("renders one row per step with its slug, status text and current marker", () => {
     renderRail(makeRun(threeSteps()));
 

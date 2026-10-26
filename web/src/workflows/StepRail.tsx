@@ -124,6 +124,18 @@ function summaryLine(output: string): string {
   return output.split("\n").map((l) => l.trim()).find((l) => l && !l.startsWith("---")) ?? "";
 }
 
+/** What the nearest earlier finished agent step produced, for the review step that follows it. */
+function previousResult(run: Run, workflow: WorkflowDef, index: number): { slug: string; text: string } | null {
+  for (let i = index - 1; i >= 0; i--) {
+    const record = run.steps[i];
+    const def = workflow.steps.find((s) => s.id === record.stepId);
+    if (record.status === "skipped" || def?.kind !== "agent") continue;
+    const text = record.result?.trim() || (record.status === "done" ? summaryLine(record.output) : "");
+    return text ? { slug: def.slug, text } : null;
+  }
+  return null;
+}
+
 /** The last few output lines of the running step, shown inline on its card. */
 function liveLines(output: string): string[] {
   return output.split("\n").filter((l) => l.trim()).slice(-3);
@@ -169,7 +181,7 @@ export function StepRail({
         const rowActions = readOnly ? [] : stepActions(run, step);
         const panelId = `step-panel-${run.id}-${step.stepId}`;
         const between = defIndex >= 0 ? betweenLabel(workflow.steps, defIndex, previousSlug) : null;
-        const modeLabel = defIndex >= 0 ? stepModeLabel(workflow.steps, defIndex) : null;
+        const modeLabel = defIndex >= 0 ? stepModeLabel(workflow.steps, defIndex, undefined, step.usage?.model) : null;
         const badge = defIndex >= 0 ? sessionBadge(workflow.steps, defIndex, step) : null;
         const chip = defIndex >= 0 ? resumesChip(workflow.steps, defIndex, step) : null;
         const sessionId = step.sessionId;
@@ -178,7 +190,8 @@ export function StepRail({
             ? () => void openStepAgent(agentClient, `${slug} ${run.id}`, run.id, sessionId)
             : undefined;
         const yours = def?.kind === "review";
-        const summary = step.status === "done" ? summaryLine(step.output) : "";
+        const summary = step.status === "done" ? summaryLine(step.result?.trim() || step.output) : "";
+        const handedOver = yours && (step.status === "needs_you" || expanded) ? previousResult(run, workflow, index) : null;
         const live = step.status === "running" ? liveLines(step.output) : [];
         return (
           <li
@@ -284,6 +297,12 @@ export function StepRail({
                   >
                     <span aria-hidden="true" className="step-gutter-dot" data-set={hasBreakpoint} />
                   </button>
+                )}
+                {handedOver && (
+                  <div className="step-handover" data-testid={`handover-${slug}`}>
+                    <span className="step-handover-title">{`Result from ${handedOver.slug}`}</span>
+                    <pre className="step-handover-text">{handedOver.text}</pre>
+                  </div>
                 )}
                 {expanded && (
                   <StepControls

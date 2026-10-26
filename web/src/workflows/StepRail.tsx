@@ -278,7 +278,7 @@ export function StepRail({
                   )}
                   {summary && <span className="step-summary">{summary}</span>}
                   {step.status === "needs_you" && step.report && step.report.status !== "done" && (
-                    <span className="step-summary" data-testid={`report-${slug}`}>
+                    <span className="step-summary">
                       {`Agent ${step.report.status === "question" ? "asks" : "is blocked"}: ${step.report.note || "no details"}`}
                     </span>
                   )}

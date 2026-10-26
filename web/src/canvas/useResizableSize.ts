@@ -47,7 +47,7 @@ export interface ResizableOptions {
   onExceedMax?: () => void;
 }
 
-const EXCEED_SLACK = 48;
+const EXCEED_SLACK = 24;
 
 /** Drag-to-resize state for a panel handle: spread `handleProps` onto the handle element and apply
  * `size` as explicit width/height once set — before the first drag, `size` is null and the panel's
@@ -113,7 +113,7 @@ export function useResizableSize(
     const heightFraction = axis === "y" ? maxViewportFraction : MAX_VIEWPORT_FRACTION;
     const maxWidth = (window.innerWidth * widthFraction) / resize.scale;
     const maxHeight = (window.innerHeight * heightFraction) / resize.scale;
-    if (onExceedMax && axis === "x" && resize.startWidth + dx > maxWidth + EXCEED_SLACK) {
+    if (onExceedMax && axis === "x" && resize.startWidth + dx >= maxWidth + EXCEED_SLACK / resize.scale) {
       resizeRef.current = null;
       setIsResizing(false);
       setSize(null);

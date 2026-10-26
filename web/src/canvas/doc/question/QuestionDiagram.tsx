@@ -1,6 +1,8 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import type { CanvasDoc, CanvasElement } from "../../../state/types";
 import { useCanvasFocus } from "../../CanvasFocusContext";
+import { clamp } from "../../../util/clamp";
+import { ArrowMarkerDefs } from "../../connectors/ArrowMarkerDefs";
 import { elementRect } from "../elementRect";
 import type { QuestionOption } from "./questionAdapter";
 import { QUESTION_STRINGS as S } from "./questionStrings";
@@ -9,6 +11,9 @@ const MAX_NODES = 40;
 const PAD = 24;
 /** Smallest fit scale, so labels stay readable; a larger diagram is panned instead of shrunk. */
 const MIN_FIT = 0.6;
+const MIN_ZOOM = 0.25;
+const MAX_ZOOM = 3;
+const ARROW_MARKERS = [{ id: "aq-arrow", className: "aq-diagram-arrowhead" }] as const;
 
 /** The element an option points at plus its children: members of its group and everything reachable along its arrows. */
 export function diagramSubgraph(doc: CanvasDoc, rootId: string): CanvasElement[] {
@@ -90,14 +95,15 @@ export function QuestionDiagram({ doc, options, selectedId, onSelect, variant }:
     return () => window.removeEventListener("keydown", onKey);
   }, [full]);
 
-  useEffect(() => {
+  const resetView = () => {
     setPan({ x: 0, y: 0 });
     setZoom(1);
-  }, [root?.id]);
+  };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  useEffect(resetView, [root?.id]);
 
   const scale = fit * zoom;
   const onPointerDown = (event: React.PointerEvent<HTMLDivElement>) => {
-    if ((event.target as HTMLElement).closest(".aq-diagram-tools")) return;
     dragRef.current = { x: event.clientX, y: event.clientY, px: pan.x, py: pan.y };
     event.currentTarget.setPointerCapture?.(event.pointerId);
   };
@@ -109,10 +115,50 @@ export function QuestionDiagram({ doc, options, selectedId, onSelect, variant }:
     dragRef.current = null;
   };
   const onWheel = (event: React.WheelEvent<HTMLDivElement>) => {
-    setZoom((z) => Math.min(3, Math.max(0.25, z * (event.deltaY < 0 ? 1.1 : 1 / 1.1))));
+    setZoom((z) => clamp(z * (event.deltaY < 0 ? 1.1 : 1 / 1.1), MIN_ZOOM, MAX_ZOOM));
   };
-  const byId = new Map(nodes.map((el) => [el.id, el]));
-  const edges = Object.values(doc.edges).filter((e) => byId.has(e.from) && byId.has(e.to));
+  const stageContent = useMemo(() => {
+    if (!layout) return null;
+    const byId = new Map(nodes.map((el) => [el.id, el]));
+    const center = (el: CanvasElement) => {
+      const r = elementRect(el);
+      return { x: r.left + r.width / 2 - layout.left, y: r.top + r.height / 2 - layout.top };
+    };
+    const edges = Object.values(doc.edges).filter((e) => byId.has(e.from) && byId.has(e.to));
+    return (
+      <>
+        <svg className="aq-diagram-edges" width={layout.width} height={layout.height}>
+          <ArrowMarkerDefs markers={ARROW_MARKERS} />
+          {edges.map((e) => {
+            const p1 = center(byId.get(e.from) as CanvasElement);
+            const p2 = center(byId.get(e.to) as CanvasElement);
+            return (
+              <g key={e.id}>
+                <line x1={p1.x} y1={p1.y} x2={p2.x} y2={p2.y} markerEnd="url(#aq-arrow)" />
+                {e.label && (
+                  <text className="aq-diagram-edge-label" x={(p1.x + p2.x) / 2} y={(p1.y + p2.y) / 2} textAnchor="middle">
+                    {e.label}
+                  </text>
+                )}
+              </g>
+            );
+          })}
+        </svg>
+        {layout.rects.map(({ el, rect }) => (
+          <div
+            key={el.id}
+            className="aq-diagram-node"
+            data-testid="question-diagram-node"
+            data-new={el.meta.status === "new" || undefined}
+            style={{ left: rect.left - layout.left, top: rect.top - layout.top, width: rect.width, height: rect.height }}
+          >
+            <b>{el.label}</b>
+            {el.description && <span>{el.description}</span>}
+          </div>
+        ))}
+      </>
+    );
+  }, [layout, nodes, doc.edges]);
 
   return (
     <div
@@ -166,51 +212,15 @@ export function QuestionDiagram({ doc, options, selectedId, onSelect, variant }:
             className="aq-diagram-stage"
             style={{ width: layout.width, height: layout.height, transform: `translate(${pan.x}px, ${pan.y}px) scale(${scale})` }}
           >
-            <svg className="aq-diagram-edges" width={layout.width} height={layout.height}>
-              <defs>
-                <marker id="aq-arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse">
-                  <path d="M0 0L10 5L0 10z" fill="currentColor" stroke="none" />
-                </marker>
-              </defs>
-              {edges.map((e) => {
-                const a = elementRect(byId.get(e.from) as CanvasElement);
-                const b = elementRect(byId.get(e.to) as CanvasElement);
-                const x1 = a.left + a.width / 2 - layout.left;
-                const y1 = a.top + a.height / 2 - layout.top;
-                const x2 = b.left + b.width / 2 - layout.left;
-                const y2 = b.top + b.height / 2 - layout.top;
-                return (
-                  <g key={e.id}>
-                    <line x1={x1} y1={y1} x2={x2} y2={y2} markerEnd="url(#aq-arrow)" />
-                    {e.label && (
-                      <text className="aq-diagram-edge-label" x={(x1 + x2) / 2} y={(y1 + y2) / 2} textAnchor="middle">
-                        {e.label}
-                      </text>
-                    )}
-                  </g>
-                );
-              })}
-            </svg>
-            {layout.rects.map(({ el, rect }) => (
-              <div
-                key={el.id}
-                className="aq-diagram-node"
-                data-testid="question-diagram-node"
-                data-new={el.meta.status === "new" || undefined}
-                style={{ left: rect.left - layout.left, top: rect.top - layout.top, width: rect.width, height: rect.height }}
-              >
-                <b>{el.label}</b>
-                {el.description && <span>{el.description}</span>}
-              </div>
-            ))}
+            {stageContent}
           </div>
         ) : (
           <div className="aq-diagram-empty">{S.noDiagram}</div>
         )}
-        <div className="aq-diagram-tools">
-          <button type="button" aria-label={S.zoomOut} onClick={() => setZoom((z) => Math.max(0.25, z - 0.25))}>−</button>
-          <button type="button" aria-label={S.zoomIn} onClick={() => setZoom((z) => Math.min(3, z + 0.25))}>+</button>
-          <button type="button" aria-label={S.zoomFit} onClick={() => { setZoom(1); setPan({ x: 0, y: 0 }); }}>⤢</button>
+        <div className="aq-diagram-tools" onPointerDown={(event) => event.stopPropagation()}>
+          <button type="button" aria-label={S.zoomOut} onClick={() => setZoom((z) => clamp(z - 0.25, MIN_ZOOM, MAX_ZOOM))}>−</button>
+          <button type="button" aria-label={S.zoomIn} onClick={() => setZoom((z) => clamp(z + 0.25, MIN_ZOOM, MAX_ZOOM))}>+</button>
+          <button type="button" aria-label={S.zoomFit} onClick={resetView}>⤢</button>
           {variant === "pane" && (
             <button type="button" aria-label={full ? S.closeFullScreen : S.fullScreen} onClick={() => setFull((v) => !v)}>
               {full ? "×" : "⛶"}

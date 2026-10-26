@@ -100,25 +100,29 @@ public static class AgentRoutes
             var taskText = pending is { Kind: "task" } ? pending.Value.Text : null;
             var bare = false;
             string? visible = null;
+            string? banner = null;
             if (taskText is not null && record.DiagramType is { } diagramType)
             {
                 var workspaceId = record.SharesWorkspaceWith ?? record.Id;
                 var target = TryWorkspace(registry, workspaceId);
                 var command = target is null ? null : await diagramContext.CommandAsync(target);
-                if (BareSkill.ComposeInteractive(diagramType, target?.Root ?? record.Worktree, workspaceId, command) is { } composed)
+                // A resumed or forked session gets no bare --system-prompt, so the skill rides as the prompt and nothing waits on the question.
+                var asksInTerminal = sessionId is null && diagramType == DiagramContext.AnyType && BareSkill.Enabled() && terminalAgents.SplitsSystemPrompt(record.Kind);
+                if (BareSkill.ComposeInteractive(diagramType, target?.Root ?? record.Worktree, workspaceId, command, asksInTerminal) is { } composed)
                 {
                     taskText = composed;
                     bare = BareSkill.Enabled();
-                    visible = bare ? BareSkill.InteractiveVisiblePrompt : null;
+                    visible = bare ? (asksInTerminal ? "" : BareSkill.InteractiveVisiblePrompt) : null;
+                    banner = asksInTerminal ? BareSkill.InteractiveQuestion : null;
                 }
             }
             var trackingFile = AgentSessionOwnership.FileFor(agents.MainRoot, Guid.NewGuid().ToString());
-            var launch = terminalAgents.Resolve(record.Kind, sessionId, taskText, bare, visible, forkSession: fork,
+            var launch = terminalAgents.Resolve(record.Kind, sessionId, taskText, bare, visible, forkSession: fork, agentId: agentId, bridgeUrl: BareSkill.BridgeUrl,
                 newSessionId: Guid.NewGuid().ToString(), sessionTrackingFile: trackingFile);
             if (launch is null) return Reply.Error(400, $"unknown agent kind: {record.Kind}");
             var env = new Dictionary<string, string>(launch.Env);
             BridgeAddress.ExportIdentity(env, agentId, BareSkill.BridgeUrl);
-            var session = await Task.Run(() => sessions.Start(agentId, launch.Argv, record.Worktree, record.Kind, env, paths));
+            var session = await Task.Run(() => sessions.Start(agentId, launch.Argv, record.Worktree, record.Kind, env, paths, banner));
             var updated = agents.MarkStarted(agentId, session.Pid, TerminalAgents.ResolvedCliFor(record.Kind, launch.Argv));
             if (pending is { Kind: not "task" } view)
                 _ = session.InjectWhenIdle(

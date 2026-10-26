@@ -83,10 +83,20 @@ def identity_env(workspace_id: str) -> dict[str, str]:
     return env
 
 
+_config_dir: Path | None = None
+
+
+def _private_config_dir() -> Path:
+    """A per-process 0700 mkdtemp dir; a fixed shared /tmp path can be pre-planted by others."""
+    global _config_dir
+    if _config_dir is None or not _config_dir.is_dir():
+        _config_dir = Path(tempfile.mkdtemp(prefix="codechroma-mcp-"))
+    return _config_dir
+
+
 def write_claude_config(endpoint: McpEndpoint) -> Path:
     """Writes the MCP config to a private temp file (inline JSON gets mangled by PTY quoting)."""
-    directory = Path(tempfile.gettempdir()) / "codechroma-mcp"
-    directory.mkdir(parents=True, exist_ok=True)
+    directory = _private_config_dir()
     safe = "".join(c if c.isalnum() or c in "-_" else "_" for c in endpoint.workspace_id)
     path = directory / f"{safe}.json"
     path.write_text(json.dumps(endpoint.claude_config()), encoding="utf-8")

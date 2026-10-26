@@ -68,6 +68,23 @@ class Provider:
         }
 
 
+@dataclass(frozen=True)
+class Capabilities:
+    agents: bool
+    quick: bool
+
+
+def capabilities(provider: Provider) -> Capabilities:
+    """What a connection can drive: a CLI agent run (`agents`) and/or a one-shot call (`quick`)."""
+    if provider.kind == "cli":
+        has_key = bool(provider.api_key or provider.api_key_path)
+        return Capabilities(agents=True, quick=provider.adapter == "claude" and has_key)
+    if provider.transport == "anthropic":
+        has_key = bool(provider.api_key or provider.api_key_path)
+        return Capabilities(agents=has_key, quick=has_key)
+    return Capabilities(agents=False, quick=True)
+
+
 def validate(payload: object) -> list[str]:
     """Returns a list of problems; empty means the payload is acceptable to save."""
     if not isinstance(payload, dict):

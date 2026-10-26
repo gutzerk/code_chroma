@@ -175,6 +175,7 @@ public sealed class SessionOwnershipTests
         var runtime = host.Factory.Services.GetServices<IHostedService>().OfType<AgentRuntime>().Single();
         await runtime.StopAsync(CancellationToken.None);
         await runtime.StartAsync(CancellationToken.None);
+        await runtime.StartedAsync(CancellationToken.None);
         var resumed = sessions.Get("runner")!;
         Assert.Equal(["--resume", clearedId], resumed.Argv.TakeLast(2));
         Assert.DoesNotContain("--session-id", resumed.Argv);

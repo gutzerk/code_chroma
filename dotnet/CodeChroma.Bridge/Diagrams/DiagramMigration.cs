@@ -118,10 +118,10 @@ public static class DiagramMigration
 /// <summary>Reading a workspace's authored diagram with the legacy conversion applied on first access.</summary>
 public static class DiagramArtifacts
 {
-    /// <summary>The diagram's JSON; {} when missing; a legacy c1 converts in place, an unconvertible one is flagged.</summary>
+    /// <summary>The diagram's JSON (c1 from the borrowed root of a PR workspace); {} when missing; a legacy c1 converts in place, an unconvertible one is flagged.</summary>
     public static JsonObject Load(Workspace ws, string kind)
     {
-        var path = ws.DiagramPath(kind);
+        var path = Workspace.DiagramPath(kind == "c1" ? ws.C1Root : ws.Root, kind);
         var data = JsonFile.Load(path) as JsonObject ?? new JsonObject();
         var (migrated, status) = DiagramMigration.Migrate(kind, data);
         switch (status)
@@ -142,6 +142,76 @@ public static class DiagramArtifacts
     public static string DigestFingerprint(Workspace ws)
     {
         var digest = JsonFile.Load(Path.Combine(ws.Root, ".codechroma", "dependency-digest.json")) ?? new JsonObject();
-        return Routes.DiagramRoutes.Fingerprint(digest as JsonObject) ?? Routes.DiagramRoutes.Fingerprint(new JsonObject { ["digest"] = "none" })!;
+        return CodeChroma.Core.Patterns.PatternSerialize.HashLines([PythonDumps(digest as JsonObject ?? new JsonObject())]);
+    }
+
+    /// <summary>Python's `json.dumps(node, sort_keys=True)`: ", " and ": " separators and ASCII-only escapes, so both bridges hash the same text.</summary>
+    public static string PythonDumps(JsonNode? node)
+    {
+        var text = new System.Text.StringBuilder();
+        Dump(node, text);
+        return text.ToString();
+    }
+
+    private static void Dump(JsonNode? node, System.Text.StringBuilder text)
+    {
+        switch (node)
+        {
+            case null:
+                text.Append("null");
+                break;
+            case JsonObject o:
+                text.Append('{');
+                var first = true;
+                foreach (var (key, value) in o.OrderBy(kv => kv.Key, StringComparer.Ordinal))
+                {
+                    if (!first) text.Append(", ");
+                    first = false;
+                    DumpString(key, text);
+                    text.Append(": ");
+                    Dump(value, text);
+                }
+                text.Append('}');
+                break;
+            case JsonArray a:
+                text.Append('[');
+                for (var i = 0; i < a.Count; i++)
+                {
+                    if (i > 0) text.Append(", ");
+                    Dump(a[i], text);
+                }
+                text.Append(']');
+                break;
+            case JsonValue v when v.TryGetValue<string>(out var str):
+                DumpString(str, text);
+                break;
+            case JsonValue v when v.TryGetValue<bool>(out var flag):
+                text.Append(flag ? "true" : "false");
+                break;
+            default:
+                text.Append(node.ToJsonString());
+                break;
+        }
+    }
+
+    private static void DumpString(string value, System.Text.StringBuilder text)
+    {
+        text.Append('"');
+        foreach (var c in value)
+        {
+            switch (c)
+            {
+                case '"': text.Append("\\\""); break;
+                case '\\': text.Append("\\\\"); break;
+                case '\n': text.Append("\\n"); break;
+                case '\r': text.Append("\\r"); break;
+                case '\t': text.Append("\\t"); break;
+                case '\b': text.Append("\\b"); break;
+                case '\f': text.Append("\\f"); break;
+                case < ' ' or > (char)127: text.Append("\\u").Append(((int)c).ToString("x4")); break;
+                default: text.Append(c); break;
+            }
+        }
+        text.Append('"');
     }
 }

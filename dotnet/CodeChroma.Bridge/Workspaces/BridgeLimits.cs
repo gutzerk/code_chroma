@@ -4,6 +4,8 @@ namespace CodeChroma.Bridge.Workspaces;
 public static class BridgeLimits
 {
     public const int IdleUnloadSeconds = 600;
+    public const string PatternsGeneratorModel = "claude-haiku-4-5";
+    public const int PatternsGeneratorMaxTokens = 2000;
     public const int IdleSweepSeconds = 60;
     public const int RepoDebounceMs = 1000;
     public const int WatcherDebounceMs = 500;

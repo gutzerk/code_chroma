@@ -163,6 +163,20 @@ public sealed class ProviderStore(UserPaths paths)
     public static string PyList(IEnumerable<string> items) => "[" + string.Join(", ", items.Select(i => $"'{i}'")) + "]";
 
     public static bool IsMode(string? mode) => mode is not null && Modes.Contains(mode);
+
+    /// <summary>What a connection can drive: a CLI agent run (Agents) and/or a one-shot call (Quick); derived, never stored.</summary>
+    public static ProviderCapabilities Capabilities(JsonObject provider)
+    {
+        var hasKey = Json.Truthy(provider["api_key"]) || Json.Truthy(provider["api_key_path"]);
+        if (Json.Str(provider["kind"]) == "cli") return new(true, Json.Str(provider["adapter"]) == "claude" && hasKey);
+        if (Json.Str(provider["transport"]) == "anthropic") return new(hasKey, hasKey);
+        return new(false, true);
+    }
+}
+
+public sealed record ProviderCapabilities(bool Agents, bool Quick)
+{
+    public bool Can(string needs) => needs == "agents" ? Agents : Quick;
 }
 
 /// <summary>Per-call-site assignments (llm-call-site-settings.json); unassigned sites have no row.</summary>
@@ -222,7 +236,7 @@ public sealed class CallSiteStore(UserPaths paths, ProviderStore providers)
             problems.Add("provider_id must reference an existing provider");
             return problems;
         }
-        if (Json.Str(provider["kind"]) != "cli") problems.Add("an agentic group can only be assigned a provider of kind=cli");
+        if (!ProviderStore.Capabilities(provider).Agents) problems.Add("an agentic group needs a provider that can drive a CLI agent");
         if (Json.Str(payload["model"]) is not { } model || Json.IsBlank(model))
             problems.Add("model must be a non-empty string");
         return problems;
@@ -237,7 +251,7 @@ public sealed class CallSiteStore(UserPaths paths, ProviderStore providers)
             var assignments = Assignments();
             var assignment = new JsonObject { ["provider_id"] = payload["provider_id"]!.DeepClone(), ["model"] = payload["model"]!.DeepClone(), ["mode"] = payload["mode"]!.DeepClone() };
             assignments[callSiteId] = assignment;
-            Persist(assignments, GroupAssignments());
+            Persist(assignments, GroupAssignments(), Default());
             return assignment;
         });
     }
@@ -251,7 +265,7 @@ public sealed class CallSiteStore(UserPaths paths, ProviderStore providers)
             var groups = GroupAssignments();
             var assignment = new JsonObject { ["provider_id"] = payload["provider_id"]!.DeepClone(), ["model"] = payload["model"]!.DeepClone() };
             groups[groupId] = assignment;
-            Persist(Assignments(), groups);
+            Persist(Assignments(), groups, Default());
             return assignment;
         });
     }
@@ -259,32 +273,147 @@ public sealed class CallSiteStore(UserPaths paths, ProviderStore providers)
     public void Clear(string callSiteId) => JsonFile.Locked(() =>
     {
         var assignments = Assignments();
-        if (assignments.Remove(callSiteId)) Persist(assignments, GroupAssignments());
+        if (assignments.Remove(callSiteId)) Persist(assignments, GroupAssignments(), Default());
         return 0;
     });
 
     public void ClearGroup(string groupId) => JsonFile.Locked(() =>
     {
         var groups = GroupAssignments();
-        if (groups.Remove(groupId)) Persist(Assignments(), groups);
+        if (groups.Remove(groupId)) Persist(Assignments(), groups, Default());
         return 0;
     });
 
-    /// <summary>Every call site still assigned to the provider, which is what a provider delete blocks on.</summary>
+    /// <summary>The stored default model ({provider_id, model, quick_fallback, agent_fallback}), or null when none is set.</summary>
+    public JsonObject? Default()
+    {
+        if (JsonFile.LoadObject(paths.CallSites)["default"] is not JsonObject raw
+            || !Json.IsString(raw["provider_id"]) || !Json.IsString(raw["model"])) return null;
+        return new JsonObject
+        {
+            ["provider_id"] = raw["provider_id"]!.DeepClone(),
+            ["model"] = raw["model"]!.DeepClone(),
+            ["quick_fallback"] = FallbackFrom(raw["quick_fallback"]),
+            ["agent_fallback"] = FallbackFrom(raw["agent_fallback"]),
+        };
+    }
+
+    private static JsonObject? FallbackFrom(JsonNode? raw)
+    {
+        if (raw is not JsonObject fallback) return null;
+        if (Json.Bool(fallback["offline"])) return new JsonObject { ["offline"] = true };
+        return Json.IsString(fallback["provider_id"]) && Json.IsString(fallback["model"])
+            ? new JsonObject { ["provider_id"] = fallback["provider_id"]!.DeepClone(), ["model"] = fallback["model"]!.DeepClone() }
+            : null;
+    }
+
+    public List<string> ValidateDefault(JsonObject payload)
+    {
+        var providerId = Json.Str(payload["provider_id"]);
+        if ((providerId is null ? null : providers.Find(providerId)) is null) return ["provider_id must reference an existing provider"];
+        var problems = new List<string>();
+        if (Json.Str(payload["model"]) is not { } model || Json.IsBlank(model))
+            problems.Add("model must be a non-empty string");
+        problems.AddRange(ValidateFallback(payload["quick_fallback"], "quick", "quick_fallback"));
+        problems.AddRange(ValidateFallback(payload["agent_fallback"], "agents", "agent_fallback"));
+        return problems;
+    }
+
+    private List<string> ValidateFallback(JsonNode? raw, string needs, string name)
+    {
+        if (raw is null) return [];
+        if (raw is not JsonObject fallback) return [$"{name} must be an object"];
+        if (Json.Bool(fallback["offline"])) return needs == "agents" ? [$"{name} cannot be offline"] : [];
+        var providerId = Json.Str(fallback["provider_id"]);
+        if ((providerId is null ? null : providers.Find(providerId)) is not { } provider)
+            return [$"{name}.provider_id must reference an existing provider"];
+        var problems = new List<string>();
+        if (!ProviderStore.Capabilities(provider).Can(needs)) problems.Add($"{name} must reference a provider that can run {needs} work");
+        if (Json.Str(fallback["model"]) is not { } model || Json.IsBlank(model))
+            problems.Add($"{name}.model must be a non-empty string");
+        return problems;
+    }
+
+    public JsonObject SaveDefault(JsonObject payload)
+    {
+        var problems = ValidateDefault(payload);
+        if (problems.Count > 0) throw new ArgumentException(string.Join("; ", problems));
+        var saved = new JsonObject
+        {
+            ["provider_id"] = payload["provider_id"]!.DeepClone(),
+            ["model"] = payload["model"]!.DeepClone(),
+            ["quick_fallback"] = FallbackFrom(payload["quick_fallback"]),
+            ["agent_fallback"] = FallbackFrom(payload["agent_fallback"]),
+        };
+        return JsonFile.Locked(() =>
+        {
+            Persist(Assignments(), GroupAssignments(), saved);
+            return saved;
+        });
+    }
+
+    public void ClearDefault() => JsonFile.Locked(() =>
+    {
+        if (Default() is not null) Persist(Assignments(), GroupAssignments(), null);
+        return 0;
+    });
+
+    /// <summary>The effective assignment: the group's (agentic) or the site's own (simple) override, else the default or its fallback.</summary>
+    public JsonObject? EffectiveAssignment(string callSiteId)
+    {
+        if (LlmCatalog.GroupOf(callSiteId) is { } group)
+        {
+            var assigned = GroupAssignments().GetValueOrDefault(group);
+            return assigned is null ? ResolveDefault("agents").Assignment : new JsonObject
+            {
+                ["provider_id"] = assigned["provider_id"]!.DeepClone(), ["model"] = assigned["model"]!.DeepClone(), ["mode"] = "cli",
+            };
+        }
+        if (Assignments().GetValueOrDefault(callSiteId) is { } own) return own;
+        return LlmCatalog.CallSite(callSiteId) is null ? null : ResolveDefault("quick").Assignment;
+    }
+
+    /// <summary>The default (or its fallback) as {provider_id, model, mode} for agents/quick work, with its source label.</summary>
+    public (JsonObject? Assignment, string Source) ResolveDefault(string needs)
+    {
+        if (Default() is not { } stored) return (null, "legacy");
+        var mode = needs == "agents" ? "cli" : "api";
+        var providerId = Json.Str(stored["provider_id"])!;
+        if (providers.Find(providerId) is { } provider && ProviderStore.Capabilities(provider).Can(needs))
+            return (Synthesized(providerId, Json.Str(stored["model"])!, mode), "default");
+        if (stored[needs == "agents" ? "agent_fallback" : "quick_fallback"] is not JsonObject fallback) return (null, "legacy");
+        if (Json.Bool(fallback["offline"])) return (Synthesized("", "", "offline"), "offline");
+        var fallbackId = Json.Str(fallback["provider_id"]) ?? "";
+        if (providers.Find(fallbackId) is { } backup && ProviderStore.Capabilities(backup).Can(needs))
+            return (Synthesized(fallbackId, Json.Str(fallback["model"])!, mode), "fallback");
+        return (null, "legacy");
+    }
+
+    private static JsonObject Synthesized(string providerId, string model, string mode) =>
+        new() { ["provider_id"] = providerId, ["model"] = model, ["mode"] = mode };
+
+    /// <summary>Every call site still assigned to the provider (plus "default"), which is what a provider delete blocks on.</summary>
     public List<string> Blocking(string providerId)
     {
         var simple = Assignments().Where(kv => Json.Str(kv.Value["provider_id"]) == providerId).Select(kv => kv.Key);
         var grouped = GroupAssignments().Where(kv => Json.Str(kv.Value["provider_id"]) == providerId)
             .SelectMany(kv => LlmCatalog.Group(kv.Key)!.Members);
-        return [.. simple, .. grouped];
+        var stored = Default();
+        var usesDefault = stored is not null && (Json.Str(stored["provider_id"]) == providerId
+            || new[] { "quick_fallback", "agent_fallback" }.Any(k => stored[k] is JsonObject f && Json.Str(f["provider_id"]) == providerId));
+        return [.. simple, .. grouped, .. usesDefault ? new[] { "default" } : []];
     }
 
-    private void Persist(Dictionary<string, JsonObject> assignments, Dictionary<string, JsonObject> groups)
+    private void Persist(Dictionary<string, JsonObject> assignments, Dictionary<string, JsonObject> groups, JsonObject? defaultModel)
     {
         var simple = new JsonObject();
         foreach (var (id, a) in assignments) simple[id] = a.DeepClone();
         var grouped = new JsonObject();
         foreach (var (id, a) in groups) grouped[id] = a.DeepClone();
-        JsonFile.Write(paths.CallSites, new JsonObject { ["schema_version"] = 1, ["assignments"] = simple, ["group_assignments"] = grouped });
+        var data = new JsonObject { ["schema_version"] = 1 };
+        if (defaultModel is not null) data["default"] = defaultModel.DeepClone();
+        data["assignments"] = simple;
+        data["group_assignments"] = grouped;
+        JsonFile.Write(paths.CallSites, data);
     }
 }

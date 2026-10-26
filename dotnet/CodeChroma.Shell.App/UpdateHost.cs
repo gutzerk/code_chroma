@@ -53,24 +53,10 @@ public sealed class UpdateHost
         window.Activated += (_, _) => _ = BackgroundCheckAsync(CheckTrigger.Focus);
     }
 
-    public async Task HandleCallAsync(TabView view, DesktopMessage message)
-    {
-        if (message.CallId is null || message.Method is null) return;
-        string reply;
-        bool ok;
-        try
-        {
-            reply = await bridge.InvokeAsync(message.Method, message.Arg);
-            ok = true;
-        }
-        catch (Exception e)
-        {
-            reply = e.Message;
-            ok = false;
-        }
-        var script = $"window.__ccUpdatesReply({JsonSerializer.Serialize(message.CallId)},{(ok ? "true" : "false")},{JsonSerializer.Serialize(reply)});";
-        await view.Web.ExecuteScriptAsync(script);
-    }
+    public Task HandleCallAsync(TabView view, DesktopMessage message) =>
+        message.CallId is null || message.Method is null
+            ? Task.CompletedTask
+            : ShellReply.RunAsync(view, message.CallId, () => bridge.InvokeAsync(message.Method, message.Arg));
 
     /// <summary>Help, Check for Updates: always answers, and offers the download with the checksum-only warning.</summary>
     public async Task CheckManuallyAsync()

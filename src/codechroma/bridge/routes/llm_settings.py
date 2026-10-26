@@ -19,13 +19,17 @@ from codechroma.llm.call_site_settings import (
     GroupAssignment,
     blocking_call_sites,
     clear_assignment,
+    clear_default,
     clear_group_assignment,
     load_assignments,
+    load_default,
     load_group_assignments,
+    resolve_default,
     save_assignment,
+    save_default,
     save_group_assignment,
 )
-from codechroma.llm.call_sites import CALL_SITES, GROUPS, HIDDEN_GROUPS
+from codechroma.llm.call_sites import CALL_SITES, FEATURES, GROUPS, HIDDEN_GROUPS
 from codechroma.llm.runtime_env import CliLookupError, resolve_runtime_cli
 
 router = APIRouter()
@@ -33,7 +37,16 @@ router = APIRouter()
 
 @router.get("/llm/providers")
 def list_providers() -> list[dict]:
-    return [provider.masked() for provider in providers_store.load_providers().values()]
+    used = [row["effective"]["provider_id"] for row in _feature_rows()]
+    return [
+        {**provider.masked(), **_capability_fields(provider, used.count(provider.id))}
+        for provider in providers_store.load_providers().values()
+    ]
+
+
+def _capability_fields(provider: providers_store.Provider, used_by: int) -> dict:
+    caps = providers_store.capabilities(provider)
+    return {"capabilities": {"agents": caps.agents, "quick": caps.quick}, "used_by": used_by}
 
 
 @router.post("/llm/providers", status_code=201)
@@ -131,6 +144,92 @@ def _test_api_provider(provider_id: str | None, provider: providers_store.Provid
     except Exception as exc:
         return {"ok": False, "provider_id": provider_id, "error": str(exc)}
     return {"ok": True, "provider_id": provider_id, "message": text[:40]}
+
+
+@router.get("/llm/default")
+def get_default() -> dict:
+    return {"default": _default_dict()}
+
+
+@router.put("/llm/default")
+async def put_default(request: Request) -> dict:
+    body = await json_body(request)
+    try:
+        save_default(body)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    return {"default": _default_dict()}
+
+
+@router.delete("/llm/default")
+def delete_default() -> dict:
+    clear_default()
+    return {"default": None}
+
+
+@router.get("/llm/features")
+def list_features() -> dict:
+    return {"features": _feature_rows()}
+
+
+def _default_dict() -> dict | None:
+    default = load_default()
+    if default is None:
+        return None
+
+    def fallback(raw) -> dict | None:
+        if raw is None:
+            return None
+        if raw.offline:
+            return {"offline": True}
+        return {"provider_id": raw.provider_id, "model": raw.model}
+
+    return {
+        "provider_id": default.provider_id,
+        "model": default.model,
+        "quick_fallback": fallback(default.quick_fallback),
+        "agent_fallback": fallback(default.agent_fallback),
+    }
+
+
+def _feature_rows() -> list[dict]:
+    providers = providers_store.load_providers()
+    assignments = load_assignments()
+    group_assignments = load_group_assignments()
+    rows = []
+    for feature in FEATURES.values():
+        override = (
+            group_assignments.get(feature.id)
+            if feature.id in GROUPS
+            else assignments.get(feature.id)
+        )
+        if override is not None:
+            provider_id, model, source = override.provider_id, override.model, "custom"
+        else:
+            resolved, source = resolve_default(feature.needs)
+            provider_id = resolved.provider_id if resolved is not None else None
+            model = resolved.model if resolved is not None else None
+        provider = providers.get(provider_id) if provider_id else None
+        rows.append(
+            {
+                "id": feature.id,
+                "label": feature.label,
+                "description": feature.description,
+                "needs": feature.needs,
+                "effective": {
+                    "provider_id": provider_id or None,
+                    "provider_name": provider.label if provider is not None else None,
+                    "model": model or None,
+                },
+                "source": source,
+                "compatible_provider_ids": [
+                    pid
+                    for pid, candidate in providers.items()
+                    if getattr(providers_store.capabilities(candidate), feature.needs)
+                ],
+            }
+        )
+    return rows
 
 
 @router.get("/llm/call-sites")

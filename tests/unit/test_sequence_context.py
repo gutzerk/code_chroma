@@ -40,6 +40,14 @@ def test_scaffold_builds_participants_and_distinct_messages():
     assert messages[0]["to"] == "component::api.py"
 
 
+def test_scaffold_collapses_a_repeated_hop_with_no_args():
+    step = {"event": "call", "caller_node_id": "a", "node_id": "b", "args": None}
+
+    _, messages = _sequence_scaffold({"steps": [step, dict(step), dict(step)]})
+
+    assert [m["order"] for m in messages] == [1]
+
+
 def test_scaffold_uses_full_node_id_as_id_and_short_name():
     participants, messages = _sequence_scaffold(
         {"steps": [{"event": "call", "caller_node_id": "a", "node_id": "b", "args": None}]}

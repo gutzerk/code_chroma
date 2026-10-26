@@ -89,4 +89,25 @@ describe("computeElkLayout", () => {
     const xs = ["a", "b", "c"].map((id) => ({ id, x: boxOf(boxes, id).x })).sort((p, q) => p.x - q.x);
     expect(xs.map((p) => p.id).join("")).toMatch(/^(ac|ca)b$|^b(ac|ca)$/);
   });
+
+  it("lays lanes out left to right, one band per lane in first-seen order", async () => {
+    const { boxes } = await computeElkLayout(
+      [box("a", undefined, "client"), box("b", undefined, "api"), box("c", undefined, "db")],
+      [edge("a", "b"), edge("b", "c")],
+    );
+
+    expect(boxOf(boxes, "a").x).toBeLessThan(boxOf(boxes, "b").x);
+    expect(boxOf(boxes, "b").x).toBeLessThan(boxOf(boxes, "c").x);
+    expect(noOverlaps(boxes)).toBe(true);
+  });
+
+  it("keeps the downward layout when only some boxes carry a lane", async () => {
+    const { boxes } = await computeElkLayout(
+      [box("a", undefined, "client"), box("b"), box("c")],
+      [edge("a", "b"), edge("b", "c")],
+    );
+
+    expect(boxOf(boxes, "a").y).toBeLessThan(boxOf(boxes, "b").y);
+    expect(boxOf(boxes, "b").y).toBeLessThan(boxOf(boxes, "c").y);
+  });
 });

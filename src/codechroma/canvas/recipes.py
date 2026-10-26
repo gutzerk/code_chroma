@@ -155,9 +155,9 @@ def _node_of(item: dict, render: str) -> GraphNode:
     """Copies each shared Node field; `kind`/`icon`/`parent`/`seed` fold into `meta` for accents."""
     own_meta = item.get("meta")
     meta = dict(own_meta) if isinstance(own_meta, dict) else {}
-    for key in ("kind", "icon", "parent", "seed"):
+    for key in ("kind", "icon", "parent", "seed", "order", "lane", "path"):
         value = item.get(key)
-        if value is not None:
+        if value is not None and (key in ("kind", "icon", "parent", "seed") or key not in meta):
             meta[key] = value
     node_id = item.get("node_id")
     group = item.get("group")
@@ -201,16 +201,20 @@ def reshape(resolved: dict, render: str) -> GraphShape:
             if isinstance(item, dict) and isinstance(item.get("id"), str)
             and item.get("from") in participant_refs and item.get("to") in participant_refs
         ]
+        readability = {
+            key: resolved[key] for key in ("phases", "frames", "notes", "question", "summary")
+            if resolved.get(key)
+        }
         nodes = tuple(
-            _participant_node(item) for item in nodes
+            _participant_node(item, readability) for item in nodes
         ) + tuple(_message_node(item) for item in message_nodes)
         relations = ()
     return GraphShape(nodes=nodes, relations=relations)
 
 
-def _participant_node(node: GraphNode) -> GraphNode:
-    """Stamps a sequence participant's `meta.role` (distinct from the `message` role)."""
-    return replace(node, meta={**node.meta, "role": "participant"})
+def _participant_node(node: GraphNode, readability: dict | None = None) -> GraphNode:
+    """Stamps a participant's `meta.role` plus the diagram's phases/frames/notes (022)."""
+    return replace(node, meta={**node.meta, **(readability or {}), "role": "participant"})
 
 
 def _message_node(item: dict) -> GraphNode:
@@ -231,6 +235,7 @@ def _message_node(item: dict) -> GraphNode:
         "order": item.get("order"),
         "async": bool(item.get("async")),
         "return": bool(item.get("return")),
+        "hero": bool(item.get("hero")),
     })
     # A private "kind" is irrelevant on a message; drop `_node_of`'s kind/icon/parent folding by
     # building the GraphNode directly from the relation's own fields.

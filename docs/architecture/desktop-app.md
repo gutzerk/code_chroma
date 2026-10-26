@@ -45,11 +45,29 @@ Logic is UI-free in `CodeChroma.Shell`; `CodeChroma.Shell.App` only renders.
   read best-effort from `.codechroma/{agents,prs}.json`), `Projects/TutorialProject` (+
   `tutorial-project.json`: the bundled todo-app tutorial restored into `<userData>/codechroma-tutorial`) and
   new-project creation (`git init`, no commit) feed the launcher panel (`LauncherPanel`).
+- The launcher also offers **Clone repository…**: enter an HTTPS/SSH Git URL, choose a parent destination
+  and a local project name (suggested from the URL), then **Clone and open**. `Projects/RepositoryClone`
+  separates validation and destination setup (`CloneAsync`), Git process supervision (`RunGitCloneAsync`),
+  and best-effort staging cleanup (`RemoveStagingDirectory`). It runs system Git asynchronously with
+  argument-list escaping, streams progress, and supports cancellation
+  (including when the launcher leaves the visual tree). It clones the default branch with full history into
+  a unique staging folder beside the destination, then moves the completed checkout into place. Existing
+  destinations are refused; failed/cancelled staging folders are removed best-effort. Success uses the normal
+  `OpenRepoAsync` flow, including analysis and recents, bound to the launcher that requested it even if the
+  user switches tabs during cloning. A launcher removed before opening cannot open another tab. Git must be
+  on PATH; private remotes use existing Git credential helpers or SSH keys. Terminal credential prompts are
+  disabled; the default SSH client uses batch mode. Configured `core.sshCommand`, `GIT_SSH`, and
+  `GIT_SSH_COMMAND` clients are preserved and must handle authentication without interactive prompts. Passwords
+  in URLs and URL query strings are rejected. Local repository paths are also accepted. No bridge route is involved.
 - Opening an already-open project asks which branch to show (`Bridge/BranchBridgeClient`: `GET /branches/choices`,
   `POST /branches`; a 409 names the workspace already showing it and the shell focuses that tab).
 - `window.codechromaDesktop` is injected after each navigation and talks to the shell over the WebView message
   channel (`DesktopScript`/`DesktopMessage`). The shell accepts messages only while the tab URL origin equals its
   bridge origin; other navigations are cancelled and opened in the system browser.
+- Calls that need an answer (`codechromaUpdates.*`, `saveFile`) go through one page-side `rpc` and are answered by
+  `ShellReply.RunAsync` via `window.__ccReply(callId, ok, json)`. `saveFile(name, mime, base64)` (the canvas's Share
+  menu) posts `save-file` (`id`=file name, `method`=mime, `arg`=base64); `MainWindow.SaveFileAsync` runs
+  `CodeChroma.Shell/FileSaver` over Avalonia's `SaveFilePickerAsync` and replies `{saved}` (`false` = cancelled).
 - Chrome: no native menu bar on Windows/Linux; the tab strip (`#1b1d23` bar, `#6c8cff` active underline) ends in a
   "⋯" flyout (Open Repo, New Tab, Close Tab, Check for Updates, About; Ctrl+O/T/W work). macOS gets a native menu.
   `App.axaml` carries the shared styles. The icon art is `Assets/icon.png`; `Assets/icon.ico` is generated from it by
@@ -141,9 +159,9 @@ The fast process-diagram path needs a 162 MB ONNX model; it is not in the instal
 
 The C# bridge replaces the Python one in the shipped app. Known, owner-confirmed differences (plan 017 table A):
 summaries are offline-only (no Claude call), the graph is in-memory (no `graph.db`), PR happy path needs `gh`,
-nested-process foreground probing is degraded, and execution tracing capture stays Python (`sys.monitoring`; C#
+nested-process foreground probing (`Terminal/ForegroundProcess.cs`: `ps -o tpgid=` then `ps -o comm=`, cached 1 s off-thread) works on macOS/Linux only and is a no-op on Windows (ConPTY has no `tcgetpgrp`; the detector then applies no process filter, so a nested vim there can still read as an agent state), and execution tracing capture stays Python (`sys.monitoring`; C#
 only plays traces back). Everything else (graph, canvas, recipes, diffs, agents, PRs, epics, PTY, skill/LLM runners,
-branches, traces, settings, patterns, impact/review, plain wiki) is ported. Workflow runs (steerable stop/pause/breakpoints, [`workflows.md`](workflows.md)) exist only in the C# bridge; the Python bridge has no mirror yet; the wiki-general generate/update port is in progress (plan 017 row 4); see
+branches, traces, settings, patterns, impact/review, plain wiki, the first-open c1/patterns bootstrap, `dependency-digest.json` and every watcher event) is ported. Agent questions (`/mcp/` `ask_user`, the `question` canvas element and `/repos/{id}/questions/*` routes) are ported ([`ai-questions.md`](ai-questions.md)) including the `AskUserQuestion` PreToolUse hook: the bridge binary is the hook (`codechroma-bridge ask-user-question`, registered through `--settings` next to the session-tracking hook), so no Python is needed. Workflow runs (steerable stop/pause/breakpoints, [`workflows.md`](workflows.md)) exist only in the C# bridge; the Python bridge has no mirror yet; the wiki-general generate/update port is done (all nine routes plus the pipeline); what remains is a verification run against real Claude (plan 017 row 4); see
 [`engine.md`](engine.md) and [`graph-bridge-core.md`](graph-bridge-core.md).
 
 ## Tests
@@ -158,6 +176,10 @@ The probe does not reserve a port for the child bridge between discovery and sta
 `tests/unit/test_distribution_*.py`, `tests/pester/install.Tests.ps1`. Smoke on a display: `dotnet/CodeChroma.Shell.App/smoke/smoke.mjs`.
 macOS and Linux behaviour (WKWebView/WebKitGTK rendering, Unix PTY, install/update/rollback/uninstall) was reviewed
 from code and is not verified on real hardware.
+
+`RepositoryCloneTests` exercises real local Git clones (history and origin preserved, paths with spaces),
+existing-destination protection, failed-clone cleanup, cancellation, configured SSH clients and remote/name
+validation without network access.
 
 🔴 macOS crash: WebView.Avalonia 11.0.0.1 runs `ExecuteScriptAsync(script)` on macOS as `__dispatchMessageCallback("<script>")` (a Blazor-only hook)
 and does `result.ToString()` on the null result, an unhandleable NRE inside a native callback that aborts the app. Two guards: `UpdateHost`

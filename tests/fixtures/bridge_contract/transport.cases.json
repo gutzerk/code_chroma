@@ -94,6 +94,43 @@
       ]
     },
     {
+      "id": "an_impact_changes_file_change_pings_impact_changes",
+      "steps": [
+        {"ws": "connect", "name": "events", "path": "/repos/main/events", "expect": "accepted"},
+        {"fs": "write", "path": ".codechroma/impact-changes.json", "text": "{}"},
+        {
+          "ws": "receive", "name": "events", "timeout_ms": 15000, "skip_until_match": true,
+          "expect": {"json": {"type": "impact-changes"}}
+        }
+      ]
+    },
+    {
+      "id": "a_wiki_general_index_change_pings_wiki_general",
+      "steps": [
+        {"ws": "connect", "name": "events", "path": "/repos/main/events", "expect": "accepted"},
+        {"fs": "write", "path": ".codechroma/wiki-general/index.md", "text": "# Map\n"},
+        {
+          "ws": "receive", "name": "events", "timeout_ms": 15000, "skip_until_match": true,
+          "expect": {"json": {"type": "wiki-general"}}
+        }
+      ]
+    },
+    {
+      "id": "a_custom_projection_change_pings_custom_and_canvas",
+      "steps": [
+        {"ws": "connect", "name": "events", "path": "/repos/main/events", "expect": "accepted"},
+        {"fs": "write", "path": ".codechroma/diagrams/custom/flow/projection.json", "text": "{}"},
+        {
+          "ws": "receive", "name": "events", "timeout_ms": 15000, "skip_until_match": true,
+          "expect": {"json": {"type": "custom"}}
+        },
+        {
+          "ws": "receive", "name": "events", "timeout_ms": 15000, "skip_until_match": true,
+          "expect": {"json": {"type": "canvas"}}
+        }
+      ]
+    },
+    {
       "id": "a_status_change_is_broadcast_to_connected_canvases",
       "steps": [
         {"ws": "connect", "name": "events", "path": "/repos/default/events", "expect": "accepted"},

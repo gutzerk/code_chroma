@@ -180,7 +180,6 @@ describe("ImpactStatusChip", () => {
 // meta.no_code_reason (diagram_resolver.py's _stamp_no_code_reason) as its own labeled chip.
 describe("NoCodeChip", () => {
   it.each([
-    ["conceptual", "CONCEPTUAL"],
     ["unresolved", "UNRESOLVED"],
   ])("renders %s as an outlined meta-row chip with its own color class", (reason, label) => {
     render(<NoCodeChip element={element("custom", { no_code_reason: reason })} />);
@@ -192,6 +191,7 @@ describe("NoCodeChip", () => {
   it.each([
     ["a planned box -- 'planned' isn't a recognized reason", { no_code_reason: "planned" }],
     ["a box with no no_code_reason", {}],
+    ["a conceptual box -- the badge was removed (022)", { no_code_reason: "conceptual" }],
   ])("renders nothing for %s", (_name, meta) => {
     render(<NoCodeChip element={element("custom", meta)} />);
 
@@ -203,10 +203,10 @@ describe("NoCodeChip", () => {
 // with both an authored status and a no_code_reason no longer has to suppress one for the other.
 describe("NodeMetaRow", () => {
   it("renders both the impact status chip and the no-code chip together", () => {
-    render(<NodeMetaRow element={element("impact", { status: "new", no_code_reason: "conceptual" })} />);
+    render(<NodeMetaRow element={element("impact", { status: "new", no_code_reason: "unresolved" })} />);
 
     expect(screen.getByTestId("impact-status-chip")).toHaveTextContent("ADD");
-    expect(screen.getByTestId("no-code-chip")).toHaveTextContent("CONCEPTUAL");
+    expect(screen.getByTestId("no-code-chip")).toHaveTextContent("UNRESOLVED");
   });
 
   it("renders nothing when the box carries neither an impact status nor a no-code reason", () => {

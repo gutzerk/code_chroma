@@ -17,7 +17,8 @@ public static class DesktopScript
             openWorkspaceWindow: function (id) { return post({ type: "open-workspace", id: id }); },
             closeWorkspaceWindow: function (id) { return post({ type: "close-workspace", id: id }); },
             focusThisTab: function () { return post({ type: "focus-tab" }); },
-            closeThisProject: function () { return post({ type: "close-project" }); }
+            closeThisProject: function () { return post({ type: "close-project" }); },
+            saveFile: function (name, mime, base64) { return rpc({ type: "save-file", id: name, method: mime, arg: base64 }); }
           };
           var sawClipboardEvent = false;
           ["copy", "cut", "paste"].forEach(function (name) { document.addEventListener(name, function () { sawClipboardEvent = true; }, true); });
@@ -38,7 +39,7 @@ public static class DesktopScript
             }, 60);
           }, true);
           var pending = {}, listeners = [], nextCall = 0;
-          window.__ccUpdatesReply = function (id, ok, json) {
+          window.__ccReply = function (id, ok, json) {
             var call = pending[id]; delete pending[id];
             if (!call) return;
             if (ok) call.resolve(JSON.parse(json)); else call.reject(new Error(json));
@@ -47,12 +48,15 @@ public static class DesktopScript
             var state = JSON.parse(json);
             listeners.slice().forEach(function (fn) { fn(state); });
           };
-          function call(method, arg) {
+          function rpc(message) {
             return new Promise(function (resolve, reject) {
-              var id = "u" + (++nextCall);
-              pending[id] = { resolve: resolve, reject: reject };
-              post({ type: "updates", callId: id, method: method, arg: arg === undefined ? undefined : String(arg) });
+              message.callId = "c" + (++nextCall);
+              pending[message.callId] = { resolve: resolve, reject: reject };
+              post(message);
             });
+          }
+          function call(method, arg) {
+            return rpc({ type: "updates", method: method, arg: arg === undefined ? undefined : String(arg) });
           }
           window.codechromaUpdates = {
             state: function () { return call("state"); },

@@ -2,22 +2,22 @@
   position: absolute;
   left: var(--chrome-inset, 12px);
   top: 12px;
-  bottom: 12px;
+  bottom: calc(12px + var(--terminal-clearance, 0px));
   width: var(--left-panel-width, 262px);
   box-sizing: border-box;
   display: flex;
   flex-direction: column;
   gap: 10px;
   padding: 12px;
-  border-radius: 22px;
-  background: #15181f;
-  color: #c4c8d4;
+  border-radius: var(--radius-panel);
+  background: var(--bg-panel);
+  color: var(--text-strong);
 }
 
 .left-panel-tabs {
   display: flex;
   padding: 3px;
-  border-radius: 999px;
+  border-radius: var(--radius-full);
   background: #0f1117;
 }
 
@@ -25,17 +25,17 @@
   flex: 1;
   height: 28px;
   border: 0;
-  border-radius: 999px;
+  border-radius: var(--radius-full);
   background: transparent;
-  color: #8b91a1;
+  color: var(--text-2);
   font-size: 12px;
   font-weight: 600;
   cursor: pointer;
 }
 
 .left-panel-tab[aria-selected="true"] {
-  background: #262b38;
-  color: #e9ebf2;
+  background: var(--bg-raised-2);
+  color: var(--text-1);
 }
 
 .left-panel-body {
@@ -56,7 +56,7 @@
 }
 
 .left-panel-label {
-  color: #8b91a1;
+  color: var(--text-2);
   font-size: 11px;
   font-weight: 600;
   letter-spacing: 0.08em;
@@ -65,7 +65,7 @@
 .left-panel-empty {
   margin: 0;
   padding: 0 4px;
-  color: #8b91a1;
+  color: var(--text-2);
   font-size: 12px;
 }
 
@@ -83,7 +83,7 @@
   align-items: center;
   gap: 10px;
   padding: 8px;
-  border-radius: 12px;
+  border-radius: var(--radius-2xl);
 }
 
 .left-panel-row[data-selected="true"] {
@@ -94,13 +94,13 @@
   width: 15px;
   height: 15px;
   margin: 0;
-  accent-color: #b794ff;
+  accent-color: var(--plan);
 }
 
 .left-panel-swatch {
   flex: 0 0 10px;
   height: 10px;
-  border-radius: 3px;
+  border-radius: var(--radius-xs);
 }
 
 .left-panel-row-text {
@@ -113,18 +113,18 @@
 
 .left-panel-row-name {
   overflow: hidden;
-  color: #e9ebf2;
+  color: var(--text-1);
   font-weight: 600;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
 .left-panel-row[data-hidden="true"] .left-panel-row-name {
-  color: #8b91a1;
+  color: var(--text-2);
 }
 
 .left-panel-row-meta {
-  color: #8b91a1;
+  color: var(--text-2);
   font-size: 11px;
 }
 
@@ -135,14 +135,14 @@
   height: 28px;
   padding: 0;
   border: 0;
-  border-radius: 8px;
+  border-radius: var(--radius-lg);
   background: transparent;
-  color: #c4c8d4;
+  color: var(--text-strong);
   cursor: pointer;
 }
 
 .left-panel-row[data-hidden="true"] .left-panel-eye {
-  color: #5b6170;
+  color: var(--text-faint);
 }
 
 /* Files tab: a flat monospace tree (28px rows, no kind icons or row actions), like the design mockup. */
@@ -151,16 +151,16 @@
   min-height: 0;
   overflow-x: hidden;
   overflow-y: auto;
-  font-family: "JetBrains Mono", ui-monospace, monospace;
+  font-family: var(--font-mono);
   font-size: 12px;
-  color: #c4c8d4;
+  color: var(--text-strong);
 }
 
 .left-panel-files .tree-node-main-row > .tree-node-row {
   gap: 8px;
   height: 28px;
   padding: 0 8px;
-  border-radius: 8px;
+  border-radius: var(--radius-lg);
 }
 
 .left-panel-files .tree-node-children {
@@ -173,7 +173,7 @@
   width: 12px;
   margin: 0;
   padding: 0;
-  color: #8b91a1;
+  color: var(--text-2);
   font-size: 12px;
   opacity: 1;
 }
@@ -220,14 +220,14 @@
 
 .left-panel-files .tree-node-open-file > .tree-node-main-row > .tree-node-row,
 .left-panel-files .tree-node-active > .tree-node-main-row > .tree-node-row {
-  background: #2b3550;
-  color: #e9ebf2;
+  background: var(--accent-bg);
+  color: var(--text-1);
 }
 
 .left-panel-files .tree-node-open-file > .tree-node-main-row .tree-node-label::before {
   content: "";
   flex: 0 0 6px;
   height: 6px;
-  border-radius: 999px;
-  background: #4ade80;
+  border-radius: var(--radius-full);
+  background: var(--success);
 }

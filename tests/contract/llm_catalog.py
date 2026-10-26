@@ -14,7 +14,7 @@ from codechroma.bridge.overlays import OVERLAY_PROVIDERS
 from codechroma.bridge.review import REVIEW_AGENT_FACTORIES
 from codechroma.config import settings
 from codechroma.diagrams.styles import STYLES
-from codechroma.llm.call_sites import CALL_SITES, GROUPS, HIDDEN_GROUPS
+from codechroma.llm.call_sites import CALL_SITES, FEATURES, GROUPS, HIDDEN_GROUPS
 from codechroma.llm.cli_adapters import CLI_ADAPTERS
 from codechroma.llm.providers_store import KINDS, TRANSPORTS
 
@@ -43,6 +43,16 @@ def build_catalog() -> dict:
                 "hidden": group.id in HIDDEN_GROUPS,
             }
             for group in GROUPS.values()
+        ],
+        "features": [
+            {
+                "id": feature.id,
+                "label": feature.label,
+                "description": feature.description,
+                "needs": feature.needs,
+                "members": list(feature.members),
+            }
+            for feature in FEATURES.values()
         ],
         "adapters": list(CLI_ADAPTERS),
         "transports": list(TRANSPORTS),

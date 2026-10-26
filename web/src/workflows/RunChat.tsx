@@ -71,7 +71,7 @@ export function RunChat({
   return (
     <section className="run-chat" aria-label="Run chat" data-testid="run-chat">
       <ul className="chat-log" role="log" aria-label="Chat messages" data-testid="chat-log">
-        {(run.messages ?? []).map((m) => (
+        {(run.messages ?? []).filter((m) => m.target === "run").map((m) => (
           <MessageLine key={m.id} message={m} />
         ))}
       </ul>

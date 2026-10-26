@@ -17,6 +17,17 @@
       ]
     },
     {
+      "id": "the_built_in_diagram_kinds_are_served_for_the_draw_dialog",
+      "steps": [
+        {
+          "http": {"method": "GET", "path": "/diagram-kinds"},
+          "expect": {"status": 200, "checks": [
+            {"path": "$.kinds[*].id", "equals": ["any", "c1", "patterns", "impact", "plan", "sequence", "custom"]}
+          ]}
+        }
+      ]
+    },
+    {
       "id": "an_empty_library_lists_nothing",
       "steps": [
         {"http": {"method": "GET", "path": "/diagram-types"}, "expect": {"status": 200, "json": {"types": []}}}
@@ -65,6 +76,23 @@
         {
           "http": {"method": "PUT", "path": "/diagram-types/broken", "json": {"title": " ", "style": "neon", "layout": {"direction": "UP"}, "grouping": {}, "relation_kinds": "none", "addons": {"x": 1}, "overlays": ["nope"], "context": "nope", "checks": {"shape": "round"}, "review": {"axis": "a", "agent_factory": "b"}}},
           "expect": {"status": 400, "json": {"detail": "title is required; style must be one of ['boxes-arrows', 'dependency-graph', 'impact-status-colors', 'layered-flow', 'patterns-yellow-arrows', 'sequence', 'state-machine'] or an inline style object; instructions is required; layout must have direction one of ('TB', 'LR'); grouping must be an object with a boolean 'enabled'; relation_kinds must be a list of {'id': str, 'label': str} objects; addons must be an object of booleans; overlays must be a list of registered overlay names; context must be null or a registered context provider name; checks.shape must be one of ('hierarchical', 'flat'); review must be null or an object with a known axis and agent_factory"}}
+        }
+      ]
+    },
+    {
+      "id": "a_saved_type_may_name_a_draw_dialog_schematic_and_only_a_known_one",
+      "steps": [
+        {
+          "http": {"method": "PUT", "path": "/diagram-types/data-flow", "json": {"title": "Data flow", "style": "boxes-arrows", "instructions": "Show data movement.", "layout": {"direction": "LR"}, "grouping": {"enabled": false}, "relation_kinds": [], "schematic": "dataflow"}},
+          "expect": {"status": 200, "checks": [{"path": "$.schematic", "equals": "dataflow"}]}
+        },
+        {
+          "http": {"method": "GET", "path": "/diagram-types"},
+          "expect": {"status": 200, "json": {"types": [{"id": "data-flow", "title": "Data flow", "description": "", "style": "boxes-arrows", "schematic": "dataflow"}]}}
+        },
+        {
+          "http": {"method": "PUT", "path": "/diagram-types/data-flow", "json": {"title": "Data flow", "style": "boxes-arrows", "instructions": "Show data movement.", "layout": {"direction": "LR"}, "grouping": {"enabled": false}, "relation_kinds": [], "schematic": "nope"}},
+          "expect": {"status": 400, "json": {"detail": "schematic must be one of ('dataflow', 'layers', 'ownership')"}}
         }
       ]
     },

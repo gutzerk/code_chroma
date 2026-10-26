@@ -718,6 +718,97 @@ public sealed class WorkflowRunnerTests : IDisposable
         Assert.Contains("run.message", _events);
     }
 
+    private async Task ReportFromStep(WorkflowRunner runner, string runId, int invocation, string status, string note)
+    {
+        var args = _cli.Invocations()[invocation]["args"]!.AsArray().Select(a => a!.GetValue<string>()).ToList();
+        var config = JsonNode.Parse(args[args.IndexOf("--mcp-config") + 1])!["mcpServers"]![WorkflowRunner.McpServerName]!;
+        await runner.HandleMcp(runId, config["headers"]!["Authorization"]!.GetValue<string>(), new JsonObject
+        {
+            ["jsonrpc"] = "2.0", ["id"] = 1, ["method"] = "tools/call",
+            ["params"] = new JsonObject { ["name"] = "report_status", ["arguments"] = new JsonObject { ["status"] = status, ["note"] = note } },
+        });
+    }
+
+    [Fact]
+    public async Task A_step_that_reports_blocked_waits_for_the_user_and_approve_continues()
+    {
+        Define(("one", "agent"), ("two", "agent"));
+        var release = Path.Combine(_cli.Directory, "release");
+        _cli.ScriptRuns([BlockUntilFile(release), ResultEvent(), Exit(0)], [ResultEvent(), Exit(0)]);
+        var runner = Runner();
+        var started = await runner.Start("wf");
+        await Until(() => _cli.Invocations().Count == 1, "step launch");
+        await ReportFromStep(runner, started.Id, 0, "blocked", "need the API key");
+        File.WriteAllText(release, "go");
+
+        await UntilState(runner, started.Id, "needs_you");
+        var parked = runner.Get(started.Id);
+        await runner.Review(started.Id, "approve", null);
+        await UntilState(runner, started.Id, "done");
+
+        Assert.Equal("needs_you", Step(parked, "one").Status);
+        Assert.Contains("need the API key", Step(parked, "one").Output);
+        Assert.Equal("pending", Step(parked, "two").Status);
+        Assert.Equal("done", Step(runner.Get(started.Id), "one").Status);
+        Assert.Equal("done", Step(runner.Get(started.Id), "two").Status);
+    }
+
+    [Fact]
+    public async Task Sending_a_blocked_step_back_reruns_that_step_with_the_note()
+    {
+        Define(("one", "agent"), ("two", "agent"));
+        var release = Path.Combine(_cli.Directory, "release");
+        _cli.ScriptRuns([BlockUntilFile(release), ResultEvent(), Exit(0)], [ResultEvent(), Exit(0)], [ResultEvent(), Exit(0)]);
+        var runner = Runner();
+        var started = await runner.Start("wf");
+        await Until(() => _cli.Invocations().Count == 1, "step launch");
+        await ReportFromStep(runner, started.Id, 0, "question", "which database?");
+        File.WriteAllText(release, "go");
+        await UntilState(runner, started.Id, "needs_you");
+
+        await runner.Review(started.Id, "sendBack", "use postgres");
+        await UntilState(runner, started.Id, "done");
+
+        Assert.Equal(3, _cli.Invocations().Count);
+        Assert.Contains("use postgres", _cli.Invocations()[1]["args"]!.ToJsonString() + _cli.Invocations()[1].ToJsonString());
+        Assert.Null(Step(runner.Get(started.Id), "one").Report);
+    }
+
+    [Fact]
+    public async Task A_done_report_or_no_report_completes_the_step_as_before()
+    {
+        Define(("one", "agent"), ("two", "agent"));
+        var release = Path.Combine(_cli.Directory, "release");
+        _cli.ScriptRuns([BlockUntilFile(release), ResultEvent(), Exit(0)], [ResultEvent(), Exit(0)]);
+        var runner = Runner();
+        var started = await runner.Start("wf");
+        await Until(() => _cli.Invocations().Count == 1, "step launch");
+        await ReportFromStep(runner, started.Id, 0, "done", "finished");
+        File.WriteAllText(release, "go");
+
+        await UntilState(runner, started.Id, "done");
+        var finished = runner.Get(started.Id);
+
+        Assert.Equal("done", Step(finished, "one").Status);
+        Assert.Equal("done", Step(finished, "two").Status);
+        Assert.Equal("done", Step(finished, "one").Report!.Status);
+    }
+
+    [Fact]
+    public async Task A_claude_step_gets_the_mcp_config_and_the_report_instruction()
+    {
+        Define(("one", "agent"));
+        _cli.Script(ResultEvent(), Exit(0));
+        var runner = Runner();
+
+        var started = await runner.Start("wf");
+        await UntilState(runner, started.Id, "done");
+
+        var invocation = _cli.Invocations()[0];
+        Assert.Contains("--mcp-config", Args(invocation));
+        Assert.Contains("report_status", invocation.ToJsonString());
+    }
+
     [Fact]
     public async Task A_message_to_a_step_is_refused_because_steps_are_talked_to_in_their_terminal()
     {
@@ -768,7 +859,7 @@ public sealed class WorkflowRunnerTests : IDisposable
         File.WriteAllText(release, "go");
         await UntilState(runner, started.Id, "done");
 
-        Assert.Equal(["pause", "stop", "propose_redo"], listed["result"]!["tools"]!.AsArray().Select(t => t!["name"]!.GetValue<string>()));
+        Assert.Equal(["pause", "stop", "propose_redo", "report_status"], listed["result"]!["tools"]!.AsArray().Select(t => t!["name"]!.GetValue<string>()));
         Assert.False(proposed["result"]!["isError"]!.GetValue<bool>());
         Assert.False(paused["result"]!["isError"]!.GetValue<bool>());
         Assert.True(unknown["result"]!["isError"]!.GetValue<bool>());

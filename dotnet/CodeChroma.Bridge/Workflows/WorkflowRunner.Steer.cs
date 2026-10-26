@@ -190,7 +190,9 @@ public sealed partial class WorkflowRunner
         Tool("pause", "Pause the run after the current tool call.", new JsonObject()),
         Tool("stop", "Stop the run. mode is now (default) or afterStep.", new JsonObject { ["mode"] = new JsonObject { ["type"] = "string", ["enum"] = new JsonArray("now", "afterStep") } }),
         Tool("propose_redo", "Suggest redoing from a step; the user confirms. Never redoes anything itself.",
-            new JsonObject { ["from"] = new JsonObject { ["type"] = "string" }, ["note"] = new JsonObject { ["type"] = "string" } }, "from"));
+            new JsonObject { ["from"] = new JsonObject { ["type"] = "string" }, ["note"] = new JsonObject { ["type"] = "string" } }, "from"),
+        Tool("report_status", "Step agents only: report done, blocked or question (with a one-line note) when the step ends.",
+            new JsonObject { ["status"] = new JsonObject { ["type"] = "string", ["enum"] = new JsonArray(StepReports.Done, StepReports.Blocked, StepReports.Question) }, ["note"] = new JsonObject { ["type"] = "string" } }, "status"));
 
     private static JsonObject Tool(string name, string description, JsonObject properties, params string[] required) => new()
     {
@@ -219,6 +221,10 @@ public sealed partial class WorkflowRunner
                 case "propose_redo":
                     ProposeRedo(runId, Json.Str(args["from"]) ?? "", Json.Str(args["note"]));
                     text = "Redo proposed; the user decides.";
+                    break;
+                case "report_status":
+                    ReportStatus(runId, Json.Str(args["status"]), Json.Str(args["note"]));
+                    text = "Status recorded.";
                     break;
                 default:
                     return ToolResult($"unknown tool: {name}", true);
@@ -261,6 +267,20 @@ public sealed partial class WorkflowRunner
             AddMessage(h, "run", "system", $"Redo from {from} proposed.");
             Persist(h, "run.redo.proposed");
             return View(h);
+        }
+    }
+
+    /// <summary>Records the step agent's report on the running step; a blocked or question report parks the step when the agent exits.</summary>
+    public void ReportStatus(string runId, string? status, string? note)
+    {
+        if (status is not (StepReports.Done or StepReports.Blocked or StepReports.Question)) throw new BridgeException(400, "status must be done, blocked or question");
+        lock (_lock)
+        {
+            var h = Require(runId);
+            if (h.Run.CurrentStepId is not { } id || Record(h, id) is not { Status: "running" or "paused" or "stopping" } record)
+                throw new BridgeException(409, "no step is running");
+            record.Report = new StepReport { Status = status, Note = (note ?? "").Trim() };
+            Persist(h, "run.step");
         }
     }
 
@@ -411,6 +431,6 @@ public sealed partial class WorkflowRunner
     private static StepRecord CloneStep(StepRecord s) => new()
     {
         StepId = s.StepId, Attempt = s.Attempt, Status = s.Status, Output = s.Output, DiffStat = s.DiffStat,
-        CheckpointRef = s.CheckpointRef, SessionId = s.SessionId, FromAttempt = s.FromAttempt, Usage = s.Usage, ResumedFrom = s.ResumedFrom,
+        CheckpointRef = s.CheckpointRef, SessionId = s.SessionId, FromAttempt = s.FromAttempt, Usage = s.Usage, ResumedFrom = s.ResumedFrom, Report = s.Report,
     };
 }

@@ -603,3 +603,7 @@ See "Sequence readability" in [`diagram-skills.md`](diagram-skills.md): `Sequenc
 ## Activity panel tab visibility
 
 `ActivityPanel` keeps both tab bodies mounted to preserve terminals. The `[hidden]` rule on both tab bodies uses `!important`, so no later `display` rule (e.g. the full-screen grid) can resurrect a hidden body and Workflows gets the entire content height. Dragging 24 screen pixels beyond the width ceiling enters full-screen mode, including on a scaled canvas.
+
+## Draw dialog (025)
+
+`DrawDiagramButton` opens `drawDialog/DrawDialog.tsx`, mounted by `RootCanvas` inside `.canvas-stage` so the rail and Agents panel stay visible. `drawDialogStore` holds open/last-used card/draft (the draft survives close until drawn); `useDiagramKinds` loads the cards each time it opens; `schematics.tsx` has the static SVG per card id. Esc, Cancel, ×, or a scrim click close it; Tab is trapped; focus returns to the button. Enter in the prompt (Shift+Enter is a new line) or Enter on a card draws; arrow keys move the selection. There is deliberately no scope switch: the user writes scope ("current change only") in the prompt. A launch error shows inline in the footer; at agent capacity the button is disabled with the limit as its tooltip. The tutorial still opens its scripted mock agent instead.

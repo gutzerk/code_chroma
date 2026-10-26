@@ -284,7 +284,7 @@ branch through an agent attached to it (`_guard_shared_worktree`, keyed off `Age
   (`terminal/agents.py`), which appends it as a positional argv entry for the `claude` binary — so the
   CLI process starts already answering it, and the window the user opens already shows the agent's
   question instead of an empty prompt waiting on idle-detection. `DrawDiagramButton`'s "Draw…" button
-  (see `single-canvas.md`) is the one caller today: `attachAgent`/`launchAgent` accept an optional `task`
+  (now via `DrawDialog`, see `web-canvas-shell.md`) is the one caller today: `attachAgent`/`launchAgent` accept an optional `task`
   string that, when given, takes priority over `context` and is sent with `contextKind: "task"`.
   🔴 **`context` is control-character-free by construction** (`manager._clean_context`, applied in
   both `create()` and `AgentRecord.from_json`, so a record persisted by an older build is cleaned on
@@ -553,3 +553,7 @@ agent while full screen is open, again on each status change and, while the agen
 `UsageStrip` renders "Context 62k / 200k · 31%" with a `role="meter"` bar, "Tokens 184k in · 12k out",
 "Cache hit 78%" and "Cost $0.84" (omitted when `costUsd` is null). Tests:
 `dotnet/CodeChroma.Bridge.Tests/Agents/AgentUsageTests.cs`, `web/src/agents/activity/UsageStrip.test.tsx`.
+
+## Drawing-agent fields (025)
+
+`POST /agents` also takes `diagram_type` and `diagram_request` (trimmed, one line, at most 2000 chars); they are validated (400 with a reason) and persisted on the agent record next to `context_kind`, only for `context_kind: "task"`. Both bridges carry them (`routes/agents.py` + `agents/manager.py`; `AgentRoutes.cs` + `DiagramHint.cs` + `AgentRecord.cs`) and report them on `GET /agents`. The Draw dialog sends only the type and the request (scope is written in the request, there is no separate scope field). Only the C# bridge composes the first message from them (see `diagram-skills.md`).

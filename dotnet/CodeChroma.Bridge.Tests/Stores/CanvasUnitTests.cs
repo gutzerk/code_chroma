@@ -73,4 +73,22 @@ public class CanvasUnitTests
         Assert.Equal("message", shape.Nodes[2].Meta!["role"]!.GetValue<string>());
         Assert.Empty(shape.Relations);
     }
+
+    [Fact]
+    public void A_sequence_recipe_carries_the_readability_fields_like_python()
+    {
+        var resolved = JsonNode.Parse("""
+            {"phases":[{"id":"p1","name":"Prepare","kind":"prepare","from_order":1,"to_order":1}],"summary":"s",
+             "nodes":[{"id":"a","name":"A","lane":"client","path":"a.py"},{"id":"b","name":"B"}],
+             "relations":[{"id":"m1","from":"a","to":"b","order":"1","hero":true}]}
+            """)!.AsObject();
+
+        var shape = Recipes.Reshape(resolved, "sequence");
+
+        Assert.Equal("client", shape.Nodes[0].Meta!["lane"]!.GetValue<string>());
+        Assert.Equal("a.py", shape.Nodes[0].Meta!["path"]!.GetValue<string>());
+        Assert.Equal("p1", shape.Nodes[0].Meta!["phases"]![0]!["id"]!.GetValue<string>());
+        Assert.Equal("s", shape.Nodes[0].Meta!["summary"]!.GetValue<string>());
+        Assert.True(shape.Nodes[2].Meta!["hero"]!.GetValue<bool>());
+    }
 }

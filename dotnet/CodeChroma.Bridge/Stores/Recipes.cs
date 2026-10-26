@@ -116,8 +116,8 @@ public static class Recipes
     private static RecipeNode NodeOf(JsonObject item, string render)
     {
         var meta = item["meta"] is JsonObject own ? (JsonObject)own.DeepClone() : [];
-        foreach (var key in new[] { "kind", "icon", "parent", "seed" })
-            if (item[key] is { } value) meta[key] = value.DeepClone();
+        foreach (var key in new[] { "kind", "icon", "parent", "seed", "order", "lane", "path" })
+            if (item[key] is { } value && (key is "kind" or "icon" or "parent" or "seed" || !meta.ContainsKey(key))) meta[key] = value.DeepClone();
         // A per-node `render` override lets one diagram mix kinds (an epics brief draws epic and spec boxes).
         var resolvedRender = Json.Str(item["render"]) ?? render;
         var label = Json.Truthy(item["name"]) ? PyStr(item["name"]) : Json.Truthy(item["title"]) ? PyStr(item["title"]) : PyStr(item["id"]);
@@ -142,13 +142,17 @@ public static class Recipes
             .Where(item => Json.Str(item["id"]) is not null
                 && Json.Str(item["from"]) is { } from && participantRefs.Contains(from)
                 && Json.Str(item["to"]) is { } to && participantRefs.Contains(to));
-        var sequenceNodes = nodes.Select(ParticipantNode).Concat(messages.Select(MessageNode)).ToList();
+        // 022: the diagram-level readability data rides on every participant's meta.
+        var readability = new[] { "phases", "frames", "notes", "question", "summary" }
+            .Where(key => Json.Truthy(resolved[key])).ToDictionary(key => key, key => resolved[key]!);
+        var sequenceNodes = nodes.Select(node => ParticipantNode(node, readability)).Concat(messages.Select(MessageNode)).ToList();
         return new GraphShape(sequenceNodes, []);
     }
 
-    private static RecipeNode ParticipantNode(RecipeNode node)
+    private static RecipeNode ParticipantNode(RecipeNode node, Dictionary<string, JsonNode> readability)
     {
         var meta = (JsonObject)(node.Meta ?? []).DeepClone();
+        foreach (var (key, value) in readability) meta[key] = value.DeepClone();
         meta["role"] = "participant";
         return node with { Meta = meta };
     }
@@ -162,6 +166,7 @@ public static class Recipes
         meta["order"] = item["order"]?.DeepClone();
         meta["async"] = Json.Truthy(item["async"]);
         meta["return"] = Json.Truthy(item["return"]);
+        meta["hero"] = Json.Truthy(item["hero"]);
         return new RecipeNode(Key: Json.Str(item["id"])!, Render: "sequence", Label: TextOr(item["label"]), Description: TextOr(item["description"]), Meta: meta, Style: StyleOf(item));
     }
 

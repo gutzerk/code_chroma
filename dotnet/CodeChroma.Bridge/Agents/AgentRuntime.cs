@@ -6,6 +6,7 @@ using CodeChroma.Bridge.Routes;
 using CodeChroma.Bridge.Stores;
 using CodeChroma.Bridge.Terminal;
 using CodeChroma.Bridge.Workspaces;
+using Microsoft.AspNetCore.Hosting.Server;
 
 namespace CodeChroma.Bridge.Agents;
 
@@ -30,7 +31,7 @@ public static class AgentsAndPrsServices
 /// </summary>
 public sealed class AgentRuntime(
     AgentManager agents, PrManager prs, BranchManager branches, WorkspaceRegistry registry, AgentSessionRegistry sessions,
-    TerminalAgents terminalAgents, ConnectionManager connections, UserPaths paths, ILogger<AgentRuntime> log) : IHostedService
+    TerminalAgents terminalAgents, ConnectionManager connections, UserPaths paths, ILogger<AgentRuntime> log, IServer server) : IHostedLifecycleService
 {
     public const int StatusPollMs = 250;
 
@@ -52,11 +53,22 @@ public sealed class AgentRuntime(
         agents.WorkspaceGuard = registry.IsRegistered;
         agents.RevalidateActiveWorkspace();
 
+        return Task.CompletedTask;
+    }
+
+    // All hosted services, including the HTTP server, have started before this hook runs.
+    public Task StartedAsync(CancellationToken cancellationToken)
+    {
+        BareSkill.BridgeUrl = BridgeAddress.Local(server);
         AutoStartAgents();
         _stop = new CancellationTokenSource();
         _poller = Task.Run(() => PollStatuses(_stop.Token));
         return Task.CompletedTask;
     }
+
+    public Task StartingAsync(CancellationToken cancellationToken) => Task.CompletedTask;
+    public Task StoppingAsync(CancellationToken cancellationToken) => Task.CompletedTask;
+    public Task StoppedAsync(CancellationToken cancellationToken) => Task.CompletedTask;
 
     public async Task StopAsync(CancellationToken cancellationToken)
     {
@@ -88,7 +100,7 @@ public sealed class AgentRuntime(
     {
         var sessionId = agents.CaptureSessionId(record.Id);
         var fork = string.IsNullOrEmpty(sessionId) && record.ForkSession is { Length: > 0 };
-        var launch = terminalAgents.Resolve(record.Kind, fork ? record.ForkSession : sessionId, forkSession: fork,
+        var launch = terminalAgents.Resolve(record.Kind, fork ? record.ForkSession : sessionId, forkSession: fork, agentId: record.Id, bridgeUrl: BareSkill.BridgeUrl,
             newSessionId: Guid.NewGuid().ToString(),
             sessionTrackingFile: AgentSessionOwnership.FileFor(agents.MainRoot, Guid.NewGuid().ToString()));
         if (launch is null)

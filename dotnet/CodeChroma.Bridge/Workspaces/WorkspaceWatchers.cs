@@ -10,8 +10,11 @@ public sealed class WorkspaceWatchers : IDisposable
     private readonly Debouncer _repo;
     private readonly Dictionary<string, Debouncer> _diagrams = [];
     private readonly Debouncer _custom;
+    private readonly Debouncer _impactChanges;
+    private readonly Debouncer _wikiGeneral;
     private readonly Debouncer _featurePlans;
     private readonly Debouncer _traces;
+    private readonly Debouncer _canvas;
     private readonly Debouncer _newDirectories;
     private readonly HashSet<string> _pendingDirectories = [];
 
@@ -21,9 +24,12 @@ public sealed class WorkspaceWatchers : IDisposable
         _repo = new Debouncer(TimeSpan.FromMilliseconds(BridgeLimits.RepoDebounceMs), OnRepoChange);
         foreach (var kind in Workspace.DiagramKinds)
             _diagrams[kind] = new Debouncer(TimeSpan.FromMilliseconds(BridgeLimits.WatcherDebounceMs), () => workspace.Emit(new JsonObject { ["type"] = kind }));
-        _custom = new Debouncer(TimeSpan.FromMilliseconds(BridgeLimits.WatcherDebounceMs), () => workspace.Emit(new JsonObject { ["type"] = "custom" }));
-        _featurePlans = new Debouncer(TimeSpan.FromMilliseconds(BridgeLimits.WatcherDebounceMs), () => workspace.Emit(new JsonObject { ["type"] = "feature-plan" }));
+        _custom = new Debouncer(TimeSpan.FromMilliseconds(BridgeLimits.WatcherDebounceMs), () => EmitWithCanvas("custom"));
+        _featurePlans = new Debouncer(TimeSpan.FromMilliseconds(BridgeLimits.WatcherDebounceMs), () => EmitWithCanvas("feature-plan"));
+        _impactChanges = new Debouncer(TimeSpan.FromMilliseconds(BridgeLimits.WatcherDebounceMs), () => workspace.Emit(new JsonObject { ["type"] = "impact-changes" }));
+        _wikiGeneral = new Debouncer(TimeSpan.FromMilliseconds(BridgeLimits.WatcherDebounceMs), () => workspace.Emit(new JsonObject { ["type"] = "wiki-general" }));
         _traces = new Debouncer(TimeSpan.FromMilliseconds(BridgeLimits.WatcherDebounceMs), () => workspace.Emit(new JsonObject { ["type"] = "trace" }));
+        _canvas = new Debouncer(TimeSpan.FromMilliseconds(BridgeLimits.WatcherDebounceMs), () => workspace.Emit(new JsonObject { ["type"] = "canvas" }));
         _newDirectories = new Debouncer(TimeSpan.FromMilliseconds(BridgeLimits.WatcherDebounceMs), NotifyNewDirectories);
         _watcher = new FileSystemWatcher(workspace.Root)
         {
@@ -42,6 +48,12 @@ public sealed class WorkspaceWatchers : IDisposable
         _watcher.Deleted += (_, e) => Route(e.FullPath);
         _watcher.Error += (_, _) => _repo.Trigger();
         _watcher.Renamed += (_, e) => { Route(e.OldFullPath); Route(e.FullPath); };
+    }
+
+    private void EmitWithCanvas(string type)
+    {
+        _workspace.Emit(new JsonObject { ["type"] = type });
+        _workspace.Emit(new JsonObject { ["type"] = "canvas" });
     }
 
     public void Start() => _watcher.EnableRaisingEvents = true;
@@ -68,14 +80,20 @@ public sealed class WorkspaceWatchers : IDisposable
             if (!Directory.Exists(folderPath)) continue;
             foreach (var directory in Directory.EnumerateDirectories(folderPath))
             {
-                var path = Path.Combine(directory, Path.GetFileName(directory) + ".json");
-                if (UnderNewDirectory(path) && File.Exists(path)) debouncer.Trigger();
+                var paths = new[] { Path.Combine(directory, Path.GetFileName(directory) + ".json"), Path.Combine(directory, "projection.json") };
+                if (paths.Any(path => UnderNewDirectory(path) && File.Exists(path))) debouncer.Trigger();
             }
         }
+        foreach (var (path, debouncer) in new[] { (ImpactChangesPath, _impactChanges), (WikiGeneralIndexPath, _wikiGeneral) })
+            if (UnderNewDirectory(path) && File.Exists(path)) debouncer.Trigger();
         var traces = _workspace.TracesDir + Path.DirectorySeparatorChar;
         if (UnderNewDirectory(traces) && Directory.Exists(traces) && Directory.EnumerateFiles(traces).Any())
             _traces.Trigger();
     }
+
+    private string ImpactChangesPath => Path.Combine(_workspace.Root, ".codechroma", "impact-changes.json");
+
+    private string WikiGeneralIndexPath => Path.Combine(_workspace.Root, ".codechroma", "wiki-general", "index.md");
 
     private void Route(string fullPath)
     {
@@ -85,14 +103,29 @@ public sealed class WorkspaceWatchers : IDisposable
             diagram.Trigger();
             return;
         }
-        if (parts is [".codechroma", "diagrams", "custom", var customType, var customFile] && customFile == customType + ".json")
+        if (parts is [".codechroma", "diagrams", "custom", var customType, var customFile] && (customFile == customType + ".json" || customFile == "projection.json"))
         {
             _custom.Trigger();
             return;
         }
-        if (parts is [".codechroma", "diagrams", "feature-plan", var slug, var planFile] && planFile == slug + ".json")
+        if (parts is [".codechroma", "diagrams", "feature-plan", var planType, var planFile] && (planFile == planType + ".json" || planFile == "projection.json"))
         {
             _featurePlans.Trigger();
+            return;
+        }
+        if (parts is [".codechroma", "impact-changes.json"])
+        {
+            _impactChanges.Trigger();
+            return;
+        }
+        if (parts is [".codechroma", "wiki-general", "index.md"])
+        {
+            _wikiGeneral.Trigger();
+            return;
+        }
+        if (parts is [".codechroma", "canvas-core.json"] or [".codechroma", "diagrams", _, "projection.json"])
+        {
+            _canvas.Trigger();
             return;
         }
         if (parts is [".codechroma", "traces", _])
@@ -126,7 +159,10 @@ public sealed class WorkspaceWatchers : IDisposable
         _repo.Dispose();
         _newDirectories.Dispose();
         _traces.Dispose();
+        _canvas.Dispose();
         _custom.Dispose();
+        _impactChanges.Dispose();
+        _wikiGeneral.Dispose();
         _featurePlans.Dispose();
         foreach (var d in _diagrams.Values) d.Dispose();
     }

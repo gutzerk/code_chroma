@@ -30,16 +30,19 @@ public sealed class CoreGraphEngine : IGraphEngine
     private readonly GraphCore _core;
     private readonly IAnalysisExporter _exporter;
     private readonly string _root;
+    private readonly bool _writeDigest;
     private readonly object _writeLock = new();
     private IReadOnlyList<PatternInstance>? _patterns;
     private IReadOnlyDictionary<string, ClassShape>? _shapes;
 
-    public CoreGraphEngine(string root, IAnalysisExporter exporter)
+    public CoreGraphEngine(string root, IAnalysisExporter exporter, bool writeDigest = true)
     {
         _root = root;
+        _writeDigest = writeDigest;
         _exporter = exporter;
         _core = new GraphCore(liveResolver: exporter is NativeAnalysisExporter native ? new LiveImportResolver(native.Registry, root) : null);
         _core.Analyze(exporter.Full(root));
+        WriteDigest();
     }
 
     /// <summary>Wraps an already-built analysis input (tests and snapshots); reanalysis needs an exporter.</summary>
@@ -84,7 +87,15 @@ public sealed class CoreGraphEngine : IGraphEngine
         {
             _core.Reanalyze(_exporter.Delta(_root, changedPaths));
             _patterns = null;
+            WriteDigest();
         }
+    }
+
+    private void WriteDigest()
+    {
+        if (_root.Length == 0 || !_writeDigest) return;
+        try { DependencyDigest.Write(_root, DependencyDigest.Build(_core.Snapshot)); }
+        catch (Exception ex) { Console.Error.WriteLine($"dependency digest build/write failed for {_root}: {ex.Message}"); }
     }
 
     public CodeChroma.Core.Graph? GraphSnapshot() => _core.Snapshot;
@@ -131,4 +142,6 @@ public sealed class CoreGraphEngine : IGraphEngine
 public sealed class CoreEngineFactory(IAnalysisExporter exporter) : IEngineFactory
 {
     public IGraphEngine Create(string root) => new CoreGraphEngine(root, exporter);
+
+    public IGraphEngine Create(string root, bool readOnly) => new CoreGraphEngine(root, exporter, writeDigest: !readOnly);
 }

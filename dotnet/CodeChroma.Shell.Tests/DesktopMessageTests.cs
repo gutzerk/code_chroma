@@ -34,4 +34,12 @@ public class DesktopMessageTests
 
         Assert.Equal(new DesktopMessage("updates", null, callId, method, arg), message);
     }
+
+    [Fact]
+    public void Save_file_calls_carry_the_file_name_mime_type_and_base64_content()
+    {
+        var message = DesktopMessage.Parse("""{"type":"save-file","callId":"s1","id":"map.png","method":"image/png","arg":"AQID"}""");
+
+        Assert.Equal(new DesktopMessage("save-file", "map.png", "s1", "image/png", "AQID"), message);
+    }
 }

@@ -1,6 +1,6 @@
 import type { CanvasElement } from "../../state/types";
 import { BLOCK_RULES } from "./elementRules";
-import { stringMeta } from "./elementMeta";
+import { orderMeta, stringMeta } from "./elementMeta";
 import { NO_CODE_REASON_LABELS } from "./nodeAccentLogic";
 
 // Pure helpers (`accentFor`, `noCodeReasonMessage`, the `NodeAccent` type, the shared
@@ -18,7 +18,7 @@ import { NO_CODE_REASON_LABELS } from "./nodeAccentLogic";
 export function NodeTopBand({ element }: { element: CanvasElement }) {
   const planKind = stringMeta(element, "plan_kind");
   const plan = planKind && planKind in PLAN_KIND_LABELS ? planKind : undefined;
-  const order = stringMeta(element, "order");
+  const order = orderMeta(element);
   if (!plan && !order) return null;
   return (
     <div
@@ -92,7 +92,7 @@ const PLAN_KIND_COLOR_VARS: Record<string, string> = {
  * impact status chip rather than being suppressed by one -- the meta row has room for both. */
 export function NoCodeChip({ element }: { element: CanvasElement }) {
   const reason = stringMeta(element, "no_code_reason");
-  if (!reason || !(reason in NO_CODE_REASON_LABELS)) return null;
+  if (!reason || reason === "conceptual" || !(reason in NO_CODE_REASON_LABELS)) return null;
   return (
     <span className={`node-meta-chip node-meta-chip--no-code-${reason}`} data-testid="no-code-chip">
       &empty; {NO_CODE_REASON_LABELS[reason]}
@@ -110,12 +110,19 @@ export function NodeMetaRow({ element, count }: { element: CanvasElement; count?
     BLOCK_RULES[element.render].statusChip === "impact" &&
     Boolean(status && status in IMPACT_STATUS_LABELS);
   const reason = stringMeta(element, "no_code_reason");
-  const hasNoCode = Boolean(reason && reason in NO_CODE_REASON_LABELS);
+  // 022: the CONCEPTUAL badge is gone -- the ghost styling already says "no code behind it".
+  const hasNoCode = Boolean(reason && reason !== "conceptual" && reason in NO_CODE_REASON_LABELS);
+  const kind = stringMeta(element, "kind");
   const isEpic = element.render === "epic";
   if (isEpic) return <EpicMetaRow element={element} />;
-  if (!hasStatus && !hasNoCode) return null;
+  if (!hasStatus && !hasNoCode && !kind) return null;
   return (
     <div className="canvas-node-meta-row" data-testid="canvas-node-meta-row">
+      {kind && (
+        <span className="node-meta-chip node-meta-chip--role" data-testid="role-chip">
+          {kind}
+        </span>
+      )}
       <ImpactStatusChip element={element} count={count} />
       <NoCodeChip element={element} />
     </div>

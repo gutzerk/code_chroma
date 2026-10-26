@@ -7,6 +7,9 @@ public sealed record CallSiteInfo(string Id, string Label, string Capability, st
 
 public sealed record GroupInfo(string Id, string Label, IReadOnlyList<string> Members, bool Hidden);
 
+/// <summary>A user-facing settings row; Needs is "agents" or "quick".</summary>
+public sealed record FeatureInfo(string Id, string Label, string Description, string Needs, IReadOnlyList<string> Members);
+
 /// <summary>The code-defined call sites, groups, adapters and transports, embedded from llm_catalog.json (dumped from Python).</summary>
 public static class LlmCatalog
 {
@@ -18,6 +21,10 @@ public static class LlmCatalog
     public static IReadOnlyList<GroupInfo> Groups { get; } = Data["groups"]!.AsArray()
         .Select(n => new GroupInfo(Str(n!, "id"), Str(n!, "label"),
             n!["members"]!.AsArray().Select(m => m!.GetValue<string>()).ToList(), n["hidden"]!.GetValue<bool>())).ToList();
+
+    public static IReadOnlyList<FeatureInfo> Features { get; } = Data["features"]!.AsArray()
+        .Select(n => new FeatureInfo(Str(n!, "id"), Str(n!, "label"), Str(n!, "description"), Str(n!, "needs"),
+            n!["members"]!.AsArray().Select(m => m!.GetValue<string>()).ToList())).ToList();
 
     public static IReadOnlyList<string> Strings(string key) => Data[key]!.AsArray().Select(n => n!.GetValue<string>()).ToList();
 

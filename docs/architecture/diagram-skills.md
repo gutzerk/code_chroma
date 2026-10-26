@@ -981,3 +981,9 @@ systems have their own tag, separate from `conceptual`. The canvas shows a dashe
 (`database`, `storage`, `queue`, `actor`, `client`, `cache`, `external`), applied as a
 `.node-shape-<name>` class; unknown names fall back to the plain box. Tests:
 `tests/unit/test_diagram_resolver.py`, `web/src/canvas/doc/nodeAccent.test.tsx`.
+
+## Sequence readability (022)
+
+`check_diagram.py` adds `BADPHASE` and `BADFRAME` (shape tier: unknown `kind` or a bad `from_order`/`to_order` range in `phases[]`/`frames[]`), and the advisories `NO-ORDER` (sequence message without `order`; an older diagram still passes), one combined `NOSUMMARY`, `ECHO-LABEL`, `HIDDEN-BRANCH`, `LONGTITLE`. Both resolvers (`canvas/recipes.py`, `Stores/Recipes.cs`) fold `order`/`lane` into node `meta`, add `hero` to message `meta`, and stamp `phases`/`frames`/`notes`/`question`/`summary` on every participant's `meta`.
+
+The canvas draws a sequence layer in one of two switchable modes (`web/src/canvas/doc/`): `SequenceReadable.tsx` (phase bands, numbered messages, frames, notes) and `SequenceFocus.tsx` (collapsible phase rows, focused participant, timeline panel), both over `sequenceModel.ts` and the shared `SequenceDrawing`. The `Readable | Focus` control sits in `DiagramFrame.tsx`; the choice, collapsed phases and focus live in `sequenceViewStore.ts` (per layer, `localStorage`, default `focus` above 12 messages), never in `sequence.json`. `layoutSequence(doc, ids, view)` folds collapsed phases into one row; `viewSequenceElements` derives that geometry in `CanvasDocView` for display only, anchored to the persisted layout, so a mode switch or collapse never writes to the document (`useReflowSequence` still runs once on mount with the readable layout).

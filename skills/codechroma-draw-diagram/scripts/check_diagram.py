@@ -902,11 +902,11 @@ def _check_readability(diagram: object, kind: str, report: _Report) -> None:
         if missing:
             keys = " and ".join(f"`{key}`" for key in missing)
             report.advisories.append(f"NOSUMMARY the diagram has no top-level {keys} string")
-    if kind in HERO_KINDS and len(relations) >= MIN_RELATIONS_FOR_HERO:
-        if not any(relation.get("hero") for relation in relations):
-            report.advisories.append(
-                "NOHERO no relation is marked `hero` -- mark the 1-2 main-path edges"
-            )
+    has_hero = any(relation.get("hero") for relation in relations)
+    if kind in HERO_KINDS and len(relations) >= MIN_RELATIONS_FOR_HERO and not has_hero:
+        report.advisories.append(
+            "NOHERO no relation is marked `hero` -- mark the 1-2 main-path edges"
+        )
     named = [n for n in nodes if isinstance(n.get("id"), str)]
     names = {n["id"]: str(n.get("name") or "").strip().lower() for n in named}
     for node in nodes:

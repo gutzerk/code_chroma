@@ -3,6 +3,7 @@ import type {
   AgentRecord,
   AgentWindowGeometry,
   BranchInfo,
+  BuiltinDiagramKind,
   GitInitResult,
   GitPreflight,
   GithubOpenPr,
@@ -14,11 +15,14 @@ import type {
 } from "../state/types";
 import { errorMessageFrom, jsonInit } from "../util/httpJson";
 
-/** Marks a task agent as drawing a diagram (`c1`, `patterns`, `sequence`, `custom`, or `any` before the
- * user has said which); the bridge then tells the agent how to run the `context` command itself. */
+/** Marks a task agent as drawing a diagram (`c1`, `patterns`, `impact`, `plan`, `sequence`, `custom`, or
+ * `any` before the user has said which); the bridge then tells the agent how to run the `context`
+ * command itself. With a `request` the agent starts drawing without asking (scope is in the
+ * user's own words); `title` names the agent's card. */
 export interface DiagramTaskHint {
   type: string;
   request?: string;
+  title?: string;
 }
 
 /** A claude agent's session usage for the full-screen strip; `costUsd` is null for an unpriced model. */
@@ -75,6 +79,8 @@ export interface AgentClient {
   activateWorkspace(id: string): Promise<WorkspaceStatus>;
   /** analyzing / ready / error plus a progress line, polled while a worktree's graph comes up. */
   workspaceStatus(id: string): Promise<WorkspaceStatus>;
+  /** The built-in diagram kinds the Draw dialog lists (GET /diagram-kinds). */
+  diagramKinds(): Promise<BuiltinDiagramKind[]>;
   /** Whether agents can run here at all, plus the first-commit plan when a repo has to be made. */
   gitPreflight(): Promise<GitPreflight>;
   gitInit(extraIgnores: string[]): Promise<GitInitResult>;
@@ -135,6 +141,10 @@ export class HttpAgentClient implements AgentClient {
         diagram_request: diagram?.request,
       }),
     );
+  }
+
+  async diagramKinds(): Promise<BuiltinDiagramKind[]> {
+    return (await this.request<{ kinds: BuiltinDiagramKind[] }>("/diagram-kinds")).kinds;
   }
 
   openStepSession(title: string, runId: string, sessionId: string): Promise<AgentRecord> {

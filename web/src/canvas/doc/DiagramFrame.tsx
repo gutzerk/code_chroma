@@ -214,6 +214,7 @@ export function DiagramFrame({ layer, label, members, sizes, typeLabel, boxCount
       testId="canvas-diagram-frame"
       labelClassName="canvas-diagram-frame-label"
       label={label}
+      layer={layer}
       labelAction={
         <>
           {typeLabel !== undefined && (

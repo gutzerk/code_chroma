@@ -23,6 +23,8 @@ export interface SoftAreaFrameProps {
   interactiveProps?: HTMLAttributes<HTMLDivElement>;
   /** Optional control rendered inline after the label (`DiagramFrame`'s copy-name button). */
   labelAction?: ReactNode;
+  /** The diagram layer the frame belongs to, so a per-diagram export can keep or drop it. */
+  layer?: string;
 }
 
 /**
@@ -43,6 +45,7 @@ export function SoftAreaFrame({
   label,
   interactiveProps,
   labelAction,
+  layer,
 }: SoftAreaFrameProps) {
   const { left, top, right, bottom } = bounds;
   return (
@@ -50,6 +53,7 @@ export function SoftAreaFrame({
       className={className}
       data-testid={testId}
       data-canvas-element
+      data-layer={layer}
       style={{
         position: "absolute",
         // Whole pixels only: a fractional live-drag offset shifts a dashed border's antialiasing every frame.

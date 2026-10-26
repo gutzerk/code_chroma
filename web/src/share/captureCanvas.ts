@@ -21,8 +21,16 @@ interface Bounds {
   height: number;
 }
 
-/** The union of the content's children in the content's own (un-panned, un-zoomed) coordinates. */
-export function contentBounds(content: HTMLElement): Bounds | null {
+/** The nodes that define the export extent: every child, or only the given diagrams' tagged nodes. */
+function boundsSources(content: HTMLElement, layers?: ReadonlySet<string>): Element[] {
+  if (!layers) return Array.from(content.children);
+  return Array.from(content.querySelectorAll("[data-layer]")).filter((el) =>
+    layers.has(el.getAttribute("data-layer") ?? ""),
+  );
+}
+
+/** The union of the content's children (or of the chosen diagrams) in the content's own (un-panned, un-zoomed) coordinates. */
+export function contentBounds(content: HTMLElement, layers?: ReadonlySet<string>): Bounds | null {
   const viewport = content.parentElement;
   if (!viewport) return null;
   const matrix = new DOMMatrixReadOnly(getComputedStyle(content).transform);
@@ -32,7 +40,7 @@ export function contentBounds(content: HTMLElement): Bounds | null {
   let minY = Infinity;
   let maxX = -Infinity;
   let maxY = -Infinity;
-  for (const child of Array.from(content.children)) {
+  for (const child of boundsSources(content, layers)) {
     const rect = child.getBoundingClientRect();
     if (rect.width === 0 || rect.height === 0) continue;
     minX = Math.min(minX, (rect.left - origin.left - matrix.e) / scale);
@@ -44,12 +52,16 @@ export function contentBounds(content: HTMLElement): Bounds | null {
   return { x: minX, y: minY, width: maxX - minX, height: maxY - minY };
 }
 
-/** Prepares a whole-diagram capture of the canvas content, or null when there is nothing to export. */
-export function prepareCapture(root: Document = document): CanvasCapture | null {
+/** Prepares a capture of the canvas content (only the given diagram layers when set), or null when there is nothing to export. */
+export function prepareCapture(
+  root: Document = document,
+  layerList?: readonly string[],
+): CanvasCapture | null {
+  const layers = layerList ? new Set(layerList) : undefined;
   const content = root.querySelector<HTMLElement>('[data-testid="canvas-content"]');
   const viewport = content?.parentElement;
   if (!content || !viewport) return null;
-  const bounds = contentBounds(content);
+  const bounds = contentBounds(content, layers);
   if (!bounds) return null;
   const naturalWidth = bounds.width + PADDING * 2;
   const naturalHeight = bounds.height + PADDING * 2;
@@ -63,6 +75,11 @@ export function prepareCapture(root: Document = document): CanvasCapture | null 
     height,
     pixelRatio: Math.min(2, Math.sqrt(MAX_PIXELS / (width * height))),
     backgroundColor: background,
+    filter: (node: Node) => {
+      if (!layers || !(node instanceof Element)) return true;
+      const layer = node.getAttribute("data-layer");
+      return layer === null || layers.has(layer);
+    },
     style: {
       transform: `scale(${fit}) translate(${PADDING - bounds.x}px, ${PADDING - bounds.y}px)`,
       transformOrigin: "0 0",

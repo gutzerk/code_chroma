@@ -9,6 +9,8 @@ import { saveFile } from "./saveFile";
 export interface ShareMenuProps {
   /** Base of the suggested file name, e.g. the repository name. */
   name?: string;
+  /** The diagram layers to export; the control is disabled while the list is empty. */
+  layers: readonly string[];
 }
 
 function fileBase(name: string | undefined): string {
@@ -16,9 +18,9 @@ function fileBase(name: string | undefined): string {
   return `${cleaned || "canvas"}-diagram`;
 }
 
-/** The top bar's "Share" control: a dropdown of export formats (PNG, HTML, PDF); picking one renders
- * the whole diagram and opens a Save As dialog for the location and file name. */
-export function ShareMenu({ name }: ShareMenuProps) {
+/** The Diagrams panel's "Export" control: a dropdown of export formats (PNG, HTML, PDF); picking one renders
+ * the selected diagrams and opens a Save As dialog for the location and file name. */
+export function ShareMenu({ name, layers }: ShareMenuProps) {
   const [open, setOpen] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -27,7 +29,7 @@ export function ShareMenu({ name }: ShareMenuProps) {
   const exportAs = async (format: ExportFormat) => {
     setOpen(false);
     setError(null);
-    const capture = prepareCapture();
+    const capture = prepareCapture(document, layers);
     if (!capture) {
       setError("Nothing to export yet");
       return;
@@ -49,12 +51,13 @@ export function ShareMenu({ name }: ShareMenuProps) {
     <div className="share-menu" ref={containerRef}>
       <RailButton
         ref={triggerRef}
-        label={busy ? "Exporting…" : "Share"}
+        label={busy ? "Exporting…" : "Export"}
+        tooltip={layers.length === 0 ? "Tick diagrams to export" : undefined}
         className="share-menu-button"
         testId="share-menu-button"
         ariaExpanded={open}
         pressed={open || busy}
-        disabled={busy}
+        disabled={busy || layers.length === 0}
         onClick={() => setOpen((current) => !current)}
       >
         <RailIcon name="share" />

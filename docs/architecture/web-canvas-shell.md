@@ -601,4 +601,4 @@ See "Sequence readability" in [`diagram-skills.md`](diagram-skills.md): `Sequenc
 
 ## Activity panel tab visibility
 
-`ActivityPanel` keeps both tab bodies mounted to preserve terminals. Full-screen grid styles apply only to the visible Agents body (`:not([hidden])`), so Workflows gets the entire content height. Dragging 24 screen pixels beyond the width ceiling enters full-screen mode, including on a scaled canvas.
+`ActivityPanel` keeps both tab bodies mounted to preserve terminals. The `[hidden]` rule on both tab bodies uses `!important`, so no later `display` rule (e.g. the full-screen grid) can resurrect a hidden body and Workflows gets the entire content height. Dragging 24 screen pixels beyond the width ceiling enters full-screen mode, including on a scaled canvas.

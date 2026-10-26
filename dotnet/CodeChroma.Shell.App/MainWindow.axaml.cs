@@ -157,14 +157,17 @@ public sealed partial class MainWindow : Window, IShellUi, ILauncherHost
         }
     }
 
+    private const int MaxClipboardWrite = 4_000_000;
+
     private Task ClipboardAsync(TabView view, DesktopMessage message) =>
         message.CallId is null
             ? Task.CompletedTask
             : ShellReply.RunAsync(view, message.CallId, async () =>
             {
                 var clipboard = Clipboard ?? throw new InvalidOperationException("Clipboard unavailable");
+                if (!IsActive || !view.IsVisible) throw new InvalidOperationException("Clipboard is only available to the focused tab");
                 if (message.Method == "read") return JsonSerializer.Serialize(await clipboard.GetTextAsync() ?? "");
-                if (message.Method != "write" || message.Arg is null) throw new InvalidOperationException("Invalid clipboard operation");
+                if (message.Method != "write" || message.Arg is null || message.Arg.Length > MaxClipboardWrite) throw new InvalidOperationException("Invalid clipboard operation");
                 await clipboard.SetTextAsync(message.Arg);
                 return "null";
             });

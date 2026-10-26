@@ -36,7 +36,7 @@ to revive if it comes back, it would be rebuilt from scratch.
     own cursor model.
   - The debounced, size-deduped `refit`, the 0x0 guard for a hidden host box, and `onBinary`.
   - Copy-on-select: `term.onSelectionChange` writes the new (non-empty) selection to
-    the native desktop clipboard when available, otherwise `navigator.clipboard`, the same way a native terminal (iTerm, GNOME Terminal) works — no
+    the native desktop clipboard when available, otherwise `navigator.clipboard` (writes are serialized, and only selections started by a pointer press are copied), the same way a native terminal (iTerm, GNOME Terminal) works — no
     Cmd/Ctrl+C needed. Applies to both the panel and every agent window since they share this hook.
     A missing/denied Clipboard API fails silently (`.catch(() => {})`) rather than throwing.
     Debounced (`SELECTION_COPY_DEBOUNCE_MS`, 150ms) same as `scheduleRefit` above — a drag-select

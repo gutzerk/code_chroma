@@ -162,8 +162,7 @@ Rules:
 - Don't restate a class's own `bases`/inheritance as a relation if it's already implied by an
   `implements`/`extends` participant relation inside the owning instance — that would double the
   arrow.
-- `meta.order`/`meta.lane` (`drawing-rules.md`) are almost never needed here — patterns is a class
-  graph, not a process, so there's no "after" or "who performs this step" to record.
+- **5-second read (022):** write top-level `question` (what the diagram answers) and `summary` (one line) strings, and mark the 1-2 main-path relations `hero: true`; the self-check advises `NOSUMMARY`/`NOHERO` otherwise and a diagram without them renders exactly like the old one. `meta.order`/`meta.lane` stay optional here — patterns is a class graph, not a process.
 
 ## Procedure
 

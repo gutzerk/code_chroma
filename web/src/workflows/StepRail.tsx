@@ -190,7 +190,7 @@ export function StepRail({
             ? () => void openStepAgent(agentClient, `${slug} ${run.id}`, run.id, sessionId)
             : undefined;
         const yours = def?.kind === "review";
-        const summary = step.status === "done" ? summaryLine(step.result ?? step.output) : "";
+        const summary = step.status === "done" ? summaryLine(step.result?.trim() || step.output) : "";
         const handedOver = yours && (step.status === "needs_you" || expanded) ? previousResult(run, workflow, index) : null;
         const live = step.status === "running" ? liveLines(step.output) : [];
         return (

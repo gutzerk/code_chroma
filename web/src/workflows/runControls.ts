@@ -182,7 +182,7 @@ export function stepModeLabel(
   const mode = index === 0 ? "new" : agentMode(def.agent);
   const text = mode === "continue" ? `continue: ${steps[continueTargetIndex(steps, index)]?.slug || "?"}` : MODE_TEXT[mode];
   const model = def.model || usedModel;
-  return model ? `Agent · ${provider} · ${model} · ${text}` : `Agent · ${provider} · ${text}`;
+  return ["Agent", provider, model, text].filter(Boolean).join(" · ");
 }
 
 /** How many steps a continue chain ending at `index` spans (1 for a step that does not continue), like the bridge's StepAgents.ChainLength. */

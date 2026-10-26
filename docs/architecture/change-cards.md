@@ -96,3 +96,7 @@ themselves. Tests: `tests/unit/test_change_cards.py`'s `by_node_status` cases,
 `web/src/state/refreshDiffs.test.ts` (including the ancestor-cache and `scheduleRefreshDiffs`
 coalescing cases), `web/src/state/expansionState.test.ts`'s `getCachedAncestorPath` cases,
 `web/src/canvas/useDiffToggle.test.ts`'s cancel/snapshot-restore cases.
+
+## Impact at a glance (022 Stage 4)
+
+`canvas/doc/ImpactGlance.tsx` adds, under each touched Impact box's title, the review's one-line `before → after` (from `ImpactBlockChange`) and its caller count (edges into the box, via `focusNeighbors.ts`). The added/modified/removed state and change count were already the `ImpactStatusChip` and `block-change--*` colour; the glance is hidden at the `mid`/`far` zoom levels. It shows only once the review has written before/after (the deterministic fetch alone leaves them empty), and the caller count reads the doc at render time.

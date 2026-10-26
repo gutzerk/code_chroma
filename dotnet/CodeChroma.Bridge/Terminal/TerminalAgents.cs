@@ -70,6 +70,16 @@ public sealed class TerminalAgents(UserPaths paths, ProviderStore providers, Cal
         return new AgentLaunch(string.IsNullOrEmpty(resumeSessionId) ? entry : [.. entry, ResumeFlag, resumeSessionId], new Dictionary<string, string>());
     }
 
+    /// <summary>Whether a bare launch of this kind carries a `--system-prompt` the skill can ride in, so an empty visible prompt really leaves the CLI waiting for the user.</summary>
+    public bool SplitsSystemPrompt(string kind)
+    {
+        var adapterKey = kind switch { "claude" => "claude", "agent" => ResolveProviderCli(AgentCallSite).AdapterKey, _ => null };
+        if (adapterKey is null || !CliAdapters.All.TryGetValue(adapterKey, out var adapter)) return false;
+        var bareArgs = adapter.BareArgs(CliAdapters.DefaultBareTools);
+        var promptAt = Array.IndexOf(bareArgs.ToArray(), "--system-prompt");
+        return promptAt >= 0 && promptAt + 1 < bareArgs.Count();
+    }
+
     /// <summary>The label persisted on AgentRecord.ResolvedCli: only `agent` windows report one.</summary>
     public static string ResolvedCliFor(string kind, IReadOnlyList<string> argv) => kind == "agent" ? argv[0] : "";
 
@@ -126,9 +136,9 @@ public sealed class TerminalAgents(UserPaths paths, ProviderStore providers, Cal
             ? adapter.BareArgs(CliAdapters.DefaultBareTools).Where(a => a != "--no-session-persistence").ToArray()
             : [];
         var promptAt = Array.IndexOf(bareArgs, "--system-prompt");
-        if (bareArgs.Length > 0 && !string.IsNullOrEmpty(visiblePrompt) && !string.IsNullOrEmpty(initialPrompt) && promptAt >= 0 && promptAt + 1 < bareArgs.Length)
+        if (bareArgs.Length > 0 && visiblePrompt is not null && !string.IsNullOrEmpty(initialPrompt) && promptAt >= 0 && promptAt + 1 < bareArgs.Length)
         {
-            // The long skill rides in the system prompt so the window shows only the short visible message.
+            // The long skill rides in the system prompt so the window shows only the short visible message (none when empty: the CLI waits for the user).
             bareArgs[promptAt + 1] = initialPrompt;
             return [binary, .. ResumePrompt(null, visiblePrompt), .. bareArgs];
         }

@@ -127,3 +127,5 @@ Ported to `dotnet/CodeChroma.Bridge` by the `bridge-skills` branch; all of it ha
 
 Known differences: the custom-diagram staleness fingerprint hashes `.codechroma/dependency-digest.json` with the C# canonical-JSON hash (the C# engine does not write that file, so it is constant); `epic_brief_agent`'s prompt carries compact JSON; the plain-wiki sync that `prepare_new_run` does is skipped; a login shell is captured with `env -0` (POSIX) or `Get-ChildItem env:` (PowerShell) instead of the Python helper.
 Pre-existing, not from this change: on the integration branch `tests/fixtures/sample_repo/.claude/` is tracked (commit 21b0ec0), which makes two Python `graph::structure_*` contract cases fail.
+
+Draw dialog (025): the Python bridge now validates and persists `diagram_type` / `diagram_request` / `diagram_scope` / `selection_ids` on `POST /agents` (it carried no diagram hint before) and serves `GET /diagram-kinds`, both from the same `kinds.json` as C#. Deliberate gap: only C# composes the drawing agent's first message from the request (Python has no `BareSkill`).

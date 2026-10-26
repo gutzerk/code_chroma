@@ -176,6 +176,32 @@ def test_too_many_hero_relations_is_advisory_and_never_fails_the_run(tmp_path):
     assert "TOOMANYHERO 3 hero relation(s), budget 2" in result.stdout
 
 
+@pytest.mark.parametrize("kind", ["patterns", "impact"])
+def test_a_non_sequence_diagram_without_readability_data_gets_advisories_only(tmp_path, kind):
+    diagram = _flat(4)
+
+    result = _run(tmp_path, kind, diagram)
+
+    assert result.returncode == 0
+    assert "NOSUMMARY the diagram has no top-level `question` string" in result.stdout
+    assert "NOSUMMARY the diagram has no top-level `summary` string" in result.stdout
+    assert "NOHERO" in result.stdout
+
+
+@pytest.mark.parametrize("kind", ["patterns", "impact"])
+def test_a_non_sequence_diagram_with_readability_data_stays_silent(tmp_path, kind):
+    diagram = _flat(4, relations=[
+        {"from": f"n{i}", "to": f"n{i + 1}", "label": "uses", "hero": i == 0} for i in range(3)
+    ])
+    diagram["question"] = "What does this change touch?"
+    diagram["summary"] = "Three boxes change."
+
+    result = _run(tmp_path, kind, diagram)
+
+    assert "NOSUMMARY" not in result.stdout
+    assert "NOHERO" not in result.stdout
+
+
 _TRIANGLE = [
     {"from": "n0", "to": "n1", "label": "a"},
     {"from": "n1", "to": "n2", "label": "b"},
@@ -445,3 +471,17 @@ def test_shared_node_id_advisory_fires_only_across_groups_and_never_fails(
 
     assert result.returncode == 0
     assert ("SHAREDNODE" in result.stdout) is flagged
+
+
+def test_sequence_message_without_order_fails_the_shape_tier(tmp_path):
+    module = _load_module()
+    path = tmp_path / "seq.json"
+    path.write_text(
+        '{"nodes":[{"id":"a","name":"A"},{"id":"b","name":"B"}],'
+        '"relations":[{"id":"m1","from":"a","to":"b","label":"go"}]}',
+        encoding="utf-8",
+    )
+
+    code = module.main(["--kind", "sequence", "--json", str(path)])
+
+    assert code == 3

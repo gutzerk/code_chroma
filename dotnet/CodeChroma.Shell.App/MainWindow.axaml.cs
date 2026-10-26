@@ -149,8 +149,32 @@ public sealed partial class MainWindow : Window, IShellUi, ILauncherHost
             case "open-workspace" when message.Id is not null: _ = controller.OpenWorkspaceTabAsync(tab.Id, message.Id); break;
             case "close-workspace" when message.Id is not null: _ = controller.CloseWorkspaceTabAsync(message.Id); break;
             case "updates": _ = updates.HandleCallAsync(view, message); break;
+            case "save-file": _ = SaveFileAsync(view, message); break;
             case "focus-tab": controller.FocusTab(tab.Id); break;
             case "close-project": _ = controller.CloseProjectAsync(tab.Id); break;
+        }
+    }
+
+    private Task SaveFileAsync(TabView view, DesktopMessage message) =>
+        message.CallId is null
+            ? Task.CompletedTask
+            : ShellReply.RunAsync(view, message.CallId, () => new FileSaver(new WindowSavePicker(this)).SaveAsync(message.Id, message.Method, message.Arg));
+
+    private sealed class WindowSavePicker(Window window) : ISaveFilePicker
+    {
+        public async Task<string?> PickAsync(string suggestedName, string mime)
+        {
+            var extension = Path.GetExtension(suggestedName);
+            var kind = extension.TrimStart('.');
+            var options = new FilePickerSaveOptions
+            {
+                Title = "Export diagram",
+                SuggestedFileName = suggestedName,
+                DefaultExtension = kind,
+                FileTypeChoices = [new FilePickerFileType(kind.ToUpperInvariant()) { Patterns = [$"*{extension}"], MimeTypes = [mime] }],
+            };
+            var file = await window.StorageProvider.SaveFilePickerAsync(options);
+            return file?.TryGetLocalPath();
         }
     }
 

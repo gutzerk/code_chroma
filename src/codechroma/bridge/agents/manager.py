@@ -57,6 +57,7 @@ _PERSISTED_FIELDS = (
     "id", "title", "kind", "branch", "worktree", "session_id", "created_at",
     "pr_url", "window", "pid", "shares_workspace_with", "base_branch", "source_pr",
     "context", "context_kind", "resolved_cli",
+    "diagram_type", "diagram_request",
 )
 
 # "view" = existing acknowledge-only launch line; "task" = a real, actionable first message.
@@ -66,6 +67,11 @@ CONTEXT_KINDS = ("view", "task")
 def _coerce_context_kind(value: object) -> str:
     """Anything not a recognized `CONTEXT_KINDS` member falls back to the default, "view"."""
     return value if value in CONTEXT_KINDS else "view"
+
+
+def _opt_str(value: object) -> str | None:
+    """A string field or None."""
+    return value if isinstance(value, str) else None
 
 
 def _coerce_resolved_cli(value: object) -> str:
@@ -130,6 +136,9 @@ class AgentRecord:
     context: str | None = None
     # "view" (default) wraps `context`; "task" hands it to the launched CLI's own argv, verbatim.
     context_kind: str = "view"
+    # What the Draw dialog picked for a drawing agent: type (or "any") and the request.
+    diagram_type: str | None = None
+    diagram_request: str | None = None
     # Binary that launched this window; empty for legacy `claude` records.
     resolved_cli: str = ""
     # Runtime-only: recomputed every startup, so persisting them would just let them go stale.
@@ -179,6 +188,8 @@ class AgentRecord:
             source_pr=raw.get("source_pr") if isinstance(raw.get("source_pr"), str) else None,
             context=_clean_context(raw.get("context")),
             context_kind=_coerce_context_kind(raw.get("context_kind")),
+            diagram_type=_opt_str(raw.get("diagram_type")),
+            diagram_request=_opt_str(raw.get("diagram_request")),
             resolved_cli=_coerce_resolved_cli(raw.get("resolved_cli")),
         )
 
@@ -427,6 +438,7 @@ class AgentManager:
         attach_to: str | None = None,
         context: str | None = None,
         context_kind: str = "view",
+        diagram: dict | None = None,
     ) -> AgentRecord:
         """Slug, branch, worktree, record, persist; `attach_to` reuses a target's own worktree."""
         # Context is either the acknowledge-only view description or a real "task" first message.
@@ -466,6 +478,7 @@ class AgentManager:
                 source_pr=source_pr,
                 context=context,
                 context_kind=context_kind,
+                **(diagram or {}),
             )
             self._agents[agent_id] = record
         self.save()

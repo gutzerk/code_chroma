@@ -200,3 +200,5 @@ The strangler rule: delete in a separate commit after the C# canvas passes the s
   verification is still needed.
 * Layout quality versus ELK (see Decision). Do this plan last, and only if plans 1, 2 and 4 leave the canvas the measured
   bottleneck - the Step 0 numbers say layout (not routing) is the bottleneck today.
+
+Gap (025): the Draw dialog (type cards with schematics, prompt, `GET /diagram-kinds`) exists only in the web canvas; the Avalonia canvas has no equivalent yet.

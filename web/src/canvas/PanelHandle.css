@@ -9,8 +9,8 @@
   align-items: center;
   gap: 2px;
   padding: 4px 0;
-  border-radius: 999px;
-  background: #262b38;
+  border-radius: var(--radius-full);
+  background: var(--bg-raised-2);
   transform: translateY(-50%);
 }
 
@@ -34,8 +34,8 @@
 .panel-handle-grip span {
   width: 3px;
   height: 3px;
-  border-radius: 999px;
-  background: #8b91a1;
+  border-radius: var(--radius-full);
+  background: var(--text-2);
 }
 
 .panel-handle-btn {
@@ -45,9 +45,9 @@
   height: 26px;
   padding: 0;
   border: 0;
-  border-radius: 999px;
+  border-radius: var(--radius-full);
   background: transparent;
-  color: #e9ebf2;
+  color: var(--text-1);
   cursor: pointer;
 }
 

@@ -79,11 +79,18 @@ export async function computeElkLayout(
     })
     .map((edge, index) => ({ id: `e${index}`, sources: [edge.from], targets: [edge.to] }));
 
+  // 022: boxes carrying `lane` lay out RIGHT, one partition band per lane in first-seen order;
+  // no lanes keeps the DOWN layout unchanged.
+  const laneIndex = new Map<string, number>();
+  for (const node of nodes) if (node.lane && !laneIndex.has(node.lane)) laneIndex.set(node.lane, laneIndex.size);
+  const hasLanes = laneIndex.size > 0;
+
   const graph: ElkNode = {
     id: "root",
     layoutOptions: {
       "elk.algorithm": "layered",
-      "elk.direction": "DOWN",
+      "elk.direction": hasLanes ? "RIGHT" : "DOWN",
+      ...(hasLanes ? { "elk.partitioning.activate": "true" } : {}),
       "elk.spacing.nodeNode": String(ELK_NODE_SEP),
       "elk.layered.spacing.nodeNodeBetweenLayers": String(ELK_RANK_SEP),
       "elk.padding": `[top=${MARGIN},left=${MARGIN},bottom=${MARGIN},right=${MARGIN}]`,
@@ -96,6 +103,9 @@ export async function computeElkLayout(
       id: node.id,
       width: node.width,
       height: node.height,
+      ...(hasLanes
+        ? { layoutOptions: { "elk.partitioning.partition": String(laneIndex.get(node.lane ?? "") ?? laneIndex.size) } }
+        : {}),
     })),
     edges: elkEdges,
   };

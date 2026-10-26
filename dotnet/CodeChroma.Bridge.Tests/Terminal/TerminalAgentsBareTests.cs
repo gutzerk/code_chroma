@@ -42,6 +42,13 @@ public sealed class TerminalAgentsBareTests : IDisposable
     }
 
     [Fact]
+    public void Only_a_kind_with_a_system_prompt_can_hide_the_skill()
+    {
+        Assert.True(_agents.SplitsSystemPrompt("claude"));
+        Assert.False(_agents.SplitsSystemPrompt("shell"));
+    }
+
+    [Fact]
     public void A_normal_window_keeps_its_arguments()
     {
         var argv = _agents.Resolve("claude", null, "draw it")!.Argv;

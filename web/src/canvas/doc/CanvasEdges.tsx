@@ -4,6 +4,7 @@ import { layoutDiagramEdges } from "../connectors/diagramLayout";
 import type { Rect } from "../connectors/orthogonalRoute";
 import type { CanvasDoc } from "../../state/types";
 import type { MeasuredBoxSize } from "../useMeasuredSizes";
+import { bundleEdges } from "./bundleEdges";
 import { elementRect } from "./elementRect";
 
 const CANVAS_ARROW_MARKER_ID = "canvas-doc-arrowhead";
@@ -41,7 +42,7 @@ export function CanvasEdges({ doc, sizes, onOpenOrigin }: CanvasEdgesProps) {
   const rectByKey = new Map<string, Rect>(
     Object.values(doc.elements).map((element) => [element.id, elementRect(element, sizes)]),
   );
-  const edges = layoutDiagramEdges(Object.values(doc.edges), rectByKey);
+  const edges = layoutDiagramEdges(bundleEdges(Object.values(doc.edges)), rectByKey);
 
   return (
     <>

@@ -631,4 +631,5 @@ def test_generated_template_passes_self_check(tmp_path):
     result = _run(tmp_path, generate_c1_template(digest))
 
     assert result.returncode == 0
-    assert result.stdout.strip() == "OK: 0 leaves resolved, max authored depth 0"
+    assert result.stdout.strip().endswith("OK: 0 leaves resolved, max authored depth 0")
+    assert "NOSUMMARY" in result.stdout

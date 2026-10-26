@@ -288,6 +288,7 @@ def main(argv: list[str] | None = None) -> int:
     _check_split(args.split_threshold, diagram_style, args.kind, report)
     _check_hero_budget(checks, report)
     _check_impact_status(diagram, args.kind, report)
+    _check_readability(diagram, args.kind, report)
     if not args.json_path:
         _check_diagnostics(diagram, report)
 
@@ -868,6 +869,77 @@ def _check_impact_status(diagram: object, kind: str, report: _Report) -> None:
             report.advisories.append(
                 f"BADSTATUS {node.get('id')} status={status!r}, expected {_IMPACT_STATUS_VALUES}"
             )
+
+
+PHASE_KINDS = ("request", "prepare", "ai", "deliver", "custom")
+MAX_TITLE_WORDS = 4
+READABILITY_KINDS = ("sequence", "c1", "patterns", "impact")
+HERO_KINDS = ("c1", "patterns", "impact")
+MIN_RELATIONS_FOR_HERO = 3
+_FAILURE_WORDS = ("fail", "error", "reject", "denied", "timeout", "invalid")
+
+
+def _check_readability(diagram: object, kind: str, report: _Report) -> None:
+    """022: the 5-second-read data -- order, summary, phases and the wording lints."""
+    if not isinstance(diagram, dict):
+        return
+    nodes = [n for n in diagram.get("nodes") or [] if isinstance(n, dict)]
+    relations = [r for r in diagram.get("relations") or [] if isinstance(r, dict)]
+    if kind == "sequence":
+        for relation in relations:
+            if relation.get("order") in (None, ""):
+                report.shape.append(
+                    f"NO-ORDER {relation.get('id')!r} message has no `order` -- number every message"
+                )
+        _check_phases(diagram, relations, report)
+    if kind in READABILITY_KINDS and relations:
+        for key in ("question", "summary"):
+            if not (isinstance(diagram.get(key), str) and diagram[key].strip()):
+                report.advisories.append(f"NOSUMMARY the diagram has no top-level `{key}` string")
+    if kind in HERO_KINDS and len(relations) >= MIN_RELATIONS_FOR_HERO:
+        if not any(relation.get("hero") for relation in relations):
+            report.advisories.append("NOHERO no relation is marked `hero` -- mark the 1-2 main-path edges")
+    names = {n.get("id"): str(n.get("name") or "").strip().lower() for n in nodes}
+    for node in nodes:
+        name = str(node.get("name") or "").strip()
+        if len(name.split()) > MAX_TITLE_WORDS:
+            report.advisories.append(
+                f"LONGTITLE {node.get('id')} title is {len(name.split())} words, keep it to"
+                f" {MAX_TITLE_WORDS}"
+            )
+        description = str(node.get("description") or "").strip().lower()
+        if name and description == name.lower():
+            report.advisories.append(f"ECHO-LABEL {node.get('id')} description repeats the title")
+    for relation in relations:
+        label = str(relation.get("label") or "").strip()
+        pair = f"{relation.get('from')} -> {relation.get('to')}"
+        if label and label.lower() in (names.get(relation.get("from")), names.get(relation.get("to"))):
+            report.advisories.append(f"ECHO-LABEL {pair} label {label!r} repeats a box title")
+        failing = relation.get("kind") in ("error", "failure") or any(
+            word in label.lower() for word in _FAILURE_WORDS
+        )
+        if failing and not label:
+            report.advisories.append(f"HIDDEN-BRANCH {pair} is a failure path with no label")
+
+
+def _check_phases(diagram: dict, relations: list[dict], report: _Report) -> None:
+    """Sequence `phases[]` must carry a known kind and a sane order range."""
+    phases = diagram.get("phases")
+    if phases is None:
+        return
+    if not isinstance(phases, list):
+        report.shape.append("BADPHASE `phases` must be a list")
+        return
+    for phase in phases:
+        if not isinstance(phase, dict):
+            report.shape.append("BADPHASE a phase entry is not a JSON object")
+            continue
+        name = phase.get("id") or phase.get("name")
+        if phase.get("kind") not in PHASE_KINDS:
+            report.advisories.append(f"BADPHASE {name!r} kind must be one of {PHASE_KINDS}")
+        start, end = phase.get("from_order"), phase.get("to_order")
+        if not (isinstance(start, int | float) and isinstance(end, int | float) and start <= end):
+            report.shape.append(f"BADPHASE {name!r} needs numeric from_order <= to_order")
 
 
 def _check_unlabeled(unlabeled_severity: str, report: _Report) -> None:

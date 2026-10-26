@@ -411,6 +411,9 @@ the only per-type variation, nothing else in the shape differs (see
   "after" to record. Never computed from a call graph or execution trace — the authoring skill
   decides it. Boxes sharing a leading `order` digit (`"2a"`/`"2b"`) render as one highlighted
   "Concurrency island" automatically — that grouping is derived, not a field you set yourself.
+- Top-level `question` + `summary` strings and `hero: true` on 1-2 relations apply to **every** type that
+  draws relations (c1, patterns, impact, sequence), not just sequence; `check_diagram.py` advises
+  `NOSUMMARY`/`NOHERO` when they are missing.
 - `meta.lane` — an authored, optional performer name (CONTEXT.md's "Lane") recording *who* carries
   out a box's step — a team, service, or role, e.g. `"Billing service"`/`"On-call engineer"`. Every
   box sharing the same `meta.lane` string renders inside one shared soft-tinted area and sorts

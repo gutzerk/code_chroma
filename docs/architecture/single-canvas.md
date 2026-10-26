@@ -565,8 +565,8 @@ concept at all (file-derived, never AI-generated); `BuiltinRecipe.generated` mar
 counts as ready.
 
 `DrawDiagramButton` is now always clickable, not conditionally shown — clicking it calls `attachAgent`
-with a `task` string naming whatever's still missing (or, once nothing is, a generic "ask what to
-draw" prompt — see `buildDrawDiagramTask`), which `launchAgent` forwards to
+with the fixed `DRAW_DIAGRAM_TASK` string and `{type: "any"}` (a bare agent's window shows the bridge-printed
+"What do you want to see?" question instead; the string is only the non-bare fallback), which `launchAgent` forwards to
 `AgentClient.create(..., contextKind: "task")` instead of the ordinary acknowledge-only `context` —
 see `parallel-agents.md`'s "Current-view context on launch" for the `context_kind` split this reuses.
 Unlike `"view"`, that `task` text is never typed into the PTY after boot: `post_agent_start` bakes it
@@ -710,18 +710,10 @@ end by 008-unify-agent-diagrams: `bridge/routes/canvas_chat.py`, `bridge/canvas_
 Its replacement is the diagram-agent-task flow already documented in
 [`parallel-agents.md`](parallel-agents.md)'s "Current-view context on launch" section:
 `DrawDiagramButton.tsx`'s "Draw…" button opens an agent via `attachAgent(agentClient, null,
-buildDrawDiagramTask(...))`, whose `context_kind: "task"` first message states what's missing and
-asks what to draw — one natural-language diagram entry point instead of two competing ones. See
+DRAW_DIAGRAM_TASK, {type: "any"})`; a bare agent's window opens on the bridge-printed "What do you want to see?"
+question and the user's first message is the answer — one natural-language diagram entry point instead of two competing ones. See
 [`c1-diagram.md`](c1-diagram.md)/[`patterns-diagram.md`](patterns-diagram.md) for what that agent
-actually produces once it has an answer.
-
-⚠ `missingLabels` (every not-yet-drawn built-in plus every not-yet-drawn custom type) has no upper
-bound, but a multiple-choice tool call caps out at 4 options — offering more than that as one such
-call fails validation, which the user only ever sees as a bare "Invalid tool parameters" with no
-diagram drawn. `buildDrawDiagramTask` (exported from `DrawDiagramButton.tsx` for this reason) appends
-an explicit "ask in plain text, not a multiple-choice tool call" hint once `missingLabels.length > 4`,
-so a project with 2+ saved custom types alongside missing built-ins can't cross that cap silently.
-Test: `DrawDiagramButton.test.tsx`'s `buildDrawDiagramTask` describe block.
+actually produces once it has an answer. The typed starts (`c1`, `patterns`, `custom`) stay in the bridge but no UI path sends them since the type popover was removed.
 
 ## C1's own chrome, ported onto the one canvas (post-Stage-4 follow-up)
 

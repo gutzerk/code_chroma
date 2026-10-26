@@ -13,6 +13,7 @@ from codechroma.bridge.agents.manager import (
     CONTEXT_KINDS,
     AgentRecord,
     UnknownAgentError,
+    _clean_context,
     max_agents,
 )
 from codechroma.bridge.agents.sessions import agent_run_env
@@ -21,9 +22,31 @@ from codechroma.bridge.deps import Services
 from codechroma.bridge.routes._body import as_list, json_body
 from codechroma.bridge.services import BridgeServices
 from codechroma.config import settings
+from codechroma.diagrams import kinds
 from codechroma.terminal.agents import ALLOWED_AGENTS, agent_cli, resolved_cli_for
 
 router = APIRouter()
+
+
+def _diagram_hint(body: dict) -> dict:
+    """The Draw dialog's type and request off a POST /agents body, or a 400."""
+    hint: dict = {}
+    diagram_type = body.get("diagram_type")
+    if "diagram_type" in body and diagram_type is not None:
+        if diagram_type not in kinds.kind_ids():
+            raise HTTPException(status_code=400, detail=f"unknown diagram_type: {diagram_type}")
+        hint["diagram_type"] = diagram_type
+    request = body.get("diagram_request")
+    if request is not None:
+        if not isinstance(request, str):
+            raise HTTPException(status_code=400, detail="diagram_request must be a string")
+        if len(request.strip()) > kinds.max_request_chars():
+            raise HTTPException(
+                status_code=400,
+                detail=f"diagram_request must be at most {kinds.max_request_chars()} characters",
+            )
+        hint["diagram_request"] = _clean_context(request)
+    return hint
 
 
 def _session_id_poll_attempts() -> int:
@@ -143,10 +166,12 @@ async def post_agent(request: Request, services: Services) -> dict:
     context_kind = body.get("context_kind", "view")
     if context_kind not in CONTEXT_KINDS:
         raise HTTPException(status_code=400, detail="context_kind must be 'view' or 'task'")
+    diagram = _diagram_hint(body)
     try:
         record = await asyncio.to_thread(
             services.agent_manager.create,
             title, kind, attach_to=attach_to, context=context, context_kind=context_kind,
+            diagram=diagram if context_kind == "task" and diagram.get("diagram_type") else None,
         )
     except UnknownAgentError as exc:
         raise HTTPException(status_code=404, detail=f"unknown attach_to: {attach_to}") from exc

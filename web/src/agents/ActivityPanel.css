@@ -9,9 +9,9 @@
   margin: 0;
   padding: 12px;
   box-sizing: border-box;
-  border-radius: 22px;
-  background: #15181f;
-  color: #c4c8d4;
+  border-radius: var(--radius-panel);
+  background: var(--bg-panel);
+  color: var(--text-strong);
   z-index: 41;
 }
 .activity-content {
@@ -40,16 +40,16 @@
 }
 .activity-empty {
   font-size: 12px;
-  color: #8b91a1;
+  color: var(--text-2);
   line-height: 1.6;
   padding: 12px;
 }
 .activity-agent-badge {
   flex-shrink: 0;
   padding: 1px 6px;
-  border-radius: 999px;
+  border-radius: var(--radius-full);
   background: #8fb0ff26;
-  color: #8fb0ff;
+  color: var(--accent);
   font-size: 9px;
   font-weight: 600;
   letter-spacing: 0.04em;
@@ -87,8 +87,8 @@
   width: auto;
   height: 28px;
   padding: 4px 10px;
-  border-radius: 8px;
-  background: #262b38;
+  border-radius: var(--radius-lg);
+  background: var(--bg-raised-2);
   font-size: 11px;
 }
 .left-panel .draw-diagram-button svg {
@@ -104,7 +104,7 @@
 
 .left-panel .draw-diagram-button {
   border: 0;
-  color: #e9ebf2;
+  color: var(--text-1);
   cursor: pointer;
 }
 
@@ -126,7 +126,7 @@
   min-width: 0;
   gap: 2px;
   padding: 3px;
-  border-radius: 8px;
+  border-radius: var(--radius-lg);
   background: var(--question-surface);
 }
 .activity-segmented button {
@@ -136,7 +136,7 @@
   padding: 0 8px;
   overflow: hidden;
   border: 0;
-  border-radius: 6px;
+  border-radius: var(--radius-md);
   background: transparent;
   color: var(--text-muted-soft);
   cursor: pointer;
@@ -205,8 +205,8 @@
   height: 34px;
   padding: 0 12px;
   border: 0;
-  border-radius: 8px;
-  background: #8fb0ff;
+  border-radius: var(--radius-lg);
+  background: var(--accent);
   color: #0f1320;
   cursor: pointer;
   font: inherit;
@@ -243,7 +243,7 @@
   height: 32px;
   padding: 0;
   border: 0;
-  border-radius: 8px;
+  border-radius: var(--radius-lg);
   background: var(--bg-raised);
   color: var(--text-soft);
   cursor: pointer;
@@ -258,10 +258,10 @@
 }
 .activity-ghost {
   background: transparent;
-  color: #a8b0c2;
+  color: var(--text-mid);
   width: 34px;
   height: 34px;
-  border-radius: 6px;
+  border-radius: var(--radius-md);
 }
 .activity-ghost:hover:not(:disabled),
 .activity-ghost[aria-pressed="true"] {
@@ -287,7 +287,7 @@
   height: 40px;
   padding: 0 10px;
   border: 0;
-  border-radius: 10px;
+  border-radius: var(--radius-xl);
   background: var(--bg-raised);
   color: var(--text-soft);
   cursor: pointer;
@@ -312,7 +312,7 @@
 .activity-switcher-meta {
   overflow: hidden;
   color: var(--text-muted-soft);
-  font-family: "JetBrains Mono", ui-monospace, monospace;
+  font-family: var(--font-mono);
   font-size: 12px;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -328,7 +328,7 @@
   padding: 4px;
   overflow: auto;
   list-style: none;
-  border-radius: 10px;
+  border-radius: var(--radius-xl);
   background: var(--bg-raised-2);
 }
 .activity-switcher-menu button {
@@ -338,7 +338,7 @@
   width: 100%;
   padding: 6px 8px;
   border: 0;
-  border-radius: 8px;
+  border-radius: var(--radius-lg);
   background: transparent;
   color: var(--text-soft);
   cursor: pointer;
@@ -364,7 +364,7 @@
   height: 36px;
   padding: 0;
   border: 0;
-  border-radius: 10px;
+  border-radius: var(--radius-xl);
   background: transparent;
   color: var(--text-muted-soft);
   cursor: pointer;
@@ -398,7 +398,7 @@
   right: -4px;
   min-width: 16px;
   padding: 0 4px;
-  border-radius: 999px;
+  border-radius: var(--radius-full);
   background: var(--bg-raised-2);
   color: var(--text-soft);
   font-size: 12px;
@@ -440,7 +440,7 @@
 .activity-switcher-count {
   flex-shrink: 0;
   padding: 1px 6px;
-  border-radius: 999px;
+  border-radius: var(--radius-full);
   background: var(--bg-raised-2);
   color: var(--text-muted-soft);
   font-size: 12px;
@@ -482,7 +482,7 @@
   min-width: 0;
   padding: 10px 12px;
   border: 0;
-  border-radius: 10px;
+  border-radius: var(--radius-xl);
   background: var(--bg-raised);
   color: var(--text-soft);
   cursor: pointer;
@@ -550,7 +550,7 @@
   display: block;
   height: 5px;
   overflow: hidden;
-  border-radius: 3px;
+  border-radius: var(--radius-xs);
   background: var(--bg-raised-2);
 }
 .agent-usage-meter > span {

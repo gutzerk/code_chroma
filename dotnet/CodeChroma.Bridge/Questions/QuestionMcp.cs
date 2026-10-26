@@ -6,30 +6,23 @@ using CodeChroma.Bridge.Workspaces;
 
 namespace CodeChroma.Bridge.Questions;
 
-/// <summary>One MCP server for every workspace: the bearer token names and authorizes the workspace; `ask_user` blocks until the canvas answers.</summary>
-public sealed class QuestionMcp(Func<string, Workspace> workspaceFor, TimeSpan? askWait = null, int maxRejections = 3)
+/// <summary>One MCP server for every workspace: the bearer token names and authorizes the workspace; `ask_user` returns at once and the answer is typed into the agent terminal.</summary>
+public sealed class QuestionMcp(Func<string, Workspace> workspaceFor, int maxRejections = 3)
 {
     public const string SessionHeader = "Mcp-Session-Id";
     public const string Instructions =
-        "Ask every decision question through ask_user, never in chat text and never with another question tool. "
-        + "Each call needs: question, and 2-4 options that each have id, title, description, pro, con and why; exactly one option has rank 1 (your recommendation), the others a unique rank. "
-        + "A call that breaks this is rejected with the list of problems: fix them and call again with the same intent. "
-        + "For a question that changes structure (boundaries, data flow, ownership, a new component) use kind \"diagram\": first draw one small diagram per option with draw_option_diagram, then pass each returned diagram_ref on its option. "
-        + "If ask_user returns {needs: \"diagram\"}, the user wants diagrams: draw them with draw_option_diagram and call ask_user again with the same session_id and question. "
-        + "If it returns {pending: true}, poll ask_user_result.";
+        "Ask every decision question through ask_user, never in chat text and never with another question tool. Each call needs: question, and 2-4 options that each have id, title, description, pro, con and why; exactly one option has rank 1 (your recommendation), the others a unique rank. A call that breaks this is rejected with the list of problems: fix them and call again with the same intent. For a question that changes structure (boundaries, data flow, ownership, a new component) use kind \"diagram\": first draw one small diagram per option with draw_option_diagram, then pass each returned diagram_ref on its option. ask_user returns at once with {asked: true}: end your turn then. The user's answer arrives as your next message, starting with [CodeChroma answer]. If the next message says the user wants diagrams, draw them with draw_option_diagram and call ask_user again with the same session_id and question. Never poll and never repeat the question in chat. ask_user_result(question_id) reads an answer back if you need it.";
 
     private const string DrawDescription =
         "Draw a small decision diagram (max 12 nodes) for one option; returns its diagram_ref. "
         + "Nodes are {id, label, description?, status?}; status \"new\" marks a part that does not exist yet. "
         + "Edges are {from, to, label?}. Pass the returned diagram_ref on the option in ask_user.";
 
+    public const string NextText = "End your turn now. The user's answer will arrive as your next message.";
+
     private readonly byte[] _secret = RandomNumberGenerator.GetBytes(32);
 
-    public QuestionBroker Broker { get; } = new();
     public RejectionTracker Rejections { get; } = new();
-
-    /// <summary>How long `ask_user` blocks before returning pending.</summary>
-    public TimeSpan AskWait { get; set; } = askWait ?? TimeSpan.FromSeconds(300);
 
     public int MaxRejections { get; set; } = maxRejections;
 
@@ -61,7 +54,7 @@ public sealed class QuestionMcp(Func<string, Workspace> workspaceFor, TimeSpan? 
 
     private string Sign(string workspaceId) => Convert.ToHexString(HMACSHA256.HashData(_secret, Encoding.UTF8.GetBytes(workspaceId))).ToLowerInvariant();
 
-    /// <summary>Opens the question on the canvas, blocks for the answer, or returns pending.</summary>
+    /// <summary>Opens (or re-asks) the question on the canvas and returns at once; the answer is typed into the agent terminal later.</summary>
     public async Task<JsonObject> Ask(string workspaceId, AskRequest request, string? connection = null, CancellationToken cancellation = default)
     {
         var ws = workspaceFor(workspaceId);
@@ -74,31 +67,12 @@ public sealed class QuestionMcp(Func<string, Workspace> workspaceFor, TimeSpan? 
                 var found = QuestionStore.FindDiagramRequested(ws, request);
                 var reasked = found?.Keep;
                 var id = reasked is not null ? Json.Str(reasked.Meta["question_id"])! : Guid.NewGuid().ToString("N");
-                if (reasked is not null) Broker.Forget(id);
-                Broker.Open(id);
-                try
-                {
-                    if (reasked is not null) QuestionStore.Reask(ws, reasked, request, extra, found!.Value.Stale);
-                    else QuestionStore.OpenQuestion(ws, request, id, extra);
-                    return id;
-                }
-                catch
-                {
-                    Broker.Close(id);
-                    throw;
-                }
+                if (reasked is not null) QuestionStore.Reask(ws, reasked, request, extra, found!.Value.Stale);
+                else QuestionStore.OpenQuestion(ws, request, id, extra);
+                return id;
             }
         }, cancellation);
-        try
-        {
-            var result = await Broker.Wait(questionId, AskWait, cancellation);
-            return result.ToToolJson();
-        }
-        catch
-        {
-            Broker.Close(questionId);
-            throw;
-        }
+        return new JsonObject { ["asked"] = true, ["question_id"] = questionId, ["next"] = NextText };
     }
 
     /// <summary>Throws QuestionRejected on a contract break; at the retry limit lets one through degraded.</summary>
@@ -130,10 +104,12 @@ public sealed class QuestionMcp(Func<string, Workspace> workspaceFor, TimeSpan? 
         QuestionDiagrams.Check(nodes, edges, title);
         var ws = workspaceFor(workspaceId);
         var root = await Task.Run(() => QuestionStore.DrawDiagram(ws, title, nodes, edges, questionId, optionId));
-        return new JsonObject { ["diagram_ref"] = root };
+        var drawn = new JsonObject { ["diagram_ref"] = root };
+        if (QuestionDiagrams.DescriptionWarning(nodes) is { } warning) drawn["warning"] = warning;
+        return drawn;
     }
 
-    /// <summary>The settled answer, read from the broker or (after a restart) the canvas element.</summary>
+    /// <summary>The settled answer read from the canvas element, or a pending marker while it is open.</summary>
     public async Task<JsonObject> Result(string workspaceId, string questionId)
     {
         var ws = workspaceFor(workspaceId);
@@ -142,10 +118,8 @@ public sealed class QuestionMcp(Func<string, Workspace> workspaceFor, TimeSpan? 
             lock (CanvasWrite.LockFor(ws.Id))
             {
                 var element = QuestionStore.FindElement(ws, questionId);
-                if (element is null) return new QuestionResult { Pending = true, QuestionId = questionId }.ToToolJson();
-                var found = Broker.Lookup(questionId);
-                if (found.Pending && QuestionStore.ResultFrom(element) is { } settled) found = settled;
-                return found.ToToolJson();
+                var settled = element is null ? null : QuestionStore.ResultFrom(element);
+                return (settled ?? new QuestionResult { Pending = true, QuestionId = questionId }).ToToolJson();
             }
         });
     }
@@ -232,14 +206,14 @@ public sealed class QuestionMcp(Func<string, Workspace> workspaceFor, TimeSpan? 
         var edge = Obj(("from", Str()), ("to", Str()), ("label", Str()));
         edge["required"] = new JsonArray("from", "to");
         return new JsonArray(
-            Tool("ask_user", "Ask the user a question on the canvas and wait for the answer (or a pending id).",
+            Tool("ask_user", "Ask the user a question on the canvas; returns at once, then end your turn: the answer arrives as your next message.",
                 Obj(
                     ("question", Str()), ("options", new JsonObject { ["type"] = "array", ["items"] = option }),
                     ("kind", new JsonObject { ["type"] = "string", ["enum"] = new JsonArray("choices", "diagram") }),
                     ("session_id", Str()), ("allow_custom", new JsonObject { ["type"] = "boolean" }),
                     ("allow_skip", new JsonObject { ["type"] = "boolean" }), ("total", new JsonObject { ["type"] = "integer" })),
                 "question"),
-            Tool("ask_user_result", "Fetch the answer of an earlier ask_user call that returned pending.", Obj(("question_id", Str())), "question_id"),
+            Tool("ask_user_result", "Read the answer of an earlier ask_user call (for clients that cannot receive messages); pending while open.", Obj(("question_id", Str())), "question_id"),
             Tool("draw_option_diagram", DrawDescription,
                 Obj(
                     ("title", Str()), ("nodes", new JsonObject { ["type"] = "array", ["items"] = node }),

@@ -13,7 +13,7 @@ import { LabelClearanceMonitor } from "./LabelClearanceMonitor";
 import { TraceControls } from "./TraceControls";
 import { CanvasViewport, type CanvasViewportHandle } from "./CanvasViewport";
 import { readSavedCameraView } from "./canvasCameraStore";
-import { CanvasFocusContext } from "./CanvasFocusContext";
+import { CanvasDiagramFocusContext, CanvasFocusContext } from "./CanvasFocusContext";
 import { CanvasDocView } from "./doc/CanvasDocView";
 import { DiagramHealthNote } from "./doc/DiagramHealthNote";
 import { SidecarSummaryCard } from "./doc/SidecarSummaryCard";
@@ -446,8 +446,14 @@ export function RootCanvas() {
 
   const focusOnNode = useCallback((nodeId: string) => viewportRef.current?.focusOnNode(nodeId), []);
 
+  const focusDiagram = useCallback(
+    (layer: string) => viewportRef.current?.fitToSelector(`[data-diagram-layer="${CSS.escape(layer)}"]`) ?? false,
+    [],
+  );
+
   return (
     <CanvasFocusContext.Provider value={focusOnNode}>
+    <CanvasDiagramFocusContext.Provider value={focusDiagram}>
     <div className="app-root" data-testid="app-root">
       <UndoManager kinds={UNDO_KINDS} />
       {/* Row 1 of the floating-card shell: a full-width top bar above the rail, so the branch chip
@@ -592,6 +598,7 @@ export function RootCanvas() {
         />
       )}
     </div>
+    </CanvasDiagramFocusContext.Provider>
     </CanvasFocusContext.Provider>
   );
 }

@@ -212,6 +212,7 @@ export function DiagramFrame({ layer, label, members, sizes, typeLabel, boxCount
       padding={PADDING}
       className={classes}
       testId="canvas-diagram-frame"
+      diagramLayer={layer}
       labelClassName="canvas-diagram-frame-label"
       label={label}
       layer={layer}

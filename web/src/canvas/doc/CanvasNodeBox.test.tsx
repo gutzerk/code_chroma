@@ -102,20 +102,18 @@ describe("CanvasNodeBox — marquee selection key", () => {
 });
 
 describe("CanvasNodeBox — keyboard access", () => {
-  it("opens the Inspector on Enter, not just on click", () => {
+  it("focuses the block on Enter without opening the Inspector", () => {
     renderBox(element({ id: "e1", node_id: "fn:auth.py:issue" }));
 
     fireEvent.keyDown(screen.getByTestId("canvas-node-box-header"), { key: "Enter" });
 
-    expect(inspectorStore.getStack()).toEqual([
-      { id: "fn:auth.py:issue", name: "Auth service", sourceId: "e1" },
-    ]);
+    expect(inspectorStore.getStack()).toEqual([]);
   });
 
-  it("opens the Inspector on Space too", () => {
+  it("opens the Inspector from the SRC button, which is a real button reachable by keyboard", () => {
     renderBox(element({ id: "e1", node_id: "fn:auth.py:issue" }));
 
-    fireEvent.keyDown(screen.getByTestId("canvas-node-box-header"), { key: " " });
+    fireEvent.click(screen.getByRole("button", { name: "Open source of Auth service" }));
 
     expect(inspectorStore.getStack()).toEqual([
       { id: "fn:auth.py:issue", name: "Auth service", sourceId: "e1" },
@@ -131,16 +129,27 @@ describe("CanvasNodeBox — keyboard access", () => {
   });
 });
 
-describe("CanvasNodeBox — clicking a block with no linked code", () => {
-  it("still opens the Inspector, falling back to the element's own id, instead of doing nothing", () => {
-    renderBox(element({ id: "e1", node_id: null }));
+describe("CanvasNodeBox — clicking a block does not open the inspector", () => {
+  it("leaves the Inspector closed on a header click, with or without linked code", () => {
+    renderBox(element({ id: "e1", node_id: "fn:auth.py:issue" }));
 
     fireEvent.click(screen.getByTestId("canvas-node-box-header"));
 
-    // InspectorPanel's own useInspectorNode turns the resulting "no such node" answer into a clear
-    // "no longer exists / diagram may be out of date" message with Retry -- the point here is only
-    // that the panel opens at all, not that this id happens to resolve to real code.
-    expect(inspectorStore.getStack()).toEqual([{ id: "e1", name: "Auth service", sourceId: "e1" }]);
+    expect(inspectorStore.getStack()).toEqual([]);
+  });
+
+  it("renders no SRC button for a block with no linked code", () => {
+    renderBox(element({ id: "e1", node_id: null }));
+
+    expect(screen.queryByTestId("canvas-node-box-src")).toBeNull();
+  });
+
+  it("puts the SRC button in the same button stack as copy and '?'", () => {
+    renderBox(element({ id: "e1", node_id: "fn:auth.py:issue", description: "Handles login" }));
+
+    expect(screen.getByTestId("canvas-node-box-buttons")).toContainElement(
+      screen.getByTestId("canvas-node-box-src"),
+    );
   });
 });
 
@@ -148,12 +157,12 @@ describe("CanvasNodeBox — re-clicking the box already open in the inspector", 
   it("closes the inspector instead of reopening the same page", () => {
     renderBox(element({ id: "e1", node_id: "fn:auth.py:issue" }));
 
-    fireEvent.click(screen.getByTestId("canvas-node-box-header"));
+    fireEvent.click(screen.getByTestId("canvas-node-box-src"));
     expect(inspectorStore.getStack()).toEqual([
       { id: "fn:auth.py:issue", name: "Auth service", sourceId: "e1" },
     ]);
 
-    fireEvent.click(screen.getByTestId("canvas-node-box-header"));
+    fireEvent.click(screen.getByTestId("canvas-node-box-src"));
 
     expect(inspectorStore.getStack()).toEqual([]);
   });
@@ -165,9 +174,9 @@ describe("CanvasNodeBox — re-clicking the box already open in the inspector", 
         <CanvasNodeBox element={element({ id: "e2", node_id: "fn:billing.py:charge", label: "Billing" })} />
       </EngineClientProvider>,
     );
-    fireEvent.click(screen.getAllByTestId("canvas-node-box-header")[0]);
+    fireEvent.click(screen.getAllByTestId("canvas-node-box-src")[0]);
 
-    fireEvent.click(screen.getAllByTestId("canvas-node-box-header")[1]);
+    fireEvent.click(screen.getAllByTestId("canvas-node-box-src")[1]);
 
     expect(inspectorStore.getStack()).toEqual([
       { id: "fn:billing.py:charge", name: "Billing", sourceId: "e2" },
@@ -194,7 +203,7 @@ describe("CanvasNodeBox — inspector highlight targets only the clicked box", (
     );
     const boxes = screen.getAllByTestId("canvas-node-box");
 
-    fireEvent.click(within(boxes[0]).getByTestId("canvas-node-box-header"));
+    fireEvent.click(within(boxes[0]).getByTestId("canvas-node-box-src"));
 
     expect(boxes[0]).toHaveClass("block-inspector-target");
     expect(boxes[1]).not.toHaveClass("block-inspector-target");
@@ -561,12 +570,12 @@ describe("CanvasNodeBox — Planned block (meta.plan_kind)", () => {
     expect(descriptionPopupStore.getEntry()).toEqual({ title: "Auth service", description: "short" });
   });
 
-  it("still opens the Inspector as usual for a modify/delete Planned block (real path)", () => {
+  it("still opens the Inspector from SRC for a modify/delete Planned block (real path)", () => {
     renderBox(
       element({ id: "e1", node_id: "fn:payments.py:charge", meta: { plan_kind: "modify" } }),
     );
 
-    fireEvent.click(screen.getByTestId("canvas-node-box-header"));
+    fireEvent.click(screen.getByTestId("canvas-node-box-src"));
 
     expect(inspectorStore.getStack()).toEqual([
       { id: "fn:payments.py:charge", name: "Auth service", sourceId: "e1" },
@@ -624,10 +633,10 @@ describe("CanvasNodeBox — no-code box (meta.no_code_reason)", () => {
     });
   });
 
-  it("still opens the Inspector as usual for a box with a real node_id", () => {
+  it("still opens the Inspector from SRC for a box with a real node_id", () => {
     renderBox(element({ id: "e1", node_id: "fn:auth.py:issue" }));
 
-    fireEvent.click(screen.getByTestId("canvas-node-box-header"));
+    fireEvent.click(screen.getByTestId("canvas-node-box-src"));
 
     expect(inspectorStore.getStack()).toEqual([
       { id: "fn:auth.py:issue", name: "Auth service", sourceId: "e1" },

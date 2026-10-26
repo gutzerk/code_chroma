@@ -508,7 +508,7 @@ never written to; `{resume:true}` resumes the agent's own (forked) session as us
 transcript in the shared worktree. Deleting the worktree or branch through
 such an agent is refused (the run owns them). Runs are looked up under the main repository only.
 Web: `AgentClient.openStepSession`, `launchAgent.openStepAgent`, the Open agent button in
-`workflows/StepRail.tsx`. Tests: `CodeChroma.Bridge.Tests/Agents/OpenStepAgentTests.cs`.
+`workflows/StepRail.tsx`. The workflow live view's Agent tab embeds the same forked agent's terminal (`workflows/StepTerminal.tsx`, `launchAgent.startStepAgent`: no window is opened, the agent is re-found by `source_run` + `fork_session`). Tests: `CodeChroma.Bridge.Tests/Agents/OpenStepAgentTests.cs`, `web/src/workflows/StepTerminal.test.tsx`.
 
 ## Canvas questions (017)
 

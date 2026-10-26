@@ -2,12 +2,12 @@ import { test, expect } from "@playwright/test";
 import { gotoApp, startSavedRun } from "./helpers";
 
 // Drives the in-memory MockWorkflowEngine (no bridge): ask a step, get a redo proposal, redo, switch attempts.
-test("ask a step, redo from the proposal, and view attempt 1 read-only", async ({ page }) => {
+test("ask the run, redo from the proposal, and view attempt 1 read-only", async ({ page }) => {
   await gotoApp(page);
   await startSavedRun(page, "Ship a feature");
   await expect(page.getByTestId("run-state")).toHaveText("Running");
 
-  await page.getByTestId("chat-input").fill("@implement what are you doing?");
+  await page.getByTestId("chat-input").fill("where is the work happening?");
   await page.getByTestId("chat-send").click();
   await expect(page.getByTestId("step-rail-collapsed")).toBeVisible();
   await expect(page.getByRole("button", { name: "Show hello() on canvas" })).toBeVisible();

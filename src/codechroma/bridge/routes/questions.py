@@ -44,12 +44,6 @@ def _find_element(ws: Ws, question_id: str) -> Element:
     return element
 
 
-async def _deliver(ws: Ws, services: Services, question_id: str) -> bool:
-    """Re-reads the settled element and types its answer line into the agent; True if live."""
-    settled = await run_in_threadpool(_find_element, ws, question_id)
-    return delivery.deliver(services, settled)
-
-
 def _open_element(ws: Ws, question_id: str) -> Element:
     element = _find_element(ws, question_id)
     if element.meta.get("state") != "open":
@@ -97,8 +91,8 @@ async def answer_question(ws: Ws, services: Services, question_id: str, body: An
     if not text:
         raise HTTPException(status_code=422, detail="answer is empty")
     result = QuestionResult(answer=text, option_id=option_id)
-    await run_in_threadpool(store.settle, ws, element.id, "answered", result)
-    return _ack(question_id, "answered", text, await _deliver(ws, services, question_id))
+    settled = await run_in_threadpool(store.settle, ws, element, "answered", result)
+    return _ack(question_id, "answered", text, delivery.deliver(services, settled))
 
 
 @router.post("/repos/{repo_id}/questions/{question_id}/skip")
@@ -107,8 +101,9 @@ async def skip_question(ws: Ws, services: Services, question_id: str) -> dict:
     element = await run_in_threadpool(_open_element, ws, question_id)
     if not element.meta.get("allow_skip", True):
         raise HTTPException(status_code=422, detail="this question cannot be skipped")
-    await run_in_threadpool(store.settle, ws, element.id, "skipped", QuestionResult(skipped=True))
-    return _ack(question_id, "skipped", None, await _deliver(ws, services, question_id))
+    result = QuestionResult(skipped=True)
+    settled = await run_in_threadpool(store.settle, ws, element, "skipped", result)
+    return _ack(question_id, "skipped", None, delivery.deliver(services, settled))
 
 
 @router.post("/repos/{repo_id}/questions/{question_id}/request-diagram")

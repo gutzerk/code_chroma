@@ -186,7 +186,7 @@ def test_answer_types_the_answer_into_the_live_agent_session(bridge):
     assert reply["waiting"] is True
     assert session.injected == [(
         f"[CodeChroma answer · Q1/3 · {question_id}] How to structure checkout? → Microservices",
-        1200,
+        86400,
     )]
 
 
@@ -537,3 +537,43 @@ def test_draw_option_diagram_warns_when_most_nodes_lack_a_description(bridge):
 
     assert "description" in warned["warning"]
     assert list(clean) == ["diagram_ref"]
+
+
+def test_draw_diagram_stacks_under_its_own_question_not_the_lowest_diagram_on_the_canvas(bridge):
+    ws = bridge.main
+    first, second = _ask(bridge), _ask(bridge)
+    a = store.draw_diagram(ws, "A", _nodes(), [], first, "a")
+    far = store.draw_diagram(ws, "Far", _nodes(), [], second, "a")
+    move = {"op": "update_element", "id": far, "position": {"x": 0, "y": 5000}}
+    store._commit(ws, lambda _doc: [move])
+
+    b = store.draw_diagram(ws, "B", _nodes(), [], first, "b")
+
+    doc = _doc(bridge)
+    assert doc.elements[b].position.y < doc.elements[far].position.y
+    assert doc.elements[b].position.y > doc.elements[a].position.y
+
+
+def test_asking_prunes_unadopted_draft_diagrams_older_than_the_ttl(bridge):
+    ws = bridge.main
+    stale = store.draw_diagram(ws, "Old", _nodes(), [], None, None)
+    fresh = store.draw_diagram(ws, "New", _nodes(), [], None, None)
+    store._commit(ws, lambda _doc: [{"op": "update_element", "id": stale, "meta": {"drawn_at": 1}}])
+
+    _ask(bridge)
+
+    doc = _doc(bridge)
+    assert stale not in doc.elements
+    assert not [e for e in doc.elements.values() if e.group_id == stale]
+    assert fresh in doc.elements
+
+
+def test_reasking_clears_the_revised_flag(bridge):
+    question_id = _ask(bridge)
+    element = store.find_element(bridge.main, question_id)
+    store.reopen(bridge.main, element)
+    reopened = store.find_element(bridge.main, question_id)
+
+    store.reask(bridge.main, reopened, AskRequest(question="Q?", options=OPTIONS), None)
+
+    assert store.find_element(bridge.main, question_id).meta["revised"] is False

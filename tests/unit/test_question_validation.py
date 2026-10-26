@@ -21,7 +21,7 @@ from codechroma.questions.validation import (
 
 
 def _fast(monkeypatch, wait: float) -> None:
-    fake = SimpleNamespace(questions=SimpleNamespace(ask_wait_seconds=wait, max_rejections=3))
+    fake = SimpleNamespace(questions=SimpleNamespace(max_rejections=3))
     monkeypatch.setattr("codechroma.questions.mcp_server.settings", fake)
 
 

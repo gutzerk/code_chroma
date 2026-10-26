@@ -32,6 +32,19 @@ public static class QuestionStore
     private static int Step(CanvasElement element) => element.Meta["step"] is JsonValue v && v.TryGetValue(out int step) ? step : 0;
 
     /// <summary>Moves the draft-layer diagrams this question's options reference onto its own layer.</summary>
+    /// <summary>Deletes draft diagrams nobody adopted within the TTL, so abandoned asks leave no layer.</summary>
+    private static List<JsonNode?> PruneOps(CanvasDoc doc, HashSet<string> keep)
+    {
+        var cutoff = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds() / 1000.0 - QuestionDiagrams.DraftTtlSeconds;
+        var stale = doc.Elements.Values
+            .Where(e => !keep.Contains(e.Id) && QuestionDiagrams.IsDraftLayer(e.Layer) && Json.Truthy(e.Meta["diagram_root"])
+                && (e.Meta["drawn_at"] is JsonValue v && v.TryGetValue(out double drawn) ? drawn : 0) < cutoff)
+            .Select(e => e.Id).ToHashSet();
+        foreach (var e in doc.Elements.Values)
+            if (e.GroupId is not null && stale.Contains(e.GroupId) && !keep.Contains(e.Id) && QuestionDiagrams.IsDraftLayer(e.Layer)) stale.Add(e.Id);
+        return stale.Order(StringComparer.Ordinal).Select(id => (JsonNode?)new JsonObject { ["op"] = "delete_element", ["id"] = id }).ToList();
+    }
+
     private static List<JsonNode?> AdoptOps(CanvasDoc doc, AskRequest request, string questionId)
     {
         var target = QuestionDiagrams.LayerFor(questionId, "");
@@ -40,6 +53,7 @@ public static class QuestionStore
         foreach (var e in doc.Elements.Values)
             if (e.GroupId is not null && roots.Contains(e.GroupId) && QuestionDiagrams.IsDraftLayer(e.Layer)) moved.Add(e.Id);
         var ops = moved.Order(StringComparer.Ordinal).Select(id => (JsonNode?)new JsonObject { ["op"] = "update_element", ["id"] = id, ["layer"] = target }).ToList();
+        ops.AddRange(PruneOps(doc, moved));
         ops.AddRange(doc.Edges.Where(kv => moved.Contains(kv.Value.From) && moved.Contains(kv.Value.To) && QuestionDiagrams.IsDraftLayer(kv.Value.Layer))
             .Select(kv => (JsonNode?)new JsonObject { ["op"] = "update_edge", ["id"] = kv.Key, ["layer"] = target }));
         return ops;
@@ -116,7 +130,7 @@ public static class QuestionStore
     {
         var meta = new JsonObject
         {
-            ["options"] = OptionsMeta(request), ["kind"] = request.Kind, ["diagram_requested"] = false,
+            ["options"] = OptionsMeta(request), ["kind"] = request.Kind, ["diagram_requested"] = false, ["revised"] = false,
             ["allow_custom"] = request.AllowCustom, ["allow_skip"] = request.AllowSkip,
             ["session_id"] = request.SessionId, ["total"] = request.Total, ["degraded"] = false, ["validation"] = null,
         };
@@ -138,11 +152,12 @@ public static class QuestionStore
 
     private static JsonObject Update(string id, JsonObject meta) => new() { ["op"] = "update_element", ["id"] = id, ["meta"] = meta };
 
-    /// <summary>The y to start a new diagram at: below the lowest element of every `decisions/*` layer, so dragged diagrams never overlap.</summary>
-    private static double NextTop(CanvasDoc doc)
+    /// <summary>The y to start a new diagram at: below its own question's diagrams, else below every `decisions/*` layer, so dragged diagrams never overlap.</summary>
+    private static double NextTop(CanvasDoc doc, string layer)
     {
-        var bottoms = doc.Elements.Values.Where(e => e.Layer.StartsWith(QuestionDiagrams.LayerPrefix, StringComparison.Ordinal))
-            .Select(e => e.Position.Y + (e.Size?.H ?? 0) / 2).ToList();
+        List<double> Bottoms(Func<string, bool> match) => doc.Elements.Values.Where(e => match(e.Layer)).Select(e => e.Position.Y + (e.Size?.H ?? 0) / 2).ToList();
+        var bottoms = Bottoms(l => l == layer);
+        if (bottoms.Count == 0) bottoms = Bottoms(l => l.StartsWith(QuestionDiagrams.LayerPrefix, StringComparison.Ordinal));
         return bottoms.Count == 0 ? 0 : bottoms.Max() + QuestionDiagrams.Gap;
     }
 
@@ -160,7 +175,8 @@ public static class QuestionStore
                 var optionIds = (target.Meta["options"] as JsonArray ?? []).Select(o => Json.Str(o?["id"])).ToHashSet();
                 if (optionId is null || !optionIds.Contains(optionId)) throw new QuestionWriteException($"unknown option '{optionId}' on that question");
             }
-            var result = ApplyBatch.Apply(doc, QuestionDiagrams.Ops(title, nodes, edges, NextTop(doc), optionId, QuestionDiagrams.LayerFor(questionId, Guid.NewGuid().ToString("N")[..8])), "default", Explanation);
+            var layer = QuestionDiagrams.LayerFor(questionId, Guid.NewGuid().ToString("N")[..8]);
+            var result = ApplyBatch.Apply(doc, QuestionDiagrams.Ops(title, nodes, edges, NextTop(doc, layer), optionId, layer), "default", Explanation);
             if (result.Ok && target is not null)
             {
                 var rootId = result.IdMap["root"];

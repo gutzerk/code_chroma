@@ -33,6 +33,8 @@ public sealed class AgentSession : IAgentSessionPort, IDisposable
     public const string StatusExited = "exited";
 
     private readonly object _gate = new();
+    private readonly object _injectGate = new();
+    private Task _injectChain = Task.CompletedTask;
     private readonly List<AgentConsumer> _consumers = [];
     private readonly ScreenTap _tap = new(PtyLaunch.DefaultRows, PtyLaunch.DefaultCols);
     private readonly StatusDetector _detector;
@@ -125,20 +127,28 @@ public sealed class AgentSession : IAgentSessionPort, IDisposable
     public Task InjectWhenIdle(string text, int attempts = 60, TimeSpan? interval = null)
     {
         var wait = interval ?? TimeSpan.FromMilliseconds(500);
-        return Task.Run(async () =>
+        lock (_injectGate)
         {
-            for (var attempt = 0; attempt < attempts; attempt++)
+            _injectChain = _injectChain.ContinueWith(_ => InjectOnce(text, attempts, wait), TaskScheduler.Default).Unwrap();
+            return _injectChain;
+        }
+    }
+
+    /// <summary>One queued injection: waits for idle, types it, then lets the screen settle so the next one sees the agent busy.</summary>
+    private async Task InjectOnce(string text, int attempts, TimeSpan wait)
+    {
+        for (var attempt = 0; attempt < attempts; attempt++)
+        {
+            if (ExitCode is not null) return;
+            var verdict = _detector.Classify(_tap.Tail(_detector.Rules.TailLines), _tap.Title, _tap.Progress, null);
+            if (verdict == StatusDetector.Idle)
             {
-                if (ExitCode is not null) return;
-                var verdict = _detector.Classify(_tap.Tail(_detector.Rules.TailLines), _tap.Title, _tap.Progress, null);
-                if (verdict == StatusDetector.Idle)
-                {
-                    Write(text + "\r");
-                    return;
-                }
+                Write(text + "\r");
                 await Task.Delay(wait);
+                return;
             }
-        });
+            await Task.Delay(wait);
+        }
     }
 
     /// <summary>Kills the process; the exit callback then completes every consumer.</summary>

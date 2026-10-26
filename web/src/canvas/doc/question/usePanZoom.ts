@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState, type PointerEvent as ReactPointerEvent, type RefObject } from "react";
+import { useCallback, useEffect, useRef, useState, type PointerEvent as ReactPointerEvent } from "react";
 
 export interface PanZoomView {
   x: number;
@@ -23,38 +23,50 @@ export function zoomAround(view: PanZoomView, cursorX: number, cursorY: number, 
   };
 }
 
-/** Pointer-drag pan (after a small threshold) and wheel zoom toward the cursor over `bodyRef`, starting from `base`. */
-export function usePanZoom(bodyRef: RefObject<HTMLElement | null>, base: PanZoomView, active: boolean) {
+/** Pointer-drag pan (after a small threshold) and wheel zoom toward the cursor over `body`, starting from `base`; `resetKey` change refits. */
+export function usePanZoom(body: HTMLElement | null, base: PanZoomView, active: boolean, resetKey: string) {
   const [view, setView] = useState<PanZoomView>(base);
   const [dragging, setDragging] = useState(false);
   const drag = useRef<{ x: number; y: number; origin: PanZoomView; moved: boolean } | null>(null);
 
-  useEffect(() => setView({ x: base.x, y: base.y, scale: base.scale }), [base.x, base.y, base.scale]);
+  const touched = useRef(false);
+
+  useEffect(() => {
+    touched.current = false;
+  }, [resetKey]);
+
+  useEffect(() => {
+    if (!touched.current) setView({ x: base.x, y: base.y, scale: base.scale });
+  }, [base.x, base.y, base.scale, resetKey]);
 
   const zoomBy = useCallback(
     (factor: number) => {
-      const rect = bodyRef.current?.getBoundingClientRect();
+      touched.current = true;
+      const rect = body?.getBoundingClientRect();
       const cx = (rect?.width ?? 0) / 2;
       const cy = (rect?.height ?? 0) / 2;
       setView((v) => zoomAround(v, cx, cy, factor));
     },
-    [bodyRef],
+    [body],
   );
 
-  const reset = useCallback(() => setView({ x: base.x, y: base.y, scale: base.scale }), [base.x, base.y, base.scale]);
+  const reset = useCallback(() => {
+    touched.current = false;
+    setView({ x: base.x, y: base.y, scale: base.scale });
+  }, [base.x, base.y, base.scale]);
 
   useEffect(() => {
-    const body = bodyRef.current;
     if (!body || !active) return undefined;
     const onWheel = (event: WheelEvent) => {
       event.preventDefault();
+      touched.current = true;
       const rect = body.getBoundingClientRect();
       const factor = Math.exp(-event.deltaY * WHEEL_STEP);
       setView((v) => zoomAround(v, event.clientX - rect.left, event.clientY - rect.top, factor));
     };
     body.addEventListener("wheel", onWheel, { passive: false });
     return () => body.removeEventListener("wheel", onWheel);
-  }, [bodyRef, active]);
+  }, [body, active]);
 
   const onPointerDown = (event: ReactPointerEvent<HTMLElement>) => {
     if (event.button !== 0 || (event.target as HTMLElement).closest("button")) return;
@@ -69,6 +81,7 @@ export function usePanZoom(bodyRef: RefObject<HTMLElement | null>, base: PanZoom
     if (!d.moved && Math.hypot(dx, dy) < DRAG_THRESHOLD) return;
     if (!d.moved) setDragging(true);
     d.moved = true;
+    touched.current = true;
     setView({ ...d.origin, x: d.origin.x + dx, y: d.origin.y + dy });
   };
   const endDrag = () => {

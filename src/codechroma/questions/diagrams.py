@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import math
+import time
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -20,6 +21,7 @@ _CELL_W, _CELL_H = 200, 100
 _NODE_W, _NODE_H = 160, 60
 _PAD, _HEADER = 20, 40
 GAP = 60
+DRAFT_TTL_SECONDS = 3600
 
 
 def layer_for(question_id: str | None, draft: str) -> str:
@@ -107,7 +109,7 @@ def diagram_ops(
         "op": "add_group", "temp_id": "root", "layer": layer, "label": title,
         "position": {"x": width / 2, "y": top + height / 2},
         "size": {"w": width, "h": height},
-        "meta": {"diagram_root": True, "option_id": option_id},
+        "meta": {"diagram_root": True, "option_id": option_id, "drawn_at": time.time()},
     }]
     for index, node in enumerate(nodes):
         ops.append({

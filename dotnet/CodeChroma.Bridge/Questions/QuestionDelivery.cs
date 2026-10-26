@@ -7,7 +7,7 @@ namespace CodeChroma.Bridge.Questions;
 /// <summary>Types a settled answer into the asking agent's terminal as its next message.</summary>
 public static class QuestionDelivery
 {
-    public const int IdleAttempts = 1200;
+    public const int IdleAttempts = 86400;
     public const string Skipped = "skipped by the user, decide yourself";
     public const string DiagramRequest = "the user wants a diagram for each option: draw them with draw_option_diagram, then call ask_user again with the same session_id and question";
 

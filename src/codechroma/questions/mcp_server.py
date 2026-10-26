@@ -38,11 +38,11 @@ _INSTRUCTIONS = (
     "them and call again with the same intent. For a question that changes structure "
     "(boundaries, data flow, ownership, a new component) use kind \"diagram\": first draw one "
     "small diagram per option with draw_option_diagram, then pass each returned diagram_ref on "
-    "its option. If ask_user returns {needs: \"diagram\"}, the user wants diagrams: draw them "
-    "with draw_option_diagram and call ask_user again with the same session_id and question. "
-    "ask_user returns at once with {asked: true}: end your turn then. The user's answer arrives "
-    "as your next message, starting with [CodeChroma answer; never poll and never repeat the "
-    "question in chat. ask_user_result(question_id) reads an answer back if you need it."
+    "its option. ask_user returns at once with {asked: true}: end your turn then. The user's "
+    "answer arrives as your next message, starting with [CodeChroma answer]. If the next "
+    "message says the user wants diagrams, draw them with draw_option_diagram and call ask_user "
+    "again with the same session_id and question. Never poll and never repeat the question in "
+    "chat. ask_user_result(question_id) reads an answer back if you need it."
 )
 
 NEXT_STEP = "End your turn now. The user's answer will arrive as your next message."

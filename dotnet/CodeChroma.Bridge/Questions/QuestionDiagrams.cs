@@ -24,6 +24,7 @@ public static class QuestionDiagrams
     private const int Pad = 20, Header = 40;
     public const string DraftPrefix = "draft-";
     public const int Gap = 60;
+    public const int DraftTtlSeconds = 3600;
 
     /// <summary>The per-question layer one diagram is drawn on.</summary>
     public static string LayerFor(string? questionId, string draft) => LayerPrefix + (string.IsNullOrEmpty(questionId) ? DraftPrefix + draft : questionId);
@@ -82,7 +83,7 @@ public static class QuestionDiagrams
                 ["op"] = "add_group", ["temp_id"] = "root", ["layer"] = layer, ["label"] = title,
                 ["position"] = new JsonObject { ["x"] = width / 2, ["y"] = top + height / 2 },
                 ["size"] = new JsonObject { ["w"] = width, ["h"] = height },
-                ["meta"] = new JsonObject { ["diagram_root"] = true, ["option_id"] = optionId },
+                ["meta"] = new JsonObject { ["diagram_root"] = true, ["option_id"] = optionId, ["drawn_at"] = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds() / 1000.0 },
             },
         };
         for (var index = 0; index < nodes.Count; index++)

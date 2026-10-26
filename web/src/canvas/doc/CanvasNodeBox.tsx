@@ -365,6 +365,7 @@ export function CanvasNodeBox({ element, onMeasure }: CanvasNodeBoxProps) {
       // absent entirely for a synthetic C1 System/Actor box) -- a marquee matching on that instead
       // used to add the wrong id, or nothing at all, so nothing ever lit up as selected.
       data-select-id={element.id}
+      data-layer={element.layer}
       data-render={element.render}
       data-recipe-key={stringMeta(element, "recipe_key")}
       data-no-code={stringMeta(element, "no_code_reason")}

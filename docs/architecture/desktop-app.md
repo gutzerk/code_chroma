@@ -65,7 +65,7 @@ Logic is UI-free in `CodeChroma.Shell`; `CodeChroma.Shell.App` only renders.
   channel (`DesktopScript`/`DesktopMessage`). The shell accepts messages only while the tab URL origin equals its
   bridge origin; other navigations are cancelled and opened in the system browser.
 - Calls that need an answer (`codechromaUpdates.*`, `saveFile`) go through one page-side `rpc` and are answered by
-  `ShellReply.RunAsync` via `window.__ccReply(callId, ok, json)`. `saveFile(name, mime, base64)` (the canvas's Share
+  `ShellReply.RunAsync` via `window.__ccReply(callId, ok, json)`. `saveFile(name, mime, base64)` (the Diagrams panel's Export
   menu) posts `save-file` (`id`=file name, `method`=mime, `arg`=base64); `MainWindow.SaveFileAsync` runs
   `CodeChroma.Shell/FileSaver` over Avalonia's `SaveFilePickerAsync` and replies `{saved}` (`false` = cancelled).
 - Chrome: no native menu bar on Windows/Linux; the tab strip (`#1b1d23` bar, `#6c8cff` active underline) ends in a

@@ -11,7 +11,7 @@ describe("ShareMenu", () => {
   });
 
   it("lists PNG, HTML and PDF when the Share button is clicked", () => {
-    render(<ShareMenu />);
+    render(<ShareMenu layers={["a"]} />);
 
     fireEvent.click(screen.getByTestId("share-menu-button"));
 
@@ -21,7 +21,7 @@ describe("ShareMenu", () => {
   });
 
   it("closes on Escape", () => {
-    render(<ShareMenu />);
+    render(<ShareMenu layers={["a"]} />);
     fireEvent.click(screen.getByTestId("share-menu-button"));
 
     fireEvent.keyDown(screen.getByTestId("share-menu-list"), { key: "Escape" });
@@ -34,7 +34,7 @@ describe("ShareMenu", () => {
     vi.spyOn(capture, "prepareCapture").mockReturnValue({} as capture.CanvasCapture);
     vi.spyOn(formats, "buildExport").mockResolvedValue({ blob, mime: "image/png", extension: "png" });
     const saveSpy = vi.spyOn(save, "saveFile").mockResolvedValue(true);
-    render(<ShareMenu name="my repo" />);
+    render(<ShareMenu name="my repo" layers={["a", "b"]} />);
     fireEvent.click(screen.getByTestId("share-menu-button"));
 
     fireEvent.click(screen.getByTestId("share-menu-item-png"));
@@ -44,11 +44,34 @@ describe("ShareMenu", () => {
     expect(request).toMatchObject({ name: "my-repo-diagram.png", mime: "image/png" });
     await expect(request.blob).resolves.toBe(blob);
     expect(formats.buildExport).toHaveBeenCalledWith("png", expect.anything(), "my-repo-diagram");
+    expect(capture.prepareCapture).toHaveBeenCalledWith(document, ["a", "b"]);
+  });
+
+  it("confirms a successful export and stays silent when the dialog is cancelled", async () => {
+    vi.spyOn(capture, "prepareCapture").mockReturnValue({} as capture.CanvasCapture);
+    vi.spyOn(formats, "buildExport").mockResolvedValue({ blob: new Blob(["x"]), mime: "image/png", extension: "png" });
+    const saveSpy = vi.spyOn(save, "saveFile").mockResolvedValueOnce(false).mockResolvedValueOnce(true);
+    render(<ShareMenu name="repo" layers={["a"]} />);
+
+    fireEvent.click(screen.getByTestId("share-menu-button"));
+    fireEvent.click(screen.getByTestId("share-menu-item-png"));
+    await waitFor(() => expect(saveSpy).toHaveBeenCalledTimes(1));
+    expect(screen.queryByTestId("share-menu-success")).not.toBeInTheDocument();
+    fireEvent.click(screen.getByTestId("share-menu-button"));
+    fireEvent.click(screen.getByTestId("share-menu-item-png"));
+
+    expect(await screen.findByTestId("share-menu-success")).toHaveTextContent("Exported repo-diagram.png");
+  });
+
+  it("is disabled while no diagram is selected", () => {
+    render(<ShareMenu layers={[]} />);
+
+    expect(screen.getByTestId("share-menu-button")).toBeDisabled();
   });
 
   it("says so when there is nothing to export", () => {
     vi.spyOn(capture, "prepareCapture").mockReturnValue(null);
-    render(<ShareMenu />);
+    render(<ShareMenu layers={["a"]} />);
     fireEvent.click(screen.getByTestId("share-menu-button"));
 
     fireEvent.click(screen.getByTestId("share-menu-item-pdf"));

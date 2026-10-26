@@ -43,6 +43,7 @@ export function GroupFrame({ element, members, sizes }: GroupFrameProps) {
       testId="canvas-group-frame"
       labelClassName="canvas-group-frame-label"
       label={element.label}
+      layer={element.layer}
     />
   );
 }

@@ -11,13 +11,7 @@ public sealed class QuestionMcp(Func<string, Workspace> workspaceFor, int maxRej
 {
     public const string SessionHeader = "Mcp-Session-Id";
     public const string Instructions =
-        "Ask every decision question through ask_user, never in chat text and never with another question tool. "
-        + "Each call needs: question, and 2-4 options that each have id, title, description, pro, con and why; exactly one option has rank 1 (your recommendation), the others a unique rank. "
-        + "A call that breaks this is rejected with the list of problems: fix them and call again with the same intent. "
-        + "For a question that changes structure (boundaries, data flow, ownership, a new component) use kind \"diagram\": first draw one small diagram per option with draw_option_diagram, then pass each returned diagram_ref on its option. "
-        + "ask_user does not wait: it returns {asked: true, question_id, next}. End your turn right away; the user's answer arrives as your next message, so never poll and never repeat the question in chat. "
-        + "If the next message says the user wants diagrams, draw them with draw_option_diagram and call ask_user again with the same session_id and question. "
-        + "ask_user_result reads an answer back for clients that cannot receive messages.";
+        "Ask every decision question through ask_user, never in chat text and never with another question tool. Each call needs: question, and 2-4 options that each have id, title, description, pro, con and why; exactly one option has rank 1 (your recommendation), the others a unique rank. A call that breaks this is rejected with the list of problems: fix them and call again with the same intent. For a question that changes structure (boundaries, data flow, ownership, a new component) use kind \"diagram\": first draw one small diagram per option with draw_option_diagram, then pass each returned diagram_ref on its option. ask_user returns at once with {asked: true}: end your turn then. The user's answer arrives as your next message, starting with [CodeChroma answer]. If the next message says the user wants diagrams, draw them with draw_option_diagram and call ask_user again with the same session_id and question. Never poll and never repeat the question in chat. ask_user_result(question_id) reads an answer back if you need it.";
 
     private const string DrawDescription =
         "Draw a small decision diagram (max 12 nodes) for one option; returns its diagram_ref. "

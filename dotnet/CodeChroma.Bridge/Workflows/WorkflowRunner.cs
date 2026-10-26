@@ -422,7 +422,8 @@ public sealed partial class WorkflowRunner
             }
             if (decision != "sendBack") throw new BridgeException(400, "decision must be approve or sendBack");
             var configured = h.Def.Steps[index].SendBackTo;
-            var found = h.Def.Steps[index].Kind == "agent" ? index : configured is not null ? h.Def.Steps.FindIndex(0, index, x => x.Id == configured && x.Kind == "agent") : -1;
+            var found = configured is not null ? h.Def.Steps.FindIndex(0, index, x => x.Id == configured && x.Kind == "agent") : -1;
+            if (h.Def.Steps[index].Kind == "agent") found = index;
             if (found < 0) found = StepAgents.NearestAgentBefore(h.Def, index);
             if (found < 0) throw new BridgeException(409, "there is no earlier agent step to send back to");
             target = h.Def.Steps[found].Id;

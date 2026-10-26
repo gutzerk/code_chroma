@@ -4,6 +4,11 @@ const PADDING = 32;
 const MAX_SIDE = 12000;
 const MAX_PIXELS = 100_000_000;
 
+/** WebKit (macOS WebView, Safari) paints a foreignObject snapshot blank until its fonts and images have loaded once. */
+function isWebKit(): boolean {
+  return /AppleWebKit/.test(navigator.userAgent) && !/Chrome|Chromium|Edg\//.test(navigator.userAgent);
+}
+
 export interface CanvasCapture {
   width: number;
   height: number;
@@ -86,15 +91,22 @@ export function prepareCapture(
       transition: "none",
     },
   };
+  const warmUp = async () => {
+    if (isWebKit()) await toSvg(content, options).catch(() => undefined);
+  };
   return {
     width,
     height,
     background,
     async png() {
+      await warmUp();
       const blob = await toBlob(content, options);
       if (!blob) throw new Error("The diagram could not be rendered");
       return blob;
     },
-    svgDataUrl: () => toSvg(content, options),
+    async svgDataUrl() {
+      await warmUp();
+      return toSvg(content, options);
+    },
   };
 }

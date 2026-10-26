@@ -614,6 +614,10 @@ body {
   font-size: 0.78rem;
 }
 
+.share-menu-success {
+  border-color: var(--success, var(--border));
+}
+
 /* The floating game window — a fixed size, no drag/resize, just a title bar with minimize/close. */
 .game-window {
   width: auto;

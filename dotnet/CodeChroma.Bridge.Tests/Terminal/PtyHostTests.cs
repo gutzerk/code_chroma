@@ -148,4 +148,28 @@ public class PtyHostTests
 
         Assert.True(await capture.WaitFor("probe-value-7"), capture.Text);
     }
+
+    [Fact]
+    public async Task Terminal_variables_win_over_the_launch_environment()
+    {
+        var capture = new Capture();
+        var launch = new PtyLaunch(Shell, Directory.GetCurrentDirectory(), Env: new Dictionary<string, string> { ["TERM"] = "dumb" });
+        using var host = PtyHost.Start(launch, capture.Add, () => { });
+
+        host.Write((OperatingSystem.IsWindows() ? "echo T=%TERM%=" : "echo T=$TERM=") + Newline);
+
+        Assert.True(await capture.WaitFor("T=xterm-256color="), capture.Text);
+    }
+
+    [Fact]
+    public async Task Lang_is_not_injected_over_a_launch_environment_that_sets_lc_all()
+    {
+        var capture = new Capture();
+        var launch = new PtyLaunch(Shell, Directory.GetCurrentDirectory(), Env: new Dictionary<string, string> { ["LC_ALL"] = "C.UTF-8", ["LANG"] = "" });
+        using var host = PtyHost.Start(launch, capture.Add, () => { });
+
+        host.Write((OperatingSystem.IsWindows() ? "echo L=%LANG%=" : "echo L=$LANG=") + Newline);
+
+        Assert.True(await capture.WaitFor("L==") || await capture.WaitFor("L=%LANG%="), capture.Text);
+    }
 }

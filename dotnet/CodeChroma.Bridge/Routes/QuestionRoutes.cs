@@ -1,4 +1,5 @@
 using System.Text.Json.Nodes;
+using CodeChroma.Bridge.Agents;
 using CodeChroma.Bridge.Http;
 using CodeChroma.Bridge.Questions;
 using CodeChroma.Bridge.Stores;
@@ -6,16 +7,16 @@ using CodeChroma.Bridge.Workspaces;
 
 namespace CodeChroma.Bridge.Routes;
 
-/// <summary>GET/POST /repos/{id}/questions and the bearer-authenticated /mcp/ endpoint -- the user's and the agent's sides of `ask_user`.</summary>
+/// <summary>GET/POST /repos/{id}/questions and the bearer-authenticated /mcp/ endpoint; answers are typed into the asking agent's terminal.</summary>
 public static class QuestionRoutes
 {
     public static void Map(WebApplication app)
     {
-        app.MapGet("/repos/{repoId}/questions", (string repoId, WorkspaceRegistry registry, QuestionMcp questions) =>
+        app.MapGet("/repos/{repoId}/questions", (string repoId, WorkspaceRegistry registry, AgentSessionRegistry sessions) =>
         {
             var ws = registry.Get(repoId);
             var open = QuestionStore.ListQuestions(ws).Where(e => Json.Str(e.Meta["state"]) == "open")
-                .Select(e => (JsonNode?)View(e, questions.Broker.IsWaiting(Json.Str(e.Meta["question_id"]) ?? ""))).ToArray();
+                .Select(e => (JsonNode?)View(e, HasLiveAgent(sessions, e))).ToArray();
             return Reply.Json(new JsonObject { ["questions"] = new JsonArray(open) });
         });
 
@@ -38,7 +39,7 @@ public static class QuestionRoutes
             }
         });
 
-        app.MapPost("/repos/{repoId}/questions/{questionId}/answer", async (string repoId, string questionId, HttpRequest request, WorkspaceRegistry registry, QuestionMcp questions) =>
+        app.MapPost("/repos/{repoId}/questions/{questionId}/answer", async (string repoId, string questionId, HttpRequest request, WorkspaceRegistry registry, AgentSessionRegistry sessions) =>
         {
             var body = await Reply.LenientBody(request);
             return WithCanvasLock(registry.Get(repoId), ws =>
@@ -60,32 +61,31 @@ public static class QuestionRoutes
                 }
                 if (text.Length == 0) return Reply.Error(422, "answer is empty");
                 QuestionStore.Settle(ws, element.Id, "answered", new QuestionResult { Answer = text, OptionId = optionId });
-                return Reply.Json(Ack(questionId, "answered", text, questions.Broker.Answer(questionId, text, optionId)));
+                return Reply.Json(Ack(questionId, "answered", text, Deliver(sessions, ws, questionId)));
             });
         });
 
-        app.MapPost("/repos/{repoId}/questions/{questionId}/skip", (string repoId, string questionId, WorkspaceRegistry registry, QuestionMcp questions) => WithCanvasLock(registry.Get(repoId), ws =>
+        app.MapPost("/repos/{repoId}/questions/{questionId}/skip", (string repoId, string questionId, WorkspaceRegistry registry, AgentSessionRegistry sessions) => WithCanvasLock(registry.Get(repoId), ws =>
         {
             var element = OpenElement(ws, questionId);
             if (!Flag(element, "allow_skip")) return Reply.Error(422, "this question cannot be skipped");
             QuestionStore.Settle(ws, element.Id, "skipped", new QuestionResult { Skipped = true });
-            return Reply.Json(Ack(questionId, "skipped", null, questions.Broker.Skip(questionId)));
+            return Reply.Json(Ack(questionId, "skipped", null, Deliver(sessions, ws, questionId)));
         }));
 
-        app.MapPost("/repos/{repoId}/questions/{questionId}/request-diagram", (string repoId, string questionId, WorkspaceRegistry registry, QuestionMcp questions) => WithCanvasLock(registry.Get(repoId), ws =>
+        app.MapPost("/repos/{repoId}/questions/{questionId}/request-diagram", (string repoId, string questionId, WorkspaceRegistry registry, AgentSessionRegistry sessions) => WithCanvasLock(registry.Get(repoId), ws =>
         {
             var element = OpenElement(ws, questionId);
             var options = element.Meta["options"] as JsonArray ?? [];
             if (options.Count == 0) return Reply.Error(422, "this question has no options");
             if (options.All(o => !string.IsNullOrEmpty(Json.Str(o?["diagram_ref"])))) return Reply.Error(422, "every option already has a diagram");
             if (!Json.Truthy(element.Meta["diagram_requested"])) QuestionStore.RequestDiagram(ws, element, DateTimeOffset.UtcNow.ToString("O"));
-            return Reply.Json(Ack(questionId, "open", null, questions.Broker.RequestDiagram(questionId)));
+            return Reply.Json(Ack(questionId, "open", null, QuestionDelivery.Deliver(sessions, element, QuestionDelivery.DiagramRequestMessage(element))));
         }));
 
-        app.MapPost("/repos/{repoId}/questions/{questionId}/revise", (string repoId, string questionId, WorkspaceRegistry registry, QuestionMcp questions) => WithCanvasLock(registry.Get(repoId), ws =>
+        app.MapPost("/repos/{repoId}/questions/{questionId}/revise", (string repoId, string questionId, WorkspaceRegistry registry) => WithCanvasLock(registry.Get(repoId), ws =>
         {
             var removed = QuestionStore.Reopen(ws, FindElement(ws, questionId));
-            questions.Broker.Forget(questionId);
             var ack = Ack(questionId, "open", null, false);
             ack["removed"] = new JsonArray(removed.Select(id => (JsonNode?)id).ToArray());
             return Reply.Json(ack);
@@ -118,6 +118,13 @@ public static class QuestionRoutes
             return Reply.Error(401, "invalid or missing workspace token");
         }
     }
+
+    private static bool HasLiveAgent(AgentSessionRegistry sessions, CanvasElement element) =>
+        Json.Str(element.Meta["agent_id"]) is { Length: > 0 } agent && sessions.Get(agent) is { IsAlive: true };
+
+    /// <summary>Reads the just-settled element back and types its message into the asking agent; true when a live session got it.</summary>
+    private static bool Deliver(AgentSessionRegistry sessions, Workspace ws, string questionId) =>
+        QuestionStore.FindElement(ws, questionId) is { } settled && QuestionDelivery.Deliver(sessions, settled, QuestionDelivery.AnswerMessage(settled));
 
     private static JsonObject View(CanvasElement element, bool waiting)
     {

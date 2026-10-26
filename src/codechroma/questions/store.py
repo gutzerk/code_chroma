@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import uuid
 from collections.abc import Callable
 
 from codechroma.bridge.workspaces import Workspace
@@ -46,6 +47,28 @@ def _options_meta(request: AskRequest) -> list[dict]:
     return [option.model_dump() for option in request.options]
 
 
+def _adopt_ops(doc: CanvasDoc, request: AskRequest, question_id: str) -> list[dict]:
+    """Moves the draft-layer diagrams this question's options reference onto its own layer."""
+    target = diagrams.layer_for(question_id, "")
+    refs = {o.diagram_ref for o in request.options if o.diagram_ref}
+    roots = [
+        doc.elements[r] for r in refs
+        if r in doc.elements and diagrams.is_draft_layer(doc.elements[r].layer)
+    ]
+    moved = {root.id for root in roots}
+    moved |= {
+        e.id for e in doc.elements.values()
+        if e.group_id in moved and diagrams.is_draft_layer(e.layer)
+    }
+    ops: list[dict] = [{"op": "update_element", "id": i, "layer": target} for i in sorted(moved)]
+    ops.extend(
+        {"op": "update_edge", "id": edge_id, "layer": target}
+        for edge_id, edge in doc.edges.items()
+        if edge.from_ in moved and edge.to in moved and diagrams.is_draft_layer(edge.layer)
+    )
+    return ops
+
+
 def open_question(
     ws: Workspace, request: AskRequest, question_id: str, extra_meta: dict | None = None
 ) -> str:
@@ -70,7 +93,7 @@ def open_question(
         return [{
             "op": "add_element", "temp_id": "q", "render": "question", "layer": "questions",
             "label": request.question, "meta": meta,
-        }]
+        }, *_adopt_ops(doc, request, question_id)]
 
     return _commit(ws, build)["id_map"]["q"]
 
@@ -120,7 +143,7 @@ def reopen(ws: Workspace, element: Element) -> list[str]:
     ops: list[dict] = [{"op": "delete_element", "id": i} for i in later]
     ops.append({
         "op": "update_element", "id": element.id,
-        "meta": {"state": "open", "answer": None, "option_id": None},
+        "meta": {"state": "open", "answer": None, "option_id": None, "revised": True},
     })
     _commit(ws, lambda _doc: ops)
     return later
@@ -165,8 +188,12 @@ def reask(
         }
         for old in stale or []
     ]
-    ops.append({"op": "update_element", "id": element.id, "label": request.question, "meta": meta})
-    _commit(ws, lambda _doc: ops)
+    question_id = element.meta["question_id"]
+    _commit(ws, lambda doc: [
+        *ops,
+        {"op": "update_element", "id": element.id, "label": request.question, "meta": meta},
+        *_adopt_ops(doc, request, question_id),
+    ])
 
 
 def request_diagram(ws: Workspace, element: Element, requested_at: str) -> None:
@@ -185,19 +212,20 @@ def _question_in(doc: CanvasDoc, question_id: str) -> Element:
     raise QuestionWriteError(f"unknown question {question_id!r}")
 
 
-def _next_band(doc: CanvasDoc) -> int:
-    bands = [
-        int(e.position.y // diagrams.BAND_H) for e in doc.elements.values()
-        if e.meta.get("diagram_root")
+def _next_top(doc: CanvasDoc) -> float:
+    """The y just below every existing per-question diagram element (0 when there is none)."""
+    bottoms = [
+        e.position.y + (e.size.h / 2 if e.size else 0) for e in doc.elements.values()
+        if e.layer.startswith(diagrams.LAYER_PREFIX)
     ]
-    return max(bands, default=-1) + 1
+    return max(bottoms) + diagrams.GAP if bottoms else 0
 
 
 def draw_diagram(
     ws: Workspace, title: str, nodes: list[diagrams.DiagramNode],
     edges: list[diagrams.DiagramEdge], question_id: str | None, option_id: str | None,
 ) -> str:
-    """Draws one option diagram on the `decisions` layer and returns its root id (the ref)."""
+    """Draws one option diagram on its `decisions/<question_id>` layer; returns its root id."""
     with canvas_lock(ws.id):
         doc = CanvasDoc.load(ws.canvas_core_path, ws.diagrams_root)
         target = None
@@ -205,7 +233,8 @@ def draw_diagram(
             target = _question_in(doc, question_id)
             if option_id not in {o["id"] for o in target.meta.get("options", [])}:
                 raise QuestionWriteError(f"unknown option {option_id!r} on that question")
-        ops = diagrams.diagram_ops(title, nodes, edges, _next_band(doc), option_id)
+        layer = diagrams.layer_for(question_id, uuid.uuid4().hex[:8])
+        ops = diagrams.diagram_ops(title, nodes, edges, _next_top(doc), option_id, layer)
         result = apply_batch(doc, ops, explanation="ai question")
         if result.ok and target is not None:
             assert result.doc is not None

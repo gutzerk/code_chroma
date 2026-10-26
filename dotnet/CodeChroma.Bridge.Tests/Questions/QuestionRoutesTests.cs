@@ -42,7 +42,7 @@ public sealed class QuestionRoutesTests
     }
 
     [Fact]
-    public async Task Get_questions_lists_open_ones_as_not_waiting_without_a_live_waiter()
+    public async Task Get_questions_lists_open_ones_as_not_waiting_without_a_live_agent()
     {
         using var host = new BridgeHost();
         var questionId = Open(host, Request());
@@ -127,44 +127,43 @@ public sealed class QuestionRoutesTests
     }
 
     [Fact]
-    public async Task The_answer_route_wakes_a_blocked_ask()
+    public async Task Ask_returns_at_once_and_the_answer_route_reports_no_live_agent()
     {
         using var host = new BridgeHost();
         var mcp = Mcp(host);
-        var ask = mcp.Ask("main", Request(question: "Pick"));
-        await WaitUntilWaiting(host, mcp);
-        var questionId = (string)QuestionStore.ListQuestions(Main(host))[0].Meta["question_id"]!;
 
+        var asked = await mcp.Ask("main", Request(question: "Pick"));
+        var questionId = (string)asked["question_id"]!;
         var reply = await Body(await host.Client.PostAsync($"/repos/main/questions/{questionId}/answer", JsonBody(new JsonObject { ["option_id"] = "b" })));
-        var result = await ask.WaitAsync(TimeSpan.FromSeconds(5));
 
-        Assert.True((bool)reply["waiting"]!);
+        Assert.Equal(QuestionMcp.NextText, (string?)asked["next"]);
+        Assert.True((bool)asked["asked"]!);
+        Assert.False((bool)reply["waiting"]!);
         Assert.Equal("answered", (string?)reply["state"]);
-        Assert.Equal("""{"answer":"Microservices","option_id":"b","skipped":false}""", result.ToJsonString());
     }
 
     [Fact]
-    public async Task Ask_returns_pending_on_timeout_and_result_fetches_the_later_answer()
+    public async Task Result_is_pending_while_open_and_returns_the_later_answer()
     {
         using var host = new BridgeHost();
         var mcp = Mcp(host);
-        mcp.AskWait = TimeSpan.FromMilliseconds(50);
+        var asked = await mcp.Ask("main", Request(question: "Pick"));
+        var questionId = (string)asked["question_id"]!;
 
-        var pending = await mcp.Ask("main", Request(question: "Pick"));
-        mcp.Broker.Answer((string)pending["question_id"]!, "late");
-        var later = await mcp.Result("main", (string)pending["question_id"]!);
+        var pending = await mcp.Result("main", questionId);
+        await host.Client.PostAsync($"/repos/main/questions/{questionId}/answer", JsonBody(new JsonObject { ["answer"] = "late" }));
+        var later = await mcp.Result("main", questionId);
 
         Assert.True((bool)pending["pending"]!);
         Assert.Equal("""{"answer":"late","option_id":null,"skipped":false}""", later.ToJsonString());
     }
 
     [Fact]
-    public async Task Result_reads_the_element_when_the_broker_forgot_it()
+    public async Task Result_reads_a_skipped_element()
     {
         using var host = new BridgeHost();
         var questionId = Open(host, Request());
         await host.Client.PostAsync($"/repos/main/questions/{questionId}/skip", null);
-        Mcp(host).Broker.Forget(questionId);
 
         var result = await Mcp(host).Result("main", questionId);
 
@@ -232,22 +231,7 @@ public sealed class QuestionRoutesTests
     private static QuestionOption Question(int rank, string diagramRef) => Option(rank == 1 ? "a" : "b", rank, diagramRef: diagramRef);
 
     [Fact]
-    public async Task Request_diagram_hands_needs_to_the_blocked_ask()
-    {
-        using var host = new BridgeHost();
-        var mcp = Mcp(host);
-        var ask = mcp.Ask("main", Request(question: "Pick"));
-        await WaitUntilWaiting(host, mcp);
-        var questionId = (string)QuestionStore.ListQuestions(Main(host))[0].Meta["question_id"]!;
-
-        await host.Client.PostAsync($"/repos/main/questions/{questionId}/request-diagram", null);
-        var result = await ask.WaitAsync(TimeSpan.FromSeconds(5));
-
-        Assert.Equal($$"""{"needs":"diagram","question_id":"{{questionId}}"}""", result.ToJsonString());
-    }
-
-    [Fact]
-    public async Task Repeated_request_diagram_clicks_count_once_and_report_no_waiter()
+    public async Task Repeated_request_diagram_clicks_count_once_and_report_no_live_agent()
     {
         using var host = new BridgeHost();
         var questionId = Open(host, Request());
@@ -319,20 +303,16 @@ public sealed class QuestionRoutesTests
     {
         using var host = new BridgeHost();
         var mcp = Mcp(host);
-        using var cancel = new CancellationTokenSource();
         var request = Request(question: "Pick");
         request.AgentId = "spoofed";
-        var ask = mcp.Ask("main", request, cancellation: cancel.Token);
-        await WaitUntilWaiting(host, mcp);
 
-        await cancel.CancelAsync();
-        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => ask);
+        await mcp.Ask("main", request);
 
         Assert.Equal("main", (string?)QuestionStore.ListQuestions(Main(host))[0].Meta["agent_id"]);
     }
 
     [Fact]
-    public async Task Draw_diagram_bands_do_not_overlap_after_a_diagram_is_deleted()
+    public async Task Draw_diagram_starts_below_every_existing_option_diagram_after_one_is_deleted()
     {
         using var host = new BridgeHost();
         var ws = Main(host);
@@ -420,22 +400,23 @@ public sealed class QuestionRoutesTests
     }
 
     [Fact]
-    public async Task Ask_user_over_http_blocks_until_the_canvas_answers()
+    public async Task Ask_user_over_http_returns_at_once_and_the_answer_is_read_back()
     {
         using var host = new BridgeHost();
         var mcp = Mcp(host);
         var arguments = new JsonObject { ["question"] = "Pick", ["options"] = new JsonArray(Two().Select(o => (JsonNode?)o.ToJson()).ToArray()) };
-        var call = host.Client.SendAsync(Rpc(mcp.TokenFor("main"), Call(4, "ask_user", arguments)));
-        await WaitUntilWaiting(host, mcp);
-        var questionId = (string)QuestionStore.ListQuestions(Main(host))[0].Meta["question_id"]!;
+        var response = await Body(await host.Client.SendAsync(Rpc(mcp.TokenFor("main"), Call(4, "ask_user", arguments))));
+        var asked = response["result"]!["structuredContent"]!;
+        var questionId = (string)asked["question_id"]!;
 
         await host.Client.PostAsync($"/repos/main/questions/{questionId}/answer", JsonBody(new JsonObject { ["option_id"] = "a" }));
-        var response = await Body(await call.WaitAsync(TimeSpan.FromSeconds(5)));
+        var read = await Body(await host.Client.SendAsync(Rpc(mcp.TokenFor("main"), Call(5, "ask_user_result", new JsonObject { ["question_id"] = questionId }))));
 
-        var structured = response["result"]!["structuredContent"]!;
-        Assert.Equal("Modular monolith", (string?)structured["answer"]);
-        Assert.Equal("a", (string?)structured["option_id"]);
+        Assert.True((bool)asked["asked"]!);
+        Assert.Equal(QuestionMcp.NextText, (string?)asked["next"]);
         Assert.False((bool)response["result"]!["isError"]!);
+        Assert.Equal("Modular monolith", (string?)read["result"]!["structuredContent"]!["answer"]);
+        Assert.Equal("a", (string?)read["result"]!["structuredContent"]!["option_id"]);
     }
 
     [Fact]
@@ -443,7 +424,6 @@ public sealed class QuestionRoutesTests
     {
         using var host = new BridgeHost();
         var mcp = Mcp(host);
-        mcp.AskWait = TimeSpan.FromMilliseconds(50);
         var token = mcp.TokenFor("main");
         var draw = new JsonObject
         {
@@ -458,8 +438,10 @@ public sealed class QuestionRoutesTests
 
         var doc = CanvasDoc.Load(Main(host).CanvasCorePath(), Main(host).DiagramsRoot());
         var members = doc.Elements.Values.Where(e => e.GroupId == diagramRef).ToList();
-        Assert.True((bool)result["pending"]!);
-        Assert.All(members, e => Assert.Equal("decisions", e.Layer));
+        var questionId = (string)result["question_id"]!;
+        Assert.True((bool)result["asked"]!);
+        Assert.All(members, e => Assert.Equal($"decisions/{questionId}", e.Layer));
+        Assert.All(doc.Edges.Values, e => Assert.Equal($"decisions/{questionId}", e.Layer));
         Assert.Equal(["API", "Queue"], members.Select(e => e.Label!).Order().ToArray());
         Assert.Equal("new", (string?)members.Single(e => e.Label == "Queue").Meta["status"]);
         Assert.Single(doc.Edges);
@@ -494,7 +476,6 @@ public sealed class QuestionRoutesTests
     {
         using var host = new BridgeHost();
         var mcp = Mcp(host);
-        mcp.AskWait = TimeSpan.FromMilliseconds(50);
         await mcp.Ask("main", Request(sessionId: "s"));
         var element = QuestionStore.ListQuestions(Main(host)).Single();
         QuestionStore.RequestDiagram(Main(host), element, "now");
@@ -524,7 +505,6 @@ public sealed class QuestionRoutesTests
     {
         using var host = new BridgeHost();
         var mcp = Mcp(host);
-        mcp.AskWait = TimeSpan.FromMilliseconds(50);
         var bad = new AskRequest { Question = "Q?", SessionId = "s", Options = [new QuestionOption { Id = "a", Title = "A" }] };
 
         for (var i = 0; i < 3; i++) await Assert.ThrowsAsync<QuestionRejected>(() => mcp.Ask("main", bad));
@@ -551,7 +531,6 @@ public sealed class QuestionRoutesTests
     {
         using var host = new BridgeHost();
         var mcp = Mcp(host);
-        mcp.AskWait = TimeSpan.FromMilliseconds(50);
         var bad = new AskRequest { Question = "Q?", SessionId = "s", Options = [new QuestionOption { Id = "a", Title = "A" }] };
 
         for (var i = 0; i < 3; i++) await Assert.ThrowsAsync<QuestionRejected>(() => mcp.Ask("main", bad));

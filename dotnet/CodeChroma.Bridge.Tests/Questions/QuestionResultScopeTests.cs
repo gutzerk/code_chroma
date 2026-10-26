@@ -1,4 +1,6 @@
 using System.Text.Json.Nodes;
+using CodeChroma.Bridge.Questions;
+using CodeChroma.Bridge.Stores;
 using CodeChroma.Bridge.Tests.Support;
 using CodeChroma.Bridge.Workspaces;
 using Microsoft.Extensions.DependencyInjection;
@@ -33,6 +35,7 @@ public class QuestionResultScopeTests
 
         Assert.True((bool)foreign!["result"]!["structuredContent"]!["pending"]!);
         Assert.Null(foreign["result"]!["structuredContent"]!["answer"]);
-        Assert.True(JsonNode.DeepEquals(mcp.Broker.Lookup(questionId).ToToolJson(), owner!["result"]!["structuredContent"]));
+        var expected = (QuestionStore.ResultFrom(QuestionStore.FindElement(CodeChroma.Bridge.Tests.Questions.QuestionTestKit.Main(host), questionId)!) ?? new QuestionResult { Pending = true, QuestionId = questionId }).ToToolJson();
+        Assert.True(JsonNode.DeepEquals(expected, owner!["result"]!["structuredContent"]));
     }
 }

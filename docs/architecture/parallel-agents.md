@@ -512,7 +512,7 @@ Web: `AgentClient.openStepSession`, `launchAgent.openStepAgent`, the Open agent 
 
 ## Canvas questions (017)
 
-Claude agent windows launch with the CodeChroma MCP server (`ask_user`) registered through `agent_cli`'s `mcp` parameter, plus the `CODECHROMA_BRIDGE_URL`/`CODECHROMA_QUESTION_TOKEN` env vars; see [`ai-questions.md`](ai-questions.md) "Agent wiring". A bridge restart invalidates old tokens, so agent windows are respawned with fresh ones.
+Claude agent windows launch with the CodeChroma MCP server (`ask_user`) registered through `agent_cli`'s `mcp` parameter, plus the `CODECHROMA_BRIDGE_URL`/`CODECHROMA_QUESTION_TOKEN` env vars; see [`ai-questions.md`](ai-questions.md) "Agent wiring". A bridge restart invalidates old tokens, so agent windows are respawned with fresh ones. `ask_user` is non-blocking: the agent ends its turn, and the user's answer (or skip, or an "Add diagram" request) is typed into that agent's terminal as its next message via `AgentSession.inject_when_idle` (1200 attempts, about 10 minutes of waiting for idle; `questions/delivery.py`, C# `QuestionDelivery.cs`), so an open question leaves the agent `idle` with the "?" badge rather than `running`.
 
 ## Agent panel modes (layout store)
 

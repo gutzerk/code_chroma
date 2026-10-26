@@ -11,6 +11,7 @@ import { EMPTY_CANVAS_DOC, type CanvasDoc, type DiagramsStatus } from "../../sta
 import { canvasDocStore } from "./canvasDocStore";
 import { writeCachedDiagramsStatus } from "./diagramStatusCache";
 import { DrawDiagramButton } from "./DrawDiagramButton";
+import { drawDialogStore } from "./drawDialog/drawDialogStore";
 import { useDiagramReadinessWatcher } from "./useDiagramReadinessWatcher";
 
 function ButtonWithWatcher() {
@@ -71,10 +72,8 @@ describe("DrawDiagramButton", () => {
     renderButton({}, { create });
     fireEvent.click(screen.getByTestId("draw-diagram-button"));
 
-    await act(async () => {
-      fireEvent.click(screen.getByTestId("draw-diagram-button"));
-    });
-    expect(create).toHaveBeenCalled();
+    expect(drawDialogStore.getState().open).toBe(true);
+    expect(create).not.toHaveBeenCalled();
   });
 
   it("disables itself while an agent launch is in flight, so a click gets visible feedback", () => {

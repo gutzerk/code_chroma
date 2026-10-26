@@ -262,8 +262,6 @@ export function CanvasNodeBox({ element, onMeasure }: CanvasNodeBoxProps) {
       return;
     }
     selectionStore.clear();
-    // 022: a click also focuses the block (neighbours stay lit, the rest fades); display only.
-    focusStore.toggle(canvasDocStore.getDoc(), element.id);
     // The tutorial's "drag this block" step only allows moving: a click must not open the inspector.
     if (tutorialStore.currentStepId() === "move-block") return;
     // An epics-layer box (epic title, content card, phase header or task) has no code behind it --

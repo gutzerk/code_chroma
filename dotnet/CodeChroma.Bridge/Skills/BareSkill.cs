@@ -2,6 +2,7 @@ using System.Text;
 using System.Text.RegularExpressions;
 using CodeChroma.Bridge.Agents;
 using CodeChroma.Bridge.Context;
+using CodeChroma.Bridge.Context;
 using CodeChroma.Bridge.Workspaces;
 
 namespace CodeChroma.Bridge.Skills;
@@ -47,7 +48,8 @@ public static partial class BareSkill
     public const string InteractiveQuestion = "\u001b[1mWhat do you want to see?\u001b[0m A flow, a component, a feature... or just ask for the whole project.\r\n\r\n";
 
     /// <summary>The first message of an interactive diagram agent (`askedInTerminal` when the bridge already printed the question in the window): its short body inlined (the open "any" start's body loads no skill until the user answers), else the whole skill; no other context.</summary>
-    public static string? ComposeInteractive(string type, string repoRoot, string workspaceId, string? contextCommand, bool askedInTerminal = false)
+    public static string? ComposeInteractive(string type, string repoRoot, string workspaceId, string? contextCommand, bool askedInTerminal = false,
+        string? request = null)
     {
         if (SkillSync.SkillSource(DrawSkill) is not { } source || !File.Exists(Path.Combine(source, "SKILL.md"))) return null;
         var text = new StringBuilder();
@@ -61,10 +63,34 @@ public static partial class BareSkill
             text.AppendLine(StripFrontmatter(File.ReadAllText(Path.Combine(source, "SKILL.md"))));
         }
         text.AppendLine().AppendLine("## How this session starts").AppendLine();
+        if (!string.IsNullOrWhiteSpace(request))
+        {
+            text.AppendLine(RequestedStart(type, request, source));
+            if (contextCommand is not null)
+                text.AppendLine($"Run `{contextCommand} \"phrase\" \"phrase\" ...` first with 3-6 short phrases taken from that request (one component, flow or concept each), read its output, then draw from it and open a file only to confirm a detail.");
+            return text.ToString();
+        }
         if (askedInTerminal) text.AppendLine("The terminal already asked the user what they want to see; their first message is the answer. Do not greet or ask again.");
         else text.AppendLine("The user has not said yet what to draw. Greet them in one short line and ask what they want to see (the whole project is a fine answer). Do nothing else until they answer.");
         if (contextCommand is not null)
             text.AppendLine($"{(askedInTerminal ? "Start by running" : "Once they answer, run")} `{contextCommand} \"phrase\" \"phrase\" ...` with 3-6 short phrases taken from their request (one component, flow or concept each), read its output, then draw from it and open a file only to confirm a detail.");
+        return text.ToString();
+    }
+
+    /// <summary>The Draw dialog's "plan" kind: a mode of the impact type, drawn by the impact body plus feature-plan-mode.md.</summary>
+    public const string PlanType = "plan";
+
+    /// <summary>The start block of a drawing agent whose user already picked a type and said what to show (scope is in their words): no greeting, no question.</summary>
+    private static string RequestedStart(string type, string request, string source)
+    {
+        var text = new StringBuilder();
+        text.Append(type == DiagramContext.AnyType
+            ? "The user did not pick a diagram type; choose the one that fits."
+            : $"The user picked the `{(type == PlanType ? "feature plan" : type)}` diagram type.");
+        text.AppendLine().AppendLine().AppendLine("Their request:").AppendLine().AppendLine(request.Trim()).AppendLine();
+        if (type == PlanType)
+            text.AppendLine($"Follow `{Path.Combine(source, "references", "feature-plan-mode.md")}` for the planned blocks.");
+        text.AppendLine("This request is their answer: do not greet them or ask what to draw. The picked type is a hint, not a lock: if the request clearly fits another type better, say so in one line, but draw the picked type unless they agree.");
         return text.ToString();
     }
 

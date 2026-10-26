@@ -229,20 +229,20 @@ public static class WorkflowJson
 public static class StepResults
 {
     private const int MaxChars = 4000;
-    private static readonly string[] NoiseStarts = ["⏺", "  ↳", "✓", "✗", "---"];
+    private static readonly string[] NoiseStarts = ["⏺", "↳", "✓", "✗", "---"];
 
     /// <summary>The last run of prose lines before the trailing status lines, or null when the output has none.</summary>
     public static string? Extract(string output)
     {
         var lines = output.Split('\n');
         var end = lines.Length;
-        while (end > 0 && (string.IsNullOrWhiteSpace(lines[end - 1]) || IsNoise(lines[end - 1]))) end--;
+        while (end > 0 && Skippable(lines[end - 1])) end--;
         var start = end;
-        while (start > 0 && !string.IsNullOrWhiteSpace(lines[start - 1]) && !IsNoise(lines[start - 1])) start--;
+        while (start > 0 && !Skippable(lines[start - 1])) start--;
         if (start == end) return null;
         var text = string.Join('\n', lines[start..end]).Trim();
         return text.Length <= MaxChars ? text : "..." + text[^MaxChars..];
     }
 
-    private static bool IsNoise(string line) => NoiseStarts.Any(n => line.StartsWith(n, StringComparison.Ordinal));
+    private static bool Skippable(string line) => string.IsNullOrWhiteSpace(line) || NoiseStarts.Any(n => line.AsSpan().TrimStart().StartsWith(n, StringComparison.Ordinal));
 }

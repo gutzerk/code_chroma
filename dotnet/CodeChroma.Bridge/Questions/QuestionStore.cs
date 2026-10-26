@@ -31,6 +31,20 @@ public static class QuestionStore
 
     private static int Step(CanvasElement element) => element.Meta["step"] is JsonValue v && v.TryGetValue(out int step) ? step : 0;
 
+    /// <summary>Moves the draft-layer diagrams this question's options reference onto its own layer.</summary>
+    private static List<JsonNode?> AdoptOps(CanvasDoc doc, AskRequest request, string questionId)
+    {
+        var target = QuestionDiagrams.LayerFor(questionId, "");
+        var roots = request.Options.Select(o => o.DiagramRef).Where(r => !string.IsNullOrEmpty(r) && doc.Elements.TryGetValue(r, out var e) && QuestionDiagrams.IsDraftLayer(e.Layer)).ToHashSet();
+        var moved = roots.ToHashSet();
+        foreach (var e in doc.Elements.Values)
+            if (e.GroupId is not null && roots.Contains(e.GroupId) && QuestionDiagrams.IsDraftLayer(e.Layer)) moved.Add(e.Id);
+        var ops = moved.Order(StringComparer.Ordinal).Select(id => (JsonNode?)new JsonObject { ["op"] = "update_element", ["id"] = id, ["layer"] = target }).ToList();
+        ops.AddRange(doc.Edges.Where(kv => moved.Contains(kv.Value.From) && moved.Contains(kv.Value.To) && QuestionDiagrams.IsDraftLayer(kv.Value.Layer))
+            .Select(kv => (JsonNode?)new JsonObject { ["op"] = "update_edge", ["id"] = kv.Key, ["layer"] = target }));
+        return ops;
+    }
+
     /// <summary>Adds the `question` element for a caller-chosen id; returns the element id.</summary>
     public static string OpenQuestion(Workspace ws, AskRequest request, string questionId, JsonObject? extraMeta = null)
     {
@@ -44,7 +58,9 @@ public static class QuestionStore
                 ["options"] = OptionsMeta(request),
             };
             foreach (var (key, value) in extraMeta ?? []) meta[key] = value?.DeepClone();
-            return [new JsonObject { ["op"] = "add_element", ["temp_id"] = "q", ["render"] = "question", ["layer"] = "questions", ["label"] = request.Question, ["meta"] = meta }];
+            List<JsonNode?> ops = [new JsonObject { ["op"] = "add_element", ["temp_id"] = "q", ["render"] = "question", ["layer"] = "questions", ["label"] = request.Question, ["meta"] = meta }];
+            ops.AddRange(AdoptOps(doc, request, questionId));
+            return ops;
         });
         return Json.Str(response["id_map"]!["q"])!;
     }
@@ -77,7 +93,7 @@ public static class QuestionStore
             .Where(e => !string.IsNullOrEmpty(sessionId) && Json.Str(e.Meta["session_id"]) == sessionId && Step(e) > step)
             .Select(e => e.Id).ToList();
         var ops = later.Select(id => (JsonNode?)new JsonObject { ["op"] = "delete_element", ["id"] = id }).ToList();
-        ops.Add(Update(element.Id, new JsonObject { ["state"] = "open", ["answer"] = null, ["option_id"] = null }));
+        ops.Add(Update(element.Id, new JsonObject { ["state"] = "open", ["answer"] = null, ["option_id"] = null, ["revised"] = true }));
         Commit(ws, _ => ops);
         return later;
     }
@@ -109,7 +125,8 @@ public static class QuestionStore
         var update = Update(element.Id, meta);
         update["label"] = request.Question;
         ops.Add(update);
-        Commit(ws, _ => ops);
+        var questionId = Json.Str(element.Meta["question_id"])!;
+        Commit(ws, doc => [.. ops, .. AdoptOps(doc, request, questionId)]);
     }
 
     /// <summary>Records the user's "Add diagram" request on the element's meta.</summary>
@@ -121,13 +138,15 @@ public static class QuestionStore
 
     private static JsonObject Update(string id, JsonObject meta) => new() { ["op"] = "update_element", ["id"] = id, ["meta"] = meta };
 
-    private static int NextBand(CanvasDoc doc)
+    /// <summary>The y to start a new diagram at: below the lowest element of every `decisions/*` layer, so dragged diagrams never overlap.</summary>
+    private static double NextTop(CanvasDoc doc)
     {
-        var bands = doc.Elements.Values.Where(e => Json.Truthy(e.Meta["diagram_root"])).Select(e => (int)Math.Floor(e.Position.Y / QuestionDiagrams.BandH)).ToList();
-        return bands.Count == 0 ? 0 : bands.Max() + 1;
+        var bottoms = doc.Elements.Values.Where(e => e.Layer.StartsWith(QuestionDiagrams.LayerPrefix, StringComparison.Ordinal))
+            .Select(e => e.Position.Y + (e.Size?.H ?? 0) / 2).ToList();
+        return bottoms.Count == 0 ? 0 : bottoms.Max() + QuestionDiagrams.Gap;
     }
 
-    /// <summary>Draws one option diagram on the `decisions` layer and returns its root id (the ref); nothing is drawn if the option is unknown.</summary>
+    /// <summary>Draws one option diagram on its `decisions/<question id>` layer (a fresh key when no question is named) and returns its root id (the ref); nothing is drawn if the option is unknown.</summary>
     public static string DrawDiagram(Workspace ws, string title, IReadOnlyList<DiagramNode> nodes, IReadOnlyList<DiagramEdge> edges, string? questionId, string? optionId)
     {
         lock (CanvasWrite.LockFor(ws.Id))
@@ -141,7 +160,7 @@ public static class QuestionStore
                 var optionIds = (target.Meta["options"] as JsonArray ?? []).Select(o => Json.Str(o?["id"])).ToHashSet();
                 if (optionId is null || !optionIds.Contains(optionId)) throw new QuestionWriteException($"unknown option '{optionId}' on that question");
             }
-            var result = ApplyBatch.Apply(doc, QuestionDiagrams.Ops(title, nodes, edges, NextBand(doc), optionId), "default", Explanation);
+            var result = ApplyBatch.Apply(doc, QuestionDiagrams.Ops(title, nodes, edges, NextTop(doc), optionId, QuestionDiagrams.LayerFor(questionId, Guid.NewGuid().ToString("N")[..8])), "default", Explanation);
             if (result.Ok && target is not null)
             {
                 var rootId = result.IdMap["root"];

@@ -6,10 +6,11 @@ from datetime import UTC, datetime
 
 from fastapi import APIRouter, HTTPException, Request
 from pydantic import BaseModel
+from starlette.concurrency import run_in_threadpool
 
 from codechroma.bridge.deps import Services, Ws
 from codechroma.canvas.document import Element
-from codechroma.questions import store
+from codechroma.questions import delivery, store
 from codechroma.questions.launch import bearer_token
 from codechroma.questions.mcp_server import QuestionAuthError
 from codechroma.questions.models import AskRequest, QuestionResult
@@ -43,6 +44,12 @@ def _find_element(ws: Ws, question_id: str) -> Element:
     return element
 
 
+async def _deliver(ws: Ws, services: Services, question_id: str) -> bool:
+    """Re-reads the settled element and types its answer line into the agent; True if live."""
+    settled = await run_in_threadpool(_find_element, ws, question_id)
+    return delivery.deliver(services, settled)
+
+
 def _open_element(ws: Ws, question_id: str) -> Element:
     element = _find_element(ws, question_id)
     if element.meta.get("state") != "open":
@@ -52,16 +59,16 @@ def _open_element(ws: Ws, question_id: str) -> Element:
 
 @router.get("/repos/{repo_id}/questions")
 def list_open_questions(ws: Ws, services: Services) -> dict:
-    """Open questions with `waiting`: false when no agent call is blocked on it any more."""
+    """Open questions with `waiting`: true while a live agent session will receive the answer."""
     return {"questions": [
-        _view(e, services.questions.is_waiting(e.meta.get("question_id", "")))
+        _view(e, delivery.live_session(services, e) is not None)
         for e in store.list_questions(ws) if e.meta.get("state") == "open"
     ]}
 
 
 @router.post("/repos/{repo_id}/questions/ask")
 async def ask_question(repo_id: str, request: Request, body: AskRequest) -> dict:
-    """Blocking ask for non-MCP callers (the AskUserQuestion hook); same bearer token as /mcp."""
+    """Non-blocking ask for non-MCP callers (the AskUserQuestion hook); same bearer as /mcp."""
     mcp = request.app.state.question_mcp
     try:
         authorized = mcp.workspace_id_for(bearer_token(request.headers)) == repo_id
@@ -76,9 +83,9 @@ async def ask_question(repo_id: str, request: Request, body: AskRequest) -> dict
 
 
 @router.post("/repos/{repo_id}/questions/{question_id}/answer")
-def answer_question(ws: Ws, services: Services, question_id: str, body: AnswerBody) -> dict:
-    """Records the answer on the element, then wakes the waiting agent if there is one."""
-    element = _open_element(ws, question_id)
+async def answer_question(ws: Ws, services: Services, question_id: str, body: AnswerBody) -> dict:
+    """Records the answer on the element, then types it into the asking agent's terminal."""
+    element = await run_in_threadpool(_open_element, ws, question_id)
     text, option_id = (body.answer or "").strip(), body.option_id
     if option_id is not None:
         option = next((o for o in element.meta.get("options", []) if o["id"] == option_id), None)
@@ -89,33 +96,35 @@ def answer_question(ws: Ws, services: Services, question_id: str, body: AnswerBo
         raise HTTPException(status_code=422, detail="this question takes no custom answer")
     if not text:
         raise HTTPException(status_code=422, detail="answer is empty")
-    store.settle(ws, element.id, "answered", QuestionResult(answer=text, option_id=option_id))
-    waiting = services.questions.answer(question_id, text, option_id)
-    return _ack(question_id, "answered", text, waiting)
+    result = QuestionResult(answer=text, option_id=option_id)
+    await run_in_threadpool(store.settle, ws, element.id, "answered", result)
+    return _ack(question_id, "answered", text, await _deliver(ws, services, question_id))
 
 
 @router.post("/repos/{repo_id}/questions/{question_id}/skip")
-def skip_question(ws: Ws, services: Services, question_id: str) -> dict:
-    """Marks the question skipped and wakes the waiting agent with `skipped: true`."""
-    element = _open_element(ws, question_id)
+async def skip_question(ws: Ws, services: Services, question_id: str) -> dict:
+    """Marks the question skipped and tells the asking agent to decide itself."""
+    element = await run_in_threadpool(_open_element, ws, question_id)
     if not element.meta.get("allow_skip", True):
         raise HTTPException(status_code=422, detail="this question cannot be skipped")
-    store.settle(ws, element.id, "skipped", QuestionResult(skipped=True))
-    return _ack(question_id, "skipped", None, services.questions.skip(question_id))
+    await run_in_threadpool(store.settle, ws, element.id, "skipped", QuestionResult(skipped=True))
+    return _ack(question_id, "skipped", None, await _deliver(ws, services, question_id))
 
 
 @router.post("/repos/{repo_id}/questions/{question_id}/request-diagram")
-def request_diagram(ws: Ws, services: Services, question_id: str) -> dict:
-    """Records an "Add diagram" request and hands `needs: diagram` to the blocked agent call."""
-    element = _open_element(ws, question_id)
+async def request_diagram(ws: Ws, services: Services, question_id: str) -> dict:
+    """Records an "Add diagram" request and types it into the asking agent's terminal."""
+    element = await run_in_threadpool(_open_element, ws, question_id)
     options = element.meta.get("options", [])
     if not options:
         raise HTTPException(status_code=422, detail="this question has no options")
     if all(o.get("diagram_ref") for o in options):
         raise HTTPException(status_code=422, detail="every option already has a diagram")
     if not element.meta.get("diagram_requested"):
-        store.request_diagram(ws, element, datetime.now(UTC).isoformat())
-    waiting = services.questions.request_diagram(question_id)
+        await run_in_threadpool(
+            store.request_diagram, ws, element, datetime.now(UTC).isoformat()
+        )
+    waiting = delivery.deliver(services, element, delivery.diagram_request_message(element))
     return _ack(question_id, "open", None, waiting)
 
 
@@ -123,5 +132,4 @@ def request_diagram(ws: Ws, services: Services, question_id: str) -> dict:
 def revise_question(ws: Ws, services: Services, question_id: str) -> dict:
     """Reopens a settled question and deletes the later steps of the same session."""
     removed = store.reopen(ws, _find_element(ws, question_id))
-    services.questions.forget(question_id)
     return {**_ack(question_id, "open", None, False), "removed": removed}

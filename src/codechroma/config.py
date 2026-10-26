@@ -119,6 +119,7 @@ class QuestionsConfig(_Config):
 
     ask_wait_seconds: float = 300.0
     max_rejections: int = 3
+    answer_inject_attempts: int = 1200
 
 
 class WorkspacesConfig(_Config):

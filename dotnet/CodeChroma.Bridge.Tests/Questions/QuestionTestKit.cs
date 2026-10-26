@@ -26,7 +26,7 @@ internal static class QuestionTestKit
 
     public static QuestionMcp Mcp(BridgeHost host) => host.Factory.Services.GetRequiredService<QuestionMcp>();
 
-    /// <summary>Opens a question element directly (no waiter) and returns its question id.</summary>
+    /// <summary>Opens a question element directly and returns its question id.</summary>
     public static string Open(BridgeHost host, AskRequest request)
     {
         var id = Guid.NewGuid().ToString("N");
@@ -37,15 +37,4 @@ internal static class QuestionTestKit
     public static StringContent JsonBody(JsonNode body) => new(body.ToJsonString(), Encoding.UTF8, "application/json");
 
     public static async Task<JsonObject> Body(HttpResponseMessage response) => (JsonObject)JsonNode.Parse(await response.Content.ReadAsStringAsync())!;
-
-    public static async Task WaitUntilWaiting(BridgeHost host, QuestionMcp mcp)
-    {
-        for (var i = 0; i < 300; i++)
-        {
-            await Task.Delay(10);
-            var open = QuestionStore.ListQuestions(Main(host));
-            if (open.Count > 0 && mcp.Broker.IsWaiting(open[0].Meta["question_id"]!.GetValue<string>())) return;
-        }
-        throw new TimeoutException("the ask never started waiting");
-    }
 }

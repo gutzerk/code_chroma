@@ -28,7 +28,7 @@ export function FocusPanel({ doc }: { doc: CanvasDoc }) {
     ["upstream", "Upstream"],
     ["downstream", "Downstream"],
   ];
-  // Portalled out of the pan/zoom transform so it stays pinned to the viewport.
+  // Portalled out of the pan/zoom transform into .canvas-area (body in a bare test) so it sits beside the left panel.
   return createPortal(
     <aside className="canvas-focus-panel" data-testid="canvas-focus-panel">
       <strong>{element.label}</strong>
@@ -53,6 +53,6 @@ export function FocusPanel({ doc }: { doc: CanvasDoc }) {
       <h4>USES</h4>
       <ul data-testid="focus-uses">{uses.length ? uses.map((id) => <li key={id}>{label(id)}</li>) : <li>none</li>}</ul>
     </aside>,
-    document.body,
+    document.querySelector(".canvas-area") ?? document.body,
   );
 }

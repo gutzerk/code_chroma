@@ -1718,7 +1718,7 @@ body {
    `groupColor.ts`'s groupColorIndex) and gets a per-participant CSS variable `--seq-accent-rgb`.
    The participant's own head and lifeline tint from it, and a message tints from its SENDER's
    participant colour -- so every arrow reads as "from whom" at a glance, and return arrows
-   (`--return`) recede to a neutral --text-3 rather than re-colouring by receiver. */
+   (`--return`) recede to a dashed neutral --text-2 rather than re-colouring by receiver. */
 .sequence-diagram {
   box-sizing: border-box;
   pointer-events: none;
@@ -1773,7 +1773,7 @@ body {
 
 /* A horizontal message: a label centered on a left-to-right arrow (line). Positioned by the
    component's inline left/top/width; the line is right-anchored and grows leftward from the
-   arrowhead on the right. Return arrows flip via scaleX. */
+   arrowhead on the right. Right-to-left arrows flip via scaleX. */
 .sequence-message {
   position: absolute;
   height: 20px;
@@ -1806,12 +1806,12 @@ body {
   top: 50%;
   height: 1.5px;
   background: rgb(var(--seq-accent-rgb));
-  transform-origin: right center;
+  transform-origin: center;
 }
 
 /* The arrowhead at the receiving end: a small right-pointing triangle whose tip lands right ON the
    receiver's lifeline (the line's right edge is that lifeline, so `right: 0` puts the tip exactly
-   at it — no poking past). Return arrows curl leftward via scaleX(-1), which flips the head to point
+   at it — no poking past). Right-to-left arrows (returns included) flip via scaleX(-1), which flips the head to point
    back at the original caller. */
 .sequence-message-line::after {
   content: "";
@@ -1836,16 +1836,17 @@ body {
 }
 
 .sequence-message--return .sequence-message-line {
-  background: var(--text-3);
+  background: none;
+  border-top: 1.5px dashed var(--text-2);
 }
 
 .sequence-message--return .sequence-message-line::after {
-  border-left-color: var(--text-3);
+  border-left-color: var(--text-2);
 }
 
 .sequence-message--return .sequence-message-label {
-  color: var(--text-3);
-  border-color: var(--text-3);
+  color: var(--text-2);
+  border-color: var(--text-2);
 }
 
 .diagram-node-box--dragging {
@@ -4007,7 +4008,8 @@ button[data-copy-state="idle"][aria-label]:hover:not(:disabled) {
   top: 0;
   right: 0;
   bottom: 0;
-  z-index: 30;
+  /* Above the agents panel (z-index 41), so the code panel is never covered by it. */
+  z-index: 42;
   width: 30vw;
   min-width: 320px;
   max-width: 50vw;
@@ -7605,7 +7607,7 @@ button[data-copy-state="idle"][aria-label]:hover:not(:disabled) {
 .aq-diagram-tabs { display: flex; gap: 4px; flex-wrap: wrap; }
 .aq-diagram-tab { padding: 3px 8px; border: 1px solid var(--question-option-border); border-radius: var(--radius-lg); background: transparent; color: inherit; font: inherit; cursor: pointer; }
 .aq-diagram-tab[aria-selected="true"] { background: var(--question-selected-bg); border-color: var(--question-selected-border); color: var(--text-soft); }
-.aq-diagram-body { position: relative; flex: 1; min-height: 0; overflow: hidden; cursor: grab; touch-action: none; }
+.aq-diagram-body { position: relative; flex: 1; min-height: 0; overflow: hidden; cursor: grab; touch-action: none; user-select: none; }
 .aq-diagram-body--dragging { cursor: grabbing; }
 .aq-diagram-empty { display: grid; place-items: center; height: 100%; color: var(--text-muted-soft); font-size: 13px; }
 .aq-diagram-tools { position: absolute; right: 8px; bottom: 8px; display: flex; gap: 4px; }
@@ -7618,7 +7620,7 @@ button[data-copy-state="idle"][aria-label]:hover:not(:disabled) {
 .aq-diagram-frame { position: absolute; box-sizing: border-box; border: 1px dashed var(--question-option-border); border-radius: var(--radius-2xl); pointer-events: none; }
 .aq-diagram-frame-label { position: absolute; left: 12px; top: 6px; color: var(--text-muted-soft); font-size: 13px; font-weight: 600; }
 .aq-diagram-edges { position: absolute; left: 0; top: 0; pointer-events: none; overflow: visible; stroke: var(--text-muted-soft); stroke-width: 1.5; }
-.aq-diagram-arrow { fill: var(--text-muted-soft); stroke: none; }
+.aq-diagram-arrowhead { fill: var(--text-muted-soft); stroke: none; }
 .aq-diagram-edge-label { fill: var(--text-soft); stroke: var(--question-surface); stroke-width: 4px; paint-order: stroke; font-size: 13px; }
 
 .agent-led--asking { background: var(--question-accent); }
@@ -8200,7 +8202,9 @@ button[data-copy-state="idle"][aria-label]:hover:not(:disabled) {
 [data-zoom="far"] .canvas-node-box-foot,
 [data-zoom="far"] [data-testid="canvas-node-box-description"],
 [data-zoom="far"] [data-testid="canvas-node-meta-row"] { display: none; }
-.canvas-focus-panel { position: fixed; right: 16px; top: 72px; z-index: 40; width: 240px; padding: 10px 12px; font-size: 0.75rem; border: 1px solid var(--control-border); border-radius: var(--radius-lg); background: var(--panel-bg, #1b1d22); }
+.canvas-focus-panel { position: absolute; left: calc(var(--chrome-inset, 12px) + var(--left-panel-width, 262px) + 12px); top: 72px; z-index: 40; width: 240px; padding: 10px 12px; font-size: 0.75rem; border: 1px solid var(--control-border); border-radius: var(--radius-lg); background: var(--panel-bg, #1b1d22); }
+/* No open left panel (only the collapsed top bar): sit at the canvas's left edge instead of a panel-wide gap. */
+.canvas-area:not(:has(.left-panel)) .canvas-focus-panel { left: var(--chrome-inset, 12px); }
 .canvas-focus-panel h4 { margin: 8px 0 4px; font-size: 0.65rem; letter-spacing: 0.08em; opacity: 0.7; }
 .canvas-focus-panel ul { margin: 0; padding-left: 16px; }
 

@@ -1,6 +1,6 @@
 # 021 — Enforced question contract and option diagrams
 
-Status: Done (Python bridge; the C# bridge has no `/mcp`, so the contract does not apply there; Playwright journey not written)
+Status: Done (Python and C# bridges: C# hosts `/mcp` and the `AskUserQuestion` hook; Playwright journey not written)
 
 Builds on 017 (`docs/architecture/ai-questions.md`) and 020 (`020-agent-questions-in-terminal.md`).
 

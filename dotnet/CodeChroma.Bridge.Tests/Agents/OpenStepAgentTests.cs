@@ -23,7 +23,8 @@ public sealed class OpenStepAgentTests
 
         var argv = agents.Resolve("claude", "step-session", forkSession: true)!.Argv;
 
-        Assert.Equal(["--resume", "step-session", "--fork-session"], argv.Skip(argv.Count - 3));
+        Assert.Contains("--fork-session", argv);
+        Assert.Equal(["--resume", "step-session"], argv.Skip(argv.Count - 2));
     }
 
     [Fact]

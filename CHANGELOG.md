@@ -1,5 +1,57 @@
 # Changelog
 
+## [1.7.1](https://github.com/gutzerk/code_chroma/compare/v1.7.0...v1.7.1) (2026-10-26)
+
+
+### Bug Fixes
+
+* activity full-screen overlap and macOS clipboard shortcuts ([efef67e](https://github.com/gutzerk/code_chroma/commit/efef67ee8b42ad7970451cda7db59588e00f6273))
+* harden desktop clipboard shortcuts and terminal copy-on-select ([f5b0132](https://github.com/gutzerk/code_chroma/commit/f5b0132afba58602b902404cc40a78ac0c76d839))
+* prevent activity tab overlap and use native desktop clipboard ([232cf7b](https://github.com/gutzerk/code_chroma/commit/232cf7b07465720352f117b1c67defd1fb7778ed))
+
+## [1.7.0](https://github.com/gutzerk/code_chroma/compare/v1.6.1...v1.7.0) (2026-10-26)
+
+
+### Features
+
+* ask what to draw in the agent terminal instead of a type popover ([0a6d076](https://github.com/gutzerk/code_chroma/commit/0a6d076fe6714fba344d4f45251d76ddb0ab1fde))
+* **bridge:** bootstrap the c1 draft and patterns diagrams when a workspace first opens ([dd5159f](https://github.com/gutzerk/code_chroma/commit/dd5159febcf5e9c89deac34ee80b535a5f268af5))
+* **bridge:** close small C# bridge parity gaps with the Python bridge ([3d42b22](https://github.com/gutzerk/code_chroma/commit/3d42b22180b6a57d8440add5476796782949d698))
+* **bridge:** emit impact-changes, wiki-general and custom/feature-plan+canvas watcher events ([2b08ee7](https://github.com/gutzerk/code_chroma/commit/2b08ee706d4be59a8c4dd37d236232c3120d8af7))
+* **bridge:** port agent questions (ask_user, /mcp, questions routes) to the C# bridge ([9a5008b](https://github.com/gutzerk/code_chroma/commit/9a5008b2908a95cebd2249e7d36ee7ac47b5f9ba))
+* **bridge:** port the AskUserQuestion PreToolUse hook to the C# bridge binary ([2e7c028](https://github.com/gutzerk/code_chroma/commit/2e7c028d17a212e9d3410ab439d270e07b5a91ce))
+* **bridge:** read C1 through the borrowed source root for PR and agent workspaces ([dfda100](https://github.com/gutzerk/code_chroma/commit/dfda1000d55349fdf3b9422da076b46d712b43a1))
+* **bridge:** serve dependency-digest, context-digest and route from the C# bridge ([f1ca691](https://github.com/gutzerk/code_chroma/commit/f1ca691c88da759b7e564e5717d925f415059ab0))
+* **bridge:** write dependency-digest.json on analyze/reanalyze and fingerprint it like Python ([cd3d016](https://github.com/gutzerk/code_chroma/commit/cd3d0169b2a446338717ba285449367d6ff9b255))
+* diagram readability - sequence Readable/Focus modes, block anatomy, impact glance ([d5d7f95](https://github.com/gutzerk/code_chroma/commit/d5d7f95ad6583de9562e2763fe72e19b54171cfc))
+* **llm:** default model with capability-aware resolution and /llm/default, /llm/features routes ([23460d9](https://github.com/gutzerk/code_chroma/commit/23460d907617386da803e27daf9c9342bbe853f7))
+* Share menu to export the canvas as PNG, HTML or PDF ([cb7a554](https://github.com/gutzerk/code_chroma/commit/cb7a554c73dec009fe472e0d4ce1d3103ea62818))
+* **shell:** clone remote repositories from the launcher ([6338fc8](https://github.com/gutzerk/code_chroma/commit/6338fc86199bbb1f4ba91eda203998567a966481))
+
+
+### Bug Fixes
+
+* address PR [#265](https://github.com/gutzerk/code_chroma/issues/265) review findings ([f9cefb0](https://github.com/gutzerk/code_chroma/commit/f9cefb05a44816cdafa4a191f8dc6120507b5e7f))
+* address PR review findings (export, sequence view, MCP config perms) ([6848ff0](https://github.com/gutzerk/code_chroma/commit/6848ff0a63229a935de933c6089fb01a165f9271))
+* address review findings on diagram readability ([f5446f6](https://github.com/gutzerk/code_chroma/commit/f5446f6e80e265ab61cb0b2a74bb53c5c564d16d))
+* address review findings on diagram readability ([aee97d1](https://github.com/gutzerk/code_chroma/commit/aee97d1ce10a8668722c961125d3788079c7308a))
+* **bridge:** address PR review findings on bootstrap, hook, watchers and C1 matching ([6eef74d](https://github.com/gutzerk/code_chroma/commit/6eef74d9d4111270631821acbf13798e8ba42b26))
+* **bridge:** initialize resumed agents after listening and serialize question decisions ([17c2ba8](https://github.com/gutzerk/code_chroma/commit/17c2ba87edc4f57393bb2490686d79603904dd51))
+* **bridge:** read borrowed C1 from its source root and hash the digest like Python json.dumps ([2bbb146](https://github.com/gutzerk/code_chroma/commit/2bbb1468044f130764ea2f136dbbab39435f73d5))
+* **bridge:** recheck projection.json when its directory is created after the watcher missed the write ([6019d02](https://github.com/gutzerk/code_chroma/commit/6019d02951d2b71b24286e0a45efc4de85167896))
+* **bridge:** serialize diagram reasks and scope cached results ([d61ce3a](https://github.com/gutzerk/code_chroma/commit/d61ce3a6bac071ebf5e740b484eb3c0b613fc7e6))
+* **canvas:** improve terminal controls and agent switching ([650233b](https://github.com/gutzerk/code_chroma/commit/650233bf4cbf05d9d90529e43c39338c7afba441))
+* keep the real dev terminal by default, quote the skill dir, drop stale popover text ([5884a50](https://github.com/gutzerk/code_chroma/commit/5884a50c6894f6f6a07e5d6acd227f06ea10604d))
+* only ask in the terminal when the CLI can hide the skill in a system prompt ([bb6c742](https://github.com/gutzerk/code_chroma/commit/bb6c7420c23367a9693b94f748601a0f4f546b48))
+* own agent sessions in the production C# bridge ([26f54b6](https://github.com/gutzerk/code_chroma/commit/26f54b61bd4c71931da3adb502e59a8088609466))
+* pin agent sessions to owned IDs ([2197bcc](https://github.com/gutzerk/code_chroma/commit/2197bcc537ace7982b44f4410181303f59f9d91d))
+* preserve agent session metadata through runtime resolution ([00b922c](https://github.com/gutzerk/code_chroma/commit/00b922c1502a2b35009ddf4c0a15cf5dc716ae08))
+* review fixes for diagram readability (focus clearing, derived sequence geometry, checker tiers, docs) ([266f51d](https://github.com/gutzerk/code_chroma/commit/266f51df5b68d9e4796b8e4cdbb0cc146a76acb4))
+* **shell:** preserve clone tab and SSH configuration ([857befc](https://github.com/gutzerk/code_chroma/commit/857befcc09995222d65a8a21ab625ef229e68a66))
+* track session changes across PowerShell and Python launches ([0af2ff5](https://github.com/gutzerk/code_chroma/commit/0af2ff57f4f37c081125d9049592ee8a5d861117))
+* **web:** preserve exact colors/radii in token migration and tighten stylelint font rule ([59a5d11](https://github.com/gutzerk/code_chroma/commit/59a5d11314c8fcd0083b51060a5b6784ee769524))
+* wrap long line in recipes test (ruff E501) ([8a0e4d0](https://github.com/gutzerk/code_chroma/commit/8a0e4d0a3bb2c3c534b3dc7bb67a969ad807ecaa))
+
 ## [1.6.1](https://github.com/gutzerk/code_chroma/compare/v1.6.0...v1.6.1) (2026-10-24)
 
 

@@ -1,6 +1,7 @@
 import { useSyncExternalStore } from "react";
 import { Store } from "../../state/createStore";
 import type { CanvasDoc } from "../../state/types";
+import { canvasDocStore } from "./canvasDocStore";
 import { litIdsFor, type FocusDirection } from "./focusNeighbors";
 
 export type FocusState = "none" | "self" | "lit" | "dim";
@@ -15,6 +16,7 @@ interface Focus {
 class FocusStore extends Store {
   private focus: Focus | null = null;
   private version = 0;
+  private litEdges: CanvasDoc["edges"] | null = null;
 
   getVersion = (): number => this.version;
 
@@ -22,14 +24,20 @@ class FocusStore extends Store {
     return this.focus ? { id: this.focus.id, direction: this.focus.direction } : null;
   }
 
-  /** Focuses `id`; focusing the already-focused block clears it. */
+  /** Focuses `id`; focusing the already-focused block clears it. A block with no edges has nothing to focus. */
   toggle(doc: CanvasDoc, id: string): void {
+    if (this.focus?.id !== id && litIdsFor(doc, id, "both").size === 1) {
+      this.clear();
+      return;
+    }
+    this.litEdges = doc.edges;
     this.focus = this.focus?.id === id ? null : { id, direction: "both", lit: litIdsFor(doc, id, "both") };
     this.changed();
   }
 
   setDirection(doc: CanvasDoc, direction: FocusDirection): void {
     if (!this.focus) return;
+    this.litEdges = doc.edges;
     this.focus = { ...this.focus, direction, lit: litIdsFor(doc, this.focus.id, direction) };
     this.changed();
   }
@@ -45,6 +53,14 @@ class FocusStore extends Store {
     this.clear();
   }
 
+  /** Recomputes the lit set when the doc's edges change, so a reanalyze or new edge never leaves it stale. */
+  refresh(doc: CanvasDoc): void {
+    if (!this.focus || doc.edges === this.litEdges) return;
+    this.litEdges = doc.edges;
+    this.focus = { ...this.focus, lit: litIdsFor(doc, this.focus.id, this.focus.direction) };
+    this.changed();
+  }
+
   stateOf(id: string): FocusState {
     if (!this.focus) return "none";
     if (this.focus.id === id) return "self";
@@ -58,6 +74,8 @@ class FocusStore extends Store {
 }
 
 export const focusStore = new FocusStore();
+
+canvasDocStore.subscribe(() => focusStore.refresh(canvasDocStore.getDoc()));
 
 /** Re-renders only when this element's own state changes, and returns it. */
 export function useFocusState(id: string): FocusState {

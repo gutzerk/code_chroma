@@ -38,6 +38,8 @@ export interface RelationshipEdgeProps {
   /** Opens the code at `origin` (called from a label click); a no-op when `origin` is unset. */
   onOpenOrigin?: (origin: string) => void;
   testId: string;
+  /** The diagram layer the edge belongs to, so a per-diagram export can keep or drop it. */
+  layer?: string;
 }
 
 /**
@@ -70,6 +72,7 @@ export function RelationshipEdge({
   origin,
   onOpenOrigin,
   testId,
+  layer,
 }: RelationshipEdgeProps) {
   const isActive = useIsActiveEdge(edgeKey, fromNodeId, toNodeId);
   const isHovering = useIsEdgeHovering();
@@ -96,6 +99,7 @@ export function RelationshipEdge({
     <g
       className={`${changeStatus ? `c1-relationship--${changeStatus}` : ""}${stateClass}`.trim() || undefined}
       data-testid={testId}
+      data-layer={layer}
       data-change-status={changeStatus}
       data-hero={isHero || undefined}
       data-edge-key={edgeKey}

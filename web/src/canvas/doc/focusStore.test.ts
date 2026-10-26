@@ -35,4 +35,27 @@ describe("focus", () => {
     focusStore.toggle(doc, "b");
     expect(focusStore.stateOf("x")).toBe("none");
   });
+
+  it("ignores a click on a block with no edges", () => {
+    focusStore.toggle(doc, "lonely");
+
+    expect(focusStore.current()).toBeNull();
+  });
+
+  it("clears the focus when an edgeless block is clicked", () => {
+    focusStore.toggle(doc, "b");
+
+    focusStore.toggle(doc, "lonely");
+
+    expect(focusStore.current()).toBeNull();
+  });
+
+  it("recomputes the lit set when the doc gains an edge", () => {
+    focusStore.toggle(doc, "b");
+    const grown: CanvasDoc = { ...doc, edges: { ...doc.edges, e4: edge("e4", "b", "x") } };
+
+    focusStore.refresh(grown);
+
+    expect(focusStore.stateOf("x")).toBe("lit");
+  });
 });

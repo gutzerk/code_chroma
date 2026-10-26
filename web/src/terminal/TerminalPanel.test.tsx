@@ -142,6 +142,42 @@ afterEach(() => {
 });
 
 describe("TerminalPanel", () => {
+  it("keeps independent sessions alive across tab switches and closes only the active session", () => {
+    const first = createFakeSession();
+    const second = createFakeSession();
+    const connect = vi.fn().mockReturnValueOnce(first.session).mockReturnValueOnce(second.session);
+    renderPanel(connect);
+
+    fireEvent.click(screen.getByRole("button", { name: "New terminal" }));
+    fireEvent.click(screen.getByRole("tab", { name: "Terminal 1" }));
+    first.session.emit("first shell output");
+    second.session.emit("second shell output");
+    expect(fakeTerminals[0].written).toContain("first shell output");
+    expect(fakeTerminals[1].written).toContain("second shell output");
+    expect(connect).toHaveBeenCalledTimes(2);
+    expect(first.session.closed).toBe(false);
+    expect(second.session.closed).toBe(false);
+
+    fireEvent.click(screen.getByRole("button", { name: "Close terminal" }));
+    expect(first.session.closed).toBe(true);
+    expect(second.session.closed).toBe(false);
+    expect(screen.getByRole("tab", { name: "Terminal 2" })).toHaveAttribute("aria-selected", "true");
+  });
+
+  it("hides the panel without closing sessions and closes the final session explicitly", () => {
+    const { session } = createFakeSession();
+    terminalPanelStore.open();
+    renderPanel(() => session);
+
+    fireEvent.click(screen.getByRole("button", { name: "Hide terminal panel" }));
+    expect(terminalPanelStore.getIsOpen()).toBe(false);
+    expect(session.closed).toBe(false);
+
+    fireEvent.click(screen.getByRole("button", { name: "Close terminal" }));
+    expect(session.closed).toBe(true);
+    expect(terminalPanelStore.getTabs()).toHaveLength(0);
+  });
+
   it("connects to the currently selected agent on mount", () => {
     const { session } = createFakeSession();
     const connect = vi.fn().mockReturnValue(session);
@@ -177,10 +213,24 @@ describe("TerminalPanel", () => {
     const { session } = createFakeSession();
     renderPanel(() => session);
 
+    fireEvent.pointerDown(screen.getByTestId("terminal-panel-container"));
     fakeTerminals[0].emitSelectionChange("hello from agent");
     vi.advanceTimersByTime(150);
 
     expect(writeText).toHaveBeenCalledWith("hello from agent");
+  });
+
+  it("does not copy a selection the user did not make with the pointer", () => {
+    vi.useFakeTimers();
+    const writeText = vi.fn().mockResolvedValue(undefined);
+    stubClipboard(writeText);
+    const { session } = createFakeSession();
+    renderPanel(() => session);
+
+    fakeTerminals[0].emitSelectionChange("programmatic");
+    vi.advanceTimersByTime(150);
+
+    expect(writeText).not.toHaveBeenCalled();
   });
 
   it("debounces repeated selection changes into a single clipboard write", () => {
@@ -191,6 +241,7 @@ describe("TerminalPanel", () => {
     renderPanel(() => session);
 
     // A drag extends the selection on every cell; only the settled end state should be copied.
+    fireEvent.pointerDown(screen.getByTestId("terminal-panel-container"));
     fakeTerminals[0].emitSelectionChange("h");
     fakeTerminals[0].emitSelectionChange("he");
     fakeTerminals[0].emitSelectionChange("hello");

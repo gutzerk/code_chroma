@@ -340,29 +340,38 @@ public sealed partial class AgentManager
             foreach (var sibling in _agents.Where(a => SamePath(a.Worktree, path))) sibling.WorktreeLost = false;
     }
 
-    /// <summary>Records the conversation `claude --resume` continues; null while there isn't one.</summary>
+    /// <summary>Reads only the file wired to this agent's own process; never infers ownership from transcript recency.</summary>
     public string? CaptureSessionId(string agentId)
     {
-        var record = Get(agentId);
-        HashSet<string> siblings;
         lock (_lock)
-            siblings = _agents.Where(o => o != record && o.SessionId is { Length: > 0 } && SamePath(o.Worktree, record.Worktree)).Select(o => o.SessionId!).ToHashSet();
-        if (record.ForkSession is { Length: > 0 } source) siblings.Add(source);
-        if (record.SourceRun is { } runId) siblings.UnionWith(RunStepSessions(runId));
-        var found = Transcripts.FindSessionId(record.Worktree, exclude: siblings);
-        if (found is not null && found != record.SessionId)
         {
-            record.SessionId = found;
-            Save();
+            var record = Get(agentId);
+            if (record.SessionTrackingId is { } trackingId)
+            {
+                var found = Json.Str(JsonFile.LoadObject(AgentSessionOwnership.FileFor(MainRoot, trackingId))["session_id"]);
+                if (Guid.TryParse(found, out _) && found != record.SessionId)
+                {
+                    record.SessionId = found;
+                    Save();
+                }
+            }
+            return record.SessionId;
         }
-        return record.SessionId;
     }
 
-    /// <summary>Every step session of a workflow run, so an agent opened in its worktree never claims one of them as its own.</summary>
-    private IEnumerable<string> RunStepSessions(string runId)
+    /// <summary>Persists metadata from the actual PTY returned by Start, including an existing idempotent start.</summary>
+    public void RecordSessionLaunch(string agentId, AgentSession session)
     {
-        if (new RunStore(MainRoot).GetRun(runId) is not { } run) return [];
-        return run.Steps.Concat(run.Attempts.SelectMany(a => a.Steps ?? [])).Select(s => s.SessionId).OfType<string>();
+        if (session.SessionTrackingFile is null) return;
+        lock (_lock)
+        {
+            var record = Get(agentId);
+            var trackingId = Path.GetFileNameWithoutExtension(session.SessionTrackingFile);
+            if (record.SessionTrackingId == trackingId) return;
+            record.SessionTrackingId = trackingId;
+            record.SessionId = session.InitialSessionId;
+            Save();
+        }
     }
 
     /// <summary>Pending (context, kind), cleared so a resume or restart never re-injects it.</summary>

@@ -6,6 +6,21 @@ namespace CodeChroma.Shell.Tests;
 public class OpenRepoFlowTests
 {
     [Fact]
+    public async Task Opening_after_switching_tabs_reuses_the_requesting_tab_and_leaves_the_other_launcher_empty()
+    {
+        using var h = new ShellHarness();
+        var requesting = h.Tabs.ActiveTab!;
+        var other = h.Controller.NewTab();
+
+        await h.Controller.OpenRepoAsync("/repos/cloned", requesting.Id);
+
+        Assert.Equal(2, h.Tabs.Tabs.Count);
+        Assert.Equal("/repos/cloned", requesting.RepoPath);
+        Assert.Null(other.RepoPath);
+        Assert.Equal(requesting, Assert.Single(h.Ui.Navigations).Tab);
+    }
+
+    [Fact]
     public async Task Opening_a_repo_starts_its_bridge_and_navigates_the_requesting_tab_to_the_main_workspace()
     {
         using var h = new ShellHarness();

@@ -1,6 +1,52 @@
-# Parallel agents (`src/codechroma/bridge/agents/`) — one `claude` per git worktree, or attached
+# Parallel agents — one `claude` per git worktree, or attached
+
+## Production C# bridge (change this first)
+
+The desktop app runs **`dotnet/CodeChroma.Bridge`**. Implement agent fixes there first and test
+`dotnet/CodeChroma.Bridge.Tests`; the Python bridge sections below are development/reference notes.
+A Python-only change does not fix the production desktop runtime.
+
+- `Agents/AgentRuntime.cs` starts persisted agents at bridge boot; `Routes/AgentRoutes.cs` handles
+  manual starts, resumes, stops, and usage. Both launch through `Terminal/TerminalAgents.cs`.
+- A fresh Claude launch receives a CodeChroma-generated UUID via `--session-id`, saved on its
+  agent record. A plain resume uses that agent's saved ID. Workflow forks use the source's
+  `--resume` plus `--fork-session` and a separate owned `--session-id`, preserving the source.
+  Shells and alternative CLIs receive none of these new Claude-specific settings.
+- `Agents/AgentSessionOwnership.cs` supplies an explicit command `SessionStart` hook through
+  `--settings`, including for bare diagram agents. The native bridge's `agent-session` helper reads
+  the hook JSON from stdin and atomically writes the session ID into the unique file named by
+  `CODECHROMA_AGENT_SESSION_FILE`. It does not start a server and requires no Python interpreter.
+  Windows hooks explicitly use PowerShell with its call operator and quoting, so tracking also
+  works when Git Bash is unavailable; Unix hooks use shell quoting.
+- `session_tracking_id` in `agents.json` identifies the current launch's file under the main repo's
+  `.codechroma/agent-sessions/`. `AgentManager.CaptureSessionId` reads only that file, retaining the
+  stored ID if it is missing or malformed. This follows `/clear` and interactive `/resume` across
+  app restarts. Each launch gets a new tracking file, so late hooks from an older process cannot
+  overwrite the current process's conversation. An idempotent start records the actual existing PTY.
+- Never infer an interactive agent's session ownership from a transcript's directory, `cwd`, or
+  modification time: attached agents, workflow steps, and external terminals can share a worktree.
+  Legacy records keep their saved session ID; records without an ID start fresh. `Transcripts.cs`
+  still reads known transcripts for token usage and supports workflow discovery, but is not used
+  to choose an interactive agent's resume target.
+- Regression coverage: `Agents/SessionOwnershipTests.cs`, `Agents/OpenStepAgentTests.cs`, and
+  `Terminal/TerminalAgentsBareTests.cs`. Run
+  `dotnet test dotnet/CodeChroma.Bridge.Tests/CodeChroma.Bridge.Tests.csproj`.
+
+## Python development/reference implementation
+
+The Python bridge uses the same `session_tracking_id` and per-launch file format. Both manual
+starts and autostart install a `SessionStart` hook from `agents/session_ownership.py`, run with the
+bridge's Python interpreter and an absolute script path. The helper uses only the standard library
+and works from any worktree. Resume reads only that launch's file, following `/clear` and interactive
+`/resume`; missing or malformed events retain the saved ID. Idempotent starts retain the actual
+PTY's tracking metadata, and late events from earlier launches cannot replace the current session.
 
 > Removed dead components: `AgentRail`, `AgentWindow`, `AgentFullScreen`, `AgentTab` and `useFullScreenAgentId` (plus their tests/CSS) are deleted -- `ActivityPanel` + `AgentTerminalDock` replaced them. Mentions of those names below are historical; the live flow is `windowActions.ts` + `ActivityPanel`.
+
+`ActivityPanel` handles Ctrl/Cmd+Alt+Left/Right in the window capture phase to cycle agents, wrapping
+at either end. It uses the same selection path as the dropdown, shows the Agents tab, expands a
+collapsed panel, preserves full screen, and focuses the selected terminal. Modal dialogs keep their
+keyboard input. The dropdown's tooltip documents these shortcuts.
 
 Several Claude sessions at once, each on its own branch in its own `git worktree` by default, each a
 window on the canvas. `<main_root>/.codechroma/agents.json` is the registry (it spans every worktree,
@@ -92,9 +138,9 @@ branch through an agent attached to it (`_guard_shared_worktree`, keyed off `Age
   `lifespan()`, not `reconcile()` itself: `PtySession.__init__` calls
   `asyncio.get_running_loop().add_reader(...)`, and `reconcile()` runs synchronously inside
   `BridgeServices.create()`, called from `create_app()` — before any event loop exists. Resumes the
-  last chat when `AgentManager.capture_session_id()` still has a session id (safe to call
-  unconditionally: it only *upgrades* the stored id when a newer transcript exists, never clears it),
-  starts fresh otherwise. Skips a `worktree_lost` record (no `cwd` to spawn into) and swallows
+  session id already stored on the agent; a fresh launch gets a UUID via Claude's `--session-id`
+  option, so another Claude process in the same worktree cannot be mistaken for this agent. Legacy
+  records without a session id start fresh. Skips a `worktree_lost` record (no `cwd` to spawn into) and swallows
   `AgentStartError`/any exception per record (logged, not raised) so one agent missing its worktree or
   `claude` binary never blocks the rest from coming up. No broadcast on success: no websocket is
   attached this early in boot, so a freshly-connecting client just reads live status off `GET /agents`,
@@ -255,15 +301,10 @@ branch through an agent attached to it (`_guard_shared_worktree`, keyed off `Age
   🔴 Unknown means *hold*, never `idle`; a malformed manifest degrades to "always hold".
   ⚠ The manifest is a runtime data file, so it is read through `resources.py`'s `resource_path`
   (kind `"detect"`) and (for any bundled bridge) must be shipped next to it — otherwise it 404s there.
-- `transcripts.py` — the `claude --resume` session id. 🔴 The `~/.claude/projects/<escaped>` name is
-  **not guessed**: a wrong escape would silently start a *fresh* conversation. Every transcript
-  records its own `cwd`, so the id is read from the newest one whose `cwd` is this worktree.
-  🔴 `cwd` alone can't tell two `attach_to` siblings apart (they share one worktree by design — see
-  above), so `find_session_id` takes an `exclude` set and `AgentManager.capture_session_id`
-  (`manager.py`'s `_sibling_session_ids`) feeds it every *other* record's already-claimed
-  `session_id` for that same worktree. Without this, restarting/resuming the sibling that hasn't
-  been touched most recently would silently resume the other one's live conversation instead of
-  starting fresh — clicking that agent's rail card looked like "the wrong agent's session opened."
+- Session ownership — fresh Claude sessions receive a UUID from CodeChroma through `--session-id`
+  and save it with their agent record. Restarts use that exact ID with `--resume`; transcript `cwd`
+  and modification order are never used to infer ownership, since external terminals can use the
+  same worktree and attached agents intentionally share one.
 - `publish.py` — "Create PR": `git push -u origin <branch>` then `gh pr create --fill`. Every
   blocker is a preflight reason the button renders **as its disabled label**, never a post-click
   error. Uncommitted files are not a blocker but a forced choice (commit them, or publish without).
@@ -448,7 +489,7 @@ branch through an agent attached to it (`_guard_shared_worktree`, keyed off `Age
   or worktree — this is what used to surface as
   `fatal: '<branch>' is already used by worktree at '<path>'` from `worktree.add`.
 - Tests: `tests/unit/test_{workspaces,agent_worktree,agent_manager,agent_bootstrap,agent_status,
-  agent_publish,agent_transcripts,screen_tap,git_diff_base,diagram_seed}.py`,
+  agent_publish,screen_tap,git_diff_base,diagram_seed}.py`,
   `tests/unit/test_bridge_{agents,workspace}_route.py`, `tests/unit/test_bridge_agents_autostart.py`,
   `tests/integration/test_{workspace_switch,nested_worktree_excluded}.py`,
   `web/src/agents/*.test.{ts,tsx}`,
@@ -460,18 +501,18 @@ branch through an agent attached to it (`_guard_shared_worktree`, keyed off `Age
 400). `AgentManager.CreateInRun` puts the record in that run's own worktree
 (`WorkflowRunner.WorktreeFor(MainRoot, runId)`, 404 when it is gone), on the worktree's current branch,
 with `source_run` and `fork_session` persisted on the record (both also in the payload). A
-non-resume `POST /agents/{id}/start` then launches `claude --resume <fork_session> --fork-session`
+non-resume `POST /agents/{id}/start` then launches `claude --resume <fork_session> --fork-session --session-id <owned UUID>`
 (`TerminalAgents.Resolve(..., forkSession: true)`, claude kind only), so the step's own session is
 never written to; `{resume:true}` resumes the agent's own (forked) session as usual.
-`CaptureSessionId` excludes `fork_session` and every step session recorded on the run, so the agent
-never claims a step's transcript in the shared worktree. Deleting the worktree or branch through
+`CaptureSessionId` reads only the agent's per-launch session file, so it never claims a step's
+transcript in the shared worktree. Deleting the worktree or branch through
 such an agent is refused (the run owns them). Runs are looked up under the main repository only.
 Web: `AgentClient.openStepSession`, `launchAgent.openStepAgent`, the Open agent button in
 `workflows/StepRail.tsx`. Tests: `CodeChroma.Bridge.Tests/Agents/OpenStepAgentTests.cs`.
 
 ## Canvas questions (017)
 
-Claude agent windows launch with the CodeChroma MCP server (`ask_user`) registered through `agent_cli`'s `mcp` parameter, plus the `CODECHROMA_BRIDGE_URL`/`CODECHROMA_QUESTION_TOKEN` env vars; see [`ai-questions.md`](ai-questions.md) "Agent wiring". A bridge restart invalidates old tokens, so agent windows are respawned with fresh ones.
+Claude agent windows launch with the CodeChroma MCP server (`ask_user`) registered through `agent_cli`'s `mcp` parameter, plus the `CODECHROMA_BRIDGE_URL`/`CODECHROMA_QUESTION_TOKEN` env vars; see [`ai-questions.md`](ai-questions.md) "Agent wiring". A bridge restart invalidates old tokens, so agent windows are respawned with fresh ones. `ask_user` is non-blocking: the agent ends its turn, and the user's answer (or skip, or an "Add diagram" request) is typed into that agent's terminal as its next message via `AgentSession.inject_when_idle` (1200 attempts, about 10 minutes of waiting for idle; `questions/delivery.py`, C# `QuestionDelivery.cs`), so an open question leaves the agent `idle` with the "?" badge rather than `running`.
 
 ## Agent panel modes (layout store)
 

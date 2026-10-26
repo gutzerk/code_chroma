@@ -1,6 +1,6 @@
 # 023 — LLM settings: one default model, optional per-feature overrides
 
-Status: In progress (Stage 1 and Python routes done; C# bridge, web dialog and Stage 4 docs remain)
+Status: In progress (Stage 1 and Stage 2 routes done on both bridges; web dialog and Stage 4 docs remain)
 
 Source: the "LLM Settings Redesign" design canvas (boards `Main.dc.html` — Models / Connections / Advanced, `AddConnection.dc.html`), https://claude.ai/artifact/ADcHT5eMJMvf1snZ7mpL9U. Builds on `docs/architecture/llm-settings.md` and `docs/architecture/assistant-settings.md`.
 

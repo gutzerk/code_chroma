@@ -4,13 +4,19 @@ from __future__ import annotations
 
 import importlib.util
 import json
+import tempfile
 from pathlib import Path
 
 import pytest
 from fastapi.testclient import TestClient
 
 from codechroma.bridge.resources import resource_path
-from codechroma.questions.launch import McpEndpoint, discover_base_url, loopback_url
+from codechroma.questions.launch import (
+    McpEndpoint,
+    discover_base_url,
+    loopback_url,
+    write_claude_config,
+)
 from codechroma.questions.mcp_server import QuestionMcp
 from codechroma.terminal.agents import agent_cli
 
@@ -23,6 +29,16 @@ def _load_hook():
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
     return module
+
+
+def test_mcp_config_is_written_to_a_private_per_process_dir():
+    path = write_claude_config(ENDPOINT)
+
+    assert path.parent.name.startswith("codechroma-mcp-")
+    assert path.parent != Path(tempfile.gettempdir()) / "codechroma-mcp"
+    assert json.loads(path.read_text(encoding="utf-8"))["mcpServers"]["codechroma"]["url"] == (
+        "http://127.0.0.1:8123/mcp/"
+    )
 
 
 def test_claude_argv_registers_the_mcp_config_before_the_plugin_dir():
@@ -44,7 +60,7 @@ def test_mcp_config_file_holds_an_http_server_with_bearer_header_and_timeout():
     assert server["type"] == "http"
     assert server["url"] == "http://127.0.0.1:8123/mcp/"
     assert server["headers"] == {"Authorization": "Bearer agent-1.sig"}
-    assert server["timeout"] > 300_000
+    assert server["timeout"] == 60_000
 
 
 def test_claude_argv_is_unchanged_without_an_endpoint():
@@ -78,7 +94,7 @@ def test_loopback_url_needs_an_explicit_port(given, expected):
 
 def test_endpoint_for_signs_a_token_that_names_the_workspace(monkeypatch):
     monkeypatch.delenv("CODECHROMA_BRIDGE_URL", raising=False)
-    mcp = QuestionMcp(broker=None, workspace_for=lambda _id: None)
+    mcp = QuestionMcp(workspace_for=lambda _id: None)
     mcp.remember_base_url("http://localhost:8765/")
 
     endpoint = mcp.endpoint_for("agent-7")
@@ -187,3 +203,12 @@ def test_hook_fails_open_without_the_token_that_marks_a_wired_mcp_server(monkeyp
 
     assert code == 0
     assert capsys.readouterr().out == ""
+
+
+def test_mcp_instructions_match_the_shared_contract_text():
+    from codechroma.questions.mcp_server import _INSTRUCTIONS
+
+    fixture = Path(__file__).parents[1] / "fixtures" / "bridge_contract" / "mcp_instructions.txt"
+    shared = fixture.read_text(encoding="utf-8")
+
+    assert _INSTRUCTIONS == shared

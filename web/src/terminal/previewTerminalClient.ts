@@ -11,8 +11,7 @@ export class PreviewTerminalClient implements TerminalClient {
     setTimeout(() => onData(QUESTION + INPUT_BOX), 150);
     return {
       write(data: string) {
-        // eslint-disable-next-line no-control-regex -- strips cursor/escape sequences (arrow keys, bracketed paste) before echoing
-        for (const ch of data.replace(/\x1b\[[0-9;?]*[ -/]*[@-~]/g, "")) {
+        for (const ch of data) {
           if (ch === "\r") {
             onData(`\r\n\r\n\x1b[36m●\x1b[0m Got it: ${typed || "the whole project"}. Running context…\r\n`);
             typed = "";

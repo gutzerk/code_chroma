@@ -5,6 +5,7 @@ import type { HierarchyNodeRef } from "../../state/types";
 import { useCanvasDoc } from "../doc/canvasDocStore";
 import { deleteDiagramAndRefresh } from "../doc/diagramCatalog";
 import { DrawDiagramButton } from "../doc/DrawDiagramButton";
+import { ShareMenu } from "../../share/ShareMenu";
 import { layoutStore, useLayoutState, type LeftTab } from "../layout/layoutStore";
 import { Z_LEFT_PANEL } from "../layout/layoutMetrics";
 import { openFilesStore, useActiveFileId, useOpenFiles } from "../openFilesStore";
@@ -54,7 +55,7 @@ export function LeftPanel({
           </button>
         ))}
       </div>
-      {leftTab === "diagrams" ? <DiagramsTab arrange={arrange} /> : <FilesTab rootNode={rootNode} onActivate={onActivate} />}
+      {leftTab === "diagrams" ? <DiagramsTab arrange={arrange} rootName={rootNode?.name} /> : <FilesTab rootNode={rootNode} onActivate={onActivate} />}
       {!hasOpenCode && (
         <div className="panel-handle panel-handle--right-edge">
           <button
@@ -99,7 +100,7 @@ function FilesTab({
   );
 }
 
-function DiagramsTab({ arrange }: { arrange?: ReactNode }) {
+function DiagramsTab({ arrange, rootName }: { arrange?: ReactNode; rootName?: string }) {
   const engineClient = useEngineClient();
   const doc = useCanvasDoc();
   const rows = useDiagramRows();
@@ -139,7 +140,10 @@ function DiagramsTab({ arrange }: { arrange?: ReactNode }) {
     <div className="left-panel-body" role="tabpanel" aria-label="Diagrams">
       <div className="left-panel-header">
         <span className="left-panel-label">ON CANVAS · {layers.length}</span>
-        <DrawDiagramButton />
+        <div className="left-panel-header-actions">
+          <ShareMenu name={rootName} layers={selected} />
+          <DrawDiagramButton />
+        </div>
       </div>
       {layers.length === 0 ? (
         <p className="left-panel-empty">No diagrams yet — click Draw… to create one.</p>

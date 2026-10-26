@@ -36,7 +36,6 @@ from codechroma.bridge.wiki_general_agent import (
 )
 from codechroma.bridge.workspaces import MAIN_ID, Workspace, WorkspaceRegistry
 from codechroma.diagrams.registry import BUILTIN_TYPES
-from codechroma.questions.broker import QuestionBroker
 
 logger = logging.getLogger("uvicorn.error")
 
@@ -73,10 +72,6 @@ class BridgeServices:
     agent_sessions: AgentSessionRegistry
     # Per-app runners: two apps in one process never share job state or leak cancels across.
     skill_agents: dict[str, SkillAgent] = field(default_factory=_build_skill_agents)
-    # Held so shutdown can cancel a poll still waiting on a transcript that may never appear.
-    session_id_tasks: set[asyncio.Task] = field(default_factory=set)
-    # Live waiters for open `ask_user` questions (questions/broker.py).
-    questions: QuestionBroker = field(default_factory=QuestionBroker)
 
     @classmethod
     def create(cls, repo_root: Path) -> BridgeServices:
@@ -164,13 +159,3 @@ class BridgeServices:
         for record in self.agent_manager.list():
             record.pid, record.status, record.exit_code = None, "stopped", None
         self.agent_manager.save()
-
-    def track_session_id_task(self, task: asyncio.Task) -> None:
-        """Keeps a strong reference to a fire-and-forget poll so it isn't garbage collected."""
-        self.session_id_tasks.add(task)
-        task.add_done_callback(self.session_id_tasks.discard)
-
-    def cancel_session_id_tasks(self) -> None:
-        for task in list(self.session_id_tasks):
-            task.cancel()
-        self.session_id_tasks.clear()

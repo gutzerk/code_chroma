@@ -11,13 +11,12 @@ from dataclasses import dataclass
 from pathlib import Path
 from urllib.parse import urlsplit
 
-from codechroma.config import settings
-
 URL_ENV = "CODECHROMA_BRIDGE_URL"
 TOKEN_ENV = "CODECHROMA_QUESTION_TOKEN"
 WORKSPACE_ENV = "CODECHROMA_WORKSPACE_ID"
 SERVER_NAME = "codechroma"
 _LOOPBACK = "127.0.0.1"
+MCP_TIMEOUT_MS = 60_000
 
 
 @dataclass(frozen=True)
@@ -37,11 +36,10 @@ class McpEndpoint:
         return {URL_ENV: self.base_url, TOKEN_ENV: self.token}
 
     def claude_config(self) -> dict:
-        """The `--mcp-config` document: one http server with a bearer header and a long timeout."""
-        timeout_ms = int((settings.questions.ask_wait_seconds + 60) * 1000)
+        """The `--mcp-config` document: one http server with a bearer header and a 60 s timeout."""
         return {"mcpServers": {SERVER_NAME: {
             "type": "http", "url": self.mcp_url,
-            "headers": {"Authorization": f"Bearer {self.token}"}, "timeout": timeout_ms,
+            "headers": {"Authorization": f"Bearer {self.token}"}, "timeout": MCP_TIMEOUT_MS,
         }}}
 
 
@@ -83,10 +81,20 @@ def identity_env(workspace_id: str) -> dict[str, str]:
     return env
 
 
+_config_dir: Path | None = None
+
+
+def _private_config_dir() -> Path:
+    """A per-process 0700 mkdtemp dir; a fixed shared /tmp path can be pre-planted by others."""
+    global _config_dir
+    if _config_dir is None or not _config_dir.is_dir():
+        _config_dir = Path(tempfile.mkdtemp(prefix="codechroma-mcp-"))
+    return _config_dir
+
+
 def write_claude_config(endpoint: McpEndpoint) -> Path:
     """Writes the MCP config to a private temp file (inline JSON gets mangled by PTY quoting)."""
-    directory = Path(tempfile.gettempdir()) / "codechroma-mcp"
-    directory.mkdir(parents=True, exist_ok=True)
+    directory = _private_config_dir()
     safe = "".join(c if c.isalnum() or c in "-_" else "_" for c in endpoint.workspace_id)
     path = directory / f"{safe}.json"
     path.write_text(json.dumps(endpoint.claude_config()), encoding="utf-8")

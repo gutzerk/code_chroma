@@ -19,6 +19,7 @@ public sealed class AgentRecord
     public required string Worktree { get; set; }
     public required string CreatedAt { get; set; }
     public string? SessionId { get; set; }
+    public string? SessionTrackingId { get; set; }
     public string? PrUrl { get; set; }
     public int? Pid { get; set; }
     public JsonObject Window { get; set; } = DefaultWindow();
@@ -65,6 +66,7 @@ public sealed class AgentRecord
     public JsonObject ToJson() => new()
     {
         ["id"] = Id, ["title"] = Title, ["kind"] = Kind, ["branch"] = Branch, ["worktree"] = Worktree, ["session_id"] = SessionId,
+        ["session_tracking_id"] = SessionTrackingId,
         ["created_at"] = CreatedAt, ["pr_url"] = PrUrl, ["window"] = Window.DeepClone(), ["pid"] = Pid,
         ["shares_workspace_with"] = SharesWorkspaceWith, ["base_branch"] = BaseBranch, ["source_pr"] = SourcePr,
         ["source_run"] = SourceRun, ["fork_session"] = ForkSession,
@@ -102,6 +104,7 @@ public sealed class AgentRecord
             Kind = Json.Str(o["kind"]) ?? DefaultKind,
             CreatedAt = Json.Str(o["created_at"]) ?? "",
             SessionId = Json.Str(o["session_id"]),
+            SessionTrackingId = Guid.TryParse(Json.Str(o["session_tracking_id"]), out var trackingId) ? trackingId.ToString() : null,
             PrUrl = Json.Str(o["pr_url"]),
             Pid = o["pid"] is JsonValue pid && pid.TryGetValue<int>(out var pidValue) ? pidValue : null,
             Window = window,

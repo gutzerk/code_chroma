@@ -10,6 +10,7 @@ import {
   stepMode,
   canStopAfter,
   stepPosition,
+  stepModeLabel,
   type StepAction,
 } from "./runControls";
 import type { Run, RunState, StepRecord, StepStatus, WorkflowStepDef } from "./types";
@@ -189,5 +190,18 @@ describe("stepPosition", () => {
     const steps = [step("a", "done"), step("b", "pending"), step("c", "pending")];
 
     expect(stepPosition(run("held", { steps, currentStepId: null }))).toEqual({ index: 2, total: 3 });
+  });
+});
+
+describe("stepModeLabel", () => {
+  const steps = [
+    { id: "a", slug: "a", kind: "agent", prompt: "x", model: "opus" },
+    { id: "b", slug: "b", kind: "agent", prompt: "y" },
+  ] as WorkflowStepDef[];
+
+  it("names the step's model, else the model its session ran on", () => {
+    expect(stepModeLabel(steps, 0)).toBe("Agent · default · opus · new");
+    expect(stepModeLabel(steps, 1, undefined, "claude-sonnet-5-5")).toBe("Agent · default · claude-sonnet-5-5 · new + hand-off");
+    expect(stepModeLabel(steps, 1)).toBe("Agent · default · new + hand-off");
   });
 });

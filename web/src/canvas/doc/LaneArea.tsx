@@ -39,6 +39,7 @@ export function LaneArea({ lane, members, sizes }: LaneAreaProps) {
       testId="canvas-lane-area"
       labelClassName="canvas-lane-area-label"
       label={lane}
+      layer={members[0]?.layer}
     />
   );
 }

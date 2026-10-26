@@ -503,7 +503,9 @@ def test_build_batch_ops_includes_style_key_when_recipe_node_style_is_set():
 def test_sequence_reshape_carries_readability_fields():
     """022: order/lane/path fold into node meta, hero into messages, phases onto participants."""
     resolved = {
-        "phases": [{"id": "p1", "name": "Prepare", "kind": "prepare", "from_order": 1, "to_order": 1}],
+        "phases": [
+            {"id": "p1", "name": "Prepare", "kind": "prepare", "from_order": 1, "to_order": 1},
+        ],
         "summary": "s",
         "nodes": [
             {"id": "a", "name": "A", "lane": "client", "path": "a.py"},
@@ -520,3 +522,11 @@ def test_sequence_reshape_carries_readability_fields():
     assert participant.meta["phases"][0]["id"] == "p1"
     assert participant.meta["summary"] == "s"
     assert message.meta["hero"] is True
+
+
+def test_a_nodes_own_meta_path_is_not_overridden_by_its_top_level_path():
+    resolved = {"nodes": [{"id": "n", "name": "N", "path": "top.py", "meta": {"path": "own.py"}}]}
+
+    shape = reshape(resolved, "custom")
+
+    assert shape.nodes[0].meta["path"] == "own.py"

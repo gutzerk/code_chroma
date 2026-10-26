@@ -25,7 +25,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING, cast
 
 from codechroma.bridge import diagram_seed, skill_sync
-from codechroma.bridge.agents import main_branch, transcripts, worktree
+from codechroma.bridge.agents import main_branch, session_ownership, worktree
 from codechroma.bridge.agents.worktree import WorktreeError
 from codechroma.bridge.git_cmd import ensure_excluded
 from codechroma.bridge.workspaces import MAIN_ID, PR_ID_PREFIX
@@ -34,6 +34,7 @@ from codechroma.errors import codechromaError
 from codechroma.io import load_json, utc_now_iso, write_json
 
 if TYPE_CHECKING:
+    from codechroma.bridge.agents.sessions import AgentSession
     from codechroma.bridge.prs.manager import PrRecord
 
 logger = logging.getLogger("uvicorn.error")
@@ -56,8 +57,7 @@ STATUS_EXITED = "exited"
 _PERSISTED_FIELDS = (
     "id", "title", "kind", "branch", "worktree", "session_id", "created_at",
     "pr_url", "window", "pid", "shares_workspace_with", "base_branch", "source_pr",
-    "context", "context_kind", "resolved_cli",
-    "diagram_type", "diagram_request",
+    "context", "context_kind", "resolved_cli", "session_tracking_id",
 )
 
 # "view" = existing acknowledge-only launch line; "task" = a real, actionable first message.
@@ -141,6 +141,7 @@ class AgentRecord:
     diagram_request: str | None = None
     # Binary that launched this window; empty for legacy `claude` records.
     resolved_cli: str = ""
+    session_tracking_id: str | None = None
     # Runtime-only: recomputed every startup, so persisting them would just let them go stale.
     status: str = STATUS_STOPPED
     exit_code: int | None = None
@@ -174,6 +175,7 @@ class AgentRecord:
             worktree=cast(str, path),
             created_at=raw_created_at if isinstance(raw_created_at, str) else "",
             session_id=raw.get("session_id") if isinstance(raw.get("session_id"), str) else None,
+            session_tracking_id=session_ownership.valid_id(raw.get("session_tracking_id")),
             pr_url=raw.get("pr_url") if isinstance(raw.get("pr_url"), str) else None,
             pid=raw.get("pid") if isinstance(raw.get("pid"), int) else None,
             window=({**DEFAULT_WINDOW, **window} if isinstance(window, dict)
@@ -573,24 +575,40 @@ class AgentManager:
             if Path(sibling.worktree) == path:
                 sibling.worktree_lost = False
 
-    def capture_session_id(self, agent_id: str) -> str | None:
-        """Records the conversation `claude --resume` continues; None while there isn't one."""
+    def set_session_id(self, agent_id: str, session_id: str | None) -> AgentRecord:
+        """Persists the session id passed to this agent's Claude process."""
         record = self.get(agent_id)
-        path = Path(record.worktree)
-        exclude = self._sibling_session_ids(record, path)
-        found = transcripts.find_session_id(path, exclude=exclude)
-        if found and found != record.session_id:
-            record.session_id = found
+        if record.session_id != session_id:
+            record.session_id = session_id
             self.save()
-        return record.session_id
+        return record
 
-    def _sibling_session_ids(self, record: AgentRecord, path: Path) -> frozenset[str]:
-        """Session ids another agent sharing this worktree (an attach_to peer) already claimed."""
-        return frozenset(
-            other.session_id
-            for other in self._agents.values()
-            if other is not record and other.session_id and Path(other.worktree) == path
-        )
+    def capture_session_id(self, agent_id: str) -> str | None:
+        """Read only this launch's hook file; never infer ownership from transcript recency."""
+        with self._lock:
+            record = self.get(agent_id)
+            if record.session_tracking_id:
+                path = session_ownership.file_for(self.main_root, record.session_tracking_id)
+                payload = load_json(path)
+                found = session_ownership.valid_id(
+                    payload.get("session_id") if isinstance(payload, dict) else None
+                )
+                if found is not None:
+                    self.set_session_id(agent_id, found)
+            return record.session_id
+
+    def record_session_launch(self, agent_id: str, session: AgentSession) -> None:
+        """Persist the actual PTY's metadata, including an idempotent start's existing session."""
+        if session.session_tracking_file is None:
+            return
+        with self._lock:
+            record = self.get(agent_id)
+            tracking_id = Path(session.session_tracking_file).stem
+            if record.session_tracking_id == tracking_id:
+                return
+            record.session_tracking_id = tracking_id
+            record.session_id = session.initial_session_id
+            self.save()
 
     def consume_context(self, agent_id: str) -> tuple[str, str] | None:
         """Pending (context, context_kind), cleared so a resume/restart never re-injects it."""

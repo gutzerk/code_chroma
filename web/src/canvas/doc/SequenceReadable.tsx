@@ -61,10 +61,9 @@ export function SequenceDrawing({
         pointerEvents: "none",
       }}
     >
-      {participants.map(({ element, ref }) => {
+      {participants.map(({ element, ref, accent }) => {
         const hw = (element.size?.w ?? SEQUENCE_LAYOUT.headW) / 2;
         const hh = (element.size?.h ?? SEQUENCE_LAYOUT.headH) / 2;
-        const accent = model.messages.find((m) => m.fromRef === ref)?.accent;
         const kind = stringMeta(element, "kind");
         return (
           <div
@@ -77,7 +76,7 @@ export function SequenceDrawing({
                 top: element.position.y - hh - top,
                 width: hw * 2,
                 height: hh * 2,
-                "--seq-accent-rgb": accent ?? "160, 165, 175",
+                "--seq-accent-rgb": accent,
               } as CSSProperties
             }
           >
@@ -214,7 +213,7 @@ function MessageArrow({
       </span>
       <span
         className="sequence-message-line"
-        style={isReturn ? { transform: "scaleX(-1)" } : undefined}
+        style={toCol.position.x < fromCol.position.x ? { transform: "scaleX(-1)" } : undefined}
       />
     </div>
   );

@@ -183,8 +183,7 @@ def test_a_non_sequence_diagram_without_readability_data_gets_advisories_only(tm
     result = _run(tmp_path, kind, diagram)
 
     assert result.returncode == 0
-    assert "NOSUMMARY the diagram has no top-level `question` string" in result.stdout
-    assert "NOSUMMARY the diagram has no top-level `summary` string" in result.stdout
+    assert "NOSUMMARY the diagram has no top-level `question` and `summary` string" in result.stdout
     assert "NOHERO" in result.stdout
 
 
@@ -473,7 +472,7 @@ def test_shared_node_id_advisory_fires_only_across_groups_and_never_fails(
     assert ("SHAREDNODE" in result.stdout) is flagged
 
 
-def test_sequence_message_without_order_fails_the_shape_tier(tmp_path):
+def test_sequence_message_without_order_is_only_an_advisory(tmp_path, capsys):
     module = _load_module()
     path = tmp_path / "seq.json"
     path.write_text(
@@ -484,4 +483,55 @@ def test_sequence_message_without_order_fails_the_shape_tier(tmp_path):
 
     code = module.main(["--kind", "sequence", "--json", str(path)])
 
+    out = capsys.readouterr().out
+    assert code == 0
+    assert "NO-ORDER" in out
+    assert out.count("NOSUMMARY") == 1
+
+
+def test_frame_with_a_reversed_range_fails_the_shape_tier(tmp_path):
+    module = _load_module()
+    path = tmp_path / "seq.json"
+    path.write_text(
+        '{"nodes":[{"id":"a","name":"A"},{"id":"b","name":"B"}],'
+        '"relations":[{"id":"m1","from":"a","to":"b","label":"go","order":1}],'
+        '"frames":[{"kind":"alt","label":"F","from_order":3,"to_order":1}]}',
+        encoding="utf-8",
+    )
+
+    code = module.main(["--kind", "sequence", "--json", str(path)])
+
     assert code == 3
+
+
+def test_phase_with_unknown_kind_fails_the_shape_tier(tmp_path):
+    module = _load_module()
+    path = tmp_path / "seq.json"
+    path.write_text(
+        '{"nodes":[{"id":"a","name":"A"},{"id":"b","name":"B"}],'
+        '"relations":[{"id":"m1","from":"a","to":"b","label":"go","order":1}],'
+        '"phases":[{"id":"p","name":"P","kind":"bogus","from_order":1,"to_order":1}]}',
+        encoding="utf-8",
+    )
+
+    code = module.main(["--kind", "sequence", "--json", str(path)])
+
+    assert code == 3
+
+
+def test_unhashable_relation_ends_do_not_crash_the_checker(tmp_path):
+    diagram = _flat(2, relations=[{"from": ["n0"], "to": {"x": 1}, "label": "uses"}])
+    diagram["nodes"][1]["id"] = ["n1"]
+
+    result = _run(tmp_path, "c1", diagram)
+
+    assert "Traceback" not in result.stderr
+
+
+def test_a_long_title_is_only_flagged_on_sequence_diagrams(tmp_path):
+    diagram = _flat(2)
+    diagram["nodes"][0]["name"] = "Payment Gateway Adapter Service Layer"
+
+    result = _run(tmp_path, "c1", diagram)
+
+    assert "LONGTITLE" not in result.stdout

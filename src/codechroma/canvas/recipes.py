@@ -157,7 +157,7 @@ def _node_of(item: dict, render: str) -> GraphNode:
     meta = dict(own_meta) if isinstance(own_meta, dict) else {}
     for key in ("kind", "icon", "parent", "seed", "order", "lane", "path"):
         value = item.get(key)
-        if value is not None:
+        if value is not None and (key in ("kind", "icon", "parent", "seed") or key not in meta):
             meta[key] = value
     node_id = item.get("node_id")
     group = item.get("group")

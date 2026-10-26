@@ -124,7 +124,11 @@
   --control-hover-border: #888;
 
   /* Radius scale. */
+  --radius-2: 2px;
   --radius-xs: 3px;
+  --radius-5: 5px;
+  --radius-7: 7px;
+  --radius-9: 9px;
   --radius-sm: 4px;
   --radius-md: 6px;
   --radius-lg: 8px;
@@ -154,6 +158,8 @@
      per issue #88 rather than folded into the surface / accent scale above. */
   --issue-dialog-bg: #16171c;
   --issue-dialog-accent: #8faef2;
+  --updates-muted: #a3a7b3; /* updates dialog secondary text/strokes */
+  --epic-muted: #8b93a7; /* epic brief / acceptance-criteria muted text */
 }
 /* stylelint-enable color-no-hex */
 
@@ -607,6 +613,10 @@ body {
   border-radius: var(--radius-md);
   color: var(--text-1);
   font-size: 0.78rem;
+}
+
+.share-menu-success {
+  border-color: var(--success, var(--border));
 }
 
 /* The floating game window — a fixed size, no drag/resize, just a title bar with minimize/close. */
@@ -1709,7 +1719,7 @@ body {
    `groupColor.ts`'s groupColorIndex) and gets a per-participant CSS variable `--seq-accent-rgb`.
    The participant's own head and lifeline tint from it, and a message tints from its SENDER's
    participant colour -- so every arrow reads as "from whom" at a glance, and return arrows
-   (`--return`) recede to a neutral --text-3 rather than re-colouring by receiver. */
+   (`--return`) recede to a dashed neutral --text-2 rather than re-colouring by receiver. */
 .sequence-diagram {
   box-sizing: border-box;
   pointer-events: none;
@@ -1764,7 +1774,7 @@ body {
 
 /* A horizontal message: a label centered on a left-to-right arrow (line). Positioned by the
    component's inline left/top/width; the line is right-anchored and grows leftward from the
-   arrowhead on the right. Return arrows flip via scaleX. */
+   arrowhead on the right. Right-to-left arrows flip via scaleX. */
 .sequence-message {
   position: absolute;
   height: 20px;
@@ -1797,12 +1807,12 @@ body {
   top: 50%;
   height: 1.5px;
   background: rgb(var(--seq-accent-rgb));
-  transform-origin: right center;
+  transform-origin: center;
 }
 
 /* The arrowhead at the receiving end: a small right-pointing triangle whose tip lands right ON the
    receiver's lifeline (the line's right edge is that lifeline, so `right: 0` puts the tip exactly
-   at it — no poking past). Return arrows curl leftward via scaleX(-1), which flips the head to point
+   at it — no poking past). Right-to-left arrows (returns included) flip via scaleX(-1), which flips the head to point
    back at the original caller. */
 .sequence-message-line::after {
   content: "";
@@ -1827,16 +1837,17 @@ body {
 }
 
 .sequence-message--return .sequence-message-line {
-  background: var(--text-3);
+  background: none;
+  border-top: 1.5px dashed var(--text-2);
 }
 
 .sequence-message--return .sequence-message-line::after {
-  border-left-color: var(--text-3);
+  border-left-color: var(--text-2);
 }
 
 .sequence-message--return .sequence-message-label {
-  color: var(--text-3);
-  border-color: var(--text-3);
+  color: var(--text-2);
+  border-color: var(--text-2);
 }
 
 .diagram-node-box--dragging {
@@ -2064,7 +2075,7 @@ body {
 .diagram-node-box--epic:not(.diagram-node-box--epic-root) .diagram-node-box-name {
   color: var(--accent);
   background: color-mix(in oklab, var(--accent) 10%, transparent);
-  border-radius: var(--radius-md);
+  border-radius: var(--radius-5);
   padding: 0.05rem 0.35rem;
 }
 
@@ -2079,7 +2090,7 @@ body {
    of the box, so a top hairline separates it (the free-text prose) from the chrome above (title,
    meta chips) and lets the prose read as its own section. */
 .diagram-node-box-desc {
-  color: var(--text-2);
+  color: var(--epic-muted);
   font-size: 0.7rem;
   white-space: normal;
   overflow-wrap: anywhere;
@@ -2308,7 +2319,7 @@ body {
 .epic-stage-item-story {
   flex-shrink: 0;
   font-size: 0.65rem;
-  color: var(--text-2);
+  color: var(--epic-muted);
   background: rgba(139, 147, 167, 0.15);
   padding: 0.05rem 0.4rem;
   border-radius: var(--radius-lg);
@@ -2322,7 +2333,7 @@ body {
   max-width: 26rem;
   margin: 4.5rem auto;
   padding: 1.25rem 1.5rem;
-  color: var(--text-2);
+  color: var(--epic-muted);
   font-size: 0.85rem;
   text-align: center;
 }
@@ -3951,6 +3962,41 @@ button[data-copy-state="idle"][aria-label]:hover:not(:disabled) {
   padding: 0.4rem;
 }
 
+.terminal-panel-container[hidden] {
+  display: none;
+}
+
+.terminal-panel-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 8px;
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+.terminal-panel-tabs {
+  display: flex;
+  flex: 1;
+  min-width: 0;
+  overflow-x: auto;
+  gap: 4px;
+}
+
+.terminal-panel-toolbar button {
+  flex-shrink: 0;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--text-1);
+  padding: 5px 8px;
+  cursor: pointer;
+}
+
+.terminal-panel-toolbar button:hover,
+.terminal-panel-tabs button[aria-selected="true"] {
+  background: var(--surface-2);
+}
+
 /* ── C1 code inspector ────────────────────────────────────────────────────────────────────────
    Full-height right dock everything below the C1 code boundary opens into, instead of expanding
    inside a diagram box and re-ranking dagre around the box's new size. A direct .app-body child, so
@@ -3963,7 +4009,8 @@ button[data-copy-state="idle"][aria-label]:hover:not(:disabled) {
   top: 0;
   right: 0;
   bottom: 0;
-  z-index: 30;
+  /* Above the agents panel (z-index 41), so the code panel is never covered by it. */
+  z-index: 42;
   width: 30vw;
   min-width: 320px;
   max-width: 50vw;
@@ -4024,7 +4071,7 @@ button[data-copy-state="idle"][aria-label]:hover:not(:disabled) {
   justify-content: center;
   padding: 0;
   border: 1px solid var(--border-strong);
-  border-radius: var(--radius-md);
+  border-radius: var(--radius-7);
   background: var(--surface-3);
   color: var(--text-1);
   font-size: 0.8rem;
@@ -5564,7 +5611,7 @@ button[data-copy-state="idle"][aria-label]:hover:not(:disabled) {
 }
 
 /* 008-epics-ai-brief: a scrollable DOM-flow document, not dagre boxes -- see EpicBriefView.tsx.
-   Reuses the same color language as .epic-box (var(--surface-2)/var(--text-2)/var(--accent-muted)/var(--border-faint)) so it reads as part
+   Reuses the same color language as .epic-box (var(--surface-2)/var(--epic-muted)/var(--accent-muted)/var(--border-faint)) so it reads as part
    of the same app, not a second design system. */
 .epic-brief-view {
   position: relative;
@@ -5690,7 +5737,7 @@ button[data-copy-state="idle"][aria-label]:hover:not(:disabled) {
   flex-wrap: wrap;
   gap: 0.6rem;
   font-size: 0.7rem;
-  color: var(--text-2);
+  color: var(--epic-muted);
   background: var(--surface-code);
   border: 1px dashed var(--border-faint);
   border-radius: var(--radius-lg);
@@ -5707,7 +5754,7 @@ button[data-copy-state="idle"][aria-label]:hover:not(:disabled) {
 .epic-brief-subgroup-label {
   font-size: 0.68rem;
   font-weight: 700;
-  color: var(--text-2);
+  color: var(--epic-muted);
   margin-bottom: 0.6rem;
   text-transform: uppercase;
   letter-spacing: 0.03em;
@@ -5748,7 +5795,7 @@ button[data-copy-state="idle"][aria-label]:hover:not(:disabled) {
   position: relative;
   background: var(--surface-2);
   border: 1px solid var(--border-faint);
-  border-left: 5px solid var(--scope-item, var(--text-2));
+  border-left: 5px solid var(--scope-item, var(--epic-muted));
   border-radius: var(--radius-xl);
   padding: 0.8rem 1rem;
   flex: 1 1 0;
@@ -5775,9 +5822,9 @@ button[data-copy-state="idle"][aria-label]:hover:not(:disabled) {
 
 .epic-brief-scope-item-count {
   font-size: 0.65rem;
-  color: var(--scope-item, var(--text-2));
+  color: var(--scope-item, var(--epic-muted));
   font-weight: 700;
-  background: color-mix(in srgb, var(--scope-item, var(--text-2)) 18%, transparent);
+  background: color-mix(in srgb, var(--scope-item, var(--epic-muted)) 18%, transparent);
   padding: 0.1rem 0.5rem;
   border-radius: var(--radius-xl);
   flex-shrink: 0;
@@ -5786,7 +5833,7 @@ button[data-copy-state="idle"][aria-label]:hover:not(:disabled) {
 
 .epic-brief-scope-item-desc {
   font-size: 0.74rem;
-  color: var(--text-2);
+  color: var(--epic-muted);
   margin: 0.25rem 0 0.6rem;
   line-height: 1.4;
 }
@@ -5845,7 +5892,7 @@ button[data-copy-state="idle"][aria-label]:hover:not(:disabled) {
 
 .epic-brief-out-block {
   border: 1px dashed var(--text-3);
-  border-radius: var(--radius-lg);
+  border-radius: var(--radius-9);
   padding: 0.55rem 0.75rem;
   font-size: 0.74rem;
   opacity: 0.6;
@@ -5867,7 +5914,7 @@ button[data-copy-state="idle"][aria-label]:hover:not(:disabled) {
   padding: 0.05rem 0.45rem;
   border-radius: var(--radius-xl);
   background: rgba(139, 147, 167, 0.15);
-  color: var(--text-2);
+  color: var(--epic-muted);
   margin-top: 0.35rem;
   font-weight: 600;
 }
@@ -5978,17 +6025,17 @@ button[data-copy-state="idle"][aria-label]:hover:not(:disabled) {
   font-size: 0.65rem;
   font-weight: 700;
   padding: 0.1rem 0.5rem;
-  border-radius: var(--radius-panel);
+  border-radius: var(--radius-full);
   margin-top: 0.5rem;
-  background: color-mix(in srgb, var(--ac-badge, var(--text-2)) 15%, transparent);
-  color: var(--ac-badge, var(--text-2));
+  background: color-mix(in srgb, var(--ac-badge, var(--epic-muted)) 15%, transparent);
+  color: var(--ac-badge, var(--epic-muted));
 }
 
 .epic-brief-trace-dot {
   width: 6px;
   height: 6px;
   border-radius: 50%;
-  background: var(--ac-badge, var(--text-2));
+  background: var(--ac-badge, var(--epic-muted));
   display: inline-block;
 }
 
@@ -6116,7 +6163,7 @@ button[data-copy-state="idle"][aria-label]:hover:not(:disabled) {
 }
 .updates-header h2 {
   margin: 0;
-  color: var(--text-mid);
+  color: var(--updates-muted);
   font-size: 16px;
   font-weight: 500;
 }
@@ -6131,7 +6178,7 @@ button[data-copy-state="idle"][aria-label]:hover:not(:disabled) {
   background: transparent;
   border: 1px solid transparent;
   border-radius: var(--radius-xl);
-  color: var(--text-mid);
+  color: var(--updates-muted);
   cursor: pointer;
 }
 .updates-back:hover {
@@ -6157,7 +6204,7 @@ button[data-copy-state="idle"][aria-label]:hover:not(:disabled) {
 .updates-status p,
 .updates-message {
   margin: 0;
-  color: var(--text-mid);
+  color: var(--updates-muted);
   font-size: 14px;
   line-height: 1.45;
 }
@@ -6178,11 +6225,11 @@ button[data-copy-state="idle"][aria-label]:hover:not(:disabled) {
   min-width: 0;
 }
 .updates-version span {
-  color: var(--text-mid);
+  color: var(--updates-muted);
   font-size: 12px;
 }
 .updates-version strong {
-  color: var(--text-mid);
+  color: var(--updates-muted);
   font-family: var(--font-mono);
   font-size: 18px;
   font-weight: 500;
@@ -6193,14 +6240,14 @@ button[data-copy-state="idle"][aria-label]:hover:not(:disabled) {
   text-align: right;
 }
 .updates-version-latest strong {
-  color: var(--accent);
+  color: var(--issue-dialog-accent);
 }
 .updates-version-arrow {
   flex: 0 0 20px;
   width: 20px;
   height: 20px;
   fill: none;
-  stroke: var(--text-mid);
+  stroke: var(--updates-muted);
   stroke-linecap: round;
   stroke-linejoin: round;
   stroke-width: 1.7;
@@ -6222,8 +6269,8 @@ button[data-copy-state="idle"][aria-label]:hover:not(:disabled) {
   width: 100%;
   min-height: 48px;
   padding: 0 16px;
-  background: var(--accent);
-  border: 1px solid var(--accent);
+  background: var(--issue-dialog-accent);
+  border: 1px solid var(--issue-dialog-accent);
   border-radius: var(--radius-xl);
   color: #0e1220;
   cursor: pointer;
@@ -6246,12 +6293,12 @@ button[data-copy-state="idle"][aria-label]:hover:not(:disabled) {
   gap: 8px;
   min-height: 48px;
   justify-content: center;
-  color: var(--text-mid);
+  color: var(--updates-muted);
 }
 .updates-download progress {
   width: 100%;
   height: 6px;
-  accent-color: var(--accent);
+  accent-color: var(--issue-dialog-accent);
 }
 .updates-secondary-actions {
   display: flex;
@@ -6297,7 +6344,7 @@ button[data-copy-state="idle"][aria-label]:hover:not(:disabled) {
 .updates-changelog-body {
   max-height: 55vh;
   overflow-y: auto;
-  color: var(--text-mid);
+  color: var(--updates-muted);
   line-height: 1.5;
 }
 .updates-changelog-body h4 {
@@ -6321,7 +6368,7 @@ button[data-copy-state="idle"][aria-label]:hover:not(:disabled) {
 .updates-primary:focus-visible,
 .updates-check:focus-visible,
 .updates-release-link:focus-visible {
-  outline: 2px solid var(--accent);
+  outline: 2px solid var(--issue-dialog-accent);
   outline-offset: 2px;
 }
 
@@ -6420,7 +6467,7 @@ button[data-copy-state="idle"][aria-label]:hover:not(:disabled) {
 }
 .issue-header h2 {
   margin: 0;
-  color: var(--text-mid);
+  color: var(--updates-muted);
   font-size: 16px;
   font-weight: 500;
 }
@@ -6587,7 +6634,7 @@ button[data-copy-state="idle"][aria-label]:hover:not(:disabled) {
 }
 .issue-footer-note {
   margin: 0;
-  color: var(--text-mid);
+  color: var(--updates-muted);
   font-size: 12px;
   text-align: center;
 }
@@ -6605,7 +6652,7 @@ button[data-copy-state="idle"][aria-label]:hover:not(:disabled) {
 }
 .issue-confirm-body {
   margin: 0;
-  color: var(--text-mid);
+  color: var(--updates-muted);
   font-size: 14px;
 }
 .issue-confirm-actions {
@@ -7379,7 +7426,7 @@ button[data-copy-state="idle"][aria-label]:hover:not(:disabled) {
 .question-header-gap { flex: 1; }
 
 .question-progress { display: flex; gap: 4px; }
-.question-progress-seg { width: 18px; height: 3px; border-radius: var(--radius-xs); background: var(--border); }
+.question-progress-seg { width: 18px; height: 3px; border-radius: var(--radius-2); background: var(--border); }
 .question-progress-seg--on { background: var(--question-accent); }
 
 .question-title {
@@ -7554,21 +7601,28 @@ button[data-copy-state="idle"][aria-label]:hover:not(:disabled) {
 }
 
 .aq-diagram--box { grid-area: auto; margin: 12px 0 0; min-height: 220px; }
-.aq-diagram--full { position: absolute; inset: 0; z-index: 5; margin: 0; border-radius: 0; background: var(--question-surface); }
+.aq-diagram--full { position: fixed; inset: 0; z-index: 1000; margin: 0; border-radius: 0; background: var(--question-surface); }
 
 .aq-diagram-head { display: flex; align-items: center; gap: 8px; padding: 8px 10px; font-size: 12px; color: var(--text-muted-soft); }
 .aq-diagram-head b { color: var(--text-soft); font-weight: 600; }
 .aq-diagram-tabs { display: flex; gap: 4px; flex-wrap: wrap; }
 .aq-diagram-tab { padding: 3px 8px; border: 1px solid var(--question-option-border); border-radius: var(--radius-lg); background: transparent; color: inherit; font: inherit; cursor: pointer; }
 .aq-diagram-tab[aria-selected="true"] { background: var(--question-selected-bg); border-color: var(--question-selected-border); color: var(--text-soft); }
-.aq-diagram-body { position: relative; flex: 1; min-height: 0; overflow: hidden; }
+.aq-diagram-body { position: relative; flex: 1; min-height: 0; overflow: hidden; cursor: grab; touch-action: none; user-select: none; }
+.aq-diagram-body--dragging { cursor: grabbing; }
 .aq-diagram-empty { display: grid; place-items: center; height: 100%; color: var(--text-muted-soft); font-size: 13px; }
 .aq-diagram-tools { position: absolute; right: 8px; bottom: 8px; display: flex; gap: 4px; }
 .aq-diagram-tools button { width: 28px; height: 28px; border: 1px solid var(--question-option-border); border-radius: var(--radius-lg); background: var(--question-surface); color: var(--text-soft); cursor: pointer; }
 .aq-diagram-stage { position: absolute; left: 0; top: 0; transform-origin: 0 0; }
-.aq-diagram-node { position: absolute; box-sizing: border-box; padding: 6px 8px; border: 1px solid var(--question-option-border); border-radius: var(--radius-lg); background: var(--question-surface); color: var(--text-soft); font-size: 12px; overflow: hidden; }
+.aq-diagram-node { position: absolute; box-sizing: border-box; display: flex; flex-direction: column; gap: 2px; padding: 6px 8px; border: 1px solid var(--question-option-border); border-radius: var(--radius-lg); background: var(--question-surface); color: var(--text-soft); font-size: 13px; overflow: hidden; }
+.aq-diagram-node-label { font-weight: 600; }
+.aq-diagram-node-desc { color: var(--text-muted-soft); font-size: 13px; display: -webkit-box; -webkit-line-clamp: 3; line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
 .aq-diagram-node[data-new="true"] { border: 1px dashed var(--question-new); }
-.aq-diagram-edges { position: absolute; left: 0; top: 0; pointer-events: none; overflow: visible; stroke: var(--text-muted-soft); }
+.aq-diagram-frame { position: absolute; box-sizing: border-box; border: 1px dashed var(--question-option-border); border-radius: var(--radius-2xl); pointer-events: none; }
+.aq-diagram-frame-label { position: absolute; left: 12px; top: 6px; color: var(--text-muted-soft); font-size: 13px; font-weight: 600; }
+.aq-diagram-edges { position: absolute; left: 0; top: 0; pointer-events: none; overflow: visible; stroke: var(--text-muted-soft); stroke-width: 1.5; }
+.aq-diagram-arrowhead { fill: var(--text-muted-soft); stroke: none; }
+.aq-diagram-edge-label { fill: var(--text-soft); stroke: var(--question-surface); stroke-width: 4px; paint-order: stroke; font-size: 13px; }
 
 .agent-led--asking { background: var(--question-accent); }
 .agent-led-badge { margin-left: 2px; color: var(--question-accent); font-size: 10px; font-weight: 700; }
@@ -8127,7 +8181,7 @@ button[data-copy-state="idle"][aria-label]:hover:not(:disabled) {
 .sequence-participant-kind { display: block; font-size: 0.6rem; opacity: 0.65; }
 .sequence-phase-row { font: inherit; font-size: 0.75rem; padding: 2px 8px; border-radius: var(--radius-sm); border: 1px solid rgba(160, 165, 175, 0.5); background: rgba(120, 130, 150, 0.16); color: inherit; cursor: pointer; }
 .sequence-phase-row-meta { opacity: 0.7; }
-.sequence-timeline { margin: 0; padding: 8px 8px 8px 28px; width: 220px; font-size: 0.7rem; border: 1px solid rgba(160, 165, 175, 0.4); border-radius: var(--radius-md); }
+.sequence-timeline { margin: 0; max-height: 60%; overflow-y: auto; background: var(--bg-raised, #1b1e24); padding: 8px 8px 8px 28px; width: 220px; font-size: 0.7rem; border: 1px solid rgba(160, 165, 175, 0.4); border-radius: var(--radius-md); }
 .sequence-timeline-item { cursor: pointer; padding: 1px 0; opacity: 0.75; }
 .sequence-timeline-item--here { opacity: 1; font-weight: 600; }
 .sequence-mode-btn { font: inherit; font-size: 0.65rem; padding: 1px 8px; border-radius: var(--radius-xl); border: 1px solid rgba(160, 165, 175, 0.5); background: transparent; color: inherit; cursor: pointer; }
@@ -8141,6 +8195,7 @@ button[data-copy-state="idle"][aria-label]:hover:not(:disabled) {
 [data-canvas-element] .canvas-node-box-buttons { opacity: 0; transition: opacity 0.12s; }
 [data-canvas-element]:hover .canvas-node-box-buttons,
 [data-canvas-element]:focus-within .canvas-node-box-buttons { opacity: 1; }
+@media (hover: none) { [data-canvas-element] .canvas-node-box-buttons { opacity: 1; } }
 .block-focus-dim { opacity: 0.35; transition: opacity 0.12s; }
 .block-focus-self { outline: 2px solid var(--accent, #6366f1); }
 [data-zoom="mid"] .canvas-node-box-foot .canvas-node-box-path,
@@ -8148,7 +8203,9 @@ button[data-copy-state="idle"][aria-label]:hover:not(:disabled) {
 [data-zoom="far"] .canvas-node-box-foot,
 [data-zoom="far"] [data-testid="canvas-node-box-description"],
 [data-zoom="far"] [data-testid="canvas-node-meta-row"] { display: none; }
-.canvas-focus-panel { position: absolute; z-index: 5; width: 240px; padding: 10px 12px; font-size: 0.75rem; border: 1px solid var(--control-border); border-radius: var(--radius-lg); background: var(--panel-bg, #1b1d22); }
+.canvas-focus-panel { position: absolute; left: calc(var(--chrome-inset, 12px) + var(--left-panel-width, 262px) + 12px); top: 72px; z-index: 40; width: 240px; padding: 10px 12px; font-size: 0.75rem; border: 1px solid var(--control-border); border-radius: var(--radius-lg); background: var(--panel-bg, #1b1d22); }
+/* No open left panel (only the collapsed top bar): sit at the canvas's left edge instead of a panel-wide gap. */
+.canvas-area:not(:has(.left-panel)) .canvas-focus-panel { left: var(--chrome-inset, 12px); }
 .canvas-focus-panel h4 { margin: 8px 0 4px; font-size: 0.65rem; letter-spacing: 0.08em; opacity: 0.7; }
 .canvas-focus-panel ul { margin: 0; padding-left: 16px; }
 
@@ -8159,7 +8216,7 @@ button[data-copy-state="idle"][aria-label]:hover:not(:disabled) {
 [data-zoom="mid"] .canvas-node-box-glance, [data-zoom="far"] .canvas-node-box-glance { display: none; }
 
 /* 022: corner step chip replaces the STEP text in the top band */
-.canvas-node-step-chip { position: absolute; top: -9px; left: -9px; z-index: 2; min-width: 18px; height: 18px; padding: 0 4px; border-radius: var(--radius-lg); font-size: 0.65rem; line-height: 18px; text-align: center; font-weight: 600; color: #fff; background: var(--accent, #6366f1); }
+.canvas-node-step-chip { position: absolute; top: -9px; left: -9px; z-index: 2; min-width: 18px; height: 18px; padding: 0 4px; border-radius: var(--radius-full); font-size: 0.65rem; line-height: 18px; text-align: center; font-weight: 600; color: #fff; background: var(--accent, #6366f1); }
 .canvas-node-order-badge { display: none; }
 .sequence-message--active .sequence-message-line { border-top-width: 3px; }
 .sequence-message--active .sequence-message-label { font-weight: 600; }

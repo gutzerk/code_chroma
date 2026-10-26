@@ -189,10 +189,13 @@ public sealed class CanvasDoc
 
     /// <summary>The `render` values a v1 element may carry; kept in step with web/src/canvas/doc/elementRules.ts.</summary>
     public static readonly IReadOnlyList<string> RenderKinds =
-        ["hierarchy", "c1", "pattern", "impact", "epic", "spec", "task", "custom", "group", "note", "sequence"];
+        ["hierarchy", "c1", "pattern", "impact", "epic", "spec", "task", "custom", "group", "note", "sequence", "question"];
+
+    /// <summary>Per-question option diagrams (`decisions/<question id>`): diagram layers with no file projection.</summary>
+    public const string CanvasOnlyLayerPrefix = "decisions/";
 
     /// <summary>Layers with no diagram of their own; kept in step with diagramCatalog.ts's NON_DIAGRAM_LAYERS.</summary>
-    public static readonly IReadOnlySet<string> NonDiagramLayers = new HashSet<string> { "default", "hierarchy" };
+    public static readonly IReadOnlySet<string> NonDiagramLayers = new HashSet<string> { "default", "hierarchy", "questions", "decisions" };
 
     public int Version { get; set; } = SchemaVersion;
     public string DocId { get; set; } = CanvasIds.New();
@@ -342,7 +345,7 @@ public sealed class CanvasDoc
     /// <summary>The projection file for a diagram layer; null for a non-diagram layer or one that escapes the root.</summary>
     private static string? LayerPath(string diagramsRoot, string layer)
     {
-        if (NonDiagramLayers.Contains(layer)) return null;
+        if (NonDiagramLayers.Contains(layer) || layer.StartsWith(CanvasOnlyLayerPrefix, StringComparison.Ordinal)) return null;
         var candidate = Path.GetFullPath(Path.Combine([diagramsRoot, .. layer.Split('/'), "projection.json"]));
         var root = Path.GetFullPath(diagramsRoot);
         var inside = candidate.StartsWith(root + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase);

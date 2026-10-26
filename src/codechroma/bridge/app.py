@@ -103,7 +103,6 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
         services.registry.stop_all()
         # Closing the app kills the agents on purpose: no orphan writing to files behind your back.
         services.agent_sessions.stop_all()
-        services.cancel_session_id_tasks()
         services.mark_all_agents_stopped()
         # Covers every headless runner (diagrams + review + epic-brief) this app owns.
         await services.cancel_skill_agents()
@@ -125,7 +124,7 @@ def create_app(repo_root: Path | None = None) -> FastAPI:
     app = FastAPI(lifespan=lifespan)
     app.state.services = BridgeServices.create(root)
     services = app.state.services
-    app.state.question_mcp = QuestionMcp(services.questions, services.registry.get)
+    app.state.question_mcp = QuestionMcp(services.registry.get)
 
     allowed_origins = os.environ.get(
         "codechroma_BRIDGE_CORS_ORIGINS",

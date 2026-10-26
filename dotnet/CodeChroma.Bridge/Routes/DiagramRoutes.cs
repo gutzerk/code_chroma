@@ -46,7 +46,7 @@ public static class DiagramRoutes
                 var ws = r.Get(repoId);
                 var agent = agents[k];
                 var onlyIfMissing = request.Query["only_if_missing"].ToString().Equals("true", StringComparison.OrdinalIgnoreCase);
-                if (onlyIfMissing && k == "c1" && agent.HasArtifact(ws.Root, ws.Id)) return Results.Json(agent.GetState(ws.Id), BridgeJson.Default.JobState);
+                if (onlyIfMissing && k == "c1" && agent.HasArtifact(ws.C1Root, ws.Id)) return Results.Json(agent.GetState(ws.Id), BridgeJson.Default.JobState);
                 var (onChange, onOutput) = SkillJobCallbacks.For(k, ws.Emit);
                 var gathered = DiagramContext.Types.Contains(k) ? await context.GatherAsync(ws, k, null) : null;
                 return Results.Json(await agent.Start(ws.Id, ws.Root, onChange, onOutput, options: gathered is null ? null : new RunOptions([]) { Context = gathered }), BridgeJson.Default.JobState);
@@ -98,11 +98,13 @@ public static class DiagramRoutes
         }
     }
 
-    public static JsonNode? LoadArtifact(Workspace ws, string kind)
+    public static JsonNode? LoadArtifact(Workspace ws, string kind) => LoadArtifactAt(kind == "c1" ? ws.C1Root : ws.Root, kind);
+
+    private static JsonNode? LoadArtifactAt(string root, string kind)
     {
         try
         {
-            return JsonNode.Parse(File.ReadAllText(ws.DiagramPath(kind)));
+            return JsonNode.Parse(File.ReadAllText(Workspace.DiagramPath(root, kind)));
         }
         catch (Exception error) when (error is IOException or JsonException)
         {
@@ -135,7 +137,7 @@ public static class DiagramRoutes
         return Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(Canonical(diagram)))).ToLowerInvariant()[..16];
     }
 
-    private static string Canonical(JsonNode? node) => node switch
+    internal static string Canonical(JsonNode? node) => node switch
     {
         JsonObject o => "{" + string.Join(",", o.OrderBy(kv => kv.Key, StringComparer.Ordinal).Select(kv => $"\"{kv.Key}\":{Canonical(kv.Value)}")) + "}",
         JsonArray a => "[" + string.Join(",", a.Select(Canonical)) + "]",

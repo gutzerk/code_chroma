@@ -1,6 +1,6 @@
 # 024 — Questions on the canvas: non-blocking ask, C# port, real option diagrams
 
-Status: Specification
+Status: Done
 
 Issues: #281, #283, #278. Builds on `docs/architecture/ai-questions.md`, `017-ai-questions-grill-session.md`, `020-agent-questions-in-terminal.md` and `021-question-contract-and-diagrams.md`.
 

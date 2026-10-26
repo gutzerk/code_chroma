@@ -178,10 +178,13 @@ public sealed class AgentSession : IAgentSessionPort, IDisposable
 }
 
 /// <summary>Every live agent PTY, keyed by agent id: the one place their processes are tracked.</summary>
-public sealed class AgentSessionRegistry : IDisposable
+public sealed class AgentSessionRegistry(Skills.RuntimeEnvironment? runtime = null) : IDisposable
 {
     private readonly Dictionary<string, AgentSession> _sessions = [];
     private readonly object _lock = new();
+
+    /// <summary>The login-shell environment (PATH, hooks' tools) under the caller's overrides, so an agent sees what a normal terminal does.</summary>
+    public IReadOnlyDictionary<string, string>? SpawnEnv(IReadOnlyDictionary<string, string>? env) => runtime is null ? env : runtime.SpawnEnv(env);
 
     public AgentSession? Get(string agentId)
     {
@@ -209,7 +212,7 @@ public sealed class AgentSessionRegistry : IDisposable
             if (!Directory.Exists(cwd)) throw new AgentStartException($"the agent's worktree is missing: {cwd}");
             try
             {
-                var session = new AgentSession(agentId, new PtyLaunch([executable, .. argv.Skip(1)], cwd, env), kind, banner);
+                var session = new AgentSession(agentId, new PtyLaunch([executable, .. argv.Skip(1)], cwd, SpawnEnv(env)), kind, banner);
                 _sessions[agentId] = session;
                 return session;
             }

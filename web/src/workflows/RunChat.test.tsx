@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { MockBridgeEngineClient } from "../engine-client/mockBridge";
 import { EngineClientProvider } from "../engine-client/EngineClientContext";
 import { WorkflowsTab } from "./WorkflowsTab";
@@ -36,28 +36,16 @@ describe("RunChat", () => {
     vi.useRealTimers();
   });
 
-  it("routes @slug to only that step", async () => {
+  it("sends every message to the run agent and offers no step picker", async () => {
     const client = setup();
     await startRun(client);
     const spy = vi.spyOn(client, "sendRunMessage");
 
     say("@implement hello");
 
-    await waitFor(() => expect(spy).toHaveBeenCalledWith("run1", "s2", "hello"));
+    await waitFor(() => expect(spy).toHaveBeenCalledWith("run1", "run", "@implement hello"));
     expect(spy).toHaveBeenCalledTimes(1);
-    const messages = client.workflowEngine.getRun("run1").messages ?? [];
-    expect(messages.length).toBeGreaterThan(0);
-    expect(messages.every((m) => m.target === "s2")).toBe(true);
-  });
-
-  it("offers an @ picker and inserts the chosen slug", async () => {
-    const client = setup();
-    await startRun(client);
-
-    fireEvent.change(screen.getByTestId("chat-input"), { target: { value: "ask @impl" } });
-    fireEvent.click(within(screen.getByTestId("chat-picker")).getByRole("button", { name: "@implement" }));
-
-    expect(screen.getByTestId("chat-input")).toHaveValue("ask @implement ");
+    expect(screen.queryByTestId("chat-picker")).toBeNull();
   });
 
   it("asking while running does not change run or step state", async () => {
@@ -103,7 +91,7 @@ describe("RunChat", () => {
     document.body.appendChild(node);
     fireEvent.click(screen.getByRole("button", { name: "Pause" }));
     await waitFor(() => expect(screen.getByTestId("chat-system")).toHaveTextContent("Run paused"));
-    say("@implement where?");
+    say("where?");
 
     fireEvent.click(await screen.findByRole("button", { name: "Show hello() on canvas" }));
 

@@ -692,7 +692,7 @@ public sealed class WorkflowRunnerTests : IDisposable
     private static string Args(JsonObject invocation) => invocation["args"]!.ToJsonString();
 
     [Fact]
-    public async Task A_message_reaches_only_its_target_agent_and_never_changes_the_run()
+    public async Task A_run_message_reaches_the_run_agent_and_never_changes_the_run()
     {
         Define(("implement", "agent"), ("hello", "agent"));
         var release = Path.Combine(_cli.Directory, "release");
@@ -701,30 +701,42 @@ public sealed class WorkflowRunnerTests : IDisposable
         var started = await runner.Start("wf");
         await Until(() => _cli.Invocations().Count == 1, "step launch");
 
-        var stepReply = await runner.Message(started.Id, "@hello", "what will you do?");
-        var afterStep = _cli.Invocations();
         var runReply = await runner.Message(started.Id, "run", "how is it going?");
         var afterRun = _cli.Invocations();
         var during = runner.Get(started.Id);
         File.WriteAllText(release, "go");
         await UntilState(runner, started.Id, "done");
 
-        Assert.Contains("the answer", stepReply.Reply);
         Assert.Contains("the answer", runReply.Reply);
-        Assert.Equal(2, afterStep.Count);
-        Assert.Contains("Your task was: do hello", Args(afterStep[1]));
-        Assert.DoesNotContain("--mcp-config", Args(afterStep[1]));
-        Assert.Contains("--strict-mcp-config", Args(afterStep[1]));
-        Assert.DoesNotContain("run agent", Args(afterStep[1]));
-        Assert.Equal(3, afterRun.Count);
-        Assert.Contains("run agent", Args(afterRun[2]));
-        Assert.Contains("--mcp-config", Args(afterRun[2]));
-        Assert.DoesNotContain("do hello", Args(afterRun[2]));
+        Assert.Equal(2, afterRun.Count);
+        Assert.Contains("run agent", Args(afterRun[1]));
+        Assert.Contains("--mcp-config", Args(afterRun[1]));
         Assert.Equal("running", during.State);
         Assert.Equal("running", Step(during, "implement").Status);
-        Assert.Equal(["user", "agent", "user", "agent"], during.Messages.Select(m => m.Role));
-        Assert.Equal(["hello", "hello", "run", "run"], during.Messages.Select(m => m.Target));
+        Assert.Equal(["user", "agent"], during.Messages.Select(m => m.Role));
+        Assert.Equal(["run", "run"], during.Messages.Select(m => m.Target));
         Assert.Contains("run.message", _events);
+    }
+
+    [Fact]
+    public async Task A_message_to_a_step_is_refused_because_steps_are_talked_to_in_their_terminal()
+    {
+        Define(("implement", "agent"), ("hello", "agent"));
+        var release = Path.Combine(_cli.Directory, "release");
+        _cli.ScriptRuns([BlockUntilFile(release), ResultEvent(), Exit(0)], [Stdout(Say("ok")), ResultEvent(), Exit(0)]);
+        var runner = Runner();
+        var started = await runner.Start("wf");
+        await Until(() => _cli.Invocations().Count == 1, "step launch");
+
+        var error = await Assert.ThrowsAsync<BridgeException>(() => runner.Message(started.Id, "@hello", "what will you do?"));
+        var after = runner.Get(started.Id);
+        var launches = _cli.Invocations().Count;
+        File.WriteAllText(release, "go");
+        await UntilState(runner, started.Id, "done");
+
+        Assert.Equal(409, error.Status);
+        Assert.Equal(1, launches);
+        Assert.Empty(after.Messages);
     }
 
     [Fact]

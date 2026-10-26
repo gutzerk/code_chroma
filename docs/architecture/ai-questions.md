@@ -102,7 +102,7 @@ terminal). `hasDiagram` is "any option has one" (not just the selected one) so t
 without a diagram shows "No diagram for this option". The terminal div keeps one tree position across layouts, so a
 switch never remounts xterm. A new question does not steal focus; Ctrl+Enter in the terminal focuses the card.
 `QuestionDiagram.tsx` renders `diagram_ref` and its children (group members + arrow targets, max 40) as a
-read-only scaled view with option tabs, zoom and a full-screen overlay (Esc closes); it is a light renderer, not
+read-only scaled view with option tabs, drag-to-pan, wheel/button zoom and a full-screen overlay (Esc closes); the fit scale is floored at 0.6 so labels stay readable (a larger diagram is panned, not shrunk), nodes show label + description and arrows connect node boundaries so their heads remain visible, and show labels; it is a light renderer, not
 `CanvasNodeBox`, which is interactive. Attention: `AgentLed` takes `agentId` and turns accent-coloured with a "?" badge
 while that agent has an open question, and the Agents tab shows a "N questions" pill (`useOpenQuestionCount`).
 The highlighted option is owned by the host (`resolveSelection` in `questionAdapter.ts` falls back to the recommended option when the pick no longer exists, e.g. after a re-ask) and passed to `QuestionCard` as the controlled `selectedId`, so the diagram tabs and Send always agree; `QuestionCard` owns it only when used standalone (`QuestionElement`). `CanvasFocusContext` is provided at `RootCanvas` root so "Open on canvas" works from the agents panel. `devAskQuestion.ts` (mock bridge, opt-in via `VITE_DEV_ASK_QUESTION=1`, dynamically imported) asks a demo question when Enter is pressed in an agent terminal.

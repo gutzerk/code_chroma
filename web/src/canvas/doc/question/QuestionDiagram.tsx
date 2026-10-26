@@ -1,7 +1,8 @@
-import { useEffect, useLayoutEffect, useMemo, useId, useState } from "react";
+import { useEffect, useLayoutEffect, useMemo, useState } from "react";
 import { createPortal } from "react-dom";
 import type { CanvasDoc, CanvasElement } from "../../../state/types";
 import { useCanvasDiagramFocus } from "../../CanvasFocusContext";
+import { ArrowMarkerDefs } from "../../connectors/ArrowMarkerDefs";
 import { elementRect } from "../elementRect";
 import type { QuestionOption } from "./questionAdapter";
 import { QUESTION_STRINGS as S } from "./questionStrings";
@@ -12,6 +13,7 @@ const PAD = 24;
 const MIN_FIT = 0.7;
 const MAX_FIT = 1.5;
 const ZOOM_STEP = 1.25;
+const ARROW_MARKERS = [{ id: "aq-arrow", className: "aq-diagram-arrowhead" }] as const;
 
 /** The element an option points at plus its children: members of its group and everything reachable along its arrows. */
 export function diagramSubgraph(doc: CanvasDoc, rootId: string): CanvasElement[] {
@@ -49,7 +51,6 @@ export function QuestionDiagram({ doc, options, selectedId, onSelect, variant }:
   const focusDiagram = useCanvasDiagramFocus();
   const [full, setFull] = useState(false);
   const [bodyEl, setBodyEl] = useState<HTMLDivElement | null>(null);
-  const markerId = `aq-arrow-${useId().replace(/:/g, "")}`;
   const [bodySize, setBodySize] = useState({ w: 0, h: 0 });
 
   const selectedIndex = options.findIndex((o) => o.id === selectedId);
@@ -103,8 +104,63 @@ export function QuestionDiagram({ doc, options, selectedId, onSelect, variant }:
     return () => window.removeEventListener("keydown", onKey);
   }, [full]);
 
-  const byId = new Map(nodes.map((el) => [el.id, el]));
-  const edges = Object.values(doc.edges).filter((e) => byId.has(e.from) && byId.has(e.to));
+  const byId = useMemo(() => new Map(nodes.map((el) => [el.id, el])), [nodes]);
+  const edgeLayer = useMemo(() => {
+    if (!layout) return null;
+    const boundary = (el: CanvasElement, toward: CanvasElement) => {
+      const r = elementRect(el);
+      const target = elementRect(toward);
+      const cx = r.left + r.width / 2;
+      const cy = r.top + r.height / 2;
+      const dx = target.left + target.width / 2 - cx;
+      const dy = target.top + target.height / 2 - cy;
+      // Intersect the center-to-center ray with this node's rectangular boundary so arrowheads sit outside the node.
+      const ratio = Math.max(Math.abs(dx) / r.width, Math.abs(dy) / r.height);
+      const t = ratio > 0 ? 0.5 / ratio : 0;
+      return { x: cx + dx * t - layout.left, y: cy + dy * t - layout.top };
+    };
+    const edges = Object.values(doc.edges).filter((e) => byId.has(e.from) && byId.has(e.to));
+    return (
+      <svg className="aq-diagram-edges" width={layout.width} height={layout.height}>
+        <ArrowMarkerDefs markers={ARROW_MARKERS} />
+        {edges.map((e) => {
+          const p1 = boundary(byId.get(e.from) as CanvasElement, byId.get(e.to) as CanvasElement);
+          const p2 = boundary(byId.get(e.to) as CanvasElement, byId.get(e.from) as CanvasElement);
+          return (
+            <g key={e.id}>
+              <line x1={p1.x} y1={p1.y} x2={p2.x} y2={p2.y} markerEnd="url(#aq-arrow)" />
+              {e.label && (
+                <text className="aq-diagram-edge-label" x={(p1.x + p2.x) / 2} y={(p1.y + p2.y) / 2} textAnchor="middle" dominantBaseline="middle">
+                  {e.label}
+                </text>
+              )}
+            </g>
+          );
+        })}
+      </svg>
+    );
+  }, [layout, byId, doc.edges]);
+  const nodeLayer = useMemo(() => {
+    if (!layout) return null;
+    return layout.rects
+      .filter(({ el }) => !(rootIsFrame && el.id === root?.id))
+      .map(({ el, rect }) => (
+        <div
+          key={el.id}
+          className="aq-diagram-node"
+          data-testid="question-diagram-node"
+          data-new={el.meta.status === "new" || undefined}
+          style={{ left: rect.left - layout.left, top: rect.top - layout.top, width: rect.width, height: rect.height }}
+        >
+          <span className="aq-diagram-node-label">{el.label}</span>
+          {el.description && (
+            <span className="aq-diagram-node-desc" title={el.description}>
+              {el.description}
+            </span>
+          )}
+        </div>
+      ));
+  }, [layout, rootIsFrame, root]);
   const frameRect = root && rootIsFrame && layout ? elementRect(root) : null;
   const openOnCanvas = root ? (
     <button
@@ -156,7 +212,7 @@ export function QuestionDiagram({ doc, options, selectedId, onSelect, variant }:
           </>
         )}
       </div>
-      <div className={`aq-diagram-body${dragging ? " aq-diagram-body--dragging" : ""}`} ref={setBodyEl} {...(layout ? bind : {})}>
+      <div className={`aq-diagram-body${dragging ? " aq-diagram-body--dragging" : ""}`} ref={setBodyEl} data-testid="question-diagram-body" {...(layout ? bind : {})}>
         {layout ? (
           <div
             className="aq-diagram-stage"
@@ -176,49 +232,8 @@ export function QuestionDiagram({ doc, options, selectedId, onSelect, variant }:
                 <span className="aq-diagram-frame-label">{root.label}</span>
               </div>
             )}
-            <svg className="aq-diagram-edges" width={layout.width} height={layout.height}>
-              <defs>
-                <marker id={markerId} viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse">
-                  <path d="M0,0 L10,5 L0,10 z" className="aq-diagram-arrow" />
-                </marker>
-              </defs>
-              {edges.map((e) => {
-                const a = elementRect(byId.get(e.from) as CanvasElement);
-                const b = elementRect(byId.get(e.to) as CanvasElement);
-                const x1 = a.left + a.width / 2 - layout.left;
-                const y1 = a.top + a.height / 2 - layout.top;
-                const x2 = b.left + b.width / 2 - layout.left;
-                const y2 = b.top + b.height / 2 - layout.top;
-                return (
-                  <g key={e.id}>
-                    <line x1={x1} y1={y1} x2={x2} y2={y2} markerEnd={`url(#${markerId})`} />
-                    {e.label && (
-                      <text className="aq-diagram-edge-label" x={(x1 + x2) / 2} y={(y1 + y2) / 2} textAnchor="middle" dominantBaseline="middle">
-                        {e.label}
-                      </text>
-                    )}
-                  </g>
-                );
-              })}
-            </svg>
-            {layout.rects
-              .filter(({ el }) => !(rootIsFrame && el.id === root?.id))
-              .map(({ el, rect }) => (
-                <div
-                  key={el.id}
-                  className="aq-diagram-node"
-                  data-testid="question-diagram-node"
-                  data-new={el.meta.status === "new" || undefined}
-                  style={{ left: rect.left - layout.left, top: rect.top - layout.top, width: rect.width, height: rect.height }}
-                >
-                  <span className="aq-diagram-node-label">{el.label}</span>
-                  {el.description && (
-                    <span className="aq-diagram-node-desc" title={el.description}>
-                      {el.description}
-                    </span>
-                  )}
-                </div>
-              ))}
+            {edgeLayer}
+            {nodeLayer}
           </div>
         ) : (
           <div className="aq-diagram-empty">{S.noDiagram}</div>

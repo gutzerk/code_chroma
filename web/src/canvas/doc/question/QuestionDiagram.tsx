@@ -120,9 +120,17 @@ export function QuestionDiagram({ doc, options, selectedId, onSelect, variant }:
   const stageContent = useMemo(() => {
     if (!layout) return null;
     const byId = new Map(nodes.map((el) => [el.id, el]));
-    const center = (el: CanvasElement) => {
+    const boundary = (el: CanvasElement, toward: CanvasElement) => {
       const r = elementRect(el);
-      return { x: r.left + r.width / 2 - layout.left, y: r.top + r.height / 2 - layout.top };
+      const target = elementRect(toward);
+      const cx = r.left + r.width / 2;
+      const cy = r.top + r.height / 2;
+      const dx = target.left + target.width / 2 - cx;
+      const dy = target.top + target.height / 2 - cy;
+      // Intersect the center-to-center ray with this node's rectangular boundary.
+      const ratio = Math.max(Math.abs(dx) / r.width, Math.abs(dy) / r.height);
+      const t = ratio > 0 ? 0.5 / ratio : 0;
+      return { x: cx + dx * t - layout.left, y: cy + dy * t - layout.top };
     };
     const edges = Object.values(doc.edges).filter((e) => byId.has(e.from) && byId.has(e.to));
     return (
@@ -130,8 +138,10 @@ export function QuestionDiagram({ doc, options, selectedId, onSelect, variant }:
         <svg className="aq-diagram-edges" width={layout.width} height={layout.height}>
           <ArrowMarkerDefs markers={ARROW_MARKERS} />
           {edges.map((e) => {
-            const p1 = center(byId.get(e.from) as CanvasElement);
-            const p2 = center(byId.get(e.to) as CanvasElement);
+            const from = byId.get(e.from) as CanvasElement;
+            const to = byId.get(e.to) as CanvasElement;
+            const p1 = boundary(from, to);
+            const p2 = boundary(to, from);
             return (
               <g key={e.id}>
                 <line x1={p1.x} y1={p1.y} x2={p2.x} y2={p2.y} markerEnd="url(#aq-arrow)" />

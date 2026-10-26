@@ -23,7 +23,7 @@ from codechroma.bridge.routes.diagrams import (
     get_diagram_context,
     resolve_diagram,
 )
-from codechroma.diagrams import library
+from codechroma.diagrams import kinds, library
 from codechroma.diagrams.styles import STYLES
 
 router = APIRouter()
@@ -59,6 +59,12 @@ def _style_summaries() -> list[dict]:
 def get_diagram_styles() -> dict:
     """The render-style registry a saved definition's `style` field picks from."""
     return {"styles": _style_summaries()}
+
+
+@router.get("/diagram-kinds")
+def get_diagram_kinds() -> dict:
+    """The built-in kinds the Draw dialog lists (kinds.json, shared with the C# bridge)."""
+    return {"kinds": kinds.list_kinds()}
 
 
 @router.get("/diagram-types")

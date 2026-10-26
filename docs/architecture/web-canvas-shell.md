@@ -487,7 +487,18 @@ per-view status colors (`--added`, `--trace`, `--c1`, `--patterns`; `--plan` is 
 C1 person-actor box and the multi-select outline, so don't read the name as still meaning "plan"),
 the icon-control
 gray trio (`--control-*`), radius, shadow, and type steps. Rules reference `var(--token)` instead
-of literal hex, so one edit re-themes the whole app.
+of literal hex, so one edit re-themes the whole app. Radii in CSS go through `--radius-xs…2xl/full`
+(3/4/6/8/10/12px/999px), muted greys through `--text-2`/`--text-mid`/`--text-strong`, error reds
+through `--error` (text/delete) and `--stop` (stopped run), and blues through `--accent`; spacing
+has no token scale yet. Don't
+add new hex or `border-radius: Npx` literals in CSS files. Every `font-family`/`font` shorthand in CSS
+uses `var(--font-ui)` or `var(--font-mono)` (DM Sans / JetBrains Mono, the two faces `index.html`
+loads); the old IBM Plex and bare `monospace` stacks are gone. `workflows.css` and
+`WorkflowEditorDialog.css` read the `--wf-*` palette (defined on `:root` in `workflows.css`, with
+`--wf-ok` aliasing `--success`), and `LeftPanel.css` reads the global tokens; remaining hex there are
+one-off tinted fills. `web/.stylelintrc.cjs` (run by `npm run lint` / `npm run lint:css`) makes a
+raw `font-family`, `font` shorthand with a literal family, or `border-radius` (any longhand) with a px/rem value a lint error (the intentional `.node-shape-*` shapes carry a `stylelint-disable-line`) and a hex color a warning; the `:root` token
+blocks in `styles.css` and `workflows.css` are wrapped in `stylelint-disable color-no-hex`.
 
 A literal "floating rounded cards on dark ground" palette (`--bg-ground`, `--bg-panel`,
 `--bg-canvas`, `--bg-raised`, `--bg-raised-2`, `--bg-inset`, `--text-soft`, `--text-muted-soft`,
@@ -529,7 +540,7 @@ right gap; the left-edge resize grip exists only in `normal` (dragging it past 7
 `layoutMetrics.ts` holds the `Z_*` z-index tokens (left panel 2, terminal 2, agents 3, handles 4,
 collapsed left bar 4, code 5, popover 6) and the pure `chromeInsets({leftOpen, agentsMode})`:
 terminal/dock left (`LEFT_PANEL_CLEARANCE` = inset 12 + panel 262 + gap 12 when open, else 12), terminal
-right (`AGENTS_NORMAL_INSET` 424 / `AGENTS_COLLAPSED_INSET` 68), arrange origin, Draw popover position;
+right (`AGENTS_NORMAL_INSET` 424 / `AGENTS_COLLAPSED_INSET` 68), arrange origin;
 every number is a named constant, and `LAYOUT_CSS_VARS` (`--chrome-inset`, `--left-panel-width`) is set
 once on `.canvas-area` so `LeftPanel.css` and the dock margin use the same values. Only `RootCanvas` publishes the left value, as the row-level CSS variable
 `--agent-dock-left` (the dock and code sidebar read it; `terminalRight` is used by `ArrangeSection`).
@@ -540,10 +551,9 @@ once on `.canvas-area` so `LeftPanel.css` and the dock margin use the same value
 expand button, folder and color boxes all go through `layoutStore`/`collapsedLayersStore`.
 
 - `LeftPanel`: Diagrams tab (rows with checkbox -> `diagramSelectionStore`, color swatch, eye ->
-  `collapsedLayersStore`, delete; `Draw...` opens `DrawDiagramPopover`, whose open state `RootCanvas`
-  owns; `ArrangeSection` reads the `.canvas-stage` size through a `getViewport` callback at apply
+  `collapsedLayersStore`, delete; `Draw...` launches a bare drawing agent directly (no type popover); the agent window's terminal itself asks what to draw (the bridge prints the question), so the agent never greets; `ArrangeSection` reads the `.canvas-stage` size through a `getViewport` callback at apply
   time) and Files tab (the tree). `LeftPanel` and `CollapsedLeftBar` share `leftpanel/useDiagramRows.ts`
-  (`{layer,name,hidden,toggleLabel,toggle}[]`). `DrawDiagramButton` takes only `onOpen`; diagram
+  (`{layer,name,hidden,toggleLabel,toggle}[]`). `DrawDiagramButton` takes no props; diagram
   auto-add is `canvas/doc/useDiagramReadinessWatcher.ts`, called once from `RootCanvas` so it keeps
   running while the panel is collapsed.
 - `CollapsedLeftBar`: expand button, Files folder, one 34x34 swatch box per diagram (dashed when
@@ -570,3 +580,25 @@ expand button, folder and color boxes all go through `layoutStore`/`collapsedLay
 - `web/src/canvas-style/` (settings "Canvas style": background colour and None/Dots/Lines texture, persisted in the bridge's machine-wide `~/.codechroma/canvas-style.json`, cached in `localStorage` `codechroma.canvasStyle`) is independent of the layout store; `CanvasViewport` paints a saved style via `--canvas-bg`/`--canvas-texture-image` and `gridStepFor` (see [`assistant-settings.md`](assistant-settings.md)). `CanvasViewport` also accepts optional `insets`, `panBy` and `fitToBounds` (unused by the current `RootCanvas`, covered by `CanvasViewportInsets.test.tsx`).
 - `canvas/useOpenFilesLiveRefresh.ts` (called by `RootCanvas`) re-reads every open file's node after each live ping via `openFilesStore.replace`, so the code sidebar follows edits on disk.
 - `canvas/doc/diagramDisplay.ts` supplies `diagramDisplayName`/`diagramAccent`; `DiagramFrame` shows the `TYPE · n BOXES` meta line and `diagramFrameColorClass` delegates to it.
+
+## Share / export menu
+
+- `web/src/share/ShareMenu.tsx` (top bar, right of `GamesMenu`; same `useDisclosureMenu` dropdown shape) lists PNG / HTML / PDF. Picking one calls `captureCanvas.ts` (`prepareCapture`: the whole `canvas-content`, framed by `contentBounds` and rendered with `html-to-image` using a translate-only transform, so pan/zoom never matter), `exportFormats.ts` (`buildExport`: PNG blob; HTML = standalone page embedding an SVG snapshot; PDF = one `jspdf` page sized to the PNG), then `saveFile.ts`.
+- `saveFile` asks where to save: `window.codechromaDesktop.saveFile` (native Save As, see [`desktop-app.md`](desktop-app.md)) in the shell, else `showSaveFilePicker`, else an `<a download>` fallback. A cancelled dialog is silent; failures show a `role="alert"` note under the button.
+
+## Sequence modes (022)
+
+See "Sequence readability" in [`diagram-skills.md`](diagram-skills.md): `SequenceDiagram.tsx` dispatches to `SequenceReadable`/`SequenceFocus` from `sequenceViewStore`; the mode switch is in `DiagramFrame.tsx`.
+
+## Block anatomy, zoom levels, lanes, click-to-focus (022 Stage 2)
+
+- **Box foot:** `CanvasNodeBox.tsx` shows `meta.path` (now folded into node meta by both `recipes.py` and `Recipes.cs`) with a `SRC ↗` button that opens the Inspector, plus a role chip from `meta.kind` in `NodeMetaRow`. The `CONCEPTUAL` chip is gone (the ghost styling stays); copy and `?` show only on hover.
+- **Zoom levels:** `layout/layoutMetrics.ts`'s `zoomLevelFor` (`ZOOM_MID_SCALE` 0.6, `ZOOM_FAR_SCALE` 0.3) sets `data-zoom` on `.canvas-content`; CSS drops description/path at `mid` and everything but the title at `far`.
+- **Lanes:** `connectors/elkLayout.ts` lays out RIGHT with one ELK partition per `lane` (first-seen order) when any box has a lane; no lanes keeps the DOWN layout.
+- **Click-to-focus:** `doc/focusStore.ts` + `focusNeighbors.ts` (note: the `highlighting/` folder is syntax highlighting, so this is a small store of its own). A box click lights the box and its direct neighbours, fades the rest (`block-focus-dim`, 35%), and `FocusPanel.tsx` lists CALLED BY / USES with Both / Upstream / Downstream.
+
+**022 follow-ups:** `doc/bundleEdges.ts` merges parallel edges into one `label ×N` before routing (`CanvasEdges.tsx`); a corner `canvas-node-step-chip` shows `meta.order`'s leading digits (the old `STEP n` text is hidden); the sequence ▶ player (`sequenceViewStore.setStep`, button in `DiagramFrame.tsx`) lights one `order` at a time and fades later messages. Group frames already existed (`GroupFrame.tsx`). `e2e/sequence-modes.spec.ts` covers the Readable ↔ Focus flip and the player. Note: the frame label ignores pointer events, so interactive controls in it need `pointer-events: auto` (`.canvas-diagram-frame-modes`).
+
+## Draw dialog (025)
+
+`DrawDiagramButton` opens `drawDialog/DrawDialog.tsx`, mounted by `RootCanvas` inside `.canvas-stage` so the rail and Agents panel stay visible. `drawDialogStore` holds open/last-used card/draft (the draft survives close until drawn); `useDiagramKinds` loads the cards each time it opens; `schematics.tsx` has the static SVG per card id. Esc, Cancel, ×, or a scrim click close it; Tab is trapped; focus returns to the button. Enter in the prompt (Shift+Enter is a new line) or Enter on a card draws; arrow keys move the selection. There is deliberately no scope switch: the user writes scope ("current change only", "just the bridge") in the prompt. A launch error shows inline in the footer; at agent capacity the button is disabled with the limit as its tooltip. The tutorial still opens its scripted mock agent instead.

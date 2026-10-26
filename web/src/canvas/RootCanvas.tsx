@@ -3,6 +3,7 @@ import { ROOT_NODE_ID, type HierarchyNodeRef, type LayoutKind } from "../state/t
 import { reportAsyncError } from "../util/reportError";
 import { UndoManager } from "./UndoManager";
 import { LeftPanelToggle } from "./LeftPanelToggle";
+import { DrawDialog } from "./doc/drawDialog/DrawDialog";
 import { useEngineClient } from "../engine-client/EngineClientContext";
 import { ConnectionsOverlay } from "./ConnectionsOverlay";
 import { ChangeConnectionsOverlay } from "./ChangeConnectionsOverlay";
@@ -23,6 +24,7 @@ import { DescriptionPopup } from "./doc/DescriptionPopup";
 import { useOpenFilesLiveRefresh } from "./useOpenFilesLiveRefresh";
 import { useDiagramReadinessWatcher } from "./doc/useDiagramReadinessWatcher";
 import { GamesMenu } from "../games/GamesMenu";
+import { ShareMenu } from "../share/ShareMenu";
 import { useHasCanvasLayer } from "./doc/canvasDocStore";
 import { CodePopupContext } from "./CodePopupContext";
 import { CodePopup } from "./CodePopup";
@@ -31,7 +33,6 @@ import { inspectorStore, useIsInspectorOpen } from "./inspectorStore";
 import { LeftPanel } from "./leftpanel/LeftPanel";
 import { CollapsedLeftBar } from "./leftpanel/CollapsedLeftBar";
 import { ArrangeSection } from "./leftpanel/ArrangeSection";
-import { DrawDiagramPopover } from "./leftpanel/DrawDiagramPopover";
 import { chromeInsets, LAYOUT_CSS_VARS } from "./layout/layoutMetrics";
 import { useLayoutState } from "./layout/layoutStore";
 import { CodeSidebar } from "./CodeSidebar";
@@ -101,7 +102,6 @@ export function RootCanvas() {
   const [codePopupNode, setCodePopupNode] = useState<HierarchyNodeRef | null>(null);
   const { agentsMode, leftOpen, leftTab } = useLayoutState();
   const { terminalLeft } = chromeInsets({ leftOpen, agentsMode });
-  const [drawOpen, setDrawOpen] = useState(false);
   const stageRef = useRef<HTMLDivElement | null>(null);
   const breadcrumbPath = useDeepestExpandedPath();
   const expandedNodeIds = useExpandedNodeIdsByOrder();
@@ -470,6 +470,7 @@ export function RootCanvas() {
         <div className="canvas-chrome-spacer" />
         <ReportIssueRailButton />
         <GamesMenu />
+        <ShareMenu name={rootNode?.name} />
         <div className="canvas-chrome-separator" />
         <PrRailButton />
         <SettingsRailButton />
@@ -555,6 +556,7 @@ export function RootCanvas() {
               <WikiGeneralNotice />
               {isDiffActive && <DeletedDiffOverlay />}
               {isTraceActive && <TraceControls />}
+              <DrawDialog />
             </div>
             <ActivityPanel disabled={isAtAgentCapacity || isLaunchingAgent} onRunAgent={() => {
               if (tutorialStore.isActive()) tutorialSimStore.startAgent2();
@@ -569,13 +571,11 @@ export function RootCanvas() {
             <LeftPanel
               rootNode={rootNode}
               onActivate={navigateTreeTo}
-              onDraw={() => setDrawOpen(true)}
               arrange={<ArrangeSection getViewport={getStageViewport} />}
             />
           ) : (
             agentsMode !== "full" && <CollapsedLeftBar />
           )}
-          {drawOpen && <DrawDiagramPopover onClose={() => setDrawOpen(false)} />}
         </div>
         {inspectorMounted && <InspectorPanel hidden={!isInspectorOpen} />}
         <EpicBriefPanel />

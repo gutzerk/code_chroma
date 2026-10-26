@@ -1,0 +1,224 @@
+.draw-scrim {
+  position: absolute;
+  inset: 0;
+  z-index: 60;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+  background: rgba(8, 8, 9, 0.6);
+}
+
+.draw-dialog {
+  --draw-accent: #5ee0a0;
+  --draw-accent-fill: #15281f;
+  width: min(920px, 100%);
+  max-height: 100%;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  padding: 24px;
+  box-sizing: border-box;
+  border-radius: 16px;
+  background: var(--surface-3, #202226);
+  border: 1px solid var(--border, #33363c);
+  box-shadow: 0 24px 64px rgba(0, 0, 0, 0.55);
+  color: var(--text-1);
+}
+
+.draw-dialog-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 16px;
+}
+
+.draw-dialog-eyebrow {
+  font-family: ui-monospace, "JetBrains Mono", monospace;
+  font-size: 12px;
+  letter-spacing: 0.1em;
+  color: var(--draw-accent);
+}
+
+.draw-dialog h2 {
+  margin: 6px 0;
+  font-size: 22px;
+  font-weight: 700;
+}
+
+.draw-dialog p {
+  margin: 0;
+  font-size: 13px;
+  color: var(--text-2);
+}
+
+.draw-dialog-close {
+  width: 36px;
+  height: 36px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--text-2);
+  font-size: 22px;
+  cursor: pointer;
+}
+
+.draw-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.draw-card {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 10px;
+  border-radius: 12px;
+  border: 1.5px solid var(--border, #3a3e45);
+  background: var(--surface-2);
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.draw-card:hover {
+  background: var(--surface-3);
+}
+
+.draw-card--on {
+  border-color: var(--draw-accent);
+  background: var(--draw-accent-fill);
+  box-shadow: 0 0 0 3px rgba(94, 224, 160, 0.16);
+}
+
+.draw-card-art {
+  height: 76px;
+  border-radius: 8px;
+  background: var(--surface-0);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #7c8188;
+}
+
+.draw-card-name {
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.draw-card-purpose {
+  font-size: 12px;
+  line-height: 1.4;
+  color: var(--text-2);
+}
+
+.draw-prompt {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.draw-prompt label {
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.draw-prompt-kind {
+  font-family: ui-monospace, "JetBrains Mono", monospace;
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  color: var(--draw-accent);
+}
+
+.draw-prompt textarea {
+  width: 100%;
+  box-sizing: border-box;
+  resize: none;
+  padding: 12px 14px;
+  border-radius: 10px;
+  border: 1px solid var(--border, #3a3e45);
+  background: var(--surface-1);
+  color: var(--text-1);
+  font: inherit;
+  font-size: 14px;
+  line-height: 1.45;
+}
+
+.draw-prompt textarea:focus {
+  outline: none;
+  border-color: var(--draw-accent);
+  box-shadow: 0 0 0 3px rgba(94, 224, 160, 0.18);
+}
+
+.draw-dialog-foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding-top: 16px;
+  border-top: 1px solid var(--border, #33363c);
+}
+
+.draw-dialog-hint {
+  font-size: 12px;
+  color: var(--text-2);
+}
+
+.draw-dialog-hint kbd {
+  font-family: ui-monospace, monospace;
+  font-size: 11px;
+  border: 1px solid var(--border, #3a3e45);
+  border-radius: 4px;
+  padding: 1px 6px;
+}
+
+.draw-dialog-error {
+  flex: 1;
+  font-size: 12px;
+  color: #f87171;
+}
+
+.draw-dialog-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.draw-btn {
+  height: 40px;
+  padding: 0 16px;
+  border-radius: 10px;
+  border: 1px solid var(--border, #3a3e45);
+  background: transparent;
+  color: var(--text-1);
+  font: inherit;
+  font-size: 14px;
+  cursor: pointer;
+}
+
+.draw-btn--primary {
+  border: 0;
+  background: var(--draw-accent);
+  color: #0f1a14;
+  font-weight: 600;
+}
+
+.draw-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.draw-card:focus-visible,
+.draw-btn:focus-visible,
+.draw-dialog-close:focus-visible {
+  outline: 2px solid var(--draw-accent);
+  outline-offset: 2px;
+}
+
+@media (max-width: 760px) {
+  .draw-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}

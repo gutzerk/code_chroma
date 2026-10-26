@@ -79,9 +79,11 @@ public static class AgentRoutes
                 await connections.Broadcast(new JsonObject { ["type"] = "agent-added", ["agent"] = forkedPayload.DeepClone() });
                 return Reply.Json(forkedPayload);
             }
-            var diagramType = contextKind == "task" && Json.Str(body["diagram_type"]) is { } hinted && (hinted == DiagramContext.AnyType || DiagramContext.Types.Contains(hinted)) ? hinted : null;
+            var hint = DiagramHint.Parse(body);
+            if (hint.Error is not null) return Reply.Error(400, hint.Error);
+            var drawing = contextKind == "task" && hint.Type is not null;
             AgentRecord record;
-            try { record = await Task.Run(() => agents.Create(title, kind, attachTo, context, contextKind, diagramType)); }
+            try { record = await Task.Run(() => agents.Create(title, kind, attachTo, context, contextKind, drawing ? hint.Type : null, drawing ? hint.Request : null)); }
             catch (UnknownAgentException) { return Reply.Error(404, $"unknown attach_to: {attachTo}"); }
             catch (WorktreeException error) { return Reply.Error(400, error.Message); }
             registry.Register(record.Id, record.Worktree, sharesWorkspaceWith: record.SharesWorkspaceWith);
@@ -103,23 +105,27 @@ public static class AgentRoutes
             var taskText = pending is { Kind: "task" } ? pending.Value.Text : null;
             var bare = false;
             string? visible = null;
+            string? banner = null;
             if (taskText is not null && record.DiagramType is { } diagramType)
             {
                 var workspaceId = record.SharesWorkspaceWith ?? record.Id;
                 var target = TryWorkspace(registry, workspaceId);
                 var command = target is null ? null : await diagramContext.CommandAsync(target);
-                if (BareSkill.ComposeInteractive(diagramType, target?.Root ?? record.Worktree, workspaceId, command) is { } composed)
+                var requested = !string.IsNullOrWhiteSpace(record.DiagramRequest);
+                var asksInTerminal = !requested && diagramType == DiagramContext.AnyType && BareSkill.Enabled() && terminalAgents.SplitsSystemPrompt(record.Kind);
+                if (BareSkill.ComposeInteractive(diagramType, target?.Root ?? record.Worktree, workspaceId, command, asksInTerminal, record.DiagramRequest) is { } composed)
                 {
                     taskText = composed;
                     bare = BareSkill.Enabled();
-                    visible = bare ? BareSkill.InteractiveVisiblePrompt : null;
+                    visible = bare ? (requested ? record.DiagramRequest : asksInTerminal ? "" : BareSkill.InteractiveVisiblePrompt) : null;
+                    banner = asksInTerminal ? BareSkill.InteractiveQuestion : null;
                 }
             }
             var launch = terminalAgents.Resolve(record.Kind, sessionId, taskText, bare, visible, forkSession: fork);
             if (launch is null) return Reply.Error(400, $"unknown agent kind: {record.Kind}");
             var env = new Dictionary<string, string>(launch.Env);
             BridgeAddress.ExportIdentity(env, agentId, BareSkill.BridgeUrl);
-            var session = await Task.Run(() => sessions.Start(agentId, launch.Argv, record.Worktree, record.Kind, env, paths));
+            var session = await Task.Run(() => sessions.Start(agentId, launch.Argv, record.Worktree, record.Kind, env, paths, banner));
             var updated = agents.MarkStarted(agentId, session.Pid, TerminalAgents.ResolvedCliFor(record.Kind, launch.Argv));
             if (pending is { Kind: not "task" } view)
                 _ = session.InjectWhenIdle(

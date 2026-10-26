@@ -981,3 +981,19 @@ systems have their own tag, separate from `conceptual`. The canvas shows a dashe
 (`database`, `storage`, `queue`, `actor`, `client`, `cache`, `external`), applied as a
 `.node-shape-<name>` class; unknown names fall back to the plain box. Tests:
 `tests/unit/test_diagram_resolver.py`, `web/src/canvas/doc/nodeAccent.test.tsx`.
+
+## Sequence readability (022)
+
+`check_diagram.py` adds `NO-ORDER` (sequence message without `order`, shape tier), `BADPHASE`, and the advisories `NOSUMMARY`, `ECHO-LABEL`, `HIDDEN-BRANCH`, `LONGTITLE`. Both resolvers (`canvas/recipes.py`, `Stores/Recipes.cs`) fold `order`/`lane` into node `meta`, add `hero` to message `meta`, and stamp `phases`/`frames`/`notes`/`question`/`summary` on every participant's `meta`.
+
+The canvas draws a sequence layer in one of two switchable modes (`web/src/canvas/doc/`): `SequenceReadable.tsx` (phase bands, numbered messages, frames, notes) and `SequenceFocus.tsx` (collapsible phase rows, focused participant, timeline panel), both over `sequenceModel.ts` and the shared `SequenceDrawing`. The `Readable | Focus` control sits in `DiagramFrame.tsx`; the choice, collapsed phases and focus live in `sequenceViewStore.ts` (per layer, `localStorage`, default `focus` above 12 messages), never in `sequence.json`. `layoutSequence(doc, ids, view)` folds collapsed phases into one row and `useReflowSequence` re-spreads on every view change.
+
+## How a drawing agent starts (025 Draw dialog)
+
+The rail's "Draw…" button opens `web/src/canvas/doc/drawDialog/DrawDialog.tsx` instead of launching an agent. The cards come from `GET /diagram-kinds` (`src/codechroma/diagrams/kinds.json`, read by Python and embedded in C# as `diagram_kinds.json`; it also lists the schematic ids and the limits) plus saved custom types that carry a `schematic`. "Draw with agent" calls `attachAgent` with `{ type, request, title: "Draw · <type>" }`.
+
+- With a request, `BareSkill.ComposeInteractive(..., request)` ends in a "How this session starts" block that states the picked type and the request, and says not to greet or ask; the card's visible first message is the request itself and the bridge prints no "What do you want to see?" banner. Without a request, today's behaviour stays.
+- The type is a hint, not a lock: the agent may say a different type fits, but draws the picked one unless the user agrees.
+- `plan` (Feature plan) is a mode of `impact`: it inlines `bare-impact.md` and points at `references/feature-plan-mode.md`. `DiagramContext.HintTypes` is the accepted set; `DiagramContext.Types` (the context-gathering set) is unchanged.
+- A saved custom type's card sends `type: "custom"` and names the type id in the request.
+- Python-bridge gap: it validates and persists the hint but has no `BareSkill`, so it does not compose the first message (it never did for the old `any` hint either).

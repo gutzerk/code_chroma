@@ -165,3 +165,15 @@ Rules:
    `UNLABELED` (too many messages with no `label`).
 
    Exit tiers and the `--shape-advisory` rule: see `drawing-rules.md`.
+
+## Readability data (022)
+
+Every message needs `order`; `check_diagram.py` fails `NO-ORDER` without it. Also write:
+
+- top-level `question` (what the diagram answers) and `summary` (one line), advisory `NOSUMMARY` otherwise;
+- `hero: true` on the messages of the main path;
+- `phases[]`: `{id, name, kind, from_order, to_order}`, `kind` one of `request | prepare | ai | deliver | custom`;
+- optional `frames[]` (`{kind: alt|loop, label, from_order, to_order}`) and `notes[]` (`{order, text}`);
+- message `kind: "ai"` (violet arrow) or `"event"` (dotted green); titles of 4 words or fewer.
+
+Wording lints (advisory): `ECHO-LABEL` (label/description repeats a title), `HIDDEN-BRANCH` (failure path with no label), `LONGTITLE`, `BADPHASE`.

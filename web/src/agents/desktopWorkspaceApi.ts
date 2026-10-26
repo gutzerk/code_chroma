@@ -8,6 +8,9 @@ export interface DesktopWorkspaceApi {
   focusThisTab(): Promise<void>;
   /** Closes this tab's project and shows the open-project launcher. */
   closeThisProject(): Promise<void>;
+  /** Shows the native Save As dialog and writes the base64 content there; `saved` is false when
+   * the user cancelled. */
+  saveFile?(name: string, mime: string, base64: string): Promise<{ saved: boolean }>;
 }
 
 declare global {

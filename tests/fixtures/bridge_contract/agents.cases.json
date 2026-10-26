@@ -327,6 +327,39 @@
       ]
     },
     {
+      "id": "a_drawing_agent_keeps_its_type_and_request",
+      "steps": [
+        {
+          "http": {"method": "POST", "path": "/agents", "json": {"title": "Sketch", "kind": "shell", "attach_to": "main", "context": "Draw it", "context_kind": "task", "diagram_type": "sequence", "diagram_request": "  how a save\nreaches the db  "}},
+          "expect": {"status": 200, "checks": [
+            {"path": "$.diagram_type", "equals": "sequence"},
+            {"path": "$.diagram_request", "equals": "how a save reaches the db"}
+          ]}
+        },
+        {
+          "http": {"method": "GET", "path": "/agents"},
+          "expect": {"status": 200, "checks": [{"path": "$.agents[0].diagram_type", "equals": "sequence"}, {"path": "$.agents[0].diagram_request", "equals": "how a save reaches the db"}]}
+        },
+        {
+          "http": {"method": "DELETE", "path": "/agents/sketch"},
+          "expect": {"status": 200, "json": {"status": "deleted", "id": "sketch"}}
+        }
+      ]
+    },
+    {
+      "id": "a_bad_diagram_hint_is_a_400_with_a_reason",
+      "steps": [
+        {
+          "http": {"method": "POST", "path": "/agents", "json": {"diagram_type": "bogus"}},
+          "expect": {"status": 400, "json": {"detail": "unknown diagram_type: bogus"}}
+        },
+        {
+          "http": {"method": "POST", "path": "/agents", "json": {"diagram_request": 5}},
+          "expect": {"status": 400, "json": {"detail": "diagram_request must be a string"}}
+        }
+      ]
+    },
+    {
       "id": "an_agent_attached_to_main_shares_it_and_refuses_worktree_removal",
       "steps": [
         {

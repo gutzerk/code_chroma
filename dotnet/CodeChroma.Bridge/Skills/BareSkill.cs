@@ -1,6 +1,7 @@
 using System.Text;
 using System.Text.RegularExpressions;
 using CodeChroma.Bridge.Agents;
+using CodeChroma.Bridge.Context;
 using CodeChroma.Bridge.Workspaces;
 
 namespace CodeChroma.Bridge.Skills;
@@ -42,23 +43,53 @@ public static partial class BareSkill
     /// <summary>The short first message an interactive diagram window shows; the inlined skill itself rides in the hidden system prompt.</summary>
     public const string InteractiveVisiblePrompt = "Help me draw a diagram of this project.";
 
-    /// <summary>The first message of an interactive diagram agent: the draw skill inlined (the short body of a known type, else the router) and how to start, with no other context.</summary>
-    public static string? ComposeInteractive(string type, string repoRoot, string workspaceId, string? contextCommand)
+    /// <summary>The question the bridge prints in an open ("any") drawing agent's window before its CLI starts; the user's reply is the agent's first message.</summary>
+    public const string InteractiveQuestion = "\u001b[1mWhat do you want to see?\u001b[0m A flow, a component, a feature... or just ask for the whole project.\r\n\r\n";
+
+    /// <summary>The first message of an interactive diagram agent (`askedInTerminal` when the bridge already printed the question in the window): its short body inlined (the open "any" start's body loads no skill until the user answers), else the whole skill; no other context.</summary>
+    public static string? ComposeInteractive(string type, string repoRoot, string workspaceId, string? contextCommand, bool askedInTerminal = false,
+        string? request = null)
     {
         if (SkillSync.SkillSource(DrawSkill) is not { } source || !File.Exists(Path.Combine(source, "SKILL.md"))) return null;
         var text = new StringBuilder();
         text.Append("Repository root: ").AppendLine(repoRoot).AppendLine();
-        var shortBody = Path.Combine(source, "references", $"bare-{type}.md");
-        if (File.Exists(shortBody)) text.AppendLine(Fill(File.ReadAllText(shortBody), type, source, repoRoot, workspaceId));
+        var bodyType = type == PlanType ? "impact" : type;
+        var shortBody = Path.Combine(source, "references", $"bare-{bodyType}.md");
+        if (File.Exists(shortBody)) text.AppendLine(Fill(File.ReadAllText(shortBody), bodyType, source, repoRoot, workspaceId));
         else
         {
             text.AppendLine($"The `{DrawSkill}` skill follows. Files it names under `references/` and `scripts/` are in `{source}`; read them by those absolute paths.").AppendLine();
             text.AppendLine(StripFrontmatter(File.ReadAllText(Path.Combine(source, "SKILL.md"))));
         }
         text.AppendLine().AppendLine("## How this session starts").AppendLine();
-        text.AppendLine("The user has not said yet what to draw. Greet them in one short line and ask what they want to see (the whole project is a fine answer). Do nothing else until they answer.");
+        if (!string.IsNullOrWhiteSpace(request))
+        {
+            text.AppendLine(RequestedStart(type, request, source));
+            if (contextCommand is not null)
+                text.AppendLine($"Run `{contextCommand} \"phrase\" \"phrase\" ...` first with 3-6 short phrases taken from that request (one component, flow or concept each), read its output, then draw from it and open a file only to confirm a detail.");
+            return text.ToString();
+        }
+        if (askedInTerminal) text.AppendLine("The terminal already asked the user what they want to see; their first message is the answer. Do not greet or ask again.");
+        else text.AppendLine("The user has not said yet what to draw. Greet them in one short line and ask what they want to see (the whole project is a fine answer). Do nothing else until they answer.");
         if (contextCommand is not null)
-            text.AppendLine($"Once they answer, run `{contextCommand} \"phrase\" \"phrase\" ...` with 3-6 short phrases taken from their request (one component, flow or concept each), read its output, then draw from it and open a file only to confirm a detail.");
+            text.AppendLine($"{(askedInTerminal ? "Start by running" : "Once they answer, run")} `{contextCommand} \"phrase\" \"phrase\" ...` with 3-6 short phrases taken from their request (one component, flow or concept each), read its output, then draw from it and open a file only to confirm a detail.");
+        return text.ToString();
+    }
+
+    /// <summary>The Draw dialog's "plan" kind: a mode of the impact type, drawn by the impact body plus feature-plan-mode.md.</summary>
+    public const string PlanType = "plan";
+
+    /// <summary>The start block of a drawing agent whose user already picked a type and said what to show (scope is in their words): no greeting, no question.</summary>
+    private static string RequestedStart(string type, string request, string source)
+    {
+        var text = new StringBuilder();
+        text.Append(type == DiagramContext.AnyType
+            ? "The user did not pick a diagram type; choose the one that fits."
+            : $"The user picked the `{(type == PlanType ? "feature plan" : type)}` diagram type.");
+        text.AppendLine().AppendLine().AppendLine("Their request:").AppendLine().AppendLine(request.Trim()).AppendLine();
+        if (type == PlanType)
+            text.AppendLine($"Follow `{Path.Combine(source, "references", "feature-plan-mode.md")}` for the planned blocks.");
+        text.AppendLine("This request is their answer: do not greet them or ask what to draw. The picked type is a hint, not a lock: if the request clearly fits another type better, say so in one line, but draw the picked type unless they agree.");
         return text.ToString();
     }
 
@@ -78,7 +109,7 @@ public static partial class BareSkill
     private static string Fill(string body, string type, string source, string repoRoot, string workspaceId)
     {
         var bridge = BridgeUrl ?? "http://localhost:8000";
-        return body.Replace("{BRIDGE}", bridge).Replace("{WORKSPACE}", workspaceId).Replace("{REPO_ROOT}", repoRoot)
+        return body.Replace("{SKILL_DIR}", source).Replace("{BRIDGE}", bridge).Replace("{WORKSPACE}", workspaceId).Replace("{REPO_ROOT}", repoRoot)
             .Replace("{OUTPUT_PATH}", Workspace.DiagramPath(repoRoot, type)).Replace("{CHECK_COMMAND}", CheckCommand(source, $"--kind {type} --url {bridge} --repo {workspaceId}"));
     }
 

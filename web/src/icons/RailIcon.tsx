@@ -23,7 +23,8 @@ export type RailIconName =
   | "c1"
   | "hierarchy"
   | "layer"
-  | "games";
+  | "games"
+  | "share";
 
 export interface RailIconProps {
   name: RailIconName;
@@ -279,6 +280,17 @@ const PATHS: Record<RailIconName, ReactElement> = {
       <path fill="none" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round" d="M1.8 8.4 8 11.6l6.2-3.2" />
       <path fill="none" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round" d="M1.8 11.4 8 14.6l6.2-3.2" />
     </>
+  ),
+  // An arrow leaving an open tray — export/share the diagram.
+  share: (
+    <path
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.3"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      d="M8 10V2.4M5.2 5 8 2.2 10.8 5M3 8.5v4.8h10V8.5"
+    />
   ),
   // A joystick: a base with a stick and ball — the games panel.
   games: (

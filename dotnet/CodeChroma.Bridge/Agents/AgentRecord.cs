@@ -46,6 +46,9 @@ public sealed class AgentRecord
     /// <summary>The diagram type (or "any") a task agent draws; such an agent starts bare, with the draw skill inlined (see BareSkill.ComposeInteractive).</summary>
     public string? DiagramType { get; set; }
 
+    /// <summary>What the user asked that diagram to show (trimmed, at most 2000 chars); null when they left it for the agent to ask.</summary>
+    public string? DiagramRequest { get; set; }
+
     /// <summary>Binary that launched this window; empty for legacy claude records.</summary>
     public string ResolvedCli { get; set; } = "";
 
@@ -66,6 +69,7 @@ public sealed class AgentRecord
         ["shares_workspace_with"] = SharesWorkspaceWith, ["base_branch"] = BaseBranch, ["source_pr"] = SourcePr,
         ["source_run"] = SourceRun, ["fork_session"] = ForkSession,
         ["context"] = Context, ["context_kind"] = ContextKind, ["resolved_cli"] = ResolvedCli, ["diagram_type"] = DiagramType,
+        ["diagram_request"] = DiagramRequest,
     };
 
     /// <summary>What GET /agents reports: the record plus its live status and worktree health.</summary>
@@ -76,6 +80,7 @@ public sealed class AgentRecord
         ["shares_workspace_with"] = SharesWorkspaceWith, ["base_branch"] = BaseBranch, ["source_pr"] = SourcePr,
         ["source_run"] = SourceRun, ["fork_session"] = ForkSession,
         ["context"] = Context, ["context_kind"] = ContextKind, ["resolved_cli"] = ResolvedCli,
+        ["diagram_type"] = DiagramType, ["diagram_request"] = DiagramRequest,
         ["status"] = Status, ["exit_code"] = ExitCode, ["worktree_lost"] = WorktreeLost,
     };
 
@@ -108,6 +113,7 @@ public sealed class AgentRecord
             Context = CleanContext(o["context"]),
             ContextKind = CoerceContextKind(Json.Str(o["context_kind"])),
             DiagramType = Json.Str(o["diagram_type"]),
+            DiagramRequest = Json.Str(o["diagram_request"]),
             ResolvedCli = Json.Str(o["resolved_cli"]) ?? "",
         };
     }

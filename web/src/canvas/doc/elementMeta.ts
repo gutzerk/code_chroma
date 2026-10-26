@@ -16,6 +16,12 @@ export function rawMeta(element: CanvasElement, key: string): string | number | 
   return typeof value === "string" || typeof value === "number" ? value : undefined;
 }
 
+/** A box's authored `meta.order` as a string, whether it arrived as a JSON string or number. */
+export function orderMeta(element: CanvasElement): string | undefined {
+  const value = rawMeta(element, "order");
+  return value === undefined || value === "" ? undefined : String(value);
+}
+
 /** Whether a `meta` key reads as a set boolean-ish flag. The sequence backend emits `return`/`async`
  * as real JSON booleans (`bool(...)` in recipes.py), while authored/mock files use a `"true"` string —
  * so a truthiness-aware read (string non-empty, number non-zero, or literal boolean true) is the only

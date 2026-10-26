@@ -12,6 +12,8 @@ for real; nothing has to remember to clear it.
 
 from __future__ import annotations
 
+import re
+
 __all__ = ["generate_c1_template", "KNOWN_EXTERNAL_SYSTEMS"]
 
 KNOWN_EXTERNAL_SYSTEMS: dict[str, dict] = {
@@ -84,13 +86,18 @@ def _candidates(digest: dict) -> list[str]:
     return candidates
 
 
+def _normalize_name(name: str) -> str:
+    """Lower-cases a dependency and drops any extras, version specifier or marker."""
+    return re.split(r"[\[<>=!~;( ]", name, maxsplit=1)[0].lower()
+
+
 def generate_c1_template(digest: dict) -> dict:
     """Builds a system + known-actor C1 diagram straight from the digest -- no model call."""
     nodes: list[dict] = [_system_node(digest)]
     relations: list[dict] = []
     seen_candidates: set[str] = set()
     seen_names: set[str] = set()
-    for candidate in _candidates(digest):
+    for candidate in map(_normalize_name, _candidates(digest)):
         entry = KNOWN_EXTERNAL_SYSTEMS.get(candidate)
         if entry is None or candidate in seen_candidates:
             continue

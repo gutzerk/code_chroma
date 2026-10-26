@@ -79,11 +79,10 @@ export async function computeElkLayout(
     })
     .map((edge, index) => ({ id: `e${index}`, sources: [edge.from], targets: [edge.to] }));
 
-  // 022: boxes carrying `lane` lay out RIGHT, one partition band per lane in first-seen order;
-  // no lanes keeps the DOWN layout unchanged.
+  // 022: fully-laned boxes lay out RIGHT, one band per lane (first-seen order); otherwise DOWN.
   const laneIndex = new Map<string, number>();
   for (const node of nodes) if (node.lane && !laneIndex.has(node.lane)) laneIndex.set(node.lane, laneIndex.size);
-  const hasLanes = laneIndex.size > 0;
+  const hasLanes = laneIndex.size > 0 && nodes.every((node) => node.lane);
 
   const graph: ElkNode = {
     id: "root",
@@ -104,7 +103,7 @@ export async function computeElkLayout(
       width: node.width,
       height: node.height,
       ...(hasLanes
-        ? { layoutOptions: { "elk.partitioning.partition": String(laneIndex.get(node.lane ?? "") ?? laneIndex.size) } }
+        ? { layoutOptions: { "elk.partitioning.partition": String(laneIndex.get(node.lane ?? "") ?? 0) } }
         : {}),
     })),
     edges: elkEdges,

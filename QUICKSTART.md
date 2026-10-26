@@ -37,7 +37,11 @@ focus; verified by checksum only, with automatic rollback if the new version fai
 `--purge` / `-Purge` to delete user data). Release builds are not yet code-signed: on macOS use
 right-click → Open if Gatekeeper complains, on Windows "More info → Run anyway" in SmartScreen, and
 on Linux install `libfuse2` for the AppImage. After a macOS install,
-run `open ~/Applications/CodeChroma.app` and pick a repo in the launcher. Otherwise, to run the
+run `open ~/Applications/CodeChroma.app` and pick a repo in the launcher. To start from a remote repository,
+choose **Clone repository…**, paste its HTTPS or SSH Git URL, choose a destination folder, and click
+**Clone and open**. CodeChroma suggests a local project name and opens the checkout after cloning.
+Git must be installed; private repositories use your existing Git credentials or SSH keys.
+Otherwise, to run the
 canvas from source, install the dependencies once from this repo's root:
 
 ```bash
@@ -109,6 +113,11 @@ stand-ins, next to what each icon literally depicts and what the button does.
 
 **Diff**: the Diff toggle button is hidden from the rail for now (its logic is kept in the code but
 not surfaced), so diff framing isn't currently reachable from the UI.
+
+The terminal toolbar's **+** opens another shell tab. **×** closes the active shell, and **−** hides
+the panel while keeping its sessions running. Click a terminal tab to return to its shell and output.
+Use **Ctrl+Alt+Left/Right** (**Cmd+Alt+Left/Right** on macOS) to cycle agents and focus the selected
+agent's terminal. Switching agents also opens a collapsed agent panel.
 
 ### Agent panel (beside the canvas: **Agents** / **Diagrams** tabs)
 

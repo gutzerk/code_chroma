@@ -1,5 +1,9 @@
 # Desktop app (`dotnet/CodeChroma.Shell*`)
 
+**Implementation rule: change and test `dotnet/CodeChroma.Bridge` first for desktop bridge work.**
+`src/codechroma/bridge/` is the Python development/reference path; changing it alone does not affect
+the shipped app. Production regression tests belong in `dotnet/CodeChroma.Bridge.Tests`.
+
 The desktop app is the C# / Avalonia shell with Velopack packaging and updater. It hosts the
 unchanged React canvas in one WebView per tab and talks to the **C# bridge** (`dotnet/CodeChroma.Bridge`)
 bundled next to it. There is no Electron, PyInstaller or Node at runtime. Node is only used to build
@@ -41,13 +45,27 @@ Logic is UI-free in `CodeChroma.Shell`; `CodeChroma.Shell.App` only renders.
   read best-effort from `.codechroma/{agents,prs}.json`), `Projects/TutorialProject` (+
   `tutorial-project.json`: the bundled todo-app tutorial restored into `<userData>/codechroma-tutorial`) and
   new-project creation (`git init`, no commit) feed the launcher panel (`LauncherPanel`).
+- The launcher also offers **Clone repository…**: enter an HTTPS/SSH Git URL, choose a parent destination
+  and a local project name (suggested from the URL), then **Clone and open**. `Projects/RepositoryClone`
+  separates validation and destination setup (`CloneAsync`), Git process supervision (`RunGitCloneAsync`),
+  and best-effort staging cleanup (`RemoveStagingDirectory`). It runs system Git asynchronously with
+  argument-list escaping, streams progress, and supports cancellation
+  (including when the launcher leaves the visual tree). It clones the default branch with full history into
+  a unique staging folder beside the destination, then moves the completed checkout into place. Existing
+  destinations are refused; failed/cancelled staging folders are removed best-effort. Success uses the normal
+  `OpenRepoAsync` flow, including analysis and recents, bound to the launcher that requested it even if the
+  user switches tabs during cloning. A launcher removed before opening cannot open another tab. Git must be
+  on PATH; private remotes use existing Git credential helpers or SSH keys. Terminal credential prompts are
+  disabled; the default SSH client uses batch mode. Configured `core.sshCommand`, `GIT_SSH`, and
+  `GIT_SSH_COMMAND` clients are preserved and must handle authentication without interactive prompts. Passwords
+  in URLs and URL query strings are rejected. Local repository paths are also accepted. No bridge route is involved.
 - Opening an already-open project asks which branch to show (`Bridge/BranchBridgeClient`: `GET /branches/choices`,
   `POST /branches`; a 409 names the workspace already showing it and the shell focuses that tab).
 - `window.codechromaDesktop` is injected after each navigation and talks to the shell over the WebView message
   channel (`DesktopScript`/`DesktopMessage`). The shell accepts messages only while the tab URL origin equals its
   bridge origin; other navigations are cancelled and opened in the system browser.
 - Calls that need an answer (`codechromaUpdates.*`, `saveFile`) go through one page-side `rpc` and are answered by
-  `ShellReply.RunAsync` via `window.__ccReply(callId, ok, json)`. `saveFile(name, mime, base64)` (the canvas's Share
+  `ShellReply.RunAsync` via `window.__ccReply(callId, ok, json)`. `saveFile(name, mime, base64)` (the Diagrams panel's Export
   menu) posts `save-file` (`id`=file name, `method`=mime, `arg`=base64); `MainWindow.SaveFileAsync` runs
   `CodeChroma.Shell/FileSaver` over Avalonia's `SaveFilePickerAsync` and replies `{saved}` (`false` = cancelled).
 - Chrome: no native menu bar on Windows/Linux; the tab strip (`#1b1d23` bar, `#6c8cff` active underline) ends in a
@@ -112,7 +130,7 @@ weaken security and must never be set in production: `CODECROMA_MANIFEST_URL`, `
 `UpdateScripts`, starts it detached, then the host quits), `UpdateSettingsStore`/`UpdateScheduler`,
 `InstallOutcomeStore`, `UpdatesBridge`. `CodeChroma.Shell.App/UpdateHost.cs` wires it: scheduled checks at startup,
 every 6 h and on window focus (per-user installs only), Help -> Check for Updates, and the "updated / rolled back"
-report (`Dialogs.ShowInstallResultAsync`: coloured status chip, headline, explanation, monospace detail block, next-step hint, Continue). Accepting an update shows `Dialogs.ShowProgress` (indeterminate, non-dismissable) while it downloads. The "update available" prompt is `Dialogs.ShowUpdateAsync` (release notes rendered by `MarkdownText`, scrollable and capped to the window height; Install / Skip this version / Later — Later reappears next launch, Skip persists `skippedVersion`). The canvas's `window.codechromaUpdates` (`web/src/assistant/UpdatesPanel.tsx`) round-trips over the WebView
+report (`Dialogs.ShowInstallResultAsync`: coloured status chip, headline, explanation, monospace detail block, next-step hint, Continue). Accepting an update shows `Dialogs.ShowProgress` (indeterminate, non-dismissable) while it downloads. The "update available" prompt is `Dialogs.ShowUpdateAsync` (release notes rendered by `MarkdownText`, scrollable and capped to the window height; Install / Skip this version / Later — Later reappears next launch, Skip persists `skippedVersion`). 🔴 Only the startup (and manual) check may open that prompt: the 6-hourly and on-focus checks refresh the update state silently (`UpdateScheduler.ShouldNotify`), so a dialog never interrupts a running session. The canvas's `window.codechromaUpdates` (`web/src/assistant/UpdatesPanel.tsx`) round-trips over the WebView
 channel; `UpdatesBridge.ToJson` adds `verificationNotice`, `provenance` and `lastInstall`.
 `UpdateConstants` is the single source for the repo slug, intervals and wording; download URLs must be
 credential-free `https://github.com/<repo>/releases/(latest/)?download/...` with no `.`/`..`/`%2e` segments.
@@ -141,9 +159,9 @@ The fast process-diagram path needs a 162 MB ONNX model; it is not in the instal
 
 The C# bridge replaces the Python one in the shipped app. Known, owner-confirmed differences (plan 017 table A):
 summaries are offline-only (no Claude call), the graph is in-memory (no `graph.db`), PR happy path needs `gh`,
-nested-process foreground probing is degraded, and execution tracing capture stays Python (`sys.monitoring`; C#
+nested-process foreground probing (`Terminal/ForegroundProcess.cs`: `ps -o tpgid=` then `ps -o comm=`, cached 1 s off-thread) works on macOS/Linux only and is a no-op on Windows (ConPTY has no `tcgetpgrp`; the detector then applies no process filter, so a nested vim there can still read as an agent state), and execution tracing capture stays Python (`sys.monitoring`; C#
 only plays traces back). Everything else (graph, canvas, recipes, diffs, agents, PRs, epics, PTY, skill/LLM runners,
-branches, traces, settings, patterns, impact/review, plain wiki) is ported. Workflow runs (steerable stop/pause/breakpoints, [`workflows.md`](workflows.md)) exist only in the C# bridge; the Python bridge has no mirror yet; the wiki-general generate/update port is in progress (plan 017 row 4); see
+branches, traces, settings, patterns, impact/review, plain wiki, the first-open c1/patterns bootstrap, `dependency-digest.json` and every watcher event) is ported. Agent questions (`/mcp/` `ask_user`, the `question` canvas element and `/repos/{id}/questions/*` routes) are ported ([`ai-questions.md`](ai-questions.md)) including the `AskUserQuestion` PreToolUse hook: the bridge binary is the hook (`codechroma-bridge ask-user-question`, registered through `--settings` next to the session-tracking hook), so no Python is needed. Workflow runs (steerable stop/pause/breakpoints, [`workflows.md`](workflows.md)) exist only in the C# bridge; the Python bridge has no mirror yet; the wiki-general generate/update port is done (all nine routes plus the pipeline); what remains is a verification run against real Claude (plan 017 row 4); see
 [`engine.md`](engine.md) and [`graph-bridge-core.md`](graph-bridge-core.md).
 
 ## Tests
@@ -159,6 +177,10 @@ The probe does not reserve a port for the child bridge between discovery and sta
 macOS and Linux behaviour (WKWebView/WebKitGTK rendering, Unix PTY, install/update/rollback/uninstall) was reviewed
 from code and is not verified on real hardware.
 
+`RepositoryCloneTests` exercises real local Git clones (history and origin preserved, paths with spaces),
+existing-destination protection, failed-clone cleanup, cancellation, configured SSH clients and remote/name
+validation without network access.
+
 🔴 macOS crash: WebView.Avalonia 11.0.0.1 runs `ExecuteScriptAsync(script)` on macOS as `__dispatchMessageCallback("<script>")` (a Blazor-only hook)
 and does `result.ToString()` on the null result, an unhandleable NRE inside a native callback that aborts the app. Two guards: `UpdateHost`
 only receives tabs that are on the bridge origin (`MainWindow` filters with `IsBridgeOrigin`; empty tabs get no scripts), and `web/index.html`
@@ -171,4 +193,4 @@ Issue #189: macOS asked to allow Apple Music / media library / photo access. The
 ## CLI lookup and clipboard notes
 
 - `CodeChroma.Bridge/Stores/CliLocator.cs` searches the process PATH, then well-known install dirs (`~/.local/bin`, `/opt/homebrew/bin`, `/usr/local/bin`, npm global, GitHub CLI dirs), because a GUI-launched app inherits a minimal PATH (agents `claude` / `gh` not found).
-- `DesktopScript.cs` adds a guarded fallback for Ctrl/Cmd+C/X/V/A that only acts when the webview raised no native clipboard event (unverified on macOS).
+- `DesktopScript.cs` handles Ctrl/Cmd+C/X/V/A in a capture-phase, trusted-only keydown listener via the origin-checked shell message channel and Avalonia clipboard, avoiding WKWebView Clipboard API paste prompts. Clipboard reads are private to that listener (not on `window.codechromaDesktop`) and `MainWindow.ClipboardAsync` serves them only to the active, visible tab (writes capped at 4 MB). The xterm textarea is left alone for copy/cut/select-all (terminal Ctrl+C still reaches the PTY); paste is delivered to xterm as a clipboard event (bracketed paste preserved) or inserted into the focused editor with `execCommand`. Select-all is only taken in inputs, contentEditable and the bare page. Pending paste/cut is discarded if focus, value or selection (input or contentEditable range) changes. Terminal copy-on-select writes to the native clipboard (ordered, only for pointer-made selections). Hardware validation on macOS is still required.

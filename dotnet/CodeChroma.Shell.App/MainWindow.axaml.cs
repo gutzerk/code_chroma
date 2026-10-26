@@ -1,5 +1,6 @@
 using System.Diagnostics;
 using System.Reflection;
+using System.Text.Json;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Input;
@@ -150,10 +151,26 @@ public sealed partial class MainWindow : Window, IShellUi, ILauncherHost
             case "close-workspace" when message.Id is not null: _ = controller.CloseWorkspaceTabAsync(message.Id); break;
             case "updates": _ = updates.HandleCallAsync(view, message); break;
             case "save-file": _ = SaveFileAsync(view, message); break;
+            case "clipboard": _ = ClipboardAsync(view, message); break;
             case "focus-tab": controller.FocusTab(tab.Id); break;
             case "close-project": _ = controller.CloseProjectAsync(tab.Id); break;
         }
     }
+
+    private const int MaxClipboardWrite = 4_000_000;
+
+    private Task ClipboardAsync(TabView view, DesktopMessage message) =>
+        message.CallId is null
+            ? Task.CompletedTask
+            : ShellReply.RunAsync(view, message.CallId, async () =>
+            {
+                var clipboard = Clipboard ?? throw new InvalidOperationException("Clipboard unavailable");
+                if (!IsActive || !view.IsVisible) throw new InvalidOperationException("Clipboard is only available to the focused tab");
+                if (message.Method == "read") return JsonSerializer.Serialize(await clipboard.GetTextAsync() ?? "");
+                if (message.Method != "write" || message.Arg is null || message.Arg.Length > MaxClipboardWrite) throw new InvalidOperationException("Invalid clipboard operation");
+                await clipboard.SetTextAsync(message.Arg);
+                return "null";
+            });
 
     private Task SaveFileAsync(TabView view, DesktopMessage message) =>
         message.CallId is null
@@ -256,8 +273,11 @@ public sealed partial class MainWindow : Window, IShellUi, ILauncherHost
 
     public Task<BranchPick> PickBranchAsync(string project, BranchChoices choices) => Dialogs.PickBranchAsync(this, project, choices);
 
-    public Task OpenRepoAsync(string repoPath, string? workspaceId) =>
-        controller.OpenRepoAsync(repoPath, tabs.ActiveTab?.Id, workspaceId);
+    public Task OpenRepoAsync(LauncherPanel requester, string repoPath, string? workspaceId)
+    {
+        var tab = tabs.Tabs.FirstOrDefault(t => ReferenceEquals(((TabView)t.View).Launcher, requester));
+        return tab is null ? Task.CompletedTask : controller.OpenRepoAsync(repoPath, tab.Id, workspaceId);
+    }
 
     public async Task<string?> PickFolderAsync(string title)
     {

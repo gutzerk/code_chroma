@@ -44,13 +44,10 @@ export function defaultSequenceMode(messageCount: number): SequenceMode {
   return messageCount > FOCUS_DEFAULT_MESSAGE_COUNT ? "focus" : "readable";
 }
 
-/**
- * Per-diagram display preference for sequence layers: mode, collapsed phases and focused participant.
- * A display preference only -- never written to sequence.json. Lives outside component state so
- * collapse and focus survive a Readable ↔ Focus switch. The ▶ player's step is transient (not saved).
- */
+/** Per-diagram sequence display prefs (mode, collapsed phases, focus); never written to sequence.json. */
 class SequenceViewStore extends Store {
   private stored: Stored | null = null;
+  private storedKey = "";
   private version = 0;
   // Bumps only when the layout-relevant part changes (mode / collapsed), not on step or focus.
   private layoutVersion = 0;
@@ -79,16 +76,20 @@ class SequenceViewStore extends Store {
   setFocus = (layer: string, focus: string | null): void => this.update(layer, { focus });
   setCollapsed = (layer: string, collapsed: string[]): void => this.update(layer, { collapsed });
 
-  /** Forgets every in-memory choice (and the saved ones for tests); also runs on a workspace switch. */
+  /** Forgets the in-memory choices (saved ones stay and reload per workspace). */
   reset(): void {
-    this.stored = {};
-    writeStorage({});
+    this.stored = null;
     this.steps.clear();
     this.bump(true);
   }
 
   private load(): Stored {
-    return (this.stored ??= readStorage());
+    const key = storageKey();
+    if (!this.stored || this.storedKey !== key) {
+      this.stored = readStorage();
+      this.storedKey = key;
+    }
+    return this.stored;
   }
 
   private update(layer: string, patch: Partial<SequenceView>): void {

@@ -9,8 +9,16 @@ namespace CodeChroma.Bridge.Routes;
 /// <summary>The Impact diagram's change review: what the diff does to each box, where the review is written, and the unified review result.</summary>
 public static class ImpactRoutes
 {
-    /// <summary>The kinds with a unified /review flow (those whose definition carries a review axis).</summary>
-    private static readonly HashSet<string> ReviewKinds = ["impact"];
+    /// <summary>Each kind whose definition carries a review axis, mapped to its review.agent_factory name (Python registry.py).</summary>
+    private static readonly IReadOnlyDictionary<string, string> ReviewKinds = new Dictionary<string, string> { ["impact"] = "impact-changes" };
+
+    /// <summary>Resolvers keyed by agent_factory name, like Python's _REVIEW_RESOLVERS, so a second axis joins by adding an entry.</summary>
+    private static readonly IReadOnlyDictionary<string, Func<Workspace, IOldSymbolParser, string, JsonObject>> ReviewResolvers =
+        new Dictionary<string, Func<Workspace, IOldSymbolParser, string, JsonObject>> { ["impact-changes"] = ImpactChanges.ReviewResult };
+
+    /// <summary>The unified ReviewResult for a kind with a review flow; null for one without.</summary>
+    private static JsonObject? ResolveReview(Workspace ws, IOldSymbolParser parser, string kind) =>
+        ReviewKinds.TryGetValue(kind, out var factory) && ReviewResolvers.TryGetValue(factory, out var resolver) ? resolver(ws, parser, kind) : null;
 
     public static void Map(WebApplication app)
     {
@@ -32,8 +40,8 @@ public static class ImpactRoutes
             });
         });
         app.MapGet("/repos/{repoId}/{kind}/review", (string repoId, string kind, WorkspaceRegistry registry) =>
-            ReviewKinds.Contains(kind)
-                ? Reply.Json(ImpactChanges.ReviewResult(registry.Get(repoId), parser, kind))
+            ResolveReview(registry.Get(repoId), parser, kind) is { } result
+                ? Reply.Json(result)
                 : Reply.Error(404, $"'{kind}' has no review flow"));
     }
 

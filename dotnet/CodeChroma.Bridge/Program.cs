@@ -1,14 +1,22 @@
 using CodeChroma.Bridge;
 using CodeChroma.Bridge.Agents;
 using CodeChroma.Bridge.Context;
+using CodeChroma.Bridge.Diagrams;
 using CodeChroma.Bridge.Embeddings;
 using CodeChroma.Bridge.Engine;
 using CodeChroma.Bridge.Http;
 using CodeChroma.Bridge.Live;
+using CodeChroma.Bridge.Questions;
 using CodeChroma.Bridge.Routes;
 using CodeChroma.Bridge.Skills;
 using CodeChroma.Bridge.Stores;
 using CodeChroma.Bridge.Workspaces;
+
+if (args.Length > 0 && args[0] == "agent-session")
+    return AgentSessionOwnership.Record(Console.In, Environment.GetEnvironmentVariable(AgentSessionOwnership.FileEnv));
+
+if (args.Length > 0 && args[0] == AskUserQuestionHook.Command)
+    return AskUserQuestionHook.Run(Console.In, Console.Out);
 
 if (args.Length > 0 && args[0] == "context")
 {
@@ -39,7 +47,14 @@ builder.Services.AddSingleton(_ => new ModelStore(ModelStore.DefaultDirectory(),
 builder.Services.AddSingleton<ProcessDiagram>();
 builder.Services.AddSingleton<DiagramContext>();
 builder.Services.AddSingleton<WorkflowRunners>();
+builder.Services.AddSingleton(sp => new CodeChroma.Bridge.Questions.QuestionMcp(id => sp.GetRequiredService<WorkspaceRegistry>().Get(id)));
 builder.Services.AddSingleton(new BranchManager(repoRoot));
+builder.Services.AddSingleton(sp =>
+{
+    var quick = new QuickLlm(
+        sp.GetRequiredService<UserPaths>(), sp.GetRequiredService<ProviderStore>(), sp.GetRequiredService<CallSiteStore>(), LlmCompletion.SharedHttp);
+    return new DiagramBootstrap(() => quick.Resolve(PatternsGenerator.CallSiteId, BridgeLimits.PatternsGeneratorModel));
+});
 builder.Services.AddSingleton(sp =>
 {
     var connections = sp.GetRequiredService<ConnectionManager>();
@@ -48,7 +63,8 @@ builder.Services.AddSingleton(sp =>
         sp.GetRequiredService<IEngineFactory>(),
         (key, message) => connections.BroadcastDetached(message, key),
         sp.GetRequiredService<TimeProvider>(),
-        startWatchers: true);
+        startWatchers: true,
+        sp.GetRequiredService<DiagramBootstrap>());
     var branches = sp.GetRequiredService<BranchManager>();
     branches.Reconcile();
     foreach (var record in branches.List()) registry.Register(record.Id, record.Worktree);
@@ -60,7 +76,6 @@ builder.Services.AddCors();
 
 var app = builder.Build();
 SkillSync.InstallIntoWorktree(repoRoot);
-app.Lifetime.ApplicationStarted.Register(() => BareSkill.BridgeUrl = BridgeAddress.Local(app.Services.GetRequiredService<Microsoft.AspNetCore.Hosting.Server.IServer>()));
 
 app.UseWebSockets();
 var spaDir = Path.Combine(AppContext.BaseDirectory, "web");
@@ -97,6 +112,7 @@ EpicsRoutes.Map(app);
 ContextRoutes.Map(app);
 WikiGeneralRoutes.Map(app);
 WorkflowRoutes.Map(app);
+QuestionRoutes.Map(app);
 ProcessDiagramRoutes.Map(app);
 if (Environment.GetEnvironmentVariable("codechroma_MODEL_WARMUP")?.Trim() == "1") _ = Task.Run(() => app.Services.GetRequiredService<DiagramContext>().WarmModelAsync());
 

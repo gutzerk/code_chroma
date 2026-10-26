@@ -33,16 +33,21 @@ public sealed class AgentSession : IAgentSessionPort, IDisposable
     public const string StatusExited = "exited";
 
     private readonly object _gate = new();
+    private readonly object _injectGate = new();
+    private Task _injectChain = Task.CompletedTask;
     private readonly List<AgentConsumer> _consumers = [];
     private readonly ScreenTap _tap = new(PtyLaunch.DefaultRows, PtyLaunch.DefaultCols);
     private readonly StatusDetector _detector;
     private readonly PtyHost _pty;
+    private readonly ForegroundProcess _foreground;
     private int? _exitCode;
 
     public AgentSession(string agentId, PtyLaunch launch, string kind = "claude", string? banner = null)
     {
         AgentId = agentId;
         Argv = [.. launch.Argv];
+        SessionTrackingFile = launch.Env?.GetValueOrDefault(AgentSessionOwnership.FileEnv);
+        InitialSessionId = launch.Env?.GetValueOrDefault(AgentSessionOwnership.InitialIdEnv);
         _detector = new StatusDetector(StatusRules.ForKind(kind));
         // callbacks take _gate, so none can observe _pty before it is assigned
         lock (_gate)
@@ -50,11 +55,15 @@ public sealed class AgentSession : IAgentSessionPort, IDisposable
             _pty = PtyHost.Start(launch, OnOutput, OnExit);
             if (banner is not null) _tap.Feed(banner);
         }
+        _foreground = new ForegroundProcess(_pty.Pid);
     }
 
     public string AgentId { get; }
 
     public IReadOnlyList<string> Argv { get; }
+
+    public string? SessionTrackingFile { get; }
+    public string? InitialSessionId { get; }
 
     public int Pid => _pty.Pid;
 
@@ -72,7 +81,7 @@ public sealed class AgentSession : IAgentSessionPort, IDisposable
 
     /// <summary>The detector's verdict, or null when nothing changed: the LED's one source of truth.</summary>
     public string? PollStatus() =>
-        IsAlive ? _detector.Observe(_tap.Tail(_detector.Rules.TailLines), _tap.Title, _tap.Progress, process: null) : null;
+        IsAlive ? _detector.Observe(_tap.Tail(_detector.Rules.TailLines), _tap.Title, _tap.Progress, process: _foreground.Current()) : null;
 
     /// <summary>A consumer seeded with a screen redraw, so a reattach can never start mid-sequence.</summary>
     public AgentConsumer Attach()
@@ -118,20 +127,28 @@ public sealed class AgentSession : IAgentSessionPort, IDisposable
     public Task InjectWhenIdle(string text, int attempts = 60, TimeSpan? interval = null)
     {
         var wait = interval ?? TimeSpan.FromMilliseconds(500);
-        return Task.Run(async () =>
+        lock (_injectGate)
         {
-            for (var attempt = 0; attempt < attempts; attempt++)
+            _injectChain = _injectChain.ContinueWith(_ => InjectOnce(text, attempts, wait), TaskScheduler.Default).Unwrap();
+            return _injectChain;
+        }
+    }
+
+    /// <summary>One queued injection: waits for idle, types it, then lets the screen settle so the next one sees the agent busy.</summary>
+    private async Task InjectOnce(string text, int attempts, TimeSpan wait)
+    {
+        for (var attempt = 0; attempt < attempts; attempt++)
+        {
+            if (ExitCode is not null) return;
+            var verdict = _detector.Classify(_tap.Tail(_detector.Rules.TailLines), _tap.Title, _tap.Progress, null);
+            if (verdict == StatusDetector.Idle)
             {
-                if (ExitCode is not null) return;
-                var verdict = _detector.Classify(_tap.Tail(_detector.Rules.TailLines), _tap.Title, _tap.Progress, null);
-                if (verdict == StatusDetector.Idle)
-                {
-                    Write(text + "\r");
-                    return;
-                }
+                Write(text + "\r");
                 await Task.Delay(wait);
+                return;
             }
-        });
+            await Task.Delay(wait);
+        }
     }
 
     /// <summary>Kills the process; the exit callback then completes every consumer.</summary>
@@ -195,7 +212,7 @@ public sealed class AgentSessionRegistry(Skills.RuntimeEnvironment? runtime = nu
             if (!Directory.Exists(cwd)) throw new AgentStartException($"the agent's worktree is missing: {cwd}");
             try
             {
-                var session = new AgentSession(agentId, new PtyLaunch([executable, .. argv.Skip(1)], cwd, SpawnEnv(env)), kind, banner);
+                var session = new AgentSession(agentId, new PtyLaunch([executable, .. argv.Skip(1)], cwd, env), kind, banner);
                 _sessions[agentId] = session;
                 return session;
             }

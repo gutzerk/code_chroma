@@ -11,6 +11,18 @@
   "repo": {"base": "sample_repo"},
   "cases": [
     {
+      "id": "a_fresh_repo_gets_a_draft_c1_with_a_system_node",
+      "steps": [
+        {
+          "http": {"method": "GET", "path": "/repos/main/c1"},
+          "expect": {"status": 200, "checks": [
+            {"path": "$.draft", "equals": true},
+            {"path": "$.nodes[0].id", "equals": "system"}
+          ]}
+        }
+      ]
+    },
+    {
       "id": "path_route_reports_the_per_diagram_artifact_location",
       "steps": [
         {

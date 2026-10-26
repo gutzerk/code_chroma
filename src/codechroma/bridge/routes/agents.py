@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 from pathlib import Path
+from uuid import uuid4
 
 from fastapi import APIRouter, HTTPException, Request
 
@@ -16,46 +17,15 @@ from codechroma.bridge.agents.manager import (
     _clean_context,
     max_agents,
 )
+from codechroma.bridge.agents.session_ownership import file_for
 from codechroma.bridge.agents.sessions import agent_run_env
 from codechroma.bridge.agents.worktree import WorktreeError
 from codechroma.bridge.deps import Services
 from codechroma.bridge.routes._body import as_list, json_body
 from codechroma.bridge.services import BridgeServices
-from codechroma.config import settings
-from codechroma.diagrams import kinds
 from codechroma.terminal.agents import ALLOWED_AGENTS, agent_cli, resolved_cli_for
 
 router = APIRouter()
-
-
-def _diagram_hint(body: dict) -> dict:
-    """The Draw dialog's type and request off a POST /agents body, or a 400."""
-    hint: dict = {}
-    diagram_type = body.get("diagram_type")
-    if "diagram_type" in body and diagram_type is not None:
-        if diagram_type not in kinds.kind_ids():
-            raise HTTPException(status_code=400, detail=f"unknown diagram_type: {diagram_type}")
-        hint["diagram_type"] = diagram_type
-    request = body.get("diagram_request")
-    if request is not None:
-        if not isinstance(request, str):
-            raise HTTPException(status_code=400, detail="diagram_request must be a string")
-        if len(request.strip()) > kinds.max_request_chars():
-            raise HTTPException(
-                status_code=400,
-                detail=f"diagram_request must be at most {kinds.max_request_chars()} characters",
-            )
-        hint["diagram_request"] = _clean_context(request)
-    return hint
-
-
-def _session_id_poll_attempts() -> int:
-    # The transcript appears just after `claude` spawns, so the id is polled for briefly.
-    return settings.agents_routes.session_id_poll_attempts
-
-
-def _session_id_poll_seconds() -> float:
-    return settings.agents_routes.session_id_poll_seconds
 
 
 @router.get("/agents/git-preflight")
@@ -194,13 +164,18 @@ async def post_agent_start(agent_id: str, request: Request, services: Services) 
     session_id = services.agent_manager.capture_session_id(agent_id) if resume else None
     if resume and not session_id:
         raise HTTPException(status_code=409, detail="this agent has no recorded session to resume")
+    new_session_id = (
+        None if resume or services.agent_sessions.is_running(agent_id) else str(uuid4())
+    )
     # A fresh start consumes pending context up front; "task" rides in argv, not a post-boot inject.
     pending = services.agent_manager.consume_context(agent_id) if not resume else None
     task_text = pending[0] if pending and pending[1] == "task" else None
     mcp = request.app.state.question_mcp
     mcp.remember_base_url(str(request.base_url))
     resolved = agent_cli(
-        record.kind, session_id, initial_prompt=task_text, mcp=mcp.endpoint_for(agent_id)
+        record.kind, session_id, initial_prompt=task_text, mcp=mcp.endpoint_for(agent_id),
+        new_session_id=new_session_id,
+        session_tracking_file=file_for(services.agent_manager.main_root, str(uuid4())),
     )
     if resolved is None:
         raise HTTPException(status_code=400, detail=f"unknown agent kind: {record.kind}")
@@ -215,6 +190,7 @@ async def post_agent_start(agent_id: str, request: Request, services: Services) 
     updated = services.agent_manager.mark_started(
         agent_id, session.pid, resolved_cli=resolved_cli_for(record.kind, argv)
     )
+    services.agent_manager.record_session_launch(agent_id, session)
     if pending and pending[1] != "task":
         text, _kind = pending
         session.inject_when_idle(
@@ -223,10 +199,6 @@ async def post_agent_start(agent_id: str, request: Request, services: Services) 
             f"Please acknowledge you understand this context. Do not act on it or "
             f"start any work — just confirm you've read it and say you're ready.",
         )
-    # Give up quietly after a few seconds and leave session_id null — that just disables Resume.
-    services.track_session_id_task(
-        asyncio.create_task(_capture_session_id_later(services, agent_id))
-    )
     payload = agent_payload(services, updated)
     await broadcast_agent_status(services, agent_id, payload["status"])
     return payload
@@ -349,14 +321,3 @@ async def broadcast_agent_status(services: BridgeServices, agent_id: str, status
     await services.connections.broadcast(
         {"type": "agent-status", "id": agent_id, "status": status}
     )
-
-
-async def _capture_session_id_later(services: BridgeServices, agent_id: str) -> None:
-    """Polls briefly for the transcript: it does not exist the instant the process spawns."""
-    for _attempt in range(_session_id_poll_attempts()):
-        await asyncio.sleep(_session_id_poll_seconds())
-        try:
-            if services.agent_manager.capture_session_id(agent_id):
-                return
-        except UnknownAgentError:
-            return

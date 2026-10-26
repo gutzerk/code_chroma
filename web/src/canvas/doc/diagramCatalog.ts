@@ -64,6 +64,18 @@ export function isDiagramLayer(layer: string): boolean {
   return !NON_DIAGRAM_LAYERS.has(layer);
 }
 
+/** Per-question option-diagram layers (`decisions/<question_id>`): real diagrams, canvas-only. */
+const DECISION_LAYER_PREFIX = "decisions/";
+
+function questionLabelFor(doc: CanvasDoc | undefined, questionId: string): string | null {
+  const question = doc && Object.values(doc.elements).find(
+    (element) => element.render === "question" && (stringMeta(element, "question_id") || element.id) === questionId,
+  );
+  const text = question?.label.trim();
+  if (!text) return null;
+  return text.length > 48 ? `${text.slice(0, 47)}…` : text;
+}
+
 /** The short title of a per-EP box label, e.g. `EP-1 · Zoomable semantic map` -> `Zoomable semantic
  * map`. Used so the Diagrams tab can name an epics layer by its epic instead of the generic "Epics".
  * Falls back to the raw label when it lacks the `EP-x · ` prefix (a plain-title story). */
@@ -93,6 +105,10 @@ export function labelForDiagramLayer(
   customTypes: DiagramTypeSummary[],
   doc?: CanvasDoc,
 ): string {
+  if (layer.startsWith(DECISION_LAYER_PREFIX)) {
+    const questionId = layer.slice(DECISION_LAYER_PREFIX.length);
+    return questionLabelFor(doc, questionId) ?? questionId;
+  }
   if (isEpicsLayerName(layer) && doc) {
     const shortTitle = epicsLayerShortTitle(doc, layer);
     if (shortTitle) return shortTitle;

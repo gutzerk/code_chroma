@@ -6,6 +6,10 @@ architecture map.
 
 ## Before you start
 
+- **Change the C# bridge first.** The production desktop runtime is
+  `dotnet/CodeChroma.Bridge`, with tests in `dotnet/CodeChroma.Bridge.Tests`. Implement and verify
+  bridge fixes there before considering Python parity. Changes confined to `src/codechroma/bridge/`
+  affect the development/reference bridge and do not fix the shipped desktop app.
 - Discuss non-trivial changes with a maintainer and settle the scope before
   implementing them. Record feature decisions in `docs/planning/`, the local
   issue tracker; small fixes can go straight to a PR.

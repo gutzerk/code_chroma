@@ -3,7 +3,8 @@ import { render, screen } from "@testing-library/react";
 import { act } from "react";
 import { SequenceDiagram } from "./SequenceDiagram";
 import { sequenceViewStore } from "./sequenceViewStore";
-import type { CanvasElement } from "../../state/types";
+import { EMPTY_CANVAS_DOC, type CanvasElement } from "../../state/types";
+import { viewSequenceElements } from "./autoLayout";
 
 function el(id: string, meta: Record<string, unknown>, x: number, y: number): CanvasElement {
   return {
@@ -22,7 +23,10 @@ const elements = [
 ];
 
 describe("sequence modes", () => {
-  beforeEach(() => sequenceViewStore.reset());
+  beforeEach(() => {
+    window.localStorage.clear();
+    sequenceViewStore.reset();
+  });
 
   it("renders readable by default with phase bands", () => {
     render(<SequenceDiagram layer="seq" elements={elements} />);
@@ -47,7 +51,10 @@ describe("sequence modes", () => {
 });
 
 describe("sequence player", () => {
-  beforeEach(() => sequenceViewStore.reset());
+  beforeEach(() => {
+    window.localStorage.clear();
+    sequenceViewStore.reset();
+  });
 
   it("fades messages after the current step and lights the current one", () => {
     sequenceViewStore.setStep("seq", 2);
@@ -59,5 +66,18 @@ describe("sequence player", () => {
     expect(messages[2].className).toContain("sequence-message--dim");
     expect(messages[0].className).not.toContain("sequence-message--dim");
     sequenceViewStore.setStep("seq", null);
+  });
+});
+
+describe("viewSequenceElements", () => {
+  it("folds a collapsed phase in focus mode without touching the doc", () => {
+    const doc = { ...EMPTY_CANVAS_DOC, elements: Object.fromEntries(elements.map((e) => [e.id, e])) };
+    const ids = elements.map((e) => e.id);
+
+    const derived = viewSequenceElements(doc, ids, { mode: "focus", collapsed: ["p1"], focus: null });
+
+    const y = (id: string) => derived.find((e) => e.id === id)?.position.y;
+    expect(y("m1")).toBe(y("m2"));
+    expect(doc.elements.m2.position.y).toBe(148);
   });
 });

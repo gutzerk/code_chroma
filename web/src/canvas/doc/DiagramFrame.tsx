@@ -44,21 +44,29 @@ function SequenceModeSwitch({ layer, members }: { layer: string; members: Canvas
   useSyncExternalStore(sequenceViewStore.subscribe, sequenceViewStore.getVersion);
   const messageCount = members.filter((m) => stringMeta(m, "role") === "message").length;
   const view = sequenceViewStore.get(layer, messageCount);
-  const model = useMemo(() => buildSequenceModel(members), [members]);
+  // `members` is a fresh array each render, so the model keys on a signature of what it reads.
+  const signature = members
+    .map((m) => [m.id, m.render, stringMeta(m, "role"), m.meta?.order, m.label].join(":"))
+    .join("|") + JSON.stringify([members[0]?.meta?.phases, members[0]?.meta?.frames]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- `signature` is the change signal for `members`
+  const model = useMemo(() => buildSequenceModel(members), [signature]);
   const phaseIds = model.phases.map((p) => p.id);
   const stop = (e: { stopPropagation: () => void }) => e.stopPropagation();
-  const orders = [...new Set(model.messages.map((m) => m.order))];
+  const orders = useMemo(() => [...new Set(model.messages.map((m) => m.order))], [model]);
   const step = sequenceViewStore.getStep(layer);
   const playing = step !== null;
+  // Key the timer on the order values, not the array.
+  const ordersRef = useRef(orders);
+  ordersRef.current = orders;
+  const ordersKey = orders.join(",");
   useEffect(() => {
     if (step === null) return;
     const timer = setTimeout(() => {
-      const next = orders.find((order) => order > step);
+      const next = ordersRef.current.find((order) => order > step);
       sequenceViewStore.setStep(layer, next ?? null);
     }, PLAYER_STEP_MS);
     return () => clearTimeout(timer);
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- `orders` is derived from `members` each render
-  }, [step, layer]);
+  }, [step, layer, ordersKey]);
   return (
     <span
       className="canvas-diagram-frame-modes"
@@ -204,8 +212,10 @@ export function DiagramFrame({ layer, label, members, sizes, typeLabel, boxCount
       padding={PADDING}
       className={classes}
       testId="canvas-diagram-frame"
+      diagramLayer={layer}
       labelClassName="canvas-diagram-frame-label"
       label={label}
+      layer={layer}
       labelAction={
         <>
           {typeLabel !== undefined && (

@@ -8,9 +8,10 @@ import { DockedAgentPanel } from "./AgentTerminalDock";
 import { WorkflowsTab } from "../workflows/WorkflowsTab";
 import { AgentsHeaderActions } from "./activity/AgentsHeaderActions";
 import { WorkflowsHeaderActions } from "../workflows/WorkflowsHeaderActions";
-import { useRuns, workflowStore } from "../workflows/workflowStore";
+import { useRuns, useRunsLoaded, workflowStore } from "../workflows/workflowStore";
 import { isFinished } from "../workflows/runControls";
-import { AgentList, AgentSwitcherRow } from "./activity/AgentSwitcherRow";
+import { AgentList, AgentSwitcherRow, selectAgent } from "./activity/AgentSwitcherRow";
+import { useAgentClient } from "./AgentClientContext";
 import { CollapsedStrip, type ActivityTab } from "./activity/CollapsedStrip";
 import { ExpandIcon, HandleChevronLeft, HandleChevronRight, HandleCollapse } from "./activity/icons";
 import { usePanelSize } from "./activity/usePanelSize";
@@ -27,12 +28,15 @@ export function ActivityPanel({
   disabled?: boolean;
 }) {
   const agents = useAgents();
+  const agentClient = useAgentClient();
   const agentIds = useMemo(() => agents.map((a) => a.id), [agents]);
   const openQuestions = useOpenQuestionCount(agentIds);
   const { agentsMode, leftOpen, selectedAgentId } = useLayoutState();
   const [tab, setTab] = useState<ActivityTab>("agents");
   const runs = useRuns();
   const activeRuns = runs.filter((r) => !isFinished(r.state)).length;
+  const runsLoaded = useRunsLoaded();
+  const revealedRuns = useRef(false);
   const launchError = useAgentLaunchError();
   const panelRef = useRef<HTMLElement | null>(null);
   const isFull = agentsMode === "full";
@@ -55,11 +59,36 @@ export function ActivityPanel({
   useEffect(() => {
     if (tab !== "workflows" || collapsed) workflowStore.setDialog(null);
   }, [tab, collapsed]);
+  // Runs saved before the app was closed come back on their own: open the panel and, with no agents to show, land on them.
+  useEffect(() => {
+    if (!runsLoaded || revealedRuns.current) return;
+    revealedRuns.current = true;
+    if (!runs.some((r) => r.state !== "done")) return;
+    if (layoutStore.getState().agentsMode === "collapsed") layoutStore.setAgentsMode("normal");
+    if (agents.length === 0) setTab("workflows");
+  }, [runsLoaded, runs, agents.length]);
   useEffect(() => {
     if (selectedAgentId) setTab("agents");
   }, [selectedAgentId]);
   // Entering full screen (or switching agents inside it) moves the cursor into that agent's terminal.
   const [focusRequest, setFocusRequest] = useState(0);
+  useEffect(() => {
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (!(event.ctrlKey || event.metaKey) || !event.altKey || event.shiftKey || event.isComposing) return;
+      if (event.key !== "ArrowLeft" && event.key !== "ArrowRight") return;
+      if (agents.length === 0 || document.querySelector('[aria-modal="true"]')) return;
+      event.preventDefault();
+      event.stopPropagation();
+      const index = agents.findIndex((agent) => agent.id === activeId);
+      const forward = event.key === "ArrowRight";
+      const next = agents[index < 0 ? (forward ? 0 : agents.length - 1) : (index + (forward ? 1 : agents.length - 1)) % agents.length];
+      selectAgent(agentClient, next);
+      setTab("agents");
+      setFocusRequest((n) => n + 1);
+    };
+    window.addEventListener("keydown", onKeyDown, true);
+    return () => window.removeEventListener("keydown", onKeyDown, true);
+  }, [agents, activeId, agentClient]);
   useEffect(() => {
     if (isFull && activeId) setFocusRequest((n) => n + 1);
   }, [isFull, activeId]);

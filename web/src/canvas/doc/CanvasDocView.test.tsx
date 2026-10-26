@@ -347,6 +347,22 @@ describe("CanvasDocView", () => {
     expect(screen.getByText("C1")).toBeInTheDocument();
   });
 
+  it("frames a per-question decisions layer and tags the frame with its layer", async () => {
+    const doc = docWith([
+      elementOf({ id: "d1", render: "custom", label: "A", layer: "decisions/q1", position: { x: 100, y: 100 } }),
+      elementOf({ id: "d2", render: "custom", label: "B", layer: "decisions/q1", position: { x: 400, y: 100 } }),
+    ]);
+
+    render(
+      <EngineClientProvider repoId="default" client={client(doc)}>
+        <CanvasDocView />
+      </EngineClientProvider>,
+    );
+
+    await waitFor(() => expect(screen.getByTestId("canvas-diagram-frame")).toBeInTheDocument());
+    expect(screen.getByTestId("canvas-diagram-frame").getAttribute("data-diagram-layer")).toBe("decisions/q1");
+  });
+
   it("sizes a diagram's frame off its real boxes, not a group's own stale position field", async () => {
     // Regression: a group's own `position` is never touched again after creation (GroupFrame
     // renders purely off its members' positions) -- but DiagramFrame's whole-layer bounds used to
@@ -458,6 +474,23 @@ describe("CanvasDocView", () => {
     await waitFor(() => expect(screen.getByTestId("canvas-concurrency-island")).toBeInTheDocument());
     // "1" has no other member sharing its leading digit, so it never forms a second island.
     expect(screen.getAllByTestId("canvas-concurrency-island")).toHaveLength(1);
+  });
+
+  it("shows a step chip for a numeric order as well as a string one", async () => {
+    const doc = docWith([
+      elementOf({ id: "n1", render: "custom", label: "A", meta: { order: 2 } }),
+      elementOf({ id: "n2", render: "custom", label: "B", meta: { order: "3b" } }),
+    ]);
+    const engineClient = client(doc);
+
+    render(
+      <EngineClientProvider repoId="default" client={engineClient}>
+        <CanvasDocView />
+      </EngineClientProvider>,
+    );
+
+    await waitFor(() => expect(screen.getAllByTestId("canvas-node-step-chip")).toHaveLength(2));
+    expect(screen.getAllByTestId("canvas-node-step-chip").map((chip) => chip.textContent)).toEqual(["2", "3"]);
   });
 
   it("does not draw a Concurrency island for a lone numbered step", async () => {

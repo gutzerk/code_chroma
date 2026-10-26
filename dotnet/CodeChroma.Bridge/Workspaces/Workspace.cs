@@ -38,6 +38,8 @@ public sealed class Workspace : IDisposable
 
     /// <summary>Where C1 is read through from (a PR borrows main's), when it is not this root.</summary>
     public string? C1SourceRoot { get; init; }
+    /// <summary>Whose C1 diagram this workspace draws: the borrowed source root, else its own.</summary>
+    public string C1Root => C1SourceRoot ?? Root;
     public WorkspaceState State { get; } = new("ready", "", null);
 
     public string TracesDir => Path.Combine(Root, ".codechroma", "traces");

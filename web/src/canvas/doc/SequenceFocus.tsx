@@ -2,6 +2,9 @@ import { SequenceDrawing } from "./SequenceReadable";
 import type { SequenceModel } from "./sequenceModel";
 import { sequenceViewStore, type SequenceView } from "./sequenceViewStore";
 
+/** Matches `.sequence-timeline`'s width; the panel sits inside the diagram so the frame still contains it. */
+const TIMELINE_WIDTH = 220;
+
 export interface SequenceFocusProps {
   layer: string;
   model: SequenceModel;
@@ -61,7 +64,7 @@ export function SequenceFocus({ layer, model, view }: SequenceFocusProps) {
           <ol
             className="sequence-timeline"
             data-testid="sequence-timeline"
-            style={{ position: "absolute", left: model.bounds.right - left + 16, top: 0, pointerEvents: "auto" }}
+            style={{ position: "absolute", left: model.bounds.right - left - TIMELINE_WIDTH - 8, top: 8, pointerEvents: "auto" }}
           >
             {model.messages.map((m) => (
               <li

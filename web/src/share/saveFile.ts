@@ -3,18 +3,20 @@ import { getDesktopWorkspaceApi } from "../agents/desktopWorkspaceApi";
 export interface SaveRequest {
   name: string;
   mime: string;
-  blob: Blob;
+  /** May still be rendering: the picker opens first so the click's user activation is still live. */
+  blob: Blob | Promise<Blob>;
 }
 
 /** True when the user picked a place, false when they cancelled the dialog. */
 export async function saveFile({ name, mime, blob }: SaveRequest): Promise<boolean> {
   const desktop = getDesktopWorkspaceApi();
   if (desktop?.saveFile) {
-    const result = await desktop.saveFile(name, mime, await toBase64(blob));
+    const result = await desktop.saveFile(name, mime, await toBase64(await blob));
     return result.saved;
   }
   const picker = (window as unknown as { showSaveFilePicker?: SaveFilePicker }).showSaveFilePicker;
   if (picker) {
+    if (blob instanceof Promise) blob.catch(() => undefined);
     try {
       const extension = name.slice(name.lastIndexOf("."));
       const handle = await picker({
@@ -22,7 +24,7 @@ export async function saveFile({ name, mime, blob }: SaveRequest): Promise<boole
         types: [{ description: extension.slice(1).toUpperCase(), accept: { [mime]: [extension] } }],
       });
       const writable = await handle.createWritable();
-      await writable.write(blob);
+      await writable.write(await blob);
       await writable.close();
       return true;
     } catch (error) {
@@ -30,7 +32,7 @@ export async function saveFile({ name, mime, blob }: SaveRequest): Promise<boole
       throw error;
     }
   }
-  downloadBlob(name, blob);
+  downloadBlob(name, await blob);
   return true;
 }
 

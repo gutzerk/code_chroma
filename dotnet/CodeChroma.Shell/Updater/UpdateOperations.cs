@@ -86,10 +86,11 @@ public sealed class UpdateScheduler(Func<DateTimeOffset> clock, bool packaged = 
 
     public void RecordCheck() => lastCheck = clock();
 
-    /// <summary>A background result notifies once per version and never for a skipped one; a manual check always shows it.</summary>
+    /// <summary>Only a startup check may interrupt, once per version and never for a skipped one; periodic and focus checks refresh state silently, a manual check always shows it.</summary>
     public bool ShouldNotify(string version, UpdateSettings settings, CheckTrigger trigger)
     {
         if (trigger == CheckTrigger.Manual) return true;
+        if (trigger != CheckTrigger.Startup) return false;
         if (settings.SkippedVersion is { } skipped && SemVer.TryParse(skipped, out _) && SemVer.CompareTags(skipped, version) == 0) return false;
         if (notifiedVersion == version) return false;
         notifiedVersion = version;

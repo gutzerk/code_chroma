@@ -26,10 +26,12 @@ export class PanelStore extends Store {
 
   getIsOpen = (): boolean => this.isOpenState;
 
-  open = (): void => {
+  open = (): void => this.openPanel();
+
+  protected openPanel(): void {
     this.isOpenState = true;
     this.emit();
-  };
+  }
 
   toggle = (): void => {
     this.isOpenState = !this.isOpenState;

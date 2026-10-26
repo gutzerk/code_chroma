@@ -4,6 +4,18 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
+## Production bridge: C# first
+
+The shipped desktop app runs **`dotnet/CodeChroma.Bridge`**. Apply bridge fixes and features there
+first and add regression tests in **`dotnet/CodeChroma.Bridge.Tests`**. This includes agent startup,
+session ownership/resume, terminals, routes, workflows, and persistence. A change only under
+`src/codechroma/bridge/` does **not** fix the desktop app. The Python bridge is a development/reference
+implementation; update it afterward only when parity is needed. Verify the production C# path before
+claiming a desktop issue is fixed. Older Python-oriented sections below describe that reference path.
+
+Run `dotnet test dotnet/CodeChroma.Bridge.Tests/CodeChroma.Bridge.Tests.csproj` for bridge validation.
+See [parallel agents](docs/architecture/parallel-agents.md) for the production session ownership flow.
+
 ## Project overview
 
 CodeChroma builds a semantic, zoomable architecture hierarchy (System → Pillar → Component →

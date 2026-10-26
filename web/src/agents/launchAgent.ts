@@ -49,6 +49,7 @@ export function ensureStepAgent(client: AgentClient, title: string, runId: strin
   const key = `${runId}:${sessionId}`;
   const inFlight = stepStarts.get(key);
   if (inFlight) return inFlight;
+  if (agentStore.getIsAtCapacity()) return Promise.reject(new Error("Too many agents are open; close one to talk to this step."));
   const launch = createAndStart(client, () => client.openStepSession(title, runId, sessionId)).finally(() => stepStarts.delete(key));
   stepStarts.set(key, launch);
   return launch;

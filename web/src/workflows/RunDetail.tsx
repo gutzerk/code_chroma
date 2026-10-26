@@ -85,7 +85,7 @@ function LiveView({ run, workflow, step, footer }: { run: Run; workflow: Workflo
         {!step || !def ? (
           <p>Select a step to see it live.</p>
         ) : showTerminal ? (
-          <StepTerminal runId={run.id} slug={def.slug} step={step} />
+          <StepTerminal key={step.stepId} runId={run.id} slug={def.slug} step={step} />
         ) : tab === "agent" ? (
           <>
             {def.prompt && <div className="live-line" data-tone="prompt">{`> ${def.prompt.split("\n")[0]}`}</div>}

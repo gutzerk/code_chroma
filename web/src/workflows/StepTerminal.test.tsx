@@ -66,4 +66,24 @@ describe("StepTerminal", () => {
 
     await waitFor(() => expect(screen.getByRole("alert")).toHaveTextContent("no worktree"));
   });
+
+  it("shows the start error instead of a dead terminal", async () => {
+    const client = fakeClient({ start: vi.fn(async () => Promise.reject(new Error("claude missing"))) });
+
+    mount(client);
+
+    await waitFor(() => expect(screen.getByRole("alert")).toHaveTextContent("claude missing"));
+    expect(screen.queryByTestId("terminal-a1")).toBeNull();
+  });
+
+  it("refuses to launch past the agent capacity", async () => {
+    const client = fakeClient();
+    vi.spyOn(agentStore, "getIsAtCapacity").mockReturnValue(true);
+
+    mount(client);
+
+    await waitFor(() => expect(screen.getByRole("alert")).toHaveTextContent("Too many agents"));
+    expect(client.openStepSession).not.toHaveBeenCalled();
+    vi.restoreAllMocks();
+  });
 });

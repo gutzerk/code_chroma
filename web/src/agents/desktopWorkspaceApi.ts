@@ -8,6 +8,9 @@ export interface DesktopWorkspaceApi {
   focusThisTab(): Promise<void>;
   /** Closes this tab's project and shows the open-project launcher. */
   closeThisProject(): Promise<void>;
+  /** Native clipboard access avoids WebKit paste permission prompts. */
+  readClipboard?(): Promise<string>;
+  writeClipboard?(text: string): Promise<void>;
   /** Native Save As for base64 content; `saved` is false when the user cancelled. */
   saveFile?(name: string, mime: string, base64: string): Promise<{ saved: boolean }>;
 }

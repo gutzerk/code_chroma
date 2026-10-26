@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, type RefObject } from "react";
+import { getDesktopWorkspaceApi } from "../agents/desktopWorkspaceApi";
 import { Terminal } from "@xterm/xterm";
 import { FitAddon } from "@xterm/addon-fit";
 import { Unicode11Addon } from "@xterm/addon-unicode11";
@@ -177,7 +178,11 @@ export function useXtermSession(
       selectionCopyTimeoutRef.current = setTimeout(() => {
         selectionCopyTimeoutRef.current = null;
         const selection = term.getSelection();
-        if (selection) void navigator.clipboard?.writeText(selection).catch(() => {});
+        if (selection) {
+          const desktop = getDesktopWorkspaceApi();
+          const copy = desktop?.writeClipboard ? desktop.writeClipboard(selection) : navigator.clipboard?.writeText(selection);
+          void copy?.catch(() => {});
+        }
       }, SELECTION_COPY_DEBOUNCE_MS);
     });
     lastSizeRef.current = { rows: term.rows, cols: term.cols };

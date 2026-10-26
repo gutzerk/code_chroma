@@ -446,7 +446,7 @@
   font-size: 12px;
 }
 /* Full screen: the agent list on the left, the selected terminal beside it. */
-.activity-panel.is-full .activity-agent-content {
+.activity-panel.is-full .activity-agent-content:not([hidden]) {
   display: grid;
   grid-template-columns: 280px minmax(0, 1fr);
   grid-template-rows: minmax(0, 1fr);

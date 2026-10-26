@@ -193,4 +193,4 @@ Issue #189: macOS asked to allow Apple Music / media library / photo access. The
 ## CLI lookup and clipboard notes
 
 - `CodeChroma.Bridge/Stores/CliLocator.cs` searches the process PATH, then well-known install dirs (`~/.local/bin`, `/opt/homebrew/bin`, `/usr/local/bin`, npm global, GitHub CLI dirs), because a GUI-launched app inherits a minimal PATH (agents `claude` / `gh` not found).
-- `DesktopScript.cs` adds a guarded fallback for Ctrl/Cmd+C/X/V/A that only acts when the webview raised no native clipboard event (unverified on macOS).
+- `DesktopScript.cs` handles Ctrl/Cmd+C/X/V/A via the origin-checked shell message channel and Avalonia clipboard, avoiding WKWebView Clipboard API paste prompts. Paste is delivered to xterm as a clipboard event (preserving bracketed paste) or inserted into the focused editor with `execCommand` (preserving input events and undo). Pending paste/cut is discarded if focus or input selection changes; terminal Ctrl+C still reaches the PTY. Copy-on-select also uses the native clipboard when hosted in the desktop shell. Hardware validation on macOS is still required.

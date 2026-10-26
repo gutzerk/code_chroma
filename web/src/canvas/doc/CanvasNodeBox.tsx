@@ -250,8 +250,11 @@ export function CanvasNodeBox({ element, onMeasure }: CanvasNodeBoxProps) {
       : offset
     : (liveDragOffsets[element.id] ?? (isGroupDrag ? { x: 0, y: 0 } : offset));
 
+  // Re-clicking the box already open in the inspector closes it instead of reopening the same page.
+  const toggleInspector = (open: () => void) => (isInspectorTarget ? inspectorStore.close() : open());
+
   // Shared by the click and keyboard (Enter/Space) activation paths -- a box must be operable
-  // without a mouse, not just focusable (WCAG 2.1.1).
+  // without a mouse, not just focusable (WCAG 2.1.1); the inspector itself opens from the SRC button.
   const activate = (toggleSelection: boolean, event: { stopPropagation: () => void }) => {
     if (toggleSelection) {
       event.stopPropagation();
@@ -266,14 +269,12 @@ export function CanvasNodeBox({ element, onMeasure }: CanvasNodeBoxProps) {
     // text + its place in the epic instead of a code tree. Opening the inspector keeps re-clicking
     // the already-open box closing it, matching the code-box behavior below.
     if (isEpicsLayerName(element.layer)) {
-      if (isInspectorTarget) {
-        inspectorStore.close();
-        return;
-      }
-      inspectorStore.open(element.id, element.label, element.id, undefined, {
-        element,
-        doc: canvasDocStore.getDoc(),
-      });
+      toggleInspector(() =>
+        inspectorStore.open(element.id, element.label, element.id, undefined, {
+          element,
+          doc: canvasDocStore.getDoc(),
+        }),
+      );
       return;
     }
     // 022: a click also focuses the block (neighbours stay lit, the rest fades); display only.
@@ -281,7 +282,7 @@ export function CanvasNodeBox({ element, onMeasure }: CanvasNodeBoxProps) {
     // An epic/story box's primary click opens the right-side inspector showing the work item's full
     // text (010-epics-tree-render Part 5). The AI brief is reached from a button inside that level.
     // `stringMeta` restores the runtime type guard (`meta` is `Record<string, unknown>`) — the
-    // epic-brief rule always stamps a string key, and the `openId` fallback chain tolerates undefined.
+    // epic-brief rule always stamps a string key.
     // A spec box (the epic brief's spec/user-story node) has no work item of its own: its stages
     // live on the epic, so the click resolves to the epic id carried in `meta.spec_of`.
     const isEpicBrief = BLOCK_RULES[element.render].activation === "epic-brief";
@@ -308,17 +309,17 @@ export function CanvasNodeBox({ element, onMeasure }: CanvasNodeBoxProps) {
       descriptionPopupStore.open(element.label, noCodeReasonMessage(element, noCodeReason));
       return;
     }
-    // Falls through to the Inspector for a real, resolved node_id -- InspectorPanel's own
-    // useInspectorNode still turns a genuine "no such node" into a clear message with Retry. For a
-    // work item the id is the recipe key (an epic box has no node_id). Re-clicking the box already
-    // open in the inspector closes it instead of reopening the same page.
-    const openId = workItemId ?? element.node_id ?? element.id;
-    if (isInspectorTarget) {
-      inspectorStore.close();
-      return;
-    }
-    inspectorStore.open(openId, element.label, element.id, workItemId);
+    // A code box's click only focuses it: the right-side inspector opens from the box's own SRC
+    // button (below), so clicking anywhere else on the block never pops the panel. A work item (epic
+    // brief spec box) has no SRC button, so its click still opens the inspector on the work item,
+    // and re-clicking the box already open closes it.
+    if (workItemId) toggleInspector(() => inspectorStore.open(workItemId, element.label, element.id, workItemId));
   };
+
+  // The SRC button toggles the inspector on this box's code; InspectorPanel's own useInspectorNode
+  // still turns a genuine "no such node" into a clear message with Retry.
+  const toggleSource = () =>
+    toggleInspector(() => inspectorStore.open(element.node_id ?? element.id, element.label, element.id));
 
   const classes = [
     style.boxClass,
@@ -350,7 +351,8 @@ export function CanvasNodeBox({ element, onMeasure }: CanvasNodeBoxProps) {
   // the box's own attributed change count, echoed as `· N` to mirror the form's `~ MODIFY · 17`.
   const impactCount = impactChange?.change_count ?? 0;
   // 022: the file path is always visible on a code-backed box (the resolver stamps `meta.path`).
-  const sourcePath = isEpicsLayerName(element.layer) ? undefined : stringMeta(element, "path");
+  const isEpicsLayer = isEpicsLayerName(element.layer);
+  const sourcePath = isEpicsLayer ? undefined : stringMeta(element, "path");
 
   return (
     <>
@@ -480,20 +482,6 @@ export function CanvasNodeBox({ element, onMeasure }: CanvasNodeBoxProps) {
                 <span className="canvas-node-box-path" title={sourcePath}>
                   {sourcePath}
                 </span>
-                {element.node_id && (
-                  <button
-                    type="button"
-                    className="canvas-node-box-src"
-                    data-testid="canvas-node-box-src"
-                    aria-label={`Open source of ${element.label}`}
-                    onClick={(event) => {
-                      event.stopPropagation();
-                      inspectorStore.open(element.node_id ?? element.id, element.label, element.id);
-                    }}
-                  >
-                    SRC ↗
-                  </button>
-                )}
               </div>
             )}
           </div>
@@ -503,6 +491,21 @@ export function CanvasNodeBox({ element, onMeasure }: CanvasNodeBoxProps) {
               name={element.label}
               variant="canvas-node-box"
             />
+            {element.node_id && !isEpicsLayer && (
+              <button
+                type="button"
+                className="canvas-node-box-src"
+                data-testid="canvas-node-box-src"
+                aria-label={`Open source of ${element.label}`}
+                aria-pressed={isInspectorTarget}
+                onClick={(event) => {
+                  event.stopPropagation();
+                  toggleSource();
+                }}
+              >
+                SRC ↗
+              </button>
+            )}
             {style.descClass && element.description && (
               <button
                 type="button"
@@ -512,8 +515,8 @@ export function CanvasNodeBox({ element, onMeasure }: CanvasNodeBoxProps) {
                 data-testid="canvas-node-box-desc-button"
                 onClick={(event) => {
                   // The name-row/description sit inside the same clickable header, which otherwise
-                  // opens the InspectorPanel (`activate`, above) — this button is a separate escape
-                  // hatch for the description text alone, so it must not also trigger that.
+                  // focuses the block and may open a popup (`activate`, above) — this button is a
+                  // separate escape hatch for the description text alone, so it must not also trigger that.
                   event.stopPropagation();
                   descriptionPopupStore.open(element.label, element.description ?? "");
                 }}

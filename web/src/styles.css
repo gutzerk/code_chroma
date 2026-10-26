@@ -4007,7 +4007,8 @@ button[data-copy-state="idle"][aria-label]:hover:not(:disabled) {
   top: 0;
   right: 0;
   bottom: 0;
-  z-index: 30;
+  /* Above the agents panel (z-index 41), so the code panel is never covered by it. */
+  z-index: 42;
   width: 30vw;
   min-width: 320px;
   max-width: 50vw;
@@ -8193,7 +8194,9 @@ button[data-copy-state="idle"][aria-label]:hover:not(:disabled) {
 [data-zoom="far"] .canvas-node-box-foot,
 [data-zoom="far"] [data-testid="canvas-node-box-description"],
 [data-zoom="far"] [data-testid="canvas-node-meta-row"] { display: none; }
-.canvas-focus-panel { position: fixed; right: 16px; top: 72px; z-index: 40; width: 240px; padding: 10px 12px; font-size: 0.75rem; border: 1px solid var(--control-border); border-radius: var(--radius-lg); background: var(--panel-bg, #1b1d22); }
+.canvas-focus-panel { position: absolute; left: calc(var(--chrome-inset, 12px) + var(--left-panel-width, 262px) + 12px); top: 72px; z-index: 40; width: 240px; padding: 10px 12px; font-size: 0.75rem; border: 1px solid var(--control-border); border-radius: var(--radius-lg); background: var(--panel-bg, #1b1d22); }
+/* No open left panel (only the collapsed top bar): sit at the canvas's left edge instead of a panel-wide gap. */
+.canvas-area:not(:has(.left-panel)) .canvas-focus-panel { left: var(--chrome-inset, 12px); }
 .canvas-focus-panel h4 { margin: 8px 0 4px; font-size: 0.65rem; letter-spacing: 0.08em; opacity: 0.7; }
 .canvas-focus-panel ul { margin: 0; padding-left: 16px; }
 

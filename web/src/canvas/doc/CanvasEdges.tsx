@@ -65,6 +65,7 @@ export function CanvasEdges({ doc, sizes, onOpenOrigin }: CanvasEdgesProps) {
           origin={edge.origin}
           onOpenOrigin={onOpenOrigin}
           testId="canvas-doc-relationship"
+          layer={doc.elements[edge.from]?.layer}
         />
       ))}
     </>

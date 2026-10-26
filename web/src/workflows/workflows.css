@@ -1038,6 +1038,12 @@
   font: 14px/1.7 var(--font-mono);
 }
 
+.live-line {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  tab-size: 4;
+}
+
 .live-line[data-tone="prompt"] {
   color: var(--wf-accent);
 }
@@ -1561,4 +1567,28 @@
 .step-tag-resumes {
   border-color: var(--inspector);
   color: var(--inspector);
+}
+
+.step-handover {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-top: 8px;
+  padding: 8px 10px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+}
+
+.step-handover-title {
+  color: var(--text-muted);
+  font-size: 11px;
+}
+
+.step-handover-text {
+  max-height: 160px;
+  margin: 0;
+  overflow: auto;
+  color: var(--text-strong);
+  font: 12px/1.6 var(--font-mono);
+  white-space: pre-wrap;
 }

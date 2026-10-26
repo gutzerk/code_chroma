@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, type RefObject } from "react";
+import { getDesktopWorkspaceApi } from "../agents/desktopWorkspaceApi";
 import { Terminal } from "@xterm/xterm";
 import { FitAddon } from "@xterm/addon-fit";
 import { Unicode11Addon } from "@xterm/addon-unicode11";
@@ -9,6 +10,18 @@ import type { TerminalSession } from "./TerminalClient";
 
 const REFIT_DEBOUNCE_MS = 60;
 const SELECTION_COPY_DEBOUNCE_MS = 150;
+
+let clipboardTail: Promise<unknown> | null = null;
+
+/** Writes a terminal selection to the native (desktop) or browser clipboard, one write at a time and in order. */
+function copySelection(text: string): void {
+  const desktop = getDesktopWorkspaceApi();
+  const write = () => (desktop?.writeClipboard ? desktop.writeClipboard(text) : navigator.clipboard?.writeText(text));
+  const run = () => Promise.resolve(write()).catch(() => {});
+  const next = clipboardTail ? clipboardTail.then(run) : run();
+  clipboardTail = next;
+  void next.then(() => { if (clipboardTail === next) clipboardTail = null; });
+}
 
 // A stack that actually ships the box-drawing and braille an agent TUI paints with; courier-new,
 // xterm's default, has neither. lineHeight must stay 1 or box borders break into dashes.
@@ -172,12 +185,19 @@ export function useXtermSession(
     // Copy-on-select, like a native terminal: a selection is a copy, no explicit Cmd/Ctrl+C needed.
     // Debounced the same way scheduleRefit is: a drag fires this on every extended cell, and copying
     // a still-growing multi-thousand-line selection on every tick is pure waste.
+    let userSelecting = false;
+    const markSelecting = () => { userSelecting = true; };
+    const unmarkSelecting = () => {
+      setTimeout(() => { userSelecting = false; }, SELECTION_COPY_DEBOUNCE_MS + 50);
+    };
+    container.addEventListener("pointerdown", markSelecting);
+    window.addEventListener("pointerup", unmarkSelecting);
     term.onSelectionChange(() => {
       if (selectionCopyTimeoutRef.current !== null) clearTimeout(selectionCopyTimeoutRef.current);
       selectionCopyTimeoutRef.current = setTimeout(() => {
         selectionCopyTimeoutRef.current = null;
         const selection = term.getSelection();
-        if (selection) void navigator.clipboard?.writeText(selection).catch(() => {});
+        if (selection && userSelecting) copySelection(selection);
       }, SELECTION_COPY_DEBOUNCE_MS);
     });
     lastSizeRef.current = { rows: term.rows, cols: term.cols };
@@ -205,6 +225,8 @@ export function useXtermSession(
       disposed = true;
       dprQuery?.removeEventListener("change", onDprChange);
       resizeObserver.disconnect();
+      container.removeEventListener("pointerdown", markSelecting);
+      window.removeEventListener("pointerup", unmarkSelecting);
       if (refitTimeoutRef.current !== null) clearTimeout(refitTimeoutRef.current);
       if (selectionCopyTimeoutRef.current !== null) clearTimeout(selectionCopyTimeoutRef.current);
       session.close();

@@ -65,7 +65,7 @@ Logic is UI-free in `CodeChroma.Shell`; `CodeChroma.Shell.App` only renders.
   channel (`DesktopScript`/`DesktopMessage`). The shell accepts messages only while the tab URL origin equals its
   bridge origin; other navigations are cancelled and opened in the system browser.
 - Calls that need an answer (`codechromaUpdates.*`, `saveFile`) go through one page-side `rpc` and are answered by
-  `ShellReply.RunAsync` via `window.__ccReply(callId, ok, json)`. `saveFile(name, mime, base64)` (the canvas's Share
+  `ShellReply.RunAsync` via `window.__ccReply(callId, ok, json)`. `saveFile(name, mime, base64)` (the Diagrams panel's Export
   menu) posts `save-file` (`id`=file name, `method`=mime, `arg`=base64); `MainWindow.SaveFileAsync` runs
   `CodeChroma.Shell/FileSaver` over Avalonia's `SaveFilePickerAsync` and replies `{saved}` (`false` = cancelled).
 - Chrome: no native menu bar on Windows/Linux; the tab strip (`#1b1d23` bar, `#6c8cff` active underline) ends in a
@@ -193,4 +193,4 @@ Issue #189: macOS asked to allow Apple Music / media library / photo access. The
 ## CLI lookup and clipboard notes
 
 - `CodeChroma.Bridge/Stores/CliLocator.cs` searches the process PATH, then well-known install dirs (`~/.local/bin`, `/opt/homebrew/bin`, `/usr/local/bin`, npm global, GitHub CLI dirs), because a GUI-launched app inherits a minimal PATH (agents `claude` / `gh` not found).
-- `DesktopScript.cs` adds a guarded fallback for Ctrl/Cmd+C/X/V/A that only acts when the webview raised no native clipboard event (unverified on macOS).
+- `DesktopScript.cs` handles Ctrl/Cmd+C/X/V/A in a capture-phase, trusted-only keydown listener via the origin-checked shell message channel and Avalonia clipboard, avoiding WKWebView Clipboard API paste prompts. Clipboard reads are private to that listener (not on `window.codechromaDesktop`) and `MainWindow.ClipboardAsync` serves them only to the active, visible tab (writes capped at 4 MB). The xterm textarea is left alone for copy/cut/select-all (terminal Ctrl+C still reaches the PTY); paste is delivered to xterm as a clipboard event (bracketed paste preserved) or inserted into the focused editor with `execCommand`. Select-all is only taken in inputs, contentEditable and the bare page. Pending paste/cut is discarded if focus, value or selection (input or contentEditable range) changes. Terminal copy-on-select writes to the native clipboard (ordered, only for pointer-made selections). Hardware validation on macOS is still required.

@@ -213,10 +213,24 @@ describe("TerminalPanel", () => {
     const { session } = createFakeSession();
     renderPanel(() => session);
 
+    fireEvent.pointerDown(screen.getByTestId("terminal-panel-container"));
     fakeTerminals[0].emitSelectionChange("hello from agent");
     vi.advanceTimersByTime(150);
 
     expect(writeText).toHaveBeenCalledWith("hello from agent");
+  });
+
+  it("does not copy a selection the user did not make with the pointer", () => {
+    vi.useFakeTimers();
+    const writeText = vi.fn().mockResolvedValue(undefined);
+    stubClipboard(writeText);
+    const { session } = createFakeSession();
+    renderPanel(() => session);
+
+    fakeTerminals[0].emitSelectionChange("programmatic");
+    vi.advanceTimersByTime(150);
+
+    expect(writeText).not.toHaveBeenCalled();
   });
 
   it("debounces repeated selection changes into a single clipboard write", () => {
@@ -227,6 +241,7 @@ describe("TerminalPanel", () => {
     renderPanel(() => session);
 
     // A drag extends the selection on every cell; only the settled end state should be copied.
+    fireEvent.pointerDown(screen.getByTestId("terminal-panel-container"));
     fakeTerminals[0].emitSelectionChange("h");
     fakeTerminals[0].emitSelectionChange("he");
     fakeTerminals[0].emitSelectionChange("hello");

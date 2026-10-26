@@ -24,7 +24,7 @@
 .activity-content[hidden],
 .activity-agent-content[hidden],
 .activity-workflows[hidden] {
-  display: none;
+  display: none !important;
 }
 .activity-panel.is-collapsed {
   width: 52px;

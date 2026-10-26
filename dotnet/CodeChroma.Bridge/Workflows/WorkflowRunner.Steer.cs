@@ -15,26 +15,24 @@ public sealed partial class WorkflowRunner
     private const int OutputTailChars = 1500;
     private static readonly string[] ReadOnlyTools = ["Read", "Grep", "Glob"];
 
-    /// <summary>Routes a question to the run agent ("run") or to one step's agent (step id or slug); it never changes the run state.</summary>
+    /// <summary>Routes a question to the run agent ("run"); a step's agent is talked to in its terminal, and it never changes the run state.</summary>
     public async Task<MessageReply> Message(string runId, string target, string text)
     {
         if (string.IsNullOrWhiteSpace(text)) throw new BridgeException(400, "text is required");
+        if (target is not ("run" or "")) throw new BridgeException(409, "talk to a step's agent in its terminal");
         var chat = _chat ?? throw new BridgeException(409, "no run agent is configured");
         if (!IsClaude(chat)) throw new BridgeException(409, "the run agent chat needs the claude CLI");
         string key, prompt, worktree, token;
-        string? stepId, session = null;
         RunMessage user;
         lock (_lock)
         {
             var h = Require(runId);
-            stepId = target is "run" or "" ? null : ResolveStep(h, target);
-            key = runId + ":" + (stepId ?? "run");
+            key = runId + ":run";
             if (chat.GetState(key).State == "generating" || !_chatBusy.Add(key)) throw new BridgeException(409, "that agent is still answering");
             try
             {
-                user = AddMessage(h, stepId ?? "run", "user", text.Trim());
-                prompt = stepId is null ? RunAgentPrompt(h, text) : StepAgentPrompt(h, stepId, text);
-                if (stepId is not null) session = Record(h, stepId).SessionId;
+                AddMessage(h, "run", "user", text.Trim());
+                prompt = RunAgentPrompt(h, text);
                 worktree = h.Worktree;
                 token = h.McpToken;
                 Persist(h, "run.message");
@@ -49,8 +47,7 @@ public sealed partial class WorkflowRunner
         {
             // --strict-mcp-config for every chat: --tools does not limit MCP tools, so ambient MCP servers must not load.
             var extra = new List<string> { "--tools", string.Join(',', ReadOnlyTools), "--strict-mcp-config" };
-            if (stepId is null && _mcpUrl?.Invoke(runId) is { } url) extra.AddRange(["--mcp-config", McpConfig(url, token)]);
-            if (session is not null) extra.AddRange(["--resume", session]);
+            if (_mcpUrl?.Invoke(runId) is { } url) extra.AddRange(["--mcp-config", McpConfig(url, token)]);
 
             string reply;
             try
@@ -62,7 +59,7 @@ public sealed partial class WorkflowRunner
                 lock (_lock)
                 {
                     var h = Require(runId);
-                    AddMessage(h, stepId ?? "run", "system", "The agent could not answer: " + error.Message);
+                    AddMessage(h, "run", "system", "The agent could not answer: " + error.Message);
                     Persist(h, "run.message");
                 }
                 throw;
@@ -70,7 +67,7 @@ public sealed partial class WorkflowRunner
             lock (_lock)
             {
                 var h = Require(runId);
-                var answer = AddMessage(h, stepId ?? "run", "agent", reply.Length > 0 ? reply : "(no answer)");
+                var answer = AddMessage(h, "run", "agent", reply.Length > 0 ? reply : "(no answer)");
                 Persist(h, "run.message");
                 return new MessageReply { Reply = answer.Text, MessageId = answer.Id };
             }
@@ -109,13 +106,6 @@ public sealed partial class WorkflowRunner
         },
     }.ToJsonString();
 
-    private static string ResolveStep(Handle h, string target)
-    {
-        var wanted = target.TrimStart('@');
-        var step = h.Def.Steps.Find(s => s.Id == wanted) ?? h.Def.Steps.Find(s => s.Slug == wanted);
-        return step?.Id ?? throw new BridgeException(404, $"unknown step: {target}");
-    }
-
     private static RunMessage AddMessage(Handle h, string target, string role, string text)
     {
         var message = new RunMessage { Id = "m-" + Guid.NewGuid().ToString("N")[..8], Target = target, Role = role, Text = text, At = DateTime.UtcNow.ToString("o") };
@@ -150,19 +140,6 @@ public sealed partial class WorkflowRunner
             {StepDigest(h)}
             {(history.Length > 0 ? "Recent conversation:\n" + history + "\n" : "")}
             User question: {text}
-            """;
-    }
-
-    private static string StepAgentPrompt(Handle h, string stepId, string text)
-    {
-        var step = h.Def.Steps.Find(s => s.Id == stepId)!;
-        var record = h.Run.Steps.Find(s => s.StepId == stepId);
-        return $"""
-            You are the agent of step "{step.Slug}" in the workflow "{h.Def.Name}". Your task was: {ResolvePrompt(h, step)}
-            Its status is {record?.Status ?? "pending"}. Your output so far: {Tail(record?.Output ?? "")}
-            Answer the question below from what you did. You can read the working tree but you cannot change anything, and you must not continue or redo the task.
-
-            Question: {text}
             """;
     }
 

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { MOCK_WORKFLOW } from "./mockWorkflows";
-import { computeRedoCard, isLaterThanSuggested, parseTarget, stepsForAttempt } from "./redoPlan";
+import { computeRedoCard, isLaterThanSuggested, stepsForAttempt } from "./redoPlan";
 import type { Run, StepRecord, StepStatus } from "./types";
 
 function rec(stepId: string, status: StepStatus, attempt = 1): StepRecord {
@@ -41,14 +41,6 @@ describe("computeRedoCard", () => {
     expect(isLaterThanSuggested(MOCK_WORKFLOW, "s2", "s3")).toBe(true);
     expect(isLaterThanSuggested(MOCK_WORKFLOW, "s2", "s2")).toBe(false);
     expect(isLaterThanSuggested(MOCK_WORKFLOW, "s2", "s1")).toBe(false);
-  });
-});
-
-describe("parseTarget", () => {
-  it("routes @slug to that step and everything else to the run", () => {
-    expect(parseTarget(MOCK_WORKFLOW, "@implement hello")).toEqual({ target: "s2", text: "hello" });
-    expect(parseTarget(MOCK_WORKFLOW, "@nope hi")).toEqual({ target: "run", text: "@nope hi" });
-    expect(parseTarget(MOCK_WORKFLOW, "what now?")).toEqual({ target: "run", text: "what now?" });
   });
 });
 

@@ -874,6 +874,9 @@ def _check_impact_status(diagram: object, kind: str, report: _Report) -> None:
 PHASE_KINDS = ("request", "prepare", "ai", "deliver", "custom")
 FRAME_KINDS = ("alt", "loop")
 MAX_TITLE_WORDS = 4
+READABILITY_KINDS = ("sequence", "c1", "patterns", "impact")
+HERO_KINDS = ("c1", "patterns", "impact")
+MIN_RELATIONS_FOR_HERO = 3
 
 
 def _check_readability(diagram: object, kind: str, report: _Report) -> None:
@@ -891,7 +894,7 @@ def _check_readability(diagram: object, kind: str, report: _Report) -> None:
                 )
         _check_phases(diagram, relations, report)
         _check_frames(diagram, report)
-    if kind == "sequence" and relations:
+    if kind in READABILITY_KINDS and relations:
         missing = [
             key for key in ("question", "summary")
             if not (isinstance(diagram.get(key), str) and diagram[key].strip())
@@ -899,6 +902,11 @@ def _check_readability(diagram: object, kind: str, report: _Report) -> None:
         if missing:
             keys = " and ".join(f"`{key}`" for key in missing)
             report.advisories.append(f"NOSUMMARY the diagram has no top-level {keys} string")
+    if kind in HERO_KINDS and len(relations) >= MIN_RELATIONS_FOR_HERO:
+        if not any(relation.get("hero") for relation in relations):
+            report.advisories.append(
+                "NOHERO no relation is marked `hero` -- mark the 1-2 main-path edges"
+            )
     named = [n for n in nodes if isinstance(n.get("id"), str)]
     names = {n["id"]: str(n.get("name") or "").strip().lower() for n in named}
     for node in nodes:

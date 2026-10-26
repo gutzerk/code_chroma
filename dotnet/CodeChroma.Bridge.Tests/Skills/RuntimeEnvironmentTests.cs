@@ -104,6 +104,36 @@ public sealed class RuntimeEnvironmentTests : IDisposable
     }
 
     [Fact]
+    public void Terminal_env_layers_snapshot_then_overrides_and_keeps_codechroma_variables()
+    {
+        var snapshotPath = Path.Combine(_home, "login");
+        var inherited = new Dictionary<string, string>
+        {
+            ["HOME"] = _home, ["USERPROFILE"] = _home, ["PATH"] = Path.Combine(_home, "inherited"), ["codechroma_MODELS_DIR"] = "models",
+        };
+        var service = new RuntimeEnvironment(() => new RuntimeSettings(ShellPath(), 5, new Dictionary<string, string>()), inherited, probe: Captures(snapshotPath), registryPath: () => "");
+
+        var env = service.TerminalEnv(new Dictionary<string, string> { ["codechroma_AGENT_KEY"] = "k" });
+
+        Assert.Contains(snapshotPath, env["PATH"]);
+        Assert.Equal("models", env["codechroma_MODELS_DIR"]);
+        Assert.Equal("k", env["codechroma_AGENT_KEY"]);
+    }
+
+    [Fact]
+    public async Task Terminal_env_async_stops_waiting_when_cancelled()
+    {
+        using var gate = new ManualResetEventSlim();
+        var service = new RuntimeEnvironment(() => new RuntimeSettings(ShellPath(), 5, new Dictionary<string, string>()), new Dictionary<string, string> { ["PATH"] = "p" },
+            probe: (_, _, _, _) => { gate.Wait(TimeSpan.FromSeconds(30)); return new ProbeResult([], "failed", [], "fish"); }, registryPath: () => "");
+        using var cancel = new CancellationTokenSource(100);
+
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => service.TerminalEnvAsync(null, cancel.Token));
+
+        gate.Set();
+    }
+
+    [Fact]
     public void An_explicit_override_is_used_as_is_and_never_falls_back()
     {
         var custom = Executable(Path.Combine(_home, "custom"), "claude");

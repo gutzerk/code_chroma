@@ -1718,7 +1718,7 @@ body {
    `groupColor.ts`'s groupColorIndex) and gets a per-participant CSS variable `--seq-accent-rgb`.
    The participant's own head and lifeline tint from it, and a message tints from its SENDER's
    participant colour -- so every arrow reads as "from whom" at a glance, and return arrows
-   (`--return`) recede to a neutral --text-3 rather than re-colouring by receiver. */
+   (`--return`) recede to a dashed neutral --text-2 rather than re-colouring by receiver. */
 .sequence-diagram {
   box-sizing: border-box;
   pointer-events: none;
@@ -1773,7 +1773,7 @@ body {
 
 /* A horizontal message: a label centered on a left-to-right arrow (line). Positioned by the
    component's inline left/top/width; the line is right-anchored and grows leftward from the
-   arrowhead on the right. Return arrows flip via scaleX. */
+   arrowhead on the right. Right-to-left arrows flip via scaleX. */
 .sequence-message {
   position: absolute;
   height: 20px;
@@ -1806,12 +1806,12 @@ body {
   top: 50%;
   height: 1.5px;
   background: rgb(var(--seq-accent-rgb));
-  transform-origin: right center;
+  transform-origin: center;
 }
 
 /* The arrowhead at the receiving end: a small right-pointing triangle whose tip lands right ON the
    receiver's lifeline (the line's right edge is that lifeline, so `right: 0` puts the tip exactly
-   at it — no poking past). Return arrows curl leftward via scaleX(-1), which flips the head to point
+   at it — no poking past). Right-to-left arrows (returns included) flip via scaleX(-1), which flips the head to point
    back at the original caller. */
 .sequence-message-line::after {
   content: "";
@@ -1836,16 +1836,17 @@ body {
 }
 
 .sequence-message--return .sequence-message-line {
-  background: var(--text-3);
+  background: none;
+  border-top: 1.5px dashed var(--text-2);
 }
 
 .sequence-message--return .sequence-message-line::after {
-  border-left-color: var(--text-3);
+  border-left-color: var(--text-2);
 }
 
 .sequence-message--return .sequence-message-label {
-  color: var(--text-3);
-  border-color: var(--text-3);
+  color: var(--text-2);
+  border-color: var(--text-2);
 }
 
 .diagram-node-box--dragging {

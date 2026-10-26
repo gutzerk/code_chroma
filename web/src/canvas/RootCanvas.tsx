@@ -24,7 +24,6 @@ import { DescriptionPopup } from "./doc/DescriptionPopup";
 import { useOpenFilesLiveRefresh } from "./useOpenFilesLiveRefresh";
 import { useDiagramReadinessWatcher } from "./doc/useDiagramReadinessWatcher";
 import { GamesMenu } from "../games/GamesMenu";
-import { ShareMenu } from "../share/ShareMenu";
 import { useHasCanvasLayer } from "./doc/canvasDocStore";
 import { CodePopupContext } from "./CodePopupContext";
 import { CodePopup } from "./CodePopup";
@@ -477,7 +476,6 @@ export function RootCanvas() {
         <div className="canvas-chrome-spacer" />
         <ReportIssueRailButton />
         <GamesMenu />
-        <ShareMenu name={rootNode?.name} />
         <div className="canvas-chrome-separator" />
         <PrRailButton />
         <SettingsRailButton />

@@ -23,9 +23,31 @@ from codechroma.bridge.agents.worktree import WorktreeError
 from codechroma.bridge.deps import Services
 from codechroma.bridge.routes._body import as_list, json_body
 from codechroma.bridge.services import BridgeServices
+from codechroma.diagrams import kinds
 from codechroma.terminal.agents import ALLOWED_AGENTS, agent_cli, resolved_cli_for
 
 router = APIRouter()
+
+
+def _diagram_hint(body: dict) -> dict:
+    """The Draw dialog's type and request off a POST /agents body, or a 400."""
+    hint: dict = {}
+    diagram_type = body.get("diagram_type")
+    if diagram_type is not None:
+        if diagram_type not in kinds.kind_ids():
+            raise HTTPException(status_code=400, detail=f"unknown diagram_type: {diagram_type}")
+        hint["diagram_type"] = diagram_type
+    request = body.get("diagram_request")
+    if request is not None:
+        if not isinstance(request, str):
+            raise HTTPException(status_code=400, detail="diagram_request must be a string")
+        if len(request.strip()) > kinds.max_request_chars():
+            raise HTTPException(
+                status_code=400,
+                detail=f"diagram_request must be at most {kinds.max_request_chars()} characters",
+            )
+        hint["diagram_request"] = _clean_context(request)
+    return hint
 
 
 @router.get("/agents/git-preflight")

@@ -14,6 +14,8 @@ C1, patterns or impact views use `codechroma-draw-diagram` instead.
    `mcp__codechroma__draw_option_diagram`) once per option:
    `title` (the option's title), `nodes` as `{id, label, description?, status?}`, `edges` as
    `{from, to, label?}`. Set `status: "new"` on parts that do not exist yet.
+   Give every node a one-sentence `description` (its role or what changes) and every edge a `label`
+   (what flows or who calls whom); the question view shows both, so a bare box gives the user nothing to decide on.
 3. The result is `{diagram_ref}`. Pass it as `diagram_ref` on that option in `ask_user`.
 4. Call `ask_user` with `kind: "diagram"` and the full option contract (see `codechroma-grill`).
 

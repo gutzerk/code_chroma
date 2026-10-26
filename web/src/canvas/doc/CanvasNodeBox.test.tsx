@@ -130,7 +130,7 @@ describe("CanvasNodeBox — keyboard access", () => {
 });
 
 describe("CanvasNodeBox — clicking a block does not open the inspector", () => {
-  it("leaves the Inspector closed on a header click, with or without linked code", () => {
+  it("leaves the Inspector closed on a header click", () => {
     renderBox(element({ id: "e1", node_id: "fn:auth.py:issue" }));
 
     fireEvent.click(screen.getByTestId("canvas-node-box-header"));

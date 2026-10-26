@@ -203,3 +203,12 @@ def test_hook_fails_open_without_the_token_that_marks_a_wired_mcp_server(monkeyp
 
     assert code == 0
     assert capsys.readouterr().out == ""
+
+
+def test_mcp_instructions_match_the_shared_contract_text():
+    from codechroma.questions.mcp_server import _INSTRUCTIONS
+
+    fixture = Path(__file__).parents[1] / "fixtures" / "bridge_contract" / "mcp_instructions.txt"
+    shared = fixture.read_text(encoding="utf-8")
+
+    assert _INSTRUCTIONS == shared

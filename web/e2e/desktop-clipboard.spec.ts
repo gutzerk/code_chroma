@@ -2,7 +2,10 @@ import { readFileSync } from "node:fs";
 import { test, expect, type Page } from "@playwright/test";
 import { gotoApp } from "./helpers";
 
-const source = readFileSync(new URL("../../dotnet/CodeChroma.Shell.App/DesktopScript.cs", import.meta.url), "utf8").split('"""')[1];
+const csharp = readFileSync(new URL("../../dotnet/CodeChroma.Shell.App/DesktopScript.cs", import.meta.url), "utf8");
+const raw = /Source = """\r?\n([\s\S]*?)\r?\n\s*""";/.exec(csharp);
+if (!raw) throw new Error("DesktopScript.Source raw string not found");
+const source = raw[1];
 
 async function installDesktop(page: Page, text = "native clipboard") {
   await page.evaluate((initial) => {

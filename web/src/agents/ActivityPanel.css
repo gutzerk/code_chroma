@@ -24,7 +24,7 @@
 .activity-content[hidden],
 .activity-agent-content[hidden],
 .activity-workflows[hidden] {
-  display: none;
+  display: none !important;
 }
 .activity-panel.is-collapsed {
   width: 52px;
@@ -446,7 +446,7 @@
   font-size: 12px;
 }
 /* Full screen: the agent list on the left, the selected terminal beside it. */
-.activity-panel.is-full .activity-agent-content:not([hidden]) {
+.activity-panel.is-full .activity-agent-content {
   display: grid;
   grid-template-columns: 280px minmax(0, 1fr);
   grid-template-rows: minmax(0, 1fr);

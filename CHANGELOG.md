@@ -1,5 +1,14 @@
 # Changelog
 
+## [1.7.1](https://github.com/gutzerk/code_chroma/compare/v1.7.0...v1.7.1) (2026-10-26)
+
+
+### Bug Fixes
+
+* activity full-screen overlap and macOS clipboard shortcuts ([efef67e](https://github.com/gutzerk/code_chroma/commit/efef67ee8b42ad7970451cda7db59588e00f6273))
+* harden desktop clipboard shortcuts and terminal copy-on-select ([f5b0132](https://github.com/gutzerk/code_chroma/commit/f5b0132afba58602b902404cc40a78ac0c76d839))
+* prevent activity tab overlap and use native desktop clipboard ([232cf7b](https://github.com/gutzerk/code_chroma/commit/232cf7b07465720352f117b1c67defd1fb7778ed))
+
 ## [1.7.0](https://github.com/gutzerk/code_chroma/compare/v1.6.1...v1.7.0) (2026-10-26)
 
 

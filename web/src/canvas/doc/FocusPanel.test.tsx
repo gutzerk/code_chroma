@@ -28,6 +28,17 @@ describe("FocusPanel", () => {
     expect(focusStore.current()).toBeNull();
   });
 
+  it("mounts inside .canvas-area when there is one, so it can follow the left panel's CSS variables", () => {
+    focusStore.toggle(doc, "b");
+    const area = document.body.appendChild(document.createElement("div"));
+    area.className = "canvas-area";
+
+    render(<FocusPanel doc={doc} />);
+
+    expect(area).toContainElement(screen.getByTestId("canvas-focus-panel"));
+    area.remove();
+  });
+
   it("clears the focus on Escape", () => {
     focusStore.toggle(doc, "b");
     render(<FocusPanel doc={doc} />);

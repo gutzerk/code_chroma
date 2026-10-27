@@ -189,7 +189,7 @@ public sealed class CanvasDoc
 
     /// <summary>The `render` values a v1 element may carry; kept in step with web/src/canvas/doc/elementRules.ts.</summary>
     public static readonly IReadOnlyList<string> RenderKinds =
-        ["hierarchy", "c1", "pattern", "impact", "epic", "spec", "task", "custom", "group", "note", "sequence", "question"];
+        ["hierarchy", "c1", "pattern", "impact", "epic", "spec", "task", "custom", "group", "note", "sequence", "question", "route"];
 
     /// <summary>Per-question option diagrams (`decisions/<question id>`): diagram layers with no file projection.</summary>
     public const string CanvasOnlyLayerPrefix = "decisions/";

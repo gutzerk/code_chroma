@@ -72,9 +72,9 @@ public static class WorkspaceSummaries
 {
     public static IReadOnlyList<WorkspaceSummary> ForRepo(string repoPath)
     {
-        var agents = Items(repoPath, "agents.json")
-            .Where(e => Str(e, "id") is not null && Str(e, "title") is not null)
-            .Select(e => new WorkspaceSummary(Str(e, "id")!, Str(e, "title")!));
+        var branches = Items(repoPath, "branches.json")
+            .Where(e => Str(e, "id") is { } id && id.StartsWith("br_", StringComparison.Ordinal))
+            .Select(e => new WorkspaceSummary(Str(e, "id")!, Str(e, "name") is { Length: > 0 } name ? name : Str(e, "branch") ?? Str(e, "id")!));
         var prs = Items(repoPath, "prs.json")
             .Where(e => e.TryGetProperty("number", out var n) && n.ValueKind == JsonValueKind.Number)
             .Select(e =>
@@ -83,7 +83,7 @@ public static class WorkspaceSummaries
                 var title = Str(e, "title");
                 return new WorkspaceSummary($"pr-{number}", string.IsNullOrEmpty(title) ? $"PR #{number}" : $"PR #{number}: {title}");
             });
-        return [.. agents, .. prs];
+        return [.. branches, .. prs];
     }
 
     private static string? Str(JsonElement e, string name) =>
@@ -94,8 +94,10 @@ public static class WorkspaceSummaries
         try
         {
             using var doc = JsonDocument.Parse(File.ReadAllText(Path.Combine(repoPath, ".codechroma", file)));
-            return doc.RootElement.ValueKind == JsonValueKind.Array
-                ? [.. doc.RootElement.EnumerateArray().Where(e => e.ValueKind == JsonValueKind.Object).Select(e => e.Clone())]
+            var root = doc.RootElement;
+            if (root.ValueKind == JsonValueKind.Object && root.TryGetProperty("branches", out var inner)) root = inner;
+            return root.ValueKind == JsonValueKind.Array
+                ? [.. root.EnumerateArray().Where(e => e.ValueKind == JsonValueKind.Object).Select(e => e.Clone())]
                 : [];
         }
         catch (Exception e) when (e is IOException or JsonException or UnauthorizedAccessException)

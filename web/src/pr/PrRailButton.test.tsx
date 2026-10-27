@@ -68,9 +68,6 @@ function client(overrides: Partial<AgentClient> = {}): AgentClient {
     }),
     gitPreflight: async () => ({ state: "ready" as const, root: "/repo" }),
     gitInit: async () => ({ state: "ready", created_repo: true, created_gitignore: true }),
-    getBranch: async () => ({ current: "main", branches: ["main"] }),
-    switchBranch: async (branch) => ({ current: branch, branches: ["main"] }),
-    updateBranch: async () => ({ current: "main", branches: ["main"] }),
     ...overrides,
   };
 }

@@ -201,14 +201,7 @@ agent slug, so the two id spaces never collide). Not an agent — no `claude`, n
 against `max_agents` — and not a PR (writable, on a real branch). Persisted in
 `<main_root>/.codechroma/branches.json` (`BranchManager`, reconciled and re-registered by
 `BridgeServices.create`), created like an agent's worktree (`ensure_excluded`, skills installed,
-main's diagrams seeded). Routes: `GET /branches` (records), `GET /branches/choices` (every local
-branch with the workspace id already holding it, from `git worktree list` — `main`, a `br_*`, an
-agent, or `null` for a worktree we don't track), `POST /branches` with exactly one of `branch` /
-`new_branch` (+ optional `start_point`, default main's current branch), `DELETE
-/branches/{id}?worktree_too=` (record only by default; the branch itself is never deleted). A branch
-that is already checked out anywhere is a 409 whose `detail` is `{message, workspace}` so the shell
-can focus the window showing it instead of failing — git forbids a second checkout of one branch, and
-the product rule is one branch per window anyway. Tests: `tests/unit/test_bridge_branches_route.py`.
+main's diagrams seeded). Routes (worktree tabs, see `parallel-agents.md`): `GET /branches` (`{branches, active}`, each record with `name`, `dirty` count, `worktree_lost`), `POST /branches/ensure` (creates `wt-1` only when no record exists), `POST /branches/new` (next free `wt-N` off `origin/<default>` after a fetch, falling back to local `<default>` then HEAD; `{branch, fetched, warning}`), `PATCH /branches/{id}` (renames name and git branch, id and path stay), `PUT /branches/active`, `DELETE /branches/{id}?worktree_too=` (force; also removes the tab's agents). `GET /branches/choices` and the open-existing-branch mode of `POST /branches` are gone. A duplicate or held branch name is a 409. Tests: `tests/unit/test_bridge_branches_route.py`.
 
 🔴 **`origin_guard.py` refuses a cross-origin write.** CORS only hides the response; a cross-origin
 `text/plain` POST still ran the handler, so any site open in the user's browser could open a branch,

@@ -61,7 +61,7 @@ public class RealBridgeEndToEndTests
         using var repo = new TempDir();
         var ui = new FakeShellUi();
         var tabs = new TabModel(() => new object());
-        var controller = new ShellController(tabs, registry, ui, new BranchBridgeClient(new HttpClient()), RecentRepos.StorePath(data.Path), "0.12.1");
+        var controller = new ShellController(tabs, registry, ui, RecentRepos.StorePath(data.Path), "0.12.1");
         controller.NewTab();
 
         try
@@ -70,8 +70,8 @@ public class RealBridgeEndToEndTests
             await controller.OpenWorkspaceTabAsync(tabs.ActiveTab!.Id, "pr-7");
 
             var origin = tabs.Tabs[0].Bridge!.Origin;
-            Assert.Equal([$"{origin}/?workspace=main", $"{origin}/?workspace=pr-7"], ui.Navigations.Select(n => n.Url));
-            Assert.Contains(Path.GetFileName(repo.Path), await GetAsync($"{origin}/?workspace=main"));
+            Assert.Equal([$"{origin}/", $"{origin}/?workspace=pr-7"], ui.Navigations.Select(n => n.Url));
+            Assert.Contains(Path.GetFileName(repo.Path), await GetAsync($"{origin}/"));
         }
         finally { await controller.ShutdownAsync(); }
     }

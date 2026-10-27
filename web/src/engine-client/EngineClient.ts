@@ -229,7 +229,7 @@ export interface EngineClient {
    * unsubscribe fn that also closes the socket when the last listener leaves. The mock never fires. */
   subscribeTraceStream(onEvent: (message: TraceStreamMessage) => void): () => void;
   /** Subscribes to the agent lifecycle pings (`agent-added` / `agent-removed` / `agent-status` /
-   * `branch-changed`) on the same shared events socket — no second socket for the agent layer.
+   * `branch-removed`) on the same shared events socket — no second socket for the agent layer.
    * Returns an unsubscribe fn. The mock never fires. */
   subscribeAgents(onEvent: (message: AgentEvent) => void): () => void;
   /** Every workflow definition (GET /repos/{id}/workflows). */
@@ -316,7 +316,6 @@ export const AGENT_EVENT_TYPES = [
   "agent-added",
   "agent-removed",
   "agent-status",
-  "branch-changed",
   "branch-removed",
 ] as const;
 

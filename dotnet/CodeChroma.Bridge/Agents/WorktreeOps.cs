@@ -34,10 +34,12 @@ public static class WorktreeOps
     /// <summary>The branch an agent works on, namespaced so it never collides with a human's branch.</summary>
     public static string BranchName(string agentId) => BranchPrefix + agentId;
 
-    public static string Add(string repoRoot, string branch, string path, string? startPoint = null)
+    public static string Add(string repoRoot, string branch, string path, string? startPoint = null, bool track = true)
     {
         Directory.CreateDirectory(Path.GetDirectoryName(path)!);
-        var args = new List<string> { "worktree", "add", "-b", branch, path };
+        var args = new List<string> { "worktree", "add" };
+        if (!track) args.Add("--no-track");
+        args.AddRange(["-b", branch, path]);
         if (startPoint is not null) args.Add(startPoint);
         RunOrThrow(repoRoot, "git worktree add", [.. args]);
         return path;
@@ -122,6 +124,9 @@ public static class WorktreeOps
         if (commit is not { ExitCode: 0 }) return null;
         return GitRunner.Run(worktree, "rev-parse", "HEAD")?.Trim();
     }
+
+    public static void RenameBranch(string repoRoot, string from, string to) =>
+        RunOrThrow(repoRoot, "git branch rename", "branch", "-m", from, to);
 
     public static void DeleteBranch(string repoRoot, string branch, bool force = true) =>
         RunOrThrow(repoRoot, "git branch delete", "branch", force ? "-D" : "-d", branch);

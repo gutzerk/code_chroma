@@ -1,4 +1,4 @@
-import type { AgentRecord, BuiltinDiagramKind, GithubOpenPr, PrImportPreflight, PrWorkspace, PrWorkspaceList } from "../state/types";
+import type { AgentRecord, BuiltinDiagramKind, GithubOpenPr, PrImportPreflight, PrWorkspace, PrWorkspaceList, WorktreeCreated, WorktreeList } from "../state/types";
 
 /** An empty pull-request list — what GET /prs returns when no review is open. */
 const EMPTY_PR_LIST: PrWorkspaceList = {
@@ -31,6 +31,14 @@ export const PR_CLIENT_STUB = {
     throw new Error("no bridge in this test");
   },
   closePr: async (): Promise<void> => {},
+  listWorktrees: async (): Promise<WorktreeList> => ({ branches: [], active: null }),
+  ensureWorktrees: async (): Promise<WorktreeList> => ({ branches: [], active: null }),
+  createWorktree: async (): Promise<WorktreeCreated> => {
+    throw new Error("no bridge in this test");
+  },
+  renameWorktree: async (): Promise<void> => {},
+  setActiveWorktree: async (): Promise<void> => {},
+  closeWorktree: async (): Promise<void> => {},
   diagramKinds: async (): Promise<BuiltinDiagramKind[]> => [],
   openStepSession: async (): Promise<AgentRecord> => {
     throw new Error("no bridge in this test");

@@ -34,6 +34,8 @@ skills/codechroma-draw-diagram/
     type-impact.md               # 172
     type-sequence.md               # ordered-call flow from trace scaffold or code context
     type-custom.md                 # 173
+    type-system-context.md         # context-only view, saved as custom type `system-context` on first use (c1 is the layered form)
+    type-dataflow.md               # data between sources/processes/stores, saved as custom type `dataflow` on first use
   scripts/
     check_diagram.py               # one self-check, including --kind sequence
 ```

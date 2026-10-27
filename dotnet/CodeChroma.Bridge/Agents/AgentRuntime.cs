@@ -51,6 +51,7 @@ public sealed class AgentRuntime(
 
         branches.ExtraHolders = () => [.. agents.List().Select(a => (a.Worktree, a.Id))];
         agents.WorkspaceGuard = registry.IsRegistered;
+        agents.BranchLookup = branches.Find;
         agents.RevalidateActiveWorkspace();
 
         return Task.CompletedTask;

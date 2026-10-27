@@ -1,7 +1,7 @@
 import { layoutStore } from "../canvas/layout/layoutStore";
 import type { AgentClient } from "./agentClient";
 import { agentStore } from "./agentStore";
-import { workspaceStore } from "./workspaceStore";
+import { selectWorktree } from "./worktreeActions";
 
 /** Applies a geometry patch to the store and mirrors it to the bridge, for every caller that moves,
  * raises, minimizes or restores a window — an unpersisted change is one a reload silently undoes. */
@@ -39,15 +39,8 @@ export function openAgentWindow(client: AgentClient, id: string): void {
 export function restoreAgentWindow(client: AgentClient, id: string): void {
   openAgentWindow(client, id);
   if (!shouldActivateWorkspace(id)) return;
-  agentStore.setActiveWorkspace(id);
-  client
-    .activateWorkspace(id)
-    .then((status) => workspaceStore.setStatus(status))
-    .catch((err) => {
-      // A swallowed failure here used to leave the canvas silently stuck on the previous
-      // workspace's data with no way to tell why a click "did nothing" — surface it instead.
-      agentStore.setLaunchError(err instanceof Error ? err.message : String(err));
-    });
+  const target = agentStore.getAgent(id)?.workspace ?? id;
+  selectWorktree(client, target);
 }
 
 /** Whether opening an agent's window must make its id the active workspace — no when the agent is
@@ -60,6 +53,7 @@ function shouldActivateWorkspace(agentId: string): boolean {
   const active = agentStore.getActiveWorkspace();
   if (active === agentId) return false;
   const agent = agentStore.getAgent(agentId);
+  if ((agent?.workspace ?? null) === active) return false;
   if ((agent?.shares_workspace_with ?? null) === active) return false;
   if (agent?.source_pr === active) return false;
   return true;
@@ -75,6 +69,7 @@ function closeMayDeleteWorktree(id: string): boolean {
   const agent = agentStore.getAgent(id);
   if (!agent || agent.worktree_lost) return false;
   if ((agent.shares_workspace_with ?? null) !== null) return false;
+  if ((agent.workspace ?? null) !== null) return false;
   return !agentStore
     .getAgents()
     .some((other) => other.id !== id && other.worktree === agent.worktree);

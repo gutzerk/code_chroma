@@ -15,9 +15,9 @@ public class TabTitleTests
     }
 
     [Theory]
-    [InlineData("/work/atlas", "atlas [Main]")]
-    [InlineData("/work/atlas/", "atlas [Main]")]
-    [InlineData("C:\\work\\atlas", "atlas [Main]")]
+    [InlineData("/work/atlas", "atlas")]
+    [InlineData("/work/atlas/", "atlas")]
+    [InlineData("C:\\work\\atlas", "atlas")]
     public void A_repo_tab_shows_the_folder_name_and_main(string repo, string expected)
     {
         var model = new TabModel(() => new object());

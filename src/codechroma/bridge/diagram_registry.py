@@ -364,7 +364,7 @@ DIAGRAMS: DiagramRegistry = DiagramRegistry({
         root_for=lambda ws: ws.root,
         artifact_path=lambda root: root / BUILTIN_TYPES["sequence"].artifact,
         # Sequence resolves through the shared resolver (flat nodes[]/relations[] are participants/
-        # messages) â€” it never re-derives from the live graph, only from the authored file.
+        # messages) — it never re-derives from the live graph, only from the authored file.
         resolve=_resolve_sequence,
         sync_before_resolve=False,
         has_generate=False,

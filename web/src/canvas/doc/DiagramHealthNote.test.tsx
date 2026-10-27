@@ -71,6 +71,21 @@ describe("DiagramHealthNote", () => {
     expect(row).not.toHaveTextContent("not drawn");
   });
 
+  it("counts advisories apart from undrawn parts when both are present", () => {
+    diagramHealthStore.set(
+      "c1",
+      diagnosticsOf([
+        { what: "relation", id: "a -> b", reason: "dangling_endpoint" },
+        { what: "relation", id: "a -> c", reason: "bad_edge_kind" },
+      ]),
+    );
+
+    renderNote();
+
+    const row = screen.getByTestId("diagram-health-c1");
+    expect(row).toHaveTextContent("1 part not drawn: points at a box that isn't there; 1 drawing hint");
+  });
+
   it("reports the true total when the reported list was capped below it", () => {
     diagramHealthStore.set("c1", diagnosticsOf([{ what: "node", id: "a", reason: "depth_capped" }], 40));
 

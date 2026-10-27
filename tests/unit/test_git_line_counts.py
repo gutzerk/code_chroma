@@ -19,6 +19,27 @@ def repo(tmp_path):
     return root
 
 
+def test_line_counts_key_non_ascii_paths_by_their_real_name(repo):
+    (repo / "café.py").write_text("x\ny\n", encoding="utf-8")
+    git(repo, "add", "-A")
+    git(repo, "commit", "-m", "accent")
+    (repo / "café.py").write_text("x\nz\nw\n", encoding="utf-8")
+    statuses = working_tree_status(repo, repo, "HEAD").statuses
+
+    counts = line_counts(repo, "HEAD", statuses)
+
+    assert counts["café.py"] == (2, 1)
+
+
+def test_line_counts_skip_an_untracked_file_that_is_not_utf8(repo):
+    (repo / "blob.bin").write_bytes(b"\xff\xfe\x00\n\x80\n")
+    statuses = working_tree_status(repo, repo, "HEAD").statuses
+
+    counts = line_counts(repo, "HEAD", statuses)
+
+    assert "blob.bin" not in counts
+
+
 def test_line_counts_cover_edits_and_untracked_files(repo):
     (repo / "edited.py").write_text("a\nB\nc\nd\n", encoding="utf-8")
     (repo / "fresh.py").write_text("x\ny\n", encoding="utf-8")

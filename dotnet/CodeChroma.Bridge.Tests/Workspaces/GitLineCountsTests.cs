@@ -11,6 +11,30 @@ public class GitLineCountsTests : IDisposable
     public void Dispose() => _repo.Dispose();
 
     [Fact]
+    public void Keys_non_ascii_paths_by_their_real_name()
+    {
+        File.WriteAllText(Path.Combine(_repo.Root, "café.py"), "x\ny\n");
+        _repo.CommitAll("accent");
+        File.WriteAllText(Path.Combine(_repo.Root, "café.py"), "x\nz\nw\n");
+        var tree = GitTree.Detect(_repo.Root)!;
+
+        var counts = tree.LineCounts("HEAD", tree.Status("HEAD").Statuses);
+
+        Assert.Equal((2, 1), counts["café.py"]);
+    }
+
+    [Fact]
+    public void Skips_an_untracked_file_that_is_not_utf8()
+    {
+        File.WriteAllBytes(Path.Combine(_repo.Root, "blob.bin"), [0xFF, 0xFE, 0x00, 0x0A, 0x80, 0x0A]);
+        var tree = GitTree.Detect(_repo.Root)!;
+
+        var counts = tree.LineCounts("HEAD", tree.Status("HEAD").Statuses);
+
+        Assert.DoesNotContain("blob.bin", counts.Keys);
+    }
+
+    [Fact]
     public void Counts_added_and_removed_lines_for_edits_and_all_lines_for_untracked_files()
     {
         File.WriteAllText(Path.Combine(_repo.Root, "app.py"), "changed\n");

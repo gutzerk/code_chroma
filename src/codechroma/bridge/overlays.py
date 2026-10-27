@@ -139,8 +139,14 @@ def resolve_impact_changes(
     unassigned = _attribute_cards(
         engine, repo_root, base, by_node_id, git_root, raw_statuses, statuses
     )
-    counts = line_counts(repo_root, base, statuses) if git_root else {}
-    for entry in [*unassigned, *(f for block in blocks for f in block.files)]:
+    entries = [*unassigned, *(f for block in blocks for f in block.files)]
+    wanted = {entry["path"] for entry in entries}
+    counts = (
+        line_counts(repo_root, base, {p: k for p, k in statuses.items() if p in wanted})
+        if git_root and wanted
+        else {}
+    )
+    for entry in entries:
         if entry["path"] in counts:
             entry["additions"], entry["deletions"] = counts[entry["path"]]
     comments = _resolve_comment_symbols(engine, repo_root, review_comments or [])

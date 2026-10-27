@@ -25,6 +25,8 @@ public sealed class Diagnostics
         "extends", "inherits", "composes", "contains", "depends", "depends_on", "removed",
     ];
     private static readonly string[] PlainEdgeKinds = ["", "calls", "call", "uses"];
+    // These author structural verbs (observes, wraps, ...), so an unknown kind there is not a typo.
+    private static readonly string[] StructuralKinds = ["c1", "patterns", "impact"];
     private static readonly Regex FailureWords = new(@"\b(error|fail\w*|denied|timeout|timed out)\b", RegexOptions.IgnoreCase);
     private static readonly Regex SpawnWords = new(@"\b(spawn\w*|launch\w*|(start|starts|starting|run|runs|fork\w*)\s+(a\s+|an\s+|the\s+)?(sub)?(process|cli|agent|worker|daemon))\b", RegexOptions.IgnoreCase);
     private static readonly Regex DataWords = new(@"\b(read|reads|write|writes|reading|writing|persist\w*|stores?|saves?)\b.{0,40}\b(files?|disk|database|db|sqlite|store|cache|json)\b", RegexOptions.IgnoreCase);
@@ -36,7 +38,7 @@ public sealed class Diagnostics
         foreach (var relation in relations.OfType<JsonObject>())
         {
             if (kind == "sequence") AdviseMessage(relation);
-            else AdviseEdge(relation);
+            else AdviseEdge(relation, structural: kind is not null && StructuralKinds.Contains(kind));
         }
     }
 
@@ -50,12 +52,12 @@ public sealed class Diagnostics
             Drop("relation", id, "failure_kind", $"label '{label}': set kind to error");
     }
 
-    private void AdviseEdge(JsonObject relation)
+    private void AdviseEdge(JsonObject relation, bool structural)
     {
         var kindNode = relation["kind"];
         var kind = Json.Str(kindNode);
         var pair = $"{Json.Str(relation["from"])} -> {Json.Str(relation["to"])}";
-        if (kind is not null && !EdgeKinds.Concat(EdgeKindAliases).Contains(kind.Trim().ToLowerInvariant()))
+        if (!structural && kind is not null && !EdgeKinds.Concat(EdgeKindAliases).Contains(kind.Trim().ToLowerInvariant()))
         {
             Drop("relation", pair, "bad_edge_kind", $"kind='{kind}'");
             return;

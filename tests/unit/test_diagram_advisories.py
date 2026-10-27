@@ -20,7 +20,7 @@ def _reasons(relations: list, kind: str | None) -> list[str]:
     ],
 )
 def test_edge_advisories_fire_for_a_plain_diagram(relation, reason):
-    reasons = _reasons([relation], "c1")
+    reasons = _reasons([relation], "feature-plan")
 
     assert reasons == [reason]
 
@@ -31,6 +31,14 @@ def test_a_correctly_kinded_edge_is_silent():
     reasons = _reasons([relation], "patterns")
 
     assert reasons == []
+
+
+def test_structural_diagrams_accept_free_form_edge_kinds():
+    relation = {"from": "a", "to": "b", "kind": "observes"}
+
+    reasons = [_reasons([relation], kind) for kind in ("c1", "patterns", "impact")]
+
+    assert reasons == [[], [], []]
 
 
 def test_an_authored_removed_edge_is_silent():

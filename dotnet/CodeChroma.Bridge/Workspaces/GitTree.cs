@@ -1,5 +1,6 @@
 ﻿using System.Diagnostics;
 using System.Text;
+using CodeChroma.Bridge.Epics;
 using CodeChroma.Bridge.Stores;
 
 namespace CodeChroma.Bridge.Workspaces;
@@ -68,17 +69,19 @@ public sealed class GitTree
     public Dictionary<string, (int Additions, int Deletions)> LineCounts(string baseRef, IEnumerable<KeyValuePair<string, string>> statuses)
     {
         var counts = new Dictionary<string, (int, int)>();
-        foreach (var line in SplitLines(GitRunner.Run(RepoRoot, "diff", "--numstat", "--relative", baseRef, "--", ".") ?? ""))
+        // -z + no quotepath + no renames: raw unquoted paths, one NUL-terminated record per file.
+        var raw = GitRunner.Run(RepoRoot, "-c", "core.quotepath=false", "diff", "--numstat", "-z", "--no-renames", "--relative", baseRef, "--", ".") ?? "";
+        foreach (var record in raw.Split('\0'))
         {
-            var parts = line.Split('	');
+            var parts = record.TrimStart('\n').Split('	', 3);
             if (parts.Length == 3 && int.TryParse(parts[0], out var added) && int.TryParse(parts[1], out var removed))
-                counts[parts[2].Trim().Trim('"')] = (added, removed);
+                counts[parts[2]] = (added, removed);
         }
         foreach (var (path, kind) in statuses)
         {
             if (kind != "added" || counts.ContainsKey(path)) continue;
-            try { counts[path] = (LineDiff.SplitLines(File.ReadAllText(System.IO.Path.Combine(RepoRoot, path))).Count, 0); }
-            catch (Exception error) when (error is IOException or UnauthorizedAccessException) { }
+            try { counts[path] = (PyText.SplitLines(PyText.ReadText(System.IO.Path.Combine(RepoRoot, path))).Count, 0); }
+            catch (Exception error) when (error is IOException or UnauthorizedAccessException or System.Text.DecoderFallbackException) { }
         }
         return counts;
     }

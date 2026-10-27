@@ -45,8 +45,12 @@ public static class ImpactChanges
         var byNodeId = new Dictionary<string, Block>();
         foreach (var block in blocks) byNodeId.TryAdd(block.NodeId, block);
         var unassigned = AttributeCards(ws, parser, byNodeId, statuses);
-        var counts = tree?.LineCounts(baseRef, statuses) ?? [];
-        foreach (var entry in unassigned.Concat(blocks.SelectMany(b => b.Files)))
+        var entries = unassigned.Concat(blocks.SelectMany(b => b.Files)).ToList();
+        var wanted = entries.Select(e => Json.Str(e["path"]) ?? "").ToHashSet();
+        var counts = tree is not null && wanted.Count > 0
+            ? tree.LineCounts(baseRef, statuses.Where(s => wanted.Contains(s.Key)))
+            : [];
+        foreach (var entry in entries)
             if (counts.TryGetValue(Json.Str(entry["path"]) ?? "", out var lines))
             {
                 entry["additions"] = lines.Additions;

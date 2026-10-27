@@ -54,4 +54,49 @@ public class RouteResolveTests
         Assert.Equal(["route_step", "route_child"], what);
         Assert.Equal(3, resolved["route"]!["steps"]![0]!["node_ids"]!.AsArray().Count);
     }
+
+    private static JsonObject ResolveRoute(string route)
+    {
+        var engine = new JsonSnapshotEngine(Path.Combine(ContractCases.FixtureDir, "engine_snapshot.sample_repo.json"));
+        var data = JsonNode.Parse("{\"nodes\": [], \"relations\": [], \"route\": " + route + "}")!.AsObject();
+        return DiagramResolver.Resolve(engine, data);
+    }
+
+    [Fact]
+    public void A_float_authored_line_equal_to_the_resolved_one_is_not_a_mismatch()
+    {
+        var resolved = ResolveRoute($$$"""{"steps": [{"id": "s1", "children": [{"id": "c1", "line": 11.0, "node_id": "{{{Create}}}"}]}]}""");
+
+        var child = resolved["route"]!["steps"]![0]!["children"]![0]!;
+
+        Assert.Equal(11, (int)child["resolved_line"]!);
+        Assert.Null(child["line_mismatch"]);
+    }
+
+    [Fact]
+    public void Non_array_node_ids_and_children_are_ignored_like_the_python_bridge()
+    {
+        var resolved = ResolveRoute("""{"steps": [{"id": "s1", "node_ids": "billing/service.py", "children": {"a": 1}}]}""");
+
+        var step = resolved["route"]!["steps"]![0]!;
+
+        Assert.Empty(step["resolved"]!.AsArray());
+        Assert.Empty(step["children"]!.AsArray());
+        Assert.Equal(0, (int)resolved["diagnostics"]!["dropped_count"]!);
+    }
+
+    [Fact]
+    public void A_non_string_edge_kind_is_advised_as_bad_on_a_plain_diagram_only()
+    {
+        var notes = new Diagnostics();
+        var relations = new JsonNode?[] { JsonNode.Parse("""{"from": "a", "to": "b", "kind": 5}""") };
+
+        notes.AdviseRelations(relations, "feature-plan");
+        var plain = notes.Count;
+        var structural = new Diagnostics();
+        structural.AdviseRelations(relations, "c1");
+
+        Assert.Equal(1, plain);
+        Assert.Equal(0, structural.Count);
+    }
 }

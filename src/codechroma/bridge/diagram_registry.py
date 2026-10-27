@@ -375,4 +375,3 @@ DIAGRAMS: DiagramRegistry = DiagramRegistry({
         supports_only_if_missing=False,
     ),
 })
-

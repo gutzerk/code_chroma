@@ -67,3 +67,20 @@ def test_custom_diagrams_are_skipped():
     reasons = _reasons(relations, "custom")
 
     assert reasons == []
+
+
+@pytest.mark.parametrize("kind", [5, ["calls"], {"k": 1}])
+def test_a_non_string_edge_kind_is_a_bad_kind_for_a_plain_diagram(kind):
+    relation = {"from": "a", "to": "b", "kind": kind}
+
+    reasons = _reasons([relation], "feature-plan")
+
+    assert reasons == ["bad_edge_kind"]
+
+
+def test_a_non_string_edge_kind_is_tolerated_on_a_structural_diagram():
+    relation = {"from": "a", "to": "b", "kind": 5}
+
+    reasons = _reasons([relation], "c1")
+
+    assert reasons == []

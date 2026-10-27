@@ -57,9 +57,10 @@ public sealed class Diagnostics
         var kindNode = relation["kind"];
         var kind = Json.Str(kindNode);
         var pair = $"{Json.Str(relation["from"])} -> {Json.Str(relation["to"])}";
-        if (!structural && kind is not null && !EdgeKinds.Concat(EdgeKindAliases).Contains(kind.Trim().ToLowerInvariant()))
+        var unknown = kindNode is not null && (kind is null || !EdgeKinds.Concat(EdgeKindAliases).Contains(kind.Trim().ToLowerInvariant()));
+        if (!structural && unknown)
         {
-            Drop("relation", pair, "bad_edge_kind", $"kind='{kind}'");
+            Drop("relation", pair, "bad_edge_kind", kind is null ? $"kind={kindNode!.ToJsonString()}" : $"kind='{kind}'");
             return;
         }
         var plain = kindNode is null || (kind is not null && PlainEdgeKinds.Contains(kind.Trim().ToLowerInvariant()));
@@ -194,6 +195,10 @@ public static class DiagramResolver
         return found;
     }
 
+    /// <summary>Python's `authored == resolved` for a numeric line (12.0 equals 12); anything else mismatches.</summary>
+    private static bool SameLine(JsonNode? authored, int resolved) =>
+        authored is JsonValue v && ((v.TryGetValue(out int i) && i == resolved) || (v.TryGetValue(out double d) && d == resolved));
+
     /// <summary>Stamps `resolved` on each route step and `path`/`resolved_line`/`line_mismatch` on each child (026).</summary>
     private static JsonNode? ResolveRoute(IGraphEngine engine, JsonNode? route, Diagnostics notes)
     {
@@ -223,7 +228,7 @@ public static class DiagramResolver
                     if (hit["line"] is { } line)
                     {
                         childCopy["resolved_line"] = line.DeepClone();
-                        if (!(child["line"] is JsonValue authored && authored.TryGetValue(out int authoredLine) && authoredLine == line.GetValue<int>()))
+                        if (!SameLine(child["line"], line.GetValue<int>()))
                             childCopy["line_mismatch"] = true;
                     }
                 }

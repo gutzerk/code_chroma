@@ -449,3 +449,15 @@ def test_unresolved_route_ids_are_soft_diagnostics_only(engine):
 
     assert [d["what"] for d in resolved["diagnostics"]["dropped"]] == ["route_step", "route_child"]
     assert len(resolved["route"]["steps"][0]["node_ids"]) == 3
+
+
+def test_a_route_with_non_list_node_ids_and_children_is_left_unresolved(engine):
+    step = {"id": "s1", "node_ids": "billing/service.py", "children": {"a": 1}}
+    route = {"id": "r", "steps": [step]}
+
+    resolved = resolve_diagram(engine, {**_diagram(), "route": route})
+
+    step = resolved["route"]["steps"][0]
+    assert step["resolved"] == []
+    assert step["children"] == []
+    assert resolved["diagnostics"]["dropped_count"] == 0

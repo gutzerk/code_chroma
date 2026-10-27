@@ -437,7 +437,7 @@ subscription.
   (`bridge/skill_agent.py`, public since 058 — `wiki_general_pipeline.run_pipeline` calls it too)
   looks up that exact name via `load_assignment(self.name)` — so both are registered as `agentic`
   `CallSite`s in `llm/call_sites.py`, in the `planning` group alongside `epic_brief_agent`. Picking a
-  provider for "Planning" on the Model routing tab now also governs which CLI drives the generate
+  provider for "Planning & wiki" on the Models tab now also governs which CLI drives the generate
   pipeline's worker pool / the update skill; see [`llm-settings.md`](llm-settings.md).
   `SkillAgentTimeoutsConfig.timeout_seconds["wiki-general"]` is now 3600s (058: a safety net for the
   pipeline's own logic, not the primary time limit — see "Timeouts" above); `["wiki-general-update"]`

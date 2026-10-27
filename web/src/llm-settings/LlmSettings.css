@@ -1,0 +1,287 @@
+/* LLM dialog redesign (planning 023): Models / Connections / Advanced. Tokens only. */
+.llm-dialog-title {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+}
+.llm-dialog-title h2 {
+  margin: 0;
+}
+.llm-subtle {
+  margin: 0;
+  color: var(--text-2);
+  font-size: var(--text-xs);
+  line-height: 1.45;
+}
+.llm-dialog-footer {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding: 0.7rem 1.1rem;
+  border-top: 1px solid var(--border);
+}
+
+.llm-default-card {
+  display: flex;
+  flex-direction: column;
+  gap: 0.9rem;
+  padding: 0.9rem 1rem;
+  background: var(--surface-2);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-lg);
+}
+.llm-step {
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
+}
+.llm-step-label {
+  color: var(--text-3);
+  font-size: var(--text-2xs);
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+.llm-chip-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(11rem, 1fr));
+  gap: 0.5rem;
+}
+.llm-chip {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.2rem;
+  padding: 0.55rem 0.7rem;
+  background: var(--surface-3);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  color: var(--text-1);
+  cursor: pointer;
+  font: inherit;
+  text-align: left;
+}
+.llm-chip:hover {
+  border-color: var(--border-strong);
+}
+.llm-chip[aria-pressed="true"] {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 1px var(--accent);
+}
+.llm-chip-name {
+  font-size: var(--text-md);
+  font-weight: 600;
+}
+.llm-chip-sub {
+  color: var(--text-2);
+  font-size: var(--text-2xs);
+}
+.llm-chip-cap {
+  color: var(--accent);
+  font-size: var(--text-2xs);
+}
+.llm-link-button {
+  align-self: flex-start;
+  padding: 0.2rem 0;
+  background: none;
+  border: none;
+  color: var(--accent);
+  cursor: pointer;
+  font: inherit;
+  font-size: var(--text-xs);
+}
+.llm-link-button:hover {
+  color: var(--text-1);
+}
+
+.llm-pill-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.4rem;
+}
+.llm-pill {
+  padding: 0.3rem 0.75rem;
+  background: var(--surface-3);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-full);
+  color: var(--text-1);
+  cursor: pointer;
+  font: inherit;
+  font-size: var(--text-xs);
+}
+.llm-pill:hover {
+  border-color: var(--border-strong);
+}
+.llm-pill[aria-pressed="true"] {
+  background: var(--primary);
+  border-color: var(--accent);
+  color: var(--text-1);
+}
+.llm-pill-input {
+  width: 9rem;
+  padding: 0.3rem 0.65rem;
+  background: var(--surface-0);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-full);
+  color: var(--text-1);
+  font: inherit;
+  font-size: var(--text-xs);
+}
+.llm-fallback {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  padding: 0.7rem 0.8rem;
+  background: var(--surface-3);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+}
+.llm-fallback p {
+  margin: 0;
+  color: var(--text-strong);
+  font-size: var(--text-xs);
+}
+
+.llm-features {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+.llm-features-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+}
+.llm-feature-list {
+  display: flex;
+  flex-direction: column;
+  padding: 0.2rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+}
+.llm-feature-row {
+  display: flex;
+  align-items: center;
+  gap: 0.9rem;
+  width: 100%;
+  padding: 0.6rem 0.75rem;
+  background: none;
+  border: none;
+  border-radius: var(--radius-md);
+  color: inherit;
+  cursor: pointer;
+  font: inherit;
+  text-align: left;
+}
+.llm-feature-row:hover {
+  background: var(--surface-2);
+}
+.llm-feature-text {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  gap: 0.15rem;
+  min-width: 0;
+}
+.llm-feature-name {
+  color: var(--text-1);
+  font-size: var(--text-md);
+  font-weight: 600;
+}
+.llm-feature-kind {
+  width: 5rem;
+  color: var(--text-2);
+  font-size: var(--text-2xs);
+}
+.llm-feature-value {
+  width: 14rem;
+  color: var(--text-1);
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  text-align: right;
+  overflow-wrap: anywhere;
+}
+.llm-source {
+  width: 4.5rem;
+  padding: 0.1rem 0.45rem;
+  background: var(--surface-3);
+  border-radius: var(--radius-full);
+  color: var(--text-2);
+  font-size: var(--text-2xs);
+  text-align: center;
+}
+.llm-source-custom {
+  color: var(--accent);
+}
+.llm-feature-detail {
+  display: flex;
+  flex-direction: column;
+  gap: 0.8rem;
+  margin: 0 0.6rem 0.6rem;
+  padding: 0.8rem;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+}
+.llm-feature-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.4rem;
+}
+
+.llm-tag-accent {
+  color: var(--accent);
+}
+.llm-capability-strip {
+  margin: 0;
+  padding: 0.55rem 0.8rem;
+  background: var(--surface-3);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  color: var(--text-2);
+  font-size: var(--text-xs);
+}
+.llm-capability-strip strong {
+  color: var(--accent);
+  font-weight: 500;
+}
+.llm-type-picker {
+  display: flex;
+  flex-direction: column;
+  gap: 0.8rem;
+}
+
+.llm-add-connection {
+  align-self: flex-start;
+}
+
+.llm-form-head {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-2, 8px);
+}
+
+.llm-feature-chevron {
+  color: var(--text-muted, inherit);
+}
+
+.llm-default-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: var(--space-2, 8px);
+}
+
+.llm-footer-slot {
+  display: flex;
+  flex: 1 1 auto;
+  justify-content: flex-end;
+}
+
+.llm-footer-slot .llm-form-buttons {
+  display: flex;
+  gap: 0.5rem;
+}

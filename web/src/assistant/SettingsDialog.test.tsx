@@ -6,6 +6,9 @@ import * as llmClient from "../llm-settings/llmSettingsClient";
 vi.mock("../llm-settings/llmSettingsClient", () => ({
   listProviders: vi.fn(),
   listCallSites: vi.fn(),
+  listFeatures: vi.fn(async () => ({ features: [] })),
+  getDefault: vi.fn(async () => ({ default: null })),
+  putDefault: vi.fn(),
   createProvider: vi.fn(),
   updateProvider: vi.fn(),
   deleteProvider: vi.fn(),

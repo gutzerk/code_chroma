@@ -24,6 +24,8 @@ export interface QuestionView {
   state: QuestionState;
   answer: string | null;
   sessionId: string | null;
+  /** The agent that asked, or null when the element carries no `agent_id`. */
+  agentId: string | null;
   step: number | null;
   total: number | null;
   options: QuestionOption[];
@@ -95,6 +97,7 @@ export function toQuestionView(element: CanvasElement): QuestionView {
     state: toState(meta.state),
     answer: typeof meta.answer === "string" ? meta.answer : null,
     sessionId: str(meta.session_id) || null,
+    agentId: str(meta.agent_id) || null,
     step: num(meta.step),
     total: num(meta.total),
     options,

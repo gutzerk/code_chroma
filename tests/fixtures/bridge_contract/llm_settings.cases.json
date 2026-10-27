@@ -205,6 +205,12 @@
       ]
     },
     {
+      "id": "a_feature_override_for_an_unknown_provider_with_a_blank_model_is_refused",
+      "steps": [
+        {"http": {"method": "PUT", "path": "/llm/features/diagrams", "json": {"provider_id": "missing", "model": ""}}, "expect": {"status": 400}}
+      ]
+    },
+    {
       "id": "a_quick_feature_can_be_overridden_to_offline_but_an_agent_feature_cannot",
       "steps": [
         {"http": {"method": "PUT", "path": "/llm/features/ai_summarizer", "json": {"offline": true}}, "expect": {"status": 200, "checks": [{"path": "$.source", "equals": "offline"}, {"path": "$.effective", "equals": {"provider_id": null, "provider_name": null, "model": null}}]}},

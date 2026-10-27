@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { computeElkLayout, type LayoutEdge } from "./elkLayout";
+import { computeElkLayout, isFailuresLane, type LayoutEdge } from "./elkLayout";
 import { hasCollision } from "../collision/resolveDrop";
 import type { LayoutBoxSpec, PositionedBox } from "./diagramLayout";
 
@@ -109,5 +109,20 @@ describe("computeElkLayout", () => {
 
     expect(boxOf(boxes, "a").y).toBeLessThan(boxOf(boxes, "b").y);
     expect(boxOf(boxes, "b").y).toBeLessThan(boxOf(boxes, "c").y);
+  });
+
+  it("puts the Failures lane in the last band even when first seen earlier", async () => {
+    const { boxes } = await computeElkLayout(
+      [box("f", undefined, "Failures"), box("a", undefined, "client"), box("b", undefined, "api")],
+      [edge("a", "b"), edge("b", "f")],
+    );
+
+    expect(boxOf(boxes, "f").x).toBeGreaterThan(boxOf(boxes, "b").x);
+    expect(boxOf(boxes, "f").x).toBeGreaterThan(boxOf(boxes, "a").x);
+  });
+
+  it("recognises the Failures lane case-insensitively", () => {
+    expect(isFailuresLane(" failures ")).toBe(true);
+    expect(isFailuresLane("api")).toBe(false);
   });
 });

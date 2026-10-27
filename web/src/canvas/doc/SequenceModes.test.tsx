@@ -50,6 +50,46 @@ describe("sequence modes", () => {
   });
 });
 
+describe("sequence focus timeline", () => {
+  beforeEach(() => {
+    window.localStorage.clear();
+    sequenceViewStore.reset();
+    sequenceViewStore.setMode("seq", "focus");
+  });
+
+  it("marks the current phase, lists participants and toggles focus on click", () => {
+    sequenceViewStore.setStep("seq", 2);
+    render(<SequenceDiagram layer="seq" elements={elements} />);
+
+    const phases = screen.getByTestId("sequence-timeline-phases").textContent;
+    const rows = screen.getAllByTestId("sequence-timeline-participant");
+    const before = rows.map((r) => r.textContent);
+    act(() => rows[1].click());
+
+    expect(phases).toContain("Prepare ← you are here");
+    expect(before).toEqual(["c3 msgs", "a3 msgs"]);
+    expect(screen.getAllByTestId("sequence-timeline-participant")[1].textContent).toBe("a ●3 msgs");
+    expect(screen.getByTestId("sequence-phase-row-count").textContent).toBe(" · 2 messages · 2 involve the focus");
+    sequenceViewStore.setStep("seq", null);
+  });
+
+  it("outlines the current phase, draws the step marker and numbers phase rows", () => {
+    sequenceViewStore.setStep("seq", 2);
+    render(<SequenceDiagram layer="seq" elements={elements} />);
+
+    expect(screen.getAllByTestId("sequence-timeline-here-box")).toHaveLength(1);
+    expect(screen.getAllByTestId("sequence-timeline-marker")).toHaveLength(1);
+    expect(screen.getAllByTestId("sequence-phase-row")[0].textContent).toContain("1 · Prepare");
+    sequenceViewStore.setStep("seq", null);
+  });
+
+  it("renders the legend row", () => {
+    render(<SequenceDiagram layer="seq" elements={elements} />);
+
+    expect(screen.getByTestId("sequence-legend").textContent).toContain("alt / loop frame");
+  });
+});
+
 describe("sequence player", () => {
   beforeEach(() => {
     window.localStorage.clear();

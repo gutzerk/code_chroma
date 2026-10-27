@@ -71,6 +71,10 @@ Files: `web/src/canvas/doc/SequenceDiagram.tsx` (split into `SequenceReadable.ts
 
 Files: the impact view components and `docs/architecture/change-cards.md` scope. Per touched box: changed/added/removed state, one-line before/after, caller count. Reuses the Stage 2 block anatomy and focus. Details come from the "Impact · Change at a glance" board.
 
+## Board palette
+
+Sequence phase bars, alt/loop frames, notes, AI/event arrows and the planned/data/external block shapes use the boards' colours (`styles.css`, the 022 sections); sequence participants colour by `meta.kind` (UI cyan, code blue, AI/external violet dashed, data orange), calls are neutral, `kind: "error"` or `failure: true` messages are red dashed; fonts and block role colours still follow the app theme.
+
 ## Out of scope
 
 - The Avalonia canvas (`dotnet/CodeChroma.Canvas*`, `AutoLayout.cs`): `web/` stays the reference. Track the port in `013-avalonia-canvas.md` after Stage 3 lands.

@@ -3,9 +3,11 @@ import { flagMeta, stringMeta } from "./elementMeta";
 import { SEQUENCE_LAYOUT } from "./autoLayout";
 import { sequenceViewStore, type SequenceMode } from "./sequenceViewStore";
 import { descriptionPopupStore } from "./descriptionPopupStore";
+import { inspectorStore } from "../inspectorStore";
 import {
   type SequenceMessage,
   type SequenceModel,
+  SEQUENCE_LEGEND_SPACE,
 } from "./sequenceModel";
 
 const BAND_W = 22;
@@ -24,6 +26,8 @@ export interface SequenceDrawingProps {
   activeStep?: number | null;
   /** Extra layers drawn inside the diagram box, in diagram-local coordinates. */
   children?: (origin: { left: number; top: number }) => ReactNode;
+  /** Width reserved right of the lifelines (the Focus side panel); frames and notes stop before it. */
+  extraRight?: number;
 }
 
 /** The shared drawing of participants, lifelines, phase bands, frames, notes and numbered messages. */
@@ -37,6 +41,7 @@ export function SequenceDrawing({
   focusRef,
   activeStep,
   children,
+  extraRight = 0,
 }: SequenceDrawingProps) {
   const { participants, messages, phases, frames, notes } = model;
   const { left, top, right, bottom } = model.bounds;
@@ -56,8 +61,8 @@ export function SequenceDrawing({
         position: "absolute",
         left,
         top,
-        width: right - left,
-        height: bottom - top,
+        width: right - left + extraRight,
+        height: bottom - top + SEQUENCE_LEGEND_SPACE,
         pointerEvents: "none",
       }}
     >
@@ -68,7 +73,7 @@ export function SequenceDrawing({
         return (
           <div
             key={element.id}
-            className={`sequence-participant${focusRef === ref ? " sequence-participant--focused" : ""}`}
+            className={`sequence-participant${focusRef === ref ? " sequence-participant--focused" : ""}${/\b(ai|external)\b/i.test(kind ?? "") ? " sequence-participant--external" : ""}`}
             data-testid="sequence-participant"
             style={
               {
@@ -90,7 +95,23 @@ export function SequenceDrawing({
               style={onHeadClick ? { pointerEvents: "auto", cursor: "pointer" } : undefined}
               onClick={onHeadClick ? () => onHeadClick(ref) : undefined}
             >
-              <span className="sequence-participant-name">{element.label}</span>
+              <span className="sequence-participant-name">
+                {element.label}
+              {element.node_id && (
+                <button
+                  type="button"
+                  className="sequence-participant-src"
+                  data-testid="sequence-participant-src"
+                  aria-label={`Open source of ${element.label}`}
+                  onClick={(event) => {
+                    event.stopPropagation();
+                    inspectorStore.open(element.node_id ?? element.id, element.label, element.id);
+                  }}
+                >
+                  ↗
+                </button>
+              )}
+              </span>
               {kind && <span className="sequence-participant-kind">{kind}</span>}
             </div>
           </div>
@@ -121,7 +142,7 @@ export function SequenceDrawing({
             key={`frame-${index}`}
             className={`sequence-frame sequence-frame--${frame.kind}`}
             data-testid="sequence-frame"
-            style={{ left: BAND_W, right: 0, top: range[0] - top, height: range[1] - range[0] }}
+            style={{ left: BAND_W, right: extraRight, top: range[0] - top, height: range[1] - range[0] }}
           >
             <span className="sequence-frame-tag">{`${frame.kind} ${frame.label}`.trim()}</span>
           </div>
@@ -147,7 +168,7 @@ export function SequenceDrawing({
             key={`note-${index}`}
             className="sequence-note"
             data-testid="sequence-note"
-            style={{ right: 0, top: y - top + 36 }}
+            style={{ right: extraRight, top: y - top + 36 }}
           >
             {note.text}
           </div>
@@ -155,6 +176,32 @@ export function SequenceDrawing({
       })}
 
       {children?.({ left, top })}
+      <SequenceLegend top={bottom - top + 12} />
+    </div>
+  );
+}
+
+const LEGEND_ITEMS: ReadonlyArray<readonly [string, string]> = [
+  ["call", "sequence-legend-line"],
+  ["return", "sequence-legend-line sequence-legend-line--return"],
+  ["AI", "sequence-legend-line sequence-legend-line--ai"],
+  ["event / push", "sequence-legend-line sequence-legend-line--event"],
+  ["alt / loop frame", "sequence-legend-frame"],
+  ["phase", "sequence-legend-phase"],
+  ["note", "sequence-legend-note"],
+];
+
+/** The bottom legend row: swatches for call, return, AI, event, alt/loop frame, phase and note. */
+function SequenceLegend({ top }: { top: number }) {
+  return (
+    <div className="sequence-legend" data-testid="sequence-legend" style={{ position: "absolute", left: 0, top }}>
+      <span className="sequence-legend-title">LEGEND</span>
+      {LEGEND_ITEMS.map(([label, swatch]) => (
+        <span key={label} className="sequence-legend-item">
+          <span className={swatch} aria-hidden="true" />
+          {label}
+        </span>
+      ))}
     </div>
   );
 }
@@ -182,6 +229,7 @@ function MessageArrow({
     flagMeta(element, "hero") ? "sequence-message--hero" : "",
     kind === "ai" ? "sequence-message--ai" : "",
     kind === "event" ? "sequence-message--event" : "",
+    kind === "error" || flagMeta(element, "failure") ? "sequence-message--failure" : "",
     dim ? "sequence-message--dim" : "",
     active ? "sequence-message--active" : "",
   ]
@@ -192,7 +240,8 @@ function MessageArrow({
     left: Math.min(fromCol.position.x, toCol.position.x) - left,
     top: element.position.y - top - 10,
     width: spanPx,
-    "--seq-accent-rgb": accent,
+    // ai/event keep their own class colour; a sender tint would override it
+    ...(kind === "ai" || kind === "event" || kind === "error" || flagMeta(element, "failure") ? {} : { "--seq-accent-rgb": accent }),
   } as CSSProperties;
 
   return (

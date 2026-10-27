@@ -64,6 +64,25 @@ public sealed class GitTree
     /// <summary>Everything that differs from `baseRef`, split into present-and-changed vs deleted paths.</summary>
     public WorkingTreeStatus Status(string baseRef = "HEAD") => baseRef == "HEAD" ? Uncommitted() : Against(baseRef);
 
+    /// <summary>Repo-relative path to (additions, deletions) vs `baseRef`; untracked files count all lines added.</summary>
+    public Dictionary<string, (int Additions, int Deletions)> LineCounts(string baseRef, IEnumerable<KeyValuePair<string, string>> statuses)
+    {
+        var counts = new Dictionary<string, (int, int)>();
+        foreach (var line in SplitLines(GitRunner.Run(RepoRoot, "diff", "--numstat", "--relative", baseRef, "--", ".") ?? ""))
+        {
+            var parts = line.Split('	');
+            if (parts.Length == 3 && int.TryParse(parts[0], out var added) && int.TryParse(parts[1], out var removed))
+                counts[parts[2].Trim().Trim('"')] = (added, removed);
+        }
+        foreach (var (path, kind) in statuses)
+        {
+            if (kind != "added" || counts.ContainsKey(path)) continue;
+            try { counts[path] = (File.ReadAllLines(System.IO.Path.Combine(RepoRoot, path)).Length, 0); }
+            catch (Exception error) when (error is IOException or UnauthorizedAccessException) { }
+        }
+        return counts;
+    }
+
     private WorkingTreeStatus Uncommitted()
     {
         var status = new WorkingTreeStatus();

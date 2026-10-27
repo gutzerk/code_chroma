@@ -10,6 +10,7 @@ from codechroma.bridge.diagram_resolver import (
     attach_staleness,
     merge_by_id,
     resolve_diagram,
+    route_summary,
 )
 from codechroma.engine import GraphEngine
 from codechroma.summarize.ai_summarizer import AISummarizer
@@ -449,6 +450,14 @@ def test_unresolved_route_ids_are_soft_diagnostics_only(engine):
 
     assert [d["what"] for d in resolved["diagnostics"]["dropped"]] == ["route_step", "route_child"]
     assert len(resolved["route"]["steps"][0]["node_ids"]) == 3
+
+
+def test_route_summary_falls_back_to_node_ids_when_no_resolved_hit_has_a_path():
+    steps = [{"id": "s", "kind": "ai", "resolved": [{"node_id": "x"}], "node_ids": ["x"]}]
+
+    summary = route_summary(steps)
+
+    assert summary == "1 steps · 1 files · 1 AI steps"
 
 
 def test_a_route_with_non_list_node_ids_and_children_is_left_unresolved(engine):

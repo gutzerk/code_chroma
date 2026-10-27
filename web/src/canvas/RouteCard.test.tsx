@@ -3,7 +3,7 @@ import { act, fireEvent, render, screen } from "@testing-library/react";
 import { RouteCard, collectRoutes, ROUTE_WALK_STEP_MS } from "./RouteCard";
 import { canvasDocStore } from "./doc/canvasDocStore";
 import { routeStore } from "../state/routeStore";
-import type { Route } from "./doc/routeStep";
+import { routeFor, type Route } from "./doc/routeStep";
 
 const step = (id: string, order: number, kind: "trigger" | "failure") => ({ id, order, title: `Step ${id}`, kind, nodeIds: [], children: [] });
 const ROUTE: Route = {
@@ -63,6 +63,16 @@ describe("route picker", () => {
     const elements = { ...el("1", ROUTE), ...el("2", ROUTE), ...el("3", other) };
 
     expect(collectRoutes(elements).map((r) => r.id)).toEqual(["r", "r2"]);
+  });
+
+  it("reads a route from a carrier and a box that holds only a route_id", () => {
+    const carrier = { id: "c", layer: "l", render: "route", meta: { route_id: "r", route: ROUTE } } as never;
+    const box = { id: "1", layer: "l", render: "custom", meta: { route_id: "r" } } as never;
+
+    const routes = collectRoutes({ 1: box }, [carrier]);
+
+    expect(routes.map((r) => r.id)).toEqual(["r"]);
+    expect(routeFor(box, [carrier])?.title).toBe("Update the map");
   });
 
   it("switches the active route when another is picked", () => {

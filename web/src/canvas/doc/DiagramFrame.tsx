@@ -1,5 +1,4 @@
 import { RouteFrameActions } from "./RouteFrameActions";
-import { routeOf } from "./routeStep";
 import { Fragment, useEffect, useMemo, useRef, useSyncExternalStore } from "react";
 import { stringMeta } from "./elementMeta";
 import { buildSequenceModel, SEQUENCE_LEGEND_SPACE, SEQUENCE_PANEL_SPACE } from "./sequenceModel";
@@ -126,7 +125,7 @@ const HEADER_ACTIONS: readonly HeaderAction[] = [
   },
   {
     id: "route",
-    applies: (members) => members.some((member) => routeOf(member)),
+    applies: (members) => members.some((member) => member.meta?.route_id !== undefined || member.meta?.route !== undefined),
     render: (_layer, members) => <RouteFrameActions members={members} />,
   },
 ];

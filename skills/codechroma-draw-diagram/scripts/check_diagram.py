@@ -21,7 +21,8 @@ where the skill's rules say it should, repeats an id, strands a node, or is too 
 why a finding cannot apply.
 
 Advisory findings print but never change the exit code: COVERAGE, DEPTH, NESTING-EDGE, CYCLES,
-ARTICULATION, BADKIND, BADICON, UNLABELED, DROPPED, NOSTATUS, BADSTATUS. COVERAGE is advisory by
+ARTICULATION, BADKIND, BADICON, BADEDGEKIND, EDGEKIND-SPAWN, EDGEKIND-DATA, UNLABELED, DROPPED,
+NOSTATUS, BADSTATUS. COVERAGE is advisory by
 construction, not
 by
 concession -- the bridge hangs everything no block names off the system box as an "Unmapped code"
@@ -58,6 +59,7 @@ import argparse
 import http.client
 import json
 import os
+import re
 import sys
 import urllib.error
 import urllib.parse
@@ -879,12 +881,87 @@ HERO_KINDS = ("c1", "patterns", "impact")
 MIN_RELATIONS_FOR_HERO = 3
 
 
+MESSAGE_KINDS = ("call", "return", "ai", "event", "error")
+FAILURE_WORDS = re.compile(r"\b(error|fail\w*|denied|timeout|timed out)\b", re.IGNORECASE)
+
+
+def _check_message_kinds(relations: list[dict], report: _Report) -> None:
+    """Advises on unknown message kinds and failure-looking labels not marked `kind: error`."""
+    for relation in relations:
+        kind, ident = relation.get("kind"), relation.get("id")
+        if isinstance(kind, str) and kind not in MESSAGE_KINDS:
+            report.advisories.append(
+                f"BADMSGKIND {ident!r} kind={kind!r} is not one of {', '.join(MESSAGE_KINDS)}"
+            )
+        label = str(relation.get("label") or "")
+        if kind != "error" and not relation.get("failure") and FAILURE_WORDS.search(label):
+            report.advisories.append(
+                f"FAILURE-KIND {ident!r} label {label!r} reads as a failure --"
+                ' set `"kind": "error"` so it draws red and dashed'
+            )
+
+
+EDGE_KINDS = ("calls", "spawns", "data", "reads", "writes", "minor")
+# Web-side aliases (edgeKinds.ts) plus the structural verbs patterns/c1 already author.
+EDGE_KIND_ALIASES = (
+    "call", "uses", "spawn", "process", "read", "write", "secondary", "imports", "implements",
+    "extends", "inherits", "composes", "contains", "depends", "depends_on", "removed",
+)
+_PLAIN_EDGE_KINDS = ("", "calls", "call", "uses")
+# These author structural verbs (observes, wraps, ...), so an unknown kind there is not a typo.
+_STRUCTURAL_KINDS = ("c1", "patterns", "impact")
+_SPAWN_WORDS = re.compile(
+    r"\b(spawn\w*|launch\w*|(start|starts|starting|run|runs|fork\w*)\s+(a\s+|an\s+|the\s+)?"
+    r"(sub)?(process|cli|agent|worker|daemon))\b", re.IGNORECASE,
+)
+_DATA_WORDS = re.compile(
+    r"\b(read|reads|write|writes|reading|writing|persist\w*|stores?|saves?)\b.{0,40}"
+    r"\b(files?|disk|database|db|sqlite|store|cache|json)\b", re.IGNORECASE,
+)
+
+
+def _check_edge_kinds(relations: list[dict], kind: str, report: _Report) -> None:
+    """Advises on an unknown edge kind, or a spawn/data-sounding edge left as a plain call."""
+    if kind in ("sequence", "custom"):
+        return
+    known = EDGE_KINDS + EDGE_KIND_ALIASES
+    for relation in relations:
+        edge_kind = relation.get("kind")
+        pair = f"{relation.get('from')!r} -> {relation.get('to')!r}"
+        if (
+            kind not in _STRUCTURAL_KINDS
+            and edge_kind is not None
+            and (not isinstance(edge_kind, str) or edge_kind.strip().lower() not in known)
+        ):
+            report.advisories.append(
+                f"BADEDGEKIND {pair} kind={edge_kind!r} is not one of {', '.join(EDGE_KINDS)}"
+            )
+            continue
+        plain = edge_kind is None or (
+            isinstance(edge_kind, str) and edge_kind.strip().lower() in _PLAIN_EDGE_KINDS
+        )
+        label = relation.get("label")
+        if not plain or not isinstance(label, str):
+            continue
+        if _SPAWN_WORDS.search(label):
+            report.advisories.append(
+                f"EDGEKIND-SPAWN {pair} label {label!r} starts a process --"
+                ' set `"kind": "spawns"` so it draws dotted'
+            )
+        elif _DATA_WORDS.search(label):
+            report.advisories.append(
+                f"EDGEKIND-DATA {pair} label {label!r} reads/writes data --"
+                ' set `"kind": "data"` so it draws orange dashed'
+            )
+
+
 def _check_readability(diagram: object, kind: str, report: _Report) -> None:
     """022: the 5-second-read data -- order, summary, phases and the wording lints."""
     if not isinstance(diagram, dict):
         return
     nodes = [n for n in diagram.get("nodes") or [] if isinstance(n, dict)]
     relations = [r for r in diagram.get("relations") or [] if isinstance(r, dict)]
+    _check_route(diagram, nodes, report)
     if kind == "sequence":
         for relation in relations:
             if relation.get("order") in (None, ""):
@@ -892,8 +969,10 @@ def _check_readability(diagram: object, kind: str, report: _Report) -> None:
                     f"NO-ORDER {relation.get('id')!r} message has no `order` --"
                     " number every message"
                 )
+        _check_message_kinds(relations, report)
         _check_phases(diagram, relations, report)
         _check_frames(diagram, report)
+    _check_edge_kinds(relations, kind, report)
     if kind in READABILITY_KINDS and relations:
         missing = [
             key for key in ("question", "summary")
@@ -928,6 +1007,62 @@ def _check_readability(diagram: object, kind: str, report: _Report) -> None:
             report.advisories.append(f"ECHO-LABEL {pair} label {label!r} repeats a box title")
         if relation.get("kind") in ("error", "failure") and not label:
             report.advisories.append(f"HIDDEN-BRANCH {pair} is a failure path with no label")
+
+
+ROUTE_KINDS = ("trigger", "decide", "ai", "check", "data", "failure")
+
+
+def _check_route(diagram: dict, nodes: list[dict], report: _Report) -> None:
+    """026: the optional `route` -- every finding is advisory, like BADEDGEKIND."""
+    route = diagram.get("route")
+    if route is None:
+        return
+    steps = route.get("steps") if isinstance(route, dict) else None
+    if not isinstance(steps, list):
+        report.advisories.append("BADROUTE `route` must be an object with a `steps` list")
+        return
+    node_ids = {n.get("id") for n in nodes if isinstance(n.get("id"), str)}
+    seen: set[str] = set()
+    orders: list[int] = []
+    for step in steps:
+        if not isinstance(step, dict):
+            report.advisories.append("BADROUTE a step entry is not a JSON object")
+            continue
+        _check_route_step(step, node_ids, seen, orders, report)
+    if orders and sorted(orders) != list(range(1, len(orders) + 1)):
+        report.advisories.append("ROUTE-ORDER step `order` values should run 1..N without gaps")
+
+
+def _check_route_step(
+    step: dict, node_ids: set, seen: set, orders: list[int], report: _Report
+) -> None:
+    """One route step: unique id, known kind, integer order, well-formed children."""
+    sid = step.get("id")
+    if not isinstance(sid, str):
+        report.advisories.append(f"ROUTE-STEP {sid!r} needs a string `id`")
+    elif sid in seen:
+        report.advisories.append(f"ROUTE-STEP {sid!r} is used by more than one step")
+    else:
+        seen.add(sid)
+    if isinstance(sid, str) and sid not in node_ids:
+        report.advisories.append(f"ROUTE-STEP {sid!r} matches no diagram node id")
+    if step.get("kind") not in ROUTE_KINDS:
+        report.advisories.append(f"ROUTE-KIND {sid!r} kind must be one of {ROUTE_KINDS}")
+    order = step.get("order")
+    if isinstance(order, int) and not isinstance(order, bool):
+        orders.append(order)
+    else:
+        report.advisories.append(f"ROUTE-ORDER {sid!r} needs an integer `order`")
+    ids = step.get("node_ids")
+    if ids is not None and not (
+        isinstance(ids, list) and all(isinstance(i, str) and i for i in ids)
+    ):
+        report.advisories.append(f"ROUTE-NODES {sid!r} `node_ids` must be a list of id strings")
+    for child in step.get("children") or []:
+        line = child.get("line") if isinstance(child, dict) else None
+        if not (isinstance(line, int) and not isinstance(line, bool) and line > 0):
+            label = child.get("label") if isinstance(child, dict) else child
+            report.advisories.append(f"ROUTE-CHILD {sid!r} child {label!r} needs a positive `line`")
 
 
 def _is_number(value: object) -> bool:

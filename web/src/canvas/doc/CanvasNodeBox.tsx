@@ -1,5 +1,8 @@
 import { useCallback, useEffect, useRef } from "react";
+import { useMemberCount } from "./useMemberCount";
 import { ImpactGlance } from "./ImpactGlance";
+import { useImpactBoxState } from "./impactBoxState";
+import { ImpactPill } from "./ImpactPill";
 import { focusStore, useFocusState } from "./focusStore";
 import type { CanvasElement } from "../../state/types";
 import { useEngineClient } from "../../engine-client/EngineClientContext";
@@ -17,6 +20,7 @@ import { dragOffsetStore, useLiveDragOffsets } from "./dragOffsetStore";
 import { NODE_STYLES, type StyledRenderKind } from "./elementRules";
 import { descriptionPopupStore } from "./descriptionPopupStore";
 import { accentFor, noCodeReasonMessage } from "./nodeAccentLogic";
+import { blockRoleFor } from "./blockRole";
 import { NodeMetaRow, NodeTopBand } from "./nodeAccent";
 import { BLOCK_RULES } from "./elementRules";
 import { leadingOrderDigits, orderMeta, stringMeta } from "./elementMeta";
@@ -28,6 +32,8 @@ import { elementCopyText } from "../strategies/nodeCopyText";
 import { useNodeOverlays } from "../../state/useSidecar";
 import { authoredStyle } from "../authoredStyle";
 import { BOTTOM_LEFT_RENDERS, DEFAULT_ELEMENT_SIZE } from "./elementRect";
+import { routeStepOf } from "./routeStep";
+import { routeExpandStore, useIsRouteExpanded } from "./routeExpandStore";
 
 function styleFor(render: CanvasElement["render"]) {
   return NODE_STYLES[render as StyledRenderKind] ?? NODE_STYLES.custom;
@@ -101,6 +107,7 @@ export function CanvasNodeBox({ element, onMeasure }: CanvasNodeBoxProps) {
   const isInspectorTarget = useIsInspectorTarget(element.node_id ?? element.id, element.id);
   const style = styleFor(element.render);
   const focusState = useFocusState(element.id);
+  const memberCount = useMemberCount(engineClient, isEpicsLayerName(element.layer) ? null : element.node_id);
   const stepNumber =
     isEpicsLayerName(element.layer) || element.render === "sequence"
       ? undefined
@@ -111,6 +118,9 @@ export function CanvasNodeBox({ element, onMeasure }: CanvasNodeBoxProps) {
   // stays freely draggable as before.
   const lockedLayout = Boolean(BLOCK_RULES[element.render].lockedLayout);
   const accent = accentFor(element);
+  const blockRole = isEpicsLayerName(element.layer) ? undefined : blockRoleFor(element);
+  const routeStep = routeStepOf(element);
+  const routeExpanded = useIsRouteExpanded(element.id);
   const width = element.size?.w ?? DEFAULT_ELEMENT_SIZE.w;
   const height = element.size?.h ?? DEFAULT_ELEMENT_SIZE.h;
   // A content card (Summary prose / Acceptance list / Спеки stories) auto-fits to its text; an epic
@@ -130,6 +140,7 @@ export function CanvasNodeBox({ element, onMeasure }: CanvasNodeBoxProps) {
   // A permanently-empty store unless an Impact layer is present and Diff mode is on (see
   // useC1DiffSync) — a cheap, harmless subscription the rest of the time.
   const { isImpact, change: impactChange } = useNodeOverlays(element);
+  const impactBox = useImpactBoxState(element, impactChange, isImpact);
 
   const selectedCount = useSelectedCount();
   // Miro-style: 2+ boxes selected and this is one of them means dragging it moves the whole group,
@@ -328,8 +339,12 @@ export function CanvasNodeBox({ element, onMeasure }: CanvasNodeBoxProps) {
     isInspectorTarget ? "block-inspector-target" : "",
     focusState === "dim" ? "block-focus-dim" : "",
     focusState === "self" ? "block-focus-self" : "",
+    isSelected || focusState === "self" ? "block-hero" : "",
     impactChange ? `block-change--${impactChange.status}` : "",
+    impactBox.kind ? `impact-box impact-box--${impactBox.kind}` : "",
+    impactBox.biggest ? "impact-box--biggest" : "",
     accent.className ?? "",
+    blockRole ? `block-role block-role--${blockRole}` : "",
     // An epics-layer box (epic title, or a Summary/Acceptance/Спеки content card) carries a shared
     // marker so its title rows can be styled more prominently than a generic diagram box.
     BOTTOM_LEFT_RENDERS.has(element.render) ? "diagram-node-box--epic" : "",
@@ -343,6 +358,7 @@ export function CanvasNodeBox({ element, onMeasure }: CanvasNodeBoxProps) {
     // A «Спеки» (User Stories) block renders each story card (overriding the acceptance structure) --
     // see the `isSpecsCard` description branch below.
     isSpecsCard ? "diagram-node-box--specs" : "",
+    routeStep ? `route-step route-step--${routeStep.kind}` : "",
   ]
     .filter(Boolean)
     .join(" ");
@@ -353,6 +369,19 @@ export function CanvasNodeBox({ element, onMeasure }: CanvasNodeBoxProps) {
   // 022: the file path is always visible on a code-backed box (the resolver stamps `meta.path`).
   const isEpicsLayer = isEpicsLayerName(element.layer);
   const sourcePath = isEpicsLayer ? undefined : stringMeta(element, "path");
+
+  if (impactBox.collapse) {
+    return (
+      <ImpactPill
+        collapse={impactBox.collapse}
+        elementId={element.id}
+        label={element.label}
+        left={element.position.x - width / 2 + renderOffset.x}
+        top={element.position.y - 17 + renderOffset.y}
+        width={width}
+      />
+    );
+  }
 
   return (
     <>
@@ -416,7 +445,7 @@ export function CanvasNodeBox({ element, onMeasure }: CanvasNodeBoxProps) {
               row's chips and the description would sit side by side as more row items instead of
               stacking. */}
           <div className={style.titleWrapClass}>
-            <NodeMetaRow element={element} count={impactCount} />
+            <NodeMetaRow element={element} count={impactCount} changed={Boolean(impactChange)} />
             <div className={style.titleRowClass}>
               {accent.icon}
               <span className={style.nameClass} title={element.label}>
@@ -477,12 +506,66 @@ export function CanvasNodeBox({ element, onMeasure }: CanvasNodeBoxProps) {
             {isImpact && (
               <ImpactGlance change={impactChange} elementId={element.id} />
             )}
+            {routeStep && routeStep.children.length > 0 && (
+              <>
+                <button
+                  type="button"
+                  className="route-step-chip"
+                  data-testid="route-step-chip"
+                  aria-expanded={routeExpanded}
+                  onClick={(event) => {
+                    event.stopPropagation();
+                    routeExpandStore.toggle(element.id);
+                  }}
+                >
+                  {routeExpanded ? "▾" : "▸"} {routeStep.children.length} calls
+                </button>
+                {routeExpanded && (
+                  <ul className="route-step-children" data-testid="route-step-children">
+                    {routeStep.children.map(({ id, label, nodeId, line }) => (
+                      <li key={id} className="route-step-child">
+                        <span className="route-step-child-label">{label}</span>
+                        <span className="route-step-child-line">:{line}</span>
+                        {nodeId && (
+                          <button
+                            type="button"
+                            className="route-step-child-open"
+                            data-testid="route-step-child-open"
+                            aria-label={`Open ${label}`}
+                            onClick={(event) => {
+                              event.stopPropagation();
+                              inspectorStore.open(nodeId, label, element.id);
+                            }}
+                          >
+                            ↗
+                          </button>
+                        )}
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </>
+            )}
             {sourcePath && (
               <div className="canvas-node-box-foot" data-testid="canvas-node-box-foot">
                 <span className="canvas-node-box-path" title={sourcePath}>
                   {sourcePath}
                 </span>
               </div>
+            )}
+            {memberCount > 0 && (
+              <button
+                type="button"
+                className="canvas-node-members"
+                data-testid="canvas-node-members"
+                aria-label={`Show ${memberCount} members of ${element.label}`}
+                onClick={(event) => {
+                  event.stopPropagation();
+                  toggleSource();
+                }}
+              >
+                {"▸"} {memberCount} members
+              </button>
             )}
           </div>
           <div className="canvas-node-box-buttons" data-testid="canvas-node-box-buttons">

@@ -27,6 +27,35 @@
       ]
     },
     {
+      "id": "a_plan_diagram_advises_edge_kinds_without_dropping_relations",
+      "requires": ["diagram-resolver"],
+      "steps": [
+        {"fs": "write", "path": ".codechroma/diagrams/feature-plan/edge-kinds/edge-kinds.json", "text": "{\"nodes\": [{\"id\": \"a\", \"name\": \"A\"}, {\"id\": \"b\", \"name\": \"B\"}], \"relations\": [{\"from\": \"a\", \"to\": \"b\", \"kind\": \"bogus\"}, {\"from\": \"a\", \"to\": \"b\", \"label\": \"spawns a worker process\"}, {\"from\": \"b\", \"to\": \"a\", \"label\": \"writes to the sqlite store\"}, {\"from\": \"a\", \"to\": \"b\", \"label\": \"asks\", \"kind\": \"minor\"}]}"},
+        {
+          "http": {"method": "GET", "path": "/repos/main/feature-plan/edge-kinds"},
+          "expect": {"status": 200, "checks": [
+            {"path": "$.relations", "count": 4},
+            {"path": "$.diagnostics.dropped_count", "equals": 3},
+            {"path": "$.diagnostics.dropped[*].reason", "equals": ["bad_edge_kind", "edge_kind_spawn", "edge_kind_data"]}
+          ]}
+        }
+      ]
+    },
+    {
+      "id": "a_sequence_advises_message_kinds_and_skips_edge_kinds",
+      "requires": ["diagram-resolver"],
+      "steps": [
+        {"fs": "write", "path": ".codechroma/diagrams/sequence/sequence.json", "text": "{\"nodes\": [{\"id\": \"p1\", \"name\": \"P1\"}, {\"id\": \"p2\", \"name\": \"P2\"}], \"relations\": [{\"id\": \"m1\", \"from\": \"p1\", \"to\": \"p2\", \"label\": \"login\", \"kind\": \"shout\"}, {\"id\": \"m2\", \"from\": \"p2\", \"to\": \"p1\", \"label\": \"request failed\"}, {\"id\": \"m3\", \"from\": \"p1\", \"to\": \"p2\", \"label\": \"spawns a worker process\"}]}"},
+        {
+          "http": {"method": "GET", "path": "/repos/main/sequence"},
+          "expect": {"status": 200, "checks": [
+            {"path": "$.diagnostics.dropped_count", "equals": 2},
+            {"path": "$.diagnostics.dropped[*].reason", "equals": ["bad_message_kind", "failure_kind"]}
+          ]}
+        }
+      ]
+    },
+    {
       "id": "a_missing_feature_plan_is_empty_but_well_formed",
       "requires": ["diagram-resolver"],
       "steps": [
@@ -103,6 +132,73 @@
         {"ws": "connect", "name": "events", "path": "/repos/main/events", "expect": "accepted"},
         {"fs": "write", "path": ".codechroma/diagrams/custom/dataflow/dataflow.json", "text": "{\"nodes\": [{\"id\": \"a\", \"name\": \"A\"}], \"relations\": []}"},
         {"ws": "receive", "name": "events", "timeout_ms": 15000, "skip_until_match": true, "expect": {"json": {"type": "custom"}}}
+      ]
+    },
+    {
+      "id": "a_route_resolves_node_ids_to_path_and_line_with_soft_diagnostics",
+      "requires": [
+        "diagram-resolver"
+      ],
+      "steps": [
+        {
+          "fs": "write",
+          "path": ".codechroma/diagrams/feature-plan/route-demo/route-demo.json",
+          "text": "{\"nodes\": [{\"id\": \"s1\", \"name\": \"Create\"}], \"relations\": [], \"route\": {\"id\": \"r1\", \"title\": \"t\", \"steps\": [{\"id\": \"s1\", \"order\": 1, \"title\": \"Create\", \"kind\": \"decide\", \"node_ids\": [\"billing/service.py::function::BillingService.create_invoice\", \"component::billing/service.py\", \"nope::id\"], \"children\": [{\"id\": \"c1\", \"label\": \"a\", \"line\": 99, \"node_id\": \"billing/service.py::function::BillingService.create_invoice\"}, {\"id\": \"c2\", \"label\": \"b\", \"line\": 8, \"node_id\": \"billing/service.py::function::BillingService.__init__\"}, {\"id\": \"c3\", \"label\": \"c\", \"line\": 3, \"node_id\": \"ghost::fn\"}]}]}}"
+        },
+        {
+          "http": {
+            "method": "GET",
+            "path": "/repos/main/feature-plan/route-demo"
+          },
+          "expect": {
+            "status": 200,
+            "checks": [
+              {
+                "path": "$.route.steps[0].resolved",
+                "count": 2
+              },
+              {
+                "path": "$.route.steps[0].resolved[0].line",
+                "equals": 11
+              },
+              {
+                "path": "$.route.steps[0].resolved[0].path",
+                "equals": "billing/service.py"
+              },
+              {
+                "path": "$.route.steps[0].resolved[1].line",
+                "absent": true
+              },
+              {
+                "path": "$.route.steps[0].children[0].line_mismatch",
+                "equals": true
+              },
+              {
+                "path": "$.route.steps[0].children[0].resolved_line",
+                "equals": 11
+              },
+              {
+                "path": "$.route.steps[0].children[1].line_mismatch",
+                "absent": true
+              },
+              {
+                "path": "$.route.steps[0].children[2].path",
+                "absent": true
+              },
+              {
+                "path": "$.diagnostics.dropped_count",
+                "equals": 2
+              },
+              {
+                "path": "$.diagnostics.dropped[*].reason",
+                "equals": [
+                  "unresolved_path",
+                  "unresolved_path"
+                ]
+              }
+            ]
+          }
+        }
       ]
     }
   ]

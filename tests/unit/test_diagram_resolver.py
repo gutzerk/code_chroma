@@ -397,3 +397,67 @@ def test_attach_origins_stamps_meta_origin_on_matching_relations():
     assert by_pair[("a", "c")]["origin"] == "a.py:12"
     # b has no origin in the engine: its meta stays untouched (absent).
     assert by_pair[("b", "c")] is None
+
+
+_ROUTE = {
+    "id": "r1", "title": "t", "summary": "",
+    "steps": [{
+        "id": "s1", "order": 1, "title": "Create", "kind": "decide",
+        "node_ids": [
+            "billing/service.py::function::BillingService.create_invoice",
+            "component::billing/service.py", "nope::id",
+        ],
+        "children": [
+            {"id": "c1", "label": "create_invoice()", "line": 99,
+             "node_id": "billing/service.py::function::BillingService.create_invoice"},
+            {"id": "c2", "label": "__init__()", "line": 8,
+             "node_id": "billing/service.py::function::BillingService.__init__"},
+            {"id": "c3", "label": "ghost()", "line": 3, "node_id": "ghost::fn"},
+        ],
+    }],
+}
+
+
+def test_route_step_node_ids_resolve_to_path_and_line(engine):
+    data = {**_diagram(), "route": _ROUTE}
+
+    step = resolve_diagram(engine, data)["route"]["steps"][0]
+
+    assert step["resolved"] == [
+        {"node_id": "billing/service.py::function::BillingService.create_invoice",
+         "path": "billing/service.py", "line": 11},
+        {"node_id": "component::billing/service.py", "path": "billing/service.py"},
+    ]
+
+
+def test_route_child_gets_path_and_a_flag_only_when_its_line_differs(engine):
+    data = {**_diagram(), "route": _ROUTE}
+
+    children = resolve_diagram(engine, data)["route"]["steps"][0]["children"]
+
+    assert children[0]["path"] == "billing/service.py"
+    assert children[0]["resolved_line"] == 11
+    assert children[0]["line_mismatch"] is True
+    assert "line_mismatch" not in children[1]
+    assert "path" not in children[2]
+
+
+def test_unresolved_route_ids_are_soft_diagnostics_only(engine):
+    data = {**_diagram(), "route": _ROUTE}
+
+    resolved = resolve_diagram(engine, data)
+
+    assert [d["what"] for d in resolved["diagnostics"]["dropped"]] == ["route_step", "route_child"]
+    assert len(resolved["route"]["steps"][0]["node_ids"]) == 3
+
+
+def test_a_route_with_non_list_node_ids_and_children_is_left_unresolved(engine):
+    step = {"id": "s1", "node_ids": "billing/service.py", "children": {"a": 1}}
+    route = {"id": "r", "steps": [step]}
+
+    resolved = resolve_diagram(engine, {**_diagram(), "route": route})
+
+    step = resolved["route"]["steps"][0]
+    assert step["resolved"] == []
+    assert step["children"] == []
+    assert resolved["diagnostics"]["dropped_count"] == 0

@@ -80,3 +80,5 @@ id, path resolution, fallback order), path honesty, the density budgets, the ant
 per-box and per-arrow `style` rule, the icon vocabulary, arrow-label style, and the self-check exit
 tiers. Read it alongside your chosen `type-*.md`, not instead of it. Every diagram that draws
 relations also carries top-level `question` + `summary` and 1-2 `hero` relations (the 5-second read).
+
+Every arrow carries a `kind` (`calls` default, `spawns`, `data`, `minor`): use `spawns` for starting a process/CLI/agent and `data` for reading/writing a file/DB/store whenever true (`drawing-rules.md` "Edge kinds").

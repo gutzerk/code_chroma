@@ -26,12 +26,13 @@ class FocusStore extends Store {
 
   /** Focuses `id`; focusing the already-focused block clears it. A block with no edges has nothing to focus. */
   toggle(doc: CanvasDoc, id: string): void {
-    if (this.focus?.id !== id && litIdsFor(doc, id, "both").size === 1) {
+    const lit = litIdsFor(doc, id, "both");
+    if (this.focus?.id !== id && lit.size === 1) {
       this.clear();
       return;
     }
     this.litEdges = doc.edges;
-    this.focus = this.focus?.id === id ? null : { id, direction: "both", lit: litIdsFor(doc, id, "both") };
+    this.focus = this.focus?.id === id ? null : { id, direction: "both", lit };
     this.changed();
   }
 
@@ -67,6 +68,18 @@ class FocusStore extends Store {
     return this.focus.lit.has(id) ? "lit" : "dim";
   }
 
+  /** True when a focus is set and this edge does not join the focused block to a lit neighbour. */
+  edgeDimmed(from: string, to: string): boolean {
+    const focus = this.focus;
+    if (!focus) return false;
+    return !((focus.id === from && focus.lit.has(to)) || (focus.id === to && focus.lit.has(from)));
+  }
+
+  /** True when a focus is set and none of `ids` is the focused block or one of its lit neighbours. */
+  allDimmed(ids: readonly string[]): boolean {
+    return this.focus !== null && !ids.some((id) => this.focus?.lit.has(id));
+  }
+
   private changed(): void {
     this.version += 1;
     this.emit();
@@ -80,4 +93,9 @@ canvasDocStore.subscribe(() => focusStore.refresh(canvasDocStore.getDoc()));
 /** Re-renders only when this element's own state changes, and returns it. */
 export function useFocusState(id: string): FocusState {
   return useSyncExternalStore(focusStore.subscribe, () => focusStore.stateOf(id));
+}
+
+/** Re-renders only when this set of ids flips between "some connected to the focus" and "none". */
+export function useAllDimmed(ids: readonly string[]): boolean {
+  return useSyncExternalStore(focusStore.subscribe, () => focusStore.allDimmed(ids));
 }

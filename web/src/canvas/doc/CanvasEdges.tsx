@@ -4,14 +4,30 @@ import { layoutDiagramEdges } from "../connectors/diagramLayout";
 import type { Rect } from "../connectors/orthogonalRoute";
 import type { CanvasDoc } from "../../state/types";
 import type { MeasuredBoxSize } from "../useMeasuredSizes";
-import { bundleEdges } from "./bundleEdges";
+import { useSyncExternalStore } from "react";
+import { bundleEdges, bundleKeyOf, bundledKeys } from "./bundleEdges";
+import { edgeVisual, type EdgeVisual } from "./edgeKinds";
+import { focusStore } from "./focusStore";
 import { elementRect } from "./elementRect";
+import { mergedPillRect, useMergedPills } from "./impactBoxState";
 
 const CANVAS_ARROW_MARKER_ID = "canvas-doc-arrowhead";
 
 // Reuses the custom-diagram arrowhead styling as a neutral default (see elementRules.ts's own note
 // on the c1 gap) — module-level so the <defs> block stays stable (Safari drops markers otherwise).
-const CANVAS_ARROW_MARKERS = [{ id: CANVAS_ARROW_MARKER_ID, className: "custom-arrowhead" }];
+const CANVAS_ARROW_MARKERS = [
+  { id: CANVAS_ARROW_MARKER_ID, className: "custom-arrowhead" },
+  { id: `${CANVAS_ARROW_MARKER_ID}-data`, className: "custom-arrowhead canvas-arrowhead--data" },
+  { id: `${CANVAS_ARROW_MARKER_ID}-minor`, className: "custom-arrowhead canvas-arrowhead--minor" },
+];
+
+/** Bundles carry no arrowhead (the marker id is deliberately undefined). */
+const markerFor = (visual: EdgeVisual): string =>
+  visual === "data" || visual === "minor"
+    ? `${CANVAS_ARROW_MARKER_ID}-${visual}`
+    : visual === "bundle"
+      ? `${CANVAS_ARROW_MARKER_ID}-none`
+      : CANVAS_ARROW_MARKER_ID;
 
 export interface CanvasEdgesProps {
   doc: CanvasDoc;
@@ -42,32 +58,53 @@ export function CanvasEdges({ doc, sizes, onOpenOrigin }: CanvasEdgesProps) {
   const rectByKey = new Map<string, Rect>(
     Object.values(doc.elements).map((element) => [element.id, elementRect(element, sizes)]),
   );
-  const edges = layoutDiagramEdges(bundleEdges(Object.values(doc.edges)), rectByKey);
+  useSyncExternalStore(focusStore.subscribe, focusStore.getVersion);
+  // Impact: minor boxes folded into one pill route their arrows to that pill, never to empty space.
+  const mergedPills = useMergedPills(doc);
+  for (const [id, group] of mergedPills) {
+    const leader = doc.elements[group.leader];
+    if (leader) rectByKey.set(id, mergedPillRect(leader));
+  }
+  const original = Object.values(doc.edges).filter(
+    (edge) => !(mergedPills.has(edge.from) && mergedPills.get(edge.from) === mergedPills.get(edge.to)),
+  );
+  const bundled = bundleEdges(original, (id) => doc.elements[id]?.group_id ?? null);
+  const bundleSet = bundledKeys(original, bundled);
+  const edges = layoutDiagramEdges(bundled, rectByKey);
 
   return (
     <>
       <ArrowMarkerDefs markers={CANVAS_ARROW_MARKERS} />
-      {edges.map((edge) => (
-        <RelationshipEdge
+      {edges.map((edge) => {
+        const visual: EdgeVisual = bundleSet.has(bundleKeyOf(edge)) ? "bundle" : edgeVisual(edge.kind, edge.transport);
+        return (
+        <g
           key={edge.key}
+          className={`canvas-edge canvas-edge--${visual}${focusStore.edgeDimmed(edge.from, edge.to) ? " canvas-edge--dim" : ""}`}
+          data-edge-visual={visual}
+        >
+        <RelationshipEdge
           edgeKey={edge.key}
           d={edge.d}
           label={edge.label || edge.kind || ""}
           transport={edge.transport}
           labelX={edge.labelX}
           labelY={edge.labelY}
-          markerId={CANVAS_ARROW_MARKER_ID}
+          markerId={markerFor(visual)}
           fromNodeId={edge.from}
           toNodeId={edge.to}
-          variantSuffix=" --custom"
+          variantSuffix={` --custom --ek-${visual}`}
           isHero={edge.hero}
           style={edge.style}
           origin={edge.origin}
           onOpenOrigin={onOpenOrigin}
+          labelVariant="board"
           testId="canvas-doc-relationship"
           layer={doc.elements[edge.from]?.layer}
         />
-      ))}
+        </g>
+        );
+      })}
     </>
   );
 }

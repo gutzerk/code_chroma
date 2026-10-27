@@ -168,7 +168,9 @@ class DiagramRegistry(dict):
         def resolve(ws: Workspace) -> dict:
             # Coverage/staleness are opt-in add-ons (FR-005/FR-006); custom had neither before.
             data = ws.load_diagram(kind)
-            resolved = resolve_diagram(ws.engine, data, style_source=definition.get("style"))
+            resolved = resolve_diagram(
+                ws.engine, data, style_source=definition.get("style"), kind="custom"
+            )
             resolved["has_diagram"] = bool(data)
             if not grouping_enabled(definition):
                 resolved["groups"] = []

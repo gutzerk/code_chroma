@@ -1112,3 +1112,56 @@ describe("CanvasNodeBox — group drag", () => {
     expect(dragOffsetStore.getAll()).toEqual({});
   });
 });
+
+// BlocksAnatomy: the role word + role class come from existing meta only.
+describe("CanvasNodeBox — board block roles", () => {
+  it.each([
+    [{ kind: "service" }, "COMPONENT", "block-role--component"],
+    [{ kind: "api" }, "ENTRY / API", "block-role--entry"],
+    [{ kind: "database" }, "DATA", "block-role--data"],
+    [{ no_code_reason: "external" }, "EXTERNAL", "block-role--external"],
+    [{ shape: "actor" }, "ACTOR / CONCEPT", "block-role--actor"],
+    [{ plan_kind: "add" }, "PLANNED", "block-role--planned"],
+  ])("maps %j to the %s role", (meta, word, cls) => {
+    renderBox(element({ id: "e1", meta }));
+
+    expect(screen.getByTestId("role-chip")).toHaveTextContent(word);
+    expect(screen.getByTestId("canvas-node-box")).toHaveClass(cls);
+  });
+
+  it("shows the status dot and word only when the block is planned or stale", () => {
+    renderBox(element({ id: "e1", meta: { kind: "service", stale: "true" } }));
+
+    expect(screen.getByTestId("block-status")).toHaveTextContent("stale");
+  });
+
+  it("shows no status dot for an unchanged component", () => {
+    renderBox(element({ id: "e1", meta: { kind: "service" } }));
+
+    expect(screen.queryByTestId("block-status")).not.toBeInTheDocument();
+  });
+});
+
+describe("CanvasNodeBox members chip", () => {
+  const withNode = (child_count: number) =>
+    ({ ...client, getNode: async () => ({ node_id: "n1", child_count }) }) as unknown as EngineClient;
+  const renderWith = (c: EngineClient, node_id: string) =>
+    render(
+      <EngineClientProvider repoId="default" client={c}>
+        <CanvasNodeBox element={element({ id: `e-${node_id}`, node_id })} />
+      </EngineClientProvider>,
+    );
+
+  it("shows the child count of the backing node", async () => {
+    renderWith(withNode(21), "n-a");
+
+    expect(await screen.findByTestId("canvas-node-members")).toHaveTextContent("21 members");
+  });
+
+  it("hides the chip when the node has no children", async () => {
+    renderWith(withNode(0), "n-b");
+
+    await act(async () => {});
+    expect(screen.queryByTestId("canvas-node-members")).toBeNull();
+  });
+});

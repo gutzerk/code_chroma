@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useSyncExternalStore } from "react";
 import { stringMeta } from "./elementMeta";
-import { buildSequenceModel } from "./sequenceModel";
+import { buildSequenceModel, SEQUENCE_LEGEND_SPACE, SEQUENCE_PANEL_SPACE } from "./sequenceModel";
 import { sequenceViewStore } from "./sequenceViewStore";
 import type { CanvasElement } from "../../state/types";
 import { useEngineClient } from "../../engine-client/EngineClientContext";
@@ -149,7 +149,12 @@ export interface DiagramFrameProps {
  */
 export function DiagramFrame({ layer, label, members, sizes, typeLabel, boxCount }: DiagramFrameProps) {
   const engineClient = useEngineClient();
-  const bounds = unionBoundsOf(members, sizes);
+  const memberBounds = unionBoundsOf(members, sizes);
+  useSyncExternalStore(sequenceViewStore.subscribe, sequenceViewStore.getVersion);
+  const sequenceMode = members.some((m) => m.render === "sequence") ? sequenceViewStore.get(layer, members.filter((m) => stringMeta(m, "role") === "message").length).mode : null;
+  const bounds = memberBounds && sequenceMode
+    ? { ...memberBounds, right: memberBounds.right + (sequenceMode === "focus" ? SEQUENCE_PANEL_SPACE : 0), bottom: memberBounds.bottom + SEQUENCE_LEGEND_SPACE }
+    : memberBounds;
 
   // Every id this gesture has pushed a live offset for, so an aborted drag (this component unmounts
   // mid-gesture -- e.g. another window/agent deletes the diagram while someone is dragging its frame)

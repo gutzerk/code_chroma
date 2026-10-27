@@ -29,5 +29,6 @@ export const QUESTION_STRINGS = {
   reviseNote: "Revising a decision restarts the questions that follow it.",
   addDiagram: "Add diagram",
   diagramRequested: "Diagram requested",
+  chat: "Chat about it",
   failed: "Could not send the answer. Try again.",
 } as const;

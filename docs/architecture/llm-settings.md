@@ -322,6 +322,10 @@ recognize before the request ever reaches the proxy). Returns
   against that `base_url` — the natural counterpart of "A `claude` provider's own endpoint" above.
   Supported even with no key (some proxies need none); with `base_url` unset it falls to the
   built-in `claude` list.
+- `kind="cli"`, `adapter="claude"|"codex"` (no `base_url`): the installed CLI is asked directly -- `claude -p`
+  with a stream-json `initialize` control request (models in `response.response.models[]`, `value`/`displayName`),
+  `codex debug models` (JSON, tolerant parse; non-array/object JSON is treated as no answer). C# `CliModelProbe` (stderr drained, tests swap `ModelCatalog.CliProbe`), Python `_probe_cli_models`; 20s timeout; any
+  failure (not installed, timeout, bad output) falls to the built-in list. The codex probe is unverified against a real CLI; `gemini` is not probed (no verified list command) and uses the built-in list.
 - **Built-in fallback** (`_STATIC_MODELS`, mirrored in C# `ModelCatalog.StaticModels`): whenever a
   provider can't be asked live — no key (anthropic/gemini), no `base_url` (openai-compatible), or a
   CLI adapter (`claude` with no `base_url`, `codex`, `kimi-cli`) — it returns `supported: true`,
@@ -541,3 +545,7 @@ One gear, one dialog, three tabs — no second rail button:
 - A live model list from the bridge (same as the assistant-settings probe).
 
 C# bridge note: the API-provider "Test" and `POST /assistant/settings/test` make a real one-token completion via `Skills/LlmCompletion.cs` (anthropic uses `ANTHROPIC_BASE_URL` when set); CLI selection for skill runs is `Skills/CliResolver.cs`.
+
+## Gemini CLI adapter
+
+`GeminiAdapter` (Python `llm/cli_adapters.py`, C# `Skills/CliAdapters.cs`) runs `gemini --prompt <prompt> --model <model> --yolo --output-format stream-json` and renders its events (`message` assistant text, `tool_use`, errored `tool_result`, `error`, `result`). It is registered as `gemini` in `CLI_ADAPTERS`, `tests/fixtures/bridge_contract/llm_catalog.json` and the web provider form; like `codex`/`kimi-cli` it is `agents`-only. The model catalog lists it from the built-in list (no live probe). Unverified: the `gemini` binary was not installed when this was written, so the flags and event shapes follow its documented headless mode and need a check against a real install.

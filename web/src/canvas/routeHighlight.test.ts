@@ -30,4 +30,15 @@ describe("applyRouteHighlight", () => {
 
     expect(root.querySelector("[data-route-lit],[data-route-dim]")).toBeNull();
   });
+
+  it("leaves diagram boxes alone even when they share a lit node id", () => {
+    const root = tree();
+    root.insertAdjacentHTML("beforeend", '<div data-node-id="src/a" data-canvas-element data-testid="box"></div>');
+
+    applyRouteHighlight(root, new Set(["src/a"]));
+
+    const box = root.querySelector("[data-canvas-element]") as HTMLElement;
+    expect(box).not.toHaveAttribute("data-route-lit");
+    expect(box).not.toHaveAttribute("data-route-dim");
+  });
 });

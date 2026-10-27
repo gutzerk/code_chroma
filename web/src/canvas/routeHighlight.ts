@@ -1,4 +1,5 @@
-const NODE_SELECTOR = "[data-node-id]";
+// Diagram boxes carry a data-node-id too; only code-map blocks are lit or faded.
+const NODE_SELECTOR = "[data-node-id]:not([data-canvas-element])";
 const LIT_ATTR = "data-route-lit";
 const DIM_ATTR = "data-route-dim";
 

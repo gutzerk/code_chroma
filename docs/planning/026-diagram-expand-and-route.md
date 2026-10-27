@@ -83,6 +83,16 @@ Files: the code map is the hierarchy canvas, not the diagram layer. Look at `web
 
 Draw the wiki-general update flow for real through the skill (not hand-written JSON), commit nothing generated, and check both views read it. Compare with the two boards side by side; list remaining gaps in this file.
 
+### Stage 4 result (run against the C# bridge on this repo)
+
+The flow was drawn as a custom `update-map` diagram (9 steps over 5 real files, lanes You / Bridge / Claude CLI / Failures, children with real `file:line` from `WikiGeneralUpdate.cs`, `WikiGeneral.cs`, `SkillAgent.cs`, `WikiGeneralRoutes.cs`, `WikiGeneralNotice.tsx`) and `check_diagram.py` printed `OK`. In the browser it rendered with lanes, `▸ N calls` chips and an expanded `Diff against manifest` listing `ComputeDelta() :184` with neighbours pushed down. Nothing generated was committed. Gaps found:
+
+- The recipe route (`/recipes/.../run`) loads the raw artifact, so `meta.route_step.resolved` and a child's `path`/`resolved_line` are absent on canvas elements; only `GET /custom/<id>` carries them. Nothing in the UI reads them yet.
+- Ids are `component::<path>` (file level), so `resolved` has `path` but no `line`, and `line_mismatch` cannot fire; the authored `:line` stays the only line.
+- The code-map half could not be shown on this repo: expanding `dotnet/` in the Files tree failed with a JSON parse error from the bridge (`children of dir::dotnet`), unrelated to routes. The overlay is covered by the unit and Playwright tests instead.
+- The ROUTE card sat under the agents panel on a wide canvas; it is now offset by the left panel like the other canvas notes. Diagram boxes sharing a `data-node-id` are no longer lit or faded.
+- The 5-second test and the side-by-side comparison with the two boards were not done (needs a person).
+
 ## Out of scope
 
 - The Avalonia canvas (`dotnet/CodeChroma.Canvas*`): `web/` stays the reference. Track the port in `013-avalonia-canvas.md` after Stages 2-3 land.

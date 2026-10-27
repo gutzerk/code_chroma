@@ -8473,3 +8473,4 @@ button[data-copy-state="idle"][aria-label]:hover:not(:disabled) {
 .route-card-step-order { display: inline-block; min-width: 1.2em; opacity: 0.7; }
 .route-card-walk { width: 100%; padding: 4px 0; cursor: pointer; }
 .canvas-diagram-frame-route { pointer-events: auto; vertical-align: middle; }
+.canvas-area:has(.left-panel):not(:has(.code-sidebar:not([hidden]))) .route-card { left: calc(var(--chrome-inset, 12px) + var(--left-panel-width, 262px) + 12px); right: auto; }

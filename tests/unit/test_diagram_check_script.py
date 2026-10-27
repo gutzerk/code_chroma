@@ -581,6 +581,7 @@ def _kind_relations(**edge):
     {"kind": "writes"},
     {"kind": "minor"},
     {"kind": "secondary"},
+    {"kind": "removed"},
     {"kind": "uses", "label": "calls Rank()"},
 ])
 def test_known_edge_kinds_raise_no_edge_kind_advisory(tmp_path, capsys, edge):

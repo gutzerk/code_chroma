@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, type CSSProperties } from "react";
 import { summarizeImpact, firstSentence } from "./doc/impactGlanceLogic";
 import { guardedClick, providerGate, useGroupAvailability } from "../llm-settings/useGroupAvailability";
 import type { ImpactChangedFile, ImpactChanges, DiagramGenerationStatus, PrReviewComment } from "../state/types";
@@ -7,6 +7,7 @@ import { inspectorStore } from "./inspectorStore";
 import { PrCommentCard } from "./PrCommentCard";
 import { SkillOutputFeed } from "./SkillOutputFeed";
 import { PanelDragGrip, usePanelDragResize } from "./usePanelDragResize";
+import { BOARD_GAP, CARD_WIDTH, ImpactBoard, useImpactBounds } from "./ImpactBoard";
 
 export interface ImpactChangeSummaryProps {
   /** The review job's state plus its re-run trigger, from useImpactChangesSidecar in RootCanvas. */
@@ -190,8 +191,20 @@ export function ImpactChangeSummary({
   const providerAvailable = useGroupAvailability("diagrams");
   const blockCount = changes.blocks.length;
   const blocksWithFiles = changes.blocks.filter((block) => block.files.length > 0);
+  const bounds = useImpactBounds();
+  const cardStyle: CSSProperties = bounds ? { left: bounds.left - CARD_WIDTH - BOARD_GAP, top: bounds.top } : {};
+  const showBoard = !review.loading && changes.changed_file_count > 0;
 
   return (
+    <>
+    {showBoard && (
+      <ImpactBoard
+        changes={changes}
+        header={<ImpactStrip changes={changes} />}
+        outside={changes.unassigned.length > 0 ? <OutsideSlice files={changes.unassigned} /> : null}
+        legend={<ImpactLegend />}
+      />
+    )}
     <div
       ref={panelRef}
       className={`impact-change-summary${changes.stale ? " impact-change-summary--stale" : ""}${
@@ -200,7 +213,7 @@ export function ImpactChangeSummary({
       data-testid="impact-change-summary"
       data-state={isWriting ? "generating" : review.state}
       data-stale={changes.stale}
-      style={style}
+      style={{ ...style, ...cardStyle }}
     >
       <div className="impact-change-summary-header" {...dragHandleProps}>
         <PanelDragGrip />
@@ -233,7 +246,6 @@ export function ImpactChangeSummary({
         </p>
       ) : (
         <>
-          <ImpactStrip changes={changes} />
           {changes.summary && <p className="impact-change-summary-text">{changes.summary}</p>}
           {!changes.has_review && !isWriting && (
             <p className="impact-change-summary-note" data-testid="impact-change-summary-unreviewed">
@@ -248,7 +260,7 @@ export function ImpactChangeSummary({
               {isWriting ? " — writing an updated one…" : "."}
             </p>
           )}
-          {(blocksWithFiles.length > 0 || changes.unassigned.length > 0) && (
+          {blocksWithFiles.length > 0 && (
             <div className="impact-change-summary-files" data-testid="impact-change-summary-files">
               {blocksWithFiles.map((block) => (
                 <div key={block.node_id} className="impact-change-summary-file-group">
@@ -258,13 +270,10 @@ export function ImpactChangeSummary({
                   ))}
                 </div>
               ))}
-              {changes.unassigned.length > 0 && <OutsideSlice files={changes.unassigned} />}
             </div>
           )}
         </>
       )}
-
-      {changes.changed_file_count > 0 && <ImpactLegend />}
 
       {changes.general_pr_comments.length > 0 && (
         <div className="impact-change-summary-comments" data-testid="impact-change-summary-comments">
@@ -295,5 +304,6 @@ export function ImpactChangeSummary({
         </p>
       )}
     </div>
+    </>
   );
 }

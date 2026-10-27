@@ -120,7 +120,9 @@ export function WorktreeStrip() {
   const requestClose = useCallback(
     (id: string) => {
       const remembered = getRememberedCloseChoice();
-      if (remembered) {
+      const dirty = tabs.find((tab) => tab.id === id)?.dirty ?? 0;
+      // A remembered Delete never skips the dialog when it would discard uncommitted work.
+      if (remembered && !(remembered === "delete" && dirty > 0)) {
         void closeWorktree(client, id, remembered === "delete").catch(() => {
           // A remembered choice that fails falls back to the dialog, which shows the refusal.
           setClosing(id);
@@ -132,7 +134,7 @@ export function WorktreeStrip() {
       });
       setClosing(id);
     },
-    [client],
+    [client, tabs],
   );
 
   return (

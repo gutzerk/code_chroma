@@ -25,7 +25,10 @@ export async function launchAgent(
       agentStore.setGitPreflight(preflight);
       return null;
     }
-    const workspace = worktreeStore.getActiveId() ?? undefined;
+    // A PR attach lives in the PR's worktree, not in the shown tab; an agent attach stays with that agent's tab.
+    const workspace = attachTo?.startsWith("pr-")
+      ? undefined
+      : ((attachTo && agentStore.getAgent(attachTo)?.workspace) || worktreeStore.getActiveId() || undefined);
     return task
       ? client.create(diagram?.title ?? "", "agent", attachTo, task, "task", diagram, workspace)
       : client.create("", "agent", attachTo, context?.description ?? null, undefined, undefined, workspace);

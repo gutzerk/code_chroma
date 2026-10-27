@@ -79,7 +79,7 @@ def test_new_twice_numbers_the_tabs_and_activates_the_newest(client):
 
     assert (first["branch"]["id"], second["branch"]["id"]) == ("br_wt-1", "br_wt-2")
     assert second["fetched"] is False
-    assert second["warning"] is None
+    assert second["warning"] == "no remote 'origin'; branched from the local default branch"
     assert test_client.get("/branches").json()["active"] == "br_wt-2"
 
 
@@ -271,14 +271,25 @@ def test_closing_a_tab_removes_the_agents_on_it(client):
     assert not bridge.registry.is_registered(agent["id"])
 
 
-def test_closing_the_active_tab_activates_another(client):
+def test_deleting_the_active_tab_clears_the_active_id_for_the_client_to_pick(client):
     test_client, _repo, _bridge = client
     test_client.post("/branches/new")
     test_client.post("/branches/new")
 
-    test_client.delete("/branches/br_wt-2")
+    test_client.delete("/branches/br_wt-2", params={"worktree_too": "true"})
 
-    assert test_client.get("/branches").json()["active"] == "br_wt-1"
+    listing = test_client.get("/branches").json()
+    assert listing["active"] is None
+    assert [b["id"] for b in listing["branches"]] == ["br_wt-1"]
+
+
+def test_closing_with_keep_leaves_the_record_so_the_tab_returns(client):
+    test_client, _repo, _bridge = client
+    created = test_client.post("/branches/new").json()["branch"]
+
+    test_client.delete(f"/branches/{created['id']}")
+
+    assert [b["id"] for b in test_client.get("/branches").json()["branches"]] == [created["id"]]
 
 
 def test_closing_an_unknown_tab_is_a_404(client):

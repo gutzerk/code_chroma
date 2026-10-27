@@ -2,6 +2,7 @@ import { useSyncExternalStore } from "react";
 import { clamp } from "../util/clamp";
 import type { AgentRecord, AgentStatus, AgentWindowGeometry, GitPreflight } from "../state/types";
 import { Store } from "../state/createStore";
+import { worktreeStore } from "./worktreeStore";
 
 const EMPTY: AgentRecord[] = [];
 
@@ -106,8 +107,14 @@ class AgentStore extends Store {
         Object.entries(this.startErrors).filter(([agentId]) => agentId !== id),
       );
     }
-    if (this.activeWorkspace === id) this.activeWorkspace = "main";
+    if (this.activeWorkspace === id) this.activeWorkspace = this.fallbackWorkspace(new Set([id]));
     this.emit();
+  };
+
+  /** The shown tab if it survives, else the "main" placeholder until a tab is selected. */
+  private fallbackWorkspace = (gone: ReadonlySet<string>): string => {
+    const tab = worktreeStore.getActiveId();
+    return tab && !gone.has(tab) ? tab : "main";
   };
 
   removeMany = (ids: readonly string[]): void => {
@@ -115,7 +122,7 @@ class AgentStore extends Store {
     const gone = new Set(ids);
     this.agents = this.agents.filter((agent) => !gone.has(agent.id));
     this.startErrors = Object.fromEntries(Object.entries(this.startErrors).filter(([agentId]) => !gone.has(agentId)));
-    if (gone.has(this.activeWorkspace)) this.activeWorkspace = "main";
+    if (gone.has(this.activeWorkspace)) this.activeWorkspace = this.fallbackWorkspace(gone);
     this.emit();
   };
 

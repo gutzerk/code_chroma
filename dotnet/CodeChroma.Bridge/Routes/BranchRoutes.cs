@@ -60,18 +60,19 @@ public static class BranchRoutes
         {
             var worktreeToo = request.Query["worktree_too"].ToString().ToLowerInvariant() is "true" or "1" or "yes" or "on";
             await Task.Run(() => branches.Get(workspaceId));
-            foreach (var agent in agents.AttachedToWorkspace(workspaceId))
-            {
-                sessions.Stop(agent.Id);
-                await Task.Run(() => agents.Delete(agent.Id));
-                registry.Unregister(agent.Id);
-                await connections.Broadcast(new JsonObject { ["type"] = "agent-removed", ["id"] = agent.Id });
-            }
+            var doomed = agents.AttachedToWorkspace(workspaceId);
+            foreach (var agent in doomed) sessions.Stop(agent.Id);
             var record = await Task.Run(() =>
             {
                 if (worktreeToo) registry.DropLive(workspaceId);
                 return branches.Delete(workspaceId, worktreeToo);
             });
+            foreach (var agent in doomed)
+            {
+                await Task.Run(() => agents.Delete(agent.Id));
+                registry.Unregister(agent.Id);
+                await connections.Broadcast(new JsonObject { ["type"] = "agent-removed", ["id"] = agent.Id });
+            }
             registry.Unregister(workspaceId);
             await connections.Broadcast(new JsonObject { ["type"] = "branch-removed", ["id"] = workspaceId });
             return Reply.Json(new JsonObject { ["status"] = "deleted", ["id"] = record.Id });

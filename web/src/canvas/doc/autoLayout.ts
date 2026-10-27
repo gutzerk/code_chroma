@@ -54,6 +54,7 @@ export async function layoutNewElements(
     ...sizeOf(element),
     order: orderMeta(element),
     lane: stringMeta(element, "lane"),
+    laneKind: stringMeta(element, "lane_kind"),
   });
 
   const nodes = nonSequenceIds

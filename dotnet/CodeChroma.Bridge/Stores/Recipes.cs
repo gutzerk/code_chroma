@@ -116,7 +116,7 @@ public static class Recipes
     private static RecipeNode NodeOf(JsonObject item, string render)
     {
         var meta = item["meta"] is JsonObject own ? (JsonObject)own.DeepClone() : [];
-        foreach (var key in new[] { "kind", "icon", "parent", "seed", "order", "lane", "path" })
+        foreach (var key in new[] { "kind", "icon", "parent", "seed", "order", "lane", "lane_kind", "path" })
             if (item[key] is { } value && (key is "kind" or "icon" or "parent" or "seed" || !meta.ContainsKey(key))) meta[key] = value.DeepClone();
         // A per-node `render` override lets one diagram mix kinds (an epics brief draws epic and spec boxes).
         var resolvedRender = Json.Str(item["render"]) ?? render;
@@ -158,6 +158,13 @@ public static class Recipes
         return $"{steps.Count} steps · {files} files · {ai} AI steps";
     }
 
+    /// <summary>Lanes whose every route step is a failure: the layout puts them last (026).</summary>
+    private static HashSet<string> FailureLanes(List<JsonObject> steps) => steps
+        .Where(step => Json.Str(step["lane"]) is not null)
+        .GroupBy(step => Json.Str(step["lane"])!)
+        .Where(group => group.All(step => Json.Str(step["kind"]) == "failure"))
+        .Select(group => group.Key).ToHashSet();
+
     /// <summary>Stamps the authored `route` (plus derived summary) on each node and `route_step` on a step's.</summary>
     private static List<RecipeNode> WithRoute(List<RecipeNode> nodes, JsonObject resolved)
     {
@@ -167,9 +174,12 @@ public static class Recipes
         stamped["steps"] = new JsonArray(steps.Select(step => step.DeepClone()).ToArray());
         stamped["summary"] = RouteSummary(steps);
         var byId = steps.ToDictionary(step => Json.Str(step["id"])!);
+        var failureLanes = FailureLanes(steps);
         return nodes.Select(node =>
         {
             var meta = (JsonObject)(node.Meta ?? []).DeepClone();
+            var laneName = Json.Str(meta["lane"]) ?? (byId.TryGetValue(node.Key, out var own) ? Json.Str(own["lane"]) : null);
+            if (laneName is not null && failureLanes.Contains(laneName) && !meta.ContainsKey("lane_kind")) meta["lane_kind"] = "failure";
             meta["route"] = stamped.DeepClone();
             if (byId.TryGetValue(node.Key, out var step)) meta["route_step"] = step.DeepClone();
             return node with { Meta = meta };

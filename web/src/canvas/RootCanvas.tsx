@@ -6,15 +6,9 @@ import { LeftPanelToggle } from "./LeftPanelToggle";
 import { DrawDialog } from "./doc/drawDialog/DrawDialog";
 import { useEngineClient } from "../engine-client/EngineClientContext";
 import { ConnectionsOverlay } from "./ConnectionsOverlay";
-import { ChangeConnectionsOverlay } from "./ChangeConnectionsOverlay";
-import { TraceFlowOverlay } from "./TraceFlowOverlay";
-import { RouteProbeOverlay } from "./RouteProbeOverlay";
+import { useActiveModes } from "./canvasModes";
 import { RouteProbeTrigger } from "./RouteProbeTrigger";
 import { LabelClearanceMonitor } from "./LabelClearanceMonitor";
-import { TraceControls } from "./TraceControls";
-import { RouteOverlay } from "./RouteOverlay";
-import { RouteCard } from "./RouteCard";
-import { useRouteState } from "../state/routeStore";
 import { CanvasViewport, type CanvasViewportHandle } from "./CanvasViewport";
 import { readSavedCameraView } from "./canvasCameraStore";
 import { CanvasDiagramFocusContext, CanvasFocusContext } from "./CanvasFocusContext";
@@ -58,7 +52,6 @@ import { attachAgent } from "../agents/attachAgent";
 import { WorktreeStrip } from "../agents/WorktreeStrip";
 import { TerminalPanel } from "../terminal/TerminalPanel";
 import { terminalPanelStore, useIsTerminalPanelOpen } from "../terminal/terminalPanelStore";
-import { useIsDiffActive } from "../state/diffOverlayStore";
 import { PrRailButton } from "../pr/PrRailButton";
 import { usePrWorkspaces } from "../pr/prStore";
 import { SettingsRailButton } from "../assistant/SettingsRailButton";
@@ -69,7 +62,6 @@ import { autoExpandInitial } from "../state/autoExpandInitial";
 import { liveStore, useLiveVersion } from "../state/liveStore";
 import { viewContextStore, useCurrentViewContext } from "../state/viewContextStore";
 import { buildViewContext } from "../agents/viewContext";
-import { DeletedDiffOverlay } from "./DeletedDiffOverlay";
 import { ImpactChangeSummary } from "./ImpactChangeSummary";
 import { useImpactChangesSidecar, useImpactDiffSync } from "../state/useSidecar";
 import { useSkillOutput } from "../state/useSkillOutput";
@@ -142,7 +134,8 @@ export function RootCanvas() {
     const el = stageRef.current;
     return el ? { width: el.clientWidth, height: el.clientHeight } : undefined;
   }, []);
-  const isDiffActive = useIsDiffActive();
+  const activeModes = useActiveModes();
+  const isDiffActive = activeModes.some((mode) => mode.id === "diff");
   const isReadOnly = useIsWorkspaceReadOnly();
   // The "impact" recipe's layer is the one-canvas model's replacement for the old "view is open"
   // flag (the left panel's Diagrams tab is the one place a diagram gets added/removed now -- see
@@ -161,7 +154,6 @@ export function RootCanvas() {
   const impactReviewOutput = useSkillOutput(engineClient, "impact-changes", impactReview.state);
   const traceState = useTraceState();
   const isTraceActive = traceState.isActive;
-  const isRouteActive = useRouteState().route !== null;
   const liveVersion = useLiveVersion();
   useOpenFilesLiveRefresh(engineClient, liveVersion);
   const viewportRef = useRef<CanvasViewportHandle | null>(null);
@@ -539,10 +531,7 @@ export function RootCanvas() {
                   <CanvasDocView />
                 </CodePopupContext.Provider>
                 {rootNode && <ConnectionsOverlay />}
-                {rootNode && isDiffActive && <ChangeConnectionsOverlay />}
-                {rootNode && isTraceActive && <TraceFlowOverlay />}
-                {rootNode && <RouteProbeOverlay />}
-                {rootNode && isRouteActive && <RouteOverlay />}
+                {rootNode && activeModes.map(({ id, Overlay }) => Overlay && <Overlay key={id} />)}
                 {rootNode && <LabelClearanceMonitor />}
                 {/* Inside .canvas-content on purpose (unlike SidecarSummaryCard below, which is
                     deliberately screen-fixed chrome): a big PR's change list
@@ -567,9 +556,7 @@ export function RootCanvas() {
               <SidecarSummaryCard />
               <DiagramHealthNote />
               <WikiGeneralNotice />
-              {isDiffActive && <DeletedDiffOverlay />}
-              {isTraceActive && <TraceControls />}
-              {isRouteActive && <RouteCard />}
+              {activeModes.map(({ id, Controls }) => Controls && <Controls key={id} />)}
               <DrawDialog />
             </div>
             <ActivityPanel disabled={isAtAgentCapacity || isLaunchingAgent} onRunAgent={() => {

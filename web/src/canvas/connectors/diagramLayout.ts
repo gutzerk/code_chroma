@@ -12,6 +12,8 @@ export interface LayoutBoxSpec {
   /** Authored performer name (CONTEXT.md's "Lane") -- optional, clusters same-value boxes adjacent
    * within a rank (054-diagram-flow-order). */
   lane?: string;
+  /** The lane's `meta.lane_kind` ("failure" lanes are laid out last) -- optional. */
+  laneKind?: string;
 }
 
 export interface PositionedBox {

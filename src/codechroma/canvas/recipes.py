@@ -155,7 +155,7 @@ def _node_of(item: dict, render: str) -> GraphNode:
     """Copies each shared Node field; `kind`/`icon`/`parent`/`seed` fold into `meta` for accents."""
     own_meta = item.get("meta")
     meta = dict(own_meta) if isinstance(own_meta, dict) else {}
-    for key in ("kind", "icon", "parent", "seed", "order", "lane", "path"):
+    for key in ("kind", "icon", "parent", "seed", "order", "lane", "lane_kind", "path"):
         value = item.get(key)
         if value is not None and (key in ("kind", "icon", "parent", "seed") or key not in meta):
             meta[key] = value
@@ -185,6 +185,15 @@ def _route_summary(steps: list[dict]) -> str:
     return f"{len(steps)} steps · {len(files)} files · {ai} AI steps"
 
 
+def _failure_lanes(steps: list[dict]) -> set[str]:
+    """Lanes whose every route step is a failure: the layout puts them last (026)."""
+    kinds: dict[str, set] = {}
+    for step in steps:
+        if isinstance(step.get("lane"), str):
+            kinds.setdefault(step["lane"], set()).add(step.get("kind"))
+    return {lane for lane, found in kinds.items() if found == {"failure"}}
+
+
 def _with_route(nodes: tuple[GraphNode, ...], resolved: dict) -> tuple[GraphNode, ...]:
     """Stamps `route` (plus a derived summary) on each node and `route_step` on a step's."""
     route = resolved.get("route")
@@ -194,9 +203,12 @@ def _with_route(nodes: tuple[GraphNode, ...], resolved: dict) -> tuple[GraphNode
     clean = [step for step in steps if isinstance(step, dict) and isinstance(step.get("id"), str)]
     stamped = {**route, "steps": clean, "summary": _route_summary(clean)}
     by_id = {step["id"]: step for step in clean}
+    failure_lanes = _failure_lanes(clean)
     return tuple(
         replace(node, meta={
             **node.meta, "route": stamped,
+            **({"lane_kind": "failure"} if "lane_kind" not in node.meta and (
+                node.meta.get("lane") or by_id.get(node.key, {}).get("lane")) in failure_lanes else {}),
             **({"route_step": by_id[node.key]} if node.key in by_id else {}),
         })
         for node in nodes

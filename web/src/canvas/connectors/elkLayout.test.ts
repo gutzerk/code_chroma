@@ -1,10 +1,10 @@
 import { describe, expect, it, vi } from "vitest";
-import { computeElkLayout, isFailuresLane, type LayoutEdge } from "./elkLayout";
+import { computeElkLayout, type LayoutEdge } from "./elkLayout";
 import { hasCollision } from "../collision/resolveDrop";
 import type { LayoutBoxSpec, PositionedBox } from "./diagramLayout";
 
-function box(id: string, order?: string, lane?: string): LayoutBoxSpec {
-  return { id, width: 20, height: 10, order, lane };
+function box(id: string, order?: string, lane?: string, laneKind?: string): LayoutBoxSpec {
+  return { id, width: 20, height: 10, order, lane, laneKind };
 }
 
 function edge(from: string, to: string): LayoutEdge {
@@ -121,8 +121,22 @@ describe("computeElkLayout", () => {
     expect(boxOf(boxes, "f").x).toBeGreaterThan(boxOf(boxes, "a").x);
   });
 
-  it("recognises the Failures lane case-insensitively", () => {
-    expect(isFailuresLane(" failures ")).toBe(true);
-    expect(isFailuresLane("api")).toBe(false);
+  it("puts a lane marked lane_kind failure last whatever its name", async () => {
+    const { boxes } = await computeElkLayout(
+      [box("f", undefined, "Errors", "failure"), box("a", undefined, "client"), box("b", undefined, "api")],
+      [edge("a", "b"), edge("b", "f")],
+    );
+
+    expect(boxOf(boxes, "f").x).toBeGreaterThan(boxOf(boxes, "b").x);
+    expect(boxOf(boxes, "f").x).toBeGreaterThan(boxOf(boxes, "a").x);
+  });
+
+  it("does not treat a lane named Failures as failure when its boxes say lane_kind normal", async () => {
+    const { boxes } = await computeElkLayout(
+      [box("f", undefined, "Failures", "normal"), box("a", undefined, "client")],
+      [edge("f", "a")],
+    );
+
+    expect(boxOf(boxes, "f").x).toBeLessThan(boxOf(boxes, "a").x);
   });
 });

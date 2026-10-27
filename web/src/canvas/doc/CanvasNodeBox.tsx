@@ -17,6 +17,7 @@ import { dragOffsetStore, useLiveDragOffsets } from "./dragOffsetStore";
 import { NODE_STYLES, type StyledRenderKind } from "./elementRules";
 import { descriptionPopupStore } from "./descriptionPopupStore";
 import { accentFor, noCodeReasonMessage } from "./nodeAccentLogic";
+import { blockRoleFor } from "./blockRole";
 import { NodeMetaRow, NodeTopBand } from "./nodeAccent";
 import { BLOCK_RULES } from "./elementRules";
 import { leadingOrderDigits, orderMeta, stringMeta } from "./elementMeta";
@@ -111,6 +112,7 @@ export function CanvasNodeBox({ element, onMeasure }: CanvasNodeBoxProps) {
   // stays freely draggable as before.
   const lockedLayout = Boolean(BLOCK_RULES[element.render].lockedLayout);
   const accent = accentFor(element);
+  const blockRole = isEpicsLayerName(element.layer) ? undefined : blockRoleFor(element);
   const width = element.size?.w ?? DEFAULT_ELEMENT_SIZE.w;
   const height = element.size?.h ?? DEFAULT_ELEMENT_SIZE.h;
   // A content card (Summary prose / Acceptance list / Спеки stories) auto-fits to its text; an epic
@@ -330,6 +332,7 @@ export function CanvasNodeBox({ element, onMeasure }: CanvasNodeBoxProps) {
     focusState === "self" ? "block-focus-self" : "",
     impactChange ? `block-change--${impactChange.status}` : "",
     accent.className ?? "",
+    blockRole ? `block-role block-role--${blockRole}` : "",
     // An epics-layer box (epic title, or a Summary/Acceptance/Спеки content card) carries a shared
     // marker so its title rows can be styled more prominently than a generic diagram box.
     BOTTOM_LEFT_RENDERS.has(element.render) ? "diagram-node-box--epic" : "",
@@ -416,7 +419,7 @@ export function CanvasNodeBox({ element, onMeasure }: CanvasNodeBoxProps) {
               row's chips and the description would sit side by side as more row items instead of
               stacking. */}
           <div className={style.titleWrapClass}>
-            <NodeMetaRow element={element} count={impactCount} />
+            <NodeMetaRow element={element} count={impactCount} changed={Boolean(impactChange)} />
             <div className={style.titleRowClass}>
               {accent.icon}
               <span className={style.nameClass} title={element.label}>

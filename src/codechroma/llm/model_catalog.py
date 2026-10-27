@@ -201,6 +201,9 @@ def pick_model_id(ids: list[str], current: str | None, *, first: bool = False) -
     return real[0] if first or len(real) == 1 else real[1]
 
 
+_LISTING_ARGS = {"codex": ["debug", "models"], "gemini": ["models", "list", "-o", "json"]}
+
+
 def _probe_cli_models(adapter: str | None) -> list[dict] | None:
     """Ask an installed claude/codex/gemini CLI for its models (cached); None if it cannot."""
     if adapter not in ("claude", "codex", "gemini"):
@@ -225,7 +228,7 @@ def _probe_cli_models(adapter: str | None) -> list[dict] | None:
 def _run_cli_probe(adapter: str, cli: RuntimeCli) -> list[dict] | None:
     try:
         if adapter in ("codex", "gemini"):
-            args = ["debug", "models"] if adapter == "codex" else ["models", "list", "-o", "json"]
+            args = _LISTING_ARGS[adapter]
             result = subprocess.run(
                 [cli.executable, *args],
                 env=dict(cli.env),

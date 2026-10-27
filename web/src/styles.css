@@ -8173,6 +8173,8 @@ button[data-copy-state="idle"][aria-label]:hover:not(:disabled) {
 .sequence-timeline-phases { display: flex; gap: 12px; height: 120px; margin-bottom: 10px; }
 .sequence-timeline-bars, .sequence-timeline-names { display: flex; flex-direction: column; gap: 4px; }
 .sequence-timeline-bars { width: 8px; }
+/* 022 board styles: exact board radii/fonts have no token */
+/* stylelint-disable declaration-property-value-disallowed-list */
 .sequence-timeline-bar { min-height: 6px; border-radius: 3px; background: #8D939B; }
 .sequence-timeline-bar--request { background: #22D3EE; }
 .sequence-timeline-bar--prepare { background: #7FB8FF; }
@@ -8384,3 +8386,4 @@ button[data-copy-state="idle"][aria-label]:hover:not(:disabled) {
 .impact-legend-line--removed { border-top: 1.75px dashed #FB7185; }
 .impact-legend-pill { width: 36px; height: 14px; border-radius: 7px; border: 1px solid #3A3E45; background: #1F2023; }
 .impact-legend-thick { width: 36px; height: 14px; border-radius: 4px; border: 2px solid #F2B36B; }
+/* stylelint-enable declaration-property-value-disallowed-list */

@@ -23,14 +23,17 @@ public static class WikiGeneralRoutes
         ["state"] = state.State, ["error"] = state.Error, ["has_wiki_general"] = has, ["stale"] = stale, ["empty"] = empty,
     };
 
-    /// <summary>A clean finish records the commit this tree now reflects before the ping goes out.</summary>
+    /// <summary>A clean finish stamps the commit this tree now reflects; a failed one puts the pre-update manifest back before the ping goes out.</summary>
     private static OnChange StampOnSuccess(Workspace ws, OnChange inner, DiagramContext context) => (key, state) =>
     {
-        if (state.State != "generating" && state.Error is null)
+        if (state.State == "generating") return inner(key, state);
+        if (state.Error is null)
         {
+            WikiGeneral.DiscardManifestSnapshot(ws.Id);
             WikiGeneral.StampGeneratedCommit(ws);
             _ = Task.Run(() => context.PrepareAsync(ws));
         }
+        else WikiGeneral.RestoreManifest(ws.Root, ws.Id);
         return inner(key, state);
     };
 
@@ -40,7 +43,7 @@ public static class WikiGeneralRoutes
     {
         app.MapGet("/repos/{repoId}/wiki-general/status", (string repoId, WorkspaceRegistry registry, SkillAgents agents) =>
         {
-            var ws = registry.Get(repoId);
+            var ws = registry.WikiOwner(registry.Get(repoId));
             var manifest = JsonFile.Load(WikiGeneral.ManifestPath(ws.Root));
             var has = WikiGeneral.ValidManifest(manifest);
             var stale = has && WikiGeneral.IsStale(ws, (JsonObject)manifest!);
@@ -50,13 +53,13 @@ public static class WikiGeneralRoutes
 
         app.MapPost("/repos/{repoId}/wiki-general/status", async (string repoId, HttpRequest request, WorkspaceRegistry registry, SkillAgents agents, DiagramContext context) =>
         {
-            var ws = registry.Get(repoId);
+            var ws = registry.WikiOwner(registry.Get(repoId));
             var body = await Reply.LenientBody(request);
             var kind = body.ContainsKey("kind") ? Json.Str(body["kind"]) : WikiGeneral.Kind;
             if (kind is not (WikiGeneral.Kind or WikiGeneral.KindUpdate)) return Reply.Error(400, $"unrecognized kind: {Repr(kind)}");
             var agent = agents[kind];
             var other = agents[kind == WikiGeneral.Kind ? WikiGeneral.KindUpdate : WikiGeneral.Kind];
-            var (onChange, _) = SkillJobCallbacks.For(WikiGeneral.Kind, ws.Emit);
+            var (onChange, _) = SkillJobCallbacks.For(WikiGeneral.Kind, ws.EmitWiki);
             onChange = StampOnSuccess(ws, onChange, context);
             var state = Json.Str(body["state"]);
             if (state == "generating")
@@ -90,23 +93,25 @@ public static class WikiGeneralRoutes
 
         app.MapGet("/repos/{repoId}/wiki-general/output", (string repoId, WorkspaceRegistry registry, SkillAgents agents) =>
         {
-            var ws = registry.Get(repoId);
+            var ws = registry.WikiOwner(registry.Get(repoId));
             return Reply.Json(new JsonObject { ["lines"] = new JsonArray(Active(agents, ws).GetOutput(ws.Id).Select(l => (JsonNode?)l).ToArray()) });
         });
 
         app.MapPost("/repos/{repoId}/wiki-general/cancel", async (string repoId, WorkspaceRegistry registry, SkillAgents agents) =>
         {
-            var ws = registry.Get(repoId);
+            var ws = registry.WikiOwner(registry.Get(repoId));
             if (ws.ReadOnly) return Reply.Error(409, ReadOnlyMessage);
-            return Results.Json(await SkillJobCallbacks.StopAndNotify(Active(agents, ws), ws.Id, WikiGeneral.Kind, ws.Emit), BridgeJson.Default.JobState);
+            var stopped = await SkillJobCallbacks.StopAndNotify(Active(agents, ws), ws.Id, WikiGeneral.Kind, ws.EmitWiki);
+            WikiGeneral.RestoreManifest(ws.Root, ws.Id);
+            return Results.Json(stopped, BridgeJson.Default.JobState);
         });
 
         app.MapPost("/repos/{repoId}/wiki-general/generate", async (string repoId, WorkspaceRegistry registry, SkillAgents agents, DiagramContext context) =>
         {
-            var ws = registry.Get(repoId);
+            var ws = registry.WikiOwner(registry.Get(repoId));
             if (ws.ReadOnly) return Reply.Error(409, ReadOnlyMessage);
             var agent = agents[WikiGeneral.Kind];
-            var (onChange, onOutput) = SkillJobCallbacks.For(WikiGeneral.Kind, ws.Emit);
+            var (onChange, onOutput) = SkillJobCallbacks.For(WikiGeneral.Kind, ws.EmitWiki);
             onChange = StampOnSuccess(ws, onChange, context);
             var gate = WikiGeneral.RunLock(ws.Id);
             await gate.WaitAsync();
@@ -129,10 +134,10 @@ public static class WikiGeneralRoutes
 
         app.MapPost("/repos/{repoId}/wiki-general/update", async (string repoId, WorkspaceRegistry registry, SkillAgents agents, DiagramContext context) =>
         {
-            var ws = registry.Get(repoId);
+            var ws = registry.WikiOwner(registry.Get(repoId));
             if (ws.ReadOnly) return Reply.Error(409, ReadOnlyMessage);
             var agent = agents[WikiGeneral.KindUpdate];
-            var (onChange, onOutput) = SkillJobCallbacks.For(WikiGeneral.Kind, ws.Emit);
+            var (onChange, onOutput) = SkillJobCallbacks.For(WikiGeneral.Kind, ws.EmitWiki);
             onChange = StampOnSuccess(ws, onChange, context);
             var gate = WikiGeneral.RunLock(ws.Id);
             await gate.WaitAsync();
@@ -142,7 +147,7 @@ public static class WikiGeneralRoutes
                 JsonObject delta;
                 try
                 {
-                    delta = await Task.Run(() => WikiGeneralUpdate.ApplyDelta(ws, WikiGeneralUpdate.ComputeDelta(ws)));
+                    delta = await Task.Run(() => WikiGeneral.PrepareUpdate(ws));
                 }
                 catch (Exception error)
                 {
@@ -165,15 +170,15 @@ public static class WikiGeneralRoutes
         });
 
         app.MapGet("/repos/{repoId}/wiki-general/update-plan", (string repoId, WorkspaceRegistry registry) =>
-            Reply.Guard(() => Reply.Json(WikiGeneralUpdate.ComputeDelta(registry.Get(repoId)))));
+            Reply.Guard(() => Reply.Json(WikiGeneralUpdate.ComputeDelta(registry.WikiOwner(registry.Get(repoId))))));
 
         // For a skill run in a terminal: applies the deletions and flips the job to generating with no subprocess.
         app.MapPost("/repos/{repoId}/wiki-general/update-plan", async (string repoId, WorkspaceRegistry registry, SkillAgents agents, DiagramContext context) =>
         {
-            var ws = registry.Get(repoId);
+            var ws = registry.WikiOwner(registry.Get(repoId));
             if (ws.ReadOnly) return Reply.Error(409, ReadOnlyMessage);
             var agent = agents[WikiGeneral.KindUpdate];
-            var (onChange, _) = SkillJobCallbacks.For(WikiGeneral.Kind, ws.Emit);
+            var (onChange, _) = SkillJobCallbacks.For(WikiGeneral.Kind, ws.EmitWiki);
             onChange = StampOnSuccess(ws, onChange, context);
             var gate = WikiGeneral.RunLock(ws.Id);
             await gate.WaitAsync();
@@ -184,7 +189,7 @@ public static class WikiGeneralRoutes
                 JsonObject delta;
                 try
                 {
-                    delta = await Task.Run(() => WikiGeneralUpdate.ApplyDelta(ws, WikiGeneralUpdate.ComputeDelta(ws)));
+                    delta = await Task.Run(() => WikiGeneral.PrepareUpdate(ws));
                 }
                 catch (Exception error)
                 {
@@ -203,12 +208,12 @@ public static class WikiGeneralRoutes
         app.MapGet("/repos/{repoId}/wiki-general/clustering", (string repoId, WorkspaceRegistry registry) =>
             Reply.Guard(() =>
             {
-                var ws = registry.Get(repoId);
+                var ws = registry.WikiOwner(registry.Get(repoId));
                 var result = ws.Engine.BuildClusters(ws.Root) ?? throw new BridgeException(409, "the engine has no graph to cluster");
                 return Reply.Json(WikiGeneralUpdate.ClusteringBody(result));
             }));
 
         app.MapGet("/repos/{repoId}/wiki-general-context", (string repoId, WorkspaceRegistry registry) =>
-            Reply.Json(WikiGeneral.Context(registry.Get(repoId).Root)));
+            Reply.Json(WikiGeneral.Context(registry.WikiOwner(registry.Get(repoId)).Root)));
     }
 }

@@ -10,7 +10,7 @@ public static class WikiRoutes
     public static void Map(WebApplication app) =>
         app.MapGet("/repos/{repoId}/wiki-context", (string repoId, string? paths, WorkspaceRegistry registry) =>
         {
-            var ws = registry.Get(repoId);
+            var ws = registry.WikiOwner(registry.Get(repoId));
             var requested = (paths ?? "").Split(',').Where(p => p.Length > 0).ToList();
             try
             {

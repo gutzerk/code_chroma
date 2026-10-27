@@ -1,6 +1,7 @@
 import type { CanvasElement } from "../../state/types";
 import type { MeasuredBoxSize } from "../useMeasuredSizes";
 import { unionBoundsOf } from "./boundingBox";
+import { isFailuresLane } from "../connectors/elkLayout";
 import { laneColorIndex } from "./laneColor";
 import { SoftAreaFrame } from "./SoftAreaFrame";
 
@@ -35,7 +36,7 @@ export function LaneArea({ lane, members, sizes }: LaneAreaProps) {
     <SoftAreaFrame
       bounds={bounds}
       padding={PADDING}
-      className={`canvas-lane-area canvas-lane-area-color-${laneColorIndex(lane)}`}
+      className={`canvas-lane-area canvas-lane-area-color-${laneColorIndex(lane)}${isFailuresLane(lane) ? " canvas-lane-area-failures" : ""}`}
       testId="canvas-lane-area"
       labelClassName="canvas-lane-area-label"
       label={lane}

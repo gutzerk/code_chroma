@@ -49,6 +49,62 @@ def _resolve_node(engine: GraphEngine, item: dict, notes: Diagnostics) -> dict:
     return {**item, "node_id": node_id}
 
 
+def _locate(engine: GraphEngine, node_id: object) -> dict | None:
+    """`{node_id, path, line?}` for a real graph node (line from its symbol), else None."""
+    if not isinstance(node_id, str):
+        return None
+    node = engine.get_node(node_id)
+    if node is None:
+        return None
+    symbol = engine.get_symbol(node_id)
+    path = symbol.file_path if symbol is not None else node.source_path
+    found: dict = {"node_id": node_id}
+    if path:
+        found["path"] = path
+    if symbol is not None and symbol.start_line:
+        found["line"] = symbol.start_line
+    return found
+
+
+def _resolve_route(engine: GraphEngine, route: object, notes: Diagnostics) -> object:
+    """Stamps `resolved` on each step and `path`/`resolved_line`/`line_mismatch` on children (026)."""
+    steps = route.get("steps") if isinstance(route, dict) else None
+    if not isinstance(steps, list):
+        return route
+    out = []
+    for step in steps:
+        if not isinstance(step, dict):
+            out.append(step)
+            continue
+        sid = step.get("id")
+        found = []
+        for nid in step.get("node_ids") or []:
+            hit = _locate(engine, nid)
+            if hit is None:
+                notes.drop("route_step", sid, "unresolved_path", str(nid))
+            else:
+                found.append(hit)
+        children = []
+        for child in step.get("children") or []:
+            hit = _locate(engine, child.get("node_id")) if isinstance(child, dict) else None
+            if not isinstance(child, dict):
+                children.append(child)
+                continue
+            if child.get("node_id") and hit is None:
+                notes.drop("route_child", child.get("id"), "unresolved_path", str(child["node_id"]))
+            if hit is None:
+                children.append(child)
+                continue
+            extra = {k: hit[k] for k in ("path",) if k in hit}
+            if "line" in hit:
+                extra["resolved_line"] = hit["line"]
+                if child.get("line") != hit["line"]:
+                    extra["line_mismatch"] = True
+            children.append({**child, **extra})
+        out.append({**step, "resolved": found, "children": children})
+    return {**route, "steps": out}
+
+
 def _stamp_no_code_reason(node: dict, *, path: str | None) -> dict:
     """Why a node lacks `node_id`: `"planned"` > `"unresolved"` > `"external"` > `"conceptual"`."""
     meta = node.get("meta")
@@ -131,8 +187,10 @@ def resolve_diagram(
         relations.append({**item, "style": _relation_style(item, edge_style)})
     advise_relations(relations, kind or data.get("type"), notes)
 
+    route = _resolve_route(engine, data.get("route"), notes)
     resolved = {
         **data,
+        **({"route": route} if route is not None else {}),
         "nodes": nodes,
         "relations": relations,
         "groups": _groups_of(nodes, overrides),

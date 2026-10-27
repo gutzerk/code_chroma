@@ -186,7 +186,7 @@ def _route_summary(steps: list[dict]) -> str:
 
 
 def _with_route(nodes: tuple[GraphNode, ...], resolved: dict) -> tuple[GraphNode, ...]:
-    """Stamps the authored `route` (plus derived summary) on each node and `route_step` on a step's."""
+    """Stamps `route` (plus a derived summary) on each node and `route_step` on a step's."""
     route = resolved.get("route")
     steps = route.get("steps") if isinstance(route, dict) else None
     if not isinstance(steps, list):

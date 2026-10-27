@@ -237,8 +237,9 @@ export function DiagramFrame({ layer, label, members, sizes, typeLabel, boxCount
             </span>
           )}
           {isSequence && <SequenceModeSwitch layer={layer} members={members} />}
-          {members.some((member) => routeOf(member)) && <RouteLegend />}
           {route && (
+            <span className="canvas-diagram-frame-route" onPointerDown={(e) => e.stopPropagation()}>
+            <RouteLegend />
             <button
               type="button"
               className="sequence-mode-btn"
@@ -249,6 +250,7 @@ export function DiagramFrame({ layer, label, members, sizes, typeLabel, boxCount
             >
               Show route
             </button>
+            </span>
           )}
           {/* The frame body is a drag handle, so keep a press on the button from starting a drag. */}
           <span className="canvas-diagram-frame-copy" onPointerDown={(e) => e.stopPropagation()}>

@@ -8386,4 +8386,15 @@ button[data-copy-state="idle"][aria-label]:hover:not(:disabled) {
 .impact-legend-line--removed { border-top: 1.75px dashed #FB7185; }
 .impact-legend-pill { width: 36px; height: 14px; border-radius: 7px; border: 1px solid #3A3E45; background: #1F2023; }
 .impact-legend-thick { width: 36px; height: 14px; border-radius: 4px; border: 2px solid #F2B36B; }
+/* Block anatomy gaps: members chip, hero card, zoom levels (100% full / 60% title+SRC+members / 30% title only) */
+.canvas-node-members { align-self: flex-start; margin-top: 0.3rem; padding: 1px 8px; font: inherit; font-family: var(--font-mono); font-size: 0.68rem; color: inherit; background: transparent; border: 1px solid var(--control-border); border-radius: var(--radius-md); cursor: pointer; opacity: 0.85; }
+.canvas-node-members:hover { opacity: 1; }
+.block-hero .diagram-node-box-name { font-size: 20px; font-weight: 700; }
+.block-hero [data-testid="canvas-node-box-description"] { font-size: 14px; line-height: 1.4; -webkit-line-clamp: unset; }
+[data-zoom="mid"] .canvas-node-box-buttons { opacity: 1; }
+[data-zoom="mid"] .canvas-node-box-buttons > :not(.canvas-node-box-src),
+[data-zoom="mid"] [data-testid="canvas-node-meta-row"],
+[data-zoom="far"] .canvas-node-box-buttons,
+[data-zoom="far"] .canvas-node-members,
+[data-zoom="far"] .canvas-node-top-band { display: none; }
 /* stylelint-enable declaration-property-value-disallowed-list */

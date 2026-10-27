@@ -1141,3 +1141,27 @@ describe("CanvasNodeBox — board block roles", () => {
     expect(screen.queryByTestId("block-status")).not.toBeInTheDocument();
   });
 });
+
+describe("CanvasNodeBox members chip", () => {
+  const withNode = (child_count: number) =>
+    ({ ...client, getNode: async () => ({ node_id: "n1", child_count }) }) as unknown as EngineClient;
+  const renderWith = (c: EngineClient, node_id: string) =>
+    render(
+      <EngineClientProvider repoId="default" client={c}>
+        <CanvasNodeBox element={element({ id: `e-${node_id}`, node_id })} />
+      </EngineClientProvider>,
+    );
+
+  it("shows the child count of the backing node", async () => {
+    renderWith(withNode(21), "n-a");
+
+    expect(await screen.findByTestId("canvas-node-members")).toHaveTextContent("21 members");
+  });
+
+  it("hides the chip when the node has no children", async () => {
+    renderWith(withNode(0), "n-b");
+
+    await act(async () => {});
+    expect(screen.queryByTestId("canvas-node-members")).toBeNull();
+  });
+});

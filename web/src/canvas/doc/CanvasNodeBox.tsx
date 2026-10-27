@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef } from "react";
+import { useMemberCount } from "./useMemberCount";
 import { ImpactGlance } from "./ImpactGlance";
 import { useImpactBoxState } from "./impactBoxState";
 import { ImpactPill } from "./ImpactPill";
@@ -104,6 +105,7 @@ export function CanvasNodeBox({ element, onMeasure }: CanvasNodeBoxProps) {
   const isInspectorTarget = useIsInspectorTarget(element.node_id ?? element.id, element.id);
   const style = styleFor(element.render);
   const focusState = useFocusState(element.id);
+  const memberCount = useMemberCount(engineClient, isEpicsLayerName(element.layer) ? null : element.node_id);
   const stepNumber =
     isEpicsLayerName(element.layer) || element.render === "sequence"
       ? undefined
@@ -333,6 +335,7 @@ export function CanvasNodeBox({ element, onMeasure }: CanvasNodeBoxProps) {
     isInspectorTarget ? "block-inspector-target" : "",
     focusState === "dim" ? "block-focus-dim" : "",
     focusState === "self" ? "block-focus-self" : "",
+    isSelected || focusState === "self" ? "block-hero" : "",
     impactChange ? `block-change--${impactChange.status}` : "",
     impactBox.kind ? `impact-box impact-box--${impactBox.kind}` : "",
     impactBox.biggest ? "impact-box--biggest" : "",
@@ -504,6 +507,20 @@ export function CanvasNodeBox({ element, onMeasure }: CanvasNodeBoxProps) {
                   {sourcePath}
                 </span>
               </div>
+            )}
+            {memberCount > 0 && (
+              <button
+                type="button"
+                className="canvas-node-members"
+                data-testid="canvas-node-members"
+                aria-label={`Show ${memberCount} members of ${element.label}`}
+                onClick={(event) => {
+                  event.stopPropagation();
+                  toggleSource();
+                }}
+              >
+                {"▸"} {memberCount} members
+              </button>
             )}
           </div>
           <div className="canvas-node-box-buttons" data-testid="canvas-node-box-buttons">

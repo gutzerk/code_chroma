@@ -27,7 +27,7 @@ public sealed class WorkspaceWatchers : IDisposable
         _custom = new Debouncer(TimeSpan.FromMilliseconds(BridgeLimits.WatcherDebounceMs), () => EmitWithCanvas("custom"));
         _featurePlans = new Debouncer(TimeSpan.FromMilliseconds(BridgeLimits.WatcherDebounceMs), () => EmitWithCanvas("feature-plan"));
         _impactChanges = new Debouncer(TimeSpan.FromMilliseconds(BridgeLimits.WatcherDebounceMs), () => workspace.Emit(new JsonObject { ["type"] = "impact-changes" }));
-        _wikiGeneral = new Debouncer(TimeSpan.FromMilliseconds(BridgeLimits.WatcherDebounceMs), () => workspace.Emit(new JsonObject { ["type"] = "wiki-general" }));
+        _wikiGeneral = new Debouncer(TimeSpan.FromMilliseconds(BridgeLimits.WatcherDebounceMs), () => workspace.EmitWiki(new JsonObject { ["type"] = "wiki-general" }));
         _traces = new Debouncer(TimeSpan.FromMilliseconds(BridgeLimits.WatcherDebounceMs), () => workspace.Emit(new JsonObject { ["type"] = "trace" }));
         _canvas = new Debouncer(TimeSpan.FromMilliseconds(BridgeLimits.WatcherDebounceMs), () => workspace.Emit(new JsonObject { ["type"] = "canvas" }));
         _newDirectories = new Debouncer(TimeSpan.FromMilliseconds(BridgeLimits.WatcherDebounceMs), NotifyNewDirectories);
@@ -120,7 +120,7 @@ public sealed class WorkspaceWatchers : IDisposable
         }
         if (parts is [".codechroma", "wiki-general", "index.md"])
         {
-            _wikiGeneral.Trigger();
+            if (_workspace.OwnsWiki) _wikiGeneral.Trigger();
             return;
         }
         if (parts is [".codechroma", "canvas-core.json"] or [".codechroma", "diagrams", _, "projection.json"])
@@ -149,7 +149,7 @@ public sealed class WorkspaceWatchers : IDisposable
         var changed = _workspace.Sync();
         if (changed is not null)
             _workspace.Emit(new JsonObject { ["type"] = "changed", ["paths"] = new JsonArray(changed.Select(p => (JsonNode?)p).ToArray()) });
-        if (_workspace.HeadChanged()) _workspace.Emit(new JsonObject { ["type"] = "wiki-general" });
+        if (_workspace.OwnsWiki && _workspace.HeadChanged()) _workspace.EmitWiki(new JsonObject { ["type"] = "wiki-general" });
     }
 
     public void Dispose()

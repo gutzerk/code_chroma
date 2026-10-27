@@ -345,6 +345,9 @@ export type ImpactChangeStatus = "added" | "modified" | "removed";
 export interface ImpactChangedFile {
   path: string;
   status: ImpactChangeStatus | "deleted";
+  /** Lines added/removed vs the diff base; absent when git could not count them. */
+  additions?: number;
+  deletions?: number;
 }
 
 /** One GitHub PR comment — inline (tied to a diff line, `path`/`line` set) or general/issue-level

@@ -1,5 +1,7 @@
 import { useCallback, useEffect, useRef } from "react";
 import { ImpactGlance } from "./ImpactGlance";
+import { useImpactBoxState } from "./impactBoxState";
+import { ImpactPill } from "./ImpactPill";
 import { focusStore, useFocusState } from "./focusStore";
 import type { CanvasElement } from "../../state/types";
 import { useEngineClient } from "../../engine-client/EngineClientContext";
@@ -132,6 +134,7 @@ export function CanvasNodeBox({ element, onMeasure }: CanvasNodeBoxProps) {
   // A permanently-empty store unless an Impact layer is present and Diff mode is on (see
   // useC1DiffSync) — a cheap, harmless subscription the rest of the time.
   const { isImpact, change: impactChange } = useNodeOverlays(element);
+  const impactBox = useImpactBoxState(element, impactChange, isImpact);
 
   const selectedCount = useSelectedCount();
   // Miro-style: 2+ boxes selected and this is one of them means dragging it moves the whole group,
@@ -331,6 +334,8 @@ export function CanvasNodeBox({ element, onMeasure }: CanvasNodeBoxProps) {
     focusState === "dim" ? "block-focus-dim" : "",
     focusState === "self" ? "block-focus-self" : "",
     impactChange ? `block-change--${impactChange.status}` : "",
+    impactBox.kind ? `impact-box impact-box--${impactBox.kind}` : "",
+    impactBox.biggest ? "impact-box--biggest" : "",
     accent.className ?? "",
     blockRole ? `block-role block-role--${blockRole}` : "",
     // An epics-layer box (epic title, or a Summary/Acceptance/Спеки content card) carries a shared
@@ -356,6 +361,19 @@ export function CanvasNodeBox({ element, onMeasure }: CanvasNodeBoxProps) {
   // 022: the file path is always visible on a code-backed box (the resolver stamps `meta.path`).
   const isEpicsLayer = isEpicsLayerName(element.layer);
   const sourcePath = isEpicsLayer ? undefined : stringMeta(element, "path");
+
+  if (impactBox.collapse) {
+    return (
+      <ImpactPill
+        collapse={impactBox.collapse}
+        elementId={element.id}
+        label={element.label}
+        left={element.position.x - width / 2 + renderOffset.x}
+        top={element.position.y - 17 + renderOffset.y}
+        width={width}
+      />
+    );
+  }
 
   return (
     <>

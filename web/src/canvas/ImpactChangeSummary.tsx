@@ -1,5 +1,7 @@
+import { useState } from "react";
+import { summarizeImpact, firstSentence } from "./doc/impactGlanceLogic";
 import { guardedClick, providerGate, useGroupAvailability } from "../llm-settings/useGroupAvailability";
-import type { ImpactChangedFile, DiagramGenerationStatus, PrReviewComment } from "../state/types";
+import type { ImpactChangedFile, ImpactChanges, DiagramGenerationStatus, PrReviewComment } from "../state/types";
 import { useImpactChanges } from "../state/useSidecar";
 import { inspectorStore } from "./inspectorStore";
 import { PrCommentCard } from "./PrCommentCard";
@@ -42,6 +44,101 @@ function CommentRow({ comment }: { comment: PrReviewComment }) {
         </>
       }
     />
+  );
+}
+
+const PILLS = [
+  { key: "modified", label: "modified" },
+  { key: "added", label: "new" },
+  { key: "deleted", label: "deleted" },
+  { key: "tests", label: "tests" },
+] as const;
+
+/** The board's header strip: what is compared, the one-line change title and the four count pills. */
+function ImpactStrip({ changes }: { changes: ImpactChanges }) {
+  const summary = summarizeImpact(changes);
+  const title = firstSentence(changes.summary) || `${changes.changed_file_count} changed files`;
+  return (
+    <div className="impact-strip" data-testid="impact-strip">
+      <span className="impact-strip-label">WORKING TREE vs HEAD</span>
+      <span className="impact-strip-title" title={changes.summary || undefined}>
+        {title}
+      </span>
+      <span className="impact-strip-pills">
+        {PILLS.map(({ key, label }) => (
+          <span key={key} className={`impact-pill-count impact-pill-count--${key}`} data-testid={`impact-count-${key}`}>
+            {summary[key]} {label}
+          </span>
+        ))}
+      </span>
+    </div>
+  );
+}
+
+const LEGEND = [
+  { chip: "ADD", cls: "add", text: "new file or symbol" },
+  { chip: "MODIFY", cls: "modify", text: "existing code changed" },
+  { chip: "DELETE", cls: "delete", text: "hatched ghost, struck through" },
+] as const;
+
+/** The board's legend card: chips, size bar, hero and removed edges, collapsed pills, thick border. */
+function ImpactLegend() {
+  return (
+    <div className="impact-legend" data-testid="impact-legend">
+      <span className="impact-legend-title">LEGEND</span>
+      {LEGEND.map((row) => (
+        <span key={row.chip} className="impact-legend-row">
+          <span className={`impact-chip impact-chip--${row.cls}`}>{row.chip}</span>
+          {row.text}
+        </span>
+      ))}
+      <span className="impact-legend-row">
+        <span className="impact-size-bar impact-legend-bar" aria-hidden="true">
+          <span className="impact-size-add" style={{ width: 14 }} />
+          <span className="impact-size-del" style={{ width: 26 }} />
+        </span>
+        size of the change, + / &minus;
+      </span>
+      <span className="impact-legend-row">
+        <span className="impact-legend-line impact-legend-line--hero" aria-hidden="true" />
+        &#9733; hero: what the change does
+      </span>
+      <span className="impact-legend-row">
+        <span className="impact-legend-line impact-legend-line--removed" aria-hidden="true" />
+        link that no longer exists
+      </span>
+      <span className="impact-legend-row">
+        <span className="impact-legend-pill" aria-hidden="true" />
+        unchanged or minor, collapsed
+      </span>
+      <span className="impact-legend-row">
+        <span className="impact-legend-thick" aria-hidden="true" />
+        thick border = biggest change
+      </span>
+    </div>
+  );
+}
+
+/** Changed files no box on the diagram covers, as the board's dashed "outside this slice" strip. */
+function OutsideSlice({ files }: { files: ImpactChangedFile[] }) {
+  const [open, setOpen] = useState(false);
+  return (
+    <div className="impact-outside" data-testid="impact-change-summary-unassigned">
+      <div className="impact-outside-head">
+        <span className="impact-outside-label">OUTSIDE THIS SLICE</span>
+        <span className="impact-outside-count">{files.length} file{files.length === 1 ? "" : "s"}</span>
+        <button
+          type="button"
+          className="impact-outside-toggle"
+          data-testid="impact-outside-toggle"
+          aria-expanded={open}
+          onClick={() => setOpen((value) => !value)}
+        >
+          {open ? "hide ▾" : "show ▸"}
+        </button>
+      </div>
+      {open && files.map((file) => <FileRow key={file.path} file={file} />)}
+    </div>
   );
 }
 
@@ -136,6 +233,7 @@ export function ImpactChangeSummary({
         </p>
       ) : (
         <>
+          <ImpactStrip changes={changes} />
           {changes.summary && <p className="impact-change-summary-text">{changes.summary}</p>}
           {!changes.has_review && !isWriting && (
             <p className="impact-change-summary-note" data-testid="impact-change-summary-unreviewed">
@@ -160,21 +258,13 @@ export function ImpactChangeSummary({
                   ))}
                 </div>
               ))}
-              {changes.unassigned.length > 0 && (
-                <div
-                  className="impact-change-summary-file-group impact-change-summary-file-group--unassigned"
-                  data-testid="impact-change-summary-unassigned"
-                >
-                  <span className="impact-change-summary-file-group-label">Not on this diagram</span>
-                  {changes.unassigned.map((file) => (
-                    <FileRow key={file.path} file={file} />
-                  ))}
-                </div>
-              )}
+              {changes.unassigned.length > 0 && <OutsideSlice files={changes.unassigned} />}
             </div>
           )}
         </>
       )}
+
+      {changes.changed_file_count > 0 && <ImpactLegend />}
 
       {changes.general_pr_comments.length > 0 && (
         <div className="impact-change-summary-comments" data-testid="impact-change-summary-comments">

@@ -31,7 +31,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Protocol
 
 from codechroma.bridge.change_cards import build_change_cards
-from codechroma.bridge.git_cmd import detect_git_root, working_tree_status
+from codechroma.bridge.git_cmd import detect_git_root, line_counts, working_tree_status
 from codechroma.fingerprint import hash_lines
 from codechroma.trace.mapper import FrameMapper
 
@@ -139,6 +139,10 @@ def resolve_impact_changes(
     unassigned = _attribute_cards(
         engine, repo_root, base, by_node_id, git_root, raw_statuses, statuses
     )
+    counts = line_counts(repo_root, base, statuses) if git_root else {}
+    for entry in [*unassigned, *(f for block in blocks for f in block.files)]:
+        if entry["path"] in counts:
+            entry["additions"], entry["deletions"] = counts[entry["path"]]
     comments = _resolve_comment_symbols(engine, repo_root, review_comments or [])
     unassigned_comments = _attribute_comments(engine, comments, by_node_id)
 

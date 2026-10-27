@@ -8304,3 +8304,83 @@ button[data-copy-state="idle"][aria-label]:hover:not(:disabled) {
 .canvas-focus-panel__dirs { display: flex; gap: 8px; margin-top: 4px; }
 .canvas-focus-panel__dir { flex: 1 1 0; height: 40px; border-radius: 8px; border: 1px solid #3A3E45; background: #24262B; color: #ECEDEE; font-size: 13px; cursor: pointer; }
 .canvas-focus-panel__dir--on { border-color: #3F7A5E; background: #18261F; color: #5EE0A0; }
+
+/* ---- 022 board impact: the "ImpactGlance" design board (chips, size bar, hatch, hero edge, pills, strip, legend) ---- */
+.node-meta-chip--impact-new, .node-meta-chip--impact-modified, .node-meta-chip--impact-deleted,
+.impact-chip {
+  display: inline-flex; padding: 0 5px; border: 0; border-radius: 3px;
+  font-family: var(--font-mono); font-size: 9.5px; font-weight: 700; letter-spacing: 0; color: #1B1B19;
+}
+.node-meta-chip--impact-new, .impact-chip--add { background: #5EE0A0; }
+.node-meta-chip--impact-modified, .impact-chip--modify { background: #F2B36B; }
+.node-meta-chip--impact-deleted, .impact-chip--delete { background: #FB7185; }
+
+[data-canvas-element].impact-box.impact-box--modify { border: 1.5px solid #7A5A2A; background: #24262B; border-radius: 10px; }
+[data-canvas-element].impact-box.impact-box--add { border: 1.5px solid #3F7A5E; background: #1E2622; border-radius: 10px; }
+[data-canvas-element].impact-box.impact-box--delete {
+  border: 1.5px dashed #8E3A4A; border-radius: 10px;
+  background: repeating-linear-gradient(135deg, #241A1D 0 8px, #1B1B19 8px 16px);
+}
+[data-canvas-element].impact-box.impact-box--delete .diagram-node-box-name,
+[data-canvas-element].impact-box.impact-box--delete .block-name { text-decoration: line-through; color: #C9A3AA; }
+[data-canvas-element].impact-box.impact-box--biggest { border: 2px solid #F2B36B; background: #2A2419; }
+
+.canvas-node-box-glance { flex-wrap: wrap; }
+.impact-size {
+  display: flex; flex-basis: 100%; align-items: center; gap: 8px;
+  font-family: var(--font-mono); font-size: 10.5px;
+}
+.impact-size-bar { display: flex; width: 60px; height: 6px; border-radius: 3px; overflow: hidden; background: #33363C; }
+.impact-size-add { background: #5EE0A0; }
+.impact-size-del { background: #FB7185; }
+.impact-size-plus { color: #5EE0A0; }
+.impact-size-minus { color: #FB7185; }
+.impact-size-test { color: #8D939B; }
+.impact-box--delete .impact-size-bar { background: #FB7185; }
+
+.impact-pill {
+  box-sizing: border-box; height: 34px; border-radius: 17px; border: 1px solid #33363C; background: #1F2023;
+  color: #7C8188; font: inherit; font-size: 12px; cursor: pointer; padding: 0 12px; text-align: center;
+}
+.impact-pill:hover { color: #C9CDD2; border-color: #4A4D52; }
+.impact-pill-label { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+.c1-relationship-path--hero {
+  stroke: #5EE0A0; stroke-width: 3.5; filter: drop-shadow(0 0 6px rgba(94, 224, 160, 0.45));
+}
+.c1-relationship-label--hero { fill: #5EE0A0; font-family: var(--font-mono); font-weight: 600; }
+.c1-relationship-path--removed-link { stroke: #FB7185; stroke-width: 1.75; stroke-dasharray: 6 4; opacity: 1; }
+
+.impact-strip {
+  display: flex; flex-wrap: wrap; align-items: center; gap: 0.4rem 0.75rem; margin-top: 0.5rem;
+  padding: 0.5rem 0.6rem; border: 1px solid #33363C; border-radius: 12px; background: #202226;
+}
+.impact-strip-label { flex-basis: 100%; font-family: var(--font-mono); font-size: 10px; letter-spacing: 0.1em; color: #8D939B; }
+.impact-strip-title { flex: 1 1 100%; min-width: 0; font-size: 0.9rem; font-weight: 600; color: #ECEDEE; }
+.impact-strip-pills { display: flex; flex-wrap: wrap; gap: 6px; font-family: var(--font-mono); font-size: 11px; }
+.impact-pill-count { border: 1px solid; border-radius: 999px; padding: 2px 8px; }
+.impact-pill-count--modified { color: #F2B36B; border-color: #7A5A2A; }
+.impact-pill-count--added { color: #5EE0A0; border-color: #3F7A5E; }
+.impact-pill-count--deleted { color: #FB7185; border-color: #8E3A4A; }
+.impact-pill-count--tests { color: #A3A8AE; border-color: #3A3E45; }
+
+.impact-outside {
+  display: flex; flex-direction: column; gap: 0.25rem; margin-top: 0.5rem;
+  padding: 0.4rem 0.6rem; border: 1px dashed #3A3E45; border-radius: 10px; color: #8D939B; font-size: 0.78rem;
+}
+.impact-outside-head { display: flex; align-items: center; gap: 0.6rem; }
+.impact-outside-label { font-family: var(--font-mono); font-size: 10.5px; letter-spacing: 0.08em; }
+.impact-outside-toggle { margin-left: auto; border: 0; background: none; color: #7FB8FF; font: inherit; cursor: pointer; }
+
+.impact-legend {
+  display: flex; flex-direction: column; gap: 0.45rem; margin-top: 0.5rem;
+  padding: 0.6rem 0.75rem; border: 1px solid #33363C; border-radius: 12px; background: #202226;
+  font-size: 0.75rem; color: #C9CDD2;
+}
+.impact-legend-title { font-family: var(--font-mono); font-size: 11px; font-weight: 700; letter-spacing: 0.1em; color: #8D939B; }
+.impact-legend-row { display: flex; align-items: center; gap: 8px; }
+.impact-legend-bar { width: 40px; }
+.impact-legend-line { width: 30px; height: 0; border-top: 3.5px solid #5EE0A0; }
+.impact-legend-line--removed { border-top: 1.75px dashed #FB7185; }
+.impact-legend-pill { width: 36px; height: 14px; border-radius: 7px; border: 1px solid #3A3E45; background: #1F2023; }
+.impact-legend-thick { width: 36px; height: 14px; border-radius: 4px; border: 2px solid #F2B36B; }

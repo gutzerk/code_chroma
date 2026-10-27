@@ -360,3 +360,21 @@ def test_server_diagram_validator_matches_the_skill_checker(name):
 
     assert server == _load_checker().problems(draft)
     assert bool(server) == (name != "clean")
+
+
+def test_degraded_pass_through_consumes_the_count(bridge, monkeypatch):
+    _fast(monkeypatch, 0.05)
+    mcp = _mcp(bridge)
+    bad = AskRequest(question="Q?", session_id="s", options=[QuestionOption(id="a", title="A")])
+
+    async def run() -> None:
+        for _ in range(3):
+            with pytest.raises(QuestionRejected):
+                await mcp.ask("main", bad)
+        await mcp.ask("main", bad)
+        with pytest.raises(QuestionRejected):
+            await mcp.ask("main", bad)
+
+    asyncio.run(run())
+
+    assert mcp.rejections.count("main", "s") == 1

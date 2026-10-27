@@ -310,3 +310,28 @@ def test_update_plan_previews_without_applying_and_post_applies_once(bridge, mon
     assert started["state"] == "generating"
     assert started["delta"]["components"]["created"] == preview["components"]["created"]
     assert second.status_code == 409
+
+
+def test_update_stamps_generated_at_commit_once_it_succeeds(bridge, monkeypatch):
+    monkeypatch.setattr(
+        "codechroma.llm.runtime_env.shutil.which", lambda _name, **_kwargs: "/usr/bin/claude"
+    )
+    _seed_tree(bridge.repo, generated_at_commit="stale-sha")
+    (bridge.repo / "shared" / "text_utils.py").write_text(
+        "def slugify(text): return text\n", encoding="utf-8"
+    )
+    manifest_path = bridge.repo / ".codechroma" / "wiki-general" / "manifest.json"
+    monkeypatch.setattr(
+        asyncio, "create_subprocess_exec",
+        fake_claude_exec(
+            returncode=0, on_spawn=lambda: _write_listed_pages(manifest_path.parent)
+        ),
+    )
+
+    with TestClient(bridge.app) as client:
+        with client.websocket_connect("/repos/default/events") as websocket:
+            client.post("/repos/default/wiki-general/update")
+            _receive_final_status(websocket)
+
+    stamped = json.loads(manifest_path.read_text(encoding="utf-8"))
+    assert stamped["generated_at_commit"] != "stale-sha"

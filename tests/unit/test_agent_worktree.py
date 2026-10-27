@@ -250,3 +250,16 @@ def test_move_leaves_a_healthy_submodule_pointer_alone(repo, tmp_path):
 
 def test_main_branch_falls_back_to_the_local_default(repo):
     assert worktree.main_branch(repo) in ("main", "master")
+
+
+def test_add_detached_checks_out_the_commit_it_was_given(repo):
+    (repo / "app.py").write_text("value = 2\n", encoding="utf-8")
+    subprocess.run(["git", "commit", "-am", "second"], cwd=repo, check=True, capture_output=True)
+    first = subprocess.run(
+        ["git", "rev-parse", "HEAD~1"], cwd=repo, capture_output=True, text=True
+    ).stdout.strip()
+    path = worktree.worktree_path(repo, "pr-13")
+
+    worktree.add_detached(repo, path, first)
+
+    assert (path / "app.py").read_text(encoding="utf-8") == "value = 1\n"

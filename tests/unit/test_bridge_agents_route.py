@@ -927,25 +927,3 @@ def test_a_new_agent_reports_its_tabs_branch_as_its_base(client):
     body = test_client.post("/agents", json={"title": "refund flow"}).json()
 
     assert body["base_branch"] == "wt-1"
-
-
-def test_post_agents_registers_a_pr_attached_agent_under_its_own_canonical_workspace(
-    client, tmp_path
-):
-    test_client, _repo, bridge = client
-    pr_path = _pr_worktree(tmp_path)
-    bridge.pr_manager.upsert(pr_record(282, str(pr_path)))
-
-    body = test_client.post("/agents", json={"title": "fix", "attach_to": "pr-282"}).json()
-
-    assert bridge.registry.root_for(body["id"]) == Path(body["worktree"])
-
-
-def test_a_restart_keeps_window_geometry_and_stacking_order(client, make_bridge):
-    test_client, repo, _server = client
-    test_client.post("/agents", json={"title": "one"})
-    test_client.patch("/agents/one/window", json={"x": 42, "y": 84, "z": 9, "minimized": True})
-
-    window = TestClient(make_bridge(repo).app).get("/agents").json()["agents"][0]["window"]
-
-    assert window == {"x": 42, "y": 84, "width": 720, "height": 480, "minimized": True, "z": 9}

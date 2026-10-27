@@ -562,3 +562,18 @@ def test_reasking_clears_the_revised_flag(bridge):
     store.reask(bridge.main, reopened, AskRequest(question="Q?", options=OPTIONS), None)
 
     assert store.find_element(bridge.main, question_id).meta["revised"] is False
+
+
+def test_find_diagram_requested_ignores_an_unrelated_ask_from_another_session(bridge):
+    question_id = _ask(bridge, session_id="s1")
+    store.request_diagram(bridge.main, store.find_element(bridge.main, question_id), "now")
+    other = AskRequest(question="Unrelated?", options=OPTIONS, session_id="s2")
+
+    assert store.find_diagram_requested(bridge.main, other) is None
+
+
+def test_find_diagram_requested_ignores_a_different_text_without_session(bridge):
+    question_id = _ask(bridge)
+    store.request_diagram(bridge.main, store.find_element(bridge.main, question_id), "now")
+
+    assert store.find_diagram_requested(bridge.main, AskRequest(question="Other?")) is None

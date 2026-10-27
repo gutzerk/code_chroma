@@ -1,0 +1,101 @@
+# 026 — Diagram expand in place (A4) and route overlay on the code map (B2)
+
+Status: Specification
+
+Source: two boards of the "Diagram Readability Options" design canvas (https://claude.ai/artifact/JBQvJ1EMpwBCNPRAd4eSbQ): "A4 · Glance + expand in place" (`VariantExpand.dc.html`) and "B2 · Code map + route overlay" (`AltRouteMap.dc.html`). Both were deliberately left out of `docs/planning/022-diagram-readability.md` ("revisit after Stage 2; they depend on lanes being reliable"). Stage 2 (lanes, `order`, block anatomy) and the ▶ player have landed, so this plan picks them up. Builds on `docs/architecture/diagram-skills.md`, `web-canvas-shell.md`, `trace.md`, `wiki-general.md`.
+
+Both boards draw the same example: the "Update the architecture map" flow of wiki-general (click Update, refresh graph, re-cluster, diff vs manifest, apply edits, rewrite pages with Claude, self-check, verify, stamp). Use it as the acceptance fixture.
+
+## Problem
+
+A process diagram shows steps, but the reader cannot see what code runs inside a step without leaving the diagram, and a code map (the folder/file hierarchy) shows where code lives but not in which order it runs. The two boards solve this from opposite ends:
+
+- **A4** keeps the process diagram and lets one step expand in place into the functions it calls (with `file:line` links).
+- **B2** keeps the code map and lays the process route over it, so the route lights up the files it touches and the rest of the code stays visible but dimmed.
+
+## Goal
+
+After 5 seconds a reader can name the first step, the AI step, and the result (the 022 test), and in 10 more seconds can open the function behind any step (A4) or see which files a flow touches (B2).
+
+## Decision: two features, one shared data model
+
+Both need the same new data: a **route** — an ordered list of steps, each step pointing at the code it runs. Build the data first (Stage 1), then the two views on top of it. They ship independently after Stage 1.
+
+| | A4 expand in place | B2 route overlay |
+|---|---|---|
+| Base view | the process diagram (lanes, steps) | the code map (folder/file hierarchy) |
+| What a step shows | a one-line summary; expands into its functions | a numbered marker on the file(s) it runs in |
+| Rest of the code | not shown | dimmed but present |
+| Interaction | `▸` expands a step, `↗` opens the source | `▶ Walk the route`, a ROUTE card with the step list |
+| Needs | steps with children and `file:line` | steps with the files they touch |
+
+## Data model (new, shared)
+
+A route lives in the process diagram JSON (type `process` / `custom`), next to the existing `order` and `lane` on nodes. Do not invent a second file.
+
+- Top-level `route`: `{ id, title, summary, steps: [...] }`. `summary` is the "8 steps · 5 files · 1 AI step" line on the ROUTE card and is derived, not authored.
+- Each step: `{ id, order, lane, title, kind, node_ids: [...], children: [...] }`.
+  - `kind`: `trigger | decide | ai | check | data | failure` (the lanes and legend of A4: actor/trigger, logic with no AI, AI step, check, data written, failure).
+  - `node_ids`: graph node ids of the files/functions the step runs in (this is what B2 lights up).
+  - `children`: ordered sub-calls `{ id, label, node_id, line }`, e.g. `ComputeDelta()` `:184` with the one-line "what it does" (A4's expanded step).
+- Edges keep the existing `kind` vocabulary (`calls`, `spawns`, `data`, `minor`, `removed`) and `hero` for the main path. A `failure` branch is an edge with `kind: "error"` semantics on a `failure`-kind step.
+
+Open: whether `route` belongs inside the diagram file or as a sibling `route.json` under `.codechroma/` (see Open questions).
+
+## Stage 1 — Route data from the skill and the resolvers (about 2-3 days)
+
+Files: `skills/codechroma-draw-diagram/` (`SKILL.md`, `references/type-custom.md` or a new `type-process.md`, `process-bare.md`, `references/drawing-rules.md`, `scripts/check_diagram.py`), `src/codechroma/diagrams/`, `src/codechroma/bridge/diagram_diagnostics.py`, `dotnet/CodeChroma.Bridge/Diagrams/DiagramResolver.cs`, `dotnet/CodeChroma.Bridge/Stores/Recipes.cs`, `tests/fixtures/bridge_contract/`.
+
+1. Document `route`, step `kind`, `node_ids`, `children` in the skill references, with the wiki-general update flow as the worked example.
+2. `check_diagram.py`: validate step ids/orders are unique and contiguous, `node_ids` exist in the context cache or are flagged as unresolved (advisory), `children[*].line` is a positive integer. Do not require a fixed number of steps per lane or per `kind`. Keep every new check advisory-only like `BADEDGEKIND`.
+3. Both resolvers pass `route` into the canvas element `meta` of the step nodes and the diagram frame (same pattern as `phases`/`frames`/`notes` for sequence). Python and C# stay in step; add a shared case in `tests/fixtures/bridge_contract/`. Record any deliberate gap in `docs/planning/012-csharp-bridge.md` and say so in the final report.
+4. Resolve `node_ids` and `children[*].node_id` to graph nodes through the existing context cache / `resolve` path (`docs/architecture/context-tool.md`) so each step carries a real `path` and `line` where the resolver can find one.
+5. Tests: `tests/unit/test_diagram_check_script.py`, `tests/unit/test_diagram_advisories.py`, the C# contract tests. Docs: `diagram-skills.md`.
+
+Exit check: re-draw the wiki-general update flow and confirm `route.steps[*].children` and `node_ids` land in `meta` in both bridges.
+
+## Stage 2 — A4: expand a step in place (about 3 days, after Stage 1)
+
+Files: `web/src/canvas/doc/CanvasNodeBox.tsx` (or a new `RouteStepBox.tsx` rendered through the existing role/variant path), `web/src/canvas/doc/nodeAccent.tsx`, `web/src/canvas/connectors/elkLayout.ts`, `web/src/canvas/doc/canvasDocStore.ts`, `web/src/styles.css`.
+
+1. A step box in `glance` form: number, title (4 words or fewer), one-line summary, `kind` colour (reuse the role colours from the 022 board pass), `▸ N calls` chip and `↗` to open the source. This is the 022 block anatomy plus the chip.
+2. Expansion state: a small store (like `impactExpandStore`, per diagram layer, in memory only) so an expanded step survives re-render but not reload. There is no expand-in-place mechanism on diagram boxes today (the 022 block pass could only open the inspector from the members chip); this is the first one, so build it once and reuse it for the `▸ N members` chip.
+3. Expanded form: the step grows into a list of its `children` (label, `:line`, short note) with each row a click target (`↗` opens that function in the inspector). Layout must grow the box and push neighbours; do it through the layout pass, not by overlaying (a derived geometry, never persisted per mode, same rule as the sequence modes in 022).
+4. Lanes: the A4 board is lane-banded (01 You / Git, 02 Bridge, 03 Claude CLI, 04 data, EX failures). Use the Stage 2 lane layout in `elkLayout.ts`; add a `Failures` band for `failure` steps.
+5. Legend card as drawn on the board (step order, expand, open source, actor, entry route, logic, AI step, check, data written, failure, main path, call inside a step, side effect, failure branch).
+6. Tests: unit tests next to the new component; a Playwright journey that draws the fixture, expands a step, opens a child, and checks no console error. Docs: `web-canvas-shell.md`, `diagram-skills.md`.
+
+## Stage 3 — B2: route overlay on the code map (about 3-4 days, after Stage 1; independent of Stage 2)
+
+Files: the code map is the hierarchy canvas, not the diagram layer. Look at `web/src/canvas/RouteProbeOverlay.tsx`, `TraceFlowOverlay.tsx`, `TraceControls.tsx`, `canvasOverlay.ts`, `web/src/state/expansionState.ts`, `traceStore.ts`, `routeProbeStore.ts` and the existing `▶` player in `SequenceReadable.tsx`/`sequenceViewStore.ts` before designing; they already solve "draw an ordered path over visible nodes with collapsed ancestors" and "walk it step by step".
+
+1. A `routeStore` (active route, current step, walking flag), modelled on `traceStore`/`routeProbeStore`.
+2. Overlay: for the active route, light up the files/folders in `steps[*].node_ids` (reuse `resolveVisibleEdges` so a hop to a collapsed file lands on its nearest visible ancestor), draw numbered markers and the connecting path, and dim every other block to the existing "faded" level (35%, same token as focus mode). The rest of the code must stay present and clickable.
+3. ROUTE card (the board's right panel): title, "N steps · N files · N AI steps", the step list with kind colours, `Click Update` / failure rows (`✕ busy → 409`), and a `▶ Walk the route` button that steps through `order` and scrolls/zooms to each step's files. Reuse the player logic from the sequence ▶ player where possible.
+4. Entry point: a "Show route" action on a process diagram (and a route picker when a repo has several), so the user can jump from a process step to the code map with the route already active.
+5. Tests: store tests, overlay tests (jsdom has no `getBBox`; follow how `TraceFlowOverlay.test.tsx` mocks it), a Playwright journey. Docs: `web-canvas-shell.md`, `trace.md` (state the difference from the execution trace: this route is authored, the trace is captured).
+
+## Stage 4 — Wire the wiki-general flow as the real fixture (about 1 day)
+
+Draw the wiki-general update flow for real through the skill (not hand-written JSON), commit nothing generated, and check both views read it. Compare with the two boards side by side; list remaining gaps in this file.
+
+## Out of scope
+
+- The Avalonia canvas (`dotnet/CodeChroma.Canvas*`): `web/` stays the reference. Track the port in `013-avalonia-canvas.md` after Stages 2-3 land.
+- Executing or tracing the route automatically: the route is authored by the skill; the execution trace (`docs/architecture/trace.md`) stays a separate feature.
+- Inter font and other global theme changes.
+
+## Open questions
+
+1. Where does a route live: inside the process diagram JSON (this plan's default) or as its own `route.json` so one route can be shown on both the process diagram and the code map without redrawing? Decide before Stage 1.
+2. Does the code map for B2 mean the existing hierarchy canvas (folders/files) or the new C2/C3 wiki-general map? The board labels folders like `dotnet/CodeChroma.Bridge` and files like `Routes/WikiGeneralRoutes.cs`, which matches the hierarchy canvas.
+3. How are `children` found? The skill can write them by hand (cheap, can go stale) or the resolver can fill them from the context cache by walking calls out of the step's main function (accurate, needs the context tool). Start by hand, keep the field shape compatible with the second.
+4. Should an expanded step state survive reload? The plan assumes no (in memory only), like other expansion state.
+
+## Done when
+
+- A re-drawn wiki-general update flow carries `route`, step `kind`, `node_ids` and `children` in both bridges, and the self-check validates them.
+- On the process diagram, a step expands in place into its functions with working `↗` links, and the layout makes room without overlap.
+- On the code map, "Show route" lights up the files of the route in order, dims the rest, and `▶ Walk the route` steps through them with no console error.
+- The 5-second test passes on the wiki-general flow in both views.
+- All affected architecture docs are updated in the same changes.

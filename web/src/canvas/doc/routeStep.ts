@@ -72,9 +72,17 @@ export function routeStepOf(element: CanvasElement): RouteStep | undefined {
   return cached(stepCache, element.meta?.route_step, stepOf);
 }
 
-/** The whole route stamped on a box (`meta.route`, same on every box of the diagram), if any. */
+/** The route held by an element's own `meta.route`: a carrier element, or a pre-carrier document's box. */
 export function routeOf(element: CanvasElement): Route | undefined {
   return cached(routeCache, element.meta?.route, parseRoute);
+}
+
+/** The route a box belongs to: its layer's carrier by `meta.route_id`, else the legacy `meta.route` on the box. */
+export function routeFor(element: CanvasElement, carriers: readonly CanvasElement[]): Route | undefined {
+  const id = element.meta?.route_id;
+  const carrier = typeof id === "string" ? carriers.find((c) => c.meta?.route_id === id && c.layer === element.layer) : undefined;
+  // A box that names a route_id whose carrier is not (yet) in the doc has no route: it never carries its own copy.
+  return carrier ? routeOf(carrier) : routeOf(element);
 }
 
 function parseRoute(raw: unknown): Route | undefined {

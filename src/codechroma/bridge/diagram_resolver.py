@@ -66,6 +66,18 @@ def _locate(engine: GraphEngine, node_id: object) -> dict | None:
     return found
 
 
+def route_summary(steps: list) -> str:
+    """The derived "N steps · N files · N AI steps" line of the ROUTE card (026)."""
+    steps = [step for step in steps if isinstance(step, dict)]
+    files: set[str] = set()
+    for step in steps:
+        found = [hit.get("path") for hit in step.get("resolved") or [] if isinstance(hit, dict)]
+        paths = [path for path in found if isinstance(path, str)]
+        files.update(paths or [nid for nid in step.get("node_ids") or [] if isinstance(nid, str)])
+    ai = sum(1 for step in steps if step.get("kind") == "ai")
+    return f"{len(steps)} steps · {len(files)} files · {ai} AI steps"
+
+
 def _resolve_route(engine: GraphEngine, route: object, notes: Diagnostics) -> object:
     """Stamps `resolved` on each step and path/resolved_line/line_mismatch on children (026)."""
     steps = route.get("steps") if isinstance(route, dict) else None
@@ -104,7 +116,7 @@ def _resolve_route(engine: GraphEngine, route: object, notes: Diagnostics) -> ob
                     extra["line_mismatch"] = True
             children.append({**child, **extra})
         out.append({**step, "resolved": found, "children": children})
-    return {**route, "steps": out}
+    return {**route, "steps": out, "summary": route_summary(out)}
 
 
 def _stamp_no_code_reason(node: dict, *, path: str | None) -> dict:

@@ -30,7 +30,7 @@ SCHEMA_VERSION = 1
 # predates it.
 RENDER_KINDS = (
     "hierarchy", "c1", "pattern", "impact", "epic", "spec", "task", "custom", "group", "note",
-    "sequence", "question",
+    "sequence", "question", "route",
 )
 
 # Layers with no diagram of their own; must match diagramCatalog.ts's `NON_DIAGRAM_LAYERS` by hand.

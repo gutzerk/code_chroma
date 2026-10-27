@@ -1,11 +1,14 @@
 import type { CanvasElement } from "../../state/types";
 import { routeStore } from "../../state/routeStore";
 import { RouteLegend } from "./RouteLegend";
-import { routeOf } from "./routeStep";
+import { useRouteCarriers } from "./canvasDocStore";
+import { routeFor } from "./routeStep";
 
 /** The route legend and the Show route button on a diagram frame header. */
 export function RouteFrameActions({ members }: { members: CanvasElement[] }) {
-  const route = members.map(routeOf).find(Boolean); // routeOf is cached per meta object, so this is cheap
+  const carriers = useRouteCarriers();
+  const owner = members.find((member) => member.meta?.route_id !== undefined || member.meta?.route !== undefined);
+  const route = owner ? routeFor(owner, carriers) : undefined; // every box of a layer names the same route
   if (!route) return null;
   return (
     <span className="canvas-diagram-frame-route">

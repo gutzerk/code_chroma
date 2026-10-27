@@ -199,9 +199,10 @@ def _route_parts(resolved: dict) -> tuple[dict, list[dict]] | None:
     return {**route, "steps": clean, "summary": summary}, clean
 
 
-def _with_route(nodes: tuple[GraphNode, ...], resolved: dict) -> tuple[GraphNode, ...]:
+def _with_route(
+    nodes: tuple[GraphNode, ...], parts: tuple[dict, list[dict]] | None
+) -> tuple[GraphNode, ...]:
     """Stamps `route_id` on each node and `route_step` on a step's; the route rides once."""
-    parts = _route_parts(resolved)
     if parts is None:
         return nodes
     route, steps = parts
@@ -216,9 +217,8 @@ def _with_route(nodes: tuple[GraphNode, ...], resolved: dict) -> tuple[GraphNode
     )
 
 
-def _route_carrier(resolved: dict) -> GraphNode | None:
+def _route_carrier(parts: tuple[dict, list[dict]] | None) -> GraphNode | None:
     """The one undrawn element that holds the diagram's whole route (026)."""
-    parts = _route_parts(resolved)
     if parts is None:
         return None
     route = parts[0]
@@ -232,12 +232,15 @@ def _route_carrier(resolved: dict) -> GraphNode | None:
 
 def reshape(resolved: dict, render: str) -> GraphShape:
     """The shared shape plus the route carrier, when the diagram authored a route."""
-    shape = _reshape_nodes(resolved, render)
-    carrier = _route_carrier(resolved)
+    parts = _route_parts(resolved)
+    shape = _reshape_nodes(resolved, render, parts)
+    carrier = _route_carrier(parts)
     return shape if carrier is None else replace(shape, nodes=(*shape.nodes, carrier))
 
 
-def _reshape_nodes(resolved: dict, render: str) -> GraphShape:
+def _reshape_nodes(
+    resolved: dict, render: str, parts: tuple[dict, list[dict]] | None
+) -> GraphShape:
     """One shared shape: nodes come from "nodes", or "items" for the epics index."""
     raw_nodes = resolved.get("nodes")
     if not isinstance(raw_nodes, list):
@@ -247,7 +250,7 @@ def _reshape_nodes(resolved: dict, render: str) -> GraphShape:
         for item in raw_nodes
         if isinstance(item, dict) and isinstance(item.get("id"), str)
     )
-    nodes = _with_route(nodes, resolved)
+    nodes = _with_route(nodes, parts)
     relations = tuple(resolved.get("relations") or [])
     if render == "sequence":
         # A sequence diagram's messages are dedicated elements (not edges): relations[] become

@@ -166,11 +166,9 @@ export function DiagramFrame({ layer, label, members, sizes, typeLabel, boxCount
   const trackedIdsRef = useRef<Set<string>>(new Set());
   const carriers = useRouteCarriers();
   const route = useMemo(() => {
-    for (const member of members) {
-      const found = routeFor(member, carriers);
-      if (found) return found;
-    }
-    return undefined;
+    // Every box of a layer names the same route, so the first member that carries a reference decides.
+    const owner = members.find((member) => member.meta?.route_id !== undefined || member.meta?.route !== undefined);
+    return owner ? routeFor(owner, carriers) : undefined;
   }, [members, carriers]);
 
   const group = useGroupDrag({

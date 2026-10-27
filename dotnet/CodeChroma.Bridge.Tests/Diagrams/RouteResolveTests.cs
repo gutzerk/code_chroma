@@ -54,4 +54,14 @@ public class RouteResolveTests
         Assert.Equal(["route_step", "route_child"], what);
         Assert.Equal(3, resolved["route"]!["steps"]![0]!["node_ids"]!.AsArray().Count);
     }
+
+    [Fact]
+    public void The_summary_falls_back_to_node_ids_when_no_resolved_hit_has_a_path()
+    {
+        var steps = JsonNode.Parse("""[{"id":"s","kind":"ai","resolved":[{"node_id":"x"}],"node_ids":["x"]}]""")!.AsArray();
+
+        var summary = DiagramResolver.RouteSummary(steps);
+
+        Assert.Equal("1 steps · 1 files · 1 AI steps", summary);
+    }
 }

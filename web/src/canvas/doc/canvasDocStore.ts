@@ -21,7 +21,13 @@ function splitRouteCarriers(doc: CanvasDoc): { rest: CanvasDoc; carriers: Canvas
 
 /** Keeps the previous array when the carriers are unchanged, so route subscribers skip a re-render. */
 function stableCarriers(previous: CanvasElement[], next: CanvasElement[]): CanvasElement[] {
-  return JSON.stringify(previous) === JSON.stringify(next) ? previous : next;
+  if (previous.length !== next.length) return next;
+  if (next.length === 0) return previous;
+  const same = next.every((carrier, i) => {
+    const before = previous[i];
+    return carrier.id === before.id && carrier.layer === before.layer && JSON.stringify(carrier.meta) === JSON.stringify(before.meta);
+  });
+  return same ? previous : next;
 }
 
 /** The one canvas document in memory, plus the one optimistic edit a drag needs (016-single-canvas-

@@ -48,6 +48,8 @@ at either end. It uses the same selection path as the dropdown, shows the Agents
 collapsed panel, preserves full screen, and focuses the selected terminal. Modal dialogs keep their
 keyboard input. The dropdown's tooltip documents these shortcuts.
 
+Wikis do not follow a tab: wiki-general and the plain wiki live in the main checkout and are tracked against the main branch tip (see `wiki-general.md`, "One wiki per project").
+
 ## Worktree tabs (C# bridge; supersedes the personal-worktree and branch-switcher notes below)
 
 A tab is a worktree on its own branch: `BranchRecord` (`br_*`, `.codechroma/branches.json`, managed by

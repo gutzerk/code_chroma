@@ -1,6 +1,7 @@
 using System.Net.Http.Json;
 using System.Text.Json.Nodes;
 using CodeChroma.Bridge.Engine;
+using CodeChroma.Bridge.Skills;
 using CodeChroma.Bridge.Stores;
 using CodeChroma.Bridge.Tests.Support;
 using CodeChroma.Bridge.Workspaces;
@@ -143,6 +144,72 @@ public sealed class WikiGeneralRouteTests : IDisposable
 
         Assert.Equal("error", final["state"]!.GetValue<string>());
         Assert.Contains("did not write", final["error"]!.GetValue<string>());
+    }
+
+    [Fact]
+    public async Task A_failed_update_restores_the_manifest_so_a_retry_applies_the_same_delta()
+    {
+        _cli.Script(Stdout(Worker), Exit(0));
+        await Post("generate");
+        await Settled();
+        await StaleAfterStamp();
+        _engine.Graph = WikiGeneralTestData.Graph("lib/c.py");
+        _engine.Clusters = WikiGeneralTestData.Clusters(("c-a", "top::app", ["app/a.py"]), ("c-b", "top::app", ["app/b.py"]), ("c-c", "top::lib", ["lib/c.py"]));
+        var original = File.ReadAllText(Path.Combine(Dir, "manifest.json"));
+        _cli.Script(Stdout("""{"type":"result","is_error":false}"""), Exit(0));
+
+        await Post("update");
+        var failed = await Settled();
+        var restored = File.ReadAllText(Path.Combine(Dir, "manifest.json"));
+        var plan = (await _host.Client.GetFromJsonAsync<JsonObject>("/repos/main/wiki-general/update-plan"))!;
+
+        Assert.Equal("error", failed["state"]!.GetValue<string>());
+        Assert.Equal(original, restored);
+        Assert.Equal("lib", plan["components"]!["created"]!.AsArray().Single()!["id"]!.GetValue<string>());
+    }
+
+    [Fact]
+    public async Task A_new_generate_drops_a_leftover_update_snapshot_so_a_later_restore_cannot_clobber_it()
+    {
+        _cli.Script(Stdout(Worker), Exit(0));
+        await Post("generate");
+        await Settled();
+        await StaleAfterStamp();
+        File.WriteAllText(Path.Combine(Dir, "manifest.json"), """{"leftover":true}""");
+        WikiGeneral.SnapshotManifest(_host.Root, "main");
+        File.Delete(Path.Combine(Dir, "manifest.json"));
+        _cli.Script(Stdout(Worker), Exit(0));
+
+        await Post("generate");
+        await Settled();
+        await StaleAfterStamp();
+        WikiGeneral.RestoreManifest(_host.Root, "main");
+
+        Assert.DoesNotContain("leftover", File.ReadAllText(Path.Combine(Dir, "manifest.json")));
+    }
+
+    [Fact]
+    public async Task A_worktree_tab_reads_the_main_wiki_and_shares_its_job_state()
+    {
+        var tabRoot = Path.Combine(Path.GetTempPath(), "cc-tab-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(tabRoot);
+        try
+        {
+            _host.Factory.Services.GetRequiredService<WorkspaceRegistry>().Register("br_tab", tabRoot);
+            _cli.Script(Stdout(Worker), Exit(0));
+
+            await _host.Client.PostAsync("/repos/br_tab/wiki-general/generate", null);
+            var final = await Settled();
+            var tabStatus = (await _host.Client.GetFromJsonAsync<JsonObject>("/repos/br_tab/wiki-general/status"))!;
+
+            Assert.True(final["has_wiki_general"]!.GetValue<bool>());
+            Assert.True(tabStatus["has_wiki_general"]!.GetValue<bool>());
+            Assert.False(Directory.Exists(Path.Combine(tabRoot, ".codechroma", "wiki-general")));
+        }
+        finally
+        {
+            Directory.Delete(tabRoot, recursive: true);
+        }
     }
 
     [Fact]

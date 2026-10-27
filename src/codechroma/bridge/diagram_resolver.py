@@ -67,7 +67,7 @@ def _locate(engine: GraphEngine, node_id: object) -> dict | None:
 
 
 def _resolve_route(engine: GraphEngine, route: object, notes: Diagnostics) -> object:
-    """Stamps `resolved` on each step and `path`/`resolved_line`/`line_mismatch` on children (026)."""
+    """Stamps `resolved` on each step and path/resolved_line/line_mismatch on children (026)."""
     steps = route.get("steps") if isinstance(route, dict) else None
     if not isinstance(steps, list):
         return route
@@ -78,14 +78,16 @@ def _resolve_route(engine: GraphEngine, route: object, notes: Diagnostics) -> ob
             continue
         sid = step.get("id")
         found = []
-        for nid in step.get("node_ids") or []:
+        ids = step.get("node_ids")
+        for nid in ids if isinstance(ids, list) else []:
             hit = _locate(engine, nid)
             if hit is None:
                 notes.drop("route_step", sid, "unresolved_path", str(nid))
             else:
                 found.append(hit)
         children = []
-        for child in step.get("children") or []:
+        raw_children = step.get("children")
+        for child in raw_children if isinstance(raw_children, list) else []:
             hit = _locate(engine, child.get("node_id")) if isinstance(child, dict) else None
             if not isinstance(child, dict):
                 children.append(child)

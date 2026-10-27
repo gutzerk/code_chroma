@@ -183,7 +183,7 @@ def line_counts(
     ) or ""
     for record in raw.split("\0"):
         parts = record.lstrip("\n").split("	", 2)
-        if len(parts) == 3 and parts[0].isdigit() and parts[1].isdigit():
+        if len(parts) == 3 and all(p.isascii() and p.isdigit() for p in parts[:2]):
             counts[parts[2]] = (int(parts[0]), int(parts[1]))
     for path, kind in statuses.items():
         if path in counts or kind != "added":

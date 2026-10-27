@@ -678,3 +678,13 @@ def test_route_problems_are_advisory_only(tmp_path):
     assert result.returncode == 0
     for code in ("ROUTE-KIND", "ROUTE-CHILD", "ROUTE-STEP", "ROUTE-ORDER"):
         assert code in result.stdout
+
+
+def test_a_route_step_with_an_unhashable_id_is_advised_not_a_crash(tmp_path):
+    steps = [{"id": ["n0"], "order": 1, "kind": "ai"}, {"id": {"x": 1}, "order": 2, "kind": "ai"}]
+
+    result = _run(tmp_path, "custom", _routed(steps))
+
+    assert result.returncode == 0
+    assert "Traceback" not in result.stderr
+    assert "needs a string `id`" in result.stdout

@@ -1,4 +1,5 @@
-﻿using System.Diagnostics;
+﻿using System.Globalization;
+using System.Diagnostics;
 using System.Text;
 using CodeChroma.Bridge.Epics;
 using CodeChroma.Bridge.Stores;
@@ -74,7 +75,8 @@ public sealed class GitTree
         foreach (var record in raw.Split('\0'))
         {
             var parts = record.TrimStart('\n').Split('	', 3);
-            if (parts.Length == 3 && int.TryParse(parts[0], out var added) && int.TryParse(parts[1], out var removed))
+            if (parts.Length == 3 && int.TryParse(parts[0], NumberStyles.None, null, out var added)
+                && int.TryParse(parts[1], NumberStyles.None, null, out var removed))
                 counts[parts[2]] = (added, removed);
         }
         foreach (var (path, kind) in statuses)

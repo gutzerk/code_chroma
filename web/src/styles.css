@@ -8433,3 +8433,20 @@ button[data-copy-state="idle"][aria-label]:hover:not(:disabled) {
 .impact-pill--merged { height: 44px; border-radius: 12px; display: flex; flex-direction: column; justify-content: center; gap: 2px; }
 .impact-pill-files { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-family: var(--font-mono); font-size: 10.5px; color: #8D939B; }
 /* stylelint-enable declaration-property-value-disallowed-list */
+/* 026 route step: kind colour on the left rule, the "N calls" chip and the expanded children list. */
+.route-step { border-left: 4px solid var(--route-kind, #94a3b8); }
+.route-step--trigger { --route-kind: #3b82f6; }
+.route-step--decide { --route-kind: #64748b; }
+.route-step--ai { --route-kind: #a855f7; }
+.route-step--check { --route-kind: #f59e0b; }
+.route-step--data { --route-kind: #10b981; }
+.route-step--failure { --route-kind: #ef4444; }
+.route-step-chip { margin-top: 4px; padding: 1px 8px; border-radius: var(--radius-full); border: 1px solid var(--route-kind, #94a3b8); background: transparent; color: inherit; font-size: 0.7rem; cursor: pointer; }
+.route-step-children { margin: 6px 0 0; padding: 6px 0 0; list-style: none; border-top: 1px dashed var(--route-kind, #94a3b8); }
+.route-step-child { display: flex; align-items: center; gap: 6px; height: 24px; font-size: 0.75rem; }
+.route-step-child-label { font-family: var(--font-mono, monospace); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.route-step-child-line { opacity: 0.6; }
+.route-step-child-open { margin-left: auto; border: 0; background: transparent; color: inherit; cursor: pointer; }
+.route-legend { display: inline-block; margin-left: 8px; font-size: 0.7rem; position: relative; }
+.route-legend-list { position: absolute; z-index: 5; margin: 4px 0 0; padding: 8px 10px; list-style: none; background: var(--surface, #fff); border: 1px solid var(--border, #cbd5e1); border-radius: 6px; white-space: nowrap; }
+.route-legend-swatch { display: inline-block; width: 4px; height: 12px; margin-right: 6px; vertical-align: middle; background: var(--route-kind, #94a3b8); border-left: 0 !important; }

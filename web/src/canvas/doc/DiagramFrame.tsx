@@ -1,3 +1,5 @@
+import { RouteLegend } from "./RouteLegend";
+import { routeOf } from "./routeStep";
 import { useEffect, useMemo, useRef, useSyncExternalStore } from "react";
 import { stringMeta } from "./elementMeta";
 import { buildSequenceModel, SEQUENCE_LEGEND_SPACE, SEQUENCE_PANEL_SPACE } from "./sequenceModel";
@@ -233,6 +235,7 @@ export function DiagramFrame({ layer, label, members, sizes, typeLabel, boxCount
             </span>
           )}
           {isSequence && <SequenceModeSwitch layer={layer} members={members} />}
+          {members.some((member) => routeOf(member)) && <RouteLegend />}
           {/* The frame body is a drag handle, so keep a press on the button from starting a drag. */}
           <span className="canvas-diagram-frame-copy" onPointerDown={(e) => e.stopPropagation()}>
             <CopyButton

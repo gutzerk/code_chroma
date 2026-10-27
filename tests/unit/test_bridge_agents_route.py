@@ -549,7 +549,7 @@ def test_start_brings_up_the_pty_and_reports_a_pid(started_client):
     assert AgentManager(repo).get("runner").session_id == session_id
 
 
-@pytest.mark.parametrize("attach_to", [None, "main"])
+@pytest.mark.parametrize("attach_to", [None, "sibling"])
 def test_claude_agent_launch_loads_the_runtime_plugin_for_worktrees_and_attachments(
     started_client, monkeypatch, attach_to
 ):
@@ -558,6 +558,7 @@ def test_claude_agent_launch_loads_the_runtime_plugin_for_worktrees_and_attachme
     test_client, _repo, bridge = started_client
     body = {"title": "plugin-agent"}
     if attach_to is not None:
+        test_client.post("/agents", json={"title": attach_to})
         body["attach_to"] = attach_to
     test_client.post("/agents", json=body)
     launched = {}

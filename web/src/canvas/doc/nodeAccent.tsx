@@ -2,6 +2,7 @@ import type { CanvasElement } from "../../state/types";
 import { BLOCK_RULES } from "./elementRules";
 import { orderMeta, stringMeta } from "./elementMeta";
 import { NO_CODE_REASON_LABELS } from "./nodeAccentLogic";
+import { BLOCK_ROLE_LABELS, blockRoleFor, blockStatusWord, type BlockRole } from "./blockRole";
 
 // Pure helpers (`accentFor`, `noCodeReasonMessage`, the `NodeAccent` type, the shared
 // `NO_CODE_REASON_LABELS` map) live in ./nodeAccentLogic.tsx so this file exports only components
@@ -104,7 +105,7 @@ export function NoCodeChip({ element }: { element: CanvasElement }) {
  * the title instead of the old floating top-right pill / left-edge strip. Renders nothing when the
  * box carries neither. `change` passes the box's real attributed change count (from `useNodeOverlays`,
  * same source as `NodeChangeBadge`) so the impact chip can echo it as `· N`. */
-export function NodeMetaRow({ element, count }: { element: CanvasElement; count?: number }) {
+export function NodeMetaRow({ element, count, changed = false }: { element: CanvasElement; count?: number; changed?: boolean }) {
   const status = stringMeta(element, "status");
   const hasStatus =
     BLOCK_RULES[element.render].statusChip === "impact" &&
@@ -115,10 +116,13 @@ export function NodeMetaRow({ element, count }: { element: CanvasElement; count?
   const kind = stringMeta(element, "kind");
   const isEpic = element.render === "epic";
   if (isEpic) return <EpicMetaRow element={element} />;
-  if (!hasStatus && !hasNoCode && !kind) return null;
+  const role = blockRoleFor(element);
+  const statusWord = blockStatusWord(element, role, changed);
+  if (!hasStatus && !hasNoCode && !kind && !role) return null;
   return (
     <div className="canvas-node-meta-row" data-testid="canvas-node-meta-row">
-      {kind && (
+      {role && <RoleHeader role={role} statusWord={statusWord} />}
+      {!role && kind && (
         <span className="node-meta-chip node-meta-chip--role" data-testid="role-chip">
           {kind}
         </span>
@@ -151,5 +155,34 @@ function EpicMetaRow({ element }: { element: CanvasElement }) {
         </span>
       ))}
     </div>
+  );
+}
+
+const ROLE_GLYPHS: Record<BlockRole, string[]> = {
+  component: ["M8 6l-6 6 6 6M16 6l6 6-6 6"],
+  entry: ["M3 12h11M10 8l4 4-4 4", "M15 4h5v16h-5"],
+  data: ["M6 3h8l4 4v14H6z", "M14 3v4h4"],
+  external: ["M3 12h18M12 3c3 3 3 15 0 18M12 3c-3 3-3 15 0 18"],
+  actor: ["M4 21c1.5-4 4.5-6 8-6s6.5 2 8 6"],
+  planned: ["M12 5v14M5 12h14"],
+};
+
+/** Icon + coloured uppercase role word (+ status dot and word when changed/stale/planned), the board's block header. */
+function RoleHeader({ role, statusWord }: { role: BlockRole; statusWord?: string }) {
+  return (
+    <span className="block-role-header" data-testid="block-role">
+      <svg className="block-role-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
+        {ROLE_GLYPHS[role].map((d) => <path key={d} d={d} />)}
+        {role === "external" && <circle cx="12" cy="12" r="9" />}
+        {role === "actor" && <circle cx="12" cy="8" r="4" />}
+      </svg>
+      <span className="block-role-word" data-testid="role-chip">{BLOCK_ROLE_LABELS[role]}</span>
+      {statusWord && (
+        <span className="block-role-status" data-testid="block-status">
+          <span className="block-role-dot" aria-hidden="true" />
+          {statusWord}
+        </span>
+      )}
+    </span>
   );
 }

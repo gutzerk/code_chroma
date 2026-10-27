@@ -68,7 +68,7 @@ export function SequenceDrawing({
         return (
           <div
             key={element.id}
-            className={`sequence-participant${focusRef === ref ? " sequence-participant--focused" : ""}`}
+            className={`sequence-participant${focusRef === ref ? " sequence-participant--focused" : ""}${/(ai|external)/i.test(kind ?? "") ? " sequence-participant--external" : ""}`}
             data-testid="sequence-participant"
             style={
               {
@@ -182,6 +182,7 @@ function MessageArrow({
     flagMeta(element, "hero") ? "sequence-message--hero" : "",
     kind === "ai" ? "sequence-message--ai" : "",
     kind === "event" ? "sequence-message--event" : "",
+    kind === "error" || flagMeta(element, "failure") ? "sequence-message--failure" : "",
     dim ? "sequence-message--dim" : "",
     active ? "sequence-message--active" : "",
   ]
@@ -193,7 +194,7 @@ function MessageArrow({
     top: element.position.y - top - 10,
     width: spanPx,
     // ai/event keep their own class colour; a sender tint would override it
-    ...(kind === "ai" || kind === "event" ? {} : { "--seq-accent-rgb": accent }),
+    ...(kind === "ai" || kind === "event" || kind === "error" || flagMeta(element, "failure") ? {} : { "--seq-accent-rgb": accent }),
   } as CSSProperties;
 
   return (

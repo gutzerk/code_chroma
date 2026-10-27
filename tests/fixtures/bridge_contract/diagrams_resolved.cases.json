@@ -204,6 +204,34 @@
           }
         }
       ]
+    },
+    {
+      "id": "a_route_summary_counts_only_object_steps",
+      "requires": [
+        "diagram-resolver"
+      ],
+      "steps": [
+        {
+          "fs": "write",
+          "path": ".codechroma/diagrams/feature-plan/route-oops/route-oops.json",
+          "text": "{\"nodes\": [{\"id\": \"s1\", \"name\": \"Create\"}], \"relations\": [], \"route\": {\"id\": \"r1\", \"title\": \"t\", \"steps\": [{\"id\": \"s1\", \"order\": 1, \"title\": \"Create\", \"kind\": \"decide\", \"node_ids\": [\"billing/service.py::function::BillingService.create_invoice\"], \"children\": []}, \"oops\"]}}"
+        },
+        {
+          "http": {
+            "method": "GET",
+            "path": "/repos/main/feature-plan/route-oops"
+          },
+          "expect": {
+            "status": 200,
+            "checks": [
+              {
+                "path": "$.route.summary",
+                "equals": "1 steps · 1 files · 0 AI steps"
+              }
+            ]
+          }
+        }
+      ]
     }
   ]
 }

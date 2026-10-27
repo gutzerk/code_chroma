@@ -198,15 +198,16 @@ public static class DiagramResolver
     /// <summary>The derived "N steps · N files · N AI steps" line of the ROUTE card (026), counting distinct resolved paths.</summary>
     public static string RouteSummary(JsonArray steps)
     {
+        var objects = steps.OfType<JsonObject>().ToList();
         var files = new HashSet<string>();
-        foreach (var step in steps.OfType<JsonObject>())
+        foreach (var step in objects)
         {
             var found = (step["resolved"] as JsonArray ?? []).OfType<JsonObject>().Select(h => Json.Str(h["path"])).OfType<string>().ToList();
             if (found.Count > 0) files.UnionWith(found);
             else files.UnionWith((step["node_ids"] as JsonArray ?? []).Select(n => Json.Str(n)).OfType<string>());
         }
-        var ai = steps.OfType<JsonObject>().Count(s => Json.Str(s["kind"]) == "ai");
-        return $"{steps.Count} steps · {files.Count} files · {ai} AI steps";
+        var ai = objects.Count(s => Json.Str(s["kind"]) == "ai");
+        return $"{objects.Count} steps · {files.Count} files · {ai} AI steps";
     }
 
     /// <summary>Python's `authored == resolved` for a numeric line (12.0 equals 12); anything else mismatches.</summary>

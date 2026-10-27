@@ -163,6 +163,12 @@ def _read_only(case: dict) -> bool:
     return all("http" in step and step["http"]["method"] == "GET" for step in case["steps"])
 
 
+@pytest.fixture(autouse=True)
+def no_live_cli_probe(monkeypatch):
+    """Cases assume the built-in model lists, so a machine's own CLI must never answer."""
+    monkeypatch.setattr("codechroma.llm.model_catalog._probe_cli_models", lambda _adapter: None)
+
+
 @pytest.fixture
 def user_stores(tmp_path, monkeypatch):
     """Points every machine-local settings store at an empty temp dir, so cases never share state."""

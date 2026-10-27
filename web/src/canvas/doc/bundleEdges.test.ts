@@ -46,4 +46,25 @@ describe("bundleEdges", () => {
 
     expect(out).toHaveLength(3);
   });
+
+  it("collapses every edge between two group frames into one labelled bundle", () => {
+    const groupOf = (id: string) => ({ a1: "ga", a2: "ga", b1: "gb", b2: "gb" })[id] ?? null;
+    const out = bundleEdges(
+      [edge("1", "a1", "b1", "http"), edge("2", "a2", "b2", "ws"), edge("3", "a1", "b2", "http")],
+      groupOf,
+    );
+
+    expect(out).toHaveLength(1);
+    expect(out[0].label).toBe("http · ws ×3");
+  });
+
+  it("keeps opposite group directions and non-group edges as before", () => {
+    const groupOf = (id: string) => ({ a1: "ga", a2: "ga", b1: "gb" })[id] ?? null;
+    const out = bundleEdges(
+      [edge("1", "a1", "b1", "x"), edge("2", "b1", "a1", "y"), edge("3", "a1", "a2", "in"), edge("4", "a1", "z", "o"), edge("5", "a1", "z", "o")],
+      groupOf,
+    );
+
+    expect(out.map((e) => e.label)).toEqual(["x", "y", "in", "o ×2"]);
+  });
 });

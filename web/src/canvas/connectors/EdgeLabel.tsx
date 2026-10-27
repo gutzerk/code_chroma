@@ -14,10 +14,15 @@ export interface EdgeLabelProps {
   origin?: string;
   /** Opens the code at `origin` (invoked on label click or Enter); unused when `origin` is unset. */
   onOpenOrigin?: (origin: string) => void;
+  /** `board`: the design-board pill (padding 1px 6px, radius 7px, mono 10.5px); unset keeps the default chip. */
+  variant?: "board";
 }
 
 const PAD_X = 4;
 const PAD_Y = 2;
+const BOARD_PAD_X = 6;
+const BOARD_PAD_Y = 1;
+const BOARD_RADIUS = 7;
 
 /** An arrow's caption with an opaque chip measured to fit behind it. A halo stroke alone reads fine
  * over the canvas but not where a connector's label lands on a box or crosses another arrow's
@@ -34,7 +39,10 @@ export function EdgeLabel({
   className,
   origin,
   onOpenOrigin,
+  variant,
 }: EdgeLabelProps) {
+  const padX = variant === "board" ? BOARD_PAD_X : PAD_X;
+  const padY = variant === "board" ? BOARD_PAD_Y : PAD_Y;
   const textRef = useRef<SVGTextElement | null>(null);
   const [chip, setChip] = useState<{ x: number; y: number; width: number; height: number } | null>(
     null,
@@ -49,20 +57,20 @@ export function EdgeLabel({
       return;
     }
     setChip({
-      x: box.x - PAD_X,
-      y: box.y - PAD_Y,
-      width: box.width + PAD_X * 2,
-      height: box.height + PAD_Y * 2,
+      x: box.x - padX,
+      y: box.y - padY,
+      width: box.width + padX * 2,
+      height: box.height + padY * 2,
     });
-  }, [x, y, text, transport]);
+  }, [x, y, text, transport, padX, padY]);
 
   // A real hairline (like the block-description divider) sits between the label and the transport
   // row, spanning the caption's inner width at the vertical centre of the measured box (the label
   // is the top row, the transport the bottom one, so the middle is the seam between them).
   const TRANSPORT_DY = 13;
   const hairlineY = chip ? chip.y + chip.height / 2 : 0;
-  const hairlineLeft = chip ? chip.x + PAD_X : 0;
-  const hairlineRight = chip ? chip.x + chip.width - PAD_X : 0;
+  const hairlineLeft = chip ? chip.x + padX : 0;
+  const hairlineRight = chip ? chip.x + chip.width - padX : 0;
   // Deriving both from one truthy branch narrows `origin`/`onOpenOrigin` together, so no `?.`/cast.
   const handleClick = origin && onOpenOrigin ? () => onOpenOrigin(origin) : undefined;
   const clickable = Boolean(handleClick);
@@ -89,8 +97,14 @@ export function EdgeLabel({
           : undefined
       }
     >
-      {chip && <rect className="connector-label-chip" rx={8} {...chip} />}
-      <text ref={textRef} className={className} x={x} y={y}>
+      {chip && (
+        <rect
+          className={variant === "board" ? "connector-label-chip connector-label-chip--board" : "connector-label-chip"}
+          rx={variant === "board" ? BOARD_RADIUS : 8}
+          {...chip}
+        />
+      )}
+      <text ref={textRef} className={variant === "board" ? `${className ?? ""} connector-label-text--board`.trim() : className} x={x} y={y}>
         {/* Explicit `x` on each row: with `text-anchor: middle` the text is centred on that x, and
             giving both rows the same x pins them to the same centre rather than relying on tspan
             inheriting x + anchor through SVG cascade nuances. */}

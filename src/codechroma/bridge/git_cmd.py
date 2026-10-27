@@ -19,6 +19,7 @@ def run_git_raw(
     *args: str,
     env: dict[str, str] | None = None,
     input_text: str | None = None,
+    timeout: float | None = None,
 ) -> subprocess.CompletedProcess[str] | None:
     """The one place a git subprocess is spawned; None when git couldn't be run at all."""
     try:
@@ -30,7 +31,7 @@ def run_git_raw(
             env=dict(runtime.env),
             input=input_text.encode("utf-8") if input_text is not None else None,
             capture_output=True,
-            timeout=_git_timeout(),
+            timeout=timeout if timeout is not None else _git_timeout(),
         )
         return subprocess.CompletedProcess(
             raw.args,

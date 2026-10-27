@@ -5,8 +5,8 @@ import asyncio
 import time
 
 import pytest
-from fastapi.testclient import TestClient
 
+from tests.conftest import TabClient as TestClient
 from tests.conftest import copy_sample_repo, diagram_json_path
 from tests.unit.fake_claude import CLI_MISSING, fake_claude_exec
 
@@ -147,7 +147,8 @@ def test_generate_broadcasts_tag_the_ping_with_the_agents_workspace_id(server_mo
     monkeypatch.setattr("codechroma.llm.runtime_env.shutil.which", lambda _name, **_kwargs: None)
 
     with TestClient(bridge.app) as client:
-        agent_id = client.post("/agents", json={"title": "refund flow"}).json()["id"]
+        agent = client.post("/agents", json={"title": "refund flow"}).json()
+        agent_id = agent["id"]
         with client.websocket_connect(f"/repos/{agent_id}/events") as websocket:
             client.post(f"/repos/{agent_id}/c1/generate")
             message = _receive_until(websocket, "c1-status")
@@ -156,5 +157,5 @@ def test_generate_broadcasts_tag_the_ping_with_the_agents_workspace_id(server_mo
         "type": "c1-status",
         "state": "error",
         "error": CLI_MISSING,
-        "workspace": agent_id,
+        "workspace": agent["workspace"],
     }

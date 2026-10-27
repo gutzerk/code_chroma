@@ -402,107 +402,77 @@ body {
   flex-shrink: 0;
 }
 
-/* Branch chip — a pill like the project tab, not a bare icon+label pair floating in the bar. */
-.branch-switcher {
+/* Worktree strip — one pill per tab, in the chrome row where the branch chip used to sit. */
+.worktree-strip {
   position: relative;
   display: flex;
   align-items: center;
-  gap: 0.35rem;
+  gap: 0.25rem;
   height: 40px;
-  padding: 0 14px 0 6px;
+  min-width: 0;
+}
+
+.canvas-chrome .worktree-tab {
+  display: flex;
+  align-items: center;
+  height: 32px;
+  padding: 0 4px 0 10px;
   border-radius: var(--radius-full);
   background: var(--bg-raised);
-}
-
-.branch-switcher .branch-switcher-button {
-  width: 28px;
-  height: 28px;
-}
-
-/* The current branch name beside the branch icon button — PyCharm's "Git: <branch>". Stays
-   fixed-size (no shrink/ellipsis) like the agent controls, since the breadcrumb is the only
-   shrinkable element in the bar. */
-.canvas-chrome .branch-switcher-name {
-  flex-shrink: 0;
-  font-size: 0.8125rem;
   color: var(--text-2);
-  font-family: var(--font-ui);
-  white-space: nowrap;
+  font-size: 0.8125rem;
+  position: relative;
 }
 
-.branch-switcher-list {
-  position: absolute;
-  left: 0;
-  top: calc(100% + 6px);
-  z-index: 61;
-  width: 200px;
-  max-height: 260px;
-  overflow-y: auto;
-  margin: 0;
-  padding: 0.3rem;
-  list-style: none;
-  background: var(--surface-3);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-md);
-  box-shadow: 0 10px 28px rgba(0, 0, 0, 0.45);
-}
-
-/* Scoped under .canvas-chrome so it outranks the plain `.canvas-chrome button` base rule (one class
-   + one type beats one class) — same specificity trap as .agents-toggle-button above. Without this,
-   every branch button collapses to the rail's 28x28 icon-square sizing and its text overlaps the
-   next item's. */
-.canvas-chrome .branch-switcher-item {
-  display: block;
-  width: 100%;
-  height: auto;
-  padding: 0.3rem 0.5rem;
-  border: none;
-  border-radius: var(--radius-sm);
-  background: transparent;
-  color: var(--text-1);
-  font-size: 0.78rem;
-  text-align: left;
-  cursor: pointer;
-}
-
-.canvas-chrome .branch-switcher-item:hover {
-  background: rgba(255, 255, 255, 0.08);
-}
-
-.canvas-chrome .branch-switcher-item[aria-current="true"] {
+.canvas-chrome .worktree-tab.is-active {
   color: var(--accent);
   font-weight: 600;
 }
 
-/* The Update action — a separator above the branch list, like PyCharm's Update Project. */
-.canvas-chrome .branch-switcher-update {
-  display: flex;
-  align-items: center;
-  width: 100%;
-  padding: 0.35rem 0.5rem;
-  margin-bottom: 0.3rem;
-  border: 1px solid var(--border);
-  border-radius: var(--radius-sm);
+.canvas-chrome .worktree-tab-label,
+.canvas-chrome .worktree-tab-close,
+.canvas-chrome .worktree-add {
+  width: auto;
+  height: auto;
+  border: none;
   background: transparent;
-  color: var(--text-1);
-  font-size: 0.78rem;
-  text-align: left;
+  color: inherit;
+  font: inherit;
   cursor: pointer;
 }
 
-.canvas-chrome .branch-switcher-update:hover:not(:disabled) {
-  background: rgba(255, 255, 255, 0.08);
+.canvas-chrome .worktree-tab-close,
+.canvas-chrome .worktree-add {
+  padding: 0 6px;
 }
 
-.canvas-chrome .branch-switcher-update:disabled {
+.canvas-chrome .worktree-add:disabled {
   opacity: 0.5;
   cursor: default;
 }
 
-.branch-switcher-empty {
-  padding: 0.3rem 0.5rem;
+.canvas-chrome .worktree-rename {
+  width: 96px;
+  font: inherit;
+  color: var(--text-1);
+}
+
+.worktree-error,
+.worktree-warning {
   font-size: 0.75rem;
   color: var(--text-2);
+  white-space: nowrap;
+}
+
+.worktree-error {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  z-index: 61;
+  padding: 0.2rem 0.4rem;
+  background: var(--surface-3);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
 }
 
 /* The rail's "Draw…" button (RecipeMenu's old dropdown, shrunk to a single always-clickable action

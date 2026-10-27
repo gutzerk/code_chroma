@@ -8,9 +8,9 @@ import shutil
 from pathlib import Path
 
 import pytest
-from fastapi.testclient import TestClient
 
 from codechroma.bridge.agents import worktree
+from tests.conftest import TabClient as TestClient
 from tests.conftest import copy_sample_repo
 
 

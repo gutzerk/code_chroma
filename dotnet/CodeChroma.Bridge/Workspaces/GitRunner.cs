@@ -38,23 +38,30 @@ public static class GitRunner
     public static string? Run(string cwd, params string[] args) => Run(cwd, null, args);
 
     /// <summary>Exit code, stdout and stderr of a git command; null when git could not be started or timed out.</summary>
-    public static (int ExitCode, string Stdout, string Stderr)? RunRaw(string cwd, params string[] args)
+    public static (int ExitCode, string Stdout, string Stderr)? RunRaw(string cwd, params string[] args) =>
+        RunRaw(cwd, TimeSpan.FromSeconds(BridgeLimits.GitLongTimeoutSeconds), null, args);
+
+    /// <summary>RunRaw with its own timeout and extra environment variables; stdin is closed so git can never wait on input.</summary>
+    public static (int ExitCode, string Stdout, string Stderr)? RunRaw(string cwd, TimeSpan timeout, IReadOnlyDictionary<string, string>? env, params string[] args)
     {
         var info = new ProcessStartInfo("git")
         {
             WorkingDirectory = cwd,
             RedirectStandardOutput = true,
             RedirectStandardError = true,
+            RedirectStandardInput = true,
             StandardOutputEncoding = Encoding.UTF8,
             StandardErrorEncoding = Encoding.UTF8,
         };
         foreach (var arg in args) info.ArgumentList.Add(arg);
+        foreach (var (key, value) in env ?? new Dictionary<string, string>()) info.Environment[key] = value;
         try
         {
             using var process = Process.Start(info)!;
             var stdout = process.StandardOutput.ReadToEndAsync();
             var stderr = process.StandardError.ReadToEndAsync();
-            if (!process.WaitForExit(TimeSpan.FromSeconds(BridgeLimits.GitLongTimeoutSeconds)))
+            process.StandardInput.Close();
+            if (!process.WaitForExit(timeout))
             {
                 try { process.Kill(entireProcessTree: true); } catch (InvalidOperationException) { }
                 return null;

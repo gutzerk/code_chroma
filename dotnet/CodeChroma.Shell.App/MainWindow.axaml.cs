@@ -34,7 +34,7 @@ public sealed partial class MainWindow : Window, IShellUi, ILauncherHost
         RecentsPath = RecentRepos.StorePath(UserDataDir);
         tabs = new TabModel(CreateView);
         var manager = new BridgeManager(new ProcessBridgeLauncher(), new TcpPortFinder(), new HttpHealthProbe(new HttpClient()));
-        controller = new ShellController(tabs, new BridgeRegistry(manager, ResolveBridge()), this, new BranchBridgeClient(new HttpClient()), RecentsPath, version, action => Dispatcher.UIThread.Post(action));
+        controller = new ShellController(tabs, new BridgeRegistry(manager, ResolveBridge()), this, RecentsPath, version, action => Dispatcher.UIThread.Post(action));
 
         updates = new UpdateHost(this, UserDataDir, version, () => tabs.Tabs.Select(t => (TabView)t.View).Where(v => IsBridgeOrigin(v, v.Web.Url)), Close);
         Opened += (_, _) => updates.Start();
@@ -270,8 +270,6 @@ public sealed partial class MainWindow : Window, IShellUi, ILauncherHost
     }
 
     public void ShowError(string title, string message) => _ = Dialogs.ShowMessageAsync(this, title, message);
-
-    public Task<BranchPick> PickBranchAsync(string project, BranchChoices choices) => Dialogs.PickBranchAsync(this, project, choices);
 
     public Task OpenRepoAsync(LauncherPanel requester, string repoPath, string? workspaceId)
     {

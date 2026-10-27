@@ -128,7 +128,7 @@
       ]
     },
     {
-      "id": "attaching_to_an_unknown_workspace_is_a_404",
+      "id": "creating_an_agent_needs_a_tab_and_never_attaches_to_main",
       "steps": [
         {
           "http": {
@@ -136,8 +136,108 @@
             "path": "/agents",
             "json": {
               "title": "x",
+              "kind": "shell"
+            }
+          },
+          "expect": {
+            "status": 400,
+            "json": {
+              "detail": "workspace is required"
+            }
+          }
+        },
+        {
+          "http": {
+            "method": "POST",
+            "path": "/branches/ensure"
+          },
+          "capture": {
+            "ws": "$.active",
+            "wt": "$.branches[0].worktree"
+          },
+          "expect": {
+            "status": 200
+          }
+        },
+        {
+          "http": {
+            "method": "POST",
+            "path": "/agents",
+            "json": {
+              "title": "x",
               "kind": "shell",
-              "attach_to": "nope"
+              "attach_to": "main",
+              "workspace": "{{ws}}"
+            }
+          },
+          "expect": {
+            "status": 400,
+            "json": {
+              "detail": "agents cannot attach to main"
+            }
+          }
+        },
+        {
+          "http": {
+            "method": "POST",
+            "path": "/agents",
+            "json": {
+              "title": "x",
+              "kind": "shell",
+              "workspace": "br_nope"
+            }
+          },
+          "expect": {
+            "status": 404,
+            "json": {
+              "detail": "unknown workspace: br_nope"
+            }
+          }
+        },
+        {
+          "http": {
+            "method": "POST",
+            "path": "/agents",
+            "json": {
+              "title": "x",
+              "kind": "shell",
+              "workspace": 5
+            }
+          },
+          "expect": {
+            "status": 400,
+            "json": {
+              "detail": "workspace must be a string"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "attaching_to_an_unknown_workspace_is_a_404",
+      "steps": [
+        {
+          "http": {
+            "method": "POST",
+            "path": "/branches/ensure"
+          },
+          "capture": {
+            "ws": "$.active",
+            "wt": "$.branches[0].worktree"
+          },
+          "expect": {
+            "status": 200
+          }
+        },
+        {
+          "http": {
+            "method": "POST",
+            "path": "/agents",
+            "json": {
+              "title": "x",
+              "kind": "shell",
+              "attach_to": "nope",
+              "workspace": "{{ws}}"
             }
           },
           "expect": {
@@ -231,8 +331,21 @@
       ]
     },
     {
-      "id": "an_agent_gets_its_own_branch_and_worktree_and_can_be_deleted",
+      "id": "an_agent_works_in_its_tabs_worktree_and_can_be_deleted",
       "steps": [
+        {
+          "http": {
+            "method": "POST",
+            "path": "/branches/ensure"
+          },
+          "capture": {
+            "ws": "$.active",
+            "wt": "$.branches[0].worktree"
+          },
+          "expect": {
+            "status": 200
+          }
+        },
         {
           "http": {
             "method": "POST",
@@ -240,7 +353,8 @@
             "json": {
               "title": "First Task!",
               "kind": "shell",
-              "context": "line one\nline two"
+              "context": "line one\nline two",
+              "workspace": "{{ws}}"
             }
           },
           "expect": {
@@ -252,7 +366,7 @@
               },
               {
                 "path": "$.branch",
-                "equals": "agent/first-task"
+                "equals": "wt-1"
               },
               {
                 "path": "$.status",
@@ -272,11 +386,23 @@
               },
               {
                 "path": "$.shares_workspace_with",
-                "equals": null
+                "equals": "{{ws}}"
               },
               {
                 "path": "$.worktree_lost",
                 "equals": false
+              },
+              {
+                "path": "$.workspace",
+                "equals": "{{ws}}"
+              },
+              {
+                "path": "$.worktree",
+                "equals": "{{wt}}"
+              },
+              {
+                "path": "$.base_branch",
+                "equals": "wt-1"
               }
             ]
           }
@@ -330,19 +456,77 @@
       "id": "a_drawing_agent_keeps_its_type_and_request",
       "steps": [
         {
-          "http": {"method": "POST", "path": "/agents", "json": {"title": "Sketch", "kind": "shell", "attach_to": "main", "context": "Draw it", "context_kind": "task", "diagram_type": "sequence", "diagram_request": "  how a save\nreaches the db  "}},
-          "expect": {"status": 200, "checks": [
-            {"path": "$.diagram_type", "equals": "sequence"},
-            {"path": "$.diagram_request", "equals": "how a save reaches the db"}
-          ]}
+          "http": {
+            "method": "POST",
+            "path": "/branches/ensure"
+          },
+          "capture": {
+            "ws": "$.active",
+            "wt": "$.branches[0].worktree"
+          },
+          "expect": {
+            "status": 200
+          }
         },
         {
-          "http": {"method": "GET", "path": "/agents"},
-          "expect": {"status": 200, "checks": [{"path": "$.agents[0].diagram_type", "equals": "sequence"}, {"path": "$.agents[0].diagram_request", "equals": "how a save reaches the db"}]}
+          "http": {
+            "method": "POST",
+            "path": "/agents",
+            "json": {
+              "title": "Sketch",
+              "kind": "shell",
+              "context": "Draw it",
+              "context_kind": "task",
+              "diagram_type": "sequence",
+              "diagram_request": "  how a save\nreaches the db  ",
+              "workspace": "{{ws}}"
+            }
+          },
+          "expect": {
+            "status": 200,
+            "checks": [
+              {
+                "path": "$.diagram_type",
+                "equals": "sequence"
+              },
+              {
+                "path": "$.diagram_request",
+                "equals": "how a save reaches the db"
+              }
+            ]
+          }
         },
         {
-          "http": {"method": "DELETE", "path": "/agents/sketch"},
-          "expect": {"status": 200, "json": {"status": "deleted", "id": "sketch"}}
+          "http": {
+            "method": "GET",
+            "path": "/agents"
+          },
+          "expect": {
+            "status": 200,
+            "checks": [
+              {
+                "path": "$.agents[0].diagram_type",
+                "equals": "sequence"
+              },
+              {
+                "path": "$.agents[0].diagram_request",
+                "equals": "how a save reaches the db"
+              }
+            ]
+          }
+        },
+        {
+          "http": {
+            "method": "DELETE",
+            "path": "/agents/sketch"
+          },
+          "expect": {
+            "status": 200,
+            "json": {
+              "status": "deleted",
+              "id": "sketch"
+            }
+          }
         }
       ]
     },
@@ -350,18 +534,53 @@
       "id": "a_bad_diagram_hint_is_a_400_with_a_reason",
       "steps": [
         {
-          "http": {"method": "POST", "path": "/agents", "json": {"diagram_type": "bogus"}},
-          "expect": {"status": 400, "json": {"detail": "unknown diagram_type: bogus"}}
+          "http": {
+            "method": "POST",
+            "path": "/agents",
+            "json": {
+              "diagram_type": "bogus"
+            }
+          },
+          "expect": {
+            "status": 400,
+            "json": {
+              "detail": "unknown diagram_type: bogus"
+            }
+          }
         },
         {
-          "http": {"method": "POST", "path": "/agents", "json": {"diagram_request": 5}},
-          "expect": {"status": 400, "json": {"detail": "diagram_request must be a string"}}
+          "http": {
+            "method": "POST",
+            "path": "/agents",
+            "json": {
+              "diagram_request": 5
+            }
+          },
+          "expect": {
+            "status": 400,
+            "json": {
+              "detail": "diagram_request must be a string"
+            }
+          }
         }
       ]
     },
     {
-      "id": "an_agent_attached_to_main_shares_it_and_refuses_worktree_removal",
+      "id": "an_agent_on_a_tab_shares_its_worktree_and_refuses_worktree_removal",
       "steps": [
+        {
+          "http": {
+            "method": "POST",
+            "path": "/branches/ensure"
+          },
+          "capture": {
+            "ws": "$.active",
+            "wt": "$.branches[0].worktree"
+          },
+          "expect": {
+            "status": 200
+          }
+        },
         {
           "http": {
             "method": "POST",
@@ -369,7 +588,7 @@
             "json": {
               "title": "Looker",
               "kind": "shell",
-              "attach_to": "main"
+              "workspace": "{{ws}}"
             }
           },
           "expect": {
@@ -377,7 +596,7 @@
             "checks": [
               {
                 "path": "$.shares_workspace_with",
-                "equals": "main"
+                "equals": "{{ws}}"
               }
             ]
           }
@@ -402,10 +621,24 @@
         {
           "http": {
             "method": "POST",
+            "path": "/branches/ensure"
+          },
+          "capture": {
+            "ws": "$.active",
+            "wt": "$.branches[0].worktree"
+          },
+          "expect": {
+            "status": 200
+          }
+        },
+        {
+          "http": {
+            "method": "POST",
             "path": "/agents",
             "json": {
               "title": "Win",
-              "kind": "shell"
+              "kind": "shell",
+              "workspace": "{{ws}}"
             }
           },
           "expect": {
@@ -458,11 +691,24 @@
         {
           "http": {
             "method": "POST",
+            "path": "/branches/ensure"
+          },
+          "capture": {
+            "ws": "$.active",
+            "wt": "$.branches[0].worktree"
+          },
+          "expect": {
+            "status": 200
+          }
+        },
+        {
+          "http": {
+            "method": "POST",
             "path": "/agents",
             "json": {
               "title": "a1",
               "kind": "shell",
-              "attach_to": "main"
+              "workspace": "{{ws}}"
             }
           },
           "expect": {
@@ -476,7 +722,7 @@
             "json": {
               "title": "a2",
               "kind": "shell",
-              "attach_to": "main"
+              "workspace": "{{ws}}"
             }
           },
           "expect": {
@@ -490,7 +736,7 @@
             "json": {
               "title": "a3",
               "kind": "shell",
-              "attach_to": "main"
+              "workspace": "{{ws}}"
             }
           },
           "expect": {
@@ -504,7 +750,7 @@
             "json": {
               "title": "a4",
               "kind": "shell",
-              "attach_to": "main"
+              "workspace": "{{ws}}"
             }
           },
           "expect": {
@@ -518,7 +764,7 @@
             "json": {
               "title": "a5",
               "kind": "shell",
-              "attach_to": "main"
+              "workspace": "{{ws}}"
             }
           },
           "expect": {
@@ -532,61 +778,13 @@
             "json": {
               "title": "a6",
               "kind": "shell",
-              "attach_to": "main"
+              "workspace": "{{ws}}"
             }
           },
           "expect": {
             "status": 409,
             "json": {
               "detail": "the limit of 5 concurrent agents is reached"
-            }
-          }
-        }
-      ]
-    },
-    {
-      "id": "the_branch_switcher_validates_its_input",
-      "steps": [
-        {
-          "http": {
-            "method": "GET",
-            "path": "/agents/branch"
-          },
-          "expect": {
-            "status": 200,
-            "checks": [
-              {
-                "path": "$.current",
-                "type": "string"
-              }
-            ]
-          }
-        },
-        {
-          "http": {
-            "method": "POST",
-            "path": "/agents/branch",
-            "json": {}
-          },
-          "expect": {
-            "status": 400,
-            "json": {
-              "detail": "branch is required"
-            }
-          }
-        },
-        {
-          "http": {
-            "method": "POST",
-            "path": "/agents/branch",
-            "json": {
-              "branch": "nope"
-            }
-          },
-          "expect": {
-            "status": 404,
-            "json": {
-              "detail": "unknown branch: nope"
             }
           }
         }
@@ -601,10 +799,24 @@
         {
           "http": {
             "method": "POST",
+            "path": "/branches/ensure"
+          },
+          "capture": {
+            "ws": "$.active",
+            "wt": "$.branches[0].worktree"
+          },
+          "expect": {
+            "status": 200
+          }
+        },
+        {
+          "http": {
+            "method": "POST",
             "path": "/agents",
             "json": {
               "title": "Live",
-              "kind": "shell"
+              "kind": "shell",
+              "workspace": "{{ws}}"
             }
           },
           "expect": {

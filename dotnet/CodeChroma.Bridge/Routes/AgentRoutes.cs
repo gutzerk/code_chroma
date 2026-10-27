@@ -25,31 +25,6 @@ public static class AgentRoutes
             return Reply.Json(await Task.Run(() => AgentBootstrap.Initialize(repoRoot, extra)));
         }));
 
-        app.MapGet("/agents/branch", () => Reply.GuardBlocking(() => Reply.Json(new JsonObject
-        {
-            ["current"] = MainBranchOps.CurrentBranch(repoRoot),
-            ["branches"] = Strings(MainBranchOps.SwitchableBranches(repoRoot)),
-        })));
-
-        app.MapPost("/agents/branch", (HttpRequest request, AgentManager agents, AgentSessionRegistry sessions, ConnectionManager connections) => Reply.GuardAsync(async () =>
-        {
-            var body = await Reply.LenientBody(request);
-            if (Json.Str(body["branch"]) is not { Length: > 0 } branch) return Reply.Error(400, "branch is required");
-            RefuseIfLiveAgentInMain(agents, sessions, repoRoot);
-            try { await Task.Run(() => MainBranchOps.Checkout(repoRoot, branch)); }
-            catch (UnknownBranchException) { return Reply.Error(404, $"unknown branch: {branch}"); }
-            await connections.Broadcast(new JsonObject { ["type"] = "branch-changed", ["branch"] = branch });
-            return Reply.Json(new JsonObject { ["current"] = branch, ["branches"] = Strings(await Task.Run(() => MainBranchOps.SwitchableBranches(repoRoot))) });
-        }));
-
-        app.MapPost("/agents/branch/update", (AgentManager agents, AgentSessionRegistry sessions, ConnectionManager connections) => Reply.GuardAsync(async () =>
-        {
-            RefuseIfLiveAgentInMain(agents, sessions, repoRoot);
-            var branch = await Task.Run(() => MainBranchOps.UpdateBranch(repoRoot));
-            await connections.Broadcast(new JsonObject { ["type"] = "branch-changed" });
-            return Reply.Json(new JsonObject { ["current"] = branch, ["branches"] = Strings(await Task.Run(() => MainBranchOps.SwitchableBranches(repoRoot))) });
-        }));
-
         app.MapGet("/agents", (AgentManager agents, AgentSessionRegistry sessions) => Reply.Guard(() => Reply.Json(new JsonObject
         {
             ["agents"] = new JsonArray(agents.List().Select(r => (JsonNode?)Payload(sessions, r)).ToArray()),
@@ -60,7 +35,7 @@ public static class AgentRoutes
         app.MapPost("/agents", (HttpRequest request, AgentManager agents, AgentSessionRegistry sessions, WorkspaceRegistry registry, ConnectionManager connections) => Reply.GuardAsync(async () =>
         {
             var body = await Reply.LenientBody(request);
-            var invalid = Validate(body, out var title, out var kind, out var attachTo, out var context, out var contextKind);
+            var invalid = Validate(body, out var title, out var kind, out var attachTo, out var context, out var contextKind, out var workspace);
             if (invalid is not null) return Reply.Error(400, invalid);
             if (body.ContainsKey("run_id") || body.ContainsKey("fork_session"))
             {
@@ -80,8 +55,8 @@ public static class AgentRoutes
             if (hint.Error is not null) return Reply.Error(400, hint.Error);
             var drawing = contextKind == "task" && hint.Type is not null;
             AgentRecord record;
-            try { record = await Task.Run(() => agents.Create(title, kind, attachTo, context, contextKind, drawing ? hint.Type : null, drawing ? hint.Request : null)); }
-            catch (UnknownAgentException) { return Reply.Error(404, $"unknown attach_to: {attachTo}"); }
+            try { record = await Task.Run(() => agents.Create(title, kind, attachTo, context, contextKind, drawing ? hint.Type : null, drawing ? hint.Request : null, workspace)); }
+            catch (UnknownAgentException) { return Reply.Error(404, attachTo is null ? $"unknown workspace: {workspace}" : $"unknown attach_to: {attachTo}"); }
             catch (WorktreeException error) { return Reply.Error(400, error.Message); }
             registry.Register(record.Id, record.Worktree, sharesWorkspaceWith: record.SharesWorkspaceWith);
             var payload = record.ToPayload();
@@ -227,9 +202,10 @@ public static class AgentRoutes
     public static Task BroadcastStatus(ConnectionManager connections, string agentId, string status) =>
         connections.Broadcast(new JsonObject { ["type"] = "agent-status", ["id"] = agentId, ["status"] = status });
 
-    private static string? Validate(JsonObject body, out string title, out string kind, out string? attachTo, out string? context, out string contextKind)
+    private static string? Validate(JsonObject body, out string title, out string kind, out string? attachTo, out string? context, out string contextKind, out string? workspace)
     {
         title = "";
+        workspace = null;
         kind = AgentRecord.DefaultKind;
         attachTo = null;
         context = null;
@@ -246,6 +222,11 @@ public static class AgentRoutes
             if (Json.Str(rawAttach) is not { } a) return "attach_to must be a string";
             attachTo = a;
         }
+        if (body["workspace"] is { } rawWorkspace)
+        {
+            if (Json.Str(rawWorkspace) is not { } w) return "workspace must be a string";
+            workspace = w.Length > 0 ? w : null;
+        }
         if (body["context"] is { } rawContext)
         {
             if (Json.Str(rawContext) is not { } c) return "context must be a string";
@@ -257,18 +238,6 @@ public static class AgentRoutes
             contextKind = ck;
         }
         return null;
-    }
-
-    /// <summary>A checkout or pull swaps files under a live agent parked in main's own tree, so refuse first.</summary>
-    private static void RefuseIfLiveAgentInMain(AgentManager agents, AgentSessionRegistry sessions, string repoRoot)
-    {
-        var main = Path.GetFullPath(repoRoot).TrimEnd('\\', '/');
-        foreach (var record in agents.List())
-        {
-            if (sessions.Get(record.Id) is not { IsAlive: true }) continue;
-            var same = string.Equals(Path.GetFullPath(record.Worktree).TrimEnd('\\', '/'), main, OperatingSystem.IsWindows() ? StringComparison.OrdinalIgnoreCase : StringComparison.Ordinal);
-            if (same) throw new BridgeException(409, $"stop {record.Title} first — it works directly in the main worktree");
-        }
     }
 
     private static Workspace? TryWorkspace(WorkspaceRegistry registry, string id)

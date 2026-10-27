@@ -129,3 +129,10 @@ open also calls `launchAgent(realClient, pr.id, null, IMPACT_DIAGRAM_TASK)`, so 
 the new read-only review with a task that names the impact type (the draw skill does not ask which
 diagram). It targets `pr.id` explicitly, so it works in the desktop app too, where the review opens in
 its own tab and the current window stays on main. Tests: `PrDialog.test.tsx`.
+
+## Relation to worktree tabs
+
+PR workspaces stay a separate, read-only `pr-<n>` kind. Worktree tabs (`br_*`, see
+[`parallel-agents.md`](parallel-agents.md)) are the writable kind. An agent created with an explicit
+`attach_to=pr-N` keeps sharing the PR's detached worktree; the tab-default for `POST /agents` never
+overrides it.

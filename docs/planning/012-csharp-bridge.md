@@ -110,10 +110,10 @@ Engine: `CoreEngineFactory` analyzes with the Python analyzers (`python -m codec
 | traces (list/get, trace-stream, trace-ingest, `trace` ping) | ported, contract |
 | issues (status, create via `gh`) | ported; validation contract only |
 | custom diagram types + custom/feature-plan paths/delete, diagrams/status custom entries | ported, contract; resolved GET payloads ported later (see below) |
-| branches (list, choices, open/create, close) | ported, contract; skills are not synced into branch worktrees |
+| branches (list, ensure, new, rename, active, close) | worktree tabs (`wt-N`); ported, contract; skills are not synced into branch worktrees |
 | canvas GET/PATCH, recipes run, diff/change-cards/accept | ported, contract (`canvas`, `recipes`, `diffs` case files; function-level diff cases are `requires: real-engine`) |
-| branches (list, choices, open/create, close) | ported, contract; skills installed and diagrams seeded into branch worktrees, agent worktrees count as holders |
-| agents (cards, git-preflight/init, branch switcher, start/stop/resume, window, pr-preflight, pr, recreate-worktree, delete), autostart, status LED poller | ported, contract (`agents.cases.json`); `claude -p` commit-message generation is a plain process call |
+| branches (list, ensure, new, rename, active, close) | worktree tabs (`wt-N`), ported, contract; skills installed and diagrams seeded into tab worktrees, agent worktrees count as holders; a real `origin` fetch (fetched true, fetch-failure warning) is not a contract case (the matcher cannot seed a remote), covered by unit tests on each side |
+| agents (cards, git-preflight/init, tab-bound create (`workspace`, no attach to main), start/stop/resume, window, pr-preflight, pr, recreate-worktree, delete), autostart, status LED poller | ported, contract (`agents.cases.json`); `claude -p` commit-message generation is a plain process call |
 | prs (preflight, list, github list, open, refresh, close) | ported, contract (`prs.cases.json`: validation and 404 paths; the gh/fetch happy path needs a GitHub remote and is covered by unit-level logic only) |
 | PTY terminal host `WS /ws/terminal` | ported, contract (`terminal.cases.json`) plus real-process xUnit tests |
 

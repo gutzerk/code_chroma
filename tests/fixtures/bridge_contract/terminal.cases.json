@@ -7,7 +7,8 @@
       "id": "an_agent_workspace_that_is_not_running_gets_a_tagged_error_and_4409",
       "requires": ["terminal-frames"],
       "steps": [
-        {"http": {"method": "POST", "path": "/agents", "json": {"title": "Idle", "kind": "shell"}}, "expect": {"status": 200}},
+        {"http": {"method": "POST", "path": "/branches/ensure"}, "capture": {"ws": "$.active"}, "expect": {"status": 200}},
+        {"http": {"method": "POST", "path": "/agents", "json": {"title": "Idle", "kind": "shell", "workspace": "{{ws}}"}}, "expect": {"status": 200}},
         {"ws": "connect", "name": "term", "path": "/ws/terminal?agent=shell&workspace=idle", "expect": "accepted"},
         {"ws": "receive", "name": "term", "tag": "e", "timeout_ms": 8000, "expect": {"json": {"type": "error", "message": "the agent is not running"}}},
         {"ws": "expect_close", "name": "term", "code": 4409}

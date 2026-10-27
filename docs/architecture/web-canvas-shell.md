@@ -161,10 +161,10 @@ canvas instead of collapsing onto whichever diagram happened to carry code-backe
   the canvas area, see "Layout store, left panel and agents modes" below), then the **inspector** panel (plus the standalone `EpicBriefPanel`, mounted
   unconditionally beside it, rendering nothing while closed). There is no agents toggle on this
   rail — the agent launch buttons ("Run agent"/"Add agent here") live in `.canvas-chrome`, the
-  context bar atop the canvas area, alongside the branch switcher and, on a PR workspace, a
+  context bar atop the canvas area, alongside the worktree strip (`agents/WorktreeStrip.tsx`) and, on a PR workspace, a
   `PR #<number> · <head_ref>` label (see
   [`web-panels.md`](web-panels.md) for why that replaced the old node-path breadcrumb there, and
-  [`parallel-agents.md`](parallel-agents.md) for the branch switcher). ⚠ The terminal is no longer a
+  [`parallel-agents.md`](parallel-agents.md) for the worktree tabs). ⚠ The terminal is no longer a
   sibling in that row: it moved *inside* `.canvas-area`, below `.canvas-stage`, as a **bottom** dock
   (`height: 280px`, top-edge `ns-resize` handle) — that is what lets the inspector be full viewport
   height while the terminal spans only the canvas's own width. `useResizableSize` gained
@@ -187,9 +187,8 @@ canvas instead of collapsing onto whichever diagram happened to carry code-backe
   dock clear it with `margin-left: calc(var(--agent-dock-left) - 12px)` (`RootCanvas` sets the var from
   `chromeInsets`; a dock beside a code sidebar gets 0). `AgentRail` is
   its own full-height panel beside the stage — one card per agent (title, status/branch caption,
-  bigger and two-line, not the icon-only rail items the name might suggest), dimmed for an agent whose
-  branch main doesn't currently have checked out (see [`parallel-agents.md`](parallel-agents.md) for
-  the branch-scoping rules), with no tabs (the Diagrams tab moved to the left panel). 🔵 The rail carries its own two
+  bigger and two-line, not the icon-only rail items the name might suggest), listing only the active worktree tab's agents (`agent.workspace`; every agent's terminal stays mounted
+  so a tab switch never drops a session), with no tabs (the Diagrams tab moved to the left panel). 🔵 The rail carries its own two
   store-driven handle buttons ("Collapse agents panel" -> `agentsMode: collapsed`, "Expand agents to
   full screen" -> `full`); the old `SplitterHandle` + `AgentLedStrip` pair in `RootCanvas` is gone.
   Leaving `normal` still closes an open code popup and code inspector: `RootCanvas` does that in an
@@ -414,7 +413,7 @@ diagrams-only, and the panel — the sole tree surface — is **open by default*
 hierarchy layer on/off the canvas) was removed as redundant with the panel.
 
 Layout: the panel sits inside `.canvas-main-row` beside `.canvas-stage` and **below** the
-`.canvas-chrome` context bar (branch switcher), so it reads as an IDE explorer under the toolbar.
+`.canvas-chrome` context bar (worktree strip), so it reads as an IDE explorer under the toolbar.
 It is **resizable** — as is the code sidebar, both through the shared `ResizableRail`
 (`web/src/canvas/ResizableRail.tsx`), a left-anchored, right-edge `useResizableSize` (`axis: "x"`,
 `edge: "right"`) aside+handle skeleton the two side panels reuse instead of re-implementing. Dragging
@@ -472,7 +471,7 @@ prefers `onOpenCode` when both are passed). Re-clicking the active row closes it
   plus the active file's source through the shared `CodeView`. Once more than `MAX_TABS` (8) files
   are open, the surplus collapse behind a trailing "▾" that opens a dropdown listing **all** open
   files; picking one activates it — the dropdown reuses the shared `useDisclosureMenu` (outside-click
-  and Escape-to-close, same as BranchSwitcher/GamesMenu). The panel is resizable via the shared
+  and Escape-to-close, same as GamesMenu). The panel is resizable via the shared
   `ResizableRail` (right-edge `useResizableSize`), like the tree panel. Mounted unconditionally in
   `.canvas-main-row` as its first item; it renders nothing while no file is open (`return
   null`), and its `[hidden]` override ties it to the tree panel's open state (collapsing the tree
@@ -607,3 +606,8 @@ See "Sequence readability" in [`diagram-skills.md`](diagram-skills.md): `Sequenc
 ## Draw dialog (025)
 
 `DrawDiagramButton` opens `drawDialog/DrawDialog.tsx`, mounted by `RootCanvas` inside `.canvas-stage` so the rail and Agents panel stay visible. `drawDialogStore` holds open/last-used card/draft (the draft survives close until drawn); `useDiagramKinds` loads the cards each time it opens; `schematics.tsx` has the static SVG per card id. Esc, Cancel, ×, or a scrim click close it; Tab is trapped; focus returns to the button. Enter in the prompt (Shift+Enter is a new line) or Enter on a card draws; arrow keys move the selection. There is deliberately no scope switch: the user writes scope ("current change only") in the prompt. A launch error shows inline in the footer; at agent capacity the button is disabled with the limit as its tooltip. The tutorial still opens its scripted mock agent instead.
+
+
+## Worktree strip (vertical tab = worktree = branch)
+
+`agents/WorktreeStrip.tsx` replaced the old `BranchSwitcher` (deleted along with `branchStore`, `branchActions` and `branchScope`) in the `.canvas-chrome` row. One tab per `br_*` record from `GET /branches`; the active one is highlighted. "+" calls `POST /branches/new` (disabled with a busy mark while the bridge fetches, a fallback `warning` shows next to it), double-click renames inline via `PATCH /branches/{id}` (a 409 shows inline under the tab), "x" closes through `CloseWorktreeDialog.tsx` (Keep / Delete worktree, dirty count, number of attached agents that will be closed, "Don't ask again" persisted in `localStorage` key `codechroma.worktree-close-choice` inside try/catch; Delete sends `DELETE /branches/{id}?worktree_too=true`). State lives in `agents/worktreeStore.ts`; actions (`ensureWorktrees`, `selectWorktree`, `createWorktree`, `renameWorktree`, `closeWorktree`) in `agents/worktreeActions.ts`. `AgentWindowLayer` calls `POST /branches/ensure` on boot; `agentStore` ignores `active_workspace: "main"` and `?workspace=main`, and `selectWorktree` persists the choice via `PUT /branches/active`. `App.tsx` does not hard-key the subtree: `EngineClientProvider repoId` + `resetWorkspaceStores` already scope the canvas per tab, and keying would unmount every terminal. Agent creation sends `workspace` = active tab and no `attach_to` for a tab (`attachAgent`, `launchAgent`); "main" is no longer an attach target.

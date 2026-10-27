@@ -1,4 +1,4 @@
-"""TestClient coverage for /branches: reopening a project on another branch in its own worktree."""
+"""TestClient coverage for /branches: worktree tabs (one worktree + git branch per tab)."""
 
 import shutil
 import subprocess
@@ -28,125 +28,207 @@ def client(tmp_path, monkeypatch, make_bridge):
     return TestClient(bridge.app), repo, bridge
 
 
-def _choices(test_client) -> dict:
-    return {b["name"]: b for b in test_client.get("/branches/choices").json()["branches"]}
+def _head(path: str | Path) -> str:
+    return git(Path(path), "rev-parse", "HEAD").strip()
 
 
-def test_the_checked_out_branch_is_reported_as_open_in_main(client):
-    test_client, _repo, _bridge = client
+def _with_remote(repo: Path, tmp_path: Path) -> Path:
+    remote = tmp_path / "remote.git"
+    subprocess.run(
+        ["git", "init", "--bare", "-b", "main", str(remote)], check=True, capture_output=True
+    )
+    git(repo, "remote", "add", "origin", str(remote))
+    git(repo, "push", "origin", "main")
+    return remote
 
-    choices = _choices(test_client)
 
-    assert choices["main"]["workspace"] == "main"
-    assert choices["feature-x"] == {"name": "feature-x", "open": False, "workspace": None}
+def _create_agent(test_client, workspace: str) -> dict:
+    body = {"title": "helper", "kind": "shell", "workspace": workspace}
+    return test_client.post("/agents", json=body).json()
 
 
-def test_opening_an_existing_branch_gives_it_its_own_worktree_and_graph(client):
+def test_ensure_creates_wt_1_off_head_and_leaves_main_untouched(client):
     test_client, repo, bridge = client
+    before = _head(repo)
 
-    response = test_client.post("/branches", json={"branch": "feature-x"})
+    body = test_client.post("/branches/ensure").json()
 
-    record = response.json()
-    assert response.status_code == 200
-    assert record["id"] == "br_feature-x"
-    assert Path(record["worktree"]).is_dir()
-    assert Path(record["worktree"]).resolve() != repo.resolve()
-    assert bridge.registry.is_registered(record["id"])
-    assert test_client.get("/repos/br_feature-x/nodes/root/children").status_code == 200
+    record = body["branches"][0]
+    assert record["id"] == "br_wt-1"
+    assert record["name"] == record["branch"] == "wt-1"
+    assert body["active"] == "br_wt-1"
+    assert _head(record["worktree"]) == before
+    assert git(repo, "branch", "--show-current").strip() == "main"
+    assert bridge.registry.is_registered("br_wt-1")
 
 
-def test_an_opened_branch_is_then_reported_as_held_by_its_workspace(client):
+def test_ensure_with_existing_records_creates_nothing(client):
     test_client, _repo, _bridge = client
-    test_client.post("/branches", json={"branch": "feature-x"})
+    test_client.post("/branches/ensure")
 
-    choices = _choices(test_client)
+    body = test_client.post("/branches/ensure").json()
 
-    assert choices["feature-x"]["workspace"] == "br_feature-x"
-
-
-def test_opening_a_branch_that_is_already_open_names_the_holder(client):
-    test_client, _repo, _bridge = client
-    test_client.post("/branches", json={"branch": "feature-x"})
-
-    response = test_client.post("/branches", json={"branch": "feature-x"})
-
-    assert response.status_code == 409
-    assert response.json()["detail"]["workspace"] == "br_feature-x"
+    assert [b["id"] for b in body["branches"]] == ["br_wt-1"]
 
 
-def test_opening_the_branch_main_has_checked_out_is_refused_as_held_by_main(client):
+def test_new_twice_numbers_the_tabs_and_activates_the_newest(client):
     test_client, _repo, _bridge = client
 
-    response = test_client.post("/branches", json={"branch": "main"})
+    first = test_client.post("/branches/new", json={}).json()
+    second = test_client.post("/branches/new").json()
 
-    assert response.status_code == 409
-    assert response.json()["detail"]["workspace"] == "main"
+    assert (first["branch"]["id"], second["branch"]["id"]) == ("br_wt-1", "br_wt-2")
+    assert second["fetched"] is False
+    assert second["warning"] is None
+    assert test_client.get("/branches").json()["active"] == "br_wt-2"
 
 
-def test_creating_a_new_branch_forks_it_from_the_current_one(client):
+def test_new_skips_a_wt_n_branch_that_already_exists(client):
     test_client, repo, _bridge = client
+    git(repo, "branch", "wt-1")
 
-    response = test_client.post("/branches", json={"new_branch": "my-task"})
+    body = test_client.post("/branches/new").json()
 
-    record = response.json()
-    assert response.status_code == 200
-    head = subprocess.run(
-        ["git", "rev-parse", "--abbrev-ref", "HEAD"],
-        cwd=record["worktree"], capture_output=True, text=True, check=True,
-    ).stdout.strip()
-    assert head == "my-task"
-    assert (repo / "shared" / "text_utils.py").is_file()
+    assert body["branch"]["branch"] == "wt-2"
 
 
-@pytest.mark.parametrize("name", ["bad name", "-rf", "a..b", ""])
-def test_an_invalid_new_branch_name_is_refused(client, name):
+def test_new_with_a_name_uses_it_and_refuses_taken_or_invalid_names(client):
     test_client, _repo, _bridge = client
 
-    response = test_client.post("/branches", json={"new_branch": name})
+    ok = test_client.post("/branches/new", json={"name": "my-task"})
+    taken = test_client.post("/branches/new", json={"name": "feature-x"})
+    bad = test_client.post("/branches/new", json={"name": "bad name"})
 
-    assert response.status_code == 409
-
-
-def test_creating_a_branch_that_already_exists_is_refused(client):
-    test_client, _repo, _bridge = client
-
-    response = test_client.post("/branches", json={"new_branch": "feature-x"})
-
-    assert response.status_code == 409
+    assert ok.json()["branch"]["branch"] == "my-task"
+    assert (taken.status_code, bad.status_code) == (409, 409)
 
 
-def test_sending_both_or_neither_of_branch_and_new_branch_is_a_400(client):
-    test_client, _repo, _bridge = client
-
-    both = test_client.post("/branches", json={"branch": "a", "new_branch": "b"})
-    neither = test_client.post("/branches", json={})
-
-    assert (both.status_code, neither.status_code) == (400, 400)
-
-
-def test_an_unknown_branch_is_a_404(client):
-    test_client, _repo, _bridge = client
-
-    response = test_client.post("/branches", json={"branch": "nope"})
-
-    assert response.status_code == 404
-
-
-def test_branch_workspaces_survive_a_restart(client, make_bridge):
+def test_new_does_not_track_the_start_point(client, tmp_path):
     test_client, repo, _bridge = client
-    created = test_client.post("/branches", json={"branch": "feature-x"}).json()
+    _with_remote(repo, tmp_path)
+
+    record = test_client.post("/branches/new").json()["branch"]
+
+    tracked = subprocess.run(
+        ["git", "config", "--get", f"branch.{record['branch']}.remote"],
+        cwd=repo, capture_output=True, text=True,
+    )
+    assert tracked.stdout.strip() == ""
+
+
+def test_new_branches_off_the_fetched_origin_main_when_a_remote_exists(client, tmp_path):
+    test_client, repo, _bridge = client
+    remote = _with_remote(repo, tmp_path)
+    other = tmp_path / "other"
+    subprocess.run(["git", "clone", str(remote), str(other)], check=True, capture_output=True)
+    git(other, "config", "user.email", "t@example.com")
+    git(other, "config", "user.name", "T")
+    (other / "newer.txt").write_text("x", encoding="utf-8")
+    git(other, "add", "-A")
+    git(other, "commit", "-m", "newer")
+    git(other, "push", "origin", "main")
+
+    body = test_client.post("/branches/new").json()
+
+    assert body["fetched"] is True
+    assert (Path(body["branch"]["worktree"]) / "newer.txt").is_file()
+    assert not (repo / "newer.txt").exists()
+
+
+def test_a_failing_fetch_falls_back_to_local_main_with_a_warning(client):
+    test_client, repo, _bridge = client
+    git(repo, "remote", "add", "origin", str(repo.parent / "does-not-exist.git"))
+
+    body = test_client.post("/branches/new").json()
+
+    assert body["fetched"] is False
+    assert "could not fetch" in body["warning"]
+    assert (Path(body["branch"]["worktree"]) / "shared" / "text_utils.py").is_file()
+
+
+def test_rename_moves_the_branch_but_not_the_id_or_path(client):
+    test_client, repo, _bridge = client
+    created = test_client.post("/branches/new").json()["branch"]
+
+    response = test_client.patch(f"/branches/{created['id']}", json={"name": "feature/login"})
+
+    body = response.json()
+    assert response.status_code == 200
+    assert (body["id"], body["worktree"]) == (created["id"], created["worktree"])
+    assert body["name"] == body["branch"] == "feature/login"
+    branches = git(repo, "branch", "--format=%(refname:short)").split()
+    assert "feature/login" in branches
+    assert "wt-1" not in branches
+
+
+def test_rename_to_a_taken_name_is_a_409(client):
+    test_client, _repo, _bridge = client
+    first = test_client.post("/branches/new").json()["branch"]
+    second = test_client.post("/branches/new").json()["branch"]
+
+    held = test_client.patch(f"/branches/{second['id']}", json={"name": first["branch"]})
+    existing = test_client.patch(f"/branches/{second['id']}", json={"name": "feature-x"})
+
+    assert (held.status_code, existing.status_code) == (409, 409)
+
+
+def test_rename_validates_its_input(client):
+    test_client, _repo, _bridge = client
+    created = test_client.post("/branches/new").json()["branch"]
+
+    empty = test_client.patch(f"/branches/{created['id']}", json={"name": " "})
+    unknown = test_client.patch("/branches/br_nope", json={"name": "x"})
+
+    assert (empty.status_code, unknown.status_code) == (400, 404)
+
+
+def test_renaming_a_tab_moves_its_agents_branch(client):
+    test_client, _repo, _bridge = client
+    created = test_client.post("/branches/new").json()["branch"]
+    agent = _create_agent(test_client, created["id"])
+
+    test_client.patch(f"/branches/{created['id']}", json={"name": "renamed"})
+
+    listed = test_client.get("/agents").json()["agents"]
+    assert [(a["id"], a["branch"]) for a in listed] == [(agent["id"], "renamed")]
+
+
+def test_list_reports_the_dirty_count_per_tab(client):
+    test_client, _repo, _bridge = client
+    created = test_client.post("/branches/new").json()["branch"]
+    (Path(created["worktree"]) / "a.txt").write_text("a", encoding="utf-8")
+    (Path(created["worktree"]) / "b.txt").write_text("b", encoding="utf-8")
+
+    listed = test_client.get("/branches").json()["branches"]
+
+    assert listed[0]["dirty"] == 2
+
+
+def test_active_tab_is_persisted_across_a_restart(client, make_bridge):
+    test_client, repo, _bridge = client
+    test_client.post("/branches/new")
+    test_client.post("/branches/new")
+    test_client.put("/branches/active", json={"id": "br_wt-1"})
 
     restarted = make_bridge(repo)
 
-    assert restarted.registry.is_registered(created["id"])
-    assert [b["id"] for b in TestClient(restarted.app).get("/branches").json()["branches"]] == [
-        created["id"]
-    ]
+    body = TestClient(restarted.app).get("/branches").json()
+    assert body["active"] == "br_wt-1"
+    assert restarted.registry.is_registered("br_wt-2")
 
 
-def test_a_branch_whose_directory_vanished_is_listed_but_not_registered(client, make_bridge):
+def test_activating_an_unknown_tab_is_a_404_and_a_missing_id_a_400(client):
+    test_client, _repo, _bridge = client
+
+    unknown = test_client.put("/branches/active", json={"id": "br_nope"})
+    missing = test_client.put("/branches/active", json={})
+
+    assert (unknown.status_code, missing.status_code) == (404, 400)
+
+
+def test_a_tab_whose_directory_vanished_is_listed_but_not_registered(client, make_bridge):
     test_client, repo, _bridge = client
-    created = test_client.post("/branches", json={"branch": "feature-x"}).json()
+    created = test_client.post("/branches/new").json()["branch"]
     shutil.rmtree(created["worktree"])
 
     restarted = make_bridge(repo)
@@ -155,83 +237,73 @@ def test_a_branch_whose_directory_vanished_is_listed_but_not_registered(client, 
     assert restarted.services.branch_manager.get(created["id"]).worktree_lost is True
 
 
-def test_closing_a_branch_workspace_keeps_the_directory_and_the_branch(client):
+def test_closing_a_tab_keeps_the_directory_and_the_branch(client):
     test_client, repo, bridge = client
-    created = test_client.post("/branches", json={"branch": "feature-x"}).json()
+    created = test_client.post("/branches/new").json()["branch"]
 
     response = test_client.delete(f"/branches/{created['id']}")
 
     assert response.status_code == 200
     assert Path(created["worktree"]).is_dir()
     assert not bridge.registry.is_registered(created["id"])
-    assert "feature-x" in subprocess.run(
-        ["git", "branch"], cwd=repo, capture_output=True, text=True, check=True
-    ).stdout
+    assert "wt-1" in git(repo, "branch")
 
 
-def test_closing_with_worktree_too_removes_the_directory(client):
+def test_closing_with_worktree_too_removes_even_a_dirty_directory(client):
     test_client, _repo, _bridge = client
-    created = test_client.post("/branches", json={"branch": "feature-x"}).json()
-
-    test_client.delete(f"/branches/{created['id']}", params={"worktree_too": "true"})
-
-    assert not Path(created["worktree"]).exists()
-
-
-def test_a_refused_worktree_removal_keeps_the_workspace_registered(client):
-    test_client, _repo, bridge = client
-    created = test_client.post("/branches", json={"branch": "feature-x"}).json()
+    created = test_client.post("/branches/new").json()["branch"]
     (Path(created["worktree"]) / "untracked.txt").write_text("dirty", encoding="utf-8")
 
     response = test_client.delete(f"/branches/{created['id']}", params={"worktree_too": "true"})
-
-    assert response.status_code == 409
-    assert Path(created["worktree"]).is_dir()
-    assert bridge.registry.is_registered(created["id"])
-
-
-def test_force_removes_a_dirty_worktree(client):
-    test_client, _repo, _bridge = client
-    created = test_client.post("/branches", json={"branch": "feature-x"}).json()
-    (Path(created["worktree"]) / "untracked.txt").write_text("dirty", encoding="utf-8")
-
-    response = test_client.delete(
-        f"/branches/{created['id']}", params={"worktree_too": "true", "force": "true"}
-    )
 
     assert response.status_code == 200
     assert not Path(created["worktree"]).exists()
 
 
-def test_closing_an_unknown_branch_workspace_is_a_404(client):
+def test_closing_a_tab_removes_the_agents_on_it(client):
+    test_client, _repo, bridge = client
+    created = test_client.post("/branches/new").json()["branch"]
+    agent = _create_agent(test_client, created["id"])
+
+    test_client.delete(f"/branches/{created['id']}", params={"worktree_too": "true"})
+
+    assert test_client.get("/agents").json()["agents"] == []
+    assert not bridge.registry.is_registered(agent["id"])
+
+
+def test_closing_the_active_tab_activates_another(client):
+    test_client, _repo, _bridge = client
+    test_client.post("/branches/new")
+    test_client.post("/branches/new")
+
+    test_client.delete("/branches/br_wt-2")
+
+    assert test_client.get("/branches").json()["active"] == "br_wt-1"
+
+
+def test_closing_an_unknown_tab_is_a_404(client):
     test_client, _repo, _bridge = client
 
     assert test_client.delete("/branches/br_nobody").status_code == 404
 
 
-def test_a_branch_workspace_can_be_activated(client):
+def test_a_tab_can_be_activated_as_a_canvas_workspace(client):
     test_client, _repo, _bridge = client
-    created = test_client.post("/branches", json={"branch": "feature-x"}).json()
+    created = test_client.post("/branches/new").json()["branch"]
 
     response = test_client.post(f"/workspaces/{created['id']}/activate")
 
     assert response.status_code == 200
 
 
-def test_a_dash_prefixed_start_point_is_refused_not_passed_to_git(client):
+def test_the_open_existing_branch_mode_and_choices_endpoint_are_gone(client):
     test_client, _repo, _bridge = client
 
-    response = test_client.post("/branches", json={"new_branch": "x", "start_point": "--orphan"})
+    choices = test_client.get("/branches/choices")
+    opened = test_client.post("/branches", json={"branch": "feature-x"})
 
-    assert response.status_code == 404
-
-
-def test_a_new_branch_can_start_from_another_local_branch(client):
-    test_client, _repo, _bridge = client
-
-    response = test_client.post("/branches", json={"new_branch": "x", "start_point": "feature-x"})
-
-    assert response.status_code == 200
+    assert choices.status_code in (404, 405)
+    assert opened.status_code in (404, 405)
 
 
 def test_a_failure_after_the_checkout_leaves_no_worktree_or_branch_behind(client, monkeypatch):
@@ -242,20 +314,17 @@ def test_a_failure_after_the_checkout_leaves_no_worktree_or_branch_behind(client
 
     monkeypatch.setattr("codechroma.bridge.branches.manager.skill_sync.install_into_worktree", boom)
     with pytest.raises(RuntimeError):
-        test_client.post("/branches", json={"new_branch": "doomed"})
+        test_client.post("/branches/new")
     monkeypatch.undo()
 
-    branches = subprocess.run(
-        ["git", "branch"], cwd=repo, capture_output=True, text=True, check=True
-    ).stdout
-    assert "doomed" not in branches
+    assert "wt-1" not in git(repo, "branch")
     assert test_client.get("/branches").json()["branches"] == []
-    assert test_client.post("/branches", json={"new_branch": "doomed"}).status_code == 200
+    assert test_client.post("/branches/new").status_code == 200
 
 
-def test_closing_a_branch_workspace_tells_the_other_windows(client, monkeypatch):
+def test_closing_a_tab_tells_the_other_windows(client, monkeypatch):
     test_client, _repo, bridge = client
-    created = test_client.post("/branches", json={"branch": "feature-x"}).json()
+    created = test_client.post("/branches/new").json()["branch"]
     sent = []
 
     async def capture(message):

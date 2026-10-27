@@ -6,7 +6,7 @@ using CodeChroma.Bridge.Skills;
 
 namespace CodeChroma.Bridge.Stores;
 
-/// <summary>Asks an installed agent CLI for its own model list (claude control request, codex debug models); null when it can't answer.</summary>
+/// <summary>Asks an installed agent CLI for its own model list (claude control request, codex debug models, gemini models list); null when it can't answer.</summary>
 public static class CliModelProbe
 {
     private const int TimeoutSeconds = 20;
@@ -31,7 +31,7 @@ public static class CliModelProbe
 
     public static async Task<JsonArray?> Probe(string adapter, RuntimeEnvironment? runtime = null)
     {
-        if (adapter is not ("claude" or "codex") || Locate(adapter, runtime) is not { } cli) return null;
+        if (adapter is not ("claude" or "codex" or "gemini") || Locate(adapter, runtime) is not { } cli) return null;
         return await Cached($"{adapter}|{cli.Binary}", () => Run(adapter, cli.Binary, cli.Env));
     }
 
@@ -63,7 +63,7 @@ public static class CliModelProbe
         try
         {
             using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(TimeoutSeconds));
-            return adapter == "claude" ? await ProbeClaude(binary, env, timeout.Token) : await ProbeListing(binary, env, timeout.Token);
+            return adapter == "claude" ? await ProbeClaude(binary, env, timeout.Token) : await ProbeListing(binary, adapter, env, timeout.Token);
         }
         catch (Exception error) when (error is OperationCanceledException or IOException or InvalidOperationException
             or System.ComponentModel.Win32Exception)
@@ -94,11 +94,15 @@ public static class CliModelProbe
         }
     }
 
-    private static async Task<JsonArray?> ProbeListing(string binary, IReadOnlyDictionary<string, string>? env, CancellationToken cancel)
+    /// <summary>The list command of a listing adapter (codex, gemini); shared with Python through cli_model_probe.json.</summary>
+    public static string[] ListingArgs(string adapter) => adapter == "codex" ? ["debug", "models"] : ["models", "list", "-o", "json"];
+
+    private static async Task<JsonArray?> ProbeListing(string binary, string adapter, IReadOnlyDictionary<string, string>? env, CancellationToken cancel)
     {
-        using var process = Start(binary, env, "debug", "models");
+        using var process = Start(binary, env, ListingArgs(adapter));
         try
         {
+            process.StandardInput.Close();
             var stdout = process.StandardOutput.ReadToEndAsync(cancel);
             await process.WaitForExitAsync(cancel);
             return process.ExitCode == 0 ? ParseModelList(await stdout) : null;

@@ -58,6 +58,30 @@ public class CliModelProbeTests
         Assert.Null(models);
     }
 
+    private static readonly JsonNode ProbeCases = JsonNode.Parse(
+        File.ReadAllText(Path.Combine(Contract.ContractCases.FixtureDir, "cli_model_probe.json")))!;
+
+    [Theory]
+    [InlineData("codex")]
+    [InlineData("gemini")]
+    public void Listing_command_matches_the_shared_case(string adapter)
+    {
+        var args = CliModelProbe.ListingArgs(adapter);
+
+        Assert.Equal(ProbeCases["listing_args"]![adapter]!.AsArray().Select(a => (string)a!), args);
+    }
+
+    [Fact]
+    public void Model_listings_match_the_shared_cases()
+    {
+        foreach (var listing in ProbeCases["listings"]!.AsArray())
+        {
+            var models = CliModelProbe.ParseModelList((string)listing!["output"]!);
+
+            Assert.Equal(listing["models"]?.ToJsonString(), models?.ToJsonString());
+        }
+    }
+
     private static JsonArray Models(params string[] ids) => new(ids.Select(id => (JsonNode?)new JsonObject { ["id"] = id }).ToArray());
 
     [Fact]

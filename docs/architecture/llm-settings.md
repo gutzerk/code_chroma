@@ -322,15 +322,15 @@ recognize before the request ever reaches the proxy). Returns
   against that `base_url` — the natural counterpart of "A `claude` provider's own endpoint" above.
   Supported even with no key (some proxies need none); with `base_url` unset it falls to the
   built-in `claude` list.
-- `kind="cli"`, `adapter="claude"|"codex"` (no `base_url`): the installed CLI is asked directly -- `claude -p`
+- `kind="cli"`, `adapter="claude"|"codex"|"gemini"` (no `base_url`): the installed CLI is asked directly -- `claude -p`
   with a stream-json `initialize` control request (models in `response.response.models[]`, `value`/`displayName`),
-  `codex debug models` (JSON, tolerant parse; non-array/object JSON is treated as no answer). C# `CliModelProbe` (stderr drained), Python `_probe_cli_models`; 20s timeout; any
+  `codex debug models` / `gemini models list -o json` (JSON, tolerant parse; non-array/object JSON is treated as no answer). C# `CliModelProbe` (stderr drained), Python `_probe_cli_models`; 20s timeout; any
   failure (not installed, timeout, bad output) falls to the built-in list. The CLI is located and spawned the way the app
   itself would (`RuntimeEnvironment.Resolve` / `resolve_runtime_cli`: its executable and `cli.Env`, the same as `CliAuth`), and an
   answered list is cached for 2 minutes per adapter+executable (C# `CliModelProbe.Cached`, Python `_probe_cache`; an unanswered
   probe is never cached, so a CLI signed in a moment later is retried) -- every `GET .../models`, provider test and blank-model
   pick would otherwise spawn the CLI. The contract runners (C# `BridgeHost`, Python `no_live_cli_probe`) stub the probe so
-  cases always see the built-in lists; a unit test that wants a live list swaps `ModelCatalog.CliProbe` / `_probe_cli_models`. The codex probe is unverified against a real CLI; `gemini` is not probed (no verified list command) and uses the built-in list.
+  cases always see the built-in lists; a unit test that wants a live list swaps `ModelCatalog.CliProbe` / `_probe_cli_models`. The list commands and output shapes of both probes are pinned by the shared `tests/fixtures/bridge_contract/cli_model_probe.json` (C# `CliModelProbe.ListingArgs`, Python `_LISTING_ARGS`; stdin is closed/`DEVNULL` so a CLI never waits on input). The codex and gemini probes are unverified against real CLIs (if `gemini models list -o json` does not exist the probe fails and the built-in list is used).
 - **Built-in fallback** (`_STATIC_MODELS`, mirrored in C# `ModelCatalog.StaticModels`): whenever a
   provider can't be asked live — no key (anthropic/gemini), no `base_url` (openai-compatible), or a
   CLI adapter (`claude` with no `base_url`, `codex`, `kimi-cli`) — it returns `supported: true`,

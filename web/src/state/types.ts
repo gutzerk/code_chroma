@@ -501,9 +501,10 @@ export interface AgentRecord {
   kind: string;
   branch: string;
   /** Which of main's branches this agent belongs to. Null for a record written before the field, and
-   * ⚠ *absent entirely* from a bridge older than it — `branchScope.baseBranchOf` folds both into null,
-   * because either one hiding a live agent is the one outcome that must never happen. */
+   * ⚠ *absent entirely* from a bridge older than it — both mean no base branch. */
   base_branch?: string | null;
+  /** The worktree tab (`br_*`) this agent belongs to; absent/null on a record written before tabs. */
+  workspace?: string | null;
   /** The `pr-<n>` this agent was forked from, if any; hides `Create PR` since that PR already exists. */
   source_pr?: string | null;
   /** The id this agent's worktree/branch is shared with (an "Add agent here" agent); null/absent
@@ -545,10 +546,27 @@ export interface AgentList {
   max_agents: number;
 }
 
-/** GET/POST /agents/branch, POST /agents/branch/update — current branch plus every local branch. */
-export interface BranchInfo {
-  current: string | null;
-  branches: string[];
+/** One worktree tab (a `BranchRecord`, id `br_*`): GET /branches. `dirty` is the uncommitted-change count. */
+export interface WorktreeRecord {
+  id: string;
+  name: string;
+  branch: string;
+  worktree: string;
+  dirty?: number;
+  worktree_lost?: boolean;
+}
+
+/** GET /branches and POST /branches/ensure — every tab plus the active one. */
+export interface WorktreeList {
+  branches: WorktreeRecord[];
+  active: string | null;
+}
+
+/** POST /branches/new — the created tab, whether `git fetch` reached the remote, and a fallback warning. */
+export interface WorktreeCreated {
+  branch: WorktreeRecord;
+  fetched: boolean;
+  warning?: string | null;
 }
 
 /** One path the first commit would swallow that the user should look at first (GET
@@ -593,7 +611,6 @@ export type AgentEvent =
   | { type: "agent-added"; agent: AgentRecord }
   | { type: "agent-removed"; id: string }
   | { type: "agent-status"; id: string; status: AgentStatus }
-  | { type: "branch-changed"; branch: string }
   | { type: "branch-removed"; id: string };
 
 /** How far a workspace's graph is from being drawable (GET /workspaces/{id}/status). A worktree is

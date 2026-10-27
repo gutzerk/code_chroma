@@ -27,6 +27,9 @@ public sealed class AgentRecord
     /// <summary>The attach_to id this agent's worktree/branch is shared with; null for its own worktree.</summary>
     public string? SharesWorkspaceWith { get; set; }
 
+    /// <summary>The worktree tab (br_*) this agent was created in; null for records written before tabs.</summary>
+    public string? Workspace { get; set; }
+
     /// <summary>Which of main's branches this agent belongs to; null for records written before the field.</summary>
     public string? BaseBranch { get; set; }
 
@@ -68,7 +71,7 @@ public sealed class AgentRecord
         ["id"] = Id, ["title"] = Title, ["kind"] = Kind, ["branch"] = Branch, ["worktree"] = Worktree, ["session_id"] = SessionId,
         ["session_tracking_id"] = SessionTrackingId,
         ["created_at"] = CreatedAt, ["pr_url"] = PrUrl, ["window"] = Window.DeepClone(), ["pid"] = Pid,
-        ["shares_workspace_with"] = SharesWorkspaceWith, ["base_branch"] = BaseBranch, ["source_pr"] = SourcePr,
+        ["shares_workspace_with"] = SharesWorkspaceWith, ["workspace"] = Workspace, ["base_branch"] = BaseBranch, ["source_pr"] = SourcePr,
         ["source_run"] = SourceRun, ["fork_session"] = ForkSession,
         ["context"] = Context, ["context_kind"] = ContextKind, ["resolved_cli"] = ResolvedCli, ["diagram_type"] = DiagramType,
         ["diagram_request"] = DiagramRequest,
@@ -79,7 +82,7 @@ public sealed class AgentRecord
     {
         ["id"] = Id, ["title"] = Title, ["kind"] = Kind, ["branch"] = Branch, ["worktree"] = Worktree, ["created_at"] = CreatedAt,
         ["session_id"] = SessionId, ["pr_url"] = PrUrl, ["pid"] = Pid, ["window"] = Window.DeepClone(),
-        ["shares_workspace_with"] = SharesWorkspaceWith, ["base_branch"] = BaseBranch, ["source_pr"] = SourcePr,
+        ["shares_workspace_with"] = SharesWorkspaceWith, ["workspace"] = Workspace, ["base_branch"] = BaseBranch, ["source_pr"] = SourcePr,
         ["source_run"] = SourceRun, ["fork_session"] = ForkSession,
         ["context"] = Context, ["context_kind"] = ContextKind, ["resolved_cli"] = ResolvedCli,
         ["diagram_type"] = DiagramType, ["diagram_request"] = DiagramRequest,
@@ -109,6 +112,7 @@ public sealed class AgentRecord
             Pid = o["pid"] is JsonValue pid && pid.TryGetValue<int>(out var pidValue) ? pidValue : null,
             Window = window,
             SharesWorkspaceWith = Json.Str(o["shares_workspace_with"]),
+            Workspace = Json.Str(o["workspace"]),
             BaseBranch = Json.Str(o["base_branch"]),
             SourcePr = Json.Str(o["source_pr"]),
             SourceRun = Json.Str(o["source_run"]),

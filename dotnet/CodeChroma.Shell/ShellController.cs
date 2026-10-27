@@ -1,7 +1,7 @@
 namespace CodeChroma.Shell;
 
-/// <summary>The open-repo flow: BridgeRegistry -> TabModel -> navigate, plus workspace tabs, branch reopen, respawn and shutdown.</summary>
-public sealed class ShellController(TabModel tabs, BridgeRegistry bridges, IShellUi ui, BranchBridgeClient branches, string recentsPath, string version, Action<Action>? post = null)
+/// <summary>The open-repo flow: BridgeRegistry -> TabModel -> navigate, plus PR workspace tabs, respawn and shutdown.</summary>
+public sealed class ShellController(TabModel tabs, BridgeRegistry bridges, IShellUi ui, string recentsPath, string version, Action<Action>? post = null)
 {
     private readonly Action<Action> dispatch = post ?? (action => action());
     private bool shuttingDown;
@@ -43,7 +43,7 @@ public sealed class ShellController(TabModel tabs, BridgeRegistry bridges, IShel
         if (tabs.FindByRepoPath(repoPath) is { } existing)
         {
             SurfaceTab(existing);
-            if (workspaceId is null) await ReopenOpenRepoAsync(existing, repoPath);
+            if (workspaceId is not null && tabs.BridgeFor(existing) is { } open) ui.Navigate(existing, WorkspaceUrl(open, workspaceId));
             return;
         }
 
@@ -74,7 +74,7 @@ public sealed class ShellController(TabModel tabs, BridgeRegistry bridges, IShel
         tabs.AssignRepo(tab.Id, repoPath, handle);
         Watch(tab.Id, handle);
         Changed();
-        ui.Navigate(tab, WorkspaceUrl(handle, workspaceId ?? "main"));
+        ui.Navigate(tab, workspaceId is null ? RepoUrl(handle) : WorkspaceUrl(handle, workspaceId));
     }
 
     public async Task OpenWorkspaceTabAsync(string senderTabId, string workspaceId, string? label = null)
@@ -118,6 +118,8 @@ public sealed class ShellController(TabModel tabs, BridgeRegistry bridges, IShel
         await bridges.StopAllAsync();
     }
 
+    private static string RepoUrl(BridgeHandle bridge) => $"{bridge.Origin}/";
+
     private static string WorkspaceUrl(BridgeHandle bridge, string workspaceId) =>
         $"{bridge.Origin}/?workspace={Uri.EscapeDataString(workspaceId)}";
 
@@ -153,43 +155,8 @@ public sealed class ShellController(TabModel tabs, BridgeRegistry bridges, IShel
         }
         tabs.ReplaceBridge(tabId, fresh);
         Watch(tabId, fresh);
-        ui.Navigate(tab, WorkspaceUrl(fresh, "main"));
+        ui.Navigate(tab, RepoUrl(fresh));
         foreach (var dependant in tabs.Tabs.Where(t => t.OwnerTabId == tabId && t.WorkspaceId is not null))
             ui.Navigate(dependant, WorkspaceUrl(fresh, dependant.WorkspaceId!));
-    }
-
-    private async Task ReopenOpenRepoAsync(Tab owner, string repoPath)
-    {
-        if (tabs.BridgeFor(owner) is not { } bridge) return;
-        BranchChoices choices;
-        try
-        {
-            choices = await branches.FetchChoicesAsync(bridge.Origin);
-        }
-        catch (Exception e) when (e is HttpRequestException or TaskCanceledException or System.Text.Json.JsonException)
-        {
-            return;
-        }
-
-        var pick = await ui.PickBranchAsync(TabTitles.Folder(repoPath), choices);
-        if (pick is BranchPick.Cancel) return;
-        var request = pick switch
-        {
-            BranchPick.Existing e => (BranchRequest)new BranchRequest.Existing(e.Name),
-            BranchPick.New n => new BranchRequest.Create(n.Name, n.From),
-            _ => throw new ArgumentOutOfRangeException(nameof(pick)),
-        };
-        switch (await branches.RequestWorkspaceAsync(bridge.Origin, request))
-        {
-            case BranchOutcome.Held held:
-                SurfaceTab(held.Workspace is not null && tabs.FindWorkspaceTab(held.Workspace) is { } tab ? tab : owner);
-                break;
-            case BranchOutcome.Failed failed:
-                ui.ShowError("Could not open the branch", failed.Message);
-                break;
-            case BranchOutcome.Opened opened:
-                await OpenWorkspaceTabAsync(owner.Id, opened.Record.Id, opened.Record.Branch);
-                break;
-        }
     }
 }

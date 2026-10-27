@@ -2,6 +2,7 @@ import { useSyncExternalStore } from "react";
 import { clamp } from "../util/clamp";
 import type { AgentRecord, AgentStatus, AgentWindowGeometry, GitPreflight } from "../state/types";
 import { Store } from "../state/createStore";
+import { worktreeStore } from "./worktreeStore";
 
 const EMPTY: AgentRecord[] = [];
 
@@ -13,14 +14,16 @@ const NO_DIAGRAMS_READY: ReadonlySet<string> = new Set<string>();
 const MIN_VISIBLE = 120;
 
 /** Lets a fresh window (e.g. a PR opened via "Open in New Window") boot straight into the right
- * workspace instead of defaulting to main and requiring a second switch. */
+ * workspace; "main" is only the placeholder id until `/branches/ensure` names the active tab. */
 export function initialWorkspace(): string {
   return workspaceFromUrl() ?? "main";
 }
 
+/** A `?workspace=main` is ignored: main is never a tab, the page picks one via `/branches/ensure`. */
 function workspaceFromUrl(): string | null {
   if (typeof window === "undefined") return null;
-  return new URLSearchParams(window.location.search).get("workspace");
+  const id = new URLSearchParams(window.location.search).get("workspace");
+  return id && id !== "main" ? id : null;
 }
 
 /**
@@ -78,7 +81,7 @@ class AgentStore extends Store {
     max_agents: number;
   }): void => {
     this.agents = list.agents.map((agent) => clampToViewport(agent));
-    if (!this.workspaceChosen) {
+    if (!this.workspaceChosen && list.active_workspace !== "main") {
       this.activeWorkspace = list.active_workspace;
       this.workspaceChosen = true;
     }
@@ -104,9 +107,27 @@ class AgentStore extends Store {
         Object.entries(this.startErrors).filter(([agentId]) => agentId !== id),
       );
     }
-    if (this.activeWorkspace === id) this.activeWorkspace = "main";
+    if (this.activeWorkspace === id) this.activeWorkspace = this.fallbackWorkspace(new Set([id]));
     this.emit();
   };
+
+  /** The shown tab if it survives, else the "main" placeholder until a tab is selected. */
+  private fallbackWorkspace = (gone: ReadonlySet<string>): string => {
+    const tab = worktreeStore.getActiveId();
+    return tab && !gone.has(tab) ? tab : "main";
+  };
+
+  removeMany = (ids: readonly string[]): void => {
+    if (ids.length === 0) return;
+    const gone = new Set(ids);
+    this.agents = this.agents.filter((agent) => !gone.has(agent.id));
+    this.startErrors = Object.fromEntries(Object.entries(this.startErrors).filter(([agentId]) => !gone.has(agentId)));
+    if (gone.has(this.activeWorkspace)) this.activeWorkspace = this.fallbackWorkspace(gone);
+    this.emit();
+  };
+
+  countInWorkspace = (workspace: string): number =>
+    this.agents.reduce((total, agent) => total + (agent.workspace === workspace ? 1 : 0), 0);
 
   setStatus = (id: string, status: AgentStatus): void => {
     this.agents = this.agents.map((agent) =>
@@ -244,6 +265,10 @@ export const agentStore = new AgentStore().markGlobalStore();
 
 export function useAgents(): AgentRecord[] {
   return useSyncExternalStore(agentStore.subscribe, agentStore.getAgents);
+}
+
+export function useAgentCountInWorkspace(workspace: string): number {
+  return useSyncExternalStore(agentStore.subscribe, () => agentStore.countInWorkspace(workspace));
 }
 
 export function useActiveWorkspace(): string {

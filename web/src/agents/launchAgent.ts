@@ -3,11 +3,12 @@ import type { AgentClient, DiagramTaskHint } from "./agentClient";
 import { agentStore } from "./agentStore";
 import type { ViewContext } from "./viewContext";
 import { openAgentWindow } from "./windowActions";
+import { worktreeStore } from "./worktreeStore";
 
 /** What the "Run agent" button does: no picker, no title prompt — just create, start and open a
  * fresh agent, right away. `create("")` leans on the id-as-title fallback both clients already
- * apply, so there's nothing left to ask the user for. Pass `attachTo` to target an existing
- * workspace rather than a fresh isolated worktree — see attachAgent for what that means. `context`
+ * apply, so there's nothing left to ask the user for. Every agent belongs to the active worktree tab (`workspace`); pass `attachTo` only to share
+ * another agent's worktree or fork from a PR — see attachAgent for what that means. `context`
  * is the short "current view" description the fresh agent acknowledges (acknowledge-only; see
  * parallel-agents.md). `task`, if given, takes priority over `context` and is injected as a real,
  * actionable first message instead (e.g. the "Draw…" launch — see DrawDiagramButton.tsx). */
@@ -24,9 +25,13 @@ export async function launchAgent(
       agentStore.setGitPreflight(preflight);
       return null;
     }
+    // A PR attach lives in the PR's worktree, not in the shown tab; an agent attach stays with that agent's tab.
+    const workspace = attachTo?.startsWith("pr-")
+      ? undefined
+      : ((attachTo && agentStore.getAgent(attachTo)?.workspace) || worktreeStore.getActiveId() || undefined);
     return task
-      ? client.create(diagram?.title ?? "", "agent", attachTo, task, "task", diagram)
-      : client.create("", "agent", attachTo, context?.description ?? null);
+      ? client.create(diagram?.title ?? "", "agent", attachTo, task, "task", diagram, workspace)
+      : client.create("", "agent", attachTo, context?.description ?? null, undefined, undefined, workspace);
   });
 }
 

@@ -77,12 +77,11 @@ to revive if it comes back, it would be rebuilt from scratch.
 - **`src/breadcrumb/`** — the `Breadcrumb.tsx` component was deleted (it was unmounted dead code);
   history: it was derived from `ExpansionStore` and rendered the deepest expanded node path, and was
   no longer mounted anywhere: `RootCanvas.tsx`'s `.canvas-chrome` used to show it
-  next to `BranchSwitcher`, but on a PR workspace that put an unrelated node-path string (e.g.
+  next to the old branch chip, but on a PR workspace that put an unrelated node-path string (e.g.
   "pr-69 / specs / …") right beside the branch chip, reading as broken/unrelated UI. `RootCanvas`
   now renders a plain `PR #<number> · <head_ref>` label there instead (only when the active
   workspace is a PR — computed via `usePrWorkspaces()` matched against `useActiveWorkspace()`), and
-  nothing at all otherwise, since `BranchSwitcher` already covers "which branch" for the main
-  workspace. The component/unit tests are kept, unused, rather than deleted, in case a future need
+  nothing at all otherwise, since `WorktreeStrip` already shows which worktree is open. The component/unit tests are kept, unused, rather than deleted, in case a future need
   for a path breadcrumb elsewhere in the chrome comes back. ⚠ `multi-expand-collapse.spec.ts`'s two
   `breadcrumb-current` assertions were dropped with the mount — an e2e locator against an unmounted
   component can only fail, unlike a unit test that renders the component itself.

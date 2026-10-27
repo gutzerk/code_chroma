@@ -48,6 +48,38 @@ at either end. It uses the same selection path as the dropdown, shows the Agents
 collapsed panel, preserves full screen, and focuses the selected terminal. Modal dialogs keep their
 keyboard input. The dropdown's tooltip documents these shortcuts.
 
+## Worktree tabs (C# bridge; supersedes the personal-worktree and branch-switcher notes below)
+
+A tab is a worktree on its own branch: `BranchRecord` (`br_*`, `.codechroma/branches.json`, managed by
+`Workspaces/BranchManager.cs`). Agents, diagrams and artifacts belong to a tab; main's checkout is never
+a tab and never hosts an agent. Artifacts are not shared between tabs.
+
+- `POST /branches/ensure` creates `wt-1` only when no records exist, returns `{branches, active}`.
+- `POST /branches/new {name?}` creates the first free `wt-N` (or `name`), serialized under a lock so
+  concurrent calls never pick one name. Base: `git fetch origin <default>` (20 s, `GIT_TERMINAL_PROMPT=0`),
+  branch off `origin/<default>`; fall back to local `<default>` (`WorktreeOps.MainBranch`), then `HEAD`
+  (no remote, fetch failed, empty remote). Always `--no-track`; the main checkout is never touched. Reply
+  `{branch, fetched, warning}`: `warning` is set whenever `fetched` is false, never an error. The new tab
+  becomes `active`.
+- `PATCH /branches/{id} {name}` renames the display name and the git branch (`git branch -m`); `id` and
+  worktree path stay; 409 on an invalid, duplicate or held branch name. Attached agents' `branch` follows.
+- `PUT /branches/active {id}`; `GET /branches` returns `{branches, active}`, each record with `name`,
+  `dirty` (count of `git status --porcelain` entries) and `worktree_lost`.
+- `DELETE /branches/{id}?worktree_too=` stops the attached agents' sessions first (so nothing holds the cwd),
+  removes the worktree with `--force` (uncommitted changes never block it; unlocked), and only then deletes the
+  agent records, so a refused removal (409) leaves the agents in place. Without `worktree_too` ("keep") the
+  record stays, so the tab returns on the next open; `active` is cleared and the client picks a neighbour.
+- `GET /branches/choices`, the open-existing-branch mode of `POST /branches`, and
+  `GET|POST /agents/branch`, `POST /agents/branch/update` are removed (`MainBranchOps` is read-only now).
+- `POST /agents` takes `workspace` (a `br_*` tab id). Without `attach_to` the agent shares that tab's
+  worktree (`shares_workspace_with` = the tab, `AgentRecord.workspace` = the tab, `base_branch` = the tab's
+  branch); `attach_to=main` or no `workspace` is a 400; an explicit `attach_to=pr-N` is respected. No
+  personal sub-worktree (`NewWorktree`) is created any more. `MaxAgents` stays global across tabs.
+  Older records with an empty `workspace` still load.
+
+Tests: `dotnet/CodeChroma.Bridge.Tests/Workspaces/WorktreeTabTests.cs` plus the shared
+`tests/fixtures/bridge_contract/{branches,agents}.cases.json`.
+
 Several Claude sessions at once, each on its own branch in its own `git worktree` by default, each a
 window on the canvas. `<main_root>/.codechroma/agents.json` is the registry (it spans every worktree,
 so it lives in the main repo); an agent's own artifacts need no special handling — they already sit
@@ -158,41 +190,9 @@ branch through an agent attached to it (`_guard_shared_worktree`, keyed off `Age
     🔴 `None` is the "written before this field" case and means **visible on every branch**; the web
     side folds an absent key into the same thing (`branchScope.baseBranchOf`) — an `undefined` compared
     against a branch name matched none of them, which hid every agent served by an older bridge.
-  - `main_branch.switchable_branches()` is what `GET|POST /agents/branch` reports: `list_branches`
-    minus every branch a *non-main* worktree holds. Git refuses a second checkout of such a branch, so
-    offering one could only ever produce `already used by worktree at ...`; the filter is by held-ness,
-    not by the `agent/` prefix, so a hand-made worktree is covered too.
-  - `main_branch.checkout()` no longer pre-checks the tree for *any* uncommitted or untracked file —
-    it just runs `git checkout <branch>` and lets git decide. Git itself carries forward any change
-    (tracked or untracked) that doesn't collide with what the target branch tracks, PyCharm-style; it
-    only refuses — and `checkout()` only raises `DirtyWorkingTreeError` — when git's own stderr ends
-    in `"before you switch branches"` (its wording for both "would be overwritten" and "would be
-    removed"), i.e. a real conflict. `POST /agents/branch` passes that stderr straight through as the
-    409's `detail`.
-  - Update (PyCharm's Update Project): `POST /agents/branch/update` fast-forwards main's current
-    branch from its upstream via `main_branch.update_branch()` (`git pull --ff-only`, run with the
-    bridge's long network timeout courtesy of `git_long`) — no merge or rebase commit is ever
-    invented, and a diverged branch or missing upstream surfaces git's stderr as a 409 via the
-    `GitLongError` table entry. The same 🔴 live-agent-in-main guard as the checkout route applies.
-    Because a fast-forward only moves the branch tip (it never changes *which* branch is checked
-    out), nothing has to be settled back to main, and only a `branch-changed` ping is broadcast. The
-    canvas `BranchSwitcher` gains an `Update` action (→ `updateCurrentBranch` in `branchActions.ts`)
-    above the branch list.
-  - 🔴 `POST /agents/branch` 409s while a **live** agent's `worktree` is main's own root (an
-    `attach_to: "main"` agent): a checkout swaps the files under its running `claude`. Liveness comes
-    off `agent_sessions`, not `record.status`, which is stale until `agent_payload` refreshes it. An
-    agent in its own worktree is unaffected by main's checkout — that is the whole point of worktrees —
-    and is deliberately not guarded.
-  - Canvas side: `BranchSwitcher.tsx` re-fetches `GET /agents/branch` every time it *opens*, not just
-    at `AgentWindowLayer`'s mount — a branch created or deleted from a terminal (or another window)
-    between opens must not leave the dropdown showing a stale list. The fetch runs in the click
-    handler, not inside the `setOpen` updater, so an open always triggers it exactly once. A
-    `branch-changed` ping (an external checkout in another window) also re-reads the full list, not
-    just the ping's current branch — the ping names the branch, not the branches, so it can't rebuild
-    the list on its own. `branchScope.ts` owns the single
-    predicate (`isAgentOnBranch`), `branchActions.ts`'s `switchBranch` the single manual-checkout path
-    (only `BranchSwitcher.tsx` calls it now), and the last failure lives in `branchStore` so the
-    switcher's own modal is the one place a checkout failure ever surfaces.
+  - 🔴 Superseded by worktree tabs (see "Worktree tabs"): `main_branch.switchable_branches`, `main_branch.checkout`/`update_branch`,
+    `GET|POST /agents/branch`, `POST /agents/branch/update` and the canvas `BranchSwitcher` (with `branchStore`,
+    `branchActions`, `branchScope`) were removed; main is read-only for agents, and `base_branch` comes from the tab's record.
     🔴 **Opening an agent's window is no longer coupled to a checkout at all.** It used to be
     (`openAgentOnItsBranch`: check the agent's `base_branch` out on main first, *then* restore the
     window) — removed after an incident where a dirty main tree made that checkout fail, and keep
@@ -478,9 +478,7 @@ branch through an agent attached to it (`_guard_shared_worktree`, keyed off `Age
   "×" instead opens `CloseAgentDialog` (`AgentWindowLayer`), a confirmation whose "delete worktree"
   checkbox is **off by default** — only on an explicit tick does it send `worktree=true` to the endpoint
   and remove that now-orphaned directory. The `agent/<id>` branch is **never** deletable from the UI:
-  the dialog has no branch checkbox. A stopped agent is closed, not revived. ⚠ Not via `BranchSwitcher`:
-  a leftover (non-deleted) worktree still holds that `agent/<id>` branch, so `switchable_branches`
-  filters it out of the list (it only reappears once that directory is removed). 🔴 Deliberately not
+  the dialog has no branch checkbox. A stopped agent is closed, not revived. (Historical: agents no longer get own worktrees, see "Worktree tabs".) 🔴 Deliberately not
   auto-pruned: branches and directories the user chose to keep accumulate until cleaned by hand
   (`git worktree remove` / `git branch -d`) — the non-deleted close still leaves them, that is the
   deliberate trade for "× deletes nothing by default". `_unique_id` (`manager.py`) checks

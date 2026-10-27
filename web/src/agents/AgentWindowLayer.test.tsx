@@ -10,6 +10,7 @@ import type { TerminalClient, TerminalSession } from "../terminal/TerminalClient
 import { AgentClientProvider } from "./AgentClientContext";
 import type { AgentClient } from "./agentClient";
 import { PR_CLIENT_STUB } from "./stubAgentClient";
+import { worktreeStore } from "./worktreeStore";
 import { agentStore } from "./agentStore";
 import { agentDockStore } from "./agentDockStore";
 import { flagDiagramsReady } from "./agentDiagramsReady";
@@ -76,9 +77,13 @@ function record(overrides: Partial<AgentRecord> = {}): AgentRecord {
   };
 }
 
+const TAB = { id: "br_1", name: "wt-1", branch: "wt-1", worktree: "/w/wt-1" };
+
 function agentClient(agents: AgentRecord[]): AgentClient {
   return {
     ...PR_CLIENT_STUB,
+    ensureWorktrees: async () => ({ branches: [TAB], active: "br_1" }),
+    listWorktrees: async () => ({ branches: [TAB, { ...TAB, id: "br_2", name: "wt-2" }], active: "br_1" }),
     list: async () => ({ agents, active_workspace: "main", max_agents: 5 }),
     create: async () => record(),
     start: async () => record(),
@@ -92,9 +97,6 @@ function agentClient(agents: AgentRecord[]): AgentClient {
     workspaceStatus: async (id) => ({ id, state: "ready" as const, progress: "", error: null }),
     gitPreflight: async () => ({ state: "ready" as const, root: "/repo" }),
     gitInit: async () => ({ state: "ready", created_repo: true, created_gitignore: true }),
-    getBranch: async () => ({ current: "main", branches: ["main"] }),
-    switchBranch: async (branch) => ({ current: branch, branches: ["main"] }),
-    updateBranch: async () => ({ current: "main", branches: ["main"] }),
   };
 }
 
@@ -138,6 +140,7 @@ function renderLayerWithPing(agents: AgentRecord[]) {
 beforeEach(() => {
   window.localStorage.removeItem("codechroma.agentDockCollapsed");
   agentStore.reset();
+  worktreeStore.reset();
   agentDockStore.reset();
   layoutStore.reset();
   vi.mocked(flagDiagramsReady).mockClear();
@@ -158,13 +161,29 @@ describe("AgentWindowLayer", () => {
     await waitFor(() => expect(layoutStore.getState().selectedAgentId).toBeNull());
   });
 
-  it("falls back to main when a branch-removed ping names the active workspace", async () => {
+  it("boots the worktree tabs through ensure and selects the active one", async () => {
+    renderLayer([]);
+
+    await waitFor(() => expect(worktreeStore.getActiveId()).toBe("br_1"));
+    expect(agentStore.getActiveWorkspace()).toBe("br_1");
+  });
+
+  it("removes a known tab locally on a branch-removed ping", async () => {
     const ping = renderLayerWithPing([]);
-    agentStore.setActiveWorkspace("feature-x");
+    await waitFor(() => expect(worktreeStore.getRecords()).toHaveLength(1));
 
-    ping({ type: "branch-removed", id: "feature-x" });
+    ping({ type: "branch-removed", id: "br_1" });
 
-    await waitFor(() => expect(agentStore.getActiveWorkspace()).toBe("main"));
+    await waitFor(() => expect(worktreeStore.getRecords()).toHaveLength(0));
+  });
+
+  it("re-reads the worktree tabs on a branch-removed ping for an unknown id", async () => {
+    const ping = renderLayerWithPing([]);
+    await waitFor(() => expect(worktreeStore.getRecords()).toHaveLength(1));
+
+    ping({ type: "branch-removed", id: "br_ghost" });
+
+    await waitFor(() => expect(worktreeStore.getRecords()).toHaveLength(2));
   });
 
   it("shows the git-init dialog once launchAgent publishes a blocked preflight to the store", async () => {

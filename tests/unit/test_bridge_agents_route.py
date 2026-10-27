@@ -11,12 +11,12 @@ from pathlib import Path
 from uuid import UUID, uuid4
 
 import pytest
-from fastapi.testclient import TestClient
 
 from codechroma.bridge.agents import publish, worktree
 from codechroma.bridge.agents import session_ownership as ownership
 from codechroma.bridge.agents.manager import AgentManager, max_agents
 from codechroma.terminal import server as terminal_server
+from tests.conftest import TabClient as TestClient
 from tests.conftest import copy_sample_repo, diagram_json_path, pr_record
 
 
@@ -40,25 +40,22 @@ def test_agents_list_starts_empty_on_main(client):
     assert body == {"agents": [], "active_workspace": "main", "max_agents": max_agents()}
 
 
-def test_post_agents_creates_a_branch_and_a_worktree(client):
+def test_post_agents_joins_its_tabs_worktree_without_a_branch_of_its_own(client):
     test_client, repo, _server = client
+    tab = test_client.post("/branches/ensure").json()["branches"][0]
 
-    response = test_client.post("/agents", json={"title": "refund flow"})
+    response = test_client.post("/agents", json={"title": "refund flow", "workspace": tab["id"]})
 
     body = response.json()
     assert response.status_code == 200
     assert body["id"] == "refund-flow"
-    assert body["branch"] == "agent/refund-flow"
+    assert body["workspace"] == tab["id"]
+    assert body["worktree"] == tab["worktree"]
+    assert body["branch"] == "wt-1"
     assert (Path(body["worktree"]) / "shared" / "text_utils.py").exists()
-    assert (
-        "agent/refund-flow"
-        in subprocess.run(
-            ["git", "branch", "--list", "agent/refund-flow"],
-            cwd=repo,
-            capture_output=True,
-            text=True,
-        ).stdout
-    )
+    assert subprocess.run(
+        ["git", "branch", "--list", "agent/*"], cwd=repo, capture_output=True, text=True
+    ).stdout.strip() == ""
 
 
 def test_post_agents_does_not_start_a_process(client):
@@ -156,24 +153,29 @@ def test_post_agents_seeds_diagrams_from_main_into_the_worktree(client):
     }
 
 
-def test_post_agents_can_attach_to_main_instead_of_forking_a_branch(client):
-    test_client, repo, _server = client
+def test_post_agents_refuses_to_attach_to_main(client):
+    test_client, _repo, _server = client
 
-    body = test_client.post("/agents", json={"title": "sidecar", "attach_to": "main"}).json()
+    response = test_client.post("/agents", json={"title": "sidecar", "attach_to": "main"})
 
-    assert body["worktree"] == str(repo)
-    assert (
-        body["branch"]
-        == subprocess.run(
-            ["git", "rev-parse", "--abbrev-ref", "HEAD"], cwd=repo, capture_output=True, text=True
-        ).stdout.strip()
-    )
-    assert (
-        subprocess.run(
-            ["git", "branch", "--list", "agent/sidecar"], cwd=repo, capture_output=True, text=True
-        ).stdout.strip()
-        == ""
-    )
+    assert response.status_code == 400
+
+
+def test_post_agents_without_a_workspace_is_a_400(client):
+    test_client, _repo, _server = client
+
+    response = test_client.post("/agents", json={"title": "sidecar", "workspace": None})
+
+    assert response.status_code == 400
+    assert response.json()["detail"] == "workspace is required"
+
+
+def test_post_agents_for_an_unknown_workspace_is_a_404(client):
+    test_client, _repo, _server = client
+
+    response = test_client.post("/agents", json={"title": "sidecar", "workspace": "br_nope"})
+
+    assert response.status_code == 404
 
 
 def test_post_agents_can_attach_to_another_agents_worktree(client):
@@ -313,54 +315,19 @@ def test_delete_keeps_the_worktree_and_branch_by_default(client):
 
     assert response.status_code == 200
     assert Path(created["worktree"]).is_dir()
-    assert (
-        "agent/keeper"
-        in subprocess.run(
-            ["git", "branch", "--list", "agent/keeper"], cwd=repo, capture_output=True, text=True
-        ).stdout
-    )
+    assert "wt-1" in subprocess.run(
+        ["git", "branch", "--list", "wt-1"], cwd=repo, capture_output=True, text=True
+    ).stdout
 
 
-def test_delete_removes_the_worktree_and_branch_when_asked(client):
-    test_client, repo, _server = client
+def test_delete_cannot_remove_the_tabs_worktree_through_an_agent(client):
+    test_client, _repo, _server = client
     created = test_client.post("/agents", json={"title": "gone"}).json()
 
     response = test_client.delete("/agents/gone?worktree=true&branch=true")
 
-    assert response.status_code == 200
-    assert not Path(created["worktree"]).exists()
-    assert (
-        subprocess.run(
-            ["git", "branch", "--list", "agent/gone"], cwd=repo, capture_output=True, text=True
-        ).stdout.strip()
-        == ""
-    )
-
-
-def test_delete_refuses_a_dirty_worktree_without_force(client):
-    test_client, _repo, _server = client
-    created = test_client.post("/agents", json={"title": "dirty"}).json()
-    (Path(created["worktree"]) / "shared" / "text_utils.py").write_text(
-        "changed = True\n", encoding="utf-8"
-    )
-
-    response = test_client.delete("/agents/dirty?worktree=true")
-
     assert response.status_code == 409
     assert Path(created["worktree"]).is_dir()
-
-
-def test_delete_with_force_drops_a_dirty_worktree(client):
-    test_client, _repo, _server = client
-    created = test_client.post("/agents", json={"title": "dirty"}).json()
-    (Path(created["worktree"]) / "shared" / "text_utils.py").write_text(
-        "changed = True\n", encoding="utf-8"
-    )
-
-    response = test_client.delete("/agents/dirty?worktree=true&force=true")
-
-    assert response.status_code == 200
-    assert not Path(created["worktree"]).exists()
 
 
 def test_delete_refuses_a_worktree_still_shared_by_another_agent(client):
@@ -372,16 +339,6 @@ def test_delete_refuses_a_worktree_still_shared_by_another_agent(client):
 
     assert response.status_code == 409
     assert Path(target["worktree"]).is_dir()
-
-
-def test_delete_refuses_mains_worktree_via_an_attached_agent(client):
-    test_client, repo, _server = client
-    test_client.post("/agents", json={"title": "sidecar", "attach_to": "main"})
-
-    response = test_client.delete("/agents/sidecar?worktree=true&branch=true")
-
-    assert response.status_code == 409
-    assert repo.is_dir()
 
 
 def test_delete_unknown_agent_is_404(client):
@@ -592,7 +549,7 @@ def test_start_brings_up_the_pty_and_reports_a_pid(started_client):
     assert AgentManager(repo).get("runner").session_id == session_id
 
 
-@pytest.mark.parametrize("attach_to", [None, "main"])
+@pytest.mark.parametrize("attach_to", [None, "sibling"])
 def test_claude_agent_launch_loads_the_runtime_plugin_for_worktrees_and_attachments(
     started_client, monkeypatch, attach_to
 ):
@@ -601,6 +558,7 @@ def test_claude_agent_launch_loads_the_runtime_plugin_for_worktrees_and_attachme
     test_client, _repo, bridge = started_client
     body = {"title": "plugin-agent"}
     if attach_to is not None:
+        test_client.post("/agents", json={"title": attach_to})
         body["attach_to"] = attach_to
     test_client.post("/agents", json=body)
     launched = {}
@@ -796,7 +754,7 @@ def test_session_changes_survive_manual_resume_and_autostart(
     from codechroma.bridge.agents.autostart import auto_start_agents
 
     test_client, repo, bridge = client
-    test_client.post("/agents", json={"title": "runner", "attach_to": "main"})
+    test_client.post("/agents", json={"title": "runner"})
     launched = {}
     _stub_agent_start(monkeypatch, bridge, launched)
     first = test_client.post("/agents/runner/start", json={}).json()
@@ -1034,203 +992,9 @@ def test_creating_a_pr_is_refused_for_a_pr_attached_agent(client, tmp_path):
     assert "pr-282" in response.json()["detail"]
 
 
-def test_get_branch_reports_mains_current_branch(client):
-    test_client, repo, _server = client
-    current = subprocess.run(
-        ["git", "branch", "--show-current"], cwd=repo, capture_output=True, text=True
-    ).stdout.strip()
-
-    body = test_client.get("/agents/branch").json()
-
-    assert body["current"] == current
-    assert current in body["branches"]
-
-
-def test_post_branch_checks_out_and_broadcasts(client):
-    test_client, repo, _server = client
-    subprocess.run(["git", "branch", "feature-x"], cwd=repo, check=True, capture_output=True)
-
-    response = test_client.post("/agents/branch", json={"branch": "feature-x"})
-
-    assert response.status_code == 200
-    assert response.json()["current"] == "feature-x"
-    assert test_client.get("/agents/branch").json()["current"] == "feature-x"
-
-
-def test_post_branch_404s_on_an_unknown_branch(client):
+def test_a_new_agent_reports_its_tabs_branch_as_its_base(client):
     test_client, _repo, _server = client
-
-    response = test_client.post("/agents/branch", json={"branch": "does-not-exist"})
-
-    assert response.status_code == 404
-
-
-def test_post_branch_409s_when_the_target_branch_would_overwrite_a_local_change(client):
-    test_client, repo, _server = client
-    before = subprocess.run(
-        ["git", "branch", "--show-current"], cwd=repo, capture_output=True, text=True
-    ).stdout.strip()
-    subprocess.run(
-        ["git", "checkout", "-b", "feature-x"], cwd=repo, check=True, capture_output=True
-    )
-    (repo / "shared" / "text_utils.py").write_text("changed_on = 'feature-x'\n", encoding="utf-8")
-    subprocess.run(
-        ["git", "commit", "-am", "change on feature-x"], cwd=repo, check=True, capture_output=True
-    )
-    subprocess.run(["git", "checkout", before], cwd=repo, check=True, capture_output=True)
-    (repo / "shared" / "text_utils.py").write_text("dirty = 1\n", encoding="utf-8")
-
-    response = test_client.post("/agents/branch", json={"branch": "feature-x"})
-
-    assert response.status_code == 409
-
-
-def test_post_branch_carries_over_a_local_change_the_target_branch_does_not_touch(client):
-    test_client, repo, _server = client
-    subprocess.run(["git", "branch", "feature-x"], cwd=repo, check=True, capture_output=True)
-    (repo / "shared" / "text_utils.py").write_text("dirty = 1\n", encoding="utf-8")
-
-    response = test_client.post("/agents/branch", json={"branch": "feature-x"})
-
-    assert response.status_code == 200
-    assert (repo / "shared" / "text_utils.py").read_text(encoding="utf-8") == "dirty = 1\n"
-
-
-# Such a branch could only answer "already used by worktree at ...", so it never reaches the UI.
-def test_get_branch_omits_a_branch_another_worktree_holds(client, tmp_path):
-    test_client, repo, _server = client
-    subprocess.run(["git", "branch", "feature-x"], cwd=repo, check=True, capture_output=True)
-    subprocess.run(
-        ["git", "worktree", "add", str(tmp_path / "held"), "feature-x"],
-        cwd=repo,
-        check=True,
-        capture_output=True,
-    )
-
-    body = test_client.get("/agents/branch").json()
-
-    assert "feature-x" not in body["branches"]
-    assert body["current"] in body["branches"]
-
-
-def test_get_branch_omits_the_branch_an_agent_was_created_on(client):
-    test_client, _repo, _server = client
-    created = test_client.post("/agents", json={"title": "refund flow"}).json()
-
-    body = test_client.get("/agents/branch").json()
-
-    assert created["branch"] not in body["branches"]
-
-
-def test_a_new_agent_reports_the_branch_main_was_on_as_its_base(client):
-    test_client, repo, _server = client
-    subprocess.run(["git", "checkout", "-b", "dataflow"], cwd=repo, check=True, capture_output=True)
 
     body = test_client.post("/agents", json={"title": "refund flow"}).json()
 
-    assert body["base_branch"] == "dataflow"
-
-
-# 🔴 An attached agent's `claude` runs in main's own tree; a checkout would swap the files under it.
-def test_post_branch_409s_while_a_live_agent_works_in_mains_own_tree(started_client):
-    test_client, repo, _server = started_client
-    subprocess.run(["git", "branch", "feature-x"], cwd=repo, check=True, capture_output=True)
-    test_client.post("/agents", json={"title": "sidecar", "attach_to": "main"})
-    test_client.post("/agents/sidecar/start", json={})
-
-    response = test_client.post("/agents/branch", json={"branch": "feature-x"})
-
-    assert response.status_code == 409
-    assert "sidecar" in response.json()["detail"]
-
-
-def test_post_branch_allows_the_switch_once_that_agent_is_stopped(started_client):
-    test_client, repo, _server = started_client
-    subprocess.run(["git", "branch", "feature-x"], cwd=repo, check=True, capture_output=True)
-    test_client.post("/agents", json={"title": "sidecar", "attach_to": "main"})
-    test_client.post("/agents/sidecar/start", json={})
-    test_client.post("/agents/sidecar/stop", json={})
-
-    response = test_client.post("/agents/branch", json={"branch": "feature-x"})
-
-    assert response.status_code == 200
-
-
-def test_an_attached_to_main_agents_reported_branch_follows_the_switch(started_client):
-    """A record snapshotted `branch`/`base_branch` at creation; both must track main live."""
-    test_client, repo, _server = started_client
-    subprocess.run(["git", "branch", "feature-x"], cwd=repo, check=True, capture_output=True)
-    test_client.post("/agents", json={"title": "sidecar", "attach_to": "main"})
-    test_client.post("/agents/sidecar/start", json={})
-    test_client.post("/agents/sidecar/stop", json={})
-    test_client.post("/agents/branch", json={"branch": "feature-x"})
-
-    body = test_client.get("/agents").json()
-
-    sidecar = next(agent for agent in body["agents"] if agent["id"] == "sidecar")
-    assert (sidecar["branch"], sidecar["base_branch"]) == ("feature-x", "feature-x")
-
-
-# An agent in its own worktree is untouched by main's checkout -- the whole point of worktrees.
-def test_post_branch_ignores_a_live_agent_that_has_its_own_worktree(started_client):
-    test_client, repo, _server = started_client
-    subprocess.run(["git", "branch", "feature-x"], cwd=repo, check=True, capture_output=True)
-    test_client.post("/agents", json={"title": "refund flow"})
-    test_client.post("/agents/refund-flow/start", json={})
-
-    response = test_client.post("/agents/branch", json={"branch": "feature-x"})
-
-    assert response.status_code == 200
-
-
-def test_post_branch_409s_rather_than_404s_on_a_worktree_conflict(client, tmp_path):
-    test_client, repo, _server = client
-    subprocess.run(["git", "branch", "feature-x"], cwd=repo, check=True, capture_output=True)
-    subprocess.run(
-        ["git", "worktree", "add", str(tmp_path / "other-worktree"), "feature-x"],
-        cwd=repo,
-        check=True,
-        capture_output=True,
-    )
-
-    response = test_client.post("/agents/branch", json={"branch": "feature-x"})
-
-    assert response.status_code == 409
-
-
-def test_post_branch_update_fast_forwards_main_from_its_upstream(client, tmp_path):
-    test_client, repo, _server = client
-    origin = tmp_path / "origin.git"
-    subprocess.run(["git", "init", "--bare", str(origin)], check=True, capture_output=True)
-    subprocess.run(
-        ["git", "remote", "add", "origin", str(origin)], cwd=repo, check=True, capture_output=True
-    )
-    subprocess.run(
-        ["git", "push", "-u", "origin", "main"], cwd=repo, check=True, capture_output=True
-    )
-    feeder = tmp_path / "feeder"
-    subprocess.run(["git", "clone", str(origin), str(feeder)], check=True, capture_output=True)
-    subprocess.run(["git", "config", "user.email", "t@example.com"], cwd=feeder, check=True)
-    subprocess.run(["git", "config", "user.name", "T"], cwd=feeder, check=True)
-    (feeder / "shared" / "text_utils.py").write_text("value = 9\n", encoding="utf-8")
-    subprocess.run(["git", "add", "-A"], cwd=feeder, check=True, capture_output=True)
-    subprocess.run(
-        ["git", "commit", "-m", "feeder change"], cwd=feeder, check=True, capture_output=True
-    )
-    subprocess.run(["git", "push"], cwd=feeder, check=True, capture_output=True)
-
-    body = test_client.post("/agents/branch/update").json()
-
-    assert (repo / "shared" / "text_utils.py").read_text(encoding="utf-8") == "value = 9\n"
-    assert body["current"] == "main"
-
-
-def test_post_branch_update_409s_while_a_live_agent_works_in_main(started_client):
-    test_client, _repo, _server = started_client
-    test_client.post("/agents", json={"title": "sidecar", "attach_to": "main"})
-    test_client.post("/agents/sidecar/start", json={})
-
-    response = test_client.post("/agents/branch/update")
-
-    assert response.status_code == 409
-    assert "sidecar" in response.json()["detail"]
+    assert body["base_branch"] == "wt-1"

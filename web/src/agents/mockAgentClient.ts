@@ -2,7 +2,6 @@ import type {
   AgentList,
   AgentRecord,
   AgentWindowGeometry,
-  BranchInfo,
   BuiltinDiagramKind,
   GitInitResult,
   GitPreflight,
@@ -12,6 +11,9 @@ import type {
   PrWorkspace,
   PrWorkspaceList,
   WorkspaceStatus,
+  WorktreeCreated,
+  WorktreeList,
+  WorktreeRecord,
 } from "../state/types";
 import { parsePrNumber } from "../pr/prUrl";
 import type { AgentClient, DiagramTaskHint } from "./agentClient";
@@ -44,10 +46,9 @@ export class MockAgentClient implements AgentClient {
   private active = "main";
   private preflightState: GitPreflight = { state: "ready", root: "/mock/repo" };
   private prPreflightState: PrImportPreflight = { ready: true, reason: null };
-  private currentBranch = "main";
-  // Two from the start, so the switcher is actually exercisable without a bridge (the e2e specs pick
-  // `feature-x` to check that agents created on main hide themselves).
-  private branches = ["main", "feature-x"];
+  private worktrees: WorktreeRecord[] = [];
+  private worktreeCounter = 0;
+  private activeWorktree: string | null = null;
 
   /** e2e hook: makes the next preflight report a project that isn't under git yet. */
   setPreflight(preflight: GitPreflight): void {
@@ -58,8 +59,9 @@ export class MockAgentClient implements AgentClient {
     return MOCK_DIAGRAM_KINDS;
   }
 
-  async list(): Promise<AgentList> {
-    return { agents: [...this.agents], active_workspace: this.active, max_agents: MAX_AGENTS };
+  async list(workspace?: string): Promise<AgentList> {
+    const agents = workspace ? this.agents.filter((agent) => agent.workspace === workspace) : this.agents;
+    return { agents: [...agents], active_workspace: this.active, max_agents: MAX_AGENTS };
   }
 
   async create(
@@ -69,7 +71,9 @@ export class MockAgentClient implements AgentClient {
     _context?: string | null,
     _contextKind?: "view" | "task",
     diagram?: DiagramTaskHint,
+    workspace?: string,
   ): Promise<AgentRecord> {
+    if (attachTo === "main") throw new Error("attach_to=main is not allowed; agents work in a worktree tab");
     if (this.agents.length >= MAX_AGENTS) {
       throw new Error(`the limit of ${MAX_AGENTS} concurrent agents is reached`);
     }
@@ -91,6 +95,14 @@ export class MockAgentClient implements AgentClient {
       worktreePath = `/mock/worktrees/${id}`;
       sourcePr = pr.id;
       sharesWorkspaceWith = null;
+    } else if (attachTo === undefined && workspace !== undefined) {
+      const tab = this.worktrees.find((candidate) => candidate.id === workspace);
+      if (!tab) throw new Error(`unknown workspace: ${workspace}`);
+      branch = tab.branch;
+      baseBranch = "main";
+      worktreePath = tab.worktree;
+      sourcePr = null;
+      sharesWorkspaceWith = null;
     } else if (attachTo !== undefined) {
       const target = this.attachTarget(attachTo);
       branch = target.branch;
@@ -100,7 +112,7 @@ export class MockAgentClient implements AgentClient {
       sharesWorkspaceWith = attachTo;
     } else {
       branch = `agent/${id}`;
-      baseBranch = this.currentBranch;
+      baseBranch = "main";
       worktreePath = `/mock/worktrees/${id}`;
       sourcePr = null;
       sharesWorkspaceWith = null;
@@ -112,6 +124,7 @@ export class MockAgentClient implements AgentClient {
       kind,
       branch,
       base_branch: baseBranch,
+      workspace: workspace ?? null,
       source_pr: sourcePr,
       shares_workspace_with: sharesWorkspaceWith,
       worktree: worktreePath,
@@ -143,13 +156,10 @@ export class MockAgentClient implements AgentClient {
     return agent;
   }
 
-  /** "main" or another agent's own branch/worktree — thrown on an id that isn't either. */
+  /** Another agent's own branch/worktree — thrown on an id that isn't one. */
   private attachTarget(
     attachTo: string,
   ): { branch: string; base_branch: string | null; worktree: string } {
-    if (attachTo === "main") {
-      return { branch: this.currentBranch, base_branch: this.currentBranch, worktree: "/mock/repo" };
-    }
     const target = this.agents.find((agent) => agent.id === attachTo);
     if (!target) throw new Error(`unknown attach_to: ${attachTo}`);
     return {
@@ -213,20 +223,43 @@ export class MockAgentClient implements AgentClient {
     return { state: "ready", created_repo: true, created_gitignore: true, commit: "0".repeat(40) };
   }
 
-  async getBranch(): Promise<BranchInfo> {
-    return { current: this.currentBranch, branches: [...this.branches] };
+  async listWorktrees(): Promise<WorktreeList> {
+    return { branches: this.worktrees.map((tab) => ({ ...tab, dirty: 0 })), active: this.activeWorktree };
   }
 
-  /** No git behind the fixture bridge: any name is accepted and remembered, no dirty-tree check. */
-  async switchBranch(branch: string): Promise<BranchInfo> {
-    if (!this.branches.includes(branch)) this.branches.push(branch);
-    this.currentBranch = branch;
-    return { current: this.currentBranch, branches: [...this.branches] };
+  async ensureWorktrees(): Promise<WorktreeList> {
+    if (this.worktrees.length === 0) await this.createWorktree();
+    return this.listWorktrees();
   }
 
-  /** No git behind the fixture bridge: updating has nothing to fetch, so it just re-reads. */
-  async updateBranch(): Promise<BranchInfo> {
-    return { current: this.currentBranch, branches: [...this.branches] };
+  async createWorktree(name?: string): Promise<WorktreeCreated> {
+    this.worktreeCounter += 1;
+    const label = name?.trim() || `wt-${this.worktreeCounter}`;
+    const id = `br_${this.worktreeCounter}`;
+    const branch: WorktreeRecord = { id, name: label, branch: label, worktree: `/mock/worktrees/${label}` };
+    this.worktrees.push(branch);
+    this.activeWorktree = id;
+    return { branch, fetched: false, warning: null };
+  }
+
+  async renameWorktree(id: string, name: string): Promise<void> {
+    const tab = this.worktrees.find((candidate) => candidate.id === id);
+    if (!tab) throw new Error(`unknown worktree: ${id}`);
+    if (this.worktrees.some((other) => other.id !== id && other.name === name)) {
+      throw new Error(`name "${name}" is already in use`);
+    }
+    tab.name = name;
+    tab.branch = name;
+  }
+
+  async setActiveWorktree(id: string): Promise<void> {
+    this.activeWorktree = id;
+  }
+
+  async closeWorktree(id: string, _worktreeToo: boolean): Promise<void> {
+    this.worktrees = this.worktrees.filter((tab) => tab.id !== id);
+    this.agents = this.agents.filter((agent) => agent.workspace !== id);
+    if (this.activeWorktree === id) this.activeWorktree = this.worktrees[0]?.id ?? null;
   }
 
   async listPrs(): Promise<PrWorkspaceList> {
@@ -298,7 +331,7 @@ export class MockAgentClient implements AgentClient {
 
   async closePr(number: number): Promise<void> {
     this.prs = this.prs.filter((pr) => pr.number !== number);
-    if (this.active === `pr-${number}`) this.active = "main";
+    if (this.active === `pr-${number}`) this.active = this.activeWorktree ?? "main";
   }
 
   private isPr(id: string): boolean {

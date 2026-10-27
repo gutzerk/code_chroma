@@ -120,9 +120,10 @@ public static class ProviderTester
             if (CliLocator.Find(adapter) is null)
                 return Failure(providerId, $"{adapter} was not found on PATH");
             var models = await ModelCatalog.Fetch(provider);
-            return models["error"] is { } error
-                ? Failure(providerId, error.ToString())
-                : new JsonObject { ["ok"] = true, ["provider_id"] = providerId, ["message"] = "ok" };
+            if (models["error"] is { } error) return Failure(providerId, error.ToString());
+            var reply = new JsonObject { ["ok"] = true, ["provider_id"] = providerId, ["message"] = "ok" };
+            if (ModelsCount(models) is { } count) reply["models_count"] = count;
+            return reply;
         }
         var llm = Skills.LlmCompletion.For(provider, http);
         if (llm is null) return Failure(providerId, "provider is not fully configured");
@@ -131,13 +132,19 @@ public static class ProviderTester
         try
         {
             var text = await llm.Complete("Reply with the single word: ok", model, 1);
-            return new JsonObject { ["ok"] = true, ["provider_id"] = providerId, ["message"] = text.Length > 40 ? text[..40] : text };
+            var reply = new JsonObject { ["ok"] = true, ["provider_id"] = providerId, ["message"] = text.Length > 40 ? text[..40] : text };
+            var listing = await ModelCatalog.Fetch(provider, http);
+            if (listing["error"] is null && ModelsCount(listing) is { } count) reply["models_count"] = count;
+            return reply;
         }
         catch (Exception error)
         {
             return Failure(providerId, error.Message);
         }
     }
+
+    private static int? ModelsCount(JsonObject listing) =>
+        listing["static"] is null && listing["models"] is JsonArray { Count: > 0 } models ? models.Count : null;
 
     private static JsonObject Failure(string? providerId, string error) =>
         new() { ["ok"] = false, ["provider_id"] = providerId, ["error"] = error };

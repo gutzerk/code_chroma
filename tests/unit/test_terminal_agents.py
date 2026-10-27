@@ -193,3 +193,14 @@ def test_headless_prompts_keep_using_synced_project_skill_commands():
         f"/{skill_name}" in (prompts / prompt_name).read_text(encoding="utf-8")
         for prompt_name, skill_name in prompt_skill_names.items()
     )
+
+
+def test_claude_kind_appends_the_saved_instruction_to_the_system_prompt():
+    from codechroma.assistant import save_assistant_settings
+    from codechroma.terminal.agents import agent_cli
+
+    save_assistant_settings({"cli": "claude", "instruction": "be terse"})
+
+    argv, _env = agent_cli("claude")
+
+    assert argv == ["claude", "--append-system-prompt", "be terse", *_plugin_args()]

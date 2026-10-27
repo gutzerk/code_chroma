@@ -1,5 +1,6 @@
 using System.Text.Json.Nodes;
 using CodeChroma.Bridge.Http;
+using CodeChroma.Bridge.Skills;
 using CodeChroma.Bridge.Stores;
 
 namespace CodeChroma.Bridge.Routes;
@@ -24,11 +25,13 @@ public static class LlmSettingsRoutes
 
         app.MapGet("/llm/default", (CallSiteStore sites) => Reply.Json(new JsonObject { ["default"] = sites.Default() }));
 
-        app.MapPut("/llm/default", async (HttpRequest request, CallSiteStore sites) =>
+        app.MapPut("/llm/default", async (HttpRequest request, ProviderStore providers, CallSiteStore sites) =>
         {
             try
             {
-                sites.SaveDefault(await Reply.LenientBody(request));
+                var body = await Reply.LenientBody(request);
+                await FillDefaultModels(body, providers, sites);
+                sites.SaveDefault(body);
                 return Reply.Json(new JsonObject { ["default"] = sites.Default() });
             }
             catch (ArgumentException error)
@@ -45,6 +48,54 @@ public static class LlmSettingsRoutes
 
         app.MapGet("/llm/features", (ProviderStore providers, CallSiteStore sites) =>
             Reply.Json(new JsonObject { ["features"] = new JsonArray(FeatureRows(providers, sites).Select(r => (JsonNode?)r).ToArray()) }));
+
+        app.MapPut("/llm/features/{featureId}", async (string featureId, HttpRequest request, ProviderStore providers, CallSiteStore sites) =>
+        {
+            if (LlmCatalog.Features.All(f => f.Id != featureId)) return UnknownFeature(featureId);
+            var body = await Reply.LenientBody(request);
+            try
+            {
+                if (Json.Bool(body["offline"]))
+                {
+                    sites.SaveOffline(featureId);
+                    return Reply.Json(FeatureRow(featureId, providers, sites));
+                }
+                var payload = new JsonObject { ["provider_id"] = body["provider_id"]?.DeepClone(), ["model"] = body["model"]?.DeepClone() };
+                if (Json.Str(payload["model"]) is not { } given || Json.IsBlank(given))
+                {
+                    var current = FeatureRow(featureId, providers, sites)["effective"]!;
+                    var keep = Json.Str(current["provider_id"]) == Json.Str(payload["provider_id"]) ? Json.Str(current["model"]) : null;
+                    payload["model"] = await PickModel(providers, Json.Str(payload["provider_id"]), keep, false);
+                }
+                if (LlmCatalog.Group(featureId) is not null) sites.SaveGroup(featureId, payload);
+                else
+                {
+                    payload["mode"] = "api";
+                    sites.SaveSimple(featureId, payload);
+                }
+                return Reply.Json(FeatureRow(featureId, providers, sites));
+            }
+            catch (ArgumentException error)
+            {
+                return Reply.Error(400, error.Message);
+            }
+        });
+
+        app.MapDelete("/llm/features/{featureId}", (string featureId, ProviderStore providers, CallSiteStore sites) =>
+        {
+            if (LlmCatalog.Features.All(f => f.Id != featureId)) return UnknownFeature(featureId);
+            if (LlmCatalog.Group(featureId) is not null) sites.ClearGroup(featureId);
+            else sites.Clear(featureId);
+            return Reply.Json(FeatureRow(featureId, providers, sites));
+        });
+
+        app.MapPost("/llm/providers/capabilities", async (HttpRequest request) =>
+        {
+            var body = await Reply.LenientBody(request);
+            if (Json.Truthy(body["api_key_set"]) && !Json.Truthy(body["api_key"])) body["api_key"] = "<kept>";
+            var caps = ProviderStore.Capabilities(ProviderStore.FromPayload("draft", ProviderStore.NormalizeKeys(body)));
+            return Reply.Json(new JsonObject { ["capabilities"] = new JsonObject { ["agents"] = caps.Agents, ["quick"] = caps.Quick } });
+        });
 
         app.MapPost("/llm/providers", async (HttpRequest request, ProviderStore providers) =>
         {
@@ -96,6 +147,9 @@ public static class LlmSettingsRoutes
 
         app.MapPost("/llm/providers/{providerId}/test", async (string providerId, ProviderStore providers) =>
             providers.Find(providerId) is { } provider ? Reply.Json(await ProviderTester.Run(providerId, provider)) : Unknown(providerId));
+
+        app.MapGet("/llm/cli/{adapter}/auth", async (string adapter, RuntimeEnvironment runtime) =>
+            Reply.Json(new JsonObject { ["signed_in"] = await Task.Run(() => CliAuth.SignedIn(adapter, runtime)) }));
 
         app.MapGet("/llm/providers/{providerId}/models", async (string providerId, ProviderStore providers) =>
             providers.Find(providerId) is { } provider ? Reply.Json(await ModelCatalog.Fetch(provider)) : Unknown(providerId));
@@ -164,9 +218,39 @@ public static class LlmSettingsRoutes
         });
     }
 
+    /// <summary>Keeps <paramref name="current"/> if the catalog lists it, else the second (or first) model; "" lets validation refuse.</summary>
+    private static async Task<string> PickModel(ProviderStore providers, string? providerId, string? current, bool first)
+    {
+        if (providerId is null || providers.Find(providerId) is not { } provider) return "";
+        var models = (await ModelCatalog.Fetch(provider))["models"] as JsonArray ?? [];
+        var ids = models.Select(m => Json.Str(m?["id"])).Where(id => id is not null).Select(id => id!).ToList();
+        if (current is not null && ids.Contains(current)) return current;
+        if (ids.Count == 0) return "";
+        return first || ids.Count == 1 ? ids[0] : ids[1];
+    }
+
+    private static async Task FillDefaultModels(JsonObject body, ProviderStore providers, CallSiteStore sites)
+    {
+        if (Json.Str(body["model"]) is not { } model || Json.IsBlank(model))
+        {
+            var stored = sites.Default();
+            var providerId = Json.Str(body["provider_id"]);
+            var same = stored is not null && Json.Str(stored["provider_id"]) == providerId;
+            body["model"] = await PickModel(providers, providerId, same ? Json.Str(stored!["model"]) : null, false);
+        }
+        foreach (var key in new[] { "quick_fallback", "agent_fallback" })
+            if (body[key] is JsonObject fallback && !Json.Bool(fallback["offline"]) && (Json.Str(fallback["model"]) is not { } m || Json.IsBlank(m)))
+                fallback["model"] = await PickModel(providers, Json.Str(fallback["provider_id"]), null, true);
+    }
+
     private static IResult Unknown(string providerId) => Reply.Error(404, $"unknown provider: '{providerId}'");
 
     private static IResult UnknownGroup(string groupId) => Reply.Error(404, $"unknown call site group: '{groupId}'");
+
+    private static IResult UnknownFeature(string featureId) => Reply.Error(404, $"unknown feature: '{featureId}'");
+
+    private static JsonObject FeatureRow(string featureId, ProviderStore providers, CallSiteStore sites) =>
+        FeatureRows(providers, sites).First(r => Json.Str(r["id"]) == featureId);
 
     /// <summary>One row per user-facing feature: its effective provider/model, where that came from, and which providers fit it.</summary>
     private static List<JsonObject> FeatureRows(ProviderStore providers, CallSiteStore sites)
@@ -180,7 +264,9 @@ public static class LlmSettingsRoutes
             var overridden = LlmCatalog.Group(feature.Id) is not null
                 ? groupAssignments.GetValueOrDefault(feature.Id)
                 : assignments.GetValueOrDefault(feature.Id);
-            var (effective, source) = overridden is not null ? (overridden, "custom") : sites.ResolveDefault(feature.Needs);
+            var (effective, source) = overridden is not null
+                ? (overridden, Json.Str(overridden["mode"]) == "offline" ? "offline" : "custom")
+                : sites.ResolveDefault(feature.Needs);
             var providerId = Json.NonEmptyStr(effective?["provider_id"]);
             var provider = providerId is null ? null : loaded.GetValueOrDefault(providerId);
             rows.Add(new JsonObject

@@ -60,9 +60,10 @@ export function WikiGeneralNotice() {
   const [showReady, setShowReady] = useState(false);
   const wasGeneratingRef = useRef(false);
   useEffect(() => {
-    if (wasGeneratingRef.current && !isGenerating && status.has_wiki_general) setShowReady(true);
+    if (wasGeneratingRef.current && !isGenerating && status.has_wiki_general && !status.error)
+      setShowReady(true);
     wasGeneratingRef.current = isGenerating;
-  }, [isGenerating, status.has_wiki_general]);
+  }, [isGenerating, status.has_wiki_general, status.error]);
   useEffect(() => {
     if (sim.wiki === "done") setShowReady(!sim.wikiAcked);
   }, [sim.wiki, sim.wikiAcked]);

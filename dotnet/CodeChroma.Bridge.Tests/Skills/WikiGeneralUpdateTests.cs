@@ -104,7 +104,7 @@ public sealed class WikiGeneralUpdateTests
 
         Assert.Contains("did not write 1 of 2", missing);
         Assert.Null(fresh);
-        Assert.Contains("wrote none", untouched);
+        Assert.Contains("did not refresh 2 of 2", untouched);
         Assert.Null(WikiGeneralUpdate.VerifyPagesWritten(host.Root, [], started));
     }
 }

@@ -29,6 +29,42 @@ public static class WikiGeneral
     /// <summary>The lock generate and update both hold across their refuse-check-then-start sequence.</summary>
     public static SemaphoreSlim RunLock(string workspaceId) => RunLocks.GetOrAdd(workspaceId, _ => new SemaphoreSlim(1, 1));
 
+    private static readonly ConcurrentDictionary<string, byte[]> PreUpdateManifests = new();
+
+    /// <summary>Keeps the manifest as it was before an update's delta is applied, so a failed or stopped run can put it back.</summary>
+    public static void SnapshotManifest(string root, string key)
+    {
+        try { PreUpdateManifests[key] = File.ReadAllBytes(ManifestPath(root)); }
+        catch (Exception error) when (error is IOException or UnauthorizedAccessException) { PreUpdateManifests.TryRemove(key, out _); }
+    }
+
+    /// <summary>Puts the pre-update manifest back (the next update then recomputes the same delta); a no-op without a snapshot.</summary>
+    public static void RestoreManifest(string root, string key)
+    {
+        if (!PreUpdateManifests.TryRemove(key, out var bytes)) return;
+        try { File.WriteAllBytes(ManifestPath(root), bytes); }
+        catch (Exception error) when (error is IOException or UnauthorizedAccessException) { }
+    }
+
+    /// <summary>Syncs the plain wiki, computes the delta, snapshots the manifest and applies it; the manifest is put back if any step throws.</summary>
+    public static JsonObject PrepareUpdate(Workspace ws)
+    {
+        try
+        {
+            if (SyncPlainWiki(ws) is { } syncError) throw new InvalidOperationException(syncError);
+            var computed = WikiGeneralUpdate.ComputeDelta(ws);
+            SnapshotManifest(ws.Root, ws.Id);
+            return WikiGeneralUpdate.ApplyDelta(ws, computed);
+        }
+        catch
+        {
+            RestoreManifest(ws.Root, ws.Id);
+            throw;
+        }
+    }
+
+    public static void DiscardManifestSnapshot(string key) => PreUpdateManifests.TryRemove(key, out _);
+
     public static string Dir(string root) => Path.Combine(root, ".codechroma", "wiki-general");
 
     public static string ManifestPath(string root, string _ = "") => Path.Combine(Dir(root), "manifest.json");
@@ -60,7 +96,14 @@ public static class WikiGeneral
     /// <summary>Clears stale pages and readies the plain wiki before a run; an error message on failure, else null.</summary>
     public static string? PrepareNewRun(Workspace ws)
     {
+        DiscardManifestSnapshot(ws.Id);
         Clear(ws.Root);
+        return SyncPlainWiki(ws);
+    }
+
+    /// <summary>Readies and syncs the plain docstring wiki so it is refreshed together with the architecture map; an error message on failure, else null.</summary>
+    public static string? SyncPlainWiki(Workspace ws)
+    {
         try
         {
             WikiBootstrap.IfMissing(ws);
@@ -97,13 +140,13 @@ public static class WikiGeneral
     /// <summary>Records the HEAD this tree now reflects, right after a successful run.</summary>
     public static void StampGeneratedCommit(Workspace ws)
     {
-        if (ws.CurrentHead() is not { } head) return;
-        if (JsonFile.Load(ManifestPath(ws.Root)) is not JsonObject manifest) return;
+        if (ws.WikiCommit() is not { } head) return;
+        if (JsonFile.Load(ManifestPath(ws.Root)) is not JsonObject manifest || !ValidManifest(manifest)) return;
         manifest["generated_at_commit"] = head;
         JsonFile.Write(ManifestPath(ws.Root), manifest);
     }
 
-    public static bool IsStale(Workspace ws, JsonObject manifest) => ws.CurrentHead() is { } head && Json.Str(manifest["generated_at_commit"]) != head;
+    public static bool IsStale(Workspace ws, JsonObject manifest) => ws.WikiCommit() is { } head && Json.Str(manifest["generated_at_commit"]) != head;
 
     /// <summary>The root overview plus every container page under a character budget; has_wiki_general false without a valid tree.</summary>
     public static JsonObject Context(string root)

@@ -313,6 +313,17 @@ clean run. On the generate path, a self-check failure of any kind is just a flat
 `manifest.json` (the `SkillAgent` artifact) is snapshotted/restored automatically.
 Tests: `tests/unit/test_wiki_general_check_script.py`'s grounded/invented/omitted-is-fine/strip cases.
 
+## One wiki per project, tracked against main (C# bridge)
+
+Both wikis (`.codechroma/wiki-general/` and the plain `.codechroma/wiki/`) live only in the main checkout and are tracked against the integration branch tip (`WorktreeOps.MainBranch`), never a worktree tab's HEAD.
+
+- `WorkspaceRegistry.WikiOwner(ws)` is main for every writable workspace (tabs, agents) and the workspace itself for a read-only PR. `WikiGeneralRoutes`, `WikiRoutes` and `WikiBootstrap` act on the owner, so a tab's Generate/Update/status read and write main's tree and share main's job state; a tab never gets its own copy.
+- `Workspace.WikiCommit()` (main branch tip, else HEAD) drives `WikiGeneral.IsStale` and `StampGeneratedCommit`. Commits in a tab never make the wiki stale; a move of the main tip does.
+- Pings: only a wiki owner's watcher fires `wiki-general` (index change or tracked-commit move), through `Workspace.EmitWiki`, which main broadcasts to every live tab (`WorkspaceRegistry.BroadcastWiki`). Job-status pings go the same way.
+- Update runs in the main checkout and also syncs the plain wiki (`WikiGeneral.SyncPlainWiki`), as Generate already did.
+- 🔴 Failed or stopped update: `ApplyDelta` rewrites the manifest before the agent runs, so `WikiGeneral.SnapshotManifest` keeps the pre-update bytes and `RestoreManifest` puts them back on error or cancel; otherwise the retry sees an empty delta and "succeeds". `VerifyPagesWritten` now requires every promised page to be written during the run, `StampGeneratedCommit` skips an invalid manifest, and the canvas shows no "wiki is ready" notice after an `error` (and refetches on it).
+- Python parity is not ported (see `docs/planning/012-csharp-bridge.md`): its `generate`/`update` routes were already C#-only gaps there.
+
 ## Staying current after a commit (050-wiki-general-auto-refresh)
 
 A commit landing in a workspace (main or an agent's own worktree — see `parallel-agents.md`) can

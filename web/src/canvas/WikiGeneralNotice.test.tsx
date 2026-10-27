@@ -85,6 +85,33 @@ describe("WikiGeneralNotice", () => {
     await waitFor(() => expect(screen.queryByTestId("wiki-general-notice")).toBeNull());
   });
 
+  it("shows no ready notice when a run ends in an error", async () => {
+    let statusChanged: ((status: DiagramGenerationStatus) => void) | null = null;
+    renderNotice({
+      getWikiGeneralStatus: async () => ({
+        state: "generating",
+        error: null,
+        has_wiki_general: true,
+        stale: true,
+        empty: false,
+      }),
+      subscribeDiagramStatus: (_kind, onChange) => {
+        statusChanged = onChange;
+        return () => {
+          statusChanged = null;
+        };
+      },
+    });
+    await waitFor(() => expect(screen.getByTestId("wiki-general-notice")).toBeTruthy());
+
+    act(() => statusChanged?.({ state: "error", error: "update failed" }));
+
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    });
+    expect(screen.queryByTestId("wiki-ready-notice")).toBeNull();
+  });
+
   it("stays silent for a repo with no real code yet, even though nothing is generated", async () => {
     renderNotice({
       getWikiGeneralStatus: async () => ({

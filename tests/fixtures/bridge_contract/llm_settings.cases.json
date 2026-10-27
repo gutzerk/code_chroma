@@ -34,7 +34,7 @@
       "steps": [
         {"http": {"method": "POST", "path": "/llm/providers", "json": {"label": "x", "kind": "weird"}}, "expect": {"status": 400, "json": {"detail": "kind must be one of ('cli', 'api')"}}},
         {"http": {"method": "POST", "path": "/llm/providers", "json": {"kind": "cli", "adapter": "claude"}}, "expect": {"status": 400, "json": {"detail": "label must be a non-empty string"}}},
-        {"http": {"method": "POST", "path": "/llm/providers", "json": {"label": "x", "kind": "cli", "adapter": "vim"}}, "expect": {"status": 400, "json": {"detail": "adapter must be one of ['claude', 'codex', 'kimi-cli']"}}},
+        {"http": {"method": "POST", "path": "/llm/providers", "json": {"label": "x", "kind": "cli", "adapter": "vim"}}, "expect": {"status": 400, "json": {"detail": "adapter must be one of ['claude', 'codex', 'gemini', 'kimi-cli']"}}},
         {"http": {"method": "POST", "path": "/llm/providers", "json": {"label": "x", "kind": "cli", "adapter": "codex", "base_url": "http://p"}}, "expect": {"status": 400, "json": {"detail": "base_url/api_key/api_key_path are only valid for the claude adapter"}}},
         {"http": {"method": "POST", "path": "/llm/providers", "json": {"label": "x", "kind": "cli", "adapter": "claude", "api_key": "a", "api_key_path": "/b"}}, "expect": {"status": 400, "json": {"detail": "provide an api_key OR an api_key_path, not both"}}},
         {"http": {"method": "POST", "path": "/llm/providers", "json": {"label": "x", "kind": "api", "transport": "carrier-pigeon", "api_key": "k"}}, "expect": {"status": 400, "json": {"detail": "transport must be one of ('anthropic', 'gemini', 'openai-compatible')"}}},
@@ -52,7 +52,7 @@
       "id": "an_update_that_breaks_the_provider_is_refused",
       "steps": [
         {"http": {"method": "POST", "path": "/llm/providers", "json": {"label": "C", "kind": "cli", "adapter": "claude"}}, "capture": {"pid": "$.id"}, "expect": {"status": 201}},
-        {"http": {"method": "PUT", "path": "/llm/providers/{{pid}}", "json": {"adapter": "vim"}}, "expect": {"status": 400, "json": {"detail": "adapter must be one of ['claude', 'codex', 'kimi-cli']"}}}
+        {"http": {"method": "PUT", "path": "/llm/providers/{{pid}}", "json": {"adapter": "vim"}}, "expect": {"status": 400, "json": {"detail": "adapter must be one of ['claude', 'codex', 'gemini', 'kimi-cli']"}}}
       ]
     },
     {

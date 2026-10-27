@@ -189,4 +189,15 @@ describe("QuestionCard", () => {
     expect(hiddenWhenAll).toBeNull();
     expect(screen.queryByRole("button", { name: "Add diagram" })).toBeNull();
   });
+
+  it("offers Chat about it only when a chat handler is given", () => {
+    const p = props({ onChat: vi.fn() });
+    const { rerender } = render(<QuestionCard {...p} />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Chat about it" }));
+    rerender(<QuestionCard {...p} onChat={undefined} />);
+
+    expect(p.onChat).toHaveBeenCalledTimes(1);
+    expect(screen.queryByRole("button", { name: "Chat about it" })).toBeNull();
+  });
 });

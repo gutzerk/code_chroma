@@ -89,7 +89,7 @@ function keyCopy(draft: { kind: ProviderKind; transport: Transport }): { label: 
   return { label: "API key (optional)", hint: "Leave blank for a local server that needs no key." };
 }
 
-const CLI_ADAPTERS = ["claude", "codex", "kimi-cli"];
+const CLI_ADAPTERS = ["claude", "codex", "gemini", "kimi-cli"];
 const TRANSPORTS: Transport[] = ["anthropic", "gemini", "openai-compatible"];
 
 interface FormDraft {
@@ -189,6 +189,7 @@ const CONNECTION_TYPES: {
 }[] = [
   { id: "claude", group: "cli", name: "Claude Code", blurb: "Uses your claude sign-in", preset: { kind: "cli", adapter: "claude", label: "Claude Code" } },
   { id: "codex", group: "cli", name: "Codex CLI", blurb: "Uses your codex sign-in", preset: { kind: "cli", adapter: "codex", label: "Codex CLI" } },
+  { id: "gemini-cli", group: "cli", name: "Gemini CLI", blurb: "Uses your gemini sign-in", preset: { kind: "cli", adapter: "gemini", label: "Gemini CLI" } },
   { id: "kimi", group: "cli", name: "Kimi CLI", blurb: "Uses your kimi sign-in", preset: { kind: "cli", adapter: "kimi-cli", label: "Kimi CLI" } },
   { id: "anthropic", group: "api", name: "Anthropic", blurb: "API key from console.anthropic.com", preset: { kind: "api", transport: "anthropic", label: "Anthropic", isLocal: false } },
   { id: "gemini", group: "api", name: "Gemini", blurb: "API key from Google AI Studio", preset: { kind: "api", transport: "gemini", label: "Gemini", isLocal: false } },

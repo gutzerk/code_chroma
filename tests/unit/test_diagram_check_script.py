@@ -535,3 +535,36 @@ def test_a_long_title_is_only_flagged_on_sequence_diagrams(tmp_path):
     result = _run(tmp_path, "c1", diagram)
 
     assert "LONGTITLE" not in result.stdout
+
+
+def _failure_sequence(tmp_path, kind_field):
+    path = tmp_path / "seq.json"
+    path.write_text(
+        '{"nodes":[{"id":"a","name":"A"},{"id":"b","name":"B"}],'
+        '"relations":[{"id":"m1","from":"a","to":"b","label":"401 denied","order":"1"' + kind_field + "}]}",
+        encoding="utf-8",
+    )
+    return path
+
+
+def test_failure_looking_sequence_label_without_error_kind_is_only_an_advisory(tmp_path, capsys):
+    module = _load_module()
+    path = _failure_sequence(tmp_path, ',"kind":"return"')
+
+    code = module.main(["--kind", "sequence", "--json", str(path)])
+
+    out = capsys.readouterr().out
+    assert code == 0
+    assert "FAILURE-KIND" in out
+
+
+def test_error_kind_sequence_message_is_accepted_without_a_kind_advisory(tmp_path, capsys):
+    module = _load_module()
+    path = _failure_sequence(tmp_path, ',"kind":"error"')
+
+    code = module.main(["--kind", "sequence", "--json", str(path)])
+
+    out = capsys.readouterr().out
+    assert code == 0
+    assert "FAILURE-KIND" not in out
+    assert "BADMSGKIND" not in out

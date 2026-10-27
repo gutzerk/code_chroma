@@ -550,6 +550,58 @@
           }
         }
       ]
+    },
+    {
+      "id": "a_sequence_message_carries_kind_and_failure_into_its_element_meta",
+      "steps": [
+        {
+          "fs": "write",
+          "path": ".codechroma/diagrams/sequence/sequence.json",
+          "text": "{\"nodes\": [{\"id\": \"a\", \"name\": \"A\"}, {\"id\": \"b\", \"name\": \"B\"}], \"relations\": [{\"id\": \"m1\", \"from\": \"a\", \"to\": \"b\", \"label\": \"login\", \"order\": \"1\", \"kind\": \"call\"}, {\"id\": \"m2\", \"from\": \"b\", \"to\": \"a\", \"label\": \"denied\", \"order\": \"2\", \"kind\": \"error\", \"failure\": true}]}"
+        },
+        {
+          "http": {
+            "method": "POST",
+            "path": "/repos/main/recipes/sequence/run"
+          },
+          "expect": {
+            "status": 200,
+            "checks": [
+              {
+                "path": "$.ok",
+                "equals": true
+              }
+            ]
+          },
+          "capture": {
+            "call": "$.id_map.n2",
+            "fail": "$.id_map.n3"
+          }
+        },
+        {
+          "http": {
+            "method": "GET",
+            "path": "/repos/main/canvas"
+          },
+          "expect": {
+            "status": 200,
+            "checks": [
+              {
+                "path": "$.elements['{{call}}'].meta.kind",
+                "equals": "call"
+              },
+              {
+                "path": "$.elements['{{fail}}'].meta.kind",
+                "equals": "error"
+              },
+              {
+                "path": "$.elements['{{fail}}'].meta.failure",
+                "equals": true
+              }
+            ]
+          }
+        }
+      ]
     }
   ]
 }

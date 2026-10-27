@@ -120,8 +120,8 @@ public class CanvasUnitTests
 
         var shape = Recipes.Reshape(resolved, "custom");
 
-        Assert.Null(shape.Nodes[0].Meta!["lane_kind"]);
-        Assert.Null(shape.Nodes[1].Meta!["lane_kind"]);
+        Assert.Equal("normal", shape.Nodes[0].Meta!["lane_kind"]!.GetValue<string>());
+        Assert.Equal("normal", shape.Nodes[1].Meta!["lane_kind"]!.GetValue<string>());
         Assert.Equal("failure", shape.Nodes[2].Meta!["lane_kind"]!.GetValue<string>());
     }
 }

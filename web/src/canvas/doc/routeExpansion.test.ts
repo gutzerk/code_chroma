@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { expandRouteElements, expandedExtraHeight } from "./routeExpansion";
+import { expandRouteElements, ROUTE_CHILD_LIST_PAD, ROUTE_CHILD_ROW_HEIGHT } from "./routeExpansion";
 import { routeStepOf } from "./routeStep";
 import type { CanvasElement } from "../../state/types";
 
@@ -25,7 +25,7 @@ describe("expandRouteElements", () => {
 
   it("grows the expanded step downward and pushes the box below it", () => {
     const elements = { a: box("a", 100, 2), b: box("b", 300) };
-    const extra = expandedExtraHeight(2);
+    const extra = 2 * ROUTE_CHILD_ROW_HEIGHT + ROUTE_CHILD_LIST_PAD;
 
     const next = expandRouteElements(elements, new Set(["a"]));
 

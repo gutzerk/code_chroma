@@ -12,7 +12,7 @@ const KIND_LABELS: Record<RouteKind, string> = {
 /** The route legend as a collapsible card on the diagram frame: step kinds plus the expand/open cues. */
 export function RouteLegend() {
   return (
-    <details className="route-legend" data-testid="route-legend" onPointerDown={(e) => e.stopPropagation()}>
+    <details className="route-legend" data-testid="route-legend">
       <summary>Legend</summary>
       <ul className="route-legend-list">
         {(Object.keys(KIND_LABELS) as RouteKind[]).map((kind) => (

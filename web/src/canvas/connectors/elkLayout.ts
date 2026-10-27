@@ -69,8 +69,8 @@ export function isFailuresLane(lane: string | undefined): boolean {
 function orderedLanes(nodes: readonly LayoutBoxSpec[]): Map<string, number> {
   const names: string[] = [];
   for (const node of nodes) if (node.lane && !names.includes(node.lane)) names.push(node.lane);
-  const ordered = [...names.filter((n) => !isFailuresLane(n)), ...names.filter(isFailuresLane)];
-  return new Map(ordered.map((name, index) => [name, index]));
+  names.sort((a, b) => Number(isFailuresLane(a)) - Number(isFailuresLane(b)));
+  return new Map(names.map((name, index) => [name, index]));
 }
 
 /** Lays boxes out with ELK's layered algorithm: a one-directional edge puts its source above its target, `order` pins layers via ordering edges, `lane` clusters via input order. */

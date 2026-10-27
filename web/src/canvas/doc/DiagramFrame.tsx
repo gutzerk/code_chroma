@@ -205,7 +205,7 @@ export function DiagramFrame({ layer, label, members, sizes, typeLabel, boxCount
   if (!bounds) return null;
 
   const isSequence = members.some((member) => member.render === "sequence");
-  const route = members.map(routeOf).find(Boolean);
+  const route = members.map(routeOf).find(Boolean); // routeOf is cached per meta object, so this is cheap
 
   const classes = [
     "canvas-diagram-frame",
@@ -239,17 +239,10 @@ export function DiagramFrame({ layer, label, members, sizes, typeLabel, boxCount
           {isSequence && <SequenceModeSwitch layer={layer} members={members} />}
           {route && (
             <span className="canvas-diagram-frame-route" onPointerDown={(e) => e.stopPropagation()}>
-            <RouteLegend />
-            <button
-              type="button"
-              className="sequence-mode-btn"
-              data-testid="show-route"
-              style={{ marginLeft: 8 }}
-              onPointerDown={(e) => e.stopPropagation()}
-              onClick={() => routeStore.show(route)}
-            >
-              Show route
-            </button>
+              <RouteLegend />
+              <button type="button" className="sequence-mode-btn" data-testid="show-route" onClick={() => routeStore.show(route)}>
+                Show route
+              </button>
             </span>
           )}
           {/* The frame body is a drag handle, so keep a press on the button from starting a drag. */}

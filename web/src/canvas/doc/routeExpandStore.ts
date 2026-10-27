@@ -27,6 +27,7 @@ export function useRouteExpanded(): ReadonlySet<string> {
   return useSyncExternalStore(routeExpandStore.subscribe, routeExpandStore.get);
 }
 
+/** Subscribes to one id only, so toggling a step re-renders that box alone. */
 export function useIsRouteExpanded(id: string): boolean {
-  return useRouteExpanded().has(id);
+  return useSyncExternalStore(routeExpandStore.subscribe, () => routeExpandStore.get().has(id));
 }

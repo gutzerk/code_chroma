@@ -507,42 +507,44 @@ export function CanvasNodeBox({ element, onMeasure }: CanvasNodeBoxProps) {
               <ImpactGlance change={impactChange} elementId={element.id} />
             )}
             {routeStep && routeStep.children.length > 0 && (
-              <button
-                type="button"
-                className="route-step-chip"
-                data-testid="route-step-chip"
-                aria-expanded={routeExpanded}
-                onClick={(event) => {
-                  event.stopPropagation();
-                  routeExpandStore.toggle(element.id);
-                }}
-              >
-                {routeExpanded ? "▾" : "▸"} {routeStep.children.length} calls
-              </button>
-            )}
-            {routeStep && routeExpanded && routeStep.children.length > 0 && (
-              <ul className="route-step-children" data-testid="route-step-children">
-                {routeStep.children.map((child) => (
-                  <li key={child.id} className="route-step-child">
-                    <span className="route-step-child-label">{child.label}</span>
-                    <span className="route-step-child-line">:{child.line}</span>
-                    {child.nodeId && (
-                      <button
-                        type="button"
-                        className="route-step-child-open"
-                        data-testid="route-step-child-open"
-                        aria-label={`Open ${child.label}`}
-                        onClick={(event) => {
-                          event.stopPropagation();
-                          inspectorStore.open(child.nodeId as string, child.label, element.id);
-                        }}
-                      >
-                        ↗
-                      </button>
-                    )}
-                  </li>
-                ))}
-              </ul>
+              <>
+                <button
+                  type="button"
+                  className="route-step-chip"
+                  data-testid="route-step-chip"
+                  aria-expanded={routeExpanded}
+                  onClick={(event) => {
+                    event.stopPropagation();
+                    routeExpandStore.toggle(element.id);
+                  }}
+                >
+                  {routeExpanded ? "▾" : "▸"} {routeStep.children.length} calls
+                </button>
+                {routeExpanded && (
+                  <ul className="route-step-children" data-testid="route-step-children">
+                    {routeStep.children.map(({ id, label, nodeId, line }) => (
+                      <li key={id} className="route-step-child">
+                        <span className="route-step-child-label">{label}</span>
+                        <span className="route-step-child-line">:{line}</span>
+                        {nodeId && (
+                          <button
+                            type="button"
+                            className="route-step-child-open"
+                            data-testid="route-step-child-open"
+                            aria-label={`Open ${label}`}
+                            onClick={(event) => {
+                              event.stopPropagation();
+                              inspectorStore.open(nodeId, label, element.id);
+                            }}
+                          >
+                            ↗
+                          </button>
+                        )}
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </>
             )}
             {sourcePath && (
               <div className="canvas-node-box-foot" data-testid="canvas-node-box-foot">

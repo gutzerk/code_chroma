@@ -6,9 +6,8 @@ import { DEFAULT_ELEMENT_SIZE } from "./elementRect";
 export const ROUTE_CHILD_ROW_HEIGHT = 24;
 export const ROUTE_CHILD_LIST_PAD = 14;
 
-/** Extra height an expanded step needs for `count` children. */
-export const expandedExtraHeight = (count: number): number =>
-  count > 0 ? count * ROUTE_CHILD_ROW_HEIGHT + ROUTE_CHILD_LIST_PAD : 0;
+/** Extra height an expanded step needs for `count` (> 0) children. */
+const expandedExtraHeight = (count: number): number => count * ROUTE_CHILD_ROW_HEIGHT + ROUTE_CHILD_LIST_PAD;
 
 const sizeOf = (element: CanvasElement) => ({
   w: element.size?.w ?? DEFAULT_ELEMENT_SIZE.w,
@@ -26,13 +25,15 @@ export function expandRouteElements(
 ): Record<string, CanvasElement> {
   if (expanded.size === 0) return elements;
   const next = { ...elements };
-  const targets = [...expanded]
-    .map((id) => next[id])
-    .filter((e): e is CanvasElement => Boolean(e) && (routeStepOf(e)?.children.length ?? 0) > 0)
-    .sort((a, b) => a.position.y - b.position.y);
+  const targets: { id: string; count: number; y: number }[] = [];
+  for (const id of expanded) {
+    const count = next[id] ? (routeStepOf(next[id])?.children.length ?? 0) : 0;
+    if (count > 0) targets.push({ id, count, y: next[id].position.y });
+  }
+  targets.sort((a, b) => a.y - b.y);
   for (const target of targets) {
     const current = next[target.id];
-    const extra = expandedExtraHeight(routeStepOf(current)?.children.length ?? 0);
+    const extra = expandedExtraHeight(target.count);
     const { w, h } = sizeOf(current);
     const bottom = current.position.y + h / 2;
     const left = current.position.x - w / 2;

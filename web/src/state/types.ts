@@ -935,7 +935,8 @@ export type CanvasRenderKind =
   | "group"
   | "note"
   | "sequence"
-  | "question";
+  | "question"
+  | "route";
 
 export interface CanvasPosition {
   x: number;

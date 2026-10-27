@@ -158,6 +158,10 @@
                 "count": 2
               },
               {
+                "path": "$.route.summary",
+                "equals": "1 steps · 1 files · 0 AI steps"
+              },
+              {
                 "path": "$.route.steps[0].resolved[0].line",
                 "equals": 11
               },

@@ -1,5 +1,5 @@
 import { useEffect, useMemo } from "react";
-import { useCanvasDoc } from "./doc/canvasDocStore";
+import { useCanvasDoc, useRouteCarriers } from "./doc/canvasDocStore";
 import { routeOf, type Route } from "./doc/routeStep";
 import { routeStore, useRouteState } from "../state/routeStore";
 import type { CanvasElement } from "../state/types";
@@ -7,13 +7,15 @@ import type { CanvasElement } from "../state/types";
 /** Milliseconds a walk stays on one step. */
 export const ROUTE_WALK_STEP_MS = 1500;
 
-/** Every distinct route (by id) carried by the canvas diagrams, in first-seen order. */
-export function collectRoutes(elements: Record<string, CanvasElement>): Route[] {
+/** Every distinct route (by id): the carriers first, then any legacy box that still holds its own copy. */
+export function collectRoutes(elements: Record<string, CanvasElement>, carriers: readonly CanvasElement[] = []): Route[] {
   const byId = new Map<string, Route>();
-  for (const element of Object.values(elements)) {
+  const add = (element: CanvasElement) => {
     const route = routeOf(element);
     if (route && !byId.has(route.id)) byId.set(route.id, route);
-  }
+  };
+  carriers.forEach(add);
+  Object.values(elements).forEach(add);
   return [...byId.values()];
 }
 
@@ -21,7 +23,8 @@ export function collectRoutes(elements: Record<string, CanvasElement>): Route[] 
 export function RouteCard() {
   const { route, stepIndex, walking } = useRouteState();
   const { elements } = useCanvasDoc();
-  const routes = useMemo(() => collectRoutes(elements), [elements]);
+  const carriers = useRouteCarriers();
+  const routes = useMemo(() => collectRoutes(elements, carriers), [elements, carriers]);
 
   useEffect(() => {
     if (!walking) return;

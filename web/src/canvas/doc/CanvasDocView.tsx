@@ -372,6 +372,9 @@ export function CanvasDocView() {
               case "hierarchy":
                 // Retired code-tree block: an old document may still carry one; it draws nothing.
                 return null;
+              case "none":
+                // 026: a route carrier never reaches here (canvasDocStore splits it out); never draw one if it does.
+                return null;
               case "note":
                 return <NoteElement key={element.id} element={element} />;
               case "group":

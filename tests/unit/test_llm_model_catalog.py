@@ -1,6 +1,8 @@
 """Unit tests for model_catalog.fetch_models against mocked HTTP model-list endpoints."""
 
+import json
 import re
+import subprocess
 from pathlib import Path
 
 import httpx
@@ -9,6 +11,7 @@ import pytest
 from codechroma.llm import model_catalog
 from codechroma.llm.model_catalog import (
     _STATIC_MODELS,
+    _probe_cli_models,
     fetch_models,
     parse_claude_models_response,
     parse_model_list,
@@ -380,3 +383,37 @@ def test_a_cli_the_runtime_cannot_find_has_no_live_list(monkeypatch):
     models = model_catalog._probe_cli_models("claude")
 
     assert models is None
+
+
+_PROBE_CASES = json.loads(
+    (_REPO_ROOT / "tests" / "fixtures" / "bridge_contract" / "cli_model_probe.json").read_text(
+        encoding="utf-8"
+    )
+)
+
+
+@pytest.mark.parametrize("adapter", ["codex", "gemini"])
+def test_cli_probe_runs_each_adapters_own_binary_and_list_command(monkeypatch, adapter):
+    model_catalog._probe_cache.clear()
+    cli = RuntimeCli(executable=f"/bin/{adapter}", env={}, path_source="test")
+    monkeypatch.setattr("codechroma.llm.model_catalog.resolve_runtime_cli", lambda _a: cli)
+    calls = []
+
+    def run(command, **kwargs):
+        calls.append((command, kwargs["stdin"]))
+        return type("Done", (), {"returncode": 0, "stdout": '[{"id": "m1"}]'})()
+
+    monkeypatch.setattr("codechroma.llm.model_catalog.subprocess.run", run)
+
+    _probe_cli_models(adapter)
+
+    model_catalog._probe_cache.clear()
+    expected = [f"/bin/{adapter}", *_PROBE_CASES["listing_args"][adapter]]
+    assert calls == [(expected, subprocess.DEVNULL)]
+
+
+@pytest.mark.parametrize("case", _PROBE_CASES["listings"], ids=lambda case: case["id"])
+def test_model_listing_output_shapes_match_the_shared_cases(case):
+    models = parse_model_list(case["output"])
+
+    assert models == case["models"]

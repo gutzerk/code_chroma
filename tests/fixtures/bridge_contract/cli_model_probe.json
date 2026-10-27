@@ -1,0 +1,26 @@
+{
+  "listing_args": {
+    "codex": ["debug", "models"],
+    "gemini": ["models", "list", "-o", "json"]
+  },
+  "listings": [
+    {
+      "id": "codex_object",
+      "output": "{\"models\":[{\"slug\":\"gpt-5.2-codex\",\"display_name\":\"GPT-5.2 Codex\"}]}",
+      "models": [{"id": "gpt-5.2-codex", "label": "GPT-5.2 Codex"}]
+    },
+    {
+      "id": "gemini_name_and_display_name",
+      "output": "{\"models\":[{\"name\":\"gemini-2.5-pro\",\"displayName\":\"Gemini 2.5 Pro\"}]}",
+      "models": [{"id": "gemini-2.5-pro", "label": "Gemini 2.5 Pro"}]
+    },
+    {
+      "id": "gemini_bare_array_of_ids",
+      "output": "[{\"id\":\"gemini-2.5-flash\"}]",
+      "models": [{"id": "gemini-2.5-flash", "label": null}]
+    },
+    {"id": "scalar_string", "output": "\"Unknown command\"", "models": null},
+    {"id": "null_document", "output": "null", "models": null},
+    {"id": "not_json", "output": "oops", "models": null}
+  ]
+}

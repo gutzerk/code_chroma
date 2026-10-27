@@ -492,7 +492,7 @@ class AgentManager:
                 shares_workspace_with=shares_workspace_with,
                 base_branch=base_branch,
                 source_pr=source_pr,
-                workspace=workspace,
+                workspace=None if pr_target is not None else workspace,
                 context=context,
                 context_kind=context_kind,
                 **(diagram or {}),
@@ -536,6 +536,15 @@ class AgentManager:
         self._active.revert_to_main()
         self.save()
         return record
+
+    def ids_for_workspace(self, workspace_id: str) -> list[str]:
+        """Ids of the agents living on a tab, own or sharing its worktree."""
+        with self._lock:
+            return [
+                record.id
+                for record in self._agents.values()
+                if record.workspace == workspace_id or record.shares_workspace_with == workspace_id
+            ]
 
     def remove_for_workspace(self, workspace_id: str) -> list[str]:
         """Forgets every agent on a closed tab (its worktree is gone or kept); returns their ids."""

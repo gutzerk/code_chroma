@@ -65,9 +65,10 @@ a tab and never hosts an agent. Artifacts are not shared between tabs.
   worktree path stay; 409 on an invalid, duplicate or held branch name. Attached agents' `branch` follows.
 - `PUT /branches/active {id}`; `GET /branches` returns `{branches, active}`, each record with `name`,
   `dirty` (count of `git status --porcelain` entries) and `worktree_lost`.
-- `DELETE /branches/{id}?worktree_too=` stops and removes the agents attached to the tab first, then
-  removes the worktree with `--force` (uncommitted changes never block it). Closing with "keep" leaves
-  the record, so the tab returns on the next open.
+- `DELETE /branches/{id}?worktree_too=` stops the attached agents' sessions first (so nothing holds the cwd),
+  removes the worktree with `--force` (uncommitted changes never block it; unlocked), and only then deletes the
+  agent records, so a refused removal (409) leaves the agents in place. Without `worktree_too` ("keep") the
+  record stays, so the tab returns on the next open; `active` is cleared and the client picks a neighbour.
 - `GET /branches/choices`, the open-existing-branch mode of `POST /branches`, and
   `GET|POST /agents/branch`, `POST /agents/branch/update` are removed (`MainBranchOps` is read-only now).
 - `POST /agents` takes `workspace` (a `br_*` tab id). Without `attach_to` the agent shares that tab's

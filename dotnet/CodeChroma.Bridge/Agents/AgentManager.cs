@@ -159,7 +159,7 @@ public sealed partial class AgentManager
                 Worktree = path,
                 CreatedAt = createdAt,
                 SharesWorkspaceWith = attachTo,
-                Workspace = string.IsNullOrEmpty(workspace) ? null : workspace,
+                Workspace = prTarget is not null || string.IsNullOrEmpty(workspace) ? null : workspace,
                 BaseBranch = baseBranch,
                 SourcePr = prTarget is not null ? attachTo : null,
                 Context = context,

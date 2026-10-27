@@ -82,6 +82,7 @@ class BranchManager:
     def __init__(self, main_root: Path) -> None:
         self.main_root = main_root.resolve()
         self._lock = threading.RLock()
+        self._ensure_lock = threading.Lock()
         self._records: dict[str, BranchRecord] = {}
         self._active: str | None = None
         self._load()
@@ -160,9 +161,10 @@ class BranchManager:
 
     def ensure_any(self) -> list[BranchRecord]:
         """Creates `wt-1` only when there are no records; otherwise changes nothing."""
-        with self._lock:
+        with self._ensure_lock:
             if not self._records:
                 self.create_next()
+        with self._lock:
             if self._active not in self._records:
                 self._active = next(reversed(self._records))
                 self.save()
@@ -189,7 +191,9 @@ class BranchManager:
         default = worktree.main_branch(self.main_root)
         remotes = run_git(self.main_root, "remote")
         warning: str | None = None
-        if remotes is not None and "origin" in remotes.split():
+        if remotes is None or "origin" not in remotes.split():
+            warning = "no remote 'origin'; branched from the local default branch"
+        else:
             env = {**os.environ, "GIT_TERMINAL_PROMPT": "0"}
             result = run_git_raw(
                 self.main_root, "fetch", "origin", default,
@@ -291,14 +295,15 @@ class BranchManager:
             logger.exception("branches: could not clean up the half-made worktree %s", path)
 
     def delete(self, workspace_id: str, remove_worktree: bool = False) -> BranchRecord:
-        """Forgets the record; the directory goes only on request, and the branch never does."""
+        """Drops the record only with the directory (else the tab returns); the branch stays."""
         with self._lock:
             record = self.get(workspace_id)
             if remove_worktree:
                 worktree.remove(self.main_root, Path(record.worktree), force=True)
-            self._records.pop(workspace_id, None)
+            if remove_worktree:
+                self._records.pop(workspace_id, None)
             if self._active == workspace_id:
-                self._active = next(reversed(self._records), None)
+                self._active = None
         self.save()
         return record
 

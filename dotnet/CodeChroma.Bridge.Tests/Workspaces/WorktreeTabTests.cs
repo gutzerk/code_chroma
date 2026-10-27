@@ -157,6 +157,19 @@ public class WorktreeTabManagerTests : IDisposable
     }
 
     [Fact]
+    public void Delete_without_removing_the_worktree_keeps_the_record_and_the_directory()
+    {
+        var manager = new BranchManager(_repo.Root);
+        var record = manager.CreateNext(null).Record;
+
+        manager.Delete(record.Id, removeWorktree: false);
+
+        Assert.True(Directory.Exists(record.Worktree));
+        Assert.Equal([record.Id], manager.List().Select(r => r.Id));
+        Assert.Null(manager.ActiveId);
+    }
+
+    [Fact]
     public void A_clean_tab_reports_not_dirty_and_a_hand_deleted_worktree_reports_lost()
     {
         var manager = new BranchManager(_repo.Root);

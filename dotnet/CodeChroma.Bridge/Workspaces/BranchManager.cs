@@ -41,6 +41,7 @@ public sealed partial class BranchManager
     private const string AutoPrefix = "wt-";
 
     private readonly object _lock = new();
+    private readonly object _ensureLock = new();
     private readonly object _createLock = new();
     private readonly List<BranchRecord> _records = [];
     private string? _activeId;
@@ -166,18 +167,16 @@ public sealed partial class BranchManager
     /// <summary>Creates the first tab when none exist; restores nothing otherwise. Returns the tabs and the tab to show.</summary>
     public (IReadOnlyList<BranchRecord> Records, string Active) EnsureAny()
     {
-        lock (_createLock)
+        lock (_ensureLock) { if (List().Count == 0) CreateNext(null); }
+        lock (_lock)
         {
-            if (List().Count == 0) CreateNext(null);
-            lock (_lock)
+            if (_records.Count == 0) throw new BridgeException(409, "no worktree tab could be created");
+            if (_activeId is null || _records.All(r => r.Id != _activeId))
             {
-                if (_activeId is null || _records.All(r => r.Id != _activeId))
-                {
-                    _activeId = _records[^1].Id;
-                    Save();
-                }
-                return ([.. _records], _activeId);
+                _activeId = _records[^1].Id;
+                Save();
             }
+            return ([.. _records], _activeId);
         }
     }
 
@@ -278,22 +277,22 @@ public sealed partial class BranchManager
         }
     }
 
-    /// <summary>Forgets the tab; removing the worktree is forced, so local changes never block it.</summary>
+    /// <summary>Removing the worktree is forced (local changes never block it) and runs unlocked; without it the record stays so the tab returns on the next open.</summary>
     public BranchRecord Delete(string id, bool removeWorktree)
     {
+        var record = Get(id);
+        if (removeWorktree)
+        {
+            if (Directory.Exists(record.Worktree)) Git(() => WorktreeOps.Remove(_mainRoot, record.Worktree, force: true));
+            else GitRunner.Run(_mainRoot, "worktree", "prune");
+        }
         lock (_lock)
         {
-            var record = Get(id);
-            if (removeWorktree)
-            {
-                if (Directory.Exists(record.Worktree)) Git(() => WorktreeOps.Remove(_mainRoot, record.Worktree, force: true));
-                else GitRunner.Run(_mainRoot, "worktree", "prune");
-            }
-            _records.Remove(record);
+            if (removeWorktree) _records.RemoveAll(r => r.Id == id);
             if (_activeId == id) _activeId = null;
             Save();
-            return record;
         }
+        return record;
     }
 
     private BranchRecord Provision(string branch, string startPoint)

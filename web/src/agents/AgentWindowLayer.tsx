@@ -13,7 +13,7 @@ import { agentStore, useActiveWorkspace, useAgents, useGitPreflight, usePendingC
 import { agentDockStore } from "./agentDockStore";
 import { CloseAgentDialog } from "./CloseAgentDialog";
 import { GitInitDialog } from "./GitInitDialog";
-import { ensureWorktrees, refreshWorktrees } from "./worktreeActions";
+import { ensureWorktrees, refreshWorktrees, settleRemovedWorktree } from "./worktreeActions";
 import { worktreeStore } from "./worktreeStore";
 import { WorkspaceStatusBanner } from "./WorkspaceStatusBanner";
 import { confirmCloseAgentWindow, restoreAgentWindow } from "./windowActions";
@@ -85,7 +85,7 @@ export function AgentWindowLayer() {
             void flagDiagramsReady(message.id);
           }
         } else if (message.type === "branch-removed") {
-          if (worktreeStore.has(message.id)) worktreeStore.remove(message.id);
+          if (worktreeStore.has(message.id)) void settleRemovedWorktree(agentClient, message.id);
           else {
             void refreshWorktrees(agentClient).catch(() => {
               // A stale tab list is better than none.

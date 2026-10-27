@@ -201,6 +201,23 @@
             "json": {
               "title": "x",
               "kind": "shell",
+              "workspace": "main"
+            }
+          },
+          "expect": {
+            "status": 400,
+            "json": {
+              "detail": "workspace must be a worktree tab id, not 'main'"
+            }
+          }
+        },
+        {
+          "http": {
+            "method": "POST",
+            "path": "/agents",
+            "json": {
+              "title": "x",
+              "kind": "shell",
               "workspace": 5
             }
           },

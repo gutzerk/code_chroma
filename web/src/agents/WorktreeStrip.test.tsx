@@ -132,11 +132,25 @@ describe("WorktreeStrip", () => {
 
     fireEvent.click(screen.getByTestId("worktree-close-br_2"));
     fireEvent.click(screen.getByTestId("close-worktree-dont-ask"));
+    fireEvent.click(screen.getByTestId("close-worktree-keep"));
+    await waitFor(() => expect(closeWorktree).toHaveBeenCalledTimes(1));
+    fireEvent.click(screen.getByTestId("worktree-close-br_1"));
+
+    await waitFor(() => expect(closeWorktree).toHaveBeenLastCalledWith("br_1", false));
+    expect(screen.queryByTestId("close-worktree-dialog")).toBeNull();
+  });
+
+  it("a remembered Delete still asks when the tab has uncommitted changes", async () => {
+    const closeWorktree = vi.fn(async () => {});
+    renderStrip(client({ closeWorktree }));
+
+    fireEvent.click(screen.getByTestId("worktree-close-br_2"));
+    fireEvent.click(screen.getByTestId("close-worktree-dont-ask"));
     fireEvent.click(screen.getByTestId("close-worktree-delete"));
     await waitFor(() => expect(closeWorktree).toHaveBeenCalledTimes(1));
     fireEvent.click(screen.getByTestId("worktree-close-br_1"));
 
-    await waitFor(() => expect(closeWorktree).toHaveBeenLastCalledWith("br_1", true));
-    expect(screen.queryByTestId("close-worktree-dialog")).toBeNull();
+    expect(screen.getByTestId("close-worktree-dirty").textContent).toContain("3 uncommitted changes");
+    expect(closeWorktree).toHaveBeenCalledTimes(1);
   });
 });

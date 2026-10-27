@@ -83,7 +83,6 @@ async def close_branch_workspace(
     # Unknown ids and git refusals become 404/409 through bridge/errors.py's table.
     removed_agents = await asyncio.to_thread(_close_blocking, services, workspace_id, worktree_too)
     for agent_id in removed_agents:
-        services.agent_sessions.stop(agent_id)
         await asyncio.to_thread(services.registry.unregister, agent_id)
         await services.forget_workspace_runs(agent_id)
         await services.connections.broadcast({"type": "agent-removed", "id": agent_id})
@@ -112,6 +111,9 @@ def _create_blocking(
 def _close_blocking(services: BridgeServices, workspace_id: str, worktree_too: bool) -> list[str]:
     """Unloads before the directory goes (analyze writes graph.db); reloads if git refuses."""
     services.branch_manager.get(workspace_id)
+    doomed = services.agent_manager.ids_for_workspace(workspace_id)
+    for agent_id in doomed:
+        services.agent_sessions.stop(agent_id)
     if worktree_too:
         services.registry.drop_live(workspace_id)
     try:

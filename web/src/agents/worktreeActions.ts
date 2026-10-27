@@ -67,21 +67,26 @@ export async function renameWorktree(client: AgentClient, id: string, name: stri
   worktreeStore.rename(id, name);
 }
 
+/** Drops a removed tab from the strip; when it was the shown one, selects a neighbour, or creates a fresh tab when none is left. */
+export async function settleRemovedWorktree(client: AgentClient, id: string): Promise<void> {
+  const index = worktreeStore.getRecords().findIndex((record) => record.id === id);
+  const wasShown = agentStore.getActiveWorkspace() === id || worktreeStore.getActiveId() === id;
+  worktreeStore.remove(id);
+  if (!wasShown) return;
+  const remaining = worktreeStore.getRecords();
+  const next = remaining[Math.min(Math.max(index, 0), remaining.length - 1)];
+  if (next) selectWorktree(client, next.id);
+  else await ensureWorktrees(client);
+}
+
 /** Closes a tab (and its agents); selects a neighbour, or creates a fresh tab when none is left. */
 export async function closeWorktree(client: AgentClient, id: string, deleteWorktree: boolean): Promise<void> {
-  const before = worktreeStore.getRecords();
-  const index = before.findIndex((record) => record.id === id);
   await client.closeWorktree(id, deleteWorktree);
   agentStore.removeMany(
     agentStore
       .getAgents()
-      .filter((agent) => agent.workspace === id)
+      .filter((agent) => agent.workspace === id || agent.shares_workspace_with === id)
       .map((agent) => agent.id),
   );
-  worktreeStore.remove(id);
-  if (agentStore.getActiveWorkspace() !== id && worktreeStore.getActiveId() !== id) return;
-  const remaining = worktreeStore.getRecords();
-  const next = remaining[Math.min(index, remaining.length - 1)];
-  if (next) selectWorktree(client, next.id);
-  else await ensureWorktrees(client);
+  await settleRemovedWorktree(client, id);
 }

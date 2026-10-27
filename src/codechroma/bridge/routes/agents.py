@@ -23,7 +23,7 @@ from codechroma.bridge.agents.worktree import WorktreeError
 from codechroma.bridge.deps import Services
 from codechroma.bridge.routes._body import as_list, json_body
 from codechroma.bridge.services import BridgeServices
-from codechroma.bridge.workspaces import MAIN_ID
+from codechroma.bridge.workspaces import BRANCH_ID_PREFIX, MAIN_ID
 from codechroma.diagrams import kinds
 from codechroma.terminal.agents import ALLOWED_AGENTS, agent_cli, resolved_cli_for
 
@@ -103,10 +103,16 @@ async def post_agent(request: Request, services: Services) -> dict:
     diagram = _diagram_hint(body)
     if attach_to == MAIN_ID:
         raise HTTPException(status_code=400, detail="agents cannot attach to main")
-    if not workspace:
+    if attach_to is None and not workspace:
         raise HTTPException(status_code=400, detail="workspace is required")
-    if services.branch_manager.find_by_id(workspace) is None:
-        raise HTTPException(status_code=404, detail=f"unknown workspace: {workspace}")
+    if workspace:
+        if not workspace.startswith(BRANCH_ID_PREFIX):
+            raise HTTPException(
+                status_code=400,
+                detail=f"workspace must be a worktree tab id, not '{workspace}'",
+            )
+        if services.branch_manager.find_by_id(workspace) is None:
+            raise HTTPException(status_code=404, detail=f"unknown workspace: {workspace}")
     try:
         record = await asyncio.to_thread(
             services.agent_manager.create,

@@ -72,9 +72,8 @@ def route_summary(steps: list) -> str:
     files: set[str] = set()
     for step in steps:
         found = [hit.get("path") for hit in step.get("resolved") or [] if isinstance(hit, dict)]
-        files.update(path for path in found if isinstance(path, str))
-        if not found:
-            files.update(nid for nid in step.get("node_ids") or [] if isinstance(nid, str))
+        paths = [path for path in found if isinstance(path, str)]
+        files.update(paths or [nid for nid in step.get("node_ids") or [] if isinstance(nid, str)])
     ai = sum(1 for step in steps if step.get("kind") == "ai")
     return f"{len(steps)} steps · {len(files)} files · {ai} AI steps"
 

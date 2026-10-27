@@ -131,15 +131,16 @@ public static class Recipes
     /// <summary>One shared shape: nodes come from "nodes", or "items" for the epics index.</summary>
     public static GraphShape Reshape(JsonObject resolved, string render)
     {
-        var shape = ReshapeNodes(resolved, render);
-        return RouteCarrier(resolved) is { } carrier ? shape with { Nodes = [.. shape.Nodes, carrier] } : shape;
+        var parts = RouteParts(resolved);
+        var shape = ReshapeNodes(resolved, render, parts);
+        return RouteCarrier(parts) is { } carrier ? shape with { Nodes = [.. shape.Nodes, carrier] } : shape;
     }
 
-    private static GraphShape ReshapeNodes(JsonObject resolved, string render)
+    private static GraphShape ReshapeNodes(JsonObject resolved, string render, (JsonObject Route, string Id, List<JsonObject> Steps)? parts)
     {
         var rawNodes = resolved["nodes"] as JsonArray ?? (Json.Truthy(resolved["items"]) ? resolved["items"] as JsonArray : null) ?? [];
         var nodes = rawNodes.OfType<JsonObject>().Where(item => Json.Str(item["id"]) is not null).Select(item => NodeOf(item, render)).ToList();
-        nodes = WithRoute(nodes, resolved);
+        nodes = WithRoute(nodes, parts);
         IReadOnlyList<JsonNode?> relations = resolved["relations"] is JsonArray array && array.Count > 0 ? array.ToList() : [];
         if (render != "sequence") return new GraphShape(nodes, relations);
 
@@ -172,9 +173,9 @@ public static class Recipes
     }
 
     /// <summary>Stamps `route_id` on each node and `route_step` on a step's; the route itself rides once (026).</summary>
-    private static List<RecipeNode> WithRoute(List<RecipeNode> nodes, JsonObject resolved)
+    private static List<RecipeNode> WithRoute(List<RecipeNode> nodes, (JsonObject Route, string Id, List<JsonObject> Steps)? maybeParts)
     {
-        if (RouteParts(resolved) is not { } parts) return nodes;
+        if (maybeParts is not { } parts) return nodes;
         var byId = parts.Steps.ToDictionary(step => Json.Str(step["id"])!);
         return nodes.Select(node =>
         {
@@ -186,9 +187,9 @@ public static class Recipes
     }
 
     /// <summary>The one undrawn element that holds the diagram's whole route (026).</summary>
-    private static RecipeNode? RouteCarrier(JsonObject resolved)
+    private static RecipeNode? RouteCarrier((JsonObject Route, string Id, List<JsonObject> Steps)? maybeParts)
     {
-        if (RouteParts(resolved) is not { } parts) return null;
+        if (maybeParts is not { } parts) return null;
         var meta = new JsonObject { ["route"] = parts.Route, ["route_id"] = parts.Id };
         var label = Json.Truthy(parts.Route["title"]) ? PyStr(parts.Route["title"]) : parts.Id;
         return new RecipeNode(Key: RouteKeyPrefix + parts.Id, Render: RouteRender, Label: label, Description: "", NodeId: null, Group: null, Meta: meta, Style: null, Size: null);

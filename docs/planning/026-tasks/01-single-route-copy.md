@@ -17,14 +17,12 @@ Where it happens now:
 
 The route exists **once** in the canvas document. A node carries only what is its own: `meta.route_step` (its step) and a reference `meta.route_id`. The derived summary is computed once, in the resolver, from the resolved steps.
 
-## Design (decide, then do)
+## Design (as shipped)
 
-1. **Where the single copy lives.** Pick one and write the choice into the plan doc before coding:
-   - (a) a document-level map `routes: { <route_id>: Route }` on `CanvasDoc` (needs a doc schema bump and an `apply_batch` op), or
-   - (b) a dedicated carrier element per diagram layer (`render: "route"`, not drawn, `meta.route`), found by layer.
-   Recommendation: (b), because it needs no document schema change and layer deletion already removes it with the diagram. Check `docs/architecture/single-canvas.md` for how layer-owned elements and `created_by` reconciliation work (`Recipes.cs` `BuildBatchOps`, `recipes.py` `build_batch_ops`) so a re-run updates it in place and a removed route deletes it.
-2. **Summary in the resolver.** Move `_route_summary`/`RouteSummary` into the resolver (`resolve_diagram` / `DiagramResolver.Resolve`), computed from resolved steps; count **distinct** resolved `path`s for "files" (today it counts distinct `node_ids`). Stamp it as `route.summary`. The recipe route (`/recipes/<kind>/run`) loads the raw artifact through `RawDiagramResolver` (`Routes/RecipeRoutes.cs`) and never calls the resolver, which is also why `resolved` is absent on canvas elements today. Fix that here: the recipe path must run the same resolution as `GET /custom/<id>`, or the carrier element never gets resolved data.
-3. **Wire format.** Per-node `meta.route_step` keeps its current shape (id, order, lane, title, kind, node_ids, children, resolved). Add `meta.route_id`. Remove `meta.route` from nodes.
+1. **Where the single copy lives.** A carrier element per diagram layer (`render: "route"`, key `__route__::<route id>`, `meta.route` + `meta.route_id`). No document schema change; layer deletion removes it with the diagram. Both bridges append it in `reshape` after the nodes, parsing the route once (`_route_parts` / `RouteParts`).
+2. **Summary in the resolver.** `route_summary` / `DiagramResolver.RouteSummary` count distinct resolved `path`s; a step with no string path falls back to its `node_ids` (same rule in both bridges). A raw (unresolved) artifact gets the summary filled at reshape time.
+3. **Recipe path resolves.** `RawDiagramResolver` resolves `custom/<id>` (with a definition) and `feature-plan/<slug>` like their `GET` routes, so `resolved`, child `path` and `resolved_line` reach the canvas. c1/patterns/impact/epics stay raw in the C# recipe path until their resolvers are ported (gap, recorded in `docs/planning/012-csharp-bridge.md` terms: Python resolves them through `resolve_diagram`).
+4. **Wire format.** Nodes carry `meta.route_step` and `meta.route_id`; `meta.route` lives only on the carrier.
 
 ## Both bridges, one contract
 
@@ -36,11 +34,9 @@ Repo rule (`AGENTS.md`): bridge changes land in Python and C# together with a sh
 
 ## Web side
 
-- `routeStep.ts`: `routeOf(element)` becomes a lookup by `meta.route_id` against the carrier element (pass the doc or a selector; keep the `WeakMap` cache for parsing).
-- `DiagramFrame.tsx`: read the layer's carrier instead of scanning members.
-- `RouteCard.tsx`: `collectRoutes` iterates carrier elements only (cheap, no per-node parse).
-- The carrier must not render: add `route` to `BLOCK_RULES` in `web/src/canvas/doc/elementRules.ts` with `renderer: "none"` (see how `"hierarchy"` is treated in `CanvasDocView.tsx`), and exclude it from `diagramDisplayName` box counts, `unionBoundsOf`, lane/island buckets, marquee select and `FocusPanel`.
-- Update tests that seed `meta.route` per box: `web/e2e/route-steps.spec.ts`, `RouteStepBox.test.tsx`, `RouteOverlay.test.tsx`, `RouteCard.test.tsx`, `routeExpansion.test.ts`.
+- `canvasDocStore.setDoc` splits carriers out of `doc.elements` (exposed via `useRouteCarriers`), so layout, bounds, lanes, marquee and `FocusPanel` never see them; `CanvasDocView` also returns null for the `"none"` renderer as a backstop.
+- `routeStep.ts`: `routeFor(box, carriers)` resolves the layer's carrier by `meta.route_id`; a box without a `route_id` still reads a legacy `meta.route` (old saved documents).
+- `DiagramFrame.tsx` asks `routeFor` once, for the first member that names a route.
 
 ## Done when
 
@@ -56,5 +52,5 @@ Route authoring format in the skill (`skills/codechroma-draw-diagram/references/
 
 ## Risks
 
-- Existing canvases hold old documents with `meta.route` on nodes; keep `routeOf` tolerant of the old shape for one release, or the next recipe run replaces them anyway (reconciliation updates elements it owns).
-- Reconciliation deletes elements missing from a run: make sure the carrier is part of every run's output so it is not mass-deleted by the guard in `BuildBatchOps`.
+- Existing canvases hold old documents with `meta.route` on nodes; `routeFor` tolerates that shape and the next recipe run replaces it.
+- Reconciliation deletes elements missing from a run, so the carrier is part of every run's output and is not mass-deleted.

@@ -81,7 +81,8 @@ export function routeOf(element: CanvasElement): Route | undefined {
 export function routeFor(element: CanvasElement, carriers: readonly CanvasElement[]): Route | undefined {
   const id = element.meta?.route_id;
   const carrier = typeof id === "string" ? carriers.find((c) => c.meta?.route_id === id && c.layer === element.layer) : undefined;
-  return (carrier && routeOf(carrier)) ?? routeOf(element);
+  // A box that names a route_id whose carrier is not (yet) in the doc has no route: it never carries its own copy.
+  return carrier ? routeOf(carrier) : routeOf(element);
 }
 
 function parseRoute(raw: unknown): Route | undefined {

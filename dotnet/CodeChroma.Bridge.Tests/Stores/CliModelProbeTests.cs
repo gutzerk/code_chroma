@@ -37,6 +37,18 @@ public class CliModelProbeTests
         Assert.Equal("GPT-5.2 Codex", (string)models![0]!["label"]!);
     }
 
+    [Theory]
+    [InlineData("null")]
+    [InlineData("true")]
+    [InlineData("42")]
+    [InlineData("\"Unknown command\"")]
+    public void Scalar_model_list_is_null(string json)
+    {
+        var models = CliModelProbe.ParseModelList(json);
+
+        Assert.Null(models);
+    }
+
     [Fact]
     public void Unparseable_model_list_is_null()
     {

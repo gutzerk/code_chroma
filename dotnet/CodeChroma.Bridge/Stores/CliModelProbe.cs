@@ -4,7 +4,7 @@ using System.Text.Json.Nodes;
 
 namespace CodeChroma.Bridge.Stores;
 
-/// <summary>Asks an installed agent CLI for its own model list (claude control request, codex debug models, gemini models list); null when it can't answer.</summary>
+/// <summary>Asks an installed agent CLI for its own model list (claude control request, codex debug models); null when it can't answer.</summary>
 public static class CliModelProbe
 {
     private const int TimeoutSeconds = 20;
@@ -12,11 +12,11 @@ public static class CliModelProbe
 
     public static async Task<JsonArray?> Probe(string adapter)
     {
-        if (adapter is not ("claude" or "codex" or "gemini") || CliLocator.Find(adapter) is not { } binary) return null;
+        if (adapter is not ("claude" or "codex") || CliLocator.Find(adapter) is not { } binary) return null;
         try
         {
             using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(TimeoutSeconds));
-            return adapter == "claude" ? await ProbeClaude(binary, timeout.Token) : await ProbeListing(binary, adapter, timeout.Token);
+            return adapter == "claude" ? await ProbeClaude(binary, timeout.Token) : await ProbeListing(binary, timeout.Token);
         }
         catch (Exception error) when (error is OperationCanceledException or IOException or InvalidOperationException
             or System.ComponentModel.Win32Exception)
@@ -47,13 +47,12 @@ public static class CliModelProbe
         }
     }
 
-    private static async Task<JsonArray?> ProbeListing(string binary, string adapter, CancellationToken cancel)
+    private static async Task<JsonArray?> ProbeListing(string binary, CancellationToken cancel)
     {
-        using var process = adapter == "codex" ? Start(binary, "debug", "models") : Start(binary, "models", "list", "-o", "json");
+        using var process = Start(binary, "debug", "models");
         try
         {
             var stdout = process.StandardOutput.ReadToEndAsync(cancel);
-            _ = process.StandardError.ReadToEndAsync(cancel);
             await process.WaitForExitAsync(cancel);
             return process.ExitCode == 0 ? ParseModelList(await stdout) : null;
         }
@@ -71,7 +70,10 @@ public static class CliModelProbe
             RedirectStandardError = true, StandardOutputEncoding = Encoding.UTF8,
         };
         foreach (var arg in args) info.ArgumentList.Add(arg);
-        return Process.Start(info) ?? throw new InvalidOperationException("process did not start");
+        var process = Process.Start(info) ?? throw new InvalidOperationException("process did not start");
+        process.ErrorDataReceived += (_, _) => { };
+        process.BeginErrorReadLine();
+        return process;
     }
 
     private static void Kill(Process process)
@@ -95,7 +97,7 @@ public static class CliModelProbe
         JsonNode? root;
         try { root = JsonNode.Parse(text); }
         catch (System.Text.Json.JsonException) { return null; }
-        var items = root as JsonArray ?? (root?["models"] ?? root?["data"]) as JsonArray;
+        var items = root as JsonArray ?? (root as JsonObject is { } o ? o["models"] ?? o["data"] : null) as JsonArray;
         return items is null ? null : Shape(items, "slug", "display_name");
     }
 

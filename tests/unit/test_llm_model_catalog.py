@@ -313,3 +313,8 @@ def test_codex_model_list_is_read_from_object_or_bare_array(text):
 
 def test_unparseable_model_list_is_none():
     assert parse_model_list("oops") is None
+
+
+@pytest.mark.parametrize("text", ["null", "true", "42", '"Unknown command"'])
+def test_model_list_that_is_not_an_array_or_object_is_none(text):
+    assert parse_model_list(text) is None

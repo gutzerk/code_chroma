@@ -171,7 +171,7 @@ def parse_claude_models_response(line: str) -> list[dict] | None:
         if message["type"] != "control_response" or envelope["request_id"] != _CLAUDE_REQUEST_ID:
             return None
         return _shape_models(envelope["response"]["models"], "value", "displayName")
-    except ValueError, KeyError, TypeError:
+    except (ValueError, KeyError, TypeError):
         return None
 
 
@@ -181,19 +181,19 @@ def parse_model_list(text: str) -> list[dict] | None:
         root = json.loads(text)
     except ValueError:
         return None
-    items = root if isinstance(root, list) else root.get("models") or root.get("data")
-    return _shape_models(items, "slug", "display_name")
+    if isinstance(root, dict):
+        root = root.get("models") or root.get("data")
+    return _shape_models(root, "slug", "display_name")
 
 
 def _probe_cli_models(adapter: str | None) -> list[dict] | None:
-    """Ask an installed claude/codex/gemini CLI for its models; None when it cannot answer."""
-    if adapter not in ("claude", "codex", "gemini") or not (binary := shutil.which(adapter)):
+    """Ask an installed claude/codex CLI for its models; None when it cannot answer."""
+    if adapter not in ("claude", "codex") or not (binary := shutil.which(adapter)):
         return None
     try:
-        if adapter in ("codex", "gemini"):
-            args = ["debug", "models"] if adapter == "codex" else ["models", "list", "-o", "json"]
+        if adapter == "codex":
             result = subprocess.run(
-                [binary, *args],
+                [binary, "debug", "models"],
                 capture_output=True,
                 text=True,
                 encoding="utf-8",
@@ -201,7 +201,7 @@ def _probe_cli_models(adapter: str | None) -> list[dict] | None:
             )
             return parse_model_list(result.stdout) if result.returncode == 0 else None
         return _probe_claude(binary)
-    except OSError, subprocess.SubprocessError:
+    except (OSError, subprocess.SubprocessError):
         return None
 
 
@@ -213,23 +213,23 @@ def _probe_claude(binary: str) -> list[dict] | None:
         "request": {"subtype": "initialize"},
     }
     args = [binary, "-p", "--input-format", "stream-json", "--output-format", "stream-json"]
-    process = subprocess.Popen(
+    with subprocess.Popen(
         [*args, "--verbose"],
         stdin=subprocess.PIPE,
         stdout=subprocess.PIPE,
         stderr=subprocess.DEVNULL,
         text=True,
         encoding="utf-8",
-    )
-    timer = threading.Timer(_CLI_PROBE_TIMEOUT_SECONDS, process.kill)
-    timer.start()
-    try:
-        process.stdin.write(json.dumps(request) + "\n")
-        process.stdin.flush()
-        for line in process.stdout:
-            if (models := parse_claude_models_response(line)) is not None:
-                return models
-        return None
-    finally:
-        timer.cancel()
-        process.kill()
+    ) as process:
+        timer = threading.Timer(_CLI_PROBE_TIMEOUT_SECONDS, process.kill)
+        timer.start()
+        try:
+            process.stdin.write(json.dumps(request) + "\n")
+            process.stdin.flush()
+            for line in process.stdout:
+                if (models := parse_claude_models_response(line)) is not None:
+                    return models
+            return None
+        finally:
+            timer.cancel()
+            process.kill()

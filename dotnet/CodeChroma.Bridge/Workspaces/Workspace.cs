@@ -16,6 +16,7 @@ public sealed class Workspace : IDisposable
     private string? _lastSignature;
     private IReadOnlyList<string> _lastChanged = [];
     private string? _lastHead;
+    private string? _integrationBranch;
     private WorkspaceWatchers? _watchers;
 
     public Workspace(string id, string root, IGraphEngine engine, Action<string, JsonObject> onEvent, bool readOnly = false)
@@ -25,7 +26,7 @@ public sealed class Workspace : IDisposable
         Engine = engine;
         ReadOnly = readOnly;
         _onEvent = onEvent;
-        _lastHead = WikiCommit();
+        _lastHead = OwnsWiki ? WikiCommit() : null;
     }
 
     public string Id { get; }
@@ -71,8 +72,12 @@ public sealed class Workspace : IDisposable
     }
 
     /// <summary>The commit the wikis are tracked against: the integration branch tip, else HEAD.</summary>
-    public string? WikiCommit() =>
-        GitRunner.Run(Root, "rev-parse", Agents.WorktreeOps.MainBranch(Root))?.Trim() is { Length: > 0 } tip ? tip : CurrentHead();
+    public string? WikiCommit()
+    {
+        if (ReadOnly) return CurrentHead();
+        var branch = _integrationBranch ??= Agents.WorktreeOps.MainBranch(Root);
+        return GitRunner.Run(Root, "rev-parse", branch)?.Trim() is { Length: > 0 } tip ? tip : CurrentHead();
+    }
 
     /// <summary>Reanalyzes what git reports changed since the last call; null when nothing new.</summary>
     public List<string>? Sync()

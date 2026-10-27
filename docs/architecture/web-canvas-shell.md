@@ -21,6 +21,8 @@ trusted as-is (see caveat in [`web-engine-client.md`](web-engine-client.md)).
 
 🔴 **Zoom range and scrollbars (#185, #191):** `canvasGrid.ts#MIN_SCALE` (0.05) is the zoom-out floor for wheel, buttons and fit (max stays 2.5), so a multi-diagram canvas fits a small display; the dot grid re-steps itself. `html/body/#root` are `overflow: hidden` and `.canvas-main-row` scrolls horizontally with its scrollbar hidden (`overflow-y: hidden`, `scrollbar-width: none`), so macOS shows no stray page/row bars; tests in `CanvasViewport.test.tsx` ("zoom-out floor").
 
+🔴 **Block anatomy zoom levels, members chip and hero card:** `CanvasViewport` sets `data-zoom` (`zoomLevelFor`: 100% full, below 0.6 `mid`, below 0.3 `far`; thresholds in `layout/layoutMetrics.ts`). Mid shows title + SRC + the members chip only (role meta row, description, path, copy and `?` hide); far keeps coloured box + title only. `CanvasNodeBox` renders a `▸ N members` chip (`canvas-node-members`) from `useMemberCount` (`doc/useMemberCount.ts`: the backing node's `child_count` via `engineClient.getNode`, cached per client, chip hidden at 0); its click opens the inspector on the node. A selected or focused box gets `.block-hero` (20px title, 14px unclamped purpose) while its size still comes from the element. The corner order number is the existing `canvas-node-step-chip`. CSS lives in the "Block anatomy gaps" section at the end of `styles.css`; tests in `CanvasNodeBox.test.tsx`.
+
 Everything is one continuous in-memory DOM/CSS canvas — no per-node routing. A pluggable-camera
 pan/zoom system sits on top of that canvas (wheel-zoom toward cursor, drag-to-pan, zoom in/out/reset
 buttons, per-block "Center" focus, and a "Fit All" that fits the whole canvas) — see

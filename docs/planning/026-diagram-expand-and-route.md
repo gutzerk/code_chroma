@@ -13,6 +13,10 @@ A process diagram shows steps, but the reader cannot see what code runs inside a
 - **A4** keeps the process diagram and lets one step expand in place into the functions it calls (with `file:line` links).
 - **B2** keeps the code map and lays the process route over it, so the route lights up the files it touches and the rest of the code stays visible but dimmed.
 
+## Delivery order
+
+Stage 1 first (data), then Stages 2 and 3 in parallel or either order, then Stage 4 as the acceptance pass. Each stage lands as its own PR with its docs; the Python and C# resolvers change together in Stage 1.
+
 ## Goal
 
 After 5 seconds a reader can name the first step, the AI step, and the result (the 022 test), and in 10 more seconds can open the function behind any step (A4) or see which files a flow touches (B2).
@@ -40,7 +44,7 @@ A route lives in the process diagram JSON (type `process` / `custom`), next to t
   - `children`: ordered sub-calls `{ id, label, node_id, line }`, e.g. `ComputeDelta()` `:184` with the one-line "what it does" (A4's expanded step).
 - Edges keep the existing `kind` vocabulary (`calls`, `spawns`, `data`, `minor`, `removed`) and `hero` for the main path. A `failure` branch is an edge with `kind: "error"` semantics on a `failure`-kind step.
 
-Open: whether `route` belongs inside the diagram file or as a sibling `route.json` under `.codechroma/` (see Open questions).
+Decided (Decisions 1): `route` stays inside the diagram file. B2 reads it from the diagram through `routeStore`, so one authored route serves both views without a second file or a second staleness fingerprint.
 
 ## Stage 1 — Route data from the skill and the resolvers (about 2-3 days)
 
@@ -85,12 +89,14 @@ Draw the wiki-general update flow for real through the skill (not hand-written J
 - Executing or tracing the route automatically: the route is authored by the skill; the execution trace (`docs/architecture/trace.md`) stays a separate feature.
 - Inter font and other global theme changes.
 
-## Open questions
+## Decisions
 
-1. Where does a route live: inside the process diagram JSON (this plan's default) or as its own `route.json` so one route can be shown on both the process diagram and the code map without redrawing? Decide before Stage 1.
-2. Does the code map for B2 mean the existing hierarchy canvas (folders/files) or the new C2/C3 wiki-general map? The board labels folders like `dotnet/CodeChroma.Bridge` and files like `Routes/WikiGeneralRoutes.cs`, which matches the hierarchy canvas.
-3. How are `children` found? The skill can write them by hand (cheap, can go stale) or the resolver can fill them from the context cache by walking calls out of the step's main function (accurate, needs the context tool). Start by hand, keep the field shape compatible with the second.
-4. Should an expanded step state survive reload? The plan assumes no (in memory only), like other expansion state.
+1. **Route location: inside the process diagram JSON.** One file, and the existing fingerprint staleness (`skill-artifact-merge.md`) covers it. "Show route" on a diagram hands that diagram's `route` to `routeStore`, so no redraw is needed. If a route must later exist without a diagram, extracting it into `route.json` is a mechanical move because the shape is self-contained; not built now.
+2. **B2 base map: the existing hierarchy canvas** (folders/files). The board labels (`dotnet/CodeChroma.Bridge`, `Routes/WikiGeneralRoutes.cs`) match it, and `resolveVisibleEdges` plus the trace/route-probe overlays already work there. The wiki-general C2/C3 map is not a target.
+3. **`children`: written by the skill by hand first.** Keep the shape `{ id, label, node_id, line }` so a later resolver pass can fill or refresh it from the context cache without a format change. Stage 1 step 4 resolves `node_id` to a real `path`/`line` where it can, and the advisory check flags a child whose resolved line differs from the authored one (stale hint).
+4. **Expanded-step state: in memory only**, per diagram layer, lost on reload, like other expansion state.
+
+No open questions remain; Stage 1 can start.
 
 ## Done when
 

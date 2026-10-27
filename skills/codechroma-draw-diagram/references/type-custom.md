@@ -179,6 +179,43 @@ area grouping their boxes together, independent of the numbering. Leave both fie
 diagram that isn't a process — most structural diagrams never need them (see `type-c1.md`/
 `type-patterns.md`/`type-impact.md`).
 
+## Optional `route` — which code each step runs (expand a step, light up the code map)
+
+A process diagram may carry a top-level `route`: the same ordered steps, each pointing at the code it
+runs. The canvas expands a step in place into its `children` and can lay the whole route over the code map.
+Add it only when the steps map to real code; skip it for a conceptual flow. It lives in this same file.
+
+- `route`: `{ "id", "title", "steps": [...] }`. Do not write a summary; the bridge derives
+  "N steps · N files · N AI steps".
+- Each step: `id` (**must equal a diagram node `id`**), `order` (integer 1..N, no gaps), `lane`, `title`
+  (4 words or fewer), `kind`, `node_ids`, `children`.
+- `kind`: `trigger` (an actor starts it), `decide` (logic, no AI), `ai` (a model runs), `check`, `data`
+  (something is written), `failure` (a branch that stops the flow; draw its edge with `kind: "error"`).
+- `node_ids`: graph node ids of the files/functions the step runs in (what the code map lights up).
+- `children`: ordered calls inside the step, `{ "id", "label", "node_id", "line" }` with `line` a
+  positive integer, e.g. `{ "id": "c1", "label": "ComputeDelta()", "node_id": "file::Routes/WikiGeneralRoutes.cs", "line": 184 }`.
+  Write them by hand from the context cache; they may go stale, so keep the list to the 2-5 calls that matter.
+
+```json
+"route": {
+  "id": "update-map", "title": "Update the architecture map",
+  "steps": [
+    { "id": "click-update", "order": 1, "lane": "You", "title": "Click Update", "kind": "trigger",
+      "node_ids": ["file::web/src/canvas/WikiGeneralNotice.tsx"], "children": [] },
+    { "id": "diff-manifest", "order": 4, "lane": "Bridge", "title": "Diff against manifest", "kind": "decide",
+      "node_ids": ["file::dotnet/CodeChroma.Bridge/Routes/WikiGeneralRoutes.cs"],
+      "children": [{ "id": "c1", "label": "ComputeDelta()", "node_id": "file::dotnet/CodeChroma.Bridge/Routes/WikiGeneralRoutes.cs", "line": 184 }] },
+    { "id": "rewrite-pages", "order": 6, "lane": "Claude CLI", "title": "Rewrite pages", "kind": "ai",
+      "node_ids": [], "children": [] },
+    { "id": "busy", "order": 9, "lane": "Failures", "title": "Busy, 409", "kind": "failure",
+      "node_ids": [], "children": [] }
+  ]
+}
+```
+
+The self-check prints `BADROUTE`, `ROUTE-STEP`, `ROUTE-KIND`, `ROUTE-ORDER`, `ROUTE-NODES` and
+`ROUTE-CHILD` as advisories only; nothing fails the run.
+
 ## Procedure
 
 1. Fetch the definition (`GET /diagram-types/<type-id>`). Read `instructions` carefully — it is the

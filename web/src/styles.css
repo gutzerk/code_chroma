@@ -7165,7 +7165,6 @@ button[data-copy-state="idle"][aria-label]:hover:not(:disabled) {
   display: inline-block;
   margin-left: 0.5rem;
   vertical-align: middle;
-  pointer-events: auto;
   cursor: default;
 }
 
@@ -8086,7 +8085,7 @@ button[data-copy-state="idle"][aria-label]:hover:not(:disabled) {
 .canvas-node-order-badge { display: none; }
 .sequence-message--active .sequence-message-line { border-top-width: 3px; }
 .sequence-message--active .sequence-message-label { font-weight: 600; }
-.canvas-diagram-frame-modes { pointer-events: auto; vertical-align: middle; }
+.canvas-diagram-frame-actions { pointer-events: auto; vertical-align: middle; }
 
 /* 022 boards: planned = striped dashed green, data = clipped corner (BlocksAnatomy.dc.html) */
 .diagram-node-box.node-shape-planned,
@@ -8343,6 +8342,5 @@ button[data-copy-state="idle"][aria-label]:hover:not(:disabled) {
 .route-card-step--active button { background: rgba(99, 102, 241, 0.15); }
 .route-card-step-order { display: inline-block; min-width: 1.2em; opacity: 0.7; }
 .route-card-walk { width: 100%; padding: 4px 0; cursor: pointer; }
-.canvas-diagram-frame-route { pointer-events: auto; vertical-align: middle; }
 .canvas-area:has(.left-panel):not(:has(.code-sidebar:not([hidden]))) .route-card { left: calc(var(--chrome-inset, 12px) + var(--left-panel-width, 262px) + 12px); right: auto; }
 .canvas-diagram-frame-route .sequence-mode-btn { margin-left: 8px; }

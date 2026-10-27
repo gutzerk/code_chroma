@@ -545,3 +545,16 @@ def test_route_rides_on_every_node_with_a_derived_summary_and_its_step():
     assert first.meta["route"]["summary"] == "2 steps · 2 files · 1 AI steps"
     assert first.meta["route_step"]["kind"] == "trigger"
     assert second.meta["route_step"]["id"] == "b"
+
+
+def test_lane_of_only_failure_steps_gets_lane_kind_failure():
+    route = {"id": "r", "steps": [
+        {"id": "a", "lane": "flow", "kind": "trigger", "children": []},
+        {"id": "b", "lane": "Failures", "kind": "decide", "children": []},
+        {"id": "c", "lane": "Errors", "kind": "failure", "children": []},
+    ]}
+    resolved = {"nodes": [{"id": "a", "name": "A"}, {"id": "b", "name": "B"}, {"id": "c", "name": "C"}], "route": route}
+
+    shape = reshape(resolved, "custom")
+
+    assert [node.meta.get("lane_kind") for node in shape.nodes] == [None, None, "failure"]

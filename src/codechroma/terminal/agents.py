@@ -62,6 +62,7 @@ def agent_cli(
         return [
             resolution.binary,
             *_tracking_args(is_claude, session_tracking_file),
+            *_instruction_args(is_claude),
             *_mcp_args(is_claude, mcp),
             *_codechroma_plugin_args(is_claude),
             *_new_session_args(is_claude, resume_session_id, new_session_id),
@@ -80,6 +81,7 @@ def agent_cli(
         return [
             binary,
             *_tracking_args(is_claude, session_tracking_file),
+            *_instruction_args(is_claude),
             *_mcp_args(is_claude, mcp),
             *_codechroma_plugin_args(is_claude),
             *_new_session_args(is_claude, resume_session_id, new_session_id),
@@ -114,6 +116,12 @@ def _codechroma_plugin_args(is_claude: bool) -> list[str]:
     if not is_claude:
         return []
     return ["--plugin-dir", str(resource_path("skills").parent)]
+
+
+def _instruction_args(is_claude: bool) -> list[str]:
+    """The saved agent-window instruction as claude system-prompt args; empty when unset."""
+    text = load_assistant_settings().instruction.strip()
+    return ["--append-system-prompt", text] if is_claude and text else []
 
 
 def _mcp_args(is_claude: bool, mcp: McpEndpoint | None) -> list[str]:

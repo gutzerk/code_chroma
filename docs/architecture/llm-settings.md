@@ -105,9 +105,9 @@ functions), not pydantic — matching the existing convention for a small, hand-
   the fixed `GROUPS` table (`CallSiteGroup`: `id`, `label`, `members`) and `group_of()`; none of it
   user-editable, none stored in JSON.
 
-## One default model (planning 023, backend only)
+## One default model (planning 023)
 
-Stages 1 and 2 of [`docs/planning/023-llm-settings-default-model.md`](../planning/023-llm-settings-default-model.md) are in, on both bridges; the web dialog (Models/Connections/Advanced tabs) is not, so the UI still uses only per-feature assignments.
+Stages 1-3 of [`docs/planning/023-llm-settings-default-model.md`](../planning/023-llm-settings-default-model.md) are in: the backend on both bridges, and the web dialog (Models/Connections/Advanced tabs, see "Web" below). `CallSitesSection.tsx` and `HelpHint.tsx` were retired; `useGroupAvailability.ts` stays (the feature buttons use it).
 
 - **Capability** (`providers_store.capabilities(provider) -> Capabilities(agents, quick)`, derived, never stored): `cli`/`claude` is `agents`, and also `quick` when it carries an `api_key`/`api_key_path`; `cli`/`codex`/`kimi-cli` is `agents` only; `api`/`anthropic` is both; other `api` transports are `quick` only.
 - **Default** (`call_site_settings.py`): a `default` section `{provider_id, model, quick_fallback?, agent_fallback?}` in `llm-call-site-settings.json` (`load_default`/`save_default`/`clear_default`/`validate_default`). A fallback is `{provider_id, model}` or, for `quick_fallback` only, `{"offline": true}`.
@@ -115,7 +115,7 @@ Stages 1 and 2 of [`docs/planning/023-llm-settings-default-model.md`](../plannin
 - **`api`/`anthropic` agentic runs**: `resolve_cli.py` runs the `claude` adapter with `ANTHROPIC_MODEL`. Without a `base_url` the key goes in `ANTHROPIC_API_KEY` (api.anthropic.com accepts an `sk-ant` key only as `x-api-key`, never as Bearer); with a `base_url` (a proxy) it is `ANTHROPIC_BASE_URL`, `ANTHROPIC_API_KEY=""` and `ANTHROPIC_AUTH_TOKEN=<key>`. A keyed `cli`/`claude` connection answers one-shot calls through `build_provider` -> `AnthropicProvider` (with its `base_url`). `validate_group` now accepts any `agents`-capable connection.
 - **`blocking_call_sites`** also returns `"default"` while the default or one of its fallbacks references the provider.
 - **`call_sites.FEATURES`**: the five user-facing rows (`diagrams`, `planning`, `agents`, `ai_summarizer`, `initial_diagram_bootstrap`) with label, plain description, `needs` (`agents|quick`) and members; a unit test keeps it in sync with `CALL_SITES`. `HIDDEN_GROUPS` stays only for the legacy `GET /llm/call-sites` list.
-- **Routes**: `GET/PUT/DELETE /llm/default`; `GET /llm/features` (per row `effective {provider_id, provider_name, model}`, `source` = `default|custom|fallback|offline|legacy`, `needs`, `compatible_provider_ids`); `GET /llm/providers` adds `capabilities` and `used_by`. The group-validation message is now "an agentic group needs a provider that can drive a CLI agent".
+- **Routes**: `GET/PUT/DELETE /llm/default`; `GET /llm/features` (per row `effective {provider_id, provider_name, model}`, `source` = `default|custom|fallback|offline|legacy`, `needs`, `compatible_provider_ids`); `GET /llm/providers` adds `capabilities` and `used_by`; `PUT /llm/features/{id}` (`{provider_id, model}`, or `{offline: true}` for a quick-task feature — stored as a simple assignment with `mode: "offline"`, row `source: "offline"`; agent features 400 "'<id>' cannot run offline") overrides one feature and `DELETE /llm/features/{id}` resets it, both returning that feature's row — the bridge decides whether the id is a group (`diagrams`/`planning`/`agents` -> group assignment) or a simple call site (assigned with `mode: "api"`), so the web never branches on it; unknown ids 404; `POST /llm/providers/capabilities` takes an unsaved form draft (`api_key_set: true` stands in for an untouched stored key) and returns `{capabilities}`, so the Add form's "Can be used for" line uses the same rule as the saved rows. A blank `model` on `PUT /llm/default`, its fallbacks and `PUT /llm/features/{id}` is picked server-side from the connection's model catalog (`_pick_model` / `PickModel`): keep the stored one if listed, else the second model (the first for a fallback); an empty catalog leaves it blank so the usual "model must be a non-empty string" 400 fires. The group-validation message is now "an agentic group needs a provider that can drive a CLI agent".
 - **C# mirror** (`dotnet/CodeChroma.Bridge`): `ProviderStore.Capabilities`, `CallSiteStore.Default`/`SaveDefault`/`ClearDefault`/`ValidateDefault`/`ResolveDefault` and `"default"` in `Blocking` (`Stores/LlmStores.cs`); `LlmCatalog.Features` (dumped into `llm_catalog.json` by `tests/contract/llm_catalog.py`); the same routes in `Routes/LlmSettingsRoutes.cs`; `Skills/CliResolver.cs` resolves the default and `api`/`anthropic` connections, and `Terminal/TerminalAgents.cs` agent windows now go through that one resolver. Shared cases in `tests/fixtures/bridge_contract/llm_settings.cases.json`.
 - **Tests**: `test_llm_default_model.py` (capability table, api/anthropic env, keyed-claude `build_provider`), `test_llm_call_site_settings.py` and `test_bridge_llm_settings_route.py` (resolution order, fallbacks, routes).
 
@@ -387,9 +387,9 @@ server-side trace.
   mount.
 
   **Tab-hidden groups.** `call_sites.py`'s `HIDDEN_GROUPS` (currently just `agents` — the provider
-  for parallel-agent windows) is excluded from `groups` above so the Model routing table never
-  renders it: that choice is edited on the "Agent windows" tab (`AssistantSection`'s "Agent
-  provider" section), not next to the skill groups. The excluded group is still fully resolvable —
+  for parallel-agent windows) is excluded from `groups` above so the legacy routing list never
+  renders it: that choice is edited as the "Agent windows" row on the Models tab, not next to the
+  skill groups. The excluded group is still fully resolvable —
   `resolve_cli` (`parallel_agents`) reads the store directly, and `GET/PUT
   /llm/call-site-groups/{group_id}` keep working for it — so this is UI placement only, not a
   behavioral change.
@@ -414,10 +414,41 @@ One gear, one dialog, three tabs — no second rail button:
   dialog for `LlmSettingsPanel` — never both mounted at once, since two live `ModalDialog`s would
   each bind a capturing document `keydown` listener and Escape in the child would dismiss the parent
   too.
-- `web/src/llm-settings/LlmSettingsPanel.tsx` — the tabbed dialog: **Providers**, **Model routing**,
-  **Agent windows**. A proper `tabpanel`/`aria-controls` pairing per tab (not just `role="tab"`
-  buttons). `icons/RailIcon.tsx`'s `llm-providers` icon lives on the home dialog's LLM row.
-- `ProvidersSection.tsx` (Providers tab) — a card per provider (name, one-line subtitle, kind/local/
+- `web/src/llm-settings/LlmSettingsPanel.tsx` — the "AI models" dialog (planning 023): tabs **Models**,
+  **Connections**, **Advanced**, and a "Saved automatically · applies to this machine" footer with
+  Done. While the Connections form is open the footer is replaced by the form's Test / Cancel /
+  Add connection (or Save) buttons: the panel passes `ConnectionsTab` a `footerSlot` element
+  (portal target) and an `onFormOpenChange` callback; without a slot the buttons render inline in
+  the form card. A proper `tabpanel`/`aria-controls` pairing per tab (not just `role="tab"` buttons). Styles
+  for the redesign live in `LlmSettings.css` (tokens only, per the stylelint guard).
+  `icons/RailIcon.tsx`'s `llm-providers` icon lives on the home dialog's LLM row.
+- `ModelsTab.tsx` (Models tab) — loads `GET /llm/providers`, `/llm/default` and `/llm/features` and
+  never re-derives resolution. `DefaultCard.tsx`: step 1 connection chips (name, one-line subtitle,
+  capability line), step 2 model pills (`ModelPills.tsx`: the connection's `GET .../models` catalog
+  plus an "Other…" box, since many providers can't list models). Picking a connection sends a blank
+  model and the bridge picks it (see Routes); with no catalog the save is refused and the card
+  keeps the connection pending so a model can be typed. When the default lacks a capability
+  an inline fallback box asks for the quick-task fallback (any `quick` connection, or Offline) or the
+  agent fallback (any `agents` connection) and saves it with the default; its pills read "Connection · first-model" (own `useProviderModels`
+  instance, same first-model rule as `pickFallback`). A top-right badge ("Signed in" for CLI,
+  "Connection works" for API) comes from a lazy `POST /llm/providers/{id}/test` on the selected
+  connection and stays hidden on failure. `FeatureRow.tsx`: the five
+  `GET /llm/features` rows (source badge Default/Custom/Fallback/Off/Not set) that expand in place
+  to pick a compatible connection + model. Overrides use the existing routes: `diagrams`/`planning`/
+  `agents` -> `assignCallSiteGroup`, `ai_summarizer`/`initial_diagram_bootstrap` -> `assignCallSite`
+  with `mode: "api"`; "Use default again" is the matching clear route and "Reset all to default"
+  clears every `custom` row. `useProviderModels.ts` caches catalogs per connection.
+- `Advanced` tab — `AgentInstructionSection` (the `instruction` field of the assistant settings: a textarea saved on blur via an instruction-only `PUT /assistant/settings`, appended to every Claude agent window with `--append-system-prompt`) and `RuntimeSection` (CLI tool paths). The old Agent-windows tab and its
+  `AssistantSection.tsx` are gone: it edited the same `agents` group assignment the "Agent windows"
+  feature row on Models now edits, so keeping both would have been two surfaces for one setting.
+- `capability.ts` — `capabilityText` ("Agents + quick tasks" / "Agents only" / "Quick tasks only"),
+  `capabilityWhy`, `connectionSubtitle` and `NEEDS_LABEL`; the capability *rule* lives on the bridge
+  (the Add form calls `POST /llm/providers/capabilities`, debounced by its dependency list).
+- `ConnectionsTab.tsx` (Connections tab, formerly `ProvidersSection.tsx`) — a card per connection
+  (capability tag, "Used by N features", name, one-line subtitle, kind/local/
+  key-set/billing tags) plus add/edit/delete; Add shows a two-group type picker (CLI tools /
+  API key or server, `CONNECTION_TYPES`) that presets the form, and a "Can be used for ..." strip;
+  the Models tab's "+ Add a connection" opens this tab straight into the form (`startAdding`). A card per provider (name, one-line subtitle, kind/local/
   key-set/billing tags) plus add/edit/delete, a kind-branching form (CLI adapter picker vs. API
   transport/`base_url`/key-or-local toggle), an openai-compatible-only `test_model` field feeding the
   per-row Test button, and the billing warning (`billingWarning.ts`'s `shouldWarnBilling`) shown live
@@ -435,35 +466,8 @@ One gear, one dialog, three tabs — no second rail button:
   inverted against `verify_ssl` since the field reads as an opt-out) with an inline red warning
   (`llm-provider-verify-ssl-warning`) while checked, and an `llm-tag-warn` "TLS verification off" tag
   on the saved card (`llm-provider-insecure-tls-{id}`) so the setting stays visible outside the form.
-- `CallSitesSection.tsx` (Model routing tab) — **two tables**. "Features": the 3 `simple` call
-  sites, one row each, unchanged from before this addendum (mode toggle, provider/model picker,
-  Apply once dirty, Reset). "Model routing": one row **per group** (`diagrams`/
-  `planning`), not per call site — the row shows the group label, an inline comma-joined list of
-  its member skill labels, and a single provider/model picker pre-filtered to `kind="cli"`
-  providers (no mode toggle at all — a group is always CLI). Applying assigns every member at
-  once; a `HelpHint.tsx` "?" marker on a group row lists every member's `description`. Both tables
-  share the billing-warning badge and the "Apply only once dirty" convention; `llm-tab-subhead`
-  labels which table is which. `HelpHint`'s bubble is portalled to `<body>` and positioned in JS
-  from the marker's `getBoundingClientRect()` rather than CSS-absolute-positioned — the tables live
-  inside a scrolling tab panel, and a bottom-row bubble positioned as that panel's child would be
-  clipped by its own `overflow-y: auto` (which computes `overflow-x: auto` too, per the CSS spec,
-  clipping every side once either axis is non-`visible`).
-  Both tables' Model `<input>` also carries a "Fetch models" ghost button (disabled until a
-  provider is picked) that calls `fetchProviderModels(providerId)` (`GET
-  /llm/providers/{id}/models`) and, on a resolved `supported: true` result, backs the input with a
-  `<datalist>` of the returned ids/labels — the field stays a free-text `<input>` throughout (never
-  a strict `<select>`), since many providers can't list models and typing a custom name must keep
-  working. One `<datalist>` per **provider id** is rendered once, shared and deduped across every
-  row in both tables (not per row), specifically to avoid two rows that happen to share a selected
-  provider rendering two DOM elements with the same `id`. An inline status line under the input
-  reports "Fetching…", the resolved count, the provider's own error text, or (when
-  `supported: false`) "This provider can't list its models — type the name directly." Never
-  auto-fetches on provider change — same explicit-action convention as every Test button elsewhere
-  in this tab.
-- `AssistantSection.tsx` (Agent windows tab) — exactly the old `SettingsDialog.tsx` form (CLI picker,
-  token field, copy-setup-prompt, test connection), unchanged behavior, just relocated. Its own test
-  file inherits the old `SettingsDialog.test.tsx` cases; `assistant/SettingsDialog.test.tsx` now
-  tests only the category-list home (the LLM row, the summary line, the swap-in, dismiss).
+- `assistant/SettingsDialog.test.tsx` tests only the category-list home (the LLM row, the summary
+  line, the swap-in, dismiss).
 - `llmSettingsClient.ts` — thin fetch wrapper (same `VITE_ENGINE_BRIDGE_URL` base-URL convention as
   `assistantClient.ts`) for both route groups; `listCallSites()` returns `{simple, groups}`;
   `CallSite`/`CallSiteGroupMember` both carry `description`; `assignCallSiteGroup`/
@@ -508,8 +512,11 @@ One gear, one dialog, three tabs — no second rail button:
 - `tests/unit/test_skill_agent.py::test_resolve_cli_uses_the_agentic_call_sites_group_assignment`
   — proves `_resolve_cli()` needed no change: it still resolves via `self.name`, and
   `load_assignment()` now transparently delegates that to the owning group.
-- `web/src/assistant/SettingsDialog.test.tsx` — the category-list home; `AssistantSection.test.tsx` —
-  the relocated agent-window form; `llm-settings/LlmSettingsPanel.test.tsx` — the tab switch itself.
+- `web/src/assistant/SettingsDialog.test.tsx` — the category-list home;
+  `llm-settings/LlmSettingsPanel.test.tsx` — the tab switch itself; `ModelsTab.test.tsx`,
+  `ConnectionsTab.test.tsx`, `llmSettingsClient.test.ts` — the new tabs and client. The shared
+  bridge cases for `/llm/features/{id}` and `/llm/providers/capabilities` are in
+  `tests/fixtures/bridge_contract/llm_settings.cases.json` (both bridges run them).
 - `tests/integration/test_llm_call_site_assignment_end_to_end.py` — unassigned vs. assigned
   resolution through the real stores, with a stubbed `LLMProvider` (no network).
 - `tests/unit/test_terminal_server.py`'s regression assertion — `terminal/agents.py`'s
@@ -545,6 +552,13 @@ One gear, one dialog, three tabs — no second rail button:
 - A live model list from the bridge (same as the assistant-settings probe).
 
 C# bridge note: the API-provider "Test" and `POST /assistant/settings/test` make a real one-token completion via `Skills/LlmCompletion.cs` (anthropic uses `ANTHROPIC_BASE_URL` when set); CLI selection for skill runs is `Skills/CliResolver.cs`.
+
+## Connection form details (ConnectionsTab)
+
+- A CLI draft shows a `<adapter> found on PATH · <version> · signed in` line: the path part comes from `GET /runtime/cli/{name}` (`resolution.executable/version/failure_reason`), the sign-in part from `GET /llm/cli/{adapter}/auth` -> `{signed_in: true|false|null}` (`llm/cli_auth.py` / `Stores/CliAuth.cs` run `claude auth status` / `codex login status` with an 8 s timeout; null for other adapters, a missing CLI or a timeout, and the line then omits it).
+- The `claude` adapter's base URL / key / TLS fields appear only after the "Route through my own endpoint" checkbox (`useProxy`); unchecked, `toPayload` sends them cleared.
+- The key field's label and hint depend on the type (Anthropic, Gemini, proxy, optional for local).
+- Draft test results read `Works · replied in X s` (CLI, timed client-side) or `Connected · <message>` (API). A test result carries `models_count` when the provider's live model list answered (never for the built-in static lists), and the text then reads `... · N models found` / `Connected · N models found`.
 
 ## Gemini CLI adapter
 

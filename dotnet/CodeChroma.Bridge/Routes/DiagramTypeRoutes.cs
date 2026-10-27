@@ -138,4 +138,3 @@ public static class DiagramTypeRoutes
         return Reply.Json(new JsonObject { ["deleted"] = existed });
     }
 }
-

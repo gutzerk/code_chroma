@@ -33,6 +33,14 @@ def test_a_correctly_kinded_edge_is_silent():
     assert reasons == []
 
 
+def test_an_authored_removed_edge_is_silent():
+    relation = {"from": "a", "to": "b", "kind": "removed"}
+
+    reasons = _reasons([relation], "impact")
+
+    assert reasons == []
+
+
 def test_sequence_checks_message_kinds_and_not_edge_kinds():
     relations = [
         {"id": "m1", "kind": "shout", "label": "hi"},

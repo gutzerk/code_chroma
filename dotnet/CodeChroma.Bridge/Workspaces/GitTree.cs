@@ -77,7 +77,7 @@ public sealed class GitTree
         foreach (var (path, kind) in statuses)
         {
             if (kind != "added" || counts.ContainsKey(path)) continue;
-            try { counts[path] = (File.ReadAllLines(System.IO.Path.Combine(RepoRoot, path)).Length, 0); }
+            try { counts[path] = (LineDiff.SplitLines(File.ReadAllText(System.IO.Path.Combine(RepoRoot, path))).Count, 0); }
             catch (Exception error) when (error is IOException or UnauthorizedAccessException) { }
         }
         return counts;

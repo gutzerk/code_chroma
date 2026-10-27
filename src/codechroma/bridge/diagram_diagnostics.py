@@ -145,14 +145,11 @@ def merge_dropped(*payloads: object) -> dict:
 
 
 # Kept in sync with skills/codechroma-draw-diagram/scripts/check_diagram.py and the C# Diagnostics.
-ADVISORY_REASONS = (
-    "bad_message_kind", "failure_kind", "bad_edge_kind", "edge_kind_spawn", "edge_kind_data",
-)
 MESSAGE_KINDS = ("call", "return", "ai", "event", "error")
 EDGE_KINDS = ("calls", "spawns", "data", "reads", "writes", "minor")
 EDGE_KIND_ALIASES = (
     "call", "uses", "spawn", "process", "read", "write", "secondary", "imports", "implements",
-    "extends", "inherits", "composes", "contains", "depends", "depends_on",
+    "extends", "inherits", "composes", "contains", "depends", "depends_on", "removed",
 )
 _PLAIN_EDGE_KINDS = ("", "calls", "call", "uses")
 _FAILURE_WORDS = re.compile(r"\b(error|fail\w*|denied|timeout|timed out)\b", re.IGNORECASE)

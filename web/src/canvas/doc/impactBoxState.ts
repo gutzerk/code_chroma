@@ -84,7 +84,9 @@ export function mergedPillsOf(doc: CanvasDoc, changes: ImpactChanges): Map<strin
       const collapse = collapseKindOf({ authored: stringMeta(element, "status"), change, summary, hasChanges, isHeroEnd: heroEnds.has(element.id) });
       if (collapse !== "minor") continue;
       const key = element.group_id ?? "";
-      buckets.set(key, [...(buckets.get(key) ?? []), element]);
+      const bucket = buckets.get(key);
+      if (bucket) bucket.push(element);
+      else buckets.set(key, [element]);
     }
     for (const elements of buckets.values()) {
       if (elements.length < 2) continue;

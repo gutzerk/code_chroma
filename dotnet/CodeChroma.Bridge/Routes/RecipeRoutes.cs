@@ -1,3 +1,4 @@
+using CodeChroma.Bridge.Diagrams;
 using System.Text.Json.Nodes;
 using CodeChroma.Bridge.Workflows;
 using CodeChroma.Bridge.Http;
@@ -13,15 +14,18 @@ public interface IDiagramResolver
     JsonObject? Resolve(Workspace ws, string kind);
 }
 
-/// <summary>The stored artifact as the payload; stands in until the kind-specific resolvers are ported.</summary>
-public sealed class RawDiagramResolver : IDiagramResolver
+/// <summary>The stored artifact as the payload (a custom type with a definition is resolved like `GET /custom/{id}`, so a route carries its `resolved` data).</summary>
+public sealed class RawDiagramResolver(DiagramLibrary? library = null) : IDiagramResolver
 {
+    private const string CustomPrefix = "custom/";
     private static readonly string[] SynthesizedPrefixes = ["custom/", "feature-plan/", "epics/"];
 
     public JsonObject? Resolve(Workspace ws, string kind)
     {
         var known = Workspace.DiagramKinds.Contains(kind)
             || SynthesizedPrefixes.Any(prefix => kind.StartsWith(prefix, StringComparison.Ordinal) && RunStore.IsSafeId(kind[prefix.Length..]));
+        if (known && kind.StartsWith(CustomPrefix, StringComparison.Ordinal) && library?.LoadType(kind[CustomPrefix.Length..]) is not null)
+            return DiagramTypeRoutes.ResolveCustom(ws, kind[CustomPrefix.Length..], library);
         return known ? DiagramRoutes.LoadArtifact(ws, kind) as JsonObject ?? new JsonObject() : null;
     }
 }
@@ -31,7 +35,7 @@ public static class RecipeRoutes
 {
     public static void Map(WebApplication app)
     {
-        var resolver = app.Services.GetService<IDiagramResolver>() ?? new RawDiagramResolver();
+        var resolver = app.Services.GetService<IDiagramResolver>() ?? new RawDiagramResolver(app.Services.GetService<DiagramLibrary>());
         // The recipe name may contain slashes (custom/&lt;id&gt;), so it is peeled off the catch-all's "/run" tail.
         app.MapPost("/repos/{repoId}/recipes/{**rest}", (string repoId, string rest, WorkspaceRegistry registry) => Run(registry.Get(repoId), rest, resolver));
     }

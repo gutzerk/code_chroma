@@ -1,5 +1,5 @@
 import { RouteLegend } from "./RouteLegend";
-import { routeOf } from "./routeStep";
+import { routeFor } from "./routeStep";
 import { routeStore } from "../../state/routeStore";
 import { useEffect, useMemo, useRef, useSyncExternalStore } from "react";
 import { stringMeta } from "./elementMeta";
@@ -11,7 +11,7 @@ import type { MeasuredBoxSize } from "../useMeasuredSizes";
 import { useGroupDrag } from "../collision/useGroupDrag";
 import { elementDragPointerDown } from "../useDragOffset";
 import { unionBoundsOf } from "./boundingBox";
-import { canvasDocStore, commitCanvasPositions } from "./canvasDocStore";
+import { canvasDocStore, commitCanvasPositions, useRouteCarriers } from "./canvasDocStore";
 import { diagramFrameColorClass } from "./diagramFrameColor";
 import { dragOffsetStore } from "./dragOffsetStore";
 import { CopyButton } from "../strategies/nodeChrome";
@@ -164,6 +164,14 @@ export function DiagramFrame({ layer, label, members, sizes, typeLabel, boxCount
   // can still be cleaned up: onGroupCommit deletes an id from here the instant it clears the store for
   // it, so only a genuinely still-in-flight id is left by the time the unmount effect below runs.
   const trackedIdsRef = useRef<Set<string>>(new Set());
+  const carriers = useRouteCarriers();
+  const route = useMemo(() => {
+    for (const member of members) {
+      const found = routeFor(member, carriers);
+      if (found) return found;
+    }
+    return undefined;
+  }, [members, carriers]);
 
   const group = useGroupDrag({
     suppressClickAfterDrag: true,
@@ -205,7 +213,6 @@ export function DiagramFrame({ layer, label, members, sizes, typeLabel, boxCount
   if (!bounds) return null;
 
   const isSequence = members.some((member) => member.render === "sequence");
-  const route = members.map(routeOf).find(Boolean); // routeOf is cached per meta object, so this is cheap
 
   const classes = [
     "canvas-diagram-frame",

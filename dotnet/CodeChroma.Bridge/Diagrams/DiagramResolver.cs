@@ -194,6 +194,20 @@ public static class DiagramResolver
         return found;
     }
 
+    /// <summary>The derived "N steps · N files · N AI steps" line of the ROUTE card (026), counting distinct resolved paths.</summary>
+    public static string RouteSummary(JsonArray steps)
+    {
+        var files = new HashSet<string>();
+        foreach (var step in steps.OfType<JsonObject>())
+        {
+            var found = (step["resolved"] as JsonArray ?? []).OfType<JsonObject>().Select(h => Json.Str(h["path"])).OfType<string>().ToList();
+            if (found.Count > 0) files.UnionWith(found);
+            else files.UnionWith((step["node_ids"] as JsonArray ?? []).Select(n => Json.Str(n)).OfType<string>());
+        }
+        var ai = steps.OfType<JsonObject>().Count(s => Json.Str(s["kind"]) == "ai");
+        return $"{steps.Count} steps · {files.Count} files · {ai} AI steps";
+    }
+
     /// <summary>Stamps `resolved` on each route step and `path`/`resolved_line`/`line_mismatch` on each child (026).</summary>
     private static JsonNode? ResolveRoute(IGraphEngine engine, JsonNode? route, Diagnostics notes)
     {
@@ -235,6 +249,7 @@ public static class DiagramResolver
         }
         var result = (JsonObject)r.DeepClone();
         result["steps"] = outSteps;
+        result["summary"] = RouteSummary(outSteps);
         return result;
     }
 

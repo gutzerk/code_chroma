@@ -1,10 +1,28 @@
 import { useEffect, useSyncExternalStore } from "react";
 import { Store } from "../../state/createStore";
 import type { EngineClient } from "../../engine-client/EngineClient";
-import { EMPTY_CANVAS_DOC, type CanvasBatchResult, type CanvasDoc, type CanvasOp } from "../../state/types";
+import { EMPTY_CANVAS_DOC, type CanvasBatchResult, type CanvasDoc, type CanvasElement, type CanvasOp } from "../../state/types";
 import { reportAsyncError } from "../../util/reportError";
 import { undoStore } from "../../state/undoStore";
 import { findUnplaced, layoutUnplaced } from "./pileLayout";
+
+const NO_CARRIERS: CanvasElement[] = [];
+
+/** Pulls the `render: "route"` carriers out of a doc, returning the same doc object when it has none. */
+function splitRouteCarriers(doc: CanvasDoc): { rest: CanvasDoc; carriers: CanvasElement[] } {
+  const carriers: CanvasElement[] = [];
+  const elements: CanvasDoc["elements"] = {};
+  for (const [id, element] of Object.entries(doc.elements)) {
+    if (element.render === "route") carriers.push(element);
+    else elements[id] = element;
+  }
+  return carriers.length === 0 ? { rest: doc, carriers: NO_CARRIERS } : { rest: { ...doc, elements }, carriers };
+}
+
+/** Keeps the previous array when the carriers are unchanged, so route subscribers skip a re-render. */
+function stableCarriers(previous: CanvasElement[], next: CanvasElement[]): CanvasElement[] {
+  return JSON.stringify(previous) === JSON.stringify(next) ? previous : next;
+}
 
 /** The one canvas document in memory, plus the one optimistic edit a drag needs (016-single-canvas-
  * dashboard, Stage 2). Follows state/createStore.ts like every other canvas store; workspace-scoped
@@ -12,6 +30,8 @@ import { findUnplaced, layoutUnplaced } from "./pileLayout";
 class CanvasDocStore extends Store {
   private _doc: CanvasDoc = EMPTY_CANVAS_DOC;
   private _loaded = false;
+  // 026: the undrawn route-carrier elements, split out of `_doc` so no layout/bounds/selection code sees them.
+  private _routeCarriers: CanvasElement[] = NO_CARRIERS;
   // Diagram layers mid auto-layout (runRecipeAndLayout): a server snapshot whose elements for one of
   // these layers are all still at (0,0) is the recipe's own transient commit, not a real move, so
   // fetchAndApplyCanvasDoc withholds it rather than flash the pile -- see its content check below.
@@ -32,6 +52,7 @@ class CanvasDocStore extends Store {
 
   getDoc = (): CanvasDoc => this._doc;
   isLoaded = (): boolean => this._loaded;
+  getRouteCarriers = (): CanvasElement[] => this._routeCarriers;
 
   deferLayout(layer: string): void {
     this._deferredLayers.add(layer);
@@ -47,7 +68,9 @@ class CanvasDocStore extends Store {
   }
 
   setDoc(doc: CanvasDoc): void {
-    this._doc = doc;
+    const { rest, carriers } = splitRouteCarriers(doc);
+    this._routeCarriers = stableCarriers(this._routeCarriers, carriers);
+    this._doc = rest;
     this._loaded = true;
     this.emit();
   }
@@ -85,6 +108,7 @@ class CanvasDocStore extends Store {
 
   reset(): void {
     this._doc = EMPTY_CANVAS_DOC;
+    this._routeCarriers = NO_CARRIERS;
     this._loaded = false;
     this.unlayoutableLayers.clear();
     this.autoPlacedIds.clear();
@@ -96,6 +120,11 @@ export const canvasDocStore = new CanvasDocStore();
 
 export function useCanvasDoc(): CanvasDoc {
   return useSyncExternalStore(canvasDocStore.subscribe, canvasDocStore.getDoc);
+}
+
+/** The route carriers (026), one per diagram layer that authored a route. */
+export function useRouteCarriers(): CanvasElement[] {
+  return useSyncExternalStore(canvasDocStore.subscribe, canvasDocStore.getRouteCarriers);
 }
 
 export function useCanvasDocLoaded(): boolean {

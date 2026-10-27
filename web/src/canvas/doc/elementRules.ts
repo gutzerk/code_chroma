@@ -2,7 +2,7 @@ import type { CanvasRenderKind } from "../../state/types";
 
 /** Which canvas-doc component draws an element's kind. Several render kinds share one renderer —
  * every diagram box (c1/pattern/impact/epic/custom) renders through CanvasNodeBox. */
-export type RendererKind = "hierarchy" | "note" | "group" | "node-box" | "sequence" | "question";
+export type RendererKind = "hierarchy" | "note" | "group" | "node-box" | "sequence" | "question" | "none";
 
 /** What clicking a block does — `"epic-brief"` marks a work-item box (epic/story): its primary click
  * opens the right-side Inspector showing the WorkItem's full text (010-epics-tree-render Part 5),
@@ -58,7 +58,7 @@ export type BlockRule = OwnComponentRule | NodeBoxRule;
 /** A rule for a kind that renders through its own component (no CanvasNodeBox box shell). */
 export interface OwnComponentRule {
   kind: CanvasRenderKind;
-  renderer: "hierarchy" | "note" | "group" | "sequence" | "question";
+  renderer: "hierarchy" | "note" | "group" | "sequence" | "question" | "none";
   activation: ActivationKind;
   /** The "changes"/diff overlay that feeds this kind — impact only today. */
   overlay?: "impact";
@@ -111,6 +111,8 @@ export const BLOCK_RULES: Record<CanvasRenderKind, BlockRule> = {
     // An agent's question is answered in place (QuestionCard), never dragged or auto-laid-out.
     lockedLayout: true,
   },
+  // 026: the one undrawn element holding a diagram's whole route; canvasDocStore keeps it out of `doc.elements`.
+  route: { kind: "route", renderer: "none", activation: "inspector" },
   c1: {
     kind: "c1",
     renderer: "node-box",
@@ -176,7 +178,7 @@ export const BLOCK_RULES: Record<CanvasRenderKind, BlockRule> = {
  * shell), so it's excluded here along with hierarchy/note/group. */
 export type StyledRenderKind = Exclude<
   CanvasRenderKind,
-  "hierarchy" | "note" | "group" | "sequence" | "question"
+  "hierarchy" | "note" | "group" | "sequence" | "question" | "route"
 >;
 
 /** The box shell for a node-box kind. `StyledRenderKind` only contains `renderer === "node-box"`

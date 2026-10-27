@@ -532,7 +532,7 @@ def test_a_nodes_own_meta_path_is_not_overridden_by_its_top_level_path():
     assert shape.nodes[0].meta["path"] == "own.py"
 
 
-def test_route_rides_on_every_node_with_a_derived_summary_and_its_step():
+def test_route_rides_once_on_a_carrier_and_nodes_carry_only_their_step():
     route = {"id": "r", "steps": [
         {"id": "a", "kind": "trigger", "node_ids": ["f1"], "children": []},
         {"id": "b", "kind": "ai", "node_ids": ["f1", "f2"], "children": []},
@@ -541,7 +541,21 @@ def test_route_rides_on_every_node_with_a_derived_summary_and_its_step():
 
     shape = reshape(resolved, "custom")
 
-    first, second = shape.nodes
-    assert first.meta["route"]["summary"] == "2 steps · 2 files · 1 AI steps"
+    first, second, carrier = shape.nodes
+    assert carrier.render == "route"
+    assert carrier.meta["route"]["summary"] == "2 steps · 2 files · 1 AI steps"
+    assert [node.meta.get("route") for node in (first, second)] == [None, None]
+    assert first.meta["route_id"] == "r"
     assert first.meta["route_step"]["kind"] == "trigger"
     assert second.meta["route_step"]["id"] == "b"
+
+
+def test_a_resolved_summary_is_kept_and_a_sequence_diagram_keeps_the_carrier_undecorated():
+    route = {"id": "r", "summary": "from the resolver", "steps": [{"id": "a", "kind": "ai"}]}
+    resolved = {"nodes": [{"id": "a", "name": "A"}], "relations": [], "route": route}
+
+    shape = reshape(resolved, "sequence")
+
+    carrier = shape.nodes[-1]
+    assert carrier.meta["route"]["summary"] == "from the resolver"
+    assert "role" not in carrier.meta

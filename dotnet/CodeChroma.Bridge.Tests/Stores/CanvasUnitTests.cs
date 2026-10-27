@@ -93,7 +93,7 @@ public class CanvasUnitTests
     }
 
     [Fact]
-    public void A_route_rides_on_every_node_with_a_derived_summary_like_python()
+    public void A_route_rides_once_on_a_carrier_and_nodes_carry_only_their_step()
     {
         var resolved = JsonNode.Parse("""
             {"nodes":[{"id":"a","name":"A"},{"id":"b","name":"B"}],
@@ -103,8 +103,28 @@ public class CanvasUnitTests
 
         var shape = Recipes.Reshape(resolved, "custom");
 
-        Assert.Equal("2 steps · 2 files · 1 AI steps", shape.Nodes[0].Meta!["route"]!["summary"]!.GetValue<string>());
+        var carrier = shape.Nodes[2];
+        Assert.Equal("route", carrier.Render);
+        Assert.Equal("2 steps · 2 files · 1 AI steps", carrier.Meta!["route"]!["summary"]!.GetValue<string>());
+        Assert.False(shape.Nodes[0].Meta!.ContainsKey("route"));
+        Assert.False(shape.Nodes[1].Meta!.ContainsKey("route"));
+        Assert.Equal("r", shape.Nodes[0].Meta!["route_id"]!.GetValue<string>());
         Assert.Equal("trigger", shape.Nodes[0].Meta!["route_step"]!["kind"]!.GetValue<string>());
         Assert.Equal("b", shape.Nodes[1].Meta!["route_step"]!["id"]!.GetValue<string>());
+    }
+
+    [Fact]
+    public void A_resolved_summary_is_kept_and_a_sequence_diagram_keeps_the_carrier_undecorated()
+    {
+        var resolved = JsonNode.Parse("""
+            {"nodes":[{"id":"a","name":"A"}],"relations":[],
+             "route":{"id":"r","summary":"from the resolver","steps":[{"id":"a","kind":"ai"}]}}
+            """)!.AsObject();
+
+        var shape = Recipes.Reshape(resolved, "sequence");
+
+        var carrier = shape.Nodes[^1];
+        Assert.Equal("from the resolver", carrier.Meta!["route"]!["summary"]!.GetValue<string>());
+        Assert.False(carrier.Meta!.ContainsKey("role"));
     }
 }

@@ -28,6 +28,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field, replace
 
 from codechroma.bridge.diagram_diagnostics import Diagnostics, relation_pair
+from codechroma.bridge.diagram_resolver import route_summary
 from codechroma.canvas.document import CanvasDoc
 
 RECIPE_KEY = "recipe_key"
@@ -178,32 +179,65 @@ def _node_of(item: dict, render: str) -> GraphNode:
     )
 
 
-def _route_summary(steps: list[dict]) -> str:
-    """The derived "N steps · N files · N AI steps" line of the ROUTE card (026)."""
-    files = {nid for step in steps for nid in step.get("node_ids") or [] if isinstance(nid, str)}
-    ai = sum(1 for step in steps if step.get("kind") == "ai")
-    return f"{len(steps)} steps · {len(files)} files · {ai} AI steps"
+ROUTE_RENDER = "route"
+ROUTE_KEY_PREFIX = "__route__::"
 
 
-def _with_route(nodes: tuple[GraphNode, ...], resolved: dict) -> tuple[GraphNode, ...]:
-    """Stamps `route` (plus a derived summary) on each node and `route_step` on a step's."""
+def _route_id(route: dict) -> str:
+    route_id = route.get("id")
+    return route_id if isinstance(route_id, str) and route_id else "route"
+
+
+def _route_parts(resolved: dict) -> tuple[dict, list[dict]] | None:
+    """The authored route (summary filled) and its well-formed steps, or None without a route."""
     route = resolved.get("route")
     steps = route.get("steps") if isinstance(route, dict) else None
     if not isinstance(steps, list):
-        return nodes
+        return None
     clean = [step for step in steps if isinstance(step, dict) and isinstance(step.get("id"), str)]
-    stamped = {**route, "steps": clean, "summary": _route_summary(clean)}
-    by_id = {step["id"]: step for step in clean}
+    summary = route.get("summary") or route_summary(clean)  # a raw (unresolved) artifact has none
+    return {**route, "steps": clean, "summary": summary}, clean
+
+
+def _with_route(nodes: tuple[GraphNode, ...], resolved: dict) -> tuple[GraphNode, ...]:
+    """Stamps `route_id` on each node and `route_step` on a step's; the route rides once."""
+    parts = _route_parts(resolved)
+    if parts is None:
+        return nodes
+    route, steps = parts
+    route_id = _route_id(route)
+    by_id = {step["id"]: step for step in steps}
     return tuple(
         replace(node, meta={
-            **node.meta, "route": stamped,
+            **node.meta, "route_id": route_id,
             **({"route_step": by_id[node.key]} if node.key in by_id else {}),
         })
         for node in nodes
     )
 
 
+def _route_carrier(resolved: dict) -> GraphNode | None:
+    """The one undrawn element that holds the diagram's whole route (026)."""
+    parts = _route_parts(resolved)
+    if parts is None:
+        return None
+    route = parts[0]
+    route_id = _route_id(route)
+    return GraphNode(
+        key=f"{ROUTE_KEY_PREFIX}{route_id}", render=ROUTE_RENDER,
+        label=str(route.get("title") or route_id), description="",
+        meta={"route": route, "route_id": route_id},
+    )
+
+
 def reshape(resolved: dict, render: str) -> GraphShape:
+    """The shared shape plus the route carrier, when the diagram authored a route."""
+    shape = _reshape_nodes(resolved, render)
+    carrier = _route_carrier(resolved)
+    return shape if carrier is None else replace(shape, nodes=(*shape.nodes, carrier))
+
+
+def _reshape_nodes(resolved: dict, render: str) -> GraphShape:
     """One shared shape: nodes come from "nodes", or "items" for the epics index."""
     raw_nodes = resolved.get("nodes")
     if not isinstance(raw_nodes, list):

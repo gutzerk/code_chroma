@@ -57,14 +57,27 @@ function stepOf(raw: unknown): RouteStep | undefined {
   };
 }
 
+const stepCache = new WeakMap<object, RouteStep | undefined>();
+const routeCache = new WeakMap<object, Route | undefined>();
+
+/** Parses a raw meta object once; the same object is read by every box and every render. */
+function cached<T>(cache: WeakMap<object, T | undefined>, raw: unknown, parse: (raw: unknown) => T | undefined): T | undefined {
+  if (!isRecord(raw)) return parse(raw);
+  if (!cache.has(raw)) cache.set(raw, parse(raw));
+  return cache.get(raw);
+}
+
 /** The step a bridge stamped on this box (`meta.route_step`), or undefined for a box with no route step. */
 export function routeStepOf(element: CanvasElement): RouteStep | undefined {
-  return stepOf(element.meta?.route_step);
+  return cached(stepCache, element.meta?.route_step, stepOf);
 }
 
 /** The whole route stamped on a box (`meta.route`, same on every box of the diagram), if any. */
 export function routeOf(element: CanvasElement): Route | undefined {
-  const raw = element.meta?.route;
+  return cached(routeCache, element.meta?.route, parseRoute);
+}
+
+function parseRoute(raw: unknown): Route | undefined {
   if (!isRecord(raw) || !Array.isArray(raw.steps)) return undefined;
   const steps = raw.steps.map(stepOf).filter((s): s is RouteStep => !!s);
   return { id: text(raw.id) ?? "route", title: text(raw.title) ?? "Route", summary: text(raw.summary) ?? "", steps };

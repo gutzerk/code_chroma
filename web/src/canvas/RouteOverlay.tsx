@@ -1,8 +1,8 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { expansionStore, useExpandedNodeIdsByOrder } from "../state/expansionState";
 import { useCanvasLayoutVersion } from "../state/canvasLayoutStore";
 import { useRouteState } from "../state/routeStore";
-import { BLOCK_HEADER_SELECTOR, borderSegment, countLabel, getToLocal, useOverlaySvgRef } from "./canvasOverlay";
+import { borderSegment, countLabel, getToLocal, nodeBox, useOverlaySvgRef } from "./canvasOverlay";
 import { applyRouteHighlight } from "./routeHighlight";
 import type { RouteStep } from "./doc/routeStep";
 
@@ -29,13 +29,6 @@ export function litIdsOf(step: RouteStep): string[] {
   return [...new Set(ids)];
 }
 
-function boxOf(nodeId: string) {
-  const el = document.querySelector<HTMLElement>(`[data-node-id="${CSS.escape(nodeId)}"]`);
-  if (!el) return null;
-  const r = (el.querySelector<HTMLElement>(BLOCK_HEADER_SELECTOR) ?? el).getBoundingClientRect();
-  return { left: r.left, top: r.top, right: r.right, bottom: r.bottom };
-}
-
 /**
  * Lays the authored route over the code map: lights the files its steps run in, fades the rest to the
  * faded level, numbers each step on its first file and joins consecutive steps with a path. Authored,
@@ -45,52 +38,55 @@ export function RouteOverlay() {
   const { route, stepIndex } = useRouteState();
   const expandedNodeIds = useExpandedNodeIdsByOrder();
   const layoutVersion = useCanvasLayoutVersion();
-  const [markers, setMarkers] = useState<Marker[]>([]);
-  const [segments, setSegments] = useState<Segment[]>([]);
+  const [shapes, setShapes] = useState<{ markers: Marker[]; segments: Segment[] }>({ markers: [], segments: [] });
+
+  // Each step's lit blocks, recomputed only when the route or the expansion changes.
+  const litByStep = useMemo(
+    () => (route ? route.steps.map(litIdsOf) : []),
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- expandedNodeIds is expansionStore's change signal
+    [route, expandedNodeIds],
+  );
 
   useEffect(() => {
     if (!route) return;
-    const lit = new Set(route.steps.flatMap(litIdsOf));
-    return applyRouteHighlight(document, lit);
-  }, [route, expandedNodeIds, layoutVersion]);
+    return applyRouteHighlight(document, new Set(litByStep.flat()));
+  }, [route, litByStep, layoutVersion]);
 
   const svgRef = useOverlaySvgRef(() => {
     const toLocal = svgRef.current ? getToLocal(svgRef.current) : null;
     if (!route || !toLocal) {
-      setMarkers([]);
-      setSegments([]);
+      setShapes({ markers: [], segments: [] });
       return;
     }
-    const nextMarkers: Marker[] = [];
-    const nextSegments: Segment[] = [];
-    let previous: { id: string; box: NonNullable<ReturnType<typeof boxOf>> } | null = null;
+    const markers: Marker[] = [];
+    const segments: Segment[] = [];
+    let previous: { id: string; box: NonNullable<ReturnType<typeof nodeBox>> } | null = null;
     route.steps.forEach((step, index) => {
-      const id = litIdsOf(step)[0];
-      const box = id ? boxOf(id) : null;
+      const id = litByStep[index]?.[0];
+      const box = id ? nodeBox(id) : null;
       if (!id || !box) return;
       const corner = toLocal(box.left, box.top);
       const active = index === stepIndex;
-      nextMarkers.push({ key: step.id, x: corner.x, y: corner.y, order: step.order, kind: step.kind, active });
+      markers.push({ key: step.id, x: corner.x, y: corner.y, order: step.order, kind: step.kind, active });
       if (previous && previous.id !== id) {
         const seg = borderSegment(previous.box, box);
         const a = toLocal(seg.from.x, seg.from.y);
         const b = toLocal(seg.to.x, seg.to.y);
-        nextSegments.push({ key: `${previous.id}->${step.id}`, d: `M ${a.x} ${a.y} L ${b.x} ${b.y}`, active });
+        segments.push({ key: `${previous.id}->${step.id}`, d: `M ${a.x} ${a.y} L ${b.x} ${b.y}`, active });
       }
       previous = { id, box };
     });
-    setMarkers(nextMarkers);
-    setSegments(nextSegments);
-  }, [route, stepIndex, expandedNodeIds, layoutVersion]);
+    setShapes({ markers, segments });
+  }, [route, litByStep, stepIndex, layoutVersion]);
 
   // Walking scrolls the active step's first file into view.
   useEffect(() => {
-    const step = route?.steps[stepIndex];
-    const id = step ? litIdsOf(step)[0] : undefined;
+    const id = litByStep[stepIndex]?.[0];
     if (!id) return;
     document.querySelector<HTMLElement>(`[data-node-id="${CSS.escape(id)}"]`)?.scrollIntoView?.({ block: "center", inline: "center" });
-  }, [route, stepIndex]);
+  }, [litByStep, stepIndex]);
 
+  const { markers, segments } = shapes;
   return (
     <svg
       ref={svgRef}

@@ -8425,4 +8425,25 @@ button[data-copy-state="idle"][aria-label]:hover:not(:disabled) {
 .sequence-legend-note { width: 18px; height: 12px; box-sizing: border-box; border: 1px solid #5B5B3A; border-radius: 2px; background: #24241C; }
 .connector-label-chip--board { fill: #1F201D; stroke: #3A3B37; }
 .connector-label-text--board { font-family: var(--font-mono); font-size: 10.5px; }
+
+/* Impact board: wide header bar above the diagram, outside strip below, legend beside; size row survives mid zoom */
+.impact-board-anchor { position: absolute; z-index: 40; box-sizing: border-box; }
+.impact-board-anchor--top { transform: translateY(calc(-100% - 20px)); }
+.impact-board-anchor--bottom { margin-top: 20px; }
+.impact-board-anchor--side { width: 240px; }
+.impact-board-anchor .impact-strip, .impact-board-anchor .impact-outside, .impact-board-anchor .impact-legend { margin-top: 0; }
+.impact-board-anchor--top .impact-strip { flex-wrap: nowrap; padding: 0.7rem 1rem; gap: 1rem; }
+.impact-board-anchor--top .impact-strip-label { flex: 0 0 auto; }
+.impact-board-anchor--top .impact-strip-title { flex: 1 1 auto; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.impact-board-anchor--top .impact-strip-pills { flex: 0 0 auto; flex-wrap: nowrap; }
+.impact-board--flow { position: absolute; left: 1rem; top: 14rem; width: 28rem; z-index: 40; }
+.impact-removed-links { position: absolute; left: 0; top: 0; overflow: visible; pointer-events: none; z-index: 5; }
+.impact-removed-link-line { stroke: #FB7185; stroke-width: 1.75; stroke-dasharray: 6 4; }
+.impact-removed-link-label { fill: #FB7185; font-family: var(--font-mono); font-size: 11px; text-anchor: middle; }
+[data-zoom="mid"] .canvas-node-box-glance:has(.impact-size) { display: flex; }
+[data-zoom="mid"] .canvas-node-box-glance:has(.impact-size) > :not(.impact-size) { display: none; }
+.impact-size--removed { color: #FB7185; font-family: var(--font-mono); }
+.impact-size-scope { color: #8D939B; font-size: 10px; }
+.impact-pill--merged { height: 44px; border-radius: 12px; display: flex; flex-direction: column; justify-content: center; gap: 2px; }
+.impact-pill-files { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-family: var(--font-mono); font-size: 10.5px; color: #8D939B; }
 /* stylelint-enable declaration-property-value-disallowed-list */

@@ -1,11 +1,9 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { fireEvent, render, screen } from "@testing-library/react";
-import { CanvasNodeBox } from "./CanvasNodeBox";
-import { EngineClientProvider } from "../../engine-client/EngineClientContext";
+import { RouteStepExtras } from "./RouteStepExtras";
+import { routeStepOf } from "./routeStep";
 import { inspectorStore } from "../inspectorStore";
 import { routeExpandStore } from "./routeExpandStore";
-import { CANVAS_STUB } from "../../engine-client/stubEngineClient";
-import type { EngineClient } from "../../engine-client/EngineClient";
 import type { CanvasElement } from "../../state/types";
 
 function element(overrides: Partial<CanvasElement> & { id: string }): CanvasElement {
@@ -16,17 +14,11 @@ function element(overrides: Partial<CanvasElement> & { id: string }): CanvasElem
   };
 }
 
-const client = { ...CANVAS_STUB } as unknown as EngineClient;
-
-function renderBox(el: CanvasElement) {
-  return render(
-    <EngineClientProvider repoId="default" client={client}>
-      <CanvasNodeBox element={el} />
-    </EngineClientProvider>,
-  );
+function renderExtras(el: CanvasElement) {
+  return render(<RouteStepExtras element={el} step={routeStepOf(el)!} />);
 }
 
-describe("route step (026)", () => {
+describe("RouteStepExtras (026)", () => {
   const stepEl = element({
     id: "s1",
     render: "custom",
@@ -43,7 +35,7 @@ describe("route step (026)", () => {
   afterEach(() => routeExpandStore.reset());
 
   it("shows an N calls chip that expands and collapses the children list", () => {
-    renderBox(stepEl);
+    renderExtras(stepEl);
 
     expect(screen.getByTestId("route-step-chip").textContent).toContain("1 calls");
     expect(screen.queryByTestId("route-step-children")).toBeNull();
@@ -55,7 +47,7 @@ describe("route step (026)", () => {
 
   it("opens the child's function in the inspector from the arrow", () => {
     const open = vi.spyOn(inspectorStore, "open");
-    renderBox(stepEl);
+    renderExtras(stepEl);
     fireEvent.click(screen.getByTestId("route-step-chip"));
 
     fireEvent.click(screen.getByTestId("route-step-child-open"));

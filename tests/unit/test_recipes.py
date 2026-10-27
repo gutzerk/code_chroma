@@ -550,6 +550,30 @@ def test_route_rides_once_on_a_carrier_and_nodes_carry_only_their_step():
     assert second.meta["route_step"]["id"] == "b"
 
 
+def test_lane_of_only_failure_steps_gets_lane_kind_failure():
+    route = {"id": "r", "steps": [
+        {"id": "a", "lane": "flow", "kind": "trigger", "children": []},
+        {"id": "b", "lane": "Failures", "kind": "decide", "children": []},
+        {"id": "c", "lane": "Errors", "kind": "failure", "children": []},
+    ]}
+    nodes = [{"id": "a", "name": "A"}, {"id": "b", "name": "B"}, {"id": "c", "name": "C"}]
+    resolved = {"nodes": nodes, "route": route}
+
+    shape = reshape(resolved, "custom")
+    kinds = [node.meta.get("lane_kind") for node in shape.nodes[:3]]
+
+    assert kinds == ["normal", "normal", "failure"]
+
+
+def test_a_non_string_lane_is_ignored_when_stamping_lane_kind():
+    route = {"id": "r", "steps": [{"id": "a", "lane": "flow", "kind": "failure", "children": []}]}
+    resolved = {"nodes": [{"id": "a", "name": "A", "meta": {"lane": ["x"]}}], "route": route}
+
+    shape = reshape(resolved, "custom")
+
+    assert shape.nodes[0].meta["lane_kind"] == "failure"
+
+
 def test_a_resolved_summary_is_kept_and_a_sequence_diagram_keeps_the_carrier_undecorated():
     route = {"id": "r", "summary": "from the resolver", "steps": [{"id": "a", "kind": "ai"}]}
     resolved = {"nodes": [{"id": "a", "name": "A"}], "relations": [], "route": route}

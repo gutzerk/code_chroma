@@ -1,7 +1,9 @@
 import type { CanvasElement } from "../../state/types";
 import type { MeasuredBoxSize } from "../useMeasuredSizes";
 import { unionBoundsOf } from "./boundingBox";
-import { groupColorIndex } from "./groupColor";
+import { useCanvasDiagramFocus, useCanvasFocus } from "../CanvasFocusContext";
+import { groupColorIndex, groupRoleIndex } from "./groupColor";
+import { useAllDimmed } from "./focusStore";
 import { SoftAreaFrame } from "./SoftAreaFrame";
 
 const PADDING = { side: 32, top: 48, bottom: 32 };
@@ -29,21 +31,40 @@ export interface GroupFrameProps {
  */
 export function GroupFrame({ element, members, sizes }: GroupFrameProps) {
   const bounds = unionBoundsOf(members, sizes);
+  const dimmed = useAllDimmed(members.map((member) => member.id));
+  const focusNode = useCanvasFocus();
+  const focusLayer = useCanvasDiagramFocus();
   if (!bounds) return null;
+  const open = () => {
+    if (element.node_id) focusNode(element.node_id);
+    else focusLayer(element.layer);
+  };
 
   // Hashed off the group's own label, same as nodeAccent.tsx's per-box `meta.group` accent, so a
   // group with the same name reads as the same color wherever it shows up on the canvas.
-  const colorClass = `canvas-group-frame-color-${groupColorIndex(element.label)}`;
+  const colorClass = `canvas-group-frame-color-${groupRoleIndex(element.label) ?? groupColorIndex(element.label)}`;
 
   return (
     <SoftAreaFrame
       bounds={bounds}
       padding={PADDING}
-      className={`canvas-group-frame ${colorClass}`}
+      className={`canvas-group-frame ${colorClass}${dimmed ? " canvas-group-frame--dim" : ""}`}
       testId="canvas-group-frame"
       labelClassName="canvas-group-frame-label"
       label={element.label}
       layer={element.layer}
+      labelAction={
+        <button
+          type="button"
+          className="canvas-group-frame-open"
+          data-testid="canvas-group-frame-open"
+          aria-label={`Open ${element.label}`}
+          onPointerDown={(e) => e.stopPropagation()}
+          onClick={open}
+        >
+          ↗
+        </button>
+      }
     />
   );
 }

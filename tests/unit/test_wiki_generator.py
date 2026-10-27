@@ -133,51 +133,38 @@ def _fixture_graph() -> Graph:
     return Graph(nodes=nodes, symbols=symbols)
 
 
-def test_generate_wiki_writes_a_root_page(tmp_path):
-    result = generate_wiki(_fixture_graph(), tmp_path, tmp_path / ".codechroma" / "wiki")
-
-    assert (result.output_dir / "index.md").exists()
-
-
-def test_generate_wiki_writes_one_page_per_top_level_folder(tmp_path):
-    result = generate_wiki(_fixture_graph(), tmp_path, tmp_path / ".codechroma" / "wiki")
-
-    assert (result.output_dir / "files" / "pkg" / "index.md").exists()
+@pytest.fixture(scope="module")
+def fixture_wiki(tmp_path_factory):
+    root = tmp_path_factory.mktemp("wiki")
+    return generate_wiki(_fixture_graph(), root, root / ".codechroma" / "wiki")
 
 
-def test_generate_wiki_writes_one_page_per_parsed_source_file(tmp_path):
-    result = generate_wiki(_fixture_graph(), tmp_path, tmp_path / ".codechroma" / "wiki")
+def test_generate_wiki_writes_root_folder_and_per_file_pages(fixture_wiki):
+    files = fixture_wiki.output_dir / "files" / "pkg"
 
-    assert (result.output_dir / "files" / "pkg" / "documented.md").exists()
-    assert (result.output_dir / "files" / "pkg" / "undocumented.md").exists()
-
-
-def test_generate_wiki_reports_a_page_count_matching_disk(tmp_path):
-    result = generate_wiki(_fixture_graph(), tmp_path, tmp_path / ".codechroma" / "wiki")
-
-    assert len(result.pages) == 4
+    assert (fixture_wiki.output_dir / "index.md").exists()
+    assert (files / "index.md").exists()
+    assert (files / "documented.md").exists()
+    assert (files / "undocumented.md").exists()
+    assert len(fixture_wiki.pages) == 4
 
 
-def test_generate_wiki_shows_real_docstrings_on_the_file_page(tmp_path):
-    result = generate_wiki(_fixture_graph(), tmp_path, tmp_path / ".codechroma" / "wiki")
+def test_generate_wiki_shows_docstrings_and_parameters_on_the_file_page(fixture_wiki):
+    text = (fixture_wiki.output_dir / "files" / "pkg" / "documented.md").read_text(encoding="utf-8")
 
-    text = (result.output_dir / "files" / "pkg" / "documented.md").read_text(encoding="utf-8")
-    assert "Documented module." in text
-    assert "A documented widget." in text
-    assert "Renders the widget." in text
-
-
-def test_generate_wiki_lists_module_parameters(tmp_path):
-    result = generate_wiki(_fixture_graph(), tmp_path, tmp_path / ".codechroma" / "wiki")
-
-    text = (result.output_dir / "files" / "pkg" / "documented.md").read_text(encoding="utf-8")
-    assert "MAX_SIZE" in text
+    for expected in (
+        "Documented module.",
+        "A documented widget.",
+        "Renders the widget.",
+        "MAX_SIZE",
+    ):
+        assert expected in text
 
 
-def test_generate_wiki_marks_undocumented_items_instead_of_omitting_them(tmp_path):
-    result = generate_wiki(_fixture_graph(), tmp_path, tmp_path / ".codechroma" / "wiki")
+def test_generate_wiki_marks_undocumented_items_instead_of_omitting_them(fixture_wiki):
+    path = fixture_wiki.output_dir / "files" / "pkg" / "undocumented.md"
+    text = path.read_text(encoding="utf-8")
 
-    text = (result.output_dir / "files" / "pkg" / "undocumented.md").read_text(encoding="utf-8")
     assert "helper" in text
     assert "no docstring" in text.lower()
 
@@ -193,33 +180,19 @@ def test_generate_wiki_replaces_previous_output_in_full(tmp_path):
     assert not stale.exists()
 
 
-def test_generate_wiki_excludes_documented_items_from_gaps(tmp_path):
-    result = generate_wiki(_fixture_graph(), tmp_path, tmp_path / ".codechroma" / "wiki")
+def test_generate_wiki_gap_list_has_only_undocumented_items_with_full_shape(fixture_wiki):
+    gaps = json.loads(fixture_wiki.gap_json_path.read_text(encoding="utf-8"))
 
-    gaps = json.loads(result.gap_json_path.read_text(encoding="utf-8"))
+    assert fixture_wiki.undocumented_count == len(gaps)
     names = {g["qualified_name"] for g in gaps}
     assert "Widget" not in names
     assert "Widget.render" not in names
-
-
-def test_generate_wiki_includes_undocumented_item_with_full_gap_shape(tmp_path):
-    result = generate_wiki(_fixture_graph(), tmp_path, tmp_path / ".codechroma" / "wiki")
-
-    gaps = json.loads(result.gap_json_path.read_text(encoding="utf-8"))
-    entry = next(g for g in gaps if g["qualified_name"] == "helper")
-    assert entry == {
+    assert next(g for g in gaps if g["qualified_name"] == "helper") == {
         "path": "pkg/undocumented.py",
         "qualified_name": "helper",
         "kind": "function",
         "reason": "no docstring",
     }
-
-
-def test_generate_wiki_undocumented_count_matches_gap_list_length(tmp_path):
-    result = generate_wiki(_fixture_graph(), tmp_path, tmp_path / ".codechroma" / "wiki")
-
-    gaps = json.loads(result.gap_json_path.read_text(encoding="utf-8"))
-    assert result.undocumented_count == len(gaps)
 
 
 def _nested_folder_graph() -> Graph:
@@ -247,18 +220,12 @@ def _nested_folder_graph() -> Graph:
     return Graph(nodes=nodes, symbols={module.id: module})
 
 
-def test_generate_wiki_writes_an_index_for_a_nested_subfolder(tmp_path):
+def test_generate_wiki_indexes_a_nested_subfolder_and_links_it_from_its_parent(tmp_path):
     result = generate_wiki(_nested_folder_graph(), tmp_path, tmp_path / ".codechroma" / "wiki")
 
     nested_index = result.output_dir / "files" / "pkg" / "sub" / "index.md"
-    assert nested_index.exists()
-    assert "inner.py" in nested_index.read_text(encoding="utf-8")
-
-
-def test_generate_wiki_links_a_nested_subfolder_from_its_parent(tmp_path):
-    result = generate_wiki(_nested_folder_graph(), tmp_path, tmp_path / ".codechroma" / "wiki")
-
     parent_index = result.output_dir / "files" / "pkg" / "index.md"
+    assert "inner.py" in nested_index.read_text(encoding="utf-8")
     assert "sub/index.md" in parent_index.read_text(encoding="utf-8")
 
 
@@ -273,67 +240,46 @@ def _go_function_file_symbols(name: str, is_exported: bool) -> _FileSymbols:
 
 def _ts_function_file_symbols(file_path: str, is_exported: bool) -> _FileSymbols:
     module = _module(file_path, "mod", language="typescript")
-    func = _function(
-        file_path, "helper", module.id, language="typescript", is_exported=is_exported
-    )
+    func = _function(file_path, "helper", module.id, language="typescript", is_exported=is_exported)
     return _FileSymbols(
         path=file_path, module=module, classes=[], methods_by_class_id={}, functions=[func]
     )
 
 
-def test_gaps_flag_an_undocumented_exported_go_function():
-    gaps = _gaps_for_file(_go_function_file_symbols("Helper", is_exported=True))
+@pytest.mark.parametrize(
+    ("file_symbols", "flagged"),
+    [
+        (_go_function_file_symbols("Helper", is_exported=True), {"Helper"}),
+        (_go_function_file_symbols("helper", is_exported=False), set()),
+        (_ts_function_file_symbols("web/widget.ts", is_exported=True), {"helper"}),
+        (_ts_function_file_symbols("web/widget.js", is_exported=True), set()),
+    ],
+    ids=["go-exported", "go-unexported", "ts-exported", "js-any"],
+)
+def test_gaps_for_undocumented_function_follow_language_export_rules(file_symbols, flagged):
+    gaps = _gaps_for_file(file_symbols)
 
-    assert any(g.qualified_name == "Helper" for g in gaps)
+    assert {g.qualified_name for g in gaps if g.kind == "function"} == flagged
 
 
-def test_gaps_skip_an_undocumented_unexported_go_function():
-    gaps = _gaps_for_file(_go_function_file_symbols("helper", is_exported=False))
-
-    assert gaps == []
-
-
-def test_gaps_flag_an_undocumented_go_package_regardless_of_file_name():
+@pytest.mark.parametrize(
+    ("docstring", "flagged"), [(None, True), ("Package widget renders things.", False)]
+)
+def test_go_package_gap_depends_only_on_the_package_doc(docstring, flagged):
     file_path = "pkg/widget.go"
-    module = _module(file_path, "widget", language="go")
+    module = _module(file_path, "widget", docstring=docstring, language="go")
     file_symbols = _FileSymbols(
         path=file_path, module=module, classes=[], methods_by_class_id={}, functions=[]
     )
 
     gaps = _gaps_for_file(file_symbols)
 
-    assert any(g.qualified_name == "widget" and g.kind == "module" for g in gaps)
-
-
-def test_gaps_skip_a_documented_go_package():
-    file_path = "pkg/widget.go"
-    module = _module(file_path, "widget", docstring="Package widget renders things.", language="go")
-    file_symbols = _FileSymbols(
-        path=file_path, module=module, classes=[], methods_by_class_id={}, functions=[]
-    )
-
-    gaps = _gaps_for_file(file_symbols)
-
-    assert gaps == []
-
-
-def test_gaps_flag_an_undocumented_exported_ts_function():
-    gaps = _gaps_for_file(_ts_function_file_symbols("web/widget.ts", is_exported=True))
-
-    assert any(g.qualified_name == "helper" for g in gaps)
-
-
-def test_gaps_skip_an_undocumented_js_function_regardless_of_export():
-    gaps = _gaps_for_file(_ts_function_file_symbols("web/widget.js", is_exported=True))
-
-    assert gaps == []
+    assert any(g.qualified_name == "widget" and g.kind == "module" for g in gaps) is flagged
 
 
 def _go_file_graph() -> Graph:
     file_path = "pkg/widget.go"
-    module = _module(
-        file_path, "widget", docstring="Package widget renders things.", language="go"
-    )
+    module = _module(file_path, "widget", docstring="Package widget renders things.", language="go")
     type_ = _class(
         file_path,
         "Widget",

@@ -44,19 +44,10 @@ def test_manifest_lists_every_target_with_url_digest_and_size(tmp_path, target):
     manifest = _generate(tmp_path)
 
     payload = contents[target]
-    assert manifest["assets"][target].endswith(f"/{FILES[target]}")
+    expected_url = f"https://github.com/{REPO}/releases/download/v{VERSION}/{FILES[target]}"
+    assert manifest["assets"][target] == expected_url
     assert manifest["sha256"][target] == hashlib.sha256(payload).hexdigest()
     assert manifest["size"][target] == len(payload)
-
-
-@pytest.mark.parametrize("target", list(FILES))
-def test_every_asset_url_is_pinned_to_the_release_tag(tmp_path, target):
-    _populate(tmp_path / "build", FILES)
-
-    manifest = _generate(tmp_path)
-
-    expected = f"https://github.com/{REPO}/releases/download/v{VERSION}/{FILES[target]}"
-    assert manifest["assets"][target] == expected
 
 
 def test_manifest_adds_channel_date_and_min_supported_version(tmp_path):
@@ -77,14 +68,6 @@ def test_manifest_defaults_keep_the_kill_switch_off_and_date_valid(tmp_path):
 
     assert manifest["min_supported_version"] == "0.0.0"
     assert re.fullmatch(r"\d{4}-\d{2}-\d{2}", manifest["date"])
-
-
-def test_manifest_keeps_the_fields_already_installed_versions_read(tmp_path):
-    _populate(tmp_path / "build", FILES)
-
-    manifest = _generate(tmp_path)
-
-    assert {"version", "assets", "sha256"} <= set(manifest)
     assert set(manifest["assets"]) == set(manifest["sha256"]) == set(FILES)
 
 

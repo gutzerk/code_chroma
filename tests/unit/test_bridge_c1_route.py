@@ -160,16 +160,8 @@ def test_delete_c1_removes_the_file(server_module):
 
     assert response.json() == {"deleted": True}
     assert not path.exists()
-
-
-def test_delete_c1_on_a_missing_file_reports_not_deleted(server_module):
-    bridge, repo = server_module
-    diagram_json_path(repo, "c1").unlink(missing_ok=True)
-
     with TestClient(bridge.app) as client:
-        response = client.delete("/repos/default/c1")
-
-    assert response.json() == {"deleted": False}
+        assert client.delete("/repos/default/c1").json() == {"deleted": False}
 
 
 def test_context_digest_reflects_the_fixture_repo(server_module):

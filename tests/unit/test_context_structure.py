@@ -12,9 +12,9 @@ from codechroma.summarize.ai_summarizer import AISummarizer
 FIXTURE_REPO = Path(__file__).parent.parent / "fixtures" / "sample_repo"
 
 
-@pytest.fixture
-def engine(tmp_path):
-    repo = tmp_path / "repo"
+@pytest.fixture(scope="module")
+def engine(tmp_path_factory):
+    repo = tmp_path_factory.mktemp("structure") / "repo"
     shutil.copytree(FIXTURE_REPO, repo)
     graph_engine = GraphEngine(summarizer=AISummarizer())
     graph_engine.analyze(str(repo))

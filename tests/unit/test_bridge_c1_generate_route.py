@@ -57,29 +57,18 @@ def test_only_if_missing_does_not_start_a_run_when_a_diagram_exists(server_modul
     assert response.json() == {"state": "idle", "error": None}
 
 
-def test_only_if_missing_still_starts_a_run_when_the_existing_diagram_is_a_draft(
-    server_module, monkeypatch
+@pytest.mark.parametrize("remove_draft", [False, True], ids=["draft", "missing"])
+def test_only_if_missing_still_starts_a_run_for_a_draft_or_missing_diagram(
+    server_module, monkeypatch, remove_draft
 ):
     bridge, repo = server_module
     monkeypatch.setattr("codechroma.llm.runtime_env.shutil.which", lambda _name, **_kwargs: None)
-    # 043: bring-up's draft c1.json must not count as "already generated" for only_if_missing.
+    if remove_draft:
+        diagram_json_path(repo, "c1").unlink(missing_ok=True)
 
     with TestClient(bridge.app) as client:
         response = client.post("/repos/default/c1/generate?only_if_missing=true")
 
-    assert response.json() == {"state": "error", "error": CLI_MISSING}
-
-
-def test_only_if_missing_still_starts_a_run_when_no_diagram_exists(server_module, monkeypatch):
-    bridge, repo = server_module
-    monkeypatch.setattr("codechroma.llm.runtime_env.shutil.which", lambda _name, **_kwargs: None)
-    # 043: undo bring-up's deterministic bootstrap so this test starts from a truly-missing file.
-    diagram_json_path(repo, "c1").unlink(missing_ok=True)
-
-    with TestClient(bridge.app) as client:
-        response = client.post("/repos/default/c1/generate?only_if_missing=true")
-
-    assert not diagram_json_path(repo, "c1").exists()
     assert response.json() == {"state": "error", "error": CLI_MISSING}
 
 

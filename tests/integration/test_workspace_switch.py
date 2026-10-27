@@ -51,6 +51,7 @@ def test_each_worktree_returns_its_own_graph(repo, registry):
     assert alpha_engine.get_node("alpha.py::function::only_in_alpha") is not None
     assert alpha_engine.get_node("beta.py::function::only_in_beta") is None
     assert beta_engine.get_node("beta.py::function::only_in_beta") is not None
+    assert alpha_engine.get_node("shared.py::function::shared") is not None
 
 
 def test_switching_leaves_the_main_workspace_untouched(repo, registry):
@@ -63,16 +64,6 @@ def test_switching_leaves_the_main_workspace_untouched(repo, registry):
     main = workspaces.get(MAIN_ID)
     assert main.engine.get_node("shared.py::function::shared") is not None
     assert main.engine.get_node("alpha.py::function::only_in_alpha") is None
-
-
-def test_an_agent_workspace_keeps_the_files_it_inherited_from_main(repo, registry):
-    workspaces, _events = registry
-    alpha = _add_agent(repo, "alpha", "alpha.py", "def only_in_alpha():\n    return 1\n")
-    workspaces.register("alpha", alpha)
-
-    engine = workspaces.get("alpha").engine
-
-    assert engine.get_node("shared.py::function::shared") is not None
 
 
 def test_the_fast_path_reanalyzes_instead_of_reparsing_the_whole_repo(repo, registry, monkeypatch):

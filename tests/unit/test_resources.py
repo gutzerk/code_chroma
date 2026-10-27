@@ -5,16 +5,13 @@ import pytest
 from codechroma.bridge import resources
 
 
-def test_source_tree_skills_path_points_at_the_repos_own_skills_dir():
-    path = resources.resource_path("skills")
+@pytest.mark.parametrize(
+    ("kind", "expected"), [("skills", ("skills",)), ("web", ("web", "dist"))]
+)
+def test_source_tree_paths_point_at_the_repos_own_dirs(kind, expected):
+    path = resources.resource_path(kind)
 
-    assert path == resources.SOURCE_ROOT / "skills"
-
-
-def test_source_tree_web_path_points_at_the_vite_build_output():
-    path = resources.resource_path("web")
-
-    assert path == resources.SOURCE_ROOT / "web" / "dist"
+    assert path == resources.SOURCE_ROOT.joinpath(*expected)
 
 
 def test_sub_parts_are_appended_to_the_resolved_dir():

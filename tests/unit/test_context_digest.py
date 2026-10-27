@@ -30,15 +30,18 @@ def test_digest_carries_only_the_fields_c1_reads(engine, repo):
     digest = build_context_digest(engine, repo)
 
     assert digest.keys() == {
-        "repo_name", "external_import_roots", "declared_dependencies", "readme_excerpt",
+        "repo_name",
+        "external_import_roots",
+        "declared_dependencies",
+        "readme_excerpt",
     }
     assert digest["repo_name"] == repo.name
 
 
 def test_declared_dependencies_read_from_pyproject(engine, repo):
     (repo / "pyproject.toml").write_text(
-        '[project]\ndependencies = ["fastapi (>=0.1,<0.2)", "anthropic"]\n'
-, encoding="utf-8")
+        '[project]\ndependencies = ["fastapi (>=0.1,<0.2)", "anthropic"]\n', encoding="utf-8"
+    )
 
     digest = build_context_digest(engine, repo)
 

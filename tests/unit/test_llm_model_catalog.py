@@ -210,36 +210,26 @@ def test_cli_claude_with_base_url_is_supported(monkeypatch):
     }
 
 
-def test_network_error_reports_supported_with_error_message(monkeypatch):
-    def fake_get(url, headers, timeout, verify=True):
-        raise ConnectionError("boom")
+def _raise_boom(url, headers, timeout, verify=True):
+    raise ConnectionError("boom")
 
+
+def _unauthorized(url, headers, timeout, verify=True):
+    return _FakeResponse({}, status_code=401)
+
+
+@pytest.mark.parametrize("fake_get", [_raise_boom, _unauthorized], ids=["network", "non-2xx"])
+def test_a_failed_listing_reports_supported_with_an_error_message(monkeypatch, fake_get):
     monkeypatch.setattr("codechroma.llm.model_catalog.httpx.get", fake_get)
-
     provider = Provider(
         id="p", label="l", kind="api", transport="openai-compatible", base_url="http://x/v1"
     )
+
     result = fetch_models(provider)
 
     assert result["supported"] is True
     assert result["models"] == []
-    assert "boom" in result["error"]
-
-
-def test_non_2xx_response_reports_supported_with_error_message(monkeypatch):
-    def fake_get(url, headers, timeout, verify=True):
-        return _FakeResponse({}, status_code=401)
-
-    monkeypatch.setattr("codechroma.llm.model_catalog.httpx.get", fake_get)
-
-    provider = Provider(
-        id="p", label="l", kind="api", transport="openai-compatible", base_url="http://x/v1"
-    )
-    result = fetch_models(provider)
-
-    assert result["supported"] is True
-    assert result["models"] == []
-    assert result["error"] is not None
+    assert result["error"]
 
 
 def test_static_models_match_csharp_catalog():

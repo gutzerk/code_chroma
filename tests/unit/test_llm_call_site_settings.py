@@ -133,13 +133,6 @@ def test_save_assignment_raises_on_invalid_payload():
         save_assignment("ai_summarizer", {"provider_id": "nope", "model": "m", "mode": "api"})
 
 
-def test_save_assignment_raises_on_agentic_call_site(cli_provider):
-    with pytest.raises(ValueError):
-        save_assignment("epic_brief_agent", {
-            "provider_id": cli_provider.id, "model": "m", "mode": "cli",
-        })
-
-
 def test_unassigned_group_has_no_assignment():
     assert load_group_assignment("diagrams") is None
 

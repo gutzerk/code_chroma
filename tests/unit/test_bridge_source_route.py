@@ -1,6 +1,7 @@
 """TestClient coverage for the source-fragment route on bridge/routes/graph.py — the text an
 epics block links to, sliced to a 1-based inclusive line range, confined to the workspace root."""
 
+import pytest
 from fastapi.testclient import TestClient
 
 
@@ -28,17 +29,8 @@ def test_source_fragment_slices_inclusive_line_range(shared_client):
     assert "slug" in lines[1]
 
 
-def test_source_fragment_404_on_file_outside_root(shared_client):
-    client: TestClient = shared_client
-    response = client.get(
-        "/repos/default/source", params={"path": "../outside.txt"}
-    )
-    assert response.status_code == 404
+@pytest.mark.parametrize("path", ["../outside.txt", "nope/missing.ts"])
+def test_source_fragment_404_outside_root_or_missing(shared_client, path):
+    response = shared_client.get("/repos/default/source", params={"path": path})
 
-
-def test_source_fragment_404_on_missing_file(shared_client):
-    client: TestClient = shared_client
-    response = client.get(
-        "/repos/default/source", params={"path": "nope/missing.ts"}
-    )
     assert response.status_code == 404

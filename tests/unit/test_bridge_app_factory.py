@@ -33,6 +33,8 @@ def test_each_app_reports_its_own_repo_root(make_repo, make_bridge):
     assert one.services.repo_root == first
     assert two.services.repo_root == second
     assert one.registry.main is not two.registry.main
+    assert one.connections is not two.connections
+    assert one.agent_sessions is not two.agent_sessions
 
 
 def test_an_agent_registered_in_one_app_is_invisible_to_the_other(make_repo, make_bridge):
@@ -45,14 +47,6 @@ def test_an_agent_registered_in_one_app_is_invisible_to_the_other(make_repo, mak
 
     assert one.registry.is_registered("refund-flow")
     assert not two.registry.is_registered("refund-flow")
-
-
-def test_each_app_has_its_own_connection_manager(make_repo, make_bridge):
-    one = make_bridge(make_repo(name="first"))
-    two = make_bridge(make_repo(name="second"))
-
-    assert one.connections is not two.connections
-    assert one.agent_sessions is not two.agent_sessions
 
 
 def test_create_app_installs_skills_for_headless_agents(make_repo, make_bridge):

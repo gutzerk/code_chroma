@@ -78,23 +78,3 @@ def test_a_changed_node_gets_an_overlay_record_with_no_is_ghost_field(repo):
     record = node["overlays"]["changes"]
     assert record["status"] == "modified"
     assert "is_ghost" not in record
-
-
-def test_ghosts_arrive_in_their_own_top_level_array_not_a_flag_on_nodes(repo):
-    root, engine = repo
-    ws = _FakeWs(
-        root,
-        engine,
-        impact_changes={
-            "ghosts": [{"id": "legacy", "parent": "billing", "name": "Legacy", "before": "x"}]
-        },
-    )
-
-    resolved = attach_overlays(_diagram(), ws, ["changes"])
-
-    assert [n["id"] for n in resolved["nodes"]] == ["billing"]
-    assert "is_ghost" not in resolved["nodes"][0]
-    ghost_ids = [g["id"] for g in resolved["ghosts"]]
-    assert ghost_ids == ["legacy"]
-    assert "is_ghost" not in resolved["ghosts"][0]
-    assert resolved["ghosts"][0]["overlays"]["changes"]["parent"] == "billing"

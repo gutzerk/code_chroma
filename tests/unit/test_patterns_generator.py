@@ -2,6 +2,8 @@
 
 import json
 
+import pytest
+
 from codechroma.context.patterns_generator import generate_patterns
 from codechroma.graph.models import (
     PatternInstance,
@@ -147,20 +149,11 @@ def test_returns_none_for_an_empty_candidate_list():
     assert result is None
 
 
-def test_returns_none_when_the_reply_is_not_json():
-    candidate = _candidate()
-    provider = _FakeProvider("not json at all")
+@pytest.mark.parametrize("reply", ["not json at all", json.dumps({"oops": []})])
+def test_returns_none_when_the_reply_has_no_confirmations(reply):
+    provider = _FakeProvider(reply)
 
-    result = generate_patterns([candidate], provider=provider)
-
-    assert result is None
-
-
-def test_returns_none_when_confirmations_key_is_missing():
-    candidate = _candidate()
-    provider = _FakeProvider(json.dumps({"oops": []}))
-
-    result = generate_patterns([candidate], provider=provider)
+    result = generate_patterns([_candidate()], provider=provider)
 
     assert result is None
 

@@ -199,9 +199,8 @@ The route calls `GraphEngine.sync_wiki()` inline before every read, so this is a
 `sync_wiki()` beyond the freshness-sync flow described above, but writes nothing new and adds no new
 persisted state. See `docs/architecture/diagram-skills.md`'s "Wiki-first fetch order".
 
-Tests: `tests/unit/test_python_analyzer_docstrings.py` (docstring + module-variable extraction),
-`tests/unit/test_go_analyzer_docstrings.py` and `tests/unit/test_typescript_analyzer_docstrings.py`
-(`//`/JSDoc extraction, multi-line-comment joining, the `export`-wrapper anchor-resolution cases, and
+Tests: `tests/unit/test_analyzer_docstrings.py` (per-language docstring extraction, Python module
+variables, multi-line-comment joining, the `export`-wrapper anchor-resolution cases, and
 `is_exported`), `tests/unit/test_wiki_writer.py` (pure render functions, incl. a non-Python
 `has_breakdown=True` fixture proving Go/TS render identically to Python),
 `tests/unit/test_wiki_generator.py` (hand-built `Graph` — page count, real docstrings, module parameters,

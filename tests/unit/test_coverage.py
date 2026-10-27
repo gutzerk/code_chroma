@@ -24,17 +24,17 @@ def _analyze(repo):
     return graph_engine
 
 
-@pytest.fixture
-def engine(tmp_path):
-    repo = tmp_path / "repo"
+@pytest.fixture(scope="module")
+def engine(tmp_path_factory):
+    repo = tmp_path_factory.mktemp("cov") / "repo"
     shutil.copytree(FIXTURE_REPO, repo)
     return _analyze(repo)
 
 
-@pytest.fixture
-def engine_with_config_dir(tmp_path):
+@pytest.fixture(scope="module")
+def engine_with_config_dir(tmp_path_factory):
     # `.idea` never reaches this module (engine.IGNORED_DIRS drops it first); `.storybook` does.
-    repo = tmp_path / "repo"
+    repo = tmp_path_factory.mktemp("cov_cfg") / "repo"
     shutil.copytree(FIXTURE_REPO, repo)
     (repo / ".storybook").mkdir()
     (repo / ".storybook" / "config.py").write_text("x = 1\n", encoding="utf-8")

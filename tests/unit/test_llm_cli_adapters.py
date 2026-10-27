@@ -50,41 +50,22 @@ def test_build_argv_matches_todays_claude_shape(monkeypatch):
     ]
 
 
-def test_build_argv_adds_bare_only_when_an_api_key_is_set(monkeypatch):
-    monkeypatch.setenv("ANTHROPIC_API_KEY", "sk-ant-test")
+@pytest.mark.parametrize(
+    ("process_key", "env", "bare"),
+    [
+        ("sk-ant-test", None, True),
+        ("", None, False),
+        ("", {"ANTHROPIC_AUTH_TOKEN": "sk-proxy"}, False),
+        ("sk-ant-process-key", {"ANTHROPIC_API_KEY": ""}, False),
+    ],
+    ids=["api-key", "no-key", "auth-token-only", "resolved-env-wins"],
+)
+def test_claude_build_argv_adds_bare_only_for_an_api_key(monkeypatch, process_key, env, bare):
+    monkeypatch.setenv("ANTHROPIC_API_KEY", process_key)
 
-    argv = ClaudeAdapter().build_argv("claude", "do the thing", "claude-haiku-4-5")
+    argv = ClaudeAdapter().build_argv("claude", "do the thing", "m", env=env)
 
-    assert "--bare" in argv
-
-
-def test_build_argv_omits_bare_without_an_api_key(monkeypatch):
-    monkeypatch.setenv("ANTHROPIC_API_KEY", "")
-
-    argv = ClaudeAdapter().build_argv("claude", "do the thing", "claude-haiku-4-5")
-
-    assert "--bare" not in argv
-
-
-def test_build_argv_omits_bare_for_an_auth_token_alone(monkeypatch):
-    """--bare only accepts ANTHROPIC_API_KEY/apiKeyHelper; an AUTH_TOKEN-only proxy must skip it."""
-    monkeypatch.setenv("ANTHROPIC_API_KEY", "")
-
-    argv = ClaudeAdapter().build_argv(
-        "claude", "do the thing", "claude-haiku-4-5", env={"ANTHROPIC_AUTH_TOKEN": "sk-proxy"}
-    )
-
-    assert "--bare" not in argv
-
-
-def test_build_argv_prefers_the_resolved_env_over_the_process_env(monkeypatch):
-    monkeypatch.setenv("ANTHROPIC_API_KEY", "sk-ant-process-key")
-
-    argv = ClaudeAdapter().build_argv(
-        "claude", "do the thing", "claude-haiku-4-5", env={"ANTHROPIC_API_KEY": ""}
-    )
-
-    assert "--bare" not in argv
+    assert ("--bare" in argv) is bare
 
 
 def test_build_argv_honors_a_custom_binary(monkeypatch):
@@ -95,142 +76,60 @@ def test_build_argv_honors_a_custom_binary(monkeypatch):
     assert argv[0] == "codex"
 
 
-def test_parse_line_renders_a_result_event(tmp_path: Path):
-    raw = '{"type": "result", "is_error": false, "duration_api_ms": 2000}'
-
-    lines = ClaudeAdapter().parse_line(raw, tmp_path)
-
-    assert lines == ["✓ done in 2s"]
-
-
-def test_parse_line_ignores_unrecognized_event_type(tmp_path: Path):
-    assert ClaudeAdapter().parse_line('{"type": "system"}', tmp_path) == []
-
-
-def test_codex_build_argv_runs_unattended():
-    argv = CodexAdapter().build_argv("codex", "do the thing", "gpt-5.6")
-
-    assert argv == [
-        "codex",
-        "exec",
-        "--model",
-        "gpt-5.6",
-        "--sandbox",
-        "workspace-write",
-        "--json",
-        "do the thing",
-    ]
-
-
-def test_codex_parse_line_renders_agent_message(tmp_path: Path):
-    raw = '{"type": "item.completed", "item": {"type": "agent_message", "text": "hello"}}'
-
-    lines = CodexAdapter().parse_line(raw, tmp_path)
-
-    assert lines == ["hello"]
-
-
-def test_codex_parse_line_renders_a_tool_item(tmp_path: Path):
-    raw = '{"type": "item.completed", "item": {"type": "command_execution"}}'
-
-    lines = CodexAdapter().parse_line(raw, tmp_path)
-
-    assert lines == ["⏺ command_execution"]
-
-
-def test_codex_parse_line_renders_turn_completed(tmp_path: Path):
-    assert CodexAdapter().parse_line('{"type": "turn.completed"}', tmp_path) == ["✓ done"]
-
-
-def test_codex_parse_line_renders_turn_failed(tmp_path: Path):
-    raw = '{"type": "turn.failed", "message": "boom"}'
-
-    assert CodexAdapter().parse_line(raw, tmp_path) == ["✗ boom"]
-
-
-def test_codex_parse_line_renders_an_item_error(tmp_path: Path):
-    """Observed from a real `codex exec --json` run: a non-fatal warning mid-turn."""
-    raw = (
-        '{"type": "item.completed", "item": {"type": "error", '
-        '"message": "Model metadata not found."}}'
-    )
-
-    lines = CodexAdapter().parse_line(raw, tmp_path)
-
-    assert lines == ["  ↳ error: Model metadata not found."]
-
-
-def test_codex_parse_line_ignores_unrecognized_event_type(tmp_path: Path):
-    assert CodexAdapter().parse_line('{"type": "thread.started"}', tmp_path) == []
-
-
-def test_kimi_build_argv_runs_unattended():
-    argv = KimiAdapter().build_argv("kimi", "do the thing", "kimi-k2")
-
-    assert argv == [
-        "kimi",
-        "--prompt",
-        "do the thing",
-        "--model",
-        "kimi-k2",
-        "--output-format",
-        "stream-json",
-    ]
-
-
-def test_kimi_parse_line_renders_assistant_text(tmp_path: Path):
-    raw = '{"role": "assistant", "content": "hello"}'
-
-    assert KimiAdapter().parse_line(raw, tmp_path) == ["hello"]
-
-
-def test_kimi_parse_line_renders_a_tool_call(tmp_path: Path):
-    raw = '{"role": "assistant", "content": "", "tool_calls": [{"function": {"name": "grep"}}]}'
-
-    assert KimiAdapter().parse_line(raw, tmp_path) == ["⏺ grep"]
-
-
-def test_kimi_parse_line_renders_a_tool_error(tmp_path: Path):
-    raw = '{"role": "tool", "is_error": true, "content": "not found"}'
-
-    assert KimiAdapter().parse_line(raw, tmp_path) == ["  ↳ error: not found"]
-
-
-def test_kimi_parse_line_ignores_a_successful_tool_result(tmp_path: Path):
-    raw = '{"role": "tool", "content": "ok"}'
-
-    assert KimiAdapter().parse_line(raw, tmp_path) == []
-
-
-def test_gemini_build_argv_runs_unattended():
-    argv = GeminiAdapter().build_argv("gemini", "do the thing", "gemini-2.5-pro")
-
-    assert argv == [
-        "gemini",
-        "--prompt",
-        "do the thing",
-        "--model",
-        "gemini-2.5-pro",
-        "--yolo",
-        "--output-format",
-        "stream-json",
-    ]
+@pytest.mark.parametrize(
+    ("adapter", "binary", "model", "expected"),
+    [
+        (CodexAdapter, "codex", "gpt-5.6",
+         ["codex", "exec", "--model", "gpt-5.6", "--sandbox", "workspace-write", "--json",
+          "do the thing"]),
+        (KimiAdapter, "kimi", "kimi-k2",
+         ["kimi", "--prompt", "do the thing", "--model", "kimi-k2", "--output-format",
+          "stream-json"]),
+        (GeminiAdapter, "gemini", "gemini-2.5-pro",
+         ["gemini", "--prompt", "do the thing", "--model", "gemini-2.5-pro", "--yolo",
+          "--output-format", "stream-json"]),
+    ],
+)
+def test_build_argv_runs_unattended(adapter, binary, model, expected):
+    assert adapter().build_argv(binary, "do the thing", model) == expected
 
 
 @pytest.mark.parametrize(
-    ("raw", "expected"),
+    ("cls", "raw", "expected"),
     [
-        ('{"type": "message", "role": "assistant", "content": "hello"}', ["hello"]),
-        ('{"type": "message", "role": "user", "content": "hi"}', []),
-        ('{"type": "tool_use", "tool_name": "read_file"}', ["⏺ read_file"]),
-        (
-            '{"type": "tool_result", "status": "error", "error": {"message": "nope"}}',
-            ["  ↳ error: nope"],
-        ),
-        ('{"type": "result", "status": "success"}', ["✓ done"]),
-        ('{"type": "result", "status": "error"}', ["✗ failed"]),
-        ('{"type": "init"}', []),
+        (ClaudeAdapter, '{"type": "result", "is_error": false, "duration_api_ms": 2000}',
+         ["✓ done in 2s"]),
+        (ClaudeAdapter, '{"type": "system"}', []),
+        (CodexAdapter,
+         '{"type": "item.completed", "item": {"type": "agent_message", "text": "hello"}}',
+         ["hello"]),
+        (CodexAdapter,
+         '{"type": "item.completed", "item": {"type": "command_execution"}}',
+         ["⏺ command_execution"]),
+        (CodexAdapter, '{"type": "turn.completed"}', ["✓ done"]),
+        (CodexAdapter, '{"type": "turn.failed", "message": "boom"}', ["✗ boom"]),
+        (CodexAdapter,
+         '{"type": "item.completed", "item": {"type": "error", "message": "Model metadata."}}',
+         ["  ↳ error: Model metadata."]),
+        (CodexAdapter, '{"type": "thread.started"}', []),
+        (KimiAdapter, '{"role": "assistant", "content": "hello"}', ["hello"]),
+        (KimiAdapter,
+         '{"role": "assistant", "content": "", "tool_calls": [{"function": {"name": "grep"}}]}',
+         ["⏺ grep"]),
+        (KimiAdapter, '{"role": "tool", "is_error": true, "content": "not found"}',
+         ["  ↳ error: not found"]),
+        (KimiAdapter, '{"role": "tool", "content": "ok"}', []),
+        (GeminiAdapter, '{"type": "message", "role": "assistant", "content": "hello"}',
+         ["hello"]),
+        (GeminiAdapter, '{"type": "message", "role": "user", "content": "hi"}', []),
+        (GeminiAdapter, '{"type": "tool_use", "tool_name": "read_file"}', ["⏺ read_file"]),
+        (GeminiAdapter,
+         '{"type": "tool_result", "status": "error", "error": {"message": "nope"}}',
+         ["  ↳ error: nope"]),
+        (GeminiAdapter, '{"type": "result", "status": "success"}', ["✓ done"]),
+        (GeminiAdapter, '{"type": "result", "status": "error"}', ["✗ failed"]),
+        (GeminiAdapter, '{"type": "init"}', []),
     ],
 )
-def test_gemini_parse_line_renders_events(raw, expected, tmp_path: Path):
-    assert GeminiAdapter().parse_line(raw, tmp_path) == expected
+def test_parse_line_renders_events(cls, raw, expected, tmp_path: Path):
+    assert cls().parse_line(raw, tmp_path) == expected

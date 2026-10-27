@@ -492,18 +492,6 @@ def test_unregistering_the_last_alias_drops_the_shared_workspace(registry, repo)
     assert not workspaces.is_live("agent-a")
 
 
-def test_unregistering_the_canonical_first_keeps_the_surviving_alias_working(registry, repo):
-    workspaces, _events = registry
-    workspaces.register("agent-a", repo)
-    workspaces.register("agent-b", repo, shares_workspace_with="agent-a")
-    workspaces.get("agent-b")
-
-    workspaces.unregister("agent-a")
-
-    assert workspaces.is_live("agent-b")
-    assert workspaces.state("agent-b")["state"] != "error"
-
-
 def test_unregistering_the_canonical_first_deregisters_it_despite_the_surviving_alias(
     registry, repo
 ):
@@ -519,6 +507,8 @@ def test_unregistering_the_canonical_first_deregisters_it_despite_the_surviving_
     assert not workspaces.is_live("agent-a")
     assert workspaces.root_for("agent-a") is None
     assert workspaces.is_registered("agent-b")
+    assert workspaces.is_live("agent-b")
+    assert workspaces.state("agent-b")["state"] != "error"
 
 
 def test_unregistering_the_surviving_alias_then_cleans_up_the_dead_canonical(registry, repo):

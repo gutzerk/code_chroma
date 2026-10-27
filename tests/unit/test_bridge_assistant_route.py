@@ -43,27 +43,19 @@ def test_put_saves_and_get_roundtrips(client):
     assert masked["model"] == "gpt-5"
     assert masked["instruction"] == "explain changes"
     assert masked["api_key_set"] is True
+    assert "sk-secret" not in str(masked)
 
 
-def test_get_never_returns_raw_key(client):
-    client.put("/assistant/settings", json={"cli": "claude", "api_key": "sk-super-secret"})
-
-    response = client.get("/assistant/settings")
-
-    assert "sk-super-secret" not in response.text
-
-
-def test_put_rejects_both_key_and_path(client):
-    response = client.put(
-        "/assistant/settings",
-        json={"cli": "claude", "api_key": "sk-x", "api_key_path": "/tmp/creds"},
-    )
-
-    assert response.status_code == 400
-
-
-def test_put_rejects_slash_in_cli(client):
-    response = client.put("/assistant/settings", json={"cli": "/usr/bin/claude"})
+@pytest.mark.parametrize(
+    "payload",
+    [
+        {"cli": "claude", "api_key": "sk-x", "api_key_path": "/tmp/creds"},
+        {"cli": "/usr/bin/claude"},
+    ],
+    ids=["key-and-path", "slash-in-cli"],
+)
+def test_put_rejects_an_invalid_payload(client, payload):
+    response = client.put("/assistant/settings", json=payload)
 
     assert response.status_code == 400
 

@@ -553,8 +553,18 @@ def test_lane_of_only_failure_steps_gets_lane_kind_failure():
         {"id": "b", "lane": "Failures", "kind": "decide", "children": []},
         {"id": "c", "lane": "Errors", "kind": "failure", "children": []},
     ]}
-    resolved = {"nodes": [{"id": "a", "name": "A"}, {"id": "b", "name": "B"}, {"id": "c", "name": "C"}], "route": route}
+    nodes = [{"id": "a", "name": "A"}, {"id": "b", "name": "B"}, {"id": "c", "name": "C"}]
+    resolved = {"nodes": nodes, "route": route}
 
     shape = reshape(resolved, "custom")
 
-    assert [node.meta.get("lane_kind") for node in shape.nodes] == [None, None, "failure"]
+    assert [node.meta.get("lane_kind") for node in shape.nodes] == ["normal", "normal", "failure"]
+
+
+def test_a_non_string_lane_is_ignored_when_stamping_lane_kind():
+    route = {"id": "r", "steps": [{"id": "a", "lane": "flow", "kind": "failure", "children": []}]}
+    resolved = {"nodes": [{"id": "a", "name": "A", "meta": {"lane": ["x"]}}], "route": route}
+
+    shape = reshape(resolved, "custom")
+
+    assert shape.nodes[0].meta["lane_kind"] == "failure"

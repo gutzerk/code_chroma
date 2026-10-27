@@ -744,6 +744,8 @@
               {
                 "path": "$..lane_kind",
                 "equals": [
+                  "normal",
+                  "normal",
                   "failure"
                 ]
               }

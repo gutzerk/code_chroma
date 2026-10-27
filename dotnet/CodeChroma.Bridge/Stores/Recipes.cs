@@ -179,7 +179,7 @@ public static class Recipes
         {
             var meta = (JsonObject)(node.Meta ?? []).DeepClone();
             var laneName = Json.Str(meta["lane"]) ?? (byId.TryGetValue(node.Key, out var own) ? Json.Str(own["lane"]) : null);
-            if (laneName is not null && failureLanes.Contains(laneName) && !meta.ContainsKey("lane_kind")) meta["lane_kind"] = "failure";
+            if (laneName is not null && !meta.ContainsKey("lane_kind")) meta["lane_kind"] = failureLanes.Contains(laneName) ? "failure" : "normal";
             meta["route"] = stamped.DeepClone();
             if (byId.TryGetValue(node.Key, out var step)) meta["route_step"] = step.DeepClone();
             return node with { Meta = meta };

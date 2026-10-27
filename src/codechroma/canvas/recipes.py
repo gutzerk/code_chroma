@@ -187,11 +187,11 @@ def _route_summary(steps: list[dict]) -> str:
 
 def _failure_lanes(steps: list[dict]) -> set[str]:
     """Lanes whose every route step is a failure: the layout puts them last (026)."""
-    kinds: dict[str, set] = {}
+    kinds: dict[str, set[bool]] = {}
     for step in steps:
         if isinstance(step.get("lane"), str):
-            kinds.setdefault(step["lane"], set()).add(step.get("kind"))
-    return {lane for lane, found in kinds.items() if found == {"failure"}}
+            kinds.setdefault(step["lane"], set()).add(step.get("kind") == "failure")
+    return {lane for lane, found in kinds.items() if found == {True}}
 
 
 def _with_route(nodes: tuple[GraphNode, ...], resolved: dict) -> tuple[GraphNode, ...]:
@@ -207,12 +207,20 @@ def _with_route(nodes: tuple[GraphNode, ...], resolved: dict) -> tuple[GraphNode
     return tuple(
         replace(node, meta={
             **node.meta, "route": stamped,
-            **({"lane_kind": "failure"} if "lane_kind" not in node.meta and (
-                node.meta.get("lane") or by_id.get(node.key, {}).get("lane")) in failure_lanes else {}),
+            **_lane_kind_stamp(node, by_id, failure_lanes),
             **({"route_step": by_id[node.key]} if node.key in by_id else {}),
         })
         for node in nodes
     )
+
+
+def _lane_kind_stamp(node: GraphNode, by_id: dict[str, dict], failure_lanes: set[str]) -> dict:
+    """`lane_kind` for a node in a known lane ("failure" or "normal"); an authored one wins."""
+    own = node.meta.get("lane")
+    lane = own if isinstance(own, str) else by_id.get(node.key, {}).get("lane")
+    if "lane_kind" in node.meta or not isinstance(lane, str):
+        return {}
+    return {"lane_kind": "failure" if lane in failure_lanes else "normal"}
 
 
 def reshape(resolved: dict, render: str) -> GraphShape:

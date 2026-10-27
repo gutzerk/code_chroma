@@ -6,7 +6,7 @@ import { LeftPanelToggle } from "./LeftPanelToggle";
 import { DrawDialog } from "./doc/drawDialog/DrawDialog";
 import { useEngineClient } from "../engine-client/EngineClientContext";
 import { ConnectionsOverlay } from "./ConnectionsOverlay";
-import { useActiveModes } from "./canvasModes";
+import { overlaysOf, useActiveModes } from "./canvasModes";
 import { RouteProbeTrigger } from "./RouteProbeTrigger";
 import { LabelClearanceMonitor } from "./LabelClearanceMonitor";
 import { CanvasViewport, type CanvasViewportHandle } from "./CanvasViewport";
@@ -531,7 +531,7 @@ export function RootCanvas() {
                   <CanvasDocView />
                 </CodePopupContext.Provider>
                 {rootNode && <ConnectionsOverlay />}
-                {rootNode && activeModes.map(({ id, Overlay }) => Overlay && <Overlay key={id} />)}
+                {rootNode && overlaysOf(activeModes).map(({ id, Overlay }) => <Overlay key={id} />)}
                 {rootNode && <LabelClearanceMonitor />}
                 {/* Inside .canvas-content on purpose (unlike SidecarSummaryCard below, which is
                     deliberately screen-fixed chrome): a big PR's change list

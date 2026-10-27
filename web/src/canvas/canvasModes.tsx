@@ -10,9 +10,11 @@ import { RouteProbeOverlay } from "./RouteProbeOverlay";
 import { TraceControls } from "./TraceControls";
 import { TraceFlowOverlay } from "./TraceFlowOverlay";
 
+export type CanvasModeId = "diff" | "trace" | "route-probe" | "route";
+
 /** A canvas mode: an overlay drawn inside the viewport and/or controls drawn over the stage while it is active. */
 export interface CanvasMode {
-  id: string;
+  id: CanvasModeId;
   useActive: () => boolean;
   Overlay?: ComponentType;
   Controls?: ComponentType;
@@ -25,6 +27,11 @@ export const CANVAS_MODES: readonly CanvasMode[] = [
   { id: "route-probe", useActive: () => true, Overlay: RouteProbeOverlay },
   { id: "route", useActive: () => useRouteState().route !== null, Overlay: RouteOverlay, Controls: RouteCard },
 ];
+
+/** The mounted overlays of the active modes, skipping modes that draw none. */
+export function overlaysOf(modes: readonly CanvasMode[]): readonly { id: CanvasModeId; Overlay: ComponentType }[] {
+  return modes.flatMap(({ id, Overlay }) => (Overlay ? [{ id, Overlay }] : []));
+}
 
 /** The modes that are active now; every `useActive` runs on every render so hook order stays fixed. */
 export function useActiveModes(): readonly CanvasMode[] {

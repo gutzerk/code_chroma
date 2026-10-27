@@ -94,11 +94,15 @@ public static class CliModelProbe
         }
     }
 
+    /// <summary>The list command of a listing adapter (codex, gemini); shared with Python through cli_model_probe.json.</summary>
+    public static string[] ListingArgs(string adapter) => adapter == "codex" ? ["debug", "models"] : ["models", "list", "-o", "json"];
+
     private static async Task<JsonArray?> ProbeListing(string binary, string adapter, IReadOnlyDictionary<string, string>? env, CancellationToken cancel)
     {
-        using var process = adapter == "codex" ? Start(binary, env, "debug", "models") : Start(binary, env, "models", "list", "-o", "json");
+        using var process = Start(binary, env, ListingArgs(adapter));
         try
         {
+            process.StandardInput.Close();
             var stdout = process.StandardOutput.ReadToEndAsync(cancel);
             await process.WaitForExitAsync(cancel);
             return process.ExitCode == 0 ? ParseModelList(await stdout) : null;

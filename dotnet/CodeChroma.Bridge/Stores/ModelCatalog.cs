@@ -7,6 +7,9 @@ public static class ModelCatalog
 {
     private static readonly HttpClient Http = new() { Timeout = TimeSpan.FromSeconds(30) };
 
+    /// <summary>The live CLI model probe; tests swap it so no real CLI is spawned.</summary>
+    public static Func<string, Task<JsonArray?>> CliProbe { get; set; } = CliModelProbe.Probe;
+
     public static Task<JsonObject> Fetch(JsonObject provider) => Fetch(provider, Http);
 
     public static async Task<JsonObject> Fetch(JsonObject provider, HttpClient http)
@@ -33,7 +36,7 @@ public static class ModelCatalog
         }
         if (kind == "cli" && Json.Str(provider["adapter"]) == "claude" && !string.IsNullOrEmpty(baseUrl))
             return await Anthropic(http, baseUrl, key);
-        if (kind == "cli" && await CliModelProbe.Probe(Json.Str(provider["adapter"]) ?? "") is { } live)
+        if (kind == "cli" && await CliProbe(Json.Str(provider["adapter"]) ?? "") is { } live)
             return new JsonObject { ["supported"] = true, ["models"] = live, ["error"] = null };
         if (kind == "cli" && StaticModels.ContainsKey($"adapter:{Json.Str(provider["adapter"])}"))
             return Static($"adapter:{Json.Str(provider["adapter"])}");

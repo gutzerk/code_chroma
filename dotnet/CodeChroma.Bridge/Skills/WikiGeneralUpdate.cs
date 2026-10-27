@@ -289,7 +289,7 @@ public static partial class WikiGeneralUpdate
         return pages;
     }
 
-    /// <summary>An error message when the run left a promised page missing or wrote nothing at all, else null (an exit code alone proves nothing).</summary>
+    /// <summary>An error message when the run left a promised page missing or unrefreshed, else null (an exit code alone proves nothing).</summary>
     public static string? VerifyPagesWritten(string root, IReadOnlyList<string> pages, DateTime startedUtc)
     {
         if (pages.Count == 0) return null;
@@ -297,8 +297,8 @@ public static partial class WikiGeneralUpdate
         var missing = pages.Where(page => !File.Exists(Path.Combine(wikiDir, page))).ToList();
         if (missing.Count > 0)
             return $"update finished but did not write {missing.Count} of {pages.Count} page(s): {string.Join(", ", missing.Take(5))}{(missing.Count > 5 ? ", ..." : "")}";
-        var touched = pages.Any(page => File.GetLastWriteTimeUtc(Path.Combine(wikiDir, page)) >= startedUtc);
-        return touched ? null : $"update finished but wrote none of the {pages.Count} page(s) it was asked to refresh";
+        var untouched = pages.Where(page => File.GetLastWriteTimeUtc(Path.Combine(wikiDir, page)) < startedUtc).ToList();
+        return untouched.Count == 0 ? null : $"update finished but did not refresh {untouched.Count} of {pages.Count} page(s): {string.Join(", ", untouched.Take(5))}{(untouched.Count > 5 ? ", ..." : "")}";
     }
 
     /// <summary>The GET .../clustering body: the fixed grouping Phase A consumes, never invents.</summary>

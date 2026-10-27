@@ -170,6 +170,30 @@ describe("useWikiGeneralStatus", () => {
     expect(fetchCount).toBe(2);
   });
 
+  it("a job-status ping reaching error refetches too", async () => {
+    let statusChanged: ((status: DiagramGenerationStatus) => void) | null = null;
+    let fetchCount = 0;
+    const client = clientWith({
+      getWikiGeneralStatus: async () => {
+        fetchCount += 1;
+        return fetchCount === 1 ? GENERATED : { ...GENERATED, stale: true };
+      },
+      subscribeDiagramStatus: (_kind, onChange) => {
+        statusChanged = onChange;
+        return () => {
+          statusChanged = null;
+        };
+      },
+    });
+    const { result } = renderHook(() => useWikiGeneralStatus(client));
+    await waitFor(() => expect(fetchCount).toBe(1));
+
+    act(() => statusChanged?.({ state: "error", error: "update failed" }));
+
+    await waitFor(() => expect(result.current.stale).toBe(true));
+    expect(fetchCount).toBe(2);
+  });
+
   it("a content ping merges empty the same way it merges has_wiki_general/stale", async () => {
     let contentChanged: (() => void) | null = null;
     let fetchCount = 0;

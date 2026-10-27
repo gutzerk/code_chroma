@@ -57,7 +57,7 @@ export function useWikiGeneralStatus(engineClient: EngineClient): WikiGeneralSta
     const unsubscribeStatus = engineClient.subscribeDiagramStatus("wiki-general", (next) => {
       if (cancelled) return;
       setStatus((previous) => ({ ...previous, ...next }));
-      if (next.state === "idle") refetchArtifact();
+      if (next.state === "idle" || next.state === "error") refetchArtifact();
     });
     // The FileWatcher ping on .codechroma/wiki-general/index.md — catches a change made outside this
     // run (another tab, a file edited by hand) that the job-state ping above would never see.

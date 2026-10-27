@@ -25,7 +25,7 @@ public sealed class Workspace : IDisposable
         Engine = engine;
         ReadOnly = readOnly;
         _onEvent = onEvent;
-        _lastHead = CurrentHead();
+        _lastHead = WikiCommit();
     }
 
     public string Id { get; }
@@ -57,6 +57,22 @@ public sealed class Workspace : IDisposable
     }
 
     public string? CurrentHead() => GitRunner.Run(Root, "rev-parse", "HEAD")?.Trim();
+
+    /// <summary>True when this workspace holds the project's wiki: main, or a read-only PR keeping its own; worktree tabs read main's.</summary>
+    public bool OwnsWiki => Id == MainId || ReadOnly;
+
+    /// <summary>Broadcasts a wiki ping to every tab; set on main by the registry, bare to this workspace when unset.</summary>
+    public Action<JsonObject>? WikiEmit { get; set; }
+
+    public void EmitWiki(JsonObject message)
+    {
+        if (WikiEmit is { } broadcast) broadcast(message);
+        else Emit(message);
+    }
+
+    /// <summary>The commit the wikis are tracked against: the integration branch tip, else HEAD.</summary>
+    public string? WikiCommit() =>
+        GitRunner.Run(Root, "rev-parse", Agents.WorktreeOps.MainBranch(Root))?.Trim() is { Length: > 0 } tip ? tip : CurrentHead();
 
     /// <summary>Reanalyzes what git reports changed since the last call; null when nothing new.</summary>
     public List<string>? Sync()
@@ -94,12 +110,12 @@ public sealed class Workspace : IDisposable
         catch (IOException) { return -1; }
     }
 
-    /// <summary>True once per HEAD move (commit, checkout, merge, reset, pull).</summary>
+    /// <summary>True once per move of the tracked wiki commit (a commit, merge, reset or pull onto the integration branch).</summary>
     public bool HeadChanged()
     {
         lock (_syncLock)
         {
-            var head = CurrentHead();
+            var head = WikiCommit();
             if (head is null || head == _lastHead) return false;
             _lastHead = head;
             return true;

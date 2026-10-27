@@ -73,7 +73,7 @@ Files: the impact view components and `docs/architecture/change-cards.md` scope.
 
 ## Board palette
 
-Sequence phase bars, alt/loop frames, notes, AI/event arrows and the planned/data/external block shapes use the boards' colours (`styles.css`, the 022 sections); the full role-colour set and fonts still follow the app theme.
+Sequence phase bars, alt/loop frames, notes, AI/event arrows and the planned/data/external block shapes use the boards' colours (`styles.css`, the 022 sections); sequence participants colour by `meta.kind` (UI cyan, code blue, AI/external violet dashed, data orange), calls are neutral, `kind: "error"` or `failure: true` messages are red dashed; fonts and block role colours still follow the app theme.
 
 ## Out of scope
 

@@ -61,10 +61,24 @@ if (SEQUENCE_PALETTE.length !== GROUP_COLOR_COUNT) {
   throw new Error("SEQUENCE_PALETTE out of sync with GROUP_COLOR_COUNT");
 }
 
-function sequenceAccentRef(ref: string): string {
+/** 022 boards: a participant's colour follows its role (UI cyan, code blue, AI/external violet, data orange). */
+const SEQUENCE_KIND_ACCENTS: ReadonlyArray<readonly [RegExp, string]> = [
+  [/(ai|llm|external)/, "180, 156, 255"],
+  [/(ui|client|canvas|browser|actor|user|person)/, "34, 211, 238"],
+  [/(data|db|database|store|storage|file|cache|queue)/, "251, 146, 60"],
+  [/(route|routes|api|service|runner|cli|script|worker|server|handler|python|c#)/, "127, 184, 255"],
+];
+
+function sequenceAccentRef(ref: string, kind?: string): string {
+  const key = (kind ?? "").toLowerCase();
+  const byKind = SEQUENCE_KIND_ACCENTS.find(([re]) => re.test(key));
+  if (byKind) return byKind[1];
   const [r, g, b] = SEQUENCE_PALETTE[groupColorIndex(ref) % SEQUENCE_PALETTE.length];
   return `${r}, ${g}, ${b}`;
 }
+
+/** Calls read neutral on the boards; ai/event/failure arrows recolour through their own class. */
+const MESSAGE_ACCENT = "215, 218, 212";
 
 export function orderOf(element: CanvasElement): number {
   const order = Number(rawMeta(element, "order"));
@@ -90,11 +104,10 @@ export function buildSequenceModel(elements: CanvasElement[]): SequenceModel {
   for (const element of elements) {
     if (stringMeta(element, "role") !== "participant") continue;
     const ref = stringMeta(element, "recipe_key") ?? element.id;
-    participants.push({ element, ref, accent: sequenceAccentRef(ref) });
+    participants.push({ element, ref, accent: sequenceAccentRef(ref, stringMeta(element, "kind")) });
     byRef.set(element.id, element);
     byRef.set(ref, element);
   }
-  const accentByRef = new Map(participants.map(({ ref, accent }) => [ref, accent]));
 
   const messages = elements
     .map((element): SequenceMessage | null => {
@@ -110,7 +123,7 @@ export function buildSequenceModel(elements: CanvasElement[]): SequenceModel {
         toCol,
         fromRef,
         toRef,
-        accent: accentByRef.get(fromRef) ?? "160, 165, 175",
+        accent: MESSAGE_ACCENT,
         order: orderOf(element),
       };
     })

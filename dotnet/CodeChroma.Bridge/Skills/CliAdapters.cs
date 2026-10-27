@@ -31,6 +31,7 @@ public static class CliAdapters
         ["claude"] = new ClaudeAdapter(),
         ["codex"] = new CodexAdapter(),
         ["kimi-cli"] = new KimiAdapter(),
+        ["gemini"] = new GeminiAdapter(),
     };
 
     /// <summary>Whether the adapter named <paramref name="adapterKey"/> can resume a session; false for an unknown or missing adapter.</summary>
@@ -184,5 +185,36 @@ public sealed class KimiAdapter : ICliAdapter
                 lines.Add($"⏺ {name}");
             }
         return lines;
+    }
+}
+
+/// <summary>`gemini --prompt ... --yolo --output-format stream-json`; --yolo auto-approves tool calls.</summary>
+public sealed class GeminiAdapter : ICliAdapter
+{
+    private const int MaxMessage = 200;
+
+    public IReadOnlyList<string> BuildArgv(string binary, string prompt, string model, IReadOnlyDictionary<string, string>? env, IReadOnlyList<string>? extra = null) =>
+        [binary, "--prompt", prompt, "--model", model, "--yolo", "--output-format", "stream-json", .. extra ?? []];
+
+    public IReadOnlyList<string> ParseLine(string raw, string repoRoot)
+    {
+        if (CliAdapters.ParseEvent(raw) is not { } evt) return [];
+        switch (Json.Str(evt["type"]))
+        {
+            case "message" when Json.Str(evt["role"]) == "assistant":
+                return SkillOutput.TextLines(evt["content"]);
+            case "tool_use":
+                return [$"⏺ {(Json.Str(evt["tool_name"]) is { Length: > 0 } name ? name : "tool")}"];
+            case "tool_result" when Json.Str(evt["status"]) == "error":
+                var error = evt["error"];
+                var message = Json.Str(error is JsonObject o ? o["message"] : error);
+                return [$"  ↳ error: {SkillOutput.Flatten(string.IsNullOrEmpty(message) ? "failed" : message, MaxMessage)}"];
+            case "error":
+                return [$"✗ {SkillOutput.Flatten(Json.Str(evt["message"]) is { Length: > 0 } m ? m : "failed", MaxMessage)}"];
+            case "result":
+                return [Json.Str(evt["status"]) == "error" ? "✗ failed" : "✓ done"];
+            default:
+                return [];
+        }
     }
 }

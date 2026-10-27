@@ -8168,8 +8168,23 @@ button[data-copy-state="idle"][aria-label]:hover:not(:disabled) {
 .sequence-phase-row--ai { border-left-color: #B49CFF; }
 .sequence-phase-row--deliver { border-left-color: #5EE0A0; }
 .sequence-phase-row-meta { font-weight: 400; color: #8D939B; }
-.sequence-timeline { margin: 0; max-height: 60%; overflow-y: auto; background: #202226; padding: 8px 10px; list-style: none; width: 220px; font-size: 0.7rem; border: 1px solid #33363C; border-radius: var(--radius-lg); }
+.sequence-timeline { margin: 0; max-height: calc(100% - 16px); overflow-y: auto; background: #202226; padding: 8px 10px; list-style: none; width: 220px; font-size: 0.7rem; border: 1px solid #33363C; border-radius: var(--radius-lg); }
 .sequence-timeline::before { content: "TIMELINE"; display: block; margin-bottom: 6px; font-family: var(--font-mono); font-size: 0.65rem; font-weight: 700; letter-spacing: 0.1em; color: #8D939B; }
+.sequence-timeline-phases { display: flex; gap: 12px; height: 120px; margin-bottom: 10px; }
+.sequence-timeline-bars, .sequence-timeline-names { display: flex; flex-direction: column; gap: 4px; }
+.sequence-timeline-bars { width: 8px; }
+.sequence-timeline-bar { min-height: 6px; border-radius: 3px; background: #8D939B; }
+.sequence-timeline-bar--request { background: #22D3EE; }
+.sequence-timeline-bar--prepare { background: #7FB8FF; }
+.sequence-timeline-bar--ai { background: #B49CFF; }
+.sequence-timeline-bar--deliver { background: #5EE0A0; }
+.sequence-timeline-names { flex: 1; justify-content: space-between; color: #C9CDD2; font-size: 0.72rem; }
+.sequence-timeline-name--here { color: #ECEDEE; font-weight: 600; }
+.sequence-timeline-heading { margin: 8px 0 4px; font-family: var(--font-mono); font-size: 0.65rem; font-weight: 700; letter-spacing: 0.1em; color: #8D939B; }
+.sequence-timeline-people, .sequence-timeline-steps { margin: 0; padding: 0; list-style: none; }
+.sequence-timeline-person { display: flex; justify-content: space-between; gap: 8px; padding: 2px 0; cursor: pointer; color: #C9CDD2; }
+.sequence-timeline-person-count { color: #8D939B; }
+.sequence-timeline-person--focus, .sequence-timeline-person--focus .sequence-timeline-person-count { color: #5EE0A0; }
 .sequence-timeline-item { cursor: pointer; padding: 1px 0; opacity: 0.75; }
 .sequence-timeline-item--here { opacity: 1; font-weight: 600; color: #5EE0A0; }
 .sequence-mode-btn { font: inherit; font-size: 0.65rem; padding: 1px 8px; border-radius: var(--radius-xl); border: 1px solid rgba(160, 165, 175, 0.5); background: transparent; color: inherit; cursor: pointer; }

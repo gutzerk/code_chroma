@@ -26,12 +26,13 @@ class FocusStore extends Store {
 
   /** Focuses `id`; focusing the already-focused block clears it. A block with no edges has nothing to focus. */
   toggle(doc: CanvasDoc, id: string): void {
-    if (this.focus?.id !== id && litIdsFor(doc, id, "both").size === 1) {
+    const lit = litIdsFor(doc, id, "both");
+    if (this.focus?.id !== id && lit.size === 1) {
       this.clear();
       return;
     }
     this.litEdges = doc.edges;
-    this.focus = this.focus?.id === id ? null : { id, direction: "both", lit: litIdsFor(doc, id, "both") };
+    this.focus = this.focus?.id === id ? null : { id, direction: "both", lit };
     this.changed();
   }
 

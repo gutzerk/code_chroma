@@ -1,4 +1,5 @@
 using System.Text.Json.Nodes;
+using System.Text.RegularExpressions;
 using CodeChroma.Bridge.Engine;
 using CodeChroma.Bridge.Stores;
 
@@ -21,12 +22,12 @@ public sealed class Diagnostics
     private static readonly string[] EdgeKindAliases =
     [
         "call", "uses", "spawn", "process", "read", "write", "secondary", "imports", "implements",
-        "extends", "inherits", "composes", "contains", "depends", "depends_on",
+        "extends", "inherits", "composes", "contains", "depends", "depends_on", "removed",
     ];
     private static readonly string[] PlainEdgeKinds = ["", "calls", "call", "uses"];
-    private static readonly System.Text.RegularExpressions.Regex FailureWords = new(@"\b(error|fail\w*|denied|timeout|timed out)\b", System.Text.RegularExpressions.RegexOptions.IgnoreCase);
-    private static readonly System.Text.RegularExpressions.Regex SpawnWords = new(@"\b(spawn\w*|launch\w*|(start|starts|starting|run|runs|fork\w*)\s+(a\s+|an\s+|the\s+)?(sub)?(process|cli|agent|worker|daemon))\b", System.Text.RegularExpressions.RegexOptions.IgnoreCase);
-    private static readonly System.Text.RegularExpressions.Regex DataWords = new(@"\b(read|reads|write|writes|reading|writing|persist\w*|stores?|saves?)\b.{0,40}\b(files?|disk|database|db|sqlite|store|cache|json)\b", System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+    private static readonly Regex FailureWords = new(@"\b(error|fail\w*|denied|timeout|timed out)\b", RegexOptions.IgnoreCase);
+    private static readonly Regex SpawnWords = new(@"\b(spawn\w*|launch\w*|(start|starts|starting|run|runs|fork\w*)\s+(a\s+|an\s+|the\s+)?(sub)?(process|cli|agent|worker|daemon))\b", RegexOptions.IgnoreCase);
+    private static readonly Regex DataWords = new(@"\b(read|reads|write|writes|reading|writing|persist\w*|stores?|saves?)\b.{0,40}\b(files?|disk|database|db|sqlite|store|cache|json)\b", RegexOptions.IgnoreCase);
 
     /// <summary>Records the check_diagram.py edge/message-kind advisories as soft diagnostics (never drops).</summary>
     public void AdviseRelations(IEnumerable<JsonNode?> relations, string? kind)
@@ -267,4 +268,3 @@ public static class DiagramResolver
         return resolved;
     }
 }
-

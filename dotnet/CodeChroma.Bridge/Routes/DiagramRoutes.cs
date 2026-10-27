@@ -168,4 +168,3 @@ public static class DiagramRoutes
         return Results.Json(result, BridgeJson.Default.JsonObject);
     }
 }
-

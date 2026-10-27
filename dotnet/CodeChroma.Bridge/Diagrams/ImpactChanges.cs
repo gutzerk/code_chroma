@@ -1,4 +1,4 @@
-﻿using System.Text.Json.Nodes;
+using System.Text.Json.Nodes;
 using CodeChroma.Bridge.Engine;
 using CodeChroma.Bridge.Stores;
 using CodeChroma.Bridge.Workspaces;

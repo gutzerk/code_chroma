@@ -8266,3 +8266,41 @@ button[data-copy-state="idle"][aria-label]:hover:not(:disabled) {
 .block-role .canvas-node-box-src { font-family: var(--font-mono); font-weight: 700; letter-spacing: 0.08em; color: var(--role-accent); border-color: var(--role-border); border-radius: 999px; padding: 1px 8px; white-space: nowrap; }
 .block-role .node-meta-chip--no-code-external { display: none; }
 .block-role .block-name-row, .block-role .diagram-node-box-title-row { margin-top: 0.1rem; }
+
+/* 022 board edges: typed edges, edge pills, groups and focus (design board "BlocksFocus") */
+.canvas-edge .c1-relationship-path { stroke: #D7DAD4; stroke-width: 2; }
+.canvas-edge .c1-relationship-path--ek-spawn { stroke-dasharray: 2 5; stroke-linecap: round; }
+.canvas-edge .c1-relationship-path--ek-data { stroke: #FB923C; stroke-width: 1.75; stroke-dasharray: 7 4; }
+.canvas-edge .c1-relationship-path--ek-minor { stroke: #5B6068; stroke-width: 1.5; }
+.canvas-edge .c1-relationship-path--ek-bundle { stroke: #4A4D52; stroke-width: 7; stroke-linecap: round; opacity: 0.6; }
+.canvas-edge--bundle .c1-relationship-casing { display: none; }
+.canvas-arrowhead--data { fill: #FB923C; }
+.canvas-arrowhead--minor { fill: #5B6068; }
+.canvas-edge .connector-label-chip { fill: #1F201D; stroke: #3A3B37; rx: 7px; ry: 7px; }
+.canvas-edge .c1-relationship-label { fill: #C9CDD2; font-family: var(--font-mono, "JetBrains Mono", monospace); font-size: 10.5px; }
+.canvas-edge--minor .c1-relationship-label { fill: #A3A8AE; }
+.canvas-edge--bundle .c1-relationship-label { fill: #8D939B; }
+.canvas-edge--data .c1-relationship-label { fill: #FBC08A; }
+.canvas-edge--data .connector-label-chip { stroke: #5A3E24; }
+.canvas-edge--dim { opacity: 0.2; transition: opacity 0.12s; }
+
+.canvas-group-frame { border: 1px solid rgba(var(--group-frame-rgb, 148, 163, 184), 0.32); border-radius: 14px; background: rgba(var(--group-frame-rgb, 148, 163, 184), 0.03); transition: opacity 0.12s; }
+.canvas-group-frame--dim { opacity: 0.45; }
+.canvas-group-frame-label { font-family: var(--font-mono, "JetBrains Mono", monospace); font-size: 12px; font-weight: 600; top: 10px; left: 16px; }
+.canvas-group-frame-open { pointer-events: auto; margin-left: 6px; padding: 0 2px; border: 0; background: transparent; color: #7FB8FF; font: inherit; cursor: pointer; }
+.canvas-group-frame-open:hover { color: #A9D0FF; }
+
+.block-focus-self { outline: 2px solid #5EE0A0; box-shadow: 0 0 0 6px rgba(94, 224, 160, 0.14); }
+
+.canvas-focus-panel { width: 320px; padding: 20px; border-radius: 14px; background: #202226; border-color: #33363C; font-size: 13px; color: #C9CDD2; display: flex; flex-direction: column; gap: 8px; }
+.canvas-focus-panel__head { display: flex; align-items: center; justify-content: space-between; }
+.canvas-focus-panel__kicker { font-family: var(--font-mono, monospace); font-size: 11px; font-weight: 700; letter-spacing: 0.1em; color: #5EE0A0; }
+.canvas-focus-panel__close { border: 0; background: transparent; color: #8D939B; cursor: pointer; }
+.canvas-focus-panel__name { font-size: 18px; font-weight: 600; color: #ECEDEE; }
+.canvas-focus-panel__help { font-size: 12.5px; color: #8D939B; }
+.canvas-focus-panel h4 { margin: 6px 0 0; font-family: var(--font-mono, monospace); font-size: 10.5px; font-weight: 400; letter-spacing: 0; opacity: 1; color: #7C8188; }
+.canvas-focus-panel ul { margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 6px; }
+.canvas-focus-panel__edge { color: #7C8188; }
+.canvas-focus-panel__dirs { display: flex; gap: 8px; margin-top: 4px; }
+.canvas-focus-panel__dir { flex: 1 1 0; height: 40px; border-radius: 8px; border: 1px solid #3A3E45; background: #24262B; color: #ECEDEE; font-size: 13px; cursor: pointer; }
+.canvas-focus-panel__dir--on { border-color: #3F7A5E; background: #18261F; color: #5EE0A0; }

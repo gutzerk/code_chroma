@@ -21,3 +21,14 @@ export function bundleEdges(edges: readonly CanvasEdge[]): CanvasEdge[] {
     };
   });
 }
+
+/** Key identifying a bundled (collapsed, count > 1) edge in `layoutDiagramEdges`'s output. */
+export function bundleKeyOf(edge: Pick<CanvasEdge, "from" | "to" | "kind" | "label">): string {
+  return [edge.from, edge.to, edge.kind, edge.label].join("\u0000");
+}
+
+/** The keys (`bundleKeyOf`) of the edges `bundleEdges` collapsed from several parallel ones. */
+export function bundledKeys(original: readonly CanvasEdge[], bundled: readonly CanvasEdge[]): Set<string> {
+  const singles = new Set(original.map((edge) => bundleKeyOf(edge)));
+  return new Set(bundled.filter((edge) => !singles.has(bundleKeyOf(edge))).map(bundleKeyOf));
+}

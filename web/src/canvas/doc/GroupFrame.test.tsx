@@ -85,3 +85,14 @@ describe("GroupFrame", () => {
     expect(frame.className).toContain(`canvas-group-frame-color-${groupColorIndex("Storage")}`);
   });
 });
+
+describe("GroupFrame board styling", () => {
+  it("tints a skills group violet and renders the open arrow", () => {
+    const group = groupOf({ id: "g1", label: "skills/" });
+
+    render(<GroupFrame element={group} members={[memberOf({ id: "m1" })]} sizes={new Map()} />);
+
+    expect(screen.getByTestId("canvas-group-frame").className).toContain("canvas-group-frame-color-4");
+    expect(screen.getByTestId("canvas-group-frame-open")).toBeInTheDocument();
+  });
+});

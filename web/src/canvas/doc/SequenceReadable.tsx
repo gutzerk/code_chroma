@@ -192,7 +192,8 @@ function MessageArrow({
     left: Math.min(fromCol.position.x, toCol.position.x) - left,
     top: element.position.y - top - 10,
     width: spanPx,
-    "--seq-accent-rgb": accent,
+    // ai/event keep their own class colour; a sender tint would override it
+    ...(kind === "ai" || kind === "event" ? {} : { "--seq-accent-rgb": accent }),
   } as CSSProperties;
 
   return (

@@ -31,6 +31,7 @@ public static class CliAuth
                 return null;
             }
             if (process.ExitCode != 0) return false;
+            if (!stdout.Wait(TimeSpan.FromSeconds(2))) return true;
             try { return (JsonNode.Parse(stdout.Result) as JsonObject)?["loggedIn"]?.GetValue<bool>() ?? true; }
             catch (Exception ex) when (ex is System.Text.Json.JsonException or InvalidOperationException) { return true; }
         }

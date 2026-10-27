@@ -19,7 +19,7 @@ import { useProviderModels } from "./useProviderModels";
 function headlineOf(def: DefaultAssignment | null, provider: Provider | null, features: Feature[]) {
   if (!def || !provider) return "Pick a connection and a model to use for everything.";
   const label = `${provider.label} · ${def.model}`;
-  const onDefault = features.filter((f) => f.source === "default").length;
+  const onDefault = features.filter((f) => f.source === "default" || f.source === "fallback").length;
   if (onDefault === features.length) return `All ${features.length} features use ${label}.`;
   return `${onDefault} of ${features.length} features use ${label} · ${
     features.length - onDefault
@@ -78,8 +78,7 @@ export function ModelsTab({ onAddConnection }: { onAddConnection: () => void }) 
         ...patch,
       });
       setDef(saved.default);
-      setPendingConn(null);
-    });
+    }).finally(() => setPendingConn(null));
 
   const pickDefaultConnection = async (providerId: string) => {
     setPendingConn(providerId);
@@ -101,7 +100,7 @@ export function ModelsTab({ onAddConnection }: { onAddConnection: () => void }) 
   const pickFeatureConnection = (feature: Feature, providerId: string) =>
     overrideFeature(feature, providerId, "");
 
-  const custom = features.filter((f) => f.source === "custom");
+  const custom = features.filter((f) => f.source === "custom" || f.source === "offline");
   const defaultProvider = providers.find((p) => p.id === def?.provider_id) ?? null;
 
   return (

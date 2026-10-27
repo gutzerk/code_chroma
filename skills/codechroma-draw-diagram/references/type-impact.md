@@ -125,6 +125,7 @@ Rules:
   provider, not every incidental wiring edge). Rendered visually emphasized on the canvas; everything
   else stays a normal edge. 3+ hero relations trips the self-check's `TOOMANYHERO` advisory — you
   picked too many, not enough of a story.
+- Edge `kind`: `calls` (default), `spawns` (starts a process/CLI/agent), `data` (reads/writes a file/DB/store), `minor` (optional link), `removed` (impact only: a link this change deletes; draws dashed rose, the canvas also adds it from the review when you leave it out) -- set `spawns`/`data` whenever true; see `drawing-rules.md` "Edge kinds".
 - `relations[]` — only edges fully inside the final box set. Direction is who initiates (a caller
   `from` → a callee `to`), matching what `impact/context`'s `relations` already spells.
 - **Every id must be unique** across `nodes[]`. Copy `node_id`/`id` from `impact/context` for any

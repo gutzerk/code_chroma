@@ -81,7 +81,7 @@ def test_a_changed_symbol_attributes_to_the_box_that_is_its_exact_node(engine_re
     payload = resolve_impact_changes(root, _diagram(boxes), engine=engine)
 
     assert _blocks_by_id(payload)["create-user"]["files"] == [
-        {"path": "users/service.py", "status": "modified"}
+        {"path": "users/service.py", "status": "modified", "additions": 1, "deletions": 1}
     ]
 
 
@@ -124,7 +124,8 @@ def test_a_changed_symbol_with_no_owning_box_is_unassigned(engine_repo):
 
     payload = resolve_impact_changes(root, _diagram(boxes), engine=engine)
 
-    assert {"path": "users/service.py", "status": "modified"} in payload["unassigned"]
+    expected = {"path": "users/service.py", "status": "modified", "additions": 2, "deletions": 0}
+    assert expected in payload["unassigned"]
 
 
 def test_two_changed_symbols_in_one_file_both_roll_onto_the_same_collapsed_box(engine_repo):
@@ -312,7 +313,9 @@ def test_no_engine_means_no_attribution_but_still_a_well_formed_payload(repo):
     payload = resolve_impact_changes(repo, _diagram(boxes))
 
     assert payload["blocks"] == []
-    assert payload["unassigned"] == [{"path": "src/graph/builder.py", "status": "modified"}]
+    expected = {"path": "src/graph/builder.py", "status": "modified"}
+    expected |= {"additions": 1, "deletions": 1}
+    assert payload["unassigned"] == [expected]
 
 
 def test_the_fingerprint_ignores_the_order_files_were_reported_in():

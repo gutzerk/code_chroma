@@ -11,6 +11,8 @@ A system-context diagram shows **the system as one boundary, the people who use 
 | the repo's system decomposed layer by layer into real code | `c1` |
 | "system context", "who uses this and what does it integrate with", a landscape view, a single subsystem or product, a context view with no internal breakdown | `system-context` (this file) |
 
+Edge `kind` on `relations[]`: `calls` (default), `spawns` (starts a process/CLI/agent), `data` (reads/writes a file/DB/store), `minor` (optional link) -- set `spawns`/`data` whenever true; see `drawing-rules.md` "Edge kinds".
+
 ## Save the type once
 
 `GET /diagram-types/system-context`. On a 404 save it, then continue with `references/type-custom.md` for the path, schema and self-check:

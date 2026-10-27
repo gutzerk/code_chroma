@@ -125,6 +125,7 @@ Rules:
 - An actor's `meta.technology` — short protocol/product label (`"HTTPS/REST"`, `"PostgreSQL"`), fold
   it into a relation's `label` too when it matters to the story, rather than relying on it alone.
 - **5-second read (022):** write top-level `question` (what the diagram answers) and `summary` (one line) strings, and mark the 1-2 main-path relations `hero: true`; the self-check advises `NOSUMMARY`/`NOHERO` otherwise and a diagram without them renders exactly like the old one. `meta.order`/`meta.lane` stay optional here — C1 is a system fan-out, not a process.
+- Edge `kind`: `calls` (default), `spawns` (starts a process/CLI/agent), `data` (reads/writes a file/DB/store), `minor` (optional link) -- set `spawns`/`data` whenever true; see `drawing-rules.md` "Edge kinds".
 - `relations[].from`/`.to` — `"system"` or an actor's `id`; nothing else exists to reference.
 - Never author `node_id` — the bridge resolves it from `path`, and neither the system nor an actor
   carries one.

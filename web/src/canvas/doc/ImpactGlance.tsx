@@ -1,7 +1,7 @@
 import { useSyncExternalStore } from "react";
 import type { CanvasDoc, ImpactBlockChange } from "../../state/types";
 import { canvasDocStore } from "./canvasDocStore";
-import { beforeAfterLine, callerCountsOf } from "./impactGlanceLogic";
+import { barWidths, beforeAfterLine, callerCountsOf, changeSizeOf, sizeLabels } from "./impactGlanceLogic";
 
 /** This box's caller count; subscribes to a number, so a doc change re-renders only boxes whose count moved. */
 function useCallerCount(elementId: string, doc: CanvasDoc | undefined): number {
@@ -25,12 +25,42 @@ export function ImpactGlance({
   const callers = useCallerCount(elementId, doc);
   if (!change) return null;
   const line = beforeAfterLine(change);
-  if (!line && callers === 0) return null;
+  const size = changeSizeOf(change);
+  const labels = sizeLabels(size);
+  const isGhost = change.status === "removed" && !size.known && !size.testKnown;
+  if (!line && callers === 0 && !labels.main && !labels.test && !isGhost) return null;
+  const isSymbol = /::(function|class|method)::/.test(change.node_id);
+  const bar = barWidths(size.add, size.del);
   return (
     <div className="canvas-node-box-glance" data-testid="impact-glance">
       {line && (
         <span className="canvas-node-box-glance-line" title={line}>
           {line}
+        </span>
+      )}
+      {isGhost && (
+        <span className="impact-size impact-size--removed" data-testid="impact-size">
+          removed
+        </span>
+      )}
+      {(labels.main || labels.test) && (
+        <span className="impact-size" data-testid="impact-size">
+          {labels.main && (
+            <>
+              <span className="impact-size-bar" aria-hidden="true">
+                <span className="impact-size-add" style={{ width: bar.add }} />
+                <span className="impact-size-del" style={{ width: bar.del }} />
+              </span>
+              {isSymbol && (
+                <span className="impact-size-scope" title="The diff is counted per file, not per symbol">
+                  file
+                </span>
+              )}
+              <span className="impact-size-plus">{`+${size.add}`}</span>
+              <span className="impact-size-minus">{`−${size.del}`}</span>
+            </>
+          )}
+          {labels.test && <span className="impact-size-test">{labels.test}</span>}
         </span>
       )}
       {callers > 0 && (

@@ -12,6 +12,9 @@ import { RouteProbeOverlay } from "./RouteProbeOverlay";
 import { RouteProbeTrigger } from "./RouteProbeTrigger";
 import { LabelClearanceMonitor } from "./LabelClearanceMonitor";
 import { TraceControls } from "./TraceControls";
+import { RouteOverlay } from "./RouteOverlay";
+import { RouteCard } from "./RouteCard";
+import { useRouteState } from "../state/routeStore";
 import { CanvasViewport, type CanvasViewportHandle } from "./CanvasViewport";
 import { readSavedCameraView } from "./canvasCameraStore";
 import { CanvasDiagramFocusContext, CanvasFocusContext } from "./CanvasFocusContext";
@@ -158,6 +161,7 @@ export function RootCanvas() {
   const impactReviewOutput = useSkillOutput(engineClient, "impact-changes", impactReview.state);
   const traceState = useTraceState();
   const isTraceActive = traceState.isActive;
+  const isRouteActive = useRouteState().route !== null;
   const liveVersion = useLiveVersion();
   useOpenFilesLiveRefresh(engineClient, liveVersion);
   const viewportRef = useRef<CanvasViewportHandle | null>(null);
@@ -538,6 +542,7 @@ export function RootCanvas() {
                 {rootNode && isDiffActive && <ChangeConnectionsOverlay />}
                 {rootNode && isTraceActive && <TraceFlowOverlay />}
                 {rootNode && <RouteProbeOverlay />}
+                {rootNode && isRouteActive && <RouteOverlay />}
                 {rootNode && <LabelClearanceMonitor />}
                 {/* Inside .canvas-content on purpose (unlike SidecarSummaryCard below, which is
                     deliberately screen-fixed chrome): a big PR's change list
@@ -564,6 +569,7 @@ export function RootCanvas() {
               <WikiGeneralNotice />
               {isDiffActive && <DeletedDiffOverlay />}
               {isTraceActive && <TraceControls />}
+              {isRouteActive && <RouteCard />}
               <DrawDialog />
             </div>
             <ActivityPanel disabled={isAtAgentCapacity || isLaunchingAgent} onRunAgent={() => {

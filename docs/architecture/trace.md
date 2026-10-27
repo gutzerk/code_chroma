@@ -177,3 +177,7 @@ seq-ordering, the trace-dir watcher's `{"type": "trace"}` ping, and the `trace-i
 - No UI to *start* a live run from the canvas — `codechroma-trace --stream` is always invoked out of
   band (a terminal, a script); the canvas only ever consumes.
 - No trace deletion/retention: `.codechroma/traces/` grows unbounded; nothing prunes old runs.
+
+## Route overlay vs the execution trace (026)
+
+The route overlay (`web/src/canvas/RouteOverlay.tsx`, `state/routeStore.ts`) walks an **authored** route (written by the draw-diagram skill into the process diagram) over the code map; the trace here is **captured** from a real run. They reuse the same overlay plumbing (`canvasOverlay.ts`, nearest-visible-ancestor snapping) but share no data or store; see `web-canvas-shell.md`.

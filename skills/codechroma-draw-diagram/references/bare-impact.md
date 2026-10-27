@@ -49,6 +49,7 @@ The task line says which source: `diff`, or `plan` with a feature directory.
 
 ## Rules
 
+- Edge `kind` on `relations[]`: `calls` (default), `spawns` (starts a process/CLI/agent), `data` (reads/writes a file/DB/store), `minor` (optional) -- use `spawns`/`data` whenever true, e.g. `{"from":"api","to":"db","kind":"data","label":"saves run"}`.
 - 🔴 `node_id` is required on every node; copy `id`/`node_id` from the context verbatim (or use the `component::`/`dir::` forms above). Never invent one. Ids unique.
 - Budget is tight: ≤ 25 nodes, ≤ 40 relations — a big impact diagram means you dumped the repo.
 - Every box has a one-sentence `description`; names ≤ 40 chars; labels ≤ 40 chars.

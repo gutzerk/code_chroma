@@ -40,6 +40,7 @@ produced candidates; they are your seed list, not your ceiling.
 
 ## Rules
 
+- Edge `kind` on `relations[]`: `calls` (default), `spawns` (starts a process/CLI/agent), `data` (reads/writes a file/DB/store), `minor` (optional) -- use `spawns`/`data` whenever true, e.g. `{"from":"api","to":"db","kind":"data","label":"saves run"}`.
 - Instances and participants are flat `nodes[]`; a participant sets `parent` to its instance's `id`. All ids share one namespace and are unique. `node_id`/`path` are copied verbatim from the context — never invented; a class with `node_id: null` is never a participant.
 - Every participant gets its own one-sentence `description` (its role), distinct from the instance's. Every instance box must be an endpoint of at least one relation (`ORPHAN` otherwise).
 - `meta.type`: strategy/facade/adapter/registry/singleton/observer/repository. A participant's `meta.role` and a relation's `kind` reuse the vocabulary the context uses (implements, extends, uses, …); do not invent new values.

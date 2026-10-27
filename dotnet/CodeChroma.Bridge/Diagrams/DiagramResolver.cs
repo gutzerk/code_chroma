@@ -1,4 +1,5 @@
 using System.Text.Json.Nodes;
+using System.Text.RegularExpressions;
 using CodeChroma.Bridge.Engine;
 using CodeChroma.Bridge.Stores;
 
@@ -15,6 +16,58 @@ public sealed class Diagnostics
 
     public void Drop(string what, string? id, string reason, string detail = "") =>
         _items.Add(new JsonObject { ["what"] = what, ["id"] = id, ["reason"] = reason, ["detail"] = detail });
+
+    private static readonly string[] MessageKinds = ["call", "return", "ai", "event", "error"];
+    private static readonly string[] EdgeKinds = ["calls", "spawns", "data", "reads", "writes", "minor"];
+    private static readonly string[] EdgeKindAliases =
+    [
+        "call", "uses", "spawn", "process", "read", "write", "secondary", "imports", "implements",
+        "extends", "inherits", "composes", "contains", "depends", "depends_on", "removed",
+    ];
+    private static readonly string[] PlainEdgeKinds = ["", "calls", "call", "uses"];
+    // These author structural verbs (observes, wraps, ...), so an unknown kind there is not a typo.
+    private static readonly string[] StructuralKinds = ["c1", "patterns", "impact"];
+    private static readonly Regex FailureWords = new(@"\b(error|fail\w*|denied|timeout|timed out)\b", RegexOptions.IgnoreCase);
+    private static readonly Regex SpawnWords = new(@"\b(spawn\w*|launch\w*|(start|starts|starting|run|runs|fork\w*)\s+(a\s+|an\s+|the\s+)?(sub)?(process|cli|agent|worker|daemon))\b", RegexOptions.IgnoreCase);
+    private static readonly Regex DataWords = new(@"\b(read|reads|write|writes|reading|writing|persist\w*|stores?|saves?)\b.{0,40}\b(files?|disk|database|db|sqlite|store|cache|json)\b", RegexOptions.IgnoreCase);
+
+    /// <summary>Records the check_diagram.py edge/message-kind advisories as soft diagnostics (never drops).</summary>
+    public void AdviseRelations(IEnumerable<JsonNode?> relations, string? kind)
+    {
+        if (kind == "custom") return;
+        foreach (var relation in relations.OfType<JsonObject>())
+        {
+            if (kind == "sequence") AdviseMessage(relation);
+            else AdviseEdge(relation, structural: kind is not null && StructuralKinds.Contains(kind));
+        }
+    }
+
+    private void AdviseMessage(JsonObject relation)
+    {
+        var kind = Json.Str(relation["kind"]);
+        var id = Json.Str(relation["id"]);
+        if (kind is not null && !MessageKinds.Contains(kind)) Drop("relation", id, "bad_message_kind", $"kind='{kind}'");
+        var label = Json.Str(relation["label"]) ?? "";
+        if (kind != "error" && !Json.Truthy(relation["failure"]) && FailureWords.IsMatch(label))
+            Drop("relation", id, "failure_kind", $"label '{label}': set kind to error");
+    }
+
+    private void AdviseEdge(JsonObject relation, bool structural)
+    {
+        var kindNode = relation["kind"];
+        var kind = Json.Str(kindNode);
+        var pair = $"{Json.Str(relation["from"])} -> {Json.Str(relation["to"])}";
+        var unknown = kindNode is not null && (kind is null || !EdgeKinds.Concat(EdgeKindAliases).Contains(kind.Trim().ToLowerInvariant()));
+        if (!structural && unknown)
+        {
+            Drop("relation", pair, "bad_edge_kind", kind is null ? $"kind={kindNode!.ToJsonString()}" : $"kind='{kind}'");
+            return;
+        }
+        var plain = kindNode is null || (kind is not null && PlainEdgeKinds.Contains(kind.Trim().ToLowerInvariant()));
+        if (!plain || Json.Str(relation["label"]) is not { } label) return;
+        if (SpawnWords.IsMatch(label)) Drop("relation", pair, "edge_kind_spawn", $"label '{label}': set kind to spawns");
+        else if (DataWords.IsMatch(label)) Drop("relation", pair, "edge_kind_data", $"label '{label}': set kind to data");
+    }
 
     /// <summary>A capped list plus the true total the cap may have hidden.</summary>
     public JsonObject AsPayload()
@@ -130,8 +183,68 @@ public static class DiagramResolver
         return copy;
     }
 
+    /// <summary>{node_id, path, line?} for a real graph node (line from its symbol), else null.</summary>
+    private static JsonObject? Locate(IGraphEngine engine, JsonNode? nodeId)
+    {
+        if (Json.Str(nodeId) is not { } id || engine.GetNode(id) is not { } node) return null;
+        var symbol = engine.GetSymbol(id);
+        var path = symbol?.FilePath ?? node.SourcePath;
+        var found = new JsonObject { ["node_id"] = id };
+        if (!string.IsNullOrEmpty(path)) found["path"] = path;
+        if (symbol is { StartLine: > 0 }) found["line"] = symbol.StartLine;
+        return found;
+    }
+
+    /// <summary>Python's `authored == resolved` for a numeric line (12.0 equals 12); anything else mismatches.</summary>
+    private static bool SameLine(JsonNode? authored, int resolved) =>
+        authored is JsonValue v && ((v.TryGetValue(out int i) && i == resolved) || (v.TryGetValue(out double d) && d == resolved));
+
+    /// <summary>Stamps `resolved` on each route step and `path`/`resolved_line`/`line_mismatch` on each child (026).</summary>
+    private static JsonNode? ResolveRoute(IGraphEngine engine, JsonNode? route, Diagnostics notes)
+    {
+        if (route is not JsonObject r || r["steps"] is not JsonArray steps) return route;
+        var outSteps = new JsonArray();
+        foreach (var raw in steps)
+        {
+            if (raw is not JsonObject step) { outSteps.Add(raw?.DeepClone()); continue; }
+            var copy = (JsonObject)step.DeepClone();
+            var found = new JsonArray();
+            foreach (var nid in step["node_ids"] as JsonArray ?? [])
+            {
+                if (Locate(engine, nid) is { } hit) found.Add(hit);
+                else notes.Drop("route_step", Json.Str(step["id"]), "unresolved_path", Json.Str(nid) ?? nid?.ToJsonString() ?? "");
+            }
+            var children = new JsonArray();
+            foreach (var rawChild in step["children"] as JsonArray ?? [])
+            {
+                if (rawChild is not JsonObject child) { children.Add(rawChild?.DeepClone()); continue; }
+                var childCopy = (JsonObject)child.DeepClone();
+                var hit = Locate(engine, child["node_id"]);
+                if (hit is null && Json.Truthy(child["node_id"]))
+                    notes.Drop("route_child", Json.Str(child["id"]), "unresolved_path", Json.Str(child["node_id"]) ?? "");
+                if (hit is not null)
+                {
+                    if (hit["path"] is { } path) childCopy["path"] = path.DeepClone();
+                    if (hit["line"] is { } line)
+                    {
+                        childCopy["resolved_line"] = line.DeepClone();
+                        if (!SameLine(child["line"], line.GetValue<int>()))
+                            childCopy["line_mismatch"] = true;
+                    }
+                }
+                children.Add(childCopy);
+            }
+            copy["resolved"] = found;
+            copy["children"] = children;
+            outSteps.Add(copy);
+        }
+        var result = (JsonObject)r.DeepClone();
+        result["steps"] = outSteps;
+        return result;
+    }
+
     /// <summary>The one resolver every diagram kind calls; a style source of null falls back to the diagram's own.</summary>
-    public static JsonObject Resolve(IGraphEngine engine, JsonObject data, JsonNode? styleSource = null)
+    public static JsonObject Resolve(IGraphEngine engine, JsonObject data, JsonNode? styleSource = null, string? kind = null)
     {
         var notes = new Diagnostics();
         var overrides = DiagramStyles.Overrides(styleSource ?? data["style"]);
@@ -167,12 +280,15 @@ public static class DiagramResolver
             relations.Add(relation);
         }
 
+        notes.AdviseRelations(relations, kind ?? Json.Str(data["type"]));
+
         var groups = new JsonArray();
         if (Json.Truthy(overrides["supports_groups"]))
             foreach (var group in nodes.Select(n => Json.Str(n["group"])).Where(g => !string.IsNullOrEmpty(g)).Distinct().Order(StringComparer.Ordinal))
                 groups.Add(group);
 
         var resolved = (JsonObject)data.DeepClone();
+        if (ResolveRoute(engine, data["route"], notes) is { } route) resolved["route"] = route;
         resolved["nodes"] = new JsonArray(nodes.Select(n => (JsonNode?)n).ToArray());
         resolved["relations"] = new JsonArray(relations.ToArray());
         resolved["groups"] = groups;

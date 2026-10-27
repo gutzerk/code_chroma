@@ -91,4 +91,20 @@ public class CanvasUnitTests
         Assert.Equal("s", shape.Nodes[0].Meta!["summary"]!.GetValue<string>());
         Assert.True(shape.Nodes[2].Meta!["hero"]!.GetValue<bool>());
     }
+
+    [Fact]
+    public void A_route_rides_on_every_node_with_a_derived_summary_like_python()
+    {
+        var resolved = JsonNode.Parse("""
+            {"nodes":[{"id":"a","name":"A"},{"id":"b","name":"B"}],
+             "route":{"id":"r","steps":[{"id":"a","kind":"trigger","node_ids":["f1"],"children":[]},
+                                         {"id":"b","kind":"ai","node_ids":["f1","f2"],"children":[]}]}}
+            """)!.AsObject();
+
+        var shape = Recipes.Reshape(resolved, "custom");
+
+        Assert.Equal("2 steps · 2 files · 1 AI steps", shape.Nodes[0].Meta!["route"]!["summary"]!.GetValue<string>());
+        Assert.Equal("trigger", shape.Nodes[0].Meta!["route_step"]!["kind"]!.GetValue<string>());
+        Assert.Equal("b", shape.Nodes[1].Meta!["route_step"]!["id"]!.GetValue<string>());
+    }
 }

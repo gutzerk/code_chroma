@@ -154,6 +154,7 @@ Rules:
   by two different Adapters, or extended by a Strategy implementation: put it in `nodes[]` (kind
   `"external"` or `"infra"`, no `parent`) and let each instance's relation point to it by id. The
   canvas clusters by `parent` automatically; don't try to pick a "primary" pattern for it yourself.
+- Edge `kind`: `calls` (default), `spawns` (starts a process/CLI/agent), `data` (reads/writes a file/DB/store), `minor` (optional link) -- set `spawns`/`data` whenever true; see `drawing-rules.md` "Edge kinds".
 - `relations[]` — every edge, instance-internal or cross-cluster: what connects two participants of
   the same instance, a free-standing node to a participant, or two instances to each other. Direction
   is who initiates. A self-relation (a class calling itself) is allowed, unlike most other types.

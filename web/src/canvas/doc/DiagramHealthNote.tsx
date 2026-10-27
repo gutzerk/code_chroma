@@ -14,7 +14,15 @@ const REASON_LABELS: Record<string, string> = {
   depth_capped: "below the depth limit",
   unresolved_path: "its path matches no code",
   status_coerced: "unrecognized status",
+  bad_message_kind: "unknown message kind",
+  failure_kind: "failure not marked as an error",
+  bad_edge_kind: "unknown arrow kind",
+  edge_kind_spawn: "starts a process but is drawn as a call",
+  edge_kind_data: "reads or writes data but is drawn as a call",
 };
+
+/** Slugs that only advise: the part is drawn, just not as well as it could be. */
+const ADVISORY = new Set(["bad_message_kind", "failure_kind", "bad_edge_kind", "edge_kind_spawn", "edge_kind_data"]);
 
 /** At most this many individual reasons before the note collapses to a bare count. */
 const REASONS_SHOWN = 3;
@@ -75,6 +83,16 @@ export function DiagramHealthNote() {
 
 /** "3 parts not drawn: points at a box that isn't there, wrong shape" — count first, then why. */
 function summarize(dropped: DiagramDrop[], total: number): string {
+  if (dropped.length > 0 && dropped.every((drop) => ADVISORY.has(drop.reason)) && dropped.length === total) {
+    const hints = [...new Set(dropped.map((drop) => REASON_LABELS[drop.reason]))].slice(0, REASONS_SHOWN);
+    return `${total} drawing ${total === 1 ? "hint" : "hints"}: ${hints.join(", ")}`;
+  }
+  const hintCount = dropped.filter((drop) => ADVISORY.has(drop.reason)).length;
+  if (hintCount > 0 && dropped.length === total) {
+    const real = dropped.filter((drop) => !ADVISORY.has(drop.reason));
+    const why = [...new Set(real.map((drop) => REASON_LABELS[drop.reason] ?? drop.reason))].slice(0, REASONS_SHOWN);
+    return `${real.length} ${real.length === 1 ? "part" : "parts"} not drawn: ${why.join(", ")}; ${hintCount} drawing ${hintCount === 1 ? "hint" : "hints"}`;
+  }
   const noun = total === 1 ? "part" : "parts";
   const reasons = [...new Set(dropped.map((drop) => REASON_LABELS[drop.reason] ?? drop.reason))];
   if (reasons.length === 0) return `${total} ${noun} not drawn`;

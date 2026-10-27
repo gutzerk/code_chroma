@@ -96,6 +96,7 @@ public static class WikiGeneral
     /// <summary>Clears stale pages and readies the plain wiki before a run; an error message on failure, else null.</summary>
     public static string? PrepareNewRun(Workspace ws)
     {
+        DiscardManifestSnapshot(ws.Id);
         Clear(ws.Root);
         return SyncPlainWiki(ws);
     }

@@ -187,13 +187,14 @@ def parse_model_list(text: str) -> list[dict] | None:
 
 
 def _probe_cli_models(adapter: str | None) -> list[dict] | None:
-    """Ask an installed claude/codex CLI for its models; None when it cannot answer."""
-    if adapter not in ("claude", "codex") or not (binary := shutil.which(adapter)):
+    """Ask an installed claude/codex/gemini CLI for its models; None when it cannot answer."""
+    if adapter not in ("claude", "codex", "gemini") or not (binary := shutil.which(adapter)):
         return None
     try:
-        if adapter == "codex":
+        if adapter in ("codex", "gemini"):
+            args = ["debug", "models"] if adapter == "codex" else ["models", "list", "-o", "json"]
             result = subprocess.run(
-                [binary, "debug", "models"],
+                [binary, *args],
                 capture_output=True,
                 text=True,
                 encoding="utf-8",

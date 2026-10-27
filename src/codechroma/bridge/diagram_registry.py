@@ -168,7 +168,9 @@ class DiagramRegistry(dict):
         def resolve(ws: Workspace) -> dict:
             # Coverage/staleness are opt-in add-ons (FR-005/FR-006); custom had neither before.
             data = ws.load_diagram(kind)
-            resolved = resolve_diagram(ws.engine, data, style_source=definition.get("style"))
+            resolved = resolve_diagram(
+                ws.engine, data, style_source=definition.get("style"), kind="custom"
+            )
             resolved["has_diagram"] = bool(data)
             if not grouping_enabled(definition):
                 resolved["groups"] = []
@@ -362,7 +364,7 @@ DIAGRAMS: DiagramRegistry = DiagramRegistry({
         root_for=lambda ws: ws.root,
         artifact_path=lambda root: root / BUILTIN_TYPES["sequence"].artifact,
         # Sequence resolves through the shared resolver (flat nodes[]/relations[] are participants/
-        # messages) — it never re-derives from the live graph, only from the authored file.
+        # messages) â€” it never re-derives from the live graph, only from the authored file.
         resolve=_resolve_sequence,
         sync_before_resolve=False,
         has_generate=False,
@@ -373,3 +375,4 @@ DIAGRAMS: DiagramRegistry = DiagramRegistry({
         supports_only_if_missing=False,
     ),
 })
+

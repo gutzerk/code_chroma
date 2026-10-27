@@ -1,5 +1,6 @@
-import { describe, expect, it } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { afterEach, describe, expect, it } from "vitest";
+import { fireEvent, render, screen } from "@testing-library/react";
+import { inspectorStore } from "../inspectorStore";
 import { GroupFrame } from "./GroupFrame";
 import { groupColorIndex } from "./groupColor";
 import type { CanvasElement } from "../../state/types";
@@ -94,5 +95,36 @@ describe("GroupFrame board styling", () => {
 
     expect(screen.getByTestId("canvas-group-frame").className).toContain("canvas-group-frame-color-4");
     expect(screen.getByTestId("canvas-group-frame-open")).toBeInTheDocument();
+  });
+
+  describe("the open arrow", () => {
+    afterEach(() => inspectorStore.close());
+
+    it("opens the inspector on a group that has a resolved node", () => {
+      const group = groupOf({ id: "g1", node_id: "dir::src/api" });
+      render(<GroupFrame element={group} members={[memberOf({ id: "m1" })]} sizes={new Map()} />);
+
+      fireEvent.click(screen.getByTestId("canvas-group-frame-open"));
+
+      expect(inspectorStore.getStack().map((entry) => entry.id)).toEqual(["dir::src/api"]);
+    });
+
+    it("opens a folder node for a group that only carries an authored path", () => {
+      const group = groupOf({ id: "g1", meta: { path: "./src/web/" } });
+      render(<GroupFrame element={group} members={[memberOf({ id: "m1" })]} sizes={new Map()} />);
+
+      fireEvent.click(screen.getByTestId("canvas-group-frame-open"));
+
+      expect(inspectorStore.getStack().map((entry) => entry.id)).toEqual(["dir::src/web"]);
+    });
+
+    it("only centres a group with no path", () => {
+      const group = groupOf({ id: "g1" });
+      render(<GroupFrame element={group} members={[memberOf({ id: "m1" })]} sizes={new Map()} />);
+
+      fireEvent.click(screen.getByTestId("canvas-group-frame-open"));
+
+      expect(inspectorStore.getStack()).toEqual([]);
+    });
   });
 });

@@ -24,6 +24,8 @@ export interface RelationshipEdgeProps {
    * Space-separated suffixes each produce their own class, so a caller can stack an overlay variant
    * and a per-kind colour ("--pattern --kind-uses") without them fusing into one bogus class. */
   variantSuffix?: string;
+  /** Passed to EdgeLabel: `board` renders the design-board pill. */
+  labelVariant?: "board";
   /** Set by the change review: an arrow the diff added (dashed) or removed (grey ghost). */
   changeStatus?: ImpactChangeStatus;
   /** Set by an Impact diagram's own authored `relations[].hero` (pr-lens-style emphasis): the 1-2
@@ -67,6 +69,7 @@ export function RelationshipEdge({
   fromNodeId,
   toNodeId,
   variantSuffix = "",
+  labelVariant,
   changeStatus,
   isHero = false,
   style,
@@ -131,6 +134,7 @@ export function RelationshipEdge({
         transport={transport}
         origin={origin}
         onOpenOrigin={onOpenOrigin}
+        variant={labelVariant}
       />
     </g>
   );

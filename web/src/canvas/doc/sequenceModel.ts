@@ -63,10 +63,10 @@ if (SEQUENCE_PALETTE.length !== GROUP_COLOR_COUNT) {
 
 /** 022 boards: a participant's colour follows its role (UI cyan, code blue, AI/external violet, data orange). */
 const SEQUENCE_KIND_ACCENTS: ReadonlyArray<readonly [RegExp, string]> = [
-  [/(ai|llm|external)/, "180, 156, 255"],
-  [/(ui|client|canvas|browser|actor|user|person)/, "34, 211, 238"],
-  [/(data|db|database|store|storage|file|cache|queue)/, "251, 146, 60"],
-  [/(route|routes|api|service|runner|cli|script|worker|server|handler|python|c#)/, "127, 184, 255"],
+  [/\b(ai|llm|external)\b/, "180, 156, 255"],
+  [/\b(ui|client|canvas|browser|actor|user|person)\b/, "34, 211, 238"],
+  [/\b(data|db|database|store|storage|file|cache|queue)\b/, "251, 146, 60"],
+  [/\b(route|routes|api|service|runner|cli|script|worker|server|handler|python|c#)\b/, "127, 184, 255"],
 ];
 
 function sequenceAccentRef(ref: string, kind?: string): string {
@@ -178,3 +178,9 @@ export function buildSequenceModel(elements: CanvasElement[]): SequenceModel {
 
   return { participants, messages, phases, frames, notes, bounds };
 }
+
+/** Extra width the Focus timeline panel needs right of the lifelines, so the diagram frame encloses it. */
+export const SEQUENCE_PANEL_SPACE = 244;
+
+/** Extra height under the lifelines for the legend row, so the diagram frame encloses it. */
+export const SEQUENCE_LEGEND_SPACE = 44;

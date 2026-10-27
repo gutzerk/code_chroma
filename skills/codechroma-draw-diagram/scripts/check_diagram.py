@@ -908,6 +908,8 @@ EDGE_KIND_ALIASES = (
     "extends", "inherits", "composes", "contains", "depends", "depends_on", "removed",
 )
 _PLAIN_EDGE_KINDS = ("", "calls", "call", "uses")
+# These author structural verbs (observes, wraps, ...), so an unknown kind there is not a typo.
+_STRUCTURAL_KINDS = ("c1", "patterns", "impact")
 _SPAWN_WORDS = re.compile(
     r"\b(spawn\w*|launch\w*|(start|starts|starting|run|runs|fork\w*)\s+(a\s+|an\s+|the\s+)?"
     r"(sub)?(process|cli|agent|worker|daemon))\b", re.IGNORECASE,
@@ -926,7 +928,11 @@ def _check_edge_kinds(relations: list[dict], kind: str, report: _Report) -> None
     for relation in relations:
         edge_kind = relation.get("kind")
         pair = f"{relation.get('from')!r} -> {relation.get('to')!r}"
-        if isinstance(edge_kind, str) and edge_kind.strip().lower() not in known:
+        if (
+            kind not in _STRUCTURAL_KINDS
+            and isinstance(edge_kind, str)
+            and edge_kind.strip().lower() not in known
+        ):
             report.advisories.append(
                 f"BADEDGEKIND {pair} kind={edge_kind!r} is not one of {', '.join(EDGE_KINDS)}"
             )

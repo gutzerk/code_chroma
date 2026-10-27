@@ -241,8 +241,8 @@ def _message_node(item: dict) -> GraphNode:
         meta["kind"] = item["kind"]
     if item.get("failure") is not None:
         meta["failure"] = bool(item["failure"])
-    # A private "kind" is irrelevant on a message; drop `_node_of`'s kind/icon/parent folding by
-    # building the GraphNode directly from the relation's own fields.
+    # Build the GraphNode directly from the relation's own fields, skipping `_node_of`'s kind/icon/
+    # parent folding; the message `kind` rides in `meta` above for the sequence error styling.
     return GraphNode(
         key=item["id"],
         render="sequence",

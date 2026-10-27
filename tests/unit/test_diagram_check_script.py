@@ -600,15 +600,26 @@ def test_known_edge_kinds_raise_no_edge_kind_advisory(tmp_path, capsys, edge):
 
 def test_unknown_edge_kind_is_an_advisory_that_never_fails(tmp_path, capsys):
     module = _load_module()
-    path = tmp_path / "impact.json"
+    path = tmp_path / "feature-plan.json"
     path.write_text(json.dumps(_kind_relations(kind="teleports")), encoding="utf-8")
 
-    code = module.main(["--kind", "impact", "--json", str(path)])
+    code = module.main(["--kind", "feature-plan", "--slug", "demo", "--json", str(path)])
 
     out = capsys.readouterr().out
     assert "BADEDGEKIND" in out
     assert code in (0, 3)
     assert "BROKEN" not in out
+
+
+@pytest.mark.parametrize("kind", ["c1", "patterns", "impact"])
+def test_structural_diagrams_skip_the_unknown_edge_kind_advisory(tmp_path, capsys, kind):
+    module = _load_module()
+    path = tmp_path / f"{kind}.json"
+    path.write_text(json.dumps(_kind_relations(kind="observes")), encoding="utf-8")
+
+    module.main(["--kind", kind, "--json", str(path)])
+
+    assert "BADEDGEKIND" not in capsys.readouterr().out
 
 
 @pytest.mark.parametrize(("label", "tag"), [

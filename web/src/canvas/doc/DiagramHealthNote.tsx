@@ -87,6 +87,12 @@ function summarize(dropped: DiagramDrop[], total: number): string {
     const hints = [...new Set(dropped.map((drop) => REASON_LABELS[drop.reason]))].slice(0, REASONS_SHOWN);
     return `${total} drawing ${total === 1 ? "hint" : "hints"}: ${hints.join(", ")}`;
   }
+  const hintCount = dropped.filter((drop) => ADVISORY.has(drop.reason)).length;
+  if (hintCount > 0 && dropped.length === total) {
+    const real = dropped.filter((drop) => !ADVISORY.has(drop.reason));
+    const why = [...new Set(real.map((drop) => REASON_LABELS[drop.reason] ?? drop.reason))].slice(0, REASONS_SHOWN);
+    return `${real.length} ${real.length === 1 ? "part" : "parts"} not drawn: ${why.join(", ")}; ${hintCount} drawing ${hintCount === 1 ? "hint" : "hints"}`;
+  }
   const noun = total === 1 ? "part" : "parts";
   const reasons = [...new Set(dropped.map((drop) => REASON_LABELS[drop.reason] ?? drop.reason))];
   if (reasons.length === 0) return `${total} ${noun} not drawn`;

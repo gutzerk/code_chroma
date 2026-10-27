@@ -176,11 +176,15 @@ def line_counts(
 ) -> dict[str, tuple[int, int]]:
     """Repo-relative path -> (additions, deletions) vs `base`; untracked counts all lines."""
     counts: dict[str, tuple[int, int]] = {}
-    raw = run_git(repo_root, "diff", "--numstat", "--relative", base, "--", ".") or ""
-    for line in raw.splitlines():
-        parts = line.split("	")
+    # -z + no quotepath + no renames: raw unquoted paths, one NUL-terminated record per file.
+    raw = run_git(
+        repo_root, "-c", "core.quotepath=false", "diff", "--numstat", "-z", "--no-renames",
+        "--relative", base, "--", ".",
+    ) or ""
+    for record in raw.split("\0"):
+        parts = record.lstrip("\n").split("	", 2)
         if len(parts) == 3 and parts[0].isdigit() and parts[1].isdigit():
-            counts[parts[2].strip().strip('"')] = (int(parts[0]), int(parts[1]))
+            counts[parts[2]] = (int(parts[0]), int(parts[1]))
     for path, kind in statuses.items():
         if path in counts or kind != "added":
             continue

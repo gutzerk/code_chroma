@@ -16,6 +16,8 @@ export interface QuestionCardProps {
   onRevise: (question: QuestionView) => void;
   /** Asks the agent to add a diagram to every option that lacks one. */
   onRequestDiagram?: () => void;
+  /** Opens the asking agent's full-window chat; the button shows only when set. */
+  onChat?: () => void;
   /** Controlled highlighted option (a host shares it with the diagram); leave unset for the card to own it. */
   selectedId?: string | null;
   /** Called with the new highlighted option when the user picks one. */
@@ -26,7 +28,7 @@ export interface QuestionCardProps {
 
 /** One agent question: progress, title, selectable option tiles, custom answer, Send, skip and history. */
 export function QuestionCard({
-  question, history, variant = "full", busy, error, onChooseOption, onCustomAnswer, onSkip, onRevise, onRequestDiagram,
+  question, history, variant = "full", busy, error, onChooseOption, onCustomAnswer, onSkip, onRevise, onRequestDiagram, onChat,
   selectedId: controlledId, onSelectedIdChange, onReturnFocus,
 }: QuestionCardProps) {
   const [draft, setDraft] = useState("");
@@ -178,6 +180,11 @@ export function QuestionCard({
             onClick={onRequestDiagram}
           >
             {question.diagramRequested ? S.diagramRequested : S.addDiagram}
+          </button>
+        )}
+        {onChat && (
+          <button type="button" className="question-quiet" onClick={onChat}>
+            {S.chat}
           </button>
         )}
         {question.allowSkip && (

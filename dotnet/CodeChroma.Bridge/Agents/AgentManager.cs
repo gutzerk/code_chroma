@@ -44,6 +44,9 @@ public sealed partial class AgentManager
     /// <summary>"Can the canvas draw this id?" for ids this manager knows nothing about, for example a PR's.</summary>
     public Func<string, bool> WorkspaceGuard { get; set; } = _ => false;
 
+    /// <summary>Resolves a br_* worktree tab, so Create can share its worktree and base branch.</summary>
+    public Func<string, BranchRecord?> BranchLookup { get; set; } = _ => null;
+
     public string RegistryPath => Path.Combine(MainRoot, ".codechroma", "agents.json");
 
     public string ActiveWorkspace => _activeWorkspace;
@@ -119,14 +122,20 @@ public sealed partial class AgentManager
 
     // --- writes ---
 
-    /// <summary>Slug, branch, worktree, record, persist; attach_to reuses a target's own worktree.</summary>
-    public AgentRecord Create(string title, string kind = AgentRecord.DefaultKind, string? attachTo = null, string? context = null, string contextKind = "view", string? diagramType = null, string? diagramRequest = null)
+    /// <summary>Slug, record, persist: the agent shares attach_to's worktree, or its tab's (workspace) when attach_to is absent; main is never a target.</summary>
+    public AgentRecord Create(string title, string kind = AgentRecord.DefaultKind, string? attachTo = null, string? context = null, string contextKind = "view", string? diagramType = null, string? diagramRequest = null, string? workspace = null)
     {
+        if (attachTo == Workspace.MainId) throw new WorktreeException("agents cannot attach to main");
+        if (attachTo is null && string.IsNullOrEmpty(workspace)) throw new WorktreeException("workspace is required");
+        if (!string.IsNullOrEmpty(workspace) && !workspace.StartsWith(BranchManager.IdPrefix, StringComparison.Ordinal))
+            throw new WorktreeException($"workspace must be a worktree tab id, not '{workspace}'");
+        if (!string.IsNullOrEmpty(workspace) && BranchLookup(workspace) is null) throw new UnknownAgentException(workspace);
+        attachTo ??= workspace;
         context = AgentRecord.CleanContext(context);
         contextKind = AgentRecord.CoerceContextKind(contextKind);
         return Add(title, (agentId, displayTitle, createdAt) =>
         {
-            var prTarget = attachTo is not null ? PrTarget(attachTo) : null;
+            var prTarget = PrTarget(attachTo!);
             string branch, path;
             string? baseBranch;
             if (prTarget is not null)
@@ -136,14 +145,9 @@ public sealed partial class AgentManager
                 path = prTarget.Worktree;
                 baseBranch = prTarget.BaseRef;
             }
-            else if (attachTo is null)
-            {
-                (branch, path) = NewWorktree(agentId);
-                baseBranch = BaseBranchFor(attachTo);
-            }
             else
             {
-                (branch, path) = AttachTarget(attachTo);
+                (branch, path) = AttachTarget(attachTo!);
                 baseBranch = BaseBranchFor(attachTo);
             }
             return new AgentRecord
@@ -155,6 +159,7 @@ public sealed partial class AgentManager
                 Worktree = path,
                 CreatedAt = createdAt,
                 SharesWorkspaceWith = attachTo,
+                Workspace = prTarget is not null || string.IsNullOrEmpty(workspace) ? null : workspace,
                 BaseBranch = baseBranch,
                 SourcePr = prTarget is not null ? attachTo : null,
                 Context = context,
@@ -231,31 +236,43 @@ public sealed partial class AgentManager
         return PrLookup(attachTo) ?? throw new UnknownAgentException(attachTo);
     }
 
-    private string? BaseBranchFor(string? attachTo) =>
-        attachTo is null || attachTo == Workspace.MainId ? MainBranchOps.CurrentBranch(MainRoot) : Get(attachTo).BaseBranch;
-
-    /// <summary>Forks a fresh branch/worktree for agentId, with skills installed and diagrams seeded.</summary>
-    private (string Branch, string Path) NewWorktree(string agentId)
+    private string? BaseBranchFor(string? attachTo)
     {
-        var branch = WorktreeOps.BranchName(agentId);
-        var path = WorktreeOps.WorktreePath(MainRoot, agentId);
-        GitExclude.Ensure(MainRoot, [.. SkillSync.WorktreeExcludes]);
-        WorktreeOps.Add(MainRoot, branch, path);
-        InstallSkills(path);
-        SeedDiagrams(path);
-        return (branch, path);
+        if (attachTo is null || attachTo == Workspace.MainId) return MainBranchOps.CurrentBranch(MainRoot);
+        return BranchLookup(attachTo) is { } tab ? tab.Branch : Get(attachTo).BaseBranch;
     }
 
-    /// <summary>The branch/worktree an attach-created agent shares: main's own, or another agent's.</summary>
+    /// <summary>The branch/worktree an attach-created agent shares: a worktree tab's, or another agent's.</summary>
     private (string Branch, string Path) AttachTarget(string attachTo)
     {
-        if (attachTo == Workspace.MainId)
+        if (BranchLookup(attachTo) is { } tab)
         {
-            var branch = MainBranchOps.CurrentBranch(MainRoot) ?? throw new WorktreeException("main has no checked-out branch to attach to (detached HEAD)");
-            return (branch, MainRoot);
+            if (!Directory.Exists(tab.Worktree)) throw new WorktreeException($"the worktree of {attachTo} is missing; restore it first");
+            return (tab.Branch, tab.Worktree);
         }
         var target = Get(attachTo);
         return (target.Branch, target.Worktree);
+    }
+
+    /// <summary>Agents living in a worktree tab: created in it, or sharing its worktree.</summary>
+    public List<AgentRecord> AttachedToWorkspace(string workspaceId)
+    {
+        lock (_lock) return _agents.Where(a => InWorkspace(a, workspaceId)).ToList();
+    }
+
+    private static bool InWorkspace(AgentRecord a, string workspaceId) =>
+        a.Workspace == workspaceId || a.SharesWorkspaceWith == workspaceId;
+
+    /// <summary>Points every agent of a renamed tab at the tab's new git branch.</summary>
+    public void RenameBranch(string workspaceId, string branch)
+    {
+        lock (_lock)
+            foreach (var agent in _agents.Where(a => InWorkspace(a, workspaceId)))
+            {
+                agent.Branch = branch;
+                agent.BaseBranch = branch;
+            }
+        Save();
     }
 
     private void InstallSkills(string root) => SkillSync.InstallIntoWorktree(root);

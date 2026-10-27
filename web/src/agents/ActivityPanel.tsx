@@ -4,6 +4,7 @@ import { QUESTION_STRINGS as S } from "../canvas/doc/question/questionStrings";
 import { useResizableSize } from "../canvas/useResizableSize";
 import { layoutStore, useLayoutState } from "../canvas/layout/layoutStore";
 import { useAgents, useAgentLaunchError } from "./agentStore";
+import { useActiveWorktreeId } from "./worktreeStore";
 import { DockedAgentPanel } from "./AgentTerminalDock";
 import { WorkflowsTab } from "../workflows/WorkflowsTab";
 import { AgentsHeaderActions } from "./activity/AgentsHeaderActions";
@@ -27,7 +28,13 @@ export function ActivityPanel({
   onRunAgent: () => void;
   disabled?: boolean;
 }) {
-  const agents = useAgents();
+  const allAgents = useAgents();
+  const worktreeTab = useActiveWorktreeId();
+  // Every agent's terminal stays mounted (below) so a tab switch never drops a session; only the active tab's are listed.
+  const agents = useMemo(
+    () => allAgents.filter((agent) => !agent.workspace || !worktreeTab || agent.workspace === worktreeTab),
+    [allAgents, worktreeTab],
+  );
   const agentClient = useAgentClient();
   const agentIds = useMemo(() => agents.map((a) => a.id), [agents]);
   const openQuestions = useOpenQuestionCount(agentIds);
@@ -194,7 +201,7 @@ export function ActivityPanel({
               No agents running. Run an agent to start working in this workspace.
             </p>
           )}
-          {agents.map((agent) => (
+          {allAgents.map((agent) => (
             <DockedAgentPanel
               key={agent.id}
               agent={agent}

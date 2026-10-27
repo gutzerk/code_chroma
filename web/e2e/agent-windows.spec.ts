@@ -38,7 +38,7 @@ test("launches agents directly into the right panel and switches their terminals
   await expect(page.getByRole("button", { name: /Detach/ })).toHaveCount(0);
 });
 
-test("keeps terminals mounted while changing tabs, collapsing and switching branches", async ({ page }) => {
+test("keeps terminals mounted while changing tabs, collapsing and switching worktrees", async ({ page }) => {
   await gotoApp(page);
   await page.getByRole("button", { name: "Run agent" }).click();
   const terminal = page.getByTestId("agent-terminal-agent1");
@@ -50,8 +50,8 @@ test("keeps terminals mounted while changing tabs, collapsing and switching bran
   await expect(terminal).toBeAttached();
   await page.getByRole("button", { name: "Expand agents and workflows" }).click();
   await page.getByRole("tab", { name: /Agents/ }).click();
-  await page.getByTestId("branch-switcher-button").click();
-  await page.getByTestId("branch-switcher-list").getByRole("button", { name: "feature-x", exact: true }).click();
+  await page.getByTestId("worktree-add").click();
+  await page.getByRole("tab", { name: "wt-1", exact: true }).click();
   await expect(terminal).toBeVisible();
   await expect(terminal).toHaveAttribute("data-e2e-mark", "original");
 });

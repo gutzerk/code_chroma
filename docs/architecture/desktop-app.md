@@ -31,18 +31,23 @@ and a bridge executable: `BundleCSharpBridge=true` produces it, or point `CODECH
 Logic is UI-free in `CodeChroma.Shell`; `CodeChroma.Shell.App` only renders.
 
 - `ShellController` drives `BridgeRegistry` -> `TabModel` -> `IShellUi.Navigate`. One `WebView.Avalonia`
-  per tab loads `http://127.0.0.1:<port>/?workspace=<id>` from that tab's bridge.
+  per tab loads `http://127.0.0.1:<port>/` (repo tab, no `workspace` param) or `/?workspace=pr-<n>` (PR tab) from that tab's bridge.
 - `Bridge/BridgeManager` launches `codechroma-bridge --repo-path <repo> --port <n>` (`BridgeCli`) and probes
   `/health`. **One bridge process per repo, permanently**: switching the opened repo respawns it. A PR
-  workspace or branch opened from the canvas is a *workspace tab* sharing its repo tab's bridge and never
+  workspace opened from the canvas is a *workspace tab* sharing its repo tab's bridge and never
   owns it; closing it leaves the repo tab running. Bridges join a KILL_ON_JOB_CLOSE Job Object on Windows,
   `BridgeRegistry.StopAllAsync` also stops still-starting bridges and `StartAsync` kills the process on
   cancellation or failure.
-- `Tabs/TabTitles`: repo tab `"<repo> [Main]"`, PR workspace `"<repo> [PR #n]"`, branch workspace
-  `"<repo> [<branch>]"`. Every repo tab loads `/?workspace=main` explicitly so it never inherits another
-  window's last pick.
-- `Projects/ProjectStores` (recents, with missing folders kept but flagged; per-repo workspace summaries
-  read best-effort from `.codechroma/{agents,prs}.json`), `Projects/TutorialProject` (+
+- Tab model: the top strip lists **projects** only (plus read-only PR workspace tabs). A project's worktree
+  strip lives in the web chrome (`WorktreeStrip.tsx`); the shell never opens a `br_*` branch workspace as its own tab.
+  `Tabs/TabTitles`: repo tab is the project folder name only (no `[Main]`), PR workspace `"<repo> [PR #n]"`.
+  The repo tab loads the bridge root without `workspace`; the page resolves its workspace by calling
+  `POST /branches/ensure`.
+  The launcher lists, under each recent project, its worktree tabs (`<repo>/.codechroma/branches.json`, `br_*` ids)
+  and open PRs (`prs.json`) via `WorkspaceSummaries`; no per-agent shortcuts. Clicking one calls
+  `OpenRepoAsync(repo, tab, workspaceId)`, which loads `/?workspace=<id>`; if the project is already open its tab is focused
+  and navigated (reloaded) to that URL, since there is no page-side switch message. A plain project open sends no param.
+- `Projects/ProjectStores` (recents, with missing folders kept but flagged), `Projects/TutorialProject` (+
   `tutorial-project.json`: the bundled todo-app tutorial restored into `<userData>/codechroma-tutorial`) and
   new-project creation (`git init`, no commit) feed the launcher panel (`LauncherPanel`).
 - The launcher also offers **Clone repository…**: enter an HTTPS/SSH Git URL, choose a parent destination
@@ -59,8 +64,7 @@ Logic is UI-free in `CodeChroma.Shell`; `CodeChroma.Shell.App` only renders.
   disabled; the default SSH client uses batch mode. Configured `core.sshCommand`, `GIT_SSH`, and
   `GIT_SSH_COMMAND` clients are preserved and must handle authentication without interactive prompts. Passwords
   in URLs and URL query strings are rejected. Local repository paths are also accepted. No bridge route is involved.
-- Opening an already-open project asks which branch to show (`Bridge/BranchBridgeClient`: `GET /branches/choices`,
-  `POST /branches`; a 409 names the workspace already showing it and the shell focuses that tab).
+- Opening an already-open project just focuses its existing tab (no branch prompt; `BranchBridgeClient` was removed).
 - `window.codechromaDesktop` is injected after each navigation and talks to the shell over the WebView message
   channel (`DesktopScript`/`DesktopMessage`). The shell accepts messages only while the tab URL origin equals its
   bridge origin; other navigations are cancelled and opened in the system browser.

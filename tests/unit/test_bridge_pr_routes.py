@@ -11,11 +11,11 @@ import sys
 from pathlib import Path
 
 import pytest
-from fastapi.testclient import TestClient
 
 from codechroma.bridge.prs import github as pr_github
 from codechroma.bridge.routes.prs import PR_REASON_GH_MISSING
 from codechroma.bridge.skill_agent import SkillAgent
+from tests.conftest import TabClient as TestClient
 from tests.conftest import git
 
 FIXTURE_REPO = Path(__file__).parent.parent / "fixtures" / "sample_repo"

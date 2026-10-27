@@ -2,8 +2,10 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { AgentClient } from "./agentClient";
 import type { AgentRecord } from "../state/types";
 import { PR_CLIENT_STUB } from "./stubAgentClient";
+import { worktreeStore } from "./worktreeStore";
 import { agentStore } from "./agentStore";
 import { attachAgent } from "./attachAgent";
+import { ensureWorktrees } from "./worktreeActions";
 
 function agentRecord(id: string): AgentRecord {
   return {
@@ -48,9 +50,6 @@ function client(create: AgentClient["create"]): AgentClient {
     workspaceStatus: async (id) => ({ id, state: "ready", progress: "", error: null }),
     gitPreflight: async () => ({ state: "ready", root: "/repo" }),
     gitInit: async () => ({ state: "ready", created_repo: true, created_gitignore: true }),
-    getBranch: async () => ({ current: "main", branches: ["main"] }),
-    switchBranch: async (branch) => ({ current: branch, branches: ["main"] }),
-    updateBranch: async () => ({ current: "main", branches: ["main"] }),
   };
 }
 
@@ -70,15 +69,47 @@ describe("attachAgent", () => {
 
     await attachAgent(client(create));
 
-    expect(create).toHaveBeenCalledWith("", "agent", "refund-flow", null);
+    expect(create).toHaveBeenCalledWith("", "agent", "refund-flow", null, undefined, undefined, undefined);
   });
 
-  it("attaches to main when that is the active workspace", async () => {
+  it("sends no attach_to for the pre-boot main placeholder", async () => {
     const create = vi.fn(async (title: string) => agentRecord(title || "helper"));
 
     await attachAgent(client(create));
 
-    expect(create).toHaveBeenCalledWith("", "agent", "main", null);
+    expect(create).toHaveBeenCalledWith("", "agent", undefined, null, undefined, undefined, undefined);
+  });
+
+  it("sends the active worktree tab as workspace and no attach_to", async () => {
+    worktreeStore.setList([{ id: "br_1", name: "wt-1", branch: "wt-1", worktree: "/w" }], "br_1");
+    agentStore.setActiveWorkspace("br_1");
+    const create = vi.fn(async (title: string) => agentRecord(title || "helper"));
+
+    await attachAgent(client(create));
+
+    expect(create).toHaveBeenCalledWith("", "agent", undefined, null, undefined, undefined, "br_1");
+    worktreeStore.reset();
+  });
+
+  it("ensureWorktrees keeps an explicit known tab over the bridge's active one and PUTs it", async () => {
+    const tabs = [
+      { id: "br_1", name: "wt-1", branch: "wt-1", worktree: "/w1" },
+      { id: "br_2", name: "wt-2", branch: "wt-2", worktree: "/w2" },
+    ];
+    const setActiveWorktree = vi.fn(async () => {});
+    const stub = {
+      ...client(vi.fn()),
+      ensureWorktrees: async () => ({ branches: tabs, active: "br_1" }),
+      setActiveWorktree,
+      activateWorkspace: async () => ({ state: "ready" }),
+    } as unknown as AgentClient;
+    agentStore.setActiveWorkspace("br_2");
+
+    await ensureWorktrees(stub);
+
+    expect(agentStore.getActiveWorkspace()).toBe("br_2");
+    expect(setActiveWorktree).toHaveBeenCalledWith("br_2");
+    worktreeStore.reset();
   });
 
   it("passes a given task as an actionable context_kind 'task' message instead of context", async () => {
@@ -87,7 +118,7 @@ describe("attachAgent", () => {
     await attachAgent(client(create), null, "What would you like to draw?");
 
     expect(create).toHaveBeenCalledWith(
-      "", "agent", "main", "What would you like to draw?", "task", undefined,
+      "", "agent", undefined, "What would you like to draw?", "task", undefined, undefined,
     );
   });
 
@@ -96,7 +127,7 @@ describe("attachAgent", () => {
 
     await attachAgent(client(create), null, "Draw it", { type: "patterns" });
 
-    expect(create).toHaveBeenCalledWith("", "agent", "main", "Draw it", "task", { type: "patterns" });
+    expect(create).toHaveBeenCalledWith("", "agent", undefined, "Draw it", "task", { type: "patterns" }, undefined);
   });
 
   it("passes a PR workspace id as attachTo when a PR is the active workspace", async () => {
@@ -105,7 +136,7 @@ describe("attachAgent", () => {
 
     await attachAgent(client(create));
 
-    expect(create).toHaveBeenCalledWith("", "agent", "pr-282", null);
+    expect(create).toHaveBeenCalledWith("", "agent", "pr-282", null, undefined, undefined, undefined);
   });
 
   it("does not switch the active workspace, since the canvas already shows what it attached to", async () => {
@@ -175,8 +206,8 @@ describe("attachAgent", () => {
     await attachAgent(target);
 
     expect(create).toHaveBeenCalledTimes(2);
-    expect(create).toHaveBeenNthCalledWith(1, "", "agent", "refund-flow", null);
-    expect(create).toHaveBeenNthCalledWith(2, "", "agent", "refund-flow", null);
+    expect(create).toHaveBeenNthCalledWith(1, "", "agent", "refund-flow", null, undefined, undefined, undefined);
+    expect(create).toHaveBeenNthCalledWith(2, "", "agent", "refund-flow", null, undefined, undefined, undefined);
     const [record1, record2] = [agentStore.getAgent("helper-1"), agentStore.getAgent("helper-2")];
     expect(record1?.worktree).toBe(record2?.worktree);
     expect(record1?.branch).toBe(record2?.branch);

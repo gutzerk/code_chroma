@@ -5,9 +5,9 @@ public class AppInfoTests
     [Theory]
     [InlineData("0.12.1", null, "CodeChroma 0.12.1")]
     [InlineData("v0.12.1", null, "CodeChroma 0.12.1")]
-    [InlineData("0.12.1", "repo [Main]", "repo [Main] - CodeChroma 0.12.1")]
+    [InlineData("0.12.1", "repo", "repo - CodeChroma 0.12.1")]
     [InlineData("", null, "CodeChroma")]
-    [InlineData("  ", "repo [Main]", "repo [Main] - CodeChroma")]
+    [InlineData("  ", "repo", "repo - CodeChroma")]
     public void The_window_title_carries_the_version_and_the_active_tab(string version, string? tab, string expected)
     {
         var title = AppInfo.WindowTitle(version, tab);

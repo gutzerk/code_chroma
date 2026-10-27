@@ -2,9 +2,11 @@ using System.Diagnostics;
 using System.Text;
 using System.Text.Json.Nodes;
 using CodeChroma.Bridge.Agents;
+using CodeChroma.Bridge.Workspaces;
 using CodeChroma.Bridge.Stores;
 using CodeChroma.Bridge.Terminal;
 using CodeChroma.Bridge.Tests.Support;
+using CodeChroma.Bridge.Tests.Terminal;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 
@@ -75,20 +77,27 @@ public sealed class SessionOwnershipTests
         }
     }
 
+    private static (AgentManager Manager, BranchRecord Tab) AgentsInTab(GitSandbox repo)
+    {
+        var branches = new BranchManager(repo.Root);
+        var tab = branches.CreateNext(null).Record;
+        return (new AgentManager(repo.Root) { BranchLookup = branches.Find }, tab);
+    }
+
     [Fact]
     public void Newer_external_transcripts_cannot_replace_an_owned_session_or_supply_a_legacy_id()
     {
         using var repo = new GitSandbox();
-        var manager = new AgentManager(repo.Root);
-        var owned = manager.Create("owner", attachTo: "main");
-        var legacy = manager.Create("legacy", attachTo: "main");
+        var (manager, tab) = AgentsInTab(repo);
+        var owned = manager.Create("owner", workspace: tab.Id);
+        var legacy = manager.Create("legacy", workspace: tab.Id);
         owned.SessionId = Guid.NewGuid().ToString();
         manager.Save();
         var oldConfig = Environment.GetEnvironmentVariable("CLAUDE_CONFIG_DIR");
         var config = repo.Sibling("claude");
         var project = Path.Combine(config, "projects", "same-worktree");
         Directory.CreateDirectory(project);
-        File.WriteAllText(Path.Combine(project, "external.jsonl"), new JsonObject { ["cwd"] = repo.Root, ["sessionId"] = "external" }.ToJsonString());
+        File.WriteAllText(Path.Combine(project, "external.jsonl"), new JsonObject { ["cwd"] = tab.Worktree, ["sessionId"] = "external" }.ToJsonString());
         Environment.SetEnvironmentVariable("CLAUDE_CONFIG_DIR", config);
         try
         {
@@ -103,9 +112,9 @@ public sealed class SessionOwnershipTests
     public void Clear_and_resume_events_update_only_the_process_owned_file_and_survive_reload()
     {
         using var repo = new GitSandbox();
-        var manager = new AgentManager(repo.Root);
-        var record = manager.Create("owner", attachTo: "main");
-        var sibling = manager.Create("sibling", attachTo: "main");
+        var (manager, tab) = AgentsInTab(repo);
+        var record = manager.Create("owner", workspace: tab.Id);
+        var sibling = manager.Create("sibling", workspace: tab.Id);
         record.SessionId = Guid.NewGuid().ToString();
         record.SessionTrackingId = Guid.NewGuid().ToString();
         manager.Save();
@@ -156,7 +165,8 @@ public sealed class SessionOwnershipTests
         using var host = new BridgeHost();
         var paths = host.Factory.Services.GetRequiredService<UserPaths>();
         JsonFile.Write(paths.Runtime, new JsonObject { ["cli_paths"] = new JsonObject { ["claude"] = cli.ExePath } });
-        await host.Client.PostAsync("/agents", Body("""{"title":"runner","attach_to":"main"}"""));
+        var tab = await TerminalSocketTests.EnsureTab(host);
+        await host.Client.PostAsync("/agents", Body($$"""{"title":"runner","workspace":"{{tab}}"}"""));
         var started = await host.Client.PostAsync("/agents/runner/start", Body("{}"));
         Assert.True(started.IsSuccessStatusCode, await started.Content.ReadAsStringAsync());
         var first = JsonNode.Parse(await started.Content.ReadAsStringAsync())!;
@@ -171,7 +181,7 @@ public sealed class SessionOwnershipTests
 
         var clearedId = Guid.NewGuid().ToString();
         AgentSessionOwnership.Record(new StringReader(new JsonObject { ["session_id"] = clearedId }.ToJsonString()), actual.SessionTrackingFile);
-        await host.Client.PostAsync("/agents", Body("""{"title":"sibling","attach_to":"main"}"""));
+        await host.Client.PostAsync("/agents", Body($$"""{"title":"sibling","workspace":"{{tab}}"}"""));
         var runtime = host.Factory.Services.GetServices<IHostedService>().OfType<AgentRuntime>().Single();
         await runtime.StopAsync(CancellationToken.None);
         await runtime.StartAsync(CancellationToken.None);

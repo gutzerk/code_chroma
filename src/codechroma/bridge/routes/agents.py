@@ -8,7 +8,7 @@ from uuid import uuid4
 
 from fastapi import APIRouter, HTTPException, Request
 
-from codechroma.bridge.agents import bootstrap, main_branch, publish
+from codechroma.bridge.agents import bootstrap, publish
 from codechroma.bridge.agents import worktree as worktree_ops
 from codechroma.bridge.agents.manager import (
     CONTEXT_KINDS,
@@ -23,6 +23,7 @@ from codechroma.bridge.agents.worktree import WorktreeError
 from codechroma.bridge.deps import Services
 from codechroma.bridge.routes._body import as_list, json_body
 from codechroma.bridge.services import BridgeServices
+from codechroma.bridge.workspaces import BRANCH_ID_PREFIX, MAIN_ID
 from codechroma.diagrams import kinds
 from codechroma.terminal.agents import ALLOWED_AGENTS, agent_cli, resolved_cli_for
 
@@ -65,68 +66,6 @@ async def post_git_init(request: Request, services: Services) -> dict:
     return await asyncio.to_thread(bootstrap.initialize, services.repo_root, extra)
 
 
-@router.get("/agents/branch")
-def get_branch(services: Services) -> dict:
-    """What the branch switcher shows: main's current branch plus the ones it can switch to."""
-    return {
-        "current": main_branch.current_branch(services.repo_root),
-        "branches": main_branch.switchable_branches(services.repo_root),
-    }
-
-
-def _live_agent_in_main_worktree(services: BridgeServices) -> AgentRecord | None:
-    """A live agent whose `claude` sits in main's own tree, which a checkout swaps underneath it."""
-    # `record.status` is stale until agent_payload refreshes it, so liveness comes off the session.
-    main_root = services.agent_manager.main_root
-    for record in services.agent_manager.list():
-        session = services.agent_sessions.get(record.id)
-        if session is None or not session.is_alive:
-            continue
-        if Path(record.worktree).resolve() == main_root:
-            return record
-    return None
-
-
-def _refuse_if_live_agent_in_main(services: BridgeServices) -> None:
-    """A checkout/pull swaps files under a live agent parked in main's own tree — refuse first."""
-    squatter = _live_agent_in_main_worktree(services)
-    if squatter is not None:
-        raise HTTPException(
-            status_code=409,
-            detail=f"stop {squatter.title} first — it works directly in the main worktree",
-        )
-
-
-@router.post("/agents/branch")
-async def post_branch(request: Request, services: Services) -> dict:
-    """Checks main's working tree out to `{branch}`; refuses over a dirty tree or unknown name."""
-    body = await json_body(request)
-    branch = body.get("branch")
-    if not isinstance(branch, str) or not branch:
-        raise HTTPException(status_code=400, detail="branch is required")
-    _refuse_if_live_agent_in_main(services)
-    try:
-        await asyncio.to_thread(main_branch.checkout, services.repo_root, branch)
-    except main_branch.DirtyWorkingTreeError as exc:
-        raise HTTPException(status_code=409, detail=str(exc)) from exc
-    except main_branch.UnknownBranchError as exc:
-        raise HTTPException(status_code=404, detail=f"unknown branch: {branch}") from exc
-    await services.connections.broadcast({"type": "branch-changed", "branch": branch})
-    branches = await asyncio.to_thread(main_branch.switchable_branches, services.repo_root)
-    return {"current": branch, "branches": branches}
-
-
-@router.post("/agents/branch/update")
-async def post_branch_update(services: Services) -> dict:
-    """Fast-forwards main's current branch from its upstream — PyCharm's Update, the safe form."""
-    _refuse_if_live_agent_in_main(services)
-    # update_branch returns the still-current branch, so no second rev-parse is needed here.
-    branch = await asyncio.to_thread(main_branch.update_branch, services.repo_root)
-    await services.connections.broadcast({"type": "branch-changed"})
-    branches = await asyncio.to_thread(main_branch.switchable_branches, services.repo_root)
-    return {"current": branch, "branches": branches}
-
-
 @router.get("/agents")
 def get_agents(services: Services) -> dict:
     """Every agent card plus which workspace the canvas should be drawing."""
@@ -152,6 +91,9 @@ async def post_agent(request: Request, services: Services) -> dict:
     attach_to = body.get("attach_to")
     if attach_to is not None and not isinstance(attach_to, str):
         raise HTTPException(status_code=400, detail="attach_to must be a string")
+    workspace = body.get("workspace")
+    if workspace is not None and not isinstance(workspace, str):
+        raise HTTPException(status_code=400, detail="workspace must be a string")
     context = body.get("context")
     if context is not None and not isinstance(context, str):
         raise HTTPException(status_code=400, detail="context must be a string")
@@ -159,14 +101,29 @@ async def post_agent(request: Request, services: Services) -> dict:
     if context_kind not in CONTEXT_KINDS:
         raise HTTPException(status_code=400, detail="context_kind must be 'view' or 'task'")
     diagram = _diagram_hint(body)
+    if attach_to == MAIN_ID:
+        raise HTTPException(status_code=400, detail="agents cannot attach to main")
+    if attach_to is None and not workspace:
+        raise HTTPException(status_code=400, detail="workspace is required")
+    if workspace:
+        if not workspace.startswith(BRANCH_ID_PREFIX):
+            raise HTTPException(
+                status_code=400,
+                detail=f"workspace must be a worktree tab id, not '{workspace}'",
+            )
+        if services.branch_manager.find_by_id(workspace) is None:
+            raise HTTPException(status_code=404, detail=f"unknown workspace: {workspace}")
     try:
         record = await asyncio.to_thread(
             services.agent_manager.create,
             title, kind, attach_to=attach_to, context=context, context_kind=context_kind,
             diagram=diagram if context_kind == "task" and diagram.get("diagram_type") else None,
+            workspace=workspace,
         )
     except UnknownAgentError as exc:
-        raise HTTPException(status_code=404, detail=f"unknown attach_to: {attach_to}") from exc
+        raise HTTPException(
+            status_code=404, detail=f"unknown attach_to: {attach_to or workspace}"
+        ) from exc
     except WorktreeError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     services.registry.register(

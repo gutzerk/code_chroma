@@ -102,6 +102,7 @@ class BridgeServices:
 
         # A branch opened in its own worktree is a plain writable workspace, like an agent's.
         branch_manager = BranchManager(repo_root)
+        agent_manager.branch_lookup = branch_manager.find_by_id
         branch_manager.reconcile()
         for branch_record in branch_manager.list():
             if branch_record.worktree_lost:

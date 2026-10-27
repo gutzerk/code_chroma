@@ -58,9 +58,6 @@ function client(create: AgentClient["create"]): AgentClient {
     workspaceStatus: async (id) => ({ id, state: "ready", progress: "", error: null }),
     gitPreflight: async () => ({ state: "ready", root: "/repo" }),
     gitInit: async () => ({ state: "ready", created_repo: true, created_gitignore: true }),
-    getBranch: async () => ({ current: "main", branches: ["main"] }),
-    switchBranch: async (branch) => ({ current: branch, branches: ["main"] }),
-    updateBranch: async () => ({ current: "main", branches: ["main"] }),
   };
 }
 
@@ -78,7 +75,7 @@ describe("launchAgent", () => {
 
     await launchAgent(client(create));
 
-    expect(create).toHaveBeenCalledWith("", "agent", undefined, null);
+    expect(create).toHaveBeenCalledWith("", "agent", undefined, null, undefined, undefined, undefined);
   });
 
   it("opens the agent window rather than restoring/switching workspace after creation", async () => {
@@ -112,7 +109,7 @@ describe("launchAgent", () => {
       description: "the AI brief for epic \"EP-A-01\" (id EP-A-01); its source lives at plan/epics/EP-A-01.md",
     });
 
-    expect(create).toHaveBeenCalledWith("", "agent", undefined, expect.stringContaining("EP-A-01"));
+    expect(create).toHaveBeenCalledWith("", "agent", undefined, expect.stringContaining("EP-A-01"), undefined, undefined, undefined);
   });
 
   it("prefers an actionable task over the view context, tagged as context_kind 'task'", async () => {
@@ -126,7 +123,7 @@ describe("launchAgent", () => {
     );
 
     expect(create).toHaveBeenCalledWith(
-      "", "agent", undefined, "What would you like to draw?", "task", undefined,
+      "", "agent", undefined, "What would you like to draw?", "task", undefined, undefined,
     );
   });
 

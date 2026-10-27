@@ -2,7 +2,6 @@ import type {
   AgentList,
   AgentRecord,
   AgentWindowGeometry,
-  BranchInfo,
   BuiltinDiagramKind,
   GitInitResult,
   GitPreflight,
@@ -12,6 +11,8 @@ import type {
   PrWorkspace,
   PrWorkspaceList,
   WorkspaceStatus,
+  WorktreeCreated,
+  WorktreeList,
 } from "../state/types";
 import { errorMessageFrom, jsonInit } from "../util/httpJson";
 
@@ -41,14 +42,12 @@ export interface AgentUsage {
  * owned by the main repository. The PR methods live here rather than in their own client because this
  * is already where `activateWorkspace`/`workspaceStatus` are, which is what opening a PR needs. */
 export interface AgentClient {
-  list(): Promise<AgentList>;
-  /** `attachTo` is an agent id, "main", or a PR workspace id ("pr-282"). The first two skip forking
-   * a branch and share that target's worktree; a PR id forks a new branch/worktree seeded from the
-   * PR's head commit instead — the PR's own read-only worktree is never touched. `context`'s
-   * `contextKind` picks how the fresh agent receives it on its first start: "view" (default) is the
-   * acknowledge-only current-view description; "task" is a real, actionable first message (e.g.
-   * "Make a diagram"), injected as-is. `diagram` names the diagram type (and optional request) the
-   * task draws, so the bridge can add the context it selects from the architecture map. */
+  /** `workspace` scopes the list to one worktree tab (`?workspace=`); omitted lists every agent. */
+  list(workspace?: string): Promise<AgentList>;
+  /** Creates an agent in worktree tab `workspace` (`br_*`). `attachTo` (an agent id or a PR id like "pr-282";
+   * "main" is refused) shares that agent's worktree, or forks a new one from the PR's head commit.
+   * `context` is the agent's first message: `contextKind` "view" (default) only acknowledges the current
+   * view, "task" is an actionable prompt; `diagram` names the diagram a task draws. */
   create(
     title: string,
     kind?: string,
@@ -56,6 +55,7 @@ export interface AgentClient {
     context?: string | null,
     contextKind?: "view" | "task",
     diagram?: DiagramTaskHint,
+    workspace?: string,
   ): Promise<AgentRecord>;
   /** A claude agent in workflow run `runId`'s worktree whose first start forks `sessionId` (`--resume <id> --fork-session`). */
   openStepSession(title: string, runId: string, sessionId: string): Promise<AgentRecord>;
@@ -84,12 +84,18 @@ export interface AgentClient {
   /** Whether agents can run here at all, plus the first-commit plan when a repo has to be made. */
   gitPreflight(): Promise<GitPreflight>;
   gitInit(extraIgnores: string[]): Promise<GitInitResult>;
-  /** Main's current checked-out branch plus every local branch, for the branch switcher. */
-  getBranch(): Promise<BranchInfo>;
-  /** Checks main's working tree out to `branch`; rejects on a dirty tree or an unknown name. */
-  switchBranch(branch: string): Promise<BranchInfo>;
-  /** Fast-forwards main's current branch from its upstream — PyCharm's Update (git pull --ff-only). */
-  updateBranch(): Promise<BranchInfo>;
+  /** Every worktree tab plus the active one (GET /branches). */
+  listWorktrees(): Promise<WorktreeList>;
+  /** Restores the tabs, creating `wt-N` only when there are none (POST /branches/ensure). */
+  ensureWorktrees(): Promise<WorktreeList>;
+  /** A new worktree off the refreshed default branch; the fetch may take seconds (POST /branches/new). */
+  createWorktree(name?: string): Promise<WorktreeCreated>;
+  /** Renames the tab and its branch; rejects with the bridge's 409 text on a duplicate (PATCH /branches/{id}). */
+  renameWorktree(id: string, name: string): Promise<void>;
+  /** Persists the active tab (PUT /branches/active). */
+  setActiveWorktree(id: string): Promise<void>;
+  /** Closes the tab and its agents; `worktreeToo` also deletes the directory (DELETE /branches/{id}). */
+  closeWorktree(id: string, worktreeToo: boolean): Promise<void>;
   /** Every open pull-request review (GET /prs). */
   listPrs(): Promise<PrWorkspaceList>;
   /** Every open pull request on GitHub itself, for the dialog's picker (GET /prs/github). */
@@ -117,8 +123,9 @@ export class HttpAgentClient implements AgentClient {
     return jsonInit(method, body);
   }
 
-  list(): Promise<AgentList> {
-    return this.request<AgentList>("/agents");
+  list(workspace?: string): Promise<AgentList> {
+    const query = workspace ? `?workspace=${encodeURIComponent(workspace)}` : "";
+    return this.request<AgentList>(`/agents${query}`);
   }
 
   create(
@@ -128,12 +135,14 @@ export class HttpAgentClient implements AgentClient {
     context?: string | null,
     contextKind?: "view" | "task",
     diagram?: DiagramTaskHint,
+    workspace?: string,
   ): Promise<AgentRecord> {
     return this.request<AgentRecord>(
       "/agents",
       this.json("POST", {
         title,
         kind,
+        workspace,
         attach_to: attachTo,
         context,
         context_kind: contextKind,
@@ -216,16 +225,29 @@ export class HttpAgentClient implements AgentClient {
     );
   }
 
-  getBranch(): Promise<BranchInfo> {
-    return this.request<BranchInfo>("/agents/branch");
+  listWorktrees(): Promise<WorktreeList> {
+    return this.request<WorktreeList>("/branches");
   }
 
-  switchBranch(branch: string): Promise<BranchInfo> {
-    return this.request<BranchInfo>("/agents/branch", this.json("POST", { branch }));
+  ensureWorktrees(): Promise<WorktreeList> {
+    return this.request<WorktreeList>("/branches/ensure", this.json("POST"));
   }
 
-  updateBranch(): Promise<BranchInfo> {
-    return this.request<BranchInfo>("/agents/branch/update", this.json("POST"));
+  createWorktree(name?: string): Promise<WorktreeCreated> {
+    return this.request<WorktreeCreated>("/branches/new", this.json("POST", { name }));
+  }
+
+  async renameWorktree(id: string, name: string): Promise<void> {
+    await this.request<unknown>(`/branches/${id}`, this.json("PATCH", { name }));
+  }
+
+  async setActiveWorktree(id: string): Promise<void> {
+    await this.request<unknown>("/branches/active", this.json("PUT", { id }));
+  }
+
+  async closeWorktree(id: string, worktreeToo: boolean): Promise<void> {
+    const suffix = worktreeToo ? "?worktree_too=true" : "";
+    await this.request<unknown>(`/branches/${id}${suffix}`, this.json("DELETE"));
   }
 
   listPrs(): Promise<PrWorkspaceList> {

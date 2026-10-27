@@ -52,7 +52,7 @@ import {
 } from "../agents/agentStore";
 import { useAgentClient } from "../agents/AgentClientContext";
 import { attachAgent } from "../agents/attachAgent";
-import { BranchSwitcher } from "../agents/BranchSwitcher";
+import { WorktreeStrip } from "../agents/WorktreeStrip";
 import { TerminalPanel } from "../terminal/TerminalPanel";
 import { terminalPanelStore, useIsTerminalPanelOpen } from "../terminal/terminalPanelStore";
 import { useIsDiffActive } from "../state/diffOverlayStore";
@@ -111,7 +111,7 @@ export function RootCanvas() {
   const workspaceId = useActiveWorkspace();
   const prWorkspaces = usePrWorkspaces();
   // What to show in the chrome instead of the old node-path breadcrumb: the PR this workspace
-  // reviews, if any -- BranchSwitcher already covers "which branch" for the main workspace, but it
+  // reviews, if any -- WorktreeStrip already covers "which worktree", but it
   // always reflects main's own checked-out branch, never a PR's, so a PR workspace needs its own
   // identity label here.
   const activePr = useMemo(
@@ -472,7 +472,7 @@ export function RootCanvas() {
             {`PR #${activePr.number} · ${activePr.head_ref}`}
           </span>
         )}
-        <BranchSwitcher />
+        <WorktreeStrip />
         <div className="canvas-chrome-spacer" />
         <ReportIssueRailButton />
         <GamesMenu />

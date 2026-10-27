@@ -14,7 +14,7 @@ def client(make_bridge, make_repo):
 
 def test_a_cross_origin_post_is_refused_before_it_reaches_the_handler(client):
     response = client.post(
-        "/branches", content='{"branch": "x"}', headers={"origin": "https://evil.example"}
+        "/branches/new", content='{"name": "x"}', headers={"origin": "https://evil.example"}
     )
 
     assert response.status_code == 403
@@ -28,14 +28,16 @@ def test_every_unsafe_method_is_guarded(client, method):
 
 
 def test_a_request_without_an_origin_header_passes(client):
-    response = client.post("/branches", json={})
+    response = client.put("/branches/active", json={})
 
     assert response.status_code == 400
 
 
 def test_the_servers_own_loopback_origin_passes(client):
-    response = client.post(
-        "/branches", json={}, headers={"origin": "http://127.0.0.1:8000", "host": "127.0.0.1:8000"}
+    response = client.put(
+        "/branches/active",
+        json={},
+        headers={"origin": "http://127.0.0.1:8000", "host": "127.0.0.1:8000"},
     )
 
     assert response.status_code == 400
@@ -58,7 +60,7 @@ def test_a_cross_origin_websocket_handshake_is_closed(client):
 
 
 def test_the_dev_server_origin_passes(client):
-    response = client.post("/branches", json={}, headers={"origin": "http://localhost:5173"})
+    response = client.put("/branches/active", json={}, headers={"origin": "http://localhost:5173"})
 
     assert response.status_code == 400
 

@@ -1,6 +1,6 @@
 import { useEffect, useRef, type KeyboardEvent } from "react";
 
-/** Shared behavior for a trigger-button + dropdown-list disclosure (BranchSwitcher,
+/** Shared behavior for a trigger-button + dropdown-list disclosure (
  * CustomDiagramMenu): closes on an outside click while open, and closes plus refocuses the trigger
  * on Escape from within the list. Callers own their own `open` state — this only wires the two
  * event listeners against it. */

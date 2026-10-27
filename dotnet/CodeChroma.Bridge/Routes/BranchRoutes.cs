@@ -1,5 +1,5 @@
-using System.Text.Json;
 using System.Text.Json.Nodes;
+using CodeChroma.Bridge.Agents;
 using CodeChroma.Bridge.Http;
 using CodeChroma.Bridge.Live;
 using CodeChroma.Bridge.Stores;
@@ -7,68 +7,87 @@ using CodeChroma.Bridge.Workspaces;
 
 namespace CodeChroma.Bridge.Routes;
 
-/// <summary>Branch workspaces: reopen the project on another (or a new) branch in its own worktree.</summary>
+/// <summary>Worktree tabs: each br_* record is one worktree on its own branch; agents, diagrams and artifacts belong to a tab.</summary>
 public static class BranchRoutes
 {
     public static void Map(WebApplication app, string repoRoot)
     {
-        app.MapGet("/branches", (BranchManager branches) =>
-            Reply.Json(new JsonObject { ["branches"] = new JsonArray(branches.List().Select(r => (JsonNode?)r.ToPayload()).ToArray()) }));
+        app.MapGet("/branches", (BranchManager branches) => Reply.GuardBlocking(() => Reply.Json(Listing(branches, branches.ActiveId))));
 
-        app.MapGet("/branches/choices", (BranchManager branches) =>
+        app.MapPost("/branches/ensure", (BranchManager branches, WorkspaceRegistry registry) => Reply.GuardAsync(async () =>
         {
-            var holders = branches.Holders();
-            return Reply.Json(new JsonObject
-            {
-                ["current"] = BranchManager.CurrentBranch(repoRoot),
-                ["branches"] = new JsonArray(BranchManager.ListBranches(repoRoot).Select(name => (JsonNode?)new JsonObject
-                {
-                    ["name"] = name,
-                    ["open"] = holders.ContainsKey(name),
-                    ["workspace"] = holders.GetValueOrDefault(name),
-                }).ToArray()),
-            });
-        });
+            var (_, active) = await Task.Run(branches.EnsureAny);
+            await Task.Run(() => RegisterAll(branches, registry));
+            return Reply.Json(Listing(branches, active));
+        }));
 
-        app.MapPost("/branches", async (HttpRequest request, BranchManager branches, WorkspaceRegistry registry) =>
+        app.MapPost("/branches/new", (HttpRequest request, BranchManager branches, WorkspaceRegistry registry) => Reply.GuardAsync(async () =>
         {
             var body = await Reply.LenientBody(request);
-            var branch = Json.Str(body["branch"]);
-            var newBranch = Json.Str(body["new_branch"]);
-            if ((branch is not null) == (newBranch is not null)) return Reply.Error(400, "send exactly one of branch or new_branch");
-            if (body["start_point"] is { } start && Json.Str(start) is null) return Reply.Error(400, "start_point must be a branch name");
-            var startPoint = Json.Str(body["start_point"]);
-            try
+            if (body["name"] is { } rawName && Json.Str(rawName) is null) return Reply.Error(400, "name must be a string");
+            var (record, fetched, warning) = await Task.Run(() => branches.CreateNext(Json.Str(body["name"])));
+            registry.Register(record.Id, record.Worktree);
+            return Reply.Json(new JsonObject
             {
-                var record = await Task.Run(() => branch is not null ? branches.OpenBranch(branch) : branches.CreateBranch(newBranch!, startPoint));
-                registry.Register(record.Id, record.Worktree);
-                return Reply.Json(record.ToPayload());
-            }
-            catch (BridgeException error)
-            {
-                return Reply.Error(error.Status, error.Detail);
-            }
-        });
+                ["branch"] = branches.Payload(record),
+                ["fetched"] = fetched,
+                ["warning"] = warning,
+            });
+        }));
 
-        app.MapDelete("/branches/{workspaceId}", async (string workspaceId, HttpRequest request, BranchManager branches, WorkspaceRegistry registry, ConnectionManager connections) =>
+        app.MapPatch("/branches/{workspaceId}", (string workspaceId, HttpRequest request, BranchManager branches, AgentManager agents) => Reply.GuardAsync(async () =>
+        {
+            var body = await Reply.LenientBody(request);
+            if (Json.Str(body["name"]) is not { Length: > 0 } name) return Reply.Error(400, "name is required");
+            var record = await Task.Run(() =>
+            {
+                var renamed = branches.Rename(workspaceId, name);
+                agents.RenameBranch(workspaceId, renamed.Branch);
+                return renamed;
+            });
+            return Reply.Json(branches.Payload(record));
+        }));
+
+        app.MapPut("/branches/active", (HttpRequest request, BranchManager branches) => Reply.GuardAsync(async () =>
+        {
+            var body = await Reply.LenientBody(request);
+            if (Json.Str(body["id"]) is not { Length: > 0 } id) return Reply.Error(400, "id is required");
+            await Task.Run(() => branches.SetActive(id));
+            return Reply.Json(new JsonObject { ["active"] = id });
+        }));
+
+        app.MapDelete("/branches/{workspaceId}", (string workspaceId, HttpRequest request, BranchManager branches, AgentManager agents, AgentSessionRegistry sessions, WorkspaceRegistry registry, ConnectionManager connections) => Reply.GuardAsync(async () =>
         {
             var worktreeToo = request.Query["worktree_too"].ToString().ToLowerInvariant() is "true" or "1" or "yes" or "on";
-            try
+            await Task.Run(() => branches.Get(workspaceId));
+            var doomed = agents.AttachedToWorkspace(workspaceId);
+            foreach (var agent in doomed) sessions.Stop(agent.Id);
+            var record = await Task.Run(() =>
             {
-                var record = await Task.Run(() =>
-                {
-                    branches.Get(workspaceId);
-                    if (worktreeToo) registry.DropLive(workspaceId);
-                    return branches.Delete(workspaceId, worktreeToo);
-                });
-                registry.Unregister(workspaceId);
-                await connections.Broadcast(new JsonObject { ["type"] = "branch-removed", ["id"] = workspaceId });
-                return Reply.Json(new JsonObject { ["status"] = "deleted", ["id"] = record.Id });
-            }
-            catch (BridgeException error)
+                if (worktreeToo) registry.DropLive(workspaceId);
+                return branches.Delete(workspaceId, worktreeToo);
+            });
+            foreach (var agent in doomed)
             {
-                return Reply.Error(error.Status, error.Detail);
+                await Task.Run(() => agents.Delete(agent.Id));
+                registry.Unregister(agent.Id);
+                await connections.Broadcast(new JsonObject { ["type"] = "agent-removed", ["id"] = agent.Id });
             }
-        });
+            registry.Unregister(workspaceId);
+            await connections.Broadcast(new JsonObject { ["type"] = "branch-removed", ["id"] = workspaceId });
+            return Reply.Json(new JsonObject { ["status"] = "deleted", ["id"] = record.Id });
+        }));
+    }
+
+    private static JsonObject Listing(BranchManager branches, string? active) => new()
+    {
+        ["branches"] = new JsonArray(branches.Payloads(branches.List()).Select(p => (JsonNode?)p).ToArray()),
+        ["active"] = active,
+    };
+
+    private static void RegisterAll(BranchManager branches, WorkspaceRegistry registry)
+    {
+        foreach (var record in branches.List())
+            if (!registry.IsRegistered(record.Id) && Directory.Exists(record.Worktree)) registry.Register(record.Id, record.Worktree);
     }
 }

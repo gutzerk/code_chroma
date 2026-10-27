@@ -23,6 +23,17 @@ export function SequenceFocus({ layer, model, view }: SequenceFocusProps) {
     sequenceViewStore.setCollapsed(layer, next);
   };
 
+  const phaseRows = model.phases
+    .map((phase) => ({
+      phase,
+      count: model.messages.filter((m) => m.order >= phase.from_order && m.order <= phase.to_order).length,
+    }))
+    .filter((row) => row.count > 0);
+  const here =
+    phaseRows.find(({ phase }) => current !== null && current >= phase.from_order && current <= phase.to_order) ??
+    phaseRows.find(({ phase }) => !collapsed.has(phase.id));
+  const involvesFocus = (m: SequenceModel["messages"][number]) => m.fromRef === view.focus || m.toRef === view.focus;
+
   return (
     <SequenceDrawing
       layer={layer}
@@ -53,6 +64,12 @@ export function SequenceFocus({ layer, model, view }: SequenceFocusProps) {
                 onClick={() => togglePhase(phase.id)}
               >
                 {`${isCollapsed ? "▸" : "▾"} ${phase.name}`}
+                {!isCollapsed && (
+                  <span className="sequence-phase-row-meta" data-testid="sequence-phase-row-count">
+                    {` · ${members.length} message${members.length === 1 ? "" : "s"}`}
+                    {view.focus !== null && ` · ${members.filter(involvesFocus).length} involve the focus`}
+                  </span>
+                )}
                 {isCollapsed && (
                   <span className="sequence-phase-row-meta">
                     {` · ${members.length} call${members.length === 1 ? "" : "s"} · ${talkers.join(", ")}`}
@@ -61,22 +78,66 @@ export function SequenceFocus({ layer, model, view }: SequenceFocusProps) {
               </button>
             );
           })}
-          <ol
+          <div
             className="sequence-timeline"
             data-testid="sequence-timeline"
             style={{ position: "absolute", left: model.bounds.right - left - TIMELINE_WIDTH - 8, top: 8, pointerEvents: "auto" }}
           >
-            {model.messages.map((m) => (
-              <li
-                key={m.element.id}
-                className={current === m.order ? "sequence-timeline-item sequence-timeline-item--here" : "sequence-timeline-item"}
-                aria-current={current === m.order ? "step" : undefined}
-                onClick={() => sequenceViewStore.setStep(layer, m.order)}
-              >
-                {`${m.order} · ${m.element.label}`}
-              </li>
-            ))}
-          </ol>
+            <div className="sequence-timeline-phases" data-testid="sequence-timeline-phases">
+              <div className="sequence-timeline-bars">
+                {phaseRows.map(({ phase, count }) => (
+                  <span
+                    key={phase.id}
+                    className={`sequence-timeline-bar sequence-timeline-bar--${phase.kind}`}
+                    style={{ flexGrow: count }}
+                  />
+                ))}
+              </div>
+              <div className="sequence-timeline-names">
+                {phaseRows.map(({ phase }) => (
+                  <span
+                    key={phase.id}
+                    className={here?.phase.id === phase.id ? "sequence-timeline-name sequence-timeline-name--here" : "sequence-timeline-name"}
+                    style={{ flexGrow: 1 }}
+                  >
+                    {here?.phase.id === phase.id ? `${phase.name} ← you are here` : phase.name}
+                  </span>
+                ))}
+              </div>
+            </div>
+            <div className="sequence-timeline-heading">PARTICIPANTS</div>
+            <ul className="sequence-timeline-people" data-testid="sequence-timeline-participants">
+              {model.participants.map((p) => {
+                const focused = view.focus === p.ref;
+                const count = model.messages.filter((m) => m.fromRef === p.ref || m.toRef === p.ref).length;
+                return (
+                  <li
+                    key={p.ref}
+                    className={focused ? "sequence-timeline-person sequence-timeline-person--focus" : "sequence-timeline-person"}
+                    data-testid="sequence-timeline-participant"
+                    aria-pressed={focused}
+                    onClick={() => sequenceViewStore.setFocus(layer, focused ? null : p.ref)}
+                  >
+                    <span>{focused ? `${p.element.label} ●` : p.element.label}</span>
+                    <span className="sequence-timeline-person-count">{`${count} msg${count === 1 ? "" : "s"}`}</span>
+                  </li>
+                );
+              })}
+            </ul>
+            <div className="sequence-timeline-heading">STEPS</div>
+            <ol className="sequence-timeline-steps">
+              {model.messages.map((m) => (
+                <li
+                  key={m.element.id}
+                  className={current === m.order ? "sequence-timeline-item sequence-timeline-item--here" : "sequence-timeline-item"}
+                  aria-current={current === m.order ? "step" : undefined}
+                  onClick={() => sequenceViewStore.setStep(layer, m.order)}
+                >
+                  {`${m.order} · ${m.element.label}`}
+                </li>
+              ))}
+            </ol>
+          </div>
         </>
       )}
     </SequenceDrawing>

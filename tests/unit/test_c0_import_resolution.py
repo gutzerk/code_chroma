@@ -11,17 +11,12 @@ from codechroma.summarize.ai_summarizer import AISummarizer
 FIXTURE_REPO = Path(__file__).parent.parent / "fixtures" / "c0_import_resolution"
 
 
-@pytest.fixture
-def repo(tmp_path):
-    root = tmp_path / "repo"
+@pytest.fixture(scope="module")
+def graph(tmp_path_factory):
+    root = tmp_path_factory.mktemp("c0") / "repo"
     shutil.copytree(FIXTURE_REPO, root)
-    return root
-
-
-@pytest.fixture
-def graph(repo):
     engine = GraphEngine(summarizer=AISummarizer())
-    engine.analyze(str(repo))
+    engine.analyze(str(root))
     return engine.snapshot()
 
 

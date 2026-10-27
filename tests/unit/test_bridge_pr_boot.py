@@ -60,18 +60,14 @@ def rebooted(repo_with_open_pr, make_bridge):
     return make_bridge(repo_with_open_pr[0])
 
 
-def test_an_open_pull_request_is_registered_at_boot(rebooted, repo_with_open_pr):
+def test_an_open_pull_request_is_registered_read_only_at_boot(rebooted, repo_with_open_pr):
+    workspace = rebooted.registry.get("pr-12")
+
     assert rebooted.registry.is_registered("pr-12")
     assert rebooted.registry.root_for("pr-12") == repo_with_open_pr[1]
-
-
-def test_it_does_not_silently_resolve_to_the_main_repository(rebooted):
-    assert rebooted.registry.get("pr-12") is not rebooted.registry.main
-
-
-def test_it_comes_back_read_only(rebooted):
+    assert workspace is not rebooted.registry.main
     assert rebooted.registry.is_read_only("pr-12")
-    assert rebooted.registry.get("pr-12").read_only
+    assert workspace.base_ref == "refs/codechroma/pr/12/base"
 
 
 def test_its_diagram_still_points_at_the_main_checkout(rebooted, repo_with_open_pr):
@@ -80,10 +76,6 @@ def test_its_diagram_still_points_at_the_main_checkout(rebooted, repo_with_open_
 
     assert pr_c1 == rebooted.registry.main.diagram_path("c1")
     assert pr_c1.parent.parent.parent.parent == repo
-
-
-def test_its_diff_base_is_the_fetched_base_ref(rebooted):
-    assert rebooted.registry.get("pr-12").base_ref == "refs/codechroma/pr/12/base"
 
 
 def test_a_vanished_worktree_is_flagged_rather_than_dropped(tmp_path, make_bridge):

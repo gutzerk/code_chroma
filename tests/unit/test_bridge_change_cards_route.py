@@ -47,16 +47,7 @@ def test_an_edited_function_comes_back_as_a_card_on_its_own_node(client):
     node_ids = [card["node_id"] for card in body["cards"]]
     assert "shared/text_utils.py::function::slugify" in node_ids
     assert body["by_node"]["shared/text_utils.py::function::slugify"] == 1
-
-
-def test_an_edited_function_reports_a_modified_block_status(client):
-    test_client, repo, _server = client
-    _edit_slugify(repo)
-
-    body = test_client.get("/repos/default/change-cards").json()
-
-    node_id = "shared/text_utils.py::function::slugify"
-    assert body["by_node_status"][node_id] == "modified"
+    assert body["by_node_status"]["shared/text_utils.py::function::slugify"] == "modified"
 
 
 def test_a_read_only_workspace_refuses_to_accept_a_diff(client):

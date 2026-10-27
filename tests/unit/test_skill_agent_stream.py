@@ -178,29 +178,14 @@ def test_a_failing_push_does_not_fail_the_run(monkeypatch, tmp_path):
     assert AGENT.get_state("default") == {"state": "idle", "error": None}
 
 
-def test_the_feed_survives_for_reading_after_the_run_ends(monkeypatch, tmp_path):
+def test_the_feed_survives_the_run_and_no_task_is_left_to_cancel(monkeypatch, tmp_path):
     _write_c1(tmp_path)
     events = [_tool_use("Write", path=".codechroma/c1.json"), {"type": "result"}]
 
     _run(monkeypatch, tmp_path, events)
-
-    assert AGENT.get_output("default") == ["⏺ Write(.codechroma/c1.json)", "✓ done"]
-
-
-def test_a_finished_run_leaves_no_task_behind(monkeypatch, tmp_path):
-    _write_c1(tmp_path)
-
-    _run(monkeypatch, tmp_path, [_tool_use("Read", file_path="app.py")])
-
-    assert "default" not in AGENT.tasks
-
-
-def test_cancel_after_a_completed_run_on_a_closed_loop_does_not_raise(monkeypatch, tmp_path):
-    _write_c1(tmp_path)
-    _run(monkeypatch, tmp_path, [_tool_use("Read", file_path="app.py")])
-
     asyncio.run(AGENT.cancel())
 
+    assert AGENT.get_output("default") == ["⏺ Write(.codechroma/c1.json)", "✓ done"]
     assert AGENT.tasks == {}
 
 

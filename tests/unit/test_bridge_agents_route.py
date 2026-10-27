@@ -58,25 +58,6 @@ def test_post_agents_joins_its_tabs_worktree_without_a_branch_of_its_own(client)
     ).stdout.strip() == ""
 
 
-def test_post_agents_does_not_start_a_process(client):
-    test_client, _repo, _server = client
-
-    body = test_client.post("/agents", json={"title": "refund flow"}).json()
-
-    assert body["pid"] is None
-    assert body["status"] == "stopped"
-
-
-def test_post_agents_persists_the_view_context(client):
-    test_client, _repo, _server = client
-
-    body = test_client.post(
-        "/agents", json={"title": "refund flow", "context": "the C1 diagram"}
-    ).json()
-
-    assert body["context"] == "the C1 diagram"
-
-
 @pytest.mark.parametrize(
     "payload",
     [
@@ -85,6 +66,7 @@ def test_post_agents_persists_the_view_context(client):
         {"title": "helper", "attach_to": 123},
         {"title": 123},
         {"title": "x", "kind": "rm -rf"},
+        {"title": "sidecar", "attach_to": "main"},
     ],
     ids=[
         "non-string-context",
@@ -92,6 +74,7 @@ def test_post_agents_persists_the_view_context(client):
         "non-string-attach-to",
         "non-string-title",
         "unknown-kind",
+        "attach-to-main",
     ],
 )
 def test_post_agents_rejects_an_invalid_payload(client, payload):
@@ -102,27 +85,18 @@ def test_post_agents_rejects_an_invalid_payload(client, payload):
     assert response.status_code == 400
 
 
-def test_post_agents_persists_a_task_context_kind(client):
+def test_post_agents_persists_context_and_does_not_start_a_process(client):
     test_client, _repo, _server = client
 
-    body = test_client.post(
-        "/agents",
-        json={
-            "title": "draw a diagram",
-            "context": "What do you want to visualize?",
-            "context_kind": "task",
-        },
+    view = test_client.post("/agents", json={"title": "refund flow", "context": "the C1"}).json()
+    task = test_client.post(
+        "/agents", json={"title": "draw", "context": "What?", "context_kind": "task"}
     ).json()
 
-    assert body["context_kind"] == "task"
-
-
-def test_post_agents_defaults_context_kind_to_view(client):
-    test_client, _repo, _server = client
-
-    body = test_client.post("/agents", json={"title": "refund flow", "context": "hi"}).json()
-
-    assert body["context_kind"] == "view"
+    assert (view["context"], view["context_kind"]) == ("the C1", "view")
+    assert task["context_kind"] == "task"
+    assert view["pid"] is None
+    assert view["status"] == "stopped"
 
 
 def test_post_agents_installs_the_skills_into_the_worktree(client):
@@ -153,14 +127,6 @@ def test_post_agents_seeds_diagrams_from_main_into_the_worktree(client):
     }
 
 
-def test_post_agents_refuses_to_attach_to_main(client):
-    test_client, _repo, _server = client
-
-    response = test_client.post("/agents", json={"title": "sidecar", "attach_to": "main"})
-
-    assert response.status_code == 400
-
-
 def test_post_agents_without_a_workspace_is_a_400(client):
     test_client, _repo, _server = client
 
@@ -170,10 +136,19 @@ def test_post_agents_without_a_workspace_is_a_400(client):
     assert response.json()["detail"] == "workspace is required"
 
 
-def test_post_agents_for_an_unknown_workspace_is_a_404(client):
+@pytest.mark.parametrize(
+    "payload",
+    [
+        {"title": "s", "workspace": "br_nope"},
+        {"title": "helper", "attach_to": "nobody"},
+        {"title": "fix", "attach_to": "pr-999"},
+    ],
+    ids=["unknown-workspace", "unknown-agent", "closed-pr"],
+)
+def test_post_agents_with_an_unknown_target_is_404(client, payload):
     test_client, _repo, _server = client
 
-    response = test_client.post("/agents", json={"title": "sidecar", "workspace": "br_nope"})
+    response = test_client.post("/agents", json=payload)
 
     assert response.status_code == 404
 
@@ -202,14 +177,6 @@ def test_attach_sharing_survives_a_bridge_restart(client, make_bridge):
     assert restarted.registry.get(attached["id"]) is restarted.registry.get(target["id"])
 
 
-def test_post_agents_attach_to_an_unknown_id_is_404(client):
-    test_client, _repo, _server = client
-
-    response = test_client.post("/agents", json={"title": "helper", "attach_to": "nobody"})
-
-    assert response.status_code == 404
-
-
 def _pr_worktree(tmp_path: Path) -> Path:
     """A plain directory standing in for an already-imported PR's worktree -- no real git needed."""
     path = tmp_path / "pr-worktree"
@@ -226,26 +193,7 @@ def test_post_agents_can_attach_to_a_pr_by_sharing_its_worktree(client, tmp_path
 
     assert body["worktree"] == str(pr_path)
     assert body["shares_workspace_with"] == "pr-282"
-
-
-def test_post_agents_registers_a_pr_attached_agent_under_its_own_canonical_workspace(
-    client, tmp_path
-):
-    test_client, _repo, bridge = client
-    pr_path = _pr_worktree(tmp_path)
-    bridge.pr_manager.upsert(pr_record(282, str(pr_path)))
-
-    body = test_client.post("/agents", json={"title": "fix", "attach_to": "pr-282"}).json()
-
     assert bridge.registry.root_for(body["id"]) == Path(body["worktree"])
-
-
-def test_post_agents_attach_to_a_closed_pr_is_404(client):
-    test_client, _repo, _server = client
-
-    response = test_client.post("/agents", json={"title": "fix", "attach_to": "pr-999"})
-
-    assert response.status_code == 404
 
 
 def test_post_agents_attaching_to_a_pr_reuses_its_existing_diagrams(client, tmp_path):
@@ -320,6 +268,22 @@ def test_delete_keeps_the_worktree_and_branch_by_default(client):
     ).stdout
 
 
+@pytest.mark.parametrize(
+    ("method", "path"),
+    [
+        ("delete", "/agents/nobody"),
+        ("post", "/agents/nobody/start"),
+        ("get", "/agents/nobody/pr-preflight"),
+    ],
+)
+def test_an_unknown_agent_is_404(client, method, path):
+    test_client, _repo, _server = client
+
+    response = getattr(test_client, method)(path)
+
+    assert response.status_code == 404
+
+
 def test_delete_cannot_remove_the_tabs_worktree_through_an_agent(client):
     test_client, _repo, _server = client
     created = test_client.post("/agents", json={"title": "gone"}).json()
@@ -339,14 +303,6 @@ def test_delete_refuses_a_worktree_still_shared_by_another_agent(client):
 
     assert response.status_code == 409
     assert Path(target["worktree"]).is_dir()
-
-
-def test_delete_unknown_agent_is_404(client):
-    test_client, _repo, _server = client
-
-    response = test_client.delete("/agents/never-existed")
-
-    assert response.status_code == 404
 
 
 def test_delete_kills_a_running_pty_instead_of_orphaning_it(started_client):
@@ -619,6 +575,9 @@ def test_a_fresh_start_consumes_the_pending_context(started_client):
     # Consumed synchronously in the route (before the background PTY nudge fires), so a resume
     # or a later restart can never re-inject the line.
     assert bridge.agent_manager.get("runner").context is None
+    test_client.post("/agents", json={"title": "bare"})
+    test_client.post("/agents/bare/start", json={})
+    assert bridge.agent_manager.get("bare").context is None
 
 
 def test_an_agent_kind_start_records_resolved_cli(started_client, tmp_path, monkeypatch):
@@ -649,15 +608,6 @@ def test_a_claude_record_leaves_resolved_cli_empty(started_client):
     assert response.status_code == 200
     assert response.json()["resolved_cli"] == ""
     assert bridge.agent_manager.get("plain").resolved_cli == ""
-
-def test_a_fresh_start_without_context_leaves_the_field_none(started_client):
-    test_client, _repo, bridge = started_client
-    test_client.post("/agents", json={"title": "runner"})
-
-    test_client.post("/agents/runner/start", json={})
-
-    assert bridge.agent_manager.get("runner").context is None
-
 
 def test_stop_kills_the_pty_but_keeps_the_worktree(started_client):
     test_client, _repo, bridge = started_client
@@ -786,14 +736,6 @@ def test_session_changes_survive_manual_resume_and_autostart(
     assert AgentManager(repo).get("runner").session_id == changed_id
 
 
-def test_start_on_an_unknown_agent_is_404(client):
-    test_client, _repo, _server = client
-
-    response = test_client.post("/agents/nobody/start", json={})
-
-    assert response.status_code == 404
-
-
 def test_cancel_all_leaves_agent_processes_alive(started_client):
     test_client, _repo, bridge = started_client
     test_client.post("/agents", json={"title": "runner"})
@@ -847,7 +789,7 @@ def test_a_restart_restores_the_same_cards_all_stopped(client, monkeypatch, tmp_
     test_client, repo, _server = client
     test_client.post("/agents", json={"title": "one"})
     test_client.post("/agents", json={"title": "two"})
-    test_client.patch("/agents/one/window", json={"x": 42, "y": 84, "z": 9})
+    test_client.patch("/agents/one/window", json={"x": 42, "y": 84, "z": 9, "minimized": True})
     _fake_running_pid(repo)
 
     body = TestClient(make_bridge(repo).app).get("/agents").json()
@@ -855,16 +797,9 @@ def test_a_restart_restores_the_same_cards_all_stopped(client, monkeypatch, tmp_
     assert [entry["id"] for entry in body["agents"]] == ["one", "two"]
     assert {entry["status"] for entry in body["agents"]} == {"stopped"}
     assert all(entry["pid"] is None for entry in body["agents"])
-
-
-def test_a_restart_keeps_window_geometry_and_stacking_order(client, make_bridge):
-    test_client, repo, _server = client
-    test_client.post("/agents", json={"title": "one"})
-    test_client.patch("/agents/one/window", json={"x": 42, "y": 84, "z": 9, "minimized": True})
-
-    window = TestClient(make_bridge(repo).app).get("/agents").json()["agents"][0]["window"]
-
-    assert window == {"x": 42, "y": 84, "width": 720, "height": 480, "minimized": True, "z": 9}
+    assert body["agents"][0]["window"] == {
+        "x": 42, "y": 84, "width": 720, "height": 480, "minimized": True, "z": 9
+    }
 
 
 def test_a_worktree_deleted_by_hand_is_marked_lost_rather_than_dropped(client, make_bridge):
@@ -917,12 +852,6 @@ def test_pr_preflight_reports_the_reason_before_the_button_renders(client, monke
 
     assert body["ready"] is False
     assert body["text"] == "GitHub CLI required"
-
-
-def test_pr_preflight_on_an_unknown_agent_is_404(client):
-    test_client, _repo, _server = client
-
-    assert test_client.get("/agents/nobody/pr-preflight").status_code == 404
 
 
 def test_creating_a_pr_records_its_url_on_the_card(client, monkeypatch, tmp_path):

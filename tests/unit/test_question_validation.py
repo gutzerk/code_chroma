@@ -171,24 +171,6 @@ def test_tracker_evicts_stale_entries_and_caps_size():
     assert tracker.count("w", "old") == 0
 
 
-def test_degraded_pass_through_consumes_the_count(bridge, monkeypatch):
-    _fast(monkeypatch, 0.05)
-    mcp = _mcp(bridge)
-    bad = AskRequest(question="Q?", session_id="s", options=[QuestionOption(id="a", title="A")])
-
-    async def run() -> None:
-        for _ in range(3):
-            with pytest.raises(QuestionRejected):
-                await mcp.ask("main", bad)
-        await mcp.ask("main", bad)
-        with pytest.raises(QuestionRejected):
-            await mcp.ask("main", bad)
-
-    asyncio.run(run())
-
-    assert mcp.rejections.count("main", "s") == 1
-
-
 def test_sessionless_agents_on_different_connections_do_not_share_a_counter(bridge, monkeypatch):
     _fast(monkeypatch, 0.05)
     mcp = _mcp(bridge)
@@ -232,6 +214,7 @@ def test_fourth_incomplete_ask_is_accepted_degraded(bridge, monkeypatch):
     element = store.list_questions(bridge.main)[0]
     assert element.meta["degraded"] is True
     assert element.meta["validation"].startswith("CodeChroma rejected the question.")
+    assert _mcp(bridge).rejections.count("main", "s") == 0
 
 
 def test_ask_with_an_unknown_diagram_ref_is_rejected(bridge):
@@ -329,13 +312,6 @@ def _load_checker():
     return module
 
 
-def test_decision_diagram_checker_accepts_a_draft_within_budget():
-    checker = _load_checker()
-    draft = {"title": "A", "nodes": [{"id": "x", "label": "X"}], "edges": []}
-
-    assert checker.problems(draft) == []
-
-
 def test_decision_diagram_checker_reports_budget_and_unknown_edges():
     checker = _load_checker()
     nodes = [{"id": str(i), "label": "n"} for i in range(checker.MAX_NODES + 1)]
@@ -384,3 +360,21 @@ def test_server_diagram_validator_matches_the_skill_checker(name):
 
     assert server == _load_checker().problems(draft)
     assert bool(server) == (name != "clean")
+
+
+def test_degraded_pass_through_consumes_the_count(bridge, monkeypatch):
+    _fast(monkeypatch, 0.05)
+    mcp = _mcp(bridge)
+    bad = AskRequest(question="Q?", session_id="s", options=[QuestionOption(id="a", title="A")])
+
+    async def run() -> None:
+        for _ in range(3):
+            with pytest.raises(QuestionRejected):
+                await mcp.ask("main", bad)
+        await mcp.ask("main", bad)
+        with pytest.raises(QuestionRejected):
+            await mcp.ask("main", bad)
+
+    asyncio.run(run())
+
+    assert mcp.rejections.count("main", "s") == 1

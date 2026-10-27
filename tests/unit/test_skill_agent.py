@@ -32,12 +32,6 @@ async def _noop_on_change(_repo_id, _state):
     return None
 
 
-def test_artifact_path_is_computed_per_repo_id(tmp_path):
-    agent = _make_agent(tmp_path)
-
-    assert agent.artifact(tmp_path, "job-a") != agent.artifact(tmp_path, "job-b")
-
-
 def test_start_while_a_run_is_in_flight_does_not_spawn_a_second_process(monkeypatch, tmp_path):
     """Two start() calls on one repo while the first is still generating must not create two
     processes — the second call re-attaches to the in-flight run instead (the canvas switching
@@ -195,7 +189,13 @@ def test_two_jobs_snapshot_and_restore_independent_files(monkeypatch, tmp_path):
     assert json.loads((tmp_path / "job-b.json").read_text(encoding="utf-8")) == {"kept": "b"}
 
 
-def test_start_without_a_prompt_override_uses_the_default_prompt(monkeypatch, tmp_path):
+@pytest.mark.parametrize(
+    ("override", "used", "unused"),
+    [(None, "default prompt", None), ("per-run prompt", "per-run prompt", "default prompt")],
+)
+def test_start_uses_the_prompt_override_else_the_default(
+    monkeypatch, tmp_path, override, used, unused
+):
     agent = _make_agent(tmp_path)
     monkeypatch.setattr(
         "codechroma.llm.runtime_env.shutil.which", lambda _name, **_kwargs: "/usr/bin/claude"
@@ -210,36 +210,14 @@ def test_start_without_a_prompt_override_uses_the_default_prompt(monkeypatch, tm
     (tmp_path / "job-a.json").write_text(json.dumps({}), encoding="utf-8")
 
     async def _drive():
-        await agent.start("job-a", tmp_path, _noop_on_change)
+        kwargs = {} if override is None else {"prompt": override}
+        await agent.start("job-a", tmp_path, _noop_on_change, **kwargs)
         await asyncio.sleep(_SETTLE_SECONDS)
 
     asyncio.run(_drive())
 
-    assert "default prompt" in captured
-
-
-def test_start_with_a_prompt_override_uses_it_instead(monkeypatch, tmp_path):
-    agent = _make_agent(tmp_path)
-    monkeypatch.setattr(
-        "codechroma.llm.runtime_env.shutil.which", lambda _name, **_kwargs: "/usr/bin/claude"
-    )
-    captured = []
-
-    def _capturing_factory(*args, **_kwargs):
-        captured.extend(args)
-        return fake_claude_exec(returncode=0)(*args, **_kwargs)
-
-    monkeypatch.setattr(asyncio, "create_subprocess_exec", _capturing_factory)
-    (tmp_path / "job-a.json").write_text(json.dumps({}), encoding="utf-8")
-
-    async def _drive():
-        await agent.start("job-a", tmp_path, _noop_on_change, prompt="per-run prompt")
-        await asyncio.sleep(_SETTLE_SECONDS)
-
-    asyncio.run(_drive())
-
-    assert "per-run prompt" in captured
-    assert "default prompt" not in captured
+    assert used in captured
+    assert unused not in captured
 
 
 def test_run_passes_the_workspace_id_to_the_claude_env(monkeypatch, tmp_path):
@@ -319,28 +297,14 @@ def test_mark_done_with_no_error_resets_to_idle(tmp_path):
     assert agent.get_state("job-a") == {"state": "idle", "error": None}
 
 
-def test_mark_done_with_an_error_sets_the_error_state(tmp_path):
+@pytest.mark.parametrize("error", ["self-check never converged", ""])
+def test_mark_done_with_any_error_string_reports_error_not_idle(tmp_path, error):
     agent = _make_agent(tmp_path)
 
-    async def _drive():
-        return await agent.mark_done("job-a", _noop_on_change, error="self-check never converged")
+    state = asyncio.run(agent.mark_done("job-a", _noop_on_change, error=error))
 
-    state = asyncio.run(_drive())
-
-    assert state == {"state": "error", "error": "self-check never converged"}
-    assert agent.get_state("job-a") == {"state": "error", "error": "self-check never converged"}
-
-
-def test_mark_done_with_an_empty_string_error_still_reports_error_not_idle(tmp_path):
-    """error="" must not collapse to idle -- only error=None (no error requested) may."""
-    agent = _make_agent(tmp_path)
-
-    async def _drive():
-        return await agent.mark_done("job-a", _noop_on_change, error="")
-
-    state = asyncio.run(_drive())
-
-    assert state == {"state": "error", "error": ""}
+    assert state == {"state": "error", "error": error}
+    assert agent.get_state("job-a") == {"state": "error", "error": error}
 
 
 def test_a_failed_first_ever_run_leaves_no_half_written_artifact_behind(monkeypatch, tmp_path):
@@ -413,8 +377,9 @@ def test_resolve_cli_uses_the_agentic_call_sites_group_assignment(tmp_path, _iso
     assert env_overrides == {}
 
 
-def test_resolve_cli_injects_base_url_and_key_for_a_claude_provider_with_an_endpoint(
-    tmp_path, _isolated_llm_stores
+@pytest.mark.parametrize("verify_ssl", [True, False])
+def test_resolve_cli_injects_base_url_key_and_tls_skip_for_a_claude_provider_with_an_endpoint(
+    tmp_path, _isolated_llm_stores, verify_ssl
 ):
     """A claude cli provider with its own base_url/key resolves to ANTHROPIC_* env overrides."""
     from codechroma.llm.call_site_settings import save_group_assignment
@@ -426,53 +391,22 @@ def test_resolve_cli_injects_base_url_and_key_for_a_claude_provider_with_an_endp
         "adapter": "claude",
         "base_url": "https://proxy.example.com",
         "api_key": "sk-proxy",
+        "verify_ssl": verify_ssl,
     })
     save_group_assignment("planning", {"provider_id": provider.id, "model": "deepseek-chat"})
     agent = _make_agent(tmp_path, name="wiki_general_agent")
 
     _adapter, _cli, _model, env_overrides = agent.resolve_cli()
 
-    assert env_overrides == {
+    expected = {
         "ANTHROPIC_BASE_URL": "https://proxy.example.com",
         "ANTHROPIC_API_KEY": "",
         "ANTHROPIC_MODEL": "deepseek-chat",
         "ANTHROPIC_AUTH_TOKEN": "sk-proxy",
     }
-
-
-def test_resolve_cli_injects_tls_skip_when_provider_verify_ssl_is_off(
-    tmp_path, _isolated_llm_stores
-):
-    from codechroma.llm.call_site_settings import save_group_assignment
-    from codechroma.llm.providers_store import create_provider
-
-    provider = create_provider({
-        "label": "Claude via self-signed proxy",
-        "kind": "cli",
-        "adapter": "claude",
-        "base_url": "https://proxy.example.com",
-        "api_key": "sk-proxy",
-        "verify_ssl": False,
-    })
-    save_group_assignment("planning", {"provider_id": provider.id, "model": "deepseek-chat"})
-    agent = _make_agent(tmp_path, name="wiki_general_agent")
-
-    *_rest, env_overrides = agent.resolve_cli()
-
-    assert env_overrides["NODE_TLS_REJECT_UNAUTHORIZED"] == "0"
-
-
-def test_resolve_cli_env_overrides_empty_without_a_base_url(tmp_path, _isolated_llm_stores):
-    from codechroma.llm.call_site_settings import save_group_assignment
-    from codechroma.llm.providers_store import create_provider
-
-    provider = create_provider({"label": "Claude CLI", "kind": "cli", "adapter": "claude"})
-    save_group_assignment("planning", {"provider_id": provider.id, "model": "haiku"})
-    agent = _make_agent(tmp_path, name="wiki_general_agent")
-
-    *_rest, env_overrides = agent.resolve_cli()
-
-    assert env_overrides == {}
+    if not verify_ssl:
+        expected["NODE_TLS_REJECT_UNAUTHORIZED"] = "0"
+    assert env_overrides == expected
 
 
 def test_start_passes_provider_env_overrides_into_the_subprocess_env(

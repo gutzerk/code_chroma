@@ -28,8 +28,10 @@ from codechroma.llm.call_site_settings import (
     save_assignment,
     save_default,
     save_group_assignment,
+    save_offline_assignment,
 )
 from codechroma.llm.call_sites import CALL_SITES, FEATURES, GROUPS, HIDDEN_GROUPS
+from codechroma.llm.cli_auth import cli_signed_in
 from codechroma.llm.runtime_env import CliLookupError, resolve_runtime_cli
 
 router = APIRouter()
@@ -87,6 +89,16 @@ def delete_provider(provider_id: str) -> None:
     providers_store.delete_provider(provider_id)
 
 
+@router.post("/llm/providers/capabilities")
+async def draft_capabilities(request: Request) -> dict:
+    """What a not-yet-saved form draft could be used for -- the Add/Edit form's preview line."""
+    body = await json_body(request)
+    if body.get("api_key_set") and not body.get("api_key"):
+        body = {**body, "api_key": "<kept>"}
+    caps = providers_store.capabilities(providers_store.draft_from_payload(body))
+    return {"capabilities": {"agents": caps.agents, "quick": caps.quick}}
+
+
 @router.post("/llm/providers/test")
 async def test_provider_draft(request: Request) -> dict:
     """Tests a not-yet-saved provider (the Add/Edit form's own Test button) -- no id, no write."""
@@ -105,6 +117,12 @@ def test_provider(provider_id: str) -> dict:
     if provider is None:
         raise HTTPException(status_code=404, detail=f"unknown provider: {provider_id!r}")
     return _run_provider_test(provider_id, provider)
+
+
+@router.get("/llm/cli/{adapter}/auth")
+async def get_cli_auth(adapter: str) -> dict:
+    """Whether that CLI reports a signed-in account; `signed_in` is null when it can't be told."""
+    return {"signed_in": await asyncio.to_thread(cli_signed_in, adapter)}
 
 
 @router.get("/llm/providers/{provider_id}/models")
@@ -126,7 +144,10 @@ def _run_provider_test(provider_id: str | None, provider: providers_store.Provid
         result = model_catalog.fetch_models(provider)
         if result["error"]:
             return {"ok": False, "provider_id": provider_id, "error": result["error"]}
-        return {"ok": True, "provider_id": provider_id, "message": "ok"}
+        reply = {"ok": True, "provider_id": provider_id, "message": "ok"}
+        if not result.get("static") and result["models"]:
+            reply["models_count"] = len(result["models"])
+        return reply
     return _test_api_provider(provider_id, provider)
 
 
@@ -143,7 +164,11 @@ def _test_api_provider(provider_id: str | None, provider: providers_store.Provid
         text = llm.complete(user="Reply with the single word: ok", model=model, max_tokens=1)
     except Exception as exc:
         return {"ok": False, "provider_id": provider_id, "error": str(exc)}
-    return {"ok": True, "provider_id": provider_id, "message": text[:40]}
+    reply = {"ok": True, "provider_id": provider_id, "message": text[:40]}
+    listing = model_catalog.fetch_models(provider)
+    if not listing["error"] and not listing.get("static") and listing["models"]:
+        reply["models_count"] = len(listing["models"])
+    return reply
 
 
 @router.get("/llm/default")
@@ -154,6 +179,7 @@ def get_default() -> dict:
 @router.put("/llm/default")
 async def put_default(request: Request) -> dict:
     body = await json_body(request)
+    await _fill_default_models(body)
     try:
         save_default(body)
     except ValueError as exc:
@@ -170,6 +196,82 @@ def delete_default() -> dict:
 @router.get("/llm/features")
 def list_features() -> dict:
     return {"features": _feature_rows()}
+
+
+@router.put("/llm/features/{feature_id}")
+async def put_feature(feature_id: str, request: Request) -> dict:
+    """Overrides one feature: a group assignment or a simple call-site one, picked server-side."""
+    if feature_id not in FEATURES:
+        raise HTTPException(status_code=404, detail=f"unknown feature: {feature_id!r}")
+    body = await json_body(request)
+    if body.get("offline") is True:
+        try:
+            save_offline_assignment(feature_id)
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+        return _feature_row(feature_id)
+    payload = {"provider_id": body.get("provider_id"), "model": body.get("model")}
+    if _blank(payload["model"]):
+        current = _feature_row(feature_id)["effective"]
+        keep = current["model"] if current["provider_id"] == payload["provider_id"] else None
+        payload["model"] = await _pick_model(payload["provider_id"], keep)
+    try:
+        if feature_id in GROUPS:
+            save_group_assignment(feature_id, payload)
+        else:
+            save_assignment(feature_id, {**payload, "mode": "api"})
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    return _feature_row(feature_id)
+
+
+def _blank(model: object) -> bool:
+    return not isinstance(model, str) or not model.strip()
+
+
+async def _pick_model(provider_id: object, current: str | None, *, first: bool = False) -> str:
+    """Keeps `current` if listed, else the second (or `first`) model; "" lets validation refuse."""
+    provider = providers_store.find_provider(provider_id) if isinstance(provider_id, str) else None
+    if provider is None:
+        return ""
+    result = await asyncio.to_thread(model_catalog.fetch_models, provider)
+    ids = [m["id"] for m in result.get("models") or []]
+    if current and current in ids:
+        return current
+    if not ids:
+        return ""
+    return ids[0] if first or len(ids) == 1 else ids[1]
+
+
+async def _fill_default_models(body: dict) -> None:
+    """Picks server-side any blank model on the default and its provider fallbacks."""
+    if not isinstance(body, dict):
+        return
+    if _blank(body.get("model")):
+        stored = load_default()
+        same = stored is not None and stored.provider_id == body.get("provider_id")
+        body["model"] = await _pick_model(body.get("provider_id"), stored.model if same else None)
+    for key in ("quick_fallback", "agent_fallback"):
+        fallback = body.get(key)
+        needs_model = isinstance(fallback, dict) and not fallback.get("offline")
+        if needs_model and _blank(fallback.get("model")):
+            fallback["model"] = await _pick_model(fallback.get("provider_id"), None, first=True)
+
+
+@router.delete("/llm/features/{feature_id}")
+def delete_feature(feature_id: str) -> dict:
+    """Drops a feature's override so it follows the default again."""
+    if feature_id not in FEATURES:
+        raise HTTPException(status_code=404, detail=f"unknown feature: {feature_id!r}")
+    if feature_id in GROUPS:
+        clear_group_assignment(feature_id)
+    else:
+        clear_assignment(feature_id)
+    return _feature_row(feature_id)
+
+
+def _feature_row(feature_id: str) -> dict:
+    return next(row for row in _feature_rows() if row["id"] == feature_id)
 
 
 def _default_dict() -> dict | None:
@@ -205,6 +307,8 @@ def _feature_rows() -> list[dict]:
         )
         if override is not None:
             provider_id, model, source = override.provider_id, override.model, "custom"
+            if getattr(override, "mode", None) == "offline":
+                source = "offline"
         else:
             resolved, source = resolve_default(feature.needs)
             provider_id = resolved.provider_id if resolved is not None else None

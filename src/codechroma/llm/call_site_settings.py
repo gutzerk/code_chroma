@@ -339,6 +339,19 @@ def save_assignment(call_site_id: str, payload: dict) -> Assignment:
         return assignment
 
 
+def save_offline_assignment(call_site_id: str) -> Assignment:
+    """Persists an "offline" override (no AI) for a `simple` call site; ValueError otherwise."""
+    call_site = CALL_SITES.get(call_site_id)
+    if call_site is None or call_site.capability != "simple":
+        raise ValueError(f"{call_site_id!r} cannot run offline")
+    with locked(call_site_settings_path()):
+        assignments = load_assignments()
+        assignment = Assignment(call_site_id=call_site_id, provider_id="", model="", mode="offline")
+        assignments[call_site_id] = assignment
+        _persist(assignments, load_group_assignments(), load_default())
+        return assignment
+
+
 def save_group_assignment(group_id: str, payload: dict) -> GroupAssignment:
     """Validates and persists one agentic group's assignment; raises ValueError on problems."""
     full_payload = {**payload, "group_id": group_id}

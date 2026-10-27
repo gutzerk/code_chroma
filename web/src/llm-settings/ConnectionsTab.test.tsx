@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
-import { ProvidersSection } from "./ProvidersSection";
+import { ConnectionsTab } from "./ConnectionsTab";
 import * as client from "./llmSettingsClient";
 
 vi.mock("./llmSettingsClient", () => ({
@@ -10,6 +10,8 @@ vi.mock("./llmSettingsClient", () => ({
   deleteProvider: vi.fn(),
   testProvider: vi.fn(),
   testProviderDraft: vi.fn(),
+  fetchCliStatus: vi.fn(async () => null),
+  fetchDraftCapabilities: vi.fn(async () => ({ capabilities: { agents: false, quick: true } })),
 }));
 
 const listProviders = vi.mocked(client.listProviders);
@@ -22,7 +24,40 @@ afterEach(() => {
   vi.clearAllMocks();
 });
 
-describe("ProvidersSection", () => {
+describe("ConnectionsTab", () => {
+  it("shows each connection's capability and how many features use it", async () => {
+    listProviders.mockResolvedValue([
+      {
+        id: "p1", label: "Claude Code", kind: "cli", adapter: "claude", transport: null,
+        base_url: null, api_key_set: false, api_key_path: null, is_local: false,
+        test_model: null, verify_ssl: true,
+        capabilities: { agents: true, quick: false }, used_by: 2,
+      },
+    ]);
+
+    render(<ConnectionsTab />);
+
+    await waitFor(() =>
+      expect(screen.getByTestId("llm-provider-capability-p1").textContent).toBe("Agents only")
+    );
+    expect(screen.getByTestId("llm-provider-used-by-p1").textContent).toBe("Used by 2 features");
+  });
+
+  it("previews what a type can be used for before saving", async () => {
+    listProviders.mockResolvedValue([]);
+    render(<ConnectionsTab startAdding />);
+    await waitFor(() => expect(screen.getByTestId("llm-type-picker")).toBeTruthy());
+
+    fireEvent.click(screen.getByTestId("llm-type-gemini"));
+
+    await waitFor(() =>
+      expect(screen.getByTestId("llm-form-capability").textContent).toContain("Quick tasks only")
+    );
+    expect(client.fetchDraftCapabilities).toHaveBeenLastCalledWith(
+      expect.objectContaining({ kind: "api", transport: "gemini", api_key_set: false })
+    );
+  });
+
   it("lists the saved providers", async () => {
     listProviders.mockResolvedValue([
       {
@@ -33,7 +68,7 @@ describe("ProvidersSection", () => {
       },
     ]);
 
-    render(<ProvidersSection />);
+    render(<ConnectionsTab />);
 
     await waitFor(() => expect(screen.getByText("Local Ollama")).toBeTruthy());
   });
@@ -47,7 +82,7 @@ describe("ProvidersSection", () => {
       },
     ]);
 
-    render(<ProvidersSection />);
+    render(<ConnectionsTab />);
 
     await waitFor(() =>
       expect(screen.getByTestId("llm-billing-warning-p1")).toBeTruthy(),
@@ -63,7 +98,7 @@ describe("ProvidersSection", () => {
       },
     ]);
 
-    render(<ProvidersSection />);
+    render(<ConnectionsTab />);
 
     await waitFor(() => expect(screen.getByText("Local")).toBeTruthy());
     expect(screen.queryByTestId("llm-billing-warning-p1")).toBeNull();
@@ -77,7 +112,7 @@ describe("ProvidersSection", () => {
       verify_ssl: true,
     });
 
-    render(<ProvidersSection />);
+    render(<ConnectionsTab />);
     await waitFor(() => expect(screen.getByTestId("llm-provider-add")).toBeTruthy());
 
     fireEvent.click(screen.getByTestId("llm-provider-add"));
@@ -99,12 +134,13 @@ describe("ProvidersSection", () => {
       is_local: false, test_model: null, verify_ssl: true,
     });
 
-    render(<ProvidersSection />);
+    render(<ConnectionsTab />);
     await waitFor(() => expect(screen.getByTestId("llm-provider-add")).toBeTruthy());
     fireEvent.click(screen.getByTestId("llm-provider-add"));
     fireEvent.change(screen.getByTestId("llm-provider-label"), {
       target: { value: "Claude via proxy" },
     });
+    fireEvent.click(screen.getByTestId("llm-provider-cli-use-proxy"));
     fireEvent.change(screen.getByTestId("llm-provider-cli-base-url"), {
       target: { value: "https://proxy.example.com" },
     });
@@ -131,15 +167,13 @@ describe("ProvidersSection", () => {
       verify_ssl: true,
     });
 
-    render(<ProvidersSection />);
+    render(<ConnectionsTab />);
     await waitFor(() => expect(screen.getByTestId("llm-provider-add")).toBeTruthy());
     fireEvent.click(screen.getByTestId("llm-provider-add"));
     fireEvent.change(screen.getByTestId("llm-provider-label"), {
       target: { value: "Codex CLI" },
     });
-    fireEvent.change(screen.getByTestId("llm-provider-adapter"), {
-      target: { value: "codex" },
-    });
+    fireEvent.click(screen.getByTestId("llm-type-codex"));
 
     expect(screen.queryByTestId("llm-provider-cli-base-url")).toBeNull();
     expect(screen.queryByTestId("llm-provider-cli-api-key")).toBeNull();
@@ -154,10 +188,10 @@ describe("ProvidersSection", () => {
   it("shows the billing warning in the form for a non-local api draft", async () => {
     listProviders.mockResolvedValue([]);
 
-    render(<ProvidersSection />);
+    render(<ConnectionsTab />);
     await waitFor(() => expect(screen.getByTestId("llm-provider-add")).toBeTruthy());
     fireEvent.click(screen.getByTestId("llm-provider-add"));
-    fireEvent.change(screen.getByTestId("llm-provider-kind"), { target: { value: "api" } });
+    fireEvent.click(screen.getByTestId("llm-type-anthropic"));
 
     await waitFor(() =>
       expect(screen.getByTestId("llm-provider-form-billing-warning")).toBeTruthy(),
@@ -173,13 +207,10 @@ describe("ProvidersSection", () => {
       verify_ssl: true,
     });
 
-    render(<ProvidersSection />);
+    render(<ConnectionsTab />);
     await waitFor(() => expect(screen.getByTestId("llm-provider-add")).toBeTruthy());
     fireEvent.click(screen.getByTestId("llm-provider-add"));
-    fireEvent.change(screen.getByTestId("llm-provider-kind"), { target: { value: "api" } });
-    fireEvent.change(screen.getByTestId("llm-provider-transport"), {
-      target: { value: "openai-compatible" },
-    });
+    fireEvent.click(screen.getByTestId("llm-type-openai"));
     fireEvent.change(screen.getByTestId("llm-provider-test-model"), {
       target: { value: "llama3" },
     });
@@ -198,13 +229,10 @@ describe("ProvidersSection", () => {
       test_model: null, verify_ssl: true,
     });
 
-    render(<ProvidersSection />);
+    render(<ConnectionsTab />);
     await waitFor(() => expect(screen.getByTestId("llm-provider-add")).toBeTruthy());
     fireEvent.click(screen.getByTestId("llm-provider-add"));
-    fireEvent.change(screen.getByTestId("llm-provider-kind"), { target: { value: "api" } });
-    fireEvent.change(screen.getByTestId("llm-provider-transport"), {
-      target: { value: "gemini" },
-    });
+    fireEvent.click(screen.getByTestId("llm-type-gemini"));
     // gemini shows the (optional) base url field but no test-model / TLS fields.
     expect(screen.getByTestId("llm-provider-base-url")).toBeTruthy();
     expect(screen.queryByTestId("llm-provider-test-model")).toBeNull();
@@ -233,13 +261,10 @@ describe("ProvidersSection", () => {
       is_local: true, test_model: "deepseek-v4-pro", verify_ssl: false,
     });
 
-    render(<ProvidersSection />);
+    render(<ConnectionsTab />);
     await waitFor(() => expect(screen.getByTestId("llm-provider-add")).toBeTruthy());
     fireEvent.click(screen.getByTestId("llm-provider-add"));
-    fireEvent.change(screen.getByTestId("llm-provider-kind"), { target: { value: "api" } });
-    fireEvent.change(screen.getByTestId("llm-provider-transport"), {
-      target: { value: "openai-compatible" },
-    });
+    fireEvent.click(screen.getByTestId("llm-type-openai"));
     fireEvent.click(screen.getByTestId("llm-provider-verify-ssl"));
     await waitFor(() =>
       expect(screen.getByTestId("llm-provider-verify-ssl-warning")).toBeTruthy(),
@@ -254,13 +279,10 @@ describe("ProvidersSection", () => {
   it("does not show the TLS warning by default", async () => {
     listProviders.mockResolvedValue([]);
 
-    render(<ProvidersSection />);
+    render(<ConnectionsTab />);
     await waitFor(() => expect(screen.getByTestId("llm-provider-add")).toBeTruthy());
     fireEvent.click(screen.getByTestId("llm-provider-add"));
-    fireEvent.change(screen.getByTestId("llm-provider-kind"), { target: { value: "api" } });
-    fireEvent.change(screen.getByTestId("llm-provider-transport"), {
-      target: { value: "openai-compatible" },
-    });
+    fireEvent.click(screen.getByTestId("llm-type-openai"));
 
     expect(screen.queryByTestId("llm-provider-verify-ssl-warning")).toBeNull();
   });
@@ -274,7 +296,7 @@ describe("ProvidersSection", () => {
       },
     ]);
 
-    render(<ProvidersSection />);
+    render(<ConnectionsTab />);
 
     await waitFor(() =>
       expect(screen.getByTestId("llm-provider-insecure-tls-p1")).toBeTruthy(),
@@ -285,7 +307,7 @@ describe("ProvidersSection", () => {
     listProviders.mockResolvedValue([]);
     testProviderDraft.mockResolvedValue({ ok: true, provider_id: null as never, message: "ok" });
 
-    render(<ProvidersSection />);
+    render(<ConnectionsTab />);
     await waitFor(() => expect(screen.getByTestId("llm-provider-add")).toBeTruthy());
     fireEvent.click(screen.getByTestId("llm-provider-add"));
     fireEvent.change(screen.getByTestId("llm-provider-label"), {
@@ -294,12 +316,72 @@ describe("ProvidersSection", () => {
     fireEvent.click(screen.getByTestId("llm-provider-form-test"));
 
     await waitFor(() =>
-      expect(screen.getByTestId("llm-provider-form-test-result").textContent).toMatch(/OK/),
+      expect(screen.getByTestId("llm-provider-form-test-result").textContent).toMatch(/Works/),
     );
     expect(testProviderDraft).toHaveBeenCalledWith(
       expect.objectContaining({ label: "Claude CLI", kind: "cli", adapter: "claude" }),
     );
     expect(createProvider).not.toHaveBeenCalled();
+  });
+
+  it("shows 'signed in' on the cli status line", async () => {
+    listProviders.mockResolvedValue([]);
+    vi.mocked(client.fetchCliStatus).mockResolvedValue({
+      executable: "/bin/claude", version: "2.1", failure_reason: null, signed_in: true,
+    });
+
+    render(<ConnectionsTab startAdding />);
+
+    await waitFor(() =>
+      expect(screen.getByTestId("llm-form-cli-status").textContent).toBe(
+        "claude found on PATH · 2.1 · signed in",
+      ),
+    );
+  });
+
+  it("reads an api draft test with the number of models found", async () => {
+    listProviders.mockResolvedValue([]);
+    testProviderDraft.mockResolvedValue({
+      ok: true, provider_id: null as never, message: "ok", models_count: 12,
+    });
+
+    render(<ConnectionsTab startAdding />);
+    fireEvent.click(screen.getByTestId("llm-type-anthropic"));
+    fireEvent.click(screen.getByTestId("llm-provider-form-test"));
+
+    await waitFor(() =>
+      expect(screen.getByTestId("llm-provider-form-test-result").textContent).toBe(
+        "Connected · 12 models found",
+      ),
+    );
+  });
+
+  it("hides the endpoint fields until 'Route through my own endpoint' is checked", async () => {
+    listProviders.mockResolvedValue([]);
+
+    render(<ConnectionsTab />);
+    await waitFor(() => expect(screen.getByTestId("llm-provider-add")).toBeTruthy());
+    fireEvent.click(screen.getByTestId("llm-provider-add"));
+
+    expect(screen.queryByTestId("llm-provider-cli-base-url")).toBeNull();
+    fireEvent.click(screen.getByTestId("llm-provider-cli-use-proxy"));
+    expect(screen.getByTestId("llm-provider-cli-base-url")).toBeTruthy();
+  });
+
+  it("reads a cli draft test as 'Works · replied in'", async () => {
+    listProviders.mockResolvedValue([]);
+    testProviderDraft.mockResolvedValue({ ok: true, provider_id: null as never, message: "ok" });
+
+    render(<ConnectionsTab />);
+    await waitFor(() => expect(screen.getByTestId("llm-provider-add")).toBeTruthy());
+    fireEvent.click(screen.getByTestId("llm-provider-add"));
+    fireEvent.click(screen.getByTestId("llm-provider-form-test"));
+
+    await waitFor(() =>
+      expect(screen.getByTestId("llm-provider-form-test-result").textContent).toMatch(
+        /Works · replied in \d+\.\d s/,
+      ),
+    );
   });
 
   it("shows a failed draft test result in the add form", async () => {
@@ -308,7 +390,7 @@ describe("ProvidersSection", () => {
       ok: false, provider_id: null as never, error: "connection refused",
     });
 
-    render(<ProvidersSection />);
+    render(<ConnectionsTab />);
     await waitFor(() => expect(screen.getByTestId("llm-provider-add")).toBeTruthy());
     fireEvent.click(screen.getByTestId("llm-provider-add"));
     fireEvent.click(screen.getByTestId("llm-provider-form-test"));
@@ -329,7 +411,7 @@ describe("ProvidersSection", () => {
       }),
     );
 
-    render(<ProvidersSection />);
+    render(<ConnectionsTab />);
     await waitFor(() => expect(screen.getByTestId("llm-provider-add")).toBeTruthy());
     fireEvent.click(screen.getByTestId("llm-provider-add"));
     fireEvent.click(screen.getByTestId("llm-provider-form-test"));
@@ -353,12 +435,12 @@ describe("ProvidersSection", () => {
     ]);
     testProvider.mockResolvedValue({ ok: true, provider_id: "p1", message: "ok" });
 
-    render(<ProvidersSection />);
+    render(<ConnectionsTab />);
     await waitFor(() => expect(screen.getByText("Claude CLI")).toBeTruthy());
     fireEvent.click(screen.getAllByText("Test")[0]);
 
     await waitFor(() =>
-      expect(screen.getByTestId("llm-provider-test-p1").textContent).toMatch(/OK/),
+      expect(screen.getByTestId("llm-provider-test-p1").textContent).toMatch(/Works/),
     );
   });
 
@@ -372,7 +454,7 @@ describe("ProvidersSection", () => {
     ]);
     deleteProvider.mockResolvedValue(undefined);
 
-    render(<ProvidersSection />);
+    render(<ConnectionsTab />);
     await waitFor(() => expect(screen.getByText("Claude CLI")).toBeTruthy());
     fireEvent.click(screen.getByText("Delete"));
 
@@ -389,7 +471,7 @@ describe("ProvidersSection", () => {
     ]);
     deleteProvider.mockRejectedValue(new Error("provider is still assigned to ai_summarizer"));
 
-    render(<ProvidersSection />);
+    render(<ConnectionsTab />);
     await waitFor(() => expect(screen.getByText("Claude CLI")).toBeTruthy());
     fireEvent.click(screen.getByText("Delete"));
 

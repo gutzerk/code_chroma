@@ -9,6 +9,7 @@ import { bundleEdges, bundleKeyOf, bundledKeys } from "./bundleEdges";
 import { edgeVisual, type EdgeVisual } from "./edgeKinds";
 import { focusStore } from "./focusStore";
 import { elementRect } from "./elementRect";
+import { mergedPillRect, useMergedPills } from "./impactBoxState";
 
 const CANVAS_ARROW_MARKER_ID = "canvas-doc-arrowhead";
 
@@ -58,7 +59,15 @@ export function CanvasEdges({ doc, sizes, onOpenOrigin }: CanvasEdgesProps) {
     Object.values(doc.elements).map((element) => [element.id, elementRect(element, sizes)]),
   );
   useSyncExternalStore(focusStore.subscribe, focusStore.getVersion);
-  const original = Object.values(doc.edges);
+  // Impact: minor boxes folded into one pill route their arrows to that pill, never to empty space.
+  const mergedPills = useMergedPills(doc);
+  for (const [id, group] of mergedPills) {
+    const leader = doc.elements[group.leader];
+    if (leader) rectByKey.set(id, mergedPillRect(leader));
+  }
+  const original = Object.values(doc.edges).filter(
+    (edge) => !(mergedPills.has(edge.from) && mergedPills.get(edge.from) === mergedPills.get(edge.to)),
+  );
   const bundled = bundleEdges(original);
   const bundleSet = bundledKeys(original, bundled);
   const edges = layoutDiagramEdges(bundled, rectByKey);

@@ -29,6 +29,8 @@ import {
 } from "./canvasDocStore";
 import { useCollapsedLayers } from "./collapsedLayersStore";
 import { useLiveDragOffsets } from "./dragOffsetStore";
+import { expandRouteElements } from "./routeExpansion";
+import { useRouteExpanded } from "./routeExpandStore";
 import { useReflowEpics } from "./useReflowEpics";
 import { useReflowSequence } from "./useReflowSequence";
 import { useEpicsContentSizes } from "./epicsContentSizeStore";
@@ -141,7 +143,7 @@ export function CanvasDocView() {
   // so re-expanding needs no server round trip. `hierarchy`/`default` are never in `collapsedLayers`
   // (nothing ever collapses them -- see the left panel's Diagrams tab, which only ever lists real diagram
   // layers), so this can stay a plain layer-membership filter with no special-cased layer names.
-  const renderableElements = useMemo(
+  const shownElements = useMemo(
     () =>
       Object.fromEntries(
         Object.entries(doc.elements).filter(
@@ -149,6 +151,12 @@ export function CanvasDocView() {
         ),
       ),
     [doc.elements, collapsedLayers],
+  );
+  // 026: expanded route steps grow and push their neighbours down; derived here, never persisted.
+  const routeExpanded = useRouteExpanded();
+  const renderableElements = useMemo(
+    () => expandRouteElements(shownElements, routeExpanded),
+    [shownElements, routeExpanded],
   );
 
   const visibleElements = useMemo(

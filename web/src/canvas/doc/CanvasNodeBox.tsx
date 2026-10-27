@@ -32,6 +32,8 @@ import { elementCopyText } from "../strategies/nodeCopyText";
 import { useNodeOverlays } from "../../state/useSidecar";
 import { authoredStyle } from "../authoredStyle";
 import { BOTTOM_LEFT_RENDERS, DEFAULT_ELEMENT_SIZE } from "./elementRect";
+import { routeStepOf } from "./routeStep";
+import { routeExpandStore, useIsRouteExpanded } from "./routeExpandStore";
 
 function styleFor(render: CanvasElement["render"]) {
   return NODE_STYLES[render as StyledRenderKind] ?? NODE_STYLES.custom;
@@ -117,6 +119,8 @@ export function CanvasNodeBox({ element, onMeasure }: CanvasNodeBoxProps) {
   const lockedLayout = Boolean(BLOCK_RULES[element.render].lockedLayout);
   const accent = accentFor(element);
   const blockRole = isEpicsLayerName(element.layer) ? undefined : blockRoleFor(element);
+  const routeStep = routeStepOf(element);
+  const routeExpanded = useIsRouteExpanded(element.id);
   const width = element.size?.w ?? DEFAULT_ELEMENT_SIZE.w;
   const height = element.size?.h ?? DEFAULT_ELEMENT_SIZE.h;
   // A content card (Summary prose / Acceptance list / Спеки stories) auto-fits to its text; an epic
@@ -354,6 +358,7 @@ export function CanvasNodeBox({ element, onMeasure }: CanvasNodeBoxProps) {
     // A «Спеки» (User Stories) block renders each story card (overriding the acceptance structure) --
     // see the `isSpecsCard` description branch below.
     isSpecsCard ? "diagram-node-box--specs" : "",
+    routeStep ? `route-step route-step--${routeStep.kind}` : "",
   ]
     .filter(Boolean)
     .join(" ");
@@ -500,6 +505,44 @@ export function CanvasNodeBox({ element, onMeasure }: CanvasNodeBoxProps) {
             )}
             {isImpact && (
               <ImpactGlance change={impactChange} elementId={element.id} />
+            )}
+            {routeStep && routeStep.children.length > 0 && (
+              <button
+                type="button"
+                className="route-step-chip"
+                data-testid="route-step-chip"
+                aria-expanded={routeExpanded}
+                onClick={(event) => {
+                  event.stopPropagation();
+                  routeExpandStore.toggle(element.id);
+                }}
+              >
+                {routeExpanded ? "▾" : "▸"} {routeStep.children.length} calls
+              </button>
+            )}
+            {routeStep && routeExpanded && routeStep.children.length > 0 && (
+              <ul className="route-step-children" data-testid="route-step-children">
+                {routeStep.children.map((child) => (
+                  <li key={child.id} className="route-step-child">
+                    <span className="route-step-child-label">{child.label}</span>
+                    <span className="route-step-child-line">:{child.line}</span>
+                    {child.nodeId && (
+                      <button
+                        type="button"
+                        className="route-step-child-open"
+                        data-testid="route-step-child-open"
+                        aria-label={`Open ${child.label}`}
+                        onClick={(event) => {
+                          event.stopPropagation();
+                          inspectorStore.open(child.nodeId as string, child.label, element.id);
+                        }}
+                      >
+                        ↗
+                      </button>
+                    )}
+                  </li>
+                ))}
+              </ul>
             )}
             {sourcePath && (
               <div className="canvas-node-box-foot" data-testid="canvas-node-box-foot">

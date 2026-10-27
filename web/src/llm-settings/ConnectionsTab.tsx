@@ -245,6 +245,11 @@ export function ConnectionsTab({
     setFormTestResult(null);
     setFormTesting(false);
   };
+  const closeForm = () => {
+    formGenerationRef.current += 1;
+    setFormTesting(false);
+    setEditingId(null);
+  };
   const startCreate = () => openForm(EMPTY_DRAFT, "new");
   const startEdit = (provider: Provider) => openForm(toFormDraft(provider), provider.id);
 
@@ -311,7 +316,8 @@ export function ConnectionsTab({
 
   // Runtime-parametric over transport: gemini and openai-compatible carry a base_url; only
   // openai-compatible takes a test_model / TLS toggle.
-  const hasKey = draft.apiKey !== "" || draft.hadKey;
+  const keyEntered = draft.apiKey !== "" || draft.hadKey;
+  const hasKey = draft.kind === "cli" ? draft.adapter === "claude" && draft.useProxy && keyEntered : keyEntered;
   const [draftCaps, setDraftCaps] = useState<Capabilities | null>(null);
   useEffect(() => {
     if (editingId === null) return;
@@ -344,7 +350,7 @@ export function ConnectionsTab({
             >
               Test
             </button>
-            <button type="button" className="llm-button-ghost" onClick={() => setEditingId(null)}>
+            <button type="button" className="llm-button-ghost" onClick={closeForm}>
               Cancel
             </button>
             <button
@@ -427,7 +433,12 @@ export function ConnectionsTab({
                     <button
                       type="button"
                       className="llm-button-ghost llm-button-danger"
-                      onClick={() => void remove(provider.id)}
+                      onClick={() => {
+                        const inUse = (provider.used_by ?? 0) > 0;
+                        if (!inUse || window.confirm(`"${provider.label}" is in use. Delete it anyway?`)) {
+                          void remove(provider.id);
+                        }
+                      }}
                     >
                       Delete
                     </button>
@@ -501,7 +512,7 @@ export function ConnectionsTab({
               className="llm-button-ghost"
               aria-label="Back to connections"
               data-testid="llm-provider-back"
-              onClick={() => setEditingId(null)}
+              onClick={closeForm}
             >
               ←
             </button>

@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { messageOf } from "../util/reportError";
 import { bridgeRequest, jsonInit } from "../util/httpJson";
 
@@ -20,6 +20,19 @@ export function AgentInstructionSection() {
         setStatus("error");
       });
   }, []);
+
+  const latest = useRef({ text, saved });
+  latest.current = { text, saved };
+
+  useEffect(
+    () => () => {
+      const { text: pending, saved: stored } = latest.current;
+      if (pending !== stored) {
+        void bridgeRequest("/assistant/settings", jsonInit("PUT", { instruction: pending })).catch(() => {});
+      }
+    },
+    []
+  );
 
   const save = async () => {
     if (text === saved) return;

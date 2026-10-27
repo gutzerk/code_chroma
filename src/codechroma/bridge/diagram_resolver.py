@@ -19,7 +19,7 @@ from __future__ import annotations
 from collections.abc import Callable
 
 from codechroma.bridge.coverage import uncovered_roots
-from codechroma.bridge.diagram_diagnostics import Diagnostics, keep_relation
+from codechroma.bridge.diagram_diagnostics import Diagnostics, advise_relations, keep_relation
 from codechroma.bridge.diagram_paths import clean_path, resolve_path_node
 from codechroma.diagrams.styles import resolve_style_overrides
 from codechroma.engine import GraphEngine
@@ -47,6 +47,64 @@ def _resolve_node(engine: GraphEngine, item: dict, notes: Diagnostics) -> dict:
         notes.drop("node", item["id"], "unresolved_path", path)
         return _stamp_no_code_reason({**item, "node_id": node_id}, path=path)
     return {**item, "node_id": node_id}
+
+
+def _locate(engine: GraphEngine, node_id: object) -> dict | None:
+    """`{node_id, path, line?}` for a real graph node (line from its symbol), else None."""
+    if not isinstance(node_id, str):
+        return None
+    node = engine.get_node(node_id)
+    if node is None:
+        return None
+    symbol = engine.get_symbol(node_id)
+    path = symbol.file_path if symbol is not None else node.source_path
+    found: dict = {"node_id": node_id}
+    if path:
+        found["path"] = path
+    if symbol is not None and symbol.start_line:
+        found["line"] = symbol.start_line
+    return found
+
+
+def _resolve_route(engine: GraphEngine, route: object, notes: Diagnostics) -> object:
+    """Stamps `resolved` on each step and path/resolved_line/line_mismatch on children (026)."""
+    steps = route.get("steps") if isinstance(route, dict) else None
+    if not isinstance(steps, list):
+        return route
+    out = []
+    for step in steps:
+        if not isinstance(step, dict):
+            out.append(step)
+            continue
+        sid = step.get("id")
+        found = []
+        ids = step.get("node_ids")
+        for nid in ids if isinstance(ids, list) else []:
+            hit = _locate(engine, nid)
+            if hit is None:
+                notes.drop("route_step", sid, "unresolved_path", str(nid))
+            else:
+                found.append(hit)
+        children = []
+        raw_children = step.get("children")
+        for child in raw_children if isinstance(raw_children, list) else []:
+            hit = _locate(engine, child.get("node_id")) if isinstance(child, dict) else None
+            if not isinstance(child, dict):
+                children.append(child)
+                continue
+            if child.get("node_id") and hit is None:
+                notes.drop("route_child", child.get("id"), "unresolved_path", str(child["node_id"]))
+            if hit is None:
+                children.append(child)
+                continue
+            extra = {k: hit[k] for k in ("path",) if k in hit}
+            if "line" in hit:
+                extra["resolved_line"] = hit["line"]
+                if child.get("line") != hit["line"]:
+                    extra["line_mismatch"] = True
+            children.append({**child, **extra})
+        out.append({**step, "resolved": found, "children": children})
+    return {**route, "steps": out}
 
 
 def _stamp_no_code_reason(node: dict, *, path: str | None) -> dict:
@@ -94,7 +152,9 @@ def _groups_of(nodes: list[dict], overrides: dict) -> list[str]:
                    and node["group"]})
 
 
-def resolve_diagram(engine: GraphEngine, data: dict, *, style_source: object = None) -> dict:
+def resolve_diagram(
+    engine: GraphEngine, data: dict, *, style_source: object = None, kind: str | None = None
+) -> dict:
     """The one resolver every `DiagramSpec.resolve` closure calls -- see diagram-schema.md."""
     if not isinstance(data, dict):
         return data  # type: ignore[unreachable]  # defensive: a caller may pass non-dict JSON
@@ -127,9 +187,12 @@ def resolve_diagram(engine: GraphEngine, data: dict, *, style_source: object = N
             continue
         assert isinstance(item, dict)
         relations.append({**item, "style": _relation_style(item, edge_style)})
+    advise_relations(relations, kind or data.get("type"), notes)
 
+    route = _resolve_route(engine, data.get("route"), notes)
     resolved = {
         **data,
+        **({"route": route} if route is not None else {}),
         "nodes": nodes,
         "relations": relations,
         "groups": _groups_of(nodes, overrides),

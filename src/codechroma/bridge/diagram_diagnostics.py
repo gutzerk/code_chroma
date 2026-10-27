@@ -16,6 +16,7 @@ Reason slugs are a closed vocabulary so the web can group and translate them wit
 
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass, field
 
 from codechroma.config import settings
@@ -141,3 +142,69 @@ def merge_dropped(*payloads: object) -> dict:
     merged["dropped_count"] = max(total, merged["dropped_count"])
     merged["truncated"] = merged["dropped_count"] > merged["shown"]
     return merged
+
+
+# Kept in sync with skills/codechroma-draw-diagram/scripts/check_diagram.py and the C# Diagnostics.
+MESSAGE_KINDS = ("call", "return", "ai", "event", "error")
+EDGE_KINDS = ("calls", "spawns", "data", "reads", "writes", "minor")
+EDGE_KIND_ALIASES = (
+    "call", "uses", "spawn", "process", "read", "write", "secondary", "imports", "implements",
+    "extends", "inherits", "composes", "contains", "depends", "depends_on", "removed",
+)
+_PLAIN_EDGE_KINDS = ("", "calls", "call", "uses")
+# These author structural verbs (observes, wraps, ...), so an unknown kind there is not a typo.
+_STRUCTURAL_KINDS = ("c1", "patterns", "impact")
+_FAILURE_WORDS = re.compile(r"\b(error|fail\w*|denied|timeout|timed out)\b", re.IGNORECASE)
+_SPAWN_WORDS = re.compile(
+    r"\b(spawn\w*|launch\w*|(start|starts|starting|run|runs|fork\w*)\s+(a\s+|an\s+|the\s+)?"
+    r"(sub)?(process|cli|agent|worker|daemon))\b", re.IGNORECASE,
+)
+_DATA_WORDS = re.compile(
+    r"\b(read|reads|write|writes|reading|writing|persist\w*|stores?|saves?)\b.{0,40}"
+    r"\b(files?|disk|database|db|sqlite|store|cache|json)\b", re.IGNORECASE,
+)
+
+
+def advise_relations(relations: object, kind: object, notes: Diagnostics) -> None:
+    """Records check_diagram.py's edge/message-kind advisories as soft diagnostics (never drops)."""
+    if not isinstance(relations, list) or kind == "custom":
+        return
+    for relation in relations:
+        if not isinstance(relation, dict):
+            continue
+        if kind == "sequence":
+            _advise_message(relation, notes)
+        else:
+            _advise_edge(relation, notes, structural=kind in _STRUCTURAL_KINDS)
+
+
+def _advise_message(relation: dict, notes: Diagnostics) -> None:
+    msg_kind, ident = relation.get("kind"), relation.get("id")
+    if isinstance(msg_kind, str) and msg_kind not in MESSAGE_KINDS:
+        notes.drop("relation", ident, "bad_message_kind", f"kind={msg_kind!r}")
+    label = str(relation.get("label") or "")
+    if msg_kind != "error" and not relation.get("failure") and _FAILURE_WORDS.search(label):
+        notes.drop("relation", ident, "failure_kind", f"label {label!r}: set kind to error")
+
+
+def _advise_edge(relation: dict, notes: Diagnostics, *, structural: bool) -> None:
+    edge_kind = relation.get("kind")
+    pair = relation_pair(relation)
+    known = EDGE_KINDS + EDGE_KIND_ALIASES
+    unknown = edge_kind is not None and (
+        not isinstance(edge_kind, str) or edge_kind.strip().lower() not in known
+    )
+    if not structural and unknown:
+        notes.drop("relation", pair, "bad_edge_kind", f"kind={edge_kind!r}")
+        return
+    plain = edge_kind is None or (
+        isinstance(edge_kind, str) and edge_kind.strip().lower() in _PLAIN_EDGE_KINDS
+    )
+    label = relation.get("label")
+    if not plain or not isinstance(label, str):
+        return
+    if _SPAWN_WORDS.search(label):
+        notes.drop("relation", pair, "edge_kind_spawn", f"label {label!r}: set kind to spawns")
+    elif _DATA_WORDS.search(label):
+        notes.drop("relation", pair, "edge_kind_data", f"label {label!r}: set kind to data")
+

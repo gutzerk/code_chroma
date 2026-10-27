@@ -4,6 +4,8 @@ Read `references/drawing-rules.md` first — bridge contract, path honesty, dens
 
 A data-flow diagram shows **what data moves between which sources, processes and stores**. Arrows are data, not calls; there is no time axis (that is `sequence`, never this). It is a saved `custom` type with id `dataflow`, so it is drawn and checked exactly like any custom type.
 
+Edge `kind` on `relations[]`: `calls` (default), `spawns` (starts a process/CLI/agent), `data` (reads/writes a file/DB/store), `minor` (optional link) -- set `spawns`/`data` whenever true; see `drawing-rules.md` "Edge kinds".
+
 ## Save the type once
 
 `GET /diagram-types/dataflow`. On a 404 save it, then continue with `references/type-custom.md` for the path, schema and self-check:

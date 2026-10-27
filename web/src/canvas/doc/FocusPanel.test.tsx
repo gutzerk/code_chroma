@@ -49,4 +49,19 @@ describe("FocusPanel", () => {
 
     expect(focusStore.current()).toBeNull();
   });
+
+  it("lists arrows, labels and counts, and toggles the direction back to both", () => {
+    const labelled = { ...doc, edges: { e1: { ...edge, label: "BuildClusters" }, e2: { ...edge, id: "e2", from: "b", to: "a", kind: "spawns" } } };
+    focusStore.toggle(labelled, "b");
+    render(<FocusPanel doc={labelled} />);
+
+    act(() => screen.getByRole("button", { name: "Downstream" }).click());
+    expect(focusStore.current()?.direction).toBe("downstream");
+    act(() => screen.getByRole("button", { name: "Downstream" }).click());
+
+    expect(focusStore.current()?.direction).toBe("both");
+    expect(screen.getByText("CALLED BY · 1")).toBeInTheDocument();
+    expect(screen.getByTestId("focus-called-by")).toHaveTextContent("← a (BuildClusters)");
+    expect(screen.getByTestId("focus-uses")).toHaveTextContent("⇢ a (spawns)");
+  });
 });

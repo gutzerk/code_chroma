@@ -171,6 +171,31 @@ def working_tree_status(
     return _status_against(repo_root, git_root, base)
 
 
+def line_counts(
+    repo_root: Path, base: str, statuses: dict[str, str]
+) -> dict[str, tuple[int, int]]:
+    """Repo-relative path -> (additions, deletions) vs `base`; untracked counts all lines."""
+    counts: dict[str, tuple[int, int]] = {}
+    # -z + no quotepath + no renames: raw unquoted paths, one NUL-terminated record per file.
+    raw = run_git(
+        repo_root, "-c", "core.quotepath=false", "diff", "--numstat", "-z", "--no-renames",
+        "--relative", base, "--", ".",
+    ) or ""
+    for record in raw.split("\0"):
+        parts = record.lstrip("\n").split("	", 2)
+        if len(parts) == 3 and all(p.isascii() and p.isdigit() for p in parts[:2]):
+            counts[parts[2]] = (int(parts[0]), int(parts[1]))
+    for path, kind in statuses.items():
+        if path in counts or kind != "added":
+            continue
+        try:
+            text = (repo_root / path).read_text(encoding="utf-8")
+        except (OSError, UnicodeDecodeError):
+            continue
+        counts[path] = (len(text.splitlines()), 0)
+    return counts
+
+
 def _uncommitted_status(repo_root: Path, git_root: Path) -> WorkingTreeStatus:
     status = WorkingTreeStatus()
     raw = run_git(repo_root, "status", "--porcelain", "--untracked-files=all", "--", ".")

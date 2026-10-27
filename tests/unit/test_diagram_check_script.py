@@ -535,3 +535,156 @@ def test_a_long_title_is_only_flagged_on_sequence_diagrams(tmp_path):
     result = _run(tmp_path, "c1", diagram)
 
     assert "LONGTITLE" not in result.stdout
+
+
+def _failure_sequence(tmp_path, kind_field):
+    path = tmp_path / "seq.json"
+    path.write_text(
+        '{"nodes":[{"id":"a","name":"A"},{"id":"b","name":"B"}],'
+        '"relations":[{"id":"m1","from":"a","to":"b","label":"401 denied","order":"1"'
+        + kind_field
+        + "}]}",
+        encoding="utf-8",
+    )
+    return path
+
+
+def test_failure_looking_sequence_label_without_error_kind_is_only_an_advisory(tmp_path, capsys):
+    module = _load_module()
+    path = _failure_sequence(tmp_path, ',"kind":"return"')
+
+    code = module.main(["--kind", "sequence", "--json", str(path)])
+
+    out = capsys.readouterr().out
+    assert code == 0
+    assert "FAILURE-KIND" in out
+
+
+def test_error_kind_sequence_message_is_accepted_without_a_kind_advisory(tmp_path, capsys):
+    module = _load_module()
+    path = _failure_sequence(tmp_path, ',"kind":"error"')
+
+    code = module.main(["--kind", "sequence", "--json", str(path)])
+
+    out = capsys.readouterr().out
+    assert code == 0
+    assert "FAILURE-KIND" not in out
+    assert "BADMSGKIND" not in out
+
+
+def _kind_relations(**edge):
+    return _flat(2, relations=[{"from": "n0", "to": "n1", **edge}])
+
+
+@pytest.mark.parametrize("edge", [
+    {"kind": "spawns", "label": "starts agent"},
+    {"kind": "data", "label": "writes cache file"},
+    {"kind": "reads"},
+    {"kind": "writes"},
+    {"kind": "minor"},
+    {"kind": "secondary"},
+    {"kind": "removed"},
+    {"kind": "uses", "label": "calls Rank()"},
+])
+def test_known_edge_kinds_raise_no_edge_kind_advisory(tmp_path, capsys, edge):
+    module = _load_module()
+    path = tmp_path / "impact.json"
+    path.write_text(json.dumps(_kind_relations(**edge)), encoding="utf-8")
+
+    module.main(["--kind", "impact", "--json", str(path)])
+
+    out = capsys.readouterr().out
+    assert "EDGEKIND" not in out
+    assert "BADEDGEKIND" not in out
+
+
+def test_unknown_edge_kind_is_an_advisory_that_never_fails(tmp_path, capsys):
+    module = _load_module()
+    path = tmp_path / "feature-plan.json"
+    path.write_text(json.dumps(_kind_relations(kind="teleports")), encoding="utf-8")
+
+    code = module.main(["--kind", "feature-plan", "--slug", "demo", "--json", str(path)])
+
+    out = capsys.readouterr().out
+    assert "BADEDGEKIND" in out
+    assert code in (0, 3)
+    assert "BROKEN" not in out
+
+
+@pytest.mark.parametrize("kind", ["c1", "patterns", "impact"])
+def test_structural_diagrams_skip_the_unknown_edge_kind_advisory(tmp_path, capsys, kind):
+    module = _load_module()
+    path = tmp_path / f"{kind}.json"
+    path.write_text(json.dumps(_kind_relations(kind="observes")), encoding="utf-8")
+
+    module.main(["--kind", kind, "--json", str(path)])
+
+    assert "BADEDGEKIND" not in capsys.readouterr().out
+
+
+@pytest.mark.parametrize(("label", "tag"), [
+    ("spawns a CLI process", "EDGEKIND-SPAWN"),
+    ("starts the agent", "EDGEKIND-SPAWN"),
+    ("writes run state to the database", "EDGEKIND-DATA"),
+    ("reads file", "EDGEKIND-DATA"),
+])
+def test_plain_call_with_spawn_or_data_label_is_advised(tmp_path, capsys, label, tag):
+    module = _load_module()
+    path = tmp_path / "impact.json"
+    path.write_text(json.dumps(_kind_relations(label=label)), encoding="utf-8")
+
+    module.main(["--kind", "impact", "--json", str(path)])
+
+    assert tag in capsys.readouterr().out
+
+
+def test_sequence_message_kinds_skip_the_edge_kind_check(tmp_path, capsys):
+    module = _load_module()
+    path = _failure_sequence(tmp_path, ',"kind":"return"')
+
+    module.main(["--kind", "sequence", "--json", str(path)])
+
+    assert "BADEDGEKIND" not in capsys.readouterr().out
+
+
+def _routed(steps):
+    diagram = _flat(2)
+    diagram["route"] = {"id": "r", "steps": steps}
+    return diagram
+
+
+def test_a_well_formed_route_adds_no_advisory(tmp_path):
+    steps = [
+        {"id": "n0", "order": 1, "kind": "trigger", "node_ids": ["a"],
+         "children": [{"id": "c", "label": "Run()", "line": 4}]},
+        {"id": "n1", "order": 2, "kind": "ai", "node_ids": [], "children": []},
+    ]
+
+    result = _run(tmp_path, "custom", _routed(steps))
+
+    assert result.returncode == 0
+    assert "ROUTE" not in result.stdout
+
+
+def test_route_problems_are_advisory_only(tmp_path):
+    steps = [
+        {"id": "n0", "order": 1, "kind": "wat", "children": [{"label": "x", "line": 0}]},
+        {"id": "n0", "order": 3, "kind": "ai"},
+        {"id": "ghost", "kind": "ai"},
+    ]
+
+    result = _run(tmp_path, "custom", _routed(steps))
+
+    assert result.returncode == 0
+    for code in ("ROUTE-KIND", "ROUTE-CHILD", "ROUTE-STEP", "ROUTE-ORDER"):
+        assert code in result.stdout
+
+
+def test_a_route_step_with_an_unhashable_id_is_advised_not_a_crash(tmp_path):
+    steps = [{"id": ["n0"], "order": 1, "kind": "ai"}, {"id": {"x": 1}, "order": 2, "kind": "ai"}]
+
+    result = _run(tmp_path, "custom", _routed(steps))
+
+    assert result.returncode == 0
+    assert "Traceback" not in result.stderr
+    assert "needs a string `id`" in result.stdout

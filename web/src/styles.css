@@ -8450,3 +8450,23 @@ button[data-copy-state="idle"][aria-label]:hover:not(:disabled) {
 .route-legend { display: inline-block; margin-left: 8px; font-size: 0.7rem; position: relative; }
 .route-legend-list { position: absolute; z-index: 5; margin: 4px 0 0; padding: 8px 10px; list-style: none; background: var(--surface, #fff); border: 1px solid var(--border, #cbd5e1); border-radius: 6px; white-space: nowrap; }
 .route-legend-swatch { display: inline-block; width: 4px; height: 12px; margin-right: 6px; vertical-align: middle; background: var(--route-kind, #94a3b8); border-left: 0 !important; }
+
+/* 026 route over the code map: faded level matches focus mode (0.35); lit blocks and ancestors stay full. */
+[data-route-dim] { opacity: 0.35; transition: opacity 0.12s; }
+[data-route-lit] { outline: 2px solid var(--accent, #6366f1); outline-offset: 2px; }
+.route-overlay { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; pointer-events: none; }
+.route-overlay-path { fill: none; stroke: var(--accent, #6366f1); stroke-width: 2; stroke-dasharray: 6 4; opacity: 0.7; }
+.route-overlay-path--active { opacity: 1; stroke-dasharray: none; }
+.route-overlay-marker circle { fill: var(--route-kind, #6366f1); }
+.route-overlay-marker text { fill: #fff; font-size: 11px; font-weight: 600; }
+.route-overlay-marker--active circle { stroke: #fff; stroke-width: 3; }
+.route-card { position: absolute; top: 12px; right: 12px; z-index: 20; width: 260px; max-height: 70%; overflow: auto; padding: 10px 12px; background: var(--surface, #fff); border: 1px solid var(--border, #cbd5e1); border-radius: 8px; font-size: 0.8rem; }
+.route-card-head { display: flex; align-items: center; gap: 8px; }
+.route-card-tag { font-size: 0.65rem; letter-spacing: 0.08em; opacity: 0.7; }
+.route-card-close { margin-left: auto; border: 0; background: transparent; cursor: pointer; color: inherit; }
+.route-card-summary { margin: 4px 0 8px; opacity: 0.75; }
+.route-card-steps { margin: 0 0 8px; padding: 0; list-style: none; }
+.route-card-step button { width: 100%; text-align: left; border: 0; border-left: 3px solid var(--route-kind, #94a3b8); background: transparent; color: inherit; padding: 3px 6px; cursor: pointer; }
+.route-card-step--active button { background: rgba(99, 102, 241, 0.15); }
+.route-card-step-order { display: inline-block; min-width: 1.2em; opacity: 0.7; }
+.route-card-walk { width: 100%; padding: 4px 0; cursor: pointer; }

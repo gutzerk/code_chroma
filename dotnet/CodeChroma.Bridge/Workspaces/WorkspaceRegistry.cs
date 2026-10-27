@@ -34,6 +34,16 @@ public sealed class WorkspaceRegistry : IDisposable
 
     public Workspace Main { get; }
 
+    /// <summary>The workspace whose wikis a request reads and writes: main for worktree tabs, a read-only PR its own.</summary>
+    public Workspace WikiOwner(Workspace ws) => ws.OwnsWiki ? ws : Main;
+
+    private void BroadcastWiki(JsonObject message)
+    {
+        List<Workspace> targets;
+        lock (_lock) targets = _live.Values.Where(w => !w.ReadOnly).Distinct().ToList();
+        foreach (var target in targets) target.Emit((JsonObject)message.DeepClone());
+    }
+
     public bool IsRegistered(string id)
     {
         lock (_lock) return _roots.ContainsKey(id);
@@ -216,8 +226,9 @@ public sealed class WorkspaceRegistry : IDisposable
             BaseRef = extras?.BaseRef,
             C1SourceRoot = extras?.C1SourceRoot,
         };
-        // Offline and best-effort: the docstring wiki is written once, the first time a workspace comes up.
-        Wiki.WikiBootstrap.IfMissing(workspace);
+        if (id == Workspace.MainId) workspace.WikiEmit = BroadcastWiki;
+        // Offline and best-effort: the docstring wiki is written once, the first time its owner comes up.
+        if (workspace.OwnsWiki) Wiki.WikiBootstrap.IfMissing(workspace);
         _bootstrap?.Start(workspace);
         return workspace;
     }

@@ -114,6 +114,23 @@ public class CanvasUnitTests
     }
 
     [Fact]
+    public void A_lane_of_only_failure_steps_gets_lane_kind_failure_like_python()
+    {
+        var resolved = JsonNode.Parse("""
+            {"nodes":[{"id":"a","name":"A"},{"id":"b","name":"B"},{"id":"c","name":"C"}],
+             "route":{"id":"r","steps":[{"id":"a","lane":"flow","kind":"trigger","children":[]},
+                                         {"id":"b","lane":"Failures","kind":"decide","children":[]},
+                                         {"id":"c","lane":"Errors","kind":"failure","children":[]}]}}
+            """)!.AsObject();
+
+        var shape = Recipes.Reshape(resolved, "custom");
+
+        Assert.Equal("normal", shape.Nodes[0].Meta!["lane_kind"]!.GetValue<string>());
+        Assert.Equal("normal", shape.Nodes[1].Meta!["lane_kind"]!.GetValue<string>());
+        Assert.Equal("failure", shape.Nodes[2].Meta!["lane_kind"]!.GetValue<string>());
+    }
+
+    [Fact]
     public void A_resolved_summary_is_kept_and_a_sequence_diagram_keeps_the_carrier_undecorated()
     {
         var resolved = JsonNode.Parse("""

@@ -199,18 +199,38 @@ def _route_parts(resolved: dict) -> tuple[dict, list[dict]] | None:
     return {**route, "steps": clean, "summary": summary}, clean
 
 
+def _failure_lanes(steps: list[dict]) -> set[str]:
+    """Lanes whose every route step is a failure: the layout puts them last (026)."""
+    kinds: dict[str, set[bool]] = {}
+    for step in steps:
+        if isinstance(step.get("lane"), str):
+            kinds.setdefault(step["lane"], set()).add(step.get("kind") == "failure")
+    return {lane for lane, found in kinds.items() if found == {True}}
+
+
+def _lane_kind_stamp(node: GraphNode, by_id: dict[str, dict], failure_lanes: set[str]) -> dict:
+    """`lane_kind` for a node in a known lane ("failure" or "normal"); an authored one wins."""
+    own = node.meta.get("lane")
+    lane = own if isinstance(own, str) else by_id.get(node.key, {}).get("lane")
+    if "lane_kind" in node.meta or not isinstance(lane, str):
+        return {}
+    return {"lane_kind": "failure" if lane in failure_lanes else "normal"}
+
+
 def _with_route(
     nodes: tuple[GraphNode, ...], parts: tuple[dict, list[dict]] | None
 ) -> tuple[GraphNode, ...]:
-    """Stamps `route_id` on each node and `route_step` on a step's; the route rides once."""
+    """Stamps `route_id`, `route_step` and `lane_kind` on nodes; the route rides once."""
     if parts is None:
         return nodes
     route, steps = parts
     route_id = _route_id(route)
     by_id = {step["id"]: step for step in steps}
+    failure_lanes = _failure_lanes(steps)
     return tuple(
         replace(node, meta={
             **node.meta, "route_id": route_id,
+            **_lane_kind_stamp(node, by_id, failure_lanes),
             **({"route_step": by_id[node.key]} if node.key in by_id else {}),
         })
         for node in nodes

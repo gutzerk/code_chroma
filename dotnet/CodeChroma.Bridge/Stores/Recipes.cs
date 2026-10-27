@@ -172,14 +172,24 @@ public static class Recipes
         return (clean, Json.Str(route["id"]) is { Length: > 0 } id ? id : "route", steps);
     }
 
-    /// <summary>Stamps `route_id` on each node and `route_step` on a step's; the route itself rides once (026).</summary>
+    /// <summary>Lanes whose every route step is a failure: the layout puts them last (026).</summary>
+    private static HashSet<string> FailureLanes(List<JsonObject> steps) => steps
+        .Where(step => Json.Str(step["lane"]) is not null)
+        .GroupBy(step => Json.Str(step["lane"])!)
+        .Where(group => group.All(step => Json.Str(step["kind"]) == "failure"))
+        .Select(group => group.Key).ToHashSet();
+
+    /// <summary>Stamps `route_id`, `route_step` and `lane_kind` on nodes; the route itself rides once (026).</summary>
     private static List<RecipeNode> WithRoute(List<RecipeNode> nodes, (JsonObject Route, string Id, List<JsonObject> Steps)? maybeParts)
     {
         if (maybeParts is not { } parts) return nodes;
         var byId = parts.Steps.ToDictionary(step => Json.Str(step["id"])!);
+        var failureLanes = FailureLanes(parts.Steps);
         return nodes.Select(node =>
         {
             var meta = (JsonObject)(node.Meta ?? []).DeepClone();
+            var laneName = Json.Str(meta["lane"]) ?? (byId.TryGetValue(node.Key, out var own) ? Json.Str(own["lane"]) : null);
+            if (laneName is not null && !meta.ContainsKey("lane_kind")) meta["lane_kind"] = failureLanes.Contains(laneName) ? "failure" : "normal";
             meta["route_id"] = parts.Id;
             if (byId.TryGetValue(node.Key, out var step)) meta["route_step"] = step.DeepClone();
             return node with { Meta = meta };

@@ -110,6 +110,7 @@ Rules:
   `null` when grouping is disabled or a box doesn't fit any group.
 - `nodes[].style` is optional — see `drawing-rules.md`. Use it to flag a critical box; it applies
   alongside the group accent.
+- Edge `kind`: the definition's `relation_kinds` win; additionally use `spawns` (starts a process/CLI/agent) or `data` (reads/writes a file/DB/store) whenever true -- see `drawing-rules.md` "Edge kinds".
 - `relations[].kind` should be one of the definition's own `relation_kinds` ids when it lists any;
   invent a short lowercase verb only when it doesn't.
 - Never invent a relation between two ids that aren't both in `nodes[]`. Never relate an id to

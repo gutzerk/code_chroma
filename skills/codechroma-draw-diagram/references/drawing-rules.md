@@ -305,6 +305,25 @@ only use a slug from this list.
   the two boxes, so keep it terse.
 - Never restate the target's name. Put labels on the arrows that carry the story, not on every edge.
 
+## Edge kinds
+
+Set `relations[].kind` so the arrow's style tells the reader what the link *is*. Default `"calls"` (a
+direct call / HTTP / RPC) and leave it off when that is all it is. Whenever one of these is true,
+**say so — do not leave it as a plain call**:
+
+| `kind` | Use when | Draws as |
+|---|---|---|
+| `calls` (default) | direct call, HTTP, RPC, import | solid arrow |
+| `spawns` | starts a process, CLI, subprocess or agent | dotted arrow |
+| `data` (or `reads` / `writes`) | reads or writes a file, database, queue or store | orange dashed arrow |
+| `minor` | secondary or optional link | grey arrow |
+
+Example: `{ "from": "bridge", "to": "claude-cli", "kind": "spawns", "label": "starts agent" }` and
+`{ "from": "bridge", "to": "sqlite", "kind": "writes", "label": "run state" }`. An optional
+`transport` (`https`, `mcp`, `file`) adds a second label line. `sequence` keeps its own message kinds
+(`call`, `return`, ...) and a `custom` type keeps its definition's `relation_kinds`; the self-check
+advises (never fails) on an unknown kind or a spawn/data-sounding label left as `calls`.
+
 ## The self-check
 
 One command shape, run from the repo the bridge serves:
@@ -347,6 +366,7 @@ Same six per type; each `type-*.md` adds only what differs.
 | Code | Fix |
 |---|---|
 | `BROKEN <id>` | copy `path`/`node_id` verbatim, or fix/delete the entry |
+| `BADEDGEKIND` / `EDGEKIND-SPAWN` / `EDGEKIND-DATA` | advisory: use an edge kind from "Edge kinds"; a label that starts a process or reads/writes a store should say `spawns` / `data` |
 | `DUPLICATE <id>` | rename — relations address by bare id |
 | `DANGLING <pair>` | fix the id, or drop the relation |
 | `SELF <pair>` | drop it (`custom`'s `dependency-graph` style excepted — recursion is real) |

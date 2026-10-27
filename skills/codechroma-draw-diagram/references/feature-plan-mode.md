@@ -121,6 +121,8 @@ section (only `c1` has a live status route) — nothing to send here, it never a
 python3 .claude/skills/codechroma-draw-diagram/scripts/check_diagram.py --kind feature-plan --slug <slug>
 ```
 
+Edges follow the shared edge `kind` vocabulary (`calls`, `spawns`, `data`, `minor`; `drawing-rules.md` "Edge kinds"): a planned step that starts a process or reads/writes a store gets `spawns`/`data`.
+
 Same flat-shape budgets as `custom` (60 nodes / 100 relations / 40-char names / 50-char edge labels)
 and the same common codes (`drawing-rules.md`), with one exception:
 

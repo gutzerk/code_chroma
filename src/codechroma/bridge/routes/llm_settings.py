@@ -236,11 +236,7 @@ async def _pick_model(provider_id: object, current: str | None, *, first: bool =
         return ""
     result = await asyncio.to_thread(model_catalog.fetch_models, provider)
     ids = [m["id"] for m in result.get("models") or []]
-    if current and current in ids:
-        return current
-    if not ids:
-        return ""
-    return ids[0] if first or len(ids) == 1 else ids[1]
+    return model_catalog.pick_model_id(ids, current, first=first)
 
 
 async def _fill_default_models(body: dict) -> None:

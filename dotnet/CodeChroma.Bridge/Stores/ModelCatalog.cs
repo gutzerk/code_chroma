@@ -1,4 +1,5 @@
 using System.Text.Json.Nodes;
+using CodeChroma.Bridge.Skills;
 
 namespace CodeChroma.Bridge.Stores;
 
@@ -7,12 +8,25 @@ public static class ModelCatalog
 {
     private static readonly HttpClient Http = new() { Timeout = TimeSpan.FromSeconds(30) };
 
-    /// <summary>The live CLI model probe; tests swap it so no real CLI is spawned.</summary>
-    public static Func<string, Task<JsonArray?>> CliProbe { get; set; } = CliModelProbe.Probe;
+    /// <summary>The CLI's own pseudo-model; it is listed but never picked on the user's behalf.</summary>
+    private const string PseudoModel = "default";
 
-    public static Task<JsonObject> Fetch(JsonObject provider) => Fetch(provider, Http);
+    /// <summary>The live CLI model probe; the contract host swaps it so no real CLI is spawned.</summary>
+    public static Func<string, RuntimeEnvironment?, Task<JsonArray?>> CliProbe { get; set; } = CliModelProbe.Probe;
 
-    public static async Task<JsonObject> Fetch(JsonObject provider, HttpClient http)
+    /// <summary>`current` if listed, else the second model (the first when `first`), never the CLI's pseudo-model; "" lets validation refuse.</summary>
+    public static string PickId(IReadOnlyList<string> ids, string? current, bool first)
+    {
+        if (current is not null && ids.Contains(current)) return current;
+        var real = ids.Where(id => id != PseudoModel).ToList();
+        if (real.Count == 0) real = [.. ids];
+        if (real.Count == 0) return "";
+        return first || real.Count == 1 ? real[0] : real[1];
+    }
+
+    public static Task<JsonObject> Fetch(JsonObject provider, RuntimeEnvironment? runtime = null) => Fetch(provider, Http, runtime);
+
+    public static async Task<JsonObject> Fetch(JsonObject provider, HttpClient http, RuntimeEnvironment? runtime = null)
     {
         var kind = Json.Str(provider["kind"]);
         var transport = Json.Str(provider["transport"]);
@@ -36,7 +50,7 @@ public static class ModelCatalog
         }
         if (kind == "cli" && Json.Str(provider["adapter"]) == "claude" && !string.IsNullOrEmpty(baseUrl))
             return await Anthropic(http, baseUrl, key);
-        if (kind == "cli" && await CliProbe(Json.Str(provider["adapter"]) ?? "") is { } live)
+        if (kind == "cli" && await CliProbe(Json.Str(provider["adapter"]) ?? "", runtime) is { } live)
             return new JsonObject { ["supported"] = true, ["models"] = live, ["error"] = null };
         if (kind == "cli" && StaticModels.ContainsKey($"adapter:{Json.Str(provider["adapter"])}"))
             return Static($"adapter:{Json.Str(provider["adapter"])}");
@@ -116,16 +130,17 @@ public static class ModelCatalog
 /// <summary>The provider "Test" button: a CLI is located and asked for models, an API provider answers one tiny completion.</summary>
 public static class ProviderTester
 {
-    public static Task<JsonObject> Run(string? providerId, JsonObject provider) => Run(providerId, provider, Skills.LlmCompletion.SharedHttp);
+    public static Task<JsonObject> Run(string? providerId, JsonObject provider, RuntimeEnvironment? runtime = null) =>
+        Run(providerId, provider, Skills.LlmCompletion.SharedHttp, runtime);
 
-    public static async Task<JsonObject> Run(string? providerId, JsonObject provider, HttpClient http)
+    public static async Task<JsonObject> Run(string? providerId, JsonObject provider, HttpClient http, RuntimeEnvironment? runtime = null)
     {
         if (Json.Str(provider["kind"]) == "cli")
         {
             var adapter = Json.Str(provider["adapter"]) ?? "";
-            if (CliLocator.Find(adapter) is null)
+            if (CliModelProbe.Locate(adapter, runtime) is null)
                 return Failure(providerId, $"{adapter} was not found on PATH");
-            var models = await ModelCatalog.Fetch(provider);
+            var models = await ModelCatalog.Fetch(provider, runtime);
             if (models["error"] is { } error) return Failure(providerId, error.ToString());
             var reply = new JsonObject { ["ok"] = true, ["provider_id"] = providerId, ["message"] = "ok" };
             if (ModelsCount(models) is { } count) reply["models_count"] = count;

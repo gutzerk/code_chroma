@@ -25,12 +25,12 @@ public static class LlmSettingsRoutes
 
         app.MapGet("/llm/default", (CallSiteStore sites) => Reply.Json(new JsonObject { ["default"] = sites.Default() }));
 
-        app.MapPut("/llm/default", async (HttpRequest request, ProviderStore providers, CallSiteStore sites) =>
+        app.MapPut("/llm/default", async (HttpRequest request, ProviderStore providers, CallSiteStore sites, RuntimeEnvironment runtime) =>
         {
             try
             {
                 var body = await Reply.LenientBody(request);
-                await FillDefaultModels(body, providers, sites);
+                await FillDefaultModels(body, providers, sites, runtime);
                 sites.SaveDefault(body);
                 return Reply.Json(new JsonObject { ["default"] = sites.Default() });
             }
@@ -49,7 +49,7 @@ public static class LlmSettingsRoutes
         app.MapGet("/llm/features", (ProviderStore providers, CallSiteStore sites) =>
             Reply.Json(new JsonObject { ["features"] = new JsonArray(FeatureRows(providers, sites).Select(r => (JsonNode?)r).ToArray()) }));
 
-        app.MapPut("/llm/features/{featureId}", async (string featureId, HttpRequest request, ProviderStore providers, CallSiteStore sites) =>
+        app.MapPut("/llm/features/{featureId}", async (string featureId, HttpRequest request, ProviderStore providers, CallSiteStore sites, RuntimeEnvironment runtime) =>
         {
             if (LlmCatalog.Features.All(f => f.Id != featureId)) return UnknownFeature(featureId);
             var body = await Reply.LenientBody(request);
@@ -65,7 +65,7 @@ public static class LlmSettingsRoutes
                 {
                     var current = FeatureRow(featureId, providers, sites)["effective"]!;
                     var keep = Json.Str(current["provider_id"]) == Json.Str(payload["provider_id"]) ? Json.Str(current["model"]) : null;
-                    payload["model"] = await PickModel(providers, Json.Str(payload["provider_id"]), keep, false);
+                    payload["model"] = await PickModel(providers, Json.Str(payload["provider_id"]), keep, false, runtime);
                 }
                 if (LlmCatalog.Group(featureId) is not null) sites.SaveGroup(featureId, payload);
                 else
@@ -137,22 +137,22 @@ public static class LlmSettingsRoutes
             return Results.StatusCode(204);
         });
 
-        app.MapPost("/llm/providers/test", async (HttpRequest request) =>
+        app.MapPost("/llm/providers/test", async (HttpRequest request, RuntimeEnvironment runtime) =>
         {
             var body = await Reply.LenientBody(request);
             var problems = ProviderStore.Validate(body);
             if (problems.Count > 0) return Reply.Error(400, string.Join("; ", problems));
-            return Reply.Json(await ProviderTester.Run(null, ProviderStore.FromPayload("draft", ProviderStore.NormalizeKeys(body))));
+            return Reply.Json(await ProviderTester.Run(null, ProviderStore.FromPayload("draft", ProviderStore.NormalizeKeys(body)), runtime));
         });
 
-        app.MapPost("/llm/providers/{providerId}/test", async (string providerId, ProviderStore providers) =>
-            providers.Find(providerId) is { } provider ? Reply.Json(await ProviderTester.Run(providerId, provider)) : Unknown(providerId));
+        app.MapPost("/llm/providers/{providerId}/test", async (string providerId, ProviderStore providers, RuntimeEnvironment runtime) =>
+            providers.Find(providerId) is { } provider ? Reply.Json(await ProviderTester.Run(providerId, provider, runtime)) : Unknown(providerId));
 
         app.MapGet("/llm/cli/{adapter}/auth", async (string adapter, RuntimeEnvironment runtime) =>
             Reply.Json(new JsonObject { ["signed_in"] = await Task.Run(() => CliAuth.SignedIn(adapter, runtime)) }));
 
-        app.MapGet("/llm/providers/{providerId}/models", async (string providerId, ProviderStore providers) =>
-            providers.Find(providerId) is { } provider ? Reply.Json(await ModelCatalog.Fetch(provider)) : Unknown(providerId));
+        app.MapGet("/llm/providers/{providerId}/models", async (string providerId, ProviderStore providers, RuntimeEnvironment runtime) =>
+            providers.Find(providerId) is { } provider ? Reply.Json(await ModelCatalog.Fetch(provider, runtime)) : Unknown(providerId));
 
         app.MapGet("/llm/call-sites", (CallSiteStore sites, ProviderStore providers, UserPaths paths) =>
         {
@@ -219,28 +219,26 @@ public static class LlmSettingsRoutes
     }
 
     /// <summary>Keeps <paramref name="current"/> if the catalog lists it, else the second (or first) model; "" lets validation refuse.</summary>
-    private static async Task<string> PickModel(ProviderStore providers, string? providerId, string? current, bool first)
+    private static async Task<string> PickModel(ProviderStore providers, string? providerId, string? current, bool first, RuntimeEnvironment runtime)
     {
         if (providerId is null || providers.Find(providerId) is not { } provider) return "";
-        var models = (await ModelCatalog.Fetch(provider))["models"] as JsonArray ?? [];
+        var models = (await ModelCatalog.Fetch(provider, runtime))["models"] as JsonArray ?? [];
         var ids = models.Select(m => Json.Str(m?["id"])).Where(id => id is not null).Select(id => id!).ToList();
-        if (current is not null && ids.Contains(current)) return current;
-        if (ids.Count == 0) return "";
-        return first || ids.Count == 1 ? ids[0] : ids[1];
+        return ModelCatalog.PickId(ids, current, first);
     }
 
-    private static async Task FillDefaultModels(JsonObject body, ProviderStore providers, CallSiteStore sites)
+    private static async Task FillDefaultModels(JsonObject body, ProviderStore providers, CallSiteStore sites, RuntimeEnvironment runtime)
     {
         if (Json.Str(body["model"]) is not { } model || Json.IsBlank(model))
         {
             var stored = sites.Default();
             var providerId = Json.Str(body["provider_id"]);
             var same = stored is not null && Json.Str(stored["provider_id"]) == providerId;
-            body["model"] = await PickModel(providers, providerId, same ? Json.Str(stored!["model"]) : null, false);
+            body["model"] = await PickModel(providers, providerId, same ? Json.Str(stored!["model"]) : null, false, runtime);
         }
         foreach (var key in new[] { "quick_fallback", "agent_fallback" })
             if (body[key] is JsonObject fallback && !Json.Bool(fallback["offline"]) && (Json.Str(fallback["model"]) is not { } m || Json.IsBlank(m)))
-                fallback["model"] = await PickModel(providers, Json.Str(fallback["provider_id"]), null, true);
+                fallback["model"] = await PickModel(providers, Json.Str(fallback["provider_id"]), null, true, runtime);
     }
 
     private static IResult Unknown(string providerId) => Reply.Error(404, $"unknown provider: '{providerId}'");

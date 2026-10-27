@@ -6,14 +6,17 @@ from pathlib import Path
 import httpx
 import pytest
 
+from codechroma.llm import model_catalog
 from codechroma.llm.model_catalog import (
     _STATIC_MODELS,
     _probe_cli_models,
     fetch_models,
     parse_claude_models_response,
     parse_model_list,
+    pick_model_id,
 )
 from codechroma.llm.providers_store import Provider
+from codechroma.llm.runtime_env import CliLookupError, RuntimeCli
 
 _REPO_ROOT = Path(__file__).resolve().parents[2]
 
@@ -322,10 +325,79 @@ def test_model_list_that_is_not_an_array_or_object_is_none(text):
 
 
 @pytest.mark.parametrize(
+    ("ids", "current", "first", "expected"),
+    [
+        (["default", "opus", "sonnet", "haiku"], None, False, "sonnet"),
+        (["default", "opus", "sonnet", "haiku"], None, True, "opus"),
+        (["opus", "sonnet", "haiku"], None, False, "sonnet"),
+        (["default", "opus", "sonnet"], "default", False, "default"),
+        (["default"], None, False, "default"),
+        ([], None, False, ""),
+    ],
+)
+def test_a_blank_model_is_picked_without_the_cli_pseudo_model(ids, current, first, expected):
+    picked = pick_model_id(ids, current, first=first)
+
+    assert picked == expected
+
+
+@pytest.fixture
+def fake_cli(monkeypatch):
+    model_catalog._probe_cache.clear()
+    cli = RuntimeCli(executable="/bin/claude", env={}, path_source="test")
+    monkeypatch.setattr("codechroma.llm.model_catalog.resolve_runtime_cli", lambda _adapter: cli)
+    yield
+    model_catalog._probe_cache.clear()
+
+
+def test_a_probe_answer_is_reused_instead_of_spawning_the_cli_again(fake_cli, monkeypatch):
+    spawns = []
+
+    def run(adapter, _cli):
+        spawns.append(adapter)
+        return [{"id": "opus", "label": None}]
+
+    monkeypatch.setattr("codechroma.llm.model_catalog._run_cli_probe", run)
+
+    first = model_catalog._probe_cli_models("claude")
+    second = model_catalog._probe_cli_models("claude")
+
+    assert spawns == ["claude"]
+    assert first == second == [{"id": "opus", "label": None}]
+    assert first is not second
+
+
+def test_an_unanswered_probe_is_retried_on_the_next_call(fake_cli, monkeypatch):
+    spawns = []
+    monkeypatch.setattr(
+        "codechroma.llm.model_catalog._run_cli_probe",
+        lambda adapter, _cli: spawns.append(adapter),
+    )
+
+    first = model_catalog._probe_cli_models("claude")
+    second = model_catalog._probe_cli_models("claude")
+
+    assert first is None
+    assert second is None
+    assert spawns == ["claude", "claude"]
+
+
+def test_a_cli_the_runtime_cannot_find_has_no_live_list(monkeypatch):
+    def not_found(_adapter):
+        raise CliLookupError("claude is not installed")
+
+    monkeypatch.setattr("codechroma.llm.model_catalog.resolve_runtime_cli", not_found)
+
+    models = model_catalog._probe_cli_models("claude")
+
+    assert models is None
+
+
+@pytest.mark.parametrize(
     ("adapter", "args"),
     [("codex", ["debug", "models"]), ("gemini", ["models", "list", "-o", "json"])],
 )
-def test_cli_probe_runs_each_adapters_list_command(monkeypatch, adapter, args):
+def test_cli_probe_runs_each_adapters_list_command(fake_cli, monkeypatch, adapter, args):
     calls = []
 
     def run(command, **kwargs):
@@ -333,10 +405,9 @@ def test_cli_probe_runs_each_adapters_list_command(monkeypatch, adapter, args):
         stdout = '[{"slug": "m1", "display_name": "M1"}]'
         return type("Done", (), {"returncode": 0, "stdout": stdout})()
 
-    monkeypatch.setattr("codechroma.llm.model_catalog.shutil.which", lambda name: f"/bin/{name}")
     monkeypatch.setattr("codechroma.llm.model_catalog.subprocess.run", run)
 
     models = _probe_cli_models(adapter)
 
-    assert calls == [[f"/bin/{adapter}", *args]]
+    assert calls == [["/bin/claude", *args]]
     assert models == [{"id": "m1", "label": "M1"}]

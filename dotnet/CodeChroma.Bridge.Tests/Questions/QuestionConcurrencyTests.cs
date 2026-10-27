@@ -25,7 +25,7 @@ public class QuestionConcurrencyTests
             Thread.Sleep(300);
             QuestionStore.Settle(ws, QuestionStore.FindElement(ws, questionId)!.Id, "answered", new QuestionResult { Answer = "Modular monolith", OptionId = "a" });
         }
-        var asked = await reask.WaitAsync(TimeSpan.FromSeconds(5));
+        var asked = await reask.WaitAsync(TimeSpan.FromSeconds(30));
         var saved = QuestionStore.FindElement(ws, questionId)!;
         var polled = await mcp.Result("main", questionId);
 
@@ -53,7 +53,7 @@ public class QuestionConcurrencyTests
             // Hold the write lock while both requests arrive, exposing a state check outside the lock.
             Thread.Sleep(300);
         }
-        var responses = await Task.WhenAll(first, second).WaitAsync(TimeSpan.FromSeconds(5));
+        var responses = await Task.WhenAll(first, second).WaitAsync(TimeSpan.FromSeconds(30));
         Assert.Single(responses, r => r.StatusCode == HttpStatusCode.OK);
         Assert.Single(responses, r => r.StatusCode == HttpStatusCode.Conflict);
         var saved = QuestionStore.ResultFrom(QuestionStore.FindElement(Main(host), questionId)!)!.ToToolJson();

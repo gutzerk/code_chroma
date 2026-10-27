@@ -1,9 +1,9 @@
 import { SequenceDrawing } from "./SequenceReadable";
-import type { SequenceModel } from "./sequenceModel";
+import { SEQUENCE_PANEL_SPACE, type SequenceModel } from "./sequenceModel";
 import { sequenceViewStore, type SequenceView } from "./sequenceViewStore";
 
-/** Matches `.sequence-timeline`'s width; the panel sits inside the diagram so the frame still contains it. */
-const TIMELINE_WIDTH = 220;
+/** The panel sits right of the lifelines in space the diagram frame reserves (`SEQUENCE_PANEL_SPACE`). */
+const PANEL_GAP = 16;
 
 export interface SequenceFocusProps {
   layer: string;
@@ -40,6 +40,7 @@ export function SequenceFocus({ layer, model, view }: SequenceFocusProps) {
       mode="focus"
       model={model}
       focusRef={view.focus}
+      extraRight={SEQUENCE_PANEL_SPACE}
       activeStep={sequenceViewStore.getStep(layer)}
       isHidden={(m) => isFolded(m.order)}
       isDim={(m) => view.focus !== null && m.fromRef !== view.focus && m.toRef !== view.focus}
@@ -47,9 +48,8 @@ export function SequenceFocus({ layer, model, view }: SequenceFocusProps) {
     >
       {({ left, top }) => (
         <>
-          {model.phases.map((phase) => {
+          {phaseRows.map(({ phase }, index) => {
             const members = model.messages.filter((m) => m.order >= phase.from_order && m.order <= phase.to_order);
-            if (members.length === 0) return null;
             const isCollapsed = collapsed.has(phase.id);
             const y = Math.min(...members.map((m) => m.element.position.y));
             const talkers = [...new Set(members.flatMap((m) => [m.fromCol.label, m.toCol.label]))];
@@ -57,13 +57,14 @@ export function SequenceFocus({ layer, model, view }: SequenceFocusProps) {
               <button
                 key={phase.id}
                 type="button"
-                className={`sequence-phase-row sequence-phase-row--${phase.kind}`}
+                className={`sequence-phase-row sequence-phase-row--${phase.kind}${isCollapsed ? "" : " sequence-phase-row--open"}`}
                 data-testid="sequence-phase-row"
                 aria-expanded={!isCollapsed}
-                style={{ position: "absolute", left: 0, top: y - top - 12, pointerEvents: "auto" }}
+                style={{ position: "absolute", left: 0, width: model.bounds.right - left, top: y - top - (isCollapsed ? 19 : 38), pointerEvents: "auto" }}
                 onClick={() => togglePhase(phase.id)}
               >
-                {`${isCollapsed ? "▸" : "▾"} ${phase.name}`}
+                <span className="sequence-phase-row-caret">{isCollapsed ? "▸" : "▾"}</span>
+                <span className="sequence-phase-row-name">{`${index + 1} · ${phase.name}`}</span>
                 {!isCollapsed && (
                   <span className="sequence-phase-row-meta" data-testid="sequence-phase-row-count">
                     {` · ${members.length} message${members.length === 1 ? "" : "s"}`}
@@ -71,39 +72,39 @@ export function SequenceFocus({ layer, model, view }: SequenceFocusProps) {
                   </span>
                 )}
                 {isCollapsed && (
-                  <span className="sequence-phase-row-meta">
-                    {` · ${members.length} call${members.length === 1 ? "" : "s"} · ${talkers.join(", ")}`}
-                  </span>
+                  <span className="sequence-phase-row-meta">{` · ${members.length} call${members.length === 1 ? "" : "s"}`}</span>
                 )}
+                <span className="sequence-phase-row-people">{talkers.join(" · ")}</span>
               </button>
             );
           })}
           <div
             className="sequence-timeline"
             data-testid="sequence-timeline"
-            style={{ position: "absolute", left: model.bounds.right - left - TIMELINE_WIDTH - 8, top: 8, pointerEvents: "auto" }}
+            style={{ position: "absolute", left: model.bounds.right - left + PANEL_GAP, top: 0, maxHeight: model.bounds.bottom - top, pointerEvents: "auto" }}
           >
             <div className="sequence-timeline-phases" data-testid="sequence-timeline-phases">
-              <div className="sequence-timeline-bars">
-                {phaseRows.map(({ phase, count }) => (
-                  <span
-                    key={phase.id}
-                    className={`sequence-timeline-bar sequence-timeline-bar--${phase.kind}`}
-                    style={{ flexGrow: count }}
-                  />
-                ))}
-              </div>
-              <div className="sequence-timeline-names">
-                {phaseRows.map(({ phase }) => (
-                  <span
-                    key={phase.id}
-                    className={here?.phase.id === phase.id ? "sequence-timeline-name sequence-timeline-name--here" : "sequence-timeline-name"}
-                    style={{ flexGrow: 1 }}
-                  >
-                    {here?.phase.id === phase.id ? `${phase.name} ← you are here` : phase.name}
-                  </span>
-                ))}
-              </div>
+              {phaseRows.map(({ phase, count }) => {
+                const isHere = here?.phase.id === phase.id;
+                const marker =
+                  isHere && current !== null && current >= phase.from_order && current <= phase.to_order
+                    ? ((current - phase.from_order + 0.5) / (phase.to_order - phase.from_order + 1)) * 100
+                    : null;
+                return (
+                  <div key={phase.id} className="sequence-timeline-row" style={{ flexGrow: count }}>
+                    <span className="sequence-timeline-track">
+                      <span className={`sequence-timeline-bar sequence-timeline-bar--${phase.kind}`} />
+                      {isHere && <span className="sequence-timeline-here-box" data-testid="sequence-timeline-here-box" />}
+                      {marker !== null && (
+                        <span className="sequence-timeline-marker" data-testid="sequence-timeline-marker" style={{ top: `${marker}%` }} />
+                      )}
+                    </span>
+                    <span className={isHere ? "sequence-timeline-name sequence-timeline-name--here" : "sequence-timeline-name"}>
+                      {isHere ? `${phase.name} ← you are here` : phase.name}
+                    </span>
+                  </div>
+                );
+              })}
             </div>
             <div className="sequence-timeline-heading">PARTICIPANTS</div>
             <ul className="sequence-timeline-people" data-testid="sequence-timeline-participants">

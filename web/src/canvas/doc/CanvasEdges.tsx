@@ -59,7 +59,7 @@ export function CanvasEdges({ doc, sizes, onOpenOrigin }: CanvasEdgesProps) {
   );
   useSyncExternalStore(focusStore.subscribe, focusStore.getVersion);
   const original = Object.values(doc.edges);
-  const bundled = bundleEdges(original);
+  const bundled = bundleEdges(original, (id) => doc.elements[id]?.group_id ?? null);
   const bundleSet = bundledKeys(original, bundled);
   const edges = layoutDiagramEdges(bundled, rectByKey);
 
@@ -89,6 +89,7 @@ export function CanvasEdges({ doc, sizes, onOpenOrigin }: CanvasEdgesProps) {
           style={edge.style}
           origin={edge.origin}
           onOpenOrigin={onOpenOrigin}
+          labelVariant="board"
           testId="canvas-doc-relationship"
           layer={doc.elements[edge.from]?.layer}
         />

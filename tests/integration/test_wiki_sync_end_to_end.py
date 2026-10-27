@@ -18,6 +18,15 @@ def repo(tmp_path):
     return root
 
 
+@pytest.fixture
+def synced(repo):
+    engine = GraphEngine(summarizer=AISummarizer())
+    engine.analyze(str(repo))
+    output_dir = repo / ".codechroma" / "wiki"
+    engine.sync_wiki(output_dir=output_dir)
+    return engine, output_dir
+
+
 def test_sync_wiki_before_analyze_raises(repo):
     engine = GraphEngine(summarizer=AISummarizer())
 
@@ -40,11 +49,8 @@ def test_first_sync_matches_a_direct_generate_wiki_call(repo):
     assert (sync_output_dir / "index.md").exists()
 
 
-def test_second_sync_with_no_changes_reports_and_writes_nothing(repo):
-    engine = GraphEngine(summarizer=AISummarizer())
-    engine.analyze(str(repo))
-    output_dir = repo / ".codechroma" / "wiki"
-    engine.sync_wiki(output_dir=output_dir)
+def test_second_sync_with_no_changes_reports_and_writes_nothing(repo, synced):
+    engine, output_dir = synced
     mtimes_before = {p: p.stat().st_mtime_ns for p in output_dir.rglob("*.md")}
 
     result = engine.sync_wiki(output_dir=output_dir)
@@ -55,11 +61,8 @@ def test_second_sync_with_no_changes_reports_and_writes_nothing(repo):
     assert mtimes_before == mtimes_after
 
 
-def test_editing_one_file_rewrites_only_its_page_and_ancestor_indexes(repo):
-    engine = GraphEngine(summarizer=AISummarizer())
-    engine.analyze(str(repo))
-    output_dir = repo / ".codechroma" / "wiki"
-    engine.sync_wiki(output_dir=output_dir)
+def test_editing_one_file_rewrites_only_its_page_and_ancestor_indexes(repo, synced):
+    engine, output_dir = synced
     mtimes_before = {p: p.stat().st_mtime_ns for p in output_dir.rglob("*.md")}
     expected_pages = {
         output_dir / "files" / "billing" / "service.md",
@@ -86,11 +89,8 @@ def test_editing_one_file_rewrites_only_its_page_and_ancestor_indexes(repo):
     assert all(mtimes_after[path] == mtime_before for path, mtime_before in untouched.items())
 
 
-def test_editing_one_file_updates_gaps_but_not_a_sibling_file_page(repo):
-    engine = GraphEngine(summarizer=AISummarizer())
-    engine.analyze(str(repo))
-    output_dir = repo / ".codechroma" / "wiki"
-    engine.sync_wiki(output_dir=output_dir)
+def test_editing_one_file_updates_gaps_but_not_a_sibling_file_page(repo, synced):
+    engine, output_dir = synced
     sibling_page = output_dir / "files" / "billing" / "reporter.md"
     sibling_before = sibling_page.read_text(encoding="utf-8")
 
@@ -105,12 +105,9 @@ def test_editing_one_file_updates_gaps_but_not_a_sibling_file_page(repo):
     assert "helper" in (output_dir / "gaps.md").read_text(encoding="utf-8")
 
 
-def test_deleting_a_file_removes_its_page_and_updates_the_folder_index(repo):
+def test_deleting_a_file_removes_its_page_and_updates_the_folder_index(repo, synced):
     # billing/ has other files, so it survives service.py's removal and the deletion is file-level.
-    engine = GraphEngine(summarizer=AISummarizer())
-    engine.analyze(str(repo))
-    output_dir = repo / ".codechroma" / "wiki"
-    engine.sync_wiki(output_dir=output_dir)
+    engine, output_dir = synced
     page = output_dir / "files" / "billing" / "service.md"
     assert page.exists()
 
@@ -125,11 +122,8 @@ def test_deleting_a_file_removes_its_page_and_updates_the_folder_index(repo):
     )
 
 
-def test_deleting_a_folder_removes_its_whole_page_subtree(repo):
-    engine = GraphEngine(summarizer=AISummarizer())
-    engine.analyze(str(repo))
-    output_dir = repo / ".codechroma" / "wiki"
-    engine.sync_wiki(output_dir=output_dir)
+def test_deleting_a_folder_removes_its_whole_page_subtree(repo, synced):
+    engine, output_dir = synced
     folder_dir = output_dir / "files" / "billing" / "models"
     assert folder_dir.is_dir()
 
@@ -145,11 +139,8 @@ def test_deleting_a_folder_removes_its_whole_page_subtree(repo):
     )
 
 
-def test_adding_a_folder_creates_pages_for_it_and_its_contents(repo):
-    engine = GraphEngine(summarizer=AISummarizer())
-    engine.analyze(str(repo))
-    output_dir = repo / ".codechroma" / "wiki"
-    engine.sync_wiki(output_dir=output_dir)
+def test_adding_a_folder_creates_pages_for_it_and_its_contents(repo, synced):
+    engine, output_dir = synced
 
     new_dir = repo / "newpkg"
     new_dir.mkdir()
@@ -163,11 +154,8 @@ def test_adding_a_folder_creates_pages_for_it_and_its_contents(repo):
     assert "newpkg" in result.changed_paths
 
 
-def test_renaming_a_file_removes_the_old_page_and_creates_a_new_one(repo):
-    engine = GraphEngine(summarizer=AISummarizer())
-    engine.analyze(str(repo))
-    output_dir = repo / ".codechroma" / "wiki"
-    engine.sync_wiki(output_dir=output_dir)
+def test_renaming_a_file_removes_the_old_page_and_creates_a_new_one(repo, synced):
+    engine, output_dir = synced
     old_page = output_dir / "files" / "shared" / "text_utils.md"
     new_page = output_dir / "files" / "shared" / "text_utils2.md"
 

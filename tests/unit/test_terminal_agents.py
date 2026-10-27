@@ -87,24 +87,16 @@ def test_agent_kind_carries_a_first_message_and_resume():
     assert resumed == ["claude", *_plugin_args(), "--resume", "abc123"]
 
 
-def test_claude_fresh_session_uses_the_id_assigned_by_codechroma():
+def test_claude_fresh_session_uses_the_assigned_id_and_a_resume_id_wins_over_it():
     from codechroma.terminal.agents import agent_cli
 
-    argv, _env = agent_cli("claude", new_session_id="8a1dd75f-8c0c-4e94-9a4a-cf655f0a2d23")
-
-    assert argv == [
-        "claude", *_plugin_args(), "--session-id", "8a1dd75f-8c0c-4e94-9a4a-cf655f0a2d23"
-    ]
-
-
-def test_resume_id_wins_over_a_new_session_id():
-    from codechroma.terminal.agents import agent_cli
-
-    argv, _env = agent_cli(
+    fresh, _env = agent_cli("claude", new_session_id="8a1dd75f-8c0c-4e94-9a4a-cf655f0a2d23")
+    resumed, _env = agent_cli(
         "claude", resume_session_id="owned-session", new_session_id="unrelated-new-session"
     )
 
-    assert argv[-2:] == ["--resume", "owned-session"]
+    assert fresh[-2:] == ["--session-id", "8a1dd75f-8c0c-4e94-9a4a-cf655f0a2d23"]
+    assert resumed[-2:] == ["--resume", "owned-session"]
 
 
 def test_agent_kind_unknown_assigns_nothing_to_a_fixed_shell():

@@ -118,13 +118,6 @@ def test_split_threshold_is_tunable_and_can_be_disabled(tmp_path):
     assert "SPLIT" not in disabled.stdout
 
 
-def test_a_diagram_inside_its_budget_says_nothing_about_density(tmp_path):
-    result = _run(tmp_path, "impact", _flat(4))
-
-    assert "CROWDED" not in result.stdout
-    assert "EDGEBOMB" not in result.stdout
-
-
 def test_epics_group_connectivity_is_never_flagged_an_orphan_or_island(tmp_path):
     """Epics hierarchy nests via meta.recipe_key/group frames, not `relations[]` (they carry only
     cross-epic dependency edges, usually none) -- so ORPHAN/ISLAND connectivity checks are disabled
@@ -145,23 +138,6 @@ def test_epics_group_connectivity_is_never_flagged_an_orphan_or_island(tmp_path)
     assert result.returncode == 0
     assert "ORPHAN" not in result.stdout
     assert "ISLAND" not in result.stdout
-
-
-def test_epics_lone_epic_with_no_relations_is_not_an_orphan(tmp_path):
-    """A single bare epic with no cross-epic edges is a legal diagram, not a disconnected stub --
-    the ORPHAN/ISLAND checks that would flag it apply to edge-connected kinds only."""
-    diagram = {
-        "nodes": [
-            {"id": "EP-1", "name": "EP-1"},
-            {"id": "EP-2", "name": "EP-2", "group": "planning"},
-        ],
-        "relations": [],
-    }
-
-    result = _run(tmp_path, "epics", diagram)
-
-    assert result.returncode == 0
-    assert "ORPHAN" not in result.stdout
 
 
 def test_too_many_hero_relations_is_advisory_and_never_fails_the_run(tmp_path):

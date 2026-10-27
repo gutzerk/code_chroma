@@ -513,16 +513,11 @@ def test_the_pr_comments_helper_reads_the_records_comments(client, monkeypatch):
     assert (review, general) == ([{"body": "x"}], [{"body": "y"}])
 
 
-def test_the_pr_comments_helper_is_empty_for_a_non_pr_workspace(client):
+@pytest.mark.parametrize("workspace_id", ["main", "pr-999"])
+def test_the_pr_comments_helper_is_empty_without_an_opened_pull_request(client, workspace_id):
     _test_client, _repo, bridge, _bin = client
 
-    assert bridge.pr_comments("main") == ([], [])
-
-
-def test_the_pr_comments_helper_is_empty_for_an_unopened_pull_request(client):
-    _test_client, _repo, bridge, _bin = client
-
-    assert bridge.pr_comments("pr-999") == ([], [])
+    assert bridge.pr_comments(workspace_id) == ([], [])
 
 
 def test_opening_a_pr_copies_mains_authored_diagrams_onto_the_worktree(client, monkeypatch):

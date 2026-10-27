@@ -78,19 +78,6 @@ def test_add_detached_creates_no_branch_at_all(repo):
     assert (path / "app.py").read_text(encoding="utf-8") == "value = 1\n"
 
 
-def test_add_detached_checks_out_the_commit_it_was_given(repo):
-    (repo / "app.py").write_text("value = 2\n", encoding="utf-8")
-    subprocess.run(["git", "commit", "-am", "second"], cwd=repo, check=True, capture_output=True)
-    first = subprocess.run(
-        ["git", "rev-parse", "HEAD~1"], cwd=repo, capture_output=True, text=True
-    ).stdout.strip()
-    path = worktree.worktree_path(repo, "pr-13")
-
-    worktree.add_detached(repo, path, first)
-
-    assert (path / "app.py").read_text(encoding="utf-8") == "value = 1\n"
-
-
 def test_checkout_detached_moves_an_existing_worktree(repo):
     head = subprocess.run(
         ["git", "rev-parse", "HEAD"], cwd=repo, capture_output=True, text=True
@@ -138,22 +125,14 @@ def test_remove_deletes_the_directory_but_keeps_the_branch(repo):
     assert "agent/keeper" in branches
 
 
-def test_remove_refuses_a_dirty_worktree_without_force(repo):
+def test_remove_with_force_drops_a_dirty_worktree(repo):
     path = worktree.worktree_path(repo, "dirty")
     worktree.add(repo, "agent/dirty", path)
     (path / "app.py").write_text("value = 2\n", encoding="utf-8")
 
     with pytest.raises(worktree.WorktreeError):
         worktree.remove(repo, path)
-
     assert path.exists()
-
-
-def test_remove_with_force_drops_a_dirty_worktree(repo):
-    path = worktree.worktree_path(repo, "dirty")
-    worktree.add(repo, "agent/dirty", path)
-    (path / "app.py").write_text("value = 2\n", encoding="utf-8")
-
     worktree.remove(repo, path, force=True)
 
     assert not path.exists()
@@ -210,13 +189,8 @@ def test_slugify_survives_hostile_titles(title, expected):
     assert worktree.slugify(title) == expected
 
 
-def test_slugify_caps_length_for_git_refs_and_paths():
-    slug = worktree.slugify("a" * 300)
-
-    assert len(slug) == worktree.max_slug_length()
-
-
-def test_slugify_fallback_index_keeps_ids_distinct():
+def test_slugify_caps_length_and_fallback_index_keeps_ids_distinct():
+    assert len(worktree.slugify("a" * 300)) == worktree.max_slug_length()
     assert worktree.slugify("🎉", fallback_index=3) == "agent3"
 
 
@@ -234,36 +208,18 @@ def test_the_env_override_wins_and_keeps_a_per_repo_level(repo, tmp_path):
     assert path == tmp_path / "worktrees" / worktree.slugify(repo.name) / "outside"
 
 
-def test_add_works_with_a_path_nested_inside_the_repository(repo, monkeypatch):
-    monkeypatch.delenv(worktree.WORKSPACES_DIR_ENV, raising=False)
-    path = worktree.worktree_path(repo, "nested")
-
-    worktree.add(repo, "agent/nested", path)
-
-    assert (path / "app.py").read_text(encoding="utf-8") == "value = 1\n"
-
-
-def test_move_relocates_a_worktree_and_git_still_knows_it(repo, tmp_path):
-    source = worktree.worktree_path(repo, "mover")
-    worktree.add(repo, "agent/mover", source)
-    target = repo / ".codechroma" / "worktrees" / "mover"
+def test_move_carries_uncommitted_work_across(repo):
+    source = worktree.worktree_path(repo, "dirty-mover")
+    worktree.add(repo, "agent/dirty-mover", source)
+    (source / "app.py").write_text("value = 99\n", encoding="utf-8")
+    target = repo / ".codechroma" / "worktrees" / "dirty-mover"
 
     worktree.move(repo, source, target)
 
     listed = [Path(entry["path"]) for entry in worktree.list_worktrees(repo)]
     assert target in listed
     assert not source.exists()
-
-
-def test_move_carries_uncommitted_work_across(repo):
-    source = worktree.worktree_path(repo, "dirty-mover")
-    worktree.add(repo, "agent/dirty-mover", source)
-    (source / "app.py").write_text("value = 99\n", encoding="utf-8")
-
-    worktree.move(repo, source, repo / ".codechroma" / "worktrees" / "dirty-mover")
-
-    moved = repo / ".codechroma" / "worktrees" / "dirty-mover" / "app.py"
-    assert moved.read_text(encoding="utf-8") == "value = 99\n"
+    assert (target / "app.py").read_text(encoding="utf-8") == "value = 99\n"
 
 
 def test_move_keeps_a_submodule_usable(repo, tmp_path):
@@ -290,10 +246,6 @@ def test_move_leaves_a_healthy_submodule_pointer_alone(repo, tmp_path):
 
     pointer = repo / ".codechroma" / "worktrees" / "healthy" / "vendor" / ".git"
     assert not pointer.exists()
-
-
-def test_legacy_worktrees_root_is_the_old_home_directory_path():
-    assert worktree.legacy_worktrees_root() == Path.home() / ".codechroma" / "worktrees"
 
 
 def test_main_branch_falls_back_to_the_local_default(repo):

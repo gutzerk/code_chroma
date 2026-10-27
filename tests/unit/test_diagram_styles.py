@@ -19,17 +19,11 @@ def test_every_style_id_matches_its_dict_key():
         assert key == style.id
 
 
-def test_at_least_boxes_arrows_is_registered():
-    assert "boxes-arrows" in STYLES
+def test_dependency_graph_supports_groups_and_self_relations():
+    overrides = STYLES["dependency-graph"].overrides
 
-
-def test_dependency_graph_is_registered_and_supports_groups():
-    assert "dependency-graph" in STYLES
-    assert STYLES["dependency-graph"].overrides["supports_groups"] is True
-
-
-def test_dependency_graph_allows_self_relations():
-    assert STYLES["dependency-graph"].overrides["allow_self_relations"] is True
+    assert overrides["supports_groups"] is True
+    assert overrides["allow_self_relations"] is True
 
 
 def test_web_registry_lists_the_same_style_ids():

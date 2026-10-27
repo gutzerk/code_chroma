@@ -82,36 +82,14 @@ def test_epic_brief_round_trips_through_to_dict_and_from_dict():
     restored = EpicBrief.from_dict(_BRIEF.to_dict())
 
     assert restored == _BRIEF
-
-
-def test_gap_criterion_has_no_closing_scope_id():
-    restored = EpicBrief.from_dict(_BRIEF.to_dict())
-
     assert restored.acceptance[1].closes_scope_id is None
-
-
-def test_draft_scope_item_keeps_its_tasks_source_marker():
-    restored = EpicBrief.from_dict(_BRIEF.to_dict())
-
     assert restored.scope[0].tasks_source == "draft"
-
-
-def test_test_task_keeps_its_is_test_flag_through_the_round_trip():
-    restored = EpicBrief.from_dict(_BRIEF.to_dict())
-
     assert restored.scope[0].tasks[0].is_test is True
-
-
-def test_out_of_scope_item_has_no_tasks():
-    restored = EpicBrief.from_dict(_BRIEF.to_dict())
-
-    assert restored.scope[1].tasks == ()
-
-
-def test_task_repo_round_trips():
-    restored = EpicBrief.from_dict(_BRIEF.to_dict())
-
     assert restored.scope[0].tasks[0].repo == "backend"
+    assert restored.scope[1].tasks == ()
+    assert restored.component == "application"
+    assert restored.spokes[0].spoke == "application"
+    assert restored.spokes[1].role == "Model-placement half."
 
 
 def test_unset_task_repo_defaults_to_none():
@@ -120,18 +98,8 @@ def test_unset_task_repo_defaults_to_none():
     assert task.repo is None
 
 
-def test_epic_component_and_spokes_round_trip():
-    restored = EpicBrief.from_dict(_BRIEF.to_dict())
-
-    assert restored.component == "application"
-    assert restored.spokes[0].spoke == "application"
-    assert restored.spokes[1].role == "Model-placement half."
-
-
 def test_missing_spokes_default_to_empty():
-    minimal = EpicBrief.from_dict(
-        {"epic_id": "X", "generated_at": "", "scope": []}
-    )
+    minimal = EpicBrief.from_dict({"epic_id": "X", "generated_at": "", "scope": []})
 
     assert minimal.component is None
     assert minimal.spokes == ()

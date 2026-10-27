@@ -301,21 +301,14 @@ def test_group_with_one_child_is_reported_as_singleton(tmp_path):
     assert "SINGLETON group has one child" in result.stdout
 
 
-def test_external_system_actor_without_children_is_no_longer_reported_as_bare(tmp_path):
-    """042: c1 is flat now -- BARE is a decomposition-era check this kind no longer opts into."""
-    actors = [{"id": "s3", "name": "S3", "type": "external_system"}]
-
-    result = _run(tmp_path, _diagram([_leaf(1)], actors=actors), "--shape-advisory")
-
-    assert "BARE" not in result.stdout
-
-
-def test_person_actor_without_children_is_not_reported(tmp_path):
-    actors = [{"id": "user", "name": "User", "type": "person"}]
+@pytest.mark.parametrize("actor_type", ["external_system", "person"])
+def test_childless_actor_is_never_reported_as_bare(tmp_path, actor_type):
+    actors = [{"id": "a1", "name": "A1", "type": actor_type}]
 
     result = _run(tmp_path, _diagram([_leaf(1)], actors=actors), "--shape-advisory")
 
     assert result.returncode == 0
+    assert "BARE" not in result.stdout
 
 
 def test_disconnected_leaf_and_actor_are_reported_as_orphan_but_a_group_is_not(tmp_path):

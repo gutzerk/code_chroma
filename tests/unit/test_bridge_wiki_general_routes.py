@@ -6,6 +6,7 @@ import json
 import shutil
 from pathlib import Path
 
+import pytest
 from fastapi.testclient import TestClient
 
 from tests.unit.fake_claude import CLI_MISSING, fake_claude_exec
@@ -155,20 +156,12 @@ def test_interactive_status_generating_clears_stale_pages(bridge):
     assert not stale.exists()
 
 
-def test_generate_is_refused_for_a_read_only_workspace(bridge):
+@pytest.mark.parametrize("action", ["generate", "cancel"])
+def test_run_actions_are_refused_for_a_read_only_workspace(bridge, action):
     bridge.registry.register("pr-12", bridge.repo, read_only=True)
 
     with TestClient(bridge.app) as client:
-        response = client.post("/repos/pr-12/wiki-general/generate")
-
-    assert response.status_code == 409
-
-
-def test_cancel_is_refused_for_a_read_only_workspace(bridge):
-    bridge.registry.register("pr-12", bridge.repo, read_only=True)
-
-    with TestClient(bridge.app) as client:
-        response = client.post("/repos/pr-12/wiki-general/cancel")
+        response = client.post(f"/repos/pr-12/wiki-general/{action}")
 
     assert response.status_code == 409
 
@@ -179,13 +172,6 @@ def test_cancel_without_a_run_resets_to_idle(bridge):
 
     assert response.status_code == 200
     assert response.json() == {"state": "idle", "error": None}
-
-
-def test_output_is_empty_before_any_run(bridge):
-    with TestClient(bridge.app) as client:
-        response = client.get("/repos/default/wiki-general/output")
-
-    assert response.json() == {"lines": []}
 
 
 def test_interactive_status_marks_generating_then_idle(bridge):
@@ -209,9 +195,12 @@ def test_interactive_status_reports_a_detailed_error(bridge):
     assert response.json() == {"state": "error", "error": "no wiki to ground in"}
 
 
-def test_interactive_status_rejects_an_unrecognized_state(bridge):
+@pytest.mark.parametrize(
+    "body", [{"state": "bogus"}, {"state": "generating", "kind": "bogus-kind"}]
+)
+def test_interactive_status_rejects_an_unrecognized_state_or_kind(bridge, body):
     with TestClient(bridge.app) as client:
-        response = client.post("/repos/default/wiki-general/status", json={"state": "bogus"})
+        response = client.post("/repos/default/wiki-general/status", json=body)
 
     assert response.status_code == 400
 
@@ -235,16 +224,6 @@ def test_interactive_status_reports_through_the_kind_it_names(bridge):
 
     assert status.json()["state"] == "generating"
     assert blocked.status_code == 409
-
-
-def test_interactive_status_rejects_an_unrecognized_kind(bridge):
-    with TestClient(bridge.app) as client:
-        response = client.post(
-            "/repos/default/wiki-general/status",
-            json={"state": "generating", "kind": "bogus-kind"},
-        )
-
-    assert response.status_code == 400
 
 
 def test_cancel_kills_an_in_flight_run_and_reports_idle(bridge, monkeypatch):

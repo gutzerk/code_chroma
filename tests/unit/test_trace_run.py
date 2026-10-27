@@ -62,15 +62,10 @@ def test_uncaught_exception_marks_trace_failed_with_error(repo):
     assert trace.status == "failed"
 
 
-def test_settrace_handled_exception_keeps_status_ok(repo):
+def test_settrace_handled_exception_keeps_status_ok_and_marks_error_handled(repo):
     trace = record_trace(repo, "import scenario; scenario.guarded()", use_monitoring=False)
 
     assert trace.status == "ok"
-
-
-def test_settrace_handled_exception_marks_error_handled(repo):
-    trace = record_trace(repo, "import scenario; scenario.guarded()", use_monitoring=False)
-
     raises = [s for s in trace.steps if s.event == "raise"]
     assert raises and raises[0].error is not None
     assert raises[0].error.handled is True

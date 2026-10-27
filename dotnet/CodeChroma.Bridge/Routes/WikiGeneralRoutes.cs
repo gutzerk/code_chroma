@@ -23,7 +23,7 @@ public static class WikiGeneralRoutes
         ["state"] = state.State, ["error"] = state.Error, ["has_wiki_general"] = has, ["stale"] = stale, ["empty"] = empty,
     };
 
-    /// <summary>A clean finish records the commit this tree now reflects; a failed one puts the pre-update manifest back before the ping goes out.</summary>
+    /// <summary>A clean finish stamps the commit this tree now reflects; a failed one puts the pre-update manifest back before the ping goes out.</summary>
     private static OnChange StampOnSuccess(Workspace ws, OnChange inner, DiagramContext context) => (key, state) =>
     {
         if (state.State == "generating") return inner(key, state);
@@ -147,17 +147,10 @@ public static class WikiGeneralRoutes
                 JsonObject delta;
                 try
                 {
-                    delta = await Task.Run(() =>
-                    {
-                        if (WikiGeneral.SyncPlainWiki(ws) is { } syncError) throw new InvalidOperationException(syncError);
-                        var computed = WikiGeneralUpdate.ComputeDelta(ws);
-                        WikiGeneral.SnapshotManifest(ws.Root, ws.Id);
-                        return WikiGeneralUpdate.ApplyDelta(ws, computed);
-                    });
+                    delta = await Task.Run(() => WikiGeneral.PrepareUpdate(ws));
                 }
                 catch (Exception error)
                 {
-                    WikiGeneral.RestoreManifest(ws.Root, ws.Id);
                     // A reanalyze or manifest failure must reach the canvas as an error, not crash the route.
                     return Results.Json(await agent.MarkDone(ws.Id, onChange, error.Message), BridgeJson.Default.JobState);
                 }
@@ -196,17 +189,10 @@ public static class WikiGeneralRoutes
                 JsonObject delta;
                 try
                 {
-                    delta = await Task.Run(() =>
-                    {
-                        if (WikiGeneral.SyncPlainWiki(ws) is { } syncError) throw new InvalidOperationException(syncError);
-                        var computed = WikiGeneralUpdate.ComputeDelta(ws);
-                        WikiGeneral.SnapshotManifest(ws.Root, ws.Id);
-                        return WikiGeneralUpdate.ApplyDelta(ws, computed);
-                    });
+                    delta = await Task.Run(() => WikiGeneral.PrepareUpdate(ws));
                 }
                 catch (Exception error)
                 {
-                    WikiGeneral.RestoreManifest(ws.Root, ws.Id);
                     await agent.MarkDone(ws.Id, onChange, error.Message);
                     return Reply.Error(500, error.Message);
                 }

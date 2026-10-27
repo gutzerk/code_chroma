@@ -46,6 +46,23 @@ public static class WikiGeneral
         catch (Exception error) when (error is IOException or UnauthorizedAccessException) { }
     }
 
+    /// <summary>Syncs the plain wiki, computes the delta, snapshots the manifest and applies it; the manifest is put back if any step throws.</summary>
+    public static JsonObject PrepareUpdate(Workspace ws)
+    {
+        try
+        {
+            if (SyncPlainWiki(ws) is { } syncError) throw new InvalidOperationException(syncError);
+            var computed = WikiGeneralUpdate.ComputeDelta(ws);
+            SnapshotManifest(ws.Root, ws.Id);
+            return WikiGeneralUpdate.ApplyDelta(ws, computed);
+        }
+        catch
+        {
+            RestoreManifest(ws.Root, ws.Id);
+            throw;
+        }
+    }
+
     public static void DiscardManifestSnapshot(string key) => PreUpdateManifests.TryRemove(key, out _);
 
     public static string Dir(string root) => Path.Combine(root, ".codechroma", "wiki-general");

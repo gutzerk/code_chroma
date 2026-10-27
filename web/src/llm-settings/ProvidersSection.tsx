@@ -22,7 +22,7 @@ function formatTestResult(result: ProviderTestResult): { ok: boolean; text: stri
     : { ok: false, text: `Failed: ${result.error ?? ""}` };
 }
 
-const CLI_ADAPTERS = ["claude", "codex", "kimi-cli"];
+const CLI_ADAPTERS = ["claude", "codex", "gemini", "kimi-cli"];
 const TRANSPORTS: Transport[] = ["anthropic", "gemini", "openai-compatible"];
 
 interface FormDraft {

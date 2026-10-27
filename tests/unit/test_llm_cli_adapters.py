@@ -4,18 +4,29 @@ from pathlib import Path
 
 import pytest
 
-from codechroma.llm.cli_adapters import CLI_ADAPTERS, ClaudeAdapter, CodexAdapter, KimiAdapter
+from codechroma.llm.cli_adapters import (
+    CLI_ADAPTERS,
+    ClaudeAdapter,
+    CodexAdapter,
+    GeminiAdapter,
+    KimiAdapter,
+)
 
 
 @pytest.mark.parametrize(
     ("key", "cls"),
-    [("claude", ClaudeAdapter), ("codex", CodexAdapter), ("kimi-cli", KimiAdapter)],
+    [
+        ("claude", ClaudeAdapter),
+        ("codex", CodexAdapter),
+        ("kimi-cli", KimiAdapter),
+        ("gemini", GeminiAdapter),
+    ],
 )
 def test_registry_has_the_expected_adapter(key, cls):
     assert isinstance(CLI_ADAPTERS[key], cls)
 
 
-@pytest.mark.parametrize("cls", [ClaudeAdapter, CodexAdapter, KimiAdapter])
+@pytest.mark.parametrize("cls", [ClaudeAdapter, CodexAdapter, KimiAdapter, GeminiAdapter])
 def test_parse_line_ignores_malformed_json_for_every_adapter(cls, tmp_path: Path):
     assert cls().parse_line("not json", tmp_path) == []
 
@@ -190,3 +201,36 @@ def test_kimi_parse_line_ignores_a_successful_tool_result(tmp_path: Path):
 
     assert KimiAdapter().parse_line(raw, tmp_path) == []
 
+
+def test_gemini_build_argv_runs_unattended():
+    argv = GeminiAdapter().build_argv("gemini", "do the thing", "gemini-2.5-pro")
+
+    assert argv == [
+        "gemini",
+        "--prompt",
+        "do the thing",
+        "--model",
+        "gemini-2.5-pro",
+        "--yolo",
+        "--output-format",
+        "stream-json",
+    ]
+
+
+@pytest.mark.parametrize(
+    ("raw", "expected"),
+    [
+        ('{"type": "message", "role": "assistant", "content": "hello"}', ["hello"]),
+        ('{"type": "message", "role": "user", "content": "hi"}', []),
+        ('{"type": "tool_use", "tool_name": "read_file"}', ["⏺ read_file"]),
+        (
+            '{"type": "tool_result", "status": "error", "error": {"message": "nope"}}',
+            ["  ↳ error: nope"],
+        ),
+        ('{"type": "result", "status": "success"}', ["✓ done"]),
+        ('{"type": "result", "status": "error"}', ["✗ failed"]),
+        ('{"type": "init"}', []),
+    ],
+)
+def test_gemini_parse_line_renders_events(raw, expected, tmp_path: Path):
+    assert GeminiAdapter().parse_line(raw, tmp_path) == expected

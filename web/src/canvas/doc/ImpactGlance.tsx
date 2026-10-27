@@ -27,13 +27,20 @@ export function ImpactGlance({
   const line = beforeAfterLine(change);
   const size = changeSizeOf(change);
   const labels = sizeLabels(size);
-  if (!line && callers === 0 && !labels.main && !labels.test) return null;
+  const isGhost = change.status === "removed" && !size.known && !size.testKnown;
+  if (!line && callers === 0 && !labels.main && !labels.test && !isGhost) return null;
+  const isSymbol = /::(function|class|method)::/.test(change.node_id);
   const bar = barWidths(size.add, size.del);
   return (
     <div className="canvas-node-box-glance" data-testid="impact-glance">
       {line && (
         <span className="canvas-node-box-glance-line" title={line}>
           {line}
+        </span>
+      )}
+      {isGhost && (
+        <span className="impact-size impact-size--removed" data-testid="impact-size">
+          removed
         </span>
       )}
       {(labels.main || labels.test) && (
@@ -44,6 +51,11 @@ export function ImpactGlance({
                 <span className="impact-size-add" style={{ width: bar.add }} />
                 <span className="impact-size-del" style={{ width: bar.del }} />
               </span>
+              {isSymbol && (
+                <span className="impact-size-scope" title="The diff is counted per file, not per symbol">
+                  file
+                </span>
+              )}
               <span className="impact-size-plus">{`+${size.add}`}</span>
               <span className="impact-size-minus">{`−${size.del}`}</span>
             </>

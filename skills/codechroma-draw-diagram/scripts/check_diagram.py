@@ -905,7 +905,7 @@ EDGE_KINDS = ("calls", "spawns", "data", "reads", "writes", "minor")
 # Web-side aliases (edgeKinds.ts) plus the structural verbs patterns/c1 already author.
 EDGE_KIND_ALIASES = (
     "call", "uses", "spawn", "process", "read", "write", "secondary", "imports", "implements",
-    "extends", "inherits", "composes", "contains", "depends", "depends_on",
+    "extends", "inherits", "composes", "contains", "depends", "depends_on", "removed",
 )
 _PLAIN_EDGE_KINDS = ("", "calls", "call", "uses")
 _SPAWN_WORDS = re.compile(

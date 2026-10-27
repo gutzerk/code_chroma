@@ -1112,3 +1112,32 @@ describe("CanvasNodeBox — group drag", () => {
     expect(dragOffsetStore.getAll()).toEqual({});
   });
 });
+
+// BlocksAnatomy: the role word + role class come from existing meta only.
+describe("CanvasNodeBox — board block roles", () => {
+  it.each([
+    [{ kind: "service" }, "COMPONENT", "block-role--component"],
+    [{ kind: "api" }, "ENTRY / API", "block-role--entry"],
+    [{ kind: "database" }, "DATA", "block-role--data"],
+    [{ no_code_reason: "external" }, "EXTERNAL", "block-role--external"],
+    [{ shape: "actor" }, "ACTOR / CONCEPT", "block-role--actor"],
+    [{ plan_kind: "add" }, "PLANNED", "block-role--planned"],
+  ])("maps %j to the %s role", (meta, word, cls) => {
+    renderBox(element({ id: "e1", meta }));
+
+    expect(screen.getByTestId("role-chip")).toHaveTextContent(word);
+    expect(screen.getByTestId("canvas-node-box")).toHaveClass(cls);
+  });
+
+  it("shows the status dot and word only when the block is planned or stale", () => {
+    renderBox(element({ id: "e1", meta: { kind: "service", stale: "true" } }));
+
+    expect(screen.getByTestId("block-status")).toHaveTextContent("stale");
+  });
+
+  it("shows no status dot for an unchanged component", () => {
+    renderBox(element({ id: "e1", meta: { kind: "service" } }));
+
+    expect(screen.queryByTestId("block-status")).not.toBeInTheDocument();
+  });
+});

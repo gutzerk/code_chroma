@@ -33,6 +33,8 @@ public static class ModelCatalog
         }
         if (kind == "cli" && Json.Str(provider["adapter"]) == "claude" && !string.IsNullOrEmpty(baseUrl))
             return await Anthropic(http, baseUrl, key);
+        if (kind == "cli" && await CliModelProbe.Probe(Json.Str(provider["adapter"]) ?? "") is { } live)
+            return new JsonObject { ["supported"] = true, ["models"] = live, ["error"] = null };
         if (kind == "cli" && StaticModels.ContainsKey($"adapter:{Json.Str(provider["adapter"])}"))
             return Static($"adapter:{Json.Str(provider["adapter"])}");
         return Unsupported();
@@ -45,8 +47,9 @@ public static class ModelCatalog
         ["transport:anthropic"] = AnthropicModels,
         ["transport:gemini"] = ["gemini-2.5-pro", "gemini-2.5-flash", "gemini-2.5-flash-lite"],
         ["transport:openai-compatible"] = ["gpt-5.2", "gpt-5.2-pro"],
-        ["adapter:claude"] = ["opus", "sonnet", "haiku", .. AnthropicModels],
+        ["adapter:claude"] = ["opus", "sonnet", "haiku", "fable", .. AnthropicModels],
         ["adapter:codex"] = ["gpt-5.2", "gpt-5.2-codex"],
+        ["adapter:gemini"] = ["gemini-2.5-pro", "gemini-2.5-flash", "gemini-2.5-flash-lite"],
         ["adapter:kimi-cli"] = ["kimi-k2-turbo-preview", "kimi-k2-thinking"],
     };
 

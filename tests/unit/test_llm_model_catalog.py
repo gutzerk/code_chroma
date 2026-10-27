@@ -6,7 +6,12 @@ from pathlib import Path
 import httpx
 import pytest
 
-from codechroma.llm.model_catalog import _STATIC_MODELS, fetch_models
+from codechroma.llm.model_catalog import (
+    _STATIC_MODELS,
+    fetch_models,
+    parse_claude_models_response,
+    parse_model_list,
+)
 from codechroma.llm.providers_store import Provider
 
 _REPO_ROOT = Path(__file__).resolve().parents[2]
@@ -44,7 +49,9 @@ class _FakeResponse:
         "cli_kimi_adapter",
     ],
 )
-def test_unreachable_provider_falls_back_to_static_list(provider, expected_id):
+def test_unreachable_provider_falls_back_to_static_list(provider, expected_id, monkeypatch):
+    monkeypatch.setattr("codechroma.llm.model_catalog._probe_cli_models", lambda adapter: None)
+
     result = fetch_models(provider)
 
     assert result["supported"] is True
@@ -86,9 +93,7 @@ def test_anthropic_transport_parses_display_name_as_label(monkeypatch):
     def fake_get(url, headers, timeout, verify=True):
         captured["url"] = url
         captured["headers"] = headers
-        return _FakeResponse(
-            {"data": [{"id": "claude-opus-5", "display_name": "Claude Opus 5"}]}
-        )
+        return _FakeResponse({"data": [{"id": "claude-opus-5", "display_name": "Claude Opus 5"}]})
 
     monkeypatch.setattr("codechroma.llm.model_catalog.httpx.get", fake_get)
 
@@ -115,7 +120,11 @@ def test_anthropic_transport_forwards_verify_ssl(monkeypatch):
     monkeypatch.setattr("codechroma.llm.model_catalog.httpx.get", fake_get)
 
     provider = Provider(
-        id="p", label="l", kind="api", transport="anthropic", api_key="sk-x",
+        id="p",
+        label="l",
+        kind="api",
+        transport="anthropic",
+        api_key="sk-x",
         verify_ssl=False,
     )
     fetch_models(provider)
@@ -158,7 +167,12 @@ def test_gemini_transport_honors_base_url(monkeypatch):
     monkeypatch.setattr("codechroma.llm.model_catalog.httpx.get", fake_get)
 
     provider = Provider(
-        id="p", label="l", kind="api", transport="gemini", api_key="g-key", base_url="https://gm.example"
+        id="p",
+        label="l",
+        kind="api",
+        transport="gemini",
+        api_key="g-key",
+        base_url="https://gm.example",
     )
     fetch_models(provider)
 
@@ -177,7 +191,11 @@ def test_cli_claude_with_base_url_is_supported(monkeypatch):
     monkeypatch.setattr("codechroma.llm.model_catalog.httpx.get", fake_get)
 
     provider = Provider(
-        id="p", label="l", kind="cli", adapter="claude", base_url="https://proxy.example.com",
+        id="p",
+        label="l",
+        kind="cli",
+        adapter="claude",
+        base_url="https://proxy.example.com",
         verify_ssl=False,
     )
     result = fetch_models(provider)
@@ -241,3 +259,57 @@ def test_static_models_match_csharp_catalog():
     for key, models in python.items():
         assert key in csharp, f"{key} missing from ModelCatalog.cs"
         assert csharp[key] == models, key
+
+
+def test_cli_provider_lists_the_models_its_cli_reports(monkeypatch):
+    live = [{"id": "fable", "label": "Fable 5.1"}]
+    monkeypatch.setattr("codechroma.llm.model_catalog._probe_cli_models", lambda adapter: live)
+    provider = Provider(id="p", label="l", kind="cli", adapter="claude")
+
+    result = fetch_models(provider)
+
+    assert result == {"supported": True, "models": live, "error": None}
+
+
+def test_claude_control_response_lists_models_by_value_and_display_name():
+    line = (
+        '{"type":"control_response","response":{"request_id":"models","response":{"models":'
+        '[{"value":"default","displayName":"Default"},'
+        '{"value":"fable","displayName":"Fable 5.1"}]}}}'
+    )
+
+    models = parse_claude_models_response(line)
+
+    assert models == [
+        {"id": "default", "label": "Default"},
+        {"id": "fable", "label": "Fable 5.1"},
+    ]
+
+
+@pytest.mark.parametrize(
+    "line",
+    [
+        '{"type":"system","subtype":"init"}',
+        '{"type":"control_response","response":{"request_id":"other","response":{"models":[]}}}',
+        "not json",
+    ],
+)
+def test_claude_ignores_lines_that_are_not_the_models_response(line):
+    assert parse_claude_models_response(line) is None
+
+
+@pytest.mark.parametrize(
+    "text",
+    [
+        '{"models":[{"slug":"gpt-5.2-codex","display_name":"GPT-5.2 Codex"}]}',
+        '[{"slug":"gpt-5.2-codex","display_name":"GPT-5.2 Codex"}]',
+    ],
+)
+def test_codex_model_list_is_read_from_object_or_bare_array(text):
+    models = parse_model_list(text)
+
+    assert models == [{"id": "gpt-5.2-codex", "label": "GPT-5.2 Codex"}]
+
+
+def test_unparseable_model_list_is_none():
+    assert parse_model_list("oops") is None

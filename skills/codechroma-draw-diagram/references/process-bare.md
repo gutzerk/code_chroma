@@ -46,6 +46,7 @@ the Code Atlas canvas renders. These rules are complete: do not read other skill
 
 ## Rules
 
+- Edge `kind` on `relations[]`: `calls` (default), `spawns` (starts a process/CLI/agent), `data` (reads/writes a file/DB/store), `minor` (optional) -- use `spawns`/`data` whenever true, e.g. `{"from":"api","to":"db","kind":"data","label":"saves run"}`.
 - **Size:** aim for 8–15 boxes. Over 15 the self-check prints `SPLIT`; cut detail instead.
 - **Process order:** every step box gets `meta.order` ("1", "2", "3a"/"3b" for parallel or
   alternative branches) and `meta.lane` (who performs it: a service, a component, "Client").

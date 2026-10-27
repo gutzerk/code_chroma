@@ -568,3 +568,66 @@ def test_error_kind_sequence_message_is_accepted_without_a_kind_advisory(tmp_pat
     assert code == 0
     assert "FAILURE-KIND" not in out
     assert "BADMSGKIND" not in out
+
+
+def _kind_relations(**edge):
+    return _flat(2, relations=[{"from": "n0", "to": "n1", **edge}])
+
+
+@pytest.mark.parametrize("edge", [
+    {"kind": "spawns", "label": "starts agent"},
+    {"kind": "data", "label": "writes cache file"},
+    {"kind": "reads"},
+    {"kind": "writes"},
+    {"kind": "minor"},
+    {"kind": "secondary"},
+    {"kind": "uses", "label": "calls Rank()"},
+])
+def test_known_edge_kinds_raise_no_edge_kind_advisory(tmp_path, capsys, edge):
+    module = _load_module()
+    path = tmp_path / "impact.json"
+    path.write_text(json.dumps(_kind_relations(**edge)), encoding="utf-8")
+
+    module.main(["--kind", "impact", "--json", str(path)])
+
+    out = capsys.readouterr().out
+    assert "EDGEKIND" not in out
+    assert "BADEDGEKIND" not in out
+
+
+def test_unknown_edge_kind_is_an_advisory_that_never_fails(tmp_path, capsys):
+    module = _load_module()
+    path = tmp_path / "impact.json"
+    path.write_text(json.dumps(_kind_relations(kind="teleports")), encoding="utf-8")
+
+    code = module.main(["--kind", "impact", "--json", str(path)])
+
+    out = capsys.readouterr().out
+    assert "BADEDGEKIND" in out
+    assert code in (0, 3)
+    assert "BROKEN" not in out
+
+
+@pytest.mark.parametrize(("label", "tag"), [
+    ("spawns a CLI process", "EDGEKIND-SPAWN"),
+    ("starts the agent", "EDGEKIND-SPAWN"),
+    ("writes run state to the database", "EDGEKIND-DATA"),
+    ("reads file", "EDGEKIND-DATA"),
+])
+def test_plain_call_with_spawn_or_data_label_is_advised(tmp_path, capsys, label, tag):
+    module = _load_module()
+    path = tmp_path / "impact.json"
+    path.write_text(json.dumps(_kind_relations(label=label)), encoding="utf-8")
+
+    module.main(["--kind", "impact", "--json", str(path)])
+
+    assert tag in capsys.readouterr().out
+
+
+def test_sequence_message_kinds_skip_the_edge_kind_check(tmp_path, capsys):
+    module = _load_module()
+    path = _failure_sequence(tmp_path, ',"kind":"return"')
+
+    module.main(["--kind", "sequence", "--json", str(path)])
+
+    assert "BADEDGEKIND" not in capsys.readouterr().out

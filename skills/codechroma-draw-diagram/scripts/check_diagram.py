@@ -21,7 +21,8 @@ where the skill's rules say it should, repeats an id, strands a node, or is too 
 why a finding cannot apply.
 
 Advisory findings print but never change the exit code: COVERAGE, DEPTH, NESTING-EDGE, CYCLES,
-ARTICULATION, BADKIND, BADICON, UNLABELED, DROPPED, NOSTATUS, BADSTATUS. COVERAGE is advisory by
+ARTICULATION, BADKIND, BADICON, BADEDGEKIND, EDGEKIND-SPAWN, EDGEKIND-DATA, UNLABELED, DROPPED,
+NOSTATUS, BADSTATUS. COVERAGE is advisory by
 construction, not
 by
 concession -- the bridge hangs everything no block names off the system box as an "Unmapped code"
@@ -900,6 +901,54 @@ def _check_message_kinds(relations: list[dict], report: _Report) -> None:
             )
 
 
+EDGE_KINDS = ("calls", "spawns", "data", "reads", "writes", "minor")
+# Web-side aliases (edgeKinds.ts) plus the structural verbs patterns/c1 already author.
+EDGE_KIND_ALIASES = (
+    "call", "uses", "spawn", "process", "read", "write", "secondary", "imports", "implements",
+    "extends", "inherits", "composes", "contains", "depends", "depends_on",
+)
+_PLAIN_EDGE_KINDS = ("", "calls", "call", "uses")
+_SPAWN_WORDS = re.compile(
+    r"\b(spawn\w*|launch\w*|(start|starts|starting|run|runs|fork\w*)\s+(a\s+|an\s+|the\s+)?"
+    r"(sub)?(process|cli|agent|worker|daemon))\b", re.IGNORECASE,
+)
+_DATA_WORDS = re.compile(
+    r"\b(read|reads|write|writes|reading|writing|persist\w*|stores?|saves?)\b.{0,40}"
+    r"\b(files?|disk|database|db|sqlite|store|cache|json)\b", re.IGNORECASE,
+)
+
+
+def _check_edge_kinds(relations: list[dict], kind: str, report: _Report) -> None:
+    """Advises on an unknown edge kind, or a spawn/data-sounding edge left as a plain call."""
+    if kind in ("sequence", "custom"):
+        return
+    known = EDGE_KINDS + EDGE_KIND_ALIASES
+    for relation in relations:
+        edge_kind = relation.get("kind")
+        pair = f"{relation.get('from')!r} -> {relation.get('to')!r}"
+        if isinstance(edge_kind, str) and edge_kind.strip().lower() not in known:
+            report.advisories.append(
+                f"BADEDGEKIND {pair} kind={edge_kind!r} is not one of {', '.join(EDGE_KINDS)}"
+            )
+            continue
+        plain = edge_kind is None or (
+            isinstance(edge_kind, str) and edge_kind.strip().lower() in _PLAIN_EDGE_KINDS
+        )
+        label = relation.get("label")
+        if not plain or not isinstance(label, str):
+            continue
+        if _SPAWN_WORDS.search(label):
+            report.advisories.append(
+                f"EDGEKIND-SPAWN {pair} label {label!r} starts a process --"
+                ' set `"kind": "spawns"` so it draws dotted'
+            )
+        elif _DATA_WORDS.search(label):
+            report.advisories.append(
+                f"EDGEKIND-DATA {pair} label {label!r} reads/writes data --"
+                ' set `"kind": "data"` so it draws orange dashed'
+            )
+
+
 def _check_readability(diagram: object, kind: str, report: _Report) -> None:
     """022: the 5-second-read data -- order, summary, phases and the wording lints."""
     if not isinstance(diagram, dict):
@@ -916,6 +965,7 @@ def _check_readability(diagram: object, kind: str, report: _Report) -> None:
         _check_message_kinds(relations, report)
         _check_phases(diagram, relations, report)
         _check_frames(diagram, report)
+    _check_edge_kinds(relations, kind, report)
     if kind in READABILITY_KINDS and relations:
         missing = [
             key for key in ("question", "summary")

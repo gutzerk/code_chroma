@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { act, fireEvent, render, screen } from "@testing-library/react";
-import { RouteCard, ROUTE_WALK_STEP_MS } from "./RouteCard";
+import { RouteCard, collectRoutes, ROUTE_WALK_STEP_MS } from "./RouteCard";
+import { canvasDocStore } from "./doc/canvasDocStore";
 import { routeStore } from "../state/routeStore";
 import type { Route } from "./doc/routeStep";
 
@@ -12,6 +13,7 @@ const ROUTE: Route = {
 
 afterEach(() => {
   routeStore.reset();
+  canvasDocStore.reset();
   vi.useRealTimers();
 });
 
@@ -42,5 +44,36 @@ describe("RouteCard", () => {
     act(() => void vi.advanceTimersByTime(ROUTE_WALK_STEP_MS));
 
     expect(routeStore.getSnapshot()).toMatchObject({ stepIndex: 1, walking: false });
+  });
+
+  it("shows no picker for a single route", () => {
+    routeStore.show(ROUTE);
+
+    render(<RouteCard />);
+
+    expect(screen.queryByTestId("route-picker")).toBeNull();
+  });
+});
+
+describe("route picker", () => {
+  const other: Route = { ...ROUTE, id: "r2", title: "Other route" };
+  const el = (id: string, route: Route) => ({ [id]: { id, meta: { route } } as never });
+
+  it("collects each distinct route once", () => {
+    const elements = { ...el("1", ROUTE), ...el("2", ROUTE), ...el("3", other) };
+
+    expect(collectRoutes(elements).map((r) => r.id)).toEqual(["r", "r2"]);
+  });
+
+  it("switches the active route when another is picked", () => {
+    act(() => {
+      canvasDocStore.setDoc({ ...canvasDocStore.getDoc(), elements: { ...el("1", ROUTE), ...el("3", other) } });
+    });
+    routeStore.show(ROUTE);
+    render(<RouteCard />);
+
+    fireEvent.change(screen.getByTestId("route-picker"), { target: { value: "r2" } });
+
+    expect(routeStore.getSnapshot().route?.id).toBe("r2");
   });
 });

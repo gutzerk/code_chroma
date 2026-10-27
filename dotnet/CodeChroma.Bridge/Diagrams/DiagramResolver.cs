@@ -182,6 +182,62 @@ public static class DiagramResolver
         return copy;
     }
 
+    /// <summary>{node_id, path, line?} for a real graph node (line from its symbol), else null.</summary>
+    private static JsonObject? Locate(IGraphEngine engine, JsonNode? nodeId)
+    {
+        if (Json.Str(nodeId) is not { } id || engine.GetNode(id) is not { } node) return null;
+        var symbol = engine.GetSymbol(id);
+        var path = symbol?.FilePath ?? node.SourcePath;
+        var found = new JsonObject { ["node_id"] = id };
+        if (!string.IsNullOrEmpty(path)) found["path"] = path;
+        if (symbol is { StartLine: > 0 }) found["line"] = symbol.StartLine;
+        return found;
+    }
+
+    /// <summary>Stamps `resolved` on each route step and `path`/`resolved_line`/`line_mismatch` on each child (026).</summary>
+    private static JsonNode? ResolveRoute(IGraphEngine engine, JsonNode? route, Diagnostics notes)
+    {
+        if (route is not JsonObject r || r["steps"] is not JsonArray steps) return route;
+        var outSteps = new JsonArray();
+        foreach (var raw in steps)
+        {
+            if (raw is not JsonObject step) { outSteps.Add(raw?.DeepClone()); continue; }
+            var copy = (JsonObject)step.DeepClone();
+            var found = new JsonArray();
+            foreach (var nid in step["node_ids"] as JsonArray ?? [])
+            {
+                if (Locate(engine, nid) is { } hit) found.Add(hit);
+                else notes.Drop("route_step", Json.Str(step["id"]), "unresolved_path", Json.Str(nid) ?? nid?.ToJsonString() ?? "");
+            }
+            var children = new JsonArray();
+            foreach (var rawChild in step["children"] as JsonArray ?? [])
+            {
+                if (rawChild is not JsonObject child) { children.Add(rawChild?.DeepClone()); continue; }
+                var childCopy = (JsonObject)child.DeepClone();
+                var hit = Locate(engine, child["node_id"]);
+                if (hit is null && Json.Truthy(child["node_id"]))
+                    notes.Drop("route_child", Json.Str(child["id"]), "unresolved_path", Json.Str(child["node_id"]) ?? "");
+                if (hit is not null)
+                {
+                    if (hit["path"] is { } path) childCopy["path"] = path.DeepClone();
+                    if (hit["line"] is { } line)
+                    {
+                        childCopy["resolved_line"] = line.DeepClone();
+                        if (!(child["line"] is JsonValue authored && authored.TryGetValue(out int authoredLine) && authoredLine == line.GetValue<int>()))
+                            childCopy["line_mismatch"] = true;
+                    }
+                }
+                children.Add(childCopy);
+            }
+            copy["resolved"] = found;
+            copy["children"] = children;
+            outSteps.Add(copy);
+        }
+        var result = (JsonObject)r.DeepClone();
+        result["steps"] = outSteps;
+        return result;
+    }
+
     /// <summary>The one resolver every diagram kind calls; a style source of null falls back to the diagram's own.</summary>
     public static JsonObject Resolve(IGraphEngine engine, JsonObject data, JsonNode? styleSource = null, string? kind = null)
     {
@@ -227,6 +283,7 @@ public static class DiagramResolver
                 groups.Add(group);
 
         var resolved = (JsonObject)data.DeepClone();
+        if (ResolveRoute(engine, data["route"], notes) is { } route) resolved["route"] = route;
         resolved["nodes"] = new JsonArray(nodes.Select(n => (JsonNode?)n).ToArray());
         resolved["relations"] = new JsonArray(relations.ToArray());
         resolved["groups"] = groups;

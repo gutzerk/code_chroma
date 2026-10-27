@@ -60,6 +60,19 @@ function clusterByLane(nodes: readonly LayoutBoxSpec[]): LayoutBoxSpec[] {
     .map((entry) => entry.node);
 }
 
+/** True for the reserved Failures lane (case-insensitive). */
+export function isFailuresLane(lane: string | undefined): boolean {
+  return lane?.trim().toLowerCase() === "failures";
+}
+
+/** Lane -> band index in first-seen order, with the Failures lane always last. */
+function orderedLanes(nodes: readonly LayoutBoxSpec[]): Map<string, number> {
+  const names: string[] = [];
+  for (const node of nodes) if (node.lane && !names.includes(node.lane)) names.push(node.lane);
+  const ordered = [...names.filter((n) => !isFailuresLane(n)), ...names.filter(isFailuresLane)];
+  return new Map(ordered.map((name, index) => [name, index]));
+}
+
 /** Lays boxes out with ELK's layered algorithm: a one-directional edge puts its source above its target, `order` pins layers via ordering edges, `lane` clusters via input order. */
 export async function computeElkLayout(
   nodes: readonly LayoutBoxSpec[],
@@ -80,8 +93,7 @@ export async function computeElkLayout(
     .map((edge, index) => ({ id: `e${index}`, sources: [edge.from], targets: [edge.to] }));
 
   // 022: fully-laned boxes lay out RIGHT, one band per lane (first-seen order); otherwise DOWN.
-  const laneIndex = new Map<string, number>();
-  for (const node of nodes) if (node.lane && !laneIndex.has(node.lane)) laneIndex.set(node.lane, laneIndex.size);
+  const laneIndex = orderedLanes(nodes);
   const hasLanes = laneIndex.size > 0 && nodes.every((node) => node.lane);
 
   const graph: ElkNode = {

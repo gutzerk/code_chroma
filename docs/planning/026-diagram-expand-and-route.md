@@ -1,6 +1,6 @@
 # 026 — Diagram expand in place (A4) and route overlay on the code map (B2)
 
-Status: In progress (Stages 1-3 built, resolvers do not yet resolve `node_ids` to path/line; Stage 4 and the Playwright journeys are open)
+Status: In progress (Stages 1-3 built and tested; Stage 4, drawing the real wiki-general flow through the skill, is open)
 
 Source: two boards of the "Diagram Readability Options" design canvas (https://claude.ai/artifact/JBQvJ1EMpwBCNPRAd4eSbQ): "A4 · Glance + expand in place" (`VariantExpand.dc.html`) and "B2 · Code map + route overlay" (`AltRouteMap.dc.html`). Both were deliberately left out of `docs/planning/022-diagram-readability.md` ("revisit after Stage 2; they depend on lanes being reliable"). Stage 2 (lanes, `order`, block anatomy) and the ▶ player have landed, so this plan picks them up. Builds on `docs/architecture/diagram-skills.md`, `web-canvas-shell.md`, `trace.md`, `wiki-general.md`.
 

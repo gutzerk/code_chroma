@@ -167,6 +167,8 @@ public static class Recipes
         meta["async"] = Json.Truthy(item["async"]);
         meta["return"] = Json.Truthy(item["return"]);
         meta["hero"] = Json.Truthy(item["hero"]);
+        if (Json.Str(item["kind"]) is { Length: > 0 } kind) meta["kind"] = kind;
+        if (item["failure"] is not null) meta["failure"] = Json.Truthy(item["failure"]);
         return new RecipeNode(Key: Json.Str(item["id"])!, Render: "sequence", Label: TextOr(item["label"]), Description: TextOr(item["description"]), Meta: meta, Style: StyleOf(item));
     }
 

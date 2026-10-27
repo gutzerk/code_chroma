@@ -38,7 +38,7 @@ needs its own unique `id` and an `order`.
 ## Rules
 
 - Participants: unique `id`, `name`, `node_id`/`path` verbatim from the context, a one-sentence `description`. Every participant takes part in at least one message; no extra connective boxes.
-- Messages: unique `id`; `from`/`to` are participant ids (the caller initiates — a response is a `return` message, not a second call); `order` is a STRING (`"1"`, `"2"`, `"2a"`/`"2b"` for simultaneous) and is never omitted; `label` a short verb phrase; `async: true` for a fire-and-forget (dashed) arrow; `return: true` for the response arrow back to the caller (add the returns that close the story); `description` the concrete payload or signature on the messages that carry the story.
+- Messages: unique `id`; `from`/`to` are participant ids (the caller initiates — a response is a `return` message, not a second call); `order` is a STRING (`"1"`, `"2"`, `"2a"`/`"2b"` for simultaneous) and is never omitted; `label` a short verb phrase; `async: true` for a fire-and-forget (dashed) arrow; `kind: "error"` on a failure/denied/timeout message (drawn red and dashed; `kind` is one of call|return|ai|event|error); `return: true` for the response arrow back to the caller (add the returns that close the story); `description` the concrete payload or signature on the messages that carry the story.
 - Self-calls are allowed.
 - Budget: ≤ 24 participants, ≤ 60 messages; names ≤ 40 chars; labels ≤ 60 chars.
 

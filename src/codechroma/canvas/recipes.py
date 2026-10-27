@@ -178,6 +178,31 @@ def _node_of(item: dict, render: str) -> GraphNode:
     )
 
 
+def _route_summary(steps: list[dict]) -> str:
+    """The derived "N steps · N files · N AI steps" line of the ROUTE card (026)."""
+    files = {nid for step in steps for nid in step.get("node_ids") or [] if isinstance(nid, str)}
+    ai = sum(1 for step in steps if step.get("kind") == "ai")
+    return f"{len(steps)} steps · {len(files)} files · {ai} AI steps"
+
+
+def _with_route(nodes: tuple[GraphNode, ...], resolved: dict) -> tuple[GraphNode, ...]:
+    """Stamps the authored `route` (plus derived summary) on each node and `route_step` on a step's."""
+    route = resolved.get("route")
+    steps = route.get("steps") if isinstance(route, dict) else None
+    if not isinstance(steps, list):
+        return nodes
+    clean = [step for step in steps if isinstance(step, dict) and isinstance(step.get("id"), str)]
+    stamped = {**route, "steps": clean, "summary": _route_summary(clean)}
+    by_id = {step["id"]: step for step in clean}
+    return tuple(
+        replace(node, meta={
+            **node.meta, "route": stamped,
+            **({"route_step": by_id[node.key]} if node.key in by_id else {}),
+        })
+        for node in nodes
+    )
+
+
 def reshape(resolved: dict, render: str) -> GraphShape:
     """One shared shape: nodes come from "nodes", or "items" for the epics index."""
     raw_nodes = resolved.get("nodes")
@@ -188,6 +213,7 @@ def reshape(resolved: dict, render: str) -> GraphShape:
         for item in raw_nodes
         if isinstance(item, dict) and isinstance(item.get("id"), str)
     )
+    nodes = _with_route(nodes, resolved)
     relations = tuple(resolved.get("relations") or [])
     if render == "sequence":
         # A sequence diagram's messages are dedicated elements (not edges): relations[] become

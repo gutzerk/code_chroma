@@ -961,6 +961,7 @@ def _check_readability(diagram: object, kind: str, report: _Report) -> None:
         return
     nodes = [n for n in diagram.get("nodes") or [] if isinstance(n, dict)]
     relations = [r for r in diagram.get("relations") or [] if isinstance(r, dict)]
+    _check_route(diagram, nodes, report)
     if kind == "sequence":
         for relation in relations:
             if relation.get("order") in (None, ""):
@@ -1006,6 +1007,59 @@ def _check_readability(diagram: object, kind: str, report: _Report) -> None:
             report.advisories.append(f"ECHO-LABEL {pair} label {label!r} repeats a box title")
         if relation.get("kind") in ("error", "failure") and not label:
             report.advisories.append(f"HIDDEN-BRANCH {pair} is a failure path with no label")
+
+
+ROUTE_KINDS = ("trigger", "decide", "ai", "check", "data", "failure")
+
+
+def _check_route(diagram: dict, nodes: list[dict], report: _Report) -> None:
+    """026: the optional `route` -- every finding is advisory, like BADEDGEKIND."""
+    route = diagram.get("route")
+    if route is None:
+        return
+    steps = route.get("steps") if isinstance(route, dict) else None
+    if not isinstance(steps, list):
+        report.advisories.append("BADROUTE `route` must be an object with a `steps` list")
+        return
+    node_ids = {n.get("id") for n in nodes}
+    seen: set[object] = set()
+    orders: list[int] = []
+    for step in steps:
+        if not isinstance(step, dict):
+            report.advisories.append("BADROUTE a step entry is not a JSON object")
+            continue
+        _check_route_step(step, node_ids, seen, orders, report)
+    if orders and sorted(orders) != list(range(1, len(orders) + 1)):
+        report.advisories.append("ROUTE-ORDER step `order` values should run 1..N without gaps")
+
+
+def _check_route_step(
+    step: dict, node_ids: set, seen: set, orders: list[int], report: _Report
+) -> None:
+    """One route step: unique id, known kind, integer order, well-formed children."""
+    sid = step.get("id")
+    if sid in seen:
+        report.advisories.append(f"ROUTE-STEP {sid!r} is used by more than one step")
+    seen.add(sid)
+    if sid not in node_ids:
+        report.advisories.append(f"ROUTE-STEP {sid!r} matches no diagram node id")
+    if step.get("kind") not in ROUTE_KINDS:
+        report.advisories.append(f"ROUTE-KIND {sid!r} kind must be one of {ROUTE_KINDS}")
+    order = step.get("order")
+    if isinstance(order, int) and not isinstance(order, bool):
+        orders.append(order)
+    else:
+        report.advisories.append(f"ROUTE-ORDER {sid!r} needs an integer `order`")
+    ids = step.get("node_ids")
+    if ids is not None and not (
+        isinstance(ids, list) and all(isinstance(i, str) and i for i in ids)
+    ):
+        report.advisories.append(f"ROUTE-NODES {sid!r} `node_ids` must be a list of id strings")
+    for child in step.get("children") or []:
+        line = child.get("line") if isinstance(child, dict) else None
+        if not (isinstance(line, int) and not isinstance(line, bool) and line > 0):
+            label = child.get("label") if isinstance(child, dict) else child
+            report.advisories.append(f"ROUTE-CHILD {sid!r} child {label!r} needs a positive `line`")
 
 
 def _is_number(value: object) -> bool:

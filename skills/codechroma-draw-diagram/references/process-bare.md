@@ -84,4 +84,5 @@ the Code Atlas canvas renders. These rules are complete: do not read other skill
 | `ORPHAN` / `ISLAND` | connect the box or drop it |
 | `SHAREDNODE` | advisory: give each box its own symbol, or null |
 | `CYCLES`, `ARTICULATION` | advisory: fine when the loop or the single path is real |
+| `BADROUTE`, `ROUTE-*` | advisory: an optional `route` is malformed (see `type-custom.md`, "Optional `route`") |
 | `SPLIT` | too many boxes: merge or drop minor steps |

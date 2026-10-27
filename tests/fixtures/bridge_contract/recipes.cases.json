@@ -658,6 +658,57 @@
           }
         }
       ]
+    },
+    {
+      "id": "a_route_rides_on_each_node_meta_with_a_derived_summary",
+      "steps": [
+        {
+          "fs": "write",
+          "path": ".codechroma/diagrams/impact/impact.json",
+          "text": "{\"nodes\": [{\"id\": \"n1\", \"name\": \"Click Update\", \"node_id\": \"component::src\"}, {\"id\": \"n2\", \"name\": \"Rewrite pages\"}], \"relations\": [{\"from\": \"n1\", \"to\": \"n2\", \"label\": \"then\"}], \"route\": {\"id\": \"r1\", \"title\": \"Update the map\", \"steps\": [{\"id\": \"n1\", \"order\": 1, \"lane\": \"you\", \"title\": \"Click Update\", \"kind\": \"trigger\", \"node_ids\": [\"component::src\"], \"children\": [{\"id\": \"c1\", \"label\": \"Run()\", \"node_id\": \"component::src\", \"line\": 12}]}, {\"id\": \"n2\", \"order\": 2, \"lane\": \"claude\", \"title\": \"Rewrite pages\", \"kind\": \"ai\", \"node_ids\": [\"component::src\"], \"children\": []}]}}"
+        },
+        {
+          "http": {
+            "method": "POST",
+            "path": "/repos/main/recipes/impact/run"
+          },
+          "expect": {
+            "status": 200,
+            "checks": [
+              {
+                "path": "$.ok",
+                "equals": true
+              }
+            ]
+          },
+          "capture": {
+            "first": "$.id_map.n0"
+          }
+        },
+        {
+          "http": {
+            "method": "GET",
+            "path": "/repos/main/canvas"
+          },
+          "expect": {
+            "status": 200,
+            "checks": [
+              {
+                "path": "$.elements['{{first}}'].meta.route.summary",
+                "equals": "2 steps · 1 files · 1 AI steps"
+              },
+              {
+                "path": "$.elements['{{first}}'].meta.route_step.kind",
+                "equals": "trigger"
+              },
+              {
+                "path": "$.elements['{{first}}'].meta.route_step.children[0].line",
+                "equals": 12
+              }
+            ]
+          }
+        }
+      ]
     }
   ]
 }

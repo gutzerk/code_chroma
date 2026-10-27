@@ -645,3 +645,36 @@ def test_sequence_message_kinds_skip_the_edge_kind_check(tmp_path, capsys):
     module.main(["--kind", "sequence", "--json", str(path)])
 
     assert "BADEDGEKIND" not in capsys.readouterr().out
+
+
+def _routed(steps):
+    diagram = _flat(2)
+    diagram["route"] = {"id": "r", "steps": steps}
+    return diagram
+
+
+def test_a_well_formed_route_adds_no_advisory(tmp_path):
+    steps = [
+        {"id": "n0", "order": 1, "kind": "trigger", "node_ids": ["a"],
+         "children": [{"id": "c", "label": "Run()", "line": 4}]},
+        {"id": "n1", "order": 2, "kind": "ai", "node_ids": [], "children": []},
+    ]
+
+    result = _run(tmp_path, "custom", _routed(steps))
+
+    assert result.returncode == 0
+    assert "ROUTE" not in result.stdout
+
+
+def test_route_problems_are_advisory_only(tmp_path):
+    steps = [
+        {"id": "n0", "order": 1, "kind": "wat", "children": [{"label": "x", "line": 0}]},
+        {"id": "n0", "order": 3, "kind": "ai"},
+        {"id": "ghost", "kind": "ai"},
+    ]
+
+    result = _run(tmp_path, "custom", _routed(steps))
+
+    assert result.returncode == 0
+    for code in ("ROUTE-KIND", "ROUTE-CHILD", "ROUTE-STEP", "ROUTE-ORDER"):
+        assert code in result.stdout

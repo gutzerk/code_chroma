@@ -132,6 +132,7 @@ public static class Recipes
     {
         var rawNodes = resolved["nodes"] as JsonArray ?? (Json.Truthy(resolved["items"]) ? resolved["items"] as JsonArray : null) ?? [];
         var nodes = rawNodes.OfType<JsonObject>().Where(item => Json.Str(item["id"]) is not null).Select(item => NodeOf(item, render)).ToList();
+        nodes = WithRoute(nodes, resolved);
         IReadOnlyList<JsonNode?> relations = resolved["relations"] is JsonArray array && array.Count > 0 ? array.ToList() : [];
         if (render != "sequence") return new GraphShape(nodes, relations);
 
@@ -147,6 +148,32 @@ public static class Recipes
             .Where(key => Json.Truthy(resolved[key])).ToDictionary(key => key, key => resolved[key]!);
         var sequenceNodes = nodes.Select(node => ParticipantNode(node, readability)).Concat(messages.Select(MessageNode)).ToList();
         return new GraphShape(sequenceNodes, []);
+    }
+
+    /// <summary>The derived "N steps · N files · N AI steps" line of the ROUTE card (026).</summary>
+    private static string RouteSummary(List<JsonObject> steps)
+    {
+        var files = steps.SelectMany(step => step["node_ids"] as JsonArray ?? []).Select(Json.Str).Where(id => id is not null).Distinct().Count();
+        var ai = steps.Count(step => Json.Str(step["kind"]) == "ai");
+        return $"{steps.Count} steps · {files} files · {ai} AI steps";
+    }
+
+    /// <summary>Stamps the authored `route` (plus derived summary) on each node and `route_step` on a step's.</summary>
+    private static List<RecipeNode> WithRoute(List<RecipeNode> nodes, JsonObject resolved)
+    {
+        if (resolved["route"] is not JsonObject route || route["steps"] is not JsonArray rawSteps) return nodes;
+        var steps = rawSteps.OfType<JsonObject>().Where(step => Json.Str(step["id"]) is not null).ToList();
+        var stamped = (JsonObject)route.DeepClone();
+        stamped["steps"] = new JsonArray(steps.Select(step => step.DeepClone()).ToArray());
+        stamped["summary"] = RouteSummary(steps);
+        var byId = steps.ToDictionary(step => Json.Str(step["id"])!);
+        return nodes.Select(node =>
+        {
+            var meta = (JsonObject)(node.Meta ?? []).DeepClone();
+            meta["route"] = stamped.DeepClone();
+            if (byId.TryGetValue(node.Key, out var step)) meta["route_step"] = step.DeepClone();
+            return node with { Meta = meta };
+        }).ToList();
     }
 
     private static RecipeNode ParticipantNode(RecipeNode node, Dictionary<string, JsonNode> readability)

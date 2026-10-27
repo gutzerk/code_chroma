@@ -16,6 +16,55 @@ public sealed class Diagnostics
     public void Drop(string what, string? id, string reason, string detail = "") =>
         _items.Add(new JsonObject { ["what"] = what, ["id"] = id, ["reason"] = reason, ["detail"] = detail });
 
+    private static readonly string[] MessageKinds = ["call", "return", "ai", "event", "error"];
+    private static readonly string[] EdgeKinds = ["calls", "spawns", "data", "reads", "writes", "minor"];
+    private static readonly string[] EdgeKindAliases =
+    [
+        "call", "uses", "spawn", "process", "read", "write", "secondary", "imports", "implements",
+        "extends", "inherits", "composes", "contains", "depends", "depends_on",
+    ];
+    private static readonly string[] PlainEdgeKinds = ["", "calls", "call", "uses"];
+    private static readonly System.Text.RegularExpressions.Regex FailureWords = new(@"\b(error|fail\w*|denied|timeout|timed out)\b", System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+    private static readonly System.Text.RegularExpressions.Regex SpawnWords = new(@"\b(spawn\w*|launch\w*|(start|starts|starting|run|runs|fork\w*)\s+(a\s+|an\s+|the\s+)?(sub)?(process|cli|agent|worker|daemon))\b", System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+    private static readonly System.Text.RegularExpressions.Regex DataWords = new(@"\b(read|reads|write|writes|reading|writing|persist\w*|stores?|saves?)\b.{0,40}\b(files?|disk|database|db|sqlite|store|cache|json)\b", System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+
+    /// <summary>Records the check_diagram.py edge/message-kind advisories as soft diagnostics (never drops).</summary>
+    public void AdviseRelations(IEnumerable<JsonNode?> relations, string? kind)
+    {
+        if (kind == "custom") return;
+        foreach (var relation in relations.OfType<JsonObject>())
+        {
+            if (kind == "sequence") AdviseMessage(relation);
+            else AdviseEdge(relation);
+        }
+    }
+
+    private void AdviseMessage(JsonObject relation)
+    {
+        var kind = Json.Str(relation["kind"]);
+        var id = Json.Str(relation["id"]);
+        if (kind is not null && !MessageKinds.Contains(kind)) Drop("relation", id, "bad_message_kind", $"kind='{kind}'");
+        var label = Json.Str(relation["label"]) ?? "";
+        if (kind != "error" && !Json.Truthy(relation["failure"]) && FailureWords.IsMatch(label))
+            Drop("relation", id, "failure_kind", $"label '{label}': set kind to error");
+    }
+
+    private void AdviseEdge(JsonObject relation)
+    {
+        var kindNode = relation["kind"];
+        var kind = Json.Str(kindNode);
+        var pair = $"{Json.Str(relation["from"])} -> {Json.Str(relation["to"])}";
+        if (kind is not null && !EdgeKinds.Concat(EdgeKindAliases).Contains(kind.Trim().ToLowerInvariant()))
+        {
+            Drop("relation", pair, "bad_edge_kind", $"kind='{kind}'");
+            return;
+        }
+        var plain = kindNode is null || (kind is not null && PlainEdgeKinds.Contains(kind.Trim().ToLowerInvariant()));
+        if (!plain || Json.Str(relation["label"]) is not { } label) return;
+        if (SpawnWords.IsMatch(label)) Drop("relation", pair, "edge_kind_spawn", $"label '{label}': set kind to spawns");
+        else if (DataWords.IsMatch(label)) Drop("relation", pair, "edge_kind_data", $"label '{label}': set kind to data");
+    }
+
     /// <summary>A capped list plus the true total the cap may have hidden.</summary>
     public JsonObject AsPayload()
     {
@@ -131,7 +180,7 @@ public static class DiagramResolver
     }
 
     /// <summary>The one resolver every diagram kind calls; a style source of null falls back to the diagram's own.</summary>
-    public static JsonObject Resolve(IGraphEngine engine, JsonObject data, JsonNode? styleSource = null)
+    public static JsonObject Resolve(IGraphEngine engine, JsonObject data, JsonNode? styleSource = null, string? kind = null)
     {
         var notes = new Diagnostics();
         var overrides = DiagramStyles.Overrides(styleSource ?? data["style"]);
@@ -166,6 +215,8 @@ public static class DiagramResolver
             relation["style"] = relation["style"] is JsonObject own ? own.DeepClone() : edgeStyle.Count > 0 ? edgeStyle.DeepClone() : null;
             relations.Add(relation);
         }
+
+        notes.AdviseRelations(relations, kind ?? Json.Str(data["type"]));
 
         var groups = new JsonArray();
         if (Json.Truthy(overrides["supports_groups"]))
@@ -216,3 +267,4 @@ public static class DiagramResolver
         return resolved;
     }
 }
+

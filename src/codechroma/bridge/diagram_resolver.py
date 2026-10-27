@@ -19,7 +19,7 @@ from __future__ import annotations
 from collections.abc import Callable
 
 from codechroma.bridge.coverage import uncovered_roots
-from codechroma.bridge.diagram_diagnostics import Diagnostics, keep_relation
+from codechroma.bridge.diagram_diagnostics import Diagnostics, advise_relations, keep_relation
 from codechroma.bridge.diagram_paths import clean_path, resolve_path_node
 from codechroma.diagrams.styles import resolve_style_overrides
 from codechroma.engine import GraphEngine
@@ -94,7 +94,9 @@ def _groups_of(nodes: list[dict], overrides: dict) -> list[str]:
                    and node["group"]})
 
 
-def resolve_diagram(engine: GraphEngine, data: dict, *, style_source: object = None) -> dict:
+def resolve_diagram(
+    engine: GraphEngine, data: dict, *, style_source: object = None, kind: str | None = None
+) -> dict:
     """The one resolver every `DiagramSpec.resolve` closure calls -- see diagram-schema.md."""
     if not isinstance(data, dict):
         return data  # type: ignore[unreachable]  # defensive: a caller may pass non-dict JSON
@@ -127,6 +129,7 @@ def resolve_diagram(engine: GraphEngine, data: dict, *, style_source: object = N
             continue
         assert isinstance(item, dict)
         relations.append({**item, "style": _relation_style(item, edge_style)})
+    advise_relations(relations, kind or data.get("type"), notes)
 
     resolved = {
         **data,

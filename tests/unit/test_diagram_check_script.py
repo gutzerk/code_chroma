@@ -541,7 +541,9 @@ def _failure_sequence(tmp_path, kind_field):
     path = tmp_path / "seq.json"
     path.write_text(
         '{"nodes":[{"id":"a","name":"A"},{"id":"b","name":"B"}],'
-        '"relations":[{"id":"m1","from":"a","to":"b","label":"401 denied","order":"1"' + kind_field + "}]}",
+        '"relations":[{"id":"m1","from":"a","to":"b","label":"401 denied","order":"1"'
+        + kind_field
+        + "}]}",
         encoding="utf-8",
     )
     return path

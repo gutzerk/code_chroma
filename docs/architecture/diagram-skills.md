@@ -184,7 +184,9 @@ file-wide unique, which is also why `AMBIGUOUS` and `SIBLING` were retired (see 
 | `2` | the diagram could not be read at all |
 
 Advisory (print, never gate): `COVERAGE`, `DEPTH`, `NESTING-EDGE`, `CYCLES`, `ARTICULATION`,
-`BADKIND`, `BADICON`, `UNLABELED`, `DROPPED node …`.
+`BADKIND`, `BADICON`, `BADEDGEKIND`, `EDGEKIND-SPAWN`, `EDGEKIND-DATA`, `UNLABELED`, `DROPPED node …`.
+
+**Edge kinds.** The skill (`drawing-rules.md` "Edge kinds") has the agent author `relations[].kind`: `calls` (default), `spawns` (starts a process/CLI/agent), `data` (`reads`/`writes` a file/DB/store), `minor`. Both resolvers pass it onto the canvas edge unchanged (default `uses`), where `web/src/canvas/doc/edgeKinds.ts` styles it. `check_diagram.py` (`_check_edge_kinds`; not for `sequence`/`custom`) advises `BADEDGEKIND` on an unknown kind (web aliases and structural verbs like `uses`/`implements` are accepted) and `EDGEKIND-SPAWN`/`EDGEKIND-DATA` when a plain-call label says it spawns a process or reads/writes a store.
 
 🔴 **`DROPPED relation …` fails the run (exit 1).** A relation the bridge discarded while resolving
 (dangling endpoint, a self-relation the style disallows, invalid shape) is an arrow or message the author drew

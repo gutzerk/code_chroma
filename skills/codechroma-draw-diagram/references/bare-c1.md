@@ -39,6 +39,7 @@ arrows between them. Nothing is decomposed — no `parent`, no `path`, no `node_
 
 ## Rules
 
+- Edge `kind` on `relations[]`: `calls` (default), `spawns` (starts a process/CLI/agent), `data` (reads/writes a file/DB/store), `minor` (optional) -- use `spawns`/`data` whenever true, e.g. `{"from":"api","to":"db","kind":"data","label":"saves run"}`.
 - Exactly one node `id: "system"`, no `parent`. Every other node is an actor: `kind: "person"` (a human role the system serves — not the engineers who maintain it) or `kind: "external_system"` (a separately deployed system the project only calls: third-party API, database, queue, another service).
 - Test for `external_system`: would it deploy separately AND does the project only call it? A backend the project configures and starts itself (an adapter/driver that launches an engine) is internal, not an actor.
 - Every actor needs at least one relation to or from `"system"` (`ORPHAN`/`ISLAND` otherwise). Direction = who initiates. One relation per actor is usually enough. Labels: short verb phrases, ≤ 50 chars.

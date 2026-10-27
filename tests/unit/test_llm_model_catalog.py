@@ -8,6 +8,7 @@ import pytest
 
 from codechroma.llm.model_catalog import (
     _STATIC_MODELS,
+    _probe_cli_models,
     fetch_models,
     parse_claude_models_response,
     parse_model_list,
@@ -318,3 +319,24 @@ def test_unparseable_model_list_is_none():
 @pytest.mark.parametrize("text", ["null", "true", "42", '"Unknown command"'])
 def test_model_list_that_is_not_an_array_or_object_is_none(text):
     assert parse_model_list(text) is None
+
+
+@pytest.mark.parametrize(
+    ("adapter", "args"),
+    [("codex", ["debug", "models"]), ("gemini", ["models", "list", "-o", "json"])],
+)
+def test_cli_probe_runs_each_adapters_list_command(monkeypatch, adapter, args):
+    calls = []
+
+    def run(command, **kwargs):
+        calls.append(command)
+        stdout = '[{"slug": "m1", "display_name": "M1"}]'
+        return type("Done", (), {"returncode": 0, "stdout": stdout})()
+
+    monkeypatch.setattr("codechroma.llm.model_catalog.shutil.which", lambda name: f"/bin/{name}")
+    monkeypatch.setattr("codechroma.llm.model_catalog.subprocess.run", run)
+
+    models = _probe_cli_models(adapter)
+
+    assert calls == [[f"/bin/{adapter}", *args]]
+    assert models == [{"id": "m1", "label": "M1"}]

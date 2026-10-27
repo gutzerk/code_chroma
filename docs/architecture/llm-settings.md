@@ -322,10 +322,10 @@ recognize before the request ever reaches the proxy). Returns
   against that `base_url` — the natural counterpart of "A `claude` provider's own endpoint" above.
   Supported even with no key (some proxies need none); with `base_url` unset it falls to the
   built-in `claude` list.
-- `kind="cli"`, `adapter="claude"|"codex"` (no `base_url`): the installed CLI is asked directly -- `claude -p`
+- `kind="cli"`, `adapter="claude"|"codex"|"gemini"` (no `base_url`): the installed CLI is asked directly -- `claude -p`
   with a stream-json `initialize` control request (models in `response.response.models[]`, `value`/`displayName`),
-  `codex debug models` (JSON, tolerant parse; non-array/object JSON is treated as no answer). C# `CliModelProbe` (stderr drained, tests swap `ModelCatalog.CliProbe`), Python `_probe_cli_models`; 20s timeout; any
-  failure (not installed, timeout, bad output) falls to the built-in list. The codex probe is unverified against a real CLI; `gemini` is not probed (no verified list command) and uses the built-in list.
+  `codex debug models` / `gemini models list -o json` (JSON, tolerant parse; non-array/object JSON is treated as no answer). C# `CliModelProbe` (stderr drained, tests swap `ModelCatalog.CliProbe`), Python `_probe_cli_models`; 20s timeout; any
+  failure (not installed, timeout, bad output) falls to the built-in list. The codex and gemini probes are unverified against real CLIs (the `gemini models list -o json` command was not checked against an install; if it does not exist the probe fails and the built-in list is used).
 - **Built-in fallback** (`_STATIC_MODELS`, mirrored in C# `ModelCatalog.StaticModels`): whenever a
   provider can't be asked live — no key (anthropic/gemini), no `base_url` (openai-compatible), or a
   CLI adapter (`claude` with no `base_url`, `codex`, `kimi-cli`) — it returns `supported: true`,

@@ -49,6 +49,19 @@ public sealed class WikiGeneralRouteTests : IDisposable
         throw new TimeoutException("run did not settle");
     }
 
+    // The error state is visible a beat before the failure callback puts the manifest back.
+    private async Task<string> RestoredManifest(string expected)
+    {
+        var text = "";
+        for (var i = 0; i < 80 && text != expected; i++)
+        {
+            try { text = File.ReadAllText(Path.Combine(Dir, "manifest.json")); }
+            catch (IOException) { text = ""; }
+            if (text != expected) await Task.Delay(25);
+        }
+        return text;
+    }
+
     // The agent flips to idle just before the success callback stamps the commit.
     private async Task<bool> StaleAfterStamp()
     {
@@ -160,7 +173,7 @@ public sealed class WikiGeneralRouteTests : IDisposable
 
         await Post("update");
         var failed = await Settled();
-        var restored = File.ReadAllText(Path.Combine(Dir, "manifest.json"));
+        var restored = await RestoredManifest(original);
         var plan = (await _host.Client.GetFromJsonAsync<JsonObject>("/repos/main/wiki-general/update-plan"))!;
 
         Assert.Equal("error", failed["state"]!.GetValue<string>());

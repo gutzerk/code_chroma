@@ -12,21 +12,48 @@
     {
       "id": "a_cli_provider_is_created_with_defaults_and_listed",
       "steps": [
-        {"http": {"method": "POST", "path": "/llm/providers", "json": {"label": "My claude", "kind": "cli", "adapter": "claude"}}, "capture": {"pid": "$.id"}, "expect": {"status": 201, "json": {"id": {"$any": true}, "label": "My claude", "kind": "cli", "adapter": "claude", "transport": null, "base_url": null, "api_key_set": false, "api_key_path": null, "is_local": false, "test_model": null, "verify_ssl": true}}},
-        {"http": {"method": "GET", "path": "/llm/providers"}, "expect": {"status": 200, "checks": [{"path": "$", "count": 1}, {"path": "$[0].id", "equals": "{{pid}}"}]}}
+        {
+          "http": {"method": "POST", "path": "/llm/providers", "json": {"label": "My claude", "kind": "cli", "adapter": "claude"}},
+          "capture": {"pid": "$.id"},
+          "expect": {"status": 201, "json": {
+            "id": {"$any": true}, "label": "My claude", "kind": "cli", "adapter": "claude", "transport": null,
+            "base_url": null, "api_key_set": false, "api_key_path": null, "is_local": false,
+            "test_model": null, "verify_ssl": true
+          }}
+        },
+        {
+          "http": {"method": "GET", "path": "/llm/providers"},
+          "expect": {"status": 200, "checks": [
+            {"path": "$", "count": 1},
+            {"path": "$[0].id", "equals": "{{pid}}"}
+          ]}
+        }
       ]
     },
     {
       "id": "an_api_key_is_masked_in_every_response",
       "steps": [
-        {"http": {"method": "POST", "path": "/llm/providers", "json": {"label": "Direct", "kind": "api", "transport": "anthropic", "api_key": "sk-secret", "test_model": "m"}}, "expect": {"status": 201, "checks": [{"path": "$.api_key_set", "equals": true}, {"path": "$.api_key", "absent": true}, {"path": "$.transport", "equals": "anthropic"}]}},
-        {"http": {"method": "GET", "path": "/llm/providers"}, "expect": {"status": 200, "checks": [{"path": "$[0].api_key_set", "equals": true}, {"path": "$[0].api_key", "absent": true}]}}
+        {
+          "http": {"method": "POST", "path": "/llm/providers", "json": {"label": "Direct", "kind": "api", "transport": "anthropic", "api_key": "sk-secret", "test_model": "m"}},
+          "expect": {"status": 201, "checks": [
+            {"path": "$.api_key_set", "equals": true},
+            {"path": "$.api_key", "absent": true},
+            {"path": "$.transport", "equals": "anthropic"}
+          ]}
+        },
+        {
+          "http": {"method": "GET", "path": "/llm/providers"},
+          "expect": {"status": 200, "checks": [{"path": "$[0].api_key_set", "equals": true}, {"path": "$[0].api_key", "absent": true}]}
+        }
       ]
     },
     {
       "id": "a_local_api_provider_needs_no_key",
       "steps": [
-        {"http": {"method": "POST", "path": "/llm/providers", "json": {"label": "Ollama", "kind": "api", "transport": "openai-compatible", "base_url": "http://localhost:11434/v1", "is_local": true}}, "expect": {"status": 201, "checks": [{"path": "$.is_local", "equals": true}, {"path": "$.base_url", "equals": "http://localhost:11434/v1"}]}}
+        {
+          "http": {"method": "POST", "path": "/llm/providers", "json": {"label": "Ollama", "kind": "api", "transport": "openai-compatible", "base_url": "http://localhost:11434/v1", "is_local": true}},
+          "expect": {"status": 201, "checks": [{"path": "$.is_local", "equals": true}, {"path": "$.base_url", "equals": "http://localhost:11434/v1"}]}
+        }
       ]
     },
     {
@@ -44,8 +71,20 @@
     {
       "id": "an_update_merges_onto_the_stored_provider_and_keeps_a_masked_key",
       "steps": [
-        {"http": {"method": "POST", "path": "/llm/providers", "json": {"label": "Direct", "kind": "api", "transport": "anthropic", "api_key": "sk-secret"}}, "capture": {"pid": "$.id"}, "expect": {"status": 201}},
-        {"http": {"method": "PUT", "path": "/llm/providers/{{pid}}", "json": {"label": "Renamed", "api_key_set": true}}, "expect": {"status": 200, "checks": [{"path": "$.id", "equals": "{{pid}}"}, {"path": "$.label", "equals": "Renamed"}, {"path": "$.api_key_set", "equals": true}, {"path": "$.transport", "equals": "anthropic"}]}}
+        {
+          "http": {"method": "POST", "path": "/llm/providers", "json": {"label": "Direct", "kind": "api", "transport": "anthropic", "api_key": "sk-secret"}},
+          "capture": {"pid": "$.id"},
+          "expect": {"status": 201}
+        },
+        {
+          "http": {"method": "PUT", "path": "/llm/providers/{{pid}}", "json": {"label": "Renamed", "api_key_set": true}},
+          "expect": {"status": 200, "checks": [
+            {"path": "$.id", "equals": "{{pid}}"},
+            {"path": "$.label", "equals": "Renamed"},
+            {"path": "$.api_key_set", "equals": true},
+            {"path": "$.transport", "equals": "anthropic"}
+          ]}
+        }
       ]
     },
     {
@@ -57,13 +96,13 @@
     },
     {
       "id": "an_unknown_provider_is_a_404_on_update_delete_test_and_models",
-      "matrix": {"verb": ["nope"]},
       "steps": [
         {"http": {"method": "PUT", "path": "/llm/providers/${verb}", "json": {"label": "x"}}, "expect": {"status": 404, "json": {"detail": "unknown provider: '${verb}'"}}},
         {"http": {"method": "DELETE", "path": "/llm/providers/${verb}"}, "expect": {"status": 404, "json": {"detail": "unknown provider: '${verb}'"}}},
         {"http": {"method": "POST", "path": "/llm/providers/${verb}/test"}, "expect": {"status": 404, "json": {"detail": "unknown provider: '${verb}'"}}},
         {"http": {"method": "GET", "path": "/llm/providers/${verb}/models"}, "expect": {"status": 404, "json": {"detail": "unknown provider: '${verb}'"}}}
-      ]
+      ],
+      "matrix": {"verb": ["nope"]}
     },
     {
       "id": "a_draft_test_validates_before_testing",
@@ -74,7 +113,11 @@
     {
       "id": "a_provider_is_deleted_with_no_content",
       "steps": [
-        {"http": {"method": "POST", "path": "/llm/providers", "json": {"label": "C", "kind": "cli", "adapter": "claude"}}, "capture": {"pid": "$.id"}, "expect": {"status": 201}},
+        {
+          "http": {"method": "POST", "path": "/llm/providers", "json": {"label": "C", "kind": "cli", "adapter": "claude"}},
+          "capture": {"pid": "$.id"},
+          "expect": {"status": 201}
+        },
         {"http": {"method": "DELETE", "path": "/llm/providers/{{pid}}"}, "expect": {"status": 204}},
         {"http": {"method": "GET", "path": "/llm/providers"}, "expect": {"status": 200, "json": []}}
       ]
@@ -82,17 +125,49 @@
     {
       "id": "call_sites_list_the_simple_sites_and_the_visible_groups_unassigned",
       "steps": [
-        {"http": {"method": "GET", "path": "/llm/call-sites"}, "expect": {"status": 200, "checks": [{"path": "$.simple[*].id", "equals": ["ai_summarizer", "initial_diagram_bootstrap"]}, {"path": "$.simple[0].capability", "equals": "simple"}, {"path": "$.simple[0].label", "equals": "AI summarizer"}, {"path": "$.simple[0].assignment", "equals": null}, {"path": "$.groups[*].id", "equals": ["diagrams", "planning"]}, {"path": "$.groups[0].label", "equals": "Diagrams"}, {"path": "$.groups[0].members[*].id", "equals": ["c1_agent", "impact-changes_review_agent", "patterns_agent", "impact_agent"]}, {"path": "$.groups[0].assignment", "equals": null}, {"path": "$.groups[0].cli_available", "type": "boolean"}]}}
+        {
+          "http": {"method": "GET", "path": "/llm/call-sites"},
+          "expect": {"status": 200, "checks": [
+            {"path": "$.simple[*].id", "equals": ["ai_summarizer", "initial_diagram_bootstrap"]},
+            {"path": "$.simple[0].capability", "equals": "simple"},
+            {"path": "$.simple[0].label", "equals": "AI summarizer"},
+            {"path": "$.simple[0].assignment", "equals": null},
+            {"path": "$.groups[*].id", "equals": ["diagrams", "planning"]},
+            {"path": "$.groups[0].label", "equals": "Diagrams"},
+            {"path": "$.groups[0].members[*].id", "equals": ["c1_agent", "impact-changes_review_agent", "patterns_agent", "impact_agent"]},
+            {"path": "$.groups[0].assignment", "equals": null},
+            {"path": "$.groups[0].cli_available", "type": "boolean"}
+          ]}
+        }
       ]
     },
     {
       "id": "a_simple_call_site_is_assigned_listed_and_blocks_its_providers_delete",
       "steps": [
-        {"http": {"method": "POST", "path": "/llm/providers", "json": {"label": "Local", "kind": "api", "transport": "anthropic", "is_local": true}}, "capture": {"pid": "$.id"}, "expect": {"status": 201}},
-        {"http": {"method": "PUT", "path": "/llm/call-sites/ai_summarizer", "json": {"provider_id": "{{pid}}", "model": "m1", "mode": "api"}}, "expect": {"status": 200, "checks": [{"path": "$.id", "equals": "ai_summarizer"}, {"path": "$.assignment", "equals": {"provider_id": "{{pid}}", "model": "m1", "mode": "api"}}]}},
-        {"http": {"method": "GET", "path": "/llm/call-sites"}, "expect": {"status": 200, "checks": [{"path": "$.simple[0].assignment.model", "equals": "m1"}]}},
-        {"http": {"method": "DELETE", "path": "/llm/providers/{{pid}}"}, "expect": {"status": 409, "json": {"detail": {"error": "provider is still assigned to one or more call sites", "blocking_call_sites": ["ai_summarizer"]}}}},
-        {"http": {"method": "PUT", "path": "/llm/call-sites/ai_summarizer", "json": {}}, "expect": {"status": 200, "checks": [{"path": "$.assignment", "equals": null}]}},
+        {
+          "http": {"method": "POST", "path": "/llm/providers", "json": {"label": "Local", "kind": "api", "transport": "anthropic", "is_local": true}},
+          "capture": {"pid": "$.id"},
+          "expect": {"status": 201}
+        },
+        {
+          "http": {"method": "PUT", "path": "/llm/call-sites/ai_summarizer", "json": {"provider_id": "{{pid}}", "model": "m1", "mode": "api"}},
+          "expect": {"status": 200, "checks": [
+            {"path": "$.id", "equals": "ai_summarizer"},
+            {"path": "$.assignment", "equals": {"provider_id": "{{pid}}", "model": "m1", "mode": "api"}}
+          ]}
+        },
+        {
+          "http": {"method": "GET", "path": "/llm/call-sites"},
+          "expect": {"status": 200, "checks": [{"path": "$.simple[0].assignment.model", "equals": "m1"}]}
+        },
+        {
+          "http": {"method": "DELETE", "path": "/llm/providers/{{pid}}"},
+          "expect": {"status": 409, "json": {"detail": {"error": "provider is still assigned to one or more call sites", "blocking_call_sites": ["ai_summarizer"]}}}
+        },
+        {
+          "http": {"method": "PUT", "path": "/llm/call-sites/ai_summarizer", "json": {}},
+          "expect": {"status": 200, "checks": [{"path": "$.assignment", "equals": null}]}
+        },
         {"http": {"method": "DELETE", "path": "/llm/providers/{{pid}}"}, "expect": {"status": 204}}
       ]
     },
@@ -107,7 +182,11 @@
     {
       "id": "a_call_site_mode_must_match_the_providers_kind",
       "steps": [
-        {"http": {"method": "POST", "path": "/llm/providers", "json": {"label": "C", "kind": "cli", "adapter": "claude"}}, "capture": {"pid": "$.id"}, "expect": {"status": 201}},
+        {
+          "http": {"method": "POST", "path": "/llm/providers", "json": {"label": "C", "kind": "cli", "adapter": "claude"}},
+          "capture": {"pid": "$.id"},
+          "expect": {"status": 201}
+        },
         {"http": {"method": "PUT", "path": "/llm/call-sites/ai_summarizer", "json": {"provider_id": "{{pid}}", "model": "m", "mode": "api"}}, "expect": {"status": 400, "json": {"detail": "mode=api requires a provider of kind=api"}}},
         {"http": {"method": "PUT", "path": "/llm/call-sites/ai_summarizer", "json": {"provider_id": "{{pid}}", "model": " ", "mode": "weird"}}, "expect": {"status": 400, "json": {"detail": "model must be a non-empty string; mode must be one of ('cli', 'api')"}}}
       ]
@@ -115,39 +194,95 @@
     {
       "id": "an_agentic_group_takes_only_a_cli_provider_and_lists_the_blocked_members_on_delete",
       "steps": [
-        {"http": {"method": "POST", "path": "/llm/providers", "json": {"label": "C", "kind": "cli", "adapter": "claude"}}, "capture": {"cli_id": "$.id"}, "expect": {"status": 201}},
-        {"http": {"method": "POST", "path": "/llm/providers", "json": {"label": "A", "kind": "api", "transport": "openai-compatible", "base_url": "http://localhost:1/v1", "is_local": true}}, "capture": {"api_id": "$.id"}, "expect": {"status": 201}},
+        {
+          "http": {"method": "POST", "path": "/llm/providers", "json": {"label": "C", "kind": "cli", "adapter": "claude"}},
+          "capture": {"cli_id": "$.id"},
+          "expect": {"status": 201}
+        },
+        {
+          "http": {"method": "POST", "path": "/llm/providers", "json": {"label": "A", "kind": "api", "transport": "openai-compatible", "base_url": "http://localhost:1/v1", "is_local": true}},
+          "capture": {"api_id": "$.id"},
+          "expect": {"status": 201}
+        },
         {"http": {"method": "PUT", "path": "/llm/call-site-groups/diagrams", "json": {"provider_id": "{{api_id}}", "model": "m"}}, "expect": {"status": 400, "json": {"detail": "an agentic group needs a provider that can drive a CLI agent"}}},
-        {"http": {"method": "PUT", "path": "/llm/call-site-groups/diagrams", "json": {"provider_id": "{{cli_id}}", "model": "opus"}}, "expect": {"status": 200, "checks": [{"path": "$.assignment", "equals": {"provider_id": "{{cli_id}}", "model": "opus"}}]}},
-        {"http": {"method": "GET", "path": "/llm/call-site-groups/diagrams"}, "expect": {"status": 200, "checks": [{"path": "$.assignment.model", "equals": "opus"}, {"path": "$.members", "count": 4}]}},
-        {"http": {"method": "DELETE", "path": "/llm/providers/{{cli_id}}"}, "expect": {"status": 409, "json": {"detail": {"error": "provider is still assigned to one or more call sites", "blocking_call_sites": ["c1_agent", "impact-changes_review_agent", "patterns_agent", "impact_agent"]}}}},
+        {
+          "http": {"method": "PUT", "path": "/llm/call-site-groups/diagrams", "json": {"provider_id": "{{cli_id}}", "model": "opus"}},
+          "expect": {"status": 200, "checks": [{"path": "$.assignment", "equals": {"provider_id": "{{cli_id}}", "model": "opus"}}]}
+        },
+        {
+          "http": {"method": "GET", "path": "/llm/call-site-groups/diagrams"},
+          "expect": {"status": 200, "checks": [{"path": "$.assignment.model", "equals": "opus"}, {"path": "$.members", "count": 4}]}
+        },
+        {
+          "http": {"method": "DELETE", "path": "/llm/providers/{{cli_id}}"},
+          "expect": {"status": 409, "json": {"detail": {"error": "provider is still assigned to one or more call sites", "blocking_call_sites": ["c1_agent", "impact-changes_review_agent", "patterns_agent", "impact_agent"]}}}
+        },
         {"http": {"method": "PUT", "path": "/llm/call-site-groups/diagrams", "json": {}}, "expect": {"status": 200, "checks": [{"path": "$.assignment", "equals": null}]}}
       ]
     },
     {
       "id": "a_keyed_anthropic_api_provider_can_drive_an_agentic_group",
       "steps": [
-        {"http": {"method": "POST", "path": "/llm/providers", "json": {"label": "Direct", "kind": "api", "transport": "anthropic", "api_key": "sk-ant-x"}}, "capture": {"pid": "$.id"}, "expect": {"status": 201}},
-        {"http": {"method": "PUT", "path": "/llm/call-site-groups/diagrams", "json": {"provider_id": "{{pid}}", "model": "sonnet"}}, "expect": {"status": 200, "checks": [{"path": "$.assignment", "equals": {"provider_id": "{{pid}}", "model": "sonnet"}}]}}
+        {
+          "http": {"method": "POST", "path": "/llm/providers", "json": {"label": "Direct", "kind": "api", "transport": "anthropic", "api_key": "sk-ant-x"}},
+          "capture": {"pid": "$.id"},
+          "expect": {"status": 201}
+        },
+        {
+          "http": {"method": "PUT", "path": "/llm/call-site-groups/diagrams", "json": {"provider_id": "{{pid}}", "model": "sonnet"}},
+          "expect": {"status": 200, "checks": [{"path": "$.assignment", "equals": {"provider_id": "{{pid}}", "model": "sonnet"}}]}
+        }
       ]
     },
     {
       "id": "providers_list_their_capabilities_and_how_many_features_use_them",
       "steps": [
-        {"http": {"method": "POST", "path": "/llm/providers", "json": {"label": "Ollama", "kind": "api", "transport": "openai-compatible", "base_url": "http://localhost:11434/v1", "is_local": true}}, "capture": {"pid": "$.id"}, "expect": {"status": 201}},
+        {
+          "http": {"method": "POST", "path": "/llm/providers", "json": {"label": "Ollama", "kind": "api", "transport": "openai-compatible", "base_url": "http://localhost:11434/v1", "is_local": true}},
+          "capture": {"pid": "$.id"},
+          "expect": {"status": 201}
+        },
         {"http": {"method": "PUT", "path": "/llm/default", "json": {"provider_id": "{{pid}}", "model": "llama"}}, "expect": {"status": 200}},
-        {"http": {"method": "GET", "path": "/llm/providers"}, "expect": {"status": 200, "checks": [{"path": "$[0].capabilities", "equals": {"agents": false, "quick": true}}, {"path": "$[0].used_by", "equals": 2}]}}
+        {
+          "http": {"method": "GET", "path": "/llm/providers"},
+          "expect": {"status": 200, "checks": [
+            {"path": "$[0].capabilities", "equals": {"agents": false, "quick": true}},
+            {"path": "$[0].used_by", "equals": 2}
+          ]}
+        }
       ]
     },
     {
       "id": "the_default_model_is_saved_read_resolved_per_feature_and_cleared",
       "steps": [
         {"http": {"method": "GET", "path": "/llm/default"}, "expect": {"status": 200, "json": {"default": null}}},
-        {"http": {"method": "POST", "path": "/llm/providers", "json": {"label": "Claude", "kind": "cli", "adapter": "claude"}}, "capture": {"cli_id": "$.id"}, "expect": {"status": 201}},
-        {"http": {"method": "PUT", "path": "/llm/default", "json": {"provider_id": "{{cli_id}}", "model": "opus", "quick_fallback": {"offline": true}}}, "expect": {"status": 200, "json": {"default": {"provider_id": "{{cli_id}}", "model": "opus", "quick_fallback": {"offline": true}, "agent_fallback": null}}}},
+        {
+          "http": {"method": "POST", "path": "/llm/providers", "json": {"label": "Claude", "kind": "cli", "adapter": "claude"}},
+          "capture": {"cli_id": "$.id"},
+          "expect": {"status": 201}
+        },
+        {
+          "http": {"method": "PUT", "path": "/llm/default", "json": {"provider_id": "{{cli_id}}", "model": "opus", "quick_fallback": {"offline": true}}},
+          "expect": {"status": 200, "json": {"default": {"provider_id": "{{cli_id}}", "model": "opus", "quick_fallback": {"offline": true}, "agent_fallback": null}}}
+        },
         {"http": {"method": "GET", "path": "/llm/default"}, "expect": {"status": 200, "checks": [{"path": "$.default.model", "equals": "opus"}]}},
-        {"http": {"method": "GET", "path": "/llm/features"}, "expect": {"status": 200, "checks": [{"path": "$.features[*].id", "equals": ["diagrams", "planning", "agents", "ai_summarizer", "initial_diagram_bootstrap"]}, {"path": "$.features[0].needs", "equals": "agents"}, {"path": "$.features[0].source", "equals": "default"}, {"path": "$.features[0].effective", "equals": {"provider_id": "{{cli_id}}", "provider_name": "Claude", "model": "opus"}}, {"path": "$.features[0].compatible_provider_ids", "equals": ["{{cli_id}}"]}, {"path": "$.features[3].source", "equals": "offline"}, {"path": "$.features[3].effective", "equals": {"provider_id": null, "provider_name": null, "model": null}}, {"path": "$.features[3].compatible_provider_ids", "equals": []}]}},
-        {"http": {"method": "DELETE", "path": "/llm/providers/{{cli_id}}"}, "expect": {"status": 409, "json": {"detail": {"error": "provider is still assigned to one or more call sites", "blocking_call_sites": ["default"]}}}},
+        {
+          "http": {"method": "GET", "path": "/llm/features"},
+          "expect": {"status": 200, "checks": [
+            {"path": "$.features[*].id", "equals": ["diagrams", "planning", "agents", "ai_summarizer", "initial_diagram_bootstrap"]},
+            {"path": "$.features[0].needs", "equals": "agents"},
+            {"path": "$.features[0].source", "equals": "default"},
+            {"path": "$.features[0].effective", "equals": {"provider_id": "{{cli_id}}", "provider_name": "Claude", "model": "opus"}},
+            {"path": "$.features[0].compatible_provider_ids", "equals": ["{{cli_id}}"]},
+            {"path": "$.features[3].source", "equals": "offline"},
+            {"path": "$.features[3].effective", "equals": {"provider_id": null, "provider_name": null, "model": null}},
+            {"path": "$.features[3].compatible_provider_ids", "equals": []}
+          ]}
+        },
+        {
+          "http": {"method": "DELETE", "path": "/llm/providers/{{cli_id}}"},
+          "expect": {"status": 409, "json": {"detail": {"error": "provider is still assigned to one or more call sites", "blocking_call_sites": ["default"]}}}
+        },
         {"http": {"method": "DELETE", "path": "/llm/default"}, "expect": {"status": 200, "json": {"default": null}}},
         {"http": {"method": "GET", "path": "/llm/features"}, "expect": {"status": 200, "checks": [{"path": "$.features[0].source", "equals": "legacy"}]}},
         {"http": {"method": "DELETE", "path": "/llm/providers/{{cli_id}}"}, "expect": {"status": 204}}
@@ -156,27 +291,59 @@
     {
       "id": "a_group_override_wins_over_the_default_on_its_feature_row",
       "steps": [
-        {"http": {"method": "POST", "path": "/llm/providers", "json": {"label": "A", "kind": "cli", "adapter": "claude"}}, "capture": {"a": "$.id"}, "expect": {"status": 201}},
-        {"http": {"method": "POST", "path": "/llm/providers", "json": {"label": "B", "kind": "cli", "adapter": "codex"}}, "capture": {"b": "$.id"}, "expect": {"status": 201}},
+        {
+          "http": {"method": "POST", "path": "/llm/providers", "json": {"label": "A", "kind": "cli", "adapter": "claude"}},
+          "capture": {"a": "$.id"},
+          "expect": {"status": 201}
+        },
+        {
+          "http": {"method": "POST", "path": "/llm/providers", "json": {"label": "B", "kind": "cli", "adapter": "codex"}},
+          "capture": {"b": "$.id"},
+          "expect": {"status": 201}
+        },
         {"http": {"method": "PUT", "path": "/llm/default", "json": {"provider_id": "{{a}}", "model": "opus"}}, "expect": {"status": 200}},
         {"http": {"method": "PUT", "path": "/llm/call-site-groups/planning", "json": {"provider_id": "{{b}}", "model": "gpt"}}, "expect": {"status": 200}},
-        {"http": {"method": "GET", "path": "/llm/features"}, "expect": {"status": 200, "checks": [{"path": "$.features[0].source", "equals": "default"}, {"path": "$.features[1].source", "equals": "custom"}, {"path": "$.features[1].effective", "equals": {"provider_id": "{{b}}", "provider_name": "B", "model": "gpt"}}, {"path": "$.features[3].source", "equals": "legacy"}]}}
+        {
+          "http": {"method": "GET", "path": "/llm/features"},
+          "expect": {"status": 200, "checks": [
+            {"path": "$.features[0].source", "equals": "default"},
+            {"path": "$.features[1].source", "equals": "custom"},
+            {"path": "$.features[1].effective", "equals": {"provider_id": "{{b}}", "provider_name": "B", "model": "gpt"}},
+            {"path": "$.features[3].source", "equals": "legacy"}
+          ]}
+        }
       ]
     },
     {
       "id": "an_invalid_default_is_refused_with_every_reason",
       "steps": [
         {"http": {"method": "PUT", "path": "/llm/default", "json": {"provider_id": "ghost", "model": "m"}}, "expect": {"status": 400, "json": {"detail": "provider_id must reference an existing provider"}}},
-        {"http": {"method": "POST", "path": "/llm/providers", "json": {"label": "Ollama", "kind": "api", "transport": "openai-compatible", "base_url": "http://localhost:11434/v1", "is_local": true}}, "capture": {"pid": "$.id"}, "expect": {"status": 201}},
-        {"http": {"method": "PUT", "path": "/llm/default", "json": {"provider_id": "{{pid}}", "model": " ", "agent_fallback": {"offline": true}}}, "expect": {"status": 400, "json": {"detail": "model must be a non-empty string; agent_fallback cannot be offline"}}},
-        {"http": {"method": "PUT", "path": "/llm/default", "json": {"provider_id": "{{pid}}", "model": "m", "agent_fallback": {"provider_id": "{{pid}}", "model": ""}}}, "expect": {"status": 400, "json": {"detail": "agent_fallback must reference a provider that can run agents work; agent_fallback.model must be a non-empty string"}}},
-        {"http": {"method": "PUT", "path": "/llm/default", "json": {"provider_id": "{{pid}}", "model": "m", "quick_fallback": "nope"}}, "expect": {"status": 400, "json": {"detail": "quick_fallback must be an object"}}}
+        {
+          "http": {"method": "POST", "path": "/llm/providers", "json": {"label": "Ollama", "kind": "api", "transport": "openai-compatible", "base_url": "http://localhost:11434/v1", "is_local": true}},
+          "capture": {"pid": "$.id"},
+          "expect": {"status": 201}
+        },
+        {
+          "http": {"method": "PUT", "path": "/llm/default", "json": {"provider_id": "{{pid}}", "model": " ", "agent_fallback": {"offline": true}}},
+          "expect": {"status": 400, "json": {"detail": "model must be a non-empty string; agent_fallback cannot be offline"}}
+        },
+        {
+          "http": {"method": "PUT", "path": "/llm/default", "json": {"provider_id": "{{pid}}", "model": "m", "agent_fallback": {"provider_id": "{{pid}}", "model": ""}}},
+          "expect": {"status": 400, "json": {"detail": "agent_fallback must reference a provider that can run agents work; agent_fallback.model must be a non-empty string"}}
+        },
+        {
+          "http": {"method": "PUT", "path": "/llm/default", "json": {"provider_id": "{{pid}}", "model": "m", "quick_fallback": "nope"}},
+          "expect": {"status": 400, "json": {"detail": "quick_fallback must be an object"}}
+        }
       ]
     },
     {
       "id": "the_hidden_agents_group_is_readable_by_id_but_not_listed",
       "steps": [
-        {"http": {"method": "GET", "path": "/llm/call-site-groups/agents"}, "expect": {"status": 200, "checks": [{"path": "$.id", "equals": "agents"}, {"path": "$.label", "equals": "Agent windows"}, {"path": "$.members[0].id", "equals": "parallel_agents"}]}},
+        {
+          "http": {"method": "GET", "path": "/llm/call-site-groups/agents"},
+          "expect": {"status": 200, "checks": [{"path": "$.id", "equals": "agents"}, {"path": "$.label", "equals": "Agent windows"}, {"path": "$.members[0].id", "equals": "parallel_agents"}]}
+        },
         {"http": {"method": "GET", "path": "/llm/call-site-groups/nope"}, "expect": {"status": 404, "json": {"detail": "unknown call site group: 'nope'"}}},
         {"http": {"method": "PUT", "path": "/llm/call-site-groups/nope", "json": {}}, "expect": {"status": 404, "json": {"detail": "unknown call site group: 'nope'"}}}
       ]

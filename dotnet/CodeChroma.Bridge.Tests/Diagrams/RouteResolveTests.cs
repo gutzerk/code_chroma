@@ -65,6 +65,16 @@ public class RouteResolveTests
         Assert.Equal("1 steps · 1 files · 1 AI steps", summary);
     }
 
+    [Fact]
+    public void The_summary_counts_only_object_steps_like_the_python_bridge()
+    {
+        var steps = JsonNode.Parse("""[{"id":"s","kind":"ai","node_ids":["x"]},"oops",null,7]""")!.AsArray();
+
+        var summary = DiagramResolver.RouteSummary(steps);
+
+        Assert.Equal("1 steps · 1 files · 1 AI steps", summary);
+    }
+
     private static JsonObject ResolveRoute(string route)
     {
         var engine = new JsonSnapshotEngine(Path.Combine(ContractCases.FixtureDir, "engine_snapshot.sample_repo.json"));

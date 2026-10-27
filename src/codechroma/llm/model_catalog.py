@@ -10,20 +10,25 @@ answer is asked directly; one that can't (no key/URL, or a CLI) gets `_STATIC_MO
 from __future__ import annotations
 
 import json
-import shutil
 import subprocess
 import threading
+import time
 
 import httpx
 
 from codechroma.config import settings
 from codechroma.context.llm_provider import GEMINI_DEFAULT_BASE_URL, resolve_provider_key
 from codechroma.llm.providers_store import Provider
+from codechroma.llm.runtime_env import CliLookupError, RuntimeCli, resolve_runtime_cli
 
 _ANTHROPIC_DEFAULT_BASE_URL = "https://api.anthropic.com"
 _CLI_PROBE_TIMEOUT_SECONDS = 20
+_CLI_PROBE_TTL_SECONDS = 120
+_PSEUDO_MODEL = "default"
 _CLAUDE_REQUEST_ID = "models"
 _UNSUPPORTED: dict = {"supported": False, "models": [], "error": None}
+_probe_cache: dict[tuple[str, str], tuple[float, list[dict]]] = {}
+_probe_lock = threading.Lock()
 
 _ANTHROPIC_MODELS = ["claude-fable-5-1", "claude-opus-5-5", "claude-sonnet-5-5", "claude-haiku-5-5"]
 _STATIC_MODELS: dict[str, list[str]] = {
@@ -186,41 +191,74 @@ def parse_model_list(text: str) -> list[dict] | None:
     return _shape_models(root, "slug", "display_name")
 
 
+def pick_model_id(ids: list[str], current: str | None, *, first: bool = False) -> str:
+    """`current` if listed, else the second model (first if `first`); never the CLI's "default"."""
+    if current and current in ids:
+        return current
+    real = [model_id for model_id in ids if model_id != _PSEUDO_MODEL] or ids
+    if not real:
+        return ""
+    return real[0] if first or len(real) == 1 else real[1]
+
+
 def _probe_cli_models(adapter: str | None) -> list[dict] | None:
-    """Ask an installed claude/codex/gemini CLI for its models; None when it cannot answer."""
-    if adapter not in ("claude", "codex", "gemini") or not (binary := shutil.which(adapter)):
+    """Ask an installed claude/codex/gemini CLI for its models (cached); None if it cannot."""
+    if adapter not in ("claude", "codex", "gemini"):
         return None
+    try:
+        cli = resolve_runtime_cli(adapter)
+    except CliLookupError:
+        return None
+    key = (adapter, cli.executable)
+    with _probe_lock:
+        hit = _probe_cache.get(key)
+    if hit and time.monotonic() - hit[0] < _CLI_PROBE_TTL_SECONDS:
+        return [dict(model) for model in hit[1]]
+    models = _run_cli_probe(adapter, cli)
+    if models is None:
+        return None
+    with _probe_lock:
+        _probe_cache[key] = (time.monotonic(), models)
+    return [dict(model) for model in models]
+
+
+def _run_cli_probe(adapter: str, cli: RuntimeCli) -> list[dict] | None:
     try:
         if adapter in ("codex", "gemini"):
             args = ["debug", "models"] if adapter == "codex" else ["models", "list", "-o", "json"]
             result = subprocess.run(
-                [binary, *args],
+                [cli.executable, *args],
+                env=dict(cli.env),
+                stdin=subprocess.DEVNULL,
                 capture_output=True,
                 text=True,
                 encoding="utf-8",
                 timeout=_CLI_PROBE_TIMEOUT_SECONDS,
+                creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
             )
             return parse_model_list(result.stdout) if result.returncode == 0 else None
-        return _probe_claude(binary)
+        return _probe_claude(cli)
     except (OSError, subprocess.SubprocessError):
         return None
 
 
-def _probe_claude(binary: str) -> list[dict] | None:
+def _probe_claude(cli: RuntimeCli) -> list[dict] | None:
     """Send claude a stream-json `initialize` control request and read the models it reports."""
     request = {
         "type": "control_request",
         "request_id": _CLAUDE_REQUEST_ID,
         "request": {"subtype": "initialize"},
     }
-    args = [binary, "-p", "--input-format", "stream-json", "--output-format", "stream-json"]
+    args = [cli.executable, "-p", "--input-format", "stream-json", "--output-format", "stream-json"]
     with subprocess.Popen(
         [*args, "--verbose"],
+        env=dict(cli.env),
         stdin=subprocess.PIPE,
         stdout=subprocess.PIPE,
         stderr=subprocess.DEVNULL,
         text=True,
         encoding="utf-8",
+        creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
     ) as process:
         timer = threading.Timer(_CLI_PROBE_TIMEOUT_SECONDS, process.kill)
         timer.start()

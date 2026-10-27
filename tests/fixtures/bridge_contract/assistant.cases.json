@@ -36,6 +36,21 @@
       ]
     },
     {
+      "id": "an_instruction_only_put_keeps_the_rest_of_the_settings",
+      "steps": [
+        {"http": {"method": "PUT", "path": "/assistant/settings", "json": {"cli": "codex", "model": "m1", "api_key": "sk-secret"}}, "expect": {"status": 200}},
+        {
+          "http": {"method": "PUT", "path": "/assistant/settings", "json": {"instruction": "be terse"}},
+          "expect": {"status": 200, "checks": [
+            {"path": "$.cli", "equals": "codex"},
+            {"path": "$.model", "equals": "m1"},
+            {"path": "$.api_key_set", "equals": true},
+            {"path": "$.instruction", "equals": "be terse"}
+          ]}
+        }
+      ]
+    },
+    {
       "id": "an_empty_key_string_clears_the_key",
       "steps": [
         {"http": {"method": "PUT", "path": "/assistant/settings", "json": {"api_key": "sk-secret"}}, "expect": {"status": 200}},

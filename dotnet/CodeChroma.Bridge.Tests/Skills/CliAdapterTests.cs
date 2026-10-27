@@ -10,12 +10,14 @@ public class CliAdapterTests
     [InlineData("claude", typeof(ClaudeAdapter))]
     [InlineData("codex", typeof(CodexAdapter))]
     [InlineData("kimi-cli", typeof(KimiAdapter))]
+    [InlineData("gemini", typeof(GeminiAdapter))]
     public void The_registry_has_the_expected_adapter(string key, Type type) => Assert.IsType(type, CliAdapters.All[key]);
 
     [Theory]
     [InlineData("claude")]
     [InlineData("codex")]
     [InlineData("kimi-cli")]
+    [InlineData("gemini")]
     public void Malformed_json_parses_to_nothing_for_every_adapter(string key) =>
         Assert.Empty(CliAdapters.All[key].ParseLine("not json", "/repo"));
 
@@ -41,6 +43,7 @@ public class CliAdapterTests
     [Theory]
     [InlineData("codex")]
     [InlineData("kimi-cli")]
+    [InlineData("gemini")]
     public void Adapters_without_a_verified_bare_switch_add_nothing(string key) => Assert.Empty(CliAdapters.All[key].BareArgs("Bash"));
 
     [Fact]
@@ -95,6 +98,20 @@ public class CliAdapterTests
 
     [Fact]
     public void Codex_ignores_an_unrecognized_event_type() => Assert.Empty(new CodexAdapter().ParseLine("""{"type": "thread.started"}""", "/repo"));
+
+    [Fact]
+    public void Gemini_argv_runs_unattended() =>
+        Assert.Equal(["gemini", "--prompt", "p", "--model", "gemini-2.5-pro", "--yolo", "--output-format", "stream-json"],
+            new GeminiAdapter().BuildArgv("gemini", "p", "gemini-2.5-pro", null));
+
+    [Theory]
+    [InlineData("""{"type":"message","role":"assistant","content":"hello"}""", "hello")]
+    [InlineData("""{"type":"tool_use","tool_name":"read_file"}""", "⏺ read_file")]
+    [InlineData("""{"type":"tool_result","status":"error","error":{"message":"nope"}}""", "  ↳ error: nope")]
+    [InlineData("""{"type":"result","status":"success"}""", "✓ done")]
+    [InlineData("""{"type":"result","status":"error"}""", "✗ failed")]
+    public void Gemini_events_render(string raw, string expected) =>
+        Assert.Equal([expected], new GeminiAdapter().ParseLine(raw, "/repo"));
 
     [Fact]
     public void Kimi_argv_runs_unattended()

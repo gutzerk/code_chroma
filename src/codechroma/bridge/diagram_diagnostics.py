@@ -191,7 +191,10 @@ def _advise_edge(relation: dict, notes: Diagnostics, *, structural: bool) -> Non
     edge_kind = relation.get("kind")
     pair = relation_pair(relation)
     known = EDGE_KINDS + EDGE_KIND_ALIASES
-    if not structural and isinstance(edge_kind, str) and edge_kind.strip().lower() not in known:
+    unknown = edge_kind is not None and (
+        not isinstance(edge_kind, str) or edge_kind.strip().lower() not in known
+    )
+    if not structural and unknown:
         notes.drop("relation", pair, "bad_edge_kind", f"kind={edge_kind!r}")
         return
     plain = edge_kind is None or (

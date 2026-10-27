@@ -140,8 +140,12 @@ public sealed class TerminalAgents(UserPaths paths, ProviderStore providers, Cal
             return [binary, .. ResumePrompt(null, visiblePrompt), .. bareArgs];
         }
         if (bareArgs.Length > 0) return [binary, .. ResumePrompt(null, initialPrompt), .. bareArgs];
-        return [binary, .. McpArgs(mcp), .. PluginArgs(isClaude), .. ResumePrompt(resumeSessionId, initialPrompt)];
+        return [binary, .. InstructionArgs(isClaude), .. McpArgs(mcp), .. PluginArgs(isClaude), .. ResumePrompt(resumeSessionId, initialPrompt)];
     }
+
+    /// <summary>Appends the user's saved agent-window instruction to claude's system prompt; empty when unset.</summary>
+    private string[] InstructionArgs(bool isClaude) =>
+        isClaude && Json.Str(AssistantRoutes.Load(paths)["instruction"])?.Trim() is { Length: > 0 } text ? ["--append-system-prompt", text] : [];
 
     /// <summary>Registers the bridge ask_user MCP server; --mcp-config is variadic, so it must precede --plugin-dir and the positional prompt.</summary>
     private string[] McpArgs(McpEndpoint? mcp) => mcp is null ? [] : ["--mcp-config", mcp.WriteClaudeConfig()];

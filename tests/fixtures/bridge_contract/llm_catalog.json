@@ -147,7 +147,8 @@
   "adapters": [
     "claude",
     "codex",
-    "kimi-cli"
+    "kimi-cli",
+    "gemini"
   ],
   "transports": [
     "anthropic",

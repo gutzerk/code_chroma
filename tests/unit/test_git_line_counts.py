@@ -48,3 +48,12 @@ def test_line_counts_cover_edits_and_untracked_files(repo):
     counts = line_counts(repo, "HEAD", statuses)
 
     assert counts == {"edited.py": (2, 1), "fresh.py": (2, 0)}
+
+
+def test_line_counts_ignore_a_numstat_record_with_non_ascii_digits(repo, monkeypatch):
+    raw = "\u00b2\t1\tx.py\x003\t4\ty.py\x00"
+    monkeypatch.setattr("codechroma.bridge.git_cmd.run_git", lambda *args: raw)
+
+    counts = line_counts(repo, "HEAD", {})
+
+    assert counts == {"y.py": (3, 4)}

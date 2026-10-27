@@ -304,3 +304,14 @@ def test_the_fingerprint_ignores_the_order_files_were_reported_in():
     two = fingerprint_for({"b.py": "added", "a.py": "modified"})
 
     assert one == two
+
+
+def test_two_changed_symbols_in_one_file_both_roll_onto_the_same_collapsed_box(engine_repo):
+    engine, root = engine_repo
+    text = (root / "users/service.py").read_text(encoding="utf-8")
+    _write(root, "users/service.py", text.replace("return user_id", "return user_id  # x"))
+    boxes = [_box("users-file", COMPONENT_USERS)]
+
+    payload = resolve_impact_changes(root, _diagram(boxes), engine=engine)
+
+    assert _blocks_by_id(payload)["users-file"]["status"] == "modified"

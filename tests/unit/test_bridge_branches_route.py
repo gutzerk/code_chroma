@@ -300,3 +300,13 @@ def test_closing_a_tab_tells_the_other_windows(client, monkeypatch):
     test_client.delete(f"/branches/{created['id']}")
 
     assert sent == [{"type": "branch-removed", "id": created["id"]}]
+
+
+def test_rename_to_a_name_another_tab_holds_is_a_409(client):
+    test_client, _repo, _bridge = client
+    first = test_client.post("/branches/new").json()["branch"]
+    second = test_client.post("/branches/new").json()["branch"]
+
+    held = test_client.patch(f"/branches/{second['id']}", json={"name": first["branch"]})
+
+    assert held.status_code == 409

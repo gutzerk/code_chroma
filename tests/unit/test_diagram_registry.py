@@ -48,6 +48,11 @@ def test_services_build_one_runner_per_skill_run_kind():
     }
 
 
+def test_a_missing_type_is_none_or_the_given_default():
+    assert DIAGRAMS.get("does-not-exist") is None
+    assert DIAGRAMS.get("does-not-exist", "fallback") == "fallback"
+
+
 def test_get_synthesizes_a_spec_from_a_library_definition():
     library.save_type(_definition("data-flow"))
     reg = DiagramRegistry({})
@@ -141,3 +146,16 @@ def test_item_rejects_an_id_that_would_escape_its_directory(prefix, item):
     reg = DiagramRegistry({})
 
     assert reg.get(f"{prefix}/../../etc") is None
+
+
+@_ITEM_KINDS
+def test_item_kinds_stay_out_of_the_build_time_iteration(prefix, item):
+    # A synthesized spec never leaks into the iteration.
+    assert DIAGRAMS.get(f"{prefix}/{item}") is not None
+    assert set(DIAGRAMS.keys()) == {"c1", "epics", "patterns", "impact", "sequence"}
+
+
+@_ITEM_KINDS
+def test_getitem_misses_on_an_unsafe_item_id(prefix, item):
+    with pytest.raises(KeyError):
+        DIAGRAMS[f"{prefix}/../../etc"]

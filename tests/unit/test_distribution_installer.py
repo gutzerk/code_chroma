@@ -562,3 +562,14 @@ def test_install_says_updates_are_checksum_only_and_user_data_is_kept(tmp_path, 
     assert "SHA-256 checksum only" in result.stderr + result.stdout
     assert "settings and recent projects are kept" in result.stdout
     assert "flavor=dotnet" in (box.home / ".local" / "state" / "codechroma" / "installed").read_text()  # noqa: E501
+
+
+def test_a_manifest_carrying_only_other_targets_is_rejected(tmp_path):
+    box = make(tmp_path, "linux-x64")
+    box.target = "linux-appimage"
+    box.publish(b"x")
+
+    result = box.run()
+
+    assert result.returncode != 0
+    assert "no binary for dotnet-linux-x64" in result.stderr

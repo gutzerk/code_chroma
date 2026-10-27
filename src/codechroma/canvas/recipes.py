@@ -237,6 +237,10 @@ def _message_node(item: dict) -> GraphNode:
         "return": bool(item.get("return")),
         "hero": bool(item.get("hero")),
     })
+    if isinstance(item.get("kind"), str) and item["kind"]:
+        meta["kind"] = item["kind"]
+    if item.get("failure") is not None:
+        meta["failure"] = bool(item["failure"])
     # A private "kind" is irrelevant on a message; drop `_node_of`'s kind/icon/parent folding by
     # building the GraphNode directly from the relation's own fields.
     return GraphNode(

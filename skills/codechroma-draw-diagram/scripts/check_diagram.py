@@ -58,6 +58,7 @@ import argparse
 import http.client
 import json
 import os
+import re
 import sys
 import urllib.error
 import urllib.parse
@@ -879,6 +880,26 @@ HERO_KINDS = ("c1", "patterns", "impact")
 MIN_RELATIONS_FOR_HERO = 3
 
 
+MESSAGE_KINDS = ("call", "return", "ai", "event", "error")
+FAILURE_WORDS = re.compile(r"\b(error|fail\w*|denied|timeout|timed out)\b", re.IGNORECASE)
+
+
+def _check_message_kinds(relations: list[dict], report: _Report) -> None:
+    """Advises on unknown message kinds and failure-looking labels not marked `kind: error`."""
+    for relation in relations:
+        kind, ident = relation.get("kind"), relation.get("id")
+        if isinstance(kind, str) and kind not in MESSAGE_KINDS:
+            report.advisories.append(
+                f"BADMSGKIND {ident!r} kind={kind!r} is not one of {', '.join(MESSAGE_KINDS)}"
+            )
+        label = str(relation.get("label") or "")
+        if kind != "error" and not relation.get("failure") and FAILURE_WORDS.search(label):
+            report.advisories.append(
+                f"FAILURE-KIND {ident!r} label {label!r} reads as a failure --"
+                ' set `"kind": "error"` so it draws red and dashed'
+            )
+
+
 def _check_readability(diagram: object, kind: str, report: _Report) -> None:
     """022: the 5-second-read data -- order, summary, phases and the wording lints."""
     if not isinstance(diagram, dict):
@@ -892,6 +913,7 @@ def _check_readability(diagram: object, kind: str, report: _Report) -> None:
                     f"NO-ORDER {relation.get('id')!r} message has no `order` --"
                     " number every message"
                 )
+        _check_message_kinds(relations, report)
         _check_phases(diagram, relations, report)
         _check_frames(diagram, report)
     if kind in READABILITY_KINDS and relations:

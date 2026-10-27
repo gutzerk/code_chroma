@@ -777,6 +777,7 @@ but a sequence message needs `order` (its time row), `from`/`to` (which particip
 sequence relation into a `render: "sequence"` element whose `meta` carries all four, and emits **no
 edges** for the layer.
 
+- **Message `kind` and `failure` pass through** (both bridges, `_message_node` / `MessageNode`): an authored message's top-level `kind` (`call|return|ai|event|error`) and boolean `failure` land in the element's `meta`; the renderer draws `kind: "error"` or `failure: true` red and dashed. `check_diagram.py` advises (never blocks) `BADMSGKIND` for an unknown kind and `FAILURE-KIND` when a label reads as a failure (error/fail/denied/timeout) without `kind: "error"`. Shared case: `recipes.cases.json` `a_sequence_message_carries_kind_and_failure_into_its_element_meta`.
 - **Backend wiring is the generic one** — one `DiagramSpec` entry (`DIAGRAMS["sequence"]`) + one
   `DiagramTypeDefinition` (`BUILTIN_TYPES["sequence"]`, `context="sequence"`) gives GET/get-path/
   delete routes and the unified `.../context` envelope for free. It resolves through the shared

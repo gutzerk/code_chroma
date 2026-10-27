@@ -1,3 +1,4 @@
+import { useIsRemovedLink } from "../doc/impactEdgeStatus";
 import type { CSSProperties } from "react";
 import { hoveredEdgeStore, useIsActiveEdge, useIsEdgeHovering } from "../../state/hoveredEdgeStore";
 import { EdgeLabel } from "./EdgeLabel";
@@ -74,6 +75,7 @@ export function RelationshipEdge({
   testId,
   layer,
 }: RelationshipEdgeProps) {
+  const isRemoved = useIsRemovedLink(fromNodeId, toNodeId);
   const isActive = useIsActiveEdge(edgeKey, fromNodeId, toNodeId);
   const isHovering = useIsEdgeHovering();
   const stateClass = isActive
@@ -83,6 +85,7 @@ export function RelationshipEdge({
       : "";
   const suffixes = variantSuffix.split(/\s+/).filter(Boolean);
   if (isHero) suffixes.push("--hero");
+  if (isRemoved) suffixes.push("--removed-link");
   const variant = (base: string) =>
     [base, ...suffixes.map((suffix) => `${base}${suffix}`)].join(" ");
   // An authored `color` is surfaced as the inheritable custom property `--edge-color` the base
@@ -102,6 +105,7 @@ export function RelationshipEdge({
       data-layer={layer}
       data-change-status={changeStatus}
       data-hero={isHero || undefined}
+      data-removed-link={isRemoved || undefined}
       data-edge-key={edgeKey}
       data-edge-active={isActive || undefined}
       style={edgeStyle}
@@ -123,7 +127,7 @@ export function RelationshipEdge({
         className={variant("c1-relationship-label")}
         x={labelX}
         y={labelY}
-        text={label}
+        text={isHero && label ? `★ ${label}` : label}
         transport={transport}
         origin={origin}
         onOpenOrigin={onOpenOrigin}

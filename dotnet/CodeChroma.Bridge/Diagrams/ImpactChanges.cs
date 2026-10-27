@@ -1,4 +1,4 @@
-using System.Text.Json.Nodes;
+﻿using System.Text.Json.Nodes;
 using CodeChroma.Bridge.Engine;
 using CodeChroma.Bridge.Stores;
 using CodeChroma.Bridge.Workspaces;
@@ -45,6 +45,13 @@ public static class ImpactChanges
         var byNodeId = new Dictionary<string, Block>();
         foreach (var block in blocks) byNodeId.TryAdd(block.NodeId, block);
         var unassigned = AttributeCards(ws, parser, byNodeId, statuses);
+        var counts = tree?.LineCounts(baseRef, statuses) ?? [];
+        foreach (var entry in unassigned.Concat(blocks.SelectMany(b => b.Files)))
+            if (counts.TryGetValue(Json.Str(entry["path"]) ?? "", out var lines))
+            {
+                entry["additions"] = lines.Additions;
+                entry["deletions"] = lines.Deletions;
+            }
         var comments = ResolveCommentSymbols(ws.Engine, reviewComments ?? []);
         var unassignedComments = AttributeComments(ws.Engine, comments, byNodeId);
 

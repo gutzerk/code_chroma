@@ -82,6 +82,8 @@
             {"path": "$.blocks[0].change_count", "equals": 2},
             {"path": "$.blocks[0].path", "equals": "shared/text_utils.py"},
             {"path": "$.blocks[0].files[0].path", "equals": "shared/text_utils.py"},
+            {"path": "$.blocks[0].files[0].additions", "type": "number"},
+            {"path": "$.blocks[0].files[0].deletions", "type": "number"},
             {"path": "$.unassigned", "count": 0}
           ]}
         },

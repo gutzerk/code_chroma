@@ -458,3 +458,15 @@ def test_route_summary_falls_back_to_node_ids_when_no_resolved_hit_has_a_path():
     summary = route_summary(steps)
 
     assert summary == "1 steps · 1 files · 1 AI steps"
+
+
+def test_a_route_with_non_list_node_ids_and_children_is_left_unresolved(engine):
+    step = {"id": "s1", "node_ids": "billing/service.py", "children": {"a": 1}}
+    route = {"id": "r", "steps": [step]}
+
+    resolved = resolve_diagram(engine, {**_diagram(), "route": route})
+
+    step = resolved["route"]["steps"][0]
+    assert step["resolved"] == []
+    assert step["children"] == []
+    assert resolved["diagnostics"]["dropped_count"] == 0

@@ -1,5 +1,8 @@
 import { useMemo, useState } from "react";
+import { useOptionalAgentClient } from "../../../agents/AgentClientContext";
+import { restoreAgentWindow } from "../../../agents/windowActions";
 import { useEngineClient } from "../../../engine-client/EngineClientContext";
+import { layoutStore } from "../../layout/layoutStore";
 import { reportAsyncError } from "../../../util/reportError";
 import { useCanvasDoc } from "../canvasDocStore";
 import { sessionHistory, type QuestionView } from "./questionAdapter";
@@ -20,6 +23,7 @@ export interface ConnectedQuestionCardProps {
 export function ConnectedQuestionCard({ question, variant, selectedId, onSelectedIdChange, onReturnFocus }: ConnectedQuestionCardProps) {
   const client = useEngineClient();
   const doc = useCanvasDoc();
+  const agentClient = useOptionalAgentClient();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const history = useMemo(() => sessionHistory(doc.elements, question), [doc.elements, question]);
@@ -34,6 +38,14 @@ export function ConnectedQuestionCard({ question, variant, selectedId, onSelecte
       })
       .finally(() => setBusy(false));
   };
+
+  const { agentId } = question;
+  const chat = agentClient && agentId
+    ? () => {
+        layoutStore.setAgentsMode("full");
+        restoreAgentWindow(agentClient, agentId);
+      }
+    : undefined;
 
   return (
     <QuestionCard
@@ -50,6 +62,7 @@ export function ConnectedQuestionCard({ question, variant, selectedId, onSelecte
       onSkip={() => run(() => skipQuestion(client, question))}
       onRevise={(q: QuestionView) => run(() => reviseQuestion(client, q))}
       onRequestDiagram={() => run(() => requestDiagram(client, question))}
+      onChat={chat}
     />
   );
 }

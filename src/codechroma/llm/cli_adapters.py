@@ -212,8 +212,46 @@ def _render_kimi_assistant(event: dict) -> list[str]:
     return lines
 
 
+class GeminiAdapter:
+    """`gemini --prompt ... --yolo --output-format stream-json` -- --yolo auto-approves tools."""
+
+    def build_argv(
+        self, binary: str, prompt: str, model: str, env: dict[str, str] | None = None
+    ) -> list[str]:
+        return [
+            binary,
+            "--prompt",
+            prompt,
+            "--model",
+            model,
+            "--yolo",
+            "--output-format",
+            "stream-json",
+        ]
+
+    def parse_line(self, raw: bytes | str, repo_root: Path) -> list[str]:
+        event = _parse_json_event(raw)
+        if event is None:
+            return []
+        kind = event.get("type")
+        if kind == "message" and event.get("role") == "assistant":
+            return text_lines(event.get("content"))
+        if kind == "tool_use":
+            return [f"⏺ {event.get('tool_name') or 'tool'}"]
+        if kind == "tool_result" and event.get("status") == "error":
+            error = event.get("error")
+            message = error.get("message") if isinstance(error, dict) else error
+            return [f"  ↳ error: {flatten(str(message or 'failed'), _MAX_MESSAGE)}"]
+        if kind == "error":
+            return [f"✗ {flatten(str(event.get('message') or 'failed'), _MAX_MESSAGE)}"]
+        if kind == "result":
+            return ["✓ done"] if event.get("status") != "error" else ["✗ failed"]
+        return []
+
+
 CLI_ADAPTERS: dict[str, CliAdapter] = {
     "claude": ClaudeAdapter(),
     "codex": CodexAdapter(),
     "kimi-cli": KimiAdapter(),
+    "gemini": GeminiAdapter(),
 }

@@ -930,8 +930,8 @@ def _check_edge_kinds(relations: list[dict], kind: str, report: _Report) -> None
         pair = f"{relation.get('from')!r} -> {relation.get('to')!r}"
         if (
             kind not in _STRUCTURAL_KINDS
-            and isinstance(edge_kind, str)
-            and edge_kind.strip().lower() not in known
+            and edge_kind is not None
+            and (not isinstance(edge_kind, str) or edge_kind.strip().lower() not in known)
         ):
             report.advisories.append(
                 f"BADEDGEKIND {pair} kind={edge_kind!r} is not one of {', '.join(EDGE_KINDS)}"
@@ -1021,8 +1021,8 @@ def _check_route(diagram: dict, nodes: list[dict], report: _Report) -> None:
     if not isinstance(steps, list):
         report.advisories.append("BADROUTE `route` must be an object with a `steps` list")
         return
-    node_ids = {n.get("id") for n in nodes}
-    seen: set[object] = set()
+    node_ids = {n.get("id") for n in nodes if isinstance(n.get("id"), str)}
+    seen: set[str] = set()
     orders: list[int] = []
     for step in steps:
         if not isinstance(step, dict):
@@ -1038,10 +1038,13 @@ def _check_route_step(
 ) -> None:
     """One route step: unique id, known kind, integer order, well-formed children."""
     sid = step.get("id")
-    if sid in seen:
+    if not isinstance(sid, str):
+        report.advisories.append(f"ROUTE-STEP {sid!r} needs a string `id`")
+    elif sid in seen:
         report.advisories.append(f"ROUTE-STEP {sid!r} is used by more than one step")
-    seen.add(sid)
-    if sid not in node_ids:
+    else:
+        seen.add(sid)
+    if isinstance(sid, str) and sid not in node_ids:
         report.advisories.append(f"ROUTE-STEP {sid!r} matches no diagram node id")
     if step.get("kind") not in ROUTE_KINDS:
         report.advisories.append(f"ROUTE-KIND {sid!r} kind must be one of {ROUTE_KINDS}")

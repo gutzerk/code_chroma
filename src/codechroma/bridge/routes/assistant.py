@@ -28,7 +28,10 @@ async def put_assistant_settings(request: Request) -> dict:
     """Validates and persists the settings; also reloads anything keyed from them on next use."""
     body = await json_body(request)
     # A masked GET payload round-trips: reconstruct a saveable object from the masked shape.
-    if "api_key_set" in body and "api_key" not in body:
+    if set(body) == {"instruction"}:
+        current = load_assistant_settings()
+        body = {**current.masked(), "api_key": current.api_key, "instruction": body["instruction"]}
+    elif "api_key_set" in body and "api_key" not in body:
         body = {**body, "api_key": None}
     try:
         saved = save_assistant_settings(body)

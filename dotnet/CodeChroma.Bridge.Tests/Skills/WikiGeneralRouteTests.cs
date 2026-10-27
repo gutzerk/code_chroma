@@ -1,6 +1,7 @@
 using System.Net.Http.Json;
 using System.Text.Json.Nodes;
 using CodeChroma.Bridge.Engine;
+using CodeChroma.Bridge.Skills;
 using CodeChroma.Bridge.Stores;
 using CodeChroma.Bridge.Tests.Support;
 using CodeChroma.Bridge.Workspaces;
@@ -165,6 +166,26 @@ public sealed class WikiGeneralRouteTests : IDisposable
         Assert.Equal("error", failed["state"]!.GetValue<string>());
         Assert.Equal(original, restored);
         Assert.Equal("lib", plan["components"]!["created"]!.AsArray().Single()!["id"]!.GetValue<string>());
+    }
+
+    [Fact]
+    public async Task A_new_generate_drops_a_leftover_update_snapshot_so_a_later_restore_cannot_clobber_it()
+    {
+        _cli.Script(Stdout(Worker), Exit(0));
+        await Post("generate");
+        await Settled();
+        await StaleAfterStamp();
+        File.WriteAllText(Path.Combine(Dir, "manifest.json"), """{"leftover":true}""");
+        WikiGeneral.SnapshotManifest(_host.Root, "main");
+        File.Delete(Path.Combine(Dir, "manifest.json"));
+        _cli.Script(Stdout(Worker), Exit(0));
+
+        await Post("generate");
+        await Settled();
+        await StaleAfterStamp();
+        WikiGeneral.RestoreManifest(_host.Root, "main");
+
+        Assert.DoesNotContain("leftover", File.ReadAllText(Path.Combine(Dir, "manifest.json")));
     }
 
     [Fact]

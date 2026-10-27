@@ -5,22 +5,30 @@ import { useCanvasDiagramFocus, useCanvasFocus } from "../CanvasFocusContext";
 import { groupColorIndex, groupRoleIndex } from "./groupColor";
 import { useAllDimmed } from "./focusStore";
 import { SoftAreaFrame } from "./SoftAreaFrame";
+import { inspectorStore } from "../inspectorStore";
 
 const PADDING = { side: 32, top: 48, bottom: 32 };
+
+/** The graph node a group's source opens: its resolved `node_id`, else its authored folder `meta.path`. */
+function groupSourceId(element: CanvasElement): string | null {
+  if (element.node_id) return element.node_id;
+  const path = element.meta?.path;
+  return typeof path === "string" && path.trim() ? `dir::${path.trim().replace(/^\.?\/|\/$/g, "")}` : null;
+}
 
 export interface GroupFrameProps {
   element: CanvasElement;
   /** Every element whose `group_id` points at `element.id`, positions already live-drag-adjusted
-   * the same way CanvasDocView folds an in-progress drag into `visibleDoc` for edge routing — so
+   * the same way CanvasDocView folds an in-progress drag into `visibleDoc` for edge routing â€” so
    * the frame tracks a member being dragged instead of only catching up once the drag commits. */
   members: CanvasElement[];
   /** Real DOM-measured sizes (CanvasDocView's `useMeasuredSizes`), same source CanvasEdges routes
-   * off — a member's `element.size` is only ever a fallback for one not yet mounted/measured. */
+   * off â€” a member's `element.size` is only ever a fallback for one not yet mounted/measured. */
   sizes: ReadonlyMap<string, MeasuredBoxSize>;
 }
 
 /**
- * A group's visual frame — a dashed rectangle sized to enclose its members' current on-screen
+ * A group's visual frame â€” a dashed rectangle sized to enclose its members' current on-screen
  * bounds (`unionBoundsOf`, `boundingBox.ts`, rendered via the shared `SoftAreaFrame`), recomputed
  * every render rather than stored on `element.size` (a member drag, resize, or layer toggle all need
  * it to move/grow immediately, not just after a PATCH round trip). Pure display: no drag/click of its
@@ -35,9 +43,14 @@ export function GroupFrame({ element, members, sizes }: GroupFrameProps) {
   const focusNode = useCanvasFocus();
   const focusLayer = useCanvasDiagramFocus();
   if (!bounds) return null;
+  const sourceId = groupSourceId(element);
   const open = () => {
-    if (element.node_id) focusNode(element.node_id);
-    else focusLayer(element.layer);
+    if (sourceId) {
+      focusNode(sourceId);
+      inspectorStore.open(sourceId, element.label, element.id);
+    } else {
+      focusLayer(element.layer);
+    }
   };
 
   // Hashed off the group's own label, same as nodeAccent.tsx's per-box `meta.group` accent, so a
@@ -62,7 +75,7 @@ export function GroupFrame({ element, members, sizes }: GroupFrameProps) {
           onPointerDown={(e) => e.stopPropagation()}
           onClick={open}
         >
-          ↗
+          â†—
         </button>
       }
     />

@@ -157,7 +157,7 @@ def _node_of(item: dict, render: str) -> GraphNode:
     """Copies each shared Node field; `kind`/`icon`/`parent`/`seed` fold into `meta` for accents."""
     own_meta = item.get("meta")
     meta = dict(own_meta) if isinstance(own_meta, dict) else {}
-    for key in ("kind", "icon", "parent", "seed", "order", "lane", "path"):
+    for key in ("kind", "icon", "parent", "seed", "order", "lane", "rank", "path"):
         value = item.get(key)
         if value is not None and (key in ("kind", "icon", "parent", "seed") or key not in meta):
             meta[key] = value

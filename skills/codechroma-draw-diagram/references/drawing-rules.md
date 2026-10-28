@@ -441,6 +441,10 @@ the only per-type variation, nothing else in the shape differs (see
   adjacent to each other within their `order` rank. Independent of `order` — set one, both, or
   neither. Same rule as `order`: only meaningful for a process/flow diagram; leave it unset on
   structural diagrams where there's no "who" to record.
+- `rank` — an optional layout hint on a node: `"entry"` pins it to the first layer, `"exit"` to the
+  last. Any other value is ignored (the self-check advises `BADRANK`). `order` wins: set `rank` only
+  on a box with no `order` (`RANK-ORDER`). A relation `kind` of `"feedback"` or `"return"` lays out
+  as a back edge, so a loop does not push the flow backwards.
 - Never relate an id to itself, and never relate two ids that aren't both in `nodes[]` — the resolver
   drops what it can't place, it never invents one.
 

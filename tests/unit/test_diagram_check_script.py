@@ -702,3 +702,35 @@ def test_system_context_accepts_a_rejected_candidate_as_addressed(monkeypatch):
     module._check_unaddressed_candidates("c1", by_id, report, args)
 
     assert report.shape == []
+
+
+@pytest.mark.parametrize(("node", "expected"), [
+    ({"rank": "middle"}, "BADRANK"),
+    ({"rank": "entry", "order": "1"}, "RANK-ORDER"),
+    ({"meta": {"rank": "exit", "order": "2"}}, "RANK-ORDER"),
+])
+def test_bad_or_order_shadowed_rank_is_a_soft_advisory(tmp_path, capsys, node, expected):
+    module = _load_module()
+    path = tmp_path / "custom.json"
+    diagram = {"nodes": [{"id": "a", "name": "A", **node}, {"id": "b", "name": "B"}],
+               "relations": [{"id": "r", "from": "a", "to": "b", "label": "go"}]}
+    path.write_text(json.dumps(diagram), encoding="utf-8")
+
+    code = module.main(["--kind", "feature-plan", "--slug", "demo", "--json", str(path)])
+
+    assert expected in capsys.readouterr().out
+    assert code in (0, 3)
+
+
+def test_valid_rank_raises_no_rank_advisory(tmp_path, capsys):
+    module = _load_module()
+    path = tmp_path / "custom.json"
+    diagram = {"nodes": [{"id": "a", "name": "A", "rank": "entry"}, {"id": "b", "name": "B"}],
+               "relations": [{"id": "r", "from": "a", "to": "b", "label": "go"}]}
+    path.write_text(json.dumps(diagram), encoding="utf-8")
+
+    module.main(["--kind", "feature-plan", "--slug", "demo", "--json", str(path)])
+
+    out = capsys.readouterr().out
+    assert "BADRANK" not in out
+    assert "RANK-ORDER" not in out

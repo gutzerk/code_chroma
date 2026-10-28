@@ -8,31 +8,44 @@ using CodeChroma.Bridge.Workspaces;
 
 namespace CodeChroma.Bridge.Workflows;
 
-/// <summary>Stage 3-4 of the runner: the run agent and step agents behind message(), the per-run MCP, and the redo path.</summary>
+/// <summary>Stage 3-4 of the runner: talking to a step agent behind message(), the per-run MCP, and the redo path.</summary>
 public sealed partial class WorkflowRunner
 {
     public const string McpServerName = "codechroma-run";
     private const int OutputTailChars = 1500;
     private static readonly string[] ReadOnlyTools = ["Read", "Grep", "Glob"];
 
-    /// <summary>Routes a question to the run agent ("run"); a step's agent is talked to in its terminal, and it never changes the run state.</summary>
+    /// <summary>Sends a message straight to a step's agent by resuming its session; "run" or "" picks the step waiting for you, else the last agent step that has a session.</summary>
     public async Task<MessageReply> Message(string runId, string target, string text)
     {
         if (string.IsNullOrWhiteSpace(text)) throw new BridgeException(400, "text is required");
-        if (target is not ("run" or "")) throw new BridgeException(409, "talk to a step's agent in its terminal");
-        var chat = _chat ?? throw new BridgeException(409, "no run agent is configured");
-        if (!IsClaude(chat)) throw new BridgeException(409, "the run agent chat needs the claude CLI");
-        string key, prompt, worktree, token;
-        RunMessage user;
+        var chat = _chat ?? throw new BridgeException(409, "no agent is configured to answer");
+        string key, worktree, token;
+        IReadOnlyList<string> args;
         lock (_lock)
         {
             var h = Require(runId);
+            var step = ChatStep(h, target, out var record);
+            var session = record.SessionId ?? throw new BridgeException(409, $"{step.Slug} has no agent session to talk to");
+            CliResolution cli;
+            try
+            {
+                cli = chat.ResolveCli(step.Provider, step.Model);
+            }
+            catch (CliLookupException error)
+            {
+                throw new BridgeException(409, error.Message);
+            }
+            var resume = CliAdapters.ResumeArgs(cli.AdapterKey, session, false);
+            if (resume.Count == 0) throw new BridgeException(409, $"the {cli.AdapterKey} CLI cannot resume a step's session");
             key = runId + ":run";
             if (chat.GetState(key).State == "generating" || !_chatBusy.Add(key)) throw new BridgeException(409, "that agent is still answering");
             try
             {
+                var list = new List<string>(resume);
+                if (cli.AdapterKey == "claude" && _mcpUrl?.Invoke(runId) is { } url) list.AddRange(["--mcp-config", McpConfig(url, h.McpToken)]);
+                args = list;
                 AddMessage(h, "run", "user", text.Trim());
-                prompt = RunAgentPrompt(h, text);
                 worktree = h.Worktree;
                 token = h.McpToken;
                 Persist(h, "run.message");
@@ -45,14 +58,10 @@ public sealed partial class WorkflowRunner
         }
         try
         {
-            // --strict-mcp-config for every chat: --tools does not limit MCP tools, so ambient MCP servers must not load.
-            var extra = new List<string> { "--tools", string.Join(',', ReadOnlyTools), "--strict-mcp-config" };
-            if (_mcpUrl?.Invoke(runId) is { } url) extra.AddRange(["--mcp-config", McpConfig(url, token)]);
-
             string reply;
             try
             {
-                reply = await AskAgent(chat, key, worktree, prompt, extra);
+                reply = await AskAgent(chat, key, worktree, text.Trim(), args);
             }
             catch (BridgeException error)
             {
@@ -76,6 +85,21 @@ public sealed partial class WorkflowRunner
         {
             lock (_lock) _chatBusy.Remove(key);
         }
+    }
+
+    /// <summary>The agent step a chat message goes to: the one named by id or slug, else the one waiting on the user, else the last with a session; a still-running step cannot take input.</summary>
+    private static WorkflowStep ChatStep(Handle h, string target, out StepRecord record)
+    {
+        WorkflowStep? step = null;
+        if (target is not ("run" or "")) step = h.Def.Steps.Find(s => s.Id == target || s.Slug == target);
+        if (step is null && target is not ("run" or "")) throw new BridgeException(404, $"unknown step {target}");
+        step ??= h.Def.Steps.Find(s => s.Kind == "agent" && h.Run.Steps.Find(r => r.StepId == s.Id) is { Status: "needs_you", Report: { Status: not "done" } });
+        step ??= h.Def.Steps.FindLast(s => s.Kind == "agent" && h.Run.Steps.Find(r => r.StepId == s.Id)?.SessionId is not null);
+        if (step is null) throw new BridgeException(409, "no step has an agent session to talk to yet");
+        if (step.Kind != "agent") throw new BridgeException(409, $"{step.Slug} is not an agent step");
+        record = Record(h, step.Id);
+        if (record.Status == "running") throw new BridgeException(409, $"{step.Slug} is still running; message it once it stops or asks you something");
+        return step;
     }
 
     private static async Task<string> AskAgent(SkillAgent chat, string key, string cwd, string prompt, IReadOnlyList<string> extra)
@@ -114,34 +138,6 @@ public sealed partial class WorkflowRunner
     }
 
     private static string Tail(string text) => text.Length <= OutputTailChars ? text : "..." + text[^OutputTailChars..];
-
-    private static string StepDigest(Handle h)
-    {
-        var sb = new StringBuilder();
-        foreach (var step in h.Def.Steps)
-        {
-            var record = h.Run.Steps.Find(s => s.StepId == step.Id);
-            sb.Append($"- {step.Id} (@{step.Slug}, {step.Kind}) status={record?.Status ?? "pending"} attempt={record?.Attempt ?? h.Run.Attempt}");
-            if (record?.DiffStat is { } diff) sb.Append($" diff: {diff}");
-            sb.AppendLine();
-            if (record is { Output.Length: > 0 }) sb.AppendLine("  output tail: " + Tail(record.Output).Replace("\n", "\n    "));
-        }
-        return sb.ToString();
-    }
-
-    private static string RunAgentPrompt(Handle h, string text)
-    {
-        var history = string.Join("\n", h.Run.Messages.Where(m => m.Target == "run").TakeLast(7).SkipLast(1).Select(m => $"{m.Role}: {m.Text}"));
-        return $"""
-            You are the run agent of the workflow "{h.Def.Name}" (run {h.Run.Id}). The run is {h.Run.State}, at step {h.Run.CurrentStepId ?? "none"}, attempt {h.Run.Attempt}.
-            You can read the working tree in the current directory but you cannot edit anything, and answering never pauses or changes the run.
-            Your only actions are the MCP tools {McpServerName}: pause, stop and propose_redo. propose_redo only suggests the earliest step to redo; the user confirms it. Use pause or stop only when the user asks for it.
-            Steps:
-            {StepDigest(h)}
-            {(history.Length > 0 ? "Recent conversation:\n" + history + "\n" : "")}
-            User question: {text}
-            """;
-    }
 
     /// <summary>One JSON-RPC request of the per-run MCP endpoint; null for a notification.</summary>
     public async Task<JsonObject?> HandleMcp(string runId, string? bearer, JsonObject request)

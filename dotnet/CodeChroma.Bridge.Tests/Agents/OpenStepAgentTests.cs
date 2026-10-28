@@ -1,7 +1,9 @@
 using System.Net;
 using System.Text;
 using System.Text.Json.Nodes;
+using CodeChroma.Bridge.Agents;
 using CodeChroma.Bridge.Stores;
+using Microsoft.Extensions.DependencyInjection;
 using CodeChroma.Bridge.Terminal;
 using CodeChroma.Bridge.Tests.Support;
 using CodeChroma.Bridge.Workflows;
@@ -54,6 +56,19 @@ public sealed class OpenStepAgentTests
         Assert.Equal(worktree, (string?)agent["worktree"]);
         Assert.Equal("run1", (string?)agent["source_run"]);
         Assert.Equal("step-session", (string?)agent["fork_session"]);
+    }
+
+    [Fact]
+    public void A_run_of_another_workspace_opens_in_that_workspace_worktree()
+    {
+        using var host = new BridgeHost();
+        var other = Path.Combine(Path.GetTempPath(), "cc-other-" + Guid.NewGuid().ToString("N")[..8]);
+        var worktree = Path.GetFullPath(WorkflowRunner.WorktreeFor(other, "run1"));
+        Directory.CreateDirectory(worktree);
+
+        var agent = host.Factory.Services.GetRequiredService<AgentManager>().CreateInRun("implement", "run1", "s1", other);
+
+        Assert.Equal(worktree, agent.Worktree);
     }
 
     [Fact]

@@ -656,6 +656,15 @@ def test_route_problems_are_advisory_only(tmp_path):
         assert code in result.stdout
 
 
+def test_a_route_step_with_a_blank_detail_is_advised(tmp_path):
+    steps = [{"id": "n0", "order": 1, "kind": "trigger", "detail": "  "}]
+
+    result = _run(tmp_path, "custom", _routed(steps))
+
+    assert result.returncode == 0
+    assert "ROUTE-DETAIL" in result.stdout
+
+
 def test_a_route_step_with_an_unhashable_id_is_advised_not_a_crash(tmp_path):
     steps = [{"id": ["n0"], "order": 1, "kind": "ai"}, {"id": {"x": 1}, "order": 2, "kind": "ai"}]
 

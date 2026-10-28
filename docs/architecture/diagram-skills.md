@@ -634,6 +634,14 @@ output matches pre-036 golden fixtures) · `tests/contract/test_new_diagram_type
 `agentDiagramsReady.test.ts`, `AgentRail.test.tsx`, `AgentWindowLayer.test.tsx`,
 `nodeAccent.test.tsx`.
 
+## `walkthrough`: the built-in process diagram
+
+`walkthrough` is a built-in kind (id in `src/codechroma/diagrams/kinds.json`, so the Draw dialog lists it; `BUILTIN_TYPES["walkthrough"]`, `DIAGRAMS["walkthrough"]` and `_resolve_walkthrough` in Python; `Workspace.DiagramKinds`, `SkillAgents.Specs`, `DiagramRoutes.ResolveKind` and `DiagramSeed.BuiltinKinds` in C#). Artifact `.codechroma/diagrams/walkthrough/walkthrough.json`, path route `GET /repos/{id}/walkthrough-path`, prompt `prompts/walkthrough_agent.yaml`, skill reference `references/type-walkthrough.md`, self-check `check_diagram.py --kind walkthrough` (budget 24 nodes / 40 relations, `question`/`summary`/`hero` advisories like the other flat kinds). It resolves through the shared resolver in the `boxes-arrows` style and its canvas elements use `render: "custom"` on layer `walkthrough`, so the existing step boxes, `route` carrier and **Show route** (B2) work with no new renderer. The look (green steps, chips, glow, auto-opened ROUTE card, no lanes) is CSS plus `RouteFrameActions`; see `web-canvas-shell.md`. No context endpoint and no generate route: an in-canvas agent picks the skill by description, like `sequence`. The edge-kind tables gained `error` (three copies, kept in step) so a failure arrow does not read as a typo. Web: `BUILTIN_RECIPES`, `DiagramKind`, the status map and a card schematic in `drawDialog/schematics.tsx`.
+
+## The route's `detail` line and the "show a process" recipe
+
+A route step may carry an optional `detail` string (the ROUTE card's second line). Both bridges copy `route` verbatim, so no resolver change was needed; `check_diagram.py` advises `ROUTE-DETAIL` on a blank or non-string value (`tests/unit/test_diagram_check_script.py`). `references/type-custom.md` ends its route section with the six-step recipe for turning a user's "how does X work" into a route (5-9 steps, trigger first, ✓ last, `ai`/`data`/`failure` as the only colour signals).
+
 ## Highlighting/expanding a process on an already-drawn diagram
 
 `references/highlight-process.md` is a fifth entry point alongside the four `type id` rows, but

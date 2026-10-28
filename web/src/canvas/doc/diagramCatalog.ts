@@ -34,6 +34,7 @@ export const BUILTIN_RECIPES: BuiltinRecipe[] = [
   { name: "impact", label: "Change impact", generated: true },
   { name: "epics", label: "Epics", generated: true },
   { name: "sequence", label: "Sequence", accessibleName: "Sequence — порядок вызовов", generated: true },
+  { name: "walkthrough", label: "Walkthrough", accessibleName: "Walkthrough — шаги процесса по коду", generated: true },
 ];
 
 /** Layer names that are never a diagram: the seeded hierarchy tree, `apply_batch`'s fallback layer
@@ -171,7 +172,7 @@ export function useCustomDiagramTypes(engineClient: EngineClient): DiagramTypeSu
  * watch the same set so they never disagree about what counts as a diagram ping. `epics` is in here
  * (unlike the status fetch alone, which already covers it) so a freshly written `epics.json` also
  * drives the auto-place-the-layer flow, not just the readiness map. */
-export const WATCHED_DIAGRAM_EVENT_KINDS: DiagramEventKind[] = ["system-context", "epics", "patterns", "impact", "sequence", "custom", "feature-plan"];
+export const WATCHED_DIAGRAM_EVENT_KINDS: DiagramEventKind[] = ["system-context", "epics", "patterns", "impact", "sequence", "walkthrough", "custom", "feature-plan"];
 
 export interface ReadyDiagrams {
   readyBuiltins: BuiltinRecipe[];

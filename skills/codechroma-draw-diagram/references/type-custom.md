@@ -191,6 +191,9 @@ Add it only when the steps map to real code; skip it for a conceptual flow. It l
   (4 words or fewer), `kind`, `node_ids`, `children`.
 - `kind`: `trigger` (an actor starts it), `decide` (logic, no AI), `ai` (a model runs), `check`, `data`
   (something is written), `failure` (a branch that stops the flow; draw its edge with `kind: "error"`).
+- `detail` (optional): the ROUTE card's second line under the title -- who acts ("You, on the stale
+  notice") or the function that runs ("MapPost /update"). Omit it and the card shows the step's first
+  `children` label, then its `lane`.
 - `node_ids`: graph node ids of the files/functions the step runs in (what the code map lights up).
 - `children`: ordered calls inside the step, `{ "id", "label", "node_id", "line" }` with `line` a
   positive integer, e.g. `{ "id": "c1", "label": "ComputeDelta()", "node_id": "file::Routes/WikiGeneralRoutes.cs", "line": 184 }`.
@@ -213,8 +216,28 @@ Add it only when the steps map to real code; skip it for a conceptual flow. It l
 }
 ```
 
-The self-check prints `BADROUTE`, `ROUTE-STEP`, `ROUTE-KIND`, `ROUTE-ORDER`, `ROUTE-NODES` and
-`ROUTE-CHILD` as advisories only; nothing fails the run.
+The self-check prints `BADROUTE`, `ROUTE-STEP`, `ROUTE-KIND`, `ROUTE-ORDER`, `ROUTE-NODES`,
+`ROUTE-DETAIL` and `ROUTE-CHILD` as advisories only; nothing fails the run.
+
+### Showing a process the user asks for ("how does X work?") on the code map
+
+The code-map route view (**Show route**) answers "which files does this flow touch, in what order".
+Build it like this:
+
+1. Name the process in the user's words for `route.title` ("Update the architecture map"); one verb
+   phrase, not a module name.
+2. Walk the real call chain from the context cache, entry point first. One step per hop that changes
+   who acts or what runs, not one per function: 5-9 steps. The first step is the trigger (a person or
+   an event, `kind: "trigger"`, `detail` says who); the last is the outcome, which the canvas draws as a ✓.
+3. Give every step a 4-word-or-fewer `title` and a `detail` naming the function or actor. `node_ids`
+   are the real files or functions the step runs in, copied verbatim; leave `[]` for an actor, an
+   external service or any step with no code in this repo.
+4. Mark the steps where a model runs `kind: "ai"` (drawn violet, the one colour change on the route),
+   things written to disk `data`, and a stop `failure` (red, draw its edge with `kind: "error"`).
+   Everything else stays `decide`/`check`: the route is one green line, so colour is a signal.
+5. Do not add a step the code does not take. A branch that exists in code but not in the happy path is
+   a `failure` step, not a second route.
+6. Self-check, then say in the report which files the route lights and which steps have no code.
 
 ## Procedure
 

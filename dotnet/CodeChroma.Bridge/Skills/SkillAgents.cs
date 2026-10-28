@@ -25,7 +25,7 @@ public sealed class SkillAgents
     /// <summary>The diagram and review kinds; the composite kinds are added by their own modules.</summary>
     private static IEnumerable<KindSpec> Specs()
     {
-        foreach (var kind in new[] { "system-context", "patterns", "impact", "epics", "sequence" })
+        foreach (var kind in new[] { "system-context", "patterns", "impact", "epics", "sequence", "walkthrough" })
         {
             // System context keeps the pre-rename call-site id, prompt file and timeout variable (users' saved settings key on them).
             var legacy = kind == "system-context" ? "c1" : kind;

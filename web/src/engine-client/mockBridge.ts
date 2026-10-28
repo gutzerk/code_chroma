@@ -1150,6 +1150,7 @@ const mockLayouts: Record<LayoutKind, DiagramLayout> = {
   epics: {},
   impact: {},
   sequence: {},
+  walkthrough: {},
   // "canvas" has no saved-layout GET/POST route (a CanvasNodeBox's position lives on canvas.json,
   // not here) -- present only so this literal stays exhaustive over LayoutKind like every other
   // non-live kind already does (see the type's own comment in state/types.ts).
@@ -1811,6 +1812,7 @@ export class MockBridgeEngineClient implements EngineClient {
       patterns: { ready: hasLayer("patterns") },
       impact: { ready: hasLayer("impact") },
       sequence: { ready: hasLayer("sequence") },
+      walkthrough: { ready: hasLayer("walkthrough") },
       ...Object.fromEntries(
         [...mockDiagramTypes.keys()].map((id) => [
           `custom/${id}`,

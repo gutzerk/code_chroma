@@ -82,6 +82,7 @@ export function CanvasEdges({ doc, sizes, onOpenOrigin }: CanvasEdgesProps) {
           key={edge.key}
           className={`canvas-edge canvas-edge--${visual}${focusStore.edgeDimmed(edge.from, edge.to) ? " canvas-edge--dim" : ""}`}
           data-edge-visual={visual}
+          data-layer={doc.elements[edge.from]?.layer}
         >
         <RelationshipEdge
           edgeKey={edge.key}

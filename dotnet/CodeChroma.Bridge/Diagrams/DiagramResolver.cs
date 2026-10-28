@@ -22,7 +22,7 @@ public sealed class Diagnostics
     private static readonly string[] EdgeKindAliases =
     [
         "call", "uses", "spawn", "process", "read", "write", "secondary", "imports", "implements",
-        "extends", "inherits", "composes", "contains", "depends", "depends_on", "removed",
+        "extends", "inherits", "composes", "contains", "depends", "depends_on", "removed", "error",
     ];
     private static readonly string[] PlainEdgeKinds = ["", "calls", "call", "uses"];
     // These author structural verbs (observes, wraps, ...), so an unknown kind there is not a typo.

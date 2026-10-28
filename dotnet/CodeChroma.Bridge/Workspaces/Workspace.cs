@@ -9,7 +9,7 @@ public sealed record WorkspaceState(string State, string Progress, string? Error
 public sealed class Workspace : IDisposable
 {
     public const string MainId = "main";
-    public static readonly IReadOnlyList<string> DiagramKinds = ["system-context", "patterns", "impact", "epics", "sequence"];
+    public static readonly IReadOnlyList<string> DiagramKinds = ["system-context", "patterns", "impact", "epics", "sequence", "walkthrough"];
 
     private readonly Action<string, JsonObject> _onEvent;
     private readonly object _syncLock = new();

@@ -132,6 +132,23 @@ describe("ActivityPanel", () => {
 
     expect(screen.getByRole("button", { name: "Restore panel width" })).toBeTruthy();
   });
+  it("leaves full screen when the grip is dragged right, keeping the dragged width", () => {
+    setup();
+    act(() => layoutStore.setAgentsMode("full"));
+    const panel = screen.getByTestId("activity-panel");
+    panel.getBoundingClientRect = () => ({ width: 1000, height: 600, left: 0, top: 0, right: 1000, bottom: 600, x: 0, y: 0 }) as DOMRect;
+    const grip = panel.querySelector<HTMLElement>(".panel-handle-grip")!;
+    grip.setPointerCapture = () => {};
+
+    fireEvent.pointerMove(grip, { pointerId: 1, buttons: 0, clientX: 900 });
+    const hoverMode = layoutStore.getState().agentsMode;
+    fireEvent.pointerDown(grip, { pointerId: 1, button: 0, buttons: 1, clientX: 100 });
+    fireEvent.pointerMove(grip, { pointerId: 1, buttons: 1, clientX: 180 });
+
+    expect(hoverMode).toBe("full");
+    expect(layoutStore.getState().agentsMode).toBe("normal");
+    expect(panel.style.width).not.toBe("");
+  });
   it("collapses from the edge handle", () => {
     setup();
 

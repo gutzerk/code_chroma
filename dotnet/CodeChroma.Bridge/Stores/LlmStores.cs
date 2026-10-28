@@ -256,6 +256,21 @@ public sealed class CallSiteStore(UserPaths paths, ProviderStore providers)
         });
     }
 
+    /// <summary>Persists an "offline" override (no AI) for a simple call site.</summary>
+    public JsonObject SaveOffline(string callSiteId)
+    {
+        if (LlmCatalog.CallSite(callSiteId) is not { Capability: "simple" })
+            throw new ArgumentException($"'{callSiteId}' cannot run offline");
+        return JsonFile.Locked(() =>
+        {
+            var assignments = Assignments();
+            var assignment = Synthesized("", "", "offline");
+            assignments[callSiteId] = assignment;
+            Persist(assignments, GroupAssignments(), Default());
+            return assignment;
+        });
+    }
+
     public JsonObject SaveGroup(string groupId, JsonObject payload)
     {
         var problems = ValidateGroup(payload);

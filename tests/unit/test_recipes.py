@@ -156,48 +156,24 @@ def test_reshape_per_node_render_override_mixes_epic_and_spec_boxes():
     assert [node.key for node in result.nodes] == ["EP-3", "EP-3::logging", "EP-3::config"]
 
 
-def test_reshape_relationship_kind_reaches_the_edge():
+@pytest.mark.parametrize(
+    ("render", "relation", "field", "expected"),
+    [
+        ("custom", {"kind": "writes to"}, "kind", "writes to"),
+        ("pattern", {"style": {"color": "blue"}}, "style", {"color": "blue"}),
+        ("custom", {"transport": "https"}, "transport", "https"),
+        ("custom", {"label": "calls"}, "transport", None),
+    ],
+)
+def test_reshape_relation_fields_reach_the_recipe_edge(render, relation, field, expected):
     resolved = {
         "nodes": [{"id": "a", "name": "A"}, {"id": "b", "name": "B"}],
-        "relations": [{"from": "a", "to": "b", "kind": "writes to"}],
+        "relations": [{"from": "a", "to": "b", **relation}],
     }
 
-    result = _to_ops(resolved, "custom")
+    result = _to_ops(resolved, render)
 
-    assert result.edges == [RecipeEdge("a", "b", "", "writes to")]
-
-
-def test_reshape_edge_style_reaches_the_recipe_edge():
-    resolved = {
-        "nodes": [{"id": "a", "name": "A"}, {"id": "b", "name": "B"}],
-        "relations": [{"from": "a", "to": "b", "style": {"color": "blue"}}],
-    }
-
-    result = _to_ops(resolved, "pattern")
-
-    assert result.edges[0].style == {"color": "blue"}
-
-
-def test_reshape_relation_transport_reaches_the_recipe_edge():
-    resolved = {
-        "nodes": [{"id": "a", "name": "A"}, {"id": "b", "name": "B"}],
-        "relations": [{"from": "a", "to": "b", "transport": "https"}],
-    }
-
-    result = _to_ops(resolved, "custom")
-
-    assert result.edges[0].transport == "https"
-
-
-def test_relation_without_transport_leaves_the_edge_transport_unset():
-    resolved = {
-        "nodes": [{"id": "a", "name": "A"}, {"id": "b", "name": "B"}],
-        "relations": [{"from": "a", "to": "b", "label": "calls"}],
-    }
-
-    result = _to_ops(resolved, "custom")
-
-    assert result.edges[0].transport is None
+    assert getattr(result.edges[0], field) == expected
 
 
 def test_sequence_reshape_turns_relations_into_message_elements():
@@ -468,23 +444,15 @@ def test_a_fully_drawable_diagram_reports_nothing_dropped():
     assert result.dropped == []
 
 
-def test_build_batch_ops_omits_style_key_when_recipe_node_style_is_none():
-    doc = CanvasDoc()
-    result = RecipeResult(nodes=[RecipeNode(key="n1", render="impact", label="Auth")])
-
-    ops = build_batch_ops(doc, "impact", result)
-
-    assert "style" not in ops[0]
-
-
-def test_build_batch_ops_never_re_emits_style_on_an_unrelated_regenerate():
-    doc = CanvasDoc(elements={"e1": Element(
+@pytest.mark.parametrize("existing", [False, True])
+def test_build_batch_ops_omits_style_key_unless_the_recipe_node_sets_one(existing):
+    elements = {"e1": Element(
         id="e1", render="impact", layer="impact", label="Auth",
         meta={"recipe_key": "n1"}, created_by="ai", style={"color": "#f00"},
-    )})
+    )} if existing else {}
     result = RecipeResult(nodes=[RecipeNode(key="n1", render="impact", label="Auth v2")])
 
-    ops = build_batch_ops(doc, "impact", result)
+    ops = build_batch_ops(CanvasDoc(elements=elements), "impact", result)
 
     assert "style" not in ops[0]
 
@@ -532,7 +500,7 @@ def test_a_nodes_own_meta_path_is_not_overridden_by_its_top_level_path():
     assert shape.nodes[0].meta["path"] == "own.py"
 
 
-def test_route_rides_on_every_node_with_a_derived_summary_and_its_step():
+def test_route_rides_once_on_a_carrier_and_nodes_carry_only_their_step():
     route = {"id": "r", "steps": [
         {"id": "a", "kind": "trigger", "node_ids": ["f1"], "children": []},
         {"id": "b", "kind": "ai", "node_ids": ["f1", "f2"], "children": []},
@@ -541,7 +509,45 @@ def test_route_rides_on_every_node_with_a_derived_summary_and_its_step():
 
     shape = reshape(resolved, "custom")
 
-    first, second = shape.nodes
-    assert first.meta["route"]["summary"] == "2 steps · 2 files · 1 AI steps"
+    first, second, carrier = shape.nodes
+    assert carrier.render == "route"
+    assert carrier.meta["route"]["summary"] == "2 steps · 2 files · 1 AI steps"
+    assert [node.meta.get("route") for node in (first, second)] == [None, None]
+    assert first.meta["route_id"] == "r"
     assert first.meta["route_step"]["kind"] == "trigger"
     assert second.meta["route_step"]["id"] == "b"
+
+
+def test_lane_of_only_failure_steps_gets_lane_kind_failure():
+    route = {"id": "r", "steps": [
+        {"id": "a", "lane": "flow", "kind": "trigger", "children": []},
+        {"id": "b", "lane": "Failures", "kind": "decide", "children": []},
+        {"id": "c", "lane": "Errors", "kind": "failure", "children": []},
+    ]}
+    nodes = [{"id": "a", "name": "A"}, {"id": "b", "name": "B"}, {"id": "c", "name": "C"}]
+    resolved = {"nodes": nodes, "route": route}
+
+    shape = reshape(resolved, "custom")
+    kinds = [node.meta.get("lane_kind") for node in shape.nodes[:3]]
+
+    assert kinds == ["normal", "normal", "failure"]
+
+
+def test_a_non_string_lane_is_ignored_when_stamping_lane_kind():
+    route = {"id": "r", "steps": [{"id": "a", "lane": "flow", "kind": "failure", "children": []}]}
+    resolved = {"nodes": [{"id": "a", "name": "A", "meta": {"lane": ["x"]}}], "route": route}
+
+    shape = reshape(resolved, "custom")
+
+    assert shape.nodes[0].meta["lane_kind"] == "failure"
+
+
+def test_a_resolved_summary_is_kept_and_a_sequence_diagram_keeps_the_carrier_undecorated():
+    route = {"id": "r", "summary": "from the resolver", "steps": [{"id": "a", "kind": "ai"}]}
+    resolved = {"nodes": [{"id": "a", "name": "A"}], "relations": [], "route": route}
+
+    shape = reshape(resolved, "sequence")
+
+    carrier = shape.nodes[-1]
+    assert carrier.meta["route"]["summary"] == "from the resolver"
+    assert "role" not in carrier.meta

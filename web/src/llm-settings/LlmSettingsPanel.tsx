@@ -1,26 +1,26 @@
 import { useState } from "react";
 import { ModalDialog } from "../agents/ModalDialog";
-import { AssistantSection } from "../assistant/AssistantSection";
 import { PanelCloseButton } from "../canvas/PanelCloseButton";
-import { CallSitesSection } from "./CallSitesSection";
-import { ProvidersSection } from "./ProvidersSection";
+import { AgentInstructionSection } from "./AgentInstructionSection";
+import { ConnectionsTab } from "./ConnectionsTab";
+import { ModelsTab } from "./ModelsTab";
 import { RuntimeSection } from "./RuntimeSection";
+import "./LlmSettings.css";
 
-type Tab = "providers" | "call-sites" | "assistant" | "runtime";
+type Tab = "models" | "connections" | "advanced";
 
 const TABS: { id: Tab; label: string }[] = [
-  { id: "providers", label: "Providers" },
-  { id: "call-sites", label: "Model routing" },
-  { id: "assistant", label: "Agent windows" },
-  { id: "runtime", label: "CLI tools" },
+  { id: "models", label: "Models" },
+  { id: "connections", label: "Connections" },
+  { id: "advanced", label: "Advanced" },
 ];
 
-/** Every LLM setting in one window, reached from the single Settings gear -- provider connections,
- * the per-feature routing table, and the agent-window fallback credentials. */
+/** Every AI setting in one window: one default model, the connections behind it, and rarely-needed paths. */
 export function LlmSettingsPanel({ onDismiss }: { onDismiss: () => void }) {
-  const [tab, setTab] = useState<Tab>("providers");
-
-
+  const [view, setView] = useState<Tab | "add-connection">("models");
+  const [slot, setSlot] = useState<HTMLElement | null>(null);
+  const [formOpen, setFormOpen] = useState(false);
+  const tab: Tab = view === "add-connection" ? "connections" : view;
 
   return (
     <ModalDialog
@@ -30,7 +30,12 @@ export function LlmSettingsPanel({ onDismiss }: { onDismiss: () => void }) {
       onDismiss={onDismiss}
     >
       <header className="llm-dialog-header">
-        <h2>LLM</h2>
+        <div className="llm-dialog-title">
+          <h2>AI models</h2>
+          <p className="llm-subtle">
+            Pick one model for everything. Change individual features only if you want to.
+          </p>
+        </div>
         <PanelCloseButton
           className="llm-dialog-close"
           ariaLabel="Close"
@@ -49,7 +54,7 @@ export function LlmSettingsPanel({ onDismiss }: { onDismiss: () => void }) {
             aria-selected={tab === id}
             aria-controls={`llm-settings-panel-${id}`}
             data-testid={`llm-settings-tab-${id}`}
-            onClick={() => setTab(id)}
+            onClick={() => setView(id)}
           >
             {label}
           </button>
@@ -62,11 +67,37 @@ export function LlmSettingsPanel({ onDismiss }: { onDismiss: () => void }) {
         id={`llm-settings-panel-${tab}`}
         aria-labelledby={`llm-settings-tab-${tab}`}
       >
-        {tab === "providers" && <ProvidersSection />}
-        {tab === "call-sites" && <CallSitesSection />}
-        {tab === "assistant" && <AssistantSection />}
-        {tab === "runtime" && <RuntimeSection />}
+        {tab === "models" && <ModelsTab onAddConnection={() => setView("add-connection")} />}
+        {tab === "connections" && <ConnectionsTab
+            startAdding={view === "add-connection"}
+            footerSlot={slot}
+            onFormOpenChange={setFormOpen}
+          />}
+        {tab === "advanced" && (
+          <div className="llm-tab-body" data-testid="llm-advanced-tab">
+            <p className="llm-subtle">Rarely needed. Everything here has a working default.</p>
+            <AgentInstructionSection />
+            <RuntimeSection />
+          </div>
+        )}
       </div>
+
+      <footer className="llm-dialog-footer">
+        <div ref={setSlot} className="llm-footer-slot" hidden={!formOpen} />
+        {!formOpen && (
+          <>
+            <span className="llm-subtle">Saved automatically · applies to this machine</span>
+            <button
+              type="button"
+              className="llm-button-primary"
+              data-testid="llm-settings-done"
+              onClick={onDismiss}
+            >
+              Done
+            </button>
+          </>
+        )}
+      </footer>
     </ModalDialog>
   );
 }

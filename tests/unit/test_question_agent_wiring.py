@@ -41,22 +41,16 @@ def test_mcp_config_is_written_to_a_private_per_process_dir():
     )
 
 
-def test_claude_argv_registers_the_mcp_config_before_the_plugin_dir():
+def test_claude_argv_registers_an_http_mcp_config_with_bearer_header_before_the_plugin_dir():
     argv, env = agent_cli("claude", mcp=ENDPOINT)
 
+    server = json.loads(Path(argv[2]).read_text(encoding="utf-8"))["mcpServers"]["codechroma"]
     assert argv[1] == "--mcp-config"
     assert argv[3] == "--plugin-dir"
     assert env == {
         "CODECHROMA_BRIDGE_URL": "http://127.0.0.1:8123",
         "CODECHROMA_QUESTION_TOKEN": "agent-1.sig",
     }
-
-
-def test_mcp_config_file_holds_an_http_server_with_bearer_header_and_timeout():
-    argv, _ = agent_cli("claude", mcp=ENDPOINT)
-
-    server = json.loads(Path(argv[2]).read_text(encoding="utf-8"))["mcpServers"]["codechroma"]
-
     assert server["type"] == "http"
     assert server["url"] == "http://127.0.0.1:8123/mcp/"
     assert server["headers"] == {"Authorization": "Bearer agent-1.sig"}
@@ -103,23 +97,17 @@ def test_endpoint_for_signs_a_token_that_names_the_workspace(monkeypatch):
     assert mcp.workspace_id_for(endpoint.token) == "agent-7"
 
 
-def test_ask_route_rejects_a_missing_token(bridge):
-    with TestClient(bridge.app) as client:
-        response = client.post("/repos/main/questions/ask", json={"question": "Q?"})
-
-    assert response.status_code == 401
-
-
-def test_ask_route_rejects_a_token_for_another_workspace(bridge):
+def test_ask_route_rejects_a_missing_token_and_a_token_for_another_workspace(bridge):
     token = bridge.app.state.question_mcp.token_for("other")
 
     with TestClient(bridge.app) as client:
-        response = client.post(
+        missing = client.post("/repos/main/questions/ask", json={"question": "Q?"})
+        foreign = client.post(
             "/repos/main/questions/ask", json={"question": "Q?"},
             headers={"Authorization": f"Bearer {token}"},
         )
 
-    assert response.status_code == 401
+    assert (missing.status_code, foreign.status_code) == (401, 401)
 
 
 def test_hook_denies_the_native_tool_and_names_ask_user_when_the_bridge_answers(

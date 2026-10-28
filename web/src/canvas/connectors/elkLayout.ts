@@ -1,6 +1,7 @@
 import ELK, { type ElkNode } from "elkjs/lib/elk.bundled.js";
 import { ELK_NODE_SEP, ELK_RANK_SEP } from "../collision/constants";
 import { leadingOrderDigits } from "../doc/elementMeta";
+import { isFailureLane } from "./laneKind";
 import type { LayoutBoxSpec, PositionedBox } from "./diagramLayout";
 
 /** Directed edge shape `layoutBoxes()` accepts; `kind` is accepted for parity but never affects layout. */
@@ -60,16 +61,17 @@ function clusterByLane(nodes: readonly LayoutBoxSpec[]): LayoutBoxSpec[] {
     .map((entry) => entry.node);
 }
 
-/** True for the reserved Failures lane (case-insensitive). */
-export function isFailuresLane(lane: string | undefined): boolean {
-  return lane?.trim().toLowerCase() === "failures";
-}
-
-/** Lane -> band index in first-seen order, with the Failures lane always last. */
+/** Lane -> band index in first-seen order, with failure lanes always last. */
 function orderedLanes(nodes: readonly LayoutBoxSpec[]): Map<string, number> {
-  const names: string[] = [];
-  for (const node of nodes) if (node.lane && !names.includes(node.lane)) names.push(node.lane);
-  names.sort((a, b) => Number(isFailuresLane(a)) - Number(isFailuresLane(b)));
+  const kindsByLane = new Map<string, (string | undefined)[]>();
+  for (const node of nodes) {
+    if (!node.lane) continue;
+    const kinds = kindsByLane.get(node.lane);
+    if (kinds) kinds.push(node.laneKind);
+    else kindsByLane.set(node.lane, [node.laneKind]);
+  }
+  const failure = (name: string) => Number(isFailureLane(name, kindsByLane.get(name) ?? []));
+  const names = [...kindsByLane.keys()].sort((a, b) => failure(a) - failure(b));
   return new Map(names.map((name, index) => [name, index]));
 }
 

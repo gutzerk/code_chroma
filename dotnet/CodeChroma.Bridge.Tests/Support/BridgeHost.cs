@@ -23,6 +23,8 @@ public sealed class BridgeHost : IDisposable
 
     public BridgeHost(System.Text.Json.Nodes.JsonObject? repoSpec = null, Action<IServiceCollection>? configure = null)
     {
+        // Contract cases assume the built-in model lists, so a machine's own CLI must never answer.
+        ModelCatalog.CliProbe = (_, _) => Task.FromResult<System.Text.Json.Nodes.JsonArray?>(null);
         _tempDir = Path.Combine(Path.GetTempPath(), "cc-bridge-" + Guid.NewGuid().ToString("N")[..8]);
         Root = Path.Combine(_tempDir, "repo");
         CopyDir(Path.Combine(ContractCases.FixtureDir, "..", "sample_repo"), Root);

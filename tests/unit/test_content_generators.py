@@ -117,16 +117,11 @@ def test_runs_claude_with_the_haiku_model(monkeypatch, tmp_path):
     assert captured[captured.index("--model") + 1] == "haiku"
 
 
-def test_timeout_is_read_from_the_environment(monkeypatch):
-    monkeypatch.setenv("codechroma_C1_TIMEOUT_SECONDS", "42")
+@pytest.mark.parametrize(("raw", "expected"), [("42", 42), ("not-a-number", None)])
+def test_timeout_comes_from_the_environment_else_the_default(monkeypatch, raw, expected):
+    monkeypatch.setenv("codechroma_C1_TIMEOUT_SECONDS", raw)
 
-    assert AGENT.timeout_seconds() == 42
-
-
-def test_timeout_falls_back_to_the_default_when_unset_or_junk(monkeypatch):
-    monkeypatch.setenv("codechroma_C1_TIMEOUT_SECONDS", "not-a-number")
-
-    assert AGENT.timeout_seconds() == AGENT.default_timeout_seconds
+    assert AGENT.timeout_seconds() == (expected or AGENT.default_timeout_seconds)
 
 
 @pytest.mark.parametrize(

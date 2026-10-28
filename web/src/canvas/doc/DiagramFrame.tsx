@@ -1,7 +1,5 @@
-import { RouteLegend } from "./RouteLegend";
-import { routeOf } from "./routeStep";
-import { routeStore } from "../../state/routeStore";
-import { useEffect, useMemo, useRef, useSyncExternalStore } from "react";
+import { RouteFrameActions } from "./RouteFrameActions";
+import { Fragment, useEffect, useMemo, useRef, useSyncExternalStore } from "react";
 import { stringMeta } from "./elementMeta";
 import { buildSequenceModel, SEQUENCE_LEGEND_SPACE, SEQUENCE_PANEL_SPACE } from "./sequenceModel";
 import { sequenceViewStore } from "./sequenceViewStore";
@@ -54,7 +52,6 @@ function SequenceModeSwitch({ layer, members }: { layer: string; members: Canvas
   // eslint-disable-next-line react-hooks/exhaustive-deps -- `signature` is the change signal for `members`
   const model = useMemo(() => buildSequenceModel(members), [signature]);
   const phaseIds = model.phases.map((p) => p.id);
-  const stop = (e: { stopPropagation: () => void }) => e.stopPropagation();
   const orders = useMemo(() => [...new Set(model.messages.map((m) => m.order))], [model]);
   const step = sequenceViewStore.getStep(layer);
   const playing = step !== null;
@@ -72,9 +69,7 @@ function SequenceModeSwitch({ layer, members }: { layer: string; members: Canvas
   }, [step, layer, ordersKey]);
   return (
     <span
-      className="canvas-diagram-frame-modes"
       data-testid="sequence-mode-switch"
-      onPointerDown={stop}
       style={{ marginLeft: 8, display: "inline-flex", gap: 4 }}
     >
       {(["readable", "focus"] as const).map((mode) => (
@@ -114,6 +109,26 @@ function SequenceModeSwitch({ layer, members }: { layer: string; members: Canvas
     </span>
   );
 }
+
+/** One control a feature adds to the frame header; all share a single drag-guarded wrapper. */
+interface HeaderAction {
+  id: string;
+  applies: (members: CanvasElement[]) => boolean;
+  render: (layer: string, members: CanvasElement[]) => React.ReactNode;
+}
+
+const HEADER_ACTIONS: readonly HeaderAction[] = [
+  {
+    id: "sequence-modes",
+    applies: (members) => members.some((member) => member.render === "sequence"),
+    render: (layer, members) => <SequenceModeSwitch layer={layer} members={members} />,
+  },
+  {
+    id: "route",
+    applies: (members) => members.some((member) => member.meta?.route_id !== undefined || member.meta?.route !== undefined),
+    render: (_layer, members) => <RouteFrameActions members={members} />,
+  },
+];
 
 export interface DiagramFrameProps {
   /** The diagram's own layer key (`c1`/`patterns`/`impact`/`epics`/`custom/<id>`/a one-off
@@ -204,8 +219,6 @@ export function DiagramFrame({ layer, label, members, sizes, typeLabel, boxCount
 
   if (!bounds) return null;
 
-  const isSequence = members.some((member) => member.render === "sequence");
-  const route = members.map(routeOf).find(Boolean); // routeOf is cached per meta object, so this is cheap
 
   const classes = [
     "canvas-diagram-frame",
@@ -236,23 +249,19 @@ export function DiagramFrame({ layer, label, members, sizes, typeLabel, boxCount
               {`${typeLabel} · ${boxCount ?? members.length} ${(boxCount ?? members.length) === 1 ? "box" : "boxes"}`.toUpperCase()}
             </span>
           )}
-          {isSequence && <SequenceModeSwitch layer={layer} members={members} />}
-          {route && (
-            <span className="canvas-diagram-frame-route" onPointerDown={(e) => e.stopPropagation()}>
-              <RouteLegend />
-              <button type="button" className="sequence-mode-btn" data-testid="show-route" onClick={() => routeStore.show(route)}>
-                Show route
-              </button>
+          {/* The frame body is a drag handle, so keep a press on any header control from starting a drag. */}
+          <span className="canvas-diagram-frame-actions" onPointerDown={(e) => e.stopPropagation()}>
+            {HEADER_ACTIONS.filter((action) => action.applies(members)).map((action) => (
+              <Fragment key={action.id}>{action.render(layer, members)}</Fragment>
+            ))}
+            <span className="canvas-diagram-frame-copy">
+              <CopyButton
+                text={label}
+                name={`${label} diagram`}
+                variant="canvas-diagram-frame"
+                testId="canvas-diagram-frame-copy"
+              />
             </span>
-          )}
-          {/* The frame body is a drag handle, so keep a press on the button from starting a drag. */}
-          <span className="canvas-diagram-frame-copy" onPointerDown={(e) => e.stopPropagation()}>
-            <CopyButton
-              text={label}
-              name={`${label} diagram`}
-              variant="canvas-diagram-frame"
-              testId="canvas-diagram-frame-copy"
-            />
           </span>
         </>
       }

@@ -65,6 +65,14 @@ describe("DiagramFrame", () => {
     expect(dragOffsetStore.getAll()).toEqual({});
   });
 
+  it("shows only the header actions that apply to the diagram's members", () => {
+    const routed = element({ id: "s1", meta: { route: { id: "r", title: "R", summary: "", steps: [] } } });
+    renderFrame("custom/flow", "Flow", [routed]);
+
+    expect(screen.getByTestId("show-route")).toBeTruthy();
+    expect(screen.queryByTestId("sequence-mode-switch")).toBeNull();
+  });
+
   it("renders nothing for a diagram with no visible members", () => {
     renderFrame("c1", "C1", []);
 

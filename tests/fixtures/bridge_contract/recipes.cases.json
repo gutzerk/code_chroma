@@ -660,7 +660,7 @@
       ]
     },
     {
-      "id": "a_route_rides_on_each_node_meta_with_a_derived_summary",
+      "id": "a_route_rides_once_on_a_carrier_element_and_nodes_carry_only_their_step",
       "steps": [
         {
           "fs": "write",
@@ -694,8 +694,20 @@
             "status": 200,
             "checks": [
               {
-                "path": "$.elements['{{first}}'].meta.route.summary",
-                "equals": "2 steps · 1 files · 1 AI steps"
+                "path": "$.elements..route",
+                "count": 1
+              },
+              {
+                "path": "$.elements..route.summary",
+                "equals": ["2 steps · 1 files · 1 AI steps"]
+              },
+              {
+                "path": "$.elements['{{first}}'].meta.route_id",
+                "equals": "r1"
+              },
+              {
+                "path": "$.elements['{{first}}'].meta.route",
+                "absent": true
               },
               {
                 "path": "$.elements['{{first}}'].meta.route_step.kind",
@@ -704,6 +716,50 @@
               {
                 "path": "$.elements['{{first}}'].meta.route_step.children[0].line",
                 "equals": 12
+              }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "a_lane_of_only_failure_steps_is_stamped_lane_kind_failure",
+      "steps": [
+        {
+          "fs": "write",
+          "path": ".codechroma/diagrams/impact/impact.json",
+          "text": "{\"nodes\": [{\"id\": \"n1\", \"name\": \"Click\", \"node_id\": \"component::src\"}, {\"id\": \"n2\", \"name\": \"Retry\", \"node_id\": \"component::src\"}, {\"id\": \"n3\", \"name\": \"Boom\", \"node_id\": \"component::src\"}], \"relations\": [{\"from\": \"n1\", \"to\": \"n2\", \"label\": \"then\"}, {\"from\": \"n2\", \"to\": \"n3\", \"label\": \"fails\"}], \"route\": {\"id\": \"r1\", \"title\": \"T\", \"steps\": [{\"id\": \"n1\", \"order\": 1, \"lane\": \"flow\", \"title\": \"Click\", \"kind\": \"trigger\", \"node_ids\": [], \"children\": []}, {\"id\": \"n2\", \"order\": 2, \"lane\": \"Failures\", \"title\": \"Retry\", \"kind\": \"decide\", \"node_ids\": [], \"children\": []}, {\"id\": \"n3\", \"order\": 3, \"lane\": \"Errors\", \"title\": \"Boom\", \"kind\": \"failure\", \"node_ids\": [], \"children\": []}]}}"
+        },
+        {
+          "http": {
+            "method": "POST",
+            "path": "/repos/main/recipes/impact/run"
+          },
+          "expect": {
+            "status": 200,
+            "checks": [
+              {
+                "path": "$.ok",
+                "equals": true
+              }
+            ]
+          }
+        },
+        {
+          "http": {
+            "method": "GET",
+            "path": "/repos/main/canvas"
+          },
+          "expect": {
+            "status": 200,
+            "checks": [
+              {
+                "path": "$..lane_kind",
+                "equals": [
+                  "normal",
+                  "normal",
+                  "failure"
+                ]
               }
             ]
           }

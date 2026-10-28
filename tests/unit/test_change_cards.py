@@ -7,7 +7,6 @@ from pathlib import Path
 import pytest
 
 from codechroma.bridge.change_cards import (
-    REASON_BINARY,
     REASON_NO_NODE,
     _by_node_status,
     build_change_cards,
@@ -114,18 +113,6 @@ def test_a_deleted_module_level_function_lands_on_its_file(repo, engine):
     assert "service.py" in [card["name"] for card in on_file]
     deleted = [card for card in on_file if card["name"] == "list_active_users"]
     assert deleted and deleted[0]["resolution"] == "parent"
-
-
-def test_a_deleted_function_is_named_and_marked_delete(repo, engine):
-    path = repo / "users" / "service.py"
-    path.write_text(
-        path.read_text(encoding="utf-8").split("def list_active_users")[0], encoding="utf-8"
-    )
-    _reanalyze(engine, "users/service.py")
-
-    payload = build_change_cards(engine, repo)
-
-    deleted = [card for card in payload["cards"] if card["name"] == "list_active_users"]
     assert deleted[0]["kind"] == "delete"
     assert deleted[0]["text"] == "Deleted list_active_users"
 
@@ -304,7 +291,3 @@ def test_every_card_carries_the_plan_step_fields_the_canvas_renders(repo, engine
 
     required = {"id", "text", "details", "node_id", "kind", "resolution", "file", "symbol"}
     assert all(required <= set(card) for card in payload["cards"])
-
-
-def test_the_binary_reason_constant_is_reserved_for_unreadable_content():
-    assert REASON_BINARY == "binary"

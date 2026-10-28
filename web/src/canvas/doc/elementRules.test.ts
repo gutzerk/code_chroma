@@ -20,6 +20,7 @@ const ALL_KINDS: CanvasRenderKind[] = [
   "note",
   "sequence",
   "question",
+  "route",
 ];
 
 /** Image of how each kind must land in the registry — every `renderer` that used to be decided by
@@ -38,6 +39,7 @@ const EXPECTED: Record<CanvasRenderKind, { renderer: RendererKind; overlay?: "im
   note: { renderer: "note", activation: "inspector" },
   sequence: { renderer: "sequence", activation: "inspector" },
   question: { renderer: "question", activation: "inspector" },
+  route: { renderer: "none", activation: "inspector" },
 };
 
 describe("BLOCK_RULES", () => {

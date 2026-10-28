@@ -1,4 +1,5 @@
 using System.Text.Json.Nodes;
+using CodeChroma.Bridge.Skills;
 
 namespace CodeChroma.Bridge.Stores;
 
@@ -7,9 +8,25 @@ public static class ModelCatalog
 {
     private static readonly HttpClient Http = new() { Timeout = TimeSpan.FromSeconds(30) };
 
-    public static Task<JsonObject> Fetch(JsonObject provider) => Fetch(provider, Http);
+    /// <summary>The CLI's own pseudo-model; it is listed but never picked on the user's behalf.</summary>
+    private const string PseudoModel = "default";
 
-    public static async Task<JsonObject> Fetch(JsonObject provider, HttpClient http)
+    /// <summary>The live CLI model probe; the contract host swaps it so no real CLI is spawned.</summary>
+    public static Func<string, RuntimeEnvironment?, Task<JsonArray?>> CliProbe { get; set; } = CliModelProbe.Probe;
+
+    /// <summary>`current` if listed, else the second model (the first when `first`), never the CLI's pseudo-model; "" lets validation refuse.</summary>
+    public static string PickId(IReadOnlyList<string> ids, string? current, bool first)
+    {
+        if (current is not null && ids.Contains(current)) return current;
+        var real = ids.Where(id => id != PseudoModel).ToList();
+        if (real.Count == 0) real = [.. ids];
+        if (real.Count == 0) return "";
+        return first || real.Count == 1 ? real[0] : real[1];
+    }
+
+    public static Task<JsonObject> Fetch(JsonObject provider, RuntimeEnvironment? runtime = null) => Fetch(provider, Http, runtime);
+
+    public static async Task<JsonObject> Fetch(JsonObject provider, HttpClient http, RuntimeEnvironment? runtime = null)
     {
         var kind = Json.Str(provider["kind"]);
         var transport = Json.Str(provider["transport"]);
@@ -33,6 +50,8 @@ public static class ModelCatalog
         }
         if (kind == "cli" && Json.Str(provider["adapter"]) == "claude" && !string.IsNullOrEmpty(baseUrl))
             return await Anthropic(http, baseUrl, key);
+        if (kind == "cli" && await CliProbe(Json.Str(provider["adapter"]) ?? "", runtime) is { } live)
+            return new JsonObject { ["supported"] = true, ["models"] = live, ["error"] = null };
         if (kind == "cli" && StaticModels.ContainsKey($"adapter:{Json.Str(provider["adapter"])}"))
             return Static($"adapter:{Json.Str(provider["adapter"])}");
         return Unsupported();
@@ -45,8 +64,9 @@ public static class ModelCatalog
         ["transport:anthropic"] = AnthropicModels,
         ["transport:gemini"] = ["gemini-2.5-pro", "gemini-2.5-flash", "gemini-2.5-flash-lite"],
         ["transport:openai-compatible"] = ["gpt-5.2", "gpt-5.2-pro"],
-        ["adapter:claude"] = ["opus", "sonnet", "haiku", .. AnthropicModels],
+        ["adapter:claude"] = ["opus", "sonnet", "haiku", "fable", .. AnthropicModels],
         ["adapter:codex"] = ["gpt-5.2", "gpt-5.2-codex"],
+        ["adapter:gemini"] = ["gemini-2.5-pro", "gemini-2.5-flash", "gemini-2.5-flash-lite"],
         ["adapter:kimi-cli"] = ["kimi-k2-turbo-preview", "kimi-k2-thinking"],
     };
 
@@ -110,19 +130,21 @@ public static class ModelCatalog
 /// <summary>The provider "Test" button: a CLI is located and asked for models, an API provider answers one tiny completion.</summary>
 public static class ProviderTester
 {
-    public static Task<JsonObject> Run(string? providerId, JsonObject provider) => Run(providerId, provider, Skills.LlmCompletion.SharedHttp);
+    public static Task<JsonObject> Run(string? providerId, JsonObject provider, RuntimeEnvironment? runtime = null) =>
+        Run(providerId, provider, Skills.LlmCompletion.SharedHttp, runtime);
 
-    public static async Task<JsonObject> Run(string? providerId, JsonObject provider, HttpClient http)
+    public static async Task<JsonObject> Run(string? providerId, JsonObject provider, HttpClient http, RuntimeEnvironment? runtime = null)
     {
         if (Json.Str(provider["kind"]) == "cli")
         {
             var adapter = Json.Str(provider["adapter"]) ?? "";
-            if (CliLocator.Find(adapter) is null)
+            if (CliModelProbe.Locate(adapter, runtime) is null)
                 return Failure(providerId, $"{adapter} was not found on PATH");
-            var models = await ModelCatalog.Fetch(provider);
-            return models["error"] is { } error
-                ? Failure(providerId, error.ToString())
-                : new JsonObject { ["ok"] = true, ["provider_id"] = providerId, ["message"] = "ok" };
+            var models = await ModelCatalog.Fetch(provider, runtime);
+            if (models["error"] is { } error) return Failure(providerId, error.ToString());
+            var reply = new JsonObject { ["ok"] = true, ["provider_id"] = providerId, ["message"] = "ok" };
+            if (ModelsCount(models) is { } count) reply["models_count"] = count;
+            return reply;
         }
         var llm = Skills.LlmCompletion.For(provider, http);
         if (llm is null) return Failure(providerId, "provider is not fully configured");
@@ -131,13 +153,19 @@ public static class ProviderTester
         try
         {
             var text = await llm.Complete("Reply with the single word: ok", model, 1);
-            return new JsonObject { ["ok"] = true, ["provider_id"] = providerId, ["message"] = text.Length > 40 ? text[..40] : text };
+            var reply = new JsonObject { ["ok"] = true, ["provider_id"] = providerId, ["message"] = text.Length > 40 ? text[..40] : text };
+            var listing = await ModelCatalog.Fetch(provider, http);
+            if (listing["error"] is null && ModelsCount(listing) is { } count) reply["models_count"] = count;
+            return reply;
         }
         catch (Exception error)
         {
             return Failure(providerId, error.Message);
         }
     }
+
+    private static int? ModelsCount(JsonObject listing) =>
+        listing["static"] is null && listing["models"] is JsonArray { Count: > 0 } models ? models.Count : null;
 
     private static JsonObject Failure(string? providerId, string error) =>
         new() { ["ok"] = false, ["provider_id"] = providerId, ["error"] = error };

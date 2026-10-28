@@ -1,24 +1,19 @@
 """Unit coverage for migrate_if_legacy: converting a pre-036 saved diagram to the shared shape."""
 
+import pytest
+
 from codechroma.bridge.diagram_migration import migrate_if_legacy, needs_regeneration
 
 
-def test_new_shape_c1_file_is_a_no_op():
-    data = {"type": "c1", "nodes": [{"id": "a", "name": "A"}], "relations": []}
+@pytest.mark.parametrize("kind", ["c1", "patterns"])
+def test_new_shape_file_is_a_no_op(kind):
+    data = {"type": kind, "nodes": [{"id": "a", "name": "A"}], "relations": []}
 
-    migrated, changed = migrate_if_legacy("c1", data)
-
-    assert changed is False
-    assert migrated is data
-
-
-def test_new_shape_patterns_file_is_a_no_op():
-    data = {"type": "patterns", "nodes": [], "relations": []}
-
-    migrated, changed = migrate_if_legacy("patterns", data)
+    migrated, changed = migrate_if_legacy(kind, data)
 
     assert changed is False
     assert migrated is data
+    assert needs_regeneration(kind, data) is False
 
 
 def test_c1_nested_children_flatten_with_parent_set():
@@ -176,10 +171,6 @@ def test_a_malformed_system_value_does_not_crash_and_is_left_untouched():
 
     assert changed is False
     assert migrated is data
-
-
-def test_needs_regeneration_is_false_for_an_already_new_shape_file():
-    assert needs_regeneration("c1", {"nodes": [], "relations": []}) is False
 
 
 def test_needs_regeneration_is_false_for_a_convertible_legacy_file():

@@ -165,31 +165,23 @@ def test_gh_can_resolve_a_nested_path_inside_a_worktree(tmp_path, monkeypatch):
     assert github.repository_slug(nested) == ("acme", "app")
 
 
-def test_a_pull_request_of_this_repository_belongs_to_resolved_repository(repo, monkeypatch):
+@pytest.mark.parametrize(
+    ("url", "belongs"),
+    [
+        ("https://github.com/acme/app/pull/7", True),
+        ("https://github.com/ACME/App/pull/7", True),
+        ("https://github.com/other/thing/pull/7", False),
+    ],
+)
+def test_belongs_to_repository_compares_owner_and_name_ignoring_case(
+    repo, monkeypatch, url, belongs
+):
     monkeypatch.setattr(
         github, "run_gh", lambda *_args: json.dumps({"nameWithOwner": "acme/app"})
     )
-    reference = github.parse_pr_reference("https://github.com/acme/app/pull/7")
+    reference = github.parse_pr_reference(url)
 
-    assert github.belongs_to_repository(reference, repo)
-
-
-def test_the_owner_comparison_ignores_case(repo, monkeypatch):
-    monkeypatch.setattr(
-        github, "run_gh", lambda *_args: json.dumps({"nameWithOwner": "acme/app"})
-    )
-    reference = github.parse_pr_reference("https://github.com/ACME/App/pull/7")
-
-    assert github.belongs_to_repository(reference, repo)
-
-
-def test_another_repositorys_pull_request_does_not_belong_to_resolved_repo(repo, monkeypatch):
-    monkeypatch.setattr(
-        github, "run_gh", lambda *_args: json.dumps({"nameWithOwner": "acme/app"})
-    )
-    reference = github.parse_pr_reference("https://github.com/other/thing/pull/7")
-
-    assert not github.belongs_to_repository(reference, repo)
+    assert github.belongs_to_repository(reference, repo) is belongs
 
 
 def test_a_bare_number_always_belongs_to_the_opened_repository(repo):
@@ -216,20 +208,17 @@ def test_metadata_comes_back_parsed(repo, bin_dir):
     assert github.head_owner(metadata) == "octocat"
 
 
-def test_a_pull_request_gh_cannot_find_gives_no_metadata(repo, bin_dir):
-    _stub_gh(bin_dir, 'echo "no pull requests found" >&2; exit 1')
-
-    assert github.fetch_metadata(repo, 999) is None
-
-
-def test_unparseable_gh_output_gives_no_metadata(repo, bin_dir):
-    _stub_gh(bin_dir, 'echo "not json at all"')
-
-    assert github.fetch_metadata(repo, 7) is None
-
-
-def test_metadata_without_a_head_commit_is_not_usable(repo, bin_dir):
-    _stub_gh(bin_dir, 'echo \'{"number":7,"title":"Add refunds"}\'')
+@pytest.mark.parametrize(
+    "script",
+    [
+        'echo "no pull requests found" >&2; exit 1',
+        'echo "not json at all"',
+        "echo '{\"number\":7,\"title\":\"Add refunds\"}'",
+    ],
+    ids=["gh-fails", "unparseable", "no-head-commit"],
+)
+def test_unusable_gh_output_gives_no_metadata(repo, bin_dir, script):
+    _stub_gh(bin_dir, script)
 
     assert github.fetch_metadata(repo, 7) is None
 
@@ -277,14 +266,9 @@ def test_general_comments_come_back_normalized(repo, bin_dir):
     ]
 
 
-def test_general_comments_are_empty_when_gh_fails(repo, bin_dir):
-    _stub_gh(bin_dir, "exit 1")
-
-    assert github.fetch_general_comments(repo, 7) == []
-
-
-def test_general_comments_are_empty_on_unparseable_output(repo, bin_dir):
-    _stub_gh(bin_dir, 'echo "not json"')
+@pytest.mark.parametrize("script", ["exit 1", 'echo "not json"'], ids=["gh-fails", "unparseable"])
+def test_general_comments_are_empty_on_unusable_gh_output(repo, bin_dir, script):
+    _stub_gh(bin_dir, script)
 
     assert github.fetch_general_comments(repo, 7) == []
 

@@ -53,18 +53,26 @@ def test_create_provider_masks_key(client):
     assert "sk-secret" not in response.text
 
 
-def test_create_provider_validation_failure_is_400(client):
-    response = client.post("/llm/providers", json={"label": "", "kind": "cli"})
+_UNKNOWN_PROVIDER_CALLS = [
+    ("put", "/llm/providers/nope", {"label": "x", "kind": "cli", "adapter": "claude"}),
+    ("delete", "/llm/providers/nope", None),
+    ("post", "/llm/providers/nope/test", None),
+    ("get", "/llm/providers/nope/models", None),
+]
 
-    assert response.status_code == 400
 
-
-def test_update_unknown_provider_is_404(client):
-    response = client.put(
-        "/llm/providers/nope", json={"label": "x", "kind": "cli", "adapter": "claude"}
-    )
+@pytest.mark.parametrize(("method", "path", "body"), _UNKNOWN_PROVIDER_CALLS)
+def test_unknown_provider_is_404(client, method, path, body):
+    response = client.request(method, path, json=body)
 
     assert response.status_code == 404
+
+
+@pytest.mark.parametrize("path", ["/llm/providers", "/llm/providers/test"])
+def test_invalid_provider_payload_is_400(client, path):
+    response = client.post(path, json={"label": "", "kind": "cli"})
+
+    assert response.status_code == 400
 
 
 def test_update_provider_roundtrips(client):
@@ -77,10 +85,6 @@ def test_update_provider_roundtrips(client):
 
     assert response.status_code == 200
     assert response.json()["label"] == "renamed"
-
-
-def test_delete_unknown_provider_is_404(client):
-    assert client.delete("/llm/providers/nope").status_code == 404
 
 
 def test_delete_provider_succeeds(client):
@@ -115,10 +119,6 @@ def test_delete_blocked_provider_via_group_is_409(client):
     assert response.status_code == 409
     blocking = response.json()["detail"]["blocking_call_sites"]
     assert set(GROUPS["diagrams"].members).issubset(set(blocking))
-
-
-def test_test_unknown_provider_is_404(client):
-    assert client.post("/llm/providers/nope/test").status_code == 404
 
 
 _CLI_PAYLOAD = {"label": "Claude CLI", "kind": "cli", "adapter": "claude"}
@@ -239,10 +239,6 @@ def test_test_provider_forwards_verify_ssl_false_for_a_self_signed_endpoint(clie
     assert captured["verify"] is False
 
 
-def test_get_provider_models_unknown_provider_is_404(client):
-    assert client.get("/llm/providers/nope/models").status_code == 404
-
-
 def test_get_provider_models_delegates_to_model_catalog(client, monkeypatch):
     created = _make_api_provider(client)
     captured = {}
@@ -262,12 +258,6 @@ def test_get_provider_models_delegates_to_model_catalog(client, monkeypatch):
     assert response.json() == {
         "supported": True, "models": [{"id": "llama3", "label": None}], "error": None,
     }
-
-
-def test_test_provider_draft_validation_failure_is_400(client):
-    response = client.post("/llm/providers/test", json={"label": "", "kind": "cli"})
-
-    assert response.status_code == 400
 
 
 def test_test_provider_draft_does_not_persist_anything(client):

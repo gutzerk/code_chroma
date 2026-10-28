@@ -9,22 +9,35 @@ answer is asked directly; one that can't (no key/URL, or a CLI) gets `_STATIC_MO
 
 from __future__ import annotations
 
+import json
+import subprocess
+import threading
+import time
+
 import httpx
 
 from codechroma.config import settings
 from codechroma.context.llm_provider import GEMINI_DEFAULT_BASE_URL, resolve_provider_key
 from codechroma.llm.providers_store import Provider
+from codechroma.llm.runtime_env import CliLookupError, RuntimeCli, resolve_runtime_cli
 
 _ANTHROPIC_DEFAULT_BASE_URL = "https://api.anthropic.com"
+_CLI_PROBE_TIMEOUT_SECONDS = 20
+_CLI_PROBE_TTL_SECONDS = 120
+_PSEUDO_MODEL = "default"
+_CLAUDE_REQUEST_ID = "models"
 _UNSUPPORTED: dict = {"supported": False, "models": [], "error": None}
+_probe_cache: dict[tuple[str, str], tuple[float, list[dict]]] = {}
+_probe_lock = threading.Lock()
 
 _ANTHROPIC_MODELS = ["claude-fable-5-1", "claude-opus-5-5", "claude-sonnet-5-5", "claude-haiku-5-5"]
 _STATIC_MODELS: dict[str, list[str]] = {
     "transport:anthropic": _ANTHROPIC_MODELS,
     "transport:gemini": ["gemini-2.5-pro", "gemini-2.5-flash", "gemini-2.5-flash-lite"],
     "transport:openai-compatible": ["gpt-5.2", "gpt-5.2-pro"],
-    "adapter:claude": ["opus", "sonnet", "haiku", *_ANTHROPIC_MODELS],
+    "adapter:claude": ["opus", "sonnet", "haiku", "fable", *_ANTHROPIC_MODELS],
     "adapter:codex": ["gpt-5.2", "gpt-5.2-codex"],
+    "adapter:gemini": ["gemini-2.5-pro", "gemini-2.5-flash", "gemini-2.5-flash-lite"],
     "adapter:kimi-cli": ["kimi-k2-turbo-preview", "kimi-k2-thinking"],
 }
 
@@ -56,6 +69,8 @@ def fetch_models(provider: Provider) -> dict:
     if provider.kind == "cli" and provider.adapter == "claude" and provider.base_url:
         key = resolve_provider_key(provider)
         return _fetch_anthropic_shape(provider.base_url, key, verify=provider.verify_ssl)
+    if provider.kind == "cli" and (live := _probe_cli_models(provider.adapter)):
+        return {"supported": True, "models": live, "error": None}
     if provider.kind == "cli" and f"adapter:{provider.adapter}" in _STATIC_MODELS:
         return _static_models(f"adapter:{provider.adapter}")
     return dict(_UNSUPPORTED)
@@ -128,3 +143,135 @@ def _fetch_gemini_shape(base_url: str, key: str, *, verify: bool = True) -> dict
         and item["name"].startswith("models/")
     ]
     return {"supported": True, "models": models, "error": None}
+
+
+def _shape_models(items: object, id_key: str, label_key: str) -> list[dict] | None:
+    """`{id, label}` rows from a list of model objects, or None when no row has an id."""
+    models = []
+    for item in items if isinstance(items, list) else []:
+        if not isinstance(item, dict):
+            continue
+        model_id = next(
+            (item[k] for k in (id_key, "id", "model", "name") if isinstance(item.get(k), str)), None
+        )
+        if not model_id:
+            continue
+        label = next(
+            (
+                item[k]
+                for k in (label_key, "displayName", "display_name")
+                if isinstance(item.get(k), str)
+            ),
+            None,
+        )
+        models.append({"id": model_id, "label": label})
+    return models or None
+
+
+def parse_claude_models_response(line: str) -> list[dict] | None:
+    """The models of a claude `control_response` line (`response.response.models[]`), else None."""
+    try:
+        message = json.loads(line)
+        envelope = message["response"]
+        if message["type"] != "control_response" or envelope["request_id"] != _CLAUDE_REQUEST_ID:
+            return None
+        return _shape_models(envelope["response"]["models"], "value", "displayName")
+    except (ValueError, KeyError, TypeError):
+        return None
+
+
+def parse_model_list(text: str) -> list[dict] | None:
+    """The models of a model-listing JSON document: a bare array, or one under models/data."""
+    try:
+        root = json.loads(text)
+    except ValueError:
+        return None
+    if isinstance(root, dict):
+        root = root.get("models") or root.get("data")
+    return _shape_models(root, "slug", "display_name")
+
+
+def pick_model_id(ids: list[str], current: str | None, *, first: bool = False) -> str:
+    """`current` if listed, else the second model (first if `first`); never the CLI's "default"."""
+    if current and current in ids:
+        return current
+    real = [model_id for model_id in ids if model_id != _PSEUDO_MODEL] or ids
+    if not real:
+        return ""
+    return real[0] if first or len(real) == 1 else real[1]
+
+
+_LISTING_ARGS = {"codex": ["debug", "models"], "gemini": ["models", "list", "-o", "json"]}
+
+
+def _probe_cli_models(adapter: str | None) -> list[dict] | None:
+    """Ask an installed claude/codex/gemini CLI for its models (cached); None if it cannot."""
+    if adapter not in ("claude", "codex", "gemini"):
+        return None
+    try:
+        cli = resolve_runtime_cli(adapter)
+    except CliLookupError:
+        return None
+    key = (adapter, cli.executable)
+    with _probe_lock:
+        hit = _probe_cache.get(key)
+    if hit and time.monotonic() - hit[0] < _CLI_PROBE_TTL_SECONDS:
+        return [dict(model) for model in hit[1]]
+    models = _run_cli_probe(adapter, cli)
+    if models is None:
+        return None
+    with _probe_lock:
+        _probe_cache[key] = (time.monotonic(), models)
+    return [dict(model) for model in models]
+
+
+def _run_cli_probe(adapter: str, cli: RuntimeCli) -> list[dict] | None:
+    try:
+        if adapter in ("codex", "gemini"):
+            args = _LISTING_ARGS[adapter]
+            result = subprocess.run(
+                [cli.executable, *args],
+                env=dict(cli.env),
+                stdin=subprocess.DEVNULL,
+                capture_output=True,
+                text=True,
+                encoding="utf-8",
+                timeout=_CLI_PROBE_TIMEOUT_SECONDS,
+                creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
+            )
+            return parse_model_list(result.stdout) if result.returncode == 0 else None
+        return _probe_claude(cli)
+    except (OSError, subprocess.SubprocessError):
+        return None
+
+
+def _probe_claude(cli: RuntimeCli) -> list[dict] | None:
+    """Send claude a stream-json `initialize` control request and read the models it reports."""
+    request = {
+        "type": "control_request",
+        "request_id": _CLAUDE_REQUEST_ID,
+        "request": {"subtype": "initialize"},
+    }
+    args = [cli.executable, "-p", "--input-format", "stream-json", "--output-format", "stream-json"]
+    with subprocess.Popen(
+        [*args, "--verbose"],
+        env=dict(cli.env),
+        stdin=subprocess.PIPE,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.DEVNULL,
+        text=True,
+        encoding="utf-8",
+        creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
+    ) as process:
+        timer = threading.Timer(_CLI_PROBE_TIMEOUT_SECONDS, process.kill)
+        timer.start()
+        try:
+            process.stdin.write(json.dumps(request) + "\n")
+            process.stdin.flush()
+            for line in process.stdout:
+                if (models := parse_claude_models_response(line)) is not None:
+                    return models
+            return None
+        finally:
+            timer.cancel()
+            process.kill()

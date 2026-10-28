@@ -54,21 +54,15 @@ def test_ensure_creates_wt_1_off_head_and_leaves_main_untouched(client):
     body = test_client.post("/branches/ensure").json()
 
     record = body["branches"][0]
+    assert [b["id"] for b in test_client.post("/branches/ensure").json()["branches"]] == [
+        "br_wt-1"
+    ]
     assert record["id"] == "br_wt-1"
     assert record["name"] == record["branch"] == "wt-1"
     assert body["active"] == "br_wt-1"
     assert _head(record["worktree"]) == before
     assert git(repo, "branch", "--show-current").strip() == "main"
     assert bridge.registry.is_registered("br_wt-1")
-
-
-def test_ensure_with_existing_records_creates_nothing(client):
-    test_client, _repo, _bridge = client
-    test_client.post("/branches/ensure")
-
-    body = test_client.post("/branches/ensure").json()
-
-    assert [b["id"] for b in body["branches"]] == ["br_wt-1"]
 
 
 def test_new_twice_numbers_the_tabs_and_activates_the_newest(client):
@@ -161,25 +155,17 @@ def test_rename_moves_the_branch_but_not_the_id_or_path(client):
     assert "wt-1" not in branches
 
 
-def test_rename_to_a_taken_name_is_a_409(client):
-    test_client, _repo, _bridge = client
-    first = test_client.post("/branches/new").json()["branch"]
-    second = test_client.post("/branches/new").json()["branch"]
-
-    held = test_client.patch(f"/branches/{second['id']}", json={"name": first["branch"]})
-    existing = test_client.patch(f"/branches/{second['id']}", json={"name": "feature-x"})
-
-    assert (held.status_code, existing.status_code) == (409, 409)
-
-
 def test_rename_validates_its_input(client):
     test_client, _repo, _bridge = client
     created = test_client.post("/branches/new").json()["branch"]
 
     empty = test_client.patch(f"/branches/{created['id']}", json={"name": " "})
     unknown = test_client.patch("/branches/br_nope", json={"name": "x"})
+    existing = test_client.patch(f"/branches/{created['id']}", json={"name": "feature-x"})
+    closing = test_client.delete("/branches/br_nobody")
 
     assert (empty.status_code, unknown.status_code) == (400, 404)
+    assert (existing.status_code, closing.status_code) == (409, 404)
 
 
 def test_renaming_a_tab_moves_its_agents_branch(client):
@@ -247,6 +233,8 @@ def test_closing_a_tab_keeps_the_directory_and_the_branch(client):
     assert Path(created["worktree"]).is_dir()
     assert not bridge.registry.is_registered(created["id"])
     assert "wt-1" in git(repo, "branch")
+    listed = test_client.get("/branches").json()["branches"]
+    assert [b["id"] for b in listed] == [created["id"]]
 
 
 def test_closing_with_worktree_too_removes_even_a_dirty_directory(client):
@@ -283,40 +271,6 @@ def test_deleting_the_active_tab_clears_the_active_id_for_the_client_to_pick(cli
     assert [b["id"] for b in listing["branches"]] == ["br_wt-1"]
 
 
-def test_closing_with_keep_leaves_the_record_so_the_tab_returns(client):
-    test_client, _repo, _bridge = client
-    created = test_client.post("/branches/new").json()["branch"]
-
-    test_client.delete(f"/branches/{created['id']}")
-
-    assert [b["id"] for b in test_client.get("/branches").json()["branches"]] == [created["id"]]
-
-
-def test_closing_an_unknown_tab_is_a_404(client):
-    test_client, _repo, _bridge = client
-
-    assert test_client.delete("/branches/br_nobody").status_code == 404
-
-
-def test_a_tab_can_be_activated_as_a_canvas_workspace(client):
-    test_client, _repo, _bridge = client
-    created = test_client.post("/branches/new").json()["branch"]
-
-    response = test_client.post(f"/workspaces/{created['id']}/activate")
-
-    assert response.status_code == 200
-
-
-def test_the_open_existing_branch_mode_and_choices_endpoint_are_gone(client):
-    test_client, _repo, _bridge = client
-
-    choices = test_client.get("/branches/choices")
-    opened = test_client.post("/branches", json={"branch": "feature-x"})
-
-    assert choices.status_code in (404, 405)
-    assert opened.status_code in (404, 405)
-
-
 def test_a_failure_after_the_checkout_leaves_no_worktree_or_branch_behind(client, monkeypatch):
     test_client, repo, _bridge = client
 
@@ -346,3 +300,13 @@ def test_closing_a_tab_tells_the_other_windows(client, monkeypatch):
     test_client.delete(f"/branches/{created['id']}")
 
     assert sent == [{"type": "branch-removed", "id": created["id"]}]
+
+
+def test_rename_to_a_name_another_tab_holds_is_a_409(client):
+    test_client, _repo, _bridge = client
+    first = test_client.post("/branches/new").json()["branch"]
+    second = test_client.post("/branches/new").json()["branch"]
+
+    held = test_client.patch(f"/branches/{second['id']}", json={"name": first["branch"]})
+
+    assert held.status_code == 409

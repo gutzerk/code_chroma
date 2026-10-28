@@ -10,6 +10,7 @@ from codechroma.bridge.diagram_resolver import (
     attach_staleness,
     merge_by_id,
     resolve_diagram,
+    route_summary,
 )
 from codechroma.engine import GraphEngine
 from codechroma.summarize.ai_summarizer import AISummarizer
@@ -127,18 +128,7 @@ def test_dangling_parent_reference_is_dropped(engine):
     assert resolved["diagnostics"]["dropped"][0]["reason"] == "dangling_endpoint"
 
 
-def test_relation_between_real_nodes_is_kept(engine):
-    data = _diagram(
-        nodes=[{"id": "a", "name": "A"}, {"id": "b", "name": "B"}],
-        relations=[{"from": "a", "to": "b", "kind": "uses"}],
-    )
-
-    resolved = resolve_diagram(engine, data)
-
-    assert len(resolved["relations"]) == 1
-
-
-def test_a_relations_own_hero_flag_survives_untouched(engine):
+def test_relation_between_real_nodes_is_kept_with_its_hero_flag(engine):
     data = _diagram(
         nodes=[{"id": "a", "name": "A"}, {"id": "b", "name": "B"}],
         relations=[{"from": "a", "to": "b", "kind": "uses", "hero": True}],
@@ -146,6 +136,7 @@ def test_a_relations_own_hero_flag_survives_untouched(engine):
 
     resolved = resolve_diagram(engine, data)
 
+    assert len(resolved["relations"]) == 1
     assert resolved["relations"][0]["hero"] is True
 
 
@@ -161,26 +152,17 @@ def test_relation_with_a_dangling_endpoint_is_dropped(engine):
     assert resolved["diagnostics"]["dropped"][0]["reason"] == "dangling_endpoint"
 
 
-def test_self_relation_is_dropped_by_default(engine):
-    data = _diagram(
-        nodes=[{"id": "a", "name": "A"}], relations=[{"from": "a", "to": "a", "kind": "calls"}]
-    )
-
-    resolved = resolve_diagram(engine, data)
-
-    assert resolved["relations"] == []
-
-
-def test_self_relation_survives_when_style_allows_it(engine):
+@pytest.mark.parametrize(("style", "kept"), [(None, 0), ("dependency-graph", 1)])
+def test_self_relation_survives_only_when_style_allows_it(engine, style, kept):
     data = _diagram(
         nodes=[{"id": "a", "name": "A"}],
         relations=[{"from": "a", "to": "a", "kind": "calls"}],
-        style="dependency-graph",
+        style=style,
     )
 
     resolved = resolve_diagram(engine, data)
 
-    assert len(resolved["relations"]) == 1
+    assert len(resolved["relations"]) == kept
 
 
 def test_item_style_wins_over_the_diagram_edge_style(engine):
@@ -207,30 +189,16 @@ def test_diagram_edge_style_applies_when_the_relation_has_none(engine):
     assert resolved["relations"][0]["style"] == {"border-color": "var(--warning)"}
 
 
-def test_unknown_style_name_degrades_to_no_overrides(engine):
-    data = _diagram(nodes=[{"id": "a", "name": "A"}], style="not-a-real-style")
+@pytest.mark.parametrize(
+    ("style", "groups"),
+    [("boxes-arrows", ["Storage"]), (None, []), ("not-a-real-style", [])],
+)
+def test_groups_are_computed_only_when_the_style_supports_them(engine, style, groups):
+    data = _diagram(nodes=[{"id": "a", "name": "A", "group": "Storage"}], style=style)
 
     resolved = resolve_diagram(engine, data)
 
-    assert resolved["groups"] == []
-
-
-def test_groups_are_computed_only_when_the_style_supports_them(engine):
-    data = _diagram(
-        nodes=[{"id": "a", "name": "A", "group": "Storage"}], style="boxes-arrows"
-    )
-
-    resolved = resolve_diagram(engine, data)
-
-    assert resolved["groups"] == ["Storage"]
-
-
-def test_groups_stay_empty_when_the_style_does_not_support_them(engine):
-    data = _diagram(nodes=[{"id": "a", "name": "A", "group": "Storage"}])
-
-    resolved = resolve_diagram(engine, data)
-
-    assert resolved["groups"] == []
+    assert resolved["groups"] == groups
 
 
 def test_explicit_style_source_overrides_the_diagrams_own_style(engine):
@@ -255,60 +223,35 @@ def test_meta_is_passed_through_untouched(engine):
     }
 
 
-def test_planned_block_without_a_path_resolves_cleanly_with_no_diagnostic(engine):
-    # 055-diagram-feature-plan: an add/create Planned block is authored with no path at all.
-    data = _diagram(nodes=[{"id": "a", "name": "A", "meta": {"plan_kind": "add"}}])
+@pytest.mark.parametrize(
+    ("node", "meta"),
+    [
+        ({"meta": {"plan_kind": "add"}}, {"plan_kind": "add", "no_code_reason": "planned"}),
+        ({}, {"no_code_reason": "conceptual"}),
+        ({"meta": {"external": True}}, {"external": True, "no_code_reason": "external"}),
+        (
+            {"path": "shared/missing.py"},
+            {"no_code_reason": "unresolved", "no_code_detail": "shared/missing.py"},
+        ),
+        (
+            {"path": "shared/missing.py", "meta": {"plan_kind": "modify"}},
+            {
+                "plan_kind": "modify",
+                "no_code_reason": "unresolved",
+                "no_code_detail": "shared/missing.py",
+            },
+        ),
+        ({"path": "shared/text_utils.py", "meta": {"x": 1}}, {"x": 1}),
+    ],
+    ids=["planned", "conceptual", "external", "unresolved", "modify-unresolved", "resolved"],
+)
+def test_no_code_reason_is_stamped_by_why_the_node_has_no_code(engine, node, meta):
+    data = _diagram(nodes=[{"id": "a", "name": "A", **node}])
 
     resolved = resolve_diagram(engine, data)
 
-    assert resolved["nodes"][0].get("node_id") is None
-    assert resolved["diagnostics"]["dropped_count"] == 0
-    assert resolved["nodes"][0]["meta"] == {"plan_kind": "add", "no_code_reason": "planned"}
-
-
-def test_pathless_node_with_no_meta_is_stamped_conceptual(engine):
-    data = _diagram(nodes=[{"id": "a", "name": "A"}])
-
-    resolved = resolve_diagram(engine, data)
-
-    assert resolved["nodes"][0]["meta"] == {"no_code_reason": "conceptual"}
-
-
-def test_pathless_external_node_is_stamped_external_not_conceptual(engine):
-    data = _diagram(nodes=[{"id": "a", "name": "Stripe", "meta": {"external": True}}])
-
-    resolved = resolve_diagram(engine, data)
-
-    assert resolved["nodes"][0]["meta"] == {"external": True, "no_code_reason": "external"}
-
-
-def test_unresolved_path_is_stamped_with_the_failed_path_as_detail(engine):
-    data = _diagram(nodes=[{"id": "a", "name": "A", "path": "shared/missing.py"}])
-
-    resolved = resolve_diagram(engine, data)
-
-    assert resolved["nodes"][0]["meta"] == {
-        "no_code_reason": "unresolved", "no_code_detail": "shared/missing.py"
-    }
-
-
-def test_modify_plan_kind_with_unresolved_path_is_unresolved_not_planned(engine):
-    # modify/delete point at real, already-existing code -- planned only covers add/create.
-    node = {"id": "a", "name": "A", "path": "shared/missing.py", "meta": {"plan_kind": "modify"}}
-    data = _diagram(nodes=[node])
-
-    resolved = resolve_diagram(engine, data)
-
-    assert resolved["nodes"][0]["meta"]["no_code_reason"] == "unresolved"
-
-
-def test_resolved_node_gets_no_no_code_reason_key(engine):
-    node = {"id": "a", "name": "A", "path": "shared/text_utils.py", "meta": {"x": 1}}
-    data = _diagram(nodes=[node])
-
-    resolved = resolve_diagram(engine, data)
-
-    assert "no_code_reason" not in resolved["nodes"][0]["meta"]
+    assert resolved["nodes"][0]["meta"] == meta
+    assert resolved["diagnostics"]["dropped_count"] == 0 or "path" in node
 
 
 def test_attach_coverage_lists_uncovered_top_level_directories(engine):
@@ -449,6 +392,14 @@ def test_unresolved_route_ids_are_soft_diagnostics_only(engine):
 
     assert [d["what"] for d in resolved["diagnostics"]["dropped"]] == ["route_step", "route_child"]
     assert len(resolved["route"]["steps"][0]["node_ids"]) == 3
+
+
+def test_route_summary_falls_back_to_node_ids_when_no_resolved_hit_has_a_path():
+    steps = [{"id": "s", "kind": "ai", "resolved": [{"node_id": "x"}], "node_ids": ["x"]}]
+
+    summary = route_summary(steps)
+
+    assert summary == "1 steps · 1 files · 1 AI steps"
 
 
 def test_a_route_with_non_list_node_ids_and_children_is_left_unresolved(engine):

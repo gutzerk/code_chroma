@@ -39,31 +39,20 @@ def _legacy_worktree(repo: Path, tmp_path: Path, name: str, branch: str) -> Path
     return path
 
 
-def test_migrate_moves_a_legacy_worktree_into_the_repository(repo, tmp_path):
-    old = _legacy_worktree(repo, tmp_path, "refund-flow", "agent/refund-flow")
+def test_migrate_moves_a_recordless_worktree_keeping_branch_work_and_tidying_the_legacy_dir(
+    repo, tmp_path
+):
+    old = _legacy_worktree(repo, tmp_path, "orphan", "agent/orphan")
+    (old / "app.py").write_text("value = 42\n", encoding="utf-8")
+    target = repo / ".codechroma" / "worktrees" / "orphan"
 
     moved = AgentManager(repo).migrate_worktrees()
 
-    assert moved == [(old, repo / ".codechroma" / "worktrees" / "refund-flow")]
-    assert (repo / ".codechroma" / "worktrees" / "refund-flow" / "app.py").exists()
-
-
-def test_migrate_keeps_the_branch_the_worktree_was_on(repo, tmp_path):
-    _legacy_worktree(repo, tmp_path, "refund-flow", "agent/refund-flow")
-
-    AgentManager(repo).migrate_worktrees()
-
-    entries = worktree.list_worktrees(repo)
-    matching = [entry for entry in entries if entry["branch"] == "agent/refund-flow"]
-    assert Path(matching[0]["path"]) == repo / ".codechroma" / "worktrees" / "refund-flow"
-
-
-def test_migrate_moves_a_worktree_with_no_registry_record(repo, tmp_path):
-    _legacy_worktree(repo, tmp_path, "orphan", "agent/orphan")
-
-    moved = AgentManager(repo).migrate_worktrees()
-
-    assert [target.name for _source, target in moved] == ["orphan"]
+    branches = {e["branch"]: Path(e["path"]) for e in worktree.list_worktrees(repo)}
+    assert moved == [(old, target)]
+    assert branches["agent/orphan"] == target
+    assert (target / "app.py").read_text(encoding="utf-8") == "value = 42\n"
+    assert not (tmp_path / "legacy" / "repo").exists()
 
 
 def test_migrate_repoints_the_record_and_persists_it(repo, tmp_path):
@@ -79,17 +68,6 @@ def test_migrate_repoints_the_record_and_persists_it(repo, tmp_path):
     )
     expected_worktree = repo / ".codechroma" / "worktrees" / "refund-flow"
     assert stored["agents"][0]["worktree"] == str(expected_worktree)
-
-
-def test_migrate_carries_uncommitted_agent_work_across(repo, tmp_path):
-    old = _legacy_worktree(repo, tmp_path, "wip", "agent/wip")
-    (old / "app.py").write_text("value = 42\n", encoding="utf-8")
-
-    AgentManager(repo).migrate_worktrees()
-
-    assert (repo / ".codechroma" / "worktrees" / "wip" / "app.py").read_text(
-        encoding="utf-8"
-    ) == "value = 42\n"
 
 
 def test_migrate_leaves_a_worktree_already_in_the_repository_alone(repo):
@@ -120,14 +98,6 @@ def test_migrate_skips_a_name_that_already_exists_at_the_target(repo, tmp_path):
 
     assert moved == []
     assert old.is_dir()
-
-
-def test_migrate_removes_the_emptied_legacy_directory(repo, tmp_path):
-    _legacy_worktree(repo, tmp_path, "last-one", "agent/last-one")
-
-    AgentManager(repo).migrate_worktrees()
-
-    assert not (tmp_path / "legacy" / "repo").exists()
 
 
 def test_reconcile_migrates_and_does_not_report_the_worktree_as_lost(repo, tmp_path):
@@ -386,29 +356,15 @@ def test_a_new_agent_records_the_branch_main_was_on(repo):
     assert created.base_branch == "dataflow"
 
 
-def test_the_base_branch_is_not_the_agents_own_working_branch(repo):
+def test_a_new_agent_has_main_as_base_branch_and_no_source_pr_and_it_survives_reload(repo):
     manager = AgentManager(repo)
 
     created = manager.create("refund flow")
 
-    assert (created.branch, created.base_branch) == ("agent/refund-flow", "main")
-
-
-def test_a_freshly_created_agent_has_no_source_pr(repo):
-    manager = AgentManager(repo)
-
-    created = manager.create("refund flow")
-
-    assert created.source_pr is None
-
-
-def test_the_base_branch_survives_a_reload_from_disk(repo):
-    manager = AgentManager(repo)
-    created = manager.create("refund flow")
-
-    reloaded = AgentManager(repo)
-
-    assert reloaded.get(created.id).base_branch == "main"
+    assert (created.branch, created.base_branch, created.source_pr) == (
+        "agent/refund-flow", "main", None
+    )
+    assert AgentManager(repo).get(created.id).base_branch == "main"
 
 
 def test_context_is_persisted_and_cleared_on_consume(repo):
@@ -426,15 +382,6 @@ def test_context_is_persisted_and_cleared_on_consume(repo):
     fresh = AgentManager(repo)
     assert fresh.get(record.id).context is None
     assert fresh.consume_context(record.id) is None
-
-
-def test_an_agent_created_without_context_has_none(repo):
-    manager = AgentManager(repo)
-
-    created = manager.create("refund flow")
-
-    assert created.context is None
-    assert manager.consume_context(created.id) is None
 
 
 def test_a_task_context_is_persisted_with_its_kind_and_consumed_together(repo):
@@ -460,9 +407,12 @@ def test_control_characters_are_stripped_out_of_a_context(repo):
 def test_a_context_of_nothing_but_control_characters_becomes_none(repo):
     manager = AgentManager(repo)
 
-    created = manager.create("draw", context="\r\n\t")
+    blank = manager.create("draw", context="\r\n\t")
+    none = manager.create("plain")
 
-    assert created.context is None
+    assert blank.context is None
+    assert none.context is None
+    assert manager.consume_context(none.id) is None
 
 
 def test_an_unknown_context_kind_falls_back_to_view(repo):
@@ -532,22 +482,17 @@ def test_attach_to_a_pr_shares_its_own_worktree_and_branch(repo):
     assert created.branch == "feature"
 
 
-def test_a_pr_attached_agents_base_branch_is_the_prs_base_ref(repo):
+def test_a_pr_attached_agent_inherits_the_prs_base_ref_and_source_pr_and_survives_reload(repo):
     manager = AgentManager(repo)
     manager.pr_lookup = lambda pr_id: pr_record(282, base_ref="release-1.0")
 
     created = manager.create("fix", attach_to="pr-282")
 
-    assert created.base_branch == "release-1.0"
-
-
-def test_a_pr_attached_agents_source_pr_is_the_attach_to_id(repo):
-    manager = AgentManager(repo)
-    manager.pr_lookup = lambda pr_id: pr_record(282)
-
-    created = manager.create("fix", attach_to="pr-282")
-
-    assert created.source_pr == "pr-282"
+    reloaded = AgentManager(repo).get(created.id)
+    assert (created.base_branch, created.source_pr) == ("release-1.0", "pr-282")
+    assert (reloaded.shares_workspace_with, reloaded.base_branch, reloaded.source_pr) == (
+        "pr-282", "release-1.0", "pr-282"
+    )
 
 
 def test_attach_to_a_pr_with_no_worktree_is_refused(repo):
@@ -564,18 +509,6 @@ def test_attach_to_an_unknown_pr_id_is_refused(repo):
 
     with pytest.raises(UnknownAgentError):
         manager.create("fix", attach_to="pr-999")
-
-
-def test_a_pr_attached_agent_survives_a_reload_from_disk(repo):
-    manager = AgentManager(repo)
-    manager.pr_lookup = lambda pr_id: pr_record(282, base_ref="release-1.0")
-    created = manager.create("fix", attach_to="pr-282")
-
-    reloaded = AgentManager(repo)
-
-    assert reloaded.get(created.id).shares_workspace_with == "pr-282"
-    assert reloaded.get(created.id).base_branch == "release-1.0"
-    assert reloaded.get(created.id).source_pr == "pr-282"
 
 
 def test_deleting_a_pr_attached_agents_worktree_is_refused(repo):

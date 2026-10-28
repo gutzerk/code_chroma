@@ -1,6 +1,12 @@
 import { bridgeRequest, jsonInit } from "../util/httpJson";
 
 export type ProviderKind = "cli" | "api";
+
+/** What a connection can drive -- derived server-side (`providers_store.capabilities`), never stored. */
+export interface Capabilities {
+  agents: boolean;
+  quick: boolean;
+}
 export type Transport = "anthropic" | "gemini" | "openai-compatible";
 
 /** A masked provider payload -- the raw key never leaves the bridge (see providers_store.py). */
@@ -18,6 +24,9 @@ export interface Provider {
   test_model: string | null;
   /** openai-compatible only: skips TLS cert verification for a self-signed/private-CA endpoint. */
   verify_ssl: boolean;
+  capabilities?: Capabilities;
+  /** How many of the five features currently resolve to this connection. */
+  used_by?: number;
 }
 
 export type ProviderDraft = Omit<Provider, "id"> & { api_key?: string | null };
@@ -26,6 +35,7 @@ export interface ProviderTestResult {
   ok: boolean;
   provider_id: string;
   message?: string;
+  models_count?: number;
   error?: string;
 }
 
@@ -146,4 +156,83 @@ export interface ProviderModelsResult {
 
 export function fetchProviderModels(id: string): Promise<ProviderModelsResult> {
   return bridgeRequest<ProviderModelsResult>(`/llm/providers/${id}/models`);
+}
+
+/** A default's fallback: another connection + model, or (quick tasks only) no AI at all. */
+export type DefaultFallback = { provider_id: string; model: string } | { offline: true };
+
+export interface DefaultAssignment {
+  provider_id: string;
+  model: string;
+  quick_fallback: DefaultFallback | null;
+  agent_fallback: DefaultFallback | null;
+}
+
+export type DefaultDraft = Pick<DefaultAssignment, "provider_id" | "model"> &
+  Partial<Pick<DefaultAssignment, "quick_fallback" | "agent_fallback">>;
+
+export function getDefault(): Promise<{ default: DefaultAssignment | null }> {
+  return bridgeRequest<{ default: DefaultAssignment | null }>("/llm/default");
+}
+
+export function putDefault(draft: DefaultDraft): Promise<{ default: DefaultAssignment | null }> {
+  return bridgeRequest<{ default: DefaultAssignment | null }>("/llm/default", jsonInit("PUT", draft));
+}
+
+export type FeatureSource = "default" | "custom" | "fallback" | "offline" | "legacy";
+
+/** One of the five user-facing rows, with the server-resolved connection and model it uses now. */
+export interface Feature {
+  id: string;
+  label: string;
+  description: string;
+  needs: "agents" | "quick";
+  effective: { provider_id: string | null; provider_name: string | null; model: string | null };
+  source: FeatureSource;
+  compatible_provider_ids: string[];
+}
+
+export function listFeatures(): Promise<{ features: Feature[] }> {
+  return bridgeRequest<{ features: Feature[] }>("/llm/features");
+}
+
+/** Overrides one feature (blank model: the bridge picks); `offline` is for quick tasks only. */
+export function putFeature(
+  id: string,
+  assignment: { provider_id: string; model: string } | { offline: true }
+): Promise<Feature> {
+  return bridgeRequest<Feature>(`/llm/features/${id}`, jsonInit("PUT", assignment));
+}
+
+/** Drops a feature's override so it follows the default again. */
+export function deleteFeature(id: string): Promise<Feature> {
+  return bridgeRequest<Feature>(`/llm/features/${id}`, jsonInit("DELETE"));
+}
+
+/** What an unsaved Add/Edit form could be used for -- the bridge owns the capability rule. */
+export function fetchDraftCapabilities(
+  draft: Record<string, unknown>
+): Promise<{ capabilities: Capabilities }> {
+  return bridgeRequest<{ capabilities: Capabilities }>(
+    "/llm/providers/capabilities",
+    jsonInit("POST", draft)
+  );
+}
+
+export interface CliStatus {
+  executable: string | null;
+  version: string | null;
+  failure_reason: string | null;
+  /** From `GET /llm/cli/{adapter}/auth`; null when the CLI can't tell. */
+  signed_in: boolean | null;
+}
+
+/** Where a CLI adapter resolves on PATH and whether it reports a signed-in account. */
+export async function fetchCliStatus(adapter: string): Promise<CliStatus | null> {
+  const name = encodeURIComponent(adapter);
+  const [runtime, auth] = await Promise.all([
+    bridgeRequest<{ resolution: Omit<CliStatus, "signed_in"> | null }>(`/runtime/cli/${name}`),
+    bridgeRequest<{ signed_in: boolean | null }>(`/llm/cli/${name}/auth`).catch(() => ({ signed_in: null })),
+  ]);
+  return runtime.resolution && { ...runtime.resolution, signed_in: auth.signed_in };
 }

@@ -19,50 +19,27 @@ def server_module(tmp_path, monkeypatch, make_bridge):
     return bridge, repo
 
 
-def test_c1_context_has_neither_coverage_nor_generation_data(server_module):
-    """042: flat c1 has no coverage data (see test_diagrams_registry.py)."""
+@pytest.mark.parametrize(
+    ("kind", "has_staleness", "generation_key"),
+    [
+        ("c1", False, None),
+        ("patterns", True, "classes"),
+        ("impact", False, "nodes"),
+        ("sequence", False, "traces"),
+    ],
+)
+def test_the_context_envelope_per_kind(server_module, kind, has_staleness, generation_key):
     bridge, _repo = server_module
 
     with TestClient(bridge.app) as client:
-        payload = client.get("/repos/default/c1/context").json()
+        payload = client.get(f"/repos/default/{kind}/context").json()
 
     assert payload["coverage"] is None
-    assert payload["staleness"] is None
-    assert payload["generation_data"] is None
-
-
-def test_patterns_context_has_staleness_and_generation_data_but_no_coverage(server_module):
-    bridge, _repo = server_module
-
-    with TestClient(bridge.app) as client:
-        payload = client.get("/repos/default/patterns/context").json()
-
-    assert payload["coverage"] is None
-    assert payload["staleness"] is not None
-    assert "classes" in payload["generation_data"]
-
-
-def test_impact_context_has_generation_data_but_no_coverage_or_staleness(server_module):
-    bridge, _repo = server_module
-
-    with TestClient(bridge.app) as client:
-        payload = client.get("/repos/default/impact/context").json()
-
-    assert payload["coverage"] is None
-    assert payload["staleness"] is None
-    assert "nodes" in payload["generation_data"]
-
-
-def test_sequence_context_has_a_generation_data_scaffold_with_no_trace(server_module):
-    """With no recorded trace, the sequence envelope still carries the (empty) traces list."""
-    bridge, _repo = server_module
-
-    with TestClient(bridge.app) as client:
-        payload = client.get("/repos/default/sequence/context").json()
-
-    assert payload["coverage"] is None
-    assert payload["staleness"] is None
-    assert payload["generation_data"]["traces"] == []
+    assert (payload["staleness"] is not None) == has_staleness
+    if generation_key is None:
+        assert payload["generation_data"] is None
+    else:
+        assert generation_key in payload["generation_data"]
 
 
 def test_unknown_kind_context_is_a_404(server_module):

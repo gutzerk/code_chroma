@@ -45,92 +45,36 @@ def test_the_argument_shown_is_the_first_recognized_input_key(tool_input, expect
     assert render_event(event, REPO) == [expected]
 
 
-def test_a_path_outside_the_repo_is_left_absolute():
-    event = _assistant(_tool_use("Write", file_path="/elsewhere/notes.md"))
-
-    assert render_event(event, REPO) == ["⏺ Write(/elsewhere/notes.md)"]
-
-
-def test_a_multiline_argument_collapses_to_one_bounded_line():
-    event = _assistant(_tool_use("Bash", command="python check.py \\\n  --strict\n"))
-
-    assert render_event(event, REPO) == ["⏺ Bash(python check.py \\ --strict)"]
-
-
-def test_an_overlong_argument_is_truncated_with_an_ellipsis():
-    event = _assistant(_tool_use("Bash", command="x" * 500))
-
-    assert render_event(event, REPO) == [f"⏺ Bash({'x' * 99}…)"]
-
-
-def test_assistant_prose_keeps_its_line_breaks_but_drops_blank_runs():
-    event = _assistant({"type": "text", "text": "Mapping the boundary.\n\n\nThen the pillars.\n"})
-
-    assert render_event(event, REPO) == ["Mapping the boundary.", "Then the pillars."]
-
-
-def test_a_thinking_block_renders_collapsed_to_one_line():
-    event = _assistant({"type": "thinking", "thinking": "let me consider the layering"})
-
-    assert render_event(event, REPO) == ["let me consider the layering"]
+_RENDER_CASES = [
+    (_assistant(_tool_use("Write", file_path="/elsewhere/notes.md")),
+     ["⏺ Write(/elsewhere/notes.md)"]),
+    (_assistant(_tool_use("Bash", command="python check.py \\\n  --strict\n")),
+     ["⏺ Bash(python check.py \\ --strict)"]),
+    (_assistant(_tool_use("Bash", command="x" * 500)), [f"⏺ Bash({'x' * 99}…)"]),
+    (_assistant({"type": "text", "text": "Mapping the boundary.\n\n\nThen the pillars.\n"}),
+     ["Mapping the boundary.", "Then the pillars."]),
+    (_assistant({"type": "thinking", "thinking": "let me consider the layering"}),
+     ["let me consider the layering"]),
+    (_assistant({"type": "thinking", "thinking": "x" * 500}), [f"{'x' * 199}…"]),
+    (_assistant({"type": "thinking", "thinking": "   "}), []),
+    (_user({"type": "tool_result", "tool_use_id": "x", "content": "1\thello"}), []),
+    (_user({"type": "tool_result", "is_error": True, "content": "Traceback...\nboom"}),
+     ["  ↳ error: Traceback... boom"]),
+    (_user({"type": "tool_result", "is_error": True,
+            "content": [{"type": "text", "text": "no such file"}]}),
+     ["  ↳ error: no such file"]),
+    ({"type": "result", "is_error": False, "duration_api_ms": 5279}, ["✓ done in 5s"]),
+    ({"type": "result", "is_error": False}, ["✓ done"]),
+    ({"type": "result", "is_error": True, "subtype": "error_max_turns"}, ["✗ error_max_turns"]),
+    ({"type": "result", "is_error": True, "subtype": "success",
+      "result": "API Error: SSL certificate verification failed"},
+     ["✗ API Error: SSL certificate verification failed"]),
+]
 
 
-def test_an_overlong_thinking_block_is_truncated_with_an_ellipsis():
-    event = _assistant({"type": "thinking", "thinking": "x" * 500})
-
-    assert render_event(event, REPO) == [f"{'x' * 199}…"]
-
-
-def test_blank_or_missing_thinking_renders_nothing():
-    event = _assistant({"type": "thinking", "thinking": "   "})
-
-    assert render_event(event, REPO) == []
-
-
-def test_a_successful_tool_result_is_not_repeated_in_the_feed():
-    event = _user({"type": "tool_result", "tool_use_id": "x", "content": "1\thello"})
-
-    assert render_event(event, REPO) == []
-
-
-def test_a_failed_tool_result_is_reported_as_one_indented_line():
-    event = _user({"type": "tool_result", "is_error": True, "content": "Traceback...\nboom"})
-
-    assert render_event(event, REPO) == ["  ↳ error: Traceback... boom"]
-
-
-def test_a_failed_tool_result_reads_text_out_of_block_content():
-    blocks = [{"type": "text", "text": "no such file"}]
-    event = _user({"type": "tool_result", "is_error": True, "content": blocks})
-
-    assert render_event(event, REPO) == ["  ↳ error: no such file"]
-
-
-def test_the_final_result_reports_how_long_the_run_took():
-    event = {"type": "result", "is_error": False, "duration_api_ms": 5279}
-
-    assert render_event(event, REPO) == ["✓ done in 5s"]
-
-
-def test_a_result_without_a_duration_still_reports_completion():
-    event = {"type": "result", "is_error": False}
-
-    assert render_event(event, REPO) == ["✓ done"]
-
-
-def test_a_failed_result_names_its_subtype_when_there_is_no_readable_message():
-    event = {"type": "result", "is_error": True, "subtype": "error_max_turns"}
-
-    assert render_event(event, REPO) == ["✗ error_max_turns"]
-
-
-def test_a_failed_result_prefers_its_readable_message_over_subtype():
-    event = {
-        "type": "result", "is_error": True, "subtype": "success",
-        "result": "API Error: SSL certificate verification failed",
-    }
-
-    assert render_event(event, REPO) == ["✗ API Error: SSL certificate verification failed"]
+@pytest.mark.parametrize(("event", "expected"), _RENDER_CASES)
+def test_render_event_formats_each_event_kind(event, expected):
+    assert render_event(event, REPO) == expected
 
 
 @pytest.mark.parametrize(

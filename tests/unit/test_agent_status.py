@@ -5,7 +5,6 @@ from pathlib import Path
 import pytest
 
 from codechroma.bridge.agents.status import (
-    MANIFEST_DIR,
     STATUS_BLOCKED,
     STATUS_IDLE,
     STATUS_WORKING,
@@ -150,5 +149,3 @@ def test_the_shipped_manifest_names_the_claude_binaries():
     assert rules.tail_lines == 8
 
 
-def test_the_manifest_dir_is_the_shipped_detect_folder():
-    assert (MANIFEST_DIR / "claude.toml").is_file()

@@ -1,6 +1,6 @@
 # 023 — LLM settings: one default model, optional per-feature overrides
 
-Status: In progress (Stage 1 and Stage 2 routes done on both bridges; web dialog and Stage 4 docs remain)
+Status: In progress (Stages 1, 2 and 3 done, plus `PUT/DELETE /llm/features/{id}` and `POST /llm/providers/capabilities` on both bridges; the Playwright "one model for everything" journey, server-picked default models and the exit check on a clean machine remain)
 
 Source: the "LLM Settings Redesign" design canvas (boards `Main.dc.html` — Models / Connections / Advanced, `AddConnection.dc.html`), https://claude.ai/artifact/ADcHT5eMJMvf1snZ7mpL9U. Builds on `docs/architecture/llm-settings.md` and `docs/architecture/assistant-settings.md`.
 

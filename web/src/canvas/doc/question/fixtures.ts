@@ -15,7 +15,7 @@ export const WIRE_OPTIONS = OPTIONS.map((o) => ({
 export function viewOf(overrides: Partial<QuestionView> = {}): QuestionView {
   return {
     questionId: "q1", elementId: "q1", title: "How should checkout be structured?", state: "open",
-    answer: null, sessionId: "s1", step: 2, total: 4, options: OPTIONS, allowCustom: true, allowSkip: true,
+    answer: null, sessionId: "s1", agentId: "agent-1", step: 2, total: 4, options: OPTIONS, allowCustom: true, allowSkip: true,
     diagramRequested: false, diagramRequests: 0,
     ...overrides,
   };

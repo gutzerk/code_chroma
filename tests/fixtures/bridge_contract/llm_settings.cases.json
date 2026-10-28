@@ -61,7 +61,7 @@
       "steps": [
         {"http": {"method": "POST", "path": "/llm/providers", "json": {"label": "x", "kind": "weird"}}, "expect": {"status": 400, "json": {"detail": "kind must be one of ('cli', 'api')"}}},
         {"http": {"method": "POST", "path": "/llm/providers", "json": {"kind": "cli", "adapter": "claude"}}, "expect": {"status": 400, "json": {"detail": "label must be a non-empty string"}}},
-        {"http": {"method": "POST", "path": "/llm/providers", "json": {"label": "x", "kind": "cli", "adapter": "vim"}}, "expect": {"status": 400, "json": {"detail": "adapter must be one of ['claude', 'codex', 'kimi-cli']"}}},
+        {"http": {"method": "POST", "path": "/llm/providers", "json": {"label": "x", "kind": "cli", "adapter": "vim"}}, "expect": {"status": 400, "json": {"detail": "adapter must be one of ['claude', 'codex', 'gemini', 'kimi-cli']"}}},
         {"http": {"method": "POST", "path": "/llm/providers", "json": {"label": "x", "kind": "cli", "adapter": "codex", "base_url": "http://p"}}, "expect": {"status": 400, "json": {"detail": "base_url/api_key/api_key_path are only valid for the claude adapter"}}},
         {"http": {"method": "POST", "path": "/llm/providers", "json": {"label": "x", "kind": "cli", "adapter": "claude", "api_key": "a", "api_key_path": "/b"}}, "expect": {"status": 400, "json": {"detail": "provide an api_key OR an api_key_path, not both"}}},
         {"http": {"method": "POST", "path": "/llm/providers", "json": {"label": "x", "kind": "api", "transport": "carrier-pigeon", "api_key": "k"}}, "expect": {"status": 400, "json": {"detail": "transport must be one of ('anthropic', 'gemini', 'openai-compatible')"}}},
@@ -90,12 +90,8 @@
     {
       "id": "an_update_that_breaks_the_provider_is_refused",
       "steps": [
-        {
-          "http": {"method": "POST", "path": "/llm/providers", "json": {"label": "C", "kind": "cli", "adapter": "claude"}},
-          "capture": {"pid": "$.id"},
-          "expect": {"status": 201}
-        },
-        {"http": {"method": "PUT", "path": "/llm/providers/{{pid}}", "json": {"adapter": "vim"}}, "expect": {"status": 400, "json": {"detail": "adapter must be one of ['claude', 'codex', 'kimi-cli']"}}}
+        {"http": {"method": "POST", "path": "/llm/providers", "json": {"label": "C", "kind": "cli", "adapter": "claude"}}, "capture": {"pid": "$.id"}, "expect": {"status": 201}},
+        {"http": {"method": "PUT", "path": "/llm/providers/{{pid}}", "json": {"adapter": "vim"}}, "expect": {"status": 400, "json": {"detail": "adapter must be one of ['claude', 'codex', 'gemini', 'kimi-cli']"}}}
       ]
     },
     {
@@ -350,6 +346,59 @@
         },
         {"http": {"method": "GET", "path": "/llm/call-site-groups/nope"}, "expect": {"status": 404, "json": {"detail": "unknown call site group: 'nope'"}}},
         {"http": {"method": "PUT", "path": "/llm/call-site-groups/nope", "json": {}}, "expect": {"status": 404, "json": {"detail": "unknown call site group: 'nope'"}}}
+      ]
+    },
+    {
+      "id": "a_feature_is_overridden_and_reset_through_one_route_for_groups_and_call_sites",
+      "steps": [
+        {"http": {"method": "POST", "path": "/llm/providers", "json": {"label": "A", "kind": "cli", "adapter": "claude"}}, "capture": {"a": "$.id"}, "expect": {"status": 201}},
+        {"http": {"method": "POST", "path": "/llm/providers", "json": {"label": "G", "kind": "api", "transport": "gemini", "api_key": "k"}}, "capture": {"g": "$.id"}, "expect": {"status": 201}},
+        {"http": {"method": "PUT", "path": "/llm/features/diagrams", "json": {"provider_id": "{{a}}", "model": "opus"}}, "expect": {"status": 200, "checks": [{"path": "$.id", "equals": "diagrams"}, {"path": "$.source", "equals": "custom"}, {"path": "$.effective", "equals": {"provider_id": "{{a}}", "provider_name": "A", "model": "opus"}}]}},
+        {"http": {"method": "PUT", "path": "/llm/features/ai_summarizer", "json": {"provider_id": "{{g}}", "model": "flash"}}, "expect": {"status": 200, "checks": [{"path": "$.id", "equals": "ai_summarizer"}, {"path": "$.source", "equals": "custom"}, {"path": "$.effective", "equals": {"provider_id": "{{g}}", "provider_name": "G", "model": "flash"}}]}},
+        {"http": {"method": "PUT", "path": "/llm/features/diagrams", "json": {"provider_id": "{{g}}", "model": "flash"}}, "expect": {"status": 400}},
+        {"http": {"method": "PUT", "path": "/llm/features/nope", "json": {"provider_id": "{{a}}", "model": "m"}}, "expect": {"status": 404, "json": {"detail": "unknown feature: 'nope'"}}},
+        {"http": {"method": "DELETE", "path": "/llm/features/diagrams"}, "expect": {"status": 200, "checks": [{"path": "$.source", "equals": "legacy"}]}},
+        {"http": {"method": "DELETE", "path": "/llm/features/ai_summarizer"}, "expect": {"status": 200, "checks": [{"path": "$.source", "equals": "legacy"}]}},
+        {"http": {"method": "DELETE", "path": "/llm/features/nope"}, "expect": {"status": 404, "json": {"detail": "unknown feature: 'nope'"}}}
+      ]
+    },
+    {
+      "id": "a_blank_model_is_picked_server_side_for_the_default_its_fallback_and_a_feature",
+      "steps": [
+        {"http": {"method": "POST", "path": "/llm/providers", "json": {"label": "A", "kind": "cli", "adapter": "claude", "api_key": "k"}}, "capture": {"a": "$.id"}, "expect": {"status": 201}},
+        {"http": {"method": "PUT", "path": "/llm/default", "json": {"provider_id": "{{a}}", "model": "", "quick_fallback": {"provider_id": "{{a}}", "model": ""}}}, "expect": {"status": 200, "checks": [{"path": "$.default.model", "equals": "sonnet"}, {"path": "$.default.quick_fallback.model", "equals": "opus"}]}},
+        {"http": {"method": "PUT", "path": "/llm/default", "json": {"provider_id": "{{a}}", "model": ""}}, "expect": {"status": 200, "checks": [{"path": "$.default.model", "equals": "sonnet"}]}},
+        {"http": {"method": "PUT", "path": "/llm/features/diagrams", "json": {"provider_id": "{{a}}", "model": ""}}, "expect": {"status": 200, "checks": [{"path": "$.effective.model", "equals": "sonnet"}]}}
+      ]
+    },
+    {
+      "id": "a_feature_override_for_an_unknown_provider_with_a_blank_model_is_refused",
+      "steps": [
+        {"http": {"method": "PUT", "path": "/llm/features/diagrams", "json": {"provider_id": "missing", "model": ""}}, "expect": {"status": 400}}
+      ]
+    },
+    {
+      "id": "a_quick_feature_can_be_overridden_to_offline_but_an_agent_feature_cannot",
+      "steps": [
+        {"http": {"method": "PUT", "path": "/llm/features/ai_summarizer", "json": {"offline": true}}, "expect": {"status": 200, "checks": [{"path": "$.source", "equals": "offline"}, {"path": "$.effective", "equals": {"provider_id": null, "provider_name": null, "model": null}}]}},
+        {"http": {"method": "PUT", "path": "/llm/features/diagrams", "json": {"offline": true}}, "expect": {"status": 400, "json": {"detail": "'diagrams' cannot run offline"}}},
+        {"http": {"method": "DELETE", "path": "/llm/features/ai_summarizer"}, "expect": {"status": 200, "checks": [{"path": "$.source", "equals": "legacy"}]}}
+      ]
+    },
+    {
+      "id": "an_unsaved_draft_reports_what_it_could_be_used_for",
+      "steps": [
+        {"http": {"method": "POST", "path": "/llm/providers/capabilities", "json": {"kind": "cli", "adapter": "claude"}}, "expect": {"status": 200, "json": {"capabilities": {"agents": true, "quick": false}}}},
+        {"http": {"method": "POST", "path": "/llm/providers/capabilities", "json": {"kind": "cli", "adapter": "claude", "api_key": "k"}}, "expect": {"status": 200, "json": {"capabilities": {"agents": true, "quick": true}}}},
+        {"http": {"method": "POST", "path": "/llm/providers/capabilities", "json": {"kind": "api", "transport": "anthropic"}}, "expect": {"status": 200, "json": {"capabilities": {"agents": false, "quick": false}}}},
+        {"http": {"method": "POST", "path": "/llm/providers/capabilities", "json": {"kind": "api", "transport": "anthropic", "api_key_set": true}}, "expect": {"status": 200, "json": {"capabilities": {"agents": true, "quick": true}}}},
+        {"http": {"method": "POST", "path": "/llm/providers/capabilities", "json": {"kind": "api", "transport": "openai-compatible", "base_url": "http://localhost:11434/v1", "is_local": true}}, "expect": {"status": 200, "json": {"capabilities": {"agents": false, "quick": true}}}}
+      ]
+    },
+    {
+      "id": "an_unknown_cli_adapter_has_no_signed_in_answer",
+      "steps": [
+        {"http": {"method": "GET", "path": "/llm/cli/nosuchcli/auth"}, "expect": {"status": 200, "json": {"signed_in": null}}}
       ]
     }
   ]

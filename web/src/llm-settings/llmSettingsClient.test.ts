@@ -5,9 +5,15 @@ import {
   clearCallSite,
   clearCallSiteGroup,
   createProvider,
+  deleteFeature,
   deleteProvider,
+  fetchDraftCapabilities,
+  getDefault,
   listCallSites,
+  listFeatures,
   listProviders,
+  putDefault,
+  putFeature,
   testProvider,
   testProviderDraft,
   updateProvider,
@@ -164,6 +170,51 @@ describe("llmSettingsClient", () => {
     const [url, init] = (fetch as ReturnType<typeof vi.fn>).mock.calls[0] as [string, RequestInit];
     expect(url).toBe("http://localhost:8000/llm/call-site-groups/diagrams");
     expect(JSON.parse(String(init.body))).toEqual({});
+  });
+
+  it.each([
+    ["reads the default", () => getDefault(), "GET", "/llm/default"],
+    ["lists the features", () => listFeatures(), "GET", "/llm/features"],
+  ])("%s", async (_name, call, method, path) => {
+    vi.stubGlobal("fetch", vi.fn(async () => jsonResponse({})));
+    vi.stubEnv("VITE_ENGINE_BRIDGE_URL", "http://localhost:8000");
+
+    await call();
+
+    const [url, init] = vi.mocked(fetch).mock.calls[0] as [string, RequestInit | undefined];
+    expect(url).toBe(`http://localhost:8000${path}`);
+    expect(init?.method ?? "GET").toBe(method);
+  });
+
+  it("saves the default as a PUT with its fallbacks", async () => {
+    vi.stubGlobal("fetch", vi.fn(async () => jsonResponse({ default: null })));
+    vi.stubEnv("VITE_ENGINE_BRIDGE_URL", "http://localhost:8000");
+
+    await putDefault({ provider_id: "p1", model: "m", quick_fallback: { offline: true } });
+
+    const [url, init] = vi.mocked(fetch).mock.calls[0] as [string, RequestInit];
+    expect(url).toBe("http://localhost:8000/llm/default");
+    expect(init.method).toBe("PUT");
+    expect(JSON.parse(String(init.body))).toEqual({
+      provider_id: "p1",
+      model: "m",
+      quick_fallback: { offline: true },
+    });
+  });
+
+  it.each([
+    ["overrides a feature", () => putFeature("diagrams", { provider_id: "p", model: "m" }), "PUT", "/llm/features/diagrams"],
+    ["resets a feature", () => deleteFeature("diagrams"), "DELETE", "/llm/features/diagrams"],
+    ["previews a draft's capabilities", () => fetchDraftCapabilities({ kind: "cli" }), "POST", "/llm/providers/capabilities"],
+  ])("%s", async (_name, call, method, path) => {
+    vi.stubGlobal("fetch", vi.fn(async () => jsonResponse({})));
+    vi.stubEnv("VITE_ENGINE_BRIDGE_URL", "http://localhost:8000");
+
+    await call();
+
+    const [url, init] = vi.mocked(fetch).mock.calls[0] as [string, RequestInit];
+    expect(url).toBe(`http://localhost:8000${path}`);
+    expect(init.method).toBe(method);
   });
 
   it("throws a clear error when there is no bridge", async () => {

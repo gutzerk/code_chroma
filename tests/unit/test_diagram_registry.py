@@ -48,8 +48,7 @@ def test_services_build_one_runner_per_skill_run_kind():
     }
 
 
-def test_builtin_kinds_are_not_iterated_as_custom_definitions():
-    # `get` synthesizes a custom spec only when a library definition exists; a missing type is None.
+def test_a_missing_type_is_none_or_the_given_default():
     assert DIAGRAMS.get("does-not-exist") is None
     assert DIAGRAMS.get("does-not-exist", "fallback") == "fallback"
 

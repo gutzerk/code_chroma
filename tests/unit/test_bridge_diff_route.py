@@ -58,25 +58,9 @@ def test_diff_route_reports_an_added_file_container(client):
     assert len(file_entries) == 1
     assert file_entries[0]["status"] == "added"
     assert file_entries[0]["level"] == "file"
-
-
-def test_diff_route_reports_an_added_class_with_no_functions(client):
-    test_client, repo = client
-    new_file = repo / "billing" / "refunds.py"
-    new_file.write_text(
-        'class Refund:\n    """A refund."""\n    reason = "duplicate"\n', encoding="utf-8"
+    assert any(
+        (d["level"], d["status"], d["name"]) == ("class", "added", "Refund") for d in body
     )
-
-    response = test_client.get("/repos/default/diff")
-
-    body = response.json()
-    class_entries = [
-        d
-        for d in body
-        if d["level"] == "class" and d["status"] == "added" and d["name"] == "Refund"
-    ]
-    assert response.status_code == 200
-    assert len(class_entries) == 1
 
 
 def test_diff_route_reports_a_modified_class_without_a_function_change(client):

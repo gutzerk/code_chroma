@@ -1,5 +1,4 @@
 import { useEffect, useMemo, useSyncExternalStore } from "react";
-import { viewSequenceElements } from "./autoLayout";
 import { sequenceViewStore } from "./sequenceViewStore";
 import { FocusPanel } from "./FocusPanel";
 import type { CanvasElement } from "../../state/types";
@@ -29,7 +28,7 @@ import {
 } from "./canvasDocStore";
 import { useCollapsedLayers } from "./collapsedLayersStore";
 import { useLiveDragOffsets } from "./dragOffsetStore";
-import { expandRouteElements } from "./routeExpansion";
+import { LIVE_STAGES, STRUCTURAL_STAGES, VIEW_STAGES, runDisplayStages } from "./displayPipeline";
 import { useRouteExpanded } from "./routeExpandStore";
 import { useReflowEpics } from "./useReflowEpics";
 import { useReflowSequence } from "./useReflowSequence";
@@ -139,24 +138,11 @@ export function CanvasDocView() {
   const customTypes = useCustomDiagramTypes(engineClient);
 
   const collapsedLayers = useCollapsedLayers();
-  // Hides a collapsed diagram's elements from rendering only -- `doc.elements` itself is untouched,
-  // so re-expanding needs no server round trip. `hierarchy`/`default` are never in `collapsedLayers`
-  // (nothing ever collapses them -- see the left panel's Diagrams tab, which only ever lists real diagram
-  // layers), so this can stay a plain layer-membership filter with no special-cased layer names.
-  const shownElements = useMemo(
-    () =>
-      Object.fromEntries(
-        Object.entries(doc.elements).filter(
-          ([, element]) => !collapsedLayers.has(element.layer),
-        ),
-      ),
-    [doc.elements, collapsedLayers],
-  );
-  // 026: expanded route steps grow and push their neighbours down; derived here, never persisted.
   const routeExpanded = useRouteExpanded();
+  // Display only (doc.elements is untouched): collapsed layers hidden, then route steps grown; see displayPipeline.
   const renderableElements = useMemo(
-    () => expandRouteElements(shownElements, routeExpanded),
-    [shownElements, routeExpanded],
+    () => runDisplayStages(STRUCTURAL_STAGES, doc.elements, { collapsedLayers, routeExpanded }),
+    [doc.elements, collapsedLayers, routeExpanded],
   );
 
   const visibleElements = useMemo(
@@ -187,22 +173,7 @@ export function CanvasDocView() {
   // anchored to the pre-drag spot for the whole gesture and only jumps into place on drop.
   const visibleDoc = useMemo(() => {
     const elementIds = new Set(Object.keys(renderableElements));
-    const elements = Object.fromEntries(
-      Object.entries(renderableElements).map(([id, element]) => {
-        const liveOffset = dragOffsets[id];
-        if (!liveOffset) return [id, element];
-        return [
-          id,
-          {
-            ...element,
-            position: {
-              x: element.position.x + liveOffset.x,
-              y: element.position.y + liveOffset.y,
-            },
-          },
-        ];
-      }),
-    );
+    const elements = runDisplayStages(LIVE_STAGES, renderableElements, { dragOffsets });
     // Drops an edge whose endpoint no longer exists -- either left behind by a partial batch, or
     // because one endpoint's diagram is currently collapsed (see `renderableElements` above), so a
     // collapsed diagram's edges vanish along with it for free.
@@ -278,17 +249,14 @@ export function CanvasDocView() {
 
   // 022: the Readable/Focus geometry is derived here for display only, never persisted to the doc.
   const sequenceViewVersion = useSyncExternalStore(sequenceViewStore.subscribe, sequenceViewStore.getLayoutVersion);
-  const viewElements = useMemo(() => {
-    if (sequenceMemberIdsByLayer.size === 0) return visibleDoc.elements;
-    const next = { ...visibleDoc.elements };
-    for (const [layer, ids] of sequenceMemberIdsByLayer) {
-      const messageCount = ids.filter((id) => visibleDoc.elements[id]?.meta?.role === "message").length;
-      const view = sequenceViewStore.get(layer, messageCount);
-      for (const element of viewSequenceElements(visibleDoc, ids, view)) next[element.id] = element;
-    }
-    return next;
+  const viewElements = useMemo(
+    () =>
+      runDisplayStages(VIEW_STAGES, visibleDoc.elements, {
+        sequence: { doc: visibleDoc, idsByLayer: sequenceMemberIdsByLayer, viewFor: (layer, count) => sequenceViewStore.get(layer, count) },
+      }),
     // eslint-disable-next-line react-hooks/exhaustive-deps -- sequenceViewVersion is the store's change signal
-  }, [visibleDoc, sequenceMemberIdsByLayer, sequenceViewVersion]);
+    [visibleDoc, sequenceMemberIdsByLayer, sequenceViewVersion],
+  );
 
   const concurrencyBuckets = useMemo(
     () =>
@@ -371,6 +339,9 @@ export function CanvasDocView() {
             switch (BLOCK_RULES[element.render].renderer) {
               case "hierarchy":
                 // Retired code-tree block: an old document may still carry one; it draws nothing.
+                return null;
+              case "none":
+                // 026: a route carrier never reaches here (canvasDocStore splits it out); never draw one if it does.
                 return null;
               case "note":
                 return <NoteElement key={element.id} element={element} />;

@@ -55,7 +55,7 @@ public sealed class DiagramBootstrapTests : IDisposable
 
         new DiagramBootstrap(Quick(null)).IfMissing(ws);
 
-        var c1 = JsonNode.Parse(File.ReadAllText(ws.DiagramPath("c1")))!;
+        var c1 = JsonNode.Parse(File.ReadAllText(ws.DiagramPath("system-context")))!;
         Assert.True((bool)c1["draft"]!);
         Assert.Equal("system", (string?)c1["nodes"]![0]!["id"]);
     }
@@ -64,11 +64,11 @@ public sealed class DiagramBootstrapTests : IDisposable
     public void An_existing_c1_is_left_alone()
     {
         var ws = Open();
-        JsonFile.Write(ws.DiagramPath("c1"), new JsonObject { ["type"] = "c1" });
+        JsonFile.Write(ws.DiagramPath("system-context"), new JsonObject { ["type"] = "system-context" });
 
         new DiagramBootstrap(Quick(null)).IfMissing(ws);
 
-        Assert.Null(JsonNode.Parse(File.ReadAllText(ws.DiagramPath("c1")))!["draft"]);
+        Assert.Null(JsonNode.Parse(File.ReadAllText(ws.DiagramPath("system-context")))!["draft"]);
     }
 
     [Fact]
@@ -79,7 +79,7 @@ public sealed class DiagramBootstrapTests : IDisposable
 
         new DiagramBootstrap(Quick(llm)).IfMissing(ws);
 
-        Assert.False(File.Exists(ws.DiagramPath("c1")));
+        Assert.False(File.Exists(ws.DiagramPath("system-context")));
         Assert.Equal(0, llm.Calls);
     }
 
@@ -128,11 +128,11 @@ public sealed class DiagramBootstrapTests : IDisposable
         var main = Directory.CreateTempSubdirectory("cc-main-").FullName;
         try
         {
-            Directory.CreateDirectory(Path.GetDirectoryName(Workspace.DiagramPath(main, "c1"))!);
-            File.WriteAllText(Workspace.DiagramPath(main, "c1"), """{"type":"c1","nodes":[{"id":"system","kind":"system","name":"s"}],"relations":[]}""");
+            Directory.CreateDirectory(Path.GetDirectoryName(Workspace.DiagramPath(main, "system-context"))!);
+            File.WriteAllText(Workspace.DiagramPath(main, "system-context"), """{"type":"system-context","nodes":[{"id":"system","kind":"system","name":"s"}],"relations":[]}""");
             var ws = new Workspace("pr", _root, new CandidateEngine([]), (_, _) => { }, true) { C1SourceRoot = main };
 
-            var loaded = DiagramArtifacts.Load(ws, "c1");
+            var loaded = DiagramArtifacts.Load(ws, "system-context");
 
             Assert.Equal("system", (string?)loaded["nodes"]![0]!["id"]);
         }

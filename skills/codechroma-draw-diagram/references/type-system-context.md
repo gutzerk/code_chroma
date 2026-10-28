@@ -1,12 +1,12 @@
-# type: c1 — the system context diagram
+# type: system-context — the System context diagram
 
 Read `references/drawing-rules.md` first — bridge contract, path honesty, density budgets, the
 per-box and per-arrow `style` rule, arrow labels and the self-check contract live there and are not
 repeated here.
 
-## What C1 is — one system box, actors, nothing inside
+## What System context is — one system box, actors, nothing inside
 
-`c1` is a true C4-model **system context** view, not a component/service breakdown. The diagram has
+`system-context` is the **System context** view (a C4 "C1", this repo's former `system-context` type), not a component/service breakdown. The diagram has
 exactly two kinds of node, and one kind of relation:
 
 - **The system** (`id: "system"`) — one box for the *whole* analyzed project. It never has
@@ -18,9 +18,31 @@ exactly two kinds of node, and one kind of relation:
 
 If someone wants component/service-level internals (handler → service → repository chains,
 directory decomposition, layered boxes), that's a different, currently unbuilt diagram type — say so
-rather than forcing it into `c1`; see `drawing-rules.md`'s "Drawing a type this skill does not know".
+rather than forcing it into `system-context`; see `drawing-rules.md`'s "Drawing a type this skill does not know".
 
-## Docs-first for C1
+## Detected candidates — confirm or reject, like patterns
+
+The bridge detects people and external systems for free from the code (declared dependencies and import
+roots against a curated table of databases, queues, SaaS APIs, and web/CLI frameworks that imply a
+User/Developer). Those are **candidates**, not the diagram; you confirm, reject, enrich, and add what
+the detector cannot see.
+
+```bash
+curl -s ${CODECHROMA_BRIDGE_URL:-http://localhost:8000}/repos/${CODECHROMA_WORKSPACE_ID:-default}/system-context/context
+# -> {"generation_data": {"repo_name", "readme_excerpt", "candidates": [{"id","kind","name","evidence"}]},
+#     "staleness": {"fingerprint", "reviewed_fingerprint", "stale"}}
+```
+
+- Every `candidates[].id` must end up as a node in the file: `meta.confirmed: true` (keep, with a real
+  one-sentence description and a labelled relation) or `meta.confirmed: false` (not a real boundary —
+  e.g. a driver this project configures and runs itself). Silently omitting one makes it re-appear on
+  every run; the self-check prints `UNREVIEWED <id>`.
+- Add what only reading reveals: people who use the system, services it calls that no dependency names,
+  webhooks and inbound callers. Evidence from code or config only.
+- Copy `staleness.fingerprint` verbatim into the file's top-level `"fingerprint"` so the canvas can flag
+  the diagram stale when the detected set changes.
+
+## Docs-first for System context
 
 Alongside the digest fetch (see the parallel batch in step 1 of "Procedure" below), check whether the
 repo already carries a human-authored system-context diagram — a `docs/c1-diagram.md`, any
@@ -31,7 +53,7 @@ there.
   deciding what's missing — don't just copy it: some of it may describe target architecture, not
   current code.
 - A line marked target/aspirational in the human doc ("opt-in", "mesh only", "seam") is **not**
-  current reality — include it in `c1` only if `context-digest` (or a `dependency-digest`
+  current reality — include it in `system-context` only if `context-digest` (or a `dependency-digest`
   spot-check) confirms a real code path for it today.
 - If the human doc names an actor the digest doesn't surface (e.g. an "AI agent / MCP client" role),
   don't drop it just because the digest missed it — verify it with a spot-check
@@ -40,7 +62,7 @@ there.
 ## Gather context — wiki-general's root, the digest, two spot-checks
 
 Follow `drawing-rules.md`'s Wiki-first fetch order for Step 0 (`wiki-general-context`) first. The
-c1-specific delta: read only `root`, the system-level narrative — a free head start on "what the
+System-context-specific delta: read only `root`, the system-level narrative — a free head start on "what the
 system is and who it serves" before you fetch the digest below. 🔴 **Never read `containers[]` for
 this type.** C1 doesn't decompose, so the C2-level detail those pages carry has no box to attach to
 here — that's `patterns`/`custom`'s job, not this one.
@@ -63,30 +85,31 @@ for spot-checks, never as a default fetch:
   curl -s "${CODECHROMA_BRIDGE_URL:-http://localhost:8000}/repos/${CODECHROMA_WORKSPACE_ID:-default}/dependency-digest?path=src/codechroma/bridge/server.py"
   ```
 
-`c1` no longer decomposes anything, so `/structure` and `/wiki-context` aren't needed for this
+`system-context` no longer decomposes anything, so `/structure` and `/wiki-context` aren't needed for this
 type — there's nothing below the system box to give a `path` to.
 
 ## Where the file goes
 
 ```bash
-curl -s ${CODECHROMA_BRIDGE_URL:-http://localhost:8000}/repos/${CODECHROMA_WORKSPACE_ID:-default}/c1-path
-# -> {"repo_root":"/abs/path/to/repo","c1_path":"/abs/path/to/repo/.codechroma/diagrams/c1/c1.json"}
+curl -s ${CODECHROMA_BRIDGE_URL:-http://localhost:8000}/repos/${CODECHROMA_WORKSPACE_ID:-default}/system-context-path
+# -> {"repo_root":"/abs/path/to/repo","system-context_path":"/abs/path/to/repo/.codechroma/diagrams/system-context/system-context.json"}
 ```
 
-Write the JSON to the returned `c1_path`. Fallback order and the live-update note: see
+Write the JSON to the returned `system-context_path`. Fallback order and the live-update note: see
 `drawing-rules.md`. The file you're overwriting may carry a top-level `"draft": true` marker (the
 deterministic bootstrap's "unreviewed skeleton" flag) — never copy it into your output. Write
 exactly the `## Schema` shape below and nothing else; the marker disappears on its own.
 
 ## Schema
 
-Same shared shape as every type (`drawing-rules.md`), with `type: "c1"`. Flat, and shallow by
+Same shared shape as every type (`drawing-rules.md`), with `type: "system-context"`. Flat, and shallow by
 design — `nodes[]` holds only the system and its actors, none of them carries a `parent`:
 
 ```json
 {
-  "type": "c1",
+  "type": "system-context",
   "style": "boxes-arrows",
+  "fingerprint": "<copy verbatim from system-context/context staleness.fingerprint>",
   "nodes": [
     { "id": "system", "name": "Short project name", "description": "One or two sentences: what the system is and who/what it serves.", "kind": "system" },
     { "id": "developer", "name": "Developer", "kind": "person", "description": "One sentence: how this actor uses the system." },
@@ -162,12 +185,13 @@ the self-check catches that pair as an `ISLAND` too.
 
 ## Procedure
 
-1. Resolve `c1_path`, fetch `wiki-general-context`, fetch `context-digest`, and check for a
+1. Resolve `system-context_path`, fetch `system-context/context`, fetch `wiki-general-context`, fetch `context-digest`, and check for a
    human-authored context doc (docs-first) — independent bridge/file reads, issue them as parallel
    tool calls in one message rather than one after the other.
 2. Reconcile wiki-general's `root` (if any) and the docs-first read (if any) against what the digest
    confirms — spot-check a disputed entry with `dependency-digest?path=...` before deciding.
-3. Build the actor/external-system list: only entries the digest (or a spot-check) actually backs.
+3. Build the actor/external-system list: confirm or reject **every** `system-context/context` candidate, then add
+   entries the digest (or a spot-check) actually backs.
    Apply the "would this deploy separately" test, including the adapter/driver refinement above, to
    every disputed case.
 4. Write `nodes` — the system box plus every actor — and `relations` — one `actor ↔ system` arrow per
@@ -175,23 +199,23 @@ the self-check catches that pair as an `ISLAND` too.
 5. **Self-check — never report success on a run that didn't print `OK`:**
 
    ```bash
-   python3 .claude/skills/codechroma-draw-diagram/scripts/check_diagram.py --kind c1
+   python3 .claude/skills/codechroma-draw-diagram/scripts/check_diagram.py --kind system-context
    ```
 
    Common codes (`drawing-rules.md`) apply; `ORPHAN`/`ISLAND` here mean "not wired to `system`" —
    an actor wired only to another actor is just as disconnected.
 
    `FLAT`, `SHALLOW`, `LISTING`, `SINGLETON`, `VAGUE`, `UNCOVERED`, `DEPTH`, `NOARROWS`,
-   `DUPLICATE-PATH`, `NESTING-EDGE`, `BARE` and `COVERAGE` were all decomposition findings — c1's own
+   `DUPLICATE-PATH`, `NESTING-EDGE`, `BARE` and `COVERAGE` were all decomposition findings — this type's own
    `checks` config (`check_bare_actors: false`, no `coverage_source`) turns the last two off, and none
-   of the rest can trigger on a flat `c1` file (nothing has children or a `path`), so none of them can
+   of the rest can trigger on a flat `system-context` file (nothing has children or a `path`), so none of them can
    print here. If one somehow does, treat it as a bug, not something to work around in the JSON.
 
    Re-run until it prints `OK`. Exit tiers and `--shape-advisory`: see `drawing-rules.md`. The density
    budgets there (`CROWDED`/`EDGEBOMB`) still apply, but a real system-context diagram — a handful of
    actors — sits nowhere near them.
-6. Tell the user the absolute path you wrote, how many actors you found, and that the C1 view updates
+6. Tell the user the absolute path you wrote, how many actors you found, and that the System context view updates
    live — no reload needed.
 
-To **clear** the diagram, write `{"type": "c1", "nodes": [], "relations": []}` to the same `c1_path`
+To **clear** the diagram, write `{"type": "system-context", "nodes": [], "relations": []}` to the same `system-context_path`
 (or delete that file).

@@ -52,60 +52,43 @@ public static class C1Template
         ["k8s.io/client-go"] = ("Kubernetes", "kubernetes"),
     };
 
-    /// <summary>Builds a system + known-actor C1 diagram straight from the context digest; marked `draft` until a skill rewrites it.</summary>
+    /// <summary>Builds a system + detected-actor C1 diagram straight from the context digest; marked `draft` until a skill rewrites it.</summary>
     public static JsonObject Generate(JsonObject digest)
     {
         var repoName = Json.Str(digest["repo_name"]);
         var name = string.IsNullOrEmpty(repoName) ? "system" : repoName;
         var nodes = new JsonArray(new JsonObject
         {
-            ["id"] = "system",
+            ["id"] = SystemContext.SystemId,
             ["kind"] = "system",
             ["name"] = name,
             ["description"] = $"The {name} codebase.",
         });
         var relations = new JsonArray();
-        var seenNames = new HashSet<string>(StringComparer.Ordinal);
-        foreach (var candidate in Candidates(digest).Select(NormalizeName))
+        var candidates = SystemContext.Detect(digest);
+        foreach (var candidate in candidates)
         {
-            if (!KnownExternalSystems.TryGetValue(candidate, out var entry)) continue;
-            // Two keys can share a display name (psycopg2/asyncpg -> PostgreSQL); one box per name.
-            if (!seenNames.Add(entry.Name)) continue;
             var actor = new JsonObject
             {
-                ["id"] = candidate,
-                ["kind"] = "external_system",
-                ["name"] = entry.Name,
-                ["description"] = $"Detected via the '{candidate}' dependency.",
+                ["id"] = candidate.Id,
+                ["kind"] = candidate.Kind,
+                ["name"] = candidate.Name,
+                ["description"] = candidate.Evidence,
             };
-            if (!string.IsNullOrEmpty(entry.Icon)) actor["icon"] = entry.Icon;
+            if (!string.IsNullOrEmpty(candidate.Icon)) actor["icon"] = candidate.Icon;
             nodes.Add(actor);
-            relations.Add(new JsonObject { ["from"] = "system", ["to"] = candidate, ["label"] = "Uses" });
+            relations.Add(candidate.Kind == "person"
+                ? new JsonObject { ["from"] = candidate.Id, ["to"] = SystemContext.SystemId, ["label"] = "Uses" }
+                : new JsonObject { ["from"] = SystemContext.SystemId, ["to"] = candidate.Id, ["label"] = "Uses" });
         }
         return new JsonObject
         {
-            ["type"] = "c1",
+            ["type"] = "system-context",
             ["style"] = "boxes-arrows",
             ["nodes"] = nodes,
             ["relations"] = relations,
             ["draft"] = true,
+            ["fingerprint"] = SystemContext.Fingerprint(candidates),
         };
-    }
-
-    /// <summary>Lower-cases a dependency and drops any extras, version specifier or marker (`psycopg2>=2.9`, `boto3[crypto]`).</summary>
-    private static string NormalizeName(string name)
-    {
-        var end = name.IndexOfAny(['[', '<', '>', '=', '!', '~', ';', '(', ' ']);
-        return (end < 0 ? name : name[..end]).ToLowerInvariant();
-    }
-
-    private static IEnumerable<string> Candidates(JsonObject digest)
-    {
-        if (digest["declared_dependencies"] is JsonArray declared)
-            foreach (var item in declared)
-                if (Json.Str(item) is { } text) yield return text;
-        if (digest["external_import_roots"] is JsonArray roots)
-            foreach (var entry in roots)
-                if (entry is JsonObject o && Json.Str(o["root"]) is { } root) yield return root;
     }
 }

@@ -32,7 +32,7 @@ function clientYielding(sequence: HierarchyNodeRef[][]): EngineClient {
     getConnections: async () => [],
     getDiff: async () => [],
     acceptDiff: async () => {},
-    getDiagram: diagramStub({ c1: ({ nodes: [], relations: [] }) }),
+    getDiagram: diagramStub({ "system-context": ({ nodes: [], relations: [] }) }),
     getDiagramLayout: async () => ({}),
     saveDiagramLayout: async () => {},
     generateDiagram: async () => ({ state: "idle" }),

@@ -153,7 +153,7 @@ EDGE_KIND_ALIASES = (
 )
 _PLAIN_EDGE_KINDS = ("", "calls", "call", "uses")
 # These author structural verbs (observes, wraps, ...), so an unknown kind there is not a typo.
-_STRUCTURAL_KINDS = ("c1", "patterns", "impact")
+_STRUCTURAL_KINDS = ("system-context", "patterns", "impact")
 _FAILURE_WORDS = re.compile(r"\b(error|fail\w*|denied|timeout|timed out)\b", re.IGNORECASE)
 _SPAWN_WORDS = re.compile(
     r"\b(spawn\w*|launch\w*|(start|starts|starting|run|runs|fork\w*)\s+(a\s+|an\s+|the\s+)?"

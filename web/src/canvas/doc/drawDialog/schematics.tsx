@@ -35,7 +35,7 @@ export const SCHEMATICS: Record<string, ReactNode> = {
       <path d="M80 9L82 14L87 16L82 18L80 23L78 18L73 16L78 14Z" fill={ROLE.planned} />
     </Svg>
   ),
-  c1: (
+  "system-context": (
     <Svg>
       <circle cx="22" cy="28" r="6" stroke={ROLE.actor} strokeWidth="1.5" />
       <path d="M12 50Q22 34 32 50" stroke={ROLE.actor} strokeWidth="1.5" />

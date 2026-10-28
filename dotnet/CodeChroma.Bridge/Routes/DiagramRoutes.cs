@@ -46,7 +46,7 @@ public static class DiagramRoutes
                 var ws = r.Get(repoId);
                 var agent = agents[k];
                 var onlyIfMissing = request.Query["only_if_missing"].ToString().Equals("true", StringComparison.OrdinalIgnoreCase);
-                if (onlyIfMissing && k == "c1" && agent.HasArtifact(ws.C1Root, ws.Id)) return Results.Json(agent.GetState(ws.Id), BridgeJson.Default.JobState);
+                if (onlyIfMissing && k == "system-context" && agent.HasArtifact(ws.C1Root, ws.Id)) return Results.Json(agent.GetState(ws.Id), BridgeJson.Default.JobState);
                 var (onChange, onOutput) = SkillJobCallbacks.For(k, ws.Emit);
                 var gathered = DiagramContext.Types.Contains(k) ? await context.GatherAsync(ws, k, null) : null;
                 return Results.Json(await agent.Start(ws.Id, ws.Root, onChange, onOutput, options: gathered is null ? null : new RunOptions([]) { Context = gathered }), BridgeJson.Default.JobState);
@@ -66,7 +66,7 @@ public static class DiagramRoutes
     }
 
     /// <summary>The kinds with a generate/status/output/cancel quartet (c1, and the Impact change review).</summary>
-    public static readonly IReadOnlyList<string> GenerateKinds = ["c1", "impact-changes"];
+    public static readonly IReadOnlyList<string> GenerateKinds = ["system-context", "impact-changes"];
 
     /// <summary>One built-in kind's resolved payload, with the impact "changes" overlay attached.</summary>
     public static JsonObject ResolveKind(Workspace ws, string kind, IOldSymbolParser parser)
@@ -74,10 +74,10 @@ public static class DiagramRoutes
         var data = DiagramArtifacts.Load(ws, kind);
         switch (kind)
         {
-            case "c1":
+            case "system-context":
                 if (data.Count == 0) return new JsonObject();
-                data["type"] = "c1";
-                return DiagramResolver.AttachCoverage(DiagramResolver.Resolve(ws.Engine, data), ws.Engine);
+                data["type"] = "system-context";
+                return SystemContext.Resolve(ws.Engine, SystemContextDigest(ws), data);
             case "epics":
                 var epics = DiagramResolver.Resolve(ws.Engine, data);
                 epics["has_diagram"] = data.Count > 0;
@@ -98,7 +98,11 @@ public static class DiagramRoutes
         }
     }
 
-    public static JsonNode? LoadArtifact(Workspace ws, string kind) => LoadArtifactAt(kind == "c1" ? ws.C1Root : ws.Root, kind);
+    /// <summary>The dependency digest the system-context candidates are detected from; empty when the engine has no graph yet.</summary>
+    public static JsonObject SystemContextDigest(Workspace ws) =>
+        CodeChroma.Core.ContextDigest.Build(ws.Engine.GraphSnapshot() ?? new CodeChroma.Core.Graph([], []), ws.Root);
+
+    public static JsonNode? LoadArtifact(Workspace ws, string kind) => LoadArtifactAt(kind == "system-context" ? ws.C1Root : ws.Root, kind);
 
     private static JsonNode? LoadArtifactAt(string root, string kind)
     {

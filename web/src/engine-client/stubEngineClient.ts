@@ -201,8 +201,8 @@ const EMPTY_EPICS: EpicsIndex = {
  * to typecheck here instead of silently reusing the last branch's payload. `` `custom/${string}` ``
  * is a whole open-ended family rather than a fixed member, so it's handled by `emptyDiagramFor`
  * below instead of being enumerable here. */
-const EMPTY_DIAGRAMS: { [K in "c1" | "patterns" | "impact" | "epics"]: DiagramPayload[K] } = {
-  c1: EMPTY_C1,
+const EMPTY_DIAGRAMS: { [K in "system-context" | "patterns" | "impact" | "epics"]: DiagramPayload[K] } = {
+  "system-context": EMPTY_C1,
   patterns: EMPTY_PATTERNS,
   impact: EMPTY_DIAGRAM,
   epics: EMPTY_EPICS,
@@ -211,7 +211,7 @@ const EMPTY_DIAGRAMS: { [K in "c1" | "patterns" | "impact" | "epics"]: DiagramPa
 /** `EMPTY_DIAGRAMS` widened to cover every `` `custom/${string}` `` kind too. */
 function emptyDiagramFor<K extends DiagramFetchKind>(kind: K): DiagramPayloadFor<K> {
   if (kind.startsWith("custom/")) return EMPTY_DIAGRAM as DiagramPayloadFor<K>;
-  return EMPTY_DIAGRAMS[kind as "c1" | "patterns" | "impact" | "epics"] as DiagramPayloadFor<K>;
+  return EMPTY_DIAGRAMS[kind as "system-context" | "patterns" | "impact" | "epics"] as DiagramPayloadFor<K>;
 }
 
 /** Inert defaults for the diagram slice — one stub for every kind now that the client is keyed by
@@ -258,7 +258,7 @@ export const EPIC_BRIEF_STUB = {
  * a nicer call site — `diagramStub({ custom: { "data-flow": diagram } })`. The cast is deliberate: a
  * stub answers concrete kinds, the interface is generic. */
 export function diagramStub(payloads: {
-  c1?: Diagram;
+  "system-context"?: Diagram;
   patterns?: Diagram;
   impact?: Diagram;
   epics?: EpicsIndex;
@@ -269,6 +269,6 @@ export function diagramStub(payloads: {
       const typeId = kind.slice("custom/".length);
       return payloads.custom?.[typeId] ?? EMPTY_DIAGRAM;
     }
-    return payloads[kind as "c1" | "patterns" | "impact" | "epics"] ?? emptyDiagramFor(kind);
+    return payloads[kind as "system-context" | "patterns" | "impact" | "epics"] ?? emptyDiagramFor(kind);
   }) as EngineClient["getDiagram"];
 }

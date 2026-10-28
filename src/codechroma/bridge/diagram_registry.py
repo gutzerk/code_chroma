@@ -98,10 +98,10 @@ def _never_generates_spec(
 
 def _resolve_c1(ws: Workspace) -> dict:
     """c1 wants coverage (`unmapped`) on top of the shared resolve -- see FR-006."""
-    data = ws.load_diagram("c1")
+    data = ws.load_diagram("system-context")
     if not data:
         return {}
-    resolved = resolve_diagram(ws.engine, {**data, "type": "c1"})
+    resolved = resolve_diagram(ws.engine, {**data, "type": "system-context"})
     return attach_coverage(resolved, ws.engine)
 
 
@@ -281,16 +281,16 @@ class DiagramSpec:
     supports_only_if_missing: bool
     # A kind needing a per-sponsor prompt (impact's diff/plan slice) names its builder here.
     prompt_for: Callable[[str, str | None], str] | None = None
-    # Has a generate/status/cancel/output trio; only "c1" does now (016 Stage 6).
+    # Has a generate/status/cancel/output trio; only "system-context" does now (016 Stage 6).
     has_generate: bool = True
 
 
 DIAGRAMS: DiagramRegistry = DiagramRegistry({
-    "c1": DiagramSpec(
-        kind="c1",
-        agent_factory=lambda: build_skill_agent_for(BUILTIN_TYPES["c1"]),
+    "system-context": DiagramSpec(
+        kind="system-context",
+        agent_factory=lambda: build_skill_agent_for(BUILTIN_TYPES["system-context"]),
         root_for=lambda ws: ws.c1_root,
-        artifact_path=lambda root: root / BUILTIN_TYPES["c1"].artifact,
+        artifact_path=lambda root: root / BUILTIN_TYPES["system-context"].artifact,
         resolve=_resolve_c1,
         sync_before_resolve=False,
         has_bootstrap=True,

@@ -9,7 +9,7 @@ test("diagram swatches match frame borders in both panel layouts", async ({ page
     const doc = canvasDocStore.getDoc();
     canvasDocStore.setDoc({
       ...doc,
-      elements: Object.fromEntries(["c1", "sequence", "custom/colors"].map((layer, i) => [layer, {
+      elements: Object.fromEntries(["system-context", "sequence", "custom/colors"].map((layer, i) => [layer, {
         id: layer, render: "custom", layer, label: layer, description: "", node_id: null,
         position: { x: 500 + i * 500, y: 350 }, size: { w: 200, h: 100 },
         group_id: null, meta: {}, created_by: "ai",

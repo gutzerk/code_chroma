@@ -176,7 +176,7 @@ layout and the rendered badge/soft-area already show it.
 `"2a"`/`"2b"` share a leading digit, so the canvas renders them as one Concurrency island automatically
 — no separate field marks them as parallel. `"Client"`/`"Server"` each get their own soft-tinted Lane
 area grouping their boxes together, independent of the numbering. Leave both fields unset on a
-diagram that isn't a process — most structural diagrams never need them (see `type-c1.md`/
+diagram that isn't a process — most structural diagrams never need them (see `type-system-context.md`/
 `type-patterns.md`/`type-impact.md`).
 
 ## Optional `route` — which code each step runs (expand a step, light up the code map)

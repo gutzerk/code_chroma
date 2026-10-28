@@ -160,8 +160,10 @@ a delete button.
 
 The built-in types the Draw… agent can produce:
 
-- **C1** — a C4-model "system context" layer: your whole project as one box, surrounded by the
-  people and external systems it talks to, connected by labeled relationship arrows.
+- **System context** — a C4-model "system context" layer: your whole project as one box, surrounded by
+  the people and external systems it talks to, connected by labeled relationship arrows. The bridge
+  detects candidates (databases, SaaS APIs, web/CLI users) from your dependencies for free and the
+  agent confirms or rejects them, like Design patterns; the view is flagged stale when they change.
 - **Design patterns** — the real GoF/architectural patterns (Strategy, Facade, Adapter, etc.)
   actually in use, laid out as one connected graph.
 - **Change impact** — what a change touches, derived from the diff.

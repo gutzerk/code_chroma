@@ -1,9 +1,27 @@
-# C1 (system-context) diagram
+# System context diagram (type id `system-context`, formerly `c1`)
+
+> ⚠ **Renamed and reworked to work like Design patterns.** The user-facing name is now **System
+> context** (the type id, artifact path `.codechroma/diagrams/system-context/system-context.json`, `/system-context/*` routes and `system-context-status` events were renamed from `c1`; an old `diagrams/c1/` folder moves over once on open, `LegacyDiagramMigration.cs` / `migrate_legacy_c1_folder`; the LLM call-site id `c1_agent`, its prompt file, `codechroma_C1_TIMEOUT_SECONDS`, the `c1` canvas render kind and the `.c1-*` CSS classes keep the old name so saved settings and canvas documents still load;
+> the old custom `system-context` type was merged into the renamed `type-system-context.md`).
+> The C# bridge's `Diagrams/SystemContext.cs` is the patterns-style free layer: `Detect(digest)` turns
+> declared dependencies and import roots into **candidates** (external systems from
+> `C1Template.KnownExternalSystems`, plus a `person` User/Developer for known web/CLI frameworks; an
+> unmatched dependency is never guessed), `Fingerprint` hashes the detected set, and `Resolve` merges
+> candidates with the authored `c1.json` (authored name/description/`meta.confirmed` laid over a
+> candidate; `confirmed: false` drops it; authored-only nodes such as people are kept; a candidate
+> with no authored relation gets a default `Uses` arrow). `GET /repos/{id}/c1/context` now returns
+> `generation_data.candidates[]` and `staleness`; the skill copies `staleness.fingerprint` into the
+> file and `check_diagram.py --kind c1` fails with `UNREVIEWED <id>` for a candidate the file never
+> addresses (`candidates_source` in its c1 check config). `C1Template.Generate` (the deterministic
+> bootstrap draft) goes through the same `Detect`. Tests: `SystemContextTests.cs`, `C1TemplateTests.cs`,
+> `test_diagram_check_script.py`. ⚠ The Python bridge does **not** have the detector yet (its
+> `/c1/context` has `generation_data: null`, so `UNREVIEWED` never fires there); the C# bridge is
+> production per `CLAUDE.md`.
 
 
 > ⚠ **The skill that writes this diagram is no longer its own.** `codechroma-c1` was merged
 > into the one `codechroma-draw-diagram` router skill; its authoring rules now live in
-> `references/type-c1.md` and its self-check is `check_diagram.py --kind c1`. See
+> `references/type-system-context.md` and its self-check is `check_diagram.py --kind c1`. See
 > [`diagram-skills.md`](diagram-skills.md) for the router, the shared rules, the retire/prune
 > pass, and the soft-diagnostics path this diagram's resolver now feeds.
 
@@ -30,7 +48,7 @@ Part of the [Graph bridge](graph-bridge-core.md); see also [Patterns diagram](pa
 the sibling top-level view.
 
 ⚠ **042-c1-diagram-quality-and-speed narrowed what the skill *authors*, not what the schema/resolver
-*support*.** `type-c1.md` no longer tells the skill to decompose the system box: a freshly-authored
+*support*.** `type-system-context.md` no longer tells the skill to decompose the system box: a freshly-authored
 `c1.json` now has exactly one `system` node plus actors (`kind: "person"`/`"external_system"`), no
 `parent` anywhere, and relations are only `actor ↔ system` — a true C4 "C1" system-context view, not
 a component/service breakdown. The paragraph below describing a **multi-layer decomposition**, the
@@ -45,7 +63,7 @@ a true system-context view that should take seconds).
 
 - C1 (system-context) view — `GET /repos/{id}/c1` serves `<repo>/.codechroma/c1.json` (format/schema
   authority: `drawing-rules.md`'s "The one shared diagram shape" +
-  `.claude/skills/codechroma-draw-diagram/references/type-c1.md`'s content rules — see
+  `.claude/skills/codechroma-draw-diagram/references/type-system-context.md`'s content rules — see
   [`diagram-skills.md`](diagram-skills.md)'s "036: one shared shape, one resolver, one render path").
   The **schema still supports a multi-layer decomposition**, not just two levels: since
   036-shared-diagram-style-catalog there is no nested `system`/`children` tree in the authored or
@@ -67,7 +85,7 @@ a true system-context view that should take seconds).
   no C1 consumer read that field, `build_context_digest` dropped it entirely — see `context/digest.py`),
   and `/nodes/{id}/children` returns the full text of every file child (~16k tokens per directory), so
   neither can serve deep path authoring. `ls` is also wrong — the graph excludes
-  `node_modules`/`dist`/`build`/`__pycache__`/`.venv`/`.codechroma`. Since 042, `type-c1.md` no longer
+  `node_modules`/`dist`/`build`/`__pycache__`/`.venv`/`.codechroma`. Since 042, `type-system-context.md` no longer
   tells the skill to call this route at all — a flat `c1` has nothing below the system box to give a
   `path` to; the route and the mechanism above remain real for any type that still decomposes
   (`custom`) or a hand-edited `c1.json`.
@@ -81,7 +99,7 @@ a true system-context view that should take seconds).
   applies to `patterns`/`custom` (`impact` opted out too, 049).
 - **Wiki-general root, post-049, not historical:** unlike Step 1 above, C1 *does* read Step 0 —
   `GET /repos/{id}/wiki-general-context` — but only ever `root`, the system-level narrative, never
-  `containers[]`. This is a separate first sub-step in `type-c1.md`'s own "Gather context", ahead of
+  `containers[]`. This is a separate first sub-step in `type-system-context.md`'s own "Gather context", ahead of
   `context-digest`, not a return of the decomposition Step 1 removed: there's still nothing below the
   system box for a C2/C3 page's detail to attach to. See `docs/architecture/wiki-general.md`'s
   "Consumed by `codechroma-draw-diagram`" section.
@@ -370,7 +388,7 @@ a true system-context view that should take seconds).
   `_has_valid_flat_diagram` (the shared `only_if_missing`/post-run validity check every skill-run
   kind uses) now also requires `not data.get("draft")`, so a draft-only `c1.json` doesn't block the
   interactive skill's own regenerate and a run that still leaves the marker set gets rolled back like
-  any other invalid result. The marker disappears on its own: `type-c1.md`'s schema has no `draft`
+  any other invalid result. The marker disappears on its own: `type-system-context.md`'s schema has no `draft`
   key, so the moment the interactive `codechroma-draw-diagram` skill (unchanged otherwise — still the
   richer, human-in-the-loop path for wiki-general/digest reconciliation, human actors, and quality
   descriptions) rewrites the file for real, the flag is gone. The depth used to come from a headless
@@ -382,7 +400,7 @@ a true system-context view that should take seconds).
   `c1.json` first and restores it on timeout, non-zero exit, or an unparseable result, and
   `agent.cancel()` in the lifespan kills in-flight runs so a restart can't orphan a `claude` still
   rewriting the file. This headless run is still the mechanism the Retry button drives — only its
-  instructions changed (042): it now runs `type-c1.md`'s flat procedure, so the second write refines
+  instructions changed (042): it now runs `type-system-context.md`'s flat procedure, so the second write refines
   and spot-checks the bootstrap's actor list (wiki-general/digest reconciliation, the external-system
   test) rather than decomposing it into a deep tree. The skill still writes twice
   (bootstrap skeleton, then the reconciled result) so the `FileWatcher` shows the diagram updating, and

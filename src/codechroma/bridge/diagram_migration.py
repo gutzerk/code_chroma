@@ -17,11 +17,13 @@ when absent, no structural change.
 
 from __future__ import annotations
 
+import re
+from pathlib import Path
 from typing import Any
 
 from codechroma.context.id_allocation import IdAddressBook
 
-__all__ = ["migrate", "migrate_if_legacy", "needs_regeneration"]
+__all__ = ["migrate", "migrate_if_legacy", "migrate_legacy_c1_folder", "needs_regeneration"]
 
 _MAX_DEPTH = 5
 
@@ -54,7 +56,7 @@ def _is_legacy_shape(kind: str, data: object) -> bool:
     """Patterns' old shape can carry `nodes[]` too, so its own markers are checked directly."""
     if not isinstance(data, dict) or not data:
         return False
-    if kind == "c1":
+    if kind == "system-context":
         has_nodes = isinstance(data.get("nodes"), list)
         return not has_nodes and (
             isinstance(data.get("system"), dict) or isinstance(data.get("actors"), list)
@@ -65,7 +67,7 @@ def _is_legacy_shape(kind: str, data: object) -> bool:
 
 
 def _convert(kind: str, data: dict) -> dict | None:
-    if kind == "c1":
+    if kind == "system-context":
         return _convert_c1(data)
     if kind == "patterns":
         return _convert_patterns(data)
@@ -142,7 +144,9 @@ def _convert_c1(data: dict) -> dict | None:
         _copy_optional(rel, relation, "technology")
         relations.append(relation)
 
-    return {"type": "c1", "style": "boxes-arrows", "nodes": nodes, "relations": relations}
+    return {
+        "type": "system-context", "style": "boxes-arrows", "nodes": nodes, "relations": relations,
+    }
 
 
 def _convert_patterns(data: dict) -> dict:
@@ -182,3 +186,26 @@ def _convert_patterns(data: dict) -> dict:
         "type": "patterns", "nodes": nodes, "relations": data.get("relations") or [],
         "generated_at": data.get("generated_at"), "fingerprint": data.get("fingerprint"),
     }
+
+
+_LAYER_FIELD = re.compile(r'"layer"\s*:\s*"c1"')
+
+
+def migrate_legacy_c1_folder(root: Path) -> None:
+    """Moves a pre-rename `diagrams/c1/` folder (artifact and projection) to `system-context/`."""
+    diagrams = root / ".codechroma" / "diagrams"
+    legacy, current = diagrams / "c1", diagrams / "system-context"
+    try:
+        if not legacy.is_dir() or current.exists():
+            return
+        legacy.rename(current)
+        old_file = current / "c1.json"
+        if old_file.is_file():
+            old_file.rename(current / "system-context.json")
+        projection = current / "projection.json"
+        if projection.is_file():
+            text = projection.read_text(encoding="utf-8")
+            renamed = _LAYER_FIELD.sub('"layer": "system-context"', text)
+            projection.write_text(renamed, encoding="utf-8")
+    except OSError:
+        return

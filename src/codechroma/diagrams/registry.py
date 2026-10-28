@@ -120,12 +120,12 @@ class DiagramTypeDefinition:
 
 
 BUILTIN_TYPES: dict[str, DiagramTypeDefinition] = {
-    "c1": DiagramTypeDefinition(
-        id="c1",
-        title="C1",
+    "system-context": DiagramTypeDefinition(
+        id="system-context",
+        title="System context",
         style="boxes-arrows",
         instructions=render_prompt("c1_agent"),
-        artifact=".codechroma/diagrams/c1/c1.json",
+        artifact=".codechroma/diagrams/system-context/system-context.json",
         context=None,
         # 042: c1 is a flat system-context view now, with nothing left for coverage to measure.
         addons={"coverage": False, "staleness": False, "grouping": False},

@@ -24,10 +24,10 @@ def seed_diagrams_from_main(pr_root: Path, main_root: Path) -> None:
     """Best-effort copies main's authored diagrams and requirements into a fresh PR worktree."""
     if main_root == pr_root:
         return
-    _copy_authored_diagram(pr_root, main_root, DIAGRAMS["c1"].artifact_path)
+    _copy_authored_diagram(pr_root, main_root, DIAGRAMS["system-context"].artifact_path)
     for kind in DIAGRAMS.values():
-        # "c1" is handled above via _copy_authored_diagram; every other kind copies its artifact.
-        if kind.kind == "c1":
+        # "system-context" is handled above via _copy_authored_diagram; others copy their artifact.
+        if kind.kind == "system-context":
             continue
         _copy_artifact_if_missing(pr_root, main_root, kind.artifact_path)
     seed_canvas_doc(pr_root, main_root)

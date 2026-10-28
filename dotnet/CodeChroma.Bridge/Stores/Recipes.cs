@@ -78,7 +78,7 @@ public static class Recipes
 
     private static readonly Dictionary<string, string> RenderByKind = new()
     {
-        ["c1"] = "c1", ["patterns"] = "pattern", ["impact"] = "impact", ["epics"] = "epic", ["sequence"] = "sequence",
+        ["system-context"] = "c1", ["patterns"] = "pattern", ["impact"] = "impact", ["epics"] = "epic", ["sequence"] = "sequence",
     };
 
     /// <summary>A lazily synthesized "&lt;prefix&gt;/&lt;id&gt;" kind.</summary>

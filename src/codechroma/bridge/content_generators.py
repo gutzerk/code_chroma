@@ -86,7 +86,7 @@ def prompt_for(kind: str) -> Callable[[str, str | None], str] | None:
 def build_skill_agent_for(definition: DiagramTypeDefinition) -> SkillAgent:
     """One live `SkillAgent` runner, built entirely from its type's own declarative definition."""
     kind = definition.id
-    # System context keeps the pre-rename call-site id and timeout variable (saved settings key on them).
+    # System context keeps its pre-rename call-site id and timeout variable (settings key on them).
     legacy = "c1" if kind == "system-context" else kind
 
     def artifact(root: Path, _repo_id: str) -> Path:

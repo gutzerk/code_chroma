@@ -127,11 +127,13 @@ def _resolve_sequence(ws: Workspace) -> dict:
 
 
 def _resolve_walkthrough(ws: Workspace) -> dict:
-    """Walkthrough resolves from the authored walkthrough.json; its `route` rides through unchanged."""
+    """Walkthrough resolves from the authored walkthrough.json; its `route` passes through."""
     data = ws.load_diagram("walkthrough")
     if not data:
         return {}
-    resolved = resolve_diagram(ws.engine, {**data, "type": "walkthrough"}, style_source="boxes-arrows")
+    resolved = resolve_diagram(
+        ws.engine, {**data, "type": "walkthrough"}, style_source="boxes-arrows"
+    )
     resolved["has_diagram"] = bool(data)
     return resolved
 

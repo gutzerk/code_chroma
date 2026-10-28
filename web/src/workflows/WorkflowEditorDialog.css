@@ -727,7 +727,7 @@ select.wfe-input {
   overflow-y: auto;
   background: var(--cc-surface, #1e1e1e);
   border: 1px solid var(--cc-border, #3a3a3a);
-  border-radius: 8px;
+  border-radius: var(--radius-lg);
   box-shadow: 0 6px 20px rgba(0, 0, 0, 0.35);
 }
 
@@ -736,7 +736,7 @@ select.wfe-input {
   gap: 8px;
   align-items: baseline;
   padding: 5px 8px;
-  border-radius: 6px;
+  border-radius: var(--radius-md);
   cursor: pointer;
 }
 

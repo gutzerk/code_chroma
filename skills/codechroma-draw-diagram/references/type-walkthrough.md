@@ -17,7 +17,7 @@ Write the JSON to the returned `walkthrough_path`. Do not overwrite an existing 
 
 ## Gather context
 
-Follow `drawing-rules.md`'s wiki-first fetch order, then trace the process from `/structure` and the dependency digest (`GET /repos/{id}/dependency-digest?path=<file>`), entry point first. Copy every `path` and `node_id` verbatim; never invent one.
+Follow `drawing-rules.md`'s wiki-first fetch order, then trace the process from `/structure` and the dependency digest (`GET /repos/{id}/dependency-digest?path=<file>`), entry point first. Copy every `path` and `node_id` verbatim; never invent one. Steps carry `meta.order`; an optional `rank: "entry"`/`"exit"` pins an un-numbered box to the first/last layer (`order` wins), and a `"feedback"`/`"return"` relation kind lays out as a back edge.
 
 ## Schema
 

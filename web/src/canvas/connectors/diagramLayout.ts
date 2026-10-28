@@ -14,6 +14,8 @@ export interface LayoutBoxSpec {
   lane?: string;
   /** The lane's `meta.lane_kind` ("failure" lanes are laid out last) -- optional. */
   laneKind?: string;
+  /** Layering hint ("entry" pins the box to the first layer, "exit" to the last); ignored when `order` is set. */
+  rank?: string;
 }
 
 export interface PositionedBox {

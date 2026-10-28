@@ -492,6 +492,15 @@ def test_sequence_reshape_carries_readability_fields():
     assert message.meta["hero"] is True
 
 
+def test_reshape_folds_a_top_level_rank_into_node_meta():
+    resolved = {"nodes": [{"id": "a", "name": "A", "rank": "entry"}, {"id": "b", "name": "B"}]}
+
+    shape = reshape(resolved, "custom")
+
+    assert shape.nodes[0].meta["rank"] == "entry"
+    assert "rank" not in shape.nodes[1].meta
+
+
 def test_a_nodes_own_meta_path_is_not_overridden_by_its_top_level_path():
     resolved = {"nodes": [{"id": "n", "name": "N", "path": "top.py", "meta": {"path": "own.py"}}]}
 

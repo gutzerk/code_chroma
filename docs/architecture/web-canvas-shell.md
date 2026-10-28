@@ -291,6 +291,14 @@ canvas instead of collapsing onto whichever diagram happened to carry code-backe
     `elk.spacing.componentComponent` (default 20), which must be set explicitly or components touch.
     ELK returns top-left corners; the adapter converts to the center-anchored boxes the canvas uses.
     Every edge kind reads the same way — source above target, no per-kind inversion.
+    **Measured sizes and layout hints (ELK input):** `doc/measureBoxSize.ts#measureBoxSize()` estimates a box's height from its
+    label, description (4-line clamp), top band, meta row and path footer (cached canvas `measureText`, `0.55 x font size` per char
+    when there is no 2d context) so `autoLayout.ts` feeds ELK the footprint the box will render at instead of `300x72`; an authored
+    `element.size` always wins, `epic`/`sequence`/`group`/`note`/`question` keep their own sizing, and the measured size of each
+    newly positioned box rides back in `LayoutResult.sizes` so `CanvasNodeBox` renders what ELK used. An authored `meta.rank`
+    (`entry`/`exit`, `LayoutBoxSpec.rank`) maps to ELK's `layerConstraint` `FIRST`/`LAST` in `elkLayout.ts` and is ignored on a box
+    that also has `order` (order stays authoritative, ADR 0002); an edge of kind `feedback`/`return` is laid out as a back edge.
+    The Avalonia canvas (`CodeChroma.Canvas/Layout/AutoLayout.cs`) does not honour these yet.
     **Fresh draw vs incremental update** (`autoLayout.ts#layoutNewElements`): a fresh draw (no other
     placed element in the new elements' layer) is laid out alone by ELK and stacked below existing
     canvas content. An *incremental update* (the layer already has placed boxes — a recipe re-run that

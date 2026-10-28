@@ -64,6 +64,18 @@ describe("layoutNewElements", () => {
     expect(positions.new1.y).toBeGreaterThan(existingBottom);
   });
 
+  it("does not let an ELK neighbour overlap a tall measured box", async () => {
+    const tall = element("tall", 0, { label: "Tall", description: "long description ".repeat(40) });
+    const doc = { ...docWith([tall, element("next", 0)]), edges: { e: edgeOf("tall", "next") } };
+
+    const { positions, sizes } = await layoutNewElements(doc, ["tall", "next"]);
+
+    const tallBottom = positions.tall.y + sizes!.tall.h / 2;
+    const nextTop = positions.next.y - 72 / 2;
+    expect(sizes!.tall.h).toBeGreaterThan(72);
+    expect(nextTop).toBeGreaterThanOrEqual(tallBottom);
+  });
+
   it("does not shift a fresh diagram down when the canvas has no other elements", async () => {
     const doc = docWith([element("new1", 0)]);
 

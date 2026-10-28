@@ -1580,6 +1580,7 @@ def _inspect_flat(diagram: object, checks: dict, args: argparse.Namespace) -> _R
         _check_islands(endpoints, report, check_islands["hint"])
     _check_bare_pattern_markers(nodes, touched, report)
     _check_shared_node_ids(nodes, report)
+    _check_rank(nodes, report)
     if required_meta:
         _check_unreviewed(report)
     _check_unlabeled(checks["unlabeled"], report)
@@ -1589,6 +1590,24 @@ def _inspect_flat(diagram: object, checks: dict, args: argparse.Namespace) -> _R
         if checks.get("membership_source"):
             _check_membership(checks["membership_source"], nodes, report, args)
     return report
+
+
+def _check_rank(nodes: list[dict], report: _Report) -> None:
+    """Advises on a node `rank` that is not entry/exit, or that is set alongside `order`."""
+    for node in nodes:
+        meta = node.get("meta") if isinstance(node.get("meta"), dict) else {}
+        rank = node.get("rank", meta.get("rank"))
+        if rank is None:
+            continue
+        if rank not in ("entry", "exit"):
+            report.advisories.append(
+                f"BADRANK {node.get('id')!r} rank={rank!r} must be \"entry\" or \"exit\""
+            )
+        elif node.get("order") is not None or meta.get("order") is not None:
+            report.advisories.append(
+                f"RANK-ORDER {node.get('id')!r} sets both `rank` and `order` -- `order` wins,"
+                " so drop `rank`"
+            )
 
 
 def _check_shared_node_ids(nodes: list[dict], report: _Report) -> None:

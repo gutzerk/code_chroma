@@ -18,8 +18,7 @@ import { useIsSelected, useSelectedCount } from "../../state/selectionStore";
 import { canvasDocStore, commitCanvasPositions } from "./canvasDocStore";
 import { dragOffsetStore, useLiveDragOffsets } from "./dragOffsetStore";
 import { NODE_STYLES, type StyledRenderKind } from "./elementRules";
-import { descriptionPopupStore } from "./descriptionPopupStore";
-import { accentFor, noCodeReasonMessage } from "./nodeAccentLogic";
+import { accentFor } from "./nodeAccentLogic";
 import { blockRoleFor } from "./blockRole";
 import { NodeMetaRow, NodeTopBand } from "./nodeAccent";
 import { BLOCK_RULES } from "./elementRules";
@@ -299,26 +298,6 @@ export function CanvasNodeBox({ element, onMeasure }: CanvasNodeBoxProps) {
     const workItemId = isEpicBrief
       ? (stringMeta(element, "spec_of") ?? stringMeta(element, "recipe_key"))
       : undefined;
-    // A Planned block's add/create role (055-diagram-feature-plan) has no real code behind it --
-    // InspectorPanel would otherwise open and report it "no longer exists", the wrong message for
-    // something that never existed yet. Route to the description popup instead, same as the "?"
-    // button below. modify/delete point at real, already-existing code, so they fall through to the
-    // normal Inspector path unchanged.
-    const planKind = stringMeta(element, "plan_kind");
-    if (planKind === "add" || planKind === "create") {
-      descriptionPopupStore.open(element.label, stringMeta(element, "details") ?? element.description ?? "");
-      return;
-    }
-    // A box the resolver stamped with `meta.no_code_reason` (diagram_resolver.py) has no real code
-    // behind it -- conceptual (no path ever authored) or unresolved (an authored path that failed) --
-    // so it opens the same description popup as a Planned block, with a reason-specific message,
-    // instead of InspectorPanel's generic "no longer exists" (the wrong message for something that
-    // was never real code, or for an authoring mistake it has no way to explain).
-    const noCodeReason = stringMeta(element, "no_code_reason");
-    if (noCodeReason === "conceptual" || noCodeReason === "unresolved" || noCodeReason === "external") {
-      descriptionPopupStore.open(element.label, noCodeReasonMessage(element, noCodeReason));
-      return;
-    }
     // A code box's click only focuses it: the right-side inspector opens from the box's own SRC
     // button (below), so clicking anywhere else on the block never pops the panel. A work item (epic
     // brief spec box) has no SRC button, so its click still opens the inspector on the work item,
@@ -528,48 +507,32 @@ export function CanvasNodeBox({ element, onMeasure }: CanvasNodeBoxProps) {
               </button>
             )}
           </div>
-          <div className="canvas-node-box-buttons" data-testid="canvas-node-box-buttons">
-            <CopyButton
-              text={elementCopyText(element.node_id, element.label)}
-              name={element.label}
-              variant="canvas-node-box"
-            />
-            {element.node_id && !isEpicsLayer && (
-              <button
-                type="button"
-                className="canvas-node-box-src"
-                data-testid="canvas-node-box-src"
-                aria-label={`Open source of ${element.label}`}
-                aria-pressed={isInspectorTarget}
-                onClick={(event) => {
-                  event.stopPropagation();
-                  toggleSource();
-                }}
-              >
-                SRC ↗
-              </button>
-            )}
-            {style.descClass && element.description && (
-              <button
-                type="button"
-                className="canvas-node-box-desc-button"
-                aria-label={`Show full description for ${element.label}`}
-                title="Show full description"
-                data-testid="canvas-node-box-desc-button"
-                onClick={(event) => {
-                  // The name-row/description sit inside the same clickable header, which otherwise
-                  // focuses the block and may open a popup (`activate`, above) — this button is a
-                  // separate escape hatch for the description text alone, so it must not also trigger that.
-                  event.stopPropagation();
-                  descriptionPopupStore.open(element.label, element.description ?? "");
-                }}
-              >
-                ?
-              </button>
-            )}
-          </div>
         </div>
       </div>
+      <div className="canvas-node-box-buttons canvas-node-box-buttons--top" data-testid="canvas-node-box-buttons">
+        <CopyButton
+          text={elementCopyText(element.node_id, element.label)}
+          name={element.label}
+          variant="canvas-node-box"
+        />
+      </div>
+      {element.node_id && !isEpicsLayer && (
+        <div className="canvas-node-box-buttons canvas-node-box-buttons--bottom" data-testid="canvas-node-box-src-corner">
+          <button
+            type="button"
+            className="canvas-node-box-src"
+            data-testid="canvas-node-box-src"
+            aria-label={`Open source of ${element.label}`}
+            aria-pressed={isInspectorTarget}
+            onClick={(event) => {
+              event.stopPropagation();
+              toggleSource();
+            }}
+          >
+            SRC ↗
+          </button>
+        </div>
+      )}
     </div>
     {/* The landing outline for the solo drag's collision-solving — null while not dragging or during
         a group move (whose `active` switches to `group`, and loses the ghost by design). */}

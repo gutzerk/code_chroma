@@ -1983,6 +1983,19 @@ body {
   align-self: flex-start;
 }
 
+/* The copy button sits in the box's top-right corner and the SRC button in its bottom-right corner,
+ * both anchored to the absolutely-positioned box itself; the header/foot reserve room for them. */
+.canvas-node-box-buttons--top,
+.canvas-node-box-buttons--bottom {
+  position: absolute;
+  right: 0.4rem;
+  z-index: 2;
+}
+.canvas-node-box-buttons--top { top: 0.4rem; }
+.canvas-node-box-buttons--bottom { bottom: 0.4rem; }
+[data-canvas-element] [data-testid="canvas-node-box-header"] { padding-right: 2.2rem; }
+[data-canvas-element]:has(.canvas-node-box-buttons--bottom) [data-testid="canvas-node-box-header"] { padding-bottom: 1.5rem; }
+
 .diagram-node-box-header {
   display: flex;
   /* Top-aligned (not centered): the copy/desc buttons live in their own column beside the title
@@ -2782,8 +2795,7 @@ body {
 .block-focus-button,
 .block-copy-button,
 .canvas-node-box-copy-button,
-.canvas-diagram-frame-copy-button,
-.canvas-node-box-desc-button {
+.canvas-diagram-frame-copy-button {
   flex-shrink: 0;
   width: 1.4rem;
   height: 1.4rem;
@@ -2796,11 +2808,20 @@ body {
   cursor: pointer;
 }
 
+/* Centre the copy glyph (and its checkmark / cross flash) exactly in the square. */
+.block-copy-button,
+.tree-node-copy-button,
+.canvas-node-box-copy-button,
+.canvas-diagram-frame-copy-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
 .block-focus-button:hover,
 .block-copy-button:hover,
 .canvas-node-box-copy-button:hover,
-.canvas-diagram-frame-copy-button:hover,
-.canvas-node-box-desc-button:hover {
+.canvas-diagram-frame-copy-button:hover {
   color: #fff;
   border-color: var(--control-hover-border);
 }
@@ -7175,7 +7196,7 @@ button[data-copy-state="idle"][aria-label]:hover:not(:disabled) {
 /* The four builtin recipe kinds each get their own fixed hue (styles.css's "Status / kind hues"
    tokens, so this stays one edit away from ever re-theming). Everything else -- a custom type's
    `custom/<id>`, or a one-off skill-authored layer -- falls through to the indexed palette below. */
-.canvas-diagram-frame-c1 { --diagram-frame-color: var(--c1); }
+.canvas-diagram-frame-system-context { --diagram-frame-color: var(--c1); }
 .canvas-diagram-frame-patterns { --diagram-frame-color: var(--patterns); }
 .canvas-diagram-frame-impact { --diagram-frame-color: var(--impact); }
 .canvas-diagram-frame-epics { --diagram-frame-color: var(--epics); }
@@ -8121,7 +8142,7 @@ button[data-copy-state="idle"][aria-label]:hover:not(:disabled) {
 .block-role-word { font-family: var(--font-mono); font-size: 0.66rem; font-weight: 700; letter-spacing: 0.1em; color: var(--role-accent); }
 .block-role-status { display: inline-flex; align-items: center; gap: 0.3rem; margin-left: 0.2rem; font-size: 0.7rem; color: #F2B36B; }
 .block-role-dot { width: 8px; height: 8px; border-radius: 50%; background: #F2B36B; }
-.block-role .canvas-node-box-buttons { opacity: 1; flex-direction: row-reverse; }
+.block-role .canvas-node-box-buttons { opacity: 1; }
 .block-role .canvas-node-box-buttons > :not(.canvas-node-box-src) { display: none; }
 .block-role:hover .canvas-node-box-buttons > :not(.canvas-node-box-src),
 .block-role:focus-within .canvas-node-box-buttons > :not(.canvas-node-box-src) { display: inline-flex; }

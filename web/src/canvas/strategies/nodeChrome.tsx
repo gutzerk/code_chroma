@@ -30,7 +30,7 @@ export function NodeKindGlyph({ node }: { node: HierarchyNodeRef }) {
 /** How long the button shows its copied/failed glyph before returning to the copy icon. */
 const COPY_FLASH_MS = 1200;
 
-const COPY_GLYPH = { idle: <CopyIcon />, copied: "✓", failed: "✕" };
+const COPY_GLYPH = { idle: <CopyIcon />, copied: <StateIcon d="M3.5 8.5 6.5 11.5 12.5 4.5" />, failed: <StateIcon d="M4 4 12 12M12 4 4 12" /> };
 
 /** Two overlapping rounded squares -- the idle copy glyph; strokes follow the button's text color. */
 function CopyIcon() {
@@ -47,6 +47,26 @@ function CopyIcon() {
     >
       <rect x="5.5" y="5.5" width="8" height="8" rx="2.2" />
       <path d="M10.5 3.7V4a2.2 2.2 0 0 0-2.2-2.2H4A2.2 2.2 0 0 0 1.8 4v4.3A2.2 2.2 0 0 0 4 10.5h.3" />
+    </svg>
+  );
+}
+
+/** The copied checkmark / failed cross, drawn in the same 16x16 box as the copy icon so it sits dead centre. */
+function StateIcon({ d }: { d: string }) {
+  return (
+    <svg
+      className="copy-icon"
+      viewBox="0 0 16 16"
+      width="14"
+      height="14"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.6"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
+      <path d={d} />
     </svg>
   );
 }

@@ -380,7 +380,7 @@ describe("computeReadyDiagrams", () => {
     const result = computeReadyDiagrams(null, customTypes, new Set());
 
     expect(result.readyBuiltins.map((r) => r.name).sort()).toEqual(
-      ["system-context", "epics", "impact", "patterns", "sequence"].sort(),
+      ["system-context", "epics", "impact", "patterns", "sequence", "walkthrough"].sort(),
     );
     expect(result.readyCustomTypes).toEqual(customTypes);
     expect(result.missingLabels).toEqual([]);
@@ -400,7 +400,7 @@ describe("computeReadyDiagrams", () => {
 
     expect(result.readyBuiltins.map((r) => r.name).sort()).toEqual(["system-context"]);
     expect(result.missingLabels.sort()).toEqual([
-      "Change impact", "Design patterns", "Epics", "Sequence",
+      "Change impact", "Design patterns", "Epics", "Sequence", "Walkthrough",
     ]);
   });
 
@@ -417,6 +417,7 @@ describe("computeReadyDiagrams", () => {
       patterns: { ready: true, fingerprint: "fp" },
       impact: { ready: true, fingerprint: "fp" },
       sequence: { ready: true, fingerprint: "fp" },
+      walkthrough: { ready: true, fingerprint: "fp" },
       "custom/my-type": { ready: true, fingerprint: "fp" },
     };
     const customTypes: DiagramTypeSummary[] = [
@@ -429,7 +430,7 @@ describe("computeReadyDiagrams", () => {
     // menu regardless of what's already on the canvas.
     expect(result.missingLabels).toEqual([]);
     expect(result.allLabels.sort()).toEqual(
-      ["Change impact", "Design patterns", "Epics", "My Type", "Sequence", "System context"].sort(),
+      ["Change impact", "Design patterns", "Epics", "My Type", "Sequence", "System context", "Walkthrough"].sort(),
     );
   });
 });

@@ -187,6 +187,7 @@ def test_headless_prompts_keep_using_synced_project_skill_commands():
         "patterns_agent.yaml": "codechroma-draw-diagram",
         "impact_agent.yaml": "codechroma-draw-diagram",
         "sequence_agent.yaml": "codechroma-draw-diagram",
+        "walkthrough_agent.yaml": "codechroma-draw-diagram",
         "epics_agent.yaml": "codechroma-draw-diagram",
         "impact_review_agent.yaml": "codechroma-review-diagram",
         "epic_brief_agent.yaml": "codechroma-epic-brief",

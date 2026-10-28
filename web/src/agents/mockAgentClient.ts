@@ -30,6 +30,7 @@ const MOCK_DIAGRAM_KINDS: BuiltinDiagramKind[] = [
   { id: "impact", name: "Change impact", purpose: "What the current change touches and what depends on it." },
   { id: "plan", name: "Feature plan", purpose: "A described future feature as planned blocks beside the code it touches." },
   { id: "sequence", name: "Sequence", purpose: "Who calls whom, in order, for one flow." },
+  { id: "walkthrough", name: "Walkthrough", purpose: "How one process runs: numbered steps with the code each one touches." },
   { id: "custom", name: "Custom type", purpose: "A diagram type of your own or a saved one." },
 ];
 

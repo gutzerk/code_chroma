@@ -93,6 +93,13 @@ public static class DiagramRoutes
                 var sequence = DiagramResolver.Resolve(ws.Engine, data, data["style"] ?? JsonValue.Create("sequence"), "sequence");
                 sequence["has_diagram"] = true;
                 return sequence;
+            case "walkthrough":
+                if (data.Count == 0) return new JsonObject();
+                data["type"] = "walkthrough";
+                // The route rides through the shared resolver untouched; boxes-arrows is the one style.
+                var walkthrough = DiagramResolver.Resolve(ws.Engine, data, JsonValue.Create("boxes-arrows"), "walkthrough");
+                walkthrough["has_diagram"] = true;
+                return walkthrough;
             default:
                 return LoadArtifact(ws, kind) as JsonObject ?? new JsonObject();
         }

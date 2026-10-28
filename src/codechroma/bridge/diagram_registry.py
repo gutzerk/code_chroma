@@ -126,6 +126,16 @@ def _resolve_sequence(ws: Workspace) -> dict:
     return resolved
 
 
+def _resolve_walkthrough(ws: Workspace) -> dict:
+    """Walkthrough resolves from the authored walkthrough.json; its `route` rides through unchanged."""
+    data = ws.load_diagram("walkthrough")
+    if not data:
+        return {}
+    resolved = resolve_diagram(ws.engine, {**data, "type": "walkthrough"}, style_source="boxes-arrows")
+    resolved["has_diagram"] = bool(data)
+    return resolved
+
+
 class DiagramRegistry(dict):
     """dict of built-in specs; `get` also synthesizes a custom-type spec from the library."""
 
@@ -366,6 +376,21 @@ DIAGRAMS: DiagramRegistry = DiagramRegistry({
         # Sequence resolves through the shared resolver (flat nodes[]/relations[] are participants/
         # messages) — it never re-derives from the live graph, only from the authored file.
         resolve=_resolve_sequence,
+        sync_before_resolve=False,
+        has_generate=False,
+        has_bootstrap=False,
+        bootstrap_context=None,
+        generate=None,
+        provider_from_env=None,
+        supports_only_if_missing=False,
+    ),
+    "walkthrough": DiagramSpec(
+        kind="walkthrough",
+        # Like sequence: a skill writes walkthrough.json; nothing is re-derived from the live graph.
+        agent_factory=lambda: build_skill_agent_for(BUILTIN_TYPES["walkthrough"]),
+        root_for=lambda ws: ws.root,
+        artifact_path=lambda root: root / BUILTIN_TYPES["walkthrough"].artifact,
+        resolve=_resolve_walkthrough,
         sync_before_resolve=False,
         has_generate=False,
         has_bootstrap=False,

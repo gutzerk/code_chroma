@@ -149,7 +149,7 @@ MESSAGE_KINDS = ("call", "return", "ai", "event", "error")
 EDGE_KINDS = ("calls", "spawns", "data", "reads", "writes", "minor")
 EDGE_KIND_ALIASES = (
     "call", "uses", "spawn", "process", "read", "write", "secondary", "imports", "implements",
-    "extends", "inherits", "composes", "contains", "depends", "depends_on", "removed",
+    "extends", "inherits", "composes", "contains", "depends", "depends_on", "removed", "error",
 )
 _PLAIN_EDGE_KINDS = ("", "calls", "call", "uses")
 # These author structural verbs (observes, wraps, ...), so an unknown kind there is not a typo.

@@ -141,6 +141,13 @@ _EPICS_BUDGET = {
 _SEQUENCE_BUDGET = {
     "max_nodes": 24, "max_relations": 60, "max_name_chars": 40, "max_edge_label_chars": 60,
 }
+# Mirrored from src/codechroma/diagrams/registry.py _WALKTHROUGH_BUDGET -- keep the two in sync.
+_WALKTHROUGH_BUDGET = {
+    "max_nodes": 24, "max_relations": 40, "max_name_chars": 40, "max_edge_label_chars": 50,
+}
+_WALKTHROUGH_ISLAND_HINT = (
+    "wire it into the process with an arrow from the step that uses it, or drop the box"
+)
 _SEQUENCE_ISLAND_HINT = (
     "wire it with a message to (or from) the rest of the participants, or drop the participant"
 )
@@ -231,6 +238,21 @@ _BUILTIN_CHECKS = {
         "allow_self": True,
         "graph_advisories": False,
         "check_islands": {"hint": _SEQUENCE_ISLAND_HINT},
+    },
+    "walkthrough": {
+        # A flat process: step boxes + actors/stores in nodes[], arrows in relations[], and the
+        # `route` (advisory-checked) naming the code each step runs in.
+        "shape": "flat",
+        "budgets": _WALKTHROUGH_BUDGET,
+        "min_depth": None,
+        "unlabeled": "advisory",
+        "coverage_source": None,
+        "density_source": None,
+        "required_meta": [],
+        "membership_source": None,
+        "allow_self": False,
+        "check_islands": {"hint": _WALKTHROUGH_ISLAND_HINT},
+        "max_hero_edges": 2,
     },
 }
 
@@ -885,8 +907,8 @@ def _check_impact_status(diagram: object, kind: str, report: _Report) -> None:
 PHASE_KINDS = ("request", "prepare", "ai", "deliver", "custom")
 FRAME_KINDS = ("alt", "loop")
 MAX_TITLE_WORDS = 4
-READABILITY_KINDS = ("sequence", "system-context", "patterns", "impact")
-HERO_KINDS = ("system-context", "patterns", "impact")
+READABILITY_KINDS = ("sequence", "system-context", "patterns", "impact", "walkthrough")
+HERO_KINDS = ("system-context", "patterns", "impact", "walkthrough")
 MIN_RELATIONS_FOR_HERO = 3
 
 
@@ -914,7 +936,7 @@ EDGE_KINDS = ("calls", "spawns", "data", "reads", "writes", "minor")
 # Web-side aliases (edgeKinds.ts) plus the structural verbs patterns/c1 already author.
 EDGE_KIND_ALIASES = (
     "call", "uses", "spawn", "process", "read", "write", "secondary", "imports", "implements",
-    "extends", "inherits", "composes", "contains", "depends", "depends_on", "removed",
+    "extends", "inherits", "composes", "contains", "depends", "depends_on", "removed", "error",
 )
 _PLAIN_EDGE_KINDS = ("", "calls", "call", "uses")
 # These author structural verbs (observes, wraps, ...), so an unknown kind there is not a typo.
@@ -1062,6 +1084,9 @@ def _check_route_step(
         orders.append(order)
     else:
         report.advisories.append(f"ROUTE-ORDER {sid!r} needs an integer `order`")
+    detail = step.get("detail")
+    if detail is not None and not (isinstance(detail, str) and detail.strip()):
+        report.advisories.append(f"ROUTE-DETAIL {sid!r} `detail` must be a non-empty string")
     ids = step.get("node_ids")
     if ids is not None and not (
         isinstance(ids, list) and all(isinstance(i, str) and i for i in ids)

@@ -198,6 +198,7 @@ actors around one system box); the other types should stay well under these numb
 | epics | 60 | 60 | 60 | 50 |
 | custom | 60 | 100 | 40 | 50 |
 | sequence | 24 | 60 | 40 | 60 |
+| walkthrough | 24 | 40 | 40 | 50 |
 
 `sequence`'s "nodes" are its participants (kept tight at 24 — a readable diagram has a handful of
 boxes across the top), and its "relations" are its messages (the real story, capped higher at 60).
@@ -329,7 +330,7 @@ advises (never fails) on an unknown kind or a spawn/data-sounding label left as 
 One command shape, run from the repo the bridge serves:
 
 ```bash
-python3 .claude/skills/codechroma-draw-diagram/scripts/check_diagram.py --kind <system-context|patterns|impact|sequence|custom|epics> [--type <type-id>] [--source=diff|plan] [--feature=<dir>] [--json <file>]
+python3 .claude/skills/codechroma-draw-diagram/scripts/check_diagram.py --kind <system-context|patterns|impact|sequence|walkthrough|custom|epics> [--type <type-id>] [--source=diff|plan] [--feature=<dir>] [--json <file>]
 ```
 
 `epics` reads the bridge's resolved `epics.json` when given no `--json`; a per-epic diagram

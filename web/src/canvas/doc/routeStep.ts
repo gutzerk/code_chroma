@@ -15,6 +15,8 @@ export interface RouteStep {
   order: number;
   lane?: string;
   title: string;
+  /** The ROUTE card's second line: who acts or which function runs (authored, optional). */
+  detail?: string;
   kind: RouteKind;
   nodeIds: string[];
   children: RouteChild[];
@@ -51,6 +53,7 @@ function stepOf(raw: unknown): RouteStep | undefined {
     order: typeof raw.order === "number" ? raw.order : 0,
     lane: text(raw.lane),
     title: text(raw.title) ?? id,
+    detail: text(raw.detail),
     kind,
     nodeIds,
     children,
@@ -85,7 +88,7 @@ export function routeFor(element: CanvasElement, carriers: readonly CanvasElemen
   return carrier ? routeOf(carrier) : routeOf(element);
 }
 
-function parseRoute(raw: unknown): Route | undefined {
+export function parseRoute(raw: unknown): Route | undefined {
   if (!isRecord(raw) || !Array.isArray(raw.steps)) return undefined;
   const steps = raw.steps.map(stepOf).filter((s): s is RouteStep => !!s);
   return { id: text(raw.id) ?? "route", title: text(raw.title) ?? "Route", summary: text(raw.summary) ?? "", steps };

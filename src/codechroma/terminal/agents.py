@@ -61,6 +61,7 @@ def agent_cli(
         )
         return [
             resolution.binary,
+            *_model_args(resolution),
             *_tracking_args(is_claude, session_tracking_file),
             *_instruction_args(is_claude),
             *_mcp_args(is_claude, mcp),
@@ -99,6 +100,13 @@ def agent_cli(
 def resolved_cli_for(kind: str, argv: list[str]) -> str:
     """The label to persist on `AgentRecord.resolved_cli` -- only `agent` windows report one."""
     return argv[0] if kind == "agent" else ""
+
+
+def _model_args(resolution) -> list[str]:
+    """`--model` for an assigned provider's model; omitted when unassigned or in ANTHROPIC_MODEL."""
+    if not resolution.provider_assigned or "ANTHROPIC_MODEL" in resolution.env_overrides:
+        return []
+    return ["--model", resolution.model] if resolution.model else []
 
 
 def _tracking_args(is_claude: bool, file: Path | None) -> list[str]:

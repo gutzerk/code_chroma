@@ -35,7 +35,7 @@ _STATIC_MODELS: dict[str, list[str]] = {
     "transport:anthropic": _ANTHROPIC_MODELS,
     "transport:gemini": ["gemini-2.5-pro", "gemini-2.5-flash", "gemini-2.5-flash-lite"],
     "transport:openai-compatible": ["gpt-5.2", "gpt-5.2-pro"],
-    "adapter:claude": ["opus", "sonnet", "haiku", "fable", *_ANTHROPIC_MODELS],
+    "adapter:claude": ["opus", "sonnet", "haiku", "fable"],
     "adapter:codex": ["gpt-5.2", "gpt-5.2-codex"],
     "adapter:gemini": ["gemini-2.5-pro", "gemini-2.5-flash", "gemini-2.5-flash-lite"],
     "adapter:kimi-cli": ["kimi-k2-turbo-preview", "kimi-k2-thinking"],
@@ -169,13 +169,15 @@ def _shape_models(items: object, id_key: str, label_key: str) -> list[dict] | No
 
 
 def parse_claude_models_response(line: str) -> list[dict] | None:
-    """The models of a claude `control_response` line (`response.response.models[]`), else None."""
+    """The aliases of a claude `control_response` line (`claude-*` ids dropped), else None."""
     try:
         message = json.loads(line)
         envelope = message["response"]
         if message["type"] != "control_response" or envelope["request_id"] != _CLAUDE_REQUEST_ID:
             return None
-        return _shape_models(envelope["response"]["models"], "value", "displayName")
+        models = _shape_models(envelope["response"]["models"], "value", "displayName")
+        aliases = [m for m in models or [] if not m["id"].startswith("claude-")]
+        return aliases or None
     except (ValueError, KeyError, TypeError):
         return None
 

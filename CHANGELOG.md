@@ -1,5 +1,49 @@
 # Changelog
 
+## [1.9.0](https://github.com/gutzerk/code_chroma/compare/v1.8.0...v1.9.0) (2026-10-28)
+
+
+### Features
+
+* **bridge:** carry a diagram route into node meta in both bridges ([1bc6e22](https://github.com/gutzerk/code_chroma/commit/1bc6e2247e6ec544689604cdf6a0193dd4afec34))
+* **bridge:** pass sequence message kind and failure through to element meta ([814f07d](https://github.com/gutzerk/code_chroma/commit/814f07dae2b2c243328a8ec6b280970fdd74faff))
+* **bridge:** surface edge/message-kind advisories as diagnostics; group arrow opens source ([1b14df7](https://github.com/gutzerk/code_chroma/commit/1b14df724b15efbc31c57085b576c23c3bd97b87))
+* **llm:** probe the gemini CLI for its model list ([29ad4bf](https://github.com/gutzerk/code_chroma/commit/29ad4bffb36f18651f3c56a612b14ca03f307b1e))
+* resolve route node_ids, route picker, Failures band and route e2e journeys ([ed76207](https://github.com/gutzerk/code_chroma/commit/ed76207f5e32f7da3ac4bf750e87e5aa504bf291))
+* **skills:** author spawns/data edge kinds and advise on them in the self-check ([3ea586f](https://github.com/gutzerk/code_chroma/commit/3ea586fdd5d3446d4699ccb98556ada2540ce3b4))
+* store a diagram route once on a carrier element ([45cd789](https://github.com/gutzerk/code_chroma/commit/45cd78974a022da09f829991470edbdb57bd1ee4))
+* store a diagram route once on a carrier element instead of on every node ([37313f0](https://github.com/gutzerk/code_chroma/commit/37313f05ffa6af5e25a0b1ea5b8a8a3a52455fbb))
+* **web:** add Chat about it button to the question card ([559c69c](https://github.com/gutzerk/code_chroma/commit/559c69c86fa4175d2c9dddda9040a9c683245cdf))
+* **web:** add Chat about it button to the question card ([651d21b](https://github.com/gutzerk/code_chroma/commit/651d21bfd714a58cc77dd2dcf29a932e327f2a5d))
+* **web:** apply the diagram readability board styles (022) ([85d591d](https://github.com/gutzerk/code_chroma/commit/85d591ddf51c15ccc08b3ecfe9f05c23d55889d5))
+* **web:** board role styles for diagram blocks (role word, per-role frame and fill) ([191dbf0](https://github.com/gutzerk/code_chroma/commit/191dbf0bafdc7d054298ee0c571ef0f6c9580fb0))
+* **web:** board-style typed edges, groups and focus panel ([fe85a46](https://github.com/gutzerk/code_chroma/commit/fe85a4684f608290a1b6ba2ca08bd58ff0cdffab))
+* **web:** expand a route step in place into its calls ([ee8648b](https://github.com/gutzerk/code_chroma/commit/ee8648b90cd93fe7c4c12f4cf0eff09416580974))
+* **web:** match the Impact view to the ImpactGlance design board ([3214a81](https://github.com/gutzerk/code_chroma/commit/3214a81fd39456e185ce78609bd50c0dd2dae340))
+* **web:** members chip, hero card and zoom levels on canvas blocks ([a6f24a8](https://github.com/gutzerk/code_chroma/commit/a6f24a8072598f246b00a89af4a913b58fdcb058))
+* **web:** pin Impact board bars to the diagram, merge minor pills, render removed links ([5dc1c55](https://github.com/gutzerk/code_chroma/commit/5dc1c559fecfa7221d65042236e14d2863319a09))
+* **web:** redesign AI models settings around one default model ([265c0b8](https://github.com/gutzerk/code_chroma/commit/265c0b8e3ef5a8aebd8c3d077507a29ddce6f249))
+* **web:** redesign AI models settings around one default model ([ca845e1](https://github.com/gutzerk/code_chroma/commit/ca845e19a8776991c32f1235b3ef7a3102cb1334))
+* **web:** sequence focus timeline with phase bar, participants list and focus counts ([7657b9e](https://github.com/gutzerk/code_chroma/commit/7657b9e5668fa76db87f0c88a2b74cffe535aaff))
+* **web:** sequence focus timeline/legend parity, board edge pills and group bundles ([19e0f1f](https://github.com/gutzerk/code_chroma/commit/19e0f1f08f6a8b0edbb5514e5584a337d692d725))
+* **web:** show an authored route over the code map ([399fa0a](https://github.com/gutzerk/code_chroma/commit/399fa0ac3731063cf3df029d45c3bd99a718d5c0))
+
+
+### Bug Fixes
+
+* address PR review findings and CI lint failures ([ceb88a7](https://github.com/gutzerk/code_chroma/commit/ceb88a78d7c678d4102787db283c557264542350))
+* address PR review findings on line counts and drawing hints ([1f63453](https://github.com/gutzerk/code_chroma/commit/1f6345386eda3df5c2ad596e4a1f3ad79e77ec01))
+* address review findings on the single route carrier ([e5a29fc](https://github.com/gutzerk/code_chroma/commit/e5a29fcbca6e1e856c5a58245dddf8da9fd23d0a))
+* **bridge:** isolate and cache the live CLI model probe, pick models without "default" ([4e80092](https://github.com/gutzerk/code_chroma/commit/4e80092362b2f2a13a4d000c48df56737b94c652))
+* **llm-settings:** address review findings on the models tab ([c646cce](https://github.com/gutzerk/code_chroma/commit/c646ccebbd28837d104e8d5975cf2c2cb49c4a9f))
+* **llm:** harden CLI model probes from review ([5c23c34](https://github.com/gutzerk/code_chroma/commit/5c23c34a9d7274fc01640891c9fa7246066f64bc))
+* **llm:** list CLI models live and add a gemini CLI adapter ([ce6ca49](https://github.com/gutzerk/code_chroma/commit/ce6ca492072e25091151d9b14a8ea75db216a483))
+* **llm:** list CLI models live and add a gemini CLI adapter ([2d40344](https://github.com/gutzerk/code_chroma/commit/2d403440ddd5ed2455f5911554e6fd039a935418)), closes [#297](https://github.com/gutzerk/code_chroma/issues/297)
+* **llm:** pin the gemini probe command and shapes in a shared case, close probe stdin ([4223fd9](https://github.com/gutzerk/code_chroma/commit/4223fd9c04afe3e9ab59a218d7d8ef94d3d4dcd2))
+* stamp lane_kind normal, harden lane parsing and wrap long test line ([74e195f](https://github.com/gutzerk/code_chroma/commit/74e195f6fe091957542f82dfa61fdd44b18528dd))
+* **web:** keep diagram boxes out of the route highlight and move the ROUTE card clear of the agents panel ([44d9768](https://github.com/gutzerk/code_chroma/commit/44d97689cbffb1ada4ece5774d7da78b7f5aa5eb))
+* **web:** let ai and event sequence arrows keep their own colour ([65f7590](https://github.com/gutzerk/code_chroma/commit/65f759088b953bedd9ec68ab767c0c87e6f7ed46))
+
 ## [1.8.0](https://github.com/gutzerk/code_chroma/compare/v1.7.1...v1.8.0) (2026-10-27)
 
 

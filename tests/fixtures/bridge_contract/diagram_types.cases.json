@@ -22,7 +22,7 @@
         {
           "http": {"method": "GET", "path": "/diagram-kinds"},
           "expect": {"status": 200, "checks": [
-            {"path": "$.kinds[*].id", "equals": ["any", "system-context", "patterns", "impact", "plan", "sequence", "custom"]}
+            {"path": "$.kinds[*].id", "equals": ["any", "system-context", "patterns", "impact", "plan", "sequence", "walkthrough", "custom"]}
           ]}
         }
       ]

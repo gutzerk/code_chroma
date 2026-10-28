@@ -49,7 +49,7 @@ def _flat(node_count, *, relations=None, label="uses"):
 def _markdown_budgets():
     """The budget table in drawing-rules.md, parsed back into the shape `_BUDGETS` has."""
     rows = re.findall(
-        r"^\|\s*(c1|patterns|impact|epics|custom|sequence)\s*\|(.+)\|\s*$",
+        r"^\|\s*(system-context|patterns|impact|epics|custom|sequence|walkthrough)\s*\|(.+)\|\s*$",
         RULES.read_text(encoding="utf-8"),
         re.M,
     )
@@ -419,10 +419,10 @@ def test_uncovered_findings_are_unchanged_by_the_parallel_probe_batch(monkeypatc
     monkeypatch.setattr(module.urllib.request, "urlopen", _fake_urlopen)
     diagram = _c1_with_dir_leaves(4)
     args = argparse.Namespace(
-        url="http://localhost:8000", repo="default", json_path=None, kind="c1"
+        url="http://localhost:8000", repo="default", json_path=None, kind="system-context"
     )
 
-    report = module._inspect_hierarchical(diagram, module._BUILTIN_CHECKS["c1"], args)
+    report = module._inspect_hierarchical(diagram, module._BUILTIN_CHECKS["system-context"], args)
 
     uncovered = sorted(line for line in report.shape if line.startswith("UNCOVERED"))
     assert uncovered == [

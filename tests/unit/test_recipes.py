@@ -26,7 +26,7 @@ def _to_ops(resolved: dict, render: str) -> RecipeResult:
 @pytest.mark.parametrize(
     ("kind", "expected"),
     [
-        ("c1", "c1"),
+        ("system-context", "c1"),
         ("patterns", "pattern"),
         ("impact", "impact"),
         ("epics", "epic"),
@@ -37,7 +37,7 @@ def _to_ops(resolved: dict, render: str) -> RecipeResult:
         ("epics/EP-4-01", "epic"),
     ],
     ids=[
-        "c1",
+        "system-context",
         "patterns",
         "impact",
         "epics",

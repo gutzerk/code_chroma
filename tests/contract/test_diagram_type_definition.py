@@ -30,7 +30,7 @@ def _base_definition(**overrides) -> dict:
 
 
 def test_every_builtin_carries_a_full_check_config():
-    for kind in ("c1", "patterns", "impact"):
+    for kind in ("system-context", "patterns", "impact"):
         definition = get_definition(kind)
         assert isinstance(definition.checks, CheckConfig)
         assert definition.checks.shape in ("hierarchical", "flat")

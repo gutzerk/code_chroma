@@ -52,9 +52,9 @@ describe("listActiveDiagramLayers", () => {
   });
 
   it("includes a builtin recipe layer present on the doc", () => {
-    const doc = docWith([element("c1a", "c1")]);
+    const doc = docWith([element("c1a", "system-context")]);
 
-    expect(listActiveDiagramLayers(doc)).toEqual(["c1"]);
+    expect(listActiveDiagramLayers(doc)).toEqual(["system-context"]);
   });
 
   it("includes a custom/<id> layer present on the doc", () => {
@@ -64,9 +64,9 @@ describe("listActiveDiagramLayers", () => {
   });
 
   it("returns each distinct layer once, regardless of element count", () => {
-    const doc = docWith([element("c1a", "c1"), element("c1b", "c1"), element("pat", "patterns")]);
+    const doc = docWith([element("c1a", "system-context"), element("c1b", "system-context"), element("pat", "patterns")]);
 
-    expect(listActiveDiagramLayers(doc).sort()).toEqual(["c1", "patterns"]);
+    expect(listActiveDiagramLayers(doc).sort()).toEqual(["patterns", "system-context"]);
   });
 
   it("includes a freeform layer name that matches neither a builtin nor a custom/<id> prefix", () => {
@@ -85,7 +85,7 @@ describe("isDiagramLayer", () => {
   });
 
   it("accepts a builtin, a custom/<id>, and a freeform layer name", () => {
-    expect(isDiagramLayer("c1")).toBe(true);
+    expect(isDiagramLayer("system-context")).toBe(true);
     expect(isDiagramLayer("custom/my-type")).toBe(true);
     expect(isDiagramLayer("Serving Unit TLS Process (LMP-126)")).toBe(true);
   });
@@ -97,7 +97,7 @@ describe("labelForDiagramLayer", () => {
   ];
 
   it.each([
-    ["resolves a builtin layer to its recipe label", "c1", "C1"],
+    ["resolves a builtin layer to its recipe label", "system-context", "System context"],
     ["resolves a custom layer to its saved type's title", "custom/my-type", "My Type"],
     ["falls back to the raw layer key for an unknown custom type", "custom/not-loaded-yet", "custom/not-loaded-yet"],
     ["labels a feature-plan/<slug> layer with its slug", "feature-plan/token-auth", "Feature plan: token-auth"],
@@ -130,7 +130,7 @@ describe("labelForDiagramLayer", () => {
 
 describe("isRecipeBackedLayer", () => {
   it.each([
-    ["a builtin recipe layer", "c1", true],
+    ["a builtin recipe layer", "system-context", true],
     ["any custom/<id> layer", "custom/my-type", true],
     ["any feature-plan/<slug> layer", "feature-plan/token-auth", true],
     ["any per-epic epics/<id> layer", "epics/EP-2", true],
@@ -147,7 +147,7 @@ function docWithElement(id: string, position: { x: number; y: number }): CanvasD
     {
       id,
       render: "c1",
-      layer: "c1",
+      layer: "system-context",
       label: "System",
       description: "",
       node_id: null,
@@ -180,7 +180,7 @@ describe("remove-then-re-add position preservation", () => {
       getCanvas: async () => EMPTY_CANVAS_DOC,
     } as unknown as EngineClient;
 
-    const removed = await removeLayerAndRefresh(client, "c1");
+    const removed = await removeLayerAndRefresh(client, "system-context");
     expect(removed.ok).toBe(true);
 
     // Re-adding: the recipe re-projects fresh from disk with a new id, at whatever position the
@@ -199,7 +199,7 @@ describe("remove-then-re-add position preservation", () => {
       },
     } as unknown as EngineClient;
 
-    const added = await runRecipeAndLayout(client2, "c1");
+    const added = await runRecipeAndLayout(client2, "system-context");
     expect(added.ok).toBe(true);
 
     const layoutBatch = patchCalls.at(-1) as { ops: { id: string; position: unknown }[] };
@@ -222,7 +222,7 @@ describe("remove-then-re-add position preservation", () => {
       },
     } as unknown as EngineClient;
 
-    const added = await runRecipeAndLayout(client, "c1");
+    const added = await runRecipeAndLayout(client, "system-context");
     expect(added.ok).toBe(true);
 
     // A batch is always sent here (layoutNewElements always places a lone new node), so asserting
@@ -256,12 +256,12 @@ describe("runRecipeAndLayout defers the transient (0,0) snapshot", () => {
         canvasCalls += 1;
         const atOrigin = canvasCalls === 1;
         return docWith([
-          element("e1", "c1", {
+          element("e1", "system-context", {
             render: "c1",
             position: atOrigin ? { x: 0, y: 0 } : { x: 100, y: 120 },
             meta: { recipe_key: "n1" },
           }),
-          element("e2", "c1", {
+          element("e2", "system-context", {
             render: "c1",
             position: atOrigin ? { x: 0, y: 0 } : { x: 460, y: 120 },
             meta: { recipe_key: "n2" },
@@ -270,7 +270,7 @@ describe("runRecipeAndLayout defers the transient (0,0) snapshot", () => {
       },
     } as unknown as EngineClient;
 
-    const added = await runRecipeAndLayout(client, "c1");
+    const added = await runRecipeAndLayout(client, "system-context");
 
     expect(added.ok).toBe(true);
     // The layout pass sent one batch of update_element position ops.
@@ -287,20 +287,20 @@ describe("runRecipeAndLayout defers the transient (0,0) snapshot", () => {
     // The live-ping path: a "changed" socket ping refetches the canvas while a layer is still
     // mid-layout, and the server's floor snapshot still has every box at (0,0). The content guard in
     // fetchAndApplyCanvasDoc must drop that snapshot -- the prior doc (what the user last saw) stays.
-    const prior = docWith([element("e0", "c1", { position: { x: 30, y: 40 } })]);
+    const prior = docWith([element("e0", "system-context", { position: { x: 30, y: 40 } })]);
     canvasDocStore.setDoc(prior);
     const client = {
       patchCanvas: async () => ({ ok: true as const, batch_id: "b2", id_map: {}, affected: [] }),
       // The post-write refetch swaps in the origin-piled recipe commit -- only a real (non-deferred)
-      // fetch should surface it; while "c1" is deferred the guard keeps the prior doc.
+      // fetch should surface it; while "system-context" is deferred the guard keeps the prior doc.
       getCanvas: async () =>
-        docWith([element("e1", "c1", { position: { x: 0, y: 0 }, meta: { recipe_key: "n1" } })]),
+        docWith([element("e1", "system-context", { position: { x: 0, y: 0 }, meta: { recipe_key: "n1" } })]),
     } as unknown as EngineClient;
 
     // Simulate the recipe run having put the layer mid-layout, then an unrelated write's refetch.
-    canvasDocStore.deferLayout("c1");
+    canvasDocStore.deferLayout("system-context");
     await patchCanvasDoc(client, [{ op: "update_element", id: "e0", position: { x: 30, y: 40 } }]);
-    canvasDocStore.releaseLayout("c1");
+    canvasDocStore.releaseLayout("system-context");
 
     // The origin-piled snapshot never flashed; the user's prior view is untouched.
     expect(canvasDocStore.getDoc().elements.e0.position).toEqual({ x: 30, y: 40 });
@@ -324,10 +324,10 @@ describe("deleteDiagramAndRefresh", () => {
       getCanvas: async () => EMPTY_CANVAS_DOC,
     } as unknown as EngineClient;
 
-    const result = await deleteDiagramAndRefresh(client, "c1");
+    const result = await deleteDiagramAndRefresh(client, "system-context");
 
     expect(result.ok).toBe(true);
-    expect(calls).toEqual(["delete:c1", "patch"]);
+    expect(calls).toEqual(["delete:system-context", "patch"]);
   });
 
   it("leaves the canvas untouched when the file delete fails", async () => {
@@ -344,7 +344,7 @@ describe("deleteDiagramAndRefresh", () => {
       getCanvas: async () => EMPTY_CANVAS_DOC,
     } as unknown as EngineClient;
 
-    const result = await deleteDiagramAndRefresh(client, "c1");
+    const result = await deleteDiagramAndRefresh(client, "system-context");
 
     expect(result).toEqual({ ok: false, error: "disk error" });
     expect(patched).toBe(false);
@@ -380,7 +380,7 @@ describe("computeReadyDiagrams", () => {
     const result = computeReadyDiagrams(null, customTypes, new Set());
 
     expect(result.readyBuiltins.map((r) => r.name).sort()).toEqual(
-      ["c1", "epics", "impact", "patterns", "sequence"].sort(),
+      ["system-context", "epics", "impact", "patterns", "sequence"].sort(),
     );
     expect(result.readyCustomTypes).toEqual(customTypes);
     expect(result.missingLabels).toEqual([]);
@@ -392,13 +392,13 @@ describe("computeReadyDiagrams", () => {
 
   it("splits ready vs. missing off the status map, epics generated like the rest", () => {
     const status: DiagramsStatus = {
-      c1: { ready: true, fingerprint: "fp" },
+      "system-context": { ready: true, fingerprint: "fp" },
       patterns: { ready: false, fingerprint: null },
     };
 
     const result = computeReadyDiagrams(status, [], new Set());
 
-    expect(result.readyBuiltins.map((r) => r.name).sort()).toEqual(["c1"]);
+    expect(result.readyBuiltins.map((r) => r.name).sort()).toEqual(["system-context"]);
     expect(result.missingLabels.sort()).toEqual([
       "Change impact", "Design patterns", "Epics", "Sequence",
     ]);
@@ -412,7 +412,7 @@ describe("computeReadyDiagrams", () => {
 
   it("always lists every type in allLabels, even when all are already drawn", () => {
     const status: DiagramsStatus = {
-      c1: { ready: true, fingerprint: "fp" },
+      "system-context": { ready: true, fingerprint: "fp" },
       epics: { ready: true, fingerprint: "fp" },
       patterns: { ready: true, fingerprint: "fp" },
       impact: { ready: true, fingerprint: "fp" },
@@ -429,7 +429,7 @@ describe("computeReadyDiagrams", () => {
     // menu regardless of what's already on the canvas.
     expect(result.missingLabels).toEqual([]);
     expect(result.allLabels.sort()).toEqual(
-      ["C1", "Change impact", "Design patterns", "Epics", "My Type", "Sequence"].sort(),
+      ["Change impact", "Design patterns", "Epics", "My Type", "Sequence", "System context"].sort(),
     );
   });
 });

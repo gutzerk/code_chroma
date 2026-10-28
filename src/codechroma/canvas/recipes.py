@@ -35,7 +35,8 @@ RECIPE_KEY = "recipe_key"
 
 # A diagram kind's own name -> the `render` string its canvas elements carry (a naming convention).
 _RENDER_BY_KIND = {
-    "c1": "c1", "patterns": "pattern", "impact": "impact", "epics": "epic", "sequence": "sequence",
+    "system-context": "c1", "patterns": "pattern", "impact": "impact", "epics": "epic",
+    "sequence": "sequence",
 }
 
 # A lazily synthesized "<prefix>/<id>" kind -- extend this, not recipe_for, for a third one.

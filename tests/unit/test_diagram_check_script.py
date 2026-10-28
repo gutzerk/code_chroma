@@ -664,3 +664,32 @@ def test_a_route_step_with_an_unhashable_id_is_advised_not_a_crash(tmp_path):
     assert result.returncode == 0
     assert "Traceback" not in result.stderr
     assert "needs a string `id`" in result.stdout
+
+
+def _c1_with_context(monkeypatch, candidate_ids):
+    module = _load_module()
+    context = {"generation_data": {"candidates": [{"id": i} for i in candidate_ids]}}
+    monkeypatch.setattr(module, "_fetch_json", lambda url: context)
+    return module
+
+
+def test_system_context_flags_a_detected_candidate_the_file_never_addresses(monkeypatch):
+    module = _c1_with_context(monkeypatch, ["redis", "stripe"])
+    report = module._Report()
+    by_id = {"redis": {"id": "redis"}}
+    args = argparse.Namespace(url="http://bridge", repo="default")
+
+    module._check_unaddressed_candidates("c1", by_id, report, args)
+
+    assert [line.split()[1] for line in report.shape] == ["'stripe'"]
+
+
+def test_system_context_accepts_a_rejected_candidate_as_addressed(monkeypatch):
+    module = _c1_with_context(monkeypatch, ["redis"])
+    report = module._Report()
+    by_id = {"redis": {"id": "redis", "meta": {"confirmed": False}}}
+    args = argparse.Namespace(url="http://bridge", repo="default")
+
+    module._check_unaddressed_candidates("c1", by_id, report, args)
+
+    assert report.shape == []

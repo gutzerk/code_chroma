@@ -34,7 +34,7 @@ test("a collapsed-bar color box hides its diagram (dashed) and restores it", asy
       ...doc,
       elements: {
         c1a: {
-          id: "c1a", render: "c1", layer: "c1", label: "System", description: "", node_id: null,
+          id: "c1a", render: "c1", layer: "system-context", label: "System", description: "", node_id: null,
           position: { x: 0, y: 0 }, size: null, group_id: null, meta: {}, created_by: "ai",
         },
       },

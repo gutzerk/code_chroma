@@ -18,7 +18,7 @@ public sealed class DiagramBootstrap(Func<(ILlmCompletion? Provider, string Mode
     public void IfMissing(Workspace ws)
     {
         if (ws.ReadOnly) return;
-        Guarded("c1", () => C1(ws));
+        Guarded("system-context", () => C1(ws));
         Guarded("patterns", () => Patterns(ws));
     }
 
@@ -26,7 +26,7 @@ public sealed class DiagramBootstrap(Func<(ILlmCompletion? Provider, string Mode
     public void Start(Workspace ws)
     {
         if (ws.ReadOnly) return;
-        Guarded("c1", () => C1(ws));
+        Guarded("system-context", () => C1(ws));
         _ = Task.Run(() => Guarded("patterns", () => Patterns(ws)));
     }
 
@@ -39,7 +39,7 @@ public sealed class DiagramBootstrap(Func<(ILlmCompletion? Provider, string Mode
 
     private static void C1(Workspace ws)
     {
-        var path = ws.DiagramPath("c1");
+        var path = ws.DiagramPath("system-context");
         if (File.Exists(path)) return;
         // An engine without a graph snapshot still gets the repo-name system node, like an empty Python graph.
         var graph = ws.Engine.GraphSnapshot() ?? new CodeChroma.Core.Graph([], []);

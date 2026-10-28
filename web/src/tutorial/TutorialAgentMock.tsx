@@ -21,7 +21,7 @@ import { TutorialMoveArrow } from "./TutorialMoveArrow";
 import { TUTORIAL_STEPS } from "./tutorialSteps";
 import { advanceTutorialFrom, useTutorialStep } from "./tutorialStore";
 
-const DIAGRAM_LAYERS = ["c1", "patterns", "impact"];
+const DIAGRAM_LAYERS = ["system-context", "patterns", "impact"];
 const DIAGRAM_HIDDEN_UNTIL = TUTORIAL_STEPS.findIndex((step) => step.id === "choose-diagram");
 const RAIL_GAP = 16;
 const DEFAULT_RIGHT = 24;
@@ -227,9 +227,9 @@ export function TutorialAgentMock() {
     doneLine: () => "Done. The System context diagram is on your canvas.",
     onChosen: () => advanceTutorialFrom("second-diagram"),
     onDone: () => {
-      tutorialSimStore.reveal("c1");
-      void runRecipeAndLayout(engineClient, "c1")
-        .then(() => placeLayerRightOfOthers(engineClient, "c1"))
+      tutorialSimStore.reveal("system-context");
+      void runRecipeAndLayout(engineClient, "system-context")
+        .then(() => placeLayerRightOfOthers(engineClient, "system-context"))
         .catch(() => undefined)
         .then(() => {
           tutorialSimStore.closeAgent();

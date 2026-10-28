@@ -289,14 +289,14 @@ public class SkillSyncTests : IDisposable
     public void Seeding_copies_main_diagram_artifacts_into_a_new_worktree_without_overwriting()
     {
         var other = _repo.Sibling("seeded");
-        _repo.Write(".codechroma/diagrams/c1/c1.json", """{"from":"main"}""");
+        _repo.Write(".codechroma/diagrams/system-context/system-context.json", """{"from":"main"}""");
         _repo.Write(".codechroma/diagrams/patterns/patterns.json", """{"p":1}""");
         Directory.CreateDirectory(Path.Combine(other, ".codechroma", "diagrams", "patterns"));
         File.WriteAllText(Path.Combine(other, ".codechroma", "diagrams", "patterns", "patterns.json"), """{"own":true}""");
 
         DiagramSeed.SeedFromMain(_repo.Root, other);
 
-        Assert.Equal("""{"from":"main"}""", File.ReadAllText(Path.Combine(other, ".codechroma", "diagrams", "c1", "c1.json")));
+        Assert.Equal("""{"from":"main"}""", File.ReadAllText(Path.Combine(other, ".codechroma", "diagrams", "system-context", "system-context.json")));
         Assert.Equal("""{"own":true}""", File.ReadAllText(Path.Combine(other, ".codechroma", "diagrams", "patterns", "patterns.json")));
         Assert.False(File.Exists(Path.Combine(other, ".codechroma", "diagrams", "impact", "impact.json")));
     }
@@ -306,7 +306,7 @@ public class SkillSyncTests : IDisposable
     {
         var pr = _repo.Sibling("pr");
         _repo.Write(".codechroma/canvas-core.json", "{}");
-        _repo.Write(".codechroma/diagrams/c1/projection.json", "{\"c\":1}");
+        _repo.Write(".codechroma/diagrams/system-context/projection.json", "{\"c\":1}");
         _repo.Write(".codechroma/diagrams/custom/flow/flow.json", "{\"f\":1}");
         _repo.Write("plan/epics/e1.md", "# epic");
         _repo.Write("specs/s1/spec.md", "# spec");
@@ -314,7 +314,7 @@ public class SkillSyncTests : IDisposable
         DiagramSeed.SeedPullRequestFromMain(pr, _repo.Root);
 
         Assert.True(File.Exists(Path.Combine(pr, ".codechroma", "canvas-core.json")));
-        Assert.True(File.Exists(Path.Combine(pr, ".codechroma", "diagrams", "c1", "projection.json")));
+        Assert.True(File.Exists(Path.Combine(pr, ".codechroma", "diagrams", "system-context", "projection.json")));
         Assert.True(File.Exists(Path.Combine(pr, ".codechroma", "diagrams", "custom", "flow", "flow.json")));
         Assert.True(File.Exists(Path.Combine(pr, "plan", "epics", "e1.md")));
         Assert.True(File.Exists(Path.Combine(pr, "specs", "s1", "spec.md")));

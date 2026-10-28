@@ -8,7 +8,7 @@ Use this when the request describes a **future feature** — in the user's own w
 diagram of it: "draw a plan for token auth", "show me what the checkout redesign will add", "add the
 planned rate limiter to this diagram". This is **not** one of the four `type id` rows in `SKILL.md`'s
 router: you are authoring **Planned blocks** (boxes for code that doesn't exist yet, `meta.plan_kind`)
-into a diagram file dedicated to this one feature, not into `c1`/`patterns`/`impact`/`custom`.
+into a diagram file dedicated to this one feature, not into `system-context`/`patterns`/`impact`/`custom`.
 
 ## 1. The Feature plan
 
@@ -63,7 +63,7 @@ curl -s "${CODECHROMA_BRIDGE_URL:-http://localhost:8000}/repos/${CODECHROMA_WORK
     from scratch? Don't guess silently, and don't create a diagram no one asked for a shape of.
 
 Whichever branch you took, the Planned blocks you author **always** go into this feature's own
-`.codechroma/diagrams/feature-plan/<slug>/<slug>.json` — never into `c1.json`/`patterns.json`/
+`.codechroma/diagrams/feature-plan/<slug>/<slug>.json` — never into `system-context.json`/`patterns.json`/
 `custom/<id>.json`, even when one of those supplied the context you copied boxes from.
 
 ## 4. Minimal current context
@@ -113,7 +113,7 @@ Write the JSON to the returned `feature_plan_path` (create
 see `drawing-rules.md`'s Bridge contract.
 
 ⚠ `drawing-rules.md`'s Bridge contract already excludes `feature-plan/<slug>` from the status-POST
-section (only `c1` has a live status route) — nothing to send here, it never auto-generates.
+section (only `system-context` has a live status route) — nothing to send here, it never auto-generates.
 
 ## 7. Self-check — never report success on a run that didn't print `OK`
 

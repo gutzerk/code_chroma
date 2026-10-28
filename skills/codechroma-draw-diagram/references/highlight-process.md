@@ -26,7 +26,7 @@ boxes that already exist on the canvas.
    recipe. Only the boxes on the path should visibly change.
 4. **Expand a box that's too coarse.** If a matched box collapses several real steps of the
    process (e.g. one "Backend" box hides handler → service → repository → db client), decompose
-   it exactly the way `type-c1.md`'s "Decomposing a box into layers" already does: `add_element`/
+   it exactly the way `type-system-context.md`'s "Decomposing a box into layers" already does: `add_element`/
    `add_edge` ops for the missing steps, real `node_id`s copied verbatim, tagged
    `created_by: "ai"` and a `meta.recipe_key` like normal recipe output. Stay inside the current
    diagram kind's own density budget — zooming into one flow is not a license to redraw the

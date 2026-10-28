@@ -209,14 +209,14 @@ describe("CanvasDocView", () => {
   it("hides a collapsed diagram's elements and edges without deleting them from the document", async () => {
     const doc = docWith(
       [
-        elementOf({ id: "e1", render: "impact", label: "Hidden box", layer: "c1" }),
-        elementOf({ id: "e2", render: "impact", label: "Other box", layer: "c1", position: { x: 400, y: 100 } }),
+        elementOf({ id: "e1", render: "impact", label: "Hidden box", layer: "system-context" }),
+        elementOf({ id: "e2", render: "impact", label: "Other box", layer: "system-context", position: { x: 400, y: 100 } }),
         elementOf({ id: "e3", render: "impact", label: "Kept box", layer: "patterns" }),
       ],
-      [edgeOf({ id: "edge1", from: "e1", to: "e2", layer: "c1" })],
+      [edgeOf({ id: "edge1", from: "e1", to: "e2", layer: "system-context" })],
     );
     const engineClient = client(doc);
-    collapsedLayersStore.collapse("c1");
+    collapsedLayersStore.collapse("system-context");
 
     render(
       <EngineClientProvider repoId="default" client={engineClient}>
@@ -234,10 +234,10 @@ describe("CanvasDocView", () => {
 
   it("does not render a collapsed layer, nor its frame", async () => {
     const doc = docWith([
-      elementOf({ id: "e1", render: "impact", label: "Shell hidden box", layer: "c1" }),
+      elementOf({ id: "e1", render: "impact", label: "Shell hidden box", layer: "system-context" }),
       elementOf({ id: "e3", render: "impact", label: "Shown box", layer: "patterns" }),
     ]);
-    collapsedLayersStore.toggle("c1");
+    collapsedLayersStore.toggle("system-context");
 
     render(
       <EngineClientProvider repoId="default" client={client(doc)}>
@@ -269,9 +269,9 @@ describe("CanvasDocView", () => {
   });
 
   it("re-shows a diagram's elements the moment it's expanded again, no refetch needed", async () => {
-    const doc = docWith([elementOf({ id: "e1", render: "impact", label: "Auth service", layer: "c1" })]);
+    const doc = docWith([elementOf({ id: "e1", render: "impact", label: "Auth service", layer: "system-context" })]);
     const engineClient = client(doc);
-    collapsedLayersStore.collapse("c1");
+    collapsedLayersStore.collapse("system-context");
 
     render(
       <EngineClientProvider repoId="default" client={engineClient}>
@@ -282,7 +282,7 @@ describe("CanvasDocView", () => {
     expect(screen.queryByText("Auth service")).not.toBeInTheDocument();
 
     act(() => {
-      collapsedLayersStore.expand("c1");
+      collapsedLayersStore.expand("system-context");
     });
 
     expect(screen.getByText("Auth service")).toBeInTheDocument();
@@ -314,11 +314,11 @@ describe("CanvasDocView", () => {
 
   it("stops drawing a group's frame once every member's layer is collapsed", async () => {
     const doc = docWith([
-      elementOf({ id: "g1", render: "group", label: "External integrations", layer: "c1" }),
-      elementOf({ id: "m1", render: "custom", label: "Member A", group_id: "g1", layer: "c1" }),
+      elementOf({ id: "g1", render: "group", label: "External integrations", layer: "system-context" }),
+      elementOf({ id: "m1", render: "custom", label: "Member A", group_id: "g1", layer: "system-context" }),
     ]);
     const engineClient = client(doc);
-    collapsedLayersStore.collapse("c1");
+    collapsedLayersStore.collapse("system-context");
 
     render(
       <EngineClientProvider repoId="default" client={engineClient}>
@@ -332,8 +332,8 @@ describe("CanvasDocView", () => {
 
   it("draws a dashed frame around a whole diagram, labeled with the layer's own recipe name", async () => {
     const doc = docWith([
-      elementOf({ id: "e1", render: "c1", label: "Auth service", layer: "c1", position: { x: 100, y: 100 } }),
-      elementOf({ id: "e2", render: "c1", label: "Billing", layer: "c1", position: { x: 500, y: 300 } }),
+      elementOf({ id: "e1", render: "c1", label: "Auth service", layer: "system-context", position: { x: 100, y: 100 } }),
+      elementOf({ id: "e2", render: "c1", label: "Billing", layer: "system-context", position: { x: 500, y: 300 } }),
     ]);
     const engineClient = client(doc);
 
@@ -344,7 +344,7 @@ describe("CanvasDocView", () => {
     );
 
     await waitFor(() => expect(screen.getByTestId("canvas-diagram-frame")).toBeInTheDocument());
-    expect(screen.getByText("C1")).toBeInTheDocument();
+    expect(screen.getByText("System context")).toBeInTheDocument();
   });
 
   it("frames a per-question decisions layer and tags the frame with its layer", async () => {
@@ -369,9 +369,9 @@ describe("CanvasDocView", () => {
     // count every element on the layer including the group itself, so a group pinned far from its
     // members stretched the frame out toward that dead spot instead of hugging the real content.
     const doc = docWith([
-      elementOf({ id: "g1", render: "group", label: "Stale group", layer: "c1", position: { x: 5000, y: 5000 } }),
-      elementOf({ id: "m1", render: "custom", label: "A", layer: "c1", group_id: "g1", position: { x: 100, y: 100 } }),
-      elementOf({ id: "m2", render: "custom", label: "B", layer: "c1", group_id: "g1", position: { x: 300, y: 100 } }),
+      elementOf({ id: "g1", render: "group", label: "Stale group", layer: "system-context", position: { x: 5000, y: 5000 } }),
+      elementOf({ id: "m1", render: "custom", label: "A", layer: "system-context", group_id: "g1", position: { x: 100, y: 100 } }),
+      elementOf({ id: "m2", render: "custom", label: "B", layer: "system-context", group_id: "g1", position: { x: 300, y: 100 } }),
     ]);
     const engineClient = client(doc);
 
@@ -409,10 +409,10 @@ describe("CanvasDocView", () => {
 
   it("hides a diagram's frame the moment its layer is collapsed", async () => {
     const doc = docWith([
-      elementOf({ id: "e1", render: "c1", label: "Auth service", layer: "c1" }),
+      elementOf({ id: "e1", render: "c1", label: "Auth service", layer: "system-context" }),
     ]);
     const engineClient = client(doc);
-    collapsedLayersStore.collapse("c1");
+    collapsedLayersStore.collapse("system-context");
 
     render(
       <EngineClientProvider repoId="default" client={engineClient}>
@@ -534,8 +534,8 @@ describe("CanvasDocView", () => {
     // single Lane area merging them would bound boxes hundreds of px apart across two diagrams' dashed
     // frames, so the area must stay scoped to its own layer -- exactly two areas, one per diagram.
     const doc = docWith([
-      elementOf({ id: "m1", render: "custom", label: "A", layer: "c1", meta: { lane: "Frontend" }, position: { x: 100, y: 100 } }),
-      elementOf({ id: "m2", render: "custom", label: "B", layer: "c1", meta: { lane: "Frontend" }, position: { x: 500, y: 300 } }),
+      elementOf({ id: "m1", render: "custom", label: "A", layer: "system-context", meta: { lane: "Frontend" }, position: { x: 100, y: 100 } }),
+      elementOf({ id: "m2", render: "custom", label: "B", layer: "system-context", meta: { lane: "Frontend" }, position: { x: 500, y: 300 } }),
       elementOf({ id: "m3", render: "custom", label: "C", layer: "patterns", meta: { lane: "Frontend" }, position: { x: 100, y: 100 } }),
       elementOf({ id: "m4", render: "custom", label: "D", layer: "patterns", meta: { lane: "Frontend" }, position: { x: 500, y: 300 } }),
     ]);
@@ -555,8 +555,8 @@ describe("CanvasDocView", () => {
     // two different diagrams both ordering "2a"/"2b" collapsed into a single island bounding boxes
     // from both diagrams at once. It must stay scoped to its own layer -- two islands, one per diagram.
     const doc = docWith([
-      elementOf({ id: "m1", render: "custom", label: "A", layer: "c1", meta: { order: "2a" }, position: { x: 100, y: 100 } }),
-      elementOf({ id: "m2", render: "custom", label: "B", layer: "c1", meta: { order: "2b" }, position: { x: 500, y: 300 } }),
+      elementOf({ id: "m1", render: "custom", label: "A", layer: "system-context", meta: { order: "2a" }, position: { x: 100, y: 100 } }),
+      elementOf({ id: "m2", render: "custom", label: "B", layer: "system-context", meta: { order: "2b" }, position: { x: 500, y: 300 } }),
       elementOf({ id: "m3", render: "custom", label: "C", layer: "patterns", meta: { order: "2a" }, position: { x: 100, y: 100 } }),
       elementOf({ id: "m4", render: "custom", label: "D", layer: "patterns", meta: { order: "2b" }, position: { x: 500, y: 300 } }),
     ]);

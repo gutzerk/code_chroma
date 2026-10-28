@@ -29,7 +29,7 @@ export interface BuiltinRecipe {
 
 /** The recipe registry's built-in names/labels (`recipes.py`'s `RECIPES`); `custom/<id>` types are fetched, not hardcoded. */
 export const BUILTIN_RECIPES: BuiltinRecipe[] = [
-  { name: "c1", label: "C1", accessibleName: "C1 — system context diagram", generated: true },
+  { name: "system-context", label: "System context", generated: true },
   { name: "patterns", label: "Design patterns", generated: true },
   { name: "impact", label: "Change impact", generated: true },
   { name: "epics", label: "Epics", generated: true },
@@ -136,7 +136,7 @@ export function isRecipeBackedLayer(layer: string): boolean {
 }
 
 /** Whether `layer` has an on-disk artifact a delete action should also remove -- every generated
- * built-in (`c1`/`patterns`/`impact`/`epics` — epics is skill-generated now) and every synthesized
+ * built-in (`system-context`/`patterns`/`impact`/`epics` — epics is skill-generated now) and every synthesized
  * layer; false for a freeform layer a skill/agent PATCHed straight onto the canvas with no backing
  * route. Deleting one of those layers still removes it from the canvas via `removeLayerAndRefresh`;
  * it just skips the file-delete call that would otherwise 404. */
@@ -171,7 +171,7 @@ export function useCustomDiagramTypes(engineClient: EngineClient): DiagramTypeSu
  * watch the same set so they never disagree about what counts as a diagram ping. `epics` is in here
  * (unlike the status fetch alone, which already covers it) so a freshly written `epics.json` also
  * drives the auto-place-the-layer flow, not just the readiness map. */
-export const WATCHED_DIAGRAM_EVENT_KINDS: DiagramEventKind[] = ["c1", "epics", "patterns", "impact", "sequence", "custom", "feature-plan"];
+export const WATCHED_DIAGRAM_EVENT_KINDS: DiagramEventKind[] = ["system-context", "epics", "patterns", "impact", "sequence", "custom", "feature-plan"];
 
 export interface ReadyDiagrams {
   readyBuiltins: BuiltinRecipe[];

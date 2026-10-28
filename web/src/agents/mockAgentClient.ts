@@ -25,7 +25,7 @@ const MAX_PRS = 3;
 /** What GET /diagram-kinds serves (src/codechroma/diagrams/kinds.json), for the mock bridge. */
 const MOCK_DIAGRAM_KINDS: BuiltinDiagramKind[] = [
   { id: "any", name: "Let the agent pick", purpose: "Say what you want to see and the agent chooses the diagram type." },
-  { id: "c1", name: "System context", purpose: "The system, its users and the external services around it." },
+  { id: "system-context", name: "System context", purpose: "The system, its users and the external services around it." },
   { id: "patterns", name: "Design patterns", purpose: "The design patterns the code uses and where they sit." },
   { id: "impact", name: "Change impact", purpose: "What the current change touches and what depends on it." },
   { id: "plan", name: "Feature plan", purpose: "A described future feature as planned blocks beside the code it touches." },

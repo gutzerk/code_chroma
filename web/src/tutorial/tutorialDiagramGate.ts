@@ -4,7 +4,7 @@ import { tutorialSimStore } from "./tutorialSim";
 import { TUTORIAL_ROOT_NAME } from "./tutorialSteps";
 
 /** Diagram kinds the tutorial project ships prebuilt and reveals one by one. */
-const GATED_DIAGRAM_KINDS = ["c1", "patterns", "impact"];
+const GATED_DIAGRAM_KINDS = ["system-context", "patterns", "impact"];
 
 /** Wraps a client so the tutorial project's prebuilt diagrams report "not ready" until drawn.
  * It recognises the project itself (by its root name) on the first status fetch, so the gate is up

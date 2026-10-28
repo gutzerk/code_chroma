@@ -145,9 +145,12 @@ _SEQUENCE_ISLAND_HINT = (
     "wire it with a message to (or from) the rest of the participants, or drop the participant"
 )
 
+# The pre-rename id of the System context kind, still accepted on the command line.
+_LEGACY_C1_KIND = "c1"
+
 # Mirrored from src/codechroma/diagrams/registry.py's BUILTIN_TYPES -- keep the two in sync.
 _BUILTIN_CHECKS = {
-    "c1": {
+    "system-context": {
         "shape": "hierarchical",
         "budgets": {
             "max_nodes": 60, "max_relations": 60, "max_name_chars": 40, "max_edge_label_chars": 50,
@@ -162,6 +165,8 @@ _BUILTIN_CHECKS = {
         "check_islands": {"hint": _C1_ISLAND_HINT},
         # 042: c1 is a flat system-context view now -- no decomposed actors left to be BARE about.
         "check_bare_actors": False,
+        # Works like patterns: /system-context/context lists detected candidates to confirm/reject.
+        "candidates_source": "system-context",
     },
     "patterns": {
         "shape": "flat",
@@ -315,7 +320,9 @@ def _parse_args(argv: list[str] | None) -> argparse.Namespace:
     default_url = os.environ.get("CODECHROMA_BRIDGE_URL", "").strip() or "http://localhost:8000"
     default_repo = os.environ.get("CODECHROMA_WORKSPACE_ID", "").strip() or "default"
     kinds = sorted({*_BUILTIN_CHECKS, "custom", "feature-plan"})
-    parser.add_argument("--kind", required=True, choices=kinds, help="diagram kind")
+    parser.add_argument(
+        "--kind", required=True, choices=[*kinds, _LEGACY_C1_KIND], help="diagram kind"
+    )
     parser.add_argument("--url", default=default_url, help="bridge base URL")
     parser.add_argument("--repo", default=default_repo, help="repo id in the bridge route")
     parser.add_argument("--json", dest="json_path", help="read a raw file instead of the bridge")
@@ -335,6 +342,8 @@ def _parse_args(argv: list[str] | None) -> argparse.Namespace:
         help="report shape findings without failing the run",
     )
     args = parser.parse_args(argv)
+    if args.kind == _LEGACY_C1_KIND:
+        args.kind = "system-context"
     if args.kind == "custom" and not args.type_id:
         parser.error("--type is required for --kind custom")
     if args.kind == "feature-plan" and not args.slug:
@@ -876,8 +885,8 @@ def _check_impact_status(diagram: object, kind: str, report: _Report) -> None:
 PHASE_KINDS = ("request", "prepare", "ai", "deliver", "custom")
 FRAME_KINDS = ("alt", "loop")
 MAX_TITLE_WORDS = 4
-READABILITY_KINDS = ("sequence", "c1", "patterns", "impact")
-HERO_KINDS = ("c1", "patterns", "impact")
+READABILITY_KINDS = ("sequence", "system-context", "patterns", "impact")
+HERO_KINDS = ("system-context", "patterns", "impact")
 MIN_RELATIONS_FOR_HERO = 3
 
 
@@ -909,7 +918,7 @@ EDGE_KIND_ALIASES = (
 )
 _PLAIN_EDGE_KINDS = ("", "calls", "call", "uses")
 # These author structural verbs (observes, wraps, ...), so an unknown kind there is not a typo.
-_STRUCTURAL_KINDS = ("c1", "patterns", "impact")
+_STRUCTURAL_KINDS = ("system-context", "patterns", "impact")
 _SPAWN_WORDS = re.compile(
     r"\b(spawn\w*|launch\w*|(start|starts|starting|run|runs|fork\w*)\s+(a\s+|an\s+|the\s+)?"
     r"(sub)?(process|cli|agent|worker|daemon))\b", re.IGNORECASE,
@@ -1180,6 +1189,9 @@ def _inspect_hierarchical(diagram: object, checks: dict, args: argparse.Namespac
             continue
         if node.get("parent") is not None or node.get("kind") not in ("person", "external_system"):
             continue
+        # A rejected candidate never renders, so it is never wired.
+        if isinstance(node.get("meta"), dict) and node["meta"].get("confirmed") is False:
+            continue
         _check_actor(node, by_parent, report, checks)
         report.note_id(node_id)
         report.note_name(node_id, node.get("name"))
@@ -1198,6 +1210,8 @@ def _inspect_hierarchical(diagram: object, checks: dict, args: argparse.Namespac
         _check_c1_islands(nodes, diagram, report, checks["check_islands"]["hint"])
     report.node_count = len(report.ids)
     _check_unlabeled(checks["unlabeled"], report)
+    if not args.json_path and checks.get("candidates_source"):
+        _check_unaddressed_candidates(checks["candidates_source"], by_id, report, args)
     if not args.json_path and checks.get("coverage_source"):
         _check_coverage(args, report)
     return report
@@ -1576,6 +1590,26 @@ def _check_unreviewed(report: _Report) -> None:
             "meta.confirmed: true or meta.confirmed: false; omitting it entirely just makes the "
             "heuristic re-detect it as unconfirmed on every future run"
         )
+
+
+def _check_unaddressed_candidates(
+    source: str, by_id: dict[str, dict], report: _Report, args: argparse.Namespace
+) -> None:
+    """A detected person/external system with no node in the file re-appears every run."""
+    try:
+        context = _fetch_json(f"{args.url.rstrip('/')}/repos/{args.repo}/{source}/context")
+    except _FETCH_ERRORS:
+        return
+    data = context.get("generation_data") if isinstance(context, dict) else None
+    candidates = data.get("candidates") if isinstance(data, dict) else None
+    for candidate in candidates if isinstance(candidates, list) else []:
+        candidate_id = candidate.get("id") if isinstance(candidate, dict) else None
+        if isinstance(candidate_id, str) and candidate_id not in by_id:
+            report.shape.append(
+                f"UNREVIEWED {candidate_id!r} was detected in the code but never confirmed or "
+                "rejected -- write a node for it (meta.confirmed: true) or one with "
+                "meta.confirmed: false; omitting it just makes it come back on every run"
+            )
 
 
 def _check_sparse(density_source: str, report: _Report, args: argparse.Namespace) -> None:

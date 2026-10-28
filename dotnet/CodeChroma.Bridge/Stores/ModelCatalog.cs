@@ -64,7 +64,7 @@ public static class ModelCatalog
         ["transport:anthropic"] = AnthropicModels,
         ["transport:gemini"] = ["gemini-2.5-pro", "gemini-2.5-flash", "gemini-2.5-flash-lite"],
         ["transport:openai-compatible"] = ["gpt-5.2", "gpt-5.2-pro"],
-        ["adapter:claude"] = ["opus", "sonnet", "haiku", "fable", .. AnthropicModels],
+        ["adapter:claude"] = ["opus", "sonnet", "haiku", "fable"],
         ["adapter:codex"] = ["gpt-5.2", "gpt-5.2-codex"],
         ["adapter:gemini"] = ["gemini-2.5-pro", "gemini-2.5-flash", "gemini-2.5-flash-lite"],
         ["adapter:kimi-cli"] = ["kimi-k2-turbo-preview", "kimi-k2-thinking"],

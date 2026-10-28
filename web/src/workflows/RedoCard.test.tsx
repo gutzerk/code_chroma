@@ -25,8 +25,9 @@ async function openRedo(client: MockBridgeEngineClient) {
   act(() => client.workflowEngine.advance("run1"));
   act(() => client.workflowEngine.advance("run1"));
   await waitFor(() => expect(screen.getByTestId("run-state")).toHaveTextContent("Needs you"));
-  fireEvent.change(screen.getByTestId("chat-input"), { target: { value: "please redo implement" } });
-  fireEvent.click(screen.getByTestId("chat-send"));
+  await act(async () => {
+    await workflowActions(client).message("run1", "run", "please redo implement");
+  });
   return screen.findByTestId("redo-card");
 }
 

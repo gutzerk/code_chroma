@@ -378,7 +378,7 @@ describe("WorkflowEditorDialog agent sessions", () => {
     expect(screen.queryByRole("alert")).toBeNull();
   });
 
-  it("round-trips step input, provider, model and the continue source through save", async () => {
+  it("round-trips provider, model and the continue source through save", async () => {
     const client = fakeClient();
     const onClose = vi.fn();
     open(client, { workflow: chain([{ extraPrompt: "kept" }]), onClose });
@@ -386,7 +386,6 @@ describe("WorkflowEditorDialog agent sessions", () => {
     pick(4, "Ship");
 
     fireEvent.change(screen.getByLabelText("Continue from"), { target: { value: "b" } });
-    fireEvent.change(screen.getByLabelText(/^Step input/), { target: { value: "Focus on login." } });
     pick(2, "Build");
     fireEvent.change(screen.getByLabelText("Provider"), { target: { value: "claude" } });
     fireEvent.change(await screen.findByRole("combobox", { name: "Model" }), { target: { value: "opus" } });
@@ -399,7 +398,7 @@ describe("WorkflowEditorDialog agent sessions", () => {
     const saved = client.updateWorkflow.mock.calls[0][0].steps;
     expect(saved[0]).toMatchObject({ agent: "new", extraPrompt: "kept" });
     expect(saved[1]).toMatchObject({ agent: "handoff", provider: "claude", model: "opus" });
-    expect(saved[3]).toMatchObject({ agent: "continue:b", extraPrompt: "Focus on login.", provider: "claude", model: "opus" });
+    expect(saved[3]).toMatchObject({ agent: "continue:b", provider: "claude", model: "opus" });
     expect(saved[2]).not.toHaveProperty("provider");
   });
 
@@ -421,5 +420,22 @@ describe("deriveInputName", () => {
     const name = deriveInputName("  1st: which PR?? ", ["st-which-PR"]);
 
     expect(name).toBe("st-which-PR-2");
+  });
+});
+
+describe("new step defaults", () => {
+  it("starts with the provider and model of the nearest earlier agent step", async () => {
+    llm.listProviders.mockResolvedValue([provider("claude", "claude")]);
+    llm.fetchProviderModels.mockResolvedValue({ supported: true, models: [{ id: "opus", label: null }] });
+    const client = fakeClient();
+    open(client, {
+      workflow: { id: "w", name: "W", steps: [{ id: "a", slug: "Plan", kind: "agent", prompt: "p", agent: "new", provider: "claude", model: "opus" }] },
+      onClose: vi.fn(),
+    });
+    await act(async () => {});
+
+    fireEvent.click(screen.getByRole("button", { name: /Add step/ }));
+
+    expect((screen.getByLabelText("Provider") as HTMLSelectElement).value).toBe("claude");
   });
 });

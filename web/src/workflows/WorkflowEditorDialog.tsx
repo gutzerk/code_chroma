@@ -4,6 +4,7 @@ import { useEngineClient } from "../engine-client/EngineClientContext";
 import { fetchProviderModels, listProviders, type Provider, type ProviderModelsResult } from "../llm-settings/llmSettingsClient";
 import { ConfirmDialog } from "./ConfirmDialog";
 import { Icon } from "./icons";
+import { SlashSkillTextarea } from "./SlashSkillTextarea";
 import { stepModeLabel, stepSummary } from "./runControls";
 import { useRuns, workflowActions, workflowStore } from "./workflowStore";
 import {
@@ -24,8 +25,9 @@ type Errors = { name?: string; steps?: Record<number, string> };
 export type AgentCheck = { error?: string; warning?: string; continueOff?: string };
 export type ProviderInfo = Pick<Provider, "id" | "label" | "kind" | "adapter">;
 
-function newStep(): StepDraft {
-  return { id: crypto.randomUUID(), slug: "", kind: "agent", prompt: "", skill: "", agent: "new" };
+function newStep(prev?: StepDraft): StepDraft {
+  const inherited = prev?.provider ? { provider: prev.provider, ...(prev.model ? { model: prev.model } : {}) } : {};
+  return { id: crypto.randomUUID(), slug: "", kind: "agent", prompt: "", skill: "", agent: "new", ...inherited };
 }
 
 /** What stops a draft from being saved, keyed by the field group it belongs to. */
@@ -424,7 +426,7 @@ export function WorkflowEditorDialog({
             type="button"
             className="wfe-add-step"
             onClick={() => {
-              setSteps([...steps, newStep()]);
+              setSteps([...steps, newStep([...steps].reverse().find((s) => s.kind === "agent")),]);
               setSelected(steps.length);
             }}
           >
@@ -568,13 +570,8 @@ export function WorkflowEditorDialog({
               </div>
 
               <div className="wfe-stack">
-                <Field label="Instructions" hint="Use {{input}} to insert a run input by name">
-                  <textarea
-                    className="wfe-input wfe-textarea"
-                    rows={6}
-                    value={step.prompt}
-                    onChange={(e) => patch(at, { prompt: e.target.value })}
-                  />
+                <Field label="Instructions" hint="Type / for skills · {{input}} inserts a run input by name">
+                  <SlashSkillTextarea rows={6} value={step.prompt} skills={skills} onChange={(prompt) => patch(at, { prompt })} />
                 </Field>
                 <Field label="Ask for input when the run starts" hint="(optional)">
                   <input
@@ -592,28 +589,9 @@ export function WorkflowEditorDialog({
                     </span>
                   )}
                 </Field>
-                <Field label="Step input" hint="(optional) Added after the instructions, for this step only">
-                  <textarea
-                    className="wfe-input wfe-textarea"
-                    rows={3}
-                    value={step.extraPrompt ?? ""}
-                    placeholder="Extra notes for this step…"
-                    onChange={(e) => patch(at, { extraPrompt: e.target.value || null })}
-                  />
-                </Field>
               </div>
 
               <div className="wfe-row wfe-row-even">
-                <Field label="Skill" hint="(optional)">
-                  <select className="wfe-input" value={step.skill} onChange={(e) => patch(at, { skill: e.target.value })}>
-                    <option value="">None</option>
-                    {skills.map((skill) => (
-                      <option key={skill.name} value={skill.name} title={skill.description}>
-                        {skill.name}
-                      </option>
-                    ))}
-                  </select>
-                </Field>
                 <label className="wfe-check wfe-check-end">
                   <input type="checkbox" checked={step.pauseBefore ?? false} onChange={(e) => patch(at, { pauseBefore: e.target.checked })} />
                   <span>Pause before this step</span>

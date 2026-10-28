@@ -7,11 +7,9 @@ import { OverflowMenu, type MenuItem } from "./OverflowMenu";
 import { RedoCard } from "./RedoCard";
 import { RunChat } from "./RunChat";
 import { StepRail } from "./StepRail";
-import { StepTerminal } from "./StepTerminal";
 import { stepsForAttempt } from "./redoPlan";
 import {
   CONFIRM_MESSAGES,
-  canOpenAgent,
   canStopAfter,
   RUN_STATE_COLOR,
   RUN_STATE_TEXT,
@@ -21,6 +19,7 @@ import {
   isFinished,
   stateBanner,
   type PanelLayout,
+  resolvedPrompt,
 } from "./runControls";
 import {
   useExpandedStepId,
@@ -50,21 +49,12 @@ function TranscriptLine({ text }: { text: string }) {
   );
 }
 
-/** Why an agent step has no terminal (yet), or null when nothing needs saying. */
-function terminalHint(step: StepRecord): string | null {
-  if (step.status === "done") return "No session was recorded for this step, so it has no terminal.";
-  if (step.status === "running" || step.status === "paused" || step.status === "pending") return "A terminal opens here when the step finishes.";
-  return null;
-}
-
 /** The shown step, live (full layout third column): header with the Agent / Output / Diff tabs, the body, then the chat footer. */
 function LiveView({ run, workflow, step, footer }: { run: Run; workflow: WorkflowDef; step: StepRecord | undefined; footer: ReactNode }) {
   const [tab, setTab] = useState<LiveTab>("agent");
   const stepIndex = workflow.steps.findIndex((s) => s.id === step?.stepId);
   const def = workflow.steps[stepIndex];
-  const showTerminal = tab === "agent" && !!step && canOpenAgent(def, step);
-  const hint = tab === "agent" && step && def?.kind === "agent" ? terminalHint(step) : null;
-  const sub = [`workflow/${run.id}`, step?.diffStat].filter(Boolean).join(" · ");
+    const sub = [`workflow/${run.id}`, step?.diffStat].filter(Boolean).join(" · ");
   return (
     <div className="wf-live" data-testid="live-view">
       <div className="wf-live-head">
@@ -81,22 +71,15 @@ function LiveView({ run, workflow, step, footer }: { run: Run; workflow: Workflo
           ))}
         </div>
       </div>
-      <div className={`wf-live-body${showTerminal ? " wf-live-body-terminal" : ""}`} role="log" aria-label="Step output" data-testid="step-output">
+      <div className="wf-live-body" role="log" aria-label="Step output" data-testid="step-output">
         {!step || !def ? (
           <p>Select a step to see it live.</p>
-        ) : showTerminal ? (
-          <StepTerminal key={step.stepId} runId={run.id} slug={def.slug} step={step} />
         ) : tab === "agent" ? (
           <>
-            {def.prompt && <div className="live-line" data-tone="prompt">{`> ${def.prompt.split("\n")[0]}`}</div>}
+            {def.prompt && <div className="live-line" data-tone="prompt">{`> ${resolvedPrompt(workflow, def, run).split("\n")[0]}`}</div>}
             {step.output.split("\n").map((line, i) => (
               <TranscriptLine key={i} text={line} />
             ))}
-            {hint && (
-              <div className="live-line" data-testid="step-terminal-hint">
-                {hint}
-              </div>
-            )}
           </>
         ) : tab === "output" ? (
           <pre className="workflow-output-text">{step.output || "No output yet."}</pre>
@@ -146,6 +129,11 @@ export function RunDetail({
         : undefined,
     [run, workflow, viewed],
   );
+  const waitingStepId = readOnly ? null : (viewRun?.steps.find((st) => st.status === "needs_you")?.stepId ?? null);
+  // A step that needs you opens by itself, whichever row was open before; closing it sticks until the next one waits.
+  useEffect(() => {
+    if (waitingStepId) workflowStore.expandStep(waitingStepId);
+  }, [runId, waitingStepId]);
   if (!run || !viewRun || !workflow) {
     return (
       <p className="workflow-empty" data-testid="run-detail-empty">
@@ -158,7 +146,7 @@ export function RunDetail({
     workflow.steps.find((s) => s.id === stepId)?.slug ?? "the run";
   const proposal = readOnly ? null : (run.redoProposal ?? null);
   const redoFrom = proposal ? (pickedFrom ?? proposal.from) : null;
-  const shownStepId = expandedStepId ?? run.currentStepId ?? null;
+  const shownStepId = expandedStepId || run.currentStepId || null;
   const shownStep = viewRun.steps.find((s) => s.stepId === shownStepId);
   const banner = stateBanner(run, stepLabel);
   const toggle = headerToggle(run.state);
@@ -200,7 +188,7 @@ export function RunDetail({
       run={viewRun}
       workflow={workflow}
       actions={actions}
-      expandedStepId={expandedStepId}
+      expandedStepId={expandedStepId || null}
       onToggle={workflowStore.toggleExpanded}
       readOnly={readOnly}
       rerunFrom={redoFrom}
@@ -208,7 +196,7 @@ export function RunDetail({
     />
   );
 
-  const chat = <RunChat run={run} actions={actions} />;
+  const chat = <RunChat run={run} />;
 
   return (
     <section className="workflow-screen" aria-label="Workflow run" data-testid="workflow-screen" data-layout={layout}>

@@ -263,7 +263,7 @@ export interface EngineClient {
   setBreakpoint(runId: string, stepId: string, on: boolean): Promise<Run>;
   resumeRunFrom(runId: string, stepId: string): Promise<Run>;
   reviewRun(runId: string, decision: ReviewDecision, note?: string): Promise<Run>;
-  /** Messages the run agent (target "run") or one step's agent (a step id); never changes run state. */
+  /** Messages a step agent (a step id; "run" picks the step waiting for you, else the last one); never changes run state. */
   sendRunMessage(runId: string, target: string, text: string): Promise<MessageReply>;
   /** Confirms a proposed redo (POST .../redo); the old attempt is set aside and attempt n+1 starts. */
   redoRun(runId: string, request: RedoRequest): Promise<Run>;

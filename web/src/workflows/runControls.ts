@@ -1,5 +1,5 @@
 import type { IconName } from "./icons";
-import { agentMode, continueSourceIndex, continueTargetIndex, type Run, type RunState, type StepRecord, type StepStatus, type WorkflowStepDef } from "./types";
+import { agentMode, continueSourceIndex, continueTargetIndex, type Run, type RunState, type StepRecord, type StepStatus, type WorkflowDef, type WorkflowStepDef } from "./types";
 
 /** One action a step row or the run header can offer. */
 export type StepAction =
@@ -237,4 +237,14 @@ export function layoutForWidth(width: number): PanelLayout {
   if (width >= 1100) return "full";
   if (width >= 640) return "side";
   return "normal";
+}
+
+/** A step's prompt as the agent got it: the run's overrides applied and its own answers filled in for `{{name}}`, like the bridge's ResolvePrompt. */
+export function resolvedPrompt(workflow: WorkflowDef, step: WorkflowStepDef, run: Pick<Run, "inputs" | "promptOverrides">): string {
+  let prompt = run.promptOverrides?.[step.id] ?? step.prompt;
+  for (const [name, value] of Object.entries(run.inputs ?? {})) {
+    const ownedByOther = workflow.steps.some((s) => s.id !== step.id && s.input?.name === name);
+    if (!ownedByOther) prompt = prompt.split(`{{${name}}}`).join(value);
+  }
+  return prompt;
 }

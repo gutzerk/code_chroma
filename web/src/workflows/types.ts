@@ -122,7 +122,7 @@ export interface StepRecord {
   /** The agent's closing prose (no tool lines), set when the step finishes. */
   result?: string | null;
   /** Set on a step kept from an earlier attempt of a redo. */
-  fromAttempt?: number;
+  fromAttempt?: number | null;
   /** Token counts of the step's session; context = input + cache read + cache creation. */
   usage?: StepUsage | null;
   /** The step whose session this step resumed. */

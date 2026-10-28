@@ -1,6 +1,6 @@
-import { useEffect, useState } from "react";
+import { useEffect } from "react";
 import type { Run, RunMessage } from "./types";
-import { workflowStore, useHighlightedNodeId, type WorkflowActions } from "./workflowStore";
+import { workflowStore, useHighlightedNodeId } from "./workflowStore";
 
 const RING_CLASS = "workflow-canvas-ring";
 
@@ -49,52 +49,18 @@ function MessageLine({ message }: { message: RunMessage }) {
   );
 }
 
-/** Chat with the run agent (a step's agent is talked to in its terminal), inline system events and canvas chips. */
-export function RunChat({
-  run,
-  actions,
-}: {
-  run: Run;
-  actions: WorkflowActions;
-}) {
-  const [text, setText] = useState("");
+/** The run's conversation log: inline system events and canvas chips; you talk to a step in its Agent terminal. */
+export function RunChat({ run }: { run: Run }) {
   useCanvasRing();
-
-  const send = (): void => {
-    const body = text.trim();
-    if (!body) return;
-    workflowStore.setRailCollapsed(true);
-    setText("");
-    void actions.message(run.id, "run", body);
-  };
-
+  const messages = (run.messages ?? []).filter((m) => m.target === "run");
+  if (messages.length === 0) return null;
   return (
     <section className="run-chat" aria-label="Run chat" data-testid="run-chat">
       <ul className="chat-log" role="log" aria-label="Chat messages" data-testid="chat-log">
-        {(run.messages ?? []).filter((m) => m.target === "run").map((m) => (
+        {messages.map((m) => (
           <MessageLine key={m.id} message={m} />
         ))}
       </ul>
-      <form
-        className="chat-form"
-        onSubmit={(e) => {
-          e.preventDefault();
-          send();
-        }}
-      >
-        <input
-          className="chat-input"
-          data-testid="chat-input"
-          aria-label="Message the run"
-          placeholder="Ask the run"
-          value={text}
-          onFocus={() => workflowStore.setRailCollapsed(true)}
-          onChange={(e) => setText(e.target.value)}
-        />
-        <button type="submit" className="workflow-header-button" data-testid="chat-send">
-          Send
-        </button>
-      </form>
     </section>
   );
 }

@@ -113,8 +113,9 @@ def test_post_agents_seeds_diagrams_from_main_into_the_worktree(client):
     test_client, repo, _server = client
     diagram_json_path(repo, "patterns").parent.mkdir(parents=True, exist_ok=True)
     diagram_json_path(repo, "patterns").write_text(json.dumps({"nodes": []}), encoding="utf-8")
-    diagram_json_path(repo, "c1").parent.mkdir(parents=True, exist_ok=True)
-    diagram_json_path(repo, "c1").write_text(json.dumps({"blocks": []}), encoding="utf-8")
+    context_path = diagram_json_path(repo, "system-context")
+    context_path.parent.mkdir(parents=True, exist_ok=True)
+    context_path.write_text(json.dumps({"blocks": []}), encoding="utf-8")
 
     body = test_client.post("/agents", json={"title": "refund flow"}).json()
 
@@ -122,9 +123,8 @@ def test_post_agents_seeds_diagrams_from_main_into_the_worktree(client):
     assert json.loads(
         (worktree_atlas / "patterns" / "patterns.json").read_text(encoding="utf-8")
     ) == {"nodes": []}
-    assert json.loads((worktree_atlas / "c1" / "c1.json").read_text(encoding="utf-8")) == {
-        "blocks": []
-    }
+    seeded = worktree_atlas / "system-context" / "system-context.json"
+    assert json.loads(seeded.read_text(encoding="utf-8")) == {"blocks": []}
 
 
 def test_post_agents_without_a_workspace_is_a_400(client):
@@ -199,8 +199,8 @@ def test_post_agents_can_attach_to_a_pr_by_sharing_its_worktree(client, tmp_path
 def test_post_agents_attaching_to_a_pr_reuses_its_existing_diagrams(client, tmp_path):
     test_client, _repo, bridge = client
     pr_path = _pr_worktree(tmp_path)
-    diagram_json_path(pr_path, "c1").parent.mkdir(parents=True, exist_ok=True)
-    diagram_json_path(pr_path, "c1").write_text(
+    diagram_json_path(pr_path, "system-context").parent.mkdir(parents=True, exist_ok=True)
+    diagram_json_path(pr_path, "system-context").write_text(
         json.dumps({"blocks": ["pr-own"]}), encoding="utf-8"
     )
     bridge.pr_manager.upsert(pr_record(282, str(pr_path)))
@@ -209,9 +209,8 @@ def test_post_agents_attaching_to_a_pr_reuses_its_existing_diagrams(client, tmp_
 
     worktree_path = Path(body["worktree"])
     assert worktree_path == pr_path
-    assert json.loads(diagram_json_path(worktree_path, "c1").read_text(encoding="utf-8")) == {
-        "blocks": ["pr-own"]
-    }
+    reused = diagram_json_path(worktree_path, "system-context")
+    assert json.loads(reused.read_text(encoding="utf-8")) == {"blocks": ["pr-own"]}
 
 
 def test_a_pr_attached_agents_worktree_cannot_be_deleted_through_it(client, tmp_path):

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { fitNameFontSize, measureBoxSize } from "./measureBoxSize";
+import { fitNameFontSize, layerFitNameSizes, measureBoxSize } from "./measureBoxSize";
 import type { CanvasElement } from "../../state/types";
 
 function el(overrides: Partial<CanvasElement> = {}): CanvasElement {
@@ -83,5 +83,29 @@ describe("fitNameFontSize", () => {
     const px = fitNameFontSize("word ".repeat(200), 100, 30);
 
     expect(px).toBe(8);
+  });
+});
+
+describe("layerFitNameSizes", () => {
+  it("gives every box of a diagram the size of its longest-fitting name", () => {
+    const elements = [
+      el({ id: "a", label: "Auth", size: { w: 300, h: 120 } }),
+      el({ id: "b", label: "Rewrite every changed architecture page", size: { w: 300, h: 120 } }),
+    ];
+
+    const sizes = layerFitNameSizes(elements);
+
+    expect(sizes.get("x")).toBe(fitNameFontSize("Rewrite every changed architecture page", 300, 120));
+  });
+
+  it("keeps a separate size per diagram layer", () => {
+    const elements = [
+      el({ id: "a", layer: "x", label: "Auth", size: { w: 300, h: 120 } }),
+      el({ id: "b", layer: "y", label: "Rewrite every changed architecture page", size: { w: 300, h: 120 } }),
+    ];
+
+    const sizes = layerFitNameSizes(elements);
+
+    expect(sizes.get("x")).toBe(fitNameFontSize("Auth", 300, 120));
   });
 });

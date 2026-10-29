@@ -15,6 +15,7 @@ import { WALKTHROUGH_LAYER } from "./walkthroughLayout";
 import { diagramDisplayName } from "./diagramDisplay";
 import { isDiagramLayer, labelForDiagramLayer, useCustomDiagramTypes } from "./diagramCatalog";
 import { BLOCK_RULES } from "./elementRules";
+import { layerFitNameSizes } from "./measureBoxSize";
 import { elementRect } from "./elementRect";
 import { leadingOrderDigits, orderMeta, stringMeta } from "./elementMeta";
 import { GroupFrame } from "./GroupFrame";
@@ -150,6 +151,12 @@ export function CanvasDocView() {
   const visibleElements = useMemo(
     () => Object.values(renderableElements),
     [renderableElements],
+  );
+
+  // One zoomed-out name size per diagram, so short and long names in the same diagram read at the same size.
+  const fitNameSizes = useMemo(
+    () => layerFitNameSizes(visibleElements.filter((element) => BLOCK_RULES[element.render].renderer === "node-box")),
+    [visibleElements],
   );
 
   // Real rendered box sizes, once each box's own ResizeObserver reports one — see CanvasEdges'
@@ -373,7 +380,14 @@ export function CanvasDocView() {
                 // never here as individual boxes.
                 return null;
               default:
-                return <CanvasNodeBox key={element.id} element={element} onMeasure={observe} />;
+                return (
+                  <CanvasNodeBox
+                    key={element.id}
+                    element={element}
+                    onMeasure={observe}
+                    fitNameSize={fitNameSizes.get(element.layer)}
+                  />
+                );
             }
           })}
         </>

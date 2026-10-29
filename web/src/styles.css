@@ -8454,6 +8454,6 @@ button[data-copy-state="idle"][aria-label]:hover:not(:disabled) {
 .canvas-arrowhead--error { fill: var(--route-fail); }
 .canvas-arrowhead--route { fill: var(--route-ok); }
 
-/* Zoomed out (data-zoom="far", zoomLevelFor < ZOOM_FAR_SCALE): a canvas box shows only its name, centred and filling the box at --node-fit-name-size (measureBoxSize.ts fitNameFontSize); the rest stays laid out but invisible, so the box keeps its size. */
+/* Zoomed out (data-zoom="far", zoomLevelFor < ZOOM_FAR_SCALE): a canvas box shows only its name, centred and filling the box at --node-fit-name-size (measureBoxSize.ts layerFitNameSizes: one size per diagram); the rest stays laid out but invisible, so the box keeps its size. */
 [data-zoom="far"] .canvas-node-fit > [data-testid="canvas-node-box-row"] { visibility: hidden; }
 [data-zoom="far"] .canvas-node-fit .canvas-node-fit-name.canvas-node-fit-name { visibility: visible; position: absolute; inset: 0; z-index: 1; display: flex; align-items: center; justify-content: center; box-sizing: border-box; padding: 10px; overflow: hidden; font-size: var(--node-fit-name-size); line-height: 1.15; font-weight: 600; text-align: center; white-space: normal; overflow-wrap: break-word; text-overflow: clip; -webkit-line-clamp: unset; line-clamp: unset; }

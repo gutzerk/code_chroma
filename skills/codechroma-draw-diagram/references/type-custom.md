@@ -152,7 +152,9 @@ through several parties, a protocol handshake, a multi-step pipeline), record ea
 `meta.order` and its performer with `meta.lane` (`drawing-rules.md`) — never by numbering steps inside
 a relation's `label` (`"Step 1: ..."`, `"2. then ..."`). A label read in isolation, out of layout
 order, still needs to say what the arrow carries; the step number belongs on the box, where the
-layout and the rendered badge/soft-area already show it.
+layout and the rendered badge/soft-area already show it. To pin a box to the first or last layer
+without numbering it, set `rank: "entry"`/`"exit"` (`order` wins if both are set); a relation `kind`
+of `"feedback"`/`"return"` lays out as a back edge.
 
 ```json
 {

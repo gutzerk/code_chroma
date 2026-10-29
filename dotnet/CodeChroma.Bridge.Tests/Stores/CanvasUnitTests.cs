@@ -75,6 +75,19 @@ public class CanvasUnitTests
     }
 
     [Fact]
+    public void A_top_level_rank_folds_into_node_meta_like_python()
+    {
+        var resolved = JsonNode.Parse("""
+            {"nodes":[{"id":"a","name":"A","rank":"entry"},{"id":"b","name":"B"}],"relations":[]}
+            """)!.AsObject();
+
+        var shape = Recipes.Reshape(resolved, "custom");
+
+        Assert.Equal("entry", shape.Nodes[0].Meta!["rank"]!.GetValue<string>());
+        Assert.False(shape.Nodes[1].Meta!.ContainsKey("rank"));
+    }
+
+    [Fact]
     public void A_sequence_recipe_carries_the_readability_fields_like_python()
     {
         var resolved = JsonNode.Parse("""

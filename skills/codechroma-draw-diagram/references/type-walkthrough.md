@@ -53,7 +53,7 @@ Rules:
 - **One step box per route step; the box `id` equals the step `id`.** The route is the spine: `route.steps[*].id` must match a `nodes[].id`, orders run 1..N with no gaps. 5–9 steps; over 12 the self-check prints `SPLIT`.
 - **The trigger is step 1** (`kind: "trigger"`, a person or an event, `node_ids: []`, `detail` says who). **The last step is the outcome**; the canvas draws it as ✓.
 - **Colour is a signal, so keep it rare:** `ai` (a model runs, drawn violet), `data` (something is written), `failure` (a branch that stops the flow, drawn red; its arrow is `kind: "error"`). Everything else is `decide` or `check`.
-- **`title` ≤ 4 words; `detail`** names the actor or the function that runs (`MapPost /update`, `ComputeDelta()`). Do not repeat the title.
+- **`title` ≤ 4 words; `detail`** names the actor or the function that runs (`MapPost /update`, `ComputeDelta()`). Do not repeat the title. A step with code shows its `detail` on its box and its `title` in the ROUTE panel; give a trigger a `lane` (`You`), shown above its title.
 - **`node_ids`** are the real files or functions the step runs in. Use `[]` for an actor, an external service or any step with no code in this repo, and give that box `node_id: null`, `path: null`, `meta.no_code_reason: "conceptual"` (an external system also `meta.external: true`).
 - **`children`**: the 2–5 calls inside a step that matter, `{id, label, node_id, line}` with a positive integer `line`. Optional; write them by hand from the context cache.
 - **`relations[]`** are the order of the process, one per consecutive pair, plus real branches (a failure goes to its own box). Mark the main path `hero: true` on 1–2 arrows. Kinds: `calls` (default), `spawns`, `data`, `minor`, `error`.
@@ -74,4 +74,4 @@ Rules:
    ```
 
    The route codes (`BADROUTE`, `ROUTE-*`) are advisory; `ORPHAN`, `DANGLING`, `DUPLICATE`, `SPLIT` and the budgets are in `drawing-rules.md`.
-6. Tell the user which files the route lights and which steps have no code. The canvas shows the route with **Show route** on the diagram frame.
+6. Tell the user which files the route lights and which steps have no code. The canvas draws the ROUTE panel inside the diagram, right of the steps, and lights the route on the code map (**Show route** / **Hide route** on the frame).

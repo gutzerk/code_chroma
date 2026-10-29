@@ -134,6 +134,7 @@
   --radius-lg: 8px;
   --radius-xl: 10px;
   --radius-2xl: 12px;
+  --radius-store: 18px; /* the clipped corner of a walkthrough data store */
   --radius-full: 999px;
 
   /* Elevation shadows. */
@@ -159,6 +160,42 @@
   --issue-dialog-accent: #8faef2;
   --updates-muted: #a3a7b3; /* updates dialog secondary text/strokes */
   --epic-muted: #8b93a7; /* epic brief / acceptance-criteria muted text */
+
+  /* Walkthrough / route over the code map -- the "B2 · Code map + route overlay" board's values. */
+  --font-board: Inter, "DM Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --route-ok: #5ee0a0; /* lit step, route line, number chip */
+  --route-ai: #b49cff; /* AI step */
+  --route-fail: #fb7185; /* failure chip and dashed failure arrow */
+  --route-chip-ink: #10231a; /* text on a green chip */
+  --route-ai-ink: #1c1630; /* text on a violet chip */
+  --route-glow: rgba(94, 224, 160, 0.16); /* soft band under a route line */
+  --route-ground: #1b1b19; /* board background */
+  --route-grid-dot: #2c2c29; /* board dot grid */
+  --route-frame-border: #3a3b37; /* folder / board frame */
+  --route-frame-bg: rgba(255, 255, 255, 0.04); /* folder / file swatch */
+  --route-text: #ecedee;
+  --route-text-soft: #c9cdd2; /* legend, folder names */
+  --route-text-muted: #8d939b; /* summaries, file names */
+  --route-text-dim: #a3a8ae; /* box descriptions, actor line */
+  --route-link: #7fb8ff; /* code names in the panel */
+  --route-lit-bg: #18261f; /* a lit step box */
+  --route-ai-bg: #2a2538;
+  --route-ai-tag-border: #6e5bb0;
+  --route-fail-bg: #2a181d;
+  --route-fail-border: #8e3a4a;
+  --route-fail-ink: #ffb3bf;
+  --route-ext-bg: #221d18; /* external system box */
+  --route-ext-border: #9a6b3a;
+  --route-ext-tag: #f2b36b;
+  --route-data-bg: #2a1f17; /* data store box */
+  --route-data-border: #8a5226;
+  --route-data-ink: #fbc08a;
+  --route-panel-bg: #202226; /* ROUTE panel */
+  --route-panel-border: #33363c; /* panel, dimmed code box, hairlines */
+  --route-row-active-bg: #26302b;
+  --route-row-active-border: #3f7a5e;
+  --route-nav-bg: #24262b;
+  --route-nav-border: #3a3e45;
 }
 /* stylelint-enable color-no-hex */
 
@@ -8345,13 +8382,12 @@ button[data-copy-state="idle"][aria-label]:hover:not(:disabled) {
 .route-legend-swatch { display: inline-block; width: 4px; height: 12px; margin-right: 6px; vertical-align: middle; background: var(--route-kind, #94a3b8); border-left: 0 !important; }
 
 /* 026 route over the code map (B2 board): faded level matches focus mode (0.35); lit blocks and ancestors stay full. */
-:root { --route-ok: #5ee0a0; --route-ai: #b49cff; --route-fail: #fb7185; --route-chip-ink: #10231a; }
 [data-route-dim] { opacity: 0.35; transition: opacity 0.12s; }
-[data-route-lit] { outline: 1.5px solid var(--route-ok); outline-offset: 0; background-color: rgba(94, 224, 160, 0.1); }
-[data-route-lit="ai"] { outline-color: var(--route-ai); background-color: rgba(180, 156, 255, 0.12); }
-[data-route-lit="failure"] { outline-color: var(--route-fail); background-color: rgba(251, 113, 133, 0.1); }
+[data-route-lit] { outline: 1.5px solid var(--route-ok); outline-offset: 0; background-color: var(--route-lit-bg); }
+[data-route-lit="ai"] { outline-color: var(--route-ai); background-color: var(--route-ai-bg); }
+[data-route-lit="failure"] { outline-color: var(--route-fail); background-color: var(--route-fail-bg); }
 .route-overlay { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; pointer-events: none; }
-.route-overlay-glow path { fill: none; stroke: rgba(94, 224, 160, 0.16); stroke-width: 10; stroke-linejoin: round; }
+.route-overlay-glow path { fill: none; stroke: var(--route-glow); stroke-width: 10; stroke-linejoin: round; }
 .route-overlay-path { fill: none; stroke: var(--route-ok); stroke-width: 2.75; stroke-linejoin: round; opacity: 0.45; }
 .route-overlay-path--active { opacity: 1; }
 .route-overlay-arrow { fill: var(--route-ok); }
@@ -8359,44 +8395,88 @@ button[data-copy-state="idle"][aria-label]:hover:not(:disabled) {
 .route-overlay-marker.route-step--ai circle { fill: var(--route-ai); }
 .route-overlay-marker.route-step--failure circle { fill: var(--route-fail); }
 .route-overlay-marker text { fill: var(--route-chip-ink); font-family: var(--font-mono); font-size: 11px; font-weight: 700; }
-.route-overlay-marker--active circle { stroke: #fff; stroke-width: 3; }
-.route-card { position: absolute; top: 12px; right: 12px; z-index: 20; width: 348px; max-height: 85%; overflow: auto; box-sizing: border-box; padding: 20px; display: flex; flex-direction: column; gap: 14px; background: var(--surface, #202226); border: 1px solid var(--border, #33363c); border-radius: var(--radius-btn); font-size: 0.8rem; }
+.route-overlay-marker.route-step--ai text { fill: var(--route-ai-ink); }
+.route-overlay-marker--done text { font-family: var(--font-board); font-size: 12px; }
+.route-overlay-marker--active circle { stroke: var(--route-text); stroke-width: 3; }
+
+/* The ROUTE body (RouteSteps.tsx), shared by the docked card and the walkthrough's in-diagram panel; one line per text, so rows have a fixed height (walkthroughLayout.ts). */
+.route-card { position: absolute; top: 12px; right: 12px; z-index: 20; width: 348px; max-height: 85%; overflow: auto; box-sizing: border-box; padding: 20px; display: flex; flex-direction: column; gap: 14px; background: var(--route-panel-bg); border: 1px solid var(--route-panel-border); border-radius: var(--radius-btn); color: var(--route-text); font-family: var(--font-board); }
 .route-card-head { display: flex; align-items: baseline; flex-wrap: wrap; gap: 4px 10px; }
 .route-card-head strong { font-size: 18px; font-weight: 600; flex: 1 1 100%; order: 2; }
-.route-card-tag { font-family: var(--font-mono); font-size: 11px; font-weight: 700; letter-spacing: 0.1em; color: var(--route-ok); order: 1; }
+.route-card-tag { font-family: var(--font-mono); font-size: 11px; line-height: 14px; font-weight: 700; letter-spacing: 0.1em; color: var(--route-ok); order: 1; }
 .route-card-close { margin-left: auto; border: 0; background: transparent; cursor: pointer; color: inherit; order: 1; }
-.route-card-summary { margin: -8px 0 0; font-size: 12px; opacity: 0.7; }
+.route-card-summary { margin: -8px 0 0; font-size: 12px; color: var(--route-text-muted); }
 .route-card-steps { margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 2px; }
-.route-card-step button { width: 100%; display: flex; align-items: center; gap: 10px; text-align: left; border: 1px solid transparent; border-radius: var(--radius-lg); background: transparent; color: inherit; padding: 7px 8px; cursor: pointer; }
-.route-card-step--active button { background: rgba(94, 224, 160, 0.12); border-color: #3f7a5e; }
+.route-card-step button { width: 100%; box-sizing: border-box; display: flex; align-items: center; gap: 10px; text-align: left; border: 1px solid transparent; border-radius: var(--radius-lg); background: transparent; color: inherit; font-family: inherit; padding: 6px 7px; cursor: pointer; }
+.route-card-step button:hover { background: var(--route-nav-bg); }
+.route-card-step--active button, .route-card-step--active button:hover { background: var(--route-row-active-bg); border-color: var(--route-row-active-border); }
 .route-card-step-badge { flex: none; width: 20px; height: 20px; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center; background: var(--route-ok); color: var(--route-chip-ink); font-family: var(--font-mono); font-size: 10.5px; font-weight: 700; }
-.route-card-step.route-step--ai .route-card-step-badge { background: var(--route-ai); }
+.route-card-step-badge--done { font-family: var(--font-board); font-size: 11px; }
+.route-card-step.route-step--ai .route-card-step-badge { background: var(--route-ai); color: var(--route-ai-ink); }
 .route-card-step.route-step--failure .route-card-step-badge { background: var(--route-fail); }
 .route-card-step-text { display: flex; flex-direction: column; min-width: 0; }
-.route-card-step-title { font-size: 13.5px; font-weight: 600; }
-.route-card-step-detail { font-family: var(--font-mono); font-size: 11px; opacity: 0.75; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.route-card-step.route-step--ai .route-card-step-detail { color: var(--route-ai); opacity: 1; }
+.route-card-step-title, .route-card-step-detail { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.route-card-step-title { font-size: 13.5px; line-height: 18px; font-weight: 600; }
+.route-card-step-detail { font-size: 11.5px; line-height: 15px; color: var(--route-text-muted); }
+.route-card-step-detail--code { font-family: var(--font-mono); font-size: 11px; color: var(--route-link); }
+.route-card-step.route-step--ai .route-card-step-detail { color: var(--route-ai); }
 .route-card-player { display: flex; gap: 8px; }
-.route-card-nav { width: 44px; height: 40px; border-radius: var(--radius-lg); border: 1px solid var(--border, #3a3e45); background: transparent; color: inherit; font-size: 15px; cursor: pointer; }
-.route-card-walk { flex: 1 1 0; height: 40px; border-radius: var(--radius-lg); border: 1px solid #3f7a5e; background: rgba(94, 224, 160, 0.1); color: var(--route-ok); font-size: 13px; font-weight: 600; cursor: pointer; }
-.route-card-legend { display: flex; flex-direction: column; gap: 7px; padding-top: 12px; border-top: 1px solid var(--border, #33363c); font-size: 12px; }
+.route-card-nav { width: 44px; height: 40px; border-radius: var(--radius-lg); border: 1px solid var(--route-nav-border); background: var(--route-nav-bg); color: var(--route-text); font-size: 15px; cursor: pointer; }
+.route-card-walk { flex: 1 1 0; height: 40px; border-radius: var(--radius-lg); border: 1px solid var(--route-row-active-border); background: var(--route-lit-bg); color: var(--route-ok); font-family: inherit; font-size: 13px; font-weight: 600; cursor: pointer; }
+.route-card-legend { display: flex; flex-direction: column; gap: 7px; padding-top: 12px; border-top: 1px solid var(--route-panel-border); font-size: 12px; line-height: 16px; color: var(--route-text-soft); }
 .route-card-legend > span { display: flex; align-items: center; gap: 8px; }
-.route-card-legend-title { font-family: var(--font-mono); font-size: 11px; font-weight: 700; letter-spacing: 0.1em; opacity: 0.6; }
-.route-card-swatch { display: inline-block; width: 18px; height: 11px; border-radius: var(--radius-xs); border: 1px solid var(--border, #33363c); }
-.route-card-swatch--route { border: 1.5px solid var(--route-ok); background: rgba(94, 224, 160, 0.15); }
-.route-card-swatch--frame { background: rgba(255, 255, 255, 0.04); }
+.route-card-legend-title { font-family: var(--font-mono); font-size: 11px; line-height: 14px; font-weight: 700; letter-spacing: 0.1em; color: var(--route-text-muted); }
+.route-card-swatch { display: inline-block; flex: none; box-sizing: border-box; width: 18px; height: 11px; border-radius: var(--radius-xs); border: 1px solid var(--route-panel-border); }
+.route-card-swatch--route { border: 1.5px solid var(--route-ok); background: var(--route-lit-bg); }
+.route-card-swatch--frame { border-color: var(--route-frame-border); background: var(--route-frame-bg); }
 .canvas-diagram-frame-route .sequence-mode-btn { margin-left: 8px; }
 
-/* 026 walkthrough (B2 board look): lit green steps, violet AI, red failure, number chips, glowing route arrows. */
-.diagram-node-box[data-layer="walkthrough"] { background: #18261f; border: 1.5px solid var(--route-ok); border-left-width: 1.5px; color: #ecedee; box-shadow: none; }
-.diagram-node-box[data-layer="walkthrough"].route-step--trigger { border-radius: var(--radius-full); }
-.diagram-node-box[data-layer="walkthrough"].route-step--ai { background: #2a2538; border-color: var(--route-ai); }
-.diagram-node-box[data-layer="walkthrough"].route-step--failure { background: #2a181d; border-color: #8e3a4a; border-style: solid; color: #ffb3bf; }
-.diagram-node-box[data-layer="walkthrough"]:not(.route-step) { background: transparent; border: 1px dashed #9a6b3a; color: #a3a8ae; }
-.diagram-node-box[data-layer="walkthrough"] .canvas-node-step-chip { top: -11px; left: -11px; width: 22px; min-width: 22px; height: 22px; padding: 0; border-radius: 50%; line-height: 22px; font-family: var(--font-mono); font-size: 11px; font-weight: 700; background: var(--route-ok); color: var(--route-chip-ink); }
-.diagram-node-box[data-layer="walkthrough"].route-step--ai .canvas-node-step-chip { background: var(--route-ai); }
-.diagram-node-box[data-layer="walkthrough"].route-step--failure .canvas-node-step-chip { background: var(--route-fail); }
-.canvas-edge[data-layer="walkthrough"] path { stroke: var(--route-ok); stroke-width: 2.75; }
-.canvas-edge[data-layer="walkthrough"] .c1-relationship-casing { stroke: rgba(94, 224, 160, 0.16); stroke-width: 10; }
-.canvas-edge[data-layer="walkthrough"] [class*="arrowhead"], .canvas-edge[data-layer="walkthrough"] polygon { fill: var(--route-ok); }
-.diagram-node-box[data-layer="walkthrough"] { user-select: none; -webkit-user-select: none; }
+/* The walkthrough's ROUTE panel (WalkthroughPanel.tsx): part of the diagram, on the canvas right of the step boxes. */
+.walkthrough-panel { z-index: 1; box-sizing: border-box; display: flex; flex-direction: column; gap: 14px; padding: 20px; overflow: hidden; background: var(--route-panel-bg); border: 1px solid var(--route-panel-border); border-radius: var(--radius-btn); color: var(--route-text); font-family: var(--font-board); cursor: default; }
+.walkthrough-panel-head { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+.walkthrough-panel-title { font-size: 18px; line-height: 24px; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.walkthrough-panel-head .route-card-tag { order: 0; }
+.walkthrough-panel-summary { font-size: 12px; line-height: 16px; color: var(--route-text-muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+/* 026 walkthrough (B2 board look): the frame is the board, step boxes are lit code boxes, plus the actor, failure, external and store boxes. */
+.canvas-diagram-frame-walkthrough { --diagram-frame-color: var(--route-ok); }
+.canvas-diagram-frame.canvas-diagram-frame-walkthrough { border: 1px solid var(--route-frame-border); background-color: var(--route-ground); background-image: radial-gradient(var(--route-grid-dot) 1px, transparent 1px); background-size: 24px 24px; }
+.canvas-diagram-frame-walkthrough .canvas-diagram-frame-label { font-family: var(--font-mono); font-size: 12px; letter-spacing: 0.1em; text-transform: uppercase; color: var(--route-ok); background: var(--route-ground); }
+.canvas-diagram-frame-walkthrough .canvas-diagram-frame-meta { display: none; }
+[data-canvas-element].diagram-node-box[data-layer="walkthrough"] { justify-content: center; border: 1.5px solid var(--route-ok); border-radius: var(--radius-lg); background: var(--route-lit-bg); color: var(--route-text); box-shadow: none; font-family: var(--font-board); user-select: none; -webkit-user-select: none; }
+[data-layer="walkthrough"] .canvas-node-meta-row, [data-layer="walkthrough"] .canvas-node-top-band, [data-layer="walkthrough"] .canvas-node-box-foot, [data-layer="walkthrough"].route-step .diagram-node-box-desc { display: none; }
+[data-layer="walkthrough"] [data-testid="canvas-node-box-header"].diagram-node-box-header, [data-canvas-element][data-layer="walkthrough"]:has(.canvas-node-box-buttons--bottom) [data-testid="canvas-node-box-header"] { align-items: center; padding: 0 10px 0 16px; }
+[data-layer="walkthrough"] .diagram-node-box-title-wrap { gap: 4px; }
+[data-layer="walkthrough"] .diagram-node-box-title-row { gap: 8px; margin-top: 0; }
+[data-canvas-element][data-layer="walkthrough"] .diagram-node-box-name { font-family: var(--font-mono); font-size: 12px; font-style: normal; font-weight: 600; letter-spacing: 0; color: inherit; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+[data-canvas-element][data-layer="walkthrough"] .canvas-node-box-buttons { opacity: 0; }
+[data-canvas-element][data-layer="walkthrough"]:is(:hover, :focus-within) .canvas-node-box-buttons { opacity: 1; }
+.walkthrough-box-kicker { font-size: 11px; line-height: 14px; color: var(--route-text-dim); }
+.walkthrough-box-tag { flex: none; padding: 0 4px; border: 1px solid var(--route-ai-tag-border); border-radius: var(--radius-sm); font-size: 9.5px; color: var(--route-ai); }
+.walkthrough-box-tag--external { padding: 0; border: 0; font-family: var(--font-mono); font-size: 10px; color: var(--route-ext-tag); }
+[data-canvas-element].diagram-node-box[data-layer="walkthrough"].route-step--trigger { border-radius: var(--radius-full); }
+[data-layer="walkthrough"].route-step--trigger [data-testid="canvas-node-box-header"].diagram-node-box-header { padding: 0 18px; }
+[data-canvas-element][data-layer="walkthrough"].route-step--trigger .diagram-node-box-name { font-family: var(--font-board); font-size: 13.5px; }
+[data-canvas-element].diagram-node-box[data-layer="walkthrough"].route-step--ai { border-color: var(--route-ai); background: var(--route-ai-bg); }
+[data-canvas-element].diagram-node-box[data-layer="walkthrough"].route-step--failure { border: 1px solid var(--route-fail-border); background: var(--route-fail-bg); color: var(--route-fail-ink); }
+[data-layer="walkthrough"].route-step--failure [data-testid="canvas-node-box-header"].diagram-node-box-header { padding: 5px 10px; }
+[data-canvas-element][data-layer="walkthrough"].route-step--failure .diagram-node-box-name { font-family: var(--font-board); }
+[data-layer="walkthrough"].route-step--failure .canvas-node-step-chip { display: none; }
+[data-canvas-element].diagram-node-box[data-layer="walkthrough"]:not(.route-step) { border: 1px solid var(--route-panel-border); border-radius: var(--radius-xl); background: transparent; color: var(--route-text-soft); }
+[data-layer="walkthrough"]:not(.route-step) [data-testid="canvas-node-box-header"].diagram-node-box-header { padding: 12px 16px; }
+[data-canvas-element][data-layer="walkthrough"]:not(.route-step) .diagram-node-box-name { font-family: var(--font-board); font-size: 13.5px; }
+[data-layer="walkthrough"]:not(.route-step) .diagram-node-box-desc { border-top: 0; padding-top: 0; margin-top: 0; font-size: 12px; color: var(--route-text-dim); -webkit-line-clamp: 2; }
+[data-canvas-element].diagram-node-box[data-layer="walkthrough"].walkthrough-box--external { border: 1.5px dashed var(--route-ext-border); background: var(--route-ext-bg); color: var(--route-text); }
+[data-canvas-element].diagram-node-box[data-layer="walkthrough"].walkthrough-box--data { border: 1.5px solid var(--route-data-border); border-radius: var(--radius-sm) var(--radius-store) var(--radius-sm) var(--radius-sm); background: var(--route-data-bg); }
+[data-canvas-element][data-layer="walkthrough"].walkthrough-box--data .diagram-node-box-name { font-family: var(--font-mono); font-size: 12.5px; color: var(--route-data-ink); }
+[data-layer="walkthrough"] .canvas-node-step-chip { top: -9px; left: -9px; width: 22px; min-width: 22px; height: 22px; padding: 0; border-radius: 50%; line-height: 22px; font-family: var(--font-mono); font-size: 11px; font-weight: 700; background: var(--route-ok); color: var(--route-chip-ink); }
+[data-layer="walkthrough"].route-step--ai .canvas-node-step-chip { background: var(--route-ai); color: var(--route-ai-ink); }
+.canvas-edge[data-layer="walkthrough"] .c1-relationship-path { stroke: var(--route-ok); stroke-width: 2.75; stroke-dasharray: none; stroke-linejoin: round; }
+.canvas-edge[data-layer="walkthrough"] .c1-relationship-casing { stroke: var(--route-glow); stroke-width: 10; stroke-linejoin: round; }
+.canvas-edge[data-layer="walkthrough"].canvas-edge--error .c1-relationship-path { stroke: var(--route-fail); stroke-width: 1.5; stroke-dasharray: 5 4; marker-end: none; }
+.canvas-edge[data-layer="walkthrough"].canvas-edge--minor .c1-relationship-path { stroke: var(--route-ext-border); stroke-width: 1.5; stroke-dasharray: 5 4; marker-end: none; }
+.canvas-edge[data-layer="walkthrough"].canvas-edge--data .c1-relationship-path { stroke: var(--route-data-border); stroke-width: 1.5; stroke-dasharray: 5 4; }
+.canvas-edge[data-layer="walkthrough"]:is(.canvas-edge--error, .canvas-edge--minor, .canvas-edge--data) .c1-relationship-casing { display: none; }
+.canvas-edge .c1-relationship-path--ek-error { stroke: var(--route-fail); stroke-width: 1.5; stroke-dasharray: 5 4; }
+.canvas-arrowhead--error { fill: var(--route-fail); }
+.canvas-arrowhead--route { fill: var(--route-ok); }

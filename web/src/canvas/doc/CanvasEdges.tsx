@@ -10,6 +10,7 @@ import { edgeVisual, type EdgeVisual } from "./edgeKinds";
 import { focusStore } from "./focusStore";
 import { elementRect } from "./elementRect";
 import { mergedPillRect, useMergedPills } from "./impactBoxState";
+import { WALKTHROUGH_LAYER } from "./walkthroughLayout";
 
 const CANVAS_ARROW_MARKER_ID = "canvas-doc-arrowhead";
 
@@ -19,11 +20,16 @@ const CANVAS_ARROW_MARKERS = [
   { id: CANVAS_ARROW_MARKER_ID, className: "custom-arrowhead" },
   { id: `${CANVAS_ARROW_MARKER_ID}-data`, className: "custom-arrowhead canvas-arrowhead--data" },
   { id: `${CANVAS_ARROW_MARKER_ID}-minor`, className: "custom-arrowhead canvas-arrowhead--minor" },
+  { id: `${CANVAS_ARROW_MARKER_ID}-error`, className: "custom-arrowhead canvas-arrowhead--error" },
 ];
+// The B2 route head is the board's 6-unit triangle (scaled by the 2.75px stroke), smaller than the default 10.
+const ROUTE_ARROW_MARKERS = [{ id: `${CANVAS_ARROW_MARKER_ID}-route`, className: "custom-arrowhead canvas-arrowhead--route" }];
 
-/** Bundles carry no arrowhead (the marker id is deliberately undefined). */
-const markerFor = (visual: EdgeVisual): string =>
-  visual === "data" || visual === "minor"
+/** Bundles carry no arrowhead (the marker id is deliberately undefined); a walkthrough's route arrows take the green head. */
+const markerFor = (visual: EdgeVisual, layer: string | undefined): string =>
+  (visual === "call" || visual === "spawn") && layer === WALKTHROUGH_LAYER
+    ? `${CANVAS_ARROW_MARKER_ID}-route`
+    : visual === "data" || visual === "minor" || visual === "error"
     ? `${CANVAS_ARROW_MARKER_ID}-${visual}`
     : visual === "bundle"
       ? `${CANVAS_ARROW_MARKER_ID}-none`
@@ -75,23 +81,27 @@ export function CanvasEdges({ doc, sizes, onOpenOrigin }: CanvasEdgesProps) {
   return (
     <>
       <ArrowMarkerDefs markers={CANVAS_ARROW_MARKERS} />
+      <ArrowMarkerDefs markers={ROUTE_ARROW_MARKERS} size={6} />
       {edges.map((edge) => {
         const visual: EdgeVisual = bundleSet.has(bundleKeyOf(edge)) ? "bundle" : edgeVisual(edge.kind, edge.transport);
+        const layer = doc.elements[edge.from]?.layer;
+        // The B2 route arrows carry no kind word; only an authored label is drawn.
+        const label = edge.label || (layer === WALKTHROUGH_LAYER ? "" : edge.kind || "");
         return (
         <g
           key={edge.key}
           className={`canvas-edge canvas-edge--${visual}${focusStore.edgeDimmed(edge.from, edge.to) ? " canvas-edge--dim" : ""}`}
           data-edge-visual={visual}
-          data-layer={doc.elements[edge.from]?.layer}
+          data-layer={layer}
         >
         <RelationshipEdge
           edgeKey={edge.key}
           d={edge.d}
-          label={edge.label || edge.kind || ""}
+          label={label}
           transport={edge.transport}
           labelX={edge.labelX}
           labelY={edge.labelY}
-          markerId={markerFor(visual)}
+          markerId={markerFor(visual, layer)}
           fromNodeId={edge.from}
           toNodeId={edge.to}
           variantSuffix={` --custom --ek-${visual}`}
@@ -101,7 +111,7 @@ export function CanvasEdges({ doc, sizes, onOpenOrigin }: CanvasEdgesProps) {
           onOpenOrigin={onOpenOrigin}
           labelVariant="board"
           testId="canvas-doc-relationship"
-          layer={doc.elements[edge.from]?.layer}
+          layer={layer}
         />
         </g>
         );

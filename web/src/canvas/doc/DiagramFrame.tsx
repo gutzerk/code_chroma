@@ -14,6 +14,7 @@ import { diagramFrameColorClass } from "./diagramFrameColor";
 import { dragOffsetStore } from "./dragOffsetStore";
 import { CopyButton } from "../strategies/nodeChrome";
 import { SoftAreaFrame } from "./SoftAreaFrame";
+import { boundsWithWalkthroughPanel, useLayerRoute, WALKTHROUGH_LAYER } from "./walkthroughLayout";
 
 // The larger of GroupFrame's/LaneArea's/ConcurrencyIslandArea's own padding on each side (currently
 // GroupFrame's 32/48/32) plus NESTED_GAP: this frame is meant to enclose all three, and any of them
@@ -170,9 +171,12 @@ export function DiagramFrame({ layer, label, members, sizes, typeLabel, boxCount
   const memberBounds = unionBoundsOf(members, sizes);
   useSyncExternalStore(sequenceViewStore.subscribe, sequenceViewStore.getVersion);
   const sequenceMode = members.some((m) => m.render === "sequence") ? sequenceViewStore.get(layer, members.filter((m) => stringMeta(m, "role") === "message").length).mode : null;
-  const bounds = memberBounds && sequenceMode
+  const { route } = useLayerRoute(members);
+  const sequenceBounds = memberBounds && sequenceMode
     ? { ...memberBounds, right: memberBounds.right + (sequenceMode === "focus" ? SEQUENCE_PANEL_SPACE : 0), bottom: memberBounds.bottom + SEQUENCE_LEGEND_SPACE }
     : memberBounds;
+  // A walkthrough's ROUTE panel is part of the diagram (WalkthroughPanel), so the frame encloses it too.
+  const bounds = sequenceBounds && route && layer === WALKTHROUGH_LAYER ? boundsWithWalkthroughPanel(sequenceBounds, route) : sequenceBounds;
 
   // Every id this gesture has pushed a live offset for, so an aborted drag (this component unmounts
   // mid-gesture -- e.g. another window/agent deletes the diagram while someone is dragging its frame)

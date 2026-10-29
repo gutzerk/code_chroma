@@ -276,7 +276,7 @@ export interface C1Coverage {
  * `` `custom/${typeId}` `` is a whole family, not one member — feature 011's user-defined types are
  * data, not code, so a new one needs no new union member, only a new `.codechroma/diagram-types/*`
  * file. */
-export type DiagramKind = "c1" | "patterns" | "impact" | "sequence" | `custom/${string}`;
+export type DiagramKind = "system-context" | "patterns" | "impact" | "sequence" | "walkthrough" | `custom/${string}`;
 
 /** Every kind `getDiagram(kind)` can fetch: every DiagramKind, plus "epics" — its index shares the
  * same GET /repos/{id}/{kind} shape but is assembled from the requirements source, never

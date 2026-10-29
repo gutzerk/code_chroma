@@ -25,12 +25,16 @@ public sealed class SkillAgents
     /// <summary>The diagram and review kinds; the composite kinds are added by their own modules.</summary>
     private static IEnumerable<KindSpec> Specs()
     {
-        foreach (var kind in new[] { "c1", "patterns", "impact", "epics", "sequence" })
+        foreach (var kind in new[] { "system-context", "patterns", "impact", "epics", "sequence", "walkthrough" })
+        {
+            // System context keeps the pre-rename call-site id, prompt file and timeout variable (users' saved settings key on them).
+            var legacy = kind == "system-context" ? "c1" : kind;
             yield return new KindSpec(kind, new SkillAgentSpec(
-                $"{kind}_agent", Prompts.Render($"{kind}_agent"), SkillTimeouts.Model,
+                $"{legacy}_agent", Prompts.Render($"{legacy}_agent"), SkillTimeouts.Model,
                 (root, _) => Workspace.DiagramPath(root, kind),
-                HasValidFlatDiagram, $"codechroma_{kind.ToUpperInvariant()}_TIMEOUT_SECONDS", SkillTimeouts.For(kind),
+                HasValidFlatDiagram, $"codechroma_{legacy.ToUpperInvariant()}_TIMEOUT_SECONDS", SkillTimeouts.For(kind),
                 $"generation produced no valid {kind}.json"));
+        }
         yield return new KindSpec(ProcessDiagram.Kind, new SkillAgentSpec(
             "c1_agent", null, SkillTimeouts.Model, (root, key) => Workspace.DiagramPath(root, "custom/" + SkillAgent.ItemFromKey(key)),
             HasValidFlatDiagram, "codechroma_PROCESS_DIAGRAM_TIMEOUT_SECONDS", SkillTimeouts.For("custom"), "generation produced no valid diagram"));

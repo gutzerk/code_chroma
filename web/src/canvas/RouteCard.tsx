@@ -1,6 +1,6 @@
-import { useEffect, useMemo } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useCanvasDoc, useRouteCarriers } from "./doc/canvasDocStore";
-import { routeOf, type Route } from "./doc/routeStep";
+import { routeOf, type Route, type RouteStep } from "./doc/routeStep";
 import { routeStore, useRouteState } from "../state/routeStore";
 import type { CanvasElement } from "../state/types";
 
@@ -19,6 +19,42 @@ export function collectRoutes(elements: Record<string, CanvasElement>, carriers:
   return [...byId.values()];
 }
 
+/** The badge on a step row: ✕ for a failure, ✓ for the last step of a flow, else its number. */
+function stepMark(step: RouteStep, isLast: boolean): string {
+  if (step.kind === "failure") return "✕";
+  return isLast ? "✓" : String(step.order);
+}
+
+/** The row's second line: the authored `detail`, else the first call it makes, else its lane. */
+function stepDetail(step: RouteStep): string | undefined {
+  return step.detail ?? step.children[0]?.label ?? step.lane;
+}
+
+const CARD_GAP = 12;
+
+/** The card's `right` offset that keeps it on the *visible* canvas: the agents panel floats over its right side. */
+function useClearOfActivityPanel(cardRef: { current: HTMLElement | null }, active: boolean): number {
+  const [right, setRight] = useState(CARD_GAP);
+  useEffect(() => {
+    const panel = document.querySelector<HTMLElement>('[data-testid="activity-panel"]');
+    const stage = cardRef.current?.offsetParent;
+    if (!panel || !stage) return;
+    const place = () => {
+      const overlap = stage.getBoundingClientRect().right - panel.getBoundingClientRect().left;
+      setRight(Math.max(overlap, 0) + CARD_GAP);
+    };
+    place();
+    window.addEventListener("resize", place);
+    const observer = typeof ResizeObserver === "undefined" ? undefined : new ResizeObserver(place);
+    observer?.observe(panel);
+    return () => {
+      window.removeEventListener("resize", place);
+      observer?.disconnect();
+    };
+  }, [cardRef, active]);
+  return right;
+}
+
 /** The ROUTE card: title, derived summary, the step list and `▶ Walk the route`. */
 export function RouteCard() {
   const { route, stepIndex, walking } = useRouteState();
@@ -32,9 +68,11 @@ export function RouteCard() {
     return () => clearTimeout(timer);
   }, [walking, stepIndex]);
 
+  const cardRef = useRef<HTMLElement | null>(null);
+  const right = useClearOfActivityPanel(cardRef, route !== null);
   if (!route) return null;
   return (
-    <aside className="route-card" data-testid="route-card" aria-label="Route">
+    <aside className="route-card" data-testid="route-card" aria-label="Route" ref={cardRef} style={{ right }}>
       <header className="route-card-head">
         <span className="route-card-tag">ROUTE</span>
         <strong>{route.title}</strong>
@@ -67,14 +105,32 @@ export function RouteCard() {
             data-testid="route-card-step"
           >
             <button type="button" onClick={() => routeStore.setStep(index)}>
-              <span className="route-card-step-order">{step.kind === "failure" ? "✕" : step.order}</span> {step.title}
+              <span className="route-card-step-badge" aria-hidden="true">{stepMark(step, index === route.steps.length - 1)}</span>
+              <span className="route-card-step-text">
+                <span className="route-card-step-title">{step.title}</span>
+                {stepDetail(step) && <span className="route-card-step-detail">{stepDetail(step)}</span>}
+              </span>
             </button>
           </li>
         ))}
       </ol>
-      <button type="button" className="route-card-walk" data-testid="route-walk" onClick={() => routeStore.toggleWalk()}>
-        {walking ? "■ Stop" : "▶ Walk the route"}
-      </button>
+      <div className="route-card-player">
+        <button type="button" className="route-card-nav" aria-label="Previous step" data-testid="route-prev" onClick={() => routeStore.setStep(stepIndex - 1)}>
+          ←
+        </button>
+        <button type="button" className="route-card-walk" data-testid="route-walk" onClick={() => routeStore.toggleWalk()}>
+          {walking ? "■ Stop" : "▶ Walk the route"}
+        </button>
+        <button type="button" className="route-card-nav" aria-label="Next step" data-testid="route-next" onClick={() => routeStore.setStep(stepIndex + 1)}>
+          →
+        </button>
+      </div>
+      <div className="route-card-legend" data-testid="route-card-legend">
+        <span className="route-card-legend-title">LEGEND</span>
+        <span><i className="route-card-swatch route-card-swatch--route" />on the route</span>
+        <span><i className="route-card-swatch route-card-swatch--dim" />rest of the code, dimmed but still there</span>
+        <span><i className="route-card-swatch route-card-swatch--frame" />folder / file, ↗ opens it</span>
+      </div>
     </aside>
   );
 }

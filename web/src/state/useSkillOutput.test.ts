@@ -22,12 +22,12 @@ function clientFor(buffered: string[] = []) {
   } as unknown as EngineClient;
   return {
     client,
-    pushC1: (lines: string[]) => act(() => pushers.c1?.(lines)),
+    pushC1: (lines: string[]) => act(() => pushers["system-context"]?.(lines)),
     pushReview: (lines: string[]) => act(() => pushers["impact-changes"]?.(lines)),
   };
 }
 
-function render(client: EngineClient, kind: SkillOutputKind = "c1") {
+function render(client: EngineClient, kind: SkillOutputKind = "system-context") {
   return renderHook(
     ({ state }: { state: DiagramGenerationStatus["state"] }) => useSkillOutput(client, kind, state),
     { initialProps: { state: "generating" as DiagramGenerationStatus["state"] } },
@@ -46,7 +46,7 @@ describe("useSkillOutput", () => {
   it("appends each pushed batch in order", async () => {
     const { client, pushC1 } = clientFor();
     const { result } = render(client);
-    await waitFor(() => expect(client.getDiagramOutput).toHaveBeenCalledWith("c1"));
+    await waitFor(() => expect(client.getDiagramOutput).toHaveBeenCalledWith("system-context"));
 
     pushC1(["⏺ Glob(**/*.py)"]);
     pushC1(["⏺ Write(c1.json)", "✓ done in 5s"]);
@@ -97,7 +97,7 @@ describe("useSkillOutput", () => {
     // a start reported later — a run this mount triggered — is a real fresh run, and old lines drop.
     const { client, pushC1 } = clientFor();
     const { result, rerender } = render(client);
-    await waitFor(() => expect(client.getDiagramOutput).toHaveBeenCalledWith("c1"));
+    await waitFor(() => expect(client.getDiagramOutput).toHaveBeenCalledWith("system-context"));
     // Flush the empty catch-up read so it records "no buffered history" before the start lands.
     await act(async () => {
       await Promise.resolve();
@@ -115,7 +115,7 @@ describe("useSkillOutput", () => {
     // reveals "generating" for a run this mount didn't start, and the buffer relays its history.
     const { client, pushC1 } = clientFor();
     const first = render(client);
-    await waitFor(() => expect(client.getDiagramOutput).toHaveBeenCalledWith("c1"));
+    await waitFor(() => expect(client.getDiagramOutput).toHaveBeenCalledWith("system-context"));
     pushC1(["⏺ Read(app.py)", "⏺ Glob(**/*.py)"]);
 
     first.unmount();
@@ -123,7 +123,7 @@ describe("useSkillOutput", () => {
     // Reopened mid-run: the fresh mount's catch-up read returns the server's buffer, and the
     // status (via the generation hook, modeled here as the initial prop) is already "generating".
     const remounted = clientFor(["⏺ Read(app.py)", "⏺ Glob(**/*.py)"]);
-    const second = renderHook(() => useSkillOutput(remounted.client, "c1", "generating"));
+    const second = renderHook(() => useSkillOutput(remounted.client, "system-context", "generating"));
     await waitFor(() =>
       expect(second.result.current).toEqual(["⏺ Read(app.py)", "⏺ Glob(**/*.py)"]),
     );
@@ -141,7 +141,7 @@ describe("useSkillOutput", () => {
   it("leaves the finished run's lines readable while the state stays put", async () => {
     const { client, pushC1 } = clientFor();
     const { result, rerender } = render(client);
-    await waitFor(() => expect(client.getDiagramOutput).toHaveBeenCalledWith("c1"));
+    await waitFor(() => expect(client.getDiagramOutput).toHaveBeenCalledWith("system-context"));
     pushC1(["✓ done in 5s"]);
 
     rerender({ state: "idle" });
@@ -152,7 +152,7 @@ describe("useSkillOutput", () => {
   it("caps the feed at the bridge's own line limit", async () => {
     const { client, pushC1 } = clientFor();
     const { result } = render(client);
-    await waitFor(() => expect(client.getDiagramOutput).toHaveBeenCalledWith("c1"));
+    await waitFor(() => expect(client.getDiagramOutput).toHaveBeenCalledWith("system-context"));
 
     pushC1(Array.from({ length: 350 }, (_unused, index) => `line ${index}`));
 
@@ -168,6 +168,6 @@ describe("useSkillOutput", () => {
     pushReview(["⏺ Read(git diff)"]);
 
     expect(result.current).toEqual(["⏺ Read(git diff)"]);
-    expect(client.getDiagramOutput).not.toHaveBeenCalledWith("c1");
+    expect(client.getDiagramOutput).not.toHaveBeenCalledWith("system-context");
   });
 });

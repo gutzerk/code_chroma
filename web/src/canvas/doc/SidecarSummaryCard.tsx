@@ -9,7 +9,7 @@ import { useDiagramGeneration } from "../../state/useDiagramGeneration";
 function CoverageLine() {
   const engineClient = useEngineClient();
   const coverage = useCoverageSidecar(engineClient);
-  const generation = useDiagramGeneration(engineClient, "c1");
+  const generation = useDiagramGeneration(engineClient, "system-context");
   // A run in flight is rewriting the very blocks these counts describe.
   if (generation.state === "generating") return null;
   if (!coverage?.has_diagram || coverage.unmapped_files === 0) return null;

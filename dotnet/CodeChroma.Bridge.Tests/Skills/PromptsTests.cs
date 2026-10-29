@@ -17,6 +17,7 @@ public class PromptsTests
     [InlineData("impact_review_agent")]
     [InlineData("patterns_agent")]
     [InlineData("sequence_agent")]
+    [InlineData("walkthrough_agent")]
     public void A_static_prompt_is_returned_verbatim_from_the_shipped_yaml(string name) =>
         Assert.Equal(YamlBody(name), Prompts.Render(name));
 

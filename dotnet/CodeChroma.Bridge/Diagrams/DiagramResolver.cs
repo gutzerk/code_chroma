@@ -22,11 +22,11 @@ public sealed class Diagnostics
     private static readonly string[] EdgeKindAliases =
     [
         "call", "uses", "spawn", "process", "read", "write", "secondary", "imports", "implements",
-        "extends", "inherits", "composes", "contains", "depends", "depends_on", "removed",
+        "extends", "inherits", "composes", "contains", "depends", "depends_on", "removed", "error",
     ];
     private static readonly string[] PlainEdgeKinds = ["", "calls", "call", "uses"];
     // These author structural verbs (observes, wraps, ...), so an unknown kind there is not a typo.
-    private static readonly string[] StructuralKinds = ["c1", "patterns", "impact"];
+    private static readonly string[] StructuralKinds = ["system-context", "patterns", "impact"];
     private static readonly Regex FailureWords = new(@"\b(error|fail\w*|denied|timeout|timed out)\b", RegexOptions.IgnoreCase);
     private static readonly Regex SpawnWords = new(@"\b(spawn\w*|launch\w*|(start|starts|starting|run|runs|fork\w*)\s+(a\s+|an\s+|the\s+)?(sub)?(process|cli|agent|worker|daemon))\b", RegexOptions.IgnoreCase);
     private static readonly Regex DataWords = new(@"\b(read|reads|write|writes|reading|writing|persist\w*|stores?|saves?)\b.{0,40}\b(files?|disk|database|db|sqlite|store|cache|json)\b", RegexOptions.IgnoreCase);

@@ -709,3 +709,50 @@ select.wfe-input {
   font-size: 13px;
   line-height: 1.5;
 }
+
+.wfe-slash {
+  position: relative;
+}
+
+.wfe-slash-menu {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: calc(100% + 4px);
+  z-index: 5;
+  margin: 0;
+  padding: 4px;
+  list-style: none;
+  max-height: 220px;
+  overflow-y: auto;
+  background: var(--cc-surface, #1e1e1e);
+  border: 1px solid var(--cc-border, #3a3a3a);
+  border-radius: var(--radius-lg);
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.35);
+}
+
+.wfe-slash-item {
+  display: flex;
+  gap: 8px;
+  align-items: baseline;
+  padding: 5px 8px;
+  border-radius: var(--radius-md);
+  cursor: pointer;
+}
+
+.wfe-slash-item.is-active {
+  background: rgba(127, 127, 127, 0.22);
+}
+
+.wfe-slash-name {
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.wfe-slash-desc {
+  opacity: 0.65;
+  font-size: 0.85em;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}

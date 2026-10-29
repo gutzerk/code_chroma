@@ -7,7 +7,10 @@ import { groupColorIndex } from "./groupColor";
 export const DIAGRAM_HASHED_COLORS = ["#f43f5e", "#06b6d4", "#a3e635", "#fde047", "#818cf8", "#e879f9"] as const;
 
 /** Builtin layers that own a named token colour (styles.css `canvas-diagram-frame-<name>`). */
-const TOKEN_LAYERS = new Set(["c1", "patterns", "impact", "epics"]);
+const TOKEN_LAYERS = new Set(["system-context", "patterns", "impact", "epics"]);
+
+/** The colour token a layer reads when it is not named after the layer (System context keeps `--c1`). */
+const TOKEN_VARS: Record<string, string> = { "system-context": "c1" };
 
 export interface DiagramAccent {
   /** The frame's CSS class (`canvas-diagram-frame-<name>` or `canvas-diagram-frame-color-<n>`). */
@@ -20,7 +23,7 @@ export interface DiagramAccent {
 export function diagramAccent(layer: string): DiagramAccent {
   const builtin = BUILTIN_RECIPES.some((recipe) => recipe.name === layer);
   if (builtin && TOKEN_LAYERS.has(layer)) {
-    return { className: `canvas-diagram-frame-${layer}`, color: `var(--${layer})` };
+    return { className: `canvas-diagram-frame-${layer}`, color: `var(--${TOKEN_VARS[layer] ?? layer})` };
   }
   const index = groupColorIndex(layer);
   return { className: `canvas-diagram-frame-color-${index}`, color: DIAGRAM_HASHED_COLORS[index] };
@@ -33,7 +36,7 @@ export interface DiagramDisplay {
 }
 
 const TYPE_LABELS: Record<string, string> = {
-  c1: "C1",
+  "system-context": "System context",
   patterns: "Patterns",
   impact: "Impact",
   epics: "Epics",

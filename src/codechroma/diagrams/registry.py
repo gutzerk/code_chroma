@@ -47,6 +47,10 @@ CUSTOM_BUDGET = {
 _SEQUENCE_BUDGET = {
     "max_nodes": 24, "max_relations": 60, "max_name_chars": 40, "max_edge_label_chars": 60,
 }
+# A walkthrough is one process of 5-9 route steps plus the actors and stores around it.
+_WALKTHROUGH_BUDGET = {
+    "max_nodes": 24, "max_relations": 40, "max_name_chars": 40, "max_edge_label_chars": 50,
+}
 # Same wiring hints every built-in/custom type has always gotten (pre-037's `_*_ISLAND_HINT`s).
 PATTERNS_ISLAND_HINT = (
     "wire in the real caller (or whatever else connects it to the rest of the diagram, don't stop"
@@ -61,6 +65,9 @@ C1_ISLAND_HINT = (
 IMPACT_ISLAND_HINT = "wire it into the rest of the slice, or drop the cluster"
 EPICS_ISLAND_HINT = (
     "wire it to its epic's parent box or a cross-epic dependency link, or drop the cluster"
+)
+WALKTHROUGH_ISLAND_HINT = (
+    "wire it into the process with an arrow from the step that uses it, or drop the box"
 )
 SEQUENCE_ISLAND_HINT = (
     "wire it with a message to (or from) the rest of the participants, or drop the participant"
@@ -120,12 +127,12 @@ class DiagramTypeDefinition:
 
 
 BUILTIN_TYPES: dict[str, DiagramTypeDefinition] = {
-    "c1": DiagramTypeDefinition(
-        id="c1",
-        title="C1",
+    "system-context": DiagramTypeDefinition(
+        id="system-context",
+        title="System context",
         style="boxes-arrows",
         instructions=render_prompt("c1_agent"),
-        artifact=".codechroma/diagrams/c1/c1.json",
+        artifact=".codechroma/diagrams/system-context/system-context.json",
         context=None,
         # 042: c1 is a flat system-context view now, with nothing left for coverage to measure.
         addons={"coverage": False, "staleness": False, "grouping": False},
@@ -200,6 +207,21 @@ BUILTIN_TYPES: dict[str, DiagramTypeDefinition] = {
             shape="flat", budgets=_SEQUENCE_BUDGET,
             # Every participant must take part in the message flow -- no standalone boxes.
             check_islands={"hint": SEQUENCE_ISLAND_HINT},
+        ),
+    ),
+    "walkthrough": DiagramTypeDefinition(
+        id="walkthrough",
+        title="Walkthrough",
+        style="boxes-arrows",
+        instructions=render_prompt("walkthrough_agent"),
+        artifact=".codechroma/diagrams/walkthrough/walkthrough.json",
+        context=None,
+        addons={"coverage": False, "staleness": False, "grouping": False},
+        overlays=[],
+        review=None,
+        checks=CheckConfig(
+            shape="flat", budgets=_WALKTHROUGH_BUDGET,
+            check_islands={"hint": WALKTHROUGH_ISLAND_HINT}, max_hero_edges=2,
         ),
     ),
 }

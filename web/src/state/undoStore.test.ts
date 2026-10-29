@@ -10,32 +10,32 @@ describe("UndoStore", () => {
   });
 
   it("undo returns null when the kind has nothing recorded", () => {
-    expect(store.canUndo("c1")).toBe(false);
-    expect(store.undo("c1")).toBeNull();
+    expect(store.canUndo("system-context")).toBe(false);
+    expect(store.undo("system-context")).toBeNull();
   });
 
   it("undo restores the pre-commit layout (the state to go back to), LIFO per kind", () => {
     const baseline: Record<string, Offset> = { a: { x: 0, y: 0 } };
     const afterFirst: Record<string, Offset> = { a: { x: 1, y: 1 } };
 
-    store.recordCommit("c1", baseline);
-    store.recordCommit("c1", afterFirst);
+    store.recordCommit("system-context", baseline);
+    store.recordCommit("system-context", afterFirst);
 
-    expect(store.canUndo("c1")).toBe(true);
+    expect(store.canUndo("system-context")).toBe(true);
     // Undoing the second drag restores the state that existed before it.
-    expect(store.undo("c1")).toEqual(afterFirst);
+    expect(store.undo("system-context")).toEqual(afterFirst);
     // Undoing the first drag restores the baseline.
-    expect(store.undo("c1")).toEqual(baseline);
-    expect(store.canUndo("c1")).toBe(false);
-    expect(store.undo("c1")).toBeNull();
+    expect(store.undo("system-context")).toEqual(baseline);
+    expect(store.canUndo("system-context")).toBe(false);
+    expect(store.undo("system-context")).toBeNull();
   });
 
   it("keeps kinds independent", () => {
     store.recordCommit("patterns", { p: { x: 5, y: 5 } });
 
     expect(store.canUndo("patterns")).toBe(true);
-    expect(store.canUndo("c1")).toBe(false);
-    expect(store.undo("c1")).toBeNull();
+    expect(store.canUndo("system-context")).toBe(false);
+    expect(store.undo("system-context")).toBeNull();
     expect(store.undo("patterns")).toEqual({ p: { x: 5, y: 5 } });
   });
 
@@ -57,11 +57,11 @@ describe("UndoStore", () => {
   });
 
   it("reset clears every kind's history", () => {
-    store.recordCommit("c1", { a: { x: 0, y: 0 } });
+    store.recordCommit("system-context", { a: { x: 0, y: 0 } });
     store.recordCommit("hierarchy", { h: { x: 0, y: 0 } });
     store.reset();
 
-    expect(store.canUndo("c1")).toBe(false);
+    expect(store.canUndo("system-context")).toBe(false);
     expect(store.canUndo("hierarchy")).toBe(false);
   });
 
@@ -71,8 +71,8 @@ describe("UndoStore", () => {
       calls += 1;
     });
 
-    store.recordCommit("c1", { a: { x: 0, y: 0 } });
-    store.undo("c1");
+    store.recordCommit("system-context", { a: { x: 0, y: 0 } });
+    store.undo("system-context");
 
     expect(calls).toBe(2);
   });

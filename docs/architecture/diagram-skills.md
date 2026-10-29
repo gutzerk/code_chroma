@@ -28,13 +28,13 @@ skills/codechroma-draw-diagram/
   SKILL.md                       #  52 lines — router only
   references/
     drawing-rules.md             # 298 — shared rules, the one shared shape + style catalog, fallback
-    type-c1.md                   # 210 — 042-c1-diagram-quality-and-speed cut it from ~350: flat
+    type-system-context.md                   # 210 — 042-c1-diagram-quality-and-speed cut it from ~350: flat
                                   #       system-context authoring only, decomposition removed
     type-patterns.md             # 226
     type-impact.md               # 172
     type-sequence.md               # ordered-call flow from trace scaffold or code context
     type-custom.md                 # 173
-    type-system-context.md         # context-only view, saved as custom type `system-context` on first use (c1 is the layered form)
+    # (type-system-context.md was renamed type-system-context.md: "System context" is the one built-in type, id `system-context`)
     type-dataflow.md               # data between sources/processes/stores, saved as custom type `dataflow` on first use
   scripts/
     check_diagram.py               # one self-check, including --kind sequence
@@ -59,7 +59,7 @@ description is 983 chars, down from 2077 across the four originals. Re-check tri
 trimming it further.
 
 ⚠ The prompt YAMLs name the skill **and** the type **and** the reference file
-(`Use the codechroma-draw-diagram skill, type c1 — read references/type-c1.md …`), which is what the
+(`Use the codechroma-draw-diagram skill, type c1 — read references/type-system-context.md …`), which is what the
 router's precedence line ("a named reference file wins over this table") makes deterministic.
 
 ## 🔴 Retiring a skill needs its own pass
@@ -232,7 +232,7 @@ Three deliberate behaviour changes from the merge:
 
 ⚠ `ISLAND` (a 2+-node cluster wired only to itself) originally shipped only for patterns and custom
 -- `CheckConfig.check_islands` was `None` for c1 and impact, and `HierarchicalInspector` never called
-the island logic at all regardless of config, even though `type-c1.md`'s "every actor needs a
+the island logic at all regardless of config, even though `type-system-context.md`'s "every actor needs a
 relation to `system`" and `type-impact.md`'s "every box must connect" already promised exactly this.
 Both gaps are closed: impact just flips `check_islands` on (its `FlatInspector` path is unchanged);
 c1 gets its own `_check_c1_islands` (`bridge/inspect.py`, mirrored in `check_diagram.py`'s
@@ -457,7 +457,7 @@ differences from Step 1's route, both deliberate:
   links to its components by id, and the skill already knows `repo_root` from its own `*-path`
   endpoint, so `references/drawing-rules.md`'s Step 0 tells it to read
   `{repo_root}/.codechroma/wiki-general/c3/<id>.md` directly rather than adding a second new route.
-- **`c1` gets only `root`, never `containers[]`.** `type-c1.md` gained its own Step 0 (before
+- **`c1` gets only `root`, never `containers[]`.** `type-system-context.md` gained its own Step 0 (before
   `context-digest`) that fetches this route but only ever reads the root narrative — C1 doesn't
   decompose (unchanged since 042), so the C2-level detail in `containers[]` has no box to attach to.
 - **No auto-trigger.** A missing wiki-general (`has_wiki_general: false`) is treated exactly like
@@ -569,14 +569,14 @@ get_output`, never the raw path param.
 ## Self-check probe parallelism and the C1 fan-out option
 
 ⚠ **042-c1-diagram-quality-and-speed removed the BFS/worklist/fan-out material this section
-describes from `type-c1.md`.** C1 is now a flat system-context view (system + actors + relations,
+describes from `type-system-context.md`.** C1 is now a flat system-context view (system + actors + relations,
 authored in one pass, no `/structure` decomposition at all) — see
 [`c1-diagram.md`](c1-diagram.md)'s banner and `docs/planning/042-c1-diagram-quality-and-speed/` for
 why (an 8-minute run over-decomposing a large monorepo instead of drawing a true C1 view). The
 probe-parallelism code below is unchanged and still runs — it is dead weight for a fresh flat C1
 file (there are no `dir::` leaves to probe) but still fires correctly against an older or
 hand-decomposed `c1.json`, and unchanged for `patterns`/`impact`/`custom`. The fan-out pattern is
-gone from `type-c1.md` entirely; if a future C2/C3-style decomposition type is ever built, it would
+gone from `type-system-context.md` entirely; if a future C2/C3-style decomposition type is ever built, it would
 need to re-document its own version of this rather than resurrecting C1's.
 
 `check_diagram.py`'s C1 self-check used to probe every `dir::` leaf's `UNCOVERED` status one at a
@@ -588,13 +588,13 @@ consumes them ever runs — the walk itself makes zero network calls. `_dir_leaf
 predicate both the collection pass and `_check_leaf` share, so the two can't silently drift apart.
 Findings are unchanged; only wall time and call count changed.
 
-`type-c1.md`'s worklist doc used to change alongside it: the documented `structure` fetch depth moved
+`type-system-context.md`'s worklist doc used to change alongside it: the documented `structure` fetch depth moved
 from `depth=2` to `depth=3` (one round trip covers what used to take two, since the bridge already
 caches `structure` responses and supports up to `depth=5`), and the doc told the skill to issue one
 BFS layer's independent `structure` calls as parallel tool calls in a single message instead of one
-at a time. This whole worklist no longer exists in `type-c1.md` (042, above).
+at a time. This whole worklist no longer exists in `type-system-context.md` (042, above).
 
-For a monorepo with 3+ independent, sizeable top-level areas, `type-c1.md`'s "Fan-out for independent
+For a monorepo with 3+ independent, sizeable top-level areas, `type-system-context.md`'s "Fan-out for independent
 branches" subsection used to document a Map-Reduce shape: the main agent resolves the top layer, then
 issues one `Agent` call per area (`subagent_type: "general-purpose"`, one id prefix per area) in a
 single message; each branch returns a JSON fragment instead of writing the shared artifact itself;
@@ -634,6 +634,14 @@ output matches pre-036 golden fixtures) · `tests/contract/test_new_diagram_type
 `agentDiagramsReady.test.ts`, `AgentRail.test.tsx`, `AgentWindowLayer.test.tsx`,
 `nodeAccent.test.tsx`.
 
+## `walkthrough`: the built-in process diagram
+
+`walkthrough` is a built-in kind (id in `src/codechroma/diagrams/kinds.json`, so the Draw dialog lists it; `BUILTIN_TYPES["walkthrough"]`, `DIAGRAMS["walkthrough"]` and `_resolve_walkthrough` in Python; `Workspace.DiagramKinds`, `SkillAgents.Specs`, `DiagramRoutes.ResolveKind` and `DiagramSeed.BuiltinKinds` in C#). Artifact `.codechroma/diagrams/walkthrough/walkthrough.json`, path route `GET /repos/{id}/walkthrough-path`, prompt `prompts/walkthrough_agent.yaml`, skill reference `references/type-walkthrough.md`, self-check `check_diagram.py --kind walkthrough` (budget 24 nodes / 40 relations, `question`/`summary`/`hero` advisories like the other flat kinds). It resolves through the shared resolver in the `boxes-arrows` style and its canvas elements use `render: "custom"` on layer `walkthrough`, so the existing step boxes, `route` carrier and **Show route** (B2) work with no new renderer. The look (green steps, chips, glow, auto-opened ROUTE card, no lanes) is CSS plus `RouteFrameActions`; see `web-canvas-shell.md`. No context endpoint and no generate route: an in-canvas agent picks the skill by description, like `sequence`. The edge-kind tables gained `error` (three copies, kept in step) so a failure arrow does not read as a typo. Web: `BUILTIN_RECIPES`, `DiagramKind`, the status map and a card schematic in `drawDialog/schematics.tsx`.
+
+## The route's `detail` line and the "show a process" recipe
+
+A route step may carry an optional `detail` string (the ROUTE card's second line). Both bridges copy `route` verbatim, so no resolver change was needed; `check_diagram.py` advises `ROUTE-DETAIL` on a blank or non-string value (`tests/unit/test_diagram_check_script.py`). `references/type-custom.md` ends its route section with the six-step recipe for turning a user's "how does X work" into a route (5-9 steps, trigger first, ✓ last, `ai`/`data`/`failure` as the only colour signals).
+
 ## Highlighting/expanding a process on an already-drawn diagram
 
 `references/highlight-process.md` is a fifth entry point alongside the four `type id` rows, but
@@ -663,7 +671,7 @@ survives every unrelated regenerate untouched, and only a diagram JSON `style` (
 `PATCH`) ever overwrites it.
 
 "Expanding" a too-coarse box needs no new plumbing: `add_element`/`add_edge` into an existing
-layer already worked (this is exactly what `type-c1.md`'s "Decomposing a box into layers" section
+layer already worked (this is exactly what `type-system-context.md`'s "Decomposing a box into layers" section
 used to describe, before 042-c1-diagram-quality-and-speed removed C1 decomposition entirely — no
 built-in type authors this kind of nesting today). A highlighted/expanded box carries the normal
 `meta.recipe_key`, so it is a
@@ -989,7 +997,7 @@ systems have their own tag, separate from `conceptual`. The canvas shows a dashe
 
 ## Sequence readability (022)
 
-`check_diagram.py` adds `BADPHASE` and `BADFRAME` (shape tier: unknown `kind` or a bad `from_order`/`to_order` range in `phases[]`/`frames[]`), and the advisories `NO-ORDER` (sequence message without `order`; an older diagram still passes), one combined `NOSUMMARY` (sequence, c1, patterns and impact), `NOHERO` (c1/patterns/impact with 3+ relations and none marked `hero`), `ECHO-LABEL`, `HIDDEN-BRANCH`, `LONGTITLE`. Both resolvers (`canvas/recipes.py`, `Stores/Recipes.cs`) fold `order`/`lane` into node `meta`, add `hero` to message `meta`, and stamp `phases`/`frames`/`notes`/`question`/`summary` on every participant's `meta`.
+`check_diagram.py` adds `BADPHASE` and `BADFRAME` (shape tier: unknown `kind` or a bad `from_order`/`to_order` range in `phases[]`/`frames[]`), and the advisories `NO-ORDER` (sequence message without `order`; an older diagram still passes), one combined `NOSUMMARY` (sequence, c1, patterns and impact), `NOHERO` (c1/patterns/impact with 3+ relations and none marked `hero`), `ECHO-LABEL`, `HIDDEN-BRANCH`, `LONGTITLE`. Both resolvers (`canvas/recipes.py`, `Stores/Recipes.cs`) fold `order`/`lane`/`rank` into node `meta` (`rank` = `entry`/`exit`, a layout hint ELK turns into first/last layer; `order` wins; `check_diagram.py` advisories `BADRANK` and `RANK-ORDER`), add `hero` to message `meta`, and stamp `phases`/`frames`/`notes`/`question`/`summary` on every participant's `meta`.
 
 The canvas draws a sequence layer in one of two switchable modes (`web/src/canvas/doc/`): `SequenceReadable.tsx` (phase bands, numbered messages, frames, notes) and `SequenceFocus.tsx` (collapsible phase rows, focused participant, timeline panel: a mini phase bar sized by message count with a "you are here" marker, a PARTICIPANTS list with message counts whose click toggles focus, then the step list; an open phase row also shows its message and focus counts), both over `sequenceModel.ts` and the shared `SequenceDrawing`. The `Readable | Focus` control sits in `DiagramFrame.tsx`; the choice, collapsed phases and focus live in `sequenceViewStore.ts` (per layer, `localStorage`, default `focus` above 12 messages), never in `sequence.json`. `layoutSequence(doc, ids, view)` folds collapsed phases into one row; `viewSequenceElements` derives that geometry in `CanvasDocView` for display only, anchored to the persisted layout, so a mode switch or collapse never writes to the document (`useReflowSequence` still runs once on mount with the readable layout).
 

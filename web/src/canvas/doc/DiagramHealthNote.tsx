@@ -45,7 +45,7 @@ const REASONS_SHOWN = 3;
 export function DiagramHealthNote() {
   const engineClient = useEngineClient();
   const health = useDiagramHealth();
-  const generation = useDiagramGeneration(engineClient, "c1");
+  const generation = useDiagramGeneration(engineClient, "system-context");
   const [dismissed, setDismissed] = useState<string[]>([]);
 
   const layers = Object.keys(health)

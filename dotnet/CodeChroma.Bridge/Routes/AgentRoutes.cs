@@ -32,7 +32,7 @@ public static class AgentRoutes
             ["max_agents"] = AgentManager.MaxAgents,
         })));
 
-        app.MapPost("/agents", (HttpRequest request, AgentManager agents, AgentSessionRegistry sessions, WorkspaceRegistry registry, ConnectionManager connections) => Reply.GuardAsync(async () =>
+        app.MapPost("/agents", (HttpRequest request, AgentManager agents, AgentSessionRegistry sessions, WorkspaceRegistry registry, ConnectionManager connections, WorkflowRunners runners) => Reply.GuardAsync(async () =>
         {
             var body = await Reply.LenientBody(request);
             var invalid = Validate(body, out var title, out var kind, out var attachTo, out var context, out var contextKind, out var workspace);
@@ -43,7 +43,7 @@ public static class AgentRoutes
                     return Reply.Error(400, "run_id and fork_session must both be given");
                 if (kind != AgentRecord.DefaultKind) return Reply.Error(400, "fork_session needs kind 'claude'");
                 AgentRecord forked;
-                try { forked = await Task.Run(() => agents.CreateInRun(title, runId, forkSession)); }
+                try { forked = await Task.Run(() => agents.CreateInRun(title, runId, forkSession, runners.RootOfRun(runId))); }
                 catch (UnknownAgentException error) { return Reply.Error(404, error.Message); }
                 catch (WorktreeException error) { return Reply.Error(400, error.Message); }
                 registry.Register(forked.Id, forked.Worktree);

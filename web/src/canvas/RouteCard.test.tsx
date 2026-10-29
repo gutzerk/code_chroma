@@ -35,6 +35,33 @@ describe("RouteCard", () => {
     expect(rows[1].textContent).toContain("✕");
   });
 
+  it("shows a detail line, a check on the last step, the player buttons and the legend", () => {
+    const route: Route = {
+      ...ROUTE,
+      steps: [{ ...step("a", 1, "trigger"), detail: "You, on the stale notice" }, { ...step("b", 2, "trigger"), lane: "Bridge" }],
+    };
+    routeStore.show(route);
+
+    render(<RouteCard />);
+
+    const rows = screen.getAllByTestId("route-card-step");
+    expect(rows[0].textContent).toContain("You, on the stale notice");
+    expect(rows[1].textContent).toContain("✓");
+    expect(rows[1].textContent).toContain("Bridge");
+    expect(screen.getByTestId("route-card-legend").textContent).toContain("on the route");
+  });
+
+  it("steps back and forward with the arrow buttons", () => {
+    routeStore.show(ROUTE);
+    render(<RouteCard />);
+
+    fireEvent.click(screen.getByTestId("route-next"));
+    fireEvent.click(screen.getByTestId("route-next"));
+    fireEvent.click(screen.getByTestId("route-prev"));
+
+    expect(routeStore.getSnapshot().stepIndex).toBe(0);
+  });
+
   it("walks the route on a timer and stops at the last step", () => {
     vi.useFakeTimers();
     routeStore.show(ROUTE);

@@ -50,7 +50,7 @@ describe("AllWorkflows", () => {
     expect(screen.getByRole("heading", { name: /All workflows/ })).toHaveTextContent("· 2");
     const chips = row.querySelectorAll(".wf-chip");
     expect([...chips].map((c) => c.getAttribute("data-mode"))).toEqual(["new", "hand-off", "continue", "you"]);
-    expect(row).toHaveTextContent("{{ticket}}");
+    expect(row).toHaveTextContent("Ticket");
     expect(row).toHaveTextContent("Done");
     expect(screen.getByTestId("saved-docs")).toHaveTextContent("Never run");
   });

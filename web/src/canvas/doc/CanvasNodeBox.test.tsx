@@ -144,10 +144,12 @@ describe("CanvasNodeBox — clicking a block does not open the inspector", () =>
     expect(screen.queryByTestId("canvas-node-box-src")).toBeNull();
   });
 
-  it("puts the SRC button in the same button stack as copy and '?'", () => {
+  it("puts copy in the top-right corner and SRC in the bottom-right corner", () => {
     renderBox(element({ id: "e1", node_id: "fn:auth.py:issue", description: "Handles login" }));
 
-    expect(screen.getByTestId("canvas-node-box-buttons")).toContainElement(
+    expect(screen.getByTestId("canvas-node-box-buttons")).toHaveClass("canvas-node-box-buttons--top");
+    expect(screen.getByTestId("canvas-node-box-src-corner")).toHaveClass("canvas-node-box-buttons--bottom");
+    expect(screen.getByTestId("canvas-node-box-src-corner")).toContainElement(
       screen.getByTestId("canvas-node-box-src"),
     );
   });
@@ -251,16 +253,13 @@ describe("CanvasNodeBox — copy button", () => {
 });
 
 describe("CanvasNodeBox — description popup", () => {
-  it("opens the full description on '?' click without opening the Inspector", () => {
+  it("has no '?' details button at all, even for a described block", () => {
     renderBox(element({ id: "e1", label: "Auth service", description: "Handles login and tokens" }));
 
-    fireEvent.click(screen.getByRole("button", { name: "Show full description for Auth service" }));
-
-    expect(descriptionPopupStore.getEntry()).toEqual({
-      title: "Auth service",
-      description: "Handles login and tokens",
-    });
-    expect(inspectorStore.getStack()).toEqual([]);
+    expect(screen.queryByTestId("canvas-node-box-desc-button")).toBeNull();
+    expect(
+      screen.queryByRole("button", { name: "Show full description for Auth service" }),
+    ).toBeNull();
   });
 
   it("renders no '?' button when the element has no description", () => {
@@ -302,8 +301,8 @@ describe("CanvasNodeBox — title/description layout", () => {
     const wrap = container.querySelector(".diagram-node-box-title-wrap");
     expect(wrap).not.toBeNull();
     expect(wrap).toHaveTextContent("Handles login");
-    expect(screen.getByTestId("canvas-node-box-header").lastElementChild).toHaveClass(
-      "canvas-node-box-buttons",
+    expect(screen.getByTestId("canvas-node-box-header")).not.toContainElement(
+      screen.getByTestId("canvas-node-box-buttons"),
     );
   });
 
@@ -540,7 +539,7 @@ describe("CanvasNodeBox — Planned block (meta.plan_kind)", () => {
     expect(screen.getByTestId("canvas-node-box").className).not.toContain("plan-kind-modify");
   });
 
-  it("opens the description popup on click for an add/create Planned block, not the Inspector", () => {
+  it("opens no popup and no Inspector on click for an add/create Planned block", () => {
     renderBox(
       element({
         id: "e1",
@@ -553,21 +552,8 @@ describe("CanvasNodeBox — Planned block (meta.plan_kind)", () => {
 
     fireEvent.click(screen.getByTestId("canvas-node-box-header"));
 
-    expect(descriptionPopupStore.getEntry()).toEqual({
-      title: "apply_coupon",
-      description: "much longer explanation",
-    });
+    expect(descriptionPopupStore.getEntry()).toBeNull();
     expect(inspectorStore.getStack()).toEqual([]);
-  });
-
-  it("falls back to description when meta.details is absent for an add/create Planned block", () => {
-    renderBox(
-      element({ id: "e1", node_id: null, description: "short", meta: { plan_kind: "create" } }),
-    );
-
-    fireEvent.click(screen.getByTestId("canvas-node-box-header"));
-
-    expect(descriptionPopupStore.getEntry()).toEqual({ title: "Auth service", description: "short" });
   });
 
   it("still opens the Inspector from SRC for a modify/delete Planned block (real path)", () => {
@@ -586,52 +572,22 @@ describe("CanvasNodeBox — Planned block (meta.plan_kind)", () => {
 
 // diagram_resolver.py's _stamp_no_code_reason: a resolver-computed reason a box has no node_id.
 describe("CanvasNodeBox — no-code box (meta.no_code_reason)", () => {
-  it("opens the description popup with a conceptual message, not the Inspector", () => {
-    renderBox(
-      element({
-        id: "e1", node_id: null, label: "Skill authors diagram JSON", description: "",
-        meta: { no_code_reason: "conceptual" },
-      }),
-    );
+  it.each(["conceptual", "unresolved", "external"])(
+    "opens no popup and no Inspector on click for a %s no-code box",
+    (reason) => {
+      renderBox(
+        element({
+          id: "e1", node_id: null, label: "Old helper", description: "",
+          meta: { no_code_reason: reason, no_code_detail: "src/old_helper.py" },
+        }),
+      );
 
-    fireEvent.click(screen.getByTestId("canvas-node-box-header"));
+      fireEvent.click(screen.getByTestId("canvas-node-box-header"));
 
-    expect(descriptionPopupStore.getEntry()).toEqual({
-      title: "Skill authors diagram JSON",
-      description: "This box stands for a concept, not a specific piece of code — there's nothing to open.",
-    });
-    expect(inspectorStore.getStack()).toEqual([]);
-  });
-
-  it("opens the description popup with the failed path for an unresolved box", () => {
-    renderBox(
-      element({
-        id: "e1", node_id: null, label: "Old helper", description: "",
-        meta: { no_code_reason: "unresolved", no_code_detail: "src/old_helper.py" },
-      }),
-    );
-
-    fireEvent.click(screen.getByTestId("canvas-node-box-header"));
-
-    expect(descriptionPopupStore.getEntry()?.description).toContain("src/old_helper.py");
-    expect(inspectorStore.getStack()).toEqual([]);
-  });
-
-  it("prefers an authored description over the stock no-code message", () => {
-    renderBox(
-      element({
-        id: "e1", node_id: null, label: "Auth actor", description: "The end user signing in.",
-        meta: { no_code_reason: "conceptual" },
-      }),
-    );
-
-    fireEvent.click(screen.getByTestId("canvas-node-box-header"));
-
-    expect(descriptionPopupStore.getEntry()).toEqual({
-      title: "Auth actor",
-      description: "The end user signing in.",
-    });
-  });
+      expect(descriptionPopupStore.getEntry()).toBeNull();
+      expect(inspectorStore.getStack()).toEqual([]);
+    },
+  );
 
   it("still opens the Inspector from SRC for a box with a real node_id", () => {
     renderBox(element({ id: "e1", node_id: "fn:auth.py:issue" }));

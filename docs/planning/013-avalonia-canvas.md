@@ -202,3 +202,7 @@ The strangler rule: delete in a separate commit after the C# canvas passes the s
   bottleneck - the Step 0 numbers say layout (not routing) is the bottleneck today.
 
 Gap (025): the Draw dialog (type cards with schematics, prompt, `GET /diagram-kinds`) exists only in the web canvas; the Avalonia canvas has no equivalent yet.
+
+## Gap: layout hints
+
+The web canvas now measures box heights before layout and honours `meta.rank` and `feedback`/`return` edges (`web/src/canvas/doc/measureBoxSize.ts`, `elkLayout.ts`); `Layout/AutoLayout.cs` and `LayeredLayout.cs` do not yet.

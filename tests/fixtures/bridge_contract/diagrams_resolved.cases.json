@@ -96,11 +96,11 @@
       "id": "a_legacy_nested_c1_is_converted_to_the_flat_shape_in_place",
       "requires": ["diagram-resolver"],
       "steps": [
-        {"fs": "write", "path": ".codechroma/diagrams/c1/c1.json", "text": "{\"system\": {\"name\": \"Sample\", \"description\": \"d\", \"children\": [{\"id\": \"web\", \"name\": \"Web\", \"path\": \"web\"}, {\"id\": \"web\", \"name\": \"Web again\"}]}, \"actors\": [{\"id\": \"user\", \"name\": \"User\", \"type\": \"person\"}], \"relationships\": [{\"from\": \"user\", \"to\": \"system\", \"label\": \"uses\"}, {\"from\": \"ghost\", \"to\": \"system\"}]}"},
+        {"fs": "write", "path": ".codechroma/diagrams/system-context/system-context.json", "text": "{\"system\": {\"name\": \"Sample\", \"description\": \"d\", \"children\": [{\"id\": \"web\", \"name\": \"Web\", \"path\": \"web\"}, {\"id\": \"web\", \"name\": \"Web again\"}]}, \"actors\": [{\"id\": \"user\", \"name\": \"User\", \"type\": \"person\"}], \"relationships\": [{\"from\": \"user\", \"to\": \"system\", \"label\": \"uses\"}, {\"from\": \"ghost\", \"to\": \"system\"}]}"},
         {
-          "http": {"method": "GET", "path": "/repos/main/c1"},
+          "http": {"method": "GET", "path": "/repos/main/system-context"},
           "expect": {"status": 200, "checks": [
-            {"path": "$.type", "equals": "c1"},
+            {"path": "$.type", "equals": "system-context"},
             {"path": "$.nodes[*].id", "equals": ["system", "web", "web-2", "user"]},
             {"path": "$.nodes[1].node_id", "equals": "dir::web"},
             {"path": "$.nodes[3].kind", "equals": "person"},
@@ -109,7 +109,7 @@
           ]}
         },
         {
-          "http": {"method": "GET", "path": "/repos/main/c1"},
+          "http": {"method": "GET", "path": "/repos/main/system-context"},
           "expect": {"status": 200, "checks": [{"path": "$.nodes", "count": 4}]}
         }
       ]

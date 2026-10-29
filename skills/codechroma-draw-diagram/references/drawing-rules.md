@@ -27,7 +27,7 @@ curl -s "${CODECHROMA_BRIDGE_URL:-http://localhost:8000}/repos/${CODECHROMA_WORK
 
 - **`has_wiki_general: true`** — read `root` (the system-level narrative) and every entry in
   `containers[].content` (one per C2 container) as your primary narrative source, in place of
-  re-deriving the same picture from raw structure/code. `c1` reads only `root` — see `type-c1.md`;
+  re-deriving the same picture from raw structure/code. `system-context` reads only `root` — see `type-system-context.md`;
   it never reads `containers[]`.
 - Need one **component's** (C3) detail rather than a whole container's? The container's page links
   to its components by id — read `{repo_root}/.codechroma/wiki-general/c3/<id>.md` directly (you
@@ -145,12 +145,12 @@ destroys the previous one with no undo (`.codechroma/` is gitignored). Instead:
   final report ("replaced the existing `<kind>` diagram with a new one").
 Only skip the check when the endpoint's response (or your own `ls`) shows no file yet.
 
-**Report your own progress (`c1` only — no other kind has a `.../status` route).** A headless
+**Report your own progress (`system-context` only — no other kind has a `.../status` route).** A headless
 `/generate` run flips its own "generating" status automatically; your interactive run does the same
 three POSTs by hand:
 
 ```bash
-curl -s -X POST "${CODECHROMA_BRIDGE_URL:-http://localhost:8000}/repos/${CODECHROMA_WORKSPACE_ID:-default}/c1/status" \
+curl -s -X POST "${CODECHROMA_BRIDGE_URL:-http://localhost:8000}/repos/${CODECHROMA_WORKSPACE_ID:-default}/system-context/status" \
   -H 'Content-Type: application/json' -d '{"state":"generating"}'
 ```
 
@@ -192,12 +192,13 @@ actors around one system box); the other types should stay well under these numb
 
 | kind | max_nodes | max_relations | max_name_chars | max_edge_label_chars |
 |---|---|---|---|---|
-| c1 | 60 | 60 | 40 | 50 |
+| system-context | 60 | 60 | 40 | 50 |
 | patterns | 45 | 70 | 40 | 50 |
 | impact | 25 | 40 | 40 | 40 |
 | epics | 60 | 60 | 60 | 50 |
 | custom | 60 | 100 | 40 | 50 |
 | sequence | 24 | 60 | 40 | 60 |
+| walkthrough | 24 | 40 | 40 | 50 |
 
 `sequence`'s "nodes" are its participants (kept tight at 24 — a readable diagram has a handful of
 boxes across the top), and its "relations" are its messages (the real story, capped higher at 60).
@@ -329,7 +330,7 @@ advises (never fails) on an unknown kind or a spawn/data-sounding label left as 
 One command shape, run from the repo the bridge serves:
 
 ```bash
-python3 .claude/skills/codechroma-draw-diagram/scripts/check_diagram.py --kind <c1|patterns|impact|sequence|custom|epics> [--type <type-id>] [--source=diff|plan] [--feature=<dir>] [--json <file>]
+python3 .claude/skills/codechroma-draw-diagram/scripts/check_diagram.py --kind <system-context|patterns|impact|sequence|walkthrough|custom|epics> [--type <type-id>] [--source=diff|plan] [--feature=<dir>] [--json <file>]
 ```
 
 `epics` reads the bridge's resolved `epics.json` when given no `--json`; a per-epic diagram
@@ -391,13 +392,13 @@ that applies, in one line apiece, instead of leaving them implied:
 
 ## The one shared diagram shape
 
-Every type (`c1`, `patterns`, `impact`, `custom/<id>`) authors this exact shape — `type`/`meta` carry
+Every type (`system-context`, `patterns`, `impact`, `custom/<id>`) authors this exact shape — `type`/`meta` carry
 the only per-type variation, nothing else in the shape differs (see
 `specs/036-shared-diagram-style-catalog/contracts/diagram-schema.md`):
 
 ```json
 {
-  "type": "c1",
+  "type": "system-context",
   "style": "boxes-arrows",
   "nodes": [
     {
@@ -440,6 +441,10 @@ the only per-type variation, nothing else in the shape differs (see
   adjacent to each other within their `order` rank. Independent of `order` — set one, both, or
   neither. Same rule as `order`: only meaningful for a process/flow diagram; leave it unset on
   structural diagrams where there's no "who" to record.
+- `rank` — an optional layout hint on a node: `"entry"` pins it to the first layer, `"exit"` to the
+  last. Any other value is ignored (the self-check advises `BADRANK`). `order` wins: set `rank` only
+  on a box with no `order` (`RANK-ORDER`). A relation `kind` of `"feedback"` or `"return"` lays out
+  as a back edge, so a loop does not push the flow backwards.
 - Never relate an id to itself, and never relate two ids that aren't both in `nodes[]` — the resolver
   drops what it can't place, it never invents one.
 

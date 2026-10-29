@@ -80,7 +80,7 @@ public class TutorialProjectTests
     }
 
     [Theory]
-    [InlineData("c1")]
+    [InlineData("system-context")]
     [InlineData("patterns")]
     [InlineData("impact")]
     public void Ships_a_non_draft_diagram_of_each_kind_with_one_connected_component(string kind)
@@ -101,7 +101,7 @@ public class TutorialProjectTests
         using var parent = new TempDir();
         var root = TutorialProject.Create(parent.Path);
 
-        using var doc = Diagram(root, "c1");
+        using var doc = Diagram(root, "system-context");
 
         Assert.Contains("system", doc.RootElement.GetProperty("nodes").EnumerateArray().Select(n => n.GetProperty("id").GetString()));
     }

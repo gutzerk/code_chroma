@@ -29,7 +29,7 @@ public sealed class GenerateRouteTests : IDisposable
         File.WriteAllText(paths.Runtime, new JsonObject { ["cli_paths"] = new JsonObject { ["claude"] = path } }.ToJsonString());
     }
 
-    private string C1Path => Path.Combine(_host.Root, ".codechroma", "diagrams", "c1", "c1.json");
+    private string C1Path => Path.Combine(_host.Root, ".codechroma", "diagrams", "system-context", "system-context.json");
 
     private async Task<JsonObject> Status(string kind)
     {
@@ -46,12 +46,12 @@ public sealed class GenerateRouteTests : IDisposable
     public async Task Generating_c1_runs_the_cli_and_serves_the_artifact_it_wrote()
     {
         _cli.Script(Stdout("""{"type":"assistant","message":{"content":[{"type":"text","text":"Drawing."}]}}"""),
-            Write(C1Path, """{"type":"c1","nodes":[{"id":"system","name":"System"}],"relations":[]}"""), ResultEvent(), Exit(0));
+            Write(C1Path, """{"type":"system-context","nodes":[{"id":"system","name":"System"}],"relations":[]}"""), ResultEvent(), Exit(0));
 
-        var started = await _host.Client.PostAsync("/repos/main/c1/generate", null);
-        var final = await Status("c1");
-        var output = await _host.Client.GetFromJsonAsync<JsonObject>("/repos/main/c1/output");
-        var diagram = await _host.Client.GetFromJsonAsync<JsonObject>("/repos/main/c1");
+        var started = await _host.Client.PostAsync("/repos/main/system-context/generate", null);
+        var final = await Status("system-context");
+        var output = await _host.Client.GetFromJsonAsync<JsonObject>("/repos/main/system-context/output");
+        var diagram = await _host.Client.GetFromJsonAsync<JsonObject>("/repos/main/system-context");
 
         Assert.Equal("generating", (await started.Content.ReadFromJsonAsync<JsonObject>())!["state"]!.GetValue<string>());
         Assert.Equal("idle", final["state"]!.GetValue<string>());
@@ -59,22 +59,22 @@ public sealed class GenerateRouteTests : IDisposable
         Assert.Equal("System", diagram!["nodes"]![0]!["name"]!.GetValue<string>());
         var call = Assert.Single(_cli.Invocations());
         var prompt = call["args"]![1]!.GetValue<string>();
-        Assert.Contains("Draw the C1 (system context) diagram", prompt);
+        Assert.Contains("Draw the System context diagram", prompt);
         Assert.Contains("curl -s http://localhost:8000/repos/main/context-digest", prompt);
-        Assert.Contains(Path.Combine(_host.Root, ".codechroma", "diagrams", "c1", "c1.json"), prompt);
+        Assert.Contains(Path.Combine(_host.Root, ".codechroma", "diagrams", "system-context", "system-context.json"), prompt);
         Assert.DoesNotContain("{BRIDGE}", prompt);
         Assert.DoesNotContain("name: codechroma-draw-diagram", prompt);
-        Assert.Contains("Task: (re)generate the C1", prompt);
+        Assert.Contains("Task: (re)generate the System context", prompt);
     }
 
     [Fact]
     public async Task A_bare_run_adds_the_context_stripping_flags_and_sends_the_given_prompt()
     {
-        _cli.Script(Write(C1Path, """{"type":"c1","nodes":[{"id":"system","name":"System"}],"relations":[]}"""), ResultEvent(), Exit(0));
-        var agent = _host.Factory.Services.GetRequiredService<SkillAgents>()["c1"];
+        _cli.Script(Write(C1Path, """{"type":"system-context","nodes":[{"id":"system","name":"System"}],"relations":[]}"""), ResultEvent(), Exit(0));
+        var agent = _host.Factory.Services.GetRequiredService<SkillAgents>()["system-context"];
 
         await agent.Start("main", _host.Root, (_, _) => Task.CompletedTask, null, "the whole skill text", options: new RunOptions([]) { Bare = true });
-        await Status("c1");
+        await Status("system-context");
 
         var args = Assert.Single(_cli.Invocations())["args"]!.AsArray().Select(a => a!.GetValue<string>()).ToList();
         Assert.Equal("the whole skill text", args[1]);
@@ -86,10 +86,10 @@ public sealed class GenerateRouteTests : IDisposable
     public async Task Only_if_missing_leaves_an_existing_valid_c1_alone()
     {
         Directory.CreateDirectory(Path.GetDirectoryName(C1Path)!);
-        File.WriteAllText(C1Path, """{"type":"c1","nodes":[{"id":"system","name":"System"}],"relations":[]}""");
+        File.WriteAllText(C1Path, """{"type":"system-context","nodes":[{"id":"system","name":"System"}],"relations":[]}""");
         _cli.Script(Exit(0));
 
-        var response = await _host.Client.PostAsync("/repos/main/c1/generate?only_if_missing=true", null);
+        var response = await _host.Client.PostAsync("/repos/main/system-context/generate?only_if_missing=true", null);
 
         Assert.Equal("idle", (await response.Content.ReadFromJsonAsync<JsonObject>())!["state"]!.GetValue<string>());
         Assert.Empty(_cli.Invocations());
@@ -100,9 +100,9 @@ public sealed class GenerateRouteTests : IDisposable
     {
         _cli.Script(Stdout("""{"type":"result","is_error":true,"result":"API Error: nope"}"""), Exit(1));
 
-        await _host.Client.PostAsync("/repos/main/c1/generate", null);
-        var failed = await Status("c1");
-        var cancelled = await (await _host.Client.PostAsync("/repos/main/c1/cancel", null)).Content.ReadFromJsonAsync<JsonObject>();
+        await _host.Client.PostAsync("/repos/main/system-context/generate", null);
+        var failed = await Status("system-context");
+        var cancelled = await (await _host.Client.PostAsync("/repos/main/system-context/cancel", null)).Content.ReadFromJsonAsync<JsonObject>();
 
         Assert.Equal("error", failed["state"]!.GetValue<string>());
         Assert.Equal("✗ API Error: nope", failed["error"]!.GetValue<string>());
@@ -114,7 +114,7 @@ public sealed class GenerateRouteTests : IDisposable
     {
         UseCli(Path.Combine(_host.Root, "missing", "claude"));
 
-        var response = await _host.Client.PostAsync("/repos/main/c1/generate", null);
+        var response = await _host.Client.PostAsync("/repos/main/system-context/generate", null);
         var body = await response.Content.ReadFromJsonAsync<JsonObject>();
 
         Assert.True(response.IsSuccessStatusCode);
@@ -139,19 +139,19 @@ public sealed class GenerateRouteTests : IDisposable
     public async Task Run_progress_is_pushed_to_connected_canvases_over_the_events_socket()
     {
         var socket = await _host.Server.CreateWebSocketClient().ConnectAsync(new Uri("ws://localhost/repos/main/events"), CancellationToken.None);
-        _cli.Script(Write(C1Path, """{"type":"c1","nodes":[{"id":"system","name":"System"}],"relations":[]}"""), ResultEvent(), Exit(0));
+        _cli.Script(Write(C1Path, """{"type":"system-context","nodes":[{"id":"system","name":"System"}],"relations":[]}"""), ResultEvent(), Exit(0));
 
-        await _host.Client.PostAsync("/repos/main/c1/generate", null);
+        await _host.Client.PostAsync("/repos/main/system-context/generate", null);
         var seen = new List<string>();
         var buffer = new byte[8192];
         using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(15));
-        while (!seen.Any(m => m.Contains("\"c1-status\"") && m.Contains("\"idle\"")))
+        while (!seen.Any(m => m.Contains("\"system-context-status\"") && m.Contains("\"idle\"")))
         {
             var result = await socket.ReceiveAsync(buffer, timeout.Token);
             seen.Add(System.Text.Encoding.UTF8.GetString(buffer, 0, result.Count));
         }
 
-        Assert.Contains(seen, m => m.Contains("\"c1-status\"") && m.Contains("\"generating\""));
-        Assert.Contains(seen, m => m.Contains("\"c1-output\""));
+        Assert.Contains(seen, m => m.Contains("\"system-context-status\"") && m.Contains("\"generating\""));
+        Assert.Contains(seen, m => m.Contains("\"system-context-output\""));
     }
 }

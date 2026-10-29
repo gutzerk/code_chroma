@@ -1905,7 +1905,7 @@
         },
         {
           "fs": "write",
-          "path": ".codechroma/diagrams/c1/projection.json",
+          "path": ".codechroma/diagrams/system-context/projection.json",
           "text": "{\"elements\": {\"c1x\": {\"id\": \"c1x\", \"render\": \"c1\", \"layer\": \"c1\", \"label\": \"Billing\", \"description\": \"\", \"node_id\": null, \"position\": {\"x\": 0.0, \"y\": 0.0}, \"size\": null, \"group_id\": null, \"meta\": {\"recipe_key\": \"billing\"}, \"created_by\": \"ai\", \"style\": null}}, \"edges\": {}}"
         },
         {

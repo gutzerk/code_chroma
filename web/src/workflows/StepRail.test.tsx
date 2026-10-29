@@ -176,6 +176,22 @@ describe("StepRail", () => {
     expect(screen.queryByTestId("will-redraw-review")).toBeNull();
   });
 
+  it("shows the step prompt with the run's own answer filled in", () => {
+    const wf: WorkflowDef = { id: "w", name: "Ship", steps: [{ id: "s1", slug: "plan", kind: "agent", prompt: "add 1 + {{i}}", input: { name: "i", label: "Number" } }] };
+    const run = makeRun([step("s1", "needs_you")], { inputs: { i: "2" } });
+
+    renderRail(run, { workflow: wf, expandedStepId: "s1" });
+
+    expect(screen.getByText("add 1 + 2")).toBeInTheDocument();
+  });
+
+  it("shows no kept tag when the bridge sends a null fromAttempt", () => {
+    const steps = [step("s1", "done", { fromAttempt: null })];
+    renderRail(makeRun(steps));
+
+    expect(screen.queryByTestId("kept-plan")).toBeNull();
+  });
+
   it("tags a step kept from an earlier attempt and shows its diff stat", () => {
     const steps = [step("s1", "done", { fromAttempt: 1, diffStat: "+3 -1" })];
     renderRail(makeRun(steps));

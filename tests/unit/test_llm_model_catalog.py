@@ -282,6 +282,17 @@ def test_claude_control_response_lists_models_by_value_and_display_name():
     ]
 
 
+def test_claude_pinned_model_ids_are_dropped_leaving_only_aliases():
+    line = (
+        '{"type":"control_response","response":{"request_id":"models","response":{"models":'
+        '[{"value":"default"},{"value":"opus"},{"value":"claude-opus-4-6"}]}}}'
+    )
+
+    models = parse_claude_models_response(line)
+
+    assert [m["id"] for m in models] == ["default", "opus"]
+
+
 @pytest.mark.parametrize(
     "line",
     [

@@ -106,6 +106,13 @@ class WorkflowStore extends Store {
     this.emit();
   };
 
+  /** Opens exactly this row (replacing whichever was open before). */
+  expandStep = (stepId: string): void => {
+    if (this.expandedStepId === stepId) return;
+    this.expandedStepId = stepId;
+    this.emit();
+  };
+
   setWorkflows = (workflows: WorkflowDef[]): void => {
     this.workflows = workflows;
     this.emit();

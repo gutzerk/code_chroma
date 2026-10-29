@@ -9,7 +9,7 @@ afterEach(() => tutorialSimStore.disableGate());
 function fakeClient(getNode: () => Promise<unknown>): EngineClient {
   return {
     getNode,
-    getDiagramsStatus: async () => ({ c1: { ready: true } }),
+    getDiagramsStatus: async () => ({ "system-context": { ready: true } }),
   } as unknown as EngineClient;
 }
 
@@ -24,7 +24,7 @@ describe("withTutorialDiagramGate", () => {
     await client.getDiagramsStatus();
     const second = await client.getDiagramsStatus();
 
-    expect(second.c1.ready).toBe(false);
+    expect(second["system-context"].ready).toBe(false);
   });
 
   it("stops hiding diagrams once the gate is disabled", async () => {
@@ -36,6 +36,6 @@ describe("withTutorialDiagramGate", () => {
     tutorialSimStore.disableGate();
     const status = await client.getDiagramsStatus();
 
-    expect(status.c1.ready).toBe(true);
+    expect(status["system-context"].ready).toBe(true);
   });
 });

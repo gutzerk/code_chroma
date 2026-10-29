@@ -36,7 +36,7 @@ def test_a_correctly_kinded_edge_is_silent():
 def test_structural_diagrams_accept_free_form_edge_kinds():
     relation = {"from": "a", "to": "b", "kind": "observes"}
 
-    reasons = [_reasons([relation], kind) for kind in ("c1", "patterns", "impact")]
+    reasons = [_reasons([relation], kind) for kind in ("system-context", "patterns", "impact")]
 
     assert reasons == [[], [], []]
 
@@ -81,6 +81,6 @@ def test_a_non_string_edge_kind_is_a_bad_kind_for_a_plain_diagram(kind):
 def test_a_non_string_edge_kind_is_tolerated_on_a_structural_diagram():
     relation = {"from": "a", "to": "b", "kind": 5}
 
-    reasons = _reasons([relation], "c1")
+    reasons = _reasons([relation], "system-context")
 
     assert reasons == []

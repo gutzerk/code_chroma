@@ -30,7 +30,7 @@ def _isolated_library(tmp_path, monkeypatch):
 
 def test_every_builtin_context_envelope_has_the_same_field_names(bridge):
     with TestClient(bridge.app) as client:
-        for kind in ("c1", "patterns", "impact"):
+        for kind in ("system-context", "patterns", "impact"):
             body = client.get(f"/repos/default/{kind}/context").json()
             assert set(body) == _ENVELOPE_FIELDS
 

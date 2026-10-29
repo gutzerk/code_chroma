@@ -39,7 +39,7 @@ beforeEach(() => {
   layoutStore.reset();
   canvasDocStore.setDoc({
     ...canvasDocStore.getDoc(),
-    elements: { c1a: diagramElement("c1a", "c1") },
+    elements: { c1a: diagramElement("c1a", "system-context") },
   });
 });
 
@@ -66,24 +66,24 @@ describe("CollapsedLeftBar", () => {
 
   it("toggles a diagram's visibility and its dashed swatch", () => {
     renderBar();
-    const hide = screen.getByRole("button", { name: "Hide C1" });
+    const hide = screen.getByRole("button", { name: "Hide System context" });
     expect(hide).toHaveAttribute("aria-pressed", "true");
 
     fireEvent.click(hide);
 
-    const show = screen.getByRole("button", { name: "Show C1" });
+    const show = screen.getByRole("button", { name: "Show System context" });
     expect(show).toHaveAttribute("aria-pressed", "false");
     expect(show.firstElementChild).toHaveClass("collapsed-left-bar__swatch--hidden");
-    expect(collapsedLayersStore.isCollapsed("c1")).toBe(true);
+    expect(collapsedLayersStore.isCollapsed("system-context")).toBe(true);
   });
 
   it("restores the diagram on a second click", () => {
     renderBar();
-    fireEvent.click(screen.getByRole("button", { name: "Hide C1" }));
+    fireEvent.click(screen.getByRole("button", { name: "Hide System context" }));
 
-    fireEvent.click(screen.getByRole("button", { name: "Show C1" }));
+    fireEvent.click(screen.getByRole("button", { name: "Show System context" }));
 
-    expect(collapsedLayersStore.isCollapsed("c1")).toBe(false);
-    expect(screen.getByRole("button", { name: "Hide C1" })).toHaveTextContent("");
+    expect(collapsedLayersStore.isCollapsed("system-context")).toBe(false);
+    expect(screen.getByRole("button", { name: "Hide System context" })).toHaveTextContent("");
   });
 });

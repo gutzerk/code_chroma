@@ -137,14 +137,14 @@ public static class CliModelProbe
         try { if (!process.HasExited) process.Kill(entireProcessTree: true); } catch (InvalidOperationException) { }
     }
 
-    /// <summary>The `{id, label}` list of a claude control_response line (`response.response.models[]`), else null.</summary>
+    /// <summary>The `{id, label}` aliases of a claude control_response line (`response.response.models[]`; pinned `claude-*` ids dropped), else null.</summary>
     public static JsonArray? ParseClaudeResponse(string line)
     {
         JsonNode? root;
         try { root = JsonNode.Parse(line); }
         catch (System.Text.Json.JsonException) { return null; }
         if (Json.Str(root?["type"]) != "control_response" || Json.Str(root?["response"]?["request_id"]) != ClaudeRequestId) return null;
-        return root?["response"]?["response"]?["models"] is JsonArray items ? Shape(items, "value", "displayName") : null;
+        return root?["response"]?["response"]?["models"] is JsonArray items ? Shape(items, "value", "displayName", id => !id.StartsWith("claude-", StringComparison.Ordinal)) : null;
     }
 
     /// <summary>The `{id, label}` list of a model-listing JSON document: a bare array, or one under models/data.</summary>
@@ -157,14 +157,14 @@ public static class CliModelProbe
         return items is null ? null : Shape(items, "slug", "display_name");
     }
 
-    private static JsonArray? Shape(JsonArray items, string idKey, string labelKey)
+    private static JsonArray? Shape(JsonArray items, string idKey, string labelKey, Func<string, bool>? keep = null)
     {
         var models = new JsonArray();
         foreach (var item in items)
         {
             if (item is not JsonObject o) continue;
             var id = Json.Str(o[idKey]) ?? Json.Str(o["id"]) ?? Json.Str(o["model"]) ?? Json.Str(o["name"]);
-            if (string.IsNullOrEmpty(id)) continue;
+            if (string.IsNullOrEmpty(id) || keep?.Invoke(id) == false) continue;
             var label = Json.Str(o[labelKey]) ?? Json.Str(o["displayName"]) ?? Json.Str(o["display_name"]);
             models.Add(new JsonObject { ["id"] = id, ["label"] = label });
         }

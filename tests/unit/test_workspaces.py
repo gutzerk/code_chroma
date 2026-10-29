@@ -121,9 +121,9 @@ def test_codechroma_paths_are_isolated_per_workspace(tmp_path):
     one = Workspace.create("one", tmp_path / "one", events.append)
     two = Workspace.create("two", tmp_path / "two", events.append)
 
-    assert one.diagram_path("c1") != two.diagram_path("c1")
+    assert one.diagram_path("system-context") != two.diagram_path("system-context")
     assert one.impact_changes_path != two.impact_changes_path
-    assert one.layout_store("c1").path != two.layout_store("c1").path
+    assert one.layout_store("system-context").path != two.layout_store("system-context").path
     assert one.traces_dir != two.traces_dir
     assert one.dependency_digest_path != two.dependency_digest_path
 
@@ -299,7 +299,7 @@ def test_a_read_only_workspace_never_reaches_for_a_claude_client(tmp_path, monke
     monkeypatch.setattr("codechroma.context.c1_template.generate_c1_template", explode)
     workspace = Workspace.create("pr-12", tmp_path / "pr-12", lambda _m: None, read_only=True)
 
-    bootstrap_if_missing(workspace, "c1")
+    bootstrap_if_missing(workspace, "system-context")
 
     assert workspace.read_only
 
@@ -308,9 +308,9 @@ def test_bootstrap_c1_writes_the_file_with_no_credential(repo):
     workspace = Workspace.create(MAIN_ID, repo, lambda _m: None)
     workspace.engine.analyze(str(repo))
 
-    bootstrap_if_missing(workspace, "c1")
+    bootstrap_if_missing(workspace, "system-context")
 
-    written = json.loads(workspace.diagram_path("c1").read_text(encoding="utf-8"))
+    written = json.loads(workspace.diagram_path("system-context").read_text(encoding="utf-8"))
     assert written["nodes"][0]["id"] == "system"
 
 
@@ -370,8 +370,8 @@ def test_a_borrowed_c1_source_root_points_the_diagram_at_another_checkout(tmp_pa
         "pr-12", tmp_path / "pr-12", lambda _m: None, c1_source_root=main_root
     )
 
-    assert workspace.diagram_path("c1").parent.parent.parent.parent == main_root
-    assert workspace.layout_store("c1").path.parent.parent == main_root
+    assert workspace.diagram_path("system-context").parent.parent.parent.parent == main_root
+    assert workspace.layout_store("system-context").path.parent.parent == main_root
     # The review artifact stays the workspace's own — only the diagram is borrowed.
     assert workspace.impact_changes_path.parent.parent == tmp_path / "pr-12"
 

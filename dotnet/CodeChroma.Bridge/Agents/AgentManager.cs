@@ -171,12 +171,12 @@ public sealed partial class AgentManager
     }
 
     /// <summary>A claude agent in a workflow run's own worktree that forks `forkSession` on start ("Open agent" on a finished step).</summary>
-    public AgentRecord CreateInRun(string title, string runId, string forkSession)
+    public AgentRecord CreateInRun(string title, string runId, string forkSession, string? runRoot = null)
     {
         if (!RunStore.IsSafeId(runId)) throw new WorktreeException($"invalid run id: {runId}");
         return Add(title, (agentId, displayTitle, createdAt) =>
         {
-            var path = Path.GetFullPath(WorkflowRunner.WorktreeFor(MainRoot, runId));
+            var path = Path.GetFullPath(WorkflowRunner.WorktreeFor(runRoot ?? MainRoot, runId));
             if (_runCleanups.Any(p => SamePath(p, path))) throw new BridgeException(409, "the run workspace is being cleaned up");
             if (!Directory.Exists(path)) throw new UnknownAgentException($"run {runId} has no worktree");
             return new AgentRecord

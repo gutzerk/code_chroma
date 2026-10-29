@@ -131,7 +131,7 @@ public static class PatternsResolver
 
         var (merged, matched) = MergePatterns(currentNodes, persistedNodes);
         var kindNotes = new Diagnostics();
-        var leftovers = persistedNodes.Where(n => !matched.Contains(Json.Str(n["id"])!)).Where(n => KeepFreeNode(n, kindNotes)).ToList();
+        var leftovers = persistedNodes.Where(n => !matched.Contains(Json.Str(n["id"])!)).Where(n => KeepFreeNode(n, kindNotes)).Select(n => (JsonObject)n.DeepClone()).ToList();
         var allNodes = DropRejected([.. merged, .. leftovers]);
 
         var surviving = allNodes.Select(n => Json.Str(n["id"])!).ToHashSet();

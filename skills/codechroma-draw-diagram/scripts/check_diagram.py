@@ -141,13 +141,23 @@ _EPICS_BUDGET = {
 _SEQUENCE_BUDGET = {
     "max_nodes": 24, "max_relations": 60, "max_name_chars": 40, "max_edge_label_chars": 60,
 }
+# Mirrored from src/codechroma/diagrams/registry.py _WALKTHROUGH_BUDGET -- keep the two in sync.
+_WALKTHROUGH_BUDGET = {
+    "max_nodes": 24, "max_relations": 40, "max_name_chars": 40, "max_edge_label_chars": 50,
+}
+_WALKTHROUGH_ISLAND_HINT = (
+    "wire it into the process with an arrow from the step that uses it, or drop the box"
+)
 _SEQUENCE_ISLAND_HINT = (
     "wire it with a message to (or from) the rest of the participants, or drop the participant"
 )
 
+# The pre-rename id of the System context kind, still accepted on the command line.
+_LEGACY_C1_KIND = "c1"
+
 # Mirrored from src/codechroma/diagrams/registry.py's BUILTIN_TYPES -- keep the two in sync.
 _BUILTIN_CHECKS = {
-    "c1": {
+    "system-context": {
         "shape": "hierarchical",
         "budgets": {
             "max_nodes": 60, "max_relations": 60, "max_name_chars": 40, "max_edge_label_chars": 50,
@@ -162,6 +172,8 @@ _BUILTIN_CHECKS = {
         "check_islands": {"hint": _C1_ISLAND_HINT},
         # 042: c1 is a flat system-context view now -- no decomposed actors left to be BARE about.
         "check_bare_actors": False,
+        # Works like patterns: /system-context/context lists detected candidates to confirm/reject.
+        "candidates_source": "system-context",
     },
     "patterns": {
         "shape": "flat",
@@ -227,6 +239,21 @@ _BUILTIN_CHECKS = {
         "graph_advisories": False,
         "check_islands": {"hint": _SEQUENCE_ISLAND_HINT},
     },
+    "walkthrough": {
+        # A flat process: step boxes + actors/stores in nodes[], arrows in relations[], and the
+        # `route` (advisory-checked) naming the code each step runs in.
+        "shape": "flat",
+        "budgets": _WALKTHROUGH_BUDGET,
+        "min_depth": None,
+        "unlabeled": "advisory",
+        "coverage_source": None,
+        "density_source": None,
+        "required_meta": [],
+        "membership_source": None,
+        "allow_self": False,
+        "check_islands": {"hint": _WALKTHROUGH_ISLAND_HINT},
+        "max_hero_edges": 2,
+    },
 }
 
 _INSTANCE_KIND = "pattern-instance"
@@ -276,6 +303,10 @@ class _Report:
 
 def main(argv: list[str] | None = None) -> int:
     args = _parse_args(argv)
+    # The summary lines carry an em dash; a Windows console defaults to cp1252 and prints "?".
+    for stream in (sys.stdout, sys.stderr):
+        if hasattr(stream, "reconfigure"):
+            stream.reconfigure(encoding="utf-8", errors="replace")
     try:
         diagram = _load_diagram(args)
         diagram_style = diagram.get("style") if isinstance(diagram, dict) else None
@@ -315,7 +346,9 @@ def _parse_args(argv: list[str] | None) -> argparse.Namespace:
     default_url = os.environ.get("CODECHROMA_BRIDGE_URL", "").strip() or "http://localhost:8000"
     default_repo = os.environ.get("CODECHROMA_WORKSPACE_ID", "").strip() or "default"
     kinds = sorted({*_BUILTIN_CHECKS, "custom", "feature-plan"})
-    parser.add_argument("--kind", required=True, choices=kinds, help="diagram kind")
+    parser.add_argument(
+        "--kind", required=True, choices=[*kinds, _LEGACY_C1_KIND], help="diagram kind"
+    )
     parser.add_argument("--url", default=default_url, help="bridge base URL")
     parser.add_argument("--repo", default=default_repo, help="repo id in the bridge route")
     parser.add_argument("--json", dest="json_path", help="read a raw file instead of the bridge")
@@ -335,6 +368,8 @@ def _parse_args(argv: list[str] | None) -> argparse.Namespace:
         help="report shape findings without failing the run",
     )
     args = parser.parse_args(argv)
+    if args.kind == _LEGACY_C1_KIND:
+        args.kind = "system-context"
     if args.kind == "custom" and not args.type_id:
         parser.error("--type is required for --kind custom")
     if args.kind == "feature-plan" and not args.slug:
@@ -781,10 +816,14 @@ def articulation_labels(endpoints: list[tuple[str, str]]) -> dict[str, str]:
     return labels
 
 
-def _check_articulation(endpoints: list[tuple[str, str]], report: _Report) -> None:
+def _check_articulation(
+    endpoints: list[tuple[str, str]], report: _Report, exempt: frozenset[str] = frozenset()
+) -> None:
     """Flags critical nodes (`bridge`/`hub`) as an advisory -- they never change the exit code."""
     # Same drawio-skill "articulation points" idea as `CYCLES`: real, worth flagging, never a fail.
     for node, label in sorted(articulation_labels(endpoints).items()):
+        if node in exempt:
+            continue
         report.advisories.append(
             f"ARTICULATION {node!r} is a {label}: removing it breaks the diagram"
         )
@@ -876,8 +915,8 @@ def _check_impact_status(diagram: object, kind: str, report: _Report) -> None:
 PHASE_KINDS = ("request", "prepare", "ai", "deliver", "custom")
 FRAME_KINDS = ("alt", "loop")
 MAX_TITLE_WORDS = 4
-READABILITY_KINDS = ("sequence", "c1", "patterns", "impact")
-HERO_KINDS = ("c1", "patterns", "impact")
+READABILITY_KINDS = ("sequence", "system-context", "patterns", "impact", "walkthrough")
+HERO_KINDS = ("system-context", "patterns", "impact", "walkthrough")
 MIN_RELATIONS_FOR_HERO = 3
 
 
@@ -905,11 +944,11 @@ EDGE_KINDS = ("calls", "spawns", "data", "reads", "writes", "minor")
 # Web-side aliases (edgeKinds.ts) plus the structural verbs patterns/c1 already author.
 EDGE_KIND_ALIASES = (
     "call", "uses", "spawn", "process", "read", "write", "secondary", "imports", "implements",
-    "extends", "inherits", "composes", "contains", "depends", "depends_on", "removed",
+    "extends", "inherits", "composes", "contains", "depends", "depends_on", "removed", "error",
 )
 _PLAIN_EDGE_KINDS = ("", "calls", "call", "uses")
 # These author structural verbs (observes, wraps, ...), so an unknown kind there is not a typo.
-_STRUCTURAL_KINDS = ("c1", "patterns", "impact")
+_STRUCTURAL_KINDS = ("system-context", "patterns", "impact")
 _SPAWN_WORDS = re.compile(
     r"\b(spawn\w*|launch\w*|(start|starts|starting|run|runs|fork\w*)\s+(a\s+|an\s+|the\s+)?"
     r"(sub)?(process|cli|agent|worker|daemon))\b", re.IGNORECASE,
@@ -1053,6 +1092,9 @@ def _check_route_step(
         orders.append(order)
     else:
         report.advisories.append(f"ROUTE-ORDER {sid!r} needs an integer `order`")
+    detail = step.get("detail")
+    if detail is not None and not (isinstance(detail, str) and detail.strip()):
+        report.advisories.append(f"ROUTE-DETAIL {sid!r} `detail` must be a non-empty string")
     ids = step.get("node_ids")
     if ids is not None and not (
         isinstance(ids, list) and all(isinstance(i, str) and i for i in ids)
@@ -1180,6 +1222,9 @@ def _inspect_hierarchical(diagram: object, checks: dict, args: argparse.Namespac
             continue
         if node.get("parent") is not None or node.get("kind") not in ("person", "external_system"):
             continue
+        # A rejected candidate never renders, so it is never wired.
+        if isinstance(node.get("meta"), dict) and node["meta"].get("confirmed") is False:
+            continue
         _check_actor(node, by_parent, report, checks)
         report.note_id(node_id)
         report.note_name(node_id, node.get("name"))
@@ -1198,6 +1243,8 @@ def _inspect_hierarchical(diagram: object, checks: dict, args: argparse.Namespac
         _check_c1_islands(nodes, diagram, report, checks["check_islands"]["hint"])
     report.node_count = len(report.ids)
     _check_unlabeled(checks["unlabeled"], report)
+    if not args.json_path and checks.get("candidates_source"):
+        _check_unaddressed_candidates(checks["candidates_source"], by_id, report, args)
     if not args.json_path and checks.get("coverage_source"):
         _check_coverage(args, report)
     return report
@@ -1279,7 +1326,8 @@ def _check_c1_relations(relations: object, by_id: dict[str, dict], report: _Repo
                 f"NESTING-EDGE {pair} only restates the nesting the box already shows"
             )
     _check_cycles(endpoints, report, allowed_self=False)
-    _check_articulation(endpoints, report)
+    # The root `system` box joins everything by design, so it is never a finding.
+    _check_articulation(endpoints, report, exempt=frozenset({"system"}))
     is_substantial = report.depth >= NOARROWS_MIN_DEPTH and report.blocks >= NOARROWS_MIN_BLOCKS
     if is_substantial and internal == 0:
         report.shape.append(
@@ -1541,6 +1589,7 @@ def _inspect_flat(diagram: object, checks: dict, args: argparse.Namespace) -> _R
         _check_islands(endpoints, report, check_islands["hint"])
     _check_bare_pattern_markers(nodes, touched, report)
     _check_shared_node_ids(nodes, report)
+    _check_rank(nodes, report)
     if required_meta:
         _check_unreviewed(report)
     _check_unlabeled(checks["unlabeled"], report)
@@ -1550,6 +1599,24 @@ def _inspect_flat(diagram: object, checks: dict, args: argparse.Namespace) -> _R
         if checks.get("membership_source"):
             _check_membership(checks["membership_source"], nodes, report, args)
     return report
+
+
+def _check_rank(nodes: list[dict], report: _Report) -> None:
+    """Advises on a node `rank` that is not entry/exit, or that is set alongside `order`."""
+    for node in nodes:
+        meta = node.get("meta") if isinstance(node.get("meta"), dict) else {}
+        rank = node.get("rank", meta.get("rank"))
+        if rank is None:
+            continue
+        if rank not in ("entry", "exit"):
+            report.advisories.append(
+                f"BADRANK {node.get('id')!r} rank={rank!r} must be \"entry\" or \"exit\""
+            )
+        elif node.get("order") is not None or meta.get("order") is not None:
+            report.advisories.append(
+                f"RANK-ORDER {node.get('id')!r} sets both `rank` and `order` -- `order` wins,"
+                " so drop `rank`"
+            )
 
 
 def _check_shared_node_ids(nodes: list[dict], report: _Report) -> None:
@@ -1576,6 +1643,27 @@ def _check_unreviewed(report: _Report) -> None:
             "meta.confirmed: true or meta.confirmed: false; omitting it entirely just makes the "
             "heuristic re-detect it as unconfirmed on every future run"
         )
+
+
+def _check_unaddressed_candidates(
+    source: str, by_id: dict[str, dict], report: _Report, args: argparse.Namespace
+) -> None:
+    """A detected person/external system with no node in the file re-appears every run."""
+    try:
+        context = _fetch_json(f"{args.url.rstrip('/')}/repos/{args.repo}/{source}/context")
+    except _FETCH_ERRORS:
+        return
+    data = context.get("generation_data") if isinstance(context, dict) else None
+    candidates = data.get("candidates") if isinstance(data, dict) else None
+    for candidate in candidates if isinstance(candidates, list) else []:
+        candidate_id = candidate.get("id") if isinstance(candidate, dict) else None
+        if isinstance(candidate_id, str) and candidate_id not in by_id:
+            report.shape.append(
+                f"UNREVIEWED {candidate_id!r} was detected in the code but never confirmed or "
+                f'rejected -- add a node with id exactly {candidate_id!r}, e.g. {{"id": '
+                f'"{candidate_id}", "name": "...", "meta": {{"confirmed": true}}}} (or false to '
+                "reject it); omitting it just makes it come back on every run"
+            )
 
 
 def _check_sparse(density_source: str, report: _Report, args: argparse.Namespace) -> None:

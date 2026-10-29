@@ -10,9 +10,12 @@ from codechroma.diagrams.registry import BUILTIN_TYPES
 from tests.unit.fake_claude import FakeProc, fake_claude_exec, reader
 
 # One instance per test module; the autouse fixture clears its state between tests.
-AGENT = content_generators.build_skill_agent_for(BUILTIN_TYPES["c1"])
+AGENT = content_generators.build_skill_agent_for(BUILTIN_TYPES["system-context"])
 
-VALID_C1 = {"type": "c1", "nodes": [{"id": "system", "name": "Sample", "description": ""}]}
+VALID_C1 = {
+    "type": "system-context",
+    "nodes": [{"id": "system", "name": "Sample", "description": ""}],
+}
 
 _SETTLE_SECONDS = 0.05
 
@@ -46,7 +49,7 @@ class _RecordingOutput:
 
 
 def _write_c1(repo_root):
-    path = repo_root / BUILTIN_TYPES["c1"].artifact
+    path = repo_root / BUILTIN_TYPES["system-context"].artifact
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(json.dumps(VALID_C1), encoding="utf-8")
 

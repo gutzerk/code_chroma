@@ -117,7 +117,7 @@ export function AllWorkflows({
                   ))}
                 </div>
                 <div role="cell" className="wf-cell-inputs">
-                  {inputs.length ? inputs.map((input) => <code key={input.name} className="wf-input-chip">{`{{${input.name}}}`}</code>) : "None"}
+                  {inputs.length ? inputs.map((input) => <span key={input.name} className="wf-input-chip" title={`{{${input.name}}}`}>{input.label || input.name}</span>) : "None"}
                 </div>
                 <div role="cell">
                   <div className="wf-cell-last" style={{ color: last.color }}>

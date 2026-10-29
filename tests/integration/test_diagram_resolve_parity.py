@@ -78,12 +78,12 @@ def _assert_same_boxes(old_by_anchor: dict[str, dict], new_by_anchor: dict[str, 
 
 def test_c1_parity(bridge):
     golden = _golden("c1")
-    c1_path = diagram_json_path(bridge.repo, "c1")
+    c1_path = diagram_json_path(bridge.repo, "system-context")
     c1_path.parent.mkdir(parents=True, exist_ok=True)
     c1_path.write_text(json.dumps(golden["input"]), encoding="utf-8")
 
     with TestClient(bridge.app) as client:
-        body = client.get("/repos/default/c1").json()
+        body = client.get("/repos/default/system-context").json()
 
     old_by_anchor = _old_nodes_by_anchor(golden, nested=True)
     new_by_anchor = _new_nodes_by_anchor(body["nodes"])

@@ -22,7 +22,7 @@ def server_module(tmp_path, monkeypatch, make_bridge):
 @pytest.mark.parametrize(
     ("kind", "has_staleness", "generation_key"),
     [
-        ("c1", False, None),
+        ("system-context", False, None),
         ("patterns", True, "classes"),
         ("impact", False, "nodes"),
         ("sequence", False, "traces"),

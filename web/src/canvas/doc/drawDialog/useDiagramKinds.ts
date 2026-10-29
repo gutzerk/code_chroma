@@ -19,7 +19,7 @@ export interface DrawCard {
 
 const PLACEHOLDERS: Record<string, string> = {
   any: "e.g. How does a repo get analyzed and pushed to the canvas?",
-  c1: "e.g. Include the GitHub and Claude APIs; split the bridge into layers",
+  "system-context": "e.g. Include the GitHub and Claude APIs; split the bridge into layers",
   patterns: "e.g. Focus on the bridge and the canvas store",
   impact: "e.g. Also show the callers of GitSync this branch touches",
   plan: "e.g. Plan token auth for the bridge routes",

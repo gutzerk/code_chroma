@@ -74,9 +74,26 @@ describe("RouteOverlay", () => {
     });
 
     const overlay = screen.getByTestId("route-overlay");
-    expect([...overlay.querySelectorAll("text")].map((t) => t.textContent)).toEqual(["1", "2"]);
-    expect(overlay.querySelector("path.route-overlay-path")).toHaveAttribute("d", "M 300 120 L 500 120");
+    expect([...overlay.querySelectorAll("text")].map((t) => t.textContent)).toEqual(["1", "✓"]);
+    expect(overlay.querySelector("path.route-overlay-path")).toHaveAttribute("d", "M 300 120 H 500");
+    expect(overlay.querySelector("path.route-overlay-path")).toHaveAttribute("marker-end", "url(#route-arrow)");
     expect(screen.getByTestId("c")).toHaveAttribute("data-route-dim");
     expect(screen.getByTestId("a")).not.toHaveAttribute("data-route-dim");
+  });
+
+  it("leaves a diagram box that shares a node id alone, so its own diagram draws its chip and arrows", () => {
+    render(
+      <>
+        <div data-node-id="file::a" data-canvas-element><div className="block-header" data-testid="a" /></div>
+        <RouteOverlay />
+      </>,
+    );
+    mockRect(screen.getByTestId("a"), { left: 100, top: 100, width: 200, height: 40 });
+    act(() => routeStore.show(ROUTE));
+    act(() => {
+      fireEvent(window, new Event("resize"));
+    });
+
+    expect(screen.getByTestId("route-overlay").querySelectorAll("text")).toHaveLength(0);
   });
 });

@@ -11,7 +11,7 @@ import { selectionStore } from "../state/selectionStore";
 import { TUTORIAL_LAYOUTS } from "./tutorialLayouts";
 import { tutorialSimStore } from "./tutorialSim";
 
-const DIAGRAM_LAYERS = ["c1", "patterns", "impact"];
+const DIAGRAM_LAYERS = ["system-context", "patterns", "impact"];
 const STAGE_DIAGRAM = "patterns";
 const SETTLE_MS = 700;
 

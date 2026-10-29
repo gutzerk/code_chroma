@@ -70,7 +70,8 @@ def test_a_read_only_workspace_refuses_to_accept_a_diff(client):
 
 
 @pytest.mark.parametrize(
-    "generate_path", ["/repos/pr-12/c1/generate", "/repos/pr-12/impact-changes/generate"]
+    "generate_path",
+    ["/repos/pr-12/system-context/generate", "/repos/pr-12/impact-changes/generate"],
 )
 def test_a_read_only_workspace_is_still_allowed_to_start_a_generate_run(
     client, monkeypatch, generate_path

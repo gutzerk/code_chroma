@@ -108,6 +108,9 @@ public sealed partial class WorkflowRunner
         File.WriteAllText(path, "{}");
     }
 
+    /// <summary>The workspace root this runner's runs and worktrees belong to.</summary>
+    public string RepoRoot => _repoRoot;
+
     public static string WorktreeFor(string repoRoot, string runId) => WorktreeOps.WorktreePath(repoRoot, "wf-" + runId);
 
     private static TaskCompletionSource NewSignal() => new(TaskCreationOptions.RunContinuationsAsynchronously);
@@ -257,7 +260,7 @@ public sealed partial class WorkflowRunner
             h.Busy = false;
             // A restart picks up the stored definition, so edits made since the run began apply.
             var def = Store.GetWorkflow(h.Run.WorkflowId) ?? h.Def;
-            var run = NewRun(runId, def, branch, h.Run.Inputs);
+            var run = NewRun(runId, def, branch, CarryInputs(h.Def, def, h.Run.Inputs));
             var fresh = new Handle(run, def, h.Worktree);
             _handles[runId] = fresh;
             Store.Save(run);
@@ -265,6 +268,21 @@ public sealed partial class WorkflowRunner
             Drive(fresh, 0);
             return View(fresh);
         }
+    }
+
+    /// <summary>The run's original answers keyed by the edited definition's input names: same name, else the same step's input, else the same question.</summary>
+    public static Dictionary<string, string> CarryInputs(WorkflowDef before, WorkflowDef after, Dictionary<string, string> inputs)
+    {
+        var carried = new Dictionary<string, string>(inputs);
+        foreach (var input in after.AllInputs())
+        {
+            if (carried.ContainsKey(input.Name)) continue;
+            var owner = after.Steps.Find(s => s.Input?.Name == input.Name);
+            var oldName = before.Steps.Find(s => s.Id == owner?.Id)?.Input?.Name
+                ?? before.AllInputs().Find(i => i.Label.Trim() == input.Label.Trim() && inputs.ContainsKey(i.Name))?.Name;
+            if (oldName is not null && inputs.TryGetValue(oldName, out var value)) carried[input.Name] = value;
+        }
+        return carried;
     }
 
     private static Run NewRun(string runId, WorkflowDef def, string branch, Dictionary<string, string> inputs) => new()

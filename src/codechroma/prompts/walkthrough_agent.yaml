@@ -1,0 +1,2 @@
+prompt: |-
+  /codechroma-draw-diagram type: walkthrough — read references/type-walkthrough.md and references/drawing-rules.md before writing anything — (re)generate the Walkthrough for this repository: one process the user asked about, drawn as numbered steps with a top-level `route` that points each step at the real files and functions it runs in. Trace the real call chain from the context cache, entry point first, then author the steps, the relations and the route. Write it to the path the skill resolves.

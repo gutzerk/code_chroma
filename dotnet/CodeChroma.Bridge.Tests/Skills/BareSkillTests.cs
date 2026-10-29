@@ -7,7 +7,7 @@ public class BareSkillTests
     private const string Root = "/repo";
 
     [Theory]
-    [InlineData("c1", "Draw the C1")]
+    [InlineData("system-context", "Draw the System context")]
     [InlineData("patterns", "Draw the Design Patterns diagram")]
     [InlineData("impact", "Draw the Impact diagram")]
     [InlineData("sequence", "Draw a Sequence diagram")]
@@ -39,7 +39,7 @@ public class BareSkillTests
     public void The_short_bodies_are_much_smaller_than_the_full_skill_prompt()
     {
         var full = BareSkill.Compose("/codechroma-draw-diagram type: custom — read references/type-custom.md and references/drawing-rules.md before writing anything — x", Root, "main")!;
-        var short1 = BareSkill.Compose("/codechroma-draw-diagram type: c1 — read references/type-c1.md before writing anything — x", Root, "main")!;
+        var short1 = BareSkill.Compose("/codechroma-draw-diagram type: system-context — read references/type-system-context.md before writing anything — x", Root, "main")!;
 
         Assert.True(short1.Length < full.Length / 3, $"short {short1.Length} vs full {full.Length}");
     }
@@ -47,9 +47,9 @@ public class BareSkillTests
     [Fact]
     public void An_interactive_start_inlines_the_type_body_and_asks_the_user_what_to_draw()
     {
-        var prompt = BareSkill.ComposeInteractive("c1", Root, "main", "ctx-tool --repo-path x")!;
+        var prompt = BareSkill.ComposeInteractive("system-context", Root, "main", "ctx-tool --repo-path x")!;
 
-        Assert.Contains("Draw the C1", prompt);
+        Assert.Contains("Draw the System context", prompt);
         Assert.Contains("ask what they want to see", prompt);
         Assert.Contains("ctx-tool --repo-path x \"phrase\"", prompt);
         Assert.DoesNotContain("{BRIDGE}", prompt);
@@ -99,7 +99,7 @@ public class BareSkillTests
     [Fact]
     public void An_interactive_start_without_a_context_command_does_not_mention_one()
     {
-        var prompt = BareSkill.ComposeInteractive("c1", Root, "main", null)!;
+        var prompt = BareSkill.ComposeInteractive("system-context", Root, "main", null)!;
 
         Assert.DoesNotContain("\"phrase\"", prompt);
     }

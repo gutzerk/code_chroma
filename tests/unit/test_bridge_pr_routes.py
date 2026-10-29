@@ -268,7 +268,7 @@ def test_a_pull_request_workspace_may_spawn_a_claude_run(client, monkeypatch):
 
     monkeypatch.setattr(SkillAgent, "start", record_start)
 
-    assert test_client.post("/repos/pr-7/c1/generate").status_code == 200
+    assert test_client.post("/repos/pr-7/system-context/generate").status_code == 200
     assert started == ["start"]
 
 

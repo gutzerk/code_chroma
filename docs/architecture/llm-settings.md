@@ -325,7 +325,7 @@ recognize before the request ever reaches the proxy). Returns
 - `kind="cli"`, `adapter="claude"|"codex"|"gemini"` (no `base_url`): the installed CLI is asked directly -- `claude -p`
   with a stream-json `initialize` control request (models in `response.response.models[]`, `value`/`displayName`),
   `codex debug models` / `gemini models list -o json` (JSON, tolerant parse; non-array/object JSON is treated as no answer). C# `CliModelProbe` (stderr drained), Python `_probe_cli_models`; 20s timeout; any
-  failure (not installed, timeout, bad output) falls to the built-in list. The CLI is located and spawned the way the app
+  failure (not installed, timeout, bad output) falls to the built-in list. The claude probe keeps only aliases (pinned `claude-*` ids dropped) and the built-in `adapter:claude` list is aliases only. The CLI is located and spawned the way the app
   itself would (`RuntimeEnvironment.Resolve` / `resolve_runtime_cli`: its executable and `cli.Env`, the same as `CliAuth`), and an
   answered list is cached for 2 minutes per adapter+executable (C# `CliModelProbe.Cached`, Python `_probe_cache`; an unanswered
   probe is never cached, so a CLI signed in a moment later is retried) -- every `GET .../models`, provider test and blank-model

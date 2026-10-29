@@ -41,7 +41,7 @@ public static class DiagramMigration
 
     public static (JsonObject Data, Status Status) Migrate(string kind, JsonObject data)
     {
-        if (kind != "c1" || data.Count == 0 || data["nodes"] is JsonArray || !(data["system"] is JsonObject || data["actors"] is JsonArray)) return (data, Status.Unchanged);
+        if (kind != "system-context" || data.Count == 0 || data["nodes"] is JsonArray || !(data["system"] is JsonObject || data["actors"] is JsonArray)) return (data, Status.Unchanged);
         try
         {
             return ConvertC1(data) is { } converted ? (converted, Status.Converted) : (data, Status.NeedsRegeneration);
@@ -109,7 +109,7 @@ public static class DiagramMigration
             CopyOptional(rel, relation, "technology");
             relations.Add(relation);
         }
-        return new JsonObject { ["type"] = "c1", ["style"] = "boxes-arrows", ["nodes"] = nodes, ["relations"] = relations };
+        return new JsonObject { ["type"] = "system-context", ["style"] = "boxes-arrows", ["nodes"] = nodes, ["relations"] = relations };
     }
 
     private static string Name(JsonObject source, string fallback) => Json.Truthy(source["name"]) ? source["name"]!.ToString() : fallback;
@@ -121,7 +121,7 @@ public static class DiagramArtifacts
     /// <summary>The diagram's JSON (c1 from the borrowed root of a PR workspace); {} when missing; a legacy c1 converts in place, an unconvertible one is flagged.</summary>
     public static JsonObject Load(Workspace ws, string kind)
     {
-        var path = Workspace.DiagramPath(kind == "c1" ? ws.C1Root : ws.Root, kind);
+        var path = Workspace.DiagramPath(kind == "system-context" ? ws.C1Root : ws.Root, kind);
         var data = JsonFile.Load(path) as JsonObject ?? new JsonObject();
         var (migrated, status) = DiagramMigration.Migrate(kind, data);
         switch (status)

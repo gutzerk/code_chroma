@@ -1,8 +1,6 @@
 import type { CanvasDoc, CanvasElement } from "../../state/types";
-import { viewSequenceElements } from "./sequenceBoard";
 import type { LiveDragOffset } from "./dragOffsetStore";
 import { expandRouteElements } from "./routeExpansion";
-import type { SequenceView } from "./sequenceViewStore";
 
 type Elements = Record<string, CanvasElement>;
 
@@ -11,10 +9,10 @@ export interface DisplayContext {
   collapsedLayers?: ReadonlySet<string>;
   routeExpanded?: ReadonlySet<string>;
   dragOffsets?: Record<string, LiveDragOffset>;
-  sequence?: {
+  boards?: {
     doc: CanvasDoc; // the doc whose `elements` were passed to the stage
-    idsByLayer: ReadonlyMap<string, readonly string[]>;
-    viewFor: (layer: string) => SequenceView;
+    /** Each board layer's ids and its profile's `viewElements`. */
+    layers: ReadonlyArray<{ layer: string; ids: readonly string[]; view: (doc: CanvasDoc, ids: readonly string[], layer: string) => CanvasElement[] }>;
   };
 }
 
@@ -45,14 +43,13 @@ export const offsetDraggedElements: DisplayStage = (elements, ctx) => {
   return next ?? elements;
 };
 
-/** Re-lays each sequence layer out for the steps the viewer expanded in place. */
-export const viewSequenceLayers: DisplayStage = (elements, ctx) => {
-  const sequence = ctx.sequence;
-  if (!sequence || sequence.idsByLayer.size === 0) return elements;
+/** Re-lays each board layer out for its display-only view (a sequence board's expanded steps). */
+export const viewBoardLayers: DisplayStage = (elements, ctx) => {
+  const boards = ctx.boards;
+  if (!boards || boards.layers.length === 0) return elements;
   const next = { ...elements };
-  for (const [layer, ids] of sequence.idsByLayer) {
-    const view = sequence.viewFor(layer);
-    for (const element of viewSequenceElements(sequence.doc, ids, view)) next[element.id] = element;
+  for (const { layer, ids, view } of boards.layers) {
+    for (const element of view(boards.doc, ids, layer)) next[element.id] = element;
   }
   return next;
 };
@@ -61,7 +58,7 @@ export const viewSequenceLayers: DisplayStage = (elements, ctx) => {
 // must not redo the structural stages), so CanvasDocView calls them in this order.
 export const STRUCTURAL_STAGES: readonly DisplayStage[] = [hideCollapsedLayers, growExpandedRoutes];
 export const LIVE_STAGES: readonly DisplayStage[] = [offsetDraggedElements];
-export const VIEW_STAGES: readonly DisplayStage[] = [viewSequenceLayers];
+export const VIEW_STAGES: readonly DisplayStage[] = [viewBoardLayers];
 
 /** Runs `stages` left to right over `elements`; identity when a stage has nothing to do. */
 export function runDisplayStages(

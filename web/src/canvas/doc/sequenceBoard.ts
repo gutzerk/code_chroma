@@ -322,10 +322,7 @@ export function sequenceBoardBounds(
   return { left: origin.x, top: origin.y, right: origin.x + board.width, bottom: origin.y + board.height };
 }
 
-/** Deterministic positions/sizes for a sequence layer from `sequenceBoard.ts`'s swimlane layout, so
- * DiagramFrame and the canvas bounds hug the real picture. A participant is its lane (centre + full
- * lane size); a message is its step box. `view.expanded` grows the opened steps in place (display
- * only, see viewSequenceElements). Returns empty when there are no sequence ids. */
+/** Persisted positions/sizes for a sequence layer: a participant is its lane rect, a message its step box; `view.expanded` grows opened steps. */
 export function layoutSequence(
   doc: CanvasDoc,
   ids: readonly string[],
@@ -347,8 +344,7 @@ export function layoutSequence(
   return { positions, sizes };
 }
 
-/** The sequence layer's elements at the geometry the viewer's expanded steps imply, anchored to the
- * persisted layout so a frame drag survives; display only -- nothing here is written back. */
+/** Display-only geometry for the viewer's expanded steps, anchored to the persisted layout so a frame drag survives. */
 export function viewSequenceElements(
   doc: CanvasDoc,
   ids: readonly string[],

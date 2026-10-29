@@ -23,10 +23,7 @@ export function useReflowOwnLayouts(engineClient: EngineClient, doc: CanvasDoc, 
     }
     if (byLayer.size === 0) return;
 
-    // One pass per layer: lay out, then write only the elements whose persisted geometry disagrees
-    // with the layout's (skipping ones the run would just overwrite identically). Each layer's layout
-    // is self-contained (e.g. layoutSequence positions are absolute in the document -- no yOffset to
-    // re-apply, unlike epics which lays out at y=0).
+    // Write only the elements whose persisted geometry disagrees with their layer's self-contained layout.
     const ops = [];
     for (const { layout, ids } of byLayer.values()) {
       const { positions, sizes } = layout(doc, ids);
@@ -51,8 +48,7 @@ export function useReflowOwnLayouts(engineClient: EngineClient, doc: CanvasDoc, 
     }
     if (ops.length === 0) return;
 
-    // Best-effort on load: a failed re-spread is a cosmetic stale layout, not something to surface
-    // as an unhandled rejection on the read-only page-load path.
+    // Best-effort on load: a failed re-spread is a cosmetic stale layout, never an unhandled rejection.
     void patchCanvasDoc(engineClient, ops, {
       explanation: "re-spread board layers to current layout constants",
     }).catch(() => {});

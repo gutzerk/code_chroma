@@ -134,9 +134,9 @@ npm run e2e -- sequence-expand route-steps diagram-colors diagram-arrange box-si
 
 ### Stage 1 — the guard found two real drifts
 
-`web/e2e/box-size-guard.spec.ts` passes. It imports `layoutBoxSize` and `SEQUENCE_BOARD` in the page through Vite, so no test-only attribute was added. It checks seven role-box variants (the six above plus `plan_kind`) and one sequence board with an expanded step. For the board it checks step sizes, step content overflow, lane height, lane label left/width (`labelX`/`labelW`), phase pill top/height (`pillY`/`pillH`) and the legend's one-line width (`legendNaturalW`).
+`web/e2e/box-size-guard.spec.ts` passes. It imports `layoutBoxSize` and `SEQUENCE_BOARD` in the page through Vite, so no test-only attribute was added. It checks seven role-box variants (the six above plus `plan_kind`) and one sequence board with an expanded step. For the board it checks step sizes, step content overflow, lane height (and that the expanded lane holds its open step), lane label left/width (`labelX`/`labelW`), phase pill top/height (`pillY`/`pillH`) and the legend's one-line width (`legendNaturalW`).
 
-Two copies were already wrong; both are fixed in the Stage 1 commit:
+Two copies were already wrong; both are fixed in a separate `fix(web):` commit before the guard:
 
 | Copy | Was | Browser | Effect before the fix |
 |---|---|---|---|
@@ -154,8 +154,9 @@ Proof the guard works: a 6 px change to `.block-role [data-testid="canvas-node-b
 - `layoutSequence`/`viewSequenceElements` moved from `autoLayout.ts` to `sequenceBoard.ts` for the same reason.
 - `boundsKey` sits beside `frameBounds`; the sequence key is the board signature plus the expanded steps. `DiagramFrame` no longer subscribes to `sequenceViewStore`: `CanvasDocView` already re-renders on its layout version.
 - Header actions: the profile's `HeaderAction` (`SequenceModeSwitch.tsx`, moved out of `DiagramFrame.tsx`) renders first; the shared `HEADER_ACTIONS` keeps only the route action, which keys on `meta.route`, not on a type.
-- `RouteFrameActions` uses a `routeInOverlay` field.
+- `RouteFrameActions` uses a `routeInOverlay` field; the step-chip switch is `hideStepChip` (spec name `plainBox`, renamed because it hides only the chip).
 - The grep also hit `useReflowSequence.ts`; it became `useReflowOwnLayouts.ts`, which re-spreads any layer whose profile has a `layout`.
+- The grep did not catch `CanvasDocView`'s own sequence path (`BLOCK_RULES[...].renderer === "sequence"`, `SequenceDiagram`, the `sequenceViewStore` subscription) or `displayPipeline`'s `viewSequenceLayers`. Review found it; three more fields moved it onto the profile: `Board` (`SequenceDiagram`), `viewElements` (`viewSequenceElements`) and `viewStore` (the layout version, combined across profiles by `subscribeProfileViews`/`profileViewsVersion`). `CanvasDocView` and `displayPipeline` now name no diagram type.
 - `autoLayout.ts`'s pinned-box filter dropped the `"sequence"` render in favour of the profile's `layout`.
 - Epics special cases are unchanged: moving them is not trivial (`isEpicsLayer` drives the y-offset branch of `layoutNewElements` and the role-box rule in `measureBoxSize.ts`).
 - The spec's e2e set passes except `diagram-arrange` (2 of 3 cases, "Arrange preserves user-moved blocks"). The full Playwright run has 7 failures (those 2 plus `agent-windows` 1, `pan-zoom` 1, `workflow-design` 3); all 7 fail the same way on `main` before this work.

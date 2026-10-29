@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { CanvasElement } from "../../state/types";
-import { DEFAULT_PROFILE, profileFor, profileForElement } from "./diagramProfiles";
+import { DEFAULT_PROFILE, profileFor, profileForElement, profileViewsVersion, subscribeProfileViews } from "./diagramProfiles";
+import { sequenceViewStore } from "./sequenceViewStore";
 import { WALKTHROUGH_PROFILE } from "./walkthroughProfile";
 
 function el(overrides: Partial<CanvasElement> = {}): CanvasElement {
@@ -71,5 +72,22 @@ describe("WALKTHROUGH_PROFILE edges", () => {
     const labels = edges.map((edge) => WALKTHROUGH_PROFILE.edgeLabel?.(edge));
 
     expect(labels).toEqual(["", "on save"]);
+  });
+});
+
+describe("profile view signal", () => {
+  it("notifies and changes version when a sequence step expands, but not when the player steps", () => {
+    const calls: number[] = [];
+    const unsubscribe = subscribeProfileViews(() => calls.push(1));
+    const start = profileViewsVersion();
+    sequenceViewStore.setStep("seq", 1);
+    const afterStep = profileViewsVersion();
+
+    sequenceViewStore.setExpanded("seq", ["m1"]);
+    const afterExpand = profileViewsVersion();
+    unsubscribe();
+    sequenceViewStore.reset();
+
+    expect([afterStep === start, afterExpand === start, calls.length]).toEqual([true, false, 2]);
   });
 });

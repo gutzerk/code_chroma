@@ -1,5 +1,4 @@
 import { useEffect, useMemo, useSyncExternalStore } from "react";
-import { sequenceViewStore } from "./sequenceViewStore";
 import { FocusPanel } from "./FocusPanel";
 import type { CanvasElement } from "../../state/types";
 import { useEngineClient } from "../../engine-client/EngineClientContext";
@@ -10,7 +9,7 @@ import { openOrigin } from "../openOrigin";
 import { CanvasNodeBox } from "./CanvasNodeBox";
 import { ConcurrencyIslandArea } from "./ConcurrencyIslandArea";
 import { DiagramFrame } from "./DiagramFrame";
-import { profileFor, profileForElement } from "./diagramProfiles";
+import { profileFor, profileForElement, profileViewsVersion, subscribeProfileViews, type DiagramProfile } from "./diagramProfiles";
 import { diagramDisplayName } from "./diagramDisplay";
 import { isDiagramLayer, useCustomDiagramTypes } from "./diagramCatalog";
 import { BLOCK_RULES } from "./elementRules";
@@ -21,7 +20,6 @@ import { GroupFrame } from "./GroupFrame";
 import { LaneArea } from "./LaneArea";
 import { NoteElement } from "./NoteElement";
 import { QuestionElement } from "./question/QuestionElement";
-import { SequenceDiagram } from "./SequenceDiagram";
 import {
   applyCanvasPositions,
   useCanvasDoc,
@@ -242,30 +240,31 @@ export function CanvasDocView() {
     return map;
   }, [renderableElements]);
 
-  // Sequence layers render as one own-component per whole layer (SequenceDiagram), not per-element
-  // boxes: every element with `render: "sequence"` is collected up (by its owning layer) so that
-  // component can lay the participants/messages out from meta alone. Membership is whitellisted by
-  // the render kind's own-component renderer, the same signal `memberIdsByLayer` filters `group` on.
-  const sequenceMemberIdsByLayer = useMemo(() => {
-    const map = new Map<string, string[]>();
+  // A profile with a `Board` (a sequence board) draws its whole layer as one component, so its ids are bucketed per layer.
+  const boardsByLayer = useMemo(() => {
+    const map = new Map<string, { profile: DiagramProfile; ids: string[] }>();
     for (const element of Object.values(renderableElements)) {
-      if (BLOCK_RULES[element.render].renderer !== "sequence") continue;
-      const ids = map.get(element.layer);
-      if (ids) ids.push(element.id);
-      else map.set(element.layer, [element.id]);
+      const profile = profileForElement(element);
+      if (!profile.Board) continue;
+      const entry = map.get(element.layer);
+      if (entry) entry.ids.push(element.id);
+      else map.set(element.layer, { profile, ids: [element.id] });
     }
     return map;
   }, [renderableElements]);
 
-  // A4: expanded-step geometry is derived here for display only, never persisted to the doc.
-  const sequenceViewVersion = useSyncExternalStore(sequenceViewStore.subscribe, sequenceViewStore.getLayoutVersion);
+  // Display-only board geometry (a sequence board's expanded steps), never persisted to the doc.
+  const profileViews = useSyncExternalStore(subscribeProfileViews, profileViewsVersion);
   const viewElements = useMemo(
     () =>
       runDisplayStages(VIEW_STAGES, visibleDoc.elements, {
-        sequence: { doc: visibleDoc, idsByLayer: sequenceMemberIdsByLayer, viewFor: (layer) => sequenceViewStore.get(layer) },
+        boards: {
+          doc: visibleDoc,
+          layers: [...boardsByLayer].flatMap(([layer, { profile, ids }]) => (profile.viewElements ? [{ layer, ids, view: profile.viewElements }] : [])),
+        },
       }),
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- sequenceViewVersion is the store's change signal
-    [visibleDoc, sequenceMemberIdsByLayer, sequenceViewVersion],
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- profileViews is the view stores' change signal
+    [visibleDoc, boardsByLayer, profileViews],
   );
 
   const concurrencyBuckets = useMemo(
@@ -344,15 +343,14 @@ export function CanvasDocView() {
               sizes={measuredSizes}
             />
           ))}
-          {[...sequenceMemberIdsByLayer.entries()].map(([layer, memberIds]) => (
-            <SequenceDiagram
-              key={`sequence-${layer}`}
-              layer={layer}
-              elements={resolveMembers(memberIds, viewElements)}
-            />
-          ))}
+          {[...boardsByLayer].map(([layer, { profile, ids }]) => {
+            const Board = profile.Board!;
+            return <Board key={`board-${layer}`} layer={layer} elements={resolveMembers(ids, viewElements)} />;
+          })}
           <FocusPanel doc={visibleDoc} />
           {visibleElements.map((element) => {
+            // A board layer's elements render through its profile's Board above, never as boxes.
+            if (profileForElement(element).Board) return null;
             switch (BLOCK_RULES[element.render].renderer) {
               case "hierarchy":
                 // Retired code-tree block: an old document may still carry one; it draws nothing.
@@ -373,10 +371,6 @@ export function CanvasDocView() {
                 }
               case "question":
                 return <QuestionElement key={element.id} element={element} />;
-              case "sequence":
-                // A `sequence` layer's members render through the per-layer SequenceDiagram above,
-                // never here as individual boxes.
-                return null;
               default:
                 return (
                   <CanvasNodeBox

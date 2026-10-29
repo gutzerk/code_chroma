@@ -35,12 +35,18 @@ export interface DiagramProfile {
   laneBands?: boolean;
   /** Whether a shared order digit run draws a concurrency island (default true). */
   concurrencyIslands?: boolean;
-  /** True skips the common box internals (the step-number chip). */
-  plainBox?: boolean;
+  /** True hides the step-number chip on this type's boxes. */
+  hideStepChip?: boolean;
   /** True when the route legend lives in the diagram's own overlay and the route shows on open. */
   routeInOverlay?: boolean;
   /** Drawn once per layer on the canvas, inside the diagram frame. */
   Overlay?: ComponentType<{ layer: string; members: CanvasElement[]; sizes: ReadonlyMap<string, MeasuredBoxSize> }>;
+  /** Draws the whole layer as one component instead of one box per element (a sequence board). */
+  Board?: ComponentType<{ layer: string; elements: CanvasElement[] }>;
+  /** The layer's elements at display-only geometry (expanded steps); never written to the doc. */
+  viewElements?: (doc: CanvasDoc, ids: readonly string[], layer: string) => CanvasElement[];
+  /** Change signal for `viewElements`: a store subscription and its version. */
+  viewStore?: { subscribe: (listener: () => void) => () => void; getVersion: () => number };
   /** Deterministic layout for this type's new boxes; others go through ELK. */
   layout?: (doc: CanvasDoc, ids: readonly string[]) => { positions: Record<string, CanvasPosition>; sizes: Record<string, CanvasSize> };
 }
@@ -56,7 +62,18 @@ export function profileFor(layer: string, members: readonly CanvasElement[]): Di
   return DIAGRAM_PROFILES.find((profile) => profile.matches(layer, members)) ?? DEFAULT_PROFILE;
 }
 
-/** The profile for one box, for per-element choices (layout, box internals, lanes, islands, edges). */
+/** The profile for one box, for per-element choices (layout, step chip, lanes, islands, edges, boards). */
 export function profileForElement(element: CanvasElement): DiagramProfile {
   return profileFor(element.layer, [element]);
+}
+
+/** Subscribes to every profile's view store, so one `useSyncExternalStore` covers them all. */
+export function subscribeProfileViews(listener: () => void): () => void {
+  const unsubscribes = DIAGRAM_PROFILES.flatMap((profile) => (profile.viewStore ? [profile.viewStore.subscribe(listener)] : []));
+  return () => unsubscribes.forEach((unsubscribe) => unsubscribe());
+}
+
+/** The profiles' view versions joined into one snapshot; changes when any of them does. */
+export function profileViewsVersion(): string {
+  return DIAGRAM_PROFILES.map((profile) => profile.viewStore?.getVersion() ?? 0).join(":");
 }

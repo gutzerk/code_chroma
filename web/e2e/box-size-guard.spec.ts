@@ -147,6 +147,7 @@ test("a sequence board's copied CSS metrics match what the browser draws", async
   }
   for (const { expanded, lane, label } of measured.lanes) {
     if (!expanded) near(lane.h, board.laneH, "lane height");
+    else expect.soft(lane.h, "expanded lane holds its open step").toBeGreaterThanOrEqual(board.expandedTop + board.expandedH);
     near(label.x, board.labelX, "lane label left");
     near(label.w, board.labelW, "lane label width");
     expect.soft(label.y + label.h, "lane label fits its lane").toBeLessThanOrEqual(lane.h);

@@ -37,9 +37,7 @@ export async function layoutNewElements(
   fixed: Readonly<Record<string, CanvasPosition>> = {},
 ): Promise<LayoutResult> {
   const newIdSet = new Set(newIds);
-  // A profile with its own layout (a sequence board) places its boxes deterministically -- never
-  // ELK, whose edge/order/lane model doesn't fit it -- so its positions feed DiagramFrame/canvas
-  // bounds and the frame hugs the real picture. Every other new box goes through ELK below.
+  // A profile with its own layout (a sequence board) places its boxes deterministically; every other new box goes through ELK.
   const ownLayoutIds = new Map<NonNullable<DiagramProfile["layout"]>, string[]>();
   const elkIds: string[] = [];
   for (const id of newIds) {
@@ -161,8 +159,7 @@ export async function layoutNewElements(
   for (const box of boxes) {
     positions[box.id] = { x: box.x, y: box.y + yOffset };
   }
-  // Fold the profile-laid-out positions in (unshifted -- such a layer is self-contained, e.g.
-  // layoutSequence). Their sizes ride alongside ELK's unconditionally, like the epics branch above.
+  // Profile-laid-out positions are self-contained, so they fold in unshifted, sizes alongside ELK's.
   return {
     positions: { ...positions, ...ownLayout.positions },
     sizes: { ...measuredSizes(elkIds), ...ownLayout.sizes },

@@ -72,9 +72,9 @@ def test_an_open_pull_request_is_registered_read_only_at_boot(rebooted, repo_wit
 
 def test_its_diagram_still_points_at_the_main_checkout(rebooted, repo_with_open_pr):
     repo, _pr_root = repo_with_open_pr
-    pr_c1 = rebooted.registry.get("pr-12").diagram_path("c1")
+    pr_c1 = rebooted.registry.get("pr-12").diagram_path("system-context")
 
-    assert pr_c1 == rebooted.registry.main.diagram_path("c1")
+    assert pr_c1 == rebooted.registry.main.diagram_path("system-context")
     assert pr_c1.parent.parent.parent.parent == repo
 
 

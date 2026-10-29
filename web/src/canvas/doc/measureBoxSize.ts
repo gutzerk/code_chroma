@@ -111,6 +111,16 @@ export function fitNameFontSize(label: string, w: number, h: number): number {
   return FIT_MIN;
 }
 
+/** One zoomed-out name size per layer: the smallest per-box fit, so every box in a diagram shows its name at the same size. */
+export function layerFitNameSizes(elements: readonly CanvasElement[]): Map<string, number> {
+  const sizes = new Map<string, number>();
+  for (const element of elements) {
+    const px = fitNameFontSize(element.label, element.size?.w ?? DEFAULT_ELEMENT_SIZE.w, element.size?.h ?? DEFAULT_ELEMENT_SIZE.h);
+    sizes.set(element.layer, Math.min(sizes.get(element.layer) ?? FIT_MAX, px));
+  }
+  return sizes;
+}
+
 /** Estimated {w,h} for an element's box, or `null` for kinds that size themselves. An authored
  * `element.size` always wins; the measure only fills in for `size == null`. */
 export function measureBoxSize(element: CanvasElement): { w: number; h: number } | null {

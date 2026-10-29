@@ -1,4 +1,4 @@
-import { patchCanvasDoc } from "../canvas/doc/canvasDocStore";
+import { patchCanvasDoc } from "../canvas/doc/canvasDocSync";
 import type { EngineClient } from "../engine-client/EngineClient";
 
 const GAP = 160;

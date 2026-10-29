@@ -7,7 +7,7 @@ import { useReflowEpics } from "./useReflowEpics";
 // The hook's only side effect is the PATCH it issues for a genuine mismatch, so mock it to observe
 // the ops without a real network round trip.
 const patchMock = vi.fn(async (_ops: CanvasOp[]) => ({ ok: true as const }));
-vi.mock("./canvasDocStore", () => ({
+vi.mock("./canvasDocSync", () => ({
   patchCanvasDoc: (_client: EngineClient, ops: CanvasOp[]) => patchMock(ops),
 }));
 

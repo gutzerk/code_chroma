@@ -24,6 +24,7 @@ arrows between them. Nothing is decomposed — no `parent`, no `path`, no `node_
 ```json
 {
   "type": "system-context",
+  "title": "Who the billing service talks to",
   "style": "boxes-arrows",
   "fingerprint": "<verbatim from system-context/context>",
   "nodes": [
@@ -41,6 +42,7 @@ arrows between them. Nothing is decomposed — no `parent`, no `path`, no `node_
 
 ## Rules
 
+- **`title`** (top-level, required): ≤ 60 chars, in the language of the user's request, naming what *this* diagram shows for that request (e.g. "How a file save reaches the canvas") — never the type name ("System context", "Diagram"). First run `curl -s {BRIDGE}/repos/{WORKSPACE}/diagrams/status` and read every entry's `title`: pick one that differs from all of them (the entry for the file you are replacing does not count). The canvas shows it as the frame name and the ON CANVAS row.
 - Edge `kind` on `relations[]`: `calls` (default), `spawns` (starts a process/CLI/agent), `data` (reads/writes a file/DB/store), `minor` (optional) -- use `spawns`/`data` whenever true, e.g. `{"from":"api","to":"db","kind":"data","label":"saves run"}`.
 - Exactly one node `id: "system"`, no `parent`. Every other node is an actor: `kind: "person"` (a human role the system serves — not the engineers who maintain it) or `kind: "external_system"` (a separately deployed system the project only calls: third-party API, database, queue, another service).
 - Test for `external_system`: would it deploy separately AND does the project only call it? A backend the project configures and starts itself (an adapter/driver that launches an engine) is internal, not an actor.
@@ -53,6 +55,7 @@ arrows between them. Nothing is decomposed — no `parent`, no `path`, no `node_
 
 | Code | Fix |
 |---|---|
+| `NOTITLE` / `GENERICTITLE` | add a top-level `title` that says what this diagram shows, not its type |
 | `DUPLICATE` / `DANGLING` / `SELF` | rename the id / fix or drop the arrow / drop the self-arrow |
 | `ORPHAN` / `ISLAND` | wire the actor to `system`, or drop it |
 | `CROWDED` / `EDGEBOMB` | too many boxes or arrows: drop the minor ones |

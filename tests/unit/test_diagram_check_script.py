@@ -749,3 +749,60 @@ def test_system_context_root_is_never_an_articulation_finding(tmp_path, capsys):
     module.main(["--kind", "system-context", "--json", str(path)])
 
     assert "ARTICULATION 'system'" not in capsys.readouterr().out
+
+
+@pytest.mark.parametrize("kind", ["sequence", "patterns", "impact", "walkthrough", "custom"])
+def test_a_diagram_without_a_title_gets_a_notitle_advisory_only(tmp_path, kind):
+    diagram = _flat(3)
+
+    result = _run(tmp_path, kind, diagram)
+
+    assert result.returncode == 0
+    assert "NOTITLE" in result.stdout
+
+
+@pytest.mark.parametrize(
+    ("kind", "title"),
+    [
+        ("sequence", "Sequence"),
+        ("patterns", "Design patterns"),
+        ("patterns", "Patterns: bridge"),
+        ("system-context", "System context diagram"),
+        ("walkthrough", "Walkthrough"),
+        ("custom", "Flow"),
+    ],
+)
+def test_a_title_that_only_names_the_type_is_generic(tmp_path, kind, title):
+    diagram = {**_flat(3), "title": title}
+
+    result = _run(tmp_path, kind, diagram)
+
+    assert "GENERICTITLE" in result.stdout
+    assert "NOTITLE" not in result.stdout
+
+
+@pytest.mark.parametrize(
+    ("kind", "title"),
+    [
+        ("sequence", "How a file save reaches the canvas"),
+        ("patterns", "Strategy and Registry in the analyzer pipeline"),
+        ("walkthrough", "Как сохраняется файл"),
+    ],
+)
+def test_a_specific_title_stays_silent(tmp_path, kind, title):
+    diagram = {**_flat(3), "title": title}
+
+    result = _run(tmp_path, kind, diagram)
+
+    assert "NOTITLE" not in result.stdout
+    assert "GENERICTITLE" not in result.stdout
+    assert "LONGDIAGRAMTITLE" not in result.stdout
+
+
+def test_a_title_over_the_char_budget_is_advised_and_never_fails(tmp_path):
+    diagram = {**_flat(3), "title": "How a file save travels " + "through every layer " * 4}
+
+    result = _run(tmp_path, "sequence", diagram)
+
+    assert result.returncode == 0
+    assert "LONGDIAGRAMTITLE" in result.stdout

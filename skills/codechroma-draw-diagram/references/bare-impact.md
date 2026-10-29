@@ -32,6 +32,7 @@ The task line says which source: `diff`, or `plan` with a feature directory.
 {
   "type": "impact",
   "generated_at": "<ISO time>",
+  "title": "What the token refresh fix touches",
   "source": "diff",
   "feature": "<feature dir; plan only, else omit>",
   "fingerprint": "<verbatim from impact/context>",
@@ -49,6 +50,7 @@ The task line says which source: `diff`, or `plan` with a feature directory.
 
 ## Rules
 
+- **`title`** (top-level, required): ≤ 60 chars, in the language of the user's request, naming what *this* diagram shows for that request (e.g. "How a file save reaches the canvas") — never the type name ("Change impact", "Diagram"). First run `curl -s {BRIDGE}/repos/{WORKSPACE}/diagrams/status` and read every entry's `title`: pick one that differs from all of them (the entry for the file you are replacing does not count). The canvas shows it as the frame name and the ON CANVAS row.
 - Edge `kind` on `relations[]`: `calls` (default), `spawns` (starts a process/CLI/agent), `data` (reads/writes a file/DB/store), `minor` (optional) -- use `spawns`/`data` whenever true, e.g. `{"from":"api","to":"db","kind":"data","label":"saves run"}`.
 - 🔴 `node_id` is required on every node; copy `id`/`node_id` from the context verbatim (or use the `component::`/`dir::` forms above). Never invent one. Ids unique.
 - Budget is tight: ≤ 25 nodes, ≤ 40 relations — a big impact diagram means you dumped the repo.
@@ -60,6 +62,7 @@ The task line says which source: `diff`, or `plan` with a feature directory.
 
 | Code | Fix |
 |---|---|
+| `NOTITLE` / `GENERICTITLE` | add a top-level `title` that says what this diagram shows, not its type |
 | `BROKEN <id>` | copy `node_id` verbatim from the context (a `component::` id built from a directory must be `dir::`) |
 | `DUPLICATE` / `DANGLING` / `SELF` | rename / fix or drop the arrow / drop it |
 | `ORPHAN` / `ISLAND` | connect the box or drop it |

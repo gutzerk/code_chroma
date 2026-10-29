@@ -116,7 +116,7 @@ def test_generate_broadcasts_status_over_events_socket(server_module, monkeypatc
             message = websocket.receive_json()
 
     assert message == {
-        "type": "c1-status",
+        "type": "system-context-status",
         "state": "error",
         "error": CLI_MISSING,
     }
@@ -139,11 +139,11 @@ def test_generate_broadcasts_tag_the_ping_with_the_agents_workspace_id(server_mo
         agent = client.post("/agents", json={"title": "refund flow"}).json()
         agent_id = agent["id"]
         with client.websocket_connect(f"/repos/{agent_id}/events") as websocket:
-            client.post(f"/repos/{agent_id}/c1/generate")
-            message = _receive_until(websocket, "c1-status")
+            client.post(f"/repos/{agent_id}/system-context/generate")
+            message = _receive_until(websocket, "system-context-status")
 
     assert message == {
-        "type": "c1-status",
+        "type": "system-context-status",
         "state": "error",
         "error": CLI_MISSING,
         "workspace": agent["workspace"],

@@ -160,7 +160,7 @@ def test_exit_zero_without_a_written_diagram_is_an_error(monkeypatch, tmp_path):
 
     assert AGENT.get_state("default") == {
         "state": "error",
-        "error": "generation produced no valid c1.json",
+        "error": "generation produced no valid system-context.json",
     }
 
 

@@ -1,9 +1,5 @@
 import { RouteFrameActions } from "./RouteFrameActions";
-import { Fragment, useEffect, useMemo, useRef, useSyncExternalStore } from "react";
-import { stringMeta } from "./elementMeta";
-import { buildSequenceModel } from "./sequenceModel";
-import { sequenceBoardBounds, sequenceBoardSignature } from "./sequenceBoard";
-import { sequenceViewStore } from "./sequenceViewStore";
+import { Fragment, useEffect, useMemo, useRef } from "react";
 import type { CanvasElement } from "../../state/types";
 import { useEngineClient } from "../../engine-client/EngineClientContext";
 import type { MeasuredBoxSize } from "../useMeasuredSizes";
@@ -15,7 +11,8 @@ import { diagramFrameColorClass } from "./diagramFrameColor";
 import { dragOffsetStore } from "./dragOffsetStore";
 import { CopyButton } from "../strategies/nodeChrome";
 import { SoftAreaFrame } from "./SoftAreaFrame";
-import { boundsWithWalkthroughPanel, useLayerRoute, WALKTHROUGH_LAYER } from "./walkthroughLayout";
+import { profileFor } from "./diagramProfiles";
+import { useLayerRoute } from "./walkthroughLayout";
 
 // The larger of GroupFrame's/LaneArea's/ConcurrencyIslandArea's own padding on each side (currently
 // GroupFrame's 32/48/32) plus NESTED_GAP: this frame is meant to enclose all three, and any of them
@@ -23,7 +20,6 @@ import { boundsWithWalkthroughPanel, useLayerRoute, WALKTHROUGH_LAYER } from "./
 // padding cleared that but left the two borders flush, reading as one merged box; NESTED_GAP is the
 // deliberate breathing room between an inner frame's edge and this one's.
 const NESTED_GAP = 8;
-const PLAYER_STEP_MS = 900;
 // This frame's own title label (`.canvas-diagram-frame-label`: `top: 12px`, `font-size: 0.85rem`)
 // sits inside the top padding band, above the topmost member's own title -- the border-nesting term
 // above never reserved room for that, so a plain (non-nested) topmost member's title could sit close
@@ -42,57 +38,6 @@ export const PADDING = {
   bottom: 32 + NESTED_GAP,
 };
 
-/** The sequence header: the step player and, once any step is open, Collapse all. */
-function SequenceModeSwitch({ layer, members }: { layer: string; members: CanvasElement[] }) {
-  useSyncExternalStore(sequenceViewStore.subscribe, sequenceViewStore.getVersion);
-  const view = sequenceViewStore.get(layer);
-  // `members` is a fresh array each render, so the order list keys on a signature of what it reads.
-  const signature = members
-    .map((m) => [m.id, stringMeta(m, "role"), m.meta?.order].join(":"))
-    .join("|");
-  // eslint-disable-next-line react-hooks/exhaustive-deps -- `signature` is the change signal for `members`
-  const orders = useMemo(() => [...new Set(buildSequenceModel(members).messages.map((m) => m.order))], [signature]);
-  const step = sequenceViewStore.getStep(layer);
-  const playing = step !== null;
-  // Key the timer on the order values, not the array.
-  const ordersRef = useRef(orders);
-  ordersRef.current = orders;
-  const ordersKey = orders.join(",");
-  useEffect(() => {
-    if (step === null) return;
-    const timer = setTimeout(() => {
-      const next = ordersRef.current.find((order) => order > step);
-      sequenceViewStore.setStep(layer, next ?? null);
-    }, PLAYER_STEP_MS);
-    return () => clearTimeout(timer);
-  }, [step, layer, ordersKey]);
-  return (
-    <span
-      data-testid="sequence-mode-switch"
-      style={{ marginLeft: 8, display: "inline-flex", gap: 4 }}
-    >
-      <button
-        type="button"
-        className="sequence-mode-btn"
-        data-testid="sequence-play"
-        onClick={() => sequenceViewStore.setStep(layer, playing ? null : (orders[0] ?? null))}
-      >
-        {playing ? "■ Stop" : "▶ Play"}
-      </button>
-      {view.expanded.length > 0 && (
-        <button
-          type="button"
-          className="sequence-mode-btn"
-          data-testid="sequence-collapse-all"
-          onClick={() => sequenceViewStore.setExpanded(layer, [])}
-        >
-          Collapse all
-        </button>
-      )}
-    </span>
-  );
-}
-
 /** One control a feature adds to the frame header; all share a single drag-guarded wrapper. */
 interface HeaderAction {
   id: string;
@@ -100,12 +45,8 @@ interface HeaderAction {
   render: (layer: string, members: CanvasElement[]) => React.ReactNode;
 }
 
+// Shared controls, after the type's own `HeaderAction` (diagramProfiles.ts).
 const HEADER_ACTIONS: readonly HeaderAction[] = [
-  {
-    id: "sequence-modes",
-    applies: (members) => members.some((member) => member.render === "sequence"),
-    render: (layer, members) => <SequenceModeSwitch layer={layer} members={members} />,
-  },
   {
     id: "route",
     applies: (members) => members.some((member) => member.meta?.route_id !== undefined || member.meta?.route !== undefined),
@@ -151,21 +92,22 @@ export interface DiagramFrameProps {
 export function DiagramFrame({ layer, label, members, sizes, typeLabel, boxCount }: DiagramFrameProps) {
   const engineClient = useEngineClient();
   const memberBounds = unionBoundsOf(members, sizes);
-  useSyncExternalStore(sequenceViewStore.subscribe, sequenceViewStore.getVersion);
   const { route } = useLayerRoute(members);
-  const isSequence = members.some((m) => m.render === "sequence");
-  const expandedKey = isSequence ? sequenceViewStore.get(layer).expanded.join("|") : "";
-  // `members` is a fresh array each render, so the board bounds key on everything the board reads.
-  const boardSignature = isSequence ? sequenceBoardSignature(members) : "";
-  const boardBounds = useMemo(
-    () => (isSequence ? sequenceBoardBounds(members, expandedKey ? expandedKey.split("|") : []) : null),
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- boardSignature/expandedKey are the change signals for `members`
-    [isSequence, boardSignature, expandedKey],
+  const profile = profileFor(layer, members);
+  // `members` is a fresh array each render, so a keyed profile (a sequence board) recomputes only when its key changes.
+  const boundsKey = profile.boundsKey?.(members, layer);
+  const keyedBounds = useMemo(
+    () => (boundsKey !== undefined && memberBounds && profile.frameBounds ? profile.frameBounds(memberBounds, { layer, members, route }) : null),
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- boundsKey is the change signal for `members`
+    [profile, layer, boundsKey],
   );
-  // A sequence board also draws its phase pills above the lanes and its legend below them.
-  const sequenceBounds = isSequence ? (boardBounds ?? memberBounds) : memberBounds;
-  // A walkthrough's ROUTE panel is part of the diagram (WalkthroughPanel), so the frame encloses it too.
-  const bounds = sequenceBounds && route && layer === WALKTHROUGH_LAYER ? boundsWithWalkthroughPanel(sequenceBounds, route) : sequenceBounds;
+  // A profile grows the frame around what it draws beyond its boxes (a board's pills and legend, a ROUTE panel).
+  const bounds =
+    !memberBounds || !profile.frameBounds
+      ? memberBounds
+      : boundsKey !== undefined
+        ? keyedBounds
+        : profile.frameBounds(memberBounds, { layer, members, route });
 
   // Every id this gesture has pushed a live offset for, so an aborted drag (this component unmounts
   // mid-gesture -- e.g. another window/agent deletes the diagram while someone is dragging its frame)
@@ -215,7 +157,7 @@ export function DiagramFrame({ layer, label, members, sizes, typeLabel, boxCount
   const classes = [
     "canvas-diagram-frame",
     diagramFrameColorClass(layer),
-    isSequence ? "canvas-diagram-frame-sequence-board" : "",
+    profile.frameClassName ?? "",
     group.isDragging ? "canvas-diagram-frame--dragging" : "",
   ]
     .filter(Boolean)
@@ -244,6 +186,7 @@ export function DiagramFrame({ layer, label, members, sizes, typeLabel, boxCount
           )}
           {/* The frame body is a drag handle, so keep a press on any header control from starting a drag. */}
           <span className="canvas-diagram-frame-actions" onPointerDown={(e) => e.stopPropagation()}>
+            {profile.HeaderAction && <profile.HeaderAction layer={layer} members={members} />}
             {HEADER_ACTIONS.filter((action) => action.applies(members)).map((action) => (
               <Fragment key={action.id}>{action.render(layer, members)}</Fragment>
             ))}

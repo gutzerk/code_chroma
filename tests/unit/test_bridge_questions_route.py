@@ -3,13 +3,14 @@
 from __future__ import annotations
 
 import asyncio
+import threading
 import time
 import uuid
 
 import pytest
 from fastapi.testclient import TestClient
 
-from codechroma.questions import store
+from codechroma.questions import delivery, store
 from codechroma.questions.mcp_server import QuestionAuthError
 from codechroma.questions.models import AskRequest, QuestionOption
 
@@ -137,16 +138,30 @@ def test_skip_is_refused_when_not_allowed_and_unknown_question_is_404(bridge):
 class _FakeSession:
     """Stands in for a live PTY agent session; records what was typed into it."""
 
-    def __init__(self, is_alive: bool = True, typed: bool = True) -> None:
+    def __init__(self, is_alive: bool = True, typed: bool = True, idle: bool = True) -> None:
         self.is_alive = is_alive
         self.typed = typed
+        self.idle = threading.Event()
+        if idle:
+            self.idle.set()
         self.injected: list[tuple[str, int | None]] = []
 
-    def inject_when_idle(self, text: str, attempts: int | None = None) -> asyncio.Future[bool]:
-        self.injected.append((text, attempts))
-        typing = asyncio.get_running_loop().create_future()
-        typing.set_result(self.typed)
-        return typing
+    def inject_when_idle(self, text, attempts: int | None = None) -> asyncio.Future[bool]:
+        if isinstance(text, str):
+            self.injected.append((text, attempts))
+            typing = asyncio.get_running_loop().create_future()
+            typing.set_result(self.typed)
+            return typing
+        return asyncio.ensure_future(self._type_when_idle(text, attempts))
+
+    async def _type_when_idle(self, build, attempts: int | None) -> bool:
+        while not self.idle.is_set():
+            await asyncio.sleep(0.01)
+        body = await build()
+        if body is None:
+            return False
+        self.injected.append((body, attempts))
+        return self.typed
 
     def close(self) -> None:
         self.is_alive = False
@@ -162,8 +177,15 @@ def _eventually(condition, timeout: float = 5.0) -> bool:
     return True
 
 
-def _live_agent(bridge, agent_id: str = "agent-1", typed: bool = True) -> _FakeSession:
-    session = _FakeSession(typed=typed)
+def _typed(session: _FakeSession, count: int = 1) -> bool:
+    """Waits for the queued wake-up to type `count` messages into the fake session."""
+    return _eventually(lambda: len(session.injected) >= count)
+
+
+def _live_agent(
+    bridge, agent_id: str = "agent-1", typed: bool = True, idle: bool = True
+) -> _FakeSession:
+    session = _FakeSession(typed=typed, idle=idle)
     bridge.app.state.services.agent_sessions._sessions[agent_id] = session
     return session
 
@@ -196,6 +218,7 @@ def test_answer_types_the_answer_into_the_live_agent_session(bridge):
         reply = client.post(
             f"/repos/main/questions/{question_id}/answer", json={"option_id": "b"}
         ).json()
+        _typed(session)
 
     assert reply["waiting"] is True
     assert session.injected == [(
@@ -210,6 +233,7 @@ def test_skip_tells_the_agent_to_decide_itself(bridge):
 
     with TestClient(bridge.app) as client:
         reply = client.post(f"/repos/main/questions/{question_id}/skip").json()
+        _typed(session)
 
     assert reply["waiting"] is True
     assert session.injected[0][0] == (
@@ -227,6 +251,7 @@ def test_answer_after_revise_is_delivered_as_a_changed_answer(bridge):
         client.post(f"/repos/main/questions/{question_id}/revise")
 
         client.post(f"/repos/main/questions/{question_id}/answer", json={"option_id": "b"})
+        _typed(session)
 
     assert len(session.injected) == 1
     assert session.injected[0][0].endswith("→ changed answer: Microservices")
@@ -253,6 +278,7 @@ def test_settling_the_last_question_types_every_answer_once_into_the_asking_agen
         client.post(f"/repos/main/questions/{first}/answer", json={"option_id": "a"})
 
         client.post(f"/repos/main/questions/{second}/skip")
+        _typed(session)
 
     assert session.injected == [(
         f"[CodeChroma answer · Q1 · {first}] How to structure checkout? → Modular monolith "
@@ -268,6 +294,7 @@ def test_another_agents_open_question_neither_blocks_nor_receives_the_wake_up(br
 
     with TestClient(bridge.app) as client:
         client.post(f"/repos/main/questions/{question_id}/answer", json={"option_id": "a"})
+        _eventually(lambda: len(store.list_questions(bridge.main)) == 1)
 
     assert len(mine.injected) == 1
     assert theirs.injected == []
@@ -313,16 +340,64 @@ def test_a_session_keeps_counting_steps_after_its_answered_batch_is_cleared(brid
 def test_a_batch_the_agent_never_received_stays_on_the_canvas_for_the_next_wake_up(bridge):
     session = _live_agent(bridge, typed=False)
     question_id = _ask_for(bridge)
-
     with TestClient(bridge.app) as client:
         client.post(f"/repos/main/questions/{question_id}/answer", json={"option_id": "a"})
-        released = _eventually(
-            lambda: store.find_element(bridge.main, question_id).meta.get(store.AWAITING_DELIVERY)
-        )
+        _typed(session)
+        _eventually(lambda: store.claim_batch(bridge.main, "agent-1"))
+
+    element = store.find_element(bridge.main, question_id)
+    assert len(session.injected) == 1
+    assert element.meta["state"] == "answered"
+    assert element.meta[store.AWAITING_DELIVERY] is True
+
+
+def test_a_failed_cleanup_frees_the_agent_for_the_next_wake_up(bridge, monkeypatch):
+    session = _live_agent(bridge)
+    question_id = _ask_for(bridge)
+
+    def broken(*_args):
+        raise store.QuestionWriteError("disk full")
+
+    monkeypatch.setattr(store, "clear_batch", broken)
+    with TestClient(bridge.app) as client:
+        client.post(f"/repos/main/questions/{question_id}/answer", json={"option_id": "a"})
+        _typed(session)
+        freed = _eventually(lambda: store.claim_batch(bridge.main, "agent-1"))
+
+    assert freed
+    assert store.find_element(bridge.main, question_id).meta[store.AWAITING_DELIVERY] is True
+
+
+def test_a_revise_before_the_agent_idles_types_the_new_answer_only(bridge):
+    session = _live_agent(bridge, idle=False)
+    question_id = _ask_for(bridge)
+    with TestClient(bridge.app) as client:
+        client.post(f"/repos/main/questions/{question_id}/answer", json={"option_id": "a"})
+        client.post(f"/repos/main/questions/{question_id}/revise")
+        client.post(f"/repos/main/questions/{question_id}/answer", json={"option_id": "b"})
+
+        session.idle.set()
+        _typed(session)
+        _eventually(lambda: not store.list_questions(bridge.main))
 
     assert len(session.injected) == 1
-    assert released
-    assert store.find_element(bridge.main, question_id).meta["state"] == "answered"
+    assert session.injected[0][0].endswith("→ changed answer: Microservices")
+    assert store.list_questions(bridge.main) == []
+
+
+def test_a_question_asked_before_the_agent_idles_holds_back_the_earlier_answer(bridge):
+    session = _live_agent(bridge, idle=False)
+    first = _ask_for(bridge)
+    with TestClient(bridge.app) as client:
+        client.post(f"/repos/main/questions/{first}/answer", json={"option_id": "a"})
+        second = _ask_for(bridge, question="Which store?")
+        session.idle.set()
+        _eventually(lambda: not delivery._follow_ups)
+        client.post(f"/repos/main/questions/{second}/skip")
+        _typed(session)
+
+    assert len(session.injected) == 1
+    assert first in session.injected[0][0] and second in session.injected[0][0]
 
 
 def test_answer_without_a_live_session_is_saved_but_not_waiting(bridge):
@@ -370,6 +445,7 @@ def test_answer_message_is_one_line_even_for_a_multiline_custom_answer(bridge):
         client.post(
             f"/repos/main/questions/{question_id}/answer", json={"answer": "a\nb\x1b[31m c"}
         )
+        _typed(session)
 
     text = session.injected[0][0]
     assert "\n" not in text and "\x1b" not in text

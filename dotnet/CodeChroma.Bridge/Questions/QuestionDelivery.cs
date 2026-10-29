@@ -43,31 +43,46 @@ public static class QuestionDelivery
     /// <summary>Every settled answer of one batch as one line, in the order the agent asked them.</summary>
     public static string BatchMessage(IEnumerable<CanvasElement> batch) => string.Join(' ', batch.Select(AnswerMessage));
 
-    private static Func<string, Func<string, Task<bool>>?> Injector(AgentSessionRegistry sessions) =>
+    private static Func<string, Func<Func<string?>, Task<bool>>?> Injector(AgentSessionRegistry sessions) =>
         id => sessions.Get(id) is { IsAlive: true } s ? t => s.InjectWhenIdle(t, IdleAttempts) : null;
 
     /// <summary>Queues the text for the agent that asked; true when a live session will receive it.</summary>
     public static bool Deliver(AgentSessionRegistry sessions, CanvasElement element, string text) =>
-        Deliver(Json.Str(element.Meta["agent_id"]), Injector(sessions), text);
+        Deliver(Json.Str(element.Meta["agent_id"]), id => Injector(sessions)(id) is { } inject ? t => inject(() => t) : null, text);
 
-    /// <summary>After a settle: once the agent has no open question left, types the whole batch into it, then clears it off the canvas; true when a live session will get it.</summary>
+    /// <summary>After a settle: once the agent has no open question left, queues one wake-up with its answers; true when a live session will get it.</summary>
     public static bool DeliverSettled(AgentSessionRegistry sessions, Workspace ws, CanvasElement settled) => DeliverSettled(ws, settled, Injector(sessions));
 
     /// <summary>The seam under DeliverSettled; without a live session nothing is removed, so ask_user_result can still read the answer.</summary>
-    public static bool DeliverSettled(Workspace ws, CanvasElement settled, Func<string, Func<string, Task<bool>>?> injector)
+    public static bool DeliverSettled(Workspace ws, CanvasElement settled, Func<string, Func<Func<string?>, Task<bool>>?> injector)
     {
         var agentId = Json.Str(settled.Meta["agent_id"]);
         if (string.IsNullOrEmpty(agentId) || injector(agentId) is not { } inject) return false;
-        var batch = QuestionStore.TakeBatch(ws, agentId);
-        if (batch.Count > 0) _ = ClearOnceTyped(ws, batch, inject(BatchMessage(batch)));
+        if (QuestionStore.ClaimBatch(ws, agentId)) _ = TypeBatch(ws, agentId, inject);
         return true;
     }
 
-    /// <summary>Only a typed batch leaves the canvas; an untyped one stays for ask_user_result and the next wake-up.</summary>
-    private static async Task ClearOnceTyped(Workspace ws, List<CanvasElement> batch, Task<bool> typing)
+    /// <summary>Types the batch as it stands when the agent idles, clears what was typed, then unclaims; never throws.</summary>
+    private static async Task TypeBatch(Workspace ws, string agentId, Func<Func<string?>, Task<bool>> inject)
     {
-        if (await typing) QuestionStore.ClearBatch(ws, batch);
-        else QuestionStore.ReleaseBatch(ws, batch);
+        List<CanvasElement> typed = [];
+        try
+        {
+            var sent = await inject(() =>
+            {
+                typed = QuestionStore.PendingBatch(ws, agentId);
+                return typed.Count > 0 ? BatchMessage(typed) : null;
+            });
+            if (sent && typed.Count > 0) QuestionStore.ClearBatch(ws, typed);
+        }
+        catch (Exception error)
+        {
+            Console.Error.WriteLine($"questions: could not deliver the answers of agent {agentId}: {error.Message}");
+        }
+        finally
+        {
+            QuestionStore.ReleaseBatch(ws, agentId);
+        }
     }
 
     /// <summary>The seam under Deliver: `injector` returns the live session's inject call, or null.</summary>

@@ -15,8 +15,21 @@ public class QuestionBatchDeliveryTests
 
         public bool Receives { get; init; } = true;
 
-        public Func<string, Func<string, Task<bool>>?> Live(params string[] agents) =>
-            id => agents.Contains(id) ? text => { Typed.Add((id, text)); return Task.FromResult(Receives); } : null;
+        /// <summary>When set, the fake agent stays busy until the test completes `Idle`.</summary>
+        public bool HoldIdle { get; init; }
+
+        public TaskCompletionSource Idle { get; } = new();
+
+        public Func<string, Func<Func<string?>, Task<bool>>?> Live(params string[] agents) =>
+            id => agents.Contains(id) ? build => TypeWhenIdle(id, build) : null;
+
+        private async Task<bool> TypeWhenIdle(string id, Func<string?> build)
+        {
+            if (HoldIdle) await Idle.Task;
+            if (build() is not { } text) return false;
+            Typed.Add((id, text));
+            return Receives;
+        }
     }
 
     private static string Ask(BridgeHost host, string agent, string question = "How to structure checkout?", List<QuestionOption>? options = null)
@@ -26,7 +39,7 @@ public class QuestionBatchDeliveryTests
         return Open(host, request);
     }
 
-    private static bool Settle(BridgeHost host, string questionId, Func<string, Func<string, Task<bool>>?> injector, string? optionId = "a")
+    private static bool Settle(BridgeHost host, string questionId, Func<string, Func<Func<string?>, Task<bool>>?> injector, string? optionId = "a")
     {
         var ws = Main(host);
         var element = QuestionStore.FindElement(ws, questionId)!;
@@ -144,6 +157,53 @@ public class QuestionBatchDeliveryTests
 
         Assert.False(waiting);
         Assert.Equal("answered", (string?)QuestionStore.FindElement(Main(host), questionId)!.Meta["state"]);
+    }
+
+    [Fact]
+    public void A_failed_cleanup_frees_the_agent_for_the_next_wake_up()
+    {
+        using var host = new BridgeHost();
+        var questionId = Ask(host, "agent-1");
+        Func<string, Func<Func<string?>, Task<bool>>?> throwing = _ => _ => throw new IOException("disk full");
+
+        Settle(host, questionId, throwing);
+
+        Assert.True(QuestionStore.ClaimBatch(Main(host), "agent-1"));
+        Assert.True((bool)QuestionStore.FindElement(Main(host), questionId)!.Meta[QuestionStore.AwaitingDelivery]!);
+    }
+
+    [Fact]
+    public void A_revise_before_the_agent_idles_types_the_new_answer_only()
+    {
+        using var host = new BridgeHost();
+        var terminals = new Terminals { HoldIdle = true };
+        var questionId = Ask(host, "agent-1");
+        Settle(host, questionId, terminals.Live("agent-1"), optionId: "a");
+        QuestionStore.Reopen(Main(host), QuestionStore.FindElement(Main(host), questionId)!);
+        Settle(host, questionId, terminals.Live("agent-1"), optionId: "b");
+
+        terminals.Idle.SetResult();
+
+        var (_, text) = Assert.Single(terminals.Typed);
+        Assert.EndsWith("Option b", text);
+        Assert.Empty(QuestionStore.ListQuestions(Main(host)));
+    }
+
+    [Fact]
+    public void A_question_asked_before_the_agent_idles_holds_back_the_earlier_answer()
+    {
+        using var host = new BridgeHost();
+        var terminals = new Terminals { HoldIdle = true };
+        var first = Ask(host, "agent-1");
+        Settle(host, first, terminals.Live("agent-1"));
+        var second = Ask(host, "agent-1", "Which store?");
+
+        terminals.Idle.SetResult();
+        Settle(host, second, terminals.Live("agent-1"), optionId: null);
+
+        var (_, text) = Assert.Single(terminals.Typed);
+        Assert.Contains(first, text);
+        Assert.Contains(second, text);
     }
 
     [Fact]

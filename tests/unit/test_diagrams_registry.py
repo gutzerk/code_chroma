@@ -9,7 +9,7 @@ pytestmark = pytest.mark.usefixtures("isolated_library")
 
 
 def test_every_builtin_kind_resolves_to_its_own_definition():
-    for kind in ("c1", "patterns", "impact"):
+    for kind in ("system-context", "patterns", "impact"):
         definition = get_definition(kind)
         assert definition is not None
         assert definition.id == kind
@@ -17,7 +17,7 @@ def test_every_builtin_kind_resolves_to_its_own_definition():
 
 def test_c1_has_no_generation_data_provider_and_no_longer_opts_into_coverage():
     """042: flat c1 has no sub-blocks for coverage; see check_bare_actors."""
-    definition = BUILTIN_TYPES["c1"]
+    definition = BUILTIN_TYPES["system-context"]
 
     assert definition.context is None
     assert definition.addons["coverage"] is False
@@ -33,7 +33,7 @@ def test_patterns_names_its_context_provider_and_opts_into_staleness():
 
 def test_c1_has_no_review_or_changes_overlay():
     """The review axis moved to impact, and the plan overlay was retired -- c1 has neither."""
-    definition = BUILTIN_TYPES["c1"]
+    definition = BUILTIN_TYPES["system-context"]
 
     assert definition.review is None
     assert definition.overlays == []

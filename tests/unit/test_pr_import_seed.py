@@ -17,11 +17,11 @@ def _write(root: Path, relative: str, content: str = "{}") -> Path:
 def _main_root(tmp_path: Path) -> Path:
     """A main root with every diagram main could have authored."""
     main = tmp_path / "main"
-    _write(main, ".codechroma/diagrams/c1/c1.json", '{"system": {}}')
+    _write(main, ".codechroma/diagrams/system-context/system-context.json", '{"system": {}}')
     _write(main, ".codechroma/diagrams/patterns/patterns.json", '{"patterns": []}')
     _write(main, ".codechroma/diagrams/impact/impact.json", '{"nodes": []}')
     _write(main, ".codechroma/diagrams/custom/data-flow/data-flow.json", '{"nodes": []}')
-    _write(main, ".codechroma/c1-layout.json", '{"box": {"x": 1}}')
+    _write(main, ".codechroma/system-context-layout.json", '{"box": {"x": 1}}')
     _write(main, ".codechroma/canvas-core.json", '{"elements": {"root": {}}}')
     _write(main, "plan/epics/roadmap.md", "---\nid: root\n---\nEpic\n")
     return main
@@ -34,7 +34,7 @@ def test_seed_copies_every_authored_diagram_into_a_bare_pr_worktree(tmp_path):
 
     seed_diagrams_from_main(pr, main)
 
-    assert (pr / ".codechroma/diagrams/c1/c1.json").exists()
+    assert (pr / ".codechroma/diagrams/system-context/system-context.json").exists()
     assert (pr / ".codechroma/diagrams/patterns/patterns.json").exists()
     assert (pr / ".codechroma/diagrams/impact/impact.json").exists()
     assert (pr / ".codechroma/diagrams/custom/data-flow/data-flow.json").exists()
@@ -72,7 +72,7 @@ def test_seed_does_not_copy_dead_layout_files(tmp_path):
 
     seed_diagrams_from_main(pr, main)
 
-    assert not (pr / ".codechroma/c1-layout.json").exists()
+    assert not (pr / ".codechroma/system-context-layout.json").exists()
 
 
 def test_seed_leaves_main_untouched(tmp_path):

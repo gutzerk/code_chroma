@@ -66,7 +66,7 @@ def test_diagram_and_review_check_scripts_read_the_same_variables(monkeypatch):
     draw = _load_draw()
     review = load_module_from_path("check_review_env", REVIEW)
 
-    draw_args = draw._parse_args(["--kind", "c1"])
+    draw_args = draw._parse_args(["--kind", "system-context"])
     review_args = review._parse_args(["--kind", "impact"])
 
     assert (draw_args.url, draw_args.repo) == ("http://127.0.0.1:51802", "agent1")

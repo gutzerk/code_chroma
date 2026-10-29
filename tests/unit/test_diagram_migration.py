@@ -5,7 +5,7 @@ import pytest
 from codechroma.bridge.diagram_migration import migrate_if_legacy, needs_regeneration
 
 
-@pytest.mark.parametrize("kind", ["c1", "patterns"])
+@pytest.mark.parametrize("kind", ["system-context", "patterns"])
 def test_new_shape_file_is_a_no_op(kind):
     data = {"type": kind, "nodes": [{"id": "a", "name": "A"}], "relations": []}
 
@@ -26,7 +26,7 @@ def test_c1_nested_children_flatten_with_parent_set():
         "relationships": [],
     }
 
-    migrated, changed = migrate_if_legacy("c1", data)
+    migrated, changed = migrate_if_legacy("system-context", data)
 
     assert changed is True
     by_id = {node["id"]: node for node in migrated["nodes"]}
@@ -46,7 +46,7 @@ def test_c1_nested_grandchildren_keep_their_true_parent():
         "relationships": [],
     }
 
-    migrated, _ = migrate_if_legacy("c1", data)
+    migrated, _ = migrate_if_legacy("system-context", data)
 
     by_id = {node["id"]: node for node in migrated["nodes"]}
     assert by_id["graph"]["parent"] == "engine"
@@ -60,7 +60,7 @@ def test_c1_actors_become_ordinary_nodes_with_kind():
         "relationships": [],
     }
 
-    migrated, _ = migrate_if_legacy("c1", data)
+    migrated, _ = migrate_if_legacy("system-context", data)
 
     stripe = next(node for node in migrated["nodes"] if node["id"] == "stripe")
     assert stripe["kind"] == "external_system"
@@ -76,7 +76,7 @@ def test_c1_relationship_endpoints_remap_to_the_new_flat_ids():
         "relationships": [{"from": "system/billing", "to": "stripe", "label": "Charges"}],
     }
 
-    migrated, _ = migrate_if_legacy("c1", data)
+    migrated, _ = migrate_if_legacy("system-context", data)
 
     assert migrated["relations"] == [{"from": "billing", "to": "stripe", "label": "Charges"}]
 
@@ -88,7 +88,7 @@ def test_c1_relationship_naming_a_dropped_endpoint_is_dropped():
         "relationships": [{"from": "system", "to": "nowhere", "label": "x"}],
     }
 
-    migrated, _ = migrate_if_legacy("c1", data)
+    migrated, _ = migrate_if_legacy("system-context", data)
 
     assert migrated["relations"] == []
 
@@ -103,7 +103,7 @@ def test_c1_duplicate_bare_ids_across_branches_are_disambiguated():
         "relationships": [],
     }
 
-    migrated, _ = migrate_if_legacy("c1", data)
+    migrated, _ = migrate_if_legacy("system-context", data)
 
     ids = [node["id"] for node in migrated["nodes"]]
     assert len(ids) == len(set(ids))
@@ -112,7 +112,7 @@ def test_c1_duplicate_bare_ids_across_branches_are_disambiguated():
 def test_a_file_missing_system_is_not_convertible_and_is_left_untouched():
     data = {"actors": [{"id": "x", "name": "X"}]}
 
-    migrated, changed = migrate_if_legacy("c1", data)
+    migrated, changed = migrate_if_legacy("system-context", data)
 
     assert changed is False
     assert migrated is data
@@ -158,7 +158,7 @@ def test_impact_and_custom_pass_through_unrecognized_as_not_legacy():
 
 
 def test_missing_or_empty_file_is_not_legacy():
-    migrated, changed = migrate_if_legacy("c1", {})
+    migrated, changed = migrate_if_legacy("system-context", {})
 
     assert changed is False
     assert migrated == {}
@@ -167,7 +167,7 @@ def test_missing_or_empty_file_is_not_legacy():
 def test_a_malformed_system_value_does_not_crash_and_is_left_untouched():
     data = {"system": "not-a-dict", "actors": []}
 
-    migrated, changed = migrate_if_legacy("c1", data)
+    migrated, changed = migrate_if_legacy("system-context", data)
 
     assert changed is False
     assert migrated is data
@@ -176,10 +176,10 @@ def test_a_malformed_system_value_does_not_crash_and_is_left_untouched():
 def test_needs_regeneration_is_false_for_a_convertible_legacy_file():
     data = {"system": {"name": "Sample", "children": []}, "actors": [], "relationships": []}
 
-    assert needs_regeneration("c1", data) is False
+    assert needs_regeneration("system-context", data) is False
 
 
 def test_needs_regeneration_is_true_for_a_legacy_shaped_file_the_converter_cant_parse():
     data = {"system": "not-a-dict", "actors": []}
 
-    assert needs_regeneration("c1", data) is True
+    assert needs_regeneration("system-context", data) is True

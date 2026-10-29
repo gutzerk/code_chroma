@@ -24,7 +24,7 @@ def test_status_defaults_to_idle(server_module):
     bridge, _repo = server_module
 
     with TestClient(bridge.app) as client:
-        response = client.get("/repos/default/c1/status")
+        response = client.get("/repos/default/system-context/status")
 
     assert response.status_code == 200
     assert response.json() == {"state": "idle", "error": None}
@@ -35,8 +35,8 @@ def test_generate_without_claude_binary_reports_error(server_module, monkeypatch
     monkeypatch.setattr("codechroma.llm.runtime_env.shutil.which", lambda _name, **_kwargs: None)
 
     with TestClient(bridge.app) as client:
-        response = client.post("/repos/default/c1/generate")
-        status_response = client.get("/repos/default/c1/status")
+        response = client.post("/repos/default/system-context/generate")
+        status_response = client.get("/repos/default/system-context/status")
 
     assert response.status_code == 200
     assert response.json() == {"state": "error", "error": CLI_MISSING}
@@ -47,12 +47,12 @@ def test_only_if_missing_does_not_start_a_run_when_a_diagram_exists(server_modul
     bridge, repo = server_module
     # Without the guard this reports CLI_MISSING, so idle means it never tried.
     monkeypatch.setattr("codechroma.llm.runtime_env.shutil.which", lambda _name, **_kwargs: None)
-    c1_path = diagram_json_path(repo, "c1")
+    c1_path = diagram_json_path(repo, "system-context")
     c1_path.parent.mkdir(parents=True, exist_ok=True)
     c1_path.write_text('{"system": {"name": "Sample"}, "actors": []}', encoding="utf-8")
 
     with TestClient(bridge.app) as client:
-        response = client.post("/repos/default/c1/generate?only_if_missing=true")
+        response = client.post("/repos/default/system-context/generate?only_if_missing=true")
 
     assert response.json() == {"state": "idle", "error": None}
 
@@ -64,10 +64,10 @@ def test_only_if_missing_still_starts_a_run_for_a_draft_or_missing_diagram(
     bridge, repo = server_module
     monkeypatch.setattr("codechroma.llm.runtime_env.shutil.which", lambda _name, **_kwargs: None)
     if remove_draft:
-        diagram_json_path(repo, "c1").unlink(missing_ok=True)
+        diagram_json_path(repo, "system-context").unlink(missing_ok=True)
 
     with TestClient(bridge.app) as client:
-        response = client.post("/repos/default/c1/generate?only_if_missing=true")
+        response = client.post("/repos/default/system-context/generate?only_if_missing=true")
 
     assert response.json() == {"state": "error", "error": CLI_MISSING}
 
@@ -77,7 +77,7 @@ def test_cancel_without_a_run_resets_to_idle(server_module, monkeypatch):
     monkeypatch.setattr("codechroma.llm.runtime_env.shutil.which", lambda _name, **_kwargs: None)
 
     with TestClient(bridge.app) as client:
-        response = client.post("/repos/default/c1/cancel")
+        response = client.post("/repos/default/system-context/cancel")
 
     assert response.status_code == 200
     assert response.json() == {"state": "idle", "error": None}
@@ -94,12 +94,12 @@ def test_cancel_kills_an_in_flight_run_and_reports_idle(server_module, monkeypat
     )
 
     with TestClient(bridge.app) as client:
-        started = client.post("/repos/default/c1/generate")
+        started = client.post("/repos/default/system-context/generate")
         assert started.json()["state"] == "generating"
         # Let the background task reach its subprocess spawn before cancelling.
         time.sleep(0.1)
-        cancelled = client.post("/repos/default/c1/cancel")
-        status = client.get("/repos/default/c1/status")
+        cancelled = client.post("/repos/default/system-context/cancel")
+        status = client.get("/repos/default/system-context/status")
 
     assert cancelled.json() == {"state": "idle", "error": None}
     assert status.json() == {"state": "idle", "error": None}
@@ -112,7 +112,7 @@ def test_generate_broadcasts_status_over_events_socket(server_module, monkeypatc
 
     with TestClient(bridge.app) as client:
         with client.websocket_connect("/repos/default/events") as websocket:
-            client.post("/repos/default/c1/generate")
+            client.post("/repos/default/system-context/generate")
             message = websocket.receive_json()
 
     assert message == {

@@ -13,8 +13,5 @@ export const WALKTHROUGH_PROFILE: DiagramProfile = {
   edgeLabel: (edge) => edge.label || "",
   // Step boxes are read along the route, not in lanes; the ROUTE panel holds the legend.
   hideLaneBands: true,
-  // A getter: WalkthroughPanel's own imports reach back here, so it can still be unset while this module loads.
-  get Overlay() {
-    return WalkthroughPanel;
-  },
+  Overlay: WalkthroughPanel,
 };

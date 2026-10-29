@@ -27,6 +27,12 @@ describe("buildSequenceBoard", () => {
     expect(board.lanes.map((l) => l.tone)).toEqual(["plain", "plain", "ai", "fail"]);
   });
 
+  it("tints each lane with the role of its own steps", () => {
+    const board = buildSequenceBoard(flow());
+
+    expect(board.lanes.map((l) => l.role)).toEqual(["actor", "route", "ai", "fail"]);
+  });
+
   it("puts each step in its sender's lane, one column per step in order", () => {
     const board = buildSequenceBoard(flow());
     const step = (id: string) => board.steps.find((s) => s.id === id);

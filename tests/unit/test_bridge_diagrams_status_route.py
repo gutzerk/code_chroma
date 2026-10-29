@@ -36,8 +36,8 @@ def test_empty_repo_reports_nothing_ready(server_module):
         "impact": {"ready": False, "fingerprint": None},
         "epics": {"ready": False, "fingerprint": None},
         "sequence": {"ready": False, "fingerprint": None},
-    }
         "walkthrough": {"ready": False, "fingerprint": None},
+    }
 
 
 def test_written_c1_reports_ready(server_module):

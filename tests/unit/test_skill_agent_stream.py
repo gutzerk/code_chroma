@@ -12,7 +12,10 @@ from tests.unit.fake_claude import FakeProc, fake_claude_exec, reader
 # One instance per test module; the autouse fixture clears its state between tests.
 AGENT = content_generators.build_skill_agent_for(BUILTIN_TYPES["system-context"])
 
-VALID_C1 = {"type": "system-context", "nodes": [{"id": "system", "name": "Sample", "description": ""}]}
+VALID_C1 = {
+    "type": "system-context",
+    "nodes": [{"id": "system", "name": "Sample", "description": ""}],
+}
 
 _SETTLE_SECONDS = 0.05
 

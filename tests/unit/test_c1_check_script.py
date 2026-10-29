@@ -604,7 +604,14 @@ def test_coverage_is_not_checked_against_a_raw_file(tmp_path):
 
 def test_unreadable_diagram_exits_two(tmp_path):
     result = subprocess.run(
-        [sys.executable, str(SCRIPT), "--kind", "system-context", "--json", str(tmp_path / "missing.json")],
+        [
+            sys.executable,
+            str(SCRIPT),
+            "--kind",
+            "system-context",
+            "--json",
+            str(tmp_path / "missing.json"),
+        ],
         capture_output=True,
         text=True,
     )

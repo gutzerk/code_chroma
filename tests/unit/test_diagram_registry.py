@@ -12,6 +12,8 @@ from codechroma.diagrams import library
 
 pytestmark = pytest.mark.usefixtures("isolated_library")
 
+BUILTIN_KINDS = {"system-context", "epics", "patterns", "impact", "sequence", "walkthrough"}
+
 
 def _definition(type_id: str = "data-flow") -> dict:
     return {
@@ -91,7 +93,7 @@ def test_iteration_stays_on_builtins_no_matter_what_the_library_holds():
     # A saved custom type must never leak into the build-time iteration (bootstrap/seed/watchers).
     library.save_type(_definition("data-flow"))
 
-    assert set(DIAGRAMS.keys()) == {"system-context", "epics", "patterns", "impact", "sequence", "walkthrough"}
+    assert set(DIAGRAMS.keys()) == BUILTIN_KINDS
 
 
 @pytest.mark.parametrize("kind", ["no-such-kind", "feature-plan/../../etc"])
@@ -153,7 +155,7 @@ def test_item_rejects_an_id_that_would_escape_its_directory(prefix, item):
 def test_item_kinds_stay_out_of_the_build_time_iteration(prefix, item):
     # A synthesized spec never leaks into the iteration.
     assert DIAGRAMS.get(f"{prefix}/{item}") is not None
-    assert set(DIAGRAMS.keys()) == {"system-context", "epics", "patterns", "impact", "sequence", "walkthrough"}
+    assert set(DIAGRAMS.keys()) == BUILTIN_KINDS
 
 
 @_ITEM_KINDS

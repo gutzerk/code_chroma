@@ -43,8 +43,10 @@ export interface ScreenBox {
 }
 
 /** A block's header box (or the whole block when it has none) by node id, in screen space, or null if it is not rendered. */
-export function nodeBox(nodeId: string): ScreenBox | null {
-  const el = document.querySelector<HTMLElement>(`[data-node-id="${CSS.escape(nodeId)}"]`);
+export function nodeBox(nodeId: string, opts?: { codeMapOnly?: boolean }): ScreenBox | null {
+  // A diagram box carries a data-node-id too; `codeMapOnly` skips those (they are drawn by their own diagram).
+  const skip = opts?.codeMapOnly ? ":not([data-canvas-element])" : "";
+  const el = document.querySelector<HTMLElement>(`[data-node-id="${CSS.escape(nodeId)}"]${skip}`);
   if (!el) return null;
   const r = (el.querySelector<HTMLElement>(BLOCK_HEADER_SELECTOR) ?? el).getBoundingClientRect();
   return { left: r.left, top: r.top, right: r.right, bottom: r.bottom };

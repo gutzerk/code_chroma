@@ -9,7 +9,7 @@ public class C1RootTests
 {
     private static void WriteC1(string root)
     {
-        var path = Workspace.DiagramPath(root, "c1");
+        var path = Workspace.DiagramPath(root, "system-context");
         Directory.CreateDirectory(Path.GetDirectoryName(path)!);
         File.WriteAllText(path, """{"nodes":[{"id":"system","name":"S"}],"relations":[]}""");
     }
@@ -24,7 +24,7 @@ public class C1RootTests
 
         var status = JsonNode.Parse(await host.Client.GetStringAsync("/repos/pr-1/diagrams/status"))!;
 
-        Assert.True(status["c1"]!["ready"]!.GetValue<bool>());
+        Assert.True(status["system-context"]!["ready"]!.GetValue<bool>());
     }
 
     [Fact]

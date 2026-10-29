@@ -24,7 +24,7 @@ from codechroma.bridge import epics_resolver
 from codechroma.bridge.agents import worktree
 from codechroma.bridge.bootstrap_diagrams import bootstrap_all_if_missing
 from codechroma.bridge.bootstrap_wiki import bootstrap_wiki_if_missing
-from codechroma.bridge.diagram_migration import migrate
+from codechroma.bridge.diagram_migration import migrate, migrate_legacy_c1_folder
 from codechroma.bridge.diagram_registry import DIAGRAMS
 from codechroma.bridge.git_cmd import porcelain_paths, run_git
 from codechroma.bridge.git_sync import GitSync
@@ -368,6 +368,7 @@ class Workspace:
         c1_source_root: Path | None = None,
     ) -> Workspace:
         """Builds a workspace over `root`; the offline summarizer means it never calls Claude."""
+        migrate_legacy_c1_folder(root)
         engine = GraphEngine(summarizer=AISummarizer())
         workspace = cls(id=workspace_id, root=root, engine=engine, git_sync=GitSync(root),
                         on_event=on_event, base_ref=base_ref, read_only=read_only,

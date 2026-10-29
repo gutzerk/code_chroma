@@ -118,6 +118,6 @@ def generate_c1_template(digest: dict) -> dict:
         nodes.append(actor)
         relations.append({"from": "system", "to": actor_id, "label": "Uses"})
     return {
-        "type": "c1", "style": "boxes-arrows", "nodes": nodes, "relations": relations,
+        "type": "system-context", "style": "boxes-arrows", "nodes": nodes, "relations": relations,
         "draft": True,
     }

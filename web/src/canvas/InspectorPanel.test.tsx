@@ -98,7 +98,7 @@ function client(overrides: Partial<EngineClient> = {}): EngineClient {
     getConnections: async () => [],
     getDiff: async () => [],
     acceptDiff: async () => {},
-    getDiagram: diagramStub({ c1: EMPTY_C1 }),
+    getDiagram: diagramStub({ "system-context": EMPTY_C1 }),
     getDiagramLayout: async () => ({}),
     saveDiagramLayout: async () => {},
     generateDiagram: async () => ({ state: "idle" as const }),

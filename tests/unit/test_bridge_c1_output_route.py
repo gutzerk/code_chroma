@@ -22,7 +22,7 @@ def server_module(tmp_path, monkeypatch, make_bridge):
 
 @pytest.mark.parametrize(
     "path",
-    ["/repos/default/c1/output", "/repos/default/impact-changes/output"],
+    ["/repos/default/system-context/output", "/repos/default/impact-changes/output"],
     ids=["diagram", "review"],
 )
 def test_the_feed_is_empty_before_any_run(server_module, path):
@@ -34,11 +34,11 @@ def test_the_feed_is_empty_before_any_run(server_module, path):
 
 
 def test_the_feed_serves_the_lines_a_run_has_rendered_so_far(server_module):
-    agent = server_module.services.skill_agents["c1"]
+    agent = server_module.services.skill_agents["system-context"]
     agent.output["main"] = ["⏺ Read(app.py)", "⏺ Write(.codechroma/c1.json)"]
 
     with TestClient(server_module.app) as client:
-        response = client.get("/repos/main/c1/output")
+        response = client.get("/repos/main/system-context/output")
 
     assert response.json() == {"lines": ["⏺ Read(app.py)", "⏺ Write(.codechroma/c1.json)"]}
 
@@ -52,8 +52,8 @@ def test_generating_pushes_the_runs_progress_over_the_events_socket(server_modul
 
     with TestClient(server_module.app) as client:
         with client.websocket_connect("/repos/main/events") as websocket:
-            client.post("/repos/main/c1/generate")
+            client.post("/repos/main/system-context/generate")
             messages = [websocket.receive_json(), websocket.receive_json()]
 
-    assert {"type": "c1-status", "state": "generating", "error": None} in messages
-    assert {"type": "c1-output", "lines": ["⏺ Glob(**/*.py)"]} in messages
+    assert {"type": "system-context-status", "state": "generating", "error": None} in messages
+    assert {"type": "system-context-output", "lines": ["⏺ Glob(**/*.py)"]} in messages

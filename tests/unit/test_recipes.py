@@ -26,7 +26,7 @@ def _to_ops(resolved: dict, render: str) -> RecipeResult:
 @pytest.mark.parametrize(
     ("kind", "expected"),
     [
-        ("c1", "c1"),
+        ("system-context", "c1"),
         ("patterns", "pattern"),
         ("impact", "impact"),
         ("epics", "epic"),
@@ -37,7 +37,7 @@ def _to_ops(resolved: dict, render: str) -> RecipeResult:
         ("epics/EP-4-01", "epic"),
     ],
     ids=[
-        "c1",
+        "system-context",
         "patterns",
         "impact",
         "epics",
@@ -490,6 +490,15 @@ def test_sequence_reshape_carries_readability_fields():
     assert participant.meta["phases"][0]["id"] == "p1"
     assert participant.meta["summary"] == "s"
     assert message.meta["hero"] is True
+
+
+def test_reshape_folds_a_top_level_rank_into_node_meta():
+    resolved = {"nodes": [{"id": "a", "name": "A", "rank": "entry"}, {"id": "b", "name": "B"}]}
+
+    shape = reshape(resolved, "custom")
+
+    assert shape.nodes[0].meta["rank"] == "entry"
+    assert "rank" not in shape.nodes[1].meta
 
 
 def test_a_nodes_own_meta_path_is_not_overridden_by_its_top_level_path():

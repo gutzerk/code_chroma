@@ -76,17 +76,17 @@ describe("HttpEngineClient.getDiff", () => {
 });
 
 describe("HttpEngineClient.generateC1", () => {
-  it("POSTs /repos/{id}/c1/generate and returns the parsed status", async () => {
+  it("POSTs /repos/{id}/system-context/generate and returns the parsed status", async () => {
     const status = { state: "generating", error: null };
     stubFetchOnce(new Response(JSON.stringify(status), { status: 200 }));
     const client = new HttpEngineClient("http://localhost:8000", "default");
 
-    const result = await client.generateDiagram("c1");
+    const result = await client.generateDiagram("system-context");
 
     expect(result).toEqual(status);
     // The body is always sent -- update_instructions is a string the route strips, so an empty one
     // is just a plain generate (see EngineClient.generateDiagram). Same body the options case asserts.
-    expect(fetch).toHaveBeenCalledWith("http://localhost:8000/repos/default/c1/generate", {
+    expect(fetch).toHaveBeenCalledWith("http://localhost:8000/repos/default/system-context/generate", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ onlyIfMissing: false, updateInstructions: "" }),
@@ -99,9 +99,9 @@ describe("HttpEngineClient.generateC1", () => {
     stubFetchOnce(new Response(JSON.stringify(status), { status: 200 }));
     const client = new HttpEngineClient("http://localhost:8000", "default");
 
-    await client.generateDiagram("c1", { updateInstructions: "dropped the legacy box" });
+    await client.generateDiagram("system-context", { updateInstructions: "dropped the legacy box" });
 
-    expect(fetch).toHaveBeenCalledWith("http://localhost:8000/repos/default/c1/generate", {
+    expect(fetch).toHaveBeenCalledWith("http://localhost:8000/repos/default/system-context/generate", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ onlyIfMissing: false, updateInstructions: "dropped the legacy box" }),
@@ -113,32 +113,32 @@ describe("HttpEngineClient.generateC1", () => {
     stubFetchOnce(new Response(JSON.stringify({ detail: "boom" }), { status: 500 }));
     const client = new HttpEngineClient("http://localhost:8000", "default");
 
-    await expect(client.generateDiagram("c1")).rejects.toThrow("boom");
+    await expect(client.generateDiagram("system-context")).rejects.toThrow("boom");
   });
 });
 
 describe("HttpEngineClient.getC1Status", () => {
-  it("fetches GET /repos/{id}/c1/status and returns the parsed status", async () => {
+  it("fetches GET /repos/{id}/system-context/status and returns the parsed status", async () => {
     const status = { state: "idle", error: null };
     stubFetchOnce(new Response(JSON.stringify(status), { status: 200 }));
     const client = new HttpEngineClient("http://localhost:8000", "default");
 
-    const result = await client.getDiagramStatus("c1");
+    const result = await client.getDiagramStatus("system-context");
 
     expect(result).toEqual(status);
-    expect(fetch).toHaveBeenCalledWith("http://localhost:8000/repos/default/c1/status", SIGNALLED);
+    expect(fetch).toHaveBeenCalledWith("http://localhost:8000/repos/default/system-context/status", SIGNALLED);
   });
 });
 
 describe("HttpEngineClient skill-run progress feeds", () => {
-  it("unwraps the lines out of GET /repos/{id}/c1/output", async () => {
+  it("unwraps the lines out of GET /repos/{id}/system-context/output", async () => {
     stubFetchOnce(new Response(JSON.stringify({ lines: ["⏺ Read(app.py)"] }), { status: 200 }));
     const client = new HttpEngineClient("http://localhost:8000", "default");
 
-    const result = await client.getDiagramOutput("c1");
+    const result = await client.getDiagramOutput("system-context");
 
     expect(result).toEqual(["⏺ Read(app.py)"]);
-    expect(fetch).toHaveBeenCalledWith("http://localhost:8000/repos/default/c1/output", SIGNALLED);
+    expect(fetch).toHaveBeenCalledWith("http://localhost:8000/repos/default/system-context/output", SIGNALLED);
   });
 
   it("unwraps the lines out of GET /repos/{id}/impact-changes/output", async () => {
@@ -158,9 +158,9 @@ describe("HttpEngineClient skill-run progress feeds", () => {
     const generation: string[][] = [];
     const review: string[][] = [];
 
-    client.subscribeDiagramOutput("c1", (lines) => generation.push(lines));
+    client.subscribeDiagramOutput("system-context", (lines) => generation.push(lines));
     client.subscribeDiagramOutput("impact-changes", (lines) => review.push(lines));
-    sockets[0].onmessage?.({ data: JSON.stringify({ type: "c1-output", lines: ["⏺ Glob(*)"] }) });
+    sockets[0].onmessage?.({ data: JSON.stringify({ type: "system-context-output", lines: ["⏺ Glob(*)"] }) });
     sockets[0].onmessage?.({
       data: JSON.stringify({ type: "impact-changes-output", lines: ["⏺ Bash(git diff)"] }),
     });

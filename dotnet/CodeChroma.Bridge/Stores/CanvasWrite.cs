@@ -11,7 +11,11 @@ public static class WorkspaceCanvasExtensions
     public static string CanvasCorePath(this Workspace ws) => Path.Combine(ws.Root, ".codechroma", "canvas-core.json");
 
     /// <summary>The directory every diagram's own `&lt;kind&gt;/projection.json` lives under.</summary>
-    public static string DiagramsRoot(this Workspace ws) => Path.Combine(ws.Root, ".codechroma", "diagrams");
+    public static string DiagramsRoot(this Workspace ws)
+    {
+        LegacyDiagramMigration.Run(ws.Root);
+        return Path.Combine(ws.Root, ".codechroma", "diagrams");
+    }
 
     /// <summary>What the diff and review layers compare against: HEAD for main, else the merge-base with the stored base ref or the integration branch.</summary>
     public static string DiffBase(this Workspace ws)

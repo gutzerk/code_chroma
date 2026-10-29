@@ -1983,6 +1983,19 @@ body {
   align-self: flex-start;
 }
 
+/* The copy button sits in the box's top-right corner and the SRC button in its bottom-right corner,
+ * both anchored to the absolutely-positioned box itself; the header/foot reserve room for them. */
+.canvas-node-box-buttons--top,
+.canvas-node-box-buttons--bottom {
+  position: absolute;
+  right: 0.4rem;
+  z-index: 2;
+}
+.canvas-node-box-buttons--top { top: 0.4rem; }
+.canvas-node-box-buttons--bottom { bottom: 0.4rem; }
+[data-canvas-element] [data-testid="canvas-node-box-header"] { padding-right: 2.2rem; }
+[data-canvas-element]:has(.canvas-node-box-buttons--bottom) [data-testid="canvas-node-box-header"] { padding-bottom: 1.5rem; }
+
 .diagram-node-box-header {
   display: flex;
   /* Top-aligned (not centered): the copy/desc buttons live in their own column beside the title
@@ -2782,8 +2795,7 @@ body {
 .block-focus-button,
 .block-copy-button,
 .canvas-node-box-copy-button,
-.canvas-diagram-frame-copy-button,
-.canvas-node-box-desc-button {
+.canvas-diagram-frame-copy-button {
   flex-shrink: 0;
   width: 1.4rem;
   height: 1.4rem;
@@ -2796,11 +2808,20 @@ body {
   cursor: pointer;
 }
 
+/* Centre the copy glyph (and its checkmark / cross flash) exactly in the square. */
+.block-copy-button,
+.tree-node-copy-button,
+.canvas-node-box-copy-button,
+.canvas-diagram-frame-copy-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
 .block-focus-button:hover,
 .block-copy-button:hover,
 .canvas-node-box-copy-button:hover,
-.canvas-diagram-frame-copy-button:hover,
-.canvas-node-box-desc-button:hover {
+.canvas-diagram-frame-copy-button:hover {
   color: #fff;
   border-color: var(--control-hover-border);
 }
@@ -7175,7 +7196,7 @@ button[data-copy-state="idle"][aria-label]:hover:not(:disabled) {
 /* The four builtin recipe kinds each get their own fixed hue (styles.css's "Status / kind hues"
    tokens, so this stays one edit away from ever re-theming). Everything else -- a custom type's
    `custom/<id>`, or a one-off skill-authored layer -- falls through to the indexed palette below. */
-.canvas-diagram-frame-c1 { --diagram-frame-color: var(--c1); }
+.canvas-diagram-frame-system-context { --diagram-frame-color: var(--c1); }
 .canvas-diagram-frame-patterns { --diagram-frame-color: var(--patterns); }
 .canvas-diagram-frame-impact { --diagram-frame-color: var(--impact); }
 .canvas-diagram-frame-epics { --diagram-frame-color: var(--epics); }
@@ -8121,7 +8142,7 @@ button[data-copy-state="idle"][aria-label]:hover:not(:disabled) {
 .block-role-word { font-family: var(--font-mono); font-size: 0.66rem; font-weight: 700; letter-spacing: 0.1em; color: var(--role-accent); }
 .block-role-status { display: inline-flex; align-items: center; gap: 0.3rem; margin-left: 0.2rem; font-size: 0.7rem; color: #F2B36B; }
 .block-role-dot { width: 8px; height: 8px; border-radius: 50%; background: #F2B36B; }
-.block-role .canvas-node-box-buttons { opacity: 1; flex-direction: row-reverse; }
+.block-role .canvas-node-box-buttons { opacity: 1; }
 .block-role .canvas-node-box-buttons > :not(.canvas-node-box-src) { display: none; }
 .block-role:hover .canvas-node-box-buttons > :not(.canvas-node-box-src),
 .block-role:focus-within .canvas-node-box-buttons > :not(.canvas-node-box-src) { display: inline-flex; }
@@ -8323,24 +8344,59 @@ button[data-copy-state="idle"][aria-label]:hover:not(:disabled) {
 .route-legend-list { position: absolute; z-index: 5; margin: 4px 0 0; padding: 8px 10px; list-style: none; background: var(--surface, #fff); border: 1px solid var(--border, #cbd5e1); border-radius: var(--radius-md); white-space: nowrap; }
 .route-legend-swatch { display: inline-block; width: 4px; height: 12px; margin-right: 6px; vertical-align: middle; background: var(--route-kind, #94a3b8); border-left: 0 !important; }
 
-/* 026 route over the code map: faded level matches focus mode (0.35); lit blocks and ancestors stay full. */
+/* 026 route over the code map (B2 board): faded level matches focus mode (0.35); lit blocks and ancestors stay full. */
+:root { --route-ok: #5ee0a0; --route-ai: #b49cff; --route-fail: #fb7185; --route-chip-ink: #10231a; }
 [data-route-dim] { opacity: 0.35; transition: opacity 0.12s; }
-[data-route-lit] { outline: 2px solid var(--accent, #6366f1); outline-offset: 2px; }
+[data-route-lit] { outline: 1.5px solid var(--route-ok); outline-offset: 0; background-color: rgba(94, 224, 160, 0.1); }
+[data-route-lit="ai"] { outline-color: var(--route-ai); background-color: rgba(180, 156, 255, 0.12); }
+[data-route-lit="failure"] { outline-color: var(--route-fail); background-color: rgba(251, 113, 133, 0.1); }
 .route-overlay { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; pointer-events: none; }
-.route-overlay-path { fill: none; stroke: var(--accent, #6366f1); stroke-width: 2; stroke-dasharray: 6 4; opacity: 0.7; }
-.route-overlay-path--active { opacity: 1; stroke-dasharray: none; }
-.route-overlay-marker circle { fill: var(--route-kind, #6366f1); }
-.route-overlay-marker text { fill: #fff; font-size: 11px; font-weight: 600; }
+.route-overlay-glow path { fill: none; stroke: rgba(94, 224, 160, 0.16); stroke-width: 10; stroke-linejoin: round; }
+.route-overlay-path { fill: none; stroke: var(--route-ok); stroke-width: 2.75; stroke-linejoin: round; opacity: 0.45; }
+.route-overlay-path--active { opacity: 1; }
+.route-overlay-arrow { fill: var(--route-ok); }
+.route-overlay-marker circle { fill: var(--route-ok); }
+.route-overlay-marker.route-step--ai circle { fill: var(--route-ai); }
+.route-overlay-marker.route-step--failure circle { fill: var(--route-fail); }
+.route-overlay-marker text { fill: var(--route-chip-ink); font-family: var(--font-mono); font-size: 11px; font-weight: 700; }
 .route-overlay-marker--active circle { stroke: #fff; stroke-width: 3; }
-.route-card { position: absolute; top: 12px; right: 12px; z-index: 20; width: 260px; max-height: 70%; overflow: auto; padding: 10px 12px; background: var(--surface, #fff); border: 1px solid var(--border, #cbd5e1); border-radius: var(--radius-lg); font-size: 0.8rem; }
-.route-card-head { display: flex; align-items: center; gap: 8px; }
-.route-card-tag { font-size: 0.65rem; letter-spacing: 0.08em; opacity: 0.7; }
-.route-card-close { margin-left: auto; border: 0; background: transparent; cursor: pointer; color: inherit; }
-.route-card-summary { margin: 4px 0 8px; opacity: 0.75; }
-.route-card-steps { margin: 0 0 8px; padding: 0; list-style: none; }
-.route-card-step button { width: 100%; text-align: left; border: 0; border-left: 3px solid var(--route-kind, #94a3b8); background: transparent; color: inherit; padding: 3px 6px; cursor: pointer; }
-.route-card-step--active button { background: rgba(99, 102, 241, 0.15); }
-.route-card-step-order { display: inline-block; min-width: 1.2em; opacity: 0.7; }
-.route-card-walk { width: 100%; padding: 4px 0; cursor: pointer; }
-.canvas-area:has(.left-panel):not(:has(.code-sidebar:not([hidden]))) .route-card { left: calc(var(--chrome-inset, 12px) + var(--left-panel-width, 262px) + 12px); right: auto; }
+.route-card { position: absolute; top: 12px; right: 12px; z-index: 20; width: 348px; max-height: 85%; overflow: auto; box-sizing: border-box; padding: 20px; display: flex; flex-direction: column; gap: 14px; background: var(--surface, #202226); border: 1px solid var(--border, #33363c); border-radius: var(--radius-btn); font-size: 0.8rem; }
+.route-card-head { display: flex; align-items: baseline; flex-wrap: wrap; gap: 4px 10px; }
+.route-card-head strong { font-size: 18px; font-weight: 600; flex: 1 1 100%; order: 2; }
+.route-card-tag { font-family: var(--font-mono); font-size: 11px; font-weight: 700; letter-spacing: 0.1em; color: var(--route-ok); order: 1; }
+.route-card-close { margin-left: auto; border: 0; background: transparent; cursor: pointer; color: inherit; order: 1; }
+.route-card-summary { margin: -8px 0 0; font-size: 12px; opacity: 0.7; }
+.route-card-steps { margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 2px; }
+.route-card-step button { width: 100%; display: flex; align-items: center; gap: 10px; text-align: left; border: 1px solid transparent; border-radius: var(--radius-lg); background: transparent; color: inherit; padding: 7px 8px; cursor: pointer; }
+.route-card-step--active button { background: rgba(94, 224, 160, 0.12); border-color: #3f7a5e; }
+.route-card-step-badge { flex: none; width: 20px; height: 20px; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center; background: var(--route-ok); color: var(--route-chip-ink); font-family: var(--font-mono); font-size: 10.5px; font-weight: 700; }
+.route-card-step.route-step--ai .route-card-step-badge { background: var(--route-ai); }
+.route-card-step.route-step--failure .route-card-step-badge { background: var(--route-fail); }
+.route-card-step-text { display: flex; flex-direction: column; min-width: 0; }
+.route-card-step-title { font-size: 13.5px; font-weight: 600; }
+.route-card-step-detail { font-family: var(--font-mono); font-size: 11px; opacity: 0.75; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.route-card-step.route-step--ai .route-card-step-detail { color: var(--route-ai); opacity: 1; }
+.route-card-player { display: flex; gap: 8px; }
+.route-card-nav { width: 44px; height: 40px; border-radius: var(--radius-lg); border: 1px solid var(--border, #3a3e45); background: transparent; color: inherit; font-size: 15px; cursor: pointer; }
+.route-card-walk { flex: 1 1 0; height: 40px; border-radius: var(--radius-lg); border: 1px solid #3f7a5e; background: rgba(94, 224, 160, 0.1); color: var(--route-ok); font-size: 13px; font-weight: 600; cursor: pointer; }
+.route-card-legend { display: flex; flex-direction: column; gap: 7px; padding-top: 12px; border-top: 1px solid var(--border, #33363c); font-size: 12px; }
+.route-card-legend > span { display: flex; align-items: center; gap: 8px; }
+.route-card-legend-title { font-family: var(--font-mono); font-size: 11px; font-weight: 700; letter-spacing: 0.1em; opacity: 0.6; }
+.route-card-swatch { display: inline-block; width: 18px; height: 11px; border-radius: var(--radius-xs); border: 1px solid var(--border, #33363c); }
+.route-card-swatch--route { border: 1.5px solid var(--route-ok); background: rgba(94, 224, 160, 0.15); }
+.route-card-swatch--frame { background: rgba(255, 255, 255, 0.04); }
 .canvas-diagram-frame-route .sequence-mode-btn { margin-left: 8px; }
+
+/* 026 walkthrough (B2 board look): lit green steps, violet AI, red failure, number chips, glowing route arrows. */
+.diagram-node-box[data-layer="walkthrough"] { background: #18261f; border: 1.5px solid var(--route-ok); border-left-width: 1.5px; color: #ecedee; box-shadow: none; }
+.diagram-node-box[data-layer="walkthrough"].route-step--trigger { border-radius: var(--radius-full); }
+.diagram-node-box[data-layer="walkthrough"].route-step--ai { background: #2a2538; border-color: var(--route-ai); }
+.diagram-node-box[data-layer="walkthrough"].route-step--failure { background: #2a181d; border-color: #8e3a4a; border-style: solid; color: #ffb3bf; }
+.diagram-node-box[data-layer="walkthrough"]:not(.route-step) { background: transparent; border: 1px dashed #9a6b3a; color: #a3a8ae; }
+.diagram-node-box[data-layer="walkthrough"] .canvas-node-step-chip { top: -11px; left: -11px; width: 22px; min-width: 22px; height: 22px; padding: 0; border-radius: 50%; line-height: 22px; font-family: var(--font-mono); font-size: 11px; font-weight: 700; background: var(--route-ok); color: var(--route-chip-ink); }
+.diagram-node-box[data-layer="walkthrough"].route-step--ai .canvas-node-step-chip { background: var(--route-ai); }
+.diagram-node-box[data-layer="walkthrough"].route-step--failure .canvas-node-step-chip { background: var(--route-fail); }
+.canvas-edge[data-layer="walkthrough"] path { stroke: var(--route-ok); stroke-width: 2.75; }
+.canvas-edge[data-layer="walkthrough"] .c1-relationship-casing { stroke: rgba(94, 224, 160, 0.16); stroke-width: 10; }
+.canvas-edge[data-layer="walkthrough"] [class*="arrowhead"], .canvas-edge[data-layer="walkthrough"] polygon { fill: var(--route-ok); }
+.diagram-node-box[data-layer="walkthrough"] { user-select: none; -webkit-user-select: none; }

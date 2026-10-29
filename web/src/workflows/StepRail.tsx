@@ -1,12 +1,14 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useOptionalAgentClient } from "../agents/AgentClientContext";
 import { openStepAgent } from "../agents/launchAgent";
 import type { Run, StepRecord, WorkflowDef } from "./types";
+import { listProviders } from "../llm-settings/llmSettingsClient";
 import { Icon } from "./icons";
 import {
   ACTION_LABEL,
   betweenLabel,
   canOpenAgent,
+  resolvedPrompt,
   resumesChip,
   sessionBadge,
   STATUS_META,
@@ -47,6 +49,7 @@ function perform(
 /** The expanded row's controls; a review step also gets the Send-back note field. */
 function StepControls({
   run,
+  workflow,
   step,
   def,
   slug,
@@ -57,6 +60,7 @@ function StepControls({
   onOpenAgent,
 }: {
   run: Run;
+  workflow: WorkflowDef;
   step: StepRecord;
   def: WorkflowDef["steps"][number] | undefined;
   slug: string;
@@ -71,7 +75,7 @@ function StepControls({
   return (
     <div id={panelId} className="step-controls" role="group" aria-label={`${slug} controls`}>
       {def?.skill && <p className="step-skill">{`Skill: ${def.skill}`}</p>}
-      {def && def.prompt && <p className="step-prompt">{def.prompt}</p>}
+      {def && def.prompt && <p className="step-prompt">{resolvedPrompt(workflow, def, run)}</p>}
       {showOutput && (
         <pre className="step-output" role="log" aria-label="Step output" data-testid="step-output">
           {step.output || "No output yet."}
@@ -165,6 +169,16 @@ export function StepRail({
   showOutput?: boolean;
 }) {
   const agentClient = useOptionalAgentClient();
+  const [providerLabels, setProviderLabels] = useState<Record<string, string>>({});
+  useEffect(() => {
+    let live = true;
+    listProviders()
+      .then((found) => live && setProviderLabels(Object.fromEntries(found.map((p) => [p.id, p.label]))))
+      .catch(() => {});
+    return () => {
+      live = false;
+    };
+  }, []);
   const rerunIndex = rerunFrom === null ? -1 : workflow.steps.findIndex((s) => s.id === rerunFrom);
   return (
     <ol className="step-rail step-timeline" aria-label="Workflow steps" data-testid="step-rail">
@@ -181,7 +195,7 @@ export function StepRail({
         const rowActions = readOnly ? [] : stepActions(run, step);
         const panelId = `step-panel-${run.id}-${step.stepId}`;
         const between = defIndex >= 0 ? betweenLabel(workflow.steps, defIndex, previousSlug) : null;
-        const modeLabel = defIndex >= 0 ? stepModeLabel(workflow.steps, defIndex, undefined, step.usage?.model) : null;
+        const modeLabel = defIndex >= 0 ? stepModeLabel(workflow.steps, defIndex, (id) => providerLabels[id] ?? id, step.usage?.model) : null;
         const badge = defIndex >= 0 ? sessionBadge(workflow.steps, defIndex, step) : null;
         const chip = defIndex >= 0 ? resumesChip(workflow.steps, defIndex, step) : null;
         const sessionId = step.sessionId;
@@ -233,7 +247,7 @@ export function StepRail({
                 >
                   <span className="step-title-line">
                     <span className="step-slug">{slug}</span>
-                    {step.fromAttempt !== undefined && (
+                    {step.fromAttempt != null && (
                       <span className="step-tag step-tag-kept" data-testid={`kept-${slug}`}>
                         {`from attempt ${step.fromAttempt}`}
                       </span>
@@ -311,6 +325,7 @@ export function StepRail({
                 )}
                 {expanded && (
                   <StepControls
+                    workflow={workflow}
                     run={run}
                     step={step}
                     def={def}

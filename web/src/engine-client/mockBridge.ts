@@ -249,7 +249,7 @@ const MOCK_TRACES: Trace[] = [
  * 036-shared-diagram-style-catalog: flat nodes[] + parent, same shared shape every kind uses now
  * (node_id comes pre-attached, standing in for what the real resolve_diagram would attach). */
 const MOCK_C1: Diagram = {
-  type: "c1",
+  type: "system-context",
   nodes: [
     {
       id: "system", name: "Shadow App", node_id: null,
@@ -1144,12 +1144,13 @@ function bfsRoute(fromId: string, toId: string): string[] | null {
  * before the real bridge (research.md Decision 5) exists.
  */
 const mockLayouts: Record<LayoutKind, DiagramLayout> = {
-  c1: {},
+  "system-context": {},
   patterns: {},
   hierarchy: {},
   epics: {},
   impact: {},
   sequence: {},
+  walkthrough: {},
   // "canvas" has no saved-layout GET/POST route (a CanvasNodeBox's position lives on canvas.json,
   // not here) -- present only so this literal stays exhaustive over LayoutKind like every other
   // non-live kind already does (see the type's own comment in state/types.ts).
@@ -1331,8 +1332,8 @@ function applyMockCanvasBatch(
 // into the last branch's payload. `` `custom/${string}` `` is an open-ended family (feature 011: a
 // new type is data, not code), so getDiagram() below special-cases it against mockCustomDiagrams
 // instead of enumerating it here.
-const MOCK_DIAGRAMS: { [K in "c1" | "patterns" | "impact" | "epics"]: DiagramPayload[K] } = {
-  c1: MOCK_C1,
+const MOCK_DIAGRAMS: { [K in "system-context" | "patterns" | "impact" | "epics"]: DiagramPayload[K] } = {
+  "system-context": MOCK_C1,
   patterns: MOCK_PATTERNS,
   impact: MOCK_IMPACT,
   epics: MOCK_EPICS_INDEX,
@@ -1624,7 +1625,7 @@ export class MockBridgeEngineClient implements EngineClient {
       const typeId = kind.slice("custom/".length);
       return (mockCustomDiagrams.get(typeId) ?? EMPTY_DIAGRAM) as DiagramPayloadFor<K>;
     }
-    return MOCK_DIAGRAMS[kind as "c1" | "patterns" | "impact" | "epics"] as DiagramPayloadFor<K>;
+    return MOCK_DIAGRAMS[kind as "system-context" | "patterns" | "impact" | "epics"] as DiagramPayloadFor<K>;
   }
 
   async getSidecar<K extends SidecarKind>(kind: K): Promise<SidecarPayload[K]> {
@@ -1648,7 +1649,7 @@ export class MockBridgeEngineClient implements EngineClient {
   }
 
   subscribeSidecar = (kind: SidecarKind, onChange: () => void): (() => void) =>
-    this.on(kind === "changes" ? "impact-changes" : "c1", onChange);
+    this.on(kind === "changes" ? "impact-changes" : "system-context", onChange);
 
   /** No real skill run is possible without a live backend — the empty-state Retry falls back to
    * the static "ask your AI assistant" message instead of spinning forever. The change review is
@@ -1718,7 +1719,7 @@ export class MockBridgeEngineClient implements EngineClient {
   async runRecipe(recipe: string): Promise<CanvasBatchResult> {
     await delay(150);
     let built: MockRecipeResult;
-    if (recipe === "c1") built = diagramRecipeResult(MOCK_C1, "c1");
+    if (recipe === "system-context") built = diagramRecipeResult(MOCK_C1, "c1");
     else if (recipe === "patterns") built = diagramRecipeResult(MOCK_PATTERNS, "pattern");
     else if (recipe === "impact") built = diagramRecipeResult(MOCK_IMPACT, "impact");
     else if (recipe === "epics") built = epicsRecipeResult(MOCK_EPICS_INDEX);
@@ -1807,10 +1808,11 @@ export class MockBridgeEngineClient implements EngineClient {
     const hasLayer = (layer: string): boolean =>
       Object.values(this.canvasDoc.elements).some((element) => element.layer === layer);
     return {
-      c1: { ready: hasLayer("c1") },
+      "system-context": { ready: hasLayer("system-context") },
       patterns: { ready: hasLayer("patterns") },
       impact: { ready: hasLayer("impact") },
       sequence: { ready: hasLayer("sequence") },
+      walkthrough: { ready: hasLayer("walkthrough") },
       ...Object.fromEntries(
         [...mockDiagramTypes.keys()].map((id) => [
           `custom/${id}`,

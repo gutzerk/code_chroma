@@ -2,7 +2,7 @@ import { test, expect } from "@playwright/test";
 import type { CanvasBatch, CanvasDoc } from "../src/state/types";
 import { gotoApp } from "./helpers";
 
-for (const layer of ["c1", "patterns", "custom/layout"]) {
+for (const layer of ["system-context", "patterns", "custom/layout"]) {
   test(`Arrange preserves user-moved blocks in ${layer}`, async ({ page }) => {
     await gotoApp(page, { files: false });
     await page.evaluate(async (layer) => {
@@ -10,12 +10,12 @@ for (const layer of ["c1", "patterns", "custom/layout"]) {
       const bridgePath = "/src/engine-client/mockBridge.ts";
       const { canvasDocStore } = await import(/* @vite-ignore */ storePath);
       const { MockBridgeEngineClient } = await import(/* @vite-ignore */ bridgePath);
-      const other = layer === "c1" ? "patterns" : "c1";
+      const other = layer === "system-context" ? "patterns" : "system-context";
       const elements = Object.fromEntries([
         ["a", layer, 450, 300], ["b", layer, 700, 450],
         ["c", other, 1050, 350], ["d", other, 1200, 550],
       ].map(([id, layer, x, y]) => [id, {
-        id, render: layer === "patterns" ? "pattern" : layer === "c1" ? "c1" : "custom", layer, label: id, description: "", node_id: null,
+        id, render: layer === "patterns" ? "pattern" : layer === "system-context" ? "c1" : "custom", layer, label: id, description: "", node_id: null,
         position: { x, y }, size: { w: 100, h: 70 }, group_id: null, meta: {}, created_by: "ai",
       }]));
       const doc = { ...canvasDocStore.getDoc(), doc_id: "arrange-test", elements, edges: {} };

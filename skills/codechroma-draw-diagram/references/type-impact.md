@@ -89,7 +89,7 @@ Rules:
   real boxes when they carry the story (a key caller), or be collapsed: give a collapsed box the
   closest real ancestor `node_id` (e.g. a directory) as its primary id, plus `"seed": false` and a
   `description` naming what it collapses ("unchanged background").
-- 🔴 **`nodes[].node_id` is required, unlike c1/custom.** Impact never resolves a `path` itself — a
+- 🔴 **`nodes[].node_id` is required, unlike system-context/custom.** Impact never resolves a `path` itself — a
   box with no `node_id` you already resolved yourself is dropped outright, not kept.
 - `nodes[].style` (optional) — see `drawing-rules.md`. Use it when a box needs a colour beyond the
   seed/status accent — e.g. to flag a caller that's a regression risk, or to keep a collapsed

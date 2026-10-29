@@ -25,7 +25,7 @@ describe("UndoManager", () => {
   });
 
   it("is a no-op when none of the given kinds has anything to undo", () => {
-    render(<UndoManager kinds={["c1"]} />);
+    render(<UndoManager kinds={["system-context"]} />);
     const events = captureUndoEvent();
 
     key("z", { ctrlKey: true });
@@ -46,7 +46,7 @@ describe("UndoManager", () => {
   });
 
   it("does not undo a kind that isn't in the given list", () => {
-    render(<UndoManager kinds={["c1"]} />);
+    render(<UndoManager kinds={["system-context"]} />);
     const events = captureUndoEvent();
     undoStore.recordCommit("patterns", { p: { x: 0, y: 0 } });
 
@@ -58,19 +58,19 @@ describe("UndoManager", () => {
   });
 
   it("handles Cmd+Z (metaKey) on macOS", () => {
-    render(<UndoManager kinds={["c1"]} />);
+    render(<UndoManager kinds={["system-context"]} />);
     const events = captureUndoEvent();
-    undoStore.recordCommit("c1", { a: { x: 3, y: 4 } });
+    undoStore.recordCommit("system-context", { a: { x: 3, y: 4 } });
 
     key("z", { metaKey: true });
 
-    expect(events).toEqual([{ kind: "c1", layout: { a: { x: 3, y: 4 } } }]);
+    expect(events).toEqual([{ kind: "system-context", layout: { a: { x: 3, y: 4 } } }]);
   });
 
   it("ignores plain Z and Ctrl used without Z", () => {
-    render(<UndoManager kinds={["c1"]} />);
+    render(<UndoManager kinds={["system-context"]} />);
     const events = captureUndoEvent();
-    undoStore.recordCommit("c1", { a: { x: 0, y: 0 } });
+    undoStore.recordCommit("system-context", { a: { x: 0, y: 0 } });
 
     key("z");
     key("z", { ctrlKey: true }); // handled — will pop
@@ -81,7 +81,7 @@ describe("UndoManager", () => {
   });
 
   it("re-subscribes when the given kinds change", () => {
-    const { rerender } = render(<UndoManager kinds={["c1"]} />);
+    const { rerender } = render(<UndoManager kinds={["system-context"]} />);
     const events = captureUndoEvent();
     undoStore.recordCommit("epics", { e: { x: 7, y: 7 } });
 

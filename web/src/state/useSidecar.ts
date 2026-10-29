@@ -257,7 +257,7 @@ export function useCoverageSidecar(engineClient: EngineClient): C1Coverage | nul
         .catch(() => {});
     }
     refetch();
-    const unsubscribeDiagram = engineClient.subscribeDiagram("c1", refetch);
+    const unsubscribeDiagram = engineClient.subscribeDiagram("system-context", refetch);
     const unsubscribeChanged = engineClient.subscribe(refetch);
     return () => {
       cancelled = true;

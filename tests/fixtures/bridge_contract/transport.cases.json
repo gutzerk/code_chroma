@@ -86,10 +86,10 @@
       "id": "a_diagram_file_change_pings_only_its_kind",
       "steps": [
         {"ws": "connect", "name": "events", "path": "/repos/main/events", "expect": "accepted"},
-        {"fs": "write", "path": ".codechroma/diagrams/c1/c1.json", "text": "{\"system\": {\"name\": \"X\", \"description\": \"\"}, \"actors\": [], \"relationships\": []}"},
+        {"fs": "write", "path": ".codechroma/diagrams/system-context/system-context.json", "text": "{\"system\": {\"name\": \"X\", \"description\": \"\"}, \"actors\": [], \"relationships\": []}"},
         {
           "ws": "receive", "name": "events", "timeout_ms": 15000, "skip_until_match": true,
-          "expect": {"json": {"type": "c1"}}
+          "expect": {"json": {"type": "system-context"}}
         }
       ]
     },
@@ -134,10 +134,10 @@
       "id": "a_status_change_is_broadcast_to_connected_canvases",
       "steps": [
         {"ws": "connect", "name": "events", "path": "/repos/default/events", "expect": "accepted"},
-        {"http": {"method": "POST", "path": "/repos/default/c1/status", "json": {"state": "generating"}}, "expect": {"status": 200}},
+        {"http": {"method": "POST", "path": "/repos/default/system-context/status", "json": {"state": "generating"}}, "expect": {"status": 200}},
         {
           "ws": "receive", "name": "events", "timeout_ms": 8000,
-          "expect": {"json": {"type": "c1-status", "state": "generating", "error": null}}
+          "expect": {"json": {"type": "system-context-status", "state": "generating", "error": null}}
         }
       ]
     },

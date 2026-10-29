@@ -54,7 +54,7 @@ public static class SkillTimeouts
 
     private static readonly Dictionary<string, int> Seconds = new()
     {
-        ["c1"] = 600, ["patterns"] = 600, ["impact-changes"] = 300, ["epic-brief"] = 300, ["custom"] = 600,
+        ["system-context"] = 600, ["patterns"] = 600, ["impact-changes"] = 300, ["epic-brief"] = 300, ["custom"] = 600,
         ["canvas-chat"] = 180, ["wiki-general"] = 3600, ["workflow-step"] = 1800, ["workflow-chat"] = 300, ["wiki-general-update"] = 300,
     };
 

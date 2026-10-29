@@ -207,7 +207,7 @@ export function CanvasDocView() {
   // same layer-scoping `memberIdsByLayer` gives `DiagramFrame`. A digit run with only one member is
   // dropped (keepSingletons=false): a lone numbered step has nothing to be concurrent with.
   const laneBuckets = useMemo(
-    () => bucketPerLayer(Object.values(renderableElements), (el) => stringMeta(el, "lane"), true),
+    () => bucketPerLayer(Object.values(renderableElements), (el) => (el.layer === "walkthrough" ? undefined : stringMeta(el, "lane")), true),
     [renderableElements],
   );
 

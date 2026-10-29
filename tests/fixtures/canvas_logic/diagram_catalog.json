@@ -3,7 +3,7 @@
   "layerFlags": [
     {"name": "hierarchy seed is not a diagram", "layer": "hierarchy", "isDiagram": false, "isRecipeBacked": false, "isDeletable": false},
     {"name": "default fallback layer is not a diagram", "layer": "default", "isDiagram": false, "isRecipeBacked": false, "isDeletable": false},
-    {"name": "c1 builtin", "layer": "c1", "isDiagram": true, "isRecipeBacked": true, "isDeletable": true},
+    {"name": "system-context builtin", "layer": "system-context", "isDiagram": true, "isRecipeBacked": true, "isDeletable": true},
     {"name": "epics builtin", "layer": "epics", "isDiagram": true, "isRecipeBacked": true, "isDeletable": true},
     {"name": "custom type", "layer": "custom/my-type", "isDiagram": true, "isRecipeBacked": true, "isDeletable": true},
     {"name": "feature plan", "layer": "feature-plan/token-auth", "isDiagram": true, "isRecipeBacked": true, "isDeletable": true},
@@ -12,13 +12,13 @@
   ],
   "activeLayers": [
     {"name": "excludes hierarchy and default", "elements": [{"id": "seed", "layer": "hierarchy", "render": "hierarchy"}, {"id": "note", "layer": "default", "render": "note"}], "expected": []},
-    {"name": "includes a builtin layer", "elements": [{"id": "c1a", "layer": "c1"}], "expected": ["c1"]},
+    {"name": "includes a builtin layer", "elements": [{"id": "c1a", "layer": "system-context"}], "expected": ["system-context"]},
     {"name": "includes a custom layer", "elements": [{"id": "x1", "layer": "custom/my-type"}], "expected": ["custom/my-type"]},
-    {"name": "each distinct layer once", "elements": [{"id": "c1a", "layer": "c1"}, {"id": "c1b", "layer": "c1"}, {"id": "pat", "layer": "patterns"}], "expected": ["c1", "patterns"]},
+    {"name": "each distinct layer once", "elements": [{"id": "c1a", "layer": "system-context"}, {"id": "c1b", "layer": "system-context"}, {"id": "pat", "layer": "patterns"}], "expected": ["system-context", "patterns"]},
     {"name": "includes a freeform layer name", "elements": [{"id": "x1", "layer": "Serving Unit TLS Process (LMP-126)"}], "expected": ["Serving Unit TLS Process (LMP-126)"]}
   ],
   "labels": [
-    {"name": "builtin recipe label", "layer": "c1", "custom": [], "elements": [], "expected": "C1"},
+    {"name": "builtin recipe label", "layer": "system-context", "custom": [], "elements": [], "expected": "System context"},
     {"name": "custom type title", "layer": "custom/my-type", "custom": [{"id": "my-type", "title": "My Type"}], "elements": [], "expected": "My Type"},
     {"name": "unknown custom type falls back to the raw key", "layer": "custom/not-loaded-yet", "custom": [], "elements": [], "expected": "custom/not-loaded-yet"},
     {"name": "feature plan shows its slug", "layer": "feature-plan/token-auth", "custom": [], "elements": [], "expected": "Feature plan: token-auth"},
@@ -33,12 +33,12 @@
   ],
   "ready": [
     {"name": "null status fails open for every builtin and custom type", "status": null, "custom": [{"id": "my-type", "title": "My Type"}], "active": [],
-     "readyBuiltins": ["c1", "epics", "impact", "patterns", "sequence"], "readyCustom": ["my-type"], "missing": []},
-    {"name": "status map splits ready vs missing", "status": {"c1": {"ready": true, "fingerprint": "fp"}, "patterns": {"ready": false, "fingerprint": null}}, "custom": [], "active": [],
-     "readyBuiltins": ["c1"], "readyCustom": [], "missing": ["Change impact", "Design patterns", "Epics", "Sequence"]},
+     "readyBuiltins": ["system-context", "epics", "impact", "patterns", "sequence"], "readyCustom": ["my-type"], "missing": []},
+    {"name": "status map splits ready vs missing", "status": {"system-context": {"ready": true, "fingerprint": "fp"}, "patterns": {"ready": false, "fingerprint": null}}, "custom": [], "active": [],
+     "readyBuiltins": ["system-context"], "readyCustom": [], "missing": ["Change impact", "Design patterns", "Epics", "Sequence"]},
     {"name": "a kind absent from status falls back to on-canvas placement", "status": {}, "custom": [], "active": ["impact"],
-     "readyBuiltins": ["impact"], "readyCustom": [], "missing": ["C1", "Design patterns", "Epics", "Sequence"]},
-    {"name": "everything ready: nothing missing but allLabels still lists every type", "status": {"c1": {"ready": true}, "epics": {"ready": true}, "patterns": {"ready": true}, "impact": {"ready": true}, "sequence": {"ready": true}, "custom/my-type": {"ready": true}}, "custom": [{"id": "my-type", "title": "My Type"}], "active": [],
-     "readyBuiltins": ["c1", "epics", "impact", "patterns", "sequence"], "readyCustom": ["my-type"], "missing": [], "allLabels": ["C1", "Change impact", "Design patterns", "Epics", "My Type", "Sequence"]}
+     "readyBuiltins": ["impact"], "readyCustom": [], "missing": ["System context", "Design patterns", "Epics", "Sequence"]},
+    {"name": "everything ready: nothing missing but allLabels still lists every type", "status": {"system-context": {"ready": true}, "epics": {"ready": true}, "patterns": {"ready": true}, "impact": {"ready": true}, "sequence": {"ready": true}, "custom/my-type": {"ready": true}}, "custom": [{"id": "my-type", "title": "My Type"}], "active": [],
+     "readyBuiltins": ["system-context", "epics", "impact", "patterns", "sequence"], "readyCustom": ["my-type"], "missing": [], "allLabels": ["System context", "Change impact", "Design patterns", "Epics", "My Type", "Sequence"]}
   ]
 }

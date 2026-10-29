@@ -5,8 +5,8 @@ public class DiagramOrchestratorTests
 {
     private static readonly Position Dragged = new(540, 320);
 
-    private static CanvasDoc DocWithElement(string id, Position position) =>
-        Fx.DocOf(Fx.Element(id, x: position.X, y: position.Y, label: "System", meta: new Dictionary<string, object?> { ["recipe_key"] = "n1" }));
+    private static CanvasDoc DocWithElement(string id, Position position, string layer = "c1") =>
+        Fx.DocOf(Fx.Element(id, layer: layer, x: position.X, y: position.Y, label: "System", meta: new Dictionary<string, object?> { ["recipe_key"] = "n1" }));
 
     private static (DiagramOrchestrator Orchestrator, CanvasDocStore Store, LayerPositionCache Cache) Build(FakeBridge bridge)
     {
@@ -114,12 +114,12 @@ public class DiagramOrchestratorTests
     {
         var bridge = new FakeBridge();
         var (orchestrator, store, _) = Build(bridge);
-        store.SetDoc(DocWithElement("e1", Dragged));
+        store.SetDoc(DocWithElement("e1", Dragged, "system-context"));
 
-        var result = await orchestrator.DeleteDiagramAndRefreshAsync("c1");
+        var result = await orchestrator.DeleteDiagramAndRefreshAsync("system-context");
 
         Assert.True(result.Ok);
-        Assert.Equal(new[] { "delete:c1", "patch", "getCanvas" }, bridge.Calls.ToArray());
+        Assert.Equal(new[] { "delete:system-context", "patch", "getCanvas" }, bridge.Calls.ToArray());
     }
 
     [Fact]
@@ -127,9 +127,9 @@ public class DiagramOrchestratorTests
     {
         var bridge = new FakeBridge { DeleteDiagram = _ => throw new InvalidOperationException("disk error") };
         var (orchestrator, store, _) = Build(bridge);
-        store.SetDoc(DocWithElement("e1", Dragged));
+        store.SetDoc(DocWithElement("e1", Dragged, "system-context"));
 
-        var result = await orchestrator.DeleteDiagramAndRefreshAsync("c1");
+        var result = await orchestrator.DeleteDiagramAndRefreshAsync("system-context");
 
         Assert.Equal(new OpResult(false, "disk error"), result);
         Assert.Empty(bridge.Patches);

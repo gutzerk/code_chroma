@@ -45,6 +45,8 @@ export interface ResizableOptions {
   maxViewportFraction?: number;
   /** Called once, ending the drag, when the pointer pulls this far (px) past the max width -- e.g. to go full screen. */
   onExceedMax?: () => void;
+  /** Screen-px max width for an "x" axis, replacing the viewport fraction (e.g. to track a layout-derived ceiling). */
+  maxWidthPx?: () => number;
 }
 
 const EXCEED_SLACK = 24;
@@ -70,6 +72,7 @@ export function useResizableSize(
     minHeight = MIN_HEIGHT,
     maxViewportFraction = MAX_VIEWPORT_FRACTION,
     onExceedMax,
+    maxWidthPx,
   } = options;
   const [size, setSize] = useState<Size | null>(null);
   const [isResizing, setIsResizing] = useState(false);
@@ -111,9 +114,9 @@ export function useResizableSize(
     // The caller's fraction applies to whichever axis it is actually resizing.
     const widthFraction = axis === "y" ? MAX_VIEWPORT_FRACTION : maxViewportFraction;
     const heightFraction = axis === "y" ? maxViewportFraction : MAX_VIEWPORT_FRACTION;
-    const maxWidth = (window.innerWidth * widthFraction) / resize.scale;
+    const maxWidth = ((axis === "x" && maxWidthPx ? maxWidthPx() : window.innerWidth * widthFraction)) / resize.scale;
     const maxHeight = (window.innerHeight * heightFraction) / resize.scale;
-    if (onExceedMax && axis === "x" && resize.startWidth + dx >= maxWidth + EXCEED_SLACK / resize.scale) {
+    if (onExceedMax && axis === "x" && dx > 0 && resize.startWidth + dx >= maxWidth + EXCEED_SLACK / resize.scale) {
       resizeRef.current = null;
       setIsResizing(false);
       setSize(null);
@@ -123,7 +126,7 @@ export function useResizableSize(
     }
     setSize({
       width:
-        axis === "y" ? resize.startWidth : clamp(resize.startWidth + dx, minWidth, maxWidth),
+        axis === "y" ? resize.startWidth : clamp(resize.startWidth + dx, minWidth, Math.max(maxWidth, resize.startWidth)),
       height:
         axis === "x" ? resize.startHeight : clamp(resize.startHeight + dy, minHeight, maxHeight),
     });

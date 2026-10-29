@@ -12,6 +12,8 @@ from codechroma.diagrams import library
 
 pytestmark = pytest.mark.usefixtures("isolated_library")
 
+BUILTIN_KINDS = {"system-context", "epics", "patterns", "impact", "sequence", "walkthrough"}
+
 
 def _definition(type_id: str = "data-flow") -> dict:
     return {
@@ -26,8 +28,8 @@ def _definition(type_id: str = "data-flow") -> dict:
 
 
 def test_every_spec_builds_an_independent_runner_per_call():
-    first = DIAGRAMS["c1"].agent_factory()
-    second = DIAGRAMS["c1"].agent_factory()
+    first = DIAGRAMS["system-context"].agent_factory()
+    second = DIAGRAMS["system-context"].agent_factory()
 
     assert first is not second
 
@@ -36,7 +38,7 @@ def test_services_build_one_runner_per_skill_run_kind():
     agents = _build_skill_agents()
 
     assert set(agents) == {
-        "c1",
+        "system-context",
         "patterns",
         "impact",
         "epics",
@@ -45,6 +47,7 @@ def test_services_build_one_runner_per_skill_run_kind():
         "wiki-general",
         "wiki-general-update",
         "sequence",
+        "walkthrough",
     }
 
 
@@ -90,7 +93,7 @@ def test_iteration_stays_on_builtins_no_matter_what_the_library_holds():
     # A saved custom type must never leak into the build-time iteration (bootstrap/seed/watchers).
     library.save_type(_definition("data-flow"))
 
-    assert set(DIAGRAMS.keys()) == {"c1", "epics", "patterns", "impact", "sequence"}
+    assert set(DIAGRAMS.keys()) == BUILTIN_KINDS
 
 
 @pytest.mark.parametrize("kind", ["no-such-kind", "feature-plan/../../etc"])
@@ -152,7 +155,7 @@ def test_item_rejects_an_id_that_would_escape_its_directory(prefix, item):
 def test_item_kinds_stay_out_of_the_build_time_iteration(prefix, item):
     # A synthesized spec never leaks into the iteration.
     assert DIAGRAMS.get(f"{prefix}/{item}") is not None
-    assert set(DIAGRAMS.keys()) == {"c1", "epics", "patterns", "impact", "sequence"}
+    assert set(DIAGRAMS.keys()) == BUILTIN_KINDS
 
 
 @_ITEM_KINDS

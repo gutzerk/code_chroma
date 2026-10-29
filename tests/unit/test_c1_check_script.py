@@ -22,7 +22,7 @@ def _run(tmp_path, diagram, *extra_args):
     path = tmp_path / "c1.json"
     path.write_text(json.dumps(diagram), encoding="utf-8")
     return subprocess.run(
-        [sys.executable, str(SCRIPT), "--kind", "c1", "--json", str(path), *extra_args],
+        [sys.executable, str(SCRIPT), "--kind", "system-context", "--json", str(path), *extra_args],
         capture_output=True,
         text=True,
     )
@@ -60,7 +60,7 @@ def _diagram(children, actors=None):
         nodes.append(flat_actor)
         for child in actor_children or []:
             nodes.extend(_flatten(dict(child), flat_actor["id"]))
-    return {"type": "c1", "nodes": nodes, "relations": []}
+    return {"type": "system-context", "nodes": nodes, "relations": []}
 
 
 def test_clean_diagram_exits_zero_with_an_ok_line(tmp_path):
@@ -528,7 +528,7 @@ def bridge():
 
 def _run_against(url, *extra_args):
     return subprocess.run(
-        [sys.executable, str(SCRIPT), "--kind", "c1", "--url", url, *extra_args],
+        [sys.executable, str(SCRIPT), "--kind", "system-context", "--url", url, *extra_args],
         capture_output=True,
         text=True,
     )
@@ -538,7 +538,7 @@ def test_directory_leaf_with_subdirectories_is_reported_as_uncovered(bridge):
     leaf = {"id": "db", "name": "DB", "path": "src/db", "node_id": "dir::src/db"}
     url = bridge(
         {
-            "/repos/default/c1": _diagram([leaf, _leaf(1)]),
+            "/repos/default/system-context": _diagram([leaf, _leaf(1)]),
             "/repos/default/structure?root=dir%3A%3Asrc%2Fdb&depth=1": {
                 "nodes": [{"node_id": "dir::src/db/models", "level": "folder"}]
             },
@@ -555,7 +555,7 @@ def test_directory_leaf_of_files_only_is_accepted(bridge):
     leaf = {"id": "db", "name": "DB", "path": "src/db", "node_id": "dir::src/db"}
     url = bridge(
         {
-            "/repos/default/c1": _diagram([leaf, _leaf(1)]),
+            "/repos/default/system-context": _diagram([leaf, _leaf(1)]),
             "/repos/default/structure?root=dir%3A%3Asrc%2Fdb&depth=1": {
                 "nodes": [{"node_id": "component::src/db/client.py", "level": "file"}]
             },
@@ -577,8 +577,8 @@ def test_low_coverage_no_longer_fires_since_c1_stopped_opting_in(bridge):
     """042: c1 is flat now -- coverage_source is unset, so this never fetches /c1/context at all."""
     url = bridge(
         {
-            "/repos/default/c1": _diagram([_leaf(1)]),
-            "/repos/default/c1/context": _coverage(
+            "/repos/default/system-context": _diagram([_leaf(1)]),
+            "/repos/default/system-context/context": _coverage(
                 20,
                 [
                     {"path": "web/src", "file_count": 200},
@@ -604,7 +604,14 @@ def test_coverage_is_not_checked_against_a_raw_file(tmp_path):
 
 def test_unreadable_diagram_exits_two(tmp_path):
     result = subprocess.run(
-        [sys.executable, str(SCRIPT), "--kind", "c1", "--json", str(tmp_path / "missing.json")],
+        [
+            sys.executable,
+            str(SCRIPT),
+            "--kind",
+            "system-context",
+            "--json",
+            str(tmp_path / "missing.json"),
+        ],
         capture_output=True,
         text=True,
     )

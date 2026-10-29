@@ -51,7 +51,7 @@ import { errorMessageFrom } from "../util/httpJson";
  * "epics" stays its own index, an unrelated subsystem. The index signature stays (rather than
  * collapsing to `Record<string, Diagram>`) so `epics` keeps its own distinct value type. */
 export interface DiagramPayload {
-  c1: Diagram;
+  "system-context": Diagram;
   patterns: Diagram;
   impact: Diagram;
   epics: EpicsIndex;
@@ -61,7 +61,7 @@ export interface DiagramPayload {
 /** `DiagramPayload[K]` for a generic `K` — mixing named properties with a template-literal index
  * signature makes plain indexed access (`DiagramPayload[K]`) resolve to an intersection of every
  * possible value type when `K` is generic, not the one matching branch. Use this instead wherever
- * `K extends DiagramFetchKind` is generic; literal-keyed access (e.g. `DiagramPayload["c1"]`, or a
+ * `K extends DiagramFetchKind` is generic; literal-keyed access (e.g. `DiagramPayload["system-context"]`, or a
  * mapped type over a literal union) still works fine and needs no change. */
 export type DiagramPayloadFor<K extends DiagramFetchKind> = K extends `custom/${string}`
   ? Diagram
@@ -263,7 +263,7 @@ export interface EngineClient {
   setBreakpoint(runId: string, stepId: string, on: boolean): Promise<Run>;
   resumeRunFrom(runId: string, stepId: string): Promise<Run>;
   reviewRun(runId: string, decision: ReviewDecision, note?: string): Promise<Run>;
-  /** Messages the run agent (target "run") or one step's agent (a step id); never changes run state. */
+  /** Messages a step agent (a step id; "run" picks the step waiting for you, else the last one); never changes run state. */
   sendRunMessage(runId: string, target: string, text: string): Promise<MessageReply>;
   /** Confirms a proposed redo (POST .../redo); the old attempt is set aside and attempt n+1 starts. */
   redoRun(runId: string, request: RedoRequest): Promise<Run>;
@@ -383,11 +383,11 @@ const RECONNECT_STABLE_MS = 10_000;
  * so `getSidecar`/`subscribeSidecar` stay one method each (037, US2). */
 const SIDECAR_ROUTES: Record<SidecarKind, string> = {
   changes: "/impact-changes",
-  coverage: "/c1/context",
+  coverage: "/system-context/context",
 };
 const SIDECAR_TOPICS: Record<SidecarKind, EventType> = {
   changes: "impact-changes",
-  coverage: "c1",
+  coverage: "system-context",
 };
 
 export class HttpEngineClient implements EngineClient {

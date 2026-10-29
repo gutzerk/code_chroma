@@ -70,7 +70,7 @@ test("closing an attached agent removes it and respects agent capacity", async (
   await expect(page.getByTestId("agent-layer")).toHaveAttribute("data-active-workspace", "main");
 });
 
-test("creates a workflow in the editor and collapses the steps while chatting", async ({ page }) => {
+test("creates a workflow in the editor and starts its run", async ({ page }) => {
   await gotoApp(page);
   await page.getByRole("tab", { name: /Workflows/ }).click();
   await page.getByRole("button", { name: "All workflows", exact: true }).click();
@@ -81,6 +81,4 @@ test("creates a workflow in the editor and collapses the steps while chatting", 
   await editor.getByRole("button", { name: "Save", exact: true }).click();
   await page.getByRole("button", { name: "Run Inspect project", exact: true }).click();
   await expect(page.getByTestId("step-rail").getByRole("listitem")).toHaveCount(1);
-  await page.getByTestId("chat-input").focus();
-  await expect(page.getByTestId("step-rail-collapsed")).toBeVisible();
 });

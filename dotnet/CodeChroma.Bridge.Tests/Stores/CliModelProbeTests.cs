@@ -16,6 +16,16 @@ public class CliModelProbeTests
         Assert.Equal("Fable 5.1", (string)models![1]!["label"]!);
     }
 
+    [Fact]
+    public void Claude_pinned_model_ids_are_dropped_leaving_only_aliases()
+    {
+        var line = """{"type":"control_response","response":{"request_id":"models","response":{"models":[{"value":"default"},{"value":"opus"},{"value":"claude-opus-4-6"}]}}}""";
+
+        var models = CliModelProbe.ParseClaudeResponse(line);
+
+        Assert.Equal(["default", "opus"], models!.Select(m => (string)m!["id"]!));
+    }
+
     [Theory]
     [InlineData("""{"type":"system","subtype":"init"}""")]
     [InlineData("""{"type":"control_response","response":{"request_id":"other","response":{"models":[{"value":"x"}]}}}""")]

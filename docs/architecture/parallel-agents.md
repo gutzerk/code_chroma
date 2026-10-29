@@ -280,6 +280,9 @@ branch through an agent attached to it (`_guard_shared_worktree`, keyed off `Age
   `autostart.py` (which spawns via `agent_sessions.start` directly) never
   injects — correct, since there's no live view at boot. Tunables: `agents_routes`
   `context_inject_attempts` / `context_inject_interval_seconds` / `context_inject_submit_delay_seconds`.
+  The text may also be a builder (Python: async callable, C#: `Func<string?>`) run once the agent
+  idles; a null result types nothing and resolves `False` (question batches use this, see
+  [`ai-questions.md`](ai-questions.md)).
   🔵 **`context_kind` now splits both the wrapping and the delivery.** `AgentRecord.context_kind`
   (`"view"` default, or `"task"`) rides alongside `context`; `consume_context()` returns both as a
   `(text, kind)` pair, called up front in `post_agent_start` (before argv is even built) rather than

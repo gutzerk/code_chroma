@@ -24,6 +24,7 @@ from __future__ import annotations
 import asyncio
 import logging
 import time
+from collections.abc import Awaitable, Callable
 from pathlib import Path
 from typing import Protocol, runtime_checkable
 
@@ -49,6 +50,10 @@ def context_inject_attempts() -> int:
 
 def context_inject_interval_seconds() -> float:
     return settings.agents_routes.context_inject_interval_seconds
+
+
+# Text to type, or a callable that builds it at idle time (None: nothing to type any more).
+InjectText = str | Callable[[], Awaitable[str | None]]
 
 
 def context_inject_submit_delay_seconds() -> float:
@@ -86,7 +91,9 @@ class AgentSessionPort(Protocol):
 
     def resize(self, rows: int, cols: int) -> None: ...
 
-    def inject_when_idle(self, text: str, attempts: int | None = None) -> asyncio.Task[bool]: ...
+    def inject_when_idle(
+        self, text: InjectText, attempts: int | None = None
+    ) -> asyncio.Task[bool]: ...
 
 
 class AgentSession(AgentSessionPort):
@@ -164,16 +171,17 @@ class AgentSession(AgentSessionPort):
     def write_bytes(self, data: bytes) -> None:
         self._pty.write_bytes(data)
 
-    def inject_when_idle(self, text: str, attempts: int | None = None) -> asyncio.Task[bool]:
+    def inject_when_idle(self, text: InjectText, attempts: int | None = None) -> asyncio.Task[bool]:
         """Types `text` once a fresh agent's TUI reaches its idle prompt (acknowledge-only only).
 
         Spawned from `post_agent_start` on a *fresh* start (never a resume, never autostart): the
         context is delivered as a normal user message it reads on first boot. Polls the same
         `StatusDetector` / `detect/claude.toml` `[idle]` rule the LED uses until it classifies the
-        rendered `ScreenTap` as idle, then types `text`, then Enter. Gives up quietly if the agent
-        never idles in time or the process dies (`attempts` overrides the context default) —
-        typing into a working/blocked agent would corrupt whatever it is already doing. Returns the
-        background task, which resolves True once the text was typed; it never raises.
+        rendered `ScreenTap` as idle, then types `text` (built at that moment when it is a
+        callable), then Enter. Gives up quietly if the agent never idles in time or the process
+        dies (`attempts` overrides the context default) — typing into a working/blocked agent
+        would corrupt whatever it is already doing. Returns the background task, which resolves
+        True once the text was typed; it never raises.
         """
         async def run() -> bool:
             async with self._inject_lock:
@@ -183,7 +191,7 @@ class AgentSession(AgentSessionPort):
         task = asyncio.create_task(run())
         return task
 
-    async def _inject_once(self, text: str, attempts: int | None) -> bool:
+    async def _inject_once(self, text: InjectText, attempts: int | None) -> bool:
         """One queued injection: waits for idle, types it, lets the screen settle; True if typed."""
         if self.exit_code is not None:
             return False
@@ -196,15 +204,28 @@ class AgentSession(AgentSessionPort):
             tail = self._tap.tail(self._detector.rules.tail_lines)
             verdict = self._detector.classify(tail, self._tap.title, self._tap.progress, None)
             if verdict == "idle":
+                body = await self._inject_body(text)
+                if body is None:
+                    return False
                 # Enter goes alone: text + "\r" in one write reads as a paste and never submits.
-                self.write(text)
+                self.write(body)
                 await asyncio.sleep(context_inject_submit_delay_seconds())
                 self.write("\r")
                 await asyncio.sleep(interval)
                 return True
             await asyncio.sleep(interval)
-        return False
         logger.info("agents: gave up injecting context into %s (never went idle)", self.agent_id)
+        return False
+
+    async def _inject_body(self, text: InjectText) -> str | None:
+        """The text to type now; a callable that fails counts as nothing to type."""
+        if isinstance(text, str):
+            return text
+        try:
+            return await text()
+        except Exception:
+            logger.exception("agents: could not build the text to type into %s", self.agent_id)
+            return None
 
     def resize(self, rows: int, cols: int) -> None:
         self._pty.resize(rows, cols)

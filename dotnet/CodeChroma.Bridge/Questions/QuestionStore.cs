@@ -12,7 +12,14 @@ public static class QuestionStore
     public const string AwaitingDelivery = "awaiting_delivery";
 
     // Questions a completed batch removed, per (canvas file, session_id), so later steps keep counting on.
-    private static readonly ConcurrentDictionary<(string Canvas, string Session), int> Delivered = new();
+    private static readonly Dictionary<(string Canvas, string Session), int> Delivered = new();
+
+    // Oldest-first keys of Delivered; past the cap the oldest session drops off, so the counter stays bounded.
+    private static readonly LinkedList<(string Canvas, string Session)> DeliveredOrder = new();
+    private const int DeliveredCap = 512;
+
+    // Agents with a wake-up queued, per (canvas file, agent_id); in memory, so a restart frees it.
+    private static readonly ConcurrentDictionary<(string Canvas, string Agent), byte> Claims = new();
 
     private static JsonObject Commit(Workspace ws, Func<CanvasDoc, List<JsonNode?>> buildOps)
     {
@@ -32,7 +39,28 @@ public static class QuestionStore
     private static int NextStep(Workspace ws, CanvasDoc doc, string? sessionId) =>
         string.IsNullOrEmpty(sessionId)
             ? 1
-            : 1 + Delivered.GetValueOrDefault((ws.CanvasCorePath(), sessionId)) + doc.Elements.Values.Count(e => e.Render == "question" && Json.Str(e.Meta["session_id"]) == sessionId);
+            : 1 + DeliveredCount(ws, sessionId) + doc.Elements.Values.Count(e => e.Render == "question" && Json.Str(e.Meta["session_id"]) == sessionId);
+
+    private static int DeliveredCount(Workspace ws, string sessionId)
+    {
+        lock (Delivered) return Delivered.GetValueOrDefault((ws.CanvasCorePath(), sessionId));
+    }
+
+    private static void CountDelivered(Workspace ws, string sessionId)
+    {
+        var key = (ws.CanvasCorePath(), sessionId);
+        lock (Delivered)
+        {
+            DeliveredOrder.Remove(key);
+            DeliveredOrder.AddLast(key);
+            Delivered[key] = Delivered.GetValueOrDefault(key) + 1;
+            while (DeliveredOrder.Count > DeliveredCap)
+            {
+                Delivered.Remove(DeliveredOrder.First!.Value);
+                DeliveredOrder.RemoveFirst();
+            }
+        }
+    }
 
     private static JsonArray OptionsMeta(AskRequest request) => new(request.Options.Select(o => (JsonNode?)o.ToJson()).ToArray());
 
@@ -97,22 +125,24 @@ public static class QuestionStore
     public static void Settle(Workspace ws, string elementId, string state, QuestionResult result) =>
         Commit(ws, _ => [Update(elementId, new JsonObject { ["state"] = state, ["answer"] = result.Answer, ["option_id"] = result.OptionId, [AwaitingDelivery] = true })]);
 
-    /// <summary>Once none of the agent's questions is open, claims its undelivered answers so one wake-up types them.</summary>
-    public static List<CanvasElement> TakeBatch(Workspace ws, string agentId)
+    /// <summary>The agent's undelivered answers, or none while any of its questions is still open.</summary>
+    private static List<CanvasElement> ReadyBatch(CanvasDoc doc, string agentId)
     {
-        lock (CanvasWrite.LockFor(ws.Id))
-        {
-            var doc = Load(ws);
-            var mine = doc.Elements.Values.Where(e => e.Render == "question" && Json.Str(e.Meta["agent_id"]) == agentId).ToList();
-            if (mine.Any(e => Json.Str(e.Meta["state"]) == "open")) return [];
-            var batch = mine.Where(e => Json.Truthy(e.Meta[AwaitingDelivery])).ToList();
-            if (batch.Count == 0) return [];
-            CommitLocked(ws, doc, MarkOps(batch, awaiting: false));
-            return batch;
-        }
+        var mine = doc.Elements.Values.Where(e => e.Render == "question" && Json.Str(e.Meta["agent_id"]) == agentId).ToList();
+        return mine.Any(e => Json.Str(e.Meta["state"]) == "open") ? [] : mine.Where(e => Json.Truthy(e.Meta[AwaitingDelivery])).ToList();
     }
 
-    /// <summary>After the answers were typed: deletes the batch's still-settled questions and their option diagrams.</summary>
+    /// <summary>True when the agent's batch is complete and no wake-up for it is queued yet; claims it.</summary>
+    public static bool ClaimBatch(Workspace ws, string agentId) =>
+        ReadyBatch(Load(ws), agentId).Count > 0 && Claims.TryAdd((ws.CanvasCorePath(), agentId), 0);
+
+    /// <summary>The batch as it stands now, read at typing time so a revise or late answer is current.</summary>
+    public static List<CanvasElement> PendingBatch(Workspace ws, string agentId) => ReadyBatch(Load(ws), agentId);
+
+    /// <summary>Drops the agent's claim; its untyped answers stay marked for the next wake-up.</summary>
+    public static void ReleaseBatch(Workspace ws, string agentId) => Claims.TryRemove((ws.CanvasCorePath(), agentId), out _);
+
+    /// <summary>After the answers were typed: deletes the batch's questions that still hold the typed answer, and their option diagrams.</summary>
     public static void ClearBatch(Workspace ws, List<CanvasElement> batch)
     {
         lock (CanvasWrite.LockFor(ws.Id))
@@ -122,27 +152,17 @@ public static class QuestionStore
             if (settled.Count == 0) return;
             CommitLocked(ws, doc, CleanupOps(doc, settled));
             foreach (var session in settled.Select(e => Json.Str(e.Meta["session_id"])).OfType<string>().Where(id => id.Length > 0))
-                Delivered.AddOrUpdate((ws.CanvasCorePath(), session), 1, (_, n) => n + 1);
+                CountDelivered(ws, session);
         }
     }
 
-    /// <summary>The answers were never typed: marks them for the next wake-up and keeps them on the canvas.</summary>
-    public static void ReleaseBatch(Workspace ws, List<CanvasElement> batch)
-    {
-        lock (CanvasWrite.LockFor(ws.Id))
-        {
-            var doc = Load(ws);
-            var settled = StillSettled(doc, batch);
-            if (settled.Count > 0) CommitLocked(ws, doc, MarkOps(settled, awaiting: true));
-        }
-    }
+    private static readonly string[] SettledKeys = ["state", "answer", "option_id"];
 
-    /// <summary>The batch's questions still on the canvas and not reopened by a revise meanwhile.</summary>
+    /// <summary>The batch's questions still on the canvas with the very answer that was typed.</summary>
     private static List<CanvasElement> StillSettled(CanvasDoc doc, List<CanvasElement> batch) =>
-        batch.Select(e => doc.Elements.TryGetValue(e.Id, out var current) ? current : null).OfType<CanvasElement>().Where(e => Json.Str(e.Meta["state"]) != "open").ToList();
-
-    private static List<JsonNode?> MarkOps(List<CanvasElement> questions, bool awaiting) =>
-        questions.Select(e => (JsonNode?)Update(e.Id, new JsonObject { [AwaitingDelivery] = awaiting })).ToList();
+        batch.Select(typed => doc.Elements.TryGetValue(typed.Id, out var current)
+                && SettledKeys.All(k => JsonNode.DeepEquals(current.Meta[k], typed.Meta[k])) ? current : null)
+            .OfType<CanvasElement>().ToList();
 
     /// <summary>Commits `ops` against an already-loaded doc; the caller holds the canvas lock.</summary>
     private static void CommitLocked(Workspace ws, CanvasDoc doc, List<JsonNode?> ops) =>

@@ -2,8 +2,10 @@
 
 from __future__ import annotations
 
+import threading
 import time
 import uuid
+from collections import OrderedDict
 from collections.abc import Callable
 
 from codechroma.bridge.workspaces import Workspace
@@ -15,7 +17,12 @@ from codechroma.questions.models import AskRequest, QuestionResult
 
 AWAITING_DELIVERY = "awaiting_delivery"
 # Questions a completed batch removed, per (canvas file, session_id): later steps count on.
-_delivered: dict[tuple[str, str], int] = {}
+_delivered: OrderedDict[tuple[str, str], int] = OrderedDict()
+# Oldest sessions drop off past this, so a long-running bridge never grows the counter unbounded.
+_DELIVERED_CAP = 512
+# Agents with a wake-up queued, per (canvas file, agent_id); in memory, so a restart frees it.
+_claims: set[tuple[str, str]] = set()
+_claims_lock = threading.Lock()
 
 
 class QuestionWriteError(RuntimeError):
@@ -42,10 +49,21 @@ def _commit(ws: Workspace, build_ops: Callable[[CanvasDoc], list[dict]]) -> dict
 def _next_step(ws: Workspace, doc: CanvasDoc, session_id: str | None) -> int:
     if not session_id:
         return 1
-    return 1 + _delivered.get((str(ws.canvas_core_path), session_id), 0) + sum(
+    return 1 + _delivered_count(ws, session_id) + sum(
         1 for e in doc.elements.values()
         if e.render == "question" and e.meta.get("session_id") == session_id
     )
+
+
+def _delivered_count(ws: Workspace, session_id: str) -> int:
+    return _delivered.get((str(ws.canvas_core_path), session_id), 0)
+
+
+def _count_delivered(ws: Workspace, session_id: str) -> None:
+    key = (str(ws.canvas_core_path), session_id)
+    _delivered[key] = _delivered.pop(key, 0) + 1
+    while len(_delivered) > _DELIVERED_CAP:
+        _delivered.popitem(last=False)
 
 
 def _options_meta(request: AskRequest) -> list[dict]:
@@ -163,19 +181,41 @@ def _cleanup_ops(doc: CanvasDoc, questions: list[Element]) -> list[dict]:
     return [{"op": "delete_element", "id": i} for i in sorted(doomed)]
 
 
-def take_batch(ws: Workspace, agent_id: str) -> list[Element]:
-    """Once none of the agent's questions is open, claims its unsent answers for one wake-up."""
-    with canvas_lock(ws.id):
-        doc = CanvasDoc.load(ws.canvas_core_path, ws.diagrams_root)
-        mine = [
-            e for e in doc.elements.values()
-            if e.render == "question" and e.meta.get("agent_id") == agent_id
-        ]
-        batch = [e for e in mine if e.meta.get(AWAITING_DELIVERY)]
-        if not batch or any(e.meta.get("state") == "open" for e in mine):
-            return []
-        _commit_locked(ws, doc, _mark_ops(batch, awaiting=False))
-    return batch
+def _agent_questions(doc: CanvasDoc, agent_id: str) -> list[Element]:
+    return [
+        e for e in doc.elements.values()
+        if e.render == "question" and e.meta.get("agent_id") == agent_id
+    ]
+
+
+def _ready_batch(doc: CanvasDoc, agent_id: str) -> list[Element]:
+    """The agent's undelivered answers, or none while any of its questions is still open."""
+    mine = _agent_questions(doc, agent_id)
+    if any(e.meta.get("state") == "open" for e in mine):
+        return []
+    return [e for e in mine if e.meta.get(AWAITING_DELIVERY)]
+
+
+def claim_batch(ws: Workspace, agent_id: str) -> bool:
+    """True when the agent's batch is complete and no wake-up for it is queued yet; claims it."""
+    key = (str(ws.canvas_core_path), agent_id)
+    doc = CanvasDoc.load(ws.canvas_core_path, ws.diagrams_root)
+    with _claims_lock:
+        if key in _claims or not _ready_batch(doc, agent_id):
+            return False
+        _claims.add(key)
+    return True
+
+
+def pending_batch(ws: Workspace, agent_id: str) -> list[Element]:
+    """The batch as it stands now, read at typing time so a revise or late answer is current."""
+    return _ready_batch(CanvasDoc.load(ws.canvas_core_path, ws.diagrams_root), agent_id)
+
+
+def release_batch(ws: Workspace, agent_id: str) -> None:
+    """Drops the agent's claim; its untyped answers stay marked for the next wake-up."""
+    with _claims_lock:
+        _claims.discard((str(ws.canvas_core_path), agent_id))
 
 
 def clear_batch(ws: Workspace, batch: list[Element]) -> None:
@@ -188,30 +228,20 @@ def clear_batch(ws: Workspace, batch: list[Element]) -> None:
         _commit_locked(ws, doc, _cleanup_ops(doc, settled))
         for e in settled:
             if session := e.meta.get("session_id"):
-                key = (str(ws.canvas_core_path), session)
-                _delivered[key] = _delivered.get(key, 0) + 1
+                _count_delivered(ws, session)
 
 
-def release_batch(ws: Workspace, batch: list[Element]) -> None:
-    """The answers were never typed: keeps them on the canvas, marked for the next wake-up."""
-    with canvas_lock(ws.id):
-        doc = CanvasDoc.load(ws.canvas_core_path, ws.diagrams_root)
-        settled = _still_settled(doc, batch)
-        if settled:
-            _commit_locked(ws, doc, _mark_ops(settled, awaiting=True))
+_SETTLED_KEYS = ("state", "answer", "option_id")
 
 
 def _still_settled(doc: CanvasDoc, batch: list[Element]) -> list[Element]:
-    """The batch's questions still on the canvas and not reopened by a revise meanwhile."""
-    current = (doc.elements.get(e.id) for e in batch)
-    return [e for e in current if e is not None and e.meta.get("state") != "open"]
-
-
-def _mark_ops(questions: list[Element], awaiting: bool) -> list[dict]:
-    return [
-        {"op": "update_element", "id": e.id, "meta": {AWAITING_DELIVERY: awaiting}}
-        for e in questions
-    ]
+    """The batch's questions still on the canvas with the very answer that was typed."""
+    kept = []
+    for typed in batch:
+        current = doc.elements.get(typed.id)
+        if current and all(current.meta.get(k) == typed.meta.get(k) for k in _SETTLED_KEYS):
+            kept.append(current)
+    return kept
 
 
 def _commit_locked(ws: Workspace, doc: CanvasDoc, ops: list[dict]) -> None:

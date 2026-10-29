@@ -28,9 +28,10 @@ question as chat text, and do not use `AskUserQuestion` when `ask_user` is avail
 `ask_user` returns at once with `{"asked": true, "question_id": "...", "next": "End your turn now..."}`.
 
 - **Stop and end your turn right away.** Do not poll, do not wait, and never repeat the question in
-  chat. The user's answer arrives as your next message.
-- That message starts with `[CodeChroma answer · Q1/3 · <question_id>]` and ends with
-  `<question> → <outcome>`:
+  chat. CodeChroma types the answers into this terminal as your next message once the user has
+  answered or skipped every question you have open, so you resume without the user typing anything.
+- That message holds one part per question, in the order you asked. Each part starts with
+  `[CodeChroma answer · Q1/3 · <question_id>]` and ends with `<question> → <outcome>`:
   - `→ <text>`: take it as the user's decision (the chosen option's title, or the text they typed)
     and move on.
   - `→ skipped by the user, decide yourself`: pick your recommended option, say so in one line, and
@@ -40,5 +41,7 @@ question as chat text, and do not use `AskUserQuestion` when `ask_user` is avail
   question: draw one per option with `codechroma-decision-diagram`, then call `ask_user` again with
   the same `session_id` and question text and each option's `diagram_ref`.
 - `ask_user_result` with a `question_id` reads an answer back; only use it if no message arrived.
+  Once the answers are typed in, their cards and option diagrams are removed from the canvas, so
+  the message is the only record: keep what you need from it.
 
 Only if the `ask_user` tool is not available in this session, ask in chat instead.

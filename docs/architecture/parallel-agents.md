@@ -273,11 +273,13 @@ branch through an agent attached to it (`_guard_shared_worktree`, keyed off `Age
   on a fresh (non-resume) start, calls `session.inject_when_idle(text)` — a public `AgentSession` /
   `AgentSessionPort` method that spawns a background task polling the session's own rendered
   `ScreenTap` tail for the Claude idle prompt (the `❯` line, the same rule `detect/claude.toml` uses)
-  and then types the line as a normal user message, giving up quietly (never typing into a
+  and then types the line as a normal user message (text first, then Enter as a separate write
+  after `context_inject_submit_delay_seconds`, C# `AgentSession.SubmitDelay`, 0.3 s: Claude Code reads
+  one write of text plus Enter as a paste and does not submit it), giving up quietly (never typing into a
   `working`/`blocked` agent) if it never idles. Because injection is wired only in the route,
   `autostart.py` (which spawns via `agent_sessions.start` directly) never
   injects — correct, since there's no live view at boot. Tunables: `agents_routes`
-  `context_inject_attempts` / `context_inject_interval_seconds`.
+  `context_inject_attempts` / `context_inject_interval_seconds` / `context_inject_submit_delay_seconds`.
   🔵 **`context_kind` now splits both the wrapping and the delivery.** `AgentRecord.context_kind`
   (`"view"` default, or `"task"`) rides alongside `context`; `consume_context()` returns both as a
   `(text, kind)` pair, called up front in `post_agent_start` (before argv is even built) rather than
@@ -512,7 +514,7 @@ Web: `AgentClient.openStepSession`, `launchAgent.openStepAgent`, the Open agent 
 
 ## Canvas questions (017)
 
-Claude agent windows launch with the CodeChroma MCP server (`ask_user`) registered through `agent_cli`'s `mcp` parameter, plus the `CODECHROMA_BRIDGE_URL`/`CODECHROMA_QUESTION_TOKEN` env vars; see [`ai-questions.md`](ai-questions.md) "Agent wiring". A bridge restart invalidates old tokens, so agent windows are respawned with fresh ones. `ask_user` is non-blocking: the agent ends its turn, and the user's answer (or skip, or an "Add diagram" request) is typed into that agent's terminal as its next message via `AgentSession.inject_when_idle` (1200 attempts, about 10 minutes of waiting for idle; `questions/delivery.py`, C# `QuestionDelivery.cs`), so an open question leaves the agent `idle` with the "?" badge rather than `running`.
+Claude agent windows launch with the CodeChroma MCP server (`ask_user`) registered through `agent_cli`'s `mcp` parameter, plus the `CODECHROMA_BRIDGE_URL`/`CODECHROMA_QUESTION_TOKEN` env vars; see [`ai-questions.md`](ai-questions.md) "Agent wiring". A bridge restart invalidates old tokens, so agent windows are respawned with fresh ones. `ask_user` is non-blocking: the agent ends its turn, and once the user has answered or skipped every open question of that agent, all its answers are typed into that agent's terminal as one next message (an "Add diagram" request is typed at once) via `AgentSession.inject_when_idle` (86400 attempts, about 12 hours of waiting for idle; `questions/delivery.py`, C# `QuestionDelivery.cs`), and the answered cards and their option diagrams are removed from the canvas, so an open question leaves the agent `idle` with the "?" badge rather than `running`.
 
 ## Agent panel modes (layout store)
 

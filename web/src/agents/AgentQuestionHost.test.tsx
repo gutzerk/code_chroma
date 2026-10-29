@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { AgentQuestionHost } from "./AgentQuestionHost";
 import { canvasDocStore, useLoadCanvasDoc } from "../canvas/doc/canvasDocStore";
 import { useEngineClient } from "../engine-client/EngineClientContext";
@@ -73,6 +73,18 @@ describe("AgentQuestionHost", () => {
 
     await waitFor(() => expect(screen.queryByTestId("question-card")).toBeNull());
     expect(onFocusTerminal).toHaveBeenCalled();
+  });
+
+  it("drops the card once the bridge deletes the completed batch", async () => {
+    const { client } = await mount([ask("ag1", "First?", 1, { question_id: "q1" })]);
+    await screen.findByTestId("question-card");
+    const ids = Object.keys(canvasDocStore.getDoc().elements);
+    const ops = ids.map((id) => ({ op: "delete_element", id }) as CanvasOp);
+
+    await act(() => client.patchCanvas({ ops, layer: "default", explanation: "", confirm_mass_delete: true }));
+
+    await waitFor(() => expect(screen.queryByTestId("question-card")).toBeNull());
+    expect(Object.values(canvasDocStore.getDoc().elements).filter((el) => el.render === "question")).toEqual([]);
   });
 
   it("Ctrl+Enter in the terminal moves focus into the card", async () => {

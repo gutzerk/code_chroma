@@ -303,6 +303,10 @@ class _Report:
 
 def main(argv: list[str] | None = None) -> int:
     args = _parse_args(argv)
+    # The summary lines carry an em dash; a Windows console defaults to cp1252 and prints "?".
+    for stream in (sys.stdout, sys.stderr):
+        if hasattr(stream, "reconfigure"):
+            stream.reconfigure(encoding="utf-8", errors="replace")
     try:
         diagram = _load_diagram(args)
         diagram_style = diagram.get("style") if isinstance(diagram, dict) else None
@@ -812,10 +816,14 @@ def articulation_labels(endpoints: list[tuple[str, str]]) -> dict[str, str]:
     return labels
 
 
-def _check_articulation(endpoints: list[tuple[str, str]], report: _Report) -> None:
+def _check_articulation(
+    endpoints: list[tuple[str, str]], report: _Report, exempt: frozenset[str] = frozenset()
+) -> None:
     """Flags critical nodes (`bridge`/`hub`) as an advisory -- they never change the exit code."""
     # Same drawio-skill "articulation points" idea as `CYCLES`: real, worth flagging, never a fail.
     for node, label in sorted(articulation_labels(endpoints).items()):
+        if node in exempt:
+            continue
         report.advisories.append(
             f"ARTICULATION {node!r} is a {label}: removing it breaks the diagram"
         )
@@ -1318,7 +1326,8 @@ def _check_c1_relations(relations: object, by_id: dict[str, dict], report: _Repo
                 f"NESTING-EDGE {pair} only restates the nesting the box already shows"
             )
     _check_cycles(endpoints, report, allowed_self=False)
-    _check_articulation(endpoints, report)
+    # The root `system` box joins everything by design, so it is never a finding.
+    _check_articulation(endpoints, report, exempt=frozenset({"system"}))
     is_substantial = report.depth >= NOARROWS_MIN_DEPTH and report.blocks >= NOARROWS_MIN_BLOCKS
     if is_substantial and internal == 0:
         report.shape.append(
@@ -1580,6 +1589,7 @@ def _inspect_flat(diagram: object, checks: dict, args: argparse.Namespace) -> _R
         _check_islands(endpoints, report, check_islands["hint"])
     _check_bare_pattern_markers(nodes, touched, report)
     _check_shared_node_ids(nodes, report)
+    _check_rank(nodes, report)
     if required_meta:
         _check_unreviewed(report)
     _check_unlabeled(checks["unlabeled"], report)
@@ -1589,6 +1599,24 @@ def _inspect_flat(diagram: object, checks: dict, args: argparse.Namespace) -> _R
         if checks.get("membership_source"):
             _check_membership(checks["membership_source"], nodes, report, args)
     return report
+
+
+def _check_rank(nodes: list[dict], report: _Report) -> None:
+    """Advises on a node `rank` that is not entry/exit, or that is set alongside `order`."""
+    for node in nodes:
+        meta = node.get("meta") if isinstance(node.get("meta"), dict) else {}
+        rank = node.get("rank", meta.get("rank"))
+        if rank is None:
+            continue
+        if rank not in ("entry", "exit"):
+            report.advisories.append(
+                f"BADRANK {node.get('id')!r} rank={rank!r} must be \"entry\" or \"exit\""
+            )
+        elif node.get("order") is not None or meta.get("order") is not None:
+            report.advisories.append(
+                f"RANK-ORDER {node.get('id')!r} sets both `rank` and `order` -- `order` wins,"
+                " so drop `rank`"
+            )
 
 
 def _check_shared_node_ids(nodes: list[dict], report: _Report) -> None:
@@ -1632,8 +1660,9 @@ def _check_unaddressed_candidates(
         if isinstance(candidate_id, str) and candidate_id not in by_id:
             report.shape.append(
                 f"UNREVIEWED {candidate_id!r} was detected in the code but never confirmed or "
-                "rejected -- write a node for it (meta.confirmed: true) or one with "
-                "meta.confirmed: false; omitting it just makes it come back on every run"
+                f'rejected -- add a node with id exactly {candidate_id!r}, e.g. {{"id": '
+                f'"{candidate_id}", "name": "...", "meta": {{"confirmed": true}}}} (or false to '
+                "reject it); omitting it just makes it come back on every run"
             )
 
 

@@ -50,7 +50,9 @@ the Code Atlas canvas renders. These rules are complete: do not read other skill
 - **Size:** aim for 8–15 boxes. Over 15 the self-check prints `SPLIT`; cut detail instead.
 - **Process order:** every step box gets `meta.order` ("1", "2", "3a"/"3b" for parallel or
   alternative branches) and `meta.lane` (who performs it: a service, a component, "Client").
-  Never number steps inside an arrow label.
+  Never number steps inside an arrow label. Where numbering a box is impractical, `rank: "entry"`/
+  `"exit"` pins it to the first/last layer (`order` wins when both are set); an edge with `kind`
+  `"feedback"`/`"return"` lays out as a back edge.
 - **Show the repo's own code on the path.** If code in this repository handles the step (a handler,
   a guard, a check), it gets a box — even when an external system (LiteLLM, a database, a cloud API)
   also does part of the work. External systems are extra boxes, never a replacement for in-repo code.

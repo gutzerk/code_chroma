@@ -33,7 +33,7 @@ import { useLiveDragOffsets } from "./dragOffsetStore";
 import { LIVE_STAGES, STRUCTURAL_STAGES, VIEW_STAGES, runDisplayStages } from "./displayPipeline";
 import { useRouteExpanded } from "./routeExpandStore";
 import { useReflowEpics } from "./useReflowEpics";
-import { useReflowSequence } from "./useReflowSequence";
+import { useReflowOwnLayouts } from "./useReflowOwnLayouts";
 import { useEpicsContentSizes } from "./epicsContentSizeStore";
 import { UNDO_EVENT, type UndoEventDetail } from "../UndoManager";
 
@@ -174,7 +174,7 @@ export function CanvasDocView() {
   // minHeight + overflow), an over-reserving box leaves an empty dark band below. Re-fit the box to
   // its measured content height and persist the corrected size/position.
   useReflowEpics(engineClient, doc, contentSizes);
-  useReflowSequence(engineClient, doc, loaded);
+  useReflowOwnLayouts(engineClient, doc, loaded);
 
   const dragOffsets = useLiveDragOffsets();
 

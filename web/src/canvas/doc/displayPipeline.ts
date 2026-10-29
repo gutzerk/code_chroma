@@ -1,5 +1,5 @@
 import type { CanvasDoc, CanvasElement } from "../../state/types";
-import { viewSequenceElements } from "./autoLayout";
+import { viewSequenceElements } from "./sequenceBoard";
 import type { LiveDragOffset } from "./dragOffsetStore";
 import { expandRouteElements } from "./routeExpansion";
 import type { SequenceView } from "./sequenceViewStore";

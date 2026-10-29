@@ -1134,3 +1134,14 @@ describe("CanvasNodeBox members chip", () => {
     expect(screen.queryByTestId("canvas-node-members")).toBeNull();
   });
 });
+
+describe("CanvasNodeBox — profile box internals", () => {
+  it.each([
+    ["custom", 1],
+    ["sequence", 0],
+  ] as const)("shows the step chip on a %s box only when its profile keeps the common internals", (render, chips) => {
+    renderBox(element({ id: "s1", render, layer: "checkout", meta: { order: "2" } }));
+
+    expect(screen.queryAllByTestId("canvas-node-step-chip")).toHaveLength(chips);
+  });
+});

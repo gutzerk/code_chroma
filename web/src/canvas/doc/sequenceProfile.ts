@@ -1,5 +1,5 @@
 import type { DiagramProfile } from "./diagramProfiles";
-import { sequenceBoardBounds, sequenceBoardSignature } from "./sequenceBoard";
+import { layoutSequence, sequenceBoardBounds, sequenceBoardSignature } from "./sequenceBoard";
 import { SequenceModeSwitch } from "./SequenceModeSwitch";
 import { sequenceViewStore } from "./sequenceViewStore";
 
@@ -13,4 +13,6 @@ export const SEQUENCE_PROFILE: DiagramProfile = {
   frameClassName: "canvas-diagram-frame-sequence-board",
   HeaderAction: SequenceModeSwitch,
   concurrencyIslands: false,
+  plainBox: true,
+  layout: (doc, ids) => layoutSequence(doc, ids),
 };

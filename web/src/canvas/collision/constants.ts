@@ -17,6 +17,12 @@ export const NODE_SEP = 24;
 /** Minimum gap on Y a dragged block must keep (see NODE_SEP). */
 export const RANK_SEP = 24;
 
+/** Minimum gap on X between auto-placed boxes (incremental layout); dragging keeps NODE_SEP. */
+export const AUTO_NODE_SEP = 48;
+
+/** Minimum gap on Y between auto-placed boxes (incremental layout); dragging keeps RANK_SEP. */
+export const AUTO_RANK_SEP = 56;
+
 /** Rings of the spiral fallback searched when no candidate position is free. */
 export const MAX_RING = 12;
 

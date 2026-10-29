@@ -11,7 +11,7 @@ import { CanvasNodeBox } from "./CanvasNodeBox";
 import { ConcurrencyIslandArea } from "./ConcurrencyIslandArea";
 import { DiagramFrame } from "./DiagramFrame";
 import { diagramDisplayName } from "./diagramDisplay";
-import { isDiagramLayer, labelForDiagramLayer, useCustomDiagramTypes } from "./diagramCatalog";
+import { isDiagramLayer, useCustomDiagramTypes } from "./diagramCatalog";
 import { BLOCK_RULES } from "./elementRules";
 import { elementRect } from "./elementRect";
 import { leadingOrderDigits, orderMeta, stringMeta } from "./elementMeta";
@@ -303,7 +303,7 @@ export function CanvasDocView() {
               <DiagramFrame
                 key={`diagram-${layer}`}
                 layer={layer}
-                label={labelForDiagramLayer(layer, customTypes)}
+                label={display.name}
                 typeLabel={display.typeLabel}
                 boxCount={display.boxCount}
                 members={resolveMembers(memberIds, viewElements)}

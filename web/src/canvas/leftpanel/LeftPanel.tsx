@@ -149,7 +149,7 @@ function DiagramsTab({ arrange, rootName }: { arrange?: ReactNode; rootName?: st
         <p className="left-panel-empty">No diagrams yet — click Draw… to create one.</p>
       ) : (
         <ul className="left-panel-list">
-          {rows.map(({ layer, name, hidden, toggleLabel, toggle }) => {
+          {rows.map(({ layer, name, typeLabel, hidden, toggleLabel, toggle }) => {
             const count = countByLayer.get(layer) ?? 0;
             const isSelected = selected.includes(layer);
             return (
@@ -168,8 +168,13 @@ function DiagramsTab({ arrange, rootName }: { arrange?: ReactNode; rootName?: st
                 />
                 <span className="left-panel-swatch" style={{ background: colorForLayer(layer) }} />
                 <div className="left-panel-row-text">
-                  <span className="left-panel-row-name">{name}</span>
+                  <span className="left-panel-row-name" title={name}>{name}</span>
                   <span className="left-panel-row-meta">
+                    {typeLabel && (
+                      <span className="left-panel-row-type" data-testid={`left-panel-row-type-${layer}`}>
+                        {`${typeLabel.toUpperCase()} · `}
+                      </span>
+                    )}
                     {count} {count === 1 ? "element" : "elements"}
                   </span>
                 </div>

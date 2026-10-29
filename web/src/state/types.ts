@@ -334,7 +334,10 @@ export interface WikiGeneralStatus extends DiagramGenerationStatus {
  * or `custom/<id>`) saying whether its artifact already exists on disk, so the "Add diagram" menu
  * never offers a click that silently no-ops. Keyed by the same name the canvas uses for that
  * diagram's layer, so a new kind needs no change on this side. */
-export type DiagramsStatus = Record<string, { ready: boolean; fingerprint?: string | null }>;
+export type DiagramsStatus = Record<
+  string,
+  { ready: boolean; fingerprint?: string | null; /** The diagram's authored top-level `title`, null when untitled. */ title?: string | null }
+>;
 
 /** How an Impact box changed vs git HEAD — "removed" covers both a deleted path and an
  * agent-declared removal, so it can't be derived from the file statuses alone. */

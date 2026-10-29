@@ -1223,6 +1223,123 @@
           }
         }
       ]
+    },
+    {
+      "id": "answering_without_a_live_agent_keeps_the_question_and_its_option_diagram_for_ask_user_result",
+      "steps": [
+        {
+          "http": {
+            "method": "PATCH",
+            "path": "/repos/main/canvas",
+            "json": {
+              "ops": [
+                {
+                  "op": "add_element",
+                  "temp_id": "q",
+                  "render": "question",
+                  "layer": "questions",
+                  "label": "Pick one?",
+                  "meta": {
+                    "question_id": "q1",
+                    "session_id": null,
+                    "step": 1,
+                    "total": 1,
+                    "kind": "choices",
+                    "state": "open",
+                    "answer": null,
+                    "option_id": null,
+                    "allow_custom": true,
+                    "allow_skip": true,
+                    "agent_id": "main",
+                    "options": [
+                      {
+                        "id": "a",
+                        "title": "Modular monolith",
+                        "description": "d",
+                        "pro": "p",
+                        "con": "c",
+                        "why": "w",
+                        "rank": 1
+                      },
+                      {
+                        "id": "b",
+                        "title": "Microservices",
+                        "description": "d",
+                        "pro": "p",
+                        "con": "c",
+                        "why": "w",
+                        "rank": 2
+                      }
+                    ]
+                  }
+                },
+                {
+                  "op": "add_element",
+                  "temp_id": "d",
+                  "render": "group",
+                  "layer": "decisions/q1",
+                  "label": "Option a"
+                }
+              ]
+            }
+          },
+          "expect": {
+            "status": 200,
+            "checks": [
+              {
+                "path": "$.ok",
+                "equals": true
+              }
+            ]
+          },
+          "capture": {
+            "question": "$.id_map.q",
+            "diagram": "$.id_map.d"
+          }
+        },
+        {
+          "http": {
+            "method": "POST",
+            "path": "/repos/main/questions/q1/answer",
+            "json": {
+              "option_id": "a"
+            }
+          },
+          "expect": {
+            "status": 200,
+            "json": {
+              "ok": true,
+              "question_id": "q1",
+              "state": "answered",
+              "waiting": false,
+              "answer": "Modular monolith"
+            }
+          }
+        },
+        {
+          "http": {
+            "method": "GET",
+            "path": "/repos/main/canvas"
+          },
+          "expect": {
+            "status": 200,
+            "checks": [
+              {
+                "path": "$.elements['{{question}}'].meta.state",
+                "equals": "answered"
+              },
+              {
+                "path": "$.elements['{{question}}'].meta.awaiting_delivery",
+                "equals": true
+              },
+              {
+                "path": "$.elements['{{diagram}}'].layer",
+                "equals": "decisions/q1"
+              }
+            ]
+          }
+        }
+      ]
     }
   ]
 }

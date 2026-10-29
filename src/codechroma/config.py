@@ -170,6 +170,8 @@ class AgentsRoutesConfig(_Config):
     # Fresh-start nudge: polls of the PTY screen awaiting Claude's idle prompt (sessions.py).
     context_inject_attempts: int = 60
     context_inject_interval_seconds: float = 0.5
+    # Pause between injected text and its Enter: one write of both reads as a paste (no submit).
+    context_inject_submit_delay_seconds: float = 0.3
 
 
 class TerminalConfig(_Config):

@@ -7,7 +7,7 @@ using CodeChroma.Bridge.Workspaces;
 
 namespace CodeChroma.Bridge.Routes;
 
-/// <summary>GET/POST /repos/{id}/questions and the bearer-authenticated /mcp/ endpoint; answers are typed into the asking agent's terminal.</summary>
+/// <summary>GET/POST /repos/{id}/questions and the bearer-authenticated /mcp/ endpoint; a completed batch of answers is typed into the asking agent's terminal.</summary>
 public static class QuestionRoutes
 {
     public static void Map(WebApplication app)
@@ -122,9 +122,9 @@ public static class QuestionRoutes
     private static bool HasLiveAgent(AgentSessionRegistry sessions, CanvasElement element) =>
         Json.Str(element.Meta["agent_id"]) is { Length: > 0 } agent && sessions.Get(agent) is { IsAlive: true };
 
-    /// <summary>Reads the just-settled element back and types its message into the asking agent; true when a live session got it.</summary>
+    /// <summary>Reads the just-settled element back and wakes its agent once the batch is complete; true when a live session will get it.</summary>
     private static bool Deliver(AgentSessionRegistry sessions, Workspace ws, string questionId) =>
-        QuestionStore.FindElement(ws, questionId) is { } settled && QuestionDelivery.Deliver(sessions, settled, QuestionDelivery.AnswerMessage(settled));
+        QuestionStore.FindElement(ws, questionId) is { } settled && QuestionDelivery.DeliverSettled(sessions, ws, settled);
 
     private static JsonObject View(CanvasElement element, bool waiting)
     {

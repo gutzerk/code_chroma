@@ -78,7 +78,7 @@ async def ask_question(repo_id: str, request: Request, body: AskRequest) -> dict
 
 @router.post("/repos/{repo_id}/questions/{question_id}/answer")
 async def answer_question(ws: Ws, services: Services, question_id: str, body: AnswerBody) -> dict:
-    """Records the answer on the element, then types it into the asking agent's terminal."""
+    """Records the answer; the agent is woken once its last open question settles."""
     element = await run_in_threadpool(_open_element, ws, question_id)
     text, option_id = (body.answer or "").strip(), body.option_id
     if option_id is not None:
@@ -92,18 +92,19 @@ async def answer_question(ws: Ws, services: Services, question_id: str, body: An
         raise HTTPException(status_code=422, detail="answer is empty")
     result = QuestionResult(answer=text, option_id=option_id)
     settled = await run_in_threadpool(store.settle, ws, element, "answered", result)
-    return _ack(question_id, "answered", text, delivery.deliver(services, settled))
+    waiting = await delivery.deliver_settled(services, ws, settled)
+    return _ack(question_id, "answered", text, waiting)
 
 
 @router.post("/repos/{repo_id}/questions/{question_id}/skip")
 async def skip_question(ws: Ws, services: Services, question_id: str) -> dict:
-    """Marks the question skipped and tells the asking agent to decide itself."""
+    """Marks the question skipped; the agent then decides itself once its batch completes."""
     element = await run_in_threadpool(_open_element, ws, question_id)
     if not element.meta.get("allow_skip", True):
         raise HTTPException(status_code=422, detail="this question cannot be skipped")
     result = QuestionResult(skipped=True)
     settled = await run_in_threadpool(store.settle, ws, element, "skipped", result)
-    return _ack(question_id, "skipped", None, delivery.deliver(services, settled))
+    return _ack(question_id, "skipped", None, await delivery.deliver_settled(services, ws, settled))
 
 
 @router.post("/repos/{repo_id}/questions/{question_id}/request-diagram")

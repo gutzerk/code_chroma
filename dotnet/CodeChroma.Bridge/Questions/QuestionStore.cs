@@ -1,3 +1,4 @@
+using System.Collections.Concurrent;
 using System.Text.Json.Nodes;
 using CodeChroma.Bridge.Stores;
 using CodeChroma.Bridge.Workspaces;
@@ -8,6 +9,10 @@ namespace CodeChroma.Bridge.Questions;
 public static class QuestionStore
 {
     private const string Explanation = "ai question";
+    public const string AwaitingDelivery = "awaiting_delivery";
+
+    // Questions a completed batch removed, per (canvas file, session_id), so later steps keep counting on.
+    private static readonly ConcurrentDictionary<(string Canvas, string Session), int> Delivered = new();
 
     private static JsonObject Commit(Workspace ws, Func<CanvasDoc, List<JsonNode?>> buildOps)
     {
@@ -24,8 +29,10 @@ public static class QuestionStore
 
     private static CanvasDoc Load(Workspace ws) => CanvasDoc.Load(ws.CanvasCorePath(), ws.DiagramsRoot());
 
-    private static int NextStep(CanvasDoc doc, string? sessionId) =>
-        string.IsNullOrEmpty(sessionId) ? 1 : 1 + doc.Elements.Values.Count(e => e.Render == "question" && Json.Str(e.Meta["session_id"]) == sessionId);
+    private static int NextStep(Workspace ws, CanvasDoc doc, string? sessionId) =>
+        string.IsNullOrEmpty(sessionId)
+            ? 1
+            : 1 + Delivered.GetValueOrDefault((ws.CanvasCorePath(), sessionId)) + doc.Elements.Values.Count(e => e.Render == "question" && Json.Str(e.Meta["session_id"]) == sessionId);
 
     private static JsonArray OptionsMeta(AskRequest request) => new(request.Options.Select(o => (JsonNode?)o.ToJson()).ToArray());
 
@@ -66,7 +73,7 @@ public static class QuestionStore
         {
             var meta = new JsonObject
             {
-                ["question_id"] = questionId, ["session_id"] = request.SessionId, ["step"] = NextStep(doc, request.SessionId),
+                ["question_id"] = questionId, ["session_id"] = request.SessionId, ["step"] = NextStep(ws, doc, request.SessionId),
                 ["total"] = request.Total, ["kind"] = request.Kind, ["state"] = "open", ["answer"] = null, ["option_id"] = null,
                 ["allow_custom"] = request.AllowCustom, ["allow_skip"] = request.AllowSkip, ["agent_id"] = request.AgentId,
                 ["options"] = OptionsMeta(request),
@@ -86,9 +93,40 @@ public static class QuestionStore
     /// <summary>Every `question` element, in canvas insertion order.</summary>
     public static List<CanvasElement> ListQuestions(Workspace ws) => Load(ws).Elements.Values.Where(e => e.Render == "question").ToList();
 
-    /// <summary>Writes the answered/skipped state onto the element's meta.</summary>
+    /// <summary>Writes the answered/skipped state onto the element's meta and marks it for the agent's next wake-up.</summary>
     public static void Settle(Workspace ws, string elementId, string state, QuestionResult result) =>
-        Commit(ws, _ => [Update(elementId, new JsonObject { ["state"] = state, ["answer"] = result.Answer, ["option_id"] = result.OptionId })]);
+        Commit(ws, _ => [Update(elementId, new JsonObject { ["state"] = state, ["answer"] = result.Answer, ["option_id"] = result.OptionId, [AwaitingDelivery] = true })]);
+
+    /// <summary>Once none of the agent's questions is open, deletes its settled ones and their option diagrams; returns those not yet delivered.</summary>
+    public static List<CanvasElement> CompleteBatch(Workspace ws, string agentId)
+    {
+        lock (CanvasWrite.LockFor(ws.Id))
+        {
+            var doc = Load(ws);
+            var mine = doc.Elements.Values.Where(e => e.Render == "question" && Json.Str(e.Meta["agent_id"]) == agentId).ToList();
+            if (mine.Any(e => Json.Str(e.Meta["state"]) == "open")) return [];
+            var batch = mine.Where(e => Json.Truthy(e.Meta[AwaitingDelivery])).ToList();
+            if (batch.Count == 0) return [];
+            Checked(CanvasWrite.Commit(ws, ApplyBatch.ApplyChunked(doc, CleanupOps(doc, mine), "default", Explanation, confirmMassDelete: true)));
+            foreach (var session in mine.Select(e => Json.Str(e.Meta["session_id"])).OfType<string>().Where(id => id.Length > 0))
+                Delivered.AddOrUpdate((ws.CanvasCorePath(), session), 1, (_, n) => n + 1);
+            return batch;
+        }
+    }
+
+    private static bool IsDecisionLayer(string layer) => layer == "decisions" || layer.StartsWith(QuestionDiagrams.LayerPrefix, StringComparison.Ordinal);
+
+    /// <summary>Deletes the questions, their `decisions/&lt;question id&gt;` layers and the decision diagrams their options reference.</summary>
+    private static List<JsonNode?> CleanupOps(CanvasDoc doc, List<CanvasElement> questions)
+    {
+        var layers = questions.Select(q => Json.Str(q.Meta["question_id"])).OfType<string>().Where(id => id.Length > 0).Select(id => QuestionDiagrams.LayerFor(id, "")).ToHashSet();
+        var roots = questions.SelectMany(q => q.Meta["options"] as JsonArray ?? []).Select(o => Json.Str(o?["diagram_ref"]))
+            .OfType<string>().Where(r => doc.Elements.TryGetValue(r, out var root) && IsDecisionLayer(root.Layer)).ToHashSet();
+        var doomed = questions.Select(q => q.Id).ToHashSet();
+        foreach (var e in doc.Elements.Values)
+            if (layers.Contains(e.Layer) || roots.Contains(e.Id) || (e.GroupId is not null && roots.Contains(e.GroupId) && IsDecisionLayer(e.Layer))) doomed.Add(e.Id);
+        return doomed.Order(StringComparer.Ordinal).Select(id => (JsonNode?)new JsonObject { ["op"] = "delete_element", ["id"] = id }).ToList();
+    }
 
     /// <summary>The settled result recorded on an element, or null while it is still open.</summary>
     public static QuestionResult? ResultFrom(CanvasElement element) => Json.Str(element.Meta["state"]) switch

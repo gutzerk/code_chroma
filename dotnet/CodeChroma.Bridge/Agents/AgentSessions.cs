@@ -134,6 +134,17 @@ public sealed class AgentSession : IAgentSessionPort, IDisposable
         }
     }
 
+    /// <summary>The pause between the typed text and Enter; one write of both reads as a paste, whose Enter only adds a newline.</summary>
+    public static readonly TimeSpan SubmitDelay = TimeSpan.FromMilliseconds(300);
+
+    /// <summary>Types `text`, waits `delay`, then presses Enter as its own write, so the TUI submits it instead of pasting.</summary>
+    public static async Task TypeAndSubmit(Action<string> write, string text, TimeSpan delay)
+    {
+        write(text);
+        await Task.Delay(delay);
+        write("\r");
+    }
+
     /// <summary>One queued injection: waits for idle, types it, then lets the screen settle so the next one sees the agent busy.</summary>
     private async Task InjectOnce(string text, int attempts, TimeSpan wait)
     {
@@ -143,7 +154,7 @@ public sealed class AgentSession : IAgentSessionPort, IDisposable
             var verdict = _detector.Classify(_tap.Tail(_detector.Rules.TailLines), _tap.Title, _tap.Progress, null);
             if (verdict == StatusDetector.Idle)
             {
-                Write(text + "\r");
+                await TypeAndSubmit(Write, text, SubmitDelay);
                 await Task.Delay(wait);
                 return;
             }

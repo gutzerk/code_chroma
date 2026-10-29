@@ -52,7 +52,26 @@ describe("diagramDisplayName", () => {
   it("names a builtin and counts only boxes", () => {
     const display = diagramDisplayName("system-context", doc);
 
-    expect(display).toEqual({ name: "System context", typeLabel: "System context", boxCount: 2 });
+    expect(display).toEqual({ name: "System context", typeLabel: "System context", boxCount: 2, titled: false });
+  });
+
+  it("names a diagram by the title the bridge stamped on its elements", () => {
+    const titled = { ...el("s", "sequence"), meta: { diagram_title: " How a file save reaches the canvas " } };
+    const withTitle = { ...doc, elements: { ...doc.elements, s: titled } };
+
+    const display = diagramDisplayName("sequence", withTitle);
+
+    expect(display).toMatchObject({ name: "How a file save reaches the canvas", typeLabel: "Sequence", titled: true });
+  });
+
+  it("labels a saved custom type by its own title and walkthrough by its kind", () => {
+    const types = [{ id: "q", title: "Data flow" }] as Parameters<typeof diagramDisplayName>[2];
+
+    const custom = diagramDisplayName("custom/q", doc, types);
+    const walkthrough = diagramDisplayName("walkthrough", doc);
+
+    expect(custom.typeLabel).toBe("Data flow");
+    expect(walkthrough.typeLabel).toBe("Walkthrough");
   });
 
   it("labels other layers as Custom", () => {

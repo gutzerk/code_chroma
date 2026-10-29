@@ -1,18 +1,10 @@
 import { Store } from "../../state/createStore";
 import { agentStore } from "../../agents/agentStore";
 
-export type SequenceMode = "readable" | "focus";
-
 export interface SequenceView {
-  mode: SequenceMode;
-  /** Ids of the phases folded to one row (focus mode only). */
-  collapsed: string[];
-  /** The participant ref whose messages stay lit (focus mode only); null lights everything. */
-  focus: string | null;
+  /** Ids of the step (message) elements opened in place into their functions. */
+  expanded: string[];
 }
-
-/** Diagrams with more messages than this open in `focus` mode until the user picks one. */
-export const FOCUS_DEFAULT_MESSAGE_COUNT = 12;
 
 const STORAGE_PREFIX = "codechroma.sequence-view";
 
@@ -39,30 +31,27 @@ function writeStorage(stored: Stored): void {
   }
 }
 
-/** The size-based default a diagram gets before the user picks a mode. */
-export function defaultSequenceMode(messageCount: number): SequenceMode {
-  return messageCount > FOCUS_DEFAULT_MESSAGE_COUNT ? "focus" : "readable";
-}
-
-/** Per-diagram sequence display prefs (mode, collapsed phases, focus); never written to sequence.json. */
+/** Per-diagram sequence display prefs (which steps are expanded); never written to sequence.json. */
 class SequenceViewStore extends Store {
   private stored: Stored | null = null;
   private storedKey = "";
   private version = 0;
-  // Bumps only when the layout-relevant part changes (mode / collapsed), not on step or focus.
+  // Bumps only when the layout-relevant part changes (expanded steps), not on the player step.
   private layoutVersion = 0;
   private readonly steps = new Map<string, number | null>();
 
   getVersion = (): number => this.version;
   getLayoutVersion = (): number => this.layoutVersion;
 
-  get(layer: string, messageCount: number): SequenceView {
+  get(layer: string): SequenceView {
     const own = this.load()[layer] ?? {};
-    return {
-      mode: own.mode === "readable" || own.mode === "focus" ? own.mode : defaultSequenceMode(messageCount),
-      collapsed: Array.isArray(own.collapsed) ? own.collapsed.filter((id) => typeof id === "string") : [],
-      focus: typeof own.focus === "string" ? own.focus : null,
-    };
+    return { expanded: Array.isArray(own.expanded) ? own.expanded.filter((id) => typeof id === "string") : [] };
+  }
+
+  /** Opens a step in place, or folds it back to its glance box. */
+  toggleExpanded(layer: string, id: string): void {
+    const { expanded } = this.get(layer);
+    this.setExpanded(layer, expanded.includes(id) ? expanded.filter((x) => x !== id) : [...expanded, id]);
   }
 
   getStep = (layer: string): number | null => this.steps.get(layer) ?? null;
@@ -72,9 +61,7 @@ class SequenceViewStore extends Store {
     this.bump(false);
   }
 
-  setMode = (layer: string, mode: SequenceMode): void => this.update(layer, { mode });
-  setFocus = (layer: string, focus: string | null): void => this.update(layer, { focus });
-  setCollapsed = (layer: string, collapsed: string[]): void => this.update(layer, { collapsed });
+  setExpanded = (layer: string, expanded: string[]): void => this.update(layer, { expanded });
 
   /** Forgets the in-memory choices (saved ones stay and reload per workspace). */
   reset(): void {
@@ -96,7 +83,7 @@ class SequenceViewStore extends Store {
     const all = this.load();
     all[layer] = { ...all[layer], ...patch };
     writeStorage(all);
-    this.bump("mode" in patch || "collapsed" in patch);
+    this.bump("expanded" in patch);
   }
 
   private bump(layoutChanged: boolean): void {

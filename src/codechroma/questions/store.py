@@ -2,16 +2,27 @@
 
 from __future__ import annotations
 
+import threading
 import time
 import uuid
+from collections import OrderedDict
 from collections.abc import Callable
 
 from codechroma.bridge.workspaces import Workspace
-from codechroma.canvas.apply_batch import BatchResult, apply_batch
+from codechroma.canvas.apply_batch import BatchResult, apply_batch, apply_batch_chunked
 from codechroma.canvas.document import CanvasDoc, Element
 from codechroma.canvas.locks import canvas_lock
 from codechroma.questions import diagrams
 from codechroma.questions.models import AskRequest, QuestionResult
+
+AWAITING_DELIVERY = "awaiting_delivery"
+# Questions a completed batch removed, per (canvas file, session_id): later steps count on.
+_delivered: OrderedDict[tuple[str, str], int] = OrderedDict()
+# Oldest sessions drop off past this, so a long-running bridge never grows the counter unbounded.
+_DELIVERED_CAP = 512
+# Agents with a wake-up queued, per (canvas file, agent_id); in memory, so a restart frees it.
+_claims: set[tuple[str, str]] = set()
+_claims_lock = threading.Lock()
 
 
 class QuestionWriteError(RuntimeError):
@@ -35,13 +46,24 @@ def _commit(ws: Workspace, build_ops: Callable[[CanvasDoc], list[dict]]) -> dict
     return response
 
 
-def _next_step(doc: CanvasDoc, session_id: str | None) -> int:
+def _next_step(ws: Workspace, doc: CanvasDoc, session_id: str | None) -> int:
     if not session_id:
         return 1
-    return 1 + sum(
+    return 1 + _delivered_count(ws, session_id) + sum(
         1 for e in doc.elements.values()
         if e.render == "question" and e.meta.get("session_id") == session_id
     )
+
+
+def _delivered_count(ws: Workspace, session_id: str) -> int:
+    return _delivered.get((str(ws.canvas_core_path), session_id), 0)
+
+
+def _count_delivered(ws: Workspace, session_id: str) -> None:
+    key = (str(ws.canvas_core_path), session_id)
+    _delivered[key] = _delivered.pop(key, 0) + 1
+    while len(_delivered) > _DELIVERED_CAP:
+        _delivered.popitem(last=False)
 
 
 def _options_meta(request: AskRequest) -> list[dict]:
@@ -95,7 +117,7 @@ def open_question(
         meta = {
             "question_id": question_id,
             "session_id": request.session_id,
-            "step": _next_step(doc, request.session_id),
+            "step": _next_step(ws, doc, request.session_id),
             "total": request.total,
             "kind": request.kind,
             "state": "open",
@@ -131,10 +153,103 @@ def list_questions(ws: Workspace) -> list[Element]:
 
 
 def settle(ws: Workspace, element: Element, state: str, result: QuestionResult) -> Element:
-    """Writes the answered/skipped state onto the element's meta; returns the settled element."""
-    meta = {"state": state, "answer": result.answer, "option_id": result.option_id}
+    """Writes the settled state onto the element's meta and marks it for the next wake-up."""
+    meta = {
+        "state": state, "answer": result.answer, "option_id": result.option_id,
+        AWAITING_DELIVERY: True,
+    }
     _commit(ws, lambda _doc: [{"op": "update_element", "id": element.id, "meta": meta}])
     return element.model_copy(update={"meta": {**element.meta, **meta}})
+
+
+def _cleanup_ops(doc: CanvasDoc, questions: list[Element]) -> list[dict]:
+    """Deletes the questions, their `decisions/<qid>` layers and the diagrams options reference."""
+    layers = {
+        diagrams.layer_for(q.meta["question_id"], "") for q in questions
+        if q.meta.get("question_id")
+    }
+    refs = {o.get("diagram_ref") for q in questions for o in q.meta.get("options", [])}
+    roots = {
+        r for r in refs
+        if r and r in doc.elements and diagrams.is_decision_layer(doc.elements[r].layer)
+    }
+    doomed = {q.id for q in questions} | {
+        e.id for e in doc.elements.values()
+        if e.layer in layers or e.id in roots
+        or (e.group_id in roots and diagrams.is_decision_layer(e.layer))
+    }
+    return [{"op": "delete_element", "id": i} for i in sorted(doomed)]
+
+
+def _agent_questions(doc: CanvasDoc, agent_id: str) -> list[Element]:
+    return [
+        e for e in doc.elements.values()
+        if e.render == "question" and e.meta.get("agent_id") == agent_id
+    ]
+
+
+def _ready_batch(doc: CanvasDoc, agent_id: str) -> list[Element]:
+    """The agent's undelivered answers, or none while any of its questions is still open."""
+    mine = _agent_questions(doc, agent_id)
+    if any(e.meta.get("state") == "open" for e in mine):
+        return []
+    return [e for e in mine if e.meta.get(AWAITING_DELIVERY)]
+
+
+def claim_batch(ws: Workspace, agent_id: str) -> bool:
+    """True when the agent's batch is complete and no wake-up for it is queued yet; claims it."""
+    key = (str(ws.canvas_core_path), agent_id)
+    doc = CanvasDoc.load(ws.canvas_core_path, ws.diagrams_root)
+    with _claims_lock:
+        if key in _claims or not _ready_batch(doc, agent_id):
+            return False
+        _claims.add(key)
+    return True
+
+
+def pending_batch(ws: Workspace, agent_id: str) -> list[Element]:
+    """The batch as it stands now, read at typing time so a revise or late answer is current."""
+    return _ready_batch(CanvasDoc.load(ws.canvas_core_path, ws.diagrams_root), agent_id)
+
+
+def release_batch(ws: Workspace, agent_id: str) -> None:
+    """Drops the agent's claim; its untyped answers stay marked for the next wake-up."""
+    with _claims_lock:
+        _claims.discard((str(ws.canvas_core_path), agent_id))
+
+
+def clear_batch(ws: Workspace, batch: list[Element]) -> None:
+    """After the answers were typed: deletes the batch's still-settled questions and diagrams."""
+    with canvas_lock(ws.id):
+        doc = CanvasDoc.load(ws.canvas_core_path, ws.diagrams_root)
+        settled = _still_settled(doc, batch)
+        if not settled:
+            return
+        _commit_locked(ws, doc, _cleanup_ops(doc, settled))
+        for e in settled:
+            if session := e.meta.get("session_id"):
+                _count_delivered(ws, session)
+
+
+_SETTLED_KEYS = ("state", "answer", "option_id")
+
+
+def _still_settled(doc: CanvasDoc, batch: list[Element]) -> list[Element]:
+    """The batch's questions still on the canvas with the very answer that was typed."""
+    kept = []
+    for typed in batch:
+        current = doc.elements.get(typed.id)
+        if current and all(current.meta.get(k) == typed.meta.get(k) for k in _SETTLED_KEYS):
+            kept.append(current)
+    return kept
+
+
+def _commit_locked(ws: Workspace, doc: CanvasDoc, ops: list[dict]) -> None:
+    """Commits `ops` against an already-loaded doc; the caller holds the canvas lock."""
+    result = apply_batch_chunked(doc, ops, explanation="ai question", confirm_mass_delete=True)
+    response = commit_canvas_batch(ws, result)
+    if not response["ok"]:
+        raise QuestionWriteError(str(response["errors"]))
 
 
 def result_from(element: Element) -> QuestionResult | None:

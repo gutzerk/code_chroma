@@ -1,10 +1,10 @@
 import { layoutBoxes } from "../connectors/diagramLayout";
 import type { CanvasDoc, CanvasElement, CanvasPosition, CanvasSize } from "../../state/types";
-import { orderMeta, rawMeta, stringMeta } from "./elementMeta";
+import { orderMeta, stringMeta } from "./elementMeta";
 import { isEpicsLayer, layoutEpics } from "./epicsLayout";
-import { measureBoxSize } from "./measureBoxSize";
+import { layoutBoxSize, measureBoxSize } from "./measureBoxSize";
 import { placeIncrementally } from "./incrementalLayout";
-import { buildSequenceModel } from "./sequenceModel";
+import { buildSequenceBoard } from "./sequenceBoard";
 import type { SequenceView } from "./sequenceViewStore";
 
 const DEFAULT_SIZE = { width: 300, height: 72 };
@@ -46,9 +46,9 @@ export async function layoutNewElements(
   const nonSequenceIds = newIds.filter((id) => doc.elements[id]?.render !== "sequence");
   const sequenceLayout = layoutSequence(doc, sequenceIds);
 
-  // Authored size wins, else the text-measured estimate, else the flat default (self-sized kinds).
+  // Authored size (grown to a role box's content), else the text-measured estimate, else the flat default.
   const sizeOf = (element: CanvasElement) => {
-    const measured = measureBoxSize(element);
+    const measured = layoutBoxSize(element);
     return {
       width: measured?.w ?? DEFAULT_SIZE.width,
       height: measured?.h ?? DEFAULT_SIZE.height,
@@ -160,29 +160,10 @@ export async function layoutNewElements(
   };
 }
 
-/** Same layout constants the SequenceDiagram component uses -- keep the two in sync by hand.
- * `colW` is deliberately wider than the participant head (`headW`) so adjacent name boxes always
- * keep a real gap (head 180 in a 260 column → ~80px of air), never touching. `rowH` is the centre-
- * to-centre spacing of message rows; `headGap` (air between the participant heads and the first
- * message line) comes from a position shift, while the gap below the last line is the dashed
- * DiagramFrame's own `PADDING.bottom` (DiagramFrame.tsx) -- never fake it by fattening a message's
- * `size.h`, which would poke the outer rows up into the heads. */
-export const SEQUENCE_LAYOUT = {
-  colW: 260,
-  headH: 36,
-  headW: 180,
-  rowH: 58,
-  headGap: 26,
-};
-
-/** Deterministic positions/sizes for a fresh sequence layer, derived from `meta` just like
- * SequenceDiagram draws it, so DiagramFrame and the canvas bounds hug the real picture instead of
- * a corner pile (the elements are locked-layout; this only names each participant/message's spot).
- * Participants sit in columns left-to-right (x = column * colW); every message sits on its own time
- * row (y = headH + headGap + rowH * (order - 1)) at the midpoint between its two columns. The first
- * row is pushed `headGap` below the participant heads; the gap below the last line is DiagramFrame's
- * own bottom padding (see SEQUENCE_LAYOUT). Returns empty when there are no sequence ids (the ELK
- * path is the only active one). */
+/** Deterministic positions/sizes for a sequence layer from `sequenceBoard.ts`'s swimlane layout, so
+ * DiagramFrame and the canvas bounds hug the real picture. A participant is its lane (centre + full
+ * lane size); a message is its step box. `view.expanded` grows the opened steps in place (display
+ * only, see viewSequenceElements). Returns empty when there are no sequence ids. */
 export function layoutSequence(
   doc: CanvasDoc,
   ids: readonly string[],
@@ -191,88 +172,29 @@ export function layoutSequence(
   const positions: Record<string, CanvasPosition> = {};
   const sizes: Record<string, CanvasSize> = {};
   if (ids.length === 0) return { positions, sizes };
-
   const elements = ids
     .map((id) => doc.elements[id])
     .filter((element): element is NonNullable<typeof element> => Boolean(element));
-  const slotOf = sequenceRowSlots(elements, view);
-
-  // Participant columns (left-to-right, in element order) and their authored-id → column index.
-  const participants = elements.filter((e) => stringMeta(e, "role") === "participant");
-  const colByRef = new Map<string, number>();
-  participants.forEach((element, index) => {
-    colByRef.set(element.id, index);
-    const key = stringMeta(element, "recipe_key");
-    if (key) colByRef.set(key, index);
-  });
-
-  participants.forEach((element, index) => {
-    const x = index * SEQUENCE_LAYOUT.colW + SEQUENCE_LAYOUT.colW / 2;
-    positions[element.id] = { x, y: SEQUENCE_LAYOUT.headH };
-    // Center-anchored box (CanvasNodeBox positions by center). A participant head is a fixed,
-    // capped width (`headW`) that never exceeds its column, so adjacent heads always keep a gap.
-    sizes[element.id] = { w: SEQUENCE_LAYOUT.headW, h: SEQUENCE_LAYOUT.headH };
-  });
-
-  for (const element of elements) {
-    if (stringMeta(element, "role") !== "message") continue;
-    const order = Number(rawMeta(element, "order"));
-    const x1 = colByRef.get(String(rawMeta(element, "from") ?? ""));
-    const x2 = colByRef.get(String(rawMeta(element, "to") ?? ""));
-    if (!Number.isFinite(order) || x1 === undefined || x2 === undefined) continue;
-    const y =
-      SEQUENCE_LAYOUT.headH +
-      SEQUENCE_LAYOUT.headGap +
-      SEQUENCE_LAYOUT.rowH * (slotOf(order) - 1) +
-      SEQUENCE_LAYOUT.rowH / 2;
-    const xMid = (x1 * SEQUENCE_LAYOUT.colW + x2 * SEQUENCE_LAYOUT.colW) / 2 + SEQUENCE_LAYOUT.colW / 2;
-    positions[element.id] = { x: xMid, y };
-    // A message keeps a thin row footprint (height = rowH). The vertical air comes from position,
-    // not a fattened size: `headGap` pushes the very first line clear of the participant heads, while
-    // the gap below the last line is the dashed DiagramFrame's own padding (DiagramFrame.tsx's
-    // PADDING.bottom). Inflating `size.h` here made the outer message rects poke up into the heads and
-    // pinch the bottom arrow against the frame -- don't fatten it.
-    sizes[element.id] = { w: Math.max(Math.abs(x1 - x2) * SEQUENCE_LAYOUT.colW, 40), h: SEQUENCE_LAYOUT.rowH };
-  }
+  const board = buildSequenceBoard(elements, view?.expanded ?? []);
+  const place = (id: string, rect: { x: number; y: number; w: number; h: number }) => {
+    positions[id] = { x: rect.x + rect.w / 2, y: rect.y + rect.h / 2 };
+    sizes[id] = { w: rect.w, h: rect.h };
+  };
+  for (const lane of board.lanes) if (lane.participant) place(lane.participant.element.id, lane.rect);
+  for (const step of board.steps) place(step.id, step.rect);
   return { positions, sizes };
 }
 
-/** Order → row (1-based). Readable keeps `order` itself; focus folds each collapsed phase into the
- * one row its first message holds, so hidden messages stop taking vertical space. */
-function sequenceRowSlots(elements: CanvasElement[], view?: SequenceView): (order: number) => number {
-  if (!view || view.mode !== "focus" || view.collapsed.length === 0) return (order) => order;
-  const { phases, messages } = buildSequenceModel(elements);
-  const folded = phases.filter((p) => view.collapsed.includes(p.id));
-  const slots = new Map<number, number>();
-  let slot = 0;
-  let lastFold = -1;
-  let lastFoldSlot = 0;
-  for (const { order } of messages) {
-    if (slots.has(order)) continue;
-    const fold = folded.findIndex((f) => order >= f.from_order && order <= f.to_order);
-    if (fold >= 0 && fold === lastFold) {
-      slots.set(order, lastFoldSlot);
-      continue;
-    }
-    slot += 1;
-    slots.set(order, slot);
-    lastFold = fold;
-    lastFoldSlot = slot;
-  }
-  return (order) => slots.get(order) ?? order;
-}
-
-/** The sequence layer's elements at the geometry the viewer's mode implies, anchored to the persisted
- * layout so a frame drag survives; display only -- nothing here is written back to the document. */
+/** The sequence layer's elements at the geometry the viewer's expanded steps imply, anchored to the
+ * persisted layout so a frame drag survives; display only -- nothing here is written back. */
 export function viewSequenceElements(
   doc: CanvasDoc,
   ids: readonly string[],
   view: SequenceView,
 ): CanvasElement[] {
   const elements = ids.map((id) => doc.elements[id]).filter((e): e is CanvasElement => Boolean(e));
-  if (view.mode !== "focus" || view.collapsed.length === 0) return elements;
   const base = layoutSequence(doc, ids);
-  const next = layoutSequence(doc, ids, view);
+  const next = view.expanded.length > 0 ? layoutSequence(doc, ids, view) : base;
   const anchor = elements.find((e) => base.positions[e.id]);
   if (!anchor) return elements;
   const dx = anchor.position.x - base.positions[anchor.id].x;

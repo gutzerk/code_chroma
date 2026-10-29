@@ -57,6 +57,11 @@ Four things about it are load-bearing for how a TUI actually renders, and all fo
   reads `Popen.poll()` (the watcher's result) rather than doing its own `waitpid`. Writing to a full
   or closed PTY (`write`/`write_bytes`, incl. a paste into a busy agent) swallows `EAGAIN`/`EIO`
   instead of throwing out of the socket handler.
+- 🔴 **Typing a message into an agent needs Enter as its own write.** Claude Code (checked on 2.1.308)
+  reads one PTY write of `text + "\r"` as a paste: the text lands in the input box and is not
+  submitted. `AgentSession.inject_when_idle` (C# `InjectWhenIdle` via `AgentSession.TypeAndSubmit`)
+  writes the text, waits `agents_routes.context_inject_submit_delay_seconds` (C# `SubmitDelay`, 0.3 s),
+  then writes `\r`; see [`parallel-agents.md`](parallel-agents.md) and [`ai-questions.md`](ai-questions.md).
 
 The browser side is `web/src/terminal/useXtermSession.ts` — see
 [`docs/architecture/web-panels.md`](web-panels.md).

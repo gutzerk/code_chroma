@@ -32,9 +32,10 @@ export function blockRoleFor(element: CanvasElement): BlockRole | undefined {
   if (planKind === "add" || planKind === "create") return "planned";
   const reason = stringMeta(element, "no_code_reason");
   if (reason === "external") return "external";
-  if (reason === "conceptual") return "actor";
+  // An authored shape (a store drawn as `storage`) says more than "no code behind it".
   const shape = stringMeta(element, "shape");
   if (shape && shape in SHAPE_ROLES) return SHAPE_ROLES[shape];
+  if (reason === "conceptual") return "actor";
   const kind = stringMeta(element, "kind");
   if (kind && kind in KIND_ROLES) return KIND_ROLES[kind];
   if (kind || stringMeta(element, "path") || element.node_id) return "component";

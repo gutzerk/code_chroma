@@ -31,12 +31,12 @@ def test_empty_repo_reports_nothing_ready(server_module):
         response = client.get("/repos/default/diagrams/status")
 
     assert response.json() == {
-        "system-context": {"ready": False, "fingerprint": None},
-        "patterns": {"ready": False, "fingerprint": None},
-        "impact": {"ready": False, "fingerprint": None},
-        "epics": {"ready": False, "fingerprint": None},
-        "sequence": {"ready": False, "fingerprint": None},
-        "walkthrough": {"ready": False, "fingerprint": None},
+        "system-context": {"ready": False, "fingerprint": None, "title": None},
+        "patterns": {"ready": False, "fingerprint": None, "title": None},
+        "impact": {"ready": False, "fingerprint": None, "title": None},
+        "epics": {"ready": False, "fingerprint": None, "title": None},
+        "sequence": {"ready": False, "fingerprint": None, "title": None},
+        "walkthrough": {"ready": False, "fingerprint": None, "title": None},
     }
 
 
@@ -49,7 +49,7 @@ def test_written_c1_reports_ready(server_module):
 
     assert response.json()["system-context"]["ready"] is True
     assert response.json()["system-context"]["fingerprint"] is not None
-    assert response.json()["patterns"] == {"ready": False, "fingerprint": None}
+    assert response.json()["patterns"] == {"ready": False, "fingerprint": None, "title": None}
 
 
 def test_written_feature_plan_reports_ready_under_its_layer_name(server_module):

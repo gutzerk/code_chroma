@@ -29,6 +29,7 @@ from codechroma.bridge.wiki_context import WikiContextBundle, build_wiki_context
 from codechroma.bridge.wiki_general_agent import wiki_general_dir
 from codechroma.bridge.wiki_general_context import build_wiki_general_context
 from codechroma.bridge.workspaces import Workspace
+from codechroma.canvas.recipes import diagram_title
 from codechroma.diagrams import library
 from codechroma.diagrams.registry import BUILTIN_TYPES, get_definition
 from codechroma.fingerprint import hash_lines
@@ -182,31 +183,34 @@ def _content_fingerprint(diagram: dict) -> str | None:
     return hash_lines([json.dumps(diagram, sort_keys=True, default=str)])
 
 
+def _status_entry(diagram: dict, ready: bool) -> dict:
+    """One status row: readiness, content fingerprint and the authored title (or None)."""
+    return {
+        "ready": ready,
+        "fingerprint": _content_fingerprint(diagram),
+        "title": diagram_title(diagram),
+    }
+
+
 @router.get("/repos/{repo_id}/diagrams/status")
 def get_diagrams_status(ws: Ws, services: Services) -> dict:
-    """Which diagram artifacts validate (`only_if_missing`'s check), plus a content fingerprint."""
+    """Which diagram artifacts validate, plus a content fingerprint and each diagram's title."""
     status: dict[str, object] = {
-        kind: {
-            "ready": services.skill_agents[kind].has_artifact(spec.root_for(ws), ws.id),
-            "fingerprint": _content_fingerprint(ws.load_diagram(kind)),
-        }
+        kind: _status_entry(
+            ws.load_diagram(kind),
+            services.skill_agents[kind].has_artifact(spec.root_for(ws), ws.id),
+        )
         for kind, spec in DIAGRAMS.items()
     }
     for entry in library.list_types():
         diagram = ws.load_diagram(f"custom/{entry['id']}")
-        status[f"custom/{entry['id']}"] = {
-            "ready": bool(diagram),
-            "fingerprint": _content_fingerprint(diagram),
-        }
+        status[f"custom/{entry['id']}"] = _status_entry(diagram, bool(diagram))
     feature_dir = DIAGRAMS.feature_plan_dir(ws.root)
     slugs = feature_dir.iterdir() if feature_dir.is_dir() else ()
     for slug in sorted(p.name for p in slugs if p.is_dir()):
         diagram = ws.load_diagram(f"feature-plan/{slug}")
         if diagram:
-            status[f"feature-plan/{slug}"] = {
-                "ready": True,
-                "fingerprint": _content_fingerprint(diagram),
-            }
+            status[f"feature-plan/{slug}"] = _status_entry(diagram, True)
     return status
 
 

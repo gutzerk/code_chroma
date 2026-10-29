@@ -164,6 +164,7 @@ public static class DiagramRoutes
         {
             ["ready"] = ready ?? diagram is JsonObject { Count: > 0 },
             ["fingerprint"] = Fingerprint(diagram),
+            ["title"] = Recipes.DiagramTitle(diagram),
         };
         // A built-in is ready once its file validates (an empty object is valid); custom and feature-plan once non-empty.
         foreach (var kind in Workspace.DiagramKinds) Add(kind, DiagramArtifacts.Load(ws, kind), SkillAgents.HasValidFlatDiagram(LoadArtifact(ws, kind)));

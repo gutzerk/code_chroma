@@ -83,6 +83,19 @@ afterEach(() => {
   descriptionPopupStore.reset();
 });
 
+describe("CanvasNodeBox — zoomed-out name fit", () => {
+  it("marks the box and its name for the far-zoom fit and passes the fitted size as a CSS variable", () => {
+    const el = element({ id: "fit", render: "pattern", layer: "patterns", label: "Auth", size: { w: 300, h: 120 } });
+
+    renderBox(el);
+
+    const box = screen.getByTestId("canvas-node-box");
+    expect(box.className).toContain("canvas-node-fit");
+    expect(screen.getByTestId("canvas-node-box-name").className).toContain("canvas-node-fit-name");
+    expect(box.style.getPropertyValue("--node-fit-name-size")).toBe(`${Math.floor(100 / 1.15)}px`);
+  });
+});
+
 describe("CanvasNodeBox — marquee selection key", () => {
   it("stamps data-select-id with its own canvas-doc element id, not its (possibly absent) node_id", () => {
     // Regression: a synthetic C1 System/Actor box has no node_id at all, and even a resolved box's

@@ -27,7 +27,8 @@ given its size.
   as obstacles and never writes a position — it is not a second, competing layout pass, and boxes are
   not participants in it the way they are in `collisionStore`.
   ⚠ `collision/constants.ts` keeps two separate gaps: `ELK_NODE_SEP` 110 / `ELK_RANK_SEP` 160 are
-  auto-layout spacing only, while the drag rule's `NODE_SEP`/`RANK_SEP` are a small 24. ELK sizes
+  auto-layout spacing only, while the drag rule's `NODE_SEP`/`RANK_SEP` are a small 24; an incrementally
+  auto-placed box (`incrementalLayout.ts`) uses `AUTO_NODE_SEP` 48 / `AUTO_RANK_SEP` 56 instead. ELK sizes
   unmeasured boxes at a default, so freshly laid-out boxes are often closer than the ELK spacing; a drag
   gap that large made such a box impossible to drop back. The store divides
   `getBoundingClientRect` by the same `measureScale` the drag delta uses, freezes its rectangles for

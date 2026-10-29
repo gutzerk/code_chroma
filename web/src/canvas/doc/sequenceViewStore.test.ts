@@ -1,32 +1,43 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { sequenceViewStore } from "./sequenceViewStore";
 
+const storedValues = (): string[] =>
+  Array.from({ length: window.localStorage.length }, (_, i) => window.localStorage.key(i))
+    .filter((k): k is string => !!k && k.startsWith("codechroma.sequence-view"))
+    .map((k) => window.localStorage.getItem(k) ?? "");
+
 describe("sequenceViewStore", () => {
   beforeEach(() => {
     window.localStorage.clear();
     sequenceViewStore.reset();
   });
 
-  it("defaults to readable up to 12 messages and focus above", () => {
-    expect(sequenceViewStore.get("a", 12).mode).toBe("readable");
-    expect(sequenceViewStore.get("a", 13).mode).toBe("focus");
+  it("starts with every step folded to its glance box", () => {
+    expect(sequenceViewStore.get("a")).toEqual({ expanded: [] });
   });
 
-  it("keeps collapse and focus across a mode switch back and forth", () => {
-    sequenceViewStore.setCollapsed("a", ["p1"]);
-    sequenceViewStore.setFocus("a", "api");
-    sequenceViewStore.setMode("a", "readable");
-    sequenceViewStore.setMode("a", "focus");
+  it("toggles a step open and shut in place", () => {
+    sequenceViewStore.toggleExpanded("a", "m1");
+    sequenceViewStore.toggleExpanded("a", "m2");
+    sequenceViewStore.toggleExpanded("a", "m1");
 
-    expect(sequenceViewStore.get("a", 3)).toEqual({ mode: "focus", collapsed: ["p1"], focus: "api" });
+    expect(sequenceViewStore.get("a").expanded).toEqual(["m2"]);
+  });
+
+  it("bumps the layout version on expand but not on a player step", () => {
+    const before = sequenceViewStore.getLayoutVersion();
+    sequenceViewStore.setStep("a", 2);
+    const afterStep = sequenceViewStore.getLayoutVersion();
+    sequenceViewStore.toggleExpanded("a", "m1");
+
+    expect(afterStep).toBe(before);
+    expect(sequenceViewStore.getLayoutVersion()).toBe(before + 1);
   });
 
   it("persists the choice in localStorage", () => {
-    sequenceViewStore.setMode("a", "focus");
+    sequenceViewStore.toggleExpanded("a", "m7");
 
-    const key = Object.keys(window.localStorage).find((k) => k.startsWith("codechroma.sequence-view"));
-
-    expect(window.localStorage.getItem(key ?? "")).toContain("focus");
+    expect(storedValues().join("")).toContain("m7");
   });
 
   it("still works when storage throws", () => {
@@ -34,9 +45,9 @@ describe("sequenceViewStore", () => {
       throw new Error("blocked");
     });
 
-    sequenceViewStore.setMode("b", "focus");
+    sequenceViewStore.toggleExpanded("b", "m1");
 
-    expect(sequenceViewStore.get("b", 1).mode).toBe("focus");
+    expect(sequenceViewStore.get("b").expanded).toEqual(["m1"]);
     spy.mockRestore();
   });
 });

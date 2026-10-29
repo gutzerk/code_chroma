@@ -164,7 +164,7 @@
         },
         {
           "http": {"method": "GET", "path": "/repos/main/diagrams/status"},
-          "expect": {"status": 200, "checks": [{"path": "$['custom/data-flow']", "equals": {"ready": false, "fingerprint": null}}]}
+          "expect": {"status": 200, "checks": [{"path": "$['custom/data-flow']", "equals": {"ready": false, "fingerprint": null, "title": null}}]}
         },
         {"fs": "write", "path": ".codechroma/diagrams/custom/data-flow/data-flow.json", "text": "{\"nodes\": []}"},
         {

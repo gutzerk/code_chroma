@@ -27,6 +27,7 @@ The one shared flat shape (`drawing-rules.md`) with `type: "walkthrough"`, plus 
 {
   "type": "walkthrough",
   "generated_at": "2026-01-01T00:00:00Z",
+  "title": "How Update refreshes the stale map",
   "question": "What happens when I click Update on the stale map?",
   "summary": "Refreshes the graph, rewrites changed pages with Claude, then stamps.",
   "nodes": [
@@ -49,11 +50,13 @@ The one shared flat shape (`drawing-rules.md`) with `type: "walkthrough"`, plus 
 }
 ```
 
+- **`title`** (top-level, required): a short name (≤ 60 chars, in the language of the user's request) for what *this* diagram shows, never the type name ("Walkthrough"), distinct from the titles already on the canvas — see `drawing-rules.md` "Naming the diagram (`title`)"; the self-check advises `NOTITLE`/`GENERICTITLE` otherwise.
+
 Rules:
 - **One step box per route step; the box `id` equals the step `id`.** The route is the spine: `route.steps[*].id` must match a `nodes[].id`, orders run 1..N with no gaps. 5–9 steps; over 12 the self-check prints `SPLIT`.
 - **The trigger is step 1** (`kind: "trigger"`, a person or an event, `node_ids: []`, `detail` says who). **The last step is the outcome**; the canvas draws it as ✓.
 - **Colour is a signal, so keep it rare:** `ai` (a model runs, drawn violet), `data` (something is written), `failure` (a branch that stops the flow, drawn red; its arrow is `kind: "error"`). Everything else is `decide` or `check`.
-- **`title` ≤ 4 words; `detail`** names the actor or the function that runs (`MapPost /update`, `ComputeDelta()`). Do not repeat the title.
+- **`title` ≤ 4 words; `detail`** names the actor or the function that runs (`MapPost /update`, `ComputeDelta()`). Do not repeat the title. A step box shows the node's `name` and `description` like any other diagram box; the ROUTE panel shows the step `title` with its `detail` below. Give a trigger a `lane` (`You`). Mark a store with `meta.shape: "storage"` and an outside service with `no_code_reason: "external"`: the box role row reads DATA / EXTERNAL.
 - **`node_ids`** are the real files or functions the step runs in. Use `[]` for an actor, an external service or any step with no code in this repo, and give that box `node_id: null`, `path: null`, `meta.no_code_reason: "conceptual"` (an external system also `meta.external: true`).
 - **`children`**: the 2–5 calls inside a step that matter, `{id, label, node_id, line}` with a positive integer `line`. Optional; write them by hand from the context cache.
 - **`relations[]`** are the order of the process, one per consecutive pair, plus real branches (a failure goes to its own box). Mark the main path `hero: true` on 1–2 arrows. Kinds: `calls` (default), `spawns`, `data`, `minor`, `error`.
@@ -74,4 +77,4 @@ Rules:
    ```
 
    The route codes (`BADROUTE`, `ROUTE-*`) are advisory; `ORPHAN`, `DANGLING`, `DUPLICATE`, `SPLIT` and the budgets are in `drawing-rules.md`.
-6. Tell the user which files the route lights and which steps have no code. The canvas shows the route with **Show route** on the diagram frame.
+6. Tell the user which files the route lights and which steps have no code. The canvas draws the ROUTE panel inside the diagram, right of the steps, and lights the route on the code map (**Show route** / **Hide route** on the frame).

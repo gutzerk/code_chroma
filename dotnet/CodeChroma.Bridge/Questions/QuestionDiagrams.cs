@@ -29,6 +29,9 @@ public static class QuestionDiagrams
     /// <summary>The per-question layer one diagram is drawn on.</summary>
     public static string LayerFor(string? questionId, string draft) => LayerPrefix + (string.IsNullOrEmpty(questionId) ? DraftPrefix + draft : questionId);
 
+    /// <summary>True for the shared `decisions` layer or any per-question `decisions/&lt;id&gt;` layer.</summary>
+    public static bool IsDecisionLayer(string layer) => layer == LayerPrefix.TrimEnd('/') || layer.StartsWith(LayerPrefix, StringComparison.Ordinal);
+
     /// <summary>True for a layer a diagram was drawn on before its question existed.</summary>
     public static bool IsDraftLayer(string layer) => layer.StartsWith(LayerPrefix + DraftPrefix, StringComparison.Ordinal);
 

@@ -1,7 +1,8 @@
 import { RouteFrameActions } from "./RouteFrameActions";
 import { Fragment, useEffect, useMemo, useRef, useSyncExternalStore } from "react";
 import { stringMeta } from "./elementMeta";
-import { buildSequenceModel, SEQUENCE_LEGEND_SPACE, SEQUENCE_PANEL_SPACE } from "./sequenceModel";
+import { buildSequenceModel } from "./sequenceModel";
+import { sequenceBoardBounds, sequenceBoardSignature } from "./sequenceBoard";
 import { sequenceViewStore } from "./sequenceViewStore";
 import type { CanvasElement } from "../../state/types";
 import { useEngineClient } from "../../engine-client/EngineClientContext";
@@ -14,6 +15,7 @@ import { diagramFrameColorClass } from "./diagramFrameColor";
 import { dragOffsetStore } from "./dragOffsetStore";
 import { CopyButton } from "../strategies/nodeChrome";
 import { SoftAreaFrame } from "./SoftAreaFrame";
+import { boundsWithWalkthroughPanel, useLayerRoute, WALKTHROUGH_LAYER } from "./walkthroughLayout";
 
 // The larger of GroupFrame's/LaneArea's/ConcurrencyIslandArea's own padding on each side (currently
 // GroupFrame's 32/48/32) plus NESTED_GAP: this frame is meant to enclose all three, and any of them
@@ -40,19 +42,16 @@ export const PADDING = {
   bottom: 32 + NESTED_GAP,
 };
 
-/** `Readable | Focus` segmented control (plus Collapse/Expand all and the focus chip in focus mode). */
+/** The sequence header: the step player and, once any step is open, Collapse all. */
 function SequenceModeSwitch({ layer, members }: { layer: string; members: CanvasElement[] }) {
   useSyncExternalStore(sequenceViewStore.subscribe, sequenceViewStore.getVersion);
-  const messageCount = members.filter((m) => stringMeta(m, "role") === "message").length;
-  const view = sequenceViewStore.get(layer, messageCount);
-  // `members` is a fresh array each render, so the model keys on a signature of what it reads.
+  const view = sequenceViewStore.get(layer);
+  // `members` is a fresh array each render, so the order list keys on a signature of what it reads.
   const signature = members
-    .map((m) => [m.id, m.render, stringMeta(m, "role"), m.meta?.order, m.label].join(":"))
-    .join("|") + JSON.stringify([members[0]?.meta?.phases, members[0]?.meta?.frames]);
+    .map((m) => [m.id, stringMeta(m, "role"), m.meta?.order].join(":"))
+    .join("|");
   // eslint-disable-next-line react-hooks/exhaustive-deps -- `signature` is the change signal for `members`
-  const model = useMemo(() => buildSequenceModel(members), [signature]);
-  const phaseIds = model.phases.map((p) => p.id);
-  const orders = useMemo(() => [...new Set(model.messages.map((m) => m.order))], [model]);
+  const orders = useMemo(() => [...new Set(buildSequenceModel(members).messages.map((m) => m.order))], [signature]);
   const step = sequenceViewStore.getStep(layer);
   const playing = step !== null;
   // Key the timer on the order values, not the array.
@@ -72,17 +71,6 @@ function SequenceModeSwitch({ layer, members }: { layer: string; members: Canvas
       data-testid="sequence-mode-switch"
       style={{ marginLeft: 8, display: "inline-flex", gap: 4 }}
     >
-      {(["readable", "focus"] as const).map((mode) => (
-        <button
-          key={mode}
-          type="button"
-          aria-pressed={view.mode === mode}
-          className={view.mode === mode ? "sequence-mode-btn sequence-mode-btn--on" : "sequence-mode-btn"}
-          onClick={() => sequenceViewStore.setMode(layer, mode)}
-        >
-          {mode === "readable" ? "Readable" : "Focus"}
-        </button>
-      ))}
       <button
         type="button"
         className="sequence-mode-btn"
@@ -91,20 +79,15 @@ function SequenceModeSwitch({ layer, members }: { layer: string; members: Canvas
       >
         {playing ? "■ Stop" : "▶ Play"}
       </button>
-      {view.mode === "focus" && (
-        <>
-          <button type="button" className="sequence-mode-btn" onClick={() => sequenceViewStore.setCollapsed(layer, phaseIds)}>
-            Collapse all
-          </button>
-          <button type="button" className="sequence-mode-btn" onClick={() => sequenceViewStore.setCollapsed(layer, [])}>
-            Expand all
-          </button>
-          {view.focus && (
-            <button type="button" className="sequence-mode-btn" onClick={() => sequenceViewStore.setFocus(layer, null)}>
-              {`Focus: ${view.focus} ✕`}
-            </button>
-          )}
-        </>
+      {view.expanded.length > 0 && (
+        <button
+          type="button"
+          className="sequence-mode-btn"
+          data-testid="sequence-collapse-all"
+          onClick={() => sequenceViewStore.setExpanded(layer, [])}
+        >
+          Collapse all
+        </button>
       )}
     </span>
   );
@@ -169,10 +152,20 @@ export function DiagramFrame({ layer, label, members, sizes, typeLabel, boxCount
   const engineClient = useEngineClient();
   const memberBounds = unionBoundsOf(members, sizes);
   useSyncExternalStore(sequenceViewStore.subscribe, sequenceViewStore.getVersion);
-  const sequenceMode = members.some((m) => m.render === "sequence") ? sequenceViewStore.get(layer, members.filter((m) => stringMeta(m, "role") === "message").length).mode : null;
-  const bounds = memberBounds && sequenceMode
-    ? { ...memberBounds, right: memberBounds.right + (sequenceMode === "focus" ? SEQUENCE_PANEL_SPACE : 0), bottom: memberBounds.bottom + SEQUENCE_LEGEND_SPACE }
-    : memberBounds;
+  const { route } = useLayerRoute(members);
+  const isSequence = members.some((m) => m.render === "sequence");
+  const expandedKey = isSequence ? sequenceViewStore.get(layer).expanded.join("|") : "";
+  // `members` is a fresh array each render, so the board bounds key on everything the board reads.
+  const boardSignature = isSequence ? sequenceBoardSignature(members) : "";
+  const boardBounds = useMemo(
+    () => (isSequence ? sequenceBoardBounds(members, expandedKey ? expandedKey.split("|") : []) : null),
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- boardSignature/expandedKey are the change signals for `members`
+    [isSequence, boardSignature, expandedKey],
+  );
+  // A sequence board also draws its phase pills above the lanes and its legend below them.
+  const sequenceBounds = isSequence ? (boardBounds ?? memberBounds) : memberBounds;
+  // A walkthrough's ROUTE panel is part of the diagram (WalkthroughPanel), so the frame encloses it too.
+  const bounds = sequenceBounds && route && layer === WALKTHROUGH_LAYER ? boundsWithWalkthroughPanel(sequenceBounds, route) : sequenceBounds;
 
   // Every id this gesture has pushed a live offset for, so an aborted drag (this component unmounts
   // mid-gesture -- e.g. another window/agent deletes the diagram while someone is dragging its frame)
@@ -219,10 +212,10 @@ export function DiagramFrame({ layer, label, members, sizes, typeLabel, boxCount
 
   if (!bounds) return null;
 
-
   const classes = [
     "canvas-diagram-frame",
     diagramFrameColorClass(layer),
+    isSequence ? "canvas-diagram-frame-sequence-board" : "",
     group.isDragging ? "canvas-diagram-frame--dragging" : "",
   ]
     .filter(Boolean)

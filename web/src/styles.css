@@ -159,6 +159,75 @@
   --issue-dialog-accent: #8faef2;
   --updates-muted: #a3a7b3; /* updates dialog secondary text/strokes */
   --epic-muted: #8b93a7; /* epic brief / acceptance-criteria muted text */
+
+  /* Role scale shared by the walkthrough and sequence boards, so a role reads the same on both. */
+  --role-ok: #5ee0a0; /* logic / lit route */
+  --role-ai: #a78bfa;
+  --role-fail: #fb7185;
+
+  /* Walkthrough / route over the code map -- the "B2 · Code map + route overlay" board's values. */
+  --font-board: Inter, "DM Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --route-ok: var(--role-ok); /* lit step, route line, number chip */
+  --route-ai: var(--role-ai); /* AI step */
+  --route-fail: var(--role-fail); /* failure chip and dashed failure arrow */
+  --route-chip-ink: #10231a; /* text on a green chip */
+  --route-ai-ink: #1c1630; /* text on a violet chip */
+  --route-glow: rgba(94, 224, 160, 0.16); /* soft band under a route line */
+  --route-ground: #1b1b19; /* board background */
+  --route-grid-dot: #2c2c29; /* board dot grid */
+  --route-frame-border: #3a3b37; /* folder / board frame */
+  --route-frame-bg: rgba(255, 255, 255, 0.04); /* folder / file swatch */
+  --route-text: #ecedee;
+  --route-text-soft: #c9cdd2; /* legend, folder names */
+  --route-text-muted: #8d939b; /* summaries, file names */
+  --route-link: #7fb8ff; /* code names in the panel */
+  --route-lit-bg: #18261f; /* a lit step box */
+  --route-ai-bg: #2a2538;
+  --route-fail-bg: #2a181d;
+  --route-fail-border: #8e3a4a;
+  --route-fail-ink: #ffb3bf;
+  --route-ext-border: #9a6b3a; /* dashed arrow to an external system */
+  --route-data-border: #8a5226; /* dashed arrow to a data store */
+  --route-panel-bg: #202226; /* ROUTE panel */
+  --route-panel-border: #33363c; /* panel, dimmed code box, hairlines */
+  --route-row-active-bg: #26302b;
+  --route-row-active-border: #3f7a5e;
+  --route-nav-bg: #24262b;
+  --route-nav-border: #3a3e45;
+
+  /* Sequence board -- the "A4 · Glance + expand in place" mockup's values the --route-* set lacks. */
+  --seq-lane-border: #2e2f2b;
+  --seq-lane-bg: rgba(255, 255, 255, 0.025);
+  --seq-lane-ai-border: #3b3352;
+  --seq-lane-ai-bg: rgba(167, 139, 250, 0.04);
+  --seq-lane-fail-border: #6b3442;
+  --seq-lane-fail-bg: rgba(251, 113, 133, 0.03);
+  --seq-label: #a3a8ae; /* lane labels, neutral pill text, function notes */
+  --seq-chip-ink: #17181a; /* text on a step number chip */
+  --seq-main: #d7dad4; /* main path arrow */
+  --seq-inner: #9ca1a8; /* call inside an expanded step (3:1 on every step tone) */
+  --seq-file-border: #2e4d70; /* file pill in an expanded step */
+  --seq-actor-border: #5e6670;
+  --seq-actor-bg: #3d4146; /* 28% role colour over the board (border 55%), so roles read apart */
+  --seq-actor: #94a3b8;
+  --seq-route-border: #416795;
+  --seq-route-bg: #2e4258;
+  --seq-route: #60a5fa; /* blue, not cyan: cyan sat too close to the green logic tone */
+  --seq-logic-border: #29805f;
+  --seq-logic-bg: #224f3d;
+  --seq-logic: var(--role-ok);
+  --seq-ai-border: #685995;
+  --seq-ai-bg: #423a58;
+  --seq-ai: var(--role-ai);
+  --seq-ai-ink: #c4b5fd; /* AI chip text: 4.5:1 on the AI step background */
+  --seq-check-border: #96751f;
+  --seq-check-bg: #5a491c;
+  --seq-check: #fbbf24;
+  --seq-data-bg: #5a3c23;
+  --seq-fail-bg: #5a3337;
+  --seq-data: #fb923c;
+  --seq-fn-border: #2b5a44; /* function card inside a logic step */
+  --seq-fn-bg: #1b3427;
 }
 /* stylelint-enable color-no-hex */
 
@@ -1679,144 +1748,6 @@ body {
   background: var(--surface-2);
   color: var(--text-1);
   overflow: visible;
-}
-
-/* The one own-component that renders an entire sequence layer (SequenceDiagram.tsx): participant
-   columns + time-ordered message arrows, all derived from meta -- no box shell, no user drag.
-
-   Colour model: each participant hashes into the shared 6-colour palette (`--group-frame-rgb-<n>`,
-   `groupColor.ts`'s groupColorIndex) and gets a per-participant CSS variable `--seq-accent-rgb`.
-   The participant's own head and lifeline tint from it, and a message tints from its SENDER's
-   participant colour -- so every arrow reads as "from whom" at a glance, and return arrows
-   (`--return`) recede to a dashed neutral --text-2 rather than re-colouring by receiver. */
-.sequence-diagram {
-  box-sizing: border-box;
-  pointer-events: none;
-  --seq-accent-rgb: 160, 165, 175;
-}
-
-/* One participant head/lifeline gets its own palette index so a message can tint by sender. The
-   component sets the exact (centered) box footprint in its inline width/height, so this needs no
-   translateX trick -- the head fills it and the lifeline sits at its centre. */
-.sequence-participant {
-  position: absolute;
-  top: 0;
-  box-sizing: border-box;
-}
-
-.sequence-participant-lane {
-  position: absolute;
-  left: 50%;
-  transform: translateX(-50%);
-  width: 0;
-  border-left: 1.5px dashed rgb(var(--seq-accent-rgb));
-  opacity: 0.55;
-}
-
-.sequence-participant-head {
-  position: absolute;
-  left: 0;
-  top: 0;
-  width: 100%;
-  height: 100%;
-  box-sizing: border-box;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 0 12px;
-  border: 1px solid rgb(var(--seq-accent-rgb));
-  border-radius: var(--radius-md);
-  background: color-mix(in oklab, rgb(var(--seq-accent-rgb)) 12%, var(--surface-2));
-  color: var(--text-1);
-  font-size: 12px;
-  font-weight: 600;
-  pointer-events: auto;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-.sequence-participant-name {
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-/* A horizontal message: a label centered on a left-to-right arrow (line). Positioned by the
-   component's inline left/top/width; the line is right-anchored and grows leftward from the
-   arrowhead on the right. Right-to-left arrows flip via scaleX. */
-.sequence-message {
-  position: absolute;
-  height: 20px;
-  pointer-events: auto;
-  cursor: pointer;
-  --seq-accent-rgb: 160, 165, 175;
-}
-
-.sequence-message-label {
-  position: absolute;
-  top: 50%;
-  left: 50%;
-  transform: translate(-50%, -50%);
-  font-size: 0.6rem;
-  color: #ffffff;
-  background: var(--surface-0);
-  border: 1px solid rgb(var(--seq-accent-rgb));
-  border-radius: var(--radius-lg);
-  padding: 1px 5px;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  z-index: 1;
-}
-
-.sequence-message-line {
-  position: absolute;
-  left: 0;
-  right: 0;
-  top: 50%;
-  height: 1.5px;
-  background: rgb(var(--seq-accent-rgb));
-  transform-origin: center;
-}
-
-/* The arrowhead at the receiving end: a small right-pointing triangle whose tip lands right ON the
-   receiver's lifeline (the line's right edge is that lifeline, so `right: 0` puts the tip exactly
-   at it — no poking past). Right-to-left arrows (returns included) flip via scaleX(-1), which flips the head to point
-   back at the original caller. */
-.sequence-message-line::after {
-  content: "";
-  position: absolute;
-  right: 0;
-  top: 50%;
-  transform: translateY(-50%);
-  width: 0;
-  height: 0;
-  border-top: 4px solid transparent;
-  border-bottom: 4px solid transparent;
-  border-left: 6px solid rgb(var(--seq-accent-rgb));
-}
-
-.sequence-message--async .sequence-message-line {
-  border-top: 1.5px dashed rgb(var(--seq-accent-rgb));
-  background: none;
-}
-
-.sequence-message--async .sequence-message-line::after {
-  border-left-color: rgb(var(--seq-accent-rgb));
-}
-
-.sequence-message--return .sequence-message-line {
-  background: none;
-  border-top: 1.5px dashed var(--text-2);
-}
-
-.sequence-message--return .sequence-message-line::after {
-  border-left-color: var(--text-2);
-}
-
-.sequence-message--return .sequence-message-label {
-  color: var(--text-2);
-  border-color: var(--text-2);
 }
 
 .diagram-node-box--dragging {
@@ -8025,53 +7956,10 @@ button[data-copy-state="idle"][aria-label]:hover:not(:disabled) {
   color: var(--text-2);
 }
 
-/* 022 sequence readability: phase bands, frames, notes, focus mode, mode switch */
-.sequence-phase-band, .sequence-phase-row, .sequence-timeline-bar { --phase-rgb: 141, 147, 155; }
-.sequence-phase-band--request, .sequence-phase-row--request, .sequence-timeline-bar--request { --phase-rgb: 34, 211, 238; }
-.sequence-phase-band--prepare, .sequence-phase-row--prepare, .sequence-timeline-bar--prepare { --phase-rgb: 127, 184, 255; }
-.sequence-phase-band--ai, .sequence-phase-row--ai, .sequence-timeline-bar--ai { --phase-rgb: 180, 156, 255; }
-.sequence-phase-band--deliver, .sequence-phase-row--deliver, .sequence-timeline-bar--deliver { --phase-rgb: 94, 224, 160; }
-.sequence-phase-band { position: absolute; border-radius: var(--radius-sm); overflow: hidden; background: rgba(var(--phase-rgb), 0.07); border-left: 3px solid rgb(var(--phase-rgb)); color: rgb(var(--phase-rgb)); }
-.sequence-phase-band-label { writing-mode: vertical-rl; transform: rotate(180deg); font-size: 0.65rem; letter-spacing: 0.06em; padding: 4px 0; white-space: nowrap; }
-.sequence-frame { position: absolute; border: 1px dashed rgba(251, 113, 133, 0.55); border-radius: var(--radius-sm); }
-.sequence-frame--loop { border-color: rgba(94, 224, 160, 0.5); }
-.sequence-frame--alt .sequence-frame-tag { color: #FB7185; }
-.sequence-frame--loop .sequence-frame-tag { color: #5EE0A0; }
-.sequence-frame-tag { position: absolute; top: -9px; left: 8px; padding: 0 6px; font-size: 0.65rem; background: var(--bg, #14161a); }
-.sequence-note { position: absolute; max-width: 180px; padding: 4px 8px; font-size: 0.7rem; border: 1px solid #5B5B3A; border-radius: var(--radius-sm); background: #24241C; color: #E8E2B0; }
-.sequence-message-num { opacity: 0.7; font-variant-numeric: tabular-nums; }
-.sequence-message--hero .sequence-message-line { border-top-width: 3px; }
-.sequence-message--ai { --seq-accent-rgb: 180, 156, 255; }
-.sequence-message--failure { --seq-accent-rgb: 251, 113, 133; }
-.sequence-message--failure .sequence-message-line { background: none; border-top: 1.5px dashed rgb(var(--seq-accent-rgb)); }
-.sequence-message--failure .sequence-message-label { color: #FF9BAA; }
-.sequence-message-label { font-family: var(--font-mono); font-size: 0.7rem; color: var(--text-1); border: 0; border-radius: 0; padding: 0 4px; }
-.sequence-message--ai .sequence-message-label { color: #C9B8FF; }
-.sequence-message--event .sequence-message-label { color: #5EE0A0; }
-.sequence-participant-head { font-family: var(--font-mono); flex-direction: column; gap: 2px; }
-.sequence-participant--external .sequence-participant-head { border-style: dashed; }
-.sequence-message--event .sequence-message-line { border-top-style: dotted; --seq-accent-rgb: 94, 224, 160; }
-.sequence-message--dim { opacity: 0.2; }
-.sequence-participant--focused .sequence-participant-head { outline: 2px solid rgba(var(--seq-accent-rgb), 0.9); }
-.sequence-participant-kind { display: block; font-size: 0.6rem; text-transform: uppercase; letter-spacing: 0.1em; color: rgb(var(--seq-accent-rgb)); }
-.sequence-phase-row { display: flex; align-items: center; gap: 12px; box-sizing: border-box; min-width: 0; height: 38px; padding: 0 14px; border-radius: 8px; border: 1px solid #33363C; border-left: 3px solid rgb(var(--phase-rgb)); background: #202226; color: inherit; font: inherit; font-size: 13.5px; font-weight: 600; text-align: left; cursor: pointer; } /* stylelint-disable-line declaration-property-value-disallowed-list */
-.sequence-phase-row-meta { font-weight: 400; color: #8D939B; }
-.sequence-timeline { margin: 0; max-height: none; overflow-y: auto; background: #202226; padding: 8px 10px; list-style: none; width: 220px; font-size: 0.7rem; border: 1px solid #33363C; border-radius: var(--radius-lg); }
-.sequence-timeline::before { content: "TIMELINE"; display: block; margin-bottom: 6px; font-family: var(--font-mono); font-size: 0.65rem; font-weight: 700; letter-spacing: 0.1em; color: #8D939B; }
+/* Sequence frame header buttons (Play / Collapse all); RouteFrameActions reuses them */
 /* 022 board styles: exact board radii/fonts have no token */
 /* stylelint-disable declaration-property-value-disallowed-list */
-.sequence-timeline-bar { position: absolute; left: 9px; top: 0; bottom: 0; width: 8px; border-radius: 3px; background: rgb(var(--phase-rgb)); }
-.sequence-timeline-name { color: #C9CDD2; font-size: 0.72rem; }
-.sequence-timeline-name--here { color: #ECEDEE; font-weight: 600; }
-.sequence-timeline-heading { margin: 8px 0 4px; font-family: var(--font-mono); font-size: 0.65rem; font-weight: 700; letter-spacing: 0.1em; color: #8D939B; }
-.sequence-timeline-people, .sequence-timeline-steps { margin: 0; padding: 0; list-style: none; }
-.sequence-timeline-person { display: flex; justify-content: space-between; gap: 8px; padding: 2px 0; cursor: pointer; color: #C9CDD2; }
-.sequence-timeline-person-count { color: #8D939B; }
-.sequence-timeline-person--focus, .sequence-timeline-person--focus .sequence-timeline-person-count { color: #5EE0A0; }
-.sequence-timeline-item { cursor: pointer; padding: 1px 0; opacity: 0.75; }
-.sequence-timeline-item--here { opacity: 1; font-weight: 600; color: #5EE0A0; }
 .sequence-mode-btn { font: inherit; font-size: 0.65rem; padding: 1px 8px; border-radius: var(--radius-xl); border: 1px solid rgba(160, 165, 175, 0.5); background: transparent; color: inherit; cursor: pointer; }
-.sequence-mode-btn--on { background: rgba(99, 102, 241, 0.35); }
 
 /* 022 block anatomy: path + SRC foot, hover-only copy/?, dimmed non-neighbours, zoom levels */
 .canvas-node-box-foot { display: flex; align-items: center; gap: 0.4rem; margin-top: 0.3rem; font-size: 0.68rem; opacity: 0.75; }
@@ -8104,8 +7992,6 @@ button[data-copy-state="idle"][aria-label]:hover:not(:disabled) {
 /* 022: corner step chip replaces the STEP text in the top band */
 .canvas-node-step-chip { position: absolute; top: -9px; left: -9px; z-index: 2; min-width: 18px; height: 18px; padding: 0 4px; border-radius: var(--radius-full); font-size: 0.65rem; line-height: 18px; text-align: center; font-weight: 600; color: #fff; background: var(--accent, #6366f1); }
 .canvas-node-order-badge { display: none; }
-.sequence-message--active .sequence-message-line { border-top-width: 3px; }
-.sequence-message--active .sequence-message-label { font-weight: 600; }
 .canvas-diagram-frame-actions { pointer-events: auto; vertical-align: middle; }
 
 /* 022 boards: planned = striped dashed green, data = clipped corner (BlocksAnatomy.dc.html) */
@@ -8279,29 +8165,7 @@ button[data-copy-state="idle"][aria-label]:hover:not(:disabled) {
 [data-zoom="far"] .canvas-node-members,
 [data-zoom="far"] .canvas-node-top-band { display: none; }
 
-/* Gap pass: sequence Focus timeline, phase rows, legend and the board edge pill */
-.sequence-timeline-phases { display: flex; flex-direction: column; gap: 6px; height: 240px; margin-bottom: 10px; }
-.sequence-timeline-row { display: flex; align-items: center; gap: 14px; flex-basis: 0; min-height: 22px; }
-.sequence-timeline-track { position: relative; flex: none; align-self: stretch; width: 26px; }
-.sequence-timeline-here-box { position: absolute; left: 1px; right: 1px; top: -3px; bottom: -3px; box-sizing: border-box; border: 1.5px solid #ECEDEE; border-radius: 5px; pointer-events: none; }
-.sequence-timeline-marker { position: absolute; left: 0; width: 100%; height: 2px; margin-top: -1px; background: #5EE0A0; pointer-events: none; }
-.sequence-phase-row-caret { font-family: var(--font-mono); font-size: 12px; color: #C9CDD2; }
-.sequence-phase-row-name { white-space: nowrap; }
-.sequence-phase-row-meta { font-size: 12.5px; color: #8D939B; white-space: nowrap; }
-.sequence-phase-row-people { margin-left: auto; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-family: var(--font-mono); font-size: 11px; font-weight: 400; color: #7C8188; }
-.sequence-phase-row--open { height: 30px; border-color: rgba(var(--phase-rgb), 0.4); border-left-color: rgb(var(--phase-rgb)); background: rgba(var(--phase-rgb), 0.05); }
-.sequence-participant-src { margin-left: 6px; padding: 0; border: 0; background: none; color: #7FB8FF; font: inherit; cursor: pointer; pointer-events: auto; }
-.sequence-participant-src:hover { color: #A9D0FF; }
-.sequence-legend { display: flex; align-items: center; flex-wrap: wrap; gap: 8px 22px; font-size: 12.5px; color: #C9CDD2; white-space: nowrap; }
-.sequence-legend-title { font-family: var(--font-mono); font-size: 11px; font-weight: 700; letter-spacing: 0.1em; color: #8D939B; }
-.sequence-legend-item { display: inline-flex; align-items: center; gap: 7px; }
-.sequence-legend-line { width: 26px; height: 0; border-top: 1.75px solid #D7DAD4; }
-.sequence-legend-line--return { border-top: 1.5px dashed #8D939B; }
-.sequence-legend-line--ai { border-top-color: #B49CFF; }
-.sequence-legend-line--event { border-top: 2px dotted #5EE0A0; }
-.sequence-legend-frame { width: 22px; height: 12px; box-sizing: border-box; border: 1px dashed #8E3A4A; border-radius: 3px; }
-.sequence-legend-phase { width: 3px; height: 14px; background: #B49CFF; }
-.sequence-legend-note { width: 18px; height: 12px; box-sizing: border-box; border: 1px solid #5B5B3A; border-radius: 2px; background: #24241C; }
+/* Gap pass: the board edge pill */
 .connector-label-chip--board { fill: #1F201D; stroke: #3A3B37; }
 .connector-label-text--board { font-family: var(--font-mono); font-size: 10.5px; }
 
@@ -8345,13 +8209,12 @@ button[data-copy-state="idle"][aria-label]:hover:not(:disabled) {
 .route-legend-swatch { display: inline-block; width: 4px; height: 12px; margin-right: 6px; vertical-align: middle; background: var(--route-kind, #94a3b8); border-left: 0 !important; }
 
 /* 026 route over the code map (B2 board): faded level matches focus mode (0.35); lit blocks and ancestors stay full. */
-:root { --route-ok: #5ee0a0; --route-ai: #b49cff; --route-fail: #fb7185; --route-chip-ink: #10231a; }
 [data-route-dim] { opacity: 0.35; transition: opacity 0.12s; }
-[data-route-lit] { outline: 1.5px solid var(--route-ok); outline-offset: 0; background-color: rgba(94, 224, 160, 0.1); }
-[data-route-lit="ai"] { outline-color: var(--route-ai); background-color: rgba(180, 156, 255, 0.12); }
-[data-route-lit="failure"] { outline-color: var(--route-fail); background-color: rgba(251, 113, 133, 0.1); }
+[data-route-lit] { outline: 1.5px solid var(--route-ok); outline-offset: 0; background-color: var(--route-lit-bg); }
+[data-route-lit="ai"] { outline-color: var(--route-ai); background-color: var(--route-ai-bg); }
+[data-route-lit="failure"] { outline-color: var(--route-fail); background-color: var(--route-fail-bg); }
 .route-overlay { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; pointer-events: none; }
-.route-overlay-glow path { fill: none; stroke: rgba(94, 224, 160, 0.16); stroke-width: 10; stroke-linejoin: round; }
+.route-overlay-glow path { fill: none; stroke: var(--route-glow); stroke-width: 10; stroke-linejoin: round; }
 .route-overlay-path { fill: none; stroke: var(--route-ok); stroke-width: 2.75; stroke-linejoin: round; opacity: 0.45; }
 .route-overlay-path--active { opacity: 1; }
 .route-overlay-arrow { fill: var(--route-ok); }
@@ -8359,44 +8222,168 @@ button[data-copy-state="idle"][aria-label]:hover:not(:disabled) {
 .route-overlay-marker.route-step--ai circle { fill: var(--route-ai); }
 .route-overlay-marker.route-step--failure circle { fill: var(--route-fail); }
 .route-overlay-marker text { fill: var(--route-chip-ink); font-family: var(--font-mono); font-size: 11px; font-weight: 700; }
-.route-overlay-marker--active circle { stroke: #fff; stroke-width: 3; }
-.route-card { position: absolute; top: 12px; right: 12px; z-index: 20; width: 348px; max-height: 85%; overflow: auto; box-sizing: border-box; padding: 20px; display: flex; flex-direction: column; gap: 14px; background: var(--surface, #202226); border: 1px solid var(--border, #33363c); border-radius: var(--radius-btn); font-size: 0.8rem; }
+.route-overlay-marker.route-step--ai text { fill: var(--route-ai-ink); }
+.route-overlay-marker--done text { font-family: var(--font-board); font-size: 12px; }
+.route-overlay-marker--active circle { stroke: var(--route-text); stroke-width: 3; }
+
+/* The ROUTE body (RouteSteps.tsx), shared by the docked card and the walkthrough's in-diagram panel; one line per text, so rows have a fixed height (walkthroughLayout.ts). */
+.route-card { position: absolute; top: 12px; right: 12px; z-index: 20; width: 348px; max-height: 85%; overflow: auto; box-sizing: border-box; padding: 20px; display: flex; flex-direction: column; gap: 14px; background: var(--route-panel-bg); border: 1px solid var(--route-panel-border); border-radius: var(--radius-btn); color: var(--route-text); font-family: var(--font-board); }
 .route-card-head { display: flex; align-items: baseline; flex-wrap: wrap; gap: 4px 10px; }
 .route-card-head strong { font-size: 18px; font-weight: 600; flex: 1 1 100%; order: 2; }
-.route-card-tag { font-family: var(--font-mono); font-size: 11px; font-weight: 700; letter-spacing: 0.1em; color: var(--route-ok); order: 1; }
+.route-card-tag { font-family: var(--font-mono); font-size: 11px; line-height: 14px; font-weight: 700; letter-spacing: 0.1em; color: var(--route-ok); order: 1; }
 .route-card-close { margin-left: auto; border: 0; background: transparent; cursor: pointer; color: inherit; order: 1; }
-.route-card-summary { margin: -8px 0 0; font-size: 12px; opacity: 0.7; }
+.route-card-summary { margin: -8px 0 0; font-size: 12px; color: var(--route-text-muted); }
 .route-card-steps { margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 2px; }
-.route-card-step button { width: 100%; display: flex; align-items: center; gap: 10px; text-align: left; border: 1px solid transparent; border-radius: var(--radius-lg); background: transparent; color: inherit; padding: 7px 8px; cursor: pointer; }
-.route-card-step--active button { background: rgba(94, 224, 160, 0.12); border-color: #3f7a5e; }
+.route-card-step button { width: 100%; box-sizing: border-box; display: flex; align-items: center; gap: 10px; text-align: left; border: 1px solid transparent; border-radius: var(--radius-lg); background: transparent; color: inherit; font-family: inherit; padding: 6px 7px; cursor: pointer; }
+.route-card-step button:hover { background: var(--route-nav-bg); }
+.route-card-step--active button, .route-card-step--active button:hover { background: var(--route-row-active-bg); border-color: var(--route-row-active-border); }
 .route-card-step-badge { flex: none; width: 20px; height: 20px; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center; background: var(--route-ok); color: var(--route-chip-ink); font-family: var(--font-mono); font-size: 10.5px; font-weight: 700; }
-.route-card-step.route-step--ai .route-card-step-badge { background: var(--route-ai); }
+.route-card-step-badge--done { font-family: var(--font-board); font-size: 11px; }
+.route-card-step.route-step--ai .route-card-step-badge { background: var(--route-ai); color: var(--route-ai-ink); }
 .route-card-step.route-step--failure .route-card-step-badge { background: var(--route-fail); }
 .route-card-step-text { display: flex; flex-direction: column; min-width: 0; }
-.route-card-step-title { font-size: 13.5px; font-weight: 600; }
-.route-card-step-detail { font-family: var(--font-mono); font-size: 11px; opacity: 0.75; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.route-card-step.route-step--ai .route-card-step-detail { color: var(--route-ai); opacity: 1; }
+.route-card-step-title, .route-card-step-detail { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.route-card-step-title { font-size: 13.5px; line-height: 18px; font-weight: 600; }
+.route-card-step-detail { font-size: 11.5px; line-height: 15px; color: var(--route-text-muted); }
+.route-card-step-detail--code { font-family: var(--font-mono); font-size: 11px; color: var(--route-link); }
+.route-card-step.route-step--ai .route-card-step-detail { color: var(--route-ai); }
 .route-card-player { display: flex; gap: 8px; }
-.route-card-nav { width: 44px; height: 40px; border-radius: var(--radius-lg); border: 1px solid var(--border, #3a3e45); background: transparent; color: inherit; font-size: 15px; cursor: pointer; }
-.route-card-walk { flex: 1 1 0; height: 40px; border-radius: var(--radius-lg); border: 1px solid #3f7a5e; background: rgba(94, 224, 160, 0.1); color: var(--route-ok); font-size: 13px; font-weight: 600; cursor: pointer; }
-.route-card-legend { display: flex; flex-direction: column; gap: 7px; padding-top: 12px; border-top: 1px solid var(--border, #33363c); font-size: 12px; }
+.route-card-nav { width: 44px; height: 40px; border-radius: var(--radius-lg); border: 1px solid var(--route-nav-border); background: var(--route-nav-bg); color: var(--route-text); font-size: 15px; cursor: pointer; }
+.route-card-walk { flex: 1 1 0; height: 40px; border-radius: var(--radius-lg); border: 1px solid var(--route-row-active-border); background: var(--route-lit-bg); color: var(--route-ok); font-family: inherit; font-size: 13px; font-weight: 600; cursor: pointer; }
+.route-card-legend { display: flex; flex-direction: column; gap: 7px; padding-top: 12px; border-top: 1px solid var(--route-panel-border); font-size: 12px; line-height: 16px; color: var(--route-text-soft); }
 .route-card-legend > span { display: flex; align-items: center; gap: 8px; }
-.route-card-legend-title { font-family: var(--font-mono); font-size: 11px; font-weight: 700; letter-spacing: 0.1em; opacity: 0.6; }
-.route-card-swatch { display: inline-block; width: 18px; height: 11px; border-radius: var(--radius-xs); border: 1px solid var(--border, #33363c); }
-.route-card-swatch--route { border: 1.5px solid var(--route-ok); background: rgba(94, 224, 160, 0.15); }
-.route-card-swatch--frame { background: rgba(255, 255, 255, 0.04); }
+.route-card-legend-title { font-family: var(--font-mono); font-size: 11px; line-height: 14px; font-weight: 700; letter-spacing: 0.1em; color: var(--route-text-muted); }
+.route-card-swatch { display: inline-block; flex: none; box-sizing: border-box; width: 18px; height: 11px; border-radius: var(--radius-xs); border: 1px solid var(--route-panel-border); }
+.route-card-swatch--route { border: 1.5px solid var(--route-ok); background: var(--route-lit-bg); }
+.route-card-swatch--frame { border-color: var(--route-frame-border); background: var(--route-frame-bg); }
 .canvas-diagram-frame-route .sequence-mode-btn { margin-left: 8px; }
 
-/* 026 walkthrough (B2 board look): lit green steps, violet AI, red failure, number chips, glowing route arrows. */
-.diagram-node-box[data-layer="walkthrough"] { background: #18261f; border: 1.5px solid var(--route-ok); border-left-width: 1.5px; color: #ecedee; box-shadow: none; }
-.diagram-node-box[data-layer="walkthrough"].route-step--trigger { border-radius: var(--radius-full); }
-.diagram-node-box[data-layer="walkthrough"].route-step--ai { background: #2a2538; border-color: var(--route-ai); }
-.diagram-node-box[data-layer="walkthrough"].route-step--failure { background: #2a181d; border-color: #8e3a4a; border-style: solid; color: #ffb3bf; }
-.diagram-node-box[data-layer="walkthrough"]:not(.route-step) { background: transparent; border: 1px dashed #9a6b3a; color: #a3a8ae; }
-.diagram-node-box[data-layer="walkthrough"] .canvas-node-step-chip { top: -11px; left: -11px; width: 22px; min-width: 22px; height: 22px; padding: 0; border-radius: 50%; line-height: 22px; font-family: var(--font-mono); font-size: 11px; font-weight: 700; background: var(--route-ok); color: var(--route-chip-ink); }
-.diagram-node-box[data-layer="walkthrough"].route-step--ai .canvas-node-step-chip { background: var(--route-ai); }
-.diagram-node-box[data-layer="walkthrough"].route-step--failure .canvas-node-step-chip { background: var(--route-fail); }
-.canvas-edge[data-layer="walkthrough"] path { stroke: var(--route-ok); stroke-width: 2.75; }
-.canvas-edge[data-layer="walkthrough"] .c1-relationship-casing { stroke: rgba(94, 224, 160, 0.16); stroke-width: 10; }
-.canvas-edge[data-layer="walkthrough"] [class*="arrowhead"], .canvas-edge[data-layer="walkthrough"] polygon { fill: var(--route-ok); }
-.diagram-node-box[data-layer="walkthrough"] { user-select: none; -webkit-user-select: none; }
+/* The walkthrough's ROUTE panel (WalkthroughPanel.tsx): part of the diagram, on the canvas right of the step boxes. */
+.walkthrough-panel { z-index: 1; box-sizing: border-box; display: flex; flex-direction: column; gap: 14px; padding: 20px; overflow: hidden; background: var(--route-panel-bg); border: 1px solid var(--route-panel-border); border-radius: var(--radius-btn); color: var(--route-text); font-family: var(--font-board); cursor: default; }
+.walkthrough-panel-head { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+.walkthrough-panel-title { font-size: 18px; line-height: 24px; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.walkthrough-panel-head .route-card-tag { order: 0; }
+.walkthrough-panel-summary { font-size: 12px; line-height: 16px; color: var(--route-text-muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+/* 026 walkthrough (B2 board look): the frame is the board, step boxes are lit code boxes, plus the actor, failure, external and store boxes. */
+.canvas-diagram-frame-walkthrough { --diagram-frame-color: var(--route-ok); }
+.canvas-diagram-frame.canvas-diagram-frame-walkthrough { border: 1px solid var(--route-frame-border); background-color: var(--route-ground); background-image: radial-gradient(var(--route-grid-dot) 1px, transparent 1px); background-size: 24px 24px; }
+.canvas-diagram-frame-walkthrough .canvas-diagram-frame-label { font-family: var(--font-mono); font-size: 12px; letter-spacing: 0.1em; text-transform: uppercase; color: var(--route-ok); background: var(--route-ground); }
+.canvas-diagram-frame-walkthrough .canvas-diagram-frame-meta { display: none; }
+/* Walkthrough boxes keep the common box internals (role row, name, description, path, SRC); a route step only recolours the frame through the role tokens, and boxes off the route keep their role look (DATA, EXTERNAL, ACTOR). */
+[data-canvas-element].diagram-node-box[data-layer="walkthrough"] { box-shadow: none; user-select: none; -webkit-user-select: none; }
+[data-canvas-element].diagram-node-box[data-layer="walkthrough"].route-step { --role-border: var(--route-ok); --role-bg: var(--route-lit-bg); --role-accent: var(--route-ok); border: 1.5px solid var(--role-border); background: var(--role-bg); color: var(--route-text); }
+[data-canvas-element].diagram-node-box[data-layer="walkthrough"].route-step--ai { --role-border: var(--route-ai); --role-bg: var(--route-ai-bg); --role-accent: var(--route-ai); }
+[data-canvas-element].diagram-node-box[data-layer="walkthrough"].route-step--failure { --role-border: var(--route-fail-border); --role-bg: var(--route-fail-bg); --role-accent: var(--route-fail); color: var(--route-fail-ink); }
+[data-layer="walkthrough"] .canvas-node-step-chip { top: -9px; left: -9px; width: 22px; min-width: 22px; height: 22px; padding: 0; border-radius: 50%; line-height: 22px; font-family: var(--font-mono); font-size: 11px; font-weight: 700; background: var(--route-ok); color: var(--route-chip-ink); }
+[data-layer="walkthrough"].route-step--ai .canvas-node-step-chip { background: var(--route-ai); color: var(--route-ai-ink); }
+[data-layer="walkthrough"].route-step--failure .canvas-node-step-chip { background: var(--route-fail); }
+.canvas-edge[data-layer="walkthrough"] .c1-relationship-path { stroke: var(--route-ok); stroke-width: 2.75; stroke-dasharray: none; stroke-linejoin: round; }
+.canvas-edge[data-layer="walkthrough"] .c1-relationship-casing { stroke: var(--route-glow); stroke-width: 10; stroke-linejoin: round; }
+.canvas-edge[data-layer="walkthrough"].canvas-edge--error .c1-relationship-path { stroke: var(--route-fail); stroke-width: 1.5; stroke-dasharray: 5 4; marker-end: none; }
+.canvas-edge[data-layer="walkthrough"].canvas-edge--minor .c1-relationship-path { stroke: var(--route-ext-border); stroke-width: 1.5; stroke-dasharray: 5 4; marker-end: none; }
+.canvas-edge[data-layer="walkthrough"].canvas-edge--data .c1-relationship-path { stroke: var(--route-data-border); stroke-width: 1.5; stroke-dasharray: 5 4; }
+.canvas-edge[data-layer="walkthrough"]:is(.canvas-edge--error, .canvas-edge--minor, .canvas-edge--data) .c1-relationship-casing { display: none; }
+.canvas-edge .c1-relationship-path--ek-error { stroke: var(--route-fail); stroke-width: 1.5; stroke-dasharray: 5 4; }
+.canvas-arrowhead--error { fill: var(--route-fail); }
+.canvas-arrowhead--route { fill: var(--route-ok); }
+
+/* Zoomed out (data-zoom="far", zoomLevelFor < ZOOM_FAR_SCALE): a canvas box shows only its name, centred and filling the box at --node-fit-name-size (measureBoxSize.ts layerFitNameSizes: one size per diagram); the rest stays laid out but invisible, so the box keeps its size. */
+[data-zoom="far"] .canvas-node-fit > [data-testid="canvas-node-box-row"] { visibility: hidden; }
+[data-zoom="far"] .canvas-node-fit .canvas-node-fit-name.canvas-node-fit-name { visibility: visible; position: absolute; inset: 0; z-index: 1; display: flex; align-items: center; justify-content: center; box-sizing: border-box; padding: 10px; overflow: hidden; font-size: var(--node-fit-name-size); line-height: 1.15; font-weight: 600; text-align: center; white-space: normal; overflow-wrap: break-word; text-overflow: clip; -webkit-line-clamp: unset; line-clamp: unset; }
+
+/* Sequence board (SequenceDiagram.tsx / SequenceStep.tsx, the "A4 · Glance + expand in place" mockup): one lane per participant, one column per step, phase pills on top, a step expands in place into its functions. */
+.canvas-diagram-frame.canvas-diagram-frame-sequence-board { border: 1px solid var(--route-frame-border); background-color: var(--route-ground); background-image: radial-gradient(var(--route-grid-dot) 1px, transparent 1px); background-size: 24px 24px; }
+.canvas-diagram-frame-sequence-board .canvas-diagram-frame-label { background: var(--route-ground); }
+.sequence-diagram { z-index: 1; box-sizing: border-box; pointer-events: none; color: var(--route-text); font-family: var(--font-board); }
+.seq-tone--plain { --seq-tone-border: var(--route-frame-border); --seq-tone-bg: var(--seq-actor-bg); --seq-tone: var(--seq-label); }
+.seq-tone--actor { --seq-tone-border: var(--seq-actor-border); --seq-tone-bg: var(--seq-actor-bg); --seq-tone: var(--seq-actor); }
+.seq-tone--route { --seq-tone-border: var(--seq-route-border); --seq-tone-bg: var(--seq-route-bg); --seq-tone: var(--seq-route); }
+.seq-tone--logic { --seq-tone-border: var(--seq-logic-border); --seq-tone-bg: var(--seq-logic-bg); --seq-tone: var(--seq-logic); }
+.seq-tone--ai { --seq-tone-border: var(--seq-ai-border); --seq-tone-bg: var(--seq-ai-bg); --seq-tone: var(--seq-ai); }
+.seq-tone--check { --seq-tone-border: var(--seq-check-border); --seq-tone-bg: var(--seq-check-bg); --seq-tone: var(--seq-check); }
+.seq-tone--data { --seq-tone-border: var(--route-data-border); --seq-tone-bg: var(--seq-data-bg); --seq-tone: var(--seq-data); }
+.seq-tone--fail { --seq-tone-border: var(--route-fail-border); --seq-tone-bg: var(--seq-fail-bg); --seq-tone: var(--route-fail); }
+
+.seq-pill { position: absolute; top: 6px; height: 24px; display: flex; align-items: center; gap: 8px; }
+.seq-pill--solo { justify-content: center; }
+.seq-pill-line { flex: 1 1 0; height: 1px; background: var(--seq-tone-border); }
+.seq-pill--solo .seq-pill-line { display: none; }
+.seq-tone--plain .seq-pill-line { background: var(--route-frame-border); }
+.seq-pill-label { flex: none; font-family: var(--font-mono); font-size: 11px; white-space: nowrap; color: var(--seq-tone); border: 1px solid var(--seq-tone-border); border-radius: var(--radius-full); padding: 2px 10px; }
+
+.seq-lane { position: absolute; left: 0; right: 0; box-sizing: border-box; border: 1px solid var(--seq-lane-border); border-radius: var(--radius-xl); background: var(--seq-lane-bg); }
+.seq-lane--ai { border-color: var(--seq-lane-ai-border); background: var(--seq-lane-ai-bg); }
+.seq-lane--fail { border: 1px dashed var(--seq-lane-fail-border); background: var(--seq-lane-fail-bg); }
+.seq-lane-label { position: absolute; left: 15px; top: 11px; width: 112px; font-family: var(--font-mono); font-size: 11.5px; line-height: 1.4; color: var(--seq-label); overflow-wrap: anywhere; }
+.seq-lane--ai .seq-lane-label { color: var(--seq-ai); }
+/* Each lane takes a faint tint of its steps' role (BoardLane.role), so the bands read apart like the steps do. */
+.seq-lane-role--actor { --seq-lane-tint: var(--seq-actor); }
+.seq-lane-role--route { --seq-lane-tint: var(--seq-route); }
+.seq-lane-role--logic { --seq-lane-tint: var(--seq-logic); }
+.seq-lane-role--ai { --seq-lane-tint: var(--seq-ai); }
+.seq-lane-role--check { --seq-lane-tint: var(--seq-check); }
+.seq-lane-role--data { --seq-lane-tint: var(--seq-data); }
+.seq-lane-role--fail { --seq-lane-tint: var(--route-fail); }
+.seq-lane[class*="seq-lane-role--"] { background: color-mix(in srgb, var(--seq-lane-tint) 8%, transparent); border-color: color-mix(in srgb, var(--seq-lane-tint) 30%, var(--seq-lane-border)); }
+.seq-lane[class*="seq-lane-role--"] .seq-lane-label { color: color-mix(in srgb, var(--seq-lane-tint) 70%, var(--seq-label)); }
+.seq-lane--fail .seq-lane-label { color: var(--route-fail); }
+
+.seq-frame { position: absolute; box-sizing: border-box; border: 1px dashed var(--route-frame-border); border-radius: var(--radius-xl); }
+.seq-frame-tag { position: absolute; left: 6px; top: 2px; font-family: var(--font-mono); font-size: 10px; color: var(--route-text-muted); white-space: nowrap; }
+
+.seq-arrows { position: absolute; left: 0; top: 0; overflow: visible; }
+.seq-arrow { fill: none; transition: opacity 0.15s; }
+.seq-arrow--main { stroke: var(--seq-main); stroke-width: 2.25; }
+.seq-arrow--side { stroke: var(--route-text-muted); stroke-width: 1.5; stroke-dasharray: 5 4; }
+.seq-arrow--fail { stroke: var(--route-fail); stroke-width: 1.5; stroke-dasharray: 5 4; }
+.seq-arrow--inner { stroke: var(--seq-inner); stroke-width: 1.25; }
+.seq-arrow--dim { opacity: 0.25; }
+.seq-marker--main { fill: var(--seq-main); }
+.seq-marker--side { fill: var(--route-text-muted); }
+.seq-marker--fail { fill: var(--route-fail); }
+.seq-marker--inner { fill: var(--seq-inner); }
+
+.seq-step { position: absolute; box-sizing: border-box; display: flex; flex-direction: column; gap: 3px; padding: 6px 10px; border: 1.5px solid var(--seq-tone-border); border-radius: var(--radius-xl); background: var(--seq-tone-bg); color: var(--route-text); pointer-events: auto; cursor: pointer; transition: opacity 0.15s, box-shadow 0.15s; }
+.seq-step:has(.seq-step-toggle:focus-visible) { outline: 2px solid var(--seq-tone); outline-offset: 2px; }
+.seq-step-toggle { position: absolute; inset: 0; padding: 0; border: 0; border-radius: inherit; background: none; cursor: pointer; }
+.seq-step-toggle:focus-visible { outline: none; }
+.seq-step--start, .seq-step--end { justify-content: center; gap: 2px; padding: 6px 14px; border-radius: var(--radius-full); }
+.seq-step--failure { flex-direction: row; align-items: center; padding: 0 10px; cursor: default; }
+.seq-step--failure .seq-step-name { min-width: 0; font-size: 12px; font-weight: 600; color: var(--route-fail-ink); }
+.seq-step--dim { opacity: 0.35; }
+.seq-step--active { box-shadow: 0 0 0 3px var(--route-glow), 0 0 18px var(--route-glow); }
+.seq-step-top { display: flex; align-items: center; gap: 5px; }
+.seq-step-glyphs { margin-left: auto; display: inline-flex; align-items: center; gap: 4px; font-family: var(--font-mono); font-size: 11px; color: color-mix(in srgb, var(--seq-tone) 70%, var(--route-text)); }
+.seq-step-kicker { font-family: var(--font-mono); font-size: 10px; font-weight: 700; letter-spacing: 0.08em; color: color-mix(in srgb, var(--seq-tone) 70%, var(--route-text)); }
+.seq-step-name { font-size: 12.5px; font-weight: 600; line-height: 1.25; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.seq-badge { flex: none; align-self: flex-start; font-family: var(--font-mono); font-size: 10.5px; font-weight: 700; color: var(--seq-chip-ink); background: var(--seq-tone); border-radius: var(--radius-sm); padding: 0 5px; }
+.seq-ai-chip { flex: none; font-family: var(--font-mono); font-size: 9px; font-weight: 700; color: var(--seq-ai-ink); border: 1px solid var(--seq-ai-border); border-radius: var(--radius-sm); padding: 0 3px; }
+.seq-src { position: relative; z-index: 1; padding: 0; border: 0; background: none; font: inherit; color: inherit; cursor: pointer; }
+.seq-src:hover { color: var(--route-text); }
+
+.seq-step--expanded { display: block; padding: 10px 14px; border-radius: var(--radius-2xl); cursor: default; }
+.seq-exp-head { display: flex; align-items: center; gap: 8px; }
+.seq-exp-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 14px; font-weight: 600; }
+.seq-exp-head .seq-src { margin-left: auto; flex: none; max-width: 170px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-family: var(--font-mono); font-size: 10px; color: var(--route-link); border: 1px solid var(--seq-file-border); border-radius: var(--radius-full); padding: 1px 7px; }
+.seq-caret { flex: none; padding: 0; border: 0; background: none; font-family: var(--font-mono); font-size: 12px; color: var(--route-text-soft); cursor: pointer; }
+.seq-exp-head .seq-src + .seq-caret, .seq-exp-head .seq-exp-name + .seq-caret { margin-left: auto; }
+.seq-exp-head .seq-src + .seq-caret { margin-left: 0; }
+.seq-exp-sub { margin-top: 4px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 11px; color: var(--route-text-soft); }
+.seq-exp-empty { margin-top: 18px; font-family: var(--font-mono); font-size: 11px; color: var(--route-text-muted); }
+.seq-exp-calls { position: absolute; left: 0; top: 0; width: 100%; height: 100%; overflow: visible; pointer-events: none; }
+.seq-fn { position: absolute; box-sizing: border-box; display: flex; flex-direction: column; justify-content: center; gap: 1px; padding: 5px 9px; border: 1px solid color-mix(in srgb, var(--seq-tone) 22%, var(--seq-tone-bg)); border-radius: var(--radius-lg); background: color-mix(in srgb, var(--seq-tone) 7%, var(--seq-tone-bg)); color: inherit; text-align: left; font: inherit; cursor: pointer; }
+.seq-tone--logic .seq-fn { border-color: var(--seq-fn-border); background: var(--seq-fn-bg); }
+.seq-fn:hover { border-color: var(--seq-tone); }
+.seq-fn-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-family: var(--font-mono); font-size: 11px; font-weight: 600; color: color-mix(in srgb, var(--route-link) 60%, var(--route-text)); }
+.seq-fn-desc { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 11px; color: var(--route-text-soft); }
+.seq-fn--more { flex-direction: row; justify-content: flex-start; align-items: center; border-style: dashed; background: none; font-family: var(--font-mono); font-size: 11px; color: var(--route-text-muted); }
+.seq-tone--logic .seq-fn--more { background: none; }
+
+.seq-legend { position: absolute; left: 0; right: 0; display: flex; align-items: center; flex-wrap: wrap; gap: 10px 22px; font-size: 12.5px; color: var(--route-text-soft); }
+.seq-legend-title { font-family: var(--font-mono); font-size: 11px; font-weight: 700; letter-spacing: 0.1em; color: var(--route-text-muted); }
+.seq-legend-item { display: inline-flex; align-items: center; gap: 7px; white-space: nowrap; }
+.seq-legend-glyph { font-family: var(--font-mono); font-size: 12px; color: var(--route-text-muted); }
+.seq-badge--legend { --seq-tone: var(--route-text); }
+.seq-legend-divider { width: 1px; height: 18px; background: var(--route-frame-border); }
+.seq-legend-swatch { width: 16px; height: 11px; box-sizing: border-box; border-radius: var(--radius-xs); border: 1.5px solid var(--seq-tone-border); background: var(--seq-tone-bg); }

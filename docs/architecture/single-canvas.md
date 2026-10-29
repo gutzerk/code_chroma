@@ -213,13 +213,12 @@ what changed since.
   🔴 Hard-layout layers (epics columns, sequence participants/messages) are never user-dragged, so a
   refresh re-runs their whole deterministic layout (`diagramCatalog.isHardLayoutLayer` — `isEpicsLayer`
   or `render === "sequence"`) instead of only the brand-new elements. Without this a sequence layer
-  drawn before a `SEQUENCE_LAYOUT.colW` change keeps its stale narrow participant columns and never
-  re-spreads to the current gap.
-  Sequence geometry: `SEQUENCE_LAYOUT` (`colW` wider than `headW` so heads never touch; `rowH` is
-  centre-to-centre message spacing; `headGap` pushes the first line below the participant heads; the
-  gap below the last line is `DiagramFrame`'s own `PADDING.bottom` — never fatten a message's
-  `size.h` to fake vertical margins, that pokes the outer rows up into the heads and pinches the
-  bottom arrow). Because sequence positions are pure derivations of these constants yet persisted,
+  drawn before a `SEQUENCE_BOARD` change keeps its stale geometry and never re-spreads.
+  Sequence geometry: `SEQUENCE_BOARD` in `sequenceBoard.ts` (the A4 swimlane board: a participant's
+  element is its lane rect, a message's is its step box; lanes start `lanesTop` below the board top so
+  the phase pills fit above them, and the legend sits under the last lane). `DiagramFrame` encloses
+  the whole board through `sequenceBoardBounds`, not the member rects. Because sequence positions are
+  pure derivations of these constants yet persisted,
   `useReflowSequence` re-runs `layoutSequence` on mount for any sequence layer whose geometry has
   drifted, so a constant change reaches every reloaded diagram, not just freshly-drawn ones.
   Message `return`/`async` flags are read through `elementMeta.flagMeta` (truthiness-aware): the
@@ -247,8 +246,9 @@ contract via the shared `unionBoundsOf()`, plus each area's own color hash),
 
 A dashed rectangle drawn around every visible element on one canvas layer (`c1`/`patterns`/`impact`/
 `epics`/`custom/<id>`, i.e. `diagramCatalog.ts`'s `isDiagramLayer` set — the seeded hierarchy tree and
-`apply_batch`'s `"default"` fallback layer never get one), labeled top-left with that layer's own
-recipe name (`labelForDiagramLayer`). `CanvasDocView` buckets `renderableElements` by `element.layer`
+`apply_batch`'s `"default"` fallback layer never get one), labeled top-left with the diagram's own
+`title` (`meta.diagram_title`, see `diagram-skills.md` "Diagram titles") or, when untitled, the
+layer's recipe name (`labelForDiagramLayer`), both via `diagramDisplayName`. `CanvasDocView` buckets `renderableElements` by `element.layer`
 into `memberIdsByLayer` (structural, like `memberIdsByGroup`) and renders one `DiagramFrame` per
 bucket, rendered through the same shared `SoftAreaFrame` `GroupFrame`/`LaneArea`/
 `ConcurrencyIslandArea` use (so the `unionBoundsOf()` bounding-box arithmetic lives in exactly one

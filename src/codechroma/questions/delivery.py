@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 from typing import Any
 
 from starlette.concurrency import run_in_threadpool
@@ -69,11 +70,27 @@ def deliver(services: Any, element: Element, text: str | None = None) -> bool:
     return True
 
 
+# Follow-up tasks that clear or release a typed batch; held so the loop never drops them early.
+_follow_ups: set[asyncio.Task] = set()
+
+
 async def deliver_settled(services: Any, ws: Workspace, element: Element) -> bool:
-    """Once the agent has no open question, types the batch and clears it; True if it is live."""
-    if live_session(services, element) is None:
+    """Once the agent has no open question, types the batch, then clears it; True if it is live."""
+    session = live_session(services, element)
+    if session is None:
         return False
-    batch = await run_in_threadpool(store.complete_batch, ws, element.meta["agent_id"])
+    batch = await run_in_threadpool(store.take_batch, ws, element.meta["agent_id"])
     if batch:
-        deliver(services, element, batch_message(batch))
+        typing = session.inject_when_idle(
+            batch_message(batch), attempts=settings.questions.answer_inject_attempts
+        )
+        follow_up = asyncio.ensure_future(_clear_once_typed(ws, batch, typing))
+        _follow_ups.add(follow_up)
+        follow_up.add_done_callback(_follow_ups.discard)
     return True
+
+
+async def _clear_once_typed(ws: Workspace, batch: list[Element], typing: Any) -> None:
+    """Only a typed batch leaves the canvas; an untyped one stays for ask_user_result."""
+    typed = await typing
+    await run_in_threadpool(store.clear_batch if typed else store.release_batch, ws, batch)

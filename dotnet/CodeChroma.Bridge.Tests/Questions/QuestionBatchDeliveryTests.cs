@@ -13,8 +13,10 @@ public class QuestionBatchDeliveryTests
     {
         public List<(string Agent, string Text)> Typed { get; } = [];
 
-        public Func<string, Func<string, Task>?> Live(params string[] agents) =>
-            id => agents.Contains(id) ? text => { Typed.Add((id, text)); return Task.CompletedTask; } : null;
+        public bool Receives { get; init; } = true;
+
+        public Func<string, Func<string, Task<bool>>?> Live(params string[] agents) =>
+            id => agents.Contains(id) ? text => { Typed.Add((id, text)); return Task.FromResult(Receives); } : null;
     }
 
     private static string Ask(BridgeHost host, string agent, string question = "How to structure checkout?", List<QuestionOption>? options = null)
@@ -24,7 +26,7 @@ public class QuestionBatchDeliveryTests
         return Open(host, request);
     }
 
-    private static bool Settle(BridgeHost host, string questionId, Func<string, Func<string, Task>?> injector, string? optionId = "a")
+    private static bool Settle(BridgeHost host, string questionId, Func<string, Func<string, Task<bool>>?> injector, string? optionId = "a")
     {
         var ws = Main(host);
         var element = QuestionStore.FindElement(ws, questionId)!;
@@ -115,6 +117,21 @@ public class QuestionBatchDeliveryTests
         var questionId = Open(host, second);
 
         Assert.Equal(2, (int)QuestionStore.FindElement(Main(host), questionId)!.Meta["step"]!);
+    }
+
+    [Fact]
+    public void A_batch_the_agent_never_received_stays_on_the_canvas_for_the_next_wake_up()
+    {
+        using var host = new BridgeHost();
+        var terminals = new Terminals { Receives = false };
+        var questionId = Ask(host, "agent-1");
+
+        Settle(host, questionId, terminals.Live("agent-1"));
+
+        var element = QuestionStore.FindElement(Main(host), questionId)!;
+        Assert.Single(terminals.Typed);
+        Assert.Equal("answered", (string?)element.Meta["state"]);
+        Assert.True((bool)element.Meta[QuestionStore.AwaitingDelivery]!);
     }
 
     [Fact]

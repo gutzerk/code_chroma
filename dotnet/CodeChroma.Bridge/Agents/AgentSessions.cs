@@ -122,15 +122,16 @@ public sealed class AgentSession : IAgentSessionPort, IDisposable
     /// <summary>
     /// Types `text` once a fresh agent's TUI reaches its idle prompt (acknowledge-only context). Polls the same detector rules the
     /// LED uses; gives up quietly if the agent never idles in time or dies, because typing into a working or blocked agent would
-    /// corrupt whatever it is already doing.
+    /// corrupt whatever it is already doing. The task resolves true once the text was typed.
     /// </summary>
-    public Task InjectWhenIdle(string text, int attempts = 60, TimeSpan? interval = null)
+    public Task<bool> InjectWhenIdle(string text, int attempts = 60, TimeSpan? interval = null)
     {
         var wait = interval ?? TimeSpan.FromMilliseconds(500);
         lock (_injectGate)
         {
-            _injectChain = _injectChain.ContinueWith(_ => InjectOnce(text, attempts, wait), TaskScheduler.Default).Unwrap();
-            return _injectChain;
+            var typed = _injectChain.ContinueWith(_ => InjectOnce(text, attempts, wait), TaskScheduler.Default).Unwrap();
+            _injectChain = typed;
+            return typed;
         }
     }
 
@@ -145,21 +146,22 @@ public sealed class AgentSession : IAgentSessionPort, IDisposable
         write("\r");
     }
 
-    /// <summary>One queued injection: waits for idle, types it, then lets the screen settle so the next one sees the agent busy.</summary>
-    private async Task InjectOnce(string text, int attempts, TimeSpan wait)
+    /// <summary>One queued injection: waits for idle, types it, then lets the screen settle so the next one sees the agent busy; true when typed.</summary>
+    private async Task<bool> InjectOnce(string text, int attempts, TimeSpan wait)
     {
         for (var attempt = 0; attempt < attempts; attempt++)
         {
-            if (ExitCode is not null) return;
+            if (ExitCode is not null) return false;
             var verdict = _detector.Classify(_tap.Tail(_detector.Rules.TailLines), _tap.Title, _tap.Progress, null);
             if (verdict == StatusDetector.Idle)
             {
                 await TypeAndSubmit(Write, text, SubmitDelay);
                 await Task.Delay(wait);
-                return;
+                return true;
             }
             await Task.Delay(wait);
         }
+        return false;
     }
 
     /// <summary>Kills the process; the exit callback then completes every consumer.</summary>

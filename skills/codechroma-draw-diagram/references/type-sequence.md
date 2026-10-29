@@ -69,6 +69,7 @@ edges):
 {
   "type": "sequence",
   "generated_at": "2026-01-01T00:00:00Z",
+  "title": "How checkout reaches the API",
   "nodes": [
     { "id": "client", "name": "Client", "node_id": "component::web/app.ts",
       "description": "The browser app that starts the checkout." },
@@ -87,6 +88,8 @@ edges):
   ]
 }
 ```
+
+- **`title`** (top-level, required): a short name (≤ 60 chars, in the language of the user's request) for what *this* diagram shows, never the type name ("Sequence"), distinct from the titles already on the canvas — see `drawing-rules.md` "Naming the diagram (`title`)"; the self-check advises `NOTITLE`/`GENERICTITLE` otherwise.
 
 Rules:
 - **`nodes[]` are participants** — `id` unique, `name`, `node_id`/`path` copied verbatim from

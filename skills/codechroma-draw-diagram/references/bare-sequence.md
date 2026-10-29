@@ -23,6 +23,7 @@ needs its own unique `id` and an `order`.
 {
   "type": "sequence",
   "generated_at": "<ISO time>",
+  "title": "How checkout reaches the API",
   "nodes": [
     {"id": "client", "name": "Client", "node_id": "component::web/app.ts", "description": "The browser app that starts checkout."},
     {"id": "api", "name": "API", "node_id": "component::src/api/main.py", "description": "The HTTP entry point."}
@@ -37,6 +38,7 @@ needs its own unique `id` and an `order`.
 
 ## Rules
 
+- **`title`** (top-level, required): ≤ 60 chars, in the language of the user's request, naming what *this* diagram shows for that request (e.g. "How a file save reaches the canvas") — never the type name ("Sequence", "Diagram"). First run `curl -s {BRIDGE}/repos/{WORKSPACE}/diagrams/status` and read every entry's `title`: pick one that differs from all of them (the entry for the file you are replacing does not count). The canvas shows it as the frame name and the ON CANVAS row.
 - Participants: unique `id`, `name`, `node_id`/`path` verbatim from the context, a one-sentence `description`. Every participant takes part in at least one message; no extra connective boxes.
 - Messages: unique `id`; `from`/`to` are participant ids (the caller initiates — a response is a `return` message, not a second call); `order` is a STRING (`"1"`, `"2"`, `"2a"`/`"2b"` for simultaneous) and is never omitted; `label` a short verb phrase; `async: true` for a fire-and-forget (dashed) arrow; `kind: "error"` on a failure/denied/timeout message (drawn red and dashed; `kind` is one of call|return|ai|event|error); `return: true` for the response arrow back to the caller (add the returns that close the story); `description` the concrete payload or signature on the messages that carry the story.
 - Self-calls are allowed.
@@ -46,6 +48,7 @@ needs its own unique `id` and an `order`.
 
 | Code | Fix |
 |---|---|
+| `NOTITLE` / `GENERICTITLE` | add a top-level `title` that says what this diagram shows, not its type |
 | `ORPHAN <id>` | a participant with no message: wire it or drop it |
 | `DANGLING <pair>` | `from`/`to` names no participant: fix the id |
 | `DUPLICATE <id>` | two messages share an id: rename |

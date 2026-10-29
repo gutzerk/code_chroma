@@ -98,6 +98,8 @@ of this feature's plan. Its mere presence is the marker; there is no separate bo
   only — same fallback rule as `plan.json`'s own `details` (used when set, `description` otherwise).
 - Every node still needs a real `description` and, for context nodes, a real `path`/`node_id` — the
   usual anti-patterns (`drawing-rules.md`) still apply, including to Planned blocks.
+- Set the top-level `"title"` to the feature in the user's words ("What token auth adds to login"),
+  never "Feature plan" — see `drawing-rules.md` "Naming the diagram (`title`)".
 - Set the top-level `"style"` (a catalog preset, usually `"boxes-arrows"`) same as any type authoring
   this shape directly — there's no external style source to inherit it from for this kind.
 

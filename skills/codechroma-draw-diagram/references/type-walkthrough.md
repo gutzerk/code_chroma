@@ -27,6 +27,7 @@ The one shared flat shape (`drawing-rules.md`) with `type: "walkthrough"`, plus 
 {
   "type": "walkthrough",
   "generated_at": "2026-01-01T00:00:00Z",
+  "title": "How Update refreshes the stale map",
   "question": "What happens when I click Update on the stale map?",
   "summary": "Refreshes the graph, rewrites changed pages with Claude, then stamps.",
   "nodes": [
@@ -48,6 +49,8 @@ The one shared flat shape (`drawing-rules.md`) with `type: "walkthrough"`, plus 
   }
 }
 ```
+
+- **`title`** (top-level, required): a short name (≤ 60 chars, in the language of the user's request) for what *this* diagram shows, never the type name ("Walkthrough"), distinct from the titles already on the canvas — see `drawing-rules.md` "Naming the diagram (`title`)"; the self-check advises `NOTITLE`/`GENERICTITLE` otherwise.
 
 Rules:
 - **One step box per route step; the box `id` equals the step `id`.** The route is the spine: `route.steps[*].id` must match a `nodes[].id`, orders run 1..N with no gaps. 5–9 steps; over 12 the self-check prints `SPLIT`.

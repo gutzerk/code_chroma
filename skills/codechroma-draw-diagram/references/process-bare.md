@@ -29,6 +29,7 @@ the Code Atlas canvas renders. These rules are complete: do not read other skill
   "type_id": "{TYPE_ID}",
   "style": "{STYLE}",
   "generated_at": "<ISO time>",
+  "title": "How a gateway key gets authorized",
   "nodes": [
     {"id": "authorize", "name": "Check bearer key", "description": "One sentence: what this step does.",
      "kind": "auth", "path": "gateway-orchestration/internal/gateway/auth.go",
@@ -46,6 +47,7 @@ the Code Atlas canvas renders. These rules are complete: do not read other skill
 
 ## Rules
 
+- **`title`** (top-level, required): ≤ 60 chars, in the language of the Request, naming what this diagram shows (e.g. "How a gateway key gets authorized") — never the type name or "Process". The canvas shows it as the frame name.
 - Edge `kind` on `relations[]`: `calls` (default), `spawns` (starts a process/CLI/agent), `data` (reads/writes a file/DB/store), `minor` (optional) -- use `spawns`/`data` whenever true, e.g. `{"from":"api","to":"db","kind":"data","label":"saves run"}`.
 - **Size:** aim for 8–15 boxes. Over 15 the self-check prints `SPLIT`; cut detail instead.
 - **Process order:** every step box gets `meta.order` ("1", "2", "3a"/"3b" for parallel or
@@ -81,6 +83,7 @@ the Code Atlas canvas renders. These rules are complete: do not read other skill
 
 | Code | Fix |
 |---|---|
+| `NOTITLE` / `GENERICTITLE` | add a top-level `title` that says what this diagram shows, not its type |
 | `BROKEN <id>` | path/node_id not in the graph: copy it verbatim or set both to null |
 | `DUPLICATE` / `DANGLING` / `SELF` | rename the id / fix or drop the arrow / drop the self-arrow |
 | `ORPHAN` / `ISLAND` | connect the box or drop it |

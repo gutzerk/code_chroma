@@ -91,6 +91,7 @@ public static partial class BareSkill
         if (type == PlanType)
             text.AppendLine($"Follow `{Path.Combine(source, "references", "feature-plan-mode.md")}` for the planned blocks.");
         text.AppendLine("This request is their answer: do not greet them or ask what to draw. The picked type is a hint, not a lock: if the request clearly fits another type better, say so in one line, but draw the picked type unless they agree.");
+        text.AppendLine("Name the diagram from this request: its top-level `title` says what it shows, in the request's language, and differs from the titles already on the canvas — never just the type name.");
         return text.ToString();
     }
 

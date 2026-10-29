@@ -588,7 +588,7 @@ expand button, folder and color boxes all go through `layoutStore`/`collapsedLay
 
 - `web/src/canvas-style/` (settings "Canvas style": background colour and None/Dots/Lines texture, persisted in the bridge's machine-wide `~/.codechroma/canvas-style.json`, cached in `localStorage` `codechroma.canvasStyle`) is independent of the layout store; `CanvasViewport` paints a saved style via `--canvas-bg`/`--canvas-texture-image` and `gridStepFor` (see [`assistant-settings.md`](assistant-settings.md)). `CanvasViewport` also accepts optional `insets`, `panBy` and `fitToBounds` (unused by the current `RootCanvas`, covered by `CanvasViewportInsets.test.tsx`).
 - `canvas/useOpenFilesLiveRefresh.ts` (called by `RootCanvas`) re-reads every open file's node after each live ping via `openFilesStore.replace`, so the code sidebar follows edits on disk.
-- `canvas/doc/diagramDisplay.ts` supplies `diagramDisplayName`/`diagramAccent`; `DiagramFrame` shows the `TYPE · n BOXES` meta line and `diagramFrameColorClass` delegates to it.
+- `canvas/doc/diagramDisplay.ts` supplies `diagramDisplayName`/`diagramAccent`; `DiagramFrame` shows the `TYPE · n BOXES` meta line and `diagramFrameColorClass` delegates to it. A diagram's name is its agent-written `title` (`meta.diagram_title`, read by `diagramTitle`), falling back to the type label; the left panel's ON CANVAS row then adds a small `TYPE ·` prefix (`useDiagramRows`' `typeLabel`). See `diagram-skills.md` "Diagram titles".
 
 ## Share / export menu
 

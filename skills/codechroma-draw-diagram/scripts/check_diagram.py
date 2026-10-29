@@ -22,7 +22,7 @@ why a finding cannot apply.
 
 Advisory findings print but never change the exit code: COVERAGE, DEPTH, NESTING-EDGE, CYCLES,
 ARTICULATION, BADKIND, BADICON, BADEDGEKIND, EDGEKIND-SPAWN, EDGEKIND-DATA, UNLABELED, DROPPED,
-NOSTATUS, BADSTATUS. COVERAGE is advisory by
+NOSTATUS, BADSTATUS, NOTITLE, GENERICTITLE, LONGDIAGRAMTITLE. COVERAGE is advisory by
 construction, not
 by
 concession -- the bridge hangs everything no block names off the system box as an "Unmapped code"
@@ -322,6 +322,7 @@ def main(argv: list[str] | None = None) -> int:
     _check_hero_budget(checks, report)
     _check_impact_status(diagram, args.kind, report)
     _check_readability(diagram, args.kind, report)
+    _check_title(diagram, args.kind, args.type_id, report)
     if not args.json_path:
         _check_diagnostics(diagram, report)
 
@@ -910,6 +911,42 @@ def _check_impact_status(diagram: object, kind: str, report: _Report) -> None:
             report.advisories.append(
                 f"BADSTATUS {node.get('id')} status={status!r}, expected {_IMPACT_STATUS_VALUES}"
             )
+
+
+MAX_DIAGRAM_TITLE_CHARS = 60
+# Words that only name a diagram type, never what it shows -- a title made of them is generic.
+_TYPE_WORDS = frozenset({
+    "system", "context", "c1", "design", "pattern", "patterns", "change", "impact", "sequence",
+    "walkthrough", "custom", "feature", "plan", "data", "flow", "dataflow", "diagram", "view",
+    "map", "overview", "architecture",
+})
+_FILLER_WORDS = frozenset({"the", "a", "an", "of", "for", "and", "in", "on", "to"})
+
+
+def _check_title(diagram: object, kind: str, type_id: str | None, report: _Report) -> None:
+    """The diagram's own top-level `title`: present, specific to the request, and short."""
+    if not isinstance(diagram, dict) or kind == "epics":
+        return
+    title = diagram.get("title")
+    if not (isinstance(title, str) and title.strip()):
+        report.advisories.append(
+            "NOTITLE the diagram has no top-level `title` -- name what it shows for this request"
+        )
+        return
+    own_words = set(re.split(r"[-_/]", (type_id or "").lower())) | set(kind.split("-"))
+    type_words = _TYPE_WORDS | own_words
+    words = [word for word in re.findall(r"[^\W_]+", title.lower()) if word not in _FILLER_WORDS]
+    specific = [word for word in words if word not in type_words]
+    if not specific or (len(specific) == 1 and len(words) > 1):
+        report.advisories.append(
+            f"GENERICTITLE title {title.strip()!r} only names the diagram type --"
+            " say what it shows, e.g. 'How a file save reaches the canvas'"
+        )
+    if len(title.strip()) > MAX_DIAGRAM_TITLE_CHARS:
+        report.advisories.append(
+            f"LONGDIAGRAMTITLE title is {len(title.strip())} chars, keep it to"
+            f" {MAX_DIAGRAM_TITLE_CHARS}"
+        )
 
 
 PHASE_KINDS = ("request", "prepare", "ai", "deliver", "custom")

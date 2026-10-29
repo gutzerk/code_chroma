@@ -22,6 +22,7 @@ produced candidates; they are your seed list, not your ceiling.
 {
   "type": "patterns",
   "generated_at": "<ISO time>",
+  "title": "Strategy and Registry in the analyzer pipeline",
   "nodes": [
     {"id": "strategy::discount", "name": "Strategy — discount dispatch", "kind": "pattern-instance",
      "description": "The real problem this instance solves here.", "meta": {"type": "strategy", "confirmed": true, "confidence": 0.85}},
@@ -40,6 +41,7 @@ produced candidates; they are your seed list, not your ceiling.
 
 ## Rules
 
+- **`title`** (top-level, required): ≤ 60 chars, in the language of the user's request, naming what *this* diagram shows for that request (e.g. "How a file save reaches the canvas") — never the type name ("Design patterns", "Diagram"). First run `curl -s {BRIDGE}/repos/{WORKSPACE}/diagrams/status` and read every entry's `title`: pick one that differs from all of them (the entry for the file you are replacing does not count). The canvas shows it as the frame name and the ON CANVAS row.
 - Edge `kind` on `relations[]`: `calls` (default), `spawns` (starts a process/CLI/agent), `data` (reads/writes a file/DB/store), `minor` (optional) -- use `spawns`/`data` whenever true, e.g. `{"from":"api","to":"db","kind":"data","label":"saves run"}`.
 - Instances and participants are flat `nodes[]`; a participant sets `parent` to its instance's `id`. All ids share one namespace and are unique. `node_id`/`path` are copied verbatim from the context — never invented; a class with `node_id: null` is never a participant.
 - Every participant gets its own one-sentence `description` (its role), distinct from the instance's. Every instance box must be an endpoint of at least one relation (`ORPHAN` otherwise).
@@ -54,6 +56,7 @@ produced candidates; they are your seed list, not your ceiling.
 
 | Code | Fix |
 |---|---|
+| `NOTITLE` / `GENERICTITLE` | add a top-level `title` that says what this diagram shows, not its type |
 | `BROKEN <id>` | copy `path`/`node_id` verbatim, or fix/delete the entry |
 | `DUPLICATE` / `DANGLING` / `SELF` | rename / fix the id or drop the arrow / drop it |
 | `ORPHAN` / `ISLAND` | wire it in — for an adapter or repository the missing piece is usually its real caller |

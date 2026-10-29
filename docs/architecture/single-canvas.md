@@ -246,8 +246,9 @@ contract via the shared `unionBoundsOf()`, plus each area's own color hash),
 
 A dashed rectangle drawn around every visible element on one canvas layer (`c1`/`patterns`/`impact`/
 `epics`/`custom/<id>`, i.e. `diagramCatalog.ts`'s `isDiagramLayer` set — the seeded hierarchy tree and
-`apply_batch`'s `"default"` fallback layer never get one), labeled top-left with that layer's own
-recipe name (`labelForDiagramLayer`). `CanvasDocView` buckets `renderableElements` by `element.layer`
+`apply_batch`'s `"default"` fallback layer never get one), labeled top-left with the diagram's own
+`title` (`meta.diagram_title`, see `diagram-skills.md` "Diagram titles") or, when untitled, the
+layer's recipe name (`labelForDiagramLayer`), both via `diagramDisplayName`. `CanvasDocView` buckets `renderableElements` by `element.layer`
 into `memberIdsByLayer` (structural, like `memberIdsByGroup`) and renders one `DiagramFrame` per
 bucket, rendered through the same shared `SoftAreaFrame` `GroupFrame`/`LaneArea`/
 `ConcurrencyIslandArea` use (so the `unionBoundsOf()` bounding-box arithmetic lives in exactly one

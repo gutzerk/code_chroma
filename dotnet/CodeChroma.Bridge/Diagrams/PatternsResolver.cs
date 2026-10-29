@@ -147,6 +147,8 @@ public static class PatternsResolver
             ["relations"] = new JsonArray(relations),
             ["generated_at"] = authored["generated_at"]?.DeepClone(),
         };
+        // The authored display title rides through so the canvas can name this diagram.
+        if (authored.ContainsKey("title")) data["title"] = authored["title"]?.DeepClone();
         var overrides = DiagramStyles.Overrides(data["style"]);
         overrides["allow_self_relations"] = true;
         var resolved = DiagramResolver.Resolve(engine, data, overrides);

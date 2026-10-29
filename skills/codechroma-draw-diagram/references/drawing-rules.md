@@ -374,6 +374,7 @@ Same six per type; each `type-*.md` adds only what differs.
 | `ORPHAN <id>` | wire it in, or drop it |
 | `SHAREDNODE <node_id>` | advisory (flat kinds; not `impact`) — give each box its own class/function id, or `null` + `no_code_reason: conceptual` |
 | `ISLAND <ids…>` | wire in the missing relation, or merge/drop the cluster |
+| `NOTITLE` / `GENERICTITLE` / `LONGDIAGRAMTITLE` | advisory: write a top-level `title` that says what this diagram shows, not its type, ≤ 60 chars — see "Naming the diagram (`title`)" |
 | `DROPPED relation <from -> to> <reason>` | the bridge discarded that arrow/message while resolving (dangling endpoint, self-relation the style does not allow, invalid shape), so it is **not on the canvas**: fix the file; this fails the run |
 
 ### Final report: say what you did not do
@@ -399,6 +400,7 @@ the only per-type variation, nothing else in the shape differs (see
 ```json
 {
   "type": "system-context",
+  "title": "Who the billing service talks to",
   "style": "boxes-arrows",
   "nodes": [
     {
@@ -413,6 +415,8 @@ the only per-type variation, nothing else in the shape differs (see
 }
 ```
 
+- `title` — the diagram's own name, shown on its canvas frame and its ON CANVAS row; see "Naming
+  the diagram (`title`)" below.
 - `id` unique across the file; `path`/`node_id` copied verbatim or left null for a purely conceptual
   box; every box gets a real `description`.
 - `parent` — another node's own `id`, for instance→participant grouping (patterns). `c1` never
@@ -447,6 +451,30 @@ the only per-type variation, nothing else in the shape differs (see
   as a back edge, so a loop does not push the flow backwards.
 - Never relate an id to itself, and never relate two ids that aren't both in `nodes[]` — the resolver
   drops what it can't place, it never invents one.
+
+## Naming the diagram (`title`)
+
+Every diagram you write carries a top-level `title` string. The canvas shows it as the frame name
+and the ON CANVAS row, with the type as a small label beside it (`SEQUENCE · How a file save
+reaches the canvas`), so the type is already visible: the title says what *this* diagram shows.
+
+- Derive it from the user's request, in the language of that request: the flow, the change or the
+  question, e.g. "How a file save reaches the canvas", "Strategy and Registry in the analyzer
+  pipeline", "What the token refresh fix touches".
+- ≤ 60 characters, no trailing period.
+- 🔴 Never just the type name: "Sequence", "Design patterns", "System context", "Walkthrough",
+  "Change impact", "Feature plan", "Patterns: bridge", "Diagram". The self-check advises
+  `GENERICTITLE` for those, `NOTITLE` when `title` is missing, `LONGDIAGRAMTITLE` over 60 chars.
+- Make it distinct from the diagrams already on the canvas. List their titles first:
+
+  ```bash
+  curl -s "${CODECHROMA_BRIDGE_URL:-http://localhost:8000}/repos/${CODECHROMA_WORKSPACE_ID:-default}/diagrams/status"
+  # -> {"sequence": {"ready": true, "fingerprint": "…", "title": "How a file save reaches the canvas"}, …}
+  ```
+
+  Every entry's `title` (null when untitled) is a name already taken; the entry for the file you
+  are about to replace does not count, since its diagram goes away.
+- On an update of an existing diagram, keep its title unless the request changed what it shows.
 
 ## The style catalog
 

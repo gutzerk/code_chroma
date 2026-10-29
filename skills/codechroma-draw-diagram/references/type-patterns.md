@@ -89,6 +89,7 @@ in one top-level `relations[]`:
 {
   "type": "patterns",
   "generated_at": "2026-01-01T00:00:00Z",
+  "title": "Strategy and Registry in the analyzer pipeline",
   "nodes": [
     {
       "id": "strategy::discount_strategy", "name": "Strategy — discount dispatch",
@@ -109,6 +110,8 @@ in one top-level `relations[]`:
   ]
 }
 ```
+
+- **`title`** (top-level, required): a short name (≤ 60 chars, in the language of the user's request) for what *this* diagram shows, never the type name ("Design patterns"), distinct from the titles already on the canvas — see `drawing-rules.md` "Naming the diagram (`title`)"; the self-check advises `NOTITLE`/`GENERICTITLE` otherwise.
 
 Rules:
 - **A pattern instance** — `kind: "pattern-instance"`, `meta: {type, confirmed, confidence}`.

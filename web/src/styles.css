@@ -203,21 +203,22 @@
   --seq-inner: #7c8188; /* call inside an expanded step */
   --seq-file-border: #2e4d70; /* file pill in an expanded step */
   --seq-actor-border: #4e5867;
-  --seq-actor-bg: #20242a;
+  --seq-actor-bg: #333639; /* 20% role colour over the board, so roles read apart */
   --seq-actor: #94a3b8;
   --seq-route-border: #23707b;
-  --seq-route-bg: #13272b;
+  --seq-route-bg: #1c4044;
   --seq-route: #22d3ee;
   --seq-logic-border: #24704f;
-  --seq-logic-bg: #15281f;
+  --seq-logic-bg: #204033;
   --seq-logic: #34d399;
   --seq-ai-border: #5f4fa0;
-  --seq-ai-bg: #221e33;
+  --seq-ai-bg: #373146;
   --seq-ai: #a78bfa;
   --seq-check-border: #7f6524;
-  --seq-check-bg: #29241a;
+  --seq-check-bg: #483c1b;
   --seq-check: #fbbf24;
-  --seq-data-bg: #2a1f17;
+  --seq-data-bg: #483320;
+  --seq-fail-bg: #482c2f;
   --seq-data: #fb923c;
   --seq-fn-border: #2b5a44; /* function card inside a logic step */
   --seq-fn-bg: #1b3427;
@@ -8297,7 +8298,7 @@ button[data-copy-state="idle"][aria-label]:hover:not(:disabled) {
 .seq-tone--ai { --seq-tone-border: var(--seq-ai-border); --seq-tone-bg: var(--seq-ai-bg); --seq-tone: var(--seq-ai); }
 .seq-tone--check { --seq-tone-border: var(--seq-check-border); --seq-tone-bg: var(--seq-check-bg); --seq-tone: var(--seq-check); }
 .seq-tone--data { --seq-tone-border: var(--route-data-border); --seq-tone-bg: var(--seq-data-bg); --seq-tone: var(--seq-data); }
-.seq-tone--fail { --seq-tone-border: var(--route-fail-border); --seq-tone-bg: var(--route-fail-bg); --seq-tone: var(--route-fail); }
+.seq-tone--fail { --seq-tone-border: var(--route-fail-border); --seq-tone-bg: var(--seq-fail-bg); --seq-tone: var(--route-fail); }
 
 .seq-pill { position: absolute; top: 6px; height: 24px; display: flex; align-items: center; gap: 8px; }
 .seq-pill--solo { justify-content: center; }

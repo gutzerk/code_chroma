@@ -217,10 +217,11 @@ what changed since.
   Sequence geometry: `SEQUENCE_BOARD` in `sequenceBoard.ts` (the A4 swimlane board: a participant's
   element is its lane rect, a message's is its step box; lanes start `lanesTop` below the board top so
   the phase pills fit above them, and the legend sits under the last lane). `DiagramFrame` encloses
-  the whole board through `sequenceBoardBounds`, not the member rects. Because sequence positions are
-  pure derivations of these constants yet persisted,
-  `useReflowSequence` re-runs `layoutSequence` on mount for any sequence layer whose geometry has
-  drifted, so a constant change reaches every reloaded diagram, not just freshly-drawn ones.
+  the whole board through the sequence profile's `frameBounds` (`sequenceBoardBounds`), not the member
+  rects. Because sequence positions are pure derivations of these constants yet persisted,
+  `useReflowOwnLayouts` re-runs the profile's `layout` (`layoutSequence`, in `sequenceBoard.ts`) on
+  mount for any layer whose geometry has drifted, so a constant change reaches every reloaded
+  diagram, not just freshly-drawn ones.
   Message `return`/`async` flags are read through `elementMeta.flagMeta` (truthiness-aware): the
   backend emits them as JSON booleans (`bool(...)` in `recipes.py`) while authored/mock files use a
   `"true"` string, and only a flag-read that accepts both survives either path — `stringMeta` would

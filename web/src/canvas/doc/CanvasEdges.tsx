@@ -10,7 +10,7 @@ import { edgeVisual, type EdgeVisual } from "./edgeKinds";
 import { focusStore } from "./focusStore";
 import { elementRect } from "./elementRect";
 import { mergedPillRect, useMergedPills } from "./impactBoxState";
-import { WALKTHROUGH_LAYER } from "./walkthroughLayout";
+import { DEFAULT_PROFILE, profileForElement } from "./diagramProfiles";
 
 const CANVAS_ARROW_MARKER_ID = "canvas-doc-arrowhead";
 
@@ -25,10 +25,10 @@ const CANVAS_ARROW_MARKERS = [
 // The B2 route head is the board's 6-unit triangle (scaled by the 2.75px stroke), smaller than the default 10.
 const ROUTE_ARROW_MARKERS = [{ id: `${CANVAS_ARROW_MARKER_ID}-route`, className: "custom-arrowhead canvas-arrowhead--route" }];
 
-/** Bundles carry no arrowhead (the marker id is deliberately undefined); a walkthrough's route arrows take the green head. */
-const markerFor = (visual: EdgeVisual, layer: string | undefined): string =>
-  (visual === "call" || visual === "spawn") && layer === WALKTHROUGH_LAYER
-    ? `${CANVAS_ARROW_MARKER_ID}-route`
+/** Bundles carry no arrowhead (the marker id is deliberately undefined); a profile may swap the head (a walkthrough's green route head). */
+const markerFor = (visual: EdgeVisual, variant: string | undefined): string =>
+  variant
+    ? `${CANVAS_ARROW_MARKER_ID}-${variant}`
     : visual === "data" || visual === "minor" || visual === "error"
     ? `${CANVAS_ARROW_MARKER_ID}-${visual}`
     : visual === "bundle"
@@ -84,9 +84,10 @@ export function CanvasEdges({ doc, sizes, onOpenOrigin }: CanvasEdgesProps) {
       <ArrowMarkerDefs markers={ROUTE_ARROW_MARKERS} size={6} />
       {edges.map((edge) => {
         const visual: EdgeVisual = bundleSet.has(bundleKeyOf(edge)) ? "bundle" : edgeVisual(edge.kind, edge.transport);
-        const layer = doc.elements[edge.from]?.layer;
-        // The B2 route arrows carry no kind word; only an authored label is drawn.
-        const label = edge.label || (layer === WALKTHROUGH_LAYER ? "" : edge.kind || "");
+        const source = doc.elements[edge.from];
+        const layer = source?.layer;
+        const profile = source ? profileForElement(source) : DEFAULT_PROFILE;
+        const label = profile.edgeLabel ? profile.edgeLabel(edge) : edge.label || edge.kind || "";
         return (
         <g
           key={edge.key}
@@ -101,7 +102,7 @@ export function CanvasEdges({ doc, sizes, onOpenOrigin }: CanvasEdgesProps) {
           transport={edge.transport}
           labelX={edge.labelX}
           labelY={edge.labelY}
-          markerId={markerFor(visual, layer)}
+          markerId={markerFor(visual, profile.edgeMarker?.(visual))}
           fromNodeId={edge.from}
           toNodeId={edge.to}
           variantSuffix={` --custom --ek-${visual}`}

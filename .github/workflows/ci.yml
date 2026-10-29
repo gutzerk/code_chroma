@@ -114,6 +114,10 @@ jobs:
 
       - run: npm test
 
+      # Browser guard for the CSS metrics measureBoxSize.ts/sequenceBoard.ts copy (027); the full e2e suite is not CI-clean yet.
+      - run: npx playwright install --with-deps chromium
+      - run: npx playwright test box-size-guard
+
   # Static checks for the install/release plumbing: shell installers, workflows.
   installers-lint:
     name: Lint installers and workflows

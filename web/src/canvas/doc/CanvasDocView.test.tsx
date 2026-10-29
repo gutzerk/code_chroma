@@ -511,6 +511,59 @@ describe("CanvasDocView", () => {
     expect(screen.getAllByTestId("canvas-node-step-chip").map((chip) => chip.textContent)).toEqual(["2", "3"]);
   });
 
+  it("draws no Lane area on a walkthrough, whose profile turns lane bands off", async () => {
+    const doc = docWith([
+      elementOf({ id: "w1", render: "custom", layer: "walkthrough", label: "A", meta: { lane: "Frontend" }, position: { x: 100, y: 100 } }),
+      elementOf({ id: "w2", render: "custom", layer: "walkthrough", label: "B", meta: { lane: "Frontend" }, position: { x: 500, y: 300 } }),
+    ]);
+    const engineClient = client(doc);
+
+    render(
+      <EngineClientProvider repoId="default" client={engineClient}>
+        <CanvasDocView />
+      </EngineClientProvider>,
+    );
+
+    await waitFor(() => expect(screen.getAllByTestId("canvas-node-box")).toHaveLength(2));
+    expect(screen.queryByTestId("canvas-lane-area")).not.toBeInTheDocument();
+  });
+
+  it("draws no Concurrency island on a sequence board, whose profile turns islands off", async () => {
+    const doc = docWith([
+      elementOf({ id: "a", render: "sequence", layer: "checkout", label: "A", meta: { role: "participant", recipe_key: "a" } }),
+      elementOf({ id: "b", render: "sequence", layer: "checkout", label: "B", meta: { role: "participant", recipe_key: "b" } }),
+      elementOf({ id: "m1", render: "sequence", layer: "checkout", label: "x", meta: { role: "message", from: "a", to: "b", order: "2a" } }),
+      elementOf({ id: "m2", render: "sequence", layer: "checkout", label: "y", meta: { role: "message", from: "b", to: "a", order: "2b" } }),
+    ]);
+    const engineClient = client(doc);
+
+    render(
+      <EngineClientProvider repoId="default" client={engineClient}>
+        <CanvasDocView />
+      </EngineClientProvider>,
+    );
+
+    await waitFor(() => expect(screen.getAllByTestId("sequence-step")).toHaveLength(2));
+    expect(screen.queryByTestId("canvas-concurrency-island")).not.toBeInTheDocument();
+  });
+
+  it("mounts a profile's overlay for its layer: the walkthrough's ROUTE panel", async () => {
+    const route = { id: "r", title: "Save flow", summary: "", steps: [{ id: "s1", order: 1, title: "Save", kind: "trigger", node_ids: [], children: [] }] };
+    const doc = docWith([
+      elementOf({ id: "w1", render: "custom", layer: "walkthrough", label: "Save", meta: { route, route_step: route.steps[0] } }),
+    ]);
+    const engineClient = client(doc);
+
+    render(
+      <EngineClientProvider repoId="default" client={engineClient}>
+        <CanvasDocView />
+      </EngineClientProvider>,
+    );
+
+    await waitFor(() => expect(screen.getByTestId("walkthrough-panel")).toBeInTheDocument());
+    expect(screen.getAllByTestId("walkthrough-panel")).toHaveLength(1);
+  });
+
   it("does not draw a Concurrency island for a lone numbered step", async () => {
     const doc = docWith([
       elementOf({ id: "e1", render: "custom", label: "A", meta: { order: "1" } }),

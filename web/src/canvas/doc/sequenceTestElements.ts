@@ -1,5 +1,5 @@
 import type { CanvasDoc, CanvasElement } from "../../state/types";
-import { layoutSequence } from "./autoLayout";
+import { layoutSequence } from "./sequenceBoard";
 
 /** A sequence-layer element for tests; `meta` carries the role/from/to/order a diagram writes. */
 export function seqElement(id: string, meta: Record<string, unknown>, overrides: Partial<CanvasElement> = {}): CanvasElement {

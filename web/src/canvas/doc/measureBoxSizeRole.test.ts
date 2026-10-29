@@ -54,6 +54,29 @@ describe("measureBoxSize on a role box", () => {
 
     expect(b!.h).toBeGreaterThan(a!.h);
   });
+
+  it.each([
+    ["role", { kind: "api" }],
+    ["plain", {}],
+  ])("reserves only the band's padding for an order-only top band on a %s box", (_kind, meta) => {
+    const plain = el({ meta });
+    const ordered = el({ meta: { ...meta, order: "1" } });
+
+    const delta = measureBoxSize(ordered)!.h - measureBoxSize(plain)!.h;
+
+    expect(delta).toBeGreaterThanOrEqual(9);
+    expect(delta).toBeLessThanOrEqual(11);
+  });
+
+  it("reserves a full text row for a plan_kind top band", () => {
+    const plain = el({ meta: { kind: "api" } });
+    const planned = el({ meta: { kind: "api", plan_kind: "modify" } });
+
+    const delta = measureBoxSize(planned)!.h - measureBoxSize(plain)!.h;
+
+    expect(delta).toBeGreaterThanOrEqual(21);
+    expect(delta).toBeLessThanOrEqual(23);
+  });
 });
 
 describe("layoutBoxSize", () => {

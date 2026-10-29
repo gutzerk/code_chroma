@@ -1,5 +1,4 @@
 import { useEffect, useMemo, useSyncExternalStore } from "react";
-import { sequenceViewStore } from "./sequenceViewStore";
 import { FocusPanel } from "./FocusPanel";
 import type { CanvasElement } from "../../state/types";
 import { useEngineClient } from "../../engine-client/EngineClientContext";
@@ -10,8 +9,7 @@ import { openOrigin } from "../openOrigin";
 import { CanvasNodeBox } from "./CanvasNodeBox";
 import { ConcurrencyIslandArea } from "./ConcurrencyIslandArea";
 import { DiagramFrame } from "./DiagramFrame";
-import { WalkthroughPanel } from "./WalkthroughPanel";
-import { WALKTHROUGH_LAYER } from "./walkthroughLayout";
+import { layersWithProfile, profileFor, profileForElement, profileViewsVersion, subscribeProfileViews } from "./diagramProfiles";
 import { diagramDisplayName } from "./diagramDisplay";
 import { isDiagramLayer, useCustomDiagramTypes } from "./diagramCatalog";
 import { BLOCK_RULES } from "./elementRules";
@@ -22,7 +20,6 @@ import { GroupFrame } from "./GroupFrame";
 import { LaneArea } from "./LaneArea";
 import { NoteElement } from "./NoteElement";
 import { QuestionElement } from "./question/QuestionElement";
-import { SequenceDiagram } from "./SequenceDiagram";
 import {
   applyCanvasPositions,
   useCanvasDoc,
@@ -34,7 +31,7 @@ import { useLiveDragOffsets } from "./dragOffsetStore";
 import { LIVE_STAGES, STRUCTURAL_STAGES, VIEW_STAGES, runDisplayStages } from "./displayPipeline";
 import { useRouteExpanded } from "./routeExpandStore";
 import { useReflowEpics } from "./useReflowEpics";
-import { useReflowSequence } from "./useReflowSequence";
+import { useReflowOwnLayouts } from "./useReflowOwnLayouts";
 import { useEpicsContentSizes } from "./epicsContentSizeStore";
 import { UNDO_EVENT, type UndoEventDetail } from "../UndoManager";
 
@@ -175,7 +172,7 @@ export function CanvasDocView() {
   // minHeight + overflow), an over-reserving box leaves an empty dark band below. Re-fit the box to
   // its measured content height and persist the corrected size/position.
   useReflowEpics(engineClient, doc, contentSizes);
-  useReflowSequence(engineClient, doc, loaded);
+  useReflowOwnLayouts(engineClient, doc, loaded);
 
   const dragOffsets = useLiveDragOffsets();
 
@@ -218,7 +215,10 @@ export function CanvasDocView() {
   // same layer-scoping `memberIdsByLayer` gives `DiagramFrame`. A digit run with only one member is
   // dropped (keepSingletons=false): a lone numbered step has nothing to be concurrent with.
   const laneBuckets = useMemo(
-    () => bucketPerLayer(Object.values(renderableElements), (el) => (el.layer === WALKTHROUGH_LAYER ? undefined : stringMeta(el, "lane")), true),
+    () => bucketPerLayer(Object.values(renderableElements), (el) => {
+        const profile = profileForElement(el);
+        return profile.hideLaneBands || profile.Board ? undefined : stringMeta(el, "lane");
+      }, true),
     [renderableElements],
   );
 
@@ -243,41 +243,43 @@ export function CanvasDocView() {
     return map;
   }, [renderableElements]);
 
-  // Sequence layers render as one own-component per whole layer (SequenceDiagram), not per-element
-  // boxes: every element with `render: "sequence"` is collected up (by its owning layer) so that
-  // component can lay the participants/messages out from meta alone. Membership is whitellisted by
-  // the render kind's own-component renderer, the same signal `memberIdsByLayer` filters `group` on.
-  const sequenceMemberIdsByLayer = useMemo(() => {
-    const map = new Map<string, string[]>();
-    for (const element of Object.values(renderableElements)) {
-      if (BLOCK_RULES[element.render].renderer !== "sequence") continue;
-      const ids = map.get(element.layer);
-      if (ids) ids.push(element.id);
-      else map.set(element.layer, [element.id]);
-    }
-    return map;
-  }, [renderableElements]);
+  // A profile with a `Board` (a sequence board) draws its whole layer as one component, so its ids are bucketed per layer.
+  const boardsByLayer = useMemo(() => layersWithProfile(Object.values(renderableElements), "Board"), [renderableElements]);
+  const boardIds = useMemo(() => new Set([...boardsByLayer.values()].flatMap(({ ids }) => ids)), [boardsByLayer]);
 
-  // A4: expanded-step geometry is derived here for display only, never persisted to the doc.
-  const sequenceViewVersion = useSyncExternalStore(sequenceViewStore.subscribe, sequenceViewStore.getLayoutVersion);
+  // A profile's own overlay (a walkthrough's ROUTE panel), resolved per structural change rather than per drag tick.
+  const overlays = useMemo(
+    () =>
+      [...memberIdsByLayer].flatMap(([layer, ids]) => {
+        const { Overlay } = profileFor(layer, resolveMembers(ids, renderableElements));
+        return Overlay ? [{ layer, ids, Overlay }] : [];
+      }),
+    [memberIdsByLayer, renderableElements],
+  );
+
+  // Display-only board geometry (a sequence board's expanded steps), never persisted to the doc.
+  const profileViews = useSyncExternalStore(subscribeProfileViews, profileViewsVersion);
   const viewElements = useMemo(
     () =>
       runDisplayStages(VIEW_STAGES, visibleDoc.elements, {
-        sequence: { doc: visibleDoc, idsByLayer: sequenceMemberIdsByLayer, viewFor: (layer) => sequenceViewStore.get(layer) },
+        boards: {
+          doc: visibleDoc,
+          layers: [...boardsByLayer].flatMap(([layer, { profile, ids }]) => (profile.viewElements ? [{ layer, ids, view: profile.viewElements }] : [])),
+        },
       }),
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- sequenceViewVersion is the store's change signal
-    [visibleDoc, sequenceMemberIdsByLayer, sequenceViewVersion],
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- profileViews is the view stores' change signal
+    [visibleDoc, boardsByLayer, profileViews],
   );
 
   const concurrencyBuckets = useMemo(
     () =>
       bucketPerLayer(
-        // A sequence board draws "2a"/"2b" as their own step columns, never as a concurrency island.
-        Object.values(renderableElements).filter((el) => el.render !== "sequence"),
+        // A board draws "2a"/"2b" as its own step columns, never as a concurrency island.
+        Object.values(renderableElements).filter((el) => !boardIds.has(el.id)),
         (el) => leadingOrderDigits(orderMeta(el)),
         false,
       ),
-    [renderableElements],
+    [renderableElements, boardIds],
   );
 
   const bounds = useMemo(() => {
@@ -323,13 +325,9 @@ export function CanvasDocView() {
               />
             );
           })}
-          {memberIdsByLayer.has(WALKTHROUGH_LAYER) && (
-            <WalkthroughPanel
-              layer={WALKTHROUGH_LAYER}
-              members={resolveMembers(memberIdsByLayer.get(WALKTHROUGH_LAYER) ?? [], viewElements)}
-              sizes={measuredSizes}
-            />
-          )}
+          {overlays.map(({ layer, ids, Overlay }) => (
+            <Overlay key={`overlay-${layer}`} layer={layer} members={resolveMembers(ids, viewElements)} sizes={measuredSizes} />
+          ))}
           {laneBuckets.map(({ layer, value, ids }) => (
             <LaneArea
               key={`lane-${layer}-${value}`}
@@ -346,18 +344,20 @@ export function CanvasDocView() {
               sizes={measuredSizes}
             />
           ))}
-          {[...sequenceMemberIdsByLayer.entries()].map(([layer, memberIds]) => (
-            <SequenceDiagram
-              key={`sequence-${layer}`}
-              layer={layer}
-              elements={resolveMembers(memberIds, viewElements)}
-            />
-          ))}
+          {[...boardsByLayer].map(([layer, { profile, ids }]) => {
+            const { Board } = profile;
+            return <Board key={`board-${layer}`} layer={layer} elements={resolveMembers(ids, viewElements)} />;
+          })}
           <FocusPanel doc={visibleDoc} />
           {visibleElements.map((element) => {
+            // A board layer's elements render through its profile's Board above, never as boxes.
+            if (boardIds.has(element.id)) return null;
             switch (BLOCK_RULES[element.render].renderer) {
               case "hierarchy":
                 // Retired code-tree block: an old document may still carry one; it draws nothing.
+                return null;
+              case "sequence":
+                // Safety net: a sequence element always belongs to a board layer and is skipped above.
                 return null;
               case "none":
                 // 026: a route carrier never reaches here (canvasDocStore splits it out); never draw one if it does.
@@ -375,10 +375,6 @@ export function CanvasDocView() {
                 }
               case "question":
                 return <QuestionElement key={element.id} element={element} />;
-              case "sequence":
-                // A `sequence` layer's members render through the per-layer SequenceDiagram above,
-                // never here as individual boxes.
-                return null;
               default:
                 return (
                   <CanvasNodeBox

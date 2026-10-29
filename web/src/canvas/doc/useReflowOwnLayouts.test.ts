@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { renderHook } from "@testing-library/react";
 import { EMPTY_CANVAS_DOC, type CanvasDoc, type CanvasElement, type CanvasOp } from "../../state/types";
 import type { EngineClient } from "../../engine-client/EngineClient";
-import { useReflowSequence } from "./useReflowSequence";
+import { useReflowOwnLayouts } from "./useReflowOwnLayouts";
 import { messageEl, participantEl } from "./sequenceTestElements";
 
 const patchMock = vi.fn(async (_ops: CanvasOp[]) => ({ ok: true as const }));
@@ -17,11 +17,11 @@ const docOf = (elements: CanvasElement[]): CanvasDoc => ({
 
 const staleSequence = () => docOf([participantEl("a"), participantEl("b"), messageEl("m1", "a", "b", "1")]);
 
-describe("useReflowSequence", () => {
+describe("useReflowOwnLayouts", () => {
   beforeEach(() => patchMock.mockClear());
 
   it("re-spreads stale sequence geometry once the doc loads after mount", async () => {
-    const { rerender } = renderHook(({ doc, loaded }) => useReflowSequence({} as EngineClient, doc, loaded), {
+    const { rerender } = renderHook(({ doc, loaded }) => useReflowOwnLayouts({} as EngineClient, doc, loaded), {
       initialProps: { doc: EMPTY_CANVAS_DOC, loaded: false },
     });
 
@@ -32,8 +32,17 @@ describe("useReflowSequence", () => {
     expect(patchMock.mock.calls[0][0].length).toBeGreaterThan(0);
   });
 
+  it("leaves a doc with no profile-laid-out layer alone", async () => {
+    const doc = docOf([{ ...participantEl("a"), render: "custom", layer: "custom/x" }]);
+
+    renderHook(() => useReflowOwnLayouts({} as EngineClient, doc, true));
+    await Promise.resolve();
+
+    expect(patchMock).not.toHaveBeenCalled();
+  });
+
   it("does nothing before the doc has loaded", async () => {
-    renderHook(() => useReflowSequence({} as EngineClient, staleSequence(), false));
+    renderHook(() => useReflowOwnLayouts({} as EngineClient, staleSequence(), false));
 
     await Promise.resolve();
 

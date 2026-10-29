@@ -77,7 +77,7 @@ def _assert_same_boxes(old_by_anchor: dict[str, dict], new_by_anchor: dict[str, 
 
 
 def test_c1_parity(bridge):
-    golden = _golden("system-context")
+    golden = _golden("c1")
     c1_path = diagram_json_path(bridge.repo, "system-context")
     c1_path.parent.mkdir(parents=True, exist_ok=True)
     c1_path.write_text(json.dumps(golden["input"]), encoding="utf-8")

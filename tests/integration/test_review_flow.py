@@ -45,6 +45,6 @@ def test_a_type_with_no_review_flow_returns_404(bridge):
 
 def test_c1_has_no_review_flow_since_the_explanatory_axis_moved_to_impact(bridge):
     with TestClient(bridge.app) as client:
-        response = client.get("/repos/default/c1/review")
+        response = client.get("/repos/default/system-context/review")
 
     assert response.status_code == 404

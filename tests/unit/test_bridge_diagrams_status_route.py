@@ -31,23 +31,24 @@ def test_empty_repo_reports_nothing_ready(server_module):
         response = client.get("/repos/default/diagrams/status")
 
     assert response.json() == {
-        "c1": {"ready": False, "fingerprint": None},
+        "system-context": {"ready": False, "fingerprint": None},
         "patterns": {"ready": False, "fingerprint": None},
         "impact": {"ready": False, "fingerprint": None},
         "epics": {"ready": False, "fingerprint": None},
         "sequence": {"ready": False, "fingerprint": None},
     }
+        "walkthrough": {"ready": False, "fingerprint": None},
 
 
 def test_written_c1_reports_ready(server_module):
     bridge, repo = server_module
-    _write_json(diagram_json_path(repo, "c1"), {"system": {"name": "Sample"}})
+    _write_json(diagram_json_path(repo, "system-context"), {"system": {"name": "Sample"}})
 
     with TestClient(bridge.app) as client:
         response = client.get("/repos/default/diagrams/status")
 
-    assert response.json()["c1"]["ready"] is True
-    assert response.json()["c1"]["fingerprint"] is not None
+    assert response.json()["system-context"]["ready"] is True
+    assert response.json()["system-context"]["fingerprint"] is not None
     assert response.json()["patterns"] == {"ready": False, "fingerprint": None}
 
 
@@ -68,18 +69,18 @@ def test_c1_fingerprint_changes_when_the_file_is_edited_in_place(server_module):
     # Lets a client spot an in-place edit; DrawDiagramButton reruns the stale check.
     bridge, repo = server_module
     _write_json(
-        diagram_json_path(repo, "c1"),
-        {"type": "c1", "nodes": [], "relations": []},
+        diagram_json_path(repo, "system-context"),
+        {"type": "system-context", "nodes": [], "relations": []},
     )
     with TestClient(bridge.app) as client:
-        before = client.get("/repos/default/diagrams/status").json()["c1"]["fingerprint"]
+        before = client.get("/repos/default/diagrams/status").json()["system-context"]["fingerprint"]
 
     _write_json(
-        diagram_json_path(repo, "c1"),
-        {"type": "c1", "nodes": [{"id": "system", "name": "Sample"}], "relations": []},
+        diagram_json_path(repo, "system-context"),
+        {"type": "system-context", "nodes": [{"id": "system", "name": "Sample"}], "relations": []},
     )
     with TestClient(bridge.app) as client:
-        after = client.get("/repos/default/diagrams/status").json()["c1"]["fingerprint"]
+        after = client.get("/repos/default/diagrams/status").json()["system-context"]["fingerprint"]
 
     assert before != after
 
@@ -87,12 +88,12 @@ def test_c1_fingerprint_changes_when_the_file_is_edited_in_place(server_module):
 def test_deleting_a_diagram_flips_its_ready_flag_back_to_false(server_module):
     # No cache to invalidate: has_artifact() reads the file live, so unlinking it is enough.
     bridge, repo = server_module
-    _write_json(diagram_json_path(repo, "c1"), {"system": {"name": "Sample"}})
+    _write_json(diagram_json_path(repo, "system-context"), {"system": {"name": "Sample"}})
 
     with TestClient(bridge.app) as client:
-        before = client.get("/repos/default/diagrams/status").json()["c1"]["ready"]
-        client.delete("/repos/default/c1")
-        after = client.get("/repos/default/diagrams/status").json()["c1"]["ready"]
+        before = client.get("/repos/default/diagrams/status").json()["system-context"]["ready"]
+        client.delete("/repos/default/system-context")
+        after = client.get("/repos/default/diagrams/status").json()["system-context"]["ready"]
 
     assert before is True
     assert after is False

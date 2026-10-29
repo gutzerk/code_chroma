@@ -147,7 +147,7 @@ def test_c1_path_reports_absolute_location(server_module):
     body = response.json()
     assert response.status_code == 200
     assert body["repo_root"] == str(repo)
-    assert body["c1_path"] == str(diagram_json_path(repo, "system-context"))
+    assert body["system-context_path"] == str(diagram_json_path(repo, "system-context"))
 
 
 def test_delete_c1_removes_the_file(server_module):

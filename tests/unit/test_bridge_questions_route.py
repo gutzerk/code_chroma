@@ -154,9 +154,8 @@ def _live_agent(bridge, agent_id: str = "agent-1") -> _FakeSession:
 
 
 def _ask_for(bridge, agent_id: str = "agent-1", **overrides) -> str:
-    request = AskRequest(
-        question="How to structure checkout?", options=OPTIONS, agent_id=agent_id, **overrides
-    )
+    fields = {"question": "How to structure checkout?", "options": OPTIONS, **overrides}
+    request = AskRequest(agent_id=agent_id, **fields)
     question_id = uuid.uuid4().hex
     store.open_question(bridge.main, request, question_id)
     return question_id
@@ -207,13 +206,91 @@ def test_skip_tells_the_agent_to_decide_itself(bridge):
 def test_answer_after_revise_is_delivered_as_a_changed_answer(bridge):
     session = _live_agent(bridge)
     question_id = _ask_for(bridge, session_id="s1", total=2)
+    _ask_for(bridge, session_id="s1", total=2)
     with TestClient(bridge.app) as client:
         client.post(f"/repos/main/questions/{question_id}/answer", json={"option_id": "a"})
         client.post(f"/repos/main/questions/{question_id}/revise")
 
         client.post(f"/repos/main/questions/{question_id}/answer", json={"option_id": "b"})
 
-    assert session.injected[-1][0].endswith("→ changed answer: Microservices")
+    assert len(session.injected) == 1
+    assert session.injected[0][0].endswith("→ changed answer: Microservices")
+
+
+def test_nothing_is_typed_while_another_question_of_the_same_agent_is_open(bridge):
+    session = _live_agent(bridge)
+    first = _ask_for(bridge)
+    _ask_for(bridge, question="Which store?")
+
+    with TestClient(bridge.app) as client:
+        reply = client.post(f"/repos/main/questions/{first}/answer", json={"option_id": "a"})
+
+    assert reply.json()["waiting"] is True
+    assert session.injected == []
+    assert len(store.list_questions(bridge.main)) == 2
+
+
+def test_settling_the_last_question_types_every_answer_once_into_the_asking_agent(bridge):
+    session = _live_agent(bridge)
+    first = _ask_for(bridge)
+    second = _ask_for(bridge, question="Which store?")
+    with TestClient(bridge.app) as client:
+        client.post(f"/repos/main/questions/{first}/answer", json={"option_id": "a"})
+
+        client.post(f"/repos/main/questions/{second}/skip")
+
+    assert session.injected == [(
+        f"[CodeChroma answer · Q1 · {first}] How to structure checkout? → Modular monolith "
+        f"[CodeChroma answer · Q1 · {second}] Which store? → skipped by the user, decide yourself",
+        86400,
+    )]
+
+
+def test_another_agents_open_question_neither_blocks_nor_receives_the_wake_up(bridge):
+    mine, theirs = _live_agent(bridge, "agent-1"), _live_agent(bridge, "agent-2")
+    question_id = _ask_for(bridge, "agent-1")
+    other = _ask_for(bridge, "agent-2", question="Which store?")
+
+    with TestClient(bridge.app) as client:
+        client.post(f"/repos/main/questions/{question_id}/answer", json={"option_id": "a"})
+
+    assert len(mine.injected) == 1
+    assert theirs.injected == []
+    assert [e.meta["question_id"] for e in store.list_questions(bridge.main)] == [other]
+
+
+def test_a_completed_batch_leaves_no_question_or_option_diagram_on_the_canvas(bridge):
+    from codechroma.canvas.document import CanvasDoc
+    from codechroma.questions import diagrams
+
+    ws = bridge.main
+    _live_agent(bridge)
+    edge = [diagrams.DiagramEdge(**{"from": "n0", "to": "n1"})]
+    draft = store.draw_diagram(ws, "Draft", _nodes(), edge, None, None)
+    options = [OPTIONS[0].model_copy(update={"diagram_ref": draft}), OPTIONS[1]]
+    question_id = _ask_for(bridge, options=options)
+    store.draw_diagram(ws, "Attached", _nodes(), edge, question_id, "b")
+    unrelated = store.draw_diagram(ws, "Other draft", _nodes(), [], None, None)
+
+    with TestClient(bridge.app) as client:
+        client.post(f"/repos/main/questions/{question_id}/answer", json={"option_id": "a"})
+
+    doc = CanvasDoc.load(ws.canvas_core_path, ws.diagrams_root)
+    assert not [e for e in doc.elements.values() if e.render == "question"]
+    assert not [e for e in doc.elements.values() if e.layer == f"decisions/{question_id}"]
+    assert not [e for e in doc.edges.values() if e.layer == f"decisions/{question_id}"]
+    assert unrelated in doc.elements
+
+
+def test_a_session_keeps_counting_steps_after_its_answered_batch_is_cleared(bridge):
+    _live_agent(bridge)
+    first = _ask_for(bridge, session_id="s1", total=3)
+    with TestClient(bridge.app) as client:
+        client.post(f"/repos/main/questions/{first}/answer", json={"option_id": "a"})
+
+        second = _ask_for(bridge, session_id="s1", total=3, question="Which store?")
+
+    assert store.find_element(bridge.main, second).meta["step"] == 2
 
 
 def test_answer_without_a_live_session_is_saved_but_not_waiting(bridge):

@@ -51,6 +51,10 @@ def context_inject_interval_seconds() -> float:
     return settings.agents_routes.context_inject_interval_seconds
 
 
+def context_inject_submit_delay_seconds() -> float:
+    return settings.agents_routes.context_inject_submit_delay_seconds
+
+
 def agent_run_env(agent_id: str, extra: dict[str, str] | None = None) -> dict[str, str]:
     """The env a live agent's PTY should run under.
 
@@ -166,7 +170,7 @@ class AgentSession(AgentSessionPort):
         Spawned from `post_agent_start` on a *fresh* start (never a resume, never autostart): the
         context is delivered as a normal user message it reads on first boot. Polls the same
         `StatusDetector` / `detect/claude.toml` `[idle]` rule the LED uses until it classifies the
-        rendered `ScreenTap` as idle, then writes `text + "\\r"`. Gives up quietly if the agent
+        rendered `ScreenTap` as idle, then types `text`, then Enter. Gives up quietly if the agent
         never idles in time or the process dies (`attempts` overrides the context default) —
         typing into a working/blocked agent would corrupt whatever it is already doing. Returns the
         background task; it never raises.
@@ -192,7 +196,10 @@ class AgentSession(AgentSessionPort):
             tail = self._tap.tail(self._detector.rules.tail_lines)
             verdict = self._detector.classify(tail, self._tap.title, self._tap.progress, None)
             if verdict == "idle":
-                self.write(text + "\r")
+                # Enter goes alone: text + "\r" in one write reads as a paste and never submits.
+                self.write(text)
+                await asyncio.sleep(context_inject_submit_delay_seconds())
+                self.write("\r")
                 await asyncio.sleep(interval)
                 return
             await asyncio.sleep(interval)

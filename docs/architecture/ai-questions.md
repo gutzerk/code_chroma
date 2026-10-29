@@ -2,7 +2,7 @@
 
 An agent (Claude, Codex) asks a decision question through a bridge-hosted MCP tool instead of chat
 text. The question becomes a `question` element on the one canvas, the user selects an option and presses Send (or
-types their own answer), and the answer is typed into the asking agent's terminal as its next message (024, non-blocking). A run of questions sharing a
+types their own answer), and once every open question of that agent is settled, all its answers are typed into the asking agent's terminal as one next message and the cards and their option diagrams are removed from the canvas (024, non-blocking). A run of questions sharing a
 `session_id` is a grill session. Planning doc: `docs/planning/017-ai-questions-grill-session.md`.
 Phases 1 (backend), 2 (canvas UI), 3 (agent wiring) and 4 (diagram options, 021) are implemented.
 
@@ -12,12 +12,19 @@ Phases 1 (backend), 2 (canvas UI), 3 (agent wiring) and 4 (diagram options, 021)
 agent ── MCP ask_user ──► bridge /mcp (bearer token names the workspace)
             QuestionMcp.ask: store.open_question (apply_batch add_element) ──► "canvas" ping ──► QuestionCard
             returns at once {asked: true, question_id, next: "End your turn now..."}   (agent ends its turn, LED idle + "?")
-user click ─► POST /repos/{id}/questions/{qid}/answer|skip ─► store.settle (meta)
-            ─► delivery.deliver ─► AgentSession.inject_when_idle(line, attempts=86400) ─► typed into the agent's terminal
-agent resumes with "[CodeChroma answer · Q1/3 · <qid>] <question> → <answer>" as its next user message
+user click ─► POST /repos/{id}/questions/{qid}/answer|skip ─► store.settle (meta, awaiting_delivery: true)
+            ─► delivery.deliver_settled: live session for meta.agent_id? (no: stop, element kept)
+            ─► store.complete_batch (canvas lock): another question of that agent still open? (yes: stop)
+                 else delete the agent's settled questions + their decision diagrams, return the awaiting ones
+            ─► AgentSession.inject_when_idle(batch line, attempts=86400) ─► text, 0.3 s, Enter typed into the agent's terminal
+agent resumes with "[CodeChroma answer · Q1/3 · <qid>] <question> → <answer> [CodeChroma answer · Q2/3 · ...] ..." as its next user message
 ```
 
-There is no broker and nothing waits: `ask_user` never blocks, so the agent is never "running" while a question is open (#281). `ask_user_result(question_id)` still reads an answer back from the element meta for clients without a terminal.
+There is no broker and nothing waits: `ask_user` never blocks, so the agent is never "running" while a question is open (#281). `ask_user_result(question_id)` still reads an answer back from the element meta for clients without a terminal (only while the element exists, i.e. when no live session took the batch).
+
+🔴 **Enter is a separate write.** Claude Code reads one PTY write of `text + "\r"` as a paste: the `\r` becomes a newline in the input box and nothing is submitted (reproduced against `claude` 2.1 with a ~170-character line; short lines happened to submit). This was why answers never woke the agent. `inject_when_idle` now writes the text, waits `context_inject_submit_delay_seconds` (C# `AgentSession.SubmitDelay`, 0.3 s), then writes `\r` (`AgentSession.TypeAndSubmit` in C#).
+
+**Batch = every question of one agent.** A batch completes when no `question` element with that `meta.agent_id` in the workspace is `open`. The wake-up is sent exactly once per batch: `complete_batch` deletes the batch's elements under the canvas lock, so a second settle finds nothing to send. Another agent's open questions neither block nor receive it. Settled questions without `awaiting_delivery` (stale re-ask duplicates, or answers settled before this change) are deleted with the batch but not re-sent.
 
 ## Backend
 
@@ -26,12 +33,16 @@ There is no broker and nothing waits: `ask_user` never blocks, so the agent is n
   allow_custom=true, allow_skip=true, total, agent_id`), `QuestionResult`
   (`answer, option_id, skipped, pending, question_id`). `to_tool_dict()` returns
   `{answer, option_id, skipped}` or, when pending, `{pending: true, question_id}`.
-- `questions/delivery.py`: `answer_message(element)` builds `[CodeChroma answer · Q{step}/{total} · {question_id}] {question} → {answer}` (one line, control characters collapsed; a skip reads "skipped by the user, decide yourself"; an answer after a revise, i.e. `meta.revised`, reads "changed answer: ..."), `diagram_request_message` the "Add diagram" line, `live_session(services, element)` finds the live `AgentSession` by `meta.agent_id`, and `deliver(services, element, text=None)` calls `session.inject_when_idle(text, attempts=settings.questions.answer_inject_attempts)` (86400 attempts, about 12 hours: effectively until the agent goes idle or exits; injections into one session are serialized and each is followed by one poll interval, so two quick answers never interleave; launch context keeps its own default). A reask clears `meta.revised`, so only the first answer after a revise reads "changed answer" and returns whether a live session received it. The old `QuestionBroker` and `BridgeServices.questions` are gone.
+- `questions/delivery.py`: `answer_message(element)` builds `[CodeChroma answer · Q{step}/{total} · {question_id}] {question} → {answer}` (one line, control characters collapsed; a skip reads "skipped by the user, decide yourself"; an answer after a revise, i.e. `meta.revised`, reads "changed answer: ..."), `batch_message(batch)` joins the batch's answer lines with spaces (one line, asked order), `diagram_request_message` the "Add diagram" line, `live_session(services, element)` finds the live `AgentSession` by `meta.agent_id`, `deliver_settled(services, ws, element)` (answer/skip) runs `store.complete_batch` and types `batch_message` when the batch is complete, and `deliver(services, element, text=None)` (the "Add diagram" request, sent at once) calls `session.inject_when_idle(text, attempts=settings.questions.answer_inject_attempts)` (86400 attempts, about 12 hours: effectively until the agent goes idle or exits; injections into one session are serialized and each is followed by one poll interval, so two quick answers never interleave; launch context keeps its own default). A reask clears `meta.revised`, so only the first answer after a revise reads "changed answer" and returns whether a live session received it. The old `QuestionBroker` and `BridgeServices.questions` are gone.
 - `questions/store.py`: reads/writes `question` elements only through `apply_batch` under
   `canvas_lock`, committed by `routes/_canvas_write.commit_canvas_batch` (a lazy proxy; importing it
   at module load cycles through `bridge.routes`). `open_question` (layer `questions`, label = the
-  question text, explanation "ai question"), `find_element`, `list_questions`, `settle`,
-  `result_from`, `reopen` (sets `meta.revised = true`), `request_diagram`, `draw_diagram`.
+  question text, explanation "ai question"), `find_element`, `list_questions`, `settle` (also sets
+  `meta.awaiting_delivery = true`), `complete_batch(ws, agent_id)` (see Flow; deletes the agent's
+  settled questions, every element on their `decisions/<qid>` layers and the `diagram_ref` roots
+  plus their group members on a `decisions` or `decisions/*` layer, through `apply_batch_chunked`
+  with the mass-delete guard confirmed; edges go by cascade), `result_from`, `reopen` (sets
+  `meta.revised = true`), `request_diagram`, `draw_diagram`.
 - `questions/mcp_server.py` `QuestionMcp`: one MCP server (`MCPServer`, name `codechroma`) mounted at
   `MOUNT_PATH = "/mcp"` in `create_app` before the SPA catch-all, served through a `_Delegate` ASGI
   shim (503 while not running). Its session manager runs inside the bridge `lifespan`
@@ -53,21 +64,23 @@ restart, so a long-lived agent window must be relaunched to get a new one.
 | Route | Behaviour |
 |---|---|
 | `GET /repos/{id}/questions` | `{questions: [...]}` of open ones; each row is `{element_id, question, waiting, ...element.meta}`. `waiting` is true when a live agent session (by `meta.agent_id`) will receive the answer; false when the agent window is gone or was never an agent window. |
-| `POST .../{qid}/answer` body `{answer?, option_id?}` | With `option_id`: must match an option (422 otherwise), answer defaults to its title. Without: refused 422 if `allow_custom` is false. Empty answer 422. Settles meta, then `delivery.deliver` types the answer into the agent (ack `waiting` = a live session received it). |
-| `POST .../{qid}/skip` | 422 if `allow_skip` is false. Settles as skipped and delivers the "skipped by the user, decide yourself" line. |
+| `POST .../{qid}/answer` body `{answer?, option_id?}` | With `option_id`: must match an option (422 otherwise), answer defaults to its title. Without: refused 422 if `allow_custom` is false. Empty answer 422. Settles meta, then `delivery.deliver_settled` wakes the agent if this was its last open question (ack `waiting` = a live session will receive the answers, now or when the batch completes). |
+| `POST .../{qid}/skip` | 422 if `allow_skip` is false. Settles as skipped; the batch line then reads "skipped by the user, decide yourself" for it. |
 | `POST .../{qid}/revise` | Works on a settled question (no 409 check): reopens it (`state open`, answer and option_id cleared), deletes later-step questions of the same `session_id`, sets `meta.revised = true`. Returns the ack plus `removed: [element ids]`. |
 
 Unknown question id: 404. Answer/skip on an already-settled question: 409. Ack shape:
 `{ok, question_id, state, waiting[, answer]}`.
 
-Revise only changes canvas state and delivers nothing (ack `waiting: false`); because `meta.revised` is set, the next answer to the reopened question is typed into the agent as "changed answer: ...".
+Revise only changes canvas state and delivers nothing (ack `waiting: false`); because `meta.revised` is set, the next answer to the reopened question is typed into the agent as "changed answer: ...". With a live agent, a question can only be revised while its batch is still open (another question of that agent unanswered): a completed batch is deleted, so "Change" and the "Earlier: …" history no longer reach delivered questions.
 
 ## Element shape
 
 `render: "question"`, `layer: "questions"` (`"question"` is in `RENDER_KINDS` in
 `canvas/document.py`; `questions` is a non-diagram layer in `diagramCatalog.ts` `NON_DIAGRAM_LAYERS`).
 `meta`: `question_id` (uuid hex), `session_id`, `step` (1-based, = count of elements already in that
-session + 1, 1 without a session), `total`, `kind`, `state` (`open|answered|skipped`), `answer`,
+session + the session's questions earlier completed batches removed + 1, 1 without a session; the removed
+count is an in-memory tally per canvas file and `session_id`, `store._delivered` / C# `QuestionStore.Delivered`,
+so it resets on a bridge restart), `total`, `kind`, `state` (`open|answered|skipped`), `answer`,
 `option_id`, `allow_custom`, `allow_skip`, `agent_id`, `options[]` (the `QuestionOption` dicts). The
 options live in `meta`, not as child elements (the planning doc's "options are children" is not
 implemented; the diagram options kept this shape: `option.diagram_ref` points at a diagram root).
@@ -116,17 +129,18 @@ The highlighted option is owned by the host (`resolveSelection` in `questionAdap
 ## Tests
 
 Python: `tests/unit/test_bridge_questions_route.py` (element meta, session steps, GET/answer/skip/revise,
-refusals, answer/skip/request-diagram delivery into a fake live session, non-blocking ask, `ask_user_result` read-back from the element, token
+refusals, answer/skip/request-diagram delivery into a fake live session, one wake-up per completed batch of one agent (none while another of its questions is open, never into another agent), no question or option diagram left after completion, step numbering kept across a cleared batch, non-blocking ask, `ask_user_result` read-back from the element, token
 forgery). Web (vitest): `QuestionCard.test.tsx`, `QuestionOptions.test.tsx`,
 `questionAdapter.test.ts`, `questionFlow.test.tsx`, `pickQuestionLayout.test.ts`, `QuestionDiagram.test.tsx`,
-`web/src/agents/AgentQuestionHost.test.tsx`, plus the `question` case in `elementRules.test.ts`.
+`web/src/agents/AgentQuestionHost.test.tsx` (incl. the card disappearing once the bridge deletes the batch: the host and canvas render from `canvasDocStore`, which refetches on the `canvas` ping), plus the `question` case in `elementRules.test.ts`.
 Not yet written: the Playwright journey (ask in the docked panel, answer in the terminal, resize across the layout thresholds).
 
 ## Gotchas
 
 - 🔴 The MCP session manager only runs inside the bridge lifespan; a test app without lifespan gets a
   503 from `/mcp`. A session manager runs once, hence a fresh app per `running()`.
-- Delivery is best effort: with no live session (window closed, bridge restarted) the answer stays on the element meta, `ask_user_result` returns it, and `GET /questions` reports `waiting: false`.
+- Delivery is best effort: with no live session (window closed, bridge restarted) the answer stays on the element meta (nothing is removed, `awaiting_delivery` stays true), `ask_user_result` returns it, and `GET /questions` reports `waiting: false`. The cards are cleared only by a later completed batch of the same agent id with a live session.
+- After delivery the elements are gone, so `ask_user_result` for a delivered question returns `{pending: true}`; the typed message is the agent's only record.
 - Answers are typed into the PTY, so `delivery._one_line` strips control characters; keep that when changing the message text (the C# `QuestionDelivery.OneLine` mirrors it).
 - `commit_canvas_batch` is imported lazily in `store.py` (import cycle with `bridge.routes`).
 - Answers are plain text, never executed; the endpoint relies on the loopback bridge plus the token.
@@ -153,7 +167,7 @@ The `ask_user` server, not a skill, enforces the question format, so it holds fo
 
 - **MCP registration.** `terminal/agents.py` `agent_cli(..., mcp=)` adds `--mcp-config <file>` for the `claude` and provider-routed `agent` kinds, only when the resolved CLI is Claude. The config (`questions/launch.py`, `McpEndpoint.claude_config()`) is `{type: http, url: <base>/mcp/, headers: {Authorization: Bearer <token>}, timeout: 60_000} (60 s on both bridges, since `ask_user` returns at once)`, written to `<tempdir>/codechroma-mcp-XXXX/<agent id>.json` (a file, because inline JSON is mangled by PTY quoting on Windows). The directory is a per-process `mkdtemp` (0700), never a fixed shared path another local user could pre-create or symlink (`launch.py` `_private_config_dir`, reused while it exists; the file is chmod 0600). 🔴 `--mcp-config` is variadic, so it must precede `--plugin-dir` and the positional initial prompt.
 - **Port and token.** The terminal router shares the graph bridge's process and port. The workspace id is the agent id, and `QuestionMcp.ask` stamps it server-side as `meta.agent_id` (overriding any caller value; the canvas selects terminal questions by it); the token is `QuestionMcp.token_for(agent_id)`. The base URL comes from `CODECHROMA_BRIDGE_URL`, else uvicorn's `--port` in `sys.argv` (boot-time auto-start), else the `/agents/{id}/start` request's base URL rewritten to 127.0.0.1. With none of these nothing is injected and argv is unchanged. The agent env also gets `CODECHROMA_BRIDGE_URL` and `CODECHROMA_QUESTION_TOKEN`.
-- **Skill.** `skills/codechroma-grill/SKILL.md` (listed in `SKILL_NAMES`, so synced into opened repos) tells the agent to ask via `ask_user`, one question at a time, 2-4 options with description/pro/con/rank/why (rank 1 recommended), and, after `ask_user` returns `{asked: true}`, to end the turn (never poll, never repeat the question in chat); the answer arrives as the next message.
+- **Skill.** `skills/codechroma-grill/SKILL.md` (listed in `SKILL_NAMES`, so synced into opened repos) tells the agent to ask via `ask_user`, one question at a time, 2-4 options with description/pro/con/rank/why (rank 1 recommended), and, after `ask_user` returns `{asked: true}`, to end the turn (never poll, never repeat the question in chat); once every open question is settled, all answers arrive as the next message, one `[CodeChroma answer ...]` part per question. The MCP `_INSTRUCTIONS` (C# `QuestionMcp.Instructions`, pinned by `tests/fixtures/bridge_contract/mcp_instructions.txt`) say the same.
 - **AskUserQuestion hook** (021 changed it to deny first, see above). `hooks/hooks.json` (plugin root, so no edit to user settings) matches `AskUserQuestion` with `timeout: 15` (the hook only does a 0.5 s probe) and `onFailure: "block"`; `ask_user_question_hook.py` (stdlib only) denies the native tool toward `ask_user` (see above) and fails open (prints nothing, exit 0) when the env vars are absent, the bridge is unreachable, or any error occurs.
 - **Codex.** Not wired: no per-run MCP override could be verified (`codex` was not installed when this was built). Needs `-c mcp_servers.codechroma.*` or a generated `CODEX_HOME`, plus an `AGENTS.md` snippet.
 - **Verified:** real uvicorn + `mcp` client: the bearer header reaches `ctx.headers`, `ask_user` blocks until answered over REST, a forged token errors, and the hook script runs end to end. **Not verified in a real `claude` process:** plugin-dir `hooks/hooks.json` loading, the `AskUserQuestion` matcher, `onFailure`, `updatedInput.answers` auto-answering, per-server `timeout`, and the frozen-bundle `hooks` layout.
@@ -166,13 +180,13 @@ The `ask_user` server, not a skill, enforces the question format, so it holds fo
 The shipped desktop app runs the C# bridge, so the feature is ported there with the same non-blocking flow (no new NuGet packages; plain JSON-RPC over `POST`, modelled on `Workflows/WorkflowRunner.Steer.cs` `HandleMcp`). There is no broker in C# either.
 
 File map (`Questions/`):
-- `QuestionModels.cs` (`AskRequest`, `QuestionOption`, `QuestionResult`, strict `ArgReader`), `QuestionValidation.cs` (the contract, `RejectionText`, `RejectionTracker`), `QuestionDiagrams.cs` (`draw_option_diagram` budget, centre positions, `LayerFor`/`DraftPrefix`, canvas ops), `QuestionStore.cs` (all `question` element reads/writes through `ApplyBatch.Apply` + `CanvasWrite.Commit` under `CanvasWrite.LockFor`; adopts draft layers; `Reopen` sets `revised`).
-- `QuestionDelivery.cs`: `AnswerMessage`/`DiagramRequestMessage` (same text as `delivery.py`) and `Deliver`, which finds the live `AgentSession` by `meta.agent_id` and calls `InjectWhenIdle(text, IdleAttempts = 86400)`; an overload takes an injector delegate for tests.
+- `QuestionModels.cs` (`AskRequest`, `QuestionOption`, `QuestionResult`, strict `ArgReader`), `QuestionValidation.cs` (the contract, `RejectionText`, `RejectionTracker`), `QuestionDiagrams.cs` (`draw_option_diagram` budget, centre positions, `LayerFor`/`DraftPrefix`, canvas ops), `QuestionStore.cs` (all `question` element reads/writes through `ApplyBatch.Apply` + `CanvasWrite.Commit` under `CanvasWrite.LockFor`; adopts draft layers; `Reopen` sets `revised`; `Settle` sets `awaiting_delivery`; `CompleteBatch` mirrors `complete_batch` through `ApplyBatch.ApplyChunked`).
+- `QuestionDelivery.cs`: `AnswerMessage`/`BatchMessage`/`DiagramRequestMessage` (same text as `delivery.py`), `DeliverSettled` (answer/skip: `QuestionStore.CompleteBatch`, then one `InjectWhenIdle` of the batch line) and `Deliver` (the "Add diagram" request), which find the live `AgentSession` by `meta.agent_id` and call `InjectWhenIdle(text, IdleAttempts = 86400)`; overloads take an injector delegate for tests.
 - `QuestionMcp.cs` (HMAC token, `Ask`/`Result`/`DrawDiagram`, `HandleMcp`), `McpEndpoint.cs` (URL, env, `--mcp-config` file), `AskUserQuestionHook.cs` (see "C# hook").
-- `Routes/QuestionRoutes.cs`: `GET /repos/{id}/questions` (`waiting` = live session), `POST .../questions/ask` (bearer, 401/422), `.../{qid}/answer|skip|request-diagram|revise` (404 unknown, 409 settled, 422 refusals, same ack shape as Python; answer/skip/request-diagram deliver into the session), and `POST /mcp/` (bearer = `workspace_id.hmac-sha256`, per-process random secret, constant-time compare; 401 on a forged or missing token). `GET`/`DELETE /mcp/` return 405 (the hook's 0.5 s probe accepts any status). Tools `ask_user`, `ask_user_result`, `draw_option_diagram`; results carry `structuredContent`. `initialize` issues an `Mcp-Session-Id`, which only keys the retry counter of a sessionless agent (the server stays stateless).
+- `Routes/QuestionRoutes.cs`: `GET /repos/{id}/questions` (`waiting` = live session), `POST .../questions/ask` (bearer, 401/422), `.../{qid}/answer|skip|request-diagram|revise` (404 unknown, 409 settled, 422 refusals, same ack shape as Python; answer/skip wake the session once the batch completes, request-diagram types at once), and `POST /mcp/` (bearer = `workspace_id.hmac-sha256`, per-process random secret, constant-time compare; 401 on a forged or missing token). `GET`/`DELETE /mcp/` return 405 (the hook's 0.5 s probe accepts any status). Tools `ask_user`, `ask_user_result`, `draw_option_diagram`; results carry `structuredContent`. `initialize` issues an `Mcp-Session-Id`, which only keys the retry counter of a sessionless agent (the server stays stateless).
 - Retry budget `MaxRejections` (3); the MCP config timeout is 60 s (`McpEndpoint`), as `ask_user` returns at once.
 - Consistency: `Ask` selects a diagram-requested card and commits its options under one canvas lock, shared with answer/skip/revise. `ask_user_result` verifies the question exists in the authenticated workspace under that lock; foreign or unknown ids return pending. Regression tests: `QuestionConcurrencyTests`, `QuestionResultScopeTests`.
 - 🔴 `CanvasDoc.RenderKinds` gained `question`, `NonDiagramLayers` gained `questions` and `decisions`, plus the `decisions/` canvas-only prefix rule (kept in step with `document.py`); without that the elements are rejected or written as a projection folder. Canvas op numbers must be JSON doubles (`ApplyBatch` reads positions with `TryGetValue<double>`, which fails on an int node).
 - Wiring: `Terminal/TerminalAgents.cs` `Resolve(..., agentId, bridgeUrl)` adds `--mcp-config <tempdir>/codechroma-mcp-XXXX/<agent id>.json` (a per-process `Directory.CreateTempSubdirectory`, 0700) for Claude windows only, before `--plugin-dir` and the positional prompt (the flag is variadic), and returns env `CODECHROMA_QUESTION_TOKEN`, `CODECHROMA_BRIDGE_URL`, `CODECHROMA_WORKSPACE_ID`. Nothing is injected without an agent id or a known bridge URL (`BareSkill.BridgeUrl`), for non-Claude CLIs, shells, or bare windows. Resumed windows get a fresh config, since the token changes per bridge process.
 - Gaps (also in `docs/planning/012-csharp-bridge.md`): Codex is not wired; the hook still needs Python on PATH for the Python plugin `hooks/hooks.json` copy (the C# bridge binary is its own hook); the Avalonia canvas (`CodeChroma.Canvas`) has no `question` render kind; `check_decision_diagram.py` parity with `QuestionDiagrams.Validate` is by matching rules, not a cross-language test; not verified against a real `claude` process. Shared contract cases: `tests/fixtures/bridge_contract/questions.cases.json` (Python `test_bridge_wire_contract.py`, C# `WireContractTests`).
-- Tests (`dotnet/CodeChroma.Bridge.Tests/Questions/`): `QuestionValidationTests`, `QuestionRoutesTests` (routes, MCP JSON-RPC over the test server, non-blocking ask, degraded pass-through, re-ask, draw), `QuestionDeliveryTests`, `QuestionDiagramLayoutTests`, `QuestionAgentWiringTests` (argv order, env, config file, token), `AskUserQuestionHookTests`.
+- Tests (`dotnet/CodeChroma.Bridge.Tests/Questions/`): `QuestionValidationTests`, `QuestionRoutesTests` (routes, MCP JSON-RPC over the test server, non-blocking ask, degraded pass-through, re-ask, draw), `QuestionDeliveryTests`, `QuestionBatchDeliveryTests` (once per batch, right session, cleanup, step numbering after a cleared batch, no-session retention, text and Enter as separate writes), `QuestionDiagramLayoutTests`, `QuestionAgentWiringTests` (argv order, env, config file, token), `AskUserQuestionHookTests`.

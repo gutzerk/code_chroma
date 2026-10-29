@@ -89,6 +89,7 @@ def _inject(
     async def run() -> list[str]:
         monkeypatch.setattr(sessions_mod, "context_inject_attempts", lambda: attempts)
         monkeypatch.setattr(sessions_mod, "context_inject_interval_seconds", lambda: interval)
+        monkeypatch.setattr(sessions_mod, "context_inject_submit_delay_seconds", lambda: 0)
         session = _make_injecting_session(monkeypatch, classify, written)
         try:
             if flip is not None:
@@ -107,7 +108,7 @@ def test_inject_types_the_context_once_the_agent_classes_as_idle(monkeypatch):
 
     written = _inject(monkeypatch, lambda *_: "idle", text)
 
-    assert written == [text + "\r"]
+    assert written == [text, "\r"]
 
 
 def test_inject_gives_up_without_typing_when_the_agent_never_idles(monkeypatch):
@@ -127,7 +128,7 @@ def test_inject_waits_for_the_agent_to_idle_before_typing(monkeypatch):
 
     written = _inject(monkeypatch, idle, "ctx", flip=flip)
 
-    assert written == ["ctx\r"]
+    assert written == ["ctx", "\r"]
 
 
 def test_inject_attempts_argument_outlasts_the_context_default(monkeypatch):
@@ -144,6 +145,7 @@ def test_inject_attempts_argument_outlasts_the_context_default(monkeypatch):
     async def run() -> None:
         monkeypatch.setattr(sessions_mod, "context_inject_attempts", lambda: 2)
         monkeypatch.setattr(sessions_mod, "context_inject_interval_seconds", lambda: 0.001)
+        monkeypatch.setattr(sessions_mod, "context_inject_submit_delay_seconds", lambda: 0)
         session = _make_injecting_session(monkeypatch, idle_on_fifth_poll, written)
         try:
             await session.inject_when_idle("answer", attempts=10)
@@ -152,4 +154,4 @@ def test_inject_attempts_argument_outlasts_the_context_default(monkeypatch):
 
     asyncio.run(run())
 
-    assert written == ["answer\r"]
+    assert written == ["answer", "\r"]

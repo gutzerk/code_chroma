@@ -1,11 +1,15 @@
-"""Types a user's answer into the asking agent's terminal as its next message."""
+"""Types the user's answers into the asking agent's terminal, once per completed batch."""
 
 from __future__ import annotations
 
 from typing import Any
 
+from starlette.concurrency import run_in_threadpool
+
+from codechroma.bridge.workspaces import Workspace
 from codechroma.canvas.document import Element
 from codechroma.config import settings
+from codechroma.questions import store
 
 SKIPPED = "skipped by the user, decide yourself"
 DIAGRAM_REQUEST = (
@@ -42,6 +46,11 @@ def diagram_request_message(element: Element) -> str:
     return _one_line(f"{_header('request', element)} {element.label} → {DIAGRAM_REQUEST}")
 
 
+def batch_message(batch: list[Element]) -> str:
+    """Every settled answer of one batch as one line, in the order the agent asked them."""
+    return " ".join(answer_message(element) for element in batch)
+
+
 def live_session(services: Any, element: Element) -> Any | None:
     """The running agent session that asked this question, or None."""
     agent_id = element.meta.get("agent_id")
@@ -57,4 +66,17 @@ def deliver(services: Any, element: Element, text: str | None = None) -> bool:
     session.inject_when_idle(
         text or answer_message(element), attempts=settings.questions.answer_inject_attempts
     )
+    return True
+
+
+async def deliver_settled(services: Any, ws: Workspace, element: Element) -> bool:
+    """Once the agent has no open question, types the batch and clears it; True if it is live."""
+    session = live_session(services, element)
+    if session is None:
+        return False
+    batch = await run_in_threadpool(store.complete_batch, ws, element.meta["agent_id"])
+    if batch:
+        session.inject_when_idle(
+            batch_message(batch), attempts=settings.questions.answer_inject_attempts
+        )
     return True

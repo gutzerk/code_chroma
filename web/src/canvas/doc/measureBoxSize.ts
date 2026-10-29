@@ -1,6 +1,8 @@
 import type { CanvasElement } from "../../state/types";
 import { DEFAULT_ELEMENT_SIZE } from "./elementRect";
+import { isEpicsLayerName } from "./epicsLayout";
 import { orderMeta, stringMeta } from "./elementMeta";
+import { blockRoleFor } from "./blockRole";
 
 // Render kinds with their own sizing; the layout leaves these to their dedicated code paths.
 const SELF_SIZED = new Set<CanvasElement["render"]>(["epic", "sequence", "group", "note", "question"]);
@@ -83,6 +85,7 @@ function lineCount(text: string, maxWidth: number, measure: Measure): number {
 export function measureBoxSize(element: CanvasElement): { w: number; h: number } | null {
   if (SELF_SIZED.has(element.render)) return null;
   if (element.size) return { w: element.size.w, h: element.size.h };
+  if (isRoleBox(element)) return { w: DEFAULT_ELEMENT_SIZE.w, h: roleBoxHeight(element, DEFAULT_ELEMENT_SIZE.w) };
   const w = DEFAULT_ELEMENT_SIZE.w;
   const textWidth = Math.max(w - WIDTH_CHROME, 40);
 
@@ -98,4 +101,45 @@ export function measureBoxSize(element: CanvasElement): { w: number; h: number }
   }
   if (stringMeta(element, "path")) h += FOOT_H;
   return { w, h: Math.ceil(Math.max(h, DEFAULT_ELEMENT_SIZE.h)) };
+}
+
+// Role-box anatomy (styles.css `.block-role*`, DOM-measured at full zoom): each row's height plus its margin-top.
+const ROLE_NAME_FONT = '600 18.4px "DM Sans", system-ui, sans-serif';
+const ROLE_PAD = 9.6;
+const ROLE_SRC_PAD = 24;
+const ROLE_BORDER = 3;
+const ROLE_ROW_GAP = 11.2;
+const ROLE_HEADER_ROW = 26;
+const ROLE_NAME_LINE = 24;
+const ROLE_NAME_MARGIN = 1.6;
+const ROLE_DESC_ROW = 18 + 2.4;
+const ROLE_PATH_ROW = 15 + 4.8;
+const ROLE_MEMBERS_ROW = 18 + 4.8;
+
+/** True when CanvasNodeBox draws this element as a role block (role header row, one-line description). */
+function isRoleBox(element: CanvasElement): boolean {
+  return !isEpicsLayerName(element.layer) && blockRoleFor(element) !== undefined;
+}
+
+/** A role block's height: role header, name, one-line description, path footer, members chip and SRC corner. */
+function roleBoxHeight(element: CanvasElement, w: number): number {
+  const textWidth = Math.max(w - WIDTH_CHROME, 40);
+  const nameLines = lineCount(element.label, textWidth, measurer(ROLE_NAME_FONT));
+  const rows = [ROLE_HEADER_ROW, nameLines * ROLE_NAME_LINE + ROLE_NAME_MARGIN];
+  if (element.description) rows.push(ROLE_DESC_ROW);
+  if (stringMeta(element, "path")) rows.push(ROLE_PATH_ROW);
+  // A code-backed box shows the members chip (member count loads later, so reserve it) and the SRC corner.
+  if (element.node_id) rows.push(ROLE_MEMBERS_ROW);
+  let h = ROLE_PAD + (element.node_id ? ROLE_SRC_PAD : ROLE_PAD) + ROLE_BORDER;
+  h += rows.reduce((sum, row) => sum + row, 0) + ROLE_ROW_GAP * (rows.length - 1);
+  if (orderMeta(element) || stringMeta(element, "plan_kind")) h += TOP_BAND_H;
+  return Math.ceil(Math.max(h, DEFAULT_ELEMENT_SIZE.h));
+}
+
+/** The footprint layout must reserve: a role box's stored size is only CanvasNodeBox's `minHeight`, so it grows to its content. */
+export function layoutBoxSize(element: CanvasElement): { w: number; h: number } | null {
+  const measured = measureBoxSize(element);
+  if (!measured || !element.size) return measured;
+  const content = isRoleBox(element) ? roleBoxHeight(element, measured.w) : measured.h;
+  return { w: measured.w, h: Math.max(measured.h, content) };
 }

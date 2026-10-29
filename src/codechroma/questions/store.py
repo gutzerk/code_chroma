@@ -7,11 +7,15 @@ import uuid
 from collections.abc import Callable
 
 from codechroma.bridge.workspaces import Workspace
-from codechroma.canvas.apply_batch import BatchResult, apply_batch
+from codechroma.canvas.apply_batch import BatchResult, apply_batch, apply_batch_chunked
 from codechroma.canvas.document import CanvasDoc, Element
 from codechroma.canvas.locks import canvas_lock
 from codechroma.questions import diagrams
 from codechroma.questions.models import AskRequest, QuestionResult
+
+AWAITING_DELIVERY = "awaiting_delivery"
+# Questions a completed batch removed, per (canvas file, session_id): later steps count on.
+_delivered: dict[tuple[str, str], int] = {}
 
 
 class QuestionWriteError(RuntimeError):
@@ -35,10 +39,10 @@ def _commit(ws: Workspace, build_ops: Callable[[CanvasDoc], list[dict]]) -> dict
     return response
 
 
-def _next_step(doc: CanvasDoc, session_id: str | None) -> int:
+def _next_step(ws: Workspace, doc: CanvasDoc, session_id: str | None) -> int:
     if not session_id:
         return 1
-    return 1 + sum(
+    return 1 + _delivered.get((str(ws.canvas_core_path), session_id), 0) + sum(
         1 for e in doc.elements.values()
         if e.render == "question" and e.meta.get("session_id") == session_id
     )
@@ -95,7 +99,7 @@ def open_question(
         meta = {
             "question_id": question_id,
             "session_id": request.session_id,
-            "step": _next_step(doc, request.session_id),
+            "step": _next_step(ws, doc, request.session_id),
             "total": request.total,
             "kind": request.kind,
             "state": "open",
@@ -131,10 +135,60 @@ def list_questions(ws: Workspace) -> list[Element]:
 
 
 def settle(ws: Workspace, element: Element, state: str, result: QuestionResult) -> Element:
-    """Writes the answered/skipped state onto the element's meta; returns the settled element."""
-    meta = {"state": state, "answer": result.answer, "option_id": result.option_id}
+    """Writes the settled state onto the element's meta and marks it for the next wake-up."""
+    meta = {
+        "state": state, "answer": result.answer, "option_id": result.option_id,
+        AWAITING_DELIVERY: True,
+    }
     _commit(ws, lambda _doc: [{"op": "update_element", "id": element.id, "meta": meta}])
     return element.model_copy(update={"meta": {**element.meta, **meta}})
+
+
+def _is_decision_layer(layer: str) -> bool:
+    return layer == "decisions" or layer.startswith(diagrams.LAYER_PREFIX)
+
+
+def _cleanup_ops(doc: CanvasDoc, questions: list[Element]) -> list[dict]:
+    """Deletes the questions, their `decisions/<qid>` layers and the diagrams options reference."""
+    layers = {
+        diagrams.layer_for(q.meta["question_id"], "") for q in questions
+        if q.meta.get("question_id")
+    }
+    refs = {o.get("diagram_ref") for q in questions for o in q.meta.get("options", [])}
+    roots = {
+        r for r in refs
+        if r and r in doc.elements and _is_decision_layer(doc.elements[r].layer)
+    }
+    doomed = {q.id for q in questions} | {
+        e.id for e in doc.elements.values()
+        if e.layer in layers or e.id in roots
+        or (e.group_id in roots and _is_decision_layer(e.layer))
+    }
+    return [{"op": "delete_element", "id": i} for i in sorted(doomed)]
+
+
+def complete_batch(ws: Workspace, agent_id: str) -> list[Element]:
+    """Once no question of the agent is open, deletes its settled ones; returns the undelivered."""
+    with canvas_lock(ws.id):
+        doc = CanvasDoc.load(ws.canvas_core_path, ws.diagrams_root)
+        mine = [
+            e for e in doc.elements.values()
+            if e.render == "question" and e.meta.get("agent_id") == agent_id
+        ]
+        batch = [e for e in mine if e.meta.get(AWAITING_DELIVERY)]
+        if not batch or any(e.meta.get("state") == "open" for e in mine):
+            return []
+        result = apply_batch_chunked(
+            doc, _cleanup_ops(doc, mine), explanation="ai question", confirm_mass_delete=True
+        )
+        response = commit_canvas_batch(ws, result)
+        if not response["ok"]:
+            raise QuestionWriteError(str(response["errors"]))
+        for e in mine:
+            if session := e.meta.get("session_id"):
+                key = (str(ws.canvas_core_path), session)
+                _delivered[key] = _delivered.get(key, 0) + 1
+    return batch
 
 
 def result_from(element: Element) -> QuestionResult | None:

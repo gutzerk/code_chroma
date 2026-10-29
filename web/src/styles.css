@@ -160,11 +160,16 @@
   --updates-muted: #a3a7b3; /* updates dialog secondary text/strokes */
   --epic-muted: #8b93a7; /* epic brief / acceptance-criteria muted text */
 
+  /* Role scale shared by the walkthrough and sequence boards, so a role reads the same on both. */
+  --role-ok: #5ee0a0; /* logic / lit route */
+  --role-ai: #a78bfa;
+  --role-fail: #fb7185;
+
   /* Walkthrough / route over the code map -- the "B2 · Code map + route overlay" board's values. */
   --font-board: Inter, "DM Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
-  --route-ok: #5ee0a0; /* lit step, route line, number chip */
-  --route-ai: #b49cff; /* AI step */
-  --route-fail: #fb7185; /* failure chip and dashed failure arrow */
+  --route-ok: var(--role-ok); /* lit step, route line, number chip */
+  --route-ai: var(--role-ai); /* AI step */
+  --route-fail: var(--role-fail); /* failure chip and dashed failure arrow */
   --route-chip-ink: #10231a; /* text on a green chip */
   --route-ai-ink: #1c1630; /* text on a violet chip */
   --route-glow: rgba(94, 224, 160, 0.16); /* soft band under a route line */
@@ -210,10 +215,10 @@
   --seq-route: #60a5fa; /* blue, not cyan: cyan sat too close to the green logic tone */
   --seq-logic-border: #29805f;
   --seq-logic-bg: #224f3d;
-  --seq-logic: #34d399;
+  --seq-logic: var(--role-ok);
   --seq-ai-border: #685995;
   --seq-ai-bg: #423a58;
-  --seq-ai: #a78bfa;
+  --seq-ai: var(--role-ai);
   --seq-ai-ink: #c4b5fd; /* AI chip text: 4.5:1 on the AI step background */
   --seq-check-border: #96751f;
   --seq-check-bg: #5a491c;

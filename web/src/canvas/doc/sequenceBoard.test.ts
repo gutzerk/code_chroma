@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { buildSequenceBoard, SEQUENCE_BOARD, sequenceBoardBounds, stepTone } from "./sequenceBoard";
 import { buildSequenceModel } from "./sequenceModel";
-import { laidOut, messageEl, participantEl } from "./sequenceTestElements";
+import { laidOut, messageEl, participantEl, seqElement } from "./sequenceTestElements";
 
 const phases = [
   { id: "p1", name: "Trigger", kind: "prepare", from_order: 1, to_order: 2 },
@@ -31,6 +31,21 @@ describe("buildSequenceBoard", () => {
     const board = buildSequenceBoard(flow());
 
     expect(board.lanes.map((l) => l.role)).toEqual(["actor", "route", "ai", "fail"]);
+  });
+
+  it.each([
+    ["check first", ["validate order", "save order"]],
+    ["logic first", ["save order", "validate order"]],
+  ])("breaks a lane-tint tie by role, not step order (%s)", (_name, labels) => {
+    const elements = [
+      participantEl("svc", "service"),
+      participantEl("db", "service"),
+      ...labels.map((label, i) => seqElement(`m${i + 1}`, { role: "message", from: "svc", to: "db", order: String(i + 1) }, { label })),
+    ];
+
+    const board = buildSequenceBoard(elements);
+
+    expect(board.lanes[0]?.role).toBe("check");
   });
 
   it("puts each step in its sender's lane, one column per step in order", () => {

@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { CanvasElement } from "../../state/types";
 import { DEFAULT_PROFILE, profileFor, profileForElement } from "./diagramProfiles";
+import { WALKTHROUGH_PROFILE } from "./walkthroughProfile";
 
 function el(overrides: Partial<CanvasElement> = {}): CanvasElement {
   return {
@@ -50,5 +51,25 @@ describe("profileFor", () => {
     const profile = profileForElement(box);
 
     expect(profile.id).toBe("sequence");
+  });
+});
+
+describe("WALKTHROUGH_PROFILE edges", () => {
+  it.each([
+    ["call", "route"],
+    ["spawn", "route"],
+    ["data", undefined],
+  ] as const)("gives a %s arrow the %s head", (visual, marker) => {
+    const result = WALKTHROUGH_PROFILE.edgeMarker?.(visual);
+
+    expect(result).toBe(marker);
+  });
+
+  it("draws only an authored label, never the kind word", () => {
+    const edges = [{ label: "", kind: "calls" }, { label: "on save", kind: "calls" }];
+
+    const labels = edges.map((edge) => WALKTHROUGH_PROFILE.edgeLabel?.(edge));
+
+    expect(labels).toEqual(["", "on save"]);
   });
 });

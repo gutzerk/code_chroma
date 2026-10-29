@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef } from "react";
+import { useCallback, useEffect, useMemo, useRef } from "react";
 import { useMemberCount } from "./useMemberCount";
 import { ImpactGlance } from "./ImpactGlance";
 import { useImpactBoxState } from "./impactBoxState";
@@ -32,7 +32,7 @@ import { useNodeOverlays } from "../../state/useSidecar";
 import { authoredStyle } from "../authoredStyle";
 import { BOTTOM_LEFT_RENDERS, DEFAULT_ELEMENT_SIZE } from "./elementRect";
 import { routeStepOf } from "./routeStep";
-import { walkthroughBoxText } from "./walkthroughBox";
+import { fitNameFontSize } from "./measureBoxSize";
 import { RouteStepExtras } from "./RouteStepExtras";
 
 function styleFor(render: CanvasElement["render"]) {
@@ -120,9 +120,10 @@ export function CanvasNodeBox({ element, onMeasure }: CanvasNodeBoxProps) {
   const accent = accentFor(element);
   const blockRole = isEpicsLayerName(element.layer) ? undefined : blockRoleFor(element);
   const routeStep = routeStepOf(element);
-  const walkthrough = walkthroughBoxText(element, routeStep);
   const width = element.size?.w ?? DEFAULT_ELEMENT_SIZE.w;
   const height = element.size?.h ?? DEFAULT_ELEMENT_SIZE.h;
+  // Zoomed out (`data-zoom="far"`) the name alone fills the box at this size; computed per label/size, never per zoom tick.
+  const fitNameSize = useMemo(() => fitNameFontSize(element.label, width, height), [element.label, width, height]);
   // A content card (Summary prose / Acceptance list / Спеки stories) auto-fits to its text; an epic
   // render that is NOT one is the column's structural header (the epic title box).
   const isEpicRoot = element.render === "epic" && !isContentCard(element);
@@ -339,7 +340,7 @@ export function CanvasNodeBox({ element, onMeasure }: CanvasNodeBoxProps) {
     // see the `isSpecsCard` description branch below.
     isSpecsCard ? "diagram-node-box--specs" : "",
     routeStep ? `route-step route-step--${routeStep.kind}` : "",
-    walkthrough?.variant ? `walkthrough-box--${walkthrough.variant}` : "",
+    "canvas-node-fit",
   ]
     .filter(Boolean)
     .join(" ");
@@ -396,6 +397,7 @@ export function CanvasNodeBox({ element, onMeasure }: CanvasNodeBoxProps) {
         // still grow taller for a longer description, capped by the line-clamp in styles.css.
         width,
         minHeight: height,
+        ["--node-fit-name-size" as string]: `${fitNameSize}px`,
         ...authoredStyle(element.style),
       }}
       {...handleProps}
@@ -427,17 +429,11 @@ export function CanvasNodeBox({ element, onMeasure }: CanvasNodeBoxProps) {
               stacking. */}
           <div className={style.titleWrapClass}>
             <NodeMetaRow element={element} count={impactCount} changed={Boolean(impactChange)} />
-            {walkthrough?.kicker && <span className="walkthrough-box-kicker">{walkthrough.kicker}</span>}
             <div className={style.titleRowClass}>
               {accent.icon}
-              <span className={style.nameClass} title={element.label}>
-                {walkthrough?.name ?? element.label}
+              <span className={`${style.nameClass} canvas-node-fit-name`} title={element.label} data-testid="canvas-node-box-name">
+                {element.label}
               </span>
-              {walkthrough?.tag && (
-                <span className={`walkthrough-box-tag walkthrough-box-tag--${walkthrough.tag.toLowerCase()}`} data-testid="walkthrough-box-tag">
-                  {walkthrough.tag}
-                </span>
-              )}
               {isImpact && <NodeChangeBadge change={impactChange} />}
             </div>
             {style.descClass && element.description && isSpecsCard && (

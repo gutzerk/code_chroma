@@ -6,7 +6,7 @@ import { RouteCard } from "../RouteCard";
 import { canvasDocStore } from "./canvasDocStore";
 import { routeStore } from "../../state/routeStore";
 import { measureBoxSize } from "./measureBoxSize";
-import { walkthroughBoxText } from "./walkthroughBox";
+import { CanvasNodeBox } from "./CanvasNodeBox";
 import { boundsWithWalkthroughPanel, walkthroughPanelBox, walkthroughPanelHeight, WALKTHROUGH_PANEL } from "./walkthroughLayout";
 import { EngineClientProvider } from "../../engine-client/EngineClientContext";
 import { CANVAS_STUB } from "../../engine-client/stubEngineClient";
@@ -70,36 +70,45 @@ describe("walkthrough panel layout", () => {
   });
 });
 
-describe("walkthroughBoxText", () => {
+describe("walkthrough boxes use the common box internals", () => {
+  it("renders the role row, name, description and path footer of a step box", () => {
+    const step = box("diff", { label: "Diff vs manifest", description: "ComputeDelta()", node_id: "file::a", meta: { ...box("diff").meta, path: "src/a.cs" } });
+
+    render(
+      <EngineClientProvider repoId="default" client={CANVAS_STUB as unknown as EngineClient}>
+        <CanvasNodeBox element={step} />
+      </EngineClientProvider>,
+    );
+
+    expect(screen.getByTestId("canvas-node-box-name").textContent).toBe("Diff vs manifest");
+    expect(screen.getByTestId("role-chip").textContent).toBe("COMPONENT");
+    expect(screen.getByTestId("canvas-node-box-description").textContent).toBe("ComputeDelta()");
+    expect(screen.getByTestId("canvas-node-box-foot").textContent).toContain("src/a.cs");
+    expect(screen.getByTestId("canvas-node-box").className).toContain("route-step--decide");
+  });
+
   it.each([
-    ["click", { name: "Box click", kicker: undefined }],
-    ["diff", { name: "ComputeDelta()", tag: undefined }],
-    ["ai", { name: "SKILL.md", tag: "AI" }],
-  ])("shows the B2 text of step %s", (id, expected) => {
-    const element = box(id);
+    [{ no_code_reason: "external" }, "EXTERNAL"],
+    [{ no_code_reason: "conceptual", shape: "storage" }, "DATA"],
+  ])("marks an off-route box %o through the common role row", (meta, role) => {
+    const offRoute = box("other", { meta });
 
-    const text = walkthroughBoxText(element, ROUTE.steps.find((s) => s.id === id));
+    render(
+      <EngineClientProvider repoId="default" client={CANVAS_STUB as unknown as EngineClient}>
+        <CanvasNodeBox element={offRoute} />
+      </EngineClientProvider>,
+    );
 
-    expect(text).toEqual(expected);
+    expect(screen.getByTestId("role-chip").textContent).toBe(role);
   });
 
-  it("tags an external box and marks a store as data", () => {
-    const external = box("ext", { meta: { no_code_reason: "external" } });
-    const store = box("store", { meta: { no_code_reason: "conceptual", shape: "storage" } });
+  it("measures a walkthrough box exactly like the same box on another layer", () => {
+    const step = box("diff", { size: null, description: "ComputeDelta()" });
 
-    expect(walkthroughBoxText(external, undefined)).toEqual({ name: "Box ext", tag: "EXTERNAL", variant: "external" });
-    expect(walkthroughBoxText(store, undefined)).toEqual({ name: "Box store", variant: "data" });
-  });
+    const walkthrough = measureBoxSize(step);
+    const other = measureBoxSize({ ...step, layer: "custom/x" });
 
-  it("leaves a box on another layer alone", () => {
-    expect(walkthroughBoxText(box("diff", { layer: "custom/x" }), ROUTE.steps[1])).toBeUndefined();
-  });
-
-  it("measures a code step as a one-line 40px box at least 160px wide", () => {
-    const size = measureBoxSize(box("diff", { size: null }));
-
-    expect(size?.h).toBe(40);
-    expect(size?.w).toBeGreaterThanOrEqual(160);
+    expect(walkthrough).toEqual(other);
   });
 });
 

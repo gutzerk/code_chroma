@@ -163,8 +163,8 @@ def _cleanup_ops(doc: CanvasDoc, questions: list[Element]) -> list[dict]:
     return [{"op": "delete_element", "id": i} for i in sorted(doomed)]
 
 
-def complete_batch(ws: Workspace, agent_id: str) -> list[Element]:
-    """Once no question of the agent is open, deletes its settled ones; returns the undelivered."""
+def take_batch(ws: Workspace, agent_id: str) -> list[Element]:
+    """Once none of the agent's questions is open, claims its unsent answers for one wake-up."""
     with canvas_lock(ws.id):
         doc = CanvasDoc.load(ws.canvas_core_path, ws.diagrams_root)
         mine = [
@@ -174,17 +174,52 @@ def complete_batch(ws: Workspace, agent_id: str) -> list[Element]:
         batch = [e for e in mine if e.meta.get(AWAITING_DELIVERY)]
         if not batch or any(e.meta.get("state") == "open" for e in mine):
             return []
-        result = apply_batch_chunked(
-            doc, _cleanup_ops(doc, mine), explanation="ai question", confirm_mass_delete=True
-        )
-        response = commit_canvas_batch(ws, result)
-        if not response["ok"]:
-            raise QuestionWriteError(str(response["errors"]))
-        for e in mine:
+        _commit_locked(ws, doc, _mark_ops(batch, awaiting=False))
+    return batch
+
+
+def clear_batch(ws: Workspace, batch: list[Element]) -> None:
+    """After the answers were typed: deletes the batch's still-settled questions and diagrams."""
+    with canvas_lock(ws.id):
+        doc = CanvasDoc.load(ws.canvas_core_path, ws.diagrams_root)
+        settled = _still_settled(doc, batch)
+        if not settled:
+            return
+        _commit_locked(ws, doc, _cleanup_ops(doc, settled))
+        for e in settled:
             if session := e.meta.get("session_id"):
                 key = (str(ws.canvas_core_path), session)
                 _delivered[key] = _delivered.get(key, 0) + 1
-    return batch
+
+
+def release_batch(ws: Workspace, batch: list[Element]) -> None:
+    """The answers were never typed: keeps them on the canvas, marked for the next wake-up."""
+    with canvas_lock(ws.id):
+        doc = CanvasDoc.load(ws.canvas_core_path, ws.diagrams_root)
+        settled = _still_settled(doc, batch)
+        if settled:
+            _commit_locked(ws, doc, _mark_ops(settled, awaiting=True))
+
+
+def _still_settled(doc: CanvasDoc, batch: list[Element]) -> list[Element]:
+    """The batch's questions still on the canvas and not reopened by a revise meanwhile."""
+    current = (doc.elements.get(e.id) for e in batch)
+    return [e for e in current if e is not None and e.meta.get("state") != "open"]
+
+
+def _mark_ops(questions: list[Element], awaiting: bool) -> list[dict]:
+    return [
+        {"op": "update_element", "id": e.id, "meta": {AWAITING_DELIVERY: awaiting}}
+        for e in questions
+    ]
+
+
+def _commit_locked(ws: Workspace, doc: CanvasDoc, ops: list[dict]) -> None:
+    """Commits `ops` against an already-loaded doc; the caller holds the canvas lock."""
+    result = apply_batch_chunked(doc, ops, explanation="ai question", confirm_mass_delete=True)
+    response = commit_canvas_batch(ws, result)
+    if not response["ok"]:
+        raise QuestionWriteError(str(response["errors"]))
 
 
 def result_from(element: Element) -> QuestionResult | None:

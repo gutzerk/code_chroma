@@ -97,8 +97,8 @@ public static class QuestionStore
     public static void Settle(Workspace ws, string elementId, string state, QuestionResult result) =>
         Commit(ws, _ => [Update(elementId, new JsonObject { ["state"] = state, ["answer"] = result.Answer, ["option_id"] = result.OptionId, [AwaitingDelivery] = true })]);
 
-    /// <summary>Once none of the agent's questions is open, deletes its settled ones and their option diagrams; returns those not yet delivered.</summary>
-    public static List<CanvasElement> CompleteBatch(Workspace ws, string agentId)
+    /// <summary>Once none of the agent's questions is open, claims its undelivered answers so one wake-up types them.</summary>
+    public static List<CanvasElement> TakeBatch(Workspace ws, string agentId)
     {
         lock (CanvasWrite.LockFor(ws.Id))
         {
@@ -107,12 +107,46 @@ public static class QuestionStore
             if (mine.Any(e => Json.Str(e.Meta["state"]) == "open")) return [];
             var batch = mine.Where(e => Json.Truthy(e.Meta[AwaitingDelivery])).ToList();
             if (batch.Count == 0) return [];
-            Checked(CanvasWrite.Commit(ws, ApplyBatch.ApplyChunked(doc, CleanupOps(doc, mine), "default", Explanation, confirmMassDelete: true)));
-            foreach (var session in mine.Select(e => Json.Str(e.Meta["session_id"])).OfType<string>().Where(id => id.Length > 0))
-                Delivered.AddOrUpdate((ws.CanvasCorePath(), session), 1, (_, n) => n + 1);
+            CommitLocked(ws, doc, MarkOps(batch, awaiting: false));
             return batch;
         }
     }
+
+    /// <summary>After the answers were typed: deletes the batch's still-settled questions and their option diagrams.</summary>
+    public static void ClearBatch(Workspace ws, List<CanvasElement> batch)
+    {
+        lock (CanvasWrite.LockFor(ws.Id))
+        {
+            var doc = Load(ws);
+            var settled = StillSettled(doc, batch);
+            if (settled.Count == 0) return;
+            CommitLocked(ws, doc, CleanupOps(doc, settled));
+            foreach (var session in settled.Select(e => Json.Str(e.Meta["session_id"])).OfType<string>().Where(id => id.Length > 0))
+                Delivered.AddOrUpdate((ws.CanvasCorePath(), session), 1, (_, n) => n + 1);
+        }
+    }
+
+    /// <summary>The answers were never typed: marks them for the next wake-up and keeps them on the canvas.</summary>
+    public static void ReleaseBatch(Workspace ws, List<CanvasElement> batch)
+    {
+        lock (CanvasWrite.LockFor(ws.Id))
+        {
+            var doc = Load(ws);
+            var settled = StillSettled(doc, batch);
+            if (settled.Count > 0) CommitLocked(ws, doc, MarkOps(settled, awaiting: true));
+        }
+    }
+
+    /// <summary>The batch's questions still on the canvas and not reopened by a revise meanwhile.</summary>
+    private static List<CanvasElement> StillSettled(CanvasDoc doc, List<CanvasElement> batch) =>
+        batch.Select(e => doc.Elements.TryGetValue(e.Id, out var current) ? current : null).OfType<CanvasElement>().Where(e => Json.Str(e.Meta["state"]) != "open").ToList();
+
+    private static List<JsonNode?> MarkOps(List<CanvasElement> questions, bool awaiting) =>
+        questions.Select(e => (JsonNode?)Update(e.Id, new JsonObject { [AwaitingDelivery] = awaiting })).ToList();
+
+    /// <summary>Commits `ops` against an already-loaded doc; the caller holds the canvas lock.</summary>
+    private static void CommitLocked(Workspace ws, CanvasDoc doc, List<JsonNode?> ops) =>
+        Checked(CanvasWrite.Commit(ws, ApplyBatch.ApplyChunked(doc, ops, "default", Explanation, confirmMassDelete: true)));
 
     /// <summary>Deletes the questions, their `decisions/&lt;question id&gt;` layers and the decision diagrams their options reference.</summary>
     private static List<JsonNode?> CleanupOps(CanvasDoc doc, List<CanvasElement> questions)

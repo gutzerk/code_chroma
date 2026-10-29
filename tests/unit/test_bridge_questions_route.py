@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import time
 import uuid
 
 import pytest
@@ -136,19 +137,33 @@ def test_skip_is_refused_when_not_allowed_and_unknown_question_is_404(bridge):
 class _FakeSession:
     """Stands in for a live PTY agent session; records what was typed into it."""
 
-    def __init__(self, is_alive: bool = True) -> None:
+    def __init__(self, is_alive: bool = True, typed: bool = True) -> None:
         self.is_alive = is_alive
+        self.typed = typed
         self.injected: list[tuple[str, int | None]] = []
 
-    def inject_when_idle(self, text: str, attempts: int | None = None) -> None:
+    def inject_when_idle(self, text: str, attempts: int | None = None) -> asyncio.Future[bool]:
         self.injected.append((text, attempts))
+        typing = asyncio.get_running_loop().create_future()
+        typing.set_result(self.typed)
+        return typing
 
     def close(self) -> None:
         self.is_alive = False
 
 
-def _live_agent(bridge, agent_id: str = "agent-1") -> _FakeSession:
-    session = _FakeSession()
+def _eventually(condition, timeout: float = 5.0) -> bool:
+    """Polls `condition` while the TestClient loop runs the post-typing follow-up."""
+    deadline = time.monotonic() + timeout
+    while not condition():
+        if time.monotonic() > deadline:
+            return False
+        time.sleep(0.01)
+    return True
+
+
+def _live_agent(bridge, agent_id: str = "agent-1", typed: bool = True) -> _FakeSession:
+    session = _FakeSession(typed=typed)
     bridge.app.state.services.agent_sessions._sessions[agent_id] = session
     return session
 
@@ -274,6 +289,7 @@ def test_a_completed_batch_leaves_no_question_or_option_diagram_on_the_canvas(br
 
     with TestClient(bridge.app) as client:
         client.post(f"/repos/main/questions/{question_id}/answer", json={"option_id": "a"})
+        _eventually(lambda: not store.list_questions(ws))
 
     doc = CanvasDoc.load(ws.canvas_core_path, ws.diagrams_root)
     assert not [e for e in doc.elements.values() if e.render == "question"]
@@ -287,10 +303,26 @@ def test_a_session_keeps_counting_steps_after_its_answered_batch_is_cleared(brid
     first = _ask_for(bridge, session_id="s1", total=3)
     with TestClient(bridge.app) as client:
         client.post(f"/repos/main/questions/{first}/answer", json={"option_id": "a"})
+        _eventually(lambda: not store.list_questions(bridge.main))
 
         second = _ask_for(bridge, session_id="s1", total=3, question="Which store?")
 
     assert store.find_element(bridge.main, second).meta["step"] == 2
+
+
+def test_a_batch_the_agent_never_received_stays_on_the_canvas_for_the_next_wake_up(bridge):
+    session = _live_agent(bridge, typed=False)
+    question_id = _ask_for(bridge)
+
+    with TestClient(bridge.app) as client:
+        client.post(f"/repos/main/questions/{question_id}/answer", json={"option_id": "a"})
+        released = _eventually(
+            lambda: store.find_element(bridge.main, question_id).meta.get(store.AWAITING_DELIVERY)
+        )
+
+    assert len(session.injected) == 1
+    assert released
+    assert store.find_element(bridge.main, question_id).meta["state"] == "answered"
 
 
 def test_answer_without_a_live_session_is_saved_but_not_waiting(bridge):

@@ -86,7 +86,7 @@ class AgentSessionPort(Protocol):
 
     def resize(self, rows: int, cols: int) -> None: ...
 
-    def inject_when_idle(self, text: str, attempts: int | None = None) -> asyncio.Task: ...
+    def inject_when_idle(self, text: str, attempts: int | None = None) -> asyncio.Task[bool]: ...
 
 
 class AgentSession(AgentSessionPort):
@@ -164,7 +164,7 @@ class AgentSession(AgentSessionPort):
     def write_bytes(self, data: bytes) -> None:
         self._pty.write_bytes(data)
 
-    def inject_when_idle(self, text: str, attempts: int | None = None) -> asyncio.Task:
+    def inject_when_idle(self, text: str, attempts: int | None = None) -> asyncio.Task[bool]:
         """Types `text` once a fresh agent's TUI reaches its idle prompt (acknowledge-only only).
 
         Spawned from `post_agent_start` on a *fresh* start (never a resume, never autostart): the
@@ -173,26 +173,26 @@ class AgentSession(AgentSessionPort):
         rendered `ScreenTap` as idle, then types `text`, then Enter. Gives up quietly if the agent
         never idles in time or the process dies (`attempts` overrides the context default) —
         typing into a working/blocked agent would corrupt whatever it is already doing. Returns the
-        background task; it never raises.
+        background task, which resolves True once the text was typed; it never raises.
         """
-        async def run() -> None:
+        async def run() -> bool:
             async with self._inject_lock:
-                await self._inject_once(text, attempts)
+                return await self._inject_once(text, attempts)
 
 
         task = asyncio.create_task(run())
         return task
 
-    async def _inject_once(self, text: str, attempts: int | None) -> None:
-        """One queued injection: waits for idle, types it, then lets the screen settle."""
+    async def _inject_once(self, text: str, attempts: int | None) -> bool:
+        """One queued injection: waits for idle, types it, lets the screen settle; True if typed."""
         if self.exit_code is not None:
-            return
+            return False
         tries = attempts if attempts is not None else context_inject_attempts()
         interval = context_inject_interval_seconds()
         for _attempt in range(tries):
             # Not unreachable: exit_code can flip between iterations across the await below.
             if self.exit_code is not None:
-                return  # type: ignore[unreachable]
+                return False  # type: ignore[unreachable]
             tail = self._tap.tail(self._detector.rules.tail_lines)
             verdict = self._detector.classify(tail, self._tap.title, self._tap.progress, None)
             if verdict == "idle":
@@ -201,8 +201,9 @@ class AgentSession(AgentSessionPort):
                 await asyncio.sleep(context_inject_submit_delay_seconds())
                 self.write("\r")
                 await asyncio.sleep(interval)
-                return
+                return True
             await asyncio.sleep(interval)
+        return False
         logger.info("agents: gave up injecting context into %s (never went idle)", self.agent_id)
 
     def resize(self, rows: int, cols: int) -> None:

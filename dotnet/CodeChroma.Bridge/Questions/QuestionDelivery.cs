@@ -43,24 +43,31 @@ public static class QuestionDelivery
     /// <summary>Every settled answer of one batch as one line, in the order the agent asked them.</summary>
     public static string BatchMessage(IEnumerable<CanvasElement> batch) => string.Join(' ', batch.Select(AnswerMessage));
 
-    private static Func<string, Func<string, Task>?> Injector(AgentSessionRegistry sessions) =>
+    private static Func<string, Func<string, Task<bool>>?> Injector(AgentSessionRegistry sessions) =>
         id => sessions.Get(id) is { IsAlive: true } s ? t => s.InjectWhenIdle(t, IdleAttempts) : null;
 
     /// <summary>Queues the text for the agent that asked; true when a live session will receive it.</summary>
     public static bool Deliver(AgentSessionRegistry sessions, CanvasElement element, string text) =>
         Deliver(Json.Str(element.Meta["agent_id"]), Injector(sessions), text);
 
-    /// <summary>After a settle: once the agent has no open question left, types the whole batch into it and clears it off the canvas; true when a live session will get it.</summary>
+    /// <summary>After a settle: once the agent has no open question left, types the whole batch into it, then clears it off the canvas; true when a live session will get it.</summary>
     public static bool DeliverSettled(AgentSessionRegistry sessions, Workspace ws, CanvasElement settled) => DeliverSettled(ws, settled, Injector(sessions));
 
     /// <summary>The seam under DeliverSettled; without a live session nothing is removed, so ask_user_result can still read the answer.</summary>
-    public static bool DeliverSettled(Workspace ws, CanvasElement settled, Func<string, Func<string, Task>?> injector)
+    public static bool DeliverSettled(Workspace ws, CanvasElement settled, Func<string, Func<string, Task<bool>>?> injector)
     {
         var agentId = Json.Str(settled.Meta["agent_id"]);
         if (string.IsNullOrEmpty(agentId) || injector(agentId) is not { } inject) return false;
-        var batch = QuestionStore.CompleteBatch(ws, agentId);
-        if (batch.Count > 0) _ = inject(BatchMessage(batch));
+        var batch = QuestionStore.TakeBatch(ws, agentId);
+        if (batch.Count > 0) _ = ClearOnceTyped(ws, batch, inject(BatchMessage(batch)));
         return true;
+    }
+
+    /// <summary>Only a typed batch leaves the canvas; an untyped one stays for ask_user_result and the next wake-up.</summary>
+    private static async Task ClearOnceTyped(Workspace ws, List<CanvasElement> batch, Task<bool> typing)
+    {
+        if (await typing) QuestionStore.ClearBatch(ws, batch);
+        else QuestionStore.ReleaseBatch(ws, batch);
     }
 
     /// <summary>The seam under Deliver: `injector` returns the live session's inject call, or null.</summary>

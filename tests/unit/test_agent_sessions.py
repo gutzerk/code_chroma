@@ -2,6 +2,8 @@
 
 import asyncio
 
+import pytest
+
 from codechroma.bridge.agents.sessions import AgentSession, AgentSessionPort, agent_run_env
 from tests.unit.portable_commands import ECHO
 
@@ -115,6 +117,25 @@ def test_inject_gives_up_without_typing_when_the_agent_never_idles(monkeypatch):
     written = _inject(monkeypatch, lambda *_: None, "hi", attempts=2)
 
     assert written == []
+
+
+@pytest.mark.parametrize(("verdict", "expected"), [("idle", True), (None, False)])
+def test_inject_reports_whether_the_text_was_typed(monkeypatch, verdict, expected):
+    from codechroma.bridge.agents import sessions as sessions_mod
+
+    async def run() -> bool:
+        monkeypatch.setattr(sessions_mod, "context_inject_attempts", lambda: 2)
+        monkeypatch.setattr(sessions_mod, "context_inject_interval_seconds", lambda: 0.001)
+        monkeypatch.setattr(sessions_mod, "context_inject_submit_delay_seconds", lambda: 0)
+        session = _make_injecting_session(monkeypatch, lambda *_: verdict, [])
+        try:
+            return await session.inject_when_idle("answer")
+        finally:
+            session.close()
+
+    typed = asyncio.run(run())
+
+    assert typed is expected
 
 
 def test_inject_waits_for_the_agent_to_idle_before_typing(monkeypatch):

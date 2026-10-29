@@ -95,6 +95,7 @@ Optional: run `npx madge --circular --extensions ts,tsx web/src` once and paste 
 - Steps 1 and 2 landed as one commit: the move alone does not compile.
 - The lazy registry and the `Overlay` getter are gone.
 - `diagramProfilesLoad.test.ts` guards the load order. With the old `pileLayout` import restored, it fails: `diagramProfiles()` returns `[SEQUENCE_PROFILE, undefined]`.
+- The same file also scans the runtime imports under `web/src` from `diagramProfiles.ts`. It fails with the import chain if any profile, not only the walkthrough one, closes a cycle (from `/simplify`).
 - madge was not run. A local scan of runtime imports over `web/src` (tests ignored) finds the spec's cycle before the move and none after.
 
 ## Acceptance

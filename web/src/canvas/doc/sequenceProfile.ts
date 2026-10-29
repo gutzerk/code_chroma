@@ -12,4 +12,5 @@ export const SEQUENCE_PROFILE: DiagramProfile = {
   boundsKey: (members, layer) => `${sequenceBoardSignature(members)}#${sequenceViewStore.get(layer).expanded.join("|")}`,
   frameClassName: "canvas-diagram-frame-sequence-board",
   HeaderAction: SequenceModeSwitch,
+  concurrencyIslands: false,
 };

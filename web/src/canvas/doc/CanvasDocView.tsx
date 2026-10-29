@@ -10,8 +10,7 @@ import { openOrigin } from "../openOrigin";
 import { CanvasNodeBox } from "./CanvasNodeBox";
 import { ConcurrencyIslandArea } from "./ConcurrencyIslandArea";
 import { DiagramFrame } from "./DiagramFrame";
-import { WalkthroughPanel } from "./WalkthroughPanel";
-import { WALKTHROUGH_LAYER } from "./walkthroughLayout";
+import { profileFor, profileForElement } from "./diagramProfiles";
 import { diagramDisplayName } from "./diagramDisplay";
 import { isDiagramLayer, useCustomDiagramTypes } from "./diagramCatalog";
 import { BLOCK_RULES } from "./elementRules";
@@ -218,7 +217,7 @@ export function CanvasDocView() {
   // same layer-scoping `memberIdsByLayer` gives `DiagramFrame`. A digit run with only one member is
   // dropped (keepSingletons=false): a lone numbered step has nothing to be concurrent with.
   const laneBuckets = useMemo(
-    () => bucketPerLayer(Object.values(renderableElements), (el) => (el.layer === WALKTHROUGH_LAYER ? undefined : stringMeta(el, "lane")), true),
+    () => bucketPerLayer(Object.values(renderableElements), (el) => (profileForElement(el).laneBands === false ? undefined : stringMeta(el, "lane")), true),
     [renderableElements],
   );
 
@@ -272,8 +271,8 @@ export function CanvasDocView() {
   const concurrencyBuckets = useMemo(
     () =>
       bucketPerLayer(
-        // A sequence board draws "2a"/"2b" as their own step columns, never as a concurrency island.
-        Object.values(renderableElements).filter((el) => el.render !== "sequence"),
+        // A profile can opt out (a sequence board draws "2a"/"2b" as their own step columns).
+        Object.values(renderableElements).filter((el) => profileForElement(el).concurrencyIslands !== false),
         (el) => leadingOrderDigits(orderMeta(el)),
         false,
       ),
@@ -323,13 +322,12 @@ export function CanvasDocView() {
               />
             );
           })}
-          {memberIdsByLayer.has(WALKTHROUGH_LAYER) && (
-            <WalkthroughPanel
-              layer={WALKTHROUGH_LAYER}
-              members={resolveMembers(memberIdsByLayer.get(WALKTHROUGH_LAYER) ?? [], viewElements)}
-              sizes={measuredSizes}
-            />
-          )}
+          {[...memberIdsByLayer.entries()].map(([layer, memberIds]) => {
+            // A profile's own overlay (a walkthrough's ROUTE panel), drawn inside its diagram frame.
+            const members = resolveMembers(memberIds, viewElements);
+            const { Overlay } = profileFor(layer, members);
+            return Overlay ? <Overlay key={`overlay-${layer}`} layer={layer} members={members} sizes={measuredSizes} /> : null;
+          })}
           {laneBuckets.map(({ layer, value, ids }) => (
             <LaneArea
               key={`lane-${layer}-${value}`}

@@ -1,5 +1,6 @@
 import type { DiagramProfile } from "./diagramProfiles";
 import { boundsWithWalkthroughPanel, WALKTHROUGH_LAYER } from "./walkthroughLayout";
+import { WalkthroughPanel } from "./WalkthroughPanel";
 
 /** B2 walkthrough board: the one layer whose ROUTE panel is drawn inside its own frame. */
 export const WALKTHROUGH_PROFILE: DiagramProfile = {
@@ -10,4 +11,8 @@ export const WALKTHROUGH_PROFILE: DiagramProfile = {
   // The route arrows take the board's smaller green head and carry no kind word.
   edgeMarker: (visual) => (visual === "call" || visual === "spawn" ? "route" : undefined),
   edgeLabel: (edge) => edge.label || "",
+  // Step boxes are read along the route, not in lanes; the legend and auto-show belong to the ROUTE panel.
+  laneBands: false,
+  routeInOverlay: true,
+  Overlay: WalkthroughPanel,
 };

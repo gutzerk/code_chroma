@@ -47,6 +47,8 @@ export interface BoardLane {
   label: string;
   index: number;
   tone: "plain" | "ai" | "fail";
+  /** The most common tone of this lane's steps; tints the lane so lanes read apart (null: no steps). */
+  role: StepTone | null;
   participant: SequenceParticipant | null;
   rect: Rect;
 }
@@ -163,6 +165,7 @@ export function buildSequenceBoard(elements: CanvasElement[], expandedIds: reado
       label: `${pad2(index + 1)} / ${p.element.label}`,
       index,
       tone: AI_KIND.test(participantKind(p)) ? "ai" : "plain",
+      role: null,
       participant: p,
       rect: { x: 0, y, w: width, h },
     });
@@ -181,7 +184,7 @@ export function buildSequenceBoard(elements: CanvasElement[], expandedIds: reado
   let failLane: BoardLane | null = null;
   if (failures.length > 0) {
     const h = B.failLaneH + (failRows - 1) * B.failStack;
-    failLane = { id: "__failures", label: "EX / Failures", index: lanes.length, tone: "fail", participant: null, rect: { x: 0, y, w: width, h } };
+    failLane = { id: "__failures", label: "EX / Failures", index: lanes.length, tone: "fail", role: "fail", participant: null, rect: { x: 0, y, w: width, h } };
     lanes.push(failLane);
     y += h + B.laneGap;
   }
@@ -227,6 +230,13 @@ export function buildSequenceBoard(elements: CanvasElement[], expandedIds: reado
       rect: { x: colX[col] ?? B.firstColX, y: lane.rect.y + B.failTop + row * B.failStack, w: B.boxW, h: B.failBoxH },
       note: noteFor(m.order),
     });
+  }
+
+  for (const lane of lanes) {
+    const counts = new Map<StepTone, number>();
+    for (const s of steps) if (s.lane === lane) counts.set(s.tone, (counts.get(s.tone) ?? 0) + 1);
+    let best = 0;
+    for (const [tone, n] of counts) if (n > best) [best, lane.role] = [n, tone];
   }
 
   const arrows: BoardArrow[] = [];

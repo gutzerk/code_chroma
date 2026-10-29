@@ -62,7 +62,7 @@ export function SequenceDiagram({ layer, elements }: SequenceDiagramProps) {
       ))}
 
       {board.lanes.map((lane) => (
-        <div key={lane.id} className={`seq-lane seq-lane--${lane.tone}`} data-testid="sequence-lane" style={{ top: lane.rect.y, height: lane.rect.h }}>
+        <div key={lane.id} className={`seq-lane seq-lane--${lane.tone}${lane.role ? ` seq-lane-role--${lane.role}` : ""}`} data-testid="sequence-lane" style={{ top: lane.rect.y, height: lane.rect.h }}>
           <span className="seq-lane-label">{lane.label}</span>
         </div>
       ))}

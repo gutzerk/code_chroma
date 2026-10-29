@@ -347,6 +347,24 @@ describe("CanvasDocView", () => {
     expect(screen.getByText("System context")).toBeInTheDocument();
   });
 
+  it("labels a titled diagram's frame with its title and keeps the type in the meta line", async () => {
+    const meta = { diagram_title: "How a file save reaches the canvas" };
+    const doc = docWith([
+      elementOf({ id: "s1", render: "custom", label: "Watcher", layer: "walkthrough", meta, position: { x: 100, y: 100 } }),
+      elementOf({ id: "s2", render: "custom", label: "Canvas", layer: "walkthrough", meta, position: { x: 400, y: 100 } }),
+    ]);
+
+    render(
+      <EngineClientProvider repoId="default" client={client(doc)}>
+        <CanvasDocView />
+      </EngineClientProvider>,
+    );
+
+    await waitFor(() => expect(screen.getByTestId("canvas-diagram-frame")).toBeInTheDocument());
+    expect(screen.getByText("How a file save reaches the canvas")).toBeInTheDocument();
+    expect(screen.getByTestId("canvas-diagram-frame-meta")).toHaveTextContent("WALKTHROUGH · 2 BOXES");
+  });
+
   it("frames a per-question decisions layer and tags the frame with its layer", async () => {
     const doc = docWith([
       elementOf({ id: "d1", render: "custom", label: "A", layer: "decisions/q1", position: { x: 100, y: 100 } }),

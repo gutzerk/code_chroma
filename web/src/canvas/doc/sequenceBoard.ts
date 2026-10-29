@@ -1,6 +1,6 @@
 import type { CanvasElement } from "../../state/types";
 import { flagMeta, stringMeta } from "./elementMeta";
-import { buildSequenceModel, type SequenceMessage, type SequenceModel, type SequenceParticipant } from "./sequenceModel";
+import { buildSequenceModel, type SequenceMessage, type SequenceParticipant } from "./sequenceModel";
 
 /** A4 "glance + expand in place" board geometry; every value mirrors the design mockup. */
 export const SEQUENCE_BOARD = {
@@ -25,6 +25,8 @@ export const SEQUENCE_BOARD = {
   failStack: 46,
   rightPad: 8,
   legendGap: 20,
+  /** A phase pill narrower than this drops its side rules and shows just the label. */
+  soloPillW: 140,
   legendLineH: 28,
   legendNaturalW: 1500,
 } as const;
@@ -45,7 +47,6 @@ export interface Rect {
 export interface BoardLane {
   id: string;
   label: string;
-  index: number;
   tone: "plain" | "ai" | "fail";
   /** The most common tone of this lane's steps; tints the lane so lanes read apart (null: no steps). */
   role: StepTone | null;
@@ -92,7 +93,6 @@ export interface BoardFrame {
 }
 
 export interface SequenceBoard {
-  model: SequenceModel;
   lanes: BoardLane[];
   steps: BoardStep[];
   arrows: BoardArrow[];
@@ -163,7 +163,6 @@ export function buildSequenceBoard(elements: CanvasElement[], expandedIds: reado
     lanes.push({
       id: p.element.id,
       label: `${pad2(index + 1)} / ${p.element.label}`,
-      index,
       tone: AI_KIND.test(participantKind(p)) ? "ai" : "plain",
       role: null,
       participant: p,
@@ -178,13 +177,20 @@ export function buildSequenceBoard(elements: CanvasElement[], expandedIds: reado
     });
     return col;
   };
-  const failCounts = new Map<number, number>();
-  for (const m of failures) failCounts.set(failColumn(m), (failCounts.get(failColumn(m)) ?? 0) + 1);
-  const failRows = Math.max(0, ...failCounts.values());
+  // Each failure's column (the step it branches from) and its stack row under that column, computed once.
+  const failSlot = new Map<SequenceMessage, { col: number; row: number }>();
+  const perCol = new Map<number, number>();
+  for (const m of failures) {
+    const col = failColumn(m);
+    const row = perCol.get(col) ?? 0;
+    perCol.set(col, row + 1);
+    failSlot.set(m, { col, row });
+  }
+  const failRows = Math.max(0, ...perCol.values());
   let failLane: BoardLane | null = null;
   if (failures.length > 0) {
     const h = B.failLaneH + (failRows - 1) * B.failStack;
-    failLane = { id: "__failures", label: "EX / Failures", index: lanes.length, tone: "fail", role: "fail", participant: null, rect: { x: 0, y, w: width, h } };
+    failLane = { id: "__failures", label: "EX / Failures", tone: "fail", role: "fail", participant: null, rect: { x: 0, y, w: width, h } };
     lanes.push(failLane);
     y += h + B.laneGap;
   }
@@ -213,11 +219,8 @@ export function buildSequenceBoard(elements: CanvasElement[], expandedIds: reado
       note: noteFor(m.order),
     };
   });
-  const stack = new Map<number, number>();
   for (const m of failures) {
-    const col = failColumn(m);
-    const row = stack.get(col) ?? 0;
-    stack.set(col, row + 1);
+    const { col, row } = failSlot.get(m) as { col: number; row: number };
     const lane = failLane as BoardLane;
     steps.push({
       id: m.element.id,
@@ -254,7 +257,7 @@ export function buildSequenceBoard(elements: CanvasElement[], expandedIds: reado
   }
   for (const s of steps) {
     if (s.lane !== failLane) continue;
-    const parent = mainSteps[failColumn(s.message)];
+    const parent = mainSteps[failSlot.get(s.message)?.col ?? 0];
     const cx = (parent ? parent.rect.x + B.boxW / 2 : s.rect.x + B.boxW / 2);
     const top = parent ? parent.rect.y + parent.rect.h : s.lane.rect.y;
     arrows.push({ id: `fail-${s.id}`, kind: "fail", d: `M${cx},${top} V${s.rect.y - 1}`, order: s.message.order });
@@ -284,7 +287,7 @@ export function buildSequenceBoard(elements: CanvasElement[], expandedIds: reado
 
   const legendLines = Math.max(1, Math.ceil(B.legendNaturalW / width));
   const height = lanesBottom + B.legendGap + legendLines * B.legendLineH;
-  return { model, lanes, steps, arrows, pills: pillList, frames, width, lanesBottom, height };
+  return { lanes, steps, arrows, pills: pillList, frames, width, lanesBottom, height };
 }
 
 /** The board's top-left in document coordinates, anchored on the first lane's persisted centre. */

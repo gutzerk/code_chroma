@@ -48,8 +48,6 @@ class SequenceViewStore extends Store {
     return { expanded: Array.isArray(own.expanded) ? own.expanded.filter((id) => typeof id === "string") : [] };
   }
 
-  isExpanded = (layer: string, id: string): boolean => this.get(layer).expanded.includes(id);
-
   /** Opens a step in place, or folds it back to its glance box. */
   toggleExpanded(layer: string, id: string): void {
     const { expanded } = this.get(layer);

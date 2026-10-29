@@ -144,10 +144,6 @@ def settle(ws: Workspace, element: Element, state: str, result: QuestionResult) 
     return element.model_copy(update={"meta": {**element.meta, **meta}})
 
 
-def _is_decision_layer(layer: str) -> bool:
-    return layer == "decisions" or layer.startswith(diagrams.LAYER_PREFIX)
-
-
 def _cleanup_ops(doc: CanvasDoc, questions: list[Element]) -> list[dict]:
     """Deletes the questions, their `decisions/<qid>` layers and the diagrams options reference."""
     layers = {
@@ -157,12 +153,12 @@ def _cleanup_ops(doc: CanvasDoc, questions: list[Element]) -> list[dict]:
     refs = {o.get("diagram_ref") for q in questions for o in q.meta.get("options", [])}
     roots = {
         r for r in refs
-        if r and r in doc.elements and _is_decision_layer(doc.elements[r].layer)
+        if r and r in doc.elements and diagrams.is_decision_layer(doc.elements[r].layer)
     }
     doomed = {q.id for q in questions} | {
         e.id for e in doc.elements.values()
         if e.layer in layers or e.id in roots
-        or (e.group_id in roots and _is_decision_layer(e.layer))
+        or (e.group_id in roots and diagrams.is_decision_layer(e.layer))
     }
     return [{"op": "delete_element", "id": i} for i in sorted(doomed)]
 

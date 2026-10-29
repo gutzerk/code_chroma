@@ -321,16 +321,13 @@ export function CanvasDocView() {
               />
             );
           })}
-          {[...memberIdsByLayer.entries()]
-            .filter(([layer]) => layer === WALKTHROUGH_LAYER)
-            .map(([layer, memberIds]) => (
-              <WalkthroughPanel
-                key={`walkthrough-panel-${layer}`}
-                layer={layer}
-                members={resolveMembers(memberIds, viewElements)}
-                sizes={measuredSizes}
-              />
-            ))}
+          {memberIdsByLayer.has(WALKTHROUGH_LAYER) && (
+            <WalkthroughPanel
+              layer={WALKTHROUGH_LAYER}
+              members={resolveMembers(memberIdsByLayer.get(WALKTHROUGH_LAYER) ?? [], viewElements)}
+              sizes={measuredSizes}
+            />
+          )}
           {laneBuckets.map(({ layer, value, ids }) => (
             <LaneArea
               key={`lane-${layer}-${value}`}

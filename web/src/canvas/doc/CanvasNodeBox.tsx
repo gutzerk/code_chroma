@@ -125,8 +125,10 @@ export function CanvasNodeBox({ element, onMeasure, fitNameSize: sharedFitNameSi
   const width = element.size?.w ?? DEFAULT_ELEMENT_SIZE.w;
   const height = element.size?.h ?? DEFAULT_ELEMENT_SIZE.h;
   // Zoomed out (`data-zoom="far"`) the name alone fills the box at the diagram's shared size; computed per label/size, never per zoom tick.
-  const ownFitNameSize = useMemo(() => fitNameFontSize(element.label, width, height), [element.label, width, height]);
-  const fitNameSize = sharedFitNameSize ?? ownFitNameSize;
+  const fitNameSize = useMemo(
+    () => sharedFitNameSize ?? fitNameFontSize(element.label, width, height),
+    [sharedFitNameSize, element.label, width, height],
+  );
   // A content card (Summary prose / Acceptance list / Спеки stories) auto-fits to its text; an epic
   // render that is NOT one is the column's structural header (the epic title box).
   const isEpicRoot = element.render === "epic" && !isContentCard(element);

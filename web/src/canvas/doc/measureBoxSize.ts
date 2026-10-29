@@ -86,9 +86,13 @@ const FIT_LINE = 1.15;
 const FIT_MIN = 8;
 const FIT_MAX = 160;
 
+const FIT_REF_PX = 100;
+const fitMeasure = measurer(`600 ${FIT_REF_PX}px "DM Sans", system-ui, sans-serif`);
+
 /** True when `text` set at `px` fits `w` x `h`; `breakWords` allows splitting a word too long for a line. */
 function nameFits(text: string, px: number, w: number, h: number, breakWords: boolean): boolean {
-  const measure = measurer(`600 ${px}px "DM Sans", system-ui, sans-serif`);
+  // Text width scales linearly with font size, so measure once at FIT_REF_PX and scale: one cache entry per text, not one per probed size.
+  const measure: Measure = (t) => (fitMeasure(t) * px) / FIT_REF_PX;
   if (!breakWords && text.split(/\s+/).some((word) => measure(word) > w)) return false;
   return lineCount(text, w, measure) * px * FIT_LINE <= h;
 }
@@ -181,7 +185,6 @@ function roleBoxHeight(element: CanvasElement, w: number): number {
 /** The footprint layout must reserve: a role box's stored size is only CanvasNodeBox's `minHeight`, so it grows to its content. */
 export function layoutBoxSize(element: CanvasElement): { w: number; h: number } | null {
   const measured = measureBoxSize(element);
-  if (!measured || !element.size) return measured;
-  const content = isRoleBox(element) ? roleBoxHeight(element, measured.w) : measured.h;
-  return { w: measured.w, h: Math.max(measured.h, content) };
+  if (!measured || !element.size || !isRoleBox(element)) return measured;
+  return { w: measured.w, h: Math.max(measured.h, roleBoxHeight(element, measured.w)) };
 }

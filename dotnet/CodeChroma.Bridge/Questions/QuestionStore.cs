@@ -114,17 +114,15 @@ public static class QuestionStore
         }
     }
 
-    private static bool IsDecisionLayer(string layer) => layer == "decisions" || layer.StartsWith(QuestionDiagrams.LayerPrefix, StringComparison.Ordinal);
-
     /// <summary>Deletes the questions, their `decisions/&lt;question id&gt;` layers and the decision diagrams their options reference.</summary>
     private static List<JsonNode?> CleanupOps(CanvasDoc doc, List<CanvasElement> questions)
     {
         var layers = questions.Select(q => Json.Str(q.Meta["question_id"])).OfType<string>().Where(id => id.Length > 0).Select(id => QuestionDiagrams.LayerFor(id, "")).ToHashSet();
         var roots = questions.SelectMany(q => q.Meta["options"] as JsonArray ?? []).Select(o => Json.Str(o?["diagram_ref"]))
-            .OfType<string>().Where(r => doc.Elements.TryGetValue(r, out var root) && IsDecisionLayer(root.Layer)).ToHashSet();
+            .OfType<string>().Where(r => doc.Elements.TryGetValue(r, out var root) && QuestionDiagrams.IsDecisionLayer(root.Layer)).ToHashSet();
         var doomed = questions.Select(q => q.Id).ToHashSet();
         foreach (var e in doc.Elements.Values)
-            if (layers.Contains(e.Layer) || roots.Contains(e.Id) || (e.GroupId is not null && roots.Contains(e.GroupId) && IsDecisionLayer(e.Layer))) doomed.Add(e.Id);
+            if (layers.Contains(e.Layer) || roots.Contains(e.Id) || (e.GroupId is not null && roots.Contains(e.GroupId) && QuestionDiagrams.IsDecisionLayer(e.Layer))) doomed.Add(e.Id);
         return doomed.Order(StringComparer.Ordinal).Select(id => (JsonNode?)new JsonObject { ["op"] = "delete_element", ["id"] = id }).ToList();
     }
 

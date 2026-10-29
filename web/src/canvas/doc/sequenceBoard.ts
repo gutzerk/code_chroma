@@ -131,6 +131,9 @@ export function stepTone(message: SequenceMessage, from?: SequenceParticipant, t
   return "logic";
 }
 
+/** Lane-tint tie-break: on equal step counts the earlier role wins, so step order never flips a lane's colour. */
+const TONE_PRIORITY: readonly StepTone[] = ["fail", "ai", "check", "data", "route", "actor", "logic"];
+
 const pad2 = (n: number): string => String(n).padStart(2, "0");
 
 /** Lays one sequence layer out as swimlanes: one lane per participant, one column per step. */
@@ -244,7 +247,10 @@ export function buildSequenceBoard(elements: CanvasElement[], expandedIds: reado
     const counts = new Map<StepTone, number>();
     for (const s of steps) if (s.lane === lane) counts.set(s.tone, (counts.get(s.tone) ?? 0) + 1);
     let best = 0;
-    for (const [tone, n] of counts) if (n > best) [best, lane.role] = [n, tone];
+    for (const tone of TONE_PRIORITY) {
+      const n = counts.get(tone) ?? 0;
+      if (n > best) [best, lane.role] = [n, tone];
+    }
   }
 
   const arrows: BoardArrow[] = [];

@@ -134,6 +134,11 @@ export function stepTone(message: SequenceMessage, from?: SequenceParticipant, t
 const pad2 = (n: number): string => String(n).padStart(2, "0");
 
 /** Lays one sequence layer out as swimlanes: one lane per participant, one column per step. */
+/** A cheap change key over everything the board reads from its elements, for memos fed fresh arrays. */
+export function sequenceBoardSignature(elements: readonly CanvasElement[]): string {
+  return elements.map((e) => JSON.stringify([e.id, e.label, e.description, e.node_id, e.meta, e.position, e.size])).join("|");
+}
+
 export function buildSequenceBoard(elements: CanvasElement[], expandedIds: readonly string[] = []): SequenceBoard {
   const B = SEQUENCE_BOARD;
   const model = buildSequenceModel(elements);

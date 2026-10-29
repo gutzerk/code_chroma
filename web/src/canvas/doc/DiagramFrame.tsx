@@ -2,7 +2,7 @@ import { RouteFrameActions } from "./RouteFrameActions";
 import { Fragment, useEffect, useMemo, useRef, useSyncExternalStore } from "react";
 import { stringMeta } from "./elementMeta";
 import { buildSequenceModel } from "./sequenceModel";
-import { sequenceBoardBounds } from "./sequenceBoard";
+import { sequenceBoardBounds, sequenceBoardSignature } from "./sequenceBoard";
 import { sequenceViewStore } from "./sequenceViewStore";
 import type { CanvasElement } from "../../state/types";
 import { useEngineClient } from "../../engine-client/EngineClientContext";
@@ -155,10 +155,8 @@ export function DiagramFrame({ layer, label, members, sizes, typeLabel, boxCount
   const { route } = useLayerRoute(members);
   const isSequence = members.some((m) => m.render === "sequence");
   const expandedKey = isSequence ? sequenceViewStore.get(layer).expanded.join("|") : "";
-  // `members` is a fresh array each render, so the board bounds key on what the board reads (ids, roles, order, position).
-  const boardSignature = isSequence
-    ? members.map((m) => [m.id, stringMeta(m, "role"), m.meta?.order, m.position.x, m.position.y].join(":")).join("|")
-    : "";
+  // `members` is a fresh array each render, so the board bounds key on everything the board reads.
+  const boardSignature = isSequence ? sequenceBoardSignature(members) : "";
   const boardBounds = useMemo(
     () => (isSequence ? sequenceBoardBounds(members, expandedKey ? expandedKey.split("|") : []) : null),
     // eslint-disable-next-line react-hooks/exhaustive-deps -- boardSignature/expandedKey are the change signals for `members`

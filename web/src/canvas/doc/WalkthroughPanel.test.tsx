@@ -4,6 +4,7 @@ import { WalkthroughPanel } from "./WalkthroughPanel";
 import { DiagramFrame, PADDING } from "./DiagramFrame";
 import { RouteCard } from "../RouteCard";
 import { canvasDocStore } from "./canvasDocStore";
+import { collapsedLayersStore } from "./collapsedLayersStore";
 import { routeStore } from "../../state/routeStore";
 import { measureBoxSize } from "./measureBoxSize";
 import { CanvasNodeBox } from "./CanvasNodeBox";
@@ -46,6 +47,7 @@ function seed(members: CanvasElement[] = MEMBERS) {
 }
 
 afterEach(() => {
+  collapsedLayersStore.reset();
   routeStore.reset();
   canvasDocStore.reset();
 });
@@ -142,6 +144,16 @@ describe("WalkthroughPanel", () => {
     render(<RouteCard />);
 
     expect(screen.queryByTestId("route-card")).toBeNull();
+  });
+
+  it("docks the ROUTE card while the walkthrough that draws the route is collapsed", () => {
+    seed();
+    routeStore.show(ROUTE);
+    act(() => collapsedLayersStore.collapse("walkthrough"));
+
+    render(<RouteCard />);
+
+    expect(screen.getByTestId("route-card")).toBeTruthy();
   });
 
   it("makes the diagram frame enclose the panel", () => {

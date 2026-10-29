@@ -1,4 +1,3 @@
-import type { KeyboardEvent } from "react";
 import { useEngineClient } from "../../engine-client/EngineClientContext";
 import { inspectorStore } from "../inspectorStore";
 import type { BoardStep } from "./sequenceBoard";
@@ -16,17 +15,24 @@ export interface SequenceStepProps {
   active: boolean;
 }
 
+// The step whose toggle the user just pressed: its new button takes focus once mounted.
+let pendingFocusId: string | null = null;
+
+const focusIfPending = (id: string) => (node: HTMLButtonElement | null) => {
+  if (!node || pendingFocusId !== id) return;
+  pendingFocusId = null;
+  node.focus({ preventScroll: true });
+};
+
 const fileName = (nodeId: string): string => nodeId.replace(/^[a-z]+::/, "").split("::")[0].split("/").pop() ?? nodeId;
 
 /** One step: a glance box (or START/END pill, or failure box) that expands in place on click. */
 export function SequenceStep({ layer, step, markerPrefix, dim, active }: SequenceStepProps) {
   const { message, rect, tone, shape, number, expanded } = step;
   const { element } = message;
-  const toggle = () => sequenceViewStore.toggleExpanded(layer, element.id);
-  const onKey = (event: KeyboardEvent) => {
-    if (event.key !== "Enter" && event.key !== " ") return;
-    event.preventDefault();
-    toggle();
+  const toggle = () => {
+    pendingFocusId = element.id;
+    sequenceViewStore.toggleExpanded(layer, element.id);
   };
   const className = [
     "seq-step",
@@ -49,23 +55,20 @@ export function SequenceStep({ layer, step, markerPrefix, dim, active }: Sequenc
       </div>
     );
   }
-  if (expanded) return <ExpandedStep step={step} className={className} style={style} onToggle={toggle} markerPrefix={markerPrefix} />;
+  if (expanded) {
+    return <ExpandedStep step={step} className={className} style={style} onToggle={toggle} caretRef={focusIfPending(element.id)} markerPrefix={markerPrefix} />;
+  }
 
   const sourceId = message.fromCol.node_id;
   return (
-    <div
-      className={className}
-      data-testid="sequence-step"
-      data-step-id={element.id}
-      role="button"
-      tabIndex={0}
-      aria-expanded={false}
-      aria-label={`Expand ${element.label}`}
-      title={tooltip}
-      style={style}
-      onClick={toggle}
-      onKeyDown={onKey}
-    >
+    <div className={className} data-testid="sequence-step" data-step-id={element.id} title={tooltip} style={style} onClick={toggle}>
+      <button
+        type="button"
+        className="seq-step-toggle"
+        ref={focusIfPending(element.id)}
+        aria-expanded={false}
+        aria-label={`Expand ${element.label}`}
+      />
       {shape === "step" ? (
         <span className="seq-step-top">
           <span className="seq-badge">{number}</span>
@@ -106,12 +109,14 @@ function ExpandedStep({
   className,
   style,
   onToggle,
+  caretRef,
   markerPrefix,
 }: {
   step: BoardStep;
   className: string;
   style: { left: number; top: number; width: number; height: number };
   onToggle: () => void;
+  caretRef: (node: HTMLButtonElement | null) => void;
   markerPrefix: string;
 }) {
   const client = useEngineClient();
@@ -123,7 +128,7 @@ function ExpandedStep({
   const badge = shape === "step" ? number : shape === "start" ? "START" : "END";
   const subline = [`${message.fromCol.label} → ${message.toCol.label}`, element.description, note].filter(Boolean).join(" · ");
   return (
-    <div className={className} data-testid="sequence-step" data-step-id={element.id} aria-expanded style={style}>
+    <div className={className} data-testid="sequence-step" data-step-id={element.id} style={style}>
       <div className="seq-exp-head">
         <span className="seq-badge">{badge}</span>
         {tone === "ai" && <span className="seq-ai-chip">AI</span>}
@@ -131,7 +136,15 @@ function ExpandedStep({
         {sourceId && (
           <SourceButton nodeId={sourceId} label={message.fromCol.label} elementId={message.fromCol.id} text={`${fileName(sourceId)} ↗`} />
         )}
-        <button type="button" className="seq-caret" aria-label={`Collapse ${element.label}`} data-testid="sequence-step-collapse" onClick={onToggle}>
+        <button
+          type="button"
+          className="seq-caret"
+          ref={caretRef}
+          aria-expanded
+          aria-label={`Collapse ${element.label}`}
+          data-testid="sequence-step-collapse"
+          onClick={onToggle}
+        >
           ▾
         </button>
       </div>

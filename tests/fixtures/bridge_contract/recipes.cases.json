@@ -765,6 +765,17 @@
           }
         }
       ]
+    },
+    {
+      "id": "a_diagram_title_rides_on_every_element_meta",
+      "steps": [
+        {"fs": "write", "path": ".codechroma/diagrams/${kind}/${kind}.json", "text": "{\"title\": \"How a login reaches the store\", \"nodes\": [{\"id\": \"a\", \"name\": \"A\", \"kind\": \"external\", \"node_id\": \"component::src\"}, {\"id\": \"b\", \"name\": \"B\", \"kind\": \"external\", \"node_id\": \"component::src\"}], \"relations\": [{\"id\": \"m1\", \"from\": \"a\", \"to\": \"b\", \"label\": \"calls\", \"order\": \"1\"}]}"},
+        {"http": {"method": "POST", "path": "/repos/main/recipes/${kind}/run"}, "expect": {"status": 200, "checks": [{"path": "$.ok", "equals": true}]}},
+        {"http": {"method": "GET", "path": "/repos/main/canvas"}, "expect": {"status": 200, "checks": [
+          {"path": "$.elements..meta.diagram_title", "contains": "How a login reaches the store"}
+        ]}}
+      ],
+      "matrix": {"kind": ["system-context", "patterns", "impact", "sequence", "walkthrough"]}
     }
   ]
 }

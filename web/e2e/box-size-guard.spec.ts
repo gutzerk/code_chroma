@@ -44,6 +44,16 @@ const SEQUENCE = [
   seq("m3", "200 OK", { role: "message", from: "api", to: "client", order: "3", return: true }),
 ];
 
+/** Fails fast when the Google web fonts (index.html) a test draws with did not load: fallback fonts change every text width. */
+async function expectWebFonts(page: Page, families: string[]): Promise<void> {
+  const missing = await page.evaluate(async (families) => {
+    await document.fonts.ready;
+    const loaded = new Set([...document.fonts].filter((face) => face.status === "loaded").map((face) => face.family.replace(/"/g, "")));
+    return families.filter((family) => !loaded.has(family));
+  }, families);
+  expect(missing, "web fonts not loaded (offline?); widths would be measured with fallback fonts").toEqual([]);
+}
+
 /** The viewport's current scale, read off the transformed layer, so rendered sizes compare at 100%. */
 async function canvasScale(page: Page): Promise<number> {
   return page.locator("[data-zoom]").first().evaluate((node) => new DOMMatrix(getComputedStyle(node).transform).a || 1);
@@ -54,6 +64,7 @@ test("role boxes render at the height layoutBoxSize reserves for them", async ({
   await seedCanvas(page, "size-guard", roleBoxes());
   await expect(page.locator('[data-select-id="node-id"] [data-testid="canvas-node-members"]')).toBeVisible();
   await expect(page.locator("[data-zoom]").first()).toHaveAttribute("data-zoom", "full");
+  await expectWebFonts(page, ["DM Sans", "JetBrains Mono"]);
   const scale = await canvasScale(page);
 
   const rows = await page.evaluate(async (ids) => {
@@ -84,6 +95,7 @@ test("a sequence board's copied CSS metrics match what the browser draws", async
   await expect(page.getByTestId("sequence-lane")).toHaveCount(2);
   await page.getByRole("button", { name: "Expand Validate the payload" }).click();
   await expect(page.locator(".seq-step--expanded")).toHaveCount(1);
+  await expectWebFonts(page, ["DM Sans", "Inter", "JetBrains Mono"]);
   const scale = await canvasScale(page);
 
   const measured = await page.evaluate(async () => {
@@ -103,8 +115,14 @@ test("a sequence board's copied CSS metrics match what the browser draws", async
       h: node.getBoundingClientRect().height,
       overflow: overflow(node),
     }));
+    // The expanded lane is the one whose rows hold the open step's top edge.
+    const open = document.querySelector(".seq-step--expanded")?.getBoundingClientRect();
+    const holdsOpenStep = (node: Element) => {
+      const rect = node.getBoundingClientRect();
+      return open !== undefined && open.top >= rect.top - 1 && open.top < rect.bottom;
+    };
     const lanes = [...document.querySelectorAll('[data-testid="sequence-lane"]')].map((node) => ({
-      expanded: node.parentElement?.querySelector(".seq-step--expanded") !== null && box(node).h > SEQUENCE_BOARD.laneH,
+      expanded: holdsOpenStep(node),
       lane: box(node),
       label: box(node.querySelector(".seq-lane-label")),
     }));
@@ -142,6 +160,7 @@ test("a sequence board's copied CSS metrics match what the browser draws", async
     near(label.w, board.labelW, "lane label width");
     expect.soft(label.y + label.h, "lane label fits its lane").toBeLessThanOrEqual(lane.h);
   }
+  expect.soft(measured.lanes.filter((lane) => lane.expanded), "exactly one lane holds the open step").toHaveLength(1);
   for (const pill of measured.pills) {
     near(pill.y, board.pillY, "phase pill top");
     near(pill.h, board.pillH, "phase pill height");

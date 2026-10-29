@@ -165,6 +165,6 @@ Proof the guard works: a 6 px change to `.block-role [data-testid="canvas-node-b
 
 | Option | Finding |
 |---|---|
-| Keep copies + guard | **Chosen.** Drift is caught in CI, and the guard already paid for itself twice. |
+| Keep copies + guard | **Chosen.** Drift is caught in CI (the web job runs `npx playwright test box-size-guard`), and the guard already paid for itself twice. |
 | TS as the single source for `SEQUENCE_BOARD` | Most of the board is already TS-owned: steps, lanes, frames and the board size are inline styles from `buildSequenceBoard`. The only CSS copies are `pillY`/`pillH`, `labelX`/`labelW` and `legendNaturalW`. The first four could move to inline styles cheaply, but `labelX` is 16 in TS and 15 in CSS, so moving it is a 1 px visual change. `legendNaturalW` depends on font metrics and cannot be TS-sourced. Not worth it now. |
 | Measure in the browser | Would make `legendNaturalW` exact for every width (today the line count is `ceil(natural / width)`, which can be one line short when the legend wraps item by item). It needs a probe before first layout. Revisit only if a spilled legend is reported. |

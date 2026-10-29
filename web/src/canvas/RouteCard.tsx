@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useCanvasDoc, useRouteCarriers } from "./doc/canvasDocStore";
 import { routeOf, type Route } from "./doc/routeStep";
 import { isRouteDrawnInDiagram } from "./doc/walkthroughLayout";
+import { useCollapsedLayers } from "./doc/collapsedLayersStore";
 import { RouteSteps } from "./RouteSteps";
 import { routeStore, useRouteState } from "../state/routeStore";
 import type { CanvasElement } from "../state/types";
@@ -59,8 +60,9 @@ export function RouteCard() {
     return () => clearTimeout(timer);
   }, [walking, stepIndex]);
 
-  // A walkthrough draws this route in its own frame (WalkthroughPanel), so the docked copy stays hidden.
-  const docked = route !== null && !isRouteDrawnInDiagram(route, elements, carriers);
+  // An expanded walkthrough draws this route in its own frame (WalkthroughPanel), so the docked copy stays hidden.
+  const collapsedLayers = useCollapsedLayers();
+  const docked = route !== null && !isRouteDrawnInDiagram(route, elements, carriers, collapsedLayers);
   const cardRef = useRef<HTMLElement | null>(null);
   const right = useClearOfActivityPanel(cardRef, docked);
   if (!route || !docked) return null;

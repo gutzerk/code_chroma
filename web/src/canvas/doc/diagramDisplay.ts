@@ -59,16 +59,6 @@ function typeLabelFor(layer: string, customTypes: DiagramTypeSummary[]): string 
   return customTypes.find((type) => `custom/${type.id}` === layer)?.title ?? "Custom";
 }
 
-/** The diagram's authored title, read off the first element on `layer` that carries one. */
-export function diagramTitle(layer: string, doc: CanvasDoc): string | undefined {
-  for (const element of Object.values(doc.elements)) {
-    if (element.layer !== layer) continue;
-    const title = stringMeta(element, DIAGRAM_TITLE_META)?.trim();
-    if (title) return title;
-  }
-  return undefined;
-}
-
 /** Name, short type label and box count of one diagram layer, for list rows and frame headers. */
 export function diagramDisplayName(
   layer: string,

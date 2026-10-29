@@ -15,7 +15,7 @@ import { WALKTHROUGH_LAYER } from "./walkthroughLayout";
 import { diagramDisplayName } from "./diagramDisplay";
 import { isDiagramLayer, useCustomDiagramTypes } from "./diagramCatalog";
 import { BLOCK_RULES } from "./elementRules";
-import { layerFitNameSizes } from "./measureBoxSize";
+import { layerFitNameSizes, useFontRevision } from "./measureBoxSize";
 import { elementRect } from "./elementRect";
 import { leadingOrderDigits, orderMeta, stringMeta } from "./elementMeta";
 import { GroupFrame } from "./GroupFrame";
@@ -153,10 +153,12 @@ export function CanvasDocView() {
     [renderableElements],
   );
 
+  const fontRevision = useFontRevision();
   // One zoomed-out name size per diagram, so short and long names in the same diagram read at the same size.
   const fitNameSizes = useMemo(
     () => layerFitNameSizes(visibleElements.filter((element) => BLOCK_RULES[element.render].renderer === "node-box")),
-    [visibleElements],
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- fontRevision is the change signal for the measured widths
+    [visibleElements, fontRevision],
   );
 
   // Real rendered box sizes, once each box's own ResizeObserver reports one — see CanvasEdges'
@@ -173,7 +175,7 @@ export function CanvasDocView() {
   // minHeight + overflow), an over-reserving box leaves an empty dark band below. Re-fit the box to
   // its measured content height and persist the corrected size/position.
   useReflowEpics(engineClient, doc, contentSizes);
-  useReflowSequence(engineClient, doc);
+  useReflowSequence(engineClient, doc, loaded);
 
   const dragOffsets = useLiveDragOffsets();
 

@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { fireEvent, render, screen, within } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import type { ReactNode } from "react";
 import { SequenceDiagram } from "./SequenceDiagram";
 import { EngineClientProvider } from "../../engine-client/EngineClientContext";
@@ -20,9 +20,17 @@ const fn = (name: string, parent = "component::src/api.py"): HierarchyNodeRef =>
   params: "(req)",
 });
 
-function fakeClient(): EngineClient {
+let pings: Array<() => void> = [];
+
+function fakeClient(children = [fn("handle_checkout"), fn("validate_cart"), fn("unrelated")]): EngineClient {
   return {
-    getChildren: vi.fn(async () => [fn("handle_checkout"), fn("validate_cart"), fn("unrelated")]),
+    subscribe: vi.fn((onChange: () => void) => {
+      pings.push(onChange);
+      return () => {
+        pings = pings.filter((p) => p !== onChange);
+      };
+    }),
+    getChildren: vi.fn(async () => children),
     getConnections: vi.fn(async (id: string) =>
       id.endsWith("handle_checkout") ? [{ from_id: id, to_id: "component::src/api.py::validate_cart" }] : [],
     ),
@@ -53,6 +61,7 @@ describe("SequenceDiagram (A4 glance + expand in place)", () => {
     window.localStorage.clear();
     sequenceViewStore.reset();
     clearStepFunctionCache();
+    pings = [];
   });
   afterEach(() => inspectorStore.close());
 
@@ -87,11 +96,49 @@ describe("SequenceDiagram (A4 glance + expand in place)", () => {
     expect(sequenceViewStore.get("seq").expanded).toEqual([]);
   });
 
+  it("reloads an expanded step's functions after the bridge's changed ping", async () => {
+    const client = fakeClient([fn("handle_checkout")]);
+    renderBoard(client);
+    fireEvent.click(screen.getByRole("button", { name: "Expand Checkout cart" }));
+    await screen.findAllByTestId("sequence-step-function");
+    vi.mocked(client.getChildren).mockResolvedValue([fn("handle_checkout"), fn("validate_cart")]);
+
+    act(() => pings.forEach((ping) => ping()));
+
+    await waitFor(() => expect(screen.getAllByTestId("sequence-step-function")).toHaveLength(2));
+  });
+
+  it("moves focus to the caret on expand and back to the step on collapse", async () => {
+    renderBoard();
+
+    fireEvent.click(screen.getByRole("button", { name: "Expand Checkout cart" }));
+    const caret = await screen.findByRole("button", { name: "Collapse Checkout cart" });
+    const focusedCaret = document.activeElement === caret;
+    fireEvent.click(caret);
+
+    expect(focusedCaret).toBe(true);
+    expect(document.activeElement).toBe(screen.getByRole("button", { name: "Expand Checkout cart" }));
+  });
+
+  it("opens the step's source with Enter on its source button without expanding the step", () => {
+    const open = vi.spyOn(inspectorStore, "open");
+    renderBoard();
+    const step = screen.getAllByTestId("sequence-step").find((s) => s.textContent?.includes("Checkout cart"))!;
+    const source = within(step).getByTestId("sequence-step-src");
+
+    fireEvent.keyDown(source, { key: "Enter" });
+    fireEvent.click(source);
+
+    expect(open).toHaveBeenCalledWith("component::src/api.py", "API", "api");
+    expect(sequenceViewStore.get("seq").expanded).toEqual([]);
+    open.mockRestore();
+  });
+
   it("opens the step's source in the inspector without expanding it", () => {
     const open = vi.spyOn(inspectorStore, "open");
     renderBoard();
 
-    const step = screen.getByRole("button", { name: "Expand Checkout cart" });
+    const step = screen.getAllByTestId("sequence-step").find((s) => s.textContent?.includes("Checkout cart"))!;
     fireEvent.click(within(step).getByTestId("sequence-step-src"));
 
     expect(open).toHaveBeenCalledWith("component::src/api.py", "API", "api");

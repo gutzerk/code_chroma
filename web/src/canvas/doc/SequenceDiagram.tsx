@@ -1,6 +1,6 @@
 import { useMemo, useSyncExternalStore } from "react";
 import type { CanvasElement } from "../../state/types";
-import { boardOrigin, buildSequenceBoard, SEQUENCE_BOARD, type BoardArrow } from "./sequenceBoard";
+import { boardOrigin, buildSequenceBoard, SEQUENCE_BOARD, sequenceBoardSignature, type BoardArrow } from "./sequenceBoard";
 import { sequenceViewStore } from "./sequenceViewStore";
 import { SequenceStep } from "./SequenceStep";
 
@@ -33,8 +33,10 @@ export function SequenceDiagram({ layer, elements }: SequenceDiagramProps) {
   useSyncExternalStore(sequenceViewStore.subscribe, sequenceViewStore.getVersion);
   const { expanded } = sequenceViewStore.get(layer);
   const expandedKey = expanded.join("|");
-  // eslint-disable-next-line react-hooks/exhaustive-deps -- expandedKey is the change signal for `expanded`
-  const board = useMemo(() => buildSequenceBoard(elements, expanded), [elements, expandedKey]);
+  // `elements` is a fresh array each render, so the board keys on its signature, not its identity.
+  const signature = sequenceBoardSignature(elements);
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- signature/expandedKey are the change signals for `elements`/`expanded`
+  const board = useMemo(() => buildSequenceBoard(elements, expanded), [signature, expandedKey]);
   const origin = boardOrigin(board);
   if (!origin) return null;
   const activeStep = sequenceViewStore.getStep(layer);

@@ -45,7 +45,13 @@ export function useLayerRoute(members: readonly CanvasElement[]): { route: Route
   return { route: owner ? routeFor(owner, carriers) : undefined, layer: owner?.layer };
 }
 
-/** True when a walkthrough layer on the canvas draws `route` in its own frame, so no docked card is needed. */
-export function isRouteDrawnInDiagram(route: Route, elements: Record<string, CanvasElement>, carriers: readonly CanvasElement[]): boolean {
+/** True when an expanded walkthrough layer draws `route` in its own frame, so no docked card is needed. */
+export function isRouteDrawnInDiagram(
+  route: Route,
+  elements: Record<string, CanvasElement>,
+  carriers: readonly CanvasElement[],
+  collapsedLayers: ReadonlySet<string>,
+): boolean {
+  if (collapsedLayers.has(WALKTHROUGH_LAYER)) return false;
   return Object.values(elements).some((element) => element.layer === WALKTHROUGH_LAYER && routeFor(element, carriers)?.id === route.id);
 }

@@ -200,7 +200,7 @@
   --seq-label: #a3a8ae; /* lane labels, neutral pill text, function notes */
   --seq-chip-ink: #17181a; /* text on a step number chip */
   --seq-main: #d7dad4; /* main path arrow */
-  --seq-inner: #7c8188; /* call inside an expanded step */
+  --seq-inner: #9ca1a8; /* call inside an expanded step (3:1 on every step tone) */
   --seq-file-border: #2e4d70; /* file pill in an expanded step */
   --seq-actor-border: #5e6670;
   --seq-actor-bg: #3d4146; /* 28% role colour over the board (border 55%), so roles read apart */
@@ -214,6 +214,7 @@
   --seq-ai-border: #685995;
   --seq-ai-bg: #423a58;
   --seq-ai: #a78bfa;
+  --seq-ai-ink: #c4b5fd; /* AI chip text: 4.5:1 on the AI step background */
   --seq-check-border: #96751f;
   --seq-check-bg: #5a491c;
   --seq-check: #fbbf24;
@@ -7954,7 +7955,6 @@ button[data-copy-state="idle"][aria-label]:hover:not(:disabled) {
 /* 022 board styles: exact board radii/fonts have no token */
 /* stylelint-disable declaration-property-value-disallowed-list */
 .sequence-mode-btn { font: inherit; font-size: 0.65rem; padding: 1px 8px; border-radius: var(--radius-xl); border: 1px solid rgba(160, 165, 175, 0.5); background: transparent; color: inherit; cursor: pointer; }
-.sequence-mode-btn--on { background: rgba(99, 102, 241, 0.35); }
 
 /* 022 block anatomy: path + SRC foot, hover-only copy/?, dimmed non-neighbours, zoom levels */
 .canvas-node-box-foot { display: flex; align-items: center; gap: 0.4rem; margin-top: 0.3rem; font-size: 0.68rem; opacity: 0.75; }
@@ -8340,19 +8340,21 @@ button[data-copy-state="idle"][aria-label]:hover:not(:disabled) {
 .seq-marker--inner { fill: var(--seq-inner); }
 
 .seq-step { position: absolute; box-sizing: border-box; display: flex; flex-direction: column; gap: 3px; padding: 6px 10px; border: 1.5px solid var(--seq-tone-border); border-radius: var(--radius-xl); background: var(--seq-tone-bg); color: var(--route-text); pointer-events: auto; cursor: pointer; transition: opacity 0.15s, box-shadow 0.15s; }
-.seq-step:focus-visible { outline: 2px solid var(--seq-tone); outline-offset: 2px; }
+.seq-step:has(.seq-step-toggle:focus-visible) { outline: 2px solid var(--seq-tone); outline-offset: 2px; }
+.seq-step-toggle { position: absolute; inset: 0; padding: 0; border: 0; border-radius: inherit; background: none; cursor: pointer; }
+.seq-step-toggle:focus-visible { outline: none; }
 .seq-step--start, .seq-step--end { justify-content: center; gap: 2px; padding: 6px 14px; border-radius: var(--radius-full); }
 .seq-step--failure { flex-direction: row; align-items: center; padding: 0 10px; cursor: default; }
 .seq-step--failure .seq-step-name { min-width: 0; font-size: 12px; font-weight: 600; color: var(--route-fail-ink); }
 .seq-step--dim { opacity: 0.35; }
 .seq-step--active { box-shadow: 0 0 0 3px var(--route-glow), 0 0 18px var(--route-glow); }
 .seq-step-top { display: flex; align-items: center; gap: 5px; }
-.seq-step-glyphs { margin-left: auto; display: inline-flex; align-items: center; gap: 4px; font-family: var(--font-mono); font-size: 11px; color: var(--seq-tone); }
-.seq-step-kicker { font-family: var(--font-mono); font-size: 10px; font-weight: 700; letter-spacing: 0.08em; color: var(--seq-tone); }
+.seq-step-glyphs { margin-left: auto; display: inline-flex; align-items: center; gap: 4px; font-family: var(--font-mono); font-size: 11px; color: color-mix(in srgb, var(--seq-tone) 70%, var(--route-text)); }
+.seq-step-kicker { font-family: var(--font-mono); font-size: 10px; font-weight: 700; letter-spacing: 0.08em; color: color-mix(in srgb, var(--seq-tone) 70%, var(--route-text)); }
 .seq-step-name { font-size: 12.5px; font-weight: 600; line-height: 1.25; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .seq-badge { flex: none; align-self: flex-start; font-family: var(--font-mono); font-size: 10.5px; font-weight: 700; color: var(--seq-chip-ink); background: var(--seq-tone); border-radius: var(--radius-sm); padding: 0 5px; }
-.seq-ai-chip { flex: none; font-family: var(--font-mono); font-size: 9px; font-weight: 700; color: var(--seq-ai); border: 1px solid var(--seq-ai-border); border-radius: var(--radius-sm); padding: 0 3px; }
-.seq-src { padding: 0; border: 0; background: none; font: inherit; color: inherit; cursor: pointer; }
+.seq-ai-chip { flex: none; font-family: var(--font-mono); font-size: 9px; font-weight: 700; color: var(--seq-ai-ink); border: 1px solid var(--seq-ai-border); border-radius: var(--radius-sm); padding: 0 3px; }
+.seq-src { position: relative; z-index: 1; padding: 0; border: 0; background: none; font: inherit; color: inherit; cursor: pointer; }
 .seq-src:hover { color: var(--route-text); }
 
 .seq-step--expanded { display: block; padding: 10px 14px; border-radius: var(--radius-2xl); cursor: default; }
@@ -8362,14 +8364,14 @@ button[data-copy-state="idle"][aria-label]:hover:not(:disabled) {
 .seq-caret { flex: none; padding: 0; border: 0; background: none; font-family: var(--font-mono); font-size: 12px; color: var(--route-text-soft); cursor: pointer; }
 .seq-exp-head .seq-src + .seq-caret, .seq-exp-head .seq-exp-name + .seq-caret { margin-left: auto; }
 .seq-exp-head .seq-src + .seq-caret { margin-left: 0; }
-.seq-exp-sub { margin-top: 4px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 11px; color: var(--seq-label); }
+.seq-exp-sub { margin-top: 4px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 11px; color: var(--route-text-soft); }
 .seq-exp-empty { margin-top: 18px; font-family: var(--font-mono); font-size: 11px; color: var(--route-text-muted); }
 .seq-exp-calls { position: absolute; left: 0; top: 0; width: 100%; height: 100%; overflow: visible; pointer-events: none; }
 .seq-fn { position: absolute; box-sizing: border-box; display: flex; flex-direction: column; justify-content: center; gap: 1px; padding: 5px 9px; border: 1px solid color-mix(in srgb, var(--seq-tone) 22%, var(--seq-tone-bg)); border-radius: var(--radius-lg); background: color-mix(in srgb, var(--seq-tone) 7%, var(--seq-tone-bg)); color: inherit; text-align: left; font: inherit; cursor: pointer; }
 .seq-tone--logic .seq-fn { border-color: var(--seq-fn-border); background: var(--seq-fn-bg); }
 .seq-fn:hover { border-color: var(--seq-tone); }
-.seq-fn-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-family: var(--font-mono); font-size: 11px; font-weight: 600; color: var(--route-link); }
-.seq-fn-desc { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 11px; color: var(--seq-label); }
+.seq-fn-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-family: var(--font-mono); font-size: 11px; font-weight: 600; color: color-mix(in srgb, var(--route-link) 60%, var(--route-text)); }
+.seq-fn-desc { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 11px; color: var(--route-text-soft); }
 .seq-fn--more { flex-direction: row; justify-content: flex-start; align-items: center; border-style: dashed; background: none; font-family: var(--font-mono); font-size: 11px; color: var(--route-text-muted); }
 .seq-tone--logic .seq-fn--more { background: none; }
 

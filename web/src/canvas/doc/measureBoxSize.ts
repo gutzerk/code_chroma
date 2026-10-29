@@ -1,3 +1,4 @@
+import { useSyncExternalStore } from "react";
 import type { CanvasElement } from "../../state/types";
 import { DEFAULT_ELEMENT_SIZE } from "./elementRect";
 import { isEpicsLayerName } from "./epicsLayout";
@@ -27,6 +28,29 @@ type Measure = (text: string) => number;
 
 let ctx: CanvasRenderingContext2D | null | undefined;
 const widthCache = new Map<string, number>();
+
+// Widths measured before a web font loads use the fallback font, so a finished font load drops them and bumps this revision.
+let fontRevision = 0;
+const fontListeners = new Set<() => void>();
+if (typeof document !== "undefined" && document.fonts) {
+  document.fonts.addEventListener("loadingdone", () => {
+    widthCache.clear();
+    fontRevision += 1;
+    fontListeners.forEach((listener) => listener());
+  });
+}
+
+/** Changes after each web font load, so memos over measured text can recompute. */
+export function useFontRevision(): number {
+  return useSyncExternalStore(
+    (listener) => {
+      fontListeners.add(listener);
+      return () => fontListeners.delete(listener);
+    },
+    () => fontRevision,
+    () => 0,
+  );
+}
 
 function context2d(): CanvasRenderingContext2D | null {
   if (ctx !== undefined) return ctx;

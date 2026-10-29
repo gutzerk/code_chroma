@@ -22,8 +22,22 @@ export interface StepFunctions {
 export const STEP_FUNCTION_SLOTS = 6;
 const MAX_CLASSES = 4;
 
-const functionCache = new Map<string, Promise<StepFunction[]>>();
-const callCache = new Map<string, Promise<string[]>>();
+interface ClientCaches {
+  functions: Map<string, Promise<StepFunction[]>>;
+  calls: Map<string, Promise<string[]>>;
+}
+
+// Per client, so another workspace's client never reads these lists; a "changed" ping clears them.
+let cachesByClient = new WeakMap<EngineClient, ClientCaches>();
+
+function cachesFor(client: EngineClient): ClientCaches {
+  let caches = cachesByClient.get(client);
+  if (!caches) {
+    caches = { functions: new Map(), calls: new Map() };
+    cachesByClient.set(client, caches);
+  }
+  return caches;
+}
 
 /** The card's second line: the signature, or the snippet's first line when the bridge sends none. */
 const signatureOf = (node: HierarchyNodeRef): string | undefined =>
@@ -78,10 +92,20 @@ export function pickStepFunctions(functions: StepFunction[], stepText: string): 
 /** Lazily loads the functions of a step's linked code and the calls between the shown ones. */
 export function useStepFunctions(client: EngineClient, nodeId: string | null, stepText: string): StepFunctions {
   const [state, setState] = useState<StepFunctions>({ status: "idle", functions: [], total: 0, calls: [] });
+  const [revision, setRevision] = useState(0);
+  useEffect(
+    () =>
+      client.subscribe(() => {
+        cachesByClient.delete(client);
+        setRevision((n) => n + 1);
+      }),
+    [client],
+  );
   useEffect(() => {
     if (!nodeId) return undefined;
     let cancelled = false;
     setState((s) => ({ ...s, status: "loading" }));
+    const { functions: functionCache, calls: callCache } = cachesFor(client);
     void (async () => {
       try {
         const all = await cached(functionCache, nodeId, () => loadFunctions(client, nodeId));
@@ -107,12 +131,11 @@ export function useStepFunctions(client: EngineClient, nodeId: string | null, st
     return () => {
       cancelled = true;
     };
-  }, [client, nodeId, stepText]);
+  }, [client, nodeId, stepText, revision]);
   return state;
 }
 
 /** Test hook: forgets every cached function list and call list. */
 export function clearStepFunctionCache(): void {
-  functionCache.clear();
-  callCache.clear();
+  cachesByClient = new WeakMap();
 }

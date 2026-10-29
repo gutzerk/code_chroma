@@ -202,23 +202,23 @@
   --seq-main: #d7dad4; /* main path arrow */
   --seq-inner: #7c8188; /* call inside an expanded step */
   --seq-file-border: #2e4d70; /* file pill in an expanded step */
-  --seq-actor-border: #4e5867;
-  --seq-actor-bg: #333639; /* 20% role colour over the board, so roles read apart */
+  --seq-actor-border: #5e6670;
+  --seq-actor-bg: #3d4146; /* 28% role colour over the board (border 55%), so roles read apart */
   --seq-actor: #94a3b8;
-  --seq-route-border: #23707b;
-  --seq-route-bg: #1c4044;
-  --seq-route: #22d3ee;
-  --seq-logic-border: #24704f;
-  --seq-logic-bg: #204033;
+  --seq-route-border: #416795;
+  --seq-route-bg: #2e4258;
+  --seq-route: #60a5fa; /* blue, not cyan: cyan sat too close to the green logic tone */
+  --seq-logic-border: #29805f;
+  --seq-logic-bg: #224f3d;
   --seq-logic: #34d399;
-  --seq-ai-border: #5f4fa0;
-  --seq-ai-bg: #373146;
+  --seq-ai-border: #685995;
+  --seq-ai-bg: #423a58;
   --seq-ai: #a78bfa;
-  --seq-check-border: #7f6524;
-  --seq-check-bg: #483c1b;
+  --seq-check-border: #96751f;
+  --seq-check-bg: #5a491c;
   --seq-check: #fbbf24;
-  --seq-data-bg: #483320;
-  --seq-fail-bg: #482c2f;
+  --seq-data-bg: #5a3c23;
+  --seq-fail-bg: #5a3337;
   --seq-data: #fb923c;
   --seq-fn-border: #2b5a44; /* function card inside a logic step */
   --seq-fn-bg: #1b3427;

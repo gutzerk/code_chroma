@@ -1,4 +1,4 @@
-"""TestClient coverage for the C1 diagram endpoints and the "system-context" file-change broadcast."""
+"""TestClient coverage for the system-context diagram endpoints and its file-change broadcast."""
 
 import json
 from pathlib import Path

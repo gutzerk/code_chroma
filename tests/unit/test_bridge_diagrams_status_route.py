@@ -73,7 +73,8 @@ def test_c1_fingerprint_changes_when_the_file_is_edited_in_place(server_module):
         {"type": "system-context", "nodes": [], "relations": []},
     )
     with TestClient(bridge.app) as client:
-        before = client.get("/repos/default/diagrams/status").json()["system-context"]["fingerprint"]
+        status = client.get("/repos/default/diagrams/status")
+        before = status.json()["system-context"]["fingerprint"]
 
     _write_json(
         diagram_json_path(repo, "system-context"),

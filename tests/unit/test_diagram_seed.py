@@ -17,7 +17,9 @@ def test_seed_copies_every_diagrams_artifact_file(tmp_path):
 
     seed_diagrams_from_main(main, target)
 
-    assert diagram_json_path(target, "system-context").read_text(encoding="utf-8") == '{"blocks": []}'
+    seeded = diagram_json_path(target, "system-context")
+
+    assert seeded.read_text(encoding="utf-8") == '{"blocks": []}'
     assert not (target / ".codechroma" / "system-context-layout.json").exists()
     assert diagram_json_path(target, "patterns").read_text(encoding="utf-8") == '{"nodes": []}'
     assert not (target / ".codechroma" / "patterns-layout.json").exists()

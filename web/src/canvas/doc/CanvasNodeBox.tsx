@@ -111,7 +111,7 @@ export function CanvasNodeBox({ element, onMeasure, fitNameSize: sharedFitNameSi
   const focusState = useFocusState(element.id);
   const memberCount = useMemberCount(engineClient, isEpicsLayerName(element.layer) ? null : element.node_id);
   const stepNumber =
-    isEpicsLayerName(element.layer) || element.render === "sequence"
+    isEpicsLayerName(element.layer)
       ? undefined
       : leadingOrderDigits(orderMeta(element));
   // Hard layout (010-epics-tree-render, Part 4): an epic-tree box sits in a pre-structured parent

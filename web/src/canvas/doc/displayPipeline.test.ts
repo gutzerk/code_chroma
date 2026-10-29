@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import type { CanvasElement } from "../../state/types";
+import { EMPTY_CANVAS_DOC, type CanvasElement } from "../../state/types";
 import {
   LIVE_STAGES,
   STRUCTURAL_STAGES,
@@ -78,5 +78,16 @@ describe("display pipeline", () => {
     });
 
     expect(out).toEqual({});
+  });
+
+  it("replaces each board layer's elements with its profile view, leaving other layers alone", () => {
+    const elements = { a: box("a", 100, { layer: "board" }), b: box("b", 300) };
+    const doc = { ...EMPTY_CANVAS_DOC, elements };
+
+    const out = runDisplayStages(VIEW_STAGES, elements, {
+      boards: { doc, layers: [{ layer: "board", ids: ["a"], view: (d, ids) => ids.map((id) => ({ ...d.elements[id], position: { x: 0, y: 0 } })) }] },
+    });
+
+    expect([out.a.position, out.b]).toEqual([{ x: 0, y: 0 }, elements.b]);
   });
 });

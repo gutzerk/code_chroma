@@ -1,6 +1,7 @@
-import type { CanvasElement } from "../../state/types";
+import type { CanvasDoc, CanvasElement, CanvasPosition, CanvasSize } from "../../state/types";
 import { flagMeta, stringMeta } from "./elementMeta";
 import { buildSequenceModel, type SequenceMessage, type SequenceParticipant } from "./sequenceModel";
+import type { SequenceView } from "./sequenceViewStore";
 
 /** A4 "glance + expand in place" board geometry; every value mirrors the design mockup. */
 export const SEQUENCE_BOARD = {
@@ -28,7 +29,8 @@ export const SEQUENCE_BOARD = {
   /** A phase pill narrower than this drops its side rules and shows just the label. */
   soloPillW: 140,
   legendLineH: 28,
-  legendNaturalW: 1500,
+  /** The `.seq-legend` row on one line: the widest browser measure (Linux 1818, macOS 1802; its glyphs fall back to system fonts) rounded up; e2e/box-size-guard.spec.ts guards it. */
+  legendNaturalW: 1830,
 } as const;
 
 /** What a step box is, which picks its colour: the mockup's legend swatches. */
@@ -318,4 +320,46 @@ export function sequenceBoardBounds(
   const origin = boardOrigin(board);
   if (!origin) return null;
   return { left: origin.x, top: origin.y, right: origin.x + board.width, bottom: origin.y + board.height };
+}
+
+/** Persisted positions/sizes for a sequence layer: a participant is its lane rect, a message its step box; `view.expanded` grows opened steps. */
+export function layoutSequence(
+  doc: CanvasDoc,
+  ids: readonly string[],
+  view?: SequenceView,
+): { positions: Record<string, CanvasPosition>; sizes: Record<string, CanvasSize> } {
+  const positions: Record<string, CanvasPosition> = {};
+  const sizes: Record<string, CanvasSize> = {};
+  if (ids.length === 0) return { positions, sizes };
+  const elements = ids
+    .map((id) => doc.elements[id])
+    .filter((element): element is NonNullable<typeof element> => Boolean(element));
+  const board = buildSequenceBoard(elements, view?.expanded ?? []);
+  const place = (id: string, rect: { x: number; y: number; w: number; h: number }) => {
+    positions[id] = { x: rect.x + rect.w / 2, y: rect.y + rect.h / 2 };
+    sizes[id] = { w: rect.w, h: rect.h };
+  };
+  for (const lane of board.lanes) if (lane.participant) place(lane.participant.element.id, lane.rect);
+  for (const step of board.steps) place(step.id, step.rect);
+  return { positions, sizes };
+}
+
+/** Display-only geometry for the viewer's expanded steps, anchored to the persisted layout so a frame drag survives. */
+export function viewSequenceElements(
+  doc: CanvasDoc,
+  ids: readonly string[],
+  view: SequenceView,
+): CanvasElement[] {
+  const elements = ids.map((id) => doc.elements[id]).filter((e): e is CanvasElement => Boolean(e));
+  const base = layoutSequence(doc, ids);
+  const next = view.expanded.length > 0 ? layoutSequence(doc, ids, view) : base;
+  const anchor = elements.find((e) => base.positions[e.id]);
+  if (!anchor) return elements;
+  const dx = anchor.position.x - base.positions[anchor.id].x;
+  const dy = anchor.position.y - base.positions[anchor.id].y;
+  return elements.map((element) => {
+    const p = next.positions[element.id];
+    if (!p) return element;
+    return { ...element, position: { x: p.x + dx, y: p.y + dy }, size: next.sizes[element.id] ?? element.size };
+  });
 }

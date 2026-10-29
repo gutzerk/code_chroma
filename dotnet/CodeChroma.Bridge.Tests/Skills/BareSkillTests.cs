@@ -88,6 +88,15 @@ public class BareSkillTests
     }
 
     [Fact]
+    public void A_requested_start_asks_the_agent_to_title_the_diagram_from_the_request()
+    {
+        var prompt = BareSkill.ComposeInteractive("sequence", Root, "main", null, request: "how a save reaches the db")!;
+
+        Assert.Contains("Name the diagram from this request", prompt);
+        Assert.Contains("/repos/main/diagrams/status", prompt);
+    }
+
+    [Fact]
     public void A_plan_request_draws_the_impact_body_and_names_the_feature_plan_reference()
     {
         var prompt = BareSkill.ComposeInteractive("plan", Root, "main", null, request: "token auth")!;

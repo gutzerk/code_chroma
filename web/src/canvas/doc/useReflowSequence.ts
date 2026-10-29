@@ -4,25 +4,13 @@ import type { CanvasDoc } from "../../state/types";
 import { patchCanvasDoc } from "./canvasDocStore";
 import { layoutSequence } from "./autoLayout";
 
-/**
- * One-shot re-spread of every sequence layer's persisted geometry to the current `SEQUENCE_LAYOUT`
- * constants, on mount. A sequence layer is locked-layout (never user-dragged), so its `position`/`size`
- * are pure derivations of the layout constants — yet those values are persisted. When a constant
- * changes (colW, headGap, rowH…), an already-drawn layer keeps its stale geometry and never picks up
- * the new spread, which read as "the fix doesn't work" until the user redraws. Re-running the layout
- * on load closes that gap: the layer re-spreads from `meta` alone, so whatever constants are current
- * govern the picture on every reload. Only sends writes when something actually moved, so an
- * up-to-date layer is untouched. Runs once per distinct persisted geometry per mount.
- */
-export function useReflowSequence(engineClient: EngineClient, doc: CanvasDoc): void {
-  // Runs once on mount, then never again: `SEQUENCE_LAYOUT` is a module const that never mutates and
-  // sequence layers are locked-layout (never user-dragged), so geometry cannot become stale after the
-  // first pass -- re-scanning on every `doc` change (each drag commit / patch refetch / live ping
-  // rebuilds `doc`) would repeat the full no-op staleness scan forever.
+/** Once per mount, after the doc loads: rewrites persisted sequence geometry that drifted from the current board layout. */
+export function useReflowSequence(engineClient: EngineClient, doc: CanvasDoc, loaded: boolean): void {
+  // Sequence layers are locked-layout, so one pass over the loaded doc is enough; an earlier pass would only see the empty doc.
   const checkedRef = useRef(false);
 
   useEffect(() => {
-    if (checkedRef.current) return;
+    if (checkedRef.current || !loaded) return;
     checkedRef.current = true;
     // Collect every sequence layer's member ids in layer order.
     const byLayer = new Map<string, string[]>();
@@ -67,5 +55,5 @@ export function useReflowSequence(engineClient: EngineClient, doc: CanvasDoc): v
     void patchCanvasDoc(engineClient, ops, {
       explanation: "re-spread sequence layer to current layout constants",
     }).catch(() => {});
-  }, [engineClient, doc]);
+  }, [engineClient, doc, loaded]);
 }

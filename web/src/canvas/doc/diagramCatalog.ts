@@ -66,7 +66,7 @@ export function isDiagramLayer(layer: string): boolean {
 }
 
 /** Per-question option-diagram layers (`decisions/<question_id>`): real diagrams, canvas-only. */
-const DECISION_LAYER_PREFIX = "decisions/";
+export const DECISION_LAYER_PREFIX = "decisions/";
 
 function questionLabelFor(doc: CanvasDoc | undefined, questionId: string): string | null {
   const question = doc && Object.values(doc.elements).find(

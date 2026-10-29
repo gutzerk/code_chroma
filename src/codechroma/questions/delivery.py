@@ -1,11 +1,19 @@
-"""Types a user's answer into the asking agent's terminal as its next message."""
+"""Types the user's answers into the asking agent's terminal, once per completed batch."""
 
 from __future__ import annotations
 
+import asyncio
+import logging
 from typing import Any
 
+from starlette.concurrency import run_in_threadpool
+
+from codechroma.bridge.workspaces import Workspace
 from codechroma.canvas.document import Element
 from codechroma.config import settings
+from codechroma.questions import store
+
+logger = logging.getLogger(__name__)
 
 SKIPPED = "skipped by the user, decide yourself"
 DIAGRAM_REQUEST = (
@@ -42,6 +50,11 @@ def diagram_request_message(element: Element) -> str:
     return _one_line(f"{_header('request', element)} {element.label} → {DIAGRAM_REQUEST}")
 
 
+def batch_message(batch: list[Element]) -> str:
+    """Every settled answer of one batch as one line, in the order the agent asked them."""
+    return " ".join(answer_message(element) for element in batch)
+
+
 def live_session(services: Any, element: Element) -> Any | None:
     """The running agent session that asked this question, or None."""
     agent_id = element.meta.get("agent_id")
@@ -58,3 +71,38 @@ def deliver(services: Any, element: Element, text: str | None = None) -> bool:
         text or answer_message(element), attempts=settings.questions.answer_inject_attempts
     )
     return True
+
+
+# Queued wake-ups; held so the loop never drops them before they finish.
+_follow_ups: set[asyncio.Task] = set()
+
+
+async def deliver_settled(services: Any, ws: Workspace, element: Element) -> bool:
+    """Once the agent has no open question, queues one wake-up with its answers; True if live."""
+    session = live_session(services, element)
+    if session is None:
+        return False
+    agent_id = element.meta["agent_id"]
+    if await run_in_threadpool(store.claim_batch, ws, agent_id):
+        follow_up = asyncio.ensure_future(_type_batch(session, ws, agent_id))
+        _follow_ups.add(follow_up)
+        follow_up.add_done_callback(_follow_ups.discard)
+    return True
+
+
+async def _type_batch(session: Any, ws: Workspace, agent_id: str) -> None:
+    """Types the batch as it stands when the agent idles, clears what was typed, then unclaims."""
+    typed: list[Element] = []
+
+    async def message() -> str | None:
+        typed[:] = await run_in_threadpool(store.pending_batch, ws, agent_id)
+        return batch_message(typed) if typed else None
+
+    try:
+        attempts = settings.questions.answer_inject_attempts
+        if await session.inject_when_idle(message, attempts=attempts) and typed:
+            await run_in_threadpool(store.clear_batch, ws, typed)
+    except Exception:
+        logger.exception("questions: could not deliver the answers of agent %s", agent_id)
+    finally:
+        store.release_batch(ws, agent_id)

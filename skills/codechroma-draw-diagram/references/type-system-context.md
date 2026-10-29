@@ -108,6 +108,7 @@ design — `nodes[]` holds only the system and its actors, none of them carries 
 ```json
 {
   "type": "system-context",
+  "title": "Who the billing service talks to",
   "style": "boxes-arrows",
   "fingerprint": "<copy verbatim from system-context/context staleness.fingerprint>",
   "nodes": [
@@ -121,6 +122,8 @@ design — `nodes[]` holds only the system and its actors, none of them carries 
   ]
 }
 ```
+
+- **`title`** (top-level, required): a short name (≤ 60 chars, in the language of the user's request) for what *this* diagram shows, never the type name ("System context"), distinct from the titles already on the canvas — see `drawing-rules.md` "Naming the diagram (`title`)"; the self-check advises `NOTITLE`/`GENERICTITLE` otherwise.
 
 Rules:
 - `system` — exactly one node with `id: "system"`, no `parent`, no children, representing the

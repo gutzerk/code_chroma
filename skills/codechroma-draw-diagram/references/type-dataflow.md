@@ -35,5 +35,6 @@ curl -s -X PUT ${CODECHROMA_BRIDGE_URL:-http://localhost:8000}/diagram-types/dat
 4. Set `path` from `/structure` verbatim on boxes backed by real code; leave it null for conceptual or external boxes.
 5. `kind` is `reads`, `writes`, `sends` or `transforms`; the `label` is the payload.
 6. Set the top-level `question` ("Where does X end up?") and 1–2 `hero` relations: the main path of the data.
+7. Set the top-level `title` to what this flow shows ("Where an uploaded invoice ends up"), never "Data flow" — see `drawing-rules.md` "Naming the diagram (`title`)".
 
 Self-check: `check_diagram.py --kind custom --type dataflow`. Never report success on a run that did not print `OK`.

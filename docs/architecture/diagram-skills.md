@@ -636,7 +636,7 @@ output matches pre-036 golden fixtures) · `tests/contract/test_new_diagram_type
 
 ## `walkthrough`: the built-in process diagram
 
-`walkthrough` is a built-in kind (id in `src/codechroma/diagrams/kinds.json`, so the Draw dialog lists it; `BUILTIN_TYPES["walkthrough"]`, `DIAGRAMS["walkthrough"]` and `_resolve_walkthrough` in Python; `Workspace.DiagramKinds`, `SkillAgents.Specs`, `DiagramRoutes.ResolveKind` and `DiagramSeed.BuiltinKinds` in C#). Artifact `.codechroma/diagrams/walkthrough/walkthrough.json`, path route `GET /repos/{id}/walkthrough-path`, prompt `prompts/walkthrough_agent.yaml`, skill reference `references/type-walkthrough.md`, self-check `check_diagram.py --kind walkthrough` (budget 24 nodes / 40 relations, `question`/`summary`/`hero` advisories like the other flat kinds). It resolves through the shared resolver in the `boxes-arrows` style and its canvas elements use `render: "custom"` on layer `walkthrough`, so the existing step boxes, `route` carrier and **Show route** (B2) work with no new renderer. The look (green steps, chips, glow, auto-opened ROUTE card, no lanes) is CSS plus `RouteFrameActions`; see `web-canvas-shell.md`. No context endpoint and no generate route: an in-canvas agent picks the skill by description, like `sequence`. The edge-kind tables gained `error` (three copies, kept in step) so a failure arrow does not read as a typo. Web: `BUILTIN_RECIPES`, `DiagramKind`, the status map and a card schematic in `drawDialog/schematics.tsx`.
+`walkthrough` is a built-in kind (id in `src/codechroma/diagrams/kinds.json`, so the Draw dialog lists it; `BUILTIN_TYPES["walkthrough"]`, `DIAGRAMS["walkthrough"]` and `_resolve_walkthrough` in Python; `Workspace.DiagramKinds`, `SkillAgents.Specs`, `DiagramRoutes.ResolveKind` and `DiagramSeed.BuiltinKinds` in C#). Artifact `.codechroma/diagrams/walkthrough/walkthrough.json`, path route `GET /repos/{id}/walkthrough-path`, prompt `prompts/walkthrough_agent.yaml`, skill reference `references/type-walkthrough.md`, self-check `check_diagram.py --kind walkthrough` (budget 24 nodes / 40 relations, `question`/`summary`/`hero` advisories like the other flat kinds). It resolves through the shared resolver in the `boxes-arrows` style and its canvas elements use `render: "custom"` on layer `walkthrough`, so the existing step boxes, `route` carrier and **Show route** (B2) work with no new renderer. The look (the B2 board frame, steps with the common box internals in green/violet/red route frames, chips, glow, the ROUTE panel drawn inside the diagram frame, no lanes) is CSS plus `WalkthroughPanel`/`RouteFrameActions`; see `web-canvas-shell.md`. No context endpoint and no generate route: an in-canvas agent picks the skill by description, like `sequence`. The edge-kind tables gained `error` (three copies, kept in step) so a failure arrow does not read as a typo. Web: `BUILTIN_RECIPES`, `DiagramKind`, the status map and a card schematic in `drawDialog/schematics.tsx`.
 
 ## The route's `detail` line and the "show a process" recipe
 
@@ -798,10 +798,11 @@ edges** for the layer.
   rather than a huge loop. The AI fills labels, return arrows, and calls the trace's blind spots hid.
 - **Frontend renders one whole layer** via `web/src/canvas/doc/SequenceDiagram.tsx` — an
   own-component renderer (`BLOCK_RULES.sequence.renderer === "sequence"`), like `GroupFrame` but
-  whole-diagram. It reads `meta.role` (`participant`/`message`), `meta.order` (row), `meta.from`/
-  `meta.to` (column lookup by participant `node_id`/recipe key), `meta.async`/`meta.return`. Because
-  it computes all geometry from `meta`, it ignores `element.position`/`size` and is `lockedLayout` —
-  `autoLayout`'s dagre pass excludes `render === "sequence"` elements.
+  whole-diagram. It reads `meta.role` (`participant`/`message`), `meta.order` (step column; `"2a"`
+  sorts as 2.01), `meta.from`/`meta.to` (lane lookup by participant `node_id`/recipe key),
+  `meta.kind`, `meta.async`. All geometry comes from `sequenceBoard.ts`; the board is anchored on the
+  first lane's persisted position, and the layer is `lockedLayout` — `autoLayout`'s dagre pass
+  excludes `render === "sequence"` elements.
 - **Self-check**: `check_diagram.py --kind sequence` and `inspect.py`'s `FlatInspector` treat it as a
   flat shape (participants = nodes, messages = relations), so duplicate/dangling/island/orphan rules
   apply unchanged. Its budget row (24 participants / 60 messages) is in both `_BUDGETS` and
@@ -995,13 +996,44 @@ systems have their own tag, separate from `conceptual`. The canvas shows a dashe
 `.node-shape-<name>` class; unknown names fall back to the plain box. Tests:
 `tests/unit/test_diagram_resolver.py`, `web/src/canvas/doc/nodeAccent.test.tsx`.
 
+## Diagram titles
+
+Every diagram file carries a top-level `title`: the drawing agent names what the diagram shows for
+the user's request ("How a file save reaches the canvas"), in the request's language, ≤ 60 chars,
+never the type name. The flow:
+
+1. **Skill.** `drawing-rules.md` "Naming the diagram (`title`)" holds the rule; every `type-*.md`,
+   `bare-*.md`, `process-bare.md`, `type-dataflow.md` and `feature-plan-mode.md` repeats it with an
+   example `title`. The agent lists the titles already taken with
+   `GET /repos/{id}/diagrams/status` (each entry now has `title`, null when untitled) and picks a
+   distinct one. A Draw-dialog run also gets a "Name the diagram from this request" line from
+   `BareSkill.RequestedStart` (C# only, like the rest of agent prompt composition).
+2. **Self-check.** `check_diagram.py`'s `_check_title` adds three advisories (never blocking, every
+   kind except `epics`): `NOTITLE` (missing/blank), `GENERICTITLE` (only type words such as
+   "Sequence", "Design patterns", "Patterns: bridge", or the custom `--type` id), `LONGDIAGRAMTITLE`
+   (over 60 chars). Tests: `tests/unit/test_diagram_check_script.py`.
+3. **Bridge (Python + C# parity).** `recipes.py`'s `diagram_title` / `Recipes.DiagramTitle` read the
+   trimmed `title`; `reshape` stamps it as `meta.diagram_title` on every element of the layer (route
+   carrier included), and `diagrams/status` reports it per entry. The patterns resolvers rebuild the
+   payload, so both pass `title` through explicitly. Contract cases:
+   `recipes.cases.json` `a_diagram_title_rides_on_every_element_meta`, `diagrams.cases.json`
+   `diagrams_status_reports_each_written_title_and_null_when_untitled`.
+4. **Canvas.** `diagramDisplay.ts`'s `diagramTitle` reads the first `meta.diagram_title` on the
+   layer; `diagramDisplayName` returns it as `name` (falling back to `labelForDiagramLayer`) with
+   `titled: true`. `DiagramFrame` shows it as the frame label beside the existing `TYPE · n BOXES`
+   meta line; the ON CANVAS rows (`useDiagramRows`) show it as the row name with a small
+   `TYPE ·` prefix on the meta line when titled.
+
+Layer ids and file names never change: one file per built-in type still means one diagram per
+type, so a redraw replaces the old title with the new request's title.
+
 ## Sequence readability (022)
 
 `check_diagram.py` adds `BADPHASE` and `BADFRAME` (shape tier: unknown `kind` or a bad `from_order`/`to_order` range in `phases[]`/`frames[]`), and the advisories `NO-ORDER` (sequence message without `order`; an older diagram still passes), one combined `NOSUMMARY` (sequence, c1, patterns and impact), `NOHERO` (c1/patterns/impact with 3+ relations and none marked `hero`), `ECHO-LABEL`, `HIDDEN-BRANCH`, `LONGTITLE`. Both resolvers (`canvas/recipes.py`, `Stores/Recipes.cs`) fold `order`/`lane`/`rank` into node `meta` (`rank` = `entry`/`exit`, a layout hint ELK turns into first/last layer; `order` wins; `check_diagram.py` advisories `BADRANK` and `RANK-ORDER`), add `hero` to message `meta`, and stamp `phases`/`frames`/`notes`/`question`/`summary` on every participant's `meta`.
 
-The canvas draws a sequence layer in one of two switchable modes (`web/src/canvas/doc/`): `SequenceReadable.tsx` (phase bands, numbered messages, frames, notes) and `SequenceFocus.tsx` (collapsible phase rows, focused participant, timeline panel: a mini phase bar sized by message count with a "you are here" marker, a PARTICIPANTS list with message counts whose click toggles focus, then the step list; an open phase row also shows its message and focus counts), both over `sequenceModel.ts` and the shared `SequenceDrawing`. The `Readable | Focus` control sits in `DiagramFrame.tsx`; the choice, collapsed phases and focus live in `sequenceViewStore.ts` (per layer, `localStorage`, default `focus` above 12 messages), never in `sequence.json`. `layoutSequence(doc, ids, view)` folds collapsed phases into one row; `viewSequenceElements` derives that geometry in `CanvasDocView` for display only, anchored to the persisted layout, so a mode switch or collapse never writes to the document (`useReflowSequence` still runs once on mount with the readable layout).
+The canvas draws a sequence layer as the A4 "glance + expand in place" board (`web/src/canvas/doc/`). `sequenceBoard.ts` lays it out as swimlanes: one lane per participant (`01 / Name`, an AI-kind participant gets a violet lane), one column per step in `order`, each step in its **sender's** lane, and an `EX / Failures` lane for `kind: "error"`/`failure` messages, hung under the step they branch from with a dashed red arrow. Phases become pills above the columns they cover (`request` cyan, `prepare` green, `ai` violet, `deliver` orange, other neutral), `frames[]` become a dashed outline with a mono tag, and `notes[]` show in the expanded step. Consecutive steps are joined by the solid main path (an `async` step's incoming arrow is the dashed side-effect line). The first and last step are START/END pills; the rest are numbered `01…`. A step's colour is derived on the web, no extra JSON (`stepTone`): failure, AI (`kind: "ai"` or an AI sender), check (label says verify/check/validate/test/lint), actor/trigger (actor, UI or external sender), entry route (route/api sender), data written (data-kind sender or receiver), else logic (entry route is blue, not cyan, so it never blends with green logic). Each lane also takes a faint tint of its own steps' most common tone (`BoardLane.role`, `.seq-lane-role--*`), so lanes read apart as well as steps; a tie goes to the earlier role in `TONE_PRIORITY` (fail, ai, check, data, route, actor, logic), never to step order.
 
-**Focus layout and legend (gap pass).** Focus phase rows span the whole lifeline width and read `▸/▾ N · Name`, a count, and the talking participants right-aligned in mono grey (an open phase gets a tinted border). The timeline panel sits right of the lifelines in space `DiagramFrame` reserves in Focus (`SEQUENCE_PANEL_SPACE`, so it never covers the participant heads) and scrolls inside the diagram height: each phase is one row whose bar and name are vertically centred together, the current phase gets a 1.5px outline box and a green marker line at the current step. Both modes end with a legend row (call, return, AI, event, alt/loop frame, phase, note; `SEQUENCE_LEGEND_SPACE` reserved under the lifelines), and a participant with a `node_id` shows a `↗` in its head that opens its source in the inspector.
+Clicking a step, or Enter/Space on its full-box toggle button, expands it in place (`SequenceStep.tsx`); focus moves to the collapse caret and back, and the step's `↗` source button is a sibling of that toggle, never nested in it: the box grows to 380×240, its lane and every later column move to make room, and it shows the sender's file pill (`↗` opens the inspector), one line of `from → to · description · note`, and up to six function cards from the sender's linked code (`sequenceStepFunctions.ts`: `getChildren` of the component and its classes, ranked by words shared with the step's label and description, `+ N more ▸` when there are more; cached per engine client and cleared on the bridge's "changed" ping; calls between the shown cards come from `getConnections` and draw as thin inner arrows). The bridge sends no line numbers or function summaries, so a card shows the signature (or the snippet's first line) instead of the mockup's `:184` and summary. The expanded ids live in `sequenceViewStore.ts` (per layer, `localStorage`), never in `sequence.json`; `viewSequenceElements` derives the expanded geometry in `CanvasDocView` for display only, anchored to the persisted layout (`useReflowSequence` runs once, after the canvas doc has loaded, and rewrites persisted geometry that drifted from the all-folded board layout). `DiagramFrame.tsx`'s header has ▶ Play (lights one `order` at a time and fades later steps) and, once a step is open, Collapse all; the frame takes the board look (`canvas-diagram-frame-sequence-board`). Colours are the `--seq-*` tokens plus the shared `--route-*` ones in `styles.css`; logic, AI and failure come from the `--role-ok`/`--role-ai`/`--role-fail` scale the walkthrough board uses too, so a role has one colour on both boards. The older Readable/Focus modes were removed.
 
 ## How a drawing agent starts (025 Draw dialog)
 

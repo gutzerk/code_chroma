@@ -75,7 +75,7 @@ export function GroupFrame({ element, members, sizes }: GroupFrameProps) {
           onPointerDown={(e) => e.stopPropagation()}
           onClick={open}
         >
-          â†—
+          ↗
         </button>
       }
     />

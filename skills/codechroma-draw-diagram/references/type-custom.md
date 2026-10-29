@@ -84,6 +84,7 @@ capabilities (grouping, self-relations, edge coloring) the chosen `style` turns 
   "type_id": "data-flow",
   "style": "boxes-arrows",
   "generated_at": "2026-01-01T00:00:00Z",
+  "title": "Where an uploaded file ends up",
   "nodes": [
     {
       "id": "http-edge",
@@ -99,6 +100,8 @@ capabilities (grouping, self-relations, edge coloring) the chosen `style` turns 
   ]
 }
 ```
+
+- **`title`** (top-level, required): a short name (≤ 60 chars, in the language of the user's request) for what *this* diagram shows, never the saved type's own name (its definition `title`), distinct from the titles already on the canvas — see `drawing-rules.md` "Naming the diagram (`title`)"; the self-check advises `NOTITLE`/`GENERICTITLE` otherwise.
 
 Rules:
 - `nodes[].id` must be unique across the file — relations address nodes by bare id.

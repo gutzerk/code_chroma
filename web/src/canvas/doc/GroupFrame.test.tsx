@@ -95,6 +95,7 @@ describe("GroupFrame board styling", () => {
 
     expect(screen.getByTestId("canvas-group-frame").className).toContain("canvas-group-frame-color-4");
     expect(screen.getByTestId("canvas-group-frame-open")).toBeInTheDocument();
+    expect(screen.getByTestId("canvas-group-frame-open").textContent?.trim()).toBe("↗");
   });
 
   describe("the open arrow", () => {

@@ -1,16 +1,17 @@
 import type { CanvasDoc, DiagramTypeSummary } from "../../state/types";
-import { BUILTIN_RECIPES, labelForDiagramLayer } from "./diagramCatalog";
+import { BUILTIN_RECIPES, DECISION_LAYER_PREFIX, labelForDiagramLayer } from "./diagramCatalog";
 import { BLOCK_RULES } from "./elementRules";
+import { stringMeta } from "./elementMeta";
 import { groupColorIndex } from "./groupColor";
 
 /** Hex values of styles.css's `canvas-diagram-frame-color-<n>` rules, by index; a test keeps them in sync. */
 export const DIAGRAM_HASHED_COLORS = ["#f43f5e", "#06b6d4", "#a3e635", "#fde047", "#818cf8", "#e879f9"] as const;
 
 /** Builtin layers that own a named token colour (styles.css `canvas-diagram-frame-<name>`). */
-const TOKEN_LAYERS = new Set(["system-context", "patterns", "impact", "epics"]);
+const TOKEN_LAYERS = new Set(["system-context", "patterns", "impact", "epics", "walkthrough"]);
 
 /** The colour token a layer reads when it is not named after the layer (System context keeps `--c1`). */
-const TOKEN_VARS: Record<string, string> = { "system-context": "c1" };
+const TOKEN_VARS: Record<string, string> = { "system-context": "c1", walkthrough: "route-ok" };
 
 export interface DiagramAccent {
   /** The frame's CSS class (`canvas-diagram-frame-<name>` or `canvas-diagram-frame-color-<n>`). */
@@ -30,10 +31,16 @@ export function diagramAccent(layer: string): DiagramAccent {
 }
 
 export interface DiagramDisplay {
+  /** The agent-authored `title` when the diagram has one, else the layer's type label. */
   name: string;
   typeLabel: string;
   boxCount: number;
+  /** Whether `name` came from the diagram's own `title` (so the type label adds information). */
+  titled: boolean;
 }
+
+/** The element meta key the bridge stamps a diagram's top-level `title` under (`recipes.py`'s `DIAGRAM_TITLE_KEY`). */
+export const DIAGRAM_TITLE_META = "diagram_title";
 
 const TYPE_LABELS: Record<string, string> = {
   "system-context": "System context",
@@ -41,12 +48,15 @@ const TYPE_LABELS: Record<string, string> = {
   impact: "Impact",
   epics: "Epics",
   sequence: "Sequence",
+  walkthrough: "Walkthrough",
 };
 
-function typeLabelFor(layer: string): string {
+function typeLabelFor(layer: string, customTypes: DiagramTypeSummary[]): string {
   if (TYPE_LABELS[layer]) return TYPE_LABELS[layer];
   if (layer.startsWith("epics/")) return "Epics";
-  return "Custom";
+  if (layer.startsWith("feature-plan/")) return "Feature plan";
+  if (layer.startsWith(DECISION_LAYER_PREFIX)) return "Decision";
+  return customTypes.find((type) => `custom/${type.id}` === layer)?.title ?? "Custom";
 }
 
 /** Name, short type label and box count of one diagram layer, for list rows and frame headers. */
@@ -55,10 +65,18 @@ export function diagramDisplayName(
   doc: CanvasDoc,
   customTypes: DiagramTypeSummary[] = [],
 ): DiagramDisplay {
-  const boxCount = Object.values(doc.elements).filter(
-    (element) =>
-      element.layer === layer &&
-      !["group", "note"].includes(BLOCK_RULES[element.render]?.renderer ?? ""),
-  ).length;
-  return { name: labelForDiagramLayer(layer, customTypes, doc), typeLabel: typeLabelFor(layer), boxCount };
+  // One pass over the doc for both the box count and the first authored title.
+  let boxCount = 0;
+  let title: string | undefined;
+  for (const element of Object.values(doc.elements)) {
+    if (element.layer !== layer) continue;
+    if (!["group", "note"].includes(BLOCK_RULES[element.render]?.renderer ?? "")) boxCount += 1;
+    title ??= stringMeta(element, DIAGRAM_TITLE_META)?.trim() || undefined;
+  }
+  return {
+    name: title ?? labelForDiagramLayer(layer, customTypes, doc),
+    typeLabel: typeLabelFor(layer, customTypes),
+    boxCount,
+    titled: title !== undefined,
+  };
 }

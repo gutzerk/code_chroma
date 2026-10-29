@@ -10,9 +10,12 @@ import { openOrigin } from "../openOrigin";
 import { CanvasNodeBox } from "./CanvasNodeBox";
 import { ConcurrencyIslandArea } from "./ConcurrencyIslandArea";
 import { DiagramFrame } from "./DiagramFrame";
+import { WalkthroughPanel } from "./WalkthroughPanel";
+import { WALKTHROUGH_LAYER } from "./walkthroughLayout";
 import { diagramDisplayName } from "./diagramDisplay";
-import { isDiagramLayer, labelForDiagramLayer, useCustomDiagramTypes } from "./diagramCatalog";
+import { isDiagramLayer, useCustomDiagramTypes } from "./diagramCatalog";
 import { BLOCK_RULES } from "./elementRules";
+import { layerFitNameSizes, useFontRevision } from "./measureBoxSize";
 import { elementRect } from "./elementRect";
 import { leadingOrderDigits, orderMeta, stringMeta } from "./elementMeta";
 import { GroupFrame } from "./GroupFrame";
@@ -150,6 +153,14 @@ export function CanvasDocView() {
     [renderableElements],
   );
 
+  const fontRevision = useFontRevision();
+  // One zoomed-out name size per diagram, so short and long names in the same diagram read at the same size.
+  const fitNameSizes = useMemo(
+    () => layerFitNameSizes(visibleElements.filter((element) => BLOCK_RULES[element.render].renderer === "node-box")),
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- fontRevision is the change signal for the measured widths
+    [visibleElements, fontRevision],
+  );
+
   // Real rendered box sizes, once each box's own ResizeObserver reports one — see CanvasEdges'
   // `sizes` prop and CanvasNodeBox's `onMeasure` for why routing needs this instead of `element.size`.
   const { sizes: measuredSizes, observe } = useMeasuredSizes();
@@ -164,7 +175,7 @@ export function CanvasDocView() {
   // minHeight + overflow), an over-reserving box leaves an empty dark band below. Re-fit the box to
   // its measured content height and persist the corrected size/position.
   useReflowEpics(engineClient, doc, contentSizes);
-  useReflowSequence(engineClient, doc);
+  useReflowSequence(engineClient, doc, loaded);
 
   const dragOffsets = useLiveDragOffsets();
 
@@ -207,7 +218,7 @@ export function CanvasDocView() {
   // same layer-scoping `memberIdsByLayer` gives `DiagramFrame`. A digit run with only one member is
   // dropped (keepSingletons=false): a lone numbered step has nothing to be concurrent with.
   const laneBuckets = useMemo(
-    () => bucketPerLayer(Object.values(renderableElements), (el) => (el.layer === "walkthrough" ? undefined : stringMeta(el, "lane")), true),
+    () => bucketPerLayer(Object.values(renderableElements), (el) => (el.layer === WALKTHROUGH_LAYER ? undefined : stringMeta(el, "lane")), true),
     [renderableElements],
   );
 
@@ -247,12 +258,12 @@ export function CanvasDocView() {
     return map;
   }, [renderableElements]);
 
-  // 022: the Readable/Focus geometry is derived here for display only, never persisted to the doc.
+  // A4: expanded-step geometry is derived here for display only, never persisted to the doc.
   const sequenceViewVersion = useSyncExternalStore(sequenceViewStore.subscribe, sequenceViewStore.getLayoutVersion);
   const viewElements = useMemo(
     () =>
       runDisplayStages(VIEW_STAGES, visibleDoc.elements, {
-        sequence: { doc: visibleDoc, idsByLayer: sequenceMemberIdsByLayer, viewFor: (layer, count) => sequenceViewStore.get(layer, count) },
+        sequence: { doc: visibleDoc, idsByLayer: sequenceMemberIdsByLayer, viewFor: (layer) => sequenceViewStore.get(layer) },
       }),
     // eslint-disable-next-line react-hooks/exhaustive-deps -- sequenceViewVersion is the store's change signal
     [visibleDoc, sequenceMemberIdsByLayer, sequenceViewVersion],
@@ -261,7 +272,8 @@ export function CanvasDocView() {
   const concurrencyBuckets = useMemo(
     () =>
       bucketPerLayer(
-        Object.values(renderableElements),
+        // A sequence board draws "2a"/"2b" as their own step columns, never as a concurrency island.
+        Object.values(renderableElements).filter((el) => el.render !== "sequence"),
         (el) => leadingOrderDigits(orderMeta(el)),
         false,
       ),
@@ -303,7 +315,7 @@ export function CanvasDocView() {
               <DiagramFrame
                 key={`diagram-${layer}`}
                 layer={layer}
-                label={labelForDiagramLayer(layer, customTypes)}
+                label={display.name}
                 typeLabel={display.typeLabel}
                 boxCount={display.boxCount}
                 members={resolveMembers(memberIds, viewElements)}
@@ -311,6 +323,13 @@ export function CanvasDocView() {
               />
             );
           })}
+          {memberIdsByLayer.has(WALKTHROUGH_LAYER) && (
+            <WalkthroughPanel
+              layer={WALKTHROUGH_LAYER}
+              members={resolveMembers(memberIdsByLayer.get(WALKTHROUGH_LAYER) ?? [], viewElements)}
+              sizes={measuredSizes}
+            />
+          )}
           {laneBuckets.map(({ layer, value, ids }) => (
             <LaneArea
               key={`lane-${layer}-${value}`}
@@ -361,7 +380,14 @@ export function CanvasDocView() {
                 // never here as individual boxes.
                 return null;
               default:
-                return <CanvasNodeBox key={element.id} element={element} onMeasure={observe} />;
+                return (
+                  <CanvasNodeBox
+                    key={element.id}
+                    element={element}
+                    onMeasure={observe}
+                    fitNameSize={fitNameSizes.get(element.layer)}
+                  />
+                );
             }
           })}
         </>

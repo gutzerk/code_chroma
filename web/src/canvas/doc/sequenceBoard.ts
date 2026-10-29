@@ -28,7 +28,8 @@ export const SEQUENCE_BOARD = {
   /** A phase pill narrower than this drops its side rules and shows just the label. */
   soloPillW: 140,
   legendLineH: 28,
-  legendNaturalW: 1500,
+  /** The `.seq-legend` row on one line, browser-measured (e2e/box-size-guard.spec.ts guards it). */
+  legendNaturalW: 1802,
 } as const;
 
 /** What a step box is, which picks its colour: the mockup's legend swatches. */

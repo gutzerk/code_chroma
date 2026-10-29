@@ -107,6 +107,21 @@ describe("buildSequenceBoard", () => {
 
     expect(sequenceBoardBounds(members, [])).toEqual({ left: 500, top: 300, right: 500 + board.width, bottom: 300 + board.height });
   });
+
+  it("reserves every line the legend wraps to on a narrow board", () => {
+    const elements = [
+      participantEl("client"),
+      participantEl("api"),
+      messageEl("m1", "client", "api", "1"),
+      messageEl("m2", "api", "api", "2"),
+      messageEl("m3", "api", "client", "3", { return: true }),
+    ];
+
+    const board = buildSequenceBoard(elements, ["m2"]);
+
+    // Browser-measured (e2e/box-size-guard.spec.ts): at 796 px the legend wraps to three lines.
+    expect([board.width, board.height - board.lanesBottom - SEQUENCE_BOARD.legendGap]).toEqual([796, 3 * SEQUENCE_BOARD.legendLineH]);
+  });
 });
 
 describe("stepTone", () => {

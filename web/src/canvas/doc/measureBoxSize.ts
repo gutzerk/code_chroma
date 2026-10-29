@@ -20,11 +20,19 @@ const WIDTH_CHROME = 22.4 + 2 + 8 + 26;
 const HEIGHT_CHROME = 19.2 + 2;
 // Description block: top hairline + padding-top + margin-top, and the title-wrap gap above it.
 const DESC_CHROME = 1 + 8 + 2.4 + 11.2;
+// Top band (`.canvas-node-top-band`): a plan_kind label row, or only its 2 * 0.3rem padding when it carries just the hidden order badge.
 const TOP_BAND_H = 22;
+const EMPTY_TOP_BAND_H = 9.6;
 const META_ROW_H = 36;
 const FOOT_H = 22;
 
 type Measure = (text: string) => number;
+
+/** The top band's height: a plan_kind label row, padding only for an order (its badge is hidden), else none. */
+function topBandHeight(element: CanvasElement): number {
+  if (stringMeta(element, "plan_kind")) return TOP_BAND_H;
+  return orderMeta(element) ? EMPTY_TOP_BAND_H : 0;
+}
 
 let ctx: CanvasRenderingContext2D | null | undefined;
 const widthCache = new Map<string, number>();
@@ -165,7 +173,7 @@ export function measureBoxSize(element: CanvasElement): { w: number; h: number }
     const lines = Math.min(lineCount(element.description, textWidth, measurer(DESC_FONT)), DESC_CLAMP);
     h += DESC_CHROME + lines * DESC_LINE;
   }
-  if (orderMeta(element) || stringMeta(element, "plan_kind")) h += TOP_BAND_H;
+  h += topBandHeight(element);
   if (blockRoleFor(element) || stringMeta(element, "kind") || stringMeta(element, "status") || stringMeta(element, "no_code_reason")) {
     h += META_ROW_H;
   }
@@ -202,7 +210,7 @@ function roleBoxHeight(element: CanvasElement, w: number): number {
   if (element.node_id) rows.push(ROLE_MEMBERS_ROW);
   let h = ROLE_PAD + (element.node_id ? ROLE_SRC_PAD : ROLE_PAD) + ROLE_BORDER;
   h += rows.reduce((sum, row) => sum + row, 0) + ROLE_ROW_GAP * (rows.length - 1);
-  if (orderMeta(element) || stringMeta(element, "plan_kind")) h += TOP_BAND_H;
+  h += topBandHeight(element);
   return Math.ceil(Math.max(h, DEFAULT_ELEMENT_SIZE.h));
 }
 

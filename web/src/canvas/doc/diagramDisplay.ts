@@ -7,10 +7,10 @@ import { groupColorIndex } from "./groupColor";
 export const DIAGRAM_HASHED_COLORS = ["#f43f5e", "#06b6d4", "#a3e635", "#fde047", "#818cf8", "#e879f9"] as const;
 
 /** Builtin layers that own a named token colour (styles.css `canvas-diagram-frame-<name>`). */
-const TOKEN_LAYERS = new Set(["system-context", "patterns", "impact", "epics"]);
+const TOKEN_LAYERS = new Set(["system-context", "patterns", "impact", "epics", "walkthrough"]);
 
 /** The colour token a layer reads when it is not named after the layer (System context keeps `--c1`). */
-const TOKEN_VARS: Record<string, string> = { "system-context": "c1" };
+const TOKEN_VARS: Record<string, string> = { "system-context": "c1", walkthrough: "route-ok" };
 
 export interface DiagramAccent {
   /** The frame's CSS class (`canvas-diagram-frame-<name>` or `canvas-diagram-frame-color-<n>`). */
@@ -41,6 +41,7 @@ const TYPE_LABELS: Record<string, string> = {
   impact: "Impact",
   epics: "Epics",
   sequence: "Sequence",
+  walkthrough: "Walkthrough",
 };
 
 function typeLabelFor(layer: string): string {

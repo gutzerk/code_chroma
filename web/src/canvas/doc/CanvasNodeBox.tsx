@@ -32,6 +32,7 @@ import { useNodeOverlays } from "../../state/useSidecar";
 import { authoredStyle } from "../authoredStyle";
 import { BOTTOM_LEFT_RENDERS, DEFAULT_ELEMENT_SIZE } from "./elementRect";
 import { routeStepOf } from "./routeStep";
+import { walkthroughBoxText } from "./walkthroughBox";
 import { RouteStepExtras } from "./RouteStepExtras";
 
 function styleFor(render: CanvasElement["render"]) {
@@ -119,6 +120,7 @@ export function CanvasNodeBox({ element, onMeasure }: CanvasNodeBoxProps) {
   const accent = accentFor(element);
   const blockRole = isEpicsLayerName(element.layer) ? undefined : blockRoleFor(element);
   const routeStep = routeStepOf(element);
+  const walkthrough = walkthroughBoxText(element, routeStep);
   const width = element.size?.w ?? DEFAULT_ELEMENT_SIZE.w;
   const height = element.size?.h ?? DEFAULT_ELEMENT_SIZE.h;
   // A content card (Summary prose / Acceptance list / Спеки stories) auto-fits to its text; an epic
@@ -337,6 +339,7 @@ export function CanvasNodeBox({ element, onMeasure }: CanvasNodeBoxProps) {
     // see the `isSpecsCard` description branch below.
     isSpecsCard ? "diagram-node-box--specs" : "",
     routeStep ? `route-step route-step--${routeStep.kind}` : "",
+    walkthrough?.variant ? `walkthrough-box--${walkthrough.variant}` : "",
   ]
     .filter(Boolean)
     .join(" ");
@@ -424,11 +427,17 @@ export function CanvasNodeBox({ element, onMeasure }: CanvasNodeBoxProps) {
               stacking. */}
           <div className={style.titleWrapClass}>
             <NodeMetaRow element={element} count={impactCount} changed={Boolean(impactChange)} />
+            {walkthrough?.kicker && <span className="walkthrough-box-kicker">{walkthrough.kicker}</span>}
             <div className={style.titleRowClass}>
               {accent.icon}
               <span className={style.nameClass} title={element.label}>
-                {element.label}
+                {walkthrough?.name ?? element.label}
               </span>
+              {walkthrough?.tag && (
+                <span className={`walkthrough-box-tag walkthrough-box-tag--${walkthrough.tag.toLowerCase()}`} data-testid="walkthrough-box-tag">
+                  {walkthrough.tag}
+                </span>
+              )}
               {isImpact && <NodeChangeBadge change={impactChange} />}
             </div>
             {style.descClass && element.description && isSpecsCard && (

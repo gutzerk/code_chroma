@@ -10,6 +10,8 @@ import { openOrigin } from "../openOrigin";
 import { CanvasNodeBox } from "./CanvasNodeBox";
 import { ConcurrencyIslandArea } from "./ConcurrencyIslandArea";
 import { DiagramFrame } from "./DiagramFrame";
+import { WalkthroughPanel } from "./WalkthroughPanel";
+import { WALKTHROUGH_LAYER } from "./walkthroughLayout";
 import { diagramDisplayName } from "./diagramDisplay";
 import { isDiagramLayer, labelForDiagramLayer, useCustomDiagramTypes } from "./diagramCatalog";
 import { BLOCK_RULES } from "./elementRules";
@@ -207,7 +209,7 @@ export function CanvasDocView() {
   // same layer-scoping `memberIdsByLayer` gives `DiagramFrame`. A digit run with only one member is
   // dropped (keepSingletons=false): a lone numbered step has nothing to be concurrent with.
   const laneBuckets = useMemo(
-    () => bucketPerLayer(Object.values(renderableElements), (el) => (el.layer === "walkthrough" ? undefined : stringMeta(el, "lane")), true),
+    () => bucketPerLayer(Object.values(renderableElements), (el) => (el.layer === WALKTHROUGH_LAYER ? undefined : stringMeta(el, "lane")), true),
     [renderableElements],
   );
 
@@ -311,6 +313,16 @@ export function CanvasDocView() {
               />
             );
           })}
+          {[...memberIdsByLayer.entries()]
+            .filter(([layer]) => layer === WALKTHROUGH_LAYER)
+            .map(([layer, memberIds]) => (
+              <WalkthroughPanel
+                key={`walkthrough-panel-${layer}`}
+                layer={layer}
+                members={resolveMembers(memberIds, viewElements)}
+                sizes={measuredSizes}
+              />
+            ))}
           {laneBuckets.map(({ layer, value, ids }) => (
             <LaneArea
               key={`lane-${layer}-${value}`}

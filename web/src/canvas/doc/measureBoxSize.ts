@@ -1,6 +1,8 @@
 import type { CanvasElement } from "../../state/types";
 import { DEFAULT_ELEMENT_SIZE } from "./elementRect";
 import { orderMeta, stringMeta } from "./elementMeta";
+import { routeStepOf } from "./routeStep";
+import { walkthroughBoxText } from "./walkthroughBox";
 
 // Render kinds with their own sizing; the layout leaves these to their dedicated code paths.
 const SELF_SIZED = new Set<CanvasElement["render"]>(["epic", "sequence", "group", "note", "question"]);
@@ -78,11 +80,32 @@ function lineCount(text: string, maxWidth: number, measure: Measure): number {
   return Math.max(lines, 1);
 }
 
+// B2 board box metrics (styles.css "026 walkthrough"): name font, horizontal chrome, minimum width and fixed height.
+const WALKTHROUGH_BOXES = {
+  step: { font: '600 12px "JetBrains Mono", monospace', chrome: 26 + 3, minW: 160, h: 40 },
+  trigger: { font: '600 13.5px Inter, "DM Sans", sans-serif', chrome: 36 + 3, minW: 150, h: 56 },
+  failure: { font: '600 12px Inter, "DM Sans", sans-serif', chrome: 20 + 2, minW: 186, h: 28 },
+  other: { font: '600 13.5px Inter, "DM Sans", sans-serif', chrome: 32 + 3, minW: 300, h: 80 },
+} as const;
+const WALKTHROUGH_TAG_W = 34;
+
+/** A walkthrough box's B2 size: one-line name, so only the width follows the text. */
+function walkthroughBoxSize(element: CanvasElement): { w: number; h: number } | null {
+  const step = routeStepOf(element);
+  const text = walkthroughBoxText(element, step);
+  if (!text) return null;
+  const metrics = !step ? WALKTHROUGH_BOXES.other : step.kind === "trigger" ? WALKTHROUGH_BOXES.trigger : step.kind === "failure" ? WALKTHROUGH_BOXES.failure : WALKTHROUGH_BOXES.step;
+  const textW = measurer(metrics.font)(text.name) + (text.tag ? WALKTHROUGH_TAG_W : 0);
+  return { w: Math.ceil(Math.max(metrics.minW, textW + metrics.chrome)), h: metrics.h };
+}
+
 /** Estimated {w,h} for an element's box, or `null` for kinds that size themselves. An authored
  * `element.size` always wins; the measure only fills in for `size == null`. */
 export function measureBoxSize(element: CanvasElement): { w: number; h: number } | null {
   if (SELF_SIZED.has(element.render)) return null;
   if (element.size) return { w: element.size.w, h: element.size.h };
+  const walkthrough = walkthroughBoxSize(element);
+  if (walkthrough) return walkthrough;
   const w = DEFAULT_ELEMENT_SIZE.w;
   const textWidth = Math.max(w - WIDTH_CHROME, 40);
 

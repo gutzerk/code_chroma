@@ -35,7 +35,8 @@ RECIPE_KEY = "recipe_key"
 
 # A diagram kind's own name -> the `render` string its canvas elements carry (a naming convention).
 _RENDER_BY_KIND = {
-    "c1": "c1", "patterns": "pattern", "impact": "impact", "epics": "epic", "sequence": "sequence",
+    "system-context": "c1", "patterns": "pattern", "impact": "impact", "epics": "epic",
+    "sequence": "sequence", "walkthrough": "custom",
 }
 
 # A lazily synthesized "<prefix>/<id>" kind -- extend this, not recipe_for, for a third one.
@@ -156,7 +157,7 @@ def _node_of(item: dict, render: str) -> GraphNode:
     """Copies each shared Node field; `kind`/`icon`/`parent`/`seed` fold into `meta` for accents."""
     own_meta = item.get("meta")
     meta = dict(own_meta) if isinstance(own_meta, dict) else {}
-    for key in ("kind", "icon", "parent", "seed", "order", "lane", "path"):
+    for key in ("kind", "icon", "parent", "seed", "order", "lane", "rank", "path"):
         value = item.get(key)
         if value is not None and (key in ("kind", "icon", "parent", "seed") or key not in meta):
             meta[key] = value

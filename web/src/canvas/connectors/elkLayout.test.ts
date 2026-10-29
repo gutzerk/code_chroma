@@ -80,6 +80,41 @@ describe("computeElkLayout", () => {
     warn.mockRestore();
   });
 
+  it("pins an entry box above and an exit box below the rest", async () => {
+    const nodes = [{ ...box("z"), rank: "exit" }, box("m"), { ...box("a"), rank: "entry" }];
+
+    const { boxes } = await computeElkLayout(nodes, [edge("m", "z"), edge("m", "a")]);
+
+    expect(boxOf(boxes, "a").y).toBeLessThan(boxOf(boxes, "m").y);
+    expect(boxOf(boxes, "m").y).toBeLessThan(boxOf(boxes, "z").y);
+  });
+
+  it("lets authored order beat rank", async () => {
+    const nodes = [{ ...box("a", "2"), rank: "entry" }, { ...box("b", "1"), rank: "exit" }];
+
+    const { boxes } = await computeElkLayout(nodes, []);
+
+    expect(boxOf(boxes, "b").y).toBeLessThan(boxOf(boxes, "a").y);
+  });
+
+  it("ignores an unknown rank", async () => {
+    const plain = await computeElkLayout([box("a"), box("b")], [edge("a", "b")]);
+
+    const hinted = await computeElkLayout([{ ...box("a"), rank: "bogus" }, box("b")], [edge("a", "b")]);
+
+    expect(hinted.boxes).toEqual(plain.boxes);
+  });
+
+  it("does not let a feedback edge push the main chain", async () => {
+    const nodes = [box("a"), box("b"), box("c")];
+    const edges = [edge("a", "b"), edge("b", "c"), { from: "c", to: "a", kind: "feedback" }];
+
+    const { boxes } = await computeElkLayout(nodes, edges);
+
+    expect(boxOf(boxes, "a").y).toBeLessThan(boxOf(boxes, "b").y);
+    expect(boxOf(boxes, "b").y).toBeLessThan(boxOf(boxes, "c").y);
+  });
+
   it("clusters same-lane boxes adjacent within a layer", async () => {
     const nodes = [box("a", undefined, "ops"), box("b"), box("c", undefined, "ops"), box("d")];
     const edges = [edge("a", "d"), edge("b", "d"), edge("c", "d")];

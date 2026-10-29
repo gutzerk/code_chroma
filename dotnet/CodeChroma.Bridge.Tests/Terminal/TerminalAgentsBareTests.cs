@@ -1,3 +1,4 @@
+using System.Text.Json.Nodes;
 using CodeChroma.Bridge.Stores;
 using CodeChroma.Bridge.Terminal;
 
@@ -7,12 +8,26 @@ public sealed class TerminalAgentsBareTests : IDisposable
 {
     private readonly string _dir = Path.Combine(Path.GetTempPath(), "cc-agents-" + Guid.NewGuid().ToString("N")[..8]);
     private readonly TerminalAgents _agents;
+    private readonly ProviderStore _providers;
+    private readonly CallSiteStore _callSites;
 
     public TerminalAgentsBareTests()
     {
         var paths = UserPaths.Under(_dir);
-        var providers = new ProviderStore(paths);
-        _agents = new TerminalAgents(paths, providers, new CallSiteStore(paths, providers));
+        _providers = new ProviderStore(paths);
+        _callSites = new CallSiteStore(paths, _providers);
+        _agents = new TerminalAgents(paths, _providers, _callSites);
+    }
+
+    [Fact]
+    public void An_agent_window_launches_the_model_assigned_to_the_agents_group()
+    {
+        var provider = _providers.Create(new JsonObject { ["label"] = "Claude", ["kind"] = "cli", ["adapter"] = "claude" });
+        _callSites.SaveGroup("agents", new JsonObject { ["provider_id"] = (string)provider["id"]!, ["model"] = "opus" });
+
+        var argv = _agents.Resolve("agent")!.Argv;
+
+        Assert.Equal(["claude", "--model", "opus"], argv.Take(3));
     }
 
     public void Dispose()

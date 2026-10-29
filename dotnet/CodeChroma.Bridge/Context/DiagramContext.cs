@@ -7,7 +7,7 @@ namespace CodeChroma.Bridge.Context;
 public sealed class DiagramContext(ModelStore models)
 {
     /// <summary>The diagram types that get gathered context; impact reads the diff and epics read requirements, so neither does.</summary>
-    public static readonly IReadOnlySet<string> Types = new HashSet<string> { "c1", "patterns", "sequence", "custom" };
+    public static readonly IReadOnlySet<string> Types = new HashSet<string> { "system-context", "patterns", "sequence", "custom" };
 
     /// <summary>The hint of a launch that has not asked the user what to draw yet; it gets the command but no fixed phrases.</summary>
     public const string AnyType = "any";
@@ -20,7 +20,7 @@ public sealed class DiagramContext(ModelStore models)
         var asked = string.IsNullOrWhiteSpace(request) ? null : request.Trim();
         return type switch
         {
-            "c1" => ["system context users and external actors", "third-party services and API integrations", "database and storage", "entry points CLI web server"],
+            "system-context" => ["system context users and external actors", "third-party services and API integrations", "database and storage", "entry points CLI web server"],
             "patterns" => ["design patterns", "factory builder strategy observer adapter decorator", "interfaces and abstract base classes", "registry and dependency injection"],
             _ when asked is not null => [asked],
             _ => ["main request flow and entry points"],

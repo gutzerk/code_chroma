@@ -11,7 +11,7 @@ public static class DiagramCatalog
 {
     public static readonly IReadOnlyList<BuiltinRecipe> BuiltinRecipes = new BuiltinRecipe[]
     {
-        new("c1", "C1", true),
+        new("system-context", "System context", true),
         new("patterns", "Design patterns", true),
         new("impact", "Change impact", true),
         new("epics", "Epics", true),
@@ -19,7 +19,7 @@ public static class DiagramCatalog
     };
 
     public static readonly IReadOnlyList<string> WatchedDiagramEventKinds =
-        new[] { "c1", "epics", "patterns", "impact", "sequence", "custom", "feature-plan" };
+        new[] { "system-context", "epics", "patterns", "impact", "sequence", "custom", "feature-plan" };
 
     private static readonly HashSet<string> NonDiagramLayers = new() { "hierarchy", "default", "questions", "decisions" };
     private const string CanvasOnlyPrefix = "decisions/";

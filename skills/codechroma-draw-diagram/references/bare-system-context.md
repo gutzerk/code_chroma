@@ -1,4 +1,4 @@
-# Draw the C1 (system context) diagram — short rules
+# Draw the System context diagram — short rules
 
 You write ONE JSON file the Code Atlas canvas renders. These rules are complete: do not read other
 skill files. Bridge: `{BRIDGE}` · workspace id: `{WORKSPACE}` · repository root: `{REPO_ROOT}`.
@@ -9,10 +9,11 @@ arrows between them. Nothing is decomposed — no `parent`, no `path`, no `node_
 ## Steps
 
 1. **Context — if the prompt ends with a "Pre-gathered context" section (components picked from the architecture map), read it first; then, in one parallel batch of tool calls:**
+   - `curl -s {BRIDGE}/repos/{WORKSPACE}/system-context/context` — `generation_data.candidates[]` are people/external systems the code already evidences; `staleness.fingerprint` goes verbatim into the file's top-level `"fingerprint"`.
    - `curl -s {BRIDGE}/repos/{WORKSPACE}/context-digest` — who the system serves and what it integrates with (primary source).
    - `curl -s {BRIDGE}/repos/{WORKSPACE}/wiki-general-context` — read only `root` (the system narrative) if `has_wiki_general` is true; ignore `containers[]`.
    - Look for a human context doc: `docs/c1-diagram.md`, `docs/architecture/*context*.md`. Treat anything marked target/aspirational as not current.
-2. **Decide the actors.** Include one only when the digest (or a spot-check:
+2. **Decide the actors.** Every `candidates[]` id must become a node: `meta.confirmed: true` to keep it, `meta.confirmed: false` to reject it (omitting it fails the check with `UNREVIEWED`). Add another only when the digest (or a spot-check:
    `curl -s '{BRIDGE}/repos/{WORKSPACE}/dependency-digest?path=<file>'`) backs it. Do not invent integrations.
 3. **Write** the JSON (shape below) to `{OUTPUT_PATH}` (create the folder if missing). Overwrite whatever is there; never copy a top-level `"draft": true`.
 4. **Self-check:** `{CHECK_COMMAND}` — read the whole report, fix every finding in one edit, rerun once. Never report success without `OK`.
@@ -22,8 +23,9 @@ arrows between them. Nothing is decomposed — no `parent`, no `path`, no `node_
 
 ```json
 {
-  "type": "c1",
+  "type": "system-context",
   "style": "boxes-arrows",
+  "fingerprint": "<verbatim from system-context/context>",
   "nodes": [
     {"id": "system", "name": "Short project name", "description": "What the system is and who it serves.", "kind": "system"},
     {"id": "end-user", "name": "End user", "kind": "person", "description": "How this role uses the system."},

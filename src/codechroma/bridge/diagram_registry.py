@@ -98,10 +98,10 @@ def _never_generates_spec(
 
 def _resolve_c1(ws: Workspace) -> dict:
     """c1 wants coverage (`unmapped`) on top of the shared resolve -- see FR-006."""
-    data = ws.load_diagram("c1")
+    data = ws.load_diagram("system-context")
     if not data:
         return {}
-    resolved = resolve_diagram(ws.engine, {**data, "type": "c1"})
+    resolved = resolve_diagram(ws.engine, {**data, "type": "system-context"})
     return attach_coverage(resolved, ws.engine)
 
 
@@ -121,6 +121,18 @@ def _resolve_sequence(ws: Workspace) -> dict:
     # A participant may message itself, so the sequence style applies even when the file omits it.
     resolved = resolve_diagram(
         ws.engine, {**data, "type": "sequence"}, style_source=data.get("style") or "sequence"
+    )
+    resolved["has_diagram"] = bool(data)
+    return resolved
+
+
+def _resolve_walkthrough(ws: Workspace) -> dict:
+    """Walkthrough resolves from the authored walkthrough.json; its `route` passes through."""
+    data = ws.load_diagram("walkthrough")
+    if not data:
+        return {}
+    resolved = resolve_diagram(
+        ws.engine, {**data, "type": "walkthrough"}, style_source="boxes-arrows"
     )
     resolved["has_diagram"] = bool(data)
     return resolved
@@ -281,16 +293,16 @@ class DiagramSpec:
     supports_only_if_missing: bool
     # A kind needing a per-sponsor prompt (impact's diff/plan slice) names its builder here.
     prompt_for: Callable[[str, str | None], str] | None = None
-    # Has a generate/status/cancel/output trio; only "c1" does now (016 Stage 6).
+    # Has a generate/status/cancel/output trio; only "system-context" does now (016 Stage 6).
     has_generate: bool = True
 
 
 DIAGRAMS: DiagramRegistry = DiagramRegistry({
-    "c1": DiagramSpec(
-        kind="c1",
-        agent_factory=lambda: build_skill_agent_for(BUILTIN_TYPES["c1"]),
+    "system-context": DiagramSpec(
+        kind="system-context",
+        agent_factory=lambda: build_skill_agent_for(BUILTIN_TYPES["system-context"]),
         root_for=lambda ws: ws.c1_root,
-        artifact_path=lambda root: root / BUILTIN_TYPES["c1"].artifact,
+        artifact_path=lambda root: root / BUILTIN_TYPES["system-context"].artifact,
         resolve=_resolve_c1,
         sync_before_resolve=False,
         has_bootstrap=True,
@@ -366,6 +378,21 @@ DIAGRAMS: DiagramRegistry = DiagramRegistry({
         # Sequence resolves through the shared resolver (flat nodes[]/relations[] are participants/
         # messages) — it never re-derives from the live graph, only from the authored file.
         resolve=_resolve_sequence,
+        sync_before_resolve=False,
+        has_generate=False,
+        has_bootstrap=False,
+        bootstrap_context=None,
+        generate=None,
+        provider_from_env=None,
+        supports_only_if_missing=False,
+    ),
+    "walkthrough": DiagramSpec(
+        kind="walkthrough",
+        # Like sequence: a skill writes walkthrough.json; nothing is re-derived from the live graph.
+        agent_factory=lambda: build_skill_agent_for(BUILTIN_TYPES["walkthrough"]),
+        root_for=lambda ws: ws.root,
+        artifact_path=lambda root: root / BUILTIN_TYPES["walkthrough"].artifact,
+        resolve=_resolve_walkthrough,
         sync_before_resolve=False,
         has_generate=False,
         has_bootstrap=False,

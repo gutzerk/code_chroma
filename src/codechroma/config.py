@@ -94,7 +94,7 @@ class SkillAgentTimeoutsConfig(_Config):
     model: str = "haiku"
     default_timeout_seconds: int = 600
     timeout_seconds: dict[str, int] = {
-        "c1": 600,
+        "system-context": 600,
         "patterns": 600,
         "impact-changes": 300,
         "epic-brief": 300,

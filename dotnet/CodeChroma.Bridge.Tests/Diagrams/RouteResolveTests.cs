@@ -114,7 +114,7 @@ public class RouteResolveTests
         notes.AdviseRelations(relations, "feature-plan");
         var plain = notes.Count;
         var structural = new Diagnostics();
-        structural.AdviseRelations(relations, "c1");
+        structural.AdviseRelations(relations, "system-context");
 
         Assert.Equal(1, plain);
         Assert.Equal(0, structural.Count);

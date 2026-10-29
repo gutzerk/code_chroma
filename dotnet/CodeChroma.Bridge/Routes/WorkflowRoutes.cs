@@ -20,6 +20,21 @@ public sealed class WorkflowRunners(SkillAgents agents, IServer server, AgentMan
     public WorkflowRunner For(Workspace ws) =>
         _runners.GetOrAdd(ws.Id, _ => new WorkflowRunner(ws.Root, agents["workflow-step"], ws.Emit, null, agents["workflow-chat"], runId => McpUrl(ws.Id, runId), reserveCleanup: agentManager.ReserveRunCleanup, sharedWorkflowsDir: paths.Workflows));
 
+    /// <summary>The workspace root that owns a run (its worktree lives under it), or null when no loaded workspace knows the run.</summary>
+    public string? RootOfRun(string runId)
+    {
+        foreach (var runner in _runners.Values)
+        {
+            try
+            {
+                runner.Get(runId);
+                return runner.RepoRoot;
+            }
+            catch (BridgeException) { }
+        }
+        return null;
+    }
+
     /// <summary>Where the run agent's CLI reaches this bridge's per-run MCP endpoint, or null before the server is listening.</summary>
     private string? McpUrl(string repoId, string runId)
     {

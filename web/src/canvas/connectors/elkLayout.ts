@@ -4,7 +4,7 @@ import { leadingOrderDigits } from "../doc/elementMeta";
 import { isFailureLane } from "./laneKind";
 import type { LayoutBoxSpec, PositionedBox } from "./diagramLayout";
 
-/** Directed edge shape `layoutBoxes()` accepts; `kind` is accepted for parity but never affects layout. */
+/** Directed edge shape `layoutBoxes()` accepts; a `feedback`/`return` `kind` gets ELK feedback-edge treatment. */
 export interface LayoutEdge {
   from: string;
   to: string;
@@ -75,6 +75,14 @@ function orderedLanes(nodes: readonly LayoutBoxSpec[]): Map<string, number> {
   return new Map(names.map((name, index) => [name, index]));
 }
 
+/** ELK layer constraint for a box's `rank` hint; unknown values and boxes with an authored `order` get none. */
+function layerConstraintOf(node: LayoutBoxSpec): "FIRST" | "LAST" | undefined {
+  if (parseOrderRank(node.order) !== undefined) return undefined;
+  if (node.rank === "entry") return "FIRST";
+  if (node.rank === "exit") return "LAST";
+  return undefined;
+}
+
 /** Lays boxes out with ELK's layered algorithm: a one-directional edge puts its source above its target, `order` pins layers via ordering edges, `lane` clusters via input order. */
 export async function computeElkLayout(
   nodes: readonly LayoutBoxSpec[],
@@ -92,7 +100,8 @@ export async function computeElkLayout(
       seen.add(key);
       return true;
     })
-    .map((edge, index) => ({ id: `e${index}`, sources: [edge.from], targets: [edge.to] }));
+    .map((edge, index) => ({ id: `e${index}`, sources: [edge.from], targets: [edge.to], kind: edge.kind }));
+  const hasFeedback = elkEdges.some((edge) => edge.kind === "feedback" || edge.kind === "return");
 
   // 022: fully-laned boxes lay out RIGHT, one band per lane (first-seen order); otherwise DOWN.
   const laneIndex = orderedLanes(nodes);
@@ -111,16 +120,23 @@ export async function computeElkLayout(
       "elk.spacing.componentComponent": String(ELK_NODE_SEP),
       "elk.separateConnectedComponents": "true",
       "elk.aspectRatio": "1.6",
+      ...(hasFeedback ? { "elk.layered.feedbackEdges": "true" } : {}),
     },
-    children: clusterByLane(nodes).map((node) => ({
-      id: node.id,
-      width: node.width,
-      height: node.height,
-      ...(hasLanes
-        ? { layoutOptions: { "elk.partitioning.partition": String(laneIndex.get(node.lane ?? "") ?? 0) } }
-        : {}),
-    })),
-    edges: elkEdges,
+    children: clusterByLane(nodes).map((node) => {
+      const options: Record<string, string> = {};
+      if (hasLanes) options["elk.partitioning.partition"] = String(laneIndex.get(node.lane ?? "") ?? 0);
+      else {
+        const constraint = layerConstraintOf(node);
+        if (constraint) options["elk.layered.layering.layerConstraint"] = constraint;
+      }
+      return {
+        id: node.id,
+        width: node.width,
+        height: node.height,
+        ...(Object.keys(options).length > 0 ? { layoutOptions: options } : {}),
+      };
+    }),
+    edges: elkEdges.map(({ id, sources, targets }) => ({ id, sources, targets })),
   };
 
   const laidOut = await elk.layout(graph);

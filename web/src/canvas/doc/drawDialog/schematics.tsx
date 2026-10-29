@@ -35,7 +35,7 @@ export const SCHEMATICS: Record<string, ReactNode> = {
       <path d="M80 9L82 14L87 16L82 18L80 23L78 18L73 16L78 14Z" fill={ROLE.planned} />
     </Svg>
   ),
-  c1: (
+  "system-context": (
     <Svg>
       <circle cx="22" cy="28" r="6" stroke={ROLE.actor} strokeWidth="1.5" />
       <path d="M12 50Q22 34 32 50" stroke={ROLE.actor} strokeWidth="1.5" />
@@ -100,6 +100,24 @@ export const SCHEMATICS: Record<string, ReactNode> = {
       <ellipse cx="134" cy="24" rx="16" ry="5" stroke={ROLE.data} strokeWidth="1.5" />
       <path d="M118 24V54A16 5 0 0 0 150 54V24" stroke={ROLE.data} strokeWidth="1.5" />
       <path d="M44 40H64M58 37L64 40L58 43M96 40H116M110 37L116 40L110 43" stroke={ROLE.arrow} strokeWidth="1.4" />
+    </Svg>
+  ),
+  walkthrough: (
+    <Svg>
+      <rect x="10" y="52" width="40" height="16" rx="3" stroke="currentColor" strokeWidth="1.2" opacity="0.4" />
+      <rect x="60" y="52" width="40" height="16" rx="3" stroke="currentColor" strokeWidth="1.2" opacity="0.4" />
+      <rect x="110" y="52" width="40" height="16" rx="3" stroke="currentColor" strokeWidth="1.2" opacity="0.4" />
+      <path d="M30 34V52M80 34V52M130 34V52" stroke={ROLE.planned} strokeWidth="1.2" strokeDasharray="2 3" />
+      <rect x="10" y="12" width="40" height="22" rx="4" stroke={ROLE.planned} strokeWidth="1.6" fill={ROLE.plannedFill} />
+      <rect x="60" y="12" width="40" height="22" rx="4" stroke={ROLE.pattern} strokeWidth="1.6" />
+      <rect x="110" y="12" width="40" height="22" rx="4" stroke={ROLE.planned} strokeWidth="1.6" fill={ROLE.plannedFill} />
+      <path d="M50 23H60M56 20L60 23L56 26M100 23H110M106 20L110 23L106 26" stroke={ROLE.planned} strokeWidth="1.6" />
+      <circle cx="10" cy="12" r="6.5" fill={ROLE.planned} />
+      <circle cx="60" cy="12" r="6.5" fill={ROLE.pattern} />
+      <circle cx="110" cy="12" r="6.5" fill={ROLE.planned} />
+      <text x="10" y="12" textAnchor="middle" dominantBaseline="central" fontSize="8" fontWeight="700" fill="#10231A">1</text>
+      <text x="60" y="12" textAnchor="middle" dominantBaseline="central" fontSize="8" fontWeight="700" fill="#10231A">2</text>
+      <text x="110" y="12" textAnchor="middle" dominantBaseline="central" fontSize="8" fontWeight="700" fill="#10231A">&#10003;</text>
     </Svg>
   ),
   layers: (

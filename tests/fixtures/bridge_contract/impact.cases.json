@@ -174,7 +174,7 @@
       "id": "a_kind_without_a_review_axis_has_no_review_flow",
       "requires": ["real-engine"],
       "steps": [
-        {"http": {"method": "GET", "path": "/repos/main/c1/review"}, "expect": {"status": 404}}
+        {"http": {"method": "GET", "path": "/repos/main/system-context/review"}, "expect": {"status": 404}}
       ]
     }
   ]

@@ -15,7 +15,7 @@ function clientAccepting(onAcceptDiff: (nodeId: string) => Promise<void>): Engin
     getConnections: async () => [],
     getDiff: async () => [],
     acceptDiff: onAcceptDiff,
-    getDiagram: diagramStub({ c1: ({ nodes: [], relations: [] }) }),
+    getDiagram: diagramStub({ "system-context": ({ nodes: [], relations: [] }) }),
     getDiagramLayout: async () => ({}),
     saveDiagramLayout: async () => {},
     generateDiagram: async () => ({ state: "idle" }),

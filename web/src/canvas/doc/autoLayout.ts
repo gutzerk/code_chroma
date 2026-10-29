@@ -2,6 +2,7 @@ import { layoutBoxes } from "../connectors/diagramLayout";
 import type { CanvasDoc, CanvasElement, CanvasPosition, CanvasSize } from "../../state/types";
 import { orderMeta, rawMeta, stringMeta } from "./elementMeta";
 import { isEpicsLayer, layoutEpics } from "./epicsLayout";
+import { measureBoxSize } from "./measureBoxSize";
 import { placeIncrementally } from "./incrementalLayout";
 import { buildSequenceModel } from "./sequenceModel";
 import type { SequenceView } from "./sequenceViewStore";
@@ -45,16 +46,32 @@ export async function layoutNewElements(
   const nonSequenceIds = newIds.filter((id) => doc.elements[id]?.render !== "sequence");
   const sequenceLayout = layoutSequence(doc, sequenceIds);
 
-  const sizeOf = (element: CanvasElement) => ({
-    width: element.size?.w ?? DEFAULT_SIZE.width,
-    height: element.size?.h ?? DEFAULT_SIZE.height,
-  });
+  // Authored size wins, else the text-measured estimate, else the flat default (self-sized kinds).
+  const sizeOf = (element: CanvasElement) => {
+    const measured = measureBoxSize(element);
+    return {
+      width: measured?.w ?? DEFAULT_SIZE.width,
+      height: measured?.h ?? DEFAULT_SIZE.height,
+    };
+  };
+  // Measured sizes for the new boxes with no authored size, persisted so the renderer matches ELK.
+  const measuredSizes = (ids: readonly string[]): Record<string, CanvasSize> => {
+    const out: Record<string, CanvasSize> = {};
+    for (const id of ids) {
+      const element = doc.elements[id];
+      if (!element || element.size) continue;
+      const measured = measureBoxSize(element);
+      if (measured) out[id] = measured;
+    }
+    return out;
+  };
   const specOf = (element: CanvasElement) => ({
     id: element.id,
     ...sizeOf(element),
     order: orderMeta(element),
     lane: stringMeta(element, "lane"),
     laneKind: stringMeta(element, "lane_kind"),
+    rank: stringMeta(element, "rank"),
   });
 
   const nodes = nonSequenceIds
@@ -118,7 +135,10 @@ export async function layoutNewElements(
       edges: Object.values(doc.edges).filter((edge) => inGraph.has(edge.from) && inGraph.has(edge.to)),
       obstacles,
     });
-    return { positions: { ...positions, ...sequenceLayout.positions }, sizes: sequenceLayout.sizes };
+    return {
+      positions: { ...positions, ...sequenceLayout.positions },
+      sizes: { ...measuredSizes(nonSequenceIds), ...sequenceLayout.sizes },
+    };
   }
 
   const edges = Object.values(doc.edges)
@@ -136,7 +156,7 @@ export async function layoutNewElements(
   // above (layoutSequence returns an empty sizes map when there are no sequence ids).
   return {
     positions: { ...positions, ...sequenceLayout.positions },
-    sizes: sequenceLayout.sizes,
+    sizes: { ...measuredSizes(nonSequenceIds), ...sequenceLayout.sizes },
   };
 }
 

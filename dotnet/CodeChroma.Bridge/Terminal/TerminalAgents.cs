@@ -60,7 +60,7 @@ public sealed class TerminalAgents(UserPaths paths, ProviderStore providers, Cal
             var resolution = ResolveProviderCli(AgentCallSite);
             var isClaude = resolution.AdapterKey == "claude" && (resolution.ProviderAssigned || resolution.Binary == DefaultCli);
             var mcp = EndpointFor(agentId, bridgeUrl, isClaude, bare);
-            var argv = Argv(resolution.Binary, isClaude, resolution.AdapterKey, resumeSessionId, initialPrompt, bare, visiblePrompt, mcp);
+            var argv = Argv(resolution.Binary, isClaude, resolution.AdapterKey, resumeSessionId, initialPrompt, bare, visiblePrompt, mcp, ModelArgs(resolution));
             return OwnedLaunch(argv, WithEnv(resolution.Env, mcp), isClaude, resumeSessionId, forkSession, newSessionId, sessionTrackingFile, mcp is not null);
         }
         if (!Allowed.TryGetValue(agent, out var entry)) return null;
@@ -117,30 +117,35 @@ public sealed class TerminalAgents(UserPaths paths, ProviderStore providers, Cal
     /// <summary>The label persisted on AgentRecord.ResolvedCli: only `agent` windows report one.</summary>
     public static string ResolvedCliFor(string kind, IReadOnlyList<string> argv) => kind == "agent" ? argv[0] : "";
 
-    private sealed record CliResolution(string AdapterKey, string Binary, Dictionary<string, string> Env, bool ProviderAssigned);
+    private sealed record CliResolution(string AdapterKey, string Binary, string Model, Dictionary<string, string> Env, bool ProviderAssigned);
+
+    /// <summary>`--model` for the chosen model; omitted when none is set or ANTHROPIC_MODEL already carries it.</summary>
+    private static string[] ModelArgs(CliResolution cli) =>
+        cli.Model.Length == 0 || cli.Env.ContainsKey("ANTHROPIC_MODEL") ? [] : ["--model", cli.Model];
 
     /// <summary>The shared CliResolver, as the Python agent window shares resolve_cli: overrides, the default, and anthropic API providers.</summary>
     private CliResolution ResolveProviderCli(string callSiteId)
     {
         var resolved = new Skills.CliResolver(paths, providers, callSites).Resolve(callSiteId, "");
-        return new CliResolution(resolved.AdapterKey, resolved.Binary, new Dictionary<string, string>(resolved.EnvOverrides), resolved.ProviderAssigned);
+        return new CliResolution(resolved.AdapterKey, resolved.Binary, resolved.Model, new Dictionary<string, string>(resolved.EnvOverrides), resolved.ProviderAssigned);
     }
 
     /// <summary>The argv of an agent window; a bare one gets the prompt first and the CLI's ambient context stripped (no plugin, settings, MCP or slash commands), keeping the session file so Resume works.</summary>
-    private string[] Argv(string binary, bool isClaude, string adapterKey, string? resumeSessionId, string? initialPrompt, bool bare, string? visiblePrompt, McpEndpoint? mcp = null)
+    private string[] Argv(string binary, bool isClaude, string adapterKey, string? resumeSessionId, string? initialPrompt, bool bare, string? visiblePrompt, McpEndpoint? mcp = null, string[]? modelArgs = null)
     {
         var bareArgs = bare && string.IsNullOrEmpty(resumeSessionId) && CliAdapters.All.TryGetValue(adapterKey, out var adapter)
             ? adapter.BareArgs(CliAdapters.DefaultBareTools).Where(a => a != "--no-session-persistence").ToArray()
             : [];
+        var model = modelArgs ?? [];
         var promptAt = Array.IndexOf(bareArgs, "--system-prompt");
         if (bareArgs.Length > 0 && visiblePrompt is not null && !string.IsNullOrEmpty(initialPrompt) && promptAt >= 0 && promptAt + 1 < bareArgs.Length)
         {
             // The long skill rides in the system prompt so the window shows only the short visible message (none when empty: the CLI waits for the user).
             bareArgs[promptAt + 1] = initialPrompt;
-            return [binary, .. ResumePrompt(null, visiblePrompt), .. bareArgs];
+            return [binary, .. model, .. ResumePrompt(null, visiblePrompt), .. bareArgs];
         }
-        if (bareArgs.Length > 0) return [binary, .. ResumePrompt(null, initialPrompt), .. bareArgs];
-        return [binary, .. InstructionArgs(isClaude), .. McpArgs(mcp), .. PluginArgs(isClaude), .. ResumePrompt(resumeSessionId, initialPrompt)];
+        if (bareArgs.Length > 0) return [binary, .. model, .. ResumePrompt(null, initialPrompt), .. bareArgs];
+        return [binary, .. model, .. InstructionArgs(isClaude), .. McpArgs(mcp), .. PluginArgs(isClaude), .. ResumePrompt(resumeSessionId, initialPrompt)];
     }
 
     /// <summary>Appends the user's saved agent-window instruction to claude's system prompt; empty when unset.</summary>

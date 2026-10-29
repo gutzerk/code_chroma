@@ -49,7 +49,7 @@ def _flat(node_count, *, relations=None, label="uses"):
 def _markdown_budgets():
     """The budget table in drawing-rules.md, parsed back into the shape `_BUDGETS` has."""
     rows = re.findall(
-        r"^\|\s*(c1|patterns|impact|epics|custom|sequence)\s*\|(.+)\|\s*$",
+        r"^\|\s*(system-context|patterns|impact|epics|custom|sequence|walkthrough)\s*\|(.+)\|\s*$",
         RULES.read_text(encoding="utf-8"),
         re.M,
     )
@@ -419,10 +419,10 @@ def test_uncovered_findings_are_unchanged_by_the_parallel_probe_batch(monkeypatc
     monkeypatch.setattr(module.urllib.request, "urlopen", _fake_urlopen)
     diagram = _c1_with_dir_leaves(4)
     args = argparse.Namespace(
-        url="http://localhost:8000", repo="default", json_path=None, kind="c1"
+        url="http://localhost:8000", repo="default", json_path=None, kind="system-context"
     )
 
-    report = module._inspect_hierarchical(diagram, module._BUILTIN_CHECKS["c1"], args)
+    report = module._inspect_hierarchical(diagram, module._BUILTIN_CHECKS["system-context"], args)
 
     uncovered = sorted(line for line in report.shape if line.startswith("UNCOVERED"))
     assert uncovered == [
@@ -656,6 +656,15 @@ def test_route_problems_are_advisory_only(tmp_path):
         assert code in result.stdout
 
 
+def test_a_route_step_with_a_blank_detail_is_advised(tmp_path):
+    steps = [{"id": "n0", "order": 1, "kind": "trigger", "detail": "  "}]
+
+    result = _run(tmp_path, "custom", _routed(steps))
+
+    assert result.returncode == 0
+    assert "ROUTE-DETAIL" in result.stdout
+
+
 def test_a_route_step_with_an_unhashable_id_is_advised_not_a_crash(tmp_path):
     steps = [{"id": ["n0"], "order": 1, "kind": "ai"}, {"id": {"x": 1}, "order": 2, "kind": "ai"}]
 
@@ -664,3 +673,79 @@ def test_a_route_step_with_an_unhashable_id_is_advised_not_a_crash(tmp_path):
     assert result.returncode == 0
     assert "Traceback" not in result.stderr
     assert "needs a string `id`" in result.stdout
+
+
+def _c1_with_context(monkeypatch, candidate_ids):
+    module = _load_module()
+    context = {"generation_data": {"candidates": [{"id": i} for i in candidate_ids]}}
+    monkeypatch.setattr(module, "_fetch_json", lambda url: context)
+    return module
+
+
+def test_system_context_flags_a_detected_candidate_the_file_never_addresses(monkeypatch):
+    module = _c1_with_context(monkeypatch, ["redis", "stripe"])
+    report = module._Report()
+    by_id = {"redis": {"id": "redis"}}
+    args = argparse.Namespace(url="http://bridge", repo="default")
+
+    module._check_unaddressed_candidates("c1", by_id, report, args)
+
+    assert [line.split()[1] for line in report.shape] == ["'stripe'"]
+
+
+def test_system_context_accepts_a_rejected_candidate_as_addressed(monkeypatch):
+    module = _c1_with_context(monkeypatch, ["redis"])
+    report = module._Report()
+    by_id = {"redis": {"id": "redis", "meta": {"confirmed": False}}}
+    args = argparse.Namespace(url="http://bridge", repo="default")
+
+    module._check_unaddressed_candidates("c1", by_id, report, args)
+
+    assert report.shape == []
+
+
+@pytest.mark.parametrize(("node", "expected"), [
+    ({"rank": "middle"}, "BADRANK"),
+    ({"rank": "entry", "order": "1"}, "RANK-ORDER"),
+    ({"meta": {"rank": "exit", "order": "2"}}, "RANK-ORDER"),
+])
+def test_bad_or_order_shadowed_rank_is_a_soft_advisory(tmp_path, capsys, node, expected):
+    module = _load_module()
+    path = tmp_path / "custom.json"
+    diagram = {"nodes": [{"id": "a", "name": "A", **node}, {"id": "b", "name": "B"}],
+               "relations": [{"id": "r", "from": "a", "to": "b", "label": "go"}]}
+    path.write_text(json.dumps(diagram), encoding="utf-8")
+
+    code = module.main(["--kind", "feature-plan", "--slug", "demo", "--json", str(path)])
+
+    assert expected in capsys.readouterr().out
+    assert code in (0, 3)
+
+
+def test_valid_rank_raises_no_rank_advisory(tmp_path, capsys):
+    module = _load_module()
+    path = tmp_path / "custom.json"
+    diagram = {"nodes": [{"id": "a", "name": "A", "rank": "entry"}, {"id": "b", "name": "B"}],
+               "relations": [{"id": "r", "from": "a", "to": "b", "label": "go"}]}
+    path.write_text(json.dumps(diagram), encoding="utf-8")
+
+    module.main(["--kind", "feature-plan", "--slug", "demo", "--json", str(path)])
+
+    out = capsys.readouterr().out
+    assert "BADRANK" not in out
+    assert "RANK-ORDER" not in out
+
+
+def test_system_context_root_is_never_an_articulation_finding(tmp_path, capsys):
+    module = _load_module()
+    path = tmp_path / "sc.json"
+    names = ["a", "b", "c", "d"]
+    diagram = {"nodes": [{"id": "system", "name": "System"}]
+               + [{"id": n, "name": n.upper(), "parent": "system"} for n in names],
+               "relations": [{"id": f"r{n}", "from": "system", "to": n, "label": "uses"}
+                             for n in names]}
+    path.write_text(json.dumps(diagram), encoding="utf-8")
+
+    module.main(["--kind", "system-context", "--json", str(path)])
+
+    assert "ARTICULATION 'system'" not in capsys.readouterr().out

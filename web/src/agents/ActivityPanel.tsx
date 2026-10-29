@@ -1,8 +1,9 @@
-import { useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
+import { useEffect, useMemo, useRef, useState, type CSSProperties, type PointerEvent } from "react";
 import { useOpenQuestionCount } from "../canvas/doc/question/useOpenAgentQuestions";
 import { QUESTION_STRINGS as S } from "../canvas/doc/question/questionStrings";
 import { useResizableSize } from "../canvas/useResizableSize";
 import { layoutStore, useLayoutState } from "../canvas/layout/layoutStore";
+import { agentsWideWidth } from "../canvas/layout/layoutMetrics";
 import { useAgents, useAgentLaunchError } from "./agentStore";
 import { useActiveWorktreeId } from "./worktreeStore";
 import { DockedAgentPanel } from "./AgentTerminalDock";
@@ -19,6 +20,9 @@ import { usePanelSize } from "./activity/usePanelSize";
 import { useStretchWidth } from "./activity/useStretchWidth";
 import "../canvas/PanelHandle.css";
 import "./ActivityPanel.css";
+
+/** Px short of the full-screen width where a left-edge drag snaps to full (the drag's own slack is added on top). */
+const FULL_SNAP_MARGIN = 120;
 
 /** Floating panel. Terminals stay mounted when tabs or visibility change. */
 export function ActivityPanel({
@@ -52,13 +56,46 @@ export function ActivityPanel({
     edge: "left",
     minWidth: 320,
     maxViewportFraction: 0.7,
+    maxWidthPx: () => {
+      const area = panelRef.current?.closest<HTMLElement>(".canvas-area");
+      return area ? agentsWideWidth(area.clientWidth, leftOpen) - FULL_SNAP_MARGIN : window.innerWidth * 0.7;
+    },
     onExceedMax: () => layoutStore.setAgentsMode("full"),
   });
   const panelSize = usePanelSize(panelRef);
   const collapsed = agentsMode === "collapsed";
   const resizable = agentsMode === "normal";
   const stretchWidth = useStretchWidth(panelRef, isFull, leftOpen);
-  useEffect(() => resetSize(), [agentsMode]); // eslint-disable-line react-hooks/exhaustive-deps
+  const keepSize = useRef(false);
+  const gripStartX = useRef<number | null>(null);
+  useEffect(() => {
+    if (keepSize.current) keepSize.current = false;
+    else resetSize();
+  }, [agentsMode]); // eslint-disable-line react-hooks/exhaustive-deps
+  // Dragging the grip right from full screen leaves it, carrying the dragged width into the normal panel.
+  const gripProps = isFull
+    ? {
+        ...handleProps,
+        onPointerDown: (e: PointerEvent<HTMLElement>) => {
+          gripStartX.current = e.button === 0 ? e.clientX : null;
+          handleProps.onPointerDown(e);
+        },
+        onPointerUp: (e: PointerEvent<HTMLElement>) => {
+          gripStartX.current = null;
+          handleProps.onPointerUp(e);
+        },
+        onPointerCancel: (e: PointerEvent<HTMLElement>) => {
+          gripStartX.current = null;
+          handleProps.onPointerCancel(e);
+        },
+        onPointerMove: (e: PointerEvent<HTMLElement>) => {
+          handleProps.onPointerMove(e);
+          if (e.buttons === 0 || gripStartX.current === null || e.clientX - gripStartX.current < 4) return;
+          keepSize.current = true;
+          layoutStore.setAgentsMode("normal");
+        },
+      }
+    : handleProps;
   let style: CSSProperties | undefined;
   if (resizable && size) style = { width: size.width };
   else if (stretchWidth !== null) style = { width: stretchWidth };
@@ -129,14 +166,14 @@ export function ActivityPanel({
             {isFull ? <HandleChevronRight /> : <HandleChevronLeft />}
           </button>
         )}
-        {resizable && (
-          <span className="panel-handle-grip" aria-hidden="true" {...handleProps}>
+        {(resizable || isFull) && (
+          <span className="panel-handle-grip" aria-hidden="true" {...gripProps}>
             <span />
             <span />
             <span />
           </span>
         )}
-        {!collapsed && agentsMode === "normal" && (
+        {!collapsed && (
           <button
             type="button"
             className="panel-handle-btn"

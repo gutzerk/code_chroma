@@ -83,6 +83,10 @@ Files: the code map is the hierarchy canvas, not the diagram layer. Look at `web
 
 Draw the wiki-general update flow for real through the skill (not hand-written JSON), commit nothing generated, and check both views read it. Compare with the two boards side by side; list remaining gaps in this file.
 
+### B2 look pass
+
+The overlay and card were brought closer to the board: number chips in the block corner (✓ on the last step), elbow connectors with a glow and an arrowhead (`routePath.ts`), violet/red lit blocks by step kind, a card with a badge + detail line per step, `←`/`→` and a legend, and the optional step `detail` (skill reference + `ROUTE-DETAIL` advisory). Still not on the code map: the board's actor pill, external and store boxes and `✕` failure pills (the hierarchy has no node for them) -- a separate decision if they are wanted.
+
 ### Stage 4 result (run against the C# bridge on this repo)
 
 The flow was drawn as a custom `update-map` diagram (9 steps over 5 real files, lanes You / Bridge / Claude CLI / Failures, children with real `file:line` from `WikiGeneralUpdate.cs`, `WikiGeneral.cs`, `SkillAgent.cs`, `WikiGeneralRoutes.cs`, `WikiGeneralNotice.tsx`) and `check_diagram.py` printed `OK`. In the browser it rendered with lanes, `▸ N calls` chips and an expanded `Diff against manifest` listing `ComputeDelta() :184` with neighbours pushed down. Nothing generated was committed. Gaps found:

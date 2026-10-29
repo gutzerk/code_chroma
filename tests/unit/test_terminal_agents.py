@@ -50,6 +50,17 @@ def test_agent_kind_routes_to_an_assigned_cli_provider_binary():
     assert env["ANTHROPIC_AUTH_TOKEN"] == "sk-proxy"
 
 
+def test_agent_kind_passes_the_assigned_model_to_a_plain_claude_provider():
+    from codechroma.terminal.agents import agent_cli
+
+    _assign_agents_group()
+
+    argv, env = agent_cli("agent")
+
+    assert argv[:3] == ["claude", "--model", "claude-opus"]
+    assert "ANTHROPIC_MODEL" not in env
+
+
 def test_agent_kind_loads_plugin_when_claude_adapter_uses_a_wrapper(monkeypatch):
     from codechroma.bridge.resources import resource_path
     from codechroma.llm import resolve_cli
@@ -71,7 +82,8 @@ def test_agent_kind_loads_plugin_when_claude_adapter_uses_a_wrapper(monkeypatch)
 
     argv, env = agent_cli("agent")
 
-    assert argv == ["claude-wrapper", "--plugin-dir", str(resource_path("skills").parent)]
+    plugin = str(resource_path("skills").parent)
+    assert argv == ["claude-wrapper", "--model", "claude-opus", "--plugin-dir", plugin]
     assert env == {}
 
 
@@ -175,6 +187,7 @@ def test_headless_prompts_keep_using_synced_project_skill_commands():
         "patterns_agent.yaml": "codechroma-draw-diagram",
         "impact_agent.yaml": "codechroma-draw-diagram",
         "sequence_agent.yaml": "codechroma-draw-diagram",
+        "walkthrough_agent.yaml": "codechroma-draw-diagram",
         "epics_agent.yaml": "codechroma-draw-diagram",
         "impact_review_agent.yaml": "codechroma-review-diagram",
         "epic_brief_agent.yaml": "codechroma-epic-brief",

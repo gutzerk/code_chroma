@@ -14,13 +14,13 @@ function el(id: string, layer: string, render: CanvasElement["render"] = "custom
 
 describe("diagramAccent", () => {
   it("keeps named token colours for the builtin recipe layers", () => {
-    const accent = diagramAccent("c1");
+    const accent = diagramAccent("system-context");
 
-    expect(accent).toEqual({ className: "canvas-diagram-frame-c1", color: "var(--c1)" });
+    expect(accent).toEqual({ className: "canvas-diagram-frame-system-context", color: "var(--c1)" });
   });
 
   it("uses the same class for the frame as the accent", () => {
-    const layers = ["c1", "patterns", "custom/abc", "feature-plan/x", "freeform"];
+    const layers = ["system-context", "patterns", "custom/abc", "feature-plan/x", "freeform"];
 
     const matches = layers.map((l) => diagramFrameColorClass(l) === diagramAccent(l).className);
 
@@ -45,14 +45,14 @@ describe("diagramDisplayName", () => {
   const doc = {
     ...EMPTY_CANVAS_DOC,
     elements: Object.fromEntries(
-      [el("a", "c1"), el("b", "c1"), el("g", "c1", "group"), el("n", "c1", "note"), el("x", "custom/q")].map((e) => [e.id, e]),
+      [el("a", "system-context"), el("b", "system-context"), el("g", "system-context", "group"), el("n", "system-context", "note"), el("x", "custom/q")].map((e) => [e.id, e]),
     ),
   };
 
   it("names a builtin and counts only boxes", () => {
-    const display = diagramDisplayName("c1", doc);
+    const display = diagramDisplayName("system-context", doc);
 
-    expect(display).toEqual({ name: "C1", typeLabel: "C1", boxCount: 2 });
+    expect(display).toEqual({ name: "System context", typeLabel: "System context", boxCount: 2 });
   });
 
   it("labels other layers as Custom", () => {
@@ -65,9 +65,9 @@ describe("diagramDisplayName", () => {
 
 describe("diagramDisplayName with an unknown render kind", () => {
   it("counts the element as a box instead of throwing", () => {
-    const doc = { ...EMPTY_CANVAS_DOC, elements: { x: el("x", "c1", "from-a-newer-schema" as CanvasElement["render"]) } };
+    const doc = { ...EMPTY_CANVAS_DOC, elements: { x: el("x", "system-context", "from-a-newer-schema" as CanvasElement["render"]) } };
 
-    const { boxCount } = diagramDisplayName("c1", doc);
+    const { boxCount } = diagramDisplayName("system-context", doc);
 
     expect(boxCount).toBe(1);
   });

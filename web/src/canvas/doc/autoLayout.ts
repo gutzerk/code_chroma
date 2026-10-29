@@ -2,7 +2,7 @@ import { layoutBoxes } from "../connectors/diagramLayout";
 import type { CanvasDoc, CanvasElement, CanvasPosition, CanvasSize } from "../../state/types";
 import { orderMeta, rawMeta, stringMeta } from "./elementMeta";
 import { isEpicsLayer, layoutEpics } from "./epicsLayout";
-import { measureBoxSize } from "./measureBoxSize";
+import { layoutBoxSize, measureBoxSize } from "./measureBoxSize";
 import { placeIncrementally } from "./incrementalLayout";
 import { buildSequenceModel } from "./sequenceModel";
 import type { SequenceView } from "./sequenceViewStore";
@@ -46,9 +46,9 @@ export async function layoutNewElements(
   const nonSequenceIds = newIds.filter((id) => doc.elements[id]?.render !== "sequence");
   const sequenceLayout = layoutSequence(doc, sequenceIds);
 
-  // Authored size wins, else the text-measured estimate, else the flat default (self-sized kinds).
+  // Authored size (grown to a role box's content), else the text-measured estimate, else the flat default.
   const sizeOf = (element: CanvasElement) => {
-    const measured = measureBoxSize(element);
+    const measured = layoutBoxSize(element);
     return {
       width: measured?.w ?? DEFAULT_SIZE.width,
       height: measured?.h ?? DEFAULT_SIZE.height,

@@ -295,7 +295,13 @@ canvas instead of collapsing onto whichever diagram happened to carry code-backe
     label, description (4-line clamp), top band, meta row and path footer (cached canvas `measureText`, `0.55 x font size` per char
     when there is no 2d context) so `autoLayout.ts` feeds ELK the footprint the box will render at instead of `300x72`; an authored
     `element.size` always wins, `epic`/`sequence`/`group`/`note`/`question` keep their own sizing, and the measured size of each
-    newly positioned box rides back in `LayoutResult.sizes` so `CanvasNodeBox` renders what ELK used. An authored `meta.rank`
+    newly positioned box rides back in `LayoutResult.sizes` so `CanvasNodeBox` renders what ELK used. A **role box**
+    (`blockRoleFor` set: c1/pattern/impact/custom with code, kind, shape or no-code reason) has its own anatomy
+    (`roleBoxHeight`, DOM-measured `.block-role*` metrics): role header row, 1.15rem name, one-line description, path footer,
+    and for a code-backed box (`node_id`) the members chip plus the SRC corner's 1.5rem bottom padding — ~195px for a
+    typical code box, not the ~105px the generic estimate gave. ⚠ A stored `size.h` is only `CanvasNodeBox`'s `minHeight`, so
+    the layout's own sizing (`layoutBoxSize`) grows a role box's stored height to its content: a stale estimate persisted
+    earlier no longer makes ELK/`resolveDrop` reserve too little and pack neighbours into it. An authored `meta.rank`
     (`entry`/`exit`, `LayoutBoxSpec.rank`) maps to ELK's `layerConstraint` `FIRST`/`LAST` in `elkLayout.ts` and is ignored on a box
     that also has `order` (order stays authoritative, ADR 0002); an edge of kind `feedback`/`return` is laid out as a back edge.
     The Avalonia canvas (`CodeChroma.Canvas/Layout/AutoLayout.cs`) does not honour these yet.
@@ -309,7 +315,8 @@ canvas instead of collapsing onto whichever diagram happened to carry code-backe
     either. Each new box takes the offset (saved position minus ELK position) of the placed boxes it
     connects to — the global median offset if it has none — so new blocks follow a diagram the user
     moved or rearranged. `resolveDrop()` then clears overlaps against every other canvas element
-    (other diagrams, user boxes; group frames excluded) and against earlier new boxes. A removed block
+    (other diagrams, user boxes; group frames excluded) and against earlier new boxes, keeping the
+    auto-layout gap `AUTO_NODE_SEP` 48 / `AUTO_RANK_SEP` 56 (not the drag rule's 24). A removed block
     simply leaves a gap; nothing reflows. `runRecipeAndLayout` passes its cache-restored positions as
     `fixed` so a layer being re-added counts as placed at its restored spots. Sequence and epics
     layers still relay out whole.

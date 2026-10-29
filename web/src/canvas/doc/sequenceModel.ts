@@ -1,6 +1,5 @@
 import type { CanvasElement } from "../../state/types";
 import { rawMeta, stringMeta } from "./elementMeta";
-import { SEQUENCE_LAYOUT } from "./autoLayout";
 import { groupColorIndex, GROUP_COLOR_COUNT } from "./groupColor";
 
 export interface SequenceParticipant {
@@ -45,7 +44,6 @@ export interface SequenceModel {
   phases: SequencePhase[];
   frames: SequenceFrameSpec[];
   notes: SequenceNote[];
-  bounds: { left: number; top: number; right: number; bottom: number };
 }
 
 /** The per-participant accent palette as `{r,g,b}`; kept in sync with groupColor.ts. */
@@ -80,9 +78,12 @@ function sequenceAccentRef(ref: string, kind?: string): string {
 /** Calls read neutral on the boards; ai/event/failure arrows recolour through their own class. */
 const MESSAGE_ACCENT = "215, 218, 212";
 
+/** `"2"` → 2, `"2a"`/`"2b"` → 2.01/2.02 (two messages at once sort right after their whole step). */
 export function orderOf(element: CanvasElement): number {
-  const order = Number(rawMeta(element, "order"));
-  return Number.isFinite(order) ? order : 0;
+  const match = /^\s*(\d+(?:\.\d+)?)\s*([a-z])?\s*$/i.exec(String(rawMeta(element, "order") ?? ""));
+  if (!match) return 0;
+  const letter = match[2] ? match[2].toLowerCase().charCodeAt(0) - 96 : 0;
+  return Number(match[1]) + letter / 100;
 }
 
 function listMeta(elements: CanvasElement[], key: string): Record<string, unknown>[] {
@@ -97,7 +98,7 @@ function listMeta(elements: CanvasElement[], key: string): Record<string, unknow
 
 const num = (value: unknown): number => Number(value);
 
-/** Participants, messages sorted by `order`, phases, frames, notes and the drawing bounds. */
+/** Participants, messages sorted by `order`, phases, frames and notes. */
 export function buildSequenceModel(elements: CanvasElement[]): SequenceModel {
   const participants: SequenceParticipant[] = [];
   const byRef = new Map<string, CanvasElement>();
@@ -130,31 +131,6 @@ export function buildSequenceModel(elements: CanvasElement[]): SequenceModel {
     .filter((m): m is SequenceMessage => m !== null)
     .sort((a, b) => a.order - b.order);
 
-  const rects = elements.map((element) => {
-    const w = element.size?.w ?? SEQUENCE_LAYOUT.headW;
-    const h = element.size?.h ?? SEQUENCE_LAYOUT.headH;
-    return {
-      left: element.position.x - w / 2,
-      top: element.position.y - h / 2,
-      right: element.position.x + w / 2,
-      bottom: element.position.y + h / 2,
-    };
-  });
-  for (const { element, fromCol, toCol } of messages) {
-    rects.push({
-      left: Math.min(fromCol.position.x, toCol.position.x),
-      top: element.position.y - 10,
-      right: Math.max(fromCol.position.x, toCol.position.x),
-      bottom: element.position.y + 10,
-    });
-  }
-  const bounds = {
-    left: Math.min(...rects.map((r) => r.left)),
-    top: Math.min(...rects.map((r) => r.top)),
-    right: Math.max(...rects.map((r) => r.right)),
-    bottom: Math.max(...rects.map((r) => r.bottom)),
-  };
-
   const phases = listMeta(elements, "phases")
     .map((p) => ({
       id: String(p.id ?? p.name ?? ""),
@@ -176,11 +152,5 @@ export function buildSequenceModel(elements: CanvasElement[]): SequenceModel {
     .map((n) => ({ order: num(n.order ?? n.anchor), text: String(n.text ?? "") }))
     .filter((n) => Number.isFinite(n.order) && n.text);
 
-  return { participants, messages, phases, frames, notes, bounds };
+  return { participants, messages, phases, frames, notes };
 }
-
-/** Extra width the Focus timeline panel needs right of the lifelines, so the diagram frame encloses it. */
-export const SEQUENCE_PANEL_SPACE = 244;
-
-/** Extra height under the lifelines for the legend row, so the diagram frame encloses it. */
-export const SEQUENCE_LEGEND_SPACE = 44;

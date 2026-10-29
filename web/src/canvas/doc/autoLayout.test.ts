@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { layoutNewElements } from "./autoLayout";
+import { layoutSequence } from "./sequenceBoard";
 import { EMPTY_CANVAS_DOC, type CanvasDoc, type CanvasEdge, type CanvasElement } from "../../state/types";
 
 function element(id: string, y: number, overrides: Partial<CanvasElement> = {}): CanvasElement {
@@ -43,6 +44,21 @@ describe("layoutNewElements", () => {
     expect(positions.m1).toEqual({ x: 140 + 58, y: positions.p1.y - 45 + 18 + 27 });
     expect(positions.m2).toEqual({ x: 274 + 58, y: positions.p2.y - 45 + 18 + 27 });
     expect(sizes?.m1).toEqual({ w: 116, h: 54 });
+  });
+
+  it("lays out two new sequence layers in one batch each as its own board", async () => {
+    const layerOf = (layer: string) => [
+      sequenceEl(`${layer}-p1`, "participant", { layer, meta: { role: "participant", recipe_key: "client" } }),
+      sequenceEl(`${layer}-p2`, "participant", { layer, meta: { role: "participant", recipe_key: "api" } }),
+      sequenceEl(`${layer}-m1`, "message", { layer, meta: { role: "message", from: "client", to: "api", order: "1" } }),
+    ];
+    const doc = docWith([...layerOf("seq-a"), ...layerOf("seq-b")]);
+    const idsB = layerOf("seq-b").map((el) => el.id);
+
+    const { positions } = await layoutNewElements(doc, Object.keys(doc.elements));
+
+    const alone = layoutSequence(doc, idsB).positions;
+    expect(Object.fromEntries(idsB.map((id) => [id, positions[id]]))).toEqual(alone);
   });
 
   it("places new elements below an existing diagram that sits entirely above y=0", async () => {

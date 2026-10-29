@@ -96,11 +96,13 @@ export function DiagramFrame({ layer, label, members, sizes, typeLabel, boxCount
   const profile = profileFor(layer, members);
   // A profile grows the frame around what else it draws (board pills and legend, a ROUTE panel); a keyed one recomputes only on key change.
   const boundsKey = profile.boundsKey?.(members, layer);
-  const bounds = useMemo(
-    () => (memberBounds && profile.frameBounds ? profile.frameBounds(memberBounds, { layer, members, route }) : memberBounds),
+  const profileBounds = useMemo(
+    () => (memberBounds && profile.frameBounds ? profile.frameBounds(memberBounds, { layer, members, route }) : null),
     // eslint-disable-next-line react-hooks/exhaustive-deps -- boundsKey stands in for the members when the profile has one
     [profile, layer, route, boundsKey ?? memberBounds],
   );
+  // The union fallback stays outside the memo, so a keyed profile never returns a stale one.
+  const bounds = profileBounds ?? memberBounds;
 
   // Every id this gesture has pushed a live offset for, so an aborted drag (this component unmounts
   // mid-gesture -- e.g. another window/agent deletes the diagram while someone is dragging its frame)

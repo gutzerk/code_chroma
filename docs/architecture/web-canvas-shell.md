@@ -305,7 +305,7 @@ canvas instead of collapsing onto whichever diagram happened to carry code-backe
     `plan_kind` label but only its 9.6 px padding for an `order` alone (the order badge is hidden; the step chip floats outside).
     🔴 These are copies of `styles.css` values and jsdom does no layout: `web/e2e/box-size-guard.spec.ts` (Playwright) compares
     `layoutBoxSize` with the rendered height of seven role-box variants and fails on more than 2 px of drift; change it with
-    the CSS. An authored `meta.rank`
+    the CSS. CI runs it (`ci.yml` web job); it fails fast when the Google web fonts did not load, since fallback fonts change every width. An authored `meta.rank`
     (`entry`/`exit`, `LayoutBoxSpec.rank`) maps to ELK's `layerConstraint` `FIRST`/`LAST` in `elkLayout.ts` and is ignored on a box
     that also has `order` (order stays authoritative, ADR 0002); an edge of kind `feedback`/`return` is laid out as a back edge.
     The Avalonia canvas (`CodeChroma.Canvas/Layout/AutoLayout.cs`) does not honour these yet.
@@ -609,17 +609,17 @@ expand button, folder and color boxes all go through `layoutStore`/`collapsedLay
 
 ## Diagram profiles (027)
 
-Shared canvas files never name a diagram type (epics aside). Each board-style type describes its behaviour in one `DiagramProfile` entry, and `canvas/doc/diagramProfiles.ts` lists them (`diagramProfiles()`; the first `matches` wins, else `DEFAULT_PROFILE`). `profileFor(layer, members)` picks a layer's profile; `profileForElement(element)` does it for one box (layout, lanes, edges, boards); `layersWithProfile(elements, has)` buckets a layer's ids by a profile field.
+Shared canvas files never name a diagram type (epics aside). Each board-style type describes its behaviour in one `DiagramProfile` entry, and `canvas/doc/diagramProfiles.ts` lists them (`diagramProfiles()`; the first `matches` wins, else `DEFAULT_PROFILE`). `profileFor(layer, members)` picks a layer's profile; `profileForElement(element)` does it for one box (layout, lanes, edges, boards); `layersWithProfile(elements, key)` buckets each layer's ids whose profile defines `key`, typed so that field is set.
 
 | Field | Read by | Default |
 |---|---|---|
-| `frameBounds(base, ctx)` + `boundsKey` | `DiagramFrame`: grows the frame around what the type draws beyond its boxes; with `boundsKey` the result is memoised on that key | member union |
+| `frameBounds(base, ctx)` + `boundsKey` | `DiagramFrame`: grows the frame around what the type draws beyond its boxes, or `null` to keep the member union (applied outside the memo, so it is never stale); with `boundsKey` the result is memoised on that key | member union |
 | `frameClassName`, `HeaderAction` | `DiagramFrame`: frame class; a header control before the shared `HEADER_ACTIONS` (route) | none |
 | `edgeMarker(visual)`, `edgeLabel(edge)` | `CanvasEdges`: arrowhead variant and label for edges leaving the type's boxes | default head, `label \|\| kind` |
 | `hideLaneBands` | `CanvasDocView`: skips the lane areas `meta.lane` would draw | off |
 | `Overlay` | `CanvasDocView`: one component per layer, drawn after the frames; it holds the route legend, so `RouteFrameActions` drops the header legend and shows the route on open | none |
 | `Board`, `viewElements`, `viewStore` | `CanvasDocView`: draws the whole layer as one component instead of boxes, with no lane areas, concurrency islands or box chrome; `viewElements` is its display-only geometry (the `viewBoardLayers` stage), recomputed when any profile's `viewStore` version changes (`subscribeProfileViews`/`profileViewsVersion`) | boxes |
-| `layout(doc, ids)` | `autoLayout.layoutNewElements` (instead of ELK) and `useReflowOwnLayouts` (re-spreads drifted geometry once on load) | ELK |
+| `layout(doc, ids)` | `autoLayout.layoutNewElements` (instead of ELK, once per layer) and `useReflowOwnLayouts` (re-spreads drifted geometry once on load) | ELK |
 
 Today: `sequenceProfile.ts` (`SEQUENCE_PROFILE`, matched by any member's `render: "sequence"`, since sequence layers are named per diagram) and `walkthroughProfile.ts` (`WALKTHROUGH_PROFILE`, matched by the `walkthrough` layer). **To add a board type:** write its own files, add a `<type>Profile.ts` that sets only the fields it changes, and add it to `diagramProfiles()`. Do not add `if (layer === ...)` to a shared file. ⚠ `frameBounds` must stay pure for its key; a profile file may import its type's components, but the type's core modules must not import the profile. 🔴 A component can still import back into the registry (`WalkthroughPanel` → `walkthroughLayout` → `canvasDocStore` → `pileLayout` → `autoLayout` → `diagramProfiles`), so the registry is built on first use and `WALKTHROUGH_PROFILE.Overlay` is a getter; read such a component lazily too. Epics still has its own checks (`isEpicsLayerName` in `CanvasNodeBox.tsx`, `measureBoxSize.ts`). Tests: `diagramProfiles.test.ts`, plus the per-field cases in `DiagramFrame.test.tsx`, `CanvasDocView.test.tsx`, `useReflowOwnLayouts.test.ts`, `displayPipeline.test.ts`.
 

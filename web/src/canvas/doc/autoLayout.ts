@@ -4,7 +4,7 @@ import { orderMeta, stringMeta } from "./elementMeta";
 import { isEpicsLayer, layoutEpics } from "./epicsLayout";
 import { layoutBoxSize, measureBoxSize } from "./measureBoxSize";
 import { placeIncrementally } from "./incrementalLayout";
-import { profileForElement, type DiagramProfile } from "./diagramProfiles";
+import { layersWithProfile, profileForElement } from "./diagramProfiles";
 
 const DEFAULT_SIZE = { width: 300, height: 72 };
 // Vertical gap below the document's existing content before a fresh batch's own layered block starts.
@@ -37,18 +37,14 @@ export async function layoutNewElements(
   fixed: Readonly<Record<string, CanvasPosition>> = {},
 ): Promise<LayoutResult> {
   const newIdSet = new Set(newIds);
-  // A profile with its own layout (a sequence board) places its boxes deterministically; every other new box goes through ELK.
-  const ownLayoutIds = new Map<NonNullable<DiagramProfile["layout"]>, string[]>();
-  const elkIds: string[] = [];
-  for (const id of newIds) {
-    const element = doc.elements[id];
-    const layout = element ? profileForElement(element).layout : undefined;
-    if (!layout) elkIds.push(id);
-    else ownLayoutIds.set(layout, [...(ownLayoutIds.get(layout) ?? []), id]);
-  }
+  // A profile with its own layout (a sequence board) places each layer's boxes deterministically; every other new box goes through ELK.
+  const newElements = newIds.map((id) => doc.elements[id]).filter((element): element is CanvasElement => Boolean(element));
+  const ownLayoutLayers = layersWithProfile(newElements, "layout");
+  const ownLayoutIdSet = new Set([...ownLayoutLayers.values()].flatMap(({ ids }) => ids));
+  const elkIds = newIds.filter((id) => !ownLayoutIdSet.has(id));
   const ownLayout: Required<LayoutResult> = { positions: {}, sizes: {} };
-  for (const [layout, ids] of ownLayoutIds) {
-    const result = layout(doc, ids);
+  for (const { profile, ids } of ownLayoutLayers.values()) {
+    const result = profile.layout(doc, ids);
     Object.assign(ownLayout.positions, result.positions);
     Object.assign(ownLayout.sizes, result.sizes);
   }

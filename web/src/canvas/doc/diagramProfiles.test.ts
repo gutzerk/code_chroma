@@ -63,7 +63,7 @@ describe("layersWithProfile", () => {
       el({ id: "c1", layer: "custom/x" }),
     ];
 
-    const layers = layersWithProfile(elements, (profile) => Boolean(profile.Board));
+    const layers = layersWithProfile(elements, "Board");
 
     expect([...layers].map(([layer, { profile, ids }]) => [layer, profile.id, ids])).toEqual([["flow", "sequence", ["s1", "s2"]]]);
   });
@@ -86,6 +86,14 @@ describe("WALKTHROUGH_PROFILE edges", () => {
     const labels = edges.map((edge) => WALKTHROUGH_PROFILE.edgeLabel?.(edge));
 
     expect(labels).toEqual(["", "on save"]);
+  });
+
+  it("keeps the members' own bounds (null) when the layer names no route", () => {
+    const base = { left: 0, top: 0, right: 100, bottom: 50 };
+
+    const bounds = WALKTHROUGH_PROFILE.frameBounds?.(base, { layer: "walkthrough", members: [], route: undefined });
+
+    expect(bounds).toBeNull();
   });
 });
 

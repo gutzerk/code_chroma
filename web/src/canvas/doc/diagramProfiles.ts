@@ -20,8 +20,8 @@ export interface DiagramProfile {
   id: string;
   /** True when this profile owns `layer`; `members` is the layer's elements, or one element for per-box lookups. */
   matches: (layer: string, members: readonly CanvasElement[]) => boolean;
-  /** The frame's bounds from the members' union; must stay pure, since callers memo on `boundsKey`. */
-  frameBounds?: (base: UnionBounds, ctx: FrameCtx) => UnionBounds;
+  /** The frame's bounds grown from the members' union, or null to keep the union; must stay pure, since callers memo on `boundsKey`. */
+  frameBounds?: (base: UnionBounds, ctx: FrameCtx) => UnionBounds | null;
   /** A change key over everything `frameBounds` reads; when set, the frame recomputes only when it changes. */
   boundsKey?: (members: readonly CanvasElement[], layer: string) => string;
   frameClassName?: string;
@@ -65,20 +65,27 @@ export function profileForElement(element: CanvasElement): DiagramProfile {
   return profileFor(element.layer, [element]);
 }
 
-/** Each layer's element ids whose profile passes `has`, with that profile. */
-export function layersWithProfile(
+/** A profile known to define `K`. */
+export type ProfileWith<K extends keyof DiagramProfile> = DiagramProfile & Required<Pick<DiagramProfile, K>>;
+
+/** Each layer's element ids whose profile defines `key`, with that profile. */
+export function layersWithProfile<K extends keyof DiagramProfile>(
   elements: Iterable<CanvasElement>,
-  has: (profile: DiagramProfile) => boolean,
-): Map<string, { profile: DiagramProfile; ids: string[] }> {
-  const map = new Map<string, { profile: DiagramProfile; ids: string[] }>();
+  key: K,
+): Map<string, { profile: ProfileWith<K>; ids: string[] }> {
+  const map = new Map<string, { profile: ProfileWith<K>; ids: string[] }>();
   for (const element of elements) {
     const profile = profileForElement(element);
-    if (!has(profile)) continue;
+    if (!hasField(profile, key)) continue;
     const entry = map.get(element.layer);
     if (entry) entry.ids.push(element.id);
     else map.set(element.layer, { profile, ids: [element.id] });
   }
   return map;
+}
+
+function hasField<K extends keyof DiagramProfile>(profile: DiagramProfile, key: K): profile is ProfileWith<K> {
+  return profile[key] !== undefined;
 }
 
 /** Subscribes to every profile's view store, so one `useSyncExternalStore` covers them all. */

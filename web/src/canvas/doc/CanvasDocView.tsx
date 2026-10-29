@@ -244,7 +244,7 @@ export function CanvasDocView() {
   }, [renderableElements]);
 
   // A profile with a `Board` (a sequence board) draws its whole layer as one component, so its ids are bucketed per layer.
-  const boardsByLayer = useMemo(() => layersWithProfile(Object.values(renderableElements), (profile) => Boolean(profile.Board)), [renderableElements]);
+  const boardsByLayer = useMemo(() => layersWithProfile(Object.values(renderableElements), "Board"), [renderableElements]);
   const boardIds = useMemo(() => new Set([...boardsByLayer.values()].flatMap(({ ids }) => ids)), [boardsByLayer]);
 
   // A profile's own overlay (a walkthrough's ROUTE panel), resolved per structural change rather than per drag tick.
@@ -345,7 +345,7 @@ export function CanvasDocView() {
             />
           ))}
           {[...boardsByLayer].map(([layer, { profile, ids }]) => {
-            const Board = profile.Board!;
+            const { Board } = profile;
             return <Board key={`board-${layer}`} layer={layer} elements={resolveMembers(ids, viewElements)} />;
           })}
           <FocusPanel doc={visibleDoc} />
@@ -355,6 +355,9 @@ export function CanvasDocView() {
             switch (BLOCK_RULES[element.render].renderer) {
               case "hierarchy":
                 // Retired code-tree block: an old document may still carry one; it draws nothing.
+                return null;
+              case "sequence":
+                // Safety net: a sequence element always belongs to a board layer and is skipped above.
                 return null;
               case "none":
                 // 026: a route carrier never reaches here (canvasDocStore splits it out); never draw one if it does.

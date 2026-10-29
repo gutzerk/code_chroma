@@ -9,7 +9,7 @@ export const SEQUENCE_PROFILE: DiagramProfile = {
   id: "sequence",
   matches: (_layer, members) => members.some((member) => member.render === "sequence"),
   // The frame encloses the whole board: phase pills above the lanes and the legend below them.
-  frameBounds: (base, { layer, members }) => sequenceBoardBounds([...members], sequenceViewStore.get(layer).expanded) ?? base,
+  frameBounds: (_base, { layer, members }) => sequenceBoardBounds([...members], sequenceViewStore.get(layer).expanded),
   boundsKey: (members, layer) => `${sequenceBoardSignature(members)}#${sequenceViewStore.get(layer).expanded.join("|")}`,
   frameClassName: "canvas-diagram-frame-sequence-board",
   HeaderAction: SequenceModeSwitch,

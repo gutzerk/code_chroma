@@ -995,6 +995,37 @@ systems have their own tag, separate from `conceptual`. The canvas shows a dashe
 `.node-shape-<name>` class; unknown names fall back to the plain box. Tests:
 `tests/unit/test_diagram_resolver.py`, `web/src/canvas/doc/nodeAccent.test.tsx`.
 
+## Diagram titles
+
+Every diagram file carries a top-level `title`: the drawing agent names what the diagram shows for
+the user's request ("How a file save reaches the canvas"), in the request's language, ≤ 60 chars,
+never the type name. The flow:
+
+1. **Skill.** `drawing-rules.md` "Naming the diagram (`title`)" holds the rule; every `type-*.md`,
+   `bare-*.md`, `process-bare.md`, `type-dataflow.md` and `feature-plan-mode.md` repeats it with an
+   example `title`. The agent lists the titles already taken with
+   `GET /repos/{id}/diagrams/status` (each entry now has `title`, null when untitled) and picks a
+   distinct one. A Draw-dialog run also gets a "Name the diagram from this request" line from
+   `BareSkill.RequestedStart` (C# only, like the rest of agent prompt composition).
+2. **Self-check.** `check_diagram.py`'s `_check_title` adds three advisories (never blocking, every
+   kind except `epics`): `NOTITLE` (missing/blank), `GENERICTITLE` (only type words such as
+   "Sequence", "Design patterns", "Patterns: bridge", or the custom `--type` id), `LONGDIAGRAMTITLE`
+   (over 60 chars). Tests: `tests/unit/test_diagram_check_script.py`.
+3. **Bridge (Python + C# parity).** `recipes.py`'s `diagram_title` / `Recipes.DiagramTitle` read the
+   trimmed `title`; `reshape` stamps it as `meta.diagram_title` on every element of the layer (route
+   carrier included), and `diagrams/status` reports it per entry. The patterns resolvers rebuild the
+   payload, so both pass `title` through explicitly. Contract cases:
+   `recipes.cases.json` `a_diagram_title_rides_on_every_element_meta`, `diagrams.cases.json`
+   `diagrams_status_reports_each_written_title_and_null_when_untitled`.
+4. **Canvas.** `diagramDisplay.ts`'s `diagramTitle` reads the first `meta.diagram_title` on the
+   layer; `diagramDisplayName` returns it as `name` (falling back to `labelForDiagramLayer`) with
+   `titled: true`. `DiagramFrame` shows it as the frame label beside the existing `TYPE · n BOXES`
+   meta line; the ON CANVAS rows (`useDiagramRows`) show it as the row name with a small
+   `TYPE ·` prefix on the meta line when titled.
+
+Layer ids and file names never change: one file per built-in type still means one diagram per
+type, so a redraw replaces the old title with the new request's title.
+
 ## Sequence readability (022)
 
 `check_diagram.py` adds `BADPHASE` and `BADFRAME` (shape tier: unknown `kind` or a bad `from_order`/`to_order` range in `phases[]`/`frames[]`), and the advisories `NO-ORDER` (sequence message without `order`; an older diagram still passes), one combined `NOSUMMARY` (sequence, c1, patterns and impact), `NOHERO` (c1/patterns/impact with 3+ relations and none marked `hero`), `ECHO-LABEL`, `HIDDEN-BRANCH`, `LONGTITLE`. Both resolvers (`canvas/recipes.py`, `Stores/Recipes.cs`) fold `order`/`lane`/`rank` into node `meta` (`rank` = `entry`/`exit`, a layout hint ELK turns into first/last layer; `order` wins; `check_diagram.py` advisories `BADRANK` and `RANK-ORDER`), add `hero` to message `meta`, and stamp `phases`/`frames`/`notes`/`question`/`summary` on every participant's `meta`.

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { CanvasElement } from "../../state/types";
-import { DEFAULT_PROFILE, profileFor, profileForElement, profileViewsVersion, subscribeProfileViews } from "./diagramProfiles";
+import { DEFAULT_PROFILE, layersWithProfile, profileFor, profileForElement, profileViewsVersion, subscribeProfileViews } from "./diagramProfiles";
 import { sequenceViewStore } from "./sequenceViewStore";
 import { WALKTHROUGH_PROFILE } from "./walkthroughProfile";
 
@@ -52,6 +52,20 @@ describe("profileFor", () => {
     const profile = profileForElement(box);
 
     expect(profile.id).toBe("sequence");
+  });
+});
+
+describe("layersWithProfile", () => {
+  it("buckets per layer only the elements whose profile passes, with that profile", () => {
+    const elements = [
+      el({ id: "s1", layer: "flow", render: "sequence" }),
+      el({ id: "s2", layer: "flow", render: "sequence" }),
+      el({ id: "c1", layer: "custom/x" }),
+    ];
+
+    const layers = layersWithProfile(elements, (profile) => Boolean(profile.Board));
+
+    expect([...layers].map(([layer, { profile, ids }]) => [layer, profile.id, ids])).toEqual([["flow", "sequence", ["s1", "s2"]]]);
   });
 });
 

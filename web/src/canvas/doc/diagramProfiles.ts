@@ -31,17 +31,11 @@ export interface DiagramProfile {
   edgeMarker?: (visual: EdgeVisual) => string | undefined;
   /** The text drawn on an edge leaving this type's boxes. */
   edgeLabel?: (edge: Pick<CanvasEdge, "label" | "kind">) => string;
-  /** Whether `meta.lane` draws lane bands (default true). */
-  laneBands?: boolean;
-  /** Whether a shared order digit run draws a concurrency island (default true). */
-  concurrencyIslands?: boolean;
-  /** True hides the step-number chip on this type's boxes. */
-  hideStepChip?: boolean;
-  /** True when the route legend lives in the diagram's own overlay and the route shows on open. */
-  routeInOverlay?: boolean;
-  /** Drawn once per layer on the canvas, inside the diagram frame. */
+  /** True skips the lane bands `meta.lane` would draw (a `Board` layer never gets them). */
+  hideLaneBands?: boolean;
+  /** Drawn once per layer inside the diagram frame; it holds the route legend, so the frame header drops it and the route shows on open. */
   Overlay?: ComponentType<{ layer: string; members: CanvasElement[]; sizes: ReadonlyMap<string, MeasuredBoxSize> }>;
-  /** Draws the whole layer as one component instead of one box per element (a sequence board). */
+  /** Draws the whole layer as one component instead of boxes (a sequence board); no lanes, islands or box chrome apply. */
   Board?: ComponentType<{ layer: string; elements: CanvasElement[] }>;
   /** The layer's elements at display-only geometry (expanded steps); never written to the doc. */
   viewElements?: (doc: CanvasDoc, ids: readonly string[], layer: string) => CanvasElement[];
@@ -54,26 +48,46 @@ export interface DiagramProfile {
 /** The plain diagram: every shared behaviour on, no overlay, ELK layout. */
 export const DEFAULT_PROFILE: DiagramProfile = { id: "default", matches: () => true };
 
-/** Every non-default profile; the first match wins. */
-export const DIAGRAM_PROFILES: readonly DiagramProfile[] = [SEQUENCE_PROFILE, WALKTHROUGH_PROFILE];
+let registry: readonly DiagramProfile[] | undefined;
+
+/** Every non-default profile, first match wins; built on first use, since a profile's component can import back into this module. */
+export function diagramProfiles(): readonly DiagramProfile[] {
+  return (registry ??= [SEQUENCE_PROFILE, WALKTHROUGH_PROFILE]);
+}
 
 /** The profile that owns `layer` (given its members), else the default. */
 export function profileFor(layer: string, members: readonly CanvasElement[]): DiagramProfile {
-  return DIAGRAM_PROFILES.find((profile) => profile.matches(layer, members)) ?? DEFAULT_PROFILE;
+  return diagramProfiles().find((profile) => profile.matches(layer, members)) ?? DEFAULT_PROFILE;
 }
 
-/** The profile for one box, for per-element choices (layout, step chip, lanes, islands, edges, boards). */
+/** The profile for one box, for per-element choices (layout, lanes, edges, boards). */
 export function profileForElement(element: CanvasElement): DiagramProfile {
   return profileFor(element.layer, [element]);
 }
 
+/** Each layer's element ids whose profile passes `has`, with that profile. */
+export function layersWithProfile(
+  elements: Iterable<CanvasElement>,
+  has: (profile: DiagramProfile) => boolean,
+): Map<string, { profile: DiagramProfile; ids: string[] }> {
+  const map = new Map<string, { profile: DiagramProfile; ids: string[] }>();
+  for (const element of elements) {
+    const profile = profileForElement(element);
+    if (!has(profile)) continue;
+    const entry = map.get(element.layer);
+    if (entry) entry.ids.push(element.id);
+    else map.set(element.layer, { profile, ids: [element.id] });
+  }
+  return map;
+}
+
 /** Subscribes to every profile's view store, so one `useSyncExternalStore` covers them all. */
 export function subscribeProfileViews(listener: () => void): () => void {
-  const unsubscribes = DIAGRAM_PROFILES.flatMap((profile) => (profile.viewStore ? [profile.viewStore.subscribe(listener)] : []));
+  const unsubscribes = diagramProfiles().flatMap((profile) => (profile.viewStore ? [profile.viewStore.subscribe(listener)] : []));
   return () => unsubscribes.forEach((unsubscribe) => unsubscribe());
 }
 
 /** The profiles' view versions joined into one snapshot; changes when any of them does. */
 export function profileViewsVersion(): string {
-  return DIAGRAM_PROFILES.map((profile) => profile.viewStore?.getVersion() ?? 0).join(":");
+  return diagramProfiles().map((profile) => profile.viewStore?.getVersion() ?? 0).join(":");
 }

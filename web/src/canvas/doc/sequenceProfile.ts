@@ -13,8 +13,6 @@ export const SEQUENCE_PROFILE: DiagramProfile = {
   boundsKey: (members, layer) => `${sequenceBoardSignature(members)}#${sequenceViewStore.get(layer).expanded.join("|")}`,
   frameClassName: "canvas-diagram-frame-sequence-board",
   HeaderAction: SequenceModeSwitch,
-  concurrencyIslands: false,
-  hideStepChip: true,
   layout: (doc, ids) => layoutSequence(doc, ids),
   Board: SequenceDiagram,
   // A4: expanded steps grow in place for display only; the layout version ignores the player step.

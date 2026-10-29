@@ -9,7 +9,7 @@ import { openOrigin } from "../openOrigin";
 import { CanvasNodeBox } from "./CanvasNodeBox";
 import { ConcurrencyIslandArea } from "./ConcurrencyIslandArea";
 import { DiagramFrame } from "./DiagramFrame";
-import { profileFor, profileForElement, profileViewsVersion, subscribeProfileViews, type DiagramProfile } from "./diagramProfiles";
+import { layersWithProfile, profileFor, profileForElement, profileViewsVersion, subscribeProfileViews } from "./diagramProfiles";
 import { diagramDisplayName } from "./diagramDisplay";
 import { isDiagramLayer, useCustomDiagramTypes } from "./diagramCatalog";
 import { BLOCK_RULES } from "./elementRules";
@@ -215,7 +215,10 @@ export function CanvasDocView() {
   // same layer-scoping `memberIdsByLayer` gives `DiagramFrame`. A digit run with only one member is
   // dropped (keepSingletons=false): a lone numbered step has nothing to be concurrent with.
   const laneBuckets = useMemo(
-    () => bucketPerLayer(Object.values(renderableElements), (el) => (profileForElement(el).laneBands === false ? undefined : stringMeta(el, "lane")), true),
+    () => bucketPerLayer(Object.values(renderableElements), (el) => {
+        const profile = profileForElement(el);
+        return profile.hideLaneBands || profile.Board ? undefined : stringMeta(el, "lane");
+      }, true),
     [renderableElements],
   );
 
@@ -241,17 +244,18 @@ export function CanvasDocView() {
   }, [renderableElements]);
 
   // A profile with a `Board` (a sequence board) draws its whole layer as one component, so its ids are bucketed per layer.
-  const boardsByLayer = useMemo(() => {
-    const map = new Map<string, { profile: DiagramProfile; ids: string[] }>();
-    for (const element of Object.values(renderableElements)) {
-      const profile = profileForElement(element);
-      if (!profile.Board) continue;
-      const entry = map.get(element.layer);
-      if (entry) entry.ids.push(element.id);
-      else map.set(element.layer, { profile, ids: [element.id] });
-    }
-    return map;
-  }, [renderableElements]);
+  const boardsByLayer = useMemo(() => layersWithProfile(Object.values(renderableElements), (profile) => Boolean(profile.Board)), [renderableElements]);
+  const boardIds = useMemo(() => new Set([...boardsByLayer.values()].flatMap(({ ids }) => ids)), [boardsByLayer]);
+
+  // A profile's own overlay (a walkthrough's ROUTE panel), resolved per structural change rather than per drag tick.
+  const overlays = useMemo(
+    () =>
+      [...memberIdsByLayer].flatMap(([layer, ids]) => {
+        const { Overlay } = profileFor(layer, resolveMembers(ids, renderableElements));
+        return Overlay ? [{ layer, ids, Overlay }] : [];
+      }),
+    [memberIdsByLayer, renderableElements],
+  );
 
   // Display-only board geometry (a sequence board's expanded steps), never persisted to the doc.
   const profileViews = useSyncExternalStore(subscribeProfileViews, profileViewsVersion);
@@ -270,12 +274,12 @@ export function CanvasDocView() {
   const concurrencyBuckets = useMemo(
     () =>
       bucketPerLayer(
-        // A profile can opt out (a sequence board draws "2a"/"2b" as their own step columns).
-        Object.values(renderableElements).filter((el) => profileForElement(el).concurrencyIslands !== false),
+        // A board draws "2a"/"2b" as its own step columns, never as a concurrency island.
+        Object.values(renderableElements).filter((el) => !boardIds.has(el.id)),
         (el) => leadingOrderDigits(orderMeta(el)),
         false,
       ),
-    [renderableElements],
+    [renderableElements, boardIds],
   );
 
   const bounds = useMemo(() => {
@@ -321,12 +325,9 @@ export function CanvasDocView() {
               />
             );
           })}
-          {[...memberIdsByLayer.entries()].map(([layer, memberIds]) => {
-            // A profile's own overlay (a walkthrough's ROUTE panel), drawn inside its diagram frame.
-            const members = resolveMembers(memberIds, viewElements);
-            const { Overlay } = profileFor(layer, members);
-            return Overlay ? <Overlay key={`overlay-${layer}`} layer={layer} members={members} sizes={measuredSizes} /> : null;
-          })}
+          {overlays.map(({ layer, ids, Overlay }) => (
+            <Overlay key={`overlay-${layer}`} layer={layer} members={resolveMembers(ids, viewElements)} sizes={measuredSizes} />
+          ))}
           {laneBuckets.map(({ layer, value, ids }) => (
             <LaneArea
               key={`lane-${layer}-${value}`}
@@ -350,7 +351,7 @@ export function CanvasDocView() {
           <FocusPanel doc={visibleDoc} />
           {visibleElements.map((element) => {
             // A board layer's elements render through its profile's Board above, never as boxes.
-            if (profileForElement(element).Board) return null;
+            if (boardIds.has(element.id)) return null;
             switch (BLOCK_RULES[element.render].renderer) {
               case "hierarchy":
                 // Retired code-tree block: an old document may still carry one; it draws nothing.

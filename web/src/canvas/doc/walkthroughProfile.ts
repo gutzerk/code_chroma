@@ -11,8 +11,10 @@ export const WALKTHROUGH_PROFILE: DiagramProfile = {
   // The route arrows take the board's smaller green head and carry no kind word.
   edgeMarker: (visual) => (visual === "call" || visual === "spawn" ? "route" : undefined),
   edgeLabel: (edge) => edge.label || "",
-  // Step boxes are read along the route, not in lanes; the legend and auto-show belong to the ROUTE panel.
-  laneBands: false,
-  routeInOverlay: true,
-  Overlay: WalkthroughPanel,
+  // Step boxes are read along the route, not in lanes; the ROUTE panel holds the legend.
+  hideLaneBands: true,
+  // A getter: WalkthroughPanel's own imports reach back here, so it can still be unset while this module loads.
+  get Overlay() {
+    return WalkthroughPanel;
+  },
 };

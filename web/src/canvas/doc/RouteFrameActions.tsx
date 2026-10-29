@@ -9,7 +9,7 @@ import { useLayerRoute } from "./walkthroughLayout";
 export function RouteFrameActions({ members }: { members: CanvasElement[] }) {
   const { route, layer } = useLayerRoute(members);
   const shown = useRouteState().route?.id === route?.id;
-  const inOverlay = layer !== undefined && profileFor(layer, members).routeInOverlay === true;
+  const inOverlay = layer !== undefined && profileFor(layer, members).Overlay !== undefined;
   // A walkthrough is read through its route over the code map, so it opens on its own (hiding it sticks until the route changes).
   useEffect(() => {
     if (route && inOverlay) routeStore.show(route);

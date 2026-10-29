@@ -18,41 +18,31 @@ const ROLE_VARIANTS: Record<string, { label?: string; description?: string; node
   plan: { description: DESCRIPTION, meta: { plan_kind: "add" } },
 };
 
-async function seedRoleBoxes(page: Page): Promise<void> {
-  await page.evaluate(async (variants) => {
+/** Replaces the canvas doc with `elements` (plain JSON built here), through the page's own store. */
+async function seedCanvas(page: Page, docId: string, elements: { id: string }[]): Promise<void> {
+  await page.evaluate(async ({ docId, elements }) => {
     const path = "/src/canvas/doc/canvasDocStore.ts";
     const { canvasDocStore } = await import(/* @vite-ignore */ path);
-    const doc = canvasDocStore.getDoc();
-    const elements = Object.fromEntries(Object.entries(variants).map(([id, v], i) => [id, {
-      id, render: "custom", layer: "custom/size-guard", label: v.label ?? "Ledger API", description: v.description ?? "",
-      node_id: v.node_id ?? null, position: { x: 400 + (i % 3) * 420, y: 300 + Math.floor(i / 3) * 400 }, size: null,
-      group_id: null, meta: { kind: "api", ...v.meta }, created_by: "ai",
-    }]));
-    canvasDocStore.setDoc({ ...doc, doc_id: "size-guard", elements, edges: {} });
-  }, ROLE_VARIANTS);
+    canvasDocStore.setDoc({ ...canvasDocStore.getDoc(), doc_id: docId, edges: {}, elements: Object.fromEntries(elements.map((e) => [e.id, e])) });
+  }, { docId, elements });
 }
 
-async function seedSequence(page: Page): Promise<void> {
-  await page.evaluate(async () => {
-    const path = "/src/canvas/doc/canvasDocStore.ts";
-    const { canvasDocStore } = await import(/* @vite-ignore */ path);
-    const doc = canvasDocStore.getDoc();
-    const base = { render: "sequence", layer: "sequence", description: "", node_id: null, size: null, group_id: null, created_by: "ai" };
-    const el = (id: string, label: string, meta: object) => [id, { ...base, id, label, position: { x: 400, y: 300 }, meta }];
-    canvasDocStore.setDoc({
-      ...doc,
-      doc_id: "size-guard-seq",
-      edges: {},
-      elements: Object.fromEntries([
-        el("client", "Client", { role: "participant", recipe_key: "client", phases: [{ id: "p1", name: "Prepare", kind: "prepare", from_order: 1, to_order: 3 }] }),
-        el("api", "API", { role: "participant", recipe_key: "api" }),
-        el("m1", "POST /go", { role: "message", from: "client", to: "api", order: "1" }),
-        el("m2", "Validate the payload", { role: "message", from: "api", to: "api", order: "2" }),
-        el("m3", "200 OK", { role: "message", from: "api", to: "client", order: "3", return: true }),
-      ]),
-    });
-  });
-}
+const BASE = { description: "", node_id: null, size: null, group_id: null, created_by: "ai" };
+
+const roleBoxes = () =>
+  Object.entries(ROLE_VARIANTS).map(([id, v], i) => ({
+    ...BASE, id, render: "custom", layer: "custom/size-guard", label: v.label ?? "Ledger API", description: v.description ?? "",
+    node_id: v.node_id ?? null, position: { x: 400 + (i % 3) * 420, y: 300 + Math.floor(i / 3) * 400 }, meta: { kind: "api", ...v.meta },
+  }));
+
+const seq = (id: string, label: string, meta: object) => ({ ...BASE, id, label, render: "sequence", layer: "sequence", position: { x: 400, y: 300 }, meta });
+const SEQUENCE = [
+  seq("client", "Client", { role: "participant", recipe_key: "client", phases: [{ id: "p1", name: "Prepare", kind: "prepare", from_order: 1, to_order: 3 }] }),
+  seq("api", "API", { role: "participant", recipe_key: "api" }),
+  seq("m1", "POST /go", { role: "message", from: "client", to: "api", order: "1" }),
+  seq("m2", "Validate the payload", { role: "message", from: "api", to: "api", order: "2" }),
+  seq("m3", "200 OK", { role: "message", from: "api", to: "client", order: "3", return: true }),
+];
 
 /** The viewport's current scale, read off the transformed layer, so rendered sizes compare at 100%. */
 async function canvasScale(page: Page): Promise<number> {
@@ -61,7 +51,7 @@ async function canvasScale(page: Page): Promise<number> {
 
 test("role boxes render at the height layoutBoxSize reserves for them", async ({ page }) => {
   await gotoApp(page, { files: false });
-  await seedRoleBoxes(page);
+  await seedCanvas(page, "size-guard", roleBoxes());
   await expect(page.locator('[data-select-id="node-id"] [data-testid="canvas-node-members"]')).toBeVisible();
   await expect(page.locator("[data-zoom]").first()).toHaveAttribute("data-zoom", "full");
   const scale = await canvasScale(page);
@@ -90,7 +80,7 @@ test("role boxes render at the height layoutBoxSize reserves for them", async ({
 
 test("a sequence board's copied CSS metrics match what the browser draws", async ({ page }) => {
   await gotoApp(page, { files: false });
-  await seedSequence(page);
+  await seedCanvas(page, "size-guard-seq", SEQUENCE);
   await expect(page.getByTestId("sequence-lane")).toHaveCount(2);
   await page.getByRole("button", { name: "Expand Validate the payload" }).click();
   await expect(page.locator(".seq-step--expanded")).toHaveCount(1);

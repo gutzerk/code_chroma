@@ -2,7 +2,7 @@ import { useEffect, useRef } from "react";
 import type { EngineClient } from "../../engine-client/EngineClient";
 import type { CanvasDoc } from "../../state/types";
 import { patchCanvasDoc } from "./canvasDocStore";
-import { profileForElement, type DiagramProfile } from "./diagramProfiles";
+import { layersWithProfile } from "./diagramProfiles";
 
 /** Once per mount, after the doc loads: rewrites persisted geometry that drifted from its profile's own layout (a sequence board). */
 export function useReflowOwnLayouts(engineClient: EngineClient, doc: CanvasDoc, loaded: boolean): void {
@@ -12,21 +12,13 @@ export function useReflowOwnLayouts(engineClient: EngineClient, doc: CanvasDoc, 
   useEffect(() => {
     if (checkedRef.current || !loaded) return;
     checkedRef.current = true;
-    // Collect each profile-laid-out layer's member ids in layer order.
-    const byLayer = new Map<string, { layout: NonNullable<DiagramProfile["layout"]>; ids: string[] }>();
-    for (const [id, element] of Object.entries(doc.elements)) {
-      const layout = profileForElement(element).layout;
-      if (!layout) continue;
-      const entry = byLayer.get(element.layer);
-      if (entry) entry.ids.push(id);
-      else byLayer.set(element.layer, { layout, ids: [id] });
-    }
+    const byLayer = layersWithProfile(Object.values(doc.elements), (profile) => Boolean(profile.layout));
     if (byLayer.size === 0) return;
 
     // Write only the elements whose persisted geometry disagrees with their layer's self-contained layout.
     const ops = [];
-    for (const { layout, ids } of byLayer.values()) {
-      const { positions, sizes } = layout(doc, ids);
+    for (const { profile, ids } of byLayer.values()) {
+      const { positions, sizes } = profile.layout!(doc, ids);
       for (const id of ids) {
         const p = positions[id];
         const s = sizes[id];

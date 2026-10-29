@@ -14,7 +14,8 @@ import { layoutNewElements } from "./autoLayout";
 import { layoutOps } from "./pileLayout";
 import { isEpicsLayerName, parentEpicKey } from "./epicsLayout";
 import { BLOCK_RULES } from "./elementRules";
-import { canvasDocStore, collectActiveLayers, patchCanvasDoc } from "./canvasDocStore";
+import { canvasDocStore, collectActiveLayers } from "./canvasDocStore";
+import { patchCanvasDoc } from "./canvasDocSync";
 import { captureLayerPositions, takeCachedPosition } from "./layerPositionCache";
 
 export interface BuiltinRecipe {

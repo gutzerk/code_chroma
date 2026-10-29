@@ -6,7 +6,7 @@ import { useReflowOwnLayouts } from "./useReflowOwnLayouts";
 import { messageEl, participantEl } from "./sequenceTestElements";
 
 const patchMock = vi.fn(async (_ops: CanvasOp[]) => ({ ok: true as const }));
-vi.mock("./canvasDocStore", () => ({
+vi.mock("./canvasDocSync", () => ({
   patchCanvasDoc: (_client: EngineClient, ops: CanvasOp[]) => patchMock(ops),
 }));
 

@@ -1,7 +1,8 @@
 import { afterEach, describe, expect, it } from "vitest";
 import { render, screen, waitFor } from "@testing-library/react";
 import { AgentLed } from "./AgentLed";
-import { canvasDocStore, useLoadCanvasDoc } from "../canvas/doc/canvasDocStore";
+import { canvasDocStore } from "../canvas/doc/canvasDocStore";
+import { useLoadCanvasDoc } from "../canvas/doc/canvasDocSync";
 import { EngineClientProvider, useEngineClient } from "../engine-client/EngineClientContext";
 import { MockBridgeEngineClient } from "../engine-client/mockBridge";
 import type { CanvasOp } from "../state/types";

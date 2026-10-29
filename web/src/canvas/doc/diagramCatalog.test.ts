@@ -15,7 +15,7 @@ import {
   removeLayerAndRefresh,
   runRecipeAndLayout,
 } from "./diagramCatalog";
-import { patchCanvasDoc } from "./canvasDocStore";
+import { patchCanvasDoc } from "./canvasDocSync";
 
 function element(id: string, layer: string, overrides: Partial<CanvasElement> = {}): CanvasElement {
   return {

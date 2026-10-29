@@ -1,8 +1,7 @@
 import type { CanvasElement } from "../../state/types";
 import { DEFAULT_ELEMENT_SIZE } from "./elementRect";
 import { orderMeta, stringMeta } from "./elementMeta";
-import { routeStepOf } from "./routeStep";
-import { walkthroughBoxText } from "./walkthroughBox";
+import { blockRoleFor } from "./blockRole";
 
 // Render kinds with their own sizing; the layout leaves these to their dedicated code paths.
 const SELF_SIZED = new Set<CanvasElement["render"]>(["epic", "sequence", "group", "note", "question"]);
@@ -80,23 +79,36 @@ function lineCount(text: string, maxWidth: number, measure: Measure): number {
   return Math.max(lines, 1);
 }
 
-// B2 board box metrics (styles.css "026 walkthrough"): name font, horizontal chrome, minimum width and fixed height.
-const WALKTHROUGH_BOXES = {
-  step: { font: '600 12px "JetBrains Mono", monospace', chrome: 26 + 3, minW: 160, h: 40 },
-  trigger: { font: '600 13.5px Inter, "DM Sans", sans-serif', chrome: 36 + 3, minW: 150, h: 56 },
-  failure: { font: '600 12px Inter, "DM Sans", sans-serif', chrome: 20 + 2, minW: 186, h: 28 },
-  other: { font: '600 13.5px Inter, "DM Sans", sans-serif', chrome: 32 + 3, minW: 300, h: 80 },
-} as const;
-const WALKTHROUGH_TAG_W = 34;
+// Zoomed-out name fit (styles.css "Zoomed out: the name fills its box"): padding per side, line height, font bounds in px.
+const FIT_PADDING = 10;
+const FIT_LINE = 1.15;
+const FIT_MIN = 8;
+const FIT_MAX = 160;
 
-/** A walkthrough box's B2 size: one-line name, so only the width follows the text. */
-function walkthroughBoxSize(element: CanvasElement): { w: number; h: number } | null {
-  const step = routeStepOf(element);
-  const text = walkthroughBoxText(element, step);
-  if (!text) return null;
-  const metrics = !step ? WALKTHROUGH_BOXES.other : step.kind === "trigger" ? WALKTHROUGH_BOXES.trigger : step.kind === "failure" ? WALKTHROUGH_BOXES.failure : WALKTHROUGH_BOXES.step;
-  const textW = measurer(metrics.font)(text.name) + (text.tag ? WALKTHROUGH_TAG_W : 0);
-  return { w: Math.ceil(Math.max(metrics.minW, textW + metrics.chrome)), h: metrics.h };
+/** True when `text` set at `px` fits `w` x `h`; `breakWords` allows splitting a word too long for a line. */
+function nameFits(text: string, px: number, w: number, h: number, breakWords: boolean): boolean {
+  const measure = measurer(`600 ${px}px "DM Sans", system-ui, sans-serif`);
+  if (!breakWords && text.split(/\s+/).some((word) => measure(word) > w)) return false;
+  return lineCount(text, w, measure) * px * FIT_LINE <= h;
+}
+
+/** The largest name font size (px) that fills a `w` x `h` box, whole words first, split words only as a fallback. */
+export function fitNameFontSize(label: string, w: number, h: number): number {
+  const innerW = Math.max(w - FIT_PADDING * 2, 1);
+  const innerH = Math.max(h - FIT_PADDING * 2, 1);
+  const text = label.trim() || " ";
+  for (const breakWords of [false, true]) {
+    let lo = FIT_MIN;
+    let hi = Math.min(FIT_MAX, Math.floor(innerH / FIT_LINE));
+    if (hi < lo || !nameFits(text, lo, innerW, innerH, breakWords)) continue;
+    while (lo < hi) {
+      const mid = Math.ceil((lo + hi) / 2);
+      if (nameFits(text, mid, innerW, innerH, breakWords)) lo = mid;
+      else hi = mid - 1;
+    }
+    return lo;
+  }
+  return FIT_MIN;
 }
 
 /** Estimated {w,h} for an element's box, or `null` for kinds that size themselves. An authored
@@ -104,8 +116,6 @@ function walkthroughBoxSize(element: CanvasElement): { w: number; h: number } | 
 export function measureBoxSize(element: CanvasElement): { w: number; h: number } | null {
   if (SELF_SIZED.has(element.render)) return null;
   if (element.size) return { w: element.size.w, h: element.size.h };
-  const walkthrough = walkthroughBoxSize(element);
-  if (walkthrough) return walkthrough;
   const w = DEFAULT_ELEMENT_SIZE.w;
   const textWidth = Math.max(w - WIDTH_CHROME, 40);
 
@@ -116,7 +126,7 @@ export function measureBoxSize(element: CanvasElement): { w: number; h: number }
     h += DESC_CHROME + lines * DESC_LINE;
   }
   if (orderMeta(element) || stringMeta(element, "plan_kind")) h += TOP_BAND_H;
-  if (stringMeta(element, "kind") || stringMeta(element, "status") || stringMeta(element, "no_code_reason")) {
+  if (blockRoleFor(element) || stringMeta(element, "kind") || stringMeta(element, "status") || stringMeta(element, "no_code_reason")) {
     h += META_ROW_H;
   }
   if (stringMeta(element, "path")) h += FOOT_H;

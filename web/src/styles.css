@@ -134,7 +134,6 @@
   --radius-lg: 8px;
   --radius-xl: 10px;
   --radius-2xl: 12px;
-  --radius-store: 18px; /* the clipped corner of a walkthrough data store */
   --radius-full: 999px;
 
   /* Elevation shadows. */
@@ -176,20 +175,14 @@
   --route-text: #ecedee;
   --route-text-soft: #c9cdd2; /* legend, folder names */
   --route-text-muted: #8d939b; /* summaries, file names */
-  --route-text-dim: #a3a8ae; /* box descriptions, actor line */
   --route-link: #7fb8ff; /* code names in the panel */
   --route-lit-bg: #18261f; /* a lit step box */
   --route-ai-bg: #2a2538;
-  --route-ai-tag-border: #6e5bb0;
   --route-fail-bg: #2a181d;
   --route-fail-border: #8e3a4a;
   --route-fail-ink: #ffb3bf;
-  --route-ext-bg: #221d18; /* external system box */
-  --route-ext-border: #9a6b3a;
-  --route-ext-tag: #f2b36b;
-  --route-data-bg: #2a1f17; /* data store box */
-  --route-data-border: #8a5226;
-  --route-data-ink: #fbc08a;
+  --route-ext-border: #9a6b3a; /* dashed arrow to an external system */
+  --route-data-border: #8a5226; /* dashed arrow to a data store */
   --route-panel-bg: #202226; /* ROUTE panel */
   --route-panel-border: #33363c; /* panel, dimmed code box, hairlines */
   --route-row-active-bg: #26302b;
@@ -8443,34 +8436,14 @@ button[data-copy-state="idle"][aria-label]:hover:not(:disabled) {
 .canvas-diagram-frame.canvas-diagram-frame-walkthrough { border: 1px solid var(--route-frame-border); background-color: var(--route-ground); background-image: radial-gradient(var(--route-grid-dot) 1px, transparent 1px); background-size: 24px 24px; }
 .canvas-diagram-frame-walkthrough .canvas-diagram-frame-label { font-family: var(--font-mono); font-size: 12px; letter-spacing: 0.1em; text-transform: uppercase; color: var(--route-ok); background: var(--route-ground); }
 .canvas-diagram-frame-walkthrough .canvas-diagram-frame-meta { display: none; }
-[data-canvas-element].diagram-node-box[data-layer="walkthrough"] { justify-content: center; border: 1.5px solid var(--route-ok); border-radius: var(--radius-lg); background: var(--route-lit-bg); color: var(--route-text); box-shadow: none; font-family: var(--font-board); user-select: none; -webkit-user-select: none; }
-[data-layer="walkthrough"] .canvas-node-meta-row, [data-layer="walkthrough"] .canvas-node-top-band, [data-layer="walkthrough"] .canvas-node-box-foot, [data-layer="walkthrough"].route-step .diagram-node-box-desc { display: none; }
-[data-layer="walkthrough"] [data-testid="canvas-node-box-header"].diagram-node-box-header, [data-canvas-element][data-layer="walkthrough"]:has(.canvas-node-box-buttons--bottom) [data-testid="canvas-node-box-header"] { align-items: center; padding: 0 10px 0 16px; }
-[data-layer="walkthrough"] .diagram-node-box-title-wrap { gap: 4px; }
-[data-layer="walkthrough"] .diagram-node-box-title-row { gap: 8px; margin-top: 0; }
-[data-canvas-element][data-layer="walkthrough"] .diagram-node-box-name { font-family: var(--font-mono); font-size: 12px; font-style: normal; font-weight: 600; letter-spacing: 0; color: inherit; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-[data-canvas-element][data-layer="walkthrough"] .canvas-node-box-buttons { opacity: 0; }
-[data-canvas-element][data-layer="walkthrough"]:is(:hover, :focus-within) .canvas-node-box-buttons { opacity: 1; }
-.walkthrough-box-kicker { font-size: 11px; line-height: 14px; color: var(--route-text-dim); }
-.walkthrough-box-tag { flex: none; padding: 0 4px; border: 1px solid var(--route-ai-tag-border); border-radius: var(--radius-sm); font-size: 9.5px; color: var(--route-ai); }
-.walkthrough-box-tag--external { padding: 0; border: 0; font-family: var(--font-mono); font-size: 10px; color: var(--route-ext-tag); }
-[data-canvas-element].diagram-node-box[data-layer="walkthrough"].route-step--trigger { border-radius: var(--radius-full); }
-[data-layer="walkthrough"].route-step--trigger [data-testid="canvas-node-box-header"].diagram-node-box-header { padding: 0 18px; }
-[data-canvas-element][data-layer="walkthrough"].route-step--trigger .diagram-node-box-name { font-family: var(--font-board); font-size: 13.5px; }
-[data-canvas-element].diagram-node-box[data-layer="walkthrough"].route-step--ai { border-color: var(--route-ai); background: var(--route-ai-bg); }
-[data-canvas-element].diagram-node-box[data-layer="walkthrough"].route-step--failure { border: 1px solid var(--route-fail-border); background: var(--route-fail-bg); color: var(--route-fail-ink); }
-[data-layer="walkthrough"].route-step--failure [data-testid="canvas-node-box-header"].diagram-node-box-header { padding: 5px 10px; }
-[data-canvas-element][data-layer="walkthrough"].route-step--failure .diagram-node-box-name { font-family: var(--font-board); }
-[data-layer="walkthrough"].route-step--failure .canvas-node-step-chip { display: none; }
-[data-canvas-element].diagram-node-box[data-layer="walkthrough"]:not(.route-step) { border: 1px solid var(--route-panel-border); border-radius: var(--radius-xl); background: transparent; color: var(--route-text-soft); }
-[data-layer="walkthrough"]:not(.route-step) [data-testid="canvas-node-box-header"].diagram-node-box-header { padding: 12px 16px; }
-[data-canvas-element][data-layer="walkthrough"]:not(.route-step) .diagram-node-box-name { font-family: var(--font-board); font-size: 13.5px; }
-[data-layer="walkthrough"]:not(.route-step) .diagram-node-box-desc { border-top: 0; padding-top: 0; margin-top: 0; font-size: 12px; color: var(--route-text-dim); -webkit-line-clamp: 2; }
-[data-canvas-element].diagram-node-box[data-layer="walkthrough"].walkthrough-box--external { border: 1.5px dashed var(--route-ext-border); background: var(--route-ext-bg); color: var(--route-text); }
-[data-canvas-element].diagram-node-box[data-layer="walkthrough"].walkthrough-box--data { border: 1.5px solid var(--route-data-border); border-radius: var(--radius-sm) var(--radius-store) var(--radius-sm) var(--radius-sm); background: var(--route-data-bg); }
-[data-canvas-element][data-layer="walkthrough"].walkthrough-box--data .diagram-node-box-name { font-family: var(--font-mono); font-size: 12.5px; color: var(--route-data-ink); }
+/* Walkthrough boxes keep the common box internals (role row, name, description, path, SRC); a route step only recolours the frame through the role tokens, and boxes off the route keep their role look (DATA, EXTERNAL, ACTOR). */
+[data-canvas-element].diagram-node-box[data-layer="walkthrough"] { box-shadow: none; user-select: none; -webkit-user-select: none; }
+[data-canvas-element].diagram-node-box[data-layer="walkthrough"].route-step { --role-border: var(--route-ok); --role-bg: var(--route-lit-bg); --role-accent: var(--route-ok); border: 1.5px solid var(--role-border); background: var(--role-bg); color: var(--route-text); }
+[data-canvas-element].diagram-node-box[data-layer="walkthrough"].route-step--ai { --role-border: var(--route-ai); --role-bg: var(--route-ai-bg); --role-accent: var(--route-ai); }
+[data-canvas-element].diagram-node-box[data-layer="walkthrough"].route-step--failure { --role-border: var(--route-fail-border); --role-bg: var(--route-fail-bg); --role-accent: var(--route-fail); color: var(--route-fail-ink); }
 [data-layer="walkthrough"] .canvas-node-step-chip { top: -9px; left: -9px; width: 22px; min-width: 22px; height: 22px; padding: 0; border-radius: 50%; line-height: 22px; font-family: var(--font-mono); font-size: 11px; font-weight: 700; background: var(--route-ok); color: var(--route-chip-ink); }
 [data-layer="walkthrough"].route-step--ai .canvas-node-step-chip { background: var(--route-ai); color: var(--route-ai-ink); }
+[data-layer="walkthrough"].route-step--failure .canvas-node-step-chip { background: var(--route-fail); }
 .canvas-edge[data-layer="walkthrough"] .c1-relationship-path { stroke: var(--route-ok); stroke-width: 2.75; stroke-dasharray: none; stroke-linejoin: round; }
 .canvas-edge[data-layer="walkthrough"] .c1-relationship-casing { stroke: var(--route-glow); stroke-width: 10; stroke-linejoin: round; }
 .canvas-edge[data-layer="walkthrough"].canvas-edge--error .c1-relationship-path { stroke: var(--route-fail); stroke-width: 1.5; stroke-dasharray: 5 4; marker-end: none; }
@@ -8480,3 +8453,7 @@ button[data-copy-state="idle"][aria-label]:hover:not(:disabled) {
 .canvas-edge .c1-relationship-path--ek-error { stroke: var(--route-fail); stroke-width: 1.5; stroke-dasharray: 5 4; }
 .canvas-arrowhead--error { fill: var(--route-fail); }
 .canvas-arrowhead--route { fill: var(--route-ok); }
+
+/* Zoomed out (data-zoom="far", zoomLevelFor < ZOOM_FAR_SCALE): a canvas box shows only its name, centred and filling the box at --node-fit-name-size (measureBoxSize.ts fitNameFontSize); the rest stays laid out but invisible, so the box keeps its size. */
+[data-zoom="far"] .canvas-node-fit > [data-testid="canvas-node-box-row"] { visibility: hidden; }
+[data-zoom="far"] .canvas-node-fit .canvas-node-fit-name.canvas-node-fit-name { visibility: visible; position: absolute; inset: 0; z-index: 1; display: flex; align-items: center; justify-content: center; box-sizing: border-box; padding: 10px; overflow: hidden; font-size: var(--node-fit-name-size); line-height: 1.15; font-weight: 600; text-align: center; white-space: normal; overflow-wrap: break-word; text-overflow: clip; -webkit-line-clamp: unset; line-clamp: unset; }

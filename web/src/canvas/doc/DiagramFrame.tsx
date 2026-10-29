@@ -153,10 +153,19 @@ export function DiagramFrame({ layer, label, members, sizes, typeLabel, boxCount
   const memberBounds = unionBoundsOf(members, sizes);
   useSyncExternalStore(sequenceViewStore.subscribe, sequenceViewStore.getVersion);
   const { route } = useLayerRoute(members);
+  const isSequence = members.some((m) => m.render === "sequence");
+  const expandedKey = isSequence ? sequenceViewStore.get(layer).expanded.join("|") : "";
+  // `members` is a fresh array each render, so the board bounds key on what the board reads (ids, roles, order, position).
+  const boardSignature = isSequence
+    ? members.map((m) => [m.id, stringMeta(m, "role"), m.meta?.order, m.position.x, m.position.y].join(":")).join("|")
+    : "";
+  const boardBounds = useMemo(
+    () => (isSequence ? sequenceBoardBounds(members, expandedKey ? expandedKey.split("|") : []) : null),
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- boardSignature/expandedKey are the change signals for `members`
+    [isSequence, boardSignature, expandedKey],
+  );
   // A sequence board also draws its phase pills above the lanes and its legend below them.
-  const sequenceBounds = members.some((m) => m.render === "sequence")
-    ? (sequenceBoardBounds(members, sequenceViewStore.get(layer).expanded) ?? memberBounds)
-    : memberBounds;
+  const sequenceBounds = isSequence ? (boardBounds ?? memberBounds) : memberBounds;
   // A walkthrough's ROUTE panel is part of the diagram (WalkthroughPanel), so the frame encloses it too.
   const bounds = sequenceBounds && route && layer === WALKTHROUGH_LAYER ? boundsWithWalkthroughPanel(sequenceBounds, route) : sequenceBounds;
 
@@ -208,7 +217,7 @@ export function DiagramFrame({ layer, label, members, sizes, typeLabel, boxCount
   const classes = [
     "canvas-diagram-frame",
     diagramFrameColorClass(layer),
-    members.some((m) => m.render === "sequence") ? "canvas-diagram-frame-sequence-board" : "",
+    isSequence ? "canvas-diagram-frame-sequence-board" : "",
     group.isDragging ? "canvas-diagram-frame--dragging" : "",
   ]
     .filter(Boolean)

@@ -1,5 +1,5 @@
 import type { CanvasDoc, DiagramTypeSummary } from "../../state/types";
-import { BUILTIN_RECIPES, labelForDiagramLayer } from "./diagramCatalog";
+import { BUILTIN_RECIPES, DECISION_LAYER_PREFIX, labelForDiagramLayer } from "./diagramCatalog";
 import { BLOCK_RULES } from "./elementRules";
 import { stringMeta } from "./elementMeta";
 import { groupColorIndex } from "./groupColor";
@@ -55,7 +55,7 @@ function typeLabelFor(layer: string, customTypes: DiagramTypeSummary[]): string 
   if (TYPE_LABELS[layer]) return TYPE_LABELS[layer];
   if (layer.startsWith("epics/")) return "Epics";
   if (layer.startsWith("feature-plan/")) return "Feature plan";
-  if (layer.startsWith("decisions/")) return "Decision";
+  if (layer.startsWith(DECISION_LAYER_PREFIX)) return "Decision";
   return customTypes.find((type) => `custom/${type.id}` === layer)?.title ?? "Custom";
 }
 
@@ -75,12 +75,14 @@ export function diagramDisplayName(
   doc: CanvasDoc,
   customTypes: DiagramTypeSummary[] = [],
 ): DiagramDisplay {
-  const boxCount = Object.values(doc.elements).filter(
-    (element) =>
-      element.layer === layer &&
-      !["group", "note"].includes(BLOCK_RULES[element.render]?.renderer ?? ""),
-  ).length;
-  const title = diagramTitle(layer, doc);
+  // One pass over the doc for both the box count and the first authored title.
+  let boxCount = 0;
+  let title: string | undefined;
+  for (const element of Object.values(doc.elements)) {
+    if (element.layer !== layer) continue;
+    if (!["group", "note"].includes(BLOCK_RULES[element.render]?.renderer ?? "")) boxCount += 1;
+    title ??= stringMeta(element, DIAGRAM_TITLE_META)?.trim() || undefined;
+  }
   return {
     name: title ?? labelForDiagramLayer(layer, customTypes, doc),
     typeLabel: typeLabelFor(layer, customTypes),

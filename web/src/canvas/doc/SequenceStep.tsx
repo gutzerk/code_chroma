@@ -138,7 +138,7 @@ function ExpandedStep({
       <div className="seq-exp-sub" title={subline}>
         {subline}
       </div>
-      <FunctionGrid fns={fns} hasSource={sourceId !== null} markerPrefix={markerPrefix} sourceId={sourceId} fileLabel={message.fromCol.label} fileElementId={message.fromCol.id} />
+      <FunctionGrid fns={fns} markerPrefix={markerPrefix} sourceId={sourceId} fileLabel={message.fromCol.label} fileElementId={message.fromCol.id} />
     </div>
   );
 }
@@ -166,20 +166,18 @@ function innerCallPath(from: number, to: number): string {
 
 function FunctionGrid({
   fns,
-  hasSource,
   markerPrefix,
   sourceId,
   fileLabel,
   fileElementId,
 }: {
   fns: StepFunctions;
-  hasSource: boolean;
   markerPrefix: string;
   sourceId: string | null;
   fileLabel: string;
   fileElementId: string;
 }) {
-  if (!hasSource) return <div className="seq-exp-empty">No linked code for this step.</div>;
+  if (!sourceId) return <div className="seq-exp-empty">No linked code for this step.</div>;
   if (fns.status === "loading" || fns.status === "idle") return <div className="seq-exp-empty">Loading functions…</div>;
   if (fns.status === "error" || fns.functions.length === 0) return <div className="seq-exp-empty">No functions found in the linked code.</div>;
   const more = fns.total - fns.functions.length;

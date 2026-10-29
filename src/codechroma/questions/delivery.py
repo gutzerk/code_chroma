@@ -71,12 +71,9 @@ def deliver(services: Any, element: Element, text: str | None = None) -> bool:
 
 async def deliver_settled(services: Any, ws: Workspace, element: Element) -> bool:
     """Once the agent has no open question, types the batch and clears it; True if it is live."""
-    session = live_session(services, element)
-    if session is None:
+    if live_session(services, element) is None:
         return False
     batch = await run_in_threadpool(store.complete_batch, ws, element.meta["agent_id"])
     if batch:
-        session.inject_when_idle(
-            batch_message(batch), attempts=settings.questions.answer_inject_attempts
-        )
+        deliver(services, element, batch_message(batch))
     return True

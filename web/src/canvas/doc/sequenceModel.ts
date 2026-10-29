@@ -1,11 +1,9 @@
 import type { CanvasElement } from "../../state/types";
 import { rawMeta, stringMeta } from "./elementMeta";
-import { groupColorIndex, GROUP_COLOR_COUNT } from "./groupColor";
 
 export interface SequenceParticipant {
   element: CanvasElement;
   ref: string;
-  accent: string;
 }
 
 export interface SequenceMessage {
@@ -14,7 +12,6 @@ export interface SequenceMessage {
   toCol: CanvasElement;
   fromRef: string;
   toRef: string;
-  accent: string;
   order: number;
 }
 
@@ -46,38 +43,6 @@ export interface SequenceModel {
   notes: SequenceNote[];
 }
 
-/** The per-participant accent palette as `{r,g,b}`; kept in sync with groupColor.ts. */
-const SEQUENCE_PALETTE: ReadonlyArray<readonly [number, number, number]> = [
-  [99, 102, 241],
-  [52, 211, 153],
-  [245, 158, 11],
-  [244, 114, 182],
-  [167, 139, 250],
-  [34, 211, 238],
-];
-if (SEQUENCE_PALETTE.length !== GROUP_COLOR_COUNT) {
-  throw new Error("SEQUENCE_PALETTE out of sync with GROUP_COLOR_COUNT");
-}
-
-/** 022 boards: a participant's colour follows its role (UI cyan, code blue, AI/external violet, data orange). */
-const SEQUENCE_KIND_ACCENTS: ReadonlyArray<readonly [RegExp, string]> = [
-  [/\b(ai|llm|external)\b/, "180, 156, 255"],
-  [/\b(ui|client|canvas|browser|actor|user|person)\b/, "34, 211, 238"],
-  [/\b(data|db|database|store|storage|file|cache|queue)\b/, "251, 146, 60"],
-  [/\b(route|routes|api|service|runner|cli|script|worker|server|handler|python|c#)\b/, "127, 184, 255"],
-];
-
-function sequenceAccentRef(ref: string, kind?: string): string {
-  const key = (kind ?? "").toLowerCase();
-  const byKind = SEQUENCE_KIND_ACCENTS.find(([re]) => re.test(key));
-  if (byKind) return byKind[1];
-  const [r, g, b] = SEQUENCE_PALETTE[groupColorIndex(ref) % SEQUENCE_PALETTE.length];
-  return `${r}, ${g}, ${b}`;
-}
-
-/** Calls read neutral on the boards; ai/event/failure arrows recolour through their own class. */
-const MESSAGE_ACCENT = "215, 218, 212";
-
 /** `"2"` → 2, `"2a"`/`"2b"` → 2.01/2.02 (two messages at once sort right after their whole step). */
 export function orderOf(element: CanvasElement): number {
   const match = /^\s*(\d+(?:\.\d+)?)\s*([a-z])?\s*$/i.exec(String(rawMeta(element, "order") ?? ""));
@@ -105,7 +70,7 @@ export function buildSequenceModel(elements: CanvasElement[]): SequenceModel {
   for (const element of elements) {
     if (stringMeta(element, "role") !== "participant") continue;
     const ref = stringMeta(element, "recipe_key") ?? element.id;
-    participants.push({ element, ref, accent: sequenceAccentRef(ref, stringMeta(element, "kind")) });
+    participants.push({ element, ref });
     byRef.set(element.id, element);
     byRef.set(ref, element);
   }
@@ -124,7 +89,6 @@ export function buildSequenceModel(elements: CanvasElement[]): SequenceModel {
         toCol,
         fromRef,
         toRef,
-        accent: MESSAGE_ACCENT,
         order: orderOf(element),
       };
     })

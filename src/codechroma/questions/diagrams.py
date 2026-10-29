@@ -29,6 +29,11 @@ def layer_for(question_id: str | None, draft: str) -> str:
     return f"{LAYER_PREFIX}{question_id or DRAFT_PREFIX + draft}"
 
 
+def is_decision_layer(layer: str) -> bool:
+    """True for the shared `decisions` layer or any per-question `decisions/<id>` layer."""
+    return layer == LAYER_PREFIX.rstrip("/") or layer.startswith(LAYER_PREFIX)
+
+
 def is_draft_layer(layer: str) -> bool:
     """True for a layer a diagram was drawn on before its question existed."""
     return layer.startswith(LAYER_PREFIX + DRAFT_PREFIX)

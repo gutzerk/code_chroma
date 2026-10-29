@@ -1,6 +1,6 @@
 import { useMemo, useSyncExternalStore } from "react";
 import type { CanvasElement } from "../../state/types";
-import { boardOrigin, buildSequenceBoard, type BoardArrow } from "./sequenceBoard";
+import { boardOrigin, buildSequenceBoard, SEQUENCE_BOARD, type BoardArrow } from "./sequenceBoard";
 import { sequenceViewStore } from "./sequenceViewStore";
 import { SequenceStep } from "./SequenceStep";
 
@@ -51,7 +51,7 @@ export function SequenceDiagram({ layer, elements }: SequenceDiagramProps) {
       {board.pills.map((pill) => (
         <div
           key={pill.id}
-          className={`seq-pill seq-tone--${PILL_TONE[pill.kind] ?? "plain"}${pill.w > 140 ? "" : " seq-pill--solo"}`}
+          className={`seq-pill seq-tone--${PILL_TONE[pill.kind] ?? "plain"}${pill.w > SEQUENCE_BOARD.soloPillW ? "" : " seq-pill--solo"}`}
           data-testid="sequence-phase-pill"
           style={{ left: pill.x, width: pill.w }}
         >
@@ -118,7 +118,7 @@ export function SequenceDiagram({ layer, elements }: SequenceDiagramProps) {
         />
       ))}
 
-      <SequenceLegend top={board.lanesBottom + 20} />
+      <SequenceLegend top={board.lanesBottom + SEQUENCE_BOARD.legendGap} />
     </div>
   );
 }

@@ -11,10 +11,10 @@ from codechroma.diagrams.registry import BUILTIN_TYPES
 from tests.unit.fake_claude import CLI_MISSING, fake_claude_exec
 
 # One instance per test module; the autouse fixture clears its state between tests.
-AGENT = content_generators.build_skill_agent_for(BUILTIN_TYPES["c1"])
+AGENT = content_generators.build_skill_agent_for(BUILTIN_TYPES["system-context"])
 
 VALID_C1 = {
-    "type": "c1",
+    "type": "system-context",
     "nodes": [{"id": "system", "name": "Sample", "description": ""}],
     "relations": [],
 }
@@ -42,7 +42,7 @@ def _clear_jobs():
 
 
 def _c1_path(repo_root):
-    return repo_root / BUILTIN_TYPES["c1"].artifact
+    return repo_root / BUILTIN_TYPES["system-context"].artifact
 
 
 def _write_c1(repo_root, diagram):
@@ -309,4 +309,4 @@ def test_prompt_for_impact_names_the_sponsor_and_defaults_feature_to_blank():
 
 
 def test_prompt_for_c1_is_none_its_prompt_is_static():
-    assert content_generators.prompt_for("c1") is None
+    assert content_generators.prompt_for("system-context") is None

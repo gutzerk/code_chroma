@@ -2,7 +2,7 @@ from fastapi.testclient import TestClient
 
 
 def test_drag_survives_a_reanalyze_with_real_file_change(bridge):
-    add = {"ops": [{"op": "add_element", "temp_id": "t1", "render": "custom", "layer": "c1",
+    add = {"ops": [{"op": "add_element", "temp_id": "t1", "render": "custom", "layer": "system-context",
                      "label": "Box", "position": {"x": 10, "y": 20}}]}
     with TestClient(bridge.app) as client:
         r = client.patch("/repos/default/canvas", json=add)

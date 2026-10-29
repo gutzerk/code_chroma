@@ -28,7 +28,7 @@ function sequenceEl(id: string, role: string, overrides: Partial<CanvasElement> 
 }
 
 describe("layoutNewElements", () => {
-  it("lays a sequence layer out by columns and time-rows, not ELK", async () => {
+  it("lays a sequence layer out as swimlanes and step columns, not ELK", async () => {
     const doc = docWith([
       sequenceEl("p1", "participant", { label: "Client", meta: { role: "participant", recipe_key: "client" } }),
       sequenceEl("p2", "participant", { label: "API", meta: { role: "participant", recipe_key: "api" } }),
@@ -38,17 +38,11 @@ describe("layoutNewElements", () => {
 
     const { positions, sizes } = await layoutNewElements(doc, ["p1", "p2", "m1", "m2"]);
 
-    // Participants sit in columns (x = col * colW(260) + 130); messages between their columns.
-    expect(positions.p1.x).toBe(130);
-    expect(positions.p2.x).toBe(390);
-    expect(positions.m1.x).toBe(260);
-    expect(positions.m2.x).toBe(260);
-    // Rows: message `order` 1 at headH + rowH/2, `order` 2 one row lower.
-    expect(positions.m1.y).toBeLessThan(positions.m2.y);
-    // Sequence elements get explicit sizes so DiagramFrame/canvas bounds hug the picture, and the
-    // head width is capped below the column so adjacent name boxes never touch.
-    expect(sizes?.p1).toEqual({ w: 180, h: 36 });
-    expect(positions.p2.x - positions.p1.x).toBeGreaterThan(180);
+    expect(positions.p1.y).toBeLessThan(positions.p2.y);
+    expect(sizes?.p1).toEqual({ w: sizes?.p2.w, h: 90 });
+    expect(positions.m1).toEqual({ x: 140 + 58, y: positions.p1.y - 45 + 18 + 27 });
+    expect(positions.m2).toEqual({ x: 274 + 58, y: positions.p2.y - 45 + 18 + 27 });
+    expect(sizes?.m1).toEqual({ w: 116, h: 54 });
   });
 
   it("places new elements below an existing diagram that sits entirely above y=0", async () => {

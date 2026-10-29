@@ -1,6 +1,7 @@
 import type { CanvasElement } from "../../state/types";
 import { DEFAULT_ELEMENT_SIZE } from "./elementRect";
 import { orderMeta, stringMeta } from "./elementMeta";
+import { blockRoleFor } from "./blockRole";
 
 // Render kinds with their own sizing; the layout leaves these to their dedicated code paths.
 const SELF_SIZED = new Set<CanvasElement["render"]>(["epic", "sequence", "group", "note", "question"]);
@@ -78,6 +79,48 @@ function lineCount(text: string, maxWidth: number, measure: Measure): number {
   return Math.max(lines, 1);
 }
 
+// Zoomed-out name fit (styles.css "Zoomed out: the name fills its box"): padding per side, line height, font bounds in px.
+const FIT_PADDING = 10;
+const FIT_LINE = 1.15;
+const FIT_MIN = 8;
+const FIT_MAX = 160;
+
+/** True when `text` set at `px` fits `w` x `h`; `breakWords` allows splitting a word too long for a line. */
+function nameFits(text: string, px: number, w: number, h: number, breakWords: boolean): boolean {
+  const measure = measurer(`600 ${px}px "DM Sans", system-ui, sans-serif`);
+  if (!breakWords && text.split(/\s+/).some((word) => measure(word) > w)) return false;
+  return lineCount(text, w, measure) * px * FIT_LINE <= h;
+}
+
+/** The largest name font size (px) that fills a `w` x `h` box, whole words first, split words only as a fallback. */
+export function fitNameFontSize(label: string, w: number, h: number): number {
+  const innerW = Math.max(w - FIT_PADDING * 2, 1);
+  const innerH = Math.max(h - FIT_PADDING * 2, 1);
+  const text = label.trim() || " ";
+  for (const breakWords of [false, true]) {
+    let lo = FIT_MIN;
+    let hi = Math.min(FIT_MAX, Math.floor(innerH / FIT_LINE));
+    if (hi < lo || !nameFits(text, lo, innerW, innerH, breakWords)) continue;
+    while (lo < hi) {
+      const mid = Math.ceil((lo + hi) / 2);
+      if (nameFits(text, mid, innerW, innerH, breakWords)) lo = mid;
+      else hi = mid - 1;
+    }
+    return lo;
+  }
+  return FIT_MIN;
+}
+
+/** One zoomed-out name size per layer: the smallest per-box fit, so every box in a diagram shows its name at the same size. */
+export function layerFitNameSizes(elements: readonly CanvasElement[]): Map<string, number> {
+  const sizes = new Map<string, number>();
+  for (const element of elements) {
+    const px = fitNameFontSize(element.label, element.size?.w ?? DEFAULT_ELEMENT_SIZE.w, element.size?.h ?? DEFAULT_ELEMENT_SIZE.h);
+    sizes.set(element.layer, Math.min(sizes.get(element.layer) ?? FIT_MAX, px));
+  }
+  return sizes;
+}
+
 /** Estimated {w,h} for an element's box, or `null` for kinds that size themselves. An authored
  * `element.size` always wins; the measure only fills in for `size == null`. */
 export function measureBoxSize(element: CanvasElement): { w: number; h: number } | null {
@@ -93,7 +136,7 @@ export function measureBoxSize(element: CanvasElement): { w: number; h: number }
     h += DESC_CHROME + lines * DESC_LINE;
   }
   if (orderMeta(element) || stringMeta(element, "plan_kind")) h += TOP_BAND_H;
-  if (stringMeta(element, "kind") || stringMeta(element, "status") || stringMeta(element, "no_code_reason")) {
+  if (blockRoleFor(element) || stringMeta(element, "kind") || stringMeta(element, "status") || stringMeta(element, "no_code_reason")) {
     h += META_ROW_H;
   }
   if (stringMeta(element, "path")) h += FOOT_H;

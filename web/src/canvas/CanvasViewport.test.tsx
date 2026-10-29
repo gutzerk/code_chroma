@@ -5,6 +5,7 @@ import { CanvasViewport, type CanvasViewportHandle } from "./CanvasViewport";
 import { selectionStore } from "../state/selectionStore";
 import { gridStep, MIN_SCALE } from "./canvasGrid";
 import { clearSavedCameraView } from "./canvasCameraStore";
+import { ZOOM_FAR_SCALE } from "./layout/layoutMetrics";
 
 afterEach(() => {
   selectionStore.clear();
@@ -373,6 +374,22 @@ describe("CanvasViewport zoom-out floor", () => {
 
     expect(readTransform().scale).toBeCloseTo(MIN_SCALE, 5);
     expect(MIN_SCALE).toBeLessThan(0.25);
+  });
+});
+
+describe("CanvasViewport zoom-out name-only mode", () => {
+  it("switches the content to data-zoom far only once the scale drops below ZOOM_FAR_SCALE", () => {
+    const ref = createRef<CanvasViewportHandle>();
+    render(<CanvasViewport ref={ref}>{null}</CanvasViewport>);
+    const levels: Array<{ scale: number; zoom: string | null }> = [];
+
+    for (let i = 0; i < 60 && readTransform().scale > MIN_SCALE; i++) {
+      act(() => ref.current?.zoomOut());
+      levels.push({ scale: readTransform().scale, zoom: screen.getByTestId("canvas-content").getAttribute("data-zoom") });
+    }
+
+    expect(levels.some((l) => l.zoom === "far")).toBe(true);
+    expect(levels.every((l) => (l.zoom === "far") === l.scale < ZOOM_FAR_SCALE)).toBe(true);
   });
 });
 

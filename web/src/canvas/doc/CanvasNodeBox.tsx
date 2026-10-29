@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef } from "react";
+import { useCallback, useEffect, useMemo, useRef } from "react";
 import { useMemberCount } from "./useMemberCount";
 import { ImpactGlance } from "./ImpactGlance";
 import { useImpactBoxState } from "./impactBoxState";
@@ -32,6 +32,7 @@ import { useNodeOverlays } from "../../state/useSidecar";
 import { authoredStyle } from "../authoredStyle";
 import { BOTTOM_LEFT_RENDERS, DEFAULT_ELEMENT_SIZE } from "./elementRect";
 import { routeStepOf } from "./routeStep";
+import { fitNameFontSize } from "./measureBoxSize";
 import { RouteStepExtras } from "./RouteStepExtras";
 
 function styleFor(render: CanvasElement["render"]) {
@@ -52,6 +53,8 @@ export interface CanvasNodeBoxProps {
    * *assumed* size, so a taller/wider box never moves, it just outgrows the rect routing assumed —
    * which is exactly what let an arrow/label land on a box with more content than the default). */
   onMeasure?: (id: string, node: HTMLElement | null) => void;
+  /** The zoomed-out name size shared by every box of this diagram (layerFitNameSizes); falls back to this box's own fit. */
+  fitNameSize?: number;
 }
 
 /**
@@ -61,7 +64,7 @@ export interface CanvasNodeBoxProps {
  * a canvas-doc element's position is the document's own truth, committed straight through
  * `update_element`, so there's no separate saved-layout store to reconcile against.
  */
-export function CanvasNodeBox({ element, onMeasure }: CanvasNodeBoxProps) {
+export function CanvasNodeBox({ element, onMeasure, fitNameSize: sharedFitNameSize }: CanvasNodeBoxProps) {
   const engineClient = useEngineClient();
   // Stable ref to this box's real DOM node — feeds both `onMeasure` (CanvasDocView's measurement for
   // arrow routing) and the collision participant registry (whose rects are read live off the DOM).
@@ -121,6 +124,9 @@ export function CanvasNodeBox({ element, onMeasure }: CanvasNodeBoxProps) {
   const routeStep = routeStepOf(element);
   const width = element.size?.w ?? DEFAULT_ELEMENT_SIZE.w;
   const height = element.size?.h ?? DEFAULT_ELEMENT_SIZE.h;
+  // Zoomed out (`data-zoom="far"`) the name alone fills the box at the diagram's shared size; computed per label/size, never per zoom tick.
+  const ownFitNameSize = useMemo(() => fitNameFontSize(element.label, width, height), [element.label, width, height]);
+  const fitNameSize = sharedFitNameSize ?? ownFitNameSize;
   // A content card (Summary prose / Acceptance list / Спеки stories) auto-fits to its text; an epic
   // render that is NOT one is the column's structural header (the epic title box).
   const isEpicRoot = element.render === "epic" && !isContentCard(element);
@@ -337,6 +343,7 @@ export function CanvasNodeBox({ element, onMeasure }: CanvasNodeBoxProps) {
     // see the `isSpecsCard` description branch below.
     isSpecsCard ? "diagram-node-box--specs" : "",
     routeStep ? `route-step route-step--${routeStep.kind}` : "",
+    "canvas-node-fit",
   ]
     .filter(Boolean)
     .join(" ");
@@ -393,6 +400,7 @@ export function CanvasNodeBox({ element, onMeasure }: CanvasNodeBoxProps) {
         // still grow taller for a longer description, capped by the line-clamp in styles.css.
         width,
         minHeight: height,
+        ["--node-fit-name-size" as string]: `${fitNameSize}px`,
         ...authoredStyle(element.style),
       }}
       {...handleProps}
@@ -426,7 +434,7 @@ export function CanvasNodeBox({ element, onMeasure }: CanvasNodeBoxProps) {
             <NodeMetaRow element={element} count={impactCount} changed={Boolean(impactChange)} />
             <div className={style.titleRowClass}>
               {accent.icon}
-              <span className={style.nameClass} title={element.label}>
+              <span className={`${style.nameClass} canvas-node-fit-name`} title={element.label} data-testid="canvas-node-box-name">
                 {element.label}
               </span>
               {isImpact && <NodeChangeBadge change={impactChange} />}

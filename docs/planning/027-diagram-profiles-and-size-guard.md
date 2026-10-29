@@ -134,14 +134,14 @@ npm run e2e -- sequence-expand route-steps diagram-colors diagram-arrange box-si
 
 ### Stage 1 — the guard found two real drifts
 
-`web/e2e/box-size-guard.spec.ts` passes. It imports `layoutBoxSize` and `SEQUENCE_BOARD` in the page through Vite, so no test-only attribute was added. It checks seven role-box variants (the six above plus `plan_kind`) and one sequence board with an expanded step. For the board it checks step sizes, step content overflow, lane height (and that the expanded lane holds its open step), lane label left/width (`labelX`/`labelW`), phase pill top/height (`pillY`/`pillH`) and the legend's one-line width (`legendNaturalW`).
+`web/e2e/box-size-guard.spec.ts` passes. It imports `layoutBoxSize` and `SEQUENCE_BOARD` in the page through Vite, so no test-only attribute was added. It checks seven role-box variants (the six above plus `plan_kind`) and one sequence board with an expanded step. For the board it checks step sizes, step content overflow, lane height (and that the expanded lane holds its open step), lane label left/width (`labelX`/`labelW`), phase pill top/height (`pillY`/`pillH`) and the legend's one-line width (`legendNaturalW`). The legend width differs by OS (`▸`/`↗` are outside the Google Fonts Latin subset, and Linux rounds text widths), so TS reserves the widest measure rounded up, and the guard checks it is never below the drawn width and at most 40 px above it.
 
 Two copies were already wrong; both are fixed in a separate `fix(web):` commit before the guard:
 
 | Copy | Was | Browser | Effect before the fix |
 |---|---|---|---|
 | `measureBoxSize.ts` top band for an `order`-only box | 22 px | 9.6 px (the order badge is `display: none`) | ordered boxes reserved 12–14 px of blank space |
-| `SEQUENCE_BOARD.legendNaturalW` | 1500 | 1802 | some boards reserved one legend line too few; the legend spilled below the frame |
+| `SEQUENCE_BOARD.legendNaturalW` | 1500 | 1802 (macOS), 1818 (Linux CI); now 1830 | some boards reserved one legend line too few; the legend spilled below the frame |
 
 These change the layout of newly drawn diagrams (tighter ordered boxes, a taller frame on some sequence boards). Existing role boxes keep their persisted size.
 

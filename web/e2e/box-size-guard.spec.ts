@@ -3,6 +3,8 @@ import { gotoApp } from "./helpers";
 
 // measureBoxSize.ts and sequenceBoard.ts copy pixel metrics from styles.css; jsdom has no layout, so only a real browser catches drift.
 const TOLERANCE_PX = 2;
+// The legend width differs by OS (fallback glyphs, text rounding), so TS reserves the widest; it may exceed what one browser draws by this much.
+const LEGEND_SLACK_PX = 40;
 
 const LONG_NAME = "Billing reconciliation orchestrator for every regional ledger and payout batch";
 const DESCRIPTION = "Matches ledger rows to payouts.";
@@ -165,7 +167,9 @@ test("a sequence board's copied CSS metrics match what the browser draws", async
     near(pill.y, board.pillY, "phase pill top");
     near(pill.h, board.pillH, "phase pill height");
   }
-  near(measured.legendNaturalW, board.legendNaturalW, "legend one-line width");
+  const legendW = `legend one-line width: drew ${measured.legendNaturalW}, TS says ${board.legendNaturalW}`;
+  expect.soft(measured.legendNaturalW, `${legendW} (reserves too little)`).toBeLessThanOrEqual(board.legendNaturalW + TOLERANCE_PX);
+  expect.soft(board.legendNaturalW - measured.legendNaturalW, `${legendW} (reserves too much)`).toBeLessThanOrEqual(LEGEND_SLACK_PX);
   // The board reserves legendLines * legendLineH below the lanes; a wider or taller legend spills out of the frame.
   expect.soft(measured.legend.y + measured.legend.h, "legend fits the board").toBeLessThanOrEqual(measured.diagram.h + TOLERANCE_PX);
   expect(measured.steps.some((step) => step.expanded)).toBe(true);

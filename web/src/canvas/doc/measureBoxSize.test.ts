@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { measureBoxSize } from "./measureBoxSize";
+import { fitNameFontSize, layerFitNameSizes, measureBoxSize } from "./measureBoxSize";
 import type { CanvasElement } from "../../state/types";
 
 function el(overrides: Partial<CanvasElement> = {}): CanvasElement {
@@ -54,5 +54,58 @@ describe("measureBoxSize", () => {
     const result = measureBoxSize(note);
 
     expect(result).toBeNull();
+  });
+});
+
+describe("fitNameFontSize", () => {
+  it("sets a short name larger than a long one in the same box", () => {
+    const short = fitNameFontSize("Auth", 300, 120);
+    const long = fitNameFontSize("Rewrite every changed architecture page", 300, 120);
+
+    expect(short).toBeGreaterThan(long);
+    expect(long).toBeGreaterThan(14);
+  });
+
+  it("fills the padded height with a one-word name, one line tall", () => {
+    const px = fitNameFontSize("Auth", 300, 120);
+
+    expect(px).toBe(Math.floor((120 - 20) / 1.15));
+  });
+
+  it("grows with the box", () => {
+    const small = fitNameFontSize("Checkout", 160, 40);
+    const big = fitNameFontSize("Checkout", 320, 80);
+
+    expect(big).toBeGreaterThan(small);
+  });
+
+  it("never goes below the 8px floor", () => {
+    const px = fitNameFontSize("word ".repeat(200), 100, 30);
+
+    expect(px).toBe(8);
+  });
+});
+
+describe("layerFitNameSizes", () => {
+  it("gives every box of a diagram the size of its longest-fitting name", () => {
+    const elements = [
+      el({ id: "a", label: "Auth", size: { w: 300, h: 120 } }),
+      el({ id: "b", label: "Rewrite every changed architecture page", size: { w: 300, h: 120 } }),
+    ];
+
+    const sizes = layerFitNameSizes(elements);
+
+    expect(sizes.get("x")).toBe(fitNameFontSize("Rewrite every changed architecture page", 300, 120));
+  });
+
+  it("keeps a separate size per diagram layer", () => {
+    const elements = [
+      el({ id: "a", layer: "x", label: "Auth", size: { w: 300, h: 120 } }),
+      el({ id: "b", layer: "y", label: "Rewrite every changed architecture page", size: { w: 300, h: 120 } }),
+    ];
+
+    const sizes = layerFitNameSizes(elements);
+
+    expect(sizes.get("x")).toBe(fitNameFontSize("Auth", 300, 120));
   });
 });

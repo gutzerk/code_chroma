@@ -130,7 +130,7 @@ export function RouteOverlay() {
         />
       ))}
       {markers.map(({ key, x, y, label, kind, active }) => (
-        <g key={key} className={`route-overlay-marker route-step--${kind}${active ? " route-overlay-marker--active" : ""}`}>
+        <g key={key} className={`route-overlay-marker route-step--${kind}${label === "✓" ? " route-overlay-marker--done" : ""}${active ? " route-overlay-marker--active" : ""}`}>
           <circle cx={x} cy={y} r={CHIP_RADIUS} />
           <text x={x} y={y} textAnchor="middle" dominantBaseline="central">{label}</text>
         </g>

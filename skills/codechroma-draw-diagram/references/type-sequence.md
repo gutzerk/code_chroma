@@ -3,10 +3,12 @@
 Read `references/drawing-rules.md` first — bridge contract, path honesty, density budgets, the
 per-box and per-arrow `style` rule and the self-check contract live there and are not repeated here.
 
-Write a Sequence diagram: the participants (the systems/classes that take part in one flow) arranged
-left-to-right across the top, and the messages between them drawn top-to-bottom in time order —
-**the one diagram type where a `relations[]` entry becomes a dedicated message element, not an edge.**
-The canvas lays it out for you from `meta`; you don't place or size anything.
+Write a Sequence diagram: the participants (the systems/classes that take part in one flow) and the
+ordered messages between them — **the one diagram type where a `relations[]` entry becomes a
+dedicated message element, not an edge.** The canvas lays it out for you from `meta`; you don't place
+or size anything. It draws one swimlane per participant and one step box per message, left to right
+in `order`, in the **sender's** lane (so label a message with what the sender does); a click expands
+a step in place into the functions of the sender's `node_id`, so give participants real `node_id`s.
 
 ## ⚠ The core difference from every other type
 
@@ -99,9 +101,9 @@ Rules:
     author a reverse "response travelling back" arrow as a second call — that's what `return` is for.
   - `order` — **a string** step number recording this message's place in time (`"1"`, `"2"`, `"2a"`/
     `"2b"` for two messages at once — note `"a"`/`"b"` are fine and sort before the next whole digit).
-    This is what the renderer reads to place the row; **never omit it.**
-  - `label` — a short verb phrase naming the call (`"POST /checkout"`, `"SELECT orders"`), rendered on
-    the arrow.
+    This is what the renderer reads to place the step; **never omit it.**
+  - `label` — a short verb phrase naming the call (`"POST /checkout"`, `"SELECT orders"`), rendered in
+    the step box.
   - `async` (`true`) — an asynchronous (dashed) arrow: the caller fires and doesn't wait.
   - `return` (`true`) — a return/response arrow back to the original caller (drawn leftward). The
     reverse of a `call`. Don't forget the returns that close the story — a flow with only outgoing
@@ -174,7 +176,7 @@ Every message needs `order`; `check_diagram.py` raises the advisory `NO-ORDER` w
 - `hero: true` on the messages of the main path;
 - `phases[]`: `{id, name, kind, from_order, to_order}`, `kind` one of `request | prepare | ai | deliver | custom`;
 - optional `frames[]` (`{kind: alt|loop, label, from_order, to_order}`) and `notes[]` (`{order, text}`);
-- message `kind`: `call | return | ai | event | error` -- `"ai"` violet, `"event"` dotted green, `"error"` (or `"failure": true`) a failure/denied/timeout path drawn red and dashed (the checker only advises `FAILURE-KIND` when a failure-looking label lacks it); titles of 4 words or fewer.
+- message `kind`: `call | return | ai | event | error` -- `"ai"` a violet AI step, `"error"` (or `"failure": true`) a failure/denied/timeout path drawn as a red box in the failures lane under the step it branches from (the checker only advises `FAILURE-KIND` when a failure-looking label lacks it); titles of 4 words or fewer.
 
 Wording lints (advisory): `ECHO-LABEL` (label/description repeats a title), `HIDDEN-BRANCH` (failure path with no label), `LONGTITLE`.
 

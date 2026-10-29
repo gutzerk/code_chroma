@@ -1,221 +1,126 @@
-import { describe, expect, it } from "vitest";
-import { fireEvent, render, screen } from "@testing-library/react";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { fireEvent, render, screen, within } from "@testing-library/react";
+import type { ReactNode } from "react";
 import { SequenceDiagram } from "./SequenceDiagram";
-import { descriptionPopupStore } from "./descriptionPopupStore";
-import type { CanvasElement } from "../../state/types";
-import { stringMeta } from "./elementMeta";
+import { EngineClientProvider } from "../../engine-client/EngineClientContext";
+import type { EngineClient } from "../../engine-client/EngineClient";
+import type { HierarchyNodeRef } from "../../state/types";
+import { sequenceViewStore } from "./sequenceViewStore";
+import { clearStepFunctionCache } from "./sequenceStepFunctions";
+import { inspectorStore } from "../inspectorStore";
+import { laidOut, messageEl, participantEl } from "./sequenceTestElements";
 
-// Mirror the layout constants used by autoLayout.ts's layoutSequence (which writes the persisted
-// positions this renderer draws from) -- kept as the same fixed values here so a unit test can lay
-// the diagram out realistically without importing the layout module.
-const COL_W = 260;
-const ROW_H = 58;
-const HEAD_H = 36;
-const HEAD_W = 180;
+const fn = (name: string, parent = "component::src/api.py"): HierarchyNodeRef => ({
+  node_id: `${parent}::${name}`,
+  name,
+  level: "function",
+  parent_id: parent,
+  has_children: false,
+  child_count: 0,
+  params: "(req)",
+});
 
-function elementOf(id: string, overrides: Partial<CanvasElement> = {}): CanvasElement {
+function fakeClient(): EngineClient {
   return {
-    id,
-    render: "sequence",
-    layer: "seq",
-    label: id,
-    description: "",
-    node_id: null,
-    position: { x: 0, y: 0 },
-    size: null,
-    group_id: null,
-    meta: {},
-    created_by: "ai",
-    ...overrides,
+    getChildren: vi.fn(async () => [fn("handle_checkout"), fn("validate_cart"), fn("unrelated")]),
+    getConnections: vi.fn(async (id: string) =>
+      id.endsWith("handle_checkout") ? [{ from_id: id, to_id: "component::src/api.py::validate_cart" }] : [],
+    ),
+  } as unknown as EngineClient;
+}
+
+const wrap = (client: EngineClient) =>
+  function Wrapper({ children }: { children: ReactNode }) {
+    return <EngineClientProvider repoId="default" client={client}>{children}</EngineClientProvider>;
   };
+
+const elements = () =>
+  laidOut([
+    participantEl("client", "ui"),
+    participantEl("api", "service", { node_id: "component::src/api.py" }),
+    messageEl("m1", "client", "api", "1", {}),
+    messageEl("m2", "api", "client", "2"),
+    messageEl("m3", "client", "api", "3"),
+    messageEl("mx", "api", "client", "4", { kind: "error" }),
+  ]).map((e) => (e.id === "m2" ? { ...e, label: "Checkout cart", description: "validates the cart" } : e));
+
+function renderBoard(client = fakeClient()) {
+  return render(<SequenceDiagram layer="seq" elements={elements()} />, { wrapper: wrap(client) });
 }
 
-function participant(id: string, label: string, recipeKey: string): CanvasElement {
-  return elementOf(id, {
-    label,
-    position: { x: 0, y: HEAD_H },
-    size: { w: HEAD_W, h: HEAD_H },
-    meta: { role: "participant", recipe_key: recipeKey },
+describe("SequenceDiagram (A4 glance + expand in place)", () => {
+  beforeEach(() => {
+    window.localStorage.clear();
+    sequenceViewStore.reset();
+    clearStepFunctionCache();
   });
-}
+  afterEach(() => inspectorStore.close());
 
-function message(
-  id: string,
-  from: string,
-  to: string,
-  order: number,
-  extra: Record<string, unknown> = {},
-): CanvasElement {
-  return elementOf(id, {
-    label: id,
-    meta: { role: "message", from, to, order: String(order), ...extra },
-  });
-}
+  it("draws one lane per participant plus the failure lane, and every step as a glance box", () => {
+    renderBoard();
 
-/** Lays out a set of [participant, message] elements the way layoutSequence would, so the renderer
- * sees real persisted geometry: assigns each participant the first-seen column, then back-fills each
- * message's midpoint from its sender/receiver columns. */
-function layOut(elements: CanvasElement[]): CanvasElement[] {
-  const cols = new Map<string, number>();
-  for (const element of elements) {
-    if (stringMeta(element, "role") !== "participant") continue;
-    const ref = stringMeta(element, "recipe_key") ?? element.id;
-    if (!cols.has(ref)) cols.set(ref, cols.size);
-  }
-  const result = elements.map((element) => {
-    if (stringMeta(element, "role") !== "participant") return { ...element };
-    const ref = stringMeta(element, "recipe_key") ?? element.id;
-    const col = cols.get(ref) ?? 0;
-    return { ...element, position: { x: col * COL_W + COL_W / 2, y: HEAD_H } };
-  });
-  for (let i = 0; i < result.length; i++) {
-    const element = result[i];
-    if (stringMeta(element, "role") !== "message") continue;
-    const from = String(element.meta.from ?? "");
-    const to = String(element.meta.to ?? "");
-    const fromCol = cols.get(from) ?? 0;
-    const toCol = cols.get(to) ?? 0;
-    const order = Number(element.meta.order ?? 1) || 1;
-    result[i] = {
-      ...element,
-      position: {
-        x: (fromCol * COL_W + toCol * COL_W) / 2 + COL_W / 2,
-        y: HEAD_H + ROW_H * (order - 1) + ROW_H / 2,
-      },
-    };
-  }
-  return result;
-}
-
-describe("SequenceDiagram", () => {
-  it("renders one participant head per participant", () => {
-    const elements = layOut([
-      participant("p1", "Client", "client"),
-      participant("p2", "API", "api"),
-    ]);
-
-    render(<SequenceDiagram layer="seq" elements={elements} />);
-
-    const heads = screen.getAllByTestId("sequence-participant");
-    expect(heads).toHaveLength(2);
-    expect(screen.getByText("Client")).toBeInTheDocument();
-    expect(screen.getByText("API")).toBeInTheDocument();
+    expect(screen.getAllByTestId("sequence-lane").map((l) => l.textContent)).toEqual(["01 / CLIENT", "02 / API", "EX / Failures"]);
+    expect(screen.getAllByTestId("sequence-step")).toHaveLength(4);
+    expect(screen.getByText("START")).toBeInTheDocument();
+    expect(screen.getByText("END")).toBeInTheDocument();
   });
 
-  it("orders messages by their meta.order (top-to-bottom)", () => {
-    const elements = layOut([
-      participant("p1", "Client", "client"),
-      participant("p2", "API", "api"),
-      message("m1", "client", "api", 1),
-      message("m2", "api", "client", 2),
-    ]);
+  it("expands a step in place into its linked code's functions, best match first, with the call between them", async () => {
+    renderBoard();
 
-    render(<SequenceDiagram layer="seq" elements={elements} />);
+    fireEvent.click(screen.getByRole("button", { name: "Expand Checkout cart" }));
+    const cards = await screen.findAllByTestId("sequence-step-function");
 
-    const arrows = screen.getAllByTestId("sequence-message");
-    expect(arrows).toHaveLength(2);
-    const tops = arrows.map((arrow) => Number.parseFloat(arrow.style.top));
-    expect(tops[0]).toBeLessThan(tops[1]);
+    expect(cards.map((c) => c.textContent)).toEqual(["validate_cart()(req)", "handle_checkout()(req)", "unrelated()(req)"]);
+    expect(document.querySelectorAll(".seq-exp-calls path")).toHaveLength(1);
+    expect(sequenceViewStore.get("seq").expanded).toEqual(["m2"]);
   });
 
-  it("renders a return arrow distinctly and labels it", () => {
-    const elements = layOut([
-      participant("p1", "Client", "client"),
-      participant("p2", "API", "api"),
-      message("m1", "client", "api", 1),
-      message("m2", "api", "client", 2, { return: "true" }),
-    ]);
+  it("folds an expanded step back with its caret", async () => {
+    renderBoard();
+    fireEvent.click(screen.getByRole("button", { name: "Expand Checkout cart" }));
+    await screen.findAllByTestId("sequence-step-function");
 
-    render(<SequenceDiagram layer="seq" elements={elements} />);
+    fireEvent.click(screen.getByTestId("sequence-step-collapse"));
 
-    const arrows = screen.getAllByTestId("sequence-message");
-    expect(arrows).toHaveLength(2);
-    expect(arrows[1].className).toContain("sequence-message--return");
-    // A message's own label is rendered on its arrow.
-    expect(screen.getByText("m2")).toBeInTheDocument();
+    expect(screen.queryByTestId("sequence-step-function")).toBeNull();
+    expect(sequenceViewStore.get("seq").expanded).toEqual([]);
   });
 
-  it("flips any right-to-left arrow, return or not, so it points at its receiver", () => {
-    const elements = layOut([
-      participant("p1", "Client", "client"),
-      participant("p2", "API", "api"),
-      message("m1", "client", "api", 1),
-      message("m2", "api", "client", 2),
-    ]);
+  it("opens the step's source in the inspector without expanding it", () => {
+    const open = vi.spyOn(inspectorStore, "open");
+    renderBoard();
 
-    render(<SequenceDiagram layer="seq" elements={elements} />);
+    const step = screen.getByRole("button", { name: "Expand Checkout cart" });
+    fireEvent.click(within(step).getByTestId("sequence-step-src"));
 
-    const lines = document.querySelectorAll<HTMLElement>(".sequence-message-line");
-    expect(lines[0].style.transform).toBe("");
-    expect(lines[1].style.transform).toBe("scaleX(-1)");
+    expect(open).toHaveBeenCalledWith("component::src/api.py", "API", "api");
+    expect(sequenceViewStore.get("seq").expanded).toEqual([]);
+    open.mockRestore();
   });
 
-  it("renders a return arrow from a real-bridge boolean flag, not just the string form", () => {
-    // The backend `recipes.py` emits `return`/`async` as JSON booleans; the mock's string `"true"`
-    // is the other accepted form. Both must shape the arrow (H1 regression: `stringMeta` dropped
-    // booleans, so a backend-authored return arrow silently rendered as a forward call).
-    const elements = layOut([
-      participant("p1", "Client", "client"),
-      participant("p2", "API", "api"),
-      message("m1", "client", "api", 1),
-      message("m2", "api", "client", 2, { return: true, async: true }),
-    ]);
+  it("says so when a step has no linked code", () => {
+    renderBoard();
 
-    render(<SequenceDiagram layer="seq" elements={elements} />);
+    fireEvent.click(screen.getByRole("button", { name: "Expand m3" }));
 
-    const arrows = screen.getAllByTestId("sequence-message");
-    expect(arrows[1].className).toContain("sequence-message--return");
-    expect(arrows[1].className).toContain("sequence-message--async");
+    expect(screen.getByText("No linked code for this step.")).toBeInTheDocument();
   });
 
-  it("renders a plain forward call when the return flag is explicitly false", () => {
-    // An explicit `false` (from `bool(item.get("return"))`) must NOT be treated as "return set".
-    const elements = layOut([
-      participant("p1", "Client", "client"),
-      participant("p2", "API", "api"),
-      message("m1", "client", "api", 1),
-      message("m2", "client", "api", 2, { return: false }),
-    ]);
+  it("fades steps after the player's current step and lights the current one", () => {
+    sequenceViewStore.setStep("seq", 2);
+    renderBoard();
 
-    render(<SequenceDiagram layer="seq" elements={elements} />);
-
-    const arrows = screen.getAllByTestId("sequence-message");
-    expect(arrows[1].className).not.toContain("sequence-message--return");
+    expect(document.querySelectorAll(".seq-step--active")).toHaveLength(1);
+    expect(document.querySelectorAll(".seq-step--dim")).toHaveLength(2);
   });
 
-  it("drops a message whose from/to names no participant", () => {
-    const elements = [
-      participant("p1", "Client", "client"),
-      message("m1", "client", "ghost", 1),
-    ];
+  it("renders the legend with every tone and arrow kind", () => {
+    renderBoard();
 
-    render(<SequenceDiagram layer="seq" elements={elements} />);
+    const legend = screen.getByTestId("sequence-legend");
 
-    expect(screen.queryAllByTestId("sequence-message")).toHaveLength(0);
-  });
-
-  it("opens the description popup with a message's label and description on click", () => {
-    const clicked: { title: string; description: string }[] = [];
-    const unsub = descriptionPopupStore.subscribe(() => {
-      const entry = descriptionPopupStore.getEntry();
-      if (entry) clicked.push(entry);
-    });
-    const elements = layOut([
-      participant("p1", "Client", "client"),
-      participant("p2", "API", "api"),
-      message("m1", "client", "api", 1),
-    ]);
-    // A message's request detail lives on the element's `description` field, like a box's.
-    elements[2].description = "POST /checkout with cart payload";
-
-    render(<SequenceDiagram layer="seq" elements={elements} />);
-    fireEvent.click(screen.getByTestId("sequence-message"));
-
-    const entry = clicked[clicked.length - 1];
-    expect(entry).toEqual({
-      title: "m1",
-      description: "POST /checkout with cart payload",
-    });
-    unsub();
+    expect(legend.textContent).toContain("Entry route");
+    expect(legend.textContent).toContain("Failure branch");
   });
 });

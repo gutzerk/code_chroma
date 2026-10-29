@@ -14,7 +14,7 @@ export interface DisplayContext {
   sequence?: {
     doc: CanvasDoc; // the doc whose `elements` were passed to the stage
     idsByLayer: ReadonlyMap<string, readonly string[]>;
-    viewFor: (layer: string, messageCount: number) => SequenceView;
+    viewFor: (layer: string) => SequenceView;
   };
 }
 
@@ -45,14 +45,13 @@ export const offsetDraggedElements: DisplayStage = (elements, ctx) => {
   return next ?? elements;
 };
 
-/** Re-lays each sequence layer out for the viewer's Readable/Focus mode. */
+/** Re-lays each sequence layer out for the steps the viewer expanded in place. */
 export const viewSequenceLayers: DisplayStage = (elements, ctx) => {
   const sequence = ctx.sequence;
   if (!sequence || sequence.idsByLayer.size === 0) return elements;
   const next = { ...elements };
   for (const [layer, ids] of sequence.idsByLayer) {
-    const messageCount = ids.filter((id) => elements[id]?.meta?.role === "message").length;
-    const view = sequence.viewFor(layer, messageCount);
+    const view = sequence.viewFor(layer);
     for (const element of viewSequenceElements(sequence.doc, ids, view)) next[element.id] = element;
   }
   return next;

@@ -10,7 +10,7 @@ const edge = (id: string, from: string, to: string, kind = "uses", label = ""): 
 describe("edgeVisual", () => {
   it.each([
     ["spawns", "spawn"], ["process", "spawn"], ["writes", "data"], ["READ", "data"],
-    ["secondary", "minor"], ["uses", "call"], ["", "call"],
+    ["secondary", "minor"], ["error", "error"], ["uses", "call"], ["", "call"],
   ])("maps %s to %s", (kind, expected) => {
     expect(edgeVisual(kind)).toBe(expected);
   });

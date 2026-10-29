@@ -128,12 +128,29 @@ public static class Recipes
             Size: item["size"] is JsonObject size ? (JsonObject)size.DeepClone() : null);
     }
 
-    /// <summary>One shared shape: nodes come from "nodes", or "items" for the epics index.</summary>
+    /// <summary>The element meta key every node of a titled diagram carries, so the canvas can name the layer.</summary>
+    public const string DiagramTitleKey = "diagram_title";
+
+    /// <summary>The diagram's authored top-level `title`, trimmed, or null when absent or blank.</summary>
+    public static string? DiagramTitle(JsonNode? data) =>
+        data is JsonObject o && Json.Str(o["title"]) is { } title && title.Trim() is { Length: > 0 } trimmed ? trimmed : null;
+
+    /// <summary>One shared shape plus the route carrier, every node stamped with the diagram's title.</summary>
     public static GraphShape Reshape(JsonObject resolved, string render)
     {
         var parts = RouteParts(resolved);
         var shape = ReshapeNodes(resolved, render, parts);
-        return RouteCarrier(parts) is { } carrier ? shape with { Nodes = [.. shape.Nodes, carrier] } : shape;
+        var nodes = RouteCarrier(parts) is { } carrier ? [.. shape.Nodes, carrier] : shape.Nodes.ToList();
+        if (DiagramTitle(resolved) is not { } title) return shape with { Nodes = nodes };
+        return shape with
+        {
+            Nodes = nodes.Select(node =>
+            {
+                var meta = (JsonObject)(node.Meta ?? []).DeepClone();
+                meta[DiagramTitleKey] = title;
+                return node with { Meta = meta };
+            }).ToList(),
+        };
     }
 
     private static GraphShape ReshapeNodes(JsonObject resolved, string render, (JsonObject Route, string Id, List<JsonObject> Steps)? parts)

@@ -13,7 +13,7 @@ import { DiagramFrame } from "./DiagramFrame";
 import { WalkthroughPanel } from "./WalkthroughPanel";
 import { WALKTHROUGH_LAYER } from "./walkthroughLayout";
 import { diagramDisplayName } from "./diagramDisplay";
-import { isDiagramLayer, labelForDiagramLayer, useCustomDiagramTypes } from "./diagramCatalog";
+import { isDiagramLayer, useCustomDiagramTypes } from "./diagramCatalog";
 import { BLOCK_RULES } from "./elementRules";
 import { layerFitNameSizes } from "./measureBoxSize";
 import { elementRect } from "./elementRect";
@@ -313,7 +313,7 @@ export function CanvasDocView() {
               <DiagramFrame
                 key={`diagram-${layer}`}
                 layer={layer}
-                label={labelForDiagramLayer(layer, customTypes)}
+                label={display.name}
                 typeLabel={display.typeLabel}
                 boxCount={display.boxCount}
                 members={resolveMembers(memberIds, viewElements)}

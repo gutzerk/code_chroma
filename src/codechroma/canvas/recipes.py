@@ -32,6 +32,8 @@ from codechroma.bridge.diagram_resolver import route_summary
 from codechroma.canvas.document import CanvasDoc
 
 RECIPE_KEY = "recipe_key"
+# The element meta key every node of a titled diagram carries, so the canvas can name the layer.
+DIAGRAM_TITLE_KEY = "diagram_title"
 
 # A diagram kind's own name -> the `render` string its canvas elements carry (a naming convention).
 _RENDER_BY_KIND = {
@@ -51,6 +53,7 @@ __all__ = [
     "RecipeResult",
     "RECIPES",
     "build_batch_ops",
+    "diagram_title",
     "graph_to_ops",
     "recipe_for",
     "render_for",
@@ -251,12 +254,26 @@ def _route_carrier(parts: tuple[dict, list[dict]] | None) -> GraphNode | None:
     )
 
 
+def diagram_title(data: object) -> str | None:
+    """The diagram's authored top-level `title`, stripped, or None when absent or blank."""
+    title = data.get("title") if isinstance(data, dict) else None
+    return (title.strip() or None) if isinstance(title, str) else None
+
+
+def _with_title(nodes: tuple[GraphNode, ...], title: str | None) -> tuple[GraphNode, ...]:
+    """Stamps the diagram's title on every node's meta; untitled diagrams stay untouched."""
+    if title is None:
+        return nodes
+    return tuple(replace(node, meta={**node.meta, DIAGRAM_TITLE_KEY: title}) for node in nodes)
+
+
 def reshape(resolved: dict, render: str) -> GraphShape:
-    """The shared shape plus the route carrier, when the diagram authored a route."""
+    """The shared shape plus the route carrier, every node stamped with the diagram's title."""
     parts = _route_parts(resolved)
     shape = _reshape_nodes(resolved, render, parts)
     carrier = _route_carrier(parts)
-    return shape if carrier is None else replace(shape, nodes=(*shape.nodes, carrier))
+    nodes = shape.nodes if carrier is None else (*shape.nodes, carrier)
+    return replace(shape, nodes=_with_title(nodes, diagram_title(resolved)))
 
 
 def _reshape_nodes(

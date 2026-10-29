@@ -134,6 +134,11 @@
   font-size: 11px;
 }
 
+.left-panel-row-type {
+  font-size: 10px;
+  letter-spacing: 0.06em;
+}
+
 .left-panel-icon-btn {
   display: grid;
   place-items: center;

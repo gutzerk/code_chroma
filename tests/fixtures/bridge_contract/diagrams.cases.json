@@ -101,6 +101,21 @@
       ]
     },
     {
+      "id": "diagrams_status_reports_each_written_title_and_null_when_untitled",
+      "steps": [
+        {"fs": "write", "path": ".codechroma/diagrams/sequence/sequence.json", "text": "{\"title\": \"How a file save reaches the canvas\", \"nodes\": [{\"id\": \"a\", \"name\": \"A\"}], \"relations\": []}"},
+        {"fs": "write", "path": ".codechroma/diagrams/feature-plan/token-auth/token-auth.json", "text": "{\"title\": \"   \", \"nodes\": [{\"id\": \"a\", \"name\": \"A\"}], \"relations\": []}"},
+        {
+          "http": {"method": "GET", "path": "/repos/main/diagrams/status"},
+          "expect": {"status": 200, "checks": [
+            {"path": "$.sequence.title", "equals": "How a file save reaches the canvas"},
+            {"path": "$.patterns.title", "type": "null"},
+            {"path": "$['feature-plan/token-auth'].title", "type": "null"}
+          ]}
+        }
+      ]
+    },
+    {
       "id": "deleting_a_diagram_flips_its_ready_flag_back_to_false",
       "steps": [
         {"fs": "write", "path": ".codechroma/diagrams/system-context/system-context.json", "text": "{\"system\": {\"name\": \"Sample\"}}"},

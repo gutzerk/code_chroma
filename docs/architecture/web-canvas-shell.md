@@ -596,9 +596,9 @@ expand button, folder and color boxes all go through `layoutStore`/`collapsedLay
 - ⚠ The per-layer filter relies on `data-layer` being set on every node that belongs to a diagram: `CanvasNodeBox`, `SoftAreaFrame` (diagram/group/lane/island frames, via its `layer` prop), `RelationshipEdge` (its `layer` prop, set by `CanvasEdges` from the edge's `from` element) and `SequenceReadable`. A new diagram-owned overlay must carry it too or it leaks into other diagrams' exports.
 - `saveFile` asks where to save: `window.codechromaDesktop.saveFile` (native Save As, see [`desktop-app.md`](desktop-app.md)) in the shell, else `showSaveFilePicker`, else an `<a download>` fallback. A cancelled dialog is silent; a successful save shows a 4 s `role="status"` "Exported <file>" note and failures a `role="alert"` note under the button.
 
-## Sequence modes (022)
+## Sequence board (A4)
 
-See "Sequence readability" in [`diagram-skills.md`](diagram-skills.md): `SequenceDiagram.tsx` dispatches to `SequenceReadable`/`SequenceFocus` from `sequenceViewStore`; the mode switch is in `DiagramFrame.tsx`.
+See "Sequence readability" in [`diagram-skills.md`](diagram-skills.md): `SequenceDiagram.tsx` draws the swimlane board from `sequenceBoard.ts`, a step expands in place through `SequenceStep.tsx`, and `sequenceViewStore` keeps the expanded steps; the Play / Collapse all buttons are in `DiagramFrame.tsx`. Sequence elements are left out of the concurrency islands (`CanvasDocView.tsx`), since `"2a"`/`"2b"` get their own step columns.
 
 ## Block anatomy, zoom levels, lanes, click-to-focus (022 Stage 2)
 
@@ -607,7 +607,7 @@ See "Sequence readability" in [`diagram-skills.md`](diagram-skills.md): `Sequenc
 - **Lanes:** `connectors/elkLayout.ts` lays out RIGHT with one ELK partition per `lane` (first-seen order) when any box has a lane; no lanes keeps the DOWN layout.
 - **Click-to-focus:** `doc/focusStore.ts` + `focusNeighbors.ts` (note: the `highlighting/` folder is syntax highlighting, so this is a small store of its own). A click on a box that has edges lights the box and its direct neighbours, fades the rest (`block-focus-dim`, 35%), and `FocusPanel.tsx` (portalled out of the pan/zoom transform into `.canvas-area`, `position: absolute` beside the left panel via `--chrome-inset`/`--left-panel-width`, or at the left edge when the panel is closed, so it follows the panel and never shares the right side with the inspector) lists CALLED BY · N / USES · N (`←`/`→`/`⇢` arrows, the edge label in grey parens) with Upstream / Downstream toggles (pressing the active one returns to both). Escape, the ✕, or the focused block leaving the doc clears it.
 
-**022 follow-ups:** `doc/bundleEdges.ts` merges parallel edges into one `label ×N` before routing (`CanvasEdges.tsx`); a corner `canvas-node-step-chip` shows `meta.order`'s leading digits (the old `STEP n` text is hidden); the sequence ▶ player (`sequenceViewStore.setStep`, button in `DiagramFrame.tsx`) lights one `order` at a time and fades later messages. Group frames already existed (`GroupFrame.tsx`). `e2e/sequence-modes.spec.ts` covers the Readable ↔ Focus flip and the player. Note: the frame label ignores pointer events, so interactive controls in it need `pointer-events: auto` (`.canvas-diagram-frame-modes`).
+**022 follow-ups:** `doc/bundleEdges.ts` merges parallel edges into one `label ×N` before routing (`CanvasEdges.tsx`); a corner `canvas-node-step-chip` shows `meta.order`'s leading digits (the old `STEP n` text is hidden); the sequence ▶ player (`sequenceViewStore.setStep`, button in `DiagramFrame.tsx`) lights one `order` at a time and fades later steps. Group frames already existed (`GroupFrame.tsx`). `e2e/sequence-expand.spec.ts` covers expand in place, Collapse all and the player. Note: the frame label ignores pointer events, so interactive controls in it need `pointer-events: auto` (`.canvas-diagram-frame-modes`).
 
 ## Activity panel tab visibility
 

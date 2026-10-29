@@ -256,12 +256,12 @@ export function CanvasDocView() {
     return map;
   }, [renderableElements]);
 
-  // 022: the Readable/Focus geometry is derived here for display only, never persisted to the doc.
+  // A4: expanded-step geometry is derived here for display only, never persisted to the doc.
   const sequenceViewVersion = useSyncExternalStore(sequenceViewStore.subscribe, sequenceViewStore.getLayoutVersion);
   const viewElements = useMemo(
     () =>
       runDisplayStages(VIEW_STAGES, visibleDoc.elements, {
-        sequence: { doc: visibleDoc, idsByLayer: sequenceMemberIdsByLayer, viewFor: (layer, count) => sequenceViewStore.get(layer, count) },
+        sequence: { doc: visibleDoc, idsByLayer: sequenceMemberIdsByLayer, viewFor: (layer) => sequenceViewStore.get(layer) },
       }),
     // eslint-disable-next-line react-hooks/exhaustive-deps -- sequenceViewVersion is the store's change signal
     [visibleDoc, sequenceMemberIdsByLayer, sequenceViewVersion],
@@ -270,7 +270,8 @@ export function CanvasDocView() {
   const concurrencyBuckets = useMemo(
     () =>
       bucketPerLayer(
-        Object.values(renderableElements),
+        // A sequence board draws "2a"/"2b" as their own step columns, never as a concurrency island.
+        Object.values(renderableElements).filter((el) => el.render !== "sequence"),
         (el) => leadingOrderDigits(orderMeta(el)),
         false,
       ),

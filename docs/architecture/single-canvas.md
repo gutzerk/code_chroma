@@ -213,13 +213,12 @@ what changed since.
   🔴 Hard-layout layers (epics columns, sequence participants/messages) are never user-dragged, so a
   refresh re-runs their whole deterministic layout (`diagramCatalog.isHardLayoutLayer` — `isEpicsLayer`
   or `render === "sequence"`) instead of only the brand-new elements. Without this a sequence layer
-  drawn before a `SEQUENCE_LAYOUT.colW` change keeps its stale narrow participant columns and never
-  re-spreads to the current gap.
-  Sequence geometry: `SEQUENCE_LAYOUT` (`colW` wider than `headW` so heads never touch; `rowH` is
-  centre-to-centre message spacing; `headGap` pushes the first line below the participant heads; the
-  gap below the last line is `DiagramFrame`'s own `PADDING.bottom` — never fatten a message's
-  `size.h` to fake vertical margins, that pokes the outer rows up into the heads and pinches the
-  bottom arrow). Because sequence positions are pure derivations of these constants yet persisted,
+  drawn before a `SEQUENCE_BOARD` change keeps its stale geometry and never re-spreads.
+  Sequence geometry: `SEQUENCE_BOARD` in `sequenceBoard.ts` (the A4 swimlane board: a participant's
+  element is its lane rect, a message's is its step box; lanes start `lanesTop` below the board top so
+  the phase pills fit above them, and the legend sits under the last lane). `DiagramFrame` encloses
+  the whole board through `sequenceBoardBounds`, not the member rects. Because sequence positions are
+  pure derivations of these constants yet persisted,
   `useReflowSequence` re-runs `layoutSequence` on mount for any sequence layer whose geometry has
   drifted, so a constant change reaches every reloaded diagram, not just freshly-drawn ones.
   Message `return`/`async` flags are read through `elementMeta.flagMeta` (truthiness-aware): the

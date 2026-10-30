@@ -1,5 +1,18 @@
 # Changelog
 
+## [1.11.0](https://github.com/gutzerk/code_chroma/compare/v1.10.0...v1.11.0) (2026-10-30)
+
+
+### Features
+
+* **web:** restyle agent questions and put the question above the terminal ([35b229b](https://github.com/gutzerk/code_chroma/commit/35b229b6a74f994f6907b93f5df3bdd540381824))
+* **web:** switch agents with Ctrl/Cmd+Alt+Up/Down ([#334](https://github.com/gutzerk/code_chroma/issues/334)) ([b5506e3](https://github.com/gutzerk/code_chroma/commit/b5506e31ad7fcfa676dd8594062ccfedb94aa3fc))
+
+
+### Bug Fixes
+
+* **web:** keep orphaned agent questions on the canvas and fix review issues ([011844a](https://github.com/gutzerk/code_chroma/commit/011844a087c581b1870abf1be1d7ad58886a46e7))
+
 ## [1.10.0](https://github.com/gutzerk/code_chroma/compare/v1.9.0...v1.10.0) (2026-10-30)
 
 

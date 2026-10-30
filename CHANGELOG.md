@@ -1,5 +1,49 @@
 # Changelog
 
+## [1.10.0](https://github.com/gutzerk/code_chroma/compare/v1.9.0...v1.10.0) (2026-10-30)
+
+
+### Features
+
+* add the walkthrough diagram type and the B2 look for routes ([9c94251](https://github.com/gutzerk/code_chroma/commit/9c94251d73e677197e003c55b764f1ef7a54b490))
+* **bridge:** carry a diagram's title onto the canvas and the status route ([b1c8113](https://github.com/gutzerk/code_chroma/commit/b1c81135836f1fe5c23ce3d6db963890fd9faa2f))
+* canvas design batch — walkthrough B2, sequence A4, diagram titles, layout spacing, question wake-up ([4c5fd14](https://github.com/gutzerk/code_chroma/commit/4c5fd144b1b3e83d2f6194e36d5ac31bfab16488))
+* **canvas:** show a diagram's title on its frame and ON CANVAS row ([5255010](https://github.com/gutzerk/code_chroma/commit/525501054afeff6e00f24086161bad97ca90b8ae))
+* **layout:** measure box sizes before ELK, add meta.rank and feedback edges as layout hints ([252d35e](https://github.com/gutzerk/code_chroma/commit/252d35ebdd995b73ec0469d1b9283d2faecf4b48))
+* rename C1 to System context and detect its environment like Design patterns ([370c061](https://github.com/gutzerk/code_chroma/commit/370c0612cecb60235b7cbcd7e801c1cfb9d0f9e9))
+* **skills:** have the drawing agent title every diagram ([219faf4](https://github.com/gutzerk/code_chroma/commit/219faf426a3223ce11c182476e3867e9bc6888f2))
+* **web:** draw the sequence diagram as the A4 glance board that expands a step in place ([f32b4e9](https://github.com/gutzerk/code_chroma/commit/f32b4e9fceb2edc99cdfef2a3682f940878c3e88))
+
+
+### Bug Fixes
+
+* **bridge:** message a step agent by resuming its session, find a run's worktree in its own workspace, keep restart answers on renamed inputs ([b544d6e](https://github.com/gutzerk/code_chroma/commit/b544d6eb6d643545b56c0f7129a8ae4f1d30108e))
+* **bridge:** pass the assigned model to agent windows and list only claude aliases ([4def11b](https://github.com/gutzerk/code_chroma/commit/4def11b82851554e13f6769b99bb26e0d43a0120))
+* **canvas:** reserve real role-box height and wider gaps in auto-layout ([9e10663](https://github.com/gutzerk/code_chroma/commit/9e10663d0977cca902483e6b966511bc2895f1e6))
+* **checker:** exempt the system root from ARTICULATION, utf-8 output, exact-id UNREVIEWED hint, finish c1 rename in tests ([1af703d](https://github.com/gutzerk/code_chroma/commit/1af703dbf1189e1afb5936889be8a851a6590e05))
+* **ci:** use the system-context layer in the canvas delete tests ([5a40854](https://github.com/gutzerk/code_chroma/commit/5a40854a9b00d7167b9144c9350b6e0ab1781c37))
+* **ci:** wrap long lines, serve walkthrough in the wire fixture, use diagram tokens in CSS, finish c1 rename in tests ([36cc6ef](https://github.com/gutzerk/code_chroma/commit/36cc6ef730fa52a24a53b64ef0927600d03bb5dd))
+* **questions:** clear an answered batch only after the agent really received it ([e2a5a52](https://github.com/gutzerk/code_chroma/commit/e2a5a52a99693fe4df751c493d5577653df1e7ce))
+* **questions:** never strand an answered batch and type it as it stands at idle ([f05b651](https://github.com/gutzerk/code_chroma/commit/f05b651ae24e028a845c8bda1f30dcab7261d00f))
+* **questions:** wake the asking agent once its batch is answered and clear the cards ([6f044f2](https://github.com/gutzerk/code_chroma/commit/6f044f2e88d606dbe97af40c9bef589ba5aaf3bd))
+* **tests:** finish the C1 to system-context rename and register walkthrough in the Python tests ([62b2b1a](https://github.com/gutzerk/code_chroma/commit/62b2b1abca29ba0d55e4719245af84df37e56d8a))
+* **tests:** finish the system-context rename in the agents, PR boot and context-envelope tests ([06f12ac](https://github.com/gutzerk/code_chroma/commit/06f12ac9a1f8711a04991eecd82599815b446252))
+* **tests:** repair the walkthrough entry in the diagrams status test ([4fb8367](https://github.com/gutzerk/code_chroma/commit/4fb8367d120788a6d2630cc7d49970d5dda72eeb))
+* **tests:** use the system-context routes and status key in the remaining bridge tests ([c38b9eb](https://github.com/gutzerk/code_chroma/commit/c38b9ebb0feb235d9117d7afcaba2236668a5d23))
+* **tests:** wrap the lines the system-context rename pushed past 100 columns ([65d8dad](https://github.com/gutzerk/code_chroma/commit/65d8dad7653dd301c074164db9c1bf40664d4609))
+* **web:** diagram box copy top-right, SRC bottom-right, no details button or popups ([bc31a87](https://github.com/gutzerk/code_chroma/commit/bc31a877f4f592f440a62c7499a2c6e7dd98133a))
+* **web:** draw the walkthrough ROUTE panel inside the diagram with the B2 board look ([b6d0746](https://github.com/gutzerk/code_chroma/commit/b6d074663ce4d24786fcf489129bf70ec222911d))
+* **web:** give walkthrough boxes the common box internals and fill boxes with their name when zoomed out ([2b731da](https://github.com/gutzerk/code_chroma/commit/2b731daff12d25eb255dd3e3b03ff1acab5de8cf))
+* **web:** make sequence role colours clearly distinct (blue route, stronger tints) ([492a11c](https://github.com/gutzerk/code_chroma/commit/492a11cb8d877454c909e158099ab6227c7ccf7c))
+* **web:** make sequence steps keyboard-safe and keep canvas caches fresh after review ([1450cc9](https://github.com/gutzerk/code_chroma/commit/1450cc9611d9e5e8e11b6c51582fd0294a9366e2))
+* **web:** restore the group frame open arrow that was saved as mojibake ([2ac5ee8](https://github.com/gutzerk/code_chroma/commit/2ac5ee89ccc4930f984e369394fa1d57d425b265))
+* **web:** share one role palette across boards and pin lane-tint ties ([e9ff11f](https://github.com/gutzerk/code_chroma/commit/e9ff11f0a2757c1e98ba0cfaec1405255cc0fbd4))
+* **web:** snap agents panel to full near its widest and let the grip leave full ([c884a72](https://github.com/gutzerk/code_chroma/commit/c884a72851cab23b83738a411e146b313789237d))
+* **web:** tint each sequence lane by the role of its steps ([40d5c9b](https://github.com/gutzerk/code_chroma/commit/40d5c9be848638a866d803890cdabd6743af9222))
+* **web:** tint sequence step backgrounds by role so steps read apart ([0bfd258](https://github.com/gutzerk/code_chroma/commit/0bfd258f8d883d46c1b22eed8539121acf248396))
+* **web:** use one zoomed-out name size per diagram so every box reads the same ([a0b746d](https://github.com/gutzerk/code_chroma/commit/a0b746d24aca8a50a7fbc15b4afeee3188787403))
+* **web:** workflow editor slash skills, run view fixes and no embedded step terminal ([355c49f](https://github.com/gutzerk/code_chroma/commit/355c49fecd7f353374c7f2d3d87a4bc2c53e9642))
+
 ## [1.9.0](https://github.com/gutzerk/code_chroma/compare/v1.8.0...v1.9.0) (2026-10-28)
 
 

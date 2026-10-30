@@ -19,7 +19,7 @@
   --question-pro-bg: var(--question-rec-bg);
   --question-pro-fg: var(--question-rec-fg);
   --question-con-bg: color-mix(in srgb, var(--error) 14%, transparent);
-  --question-con-fg: var(--error);
+  --question-con-fg: color-mix(in srgb, var(--error) 70%, var(--text-soft)); /* 5.7:1 on the con tint; plain --error is 4.2:1 */
   --question-send-bg: var(--accent-bg);
   --question-send-border: var(--select-ring);
   --question-send-fg: var(--text-soft);
@@ -7361,7 +7361,7 @@ button[data-copy-state="idle"][aria-label]:hover:not(:disabled) {
   grid-template-areas: "card" "terminal";
 }
 
-/* Grid rows size the card and terminal; neither child sets its own min/max height. */
+/* Grid rows size the card and terminal; the terminal sets no min/max height of its own. */
 .agent-question-host > .agent-window-terminal { grid-area: terminal; min-height: 0; box-sizing: border-box; }
 
 .aq-card { grid-area: card; min-height: 0; overflow-y: auto; overscroll-behavior: contain; margin: 12px 12px 0; }
@@ -7372,7 +7372,7 @@ button[data-copy-state="idle"][aria-label]:hover:not(:disabled) {
   grid-template-areas: "diagram card" "terminal terminal";
 }
 
-.agent-question-host[data-layout="A4"] > .aq-diagram { min-height: 220px; margin: 12px 0 0 12px; }
+.agent-question-host[data-layout="A4"] > .aq-diagram { min-height: min(220px, 55%); margin: 12px 0 0 12px; }
 
 .agent-question-host[data-layout="B1"] {
   grid-template-rows: fit-content(65%) minmax(200px, 1fr);

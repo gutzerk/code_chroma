@@ -36,7 +36,7 @@ export function installDevAskQuestion(client: EngineClient): () => void {
   // Seed one canvas question per page load (StrictMode, HMR and workspace switches reinstall this).
   if (!seeded) {
     seeded = true;
-    void ask("");
+    ask("").catch((err: unknown) => console.warn("devAskQuestion: seeding the demo question failed", err));
   }
   return () => {
     document.removeEventListener("keydown", onKeyDown, true);

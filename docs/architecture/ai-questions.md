@@ -1,7 +1,7 @@
 # AI questions and grill sessions (`src/codechroma/questions/`, `web/src/canvas/doc/question/`) — 017
 
 An agent (Claude, Codex) asks a decision question through a bridge-hosted MCP tool instead of chat
-text. The question becomes a `question` element on the one canvas document (shown only in the asking agent's window, see "Agent terminal host"; a question with no `agent_id` renders on the canvas), the user selects an option and presses Send (or
+text. The question becomes a `question` element on the one canvas document (shown only in the asking agent's window while that agent runs, see "Agent terminal host"; a question with no `agent_id`, or whose agent is stopped, exited or gone, renders on the canvas), the user selects an option and presses Send (or
 types their own answer), and once every open question of that agent is settled, all its answers are typed into the asking agent's terminal as one next message; once they were really typed, the cards and their option diagrams are removed from the canvas (024, non-blocking). A run of questions sharing a
 `session_id` is a grill session. Planning doc: `docs/planning/017-ai-questions-grill-session.md`.
 Phases 1 (backend), 2 (canvas UI), 3 (agent wiring) and 4 (diagram options, 021) are implemented.
@@ -126,14 +126,17 @@ The highlighted option is owned by the host (`resolveSelection` in `questionAdap
   lockedLayout: true}` (never dragged or auto-laid-out); excluded from `StyledRenderKind`.
 - `CanvasDocView.tsx`: `case "question"` renders `QuestionElement`; question elements are excluded
   from `memberIdsByLayer` so they get no diagram frame.
-- **Agent questions are not drawn on the canvas.** `displayPipeline.ts` `hideAgentQuestions` (first of
-  `STRUCTURAL_STAGES`) drops every `question` with a non-empty `meta.agent_id` (`isAgentQuestion` in
-  `questionAdapter.ts`) from rendering, canvas bounds, frames and edges; the element stays in the
-  document (the bridges still write it) and `AgentQuestionHost` shows it in that agent's window. Only
-  questions without an agent id (HTTP asks with no agent, the dev demo) render as `QuestionElement`, and
-  their card has no "Chat about it" button (it needs an agent id). A question's option diagrams
-  (`decisions/<qid>` layers) still render on the canvas, so the diagram pane's "Open on canvas" still
-  focuses that diagram layer. Test: `displayPipeline.test.ts`, `CanvasDocView.test.tsx`.
+- **A running agent's questions are not drawn on the canvas.** `displayPipeline.ts` `hideAgentQuestions`
+  (first of `STRUCTURAL_STAGES`) drops every `question` whose `meta.agent_id` (`questionAgentId` in
+  `questionAdapter.ts`) is in `ctx.runningAgentIds` (`useRunningAgentIds` in `agentStore.ts`: agents not
+  `stopped`/`exited`, the same `isAgentRunning` check that mounts `AgentTerminal` and so `AgentQuestionHost`)
+  from rendering, canvas bounds, frames and edges; the element stays in the document (the bridges still
+  write it). Every other question renders as `QuestionElement`: one with no agent id (HTTP asks with no
+  agent, the dev demo; its card has no "Chat about it" button) and one whose agent is stopped, exited or
+  deleted, so the user can still answer or skip it (no bridge deletes an agent's questions with the agent).
+  A question's option diagrams (`decisions/<qid>` layers) still render on the canvas, so the diagram
+  pane's "Open on canvas" still focuses that diagram layer. Test: `displayPipeline.test.ts`,
+  `CanvasDocView.test.tsx`.
 - `EngineClient`: `getOpenQuestions`, `answerQuestion`, `skipQuestion`, `reviseQuestion` (HTTP,
   delegating, stub and `mockBridge.ts`, where the mock mutates element meta instead of using a broker).
 

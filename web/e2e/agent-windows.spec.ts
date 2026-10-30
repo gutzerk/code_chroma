@@ -8,15 +8,15 @@ test("agent shortcuts cycle from inside a terminal and reopen the agents tab", a
   const first = page.getByTestId("agent-dock-panel-agent1");
   const second = page.getByTestId("agent-dock-panel-agent2");
   await second.locator(".xterm-helper-textarea").focus();
-  await page.keyboard.press("Control+Alt+ArrowRight");
+  await page.keyboard.press("Control+Alt+ArrowDown");
   await expect(first).toBeVisible();
   await expect(first.locator(".xterm-helper-textarea")).toBeFocused();
-  await page.keyboard.press("Control+Alt+ArrowLeft");
+  await page.keyboard.press("Control+Alt+ArrowUp");
   await expect(second).toBeVisible();
   await expect(second.locator(".xterm-helper-textarea")).toBeFocused();
   await page.getByRole("tab", { name: /Workflows/ }).click();
   await page.getByRole("button", { name: "Collapse agents and workflows" }).click();
-  await page.keyboard.press("Control+Alt+ArrowRight");
+  await page.keyboard.press("Control+Alt+ArrowDown");
   await expect(first).toBeVisible();
   await expect(first.locator(".xterm-helper-textarea")).toBeFocused();
 });

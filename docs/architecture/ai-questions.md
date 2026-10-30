@@ -1,7 +1,7 @@
 # AI questions and grill sessions (`src/codechroma/questions/`, `web/src/canvas/doc/question/`) — 017
 
 An agent (Claude, Codex) asks a decision question through a bridge-hosted MCP tool instead of chat
-text. The question becomes a `question` element on the one canvas, the user selects an option and presses Send (or
+text. The question becomes a `question` element on the one canvas document (shown only in the asking agent's window, see "Agent terminal host"; a question with no `agent_id` renders on the canvas), the user selects an option and presses Send (or
 types their own answer), and once every open question of that agent is settled, all its answers are typed into the asking agent's terminal as one next message; once they were really typed, the cards and their option diagrams are removed from the canvas (024, non-blocking). A run of questions sharing a
 `session_id` is a grill session. Planning doc: `docs/planning/017-ai-questions-grill-session.md`.
 Phases 1 (backend), 2 (canvas UI), 3 (agent wiring) and 4 (diagram options, 021) are implemented.
@@ -112,20 +112,28 @@ implemented; the diagram options kept this shape: `option.diagram_ref` points at
 windows, `ActivityPanel` and the tutorial mock all get it). `useOpenAgentQuestions(agentId)` filters open `question`
 elements by `meta.agent_id` and sorts by `meta.step`; the host shows only the first (oldest). It measures its own
 width (ResizeObserver) and `pickQuestionLayout({width, full, hasDiagram})` picks: **B1** (agents panel full mode and
-width >= 1100: question + diagram left, terminal 520px right), **A4** (width >= 880 and some option has a
-`diagram_ref`: 420px diagram pane left, compact card under the terminal) or **A2** (compact card under the
-terminal). `hasDiagram` is "any option has one" (not just the selected one) so the pane does not flicker, and an option
+width >= 1100: full-width question + diagram, up to 65% of the host), **A4** (width >= 880 and some option has a
+`diagram_ref`: 420px diagram pane left of the compact card) or **A2** (compact card). In every layout the question sits on
+top and the terminal spans the full width under it. In A2 the card row is `fit-content(55%)` of the host and the card scrolls inside it (`overflow-y: auto`); the terminal row's floor is `min(120px, 45%)` so a short host never starves the card. `hasDiagram` is "any option has one" (not just the selected one) so the pane does not flicker, and an option
 without a diagram shows "No diagram for this option". The terminal div keeps one tree position across layouts, so a
 switch never remounts xterm. A new question does not steal focus; Ctrl+Enter in the terminal focuses the card.
 `QuestionDiagram.tsx` renders `diagram_ref` and its children (group members + arrow targets, max 40) as a
 read-only scaled view with option tabs, drag-to-pan, wheel/button zoom and a full-screen overlay (Esc closes); the fit scale is floored at 0.6 so labels stay readable (a larger diagram is panned, not shrunk), nodes show label + description and arrows connect node boundaries so their heads remain visible, and show labels; it is a light renderer, not
 `CanvasNodeBox`, which is interactive. Attention: `AgentLed` takes `agentId` and turns accent-coloured with a "?" badge
 while that agent has an open question, and the Agents tab shows a "N questions" pill (`useOpenQuestionCount`).
-The highlighted option is owned by the host (`resolveSelection` in `questionAdapter.ts` falls back to the recommended option when the pick no longer exists, e.g. after a re-ask) and passed to `QuestionCard` as the controlled `selectedId`, so the diagram tabs and Send always agree; `QuestionCard` owns it only when used standalone (`QuestionElement`). `CanvasFocusContext` is provided at `RootCanvas` root so "Open on canvas" works from the agents panel. `devAskQuestion.ts` (mock bridge, opt-in via `VITE_DEV_ASK_QUESTION=1`, dynamically imported) asks a demo question when Enter is pressed in an agent terminal.
+The highlighted option is owned by the host (`resolveSelection` in `questionAdapter.ts` falls back to the recommended option when the pick no longer exists, e.g. after a re-ask) and passed to `QuestionCard` as the controlled `selectedId`, so the diagram tabs and Send always agree; `QuestionCard` owns it only when used standalone (`QuestionElement`). `CanvasFocusContext` is provided at `RootCanvas` root so "Open on canvas" works from the agents panel. `devAskQuestion.ts` (mock bridge, opt-in via `VITE_DEV_ASK_QUESTION=1`, dynamically imported) seeds one demo question on the canvas at startup (`agent_id: ""`, so it renders there) and asks another when Enter is pressed in an agent terminal.
 - `elementRules.ts`: `BLOCK_RULES.question` = `{renderer: "question", activation: "inspector",
   lockedLayout: true}` (never dragged or auto-laid-out); excluded from `StyledRenderKind`.
 - `CanvasDocView.tsx`: `case "question"` renders `QuestionElement`; question elements are excluded
   from `memberIdsByLayer` so they get no diagram frame.
+- **Agent questions are not drawn on the canvas.** `displayPipeline.ts` `hideAgentQuestions` (first of
+  `STRUCTURAL_STAGES`) drops every `question` with a non-empty `meta.agent_id` (`isAgentQuestion` in
+  `questionAdapter.ts`) from rendering, canvas bounds, frames and edges; the element stays in the
+  document (the bridges still write it) and `AgentQuestionHost` shows it in that agent's window. Only
+  questions without an agent id (HTTP asks with no agent, the dev demo) render as `QuestionElement`, and
+  their card has no "Chat about it" button (it needs an agent id). A question's option diagrams
+  (`decisions/<qid>` layers) still render on the canvas, so the diagram pane's "Open on canvas" still
+  focuses that diagram layer. Test: `displayPipeline.test.ts`, `CanvasDocView.test.tsx`.
 - `EngineClient`: `getOpenQuestions`, `answerQuestion`, `skipQuestion`, `reviseQuestion` (HTTP,
   delegating, stub and `mockBridge.ts`, where the mock mutates element meta instead of using a broker).
 

@@ -4,6 +4,7 @@ import {
   LIVE_STAGES,
   STRUCTURAL_STAGES,
   VIEW_STAGES,
+  hideAgentQuestions,
   hideCollapsedLayers,
   growExpandedRoutes,
   offsetDraggedElements,
@@ -31,8 +32,19 @@ describe("display pipeline", () => {
   it("runs the groups in filter, grow, drag, view order", () => {
     const order = [...STRUCTURAL_STAGES, ...LIVE_STAGES, ...VIEW_STAGES];
 
-    expect(order.slice(0, 3)).toEqual([hideCollapsedLayers, growExpandedRoutes, offsetDraggedElements]);
-    expect(order).toHaveLength(4);
+    expect(order.slice(0, 4)).toEqual([hideAgentQuestions, hideCollapsedLayers, growExpandedRoutes, offsetDraggedElements]);
+    expect(order).toHaveLength(5);
+  });
+
+  it("hides questions an agent asked but keeps those without an agent id", () => {
+    const question = (id: string, agentId: unknown): CanvasElement => ({
+      ...box(id, 100, { layer: "questions" }), render: "question", meta: { state: "open", agent_id: agentId },
+    });
+    const elements = { a: question("a", "agent-1"), b: question("b", ""), c: question("c", undefined), d: box("d", 300) };
+
+    const out = runDisplayStages(STRUCTURAL_STAGES, elements, {});
+
+    expect(Object.keys(out).sort()).toEqual(["b", "c", "d"]);
   });
 
   it("returns the same map when no stage has work", () => {

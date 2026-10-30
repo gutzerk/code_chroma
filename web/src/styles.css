@@ -5,27 +5,25 @@
    place. Radii/shadows/type map the values already in use onto shared steps. */
 /* stylelint-disable color-no-hex */
 :root {
-  --question-surface: #1a1e27;
-  --question-border: #3a3550;
-  --question-accent: #a995c9;
-  --question-accent-ink: #1a1124;
-  --question-avatar-bg: #2f2840;
-  --question-avatar-fg: #c3b2e0;
-  --question-option-bg: #20242d;
-  --question-option-border: #2f3440;
-  --question-selected-bg: #262236;
-  --question-selected-border: #6c5b8a;
-  --question-rec-bg: #1c2620;
-  --question-rec-border: #3d5546;
-  --question-rec-fg: #9cc7a8;
-  --question-pro-bg: #1b241e;
-  --question-pro-fg: #9cc7a8;
-  --question-con-bg: #2a1e20;
-  --question-con-fg: #d1a3a6;
-  --question-send-bg: #3a3149;
-  --question-send-border: #6c5b8a;
-  --question-send-fg: #ece4f7;
-  --question-new: #6f9a7c;
+  --question-surface: var(--bg-raised); /* questions reuse the shared card palette; card, tiles and inputs share one background */
+  --question-border: var(--border-faint);
+  --question-accent: var(--accent);
+  --question-accent-ink: var(--text-invert);
+  --question-avatar-bg: var(--accent-bg);
+  --question-avatar-fg: var(--accent);
+  --question-option-border: var(--border-faint);
+  --question-selected-border: var(--accent);
+  --question-rec-bg: color-mix(in srgb, var(--added) 12%, transparent);
+  --question-rec-border: color-mix(in srgb, var(--added) 40%, transparent);
+  --question-rec-fg: var(--added);
+  --question-pro-bg: var(--question-rec-bg);
+  --question-pro-fg: var(--question-rec-fg);
+  --question-con-bg: color-mix(in srgb, var(--error) 14%, transparent);
+  --question-con-fg: var(--error);
+  --question-send-bg: var(--accent-bg);
+  --question-send-border: var(--select-ring);
+  --question-send-fg: var(--text-soft);
+  --question-new: var(--question-rec-fg);
   /* Soft-rounded "floating cards on dark ground" palette (restyle spec) — the window-specific
      tiers used directly by the top bar / rail / agent panel / canvas / sidebar rules below, and
      also aliased onto the generic --surface-N / --text-N / --accent tokens underneath so every
@@ -2278,8 +2276,8 @@ body {
    instead of being squeezed to 0 and letting its screen-fixed chrome (Fit All, the wiki-general
    progress bar, etc. — see .canvas-stage below) render past its edge, overlapping the next panel
    (gutzerk/code_chroma#61). Each panel in the row is its own rounded floating card, so the 6px gap
-   between them is what reads as separation instead of a hard border line. The agents panel is the
-   exception: it floats over this row (absolute, anchored to it), so the canvas shows behind it. */
+   between them is what reads as separation instead of a hard border line. The agents panel is not
+   in this row: it docks under it in .canvas-area, so the row shrinks in height above it. */
 .canvas-main-row {
   position: relative;
   display: flex;
@@ -4865,7 +4863,7 @@ button[data-copy-state="idle"][aria-label]:hover:not(:disabled) {
   background: var(--bg-panel);
   border: 1px solid var(--border);
   border-radius: var(--radius-card);
-  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.45);
+  box-shadow: var(--shadow-3);
   overflow: hidden;
 }
 
@@ -4929,7 +4927,7 @@ button[data-copy-state="idle"][aria-label]:hover:not(:disabled) {
 }
 
 .agent-window-button:hover {
-  color: #ffffff;
+  color: var(--text-soft);
 }
 
 /* The docked panel's close: a red, centred square so it reads as the destructive action. */
@@ -4940,7 +4938,7 @@ button[data-copy-state="idle"][aria-label]:hover:not(:disabled) {
   height: 28px;
   padding: 0;
   border-radius: var(--radius-lg);
-  background: #f8717126;
+  background: color-mix(in srgb, var(--stop) 15%, transparent);
   color: var(--stop);
   font-size: 1.15rem;
   line-height: 1;
@@ -4948,7 +4946,7 @@ button[data-copy-state="idle"][aria-label]:hover:not(:disabled) {
 
 .agent-terminal-dock-header .agent-window-close:hover {
   background: var(--stop);
-  color: #15181f;
+  color: var(--text-invert);
 }
 
 .activity-panel.is-full .agent-terminal-dock-header .agent-window-close {
@@ -5009,7 +5007,7 @@ button[data-copy-state="idle"][aria-label]:hover:not(:disabled) {
 }
 
 .agent-window-idle[role="alert"] {
-  color: #f28b82;
+  color: var(--error);
   font-family: var(--font-mono);
   overflow-wrap: anywhere;
 }
@@ -7193,7 +7191,7 @@ button[data-copy-state="idle"][aria-label]:hover:not(:disabled) {
   box-sizing: border-box;
 }
 
-.question-card--full { border-radius: var(--radius-card); padding: 20px; }
+.question-card--full { border-radius: var(--radius-card); padding: 24px; font-size: 15px; }
 
 .question-card:focus-within { border-color: var(--question-selected-border); }
 
@@ -7226,10 +7224,14 @@ button[data-copy-state="idle"][aria-label]:hover:not(:disabled) {
   margin: 12px 0;
   font-size: 17px;
   font-weight: 600;
-  color: #e3d5f3;
+  color: var(--text-soft);
 }
 
-.question-card--full .question-title { font-size: 20px; }
+.question-card--full .question-title { font-size: 24px; margin: 14px 0 18px; }
+.question-card--full .question-header { font-size: 13px; }
+.question-card--full .question-option { padding: 14px 16px; gap: 8px; }
+.question-card--full .question-option-desc { font-size: 14px; }
+.question-card--full .question-chip { font-size: 13px; }
 
 .question-options { display: flex; flex-direction: column; gap: 8px; margin: 0 0 12px; }
 .question-card--full .question-options { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); }
@@ -7242,16 +7244,13 @@ button[data-copy-state="idle"][aria-label]:hover:not(:disabled) {
   padding: 10px 12px;
   border: 1px solid var(--question-option-border);
   border-radius: var(--radius-2xl);
-  background: var(--question-option-bg);
+  background: var(--question-surface);
   color: var(--text-soft);
   font: inherit;
   cursor: pointer;
 }
 
-.question-option[aria-checked="true"] {
-  background: var(--question-selected-bg);
-  border-color: var(--question-selected-border);
-}
+.question-option[aria-checked="true"] { border-color: var(--question-selected-border); }
 
 .question-option:hover:not(:disabled) { border-color: var(--question-selected-border); }
 .question-option:disabled { cursor: default; opacity: 0.6; }
@@ -7265,7 +7264,7 @@ button[data-copy-state="idle"][aria-label]:hover:not(:disabled) {
   width: 26px;
   height: 26px;
   border-radius: 50%;
-  background: var(--border);
+  background: var(--bg-raised-2);
   font-size: 12px;
   font-weight: 600;
 }
@@ -7304,7 +7303,7 @@ button[data-copy-state="idle"][aria-label]:hover:not(:disabled) {
   padding: 0 12px;
   border: 1px solid var(--question-option-border);
   border-radius: var(--radius-2xl);
-  background: var(--question-option-bg);
+  background: var(--question-surface);
   color: var(--text-soft);
   font: inherit;
 }
@@ -7350,7 +7349,7 @@ button[data-copy-state="idle"][aria-label]:hover:not(:disabled) {
   color: var(--text-muted-soft);
 }
 
-/* Agent terminal + its open question: one grid whose areas switch with the measured host size (020). */
+/* Agent terminal + its open question: the question always sits on top, the terminal under it (020). */
 .agent-question-host {
   flex: 1;
   min-height: 0;
@@ -7358,27 +7357,26 @@ button[data-copy-state="idle"][aria-label]:hover:not(:disabled) {
   position: relative;
   display: grid;
   grid-template-columns: minmax(0, 1fr);
-  grid-template-rows: minmax(120px, 1fr) auto;
-  grid-template-areas: "terminal" "card";
+  grid-template-rows: fit-content(55%) minmax(min(120px, 45%), 1fr);
+  grid-template-areas: "card" "terminal";
 }
 
-.agent-question-host > .agent-window-terminal { grid-area: terminal; min-height: 120px; }
+/* Grid rows size the card and terminal; neither child sets its own min/max height. */
+.agent-question-host > .agent-window-terminal { grid-area: terminal; min-height: 0; box-sizing: border-box; }
 
-.aq-card { grid-area: card; min-height: 0; max-height: 55%; overflow-y: auto; margin: 0 12px 12px; }
+.aq-card { grid-area: card; min-height: 0; overflow-y: auto; overscroll-behavior: contain; margin: 12px 12px 0; }
 
 .agent-question-host[data-layout="A4"] {
   grid-template-columns: 420px minmax(0, 1fr);
-  grid-template-rows: minmax(120px, 1fr) auto;
-  grid-template-areas: "diagram terminal" "diagram card";
+  grid-template-rows: fit-content(55%) minmax(min(120px, 45%), 1fr);
+  grid-template-areas: "diagram card" "terminal terminal";
 }
+
+.agent-question-host[data-layout="A4"] > .aq-diagram { min-height: 220px; margin: 12px 0 0 12px; }
 
 .agent-question-host[data-layout="B1"] {
-  grid-template-columns: minmax(0, 1fr) 520px;
-  grid-template-rows: minmax(0, 1fr);
-  grid-template-areas: "card terminal";
+  grid-template-rows: fit-content(65%) minmax(200px, 1fr);
 }
-
-.agent-question-host[data-layout="B1"] .aq-card { max-height: none; margin: 12px 0 12px 12px; }
 
 .aq-diagram {
   grid-area: diagram;
@@ -7389,7 +7387,7 @@ button[data-copy-state="idle"][aria-label]:hover:not(:disabled) {
   margin: 12px 0 12px 12px;
   border: 1px solid var(--question-option-border);
   border-radius: var(--radius-2xl);
-  background: var(--question-option-bg);
+  background: var(--question-surface);
   overflow: hidden;
 }
 
@@ -7400,7 +7398,7 @@ button[data-copy-state="idle"][aria-label]:hover:not(:disabled) {
 .aq-diagram-head b { color: var(--text-soft); font-weight: 600; }
 .aq-diagram-tabs { display: flex; gap: 4px; flex-wrap: wrap; }
 .aq-diagram-tab { padding: 3px 8px; border: 1px solid var(--question-option-border); border-radius: var(--radius-lg); background: transparent; color: inherit; font: inherit; cursor: pointer; }
-.aq-diagram-tab[aria-selected="true"] { background: var(--question-selected-bg); border-color: var(--question-selected-border); color: var(--text-soft); }
+.aq-diagram-tab[aria-selected="true"] { background: var(--question-surface); border-color: var(--question-selected-border); color: var(--text-soft); }
 .aq-diagram-body { position: relative; flex: 1; min-height: 0; overflow: hidden; cursor: grab; touch-action: none; user-select: none; }
 .aq-diagram-body--dragging { cursor: grabbing; }
 .aq-diagram-empty { display: grid; place-items: center; height: 100%; color: var(--text-muted-soft); font-size: 13px; }

@@ -1,6 +1,7 @@
 import { useMemo } from "react";
 import type { CanvasElement } from "../../../state/types";
 import { useCanvasDoc } from "../canvasDocStore";
+import { questionAgentId } from "./questionAdapter";
 
 /** The open `question` elements an agent asked, oldest step first (the queue shown one at a time). */
 export function useOpenAgentQuestions(agentId: string): CanvasElement[] {
@@ -9,7 +10,7 @@ export function useOpenAgentQuestions(agentId: string): CanvasElement[] {
     () =>
       Object.values(doc.elements)
         .filter(
-          (el) => el.render === "question" && el.meta.agent_id === agentId && (el.meta.state ?? "open") === "open",
+          (el) => questionAgentId(el) === agentId && (el.meta.state ?? "open") === "open",
         )
         .sort((a, b) => Number(a.meta.step ?? 0) - Number(b.meta.step ?? 0)),
     [doc.elements, agentId],
@@ -22,10 +23,10 @@ export function useOpenQuestionCount(agentIds: readonly string[]): number {
   return useMemo(
     () =>
       Object.values(doc.elements).filter(
-        (el) =>
-          el.render === "question" &&
-          agentIds.includes(String(el.meta.agent_id ?? "")) &&
-          (el.meta.state ?? "open") === "open",
+        (el) => {
+          const id = questionAgentId(el);
+          return id !== null && agentIds.includes(id) && (el.meta.state ?? "open") === "open";
+        },
       ).length,
     [doc.elements, agentIds],
   );

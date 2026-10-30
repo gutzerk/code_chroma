@@ -2,6 +2,7 @@ import { useEffect, useMemo, useSyncExternalStore } from "react";
 import { FocusPanel } from "./FocusPanel";
 import type { CanvasElement } from "../../state/types";
 import { useEngineClient } from "../../engine-client/EngineClientContext";
+import { useRunningAgentIds } from "../../agents/agentStore";
 import { DiagramRelationshipsSvg } from "../DiagramSurface";
 import { useMeasuredSizes } from "../useMeasuredSizes";
 import { CanvasEdges } from "./CanvasEdges";
@@ -135,10 +136,11 @@ export function CanvasDocView() {
 
   const collapsedLayers = useCollapsedLayers();
   const routeExpanded = useRouteExpanded();
-  // Display only (doc.elements is untouched): collapsed layers hidden, then route steps grown; see displayPipeline.
+  const runningAgentIds = useRunningAgentIds();
+  // Display only (doc.elements is untouched): running agents' questions and collapsed layers hidden, then route steps grown; see displayPipeline.
   const renderableElements = useMemo(
-    () => runDisplayStages(STRUCTURAL_STAGES, doc.elements, { collapsedLayers, routeExpanded }),
-    [doc.elements, collapsedLayers, routeExpanded],
+    () => runDisplayStages(STRUCTURAL_STAGES, doc.elements, { collapsedLayers, routeExpanded, runningAgentIds }),
+    [doc.elements, collapsedLayers, routeExpanded, runningAgentIds],
   );
 
   const visibleElements = useMemo(

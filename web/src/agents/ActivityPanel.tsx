@@ -119,12 +119,12 @@ export function ActivityPanel({
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
       if (!(event.ctrlKey || event.metaKey) || !event.altKey || event.shiftKey || event.isComposing) return;
-      if (event.key !== "ArrowLeft" && event.key !== "ArrowRight") return;
+      if (event.key !== "ArrowUp" && event.key !== "ArrowDown") return;
       if (agents.length === 0 || document.querySelector('[aria-modal="true"]')) return;
       event.preventDefault();
       event.stopPropagation();
       const index = agents.findIndex((agent) => agent.id === activeId);
-      const forward = event.key === "ArrowRight";
+      const forward = event.key === "ArrowDown";
       const next = agents[index < 0 ? (forward ? 0 : agents.length - 1) : (index + (forward ? 1 : agents.length - 1)) % agents.length];
       selectAgent(agentClient, next);
       setTab("agents");

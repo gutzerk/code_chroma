@@ -56,15 +56,15 @@ describe("ActivityPanel", () => {
     fireEvent.click(screen.getByRole("tab", { name: /Workflows/ }));
     act(() => layoutStore.setAgentsMode("collapsed"));
 
-    fireEvent.keyDown(window, { key: "ArrowRight", [modifier]: true, altKey: true });
+    fireEvent.keyDown(window, { key: "ArrowDown", [modifier]: true, altKey: true });
     expect(layoutStore.getState()).toMatchObject({ selectedAgentId: second.id, agentsMode: "normal" });
     expect(screen.getByRole("tab", { name: /Agents/ })).toHaveAttribute("aria-selected", "true");
     expect(screen.getByTestId(`terminal-${second.id}`)).toBeVisible();
 
-    fireEvent.keyDown(window, { key: "ArrowRight", [modifier]: true, altKey: true });
+    fireEvent.keyDown(window, { key: "ArrowDown", [modifier]: true, altKey: true });
     expect(layoutStore.getState().selectedAgentId).toBe(first.id);
     act(() => layoutStore.setAgentsMode("full"));
-    fireEvent.keyDown(window, { key: "ArrowLeft", [modifier]: true, altKey: true });
+    fireEvent.keyDown(window, { key: "ArrowUp", [modifier]: true, altKey: true });
     expect(layoutStore.getState()).toMatchObject({ selectedAgentId: second.id, agentsMode: "full" });
   });
 
@@ -72,12 +72,12 @@ describe("ActivityPanel", () => {
     const agent = await new MockAgentClient().create("Planner");
     agentStore.upsert(agent);
     setup();
-    fireEvent.keyDown(window, { key: "ArrowRight" });
+    fireEvent.keyDown(window, { key: "ArrowDown" });
     expect(layoutStore.getState().selectedAgentId).toBeNull();
     const modal = document.createElement("div");
     modal.setAttribute("aria-modal", "true");
     document.body.append(modal);
-    fireEvent.keyDown(window, { key: "ArrowRight", ctrlKey: true, altKey: true });
+    fireEvent.keyDown(window, { key: "ArrowDown", ctrlKey: true, altKey: true });
     modal.remove();
     expect(layoutStore.getState().selectedAgentId).toBeNull();
   });

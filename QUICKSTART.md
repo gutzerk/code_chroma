@@ -116,7 +116,7 @@ not surfaced), so diff framing isn't currently reachable from the UI.
 
 The terminal toolbar's **+** opens another shell tab. **×** closes the active shell, and **−** hides
 the panel while keeping its sessions running. Click a terminal tab to return to its shell and output.
-Use **Ctrl+Alt+Left/Right** (**Cmd+Alt+Left/Right** on macOS) to cycle agents and focus the selected
+Use **Ctrl+Alt+Up/Down** (**Cmd+Alt+Up/Down** on macOS) to cycle agents and focus the selected
 agent's terminal. Switching agents also opens a collapsed agent panel.
 
 ### Agent panel (beside the canvas: **Agents** / **Diagrams** tabs)

@@ -43,7 +43,7 @@ PTY's tracking metadata, and late events from earlier launches cannot replace th
 
 > Removed dead components: `AgentRail`, `AgentWindow`, `AgentFullScreen`, `AgentTab` and `useFullScreenAgentId` (plus their tests/CSS) are deleted -- `ActivityPanel` + `AgentTerminalDock` replaced them. Mentions of those names below are historical; the live flow is `windowActions.ts` + `ActivityPanel`.
 
-`ActivityPanel` handles Ctrl/Cmd+Alt+Left/Right in the window capture phase to cycle agents, wrapping
+`ActivityPanel` handles Ctrl/Cmd+Alt+Up/Down in the window capture phase to cycle agents, wrapping
 at either end. It uses the same selection path as the dropdown, shows the Agents tab, expands a
 collapsed panel, preserves full screen, and focuses the selected terminal. Modal dialogs keep their
 keyboard input. The dropdown's tooltip documents these shortcuts.

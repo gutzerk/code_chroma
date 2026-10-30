@@ -80,7 +80,7 @@ export function AgentSwitcherRow({
         aria-haspopup="listbox"
         aria-expanded={open}
         aria-label="Select agent"
-        title="Switch agents: Ctrl/Cmd+Alt+Left/Right"
+        title="Switch agents: Ctrl/Cmd+Alt+Up/Down"
         disabled={agents.length === 0}
         onClick={() => setOpen((v) => !v)}
       >

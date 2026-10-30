@@ -4,7 +4,7 @@ import { ResizableRail } from "../canvas/ResizableRail";
 import type { AgentRecord } from "../state/types";
 import { AgentTerminal } from "./AgentTerminal";
 import { useAgentClient } from "./AgentClientContext";
-import { agentStore, useAgents, useAgentStartError } from "./agentStore";
+import { agentStore, isAgentRunning, useAgents, useAgentStartError } from "./agentStore";
 import {
   agentDockStore,
   useActiveDockedAgentId,
@@ -128,7 +128,7 @@ export function DockedAgentPanel({
   const startError = useAgentStartError(agent.id);
   const [recovering, setRecovering] = useState(false);
   const [recoverError, setRecoverError] = useState<string | null>(null);
-  const running = agent.status !== "stopped" && agent.status !== "exited";
+  const running = isAgentRunning(agent);
 
   const recover = useCallback(async () => {
     setRecovering(true);

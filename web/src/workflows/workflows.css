@@ -1,20 +1,20 @@
-/* Tokens live on :root because ModalDialog portals to body. Values follow the design boards 8-11 (stretched panel, full screen, All workflows). */
+/* Tokens live on :root because ModalDialog portals to body; surfaces, lines and text alias the shared canvas tokens in styles.css. */
 /* stylelint-disable color-no-hex */
 :root {
-  --wf-bg: #12151b;
-  --wf-list: #0f1218;
-  --wf-card: #161a22;
-  --wf-selected: #1a2236;
-  --wf-field: #1a1e27;
-  --wf-line: #2c3242;
-  --wf-line-strong: #3a4258;
+  --wf-bg: var(--bg-panel);
+  --wf-list: var(--bg-inset);
+  --wf-card: var(--bg-raised);
+  --wf-selected: color-mix(in srgb, var(--accent) 8%, var(--bg-raised));
+  --wf-field: var(--bg-raised);
+  --wf-line: var(--bg-raised-2);
+  --wf-line-strong: var(--border-faint);
   --wf-muted: var(--text-mid);
-  --wf-text: #e6e9f0;
+  --wf-text: var(--text-soft);
   --wf-accent: var(--accent);
-  --wf-accent-bg: #1f2a44;
+  --wf-accent-bg: var(--accent-bg);
   --wf-ok: var(--success);
   --wf-warn: #facc15; /* intentionally brighter than --warning: workflow 'you'/paused hue */
-  --wf-continue: #2dd4bf;
+  --wf-continue: var(--inspector);
   --wf-stop: var(--stop);
 }
 /* stylelint-enable color-no-hex */
@@ -137,7 +137,7 @@
 .wf-btn:hover:not(:disabled),
 .workflow-header-button:hover:not(:disabled),
 .step-action:hover {
-  background: #222836;
+  background: var(--bg-raised-2);
 }
 
 .wf-btn:disabled,
@@ -170,7 +170,7 @@
 }
 
 .wf-btn-primary:hover:not(:disabled) {
-  background: #263456;
+  background: color-mix(in srgb, var(--accent) 12%, var(--accent-bg));
 }
 
 .wf-btn-danger {
@@ -374,7 +374,7 @@
 }
 
 .wf-seg span[data-status="skipped"] {
-  background: #6b7388;
+  background: var(--text-3);
 }
 
 .wf-attempts {
@@ -604,7 +604,7 @@
 }
 
 .attempt-switcher [aria-pressed="true"] {
-  background: #2a3142;
+  background: var(--bg-raised-2);
 }
 
 .step-rail {
@@ -694,7 +694,7 @@
 .step-row[data-status="running"] .step-number {
   border-color: transparent;
   background: var(--wf-accent);
-  color: #0f1320;
+  color: var(--text-invert);
   font-weight: 700;
   box-shadow: 0 0 0 4px rgba(143, 176, 255, 0.2);
 }
@@ -1024,7 +1024,7 @@
 }
 
 .wf-tab[aria-selected="true"] {
-  background: #2a3142;
+  background: var(--bg-raised-2);
   color: var(--wf-text);
   font-weight: 600;
 }
@@ -1204,7 +1204,7 @@
   margin: 0;
   padding: 4px;
   width: 180px;
-  background: #222836;
+  background: var(--bg-raised-2);
   border: 1px solid var(--wf-line-strong);
   border-radius: var(--radius-lg);
   box-shadow: 0 10px 30px rgba(0, 0, 0, 0.53);
@@ -1365,7 +1365,7 @@
 .wf-chip {
   padding: 3px 8px;
   border-radius: var(--radius-md);
-  background: #222836;
+  background: var(--bg-raised-2);
 }
 
 .wf-chip[data-mode="you"] {
@@ -1374,7 +1374,7 @@
 }
 
 .wf-chip-arrow {
-  color: #6b7388;
+  color: var(--text-3);
 }
 
 .wf-cell-inputs {

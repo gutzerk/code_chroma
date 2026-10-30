@@ -365,6 +365,24 @@ describe("CanvasDocView", () => {
     expect(screen.getByTestId("canvas-diagram-frame-meta")).toHaveTextContent("WALKTHROUGH · 2 BOXES");
   });
 
+  it("renders only questions without an agent id; an agent's question stays in its window", async () => {
+    const doc = docWith([
+      elementOf({ id: "q-canvas", render: "question", layer: "questions", label: "Canvas question", meta: { state: "open", agent_id: "" } }),
+      elementOf({ id: "q-agent", render: "question", layer: "questions", label: "Agent question", meta: { state: "open", agent_id: "agent-1" } }),
+    ]);
+
+    render(
+      <EngineClientProvider repoId="default" client={client(doc)}>
+        <CanvasDocView />
+      </EngineClientProvider>,
+    );
+
+    await waitFor(() => expect(screen.getByTestId("question-element")).toBeInTheDocument());
+    expect(screen.getAllByTestId("question-element")).toHaveLength(1);
+    expect(screen.getByText("Canvas question")).toBeInTheDocument();
+    expect(screen.queryByText("Agent question")).toBeNull();
+  });
+
   it("frames a per-question decisions layer and tags the frame with its layer", async () => {
     const doc = docWith([
       elementOf({ id: "d1", render: "custom", label: "A", layer: "decisions/q1", position: { x: 100, y: 100 } }),

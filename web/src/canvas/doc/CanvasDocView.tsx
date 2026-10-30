@@ -135,7 +135,7 @@ export function CanvasDocView() {
 
   const collapsedLayers = useCollapsedLayers();
   const routeExpanded = useRouteExpanded();
-  // Display only (doc.elements is untouched): collapsed layers hidden, then route steps grown; see displayPipeline.
+  // Display only (doc.elements is untouched): agent questions and collapsed layers hidden, then route steps grown; see displayPipeline.
   const renderableElements = useMemo(
     () => runDisplayStages(STRUCTURAL_STAGES, doc.elements, { collapsedLayers, routeExpanded }),
     [doc.elements, collapsedLayers, routeExpanded],

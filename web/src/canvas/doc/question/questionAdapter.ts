@@ -89,11 +89,6 @@ export function questionAgentId(element: CanvasElement): string | null {
   return element.render === "question" ? str(element.meta.agent_id).trim() || null : null;
 }
 
-/** True for a `question` an agent asked: shown only in that agent's window, never on the canvas. */
-export function isAgentQuestion(element: CanvasElement): boolean {
-  return questionAgentId(element) !== null;
-}
-
 /** Maps a `question` canvas element to the view model; tolerant of a partial meta. */
 export function toQuestionView(element: CanvasElement): QuestionView {
   const meta = element.meta;

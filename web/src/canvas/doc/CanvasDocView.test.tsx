@@ -6,6 +6,7 @@ import { canvasDocStore } from "./canvasDocStore";
 import { collapsedLayersStore } from "./collapsedLayersStore";
 import { expansionStore } from "../../state/expansionState";
 import { selectionStore } from "../../state/selectionStore";
+import { agentStore } from "../../agents/agentStore";
 import {
   IMPACT_CHANGES_STUB,
   EPIC_BRIEF_STUB,
@@ -14,12 +15,22 @@ import {
 } from "../../engine-client/stubEngineClient";
 import type { EngineClient } from "../../engine-client/EngineClient";
 import type {
+  AgentRecord,
   CanvasBatch,
   CanvasBatchResult,
   CanvasDoc,
   CanvasEdge,
   CanvasElement,
 } from "../../state/types";
+
+function agentRecord(id: string, status: AgentRecord["status"]): AgentRecord {
+  return {
+    id, title: id, kind: "claude", branch: `agent/${id}`, base_branch: "main", worktree: `/tmp/worktrees/${id}`,
+    created_at: "2026-07-28T10:00:00Z", session_id: null, pr_url: null, pid: null,
+    window: { x: 100, y: 100, width: 720, height: 480, minimized: false, z: 1 },
+    status, exit_code: null, worktree_lost: false,
+  };
+}
 
 function elementOf(overrides: Partial<CanvasElement> & { id: string }): CanvasElement {
   return {
@@ -94,6 +105,7 @@ afterEach(() => {
   collapsedLayersStore.reset();
   expansionStore.reset();
   selectionStore.clear();
+  agentStore.reset();
 });
 
 describe("CanvasDocView", () => {
@@ -365,10 +377,12 @@ describe("CanvasDocView", () => {
     expect(screen.getByTestId("canvas-diagram-frame-meta")).toHaveTextContent("WALKTHROUGH · 2 BOXES");
   });
 
-  it("renders only questions without an agent id; an agent's question stays in its window", async () => {
+  it("hides a running agent's question; questions with no agent or a gone agent stay on the canvas", async () => {
+    agentStore.upsert(agentRecord("agent-1", "running"));
     const doc = docWith([
       elementOf({ id: "q-canvas", render: "question", layer: "questions", label: "Canvas question", meta: { state: "open", agent_id: "" } }),
       elementOf({ id: "q-agent", render: "question", layer: "questions", label: "Agent question", meta: { state: "open", agent_id: "agent-1" } }),
+      elementOf({ id: "q-orphan", render: "question", layer: "questions", label: "Orphan question", meta: { state: "open", agent_id: "gone" } }),
     ]);
 
     render(
@@ -377,9 +391,9 @@ describe("CanvasDocView", () => {
       </EngineClientProvider>,
     );
 
-    await waitFor(() => expect(screen.getByTestId("question-element")).toBeInTheDocument());
-    expect(screen.getAllByTestId("question-element")).toHaveLength(1);
-    expect(screen.getByText("Canvas question")).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText("Canvas question")).toBeInTheDocument());
+    expect(screen.getAllByTestId("question-element")).toHaveLength(2);
+    expect(screen.getByText("Orphan question")).toBeInTheDocument();
     expect(screen.queryByText("Agent question")).toBeNull();
   });
 

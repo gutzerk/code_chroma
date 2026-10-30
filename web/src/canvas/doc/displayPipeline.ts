@@ -1,6 +1,6 @@
 import type { CanvasDoc, CanvasElement } from "../../state/types";
 import type { LiveDragOffset } from "./dragOffsetStore";
-import { isAgentQuestion } from "./question/questionAdapter";
+import { questionAgentId } from "./question/questionAdapter";
 import { expandRouteElements } from "./routeExpansion";
 
 type Elements = Record<string, CanvasElement>;
@@ -9,6 +9,7 @@ type Elements = Record<string, CanvasElement>;
 export interface DisplayContext {
   collapsedLayers?: ReadonlySet<string>;
   routeExpanded?: ReadonlySet<string>;
+  runningAgentIds?: ReadonlySet<string>;
   dragOffsets?: Record<string, LiveDragOffset>;
   boards?: {
     doc: CanvasDoc; // the doc whose `elements` were passed to the stage
@@ -26,11 +27,14 @@ export const hideCollapsedLayers: DisplayStage = (elements, ctx) => {
   return Object.fromEntries(Object.entries(elements).filter(([, element]) => !collapsed.has(element.layer)));
 };
 
-/** Drops agent-asked questions: they render only in the asking agent's window (AgentQuestionHost). */
-export const hideAgentQuestions: DisplayStage = (elements) => {
+/** Drops questions whose agent is running: its window (AgentQuestionHost) shows them; an orphan stays on the canvas. */
+export const hideAgentQuestions: DisplayStage = (elements, ctx) => {
+  const running = ctx.runningAgentIds;
+  if (!running || running.size === 0) return elements;
   let out: Elements | null = null;
   for (const id in elements) {
-    if (!isAgentQuestion(elements[id])) continue;
+    const agentId = questionAgentId(elements[id]);
+    if (agentId === null || !running.has(agentId)) continue;
     out ??= { ...elements };
     delete out[id];
   }

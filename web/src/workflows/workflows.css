@@ -138,6 +138,7 @@
 .workflow-header-button:hover:not(:disabled),
 .step-action:hover {
   background: var(--bg-raised-2);
+  border-color: var(--wf-line-strong); /* the hover fill equals --wf-line, so the outline steps up */
 }
 
 .wf-btn:disabled,

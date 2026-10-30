@@ -1,7 +1,7 @@
 import { useEffect, useRef } from "react";
 import type { EngineClient } from "../../engine-client/EngineClient";
 import type { CanvasDoc } from "../../state/types";
-import { patchCanvasDoc } from "./canvasDocStore";
+import { patchCanvasDoc } from "./canvasDocSync";
 import { layersWithProfile } from "./diagramProfiles";
 
 /** Once per mount, after the doc loads: rewrites persisted geometry that drifted from its profile's own layout (a sequence board). */

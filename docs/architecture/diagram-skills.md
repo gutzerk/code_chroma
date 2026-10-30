@@ -932,7 +932,7 @@ Separate from authoring, and the reason a user could ask for a diagram and see n
   positions and applies them through the same shared path. Because the guard checks the *content*
   (origin-piled) rather than mere in-flight-ness, it drops only the transient state, never an
   unrelated user write. The direct-`PATCH` fallback path (`drawing-rules.md`'s "type this skill does
-  not know") is covered by a canvas-side pass: `canvasDocStore.ts`'s `fetchAndApplyCanvasDoc` runs ELK (`pileLayout.ts`) on
+  not know") is covered by a canvas-side pass: `canvasDocSync.ts`'s `fetchAndApplyCanvasDoc` runs ELK (`pileLayout.ts`) on
   any layer that arrives with every box on the origin, whoever drew it (the server cascade
   `_DEFAULT_ADD_STEP_*` was removed; a position-less add now lands at `(0,0)`).
 - **A fourth trigger: expanding a collapsed diagram from the Diagrams tab.** `AgentRail.tsx`'s

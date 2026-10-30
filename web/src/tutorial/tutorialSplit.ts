@@ -1,4 +1,5 @@
-import { canvasDocStore, patchCanvasDoc } from "../canvas/doc/canvasDocStore";
+import { canvasDocStore } from "../canvas/doc/canvasDocStore";
+import { patchCanvasDoc } from "../canvas/doc/canvasDocSync";
 import type { EngineClient } from "../engine-client/EngineClient";
 import type { CanvasOp } from "../state/types";
 

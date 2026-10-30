@@ -20,12 +20,8 @@ import { GroupFrame } from "./GroupFrame";
 import { LaneArea } from "./LaneArea";
 import { NoteElement } from "./NoteElement";
 import { QuestionElement } from "./question/QuestionElement";
-import {
-  applyCanvasPositions,
-  useCanvasDoc,
-  useCanvasDocLoaded,
-  useLoadCanvasDoc,
-} from "./canvasDocStore";
+import { useCanvasDoc, useCanvasDocLoaded } from "./canvasDocStore";
+import { applyCanvasPositions, useLoadCanvasDoc } from "./canvasDocSync";
 import { useCollapsedLayers } from "./collapsedLayersStore";
 import { useLiveDragOffsets } from "./dragOffsetStore";
 import { LIVE_STAGES, STRUCTURAL_STAGES, VIEW_STAGES, runDisplayStages } from "./displayPipeline";

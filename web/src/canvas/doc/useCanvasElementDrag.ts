@@ -3,7 +3,8 @@ import type { EngineClient } from "../../engine-client/EngineClient";
 import type { CanvasElement } from "../../state/types";
 import { reportAsyncError } from "../../util/reportError";
 import { useDragOffset, type DragOffset } from "../useDragOffset";
-import { canvasDocStore, patchCanvasDoc } from "./canvasDocStore";
+import { canvasDocStore } from "./canvasDocStore";
+import { patchCanvasDoc } from "./canvasDocSync";
 import { dragOffsetStore } from "./dragOffsetStore";
 
 /** Drag-to-reposition for a plain canvas-doc element (no group/collision system of its own) --

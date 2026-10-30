@@ -4,7 +4,7 @@ import { useEngineClient } from "../../engine-client/EngineClientContext";
 import { elementDragPointerDown } from "../useDragOffset";
 import { selectionStore } from "../../state/selectionStore";
 import { reportAsyncError } from "../../util/reportError";
-import { patchCanvasDoc } from "./canvasDocStore";
+import { patchCanvasDoc } from "./canvasDocSync";
 import { useCanvasElementDrag } from "./useCanvasElementDrag";
 
 const DEFAULT_WIDTH = 180;

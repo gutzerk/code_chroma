@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it } from "vitest";
 import { renderHook } from "@testing-library/react";
-import { canvasDocStore, patchCanvasDoc, useLoadCanvasDoc } from "./canvasDocStore";
+import { canvasDocStore } from "./canvasDocStore";
+import { patchCanvasDoc, useLoadCanvasDoc } from "./canvasDocSync";
 import { EMPTY_CANVAS_DOC, type CanvasDoc } from "../../state/types";
 import type { EngineClient } from "../../engine-client/EngineClient";
 

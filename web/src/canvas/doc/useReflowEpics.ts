@@ -1,7 +1,7 @@
 import { useEffect, useRef } from "react";
 import type { EngineClient } from "../../engine-client/EngineClient";
 import type { CanvasDoc } from "../../state/types";
-import { patchCanvasDoc } from "./canvasDocStore";
+import { patchCanvasDoc } from "./canvasDocSync";
 import { isEpicsLayerName, layoutEpics, type MeasuredHeights } from "./epicsLayout";
 
 /** The fit this fixes (epics boxes): a box's persisted `size.h` can disagree with its real rendered

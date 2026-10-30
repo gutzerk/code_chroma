@@ -48,11 +48,11 @@ export interface DiagramProfile {
 /** The plain diagram: every shared behaviour on, no overlay, ELK layout. */
 export const DEFAULT_PROFILE: DiagramProfile = { id: "default", matches: () => true };
 
-let registry: readonly DiagramProfile[] | undefined;
+const PROFILES: readonly DiagramProfile[] = [SEQUENCE_PROFILE, WALKTHROUGH_PROFILE];
 
-/** Every non-default profile, first match wins; built on first use, since a profile's component can import back into this module. */
+/** Every non-default profile, first match wins. */
 export function diagramProfiles(): readonly DiagramProfile[] {
-  return (registry ??= [SEQUENCE_PROFILE, WALKTHROUGH_PROFILE]);
+  return PROFILES;
 }
 
 /** The profile that owns `layer` (given its members), else the default. */

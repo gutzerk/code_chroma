@@ -40,12 +40,16 @@ skills/codechroma-draw-diagram/
     check_diagram.py               # one self-check, including --kind sequence
 ```
 
-⚠ **The source of truth is the repo root's `skills/`** (not `.claude/skills/`, which is gitignored output).
+⚠ **The source of truth is the repo root's `skills/`** (not `.agents/skills/` or `.claude/skills/`, which are generated output).
 Python resolves it via `bridge/resources.py`'s `_SOURCE_RELATIVE["skills"]`; the C# bridge copies it next to
 its executable at build/publish (`CodeChroma.Bridge.csproj` `Content` item) and `SkillSync.SkillsRoot()`
 reads exactly `$CODECHROMA_SKILLS_DIR` or `<bridge folder>/skills` — no searching. At bridge start
 `Program.cs` calls `SkillSync.InstallIntoWorktree(repoRoot)`, i.e. `SyncAll` + git-exclude, so the opened
-project's `.claude/skills/codechroma-*` is refreshed from it (worktrees get the same on creation);
+project's `.agents/skills/codechroma-*` and `.claude/skills/codechroma-*` are refreshed from it (worktrees get the
+same on creation). `SkillSync.SkillTargets` lists both folders: `.agents/skills` is the cross-agent standard that
+Codex, Gemini CLI and Kimi read, and Claude Code reads only `.claude/skills`. Sync writes and prunes only
+`codechroma-*` names, so the user's own skills in `.agents/skills` stay. Skill text runs its scripts as
+`python3 .agents/skills/<skill>/scripts/...`, a path every CLI has;
 headless bare runs and `--plugin-dir` agents read `SkillsRoot()` directly. `examples/.claude/skills/` used to hold a
 byte-identical mirror that nothing read; it was deleted and `examples/.claude/` is now gitignored,
 because it was machine output from dogfooding the bridge against `examples/`.
@@ -206,8 +210,8 @@ never expand `${…}`). `drawing-rules.md` also tells the agent to read wiki pag
 
 **One source for skills.** `skills/` is the only source; the C# build copies it beside the bridge (so the
 app bundle's `check_*.py` is a build copy, not a second source) and `SkillSync` installs it into each opened
-repo's `.claude/skills`. `SkillSync.PruneRetired` also deletes `.claude/skills/codeatlas-*` (the product's
-former name), the duplicate install an old build left behind.
+repo's `.agents/skills` and `.claude/skills`. `SkillSync.PruneRetired` also deletes `codeatlas-*` in both
+folders (the product's former name), the duplicate install an old build left behind.
 
 `CYCLES` (011-draw-relations-borrow): a directed cycle in `relations[]` — found by `_check_cycles`
 (Tarjan SCC) in both the flat and hierarchical strategies. Advisory because a cycle is often

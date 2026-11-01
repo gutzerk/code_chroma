@@ -418,10 +418,12 @@ def test_a_non_git_project_gets_a_first_commit_plan(non_git_client):
     body = test_client.get("/agents/git-preflight").json()
 
     assert body["state"] == "not-a-repo"
-    # One file, not four: .env and the bridge's own synced .claude/ skills are pre-ticked.
+    # One file: .env and the bridge's own synced .agents/ and .claude/ skills are pre-ticked.
     assert body["plan"]["file_count"] == 1
-    # .claude/ is the skill folder create_app() just synced in -- a heavy dir, not the user's work.
-    assert [entry["path"] for entry in body["plan"]["suspicious"]] == [".claude/", ".env"]
+    # Both skill folders create_app() just synced in are heavy dirs, not the user's work.
+    assert [entry["path"] for entry in body["plan"]["suspicious"]] == [
+        ".agents/", ".claude/", ".env",
+    ]
 
 
 def test_preflight_then_git_init_then_create_agent_all_succeed(non_git_client):

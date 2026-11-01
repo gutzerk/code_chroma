@@ -192,17 +192,19 @@ public class SkillSyncTests : IDisposable
         return dir;
     }
 
-    [Fact]
-    public void A_skill_is_installed_into_a_repo_without_one_and_a_stale_copy_is_replaced()
+    [Theory]
+    [InlineData(".agents")]
+    [InlineData(".claude")]
+    public void A_skill_is_installed_into_a_repo_without_one_and_a_stale_copy_is_replaced(string folder)
     {
         var source = FakeSkill(_repo.Sibling("src"));
-        var target = Path.Combine(_repo.Root, ".claude", "skills", "demo");
+        var target = Path.Combine(_repo.Root, folder, "skills", "demo");
         Directory.CreateDirectory(target);
         File.WriteAllText(Path.Combine(target, "stale.md"), "old");
 
         var installed = SkillSync.SyncSkill(_repo.Root, "demo", source);
 
-        Assert.Equal(target, installed);
+        Assert.Contains(target, installed);
         Assert.Equal("fresh", File.ReadAllText(Path.Combine(target, "SKILL.md")));
         Assert.False(File.Exists(Path.Combine(target, "stale.md")));
     }
@@ -210,24 +212,41 @@ public class SkillSyncTests : IDisposable
     [Fact]
     public void A_missing_source_is_skipped()
     {
-        Assert.Null(SkillSync.SyncSkill(_repo.Root, "demo", Path.Combine(_repo.Root, "no-such-dir")));
+        Assert.Empty(SkillSync.SyncSkill(_repo.Root, "demo", Path.Combine(_repo.Root, "no-such-dir")));
     }
 
     [Fact]
-    public void Exclude_patterns_cover_every_skill_including_the_retired_ones()
+    public void A_source_that_already_is_one_target_is_still_copied_into_the_other()
+    {
+        var source = Path.Combine(_repo.Root, ".claude", "skills", "demo");
+        Directory.CreateDirectory(source);
+        File.WriteAllText(Path.Combine(source, "SKILL.md"), "fresh");
+
+        var installed = SkillSync.SyncSkill(_repo.Root, "demo", source);
+
+        Assert.Equal([Path.Combine(_repo.Root, ".agents", "skills", "demo")], installed);
+        Assert.Equal("fresh", File.ReadAllText(Path.Combine(source, "SKILL.md")));
+    }
+
+    [Theory]
+    [InlineData(".agents/skills")]
+    [InlineData(".claude/skills")]
+    public void Exclude_patterns_cover_every_skill_including_the_retired_ones(string folder)
     {
         foreach (var name in SkillSync.SkillNames.Concat(SkillSync.RetiredSkillNames))
-            Assert.Contains($".claude/skills/{name}/", SkillSync.ExcludePatterns);
+            Assert.Contains($"{folder}/{name}/", SkillSync.ExcludePatterns);
+        Assert.Contains(".kimi-code/mcp.json", SkillSync.ExcludePatterns);
         Assert.Equal(".codechroma/", SkillSync.WorktreeExcludes[0]);
     }
 
     [Theory]
-    [InlineData("codechroma-c1")]
-    [InlineData("codechroma-patterns")]
-    [InlineData("codechroma-wiki-general")]
-    public void Syncing_removes_a_skill_a_previous_version_installed(string retired)
+    [InlineData(".agents", "codechroma-c1")]
+    [InlineData(".claude", "codechroma-patterns")]
+    [InlineData(".agents", "codechroma-wiki-general")]
+    [InlineData(".claude", "codeatlas-draw-diagram")]
+    public void Syncing_removes_a_skill_a_previous_version_installed(string folder, string retired)
     {
-        var stale = Path.Combine(_repo.Root, ".claude", "skills", retired);
+        var stale = Path.Combine(_repo.Root, folder, "skills", retired);
         Directory.CreateDirectory(stale);
         File.WriteAllText(Path.Combine(stale, "SKILL.md"), "old");
 
@@ -237,24 +256,25 @@ public class SkillSyncTests : IDisposable
     }
 
     [Fact]
-    public void Syncing_removes_a_skill_installed_under_the_former_codeatlas_name()
+    public void Syncing_leaves_the_users_own_skills_in_the_shared_folder_alone()
     {
-        var stale = Path.Combine(_repo.Root, ".claude", "skills", "codeatlas-draw-diagram");
-        Directory.CreateDirectory(stale);
-        File.WriteAllText(Path.Combine(stale, "SKILL.md"), "old");
+        var own = Path.Combine(_repo.Root, ".agents", "skills", "my-own-skill");
+        Directory.CreateDirectory(own);
+        File.WriteAllText(Path.Combine(own, "SKILL.md"), "mine");
 
-        SkillSync.PruneRetired(_repo.Root);
+        SkillSync.InstallIntoWorktree(_repo.Root);
 
-        Assert.False(Directory.Exists(stale));
+        Assert.True(File.Exists(Path.Combine(own, "SKILL.md")));
     }
 
     [Fact]
-    public void Install_into_worktree_syncs_every_shipped_skill_and_excludes_them_from_git_status()
+    public void Install_into_worktree_syncs_every_shipped_skill_into_each_folder_and_excludes_them_from_git_status()
     {
         SkillSync.InstallIntoWorktree(_repo.Root);
 
-        foreach (var name in SkillSync.SkillNames)
-            Assert.True(File.Exists(Path.Combine(_repo.Root, ".claude", "skills", name, "SKILL.md")), name);
+        foreach (var dir in SkillSync.SkillDirs(_repo.Root))
+            foreach (var name in SkillSync.SkillNames)
+                Assert.True(File.Exists(Path.Combine(dir, name, "SKILL.md")), Path.Combine(dir, name));
         Assert.Equal("", _repo.Git("status", "--porcelain").Trim());
     }
 

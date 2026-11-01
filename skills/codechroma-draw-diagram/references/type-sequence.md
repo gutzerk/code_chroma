@@ -161,7 +161,7 @@ Rules:
 6. **Self-check — never report success on a run that didn't print `OK`:**
 
    ```bash
-   python3 .claude/skills/codechroma-draw-diagram/scripts/check_diagram.py --kind sequence
+   python3 .agents/skills/codechroma-draw-diagram/scripts/check_diagram.py --kind sequence
    ```
 
    Common codes (`drawing-rules.md`) apply; the ones most likely here:

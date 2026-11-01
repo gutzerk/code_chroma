@@ -21,7 +21,7 @@ from codechroma.assistant import DEFAULT_CLI, load_assistant_settings
 from codechroma.bridge.agents.session_ownership import FILE_ENV, INITIAL_ID_ENV, hook_settings
 from codechroma.bridge.resources import resource_path
 from codechroma.config import settings
-from codechroma.questions.launch import McpEndpoint, write_claude_config
+from codechroma.questions.launch import McpEndpoint
 
 ALLOWED_AGENTS: dict[str, list[str]] = {
     "shell": (
@@ -49,7 +49,7 @@ def _default_model() -> str:
 def agent_cli(
     agent: str, resume_session_id: str | None = None, initial_prompt: str | None = None,
     mcp: McpEndpoint | None = None, new_session_id: str | None = None,
-    session_tracking_file: Path | None = None,
+    session_tracking_file: Path | None = None, workdir: Path | None = None,
 ) -> tuple[list[str], dict[str, str]] | None:
     """Return an allow-listed agent's argv and provider environment, or None."""
     if agent == "agent":
@@ -59,17 +59,21 @@ def agent_cli(
         is_claude = resolution.adapter_key == "claude" and (
             resolution.provider_assigned or resolution.binary == DEFAULT_CLI
         )
+        # The claude adapter behind a stand-in binary is not the real CLI, so it gets no MCP server.
+        stand_in = resolution.adapter_key == "claude" and not is_claude
+        adapter = None if stand_in else resolution.adapter_key
+        mcp_args, mcp_env = _mcp_registration(adapter, mcp, workdir)
         return [
             resolution.binary,
             *_model_args(resolution),
             *_tracking_args(is_claude, session_tracking_file),
             *_instruction_args(is_claude),
-            *_mcp_args(is_claude, mcp),
+            *mcp_args,
             *_codechroma_plugin_args(is_claude),
             *_new_session_args(is_claude, resume_session_id, new_session_id),
             *_resume_prompt(resume_session_id, initial_prompt),
         ], {
-            **resolution.env_overrides, **_mcp_env(is_claude, mcp),
+            **resolution.env_overrides, **mcp_env,
             **_tracking_env(is_claude, session_tracking_file, resume_session_id or new_session_id),
         }
     argv_entry = ALLOWED_AGENTS.get(agent)
@@ -79,16 +83,17 @@ def agent_cli(
         # Keep the default binary unless the user pointed the assistant at something else.
         binary = load_assistant_settings().effective_cli
         is_claude = binary == DEFAULT_CLI
+        mcp_args, mcp_env = _mcp_registration("claude" if is_claude else None, mcp, workdir)
         return [
             binary,
             *_tracking_args(is_claude, session_tracking_file),
             *_instruction_args(is_claude),
-            *_mcp_args(is_claude, mcp),
+            *mcp_args,
             *_codechroma_plugin_args(is_claude),
             *_new_session_args(is_claude, resume_session_id, new_session_id),
             *_resume_prompt(resume_session_id, initial_prompt),
         ], {
-            **_mcp_env(is_claude, mcp),
+            **mcp_env,
             **_tracking_env(is_claude, session_tracking_file, resume_session_id or new_session_id),
         }
     # Generic kinds (e.g. shell): a resume still appends the flag; a first message never does.
@@ -132,16 +137,18 @@ def _instruction_args(is_claude: bool) -> list[str]:
     return ["--append-system-prompt", text] if is_claude and text else []
 
 
-def _mcp_args(is_claude: bool, mcp: McpEndpoint | None) -> list[str]:
-    """Registers the CodeChroma MCP server; it must precede `--plugin-dir` (variadic option)."""
-    if not is_claude or mcp is None:
-        return []
-    return ["--mcp-config", str(write_claude_config(mcp))]
+def _mcp_registration(
+    adapter: str | None, mcp: McpEndpoint | None, workdir: Path | None
+) -> tuple[list[str], dict[str, str]]:
+    """Argv and env that register the CodeChroma MCP server with this CLI; empty when it can't."""
+    from codechroma.llm.cli_adapters import CLI_ADAPTERS
 
-
-def _mcp_env(is_claude: bool, mcp: McpEndpoint | None) -> dict[str, str]:
-    """Env the AskUserQuestion hook reads to find the bridge; empty without an endpoint."""
-    return mcp.env() if is_claude and mcp is not None else {}
+    cli = CLI_ADAPTERS.get(adapter) if adapter is not None and mcp is not None else None
+    registration = cli.mcp_registration(mcp, workdir) if cli is not None else None
+    if registration is None:
+        return [], {}
+    args, env = registration
+    return args, {**mcp.env(), **env}
 
 
 def _resume_prompt(resume_session_id: str | None, initial_prompt: str | None) -> list[str]:

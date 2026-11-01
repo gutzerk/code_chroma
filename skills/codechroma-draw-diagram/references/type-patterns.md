@@ -212,7 +212,7 @@ Rules:
 7. **Self-check — never report success on a run that didn't print `OK`:**
 
    ```bash
-   python3 .claude/skills/codechroma-draw-diagram/scripts/check_diagram.py --kind patterns
+   python3 .agents/skills/codechroma-draw-diagram/scripts/check_diagram.py --kind patterns
    ```
 
    Common codes (`drawing-rules.md`) apply — `ISLAND` here most often means the real caller of an

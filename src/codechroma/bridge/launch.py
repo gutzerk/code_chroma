@@ -95,8 +95,7 @@ def main(argv: list[str] | None = None) -> int:
             parser.error(f"--repo-path is not a directory: {repo_path}")
 
     for skill_name in SKILL_NAMES:
-        skill_target = sync_skill(repo_path, skill_name)
-        if skill_target is not None:
+        for skill_target in sync_skill(repo_path, skill_name):
             print(f"[codechroma-live] installed {skill_name} skill at {skill_target}", flush=True)
 
     bridge_url = f"http://{args.host}:{args.port}"

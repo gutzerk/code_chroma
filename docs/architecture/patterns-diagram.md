@@ -43,9 +43,9 @@ Both are gone, replaced by the same skill-agent generation model as C1:
   `GET /repos/{id}/patterns/context` (the old standalone `/patterns-context` route is 🔴 deleted).
 - 🔴 `patterns_agent.py` is deleted (037) — `content_generators.py`'s `build_skill_agent_for`
   builds the same `SkillAgent` generically from `diagrams/registry.py`'s `BUILTIN_TYPES["patterns"]`,
-  driving `.claude/skills/codechroma-draw-diagram/references/type-patterns.md`, which reads
+  driving `.agents/skills/codechroma-draw-diagram/references/type-patterns.md`, which reads
   `/patterns/context` and `/structure`, writes to the path from `GET /repos/{id}/patterns-path`, and
-  self-checks via `.claude/skills/codechroma-draw-diagram/scripts/check_diagram.py --kind patterns` — the same validation
+  self-checks via `.agents/skills/codechroma-draw-diagram/scripts/check_diagram.py --kind patterns` — the same validation
   vocabulary as c1's own kind (`BROKEN`/`DUPLICATE`/`DANGLING`/`SELF`/`ORPHAN`/`ISLAND`) plus
   patterns-specific `SPARSE` and `UNREVIEWED`. A confirmed `pattern-instance` box with no
   `relations[]` edge of its own is flagged `ORPHAN ... no relation of its own` — the canvas doesn't

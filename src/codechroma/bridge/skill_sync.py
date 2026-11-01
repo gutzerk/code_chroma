@@ -8,7 +8,8 @@ from pathlib import Path
 
 from codechroma.bridge.git_cmd import ensure_excluded
 from codechroma.bridge.resources import resource_path
-from codechroma.skills import SKILLS_PARENT_PARTS
+from codechroma.llm.cli_adapters import KIMI_MCP_CONFIG
+from codechroma.skills import SKILL_TARGET_PARTS
 
 __all__ = [
     "RETIRED_SKILL_NAMES",
@@ -55,42 +56,53 @@ def skill_source(name: str) -> Path:
     return resource_path("skills", name)
 
 
-def skill_relative_path(name: str) -> Path:
-    """Where a skill is installed inside an analyzed repo, relative to its root."""
-    return Path(*SKILLS_PARENT_PARTS) / name
+def skill_relative_paths(name: str) -> tuple[Path, ...]:
+    """Where a skill is installed inside an analyzed repo, relative to its root, one per target."""
+    return tuple(Path(*parts) / name for parts in SKILL_TARGET_PARTS)
 
 
-# Feed to git_cmd.ensure_excluded: a synced copy, retired ones included, is never the user's work.
-SKILL_EXCLUDE_PATTERNS = tuple(
-    f"{skill_relative_path(name).as_posix()}/" for name in (*SKILL_NAMES, *RETIRED_SKILL_NAMES)
+# Feed to git_cmd.ensure_excluded: a synced copy (retired ones too) or an agent's Kimi MCP file.
+SKILL_EXCLUDE_PATTERNS = (
+    *(
+        f"{relative.as_posix()}/"
+        for name in (*SKILL_NAMES, *RETIRED_SKILL_NAMES)
+        for relative in skill_relative_paths(name)
+    ),
+    KIMI_MCP_CONFIG,
 )
 
 # Every path a fresh agent/PR worktree must never show as its own uncommitted work.
 WORKTREE_EXCLUDES = (".codechroma/", *SKILL_EXCLUDE_PATTERNS)
 
 
-def sync_skill(repo_root: Path, name: str, source: Path | None = None) -> Path | None:
-    """Copies a skill into repo_root/.claude/skills, replacing any stale copy; None if skipped."""
+def sync_skill(repo_root: Path, name: str, source: Path | None = None) -> list[Path]:
+    """Copies a skill into each repo_root/<target>, replacing any stale copy; returns the copies."""
     resolved_source = source if source is not None else skill_source(name)
-    target = repo_root / skill_relative_path(name)
-    if not resolved_source.is_dir() or target.resolve() == resolved_source.resolve():
-        return None
-    if target.exists():
-        shutil.rmtree(target)
-    target.parent.mkdir(parents=True, exist_ok=True)
-    shutil.copytree(resolved_source, target)
-    return target
+    if not resolved_source.is_dir():
+        return []
+    installed = []
+    for relative in skill_relative_paths(name):
+        target = repo_root / relative
+        if target.resolve() == resolved_source.resolve():
+            continue
+        if target.exists():
+            shutil.rmtree(target)
+        target.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copytree(resolved_source, target)
+        installed.append(target)
+    return installed
 
 
 def prune_retired_skills(repo_root: Path) -> list[Path]:
     """Removes skills a previous version installed, so a merged-away name can't linger forever."""
     removed = []
     for name in RETIRED_SKILL_NAMES:
-        target = repo_root / skill_relative_path(name)
-        if not target.is_dir():
-            continue
-        shutil.rmtree(target, ignore_errors=True)
-        removed.append(target)
+        for relative in skill_relative_paths(name):
+            target = repo_root / relative
+            if not target.is_dir():
+                continue
+            shutil.rmtree(target, ignore_errors=True)
+            removed.append(target)
     return removed
 
 

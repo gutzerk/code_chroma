@@ -21,51 +21,57 @@ def source_dir(tmp_path):
     return source
 
 
-def test_installs_a_skill_into_a_repo_without_one(tmp_path, source_dir):
+def test_installs_a_skill_into_every_skills_folder_of_a_repo_without_one(tmp_path, source_dir):
     repo = tmp_path / "repo"
     repo.mkdir()
 
-    target = sync_skill(repo, "codechroma-epic-brief", source=source_dir)
+    targets = sync_skill(repo, "codechroma-epic-brief", source=source_dir)
 
-    assert target == repo / ".claude" / "skills" / "codechroma-epic-brief"
-    assert (target / "SKILL.md").read_text(
-        encoding="utf-8"
-    ) == "updated skill body with details field"
+    assert targets == [
+        repo / ".agents" / "skills" / "codechroma-epic-brief",
+        repo / ".claude" / "skills" / "codechroma-epic-brief",
+    ]
+    assert all(
+        (t / "SKILL.md").read_text(encoding="utf-8") == "updated skill body with details field"
+        for t in targets
+    )
 
 
-def test_replaces_an_existing_stale_copy(tmp_path, source_dir):
+@pytest.mark.parametrize("folder", [".agents", ".claude"])
+def test_replaces_an_existing_stale_copy(tmp_path, source_dir, folder):
     repo = tmp_path / "repo"
-    stale = repo / ".claude" / "skills" / "codechroma-epic-brief"
+    stale = repo / folder / "skills" / "codechroma-epic-brief"
     stale.mkdir(parents=True)
     (stale / "SKILL.md").write_text("old skill without details", encoding="utf-8")
     (stale / "leftover.md").write_text("stale extra file", encoding="utf-8")
 
-    target = sync_skill(repo, "codechroma-epic-brief", source=source_dir)
+    sync_skill(repo, "codechroma-epic-brief", source=source_dir)
 
-    assert (target / "SKILL.md").read_text(
+    assert (stale / "SKILL.md").read_text(
         encoding="utf-8"
     ) == "updated skill body with details field"
-    assert not (target / "leftover.md").exists()
+    assert not (stale / "leftover.md").exists()
 
 
 def test_skips_when_the_source_is_missing(tmp_path):
     repo = tmp_path / "repo"
     repo.mkdir()
 
-    target = sync_skill(repo, "codechroma-epic-brief", source=tmp_path / "does-not-exist")
+    targets = sync_skill(repo, "codechroma-epic-brief", source=tmp_path / "does-not-exist")
 
-    assert target is None
+    assert targets == []
     assert not (repo / ".claude").exists()
+    assert not (repo / ".agents").exists()
 
 
-def test_skips_when_the_source_already_is_the_target(tmp_path):
+def test_a_source_that_already_is_one_target_is_still_copied_into_the_other(tmp_path):
     source = tmp_path / ".claude" / "skills" / "codechroma-epic-brief"
     source.mkdir(parents=True)
     (source / "SKILL.md").write_text("x", encoding="utf-8")
 
-    target = sync_skill(tmp_path, "codechroma-epic-brief", source=source)
+    targets = sync_skill(tmp_path, "codechroma-epic-brief", source=source)
 
-    assert target is None
+    assert targets == [tmp_path / ".agents" / "skills" / "codechroma-epic-brief"]
     assert (source / "SKILL.md").exists()
 
 
@@ -97,11 +103,13 @@ def test_every_reference_the_router_points_at_ships_with_the_skill(reference, ma
 
 def test_exclude_patterns_cover_every_skill_including_the_retired_ones():
     # A retired leftover must not read as untracked work in the window before it gets pruned.
-    expected = tuple(
-        f".claude/skills/{name}/" for name in (*SKILL_NAMES, *RETIRED_SKILL_NAMES)
-    )
+    expected = {
+        f"{folder}/skills/{name}/"
+        for name in (*SKILL_NAMES, *RETIRED_SKILL_NAMES)
+        for folder in (".agents", ".claude")
+    } | {".kimi-code/mcp.json"}
 
-    assert SKILL_EXCLUDE_PATTERNS == expected
+    assert set(SKILL_EXCLUDE_PATTERNS) == expected
 
 
 def test_the_merged_away_names_are_retired_rather_than_simply_forgotten():
@@ -110,11 +118,14 @@ def test_the_merged_away_names_are_retired_rather_than_simply_forgotten():
     assert set(RETIRED_SKILL_NAMES).isdisjoint(SKILL_NAMES)
 
 
-@pytest.mark.parametrize("retired_name", ["codechroma-c1", "codechroma-diagram-type"])
-def test_syncing_removes_a_skill_a_previous_version_installed(tmp_path, retired_name):
+@pytest.mark.parametrize(
+    ("folder", "retired_name"),
+    [(".claude", "codechroma-c1"), (".agents", "codechroma-diagram-type")],
+)
+def test_syncing_removes_a_skill_a_previous_version_installed(tmp_path, folder, retired_name):
     # 🔴 sync_skill only rmtree's a name still in SKILL_NAMES; without the prune these stay forever.
     repo = tmp_path / "repo"
-    stale = repo / ".claude" / "skills" / retired_name
+    stale = repo / folder / "skills" / retired_name
     stale.mkdir(parents=True)
     (stale / "SKILL.md").write_text("an old, merged/retired-away skill", encoding="utf-8")
 
@@ -136,6 +147,7 @@ def test_launcher_installs_the_skills_before_booting(tmp_path, source_dir, monke
 
     launch.main(["--repo-path", str(repo)])
 
+    assert (repo / ".agents" / "skills" / "codechroma-epic-brief" / "SKILL.md").exists()
     assert (repo / ".claude" / "skills" / "codechroma-epic-brief" / "SKILL.md").exists()
 
 
@@ -149,20 +161,33 @@ def _exited_process():
     return _Done()
 
 
-def test_sync_all_skills_installs_every_codechroma_skill(tmp_path):
+@pytest.mark.parametrize("folder", [".agents", ".claude"])
+def test_sync_all_skills_installs_every_codechroma_skill(tmp_path, folder):
     repo = tmp_path / "repo"
     repo.mkdir()
 
     sync_all_skills(repo)
 
-    installed = {p.name for p in (repo / ".claude" / "skills").iterdir()}
+    installed = {p.name for p in (repo / folder / "skills").iterdir()}
     assert installed == set(SKILL_NAMES)
+
+
+def test_sync_all_skills_leaves_the_users_own_skills_in_the_shared_folder_alone(tmp_path):
+    own = tmp_path / ".agents" / "skills" / "my-own-skill"
+    own.mkdir(parents=True)
+    (own / "SKILL.md").write_text("mine", encoding="utf-8")
+
+    sync_all_skills(tmp_path)
+
+    assert (own / "SKILL.md").read_text(encoding="utf-8") == "mine"
 
 
 @pytest.mark.parametrize(
     ("relative", "expected"),
     [
         (".claude/skills/codechroma-patterns/SKILL.md", True),
+        (".agents/skills/codechroma-draw-diagram/SKILL.md", True),
+        (".agents/skills/my-own-skill/SKILL.md", False),
         (".claude/skills/codechroma-c1/scripts/check.py", True),
         (".claude/skills/my-own-skill/SKILL.md", False),
         (".claude/skills", False),

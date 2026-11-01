@@ -202,7 +202,7 @@ the self-check catches that pair as an `ISLAND` too.
 5. **Self-check — never report success on a run that didn't print `OK`:**
 
    ```bash
-   python3 .claude/skills/codechroma-draw-diagram/scripts/check_diagram.py --kind system-context
+   python3 .agents/skills/codechroma-draw-diagram/scripts/check_diagram.py --kind system-context
    ```
 
    Common codes (`drawing-rules.md`) apply; `ORPHAN`/`ISLAND` here mean "not wired to `system`" —

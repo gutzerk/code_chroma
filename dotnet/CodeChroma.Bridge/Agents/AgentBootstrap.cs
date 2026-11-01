@@ -25,7 +25,7 @@ public static class AgentBootstrap
     private const string FirstCommitMessage = "Initial commit";
 
     private static readonly string[] BaseIgnores = ["node_modules/", "dist/", "build/", "__pycache__/", ".venv/", "venv/", ".codechroma/"];
-    private static readonly HashSet<string> HeavyDirs = [.. BridgeLimits.IgnoredDirs, ".claude"];
+    private static readonly HashSet<string> HeavyDirs = [.. BridgeLimits.IgnoredDirs, .. SkillSync.SkillTargets.Select(target => target.Split('/')[0])];
     private static readonly string[] SecretGlobs = [".env", ".env.*", "*.pem", "*.key", "id_rsa", "id_rsa.*"];
     private static readonly HashSet<string> AlwaysIgnored = [".git", ".codechroma"];
     private static readonly string[] MacMediaFolders = ["Music", "Pictures", "Movies", "Library"];

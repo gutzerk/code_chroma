@@ -1,8 +1,10 @@
+using CodeChroma.Bridge.Skills;
 using CodeChroma.Bridge.Workspaces;
+using CodeChroma.Core.Analyzers;
 
 namespace CodeChroma.Bridge.Agents;
 
-/// <summary>Installs the shipped codechroma-* skills (skills/ beside the bridge) into a project's or worktree's .claude/skills so agents there write canvas artifacts.</summary>
+/// <summary>Installs the shipped codechroma-* skills (skills/ beside the bridge) into a project's or worktree's .agents/skills and .claude/skills so agents there write canvas artifacts.</summary>
 public static class SkillSync
 {
     public const string SkillsEnv = "CODECHROMA_SKILLS_DIR";
@@ -28,8 +30,14 @@ public static class SkillSync
     /// <summary>The product's former name: skills installed as codeatlas-* by an old build duplicate the codechroma-* ones and are pruned.</summary>
     public const string LegacyPrefix = "codeatlas-";
 
+    public static IReadOnlyList<string> SkillTargets => RepoScanner.SkillTargets;
+
+    /// <summary>Every skill copy in each target, plus the Kimi MCP file agent windows write into a worktree.</summary>
     public static readonly IReadOnlyList<string> ExcludePatterns =
-        [.. SkillNames.Concat(RetiredSkillNames).Select(name => $".claude/skills/{name}/"), $".claude/skills/{LegacyPrefix}*/"];
+    [
+        .. SkillTargets.SelectMany(target => SkillNames.Concat(RetiredSkillNames).Select(name => $"{target}/{name}/").Append($"{target}/{LegacyPrefix}*/")),
+        KimiAdapter.McpConfig,
+    ];
 
     /// <summary>Every path a fresh agent, PR or branch worktree must never show as its own uncommitted work.</summary>
     public static readonly IReadOnlyList<string> WorktreeExcludes = [".codechroma/", .. ExcludePatterns];
@@ -51,37 +59,42 @@ public static class SkillSync
 
     public static string? SkillSource(string name) => SkillsRoot() is { } root ? Path.Combine(root, name) : null;
 
-    public static string SkillRelativePath(string name) => Path.Combine(".claude", "skills", name);
+    /// <summary>Each skills folder under root, in SkillTargets order.</summary>
+    public static IEnumerable<string> SkillDirs(string root) => SkillTargets.Select(target => Path.Combine([root, .. target.Split('/')]));
 
-    /// <summary>Makes repoRoot/.claude/skills/&lt;name&gt; match the source, touching only files that differ; null when skipped.</summary>
-    public static string? SyncSkill(string repoRoot, string name, string? source = null)
+    /// <summary>Makes every repoRoot/&lt;target&gt;/&lt;name&gt; match the source, touching only files that differ; returns the installed copies.</summary>
+    public static List<string> SyncSkill(string repoRoot, string name, string? source = null)
     {
         var resolved = source ?? SkillSource(name);
-        var target = Path.Combine(repoRoot, SkillRelativePath(name));
-        if (resolved is null || !Directory.Exists(resolved) || Path.GetFullPath(target) == Path.GetFullPath(resolved)) return null;
-        Directory.CreateDirectory(Path.GetDirectoryName(target)!);
-        MirrorDirectory(resolved, target);
-        return target;
+        var installed = new List<string>();
+        if (resolved is null || !Directory.Exists(resolved)) return installed;
+        foreach (var target in SkillDirs(repoRoot).Select(dir => Path.Combine(dir, name)))
+        {
+            if (Path.GetFullPath(target) == Path.GetFullPath(resolved)) continue;
+            Directory.CreateDirectory(Path.GetDirectoryName(target)!);
+            MirrorDirectory(resolved, target);
+            installed.Add(target);
+        }
+        return installed;
     }
 
     /// <summary>Removes skills a previous version installed, so a merged-away name cannot linger forever.</summary>
     public static List<string> PruneRetired(string repoRoot)
     {
         var removed = new List<string>();
-        foreach (var name in RetiredSkillNames)
+        foreach (var skillsDir in SkillDirs(repoRoot).Where(Directory.Exists))
         {
-            var target = Path.Combine(repoRoot, SkillRelativePath(name));
-            if (!Directory.Exists(target)) continue;
-            try { ForceDelete(target); } catch (IOException) { }
-            removed.Add(target);
-        }
-        var skillsDir = Path.Combine(repoRoot, ".claude", "skills");
-        if (Directory.Exists(skillsDir))
+            foreach (var target in RetiredSkillNames.Select(name => Path.Combine(skillsDir, name)).Where(Directory.Exists))
+            {
+                try { ForceDelete(target); } catch (IOException) { }
+                removed.Add(target);
+            }
             foreach (var legacy in Directory.GetDirectories(skillsDir, LegacyPrefix + "*"))
             {
                 try { ForceDelete(legacy); } catch (IOException) { continue; }
                 removed.Add(legacy);
             }
+        }
         return removed;
     }
 

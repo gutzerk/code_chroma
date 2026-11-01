@@ -120,7 +120,7 @@ section (only `system-context` has a live status route) — nothing to send here
 ## 7. Self-check — never report success on a run that didn't print `OK`
 
 ```bash
-python3 .claude/skills/codechroma-draw-diagram/scripts/check_diagram.py --kind feature-plan --slug <slug>
+python3 .agents/skills/codechroma-draw-diagram/scripts/check_diagram.py --kind feature-plan --slug <slug>
 ```
 
 Edges follow the shared edge `kind` vocabulary (`calls`, `spawns`, `data`, `minor`; `drawing-rules.md` "Edge kinds"): a planned step that starts a process or reads/writes a store gets `spawns`/`data`.

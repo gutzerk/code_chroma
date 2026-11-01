@@ -7,7 +7,7 @@ wiki and never auto-bootstrapped; the first tree only ever comes from an explici
 since it's a paid Claude call (`bridge/wiki_general_pipeline.py`, a deterministic Python pipeline of
 worker calls, not a skill — see "Generation pipeline" below), unlike the plain wiki's
 offline `generate_wiki()`. Once it exists, a commit marks it possibly stale and the canvas offers an
-incremental **Update** (a second, narrower skill, `.claude/skills/codechroma-wiki-general-update/`,
+incremental **Update** (a second, narrower skill, `.agents/skills/codechroma-wiki-general-update/`,
 that patches only affected pages) alongside the original full-rebuild **Generate** — see "Staying
 current after a commit" below. Neither ever fires on its own; both are still click-only.
 
@@ -253,7 +253,7 @@ call; `SkillAgentTimeoutsConfig.timeout_seconds["wiki-general"]` (now 3600s, was
 the primary time limit — jobs are already individually bounded — it's a safety net against the
 pipeline's own logic hanging (e.g. a barrier never releasing), not against slow jobs.
 
-## Self-check (`.claude/skills/codechroma-wiki-general-update/scripts/check_wiki_general.py`)
+## Self-check (`.agents/skills/codechroma-wiki-general-update/scripts/check_wiki_general.py`)
 
 🔴 Moved here from the now-retired `codechroma-wiki-general` skill (058) — this is the one skill left
 that still needs a synced, standalone copy of the script (its own `claude -p` run shells out to it
@@ -349,7 +349,7 @@ current HEAD; `GET /repos/{id}/wiki-general/status` folds the result into a new 
 An unstamped manifest (predates this feature, or a page edited by hand outside a run) reads as stale
 by construction — there's nothing to compare it against that would ever call it fresh.
 
-**The incremental skill — `skills/codechroma-wiki-general-update/` (installed to `.claude/skills/`).** `SKILL.md` is self-contained since the retired full-rebuild skill and `data-model.md` no longer ship: it carries the c3 and c2 page formats, the root-index link rule for new containers, the one-file-per-`wiki-context`-request rule (a multi-path response over the size cap sets `truncated`, `omitted[]` and `warning`; `gaps[]` stays empty), the `update-plan` fallback for terminal runs, and reads `$CODECHROMA_BRIDGE_URL`/`$CODECHROMA_WORKSPACE_ID` (the check script's `--url`/`--repo` default to them). Update naming: a superseded old id is freed before new groups are named (no phantom `rbac-2` when `rbac` was just deleted) and a deduped id also suffixes the display name (`Hubconst 2`), in `wiki_general_naming.unique_display` / `WikiGeneralNaming.UniqueDisplay`. Older notes follow. Sibling to
+**The incremental skill — `skills/codechroma-wiki-general-update/` (installed to `.agents/skills/` and `.claude/skills/`).** `SKILL.md` is self-contained since the retired full-rebuild skill and `data-model.md` no longer ship: it carries the c3 and c2 page formats, the root-index link rule for new containers, the one-file-per-`wiki-context`-request rule (a multi-path response over the size cap sets `truncated`, `omitted[]` and `warning`; `gaps[]` stays empty), the `update-plan` fallback for terminal runs, and reads `$CODECHROMA_BRIDGE_URL`/`$CODECHROMA_WORKSPACE_ID` (the check script's `--url`/`--repo` default to them). Update naming: a superseded old id is freed before new groups are named (no phantom `rbac-2` when `rbac` was just deleted) and a deduped id also suffixes the display name (`Hubconst 2`), in `wiki_general_naming.unique_display` / `WikiGeneralNaming.UniqueDisplay`. Older notes follow. Sibling to
 `codechroma-wiki-general`, its own `KIND_UPDATE = "wiki-general-update"` `SkillAgent` (registered in
 `services.py` alongside the full-rebuild one; `SkillAgentTimeoutsConfig.timeout_seconds
 ["wiki-general-update"]` defaults to a shorter 300s, since it touches far fewer pages).

@@ -33,7 +33,7 @@ public static partial class BareSkill
             text.AppendLine(Fill(File.ReadAllText(kind.File), kind.Type, source, repoRoot, workspaceId)).AppendLine();
             return text.Append("Task: ").Append(ReadInstruction().Replace(DiagramType().Replace(args, "").Trim(), "").Trim()).ToString();
         }
-        text.AppendLine($"The `{skill}` skill follows; apply it to the task at the end. Files it names under `references/` and `scripts/` are inlined or live in `.claude/skills/{skill}/` under the repository root.").AppendLine();
+        text.AppendLine($"The `{skill}` skill follows; apply it to the task at the end. Files it names under `references/` and `scripts/` are inlined or live in `{SkillSync.SkillTargets[0]}/{skill}/` under the repository root.").AppendLine();
         text.AppendLine(StripFrontmatter(File.ReadAllText(Path.Combine(source, "SKILL.md")))).AppendLine();
         foreach (var name in References().Matches(args).Select(m => m.Value).Distinct())
             if (Path.Combine(source, name) is var file && File.Exists(file))

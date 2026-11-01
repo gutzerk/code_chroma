@@ -12,12 +12,29 @@ public sealed class QuestionAgentWiringTests : IDisposable
     private readonly string _dir = Path.Combine(Path.GetTempPath(), "cc-qwire-" + Guid.NewGuid().ToString("N")[..8]);
     private readonly QuestionMcp _mcp = new(_ => throw new InvalidOperationException("no workspace in this test"));
     private readonly TerminalAgents _agents;
+    private readonly ProviderStore _providers;
+    private readonly CallSiteStore _callSites;
 
     public QuestionAgentWiringTests()
     {
         var paths = UserPaths.Under(_dir);
-        var providers = new ProviderStore(paths);
-        _agents = new TerminalAgents(paths, providers, new CallSiteStore(paths, providers), _mcp);
+        _providers = new ProviderStore(paths);
+        _callSites = new CallSiteStore(paths, _providers);
+        _agents = new TerminalAgents(paths, _providers, _callSites, _mcp);
+    }
+
+    private string KimiMcpFile(string text)
+    {
+        var file = Path.Combine(_dir, "worktree", ".kimi-code", "mcp.json");
+        Directory.CreateDirectory(Path.GetDirectoryName(file)!);
+        File.WriteAllText(file, text);
+        return file;
+    }
+
+    private void UseAgentCli(string adapter)
+    {
+        var provider = _providers.Create(new JsonObject { ["label"] = adapter, ["kind"] = "cli", ["adapter"] = adapter });
+        _callSites.SaveGroup("agents", new JsonObject { ["provider_id"] = (string)provider["id"]!, ["model"] = "m" });
     }
 
     public void Dispose()
@@ -82,6 +99,59 @@ public sealed class QuestionAgentWiringTests : IDisposable
 
         Assert.Contains("--mcp-config", launch.Argv);
         Assert.Contains("session-9", launch.Argv);
+    }
+
+    [Fact]
+    public void A_codex_window_registers_the_server_with_config_overrides_and_keeps_the_token_out_of_argv()
+    {
+        UseAgentCli("codex");
+
+        var launch = _agents.Resolve("agent", initialPrompt: "do it", agentId: "agent-1", bridgeUrl: BridgeUrl)!;
+
+        Assert.Contains($"mcp_servers.codechroma.url={BridgeUrl}/mcp/", launch.Argv);
+        Assert.Contains("mcp_servers.codechroma.bearer_token_env_var=CODECHROMA_QUESTION_TOKEN", launch.Argv);
+        Assert.Equal("do it", launch.Argv[^1]);
+        Assert.DoesNotContain(launch.Argv, arg => arg.Contains(launch.Env["CODECHROMA_QUESTION_TOKEN"], StringComparison.Ordinal));
+        Assert.Equal("agent-1", _mcp.WorkspaceIdFor(launch.Env["CODECHROMA_QUESTION_TOKEN"]));
+    }
+
+    [Fact]
+    public void A_gemini_window_gets_a_system_settings_file_with_the_http_server()
+    {
+        UseAgentCli("gemini");
+
+        var launch = _agents.Resolve("agent", agentId: "agent-1", bridgeUrl: BridgeUrl)!;
+
+        var server = JsonNode.Parse(File.ReadAllText(launch.Env[CodeChroma.Bridge.Skills.GeminiAdapter.SettingsEnv]))!["mcpServers"]!["codechroma"]!;
+        Assert.Equal(BridgeUrl + "/mcp/", (string?)server["httpUrl"]);
+        Assert.Equal("Bearer " + launch.Env["CODECHROMA_QUESTION_TOKEN"], (string?)server["headers"]!["Authorization"]);
+    }
+
+    [Fact]
+    public void A_kimi_window_merges_the_server_into_its_project_mcp_file_and_keeps_the_users_entries()
+    {
+        UseAgentCli("kimi-cli");
+        var file = KimiMcpFile("""{"mcpServers":{"mine":{"command":"tool"}}}""");
+
+        var launch = _agents.Resolve("agent", agentId: "agent-1", bridgeUrl: BridgeUrl, workdir: Path.Combine(_dir, "worktree"))!;
+
+        var servers = JsonNode.Parse(File.ReadAllText(file))!["mcpServers"]!;
+        Assert.Equal("tool", (string?)servers["mine"]!["command"]);
+        Assert.Equal(BridgeUrl + "/mcp/", (string?)servers["codechroma"]!["url"]);
+        Assert.Equal("CODECHROMA_QUESTION_TOKEN", (string?)servers["codechroma"]!["bearerTokenEnvVar"]);
+        Assert.DoesNotContain(launch.Env["CODECHROMA_QUESTION_TOKEN"], File.ReadAllText(file));
+    }
+
+    [Fact]
+    public void A_kimi_window_leaves_an_unreadable_mcp_file_alone_and_gets_no_server()
+    {
+        UseAgentCli("kimi-cli");
+        var file = KimiMcpFile("{ broken");
+
+        var launch = _agents.Resolve("agent", agentId: "agent-1", bridgeUrl: BridgeUrl, workdir: Path.Combine(_dir, "worktree"))!;
+
+        Assert.Equal("{ broken", File.ReadAllText(file));
+        Assert.False(launch.Env.ContainsKey("CODECHROMA_QUESTION_TOKEN"));
     }
 
     [Fact]

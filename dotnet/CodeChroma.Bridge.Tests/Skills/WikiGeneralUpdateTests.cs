@@ -86,25 +86,4 @@ public sealed class WikiGeneralUpdateTests
         Assert.Equal(["dead", "dead-2"], created.Select(c => c["id"]!.GetValue<string>()).ToList());
         Assert.Equal(["Dead", "Dead 2"], created.Select(c => c["name"]!.GetValue<string>()).ToList());
     }
-
-    [Fact]
-    public void Verifying_the_pages_reports_missing_and_untouched_pages_but_accepts_a_fresh_write()
-    {
-        using var host = new BridgeHost();
-        var dir = WikiGeneral.Dir(host.Root);
-        Directory.CreateDirectory(Path.Combine(dir, "c3"));
-        var started = DateTime.UtcNow.AddSeconds(-1);
-        string[] pages = ["c3/a.md", "c3/b.md"];
-        File.WriteAllText(Path.Combine(dir, "c3", "a.md"), "# A\n");
-
-        var missing = WikiGeneralUpdate.VerifyPagesWritten(host.Root, pages, started);
-        File.WriteAllText(Path.Combine(dir, "c3", "b.md"), "# B\n");
-        var fresh = WikiGeneralUpdate.VerifyPagesWritten(host.Root, pages, started);
-        var untouched = WikiGeneralUpdate.VerifyPagesWritten(host.Root, pages, DateTime.UtcNow.AddMinutes(5));
-
-        Assert.Contains("did not write 1 of 2", missing);
-        Assert.Null(fresh);
-        Assert.Contains("wrote none", untouched);
-        Assert.Null(WikiGeneralUpdate.VerifyPagesWritten(host.Root, [], started));
-    }
 }

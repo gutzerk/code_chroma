@@ -106,43 +106,68 @@ public sealed class WikiGeneralRouteTests : IDisposable
     }
 
     [Fact]
-    public async Task Update_applies_the_delta_then_hands_the_skill_only_the_created_groups()
+    public async Task Update_writes_only_the_created_pages_through_workers_and_leaves_the_rest_alone()
     {
         _cli.Script(Stdout(Worker), Exit(0));
         await Post("generate");
         await Settled();
         _engine.Graph = WikiGeneralTestData.Graph("lib/c.py");
         _engine.Clusters = WikiGeneralTestData.Clusters(("c-a", "top::app", ["app/a.py"]), ("c-b", "top::app", ["app/b.py"]), ("c-c", "top::lib", ["lib/c.py"]));
+        // The hand-built graph has no hierarchy nodes, so an incremental plain-wiki sync would not see the new file.
+        Directory.Delete(Path.Combine(_host.Root, ".codechroma", "wiki"), recursive: true);
+        var untouchedPage = File.ReadAllText(Path.Combine(Dir, "c3", "app.md"));
         var before = _cli.Invocations().Count;
-        _cli.Script(Write(Path.Combine(Dir, "c3", "lib.md"), "# Lib\n"), Write(Path.Combine(Dir, "c2", "lib.md"), "# Lib\n"),
-            Stdout("""{"type":"result","is_error":false}"""), Exit(0));
+        _cli.Script(Stdout(Worker), Exit(0));
 
         var started = await Post("update");
         var final = await Settled();
 
         Assert.Equal("generating", started["state"]!.GetValue<string>());
+        Assert.Null(final["error"]);
         Assert.Equal("idle", final["state"]!.GetValue<string>());
         var manifest = (JsonObject)JsonNode.Parse(File.ReadAllText(Path.Combine(Dir, "manifest.json")))!;
         Assert.Contains(manifest["components"]!.AsArray(), c => c!["id"]!.GetValue<string>() == "lib" && c["path"]!.GetValue<string>() == "c3/lib.md");
-        var prompt = _cli.Invocations()[before]["args"]![1]!.GetValue<string>();
-        Assert.Contains("\"id\": \"lib\"", prompt);
+        Assert.Contains("  - Function: `lib/c.py::", File.ReadAllText(Path.Combine(Dir, "c3", "lib.md")));
+        Assert.Contains("(../c3/lib.md)", File.ReadAllText(Path.Combine(Dir, "c2", "lib.md")));
+        Assert.Contains("[Lib](c2/lib.md)", File.ReadAllText(Path.Combine(Dir, "index.md")));
+        Assert.Equal(untouchedPage, File.ReadAllText(Path.Combine(Dir, "c3", "app.md")));
+        Assert.Equal(3, _cli.Invocations().Count - before);
     }
 
     [Fact]
-    public async Task Update_that_exits_cleanly_without_writing_the_promised_pages_is_an_error()
+    public async Task Update_with_nothing_to_write_finishes_without_calling_the_model()
+    {
+        _cli.Script(Stdout(Worker), Exit(0));
+        await Post("generate");
+        await Settled();
+        var before = _cli.Invocations().Count;
+
+        await Post("update");
+        var final = await Settled();
+
+        Assert.Null(final["error"]);
+        Assert.Equal("idle", final["state"]!.GetValue<string>());
+        Assert.Equal(before, _cli.Invocations().Count);
+    }
+
+    [Fact]
+    public async Task A_failing_update_worker_leaves_the_manifest_and_pages_as_they_were()
     {
         _cli.Script(Stdout(Worker), Exit(0));
         await Post("generate");
         await Settled();
         _engine.Graph = WikiGeneralTestData.Graph("lib/c.py");
         _engine.Clusters = WikiGeneralTestData.Clusters(("c-a", "top::app", ["app/a.py"]), ("c-b", "top::app", ["app/b.py"]), ("c-c", "top::lib", ["lib/c.py"]));
-        _cli.Script(Stdout("""{"type":"result","is_error":false}"""), Exit(0));
+        var manifestBefore = File.ReadAllText(Path.Combine(Dir, "manifest.json"));
+        _cli.Script(Stderr("boom"), Exit(1));
 
         await Post("update");
         var final = await Settled();
 
         Assert.Equal("error", final["state"]!.GetValue<string>());
-        Assert.Contains("did not write", final["error"]!.GetValue<string>());
+        Assert.StartsWith("write-c3 failed for lib", final["error"]!.GetValue<string>());
+        Assert.Equal(manifestBefore, File.ReadAllText(Path.Combine(Dir, "manifest.json")));
+        Assert.False(File.Exists(Path.Combine(Dir, "c3", "lib.md")));
     }
 
     [Fact]
@@ -174,7 +199,8 @@ public sealed class WikiGeneralRouteTests : IDisposable
     {
         _engine.Clusters = null;
 
-        var reply = await Post("update");
+        await Post("update");
+        var reply = await Settled();
 
         Assert.Equal("error", reply["state"]!.GetValue<string>());
         Assert.Contains("no graph", reply["error"]!.GetValue<string>());

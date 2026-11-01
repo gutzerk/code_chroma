@@ -4,107 +4,120 @@
   "repo": {"base": "sample_repo"},
   "cases": [
     {
-      "id": "no_branch_workspaces_are_open_at_first",
+      "id": "no_worktree_tabs_are_open_at_first",
       "steps": [
-        {"http": {"method": "GET", "path": "/branches"}, "expect": {"status": 200, "json": {"branches": []}}}
+        {"http": {"method": "GET", "path": "/branches"}, "expect": {"status": 200, "checks": [{"path": "$.branches", "count": 0}, {"path": "$.active", "equals": null}]}}
       ]
     },
     {
-      "id": "choices_name_the_current_branch_and_who_holds_it",
+      "id": "ensure_creates_wt_1_on_an_empty_project_and_is_a_no_op_afterwards",
       "steps": [
         {
-          "http": {"method": "GET", "path": "/branches/choices"},
+          "http": {"method": "POST", "path": "/branches/ensure"},
           "expect": {"status": 200, "checks": [
-            {"path": "$.current", "type": "string"},
             {"path": "$.branches", "count": 1},
-            {"path": "$.branches[0].open", "equals": true},
-            {"path": "$.branches[0].workspace", "equals": "main"}
+            {"path": "$.branches[0].id", "equals": "br_wt-1"},
+            {"path": "$.branches[0].name", "equals": "wt-1"},
+            {"path": "$.branches[0].branch", "equals": "wt-1"},
+            {"path": "$.branches[0].dirty", "equals": 0},
+            {"path": "$.branches[0].worktree_lost", "equals": false},
+            {"path": "$.active", "equals": "br_wt-1"}
           ]}
-        }
-      ]
-    },
-    {
-      "id": "exactly_one_of_branch_or_new_branch_is_required",
-      "steps": [
-        {"http": {"method": "POST", "path": "/branches", "json": {}}, "expect": {"status": 400, "json": {"detail": "send exactly one of branch or new_branch"}}},
-        {"http": {"method": "POST", "path": "/branches", "json": {"branch": "a", "new_branch": "b"}}, "expect": {"status": 400, "json": {"detail": "send exactly one of branch or new_branch"}}}
-      ]
-    },
-    {
-      "id": "a_start_point_must_be_a_branch_name",
-      "steps": [
-        {"http": {"method": "POST", "path": "/branches", "json": {"new_branch": "x", "start_point": 5}}, "expect": {"status": 400, "json": {"detail": "start_point must be a branch name"}}}
-      ]
-    },
-    {
-      "id": "opening_an_unknown_branch_is_a_404",
-      "steps": [
-        {"http": {"method": "POST", "path": "/branches", "json": {"branch": "nope"}}, "expect": {"status": 404, "json": {"detail": "nope"}}}
-      ]
-    },
-    {
-      "id": "the_branch_main_has_checked_out_cannot_be_opened_twice",
-      "steps": [
-        {
-          "http": {"method": "GET", "path": "/branches/choices"},
-          "capture": {"current": "$.current"},
-          "expect": {"status": 200}
         },
         {
-          "http": {"method": "POST", "path": "/branches", "json": {"branch": "{{current}}"}},
-          "expect": {"status": 409, "checks": [
-            {"path": "$.detail.workspace", "equals": "main"},
-            {"path": "$.detail.message", "equals": "branch '{{current}}' is already open in main"}
-          ]}
+          "http": {"method": "POST", "path": "/branches/ensure"},
+          "expect": {"status": 200, "checks": [{"path": "$.branches", "count": 1}, {"path": "$.active", "equals": "br_wt-1"}]}
+        },
+        {
+          "http": {"method": "GET", "path": "/branches"},
+          "expect": {"status": 200, "checks": [{"path": "$.branches", "count": 1}, {"path": "$.active", "equals": "br_wt-1"}]}
         }
       ]
     },
     {
-      "id": "a_new_branch_is_refused_when_its_name_is_invalid_or_taken_or_its_start_unknown",
-      "steps": [
-        {"http": {"method": "POST", "path": "/branches", "json": {"new_branch": "bad name"}}, "expect": {"status": 409, "json": {"detail": "'bad name' is not a valid branch name"}}},
-        {"http": {"method": "POST", "path": "/branches", "json": {"new_branch": "feature/x", "start_point": "ghost"}}, "expect": {"status": 404, "json": {"detail": "ghost"}}}
-      ]
-    },
-    {
-      "id": "a_new_branch_opens_in_its_own_worktree_and_closes_again",
+      "id": "new_twice_gives_wt_1_then_wt_2_without_a_remote",
       "steps": [
         {
-          "http": {"method": "POST", "path": "/branches", "json": {"new_branch": "feature/x"}},
+          "http": {"method": "POST", "path": "/branches/new", "json": {}},
           "expect": {"status": 200, "checks": [
-            {"path": "$.id", "equals": "br_feature-x"},
-            {"path": "$.branch", "equals": "feature/x"},
-            {"path": "$.worktree", "type": "string"},
-            {"path": "$.created_at", "type": "string"},
-            {"path": "$.worktree_lost", "equals": false}
+            {"path": "$.branch.id", "equals": "br_wt-1"},
+            {"path": "$.branch.branch", "equals": "wt-1"},
+            {"path": "$.branch.worktree", "type": "string"},
+            {"path": "$.fetched", "equals": false}
           ]}
         },
-        {"http": {"method": "GET", "path": "/branches"}, "expect": {"status": 200, "checks": [{"path": "$.branches", "count": 1}, {"path": "$.branches[0].id", "equals": "br_feature-x"}]}},
         {
-          "http": {"method": "GET", "path": "/branches/choices"},
+          "http": {"method": "POST", "path": "/branches/new"},
           "expect": {"status": 200, "checks": [
-            {"path": "$.branches", "count": 2},
-            {"path": "$.branches[*].workspace", "contains": "br_feature-x"}
+            {"path": "$.branch.id", "equals": "br_wt-2"},
+            {"path": "$.branch.name", "equals": "wt-2"},
+            {"path": "$.fetched", "equals": false}
           ]}
         },
-        {"http": {"method": "POST", "path": "/branches", "json": {"new_branch": "feature/x"}}, "expect": {"status": 409, "json": {"detail": "branch 'feature/x' already exists"}}},
-        {"http": {"method": "DELETE", "path": "/branches/br_feature-x", "query": {"worktree_too": "true"}}, "expect": {"status": 200, "json": {"status": "deleted", "id": "br_feature-x"}}},
-        {"http": {"method": "GET", "path": "/branches"}, "expect": {"status": 200, "json": {"branches": []}}}
-      ]
-    },
-    {
-      "id": "an_existing_branch_is_reopened_after_its_worktree_was_removed",
-      "steps": [
-        {"http": {"method": "POST", "path": "/branches", "json": {"new_branch": "feature/y"}}, "expect": {"status": 200}},
-        {"http": {"method": "DELETE", "path": "/branches/br_feature-y", "query": {"worktree_too": "true"}}, "expect": {"status": 200}},
         {
-          "http": {"method": "POST", "path": "/branches", "json": {"branch": "feature/y"}},
-          "expect": {"status": 200, "checks": [{"path": "$.id", "equals": "br_feature-y"}, {"path": "$.branch", "equals": "feature/y"}]}
+          "http": {"method": "GET", "path": "/branches"},
+          "expect": {"status": 200, "checks": [{"path": "$.branches", "count": 2}, {"path": "$.active", "equals": "br_wt-2"}]}
         }
       ]
     },
     {
-      "id": "closing_an_unknown_branch_workspace_is_a_404",
+      "id": "a_new_tab_with_a_bad_name_is_refused",
+      "steps": [
+        {"http": {"method": "POST", "path": "/branches/new", "json": {"name": 5}}, "expect": {"status": 400, "json": {"detail": "name must be a string"}}},
+        {"http": {"method": "POST", "path": "/branches/new", "json": {"name": "bad name"}}, "expect": {"status": 409, "json": {"detail": "'bad name' is not a valid branch name"}}}
+      ]
+    },
+    {
+      "id": "rename_changes_the_name_and_branch_but_not_the_id_and_a_duplicate_is_a_409",
+      "steps": [
+        {"http": {"method": "POST", "path": "/branches/new", "json": {}}, "expect": {"status": 200}},
+        {"http": {"method": "POST", "path": "/branches/new", "json": {}}, "expect": {"status": 200}},
+        {
+          "http": {"method": "PATCH", "path": "/branches/br_wt-1", "json": {"name": "feature/login"}},
+          "expect": {"status": 200, "checks": [
+            {"path": "$.id", "equals": "br_wt-1"},
+            {"path": "$.name", "equals": "feature/login"},
+            {"path": "$.branch", "equals": "feature/login"}
+          ]}
+        },
+        {"http": {"method": "PATCH", "path": "/branches/br_wt-2", "json": {"name": "feature/login"}}, "expect": {"status": 409}},
+        {"http": {"method": "PATCH", "path": "/branches/br_wt-2", "json": {"name": "wt-2"}}, "expect": {"status": 200, "checks": [{"path": "$.name", "equals": "wt-2"}]}},
+        {"http": {"method": "PATCH", "path": "/branches/br_wt-2", "json": {"name": ""}}, "expect": {"status": 400, "json": {"detail": "name is required"}}},
+        {"http": {"method": "PATCH", "path": "/branches/br_nope", "json": {"name": "x"}}, "expect": {"status": 404}}
+      ]
+    },
+    {
+      "id": "the_active_tab_is_remembered",
+      "steps": [
+        {"http": {"method": "POST", "path": "/branches/new", "json": {}}, "expect": {"status": 200}},
+        {"http": {"method": "POST", "path": "/branches/new", "json": {}}, "expect": {"status": 200}},
+        {"http": {"method": "PUT", "path": "/branches/active", "json": {"id": "br_wt-1"}}, "expect": {"status": 200}},
+        {"http": {"method": "GET", "path": "/branches"}, "expect": {"status": 200, "checks": [{"path": "$.active", "equals": "br_wt-1"}]}},
+        {"http": {"method": "PUT", "path": "/branches/active", "json": {"id": "br_nope"}}, "expect": {"status": 404}},
+        {"http": {"method": "PUT", "path": "/branches/active", "json": {}}, "expect": {"status": 400}}
+      ]
+    },
+    {
+      "id": "delete_with_a_dirty_tree_succeeds_and_reports_the_dirt_beforehand",
+      "steps": [
+        {"http": {"method": "POST", "path": "/branches/new", "json": {}}, "expect": {"status": 200}},
+        {"fs": "write", "path": ".codechroma/worktrees/br_wt-1/dirty.txt", "text": "uncommitted"},
+        {"http": {"method": "GET", "path": "/branches"}, "expect": {"status": 200, "checks": [{"path": "$.branches[0].dirty", "equals": 1}]}},
+        {"http": {"method": "DELETE", "path": "/branches/br_wt-1", "query": {"worktree_too": "true"}}, "expect": {"status": 200, "json": {"status": "deleted", "id": "br_wt-1"}}},
+        {"http": {"method": "GET", "path": "/branches"}, "expect": {"status": 200, "checks": [{"path": "$.branches", "count": 0}]}}
+      ]
+    },
+    {
+      "id": "deleting_a_tab_also_removes_the_agents_attached_to_it",
+      "steps": [
+        {"http": {"method": "POST", "path": "/branches/ensure"}, "capture": {"ws": "$.active"}, "expect": {"status": 200}},
+        {"http": {"method": "POST", "path": "/agents", "json": {"title": "Helper", "kind": "shell", "workspace": "{{ws}}"}}, "expect": {"status": 200}},
+        {"http": {"method": "DELETE", "path": "/branches/{{ws}}"}, "expect": {"status": 200}},
+        {"http": {"method": "GET", "path": "/agents"}, "expect": {"status": 200, "checks": [{"path": "$.agents", "count": 0}]}}
+      ]
+    },
+    {
+      "id": "closing_an_unknown_worktree_tab_is_a_404",
       "steps": [
         {"http": {"method": "DELETE", "path": "/branches/br_nope"}, "expect": {"status": 404}}
       ]

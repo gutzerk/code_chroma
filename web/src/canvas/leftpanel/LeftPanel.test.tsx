@@ -98,6 +98,17 @@ describe("LeftPanel", () => {
     expect(layoutStore.getState().leftOpen).toBe(false);
   });
 
+  it("names a titled diagram by its title and keeps the type as a small label", () => {
+    const titled = { ...el("s", "sequence"), meta: { diagram_title: "How a file save reaches the canvas" } };
+    canvasDocStore.setDoc({ ...canvasDocStore.getDoc(), elements: { s: titled, p: el("p", "patterns") } });
+
+    renderPanel();
+
+    expect(screen.getByText("How a file save reaches the canvas")).toBeInTheDocument();
+    expect(screen.getByTestId("left-panel-row-type-sequence")).toHaveTextContent("SEQUENCE ·");
+    expect(screen.queryByTestId("left-panel-row-type-patterns")).toBeNull();
+  });
+
   it("renders the arrange node passed in", () => {
     renderPanel(<div data-testid="arrange-stub" />);
 

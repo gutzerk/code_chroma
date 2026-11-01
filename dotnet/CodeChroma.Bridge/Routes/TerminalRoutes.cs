@@ -24,7 +24,7 @@ public static class TerminalRoutes
 
     public static void Map(WebApplication app, string repoRoot)
     {
-        app.Map("/ws/terminal", async (HttpContext context, AgentSessionRegistry sessions, WorkspaceRegistry registry, AgentManager agents, IHostApplicationLifetime lifetime) =>
+        app.Map("/ws/terminal", async (HttpContext context, AgentSessionRegistry sessions, WorkspaceRegistry registry, AgentManager agents, IHostApplicationLifetime lifetime, Skills.RuntimeEnvironment runtime) =>
         {
             if (!context.WebSockets.IsWebSocketRequest) return Results.BadRequest();
             using var socket = await context.WebSockets.AcceptWebSocketAsync();
@@ -53,7 +53,10 @@ public static class TerminalRoutes
                 await Fail(socket, $"no executable configured for agent: {agent}", UnknownAgentCloseCode);
                 return Results.Empty;
             }
-            await BridgeOwnPty(socket, argv, ResolveCwd(registry, repoRoot, workspace), aborted);
+            Dictionary<string, string> env;
+            try { env = await runtime.TerminalEnvAsync(null, aborted); }
+            catch (OperationCanceledException) { return Results.Empty; }
+            await BridgeOwnPty(socket, argv, ResolveCwd(registry, repoRoot, workspace), env, aborted);
             return Results.Empty;
         });
     }
@@ -75,13 +78,13 @@ public static class TerminalRoutes
     }
 
     /// <summary>A PTY that lives and dies with this socket: the plain terminal panel's behaviour.</summary>
-    private static async Task BridgeOwnPty(WebSocket socket, string[] argv, string cwd, CancellationToken aborted)
+    private static async Task BridgeOwnPty(WebSocket socket, string[] argv, string cwd, IReadOnlyDictionary<string, string> env, CancellationToken aborted)
     {
         var output = Channel.CreateUnbounded<string>();
         PtyHost host;
         try
         {
-            host = PtyHost.Start(new PtyLaunch(argv, cwd), chunk => output.Writer.TryWrite(chunk), () => output.Writer.TryComplete());
+            host = PtyHost.Start(new PtyLaunch(argv, cwd, env), chunk => output.Writer.TryWrite(chunk), () => output.Writer.TryComplete());
         }
         catch (Exception error) when (error is not OutOfMemoryException)
         {

@@ -21,6 +21,8 @@ trusted as-is (see caveat in [`web-engine-client.md`](web-engine-client.md)).
 
 🔴 **Zoom range and scrollbars (#185, #191):** `canvasGrid.ts#MIN_SCALE` (0.05) is the zoom-out floor for wheel, buttons and fit (max stays 2.5), so a multi-diagram canvas fits a small display; the dot grid re-steps itself. `html/body/#root` are `overflow: hidden` and `.canvas-main-row` scrolls horizontally with its scrollbar hidden (`overflow-y: hidden`, `scrollbar-width: none`), so macOS shows no stray page/row bars; tests in `CanvasViewport.test.tsx` ("zoom-out floor").
 
+🔴 **Block anatomy zoom levels, members chip and hero card:** `CanvasViewport` sets `data-zoom` (`zoomLevelFor`: 100% full, below 0.6 `mid`, below 0.3 `far`; thresholds in `layout/layoutMetrics.ts`). Mid shows title + SRC + the members chip only (role meta row, description, path, copy and `?` hide); far keeps coloured box + title only, and the title fills the box: every `CanvasNodeBox` carries `canvas-node-fit` and `--node-fit-name-size` (`measureBoxSize.ts`'s `fitNameFontSize`: the largest DM Sans size, 8-160 px, whose word-wrapped name fits the box minus 10 px padding, whole words first; memoised per label/size, so a zoom tick does no React work). `CanvasDocView` passes each box one shared size per diagram (`layerFitNameSizes`: the smallest per-box fit in that layer), so every name in a diagram reads at the same size; a box rendered alone falls back to its own fit. At `far` CSS hides the box row with `visibility` and lifts the name (`.canvas-node-fit-name`) to an absolute, centred, wrapping overlay at that size ("Zoomed out" rule at the end of `styles.css`). Tests: `measureBoxSize.test.ts`, `CanvasNodeBox.test.tsx` ("zoomed-out name fit"), `CanvasViewport.test.tsx` ("zoom-out name-only mode"). `CanvasNodeBox` renders a `▸ N members` chip (`canvas-node-members`) from `useMemberCount` (`doc/useMemberCount.ts`: the backing node's `child_count` via `engineClient.getNode`, cached per client, chip hidden at 0); its click opens the inspector on the node. A selected or focused box gets `.block-hero` (20px title, 14px unclamped purpose) while its size still comes from the element. The corner order number is the existing `canvas-node-step-chip`. CSS lives in the "Block anatomy gaps" section at the end of `styles.css`; tests in `CanvasNodeBox.test.tsx`.
+
 Everything is one continuous in-memory DOM/CSS canvas — no per-node routing. A pluggable-camera
 pan/zoom system sits on top of that canvas (wheel-zoom toward cursor, drag-to-pan, zoom in/out/reset
 buttons, per-block "Center" focus, and a "Fit All" that fits the whole canvas) — see
@@ -161,10 +163,10 @@ canvas instead of collapsing onto whichever diagram happened to carry code-backe
   the canvas area, see "Layout store, left panel and agents modes" below), then the **inspector** panel (plus the standalone `EpicBriefPanel`, mounted
   unconditionally beside it, rendering nothing while closed). There is no agents toggle on this
   rail — the agent launch buttons ("Run agent"/"Add agent here") live in `.canvas-chrome`, the
-  context bar atop the canvas area, alongside the branch switcher and, on a PR workspace, a
+  context bar atop the canvas area, alongside the worktree strip (`agents/WorktreeStrip.tsx`) and, on a PR workspace, a
   `PR #<number> · <head_ref>` label (see
   [`web-panels.md`](web-panels.md) for why that replaced the old node-path breadcrumb there, and
-  [`parallel-agents.md`](parallel-agents.md) for the branch switcher). ⚠ The terminal is no longer a
+  [`parallel-agents.md`](parallel-agents.md) for the worktree tabs). ⚠ The terminal is no longer a
   sibling in that row: it moved *inside* `.canvas-area`, below `.canvas-stage`, as a **bottom** dock
   (`height: 280px`, top-edge `ns-resize` handle) — that is what lets the inspector be full viewport
   height while the terminal spans only the canvas's own width. `useResizableSize` gained
@@ -187,9 +189,8 @@ canvas instead of collapsing onto whichever diagram happened to carry code-backe
   dock clear it with `margin-left: calc(var(--agent-dock-left) - 12px)` (`RootCanvas` sets the var from
   `chromeInsets`; a dock beside a code sidebar gets 0). `AgentRail` is
   its own full-height panel beside the stage — one card per agent (title, status/branch caption,
-  bigger and two-line, not the icon-only rail items the name might suggest), dimmed for an agent whose
-  branch main doesn't currently have checked out (see [`parallel-agents.md`](parallel-agents.md) for
-  the branch-scoping rules), with no tabs (the Diagrams tab moved to the left panel). 🔵 The rail carries its own two
+  bigger and two-line, not the icon-only rail items the name might suggest), listing only the active worktree tab's agents (`agent.workspace`; every agent's terminal stays mounted
+  so a tab switch never drops a session), with no tabs (the Diagrams tab moved to the left panel). 🔵 The rail carries its own two
   store-driven handle buttons ("Collapse agents panel" -> `agentsMode: collapsed`, "Expand agents to
   full screen" -> `full`); the old `SplitterHandle` + `AgentLedStrip` pair in `RootCanvas` is gone.
   Leaving `normal` still closes an open code popup and code inspector: `RootCanvas` does that in an
@@ -290,6 +291,24 @@ canvas instead of collapsing onto whichever diagram happened to carry code-backe
     `elk.spacing.componentComponent` (default 20), which must be set explicitly or components touch.
     ELK returns top-left corners; the adapter converts to the center-anchored boxes the canvas uses.
     Every edge kind reads the same way — source above target, no per-kind inversion.
+    **Measured sizes and layout hints (ELK input):** `doc/measureBoxSize.ts#measureBoxSize()` estimates a box's height from its
+    label, description (4-line clamp), top band, meta row and path footer (cached canvas `measureText`, `0.55 x font size` per char
+    when there is no 2d context) so `autoLayout.ts` feeds ELK the footprint the box will render at instead of `300x72`; an authored
+    `element.size` always wins, `epic`/`sequence`/`group`/`note`/`question` keep their own sizing, and the measured size of each
+    newly positioned box rides back in `LayoutResult.sizes` so `CanvasNodeBox` renders what ELK used. A **role box**
+    (`blockRoleFor` set: c1/pattern/impact/custom with code, kind, shape or no-code reason) has its own anatomy
+    (`roleBoxHeight`, DOM-measured `.block-role*` metrics): role header row, 1.15rem name, one-line description, path footer,
+    and for a code-backed box (`node_id`) the members chip plus the SRC corner's 1.5rem bottom padding — ~195px for a
+    typical code box, not the ~105px the generic estimate gave. ⚠ A stored `size.h` is only `CanvasNodeBox`'s `minHeight`, so
+    the layout's own sizing (`layoutBoxSize`) grows a role box's stored height to its content: a stale estimate persisted
+    earlier no longer makes ELK/`resolveDrop` reserve too little and pack neighbours into it. The top band is 22 px with a
+    `plan_kind` label but only its 9.6 px padding for an `order` alone (the order badge is hidden; the step chip floats outside).
+    🔴 These are copies of `styles.css` values and jsdom does no layout: `web/e2e/box-size-guard.spec.ts` (Playwright) compares
+    `layoutBoxSize` with the rendered height of seven role-box variants and fails on more than 2 px of drift; change it with
+    the CSS. CI runs it (`ci.yml` web job); it fails fast when the Google web fonts did not load, since fallback fonts change every width. An authored `meta.rank`
+    (`entry`/`exit`, `LayoutBoxSpec.rank`) maps to ELK's `layerConstraint` `FIRST`/`LAST` in `elkLayout.ts` and is ignored on a box
+    that also has `order` (order stays authoritative, ADR 0002); an edge of kind `feedback`/`return` is laid out as a back edge.
+    The Avalonia canvas (`CodeChroma.Canvas/Layout/AutoLayout.cs`) does not honour these yet.
     **Fresh draw vs incremental update** (`autoLayout.ts#layoutNewElements`): a fresh draw (no other
     placed element in the new elements' layer) is laid out alone by ELK and stacked below existing
     canvas content. An *incremental update* (the layer already has placed boxes — a recipe re-run that
@@ -300,7 +319,8 @@ canvas instead of collapsing onto whichever diagram happened to carry code-backe
     either. Each new box takes the offset (saved position minus ELK position) of the placed boxes it
     connects to — the global median offset if it has none — so new blocks follow a diagram the user
     moved or rearranged. `resolveDrop()` then clears overlaps against every other canvas element
-    (other diagrams, user boxes; group frames excluded) and against earlier new boxes. A removed block
+    (other diagrams, user boxes; group frames excluded) and against earlier new boxes, keeping the
+    auto-layout gap `AUTO_NODE_SEP` 48 / `AUTO_RANK_SEP` 56 (not the drag rule's 24). A removed block
     simply leaves a gap; nothing reflows. `runRecipeAndLayout` passes its cache-restored positions as
     `fixed` so a layer being re-added counts as placed at its restored spots. Sequence and epics
     layers still relay out whole.
@@ -414,7 +434,7 @@ diagrams-only, and the panel — the sole tree surface — is **open by default*
 hierarchy layer on/off the canvas) was removed as redundant with the panel.
 
 Layout: the panel sits inside `.canvas-main-row` beside `.canvas-stage` and **below** the
-`.canvas-chrome` context bar (branch switcher), so it reads as an IDE explorer under the toolbar.
+`.canvas-chrome` context bar (worktree strip), so it reads as an IDE explorer under the toolbar.
 It is **resizable** — as is the code sidebar, both through the shared `ResizableRail`
 (`web/src/canvas/ResizableRail.tsx`), a left-anchored, right-edge `useResizableSize` (`axis: "x"`,
 `edge: "right"`) aside+handle skeleton the two side panels reuse instead of re-implementing. Dragging
@@ -472,7 +492,7 @@ prefers `onOpenCode` when both are passed). Re-clicking the active row closes it
   plus the active file's source through the shared `CodeView`. Once more than `MAX_TABS` (8) files
   are open, the surplus collapse behind a trailing "▾" that opens a dropdown listing **all** open
   files; picking one activates it — the dropdown reuses the shared `useDisclosureMenu` (outside-click
-  and Escape-to-close, same as BranchSwitcher/GamesMenu). The panel is resizable via the shared
+  and Escape-to-close, same as GamesMenu). The panel is resizable via the shared
   `ResizableRail` (right-edge `useResizableSize`), like the tree panel. Mounted unconditionally in
   `.canvas-main-row` as its first item; it renders nothing while no file is open (`return
   null`), and its `[hidden]` override ties it to the tree panel's open state (collapsing the tree
@@ -487,7 +507,18 @@ per-view status colors (`--added`, `--trace`, `--c1`, `--patterns`; `--plan` is 
 C1 person-actor box and the multi-select outline, so don't read the name as still meaning "plan"),
 the icon-control
 gray trio (`--control-*`), radius, shadow, and type steps. Rules reference `var(--token)` instead
-of literal hex, so one edit re-themes the whole app.
+of literal hex, so one edit re-themes the whole app. Radii in CSS go through `--radius-xs…2xl/full`
+(3/4/6/8/10/12px/999px), muted greys through `--text-2`/`--text-mid`/`--text-strong`, error reds
+through `--error` (text/delete) and `--stop` (stopped run), and blues through `--accent`; spacing
+has no token scale yet. Don't
+add new hex or `border-radius: Npx` literals in CSS files. Every `font-family`/`font` shorthand in CSS
+uses `var(--font-ui)` or `var(--font-mono)` (DM Sans / JetBrains Mono, the two faces `index.html`
+loads); the old IBM Plex and bare `monospace` stacks are gone. `workflows.css` and
+`WorkflowEditorDialog.css` read the `--wf-*` palette (defined on `:root` in `workflows.css`, with
+`--wf-ok` aliasing `--success`), and `LeftPanel.css` reads the global tokens; remaining hex there are
+one-off tinted fills. `web/.stylelintrc.cjs` (run by `npm run lint` / `npm run lint:css`) makes a
+raw `font-family`, `font` shorthand with a literal family, or `border-radius` (any longhand) with a px/rem value a lint error (the intentional `.node-shape-*` shapes carry a `stylelint-disable-line`) and a hex color a warning; the `:root` token
+blocks in `styles.css` and `workflows.css` are wrapped in `stylelint-disable color-no-hex`.
 
 A literal "floating rounded cards on dark ground" palette (`--bg-ground`, `--bg-panel`,
 `--bg-canvas`, `--bg-raised`, `--bg-raised-2`, `--bg-inset`, `--text-soft`, `--text-muted-soft`,
@@ -529,7 +560,7 @@ right gap; the left-edge resize grip exists only in `normal` (dragging it past 7
 `layoutMetrics.ts` holds the `Z_*` z-index tokens (left panel 2, terminal 2, agents 3, handles 4,
 collapsed left bar 4, code 5, popover 6) and the pure `chromeInsets({leftOpen, agentsMode})`:
 terminal/dock left (`LEFT_PANEL_CLEARANCE` = inset 12 + panel 262 + gap 12 when open, else 12), terminal
-right (`AGENTS_NORMAL_INSET` 424 / `AGENTS_COLLAPSED_INSET` 68), arrange origin, Draw popover position;
+right (`AGENTS_NORMAL_INSET` 424 / `AGENTS_COLLAPSED_INSET` 68), arrange origin;
 every number is a named constant, and `LAYOUT_CSS_VARS` (`--chrome-inset`, `--left-panel-width`) is set
 once on `.canvas-area` so `LeftPanel.css` and the dock margin use the same values. Only `RootCanvas` publishes the left value, as the row-level CSS variable
 `--agent-dock-left` (the dock and code sidebar read it; `terminalRight` is used by `ArrangeSection`).
@@ -540,10 +571,9 @@ once on `.canvas-area` so `LeftPanel.css` and the dock margin use the same value
 expand button, folder and color boxes all go through `layoutStore`/`collapsedLayersStore`.
 
 - `LeftPanel`: Diagrams tab (rows with checkbox -> `diagramSelectionStore`, color swatch, eye ->
-  `collapsedLayersStore`, delete; `Draw...` opens `DrawDiagramPopover`, whose open state `RootCanvas`
-  owns; `ArrangeSection` reads the `.canvas-stage` size through a `getViewport` callback at apply
+  `collapsedLayersStore`, delete; `Draw...` launches a bare drawing agent directly (no type popover); the agent window's terminal itself asks what to draw (the bridge prints the question), so the agent never greets; `ArrangeSection` reads the `.canvas-stage` size through a `getViewport` callback at apply
   time) and Files tab (the tree). `LeftPanel` and `CollapsedLeftBar` share `leftpanel/useDiagramRows.ts`
-  (`{layer,name,hidden,toggleLabel,toggle}[]`). `DrawDiagramButton` takes only `onOpen`; diagram
+  (`{layer,name,hidden,toggleLabel,toggle}[]`). `DrawDiagramButton` takes no props; diagram
   auto-add is `canvas/doc/useDiagramReadinessWatcher.ts`, called once from `RootCanvas` so it keeps
   running while the panel is collapsed.
 - `CollapsedLeftBar`: expand button, Files folder, one 34x34 swatch box per diagram (dashed when
@@ -569,4 +599,69 @@ expand button, folder and color boxes all go through `layoutStore`/`collapsedLay
 
 - `web/src/canvas-style/` (settings "Canvas style": background colour and None/Dots/Lines texture, persisted in the bridge's machine-wide `~/.codechroma/canvas-style.json`, cached in `localStorage` `codechroma.canvasStyle`) is independent of the layout store; `CanvasViewport` paints a saved style via `--canvas-bg`/`--canvas-texture-image` and `gridStepFor` (see [`assistant-settings.md`](assistant-settings.md)). `CanvasViewport` also accepts optional `insets`, `panBy` and `fitToBounds` (unused by the current `RootCanvas`, covered by `CanvasViewportInsets.test.tsx`).
 - `canvas/useOpenFilesLiveRefresh.ts` (called by `RootCanvas`) re-reads every open file's node after each live ping via `openFilesStore.replace`, so the code sidebar follows edits on disk.
-- `canvas/doc/diagramDisplay.ts` supplies `diagramDisplayName`/`diagramAccent`; `DiagramFrame` shows the `TYPE · n BOXES` meta line and `diagramFrameColorClass` delegates to it.
+- `canvas/doc/diagramDisplay.ts` supplies `diagramDisplayName`/`diagramAccent`; `DiagramFrame` shows the `TYPE · n BOXES` meta line and `diagramFrameColorClass` delegates to it. A diagram's name is its agent-written `title` (`meta.diagram_title`, read by `diagramTitle`), falling back to the type label; the left panel's ON CANVAS row then adds a small `TYPE ·` prefix (`useDiagramRows`' `typeLabel`). See `diagram-skills.md` "Diagram titles".
+
+## Share / export menu
+
+- `web/src/share/ShareMenu.tsx` is the "Export" dropdown in the left panel's Diagrams tab header, just before `DrawDiagramButton` (`LeftPanel.tsx`; same `useDisclosureMenu` dropdown shape). It exports exactly the diagrams ticked in that tab (`diagramSelectionStore`) and is disabled while none is ticked. Picking PNG / HTML / PDF calls `captureCanvas.ts` (`prepareCapture(document, layers)`: `contentBounds` frames only the ticked layers' `[data-layer]` nodes, and `html-to-image`'s `filter` drops every other layer's node, using a translate-only transform so pan/zoom never matter), `exportFormats.ts` (`buildExport`: PNG blob; HTML = standalone page embedding an SVG snapshot; PDF = one `jspdf` page sized to the PNG), then `saveFile.ts`.
+- ⚠ The per-layer filter relies on `data-layer` being set on every node that belongs to a diagram: `CanvasNodeBox`, `SoftAreaFrame` (diagram/group/lane/island frames, via its `layer` prop), `RelationshipEdge` (its `layer` prop, set by `CanvasEdges` from the edge's `from` element) and `SequenceDiagram`. A new diagram-owned overlay must carry it too or it leaks into other diagrams' exports.
+- `saveFile` asks where to save: `window.codechromaDesktop.saveFile` (native Save As, see [`desktop-app.md`](desktop-app.md)) in the shell, else `showSaveFilePicker`, else an `<a download>` fallback. A cancelled dialog is silent; a successful save shows a 4 s `role="status"` "Exported <file>" note and failures a `role="alert"` note under the button.
+
+## Diagram profiles (027)
+
+Shared canvas files never name a diagram type (epics aside). Each board-style type describes its behaviour in one `DiagramProfile` entry, and `canvas/doc/diagramProfiles.ts` lists them (`diagramProfiles()`; the first `matches` wins, else `DEFAULT_PROFILE`). `profileFor(layer, members)` picks a layer's profile; `profileForElement(element)` does it for one box (layout, lanes, edges, boards); `layersWithProfile(elements, key)` buckets each layer's ids whose profile defines `key`, typed so that field is set.
+
+| Field | Read by | Default |
+|---|---|---|
+| `frameBounds(base, ctx)` + `boundsKey` | `DiagramFrame`: grows the frame around what the type draws beyond its boxes, or `null` to keep the member union (applied outside the memo, so it is never stale); with `boundsKey` the result is memoised on that key | member union |
+| `frameClassName`, `HeaderAction` | `DiagramFrame`: frame class; a header control before the shared `HEADER_ACTIONS` (route) | none |
+| `edgeMarker(visual)`, `edgeLabel(edge)` | `CanvasEdges`: arrowhead variant and label for edges leaving the type's boxes | default head, `label \|\| kind` |
+| `hideLaneBands` | `CanvasDocView`: skips the lane areas `meta.lane` would draw | off |
+| `Overlay` | `CanvasDocView`: one component per layer, drawn after the frames; it holds the route legend, so `RouteFrameActions` drops the header legend and shows the route on open | none |
+| `Board`, `viewElements`, `viewStore` | `CanvasDocView`: draws the whole layer as one component instead of boxes, with no lane areas, concurrency islands or box chrome; `viewElements` is its display-only geometry (the `viewBoardLayers` stage), recomputed when any profile's `viewStore` version changes (`subscribeProfileViews`/`profileViewsVersion`) | boxes |
+| `layout(doc, ids)` | `autoLayout.layoutNewElements` (instead of ELK, once per layer) and `useReflowOwnLayouts` (re-spreads drifted geometry once on load) | ELK |
+
+Today: `sequenceProfile.ts` (`SEQUENCE_PROFILE`, matched by any member's `render: "sequence"`, since sequence layers are named per diagram) and `walkthroughProfile.ts` (`WALKTHROUGH_PROFILE`, matched by the `walkthrough` layer). **To add a board type:** write its own files, add a `<type>Profile.ts` that sets only the fields it changes, and add it to `diagramProfiles()`. Do not add `if (layer === ...)` to a shared file. ⚠ `frameBounds` must stay pure for its key; a profile file may import its type's components, but the type's core modules must not import the profile. `canvasDocStore.ts` is state only, and `canvasDocSync.ts` owns fetch, patch and auto-layout, so a state reader never pulls the layout stack (and its profile registry) back in. Epics still has its own checks (`isEpicsLayerName` in `CanvasNodeBox.tsx`, `measureBoxSize.ts`). Tests: `diagramProfiles.test.ts`, `diagramProfilesLoad.test.ts` (fails if a load-order cycle comes back), plus the per-field cases in `DiagramFrame.test.tsx`, `CanvasDocView.test.tsx`, `useReflowOwnLayouts.test.ts`, `displayPipeline.test.ts`.
+
+## Sequence board (A4)
+
+See "Sequence readability" in [`diagram-skills.md`](diagram-skills.md): `SequenceDiagram.tsx` draws the swimlane board from `sequenceBoard.ts`, a step expands in place through `SequenceStep.tsx`, and `sequenceViewStore` keeps the expanded steps; the Play / Collapse all buttons are `SequenceModeSwitch.tsx`, the sequence profile's header action. The profile leaves sequence elements out of the concurrency islands, since `"2a"`/`"2b"` get their own step columns.
+
+## Block anatomy, zoom levels, lanes, click-to-focus (022 Stage 2)
+
+- **Box foot:** `CanvasNodeBox.tsx` shows `meta.path` (now folded into node meta by both `recipes.py` and `Recipes.cs`) plus a `SRC ↗` button in the hover button stack (beside copy and `?`) that toggles the Inspector -- a click anywhere else on the box only focuses it and never opens the right panel (the inspector sits above the agents panel, `z-index` 42 vs 41) -- and a role chip from `meta.kind` in `NodeMetaRow`. The `CONCEPTUAL` chip is gone (the ghost styling stays); copy and `?` show only on hover.
+- **Zoom levels:** `layout/layoutMetrics.ts`'s `zoomLevelFor` (`ZOOM_MID_SCALE` 0.6, `ZOOM_FAR_SCALE` 0.3) sets `data-zoom` on `.canvas-content`; CSS drops description/path at `mid` and everything but the title at `far`, where the title is scaled to fill its box (see "Block anatomy zoom levels" above).
+- **Lanes:** `connectors/elkLayout.ts` lays out RIGHT with one ELK partition per `lane` (first-seen order) when any box has a lane; no lanes keeps the DOWN layout.
+- **Click-to-focus:** `doc/focusStore.ts` + `focusNeighbors.ts` (note: the `highlighting/` folder is syntax highlighting, so this is a small store of its own). A click on a box that has edges lights the box and its direct neighbours, fades the rest (`block-focus-dim`, 35%), and `FocusPanel.tsx` (portalled out of the pan/zoom transform into `.canvas-area`, `position: absolute` beside the left panel via `--chrome-inset`/`--left-panel-width`, or at the left edge when the panel is closed, so it follows the panel and never shares the right side with the inspector) lists CALLED BY · N / USES · N (`←`/`→`/`⇢` arrows, the edge label in grey parens) with Upstream / Downstream toggles (pressing the active one returns to both). Escape, the ✕, or the focused block leaving the doc clears it.
+
+**022 follow-ups:** `doc/bundleEdges.ts` merges parallel edges into one `label ×N` before routing (`CanvasEdges.tsx`); a corner `canvas-node-step-chip` shows `meta.order`'s leading digits (the old `STEP n` text is hidden); the sequence ▶ player (`sequenceViewStore.setStep`, button in `DiagramFrame.tsx`) lights one `order` at a time and fades later steps. Group frames already existed (`GroupFrame.tsx`). `e2e/sequence-expand.spec.ts` covers expand in place, Collapse all and the player. Note: the frame label ignores pointer events, so interactive controls in it need `pointer-events: auto` (`.canvas-diagram-frame-modes`).
+
+## Activity panel tab visibility
+
+`ActivityPanel` keeps both tab bodies mounted to preserve terminals. The `[hidden]` rule on both tab bodies uses `!important`, so no later `display` rule (e.g. the full-screen grid) can resurrect a hidden body and Workflows gets the entire content height. Dragging 24 screen pixels beyond the width ceiling enters full-screen mode, including on a scaled canvas.
+
+## Draw dialog (025)
+
+`DrawDiagramButton` opens `drawDialog/DrawDialog.tsx`, mounted by `RootCanvas` inside `.canvas-stage` so the rail and Agents panel stay visible. `drawDialogStore` holds open/last-used card/draft (the draft survives close until drawn); `useDiagramKinds` loads the cards each time it opens; `schematics.tsx` has the static SVG per card id. Esc, Cancel, ×, or a scrim click close it; Tab is trapped; focus returns to the button. Enter in the prompt (Shift+Enter is a new line) or Enter on a card draws; arrow keys move the selection. There is deliberately no scope switch: the user writes scope ("current change only") in the prompt. A launch error shows inline in the footer; at agent capacity the button is disabled with the limit as its tooltip. The tutorial still opens its scripted mock agent instead.
+
+
+## Worktree strip (vertical tab = worktree = branch)
+
+`agents/WorktreeStrip.tsx` replaced the old `BranchSwitcher` (deleted along with `branchStore`, `branchActions` and `branchScope`) in the `.canvas-chrome` row. One tab per `br_*` record from `GET /branches`; the active one is highlighted. "+" calls `POST /branches/new` (disabled with a busy mark while the bridge fetches, a fallback `warning` shows next to it), double-click renames inline via `PATCH /branches/{id}` (a 409 shows inline under the tab), "x" closes through `CloseWorktreeDialog.tsx` (Keep / Delete worktree, dirty count, number of attached agents that will be closed, "Don't ask again" persisted in `localStorage` key `codechroma.worktree-close-choice` inside try/catch; Delete sends `DELETE /branches/{id}?worktree_too=true`). State lives in `agents/worktreeStore.ts`; actions (`ensureWorktrees`, `selectWorktree`, `createWorktree`, `renameWorktree`, `closeWorktree`) in `agents/worktreeActions.ts`. `AgentWindowLayer` calls `POST /branches/ensure` on boot; `agentStore` ignores `active_workspace: "main"` and `?workspace=main`, and `selectWorktree` persists the choice via `PUT /branches/active`. `App.tsx` does not hard-key the subtree: `EngineClientProvider repoId` + `resetWorkspaceStores` already scope the canvas per tab, and keying would unmount every terminal. Agent creation sends `workspace` = active tab and no `attach_to` for a tab (`attachAgent`, `launchAgent`); "main" is no longer an attach target.
+
+## Board block roles (BlocksAnatomy)
+
+`doc/blockRole.ts` derives a role (COMPONENT, ENTRY / API, DATA, EXTERNAL, ACTOR / CONCEPT, PLANNED) for `c1`/`pattern`/`impact`/`custom` boxes from existing meta only (`plan_kind`, `no_code_reason`, `shape`, `kind`, else code-backed means component). `CanvasNodeBox` adds `block-role block-role--<role>` (frame, fill, accent in `styles.css`, "Board block roles" at the end) and `NodeMetaRow` renders the header: role glyph, coloured mono role word and a status dot + word only when changed (Diff overlay), `meta.stale` or planned. SRC is an always-visible pill; copy and `?` appear on hover. Not done: the `▸ N members` chip (no member count in the doc data) and a light-theme palette (board colours are dark-only).
+
+## Board edges, groups and focus (022, design board "BlocksFocus")
+
+- **Typed edges:** `doc/edgeKinds.ts` maps an edge's free-form `kind` (or `transport`) to a visual family: `spawn`/`spawns`/`process` dotted, `data`/`read(s)`/`write(s)` orange dashed with an orange arrowhead, `minor`/`secondary` thin grey, anything else a plain call. The recipe resolvers (`canvas/recipes.py`, C# `Stores/Recipes.cs`) pass an authored `relations[].kind` (and `transport`) straight onto the canvas edge and default to `uses` only when absent; the drawing skill tells the agent to author `spawns`/`data` (`diagram-skills.md` "Edge kinds"), pinned by the shared case `recipes.cases.json` `an_authored_edge_kind_and_transport_survive_into_the_canvas_edge`. `CanvasEdges.tsx` wraps each `RelationshipEdge` in `.canvas-edge--<visual>` and passes `--ek-<visual>` as a variant suffix; bundled parallel edges (`bundleEdges.ts`/`bundledKeys`) render as the thick `bundle` family with no arrowhead and their `x N` count pill. Styles live in the "022 board edges" section at the end of `styles.css`. Edges not joining the focused block to a lit neighbour fade (`canvas-edge--dim`).
+- **Groups:** `GroupFrame` tints by role (`groupRoleIndex`: web cyan, bridge/core green, skills violet, else the name hash), has 14px corners and a blue `↗` that centres on the group's `node_id` (or its layer) and, when the group has a `node_id` or a `meta.path` folder (`dir::<path>`), also opens it in the inspector like a block's SRC button (no path: centre only), and dims to 45% when no member is the focused block or a lit neighbour (`useAllDimmed`).
+- **Edge pills and group bundles:** `CanvasEdges` passes `labelVariant="board"` to `RelationshipEdge`/`EdgeLabel` (padding 1px 6px, radius 7px, mono 10.5px; other diagrams keep the 4/2px chip). `bundleEdges(edges, groupOf)` additionally collapses every edge between two different group frames (per directed group pair and layer) into one bundle labelled with the distinct labels and `×N`; edges inside a group, or with an ungrouped endpoint, still bundle per parallel pair. The sequence Focus timeline, phase rows and legend are described under "Sequence readability" in `diagram-skills.md`.
+
+**Impact board treatment (022 board "ImpactGlance").** On an Impact box, `ImpactGlance.tsx` adds the 6px/60px size bar with `+N -M` and `. test +A -B` (`impactGlanceLogic.ts`: `changeSizeOf`, `barWidths`, `summarizeImpact`); `impactBoxState.ts`'s `useImpactBoxState` (one primitive-key `useSyncExternalStore`, so a box re-renders only when its own state moves) yields the chip kind (ADD/MODIFY/DELETE from authored `meta.status` first, git status second), the biggest change (2px amber border, never a deleted box) and the collapse kind. `CanvasNodeBox` only wires three things: the `impact-box--*` classes, and an early `ImpactPill` return. DELETE is a dashed red hatched ghost with a struck-through name. Unchanged boxes (no change, authored status absent or `context`) fold into a "name . unchanged >" pill whenever the review has changes; when more than 6 boxes changed, small (<= 6 lines) modified boxes fold into "name . modified >" pills (never a hero-edge endpoint, the biggest change, or a box with PR comments); clicking a pill opens that box (`impactExpandStore`). Hero edges (`edge.hero`) render #5EE0A0 3.5px with a glow and a star label (`RelationshipEdge`); an arrow the review lists as a `removed` relationship renders red dashed (`impactEdgeStatus.ts`, matched by element id / node id / recipe key). `ImpactChangeSummary` carries the header strip ("WORKING TREE vs HEAD", first sentence of the review summary, modified/new/deleted/tests pills), the dashed "OUTSIDE THIS SLICE" strip for unassigned files (collapsed behind "show") and the legend card. All board CSS is the final "022 board impact" section of `styles.css`.
+
+The Impact board chrome (header bar, outside strip, legend beside the diagram, merged "N more modified" pill, removed-link lines) is laid out by `canvas/ImpactBoard.tsx`; see the "Impact board layout, pill merging and removed links" paragraph in [`change-cards.md`](change-cards.md).
+## Route steps and the route overlay (026)
+
+A process diagram whose resolver output carries a `route` (see `diagram-skills.md`) gets two views on the same data. **Expand in place** (`canvas/doc/`): `routeStep.ts` parses `meta.route_step` and the route (`routeFor` looks a box's `meta.route_id` up among the route carriers, falling back to a legacy `meta.route` on the box). The carrier elements (`render: "route"`) are split out of `doc.elements` by `canvasDocStore.setDoc` (`getRouteCarriers`/`useRouteCarriers`), so layout, bounds, selection and the diagram catalog never see them; a step box shows its kind colour (`route-step--<kind>`) and mounts `RouteStepExtras.tsx` (the `▸ N calls` chip and, when expanded, a children list: `label`, `:line`, `↗` opening the child's `node_id` in the inspector) only when it has children. `routeExpandStore.ts` holds the expanded ids in memory only (survives a re-render, not a reload; it is the first expand mechanism on diagram boxes and the one to reuse for a members chip). Growth is derived geometry: `routeExpansion.ts`'s `expandRouteElements` (the `growExpandedRoutes` stage) grows the step downward and pushes same-layer boxes below it, and is never written to the document. `CanvasDocView` derives its display elements through `canvas/doc/displayPipeline.ts`: named `(elements, ctx) => elements` stages in a fixed order, written once there: hide collapsed layers, grow expanded routes (`STRUCTURAL_STAGES`), fold live drag offsets on top of the pushed positions (`LIVE_STAGES`), then each board layer's profile `viewElements` (`VIEW_STAGES`, e.g. a sequence board's expanded steps). Each group runs in its own `useMemo` so a drag tick does not redo the structural stages; add a transform as a stage in the right group. `displayPipeline.test.ts` pins the order dependencies. `RouteLegend.tsx` is the legend card on the diagram frame. A failure band is data: both bridges stamp `meta.lane_kind: "failure"` on every node of a lane whose route steps are all `kind: failure` (an authored `lane_kind` wins); a lane named `Failures` still works as a deprecated fallback when no member sets `lane_kind`. **Over the code map**: `state/routeStore.ts` (active route, step, walking; in memory), `canvas/RouteOverlay.tsx` (numbered markers and a path over the hierarchy blocks, steps snapped to the nearest visible ancestor via `expansionStore`; `routeHighlight.ts` lights the route's blocks and fades every other top-most block to 0.35 via `data-route-dim`), and `RouteCard.tsx` (the ROUTE card with `▶ Walk the route`, 1.5 s per step). The B2 board look: `RouteOverlay` draws a 22 px number chip inside each lit block's top-left corner (the last non-failure step reads ✓), joins steps with `routePath.ts`'s `routePathBetween` (a straight run when the boxes overlap on an axis, else one H-V-H elbow) as a solid 2.75 px line with a wide soft glow underneath and an arrowhead; `applyRouteHighlight` stamps each lit block with its step kind (`data-route-lit="ai"` is violet, `failure` red, others green); the card shows a badge, the title and a second line per step (`RouteStep.detail`, else the first child label, else the lane), `←`/`→` beside `▶ Walk the route`, and a three-row legend. The kind colours of the in-place step boxes (`route-step--<kind>`) are unchanged: only the route overlay and card use the single green line. A **walkthrough** layer (`layer: "walkthrough"`, `canvas/doc/walkthroughLayout.ts`'s `WALKTHROUGH_LAYER`, owned by `walkthroughProfile.ts`) is drawn as the "B2 · Code map + route overlay" board. All its colours and the panel font are the `--route-*` and `--font-board` (Inter) tokens in the `styles.css` token block (`--route-ok`/`--route-ai`/`--route-fail` point at the `--role-*` scale shared with the sequence board); the rules live under "026 walkthrough (B2 board look)". The frame is the board (solid hairline, `--route-ground` with a 24 px dot grid, mono green label). ⚠ **Boxes keep the common box internals** (role row, name, description, path footer, SRC, the same text sizes as every other diagram) and the common `measureBoxSize` estimate: a route step only recolours its frame through the role tokens (`--role-border`/`--role-bg`/`--role-accent`: green, violet `ai`, red `failure`) and gets a 22 px route-coloured chip at -9 px. Boxes off the route keep their common role look: `blockRoleFor` reads `no_code_reason: "external"` as EXTERNAL and an authored `shape` (e.g. `storage`, which wins over `conceptual`) as DATA. Do not add walkthrough-only text or sizes inside the box. Arrows are the solid 2.75 px green route with a glow and the board's 6-unit head (`canvas-arrowhead--route`, the profile's `edgeMarker`); `error` arrows are red dashed and `minor` ones brown dashed, both headless; kind words are not drawn as labels. `edgeKinds.ts` maps `error`/`failure` to the `error` visual on every diagram. The layer draws no lane bands (`WALKTHROUGH_PROFILE.hideLaneBands`; see "Diagram profiles"). **The ROUTE panel is part of the diagram**: `WalkthroughPanel.tsx` (the profile's `Overlay`) renders it on the canvas, top-aligned 80 px right of the step boxes (348 px wide, height computed exactly by `walkthroughPanelHeight`), and the profile's `frameBounds` grows the frame with `boundsWithWalkthroughPanel` so it encloses the panel and a frame drag moves it. It shares `RouteSteps.tsx` (rows, `←`/`▶ Walk the route`/`→`, legend) with the docked card; a row click or Walk shows the route over the code map first. `RouteFrameActions` opens the route over the code map once per route and its header button toggles **Show route** / **Hide route** (a walkthrough has no header legend: its `Overlay` panel holds it). `RouteCard` stays the docked card for other routes and hides itself for a route an expanded walkthrough draws (`isRouteDrawnInDiagram`; a collapsed walkthrough hides its panel, so the card docks again and keeps a Hide control), but it still runs the walk timer. It docks to the right edge of the *visible* canvas: `useClearOfActivityPanel` measures the floating agents panel (`[data-testid="activity-panel"]`) and offsets the card past it. Tests: `WalkthroughPanel.test.tsx`. What the board draws that the overlay cannot: boxes for an actor, an external service or a store, and the `✕` failure pills, because the code map has no node for them. The diagram frame header is the profile's own `HeaderAction` (the sequence mode switch) followed by the shared `HEADER_ACTIONS` contributions (`{ id, applies, render }`: `RouteFrameActions.tsx` with the legend and **Show route**, which resolves the route through `routeFor` and the carriers and calls `routeStore.show`) inside one drag-guarded `canvas-diagram-frame-actions` wrapper next to the built-in copy button. `RootCanvas` mounts diff, trace, route-probe and route overlays/controls from the `CANVAS_MODES` registry in `canvasModes.tsx` (`useActiveModes()` runs every `useActive` each render; add a mode by adding an entry). Tests: `displayPipeline.test.ts`, `routeExpansion.test.ts`, `RouteStepExtras.test.tsx`, `routeStore.test.ts`, `routeHighlight.test.ts`, `RouteCard.test.tsx`, `RouteOverlay.test.tsx`. The ROUTE card shows a `route-picker` select when the canvas doc carries more than one distinct route (`collectRoutes` over the carriers, then any legacy box), switching via `routeStore.show`. In `elkLayout.ts` a failure lane (`connectors/laneKind.ts`'s `isFailureLane`, fed by `LayoutBoxSpec.laneKind`) is always the last lane band, and `LaneArea` tints it red (`canvas-lane-area-failures`); the band sits last in the lane direction (right), not literally below. Playwright journeys: `web/e2e/route-steps.spec.ts` (expand and open a child; Show route, dim, walk).

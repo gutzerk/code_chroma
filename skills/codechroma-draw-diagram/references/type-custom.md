@@ -84,6 +84,7 @@ capabilities (grouping, self-relations, edge coloring) the chosen `style` turns 
   "type_id": "data-flow",
   "style": "boxes-arrows",
   "generated_at": "2026-01-01T00:00:00Z",
+  "title": "Where an uploaded file ends up",
   "nodes": [
     {
       "id": "http-edge",
@@ -100,6 +101,8 @@ capabilities (grouping, self-relations, edge coloring) the chosen `style` turns 
 }
 ```
 
+- **`title`** (top-level, required): a short name (≤ 60 chars, in the language of the user's request) for what *this* diagram shows, never the saved type's own name (its definition `title`), distinct from the titles already on the canvas — see `drawing-rules.md` "Naming the diagram (`title`)"; the self-check advises `NOTITLE`/`GENERICTITLE` otherwise.
+
 Rules:
 - `nodes[].id` must be unique across the file — relations address nodes by bare id.
 - `nodes[].path` is optional; when set, copy it verbatim from `/structure` so it resolves to a real
@@ -110,6 +113,7 @@ Rules:
   `null` when grouping is disabled or a box doesn't fit any group.
 - `nodes[].style` is optional — see `drawing-rules.md`. Use it to flag a critical box; it applies
   alongside the group accent.
+- Edge `kind`: the definition's `relation_kinds` win; additionally use `spawns` (starts a process/CLI/agent) or `data` (reads/writes a file/DB/store) whenever true -- see `drawing-rules.md` "Edge kinds".
 - `relations[].kind` should be one of the definition's own `relation_kinds` ids when it lists any;
   invent a short lowercase verb only when it doesn't.
 - Never invent a relation between two ids that aren't both in `nodes[]`. Never relate an id to
@@ -151,7 +155,9 @@ through several parties, a protocol handshake, a multi-step pipeline), record ea
 `meta.order` and its performer with `meta.lane` (`drawing-rules.md`) — never by numbering steps inside
 a relation's `label` (`"Step 1: ..."`, `"2. then ..."`). A label read in isolation, out of layout
 order, still needs to say what the arrow carries; the step number belongs on the box, where the
-layout and the rendered badge/soft-area already show it.
+layout and the rendered badge/soft-area already show it. To pin a box to the first or last layer
+without numbering it, set `rank: "entry"`/`"exit"` (`order` wins if both are set); a relation `kind`
+of `"feedback"`/`"return"` lays out as a back edge.
 
 ```json
 {
@@ -175,8 +181,68 @@ layout and the rendered badge/soft-area already show it.
 `"2a"`/`"2b"` share a leading digit, so the canvas renders them as one Concurrency island automatically
 — no separate field marks them as parallel. `"Client"`/`"Server"` each get their own soft-tinted Lane
 area grouping their boxes together, independent of the numbering. Leave both fields unset on a
-diagram that isn't a process — most structural diagrams never need them (see `type-c1.md`/
+diagram that isn't a process — most structural diagrams never need them (see `type-system-context.md`/
 `type-patterns.md`/`type-impact.md`).
+
+## Optional `route` — which code each step runs (expand a step, light up the code map)
+
+A process diagram may carry a top-level `route`: the same ordered steps, each pointing at the code it
+runs. The canvas expands a step in place into its `children` and can lay the whole route over the code map.
+Add it only when the steps map to real code; skip it for a conceptual flow. It lives in this same file.
+
+- `route`: `{ "id", "title", "steps": [...] }`. Do not write a summary; the bridge derives
+  "N steps · N files · N AI steps".
+- Each step: `id` (**must equal a diagram node `id`**), `order` (integer 1..N, no gaps), `lane`, `title`
+  (4 words or fewer), `kind`, `node_ids`, `children`.
+- `kind`: `trigger` (an actor starts it), `decide` (logic, no AI), `ai` (a model runs), `check`, `data`
+  (something is written), `failure` (a branch that stops the flow; draw its edge with `kind: "error"`).
+- `detail` (optional): the ROUTE card's second line under the title -- who acts ("You, on the stale
+  notice") or the function that runs ("MapPost /update"). Omit it and the card shows the step's first
+  `children` label, then its `lane`.
+- `node_ids`: graph node ids of the files/functions the step runs in (what the code map lights up).
+- `children`: ordered calls inside the step, `{ "id", "label", "node_id", "line" }` with `line` a
+  positive integer, e.g. `{ "id": "c1", "label": "ComputeDelta()", "node_id": "file::Routes/WikiGeneralRoutes.cs", "line": 184 }`.
+  Write them by hand from the context cache; they may go stale, so keep the list to the 2-5 calls that matter.
+
+```json
+"route": {
+  "id": "update-map", "title": "Update the architecture map",
+  "steps": [
+    { "id": "click-update", "order": 1, "lane": "You", "title": "Click Update", "kind": "trigger",
+      "node_ids": ["file::web/src/canvas/WikiGeneralNotice.tsx"], "children": [] },
+    { "id": "diff-manifest", "order": 4, "lane": "Bridge", "title": "Diff against manifest", "kind": "decide",
+      "node_ids": ["file::dotnet/CodeChroma.Bridge/Routes/WikiGeneralRoutes.cs"],
+      "children": [{ "id": "c1", "label": "ComputeDelta()", "node_id": "file::dotnet/CodeChroma.Bridge/Routes/WikiGeneralRoutes.cs", "line": 184 }] },
+    { "id": "rewrite-pages", "order": 6, "lane": "Claude CLI", "title": "Rewrite pages", "kind": "ai",
+      "node_ids": [], "children": [] },
+    { "id": "busy", "order": 9, "lane": "Failures", "title": "Busy, 409", "kind": "failure",
+      "node_ids": [], "children": [] }
+  ]
+}
+```
+
+The self-check prints `BADROUTE`, `ROUTE-STEP`, `ROUTE-KIND`, `ROUTE-ORDER`, `ROUTE-NODES`,
+`ROUTE-DETAIL` and `ROUTE-CHILD` as advisories only; nothing fails the run.
+
+### Showing a process the user asks for ("how does X work?") on the code map
+
+The code-map route view (**Show route**) answers "which files does this flow touch, in what order".
+Build it like this:
+
+1. Name the process in the user's words for `route.title` ("Update the architecture map"); one verb
+   phrase, not a module name.
+2. Walk the real call chain from the context cache, entry point first. One step per hop that changes
+   who acts or what runs, not one per function: 5-9 steps. The first step is the trigger (a person or
+   an event, `kind: "trigger"`, `detail` says who); the last is the outcome, which the canvas draws as a ✓.
+3. Give every step a 4-word-or-fewer `title` and a `detail` naming the function or actor. `node_ids`
+   are the real files or functions the step runs in, copied verbatim; leave `[]` for an actor, an
+   external service or any step with no code in this repo.
+4. Mark the steps where a model runs `kind: "ai"` (drawn violet, the one colour change on the route),
+   things written to disk `data`, and a stop `failure` (red, draw its edge with `kind: "error"`).
+   Everything else stays `decide`/`check`: the route is one green line, so colour is a signal.
+5. Do not add a step the code does not take. A branch that exists in code but not in the happy path is
+   a `failure` step, not a second route.
+6. Self-check, then say in the report which files the route lights and which steps have no code.
 
 ## Procedure
 

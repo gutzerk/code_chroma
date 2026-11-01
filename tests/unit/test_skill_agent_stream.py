@@ -10,9 +10,12 @@ from codechroma.diagrams.registry import BUILTIN_TYPES
 from tests.unit.fake_claude import FakeProc, fake_claude_exec, reader
 
 # One instance per test module; the autouse fixture clears its state between tests.
-AGENT = content_generators.build_skill_agent_for(BUILTIN_TYPES["c1"])
+AGENT = content_generators.build_skill_agent_for(BUILTIN_TYPES["system-context"])
 
-VALID_C1 = {"type": "c1", "nodes": [{"id": "system", "name": "Sample", "description": ""}]}
+VALID_C1 = {
+    "type": "system-context",
+    "nodes": [{"id": "system", "name": "Sample", "description": ""}],
+}
 
 _SETTLE_SECONDS = 0.05
 
@@ -46,7 +49,7 @@ class _RecordingOutput:
 
 
 def _write_c1(repo_root):
-    path = repo_root / BUILTIN_TYPES["c1"].artifact
+    path = repo_root / BUILTIN_TYPES["system-context"].artifact
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(json.dumps(VALID_C1), encoding="utf-8")
 
@@ -178,29 +181,14 @@ def test_a_failing_push_does_not_fail_the_run(monkeypatch, tmp_path):
     assert AGENT.get_state("default") == {"state": "idle", "error": None}
 
 
-def test_the_feed_survives_for_reading_after_the_run_ends(monkeypatch, tmp_path):
+def test_the_feed_survives_the_run_and_no_task_is_left_to_cancel(monkeypatch, tmp_path):
     _write_c1(tmp_path)
     events = [_tool_use("Write", path=".codechroma/c1.json"), {"type": "result"}]
 
     _run(monkeypatch, tmp_path, events)
-
-    assert AGENT.get_output("default") == ["⏺ Write(.codechroma/c1.json)", "✓ done"]
-
-
-def test_a_finished_run_leaves_no_task_behind(monkeypatch, tmp_path):
-    _write_c1(tmp_path)
-
-    _run(monkeypatch, tmp_path, [_tool_use("Read", file_path="app.py")])
-
-    assert "default" not in AGENT.tasks
-
-
-def test_cancel_after_a_completed_run_on_a_closed_loop_does_not_raise(monkeypatch, tmp_path):
-    _write_c1(tmp_path)
-    _run(monkeypatch, tmp_path, [_tool_use("Read", file_path="app.py")])
-
     asyncio.run(AGENT.cancel())
 
+    assert AGENT.get_output("default") == ["⏺ Write(.codechroma/c1.json)", "✓ done"]
     assert AGENT.tasks == {}
 
 

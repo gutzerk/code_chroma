@@ -1,7 +1,4 @@
-"""SC-003 (037): registering one new overlay takes effect for every diagram type at once -- two
-unrelated types (`patterns`, a brand-new custom type) both pick it up with no per-type code change,
-because `attach_overlays()` dispatches purely by the name each type's own `overlays[]` lists.
-"""
+"""SC-003 (037): a newly registered overlay reaches built-in and custom types via their own data."""
 
 from __future__ import annotations
 

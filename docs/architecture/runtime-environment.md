@@ -30,7 +30,10 @@ Captured variables override inherited variables. PATH uses captured entries firs
 inherited entries second, with duplicates removed; empty/relative entries cannot cause
 implicit executable lookup inside an open repository. Bundler/probe/settings internals
 are stripped before child launches. Bridge URL and per-run workspace identity remain
-available for the existing bundled skills. Diagnostics contain names, PATH entries,
+available for the existing bundled skills. The Python launch filter also preserves
+`CODECHROMA_AGENT_SESSION_FILE` and `CODECHROMA_AGENT_SESSION_ID`, so Claude's SessionStart
+hook and the agent registry receive the current launch's session metadata after CLI resolution.
+Diagnostics contain names, PATH entries,
 sources, timestamps, duration, generation and safe error messages, never variable values.
 
 ## Executables and refresh

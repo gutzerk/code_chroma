@@ -101,9 +101,9 @@ VITE_ENGINE_BRIDGE_URL=http://localhost:8000 npm run dev
 Now **Diff** reports the functions actually changed on disk versus HEAD. Point the bridge at a
 different tree with `codechroma_BRIDGE_REPO_PATH=/path/to/repo` (must be inside a git repo).
 
-## 6. System-context diagram (C1)
+## 6. System-context diagram
 
-The **C1** layer is a system-context view on the canvas: the project as one box, with the
+The **System context** layer (internal type id `system-context`) is a system-context view on the canvas: the project as one box, with the
 people/external systems it talks to around it and labeled relationship arrows between them.
 Diagrams (C1, Design Patterns, Epics, Sequence, trace, custom) are layers of the one canvas, shown
 over the hierarchy and toggled from the left panel's **Diagrams** tab. Against this fixture demo it shows a

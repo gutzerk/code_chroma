@@ -19,12 +19,16 @@ public sealed class AgentRecord
     public required string Worktree { get; set; }
     public required string CreatedAt { get; set; }
     public string? SessionId { get; set; }
+    public string? SessionTrackingId { get; set; }
     public string? PrUrl { get; set; }
     public int? Pid { get; set; }
     public JsonObject Window { get; set; } = DefaultWindow();
 
     /// <summary>The attach_to id this agent's worktree/branch is shared with; null for its own worktree.</summary>
     public string? SharesWorkspaceWith { get; set; }
+
+    /// <summary>The worktree tab (br_*) this agent was created in; null for records written before tabs.</summary>
+    public string? Workspace { get; set; }
 
     /// <summary>Which of main's branches this agent belongs to; null for records written before the field.</summary>
     public string? BaseBranch { get; set; }
@@ -46,6 +50,9 @@ public sealed class AgentRecord
     /// <summary>The diagram type (or "any") a task agent draws; such an agent starts bare, with the draw skill inlined (see BareSkill.ComposeInteractive).</summary>
     public string? DiagramType { get; set; }
 
+    /// <summary>What the user asked that diagram to show (trimmed, at most 2000 chars); null when they left it for the agent to ask.</summary>
+    public string? DiagramRequest { get; set; }
+
     /// <summary>Binary that launched this window; empty for legacy claude records.</summary>
     public string ResolvedCli { get; set; } = "";
 
@@ -62,10 +69,12 @@ public sealed class AgentRecord
     public JsonObject ToJson() => new()
     {
         ["id"] = Id, ["title"] = Title, ["kind"] = Kind, ["branch"] = Branch, ["worktree"] = Worktree, ["session_id"] = SessionId,
+        ["session_tracking_id"] = SessionTrackingId,
         ["created_at"] = CreatedAt, ["pr_url"] = PrUrl, ["window"] = Window.DeepClone(), ["pid"] = Pid,
-        ["shares_workspace_with"] = SharesWorkspaceWith, ["base_branch"] = BaseBranch, ["source_pr"] = SourcePr,
+        ["shares_workspace_with"] = SharesWorkspaceWith, ["workspace"] = Workspace, ["base_branch"] = BaseBranch, ["source_pr"] = SourcePr,
         ["source_run"] = SourceRun, ["fork_session"] = ForkSession,
         ["context"] = Context, ["context_kind"] = ContextKind, ["resolved_cli"] = ResolvedCli, ["diagram_type"] = DiagramType,
+        ["diagram_request"] = DiagramRequest,
     };
 
     /// <summary>What GET /agents reports: the record plus its live status and worktree health.</summary>
@@ -73,9 +82,10 @@ public sealed class AgentRecord
     {
         ["id"] = Id, ["title"] = Title, ["kind"] = Kind, ["branch"] = Branch, ["worktree"] = Worktree, ["created_at"] = CreatedAt,
         ["session_id"] = SessionId, ["pr_url"] = PrUrl, ["pid"] = Pid, ["window"] = Window.DeepClone(),
-        ["shares_workspace_with"] = SharesWorkspaceWith, ["base_branch"] = BaseBranch, ["source_pr"] = SourcePr,
+        ["shares_workspace_with"] = SharesWorkspaceWith, ["workspace"] = Workspace, ["base_branch"] = BaseBranch, ["source_pr"] = SourcePr,
         ["source_run"] = SourceRun, ["fork_session"] = ForkSession,
         ["context"] = Context, ["context_kind"] = ContextKind, ["resolved_cli"] = ResolvedCli,
+        ["diagram_type"] = DiagramType, ["diagram_request"] = DiagramRequest,
         ["status"] = Status, ["exit_code"] = ExitCode, ["worktree_lost"] = WorktreeLost,
     };
 
@@ -97,10 +107,12 @@ public sealed class AgentRecord
             Kind = Json.Str(o["kind"]) ?? DefaultKind,
             CreatedAt = Json.Str(o["created_at"]) ?? "",
             SessionId = Json.Str(o["session_id"]),
+            SessionTrackingId = Guid.TryParse(Json.Str(o["session_tracking_id"]), out var trackingId) ? trackingId.ToString() : null,
             PrUrl = Json.Str(o["pr_url"]),
             Pid = o["pid"] is JsonValue pid && pid.TryGetValue<int>(out var pidValue) ? pidValue : null,
             Window = window,
             SharesWorkspaceWith = Json.Str(o["shares_workspace_with"]),
+            Workspace = Json.Str(o["workspace"]),
             BaseBranch = Json.Str(o["base_branch"]),
             SourcePr = Json.Str(o["source_pr"]),
             SourceRun = Json.Str(o["source_run"]),
@@ -108,6 +120,7 @@ public sealed class AgentRecord
             Context = CleanContext(o["context"]),
             ContextKind = CoerceContextKind(Json.Str(o["context_kind"])),
             DiagramType = Json.Str(o["diagram_type"]),
+            DiagramRequest = Json.Str(o["diagram_request"]),
             ResolvedCli = Json.Str(o["resolved_cli"]) ?? "",
         };
     }

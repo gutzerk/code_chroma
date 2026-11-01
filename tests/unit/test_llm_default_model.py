@@ -33,7 +33,7 @@ def _assign(monkeypatch, provider, model="sonnet"):
     monkeypatch.setattr("codechroma.llm.resolve_cli.find_provider", lambda _id: provider)
 
 
-def test_anthropic_api_provider_runs_claude_with_its_key_as_auth_token(monkeypatch):
+def test_anthropic_api_provider_runs_claude_with_its_key_as_api_key(monkeypatch):
     provider = Provider("p", "a", "api", transport="anthropic", api_key="sk-secret")
     _assign(monkeypatch, provider)
 
@@ -43,13 +43,12 @@ def test_anthropic_api_provider_runs_claude_with_its_key_as_auth_token(monkeypat
         "claude", "claude", "sonnet")
     assert resolution.provider_assigned is True
     assert resolution.env_overrides == {
-        "ANTHROPIC_API_KEY": "",
+        "ANTHROPIC_API_KEY": "sk-secret",
         "ANTHROPIC_MODEL": "sonnet",
-        "ANTHROPIC_AUTH_TOKEN": "sk-secret",
     }
 
 
-def test_anthropic_api_provider_passes_its_base_url(monkeypatch):
+def test_anthropic_api_provider_behind_a_proxy_sends_its_key_as_auth_token(monkeypatch):
     provider = Provider(
         "p", "a", "api", transport="anthropic", api_key="k", base_url="https://proxy.example"
     )
@@ -57,7 +56,12 @@ def test_anthropic_api_provider_passes_its_base_url(monkeypatch):
 
     resolution = resolve_cli("c1_agent", "haiku")
 
-    assert resolution.env_overrides["ANTHROPIC_BASE_URL"] == "https://proxy.example"
+    assert resolution.env_overrides == {
+        "ANTHROPIC_BASE_URL": "https://proxy.example",
+        "ANTHROPIC_API_KEY": "",
+        "ANTHROPIC_MODEL": "sonnet",
+        "ANTHROPIC_AUTH_TOKEN": "k",
+    }
 
 
 def test_build_provider_uses_a_keyed_claude_cli_connection(monkeypatch):

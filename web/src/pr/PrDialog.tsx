@@ -8,6 +8,7 @@ import { launchAgent } from "../agents/launchAgent";
 import { finishTutorialPrOpen, tutorialPrClient, type PrDialogClient } from "../tutorial/tutorialPr";
 import { advanceTutorialFrom, useTutorialActive } from "../tutorial/tutorialStore";
 import { workspaceStore } from "../agents/workspaceStore";
+import { worktreeStore } from "../agents/worktreeStore";
 import { prStore, usePrWorkspaces } from "./prStore";
 
 /** The first message of the agent a ticked "Build impact diagram" box starts in the new PR. */
@@ -154,8 +155,9 @@ export function PrDialog({ onDismiss }: { onDismiss: () => void }) {
       prStore.remove(pr.id);
       // agentStore.remove only resets the active id for *agent* ids, so a PR must do it itself.
       if (activeWorkspace === pr.id) {
-        agentStore.setActiveWorkspace("main");
-        workspaceStore.setStatus(await agentClient.activateWorkspace("main"));
+        const tab = worktreeStore.getActiveId() ?? "main";
+        agentStore.setActiveWorkspace(tab);
+        workspaceStore.setStatus(await agentClient.activateWorkspace(tab));
       }
       // Best-effort: closes a stray "Open in New Window" copy so it doesn't outlive its workspace.
       void getDesktopWorkspaceApi()?.closeWorkspaceWindow(pr.id);

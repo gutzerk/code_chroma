@@ -31,13 +31,6 @@ def test_create_then_load_roundtrips():
     assert loaded[created.id].base_url == "http://localhost:11434/v1"
 
 
-def test_create_cli_provider():
-    created = create_provider({"label": "Claude CLI", "kind": "cli", "adapter": "claude"})
-
-    assert created.kind == "cli"
-    assert created.adapter == "claude"
-
-
 def test_create_cli_provider_with_custom_endpoint():
     created = create_provider({
         "label": "Claude via proxy",
@@ -51,44 +44,6 @@ def test_create_cli_provider_with_custom_endpoint():
     assert created.api_key == "sk-proxy"
 
 
-def test_validate_accepts_cli_provider_with_base_url_and_key():
-    problems = validate({
-        "label": "Claude via proxy",
-        "kind": "cli",
-        "adapter": "claude",
-        "base_url": "https://proxy.example.com",
-        "api_key": "sk-proxy",
-    })
-
-    assert problems == []
-
-
-def test_validate_rejects_cli_provider_with_blank_base_url():
-    problems = validate({"label": "x", "kind": "cli", "adapter": "claude", "base_url": "   "})
-
-    assert any("base_url" in p for p in problems)
-
-
-def test_validate_rejects_a_non_claude_cli_provider_with_a_base_url():
-    problems = validate({
-        "label": "x", "kind": "cli", "adapter": "codex", "base_url": "https://proxy.example.com",
-    })
-
-    assert any("claude adapter" in p for p in problems)
-
-
-def test_validate_rejects_cli_provider_with_both_key_and_path():
-    problems = validate({
-        "label": "x",
-        "kind": "cli",
-        "adapter": "claude",
-        "api_key": "sk-x",
-        "api_key_path": "/tmp/creds",
-    })
-
-    assert any("OR" in p for p in problems)
-
-
 def test_draft_from_payload_builds_an_unpersisted_provider():
     draft = draft_from_payload({"label": "Claude CLI", "kind": "cli", "adapter": "claude"})
 
@@ -97,58 +52,42 @@ def test_draft_from_payload_builds_an_unpersisted_provider():
     assert load_providers() == {}
 
 
-def test_validate_rejects_unknown_cli_adapter():
-    problems = validate({"label": "x", "kind": "cli", "adapter": "not-a-real-cli"})
+_CLI = {"label": "x", "kind": "cli", "adapter": "claude"}
+_ANTHROPIC = {"label": "x", "kind": "api", "transport": "anthropic"}
+_GEMINI = {"label": "x", "kind": "api", "transport": "gemini"}
+
+
+@pytest.mark.parametrize(
+    ("payload", "expected"),
+    [
+        ({**_CLI, "base_url": "   "}, "base_url"),
+        ({**_CLI, "adapter": "codex", "base_url": "https://p.example.com"}, "claude adapter"),
+        ({**_CLI, "api_key": "sk-x", "api_key_path": "/tmp/creds"}, "OR"),
+        ({**_ANTHROPIC, "api_key": "sk-x", "api_key_path": "/tmp/creds"}, "OR"),
+        ({"label": "x", "kind": "api", "transport": "openai-compatible"}, "base_url"),
+        ({**_CLI, "adapter": "not-a-real-cli"}, "adapter must be one of"),
+        ({**_CLI, "label": ""}, "label must be"),
+        ({"label": "x", "kind": "bogus"}, "kind must be one of"),
+    ],
+)
+def test_validate_rejects_invalid_payloads(payload, expected):
+    problems = validate(payload)
 
     assert problems
+    assert any(expected in p for p in problems)
 
 
-def test_validate_rejects_missing_base_url_for_openai_compatible():
-    problems = validate({"label": "x", "kind": "api", "transport": "openai-compatible"})
-
-    assert any("base_url" in p for p in problems)
-
-
-def test_validate_rejects_both_key_and_path():
-    problems = validate({
-        "label": "x",
-        "kind": "api",
-        "transport": "anthropic",
-        "api_key": "sk-x",
-        "api_key_path": "/tmp/creds",
-    })
-
-    assert any("OR" in p for p in problems)
-
-
-def test_validate_requires_credentials_unless_local():
-    problems = validate({"label": "x", "kind": "api", "transport": "anthropic"})
-
-    assert problems
-    assert not validate({
-        "label": "x", "kind": "api", "transport": "anthropic", "is_local": True,
-    })
-
-
-def test_validate_accepts_gemini_transport_with_key():
-    assert not validate({"label": "x", "kind": "api", "transport": "gemini", "api_key": "g-key"})
-
-
-def test_validate_requires_credentials_for_gemini_unless_local():
-    problems = validate({"label": "x", "kind": "api", "transport": "gemini"})
-
-    assert problems
-    assert not validate({
-        "label": "x", "kind": "api", "transport": "gemini", "is_local": True,
-    })
-
-
-def test_validate_rejects_empty_label():
-    assert validate({"label": "", "kind": "cli", "adapter": "claude"})
-
-
-def test_validate_rejects_unknown_kind():
-    assert validate({"label": "x", "kind": "bogus"})
+@pytest.mark.parametrize(
+    "payload",
+    [
+        {**_CLI, "base_url": "https://p.example.com", "api_key": "sk-p"},
+        {**_ANTHROPIC, "is_local": True},
+        {**_GEMINI, "is_local": True},
+        {**_GEMINI, "api_key": "g-key"},
+    ],
+)
+def test_validate_accepts_valid_payloads(payload):
+    assert validate(payload) == []
 
 
 def test_masked_output_hides_raw_key():

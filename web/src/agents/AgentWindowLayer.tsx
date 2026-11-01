@@ -11,10 +11,10 @@ import { useAgentClient } from "./AgentClientContext";
 import { flagDiagramsReady } from "./agentDiagramsReady";
 import { agentStore, useActiveWorkspace, useAgents, useGitPreflight, usePendingClose } from "./agentStore";
 import { agentDockStore } from "./agentDockStore";
-import { branchStore } from "./branchStore";
 import { CloseAgentDialog } from "./CloseAgentDialog";
 import { GitInitDialog } from "./GitInitDialog";
-import { settleActiveWorkspace, settleRemovedWorkspace } from "./branchActions";
+import { ensureWorktrees, refreshWorktrees, settleRemovedWorktree } from "./worktreeActions";
+import { worktreeStore } from "./worktreeStore";
 import { WorkspaceStatusBanner } from "./WorkspaceStatusBanner";
 import { confirmCloseAgentWindow, restoreAgentWindow } from "./windowActions";
 
@@ -45,16 +45,12 @@ export function AgentWindowLayer() {
     layoutStore.reconcileAgents(agents.map((agent) => agent.id));
   }, [agents]);
 
-  const refreshBranchList = useCallback(() => {
-    void agentClient
-      .getBranch()
-      .then(branchStore.setBranch)
-      .catch(() => {
-        // A bridge that doesn't know about branches yet leaves the switcher blank.
-      });
+  // Boot: restore every worktree tab (creating wt-N only when there are none) and select the active one.
+  useEffect(() => {
+    void ensureWorktrees(agentClient).catch(() => {
+      // A bridge without worktree tabs leaves the strip empty; the canvas still works.
+    });
   }, [agentClient]);
-
-  useEffect(refreshBranchList, [refreshBranchList]);
 
   useEffect(ensureNotificationPermission, []);
 
@@ -78,9 +74,6 @@ export function AgentWindowLayer() {
           const kind = statusChangeKind(before?.status, message.status);
           agentStore.setStatus(message.id, message.status);
           if (kind && before && !isAgentWindowFocused(before)) {
-            // restoreAgentWindow, not a branch switch: the agent that just pinged may belong to a
-            // branch main no longer has checked out, but its own worktree runs regardless, and its
-            // window is reachable either way (AgentWindow.tsx no longer hides it for that reason).
             notifyAgentStatus(before, kind, () => {
               agentDockStore.activate(before.id);
               restoreAgentWindow(agentClient, before.id);
@@ -91,20 +84,16 @@ export function AgentWindowLayer() {
           if (kind === "idle" && before?.context_kind === "task") {
             void flagDiagramsReady(message.id);
           }
-        } else if (message.type === "branch-changed") {
-          // Settle against the ping's branch right away — the async re-read below isn't there yet, and
-          // `settleActiveWorkspace` reads the current branch off the store. Then re-read the full
-          // list: the ping carries only the new current branch, not the branches (one may have just
-          // been created or deleted externally), so it can't rebuild the list on its own.
-          branchStore.setBranch({ current: message.branch, branches: branchStore.getBranches() });
-          settleActiveWorkspace(agentClient);
-          refreshBranchList();
         } else if (message.type === "branch-removed") {
-          settleRemovedWorkspace(agentClient, message.id);
-          refreshBranchList();
+          if (worktreeStore.has(message.id)) void settleRemovedWorktree(agentClient, message.id);
+          else {
+            void refreshWorktrees(agentClient).catch(() => {
+              // A stale tab list is better than none.
+            });
+          }
         }
       }),
-    [engineClient, agentClient, refreshBranchList],
+    [engineClient, agentClient],
   );
 
   return (

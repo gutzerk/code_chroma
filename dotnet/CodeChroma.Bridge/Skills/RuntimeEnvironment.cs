@@ -234,6 +234,32 @@ public sealed class RuntimeEnvironment
         return Clean(merged);
     }
 
+    /// <summary>How long a PTY spawn waits for the login-shell capture before falling back to the inherited environment.</summary>
+    public static readonly TimeSpan TerminalWait = TimeSpan.FromSeconds(10);
+
+    /// <summary>The full inherited environment under the login-shell snapshot and the caller's overrides, uncleaned: an interactive shell keeps `codechroma_*` and exported functions.</summary>
+    public Dictionary<string, string> TerminalEnv(IReadOnlyDictionary<string, string>? extra = null)
+    {
+        var pending = SnapshotAsync();
+        return Overlay(pending.Wait(TerminalWait) ? pending.Result : null, extra);
+    }
+
+    public async Task<Dictionary<string, string>> TerminalEnvAsync(IReadOnlyDictionary<string, string>? extra, CancellationToken cancel)
+    {
+        EnvironmentSnapshot? snapshot = null;
+        try { snapshot = await SnapshotAsync().WaitAsync(TerminalWait, cancel); }
+        catch (TimeoutException) { }
+        return Overlay(snapshot, extra);
+    }
+
+    private Dictionary<string, string> Overlay(EnvironmentSnapshot? snapshot, IReadOnlyDictionary<string, string>? extra)
+    {
+        var merged = new Dictionary<string, string>(_inherited, Comparer);
+        foreach (var (k, v) in snapshot?.Environment ?? new Dictionary<string, string>()) merged[k] = v;
+        foreach (var (k, v) in extra ?? new Dictionary<string, string>()) merged[k] = v;
+        return merged;
+    }
+
     public RuntimeCli Resolve(string name, IReadOnlyDictionary<string, string>? extra = null, bool recheck = false)
     {
         var snapshot = Snapshot();

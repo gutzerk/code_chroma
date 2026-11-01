@@ -187,20 +187,7 @@ def test_create_pr_pushes_the_branch_and_returns_the_url(agent, repo, bin_dir, t
     assert "agent/refund-flow" in pushed
 
 
-def test_create_pr_commits_the_dirty_files_when_asked(agent, bin_dir, tmp_path):
-    _stub_gh(bin_dir, AUTH_OK_NO_PR)
-    _stub_claude(bin_dir, 'echo "chore: commit late file"')
-    git(agent, "remote", "set-url", "origin", str(tmp_path / "origin.git"))
-    _commit_work(agent)
-    (agent / "late.py").write_text("late = True\n", encoding="utf-8")
-
-    publish.create_pr(agent, "agent/refund-flow", "main", commit_dirty=True)
-
-    assert publish.dirty_files(agent) == []
-    assert "late.py" in git(agent, "show", "--name-only", "--format=", "HEAD")
-
-
-def test_create_pr_uses_claudes_generated_commit_message(agent, bin_dir, tmp_path):
+def test_create_pr_commits_the_dirty_files_with_claudes_generated_message(agent, bin_dir, tmp_path):
     _stub_gh(bin_dir, AUTH_OK_NO_PR)
     _stub_claude(bin_dir, 'echo "feat(refund): add late file"')
     git(agent, "remote", "set-url", "origin", str(tmp_path / "origin.git"))
@@ -209,7 +196,9 @@ def test_create_pr_uses_claudes_generated_commit_message(agent, bin_dir, tmp_pat
 
     publish.create_pr(agent, "agent/refund-flow", "main", commit_dirty=True)
 
+    assert publish.dirty_files(agent) == []
     assert git(agent, "log", "-1", "--format=%s").strip() == "feat(refund): add late file"
+    assert "late.py" in git(agent, "show", "--name-only", "--format=", "HEAD")
 
 
 def test_create_pr_falls_back_to_a_fixed_message_when_claude_is_missing(

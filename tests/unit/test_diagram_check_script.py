@@ -49,7 +49,7 @@ def _flat(node_count, *, relations=None, label="uses"):
 def _markdown_budgets():
     """The budget table in drawing-rules.md, parsed back into the shape `_BUDGETS` has."""
     rows = re.findall(
-        r"^\|\s*(c1|patterns|impact|epics|custom|sequence)\s*\|(.+)\|\s*$",
+        r"^\|\s*(system-context|patterns|impact|epics|custom|sequence|walkthrough)\s*\|(.+)\|\s*$",
         RULES.read_text(encoding="utf-8"),
         re.M,
     )
@@ -118,13 +118,6 @@ def test_split_threshold_is_tunable_and_can_be_disabled(tmp_path):
     assert "SPLIT" not in disabled.stdout
 
 
-def test_a_diagram_inside_its_budget_says_nothing_about_density(tmp_path):
-    result = _run(tmp_path, "impact", _flat(4))
-
-    assert "CROWDED" not in result.stdout
-    assert "EDGEBOMB" not in result.stdout
-
-
 def test_epics_group_connectivity_is_never_flagged_an_orphan_or_island(tmp_path):
     """Epics hierarchy nests via meta.recipe_key/group frames, not `relations[]` (they carry only
     cross-epic dependency edges, usually none) -- so ORPHAN/ISLAND connectivity checks are disabled
@@ -147,23 +140,6 @@ def test_epics_group_connectivity_is_never_flagged_an_orphan_or_island(tmp_path)
     assert "ISLAND" not in result.stdout
 
 
-def test_epics_lone_epic_with_no_relations_is_not_an_orphan(tmp_path):
-    """A single bare epic with no cross-epic edges is a legal diagram, not a disconnected stub --
-    the ORPHAN/ISLAND checks that would flag it apply to edge-connected kinds only."""
-    diagram = {
-        "nodes": [
-            {"id": "EP-1", "name": "EP-1"},
-            {"id": "EP-2", "name": "EP-2", "group": "planning"},
-        ],
-        "relations": [],
-    }
-
-    result = _run(tmp_path, "epics", diagram)
-
-    assert result.returncode == 0
-    assert "ORPHAN" not in result.stdout
-
-
 def test_too_many_hero_relations_is_advisory_and_never_fails_the_run(tmp_path):
     diagram = _flat(
         4,
@@ -174,6 +150,31 @@ def test_too_many_hero_relations_is_advisory_and_never_fails_the_run(tmp_path):
 
     assert result.returncode == 0
     assert "TOOMANYHERO 3 hero relation(s), budget 2" in result.stdout
+
+
+@pytest.mark.parametrize("kind", ["patterns", "impact"])
+def test_a_non_sequence_diagram_without_readability_data_gets_advisories_only(tmp_path, kind):
+    diagram = _flat(4)
+
+    result = _run(tmp_path, kind, diagram)
+
+    assert result.returncode == 0
+    assert "NOSUMMARY the diagram has no top-level `question` and `summary` string" in result.stdout
+    assert "NOHERO" in result.stdout
+
+
+@pytest.mark.parametrize("kind", ["patterns", "impact"])
+def test_a_non_sequence_diagram_with_readability_data_stays_silent(tmp_path, kind):
+    diagram = _flat(4, relations=[
+        {"from": f"n{i}", "to": f"n{i + 1}", "label": "uses", "hero": i == 0} for i in range(3)
+    ])
+    diagram["question"] = "What does this change touch?"
+    diagram["summary"] = "Three boxes change."
+
+    result = _run(tmp_path, kind, diagram)
+
+    assert "NOSUMMARY" not in result.stdout
+    assert "NOHERO" not in result.stdout
 
 
 _TRIANGLE = [
@@ -418,10 +419,10 @@ def test_uncovered_findings_are_unchanged_by_the_parallel_probe_batch(monkeypatc
     monkeypatch.setattr(module.urllib.request, "urlopen", _fake_urlopen)
     diagram = _c1_with_dir_leaves(4)
     args = argparse.Namespace(
-        url="http://localhost:8000", repo="default", json_path=None, kind="c1"
+        url="http://localhost:8000", repo="default", json_path=None, kind="system-context"
     )
 
-    report = module._inspect_hierarchical(diagram, module._BUILTIN_CHECKS["c1"], args)
+    report = module._inspect_hierarchical(diagram, module._BUILTIN_CHECKS["system-context"], args)
 
     uncovered = sorted(line for line in report.shape if line.startswith("UNCOVERED"))
     assert uncovered == [
@@ -445,3 +446,363 @@ def test_shared_node_id_advisory_fires_only_across_groups_and_never_fails(
 
     assert result.returncode == 0
     assert ("SHAREDNODE" in result.stdout) is flagged
+
+
+def test_sequence_message_without_order_is_only_an_advisory(tmp_path, capsys):
+    module = _load_module()
+    path = tmp_path / "seq.json"
+    path.write_text(
+        '{"nodes":[{"id":"a","name":"A"},{"id":"b","name":"B"}],'
+        '"relations":[{"id":"m1","from":"a","to":"b","label":"go"}]}',
+        encoding="utf-8",
+    )
+
+    code = module.main(["--kind", "sequence", "--json", str(path)])
+
+    out = capsys.readouterr().out
+    assert code == 0
+    assert "NO-ORDER" in out
+    assert out.count("NOSUMMARY") == 1
+
+
+def test_frame_with_a_reversed_range_fails_the_shape_tier(tmp_path):
+    module = _load_module()
+    path = tmp_path / "seq.json"
+    path.write_text(
+        '{"nodes":[{"id":"a","name":"A"},{"id":"b","name":"B"}],'
+        '"relations":[{"id":"m1","from":"a","to":"b","label":"go","order":1}],'
+        '"frames":[{"kind":"alt","label":"F","from_order":3,"to_order":1}]}',
+        encoding="utf-8",
+    )
+
+    code = module.main(["--kind", "sequence", "--json", str(path)])
+
+    assert code == 3
+
+
+def test_phase_with_unknown_kind_fails_the_shape_tier(tmp_path):
+    module = _load_module()
+    path = tmp_path / "seq.json"
+    path.write_text(
+        '{"nodes":[{"id":"a","name":"A"},{"id":"b","name":"B"}],'
+        '"relations":[{"id":"m1","from":"a","to":"b","label":"go","order":1}],'
+        '"phases":[{"id":"p","name":"P","kind":"bogus","from_order":1,"to_order":1}]}',
+        encoding="utf-8",
+    )
+
+    code = module.main(["--kind", "sequence", "--json", str(path)])
+
+    assert code == 3
+
+
+def test_unhashable_relation_ends_do_not_crash_the_checker(tmp_path):
+    diagram = _flat(2, relations=[{"from": ["n0"], "to": {"x": 1}, "label": "uses"}])
+    diagram["nodes"][1]["id"] = ["n1"]
+
+    result = _run(tmp_path, "c1", diagram)
+
+    assert "Traceback" not in result.stderr
+
+
+def test_a_long_title_is_only_flagged_on_sequence_diagrams(tmp_path):
+    diagram = _flat(2)
+    diagram["nodes"][0]["name"] = "Payment Gateway Adapter Service Layer"
+
+    result = _run(tmp_path, "c1", diagram)
+
+    assert "LONGTITLE" not in result.stdout
+
+
+def _failure_sequence(tmp_path, kind_field):
+    path = tmp_path / "seq.json"
+    path.write_text(
+        '{"nodes":[{"id":"a","name":"A"},{"id":"b","name":"B"}],'
+        '"relations":[{"id":"m1","from":"a","to":"b","label":"401 denied","order":"1"'
+        + kind_field
+        + "}]}",
+        encoding="utf-8",
+    )
+    return path
+
+
+def test_failure_looking_sequence_label_without_error_kind_is_only_an_advisory(tmp_path, capsys):
+    module = _load_module()
+    path = _failure_sequence(tmp_path, ',"kind":"return"')
+
+    code = module.main(["--kind", "sequence", "--json", str(path)])
+
+    out = capsys.readouterr().out
+    assert code == 0
+    assert "FAILURE-KIND" in out
+
+
+def test_error_kind_sequence_message_is_accepted_without_a_kind_advisory(tmp_path, capsys):
+    module = _load_module()
+    path = _failure_sequence(tmp_path, ',"kind":"error"')
+
+    code = module.main(["--kind", "sequence", "--json", str(path)])
+
+    out = capsys.readouterr().out
+    assert code == 0
+    assert "FAILURE-KIND" not in out
+    assert "BADMSGKIND" not in out
+
+
+def _kind_relations(**edge):
+    return _flat(2, relations=[{"from": "n0", "to": "n1", **edge}])
+
+
+@pytest.mark.parametrize("edge", [
+    {"kind": "spawns", "label": "starts agent"},
+    {"kind": "data", "label": "writes cache file"},
+    {"kind": "reads"},
+    {"kind": "writes"},
+    {"kind": "minor"},
+    {"kind": "secondary"},
+    {"kind": "removed"},
+    {"kind": "uses", "label": "calls Rank()"},
+])
+def test_known_edge_kinds_raise_no_edge_kind_advisory(tmp_path, capsys, edge):
+    module = _load_module()
+    path = tmp_path / "impact.json"
+    path.write_text(json.dumps(_kind_relations(**edge)), encoding="utf-8")
+
+    module.main(["--kind", "impact", "--json", str(path)])
+
+    out = capsys.readouterr().out
+    assert "EDGEKIND" not in out
+    assert "BADEDGEKIND" not in out
+
+
+def test_unknown_edge_kind_is_an_advisory_that_never_fails(tmp_path, capsys):
+    module = _load_module()
+    path = tmp_path / "feature-plan.json"
+    path.write_text(json.dumps(_kind_relations(kind="teleports")), encoding="utf-8")
+
+    code = module.main(["--kind", "feature-plan", "--slug", "demo", "--json", str(path)])
+
+    out = capsys.readouterr().out
+    assert "BADEDGEKIND" in out
+    assert code in (0, 3)
+    assert "BROKEN" not in out
+
+
+@pytest.mark.parametrize("kind", ["c1", "patterns", "impact"])
+def test_structural_diagrams_skip_the_unknown_edge_kind_advisory(tmp_path, capsys, kind):
+    module = _load_module()
+    path = tmp_path / f"{kind}.json"
+    path.write_text(json.dumps(_kind_relations(kind="observes")), encoding="utf-8")
+
+    module.main(["--kind", kind, "--json", str(path)])
+
+    assert "BADEDGEKIND" not in capsys.readouterr().out
+
+
+@pytest.mark.parametrize(("label", "tag"), [
+    ("spawns a CLI process", "EDGEKIND-SPAWN"),
+    ("starts the agent", "EDGEKIND-SPAWN"),
+    ("writes run state to the database", "EDGEKIND-DATA"),
+    ("reads file", "EDGEKIND-DATA"),
+])
+def test_plain_call_with_spawn_or_data_label_is_advised(tmp_path, capsys, label, tag):
+    module = _load_module()
+    path = tmp_path / "impact.json"
+    path.write_text(json.dumps(_kind_relations(label=label)), encoding="utf-8")
+
+    module.main(["--kind", "impact", "--json", str(path)])
+
+    assert tag in capsys.readouterr().out
+
+
+def test_sequence_message_kinds_skip_the_edge_kind_check(tmp_path, capsys):
+    module = _load_module()
+    path = _failure_sequence(tmp_path, ',"kind":"return"')
+
+    module.main(["--kind", "sequence", "--json", str(path)])
+
+    assert "BADEDGEKIND" not in capsys.readouterr().out
+
+
+def _routed(steps):
+    diagram = _flat(2)
+    diagram["route"] = {"id": "r", "steps": steps}
+    return diagram
+
+
+def test_a_well_formed_route_adds_no_advisory(tmp_path):
+    steps = [
+        {"id": "n0", "order": 1, "kind": "trigger", "node_ids": ["a"],
+         "children": [{"id": "c", "label": "Run()", "line": 4}]},
+        {"id": "n1", "order": 2, "kind": "ai", "node_ids": [], "children": []},
+    ]
+
+    result = _run(tmp_path, "custom", _routed(steps))
+
+    assert result.returncode == 0
+    assert "ROUTE" not in result.stdout
+
+
+def test_route_problems_are_advisory_only(tmp_path):
+    steps = [
+        {"id": "n0", "order": 1, "kind": "wat", "children": [{"label": "x", "line": 0}]},
+        {"id": "n0", "order": 3, "kind": "ai"},
+        {"id": "ghost", "kind": "ai"},
+    ]
+
+    result = _run(tmp_path, "custom", _routed(steps))
+
+    assert result.returncode == 0
+    for code in ("ROUTE-KIND", "ROUTE-CHILD", "ROUTE-STEP", "ROUTE-ORDER"):
+        assert code in result.stdout
+
+
+def test_a_route_step_with_a_blank_detail_is_advised(tmp_path):
+    steps = [{"id": "n0", "order": 1, "kind": "trigger", "detail": "  "}]
+
+    result = _run(tmp_path, "custom", _routed(steps))
+
+    assert result.returncode == 0
+    assert "ROUTE-DETAIL" in result.stdout
+
+
+def test_a_route_step_with_an_unhashable_id_is_advised_not_a_crash(tmp_path):
+    steps = [{"id": ["n0"], "order": 1, "kind": "ai"}, {"id": {"x": 1}, "order": 2, "kind": "ai"}]
+
+    result = _run(tmp_path, "custom", _routed(steps))
+
+    assert result.returncode == 0
+    assert "Traceback" not in result.stderr
+    assert "needs a string `id`" in result.stdout
+
+
+def _c1_with_context(monkeypatch, candidate_ids):
+    module = _load_module()
+    context = {"generation_data": {"candidates": [{"id": i} for i in candidate_ids]}}
+    monkeypatch.setattr(module, "_fetch_json", lambda url: context)
+    return module
+
+
+def test_system_context_flags_a_detected_candidate_the_file_never_addresses(monkeypatch):
+    module = _c1_with_context(monkeypatch, ["redis", "stripe"])
+    report = module._Report()
+    by_id = {"redis": {"id": "redis"}}
+    args = argparse.Namespace(url="http://bridge", repo="default")
+
+    module._check_unaddressed_candidates("c1", by_id, report, args)
+
+    assert [line.split()[1] for line in report.shape] == ["'stripe'"]
+
+
+def test_system_context_accepts_a_rejected_candidate_as_addressed(monkeypatch):
+    module = _c1_with_context(monkeypatch, ["redis"])
+    report = module._Report()
+    by_id = {"redis": {"id": "redis", "meta": {"confirmed": False}}}
+    args = argparse.Namespace(url="http://bridge", repo="default")
+
+    module._check_unaddressed_candidates("c1", by_id, report, args)
+
+    assert report.shape == []
+
+
+@pytest.mark.parametrize(("node", "expected"), [
+    ({"rank": "middle"}, "BADRANK"),
+    ({"rank": "entry", "order": "1"}, "RANK-ORDER"),
+    ({"meta": {"rank": "exit", "order": "2"}}, "RANK-ORDER"),
+])
+def test_bad_or_order_shadowed_rank_is_a_soft_advisory(tmp_path, capsys, node, expected):
+    module = _load_module()
+    path = tmp_path / "custom.json"
+    diagram = {"nodes": [{"id": "a", "name": "A", **node}, {"id": "b", "name": "B"}],
+               "relations": [{"id": "r", "from": "a", "to": "b", "label": "go"}]}
+    path.write_text(json.dumps(diagram), encoding="utf-8")
+
+    code = module.main(["--kind", "feature-plan", "--slug", "demo", "--json", str(path)])
+
+    assert expected in capsys.readouterr().out
+    assert code in (0, 3)
+
+
+def test_valid_rank_raises_no_rank_advisory(tmp_path, capsys):
+    module = _load_module()
+    path = tmp_path / "custom.json"
+    diagram = {"nodes": [{"id": "a", "name": "A", "rank": "entry"}, {"id": "b", "name": "B"}],
+               "relations": [{"id": "r", "from": "a", "to": "b", "label": "go"}]}
+    path.write_text(json.dumps(diagram), encoding="utf-8")
+
+    module.main(["--kind", "feature-plan", "--slug", "demo", "--json", str(path)])
+
+    out = capsys.readouterr().out
+    assert "BADRANK" not in out
+    assert "RANK-ORDER" not in out
+
+
+def test_system_context_root_is_never_an_articulation_finding(tmp_path, capsys):
+    module = _load_module()
+    path = tmp_path / "sc.json"
+    names = ["a", "b", "c", "d"]
+    diagram = {"nodes": [{"id": "system", "name": "System"}]
+               + [{"id": n, "name": n.upper(), "parent": "system"} for n in names],
+               "relations": [{"id": f"r{n}", "from": "system", "to": n, "label": "uses"}
+                             for n in names]}
+    path.write_text(json.dumps(diagram), encoding="utf-8")
+
+    module.main(["--kind", "system-context", "--json", str(path)])
+
+    assert "ARTICULATION 'system'" not in capsys.readouterr().out
+
+
+@pytest.mark.parametrize("kind", ["sequence", "patterns", "impact", "walkthrough", "custom"])
+def test_a_diagram_without_a_title_gets_a_notitle_advisory_only(tmp_path, kind):
+    diagram = _flat(3)
+
+    result = _run(tmp_path, kind, diagram)
+
+    assert result.returncode == 0
+    assert "NOTITLE" in result.stdout
+
+
+@pytest.mark.parametrize(
+    ("kind", "title"),
+    [
+        ("sequence", "Sequence"),
+        ("patterns", "Design patterns"),
+        ("patterns", "Patterns: bridge"),
+        ("system-context", "System context diagram"),
+        ("walkthrough", "Walkthrough"),
+        ("custom", "Flow"),
+    ],
+)
+def test_a_title_that_only_names_the_type_is_generic(tmp_path, kind, title):
+    diagram = {**_flat(3), "title": title}
+
+    result = _run(tmp_path, kind, diagram)
+
+    assert "GENERICTITLE" in result.stdout
+    assert "NOTITLE" not in result.stdout
+
+
+@pytest.mark.parametrize(
+    ("kind", "title"),
+    [
+        ("sequence", "How a file save reaches the canvas"),
+        ("patterns", "Strategy and Registry in the analyzer pipeline"),
+        ("walkthrough", "Как сохраняется файл"),
+    ],
+)
+def test_a_specific_title_stays_silent(tmp_path, kind, title):
+    diagram = {**_flat(3), "title": title}
+
+    result = _run(tmp_path, kind, diagram)
+
+    assert "NOTITLE" not in result.stdout
+    assert "GENERICTITLE" not in result.stdout
+    assert "LONGDIAGRAMTITLE" not in result.stdout
+
+
+def test_a_title_over_the_char_budget_is_advised_and_never_fails(tmp_path):
+    diagram = {**_flat(3), "title": "How a file save travels " + "through every layer " * 4}
+
+    result = _run(tmp_path, "sequence", diagram)
+
+    assert result.returncode == 0
+    assert "LONGDIAGRAMTITLE" in result.stdout

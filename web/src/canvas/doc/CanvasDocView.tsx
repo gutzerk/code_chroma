@@ -1,6 +1,8 @@
-import { useEffect, useMemo } from "react";
+import { useEffect, useMemo, useSyncExternalStore } from "react";
+import { FocusPanel } from "./FocusPanel";
 import type { CanvasElement } from "../../state/types";
 import { useEngineClient } from "../../engine-client/EngineClientContext";
+import { useRunningAgentIds } from "../../agents/agentStore";
 import { DiagramRelationshipsSvg } from "../DiagramSurface";
 import { useMeasuredSizes } from "../useMeasuredSizes";
 import { CanvasEdges } from "./CanvasEdges";
@@ -8,26 +10,25 @@ import { openOrigin } from "../openOrigin";
 import { CanvasNodeBox } from "./CanvasNodeBox";
 import { ConcurrencyIslandArea } from "./ConcurrencyIslandArea";
 import { DiagramFrame } from "./DiagramFrame";
+import { layersWithProfile, profileFor, profileForElement, profileViewsVersion, subscribeProfileViews } from "./diagramProfiles";
 import { diagramDisplayName } from "./diagramDisplay";
-import { isDiagramLayer, labelForDiagramLayer, useCustomDiagramTypes } from "./diagramCatalog";
+import { isDiagramLayer, useCustomDiagramTypes } from "./diagramCatalog";
 import { BLOCK_RULES } from "./elementRules";
+import { layerFitNameSizes, useFontRevision } from "./measureBoxSize";
 import { elementRect } from "./elementRect";
-import { leadingOrderDigits, stringMeta } from "./elementMeta";
+import { leadingOrderDigits, orderMeta, stringMeta } from "./elementMeta";
 import { GroupFrame } from "./GroupFrame";
 import { LaneArea } from "./LaneArea";
 import { NoteElement } from "./NoteElement";
 import { QuestionElement } from "./question/QuestionElement";
-import { SequenceDiagram } from "./SequenceDiagram";
-import {
-  applyCanvasPositions,
-  useCanvasDoc,
-  useCanvasDocLoaded,
-  useLoadCanvasDoc,
-} from "./canvasDocStore";
+import { useCanvasDoc, useCanvasDocLoaded } from "./canvasDocStore";
+import { applyCanvasPositions, useLoadCanvasDoc } from "./canvasDocSync";
 import { useCollapsedLayers } from "./collapsedLayersStore";
 import { useLiveDragOffsets } from "./dragOffsetStore";
+import { LIVE_STAGES, STRUCTURAL_STAGES, VIEW_STAGES, runDisplayStages } from "./displayPipeline";
+import { useRouteExpanded } from "./routeExpandStore";
 import { useReflowEpics } from "./useReflowEpics";
-import { useReflowSequence } from "./useReflowSequence";
+import { useReflowOwnLayouts } from "./useReflowOwnLayouts";
 import { useEpicsContentSizes } from "./epicsContentSizeStore";
 import { UNDO_EVENT, type UndoEventDetail } from "../UndoManager";
 
@@ -134,23 +135,25 @@ export function CanvasDocView() {
   const customTypes = useCustomDiagramTypes(engineClient);
 
   const collapsedLayers = useCollapsedLayers();
-  // Hides a collapsed diagram's elements from rendering only -- `doc.elements` itself is untouched,
-  // so re-expanding needs no server round trip. `hierarchy`/`default` are never in `collapsedLayers`
-  // (nothing ever collapses them -- see the left panel's Diagrams tab, which only ever lists real diagram
-  // layers), so this can stay a plain layer-membership filter with no special-cased layer names.
+  const routeExpanded = useRouteExpanded();
+  const runningAgentIds = useRunningAgentIds();
+  // Display only (doc.elements is untouched): running agents' questions and collapsed layers hidden, then route steps grown; see displayPipeline.
   const renderableElements = useMemo(
-    () =>
-      Object.fromEntries(
-        Object.entries(doc.elements).filter(
-          ([, element]) => !collapsedLayers.has(element.layer),
-        ),
-      ),
-    [doc.elements, collapsedLayers],
+    () => runDisplayStages(STRUCTURAL_STAGES, doc.elements, { collapsedLayers, routeExpanded, runningAgentIds }),
+    [doc.elements, collapsedLayers, routeExpanded, runningAgentIds],
   );
 
   const visibleElements = useMemo(
     () => Object.values(renderableElements),
     [renderableElements],
+  );
+
+  const fontRevision = useFontRevision();
+  // One zoomed-out name size per diagram, so short and long names in the same diagram read at the same size.
+  const fitNameSizes = useMemo(
+    () => layerFitNameSizes(visibleElements.filter((element) => BLOCK_RULES[element.render].renderer === "node-box")),
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- fontRevision is the change signal for the measured widths
+    [visibleElements, fontRevision],
   );
 
   // Real rendered box sizes, once each box's own ResizeObserver reports one — see CanvasEdges'
@@ -167,7 +170,7 @@ export function CanvasDocView() {
   // minHeight + overflow), an over-reserving box leaves an empty dark band below. Re-fit the box to
   // its measured content height and persist the corrected size/position.
   useReflowEpics(engineClient, doc, contentSizes);
-  useReflowSequence(engineClient, doc);
+  useReflowOwnLayouts(engineClient, doc, loaded);
 
   const dragOffsets = useLiveDragOffsets();
 
@@ -176,22 +179,7 @@ export function CanvasDocView() {
   // anchored to the pre-drag spot for the whole gesture and only jumps into place on drop.
   const visibleDoc = useMemo(() => {
     const elementIds = new Set(Object.keys(renderableElements));
-    const elements = Object.fromEntries(
-      Object.entries(renderableElements).map(([id, element]) => {
-        const liveOffset = dragOffsets[id];
-        if (!liveOffset) return [id, element];
-        return [
-          id,
-          {
-            ...element,
-            position: {
-              x: element.position.x + liveOffset.x,
-              y: element.position.y + liveOffset.y,
-            },
-          },
-        ];
-      }),
-    );
+    const elements = runDisplayStages(LIVE_STAGES, renderableElements, { dragOffsets });
     // Drops an edge whose endpoint no longer exists -- either left behind by a partial batch, or
     // because one endpoint's diagram is currently collapsed (see `renderableElements` above), so a
     // collapsed diagram's edges vanish along with it for free.
@@ -225,7 +213,10 @@ export function CanvasDocView() {
   // same layer-scoping `memberIdsByLayer` gives `DiagramFrame`. A digit run with only one member is
   // dropped (keepSingletons=false): a lone numbered step has nothing to be concurrent with.
   const laneBuckets = useMemo(
-    () => bucketPerLayer(Object.values(renderableElements), (el) => stringMeta(el, "lane"), true),
+    () => bucketPerLayer(Object.values(renderableElements), (el) => {
+        const profile = profileForElement(el);
+        return profile.hideLaneBands || profile.Board ? undefined : stringMeta(el, "lane");
+      }, true),
     [renderableElements],
   );
 
@@ -250,29 +241,43 @@ export function CanvasDocView() {
     return map;
   }, [renderableElements]);
 
-  // Sequence layers render as one own-component per whole layer (SequenceDiagram), not per-element
-  // boxes: every element with `render: "sequence"` is collected up (by its owning layer) so that
-  // component can lay the participants/messages out from meta alone. Membership is whitellisted by
-  // the render kind's own-component renderer, the same signal `memberIdsByLayer` filters `group` on.
-  const sequenceMemberIdsByLayer = useMemo(() => {
-    const map = new Map<string, string[]>();
-    for (const element of Object.values(renderableElements)) {
-      if (BLOCK_RULES[element.render].renderer !== "sequence") continue;
-      const ids = map.get(element.layer);
-      if (ids) ids.push(element.id);
-      else map.set(element.layer, [element.id]);
-    }
-    return map;
-  }, [renderableElements]);
+  // A profile with a `Board` (a sequence board) draws its whole layer as one component, so its ids are bucketed per layer.
+  const boardsByLayer = useMemo(() => layersWithProfile(Object.values(renderableElements), "Board"), [renderableElements]);
+  const boardIds = useMemo(() => new Set([...boardsByLayer.values()].flatMap(({ ids }) => ids)), [boardsByLayer]);
+
+  // A profile's own overlay (a walkthrough's ROUTE panel), resolved per structural change rather than per drag tick.
+  const overlays = useMemo(
+    () =>
+      [...memberIdsByLayer].flatMap(([layer, ids]) => {
+        const { Overlay } = profileFor(layer, resolveMembers(ids, renderableElements));
+        return Overlay ? [{ layer, ids, Overlay }] : [];
+      }),
+    [memberIdsByLayer, renderableElements],
+  );
+
+  // Display-only board geometry (a sequence board's expanded steps), never persisted to the doc.
+  const profileViews = useSyncExternalStore(subscribeProfileViews, profileViewsVersion);
+  const viewElements = useMemo(
+    () =>
+      runDisplayStages(VIEW_STAGES, visibleDoc.elements, {
+        boards: {
+          doc: visibleDoc,
+          layers: [...boardsByLayer].flatMap(([layer, { profile, ids }]) => (profile.viewElements ? [{ layer, ids, view: profile.viewElements }] : [])),
+        },
+      }),
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- profileViews is the view stores' change signal
+    [visibleDoc, boardsByLayer, profileViews],
+  );
 
   const concurrencyBuckets = useMemo(
     () =>
       bucketPerLayer(
-        Object.values(renderableElements),
-        (el) => leadingOrderDigits(stringMeta(el, "order")),
+        // A board draws "2a"/"2b" as its own step columns, never as a concurrency island.
+        Object.values(renderableElements).filter((el) => !boardIds.has(el.id)),
+        (el) => leadingOrderDigits(orderMeta(el)),
         false,
       ),
-    [renderableElements],
+    [renderableElements, boardIds],
   );
 
   const bounds = useMemo(() => {
@@ -310,14 +315,17 @@ export function CanvasDocView() {
               <DiagramFrame
                 key={`diagram-${layer}`}
                 layer={layer}
-                label={labelForDiagramLayer(layer, customTypes)}
+                label={display.name}
                 typeLabel={display.typeLabel}
                 boxCount={display.boxCount}
-                members={resolveMembers(memberIds, visibleDoc.elements)}
+                members={resolveMembers(memberIds, viewElements)}
                 sizes={measuredSizes}
               />
             );
           })}
+          {overlays.map(({ layer, ids, Overlay }) => (
+            <Overlay key={`overlay-${layer}`} layer={layer} members={resolveMembers(ids, viewElements)} sizes={measuredSizes} />
+          ))}
           {laneBuckets.map(({ layer, value, ids }) => (
             <LaneArea
               key={`lane-${layer}-${value}`}
@@ -334,17 +342,23 @@ export function CanvasDocView() {
               sizes={measuredSizes}
             />
           ))}
-          {[...sequenceMemberIdsByLayer.entries()].map(([layer, memberIds]) => (
-            <SequenceDiagram
-              key={`sequence-${layer}`}
-              layer={layer}
-              elements={resolveMembers(memberIds, visibleDoc.elements)}
-            />
-          ))}
+          {[...boardsByLayer].map(([layer, { profile, ids }]) => {
+            const { Board } = profile;
+            return <Board key={`board-${layer}`} layer={layer} elements={resolveMembers(ids, viewElements)} />;
+          })}
+          <FocusPanel doc={visibleDoc} />
           {visibleElements.map((element) => {
+            // A board layer's elements render through its profile's Board above, never as boxes.
+            if (boardIds.has(element.id)) return null;
             switch (BLOCK_RULES[element.render].renderer) {
               case "hierarchy":
                 // Retired code-tree block: an old document may still carry one; it draws nothing.
+                return null;
+              case "sequence":
+                // Safety net: a sequence element always belongs to a board layer and is skipped above.
+                return null;
+              case "none":
+                // 026: a route carrier never reaches here (canvasDocStore splits it out); never draw one if it does.
                 return null;
               case "note":
                 return <NoteElement key={element.id} element={element} />;
@@ -359,12 +373,15 @@ export function CanvasDocView() {
                 }
               case "question":
                 return <QuestionElement key={element.id} element={element} />;
-              case "sequence":
-                // A `sequence` layer's members render through the per-layer SequenceDiagram above,
-                // never here as individual boxes.
-                return null;
               default:
-                return <CanvasNodeBox key={element.id} element={element} onMeasure={observe} />;
+                return (
+                  <CanvasNodeBox
+                    key={element.id}
+                    element={element}
+                    onMeasure={observe}
+                    fitNameSize={fitNameSizes.get(element.layer)}
+                  />
+                );
             }
           })}
         </>

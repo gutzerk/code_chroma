@@ -1,15 +1,19 @@
-import { useEffect, useRef } from "react";
+import { RouteFrameActions } from "./RouteFrameActions";
+import { Fragment, useEffect, useMemo, useRef } from "react";
 import type { CanvasElement } from "../../state/types";
 import { useEngineClient } from "../../engine-client/EngineClientContext";
 import type { MeasuredBoxSize } from "../useMeasuredSizes";
 import { useGroupDrag } from "../collision/useGroupDrag";
 import { elementDragPointerDown } from "../useDragOffset";
 import { unionBoundsOf } from "./boundingBox";
-import { canvasDocStore, commitCanvasPositions } from "./canvasDocStore";
+import { canvasDocStore } from "./canvasDocStore";
+import { commitCanvasPositions } from "./canvasDocSync";
 import { diagramFrameColorClass } from "./diagramFrameColor";
 import { dragOffsetStore } from "./dragOffsetStore";
 import { CopyButton } from "../strategies/nodeChrome";
 import { SoftAreaFrame } from "./SoftAreaFrame";
+import { profileFor } from "./diagramProfiles";
+import { useLayerRoute } from "./walkthroughLayout";
 
 // The larger of GroupFrame's/LaneArea's/ConcurrencyIslandArea's own padding on each side (currently
 // GroupFrame's 32/48/32) plus NESTED_GAP: this frame is meant to enclose all three, and any of them
@@ -34,6 +38,22 @@ export const PADDING = {
   top: 48 + NESTED_GAP + DIAGRAM_LABEL_CLEARANCE_PX,
   bottom: 32 + NESTED_GAP,
 };
+
+/** One control a feature adds to the frame header; all share a single drag-guarded wrapper. */
+interface HeaderAction {
+  id: string;
+  applies: (members: CanvasElement[]) => boolean;
+  render: (layer: string, members: CanvasElement[]) => React.ReactNode;
+}
+
+// Shared controls, after the type's own `HeaderAction` (diagramProfiles.ts).
+const HEADER_ACTIONS: readonly HeaderAction[] = [
+  {
+    id: "route",
+    applies: (members) => members.some((member) => member.meta?.route_id !== undefined || member.meta?.route !== undefined),
+    render: (_layer, members) => <RouteFrameActions members={members} />,
+  },
+];
 
 export interface DiagramFrameProps {
   /** The diagram's own layer key (`c1`/`patterns`/`impact`/`epics`/`custom/<id>`/a one-off
@@ -72,7 +92,18 @@ export interface DiagramFrameProps {
  */
 export function DiagramFrame({ layer, label, members, sizes, typeLabel, boxCount }: DiagramFrameProps) {
   const engineClient = useEngineClient();
-  const bounds = unionBoundsOf(members, sizes);
+  const memberBounds = unionBoundsOf(members, sizes);
+  const { route } = useLayerRoute(members);
+  const profile = profileFor(layer, members);
+  // A profile grows the frame around what else it draws (board pills and legend, a ROUTE panel); a keyed one recomputes only on key change.
+  const boundsKey = profile.boundsKey?.(members, layer);
+  const profileBounds = useMemo(
+    () => (memberBounds && profile.frameBounds ? profile.frameBounds(memberBounds, { layer, members, route }) : null),
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- boundsKey stands in for the members when the profile has one
+    [profile, layer, route, boundsKey ?? memberBounds],
+  );
+  // The union fallback stays outside the memo, so a keyed profile never returns a stale one.
+  const bounds = profileBounds ?? memberBounds;
 
   // Every id this gesture has pushed a live offset for, so an aborted drag (this component unmounts
   // mid-gesture -- e.g. another window/agent deletes the diagram while someone is dragging its frame)
@@ -122,6 +153,7 @@ export function DiagramFrame({ layer, label, members, sizes, typeLabel, boxCount
   const classes = [
     "canvas-diagram-frame",
     diagramFrameColorClass(layer),
+    profile.frameClassName ?? "",
     group.isDragging ? "canvas-diagram-frame--dragging" : "",
   ]
     .filter(Boolean)
@@ -133,8 +165,10 @@ export function DiagramFrame({ layer, label, members, sizes, typeLabel, boxCount
       padding={PADDING}
       className={classes}
       testId="canvas-diagram-frame"
+      diagramLayer={layer}
       labelClassName="canvas-diagram-frame-label"
       label={label}
+      layer={layer}
       labelAction={
         <>
           {typeLabel !== undefined && (
@@ -146,14 +180,20 @@ export function DiagramFrame({ layer, label, members, sizes, typeLabel, boxCount
               {`${typeLabel} · ${boxCount ?? members.length} ${(boxCount ?? members.length) === 1 ? "box" : "boxes"}`.toUpperCase()}
             </span>
           )}
-          {/* The frame body is a drag handle, so keep a press on the button from starting a drag. */}
-          <span className="canvas-diagram-frame-copy" onPointerDown={(e) => e.stopPropagation()}>
-            <CopyButton
-              text={label}
-              name={`${label} diagram`}
-              variant="canvas-diagram-frame"
-              testId="canvas-diagram-frame-copy"
-            />
+          {/* The frame body is a drag handle, so keep a press on any header control from starting a drag. */}
+          <span className="canvas-diagram-frame-actions" onPointerDown={(e) => e.stopPropagation()}>
+            {profile.HeaderAction && <profile.HeaderAction layer={layer} members={members} />}
+            {HEADER_ACTIONS.filter((action) => action.applies(members)).map((action) => (
+              <Fragment key={action.id}>{action.render(layer, members)}</Fragment>
+            ))}
+            <span className="canvas-diagram-frame-copy">
+              <CopyButton
+                text={label}
+                name={`${label} diagram`}
+                variant="canvas-diagram-frame"
+                testId="canvas-diagram-frame-copy"
+              />
+            </span>
           </span>
         </>
       }

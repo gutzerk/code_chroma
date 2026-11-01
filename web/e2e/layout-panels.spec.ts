@@ -34,7 +34,7 @@ test("a collapsed-bar color box hides its diagram (dashed) and restores it", asy
       ...doc,
       elements: {
         c1a: {
-          id: "c1a", render: "c1", layer: "c1", label: "System", description: "", node_id: null,
+          id: "c1a", render: "c1", layer: "system-context", label: "System", description: "", node_id: null,
           position: { x: 0, y: 0 }, size: null, group_id: null, meta: {}, created_by: "ai",
         },
       },
@@ -75,4 +75,23 @@ test("the activity panel stretches to full screen and restores its width", async
   expect((await panel.boundingBox())!.width).toBeGreaterThan(before);
   await page.getByRole("button", { name: "Restore panel width" }).click();
   await expect(panel).not.toHaveClass(/is-full/);
+});
+
+test("full-screen Workflows uses the panel height and hides the agent grid", async ({ page }) => {
+  await gotoApp(page, { files: false });
+  await page.getByRole("button", { name: "Stretch panel", exact: true }).click();
+  await page.getByRole("tab", { name: /Workflows/ }).click();
+  const agents = page.getByRole("tabpanel", { name: "Agents", includeHidden: true });
+  const workflows = page.getByRole("tabpanel", { name: "Workflows" });
+
+  await expect(agents).toBeHidden();
+  await expect(workflows).toBeVisible();
+  const panel = (await page.getByTestId("activity-panel").boundingBox())!;
+  const body = (await workflows.boundingBox())!;
+  expect(body.y - panel.y).toBeLessThan(150);
+  expect(body.height).toBeGreaterThan(panel.height * 0.7);
+
+  await page.getByRole("tab", { name: /Agents/ }).click();
+  await expect(agents).toBeVisible();
+  await expect(workflows).toBeHidden();
 });

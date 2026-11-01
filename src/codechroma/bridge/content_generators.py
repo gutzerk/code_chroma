@@ -86,16 +86,18 @@ def prompt_for(kind: str) -> Callable[[str, str | None], str] | None:
 def build_skill_agent_for(definition: DiagramTypeDefinition) -> SkillAgent:
     """One live `SkillAgent` runner, built entirely from its type's own declarative definition."""
     kind = definition.id
+    # System context keeps its pre-rename call-site id and timeout variable (settings key on them).
+    legacy = "c1" if kind == "system-context" else kind
 
     def artifact(root: Path, _repo_id: str) -> Path:
         return root / definition.artifact
 
     return build_skill_agent(
         kind,
-        name=f"{kind}_agent",
+        name=f"{legacy}_agent",
         prompt=definition.instructions,
         artifact=artifact,
         validate=_has_valid_flat_diagram,
-        timeout_env_var=f"codechroma_{kind.upper()}_TIMEOUT_SECONDS",
+        timeout_env_var=f"codechroma_{legacy.upper()}_TIMEOUT_SECONDS",
         invalid_error=f"generation produced no valid {kind}.json",
     )

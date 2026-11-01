@@ -88,9 +88,6 @@ function client(overrides: Partial<AgentClient> = {}): AgentClient {
     },
     gitPreflight: async () => ({ state: "ready" as const, root: "/repo" }),
     gitInit: async () => ({ state: "ready", created_repo: true, created_gitignore: true }),
-    getBranch: async () => ({ current: "main", branches: ["main"] }),
-    switchBranch: async (branch) => ({ current: branch, branches: ["main"] }),
-    updateBranch: async () => ({ current: "main", branches: ["main"] }),
     ...overrides,
   };
 }
@@ -190,7 +187,7 @@ describe("PrDialog", () => {
     fireEvent.click(screen.getByTestId("pr-dialog-open"));
 
     await waitFor(() => expect(create).toHaveBeenCalled());
-    expect(create).toHaveBeenCalledWith("", "agent", "pr-7", IMPACT_DIAGRAM_TASK, "task", undefined);
+    expect(create).toHaveBeenCalledWith("", "agent", "pr-7", IMPACT_DIAGRAM_TASK, "task", undefined, undefined);
   });
 
   it("starts no agent when the impact box is left alone", async () => {

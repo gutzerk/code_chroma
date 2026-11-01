@@ -73,4 +73,88 @@ public class CanvasUnitTests
         Assert.Equal("message", shape.Nodes[2].Meta!["role"]!.GetValue<string>());
         Assert.Empty(shape.Relations);
     }
+
+    [Fact]
+    public void A_top_level_rank_folds_into_node_meta_like_python()
+    {
+        var resolved = JsonNode.Parse("""
+            {"nodes":[{"id":"a","name":"A","rank":"entry"},{"id":"b","name":"B"}],"relations":[]}
+            """)!.AsObject();
+
+        var shape = Recipes.Reshape(resolved, "custom");
+
+        Assert.Equal("entry", shape.Nodes[0].Meta!["rank"]!.GetValue<string>());
+        Assert.False(shape.Nodes[1].Meta!.ContainsKey("rank"));
+    }
+
+    [Fact]
+    public void A_sequence_recipe_carries_the_readability_fields_like_python()
+    {
+        var resolved = JsonNode.Parse("""
+            {"phases":[{"id":"p1","name":"Prepare","kind":"prepare","from_order":1,"to_order":1}],"summary":"s",
+             "nodes":[{"id":"a","name":"A","lane":"client","path":"a.py"},{"id":"b","name":"B"}],
+             "relations":[{"id":"m1","from":"a","to":"b","order":"1","hero":true}]}
+            """)!.AsObject();
+
+        var shape = Recipes.Reshape(resolved, "sequence");
+
+        Assert.Equal("client", shape.Nodes[0].Meta!["lane"]!.GetValue<string>());
+        Assert.Equal("a.py", shape.Nodes[0].Meta!["path"]!.GetValue<string>());
+        Assert.Equal("p1", shape.Nodes[0].Meta!["phases"]![0]!["id"]!.GetValue<string>());
+        Assert.Equal("s", shape.Nodes[0].Meta!["summary"]!.GetValue<string>());
+        Assert.True(shape.Nodes[2].Meta!["hero"]!.GetValue<bool>());
+    }
+
+    [Fact]
+    public void A_route_rides_once_on_a_carrier_and_nodes_carry_only_their_step()
+    {
+        var resolved = JsonNode.Parse("""
+            {"nodes":[{"id":"a","name":"A"},{"id":"b","name":"B"}],
+             "route":{"id":"r","steps":[{"id":"a","kind":"trigger","node_ids":["f1"],"children":[]},
+                                         {"id":"b","kind":"ai","node_ids":["f1","f2"],"children":[]}]}}
+            """)!.AsObject();
+
+        var shape = Recipes.Reshape(resolved, "custom");
+
+        var carrier = shape.Nodes[2];
+        Assert.Equal("route", carrier.Render);
+        Assert.Equal("2 steps · 2 files · 1 AI steps", carrier.Meta!["route"]!["summary"]!.GetValue<string>());
+        Assert.False(shape.Nodes[0].Meta!.ContainsKey("route"));
+        Assert.False(shape.Nodes[1].Meta!.ContainsKey("route"));
+        Assert.Equal("r", shape.Nodes[0].Meta!["route_id"]!.GetValue<string>());
+        Assert.Equal("trigger", shape.Nodes[0].Meta!["route_step"]!["kind"]!.GetValue<string>());
+        Assert.Equal("b", shape.Nodes[1].Meta!["route_step"]!["id"]!.GetValue<string>());
+    }
+
+    [Fact]
+    public void A_lane_of_only_failure_steps_gets_lane_kind_failure_like_python()
+    {
+        var resolved = JsonNode.Parse("""
+            {"nodes":[{"id":"a","name":"A"},{"id":"b","name":"B"},{"id":"c","name":"C"}],
+             "route":{"id":"r","steps":[{"id":"a","lane":"flow","kind":"trigger","children":[]},
+                                         {"id":"b","lane":"Failures","kind":"decide","children":[]},
+                                         {"id":"c","lane":"Errors","kind":"failure","children":[]}]}}
+            """)!.AsObject();
+
+        var shape = Recipes.Reshape(resolved, "custom");
+
+        Assert.Equal("normal", shape.Nodes[0].Meta!["lane_kind"]!.GetValue<string>());
+        Assert.Equal("normal", shape.Nodes[1].Meta!["lane_kind"]!.GetValue<string>());
+        Assert.Equal("failure", shape.Nodes[2].Meta!["lane_kind"]!.GetValue<string>());
+    }
+
+    [Fact]
+    public void A_resolved_summary_is_kept_and_a_sequence_diagram_keeps_the_carrier_undecorated()
+    {
+        var resolved = JsonNode.Parse("""
+            {"nodes":[{"id":"a","name":"A"}],"relations":[],
+             "route":{"id":"r","summary":"from the resolver","steps":[{"id":"a","kind":"ai"}]}}
+            """)!.AsObject();
+
+        var shape = Recipes.Reshape(resolved, "sequence");
+
+        var carrier = shape.Nodes[^1];
+        Assert.Equal("from the resolver", carrier.Meta!["route"]!["summary"]!.GetValue<string>());
+        Assert.False(carrier.Meta!.ContainsKey("role"));
+    }
 }

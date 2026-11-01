@@ -1,6 +1,40 @@
 import { test, expect } from "@playwright/test";
 import { gotoApp } from "./helpers";
 
+test("terminal tabs remain usable below the resized diagrams panel", async ({ page }, testInfo) => {
+  await gotoApp(page, { files: false });
+  await page.getByRole("button", { name: "Open terminal panel" }).click();
+  const terminal = page.getByTestId("terminal-panel");
+  const diagrams = page.getByTestId("left-panel");
+  const expectClearance = async () => {
+    const panelBox = (await diagrams.boundingBox())!;
+    const terminalBox = (await terminal.boundingBox())!;
+    expect(panelBox.y + panelBox.height).toBeLessThan(terminalBox.y);
+  };
+  await expect(expectClearance).toPass();
+  const handle = (await page.getByTestId("terminal-panel-resize-handle").boundingBox())!;
+  await page.mouse.move(handle.x + handle.width / 2, handle.y + handle.height / 2);
+  await page.mouse.down();
+  await page.mouse.move(handle.x + handle.width / 2, handle.y - 100, { steps: 5 });
+  await page.mouse.up();
+  await expect(expectClearance).toPass();
+  await page.getByRole("button", { name: "New terminal", exact: true }).click();
+  await expect(page.getByRole("tab", { name: "Terminal 2" })).toHaveAttribute("aria-selected", "true");
+  await page.screenshot({ path: testInfo.outputPath("terminal-tabs.png") });
+  await page.getByRole("tab", { name: "Terminal 1" }).click();
+  await expect(terminal.locator(".xterm")).toHaveCount(2);
+  await page.getByRole("button", { name: "Close terminal", exact: true }).click();
+  await expect(terminal.locator(".xterm")).toHaveCount(1);
+  await page.getByRole("button", { name: "Hide terminal panel", exact: true }).click();
+  await expect(terminal).toBeHidden();
+  await page.getByRole("button", { name: "Open terminal panel" }).click();
+  await expect(page.getByRole("tab", { name: "Terminal 2" })).toHaveAttribute("aria-selected", "true");
+  await page.getByRole("button", { name: "Close terminal", exact: true }).click();
+  await expect(terminal).toBeHidden();
+  await page.getByRole("button", { name: "Open terminal panel" }).click();
+  await expect(page.getByRole("tab", { name: "Terminal 3" })).toBeVisible();
+});
+
 // The terminal is a bottom dock (it moved out of the right edge so the C1 inspector could own the
 // full window height). It opens at its default 280px height (styles.css); its top-edge handle lets
 // the user make it taller — dragging up grows the bottom-anchored panel — up to 60% of the viewport
@@ -72,7 +106,8 @@ test("growing the terminal panel keeps the canvas viewport above the dock", asyn
   if (!canvasAfter || !terminalBox) throw new Error("canvas or terminal panel disappeared");
   expect(canvasAfter.height).toBeLessThan(canvasBefore.height);
   expect(canvasAfter.y).toBeCloseTo(canvasBefore.y, 0);
-  expect(canvasAfter.y + canvasAfter.height).toBeCloseTo(terminalBox.y, 0);
+  const gap = await page.getByTestId("canvas-area").evaluate((node) => parseFloat(getComputedStyle(node).rowGap));
+  expect(canvasAfter.y + canvasAfter.height).toBeCloseTo(terminalBox.y - gap, 0);
 });
 
 // Growing the panel must reflow the xterm grid to more rows (like a real terminal window), not leave

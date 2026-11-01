@@ -4,35 +4,51 @@ from __future__ import annotations
 
 import asyncio
 from pathlib import Path
+from uuid import uuid4
 
 from fastapi import APIRouter, HTTPException, Request
 
-from codechroma.bridge.agents import bootstrap, main_branch, publish
+from codechroma.bridge.agents import bootstrap, publish
 from codechroma.bridge.agents import worktree as worktree_ops
 from codechroma.bridge.agents.manager import (
     CONTEXT_KINDS,
     AgentRecord,
     UnknownAgentError,
+    _clean_context,
     max_agents,
 )
+from codechroma.bridge.agents.session_ownership import file_for
 from codechroma.bridge.agents.sessions import agent_run_env
 from codechroma.bridge.agents.worktree import WorktreeError
 from codechroma.bridge.deps import Services
 from codechroma.bridge.routes._body import as_list, json_body
 from codechroma.bridge.services import BridgeServices
-from codechroma.config import settings
+from codechroma.bridge.workspaces import BRANCH_ID_PREFIX, MAIN_ID
+from codechroma.diagrams import kinds
 from codechroma.terminal.agents import ALLOWED_AGENTS, agent_cli, resolved_cli_for
 
 router = APIRouter()
 
 
-def _session_id_poll_attempts() -> int:
-    # The transcript appears just after `claude` spawns, so the id is polled for briefly.
-    return settings.agents_routes.session_id_poll_attempts
-
-
-def _session_id_poll_seconds() -> float:
-    return settings.agents_routes.session_id_poll_seconds
+def _diagram_hint(body: dict) -> dict:
+    """The Draw dialog's type and request off a POST /agents body, or a 400."""
+    hint: dict = {}
+    diagram_type = body.get("diagram_type")
+    if diagram_type is not None:
+        if diagram_type not in kinds.kind_ids():
+            raise HTTPException(status_code=400, detail=f"unknown diagram_type: {diagram_type}")
+        hint["diagram_type"] = diagram_type
+    request = body.get("diagram_request")
+    if request is not None:
+        if not isinstance(request, str):
+            raise HTTPException(status_code=400, detail="diagram_request must be a string")
+        if len(request.strip()) > kinds.max_request_chars():
+            raise HTTPException(
+                status_code=400,
+                detail=f"diagram_request must be at most {kinds.max_request_chars()} characters",
+            )
+        hint["diagram_request"] = _clean_context(request)
+    return hint
 
 
 @router.get("/agents/git-preflight")
@@ -48,68 +64,6 @@ async def post_git_init(request: Request, services: Services) -> dict:
     extra = [entry for entry in as_list(body.get("extra_ignores")) if isinstance(entry, str)]
     # A BootstrapError becomes a 400 via the table in bridge/errors.py.
     return await asyncio.to_thread(bootstrap.initialize, services.repo_root, extra)
-
-
-@router.get("/agents/branch")
-def get_branch(services: Services) -> dict:
-    """What the branch switcher shows: main's current branch plus the ones it can switch to."""
-    return {
-        "current": main_branch.current_branch(services.repo_root),
-        "branches": main_branch.switchable_branches(services.repo_root),
-    }
-
-
-def _live_agent_in_main_worktree(services: BridgeServices) -> AgentRecord | None:
-    """A live agent whose `claude` sits in main's own tree, which a checkout swaps underneath it."""
-    # `record.status` is stale until agent_payload refreshes it, so liveness comes off the session.
-    main_root = services.agent_manager.main_root
-    for record in services.agent_manager.list():
-        session = services.agent_sessions.get(record.id)
-        if session is None or not session.is_alive:
-            continue
-        if Path(record.worktree).resolve() == main_root:
-            return record
-    return None
-
-
-def _refuse_if_live_agent_in_main(services: BridgeServices) -> None:
-    """A checkout/pull swaps files under a live agent parked in main's own tree — refuse first."""
-    squatter = _live_agent_in_main_worktree(services)
-    if squatter is not None:
-        raise HTTPException(
-            status_code=409,
-            detail=f"stop {squatter.title} first — it works directly in the main worktree",
-        )
-
-
-@router.post("/agents/branch")
-async def post_branch(request: Request, services: Services) -> dict:
-    """Checks main's working tree out to `{branch}`; refuses over a dirty tree or unknown name."""
-    body = await json_body(request)
-    branch = body.get("branch")
-    if not isinstance(branch, str) or not branch:
-        raise HTTPException(status_code=400, detail="branch is required")
-    _refuse_if_live_agent_in_main(services)
-    try:
-        await asyncio.to_thread(main_branch.checkout, services.repo_root, branch)
-    except main_branch.DirtyWorkingTreeError as exc:
-        raise HTTPException(status_code=409, detail=str(exc)) from exc
-    except main_branch.UnknownBranchError as exc:
-        raise HTTPException(status_code=404, detail=f"unknown branch: {branch}") from exc
-    await services.connections.broadcast({"type": "branch-changed", "branch": branch})
-    branches = await asyncio.to_thread(main_branch.switchable_branches, services.repo_root)
-    return {"current": branch, "branches": branches}
-
-
-@router.post("/agents/branch/update")
-async def post_branch_update(services: Services) -> dict:
-    """Fast-forwards main's current branch from its upstream — PyCharm's Update, the safe form."""
-    _refuse_if_live_agent_in_main(services)
-    # update_branch returns the still-current branch, so no second rev-parse is needed here.
-    branch = await asyncio.to_thread(main_branch.update_branch, services.repo_root)
-    await services.connections.broadcast({"type": "branch-changed"})
-    branches = await asyncio.to_thread(main_branch.switchable_branches, services.repo_root)
-    return {"current": branch, "branches": branches}
 
 
 @router.get("/agents")
@@ -137,19 +91,39 @@ async def post_agent(request: Request, services: Services) -> dict:
     attach_to = body.get("attach_to")
     if attach_to is not None and not isinstance(attach_to, str):
         raise HTTPException(status_code=400, detail="attach_to must be a string")
+    workspace = body.get("workspace")
+    if workspace is not None and not isinstance(workspace, str):
+        raise HTTPException(status_code=400, detail="workspace must be a string")
     context = body.get("context")
     if context is not None and not isinstance(context, str):
         raise HTTPException(status_code=400, detail="context must be a string")
     context_kind = body.get("context_kind", "view")
     if context_kind not in CONTEXT_KINDS:
         raise HTTPException(status_code=400, detail="context_kind must be 'view' or 'task'")
+    diagram = _diagram_hint(body)
+    if attach_to == MAIN_ID:
+        raise HTTPException(status_code=400, detail="agents cannot attach to main")
+    if attach_to is None and not workspace:
+        raise HTTPException(status_code=400, detail="workspace is required")
+    if workspace:
+        if not workspace.startswith(BRANCH_ID_PREFIX):
+            raise HTTPException(
+                status_code=400,
+                detail=f"workspace must be a worktree tab id, not '{workspace}'",
+            )
+        if services.branch_manager.find_by_id(workspace) is None:
+            raise HTTPException(status_code=404, detail=f"unknown workspace: {workspace}")
     try:
         record = await asyncio.to_thread(
             services.agent_manager.create,
             title, kind, attach_to=attach_to, context=context, context_kind=context_kind,
+            diagram=diagram if context_kind == "task" and diagram.get("diagram_type") else None,
+            workspace=workspace,
         )
     except UnknownAgentError as exc:
-        raise HTTPException(status_code=404, detail=f"unknown attach_to: {attach_to}") from exc
+        raise HTTPException(
+            status_code=404, detail=f"unknown attach_to: {attach_to or workspace}"
+        ) from exc
     except WorktreeError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     services.registry.register(
@@ -169,13 +143,18 @@ async def post_agent_start(agent_id: str, request: Request, services: Services) 
     session_id = services.agent_manager.capture_session_id(agent_id) if resume else None
     if resume and not session_id:
         raise HTTPException(status_code=409, detail="this agent has no recorded session to resume")
+    new_session_id = (
+        None if resume or services.agent_sessions.is_running(agent_id) else str(uuid4())
+    )
     # A fresh start consumes pending context up front; "task" rides in argv, not a post-boot inject.
     pending = services.agent_manager.consume_context(agent_id) if not resume else None
     task_text = pending[0] if pending and pending[1] == "task" else None
     mcp = request.app.state.question_mcp
     mcp.remember_base_url(str(request.base_url))
     resolved = agent_cli(
-        record.kind, session_id, initial_prompt=task_text, mcp=mcp.endpoint_for(agent_id)
+        record.kind, session_id, initial_prompt=task_text, mcp=mcp.endpoint_for(agent_id),
+        new_session_id=new_session_id,
+        session_tracking_file=file_for(services.agent_manager.main_root, str(uuid4())),
     )
     if resolved is None:
         raise HTTPException(status_code=400, detail=f"unknown agent kind: {record.kind}")
@@ -190,6 +169,7 @@ async def post_agent_start(agent_id: str, request: Request, services: Services) 
     updated = services.agent_manager.mark_started(
         agent_id, session.pid, resolved_cli=resolved_cli_for(record.kind, argv)
     )
+    services.agent_manager.record_session_launch(agent_id, session)
     if pending and pending[1] != "task":
         text, _kind = pending
         session.inject_when_idle(
@@ -198,10 +178,6 @@ async def post_agent_start(agent_id: str, request: Request, services: Services) 
             f"Please acknowledge you understand this context. Do not act on it or "
             f"start any work — just confirm you've read it and say you're ready.",
         )
-    # Give up quietly after a few seconds and leave session_id null — that just disables Resume.
-    services.track_session_id_task(
-        asyncio.create_task(_capture_session_id_later(services, agent_id))
-    )
     payload = agent_payload(services, updated)
     await broadcast_agent_status(services, agent_id, payload["status"])
     return payload
@@ -324,14 +300,3 @@ async def broadcast_agent_status(services: BridgeServices, agent_id: str, status
     await services.connections.broadcast(
         {"type": "agent-status", "id": agent_id, "status": status}
     )
-
-
-async def _capture_session_id_later(services: BridgeServices, agent_id: str) -> None:
-    """Polls briefly for the transcript: it does not exist the instant the process spawns."""
-    for _attempt in range(_session_id_poll_attempts()):
-        await asyncio.sleep(_session_id_poll_seconds())
-        try:
-            if services.agent_manager.capture_session_id(agent_id):
-                return
-        except UnknownAgentError:
-            return

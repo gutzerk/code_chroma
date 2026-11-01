@@ -11,6 +11,11 @@ to revive if it comes back, it would be rebuilt from scratch.
   `src/codechroma/terminal/server.py` over a real WebSocket. This is the one place the web app talks
   to a real Python backend by default, rather than a mock. The panel is a **bottom** dock inside
   `.canvas-area` (see [`web-canvas-shell.md`](web-canvas-shell.md)), not the right-hand one it originally was.
+  Its toolbar creates independent shell tabs, closes the active tab (disconnecting its PTY), or hides
+  the panel while keeping every session and buffer alive. Switching tabs preserves their xterms;
+  closing the final tab hides the panel, and opening it again creates a fresh shell.
+  A ResizeObserver reports the dock's visible height to `RootCanvas`, which sets `--terminal-clearance`
+  for the floating diagrams panel so it stays above the terminal during resizing.
   🔴 **`useXtermSession.ts` is the only place an xterm is constructed.** `TerminalPanel.tsx` and
   `AgentTerminal.tsx` (one per agent window; it wraps the xterm in `AgentQuestionHost`, see [`ai-questions.md`](ai-questions.md)) both go through it, because they were near-duplicates
   that drifted: the agent copy had silently missed the panel's resize debounce, so a window drag
@@ -31,7 +36,7 @@ to revive if it comes back, it would be rebuilt from scratch.
     own cursor model.
   - The debounced, size-deduped `refit`, the 0x0 guard for a hidden host box, and `onBinary`.
   - Copy-on-select: `term.onSelectionChange` writes the new (non-empty) selection to
-    `navigator.clipboard`, the same way a native terminal (iTerm, GNOME Terminal) works — no
+    the native desktop clipboard when available, otherwise `navigator.clipboard` (writes are serialized, and only selections started by a pointer press are copied), the same way a native terminal (iTerm, GNOME Terminal) works — no
     Cmd/Ctrl+C needed. Applies to both the panel and every agent window since they share this hook.
     A missing/denied Clipboard API fails silently (`.catch(() => {})`) rather than throwing.
     Debounced (`SELECTION_COPY_DEBOUNCE_MS`, 150ms) same as `scheduleRefit` above — a drag-select
@@ -72,12 +77,11 @@ to revive if it comes back, it would be rebuilt from scratch.
 - **`src/breadcrumb/`** — the `Breadcrumb.tsx` component was deleted (it was unmounted dead code);
   history: it was derived from `ExpansionStore` and rendered the deepest expanded node path, and was
   no longer mounted anywhere: `RootCanvas.tsx`'s `.canvas-chrome` used to show it
-  next to `BranchSwitcher`, but on a PR workspace that put an unrelated node-path string (e.g.
+  next to the old branch chip, but on a PR workspace that put an unrelated node-path string (e.g.
   "pr-69 / specs / …") right beside the branch chip, reading as broken/unrelated UI. `RootCanvas`
   now renders a plain `PR #<number> · <head_ref>` label there instead (only when the active
   workspace is a PR — computed via `usePrWorkspaces()` matched against `useActiveWorkspace()`), and
-  nothing at all otherwise, since `BranchSwitcher` already covers "which branch" for the main
-  workspace. The component/unit tests are kept, unused, rather than deleted, in case a future need
+  nothing at all otherwise, since `WorktreeStrip` already shows which worktree is open. The component/unit tests are kept, unused, rather than deleted, in case a future need
   for a path breadcrumb elsewhere in the chrome comes back. ⚠ `multi-expand-collapse.spec.ts`'s two
   `breadcrumb-current` assertions were dropped with the mount — an e2e locator against an unmounted
   component can only fail, unlike a unit test that renders the component itself.

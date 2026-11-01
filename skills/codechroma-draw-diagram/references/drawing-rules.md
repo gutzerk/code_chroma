@@ -27,7 +27,7 @@ curl -s "${CODECHROMA_BRIDGE_URL:-http://localhost:8000}/repos/${CODECHROMA_WORK
 
 - **`has_wiki_general: true`** — read `root` (the system-level narrative) and every entry in
   `containers[].content` (one per C2 container) as your primary narrative source, in place of
-  re-deriving the same picture from raw structure/code. `c1` reads only `root` — see `type-c1.md`;
+  re-deriving the same picture from raw structure/code. `system-context` reads only `root` — see `type-system-context.md`;
   it never reads `containers[]`.
 - Need one **component's** (C3) detail rather than a whole container's? The container's page links
   to its components by id — read `{repo_root}/.codechroma/wiki-general/c3/<id>.md` directly (you
@@ -145,12 +145,12 @@ destroys the previous one with no undo (`.codechroma/` is gitignored). Instead:
   final report ("replaced the existing `<kind>` diagram with a new one").
 Only skip the check when the endpoint's response (or your own `ls`) shows no file yet.
 
-**Report your own progress (`c1` only — no other kind has a `.../status` route).** A headless
+**Report your own progress (`system-context` only — no other kind has a `.../status` route).** A headless
 `/generate` run flips its own "generating" status automatically; your interactive run does the same
 three POSTs by hand:
 
 ```bash
-curl -s -X POST "${CODECHROMA_BRIDGE_URL:-http://localhost:8000}/repos/${CODECHROMA_WORKSPACE_ID:-default}/c1/status" \
+curl -s -X POST "${CODECHROMA_BRIDGE_URL:-http://localhost:8000}/repos/${CODECHROMA_WORKSPACE_ID:-default}/system-context/status" \
   -H 'Content-Type: application/json' -d '{"state":"generating"}'
 ```
 
@@ -192,12 +192,13 @@ actors around one system box); the other types should stay well under these numb
 
 | kind | max_nodes | max_relations | max_name_chars | max_edge_label_chars |
 |---|---|---|---|---|
-| c1 | 60 | 60 | 40 | 50 |
+| system-context | 60 | 60 | 40 | 50 |
 | patterns | 45 | 70 | 40 | 50 |
 | impact | 25 | 40 | 40 | 40 |
 | epics | 60 | 60 | 60 | 50 |
 | custom | 60 | 100 | 40 | 50 |
 | sequence | 24 | 60 | 40 | 60 |
+| walkthrough | 24 | 40 | 40 | 50 |
 
 `sequence`'s "nodes" are its participants (kept tight at 24 — a readable diagram has a handful of
 boxes across the top), and its "relations" are its messages (the real story, capped higher at 60).
@@ -305,12 +306,31 @@ only use a slug from this list.
   the two boxes, so keep it terse.
 - Never restate the target's name. Put labels on the arrows that carry the story, not on every edge.
 
+## Edge kinds
+
+Set `relations[].kind` so the arrow's style tells the reader what the link *is*. Default `"calls"` (a
+direct call / HTTP / RPC) and leave it off when that is all it is. Whenever one of these is true,
+**say so — do not leave it as a plain call**:
+
+| `kind` | Use when | Draws as |
+|---|---|---|
+| `calls` (default) | direct call, HTTP, RPC, import | solid arrow |
+| `spawns` | starts a process, CLI, subprocess or agent | dotted arrow |
+| `data` (or `reads` / `writes`) | reads or writes a file, database, queue or store | orange dashed arrow |
+| `minor` | secondary or optional link | grey arrow |
+
+Example: `{ "from": "bridge", "to": "claude-cli", "kind": "spawns", "label": "starts agent" }` and
+`{ "from": "bridge", "to": "sqlite", "kind": "writes", "label": "run state" }`. An optional
+`transport` (`https`, `mcp`, `file`) adds a second label line. `sequence` keeps its own message kinds
+(`call`, `return`, ...) and a `custom` type keeps its definition's `relation_kinds`; the self-check
+advises (never fails) on an unknown kind or a spawn/data-sounding label left as `calls`.
+
 ## The self-check
 
 One command shape, run from the repo the bridge serves:
 
 ```bash
-python3 .claude/skills/codechroma-draw-diagram/scripts/check_diagram.py --kind <c1|patterns|impact|sequence|custom|epics> [--type <type-id>] [--source=diff|plan] [--feature=<dir>] [--json <file>]
+python3 .claude/skills/codechroma-draw-diagram/scripts/check_diagram.py --kind <system-context|patterns|impact|sequence|walkthrough|custom|epics> [--type <type-id>] [--source=diff|plan] [--feature=<dir>] [--json <file>]
 ```
 
 `epics` reads the bridge's resolved `epics.json` when given no `--json`; a per-epic diagram
@@ -347,12 +367,14 @@ Same six per type; each `type-*.md` adds only what differs.
 | Code | Fix |
 |---|---|
 | `BROKEN <id>` | copy `path`/`node_id` verbatim, or fix/delete the entry |
+| `BADEDGEKIND` / `EDGEKIND-SPAWN` / `EDGEKIND-DATA` | advisory: use an edge kind from "Edge kinds"; a label that starts a process or reads/writes a store should say `spawns` / `data` |
 | `DUPLICATE <id>` | rename — relations address by bare id |
 | `DANGLING <pair>` | fix the id, or drop the relation |
 | `SELF <pair>` | drop it (`custom`'s `dependency-graph` style excepted — recursion is real) |
 | `ORPHAN <id>` | wire it in, or drop it |
 | `SHAREDNODE <node_id>` | advisory (flat kinds; not `impact`) — give each box its own class/function id, or `null` + `no_code_reason: conceptual` |
 | `ISLAND <ids…>` | wire in the missing relation, or merge/drop the cluster |
+| `NOTITLE` / `GENERICTITLE` / `LONGDIAGRAMTITLE` | advisory: write a top-level `title` that says what this diagram shows, not its type, ≤ 60 chars — see "Naming the diagram (`title`)" |
 | `DROPPED relation <from -> to> <reason>` | the bridge discarded that arrow/message while resolving (dangling endpoint, self-relation the style does not allow, invalid shape), so it is **not on the canvas**: fix the file; this fails the run |
 
 ### Final report: say what you did not do
@@ -371,13 +393,14 @@ that applies, in one line apiece, instead of leaving them implied:
 
 ## The one shared diagram shape
 
-Every type (`c1`, `patterns`, `impact`, `custom/<id>`) authors this exact shape — `type`/`meta` carry
+Every type (`system-context`, `patterns`, `impact`, `custom/<id>`) authors this exact shape — `type`/`meta` carry
 the only per-type variation, nothing else in the shape differs (see
 `specs/036-shared-diagram-style-catalog/contracts/diagram-schema.md`):
 
 ```json
 {
-  "type": "c1",
+  "type": "system-context",
+  "title": "Who the billing service talks to",
   "style": "boxes-arrows",
   "nodes": [
     {
@@ -392,6 +415,8 @@ the only per-type variation, nothing else in the shape differs (see
 }
 ```
 
+- `title` — the diagram's own name, shown on its canvas frame and its ON CANVAS row; see "Naming
+  the diagram (`title`)" below.
 - `id` unique across the file; `path`/`node_id` copied verbatim or left null for a purely conceptual
   box; every box gets a real `description`.
 - `parent` — another node's own `id`, for instance→participant grouping (patterns). `c1` never
@@ -411,14 +436,45 @@ the only per-type variation, nothing else in the shape differs (see
   "after" to record. Never computed from a call graph or execution trace — the authoring skill
   decides it. Boxes sharing a leading `order` digit (`"2a"`/`"2b"`) render as one highlighted
   "Concurrency island" automatically — that grouping is derived, not a field you set yourself.
+- Top-level `question` + `summary` strings and `hero: true` on 1-2 relations apply to **every** type that
+  draws relations (c1, patterns, impact, sequence), not just sequence; `check_diagram.py` advises
+  `NOSUMMARY`/`NOHERO` when they are missing.
 - `meta.lane` — an authored, optional performer name (CONTEXT.md's "Lane") recording *who* carries
   out a box's step — a team, service, or role, e.g. `"Billing service"`/`"On-call engineer"`. Every
   box sharing the same `meta.lane` string renders inside one shared soft-tinted area and sorts
   adjacent to each other within their `order` rank. Independent of `order` — set one, both, or
   neither. Same rule as `order`: only meaningful for a process/flow diagram; leave it unset on
   structural diagrams where there's no "who" to record.
+- `rank` — an optional layout hint on a node: `"entry"` pins it to the first layer, `"exit"` to the
+  last. Any other value is ignored (the self-check advises `BADRANK`). `order` wins: set `rank` only
+  on a box with no `order` (`RANK-ORDER`). A relation `kind` of `"feedback"` or `"return"` lays out
+  as a back edge, so a loop does not push the flow backwards.
 - Never relate an id to itself, and never relate two ids that aren't both in `nodes[]` — the resolver
   drops what it can't place, it never invents one.
+
+## Naming the diagram (`title`)
+
+Every diagram you write carries a top-level `title` string. The canvas shows it as the frame name
+and the ON CANVAS row, with the type as a small label beside it (`SEQUENCE · How a file save
+reaches the canvas`), so the type is already visible: the title says what *this* diagram shows.
+
+- Derive it from the user's request, in the language of that request: the flow, the change or the
+  question, e.g. "How a file save reaches the canvas", "Strategy and Registry in the analyzer
+  pipeline", "What the token refresh fix touches".
+- ≤ 60 characters, no trailing period.
+- 🔴 Never just the type name: "Sequence", "Design patterns", "System context", "Walkthrough",
+  "Change impact", "Feature plan", "Patterns: bridge", "Diagram". The self-check advises
+  `GENERICTITLE` for those, `NOTITLE` when `title` is missing, `LONGDIAGRAMTITLE` over 60 chars.
+- Make it distinct from the diagrams already on the canvas. List their titles first:
+
+  ```bash
+  curl -s "${CODECHROMA_BRIDGE_URL:-http://localhost:8000}/repos/${CODECHROMA_WORKSPACE_ID:-default}/diagrams/status"
+  # -> {"sequence": {"ready": true, "fingerprint": "…", "title": "How a file save reaches the canvas"}, …}
+  ```
+
+  Every entry's `title` (null when untitled) is a name already taken; the entry for the file you
+  are about to replace does not count, since its diagram goes away.
+- On an update of an existing diagram, keep its title unless the request changed what it shows.
 
 ## The style catalog
 

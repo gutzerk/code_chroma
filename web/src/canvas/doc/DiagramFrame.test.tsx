@@ -1,6 +1,8 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { fireEvent, render, screen } from "@testing-library/react";
-import { DiagramFrame } from "./DiagramFrame";
+import { DiagramFrame, PADDING } from "./DiagramFrame";
+import { buildSequenceBoard } from "./sequenceBoard";
+import { laidOut, messageEl, participantEl } from "./sequenceTestElements";
 import { EngineClientProvider } from "../../engine-client/EngineClientContext";
 import { groupColorIndex } from "./groupColor";
 import { canvasDocStore } from "./canvasDocStore";
@@ -63,6 +65,26 @@ describe("DiagramFrame", () => {
 
     expect(writeText).toHaveBeenCalledWith("System Context");
     expect(dragOffsetStore.getAll()).toEqual({});
+  });
+
+  it("shows only the header actions that apply to the diagram's members", () => {
+    const routed = element({ id: "s1", meta: { route: { id: "r", title: "R", summary: "", steps: [] } } });
+    renderFrame("custom/flow", "Flow", [routed]);
+
+    expect(screen.getByTestId("show-route")).toBeTruthy();
+    expect(screen.queryByTestId("sequence-mode-switch")).toBeNull();
+  });
+
+  it("frames a sequence layer around its whole board and adds the step player", () => {
+    const members = laidOut([participantEl("a"), participantEl("b"), messageEl("m1", "a", "b", "1")], { x: 300, y: 200 });
+    const board = buildSequenceBoard(members);
+
+    renderFrame("checkout-flow", "Checkout", members);
+
+    const frame = screen.getByTestId("canvas-diagram-frame");
+    expect(frame.className).toContain("canvas-diagram-frame-sequence-board");
+    expect(frame.style.width).toBe(`${board.width + PADDING.side * 2}px`);
+    expect(screen.getByTestId("sequence-mode-switch")).toBeTruthy();
   });
 
   it("renders nothing for a diagram with no visible members", () => {

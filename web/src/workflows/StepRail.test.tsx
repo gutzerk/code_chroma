@@ -59,6 +59,19 @@ const threeSteps = () => [step("s1", "done"), step("s2", "running"), step("s3", 
 describe("StepRail", () => {
   afterEach(cleanup);
 
+  it("shows the previous agent's result on a review step that waits for you", () => {
+    const run = makeRun([
+      step("s1", "done", { output: "⏺ Read(a)\nplanned it", result: "Plan: do A then B" }),
+      step("s2", "done", { output: "⏺ Edit(b)\n✓ done", result: "Built B" }),
+      step("s3", "needs_you"),
+    ]);
+
+    renderRail(run);
+
+    expect(screen.getByTestId("handover-review")).toHaveTextContent("Result from implement");
+    expect(screen.getByTestId("handover-review")).toHaveTextContent("Built B");
+  });
+
   it("renders one row per step with its slug, status text and current marker", () => {
     renderRail(makeRun(threeSteps()));
 
@@ -139,6 +152,12 @@ describe("StepRail", () => {
     expect(actions.review).toHaveBeenCalledWith("r1", "sendBack", undefined);
   });
 
+  it("shows what a blocked agent reported on its parked step", () => {
+    renderRail(makeRun([step("s3", "needs_you", { report: { status: "blocked", note: "need the API key" } })]));
+
+    expect(screen.getByText("Agent is blocked: need the API key")).toBeTruthy();
+  });
+
   it("approves a review step", () => {
     const actions = renderRail(makeRun([step("s3", "needs_you")]), { expandedStepId: "s3" });
 
@@ -155,6 +174,22 @@ describe("StepRail", () => {
     expect(screen.getByTestId("will-redraw-implement")).toBeInTheDocument();
     expect(screen.getByTestId("will-rerun-review")).toBeInTheDocument();
     expect(screen.queryByTestId("will-redraw-review")).toBeNull();
+  });
+
+  it("shows the step prompt with the run's own answer filled in", () => {
+    const wf: WorkflowDef = { id: "w", name: "Ship", steps: [{ id: "s1", slug: "plan", kind: "agent", prompt: "add 1 + {{i}}", input: { name: "i", label: "Number" } }] };
+    const run = makeRun([step("s1", "needs_you")], { inputs: { i: "2" } });
+
+    renderRail(run, { workflow: wf, expandedStepId: "s1" });
+
+    expect(screen.getByText("add 1 + 2")).toBeInTheDocument();
+  });
+
+  it("shows no kept tag when the bridge sends a null fromAttempt", () => {
+    const steps = [step("s1", "done", { fromAttempt: null })];
+    renderRail(makeRun(steps));
+
+    expect(screen.queryByTestId("kept-plan")).toBeNull();
   });
 
   it("tags a step kept from an earlier attempt and shows its diff stat", () => {

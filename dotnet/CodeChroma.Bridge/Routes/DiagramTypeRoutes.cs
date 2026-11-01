@@ -14,6 +14,7 @@ public static class DiagramTypeRoutes
     public static void Map(WebApplication app)
     {
         app.MapGet("/diagram-styles", () => Reply.Json(new JsonObject { ["styles"] = LlmCatalog.Data["diagram_styles"]!.DeepClone() }));
+        app.MapGet("/diagram-kinds", () => Reply.Json(new JsonObject { ["kinds"] = DiagramKinds.List.DeepClone() }));
         app.MapGet("/diagram-types", (DiagramLibrary library) => Reply.Json(new JsonObject { ["types"] = library.ListTypes() }));
 
         app.MapGet("/diagram-types/{typeId}", (string typeId, DiagramLibrary library) =>
@@ -85,7 +86,7 @@ public static class DiagramTypeRoutes
     {
         var definition = library.LoadType(typeId)!;
         var data = DiagramArtifacts.Load(ws, $"custom/{typeId}");
-        var resolved = DiagramResolver.Resolve(ws.Engine, data, definition["style"]);
+        var resolved = DiagramResolver.Resolve(ws.Engine, data, definition["style"], "custom");
         resolved["has_diagram"] = data.Count > 0;
         if (!GroupingEnabled(definition)) resolved["groups"] = new JsonArray();
         DiagramResolver.AttachCoverage(resolved, ws.Engine);

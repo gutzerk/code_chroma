@@ -1,3 +1,4 @@
+import { useIsRemovedLink } from "../doc/impactEdgeStatus";
 import type { CSSProperties } from "react";
 import { hoveredEdgeStore, useIsActiveEdge, useIsEdgeHovering } from "../../state/hoveredEdgeStore";
 import { EdgeLabel } from "./EdgeLabel";
@@ -23,6 +24,8 @@ export interface RelationshipEdgeProps {
    * Space-separated suffixes each produce their own class, so a caller can stack an overlay variant
    * and a per-kind colour ("--pattern --kind-uses") without them fusing into one bogus class. */
   variantSuffix?: string;
+  /** Passed to EdgeLabel: `board` renders the design-board pill. */
+  labelVariant?: "board";
   /** Set by the change review: an arrow the diff added (dashed) or removed (grey ghost). */
   changeStatus?: ImpactChangeStatus;
   /** Set by an Impact diagram's own authored `relations[].hero` (pr-lens-style emphasis): the 1-2
@@ -38,6 +41,8 @@ export interface RelationshipEdgeProps {
   /** Opens the code at `origin` (called from a label click); a no-op when `origin` is unset. */
   onOpenOrigin?: (origin: string) => void;
   testId: string;
+  /** The diagram layer the edge belongs to, so a per-diagram export can keep or drop it. */
+  layer?: string;
 }
 
 /**
@@ -64,13 +69,16 @@ export function RelationshipEdge({
   fromNodeId,
   toNodeId,
   variantSuffix = "",
+  labelVariant,
   changeStatus,
   isHero = false,
   style,
   origin,
   onOpenOrigin,
   testId,
+  layer,
 }: RelationshipEdgeProps) {
+  const isRemoved = useIsRemovedLink(fromNodeId, toNodeId);
   const isActive = useIsActiveEdge(edgeKey, fromNodeId, toNodeId);
   const isHovering = useIsEdgeHovering();
   const stateClass = isActive
@@ -80,6 +88,7 @@ export function RelationshipEdge({
       : "";
   const suffixes = variantSuffix.split(/\s+/).filter(Boolean);
   if (isHero) suffixes.push("--hero");
+  if (isRemoved) suffixes.push("--removed-link");
   const variant = (base: string) =>
     [base, ...suffixes.map((suffix) => `${base}${suffix}`)].join(" ");
   // An authored `color` is surfaced as the inheritable custom property `--edge-color` the base
@@ -96,8 +105,10 @@ export function RelationshipEdge({
     <g
       className={`${changeStatus ? `c1-relationship--${changeStatus}` : ""}${stateClass}`.trim() || undefined}
       data-testid={testId}
+      data-layer={layer}
       data-change-status={changeStatus}
       data-hero={isHero || undefined}
+      data-removed-link={isRemoved || undefined}
       data-edge-key={edgeKey}
       data-edge-active={isActive || undefined}
       style={edgeStyle}
@@ -119,10 +130,11 @@ export function RelationshipEdge({
         className={variant("c1-relationship-label")}
         x={labelX}
         y={labelY}
-        text={label}
+        text={isHero && label ? `★ ${label}` : label}
         transport={transport}
         origin={origin}
         onOpenOrigin={onOpenOrigin}
+        variant={labelVariant}
       />
     </g>
   );

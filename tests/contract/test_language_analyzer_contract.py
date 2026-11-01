@@ -3,7 +3,7 @@
 import pytest
 
 from codechroma.analyzers.registry import AnalyzerRegistry, LanguageAnalyzer
-from codechroma.graph.models import ClassShape, Symbol
+from codechroma.graph.models import ClassShape, Symbol, SymbolKind
 
 REGISTRY = AnalyzerRegistry.with_defaults()
 ANALYZERS = sorted(
@@ -45,6 +45,7 @@ def test_parse_returns_symbols_led_by_a_module(analyzer):
     symbols = analyzer.parse(file_path, SNIPPETS[analyzer.language])
 
     assert symbols and all(isinstance(s, Symbol) for s in symbols)
+    assert symbols[0].kind == SymbolKind.MODULE
 
 
 @pytest.mark.parametrize("analyzer", ANALYZERS, ids=lambda a: a.language)

@@ -28,13 +28,17 @@ from __future__ import annotations
 from dataclasses import dataclass, field, replace
 
 from codechroma.bridge.diagram_diagnostics import Diagnostics, relation_pair
+from codechroma.bridge.diagram_resolver import route_summary
 from codechroma.canvas.document import CanvasDoc
 
 RECIPE_KEY = "recipe_key"
+# The element meta key every node of a titled diagram carries, so the canvas can name the layer.
+DIAGRAM_TITLE_KEY = "diagram_title"
 
 # A diagram kind's own name -> the `render` string its canvas elements carry (a naming convention).
 _RENDER_BY_KIND = {
-    "c1": "c1", "patterns": "pattern", "impact": "impact", "epics": "epic", "sequence": "sequence",
+    "system-context": "c1", "patterns": "pattern", "impact": "impact", "epics": "epic",
+    "sequence": "sequence", "walkthrough": "custom",
 }
 
 # A lazily synthesized "<prefix>/<id>" kind -- extend this, not recipe_for, for a third one.
@@ -49,6 +53,7 @@ __all__ = [
     "RecipeResult",
     "RECIPES",
     "build_batch_ops",
+    "diagram_title",
     "graph_to_ops",
     "recipe_for",
     "render_for",
@@ -155,9 +160,9 @@ def _node_of(item: dict, render: str) -> GraphNode:
     """Copies each shared Node field; `kind`/`icon`/`parent`/`seed` fold into `meta` for accents."""
     own_meta = item.get("meta")
     meta = dict(own_meta) if isinstance(own_meta, dict) else {}
-    for key in ("kind", "icon", "parent", "seed"):
+    for key in ("kind", "icon", "parent", "seed", "order", "lane", "rank", "path"):
         value = item.get(key)
-        if value is not None:
+        if value is not None and (key in ("kind", "icon", "parent", "seed") or key not in meta):
             meta[key] = value
     node_id = item.get("node_id")
     group = item.get("group")
@@ -178,7 +183,102 @@ def _node_of(item: dict, render: str) -> GraphNode:
     )
 
 
+ROUTE_RENDER = "route"
+ROUTE_KEY_PREFIX = "__route__::"
+
+
+def _route_id(route: dict) -> str:
+    route_id = route.get("id")
+    return route_id if isinstance(route_id, str) and route_id else "route"
+
+
+def _route_parts(resolved: dict) -> tuple[dict, list[dict]] | None:
+    """The authored route (summary filled) and its well-formed steps, or None without a route."""
+    route = resolved.get("route")
+    steps = route.get("steps") if isinstance(route, dict) else None
+    if not isinstance(steps, list):
+        return None
+    clean = [step for step in steps if isinstance(step, dict) and isinstance(step.get("id"), str)]
+    summary = route.get("summary") or route_summary(clean)  # a raw (unresolved) artifact has none
+    return {**route, "steps": clean, "summary": summary}, clean
+
+
+def _failure_lanes(steps: list[dict]) -> set[str]:
+    """Lanes whose every route step is a failure: the layout puts them last (026)."""
+    kinds: dict[str, set[bool]] = {}
+    for step in steps:
+        if isinstance(step.get("lane"), str):
+            kinds.setdefault(step["lane"], set()).add(step.get("kind") == "failure")
+    return {lane for lane, found in kinds.items() if found == {True}}
+
+
+def _lane_kind_stamp(node: GraphNode, by_id: dict[str, dict], failure_lanes: set[str]) -> dict:
+    """`lane_kind` for a node in a known lane ("failure" or "normal"); an authored one wins."""
+    own = node.meta.get("lane")
+    lane = own if isinstance(own, str) else by_id.get(node.key, {}).get("lane")
+    if "lane_kind" in node.meta or not isinstance(lane, str):
+        return {}
+    return {"lane_kind": "failure" if lane in failure_lanes else "normal"}
+
+
+def _with_route(
+    nodes: tuple[GraphNode, ...], parts: tuple[dict, list[dict]] | None
+) -> tuple[GraphNode, ...]:
+    """Stamps `route_id`, `route_step` and `lane_kind` on nodes; the route rides once."""
+    if parts is None:
+        return nodes
+    route, steps = parts
+    route_id = _route_id(route)
+    by_id = {step["id"]: step for step in steps}
+    failure_lanes = _failure_lanes(steps)
+    return tuple(
+        replace(node, meta={
+            **node.meta, "route_id": route_id,
+            **_lane_kind_stamp(node, by_id, failure_lanes),
+            **({"route_step": by_id[node.key]} if node.key in by_id else {}),
+        })
+        for node in nodes
+    )
+
+
+def _route_carrier(parts: tuple[dict, list[dict]] | None) -> GraphNode | None:
+    """The one undrawn element that holds the diagram's whole route (026)."""
+    if parts is None:
+        return None
+    route = parts[0]
+    route_id = _route_id(route)
+    return GraphNode(
+        key=f"{ROUTE_KEY_PREFIX}{route_id}", render=ROUTE_RENDER,
+        label=str(route.get("title") or route_id), description="",
+        meta={"route": route, "route_id": route_id},
+    )
+
+
+def diagram_title(data: object) -> str | None:
+    """The diagram's authored top-level `title`, stripped, or None when absent or blank."""
+    title = data.get("title") if isinstance(data, dict) else None
+    return (title.strip() or None) if isinstance(title, str) else None
+
+
+def _with_title(nodes: tuple[GraphNode, ...], title: str | None) -> tuple[GraphNode, ...]:
+    """Stamps the diagram's title on every node's meta; untitled diagrams stay untouched."""
+    if title is None:
+        return nodes
+    return tuple(replace(node, meta={**node.meta, DIAGRAM_TITLE_KEY: title}) for node in nodes)
+
+
 def reshape(resolved: dict, render: str) -> GraphShape:
+    """The shared shape plus the route carrier, every node stamped with the diagram's title."""
+    parts = _route_parts(resolved)
+    shape = _reshape_nodes(resolved, render, parts)
+    carrier = _route_carrier(parts)
+    nodes = shape.nodes if carrier is None else (*shape.nodes, carrier)
+    return replace(shape, nodes=_with_title(nodes, diagram_title(resolved)))
+
+
+def _reshape_nodes(
+    resolved: dict, render: str, parts: tuple[dict, list[dict]] | None
+) -> GraphShape:
     """One shared shape: nodes come from "nodes", or "items" for the epics index."""
     raw_nodes = resolved.get("nodes")
     if not isinstance(raw_nodes, list):
@@ -188,6 +288,7 @@ def reshape(resolved: dict, render: str) -> GraphShape:
         for item in raw_nodes
         if isinstance(item, dict) and isinstance(item.get("id"), str)
     )
+    nodes = _with_route(nodes, parts)
     relations = tuple(resolved.get("relations") or [])
     if render == "sequence":
         # A sequence diagram's messages are dedicated elements (not edges): relations[] become
@@ -201,16 +302,20 @@ def reshape(resolved: dict, render: str) -> GraphShape:
             if isinstance(item, dict) and isinstance(item.get("id"), str)
             and item.get("from") in participant_refs and item.get("to") in participant_refs
         ]
+        readability = {
+            key: resolved[key] for key in ("phases", "frames", "notes", "question", "summary")
+            if resolved.get(key)
+        }
         nodes = tuple(
-            _participant_node(item) for item in nodes
+            _participant_node(item, readability) for item in nodes
         ) + tuple(_message_node(item) for item in message_nodes)
         relations = ()
     return GraphShape(nodes=nodes, relations=relations)
 
 
-def _participant_node(node: GraphNode) -> GraphNode:
-    """Stamps a sequence participant's `meta.role` (distinct from the `message` role)."""
-    return replace(node, meta={**node.meta, "role": "participant"})
+def _participant_node(node: GraphNode, readability: dict | None = None) -> GraphNode:
+    """Stamps a participant's `meta.role` plus the diagram's phases/frames/notes (022)."""
+    return replace(node, meta={**node.meta, **(readability or {}), "role": "participant"})
 
 
 def _message_node(item: dict) -> GraphNode:
@@ -231,9 +336,14 @@ def _message_node(item: dict) -> GraphNode:
         "order": item.get("order"),
         "async": bool(item.get("async")),
         "return": bool(item.get("return")),
+        "hero": bool(item.get("hero")),
     })
-    # A private "kind" is irrelevant on a message; drop `_node_of`'s kind/icon/parent folding by
-    # building the GraphNode directly from the relation's own fields.
+    if isinstance(item.get("kind"), str) and item["kind"]:
+        meta["kind"] = item["kind"]
+    if item.get("failure") is not None:
+        meta["failure"] = bool(item["failure"])
+    # Build the GraphNode directly from the relation's own fields, skipping `_node_of`'s kind/icon/
+    # parent folding; the message `kind` rides in `meta` above for the sequence error styling.
     return GraphNode(
         key=item["id"],
         render="sequence",

@@ -24,6 +24,8 @@ export interface QuestionView {
   state: QuestionState;
   answer: string | null;
   sessionId: string | null;
+  /** The agent that asked, or null when the element carries no `agent_id`. */
+  agentId: string | null;
   step: number | null;
   total: number | null;
   options: QuestionOption[];
@@ -82,6 +84,11 @@ function toState(value: unknown): QuestionState {
   return value === "answered" || value === "skipped" ? value : "open";
 }
 
+/** The agent that asked a `question` element, or null for any other element or a question with no agent. */
+export function questionAgentId(element: CanvasElement): string | null {
+  return element.render === "question" ? str(element.meta.agent_id).trim() || null : null;
+}
+
 /** Maps a `question` canvas element to the view model; tolerant of a partial meta. */
 export function toQuestionView(element: CanvasElement): QuestionView {
   const meta = element.meta;
@@ -95,6 +102,7 @@ export function toQuestionView(element: CanvasElement): QuestionView {
     state: toState(meta.state),
     answer: typeof meta.answer === "string" ? meta.answer : null,
     sessionId: str(meta.session_id) || null,
+    agentId: questionAgentId(element),
     step: num(meta.step),
     total: num(meta.total),
     options,

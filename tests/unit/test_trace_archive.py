@@ -3,6 +3,8 @@
 import json
 import os
 
+import pytest
+
 from codechroma.bridge.trace_archive import TraceArchive
 
 
@@ -18,26 +20,19 @@ def test_load_returns_the_parsed_trace(tmp_path):
     assert loaded == {"id": "t1", "steps": []}
 
 
-def test_load_returns_empty_dict_for_a_missing_trace(tmp_path):
-    loaded = TraceArchive(tmp_path).load("nope")
-
-    assert loaded == {}
-
-
-def test_load_returns_empty_dict_for_malformed_json(tmp_path):
-    (tmp_path / "bad.json").write_text("{not json", encoding="utf-8")
-
-    loaded = TraceArchive(tmp_path).load("bad")
-
-    assert loaded == {}
-
-
-def test_load_strips_path_traversal_from_the_id(tmp_path):
+@pytest.mark.parametrize(
+    ("trace_id", "raw"),
+    [("nope", None), ("bad", "{not json"), ("../secret", '{"leak": true}')],
+    ids=["missing", "malformed", "path-traversal"],
+)
+def test_load_returns_empty_dict_for_unusable_ids(tmp_path, trace_id, raw):
     traces = tmp_path / "traces"
     traces.mkdir()
-    _write(tmp_path / "secret.json", {"leak": True})
+    if raw is not None:
+        (tmp_path / "secret.json").write_text(raw, encoding="utf-8")
+        (traces / "bad.json").write_text(raw, encoding="utf-8")
 
-    loaded = TraceArchive(traces).load("../secret")
+    loaded = TraceArchive(traces).load(trace_id)
 
     assert loaded == {}
 

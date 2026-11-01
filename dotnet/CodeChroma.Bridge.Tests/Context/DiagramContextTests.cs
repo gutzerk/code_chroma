@@ -7,11 +7,11 @@ public class DiagramContextTests
     [Fact]
     public void Impact_and_epics_get_no_gathered_context()
     {
-        Assert.Equal(["c1", "custom", "patterns", "sequence"], DiagramContext.Types.Order());
+        Assert.Equal(["custom", "patterns", "sequence", "system-context"], DiagramContext.Types.Order());
     }
 
     [Theory]
-    [InlineData("c1")]
+    [InlineData("system-context")]
     [InlineData("patterns")]
     public void Whole_repo_types_use_fixed_seed_phrases_not_the_request(string type)
     {

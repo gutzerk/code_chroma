@@ -10,7 +10,8 @@ import { IMPACT_CHANGES_STUB } from "../../engine-client/stubEngineClient";
 import { EMPTY_CANVAS_DOC, type CanvasDoc, type DiagramsStatus } from "../../state/types";
 import { canvasDocStore } from "./canvasDocStore";
 import { writeCachedDiagramsStatus } from "./diagramStatusCache";
-import { DrawDiagramButton, buildDrawDiagramTask } from "./DrawDiagramButton";
+import { DrawDiagramButton } from "./DrawDiagramButton";
+import { drawDialogStore } from "./drawDialog/drawDialogStore";
 import { useDiagramReadinessWatcher } from "./useDiagramReadinessWatcher";
 
 function ButtonWithWatcher() {
@@ -53,6 +54,7 @@ afterEach(() => {
   cleanup();
   canvasDocStore.reset();
   agentStore.reset();
+  drawDialogStore.reset();
   sessionStorage.clear();
 });
 
@@ -64,76 +66,22 @@ describe("DrawDiagramButton", () => {
     expect(screen.getByTestId("draw-diagram-button")).not.toBeDisabled();
   });
 
-  it("launches an agent on click, no listing or toggling of existing diagrams", async () => {
-    const create = vi.fn(async () => ({
-      id: "a1",
-      title: "a1",
-      kind: "claude" as const,
-      branch: "agent/a1",
-      base_branch: "main",
-      worktree: "/tmp/a1",
-      created_at: "2026-01-01T00:00:00Z",
-      session_id: null,
-      pr_url: null,
-      pid: null,
-      window: { x: 0, y: 0, width: 720, height: 480, minimized: false, z: 1 },
-      status: "running" as const,
-      exit_code: null,
-      worktree_lost: false,
-    }));
-    const start = create;
+  it("opens the Draw dialog on click instead of launching an agent", () => {
+    const create = vi.fn();
 
-    renderButton(
-      {},
-      { create, start, gitPreflight: async () => ({ state: "ready" as const, root: "/repo" }) },
-    );
+    renderButton({}, { create });
+    fireEvent.click(screen.getByTestId("draw-diagram-button"));
 
-    await act(async () => {
-      fireEvent.click(screen.getByTestId("draw-diagram-button"));
-    });
-
-    expect(create).toHaveBeenCalled();
+    expect(drawDialogStore.getState().open).toBe(true);
+    expect(create).not.toHaveBeenCalled();
   });
 
-  it("disables itself while an agent launch is in flight, so a click gets visible feedback", async () => {
-    // A controlled promise freezes launchAgent mid-flight (gitPreflight -> create -> start), the
-    // same multi-step async sequence a real launch runs -- without this, the button gives no
-    // feedback for however long that takes and reads as unresponsive/delayed (the bug this guards).
-    let resolvePreflight!: (state: { state: "ready"; root: string }) => void;
-    const preflightPromise = new Promise<{ state: "ready"; root: string }>((resolve) => {
-      resolvePreflight = resolve;
-    });
-    const create = vi.fn(async () => ({
-      id: "a1",
-      title: "a1",
-      kind: "claude" as const,
-      branch: "agent/a1",
-      base_branch: "main",
-      worktree: "/tmp/a1",
-      created_at: "2026-01-01T00:00:00Z",
-      session_id: null,
-      pr_url: null,
-      pid: null,
-      window: { x: 0, y: 0, width: 720, height: 480, minimized: false, z: 1 },
-      status: "running" as const,
-      exit_code: null,
-      worktree_lost: false,
-    }));
+  it("disables itself while an agent launch is in flight, so a click gets visible feedback", () => {
+    renderButton({});
 
-    renderButton({}, { create, start: create, gitPreflight: () => preflightPromise });
-
-    act(() => {
-      fireEvent.click(screen.getByTestId("draw-diagram-button"));
-    });
+    act(() => agentStore.setIsLaunching(true));
 
     expect(screen.getByTestId("draw-diagram-button")).toBeDisabled();
-
-    await act(async () => {
-      resolvePreflight({ state: "ready", root: "/repo" });
-      await preflightPromise;
-    });
-
-    expect(screen.getByTestId("draw-diagram-button")).not.toBeDisabled();
   });
 });
 
@@ -182,41 +130,5 @@ describe("DrawDiagramButton: a diagram edited before a page reload", () => {
     });
 
     expect(runRecipe).not.toHaveBeenCalled();
-  });
-});
-
-describe("buildDrawDiagramTask", () => {
-  it("asks directly when 4 or fewer kinds are missing", () => {
-    const task = buildDrawDiagramTask(["C1", "Design patterns", "Change impact"], false);
-
-    expect(task).toContain("Ask which kind they'd like -- C1, Design patterns, Change impact --");
-    expect(task).not.toContain("multiple-choice tool call");
-  });
-
-  it("tells the agent to answer in plain text once more than 4 kinds are missing", () => {
-    // A real-world trigger: 3 missing built-ins plus 2+ custom diagram types the user has saved.
-    const labels = ["C1", "Design patterns", "Change impact", "Server Comms", "MCP Lifecycle"];
-
-    const task = buildDrawDiagramTask(labels, false);
-
-    expect(task).toContain("not a multiple-choice tool call");
-    expect(task).toContain(labels.join(", "));
-  });
-
-  it("says 'another' once at least one diagram is already drawn", () => {
-    const task = buildDrawDiagramTask(["Change impact"], true);
-
-    expect(task).toContain("wants another diagram");
-  });
-
-  it("asks what new diagram is wanted once nothing at all is missing", () => {
-    // The button is unconditionally clickable now, including once every built-in/custom type is
-    // already generated -- this is the empty-missingLabels case buildDrawDiagramTask must still
-    // produce a sensible prompt for.
-    const task = buildDrawDiagramTask([], true);
-
-    expect(task).toContain("already drawn");
-    expect(task).toContain("ask what new diagram");
-    expect(task).not.toContain("Ask which kind");
   });
 });

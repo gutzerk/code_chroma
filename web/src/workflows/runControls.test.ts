@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
 import {
   betweenLabel,
+  resolvedPrompt,
+  canOpenAgent,
   canStopRun,
   layoutForWidth,
   headerToggle,
@@ -10,9 +12,10 @@ import {
   stepMode,
   canStopAfter,
   stepPosition,
+  stepModeLabel,
   type StepAction,
 } from "./runControls";
-import type { Run, RunState, StepRecord, StepStatus, WorkflowStepDef } from "./types";
+import type { Run, RunState, StepRecord, StepStatus, WorkflowDef, WorkflowStepDef } from "./types";
 
 function step(stepId: string, status: StepStatus): StepRecord {
   return { stepId, attempt: 1, status, output: "", diffStat: null, checkpointRef: null, sessionId: null };
@@ -57,6 +60,32 @@ describe("stepActions status matrix", () => {
     const actions = stepActions(run("running", { stopAfter: "s1" }), step("s1", "running"));
 
     expect(actions).toEqual(["keepRunning"]);
+  });
+});
+
+describe("canOpenAgent", () => {
+  const agent = { id: "a", slug: "a", kind: "agent", prompt: "p" } as WorkflowStepDef;
+  const record = (status: StepRecord["status"], sessionId: string | null) => ({ stepId: "a", attempt: 1, status, output: "", sessionId }) as StepRecord;
+
+  it("opens only a done agent step that has a session", () => {
+    expect(canOpenAgent(agent, record("done", "s"))).toBe(true);
+    expect(canOpenAgent(agent, record("needs_you", "s"))).toBe(false);
+    expect(canOpenAgent(agent, record("running", "s"))).toBe(false);
+    expect(canOpenAgent(agent, record("done", null))).toBe(false);
+  });
+});
+
+describe("resolvedPrompt", () => {
+  const wf = { id: "w", name: "W", steps: [
+    { id: "a", slug: "a", kind: "agent", prompt: "write answer for 1 + {{i}}", input: { name: "i", label: "Number" } },
+    { id: "b", slug: "b", kind: "agent", prompt: "use {{i}} and {{j}}", input: { name: "j", label: "Other" } },
+  ] } as WorkflowDef;
+
+  it("fills the step's own answer and leaves another step's placeholder alone", () => {
+    const inputs = { i: "2", j: "7" };
+
+    expect(resolvedPrompt(wf, wf.steps[0], { inputs })).toBe("write answer for 1 + 2");
+    expect(resolvedPrompt(wf, wf.steps[1], { inputs })).toBe("use {{i}} and 7");
   });
 });
 
@@ -189,5 +218,18 @@ describe("stepPosition", () => {
     const steps = [step("a", "done"), step("b", "pending"), step("c", "pending")];
 
     expect(stepPosition(run("held", { steps, currentStepId: null }))).toEqual({ index: 2, total: 3 });
+  });
+});
+
+describe("stepModeLabel", () => {
+  const steps = [
+    { id: "a", slug: "a", kind: "agent", prompt: "x", model: "opus" },
+    { id: "b", slug: "b", kind: "agent", prompt: "y" },
+  ] as WorkflowStepDef[];
+
+  it("names the step's model, else the model its session ran on", () => {
+    expect(stepModeLabel(steps, 0)).toBe("Agent · default · opus · new");
+    expect(stepModeLabel(steps, 1, undefined, "claude-sonnet-5-5")).toBe("Agent · default · claude-sonnet-5-5 · new + hand-off");
+    expect(stepModeLabel(steps, 1)).toBe("Agent · default · new + hand-off");
   });
 });

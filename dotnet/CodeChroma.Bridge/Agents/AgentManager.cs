@@ -44,6 +44,9 @@ public sealed partial class AgentManager
     /// <summary>"Can the canvas draw this id?" for ids this manager knows nothing about, for example a PR's.</summary>
     public Func<string, bool> WorkspaceGuard { get; set; } = _ => false;
 
+    /// <summary>Resolves a br_* worktree tab, so Create can share its worktree and base branch.</summary>
+    public Func<string, BranchRecord?> BranchLookup { get; set; } = _ => null;
+
     public string RegistryPath => Path.Combine(MainRoot, ".codechroma", "agents.json");
 
     public string ActiveWorkspace => _activeWorkspace;
@@ -119,14 +122,20 @@ public sealed partial class AgentManager
 
     // --- writes ---
 
-    /// <summary>Slug, branch, worktree, record, persist; attach_to reuses a target's own worktree.</summary>
-    public AgentRecord Create(string title, string kind = AgentRecord.DefaultKind, string? attachTo = null, string? context = null, string contextKind = "view", string? diagramType = null)
+    /// <summary>Slug, record, persist: the agent shares attach_to's worktree, or its tab's (workspace) when attach_to is absent; main is never a target.</summary>
+    public AgentRecord Create(string title, string kind = AgentRecord.DefaultKind, string? attachTo = null, string? context = null, string contextKind = "view", string? diagramType = null, string? diagramRequest = null, string? workspace = null)
     {
+        if (attachTo == Workspace.MainId) throw new WorktreeException("agents cannot attach to main");
+        if (attachTo is null && string.IsNullOrEmpty(workspace)) throw new WorktreeException("workspace is required");
+        if (!string.IsNullOrEmpty(workspace) && !workspace.StartsWith(BranchManager.IdPrefix, StringComparison.Ordinal))
+            throw new WorktreeException($"workspace must be a worktree tab id, not '{workspace}'");
+        if (!string.IsNullOrEmpty(workspace) && BranchLookup(workspace) is null) throw new UnknownAgentException(workspace);
+        attachTo ??= workspace;
         context = AgentRecord.CleanContext(context);
         contextKind = AgentRecord.CoerceContextKind(contextKind);
         return Add(title, (agentId, displayTitle, createdAt) =>
         {
-            var prTarget = attachTo is not null ? PrTarget(attachTo) : null;
+            var prTarget = PrTarget(attachTo!);
             string branch, path;
             string? baseBranch;
             if (prTarget is not null)
@@ -136,14 +145,9 @@ public sealed partial class AgentManager
                 path = prTarget.Worktree;
                 baseBranch = prTarget.BaseRef;
             }
-            else if (attachTo is null)
-            {
-                (branch, path) = NewWorktree(agentId);
-                baseBranch = BaseBranchFor(attachTo);
-            }
             else
             {
-                (branch, path) = AttachTarget(attachTo);
+                (branch, path) = AttachTarget(attachTo!);
                 baseBranch = BaseBranchFor(attachTo);
             }
             return new AgentRecord
@@ -155,22 +159,24 @@ public sealed partial class AgentManager
                 Worktree = path,
                 CreatedAt = createdAt,
                 SharesWorkspaceWith = attachTo,
+                Workspace = prTarget is not null || string.IsNullOrEmpty(workspace) ? null : workspace,
                 BaseBranch = baseBranch,
                 SourcePr = prTarget is not null ? attachTo : null,
                 Context = context,
                 ContextKind = contextKind,
                 DiagramType = diagramType,
+                DiagramRequest = diagramRequest,
             };
         });
     }
 
     /// <summary>A claude agent in a workflow run's own worktree that forks `forkSession` on start ("Open agent" on a finished step).</summary>
-    public AgentRecord CreateInRun(string title, string runId, string forkSession)
+    public AgentRecord CreateInRun(string title, string runId, string forkSession, string? runRoot = null)
     {
         if (!RunStore.IsSafeId(runId)) throw new WorktreeException($"invalid run id: {runId}");
         return Add(title, (agentId, displayTitle, createdAt) =>
         {
-            var path = Path.GetFullPath(WorkflowRunner.WorktreeFor(MainRoot, runId));
+            var path = Path.GetFullPath(WorkflowRunner.WorktreeFor(runRoot ?? MainRoot, runId));
             if (_runCleanups.Any(p => SamePath(p, path))) throw new BridgeException(409, "the run workspace is being cleaned up");
             if (!Directory.Exists(path)) throw new UnknownAgentException($"run {runId} has no worktree");
             return new AgentRecord
@@ -230,31 +236,43 @@ public sealed partial class AgentManager
         return PrLookup(attachTo) ?? throw new UnknownAgentException(attachTo);
     }
 
-    private string? BaseBranchFor(string? attachTo) =>
-        attachTo is null || attachTo == Workspace.MainId ? MainBranchOps.CurrentBranch(MainRoot) : Get(attachTo).BaseBranch;
-
-    /// <summary>Forks a fresh branch/worktree for agentId, with skills installed and diagrams seeded.</summary>
-    private (string Branch, string Path) NewWorktree(string agentId)
+    private string? BaseBranchFor(string? attachTo)
     {
-        var branch = WorktreeOps.BranchName(agentId);
-        var path = WorktreeOps.WorktreePath(MainRoot, agentId);
-        GitExclude.Ensure(MainRoot, [.. SkillSync.WorktreeExcludes]);
-        WorktreeOps.Add(MainRoot, branch, path);
-        InstallSkills(path);
-        SeedDiagrams(path);
-        return (branch, path);
+        if (attachTo is null || attachTo == Workspace.MainId) return MainBranchOps.CurrentBranch(MainRoot);
+        return BranchLookup(attachTo) is { } tab ? tab.Branch : Get(attachTo).BaseBranch;
     }
 
-    /// <summary>The branch/worktree an attach-created agent shares: main's own, or another agent's.</summary>
+    /// <summary>The branch/worktree an attach-created agent shares: a worktree tab's, or another agent's.</summary>
     private (string Branch, string Path) AttachTarget(string attachTo)
     {
-        if (attachTo == Workspace.MainId)
+        if (BranchLookup(attachTo) is { } tab)
         {
-            var branch = MainBranchOps.CurrentBranch(MainRoot) ?? throw new WorktreeException("main has no checked-out branch to attach to (detached HEAD)");
-            return (branch, MainRoot);
+            if (!Directory.Exists(tab.Worktree)) throw new WorktreeException($"the worktree of {attachTo} is missing; restore it first");
+            return (tab.Branch, tab.Worktree);
         }
         var target = Get(attachTo);
         return (target.Branch, target.Worktree);
+    }
+
+    /// <summary>Agents living in a worktree tab: created in it, or sharing its worktree.</summary>
+    public List<AgentRecord> AttachedToWorkspace(string workspaceId)
+    {
+        lock (_lock) return _agents.Where(a => InWorkspace(a, workspaceId)).ToList();
+    }
+
+    private static bool InWorkspace(AgentRecord a, string workspaceId) =>
+        a.Workspace == workspaceId || a.SharesWorkspaceWith == workspaceId;
+
+    /// <summary>Points every agent of a renamed tab at the tab's new git branch.</summary>
+    public void RenameBranch(string workspaceId, string branch)
+    {
+        lock (_lock)
+            foreach (var agent in _agents.Where(a => InWorkspace(a, workspaceId)))
+            {
+                agent.Branch = branch;
+                agent.BaseBranch = branch;
+            }
+        Save();
     }
 
     private void InstallSkills(string root) => SkillSync.InstallIntoWorktree(root);
@@ -339,29 +357,38 @@ public sealed partial class AgentManager
             foreach (var sibling in _agents.Where(a => SamePath(a.Worktree, path))) sibling.WorktreeLost = false;
     }
 
-    /// <summary>Records the conversation `claude --resume` continues; null while there isn't one.</summary>
+    /// <summary>Reads only the file wired to this agent's own process; never infers ownership from transcript recency.</summary>
     public string? CaptureSessionId(string agentId)
     {
-        var record = Get(agentId);
-        HashSet<string> siblings;
         lock (_lock)
-            siblings = _agents.Where(o => o != record && o.SessionId is { Length: > 0 } && SamePath(o.Worktree, record.Worktree)).Select(o => o.SessionId!).ToHashSet();
-        if (record.ForkSession is { Length: > 0 } source) siblings.Add(source);
-        if (record.SourceRun is { } runId) siblings.UnionWith(RunStepSessions(runId));
-        var found = Transcripts.FindSessionId(record.Worktree, exclude: siblings);
-        if (found is not null && found != record.SessionId)
         {
-            record.SessionId = found;
-            Save();
+            var record = Get(agentId);
+            if (record.SessionTrackingId is { } trackingId)
+            {
+                var found = Json.Str(JsonFile.LoadObject(AgentSessionOwnership.FileFor(MainRoot, trackingId))["session_id"]);
+                if (Guid.TryParse(found, out _) && found != record.SessionId)
+                {
+                    record.SessionId = found;
+                    Save();
+                }
+            }
+            return record.SessionId;
         }
-        return record.SessionId;
     }
 
-    /// <summary>Every step session of a workflow run, so an agent opened in its worktree never claims one of them as its own.</summary>
-    private IEnumerable<string> RunStepSessions(string runId)
+    /// <summary>Persists metadata from the actual PTY returned by Start, including an existing idempotent start.</summary>
+    public void RecordSessionLaunch(string agentId, AgentSession session)
     {
-        if (new RunStore(MainRoot).GetRun(runId) is not { } run) return [];
-        return run.Steps.Concat(run.Attempts.SelectMany(a => a.Steps ?? [])).Select(s => s.SessionId).OfType<string>();
+        if (session.SessionTrackingFile is null) return;
+        lock (_lock)
+        {
+            var record = Get(agentId);
+            var trackingId = Path.GetFileNameWithoutExtension(session.SessionTrackingFile);
+            if (record.SessionTrackingId == trackingId) return;
+            record.SessionTrackingId = trackingId;
+            record.SessionId = session.InitialSessionId;
+            Save();
+        }
     }
 
     /// <summary>Pending (context, kind), cleared so a resume or restart never re-injects it.</summary>

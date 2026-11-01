@@ -72,13 +72,13 @@ def test_skips_when_the_source_already_is_the_target(tmp_path):
 def test_the_draw_diagram_router_names_every_type_it_routes_to():
     body = (skill_source("codechroma-draw-diagram") / "SKILL.md").read_text(encoding="utf-8")
 
-    assert all(kind in body for kind in ("c1", "patterns", "impact", "custom"))
+    assert all(kind in body for kind in ("system-context", "patterns", "impact", "custom"))
 
 
 @pytest.mark.parametrize(
     ("reference", "marker"),
     [
-        ("type-c1.md", "relations"),
+        ("type-system-context.md", "relations"),
         ("type-patterns.md", "instances"),
         ("type-impact.md", "status"),
         ("type-custom.md", "instructions"),

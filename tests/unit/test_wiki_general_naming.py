@@ -1,30 +1,20 @@
 """wiki_general_naming.py: deterministic id/name assignment, generalized for generate + update."""
 
+import pytest
+
 from codechroma.bridge.wiki_general_naming import assign_ids, dedupe_id, deterministic_name, slugify
 
 
-def test_slugify_lowercases_and_dashes_hostile_text():
-    result = slugify("Auth & Billing!!")
-
-    assert result == "auth-billing"
-
-
-def test_slugify_falls_back_to_group_for_empty_input():
-    result = slugify("###")
-
-    assert result == "group"
+@pytest.mark.parametrize(
+    ("text", "expected"), [("Auth & Billing!!", "auth-billing"), ("###", "group")]
+)
+def test_slugify_dashes_hostile_text_and_falls_back_to_group(text, expected):
+    assert slugify(text) == expected
 
 
-def test_dedupe_id_returns_candidate_when_free():
-    result = dedupe_id("auth", set())
-
-    assert result == "auth"
-
-
-def test_dedupe_id_appends_counter_on_collision():
-    result = dedupe_id("auth", {"auth", "auth-2"})
-
-    assert result == "auth-3"
+@pytest.mark.parametrize(("taken", "expected"), [(set(), "auth"), ({"auth", "auth-2"}, "auth-3")])
+def test_dedupe_id_appends_a_counter_only_on_collision(taken, expected):
+    assert dedupe_id("auth", taken) == expected
 
 
 def test_deterministic_name_picks_heaviest_parent_folder_for_component():

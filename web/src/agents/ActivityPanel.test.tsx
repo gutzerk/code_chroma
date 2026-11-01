@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { cleanup, fireEvent, render, screen, within } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, within } from "@testing-library/react";
 import { ActivityPanel } from "./ActivityPanel";
 import { agentStore } from "./agentStore";
 import { AgentClientProvider } from "./AgentClientContext";
@@ -35,6 +35,53 @@ vi.mock("../workflows/WorkflowsTab", () => ({
   WorkflowsTab: () => <div data-testid="workflows-tab-stub" />,
 }));
 describe("ActivityPanel", () => {
+  it("opens on the Workflows tab when unfinished runs come back and there are no agents", () => {
+    setup();
+    act(() => layoutStore.setAgentsMode("collapsed"));
+    const run = { id: "r1", workflowId: "w", state: "stopped", currentStepId: null, stopAfter: null, attempt: 1, attempts: [], breakpoints: [], steps: [] };
+
+    act(() => workflowStore.setRuns([run] as never));
+
+    expect(layoutStore.getState().agentsMode).toBe("normal");
+    expect(screen.getByRole("tab", { name: /Workflows/ })).toHaveAttribute("aria-selected", "true");
+  });
+
+  it.each(["ctrlKey", "metaKey"])("cycles agents in both directions with %s+Alt+arrows", async (modifier) => {
+    const client = new MockAgentClient();
+    const first = await client.create("Planner");
+    const second = await client.create("Builder");
+    agentStore.upsert(first);
+    agentStore.upsert(second);
+    setup();
+    fireEvent.click(screen.getByRole("tab", { name: /Workflows/ }));
+    act(() => layoutStore.setAgentsMode("collapsed"));
+
+    fireEvent.keyDown(window, { key: "ArrowDown", [modifier]: true, altKey: true });
+    expect(layoutStore.getState()).toMatchObject({ selectedAgentId: second.id, agentsMode: "normal" });
+    expect(screen.getByRole("tab", { name: /Agents/ })).toHaveAttribute("aria-selected", "true");
+    expect(screen.getByTestId(`terminal-${second.id}`)).toBeVisible();
+
+    fireEvent.keyDown(window, { key: "ArrowDown", [modifier]: true, altKey: true });
+    expect(layoutStore.getState().selectedAgentId).toBe(first.id);
+    act(() => layoutStore.setAgentsMode("full"));
+    fireEvent.keyDown(window, { key: "ArrowUp", [modifier]: true, altKey: true });
+    expect(layoutStore.getState()).toMatchObject({ selectedAgentId: second.id, agentsMode: "full" });
+  });
+
+  it("leaves unmodified arrows and modal keyboard input alone", async () => {
+    const agent = await new MockAgentClient().create("Planner");
+    agentStore.upsert(agent);
+    setup();
+    fireEvent.keyDown(window, { key: "ArrowDown" });
+    expect(layoutStore.getState().selectedAgentId).toBeNull();
+    const modal = document.createElement("div");
+    modal.setAttribute("aria-modal", "true");
+    document.body.append(modal);
+    fireEvent.keyDown(window, { key: "ArrowDown", ctrlKey: true, altKey: true });
+    modal.remove();
+    expect(layoutStore.getState().selectedAgentId).toBeNull();
+  });
+
   it("keeps the header and switcher row on the agents tab only for run agent", () => {
     setup();
 
@@ -84,6 +131,23 @@ describe("ActivityPanel", () => {
     fireEvent.click(screen.getByRole("button", { name: "Full screen" }));
 
     expect(screen.getByRole("button", { name: "Restore panel width" })).toBeTruthy();
+  });
+  it("leaves full screen when the grip is dragged right, keeping the dragged width", () => {
+    setup();
+    act(() => layoutStore.setAgentsMode("full"));
+    const panel = screen.getByTestId("activity-panel");
+    panel.getBoundingClientRect = () => ({ width: 1000, height: 600, left: 0, top: 0, right: 1000, bottom: 600, x: 0, y: 0 }) as DOMRect;
+    const grip = panel.querySelector<HTMLElement>(".panel-handle-grip")!;
+    grip.setPointerCapture = () => {};
+
+    fireEvent.pointerMove(grip, { pointerId: 1, buttons: 0, clientX: 900 });
+    const hoverMode = layoutStore.getState().agentsMode;
+    fireEvent.pointerDown(grip, { pointerId: 1, button: 0, buttons: 1, clientX: 100 });
+    fireEvent.pointerMove(grip, { pointerId: 1, buttons: 1, clientX: 180 });
+
+    expect(hoverMode).toBe("full");
+    expect(layoutStore.getState().agentsMode).toBe("normal");
+    expect(panel.style.width).not.toBe("");
   });
   it("collapses from the edge handle", () => {
     setup();

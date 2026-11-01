@@ -9,7 +9,6 @@ describe("chromeInsets", () => {
       terminalLeft: 286,
       terminalRight: 424,
       arrangeOrigin: { x: 290, y: 28 },
-      drawPopover: { left: 286, top: 10 },
     });
   });
 
@@ -20,7 +19,6 @@ describe("chromeInsets", () => {
       terminalLeft: 12,
       terminalRight: 68,
       arrangeOrigin: { x: 28, y: 76 },
-      drawPopover: { left: 68, top: 10 },
     });
   });
 

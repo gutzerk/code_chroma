@@ -273,3 +273,7 @@ other per-diagram-kind e2e spec — a custom diagram's on-canvas rendering/drag/
 exercised only through the generic `canvas/doc/` specs (see [`single-canvas.md`](single-canvas.md)'s
 own test list), not a dedicated spec; that's a real coverage gap for style-specific behavior (like
 `dependency-graph`'s cycles), not a documentation error to fix later.
+
+## Draw dialog schematic (025)
+
+A saved type may carry an optional `schematic` (`dataflow`, `layers`, `ownership`; the list lives in `src/codechroma/diagrams/kinds.json` and the web keeps the matching SVGs in `drawDialog/schematics.tsx`). Both libraries validate it (`schematic must be one of (...)`) and echo it in the `GET /diagram-types` summary when set; a type with one gets its own card in the Draw dialog, the rest sit behind "Custom type".

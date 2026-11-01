@@ -4,13 +4,19 @@ from __future__ import annotations
 
 import importlib.util
 import json
+import tempfile
 from pathlib import Path
 
 import pytest
 from fastapi.testclient import TestClient
 
 from codechroma.bridge.resources import resource_path
-from codechroma.questions.launch import McpEndpoint, discover_base_url, loopback_url
+from codechroma.questions.launch import (
+    McpEndpoint,
+    discover_base_url,
+    loopback_url,
+    write_claude_config,
+)
 from codechroma.questions.mcp_server import QuestionMcp
 from codechroma.terminal.agents import agent_cli
 
@@ -25,26 +31,30 @@ def _load_hook():
     return module
 
 
-def test_claude_argv_registers_the_mcp_config_before_the_plugin_dir():
+def test_mcp_config_is_written_to_a_private_per_process_dir():
+    path = write_claude_config(ENDPOINT)
+
+    assert path.parent.name.startswith("codechroma-mcp-")
+    assert path.parent != Path(tempfile.gettempdir()) / "codechroma-mcp"
+    assert json.loads(path.read_text(encoding="utf-8"))["mcpServers"]["codechroma"]["url"] == (
+        "http://127.0.0.1:8123/mcp/"
+    )
+
+
+def test_claude_argv_registers_an_http_mcp_config_with_bearer_header_before_the_plugin_dir():
     argv, env = agent_cli("claude", mcp=ENDPOINT)
 
+    server = json.loads(Path(argv[2]).read_text(encoding="utf-8"))["mcpServers"]["codechroma"]
     assert argv[1] == "--mcp-config"
     assert argv[3] == "--plugin-dir"
     assert env == {
         "CODECHROMA_BRIDGE_URL": "http://127.0.0.1:8123",
         "CODECHROMA_QUESTION_TOKEN": "agent-1.sig",
     }
-
-
-def test_mcp_config_file_holds_an_http_server_with_bearer_header_and_timeout():
-    argv, _ = agent_cli("claude", mcp=ENDPOINT)
-
-    server = json.loads(Path(argv[2]).read_text(encoding="utf-8"))["mcpServers"]["codechroma"]
-
     assert server["type"] == "http"
     assert server["url"] == "http://127.0.0.1:8123/mcp/"
     assert server["headers"] == {"Authorization": "Bearer agent-1.sig"}
-    assert server["timeout"] > 300_000
+    assert server["timeout"] == 60_000
 
 
 def test_claude_argv_is_unchanged_without_an_endpoint():
@@ -78,7 +88,7 @@ def test_loopback_url_needs_an_explicit_port(given, expected):
 
 def test_endpoint_for_signs_a_token_that_names_the_workspace(monkeypatch):
     monkeypatch.delenv("CODECHROMA_BRIDGE_URL", raising=False)
-    mcp = QuestionMcp(broker=None, workspace_for=lambda _id: None)
+    mcp = QuestionMcp(workspace_for=lambda _id: None)
     mcp.remember_base_url("http://localhost:8765/")
 
     endpoint = mcp.endpoint_for("agent-7")
@@ -87,23 +97,17 @@ def test_endpoint_for_signs_a_token_that_names_the_workspace(monkeypatch):
     assert mcp.workspace_id_for(endpoint.token) == "agent-7"
 
 
-def test_ask_route_rejects_a_missing_token(bridge):
-    with TestClient(bridge.app) as client:
-        response = client.post("/repos/main/questions/ask", json={"question": "Q?"})
-
-    assert response.status_code == 401
-
-
-def test_ask_route_rejects_a_token_for_another_workspace(bridge):
+def test_ask_route_rejects_a_missing_token_and_a_token_for_another_workspace(bridge):
     token = bridge.app.state.question_mcp.token_for("other")
 
     with TestClient(bridge.app) as client:
-        response = client.post(
+        missing = client.post("/repos/main/questions/ask", json={"question": "Q?"})
+        foreign = client.post(
             "/repos/main/questions/ask", json={"question": "Q?"},
             headers={"Authorization": f"Bearer {token}"},
         )
 
-    assert response.status_code == 401
+    assert (missing.status_code, foreign.status_code) == (401, 401)
 
 
 def test_hook_denies_the_native_tool_and_names_ask_user_when_the_bridge_answers(
@@ -187,3 +191,12 @@ def test_hook_fails_open_without_the_token_that_marks_a_wired_mcp_server(monkeyp
 
     assert code == 0
     assert capsys.readouterr().out == ""
+
+
+def test_mcp_instructions_match_the_shared_contract_text():
+    from codechroma.questions.mcp_server import _INSTRUCTIONS
+
+    fixture = Path(__file__).parents[1] / "fixtures" / "bridge_contract" / "mcp_instructions.txt"
+    shared = fixture.read_text(encoding="utf-8")
+
+    assert _INSTRUCTIONS == shared

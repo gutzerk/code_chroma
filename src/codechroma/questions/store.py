@@ -2,14 +2,27 @@
 
 from __future__ import annotations
 
+import threading
+import time
+import uuid
+from collections import OrderedDict
 from collections.abc import Callable
 
 from codechroma.bridge.workspaces import Workspace
-from codechroma.canvas.apply_batch import BatchResult, apply_batch
+from codechroma.canvas.apply_batch import BatchResult, apply_batch, apply_batch_chunked
 from codechroma.canvas.document import CanvasDoc, Element
 from codechroma.canvas.locks import canvas_lock
 from codechroma.questions import diagrams
 from codechroma.questions.models import AskRequest, QuestionResult
+
+AWAITING_DELIVERY = "awaiting_delivery"
+# Questions a completed batch removed, per (canvas file, session_id): later steps count on.
+_delivered: OrderedDict[tuple[str, str], int] = OrderedDict()
+# Oldest sessions drop off past this, so a long-running bridge never grows the counter unbounded.
+_DELIVERED_CAP = 512
+# Agents with a wake-up queued, per (canvas file, agent_id); in memory, so a restart frees it.
+_claims: set[tuple[str, str]] = set()
+_claims_lock = threading.Lock()
 
 
 class QuestionWriteError(RuntimeError):
@@ -33,17 +46,66 @@ def _commit(ws: Workspace, build_ops: Callable[[CanvasDoc], list[dict]]) -> dict
     return response
 
 
-def _next_step(doc: CanvasDoc, session_id: str | None) -> int:
+def _next_step(ws: Workspace, doc: CanvasDoc, session_id: str | None) -> int:
     if not session_id:
         return 1
-    return 1 + sum(
+    return 1 + _delivered_count(ws, session_id) + sum(
         1 for e in doc.elements.values()
         if e.render == "question" and e.meta.get("session_id") == session_id
     )
 
 
+def _delivered_count(ws: Workspace, session_id: str) -> int:
+    return _delivered.get((str(ws.canvas_core_path), session_id), 0)
+
+
+def _count_delivered(ws: Workspace, session_id: str) -> None:
+    key = (str(ws.canvas_core_path), session_id)
+    _delivered[key] = _delivered.pop(key, 0) + 1
+    while len(_delivered) > _DELIVERED_CAP:
+        _delivered.popitem(last=False)
+
+
 def _options_meta(request: AskRequest) -> list[dict]:
     return [option.model_dump() for option in request.options]
+
+
+def _prune_ops(doc: CanvasDoc, keep: set[str]) -> list[dict]:
+    """Deletes draft diagrams nobody adopted within the TTL, so abandoned asks leave no layer."""
+    cutoff = time.time() - diagrams.DRAFT_TTL_SECONDS
+    stale = {
+        e.id for e in doc.elements.values()
+        if e.id not in keep and diagrams.is_draft_layer(e.layer)
+        and e.meta.get("diagram_root") and float(e.meta.get("drawn_at") or 0) < cutoff
+    }
+    stale |= {
+        e.id for e in doc.elements.values()
+        if e.group_id in stale and e.id not in keep and diagrams.is_draft_layer(e.layer)
+    }
+    return [{"op": "delete_element", "id": i} for i in sorted(stale)]
+
+
+def _adopt_ops(doc: CanvasDoc, request: AskRequest, question_id: str) -> list[dict]:
+    """Moves the draft-layer diagrams this question's options reference onto its own layer."""
+    target = diagrams.layer_for(question_id, "")
+    refs = {o.diagram_ref for o in request.options if o.diagram_ref}
+    roots = [
+        doc.elements[r] for r in refs
+        if r in doc.elements and diagrams.is_draft_layer(doc.elements[r].layer)
+    ]
+    moved = {root.id for root in roots}
+    moved |= {
+        e.id for e in doc.elements.values()
+        if e.group_id in moved and diagrams.is_draft_layer(e.layer)
+    }
+    ops: list[dict] = [{"op": "update_element", "id": i, "layer": target} for i in sorted(moved)]
+    ops.extend(_prune_ops(doc, moved))
+    ops.extend(
+        {"op": "update_edge", "id": edge_id, "layer": target}
+        for edge_id, edge in doc.edges.items()
+        if edge.from_ in moved and edge.to in moved and diagrams.is_draft_layer(edge.layer)
+    )
+    return ops
 
 
 def open_question(
@@ -55,7 +117,7 @@ def open_question(
         meta = {
             "question_id": question_id,
             "session_id": request.session_id,
-            "step": _next_step(doc, request.session_id),
+            "step": _next_step(ws, doc, request.session_id),
             "total": request.total,
             "kind": request.kind,
             "state": "open",
@@ -70,7 +132,7 @@ def open_question(
         return [{
             "op": "add_element", "temp_id": "q", "render": "question", "layer": "questions",
             "label": request.question, "meta": meta,
-        }]
+        }, *_adopt_ops(doc, request, question_id)]
 
     return _commit(ws, build)["id_map"]["q"]
 
@@ -90,10 +152,104 @@ def list_questions(ws: Workspace) -> list[Element]:
     return [e for e in doc.elements.values() if e.render == "question"]
 
 
-def settle(ws: Workspace, element_id: str, state: str, result: QuestionResult) -> None:
-    """Writes the answered/skipped state onto the element's meta."""
-    meta = {"state": state, "answer": result.answer, "option_id": result.option_id}
-    _commit(ws, lambda _doc: [{"op": "update_element", "id": element_id, "meta": meta}])
+def settle(ws: Workspace, element: Element, state: str, result: QuestionResult) -> Element:
+    """Writes the settled state onto the element's meta and marks it for the next wake-up."""
+    meta = {
+        "state": state, "answer": result.answer, "option_id": result.option_id,
+        AWAITING_DELIVERY: True,
+    }
+    _commit(ws, lambda _doc: [{"op": "update_element", "id": element.id, "meta": meta}])
+    return element.model_copy(update={"meta": {**element.meta, **meta}})
+
+
+def _cleanup_ops(doc: CanvasDoc, questions: list[Element]) -> list[dict]:
+    """Deletes the questions, their `decisions/<qid>` layers and the diagrams options reference."""
+    layers = {
+        diagrams.layer_for(q.meta["question_id"], "") for q in questions
+        if q.meta.get("question_id")
+    }
+    refs = {o.get("diagram_ref") for q in questions for o in q.meta.get("options", [])}
+    roots = {
+        r for r in refs
+        if r and r in doc.elements and diagrams.is_decision_layer(doc.elements[r].layer)
+    }
+    doomed = {q.id for q in questions} | {
+        e.id for e in doc.elements.values()
+        if e.layer in layers or e.id in roots
+        or (e.group_id in roots and diagrams.is_decision_layer(e.layer))
+    }
+    return [{"op": "delete_element", "id": i} for i in sorted(doomed)]
+
+
+def _agent_questions(doc: CanvasDoc, agent_id: str) -> list[Element]:
+    return [
+        e for e in doc.elements.values()
+        if e.render == "question" and e.meta.get("agent_id") == agent_id
+    ]
+
+
+def _ready_batch(doc: CanvasDoc, agent_id: str) -> list[Element]:
+    """The agent's undelivered answers, or none while any of its questions is still open."""
+    mine = _agent_questions(doc, agent_id)
+    if any(e.meta.get("state") == "open" for e in mine):
+        return []
+    return [e for e in mine if e.meta.get(AWAITING_DELIVERY)]
+
+
+def claim_batch(ws: Workspace, agent_id: str) -> bool:
+    """True when the agent's batch is complete and no wake-up for it is queued yet; claims it."""
+    key = (str(ws.canvas_core_path), agent_id)
+    doc = CanvasDoc.load(ws.canvas_core_path, ws.diagrams_root)
+    with _claims_lock:
+        if key in _claims or not _ready_batch(doc, agent_id):
+            return False
+        _claims.add(key)
+    return True
+
+
+def pending_batch(ws: Workspace, agent_id: str) -> list[Element]:
+    """The batch as it stands now, read at typing time so a revise or late answer is current."""
+    return _ready_batch(CanvasDoc.load(ws.canvas_core_path, ws.diagrams_root), agent_id)
+
+
+def release_batch(ws: Workspace, agent_id: str) -> None:
+    """Drops the agent's claim; its untyped answers stay marked for the next wake-up."""
+    with _claims_lock:
+        _claims.discard((str(ws.canvas_core_path), agent_id))
+
+
+def clear_batch(ws: Workspace, batch: list[Element]) -> None:
+    """After the answers were typed: deletes the batch's still-settled questions and diagrams."""
+    with canvas_lock(ws.id):
+        doc = CanvasDoc.load(ws.canvas_core_path, ws.diagrams_root)
+        settled = _still_settled(doc, batch)
+        if not settled:
+            return
+        _commit_locked(ws, doc, _cleanup_ops(doc, settled))
+        for e in settled:
+            if session := e.meta.get("session_id"):
+                _count_delivered(ws, session)
+
+
+_SETTLED_KEYS = ("state", "answer", "option_id")
+
+
+def _still_settled(doc: CanvasDoc, batch: list[Element]) -> list[Element]:
+    """The batch's questions still on the canvas with the very answer that was typed."""
+    kept = []
+    for typed in batch:
+        current = doc.elements.get(typed.id)
+        if current and all(current.meta.get(k) == typed.meta.get(k) for k in _SETTLED_KEYS):
+            kept.append(current)
+    return kept
+
+
+def _commit_locked(ws: Workspace, doc: CanvasDoc, ops: list[dict]) -> None:
+    """Commits `ops` against an already-loaded doc; the caller holds the canvas lock."""
+    result = apply_batch_chunked(doc, ops, explanation="ai question", confirm_mass_delete=True)
+    response = commit_canvas_batch(ws, result)
+    if not response["ok"]:
+        raise QuestionWriteError(str(response["errors"]))
 
 
 def result_from(element: Element) -> QuestionResult | None:
@@ -120,7 +276,7 @@ def reopen(ws: Workspace, element: Element) -> list[str]:
     ops: list[dict] = [{"op": "delete_element", "id": i} for i in later]
     ops.append({
         "op": "update_element", "id": element.id,
-        "meta": {"state": "open", "answer": None, "option_id": None},
+        "meta": {"state": "open", "answer": None, "option_id": None, "revised": True},
     })
     _commit(ws, lambda _doc: ops)
     return later
@@ -152,7 +308,8 @@ def reask(
 ) -> None:
     """Updates the question in place with the re-asked options and skips its older duplicates."""
     meta = {
-        "options": _options_meta(request), "kind": request.kind, "diagram_requested": False,
+        "options": _options_meta(request), "kind": request.kind,
+        "diagram_requested": False, "revised": False,
         "allow_custom": request.allow_custom, "allow_skip": request.allow_skip,
         "session_id": request.session_id, "total": request.total,
         "degraded": False, "validation": None,
@@ -165,8 +322,12 @@ def reask(
         }
         for old in stale or []
     ]
-    ops.append({"op": "update_element", "id": element.id, "label": request.question, "meta": meta})
-    _commit(ws, lambda _doc: ops)
+    question_id = element.meta["question_id"]
+    _commit(ws, lambda doc: [
+        *ops,
+        {"op": "update_element", "id": element.id, "label": request.question, "meta": meta},
+        *_adopt_ops(doc, request, question_id),
+    ])
 
 
 def request_diagram(ws: Workspace, element: Element, requested_at: str) -> None:
@@ -185,19 +346,25 @@ def _question_in(doc: CanvasDoc, question_id: str) -> Element:
     raise QuestionWriteError(f"unknown question {question_id!r}")
 
 
-def _next_band(doc: CanvasDoc) -> int:
-    bands = [
-        int(e.position.y // diagrams.BAND_H) for e in doc.elements.values()
-        if e.meta.get("diagram_root")
-    ]
-    return max(bands, default=-1) + 1
+def _next_top(doc: CanvasDoc, layer: str) -> float:
+    """The y just below the question's own diagrams, else below every per-question diagram."""
+    def bottoms(match: Callable[[str], bool]) -> list[float]:
+        return [
+            e.position.y + (e.size.h / 2 if e.size else 0) for e in doc.elements.values()
+            if match(e.layer)
+        ]
+
+    found = bottoms(lambda candidate: candidate == layer) or bottoms(
+        lambda candidate: candidate.startswith(diagrams.LAYER_PREFIX)
+    )
+    return max(found) + diagrams.GAP if found else 0
 
 
 def draw_diagram(
     ws: Workspace, title: str, nodes: list[diagrams.DiagramNode],
     edges: list[diagrams.DiagramEdge], question_id: str | None, option_id: str | None,
 ) -> str:
-    """Draws one option diagram on the `decisions` layer and returns its root id (the ref)."""
+    """Draws one option diagram on its `decisions/<question_id>` layer; returns its root id."""
     with canvas_lock(ws.id):
         doc = CanvasDoc.load(ws.canvas_core_path, ws.diagrams_root)
         target = None
@@ -205,7 +372,8 @@ def draw_diagram(
             target = _question_in(doc, question_id)
             if option_id not in {o["id"] for o in target.meta.get("options", [])}:
                 raise QuestionWriteError(f"unknown option {option_id!r} on that question")
-        ops = diagrams.diagram_ops(title, nodes, edges, _next_band(doc), option_id)
+        layer = diagrams.layer_for(question_id, uuid.uuid4().hex[:8])
+        ops = diagrams.diagram_ops(title, nodes, edges, _next_top(doc, layer), option_id, layer)
         result = apply_batch(doc, ops, explanation="ai question")
         if result.ok and target is not None:
             assert result.doc is not None

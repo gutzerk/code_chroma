@@ -37,7 +37,11 @@ focus; verified by checksum only, with automatic rollback if the new version fai
 `--purge` / `-Purge` to delete user data). Release builds are not yet code-signed: on macOS use
 right-click → Open if Gatekeeper complains, on Windows "More info → Run anyway" in SmartScreen, and
 on Linux install `libfuse2` for the AppImage. After a macOS install,
-run `open ~/Applications/CodeChroma.app` and pick a repo in the launcher. Otherwise, to run the
+run `open ~/Applications/CodeChroma.app` and pick a repo in the launcher. To start from a remote repository,
+choose **Clone repository…**, paste its HTTPS or SSH Git URL, choose a destination folder, and click
+**Clone and open**. CodeChroma suggests a local project name and opens the checkout after cloning.
+Git must be installed; private repositories use your existing Git credentials or SSH keys.
+Otherwise, to run the
 canvas from source, install the dependencies once from this repo's root:
 
 ```bash
@@ -105,10 +109,15 @@ stand-ins, next to what each icon literally depicts and what the button does.
 | `−` `⊙` `+` | — | Zoom out / reset & re-center / zoom in | Camera zoom controls |
 | `>_` | a window with a `>` prompt | Terminal | Opens/closes the docked embedded terminal panel |
 | ▤ | lines nested in a block | Project tree | Opens/closes the indented project-tree side panel (a navigational index over the same hierarchy the canvas shows) |
-| ★ / e.g. `C1` | icon or text label | Draw… | Opens an agent that asks what diagram to draw, then draws it onto the canvas via the `codechroma-draw-diagram` skill |
+| ★ / e.g. `C1` | icon or text label | Draw… | Opens the Draw dialog: pick a diagram type, say what to show (scope included, in your own words), and an agent draws it onto the canvas via the `codechroma-draw-diagram` skill |
 
 **Diff**: the Diff toggle button is hidden from the rail for now (its logic is kept in the code but
 not surfaced), so diff framing isn't currently reachable from the UI.
+
+The terminal toolbar's **+** opens another shell tab. **×** closes the active shell, and **−** hides
+the panel while keeping its sessions running. Click a terminal tab to return to its shell and output.
+Use **Ctrl+Alt+Up/Down** (**Cmd+Alt+Up/Down** on macOS) to cycle agents and focus the selected
+agent's terminal. Switching agents also opens a collapsed agent panel.
 
 ### Agent panel (beside the canvas: **Agents** / **Diagrams** tabs)
 
@@ -151,8 +160,10 @@ a delete button.
 
 The built-in types the Draw… agent can produce:
 
-- **C1** — a C4-model "system context" layer: your whole project as one box, surrounded by the
-  people and external systems it talks to, connected by labeled relationship arrows.
+- **System context** — a C4-model "system context" layer: your whole project as one box, surrounded by
+  the people and external systems it talks to, connected by labeled relationship arrows. The bridge
+  detects candidates (databases, SaaS APIs, web/CLI users) from your dependencies for free and the
+  agent confirms or rejects them, like Design patterns; the view is flagged stale when they change.
 - **Design patterns** — the real GoF/architectural patterns (Strategy, Facade, Adapter, etc.)
   actually in use, laid out as one connected graph.
 - **Change impact** — what a change touches, derived from the diff.
@@ -181,13 +192,13 @@ The built-in types the Draw… agent can produce:
 
 ## 4b. Custom diagrams
 
-Click the rail's **Draw…** button and pick a type when the agent asks — or use the agent panel's
+Click the rail's **Draw…** button, pick a type and describe what to show in the dialog — or use the agent panel's
 Diagrams tab to manage what's already on canvas. **Custom diagrams generate only when you trigger a
 draw** — never automatically.
 
 Two things you can do:
 
-- **Use a saved type.** Pick one when the Draw… agent asks what to draw; if the repo has no generated
+- **Use a saved type.** Pick its card in the Draw… dialog (a saved type with a `schematic` gets its own card, the rest sit behind **Custom type**); if the repo has no generated
   diagram for it yet, the agent generates it. The bridge runs a Claude agent against your repo and
   draws the result (boxes, optional named groups, labeled arrows). Layout — including dragging
   boxes — is saved per repo and comes back the next time you open the same type.

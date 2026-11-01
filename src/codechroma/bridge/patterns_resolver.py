@@ -213,6 +213,8 @@ def resolve_patterns_diagram(engine: GraphEngine, graph: Graph, patterns_json: d
         "nodes": all_nodes,
         "relations": kept_relations,
         "generated_at": authored.get("generated_at"),
+        # The authored display title rides through so the canvas can name this diagram.
+        **({"title": authored["title"]} if "title" in authored else {}),
     }
     # Patterns has always allowed self-relations (e.g. a recursive call) regardless of style.
     overrides = {**resolve_style_overrides(data["style"]), "allow_self_relations": True}

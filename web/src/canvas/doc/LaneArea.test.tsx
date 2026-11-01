@@ -53,4 +53,28 @@ describe("LaneArea", () => {
     const area = screen.getByTestId("canvas-lane-area");
     expect(area.className).toContain(`canvas-lane-area-color-${laneColorIndex("Frontend")}`);
   });
+
+  it("tints the Failures lane band as a failures area", () => {
+    const members = [elementOf({ id: "m1" })];
+
+    render(<LaneArea lane="Failures" members={members} sizes={new Map()} />);
+
+    expect(screen.getByTestId("canvas-lane-area").className).toContain("canvas-lane-area-failures");
+  });
+
+  it("tints a lane whose members say lane_kind failure whatever its name", () => {
+    const members = [elementOf({ id: "m1", meta: { lane_kind: "failure" } })];
+
+    render(<LaneArea lane="Errors" members={members} sizes={new Map()} />);
+
+    expect(screen.getByTestId("canvas-lane-area").className).toContain("canvas-lane-area-failures");
+  });
+
+  it("does not tint a lane named Failures when its members say lane_kind normal", () => {
+    const members = [elementOf({ id: "m1", meta: { lane_kind: "normal" } })];
+
+    render(<LaneArea lane="Failures" members={members} sizes={new Map()} />);
+
+    expect(screen.getByTestId("canvas-lane-area").className).not.toContain("canvas-lane-area-failures");
+  });
 });

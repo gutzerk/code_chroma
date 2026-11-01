@@ -187,6 +187,17 @@ def bridge_repo(make_repo) -> Path:
     return make_repo()
 
 
+class TabClient(TestClient):
+    """A TestClient that gives a bare `POST /agents` an ensured worktree tab as its workspace."""
+
+    def post(self, url, **kwargs):
+        body = kwargs.get("json")
+        if url == "/agents" and isinstance(body, dict) and "workspace" not in body:
+            tab = super().post("/branches/ensure").json()["active"]
+            kwargs["json"] = {**body, "workspace": tab}
+        return super().post(url, **kwargs)
+
+
 @pytest.fixture
 def make_bridge(monkeypatch):
     """Builds a BridgeHarness over any repo — no reload, no codechroma_BRIDGE_REPO_PATH."""

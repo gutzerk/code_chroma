@@ -1,5 +1,5 @@
 import type { IconName } from "./icons";
-import { agentMode, continueSourceIndex, continueTargetIndex, type Run, type RunState, type StepRecord, type StepStatus, type WorkflowStepDef } from "./types";
+import { agentMode, continueSourceIndex, continueTargetIndex, type Run, type RunState, type StepRecord, type StepStatus, type WorkflowDef, type WorkflowStepDef } from "./types";
 
 /** One action a step row or the run header can offer. */
 export type StepAction =
@@ -169,18 +169,20 @@ export const CHAIN_WARN_STEPS = 3;
 
 const MODE_TEXT: Record<"new" | "handoff", string> = { new: "new", handoff: "new + hand-off" };
 
-/** "Agent · <provider or default> · new | new + hand-off | continue: <source slug>"; null for a review step; step 1 is always new. */
+/** "Agent · <provider or default> · [<model> ·] new | new + hand-off | continue: <source slug>"; null for a review step; step 1 is always new. The model is the step's own, else the one its session ran on. */
 export function stepModeLabel(
   steps: WorkflowStepDef[],
   index: number,
   providerLabel: (id: string) => string = (id) => id,
+  usedModel?: string | null,
 ): string | null {
   const def = steps[index];
   if (!def || def.kind !== "agent") return null;
   const provider = def.provider ? providerLabel(def.provider) : "default";
   const mode = index === 0 ? "new" : agentMode(def.agent);
   const text = mode === "continue" ? `continue: ${steps[continueTargetIndex(steps, index)]?.slug || "?"}` : MODE_TEXT[mode];
-  return `Agent · ${provider} · ${text}`;
+  const model = def.model || usedModel;
+  return ["Agent", provider, model, text].filter(Boolean).join(" · ");
 }
 
 /** How many steps a continue chain ending at `index` spans (1 for a step that does not continue), like the bridge's StepAgents.ChainLength. */
@@ -235,4 +237,14 @@ export function layoutForWidth(width: number): PanelLayout {
   if (width >= 1100) return "full";
   if (width >= 640) return "side";
   return "normal";
+}
+
+/** A step's prompt as the agent got it: the run's overrides applied and its own answers filled in for `{{name}}`, like the bridge's ResolvePrompt. */
+export function resolvedPrompt(workflow: WorkflowDef, step: WorkflowStepDef, run: Pick<Run, "inputs" | "promptOverrides">): string {
+  let prompt = run.promptOverrides?.[step.id] ?? step.prompt;
+  for (const [name, value] of Object.entries(run.inputs ?? {})) {
+    const ownedByOther = workflow.steps.some((s) => s.id !== step.id && s.input?.name === name);
+    if (!ownedByOther) prompt = prompt.split(`{{${name}}}`).join(value);
+  }
+  return prompt;
 }

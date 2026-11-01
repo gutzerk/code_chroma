@@ -36,7 +36,7 @@ about the split. The bullets below describe the original single-file shape; trea
   (100), `MAX_EXPLANATION_CHARS` (1000), `MASS_DELETE_GUARD` (20 — more delete ops than this rejects
   the batch outright rather than silently wiping a layer). 🔵 Contract: an `add_element` with no
   `position` lands at (0,0), the server never lays it out; the web client's `fetchAndApplyCanvasDoc`
-  (`canvasDocStore.ts`) detects boxes piled on the origin (`pileLayout.findUnplaced`), runs the ELK
+  (`canvasDocSync.ts`) detects boxes piled on the origin (`pileLayout.findUnplaced`), runs the ELK
   pass (`layoutUnplaced`) and persists the result through a follow-up `update_element` PATCH, then
   re-applies the doc, so any writer (skill, recipe, MCP) may omit positions.
 - `bridge/routes/canvas.py` — `GET /repos/{id}/canvas` (the whole document) and
@@ -53,7 +53,7 @@ about the split. The bullets below describe the original single-file shape; trea
   the write landed, and `routes/_canvas_write.py`'s `commit_canvas_batch` (shared by this route and
   every `POST /repos/{id}/recipes/{recipe}/run`) returns `{ok: false, errors: [{code:
   "write_failed", ...}]}` when it didn't — which the existing frontend rollback in
-  `canvasDocStore.ts`'s `applyCanvasPositions` already knows how to handle, so a genuinely failed
+  `canvasDocSync.ts`'s `applyCanvasPositions` already knows how to handle, so a genuinely failed
   save now snaps the box back and reports an error immediately instead of lying until reload. Every
   other `write_json` caller keeps ignoring the return value on purpose — they're best-effort
   background writes, not on an interactive drag's report-success-to-the-user path. `layout_store.py`
@@ -98,16 +98,17 @@ what changed since.
   `applyMockCanvasBatch` — covering every op but not every rejection code (the caps are enforced
   server-side only; see the Python section above).
 - `canvas/doc/canvasDocStore.ts` — the document in memory (`Store`-based, workspace-scoped like every
-  other canvas store) plus `useLoadCanvasDoc` (fetch + `subscribeCanvas` + the shared `subscribe`
+  other canvas store); state only, no layout imports. `canvas/doc/canvasDocSync.ts` holds the bridge
+  sync: `useLoadCanvasDoc` (fetch + `subscribeCanvas` + the shared `subscribe`
   "changed" ping, mirroring `useDiagram`'s shape) and `patchCanvasDoc` (calls `patchCanvas`, refetches
   on success). The one optimistic edit is `moveElement` — a drag settles its own position locally
   before the PATCH round trip resolves; every other mutation just waits for the refetch.
-  ⚠ Both refetch paths go through one shared `fetchAndApplyCanvasDoc`, gated by a module-level
-  `latestCanvasFetchSeq` counter: a real network gives no ordering guarantee between requests, so a
+  ⚠ Both refetch paths go through one shared `fetchAndApplyCanvasDoc`, gated by the store's fetch
+  counter (`nextFetchSeq`/`isLatestFetchSeq`): a real network gives no ordering guarantee between requests, so a
   "changed" ping's refetch issued just before a drag's own commit can still resolve AFTER it — that
   slower, now-stale response applying last used to silently revert the just-moved box, reading as it
   "jumping back" a moment after you dropped it. Only the reply to the most recently *issued* fetch is
-  ever applied, whichever order the responses land in. Tests: `canvasDocStore.test.ts`.
+  ever applied, whichever order the responses land in. Tests: `canvasDocStore.test.ts`, `canvasDocSync.test.ts` (auto-layout path).
 - `canvas/doc/layerStore.ts` — which layers are hidden; local UI state, never written to
   `canvas.json` itself. No `LayerStrip` toggle yet (that's Stage 4's rail wiring) — Stage 2 only
   needs the store to exist and be honored by `CanvasDocView`'s render loop.
@@ -213,15 +214,15 @@ what changed since.
   🔴 Hard-layout layers (epics columns, sequence participants/messages) are never user-dragged, so a
   refresh re-runs their whole deterministic layout (`diagramCatalog.isHardLayoutLayer` — `isEpicsLayer`
   or `render === "sequence"`) instead of only the brand-new elements. Without this a sequence layer
-  drawn before a `SEQUENCE_LAYOUT.colW` change keeps its stale narrow participant columns and never
-  re-spreads to the current gap.
-  Sequence geometry: `SEQUENCE_LAYOUT` (`colW` wider than `headW` so heads never touch; `rowH` is
-  centre-to-centre message spacing; `headGap` pushes the first line below the participant heads; the
-  gap below the last line is `DiagramFrame`'s own `PADDING.bottom` — never fatten a message's
-  `size.h` to fake vertical margins, that pokes the outer rows up into the heads and pinches the
-  bottom arrow). Because sequence positions are pure derivations of these constants yet persisted,
-  `useReflowSequence` re-runs `layoutSequence` on mount for any sequence layer whose geometry has
-  drifted, so a constant change reaches every reloaded diagram, not just freshly-drawn ones.
+  drawn before a `SEQUENCE_BOARD` change keeps its stale geometry and never re-spreads.
+  Sequence geometry: `SEQUENCE_BOARD` in `sequenceBoard.ts` (the A4 swimlane board: a participant's
+  element is its lane rect, a message's is its step box; lanes start `lanesTop` below the board top so
+  the phase pills fit above them, and the legend sits under the last lane). `DiagramFrame` encloses
+  the whole board through the sequence profile's `frameBounds` (`sequenceBoardBounds`), not the member
+  rects. Because sequence positions are pure derivations of these constants yet persisted,
+  `useReflowOwnLayouts` re-runs the profile's `layout` (`layoutSequence`, in `sequenceBoard.ts`) on
+  mount for any layer whose geometry has drifted, so a constant change reaches every reloaded
+  diagram, not just freshly-drawn ones.
   Message `return`/`async` flags are read through `elementMeta.flagMeta` (truthiness-aware): the
   backend emits them as JSON booleans (`bool(...)` in `recipes.py`) while authored/mock files use a
   `"true"` string, and only a flag-read that accepts both survives either path — `stringMeta` would
@@ -247,8 +248,9 @@ contract via the shared `unionBoundsOf()`, plus each area's own color hash),
 
 A dashed rectangle drawn around every visible element on one canvas layer (`c1`/`patterns`/`impact`/
 `epics`/`custom/<id>`, i.e. `diagramCatalog.ts`'s `isDiagramLayer` set — the seeded hierarchy tree and
-`apply_batch`'s `"default"` fallback layer never get one), labeled top-left with that layer's own
-recipe name (`labelForDiagramLayer`). `CanvasDocView` buckets `renderableElements` by `element.layer`
+`apply_batch`'s `"default"` fallback layer never get one), labeled top-left with the diagram's own
+`title` (`meta.diagram_title`, see `diagram-skills.md` "Diagram titles") or, when untitled, the
+layer's recipe name (`labelForDiagramLayer`), both via `diagramDisplayName`. `CanvasDocView` buckets `renderableElements` by `element.layer`
 into `memberIdsByLayer` (structural, like `memberIdsByGroup`) and renders one `DiagramFrame` per
 bucket, rendered through the same shared `SoftAreaFrame` `GroupFrame`/`LaneArea`/
 `ConcurrencyIslandArea` use (so the `unionBoundsOf()` bounding-box arithmetic lives in exactly one
@@ -268,7 +270,7 @@ prop at drag-start) instead of a manual `selectionStore` selection; `getOffset` 
 imperatively rather than through a reactive `useLiveDragOffsets()` subscription, since it's only ever
 consulted once, at drag-start — a reactive subscription here would re-render every *other* diagram's
 frame on every pointer-move frame of any drag anywhere on the canvas. The commit path —
-`canvasDocStore.ts`'s `commitCanvasPositions(engineClient, positions)` — is shared with
+`canvasDocSync.ts`'s `commitCanvasPositions(engineClient, positions)` — is shared with
 `CanvasNodeBox`'s own solo/group drag (pulled out of what used to be a `CanvasNodeBox`-local closure),
 so a whole-diagram drag records one `"canvas"` `undoStore` entry and rolls back on a failed PATCH
 exactly like a single box's drag does. `role="button"`/`tabIndex={0}`/a descriptive `aria-label` on the
@@ -565,8 +567,8 @@ concept at all (file-derived, never AI-generated); `BuiltinRecipe.generated` mar
 counts as ready.
 
 `DrawDiagramButton` is now always clickable, not conditionally shown — clicking it calls `attachAgent`
-with a `task` string naming whatever's still missing (or, once nothing is, a generic "ask what to
-draw" prompt — see `buildDrawDiagramTask`), which `launchAgent` forwards to
+with the fixed `DRAW_DIAGRAM_TASK` string and `{type: "any"}` (a bare agent's window shows the bridge-printed
+"What do you want to see?" question instead; the string is only the non-bare fallback), which `launchAgent` forwards to
 `AgentClient.create(..., contextKind: "task")` instead of the ordinary acknowledge-only `context` —
 see `parallel-agents.md`'s "Current-view context on launch" for the `context_kind` split this reuses.
 Unlike `"view"`, that `task` text is never typed into the PTY after boot: `post_agent_start` bakes it
@@ -710,18 +712,10 @@ end by 008-unify-agent-diagrams: `bridge/routes/canvas_chat.py`, `bridge/canvas_
 Its replacement is the diagram-agent-task flow already documented in
 [`parallel-agents.md`](parallel-agents.md)'s "Current-view context on launch" section:
 `DrawDiagramButton.tsx`'s "Draw…" button opens an agent via `attachAgent(agentClient, null,
-buildDrawDiagramTask(...))`, whose `context_kind: "task"` first message states what's missing and
-asks what to draw — one natural-language diagram entry point instead of two competing ones. See
+DRAW_DIAGRAM_TASK, {type: "any"})`; a bare agent's window opens on the bridge-printed "What do you want to see?"
+question and the user's first message is the answer — one natural-language diagram entry point instead of two competing ones. See
 [`c1-diagram.md`](c1-diagram.md)/[`patterns-diagram.md`](patterns-diagram.md) for what that agent
-actually produces once it has an answer.
-
-⚠ `missingLabels` (every not-yet-drawn built-in plus every not-yet-drawn custom type) has no upper
-bound, but a multiple-choice tool call caps out at 4 options — offering more than that as one such
-call fails validation, which the user only ever sees as a bare "Invalid tool parameters" with no
-diagram drawn. `buildDrawDiagramTask` (exported from `DrawDiagramButton.tsx` for this reason) appends
-an explicit "ask in plain text, not a multiple-choice tool call" hint once `missingLabels.length > 4`,
-so a project with 2+ saved custom types alongside missing built-ins can't cross that cap silently.
-Test: `DrawDiagramButton.test.tsx`'s `buildDrawDiagramTask` describe block.
+actually produces once it has an answer. The typed starts (`c1`, `patterns`, `custom`) stay in the bridge but no UI path sends them since the type popover was removed.
 
 ## C1's own chrome, ported onto the one canvas (post-Stage-4 follow-up)
 
@@ -1062,7 +1056,7 @@ box type:
 - **Ctrl+Z never undid a `CanvasNodeBox` drag.** `commitPositions` (`CanvasNodeBox.tsx`) never wrote
   to `undoStore`, and `UndoManager` only ever popped the `"hierarchy"` kind (see the Stage 4 section
   above). Added a `"canvas"` `LayoutKind`; `commitPositions` now records the pre-move positions under
-  it before applying them (`canvasDocStore.ts`'s new `applyCanvasPositions`, extracted from the old
+  it before applying them (`applyCanvasPositions`, now in `canvasDocSync.ts`, extracted from the old
   inline commit body so `CanvasDocView.tsx`'s undo-restore listener can reuse the identical
   optimistic-apply-plus-PATCH path). Since hierarchy and canvas-doc boxes are both on screen at once
   now (not separate views the way they were pre-Stage-4), one Ctrl+Z has to undo whichever kind was
@@ -1084,4 +1078,5 @@ recency), `web/src/state/undoStore.test.ts` (`undoLatest`).
 
 - `canvas/document.py` `RENDER_KINDS` gained `"question"` (mirrored in `state/types.ts` `CanvasRenderKind`); `questions` is a non-diagram layer (`diagramCatalog.ts` `NON_DIAGRAM_LAYERS`), so it never gets a diagram frame.
 - `elementRules.ts`: `BLOCK_RULES.question` has its own `renderer: "question"` and `lockedLayout: true`; it is excluded from `StyledRenderKind`. `CanvasDocView.tsx` renders it via `question/QuestionElement` and leaves question elements out of `memberIdsByLayer`.
-- Writes go through `apply_batch` like any element (`questions/store.py`). Wire shapes, routes, broker and gotchas: [`ai-questions.md`](ai-questions.md).
+- Writes go through `apply_batch` like any element (`questions/store.py`). Wire shapes, routes, delivery and gotchas: [`ai-questions.md`](ai-questions.md).
+- `decisions/<question_id>` (and `decisions/draft-<hex>`) layers hold per-question option diagrams: `document.py` `is_canvas_only_layer` / `CANVAS_ONLY_LAYER_PREFIX` and `diagramCatalog.ts` treat them as canvas-only diagram layers (a Diagrams-panel row and a draggable, deletable `DiagramFrame` per question, labelled with the question text, but no `projection.json` and no recipe/artifact, so deleting one removes canvas content only); the plain `decisions` layer stays non-diagram. C#: `CanvasDoc` mirrors the prefix rule; pinned by `tests/unit/test_non_diagram_layers_parity.py`.

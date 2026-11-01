@@ -60,6 +60,7 @@ fields at the top level plus in each node's `meta`:
 {
   "type": "impact",
   "generated_at": "2026-01-01T00:00:00Z",
+  "title": "What the token refresh fix touches",
   "source": "plan",
   "feature": "specs/006-graph-research-endpoint",
   "fingerprint": "<copy verbatim from impact/context>",
@@ -75,6 +76,8 @@ fields at the top level plus in each node's `meta`:
 }
 ```
 
+- **`title`** (top-level, required): a short name (≤ 60 chars, in the language of the user's request) for what *this* diagram shows, never the type name ("Change impact"), distinct from the titles already on the canvas — see `drawing-rules.md` "Naming the diagram (`title`)"; the self-check advises `NOTITLE`/`GENERICTITLE` otherwise.
+
 Rules:
 - `source` — set to the sponsor you generated from (`"diff"` or `"plan"`, matching the
   `impact/context?source=` you fetched). The canvas uses it to compute staleness against the *same*
@@ -89,7 +92,7 @@ Rules:
   real boxes when they carry the story (a key caller), or be collapsed: give a collapsed box the
   closest real ancestor `node_id` (e.g. a directory) as its primary id, plus `"seed": false` and a
   `description` naming what it collapses ("unchanged background").
-- 🔴 **`nodes[].node_id` is required, unlike c1/custom.** Impact never resolves a `path` itself — a
+- 🔴 **`nodes[].node_id` is required, unlike system-context/custom.** Impact never resolves a `path` itself — a
   box with no `node_id` you already resolved yourself is dropped outright, not kept.
 - `nodes[].style` (optional) — see `drawing-rules.md`. Use it when a box needs a colour beyond the
   seed/status accent — e.g. to flag a caller that's a regression risk, or to keep a collapsed
@@ -125,12 +128,12 @@ Rules:
   provider, not every incidental wiring edge). Rendered visually emphasized on the canvas; everything
   else stays a normal edge. 3+ hero relations trips the self-check's `TOOMANYHERO` advisory — you
   picked too many, not enough of a story.
+- Edge `kind`: `calls` (default), `spawns` (starts a process/CLI/agent), `data` (reads/writes a file/DB/store), `minor` (optional link), `removed` (impact only: a link this change deletes; draws dashed rose, the canvas also adds it from the review when you leave it out) -- set `spawns`/`data` whenever true; see `drawing-rules.md` "Edge kinds".
 - `relations[]` — only edges fully inside the final box set. Direction is who initiates (a caller
   `from` → a callee `to`), matching what `impact/context`'s `relations` already spells.
 - **Every id must be unique** across `nodes[]`. Copy `node_id`/`id` from `impact/context` for any
   real node; never invent a class/function that isn't in the context.
-- `meta.order`/`meta.lane` (`drawing-rules.md`) are almost never needed here — impact shows what a
-  change touches, not a process, so there's no "after" or "who performs this step" to record.
+- **5-second read (022):** write top-level `question` (what the diagram answers) and `summary` (one line) strings, and mark the 1-2 main-path relations `hero: true`; the self-check advises `NOSUMMARY`/`NOHERO` otherwise and a diagram without them renders exactly like the old one. `meta.order`/`meta.lane` stay optional here — impact shows what a change touches, not a process.
 
 ## Procedure
 

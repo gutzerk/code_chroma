@@ -42,6 +42,16 @@ export interface ScreenBox {
   bottom: number;
 }
 
+/** A block's header box (or the whole block when it has none) by node id, in screen space, or null if it is not rendered. */
+export function nodeBox(nodeId: string, opts?: { codeMapOnly?: boolean }): ScreenBox | null {
+  // A diagram box carries a data-node-id too; `codeMapOnly` skips those (they are drawn by their own diagram).
+  const skip = opts?.codeMapOnly ? ":not([data-canvas-element])" : "";
+  const el = document.querySelector<HTMLElement>(`[data-node-id="${CSS.escape(nodeId)}"]${skip}`);
+  if (!el) return null;
+  const r = (el.querySelector<HTMLElement>(BLOCK_HEADER_SELECTOR) ?? el).getBoundingClientRect();
+  return { left: r.left, top: r.top, right: r.right, bottom: r.bottom };
+}
+
 /** One raw id pair resolved to its endpoints' nearest visible ancestors, deduped by direction —
  * a collapsed hop still draws a visible line, and A->A after collapsing draws nothing.
  * ConnectionsOverlay and RouteProbeOverlay both need this before measuring boxes. */

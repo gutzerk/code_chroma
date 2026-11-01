@@ -25,15 +25,17 @@ from pathlib import Path
 from typing import TYPE_CHECKING, cast
 
 from codechroma.bridge import diagram_seed, skill_sync
-from codechroma.bridge.agents import main_branch, transcripts, worktree
+from codechroma.bridge.agents import main_branch, session_ownership, worktree
 from codechroma.bridge.agents.worktree import WorktreeError
 from codechroma.bridge.git_cmd import ensure_excluded
-from codechroma.bridge.workspaces import MAIN_ID, PR_ID_PREFIX
+from codechroma.bridge.workspaces import BRANCH_ID_PREFIX, MAIN_ID, PR_ID_PREFIX
 from codechroma.config import settings
 from codechroma.errors import codechromaError
 from codechroma.io import load_json, utc_now_iso, write_json
 
 if TYPE_CHECKING:
+    from codechroma.bridge.agents.sessions import AgentSession
+    from codechroma.bridge.branches.manager import BranchRecord
     from codechroma.bridge.prs.manager import PrRecord
 
 logger = logging.getLogger("uvicorn.error")
@@ -56,7 +58,7 @@ STATUS_EXITED = "exited"
 _PERSISTED_FIELDS = (
     "id", "title", "kind", "branch", "worktree", "session_id", "created_at",
     "pr_url", "window", "pid", "shares_workspace_with", "base_branch", "source_pr",
-    "context", "context_kind", "resolved_cli",
+    "context", "context_kind", "resolved_cli", "session_tracking_id", "workspace",
 )
 
 # "view" = existing acknowledge-only launch line; "task" = a real, actionable first message.
@@ -66,6 +68,11 @@ CONTEXT_KINDS = ("view", "task")
 def _coerce_context_kind(value: object) -> str:
     """Anything not a recognized `CONTEXT_KINDS` member falls back to the default, "view"."""
     return value if value in CONTEXT_KINDS else "view"
+
+
+def _opt_str(value: object) -> str | None:
+    """A string field or None."""
+    return value if isinstance(value, str) else None
 
 
 def _coerce_resolved_cli(value: object) -> str:
@@ -130,8 +137,14 @@ class AgentRecord:
     context: str | None = None
     # "view" (default) wraps `context`; "task" hands it to the launched CLI's own argv, verbatim.
     context_kind: str = "view"
+    # What the Draw dialog picked for a drawing agent: type (or "any") and the request.
+    diagram_type: str | None = None
+    diagram_request: str | None = None
     # Binary that launched this window; empty for legacy `claude` records.
     resolved_cli: str = ""
+    session_tracking_id: str | None = None
+    # The worktree tab (`br_*`) this agent belongs to; None for records written before tabs.
+    workspace: str | None = None
     # Runtime-only: recomputed every startup, so persisting them would just let them go stale.
     status: str = STATUS_STOPPED
     exit_code: int | None = None
@@ -165,6 +178,7 @@ class AgentRecord:
             worktree=cast(str, path),
             created_at=raw_created_at if isinstance(raw_created_at, str) else "",
             session_id=raw.get("session_id") if isinstance(raw.get("session_id"), str) else None,
+            session_tracking_id=session_ownership.valid_id(raw.get("session_tracking_id")),
             pr_url=raw.get("pr_url") if isinstance(raw.get("pr_url"), str) else None,
             pid=raw.get("pid") if isinstance(raw.get("pid"), int) else None,
             window=({**DEFAULT_WINDOW, **window} if isinstance(window, dict)
@@ -179,7 +193,10 @@ class AgentRecord:
             source_pr=raw.get("source_pr") if isinstance(raw.get("source_pr"), str) else None,
             context=_clean_context(raw.get("context")),
             context_kind=_coerce_context_kind(raw.get("context_kind")),
+            diagram_type=_opt_str(raw.get("diagram_type")),
+            diagram_request=_opt_str(raw.get("diagram_request")),
             resolved_cli=_coerce_resolved_cli(raw.get("resolved_cli")),
+            workspace=_opt_str(raw.get("workspace")),
         )
 
 
@@ -210,7 +227,12 @@ class WorktreeProvisioner:
         return branch, path
 
     def attach_to(self, attach_to: str) -> tuple[str, Path]:
-        """The branch/worktree an attach-created agent shares — main's own, or another agent's."""
+        """The branch/worktree an attach-created agent shares: main, a tab or another agent."""
+        if attach_to.startswith(BRANCH_ID_PREFIX):
+            tab = self._m.branch_lookup(attach_to)
+            if tab is None:
+                raise UnknownAgentError(attach_to)
+            return tab.branch, Path(tab.worktree)
         if attach_to == MAIN_ID:
             branch = main_branch.current_branch(self.main_root)
             if branch is None:
@@ -346,6 +368,8 @@ class AgentManager:
         self._provisioner = WorktreeProvisioner(self)
         # Resolves a `pr-<n>` attach_to to the PR it names, so create() can fork from its head.
         self.pr_lookup: Callable[[str], PrRecord | None] = lambda _pr_id: None
+        # Resolves a `br_*` worktree tab, so create() can share its worktree and branch.
+        self.branch_lookup: Callable[[str], BranchRecord | None] = lambda _tab_id: None
         self._load()
 
     # --- persistence ---
@@ -427,8 +451,10 @@ class AgentManager:
         attach_to: str | None = None,
         context: str | None = None,
         context_kind: str = "view",
+        diagram: dict | None = None,
+        workspace: str | None = None,
     ) -> AgentRecord:
-        """Slug, branch, worktree, record, persist; `attach_to` reuses a target's own worktree."""
+        """Slug, record, persist; `attach_to` (default: the `workspace` tab) names the worktree."""
         # Context is either the acknowledge-only view description or a real "task" first message.
         context = _clean_context(context)
         context_kind = _coerce_context_kind(context_kind)
@@ -437,6 +463,8 @@ class AgentManager:
         with self._lock:
             if len(self._agents) >= max_agents():
                 raise AgentLimitError(f"the limit of {max_agents()} concurrent agents is reached")
+            if attach_to is None and workspace is not None:
+                attach_to = workspace
             agent_id = self._unique_id(title)
             pr_target = self._pr_target(attach_to) if attach_to is not None else None
             source_pr = attach_to if pr_target is not None else None
@@ -452,7 +480,7 @@ class AgentManager:
                 base_branch = self._base_branch_for(attach_to)
             else:
                 branch, path = self._provisioner.attach_to(attach_to)
-                base_branch = self._base_branch_for(attach_to)
+                base_branch = self._base_branch_for(attach_to, workspace)
             record = AgentRecord(
                 id=agent_id,
                 title=title.strip() or agent_id,
@@ -464,8 +492,10 @@ class AgentManager:
                 shares_workspace_with=shares_workspace_with,
                 base_branch=base_branch,
                 source_pr=source_pr,
+                workspace=None if pr_target is not None else workspace,
                 context=context,
                 context_kind=context_kind,
+                **(diagram or {}),
             )
             self._agents[agent_id] = record
         self.save()
@@ -480,8 +510,11 @@ class AgentManager:
             raise UnknownAgentError(attach_to)
         return record
 
-    def _base_branch_for(self, attach_to: str | None) -> str | None:
-        """Which of main's branches the agent belongs to; an attached one inherits its target's."""
+    def _base_branch_for(self, attach_to: str | None, workspace: str | None = None) -> str | None:
+        """The branch the agent belongs to: its tab's, else main's current, else its target's."""
+        tab = self.branch_lookup(workspace) if workspace is not None else None
+        if tab is not None:
+            return tab.branch
         # Own worktree and attach-to-main both fork from whatever main has checked out right now.
         if attach_to is None or attach_to == MAIN_ID:
             return main_branch.current_branch(self.main_root)
@@ -503,6 +536,43 @@ class AgentManager:
         self._active.revert_to_main()
         self.save()
         return record
+
+    def ids_for_workspace(self, workspace_id: str) -> list[str]:
+        """Ids of the agents living on a tab, own or sharing its worktree."""
+        with self._lock:
+            return [
+                record.id
+                for record in self._agents.values()
+                if record.workspace == workspace_id or record.shares_workspace_with == workspace_id
+            ]
+
+    def remove_for_workspace(self, workspace_id: str) -> list[str]:
+        """Forgets every agent on a closed tab (its worktree is gone or kept); returns their ids."""
+        with self._lock:
+            doomed = [
+                record.id
+                for record in self._agents.values()
+                if record.workspace == workspace_id or record.shares_workspace_with == workspace_id
+            ]
+            for agent_id in doomed:
+                self._agents.pop(agent_id, None)
+        if doomed:
+            self._active.revert_to_main()
+            self.save()
+        return doomed
+
+    def rename_workspace_branch(self, workspace_id: str, old: str, new: str) -> None:
+        """A renamed tab moves its agents' recorded branch with it."""
+        with self._lock:
+            changed = False
+            for record in self._agents.values():
+                if record.workspace == workspace_id or record.shares_workspace_with == workspace_id:
+                    record.branch = new
+                    changed = True
+                    if record.base_branch == old:
+                        record.base_branch = new
+        if changed:
+            self.save()
 
     def _guard_shared_worktree(self, agent_id: str, record: AgentRecord) -> None:
         """Refuses to remove a worktree/branch shared with main, a PR, or another agent."""
@@ -560,24 +630,40 @@ class AgentManager:
             if Path(sibling.worktree) == path:
                 sibling.worktree_lost = False
 
-    def capture_session_id(self, agent_id: str) -> str | None:
-        """Records the conversation `claude --resume` continues; None while there isn't one."""
+    def set_session_id(self, agent_id: str, session_id: str | None) -> AgentRecord:
+        """Persists the session id passed to this agent's Claude process."""
         record = self.get(agent_id)
-        path = Path(record.worktree)
-        exclude = self._sibling_session_ids(record, path)
-        found = transcripts.find_session_id(path, exclude=exclude)
-        if found and found != record.session_id:
-            record.session_id = found
+        if record.session_id != session_id:
+            record.session_id = session_id
             self.save()
-        return record.session_id
+        return record
 
-    def _sibling_session_ids(self, record: AgentRecord, path: Path) -> frozenset[str]:
-        """Session ids another agent sharing this worktree (an attach_to peer) already claimed."""
-        return frozenset(
-            other.session_id
-            for other in self._agents.values()
-            if other is not record and other.session_id and Path(other.worktree) == path
-        )
+    def capture_session_id(self, agent_id: str) -> str | None:
+        """Read only this launch's hook file; never infer ownership from transcript recency."""
+        with self._lock:
+            record = self.get(agent_id)
+            if record.session_tracking_id:
+                path = session_ownership.file_for(self.main_root, record.session_tracking_id)
+                payload = load_json(path)
+                found = session_ownership.valid_id(
+                    payload.get("session_id") if isinstance(payload, dict) else None
+                )
+                if found is not None:
+                    self.set_session_id(agent_id, found)
+            return record.session_id
+
+    def record_session_launch(self, agent_id: str, session: AgentSession) -> None:
+        """Persist the actual PTY's metadata, including an idempotent start's existing session."""
+        if session.session_tracking_file is None:
+            return
+        with self._lock:
+            record = self.get(agent_id)
+            tracking_id = Path(session.session_tracking_file).stem
+            if record.session_tracking_id == tracking_id:
+                return
+            record.session_tracking_id = tracking_id
+            record.session_id = session.initial_session_id
+            self.save()
 
     def consume_context(self, agent_id: str) -> tuple[str, str] | None:
         """Pending (context, context_kind), cleared so a resume/restart never re-injects it."""

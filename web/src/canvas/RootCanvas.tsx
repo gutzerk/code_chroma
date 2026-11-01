@@ -3,17 +3,15 @@ import { ROOT_NODE_ID, type HierarchyNodeRef, type LayoutKind } from "../state/t
 import { reportAsyncError } from "../util/reportError";
 import { UndoManager } from "./UndoManager";
 import { LeftPanelToggle } from "./LeftPanelToggle";
+import { DrawDialog } from "./doc/drawDialog/DrawDialog";
 import { useEngineClient } from "../engine-client/EngineClientContext";
 import { ConnectionsOverlay } from "./ConnectionsOverlay";
-import { ChangeConnectionsOverlay } from "./ChangeConnectionsOverlay";
-import { TraceFlowOverlay } from "./TraceFlowOverlay";
-import { RouteProbeOverlay } from "./RouteProbeOverlay";
+import { overlaysOf, useActiveModes } from "./canvasModes";
 import { RouteProbeTrigger } from "./RouteProbeTrigger";
 import { LabelClearanceMonitor } from "./LabelClearanceMonitor";
-import { TraceControls } from "./TraceControls";
 import { CanvasViewport, type CanvasViewportHandle } from "./CanvasViewport";
 import { readSavedCameraView } from "./canvasCameraStore";
-import { CanvasFocusContext } from "./CanvasFocusContext";
+import { CanvasDiagramFocusContext, CanvasFocusContext } from "./CanvasFocusContext";
 import { CanvasDocView } from "./doc/CanvasDocView";
 import { DiagramHealthNote } from "./doc/DiagramHealthNote";
 import { SidecarSummaryCard } from "./doc/SidecarSummaryCard";
@@ -31,7 +29,6 @@ import { inspectorStore, useIsInspectorOpen } from "./inspectorStore";
 import { LeftPanel } from "./leftpanel/LeftPanel";
 import { CollapsedLeftBar } from "./leftpanel/CollapsedLeftBar";
 import { ArrangeSection } from "./leftpanel/ArrangeSection";
-import { DrawDiagramPopover } from "./leftpanel/DrawDiagramPopover";
 import { chromeInsets, LAYOUT_CSS_VARS } from "./layout/layoutMetrics";
 import { useLayoutState } from "./layout/layoutStore";
 import { CodeSidebar } from "./CodeSidebar";
@@ -52,10 +49,9 @@ import {
 } from "../agents/agentStore";
 import { useAgentClient } from "../agents/AgentClientContext";
 import { attachAgent } from "../agents/attachAgent";
-import { BranchSwitcher } from "../agents/BranchSwitcher";
+import { WorktreeStrip } from "../agents/WorktreeStrip";
 import { TerminalPanel } from "../terminal/TerminalPanel";
 import { terminalPanelStore, useIsTerminalPanelOpen } from "../terminal/terminalPanelStore";
-import { useIsDiffActive } from "../state/diffOverlayStore";
 import { PrRailButton } from "../pr/PrRailButton";
 import { usePrWorkspaces } from "../pr/prStore";
 import { SettingsRailButton } from "../assistant/SettingsRailButton";
@@ -66,7 +62,6 @@ import { autoExpandInitial } from "../state/autoExpandInitial";
 import { liveStore, useLiveVersion } from "../state/liveStore";
 import { viewContextStore, useCurrentViewContext } from "../state/viewContextStore";
 import { buildViewContext } from "../agents/viewContext";
-import { DeletedDiffOverlay } from "./DeletedDiffOverlay";
 import { ImpactChangeSummary } from "./ImpactChangeSummary";
 import { useImpactChangesSidecar, useImpactDiffSync } from "../state/useSidecar";
 import { useSkillOutput } from "../state/useSkillOutput";
@@ -101,17 +96,17 @@ export function RootCanvas() {
   const [codePopupNode, setCodePopupNode] = useState<HierarchyNodeRef | null>(null);
   const { agentsMode, leftOpen, leftTab } = useLayoutState();
   const { terminalLeft } = chromeInsets({ leftOpen, agentsMode });
-  const [drawOpen, setDrawOpen] = useState(false);
   const stageRef = useRef<HTMLDivElement | null>(null);
   const breadcrumbPath = useDeepestExpandedPath();
   const expandedNodeIds = useExpandedNodeIdsByOrder();
   const codeVisibleNodeIds = useCodeVisibleNodeIdsByOrder();
   const isTerminalPanelOpen = useIsTerminalPanelOpen();
+  const [terminalHeight, setTerminalHeight] = useState(0);
   const agentClient = useAgentClient();
   const workspaceId = useActiveWorkspace();
   const prWorkspaces = usePrWorkspaces();
   // What to show in the chrome instead of the old node-path breadcrumb: the PR this workspace
-  // reviews, if any -- BranchSwitcher already covers "which branch" for the main workspace, but it
+  // reviews, if any -- WorktreeStrip already covers "which worktree", but it
   // always reflects main's own checked-out branch, never a PR's, so a PR workspace needs its own
   // identity label here.
   const activePr = useMemo(
@@ -139,7 +134,8 @@ export function RootCanvas() {
     const el = stageRef.current;
     return el ? { width: el.clientWidth, height: el.clientHeight } : undefined;
   }, []);
-  const isDiffActive = useIsDiffActive();
+  const activeModes = useActiveModes();
+  const isDiffActive = activeModes.some((mode) => mode.id === "diff");
   const isReadOnly = useIsWorkspaceReadOnly();
   // The "impact" recipe's layer is the one-canvas model's replacement for the old "view is open"
   // flag (the left panel's Diagrams tab is the one place a diagram gets added/removed now -- see
@@ -447,8 +443,14 @@ export function RootCanvas() {
 
   const focusOnNode = useCallback((nodeId: string) => viewportRef.current?.focusOnNode(nodeId), []);
 
+  const focusDiagram = useCallback(
+    (layer: string) => viewportRef.current?.fitToSelector(`[data-diagram-layer="${CSS.escape(layer)}"]`) ?? false,
+    [],
+  );
+
   return (
     <CanvasFocusContext.Provider value={focusOnNode}>
+    <CanvasDiagramFocusContext.Provider value={focusDiagram}>
     <div className="app-root" data-testid="app-root">
       <UndoManager kinds={UNDO_KINDS} />
       {/* Row 1 of the floating-card shell: a full-width top bar above the rail, so the branch chip
@@ -466,7 +468,7 @@ export function RootCanvas() {
             {`PR #${activePr.number} · ${activePr.head_ref}`}
           </span>
         )}
-        <BranchSwitcher />
+        <WorktreeStrip />
         <div className="canvas-chrome-spacer" />
         <ReportIssueRailButton />
         <GamesMenu />
@@ -508,7 +510,10 @@ export function RootCanvas() {
         </nav>
         <TutorialChat />
         <TutorialAgentMock />
-        <div className="canvas-area" data-testid="canvas-area" style={LAYOUT_CSS_VARS as CSSProperties}>
+        <div className="canvas-area" data-testid="canvas-area" style={{
+          ...LAYOUT_CSS_VARS,
+          "--terminal-clearance": `${terminalHeight > 0 ? terminalHeight + 6 : 0}px`,
+        } as CSSProperties}>
           {/* Row for the canvas plus the agent task panel beside it — a full-height sibling of the
               canvas, not a toolbar item, so cards have room to be more than an icon and a tooltip.
               The project tree stays the leftmost item (the very edge, right after .app-rail), with
@@ -526,9 +531,7 @@ export function RootCanvas() {
                   <CanvasDocView />
                 </CodePopupContext.Provider>
                 {rootNode && <ConnectionsOverlay />}
-                {rootNode && isDiffActive && <ChangeConnectionsOverlay />}
-                {rootNode && isTraceActive && <TraceFlowOverlay />}
-                {rootNode && <RouteProbeOverlay />}
+                {rootNode && overlaysOf(activeModes).map(({ id, Overlay }) => <Overlay key={id} />)}
                 {rootNode && <LabelClearanceMonitor />}
                 {/* Inside .canvas-content on purpose (unlike SidecarSummaryCard below, which is
                     deliberately screen-fixed chrome): a big PR's change list
@@ -553,8 +556,8 @@ export function RootCanvas() {
               <SidecarSummaryCard />
               <DiagramHealthNote />
               <WikiGeneralNotice />
-              {isDiffActive && <DeletedDiffOverlay />}
-              {isTraceActive && <TraceControls />}
+              {activeModes.map(({ id, Controls }) => Controls && <Controls key={id} />)}
+              <DrawDialog />
             </div>
             <ActivityPanel disabled={isAtAgentCapacity || isLaunchingAgent} onRunAgent={() => {
               if (tutorialStore.isActive()) tutorialSimStore.startAgent2();
@@ -563,19 +566,17 @@ export function RootCanvas() {
           </div>
           {/* Docked under the canvas, inside .canvas-area, so the inspector to the right of it stays
               full viewport height and the terminal spans only the canvas's own width. */}
-          {terminalMounted && <TerminalPanel hidden={!isTerminalPanelOpen} />}
+          {terminalMounted && <TerminalPanel hidden={!isTerminalPanelOpen} onHeightChange={setTerminalHeight} />}
           {/* Floating chrome over the canvas area; z-order comes from layoutMetrics Z_*. */}
           {leftOpen ? (
             <LeftPanel
               rootNode={rootNode}
               onActivate={navigateTreeTo}
-              onDraw={() => setDrawOpen(true)}
               arrange={<ArrangeSection getViewport={getStageViewport} />}
             />
           ) : (
             agentsMode !== "full" && <CollapsedLeftBar />
           )}
-          {drawOpen && <DrawDiagramPopover onClose={() => setDrawOpen(false)} />}
         </div>
         {inspectorMounted && <InspectorPanel hidden={!isInspectorOpen} />}
         <EpicBriefPanel />
@@ -592,6 +593,7 @@ export function RootCanvas() {
         />
       )}
     </div>
+    </CanvasDiagramFocusContext.Provider>
     </CanvasFocusContext.Provider>
   );
 }

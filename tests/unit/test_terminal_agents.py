@@ -50,6 +50,17 @@ def test_agent_kind_routes_to_an_assigned_cli_provider_binary():
     assert env["ANTHROPIC_AUTH_TOKEN"] == "sk-proxy"
 
 
+def test_agent_kind_passes_the_assigned_model_to_a_plain_claude_provider():
+    from codechroma.terminal.agents import agent_cli
+
+    _assign_agents_group()
+
+    argv, env = agent_cli("agent")
+
+    assert argv[:3] == ["claude", "--model", "claude-opus"]
+    assert "ANTHROPIC_MODEL" not in env
+
+
 def test_agent_kind_loads_plugin_when_claude_adapter_uses_a_wrapper(monkeypatch):
     from codechroma.bridge.resources import resource_path
     from codechroma.llm import resolve_cli
@@ -71,7 +82,8 @@ def test_agent_kind_loads_plugin_when_claude_adapter_uses_a_wrapper(monkeypatch)
 
     argv, env = agent_cli("agent")
 
-    assert argv == ["claude-wrapper", "--plugin-dir", str(resource_path("skills").parent)]
+    plugin = str(resource_path("skills").parent)
+    assert argv == ["claude-wrapper", "--model", "claude-opus", "--plugin-dir", plugin]
     assert env == {}
 
 
@@ -85,6 +97,18 @@ def test_agent_kind_carries_a_first_message_and_resume():
     resumed, _env = agent_cli("agent", resume_session_id="abc123")
 
     assert resumed == ["claude", *_plugin_args(), "--resume", "abc123"]
+
+
+def test_claude_fresh_session_uses_the_assigned_id_and_a_resume_id_wins_over_it():
+    from codechroma.terminal.agents import agent_cli
+
+    fresh, _env = agent_cli("claude", new_session_id="8a1dd75f-8c0c-4e94-9a4a-cf655f0a2d23")
+    resumed, _env = agent_cli(
+        "claude", resume_session_id="owned-session", new_session_id="unrelated-new-session"
+    )
+
+    assert fresh[-2:] == ["--session-id", "8a1dd75f-8c0c-4e94-9a4a-cf655f0a2d23"]
+    assert resumed[-2:] == ["--resume", "owned-session"]
 
 
 def test_agent_kind_unknown_assigns_nothing_to_a_fixed_shell():
@@ -163,6 +187,7 @@ def test_headless_prompts_keep_using_synced_project_skill_commands():
         "patterns_agent.yaml": "codechroma-draw-diagram",
         "impact_agent.yaml": "codechroma-draw-diagram",
         "sequence_agent.yaml": "codechroma-draw-diagram",
+        "walkthrough_agent.yaml": "codechroma-draw-diagram",
         "epics_agent.yaml": "codechroma-draw-diagram",
         "impact_review_agent.yaml": "codechroma-review-diagram",
         "epic_brief_agent.yaml": "codechroma-epic-brief",
@@ -173,3 +198,14 @@ def test_headless_prompts_keep_using_synced_project_skill_commands():
         f"/{skill_name}" in (prompts / prompt_name).read_text(encoding="utf-8")
         for prompt_name, skill_name in prompt_skill_names.items()
     )
+
+
+def test_claude_kind_appends_the_saved_instruction_to_the_system_prompt():
+    from codechroma.assistant import save_assistant_settings
+    from codechroma.terminal.agents import agent_cli
+
+    save_assistant_settings({"cli": "claude", "instruction": "be terse"})
+
+    argv, _env = agent_cli("claude")
+
+    assert argv == ["claude", "--append-system-prompt", "be terse", *_plugin_args()]

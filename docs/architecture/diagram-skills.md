@@ -28,12 +28,14 @@ skills/codechroma-draw-diagram/
   SKILL.md                       #  52 lines — router only
   references/
     drawing-rules.md             # 298 — shared rules, the one shared shape + style catalog, fallback
-    type-c1.md                   # 210 — 042-c1-diagram-quality-and-speed cut it from ~350: flat
+    type-system-context.md                   # 210 — 042-c1-diagram-quality-and-speed cut it from ~350: flat
                                   #       system-context authoring only, decomposition removed
     type-patterns.md             # 226
     type-impact.md               # 172
     type-sequence.md               # ordered-call flow from trace scaffold or code context
     type-custom.md                 # 173
+    # (type-system-context.md was renamed type-system-context.md: "System context" is the one built-in type, id `system-context`)
+    type-dataflow.md               # data between sources/processes/stores, saved as custom type `dataflow` on first use
   scripts/
     check_diagram.py               # one self-check, including --kind sequence
 ```
@@ -57,7 +59,7 @@ description is 983 chars, down from 2077 across the four originals. Re-check tri
 trimming it further.
 
 ⚠ The prompt YAMLs name the skill **and** the type **and** the reference file
-(`Use the codechroma-draw-diagram skill, type c1 — read references/type-c1.md …`), which is what the
+(`Use the codechroma-draw-diagram skill, type c1 — read references/type-system-context.md …`), which is what the
 router's precedence line ("a named reference file wins over this table") makes deterministic.
 
 ## 🔴 Retiring a skill needs its own pass
@@ -182,7 +184,9 @@ file-wide unique, which is also why `AMBIGUOUS` and `SIBLING` were retired (see 
 | `2` | the diagram could not be read at all |
 
 Advisory (print, never gate): `COVERAGE`, `DEPTH`, `NESTING-EDGE`, `CYCLES`, `ARTICULATION`,
-`BADKIND`, `BADICON`, `UNLABELED`, `DROPPED node …`.
+`BADKIND`, `BADICON`, `BADEDGEKIND`, `EDGEKIND-SPAWN`, `EDGEKIND-DATA`, `UNLABELED`, `DROPPED node …`.
+
+**Edge kinds.** The skill (`drawing-rules.md` "Edge kinds") has the agent author `relations[].kind`: `calls` (default), `spawns` (starts a process/CLI/agent), `data` (`reads`/`writes` a file/DB/store), `minor`. Both resolvers pass it onto the canvas edge unchanged (default `uses`), where `web/src/canvas/doc/edgeKinds.ts` styles it. `check_diagram.py` (`_check_edge_kinds`; not for `sequence`/`custom`) advises `BADEDGEKIND` on an unknown kind (not for `c1`/`patterns`/`impact`, whose relations author free-form structural verbs) (web aliases and structural verbs like `uses`/`implements` are accepted) and `EDGEKIND-SPAWN`/`EDGEKIND-DATA` when a plain-call label says it spawns a process or reads/writes a store. The bridge surfaces the same advisories itself: `diagram_diagnostics.advise_relations` (Python) / `Diagnostics.AdviseRelations` (C#), called from `resolve_diagram` / `DiagramResolver.Resolve`, record `bad_edge_kind`, `edge_kind_spawn`, `edge_kind_data` (and, for `sequence`, `bad_message_kind`, `failure_kind` = `BADMSGKIND`/`FAILURE-KIND`) as soft diagnostics that `DiagramHealthNote` shows as "drawing hints" -- never dropped, skipped for `custom`; `DiagramHealthNote` words a mixed list as "N parts not drawn: ...; M drawing hints" so hints never read as lost content. The kind lists and spawn/data regexes live in three copies (`check_diagram.py`, `diagram_diagnostics.py`, `DiagramResolver.cs`); keep them in step (`tests/unit/test_bridge_advisory_tables_in_step.py` fails when a copy drifts). A non-string, non-null edge `kind` (e.g. `5`) counts as a bad kind in all three. Shared cases: `diagrams_resolved.cases.json` (`a_plan_diagram_advises_edge_kinds_…`, `a_sequence_advises_message_kinds_…`); unit: `tests/unit/test_diagram_advisories.py`.
 
 🔴 **`DROPPED relation …` fails the run (exit 1).** A relation the bridge discarded while resolving
 (dangling endpoint, a self-relation the style disallows, invalid shape) is an arrow or message the author drew
@@ -228,7 +232,7 @@ Three deliberate behaviour changes from the merge:
 
 ⚠ `ISLAND` (a 2+-node cluster wired only to itself) originally shipped only for patterns and custom
 -- `CheckConfig.check_islands` was `None` for c1 and impact, and `HierarchicalInspector` never called
-the island logic at all regardless of config, even though `type-c1.md`'s "every actor needs a
+the island logic at all regardless of config, even though `type-system-context.md`'s "every actor needs a
 relation to `system`" and `type-impact.md`'s "every box must connect" already promised exactly this.
 Both gaps are closed: impact just flips `check_islands` on (its `FlatInspector` path is unchanged);
 c1 gets its own `_check_c1_islands` (`bridge/inspect.py`, mirrored in `check_diagram.py`'s
@@ -453,7 +457,7 @@ differences from Step 1's route, both deliberate:
   links to its components by id, and the skill already knows `repo_root` from its own `*-path`
   endpoint, so `references/drawing-rules.md`'s Step 0 tells it to read
   `{repo_root}/.codechroma/wiki-general/c3/<id>.md` directly rather than adding a second new route.
-- **`c1` gets only `root`, never `containers[]`.** `type-c1.md` gained its own Step 0 (before
+- **`c1` gets only `root`, never `containers[]`.** `type-system-context.md` gained its own Step 0 (before
   `context-digest`) that fetches this route but only ever reads the root narrative — C1 doesn't
   decompose (unchanged since 042), so the C2-level detail in `containers[]` has no box to attach to.
 - **No auto-trigger.** A missing wiki-general (`has_wiki_general: false`) is treated exactly like
@@ -565,14 +569,14 @@ get_output`, never the raw path param.
 ## Self-check probe parallelism and the C1 fan-out option
 
 ⚠ **042-c1-diagram-quality-and-speed removed the BFS/worklist/fan-out material this section
-describes from `type-c1.md`.** C1 is now a flat system-context view (system + actors + relations,
+describes from `type-system-context.md`.** C1 is now a flat system-context view (system + actors + relations,
 authored in one pass, no `/structure` decomposition at all) — see
 [`c1-diagram.md`](c1-diagram.md)'s banner and `docs/planning/042-c1-diagram-quality-and-speed/` for
 why (an 8-minute run over-decomposing a large monorepo instead of drawing a true C1 view). The
 probe-parallelism code below is unchanged and still runs — it is dead weight for a fresh flat C1
 file (there are no `dir::` leaves to probe) but still fires correctly against an older or
 hand-decomposed `c1.json`, and unchanged for `patterns`/`impact`/`custom`. The fan-out pattern is
-gone from `type-c1.md` entirely; if a future C2/C3-style decomposition type is ever built, it would
+gone from `type-system-context.md` entirely; if a future C2/C3-style decomposition type is ever built, it would
 need to re-document its own version of this rather than resurrecting C1's.
 
 `check_diagram.py`'s C1 self-check used to probe every `dir::` leaf's `UNCOVERED` status one at a
@@ -584,13 +588,13 @@ consumes them ever runs — the walk itself makes zero network calls. `_dir_leaf
 predicate both the collection pass and `_check_leaf` share, so the two can't silently drift apart.
 Findings are unchanged; only wall time and call count changed.
 
-`type-c1.md`'s worklist doc used to change alongside it: the documented `structure` fetch depth moved
+`type-system-context.md`'s worklist doc used to change alongside it: the documented `structure` fetch depth moved
 from `depth=2` to `depth=3` (one round trip covers what used to take two, since the bridge already
 caches `structure` responses and supports up to `depth=5`), and the doc told the skill to issue one
 BFS layer's independent `structure` calls as parallel tool calls in a single message instead of one
-at a time. This whole worklist no longer exists in `type-c1.md` (042, above).
+at a time. This whole worklist no longer exists in `type-system-context.md` (042, above).
 
-For a monorepo with 3+ independent, sizeable top-level areas, `type-c1.md`'s "Fan-out for independent
+For a monorepo with 3+ independent, sizeable top-level areas, `type-system-context.md`'s "Fan-out for independent
 branches" subsection used to document a Map-Reduce shape: the main agent resolves the top layer, then
 issues one `Agent` call per area (`subagent_type: "general-purpose"`, one id prefix per area) in a
 single message; each branch returns a JSON fragment instead of writing the shared artifact itself;
@@ -630,6 +634,14 @@ output matches pre-036 golden fixtures) · `tests/contract/test_new_diagram_type
 `agentDiagramsReady.test.ts`, `AgentRail.test.tsx`, `AgentWindowLayer.test.tsx`,
 `nodeAccent.test.tsx`.
 
+## `walkthrough`: the built-in process diagram
+
+`walkthrough` is a built-in kind (id in `src/codechroma/diagrams/kinds.json`, so the Draw dialog lists it; `BUILTIN_TYPES["walkthrough"]`, `DIAGRAMS["walkthrough"]` and `_resolve_walkthrough` in Python; `Workspace.DiagramKinds`, `SkillAgents.Specs`, `DiagramRoutes.ResolveKind` and `DiagramSeed.BuiltinKinds` in C#). Artifact `.codechroma/diagrams/walkthrough/walkthrough.json`, path route `GET /repos/{id}/walkthrough-path`, prompt `prompts/walkthrough_agent.yaml`, skill reference `references/type-walkthrough.md`, self-check `check_diagram.py --kind walkthrough` (budget 24 nodes / 40 relations, `question`/`summary`/`hero` advisories like the other flat kinds). It resolves through the shared resolver in the `boxes-arrows` style and its canvas elements use `render: "custom"` on layer `walkthrough`, so the existing step boxes, `route` carrier and **Show route** (B2) work with no new renderer. The look (the B2 board frame, steps with the common box internals in green/violet/red route frames, chips, glow, the ROUTE panel drawn inside the diagram frame, no lanes) is CSS plus `WalkthroughPanel`/`RouteFrameActions`; see `web-canvas-shell.md`. No context endpoint and no generate route: an in-canvas agent picks the skill by description, like `sequence`. The edge-kind tables gained `error` (three copies, kept in step) so a failure arrow does not read as a typo. Web: `BUILTIN_RECIPES`, `DiagramKind`, the status map and a card schematic in `drawDialog/schematics.tsx`.
+
+## The route's `detail` line and the "show a process" recipe
+
+A route step may carry an optional `detail` string (the ROUTE card's second line). Both bridges copy `route` verbatim, so no resolver change was needed; `check_diagram.py` advises `ROUTE-DETAIL` on a blank or non-string value (`tests/unit/test_diagram_check_script.py`). `references/type-custom.md` ends its route section with the six-step recipe for turning a user's "how does X work" into a route (5-9 steps, trigger first, ✓ last, `ai`/`data`/`failure` as the only colour signals).
+
 ## Highlighting/expanding a process on an already-drawn diagram
 
 `references/highlight-process.md` is a fifth entry point alongside the four `type id` rows, but
@@ -659,7 +671,7 @@ survives every unrelated regenerate untouched, and only a diagram JSON `style` (
 `PATCH`) ever overwrites it.
 
 "Expanding" a too-coarse box needs no new plumbing: `add_element`/`add_edge` into an existing
-layer already worked (this is exactly what `type-c1.md`'s "Decomposing a box into layers" section
+layer already worked (this is exactly what `type-system-context.md`'s "Decomposing a box into layers" section
 used to describe, before 042-c1-diagram-quality-and-speed removed C1 decomposition entirely — no
 built-in type authors this kind of nesting today). A highlighted/expanded box carries the normal
 `meta.recipe_key`, so it is a
@@ -775,6 +787,7 @@ but a sequence message needs `order` (its time row), `from`/`to` (which particip
 sequence relation into a `render: "sequence"` element whose `meta` carries all four, and emits **no
 edges** for the layer.
 
+- **Message `kind` and `failure` pass through** (both bridges, `_message_node` / `MessageNode`): an authored message's top-level `kind` (`call|return|ai|event|error`) and boolean `failure` land in the element's `meta`; the renderer draws `kind: "error"` or `failure: true` red and dashed. `check_diagram.py` advises (never blocks) `BADMSGKIND` for an unknown kind and `FAILURE-KIND` when a label reads as a failure (error/fail/denied/timeout) without `kind: "error"`. Shared case: `recipes.cases.json` `a_sequence_message_carries_kind_and_failure_into_its_element_meta`.
 - **Backend wiring is the generic one** — one `DiagramSpec` entry (`DIAGRAMS["sequence"]`) + one
   `DiagramTypeDefinition` (`BUILTIN_TYPES["sequence"]`, `context="sequence"`) gives GET/get-path/
   delete routes and the unified `.../context` envelope for free. It resolves through the shared
@@ -785,10 +798,11 @@ edges** for the layer.
   rather than a huge loop. The AI fills labels, return arrows, and calls the trace's blind spots hid.
 - **Frontend renders one whole layer** via `web/src/canvas/doc/SequenceDiagram.tsx` — an
   own-component renderer (`BLOCK_RULES.sequence.renderer === "sequence"`), like `GroupFrame` but
-  whole-diagram. It reads `meta.role` (`participant`/`message`), `meta.order` (row), `meta.from`/
-  `meta.to` (column lookup by participant `node_id`/recipe key), `meta.async`/`meta.return`. Because
-  it computes all geometry from `meta`, it ignores `element.position`/`size` and is `lockedLayout` —
-  `autoLayout`'s dagre pass excludes `render === "sequence"` elements.
+  whole-diagram. It reads `meta.role` (`participant`/`message`), `meta.order` (step column; `"2a"`
+  sorts as 2.01), `meta.from`/`meta.to` (lane lookup by participant `node_id`/recipe key),
+  `meta.kind`, `meta.async`. All geometry comes from `sequenceBoard.ts`; the board is anchored on the
+  first lane's persisted position, and the layer is `lockedLayout` — `autoLayout`'s dagre pass
+  excludes `render === "sequence"` elements.
 - **Self-check**: `check_diagram.py --kind sequence` and `inspect.py`'s `FlatInspector` treat it as a
   flat shape (participants = nodes, messages = relations), so duplicate/dangling/island/orphan rules
   apply unchanged. Its budget row (24 participants / 60 messages) is in both `_BUDGETS` and
@@ -918,7 +932,7 @@ Separate from authoring, and the reason a user could ask for a diagram and see n
   positions and applies them through the same shared path. Because the guard checks the *content*
   (origin-piled) rather than mere in-flight-ness, it drops only the transient state, never an
   unrelated user write. The direct-`PATCH` fallback path (`drawing-rules.md`'s "type this skill does
-  not know") is covered by a canvas-side pass: `canvasDocStore.ts`'s `fetchAndApplyCanvasDoc` runs ELK (`pileLayout.ts`) on
+  not know") is covered by a canvas-side pass: `canvasDocSync.ts`'s `fetchAndApplyCanvasDoc` runs ELK (`pileLayout.ts`) on
   any layer that arrives with every box on the origin, whoever drew it (the server cascade
   `_DEFAULT_ADD_STEP_*` was removed; a position-less add now lands at `(0,0)`).
 - **A fourth trigger: expanding a collapsed diagram from the Diagrams tab.** `AgentRail.tsx`'s
@@ -981,3 +995,58 @@ systems have their own tag, separate from `conceptual`. The canvas shows a dashe
 (`database`, `storage`, `queue`, `actor`, `client`, `cache`, `external`), applied as a
 `.node-shape-<name>` class; unknown names fall back to the plain box. Tests:
 `tests/unit/test_diagram_resolver.py`, `web/src/canvas/doc/nodeAccent.test.tsx`.
+
+## Diagram titles
+
+Every diagram file carries a top-level `title`: the drawing agent names what the diagram shows for
+the user's request ("How a file save reaches the canvas"), in the request's language, ≤ 60 chars,
+never the type name. The flow:
+
+1. **Skill.** `drawing-rules.md` "Naming the diagram (`title`)" holds the rule; every `type-*.md`,
+   `bare-*.md`, `process-bare.md`, `type-dataflow.md` and `feature-plan-mode.md` repeats it with an
+   example `title`. The agent lists the titles already taken with
+   `GET /repos/{id}/diagrams/status` (each entry now has `title`, null when untitled) and picks a
+   distinct one. A Draw-dialog run also gets a "Name the diagram from this request" line from
+   `BareSkill.RequestedStart` (C# only, like the rest of agent prompt composition).
+2. **Self-check.** `check_diagram.py`'s `_check_title` adds three advisories (never blocking, every
+   kind except `epics`): `NOTITLE` (missing/blank), `GENERICTITLE` (only type words such as
+   "Sequence", "Design patterns", "Patterns: bridge", or the custom `--type` id), `LONGDIAGRAMTITLE`
+   (over 60 chars). Tests: `tests/unit/test_diagram_check_script.py`.
+3. **Bridge (Python + C# parity).** `recipes.py`'s `diagram_title` / `Recipes.DiagramTitle` read the
+   trimmed `title`; `reshape` stamps it as `meta.diagram_title` on every element of the layer (route
+   carrier included), and `diagrams/status` reports it per entry. The patterns resolvers rebuild the
+   payload, so both pass `title` through explicitly. Contract cases:
+   `recipes.cases.json` `a_diagram_title_rides_on_every_element_meta`, `diagrams.cases.json`
+   `diagrams_status_reports_each_written_title_and_null_when_untitled`.
+4. **Canvas.** `diagramDisplay.ts`'s `diagramTitle` reads the first `meta.diagram_title` on the
+   layer; `diagramDisplayName` returns it as `name` (falling back to `labelForDiagramLayer`) with
+   `titled: true`. `DiagramFrame` shows it as the frame label beside the existing `TYPE · n BOXES`
+   meta line; the ON CANVAS rows (`useDiagramRows`) show it as the row name with a small
+   `TYPE ·` prefix on the meta line when titled.
+
+Layer ids and file names never change: one file per built-in type still means one diagram per
+type, so a redraw replaces the old title with the new request's title.
+
+## Sequence readability (022)
+
+`check_diagram.py` adds `BADPHASE` and `BADFRAME` (shape tier: unknown `kind` or a bad `from_order`/`to_order` range in `phases[]`/`frames[]`), and the advisories `NO-ORDER` (sequence message without `order`; an older diagram still passes), one combined `NOSUMMARY` (sequence, c1, patterns and impact), `NOHERO` (c1/patterns/impact with 3+ relations and none marked `hero`), `ECHO-LABEL`, `HIDDEN-BRANCH`, `LONGTITLE`. Both resolvers (`canvas/recipes.py`, `Stores/Recipes.cs`) fold `order`/`lane`/`rank` into node `meta` (`rank` = `entry`/`exit`, a layout hint ELK turns into first/last layer; `order` wins; `check_diagram.py` advisories `BADRANK` and `RANK-ORDER`), add `hero` to message `meta`, and stamp `phases`/`frames`/`notes`/`question`/`summary` on every participant's `meta`.
+
+The canvas draws a sequence layer as the A4 "glance + expand in place" board (`web/src/canvas/doc/`). `sequenceBoard.ts` lays it out as swimlanes: one lane per participant (`01 / Name`, an AI-kind participant gets a violet lane), one column per step in `order`, each step in its **sender's** lane, and an `EX / Failures` lane for `kind: "error"`/`failure` messages, hung under the step they branch from with a dashed red arrow. Phases become pills above the columns they cover (`request` cyan, `prepare` green, `ai` violet, `deliver` orange, other neutral), `frames[]` become a dashed outline with a mono tag, and `notes[]` show in the expanded step. Consecutive steps are joined by the solid main path (an `async` step's incoming arrow is the dashed side-effect line). The first and last step are START/END pills; the rest are numbered `01…`. A step's colour is derived on the web, no extra JSON (`stepTone`): failure, AI (`kind: "ai"` or an AI sender), check (label says verify/check/validate/test/lint), actor/trigger (actor, UI or external sender), entry route (route/api sender), data written (data-kind sender or receiver), else logic (entry route is blue, not cyan, so it never blends with green logic). Each lane also takes a faint tint of its own steps' most common tone (`BoardLane.role`, `.seq-lane-role--*`), so lanes read apart as well as steps; a tie goes to the earlier role in `TONE_PRIORITY` (fail, ai, check, data, route, actor, logic), never to step order.
+
+Clicking a step, or Enter/Space on its full-box toggle button, expands it in place (`SequenceStep.tsx`); focus moves to the collapse caret and back, and the step's `↗` source button is a sibling of that toggle, never nested in it: the box grows to 380×240, its lane and every later column move to make room, and it shows the sender's file pill (`↗` opens the inspector), one line of `from → to · description · note`, and up to six function cards from the sender's linked code (`sequenceStepFunctions.ts`: `getChildren` of the component and its classes, ranked by words shared with the step's label and description, `+ N more ▸` when there are more; cached per engine client and cleared on the bridge's "changed" ping; calls between the shown cards come from `getConnections` and draw as thin inner arrows). The bridge sends no line numbers or function summaries, so a card shows the signature (or the snippet's first line) instead of the mockup's `:184` and summary. The expanded ids live in `sequenceViewStore.ts` (per layer, `localStorage`), never in `sequence.json`; `viewSequenceElements` derives the expanded geometry in `CanvasDocView` for display only, anchored to the persisted layout (`useReflowOwnLayouts` runs once, after the canvas doc has loaded, and rewrites persisted geometry that drifted from the all-folded board layout `layoutSequence`, the sequence profile's `layout`). `SequenceModeSwitch.tsx` (the header action of `sequenceProfile.ts`, see "Diagram profiles" in `web-canvas-shell.md`) adds ▶ Play (lights one `order` at a time and fades later steps) and, once a step is open, Collapse all; the frame takes the board look (`canvas-diagram-frame-sequence-board`). 🔴 `SEQUENCE_BOARD` copies `styles.css` metrics (`pillY`/`pillH` ↔ `.seq-pill`, `labelX`/`labelW` ↔ `.seq-lane-label`, `legendNaturalW` = the `.seq-legend` row on one line, the widest OS measure rounded up, since its glyphs fall back to system fonts): `web/e2e/box-size-guard.spec.ts` fails when the browser draws them more than 2 px off (the legend: wider than reserved, or more than 40 px narrower), or when step content overflows its box. Colours are the `--seq-*` tokens plus the shared `--route-*` ones in `styles.css`; logic, AI and failure come from the `--role-ok`/`--role-ai`/`--role-fail` scale the walkthrough board uses too, so a role has one colour on both boards. The older Readable/Focus modes were removed.
+
+## How a drawing agent starts (025 Draw dialog)
+
+The rail's "Draw…" button opens `web/src/canvas/doc/drawDialog/DrawDialog.tsx` instead of launching an agent. The cards come from `GET /diagram-kinds` (`src/codechroma/diagrams/kinds.json`, read by Python and embedded in C# as `diagram_kinds.json`; it also lists the schematic ids and the request limit) plus saved custom types that carry a `schematic`. "Draw with agent" calls `attachAgent` with `{ type, request, title: "Draw · <type>" }`.
+
+- With a request, `BareSkill.ComposeInteractive(..., request)` ends in a "How this session starts" block that states the picked type and the request, and says not to greet or ask; the card's visible first message is the request itself and the bridge prints no "What do you want to see?" banner. Without a request, the old behaviour stays.
+- The type is a hint, not a lock: the agent may say a different type fits, but draws the picked one unless the user agrees.
+- `plan` (Feature plan) is a mode of `impact`: it inlines `bare-impact.md` and points at `references/feature-plan-mode.md`.
+- A saved custom type's card sends `type: "custom"` and names the type id in the request.
+- Python-bridge gap: it validates and persists the hint but has no `BareSkill`, so it does not compose the first message.
+
+## Route (026): which code each process step runs
+
+A process/custom diagram may carry an optional top-level `route` (`{ id, title, steps[] }`; step = `id`, `order`, `lane`, `title`, `kind`, `node_ids`, `children[{id,label,node_id,line}]`), authored by the skill and documented in `references/type-custom.md`. It lives **inside the diagram file** (no sibling `route.json`), so the existing fingerprint staleness covers it. The bridge, in both languages (`reshape` in `canvas/recipes.py`, `Recipes.Reshape` in `Stores/Recipes.cs`), emits the route **once** per diagram layer, on a carrier element (`render: "route"`, key `__route__::<route_id>`, never drawn; `route` is a valid render kind in both `RENDER_KINDS`/`RenderKinds`), and stamps only `meta.route_id` on every node plus `meta.route_step` on the node whose id equals a step id (no node carries `meta.route`). The `"N steps · N files · N AI steps"` `summary` is computed by the resolver (`route_summary` / `DiagramResolver.RouteSummary`, counting distinct resolved `path`s) and `reshape` only fills it for an unresolved raw artifact. The C# recipe route resolves a `custom/<id>` diagram through `DiagramTypeRoutes.ResolveCustom` (like `GET /custom/<id>`), so `resolved` and child `path`/`resolved_line` reach the canvas; the shared case is `a_route_rides_once_on_a_carrier_element_and_nodes_carry_only_their_step` in `tests/fixtures/bridge_contract/recipes.cases.json`. `check_diagram.py` validates it with advisory-only codes (`BADROUTE`, `ROUTE-STEP`, `ROUTE-KIND`, `ROUTE-ORDER`, `ROUTE-NODES`, `ROUTE-CHILD`). `children` are hand-written by the skill; the shared resolver (`resolve_diagram` / `DiagramResolver.Resolve`) then resolves them against the graph: each step gains `resolved: [{node_id, path, line?}]` (`path`/`line` from the node's symbol, else its `source_path`; unresolvable ids are omitted), and each child with a real `node_id` gains `path`, `resolved_line` and `line_mismatch: true` when its authored `line` differs from the resolved one. The original `node_ids`/`line` are never rewritten, and an unresolvable id is only a soft `unresolved_path` diagnostic (`what` = `route_step` / `route_child`), never a failure. Shared case: `a_route_resolves_node_ids_to_path_and_line_with_soft_diagnostics` in `diagrams_resolved.cases.json`. Plan: `docs/planning/026-diagram-expand-and-route.md`.
+
+Failure lanes are data (026 task 02a): `recipes.py`'s `_with_route` / `Recipes.cs`'s `WithRoute` stamp `meta.lane_kind` on every node with a string lane (its own `meta.lane`, else its step's `lane`): `"failure"` when the lane holds only `kind: failure` steps, else `"normal"` (which also switches off the name fallback); an authored `lane_kind` on a node wins. The canvas lays failure lanes last and tints them from that field (a lane merely named `Failures` is a deprecated fallback, used only when no member carries a `lane_kind`; a lane mixing failure and normal members is not a failure lane). Shared case: `recipes.cases.json` `a_lane_of_only_failure_steps_is_stamped_lane_kind_failure`.

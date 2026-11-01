@@ -82,10 +82,15 @@ def _run_git_or_raise(repo_root: Path, *args: str, description: str) -> None:
     run_git_or_raise(repo_root, *args, error_cls=WorktreeError, description=description)
 
 
-def add(repo_root: Path, branch: str, path: Path, start_point: str | None = None) -> Path:
+def add(
+    repo_root: Path, branch: str, path: Path, start_point: str | None = None, track: bool = True
+) -> Path:
     """`git worktree add -b <branch> <path> [<start_point>]`; raises WorktreeError on failure."""
     path.parent.mkdir(parents=True, exist_ok=True)
-    args = ["worktree", "add", "-b", branch, str(path)]
+    args = ["worktree", "add", "-b", branch]
+    if not track:
+        args.append("--no-track")
+    args.append(str(path))
     if start_point is not None:
         args.append(start_point)
     _run_git_or_raise(repo_root, *args, description="git worktree add")
@@ -134,6 +139,11 @@ def delete_branch(repo_root: Path, branch: str, force: bool = True) -> None:
     _run_git_or_raise(
         repo_root, "branch", "-D" if force else "-d", branch, description="git branch delete"
     )
+
+
+def rename_branch(repo_root: Path, old: str, new: str) -> None:
+    """`git branch -m old new`; raises WorktreeError on refusal."""
+    _run_git_or_raise(repo_root, "branch", "-m", old, new, description="git branch rename")
 
 
 def move(repo_root: Path, source: Path, target: Path) -> None:

@@ -9,13 +9,14 @@ public sealed record WorkspaceState(string State, string Progress, string? Error
 public sealed class Workspace : IDisposable
 {
     public const string MainId = "main";
-    public static readonly IReadOnlyList<string> DiagramKinds = ["c1", "patterns", "impact", "epics", "sequence"];
+    public static readonly IReadOnlyList<string> DiagramKinds = ["system-context", "patterns", "impact", "epics", "sequence", "walkthrough"];
 
     private readonly Action<string, JsonObject> _onEvent;
     private readonly object _syncLock = new();
     private string? _lastSignature;
     private IReadOnlyList<string> _lastChanged = [];
     private string? _lastHead;
+    private string? _integrationBranch;
     private WorkspaceWatchers? _watchers;
 
     public Workspace(string id, string root, IGraphEngine engine, Action<string, JsonObject> onEvent, bool readOnly = false)
@@ -25,7 +26,7 @@ public sealed class Workspace : IDisposable
         Engine = engine;
         ReadOnly = readOnly;
         _onEvent = onEvent;
-        _lastHead = CurrentHead();
+        _lastHead = OwnsWiki ? WikiCommit() : null;
     }
 
     public string Id { get; }
@@ -38,6 +39,8 @@ public sealed class Workspace : IDisposable
 
     /// <summary>Where C1 is read through from (a PR borrows main's), when it is not this root.</summary>
     public string? C1SourceRoot { get; init; }
+    /// <summary>Whose C1 diagram this workspace draws: the borrowed source root, else its own.</summary>
+    public string C1Root => C1SourceRoot ?? Root;
     public WorkspaceState State { get; } = new("ready", "", null);
 
     public string TracesDir => Path.Combine(Root, ".codechroma", "traces");
@@ -45,7 +48,11 @@ public sealed class Workspace : IDisposable
     public string DiagramPath(string kind) => DiagramPath(Root, kind);
 
     /// <summary>The artifact file of a diagram kind (`custom/<id>` and `feature-plan/<slug>` included) under a repo root.</summary>
-    public static string DiagramPath(string root, string kind) => Path.Combine(root, ".codechroma", "diagrams", kind, Path.GetFileName(kind) + ".json");
+    public static string DiagramPath(string root, string kind)
+    {
+        LegacyDiagramMigration.Run(root);
+        return Path.Combine(root, ".codechroma", "diagrams", kind, Path.GetFileName(kind) + ".json");
+    }
 
     /// <summary>Pings connected canvases; main's pings stay bare, others carry their workspace id.</summary>
     public void Emit(JsonObject message)
@@ -55,6 +62,26 @@ public sealed class Workspace : IDisposable
     }
 
     public string? CurrentHead() => GitRunner.Run(Root, "rev-parse", "HEAD")?.Trim();
+
+    /// <summary>True when this workspace holds the project's wiki: main, or a read-only PR keeping its own; worktree tabs read main's.</summary>
+    public bool OwnsWiki => Id == MainId || ReadOnly;
+
+    /// <summary>Broadcasts a wiki ping to every tab; set on main by the registry, bare to this workspace when unset.</summary>
+    public Action<JsonObject>? WikiEmit { get; set; }
+
+    public void EmitWiki(JsonObject message)
+    {
+        if (WikiEmit is { } broadcast) broadcast(message);
+        else Emit(message);
+    }
+
+    /// <summary>The commit the wikis are tracked against: the integration branch tip, else HEAD.</summary>
+    public string? WikiCommit()
+    {
+        if (ReadOnly) return CurrentHead();
+        var branch = _integrationBranch ??= Agents.WorktreeOps.MainBranch(Root);
+        return GitRunner.Run(Root, "rev-parse", branch)?.Trim() is { Length: > 0 } tip ? tip : CurrentHead();
+    }
 
     /// <summary>Reanalyzes what git reports changed since the last call; null when nothing new.</summary>
     public List<string>? Sync()
@@ -92,12 +119,12 @@ public sealed class Workspace : IDisposable
         catch (IOException) { return -1; }
     }
 
-    /// <summary>True once per HEAD move (commit, checkout, merge, reset, pull).</summary>
+    /// <summary>True once per move of the tracked wiki commit (a commit, merge, reset or pull onto the integration branch).</summary>
     public bool HeadChanged()
     {
         lock (_syncLock)
         {
-            var head = CurrentHead();
+            var head = WikiCommit();
             if (head is null || head == _lastHead) return false;
             _lastHead = head;
             return true;

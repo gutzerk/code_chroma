@@ -15,6 +15,7 @@ export type WorkflowDialog = { kind: "run"; workflow?: WorkflowDef } | { kind: "
 class WorkflowStore extends Store {
   private workflows = NO_WORKFLOWS;
   private runs = NO_RUNS;
+  private runsLoaded = false;
   private activeRunId: string | null = null;
   private expandedStepId: string | null = null;
   private error: string | null = null;
@@ -45,6 +46,9 @@ class WorkflowStore extends Store {
   getWorkflows = (): WorkflowDef[] => this.workflows;
 
   getRuns = (): Run[] => this.runs;
+
+  /** True once the bridge has answered with the run list (even an empty one) since the last reset. */
+  getRunsLoaded = (): boolean => this.runsLoaded;
 
   getActiveRunId = (): string | null => this.activeRunId;
 
@@ -102,6 +106,13 @@ class WorkflowStore extends Store {
     this.emit();
   };
 
+  /** Opens exactly this row (replacing whichever was open before). */
+  expandStep = (stepId: string): void => {
+    if (this.expandedStepId === stepId) return;
+    this.expandedStepId = stepId;
+    this.emit();
+  };
+
   setWorkflows = (workflows: WorkflowDef[]): void => {
     this.workflows = workflows;
     this.emit();
@@ -124,6 +135,7 @@ class WorkflowStore extends Store {
 
   setRuns = (runs: Run[]): void => {
     this.runs = runs;
+    this.runsLoaded = true;
     if (this.activeRunId && !runs.some((r) => r.id === this.activeRunId)) this.activeRunId = null;
     this.emit();
   };
@@ -136,6 +148,7 @@ class WorkflowStore extends Store {
   reset(): void {
     this.workflows = NO_WORKFLOWS;
     this.runs = NO_RUNS;
+    this.runsLoaded = false;
     this.activeRunId = null;
     this.resetView();
     this.error = null;
@@ -152,6 +165,10 @@ export const workflowStore = new WorkflowStore();
 
 export function useWorkflows(): WorkflowDef[] {
   return useSyncExternalStore(workflowStore.subscribe, workflowStore.getWorkflows);
+}
+
+export function useRunsLoaded(): boolean {
+  return useSyncExternalStore(workflowStore.subscribe, workflowStore.getRunsLoaded);
 }
 
 export function useRuns(): Run[] {

@@ -3,8 +3,8 @@ import { computeElkLayout, type LayoutEdge } from "./elkLayout";
 import { hasCollision } from "../collision/resolveDrop";
 import type { LayoutBoxSpec, PositionedBox } from "./diagramLayout";
 
-function box(id: string, order?: string, lane?: string): LayoutBoxSpec {
-  return { id, width: 20, height: 10, order, lane };
+function box(id: string, order?: string, lane?: string, laneKind?: string): LayoutBoxSpec {
+  return { id, width: 20, height: 10, order, lane, laneKind };
 }
 
 function edge(from: string, to: string): LayoutEdge {
@@ -80,6 +80,41 @@ describe("computeElkLayout", () => {
     warn.mockRestore();
   });
 
+  it("pins an entry box above and an exit box below the rest", async () => {
+    const nodes = [{ ...box("z"), rank: "exit" }, box("m"), { ...box("a"), rank: "entry" }];
+
+    const { boxes } = await computeElkLayout(nodes, [edge("m", "z"), edge("m", "a")]);
+
+    expect(boxOf(boxes, "a").y).toBeLessThan(boxOf(boxes, "m").y);
+    expect(boxOf(boxes, "m").y).toBeLessThan(boxOf(boxes, "z").y);
+  });
+
+  it("lets authored order beat rank", async () => {
+    const nodes = [{ ...box("a", "2"), rank: "entry" }, { ...box("b", "1"), rank: "exit" }];
+
+    const { boxes } = await computeElkLayout(nodes, []);
+
+    expect(boxOf(boxes, "b").y).toBeLessThan(boxOf(boxes, "a").y);
+  });
+
+  it("ignores an unknown rank", async () => {
+    const plain = await computeElkLayout([box("a"), box("b")], [edge("a", "b")]);
+
+    const hinted = await computeElkLayout([{ ...box("a"), rank: "bogus" }, box("b")], [edge("a", "b")]);
+
+    expect(hinted.boxes).toEqual(plain.boxes);
+  });
+
+  it("does not let a feedback edge push the main chain", async () => {
+    const nodes = [box("a"), box("b"), box("c")];
+    const edges = [edge("a", "b"), edge("b", "c"), { from: "c", to: "a", kind: "feedback" }];
+
+    const { boxes } = await computeElkLayout(nodes, edges);
+
+    expect(boxOf(boxes, "a").y).toBeLessThan(boxOf(boxes, "b").y);
+    expect(boxOf(boxes, "b").y).toBeLessThan(boxOf(boxes, "c").y);
+  });
+
   it("clusters same-lane boxes adjacent within a layer", async () => {
     const nodes = [box("a", undefined, "ops"), box("b"), box("c", undefined, "ops"), box("d")];
     const edges = [edge("a", "d"), edge("b", "d"), edge("c", "d")];
@@ -88,5 +123,55 @@ describe("computeElkLayout", () => {
 
     const xs = ["a", "b", "c"].map((id) => ({ id, x: boxOf(boxes, id).x })).sort((p, q) => p.x - q.x);
     expect(xs.map((p) => p.id).join("")).toMatch(/^(ac|ca)b$|^b(ac|ca)$/);
+  });
+
+  it("lays lanes out left to right, one band per lane in first-seen order", async () => {
+    const { boxes } = await computeElkLayout(
+      [box("a", undefined, "client"), box("b", undefined, "api"), box("c", undefined, "db")],
+      [edge("a", "b"), edge("b", "c")],
+    );
+
+    expect(boxOf(boxes, "a").x).toBeLessThan(boxOf(boxes, "b").x);
+    expect(boxOf(boxes, "b").x).toBeLessThan(boxOf(boxes, "c").x);
+    expect(noOverlaps(boxes)).toBe(true);
+  });
+
+  it("keeps the downward layout when only some boxes carry a lane", async () => {
+    const { boxes } = await computeElkLayout(
+      [box("a", undefined, "client"), box("b"), box("c")],
+      [edge("a", "b"), edge("b", "c")],
+    );
+
+    expect(boxOf(boxes, "a").y).toBeLessThan(boxOf(boxes, "b").y);
+    expect(boxOf(boxes, "b").y).toBeLessThan(boxOf(boxes, "c").y);
+  });
+
+  it("puts the Failures lane in the last band even when first seen earlier", async () => {
+    const { boxes } = await computeElkLayout(
+      [box("f", undefined, "Failures"), box("a", undefined, "client"), box("b", undefined, "api")],
+      [edge("a", "b"), edge("b", "f")],
+    );
+
+    expect(boxOf(boxes, "f").x).toBeGreaterThan(boxOf(boxes, "b").x);
+    expect(boxOf(boxes, "f").x).toBeGreaterThan(boxOf(boxes, "a").x);
+  });
+
+  it("puts a lane marked lane_kind failure last whatever its name", async () => {
+    const { boxes } = await computeElkLayout(
+      [box("f", undefined, "Errors", "failure"), box("a", undefined, "client"), box("b", undefined, "api")],
+      [edge("a", "b"), edge("b", "f")],
+    );
+
+    expect(boxOf(boxes, "f").x).toBeGreaterThan(boxOf(boxes, "b").x);
+    expect(boxOf(boxes, "f").x).toBeGreaterThan(boxOf(boxes, "a").x);
+  });
+
+  it("does not treat a lane named Failures as failure when its boxes say lane_kind normal", async () => {
+    const { boxes } = await computeElkLayout(
+      [box("f", undefined, "Failures", "normal"), box("a", undefined, "client")],
+      [edge("f", "a")],
+    );
+
+    expect(boxOf(boxes, "f").x).toBeLessThan(boxOf(boxes, "a").x);
   });
 });

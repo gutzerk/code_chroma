@@ -1,3 +1,4 @@
+using CodeChroma.Bridge.Diagrams;
 using System.Text.Json.Nodes;
 
 namespace CodeChroma.Bridge.Stores;
@@ -77,7 +78,7 @@ public static class Recipes
 
     private static readonly Dictionary<string, string> RenderByKind = new()
     {
-        ["c1"] = "c1", ["patterns"] = "pattern", ["impact"] = "impact", ["epics"] = "epic", ["sequence"] = "sequence",
+        ["system-context"] = "c1", ["patterns"] = "pattern", ["impact"] = "impact", ["epics"] = "epic", ["sequence"] = "sequence", ["walkthrough"] = "custom",
     };
 
     /// <summary>A lazily synthesized "&lt;prefix&gt;/&lt;id&gt;" kind.</summary>
@@ -116,8 +117,8 @@ public static class Recipes
     private static RecipeNode NodeOf(JsonObject item, string render)
     {
         var meta = item["meta"] is JsonObject own ? (JsonObject)own.DeepClone() : [];
-        foreach (var key in new[] { "kind", "icon", "parent", "seed" })
-            if (item[key] is { } value) meta[key] = value.DeepClone();
+        foreach (var key in new[] { "kind", "icon", "parent", "seed", "order", "lane", "rank", "path" })
+            if (item[key] is { } value && (key is "kind" or "icon" or "parent" or "seed" || !meta.ContainsKey(key))) meta[key] = value.DeepClone();
         // A per-node `render` override lets one diagram mix kinds (an epics brief draws epic and spec boxes).
         var resolvedRender = Json.Str(item["render"]) ?? render;
         var label = Json.Truthy(item["name"]) ? PyStr(item["name"]) : Json.Truthy(item["title"]) ? PyStr(item["title"]) : PyStr(item["id"]);
@@ -127,11 +128,36 @@ public static class Recipes
             Size: item["size"] is JsonObject size ? (JsonObject)size.DeepClone() : null);
     }
 
-    /// <summary>One shared shape: nodes come from "nodes", or "items" for the epics index.</summary>
+    /// <summary>The element meta key every node of a titled diagram carries, so the canvas can name the layer.</summary>
+    public const string DiagramTitleKey = "diagram_title";
+
+    /// <summary>The diagram's authored top-level `title`, trimmed, or null when absent or blank.</summary>
+    public static string? DiagramTitle(JsonNode? data) =>
+        data is JsonObject o && Json.Str(o["title"]) is { } title && title.Trim() is { Length: > 0 } trimmed ? trimmed : null;
+
+    /// <summary>One shared shape plus the route carrier, every node stamped with the diagram's title.</summary>
     public static GraphShape Reshape(JsonObject resolved, string render)
+    {
+        var parts = RouteParts(resolved);
+        var shape = ReshapeNodes(resolved, render, parts);
+        var nodes = RouteCarrier(parts) is { } carrier ? [.. shape.Nodes, carrier] : shape.Nodes.ToList();
+        if (DiagramTitle(resolved) is not { } title) return shape with { Nodes = nodes };
+        return shape with
+        {
+            Nodes = nodes.Select(node =>
+            {
+                var meta = (JsonObject)(node.Meta ?? []).DeepClone();
+                meta[DiagramTitleKey] = title;
+                return node with { Meta = meta };
+            }).ToList(),
+        };
+    }
+
+    private static GraphShape ReshapeNodes(JsonObject resolved, string render, (JsonObject Route, string Id, List<JsonObject> Steps)? parts)
     {
         var rawNodes = resolved["nodes"] as JsonArray ?? (Json.Truthy(resolved["items"]) ? resolved["items"] as JsonArray : null) ?? [];
         var nodes = rawNodes.OfType<JsonObject>().Where(item => Json.Str(item["id"]) is not null).Select(item => NodeOf(item, render)).ToList();
+        nodes = WithRoute(nodes, parts);
         IReadOnlyList<JsonNode?> relations = resolved["relations"] is JsonArray array && array.Count > 0 ? array.ToList() : [];
         if (render != "sequence") return new GraphShape(nodes, relations);
 
@@ -142,13 +168,64 @@ public static class Recipes
             .Where(item => Json.Str(item["id"]) is not null
                 && Json.Str(item["from"]) is { } from && participantRefs.Contains(from)
                 && Json.Str(item["to"]) is { } to && participantRefs.Contains(to));
-        var sequenceNodes = nodes.Select(ParticipantNode).Concat(messages.Select(MessageNode)).ToList();
+        // 022: the diagram-level readability data rides on every participant's meta.
+        var readability = new[] { "phases", "frames", "notes", "question", "summary" }
+            .Where(key => Json.Truthy(resolved[key])).ToDictionary(key => key, key => resolved[key]!);
+        var sequenceNodes = nodes.Select(node => ParticipantNode(node, readability)).Concat(messages.Select(MessageNode)).ToList();
         return new GraphShape(sequenceNodes, []);
     }
 
-    private static RecipeNode ParticipantNode(RecipeNode node)
+    public const string RouteRender = "route";
+    public const string RouteKeyPrefix = "__route__::";
+
+    /// <summary>The authored route, its id and its well-formed steps, or null when the diagram has none.</summary>
+    private static (JsonObject Route, string Id, List<JsonObject> Steps)? RouteParts(JsonObject resolved)
+    {
+        if (resolved["route"] is not JsonObject route || route["steps"] is not JsonArray rawSteps) return null;
+        var steps = rawSteps.OfType<JsonObject>().Where(step => Json.Str(step["id"]) is not null).ToList();
+        var clean = (JsonObject)route.DeepClone();
+        clean["steps"] = new JsonArray(steps.Select(step => step.DeepClone()).ToArray());
+        if (!Json.Truthy(clean["summary"])) clean["summary"] = DiagramResolver.RouteSummary((JsonArray)clean["steps"]!); // a raw artifact has none
+        return (clean, Json.Str(route["id"]) is { Length: > 0 } id ? id : "route", steps);
+    }
+
+    /// <summary>Lanes whose every route step is a failure: the layout puts them last (026).</summary>
+    private static HashSet<string> FailureLanes(List<JsonObject> steps) => steps
+        .Where(step => Json.Str(step["lane"]) is not null)
+        .GroupBy(step => Json.Str(step["lane"])!)
+        .Where(group => group.All(step => Json.Str(step["kind"]) == "failure"))
+        .Select(group => group.Key).ToHashSet();
+
+    /// <summary>Stamps `route_id`, `route_step` and `lane_kind` on nodes; the route itself rides once (026).</summary>
+    private static List<RecipeNode> WithRoute(List<RecipeNode> nodes, (JsonObject Route, string Id, List<JsonObject> Steps)? maybeParts)
+    {
+        if (maybeParts is not { } parts) return nodes;
+        var byId = parts.Steps.ToDictionary(step => Json.Str(step["id"])!);
+        var failureLanes = FailureLanes(parts.Steps);
+        return nodes.Select(node =>
+        {
+            var meta = (JsonObject)(node.Meta ?? []).DeepClone();
+            var laneName = Json.Str(meta["lane"]) ?? (byId.TryGetValue(node.Key, out var own) ? Json.Str(own["lane"]) : null);
+            if (laneName is not null && !meta.ContainsKey("lane_kind")) meta["lane_kind"] = failureLanes.Contains(laneName) ? "failure" : "normal";
+            meta["route_id"] = parts.Id;
+            if (byId.TryGetValue(node.Key, out var step)) meta["route_step"] = step.DeepClone();
+            return node with { Meta = meta };
+        }).ToList();
+    }
+
+    /// <summary>The one undrawn element that holds the diagram's whole route (026).</summary>
+    private static RecipeNode? RouteCarrier((JsonObject Route, string Id, List<JsonObject> Steps)? maybeParts)
+    {
+        if (maybeParts is not { } parts) return null;
+        var meta = new JsonObject { ["route"] = parts.Route, ["route_id"] = parts.Id };
+        var label = Json.Truthy(parts.Route["title"]) ? PyStr(parts.Route["title"]) : parts.Id;
+        return new RecipeNode(Key: RouteKeyPrefix + parts.Id, Render: RouteRender, Label: label, Description: "", NodeId: null, Group: null, Meta: meta, Style: null, Size: null);
+    }
+
+    private static RecipeNode ParticipantNode(RecipeNode node, Dictionary<string, JsonNode> readability)
     {
         var meta = (JsonObject)(node.Meta ?? []).DeepClone();
+        foreach (var (key, value) in readability) meta[key] = value.DeepClone();
         meta["role"] = "participant";
         return node with { Meta = meta };
     }
@@ -162,6 +239,9 @@ public static class Recipes
         meta["order"] = item["order"]?.DeepClone();
         meta["async"] = Json.Truthy(item["async"]);
         meta["return"] = Json.Truthy(item["return"]);
+        meta["hero"] = Json.Truthy(item["hero"]);
+        if (Json.Str(item["kind"]) is { Length: > 0 } kind) meta["kind"] = kind;
+        if (item["failure"] is not null) meta["failure"] = Json.Truthy(item["failure"]);
         return new RecipeNode(Key: Json.Str(item["id"])!, Render: "sequence", Label: TextOr(item["label"]), Description: TextOr(item["description"]), Meta: meta, Style: StyleOf(item));
     }
 

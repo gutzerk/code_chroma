@@ -1,7 +1,8 @@
 import { useEngineClient } from "../../engine-client/EngineClientContext";
 import type { CanvasElement } from "../../state/types";
 import { readSavedCameraView } from "../canvasCameraStore";
-import { canvasDocStore, commitCanvasPositions, useCanvasDoc } from "../doc/canvasDocStore";
+import { canvasDocStore, useCanvasDoc } from "../doc/canvasDocStore";
+import { commitCanvasPositions } from "../doc/canvasDocSync";
 import { PADDING as FRAME_PADDING } from "../doc/DiagramFrame";
 import { elementRect } from "../doc/elementRect";
 import { chromeInsets } from "../layout/layoutMetrics";

@@ -81,36 +81,27 @@ def test_a_changed_symbol_attributes_to_the_box_that_is_its_exact_node(engine_re
     payload = resolve_impact_changes(root, _diagram(boxes), engine=engine)
 
     assert _blocks_by_id(payload)["create-user"]["files"] == [
-        {"path": "users/service.py", "status": "modified"}
+        {"path": "users/service.py", "status": "modified", "additions": 1, "deletions": 1}
     ]
 
 
-def test_a_changed_symbol_collapses_onto_its_file_level_box(engine_repo):
+@pytest.mark.parametrize(
+    ("box_id", "node_id"), [("users-file", COMPONENT_USERS), ("users-dir", DIR_USERS)]
+)
+def test_a_changed_symbol_collapses_onto_its_file_or_directory_level_box(
+    engine_repo, box_id, node_id
+):
     engine, root = engine_repo
     _write(
         root,
         "users/service.py",
         (root / "users/service.py").read_text(encoding="utf-8") + "\n# tweak\n",
     )
-    boxes = [_box("users-file", COMPONENT_USERS)]
+    boxes = [_box(box_id, node_id)]
 
     payload = resolve_impact_changes(root, _diagram(boxes), engine=engine)
 
-    assert _blocks_by_id(payload)["users-file"]["change_count"] == 1
-
-
-def test_a_changed_symbol_collapses_onto_its_directory_level_box(engine_repo):
-    engine, root = engine_repo
-    _write(
-        root,
-        "users/service.py",
-        (root / "users/service.py").read_text(encoding="utf-8") + "\n# tweak\n",
-    )
-    boxes = [_box("users-dir", DIR_USERS)]
-
-    payload = resolve_impact_changes(root, _diagram(boxes), engine=engine)
-
-    assert _blocks_by_id(payload)["users-dir"]["change_count"] == 1
+    assert _blocks_by_id(payload)[box_id]["change_count"] == 1
 
 
 def test_a_changed_symbol_with_no_owning_box_is_unassigned(engine_repo):
@@ -124,18 +115,8 @@ def test_a_changed_symbol_with_no_owning_box_is_unassigned(engine_repo):
 
     payload = resolve_impact_changes(root, _diagram(boxes), engine=engine)
 
-    assert {"path": "users/service.py", "status": "modified"} in payload["unassigned"]
-
-
-def test_two_changed_symbols_in_one_file_both_roll_onto_the_same_collapsed_box(engine_repo):
-    engine, root = engine_repo
-    text = (root / "users/service.py").read_text(encoding="utf-8")
-    _write(root, "users/service.py", text.replace("return user_id", "return user_id  # x"))
-    boxes = [_box("users-file", COMPONENT_USERS)]
-
-    payload = resolve_impact_changes(root, _diagram(boxes), engine=engine)
-
-    assert _blocks_by_id(payload)["users-file"]["status"] == "modified"
+    expected = {"path": "users/service.py", "status": "modified", "additions": 2, "deletions": 0}
+    assert expected in payload["unassigned"]
 
 
 def test_an_authored_status_overrides_the_inferred_one(engine_repo):
@@ -312,7 +293,9 @@ def test_no_engine_means_no_attribution_but_still_a_well_formed_payload(repo):
     payload = resolve_impact_changes(repo, _diagram(boxes))
 
     assert payload["blocks"] == []
-    assert payload["unassigned"] == [{"path": "src/graph/builder.py", "status": "modified"}]
+    expected = {"path": "src/graph/builder.py", "status": "modified"}
+    expected |= {"additions": 1, "deletions": 1}
+    assert payload["unassigned"] == [expected]
 
 
 def test_the_fingerprint_ignores_the_order_files_were_reported_in():
@@ -321,3 +304,14 @@ def test_the_fingerprint_ignores_the_order_files_were_reported_in():
     two = fingerprint_for({"b.py": "added", "a.py": "modified"})
 
     assert one == two
+
+
+def test_two_changed_symbols_in_one_file_both_roll_onto_the_same_collapsed_box(engine_repo):
+    engine, root = engine_repo
+    text = (root / "users/service.py").read_text(encoding="utf-8")
+    _write(root, "users/service.py", text.replace("return user_id", "return user_id  # x"))
+    boxes = [_box("users-file", COMPONENT_USERS)]
+
+    payload = resolve_impact_changes(root, _diagram(boxes), engine=engine)
+
+    assert _blocks_by_id(payload)["users-file"]["status"] == "modified"

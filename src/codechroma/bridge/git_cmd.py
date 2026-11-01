@@ -19,6 +19,7 @@ def run_git_raw(
     *args: str,
     env: dict[str, str] | None = None,
     input_text: str | None = None,
+    timeout: float | None = None,
 ) -> subprocess.CompletedProcess[str] | None:
     """The one place a git subprocess is spawned; None when git couldn't be run at all."""
     try:
@@ -30,7 +31,7 @@ def run_git_raw(
             env=dict(runtime.env),
             input=input_text.encode("utf-8") if input_text is not None else None,
             capture_output=True,
-            timeout=_git_timeout(),
+            timeout=timeout if timeout is not None else _git_timeout(),
         )
         return subprocess.CompletedProcess(
             raw.args,
@@ -168,6 +169,31 @@ def working_tree_status(
     if base == "HEAD":
         return _uncommitted_status(repo_root, git_root)
     return _status_against(repo_root, git_root, base)
+
+
+def line_counts(
+    repo_root: Path, base: str, statuses: dict[str, str]
+) -> dict[str, tuple[int, int]]:
+    """Repo-relative path -> (additions, deletions) vs `base`; untracked counts all lines."""
+    counts: dict[str, tuple[int, int]] = {}
+    # -z + no quotepath + no renames: raw unquoted paths, one NUL-terminated record per file.
+    raw = run_git(
+        repo_root, "-c", "core.quotepath=false", "diff", "--numstat", "-z", "--no-renames",
+        "--relative", base, "--", ".",
+    ) or ""
+    for record in raw.split("\0"):
+        parts = record.lstrip("\n").split("	", 2)
+        if len(parts) == 3 and all(p.isascii() and p.isdigit() for p in parts[:2]):
+            counts[parts[2]] = (int(parts[0]), int(parts[1]))
+    for path, kind in statuses.items():
+        if path in counts or kind != "added":
+            continue
+        try:
+            text = (repo_root / path).read_text(encoding="utf-8")
+        except (OSError, UnicodeDecodeError):
+            continue
+        counts[path] = (len(text.splitlines()), 0)
+    return counts
 
 
 def _uncommitted_status(repo_root: Path, git_root: Path) -> WorkingTreeStatus:

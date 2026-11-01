@@ -38,20 +38,6 @@ def test_a_provider_routed_agent_with_no_live_session_fails_rather_than_spawning
     assert not spawned
 
 
-def test_input_is_echoed_back_through_the_pty(monkeypatch):
-    monkeypatch.setattr(server, "ALLOWED_AGENTS", {"echo-agent": ECHO})
-    client = TestClient(server.app)
-
-    with client.websocket_connect("/ws/terminal?agent=echo-agent") as websocket:
-        websocket.send_text(json.dumps({"type": "input", "data": "hello\n"}))
-        received = ""
-        deadline = time.monotonic() + 5
-        while "hello" not in received and time.monotonic() < deadline:
-            received += websocket.receive_text()
-
-    assert "hello" in received
-
-
 def test_terminal_starts_in_the_configured_repo_path(monkeypatch, tmp_path):
     monkeypatch.setenv("codechroma_BRIDGE_REPO_PATH", str(tmp_path))
     monkeypatch.setattr(server, "ALLOWED_AGENTS", {"pwd-agent": PWD})
@@ -102,7 +88,7 @@ def test_child_exit_closes_the_websocket(monkeypatch):
     assert disconnected
 
 
-def test_malformed_resize_does_not_kill_the_session(monkeypatch):
+def test_input_echoes_through_the_pty_even_after_a_malformed_resize(monkeypatch):
     monkeypatch.setattr(server, "ALLOWED_AGENTS", {"echo-agent": ECHO})
     client = TestClient(server.app)
 

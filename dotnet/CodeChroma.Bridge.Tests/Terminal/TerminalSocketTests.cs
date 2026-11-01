@@ -62,6 +62,13 @@ public class TerminalSocketTests
         return client;
     }
 
+    /// <summary>The id of the first worktree tab, created by /branches/ensure.</summary>
+    public static async Task<string> EnsureTab(BridgeHost host)
+    {
+        var response = await host.Client.PostAsync("/branches/ensure", null);
+        return (string)JsonNode.Parse(await response.Content.ReadAsStringAsync())!["branches"]![0]!["id"]!;
+    }
+
     [Fact]
     public async Task A_plain_shell_socket_echoes_input_resizes_and_stays_open_past_a_second()
     {
@@ -81,7 +88,7 @@ public class TerminalSocketTests
     public async Task Closing_a_plain_shell_socket_ends_its_process_but_an_agent_session_survives_the_window_closing()
     {
         using var host = new BridgeHost();
-        var created = await host.Client.PostAsync("/agents", new StringContent("""{"title":"Live","kind":"shell"}""", Encoding.UTF8, "application/json"));
+        var created = await host.Client.PostAsync("/agents", new StringContent($$"""{"title":"Live","kind":"shell","workspace":"{{await EnsureTab(host)}}"}""", Encoding.UTF8, "application/json"));
         Assert.True(created.IsSuccessStatusCode, await created.Content.ReadAsStringAsync());
         var started = await host.Client.PostAsync("/agents/live/start", new StringContent("{}", Encoding.UTF8, "application/json"));
         Assert.True(started.IsSuccessStatusCode, await started.Content.ReadAsStringAsync());
@@ -106,7 +113,7 @@ public class TerminalSocketTests
     public async Task A_reattaching_window_is_redrawn_from_the_screen_not_replayed()
     {
         using var host = new BridgeHost();
-        await host.Client.PostAsync("/agents", new StringContent("""{"title":"Redraw","kind":"shell"}""", Encoding.UTF8, "application/json"));
+        await host.Client.PostAsync("/agents", new StringContent($$"""{"title":"Redraw","kind":"shell","workspace":"{{await EnsureTab(host)}}"}""", Encoding.UTF8, "application/json"));
         await host.Client.PostAsync("/agents/redraw/start", new StringContent("{}", Encoding.UTF8, "application/json"));
         var first = await Connect(host, "/ws/terminal?agent=shell&workspace=redraw");
         await first.Send(new { type = "input", data = "echo redraw-marker-9" + Newline });
@@ -124,7 +131,7 @@ public class TerminalSocketTests
     public async Task Resuming_an_agent_with_no_recorded_session_is_a_409()
     {
         using var host = new BridgeHost();
-        await host.Client.PostAsync("/agents", new StringContent("""{"title":"Fresh","kind":"shell"}""", Encoding.UTF8, "application/json"));
+        await host.Client.PostAsync("/agents", new StringContent($$"""{"title":"Fresh","kind":"shell","workspace":"{{await EnsureTab(host)}}"}""", Encoding.UTF8, "application/json"));
         var previous = Environment.GetEnvironmentVariable("CLAUDE_CONFIG_DIR");
         Environment.SetEnvironmentVariable("CLAUDE_CONFIG_DIR", Path.Combine(Path.GetTempPath(), "cc-no-claude-" + Guid.NewGuid().ToString("N")[..6]));
 

@@ -3,13 +3,13 @@ import type { CanvasElement } from "../../../state/types";
 import { ConnectedQuestionCard } from "./ConnectedQuestionCard";
 import { toQuestionView } from "./questionAdapter";
 
-const DEFAULT_WIDTH = 620;
+const DEFAULT_WIDTH = 820;
 
 export interface QuestionElementProps {
   element: CanvasElement;
 }
 
-/** Canvas-doc renderer for a `question` element; the bridge's "canvas" ping refreshes it after a write. */
+/** Canvas-doc renderer for a `question` element without an agent id (agent questions show in AgentQuestionHost); the "canvas" ping refreshes it. */
 export function QuestionElement({ element }: QuestionElementProps) {
   const width = element.size?.w ?? DEFAULT_WIDTH;
   const question = useMemo(() => toQuestionView(element), [element]);

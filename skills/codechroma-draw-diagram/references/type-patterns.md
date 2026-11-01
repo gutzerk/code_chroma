@@ -89,6 +89,7 @@ in one top-level `relations[]`:
 {
   "type": "patterns",
   "generated_at": "2026-01-01T00:00:00Z",
+  "title": "Strategy and Registry in the analyzer pipeline",
   "nodes": [
     {
       "id": "strategy::discount_strategy", "name": "Strategy — discount dispatch",
@@ -109,6 +110,8 @@ in one top-level `relations[]`:
   ]
 }
 ```
+
+- **`title`** (top-level, required): a short name (≤ 60 chars, in the language of the user's request) for what *this* diagram shows, never the type name ("Design patterns"), distinct from the titles already on the canvas — see `drawing-rules.md` "Naming the diagram (`title`)"; the self-check advises `NOTITLE`/`GENERICTITLE` otherwise.
 
 Rules:
 - **A pattern instance** — `kind: "pattern-instance"`, `meta: {type, confirmed, confidence}`.
@@ -154,6 +157,7 @@ Rules:
   by two different Adapters, or extended by a Strategy implementation: put it in `nodes[]` (kind
   `"external"` or `"infra"`, no `parent`) and let each instance's relation point to it by id. The
   canvas clusters by `parent` automatically; don't try to pick a "primary" pattern for it yourself.
+- Edge `kind`: `calls` (default), `spawns` (starts a process/CLI/agent), `data` (reads/writes a file/DB/store), `minor` (optional link) -- set `spawns`/`data` whenever true; see `drawing-rules.md` "Edge kinds".
 - `relations[]` — every edge, instance-internal or cross-cluster: what connects two participants of
   the same instance, a free-standing node to a participant, or two instances to each other. Direction
   is who initiates. A self-relation (a class calling itself) is allowed, unlike most other types.
@@ -162,8 +166,7 @@ Rules:
 - Don't restate a class's own `bases`/inheritance as a relation if it's already implied by an
   `implements`/`extends` participant relation inside the owning instance — that would double the
   arrow.
-- `meta.order`/`meta.lane` (`drawing-rules.md`) are almost never needed here — patterns is a class
-  graph, not a process, so there's no "after" or "who performs this step" to record.
+- **5-second read (022):** write top-level `question` (what the diagram answers) and `summary` (one line) strings, and mark the 1-2 main-path relations `hero: true`; the self-check advises `NOSUMMARY`/`NOHERO` otherwise and a diagram without them renders exactly like the old one. `meta.order`/`meta.lane` stay optional here — patterns is a class graph, not a process.
 
 ## Procedure
 

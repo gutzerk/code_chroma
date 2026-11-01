@@ -14,7 +14,8 @@ import { layoutNewElements } from "./autoLayout";
 import { layoutOps } from "./pileLayout";
 import { isEpicsLayerName, parentEpicKey } from "./epicsLayout";
 import { BLOCK_RULES } from "./elementRules";
-import { canvasDocStore, collectActiveLayers, patchCanvasDoc } from "./canvasDocStore";
+import { canvasDocStore, collectActiveLayers } from "./canvasDocStore";
+import { patchCanvasDoc } from "./canvasDocSync";
 import { captureLayerPositions, takeCachedPosition } from "./layerPositionCache";
 
 export interface BuiltinRecipe {
@@ -29,11 +30,12 @@ export interface BuiltinRecipe {
 
 /** The recipe registry's built-in names/labels (`recipes.py`'s `RECIPES`); `custom/<id>` types are fetched, not hardcoded. */
 export const BUILTIN_RECIPES: BuiltinRecipe[] = [
-  { name: "c1", label: "C1", accessibleName: "C1 — system context diagram", generated: true },
+  { name: "system-context", label: "System context", generated: true },
   { name: "patterns", label: "Design patterns", generated: true },
   { name: "impact", label: "Change impact", generated: true },
   { name: "epics", label: "Epics", generated: true },
   { name: "sequence", label: "Sequence", accessibleName: "Sequence — порядок вызовов", generated: true },
+  { name: "walkthrough", label: "Walkthrough", accessibleName: "Walkthrough — шаги процесса по коду", generated: true },
 ];
 
 /** Layer names that are never a diagram: the seeded hierarchy tree, `apply_batch`'s fallback layer
@@ -62,6 +64,18 @@ export function listActiveDiagramLayers(doc: CanvasDoc): string[] {
  * deny-list. */
 export function isDiagramLayer(layer: string): boolean {
   return !NON_DIAGRAM_LAYERS.has(layer);
+}
+
+/** Per-question option-diagram layers (`decisions/<question_id>`): real diagrams, canvas-only. */
+export const DECISION_LAYER_PREFIX = "decisions/";
+
+function questionLabelFor(doc: CanvasDoc | undefined, questionId: string): string | null {
+  const question = doc && Object.values(doc.elements).find(
+    (element) => element.render === "question" && (stringMeta(element, "question_id") || element.id) === questionId,
+  );
+  const text = question?.label.trim();
+  if (!text) return null;
+  return text.length > 48 ? `${text.slice(0, 47)}…` : text;
 }
 
 /** The short title of a per-EP box label, e.g. `EP-1 · Zoomable semantic map` -> `Zoomable semantic
@@ -93,6 +107,10 @@ export function labelForDiagramLayer(
   customTypes: DiagramTypeSummary[],
   doc?: CanvasDoc,
 ): string {
+  if (layer.startsWith(DECISION_LAYER_PREFIX)) {
+    const questionId = layer.slice(DECISION_LAYER_PREFIX.length);
+    return questionLabelFor(doc, questionId) ?? questionId;
+  }
   if (isEpicsLayerName(layer) && doc) {
     const shortTitle = epicsLayerShortTitle(doc, layer);
     if (shortTitle) return shortTitle;
@@ -120,7 +138,7 @@ export function isRecipeBackedLayer(layer: string): boolean {
 }
 
 /** Whether `layer` has an on-disk artifact a delete action should also remove -- every generated
- * built-in (`c1`/`patterns`/`impact`/`epics` — epics is skill-generated now) and every synthesized
+ * built-in (`system-context`/`patterns`/`impact`/`epics` — epics is skill-generated now) and every synthesized
  * layer; false for a freeform layer a skill/agent PATCHed straight onto the canvas with no backing
  * route. Deleting one of those layers still removes it from the canvas via `removeLayerAndRefresh`;
  * it just skips the file-delete call that would otherwise 404. */
@@ -155,7 +173,7 @@ export function useCustomDiagramTypes(engineClient: EngineClient): DiagramTypeSu
  * watch the same set so they never disagree about what counts as a diagram ping. `epics` is in here
  * (unlike the status fetch alone, which already covers it) so a freshly written `epics.json` also
  * drives the auto-place-the-layer flow, not just the readiness map. */
-export const WATCHED_DIAGRAM_EVENT_KINDS: DiagramEventKind[] = ["c1", "epics", "patterns", "impact", "sequence", "custom", "feature-plan"];
+export const WATCHED_DIAGRAM_EVENT_KINDS: DiagramEventKind[] = ["system-context", "epics", "patterns", "impact", "sequence", "walkthrough", "custom", "feature-plan"];
 
 export interface ReadyDiagrams {
   readyBuiltins: BuiltinRecipe[];

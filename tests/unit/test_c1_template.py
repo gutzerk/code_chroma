@@ -102,3 +102,12 @@ def test_unknown_dependency_is_skipped():
 
     actor_ids = {node["id"] for node in result["nodes"] if node["id"] != "system"}
     assert actor_ids == {"stripe"}
+
+
+def test_version_specifier_extras_and_case_still_match_a_known_dependency():
+    deps = ["Redis", "psycopg2>=2.9", "boto3[crypto]"]
+    digest = {"repo_name": "shop", "declared_dependencies": deps}
+
+    result = generate_c1_template(digest)
+
+    assert [n["id"] for n in result["nodes"][1:]] == ["redis", "psycopg2", "boto3"]

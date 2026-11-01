@@ -1,6 +1,20 @@
 # CLAUDE.md
 
+@AGENTS.md
+
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+
+## Production bridge: C# first
+
+The shipped desktop app runs **`dotnet/CodeChroma.Bridge`**. Apply bridge fixes and features there
+first and add regression tests in **`dotnet/CodeChroma.Bridge.Tests`**. This includes agent startup,
+session ownership/resume, terminals, routes, workflows, and persistence. A change only under
+`src/codechroma/bridge/` does **not** fix the desktop app. The Python bridge is a development/reference
+implementation; update it afterward only when parity is needed. Verify the production C# path before
+claiming a desktop issue is fixed. Older Python-oriented sections below describe that reference path.
+
+Run `dotnet test dotnet/CodeChroma.Bridge.Tests/CodeChroma.Bridge.Tests.csproj` for bridge validation.
+See [parallel agents](docs/architecture/parallel-agents.md) for the production session ownership flow.
 
 ## Project overview
 
@@ -122,7 +136,7 @@ Open the relevant file before making a non-trivial change in that area.
 | [`docs/architecture/ai-questions.md`](docs/architecture/ai-questions.md) | Agent questions on the canvas (017): bridge-hosted MCP `ask_user` at `/mcp` (per-workspace token), `questions/` broker + store, `routes/questions.py` (answer/skip/revise), the `question` element kind and `web/src/canvas/doc/question/` |
 | [`docs/architecture/diagram-skills.md`](docs/architecture/diagram-skills.md) | The one drawing skill (`codechroma-draw-diagram`): its router + per-type references, the unified `check_diagram.py` and its exit tiers/density budgets, retiring a merged-away skill, the two-layer soft-diagnostics path (`diagram_diagnostics.py` → `DiagramHealthNote`), and how a drawn diagram reaches the canvas |
 | [`docs/architecture/context-tool.md`](docs/architecture/context-tool.md) | Fast diagrams (C# bridge): the jina-code ONNX model hosted as a GitHub release asset, the wiki-based context cache/selector/renderer, the `context` command, the process-diagram route, and bare (context-free) headless CLI runs |
-| [`docs/architecture/c1-diagram.md`](docs/architecture/c1-diagram.md) | C1 system-context view: generation, resolver, relationships, arrow rendering, change review |
+| [`docs/architecture/c1-diagram.md`](docs/architecture/c1-diagram.md) | System context view (type id `system-context`, formerly `c1`): detected candidates + skill confirmation (`SystemContext.cs`), generation, resolver, relationships, arrow rendering |
 | [`docs/architecture/patterns-diagram.md`](docs/architecture/patterns-diagram.md) | Design Patterns diagram: heuristic detection, skill-agent generation, dagre clustering |
 | [`docs/architecture/epics-view.md`](docs/architecture/epics-view.md) | Epics & requirements view: `RequirementsSource`/`DeliverySource` ports, the markdown adapters, the four routes, the `epic-*` node-id namespace, and the opt-in AI-brief path (`epic_brief_agent.py`, the `codechroma-epic-brief` skill, `EpicBriefView`) |
 | [`docs/architecture/trace.md`](docs/architecture/trace.md) | Execution trace playback: `src/codechroma/trace/` (`Tracer`'s `sys.monitoring`/`settrace` capture, `FrameMapper`, the `codechroma-trace` CLI), `.codechroma/traces/*.json` storage, the `trace-ingest`/`trace-stream` live-relay sockets, `traceStore.ts`/`TraceFlowOverlay.tsx`/`TraceControls.tsx` |
@@ -133,7 +147,7 @@ Open the relevant file before making a non-trivial change in that area.
 | [`docs/architecture/assistant-settings.md`](docs/architecture/assistant-settings.md) | Assistant settings: `~/.codechroma/assistant-settings.json` store (CLI/model/creds/instruction), `GET/PUT /assistant/settings`, `src/codechroma/assistant.py`, gear dialog on the chrome |
 | [`docs/architecture/report-issue.md`](docs/architecture/report-issue.md) | The "Report an issue" dialog: `CreateIssueDialog.tsx`'s `gh`-posted issue (the user's own `gh` login, no stored token) with a prefilled `github.com/.../issues/new` link as the fallback, its top-bar `ReportIssueRailButton` entry point, the app-version/OS line, and its design tokens |
 | [`docs/architecture/llm-settings.md`](docs/architecture/llm-settings.md) | LLM provider settings: `src/codechroma/llm/` (providers/call-sites/adapters stores+registries), `context/llm_provider.py`'s `build_provider`, `skill_agent.py`'s `_run_cli`, `bridge/routes/llm_settings.py`, `web/src/llm-settings/` — separate from, and untouched by, assistant-settings/canvas parallel-agents |
-| [`docs/architecture/web-canvas-shell.md`](docs/architecture/web-canvas-shell.md) | Canvas shell: `RootCanvas`, rail, `strategies/` (boxes/tree + `TopLevelChildren`), `highlighting/`, `CodePopup`, `ConnectionsOverlay` |
+| [`docs/architecture/web-canvas-shell.md`](docs/architecture/web-canvas-shell.md) | Canvas shell: `RootCanvas`, rail, `strategies/` (boxes/tree + `TopLevelChildren`), `highlighting/`, `CodePopup`, `ConnectionsOverlay`, diagram profiles (`diagramProfiles.ts`: per-type board behaviour) |
 | [`docs/architecture/web-collision-drag.md`](docs/architecture/web-collision-drag.md) | `collision/`: solo collision-avoidance + Miro-style multi-select/group-drag |
 | [`docs/architecture/web-panels.md`](docs/architecture/web-panels.md) | `src/terminal/` (xterm), `src/breadcrumb/`, `src/games/` (rail games menu + Snake) — the small IDE-chrome panels |
 | [`docs/architecture/web-engine-client.md`](docs/architecture/web-engine-client.md) | `src/engine-client/`, `src/state/`, and the `src/agents/` cross-reference |

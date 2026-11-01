@@ -111,17 +111,7 @@ def test_include_un_excludes_a_preticked_path(project):
     assert kept["suspicious"][0]["preticked"] is False
 
 
-def test_node_modules_is_reported_as_already_ignored_on_a_fresh_project(project):
-    (project / "node_modules").mkdir()
-    (project / "node_modules" / "left-pad.js").write_text("x", encoding="utf-8")
-
-    plan = bootstrap.commit_plan(project)
-
-    entry = next(e for e in plan["suspicious"] if e["path"] == "node_modules/")
-    assert entry["already_ignored"] is True
-
-
-def test_dotenv_and_node_modules_land_in_the_suspicious_list_preticked(project):
+def test_dotenv_and_node_modules_are_suspicious_and_preticked(project):
     (project / ".env").write_text("SECRET=1", encoding="utf-8")
     (project / "node_modules").mkdir()
     (project / "node_modules" / "left-pad.js").write_text("x", encoding="utf-8")
@@ -131,6 +121,7 @@ def test_dotenv_and_node_modules_land_in_the_suspicious_list_preticked(project):
     by_path = {entry["path"]: entry for entry in plan["suspicious"]}
     assert by_path[".env"]["preticked"] is True
     assert by_path["node_modules/"]["preticked"] is True
+    assert by_path["node_modules/"]["already_ignored"] is True
 
 
 def test_private_keys_and_large_files_are_flagged(project):

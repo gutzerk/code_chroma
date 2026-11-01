@@ -5,6 +5,7 @@ import type { HierarchyNodeRef } from "../../state/types";
 import { useCanvasDoc } from "../doc/canvasDocStore";
 import { deleteDiagramAndRefresh } from "../doc/diagramCatalog";
 import { DrawDiagramButton } from "../doc/DrawDiagramButton";
+import { ShareMenu } from "../../share/ShareMenu";
 import { layoutStore, useLayoutState, type LeftTab } from "../layout/layoutStore";
 import { Z_LEFT_PANEL } from "../layout/layoutMetrics";
 import { openFilesStore, useActiveFileId, useOpenFiles } from "../openFilesStore";
@@ -24,13 +25,10 @@ const TABS: { id: LeftTab; label: string }[] = [
 export function LeftPanel({
   rootNode,
   onActivate,
-  onDraw,
   arrange,
 }: {
   rootNode: HierarchyNodeRef | null;
   onActivate: (nodeId: string) => void;
-  /** Opens the Draw popover (owned by the parent); absent launches the agent directly. */
-  onDraw?: () => void;
   /** The Arrange section, rendered at the bottom of the Diagrams tab. */
   arrange?: ReactNode;
 }) {
@@ -57,7 +55,7 @@ export function LeftPanel({
           </button>
         ))}
       </div>
-      {leftTab === "diagrams" ? <DiagramsTab onDraw={onDraw} arrange={arrange} /> : <FilesTab rootNode={rootNode} onActivate={onActivate} />}
+      {leftTab === "diagrams" ? <DiagramsTab arrange={arrange} rootName={rootNode?.name} /> : <FilesTab rootNode={rootNode} onActivate={onActivate} />}
       {!hasOpenCode && (
         <div className="panel-handle panel-handle--right-edge">
           <button
@@ -102,7 +100,7 @@ function FilesTab({
   );
 }
 
-function DiagramsTab({ onDraw, arrange }: { onDraw?: () => void; arrange?: ReactNode }) {
+function DiagramsTab({ arrange, rootName }: { arrange?: ReactNode; rootName?: string }) {
   const engineClient = useEngineClient();
   const doc = useCanvasDoc();
   const rows = useDiagramRows();
@@ -142,13 +140,16 @@ function DiagramsTab({ onDraw, arrange }: { onDraw?: () => void; arrange?: React
     <div className="left-panel-body" role="tabpanel" aria-label="Diagrams">
       <div className="left-panel-header">
         <span className="left-panel-label">ON CANVAS · {layers.length}</span>
-        <DrawDiagramButton onOpen={onDraw} />
+        <div className="left-panel-header-actions">
+          <ShareMenu name={rootName} layers={selected} />
+          <DrawDiagramButton />
+        </div>
       </div>
       {layers.length === 0 ? (
         <p className="left-panel-empty">No diagrams yet — click Draw… to create one.</p>
       ) : (
         <ul className="left-panel-list">
-          {rows.map(({ layer, name, hidden, toggleLabel, toggle }) => {
+          {rows.map(({ layer, name, typeLabel, hidden, toggleLabel, toggle }) => {
             const count = countByLayer.get(layer) ?? 0;
             const isSelected = selected.includes(layer);
             return (
@@ -167,8 +168,13 @@ function DiagramsTab({ onDraw, arrange }: { onDraw?: () => void; arrange?: React
                 />
                 <span className="left-panel-swatch" style={{ background: colorForLayer(layer) }} />
                 <div className="left-panel-row-text">
-                  <span className="left-panel-row-name">{name}</span>
+                  <span className="left-panel-row-name" title={name}>{name}</span>
                   <span className="left-panel-row-meta">
+                    {typeLabel && (
+                      <span className="left-panel-row-type" data-testid={`left-panel-row-type-${layer}`}>
+                        {`${typeLabel.toUpperCase()} · `}
+                      </span>
+                    )}
                     {count} {count === 1 ? "element" : "elements"}
                   </span>
                 </div>

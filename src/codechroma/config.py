@@ -94,7 +94,7 @@ class SkillAgentTimeoutsConfig(_Config):
     model: str = "haiku"
     default_timeout_seconds: int = 600
     timeout_seconds: dict[str, int] = {
-        "c1": 600,
+        "system-context": 600,
         "patterns": 600,
         "impact-changes": 300,
         "epic-brief": 300,
@@ -117,8 +117,8 @@ class BridgeAppConfig(_Config):
 class QuestionsConfig(_Config):
     """questions/mcp_server.py"""
 
-    ask_wait_seconds: float = 300.0
     max_rejections: int = 3
+    answer_inject_attempts: int = 86400
 
 
 class WorkspacesConfig(_Config):
@@ -146,13 +146,6 @@ class WorktreeConfig(_Config):
     max_submodule_depth: int = 5
 
 
-class TranscriptsConfig(_Config):
-    """bridge/agents/transcripts.py"""
-
-    max_scanned_transcripts: int = 500
-    head_lines: int = 12
-
-
 class AgentStatusConfig(_Config):
     """bridge/agents/status.py"""
 
@@ -174,11 +167,11 @@ class PublishConfig(_Config):
 class AgentsRoutesConfig(_Config):
     """bridge/routes/agents.py"""
 
-    session_id_poll_attempts: int = 10
-    session_id_poll_seconds: float = 1.0
     # Fresh-start nudge: polls of the PTY screen awaiting Claude's idle prompt (sessions.py).
     context_inject_attempts: int = 60
     context_inject_interval_seconds: float = 0.5
+    # Pause between injected text and its Enter: one write of both reads as a paste (no submit).
+    context_inject_submit_delay_seconds: float = 0.3
 
 
 class TerminalConfig(_Config):
@@ -268,7 +261,6 @@ class Settings(_Config):
     pr_workspaces: PRWorkspacesConfig = PRWorkspacesConfig()
     agents: AgentsConfig = AgentsConfig()
     worktree: WorktreeConfig = WorktreeConfig()
-    transcripts: TranscriptsConfig = TranscriptsConfig()
     agent_status: AgentStatusConfig = AgentStatusConfig()
     publish: PublishConfig = PublishConfig()
     agents_routes: AgentsRoutesConfig = AgentsRoutesConfig()

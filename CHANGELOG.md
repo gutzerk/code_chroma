@@ -1,5 +1,204 @@
 # Changelog
 
+## [1.11.0](https://github.com/gutzerk/code_chroma/compare/v1.10.0...v1.11.0) (2026-10-30)
+
+
+### Features
+
+* **web:** restyle agent questions and put the question above the terminal ([35b229b](https://github.com/gutzerk/code_chroma/commit/35b229b6a74f994f6907b93f5df3bdd540381824))
+* **web:** switch agents with Ctrl/Cmd+Alt+Up/Down ([#334](https://github.com/gutzerk/code_chroma/issues/334)) ([b5506e3](https://github.com/gutzerk/code_chroma/commit/b5506e31ad7fcfa676dd8594062ccfedb94aa3fc))
+
+
+### Bug Fixes
+
+* **web:** keep orphaned agent questions on the canvas and fix review issues ([011844a](https://github.com/gutzerk/code_chroma/commit/011844a087c581b1870abf1be1d7ad58886a46e7))
+
+## [1.10.0](https://github.com/gutzerk/code_chroma/compare/v1.9.0...v1.10.0) (2026-10-30)
+
+
+### Features
+
+* add the walkthrough diagram type and the B2 look for routes ([9c94251](https://github.com/gutzerk/code_chroma/commit/9c94251d73e677197e003c55b764f1ef7a54b490))
+* **bridge:** carry a diagram's title onto the canvas and the status route ([b1c8113](https://github.com/gutzerk/code_chroma/commit/b1c81135836f1fe5c23ce3d6db963890fd9faa2f))
+* canvas design batch — walkthrough B2, sequence A4, diagram titles, layout spacing, question wake-up ([4c5fd14](https://github.com/gutzerk/code_chroma/commit/4c5fd144b1b3e83d2f6194e36d5ac31bfab16488))
+* **canvas:** show a diagram's title on its frame and ON CANVAS row ([5255010](https://github.com/gutzerk/code_chroma/commit/525501054afeff6e00f24086161bad97ca90b8ae))
+* **layout:** measure box sizes before ELK, add meta.rank and feedback edges as layout hints ([252d35e](https://github.com/gutzerk/code_chroma/commit/252d35ebdd995b73ec0469d1b9283d2faecf4b48))
+* rename C1 to System context and detect its environment like Design patterns ([370c061](https://github.com/gutzerk/code_chroma/commit/370c0612cecb60235b7cbcd7e801c1cfb9d0f9e9))
+* **skills:** have the drawing agent title every diagram ([219faf4](https://github.com/gutzerk/code_chroma/commit/219faf426a3223ce11c182476e3867e9bc6888f2))
+* **web:** draw the sequence diagram as the A4 glance board that expands a step in place ([f32b4e9](https://github.com/gutzerk/code_chroma/commit/f32b4e9fceb2edc99cdfef2a3682f940878c3e88))
+
+
+### Bug Fixes
+
+* **bridge:** message a step agent by resuming its session, find a run's worktree in its own workspace, keep restart answers on renamed inputs ([b544d6e](https://github.com/gutzerk/code_chroma/commit/b544d6eb6d643545b56c0f7129a8ae4f1d30108e))
+* **bridge:** pass the assigned model to agent windows and list only claude aliases ([4def11b](https://github.com/gutzerk/code_chroma/commit/4def11b82851554e13f6769b99bb26e0d43a0120))
+* **canvas:** reserve real role-box height and wider gaps in auto-layout ([9e10663](https://github.com/gutzerk/code_chroma/commit/9e10663d0977cca902483e6b966511bc2895f1e6))
+* **checker:** exempt the system root from ARTICULATION, utf-8 output, exact-id UNREVIEWED hint, finish c1 rename in tests ([1af703d](https://github.com/gutzerk/code_chroma/commit/1af703dbf1189e1afb5936889be8a851a6590e05))
+* **ci:** use the system-context layer in the canvas delete tests ([5a40854](https://github.com/gutzerk/code_chroma/commit/5a40854a9b00d7167b9144c9350b6e0ab1781c37))
+* **ci:** wrap long lines, serve walkthrough in the wire fixture, use diagram tokens in CSS, finish c1 rename in tests ([36cc6ef](https://github.com/gutzerk/code_chroma/commit/36cc6ef730fa52a24a53b64ef0927600d03bb5dd))
+* **questions:** clear an answered batch only after the agent really received it ([e2a5a52](https://github.com/gutzerk/code_chroma/commit/e2a5a52a99693fe4df751c493d5577653df1e7ce))
+* **questions:** never strand an answered batch and type it as it stands at idle ([f05b651](https://github.com/gutzerk/code_chroma/commit/f05b651ae24e028a845c8bda1f30dcab7261d00f))
+* **questions:** wake the asking agent once its batch is answered and clear the cards ([6f044f2](https://github.com/gutzerk/code_chroma/commit/6f044f2e88d606dbe97af40c9bef589ba5aaf3bd))
+* **tests:** finish the C1 to system-context rename and register walkthrough in the Python tests ([62b2b1a](https://github.com/gutzerk/code_chroma/commit/62b2b1abca29ba0d55e4719245af84df37e56d8a))
+* **tests:** finish the system-context rename in the agents, PR boot and context-envelope tests ([06f12ac](https://github.com/gutzerk/code_chroma/commit/06f12ac9a1f8711a04991eecd82599815b446252))
+* **tests:** repair the walkthrough entry in the diagrams status test ([4fb8367](https://github.com/gutzerk/code_chroma/commit/4fb8367d120788a6d2630cc7d49970d5dda72eeb))
+* **tests:** use the system-context routes and status key in the remaining bridge tests ([c38b9eb](https://github.com/gutzerk/code_chroma/commit/c38b9ebb0feb235d9117d7afcaba2236668a5d23))
+* **tests:** wrap the lines the system-context rename pushed past 100 columns ([65d8dad](https://github.com/gutzerk/code_chroma/commit/65d8dad7653dd301c074164db9c1bf40664d4609))
+* **web:** diagram box copy top-right, SRC bottom-right, no details button or popups ([bc31a87](https://github.com/gutzerk/code_chroma/commit/bc31a877f4f592f440a62c7499a2c6e7dd98133a))
+* **web:** draw the walkthrough ROUTE panel inside the diagram with the B2 board look ([b6d0746](https://github.com/gutzerk/code_chroma/commit/b6d074663ce4d24786fcf489129bf70ec222911d))
+* **web:** give walkthrough boxes the common box internals and fill boxes with their name when zoomed out ([2b731da](https://github.com/gutzerk/code_chroma/commit/2b731daff12d25eb255dd3e3b03ff1acab5de8cf))
+* **web:** make sequence role colours clearly distinct (blue route, stronger tints) ([492a11c](https://github.com/gutzerk/code_chroma/commit/492a11cb8d877454c909e158099ab6227c7ccf7c))
+* **web:** make sequence steps keyboard-safe and keep canvas caches fresh after review ([1450cc9](https://github.com/gutzerk/code_chroma/commit/1450cc9611d9e5e8e11b6c51582fd0294a9366e2))
+* **web:** restore the group frame open arrow that was saved as mojibake ([2ac5ee8](https://github.com/gutzerk/code_chroma/commit/2ac5ee89ccc4930f984e369394fa1d57d425b265))
+* **web:** share one role palette across boards and pin lane-tint ties ([e9ff11f](https://github.com/gutzerk/code_chroma/commit/e9ff11f0a2757c1e98ba0cfaec1405255cc0fbd4))
+* **web:** snap agents panel to full near its widest and let the grip leave full ([c884a72](https://github.com/gutzerk/code_chroma/commit/c884a72851cab23b83738a411e146b313789237d))
+* **web:** tint each sequence lane by the role of its steps ([40d5c9b](https://github.com/gutzerk/code_chroma/commit/40d5c9be848638a866d803890cdabd6743af9222))
+* **web:** tint sequence step backgrounds by role so steps read apart ([0bfd258](https://github.com/gutzerk/code_chroma/commit/0bfd258f8d883d46c1b22eed8539121acf248396))
+* **web:** use one zoomed-out name size per diagram so every box reads the same ([a0b746d](https://github.com/gutzerk/code_chroma/commit/a0b746d24aca8a50a7fbc15b4afeee3188787403))
+* **web:** workflow editor slash skills, run view fixes and no embedded step terminal ([355c49f](https://github.com/gutzerk/code_chroma/commit/355c49fecd7f353374c7f2d3d87a4bc2c53e9642))
+
+## [1.9.0](https://github.com/gutzerk/code_chroma/compare/v1.8.0...v1.9.0) (2026-10-28)
+
+
+### Features
+
+* **bridge:** carry a diagram route into node meta in both bridges ([1bc6e22](https://github.com/gutzerk/code_chroma/commit/1bc6e2247e6ec544689604cdf6a0193dd4afec34))
+* **bridge:** pass sequence message kind and failure through to element meta ([814f07d](https://github.com/gutzerk/code_chroma/commit/814f07dae2b2c243328a8ec6b280970fdd74faff))
+* **bridge:** surface edge/message-kind advisories as diagnostics; group arrow opens source ([1b14df7](https://github.com/gutzerk/code_chroma/commit/1b14df724b15efbc31c57085b576c23c3bd97b87))
+* **llm:** probe the gemini CLI for its model list ([29ad4bf](https://github.com/gutzerk/code_chroma/commit/29ad4bffb36f18651f3c56a612b14ca03f307b1e))
+* resolve route node_ids, route picker, Failures band and route e2e journeys ([ed76207](https://github.com/gutzerk/code_chroma/commit/ed76207f5e32f7da3ac4bf750e87e5aa504bf291))
+* **skills:** author spawns/data edge kinds and advise on them in the self-check ([3ea586f](https://github.com/gutzerk/code_chroma/commit/3ea586fdd5d3446d4699ccb98556ada2540ce3b4))
+* store a diagram route once on a carrier element ([45cd789](https://github.com/gutzerk/code_chroma/commit/45cd78974a022da09f829991470edbdb57bd1ee4))
+* store a diagram route once on a carrier element instead of on every node ([37313f0](https://github.com/gutzerk/code_chroma/commit/37313f05ffa6af5e25a0b1ea5b8a8a3a52455fbb))
+* **web:** add Chat about it button to the question card ([559c69c](https://github.com/gutzerk/code_chroma/commit/559c69c86fa4175d2c9dddda9040a9c683245cdf))
+* **web:** add Chat about it button to the question card ([651d21b](https://github.com/gutzerk/code_chroma/commit/651d21bfd714a58cc77dd2dcf29a932e327f2a5d))
+* **web:** apply the diagram readability board styles (022) ([85d591d](https://github.com/gutzerk/code_chroma/commit/85d591ddf51c15ccc08b3ecfe9f05c23d55889d5))
+* **web:** board role styles for diagram blocks (role word, per-role frame and fill) ([191dbf0](https://github.com/gutzerk/code_chroma/commit/191dbf0bafdc7d054298ee0c571ef0f6c9580fb0))
+* **web:** board-style typed edges, groups and focus panel ([fe85a46](https://github.com/gutzerk/code_chroma/commit/fe85a4684f608290a1b6ba2ca08bd58ff0cdffab))
+* **web:** expand a route step in place into its calls ([ee8648b](https://github.com/gutzerk/code_chroma/commit/ee8648b90cd93fe7c4c12f4cf0eff09416580974))
+* **web:** match the Impact view to the ImpactGlance design board ([3214a81](https://github.com/gutzerk/code_chroma/commit/3214a81fd39456e185ce78609bd50c0dd2dae340))
+* **web:** members chip, hero card and zoom levels on canvas blocks ([a6f24a8](https://github.com/gutzerk/code_chroma/commit/a6f24a8072598f246b00a89af4a913b58fdcb058))
+* **web:** pin Impact board bars to the diagram, merge minor pills, render removed links ([5dc1c55](https://github.com/gutzerk/code_chroma/commit/5dc1c559fecfa7221d65042236e14d2863319a09))
+* **web:** redesign AI models settings around one default model ([265c0b8](https://github.com/gutzerk/code_chroma/commit/265c0b8e3ef5a8aebd8c3d077507a29ddce6f249))
+* **web:** redesign AI models settings around one default model ([ca845e1](https://github.com/gutzerk/code_chroma/commit/ca845e19a8776991c32f1235b3ef7a3102cb1334))
+* **web:** sequence focus timeline with phase bar, participants list and focus counts ([7657b9e](https://github.com/gutzerk/code_chroma/commit/7657b9e5668fa76db87f0c88a2b74cffe535aaff))
+* **web:** sequence focus timeline/legend parity, board edge pills and group bundles ([19e0f1f](https://github.com/gutzerk/code_chroma/commit/19e0f1f08f6a8b0edbb5514e5584a337d692d725))
+* **web:** show an authored route over the code map ([399fa0a](https://github.com/gutzerk/code_chroma/commit/399fa0ac3731063cf3df029d45c3bd99a718d5c0))
+
+
+### Bug Fixes
+
+* address PR review findings and CI lint failures ([ceb88a7](https://github.com/gutzerk/code_chroma/commit/ceb88a78d7c678d4102787db283c557264542350))
+* address PR review findings on line counts and drawing hints ([1f63453](https://github.com/gutzerk/code_chroma/commit/1f6345386eda3df5c2ad596e4a1f3ad79e77ec01))
+* address review findings on the single route carrier ([e5a29fc](https://github.com/gutzerk/code_chroma/commit/e5a29fcbca6e1e856c5a58245dddf8da9fd23d0a))
+* **bridge:** isolate and cache the live CLI model probe, pick models without "default" ([4e80092](https://github.com/gutzerk/code_chroma/commit/4e80092362b2f2a13a4d000c48df56737b94c652))
+* **llm-settings:** address review findings on the models tab ([c646cce](https://github.com/gutzerk/code_chroma/commit/c646ccebbd28837d104e8d5975cf2c2cb49c4a9f))
+* **llm:** harden CLI model probes from review ([5c23c34](https://github.com/gutzerk/code_chroma/commit/5c23c34a9d7274fc01640891c9fa7246066f64bc))
+* **llm:** list CLI models live and add a gemini CLI adapter ([ce6ca49](https://github.com/gutzerk/code_chroma/commit/ce6ca492072e25091151d9b14a8ea75db216a483))
+* **llm:** list CLI models live and add a gemini CLI adapter ([2d40344](https://github.com/gutzerk/code_chroma/commit/2d403440ddd5ed2455f5911554e6fd039a935418)), closes [#297](https://github.com/gutzerk/code_chroma/issues/297)
+* **llm:** pin the gemini probe command and shapes in a shared case, close probe stdin ([4223fd9](https://github.com/gutzerk/code_chroma/commit/4223fd9c04afe3e9ab59a218d7d8ef94d3d4dcd2))
+* stamp lane_kind normal, harden lane parsing and wrap long test line ([74e195f](https://github.com/gutzerk/code_chroma/commit/74e195f6fe091957542f82dfa61fdd44b18528dd))
+* **web:** keep diagram boxes out of the route highlight and move the ROUTE card clear of the agents panel ([44d9768](https://github.com/gutzerk/code_chroma/commit/44d97689cbffb1ada4ece5774d7da78b7f5aa5eb))
+* **web:** let ai and event sequence arrows keep their own colour ([65f7590](https://github.com/gutzerk/code_chroma/commit/65f759088b953bedd9ec68ab767c0c87e6f7ed46))
+
+## [1.8.0](https://github.com/gutzerk/code_chroma/compare/v1.7.1...v1.8.0) (2026-10-27)
+
+
+### Features
+
+* **bridge:** worktree tabs replace the branch switcher and per-agent worktrees ([7e435ff](https://github.com/gutzerk/code_chroma/commit/7e435ff645681e020deb52fe83dc5f54d7e0b6c5))
+* **bridge:** worktree tabs replace the branch switcher and per-agent worktrees ([e5068e9](https://github.com/gutzerk/code_chroma/commit/e5068e98d474855b3426bc149a06b91ddaf70d60))
+* **draw:** Draw dialog with type cards and a request, carried through both bridges ([5366f7b](https://github.com/gutzerk/code_chroma/commit/5366f7bc27dbc2a03553cc2416c60c6b487b80d1))
+* **skills:** add system-context and dataflow diagram types ([72676cd](https://github.com/gutzerk/code_chroma/commit/72676cdb961b0bd1ad3803f1a650e9339d65ace2))
+* **skills:** add system-context and dataflow diagram types to the draw-diagram skill ([160d284](https://github.com/gutzerk/code_chroma/commit/160d28427d493149b3e8ffda5ead0fa8b89664b3))
+* **web:** confirm a successful diagram export with a short notice ([594497b](https://github.com/gutzerk/code_chroma/commit/594497bff62e9d469917d5a0693eadef5e4dc22b))
+* **web:** export selected diagrams from the Diagrams panel ([f021c34](https://github.com/gutzerk/code_chroma/commit/f021c342dbf924d6abb518ab92e2e42f343f45f3))
+* **web:** move diagram export into the Diagrams panel and export only selected diagrams ([6d60c93](https://github.com/gutzerk/code_chroma/commit/6d60c937d9ad100f3028dc19be19da61a9d45cb1))
+* **workflows:** park a step as needs_you when its agent reports blocked or question ([f60cda0](https://github.com/gutzerk/code_chroma/commit/f60cda06ce57637715cac5781988645406d66ede)), closes [#290](https://github.com/gutzerk/code_chroma/issues/290)
+
+
+### Bug Fixes
+
+* **bridge:** address worktree-tab review findings ([0cba9a4](https://github.com/gutzerk/code_chroma/commit/0cba9a4b1617f2cbeec50e5cadb98e79e15a6ba1))
+* **bridge:** agents and terminal see the login-shell environment ([9eb9e90](https://github.com/gutzerk/code_chroma/commit/9eb9e9096f4b60901aa8e413fb1668998056d441))
+* **bridge:** bound the login-shell wait and keep codechroma_* in agent/terminal PTY env ([e6f7554](https://github.com/gutzerk/code_chroma/commit/e6f755480a1979a73535bf8e84f6379341b6c841))
+* **bridge:** start agent and terminal PTYs with the login-shell environment ([a823b28](https://github.com/gutzerk/code_chroma/commit/a823b2825914576ba7b6647b1060bc015f87893a)), closes [#294](https://github.com/gutzerk/code_chroma/issues/294)
+* **draw:** reapply Draw dialog pieces after merging main, restore _diagram_hint ([9a0071e](https://github.com/gutzerk/code_chroma/commit/9a0071e64b325f0e1bea84632f6d8fabc91ea7ec))
+* open the inspector only from the SRC button, layer panels correctly, notify about updates only at startup ([9908222](https://github.com/gutzerk/code_chroma/commit/990822206d55ec6e1b0aff9c7392b6ce944a19eb))
+* **questions:** address review findings on diagram zoom, delivery and draft layers ([64171bc](https://github.com/gutzerk/code_chroma/commit/64171bc5a09ac31629eba0dfa98a21d190492599))
+* **questions:** non-blocking ask, C# questions port, real option diagrams ([1a771f2](https://github.com/gutzerk/code_chroma/commit/1a771f28f7591d9dcd8faa3b6e677c8f34012653))
+* **questions:** non-blocking ask, C# questions port, real option diagrams ([4082ace](https://github.com/gutzerk/code_chroma/commit/4082ace899a82ecf7c2da8ac737b2028056d6772))
+* **questions:** share one MCP instructions text between the Python and C# bridges ([21c0016](https://github.com/gutzerk/code_chroma/commit/21c001629e592183a85809587469cf5f77e54767))
+* render sequence diagram return arrows and labels correctly ([b50f195](https://github.com/gutzerk/code_chroma/commit/b50f195b5f88b34ebcabcc08c278796b87947b7c)), closes [#276](https://github.com/gutzerk/code_chroma/issues/276)
+* **skills:** ask non-sequence diagrams for question, summary and hero ([#277](https://github.com/gutzerk/code_chroma/issues/277)) ([a625504](https://github.com/gutzerk/code_chroma/commit/a625504ba3dd2a27cdebd9bea59c20ca1965b6bb))
+* **skills:** ask non-sequence diagrams for question, summary and hero ([#277](https://github.com/gutzerk/code_chroma/issues/277)) ([b16342b](https://github.com/gutzerk/code_chroma/commit/b16342b33c23b2675b78ab5f497349503c353e46))
+* **web:** anchor the focus panel to the left panel through its CSS variables ([cc6ca52](https://github.com/gutzerk/code_chroma/commit/cc6ca52c32a1a426a55f67f7f2b868ae92a48c42))
+* **web:** keep question diagram arrowheads outside nodes ([a27b7a3](https://github.com/gutzerk/code_chroma/commit/a27b7a3ebc136abfde6a12aebc42643ff11fecb1))
+* **web:** make question option diagrams readable, pannable and zoomable ([9909a05](https://github.com/gutzerk/code_chroma/commit/9909a05eda5ba780634a98c7c77be3b5a0c913ce))
+* **web:** use font and radius tokens in the Draw dialog css (stylelint) ([e452578](https://github.com/gutzerk/code_chroma/commit/e4525780f5aca5d5225277121f6612adde61a7de))
+* **web:** warm up the snapshot render on WebKit so macOS exports are not blank ([060cf38](https://github.com/gutzerk/code_chroma/commit/060cf382a8a605ed16bb6374207327fb338b7e51))
+* **wiki:** drop a leftover update manifest snapshot when a new generate starts ([b3880d9](https://github.com/gutzerk/code_chroma/commit/b3880d98fbfcb309097f994b6c805606ab5d5e24))
+* **wiki:** drop a leftover update manifest snapshot when a new generate starts ([865802c](https://github.com/gutzerk/code_chroma/commit/865802c21b9690f76ffb720818aa321ded1a8295))
+* **wiki:** track both wikis against main only, one shared copy across tabs ([2b89202](https://github.com/gutzerk/code_chroma/commit/2b8920232ed6887594d290ac1e28c23ff6f3ead5))
+* **wiki:** track both wikis against main only, share one copy across tabs, restore manifest after a failed update ([1b5b44b](https://github.com/gutzerk/code_chroma/commit/1b5b44b79a69d7ea229cab7b916002f4333e870e))
+* **workflows:** pass the agent result between steps, show it on review steps, name the step model, reveal saved runs on start ([96ca1e0](https://github.com/gutzerk/code_chroma/commit/96ca1e0cf296e44c32999de31707dffbf8c9636e))
+* **workflows:** preserve Markdown in step hand-off results ([4b50060](https://github.com/gutzerk/code_chroma/commit/4b50060b327dddb836a940f6a3a5ff7f64da5b2d))
+* **workflows:** show step agent start errors, honour agent capacity and hide legacy step chat messages ([e355ff0](https://github.com/gutzerk/code_chroma/commit/e355ff0dbf57caa0621204ee5af72b0fdef78ba7))
+* **workflows:** talk to a finished step's agent in a real terminal ([01438f9](https://github.com/gutzerk/code_chroma/commit/01438f984749d791c2c6e198a9d7141ba0ee1e0c))
+* **workflows:** talk to a finished step's agent in a real terminal instead of the one-shot send chat ([e726b8d](https://github.com/gutzerk/code_chroma/commit/e726b8de3dd8f796399e3ae96f64181958075cce)), closes [#292](https://github.com/gutzerk/code_chroma/issues/292)
+
+## [1.7.1](https://github.com/gutzerk/code_chroma/compare/v1.7.0...v1.7.1) (2026-10-26)
+
+
+### Bug Fixes
+
+* activity full-screen overlap and macOS clipboard shortcuts ([efef67e](https://github.com/gutzerk/code_chroma/commit/efef67ee8b42ad7970451cda7db59588e00f6273))
+* harden desktop clipboard shortcuts and terminal copy-on-select ([f5b0132](https://github.com/gutzerk/code_chroma/commit/f5b0132afba58602b902404cc40a78ac0c76d839))
+* prevent activity tab overlap and use native desktop clipboard ([232cf7b](https://github.com/gutzerk/code_chroma/commit/232cf7b07465720352f117b1c67defd1fb7778ed))
+
+## [1.7.0](https://github.com/gutzerk/code_chroma/compare/v1.6.1...v1.7.0) (2026-10-26)
+
+
+### Features
+
+* ask what to draw in the agent terminal instead of a type popover ([0a6d076](https://github.com/gutzerk/code_chroma/commit/0a6d076fe6714fba344d4f45251d76ddb0ab1fde))
+* **bridge:** bootstrap the c1 draft and patterns diagrams when a workspace first opens ([dd5159f](https://github.com/gutzerk/code_chroma/commit/dd5159febcf5e9c89deac34ee80b535a5f268af5))
+* **bridge:** close small C# bridge parity gaps with the Python bridge ([3d42b22](https://github.com/gutzerk/code_chroma/commit/3d42b22180b6a57d8440add5476796782949d698))
+* **bridge:** emit impact-changes, wiki-general and custom/feature-plan+canvas watcher events ([2b08ee7](https://github.com/gutzerk/code_chroma/commit/2b08ee706d4be59a8c4dd37d236232c3120d8af7))
+* **bridge:** port agent questions (ask_user, /mcp, questions routes) to the C# bridge ([9a5008b](https://github.com/gutzerk/code_chroma/commit/9a5008b2908a95cebd2249e7d36ee7ac47b5f9ba))
+* **bridge:** port the AskUserQuestion PreToolUse hook to the C# bridge binary ([2e7c028](https://github.com/gutzerk/code_chroma/commit/2e7c028d17a212e9d3410ab439d270e07b5a91ce))
+* **bridge:** read C1 through the borrowed source root for PR and agent workspaces ([dfda100](https://github.com/gutzerk/code_chroma/commit/dfda1000d55349fdf3b9422da076b46d712b43a1))
+* **bridge:** serve dependency-digest, context-digest and route from the C# bridge ([f1ca691](https://github.com/gutzerk/code_chroma/commit/f1ca691c88da759b7e564e5717d925f415059ab0))
+* **bridge:** write dependency-digest.json on analyze/reanalyze and fingerprint it like Python ([cd3d016](https://github.com/gutzerk/code_chroma/commit/cd3d0169b2a446338717ba285449367d6ff9b255))
+* diagram readability - sequence Readable/Focus modes, block anatomy, impact glance ([d5d7f95](https://github.com/gutzerk/code_chroma/commit/d5d7f95ad6583de9562e2763fe72e19b54171cfc))
+* **llm:** default model with capability-aware resolution and /llm/default, /llm/features routes ([23460d9](https://github.com/gutzerk/code_chroma/commit/23460d907617386da803e27daf9c9342bbe853f7))
+* Share menu to export the canvas as PNG, HTML or PDF ([cb7a554](https://github.com/gutzerk/code_chroma/commit/cb7a554c73dec009fe472e0d4ce1d3103ea62818))
+* **shell:** clone remote repositories from the launcher ([6338fc8](https://github.com/gutzerk/code_chroma/commit/6338fc86199bbb1f4ba91eda203998567a966481))
+
+
+### Bug Fixes
+
+* address PR [#265](https://github.com/gutzerk/code_chroma/issues/265) review findings ([f9cefb0](https://github.com/gutzerk/code_chroma/commit/f9cefb05a44816cdafa4a191f8dc6120507b5e7f))
+* address PR review findings (export, sequence view, MCP config perms) ([6848ff0](https://github.com/gutzerk/code_chroma/commit/6848ff0a63229a935de933c6089fb01a165f9271))
+* address review findings on diagram readability ([f5446f6](https://github.com/gutzerk/code_chroma/commit/f5446f6e80e265ab61cb0b2a74bb53c5c564d16d))
+* address review findings on diagram readability ([aee97d1](https://github.com/gutzerk/code_chroma/commit/aee97d1ce10a8668722c961125d3788079c7308a))
+* **bridge:** address PR review findings on bootstrap, hook, watchers and C1 matching ([6eef74d](https://github.com/gutzerk/code_chroma/commit/6eef74d9d4111270631821acbf13798e8ba42b26))
+* **bridge:** initialize resumed agents after listening and serialize question decisions ([17c2ba8](https://github.com/gutzerk/code_chroma/commit/17c2ba87edc4f57393bb2490686d79603904dd51))
+* **bridge:** read borrowed C1 from its source root and hash the digest like Python json.dumps ([2bbb146](https://github.com/gutzerk/code_chroma/commit/2bbb1468044f130764ea2f136dbbab39435f73d5))
+* **bridge:** recheck projection.json when its directory is created after the watcher missed the write ([6019d02](https://github.com/gutzerk/code_chroma/commit/6019d02951d2b71b24286e0a45efc4de85167896))
+* **bridge:** serialize diagram reasks and scope cached results ([d61ce3a](https://github.com/gutzerk/code_chroma/commit/d61ce3a6bac071ebf5e740b484eb3c0b613fc7e6))
+* **canvas:** improve terminal controls and agent switching ([650233b](https://github.com/gutzerk/code_chroma/commit/650233bf4cbf05d9d90529e43c39338c7afba441))
+* keep the real dev terminal by default, quote the skill dir, drop stale popover text ([5884a50](https://github.com/gutzerk/code_chroma/commit/5884a50c6894f6f6a07e5d6acd227f06ea10604d))
+* only ask in the terminal when the CLI can hide the skill in a system prompt ([bb6c742](https://github.com/gutzerk/code_chroma/commit/bb6c7420c23367a9693b94f748601a0f4f546b48))
+* own agent sessions in the production C# bridge ([26f54b6](https://github.com/gutzerk/code_chroma/commit/26f54b61bd4c71931da3adb502e59a8088609466))
+* pin agent sessions to owned IDs ([2197bcc](https://github.com/gutzerk/code_chroma/commit/2197bcc537ace7982b44f4410181303f59f9d91d))
+* preserve agent session metadata through runtime resolution ([00b922c](https://github.com/gutzerk/code_chroma/commit/00b922c1502a2b35009ddf4c0a15cf5dc716ae08))
+* review fixes for diagram readability (focus clearing, derived sequence geometry, checker tiers, docs) ([266f51d](https://github.com/gutzerk/code_chroma/commit/266f51df5b68d9e4796b8e4cdbb0cc146a76acb4))
+* **shell:** preserve clone tab and SSH configuration ([857befc](https://github.com/gutzerk/code_chroma/commit/857befcc09995222d65a8a21ab625ef229e68a66))
+* track session changes across PowerShell and Python launches ([0af2ff5](https://github.com/gutzerk/code_chroma/commit/0af2ff57f4f37c081125d9049592ee8a5d861117))
+* **web:** preserve exact colors/radii in token migration and tighten stylelint font rule ([59a5d11](https://github.com/gutzerk/code_chroma/commit/59a5d11314c8fcd0083b51060a5b6784ee769524))
+* wrap long line in recipes test (ruff E501) ([8a0e4d0](https://github.com/gutzerk/code_chroma/commit/8a0e4d0a3bb2c3c534b3dc7bb67a969ad807ecaa))
+
 ## [1.6.1](https://github.com/gutzerk/code_chroma/compare/v1.6.0...v1.6.1) (2026-10-24)
 
 

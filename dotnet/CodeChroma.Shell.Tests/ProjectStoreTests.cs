@@ -116,18 +116,20 @@ public class WorkspaceSummariesTests
     [
         ["no files", null, null, ""],
         ["corrupt file", "{not json", null, ""],
-        ["agents by id and title", """[{"id":"agent-1","title":"Feature Auth"}]""", null, "agent-1=Feature Auth"],
+        ["branches by id and name", """{"branches":[{"id":"br_a","name":"Feature Auth","branch":"feat/auth"}],"active":"br_a"}""", null, "br_a=Feature Auth"],
+        ["branch name falls back to branch", """{"branches":[{"id":"br_a","branch":"feat/auth"}]}""", null, "br_a=feat/auth"],
+        ["agent ids are not listed", """{"branches":[{"id":"agent-1","name":"Agent"}]}""", null, ""],
         ["prs with and without title", null, """[{"number":42,"title":"Fix login bug"},{"number":7}]""", "pr-42=PR #42: Fix login bug|pr-7=PR #7"],
-        ["agents first", """[{"id":"agent-1","title":"Feature Auth"}]""", """[{"number":42,"title":"Fix"}]""", "agent-1=Feature Auth|pr-42=PR #42: Fix"],
-        ["malformed entries skipped", """[{"id":"agent-1"},{"title":"No id"},"not an object"]""", """[{"number":"x"}]""", ""],
+        ["branches first", """{"branches":[{"id":"br_a","name":"A"}]}""", """[{"number":42,"title":"Fix"}]""", "br_a=A|pr-42=PR #42: Fix"],
+        ["malformed entries skipped", """{"branches":[{"name":"No id"},"not an object"]}""", """[{"number":"x"}]""", ""],
     ];
 
     [Theory]
     [MemberData(nameof(Cases))]
-    public void Lists_agents_and_prs_without_ever_throwing(string _, string? agents, string? prs, string expected)
+    public void Lists_worktrees_and_prs_without_ever_throwing(string _, string? branches, string? prs, string expected)
     {
         using var temp = new TempDir();
-        if (agents is not null) Write(temp.Path, "agents.json", agents);
+        if (branches is not null) Write(temp.Path, "branches.json", branches);
         if (prs is not null) Write(temp.Path, "prs.json", prs);
 
         var result = string.Join("|", WorkspaceSummaries.ForRepo(temp.Path).Select(w => $"{w.Id}={w.Label}"));

@@ -1,263 +1,177 @@
-import type { CSSProperties } from "react";
+import { useMemo, useSyncExternalStore } from "react";
 import type { CanvasElement } from "../../state/types";
-import { flagMeta, rawMeta, stringMeta } from "./elementMeta";
-import { groupColorIndex, GROUP_COLOR_COUNT } from "./groupColor";
-import { descriptionPopupStore } from "./descriptionPopupStore";
+import { boardOrigin, buildSequenceBoard, SEQUENCE_BOARD, sequenceBoardSignature, type BoardArrow } from "./sequenceBoard";
+import { sequenceViewStore } from "./sequenceViewStore";
+import { SequenceStep } from "./SequenceStep";
 
 /**
- * The one own-component that renders an entire `sequence`-layer (a UML-style sequence diagram).
+ * Renders one whole `sequence` layer as the A4 "glance + expand in place" board.
  *
- * A sequence layer is a hard, non-user-draggable structure (lockedLayout in elementRules.ts): the
- * geometry lives on each element's OWN persisted `position` — written by autoLayout's `layoutSequence`
- * (participants in left-to-right columns, messages on their time-rows) — and this component draws
- * every participant/message AT that position. `DiagramFrame` reads the same positions to surround the
- * layer and to move every member together on a whole-diagram frame drag, so deriving the drawing from
- * the persisted positions keeps the frame and the blocks in lockstep by construction.
- *
- * `meta` supplies only what position can't: an element's `role` (participant vs message), which two
- * participant refs a message connects (`from`/`to`), its `order`, and the `return`/`async` flag that
- * shapes the arrow. Each participant's stable hue comes from hashing its name into the shared palette.
- *
- * Purely display: no drag/click of its own, mirroring GroupFrame. Clicking a message opens the
- * description popup (its `description` carries the request's detail); clicking through to a
- * participant's Inspector still works because each participant element is anchorable by `node_id`.
+ * One swimlane per participant, one column per step (message, in `order`), phase pills on top, a
+ * failure lane for `error` steps and the legend below. Clicking a step expands it in place into the
+ * functions of its linked code; the expanded ids live in `sequenceViewStore` (display only), and the
+ * view stage (`viewSequenceElements`) has already laid the elements out for them.
  */
-
-interface Participant {
-  element: CanvasElement;
-}
-
-interface Message {
-  element: CanvasElement;
-  fromCol: CanvasElement;
-  toCol: CanvasElement;
-  accent: string;
-}
-
 export interface SequenceDiagramProps {
-  /** The layer's own elements (participants + messages) — its layer name, for a stable React key. */
   layer: string;
   elements: CanvasElement[];
 }
 
+/** Phase kind → the tone its pill borrows. */
+const PILL_TONE: Record<string, string> = {
+  request: "route",
+  prepare: "logic",
+  ai: "ai",
+  deliver: "data",
+  check: "check",
+};
+
+/** Marker ids are document-wide, so each layer gets its own prefix. */
+const markerPrefix = (layer: string): string => `seq-${layer.replace(/[^a-zA-Z0-9_-]/g, "_")}`;
+
 export function SequenceDiagram({ layer, elements }: SequenceDiagramProps) {
-  const participants: Participant[] = [];
-  let messages: Message[] = [];
-  const byRef = new Map<string, CanvasElement>();
-
-  for (const element of elements) {
-    if (stringMeta(element, "role") === "participant") {
-      participants.push({ element });
-      const ref = stringMeta(element, "recipe_key") ?? element.id;
-      byRef.set(element.id, element);
-      byRef.set(ref, element);
-    }
-  }
-
-  const accentByRef = new Map<string, string>();
-  for (const { element } of participants) {
-    const ref = stringMeta(element, "recipe_key") ?? element.id;
-    accentByRef.set(ref, sequenceAccentRef(ref));
-  }
-
-  messages = elements
-    .map((element) => {
-      if (stringMeta(element, "role") !== "message") return null;
-      const fromRef = String(rawMeta(element, "from") ?? "");
-      const toRef = String(rawMeta(element, "to") ?? "");
-      const fromEl = byRef.get(fromRef);
-      const toEl = byRef.get(toRef);
-      if (!fromEl || !toEl) return null;
-      return {
-        element,
-        fromCol: fromEl,
-        toCol: toEl,
-        accent: accentByRef.get(fromRef) ?? "160, 165, 175",
-      };
-    })
-    .filter((m): m is Message => m !== null)
-    .sort((a, b) => orderOf(a.element) - orderOf(b.element));
-
-  // The container exactly encloses every element's persisted rect (position = center, size around
-  // it — the same contract elementRect/unionBoundsOf use for DiagramFrame), so the diagram's own
-  // bounding box and the frame are identical and nothing (lifeline, arrows) leaks past it. Each
-  // child is drawn at position − origin, preserving absolute placement inside this frame.
-  const allRects = elements.map((element) => {
-    const w = element.size?.w ?? 180;
-    const h = element.size?.h ?? 36;
-    return {
-      left: element.position.x - w / 2,
-      top: element.position.y - h / 2,
-      right: element.position.x + w / 2,
-      bottom: element.position.y + h / 2,
-    };
-  });
-  // An arrow spans its two lifelines regardless of the message element's own (narrow) rect, so fold
-  // each arrow's real extent in -- otherwise it pokes past the frame.
-  for (const { element, fromCol, toCol } of messages) {
-    allRects.push({
-      left: Math.min(fromCol.position.x, toCol.position.x),
-      top: element.position.y - 10,
-      right: Math.max(fromCol.position.x, toCol.position.x),
-      bottom: element.position.y + 10,
-    });
-  }
-  const left = Math.min(...allRects.map((r) => r.left));
-  const top = Math.min(...allRects.map((r) => r.top));
-  const right = Math.max(...allRects.map((r) => r.right));
-  const bottom = Math.max(...allRects.map((r) => r.bottom));
+  useSyncExternalStore(sequenceViewStore.subscribe, sequenceViewStore.getVersion);
+  const { expanded } = sequenceViewStore.get(layer);
+  const expandedKey = expanded.join("|");
+  // `elements` is a fresh array each render, so the board keys on its signature, not its identity.
+  const signature = sequenceBoardSignature(elements);
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- signature/expandedKey are the change signals for `elements`/`expanded`
+  const board = useMemo(() => buildSequenceBoard(elements, expanded), [signature, expandedKey]);
+  const origin = boardOrigin(board);
+  if (!origin) return null;
+  const activeStep = sequenceViewStore.getStep(layer);
+  const prefix = markerPrefix(layer);
+  const marker = (arrow: BoardArrow) => `url(#${prefix}-${arrow.kind})`;
 
   return (
     <div
       className="sequence-diagram"
       data-testid="sequence-diagram"
       data-layer={layer}
-      style={{
-        position: "absolute",
-        left,
-        top,
-        width: right - left,
-        height: bottom - top,
-        pointerEvents: "none",
-      }}
+      style={{ position: "absolute", left: origin.x, top: origin.y, width: board.width, height: board.height }}
     >
-      {/* Participant lifelines: a head capsule centered on its persisted position (frame treats
-          position as center) + a dashed vertical line from just below the head down to the frame's
-          bottom. */}
-      {participants.map(({ element }) => {
-        const hw = (element.size?.w ?? HEAD_W) / 2;
-        const hh = (element.size?.h ?? HEAD_H) / 2;
-        return (
-          <div
-            key={element.id}
-            className="sequence-participant"
-            data-testid="sequence-participant"
-            style={
-              {
-                left: element.position.x - hw - left,
-                top: element.position.y - hh - top,
-                width: hw * 2,
-                height: hh * 2,
-                "--seq-accent-rgb": accentByRef.get(stringMeta(element, "recipe_key") ?? element.id),
-              } as CSSProperties
-            }
-          >
-            <div
-              className="sequence-participant-lane"
-              style={{ top: hh, height: bottom - element.position.y - hh }}
-            />
-            <div className="sequence-participant-head" data-node-id={element.node_id ?? undefined}>
-              <span className="sequence-participant-name">{element.label}</span>
-            </div>
-          </div>
-        );
-      })}
+      {board.pills.map((pill) => (
+        <div
+          key={pill.id}
+          className={`seq-pill seq-tone--${PILL_TONE[pill.kind] ?? "plain"}${pill.w > SEQUENCE_BOARD.soloPillW ? "" : " seq-pill--solo"}`}
+          data-testid="sequence-phase-pill"
+          style={{ left: pill.x, width: pill.w }}
+        >
+          <span className="seq-pill-line" />
+          <span className="seq-pill-label">{pill.label}</span>
+          <span className="seq-pill-line" />
+        </div>
+      ))}
 
-      {/* Messages: one horizontal arrow per row, at its own persisted center y, from the sender's
-          column to the receiver's. */}
-      {messages.map(({ element, fromCol, toCol, accent }) => (
-        <MessageArrow
-          key={element.id}
-          element={element}
-          left={left}
-          top={top}
-          fromX={fromCol.position.x}
-          toX={toCol.position.x}
-          accent={accent}
+      {board.lanes.map((lane) => (
+        <div key={lane.id} className={`seq-lane seq-lane--${lane.tone}${lane.role ? ` seq-lane-role--${lane.role}` : ""}`} data-testid="sequence-lane" style={{ top: lane.rect.y, height: lane.rect.h }}>
+          <span className="seq-lane-label">{lane.label}</span>
+        </div>
+      ))}
+
+      {board.frames.map((frame) => (
+        <div
+          key={frame.id}
+          className="seq-frame"
+          data-testid="sequence-frame"
+          style={{ left: frame.rect.x, top: frame.rect.y, width: frame.rect.w, height: frame.rect.h }}
+        >
+          <span className="seq-frame-tag">{frame.label}</span>
+        </div>
+      ))}
+
+      <svg className="seq-arrows" width={board.width} height={board.lanesBottom} aria-hidden="true">
+        <defs>
+          {(["main", "side", "fail", "inner"] as const).map((kind) => (
+            <marker
+              key={kind}
+              id={`${prefix}-${kind}`}
+              viewBox="0 0 10 10"
+              refX="9"
+              refY="5"
+              markerWidth={kind === "inner" ? 6 : 7}
+              markerHeight={kind === "inner" ? 6 : 7}
+              orient="auto-start-reverse"
+            >
+              <path d="M0,0 L10,5 L0,10 z" className={`seq-marker seq-marker--${kind}`} />
+            </marker>
+          ))}
+        </defs>
+        {board.arrows.map((arrow) => (
+          <path
+            key={arrow.id}
+            d={arrow.d}
+            className={`seq-arrow seq-arrow--${arrow.kind}${activeStep !== null && arrow.order > activeStep ? " seq-arrow--dim" : ""}`}
+            data-testid="sequence-arrow"
+            data-kind={arrow.kind}
+            markerEnd={marker(arrow)}
+          />
+        ))}
+      </svg>
+
+      {board.steps.map((step) => (
+        <SequenceStep
+          key={step.id}
+          layer={layer}
+          step={step}
+          markerPrefix={prefix}
+          dim={activeStep !== null && step.message.order > activeStep}
+          active={activeStep !== null && step.message.order === activeStep}
         />
+      ))}
+
+      <SequenceLegend top={board.lanesBottom + SEQUENCE_BOARD.legendGap} />
+    </div>
+  );
+}
+
+const TONE_ITEMS: ReadonlyArray<readonly [string, string]> = [
+  ["actor", "Actor / trigger"],
+  ["route", "Entry route"],
+  ["logic", "Logic, no AI"],
+  ["ai", "AI step"],
+  ["check", "Check"],
+  ["data", "Data written"],
+  ["fail", "Failure"],
+];
+
+const LINE_ITEMS: ReadonlyArray<readonly [string, string]> = [
+  ["main", "Main path"],
+  ["inner", "Call inside a step"],
+  ["side", "Side effect"],
+  ["fail", "Failure branch"],
+];
+
+/** The legend row: step order, expand/open glyphs, the step tones and the four arrow kinds. */
+function SequenceLegend({ top }: { top: number }) {
+  return (
+    <div className="seq-legend" data-testid="sequence-legend" style={{ top }}>
+      <span className="seq-legend-title">LEGEND</span>
+      <span className="seq-legend-item">
+        <span className="seq-badge seq-badge--legend">01</span>Step order
+      </span>
+      <span className="seq-legend-item">
+        <span className="seq-legend-glyph">▸</span>Expand into its functions, in place
+      </span>
+      <span className="seq-legend-item">
+        <span className="seq-legend-glyph">↗</span>Open source
+      </span>
+      <span className="seq-legend-divider" />
+      {TONE_ITEMS.map(([tone, label]) => (
+        <span key={tone} className="seq-legend-item">
+          <span className={`seq-legend-swatch seq-tone--${tone}`} />
+          {label}
+        </span>
+      ))}
+      <span className="seq-legend-divider" />
+      {LINE_ITEMS.map(([kind, label]) => (
+        <span key={kind} className="seq-legend-item">
+          <svg width="26" height="8" viewBox="0 0 26 8" aria-hidden="true">
+            <path d="M0,4 H26" className={`seq-arrow seq-arrow--${kind}`} />
+          </svg>
+          {label}
+        </span>
       ))}
     </div>
   );
 }
-
-function orderOf(element: CanvasElement): number {
-  const order = Number(rawMeta(element, "order"));
-  return Number.isFinite(order) ? order : 0;
-}
-
-interface MessageArrowProps {
-  element: CanvasElement;
-  left: number;
-  top: number;
-  fromX: number;
-  toX: number;
-  accent: string;
-}
-
-function MessageArrow({ element, left, top, fromX, toX, accent }: MessageArrowProps) {
-  const isReturn = flagMeta(element, "return");
-  const isAsync = flagMeta(element, "async");
-  const arrowClass = [
-    "sequence-message",
-    isReturn ? "sequence-message--return" : "",
-    isAsync ? "sequence-message--async" : "",
-  ]
-    .filter(Boolean)
-    .join(" ");
-  const y = element.position.y - top;
-  // The arrow spans exactly between the two participants' columns (their persisted x). Its line runs
-  // from one lifeline's center to the other, so each end lands ON the dashed vertical -- the arrowhead
-  // touches the receiving lifeline instead of stopping short of it.
-  const span = Math.abs(toX - fromX);
-  const left0 = Math.min(fromX, toX) - left;
-  const style = {
-    left: left0,
-    top: y - 10,
-    width: span,
-    "--seq-accent-rgb": accent,
-  } as CSSProperties;
-
-  const onClick = () =>
-    descriptionPopupStore.open(
-      element.label || "Message",
-      element.description || `Message ${element.label || element.id}`,
-    );
-
-  return (
-    <div
-      key={element.id}
-      className={arrowClass}
-      data-testid="sequence-message"
-      style={style}
-      onClick={onClick}
-    >
-      <span
-        className="sequence-message-label"
-        style={{ maxWidth: Math.max(span - 8, 40) }}
-      >
-        {element.label}
-      </span>
-      <span
-        className="sequence-message-line"
-        style={isReturn ? { transform: "scaleX(-1)" } : undefined}
-      />
-    </div>
-  );
-}
-
-/** The per-participant accent palette, as `{r,g,b}` — kept in sync with groupColor.ts's
- * `GROUP_COLOR_COUNT`/`groupColorIndex` and styles.css's `.canvas-group-frame-color-<n>` hexes (so a
- * participant hashes to the same hue family the shared palette uses). Rendered as the inline
- * `--seq-accent-rgb: r, g, b` CSS variable that the `.sequence-*` rules read. */
-const SEQUENCE_PALETTE: ReadonlyArray<readonly [number, number, number]> = [
-  [99, 102, 241],    // indigo
-  [52, 211, 153],    // green
-  [245, 158, 11],    // amber
-  [244, 114, 182],   // pink
-  [167, 139, 250],   // violet
-  [34, 211, 238],    // cyan
-];
-if (SEQUENCE_PALETTE.length !== GROUP_COLOR_COUNT) {
-  throw new Error("SEQUENCE_PALETTE out of sync with GROUP_COLOR_COUNT");
-}
-
-/** The `--seq-accent-rgb` value (a bare `r, g, b` string) for a participant's own stable hue. */
-function sequenceAccentRef(ref: string): string {
-  const [r, g, b] = SEQUENCE_PALETTE[groupColorIndex(ref) % SEQUENCE_PALETTE.length];
-  return `${r}, ${g}, ${b}`;
-}
-
-/** Default fallback head footprint when a participant carries no `size` (layoutSequence always
- * writes one, but a hand-authored layer may not) — matches the layout's own participant size. */
-const HEAD_W = 180;
-const HEAD_H = 36;

@@ -564,6 +564,17 @@ public sealed class WorkflowRunnerTests : IDisposable
     }
 
     [Fact]
+    public void A_restart_maps_the_original_answers_onto_renamed_inputs()
+    {
+        var before = new WorkflowDef { Id = "wf", Name = "W", Steps = [new WorkflowStep { Id = "a", Slug = "a", Input = new WorkflowInput { Name = "i", Label = "Number" } }] };
+        var after = new WorkflowDef { Id = "wf", Name = "W", Steps = [new WorkflowStep { Id = "a", Slug = "a", Input = new WorkflowInput { Name = "Number", Label = "Number" } }] };
+
+        var carried = WorkflowRunner.CarryInputs(before, after, new Dictionary<string, string> { ["i"] = "2" });
+
+        Assert.Equal("2", carried["Number"]);
+    }
+
+    [Fact]
     public async Task A_running_run_cannot_be_restarted()
     {
         Define(("one", "agent"));
@@ -692,39 +703,139 @@ public sealed class WorkflowRunnerTests : IDisposable
     private static string Args(JsonObject invocation) => invocation["args"]!.ToJsonString();
 
     [Fact]
-    public async Task A_message_reaches_only_its_target_agent_and_never_changes_the_run()
+    public async Task A_message_resumes_the_last_step_session_without_changing_the_run()
+    {
+        Define(("implement", "agent"));
+        _session = "sess-7";
+        _cli.ScriptRuns([ResultEvent(), Exit(0)], [Stdout(Say("the answer")), ResultEvent(), Exit(0)]);
+        var runner = Runner();
+        var started = await runner.Start("wf");
+        await UntilState(runner, started.Id, "done");
+
+        var reply = await runner.Message(started.Id, "run", "how did it go?");
+        var calls = _cli.Invocations();
+        var after = runner.Get(started.Id);
+
+        Assert.Contains("the answer", reply.Reply);
+        Assert.Equal(2, calls.Count);
+        Assert.Contains("\"--resume\",\"sess-7\"", Args(calls[1]));
+        Assert.DoesNotContain("--fork-session", Args(calls[1]));
+        Assert.Contains("--mcp-config", Args(calls[1]));
+        Assert.Equal("done", after.State);
+        Assert.Equal(["user", "agent"], after.Messages.Select(m => m.Role));
+        Assert.Contains("run.message", _events);
+    }
+
+    private async Task ReportFromStep(WorkflowRunner runner, string runId, int invocation, string status, string note)
+    {
+        var args = _cli.Invocations()[invocation]["args"]!.AsArray().Select(a => a!.GetValue<string>()).ToList();
+        var config = JsonNode.Parse(args[args.IndexOf("--mcp-config") + 1])!["mcpServers"]![WorkflowRunner.McpServerName]!;
+        await runner.HandleMcp(runId, config["headers"]!["Authorization"]!.GetValue<string>(), new JsonObject
+        {
+            ["jsonrpc"] = "2.0", ["id"] = 1, ["method"] = "tools/call",
+            ["params"] = new JsonObject { ["name"] = "report_status", ["arguments"] = new JsonObject { ["status"] = status, ["note"] = note } },
+        });
+    }
+
+    [Fact]
+    public async Task A_step_that_reports_blocked_waits_for_the_user_and_approve_continues()
+    {
+        Define(("one", "agent"), ("two", "agent"));
+        var release = Path.Combine(_cli.Directory, "release");
+        _cli.ScriptRuns([BlockUntilFile(release), ResultEvent(), Exit(0)], [ResultEvent(), Exit(0)]);
+        var runner = Runner();
+        var started = await runner.Start("wf");
+        await Until(() => _cli.Invocations().Count == 1, "step launch");
+        await ReportFromStep(runner, started.Id, 0, "blocked", "need the API key");
+        File.WriteAllText(release, "go");
+
+        await UntilState(runner, started.Id, "needs_you");
+        var parked = runner.Get(started.Id);
+        await runner.Review(started.Id, "approve", null);
+        await UntilState(runner, started.Id, "done");
+
+        Assert.Equal("needs_you", Step(parked, "one").Status);
+        Assert.Contains("need the API key", Step(parked, "one").Output);
+        Assert.Equal("pending", Step(parked, "two").Status);
+        Assert.Equal("done", Step(runner.Get(started.Id), "one").Status);
+        Assert.Equal("done", Step(runner.Get(started.Id), "two").Status);
+    }
+
+    [Fact]
+    public async Task Sending_a_blocked_step_back_reruns_that_step_with_the_note()
+    {
+        Define(("one", "agent"), ("two", "agent"));
+        var release = Path.Combine(_cli.Directory, "release");
+        _cli.ScriptRuns([BlockUntilFile(release), ResultEvent(), Exit(0)], [ResultEvent(), Exit(0)], [ResultEvent(), Exit(0)]);
+        var runner = Runner();
+        var started = await runner.Start("wf");
+        await Until(() => _cli.Invocations().Count == 1, "step launch");
+        await ReportFromStep(runner, started.Id, 0, "question", "which database?");
+        File.WriteAllText(release, "go");
+        await UntilState(runner, started.Id, "needs_you");
+
+        await runner.Review(started.Id, "sendBack", "use postgres");
+        await UntilState(runner, started.Id, "done");
+
+        Assert.Equal(3, _cli.Invocations().Count);
+        Assert.Contains("use postgres", _cli.Invocations()[1]["args"]!.ToJsonString() + _cli.Invocations()[1].ToJsonString());
+        Assert.Null(Step(runner.Get(started.Id), "one").Report);
+    }
+
+    [Fact]
+    public async Task A_done_report_or_no_report_completes_the_step_as_before()
+    {
+        Define(("one", "agent"), ("two", "agent"));
+        var release = Path.Combine(_cli.Directory, "release");
+        _cli.ScriptRuns([BlockUntilFile(release), ResultEvent(), Exit(0)], [ResultEvent(), Exit(0)]);
+        var runner = Runner();
+        var started = await runner.Start("wf");
+        await Until(() => _cli.Invocations().Count == 1, "step launch");
+        await ReportFromStep(runner, started.Id, 0, "done", "finished");
+        File.WriteAllText(release, "go");
+
+        await UntilState(runner, started.Id, "done");
+        var finished = runner.Get(started.Id);
+
+        Assert.Equal("done", Step(finished, "one").Status);
+        Assert.Equal("done", Step(finished, "two").Status);
+        Assert.Equal("done", Step(finished, "one").Report!.Status);
+    }
+
+    [Fact]
+    public async Task A_claude_step_gets_the_mcp_config_and_the_report_instruction()
+    {
+        Define(("one", "agent"));
+        _cli.Script(ResultEvent(), Exit(0));
+        var runner = Runner();
+
+        var started = await runner.Start("wf");
+        await UntilState(runner, started.Id, "done");
+
+        var invocation = _cli.Invocations()[0];
+        Assert.Contains("--mcp-config", Args(invocation));
+        Assert.Contains("report_status", invocation.ToJsonString());
+    }
+
+    [Fact]
+    public async Task A_message_to_a_step_that_is_still_running_is_refused()
     {
         Define(("implement", "agent"), ("hello", "agent"));
         var release = Path.Combine(_cli.Directory, "release");
-        _cli.ScriptRuns([BlockUntilFile(release), ResultEvent(), Exit(0)], [Stdout(Say("the answer")), ResultEvent(), Exit(0)]);
+        _cli.ScriptRuns([BlockUntilFile(release), ResultEvent(), Exit(0)], [Stdout(Say("ok")), ResultEvent(), Exit(0)]);
         var runner = Runner();
         var started = await runner.Start("wf");
         await Until(() => _cli.Invocations().Count == 1, "step launch");
 
-        var stepReply = await runner.Message(started.Id, "@hello", "what will you do?");
-        var afterStep = _cli.Invocations();
-        var runReply = await runner.Message(started.Id, "run", "how is it going?");
-        var afterRun = _cli.Invocations();
-        var during = runner.Get(started.Id);
+        var error = await Assert.ThrowsAsync<BridgeException>(() => runner.Message(started.Id, "run", "what will you do?"));
+        var after = runner.Get(started.Id);
+        var launches = _cli.Invocations().Count;
         File.WriteAllText(release, "go");
         await UntilState(runner, started.Id, "done");
 
-        Assert.Contains("the answer", stepReply.Reply);
-        Assert.Contains("the answer", runReply.Reply);
-        Assert.Equal(2, afterStep.Count);
-        Assert.Contains("Your task was: do hello", Args(afterStep[1]));
-        Assert.DoesNotContain("--mcp-config", Args(afterStep[1]));
-        Assert.Contains("--strict-mcp-config", Args(afterStep[1]));
-        Assert.DoesNotContain("run agent", Args(afterStep[1]));
-        Assert.Equal(3, afterRun.Count);
-        Assert.Contains("run agent", Args(afterRun[2]));
-        Assert.Contains("--mcp-config", Args(afterRun[2]));
-        Assert.DoesNotContain("do hello", Args(afterRun[2]));
-        Assert.Equal("running", during.State);
-        Assert.Equal("running", Step(during, "implement").Status);
-        Assert.Equal(["user", "agent", "user", "agent"], during.Messages.Select(m => m.Role));
-        Assert.Equal(["hello", "hello", "run", "run"], during.Messages.Select(m => m.Target));
-        Assert.Contains("run.message", _events);
+        Assert.Equal(409, error.Status);
+        Assert.Equal(1, launches);
+        Assert.Empty(after.Messages);
     }
 
     [Fact]
@@ -736,8 +847,7 @@ public sealed class WorkflowRunnerTests : IDisposable
         var runner = Runner();
         var started = await runner.Start("wf");
         await Until(() => _cli.Invocations().Count == 1, "step launch");
-        await runner.Message(started.Id, "run", "hi");
-        var args = _cli.Invocations()[1]["args"]!.AsArray().Select(a => a!.GetValue<string>()).ToList();
+        var args = _cli.Invocations()[0]["args"]!.AsArray().Select(a => a!.GetValue<string>()).ToList();
         var config = JsonNode.Parse(args[args.IndexOf("--mcp-config") + 1])!["mcpServers"]![WorkflowRunner.McpServerName]!;
         var bearer = config["headers"]!["Authorization"]!.GetValue<string>();
 
@@ -756,7 +866,7 @@ public sealed class WorkflowRunnerTests : IDisposable
         File.WriteAllText(release, "go");
         await UntilState(runner, started.Id, "done");
 
-        Assert.Equal(["pause", "stop", "propose_redo"], listed["result"]!["tools"]!.AsArray().Select(t => t!["name"]!.GetValue<string>()));
+        Assert.Equal(["pause", "stop", "propose_redo", "report_status"], listed["result"]!["tools"]!.AsArray().Select(t => t!["name"]!.GetValue<string>()));
         Assert.False(proposed["result"]!["isError"]!.GetValue<bool>());
         Assert.False(paused["result"]!["isError"]!.GetValue<bool>());
         Assert.True(unknown["result"]!["isError"]!.GetValue<bool>());
@@ -967,18 +1077,18 @@ public sealed class WorkflowRunnerTests : IDisposable
     public async Task Two_simultaneous_messages_to_one_agent_let_exactly_one_through()
     {
         Define(("one", "agent"));
+        _session = "sess-1";
         var release = Path.Combine(_cli.Directory, "release");
-        _cli.ScriptRuns([Hang()], [BlockUntilFile(release), Stdout(Say("answer")), ResultEvent(), Exit(0)]);
+        _cli.ScriptRuns([ResultEvent(), Exit(0)], [BlockUntilFile(release), Stdout(Say("answer")), ResultEvent(), Exit(0)]);
         var runner = Runner();
         var started = await runner.Start("wf");
-        await Until(() => _cli.Invocations().Count == 1, "step launch");
+        await UntilState(runner, started.Id, "done");
 
         var first = Task.Run(() => runner.Message(started.Id, "run", "a"));
         var second = Task.Run(() => runner.Message(started.Id, "run", "b"));
         await Task.Delay(500);
         File.WriteAllText(release, "go");
         var outcomes = await Task.WhenAll(Settle(first), Settle(second));
-        await runner.Stop(started.Id, "now");
 
         Assert.Single(outcomes, outcome => outcome == "ok");
         Assert.Single(outcomes, outcome => outcome == "409");
@@ -1006,8 +1116,7 @@ public sealed class WorkflowRunnerTests : IDisposable
         var runner = Runner();
         var started = await runner.Start("wf");
         await Until(() => _cli.Invocations().Count == 1, "step launch");
-        await runner.Message(started.Id, "run", "hi");
-        var args = _cli.Invocations()[1]["args"]!.AsArray().Select(a => a!.GetValue<string>()).ToList();
+        var args = _cli.Invocations()[0]["args"]!.AsArray().Select(a => a!.GetValue<string>()).ToList();
         var bearer = JsonNode.Parse(args[args.IndexOf("--mcp-config") + 1])!["mcpServers"]![WorkflowRunner.McpServerName]!["headers"]!["Authorization"]!.GetValue<string>();
 
         var unknownRun = await Assert.ThrowsAsync<BridgeException>(() => runner.HandleMcp("run-nope", bearer, new JsonObject { ["id"] = 1, ["method"] = "ping" }));

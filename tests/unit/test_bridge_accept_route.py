@@ -44,6 +44,7 @@ def test_accept_commits_only_the_targeted_function(client):
     committed_text = git(repo, "show", "HEAD:billing/models/invoice.py")
     assert "return 0.0" in committed_text
     assert "PATCHED" not in committed_text
+    assert git(repo, "diff", "HEAD", "--", "billing/models/invoice.py") != ""
 
     remaining = test_client.get("/repos/default/diff").json()
     remaining_ids = [d["node_id"] for d in remaining]
@@ -91,25 +92,6 @@ def test_accept_commits_a_whole_file_deletion(client):
 
     remaining = test_client.get("/repos/default/diff").json()
     assert all("billing/service.py" not in d["node_id"] for d in remaining)
-
-
-def test_accept_leaves_git_status_clean_for_the_committed_file(client):
-    test_client, repo = client
-    invoice_path = repo / "billing" / "models" / "invoice.py"
-    invoice_path.write_text(
-        invoice_path.read_text(encoding="utf-8").replace(
-            'return sum(line["amount"] for line in lines)', "return 0.0"
-        )
-, encoding="utf-8")
-    diff_body = test_client.get("/repos/default/diff").json()
-    total_node_id = _node_id_for(diff_body, "::function::Invoice.total")
-
-    response = test_client.post(f"/repos/default/diff/{total_node_id}/accept")
-
-    assert response.status_code == 200
-    status = git(repo, "status", "--porcelain")
-    assert "billing/models/invoice.py" not in status
-    assert git(repo, "diff", "HEAD", "--", "billing/models/invoice.py") == ""
 
 
 def test_accept_commits_a_class_level_diff_without_duplicating_its_body(client):

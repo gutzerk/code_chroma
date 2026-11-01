@@ -11,11 +11,11 @@ import sys
 from pathlib import Path
 
 import pytest
-from fastapi.testclient import TestClient
 
 from codechroma.bridge.prs import github as pr_github
 from codechroma.bridge.routes.prs import PR_REASON_GH_MISSING
 from codechroma.bridge.skill_agent import SkillAgent
+from tests.conftest import TabClient as TestClient
 from tests.conftest import git
 
 FIXTURE_REPO = Path(__file__).parent.parent / "fixtures" / "sample_repo"
@@ -268,7 +268,7 @@ def test_a_pull_request_workspace_may_spawn_a_claude_run(client, monkeypatch):
 
     monkeypatch.setattr(SkillAgent, "start", record_start)
 
-    assert test_client.post("/repos/pr-7/c1/generate").status_code == 200
+    assert test_client.post("/repos/pr-7/system-context/generate").status_code == 200
     assert started == ["start"]
 
 
@@ -513,16 +513,11 @@ def test_the_pr_comments_helper_reads_the_records_comments(client, monkeypatch):
     assert (review, general) == ([{"body": "x"}], [{"body": "y"}])
 
 
-def test_the_pr_comments_helper_is_empty_for_a_non_pr_workspace(client):
+@pytest.mark.parametrize("workspace_id", ["main", "pr-999"])
+def test_the_pr_comments_helper_is_empty_without_an_opened_pull_request(client, workspace_id):
     _test_client, _repo, bridge, _bin = client
 
-    assert bridge.pr_comments("main") == ([], [])
-
-
-def test_the_pr_comments_helper_is_empty_for_an_unopened_pull_request(client):
-    _test_client, _repo, bridge, _bin = client
-
-    assert bridge.pr_comments("pr-999") == ([], [])
+    assert bridge.pr_comments(workspace_id) == ([], [])
 
 
 def test_opening_a_pr_copies_mains_authored_diagrams_onto_the_worktree(client, monkeypatch):

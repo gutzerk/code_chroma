@@ -21,7 +21,8 @@ where the skill's rules say it should, repeats an id, strands a node, or is too 
 why a finding cannot apply.
 
 Advisory findings print but never change the exit code: COVERAGE, DEPTH, NESTING-EDGE, CYCLES,
-ARTICULATION, BADKIND, BADICON, UNLABELED, DROPPED, NOSTATUS, BADSTATUS. COVERAGE is advisory by
+ARTICULATION, BADKIND, BADICON, BADEDGEKIND, EDGEKIND-SPAWN, EDGEKIND-DATA, UNLABELED, DROPPED,
+NOSTATUS, BADSTATUS, NOTITLE, GENERICTITLE, LONGDIAGRAMTITLE. COVERAGE is advisory by
 construction, not
 by
 concession -- the bridge hangs everything no block names off the system box as an "Unmapped code"
@@ -58,6 +59,7 @@ import argparse
 import http.client
 import json
 import os
+import re
 import sys
 import urllib.error
 import urllib.parse
@@ -139,13 +141,23 @@ _EPICS_BUDGET = {
 _SEQUENCE_BUDGET = {
     "max_nodes": 24, "max_relations": 60, "max_name_chars": 40, "max_edge_label_chars": 60,
 }
+# Mirrored from src/codechroma/diagrams/registry.py _WALKTHROUGH_BUDGET -- keep the two in sync.
+_WALKTHROUGH_BUDGET = {
+    "max_nodes": 24, "max_relations": 40, "max_name_chars": 40, "max_edge_label_chars": 50,
+}
+_WALKTHROUGH_ISLAND_HINT = (
+    "wire it into the process with an arrow from the step that uses it, or drop the box"
+)
 _SEQUENCE_ISLAND_HINT = (
     "wire it with a message to (or from) the rest of the participants, or drop the participant"
 )
 
+# The pre-rename id of the System context kind, still accepted on the command line.
+_LEGACY_C1_KIND = "c1"
+
 # Mirrored from src/codechroma/diagrams/registry.py's BUILTIN_TYPES -- keep the two in sync.
 _BUILTIN_CHECKS = {
-    "c1": {
+    "system-context": {
         "shape": "hierarchical",
         "budgets": {
             "max_nodes": 60, "max_relations": 60, "max_name_chars": 40, "max_edge_label_chars": 50,
@@ -160,6 +172,8 @@ _BUILTIN_CHECKS = {
         "check_islands": {"hint": _C1_ISLAND_HINT},
         # 042: c1 is a flat system-context view now -- no decomposed actors left to be BARE about.
         "check_bare_actors": False,
+        # Works like patterns: /system-context/context lists detected candidates to confirm/reject.
+        "candidates_source": "system-context",
     },
     "patterns": {
         "shape": "flat",
@@ -225,6 +239,21 @@ _BUILTIN_CHECKS = {
         "graph_advisories": False,
         "check_islands": {"hint": _SEQUENCE_ISLAND_HINT},
     },
+    "walkthrough": {
+        # A flat process: step boxes + actors/stores in nodes[], arrows in relations[], and the
+        # `route` (advisory-checked) naming the code each step runs in.
+        "shape": "flat",
+        "budgets": _WALKTHROUGH_BUDGET,
+        "min_depth": None,
+        "unlabeled": "advisory",
+        "coverage_source": None,
+        "density_source": None,
+        "required_meta": [],
+        "membership_source": None,
+        "allow_self": False,
+        "check_islands": {"hint": _WALKTHROUGH_ISLAND_HINT},
+        "max_hero_edges": 2,
+    },
 }
 
 _INSTANCE_KIND = "pattern-instance"
@@ -274,6 +303,10 @@ class _Report:
 
 def main(argv: list[str] | None = None) -> int:
     args = _parse_args(argv)
+    # The summary lines carry an em dash; a Windows console defaults to cp1252 and prints "?".
+    for stream in (sys.stdout, sys.stderr):
+        if hasattr(stream, "reconfigure"):
+            stream.reconfigure(encoding="utf-8", errors="replace")
     try:
         diagram = _load_diagram(args)
         diagram_style = diagram.get("style") if isinstance(diagram, dict) else None
@@ -288,6 +321,8 @@ def main(argv: list[str] | None = None) -> int:
     _check_split(args.split_threshold, diagram_style, args.kind, report)
     _check_hero_budget(checks, report)
     _check_impact_status(diagram, args.kind, report)
+    _check_readability(diagram, args.kind, report)
+    _check_title(diagram, args.kind, args.type_id, report)
     if not args.json_path:
         _check_diagnostics(diagram, report)
 
@@ -312,7 +347,9 @@ def _parse_args(argv: list[str] | None) -> argparse.Namespace:
     default_url = os.environ.get("CODECHROMA_BRIDGE_URL", "").strip() or "http://localhost:8000"
     default_repo = os.environ.get("CODECHROMA_WORKSPACE_ID", "").strip() or "default"
     kinds = sorted({*_BUILTIN_CHECKS, "custom", "feature-plan"})
-    parser.add_argument("--kind", required=True, choices=kinds, help="diagram kind")
+    parser.add_argument(
+        "--kind", required=True, choices=[*kinds, _LEGACY_C1_KIND], help="diagram kind"
+    )
     parser.add_argument("--url", default=default_url, help="bridge base URL")
     parser.add_argument("--repo", default=default_repo, help="repo id in the bridge route")
     parser.add_argument("--json", dest="json_path", help="read a raw file instead of the bridge")
@@ -332,6 +369,8 @@ def _parse_args(argv: list[str] | None) -> argparse.Namespace:
         help="report shape findings without failing the run",
     )
     args = parser.parse_args(argv)
+    if args.kind == _LEGACY_C1_KIND:
+        args.kind = "system-context"
     if args.kind == "custom" and not args.type_id:
         parser.error("--type is required for --kind custom")
     if args.kind == "feature-plan" and not args.slug:
@@ -778,10 +817,14 @@ def articulation_labels(endpoints: list[tuple[str, str]]) -> dict[str, str]:
     return labels
 
 
-def _check_articulation(endpoints: list[tuple[str, str]], report: _Report) -> None:
+def _check_articulation(
+    endpoints: list[tuple[str, str]], report: _Report, exempt: frozenset[str] = frozenset()
+) -> None:
     """Flags critical nodes (`bridge`/`hub`) as an advisory -- they never change the exit code."""
     # Same drawio-skill "articulation points" idea as `CYCLES`: real, worth flagging, never a fail.
     for node, label in sorted(articulation_labels(endpoints).items()):
+        if node in exempt:
+            continue
         report.advisories.append(
             f"ARTICULATION {node!r} is a {label}: removing it breaks the diagram"
         )
@@ -870,6 +913,282 @@ def _check_impact_status(diagram: object, kind: str, report: _Report) -> None:
             )
 
 
+MAX_DIAGRAM_TITLE_CHARS = 60
+# Words that only name a diagram type, never what it shows -- a title made of them is generic.
+_TYPE_WORDS = frozenset({
+    "system", "context", "c1", "design", "pattern", "patterns", "change", "impact", "sequence",
+    "walkthrough", "custom", "feature", "plan", "data", "flow", "dataflow", "diagram", "view",
+    "map", "overview", "architecture",
+})
+_FILLER_WORDS = frozenset({"the", "a", "an", "of", "for", "and", "in", "on", "to"})
+
+
+def _check_title(diagram: object, kind: str, type_id: str | None, report: _Report) -> None:
+    """The diagram's own top-level `title`: present, specific to the request, and short."""
+    if not isinstance(diagram, dict) or kind == "epics":
+        return
+    title = diagram.get("title")
+    if not (isinstance(title, str) and title.strip()):
+        report.advisories.append(
+            "NOTITLE the diagram has no top-level `title` -- name what it shows for this request"
+        )
+        return
+    own_words = set(re.split(r"[-_/]", (type_id or "").lower())) | set(kind.split("-"))
+    type_words = _TYPE_WORDS | own_words
+    words = [word for word in re.findall(r"[^\W_]+", title.lower()) if word not in _FILLER_WORDS]
+    specific = [word for word in words if word not in type_words]
+    if not specific or (len(specific) == 1 and len(words) > 1):
+        report.advisories.append(
+            f"GENERICTITLE title {title.strip()!r} only names the diagram type --"
+            " say what it shows, e.g. 'How a file save reaches the canvas'"
+        )
+    if len(title.strip()) > MAX_DIAGRAM_TITLE_CHARS:
+        report.advisories.append(
+            f"LONGDIAGRAMTITLE title is {len(title.strip())} chars, keep it to"
+            f" {MAX_DIAGRAM_TITLE_CHARS}"
+        )
+
+
+PHASE_KINDS = ("request", "prepare", "ai", "deliver", "custom")
+FRAME_KINDS = ("alt", "loop")
+MAX_TITLE_WORDS = 4
+READABILITY_KINDS = ("sequence", "system-context", "patterns", "impact", "walkthrough")
+HERO_KINDS = ("system-context", "patterns", "impact", "walkthrough")
+MIN_RELATIONS_FOR_HERO = 3
+
+
+MESSAGE_KINDS = ("call", "return", "ai", "event", "error")
+FAILURE_WORDS = re.compile(r"\b(error|fail\w*|denied|timeout|timed out)\b", re.IGNORECASE)
+
+
+def _check_message_kinds(relations: list[dict], report: _Report) -> None:
+    """Advises on unknown message kinds and failure-looking labels not marked `kind: error`."""
+    for relation in relations:
+        kind, ident = relation.get("kind"), relation.get("id")
+        if isinstance(kind, str) and kind not in MESSAGE_KINDS:
+            report.advisories.append(
+                f"BADMSGKIND {ident!r} kind={kind!r} is not one of {', '.join(MESSAGE_KINDS)}"
+            )
+        label = str(relation.get("label") or "")
+        if kind != "error" and not relation.get("failure") and FAILURE_WORDS.search(label):
+            report.advisories.append(
+                f"FAILURE-KIND {ident!r} label {label!r} reads as a failure --"
+                ' set `"kind": "error"` so it draws red and dashed'
+            )
+
+
+EDGE_KINDS = ("calls", "spawns", "data", "reads", "writes", "minor")
+# Web-side aliases (edgeKinds.ts) plus the structural verbs patterns/c1 already author.
+EDGE_KIND_ALIASES = (
+    "call", "uses", "spawn", "process", "read", "write", "secondary", "imports", "implements",
+    "extends", "inherits", "composes", "contains", "depends", "depends_on", "removed", "error",
+)
+_PLAIN_EDGE_KINDS = ("", "calls", "call", "uses")
+# These author structural verbs (observes, wraps, ...), so an unknown kind there is not a typo.
+_STRUCTURAL_KINDS = ("system-context", "patterns", "impact")
+_SPAWN_WORDS = re.compile(
+    r"\b(spawn\w*|launch\w*|(start|starts|starting|run|runs|fork\w*)\s+(a\s+|an\s+|the\s+)?"
+    r"(sub)?(process|cli|agent|worker|daemon))\b", re.IGNORECASE,
+)
+_DATA_WORDS = re.compile(
+    r"\b(read|reads|write|writes|reading|writing|persist\w*|stores?|saves?)\b.{0,40}"
+    r"\b(files?|disk|database|db|sqlite|store|cache|json)\b", re.IGNORECASE,
+)
+
+
+def _check_edge_kinds(relations: list[dict], kind: str, report: _Report) -> None:
+    """Advises on an unknown edge kind, or a spawn/data-sounding edge left as a plain call."""
+    if kind in ("sequence", "custom"):
+        return
+    known = EDGE_KINDS + EDGE_KIND_ALIASES
+    for relation in relations:
+        edge_kind = relation.get("kind")
+        pair = f"{relation.get('from')!r} -> {relation.get('to')!r}"
+        if (
+            kind not in _STRUCTURAL_KINDS
+            and edge_kind is not None
+            and (not isinstance(edge_kind, str) or edge_kind.strip().lower() not in known)
+        ):
+            report.advisories.append(
+                f"BADEDGEKIND {pair} kind={edge_kind!r} is not one of {', '.join(EDGE_KINDS)}"
+            )
+            continue
+        plain = edge_kind is None or (
+            isinstance(edge_kind, str) and edge_kind.strip().lower() in _PLAIN_EDGE_KINDS
+        )
+        label = relation.get("label")
+        if not plain or not isinstance(label, str):
+            continue
+        if _SPAWN_WORDS.search(label):
+            report.advisories.append(
+                f"EDGEKIND-SPAWN {pair} label {label!r} starts a process --"
+                ' set `"kind": "spawns"` so it draws dotted'
+            )
+        elif _DATA_WORDS.search(label):
+            report.advisories.append(
+                f"EDGEKIND-DATA {pair} label {label!r} reads/writes data --"
+                ' set `"kind": "data"` so it draws orange dashed'
+            )
+
+
+def _check_readability(diagram: object, kind: str, report: _Report) -> None:
+    """022: the 5-second-read data -- order, summary, phases and the wording lints."""
+    if not isinstance(diagram, dict):
+        return
+    nodes = [n for n in diagram.get("nodes") or [] if isinstance(n, dict)]
+    relations = [r for r in diagram.get("relations") or [] if isinstance(r, dict)]
+    _check_route(diagram, nodes, report)
+    if kind == "sequence":
+        for relation in relations:
+            if relation.get("order") in (None, ""):
+                report.advisories.append(
+                    f"NO-ORDER {relation.get('id')!r} message has no `order` --"
+                    " number every message"
+                )
+        _check_message_kinds(relations, report)
+        _check_phases(diagram, relations, report)
+        _check_frames(diagram, report)
+    _check_edge_kinds(relations, kind, report)
+    if kind in READABILITY_KINDS and relations:
+        missing = [
+            key for key in ("question", "summary")
+            if not (isinstance(diagram.get(key), str) and diagram[key].strip())
+        ]
+        if missing:
+            keys = " and ".join(f"`{key}`" for key in missing)
+            report.advisories.append(f"NOSUMMARY the diagram has no top-level {keys} string")
+    has_hero = any(relation.get("hero") for relation in relations)
+    if kind in HERO_KINDS and len(relations) >= MIN_RELATIONS_FOR_HERO and not has_hero:
+        report.advisories.append(
+            "NOHERO no relation is marked `hero` -- mark the 1-2 main-path edges"
+        )
+    named = [n for n in nodes if isinstance(n.get("id"), str)]
+    names = {n["id"]: str(n.get("name") or "").strip().lower() for n in named}
+    for node in nodes:
+        name = str(node.get("name") or "").strip()
+        if kind == "sequence" and len(name.split()) > MAX_TITLE_WORDS:
+            report.advisories.append(
+                f"LONGTITLE {node.get('id')} title is {len(name.split())} words, keep it to"
+                f" {MAX_TITLE_WORDS}"
+            )
+        description = str(node.get("description") or "").strip().lower()
+        if name and description == name.lower():
+            report.advisories.append(f"ECHO-LABEL {node.get('id')} description repeats the title")
+    for relation in relations:
+        label = str(relation.get("label") or "").strip()
+        pair = f"{relation.get('from')} -> {relation.get('to')}"
+        ends = (relation.get("from"), relation.get("to"))
+        titles = tuple(names.get(end) if isinstance(end, str) else None for end in ends)
+        if label and label.lower() in titles:
+            report.advisories.append(f"ECHO-LABEL {pair} label {label!r} repeats a box title")
+        if relation.get("kind") in ("error", "failure") and not label:
+            report.advisories.append(f"HIDDEN-BRANCH {pair} is a failure path with no label")
+
+
+ROUTE_KINDS = ("trigger", "decide", "ai", "check", "data", "failure")
+
+
+def _check_route(diagram: dict, nodes: list[dict], report: _Report) -> None:
+    """026: the optional `route` -- every finding is advisory, like BADEDGEKIND."""
+    route = diagram.get("route")
+    if route is None:
+        return
+    steps = route.get("steps") if isinstance(route, dict) else None
+    if not isinstance(steps, list):
+        report.advisories.append("BADROUTE `route` must be an object with a `steps` list")
+        return
+    node_ids = {n.get("id") for n in nodes if isinstance(n.get("id"), str)}
+    seen: set[str] = set()
+    orders: list[int] = []
+    for step in steps:
+        if not isinstance(step, dict):
+            report.advisories.append("BADROUTE a step entry is not a JSON object")
+            continue
+        _check_route_step(step, node_ids, seen, orders, report)
+    if orders and sorted(orders) != list(range(1, len(orders) + 1)):
+        report.advisories.append("ROUTE-ORDER step `order` values should run 1..N without gaps")
+
+
+def _check_route_step(
+    step: dict, node_ids: set, seen: set, orders: list[int], report: _Report
+) -> None:
+    """One route step: unique id, known kind, integer order, well-formed children."""
+    sid = step.get("id")
+    if not isinstance(sid, str):
+        report.advisories.append(f"ROUTE-STEP {sid!r} needs a string `id`")
+    elif sid in seen:
+        report.advisories.append(f"ROUTE-STEP {sid!r} is used by more than one step")
+    else:
+        seen.add(sid)
+    if isinstance(sid, str) and sid not in node_ids:
+        report.advisories.append(f"ROUTE-STEP {sid!r} matches no diagram node id")
+    if step.get("kind") not in ROUTE_KINDS:
+        report.advisories.append(f"ROUTE-KIND {sid!r} kind must be one of {ROUTE_KINDS}")
+    order = step.get("order")
+    if isinstance(order, int) and not isinstance(order, bool):
+        orders.append(order)
+    else:
+        report.advisories.append(f"ROUTE-ORDER {sid!r} needs an integer `order`")
+    detail = step.get("detail")
+    if detail is not None and not (isinstance(detail, str) and detail.strip()):
+        report.advisories.append(f"ROUTE-DETAIL {sid!r} `detail` must be a non-empty string")
+    ids = step.get("node_ids")
+    if ids is not None and not (
+        isinstance(ids, list) and all(isinstance(i, str) and i for i in ids)
+    ):
+        report.advisories.append(f"ROUTE-NODES {sid!r} `node_ids` must be a list of id strings")
+    for child in step.get("children") or []:
+        line = child.get("line") if isinstance(child, dict) else None
+        if not (isinstance(line, int) and not isinstance(line, bool) and line > 0):
+            label = child.get("label") if isinstance(child, dict) else child
+            report.advisories.append(f"ROUTE-CHILD {sid!r} child {label!r} needs a positive `line`")
+
+
+def _is_number(value: object) -> bool:
+    """True for int/float but not bool (True would otherwise pass an `int` check)."""
+    return isinstance(value, int | float) and not isinstance(value, bool)
+
+
+def _check_phases(diagram: dict, relations: list[dict], report: _Report) -> None:
+    """Sequence `phases[]` must carry a known kind and a sane order range."""
+    phases = diagram.get("phases")
+    if phases is None:
+        return
+    if not isinstance(phases, list):
+        report.shape.append("BADPHASE `phases` must be a list")
+        return
+    for phase in phases:
+        if not isinstance(phase, dict):
+            report.shape.append("BADPHASE a phase entry is not a JSON object")
+            continue
+        name = phase.get("id") or phase.get("name")
+        if phase.get("kind") not in PHASE_KINDS:
+            report.shape.append(f"BADPHASE {name!r} kind must be one of {PHASE_KINDS}")
+        start, end = phase.get("from_order"), phase.get("to_order")
+        if not (_is_number(start) and _is_number(end) and start <= end):
+            report.shape.append(f"BADPHASE {name!r} needs numeric from_order <= to_order")
+
+
+def _check_frames(diagram: dict, report: _Report) -> None:
+    """Sequence `frames[]` must carry alt/loop and a sane order range."""
+    frames = diagram.get("frames")
+    if frames is None:
+        return
+    if not isinstance(frames, list):
+        report.shape.append("BADFRAME `frames` must be a list")
+        return
+    for frame in frames:
+        if not isinstance(frame, dict):
+            report.shape.append("BADFRAME a frame entry is not a JSON object")
+            continue
+        name = frame.get("label") or frame.get("kind")
+        if frame.get("kind") not in FRAME_KINDS:
+            report.shape.append(f"BADFRAME {name!r} kind must be one of {FRAME_KINDS}")
+        start, end = frame.get("from_order"), frame.get("to_order")
+        if not (_is_number(start) and _is_number(end) and start <= end):
+            report.shape.append(f"BADFRAME {name!r} needs numeric from_order <= to_order")
+
+
 def _check_unlabeled(unlabeled_severity: str, report: _Report) -> None:
     """One aggregated line, never one per edge -- shape when the type's schema requires a label."""
     total = report.relation_count
@@ -940,6 +1259,9 @@ def _inspect_hierarchical(diagram: object, checks: dict, args: argparse.Namespac
             continue
         if node.get("parent") is not None or node.get("kind") not in ("person", "external_system"):
             continue
+        # A rejected candidate never renders, so it is never wired.
+        if isinstance(node.get("meta"), dict) and node["meta"].get("confirmed") is False:
+            continue
         _check_actor(node, by_parent, report, checks)
         report.note_id(node_id)
         report.note_name(node_id, node.get("name"))
@@ -958,6 +1280,8 @@ def _inspect_hierarchical(diagram: object, checks: dict, args: argparse.Namespac
         _check_c1_islands(nodes, diagram, report, checks["check_islands"]["hint"])
     report.node_count = len(report.ids)
     _check_unlabeled(checks["unlabeled"], report)
+    if not args.json_path and checks.get("candidates_source"):
+        _check_unaddressed_candidates(checks["candidates_source"], by_id, report, args)
     if not args.json_path and checks.get("coverage_source"):
         _check_coverage(args, report)
     return report
@@ -1039,7 +1363,8 @@ def _check_c1_relations(relations: object, by_id: dict[str, dict], report: _Repo
                 f"NESTING-EDGE {pair} only restates the nesting the box already shows"
             )
     _check_cycles(endpoints, report, allowed_self=False)
-    _check_articulation(endpoints, report)
+    # The root `system` box joins everything by design, so it is never a finding.
+    _check_articulation(endpoints, report, exempt=frozenset({"system"}))
     is_substantial = report.depth >= NOARROWS_MIN_DEPTH and report.blocks >= NOARROWS_MIN_BLOCKS
     if is_substantial and internal == 0:
         report.shape.append(
@@ -1301,6 +1626,7 @@ def _inspect_flat(diagram: object, checks: dict, args: argparse.Namespace) -> _R
         _check_islands(endpoints, report, check_islands["hint"])
     _check_bare_pattern_markers(nodes, touched, report)
     _check_shared_node_ids(nodes, report)
+    _check_rank(nodes, report)
     if required_meta:
         _check_unreviewed(report)
     _check_unlabeled(checks["unlabeled"], report)
@@ -1310,6 +1636,24 @@ def _inspect_flat(diagram: object, checks: dict, args: argparse.Namespace) -> _R
         if checks.get("membership_source"):
             _check_membership(checks["membership_source"], nodes, report, args)
     return report
+
+
+def _check_rank(nodes: list[dict], report: _Report) -> None:
+    """Advises on a node `rank` that is not entry/exit, or that is set alongside `order`."""
+    for node in nodes:
+        meta = node.get("meta") if isinstance(node.get("meta"), dict) else {}
+        rank = node.get("rank", meta.get("rank"))
+        if rank is None:
+            continue
+        if rank not in ("entry", "exit"):
+            report.advisories.append(
+                f"BADRANK {node.get('id')!r} rank={rank!r} must be \"entry\" or \"exit\""
+            )
+        elif node.get("order") is not None or meta.get("order") is not None:
+            report.advisories.append(
+                f"RANK-ORDER {node.get('id')!r} sets both `rank` and `order` -- `order` wins,"
+                " so drop `rank`"
+            )
 
 
 def _check_shared_node_ids(nodes: list[dict], report: _Report) -> None:
@@ -1336,6 +1680,27 @@ def _check_unreviewed(report: _Report) -> None:
             "meta.confirmed: true or meta.confirmed: false; omitting it entirely just makes the "
             "heuristic re-detect it as unconfirmed on every future run"
         )
+
+
+def _check_unaddressed_candidates(
+    source: str, by_id: dict[str, dict], report: _Report, args: argparse.Namespace
+) -> None:
+    """A detected person/external system with no node in the file re-appears every run."""
+    try:
+        context = _fetch_json(f"{args.url.rstrip('/')}/repos/{args.repo}/{source}/context")
+    except _FETCH_ERRORS:
+        return
+    data = context.get("generation_data") if isinstance(context, dict) else None
+    candidates = data.get("candidates") if isinstance(data, dict) else None
+    for candidate in candidates if isinstance(candidates, list) else []:
+        candidate_id = candidate.get("id") if isinstance(candidate, dict) else None
+        if isinstance(candidate_id, str) and candidate_id not in by_id:
+            report.shape.append(
+                f"UNREVIEWED {candidate_id!r} was detected in the code but never confirmed or "
+                f'rejected -- add a node with id exactly {candidate_id!r}, e.g. {{"id": '
+                f'"{candidate_id}", "name": "...", "meta": {{"confirmed": true}}}} (or false to '
+                "reject it); omitting it just makes it come back on every run"
+            )
 
 
 def _check_sparse(density_source: str, report: _Report, args: argparse.Namespace) -> None:

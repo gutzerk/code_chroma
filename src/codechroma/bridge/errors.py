@@ -17,11 +17,6 @@ from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
 
 from codechroma.bridge.agents.bootstrap import BootstrapError
-from codechroma.bridge.agents.main_branch import (
-    CheckoutError,
-    DirtyWorkingTreeError,
-    UnknownBranchError,
-)
 from codechroma.bridge.agents.manager import AgentLimitError, UnknownAgentError
 from codechroma.bridge.agents.publish import PublishError
 from codechroma.bridge.agents.sessions import AgentStartError
@@ -40,7 +35,6 @@ STATUS_BY_ERROR: dict[type[BaseException], int] = {
     UnknownAgentError: 404,
     UnknownPrError: 404,
     UnknownBranchWorkspaceError: 404,
-    UnknownBranchError: 404,
     UnknownRootError: 404,
     DiffNotFoundError: 404,
     # The request is well-formed but the repository is in a state that refuses it.
@@ -48,8 +42,6 @@ STATUS_BY_ERROR: dict[type[BaseException], int] = {
     PrLimitError: 409,
     BranchInUseError: 409,
     AgentStartError: 409,
-    CheckoutError: 409,
-    DirtyWorkingTreeError: 409,
     GitConflictError: 409,
     GitLongError: 409,
     PublishError: 409,

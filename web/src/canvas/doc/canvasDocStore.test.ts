@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it } from "vitest";
 import { renderHook } from "@testing-library/react";
-import { canvasDocStore, patchCanvasDoc, useLoadCanvasDoc } from "./canvasDocStore";
+import { canvasDocStore } from "./canvasDocStore";
+import { patchCanvasDoc, useLoadCanvasDoc } from "./canvasDocSync";
 import { EMPTY_CANVAS_DOC, type CanvasDoc } from "../../state/types";
 import type { EngineClient } from "../../engine-client/EngineClient";
 
@@ -114,5 +115,23 @@ describe("deferred layout layers", () => {
     canvasDocStore.releaseLayout("c1");
 
     expect(canvasDocStore.layersMidLayout()).toEqual([]);
+  });
+
+  it("keeps route carriers out of the doc elements and exposes them separately", () => {
+    const carrier = { ...ELEMENT, id: "r", render: "route" as const, meta: { route_id: "r1", route: { id: "r1", steps: [] } } };
+    const doc: CanvasDoc = { ...EMPTY_CANVAS_DOC, elements: { a: ELEMENT, r: carrier } };
+
+    canvasDocStore.setDoc(doc);
+
+    expect(Object.keys(canvasDocStore.getDoc().elements)).toEqual(["a"]);
+    expect(canvasDocStore.getRouteCarriers().map((c) => c.id)).toEqual(["r"]);
+  });
+
+  it("returns the same doc object when it has no carrier", () => {
+    const doc = docWithLabel("x");
+
+    canvasDocStore.setDoc(doc);
+
+    expect(canvasDocStore.getDoc()).toBe(doc);
   });
 });

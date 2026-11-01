@@ -1,4 +1,9 @@
-import { useCallback, useEffect, useRef } from "react";
+import { useCallback, useEffect, useMemo, useRef } from "react";
+import { useMemberCount } from "./useMemberCount";
+import { ImpactGlance } from "./ImpactGlance";
+import { useImpactBoxState } from "./impactBoxState";
+import { ImpactPill } from "./ImpactPill";
+import { focusStore, useFocusState } from "./focusStore";
 import type { CanvasElement } from "../../state/types";
 import { useEngineClient } from "../../engine-client/EngineClientContext";
 import { elementDragPointerDown, type Offset } from "../useDragOffset";
@@ -10,14 +15,15 @@ import { inspectorStore, useIsInspectorTarget } from "../inspectorStore";
 import { selectionStore } from "../../state/selectionStore";
 import { tutorialStore } from "../../tutorial/tutorialStore";
 import { useIsSelected, useSelectedCount } from "../../state/selectionStore";
-import { canvasDocStore, commitCanvasPositions } from "./canvasDocStore";
+import { canvasDocStore } from "./canvasDocStore";
+import { commitCanvasPositions } from "./canvasDocSync";
 import { dragOffsetStore, useLiveDragOffsets } from "./dragOffsetStore";
 import { NODE_STYLES, type StyledRenderKind } from "./elementRules";
-import { descriptionPopupStore } from "./descriptionPopupStore";
-import { accentFor, noCodeReasonMessage } from "./nodeAccentLogic";
+import { accentFor } from "./nodeAccentLogic";
+import { blockRoleFor } from "./blockRole";
 import { NodeMetaRow, NodeTopBand } from "./nodeAccent";
 import { BLOCK_RULES } from "./elementRules";
-import { stringMeta } from "./elementMeta";
+import { leadingOrderDigits, orderMeta, stringMeta } from "./elementMeta";
 import { epicsContentSizeStore } from "./epicsContentSizeStore";
 import { isAcceptance, isContentCard, isEpicsLayerName, isSpecs, isSummary, linesOf } from "./epicsLayout";
 import { specStories } from "./specStories";
@@ -26,6 +32,9 @@ import { elementCopyText } from "../strategies/nodeCopyText";
 import { useNodeOverlays } from "../../state/useSidecar";
 import { authoredStyle } from "../authoredStyle";
 import { BOTTOM_LEFT_RENDERS, DEFAULT_ELEMENT_SIZE } from "./elementRect";
+import { routeStepOf } from "./routeStep";
+import { fitNameFontSize } from "./measureBoxSize";
+import { RouteStepExtras } from "./RouteStepExtras";
 
 function styleFor(render: CanvasElement["render"]) {
   return NODE_STYLES[render as StyledRenderKind] ?? NODE_STYLES.custom;
@@ -45,6 +54,8 @@ export interface CanvasNodeBoxProps {
    * *assumed* size, so a taller/wider box never moves, it just outgrows the rect routing assumed —
    * which is exactly what let an arrow/label land on a box with more content than the default). */
   onMeasure?: (id: string, node: HTMLElement | null) => void;
+  /** The zoomed-out name size shared by every box of this diagram (layerFitNameSizes); falls back to this box's own fit. */
+  fitNameSize?: number;
 }
 
 /**
@@ -54,7 +65,7 @@ export interface CanvasNodeBoxProps {
  * a canvas-doc element's position is the document's own truth, committed straight through
  * `update_element`, so there's no separate saved-layout store to reconcile against.
  */
-export function CanvasNodeBox({ element, onMeasure }: CanvasNodeBoxProps) {
+export function CanvasNodeBox({ element, onMeasure, fitNameSize: sharedFitNameSize }: CanvasNodeBoxProps) {
   const engineClient = useEngineClient();
   // Stable ref to this box's real DOM node — feeds both `onMeasure` (CanvasDocView's measurement for
   // arrow routing) and the collision participant registry (whose rects are read live off the DOM).
@@ -98,14 +109,27 @@ export function CanvasNodeBox({ element, onMeasure }: CanvasNodeBoxProps) {
   // up every box for that entity instead of just the one clicked.
   const isInspectorTarget = useIsInspectorTarget(element.node_id ?? element.id, element.id);
   const style = styleFor(element.render);
+  const focusState = useFocusState(element.id);
+  const memberCount = useMemberCount(engineClient, isEpicsLayerName(element.layer) ? null : element.node_id);
+  const stepNumber =
+    isEpicsLayerName(element.layer)
+      ? undefined
+      : leadingOrderDigits(orderMeta(element));
   // Hard layout (010-epics-tree-render, Part 4): an epic-tree box sits in a pre-structured parent
   // frame, so it is never user-draggable — no solo/group drag, no collision solving, no position
   // writes. Its position comes only from auto-layout / the fit loop. Discrete — everything else
   // stays freely draggable as before.
   const lockedLayout = Boolean(BLOCK_RULES[element.render].lockedLayout);
   const accent = accentFor(element);
+  const blockRole = isEpicsLayerName(element.layer) ? undefined : blockRoleFor(element);
+  const routeStep = routeStepOf(element);
   const width = element.size?.w ?? DEFAULT_ELEMENT_SIZE.w;
   const height = element.size?.h ?? DEFAULT_ELEMENT_SIZE.h;
+  // Zoomed out (`data-zoom="far"`) the name alone fills the box at the diagram's shared size; computed per label/size, never per zoom tick.
+  const fitNameSize = useMemo(
+    () => sharedFitNameSize ?? fitNameFontSize(element.label, width, height),
+    [sharedFitNameSize, element.label, width, height],
+  );
   // A content card (Summary prose / Acceptance list / Спеки stories) auto-fits to its text; an epic
   // render that is NOT one is the column's structural header (the epic title box).
   const isEpicRoot = element.render === "epic" && !isContentCard(element);
@@ -123,6 +147,7 @@ export function CanvasNodeBox({ element, onMeasure }: CanvasNodeBoxProps) {
   // A permanently-empty store unless an Impact layer is present and Diff mode is on (see
   // useC1DiffSync) — a cheap, harmless subscription the rest of the time.
   const { isImpact, change: impactChange } = useNodeOverlays(element);
+  const impactBox = useImpactBoxState(element, impactChange, isImpact);
 
   const selectedCount = useSelectedCount();
   // Miro-style: 2+ boxes selected and this is one of them means dragging it moves the whole group,
@@ -243,8 +268,11 @@ export function CanvasNodeBox({ element, onMeasure }: CanvasNodeBoxProps) {
       : offset
     : (liveDragOffsets[element.id] ?? (isGroupDrag ? { x: 0, y: 0 } : offset));
 
+  // Re-clicking the box already open in the inspector closes it instead of reopening the same page.
+  const toggleInspector = (open: () => void) => (isInspectorTarget ? inspectorStore.close() : open());
+
   // Shared by the click and keyboard (Enter/Space) activation paths -- a box must be operable
-  // without a mouse, not just focusable (WCAG 2.1.1).
+  // without a mouse, not just focusable (WCAG 2.1.1); the inspector itself opens from the SRC button.
   const activate = (toggleSelection: boolean, event: { stopPropagation: () => void }) => {
     if (toggleSelection) {
       event.stopPropagation();
@@ -259,65 +287,51 @@ export function CanvasNodeBox({ element, onMeasure }: CanvasNodeBoxProps) {
     // text + its place in the epic instead of a code tree. Opening the inspector keeps re-clicking
     // the already-open box closing it, matching the code-box behavior below.
     if (isEpicsLayerName(element.layer)) {
-      if (isInspectorTarget) {
-        inspectorStore.close();
-        return;
-      }
-      inspectorStore.open(element.id, element.label, element.id, undefined, {
-        element,
-        doc: canvasDocStore.getDoc(),
-      });
+      toggleInspector(() =>
+        inspectorStore.open(element.id, element.label, element.id, undefined, {
+          element,
+          doc: canvasDocStore.getDoc(),
+        }),
+      );
       return;
     }
+    // 022: a click also focuses the block (neighbours stay lit, the rest fades); display only.
+    focusStore.toggle(canvasDocStore.getDoc(), element.id);
     // An epic/story box's primary click opens the right-side inspector showing the work item's full
     // text (010-epics-tree-render Part 5). The AI brief is reached from a button inside that level.
     // `stringMeta` restores the runtime type guard (`meta` is `Record<string, unknown>`) — the
-    // epic-brief rule always stamps a string key, and the `openId` fallback chain tolerates undefined.
+    // epic-brief rule always stamps a string key.
     // A spec box (the epic brief's spec/user-story node) has no work item of its own: its stages
     // live on the epic, so the click resolves to the epic id carried in `meta.spec_of`.
     const isEpicBrief = BLOCK_RULES[element.render].activation === "epic-brief";
     const workItemId = isEpicBrief
       ? (stringMeta(element, "spec_of") ?? stringMeta(element, "recipe_key"))
       : undefined;
-    // A Planned block's add/create role (055-diagram-feature-plan) has no real code behind it --
-    // InspectorPanel would otherwise open and report it "no longer exists", the wrong message for
-    // something that never existed yet. Route to the description popup instead, same as the "?"
-    // button below. modify/delete point at real, already-existing code, so they fall through to the
-    // normal Inspector path unchanged.
-    const planKind = stringMeta(element, "plan_kind");
-    if (planKind === "add" || planKind === "create") {
-      descriptionPopupStore.open(element.label, stringMeta(element, "details") ?? element.description ?? "");
-      return;
-    }
-    // A box the resolver stamped with `meta.no_code_reason` (diagram_resolver.py) has no real code
-    // behind it -- conceptual (no path ever authored) or unresolved (an authored path that failed) --
-    // so it opens the same description popup as a Planned block, with a reason-specific message,
-    // instead of InspectorPanel's generic "no longer exists" (the wrong message for something that
-    // was never real code, or for an authoring mistake it has no way to explain).
-    const noCodeReason = stringMeta(element, "no_code_reason");
-    if (noCodeReason === "conceptual" || noCodeReason === "unresolved" || noCodeReason === "external") {
-      descriptionPopupStore.open(element.label, noCodeReasonMessage(element, noCodeReason));
-      return;
-    }
-    // Falls through to the Inspector for a real, resolved node_id -- InspectorPanel's own
-    // useInspectorNode still turns a genuine "no such node" into a clear message with Retry. For a
-    // work item the id is the recipe key (an epic box has no node_id). Re-clicking the box already
-    // open in the inspector closes it instead of reopening the same page.
-    const openId = workItemId ?? element.node_id ?? element.id;
-    if (isInspectorTarget) {
-      inspectorStore.close();
-      return;
-    }
-    inspectorStore.open(openId, element.label, element.id, workItemId);
+    // A code box's click only focuses it: the right-side inspector opens from the box's own SRC
+    // button (below), so clicking anywhere else on the block never pops the panel. A work item (epic
+    // brief spec box) has no SRC button, so its click still opens the inspector on the work item,
+    // and re-clicking the box already open closes it.
+    if (workItemId) toggleInspector(() => inspectorStore.open(workItemId, element.label, element.id, workItemId));
   };
+
+  // The SRC button toggles the inspector on this box's code; InspectorPanel's own useInspectorNode
+  // still turns a genuine "no such node" into a clear message with Retry.
+  const toggleSource = () =>
+    toggleInspector(() => inspectorStore.open(element.node_id ?? element.id, element.label, element.id));
 
   const classes = [
     style.boxClass,
     isDragging ? style.draggingClass : "",
     isSelected ? "block-selected" : "",
     isInspectorTarget ? "block-inspector-target" : "",
+    focusState === "dim" ? "block-focus-dim" : "",
+    focusState === "self" ? "block-focus-self" : "",
+    isSelected || focusState === "self" ? "block-hero" : "",
     impactChange ? `block-change--${impactChange.status}` : "",
+    impactBox.kind ? `impact-box impact-box--${impactBox.kind}` : "",
+    impactBox.biggest ? "impact-box--biggest" : "",
     accent.className ?? "",
+    blockRole ? `block-role block-role--${blockRole}` : "",
     // An epics-layer box (epic title, or a Summary/Acceptance/Спеки content card) carries a shared
     // marker so its title rows can be styled more prominently than a generic diagram box.
     BOTTOM_LEFT_RENDERS.has(element.render) ? "diagram-node-box--epic" : "",
@@ -331,6 +345,8 @@ export function CanvasNodeBox({ element, onMeasure }: CanvasNodeBoxProps) {
     // A «Спеки» (User Stories) block renders each story card (overriding the acceptance structure) --
     // see the `isSpecsCard` description branch below.
     isSpecsCard ? "diagram-node-box--specs" : "",
+    routeStep ? `route-step route-step--${routeStep.kind}` : "",
+    "canvas-node-fit",
   ]
     .filter(Boolean)
     .join(" ");
@@ -338,6 +354,22 @@ export function CanvasNodeBox({ element, onMeasure }: CanvasNodeBoxProps) {
   // Impact count for the meta-row chip (`useNodeOverlays` also powers `NodeChangeBadge` above) --
   // the box's own attributed change count, echoed as `· N` to mirror the form's `~ MODIFY · 17`.
   const impactCount = impactChange?.change_count ?? 0;
+  // 022: the file path is always visible on a code-backed box (the resolver stamps `meta.path`).
+  const isEpicsLayer = isEpicsLayerName(element.layer);
+  const sourcePath = isEpicsLayer ? undefined : stringMeta(element, "path");
+
+  if (impactBox.collapse) {
+    return (
+      <ImpactPill
+        collapse={impactBox.collapse}
+        elementId={element.id}
+        label={element.label}
+        left={element.position.x - width / 2 + renderOffset.x}
+        top={element.position.y - 17 + renderOffset.y}
+        width={width}
+      />
+    );
+  }
 
   return (
     <>
@@ -352,6 +384,7 @@ export function CanvasNodeBox({ element, onMeasure }: CanvasNodeBoxProps) {
       // absent entirely for a synthetic C1 System/Actor box) -- a marquee matching on that instead
       // used to add the wrong id, or nothing at all, so nothing ever lit up as selected.
       data-select-id={element.id}
+      data-layer={element.layer}
       data-render={element.render}
       data-recipe-key={stringMeta(element, "recipe_key")}
       data-no-code={stringMeta(element, "no_code_reason")}
@@ -370,11 +403,17 @@ export function CanvasNodeBox({ element, onMeasure }: CanvasNodeBoxProps) {
         // still grow taller for a longer description, capped by the line-clamp in styles.css.
         width,
         minHeight: height,
+        ["--node-fit-name-size" as string]: `${fitNameSize}px`,
         ...authoredStyle(element.style),
       }}
       {...handleProps}
       onPointerDown={elementDragPointerDown(handleProps)}
     >
+      {stepNumber && (
+        <span className="canvas-node-step-chip" data-testid="canvas-node-step-chip">
+          {stepNumber}
+        </span>
+      )}
       <NodeTopBand element={element} />
       <div className={style.rowClass} data-testid="canvas-node-box-row">
         <div
@@ -395,10 +434,10 @@ export function CanvasNodeBox({ element, onMeasure }: CanvasNodeBoxProps) {
               row's chips and the description would sit side by side as more row items instead of
               stacking. */}
           <div className={style.titleWrapClass}>
-            <NodeMetaRow element={element} count={impactCount} />
+            <NodeMetaRow element={element} count={impactCount} changed={Boolean(impactChange)} />
             <div className={style.titleRowClass}>
               {accent.icon}
-              <span className={style.nameClass} title={element.label}>
+              <span className={`${style.nameClass} canvas-node-fit-name`} title={element.label} data-testid="canvas-node-box-name">
                 {element.label}
               </span>
               {isImpact && <NodeChangeBadge change={impactChange} />}
@@ -453,34 +492,58 @@ export function CanvasNodeBox({ element, onMeasure }: CanvasNodeBoxProps) {
                 {element.description}
               </span>
             )}
-          </div>
-          <div className="canvas-node-box-buttons" data-testid="canvas-node-box-buttons">
-            <CopyButton
-              text={elementCopyText(element.node_id, element.label)}
-              name={element.label}
-              variant="canvas-node-box"
-            />
-            {style.descClass && element.description && (
+            {isImpact && (
+              <ImpactGlance change={impactChange} elementId={element.id} />
+            )}
+            {routeStep && routeStep.children.length > 0 && <RouteStepExtras element={element} step={routeStep} />}
+            {sourcePath && (
+              <div className="canvas-node-box-foot" data-testid="canvas-node-box-foot">
+                <span className="canvas-node-box-path" title={sourcePath}>
+                  {sourcePath}
+                </span>
+              </div>
+            )}
+            {memberCount > 0 && (
               <button
                 type="button"
-                className="canvas-node-box-desc-button"
-                aria-label={`Show full description for ${element.label}`}
-                title="Show full description"
-                data-testid="canvas-node-box-desc-button"
+                className="canvas-node-members"
+                data-testid="canvas-node-members"
+                aria-label={`Show ${memberCount} members of ${element.label}`}
                 onClick={(event) => {
-                  // The name-row/description sit inside the same clickable header, which otherwise
-                  // opens the InspectorPanel (`activate`, above) — this button is a separate escape
-                  // hatch for the description text alone, so it must not also trigger that.
                   event.stopPropagation();
-                  descriptionPopupStore.open(element.label, element.description ?? "");
+                  toggleSource();
                 }}
               >
-                ?
+                {"▸"} {memberCount} members
               </button>
             )}
           </div>
         </div>
       </div>
+      <div className="canvas-node-box-buttons canvas-node-box-buttons--top" data-testid="canvas-node-box-buttons">
+        <CopyButton
+          text={elementCopyText(element.node_id, element.label)}
+          name={element.label}
+          variant="canvas-node-box"
+        />
+      </div>
+      {element.node_id && !isEpicsLayer && (
+        <div className="canvas-node-box-buttons canvas-node-box-buttons--bottom" data-testid="canvas-node-box-src-corner">
+          <button
+            type="button"
+            className="canvas-node-box-src"
+            data-testid="canvas-node-box-src"
+            aria-label={`Open source of ${element.label}`}
+            aria-pressed={isInspectorTarget}
+            onClick={(event) => {
+              event.stopPropagation();
+              toggleSource();
+            }}
+          >
+            SRC ↗
+          </button>
+        </div>
+      )}
     </div>
     {/* The landing outline for the solo drag's collision-solving — null while not dragging or during
         a group move (whose `active` switches to `group`, and loses the ghost by design). */}

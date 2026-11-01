@@ -1,5 +1,3 @@
-using System.Net;
-
 namespace CodeChroma.Shell.Tests.Support;
 
 internal sealed class FakeShellUi : IShellUi
@@ -11,8 +9,6 @@ internal sealed class FakeShellUi : IShellUi
     public List<string> Surfaced { get; } = [];
     public List<object> ClosedViews { get; } = [];
     public List<(string Title, string Message)> Errors { get; } = [];
-    public BranchPick NextPick { get; set; } = new BranchPick.Cancel();
-    public string? PickedProject { get; private set; }
 
     public TabsSnapshot Last => Snapshots[^1];
 
@@ -23,12 +19,6 @@ internal sealed class FakeShellUi : IShellUi
     public void Surface(Tab tab) => Surfaced.Add(tab.Id);
     public void CloseView(object view) => ClosedViews.Add(view);
     public void ShowError(string title, string message) => Errors.Add((title, message));
-
-    public Task<BranchPick> PickBranchAsync(string project, BranchChoices choices)
-    {
-        PickedProject = project;
-        return Task.FromResult(NextPick);
-    }
 }
 
 internal sealed class ShellHarness : IDisposable
@@ -41,22 +31,12 @@ internal sealed class ShellHarness : IDisposable
     public TabModel Tabs { get; } = new(() => new object());
     public ShellController Controller { get; }
     public string RecentsPath => RecentRepos.StorePath(data.Path);
-    public List<string> BranchRequests { get; } = [];
-    public Func<HttpRequestMessage, HttpResponseMessage> BranchResponder { get; set; }
 
     public ShellHarness(bool startWithEmptyTab = true)
     {
         Launcher.OnStart = p => p.Say($"[codechroma-live] bridge ready at http://127.0.0.1:{p.Spec.Port}");
         var manager = new BridgeManager(Launcher, new SequencePorts(), new ScriptedHealth(_ => false), TimeSpan.FromMilliseconds(5));
-        BranchResponder = request =>
-        {
-            BranchRequests.Add($"{request.Method} {request.RequestUri!.AbsolutePath}");
-            return request.Method == HttpMethod.Get
-                ? StubHandler.Json(HttpStatusCode.OK, """{"current":"main","branches":[{"name":"feature","open":false,"workspace":null}]}""")
-                : StubHandler.Json(HttpStatusCode.OK, """{"id":"br_feature","branch":"feature","worktree":"/wt/feature"}""");
-        };
-        var branches = new BranchBridgeClient(new HttpClient(new StubHandler(request => BranchResponder(request))));
-        Controller = new ShellController(Tabs, new BridgeRegistry(manager, "bridge.exe"), Ui, branches, RecentsPath, Version);
+        Controller = new ShellController(Tabs, new BridgeRegistry(manager, "bridge.exe"), Ui, RecentsPath, Version);
         if (startWithEmptyTab) Controller.NewTab();
     }
 

@@ -40,6 +40,7 @@ export function ConcurrencyIslandArea({ digits, members, sizes }: ConcurrencyIsl
       testId="canvas-concurrency-island"
       labelClassName="canvas-concurrency-island-label"
       label={`Concurrent: ${digits}`}
+      layer={members[0]?.layer}
     />
   );
 }

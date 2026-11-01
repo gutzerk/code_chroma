@@ -132,7 +132,7 @@ public static class SkillSync
 /// <summary>Seeds a new worktree's diagram files from main so it opens already drawn (diagram_seed.py, pr_import_seed.py).</summary>
 public static class DiagramSeed
 {
-    private static readonly string[] BuiltinKinds = ["c1", "patterns", "impact", "epics", "sequence"];
+    private static readonly string[] BuiltinKinds = ["system-context", "patterns", "impact", "epics", "sequence", "walkthrough"];
     private const string DefaultRequirementsSource = "file://plan/epics";
     private const string DefaultDeliverySource = "file://specs";
 

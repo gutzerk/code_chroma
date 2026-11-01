@@ -21,7 +21,7 @@ from codechroma.questions.validation import (
 
 
 def _fast(monkeypatch, wait: float) -> None:
-    fake = SimpleNamespace(questions=SimpleNamespace(ask_wait_seconds=wait, max_rejections=3))
+    fake = SimpleNamespace(questions=SimpleNamespace(max_rejections=3))
     monkeypatch.setattr("codechroma.questions.mcp_server.settings", fake)
 
 
@@ -171,24 +171,6 @@ def test_tracker_evicts_stale_entries_and_caps_size():
     assert tracker.count("w", "old") == 0
 
 
-def test_degraded_pass_through_consumes_the_count(bridge, monkeypatch):
-    _fast(monkeypatch, 0.05)
-    mcp = _mcp(bridge)
-    bad = AskRequest(question="Q?", session_id="s", options=[QuestionOption(id="a", title="A")])
-
-    async def run() -> None:
-        for _ in range(3):
-            with pytest.raises(QuestionRejected):
-                await mcp.ask("main", bad)
-        await mcp.ask("main", bad)
-        with pytest.raises(QuestionRejected):
-            await mcp.ask("main", bad)
-
-    asyncio.run(run())
-
-    assert mcp.rejections.count("main", "s") == 1
-
-
 def test_sessionless_agents_on_different_connections_do_not_share_a_counter(bridge, monkeypatch):
     _fast(monkeypatch, 0.05)
     mcp = _mcp(bridge)
@@ -232,6 +214,7 @@ def test_fourth_incomplete_ask_is_accepted_degraded(bridge, monkeypatch):
     element = store.list_questions(bridge.main)[0]
     assert element.meta["degraded"] is True
     assert element.meta["validation"].startswith("CodeChroma rejected the question.")
+    assert _mcp(bridge).rejections.count("main", "s") == 0
 
 
 def test_ask_with_an_unknown_diagram_ref_is_rejected(bridge):
@@ -255,10 +238,12 @@ def test_draw_diagram_returns_a_ref_that_a_diagram_question_accepts(bridge, monk
 
     result = asyncio.run(run())
 
-    assert result["pending"] is True
+    assert result["asked"] is True
+    layers = {e.layer for e in store.list_questions(bridge.main)}
+    assert layers == {"questions"}
 
 
-def test_draw_diagram_writes_nodes_on_the_decisions_layer_under_one_root(bridge):
+def test_draw_diagram_writes_nodes_on_a_decisions_layer_under_one_root(bridge):
     nodes = [_node("a", status="new"), _node("b")]
     edges = [diagrams.DiagramEdge(**{"from": "a", "to": "b"})]
 
@@ -266,7 +251,9 @@ def test_draw_diagram_writes_nodes_on_the_decisions_layer_under_one_root(bridge)
 
     doc = CanvasDoc.load(bridge.main.canvas_core_path, bridge.main.diagrams_root)
     members = [e for e in doc.elements.values() if e.group_id == root["diagram_ref"]]
-    assert {e.layer for e in members} == {"decisions"}
+    layers = {e.layer for e in members}
+    assert len(layers) == 1
+    assert layers.pop().startswith("decisions/")
     assert sorted(e.label for e in members) == ["a", "b"]
     assert [e.meta.get("status") for e in members if e.label == "a"] == ["new"]
     assert len(doc.edges) == 1
@@ -293,22 +280,6 @@ def test_draw_diagram_attaches_the_ref_to_the_question_option(bridge):
 
     options = store.find_element(bridge.main, "q1").meta["options"]
     assert [o["diagram_ref"] for o in options] == [None, root["diagram_ref"]]
-
-
-def test_request_diagram_wakes_the_blocked_ask_with_needs(bridge, monkeypatch):
-    _fast(monkeypatch, 5)
-    mcp = _mcp(bridge)
-
-    async def run() -> dict:
-        task = asyncio.create_task(mcp.ask("main", _request(session_id="s")))
-        await asyncio.sleep(0.2)
-        question_id = store.list_questions(bridge.main)[0].meta["question_id"]
-        mcp.broker.request_diagram(question_id)
-        return await task
-
-    result = asyncio.run(run())
-
-    assert result["needs"] == "diagram"
 
 
 def test_reask_after_a_diagram_request_updates_the_same_element(bridge, monkeypatch):
@@ -339,13 +310,6 @@ def _load_checker():
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
     return module
-
-
-def test_decision_diagram_checker_accepts_a_draft_within_budget():
-    checker = _load_checker()
-    draft = {"title": "A", "nodes": [{"id": "x", "label": "X"}], "edges": []}
-
-    assert checker.problems(draft) == []
 
 
 def test_decision_diagram_checker_reports_budget_and_unknown_edges():
@@ -396,3 +360,21 @@ def test_server_diagram_validator_matches_the_skill_checker(name):
 
     assert server == _load_checker().problems(draft)
     assert bool(server) == (name != "clean")
+
+
+def test_degraded_pass_through_consumes_the_count(bridge, monkeypatch):
+    _fast(monkeypatch, 0.05)
+    mcp = _mcp(bridge)
+    bad = AskRequest(question="Q?", session_id="s", options=[QuestionOption(id="a", title="A")])
+
+    async def run() -> None:
+        for _ in range(3):
+            with pytest.raises(QuestionRejected):
+                await mcp.ask("main", bad)
+        await mcp.ask("main", bad)
+        with pytest.raises(QuestionRejected):
+            await mcp.ask("main", bad)
+
+    asyncio.run(run())
+
+    assert mcp.rejections.count("main", "s") == 1

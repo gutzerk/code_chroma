@@ -1,3 +1,4 @@
+import { AUTO_NODE_SEP, AUTO_RANK_SEP } from "../collision/constants";
 import { resolveDrop, type Obstacle } from "../collision/resolveDrop";
 import { computeElkLayout, type LayoutEdge } from "../connectors/elkLayout";
 import type { LayoutBoxSpec } from "../connectors/diagramLayout";
@@ -79,7 +80,7 @@ export async function placeIncrementally(input: IncrementalInput): Promise<Recor
       width: box.width,
       height: box.height,
     };
-    const result = resolveDrop(moving, placedObstacles);
+    const result = resolveDrop(moving, placedObstacles, { nodeSep: AUTO_NODE_SEP, rankSep: AUTO_RANK_SEP });
     positions[box.id] = { x: result.x + box.width / 2, y: result.y + box.height / 2 };
     placedObstacles.push({ id: box.id, ...moving, x: result.x, y: result.y });
   }

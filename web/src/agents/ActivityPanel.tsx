@@ -1,22 +1,28 @@
-import { useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
+import { useEffect, useMemo, useRef, useState, type CSSProperties, type PointerEvent } from "react";
 import { useOpenQuestionCount } from "../canvas/doc/question/useOpenAgentQuestions";
 import { QUESTION_STRINGS as S } from "../canvas/doc/question/questionStrings";
 import { useResizableSize } from "../canvas/useResizableSize";
 import { layoutStore, useLayoutState } from "../canvas/layout/layoutStore";
+import { agentsWideWidth } from "../canvas/layout/layoutMetrics";
 import { useAgents, useAgentLaunchError } from "./agentStore";
+import { useActiveWorktreeId } from "./worktreeStore";
 import { DockedAgentPanel } from "./AgentTerminalDock";
 import { WorkflowsTab } from "../workflows/WorkflowsTab";
 import { AgentsHeaderActions } from "./activity/AgentsHeaderActions";
 import { WorkflowsHeaderActions } from "../workflows/WorkflowsHeaderActions";
-import { useRuns, workflowStore } from "../workflows/workflowStore";
+import { useRuns, useRunsLoaded, workflowStore } from "../workflows/workflowStore";
 import { isFinished } from "../workflows/runControls";
-import { AgentList, AgentSwitcherRow } from "./activity/AgentSwitcherRow";
+import { AgentList, AgentSwitcherRow, selectAgent } from "./activity/AgentSwitcherRow";
+import { useAgentClient } from "./AgentClientContext";
 import { CollapsedStrip, type ActivityTab } from "./activity/CollapsedStrip";
 import { ExpandIcon, HandleChevronLeft, HandleChevronRight, HandleCollapse } from "./activity/icons";
 import { usePanelSize } from "./activity/usePanelSize";
 import { useStretchWidth } from "./activity/useStretchWidth";
 import "../canvas/PanelHandle.css";
 import "./ActivityPanel.css";
+
+/** Px short of the full-screen width where a left-edge drag snaps to full (the drag's own slack is added on top). */
+const FULL_SNAP_MARGIN = 120;
 
 /** Floating panel. Terminals stay mounted when tabs or visibility change. */
 export function ActivityPanel({
@@ -26,13 +32,22 @@ export function ActivityPanel({
   onRunAgent: () => void;
   disabled?: boolean;
 }) {
-  const agents = useAgents();
+  const allAgents = useAgents();
+  const worktreeTab = useActiveWorktreeId();
+  // Every agent's terminal stays mounted (below) so a tab switch never drops a session; only the active tab's are listed.
+  const agents = useMemo(
+    () => allAgents.filter((agent) => !agent.workspace || !worktreeTab || agent.workspace === worktreeTab),
+    [allAgents, worktreeTab],
+  );
+  const agentClient = useAgentClient();
   const agentIds = useMemo(() => agents.map((a) => a.id), [agents]);
   const openQuestions = useOpenQuestionCount(agentIds);
   const { agentsMode, leftOpen, selectedAgentId } = useLayoutState();
   const [tab, setTab] = useState<ActivityTab>("agents");
   const runs = useRuns();
   const activeRuns = runs.filter((r) => !isFinished(r.state)).length;
+  const runsLoaded = useRunsLoaded();
+  const revealedRuns = useRef(false);
   const launchError = useAgentLaunchError();
   const panelRef = useRef<HTMLElement | null>(null);
   const isFull = agentsMode === "full";
@@ -41,13 +56,46 @@ export function ActivityPanel({
     edge: "left",
     minWidth: 320,
     maxViewportFraction: 0.7,
+    maxWidthPx: () => {
+      const area = panelRef.current?.closest<HTMLElement>(".canvas-area");
+      return area ? agentsWideWidth(area.clientWidth, leftOpen) - FULL_SNAP_MARGIN : window.innerWidth * 0.7;
+    },
     onExceedMax: () => layoutStore.setAgentsMode("full"),
   });
   const panelSize = usePanelSize(panelRef);
   const collapsed = agentsMode === "collapsed";
   const resizable = agentsMode === "normal";
   const stretchWidth = useStretchWidth(panelRef, isFull, leftOpen);
-  useEffect(() => resetSize(), [agentsMode]); // eslint-disable-line react-hooks/exhaustive-deps
+  const keepSize = useRef(false);
+  const gripStartX = useRef<number | null>(null);
+  useEffect(() => {
+    if (keepSize.current) keepSize.current = false;
+    else resetSize();
+  }, [agentsMode]); // eslint-disable-line react-hooks/exhaustive-deps
+  // Dragging the grip right from full screen leaves it, carrying the dragged width into the normal panel.
+  const gripProps = isFull
+    ? {
+        ...handleProps,
+        onPointerDown: (e: PointerEvent<HTMLElement>) => {
+          gripStartX.current = e.button === 0 ? e.clientX : null;
+          handleProps.onPointerDown(e);
+        },
+        onPointerUp: (e: PointerEvent<HTMLElement>) => {
+          gripStartX.current = null;
+          handleProps.onPointerUp(e);
+        },
+        onPointerCancel: (e: PointerEvent<HTMLElement>) => {
+          gripStartX.current = null;
+          handleProps.onPointerCancel(e);
+        },
+        onPointerMove: (e: PointerEvent<HTMLElement>) => {
+          handleProps.onPointerMove(e);
+          if (e.buttons === 0 || gripStartX.current === null || e.clientX - gripStartX.current < 4) return;
+          keepSize.current = true;
+          layoutStore.setAgentsMode("normal");
+        },
+      }
+    : handleProps;
   let style: CSSProperties | undefined;
   if (resizable && size) style = { width: size.width };
   else if (stretchWidth !== null) style = { width: stretchWidth };
@@ -55,11 +103,36 @@ export function ActivityPanel({
   useEffect(() => {
     if (tab !== "workflows" || collapsed) workflowStore.setDialog(null);
   }, [tab, collapsed]);
+  // Runs saved before the app was closed come back on their own: open the panel and, with no agents to show, land on them.
+  useEffect(() => {
+    if (!runsLoaded || revealedRuns.current) return;
+    revealedRuns.current = true;
+    if (!runs.some((r) => r.state !== "done")) return;
+    if (layoutStore.getState().agentsMode === "collapsed") layoutStore.setAgentsMode("normal");
+    if (agents.length === 0) setTab("workflows");
+  }, [runsLoaded, runs, agents.length]);
   useEffect(() => {
     if (selectedAgentId) setTab("agents");
   }, [selectedAgentId]);
   // Entering full screen (or switching agents inside it) moves the cursor into that agent's terminal.
   const [focusRequest, setFocusRequest] = useState(0);
+  useEffect(() => {
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (!(event.ctrlKey || event.metaKey) || !event.altKey || event.shiftKey || event.isComposing) return;
+      if (event.key !== "ArrowUp" && event.key !== "ArrowDown") return;
+      if (agents.length === 0 || document.querySelector('[aria-modal="true"]')) return;
+      event.preventDefault();
+      event.stopPropagation();
+      const index = agents.findIndex((agent) => agent.id === activeId);
+      const forward = event.key === "ArrowDown";
+      const next = agents[index < 0 ? (forward ? 0 : agents.length - 1) : (index + (forward ? 1 : agents.length - 1)) % agents.length];
+      selectAgent(agentClient, next);
+      setTab("agents");
+      setFocusRequest((n) => n + 1);
+    };
+    window.addEventListener("keydown", onKeyDown, true);
+    return () => window.removeEventListener("keydown", onKeyDown, true);
+  }, [agents, activeId, agentClient]);
   useEffect(() => {
     if (isFull && activeId) setFocusRequest((n) => n + 1);
   }, [isFull, activeId]);
@@ -93,14 +166,14 @@ export function ActivityPanel({
             {isFull ? <HandleChevronRight /> : <HandleChevronLeft />}
           </button>
         )}
-        {resizable && (
-          <span className="panel-handle-grip" aria-hidden="true" {...handleProps}>
+        {(resizable || isFull) && (
+          <span className="panel-handle-grip" aria-hidden="true" {...gripProps}>
             <span />
             <span />
             <span />
           </span>
         )}
-        {!collapsed && agentsMode === "normal" && (
+        {!collapsed && (
           <button
             type="button"
             className="panel-handle-btn"
@@ -165,7 +238,7 @@ export function ActivityPanel({
               No agents running. Run an agent to start working in this workspace.
             </p>
           )}
-          {agents.map((agent) => (
+          {allAgents.map((agent) => (
             <DockedAgentPanel
               key={agent.id}
               agent={agent}

@@ -12,7 +12,7 @@ public sealed class CliResolver(UserPaths paths, ProviderStore providers, CallSi
 {
     public CliResolution Resolve(string callSiteId, string defaultModel)
     {
-        var assignment = LoadAssignment(callSiteId);
+        var assignment = sites.EffectiveAssignment(callSiteId);
         if (assignment is not null && Json.Str(assignment["mode"]) == "cli"
             && CliProvider(Json.Str(assignment["provider_id"]) ?? "") is ({ } provider, { } adapter))
         {
@@ -36,11 +36,17 @@ public sealed class CliResolver(UserPaths paths, ProviderStore providers, CallSi
     public string? AdapterOf(string? providerId, string callSiteId, string defaultModel) =>
         providerId is null ? Resolve(callSiteId, defaultModel).AdapterKey : CliProvider(providerId).Adapter;
 
-    /// <summary>A provider that is a CLI with a known adapter, with that adapter; (null, null) otherwise.</summary>
-    private (JsonObject? Provider, string? Adapter) CliProvider(string providerId) =>
-        providers.Find(providerId) is { } provider && Json.Str(provider["kind"]) == "cli" && Json.Str(provider["adapter"]) is { } adapter && CliAdapters.All.ContainsKey(adapter)
+    /// <summary>A CLI provider with a known adapter, or an anthropic API provider (run through claude); (null, null) otherwise.</summary>
+    private (JsonObject? Provider, string? Adapter) CliProvider(string providerId)
+    {
+        if (providers.Find(providerId) is not { } provider) return (null, null);
+        if (IsAnthropicApi(provider)) return (provider, "claude");
+        return Json.Str(provider["kind"]) == "cli" && Json.Str(provider["adapter"]) is { } adapter && CliAdapters.All.ContainsKey(adapter)
             ? (provider, adapter)
             : (null, null);
+    }
+
+    private static bool IsAnthropicApi(JsonObject provider) => Json.Str(provider["kind"]) == "api" && Json.Str(provider["transport"]) == "anthropic";
 
     /// <summary>The same CLI on another model; a provider that pins the model through ANTHROPIC_MODEL gets it there too.</summary>
     public static CliResolution WithModel(CliResolution cli, string model)
@@ -50,24 +56,26 @@ public sealed class CliResolver(UserPaths paths, ProviderStore providers, CallSi
         return cli with { Model = model, EnvOverrides = env };
     }
 
-    /// <summary>The effective assignment: an agentic call site uses its group's, a simple one its own.</summary>
-    private JsonObject? LoadAssignment(string callSiteId)
-    {
-        if (LlmCatalog.GroupOf(callSiteId) is { } group)
-        {
-            var assigned = sites.GroupAssignments().GetValueOrDefault(group);
-            return assigned is null ? null : new JsonObject
-            {
-                ["provider_id"] = assigned["provider_id"]!.DeepClone(), ["model"] = assigned["model"]!.DeepClone(), ["mode"] = "cli",
-            };
-        }
-        return sites.Assignments().GetValueOrDefault(callSiteId);
-    }
-
-    /// <summary>Only claude providers with a base_url get env vars; AUTH_TOKEN not API_KEY, ANTHROPIC_MODEL not --model.</summary>
+    /// <summary>Claude providers with a base_url, or an anthropic API key, get env vars; ANTHROPIC_MODEL not --model.</summary>
     private static Dictionary<string, string> EnvOverrides(JsonObject provider, string model)
     {
         var overrides = new Dictionary<string, string>();
+        if (IsAnthropicApi(provider))
+        {
+            var apiKey = ProviderKeys.Resolve(provider) ?? "";
+            if (Json.Str(provider["base_url"]) is not { Length: > 0 } proxy)
+            {
+                // api.anthropic.com takes an sk-ant key only as x-api-key, never as a Bearer token
+                overrides["ANTHROPIC_API_KEY"] = apiKey;
+                overrides["ANTHROPIC_MODEL"] = model;
+                return overrides;
+            }
+            overrides["ANTHROPIC_BASE_URL"] = proxy;
+            overrides["ANTHROPIC_API_KEY"] = "";
+            overrides["ANTHROPIC_MODEL"] = model;
+            if (apiKey.Length > 0) overrides["ANTHROPIC_AUTH_TOKEN"] = apiKey;
+            return overrides;
+        }
         if (Json.Str(provider["adapter"]) != "claude" || Json.Str(provider["base_url"]) is not { Length: > 0 } baseUrl) return overrides;
         overrides["ANTHROPIC_BASE_URL"] = baseUrl;
         overrides["ANTHROPIC_API_KEY"] = "";

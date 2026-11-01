@@ -127,7 +127,6 @@ describe("WorkflowsTab run detail", () => {
     act(() => client.workflowEngine.advance("run1"));
     await waitFor(() => expect(screen.getByTestId("run-state")).toHaveTextContent("Needs you"));
 
-    fireEvent.click(screen.getByRole("button", { name: "review, Needs you" }));
 
     expect(screen.getByRole("button", { name: "Approve: review" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Send back: review" })).toBeInTheDocument();

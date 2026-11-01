@@ -1,5 +1,7 @@
-﻿using System.Diagnostics;
+﻿using System.Globalization;
+using System.Diagnostics;
 using System.Text;
+using CodeChroma.Bridge.Epics;
 using CodeChroma.Bridge.Stores;
 
 namespace CodeChroma.Bridge.Workspaces;
@@ -63,6 +65,28 @@ public sealed class GitTree
 
     /// <summary>Everything that differs from `baseRef`, split into present-and-changed vs deleted paths.</summary>
     public WorkingTreeStatus Status(string baseRef = "HEAD") => baseRef == "HEAD" ? Uncommitted() : Against(baseRef);
+
+    /// <summary>Repo-relative path to (additions, deletions) vs `baseRef`; untracked files count all lines added.</summary>
+    public Dictionary<string, (int Additions, int Deletions)> LineCounts(string baseRef, IEnumerable<KeyValuePair<string, string>> statuses)
+    {
+        var counts = new Dictionary<string, (int, int)>();
+        // -z + no quotepath + no renames: raw unquoted paths, one NUL-terminated record per file.
+        var raw = GitRunner.Run(RepoRoot, "-c", "core.quotepath=false", "diff", "--numstat", "-z", "--no-renames", "--relative", baseRef, "--", ".") ?? "";
+        foreach (var record in raw.Split('\0'))
+        {
+            var parts = record.TrimStart('\n').Split('	', 3);
+            if (parts.Length == 3 && int.TryParse(parts[0], NumberStyles.None, null, out var added)
+                && int.TryParse(parts[1], NumberStyles.None, null, out var removed))
+                counts[parts[2]] = (added, removed);
+        }
+        foreach (var (path, kind) in statuses)
+        {
+            if (kind != "added" || counts.ContainsKey(path)) continue;
+            try { counts[path] = (PyText.SplitLines(PyText.ReadText(System.IO.Path.Combine(RepoRoot, path))).Count, 0); }
+            catch (Exception error) when (error is IOException or UnauthorizedAccessException or System.Text.DecoderFallbackException) { }
+        }
+        return counts;
+    }
 
     private WorkingTreeStatus Uncommitted()
     {

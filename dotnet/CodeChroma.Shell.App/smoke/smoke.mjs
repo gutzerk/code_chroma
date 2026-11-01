@@ -42,7 +42,7 @@ try {
   }
   check("canvas renders inside the shell", canvas, canvas && `${Date.now() - t0} ms, ${canvas.url}`);
   if (canvas) {
-    check("canvas opens the main workspace", canvas.url.includes("workspace=main"));
+    check("canvas opens the project root", !canvas.url.includes("workspace="));
     check("desktop API is present", (await evalIn(canvas, "typeof window.codechromaDesktop?.openWorkspaceWindow")) === "function");
     const expected = `${repo.split(/[\\/]/).filter(Boolean).pop()} [Main] - CodeChroma ${version}`;
     check("window title carries project and version", title(child.pid) === expected, `got "${title(child.pid)}"`);

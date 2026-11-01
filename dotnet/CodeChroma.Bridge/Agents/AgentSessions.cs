@@ -33,24 +33,37 @@ public sealed class AgentSession : IAgentSessionPort, IDisposable
     public const string StatusExited = "exited";
 
     private readonly object _gate = new();
+    private readonly object _injectGate = new();
+    private Task _injectChain = Task.CompletedTask;
     private readonly List<AgentConsumer> _consumers = [];
     private readonly ScreenTap _tap = new(PtyLaunch.DefaultRows, PtyLaunch.DefaultCols);
     private readonly StatusDetector _detector;
     private readonly PtyHost _pty;
+    private readonly ForegroundProcess _foreground;
     private int? _exitCode;
 
-    public AgentSession(string agentId, PtyLaunch launch, string kind = "claude")
+    public AgentSession(string agentId, PtyLaunch launch, string kind = "claude", string? banner = null)
     {
         AgentId = agentId;
         Argv = [.. launch.Argv];
+        SessionTrackingFile = launch.Env?.GetValueOrDefault(AgentSessionOwnership.FileEnv);
+        InitialSessionId = launch.Env?.GetValueOrDefault(AgentSessionOwnership.InitialIdEnv);
         _detector = new StatusDetector(StatusRules.ForKind(kind));
         // callbacks take _gate, so none can observe _pty before it is assigned
-        lock (_gate) _pty = PtyHost.Start(launch, OnOutput, OnExit);
+        lock (_gate)
+        {
+            _pty = PtyHost.Start(launch, OnOutput, OnExit);
+            if (banner is not null) _tap.Feed(banner);
+        }
+        _foreground = new ForegroundProcess(_pty.Pid);
     }
 
     public string AgentId { get; }
 
     public IReadOnlyList<string> Argv { get; }
+
+    public string? SessionTrackingFile { get; }
+    public string? InitialSessionId { get; }
 
     public int Pid => _pty.Pid;
 
@@ -68,7 +81,7 @@ public sealed class AgentSession : IAgentSessionPort, IDisposable
 
     /// <summary>The detector's verdict, or null when nothing changed: the LED's one source of truth.</summary>
     public string? PollStatus() =>
-        IsAlive ? _detector.Observe(_tap.Tail(_detector.Rules.TailLines), _tap.Title, _tap.Progress, process: null) : null;
+        IsAlive ? _detector.Observe(_tap.Tail(_detector.Rules.TailLines), _tap.Title, _tap.Progress, process: _foreground.Current()) : null;
 
     /// <summary>A consumer seeded with a screen redraw, so a reattach can never start mid-sequence.</summary>
     public AgentConsumer Attach()
@@ -109,25 +122,61 @@ public sealed class AgentSession : IAgentSessionPort, IDisposable
     /// <summary>
     /// Types `text` once a fresh agent's TUI reaches its idle prompt (acknowledge-only context). Polls the same detector rules the
     /// LED uses; gives up quietly if the agent never idles in time or dies, because typing into a working or blocked agent would
-    /// corrupt whatever it is already doing.
+    /// corrupt whatever it is already doing. The task resolves true once the text was typed.
     /// </summary>
-    public Task InjectWhenIdle(string text, int attempts = 60, TimeSpan? interval = null)
+    public Task<bool> InjectWhenIdle(string text, int attempts = 60, TimeSpan? interval = null) => InjectWhenIdle(() => text, attempts, interval);
+
+    /// <summary>Like the string overload, but builds the text at idle time; a null text means nothing is left to type.</summary>
+    public Task<bool> InjectWhenIdle(Func<string?> text, int attempts = 60, TimeSpan? interval = null)
     {
         var wait = interval ?? TimeSpan.FromMilliseconds(500);
-        return Task.Run(async () =>
+        lock (_injectGate)
         {
-            for (var attempt = 0; attempt < attempts; attempt++)
+            var typed = _injectChain.ContinueWith(_ => InjectOnce(text, attempts, wait), TaskScheduler.Default).Unwrap();
+            _injectChain = typed;
+            return typed;
+        }
+    }
+
+    /// <summary>The pause between the typed text and Enter; one write of both reads as a paste, whose Enter only adds a newline.</summary>
+    public static readonly TimeSpan SubmitDelay = TimeSpan.FromMilliseconds(300);
+
+    /// <summary>Types `text`, waits `delay`, then presses Enter as its own write, so the TUI submits it instead of pasting.</summary>
+    public static async Task TypeAndSubmit(Action<string> write, string text, TimeSpan delay)
+    {
+        write(text);
+        await Task.Delay(delay);
+        write("\r");
+    }
+
+    /// <summary>One queued injection: waits for idle, types it, then lets the screen settle so the next one sees the agent busy; true when typed.</summary>
+    private async Task<bool> InjectOnce(Func<string?> text, int attempts, TimeSpan wait)
+    {
+        for (var attempt = 0; attempt < attempts; attempt++)
+        {
+            if (ExitCode is not null) return false;
+            var verdict = _detector.Classify(_tap.Tail(_detector.Rules.TailLines), _tap.Title, _tap.Progress, null);
+            if (verdict == StatusDetector.Idle)
             {
-                if (ExitCode is not null) return;
-                var verdict = _detector.Classify(_tap.Tail(_detector.Rules.TailLines), _tap.Title, _tap.Progress, null);
-                if (verdict == StatusDetector.Idle)
-                {
-                    Write(text + "\r");
-                    return;
-                }
+                if (BuildText(text) is not { } body) return false;
+                await TypeAndSubmit(Write, body, SubmitDelay);
                 await Task.Delay(wait);
+                return true;
             }
-        });
+            await Task.Delay(wait);
+        }
+        return false;
+    }
+
+    /// <summary>The text to type now; a builder that throws counts as nothing to type.</summary>
+    private string? BuildText(Func<string?> text)
+    {
+        try { return text(); }
+        catch (Exception error)
+        {
+            Console.Error.WriteLine($"agents: could not build the text to type into {AgentId}: {error.Message}");
+            return null;
+        }
     }
 
     /// <summary>Kills the process; the exit callback then completes every consumer.</summary>
@@ -157,7 +206,7 @@ public sealed class AgentSession : IAgentSessionPort, IDisposable
 }
 
 /// <summary>Every live agent PTY, keyed by agent id: the one place their processes are tracked.</summary>
-public sealed class AgentSessionRegistry : IDisposable
+public sealed class AgentSessionRegistry(Skills.RuntimeEnvironment runtime) : IDisposable
 {
     private readonly Dictionary<string, AgentSession> _sessions = [];
     private readonly object _lock = new();
@@ -176,8 +225,9 @@ public sealed class AgentSessionRegistry : IDisposable
     }
 
     /// <summary>Spawns the agent, or returns the session already running for it.</summary>
-    public AgentSession Start(string agentId, IReadOnlyList<string> argv, string cwd, string kind = "claude", IReadOnlyDictionary<string, string>? env = null, Stores.UserPaths? paths = null)
+    public AgentSession Start(string agentId, IReadOnlyList<string> argv, string cwd, string kind = "claude", IReadOnlyDictionary<string, string>? env = null, Stores.UserPaths? paths = null, string? banner = null)
     {
+        var spawnEnv = runtime.TerminalEnv(env);
         lock (_lock)
         {
             if (_sessions.TryGetValue(agentId, out var existing) && existing.IsAlive) return existing;
@@ -188,7 +238,7 @@ public sealed class AgentSessionRegistry : IDisposable
             if (!Directory.Exists(cwd)) throw new AgentStartException($"the agent's worktree is missing: {cwd}");
             try
             {
-                var session = new AgentSession(agentId, new PtyLaunch([executable, .. argv.Skip(1)], cwd, env), kind);
+                var session = new AgentSession(agentId, new PtyLaunch([executable, .. argv.Skip(1)], cwd, spawnEnv), kind, banner);
                 _sessions[agentId] = session;
                 return session;
             }

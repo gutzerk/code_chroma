@@ -19,6 +19,7 @@ import {
   isFinished,
   stateBanner,
   type PanelLayout,
+  resolvedPrompt,
 } from "./runControls";
 import {
   useExpandedStepId,
@@ -40,7 +41,7 @@ const LIVE_TABS: { id: LiveTab; label: string }[] = [
 
 /** One transcript line, tinted the way the agent terminal reads: tool steps grey, passing checks green. */
 function TranscriptLine({ text }: { text: string }) {
-  const tone = text.startsWith("●") ? "tool" : /^\s*✓/.test(text) ? "ok" : undefined;
+  const tone = /^[●⏺]/.test(text) ? "tool" : /^\s*✓/.test(text) ? "ok" : undefined;
   return (
     <div className="live-line" data-tone={tone}>
       {text || " "}
@@ -53,8 +54,7 @@ function LiveView({ run, workflow, step, footer }: { run: Run; workflow: Workflo
   const [tab, setTab] = useState<LiveTab>("agent");
   const stepIndex = workflow.steps.findIndex((s) => s.id === step?.stepId);
   const def = workflow.steps[stepIndex];
-  const messages = (run.messages ?? []).filter((m) => m.target === step?.stepId);
-  const sub = [`workflow/${run.id}`, step?.diffStat].filter(Boolean).join(" · ");
+    const sub = [`workflow/${run.id}`, step?.diffStat].filter(Boolean).join(" · ");
   return (
     <div className="wf-live" data-testid="live-view">
       <div className="wf-live-head">
@@ -76,12 +76,9 @@ function LiveView({ run, workflow, step, footer }: { run: Run; workflow: Workflo
           <p>Select a step to see it live.</p>
         ) : tab === "agent" ? (
           <>
-            {def.prompt && <div className="live-line" data-tone="prompt">{`> ${def.prompt.split("\n")[0]}`}</div>}
+            {def.prompt && <div className="live-line" data-tone="prompt">{`> ${resolvedPrompt(workflow, def, run).split("\n")[0]}`}</div>}
             {step.output.split("\n").map((line, i) => (
               <TranscriptLine key={i} text={line} />
-            ))}
-            {messages.map((m) => (
-              <div key={m.id} className="live-line">{`${m.role}: ${m.text}`}</div>
             ))}
           </>
         ) : tab === "output" ? (
@@ -132,6 +129,11 @@ export function RunDetail({
         : undefined,
     [run, workflow, viewed],
   );
+  const waitingStepId = readOnly ? null : (viewRun?.steps.find((st) => st.status === "needs_you")?.stepId ?? null);
+  // A step that needs you opens by itself, whichever row was open before; closing it sticks until the next one waits.
+  useEffect(() => {
+    if (waitingStepId) workflowStore.expandStep(waitingStepId);
+  }, [runId, waitingStepId]);
   if (!run || !viewRun || !workflow) {
     return (
       <p className="workflow-empty" data-testid="run-detail-empty">
@@ -144,7 +146,7 @@ export function RunDetail({
     workflow.steps.find((s) => s.id === stepId)?.slug ?? "the run";
   const proposal = readOnly ? null : (run.redoProposal ?? null);
   const redoFrom = proposal ? (pickedFrom ?? proposal.from) : null;
-  const shownStepId = expandedStepId ?? run.currentStepId ?? null;
+  const shownStepId = expandedStepId || run.currentStepId || null;
   const shownStep = viewRun.steps.find((s) => s.stepId === shownStepId);
   const banner = stateBanner(run, stepLabel);
   const toggle = headerToggle(run.state);
@@ -186,7 +188,7 @@ export function RunDetail({
       run={viewRun}
       workflow={workflow}
       actions={actions}
-      expandedStepId={expandedStepId}
+      expandedStepId={expandedStepId || null}
       onToggle={workflowStore.toggleExpanded}
       readOnly={readOnly}
       rerunFrom={redoFrom}
@@ -194,7 +196,7 @@ export function RunDetail({
     />
   );
 
-  const chat = <RunChat run={run} workflow={workflow} actions={actions} />;
+  const chat = <RunChat run={run} />;
 
   return (
     <section className="workflow-screen" aria-label="Workflow run" data-testid="workflow-screen" data-layout={layout}>

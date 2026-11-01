@@ -3,12 +3,11 @@ import { expansionStore, useExpandedNodeIdsByOrder } from "../state/expansionSta
 import { useCanvasLayoutVersion } from "../state/canvasLayoutStore";
 import { useTraceState } from "../state/traceStore";
 import {
-  BLOCK_HEADER_SELECTOR,
   borderSegment,
   countLabel,
   getToLocal,
   useOverlaySvgRef,
-  type ScreenBox,
+  nodeBox,
 } from "./canvasOverlay";
 import { ArrowMarkerDefs } from "./connectors/ArrowMarkerDefs";
 import type { TraceFrame } from "../state/types";
@@ -38,14 +37,6 @@ const TRACE_ARROW_MARKERS = [
   { id: "trace-arrow", className: "trace-arrow-head" },
   { id: "trace-arrow-error", className: "trace-arrow-head trace-arrow-head--error" },
 ];
-
-function nodeBox(nodeId: string): ScreenBox | null {
-  const el = document.querySelector<HTMLElement>(`[data-node-id="${CSS.escape(nodeId)}"]`);
-  if (!el) return null;
-  const header = el.querySelector<HTMLElement>(BLOCK_HEADER_SELECTOR) ?? el;
-  const r = header.getBoundingClientRect();
-  return { left: r.left, top: r.top, right: r.right, bottom: r.bottom };
-}
 
 function isErrorFrame(frame: TraceFrame): boolean {
   return frame.event === "raise" || frame.event === "unwind" || frame.error != null;

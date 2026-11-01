@@ -86,6 +86,7 @@ def _sequence_scaffold(trace: dict) -> tuple[list[dict], list[dict]]:
     participants: list[dict] = []
     id_index: dict[str, int] = {}
     messages: list[dict] = []
+    seen: set[tuple[str, str, str]] = set()
 
     def _participant(node_id: str) -> int:
         got = id_index.get(node_id)
@@ -111,10 +112,10 @@ def _sequence_scaffold(trace: dict) -> tuple[list[dict], list[dict]]:
         to_idx = _participant(callee)
         # Only the first direct hop between a given symbol pair -- distinct participants, distinct
         # messages. Overlapping/hot-sign callers collapse so the scaffold isn't one huge loop.
-        key = (participants[from_idx]["id"], participants[to_idx]["id"],
-               str(step.get("args") or ""))
-        if any((m["from"], m["to"], m["args"]) == key for m in messages):
+        key = (caller, callee, str(step.get("args") or ""))
+        if key in seen:
             continue
+        seen.add(key)
         messages.append({
             "order": len(messages) + 1,
             "from_idx": from_idx,

@@ -276,7 +276,7 @@ export interface C1Coverage {
  * `` `custom/${typeId}` `` is a whole family, not one member — feature 011's user-defined types are
  * data, not code, so a new one needs no new union member, only a new `.codechroma/diagram-types/*`
  * file. */
-export type DiagramKind = "c1" | "patterns" | "impact" | "sequence" | `custom/${string}`;
+export type DiagramKind = "system-context" | "patterns" | "impact" | "sequence" | "walkthrough" | `custom/${string}`;
 
 /** Every kind `getDiagram(kind)` can fetch: every DiagramKind, plus "epics" — its index shares the
  * same GET /repos/{id}/{kind} shape but is assembled from the requirements source, never
@@ -334,7 +334,10 @@ export interface WikiGeneralStatus extends DiagramGenerationStatus {
  * or `custom/<id>`) saying whether its artifact already exists on disk, so the "Add diagram" menu
  * never offers a click that silently no-ops. Keyed by the same name the canvas uses for that
  * diagram's layer, so a new kind needs no change on this side. */
-export type DiagramsStatus = Record<string, { ready: boolean; fingerprint?: string | null }>;
+export type DiagramsStatus = Record<
+  string,
+  { ready: boolean; fingerprint?: string | null; /** The diagram's authored top-level `title`, null when untitled. */ title?: string | null }
+>;
 
 /** How an Impact box changed vs git HEAD — "removed" covers both a deleted path and an
  * agent-declared removal, so it can't be derived from the file statuses alone. */
@@ -345,6 +348,9 @@ export type ImpactChangeStatus = "added" | "modified" | "removed";
 export interface ImpactChangedFile {
   path: string;
   status: ImpactChangeStatus | "deleted";
+  /** Lines added/removed vs the diff base; absent when git could not count them. */
+  additions?: number;
+  deletions?: number;
 }
 
 /** One GitHub PR comment — inline (tied to a diff line, `path`/`line` set) or general/issue-level
@@ -501,9 +507,10 @@ export interface AgentRecord {
   kind: string;
   branch: string;
   /** Which of main's branches this agent belongs to. Null for a record written before the field, and
-   * ⚠ *absent entirely* from a bridge older than it — `branchScope.baseBranchOf` folds both into null,
-   * because either one hiding a live agent is the one outcome that must never happen. */
+   * ⚠ *absent entirely* from a bridge older than it — both mean no base branch. */
   base_branch?: string | null;
+  /** The worktree tab (`br_*`) this agent belongs to; absent/null on a record written before tabs. */
+  workspace?: string | null;
   /** The `pr-<n>` this agent was forked from, if any; hides `Create PR` since that PR already exists. */
   source_pr?: string | null;
   /** The id this agent's worktree/branch is shared with (an "Add agent here" agent); null/absent
@@ -533,6 +540,9 @@ export interface AgentRecord {
   /** The binary/adapter a provider-routed (`kind === "agent"`) window actually launched, e.g. a
    * claude proxy or codex path. Empty for a legacy/`claude` record, whose label is its fixed kind. */
   resolved_cli?: string;
+  /** What the Draw dialog picked for a drawing agent; absent from a bridge older than the dialog. */
+  diagram_type?: string | null;
+  diagram_request?: string | null;
 }
 
 /** GET /agents — the cards plus which workspace the canvas is drawing and the hard agent cap. */
@@ -542,10 +552,27 @@ export interface AgentList {
   max_agents: number;
 }
 
-/** GET/POST /agents/branch, POST /agents/branch/update — current branch plus every local branch. */
-export interface BranchInfo {
-  current: string | null;
-  branches: string[];
+/** One worktree tab (a `BranchRecord`, id `br_*`): GET /branches. `dirty` is the uncommitted-change count. */
+export interface WorktreeRecord {
+  id: string;
+  name: string;
+  branch: string;
+  worktree: string;
+  dirty?: number;
+  worktree_lost?: boolean;
+}
+
+/** GET /branches and POST /branches/ensure — every tab plus the active one. */
+export interface WorktreeList {
+  branches: WorktreeRecord[];
+  active: string | null;
+}
+
+/** POST /branches/new — the created tab, whether `git fetch` reached the remote, and a fallback warning. */
+export interface WorktreeCreated {
+  branch: WorktreeRecord;
+  fetched: boolean;
+  warning?: string | null;
 }
 
 /** One path the first commit would swallow that the user should look at first (GET
@@ -590,7 +617,6 @@ export type AgentEvent =
   | { type: "agent-added"; agent: AgentRecord }
   | { type: "agent-removed"; id: string }
   | { type: "agent-status"; id: string; status: AgentStatus }
-  | { type: "branch-changed"; branch: string }
   | { type: "branch-removed"; id: string };
 
 /** How far a workspace's graph is from being drawable (GET /workspaces/{id}/status). A worktree is
@@ -862,6 +888,8 @@ export interface DiagramTypeDefinition {
   relation_kinds: DiagramTypeRelationKind[];
   instructions: string;
   context_sources: string[];
+  /** Optional Draw-dialog schematic id (see `drawDialog/schematics.tsx`); the library rejects an unknown one. */
+  schematic?: string;
   created_at: string;
   updated_at: string;
 }
@@ -873,6 +901,15 @@ export interface DiagramTypeSummary {
   title: string;
   description: string;
   style: string;
+  /** Which of the Draw dialog's built-in schematics this type's card uses; absent means the generic custom one. */
+  schematic?: string;
+}
+
+/** A built-in diagram kind the Draw dialog lists (GET /diagram-kinds). */
+export interface BuiltinDiagramKind {
+  id: string;
+  name: string;
+  purpose: string;
 }
 
 /** A generated custom diagram (GET /repos/{id}/custom/{typeId}) is a `Diagram` (036-shared-
@@ -901,7 +938,8 @@ export type CanvasRenderKind =
   | "group"
   | "note"
   | "sequence"
-  | "question";
+  | "question"
+  | "route";
 
 export interface CanvasPosition {
   x: number;

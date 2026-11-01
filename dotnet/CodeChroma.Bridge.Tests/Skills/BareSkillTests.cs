@@ -7,7 +7,7 @@ public class BareSkillTests
     private const string Root = "/repo";
 
     [Theory]
-    [InlineData("c1", "Draw the C1")]
+    [InlineData("system-context", "Draw the System context")]
     [InlineData("patterns", "Draw the Design Patterns diagram")]
     [InlineData("impact", "Draw the Impact diagram")]
     [InlineData("sequence", "Draw a Sequence diagram")]
@@ -39,28 +39,76 @@ public class BareSkillTests
     public void The_short_bodies_are_much_smaller_than_the_full_skill_prompt()
     {
         var full = BareSkill.Compose("/codechroma-draw-diagram type: custom — read references/type-custom.md and references/drawing-rules.md before writing anything — x", Root, "main")!;
-        var short1 = BareSkill.Compose("/codechroma-draw-diagram type: c1 — read references/type-c1.md before writing anything — x", Root, "main")!;
+        var short1 = BareSkill.Compose("/codechroma-draw-diagram type: system-context — read references/type-system-context.md before writing anything — x", Root, "main")!;
 
         Assert.True(short1.Length < full.Length / 3, $"short {short1.Length} vs full {full.Length}");
     }
 
-    [Theory]
-    [InlineData("c1", "Draw the C1")]
-    [InlineData("any", "Router")]
-    public void An_interactive_start_inlines_the_skill_and_asks_the_user_what_to_draw(string type, string expected)
+    [Fact]
+    public void An_interactive_start_inlines_the_type_body_and_asks_the_user_what_to_draw()
     {
-        var prompt = BareSkill.ComposeInteractive(type, Root, "main", "ctx-tool --repo-path x")!;
+        var prompt = BareSkill.ComposeInteractive("system-context", Root, "main", "ctx-tool --repo-path x")!;
 
-        Assert.Contains(expected, prompt);
+        Assert.Contains("Draw the System context", prompt);
         Assert.Contains("ask what they want to see", prompt);
         Assert.Contains("ctx-tool --repo-path x \"phrase\"", prompt);
         Assert.DoesNotContain("{BRIDGE}", prompt);
     }
 
     [Fact]
+    public void An_open_interactive_start_loads_no_skill_until_the_user_answers()
+    {
+        var prompt = BareSkill.ComposeInteractive("any", Root, "main", null)!;
+
+        Assert.Contains("ask what they want to see", prompt);
+        Assert.Contains("is not loaded yet", prompt);
+        Assert.DoesNotContain("Router", prompt);
+    }
+
+    [Fact]
+    public void An_interactive_start_the_terminal_already_asked_about_does_not_ask_again()
+    {
+        var prompt = BareSkill.ComposeInteractive("any", Root, "main", "ctx-tool --repo-path x", askedInTerminal: true)!;
+
+        Assert.Contains("Do not greet or ask again", prompt);
+        Assert.DoesNotContain("ask what they want to see", prompt);
+        Assert.Contains("Start by running `ctx-tool --repo-path x \"phrase\"", prompt);
+    }
+
+    [Fact]
+    public void A_requested_start_states_the_type_and_request_and_never_asks()
+    {
+        var prompt = BareSkill.ComposeInteractive("sequence", Root, "main", "ctx-tool --repo-path x", request: "how a save reaches the db")!;
+
+        Assert.Contains("picked the `sequence` diagram type", prompt);
+        Assert.Contains("how a save reaches the db", prompt);
+        Assert.Contains("do not greet them or ask what to draw", prompt);
+        Assert.DoesNotContain("ask what they want to see", prompt);
+        Assert.Contains("ctx-tool --repo-path x \"phrase\"", prompt);
+    }
+
+    [Fact]
+    public void A_requested_start_asks_the_agent_to_title_the_diagram_from_the_request()
+    {
+        var prompt = BareSkill.ComposeInteractive("sequence", Root, "main", null, request: "how a save reaches the db")!;
+
+        Assert.Contains("Name the diagram from this request", prompt);
+        Assert.Contains("/repos/main/diagrams/status", prompt);
+    }
+
+    [Fact]
+    public void A_plan_request_draws_the_impact_body_and_names_the_feature_plan_reference()
+    {
+        var prompt = BareSkill.ComposeInteractive("plan", Root, "main", null, request: "token auth")!;
+
+        Assert.Contains("Draw the Impact diagram", prompt);
+        Assert.Contains("feature-plan-mode.md", prompt);
+    }
+
+    [Fact]
     public void An_interactive_start_without_a_context_command_does_not_mention_one()
     {
-        var prompt = BareSkill.ComposeInteractive("c1", Root, "main", null)!;
+        var prompt = BareSkill.ComposeInteractive("system-context", Root, "main", null)!;
 
         Assert.DoesNotContain("\"phrase\"", prompt);
     }

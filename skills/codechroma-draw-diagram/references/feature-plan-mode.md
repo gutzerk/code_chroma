@@ -8,7 +8,7 @@ Use this when the request describes a **future feature** — in the user's own w
 diagram of it: "draw a plan for token auth", "show me what the checkout redesign will add", "add the
 planned rate limiter to this diagram". This is **not** one of the four `type id` rows in `SKILL.md`'s
 router: you are authoring **Planned blocks** (boxes for code that doesn't exist yet, `meta.plan_kind`)
-into a diagram file dedicated to this one feature, not into `c1`/`patterns`/`impact`/`custom`.
+into a diagram file dedicated to this one feature, not into `system-context`/`patterns`/`impact`/`custom`.
 
 ## 1. The Feature plan
 
@@ -63,7 +63,7 @@ curl -s "${CODECHROMA_BRIDGE_URL:-http://localhost:8000}/repos/${CODECHROMA_WORK
     from scratch? Don't guess silently, and don't create a diagram no one asked for a shape of.
 
 Whichever branch you took, the Planned blocks you author **always** go into this feature's own
-`.codechroma/diagrams/feature-plan/<slug>/<slug>.json` — never into `c1.json`/`patterns.json`/
+`.codechroma/diagrams/feature-plan/<slug>/<slug>.json` — never into `system-context.json`/`patterns.json`/
 `custom/<id>.json`, even when one of those supplied the context you copied boxes from.
 
 ## 4. Minimal current context
@@ -98,6 +98,8 @@ of this feature's plan. Its mere presence is the marker; there is no separate bo
   only — same fallback rule as `plan.json`'s own `details` (used when set, `description` otherwise).
 - Every node still needs a real `description` and, for context nodes, a real `path`/`node_id` — the
   usual anti-patterns (`drawing-rules.md`) still apply, including to Planned blocks.
+- Set the top-level `"title"` to the feature in the user's words ("What token auth adds to login"),
+  never "Feature plan" — see `drawing-rules.md` "Naming the diagram (`title`)".
 - Set the top-level `"style"` (a catalog preset, usually `"boxes-arrows"`) same as any type authoring
   this shape directly — there's no external style source to inherit it from for this kind.
 
@@ -113,13 +115,15 @@ Write the JSON to the returned `feature_plan_path` (create
 see `drawing-rules.md`'s Bridge contract.
 
 ⚠ `drawing-rules.md`'s Bridge contract already excludes `feature-plan/<slug>` from the status-POST
-section (only `c1` has a live status route) — nothing to send here, it never auto-generates.
+section (only `system-context` has a live status route) — nothing to send here, it never auto-generates.
 
 ## 7. Self-check — never report success on a run that didn't print `OK`
 
 ```bash
 python3 .claude/skills/codechroma-draw-diagram/scripts/check_diagram.py --kind feature-plan --slug <slug>
 ```
+
+Edges follow the shared edge `kind` vocabulary (`calls`, `spawns`, `data`, `minor`; `drawing-rules.md` "Edge kinds"): a planned step that starts a process or reads/writes a store gets `spawns`/`data`.
 
 Same flat-shape budgets as `custom` (60 nodes / 100 relations / 40-char names / 50-char edge labels)
 and the same common codes (`drawing-rules.md`), with one exception:

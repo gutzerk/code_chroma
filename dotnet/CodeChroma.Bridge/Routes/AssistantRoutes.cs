@@ -17,7 +17,13 @@ public static class AssistantRoutes
         app.MapPut("/assistant/settings", async (HttpRequest request, UserPaths paths) =>
         {
             var body = await Reply.LenientBody(request);
-            if (body.ContainsKey("api_key_set") && !body.ContainsKey("api_key")) body["api_key"] = null;
+            if (body.Count == 1 && body.ContainsKey("instruction"))
+            {
+                var stored = Load(paths);
+                stored["instruction"] = body["instruction"]?.DeepClone();
+                body = stored;
+            }
+            else if (body.ContainsKey("api_key_set") && !body.ContainsKey("api_key")) body["api_key"] = null;
             var problems = Validate(body);
             if (problems.Count > 0) return Reply.Error(400, string.Join("; ", problems));
             if (Json.Str(body["api_key"]) == "") body["api_key"] = null;

@@ -378,19 +378,17 @@ export class MockWorkflowEngine {
     return full;
   }
 
-  /** Asks the run agent (target "run") or one step's agent; never changes run state, except a redo proposal stops the run. */
+  /** Asks the run agent (target "run"); a step's agent is talked to in its terminal. Never changes run state, except a redo proposal stops the run. */
   message(runId: string, target: string, text: string): MessageReply {
     const run = this.require(runId);
-    const ids = this.stepIds(run);
-    if (target !== "run" && !ids.includes(target)) throw new Error(`unknown target ${target}`);
+    if (target !== "run") throw new Error("talk to a step's agent in its terminal");
     this.push(run, { target, role: "user", text });
     const workflow = this.workflows.find((wf) => wf.id === run.workflowId);
-    const slug = workflow?.steps.find((s) => s.id === target)?.slug;
     const reply = this.push(run, {
       target,
       role: "agent",
-      text: slug ? `(${slug} agent) ${slug} is ${this.step(run, target)?.status}.` : `Run is ${run.state}.`,
-      chips: slug === "implement" ? [{ label: "hello()", nodeId: "fn:hello" }] : undefined,
+      text: `Run is ${run.state}.`,
+      chips: /\bwhere\b/i.test(text) ? [{ label: "hello()", nodeId: "fn:hello" }] : undefined,
     });
     this.notify(run, "run.message");
     if (target === "run" && /\bredo\b/i.test(text) && workflow) this.propose(run, workflow, text);

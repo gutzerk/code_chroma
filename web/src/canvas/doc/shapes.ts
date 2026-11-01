@@ -1,6 +1,6 @@
 /** The shape registry: `meta.shape` names → conventional diagram shapes (styled in styles.css as `.node-shape-<name>`). */
 export const NODE_SHAPES = [
-  "database", "client", "queue", "actor", "cache", "storage", "external",
+  "database", "client", "queue", "actor", "cache", "storage", "external", "planned", "data",
 ] as const;
 
 export type NodeShape = (typeof NODE_SHAPES)[number];

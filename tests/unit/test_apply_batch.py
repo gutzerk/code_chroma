@@ -28,22 +28,16 @@ def test_add_element_creates_it_and_maps_the_temp_id():
     assert element.render == "c1"
 
 
-def test_add_note_defaults_render_to_note():
+@pytest.mark.parametrize(
+    ("op", "render"), [("add_note", "note"), ("add_group", "group")]
+)
+def test_add_note_and_group_default_their_render(op, render):
     doc = CanvasDoc()
 
-    result = apply_batch(doc, [{"op": "add_note", "temp_id": "t1", "label": "remember this"}])
+    result = apply_batch(doc, [{"op": op, "temp_id": "t1", "label": "x"}])
 
     assert result.ok
-    assert result.doc.elements[result.id_map["t1"]].render == "note"
-
-
-def test_add_group_defaults_render_to_group():
-    doc = CanvasDoc()
-
-    result = apply_batch(doc, [{"op": "add_group", "temp_id": "g1", "label": "Persistence"}])
-
-    assert result.ok
-    assert result.doc.elements[result.id_map["g1"]].render == "group"
+    assert result.doc.elements[result.id_map["t1"]].render == render
 
 
 def test_add_element_sanitizes_style_to_the_allowed_keys():
@@ -205,31 +199,17 @@ def test_delete_element_cascades_to_its_edges():
     assert "e1" not in result.doc.edges
 
 
-def test_delete_edge_is_a_no_op_once_its_own_batch_already_cascaded_it_away():
+@pytest.mark.parametrize(
+    "edge_op",
+    [{"op": "delete_edge", "id": "e1"}, {"op": "update_edge", "id": "e1", "label": "renamed"}],
+)
+def test_edge_op_is_a_no_op_once_its_own_batch_already_cascaded_it_away(edge_op):
     doc = CanvasDoc(
         elements={"a": Element(id="a", render="c1"), "b": Element(id="b", render="c1")},
         edges={"e1": Edge(id="e1", **{"from": "a"}, to="b")},
     )
 
-    result = apply_batch(doc, [
-        {"op": "delete_element", "id": "a"},
-        {"op": "delete_edge", "id": "e1"},
-    ])
-
-    assert result.ok
-    assert "e1" not in result.doc.edges
-
-
-def test_update_edge_is_a_no_op_once_its_own_batch_already_cascaded_it_away():
-    doc = CanvasDoc(
-        elements={"a": Element(id="a", render="c1"), "b": Element(id="b", render="c1")},
-        edges={"e1": Edge(id="e1", **{"from": "a"}, to="b")},
-    )
-
-    result = apply_batch(doc, [
-        {"op": "delete_element", "id": "a"},
-        {"op": "update_edge", "id": "e1", "label": "renamed"},
-    ])
+    result = apply_batch(doc, [{"op": "delete_element", "id": "a"}, edge_op])
 
     assert result.ok
     assert "e1" not in result.doc.edges

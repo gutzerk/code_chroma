@@ -9,9 +9,9 @@
   margin: 0;
   padding: 12px;
   box-sizing: border-box;
-  border-radius: 22px;
-  background: #15181f;
-  color: #c4c8d4;
+  border-radius: var(--radius-panel);
+  background: var(--bg-panel);
+  color: var(--text-strong);
   z-index: 41;
 }
 .activity-content {
@@ -24,7 +24,7 @@
 .activity-content[hidden],
 .activity-agent-content[hidden],
 .activity-workflows[hidden] {
-  display: none;
+  display: none !important;
 }
 .activity-panel.is-collapsed {
   width: 52px;
@@ -40,16 +40,16 @@
 }
 .activity-empty {
   font-size: 12px;
-  color: #8b91a1;
+  color: var(--text-2);
   line-height: 1.6;
   padding: 12px;
 }
 .activity-agent-badge {
   flex-shrink: 0;
   padding: 1px 6px;
-  border-radius: 999px;
-  background: #8fb0ff26;
-  color: #8fb0ff;
+  border-radius: var(--radius-full);
+  background: var(--accent-bg);
+  color: var(--accent);
   font-size: 9px;
   font-weight: 600;
   letter-spacing: 0.04em;
@@ -87,8 +87,8 @@
   width: auto;
   height: 28px;
   padding: 4px 10px;
-  border-radius: 8px;
-  background: #262b38;
+  border-radius: var(--radius-lg);
+  background: var(--bg-raised-2);
   font-size: 11px;
 }
 .left-panel .draw-diagram-button svg {
@@ -104,7 +104,7 @@
 
 .left-panel .draw-diagram-button {
   border: 0;
-  color: #e9ebf2;
+  color: var(--text-1);
   cursor: pointer;
 }
 
@@ -126,8 +126,8 @@
   min-width: 0;
   gap: 2px;
   padding: 3px;
-  border-radius: 8px;
-  background: var(--question-surface);
+  border-radius: var(--radius-lg);
+  background: var(--bg-inset);
 }
 .activity-segmented button {
   flex: 1 1 0;
@@ -136,7 +136,7 @@
   padding: 0 8px;
   overflow: hidden;
   border: 0;
-  border-radius: 6px;
+  border-radius: var(--radius-md);
   background: transparent;
   color: var(--text-muted-soft);
   cursor: pointer;
@@ -146,7 +146,7 @@
   white-space: nowrap;
 }
 .activity-segmented button[aria-selected="true"] {
-  background: #2a3142;
+  background: var(--bg-raised-2);
   color: var(--text-soft);
   font-weight: 600;
 }
@@ -158,7 +158,7 @@
 .activity-header[data-tab] {
   gap: 8px;
   padding-bottom: 10px;
-  border-bottom: 1px solid #2c3242;
+  border-bottom: 1px solid var(--bg-raised-2);
 }
 .activity-panel:not([data-size="default"]) .activity-segmented {
   flex: none;
@@ -205,9 +205,9 @@
   height: 34px;
   padding: 0 12px;
   border: 0;
-  border-radius: 8px;
-  background: #8fb0ff;
-  color: #0f1320;
+  border-radius: var(--radius-lg);
+  background: var(--accent);
+  color: var(--text-invert);
   cursor: pointer;
   font: inherit;
   font-size: 13px;
@@ -215,20 +215,20 @@
   white-space: nowrap;
 }
 .activity-primary:hover:not(:disabled) {
-  background: #a5c0ff;
+  background: var(--accent-hover);
 }
 .activity-primary:disabled {
   opacity: 0.45;
   cursor: default;
 }
 .activity-outline {
-  border: 1px solid #2c3242;
+  border: 1px solid var(--border-faint);
   background: transparent;
-  color: #e6e9f0;
+  color: var(--text-soft);
   font-weight: 400;
 }
 .activity-outline:hover {
-  background: var(--question-surface);
+  background: var(--bg-raised);
 }
 .activity-panel[data-size="full"] .activity-primary,
 .activity-panel[data-size="full"] .activity-outline {
@@ -243,7 +243,7 @@
   height: 32px;
   padding: 0;
   border: 0;
-  border-radius: 8px;
+  border-radius: var(--radius-lg);
   background: var(--bg-raised);
   color: var(--text-soft);
   cursor: pointer;
@@ -258,15 +258,15 @@
 }
 .activity-ghost {
   background: transparent;
-  color: #a8b0c2;
+  color: var(--text-mid);
   width: 34px;
   height: 34px;
-  border-radius: 6px;
+  border-radius: var(--radius-md);
 }
 .activity-ghost:hover:not(:disabled),
 .activity-ghost[aria-pressed="true"] {
-  background: var(--question-surface);
-  color: #e6e9f0;
+  background: var(--bg-raised);
+  color: var(--text-soft);
 }
 .activity-switcher {
   position: relative;
@@ -287,7 +287,7 @@
   height: 40px;
   padding: 0 10px;
   border: 0;
-  border-radius: 10px;
+  border-radius: var(--radius-xl);
   background: var(--bg-raised);
   color: var(--text-soft);
   cursor: pointer;
@@ -312,7 +312,7 @@
 .activity-switcher-meta {
   overflow: hidden;
   color: var(--text-muted-soft);
-  font-family: "JetBrains Mono", ui-monospace, monospace;
+  font-family: var(--font-mono);
   font-size: 12px;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -328,7 +328,7 @@
   padding: 4px;
   overflow: auto;
   list-style: none;
-  border-radius: 10px;
+  border-radius: var(--radius-xl);
   background: var(--bg-raised-2);
 }
 .activity-switcher-menu button {
@@ -338,7 +338,7 @@
   width: 100%;
   padding: 6px 8px;
   border: 0;
-  border-radius: 8px;
+  border-radius: var(--radius-lg);
   background: transparent;
   color: var(--text-soft);
   cursor: pointer;
@@ -364,7 +364,7 @@
   height: 36px;
   padding: 0;
   border: 0;
-  border-radius: 10px;
+  border-radius: var(--radius-xl);
   background: transparent;
   color: var(--text-muted-soft);
   cursor: pointer;
@@ -398,7 +398,7 @@
   right: -4px;
   min-width: 16px;
   padding: 0 4px;
-  border-radius: 999px;
+  border-radius: var(--radius-full);
   background: var(--bg-raised-2);
   color: var(--text-soft);
   font-size: 12px;
@@ -406,11 +406,11 @@
   text-align: center;
 }
 .activity-badge[data-active="true"] {
-  background: #4ade8033;
+  background: color-mix(in srgb, var(--success) 20%, transparent);
   color: var(--success);
 }
 .activity-badge[data-needs-you="true"] {
-  background: #facc15;
+  background: var(--warning);
   color: var(--text-invert);
   font-weight: 700;
 }
@@ -426,7 +426,7 @@
   font-size: 12px;
   font-weight: 600;
 }
-.activity-strip .activity-avatar-dot {
+.activity-strip .activity-avatar > .agent-led {
   position: absolute;
   right: -2px;
   bottom: -2px;
@@ -434,13 +434,19 @@
   height: 8px;
   box-shadow: 0 0 0 2px var(--bg-panel);
 }
+.activity-strip .activity-avatar > .agent-led-badge {
+  position: absolute;
+  right: -4px;
+  top: -4px;
+  margin: 0;
+}
 .activity-switcher-menu button[data-diagram] {
-  box-shadow: inset 0 0 0 1px #8fb0ff66;
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent) 40%, transparent);
 }
 .activity-switcher-count {
   flex-shrink: 0;
   padding: 1px 6px;
-  border-radius: 999px;
+  border-radius: var(--radius-full);
   background: var(--bg-raised-2);
   color: var(--text-muted-soft);
   font-size: 12px;
@@ -482,7 +488,7 @@
   min-width: 0;
   padding: 10px 12px;
   border: 0;
-  border-radius: 10px;
+  border-radius: var(--radius-xl);
   background: var(--bg-raised);
   color: var(--text-soft);
   cursor: pointer;
@@ -493,7 +499,7 @@
   box-shadow: inset 0 0 0 1px var(--select-ring);
 }
 .activity-agent-list-item[data-diagram] {
-  box-shadow: inset 0 0 0 1px #8fb0ff66;
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent) 40%, transparent);
 }
 .activity-panel.is-full .agent-terminal-dock-header {
   flex-wrap: nowrap;
@@ -550,7 +556,7 @@
   display: block;
   height: 5px;
   overflow: hidden;
-  border-radius: 3px;
+  border-radius: var(--radius-xs);
   background: var(--bg-raised-2);
 }
 .agent-usage-meter > span {

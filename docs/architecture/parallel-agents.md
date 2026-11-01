@@ -1,6 +1,86 @@
-# Parallel agents (`src/codechroma/bridge/agents/`) — one `claude` per git worktree, or attached
+# Parallel agents — one `claude` per git worktree, or attached
+
+## Production C# bridge (change this first)
+
+The desktop app runs **`dotnet/CodeChroma.Bridge`**. Implement agent fixes there first and test
+`dotnet/CodeChroma.Bridge.Tests`; the Python bridge sections below are development/reference notes.
+A Python-only change does not fix the production desktop runtime.
+
+- `Agents/AgentRuntime.cs` starts persisted agents at bridge boot; `Routes/AgentRoutes.cs` handles
+  manual starts, resumes, stops, and usage. Both launch through `Terminal/TerminalAgents.cs`.
+- A fresh Claude launch receives a CodeChroma-generated UUID via `--session-id`, saved on its
+  agent record. A plain resume uses that agent's saved ID. Workflow forks use the source's
+  `--resume` plus `--fork-session` and a separate owned `--session-id`, preserving the source.
+  Shells and alternative CLIs receive none of these new Claude-specific settings.
+- `Agents/AgentSessionOwnership.cs` supplies an explicit command `SessionStart` hook through
+  `--settings`, including for bare diagram agents. The native bridge's `agent-session` helper reads
+  the hook JSON from stdin and atomically writes the session ID into the unique file named by
+  `CODECHROMA_AGENT_SESSION_FILE`. It does not start a server and requires no Python interpreter.
+  Windows hooks explicitly use PowerShell with its call operator and quoting, so tracking also
+  works when Git Bash is unavailable; Unix hooks use shell quoting.
+- `session_tracking_id` in `agents.json` identifies the current launch's file under the main repo's
+  `.codechroma/agent-sessions/`. `AgentManager.CaptureSessionId` reads only that file, retaining the
+  stored ID if it is missing or malformed. This follows `/clear` and interactive `/resume` across
+  app restarts. Each launch gets a new tracking file, so late hooks from an older process cannot
+  overwrite the current process's conversation. An idempotent start records the actual existing PTY.
+- Never infer an interactive agent's session ownership from a transcript's directory, `cwd`, or
+  modification time: attached agents, workflow steps, and external terminals can share a worktree.
+  Legacy records keep their saved session ID; records without an ID start fresh. `Transcripts.cs`
+  still reads known transcripts for token usage and supports workflow discovery, but is not used
+  to choose an interactive agent's resume target.
+- Regression coverage: `Agents/SessionOwnershipTests.cs`, `Agents/OpenStepAgentTests.cs`, and
+  `Terminal/TerminalAgentsBareTests.cs`. Run
+  `dotnet test dotnet/CodeChroma.Bridge.Tests/CodeChroma.Bridge.Tests.csproj`.
+
+## Python development/reference implementation
+
+The Python bridge uses the same `session_tracking_id` and per-launch file format. Both manual
+starts and autostart install a `SessionStart` hook from `agents/session_ownership.py`, run with the
+bridge's Python interpreter and an absolute script path. The helper uses only the standard library
+and works from any worktree. Resume reads only that launch's file, following `/clear` and interactive
+`/resume`; missing or malformed events retain the saved ID. Idempotent starts retain the actual
+PTY's tracking metadata, and late events from earlier launches cannot replace the current session.
 
 > Removed dead components: `AgentRail`, `AgentWindow`, `AgentFullScreen`, `AgentTab` and `useFullScreenAgentId` (plus their tests/CSS) are deleted -- `ActivityPanel` + `AgentTerminalDock` replaced them. Mentions of those names below are historical; the live flow is `windowActions.ts` + `ActivityPanel`.
+
+`ActivityPanel` handles Ctrl/Cmd+Alt+Up/Down in the window capture phase to cycle agents, wrapping
+at either end. It uses the same selection path as the dropdown, shows the Agents tab, expands a
+collapsed panel, preserves full screen, and focuses the selected terminal. Modal dialogs keep their
+keyboard input. The dropdown's tooltip documents these shortcuts.
+
+Wikis do not follow a tab: wiki-general and the plain wiki live in the main checkout and are tracked against the main branch tip (see `wiki-general.md`, "One wiki per project").
+
+## Worktree tabs (C# bridge; supersedes the personal-worktree and branch-switcher notes below)
+
+A tab is a worktree on its own branch: `BranchRecord` (`br_*`, `.codechroma/branches.json`, managed by
+`Workspaces/BranchManager.cs`). Agents, diagrams and artifacts belong to a tab; main's checkout is never
+a tab and never hosts an agent. Artifacts are not shared between tabs.
+
+- `POST /branches/ensure` creates `wt-1` only when no records exist, returns `{branches, active}`.
+- `POST /branches/new {name?}` creates the first free `wt-N` (or `name`), serialized under a lock so
+  concurrent calls never pick one name. Base: `git fetch origin <default>` (20 s, `GIT_TERMINAL_PROMPT=0`),
+  branch off `origin/<default>`; fall back to local `<default>` (`WorktreeOps.MainBranch`), then `HEAD`
+  (no remote, fetch failed, empty remote). Always `--no-track`; the main checkout is never touched. Reply
+  `{branch, fetched, warning}`: `warning` is set whenever `fetched` is false, never an error. The new tab
+  becomes `active`.
+- `PATCH /branches/{id} {name}` renames the display name and the git branch (`git branch -m`); `id` and
+  worktree path stay; 409 on an invalid, duplicate or held branch name. Attached agents' `branch` follows.
+- `PUT /branches/active {id}`; `GET /branches` returns `{branches, active}`, each record with `name`,
+  `dirty` (count of `git status --porcelain` entries) and `worktree_lost`.
+- `DELETE /branches/{id}?worktree_too=` stops the attached agents' sessions first (so nothing holds the cwd),
+  removes the worktree with `--force` (uncommitted changes never block it; unlocked), and only then deletes the
+  agent records, so a refused removal (409) leaves the agents in place. Without `worktree_too` ("keep") the
+  record stays, so the tab returns on the next open; `active` is cleared and the client picks a neighbour.
+- `GET /branches/choices`, the open-existing-branch mode of `POST /branches`, and
+  `GET|POST /agents/branch`, `POST /agents/branch/update` are removed (`MainBranchOps` is read-only now).
+- `POST /agents` takes `workspace` (a `br_*` tab id). Without `attach_to` the agent shares that tab's
+  worktree (`shares_workspace_with` = the tab, `AgentRecord.workspace` = the tab, `base_branch` = the tab's
+  branch); `attach_to=main` or no `workspace` is a 400; an explicit `attach_to=pr-N` is respected. No
+  personal sub-worktree (`NewWorktree`) is created any more. `MaxAgents` stays global across tabs.
+  Older records with an empty `workspace` still load.
+
+Tests: `dotnet/CodeChroma.Bridge.Tests/Workspaces/WorktreeTabTests.cs` plus the shared
+`tests/fixtures/bridge_contract/{branches,agents}.cases.json`.
 
 Several Claude sessions at once, each on its own branch in its own `git worktree` by default, each a
 window on the canvas. `<main_root>/.codechroma/agents.json` is the registry (it spans every worktree,
@@ -92,9 +172,9 @@ branch through an agent attached to it (`_guard_shared_worktree`, keyed off `Age
   `lifespan()`, not `reconcile()` itself: `PtySession.__init__` calls
   `asyncio.get_running_loop().add_reader(...)`, and `reconcile()` runs synchronously inside
   `BridgeServices.create()`, called from `create_app()` — before any event loop exists. Resumes the
-  last chat when `AgentManager.capture_session_id()` still has a session id (safe to call
-  unconditionally: it only *upgrades* the stored id when a newer transcript exists, never clears it),
-  starts fresh otherwise. Skips a `worktree_lost` record (no `cwd` to spawn into) and swallows
+  session id already stored on the agent; a fresh launch gets a UUID via Claude's `--session-id`
+  option, so another Claude process in the same worktree cannot be mistaken for this agent. Legacy
+  records without a session id start fresh. Skips a `worktree_lost` record (no `cwd` to spawn into) and swallows
   `AgentStartError`/any exception per record (logged, not raised) so one agent missing its worktree or
   `claude` binary never blocks the rest from coming up. No broadcast on success: no websocket is
   attached this early in boot, so a freshly-connecting client just reads live status off `GET /agents`,
@@ -112,41 +192,9 @@ branch through an agent attached to it (`_guard_shared_worktree`, keyed off `Age
     🔴 `None` is the "written before this field" case and means **visible on every branch**; the web
     side folds an absent key into the same thing (`branchScope.baseBranchOf`) — an `undefined` compared
     against a branch name matched none of them, which hid every agent served by an older bridge.
-  - `main_branch.switchable_branches()` is what `GET|POST /agents/branch` reports: `list_branches`
-    minus every branch a *non-main* worktree holds. Git refuses a second checkout of such a branch, so
-    offering one could only ever produce `already used by worktree at ...`; the filter is by held-ness,
-    not by the `agent/` prefix, so a hand-made worktree is covered too.
-  - `main_branch.checkout()` no longer pre-checks the tree for *any* uncommitted or untracked file —
-    it just runs `git checkout <branch>` and lets git decide. Git itself carries forward any change
-    (tracked or untracked) that doesn't collide with what the target branch tracks, PyCharm-style; it
-    only refuses — and `checkout()` only raises `DirtyWorkingTreeError` — when git's own stderr ends
-    in `"before you switch branches"` (its wording for both "would be overwritten" and "would be
-    removed"), i.e. a real conflict. `POST /agents/branch` passes that stderr straight through as the
-    409's `detail`.
-  - Update (PyCharm's Update Project): `POST /agents/branch/update` fast-forwards main's current
-    branch from its upstream via `main_branch.update_branch()` (`git pull --ff-only`, run with the
-    bridge's long network timeout courtesy of `git_long`) — no merge or rebase commit is ever
-    invented, and a diverged branch or missing upstream surfaces git's stderr as a 409 via the
-    `GitLongError` table entry. The same 🔴 live-agent-in-main guard as the checkout route applies.
-    Because a fast-forward only moves the branch tip (it never changes *which* branch is checked
-    out), nothing has to be settled back to main, and only a `branch-changed` ping is broadcast. The
-    canvas `BranchSwitcher` gains an `Update` action (→ `updateCurrentBranch` in `branchActions.ts`)
-    above the branch list.
-  - 🔴 `POST /agents/branch` 409s while a **live** agent's `worktree` is main's own root (an
-    `attach_to: "main"` agent): a checkout swaps the files under its running `claude`. Liveness comes
-    off `agent_sessions`, not `record.status`, which is stale until `agent_payload` refreshes it. An
-    agent in its own worktree is unaffected by main's checkout — that is the whole point of worktrees —
-    and is deliberately not guarded.
-  - Canvas side: `BranchSwitcher.tsx` re-fetches `GET /agents/branch` every time it *opens*, not just
-    at `AgentWindowLayer`'s mount — a branch created or deleted from a terminal (or another window)
-    between opens must not leave the dropdown showing a stale list. The fetch runs in the click
-    handler, not inside the `setOpen` updater, so an open always triggers it exactly once. A
-    `branch-changed` ping (an external checkout in another window) also re-reads the full list, not
-    just the ping's current branch — the ping names the branch, not the branches, so it can't rebuild
-    the list on its own. `branchScope.ts` owns the single
-    predicate (`isAgentOnBranch`), `branchActions.ts`'s `switchBranch` the single manual-checkout path
-    (only `BranchSwitcher.tsx` calls it now), and the last failure lives in `branchStore` so the
-    switcher's own modal is the one place a checkout failure ever surfaces.
+  - 🔴 Superseded by worktree tabs (see "Worktree tabs"): `main_branch.switchable_branches`, `main_branch.checkout`/`update_branch`,
+    `GET|POST /agents/branch`, `POST /agents/branch/update` and the canvas `BranchSwitcher` (with `branchStore`,
+    `branchActions`, `branchScope`) were removed; main is read-only for agents, and `base_branch` comes from the tab's record.
     🔴 **Opening an agent's window is no longer coupled to a checkout at all.** It used to be
     (`openAgentOnItsBranch`: check the agent's `base_branch` out on main first, *then* restore the
     window) — removed after an incident where a dirty main tree made that checkout fail, and keep
@@ -225,11 +273,16 @@ branch through an agent attached to it (`_guard_shared_worktree`, keyed off `Age
   on a fresh (non-resume) start, calls `session.inject_when_idle(text)` — a public `AgentSession` /
   `AgentSessionPort` method that spawns a background task polling the session's own rendered
   `ScreenTap` tail for the Claude idle prompt (the `❯` line, the same rule `detect/claude.toml` uses)
-  and then types the line as a normal user message, giving up quietly (never typing into a
+  and then types the line as a normal user message (text first, then Enter as a separate write
+  after `context_inject_submit_delay_seconds`, C# `AgentSession.SubmitDelay`, 0.3 s: Claude Code reads
+  one write of text plus Enter as a paste and does not submit it), giving up quietly (never typing into a
   `working`/`blocked` agent) if it never idles. Because injection is wired only in the route,
   `autostart.py` (which spawns via `agent_sessions.start` directly) never
   injects — correct, since there's no live view at boot. Tunables: `agents_routes`
-  `context_inject_attempts` / `context_inject_interval_seconds`.
+  `context_inject_attempts` / `context_inject_interval_seconds` / `context_inject_submit_delay_seconds`.
+  The text may also be a builder (Python: async callable, C#: `Func<string?>`) run once the agent
+  idles; a null result types nothing and resolves `False` (question batches use this, see
+  [`ai-questions.md`](ai-questions.md)).
   🔵 **`context_kind` now splits both the wrapping and the delivery.** `AgentRecord.context_kind`
   (`"view"` default, or `"task"`) rides alongside `context`; `consume_context()` returns both as a
   `(text, kind)` pair, called up front in `post_agent_start` (before argv is even built) rather than
@@ -238,7 +291,7 @@ branch through an agent attached to it (`_guard_shared_worktree`, keyed off `Age
   (`terminal/agents.py`), which appends it as a positional argv entry for the `claude` binary — so the
   CLI process starts already answering it, and the window the user opens already shows the agent's
   question instead of an empty prompt waiting on idle-detection. `DrawDiagramButton`'s "Draw…" button
-  (see `single-canvas.md`) is the one caller today: `attachAgent`/`launchAgent` accept an optional `task`
+  (now via `DrawDialog`, see `web-canvas-shell.md`) is the one caller today: `attachAgent`/`launchAgent` accept an optional `task`
   string that, when given, takes priority over `context` and is sent with `contextKind: "task"`.
   🔴 **`context` is control-character-free by construction** (`manager._clean_context`, applied in
   both `create()` and `AgentRecord.from_json`, so a record persisted by an older build is cleaned on
@@ -255,15 +308,10 @@ branch through an agent attached to it (`_guard_shared_worktree`, keyed off `Age
   🔴 Unknown means *hold*, never `idle`; a malformed manifest degrades to "always hold".
   ⚠ The manifest is a runtime data file, so it is read through `resources.py`'s `resource_path`
   (kind `"detect"`) and (for any bundled bridge) must be shipped next to it — otherwise it 404s there.
-- `transcripts.py` — the `claude --resume` session id. 🔴 The `~/.claude/projects/<escaped>` name is
-  **not guessed**: a wrong escape would silently start a *fresh* conversation. Every transcript
-  records its own `cwd`, so the id is read from the newest one whose `cwd` is this worktree.
-  🔴 `cwd` alone can't tell two `attach_to` siblings apart (they share one worktree by design — see
-  above), so `find_session_id` takes an `exclude` set and `AgentManager.capture_session_id`
-  (`manager.py`'s `_sibling_session_ids`) feeds it every *other* record's already-claimed
-  `session_id` for that same worktree. Without this, restarting/resuming the sibling that hasn't
-  been touched most recently would silently resume the other one's live conversation instead of
-  starting fresh — clicking that agent's rail card looked like "the wrong agent's session opened."
+- Session ownership — fresh Claude sessions receive a UUID from CodeChroma through `--session-id`
+  and save it with their agent record. Restarts use that exact ID with `--resume`; transcript `cwd`
+  and modification order are never used to infer ownership, since external terminals can use the
+  same worktree and attached agents intentionally share one.
 - `publish.py` — "Create PR": `git push -u origin <branch>` then `gh pr create --fill`. Every
   blocker is a preflight reason the button renders **as its disabled label**, never a post-click
   error. Uncommitted files are not a blocker but a forced choice (commit them, or publish without).
@@ -437,9 +485,7 @@ branch through an agent attached to it (`_guard_shared_worktree`, keyed off `Age
   "×" instead opens `CloseAgentDialog` (`AgentWindowLayer`), a confirmation whose "delete worktree"
   checkbox is **off by default** — only on an explicit tick does it send `worktree=true` to the endpoint
   and remove that now-orphaned directory. The `agent/<id>` branch is **never** deletable from the UI:
-  the dialog has no branch checkbox. A stopped agent is closed, not revived. ⚠ Not via `BranchSwitcher`:
-  a leftover (non-deleted) worktree still holds that `agent/<id>` branch, so `switchable_branches`
-  filters it out of the list (it only reappears once that directory is removed). 🔴 Deliberately not
+  the dialog has no branch checkbox. A stopped agent is closed, not revived. (Historical: agents no longer get own worktrees, see "Worktree tabs".) 🔴 Deliberately not
   auto-pruned: branches and directories the user chose to keep accumulate until cleaned by hand
   (`git worktree remove` / `git branch -d`) — the non-deleted close still leaves them, that is the
   deliberate trade for "× deletes nothing by default". `_unique_id` (`manager.py`) checks
@@ -448,7 +494,7 @@ branch through an agent attached to it (`_guard_shared_worktree`, keyed off `Age
   or worktree — this is what used to surface as
   `fatal: '<branch>' is already used by worktree at '<path>'` from `worktree.add`.
 - Tests: `tests/unit/test_{workspaces,agent_worktree,agent_manager,agent_bootstrap,agent_status,
-  agent_publish,agent_transcripts,screen_tap,git_diff_base,diagram_seed}.py`,
+  agent_publish,screen_tap,git_diff_base,diagram_seed}.py`,
   `tests/unit/test_bridge_{agents,workspace}_route.py`, `tests/unit/test_bridge_agents_autostart.py`,
   `tests/integration/test_{workspace_switch,nested_worktree_excluded}.py`,
   `web/src/agents/*.test.{ts,tsx}`,
@@ -460,18 +506,18 @@ branch through an agent attached to it (`_guard_shared_worktree`, keyed off `Age
 400). `AgentManager.CreateInRun` puts the record in that run's own worktree
 (`WorkflowRunner.WorktreeFor(MainRoot, runId)`, 404 when it is gone), on the worktree's current branch,
 with `source_run` and `fork_session` persisted on the record (both also in the payload). A
-non-resume `POST /agents/{id}/start` then launches `claude --resume <fork_session> --fork-session`
+non-resume `POST /agents/{id}/start` then launches `claude --resume <fork_session> --fork-session --session-id <owned UUID>`
 (`TerminalAgents.Resolve(..., forkSession: true)`, claude kind only), so the step's own session is
 never written to; `{resume:true}` resumes the agent's own (forked) session as usual.
-`CaptureSessionId` excludes `fork_session` and every step session recorded on the run, so the agent
-never claims a step's transcript in the shared worktree. Deleting the worktree or branch through
+`CaptureSessionId` reads only the agent's per-launch session file, so it never claims a step's
+transcript in the shared worktree. Deleting the worktree or branch through
 such an agent is refused (the run owns them). Runs are looked up under the main repository only.
 Web: `AgentClient.openStepSession`, `launchAgent.openStepAgent`, the Open agent button in
-`workflows/StepRail.tsx`. Tests: `CodeChroma.Bridge.Tests/Agents/OpenStepAgentTests.cs`.
+`workflows/StepRail.tsx`. The workflow live view's Agent tab no longer embeds that agent's terminal (`StepTerminal` was removed, nothing starts an agent on its own); only the explicit button opens one. Tests: `CodeChroma.Bridge.Tests/Agents/OpenStepAgentTests.cs`.
 
 ## Canvas questions (017)
 
-Claude agent windows launch with the CodeChroma MCP server (`ask_user`) registered through `agent_cli`'s `mcp` parameter, plus the `CODECHROMA_BRIDGE_URL`/`CODECHROMA_QUESTION_TOKEN` env vars; see [`ai-questions.md`](ai-questions.md) "Agent wiring". A bridge restart invalidates old tokens, so agent windows are respawned with fresh ones.
+Claude agent windows launch with the CodeChroma MCP server (`ask_user`) registered through `agent_cli`'s `mcp` parameter, plus the `CODECHROMA_BRIDGE_URL`/`CODECHROMA_QUESTION_TOKEN` env vars; see [`ai-questions.md`](ai-questions.md) "Agent wiring". A bridge restart invalidates old tokens, so agent windows are respawned with fresh ones. `ask_user` is non-blocking: the agent ends its turn, and once the user has answered or skipped every open question of that agent, all its answers are typed into that agent's terminal as one next message (an "Add diagram" request is typed at once) via `AgentSession.inject_when_idle` (86400 attempts, about 12 hours of waiting for idle; `questions/delivery.py`, C# `QuestionDelivery.cs`), and the answered cards and their option diagrams are removed from the canvas, so an open question leaves the agent `idle` with the "?" badge rather than `running`.
 
 ## Agent panel modes (layout store)
 
@@ -512,3 +558,7 @@ agent while full screen is open, again on each status change and, while the agen
 `UsageStrip` renders "Context 62k / 200k · 31%" with a `role="meter"` bar, "Tokens 184k in · 12k out",
 "Cache hit 78%" and "Cost $0.84" (omitted when `costUsd` is null). Tests:
 `dotnet/CodeChroma.Bridge.Tests/Agents/AgentUsageTests.cs`, `web/src/agents/activity/UsageStrip.test.tsx`.
+
+## Drawing-agent fields (025)
+
+`POST /agents` also takes `diagram_type` and `diagram_request` (trimmed, one line, at most 2000 chars); they are validated (400 with a reason) and persisted on the agent record next to `context_kind`, only for `context_kind: "task"`. Both bridges carry them (`routes/agents.py` + `agents/manager.py`; `AgentRoutes.cs` + `DiagramHint.cs` + `AgentRecord.cs`) and report them on `GET /agents`. The Draw dialog sends only the type and the request (scope is written in the request, there is no separate scope field). Only the C# bridge composes the first message from them (see `diagram-skills.md`).

@@ -3,11 +3,12 @@ import type { AgentClient, DiagramTaskHint } from "./agentClient";
 import { agentStore } from "./agentStore";
 import type { ViewContext } from "./viewContext";
 import { openAgentWindow } from "./windowActions";
+import { worktreeStore } from "./worktreeStore";
 
 /** What the "Run agent" button does: no picker, no title prompt — just create, start and open a
  * fresh agent, right away. `create("")` leans on the id-as-title fallback both clients already
- * apply, so there's nothing left to ask the user for. Pass `attachTo` to target an existing
- * workspace rather than a fresh isolated worktree — see attachAgent for what that means. `context`
+ * apply, so there's nothing left to ask the user for. Every agent belongs to the active worktree tab (`workspace`); pass `attachTo` only to share
+ * another agent's worktree or fork from a PR — see attachAgent for what that means. `context`
  * is the short "current view" description the fresh agent acknowledges (acknowledge-only; see
  * parallel-agents.md). `task`, if given, takes priority over `context` and is injected as a real,
  * actionable first message instead (e.g. the "Draw…" launch — see DrawDiagramButton.tsx). */
@@ -24,9 +25,13 @@ export async function launchAgent(
       agentStore.setGitPreflight(preflight);
       return null;
     }
+    // A PR attach lives in the PR's worktree, not in the shown tab; an agent attach stays with that agent's tab.
+    const workspace = attachTo?.startsWith("pr-")
+      ? undefined
+      : ((attachTo && agentStore.getAgent(attachTo)?.workspace) || worktreeStore.getActiveId() || undefined);
     return task
-      ? client.create("", "agent", attachTo, task, "task", diagram)
-      : client.create("", "agent", attachTo, context?.description ?? null);
+      ? client.create(diagram?.title ?? "", "agent", attachTo, task, "task", diagram, workspace)
+      : client.create("", "agent", attachTo, context?.description ?? null, undefined, undefined, workspace);
   });
 }
 
@@ -38,6 +43,36 @@ export async function openStepAgent(
   sessionId: string,
 ): Promise<void> {
   await runLaunch(client, () => client.openStepSession(title, runId, sessionId));
+}
+
+const stepStarts = new Map<string, Promise<AgentRecord>>();
+
+/** The agent behind a step's embedded terminal: the one already forking that session, else one started now (concurrent callers share the launch). */
+export function ensureStepAgent(client: AgentClient, title: string, runId: string, sessionId: string): Promise<AgentRecord> {
+  const existing = agentStore.getAgents().find((a) => a.source_run === runId && a.fork_session === sessionId);
+  if (existing) return Promise.resolve(existing);
+  const key = `${runId}:${sessionId}`;
+  const inFlight = stepStarts.get(key);
+  if (inFlight) return inFlight;
+  if (agentStore.getIsAtCapacity()) return Promise.reject(new Error("Too many agents are open; close one to talk to this step."));
+  const launch = createAndStart(client, () => client.openStepSession(title, runId, sessionId)).finally(() => stepStarts.delete(key));
+  stepStarts.set(key, launch);
+  return launch;
+}
+
+/** Create, then start; a start failure is recorded on the agent and rethrown. */
+async function createAndStart(client: AgentClient, create: () => Promise<AgentRecord>): Promise<AgentRecord> {
+  const created = await create();
+  agentStore.setStartError(created.id, null);
+  agentStore.upsert(created);
+  try {
+    const started = await client.start(created.id);
+    agentStore.upsert(started);
+    return started;
+  } catch (err) {
+    agentStore.setStartError(created.id, err instanceof Error ? err.message : String(err));
+    throw err;
+  }
 }
 
 /** The shared launch bookkeeping: capacity guard, create (null: stop quietly), start, open its window; a failure after create opens it with the error. */

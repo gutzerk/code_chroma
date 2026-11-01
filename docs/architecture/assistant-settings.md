@@ -4,14 +4,14 @@ The store and route below pick **which assistant** the app runs and its **creden
 is machine-scoped and persists, so it survives restarts and a re-open on the same laptop without
 re-entering it. The web surface for this is no longer its own dialog: since
 [`llm-settings.md`](llm-settings.md) shipped, the gear on the canvas chrome opens a small settings
-home first, and that dialog's "Agent windows" tab (`AssistantSection.tsx`) is now **solely** the
-agent **provider** picker — the CLI+token form that used to edit this store was removed from the
-UI, though the Python store/route below are unchanged and are still what unassigned windows and
-skills read on disk. A CLI-provider + model choice there routes every `agent`-kind window (every
+home first, and agent windows are chosen by the "Agent windows" row on that dialog's Models tab
+(there is no separate agent-provider form any more, and the CLI+token form that used to edit this
+store was removed from the UI earlier), though the Python store/route below are unchanged and are
+still what unassigned windows and skills read on disk. A CLI-provider + model choice there routes every `agent`-kind window (every
 window the UI now launches, per [`parallel-agents.md`](parallel-agents.md)) through
 `llm.resolve_cli`'s `parallel_agents` group: it writes the `agents` group assignment via
-`PUT /llm/call-site-groups/agents` (the **same** store 061's launch path reads; that group is
-tab-hidden from the Model routing table — see [`llm-settings.md`](llm-settings.md)). Empty
+`PUT /llm/features/agents` (which writes the `agents` group assignment, the **same** store 061's
+launch path reads; see [`llm-settings.md`](llm-settings.md)). Empty
 selection = the platform's default `claude` CLI, so FR-012's default is preserved.
 
 ## What it controls
@@ -51,6 +51,7 @@ Not repo-scoped — no `Services` dependency.
 - `GET /assistant/settings` → masked effective settings.
 - `PUT /assistant/settings` → validate + persist; a masked GET payload round-trips (it re-sends
   `model: null` / `api_key_path: null`, which `validate()` treats as "unset").
+- A `PUT` whose body is only `{instruction}` merges into the stored settings (cli/model/key kept) -- the Advanced tab's textarea uses it. Claude agent windows launch with `--append-system-prompt <instruction>` when it is non-empty (`terminal/agents.py` `_instruction_args`, C# `TerminalAgents.InstructionArgs`); a running window keeps the instruction it started with.
 - `POST /assistant/settings/test` → connectivity probe: whether the chosen CLI is on PATH, where
   the API key resolves from (`key_source()` in `context/llm_provider.py`: settings / file / env /
   none), and one real, tiny (`max_tokens=1`) model call. Returns `{ok, cli, cli_found,
@@ -74,16 +75,7 @@ Not repo-scoped — no `Services` dependency.
   look; `CanvasViewport.tsx` sets a saved style as the `--canvas-bg`/`--canvas-texture-image` vars
   that `.canvas-viewport` paints (falling back to the built-in look) and feeds its spacing to `gridStepFor` (`canvasGrid.ts`). Only the canvas
   background changes -- block and edge colours stay as the diagram sets them.
-- `web/src/assistant/AssistantSection.tsx` — the actual form, unchanged behavior from the old
-  `SettingsDialog.tsx`: a provider dropdown (claude/codex → `cli`) and a token field (→ `api_key`),
-  with Save. There is no instruction field (per-project instructions live in the separately
-  committed `AGENTS.md`/`CLAUDE.md`), and no file-based-key option in the UI. "Copy setup prompt"
-  copies a how-to the user can follow to set credentials by hand or via env, and "Test connection"
-  calls the probe above and shows a pass/fail line. No-bridge (`VITE_ENGINE_BRIDGE_URL` unset) shows
-  a hint instead. Reached via the "LLM" row → the "Agent windows" tab — see
-  [`llm-settings.md`](llm-settings.md#web).
-- `web/src/assistant/assistantClient.ts` — `GET`/`PUT /assistant/settings` and
-  `POST /assistant/settings/test` over the bridge; unchanged.
+- `web/src/llm-settings/AgentInstructionSection.tsx` — the Advanced tab's instruction textarea (`GET`/instruction-only `PUT /assistant/settings`).
 - `web/src/icons/RailIcon.tsx` — the `settings` (gear) icon, still on the rail button; the
   `llm-providers` icon (also added by `llm-settings.md`) now lives inside the settings home's LLM
   row instead of a second rail button.
@@ -92,9 +84,8 @@ Not repo-scoped — no `Services` dependency.
 
 - `tests/unit/test_assistant_config.py` — store load/save/validate/mask.
 - `tests/unit/test_bridge_assistant_route.py` — GET masks the key, PUT validates, round-trips.
-- `web/src/assistant/AssistantSection.test.tsx` — the form (was `SettingsDialog.test.tsx`);
-  `assistantClient.test.ts`. `SettingsDialog.test.tsx` now tests the category-list home instead
-  (see [`llm-settings.md`](llm-settings.md#tests)).
+- `web/src/assistant/assistantClient.test.ts`. `SettingsDialog.test.tsx` tests the category-list
+  home (see [`llm-settings.md`](llm-settings.md#tests)).
 
 ## Out of scope (v1)
 

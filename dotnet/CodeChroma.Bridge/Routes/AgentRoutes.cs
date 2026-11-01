@@ -14,9 +14,6 @@ namespace CodeChroma.Bridge.Routes;
 /// <summary>Parallel agents: the cards, their worktrees, their PTYs, and publishing one as a PR (routes/agents.py).</summary>
 public static class AgentRoutes
 {
-    private const int SessionIdPollAttempts = 10;
-    private static readonly TimeSpan SessionIdPollInterval = TimeSpan.FromSeconds(1);
-
     public static void Map(WebApplication app, string repoRoot)
     {
         app.MapGet("/agents/git-preflight", () => Reply.GuardBlocking(() => Reply.Json(AgentBootstrap.Preflight(repoRoot))));
@@ -28,31 +25,6 @@ public static class AgentRoutes
             return Reply.Json(await Task.Run(() => AgentBootstrap.Initialize(repoRoot, extra)));
         }));
 
-        app.MapGet("/agents/branch", () => Reply.GuardBlocking(() => Reply.Json(new JsonObject
-        {
-            ["current"] = MainBranchOps.CurrentBranch(repoRoot),
-            ["branches"] = Strings(MainBranchOps.SwitchableBranches(repoRoot)),
-        })));
-
-        app.MapPost("/agents/branch", (HttpRequest request, AgentManager agents, AgentSessionRegistry sessions, ConnectionManager connections) => Reply.GuardAsync(async () =>
-        {
-            var body = await Reply.LenientBody(request);
-            if (Json.Str(body["branch"]) is not { Length: > 0 } branch) return Reply.Error(400, "branch is required");
-            RefuseIfLiveAgentInMain(agents, sessions, repoRoot);
-            try { await Task.Run(() => MainBranchOps.Checkout(repoRoot, branch)); }
-            catch (UnknownBranchException) { return Reply.Error(404, $"unknown branch: {branch}"); }
-            await connections.Broadcast(new JsonObject { ["type"] = "branch-changed", ["branch"] = branch });
-            return Reply.Json(new JsonObject { ["current"] = branch, ["branches"] = Strings(await Task.Run(() => MainBranchOps.SwitchableBranches(repoRoot))) });
-        }));
-
-        app.MapPost("/agents/branch/update", (AgentManager agents, AgentSessionRegistry sessions, ConnectionManager connections) => Reply.GuardAsync(async () =>
-        {
-            RefuseIfLiveAgentInMain(agents, sessions, repoRoot);
-            var branch = await Task.Run(() => MainBranchOps.UpdateBranch(repoRoot));
-            await connections.Broadcast(new JsonObject { ["type"] = "branch-changed" });
-            return Reply.Json(new JsonObject { ["current"] = branch, ["branches"] = Strings(await Task.Run(() => MainBranchOps.SwitchableBranches(repoRoot))) });
-        }));
-
         app.MapGet("/agents", (AgentManager agents, AgentSessionRegistry sessions) => Reply.Guard(() => Reply.Json(new JsonObject
         {
             ["agents"] = new JsonArray(agents.List().Select(r => (JsonNode?)Payload(sessions, r)).ToArray()),
@@ -60,10 +32,10 @@ public static class AgentRoutes
             ["max_agents"] = AgentManager.MaxAgents,
         })));
 
-        app.MapPost("/agents", (HttpRequest request, AgentManager agents, AgentSessionRegistry sessions, WorkspaceRegistry registry, ConnectionManager connections) => Reply.GuardAsync(async () =>
+        app.MapPost("/agents", (HttpRequest request, AgentManager agents, AgentSessionRegistry sessions, WorkspaceRegistry registry, ConnectionManager connections, WorkflowRunners runners) => Reply.GuardAsync(async () =>
         {
             var body = await Reply.LenientBody(request);
-            var invalid = Validate(body, out var title, out var kind, out var attachTo, out var context, out var contextKind);
+            var invalid = Validate(body, out var title, out var kind, out var attachTo, out var context, out var contextKind, out var workspace);
             if (invalid is not null) return Reply.Error(400, invalid);
             if (body.ContainsKey("run_id") || body.ContainsKey("fork_session"))
             {
@@ -71,7 +43,7 @@ public static class AgentRoutes
                     return Reply.Error(400, "run_id and fork_session must both be given");
                 if (kind != AgentRecord.DefaultKind) return Reply.Error(400, "fork_session needs kind 'claude'");
                 AgentRecord forked;
-                try { forked = await Task.Run(() => agents.CreateInRun(title, runId, forkSession)); }
+                try { forked = await Task.Run(() => agents.CreateInRun(title, runId, forkSession, runners.RootOfRun(runId))); }
                 catch (UnknownAgentException error) { return Reply.Error(404, error.Message); }
                 catch (WorktreeException error) { return Reply.Error(400, error.Message); }
                 registry.Register(forked.Id, forked.Worktree);
@@ -79,10 +51,12 @@ public static class AgentRoutes
                 await connections.Broadcast(new JsonObject { ["type"] = "agent-added", ["agent"] = forkedPayload.DeepClone() });
                 return Reply.Json(forkedPayload);
             }
-            var diagramType = contextKind == "task" && Json.Str(body["diagram_type"]) is { } hinted && (hinted == DiagramContext.AnyType || DiagramContext.Types.Contains(hinted)) ? hinted : null;
+            var hint = DiagramHint.Parse(body);
+            if (hint.Error is not null) return Reply.Error(400, hint.Error);
+            var drawing = contextKind == "task" && hint.Type is not null;
             AgentRecord record;
-            try { record = await Task.Run(() => agents.Create(title, kind, attachTo, context, contextKind, diagramType)); }
-            catch (UnknownAgentException) { return Reply.Error(404, $"unknown attach_to: {attachTo}"); }
+            try { record = await Task.Run(() => agents.Create(title, kind, attachTo, context, contextKind, drawing ? hint.Type : null, drawing ? hint.Request : null, workspace)); }
+            catch (UnknownAgentException) { return Reply.Error(404, attachTo is null ? $"unknown workspace: {workspace}" : $"unknown attach_to: {attachTo}"); }
             catch (WorktreeException error) { return Reply.Error(400, error.Message); }
             registry.Register(record.Id, record.Worktree, sharesWorkspaceWith: record.SharesWorkspaceWith);
             var payload = record.ToPayload();
@@ -103,29 +77,36 @@ public static class AgentRoutes
             var taskText = pending is { Kind: "task" } ? pending.Value.Text : null;
             var bare = false;
             string? visible = null;
+            string? banner = null;
             if (taskText is not null && record.DiagramType is { } diagramType)
             {
                 var workspaceId = record.SharesWorkspaceWith ?? record.Id;
                 var target = TryWorkspace(registry, workspaceId);
                 var command = target is null ? null : await diagramContext.CommandAsync(target);
-                if (BareSkill.ComposeInteractive(diagramType, target?.Root ?? record.Worktree, workspaceId, command) is { } composed)
+                // A resumed or forked session gets no bare --system-prompt, so the skill rides as the prompt and nothing waits on the question.
+                var requested = !string.IsNullOrWhiteSpace(record.DiagramRequest);
+                var asksInTerminal = !requested && sessionId is null && diagramType == DiagramContext.AnyType && BareSkill.Enabled() && terminalAgents.SplitsSystemPrompt(record.Kind);
+                if (BareSkill.ComposeInteractive(diagramType, target?.Root ?? record.Worktree, workspaceId, command, asksInTerminal, record.DiagramRequest) is { } composed)
                 {
                     taskText = composed;
                     bare = BareSkill.Enabled();
-                    visible = bare ? BareSkill.InteractiveVisiblePrompt : null;
+                    visible = bare ? (requested ? record.DiagramRequest : asksInTerminal ? "" : BareSkill.InteractiveVisiblePrompt) : null;
+                    banner = asksInTerminal ? BareSkill.InteractiveQuestion : null;
                 }
             }
-            var launch = terminalAgents.Resolve(record.Kind, sessionId, taskText, bare, visible, forkSession: fork);
+            var trackingFile = AgentSessionOwnership.FileFor(agents.MainRoot, Guid.NewGuid().ToString());
+            var launch = terminalAgents.Resolve(record.Kind, sessionId, taskText, bare, visible, forkSession: fork, agentId: agentId, bridgeUrl: BareSkill.BridgeUrl,
+                newSessionId: Guid.NewGuid().ToString(), sessionTrackingFile: trackingFile);
             if (launch is null) return Reply.Error(400, $"unknown agent kind: {record.Kind}");
             var env = new Dictionary<string, string>(launch.Env);
             BridgeAddress.ExportIdentity(env, agentId, BareSkill.BridgeUrl);
-            var session = await Task.Run(() => sessions.Start(agentId, launch.Argv, record.Worktree, record.Kind, env, paths));
+            var session = await Task.Run(() => sessions.Start(agentId, launch.Argv, record.Worktree, record.Kind, env, paths, banner));
             var updated = agents.MarkStarted(agentId, session.Pid, TerminalAgents.ResolvedCliFor(record.Kind, launch.Argv));
             if (pending is { Kind: not "task" } view)
                 _ = session.InjectWhenIdle(
                     $"[Context] You were just launched from the CodeChroma canvas. The user is currently looking at: {view.Text}. "
                     + "Please acknowledge you understand this context. Do not act on it or start any work — just confirm you've read it and say you're ready.");
-            _ = CaptureSessionIdLater(agents, agentId);
+            agents.RecordSessionLaunch(agentId, session);
             var payload = Payload(sessions, updated);
             await BroadcastStatus(connections, agentId, (string)payload["status"]!);
             return Reply.Json(payload);
@@ -154,7 +135,7 @@ public static class AgentRoutes
         app.MapGet("/agents/{agentId}/usage", (string agentId, AgentManager agents) => Reply.GuardBlocking(() =>
         {
             var record = OrNotFound(agents, agentId);
-            var sessionId = record.Kind == AgentRecord.DefaultKind ? record.SessionId ?? agents.CaptureSessionId(agentId) : null;
+            var sessionId = record.Kind == AgentRecord.DefaultKind ? agents.CaptureSessionId(agentId) : null;
             return Reply.Json(AgentUsage.Read(record, sessionId));
         }));
 
@@ -221,20 +202,10 @@ public static class AgentRoutes
     public static Task BroadcastStatus(ConnectionManager connections, string agentId, string status) =>
         connections.Broadcast(new JsonObject { ["type"] = "agent-status", ["id"] = agentId, ["status"] = status });
 
-    /// <summary>Polls briefly for the transcript: it does not exist the instant the process spawns.</summary>
-    public static async Task CaptureSessionIdLater(AgentManager agents, string agentId)
-    {
-        for (var attempt = 0; attempt < SessionIdPollAttempts; attempt++)
-        {
-            await Task.Delay(SessionIdPollInterval);
-            try { if (agents.CaptureSessionId(agentId) is not null) return; }
-            catch (UnknownAgentException) { return; }
-        }
-    }
-
-    private static string? Validate(JsonObject body, out string title, out string kind, out string? attachTo, out string? context, out string contextKind)
+    private static string? Validate(JsonObject body, out string title, out string kind, out string? attachTo, out string? context, out string contextKind, out string? workspace)
     {
         title = "";
+        workspace = null;
         kind = AgentRecord.DefaultKind;
         attachTo = null;
         context = null;
@@ -251,6 +222,11 @@ public static class AgentRoutes
             if (Json.Str(rawAttach) is not { } a) return "attach_to must be a string";
             attachTo = a;
         }
+        if (body["workspace"] is { } rawWorkspace)
+        {
+            if (Json.Str(rawWorkspace) is not { } w) return "workspace must be a string";
+            workspace = w.Length > 0 ? w : null;
+        }
         if (body["context"] is { } rawContext)
         {
             if (Json.Str(rawContext) is not { } c) return "context must be a string";
@@ -262,18 +238,6 @@ public static class AgentRoutes
             contextKind = ck;
         }
         return null;
-    }
-
-    /// <summary>A checkout or pull swaps files under a live agent parked in main's own tree, so refuse first.</summary>
-    private static void RefuseIfLiveAgentInMain(AgentManager agents, AgentSessionRegistry sessions, string repoRoot)
-    {
-        var main = Path.GetFullPath(repoRoot).TrimEnd('\\', '/');
-        foreach (var record in agents.List())
-        {
-            if (sessions.Get(record.Id) is not { IsAlive: true }) continue;
-            var same = string.Equals(Path.GetFullPath(record.Worktree).TrimEnd('\\', '/'), main, OperatingSystem.IsWindows() ? StringComparison.OrdinalIgnoreCase : StringComparison.Ordinal);
-            if (same) throw new BridgeException(409, $"stop {record.Title} first — it works directly in the main worktree");
-        }
     }
 
     private static Workspace? TryWorkspace(WorkspaceRegistry registry, string id)

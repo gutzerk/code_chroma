@@ -185,7 +185,7 @@ The built-in types the Draw… agent can produce:
 - **Without a key**, use the rail's **Draw…** button (it opens an agent run; the empty-state Retry
   path starts a multi-minute `claude -p` run), or open the target repo's terminal panel (or any
   Claude Code session in that repo — launching installs a `codechroma-draw-diagram` skill into
-  `.claude/skills/` there automatically) and ask your assistant to "generate/update the C1 diagram".
+  `.agents/skills/` and `.claude/skills/` there automatically) and ask your assistant to "generate/update the C1 diagram".
   The skill fetches the same project digest and writes `.codechroma/c1.json` directly; the canvas
   picks up the change live, no reload needed.
 - To start over, ask the assistant to clear the diagram, or delete `.codechroma/c1.json` yourself.

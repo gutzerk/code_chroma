@@ -129,7 +129,7 @@ def test_reconcile_resyncs_skills_into_an_existing_agent_worktree(repo, monkeypa
     manager = AgentManager(repo)
     created = manager.create("refund flow")
     worktree_root = Path(created.worktree)
-    skill_dir = worktree_root / skill_sync.skill_relative_path("codechroma-draw-diagram")
+    skill_dir = worktree_root / skill_sync.skill_relative_paths("codechroma-draw-diagram")[0]
 
     # Simulate an agent made before a skill existed: drop the installed copy entirely.
     shutil.rmtree(skill_dir.parent, ignore_errors=True)
@@ -577,10 +577,10 @@ def test_worktree_provisioning_installs_skills_and_seeds_diagrams(repo):
     created = manager.create("refund flow")
 
     # A skill lands inside the worktree at the conventional relative path (not just in main).
-    from codechroma.bridge.skill_sync import SKILL_NAMES, skill_relative_path
+    from codechroma.bridge.skill_sync import SKILL_NAMES, skill_relative_paths
 
-    skill_root = Path(created.worktree) / skill_relative_path(SKILL_NAMES[0])
-    assert skill_root.is_dir()
+    skill_roots = [Path(created.worktree) / p for p in skill_relative_paths(SKILL_NAMES[0])]
+    assert all(root.is_dir() for root in skill_roots)
     # Main's diagram was seeded into the worktree, so the first open needs no regeneration.
     seeded_patterns = diagram_json_path(Path(created.worktree), "patterns")
     assert seeded_patterns.read_text(encoding="utf-8") == '{"nodes": ["main"]}'

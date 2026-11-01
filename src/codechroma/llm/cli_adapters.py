@@ -20,9 +20,22 @@ import os
 from pathlib import Path
 from typing import Protocol
 
+from codechroma.bridge.git_cmd import run_git
 from codechroma.bridge.skill_output import flatten, render_event, text_lines
+from codechroma.io import load_json_or_none, write_json
+from codechroma.questions.launch import (
+    SERVER_NAME,
+    TOKEN_ENV,
+    McpEndpoint,
+    write_claude_config,
+    write_private,
+)
 
 _MAX_MESSAGE = 200
+# Kimi has no per-run MCP flag; it reads this project-local file relative to its working directory.
+KIMI_MCP_CONFIG = ".kimi-code/mcp.json"
+# Gemini CLI's system settings path: the only per-process way to hand it an MCP server.
+GEMINI_SETTINGS_ENV = "GEMINI_CLI_SYSTEM_SETTINGS_PATH"
 
 
 class CliAdapter(Protocol):
@@ -32,10 +45,21 @@ class CliAdapter(Protocol):
 
     def parse_line(self, raw: bytes | str, repo_root: Path) -> list[str]: ...
 
+    def mcp_registration(
+        self, endpoint: McpEndpoint, workdir: Path | None
+    ) -> tuple[list[str], dict[str, str]] | None:
+        """Argv and extra env registering the bridge MCP server in a window; None when it can't."""
+        ...
+
 
 def supports_minimal_context_workers(adapter: CliAdapter) -> bool:
     """Whether `adapter` implements the zero-tool structured-output worker methods."""
     return hasattr(adapter, "build_worker_argv") and hasattr(adapter, "parse_structured_output")
+
+
+def _is_tracked(workdir: Path, relative: str) -> bool:
+    """True when git tracks the file: an exclude cannot hide edits, so an agent would commit it."""
+    return bool((run_git(workdir, "ls-files", "--", relative) or "").strip())
 
 
 def _parse_json_event(raw: bytes | str) -> dict | None:
@@ -49,6 +73,12 @@ def _parse_json_event(raw: bytes | str) -> dict | None:
 
 class ClaudeAdapter:
     """`claude -p ... --output-format stream-json` -- the shape skill_agent used to build inline."""
+
+    def mcp_registration(
+        self, endpoint: McpEndpoint, workdir: Path | None
+    ) -> tuple[list[str], dict[str, str]] | None:
+        """`--mcp-config` is variadic, so it must precede `--plugin-dir` and the prompt."""
+        return ["--mcp-config", str(write_claude_config(endpoint))], {}
 
     def build_argv(
         self, binary: str, prompt: str, model: str, env: dict[str, str] | None = None
@@ -126,6 +156,15 @@ _CODEX_ITEM_TOOL_TYPES = (
 class CodexAdapter:
     """`codex exec --json` -- workspace-write sandbox; exec has no interactive approval to skip."""
 
+    def mcp_registration(
+        self, endpoint: McpEndpoint, workdir: Path | None
+    ) -> tuple[list[str], dict[str, str]] | None:
+        """`-c` overrides; Codex reads the bearer token from the env, never from argv."""
+        return [
+            "-c", f"mcp_servers.{SERVER_NAME}.url={endpoint.mcp_url}",
+            "-c", f"mcp_servers.{SERVER_NAME}.bearer_token_env_var={TOKEN_ENV}",
+        ], {}
+
     def build_argv(
         self, binary: str, prompt: str, model: str, env: dict[str, str] | None = None
     ) -> list[str]:
@@ -175,6 +214,24 @@ def _render_codex_item(item: object) -> list[str]:
 class KimiAdapter:
     """`kimi --prompt ... --output-format stream-json` -- --prompt alone runs non-interactively."""
 
+    def mcp_registration(
+        self, endpoint: McpEndpoint, workdir: Path | None
+    ) -> tuple[list[str], dict[str, str]] | None:
+        """Merges our entry into the mcp.json; None leaves a tracked or bad file untouched."""
+        if workdir is None or _is_tracked(workdir, KIMI_MCP_CONFIG):
+            return None
+        path = workdir / KIMI_MCP_CONFIG
+        document = load_json_or_none(path) if path.is_file() else {}
+        if document is None:
+            return None
+        servers = document.get("mcpServers")
+        if not isinstance(servers, dict):
+            servers = document["mcpServers"] = {}
+        servers[SERVER_NAME] = {
+            "transport": "http", "url": endpoint.mcp_url, "bearerTokenEnvVar": TOKEN_ENV,
+        }
+        return ([], {}) if write_json(path, document) else None
+
     def build_argv(
         self, binary: str, prompt: str, model: str, env: dict[str, str] | None = None
     ) -> list[str]:
@@ -214,6 +271,13 @@ def _render_kimi_assistant(event: dict) -> list[str]:
 
 class GeminiAdapter:
     """`gemini --prompt ... --yolo --output-format stream-json` -- --yolo auto-approves tools."""
+
+    def mcp_registration(
+        self, endpoint: McpEndpoint, workdir: Path | None
+    ) -> tuple[list[str], dict[str, str]] | None:
+        """A private settings file holding the http server, handed over via GEMINI_SETTINGS_ENV."""
+        document = endpoint.server_document({"httpUrl": endpoint.mcp_url})
+        return [], {GEMINI_SETTINGS_ENV: str(write_private(endpoint, "-gemini", document))}
 
     def build_argv(
         self, binary: str, prompt: str, model: str, env: dict[str, str] | None = None

@@ -18,7 +18,7 @@ CodeChroma builds a zoomable architecture hierarchy from a repo's code. Python e
 - Keep docs in sync: update the affected `docs/architecture/*.md`, README or QUICKSTART in the same change.
 - One-line comments and docstrings only.
 - Tests use Arrange-Act-Assert: no setup statements after the final `assert`.
-- Skills live in `skills/`; never edit `.claude/skills/` (generated).
+- Skills live in `skills/`; never edit `.agents/skills/` or `.claude/skills/` (generated).
 - Use Conventional Commits (`feat:`, `fix:`, `BREAKING CHANGE:`); release-please parses them.
 - Rules above are summaries; `CLAUDE.md` has the full wording (hook enforcement, skill sync, docs map).
 - Skip `node_modules/`, `dist/`, `build/`, `.venv/` and other gitignored paths when searching.

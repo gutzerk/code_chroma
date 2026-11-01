@@ -256,7 +256,7 @@ Build it like this:
 6. **Self-check — never report success on a run that didn't print `OK`:**
 
    ```bash
-   python3 .claude/skills/codechroma-draw-diagram/scripts/check_diagram.py --kind custom --type <type-id>
+   python3 .agents/skills/codechroma-draw-diagram/scripts/check_diagram.py --kind custom --type <type-id>
    ```
 
    The six common codes (`drawing-rules.md`) cover everything this type can raise, including the

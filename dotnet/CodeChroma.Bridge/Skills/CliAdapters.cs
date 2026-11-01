@@ -1,6 +1,8 @@
 using System.Text.Json;
 using System.Text.Json.Nodes;
+using CodeChroma.Bridge.Questions;
 using CodeChroma.Bridge.Stores;
+using CodeChroma.Bridge.Workspaces;
 
 namespace CodeChroma.Bridge.Skills;
 
@@ -20,7 +22,13 @@ public interface ICliAdapter
 
     /// <summary>The options that resume <paramref name="session"/>, forked into a new session when <paramref name="fork"/>; empty when the CLI cannot resume.</summary>
     IReadOnlyList<string> ResumeArgs(string session, bool fork) => [];
+
+    /// <summary>How an interactive window run in <paramref name="workdir"/> reaches the bridge's ask_user MCP server; null when the CLI has no verified way.</summary>
+    McpLaunch? Mcp(McpEndpoint endpoint, string? workdir) => null;
 }
+
+/// <summary>The options and env that register the bridge's MCP server with one CLI process.</summary>
+public sealed record McpLaunch(IReadOnlyList<string> Args, IReadOnlyDictionary<string, string>? Env = null);
 
 public static class CliAdapters
 {
@@ -63,6 +71,9 @@ public sealed class ClaudeAdapter : ICliAdapter
     public bool CanResume => true;
 
     public IReadOnlyList<string> ResumeArgs(string session, bool fork) => fork ? [ResumeFlag, session, ForkSessionFlag] : [ResumeFlag, session];
+
+    /// <summary>`--mcp-config` is variadic, so it must precede --plugin-dir and the positional prompt.</summary>
+    public McpLaunch? Mcp(McpEndpoint endpoint, string? workdir) => new(["--mcp-config", endpoint.WriteClaudeConfig()]);
 
     public IReadOnlyList<string> BuildArgv(string binary, string prompt, string model, IReadOnlyDictionary<string, string>? env, IReadOnlyList<string>? extra = null)
     {
@@ -115,6 +126,13 @@ public sealed class CodexAdapter : ICliAdapter
     private const int MaxMessage = 200;
     private static readonly string[] ToolTypes = ["command_execution", "file_change", "mcp_tool_call", "web_search", "plan_update"];
 
+    /// <summary>`-c` overrides for one streamable-http server; Codex reads its bearer token from the env, so it never sits in argv.</summary>
+    public McpLaunch? Mcp(McpEndpoint endpoint, string? workdir) => new(
+    [
+        "-c", $"mcp_servers.{McpEndpoint.ServerName}.url={endpoint.McpUrl}",
+        "-c", $"mcp_servers.{McpEndpoint.ServerName}.bearer_token_env_var={McpEndpoint.TokenEnv}",
+    ]);
+
     public IReadOnlyList<string> BuildArgv(string binary, string prompt, string model, IReadOnlyDictionary<string, string>? env, IReadOnlyList<string>? extra = null) =>
         [binary, "exec", "--model", model, "--sandbox", "workspace-write", "--json", .. extra ?? [], prompt];
 
@@ -158,6 +176,25 @@ public sealed class KimiAdapter : ICliAdapter
 {
     private const int MaxMessage = 200;
 
+    /// <summary>Kimi's project-local MCP file, relative to the window's working directory; SkillSync keeps it out of git.</summary>
+    public const string McpConfig = ".kimi-code/mcp.json";
+
+    /// <summary>Kimi has no per-run MCP flag, so the entry is merged into the window's mcp.json, keeping the user's servers; a tracked, unreadable or unwritable file is left alone (null).</summary>
+    public McpLaunch? Mcp(McpEndpoint endpoint, string? workdir)
+    {
+        if (string.IsNullOrEmpty(workdir) || IsTracked(workdir)) return null;
+        var path = Path.Combine(workdir, McpConfig);
+        if ((File.Exists(path) ? JsonFile.Load(path) as JsonObject : new JsonObject()) is not { } document) return null;
+        if (document["mcpServers"] is not JsonObject servers) document["mcpServers"] = servers = new JsonObject();
+        servers[McpEndpoint.ServerName] = new JsonObject { ["transport"] = "http", ["url"] = endpoint.McpUrl, ["bearerTokenEnvVar"] = McpEndpoint.TokenEnv };
+        try { JsonFile.Write(path, document); }
+        catch (Exception error) when (error is IOException or UnauthorizedAccessException) { return null; }
+        return new McpLaunch([]);
+    }
+
+    /// <summary>True when git tracks the MCP file: an exclude cannot hide edits to it, so the agent would commit the bridge URL.</summary>
+    private static bool IsTracked(string workdir) => !string.IsNullOrWhiteSpace(GitRunner.Run(workdir, "ls-files", "--", McpConfig));
+
     public IReadOnlyList<string> BuildArgv(string binary, string prompt, string model, IReadOnlyDictionary<string, string>? env, IReadOnlyList<string>? extra = null) =>
         [binary, "--prompt", prompt, "--model", model, "--output-format", "stream-json", .. extra ?? []];
 
@@ -192,6 +229,12 @@ public sealed class KimiAdapter : ICliAdapter
 public sealed class GeminiAdapter : ICliAdapter
 {
     private const int MaxMessage = 200;
+
+    /// <summary>Env var Gemini CLI reads for its system settings path, the only per-process way to hand it an MCP server.</summary>
+    public const string SettingsEnv = "GEMINI_CLI_SYSTEM_SETTINGS_PATH";
+
+    public McpLaunch? Mcp(McpEndpoint endpoint, string? workdir) =>
+        new([], new Dictionary<string, string> { [SettingsEnv] = endpoint.WritePrivate("-gemini", endpoint.ServerDocument(new JsonObject { ["httpUrl"] = endpoint.McpUrl })) });
 
     public IReadOnlyList<string> BuildArgv(string binary, string prompt, string model, IReadOnlyDictionary<string, string>? env, IReadOnlyList<string>? extra = null) =>
         [binary, "--prompt", prompt, "--model", model, "--yolo", "--output-format", "stream-json", .. extra ?? []];

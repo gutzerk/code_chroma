@@ -176,9 +176,9 @@ Rules:
 6. **Self-check — never report success on a run that didn't print `OK`:**
 
    ```bash
-   python3 .claude/skills/codechroma-draw-diagram/scripts/check_diagram.py --kind impact --source=diff
+   python3 .agents/skills/codechroma-draw-diagram/scripts/check_diagram.py --kind impact --source=diff
    # for a plan diagram, name the feature dir the slice was seeded from:
-   python3 .claude/skills/codechroma-draw-diagram/scripts/check_diagram.py --kind impact --source=plan --feature=specs/006-graph-research-endpoint
+   python3 .agents/skills/codechroma-draw-diagram/scripts/check_diagram.py --kind impact --source=plan --feature=specs/006-graph-research-endpoint
    ```
 
    Common codes (`drawing-rules.md`) apply; `BROKEN` also covers a missing `node_id` — copy it from

@@ -96,7 +96,7 @@ public static class AgentRoutes
             }
             var trackingFile = AgentSessionOwnership.FileFor(agents.MainRoot, Guid.NewGuid().ToString());
             var launch = terminalAgents.Resolve(record.Kind, sessionId, taskText, bare, visible, forkSession: fork, agentId: agentId, bridgeUrl: BareSkill.BridgeUrl,
-                newSessionId: Guid.NewGuid().ToString(), sessionTrackingFile: trackingFile);
+                newSessionId: Guid.NewGuid().ToString(), sessionTrackingFile: trackingFile, workdir: record.Worktree);
             if (launch is null) return Reply.Error(400, $"unknown agent kind: {record.Kind}");
             var env = new Dictionary<string, string>(launch.Env);
             BridgeAddress.ExportIdentity(env, agentId, BareSkill.BridgeUrl);

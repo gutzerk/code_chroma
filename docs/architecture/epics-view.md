@@ -280,7 +280,7 @@ canvas pools every `is_test` task across the scope into a labeled **Testing** su
 still stays attached to the scope item it implements — the pool is a render concern, not a move — so
 `closes_scope_id` continues to name the feature scope item.
 
-**The skill** (`.claude/skills/codechroma-epic-brief/SKILL.md`, prompt in
+**The skill** (`.agents/skills/codechroma-epic-brief/SKILL.md`, prompt in
 `prompts/epic_brief_agent.yaml`) is the only step in the run — every datum it needs is **injected
 into the prompt** by
 `epic_brief_agent.build_brief_bundle()` (`bridge/epic_brief_agent.py`) before the run starts, so the
@@ -302,7 +302,7 @@ real tasks and marks `tasks_source: "spec"`, else it drafts and marks `"draft"`.
 the skill still reads the bundle's `references[]` and `context_file` (the epic's linked epics and
 its context note) to ground `dependencies` in the portfolio, and tags every task's `repo` with the
 spoke/part that owns it, mirroring the epic's `component` onto the top level. Self-checked by
-`.claude/skills/codechroma-epic-brief/scripts/check_brief.py` (unique ids across the whole brief,
+`.agents/skills/codechroma-epic-brief/scripts/check_brief.py` (unique ids across the whole brief,
 every `closes_scope_id` null-or-real, no out-of-scope item carrying tasks) before it reports success
 — reads the bridge's own `GET .../brief` response, not the raw file, so it checks what the canvas
 will actually render; when the brief names spokes it also prints a non-blocking `SPOKE-MISSING`

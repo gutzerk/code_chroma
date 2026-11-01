@@ -194,17 +194,18 @@ public static class WorkflowRoutes
         });
     }
 
-    /// <summary>The skills installed in the project (.claude/skills/*/SKILL.md), with the description from each front matter.</summary>
+    /// <summary>The skills installed in the project (.agents/skills and .claude/skills */SKILL.md, first folder wins on a name), with the description from each front matter.</summary>
     private static List<object> ListSkills(string root)
     {
-        var dir = Path.Combine(root, ".claude", "skills");
         var skills = new List<object>();
-        if (!Directory.Exists(dir)) return skills;
-        foreach (var folder in Directory.EnumerateDirectories(dir).OrderBy(p => p, StringComparer.Ordinal))
+        var seen = new HashSet<string>(StringComparer.Ordinal);
+        var folders = SkillSync.SkillDirs(root).Where(Directory.Exists)
+            .SelectMany(dir => Directory.EnumerateDirectories(dir).OrderBy(p => p, StringComparer.Ordinal));
+        foreach (var folder in folders)
         {
             var file = Path.Combine(folder, "SKILL.md");
             var name = Path.GetFileName(folder);
-            if (!File.Exists(file) || !RunStore.IsSafeId(name)) continue;
+            if (!File.Exists(file) || !RunStore.IsSafeId(name) || !seen.Add(name)) continue;
             var description = "";
             try
             {

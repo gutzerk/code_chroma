@@ -12,7 +12,7 @@ public static partial class AutomationPages
 
     private static readonly HashSet<string> SkippedDirs = new(StringComparer.Ordinal)
     {
-        ".git", "node_modules", ".venv", "venv", "dist", "build", "bin", "obj", "vendor", "target", ".claude", ".codechroma", "__pycache__",
+        ".git", "node_modules", ".venv", "venv", "dist", "build", "bin", "obj", "vendor", "target", ".claude", ".agents", ".codechroma", "__pycache__",
     };
 
     private static readonly string[] ScriptExtensions = [".sh", ".bash", ".ps1", ".cmd", ".bat"];

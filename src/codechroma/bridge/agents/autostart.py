@@ -41,6 +41,7 @@ def _auto_start_one(services: BridgeServices, record: AgentRecord, question_mcp=
     resolved = agent_cli(
         record.kind, session_id, mcp=mcp, new_session_id=new_session_id,
         session_tracking_file=file_for(services.agent_manager.main_root, str(uuid4())),
+        workdir=Path(record.worktree),
     )
     if resolved is None:
         logger.error("agents: unknown kind %r for %s, skipping auto-start", record.kind, record.id)

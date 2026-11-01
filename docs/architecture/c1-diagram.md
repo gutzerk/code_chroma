@@ -63,7 +63,7 @@ a true system-context view that should take seconds).
 
 - C1 (system-context) view — `GET /repos/{id}/c1` serves `<repo>/.codechroma/c1.json` (format/schema
   authority: `drawing-rules.md`'s "The one shared diagram shape" +
-  `.claude/skills/codechroma-draw-diagram/references/type-system-context.md`'s content rules — see
+  `.agents/skills/codechroma-draw-diagram/references/type-system-context.md`'s content rules — see
   [`diagram-skills.md`](diagram-skills.md)'s "036: one shared shape, one resolver, one render path").
   The **schema still supports a multi-layer decomposition**, not just two levels: since
   036-shared-diagram-style-catalog there is no nested `system`/`children` tree in the authored or
@@ -404,7 +404,7 @@ a true system-context view that should take seconds).
   and spot-checks the bootstrap's actor list (wiki-general/digest reconciliation, the external-system
   test) rather than decomposing it into a deep tree. The skill still writes twice
   (bootstrap skeleton, then the reconciled result) so the `FileWatcher` shows the diagram updating, and
-  self-checks via `.claude/skills/codechroma-draw-diagram/scripts/check_diagram.py --kind c1` (shipped into the analyzed repo by
+  self-checks via `.agents/skills/codechroma-draw-diagram/scripts/check_diagram.py --kind c1` (shipped into the analyzed repo by
   `skill_sync`'s `copytree`). 023-unified-recipe-converter closed the one gap C1 had against
   patterns/impact/custom: `--kind c1` now also reports `ORPHAN` for a leaf block or actor with no
   relationship to anything else (a grouping block with `children` is exempt even with none of its

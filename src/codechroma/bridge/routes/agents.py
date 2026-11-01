@@ -155,6 +155,7 @@ async def post_agent_start(agent_id: str, request: Request, services: Services) 
         record.kind, session_id, initial_prompt=task_text, mcp=mcp.endpoint_for(agent_id),
         new_session_id=new_session_id,
         session_tracking_file=file_for(services.agent_manager.main_root, str(uuid4())),
+        workdir=Path(record.worktree),
     )
     if resolved is None:
         raise HTTPException(status_code=400, detail=f"unknown agent kind: {record.kind}")

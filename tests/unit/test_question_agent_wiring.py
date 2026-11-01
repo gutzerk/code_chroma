@@ -10,6 +10,7 @@ from pathlib import Path
 import pytest
 from fastapi.testclient import TestClient
 
+from codechroma.bridge.git_cmd import run_git
 from codechroma.bridge.resources import resource_path
 from codechroma.questions.launch import (
     McpEndpoint,
@@ -62,6 +63,98 @@ def test_claude_argv_is_unchanged_without_an_endpoint():
 
     assert "--mcp-config" not in argv
     assert env == {}
+
+
+def _route_agents_to(monkeypatch, adapter_key: str, binary: str) -> None:
+    from codechroma.llm import resolve_cli
+    from codechroma.llm.resolve_cli import CliResolution
+
+    monkeypatch.setattr(
+        resolve_cli,
+        "resolve_cli",
+        lambda _call_site, _model: CliResolution(
+            adapter_key=adapter_key, binary=binary, model="m", env_overrides={},
+            provider_assigned=True,
+        ),
+    )
+
+
+def test_codex_window_registers_the_server_with_overrides_and_keeps_the_token_out_of_argv(
+    monkeypatch,
+):
+    _route_agents_to(monkeypatch, "codex", "codex")
+
+    argv, env = agent_cli("agent", initial_prompt="do it", mcp=ENDPOINT)
+
+    assert "mcp_servers.codechroma.url=http://127.0.0.1:8123/mcp/" in argv
+    assert "mcp_servers.codechroma.bearer_token_env_var=CODECHROMA_QUESTION_TOKEN" in argv
+    assert argv[-1] == "do it"
+    assert not any("agent-1.sig" in arg for arg in argv)
+    assert env["CODECHROMA_QUESTION_TOKEN"] == "agent-1.sig"
+
+
+def test_gemini_window_gets_a_system_settings_file_with_the_http_server(monkeypatch):
+    _route_agents_to(monkeypatch, "gemini", "gemini")
+
+    _argv, env = agent_cli("agent", mcp=ENDPOINT)
+
+    settings_file = Path(env["GEMINI_CLI_SYSTEM_SETTINGS_PATH"])
+    server = json.loads(settings_file.read_text(encoding="utf-8"))["mcpServers"]["codechroma"]
+    assert server["httpUrl"] == "http://127.0.0.1:8123/mcp/"
+    assert server["headers"] == {"Authorization": "Bearer agent-1.sig"}
+
+
+def _kimi_mcp_file(workdir: Path, text: str) -> Path:
+    config = workdir / ".kimi-code" / "mcp.json"
+    config.parent.mkdir()
+    config.write_text(text, encoding="utf-8")
+    return config
+
+
+def test_kimi_window_merges_the_server_into_its_project_mcp_file(monkeypatch, tmp_path):
+    _route_agents_to(monkeypatch, "kimi-cli", "kimi")
+    config = _kimi_mcp_file(tmp_path, '{"mcpServers": {"mine": {"command": "tool"}}}')
+
+    _argv, env = agent_cli("agent", mcp=ENDPOINT, workdir=tmp_path)
+
+    servers = json.loads(config.read_text(encoding="utf-8"))["mcpServers"]
+    assert servers["mine"] == {"command": "tool"}
+    assert servers["codechroma"] == {
+        "transport": "http", "url": "http://127.0.0.1:8123/mcp/",
+        "bearerTokenEnvVar": "CODECHROMA_QUESTION_TOKEN",
+    }
+    assert env["CODECHROMA_QUESTION_TOKEN"] == "agent-1.sig"
+
+
+def test_kimi_window_leaves_an_unreadable_mcp_file_alone(monkeypatch, tmp_path):
+    _route_agents_to(monkeypatch, "kimi-cli", "kimi")
+    config = _kimi_mcp_file(tmp_path, "{ broken")
+
+    _argv, env = agent_cli("agent", mcp=ENDPOINT, workdir=tmp_path)
+
+    assert config.read_text(encoding="utf-8") == "{ broken"
+    assert "CODECHROMA_QUESTION_TOKEN" not in env
+
+
+def test_kimi_window_leaves_a_git_tracked_mcp_file_alone(monkeypatch, tmp_path):
+    _route_agents_to(monkeypatch, "kimi-cli", "kimi")
+    config = _kimi_mcp_file(tmp_path, '{"mcpServers": {}}')
+    run_git(tmp_path, "init", "-q")
+    run_git(tmp_path, "add", ".kimi-code/mcp.json")
+
+    _argv, env = agent_cli("agent", mcp=ENDPOINT, workdir=tmp_path)
+
+    assert config.read_text(encoding="utf-8") == '{"mcpServers": {}}'
+    assert "CODECHROMA_QUESTION_TOKEN" not in env
+
+
+def test_kimi_window_gets_no_server_when_the_mcp_file_cannot_be_written(monkeypatch, tmp_path):
+    _route_agents_to(monkeypatch, "kimi-cli", "kimi")
+    (tmp_path / ".kimi-code").write_text("not a folder", encoding="utf-8")
+
+    _argv, env = agent_cli("agent", mcp=ENDPOINT, workdir=tmp_path)
+
+    assert "CODECHROMA_QUESTION_TOKEN" not in env
 
 
 def test_discover_base_url_reads_the_uvicorn_port_from_argv(monkeypatch):

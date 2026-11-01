@@ -103,7 +103,7 @@ public sealed class AgentRuntime(
         var fork = string.IsNullOrEmpty(sessionId) && record.ForkSession is { Length: > 0 };
         var launch = terminalAgents.Resolve(record.Kind, fork ? record.ForkSession : sessionId, forkSession: fork, agentId: record.Id, bridgeUrl: BareSkill.BridgeUrl,
             newSessionId: Guid.NewGuid().ToString(),
-            sessionTrackingFile: AgentSessionOwnership.FileFor(agents.MainRoot, Guid.NewGuid().ToString()));
+            sessionTrackingFile: AgentSessionOwnership.FileFor(agents.MainRoot, Guid.NewGuid().ToString()), workdir: record.Worktree);
         if (launch is null)
         {
             log.LogError("agents: unknown kind {Kind} for {Agent}, skipping auto-start", record.Kind, record.Id);

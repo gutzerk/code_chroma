@@ -5,7 +5,7 @@
 
 0. **Repo scan** (`engine.py`'s `_iter_repo_files`) — `os.walk` pruned by the flat `IGNORED_DIRS`
    name set (`.git`, `node_modules`, `.codechroma`, IDE/OS clutter, ...) and `is_synced_skill_path`
-   (`skills.py`, the bridge's own `.claude/skills/codechroma-*` copies) — both unchanged. On top of
+   (`skills.py`, the bridge's own `.agents/skills/codechroma-*` and `.claude/skills/codechroma-*` copies) — both unchanged. On top of
    those, `_build_exclusion_spec` builds one `pathspec` `PathSpec` (`"gitignore"` factory) from a
    small built-in noise list (`_BUILTIN_NOISE_PATTERNS = ("vendor/", "worktrees/")`, each matching at
    any depth) plus every real `.gitignore` found in the repo (`_discover_gitignore_files`, itself

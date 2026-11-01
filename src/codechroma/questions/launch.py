@@ -1,4 +1,4 @@
-"""How an agent window learns the bridge's MCP endpoint: URL discovery and the Claude MCP config."""
+"""How an agent window learns the bridge's MCP endpoint: URL discovery and the MCP config files."""
 
 from __future__ import annotations
 
@@ -37,8 +37,12 @@ class McpEndpoint:
 
     def claude_config(self) -> dict:
         """The `--mcp-config` document: one http server with a bearer header and a 60 s timeout."""
+        return self.server_document({"type": "http", "url": self.mcp_url})
+
+    def server_document(self, url_fields: dict) -> dict:
+        """An `mcpServers` document: this server's URL under the CLI's keys, header and timeout."""
         return {"mcpServers": {SERVER_NAME: {
-            "type": "http", "url": self.mcp_url,
+            **url_fields,
             "headers": {"Authorization": f"Bearer {self.token}"}, "timeout": MCP_TIMEOUT_MS,
         }}}
 
@@ -94,10 +98,15 @@ def _private_config_dir() -> Path:
 
 def write_claude_config(endpoint: McpEndpoint) -> Path:
     """Writes the MCP config to a private temp file (inline JSON gets mangled by PTY quoting)."""
+    return write_private(endpoint, "", endpoint.claude_config())
+
+
+def write_private(endpoint: McpEndpoint, suffix: str, document: dict) -> Path:
+    """Writes a document holding the token to a 0600 file in the private dir; returns its path."""
     directory = _private_config_dir()
     safe = "".join(c if c.isalnum() or c in "-_" else "_" for c in endpoint.workspace_id)
-    path = directory / f"{safe}.json"
-    path.write_text(json.dumps(endpoint.claude_config()), encoding="utf-8")
+    path = directory / f"{safe}{suffix}.json"
+    path.write_text(json.dumps(document), encoding="utf-8")
     try:
         path.chmod(0o600)
     except OSError:

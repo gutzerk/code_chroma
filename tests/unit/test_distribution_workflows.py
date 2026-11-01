@@ -156,5 +156,5 @@ def test_the_manifest_and_alert_wait_for_every_dotnet_job():
 def test_ci_runs_the_csharp_shell_tests_on_all_three_oses():
     job = _jobs(CI)["dotnet-shell"]
 
-    assert set(job["strategy"]["matrix"]["os"]) == {"ubuntu-latest", "windows-latest", "macos-14"}
+    assert set(job["strategy"]["matrix"]["os"]) == {"ubuntu-latest", "windows-latest", "macos-15"}
     assert "dotnet test dotnet/CodeChroma.Shell.sln" in yaml.dump(job)

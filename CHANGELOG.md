@@ -1,5 +1,18 @@
 # Changelog
 
+## [1.12.0](https://github.com/gutzerk/code_chroma/compare/v1.11.0...v1.12.0) (2026-11-01)
+
+
+### Features
+
+* make CodeChroma skills and ask_user work for every agent CLI ([90cbf4a](https://github.com/gutzerk/code_chroma/commit/90cbf4ad06d39635df70758e3194ecd34e9299d3))
+
+
+### Bug Fixes
+
+* keep the Kimi MCP entry out of tracked files and survive write errors ([3d166e4](https://github.com/gutzerk/code_chroma/commit/3d166e4ee40c9aa81b44f588d290d3e32c0dbe50))
+* **wiki-general:** run Update through the deterministic worker pipeline ([ccb3f6a](https://github.com/gutzerk/code_chroma/commit/ccb3f6a8ecb1dcf5d4ac4423be6b5b36e13ad9e7)), closes [#234](https://github.com/gutzerk/code_chroma/issues/234)
+
 ## [1.11.0](https://github.com/gutzerk/code_chroma/compare/v1.10.0...v1.11.0) (2026-10-30)
 
 

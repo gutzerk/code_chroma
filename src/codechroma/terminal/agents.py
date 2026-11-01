@@ -21,6 +21,7 @@ from codechroma.assistant import DEFAULT_CLI, load_assistant_settings
 from codechroma.bridge.agents.session_ownership import FILE_ENV, INITIAL_ID_ENV, hook_settings
 from codechroma.bridge.resources import resource_path
 from codechroma.config import settings
+from codechroma.llm.cli_adapters import CLI_ADAPTERS
 from codechroma.questions.launch import McpEndpoint
 
 ALLOWED_AGENTS: dict[str, list[str]] = {
@@ -141,10 +142,10 @@ def _mcp_registration(
     adapter: str | None, mcp: McpEndpoint | None, workdir: Path | None
 ) -> tuple[list[str], dict[str, str]]:
     """Argv and env that register the CodeChroma MCP server with this CLI; empty when it can't."""
-    from codechroma.llm.cli_adapters import CLI_ADAPTERS
-
-    cli = CLI_ADAPTERS.get(adapter) if adapter is not None and mcp is not None else None
-    registration = cli.mcp_registration(mcp, workdir) if cli is not None else None
+    cli = CLI_ADAPTERS.get(adapter) if adapter is not None else None
+    if cli is None or mcp is None:
+        return [], {}
+    registration = cli.mcp_registration(mcp, workdir)
     if registration is None:
         return [], {}
     args, env = registration

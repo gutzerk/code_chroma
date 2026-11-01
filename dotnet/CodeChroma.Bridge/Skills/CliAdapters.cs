@@ -2,6 +2,7 @@ using System.Text.Json;
 using System.Text.Json.Nodes;
 using CodeChroma.Bridge.Questions;
 using CodeChroma.Bridge.Stores;
+using CodeChroma.Bridge.Workspaces;
 
 namespace CodeChroma.Bridge.Skills;
 
@@ -178,17 +179,21 @@ public sealed class KimiAdapter : ICliAdapter
     /// <summary>Kimi's project-local MCP file, relative to the window's working directory; SkillSync keeps it out of git.</summary>
     public const string McpConfig = ".kimi-code/mcp.json";
 
-    /// <summary>Kimi has no per-run MCP flag, so the entry is merged into the window's mcp.json, keeping the user's servers; an unreadable file is left alone (null).</summary>
+    /// <summary>Kimi has no per-run MCP flag, so the entry is merged into the window's mcp.json, keeping the user's servers; a tracked, unreadable or unwritable file is left alone (null).</summary>
     public McpLaunch? Mcp(McpEndpoint endpoint, string? workdir)
     {
-        if (string.IsNullOrEmpty(workdir)) return null;
+        if (string.IsNullOrEmpty(workdir) || IsTracked(workdir)) return null;
         var path = Path.Combine(workdir, McpConfig);
         if ((File.Exists(path) ? JsonFile.Load(path) as JsonObject : new JsonObject()) is not { } document) return null;
         if (document["mcpServers"] is not JsonObject servers) document["mcpServers"] = servers = new JsonObject();
         servers[McpEndpoint.ServerName] = new JsonObject { ["transport"] = "http", ["url"] = endpoint.McpUrl, ["bearerTokenEnvVar"] = McpEndpoint.TokenEnv };
-        JsonFile.Write(path, document);
+        try { JsonFile.Write(path, document); }
+        catch (Exception error) when (error is IOException or UnauthorizedAccessException) { return null; }
         return new McpLaunch([]);
     }
+
+    /// <summary>True when git tracks the MCP file: an exclude cannot hide edits to it, so the agent would commit the bridge URL.</summary>
+    private static bool IsTracked(string workdir) => !string.IsNullOrWhiteSpace(GitRunner.Run(workdir, "ls-files", "--", McpConfig));
 
     public IReadOnlyList<string> BuildArgv(string binary, string prompt, string model, IReadOnlyDictionary<string, string>? env, IReadOnlyList<string>? extra = null) =>
         [binary, "--prompt", prompt, "--model", model, "--output-format", "stream-json", .. extra ?? []];

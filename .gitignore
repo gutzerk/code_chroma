@@ -50,9 +50,12 @@ epics-preview.html
 .claude/reports/
 # Installed copies of the skills in skills/ (the bridge syncs them into every opened project)
 .claude/skills/codechroma-*/
+.agents/skills/codechroma-*/
 verify_tmp*.cjs
 
-# .NET build output (dotnet/)
+# .NET build output (dotnet/) and local publish/package folders
+dist-dotnet/
+publish/
 dotnet/**/bin/
 dotnet/**/obj/
 dotnet/**/TestResults/

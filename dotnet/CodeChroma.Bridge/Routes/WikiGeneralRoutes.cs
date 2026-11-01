@@ -144,24 +144,8 @@ public static class WikiGeneralRoutes
             try
             {
                 if (agents[WikiGeneral.Kind].GetState(ws.Id).State == "generating") return Reply.Error(409, "a generate run is already in progress");
-                JsonObject delta;
-                try
-                {
-                    delta = await Task.Run(() => WikiGeneral.PrepareUpdate(ws));
-                }
-                catch (Exception error)
-                {
-                    // A reanalyze or manifest failure must reach the canvas as an error, not crash the route.
-                    return Results.Json(await agent.MarkDone(ws.Id, onChange, error.Message), BridgeJson.Default.JobState);
-                }
-                string Dump(string level, string bucket) => delta[level]![bucket]!.ToJsonString(new System.Text.Json.JsonSerializerOptions { WriteIndented = true, Encoder = System.Text.Encodings.Web.JavaScriptEncoder.UnsafeRelaxedJsonEscaping });
-                var prompt = Prompts.Render("wiki_general_update_agent",
-                    ("created_components_json", Dump("components", "created")), ("rewritten_components_json", Dump("components", "rewritten")),
-                    ("created_containers_json", Dump("containers", "created")), ("rewritten_containers_json", Dump("containers", "rewritten")));
-                var pages = WikiGeneralUpdate.PagesToWrite(delta);
-                var startedUtc = DateTime.UtcNow.AddSeconds(-1);
-                var options = new RunOptions([]) { PostRunCheck = () => WikiGeneralUpdate.VerifyPagesWritten(ws.Root, pages, startedUtc) };
-                return Results.Json(await agent.Start(ws.Id, ws.Root, onChange, onOutput, prompt, options: options), BridgeJson.Default.JobState);
+                // The run body computes and applies the delta itself, so a failed run restores the manifest.
+                return Results.Json(await agent.Start(ws.Id, ws.Root, onChange, onOutput, workspace: ws), BridgeJson.Default.JobState);
             }
             finally
             {

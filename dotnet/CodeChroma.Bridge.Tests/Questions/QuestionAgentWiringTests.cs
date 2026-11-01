@@ -2,6 +2,7 @@ using System.Text.Json.Nodes;
 using CodeChroma.Bridge.Questions;
 using CodeChroma.Bridge.Stores;
 using CodeChroma.Bridge.Terminal;
+using CodeChroma.Bridge.Workspaces;
 
 namespace CodeChroma.Bridge.Tests.Questions;
 
@@ -151,6 +152,34 @@ public sealed class QuestionAgentWiringTests : IDisposable
         var launch = _agents.Resolve("agent", agentId: "agent-1", bridgeUrl: BridgeUrl, workdir: Path.Combine(_dir, "worktree"))!;
 
         Assert.Equal("{ broken", File.ReadAllText(file));
+        Assert.False(launch.Env.ContainsKey("CODECHROMA_QUESTION_TOKEN"));
+    }
+
+    [Fact]
+    public void A_kimi_window_leaves_a_git_tracked_mcp_file_alone_and_gets_no_server()
+    {
+        UseAgentCli("kimi-cli");
+        var file = KimiMcpFile("""{"mcpServers":{}}""");
+        var worktree = Path.Combine(_dir, "worktree");
+        GitRunner.Run(worktree, "init", "-q");
+        GitRunner.Run(worktree, "add", ".kimi-code/mcp.json");
+
+        var launch = _agents.Resolve("agent", agentId: "agent-1", bridgeUrl: BridgeUrl, workdir: worktree)!;
+
+        Assert.Equal("""{"mcpServers":{}}""", File.ReadAllText(file));
+        Assert.False(launch.Env.ContainsKey("CODECHROMA_QUESTION_TOKEN"));
+    }
+
+    [Fact]
+    public void A_kimi_window_gets_no_server_when_the_mcp_file_cannot_be_written()
+    {
+        UseAgentCli("kimi-cli");
+        var worktree = Path.Combine(_dir, "worktree");
+        Directory.CreateDirectory(worktree);
+        File.WriteAllText(Path.Combine(worktree, ".kimi-code"), "not a folder");
+
+        var launch = _agents.Resolve("agent", agentId: "agent-1", bridgeUrl: BridgeUrl, workdir: worktree)!;
+
         Assert.False(launch.Env.ContainsKey("CODECHROMA_QUESTION_TOKEN"));
     }
 

@@ -10,6 +10,7 @@ from pathlib import Path
 import pytest
 from fastapi.testclient import TestClient
 
+from codechroma.bridge.git_cmd import run_git
 from codechroma.bridge.resources import resource_path
 from codechroma.questions.launch import (
     McpEndpoint,
@@ -132,6 +133,27 @@ def test_kimi_window_leaves_an_unreadable_mcp_file_alone(monkeypatch, tmp_path):
     _argv, env = agent_cli("agent", mcp=ENDPOINT, workdir=tmp_path)
 
     assert config.read_text(encoding="utf-8") == "{ broken"
+    assert "CODECHROMA_QUESTION_TOKEN" not in env
+
+
+def test_kimi_window_leaves_a_git_tracked_mcp_file_alone(monkeypatch, tmp_path):
+    _route_agents_to(monkeypatch, "kimi-cli", "kimi")
+    config = _kimi_mcp_file(tmp_path, '{"mcpServers": {}}')
+    run_git(tmp_path, "init", "-q")
+    run_git(tmp_path, "add", ".kimi-code/mcp.json")
+
+    _argv, env = agent_cli("agent", mcp=ENDPOINT, workdir=tmp_path)
+
+    assert config.read_text(encoding="utf-8") == '{"mcpServers": {}}'
+    assert "CODECHROMA_QUESTION_TOKEN" not in env
+
+
+def test_kimi_window_gets_no_server_when_the_mcp_file_cannot_be_written(monkeypatch, tmp_path):
+    _route_agents_to(monkeypatch, "kimi-cli", "kimi")
+    (tmp_path / ".kimi-code").write_text("not a folder", encoding="utf-8")
+
+    _argv, env = agent_cli("agent", mcp=ENDPOINT, workdir=tmp_path)
+
     assert "CODECHROMA_QUESTION_TOKEN" not in env
 
 

@@ -73,7 +73,7 @@ Rules:
 5. **Self-check — never report success on a run that did not print `OK`:**
 
    ```bash
-   python3 .claude/skills/codechroma-draw-diagram/scripts/check_diagram.py --kind walkthrough
+   python3 .agents/skills/codechroma-draw-diagram/scripts/check_diagram.py --kind walkthrough
    ```
 
    The route codes (`BADROUTE`, `ROUTE-*`) are advisory; `ORPHAN`, `DANGLING`, `DUPLICATE`, `SPLIT` and the budgets are in `drawing-rules.md`.

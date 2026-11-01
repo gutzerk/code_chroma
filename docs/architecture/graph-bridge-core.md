@@ -320,7 +320,7 @@ Supporting modules:
   `launch.py`-only one: `create_app` calls `skill_sync.sync_all_skills(root)` right after resolving
   `root`, so every Python entry point that builds an app over a repo — a plain `uvicorn codechroma.bridge.server:app`, and `launch.py` itself
   — installs/refreshes every skill in `skill_sync.SKILL_NAMES` into the target repo's
-  `.claude/skills/` (source of truth: this repo's `skills/`; the C# bridge does the same at start, see `diagram-skills.md`) so agents running inside
+  `.agents/skills/` and `.claude/skills/` (`SKILL_TARGET_PARTS`; source of truth: this repo's `skills/`; the C# bridge does the same at start, see `diagram-skills.md`) so agents running inside
   that repo write plans, diagrams, change reviews, pattern diagrams and epic briefs in the
   current format; skipped when the target is this repo itself. 🔴 `SKILL_NAMES` is the **single**
   per-skill list — `sync_skill(root, name)` is generic, `SKILL_EXCLUDE_PATTERNS` is derived from it,
@@ -343,7 +343,7 @@ Supporting modules:
   or stash your changes before switching branches" over two untracked `codechroma-patterns` files).
   `codechroma.skills.is_synced_skill_path` (core, so `GraphEngine`'s file walk can use it without
   importing the bridge; re-exported by `skill_sync`) is the shared test for "we wrote this" (any
-  depth under `.claude/skills/codechroma-*`); `main_branch._is_ours` combines it with the
+  depth under `.agents/skills/codechroma-*` or `.claude/skills/codechroma-*`); `main_branch._is_ours` combines it with the
   `.codechroma/*` exemption. Use both in any new dirty check.
 
 See [`c1-diagram.md`](c1-diagram.md) for the C1 system-context view and

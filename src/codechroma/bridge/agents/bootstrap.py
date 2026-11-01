@@ -17,6 +17,7 @@ from codechroma.bridge.skill_sync import SKILL_EXCLUDE_PATTERNS
 from codechroma.config import settings
 from codechroma.engine import IGNORED_DIRS
 from codechroma.errors import codechromaError
+from codechroma.skills import SKILL_TARGET_PARTS
 
 STATE_READY = "ready"
 STATE_NO_GIT = "no-git"
@@ -39,8 +40,8 @@ def large_file_bytes() -> int:
     return settings.bootstrap.large_file_bytes
 
 
-# Adds .claude/: only this reversible pre-tick dialog should flag it, not the diff/live-watch paths.
-_HEAVY_DIRS = IGNORED_DIRS | {".claude"}
+# Adds .claude/ and .agents/: only this reversible pre-tick dialog flags them, not diff/live-watch.
+_HEAVY_DIRS = IGNORED_DIRS | {parts[0] for parts in SKILL_TARGET_PARTS}
 
 _SECRET_GLOBS = (".env", ".env.*", "*.pem", "*.key", "id_rsa", "id_rsa.*")
 

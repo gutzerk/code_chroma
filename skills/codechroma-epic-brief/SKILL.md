@@ -203,7 +203,7 @@ Rules:
 8. Self-check -- never report success on a run that didn't print `OK`:
 
    ```bash
-   python3 .claude/skills/codechroma-epic-brief/scripts/check_brief.py --repo default --item {epic_id}
+   python3 .agents/skills/codechroma-epic-brief/scripts/check_brief.py --repo default --item {epic_id}
    ```
 
    | Line | Means | Fix |

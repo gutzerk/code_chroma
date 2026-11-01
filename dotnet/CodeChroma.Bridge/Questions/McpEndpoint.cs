@@ -19,26 +19,28 @@ public sealed record McpEndpoint(string WorkspaceId, string BaseUrl, string Toke
         [BridgeAddress.WorkspaceIdEnv] = WorkspaceId,
     };
 
+    public const int TimeoutMs = 60_000;
+
     /// <summary>The `--mcp-config` document: one http server with a bearer header and a short timeout.</summary>
-    public JsonObject ClaudeConfig() => new()
+    public JsonObject ClaudeConfig() => ServerDocument(new JsonObject { ["type"] = "http", ["url"] = McpUrl });
+
+    /// <summary>An `mcpServers` document holding this server, its URL under the CLI's own keys plus the bearer header and timeout.</summary>
+    public JsonObject ServerDocument(JsonObject urlFields)
     {
-        ["mcpServers"] = new JsonObject
-        {
-            [ServerName] = new JsonObject
-            {
-                ["type"] = "http", ["url"] = McpUrl,
-                ["headers"] = new JsonObject { ["Authorization"] = "Bearer " + Token },
-                ["timeout"] = 60_000,
-            },
-        },
-    };
+        urlFields["headers"] = new JsonObject { ["Authorization"] = "Bearer " + Token };
+        urlFields["timeout"] = TimeoutMs;
+        return new JsonObject { ["mcpServers"] = new JsonObject { [ServerName] = urlFields } };
+    }
 
     /// <summary>Writes the MCP config to a temp file (inline JSON gets mangled by PTY quoting); returns its path.</summary>
-    public string WriteClaudeConfig()
+    public string WriteClaudeConfig() => WritePrivate("", ClaudeConfig());
+
+    /// <summary>Writes a document holding the token to a 0600 file in the private dir; returns its path.</summary>
+    public string WritePrivate(string suffix, JsonObject document)
     {
         var safe = new string(WorkspaceId.Select(c => char.IsAsciiLetterOrDigit(c) || c is '-' or '_' ? c : '_').ToArray());
-        var path = Path.Combine(PrivateDirectory(), safe + ".json");
-        var json = ClaudeConfig().ToJsonString();
+        var path = Path.Combine(PrivateDirectory(), safe + suffix + ".json");
+        var json = document.ToJsonString();
         if (OperatingSystem.IsWindows())
         {
             File.WriteAllText(path, json);

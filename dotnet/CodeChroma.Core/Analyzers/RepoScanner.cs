@@ -138,11 +138,14 @@ public static class RepoScanner
         return negate ? "!" + pattern : pattern;
     }
 
-    /// <summary>True for anything inside a .claude/skills/codechroma-* copy the bridge installs itself.</summary>
+    /// <summary>Folders the bridge installs its codechroma-* skills into: .agents/skills is the cross-agent standard (Codex, Gemini, Kimi); Claude Code reads only .claude/skills.</summary>
+    public static readonly IReadOnlyList<string> SkillTargets = [".agents/skills", ".claude/skills"];
+
+    /// <summary>True for anything inside a codechroma-* copy the bridge installs itself into one of SkillTargets.</summary>
     public static bool IsSyncedSkillPath(string relativePosix)
     {
         var parts = relativePosix.Split('/');
-        return parts.Length > 2 && parts[0] == ".claude" && parts[1] == "skills" && parts[2].StartsWith("codechroma-", StringComparison.Ordinal);
+        return parts.Length > 2 && parts[2].StartsWith("codechroma-", StringComparison.Ordinal) && SkillTargets.Contains($"{parts[0]}/{parts[1]}");
     }
 
     public static List<string> ListFiles(string repoRoot)

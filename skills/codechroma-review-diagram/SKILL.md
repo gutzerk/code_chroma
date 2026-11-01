@@ -154,7 +154,7 @@ normal change set — let `summary` cover the rest of the shape.
 7. **Self-check — never report success on a review the canvas will drop:**
 
    ```bash
-   python3 .claude/skills/codechroma-review-diagram/scripts/check_review.py \
+   python3 .agents/skills/codechroma-review-diagram/scripts/check_review.py \
        --url ${CODECHROMA_BRIDGE_URL:-http://localhost:8000} --repo "${TARGET_WORKSPACE}" --kind impact
    ```
 

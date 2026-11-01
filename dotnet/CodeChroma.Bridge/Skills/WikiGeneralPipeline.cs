@@ -20,9 +20,9 @@ public static class WikiGeneralPipeline
 {
     private static readonly JsonSerializerOptions Pretty = new() { WriteIndented = true, Encoder = JavaScriptEncoder.UnsafeRelaxedJsonEscaping };
 
-    private static JsonObject SummarySchema() => Schema(("summary", "string"), ("description", "string"));
+    internal static JsonObject SummarySchema() => Schema(("summary", "string"), ("description", "string"));
 
-    private static JsonObject Schema(params (string Name, string Type)[] fields)
+    internal static JsonObject Schema(params (string Name, string Type)[] fields)
     {
         var properties = new JsonObject();
         foreach (var (name, type) in fields) properties[name] = new JsonObject { ["type"] = type };
@@ -47,9 +47,9 @@ public static class WikiGeneralPipeline
         ["required"] = new JsonArray("assignments"),
     };
 
-    private static string Dump(JsonNode node) => node.ToJsonString(Pretty);
+    internal static string Dump(JsonNode node) => node.ToJsonString(Pretty);
 
-    private static string RenderWikiContext(WikiContextBundle bundle)
+    internal static string RenderWikiContext(WikiContextBundle bundle)
     {
         if (!bundle.HasWiki) return "(this repository has no plain wiki yet)";
         var parts = new List<string>();
@@ -84,7 +84,7 @@ public static class WikiGeneralPipeline
     }
 
     /// <summary>Every class, method and function the files actually have, straight off the parsed graph.</summary>
-    private static JsonArray DeterministicElements(Dictionary<string, DependencyDigest.FileSymbolsView> byPath, IEnumerable<string> files)
+    internal static JsonArray DeterministicElements(Dictionary<string, DependencyDigest.FileSymbolsView> byPath, IEnumerable<string> files)
     {
         var elements = new JsonArray();
         foreach (var file in files)
@@ -123,7 +123,7 @@ public static class WikiGeneralPipeline
         foreach (var n in neighbors.Order(StringComparer.Ordinal)) yield return $"- Connects: `{n}`";
     }
 
-    private static string RenderC3Page(string name, string description, JsonArray elements, IReadOnlyCollection<string>? neighbors)
+    internal static string RenderC3Page(string name, string description, JsonArray elements, IReadOnlyCollection<string>? neighbors)
     {
         var lines = new List<string> { $"# {name}", "", description.Trim(), "", "## Elements", "" };
         foreach (var element in elements.OfType<JsonObject>())
@@ -140,7 +140,7 @@ public static class WikiGeneralPipeline
         return string.Join('\n', lines) + "\n";
     }
 
-    private static string RenderC2Page(string name, string description, IEnumerable<(string Id, string Name, string Summary)> components, IReadOnlyCollection<string>? neighbors)
+    internal static string RenderC2Page(string name, string description, IEnumerable<(string Id, string Name, string Summary)> components, IReadOnlyCollection<string>? neighbors)
     {
         var lines = new List<string> { $"# {name}", "", description.Trim(), "", "## Components", "" };
         foreach (var (id, componentName, summary) in components) lines.Add($"- [{componentName}](../c3/{id}.md) — {summary.Trim().TrimEnd('.')}");
@@ -148,7 +148,7 @@ public static class WikiGeneralPipeline
         return string.Join('\n', lines) + "\n";
     }
 
-    private static string RenderIndex(string repoName, string narrative, IEnumerable<(string Id, string Name, string Summary)> containers)
+    internal static string RenderIndex(string repoName, string narrative, IEnumerable<(string Id, string Name, string Summary)> containers)
     {
         var lines = new List<string> { $"# {repoName} — Architecture Map", "", narrative.Trim(), "", "## Containers", "" };
         foreach (var (id, name, summary) in containers) lines.Add($"- [{name}](c2/{id}.md) — {summary.Trim().TrimEnd('.')}");
@@ -183,12 +183,20 @@ public static class WikiGeneralPipeline
     public static async Task<JobState> Run(SkillAgent agent, Workspace? workspace, string repoId, OnOutput? onOutput, CancellationToken token)
     {
         if (workspace is null) return new JobState("error", "wiki-general pipeline requires a workspace");
+        return await Logged(agent, repoId, log => RunFanOut(agent, workspace, repoId, onOutput, log, token));
+    }
+
+    internal static string Stamp() => DateTime.UtcNow.ToString("HH:mm:ss.fff", CultureInfo.InvariantCulture);
+
+    /// <summary>Brackets a pipeline body with the debug log's start, crash and end lines.</summary>
+    internal static async Task<JobState> Logged(SkillAgent agent, string repoId, Func<TextWriter?, Task<JobState>> body)
+    {
         using var log = agent.OpenDebugLog(repoId);
         var started = DateTime.UtcNow;
         SkillAgent.DebugWrite(log, $"{Stamp()} PIPELINE START repo={repoId}\n");
         try
         {
-            return await RunFanOut(agent, workspace, repoId, onOutput, log, token);
+            return await body(log);
         }
         catch (Exception error)
         {
@@ -201,27 +209,88 @@ public static class WikiGeneralPipeline
         }
     }
 
-    private static string Stamp() => DateTime.UtcNow.ToString("HH:mm:ss.fff", CultureInfo.InvariantCulture);
-
-    private static async Task<JobState> RunFanOut(SkillAgent agent, Workspace workspace, string repoId, OnOutput? onOutput, TextWriter? log, CancellationToken token)
+    /// <summary>The resolved CLI, its model argument and its minimal-context adapter, or the error that stops the run.</summary>
+    internal static (CliResolution Cli, string Model, ClaudeAdapter? Adapter, string? Error) ResolveWorkerCli(SkillAgent agent)
     {
-        async Task Emit(string line)
+        var cli = agent.ResolveCli();
+        // An explicit --model re-triggers the CLI's rejection; omit it when ANTHROPIC_MODEL carries it.
+        var model = cli.EnvOverrides.ContainsKey("ANTHROPIC_MODEL") ? "" : cli.Model;
+        try
+        {
+            return (cli, model, WikiGeneralWorker.RequireMinimalContextSupport(CliAdapters.All[cli.AdapterKey], cli.Binary), null);
+        }
+        catch (UnsupportedAdapterException error)
+        {
+            return (cli, model, null, error.Message);
+        }
+    }
+
+    /// <summary>The bounded worker concurrency, per-job debug lines and the canvas's "→ done/total label" progress lines.</summary>
+    internal sealed class WorkerPool(
+        SkillAgent agent, string repoId, string root, ClaudeAdapter adapter, CliResolution cli, string model,
+        TextWriter? log, int totalJobs, OnOutput? onOutput, CancellationToken token) : IDisposable
+    {
+        private readonly SemaphoreSlim _gate = new(WikiGeneralPipelineSettings.WorkerConcurrency);
+        /// <summary>The error of a job that never ran because an earlier one failed; callers report the real failure first.</summary>
+        public const string SkippedError = "skipped after an earlier job failed";
+
+        private int _inFlight;
+        private int _completed;
+        private volatile bool _failed;
+
+        /// <summary>The failures in report order: a job's own error before any job that was merely skipped because of it.</summary>
+        public static List<(string Id, WorkerResult Result)> Failures(IEnumerable<(string Id, WorkerResult Result)> outcomes) =>
+            outcomes.Where(o => !o.Result.Ok).OrderBy(o => o.Result.Error == SkippedError).ToList();
+
+        public async Task Emit(string line)
         {
             if (onOutput is not null) await onOutput(repoId, [line]);
         }
 
-        var cli = agent.ResolveCli();
-        // An explicit --model re-triggers the CLI's rejection; omit it when ANTHROPIC_MODEL carries it.
-        var model = cli.EnvOverrides.ContainsKey("ANTHROPIC_MODEL") ? "" : cli.Model;
-        ClaudeAdapter adapter;
-        try
+        public async Task<WorkerResult> Run(string prompt, JsonObject schema, string label)
         {
-            adapter = WikiGeneralWorker.RequireMinimalContextSupport(CliAdapters.All[cli.AdapterKey], cli.Binary);
+            WorkerResult result;
+            int done;
+            await _gate.WaitAsync(token);
+            try
+            {
+                // A queued job is a paid model call; once one job failed the run is lost, so don't start the rest.
+                if (_failed) return new WorkerResult(false, null, SkippedError);
+                // Counted inside the semaphore, not before it, or every queued job inflates the number.
+                var now = Interlocked.Increment(ref _inFlight);
+                SkillAgent.DebugWrite(log, $"{Stamp()} START {label} (in_flight={now}/{WikiGeneralPipelineSettings.WorkerConcurrency})\n");
+                var jobStarted = DateTime.UtcNow;
+                try
+                {
+                    result = await WikiGeneralWorker.Run(agent, repoId, root, adapter, cli, model, prompt, schema, label, token);
+                }
+                catch
+                {
+                    SkillAgent.DebugWrite(log, $"{Stamp()} CANCELLED {label} (in_flight={Interlocked.Decrement(ref _inFlight)})\n");
+                    throw;
+                }
+                done = Interlocked.Increment(ref _completed);
+                var left = Interlocked.Decrement(ref _inFlight);
+                if (!result.Ok) _failed = true;
+                var status = result.Ok ? "ok" : $"FAILED: {result.Error}";
+                SkillAgent.DebugWrite(log, $"{Stamp()} END   {label} dur={(DateTime.UtcNow - jobStarted).TotalSeconds:F1}s {status} (in_flight={left})\n");
+            }
+            finally
+            {
+                _gate.Release();
+            }
+            // Outside the semaphore (a socket send shouldn't hold up the next slot); the canvas parses this line.
+            await Emit($"→ {done}/{totalJobs} {label}");
+            return result;
         }
-        catch (UnsupportedAdapterException error)
-        {
-            return new JobState("error", error.Message);
-        }
+
+        public void Dispose() => _gate.Dispose();
+    }
+
+    private static async Task<JobState> RunFanOut(SkillAgent agent, Workspace workspace, string repoId, OnOutput? onOutput, TextWriter? log, CancellationToken token)
+    {
+        var (cli, model, adapter, adapterError) = ResolveWorkerCli(agent);
+        if (adapter is null) return new JobState("error", adapterError!);
 
         var clustering = workspace.Engine.BuildClusters(workspace.Root);
         var componentGroups = clustering?.Components.Select(c => (c.Id, Files: c.Files)).ToList() ?? [];
@@ -254,46 +323,11 @@ public static class WikiGeneralPipeline
 
         var wikiDir = WikiContext.WikiDir(workspace.Root);
         var undetermined = clustering.UndeterminedFiles;
-        var concurrency = WikiGeneralPipelineSettings.WorkerConcurrency;
-        using var gate = new SemaphoreSlim(concurrency);
-        var inFlight = 0;
-        var completed = 0;
         // The canvas progress bar's denominator: undetermined + c3s + c2s + narrative.
         var totalJobs = (undetermined.Count > 0 ? 1 : 0) + componentGroups.Count + containerGroups.Count + 1;
-
-        async Task<WorkerResult> Worker(string prompt, JsonObject schema, string label)
-        {
-            WorkerResult result;
-            int done;
-            await gate.WaitAsync(token);
-            try
-            {
-                // Counted inside the semaphore, not before it, or every queued job inflates the number.
-                var now = Interlocked.Increment(ref inFlight);
-                SkillAgent.DebugWrite(log, $"{Stamp()} START {label} (in_flight={now}/{concurrency})\n");
-                var jobStarted = DateTime.UtcNow;
-                try
-                {
-                    result = await WikiGeneralWorker.Run(agent, repoId, workspace.Root, adapter, cli, model, prompt, schema, label, token);
-                }
-                catch
-                {
-                    SkillAgent.DebugWrite(log, $"{Stamp()} CANCELLED {label} (in_flight={Interlocked.Decrement(ref inFlight)})\n");
-                    throw;
-                }
-                done = Interlocked.Increment(ref completed);
-                var left = Interlocked.Decrement(ref inFlight);
-                var status = result.Ok ? "ok" : $"FAILED: {result.Error}";
-                SkillAgent.DebugWrite(log, $"{Stamp()} END   {label} dur={(DateTime.UtcNow - jobStarted).TotalSeconds:F1}s {status} (in_flight={left})\n");
-            }
-            finally
-            {
-                gate.Release();
-            }
-            // Outside the semaphore (a socket send shouldn't hold up the next slot); the canvas parses this line.
-            await Emit($"→ {done}/{totalJobs} {label}");
-            return result;
-        }
+        using var pool = new WorkerPool(agent, repoId, workspace.Root, adapter, cli, model, log, totalJobs, onOutput, token);
+        Task Emit(string line) => pool.Emit(line);
+        Task<WorkerResult> Worker(string prompt, JsonObject schema, string label) => pool.Run(prompt, schema, label);
 
         // --- resolve-undetermined: one batched call, 0+ files ---
         var extraFiles = new Dictionary<string, List<string>>();
@@ -343,8 +377,8 @@ public static class WikiGeneralPipeline
         }
 
         var c3Outcomes = await Task.WhenAll(componentGroups.Select(g => WriteC3(g.Id)));
-        if (c3Outcomes.FirstOrDefault(o => !o.Result.Ok) is { Result: not null } c3Failed && !c3Failed.Result.Ok)
-            return new JobState("error", $"write-c3 failed for {c3Failed.RealId}: {c3Failed.Result.Error}");
+        if (WorkerPool.Failures(c3Outcomes.Select(o => (o.RealId, o.Result))) is [var c3Failed, ..])
+            return new JobState("error", $"write-c3 failed for {c3Failed.Id}: {c3Failed.Result.Error}");
         var componentPages = c3Outcomes.ToDictionary(o => o.RealId, o => o.Result.Data!);
         await Emit("✓ done");
 
@@ -366,8 +400,8 @@ public static class WikiGeneralPipeline
         }
 
         var c2Outcomes = await Task.WhenAll(containerGroups.Select(g => WriteC2(g.Id)));
-        if (c2Outcomes.FirstOrDefault(o => !o.Result.Ok) is { Result: not null } c2Failed && !c2Failed.Result.Ok)
-            return new JobState("error", $"write-c2 failed for {c2Failed.RealId}: {c2Failed.Result.Error}");
+        if (WorkerPool.Failures(c2Outcomes.Select(o => (o.RealId, o.Result))) is [var c2Failed, ..])
+            return new JobState("error", $"write-c2 failed for {c2Failed.Id}: {c2Failed.Result.Error}");
         var containerPages = c2Outcomes.ToDictionary(o => o.RealId, o => o.Result.Data!);
         await Emit("✓ done");
 

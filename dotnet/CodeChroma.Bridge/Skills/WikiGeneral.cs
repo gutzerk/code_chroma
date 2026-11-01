@@ -44,8 +44,8 @@ public static class WikiGeneral
             "wiki_general_agent", null, SkillTimeouts.Model, (root, id) => ManifestPath(root, id), ValidManifest,
             "codechroma_WIKI_GENERAL_TIMEOUT_SECONDS", SkillTimeouts.For(Kind), "generation produced no valid wiki-general manifest", WikiGeneralPipeline.Run));
         yield return new SkillAgents.KindSpec(KindUpdate, new SkillAgentSpec(
-            "wiki_general_update_agent", Prompts.Render("wiki_general_update_agent"), SkillTimeouts.Model, (root, id) => ManifestPath(root, id), ValidManifest,
-            "codechroma_WIKI_GENERAL_UPDATE_TIMEOUT_SECONDS", SkillTimeouts.For(KindUpdate), "update produced no valid wiki-general manifest"));
+            "wiki_general_update_agent", null, SkillTimeouts.Model, (root, id) => ManifestPath(root, id), ValidManifest,
+            "codechroma_WIKI_GENERAL_UPDATE_TIMEOUT_SECONDS", SkillTimeouts.For(KindUpdate), "update produced no valid wiki-general manifest", WikiGeneralUpdatePipeline.Run));
     }
 
     /// <summary>Full replace before a new run: c2 and c3 come back empty so no subagent has to mkdir.</summary>

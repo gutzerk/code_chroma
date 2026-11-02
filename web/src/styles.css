@@ -266,6 +266,22 @@
   background-color: var(--scrollbar-thumb-active);
 }
 
+/* xterm scrollback: `scrollbar-width: thin` hands WebKit/macOS a hidden overlay bar that a TUI's
+   mouse-captured wheel never reveals, so reset to auto to keep the always-visible styled bar. */
+.xterm .xterm-viewport {
+  scrollbar-width: auto;
+  scrollbar-color: auto;
+}
+
+.xterm .xterm-viewport::-webkit-scrollbar-thumb {
+  background-color: var(--scrollbar-thumb-hover);
+}
+
+.xterm .xterm-viewport::-webkit-scrollbar-thumb:hover,
+.xterm .xterm-viewport::-webkit-scrollbar-thumb:active {
+  background-color: var(--scrollbar-thumb-active);
+}
+
 html,
 body,
 #root {
@@ -7362,7 +7378,9 @@ button[data-copy-state="idle"][aria-label]:hover:not(:disabled) {
 }
 
 /* Grid rows size the card and terminal; the terminal sets no min/max height of its own. */
-.agent-question-host > .agent-window-terminal { grid-area: terminal; min-height: 0; box-sizing: border-box; }
+/* content-box, never border-box: FitAddon reads this box's computed width as the space for columns,
+   so counting the padding in it gives xterm too many cols and its canvas covers the scrollbar. */
+.agent-question-host > .agent-window-terminal { grid-area: terminal; min-height: 0; }
 
 .aq-card { grid-area: card; min-height: 0; overflow-y: auto; overscroll-behavior: contain; margin: 12px 12px 0; }
 

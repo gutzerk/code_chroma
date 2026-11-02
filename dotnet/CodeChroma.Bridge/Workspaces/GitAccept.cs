@@ -184,7 +184,7 @@ public static partial class GitAccept
         GitTree.Required(tree.GitRoot, ["update-ref", "HEAD", commitSha]);
         if (entry.Length > 0)
         {
-            var parts = entry.Split([' ', '\t'], StringSplitOptions.RemoveEmptyEntries);
+            var parts = entry.Split(new[] { ' ', '\t' }, StringSplitOptions.RemoveEmptyEntries);
             GitTree.Required(tree.GitRoot, ["update-index", "--cacheinfo", $"{parts[0]},{parts[2]},{gitRelative}"]);
         }
         return commitSha;

@@ -18,6 +18,14 @@ A Python-only change does not fix the production desktop runtime.
   `CODECHROMA_AGENT_SESSION_FILE`. It does not start a server and requires no Python interpreter.
   Windows hooks explicitly use PowerShell with its call operator and quoting, so tracking also
   works when Git Bash is unavailable; Unix hooks use shell quoting.
+- ⚠ Every claude window (agent, bare and `agent`-kind on the claude adapter) gets
+  `CLAUDE_CODE_DISABLE_ALTERNATE_SCREEN=1` (`TerminalAgents.ClassicRendererEnv`; Python
+  `terminal/agents.py` `_renderer_env`). A user's `"tui": "fullscreen"` setting otherwise runs claude
+  on the alternate screen, which leaves xterm no scrollback and so no usable scrollbar. The xterm
+  viewport also resets `scrollbar-width`/`scrollbar-color` to `auto` in `web/src/styles.css`, since
+  the global `thin` value hands WebKit a hidden overlay bar. 🔴 Keep `.agent-window-terminal`
+  content-box: FitAddon sizes columns from its computed width, so `border-box` counts the padding,
+  over-fits the grid and the xterm canvas covers the scrollbar (it only shows mid-resize).
 - `session_tracking_id` in `agents.json` identifies the current launch's file under the main repo's
   `.codechroma/agent-sessions/`. `AgentManager.CaptureSessionId` reads only that file, retaining the
   stored ID if it is missing or malformed. This follows `/clear` and interactive `/resume` across
@@ -234,8 +242,14 @@ branch through an agent attached to it (`_guard_shared_worktree`, keyed off `Age
   new xterm then sits in default mode while the agent believes it is on the alt screen. `attach()`
   instead queues `ScreenTap.render()`, an escape-sequence redraw of the `pyte` screen the status
   detector already maintains, and `resync()` repeats it once the client reports its own geometry
-  (`terminal/server.py`'s `_bridge_managed_session`). Trade-off, on purpose: a reattach shows the
-  current screen, not history above the fold. 🔴 Entirely separate from `skill_agent`'s registry: if
+  (`terminal/server.py`'s `_bridge_managed_session`). Python trade-off: a reattach shows the
+  current screen, not history above the fold. C# `Terminal/ScreenTap.cs` also keeps the parsed rows
+  that a line feed or a shrink scrolls off the top (`HistoryLimit` = xterm's 5000, stored as styled
+  runs, none on the alt screen or from `CSI S`, cleared by `ESC[3J` / `ESC c`) and `Render()` replays
+  them as plain lines first, rewrapped to the current width, so a reattached window can scroll the
+  whole dialog — still parsed cells, never raw bytes. `Attach()` sends the screen only (the history
+  too once the process has exited); the first-resize `Resync` sends the history once, at the
+  window's real width. 🔴 Entirely separate from `skill_agent`'s registry: if
   the two touched, regenerating a C1 diagram would kill the user's sessions. `atexit` + the lifespan
   kill leave no orphans. `agent_run_env(agent_id)` injects `CODECHROMA_WORKSPACE_ID=<agent id>` (and `CODECHROMA_BRIDGE_URL` when the bridge's URL is known, `questions.launch.identity_env`; C#: `BridgeAddress.ExportIdentity`) into
   the PTY env (both `routes/agents.py`'s `start` and `autostart.py` pass it via

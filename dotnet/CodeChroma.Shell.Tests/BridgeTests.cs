@@ -231,12 +231,10 @@ public class RealProcessBridgeTests
     public void A_taken_port_falls_back_to_another_bindable_one()
     {
         var finder = new TcpPortFinder();
-        var preferred = finder.FindFreePort("/repos/atlas");
-        var listener = new TcpListener(IPAddress.Loopback, preferred);
-        listener.Start();
+        var (repo, preferred, listener) = HoldPreferredPort();
         try
         {
-            var fallback = finder.FindFreePort("/repos/atlas");
+            var fallback = finder.FindFreePort(repo);
             var fallbackListener = new TcpListener(IPAddress.Loopback, fallback);
             try
             {
@@ -247,6 +245,19 @@ public class RealProcessBridgeTests
             finally { fallbackListener.Stop(); }
         }
         finally { listener.Stop(); }
+    }
+
+    // Binds a repo's preferred port directly, so no other process can grab it between probe and bind.
+    private static (string Repo, int Port, TcpListener Listener) HoldPreferredPort()
+    {
+        for (var i = 0; ; i++)
+        {
+            var repo = $"/repos/atlas-{i}";
+            var port = TcpPortFinder.PreferredPort(repo);
+            var listener = new TcpListener(IPAddress.Loopback, port);
+            try { listener.Start(); return (repo, port, listener); }
+            catch (SocketException) { listener.Stop(); }
+        }
     }
 
     [Fact]

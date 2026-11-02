@@ -8,6 +8,7 @@ from __future__ import annotations
 
 from codechroma.llm.call_site_settings import save_group_assignment
 from codechroma.llm.providers_store import create_provider
+from codechroma.terminal.agents import CLASSIC_RENDERER_ENV
 
 
 def _assign_agents_group(**provider_kwargs):
@@ -84,7 +85,7 @@ def test_agent_kind_loads_plugin_when_claude_adapter_uses_a_wrapper(monkeypatch)
 
     plugin = str(resource_path("skills").parent)
     assert argv == ["claude-wrapper", "--model", "claude-opus", "--plugin-dir", plugin]
-    assert env == {}
+    assert env == {CLASSIC_RENDERER_ENV: "1"}
 
 
 def test_agent_kind_carries_a_first_message_and_resume():
@@ -132,7 +133,7 @@ def test_claude_kind_still_ignores_the_provider_store():
     argv, env = agent_cli("claude")
 
     assert argv == ["claude", *_plugin_args()]
-    assert env == {}
+    assert env == {CLASSIC_RENDERER_ENV: "1"}
 
 
 def test_non_claude_assistant_cli_does_not_receive_claude_plugin_flags():

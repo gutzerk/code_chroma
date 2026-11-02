@@ -130,6 +130,11 @@ class AgentSession(AgentSessionPort):
         return self.exit_code is None
 
     @property
+    def detects_idle(self) -> bool:
+        """Whether the detector can ever report idle, so an inject_when_idle can ever type."""
+        return self._detector.rules.classifies
+
+    @property
     def status(self) -> str:
         """`exited` once the process is gone; while it runs, what the detector last settled on."""
         if self.exit_code is not None:

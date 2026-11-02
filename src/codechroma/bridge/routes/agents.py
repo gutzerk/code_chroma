@@ -25,7 +25,7 @@ from codechroma.bridge.routes._body import as_list, json_body
 from codechroma.bridge.services import BridgeServices
 from codechroma.bridge.workspaces import BRANCH_ID_PREFIX, MAIN_ID
 from codechroma.diagrams import kinds
-from codechroma.terminal.agents import ALLOWED_AGENTS, agent_cli, resolved_cli_for
+from codechroma.terminal.agents import ALLOWED_AGENTS, agent_cli, detector_kind, resolved_cli_for
 
 router = APIRouter()
 
@@ -164,7 +164,7 @@ async def post_agent_start(agent_id: str, request: Request, services: Services) 
     run_env = agent_run_env(agent_id, extra=env_overrides)
     # An AgentStartError becomes a 409 via the table in bridge/errors.py.
     session = services.agent_sessions.start(
-        agent_id, argv, Path(record.worktree), kind=record.kind, env=run_env
+        agent_id, argv, Path(record.worktree), kind=detector_kind(record.kind), env=run_env
     )
     # Only an `agent`-kind window reports what it launched; `claude` leaves `resolved_cli` empty.
     updated = services.agent_manager.mark_started(

@@ -43,8 +43,9 @@ public static class QuestionDelivery
     /// <summary>Every settled answer of one batch as one line, in the order the agent asked them.</summary>
     public static string BatchMessage(IEnumerable<CanvasElement> batch) => string.Join(' ', batch.Select(AnswerMessage));
 
+    // A session that can never look idle would hold the batch claim for hours, so it counts as no live session.
     private static Func<string, Func<Func<string?>, Task<bool>>?> Injector(AgentSessionRegistry sessions) =>
-        id => sessions.Get(id) is { IsAlive: true } s ? t => s.InjectWhenIdle(t, IdleAttempts) : null;
+        id => sessions.Get(id) is { IsAlive: true, DetectsIdle: true } s ? t => s.InjectWhenIdle(t, IdleAttempts) : null;
 
     /// <summary>Queues the text for the agent that asked; true when a live session will receive it.</summary>
     public static bool Deliver(AgentSessionRegistry sessions, CanvasElement element, string text) =>

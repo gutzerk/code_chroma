@@ -62,9 +62,15 @@ def live_session(services: Any, element: Element) -> Any | None:
     return session if session is not None and session.is_alive else None
 
 
+def _typing_session(services: Any, element: Element) -> Any | None:
+    """The live session that can ever look idle; others would hold the batch claim for hours."""
+    session = live_session(services, element)
+    return session if session is not None and session.detects_idle else None
+
+
 def deliver(services: Any, element: Element, text: str | None = None) -> bool:
     """Queues the answer for the asking agent; True when a live session will receive it."""
-    session = live_session(services, element)
+    session = _typing_session(services, element)
     if session is None:
         return False
     session.inject_when_idle(
@@ -79,7 +85,7 @@ _follow_ups: set[asyncio.Task] = set()
 
 async def deliver_settled(services: Any, ws: Workspace, element: Element) -> bool:
     """Once the agent has no open question, queues one wake-up with its answers; True if live."""
-    session = live_session(services, element)
+    session = _typing_session(services, element)
     if session is None:
         return False
     agent_id = element.meta["agent_id"]

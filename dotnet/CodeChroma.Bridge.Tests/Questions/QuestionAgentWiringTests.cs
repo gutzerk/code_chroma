@@ -79,7 +79,7 @@ public sealed class QuestionAgentWiringTests : IDisposable
 
         Assert.DoesNotContain("--mcp-config", noId.Argv);
         Assert.DoesNotContain("--mcp-config", noUrl.Argv);
-        Assert.Empty(noId.Env);
+        Assert.Equal([TerminalAgents.ClassicRendererEnv], noId.Env.Keys);
     }
 
     [Fact]
@@ -90,7 +90,7 @@ public sealed class QuestionAgentWiringTests : IDisposable
 
         Assert.DoesNotContain("--mcp-config", bare.Argv);
         Assert.DoesNotContain("--mcp-config", shell.Argv);
-        Assert.Empty(bare.Env);
+        Assert.Equal([TerminalAgents.ClassicRendererEnv], bare.Env.Keys);
     }
 
     [Fact]

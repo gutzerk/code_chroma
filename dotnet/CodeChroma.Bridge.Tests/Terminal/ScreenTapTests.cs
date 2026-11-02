@@ -135,6 +135,69 @@ public class ScreenTapTests
     }
 
     [Fact]
+    public void A_reattach_replays_the_rows_that_scrolled_off_the_screen()
+    {
+        var source = Tap(rows: 3);
+        source.Feed("one\r\ntwo\r\nthree\r\nfour\r\nfive");
+        var replica = Tap(rows: 3);
+
+        replica.Feed(source.Render());
+
+        Assert.Equal(2, replica.HistoryCount);
+        Assert.Equal(["three", "four", "five"], replica.Tail(3));
+        Assert.Equal(source.Render(), replica.Render());
+    }
+
+    [Fact]
+    public void History_wider_than_the_screen_is_rewrapped_to_the_current_width()
+    {
+        var source = Tap(rows: 2, cols: 10);
+        source.Feed("0123456789\r\nx\r\ny");
+        source.Resize(2, 5);
+        var replica = Tap(rows: 2, cols: 5);
+
+        replica.Feed(source.Render());
+
+        Assert.Equal(2, replica.HistoryCount);
+        Assert.Equal(["x", "y"], replica.Tail(2));
+    }
+
+    [Theory]
+    [InlineData(Esc + "[3J")]
+    [InlineData(Esc + "c")]
+    public void Clearing_the_scrollback_drops_the_history(string clear)
+    {
+        var tap = Tap(rows: 2);
+        tap.Feed("a\r\nb\r\nc\r\nd");
+
+        tap.Feed(clear);
+
+        Assert.Equal(0, tap.HistoryCount);
+    }
+
+    [Fact]
+    public void The_alt_screen_keeps_no_history()
+    {
+        var tap = Tap(rows: 2);
+        tap.Feed(Esc + "[?1049h");
+
+        tap.Feed("a\r\nb\r\nc\r\nd");
+
+        Assert.Equal(0, tap.HistoryCount);
+        Assert.DoesNotContain("a\u001b[m\r\n", tap.Render());
+    }
+
+    [Fact]
+    public void History_is_capped_at_the_xterm_scrollback()
+    {
+        var tap = Tap(rows: 1);
+
+        tap.Feed(string.Concat(Enumerable.Repeat("x\r\n", ScreenTap.HistoryLimit + 10)));
+
+        Assert.Equal(ScreenTap.HistoryLimit, tap.HistoryCount);
+    }
+
+    [Fact]
     public void Resizing_keeps_existing_rows_and_adds_blank_ones()
     {
         var tap = Tap(rows: 2, cols: 10);

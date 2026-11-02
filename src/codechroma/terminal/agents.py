@@ -24,6 +24,8 @@ from codechroma.config import settings
 from codechroma.llm.cli_adapters import CLI_ADAPTERS
 from codechroma.questions.launch import McpEndpoint
 
+CLASSIC_RENDERER_ENV = "CLAUDE_CODE_DISABLE_ALTERNATE_SCREEN"
+
 ALLOWED_AGENTS: dict[str, list[str]] = {
     "shell": (
         [os.environ.get("COMSPEC", "cmd.exe")]
@@ -76,6 +78,7 @@ def agent_cli(
         ], {
             **resolution.env_overrides, **mcp_env,
             **_tracking_env(is_claude, session_tracking_file, resume_session_id or new_session_id),
+            **_renderer_env(is_claude),
         }
     argv_entry = ALLOWED_AGENTS.get(agent)
     if argv_entry is None:
@@ -96,6 +99,7 @@ def agent_cli(
         ], {
             **mcp_env,
             **_tracking_env(is_claude, session_tracking_file, resume_session_id or new_session_id),
+            **_renderer_env(is_claude),
         }
     # Generic kinds (e.g. shell): a resume still appends the flag; a first message never does.
     if resume_session_id:
@@ -117,6 +121,11 @@ def _model_args(resolution) -> list[str]:
 
 def _tracking_args(is_claude: bool, file: Path | None) -> list[str]:
     return ["--settings", hook_settings()] if is_claude and file is not None else []
+
+
+def _renderer_env(is_claude: bool) -> dict[str, str]:
+    """Force claude's classic renderer: a fullscreen TUI leaves xterm no scrollback to scroll."""
+    return {CLASSIC_RENDERER_ENV: "1"} if is_claude else {}
 
 
 def _tracking_env(is_claude: bool, file: Path | None, session_id: str | None) -> dict[str, str]:

@@ -13,6 +13,8 @@ public sealed class ScreenTap
     public const string ProgressNone = "none";
     public const int DefaultRows = 24;
     public const int DefaultCols = 80;
+    /// <summary>Rows kept above the screen, matching the canvas xterm's own `scrollback`.</summary>
+    public const int HistoryLimit = 5000;
 
     private const string Esc = "\u001b";
     private const int MaxParams = 16;
@@ -40,6 +42,8 @@ public sealed class ScreenTap
 
     private readonly object _gate = new();
     private Cell[][] _buffer;
+    private readonly Queue<Cell[]> _history = new();
+    private bool _altScreen;
     private int _x, _y;
     private int _savedX, _savedY;
     private bool _cursorHidden;
@@ -114,33 +118,69 @@ public sealed class ScreenTap
         }
     }
 
-    /// <summary>The whole screen redrawn as escape sequences, for a reattach that cannot start mid-CSI.</summary>
+    /// <summary>The scrolled-off history then the screen, as escape sequences, for a reattach that cannot start mid-CSI.</summary>
     public string Render()
     {
         lock (_gate)
         {
             var output = new StringBuilder(Esc + "[?25l" + Esc + "[H" + Esc + "[2J" + Esc + "[3J" + Esc + "[m");
+            // History goes out as plain lines so xterm scrolls it into its own scrollback; on the alt screen there is none.
+            if (!_altScreen)
+                foreach (var line in _history.SelectMany(row => Chunks(row, Cols))) AppendCells(output, line).Append(Esc + "[m\r\n");
             for (var y = 0; y < Rows; y++)
             {
-                var cells = _buffer[y].ToList();
-                while (cells.Count > 0 && cells[^1].IsBlank) cells.RemoveAt(cells.Count - 1);
-                if (cells.Count == 0) continue;
-                output.Append(Esc).Append('[').Append(y + 1).Append(";1H");
-                string? style = null;
-                foreach (var cell in cells)
-                {
-                    if (cell.StyleKey != style)
-                    {
-                        output.Append(CharSgr(cell));
-                        style = cell.StyleKey;
-                    }
-                    output.Append(cell.Data);
-                }
+                AppendCells(output, Trimmed(_buffer[y])).Append(Esc + "[m");
+                if (y < Rows - 1) output.Append("\r\n");
             }
             output.Append(Esc).Append("[m").Append(Esc).Append('[').Append(_y + 1).Append(';').Append(_x + 1).Append('H');
             if (!_cursorHidden) output.Append(Esc + "[?25h");
             return output.ToString();
         }
+    }
+
+    /// <summary>How many rows sit above the screen; the tests' window into the history.</summary>
+    public int HistoryCount
+    {
+        get { lock (_gate) return _history.Count; }
+    }
+
+    private static Cell[] Trimmed(Cell[] row)
+    {
+        var length = row.Length;
+        while (length > 0 && row[length - 1].IsBlank) length--;
+        return length == row.Length ? row : row[..length];
+    }
+
+    private static IEnumerable<Cell[]> Chunks(Cell[] row, int width)
+    {
+        if (row.Length <= width)
+        {
+            yield return row;
+            yield break;
+        }
+        for (var at = 0; at < row.Length; at += width) yield return row[at..Math.Min(row.Length, at + width)];
+    }
+
+    private static StringBuilder AppendCells(StringBuilder output, Cell[] cells)
+    {
+        string? style = null;
+        foreach (var cell in cells)
+        {
+            if (cell.StyleKey != style)
+            {
+                output.Append(CharSgr(cell));
+                style = cell.StyleKey;
+            }
+            output.Append(cell.Data);
+        }
+        return output;
+    }
+
+    private void Remember(Cell[] row)
+    {
+        if (_altScreen) return;
+        _history.Enqueue(Trimmed(row));
+        while (_history.Count > HistoryLimit) _history.Dequeue();
     }
 
     private static Cell BlankCell() => new() { Data = " ", Fg = "default", Bg = "default" };
@@ -230,6 +270,7 @@ public sealed class ScreenTap
     {
         for (var n = 0; n < lines; n++)
         {
+            if (_top == 0) Remember(_buffer[0]);
             for (var y = _top; y < _bottom; y++) _buffer[y] = _buffer[y + 1];
             _buffer[_bottom] = BlankRow(Cols);
         }
@@ -268,6 +309,8 @@ public sealed class ScreenTap
     private void Reset()
     {
         _buffer = NewBuffer(Rows, Cols);
+        _history.Clear();
+        _altScreen = false;
         _x = _y = 0;
         _top = 0;
         _bottom = Rows - 1;
@@ -349,6 +392,7 @@ public sealed class ScreenTap
     private void SetPrivateModes(int[] values, bool hidden)
     {
         if (values.Contains(25)) _cursorHidden = !hidden;
+        if (values.Contains(1049) || values.Contains(1047) || values.Contains(47)) _altScreen = hidden;
     }
 
     private void SetScrollRegion(int top, int bottom)
@@ -377,6 +421,9 @@ public sealed class ScreenTap
             case 1:
                 EraseLine(1);
                 for (var y = 0; y < _y; y++) _buffer[y] = BlankRow(Cols);
+                break;
+            case 3:
+                _history.Clear();
                 break;
             default:
                 for (var y = 0; y < Rows; y++) _buffer[y] = BlankRow(Cols);

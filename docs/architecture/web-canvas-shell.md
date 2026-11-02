@@ -61,9 +61,8 @@ canvas instead of collapsing onto whichever diagram happened to carry code-backe
   since the diagram-management unification, `RecipeMenu`'s own dropdown — see
   [`diagram-skills.md`](diagram-skills.md)) and
   `LayerStrip` (the layer-visibility chips, docked in `.canvas-chrome`) both live in `canvas/doc/`
-  alongside it. `ConnectionsOverlay`/`ChangeConnectionsOverlay`/`TraceFlowOverlay` are unconditional
-  now (they used to be gated on `isHierarchy`, and there used to be a fourth, `PlanConnectionsOverlay`,
-  before the Plan overlay's retirement) are mounted unconditionally, but resolve no hierarchy
+  alongside it. `ChangeConnectionsOverlay`/`TraceFlowOverlay` are mounted unconditionally (they used to be gated
+  on `isHierarchy`; `PlanConnectionsOverlay` and `ConnectionsOverlay` were retired), but resolve no hierarchy
   endpoints while its layer is collapsed. `UndoManager` handles both `"hierarchy"` and `"canvas"`
   layout kinds. The hierarchy `collision/` multi-select/group-drag implementation remains in
   `strategies/boxes/TopLevelChildren.tsx`, but that hierarchy box surface is not shown on initial
@@ -238,23 +237,15 @@ canvas instead of collapsing onto whichever diagram happened to carry code-backe
     `ExpansionStore`-style in-memory store (no persistence across reload). 🔵 The rail button that
     used to switch this mode was repurposed into the code-tree show/hide toggle below (mode is now
     fixed at whatever it last was, with no rail UI to flip it).
-  - `ConnectionsOverlay.tsx` — draws call/reference connection lines between currently-visible
-    blocks, resolving each endpoint to its nearest visible ancestor when the real endpoint is
-    collapsed. Routes through `connectors/` like every other arrow renderer, so its lines steer
-    around the blocks they don't attach to. ⚠ Blocks here are nested DOM — a parent's rect contains
-    its children's anchors — which only works because `obstacleRouter` skips any obstacle containing
-    an endpoint's anchor. Read that rule before changing what this passes as `obstacles`.
-    Its per-node `getConnections` fan-out is bounded (`util/mapWithConcurrency.ts`, allSettled
-    semantics — one failed node no longer discards every other's result), and the block
-    row/header selectors overlays walk the DOM with are the shared
-    `canvasOverlay.BLOCK_ROW_SELECTOR`/`BLOCK_HEADER_SELECTOR` constants (also used by
-    `ChangeConnectionsOverlay` and `TraceFlowOverlay`, whose border-to-border segment math is the
-    shared `canvasOverlay.borderSegment`). Node ids in attribute selectors go through
-    `CSS.escape()` everywhere — epic titles and custom type ids can carry selector-breaking
-    characters. All three overlay `<svg>`s (`ConnectionsOverlay`,
-    `ChangeConnectionsOverlay`, `TraceFlowOverlay`) carry `role="img"` and a live `aria-label`
-    (e.g. "3 connections between nodes", "No plan steps") so a screen reader announces one
-    description instead of raw path data or silence.
+  - `ConnectionsOverlay.tsx` was removed: it drew blue call lines between `[data-node-id]` nodes, but
+    every canvas box is now a `CanvasNodeBox` (`data-canvas-element`, drawn by its own diagram), so it
+    only ever matched the Files tab's `TreeNode` rows outside the canvas. It measured them once and
+    never re-measured on pan/zoom, which left stray blue elbows on the canvas. The block row/header
+    selectors overlays walk the DOM with are the shared `canvasOverlay.BLOCK_ROW_SELECTOR`/
+    `BLOCK_HEADER_SELECTOR` constants (used by `ChangeConnectionsOverlay` and `TraceFlowOverlay`, whose
+    border-to-border segment math is the shared `canvasOverlay.borderSegment`). Node ids in attribute
+    selectors go through `CSS.escape()` everywhere. Both overlay `<svg>`s carry `role="img"` and a live
+    `aria-label` (e.g. "No plan steps").
   - `RouteProbeOverlay.tsx` + `RouteProbeTrigger.tsx` (019-route-probing-and-label-clearance) —
     select exactly two nodes (`state/selectionStore.ts`'s `useSelectedIds()`), click "Trace route",
     and `EngineClient.getRoute(fromId, toId)` asks `GET /repos/{repo_id}/route?from=&to=` for the
@@ -632,7 +623,7 @@ See "Sequence readability" in [`diagram-skills.md`](diagram-skills.md): `Sequenc
 - **Box foot:** `CanvasNodeBox.tsx` shows `meta.path` (now folded into node meta by both `recipes.py` and `Recipes.cs`) plus a `SRC ↗` button in the hover button stack (beside copy and `?`) that toggles the Inspector -- a click anywhere else on the box only focuses it and never opens the right panel (the inspector sits above the agents panel, `z-index` 42 vs 41) -- and a role chip from `meta.kind` in `NodeMetaRow`. The `CONCEPTUAL` chip is gone (the ghost styling stays); copy and `?` show only on hover.
 - **Zoom levels:** `layout/layoutMetrics.ts`'s `zoomLevelFor` (`ZOOM_MID_SCALE` 0.6, `ZOOM_FAR_SCALE` 0.3) sets `data-zoom` on `.canvas-content`; CSS drops description/path at `mid` and everything but the title at `far`, where the title is scaled to fill its box (see "Block anatomy zoom levels" above).
 - **Lanes:** `connectors/elkLayout.ts` lays out RIGHT with one ELK partition per `lane` (first-seen order) when any box has a lane; no lanes keeps the DOWN layout.
-- **Click-to-focus:** `doc/focusStore.ts` + `focusNeighbors.ts` (note: the `highlighting/` folder is syntax highlighting, so this is a small store of its own). A click on a box that has edges lights the box and its direct neighbours, fades the rest (`block-focus-dim`, 35%), and `FocusPanel.tsx` (portalled out of the pan/zoom transform into `.canvas-area`, `position: absolute` beside the left panel via `--chrome-inset`/`--left-panel-width`, or at the left edge when the panel is closed, so it follows the panel and never shares the right side with the inspector) lists CALLED BY · N / USES · N (`←`/`→`/`⇢` arrows, the edge label in grey parens) with Upstream / Downstream toggles (pressing the active one returns to both). Escape, the ✕, or the focused block leaving the doc clears it.
+- **Click-to-focus:** `doc/focusStore.ts` + `focusNeighbors.ts` (note: the `highlighting/` folder is syntax highlighting, so this is a small store of its own). A click on a box that has edges lights the box and its direct neighbours, fades the rest (`block-focus-dim`, 35%), and `FocusPanel.tsx` (portalled out of the pan/zoom transform into `.canvas-area`, `position: absolute` beside the left panel via `--chrome-inset`/`--left-panel-width`, or at the left edge when the panel is closed, so it follows the panel and never shares the right side with the inspector) shows the block's label, then its `description` (clamped to 4 lines, full text in `title`; no line at all when blank), and lists CALLED BY · N / USES · N (`←`/`→`/`⇢` arrows, the edge label in grey parens) with Upstream / Downstream toggles (pressing the active one returns to both). Escape, the ✕, or the focused block leaving the doc clears it.
 
 **022 follow-ups:** `doc/bundleEdges.ts` merges parallel edges into one `label ×N` before routing (`CanvasEdges.tsx`); a corner `canvas-node-step-chip` shows `meta.order`'s leading digits (the old `STEP n` text is hidden); the sequence ▶ player (`sequenceViewStore.setStep`, button in `DiagramFrame.tsx`) lights one `order` at a time and fades later steps. Group frames already existed (`GroupFrame.tsx`). `e2e/sequence-expand.spec.ts` covers expand in place, Collapse all and the player. Note: the frame label ignores pointer events, so interactive controls in it need `pointer-events: auto` (`.canvas-diagram-frame-modes`).
 

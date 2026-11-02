@@ -64,4 +64,24 @@ describe("FocusPanel", () => {
     expect(screen.getByTestId("focus-called-by")).toHaveTextContent("← a (BuildClusters)");
     expect(screen.getByTestId("focus-uses")).toHaveTextContent("⇢ a (spawns)");
   });
+
+  it("shows the focused block's description, with the full text as a tooltip", () => {
+    const described = { ...doc, elements: { ...doc.elements, b: { ...element("b"), description: "  Builds the clusters  " } } };
+    focusStore.toggle(described, "b");
+
+    render(<FocusPanel doc={described} />);
+
+    expect(screen.getByTestId("focus-description")).toHaveTextContent("Builds the clusters");
+    expect(screen.getByTestId("focus-description")).toHaveAttribute("title", "Builds the clusters");
+  });
+
+  it("shows no description or hint line when the block's description is blank", () => {
+    const blank = { ...doc, elements: { ...doc.elements, b: { ...element("b"), description: "   " } } };
+    focusStore.toggle(blank, "b");
+
+    render(<FocusPanel doc={blank} />);
+
+    expect(screen.queryByTestId("focus-description")).toBeNull();
+    expect(screen.queryByText(/neighbours stay lit/)).toBeNull();
+  });
 });

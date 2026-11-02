@@ -148,7 +148,7 @@ export interface TopLevelChildrenProps {
  * nested expand/collapse is completely unaffected. */
 export function TopLevelChildren({ nodes }: TopLevelChildrenProps) {
   // These boxes are position: absolute, so CanvasViewport's own .canvas-content ResizeObserver never
-  // sees them grow -- bump canvasLayoutStore ourselves or the ConnectionsOverlay's arrows freeze at
+  // sees them grow -- bump canvasLayoutStore ourselves or the overlays' arrows freeze at
   // a box's pre-expand geometry.
   const { sizes, observe } = useMeasuredSizes<TopLevelBoxSize>({
     onResize: () => canvasLayoutStore.bump(),

@@ -54,7 +54,7 @@ export function nodeBox(nodeId: string, opts?: { codeMapOnly?: boolean }): Scree
 
 /** One raw id pair resolved to its endpoints' nearest visible ancestors, deduped by direction —
  * a collapsed hop still draws a visible line, and A->A after collapsing draws nothing.
- * ConnectionsOverlay and RouteProbeOverlay both need this before measuring boxes. */
+ * RouteProbeOverlay needs this before measuring boxes. */
 export interface ResolvedEdge<T> {
   key: string;
   fromId: string;
@@ -127,7 +127,7 @@ function localRectOf(
 }
 
 /** Measures each item's endpoints as live on-screen boxes and routes edges around obstacles --
- * the pipeline ConnectionsOverlay and RouteProbeOverlay both run inside `useOverlaySvgRef`. An item
+ * the pipeline the canvas overlays run inside `useOverlaySvgRef`. An item
  * whose endpoint node isn't currently in the DOM is dropped, same as a hand-rolled flatMap would. */
 export function measureAndRouteEdges<T extends { fromId: string; toId: string }>(
   svg: SVGSVGElement | null,

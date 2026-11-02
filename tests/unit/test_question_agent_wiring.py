@@ -20,7 +20,7 @@ from codechroma.questions.launch import (
     write_claude_config,
 )
 from codechroma.questions.mcp_server import QuestionMcp
-from codechroma.terminal.agents import agent_cli, detector_kind
+from codechroma.terminal.agents import agent_cli, agent_launch
 
 ENDPOINT = McpEndpoint("agent-1", "http://127.0.0.1:8123", "agent-1.sig")
 
@@ -66,7 +66,9 @@ def test_claude_argv_is_unchanged_without_an_endpoint():
     assert env == {}
 
 
-def _route_agents_to(monkeypatch, adapter_key: str, binary: str) -> None:
+def _route_agents_to(
+    monkeypatch, adapter_key: str, binary: str, provider_assigned: bool = True
+) -> None:
     from codechroma.llm import resolve_cli
     from codechroma.llm.resolve_cli import CliResolution
 
@@ -75,7 +77,7 @@ def _route_agents_to(monkeypatch, adapter_key: str, binary: str) -> None:
         "resolve_cli",
         lambda _call_site, _model: CliResolution(
             adapter_key=adapter_key, binary=binary, model="m", env_overrides={},
-            provider_assigned=True,
+            provider_assigned=provider_assigned,
         ),
     )
 
@@ -84,7 +86,7 @@ def _route_agents_to(monkeypatch, adapter_key: str, binary: str) -> None:
 def test_an_agent_window_is_detected_as_the_adapter_it_resolves_to(monkeypatch, adapter, expected):
     _route_agents_to(monkeypatch, adapter, adapter)
 
-    kind = detector_kind("agent")
+    kind = agent_launch("agent").detector_kind
 
     assert kind == expected
 
@@ -92,15 +94,24 @@ def test_an_agent_window_is_detected_as_the_adapter_it_resolves_to(monkeypatch, 
 def test_a_claude_agent_window_gets_rules_that_detect_idle_so_answers_get_typed(monkeypatch):
     _route_agents_to(monkeypatch, "claude", "claude")
 
-    rules = load_manifest_for(detector_kind("agent"))
+    rules = load_manifest_for(agent_launch("agent").detector_kind)
 
     assert rules.classifies
     assert not load_manifest_for("agent").classifies
 
 
+def test_an_agent_window_behind_a_stand_in_binary_keeps_its_own_kind_for_detection(monkeypatch):
+    _route_agents_to(monkeypatch, "claude", "my-wrapper", provider_assigned=False)
+
+    launch = agent_launch("agent")
+
+    assert launch.argv[0] == "my-wrapper"
+    assert launch.detector_kind == "agent"
+
+
 def test_non_agent_windows_keep_their_own_kind_for_detection():
-    assert detector_kind("claude") == "claude"
-    assert detector_kind("shell") == "shell"
+    assert agent_launch("claude").detector_kind == "claude"
+    assert agent_launch("shell").detector_kind == "shell"
 
 
 def test_codex_window_registers_the_server_with_overrides_and_keeps_the_token_out_of_argv(

@@ -5,7 +5,7 @@ import { useRouteProbeState } from "../state/routeProbeStore";
 import { countLabel, measureAndRouteEdges, resolveVisibleEdges, useOverlaySvgRef } from "./canvasOverlay";
 
 /** Consecutive-pair segments from a resolved path, mapped to each node's nearest VISIBLE ancestor
- * the same way ConnectionsOverlay resolves its edges — a collapsed hop still draws a visible line. */
+ * — a collapsed hop still draws a visible line. */
 function segmentsOf(path: string[] | null) {
   if (!path || path.length < 2) return [];
   const pairs = path.slice(0, -1).map((from, i) => [from, path[i + 1]] as const);
@@ -13,9 +13,8 @@ function segmentsOf(path: string[] | null) {
 }
 
 /** Draws the dependency path between two probed nodes (feature 019: route probing) as a distinct
- * overlay on top of ConnectionsOverlay's plain connections — same measure-live-boxes/route-around-
- * obstacles pipeline, but for one ordered chain instead of an unordered edge set. Renders nothing
- * once the probe resolves to no path. */
+ * overlay — the shared measure-live-boxes/route-around-obstacles pipeline, for one ordered chain.
+ * Renders nothing once the probe resolves to no path. */
 export function RouteProbeOverlay() {
   const { path } = useRouteProbeState();
   const expandedNodeIds = useExpandedNodeIdsByOrder();

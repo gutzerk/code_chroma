@@ -17,7 +17,7 @@ from codechroma.bridge.agents.manager import AgentRecord
 from codechroma.bridge.agents.session_ownership import file_for
 from codechroma.bridge.agents.sessions import AgentStartError, agent_run_env
 from codechroma.bridge.services import BridgeServices
-from codechroma.terminal.agents import agent_cli, detector_kind, resolved_cli_for
+from codechroma.terminal.agents import agent_launch, resolved_cli_for
 
 logger = logging.getLogger("uvicorn.error")
 
@@ -38,20 +38,20 @@ def _auto_start_one(services: BridgeServices, record: AgentRecord, question_mcp=
     session_id = services.agent_manager.capture_session_id(record.id)
     new_session_id = str(uuid4()) if not session_id else None
     mcp = question_mcp.endpoint_for(record.id) if question_mcp is not None else None
-    resolved = agent_cli(
+    launch = agent_launch(
         record.kind, session_id, mcp=mcp, new_session_id=new_session_id,
         session_tracking_file=file_for(services.agent_manager.main_root, str(uuid4())),
         workdir=Path(record.worktree),
     )
-    if resolved is None:
+    if launch is None:
         logger.error("agents: unknown kind %r for %s, skipping auto-start", record.kind, record.id)
         return
-    argv, env_overrides = resolved
+    argv = launch.argv
     # Provider env merged under the workspace id, which wins on any collision (same as the route).
-    run_env = agent_run_env(record.id, extra=env_overrides)
+    run_env = agent_run_env(record.id, extra=launch.env)
     try:
         session = services.agent_sessions.start(
-            record.id, argv, Path(record.worktree), kind=detector_kind(record.kind), env=run_env
+            record.id, argv, Path(record.worktree), kind=launch.detector_kind, env=run_env
         )
     except AgentStartError as exc:
         logger.warning("agents: could not auto-start %s: %s", record.id, exc)

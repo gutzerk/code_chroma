@@ -396,7 +396,7 @@ node the resolved slice no longer has).
 
 `RootCanvas.tsx` no longer has a `view` state, a `CanvasView` union, or `diagramViews.tsx`'s registry
 — it always renders `CanvasDocView` inside its `CanvasViewport`, passing `rootNode` and the resolved
-`strategy.id`. Every overlay that used to be gated on `isHierarchy` (`ConnectionsOverlay`,
+`strategy.id`. Every overlay that used to be gated on `isHierarchy` (`ConnectionsOverlay`, since removed,
 `PlanConnectionsOverlay`, `ChangeConnectionsOverlay`, `TraceFlowOverlay`, `DeletedDiffOverlay`,
 `TraceControls`) is unconditional now, since the hierarchy is always potentially present as a canvas
 element rather than one of several mutually exclusive views. `UndoManager`'s `activeKind` was

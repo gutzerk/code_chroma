@@ -1,4 +1,4 @@
-import { useMemo, useSyncExternalStore } from "react";
+import { useSyncExternalStore } from "react";
 import { clamp } from "../util/clamp";
 import type { AgentRecord, AgentStatus, AgentWindowGeometry, GitPreflight } from "../state/types";
 import { Store } from "../state/createStore";
@@ -270,12 +270,6 @@ export function useAgents(): AgentRecord[] {
 /** Whether the agent's terminal (and so its question host) is mounted: not stopped or exited. */
 export function isAgentRunning(agent: AgentRecord): boolean {
   return agent.status !== "stopped" && agent.status !== "exited";
-}
-
-/** Ids of the agents whose window can show their questions right now. */
-export function useRunningAgentIds(): ReadonlySet<string> {
-  const agents = useAgents();
-  return useMemo(() => new Set(agents.filter(isAgentRunning).map((agent) => agent.id)), [agents]);
 }
 
 export function useAgentCountInWorkspace(workspace: string): number {

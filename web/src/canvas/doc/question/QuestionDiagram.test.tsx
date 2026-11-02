@@ -1,7 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import { fireEvent, render, screen } from "@testing-library/react";
 import { EMPTY_CANVAS_DOC, type CanvasDoc, type CanvasElement } from "../../../state/types";
-import { CanvasDiagramFocusContext } from "../../CanvasFocusContext";
 import { diagramSubgraph, QuestionDiagram } from "./QuestionDiagram";
 import { OPTIONS } from "./fixtures";
 
@@ -185,27 +184,5 @@ describe("QuestionDiagram readability", () => {
     fireEvent.click(screen.getByRole("button", { name: "Full screen" }));
 
     expect(screen.getByTestId("question-diagram").parentElement).toBe(document.body);
-  });
-
-  it("opens the diagram's layer on the canvas from both variants", () => {
-    const focus = vi.fn(() => true);
-    const doc: CanvasDoc = { ...RICH, elements: { ...RICH.elements, "el-9": { ...RICH.elements["el-9"], layer: "decisions/q1" } } };
-    const { unmount } = render(
-      <CanvasDiagramFocusContext.Provider value={focus}>
-        <QuestionDiagram doc={doc} options={OPTIONS} selectedId="b" onSelect={() => {}} variant="pane" />
-      </CanvasDiagramFocusContext.Provider>,
-    );
-
-    fireEvent.click(screen.getByRole("button", { name: "Open on canvas" }));
-    unmount();
-    render(
-      <CanvasDiagramFocusContext.Provider value={focus}>
-        <QuestionDiagram doc={doc} options={OPTIONS} selectedId="b" onSelect={() => {}} variant="box" />
-      </CanvasDiagramFocusContext.Provider>,
-    );
-    fireEvent.click(screen.getByRole("button", { name: "Open on canvas" }));
-
-    expect(focus).toHaveBeenCalledTimes(2);
-    expect(focus).toHaveBeenCalledWith("decisions/q1");
   });
 });

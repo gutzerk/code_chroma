@@ -445,18 +445,12 @@ describe("decisions/<question_id> layers", () => {
     expect(isRecipeBackedLayer("decisions/q1")).toBe(false);
   });
 
-  it("is labelled from the question text, shortened", () => {
-    const question = element("q1", "questions", { render: "question", label: "How should checkout be structured across the whole platform today?" });
-    const doc: CanvasDoc = { ...EMPTY_CANVAS_DOC, elements: { q1: question } };
+  it("is left out of the Diagrams list", () => {
+    const doc: CanvasDoc = { ...EMPTY_CANVAS_DOC, elements: { d1: element("d1", "decisions/q1"), p1: element("p1", "patterns") } };
 
-    const label = labelForDiagramLayer("decisions/q1", [], doc);
+    const layers = listActiveDiagramLayers(doc);
 
-    expect(label.length).toBeLessThanOrEqual(48);
-    expect(label.startsWith("How should checkout")).toBe(true);
-  });
-
-  it("falls back to the question id when the question is unknown", () => {
-    expect(labelForDiagramLayer("decisions/q9", [])).toBe("q9");
+    expect(layers).toEqual(["patterns"]);
   });
 
   it("deletes canvas content only, without a file delete call", async () => {

@@ -1,7 +1,7 @@
 # AI questions and grill sessions (`src/codechroma/questions/`, `web/src/canvas/doc/question/`) — 017
 
 An agent (Claude, Codex) asks a decision question through a bridge-hosted MCP tool instead of chat
-text. The question becomes a `question` element on the one canvas document (shown only in the asking agent's window while that agent runs, see "Agent terminal host"; a question with no `agent_id`, or whose agent is stopped, exited or gone, renders on the canvas), the user selects an option and presses Send (or
+text. The question becomes a `question` element on the one canvas document (shown only in the asking agent's window, see "Agent terminal host"; the canvas never draws a question or its option diagrams), the user selects an option and presses Send (or
 types their own answer), and once every open question of that agent is settled, all its answers are typed into the asking agent's terminal as one next message; once they were really typed, the cards and their option diagrams are removed from the canvas (024, non-blocking). A run of questions sharing a
 `session_id` is a grill session. Planning doc: `docs/planning/017-ai-questions-grill-session.md`.
 Phases 1 (backend), 2 (canvas UI), 3 (agent wiring) and 4 (diagram options, 021) are implemented.
@@ -27,7 +27,7 @@ There is no broker and nothing waits: `ask_user` never blocks, so the agent is n
 
 🔴 **Enter is a separate write.** Claude Code reads one PTY write of `text + "\r"` as a paste: the `\r` becomes a newline in the input box and nothing is submitted (reproduced against `claude` 2.1 with a ~170-character line; short lines happened to submit). This was why answers never woke the agent. `inject_when_idle` now writes the text, waits `context_inject_submit_delay_seconds` (C# `AgentSession.SubmitDelay`, 0.3 s), then writes `\r` (`AgentSession.TypeAndSubmit` in C#).
 
-**Batch = every question of one agent.** A batch completes when no `question` element with that `meta.agent_id` in the workspace is `open`. At most one wake-up per agent is queued: `claim_batch` holds an in-memory claim per (canvas file, agent id), so a second settle while it waits adds nothing; the queued wake-up builds its text only when the agent idles (`pending_batch`), so a revise or a late answer is typed in its current form and a question asked meanwhile holds the whole batch back. `awaiting_delivery` stays `true` on disk until the question is deleted, so a crash, a restart or a failed cleanup never strands a batch: the claim is gone and the next settle of that agent sends it. The cards stay until the inject task reports the text was typed (`inject_when_idle` resolves `True`); only then does `clear_batch` delete them, and only those whose `state`/`answer`/`option_id` still match what was typed, so an agent that never idles or exits loses no answer (`ask_user_result` still reads them). Another agent's open questions neither block nor receive it. Settled questions without `awaiting_delivery` (stale re-ask duplicates, or answers settled before this change) are neither sent nor deleted.
+**Batch = every question of one agent.** A batch completes when no `question` element with that `meta.agent_id` in the workspace is `open`. At most one wake-up per agent is queued: `claim_batch` holds an in-memory claim per (canvas file, agent id), so a second settle while it waits adds nothing; the queued wake-up builds its text only when the agent idles (`pending_batch`), so a revise or a late answer is typed in its current form and a question asked meanwhile holds the whole batch back. 🔴 **Only a session that can look idle gets a wake-up.** `deliver`/`deliver_settled` (C# `QuestionDelivery.Injector`) skip a live session whose status rules are empty (`AgentSession.detects_idle` / `DetectsIdle`): its `inject_when_idle` could never type and would hold the claim for about 12 hours. The card then stays and `ask_user_result` still reads the answer. An `agent` window is detected as its resolved CLI adapter (see `parallel-agents.md`), so Claude windows get `detect/claude.toml`; a missing `detect/agent.toml` used to strand every `agent` window's answers. `awaiting_delivery` stays `true` on disk until the question is deleted, so a crash, a restart or a failed cleanup never strands a batch: the claim is gone and the next settle of that agent sends it. The cards stay until the inject task reports the text was typed (`inject_when_idle` resolves `True`); only then does `clear_batch` delete them, and only those whose `state`/`answer`/`option_id` still match what was typed, so an agent that never idles or exits loses no answer (`ask_user_result` still reads them). Another agent's open questions neither block nor receive it. Settled questions without `awaiting_delivery` (stale re-ask duplicates, or answers settled before this change) are neither sent nor deleted.
 
 ## Backend
 
@@ -95,10 +95,9 @@ implemented; the diagram options kept this shape: `option.diagram_ref` points at
   `QuestionAnswerBody`). Adjust here if backend field names change.
 - `questionClient.ts` (`answerOption`, `answerCustom`, `skipQuestion`, `reviseQuestion` over
   `EngineClient`), `questionStrings.ts` (all labels; i18n strings, not hardcoded),
-  `QuestionElement.tsx` (the `CanvasDocView` renderer; default width 620; refreshes via the bridge
-  "canvas" ping), `QuestionCard.tsx`, `QuestionOptions.tsx`, `ConnectedQuestionCard.tsx` (the card wired to
-  the bridge; used by the canvas element and the agent terminal alike).
-- **Soft-tiles card (020).** One `QuestionCard` with `variant: "compact" | "full"` (`full` on the canvas and in B1).
+  `QuestionCard.tsx`, `QuestionOptions.tsx`, `ConnectedQuestionCard.tsx` (the card wired to
+  the bridge; used by the agent terminal).
+- **Soft-tiles card (020).** One `QuestionCard` with `variant: "compact" | "full"` (`full` in B1).
   A click or `1`-`9`/arrows only *selects* an option (`role="radiogroup"`/`radio`); **Send** or Enter confirms,
   and the rank-1 option starts selected. Rank shows only as a soft-green "Recommended" pill (the `why` text is
   its tooltip); there are no rank borders. Colours are `--question-*` tokens on `:root` in `styles.css`. The
@@ -121,22 +120,19 @@ switch never remounts xterm. A new question does not steal focus; Ctrl+Enter in 
 read-only scaled view with option tabs, drag-to-pan, wheel/button zoom and a full-screen overlay (Esc closes); the fit scale is floored at 0.6 so labels stay readable (a larger diagram is panned, not shrunk), nodes show label + description and arrows connect node boundaries so their heads remain visible, and show labels; it is a light renderer, not
 `CanvasNodeBox`, which is interactive. Attention: `AgentLed` takes `agentId` and turns accent-coloured with a "?" badge
 while that agent has an open question, and the Agents tab shows a "N questions" pill (`useOpenQuestionCount`).
-The highlighted option is owned by the host (`resolveSelection` in `questionAdapter.ts` falls back to the recommended option when the pick no longer exists, e.g. after a re-ask) and passed to `QuestionCard` as the controlled `selectedId`, so the diagram tabs and Send always agree; `QuestionCard` owns it only when used standalone (`QuestionElement`). `CanvasFocusContext` is provided at `RootCanvas` root so "Open on canvas" works from the agents panel. `devAskQuestion.ts` (mock bridge, opt-in via `VITE_DEV_ASK_QUESTION=1`, dynamically imported) seeds one demo question on the canvas at startup (`agent_id: ""`, so it renders there) and asks another when Enter is pressed in an agent terminal.
+The highlighted option is owned by the host (`resolveSelection` in `questionAdapter.ts` falls back to the recommended option when the pick no longer exists, e.g. after a re-ask) and passed to `QuestionCard` as the controlled `selectedId`, so the diagram tabs and Send always agree; `QuestionCard` owns it only when used standalone. `devAskQuestion.ts` (mock bridge, opt-in via `VITE_DEV_ASK_QUESTION=1`, dynamically imported) asks a demo question when Enter is pressed in an agent terminal.
 - `elementRules.ts`: `BLOCK_RULES.question` = `{renderer: "question", activation: "inspector",
   lockedLayout: true}` (never dragged or auto-laid-out); excluded from `StyledRenderKind`.
-- `CanvasDocView.tsx`: `case "question"` renders `QuestionElement`; question elements are excluded
+- `CanvasDocView.tsx`: `case "question"` renders nothing; question elements are excluded
   from `memberIdsByLayer` so they get no diagram frame.
-- **A running agent's questions are not drawn on the canvas.** `displayPipeline.ts` `hideAgentQuestions`
-  (first of `STRUCTURAL_STAGES`) drops every `question` whose `meta.agent_id` (`questionAgentId` in
-  `questionAdapter.ts`) is in `ctx.runningAgentIds` (`useRunningAgentIds` in `agentStore.ts`: agents not
-  `stopped`/`exited`, the same `isAgentRunning` check that mounts `AgentTerminal` and so `AgentQuestionHost`)
-  from rendering, canvas bounds, frames and edges; the element stays in the document (the bridges still
-  write it). Every other question renders as `QuestionElement`: one with no agent id (HTTP asks with no
-  agent, the dev demo; its card has no "Chat about it" button) and one whose agent is stopped, exited or
-  deleted, so the user can still answer or skip it (no bridge deletes an agent's questions with the agent).
-  A question's option diagrams (`decisions/<qid>` layers) still render on the canvas, so the diagram
-  pane's "Open on canvas" still focuses that diagram layer. Test: `displayPipeline.test.ts`,
-  `CanvasDocView.test.tsx`.
+- **The canvas never draws questions.** `displayPipeline.ts` `hideQuestions` (first of
+  `STRUCTURAL_STAGES`) drops every `question` element and every `decisions/<qid>` option-diagram element
+  from rendering, canvas bounds, frames and edges, whatever its agent; the elements stay in the document
+  (the bridges still write them, and `AgentQuestionHost` reads them). `listActiveDiagramLayers` leaves
+  `decisions/` layers out of the Diagrams tab. A question whose agent is stopped or gone is no longer
+  answerable from the canvas; the bridges still remove the cards once a batch is delivered. Test:
+  `displayPipeline.test.ts`, `CanvasDocView.test.tsx`, `diagramCatalog.test.ts`; the answer/skip/revise
+  flow is covered on `ConnectedQuestionCard` in `questionFlow.test.tsx`.
 - `EngineClient`: `getOpenQuestions`, `answerQuestion`, `skipQuestion`, `reviseQuestion` (HTTP,
   delegating, stub and `mockBridge.ts`, where the mock mutates element meta instead of using a broker).
 

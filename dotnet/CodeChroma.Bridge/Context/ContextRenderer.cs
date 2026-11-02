@@ -108,7 +108,7 @@ public static class ContextRenderer
 
     /// <summary>Lower-cased phrase words of 4+ letters, with a trailing plural s dropped, used to float matching files and symbols up.</summary>
     private static List<string> QueryWords(IReadOnlyList<string> phrases) =>
-        [.. phrases.SelectMany(p => p.ToLowerInvariant().Split([' ', '/', '-', '_', '.'], StringSplitOptions.RemoveEmptyEntries))
+        [.. phrases.SelectMany(p => p.ToLowerInvariant().Split(new[] { ' ', '/', '-', '_', '.' }, StringSplitOptions.RemoveEmptyEntries))
             .Where(w => w.Length >= 4).Select(w => w.EndsWith('s') && w.Length > 4 ? w[..^1] : w).Distinct()];
 
     private static int Hits(IReadOnlyList<string> words, string text)

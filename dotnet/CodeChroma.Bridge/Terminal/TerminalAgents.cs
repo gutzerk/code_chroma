@@ -101,6 +101,9 @@ public sealed class TerminalAgents(UserPaths paths, ProviderStore providers, Cal
         return launch with { Env = env };
     }
 
+    /// <summary>Forces claude's classic renderer over a user's `"tui": "fullscreen"` setting.</summary>
+    public const string ClassicRendererEnv = "CLAUDE_CODE_DISABLE_ALTERNATE_SCREEN";
+
     private static Dictionary<string, string> WithEnv(Dictionary<string, string> env, McpLaunch? mcp)
     {
         if (mcp?.Env is null) return env;
@@ -118,6 +121,8 @@ public sealed class TerminalAgents(UserPaths paths, ProviderStore providers, Cal
         if (fresh && !string.IsNullOrEmpty(newSessionId)) options.AddRange(["--session-id", newSessionId]);
         var ownedEnv = new Dictionary<string, string>(env);
         if ((trackingFile is not null || hasMcp) && AgentSessionOwnership.TryHookSettings(trackingFile is not null, hasMcp) is { } settings) options.AddRange(["--settings", settings]);
+        // A fullscreen (alternate-screen) TUI leaves xterm no scrollback, so the window's scrollbar has nothing to scroll.
+        ownedEnv[ClassicRendererEnv] = "1";
         if (trackingFile is not null)
         {
             ownedEnv[AgentSessionOwnership.FileEnv] = trackingFile;

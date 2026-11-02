@@ -135,3 +135,12 @@ def test_alternative_clis_receive_no_session_hook(tmp_path, kind):
 
     assert "--settings" not in argv
     assert ownership.FILE_ENV not in env
+
+
+@pytest.mark.parametrize("kind", ["claude", "agent"])
+def test_claude_windows_force_the_classic_renderer(kind):
+    from codechroma.terminal.agents import CLASSIC_RENDERER_ENV
+
+    _, env = agent_cli(kind, initial_prompt="task")
+
+    assert env[CLASSIC_RENDERER_ENV] == "1"

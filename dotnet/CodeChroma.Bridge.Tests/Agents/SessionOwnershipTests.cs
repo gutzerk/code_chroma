@@ -45,6 +45,19 @@ public sealed class SessionOwnershipTests
         Assert.Contains("SessionStart", argv[argv.IndexOf("--settings") + 1]);
     }
 
+    [Theory]
+    [InlineData("claude", false)]
+    [InlineData("claude", true)]
+    [InlineData("agent", false)]
+    public void Claude_windows_force_the_classic_renderer_so_xterm_keeps_scrollback(string kind, bool bare)
+    {
+        using var repo = new GitSandbox();
+
+        var launch = Terminal(repo.Root).Resolve(kind, initialPrompt: "task", bare: bare)!;
+
+        Assert.Equal("1", launch.Env[TerminalAgents.ClassicRendererEnv]);
+    }
+
     [Fact]
     public void A_resume_keeps_its_id_and_a_fork_gets_a_separate_owned_id()
     {

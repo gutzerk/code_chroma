@@ -61,7 +61,7 @@ public static class RecentRepos
 
     private static string Basename(string repoPath)
     {
-        var segments = repoPath.Split(['/', '\\'], StringSplitOptions.RemoveEmptyEntries);
+        var segments = repoPath.Split(new[] { '/', '\\' }, StringSplitOptions.RemoveEmptyEntries);
         return segments.Length == 0 ? repoPath : string.Join("/", segments.TakeLast(2));
     }
 }

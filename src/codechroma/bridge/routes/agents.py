@@ -25,7 +25,7 @@ from codechroma.bridge.routes._body import as_list, json_body
 from codechroma.bridge.services import BridgeServices
 from codechroma.bridge.workspaces import BRANCH_ID_PREFIX, MAIN_ID
 from codechroma.diagrams import kinds
-from codechroma.terminal.agents import ALLOWED_AGENTS, agent_cli, detector_kind, resolved_cli_for
+from codechroma.terminal.agents import ALLOWED_AGENTS, agent_launch, resolved_cli_for
 
 router = APIRouter()
 
@@ -151,20 +151,20 @@ async def post_agent_start(agent_id: str, request: Request, services: Services) 
     task_text = pending[0] if pending and pending[1] == "task" else None
     mcp = request.app.state.question_mcp
     mcp.remember_base_url(str(request.base_url))
-    resolved = agent_cli(
+    launch = agent_launch(
         record.kind, session_id, initial_prompt=task_text, mcp=mcp.endpoint_for(agent_id),
         new_session_id=new_session_id,
         session_tracking_file=file_for(services.agent_manager.main_root, str(uuid4())),
         workdir=Path(record.worktree),
     )
-    if resolved is None:
+    if launch is None:
         raise HTTPException(status_code=400, detail=f"unknown agent kind: {record.kind}")
-    argv, env_overrides = resolved
+    argv = launch.argv
     # Provider env (base-url/token/model) merged under the workspace id: the id wins any collision.
-    run_env = agent_run_env(agent_id, extra=env_overrides)
+    run_env = agent_run_env(agent_id, extra=launch.env)
     # An AgentStartError becomes a 409 via the table in bridge/errors.py.
     session = services.agent_sessions.start(
-        agent_id, argv, Path(record.worktree), kind=detector_kind(record.kind), env=run_env
+        agent_id, argv, Path(record.worktree), kind=launch.detector_kind, env=run_env
     )
     # Only an `agent`-kind window reports what it launched; `claude` leaves `resolved_cli` empty.
     updated = services.agent_manager.mark_started(

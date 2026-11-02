@@ -456,6 +456,16 @@ def test_get_questions_reports_waiting_while_a_live_session_will_receive_it(brid
     assert {q["question_id"]: q["waiting"] for q in listed} == {live: True, orphan: False}
 
 
+def test_get_questions_is_not_waiting_for_a_session_that_can_never_look_idle(bridge):
+    bridge.app.state.services.agent_sessions._sessions["agent-1"] = _FakeSession(detects_idle=False)
+    question_id = _ask_for(bridge)
+
+    with TestClient(bridge.app) as client:
+        listed = client.get("/repos/main/questions").json()["questions"]
+
+    assert {q["question_id"]: q["waiting"] for q in listed} == {question_id: False}
+
+
 def test_answer_message_is_one_line_even_for_a_multiline_custom_answer(bridge):
     session = _live_agent(bridge)
     question_id = _ask_for(bridge)

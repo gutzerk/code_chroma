@@ -16,13 +16,14 @@ public sealed class QuestionAgentWiringTests : IDisposable
     private readonly TerminalAgents _agents;
     private readonly ProviderStore _providers;
     private readonly CallSiteStore _callSites;
+    private readonly UserPaths _paths;
 
     public QuestionAgentWiringTests()
     {
-        var paths = UserPaths.Under(_dir);
-        _providers = new ProviderStore(paths);
-        _callSites = new CallSiteStore(paths, _providers);
-        _agents = new TerminalAgents(paths, _providers, _callSites, _mcp);
+        _paths = UserPaths.Under(_dir);
+        _providers = new ProviderStore(_paths);
+        _callSites = new CallSiteStore(_paths, _providers);
+        _agents = new TerminalAgents(_paths, _providers, _callSites, _mcp);
     }
 
     private string KimiMcpFile(string text)
@@ -122,6 +123,17 @@ public sealed class QuestionAgentWiringTests : IDisposable
         var launch = _agents.Resolve("agent", agentId: "agent-1", bridgeUrl: BridgeUrl)!;
 
         Assert.Equal(adapter, launch.DetectorKind);
+    }
+
+    [Fact]
+    public void An_agent_window_behind_a_stand_in_binary_keeps_its_own_kind_for_detection()
+    {
+        JsonFile.Write(_paths.Assistant, new JsonObject { ["cli"] = "my-wrapper" });
+
+        var launch = _agents.Resolve("agent", agentId: "agent-1", bridgeUrl: BridgeUrl)!;
+
+        Assert.Equal("my-wrapper", launch.Argv[0]);
+        Assert.Null(launch.DetectorKind);
     }
 
     [Fact]

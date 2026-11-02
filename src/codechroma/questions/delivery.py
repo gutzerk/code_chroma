@@ -56,21 +56,15 @@ def batch_message(batch: list[Element]) -> str:
 
 
 def live_session(services: Any, element: Element) -> Any | None:
-    """The running agent session that asked this question, or None."""
+    """The live session that asked and can look idle; others would hold the claim for hours."""
     agent_id = element.meta.get("agent_id")
     session = services.agent_sessions.get(agent_id) if agent_id else None
-    return session if session is not None and session.is_alive else None
-
-
-def _typing_session(services: Any, element: Element) -> Any | None:
-    """The live session that can ever look idle; others would hold the batch claim for hours."""
-    session = live_session(services, element)
-    return session if session is not None and session.detects_idle else None
+    return session if session is not None and session.is_alive and session.detects_idle else None
 
 
 def deliver(services: Any, element: Element, text: str | None = None) -> bool:
     """Queues the answer for the asking agent; True when a live session will receive it."""
-    session = _typing_session(services, element)
+    session = live_session(services, element)
     if session is None:
         return False
     session.inject_when_idle(
@@ -85,7 +79,7 @@ _follow_ups: set[asyncio.Task] = set()
 
 async def deliver_settled(services: Any, ws: Workspace, element: Element) -> bool:
     """Once the agent has no open question, queues one wake-up with its answers; True if live."""
-    session = _typing_session(services, element)
+    session = live_session(services, element)
     if session is None:
         return False
     agent_id = element.meta["agent_id"]

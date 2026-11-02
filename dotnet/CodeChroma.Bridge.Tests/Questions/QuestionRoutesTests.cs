@@ -1,9 +1,11 @@
 using System.Net;
 using System.Net.Http.Headers;
 using System.Text.Json.Nodes;
+using CodeChroma.Bridge.Agents;
 using CodeChroma.Bridge.Questions;
 using CodeChroma.Bridge.Stores;
 using CodeChroma.Bridge.Tests.Support;
+using Microsoft.Extensions.DependencyInjection;
 using static CodeChroma.Bridge.Tests.Questions.QuestionTestKit;
 
 namespace CodeChroma.Bridge.Tests.Questions;
@@ -124,6 +126,22 @@ public sealed class QuestionRoutesTests
 
         Assert.Equal(HttpStatusCode.UnprocessableEntity, refused.StatusCode);
         Assert.Equal(HttpStatusCode.NotFound, missing.StatusCode);
+    }
+
+    [Theory]
+    [InlineData("claude", true)]
+    [InlineData("agent", false)]
+    public async Task Waiting_is_true_only_for_a_live_session_that_can_look_idle(string detectorKind, bool waiting)
+    {
+        using var host = new BridgeHost();
+        host.Factory.Services.GetRequiredService<AgentSessionRegistry>().Start("agent-1", ["/bin/sh", "-c", "sleep 30"], host.Root, detectorKind);
+        var request = Request();
+        request.AgentId = "agent-1";
+        Open(host, request);
+
+        var listed = await Body(await host.Client.GetAsync("/repos/main/questions"));
+
+        Assert.Equal(waiting, (bool)listed["questions"]![0]!["waiting"]!);
     }
 
     [Fact]

@@ -138,8 +138,15 @@ def test_skip_is_refused_when_not_allowed_and_unknown_question_is_404(bridge):
 class _FakeSession:
     """Stands in for a live PTY agent session; records what was typed into it."""
 
-    def __init__(self, is_alive: bool = True, typed: bool = True, idle: bool = True) -> None:
+    def __init__(
+        self,
+        is_alive: bool = True,
+        typed: bool = True,
+        idle: bool = True,
+        detects_idle: bool = True,
+    ) -> None:
         self.is_alive = is_alive
+        self.detects_idle = detects_idle
         self.typed = typed
         self.idle = threading.Event()
         if idle:
@@ -424,6 +431,18 @@ def test_answer_to_a_dead_session_is_not_delivered(bridge):
 
     assert reply["waiting"] is False
     assert session.injected == []
+
+
+def test_a_session_that_can_never_look_idle_gets_nothing_and_keeps_the_card(bridge):
+    session = _FakeSession(detects_idle=False)
+    bridge.app.state.services.agent_sessions._sessions["agent-1"] = session
+    question_id = _ask_for(bridge)
+
+    with TestClient(bridge.app) as client:
+        client.post(f"/repos/main/questions/{question_id}/answer", json={"option_id": "a"})
+
+    assert session.injected == []
+    assert store.find_element(bridge.main, question_id).meta["state"] == "answered"
 
 
 def test_get_questions_reports_waiting_while_a_live_session_will_receive_it(bridge):

@@ -103,6 +103,15 @@ def agent_cli(
     return list(argv_entry), {}
 
 
+def detector_kind(kind: str) -> str:
+    """The status manifest for a window: an `agent` window uses its resolved CLI adapter's rules."""
+    if kind != "agent":
+        return kind
+    from codechroma.llm.resolve_cli import resolve_cli
+
+    return resolve_cli(AGENT_CALL_SITE, _default_model()).adapter_key
+
+
 def resolved_cli_for(kind: str, argv: list[str]) -> str:
     """The label to persist on `AgentRecord.resolved_cli` -- only `agent` windows report one."""
     return argv[0] if kind == "agent" else ""

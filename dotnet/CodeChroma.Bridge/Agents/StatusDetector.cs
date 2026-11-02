@@ -35,6 +35,9 @@ public sealed class StatusRules
 
     public StatusSection Section(string status) => Sections_.GetValueOrDefault(status) ?? StatusSection.Empty;
 
+    /// <summary>False for an unknown kind's empty rules, which never report idle.</summary>
+    public bool Classifies => Sections_.Count > 0;
+
     /// <summary>The shipped manifest for an agent kind (embedded detect/&lt;kind&gt;.toml); an unknown kind never classifies.</summary>
     public static StatusRules ForKind(string kind)
     {

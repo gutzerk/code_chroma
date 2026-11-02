@@ -17,7 +17,7 @@ from codechroma.bridge.agents.manager import AgentRecord
 from codechroma.bridge.agents.session_ownership import file_for
 from codechroma.bridge.agents.sessions import AgentStartError, agent_run_env
 from codechroma.bridge.services import BridgeServices
-from codechroma.terminal.agents import agent_cli, resolved_cli_for
+from codechroma.terminal.agents import agent_cli, detector_kind, resolved_cli_for
 
 logger = logging.getLogger("uvicorn.error")
 
@@ -51,7 +51,7 @@ def _auto_start_one(services: BridgeServices, record: AgentRecord, question_mcp=
     run_env = agent_run_env(record.id, extra=env_overrides)
     try:
         session = services.agent_sessions.start(
-            record.id, argv, Path(record.worktree), kind=record.kind, env=run_env
+            record.id, argv, Path(record.worktree), kind=detector_kind(record.kind), env=run_env
         )
     except AgentStartError as exc:
         logger.warning("agents: could not auto-start %s: %s", record.id, exc)

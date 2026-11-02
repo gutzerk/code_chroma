@@ -10,6 +10,7 @@ from pathlib import Path
 import pytest
 from fastapi.testclient import TestClient
 
+from codechroma.bridge.agents.status import load_manifest_for
 from codechroma.bridge.git_cmd import run_git
 from codechroma.bridge.resources import resource_path
 from codechroma.questions.launch import (
@@ -19,7 +20,7 @@ from codechroma.questions.launch import (
     write_claude_config,
 )
 from codechroma.questions.mcp_server import QuestionMcp
-from codechroma.terminal.agents import agent_cli
+from codechroma.terminal.agents import agent_cli, detector_kind
 
 ENDPOINT = McpEndpoint("agent-1", "http://127.0.0.1:8123", "agent-1.sig")
 
@@ -77,6 +78,29 @@ def _route_agents_to(monkeypatch, adapter_key: str, binary: str) -> None:
             provider_assigned=True,
         ),
     )
+
+
+@pytest.mark.parametrize(("adapter", "expected"), [("claude", "claude"), ("codex", "codex")])
+def test_an_agent_window_is_detected_as_the_adapter_it_resolves_to(monkeypatch, adapter, expected):
+    _route_agents_to(monkeypatch, adapter, adapter)
+
+    kind = detector_kind("agent")
+
+    assert kind == expected
+
+
+def test_a_claude_agent_window_gets_rules_that_detect_idle_so_answers_get_typed(monkeypatch):
+    _route_agents_to(monkeypatch, "claude", "claude")
+
+    rules = load_manifest_for(detector_kind("agent"))
+
+    assert rules.classifies
+    assert not load_manifest_for("agent").classifies
+
+
+def test_non_agent_windows_keep_their_own_kind_for_detection():
+    assert detector_kind("claude") == "claude"
+    assert detector_kind("shell") == "shell"
 
 
 def test_codex_window_registers_the_server_with_overrides_and_keeps_the_token_out_of_argv(

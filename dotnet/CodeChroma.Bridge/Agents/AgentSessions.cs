@@ -83,20 +83,20 @@ public sealed class AgentSession : IAgentSessionPort, IDisposable
     public string? PollStatus() =>
         IsAlive ? _detector.Observe(_tap.Tail(_detector.Rules.TailLines), _tap.Title, _tap.Progress, process: _foreground.Current()) : null;
 
-    /// <summary>A consumer seeded with a screen redraw, so a reattach can never start mid-sequence.</summary>
+    /// <summary>A consumer seeded with a screen redraw, so a reattach can never start mid-sequence; the history waits for Resync unless the process has exited.</summary>
     public AgentConsumer Attach()
     {
         var consumer = new AgentConsumer();
         lock (_gate)
         {
-            consumer.Channel.Writer.TryWrite(_tap.Render());
+            consumer.Channel.Writer.TryWrite(_tap.Render(withHistory: _exitCode is not null));
             if (_exitCode is not null) consumer.Channel.Writer.TryComplete();
             else _consumers.Add(consumer);
         }
         return consumer;
     }
 
-    /// <summary>Redraws one consumer, so a client that just reported its own size sees that geometry.</summary>
+    /// <summary>Redraws one consumer with the full history, so a client that just reported its own size sees that geometry.</summary>
     public void Resync(AgentConsumer consumer)
     {
         lock (_gate)

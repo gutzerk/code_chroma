@@ -14,7 +14,7 @@ public static class TabTitles
 
     public static string Folder(string repoPath)
     {
-        var segments = repoPath.Split(['/', '\\'], StringSplitOptions.RemoveEmptyEntries);
+        var segments = repoPath.Split(new[] { '/', '\\' }, StringSplitOptions.RemoveEmptyEntries);
         return segments.Length == 0 ? repoPath : segments[^1];
     }
 }

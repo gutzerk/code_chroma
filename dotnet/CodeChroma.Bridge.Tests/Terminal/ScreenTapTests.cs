@@ -198,6 +198,55 @@ public class ScreenTapTests
     }
 
     [Fact]
+    public void History_from_before_the_alt_screen_comes_back_after_leaving_it()
+    {
+        var tap = Tap(rows: 2);
+        tap.Feed("a\r\nb\r\nc");
+        tap.Feed(Esc + "[?1049h" + "x\r\ny\r\nz");
+
+        tap.Feed(Esc + "[?1049l");
+
+        Assert.Equal(1, tap.HistoryCount);
+        Assert.Contains("a" + Esc + "[m\r\n", tap.Render());
+    }
+
+    [Fact]
+    public void Scrolling_up_with_csi_s_keeps_no_history_like_xterm()
+    {
+        var tap = Tap(rows: 2);
+        tap.Feed("a\r\nb");
+
+        tap.Feed(Esc + "[2S");
+
+        Assert.Equal(0, tap.HistoryCount);
+    }
+
+    [Fact]
+    public void A_shrink_below_the_cursor_moves_the_top_rows_into_the_history()
+    {
+        var tap = Tap(rows: 4);
+        tap.Feed("a\r\nb\r\nc\r\nd");
+
+        tap.Resize(2, 20);
+
+        Assert.Equal(2, tap.HistoryCount);
+        Assert.Equal(["c", "d"], tap.Tail(2));
+    }
+
+    [Fact]
+    public void A_render_without_history_redraws_only_the_screen()
+    {
+        var source = Tap(rows: 2);
+        source.Feed("a\r\nb\r\nc");
+        var replica = Tap(rows: 2);
+
+        replica.Feed(source.Render(withHistory: false));
+
+        Assert.Equal(0, replica.HistoryCount);
+        Assert.Equal(["b", "c"], replica.Tail(2));
+    }
+
+    [Fact]
     public void Resizing_keeps_existing_rows_and_adds_blank_ones()
     {
         var tap = Tap(rows: 2, cols: 10);

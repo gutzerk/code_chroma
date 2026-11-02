@@ -244,9 +244,12 @@ branch through an agent attached to it (`_guard_shared_worktree`, keyed off `Age
   detector already maintains, and `resync()` repeats it once the client reports its own geometry
   (`terminal/server.py`'s `_bridge_managed_session`). Python trade-off: a reattach shows the
   current screen, not history above the fold. C# `Terminal/ScreenTap.cs` also keeps the parsed rows
-  that scroll off the top (`HistoryLimit` = xterm's 5000, none on the alt screen, cleared by `ESC[3J`
-  / `ESC c`) and `Render()` replays them as plain lines first, so a reattached window can scroll the
-  whole dialog — still parsed cells, never raw bytes. 🔴 Entirely separate from `skill_agent`'s registry: if
+  that a line feed or a shrink scrolls off the top (`HistoryLimit` = xterm's 5000, stored as styled
+  runs, none on the alt screen or from `CSI S`, cleared by `ESC[3J` / `ESC c`) and `Render()` replays
+  them as plain lines first, rewrapped to the current width, so a reattached window can scroll the
+  whole dialog — still parsed cells, never raw bytes. `Attach()` sends the screen only (the history
+  too once the process has exited); the first-resize `Resync` sends the history once, at the
+  window's real width. 🔴 Entirely separate from `skill_agent`'s registry: if
   the two touched, regenerating a C1 diagram would kill the user's sessions. `atexit` + the lifespan
   kill leave no orphans. `agent_run_env(agent_id)` injects `CODECHROMA_WORKSPACE_ID=<agent id>` (and `CODECHROMA_BRIDGE_URL` when the bridge's URL is known, `questions.launch.identity_env`; C#: `BridgeAddress.ExportIdentity`) into
   the PTY env (both `routes/agents.py`'s `start` and `autostart.py` pass it via

@@ -30,8 +30,14 @@ public sealed class ScreenTap
         public bool Bold, Italics, Underscore, Blink, Reverse, Strike;
 
         public readonly bool IsBlank => Data == " " && Fg == "default" && Bg == "default" && !Bold && !Italics && !Underscore && !Reverse;
-        public readonly string StyleKey => $"{Fg}|{Bg}|{Bold}|{Italics}|{Underscore}|{Reverse}";
+
+        public readonly bool SameStyle(Cell other) =>
+            Fg == other.Fg && Bg == other.Bg && Bold == other.Bold && Italics == other.Italics && Underscore == other.Underscore
+            && Blink == other.Blink && Reverse == other.Reverse && Strike == other.Strike;
     }
+
+    /// <summary>A scrolled-off row stored compactly: one text per run of same-styled cells instead of a Cell per glyph.</summary>
+    private readonly record struct Run(Cell Style, string Text);
 
     private static readonly Dictionary<string, int> SgrBase = new()
     {
@@ -42,7 +48,7 @@ public sealed class ScreenTap
 
     private readonly object _gate = new();
     private Cell[][] _buffer;
-    private readonly Queue<Cell[]> _history = new();
+    private readonly Queue<Run[]> _history = new();
     private bool _altScreen;
     private int _x, _y;
     private int _savedX, _savedY;
@@ -94,15 +100,19 @@ public sealed class ScreenTap
         lock (_gate)
         {
             var next = NewBuffer(rows, cols);
-            for (var y = 0; y < Math.Min(rows, Rows); y++)
-                Array.Copy(_buffer[y], next[y], Math.Min(cols, Cols));
+            // Like xterm, a shrink that would push the cursor off the bottom scrolls the top rows into the history instead.
+            var shift = Math.Max(0, _y - (rows - 1));
+            for (var y = 0; y < shift; y++) Remember(_buffer[y]);
+            for (var y = 0; y < Math.Min(rows, Rows - shift); y++)
+                Array.Copy(_buffer[y + shift], next[y], Math.Min(cols, Cols));
             _buffer = next;
             Rows = rows;
             Cols = cols;
             _top = 0;
             _bottom = rows - 1;
             _x = Math.Min(_x, cols - 1);
-            _y = Math.Min(_y, rows - 1);
+            _y = Math.Min(_y - shift, rows - 1);
+            _savedY = Math.Clamp(_savedY - shift, 0, rows - 1);
             _wrapPending = false;
         }
     }
@@ -118,15 +128,15 @@ public sealed class ScreenTap
         }
     }
 
-    /// <summary>The scrolled-off history then the screen, as escape sequences, for a reattach that cannot start mid-CSI.</summary>
-    public string Render()
+    /// <summary>The screen as escape sequences, after the scrolled-off history unless `withHistory` is false, for a reattach that cannot start mid-CSI.</summary>
+    public string Render(bool withHistory = true)
     {
         lock (_gate)
         {
             var output = new StringBuilder(Esc + "[?25l" + Esc + "[H" + Esc + "[2J" + Esc + "[3J" + Esc + "[m");
             // History goes out as plain lines so xterm scrolls it into its own scrollback; on the alt screen there is none.
-            if (!_altScreen)
-                foreach (var line in _history.SelectMany(row => Chunks(row, Cols))) AppendCells(output, line).Append(Esc + "[m\r\n");
+            if (withHistory && !_altScreen)
+                foreach (var row in _history) AppendHistoryRow(output, row, Cols);
             for (var y = 0; y < Rows; y++)
             {
                 AppendCells(output, Trimmed(_buffer[y])).Append(Esc + "[m");
@@ -151,35 +161,51 @@ public sealed class ScreenTap
         return length == row.Length ? row : row[..length];
     }
 
-    private static IEnumerable<Cell[]> Chunks(Cell[] row, int width)
-    {
-        if (row.Length <= width)
-        {
-            yield return row;
-            yield break;
-        }
-        for (var at = 0; at < row.Length; at += width) yield return row[at..Math.Min(row.Length, at + width)];
-    }
-
     private static StringBuilder AppendCells(StringBuilder output, Cell[] cells)
     {
-        string? style = null;
-        foreach (var cell in cells)
+        for (var at = 0; at < cells.Length; at++)
         {
-            if (cell.StyleKey != style)
-            {
-                output.Append(CharSgr(cell));
-                style = cell.StyleKey;
-            }
-            output.Append(cell.Data);
+            if (at == 0 || !cells[at].SameStyle(cells[at - 1])) output.Append(CharSgr(cells[at]));
+            output.Append(cells[at].Data);
         }
         return output;
+    }
+
+    /// <summary>One history row as lines of at most `width` cells, so a row from a wider screen rewraps to the current one.</summary>
+    private static void AppendHistoryRow(StringBuilder output, Run[] row, int width)
+    {
+        var column = 0;
+        foreach (var run in row)
+        {
+            var sgr = CharSgr(run.Style);
+            output.Append(sgr);
+            for (var at = 0; at < run.Text.Length; at++)
+            {
+                var continuesGlyph = at > 0 && char.IsLowSurrogate(run.Text[at]) && char.IsHighSurrogate(run.Text[at - 1]);
+                if (!continuesGlyph && column++ == width)
+                {
+                    output.Append(Esc + "[m\r\n").Append(sgr);
+                    column = 1;
+                }
+                output.Append(run.Text[at]);
+            }
+        }
+        output.Append(Esc + "[m\r\n");
     }
 
     private void Remember(Cell[] row)
     {
         if (_altScreen) return;
-        _history.Enqueue(Trimmed(row));
+        var cells = Trimmed(row);
+        var runs = new List<Run>();
+        for (var start = 0; start < cells.Length;)
+        {
+            var end = start + 1;
+            while (end < cells.Length && cells[end].SameStyle(cells[start])) end++;
+            runs.Add(new Run(cells[start], string.Concat(cells[start..end].Select(c => c.Data))));
+            start = end;
+        }
+        _history.Enqueue([.. runs]);
         while (_history.Count > HistoryLimit) _history.Dequeue();
     }
 
@@ -262,15 +288,16 @@ public sealed class ScreenTap
     private void LineFeed()
     {
         _wrapPending = false;
-        if (_y == _bottom) ScrollUp(1);
+        if (_y == _bottom) ScrollUp(1, keepHistory: true);
         else if (_y < Rows - 1) _y++;
     }
 
-    private void ScrollUp(int lines)
+    /// <summary>Scrolls the region up; only a line feed keeps the top row as history, since xterm drops what `CSI S` scrolls off.</summary>
+    private void ScrollUp(int lines, bool keepHistory)
     {
         for (var n = 0; n < lines; n++)
         {
-            if (_top == 0) Remember(_buffer[0]);
+            if (keepHistory && _top == 0) Remember(_buffer[0]);
             for (var y = _top; y < _bottom; y++) _buffer[y] = _buffer[y + 1];
             _buffer[_bottom] = BlankRow(Cols);
         }
@@ -378,21 +405,21 @@ public sealed class ScreenTap
             case 'P': DeleteChars(At(values, 0, 1)); break;
             case '@': InsertChars(At(values, 0, 1)); break;
             case 'X': EraseChars(At(values, 0, 1)); break;
-            case 'S': ScrollUp(At(values, 0, 1)); break;
+            case 'S': ScrollUp(At(values, 0, 1), keepHistory: false); break;
             case 'T': ScrollDown(At(values, 0, 1)); break;
             case 'r': SetScrollRegion(At(values, 0, 1), values.Length > 1 && values[1] > 0 ? values[1] : Rows); break;
             case 's': _savedX = _x; _savedY = _y; break;
             case 'u': _x = _savedX; _y = _savedY; break;
             case 'm': ApplySgr(raw); break;
-            case 'h' when privateMode: SetPrivateModes(values, hidden: true); break;
-            case 'l' when privateMode: SetPrivateModes(values, hidden: false); break;
+            case 'h' when privateMode: SetPrivateModes(values, set: true); break;
+            case 'l' when privateMode: SetPrivateModes(values, set: false); break;
         }
     }
 
-    private void SetPrivateModes(int[] values, bool hidden)
+    private void SetPrivateModes(int[] values, bool set)
     {
-        if (values.Contains(25)) _cursorHidden = !hidden;
-        if (values.Contains(1049) || values.Contains(1047) || values.Contains(47)) _altScreen = hidden;
+        if (values.Contains(25)) _cursorHidden = !set;
+        if (values.Contains(1049) || values.Contains(1047) || values.Contains(47)) _altScreen = set;
     }
 
     private void SetScrollRegion(int top, int bottom)

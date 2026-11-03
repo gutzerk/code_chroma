@@ -1,5 +1,25 @@
 # Changelog
 
+## [1.13.0](https://github.com/gutzerk/code_chroma/compare/v1.12.0...v1.13.0) (2026-11-03)
+
+
+### Features
+
+* **agents:** navigate between your own prompts in the agent chat ([a4e4363](https://github.com/gutzerk/code_chroma/commit/a4e43638d6e54e511bcef93642bf8eb022eacb24))
+* **web:** IDE-style file-type icons in the Files panel ([a8bd778](https://github.com/gutzerk/code_chroma/commit/a8bd77841884f45f8efba0d7d157eb83b09da675))
+
+
+### Bug Fixes
+
+* **agents:** give the agent terminal a working scrollbar with full history ([#340](https://github.com/gutzerk/code_chroma/issues/340)) ([d6cbe78](https://github.com/gutzerk/code_chroma/commit/d6cbe78e7f712f8dfa5cf5826de37280dca3a0c4))
+* **agents:** match prompt echoes newest first and cache the prompt list ([2de2505](https://github.com/gutzerk/code_chroma/commit/2de2505412a872d9769bf2218ae6b7f841598f77))
+* **agents:** type ask_user answers into agent-kind windows ([dccce43](https://github.com/gutzerk/code_chroma/commit/dccce43213354b3810893f56baa2778917652ba1))
+* **build:** spell out char arrays in ambiguous Split calls ([6149e33](https://github.com/gutzerk/code_chroma/commit/6149e330c8ae75e34b4ff99c99438df96786f87b))
+* **canvas:** keep questions off the canvas and drop stray overlay lines ([90228d2](https://github.com/gutzerk/code_chroma/commit/90228d2f6a8a9d243d2060f3fe1071092a967f3e))
+* keep questions off the canvas, deliver answers to agent windows, drop stray lines ([23230b0](https://github.com/gutzerk/code_chroma/commit/23230b02e2b7f76b5ea4f9953505d299cd038791))
+* **questions:** report waiting only when an answer can be typed ([5211c7b](https://github.com/gutzerk/code_chroma/commit/5211c7bd9f5e6369ef41e9a50fb07627adfd3960))
+* **web:** keep file-type logos legible on the open-file row ([1e378fe](https://github.com/gutzerk/code_chroma/commit/1e378fefd328a427080f20317d09d7884d869983))
+
 ## [1.12.0](https://github.com/gutzerk/code_chroma/compare/v1.11.0...v1.12.0) (2026-11-01)
 
 

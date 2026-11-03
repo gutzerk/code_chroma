@@ -545,8 +545,9 @@ Claude agent windows launch with the CodeChroma MCP server (`ask_user`) register
 - `normal`: floating `ActivityPanel` (absolute in the canvas row), resizable; collapse is available from both the edge handle and the header's Collapse button.
 - `collapsed`: `activity/CollapsedStrip`; clicking an avatar returns to `normal` and selects that agent.
 - `full`: the same `ActivityPanel` stretched over the canvas (`.is-full`) from the diagrams panel edge
-  (or the chrome inset when that panel is closed, via `agentsWideWidth`); the agents dropdown row is not rendered and agents show as a left column
-  (`activity/AgentSwitcherRow.tsx`'s `AgentList`, a CSS grid on `.is-full .activity-agent-content` so the
+  (or the chrome inset when that panel is closed, via `agentsWideWidth`); the agents dropdown row is not rendered and agents show in a 320px left column
+  (`.activity-full-sidebar`: `activity/AgentSwitcherRow.tsx`'s `AgentList` above the selected agent's
+  `PromptOutline`, see "Prompt navigation"; a CSS grid on `.is-full .activity-agent-content` so the
   terminals never remount) and the canvas's left panel is left alone. Opening an agent window
   (`openAgentWindow`) never leaves full screen. The older `AgentFullScreen` component is no longer mounted.
   The selected agent's header (`DockedAgentPanel` with `full`) shows a title and meta line, the usage
@@ -576,6 +577,31 @@ agent while full screen is open, again on each status change and, while the agen
 `UsageStrip` renders "Context 62k / 200k · 31%" with a `role="meter"` bar, "Tokens 184k in · 12k out",
 "Cache hit 78%" and "Cost $0.84" (omitted when `costUsd` is null). Tests:
 `dotnet/CodeChroma.Bridge.Tests/Agents/AgentUsageTests.cs`, `web/src/agents/activity/UsageStrip.test.tsx`.
+
+## Prompt navigation
+
+The agent terminal is the `claude` TUI in xterm, not a message list, so navigation pairs the transcript with the
+terminal buffer. `GET /agents/{id}/prompts` (`Routes/AgentRoutes.cs`, C# bridge only) returns
+`{prompts: [{id, text, createdAt, edits, runs}]}` from `Agents/AgentPrompts.cs`: main-thread `type: "user"` entries
+that the user typed (tool results, `isMeta`, `isCompactSummary`, sidechains, `[Request interrupted…]` and command
+output are skipped; `<command-name>` reads as `/name args`, `<bash-input>` as `!cmd`). `edits` counts
+`Edit`/`Write`/`MultiEdit`/`NotebookEdit` and `runs` counts `Bash` tool calls (deduped by tool-use id) until the next
+prompt. A non-claude agent or one with no session gets an empty list.
+
+The web side lives in `web/src/agents/prompts/`:
+
+| File | Role |
+|---|---|
+| `promptNav.ts` | Pure logic: `toPrompts` + `replySummary` ("1 edit, 1 run" / "answer"), `clampIndex`, `activeIndexAt` (last prompt at or above the viewport top + 3 rows), `filterPrompts`, `findPromptLines` (each prompt's echo line in the buffer, in order; null once it left the 5000-line scrollback) |
+| `promptNavStore.ts` | Per-agent state kept across agent switches: prompts, buffer lines, `current`, aria-live text, find requests. `go` scrolls the attached viewport and ignores its own scroll events for `JUMP_LOCK_MS` (250 ms) |
+| `xtermPromptViewport.ts` | Attached through `useXtermSession`'s `onTerminal`: re-scans the buffer 200 ms after output or resize, follows the viewport (rAF-throttled), scrolls a prompt one row below the top, and highlights the current echo with an xterm decoration |
+| `usePromptList.ts` | Loads the selected agent's prompts; polls every 3 s while it runs and the page is visible |
+| `usePromptHotkeys.ts` | One window listener: Alt+↑/↓ prev/next and Cmd/Ctrl+Shift+P find, only while focus is inside a `data-prompt-nav-agent` element and not in another text field (the terminal's own input and the prompt search are allowed) |
+| `PromptNavBar.tsx`, `PromptPicker.tsx`, `PromptOutline.tsx`, `PromptMarkers.tsx` | The compact 44px bar with a listbox popover, the full-screen 48px bar (Prev/Next/Latest), the full-screen left-column outline under `AgentList`, and the marker rail on the terminal's right edge |
+
+xterm keeps the viewport where it is when the user has scrolled up, so new output never pulls them away from an
+older prompt. Ctrl/Cmd+Alt+↑/↓ stays the agent switcher. Tests: `dotnet/CodeChroma.Bridge.Tests/Agents/AgentPromptsTests.cs`,
+`web/src/agents/prompts/*.test.ts(x)`.
 
 ## Drawing-agent fields (025)
 

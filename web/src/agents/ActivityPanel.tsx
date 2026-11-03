@@ -14,6 +14,7 @@ import { useRuns, useRunsLoaded, workflowStore } from "../workflows/workflowStor
 import { isFinished } from "../workflows/runControls";
 import { AgentList, AgentSwitcherRow, selectAgent } from "./activity/AgentSwitcherRow";
 import { useAgentClient } from "./AgentClientContext";
+import { PromptOutline } from "./prompts/PromptOutline";
 import { CollapsedStrip, type ActivityTab } from "./activity/CollapsedStrip";
 import { ExpandIcon, HandleChevronLeft, HandleChevronRight, HandleCollapse } from "./activity/icons";
 import { usePanelSize } from "./activity/usePanelSize";
@@ -100,6 +101,7 @@ export function ActivityPanel({
   if (resizable && size) style = { width: size.width };
   else if (stretchWidth !== null) style = { width: stretchWidth };
   const activeId = agents.some((a) => a.id === selectedAgentId) ? selectedAgentId : agents[0]?.id;
+  const activeAgent = agents.find((a) => a.id === activeId);
   useEffect(() => {
     if (tab !== "workflows" || collapsed) workflowStore.setDialog(null);
   }, [tab, collapsed]);
@@ -232,7 +234,12 @@ export function ActivityPanel({
           hidden={tab !== "agents"}
         >
           {!isFull && <AgentSwitcherRow agents={agents} activeId={activeId ?? undefined} />}
-          {isFull && <AgentList agents={agents} activeId={activeId ?? undefined} />}
+          {isFull && (
+            <div className="activity-full-sidebar">
+              <AgentList agents={agents} activeId={activeId ?? undefined} />
+              {activeAgent && <PromptOutline agentId={activeAgent.id} agentTitle={activeAgent.title} />}
+            </div>
+          )}
           {agents.length === 0 && (
             <p className="activity-empty">
               No agents running. Run an agent to start working in this workspace.

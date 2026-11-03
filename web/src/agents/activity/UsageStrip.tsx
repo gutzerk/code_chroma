@@ -1,4 +1,5 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
+import { useAgentPoll } from "../useAgentPoll";
 import type { AgentClient, AgentUsage } from "../agentClient";
 
 /** How often the active agent panel re-reads the selected agent's usage between status changes. */
@@ -18,21 +19,10 @@ function percent(ratio: number): number {
 /** Reads the agent's usage while `enabled` and again on every status change; polls only while it runs and the page is visible. */
 export function useAgentUsage(client: AgentClient, agentId: string, status: string, enabled: boolean) {
   const [usage, setUsage] = useState<AgentUsage | null>(null);
-  useEffect(() => {
-    if (!enabled || !client.usage) return;
-    let live = true;
-    const read = () =>
-      client.usage!(agentId).then(
-        (next) => live && setUsage(next),
-        () => undefined,
-      );
-    void read();
-    const timer = status === "running" ? window.setInterval(() => document.visibilityState === "visible" && void read(), USAGE_POLL_MS) : undefined;
-    return () => {
-      live = false;
-      window.clearInterval(timer);
-    };
-  }, [client, agentId, status, enabled]);
+  useAgentPoll(agentId, status, enabled && !!client.usage, USAGE_POLL_MS, async (isLive) => {
+    const next = await client.usage!(agentId);
+    if (isLive()) setUsage(next);
+  });
   return enabled ? usage : null;
 }
 

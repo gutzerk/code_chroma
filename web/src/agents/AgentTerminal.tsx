@@ -2,6 +2,9 @@ import { useEffect, useRef } from "react";
 import { useXtermSession } from "../terminal/useXtermSession";
 import { AgentQuestionHost } from "./AgentQuestionHost";
 import { useAgentStartError } from "./agentStore";
+import { PromptMarkers } from "./prompts/PromptMarkers";
+import { useHasPrompts } from "./prompts/promptNavStore";
+import { attachXtermPromptViewport } from "./prompts/xtermPromptViewport";
 
 /** The xterm body of one agent window, attached to that agent's long-lived PTY on the bridge.
  * Closing this socket detaches only — the bridge keeps the process running, which is what makes a
@@ -28,7 +31,10 @@ export function AgentTerminal({
     enabled: running,
     hidden,
     closedNotice: "\r\n[detached]\r\n",
+    onTerminal: (term, container) =>
+      attachXtermPromptViewport(term, workspace, container.querySelector<HTMLElement>(".xterm-viewport")),
   });
+  const hasPrompts = useHasPrompts(workspace);
 
   const handledFocusRequest = useRef(0);
   useEffect(() => {
@@ -53,11 +59,14 @@ export function AgentTerminal({
   }
   return (
     <AgentQuestionHost agentId={workspace} onFocusTerminal={focus}>
-      <div
-        className="agent-window-terminal"
-        ref={containerRef}
-        data-testid={`agent-terminal-${workspace}`}
-      />
+      <div className="agent-terminal-frame" data-has-markers={hasPrompts || undefined}>
+        <div
+          className="agent-window-terminal"
+          ref={containerRef}
+          data-testid={`agent-terminal-${workspace}`}
+        />
+        <PromptMarkers agentId={workspace} />
+      </div>
     </AgentQuestionHost>
   );
 }

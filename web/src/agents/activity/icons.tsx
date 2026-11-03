@@ -86,3 +86,20 @@ export const HandleCollapse = () => (
     <path d="M6 6l6 6-6 6M18 5v14" />
   </Icon>
 );
+export const ChevronUpIcon = ({ size }: IconProps) => (
+  <Icon size={size}>
+    <path d="M6 15l6-6 6 6" />
+  </Icon>
+);
+export const UserIcon = ({ size }: IconProps) => (
+  <Icon size={size}>
+    <circle cx="12" cy="8" r="4" />
+    <path d="M4 21c1.5-4 4.5-6 8-6s6.5 2 8 6" />
+  </Icon>
+);
+export const SearchIcon = ({ size }: IconProps) => (
+  <Icon size={size}>
+    <circle cx="11" cy="11" r="6" />
+    <path d="M20 20l-4.5-4.5" />
+  </Icon>
+);

@@ -13,6 +13,7 @@ import type {
   WorkspaceStatus,
   WorktreeCreated,
   WorktreeList,
+  RawPrompt,
 } from "../state/types";
 import { errorMessageFrom, jsonInit } from "../util/httpJson";
 
@@ -75,6 +76,8 @@ export interface AgentClient {
   recreateWorktree(id: string): Promise<AgentRecord>;
   /** The agent's session usage, or null before a claude session exists (GET /agents/{id}/usage). */
   usage?(id: string): Promise<AgentUsage | null>;
+  /** The user's own prompts in the agent's claude session, in order (GET /agents/{id}/prompts). */
+  prompts?(id: string): Promise<{ prompts: RawPrompt[] }>;
   /** Makes a workspace the canvas's data source and kicks off its lazy bring-up. */
   activateWorkspace(id: string): Promise<WorkspaceStatus>;
   /** analyzing / ready / error plus a progress line, polled while a worktree's graph comes up. */
@@ -204,6 +207,10 @@ export class HttpAgentClient implements AgentClient {
 
   usage(id: string): Promise<AgentUsage | null> {
     return this.request<AgentUsage | null>(`/agents/${id}/usage`);
+  }
+
+  prompts(id: string): Promise<{ prompts: RawPrompt[] }> {
+    return this.request<{ prompts: RawPrompt[] }>(`/agents/${id}/prompts`);
   }
 
   activateWorkspace(id: string): Promise<WorkspaceStatus> {

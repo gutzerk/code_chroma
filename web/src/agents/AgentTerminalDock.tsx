@@ -18,6 +18,9 @@ import { UsageStrip, useAgentUsage } from "./activity/UsageStrip";
 import { AgentLedStrip } from "./AgentLedStrip";
 import { closeAgentWindow } from "./windowActions";
 import { CreatePrButton } from "./CreatePrButton";
+import { PromptNavBar } from "./prompts/PromptNavBar";
+import { usePromptHotkeys, PROMPT_NAV_SCOPE } from "./prompts/usePromptHotkeys";
+import { usePromptList } from "./prompts/usePromptList";
 
 const DEFAULT_WIDTH = 440;
 const MIN_WIDTH = 320;
@@ -125,6 +128,8 @@ export function DockedAgentPanel({
 }) {
   const agentClient = useAgentClient();
   const usage = useAgentUsage(agentClient, agent.id, agent.status, active);
+  usePromptList(agentClient, agent.id, agent.status, active);
+  usePromptHotkeys();
   const startError = useAgentStartError(agent.id);
   const [recovering, setRecovering] = useState(false);
   const [recoverError, setRecoverError] = useState<string | null>(null);
@@ -150,6 +155,7 @@ export function DockedAgentPanel({
       aria-label={`${agent.title} terminal`}
       hidden={!active}
       data-testid={`agent-dock-panel-${agent.id}`}
+      {...{ [PROMPT_NAV_SCOPE]: agent.id }}
     >
       <div className="agent-terminal-dock-header">
         <img className="agent-window-icon" src={runAgentIcon} alt="" aria-hidden="true" />
@@ -182,6 +188,7 @@ export function DockedAgentPanel({
           ×
         </button>
       </div>
+      {!agent.worktree_lost && <PromptNavBar agentId={agent.id} full={full} />}
       {agent.worktree_lost ? (
         <div className="agent-window-idle" role={recoverError || startError ? "alert" : undefined}>
           {recoverError ?? startError ??

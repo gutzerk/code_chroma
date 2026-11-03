@@ -95,35 +95,51 @@ public static class Transcripts
     /// <summary>One streamed pass over a session's transcript: the last main-thread usage and every billed reply's tokens summed per model (a reply streamed as several entries counts its last, final usage); null when there is no transcript.</summary>
     public static TranscriptSession? ReadSession(string sessionId, string worktree, string? projectsRoot = null)
     {
-        var path = TranscriptPath(sessionId, worktree, projectsRoot ?? ProjectsDir());
-        if (path is null) return null;
         TranscriptUsage? last = null;
         var byMessage = new Dictionary<string, (string Model, TokenCounts Counts)>();
+        var read = ForEachEntry(sessionId, worktree, projectsRoot, line => line.Contains("\"usage\"", StringComparison.Ordinal), (entry, lineNumber) =>
+        {
+            if (Json.Str(entry["type"]) != "assistant" || entry["message"] is not JsonObject message || message["usage"] is not JsonObject usage) return;
+            var model = Json.Str(message["model"]);
+            var counts = new TokenCounts(Count(usage["input_tokens"]), Count(usage["output_tokens"]), Count(usage["cache_read_input_tokens"]), Count(usage["cache_creation_input_tokens"]));
+            if (model != SyntheticModel && !Json.Bool(entry["isSidechain"]))
+                last = new TranscriptUsage(counts.Input + counts.CacheRead + counts.CacheWrite, counts.Input, counts.Output, counts.CacheRead, model);
+            if (counts.Input + counts.Output + counts.CacheRead + counts.CacheWrite == 0) return;
+            byMessage[Json.Str(message["id"]) ?? $"#{lineNumber}"] = (model ?? "", counts);
+        });
+        if (!read) return null;
+        var totals = new Dictionary<string, TokenCounts>();
+        foreach (var (model, counts) in byMessage.Values)
+            totals[model] = totals.TryGetValue(model, out var sum) ? sum + counts : counts;
+        return new TranscriptSession(last, totals);
+    }
+
+    /// <summary>Streams a session's transcript, parsing only lines `keep` accepts and handing each JSON object with its 1-based line number to `visit`; false when there is no readable transcript.</summary>
+    public static bool ForEachEntry(string sessionId, string worktree, string? projectsRoot, Func<string, bool> keep, Action<JsonObject, int> visit) =>
+        Locate(sessionId, worktree, projectsRoot) is { } path && ForEachEntry(path, keep, visit);
+
+    /// <summary>The session's transcript file, or null when there is none.</summary>
+    public static string? Locate(string sessionId, string worktree, string? projectsRoot = null) =>
+        TranscriptPath(sessionId, worktree, projectsRoot ?? ProjectsDir());
+
+    /// <summary>Streams one transcript file, parsing only lines `keep` accepts; false when it cannot be read.</summary>
+    public static bool ForEachEntry(string path, Func<string, bool> keep, Action<JsonObject, int> visit)
+    {
         var lineNumber = 0;
         try
         {
             foreach (var line in File.ReadLines(path))
             {
                 lineNumber++;
-                if (!line.Contains("\"usage\"", StringComparison.Ordinal)) continue;
+                if (!keep(line)) continue;
                 JsonObject? entry;
                 try { entry = JsonNode.Parse(line) as JsonObject; }
                 catch (JsonException) { continue; }
-                if (entry is null || Json.Str(entry["type"]) != "assistant" || entry["message"] is not JsonObject message || message["usage"] is not JsonObject usage) continue;
-                var model = Json.Str(message["model"]);
-                var counts = new TokenCounts(Count(usage["input_tokens"]), Count(usage["output_tokens"]), Count(usage["cache_read_input_tokens"]), Count(usage["cache_creation_input_tokens"]));
-                var sidechain = entry["isSidechain"] is JsonValue side && side.TryGetValue<bool>(out var isSide) && isSide;
-                if (model != SyntheticModel && !sidechain)
-                    last = new TranscriptUsage(counts.Input + counts.CacheRead + counts.CacheWrite, counts.Input, counts.Output, counts.CacheRead, model);
-                if (counts.Input + counts.Output + counts.CacheRead + counts.CacheWrite == 0) continue;
-                byMessage[Json.Str(message["id"]) ?? $"#{lineNumber}"] = (model ?? "", counts);
+                if (entry is not null) visit(entry, lineNumber);
             }
         }
-        catch (Exception error) when (error is IOException or UnauthorizedAccessException) { return null; }
-        var totals = new Dictionary<string, TokenCounts>();
-        foreach (var (model, counts) in byMessage.Values)
-            totals[model] = totals.TryGetValue(model, out var sum) ? sum + counts : counts;
-        return new TranscriptSession(last, totals);
+        catch (Exception error) when (error is IOException or UnauthorizedAccessException) { return false; }
+        return true;
     }
 
     private static string? TranscriptPath(string sessionId, string worktree, string root)

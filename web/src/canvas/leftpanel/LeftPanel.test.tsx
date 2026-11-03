@@ -7,7 +7,7 @@ import { IMPACT_CHANGES_STUB } from "../../engine-client/stubEngineClient";
 import { AgentClientProvider } from "../../agents/AgentClientContext";
 import type { AgentClient } from "../../agents/agentClient";
 import { PR_CLIENT_STUB } from "../../agents/stubAgentClient";
-import type { CanvasElement } from "../../state/types";
+import type { CanvasElement, HierarchyNodeRef } from "../../state/types";
 import { canvasDocStore } from "../doc/canvasDocStore";
 import { collapsedLayersStore } from "../doc/collapsedLayersStore";
 import { layoutStore } from "../layout/layoutStore";
@@ -30,11 +30,11 @@ function el(id: string, layer: string): CanvasElement {
   };
 }
 
-function renderPanel(arrange?: ReactNode) {
+function renderPanel(arrange?: ReactNode, rootNode: HierarchyNodeRef | null = null) {
   return render(
     <EngineClientProvider repoId="main" client={IMPACT_CHANGES_STUB as unknown as EngineClient}>
       <AgentClientProvider client={PR_CLIENT_STUB as unknown as AgentClient}>
-        <LeftPanel rootNode={null} onActivate={() => {}} arrange={arrange} />
+        <LeftPanel rootNode={rootNode} onActivate={() => {}} arrange={arrange} />
       </AgentClientProvider>
     </EngineClientProvider>,
   );
@@ -86,6 +86,19 @@ describe("LeftPanel", () => {
 
     expect(layoutStore.getState().leftTab).toBe("files");
     expect(screen.getByTestId("left-panel-files")).toBeInTheDocument();
+  });
+
+  it.each([
+    ["file", "main.py", "python"],
+    ["folder", "src", null],
+  ] as const)("gives a Files-tab %s row named %s the file-type icon %s", (level, name, expected) => {
+    const node: HierarchyNodeRef = { node_id: `${level}::${name}`, name, level, parent_id: null, has_children: false, child_count: 0 };
+    renderPanel(undefined, node);
+
+    fireEvent.click(screen.getByRole("tab", { name: "Files" }));
+
+    const icon = screen.getByTestId("tree-node-label").querySelector("svg");
+    expect(icon?.getAttribute("data-file-type") ?? null).toBe(expected);
   });
 
   it("closes through the edge handle", () => {

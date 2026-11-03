@@ -16,7 +16,7 @@ const BY_NAME: Record<string, string> = {
   "pnpm-workspace.yaml": "pnpm",
   "yarn.lock": "yarn",
   ".yarnrc": "yarn",
-  "pyproject.toml": "poetry",
+  "pyproject.toml": "python",
   "poetry.lock": "poetry",
   ".gitignore": "git",
   ".gitattributes": "git",
@@ -26,11 +26,13 @@ const BY_NAME: Record<string, string> = {
   ".eslintignore": "eslint",
   "build.gradle": "gradle",
   "settings.gradle": "gradle",
+  ".env": "dotenv",
 };
 
 /** Name prefixes (lowercased) for config files that come in many extensions, e.g. `vite.config.ts`. */
 const BY_PREFIX: [string, string][] = [
-  [".env", "dotenv"],
+  [".env.", "dotenv"],
+  ["dockerfile.", "docker"],
   ["vite.config.", "vite"],
   ["vitest.config.", "vitest"],
   ["jest.config.", "jest"],
@@ -107,9 +109,7 @@ const BY_EXTENSION: Record<string, string> = {
   vue: "vuedotjs",
   svelte: "svelte",
   prisma: "prisma",
-  sql: "sqlite",
   sqlite: "sqlite",
-  db: "sqlite",
   tf: "terraform",
   pl: "perl",
   pm: "perl",
@@ -136,7 +136,10 @@ export const MAPPED_FILE_TYPE_SLUGS = new Set([
 ]);
 
 /** The Files panel background, a copy of `--bg-panel` in `web/src/styles.css`. */
-const PANEL_BACKGROUND = "#15181f";
+export const PANEL_BACKGROUND = "#15181f";
+
+/** The open/active file row background, a copy of `--accent-bg` in `web/src/styles.css`. */
+export const ACTIVE_ROW_BACKGROUND = "#2b3550";
 
 /** Lowest contrast at which a logo keeps its own color: WCAG 3:1 for non-text graphics. */
 const MIN_CONTRAST = 3;
@@ -144,12 +147,17 @@ const MIN_CONTRAST = 3;
 /** Light grey that pure-black logos (Markdown, Rust, JSON...) lighten toward, keeping hues for the rest. */
 const LIGHTEN_TARGET = [201, 209, 217];
 
-/** The logo's brand color, lightened in 10% steps until it stays legible on the dark panel. */
+/** The lower of a color's contrasts on the two row backgrounds a logo can sit on. */
+function worstContrast(color: string): number {
+  return Math.min(contrastRatio(color, PANEL_BACKGROUND), contrastRatio(color, ACTIVE_ROW_BACKGROUND));
+}
+
+/** The logo's brand color, lightened in 10% steps until it stays legible on plain and open rows. */
 export function fileTypeFill(hex: string): string {
   const brand = rgbChannels(`#${hex}`) ?? LIGHTEN_TARGET;
   for (let step = 0; step < 10; step += 1) {
     const color = rgbHex(brand.map((c, i) => Math.round(c + ((LIGHTEN_TARGET[i] - c) * step) / 10)));
-    if (contrastRatio(color, PANEL_BACKGROUND) >= MIN_CONTRAST) return step === 0 ? `#${hex}` : color;
+    if (worstContrast(color) >= MIN_CONTRAST) return step === 0 ? `#${hex}` : color;
   }
   return rgbHex(LIGHTEN_TARGET);
 }

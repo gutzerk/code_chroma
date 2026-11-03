@@ -1,8 +1,17 @@
+import { readFileSync } from "node:fs";
+import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
 import { render } from "@testing-library/react";
+import { contrastRatio } from "./contrast";
 import { FileTypeIcon } from "./FileTypeIcon";
 import { FILE_TYPE_ICONS } from "./fileTypeIcons.generated";
-import { MAPPED_FILE_TYPE_SLUGS, fileTypeFill, fileTypeSlug } from "./fileTypes";
+import {
+  ACTIVE_ROW_BACKGROUND,
+  MAPPED_FILE_TYPE_SLUGS,
+  PANEL_BACKGROUND,
+  fileTypeFill,
+  fileTypeSlug,
+} from "./fileTypes";
 
 describe("fileTypeSlug", () => {
   it.each([
@@ -13,7 +22,10 @@ describe("fileTypeSlug", () => {
     ["README.md", "markdown"],
     ["Dockerfile", "docker"],
     ["package.json", "npm"],
-    ["pyproject.toml", "poetry"],
+    ["pyproject.toml", "python"],
+    ["poetry.lock", "poetry"],
+    ["Dockerfile.dev", "docker"],
+    [".env", "dotenv"],
     [".gitignore", "git"],
     [".env.local", "dotenv"],
     [".eslintrc", "eslint"],
@@ -26,7 +38,7 @@ describe("fileTypeSlug", () => {
     expect(slug).toBe(expected);
   });
 
-  it.each(["notes.unknown", "Makefile", "r", "LICENSE"])("has no logo for %s", (fileName) => {
+  it.each(["notes.unknown", "Makefile", "r", "LICENSE", "schema.sql", ".envrc"])("has no logo for %s", (fileName) => {
     const slug = fileTypeSlug(fileName);
 
     expect(slug).toBeNull();
@@ -40,14 +52,32 @@ it("has a generated logo for every slug the tables map to", () => {
 });
 
 describe("fileTypeFill", () => {
-  it.each([
-    ["3776AB", "#3776AB"],
-    ["000000", "#65696d"],
-    ["663399", "#7a53a6"],
-  ])("lightens brand color %s to %s when needed on the dark panel", (hex, expected) => {
-    const fill = fileTypeFill(hex);
+  it("keeps a brand color that is already legible on both row backgrounds", () => {
+    const fill = fileTypeFill("F7DF1E");
 
-    expect(fill).toBe(expected);
+    expect(fill).toBe("#F7DF1E");
+  });
+
+  it.each([
+    ["panel", PANEL_BACKGROUND],
+    ["open-file row", ACTIVE_ROW_BACKGROUND],
+  ])("gives every logo at least 3:1 contrast on the %s background", (_label, background) => {
+    const faint = Object.entries(FILE_TYPE_ICONS)
+      .filter(([, entry]) => contrastRatio(fileTypeFill(entry.hex), background) < 3)
+      .map(([slug]) => slug);
+
+    expect(faint).toEqual([]);
+  });
+
+  it.each([
+    ["--bg-panel", PANEL_BACKGROUND],
+    ["--accent-bg", ACTIVE_ROW_BACKGROUND],
+  ])("matches %s in styles.css", (token, copy) => {
+    const css = readFileSync(resolve(__dirname, "../styles.css"), "utf-8");
+
+    const value = css.match(new RegExp(`${token}:\\s*(#[0-9a-f]{6})`, "i"))?.[1];
+
+    expect(value?.toLowerCase()).toBe(copy);
   });
 });
 

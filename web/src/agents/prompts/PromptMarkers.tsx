@@ -13,6 +13,7 @@ export function PromptMarkers({ agentId }: { agentId: string }) {
           <button
             key={p.id}
             type="button"
+            tabIndex={-1}
             className="prompt-nav-marker"
             aria-label={`Jump to prompt ${p.index}`}
             aria-current={p.index === current || undefined}

@@ -142,8 +142,7 @@ public static class AgentRoutes
         app.MapGet("/agents/{agentId}/prompts", (string agentId, AgentManager agents) => Reply.GuardBlocking(() =>
         {
             var record = OrNotFound(agents, agentId);
-            var sessionId = record.Kind == AgentRecord.DefaultKind ? agents.CaptureSessionId(agentId) : null;
-            return Reply.Json(AgentPrompts.Read(record, sessionId));
+            return Reply.Json(AgentPrompts.Read(record, () => agents.CaptureSessionId(agentId)));
         }));
 
         app.MapGet("/agents/{agentId}/pr-preflight", (string agentId, AgentManager agents) => Reply.GuardBlocking(() =>

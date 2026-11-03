@@ -86,7 +86,30 @@ describe("finding prompt echoes in the terminal buffer", () => {
   });
 
   it("returns null for a prompt that has left the buffer", () => {
-    expect(findPromptLines(buffer, [{ text: "an old prompt nobody can see" }, { text: "why?" }])).toEqual([null, 5]);
+    expect(findPromptLines(buffer, [{ text: "an old prompt nobody can see" }, { text: "why?" }])).toEqual([null, 8]);
+  });
+
+  it("maps a repeated prompt to its own echo after the first one left the scrollback", () => {
+    const trimmed = ["● Done.", "> continue", "", "● Next step.", "> Add a test", "", "● Added.", "> continue"];
+
+    const lines = findPromptLines(trimmed, [{ text: "continue" }, { text: "plan" }, { text: "continue" }, { text: "Add a test" }, { text: "continue" }]);
+
+    expect(lines).toEqual([null, null, 1, 4, 7]);
+  });
+
+  it.each([
+    ["a short prompt against a longer echo", ["> yes please"], "y"],
+    ["a reply line that starts like the prompt", ["● Review the code first", "  Review the code"], "Review the code in src/app.ts"],
+    ["the input box holding a draft", ["│ > continue                │", "╰───────────╯"], "continue"],
+  ])("does not match %s", (_name, rows, text) => {
+    expect(findPromptLines(rows, [{ text }])).toEqual([null]);
+  });
+
+  it.each([
+    ["a bash-mode command", ["! git status"], "!git status"],
+    ["a multi-line prompt with a blank line", ["> Fix it", "", "  then add a test", "", "● Ok."], "Fix it\n\nthen add a test"],
+  ])("matches %s", (_name, rows, text) => {
+    expect(findPromptLines(rows, [{ text }])).toEqual([0]);
   });
 
   it("measures a prompt's echo up to the next blank line", () => {

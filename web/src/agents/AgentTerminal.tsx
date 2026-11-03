@@ -4,7 +4,7 @@ import { AgentQuestionHost } from "./AgentQuestionHost";
 import { useAgentStartError } from "./agentStore";
 import { PromptMarkers } from "./prompts/PromptMarkers";
 import { useHasPrompts } from "./prompts/promptNavStore";
-import { attachXtermPromptViewport } from "./prompts/xtermPromptViewport";
+import { attachXtermPromptViewport, rescanPrompts } from "./prompts/xtermPromptViewport";
 
 /** The xterm body of one agent window, attached to that agent's long-lived PTY on the bridge.
  * Closing this socket detaches only — the bridge keeps the process running, which is what makes a
@@ -25,6 +25,8 @@ export function AgentTerminal({
 }) {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const startError = useAgentStartError(workspace);
+  const hiddenRef = useRef(hidden);
+  hiddenRef.current = hidden;
   const { focus } = useXtermSession(containerRef, {
     agent: kind,
     workspace,
@@ -32,9 +34,12 @@ export function AgentTerminal({
     hidden,
     closedNotice: "\r\n[detached]\r\n",
     onTerminal: (term, container) =>
-      attachXtermPromptViewport(term, workspace, container.querySelector<HTMLElement>(".xterm-viewport")),
+      attachXtermPromptViewport(term, workspace, container.querySelector<HTMLElement>(".xterm-viewport"), () => hiddenRef.current),
   });
   const hasPrompts = useHasPrompts(workspace);
+  useEffect(() => {
+    if (!hidden) rescanPrompts(workspace);
+  }, [hidden, workspace]);
 
   const handledFocusRequest = useRef(0);
   useEffect(() => {

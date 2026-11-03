@@ -17,8 +17,21 @@ function bufferText(term: Terminal, from = 0, to = term.buffer.active.length): s
   return lines;
 }
 
+/** Each attached terminal's re-scan, so a terminal that comes back into view catches up on output it skipped while hidden. */
+const rescans = new Map<string, () => void>();
+
+/** Re-scans an agent's buffer now; called when its terminal is shown again. */
+export function rescanPrompts(agentId: string): void {
+  rescans.get(agentId)?.();
+}
+
 /** Wires one agent's xterm to the prompt navigator: scans for prompt echoes, follows the viewport, scrolls and highlights. */
-export function attachXtermPromptViewport(term: Terminal, agentId: string, scrollHost: HTMLElement | null): () => void {
+export function attachXtermPromptViewport(
+  term: Terminal,
+  agentId: string,
+  scrollHost: HTMLElement | null,
+  isHidden: () => boolean = () => false,
+): () => void {
   let decoration: IDecoration | null = null;
   let scanTimer: ReturnType<typeof setTimeout> | null = null;
   let frame = 0;
@@ -26,7 +39,7 @@ export function attachXtermPromptViewport(term: Terminal, agentId: string, scrol
   const scan = () => {
     scanTimer = null;
     const { prompts } = promptNavStore.get(agentId);
-    if (prompts.length === 0) return;
+    if (prompts.length === 0 || isHidden()) return;
     const text = bufferText(term);
     promptNavStore.setLayout(agentId, findPromptLines(text, prompts), text.length);
   };
@@ -70,9 +83,11 @@ export function attachXtermPromptViewport(term: Terminal, agentId: string, scrol
   const resizes = term.onResize(scheduleScan);
   const scrolls = term.onScroll(onViewport);
   scrollHost?.addEventListener("scroll", onViewport, { passive: true });
+  rescans.set(agentId, scan);
   scan();
 
   return () => {
+    if (rescans.get(agentId) === scan) rescans.delete(agentId);
     detach();
     unsubscribe();
     writes.dispose();

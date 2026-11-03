@@ -15,6 +15,15 @@ beforeEach(() => {
 afterEach(() => vi.useRealTimers());
 
 describe("promptNavStore", () => {
+  it("forgets agents that no longer exist", () => {
+    promptNavStore.setPrompts("a", [raw("one")]);
+    promptNavStore.setPrompts("b", [raw("two")]);
+
+    promptNavStore.retain(["a"]);
+
+    expect([promptNavStore.get("a").prompts.length, promptNavStore.get("b").prompts.length]).toEqual([1, 0]);
+  });
+
   it("starts on the latest prompt and keeps the place when the list grows", () => {
     promptNavStore.setPrompts("a", [raw("one"), raw("two")]);
     promptNavStore.go("a", 1);

@@ -84,7 +84,7 @@ class PromptNavStore extends Store {
     const line = lines[current - 1] ?? null;
     this.lockUntil.set(agentId, Date.now() + JUMP_LOCK_MS);
     if (line !== null) this.viewports.get(agentId)?.scrollToLine(line);
-    const where = line === null ? " (no longer in the terminal history)" : "";
+    const where = line === null ? " (not found in the terminal)" : "";
     this.set(agentId, { current, announce: `Prompt ${current} of ${prompts.length}${where}` });
   };
 
@@ -99,6 +99,18 @@ class PromptNavStore extends Store {
 
   requestFind = (agentId: string): void => {
     this.set(agentId, { findRequest: this.get(agentId).findRequest + 1 });
+  };
+
+  /** Drops the state of agents that no longer exist. */
+  retain = (agentIds: readonly string[]): void => {
+    const keep = new Set(agentIds);
+    const gone = [...this.states.keys()].filter((id) => !keep.has(id));
+    if (gone.length === 0) return;
+    gone.forEach((id) => {
+      this.states.delete(id);
+      this.lockUntil.delete(id);
+    });
+    this.emit();
   };
 
   /** Registers the agent's terminal; returns the detach. */

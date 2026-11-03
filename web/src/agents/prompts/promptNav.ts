@@ -55,43 +55,62 @@ export function formatTime(iso: string | null): string {
   return `${String(date.getHours()).padStart(2, "0")}:${String(date.getMinutes()).padStart(2, "0")}`;
 }
 
-const PROMPT_GLYPHS = /^[\s>❯›│|]+/;
-const MATCH_CHARS = 40;
-const MIN_MATCH_CHARS = 6;
+/** An echo's first row: an optional box edge, then the TUI's prompt glyph (`!` in bash mode). */
+const ECHO_START = /^[\s│|]*[>❯›!]\s?/;
+/** Characters of a prompt compared with its echo, whitespace removed (wraps and line breaks differ). */
+const MATCH_CHARS = 60;
+const MAX_ECHO_ROWS = 12;
 
-function normalize(text: string): string {
-  return text.replace(/\s+/g, " ").trim();
+function compact(text: string): string {
+  return text.replace(/\s+/g, "");
+}
+
+/** End (exclusive) of the echo starting at `start`: its glyph row, then indented or blank rows, trailing blanks dropped. */
+function echoEnd(bufferLines: readonly string[], start: number, max = MAX_ECHO_ROWS): number {
+  let end = start + 1;
+  let last = end;
+  while (end < bufferLines.length && end - start < max && (bufferLines[end].trim() === "" || /^\s/.test(bufferLines[end]))) {
+    end++;
+    if (bufferLines[end - 1].trim() !== "") last = end;
+  }
+  return last;
+}
+
+/** The echo's text as compared with a prompt; null for a row that does not start an echo. */
+function echoKey(bufferLines: readonly string[], start: number): string | null {
+  const first = bufferLines[start];
+  if (!ECHO_START.test(first)) return null;
+  const rows = [first.replace(ECHO_START, ""), ...bufferLines.slice(start + 1, echoEnd(bufferLines, start))];
+  return compact(rows.join("")).slice(0, MATCH_CHARS);
 }
 
 function promptKey(text: string): string {
-  return normalize(text.split("\n").find((l) => l.trim()) ?? "").slice(0, MATCH_CHARS);
+  return compact(text.trim().replace(/^!/, "")).slice(0, MATCH_CHARS);
 }
 
-function lineMatches(shown: string, key: string): boolean {
-  if (shown.length < Math.min(key.length, MIN_MATCH_CHARS)) return false;
-  return shown.startsWith(key) || key.startsWith(shown);
-}
-
-/** Each prompt's buffer line (in order, so a repeated prompt maps to its own echo), or null when it has left the buffer. */
+/** Each prompt's echo row, or null when it is not in the buffer; matched newest first, so a repeated prompt maps to its own echo even after old rows leave the scrollback. */
 export function findPromptLines(bufferLines: readonly string[], prompts: readonly { text: string }[]): (number | null)[] {
-  const shown = bufferLines.map((line) => normalize(line.replace(PROMPT_GLYPHS, "")));
-  let from = 0;
-  return prompts.map((prompt) => {
-    const key = promptKey(prompt.text);
-    if (!key) return null;
-    for (let line = from; line < shown.length; line++) {
-      if (lineMatches(shown[line], key)) {
-        from = line + 1;
-        return line;
-      }
-    }
-    return null;
+  const echoes: { line: number; key: string }[] = [];
+  bufferLines.forEach((_, line) => {
+    const key = echoKey(bufferLines, line);
+    if (key) echoes.push({ line, key });
   });
+  const found: (number | null)[] = prompts.map(() => null);
+  let below = echoes.length;
+  for (let i = prompts.length - 1; i >= 0 && below > 0; i--) {
+    const key = promptKey(prompts[i].text);
+    if (!key) continue;
+    for (let e = below - 1; e >= 0; e--) {
+      if (echoes[e].key !== key) continue;
+      found[i] = echoes[e].line;
+      below = e;
+      break;
+    }
+  }
+  return found;
 }
 
-/** Rows a prompt's echo spans: its first line through the next blank line, at most `max`. */
-export function promptBlockHeight(bufferLines: readonly string[], start: number, max = 12): number {
-  let end = start + 1;
-  while (end < bufferLines.length && end - start < max && bufferLines[end].trim() !== "") end++;
-  return end - start;
+/** Rows a prompt's echo spans: its glyph row and the indented rows under it, at most `max`. */
+export function promptBlockHeight(bufferLines: readonly string[], start: number, max = MAX_ECHO_ROWS): number {
+  return echoEnd(bufferLines, start, max) - start;
 }

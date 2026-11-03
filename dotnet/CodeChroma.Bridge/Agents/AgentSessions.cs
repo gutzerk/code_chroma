@@ -74,6 +74,9 @@ public sealed class AgentSession : IAgentSessionPort, IDisposable
 
     public bool IsAlive => ExitCode is null;
 
+    /// <summary>Whether the detector can ever report idle, so an InjectWhenIdle can ever type.</summary>
+    public bool DetectsIdle => _detector.Rules.Classifies;
+
     public ScreenTap Screen => _tap;
 
     /// <summary>"exited" once the process is gone; while it runs, what the detector last settled on.</summary>

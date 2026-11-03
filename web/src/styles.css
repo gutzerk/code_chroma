@@ -3003,33 +3003,7 @@ button[data-copy-state="idle"][aria-label]:hover:not(:disabled) {
   gap: var(--tree-row-gap, 2px);
 }
 
-.connections-overlay {
-  position: absolute;
-  top: 0;
-  left: 0;
-  width: 100%;
-  height: 100%;
-  overflow: visible;
-  pointer-events: none;
-}
-
-.connection-path {
-  fill: none;
-  stroke: var(--accent);
-  stroke-width: 1.5;
-  /* Orthogonal routing (connectors/orthogonalRoute.ts) draws elbows — round them off and keep the
-     stub ends square so an arrow reads as one continuous run into the block's side. */
-  stroke-linejoin: round;
-  stroke-linecap: round;
-}
-
-.connection-path-bundled {
-  stroke-dasharray: 4 3;
-  opacity: 0.6;
-}
-
-/* Card-panel connector overlay (currently just the change-cards layer) — same in-content SVG trick
-   as .connections-overlay, kept as its own class so its lines never inherit the blue reference-line
+/* Card-panel connector overlay (currently just the change-cards layer) — an SVG inside .canvas-content, kept as its own class so its lines never inherit the blue reference-line
    styling. Class name predates the Plan overlay's removal; shared with CardPanel's markup. */
 .plan-connections-overlay {
   position: absolute;
@@ -7192,12 +7166,7 @@ button[data-copy-state="idle"][aria-label]:hover:not(:disabled) {
   color: inherit;
 }
 
-/* An agent question (017/020): "soft tiles" card, shared by the canvas (full) and the agent terminal (compact). */
-.question-element {
-  z-index: 2;
-  box-sizing: border-box;
-}
-
+/* An agent question (017/020): "soft tiles" card, shown only in the agent window (compact or full). */
 .question-card {
   background: var(--question-surface);
   border: 1px solid var(--question-border);
@@ -8082,7 +8051,7 @@ button[data-copy-state="idle"][aria-label]:hover:not(:disabled) {
 .canvas-focus-panel__kicker { font-family: var(--font-mono, monospace); font-size: 11px; font-weight: 700; letter-spacing: 0.1em; color: #5EE0A0; }
 .canvas-focus-panel__close { border: 0; background: transparent; color: #8D939B; cursor: pointer; }
 .canvas-focus-panel__name { font-size: 18px; font-weight: 600; color: #ECEDEE; }
-.canvas-focus-panel__help { font-size: 12.5px; color: #8D939B; }
+.canvas-focus-panel__desc { font-size: 12.5px; color: #8D939B; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 4; line-clamp: 4; overflow: hidden; overflow-wrap: anywhere; }
 .canvas-focus-panel h4 { margin: 6px 0 0; font-family: var(--font-mono, monospace); font-size: 10.5px; font-weight: 400; letter-spacing: 0; opacity: 1; color: #7C8188; }
 .canvas-focus-panel ul { margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 6px; }
 .canvas-focus-panel__edge { color: #7C8188; }

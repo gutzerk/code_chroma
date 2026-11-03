@@ -1,11 +1,13 @@
 import { afterEach, describe, expect, it } from "vitest";
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
-import { CanvasDocView } from "../CanvasDocView";
-import { canvasDocStore } from "../canvasDocStore";
-import { EngineClientProvider } from "../../../engine-client/EngineClientContext";
+import { canvasDocStore, useCanvasDoc } from "../canvasDocStore";
+import { useLoadCanvasDoc } from "../canvasDocSync";
+import { EngineClientProvider, useEngineClient } from "../../../engine-client/EngineClientContext";
 import { MockBridgeEngineClient } from "../../../engine-client/mockBridge";
 import type { CanvasOp } from "../../../state/types";
+import { ConnectedQuestionCard } from "./ConnectedQuestionCard";
 import { WIRE_OPTIONS } from "./fixtures";
+import { toQuestionView } from "./questionAdapter";
 import { listOpenQuestions } from "./questionClient";
 
 function addQuestion(step: number, title: string): CanvasOp {
@@ -18,12 +20,19 @@ function addQuestion(step: number, title: string): CanvasOp {
 
 afterEach(() => canvasDocStore.reset());
 
+/** Renders one connected card per question element in the live doc, as the agent window would. */
+function Cards() {
+  useLoadCanvasDoc(useEngineClient());
+  const doc = useCanvasDoc();
+  return <>{Object.values(doc.elements).filter((el) => el.render === "question").map((el) => <ConnectedQuestionCard key={el.id} question={toQuestionView(el)} />)}</>;
+}
+
 async function mount(ops: CanvasOp[]) {
   const client = new MockBridgeEngineClient();
   await client.patchCanvas({ ops, layer: "default", explanation: "", confirm_mass_delete: false });
   render(
     <EngineClientProvider repoId="default" client={client}>
-      <CanvasDocView />
+      <Cards />
     </EngineClientProvider>,
   );
   await screen.findByText("First?");

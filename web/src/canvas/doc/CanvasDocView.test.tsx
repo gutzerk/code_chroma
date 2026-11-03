@@ -377,9 +377,11 @@ describe("CanvasDocView", () => {
     expect(screen.getByTestId("canvas-diagram-frame-meta")).toHaveTextContent("WALKTHROUGH · 2 BOXES");
   });
 
-  it("hides a running agent's question; questions with no agent or a gone agent stay on the canvas", async () => {
+  it("never draws a question or its option diagram on the canvas", async () => {
     agentStore.upsert(agentRecord("agent-1", "running"));
     const doc = docWith([
+      elementOf({ id: "box", render: "custom", label: "Plain box", layer: "custom/flow" }),
+      elementOf({ id: "d1", render: "custom", label: "Decision box", layer: "decisions/q1" }),
       elementOf({ id: "q-canvas", render: "question", layer: "questions", label: "Canvas question", meta: { state: "open", agent_id: "" } }),
       elementOf({ id: "q-agent", render: "question", layer: "questions", label: "Agent question", meta: { state: "open", agent_id: "agent-1" } }),
       elementOf({ id: "q-orphan", render: "question", layer: "questions", label: "Orphan question", meta: { state: "open", agent_id: "gone" } }),
@@ -391,26 +393,10 @@ describe("CanvasDocView", () => {
       </EngineClientProvider>,
     );
 
-    await waitFor(() => expect(screen.getByText("Canvas question")).toBeInTheDocument());
-    expect(screen.getAllByTestId("question-element")).toHaveLength(2);
-    expect(screen.getByText("Orphan question")).toBeInTheDocument();
-    expect(screen.queryByText("Agent question")).toBeNull();
-  });
-
-  it("frames a per-question decisions layer and tags the frame with its layer", async () => {
-    const doc = docWith([
-      elementOf({ id: "d1", render: "custom", label: "A", layer: "decisions/q1", position: { x: 100, y: 100 } }),
-      elementOf({ id: "d2", render: "custom", label: "B", layer: "decisions/q1", position: { x: 400, y: 100 } }),
-    ]);
-
-    render(
-      <EngineClientProvider repoId="default" client={client(doc)}>
-        <CanvasDocView />
-      </EngineClientProvider>,
-    );
-
-    await waitFor(() => expect(screen.getByTestId("canvas-diagram-frame")).toBeInTheDocument());
-    expect(screen.getByTestId("canvas-diagram-frame").getAttribute("data-diagram-layer")).toBe("decisions/q1");
+    await waitFor(() => expect(screen.getByText("Plain box")).toBeInTheDocument());
+    expect(screen.queryAllByTestId("question-element")).toHaveLength(0);
+    expect(screen.queryByText("Decision box")).toBeNull();
+    expect(screen.queryByTestId("canvas-diagram-frame-meta")?.textContent ?? "").not.toMatch(/decision/i);
   });
 
   it("sizes a diagram's frame off its real boxes, not a group's own stale position field", async () => {

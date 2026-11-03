@@ -56,10 +56,10 @@ def batch_message(batch: list[Element]) -> str:
 
 
 def live_session(services: Any, element: Element) -> Any | None:
-    """The running agent session that asked this question, or None."""
+    """The live session that asked and can look idle; others would hold the claim for hours."""
     agent_id = element.meta.get("agent_id")
     session = services.agent_sessions.get(agent_id) if agent_id else None
-    return session if session is not None and session.is_alive else None
+    return session if session is not None and session.is_alive and session.detects_idle else None
 
 
 def deliver(services: Any, element: Element, text: str | None = None) -> bool:

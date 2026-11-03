@@ -2,7 +2,6 @@ import { useEffect, useMemo, useSyncExternalStore } from "react";
 import { FocusPanel } from "./FocusPanel";
 import type { CanvasElement } from "../../state/types";
 import { useEngineClient } from "../../engine-client/EngineClientContext";
-import { useRunningAgentIds } from "../../agents/agentStore";
 import { DiagramRelationshipsSvg } from "../DiagramSurface";
 import { useMeasuredSizes } from "../useMeasuredSizes";
 import { CanvasEdges } from "./CanvasEdges";
@@ -20,7 +19,6 @@ import { leadingOrderDigits, orderMeta, stringMeta } from "./elementMeta";
 import { GroupFrame } from "./GroupFrame";
 import { LaneArea } from "./LaneArea";
 import { NoteElement } from "./NoteElement";
-import { QuestionElement } from "./question/QuestionElement";
 import { useCanvasDoc, useCanvasDocLoaded } from "./canvasDocStore";
 import { applyCanvasPositions, useLoadCanvasDoc } from "./canvasDocSync";
 import { useCollapsedLayers } from "./collapsedLayersStore";
@@ -136,11 +134,10 @@ export function CanvasDocView() {
 
   const collapsedLayers = useCollapsedLayers();
   const routeExpanded = useRouteExpanded();
-  const runningAgentIds = useRunningAgentIds();
-  // Display only (doc.elements is untouched): running agents' questions and collapsed layers hidden, then route steps grown; see displayPipeline.
+  // Display only (doc.elements is untouched): questions, option diagrams and collapsed layers hidden, then route steps grown; see displayPipeline.
   const renderableElements = useMemo(
-    () => runDisplayStages(STRUCTURAL_STAGES, doc.elements, { collapsedLayers, routeExpanded, runningAgentIds }),
-    [doc.elements, collapsedLayers, routeExpanded, runningAgentIds],
+    () => runDisplayStages(STRUCTURAL_STAGES, doc.elements, { collapsedLayers, routeExpanded }),
+    [doc.elements, collapsedLayers, routeExpanded],
   );
 
   const visibleElements = useMemo(
@@ -233,7 +230,7 @@ export function CanvasDocView() {
   const memberIdsByLayer = useMemo(() => {
     const map = new Map<string, string[]>();
     for (const element of Object.values(renderableElements)) {
-      if (!isDiagramLayer(element.layer) || ["group", "question"].includes(BLOCK_RULES[element.render].renderer)) continue;
+      if (!isDiagramLayer(element.layer) || BLOCK_RULES[element.render].renderer === "group") continue;
       const ids = map.get(element.layer);
       if (ids) ids.push(element.id);
       else map.set(element.layer, [element.id]);
@@ -358,7 +355,8 @@ export function CanvasDocView() {
                 // Safety net: a sequence element always belongs to a board layer and is skipped above.
                 return null;
               case "none":
-                // 026: a route carrier never reaches here (canvasDocStore splits it out); never draw one if it does.
+              case "question":
+                // 026: a route carrier never reaches here (canvasDocStore splits it out), nor does a question (hideQuestions); never draw either.
                 return null;
               case "note":
                 return <NoteElement key={element.id} element={element} />;
@@ -371,8 +369,6 @@ export function CanvasDocView() {
                     <GroupFrame key={element.id} element={element} members={members} sizes={measuredSizes} />
                   );
                 }
-              case "question":
-                return <QuestionElement key={element.id} element={element} />;
               default:
                 return (
                   <CanvasNodeBox

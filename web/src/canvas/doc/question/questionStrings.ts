@@ -10,7 +10,6 @@ export const QUESTION_STRINGS = {
   change: "Change",
   noDiagram: "No diagram for this option",
   followsSelection: "follows the selected option",
-  openOnCanvas: "Open on canvas",
   fullScreen: "Full screen",
   closeFullScreen: "Close full screen",
   zoomIn: "Zoom in",

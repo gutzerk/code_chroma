@@ -2,7 +2,6 @@ import type { CanvasOp } from "../../../state/types";
 import type { EngineClient } from "../../../engine-client/EngineClient";
 
 const TERMINAL_ID_PREFIX = "agent-terminal-";
-let seeded = false;
 
 const DEMO_OPTIONS = [
   { id: "a", title: "Modular monolith", description: "One deployment", pro: "Simple", con: "Shared release", rank: 1, why: "Fits an MVP", diagram_ref: null },
@@ -33,11 +32,6 @@ export function installDevAskQuestion(client: EngineClient): () => void {
   };
   document.addEventListener("keydown", onKeyDown, true);
   (window as unknown as { askAgentQuestion?: typeof ask }).askAgentQuestion = ask;
-  // Seed one canvas question per page load (StrictMode, HMR and workspace switches reinstall this).
-  if (!seeded) {
-    seeded = true;
-    ask("").catch((err: unknown) => console.warn("devAskQuestion: seeding the demo question failed", err));
-  }
   return () => {
     document.removeEventListener("keydown", onKeyDown, true);
     delete (window as unknown as { askAgentQuestion?: typeof ask }).askAgentQuestion;

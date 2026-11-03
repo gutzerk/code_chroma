@@ -84,9 +84,9 @@ class ExpansionStore extends Store {
   // Every mutation (expand/collapse/showCode/hideCode/a real reparent via cacheNodeRefs) calls
   // notify(), but most of them only touch ONE of these three derived views — e.g. showCode() never
   // changes expandedOrder. Keeping each snapshot's reference stable unless its own content actually
-  // changed lets useSyncExternalStore correctly bail out subscribers (like ConnectionsOverlay,
-  // which refetches the whole visible tree's connections whenever expandedNodeIds changes
-  // reference) instead of re-running on every unrelated mutation.
+  // changed lets useSyncExternalStore correctly bail out subscribers (like the route and change
+  // overlays, which re-measure whenever expandedNodeIds changes reference) instead of re-running on
+  // every unrelated mutation.
   private notify(): void {
     const nextExpandedOrder = [...this.expandedOrder];
     if (!arraysEqual(nextExpandedOrder, this.expandedOrderSnapshot)) {

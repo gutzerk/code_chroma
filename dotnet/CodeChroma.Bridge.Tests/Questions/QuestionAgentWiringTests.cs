@@ -1,4 +1,5 @@
 using System.Text.Json.Nodes;
+using CodeChroma.Bridge.Agents;
 using CodeChroma.Bridge.Questions;
 using CodeChroma.Bridge.Stores;
 using CodeChroma.Bridge.Terminal;
@@ -15,13 +16,14 @@ public sealed class QuestionAgentWiringTests : IDisposable
     private readonly TerminalAgents _agents;
     private readonly ProviderStore _providers;
     private readonly CallSiteStore _callSites;
+    private readonly UserPaths _paths;
 
     public QuestionAgentWiringTests()
     {
-        var paths = UserPaths.Under(_dir);
-        _providers = new ProviderStore(paths);
-        _callSites = new CallSiteStore(paths, _providers);
-        _agents = new TerminalAgents(paths, _providers, _callSites, _mcp);
+        _paths = UserPaths.Under(_dir);
+        _providers = new ProviderStore(_paths);
+        _callSites = new CallSiteStore(_paths, _providers);
+        _agents = new TerminalAgents(_paths, _providers, _callSites, _mcp);
     }
 
     private string KimiMcpFile(string text)
@@ -100,6 +102,45 @@ public sealed class QuestionAgentWiringTests : IDisposable
 
         Assert.Contains("--mcp-config", launch.Argv);
         Assert.Contains("session-9", launch.Argv);
+    }
+
+    [Fact]
+    public void An_agent_window_on_the_default_cli_is_detected_with_the_claude_rules_so_answers_get_typed()
+    {
+        var kind = _agents.Resolve("agent", agentId: "agent-1", bridgeUrl: BridgeUrl)!.DetectorKind;
+
+        Assert.Equal("claude", kind);
+        Assert.True(StatusRules.ForKind(kind!).Classifies);
+    }
+
+    [Theory]
+    [InlineData("codex")]
+    [InlineData("claude")]
+    public void An_agent_window_is_detected_as_the_adapter_it_resolves_to(string adapter)
+    {
+        UseAgentCli(adapter);
+
+        var launch = _agents.Resolve("agent", agentId: "agent-1", bridgeUrl: BridgeUrl)!;
+
+        Assert.Equal(adapter, launch.DetectorKind);
+    }
+
+    [Fact]
+    public void An_agent_window_behind_a_stand_in_binary_keeps_its_own_kind_for_detection()
+    {
+        JsonFile.Write(_paths.Assistant, new JsonObject { ["cli"] = "my-wrapper" });
+
+        var launch = _agents.Resolve("agent", agentId: "agent-1", bridgeUrl: BridgeUrl)!;
+
+        Assert.Equal("my-wrapper", launch.Argv[0]);
+        Assert.Null(launch.DetectorKind);
+    }
+
+    [Fact]
+    public void Non_agent_windows_carry_no_detector_kind_so_they_keep_their_own()
+    {
+        Assert.Null(_agents.Resolve("claude", agentId: "agent-1", bridgeUrl: BridgeUrl)!.DetectorKind);
+        Assert.Null(_agents.Resolve("shell")!.DetectorKind);
     }
 
     [Fact]

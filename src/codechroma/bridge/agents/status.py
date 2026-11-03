@@ -82,6 +82,11 @@ class StatusRules:
     def section(self, status: str) -> _Section:
         return self.sections.get(status, _Section())
 
+    @property
+    def classifies(self) -> bool:
+        """False for an unknown kind's empty rules, which never report idle."""
+        return bool(self.sections)
+
 
 def load_manifest(path: Path) -> StatusRules:
     """Parses a detection manifest; a missing or malformed one yields rules that never classify."""

@@ -29,7 +29,11 @@ public static class CliResolver
 }
 
 /// <summary>What an agent window launches: argv plus provider environment (terminal/agents.py).</summary>
-public sealed record AgentLaunch(IReadOnlyList<string> Argv, IReadOnlyDictionary<string, string> Env);
+public sealed record AgentLaunch(IReadOnlyList<string> Argv, IReadOnlyDictionary<string, string> Env)
+{
+    /// <summary>The status manifest to detect this window with; an `agent` window uses the CLI adapter it resolved to (detect/claude.toml for Claude), except behind a stand-in binary.</summary>
+    public string? DetectorKind { get; init; }
+}
 
 /// <summary>
 /// The allow-list of commands the terminal server may spawn, keyed by a client-supplied name. The front end names a key, never a
@@ -63,7 +67,7 @@ public sealed class TerminalAgents(UserPaths paths, ProviderStore providers, Cal
             var standIn = resolution.AdapterKey == "claude" && !isClaude;
             var mcp = McpFor(standIn ? null : CliAdapters.All.GetValueOrDefault(resolution.AdapterKey), agentId, bridgeUrl, bare, workdir);
             var argv = Argv(resolution.Binary, isClaude, resolution.AdapterKey, resumeSessionId, initialPrompt, bare, visiblePrompt, mcp?.Args, ModelArgs(resolution));
-            return OwnedLaunch(argv, WithEnv(resolution.Env, mcp), isClaude, resumeSessionId, forkSession, newSessionId, sessionTrackingFile, mcp is not null);
+            return OwnedLaunch(argv, WithEnv(resolution.Env, mcp), isClaude, resumeSessionId, forkSession, newSessionId, sessionTrackingFile, mcp is not null) with { DetectorKind = standIn ? null : resolution.AdapterKey };
         }
         if (!Allowed.TryGetValue(agent, out var entry)) return null;
         if (agent == "claude")

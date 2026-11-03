@@ -1,5 +1,5 @@
 import type { CanvasDoc, DiagramTypeSummary } from "../../state/types";
-import { BUILTIN_RECIPES, DECISION_LAYER_PREFIX, labelForDiagramLayer } from "./diagramCatalog";
+import { BUILTIN_RECIPES, labelForDiagramLayer } from "./diagramCatalog";
 import { BLOCK_RULES } from "./elementRules";
 import { stringMeta } from "./elementMeta";
 import { groupColorIndex } from "./groupColor";
@@ -55,7 +55,6 @@ function typeLabelFor(layer: string, customTypes: DiagramTypeSummary[]): string 
   if (TYPE_LABELS[layer]) return TYPE_LABELS[layer];
   if (layer.startsWith("epics/")) return "Epics";
   if (layer.startsWith("feature-plan/")) return "Feature plan";
-  if (layer.startsWith(DECISION_LAYER_PREFIX)) return "Decision";
   return customTypes.find((type) => `custom/${type.id}` === layer)?.title ?? "Custom";
 }
 

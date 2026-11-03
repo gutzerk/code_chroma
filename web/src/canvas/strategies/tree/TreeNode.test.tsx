@@ -392,6 +392,29 @@ describe("TreeNode", () => {
   });
 });
 
+describe("TreeNode renderGlyph", () => {
+  it("draws the surface's glyph in place of the default kind icon", () => {
+    const node: HierarchyNodeRef = {
+      node_id: "file::app/main.py",
+      name: "main.py",
+      level: "file",
+      parent_id: null,
+      has_children: false,
+      child_count: 0,
+    };
+
+    render(
+      <EngineClientProvider repoId="default" client={new MockBridgeEngineClient()}>
+        <TreeNode node={node} renderGlyph={() => <i data-testid="custom-glyph" />} />
+      </EngineClientProvider>,
+    );
+
+    const label = screen.getByTestId("tree-node-label");
+    expect(within(label).getByTestId("custom-glyph")).toBeInTheDocument();
+    expect(label.querySelector(".node-icon-file")).toBeNull();
+  });
+});
+
 function renderFolderTreeNode(docOnly: boolean | undefined) {
   const node: HierarchyNodeRef = {
     node_id: "dir::docs",

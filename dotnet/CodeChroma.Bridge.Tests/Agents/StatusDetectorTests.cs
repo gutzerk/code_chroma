@@ -26,6 +26,14 @@ public class StatusDetectorTests
         var detector = new StatusDetector(StatusRules.ForKind("shell"));
 
         Assert.Null(detector.Classify(["Do you want to proceed?"], "", "", null));
+        Assert.False(detector.Rules.Classifies);
+    }
+
+    [Fact]
+    public void Only_a_shipped_manifest_reports_that_it_classifies()
+    {
+        Assert.True(Claude().Classifies);
+        Assert.False(StatusRules.ForKind("agent").Classifies);
     }
 
     [Theory]

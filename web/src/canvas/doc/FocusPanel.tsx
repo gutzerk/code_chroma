@@ -23,6 +23,7 @@ export function FocusPanel({ doc }: { doc: CanvasDoc }) {
   if (!focus || !element) return null;
   const { calledBy, uses } = neighbourLinks(doc, focus.id);
   const label = (id: string) => doc.elements[id]?.label ?? id;
+  const description = element.description?.trim() ?? "";
   const directions: Array<[FocusDirection, string]> = [
     ["upstream", "Upstream"],
     ["downstream", "Downstream"],
@@ -43,7 +44,11 @@ export function FocusPanel({ doc }: { doc: CanvasDoc }) {
         </button>
       </div>
       <strong className="canvas-focus-panel__name">{element.label}</strong>
-      <span className="canvas-focus-panel__help">Click a block: its direct neighbours stay lit and the rest fades.</span>
+      {description && (
+        <span className="canvas-focus-panel__desc" data-testid="focus-description" title={description}>
+          {description}
+        </span>
+      )}
       <h4>{`CALLED BY · ${calledBy.length}`}</h4>
       <ul data-testid="focus-called-by">{calledBy.map((link) => row(link, "←"))}</ul>
       <h4>{`USES · ${uses.length}`}</h4>

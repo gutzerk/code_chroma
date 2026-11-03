@@ -3,6 +3,7 @@ import type { DiagramEventKind, EngineClient } from "../../engine-client/EngineC
 import { diagramHealthStore } from "../../state/diagramHealthStore";
 import type {
   CanvasDoc,
+  CanvasElement,
   CanvasOp,
   CanvasPosition,
   DiagramsStatus,
@@ -55,7 +56,7 @@ const SYNTHESIZED_LAYER_PREFIXES = ["custom/", "feature-plan/", "epics/"];
  * kind of diagram, even though it was really on the canvas.) See `isRecipeBackedLayer` below for the
  * separate question of whether a given layer's row can be refreshed. */
 export function listActiveDiagramLayers(doc: CanvasDoc): string[] {
-  return [...collectActiveLayers(doc)].filter(isDiagramLayer);
+  return [...collectActiveLayers(doc)].filter((layer) => isDiagramLayer(layer) && !isDecisionLayer(layer));
 }
 
 /** Whether `layer` names a real diagram rather than the seeded hierarchy tree or `apply_batch`'s
@@ -66,16 +67,16 @@ export function isDiagramLayer(layer: string): boolean {
   return !NON_DIAGRAM_LAYERS.has(layer);
 }
 
-/** Per-question option-diagram layers (`decisions/<question_id>`): real diagrams, canvas-only. */
+/** Per-question option-diagram layers (`decisions/<question_id>`): shown only in the agent window, never on the canvas. */
 export const DECISION_LAYER_PREFIX = "decisions/";
 
-function questionLabelFor(doc: CanvasDoc | undefined, questionId: string): string | null {
-  const question = doc && Object.values(doc.elements).find(
-    (element) => element.render === "question" && (stringMeta(element, "question_id") || element.id) === questionId,
-  );
-  const text = question?.label.trim();
-  if (!text) return null;
-  return text.length > 48 ? `${text.slice(0, 47)}…` : text;
+export function isDecisionLayer(layer: string): boolean {
+  return layer.startsWith(DECISION_LAYER_PREFIX);
+}
+
+/** Questions and their option diagrams: the agent window (AgentQuestionHost) shows them, the canvas never does. */
+export function isAgentWindowOnly(element: CanvasElement): boolean {
+  return element.render === "question" || isDecisionLayer(element.layer);
 }
 
 /** The short title of a per-EP box label, e.g. `EP-1 · Zoomable semantic map` -> `Zoomable semantic
@@ -107,10 +108,6 @@ export function labelForDiagramLayer(
   customTypes: DiagramTypeSummary[],
   doc?: CanvasDoc,
 ): string {
-  if (layer.startsWith(DECISION_LAYER_PREFIX)) {
-    const questionId = layer.slice(DECISION_LAYER_PREFIX.length);
-    return questionLabelFor(doc, questionId) ?? questionId;
-  }
   if (isEpicsLayerName(layer) && doc) {
     const shortTitle = epicsLayerShortTitle(doc, layer);
     if (shortTitle) return shortTitle;

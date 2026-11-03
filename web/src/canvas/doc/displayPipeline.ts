@@ -1,6 +1,6 @@
 import type { CanvasDoc, CanvasElement } from "../../state/types";
 import type { LiveDragOffset } from "./dragOffsetStore";
-import { questionAgentId } from "./question/questionAdapter";
+import { isAgentWindowOnly } from "./diagramCatalog";
 import { expandRouteElements } from "./routeExpansion";
 
 type Elements = Record<string, CanvasElement>;
@@ -9,7 +9,6 @@ type Elements = Record<string, CanvasElement>;
 export interface DisplayContext {
   collapsedLayers?: ReadonlySet<string>;
   routeExpanded?: ReadonlySet<string>;
-  runningAgentIds?: ReadonlySet<string>;
   dragOffsets?: Record<string, LiveDragOffset>;
   boards?: {
     doc: CanvasDoc; // the doc whose `elements` were passed to the stage
@@ -27,14 +26,11 @@ export const hideCollapsedLayers: DisplayStage = (elements, ctx) => {
   return Object.fromEntries(Object.entries(elements).filter(([, element]) => !collapsed.has(element.layer)));
 };
 
-/** Drops questions whose agent is running: its window (AgentQuestionHost) shows them; an orphan stays on the canvas. */
-export const hideAgentQuestions: DisplayStage = (elements, ctx) => {
-  const running = ctx.runningAgentIds;
-  if (!running || running.size === 0) return elements;
+/** Drops every question card and option diagram: questions live only in the agent window (AgentQuestionHost). */
+export const hideQuestions: DisplayStage = (elements) => {
   let out: Elements | null = null;
   for (const id in elements) {
-    const agentId = questionAgentId(elements[id]);
-    if (agentId === null || !running.has(agentId)) continue;
+    if (!isAgentWindowOnly(elements[id])) continue;
     out ??= { ...elements };
     delete out[id];
   }
@@ -72,7 +68,7 @@ export const viewBoardLayers: DisplayStage = (elements, ctx) => {
 
 // Order: filter, grow/push, drag offsets, view geometry. The groups run in separate memos (drag ticks
 // must not redo the structural stages), so CanvasDocView calls them in this order.
-export const STRUCTURAL_STAGES: readonly DisplayStage[] = [hideAgentQuestions, hideCollapsedLayers, growExpandedRoutes];
+export const STRUCTURAL_STAGES: readonly DisplayStage[] = [hideQuestions, hideCollapsedLayers, growExpandedRoutes];
 export const LIVE_STAGES: readonly DisplayStage[] = [offsetDraggedElements];
 export const VIEW_STAGES: readonly DisplayStage[] = [viewBoardLayers];
 

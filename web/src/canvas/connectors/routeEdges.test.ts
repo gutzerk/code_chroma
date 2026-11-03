@@ -150,7 +150,7 @@ describe("routeEdges", () => {
   });
 
   it("keeps arrows spread when the same box is measured at slightly different rects per edge", () => {
-    // ConnectionsOverlay measures each edge's endpoint boxes separately; subpixel rounding can give
+    // An overlay measures each edge's endpoint boxes separately; subpixel rounding can give
     // the SAME logical box two rects (300.6x72.4 vs 299.4x72.6 here). Without a stable id the
     // rect-derived grouping key would split C into two groups and fuse both arrows near its centre.
     // Passing fromId/toId keeps them grouped by the box, not its drifting geometry.

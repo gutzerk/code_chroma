@@ -120,7 +120,7 @@ public static class QuestionRoutes
     }
 
     private static bool HasLiveAgent(AgentSessionRegistry sessions, CanvasElement element) =>
-        Json.Str(element.Meta["agent_id"]) is { Length: > 0 } agent && sessions.Get(agent) is { IsAlive: true };
+        QuestionDelivery.LiveSession(sessions, Json.Str(element.Meta["agent_id"])) is not null;
 
     /// <summary>Reads the just-settled element back and wakes its agent once the batch is complete; true when a live session will get it.</summary>
     private static bool Deliver(AgentSessionRegistry sessions, Workspace ws, string questionId) =>

@@ -15,6 +15,7 @@ never consults the providers store.
 from __future__ import annotations
 
 import os
+from dataclasses import dataclass
 from pathlib import Path
 
 from codechroma.assistant import DEFAULT_CLI, load_assistant_settings
@@ -49,12 +50,34 @@ def _default_model() -> str:
     return settings.skill_agent_timeouts.model
 
 
+@dataclass(frozen=True)
+class AgentLaunch:
+    """An allow-listed window's argv, provider env and the status manifest to detect it with."""
+
+    argv: list[str]
+    env: dict[str, str]
+    detector_kind: str
+
+
 def agent_cli(
     agent: str, resume_session_id: str | None = None, initial_prompt: str | None = None,
     mcp: McpEndpoint | None = None, new_session_id: str | None = None,
     session_tracking_file: Path | None = None, workdir: Path | None = None,
 ) -> tuple[list[str], dict[str, str]] | None:
     """Return an allow-listed agent's argv and provider environment, or None."""
+    launch = agent_launch(
+        agent, resume_session_id, initial_prompt, mcp=mcp, new_session_id=new_session_id,
+        session_tracking_file=session_tracking_file, workdir=workdir,
+    )
+    return None if launch is None else (launch.argv, launch.env)
+
+
+def agent_launch(
+    agent: str, resume_session_id: str | None = None, initial_prompt: str | None = None,
+    mcp: McpEndpoint | None = None, new_session_id: str | None = None,
+    session_tracking_file: Path | None = None, workdir: Path | None = None,
+) -> AgentLaunch | None:
+    """An allow-listed launch; an `agent` window is detected as the CLI it resolves to."""
     if agent == "agent":
         from codechroma.llm.resolve_cli import resolve_cli
 
@@ -66,7 +89,8 @@ def agent_cli(
         stand_in = resolution.adapter_key == "claude" and not is_claude
         adapter = None if stand_in else resolution.adapter_key
         mcp_args, mcp_env = _mcp_registration(adapter, mcp, workdir)
-        return [
+        # A stand-in binary is not the real CLI, so it keeps the `agent` kind's never-idle rules.
+        return AgentLaunch([
             resolution.binary,
             *_model_args(resolution),
             *_tracking_args(is_claude, session_tracking_file),
@@ -79,7 +103,7 @@ def agent_cli(
             **resolution.env_overrides, **mcp_env,
             **_tracking_env(is_claude, session_tracking_file, resume_session_id or new_session_id),
             **_renderer_env(is_claude),
-        }
+        }, agent if stand_in else resolution.adapter_key)
     argv_entry = ALLOWED_AGENTS.get(agent)
     if argv_entry is None:
         return None
@@ -88,7 +112,7 @@ def agent_cli(
         binary = load_assistant_settings().effective_cli
         is_claude = binary == DEFAULT_CLI
         mcp_args, mcp_env = _mcp_registration("claude" if is_claude else None, mcp, workdir)
-        return [
+        return AgentLaunch([
             binary,
             *_tracking_args(is_claude, session_tracking_file),
             *_instruction_args(is_claude),
@@ -100,11 +124,11 @@ def agent_cli(
             **mcp_env,
             **_tracking_env(is_claude, session_tracking_file, resume_session_id or new_session_id),
             **_renderer_env(is_claude),
-        }
+        }, agent)
     # Generic kinds (e.g. shell): a resume still appends the flag; a first message never does.
     if resume_session_id:
-        return [*argv_entry, RESUME_FLAG, resume_session_id], {}
-    return list(argv_entry), {}
+        return AgentLaunch([*argv_entry, RESUME_FLAG, resume_session_id], {}, agent)
+    return AgentLaunch(list(argv_entry), {}, agent)
 
 
 def resolved_cli_for(kind: str, argv: list[str]) -> str:

@@ -1,7 +1,6 @@
 import { useEffect, useLayoutEffect, useMemo, useState } from "react";
 import { createPortal } from "react-dom";
 import type { CanvasDoc, CanvasElement } from "../../../state/types";
-import { useCanvasDiagramFocus } from "../../CanvasFocusContext";
 import { ArrowMarkerDefs } from "../../connectors/ArrowMarkerDefs";
 import { elementRect } from "../elementRect";
 import type { QuestionOption } from "./questionAdapter";
@@ -48,7 +47,6 @@ export interface QuestionDiagramProps {
 
 /** Read-only diagram of the selected option's `diagram_ref`: fits readably, pans and zooms, with a full-screen portal. */
 export function QuestionDiagram({ doc, options, selectedId, onSelect, variant }: QuestionDiagramProps) {
-  const focusDiagram = useCanvasDiagramFocus();
   const [full, setFull] = useState(false);
   const [bodyEl, setBodyEl] = useState<HTMLDivElement | null>(null);
   const [bodySize, setBodySize] = useState({ w: 0, h: 0 });
@@ -162,19 +160,6 @@ export function QuestionDiagram({ doc, options, selectedId, onSelect, variant }:
       ));
   }, [layout, rootIsFrame, root]);
   const frameRect = root && rootIsFrame && layout ? elementRect(root) : null;
-  const openOnCanvas = root ? (
-    <button
-      type="button"
-      className="question-quiet"
-      onClick={() => {
-        setFull(false);
-        focusDiagram(root.layer);
-      }}
-    >
-      {S.openOnCanvas}
-    </button>
-  ) : null;
-
   const content = (
     <div
       className={`aq-diagram${variant === "box" ? " aq-diagram--box" : ""}${full ? " aq-diagram--full" : ""}`}
@@ -197,15 +182,12 @@ export function QuestionDiagram({ doc, options, selectedId, onSelect, variant }:
                 </button>
               ))}
             </div>
-            <span className="question-header-gap" />
-            {openOnCanvas}
           </>
         ) : (
           <>
             <b>{selected ? S.diagramOf(selectedIndex + 1, selected.title) : ""}</b>
             <span>{S.followsSelection}</span>
             <span className="question-header-gap" />
-            {openOnCanvas}
             <button type="button" className="question-quiet" onClick={() => setFull((v) => !v)}>
               {full ? S.closeFullScreen : S.fullScreen}
             </button>

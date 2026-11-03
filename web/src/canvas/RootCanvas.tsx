@@ -5,7 +5,6 @@ import { UndoManager } from "./UndoManager";
 import { LeftPanelToggle } from "./LeftPanelToggle";
 import { DrawDialog } from "./doc/drawDialog/DrawDialog";
 import { useEngineClient } from "../engine-client/EngineClientContext";
-import { ConnectionsOverlay } from "./ConnectionsOverlay";
 import { overlaysOf, useActiveModes } from "./canvasModes";
 import { RouteProbeTrigger } from "./RouteProbeTrigger";
 import { LabelClearanceMonitor } from "./LabelClearanceMonitor";
@@ -530,7 +529,6 @@ export function RootCanvas() {
                 <CodePopupContext.Provider value={setCodePopupNode}>
                   <CanvasDocView />
                 </CodePopupContext.Provider>
-                {rootNode && <ConnectionsOverlay />}
                 {rootNode && overlaysOf(activeModes).map(({ id, Overlay }) => <Overlay key={id} />)}
                 {rootNode && <LabelClearanceMonitor />}
                 {/* Inside .canvas-content on purpose (unlike SidecarSummaryCard below, which is

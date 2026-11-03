@@ -112,7 +112,7 @@ public sealed class AgentRuntime(
         var env = new Dictionary<string, string>(launch.Env);
         BridgeAddress.ExportIdentity(env, record.Id, BareSkill.BridgeUrl);
         AgentSession session;
-        try { session = sessions.Start(record.Id, launch.Argv, record.Worktree, record.Kind, env, paths); }
+        try { session = sessions.Start(record.Id, launch.Argv, record.Worktree, launch.DetectorKind ?? record.Kind, env, paths); }
         catch (AgentStartException error)
         {
             log.LogWarning("agents: could not auto-start {Agent}: {Reason}", record.Id, error.Message);

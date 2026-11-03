@@ -272,8 +272,12 @@ branch through an agent attached to it (`_guard_shared_worktree`, keyed off `Age
   additive), surfaced via `to_payload` so the window/rail can show which CLI actually launched. A
   plain `claude` record (FR-012) is untouched: it takes the assistant's `effective_cli` directly and
   leaves `resolved_cli` empty, which the front end maps back to the `claude` label. The status
-  detector for an `agent` window holds (no `detect/agent.toml`) — never wrong, just never classifies;
-  a future `detect/<adapter>.toml` can be added per-adapter.
+  detector for an `agent` window uses the manifest of the CLI adapter it resolves to
+  (C# `AgentLaunch.DetectorKind`, set by `TerminalAgents.Resolve` from the same resolution; Python `terminal/agents.py` `agent_launch(...).detector_kind`, from the same single resolution, so Claude gets
+  `detect/claude.toml`; a stand-in binary behind the claude adapter keeps the `agent` kind); an adapter with no `detect/<adapter>.toml` (codex, gemini, kimi) still holds.
+  🔴 Before this, every `agent` window looked up the missing `detect/agent.toml`, never looked idle, and
+  so never got its `ask_user` answers typed. Tests: `QuestionAgentWiringTests.cs`,
+  `test_question_agent_wiring.py`.
 - **Current-view context on launch.** A user-launched agent (the canvas's single "Run agent" button,
   always attached to the active workspace) gets a short acknowledge-only line telling it what the
   user is currently looking at — active view and the

@@ -69,6 +69,8 @@ export interface XtermSessionOptions {
   hidden?: boolean;
   /** Written into the terminal when the socket drops, so a detach is visible rather than silent. */
   closedNotice: string;
+  /** Called once the terminal is open; the returned cleanup runs before it is disposed. */
+  onTerminal?: (term: Terminal, container: HTMLElement) => (() => void) | void;
 }
 
 export interface XtermSessionHandle {
@@ -84,8 +86,10 @@ export interface XtermSessionHandle {
  */
 export function useXtermSession(
   containerRef: RefObject<HTMLDivElement | null>,
-  { agent, workspace, enabled = true, hidden = false, closedNotice }: XtermSessionOptions,
+  { agent, workspace, enabled = true, hidden = false, closedNotice, onTerminal }: XtermSessionOptions,
 ): XtermSessionHandle {
+  const onTerminalRef = useRef(onTerminal);
+  onTerminalRef.current = onTerminal;
   const terminalClient = useTerminalClient();
   const termRef = useRef<Terminal | null>(null);
   const fitAddonRef = useRef<FitAddon | null>(null);
@@ -220,9 +224,11 @@ export function useXtermSession(
       dprQuery.addEventListener("change", onDprChange);
     };
     if (typeof window.matchMedia === "function") watchDpr();
+    const detachConsumer = onTerminalRef.current?.(term, container);
 
     return () => {
       disposed = true;
+      detachConsumer?.();
       dprQuery?.removeEventListener("change", onDprChange);
       resizeObserver.disconnect();
       container.removeEventListener("pointerdown", markSelecting);

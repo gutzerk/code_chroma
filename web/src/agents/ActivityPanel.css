@@ -454,13 +454,27 @@
 /* Full screen: the agent list on the left, the selected terminal beside it. */
 .activity-panel.is-full .activity-agent-content {
   display: grid;
-  grid-template-columns: 280px minmax(0, 1fr);
+  grid-template-columns: 320px minmax(0, 1fr);
   grid-template-rows: minmax(0, 1fr);
   column-gap: 12px;
 }
-.activity-panel.is-full .activity-agent-content > :not(.activity-agent-list) {
+.activity-panel.is-full .activity-agent-content > :not(.activity-full-sidebar) {
   grid-column: 2;
   grid-row: 1;
+}
+/* Full screen's left column: the agent list on top, the prompt outline filling the rest. */
+.activity-full-sidebar {
+  display: flex;
+  flex-direction: column;
+  grid-column: 1;
+  grid-row: 1;
+  min-height: 0;
+  border-right: 1px solid var(--bg-raised-2);
+}
+.activity-full-sidebar > .activity-agent-list {
+  flex: 0 1 auto;
+  max-height: 45%;
+  border-right: 0;
 }
 .activity-agent-list {
   display: flex;

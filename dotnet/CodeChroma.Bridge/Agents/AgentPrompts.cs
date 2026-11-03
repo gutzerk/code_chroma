@@ -1,3 +1,4 @@
+using System.Collections.Concurrent;
 using System.Text.Json.Nodes;
 using System.Text.RegularExpressions;
 using CodeChroma.Bridge.Stores;
@@ -13,20 +14,36 @@ public static partial class AgentPrompts
     private static readonly HashSet<string> EditTools = ["Edit", "Write", "MultiEdit", "NotebookEdit"];
     private const string RunTool = "Bash";
 
-    /// <summary>The route payload: `{"prompts": [...]}`, empty for a non-claude agent or one with no session yet.</summary>
-    public static JsonObject Read(AgentRecord record, string? sessionId, string? projectsRoot = null)
+    /// <summary>Each transcript's last parse, reused while the file's length and write time are unchanged (the route is polled).</summary>
+    private static readonly ConcurrentDictionary<string, (long Length, DateTime Written, IReadOnlyList<AgentPrompt> Prompts)> Parsed = new();
+
+    /// <summary>The route payload: `{"prompts": [...]}`, empty for a non-claude agent or one with no session yet; `sessionOf` runs only for a claude agent.</summary>
+    public static JsonObject Read(AgentRecord record, Func<string?> sessionOf, string? projectsRoot = null)
     {
-        var prompts = record.Kind == AgentRecord.DefaultKind && !string.IsNullOrEmpty(sessionId)
-            ? ReadSession(sessionId, record.Worktree, projectsRoot) : [];
+        var sessionId = record.Kind == AgentRecord.DefaultKind ? sessionOf() : null;
+        var prompts = string.IsNullOrEmpty(sessionId) ? [] : ReadSession(sessionId, record.Worktree, projectsRoot);
         return new JsonObject { ["prompts"] = new JsonArray(prompts.Select(Payload).ToArray<JsonNode?>()) };
     }
 
     /// <summary>Every main-thread user prompt in a session's transcript; tool results, meta entries and command output are skipped.</summary>
-    public static List<AgentPrompt> ReadSession(string sessionId, string worktree, string? projectsRoot = null)
+    public static IReadOnlyList<AgentPrompt> ReadSession(string sessionId, string worktree, string? projectsRoot = null)
+    {
+        if (Transcripts.Locate(sessionId, worktree, projectsRoot) is not { } path) return [];
+        FileInfo file;
+        try { file = new FileInfo(path); _ = file.Length; }
+        catch (Exception error) when (error is IOException or UnauthorizedAccessException) { return []; }
+        if (Parsed.TryGetValue(path, out var hit) && hit.Length == file.Length && hit.Written == file.LastWriteTimeUtc) return hit.Prompts;
+        var prompts = Parse(path);
+        if (prompts is null) return [];
+        Parsed[path] = (file.Length, file.LastWriteTimeUtc, prompts);
+        return prompts;
+    }
+
+    private static List<AgentPrompt>? Parse(string path)
     {
         var prompts = new List<AgentPrompt>();
         var seenTools = new HashSet<string>();
-        var read = Transcripts.ForEachEntry(sessionId, worktree, projectsRoot, IsCandidate, (entry, _) =>
+        var read = Transcripts.ForEachEntry(path, IsCandidate, (entry, _) =>
         {
             if (Json.Bool(entry["isSidechain"]) || entry["message"] is not JsonObject message) return;
             var type = Json.Str(entry["type"]);
@@ -35,13 +52,13 @@ public static partial class AgentPrompts
             else if (type == "assistant" && prompts.Count > 0 && message["content"] is JsonArray blocks)
                 prompts[^1] = Count(prompts[^1], blocks, seenTools);
         });
-        return read ? prompts : [];
+        return read ? prompts : null;
     }
 
     private static bool IsCandidate(string line) =>
         line.Contains("\"user\"", StringComparison.Ordinal) || line.Contains("\"tool_use\"", StringComparison.Ordinal);
 
-    /// <summary>What the user typed, or null for a tool result, interrupt marker or command output; a slash command reads as `/name args`.</summary>
+    /// <summary>What the user typed, or null for a tool result, interrupt marker or command output; a slash command reads as `/name args`, other text starting with `<` is kept.</summary>
     public static string? PromptText(JsonNode? content)
     {
         string text;
@@ -60,7 +77,8 @@ public static partial class AgentPrompts
             var args = CommandArgs().Match(text) is { Success: true } a ? a.Groups[1].Value.Trim() : "";
             return $"{command.Groups[1].Value.Trim()} {args}".TrimEnd();
         }
-        return BashInput().Match(text) is { Success: true } bash ? "!" + bash.Groups[1].Value.Trim() : null;
+        if (BashInput().Match(text) is { Success: true } bash) return "!" + bash.Groups[1].Value.Trim();
+        return OutputTag().IsMatch(text) ? null : text;
     }
 
     private static AgentPrompt Count(AgentPrompt prompt, JsonArray blocks, HashSet<string> seen)
@@ -90,4 +108,7 @@ public static partial class AgentPrompts
 
     [GeneratedRegex("^<bash-input>(.*?)</bash-input>", RegexOptions.Singleline)]
     private static partial Regex BashInput();
+
+    [GeneratedRegex("^<(local-command-std(out|err)|bash-std(out|err)|local-command-caveat|system-reminder|task-notification|user-prompt-submit-hook)>")]
+    private static partial Regex OutputTag();
 }

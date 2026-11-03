@@ -2,7 +2,7 @@ import { useEffect, useId, useMemo, useRef, useState, type KeyboardEvent, type R
 import { SearchIcon } from "../activity/icons";
 import { filterPrompts, formatTime, type PromptItem } from "./promptNav";
 
-const OFFSCREEN_NOTE = "No longer in the terminal history";
+const OFFSCREEN_NOTE = "Not found in the terminal (scrolled out of its history, or shown as a paste placeholder)";
 
 /** The search box and prompt listbox shared by the compact popover and the full-screen outline. */
 export function PromptPicker({
@@ -28,6 +28,11 @@ export function PromptPicker({
   const [query, setQuery] = useState("");
   const visible = useMemo(() => filterPrompts(prompts, query), [prompts, query]);
   const [cursor, setCursor] = useState(() => Math.max(0, visible.findIndex((p) => p.index === current)));
+  const [cursorFor, setCursorFor] = useState(current);
+  if (cursorFor !== current) {
+    setCursorFor(current);
+    if (!query.trim()) setCursor(Math.max(0, visible.findIndex((p) => p.index === current)));
+  }
   const listRef = useRef<HTMLDivElement | null>(null);
   const id = useId();
   const optionId = (index: number) => `${id}-prompt-${index}`;
@@ -97,10 +102,10 @@ export function PromptPicker({
               type="button"
               role="option"
               tabIndex={-1}
-              aria-selected={p.index === current}
+              aria-selected={p === cursorItem}
               className="prompt-nav-option"
               data-index={p.index}
-              data-cursor={p === cursorItem || undefined}
+              data-current={p.index === current || undefined}
               data-offscreen={offscreen || undefined}
               title={offscreen ? `${p.text}\n\n${OFFSCREEN_NOTE}` : p.text}
               onClick={() => onPick(p.index)}

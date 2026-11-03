@@ -500,7 +500,6 @@ export interface AgentWindowGeometry {
 export type AgentStatus =
   "stopped" | "running" | "exited" | "idle" | "blocked" | "working" | "foreign";
 
-/** One parallel agent session: its own branch, its own git worktree, its own window (GET /agents). */
 /** One user prompt from `GET /agents/{id}/prompts`, with the file edits and command runs of its reply. */
 export interface RawPrompt {
   id: string;
@@ -510,6 +509,7 @@ export interface RawPrompt {
   runs: number;
 }
 
+/** One parallel agent session: its own branch, its own git worktree, its own window (GET /agents). */
 export interface AgentRecord {
   id: string;
   title: string;

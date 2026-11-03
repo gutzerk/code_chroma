@@ -115,10 +115,16 @@ public static class Transcripts
     }
 
     /// <summary>Streams a session's transcript, parsing only lines `keep` accepts and handing each JSON object with its 1-based line number to `visit`; false when there is no readable transcript.</summary>
-    public static bool ForEachEntry(string sessionId, string worktree, string? projectsRoot, Func<string, bool> keep, Action<JsonObject, int> visit)
+    public static bool ForEachEntry(string sessionId, string worktree, string? projectsRoot, Func<string, bool> keep, Action<JsonObject, int> visit) =>
+        Locate(sessionId, worktree, projectsRoot) is { } path && ForEachEntry(path, keep, visit);
+
+    /// <summary>The session's transcript file, or null when there is none.</summary>
+    public static string? Locate(string sessionId, string worktree, string? projectsRoot = null) =>
+        TranscriptPath(sessionId, worktree, projectsRoot ?? ProjectsDir());
+
+    /// <summary>Streams one transcript file, parsing only lines `keep` accepts; false when it cannot be read.</summary>
+    public static bool ForEachEntry(string path, Func<string, bool> keep, Action<JsonObject, int> visit)
     {
-        var path = TranscriptPath(sessionId, worktree, projectsRoot ?? ProjectsDir());
-        if (path is null) return false;
         var lineNumber = 0;
         try
         {

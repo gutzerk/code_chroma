@@ -219,10 +219,10 @@
   cursor: pointer;
 }
 .prompt-nav-option:hover,
-.prompt-nav-option[data-cursor] {
+.prompt-nav-option[aria-selected="true"] {
   background: var(--bg-raised-2);
 }
-.prompt-nav-option[aria-selected="true"] {
+.prompt-nav-option[data-current] {
   border-color: var(--prompt-current-border);
   background: var(--prompt-current-bg);
 }
@@ -238,7 +238,7 @@
   font-weight: 600;
   font-variant-numeric: tabular-nums;
 }
-.prompt-nav-option[aria-selected="true"] .prompt-nav-option-num {
+.prompt-nav-option[data-current] .prompt-nav-option-num {
   color: var(--accent);
 }
 .prompt-nav-option-body {

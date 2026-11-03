@@ -69,6 +69,7 @@ public sealed class AgentPromptsTests : IDisposable
     [InlineData("<bash-input>git status</bash-input>", "!git status")]
     [InlineData("<local-command-stdout>done</local-command-stdout>", null)]
     [InlineData("<bash-stdout>x</bash-stdout><bash-stderr></bash-stderr>", null)]
+    [InlineData("<Button> is misaligned on mobile", "<Button> is misaligned on mobile")]
     public void Command_entries_read_as_what_was_typed_and_their_output_is_skipped(string content, string? expected)
     {
         var text = AgentPrompts.PromptText(JsonValue.Create(content));
@@ -83,7 +84,7 @@ public sealed class AgentPromptsTests : IDisposable
     {
         var record = Agent(kind, User("u1", "hi"));
 
-        var payload = AgentPrompts.Read(record, session, _root);
+        var payload = AgentPrompts.Read(record, () => session, _root);
 
         Assert.Empty(payload["prompts"]!.AsArray());
     }
@@ -93,10 +94,33 @@ public sealed class AgentPromptsTests : IDisposable
     {
         var record = Agent("claude", User("u1", "hi"), Tools(("t1", "Bash")));
 
-        var prompt = AgentPrompts.Read(record, "s1", _root)["prompts"]![0]!.AsObject();
+        var prompt = AgentPrompts.Read(record, () => "s1", _root)["prompts"]![0]!.AsObject();
 
         Assert.Equal(["id", "text", "createdAt", "edits", "runs"], prompt.Select(p => p.Key));
         Assert.Equal(1, prompt["runs"]!.GetValue<int>());
+    }
+
+    [Fact]
+    public void A_non_claude_agent_never_captures_a_session()
+    {
+        var record = Agent("codex", User("u1", "hi"));
+        var captured = false;
+
+        AgentPrompts.Read(record, () => { captured = true; return "s1"; }, _root);
+
+        Assert.False(captured);
+    }
+
+    [Fact]
+    public void A_grown_transcript_is_read_again()
+    {
+        var record = Agent("claude", User("u1", "first"));
+        AgentPrompts.ReadSession("s1", record.Worktree, _root);
+        File.AppendAllLines(Path.Combine(_root, "C--work-tree", "s1.jsonl"), [User("u2", "second")]);
+
+        var prompts = AgentPrompts.ReadSession("s1", record.Worktree, _root);
+
+        Assert.Equal(["first", "second"], prompts.Select(p => p.Text));
     }
 
     [Fact]

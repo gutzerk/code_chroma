@@ -1,3 +1,4 @@
+import type { ReactNode } from "react";
 import type { HierarchyNodeRef } from "../../../state/types";
 import { useNodeChildren } from "../../../state/useNodeChildren";
 import { NodeButtons, NodeChangeBadge, NodeKindGlyph, NodePanels } from "../nodeChrome";
@@ -23,6 +24,8 @@ export interface TreeNodeProps {
    * file is open in the code sidebar; `activeFileId` additionally marks the currently-shown one. */
   openFileIds?: ReadonlySet<string>;
   activeFileId?: string | null;
+  /** Replaces the row's name glyph (default `NodeKindGlyph`); threaded down so a surface styles its whole tree. */
+  renderGlyph?: (node: HierarchyNodeRef) => ReactNode;
 }
 
 /**
@@ -44,6 +47,7 @@ export function TreeNode({
   onOpenCode,
   openFileIds,
   activeFileId,
+  renderGlyph,
 }: TreeNodeProps) {
   const rawChrome = useNodeChrome(node);
   // The sidebar tree never shows inline code (that lives in the code sidebar), so a block's code
@@ -147,7 +151,7 @@ export function TreeNode({
               }}
               onClick={(event) => chrome.selectableClick(event, activateLabel)}
             >
-              <NodeKindGlyph node={node} />
+              {renderGlyph ? renderGlyph(node) : <NodeKindGlyph node={node} />}
               <span className={`tree-node-name tree-node-name-${node.level}`}>{node.name}</span>
               {node.params && <span className="tree-node-params">{node.params}</span>}
               <NodeChangeBadge change={chrome.change} />
@@ -181,6 +185,7 @@ export function TreeNode({
               onOpenCode={onOpenCode}
               openFileIds={openFileIds}
               activeFileId={activeFileId}
+              renderGlyph={renderGlyph}
             />
           ))}
         </div>

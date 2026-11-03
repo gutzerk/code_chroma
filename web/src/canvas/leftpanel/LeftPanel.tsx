@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { DeleteDiagramDialog } from "../../agents/DeleteDiagramDialog";
 import { useEngineClient } from "../../engine-client/EngineClientContext";
 import type { HierarchyNodeRef } from "../../state/types";
+import { FileTypeIcon } from "../../icons/FileTypeIcon";
 import { useCanvasDoc } from "../doc/canvasDocStore";
 import { deleteDiagramAndRefresh } from "../doc/diagramCatalog";
 import { DrawDiagramButton } from "../doc/DrawDiagramButton";
@@ -74,6 +75,11 @@ export function LeftPanel({
   );
 }
 
+/** Files tab glyph: IDE-style icons for files only, nothing for folders or symbols. */
+function filesTabGlyph(node: HierarchyNodeRef) {
+  return node.level === "file" ? <FileTypeIcon fileName={node.name} /> : null;
+}
+
 function FilesTab({
   rootNode,
   onActivate,
@@ -94,6 +100,7 @@ function FilesTab({
           onOpenCode={(node) => openFilesStore.toggle(node)}
           openFileIds={openFileIds}
           activeFileId={activeFileId}
+          renderGlyph={filesTabGlyph}
         />
       )}
     </div>

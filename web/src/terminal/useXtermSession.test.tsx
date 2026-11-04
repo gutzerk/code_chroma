@@ -7,7 +7,7 @@ import { useXtermSession, type XtermSessionOptions } from "./useXtermSession";
 
 const { terminals, fit } = vi.hoisted(() => ({
   terminals: [] as { rows: number; cols: number; written: string[]; disposed: boolean }[],
-  fit: { count: 0 },
+  fit: { count: 0, measurable: true },
 }));
 
 vi.mock("@xterm/xterm", () => {
@@ -43,6 +43,9 @@ vi.mock("@xterm/addon-fit", () => ({
   FitAddon: class {
     fit(): void {
       fit.count += 1;
+    }
+    proposeDimensions(): { rows: number; cols: number } | undefined {
+      return fit.measurable ? { rows: 24, cols: 80 } : undefined;
     }
   },
 }));
@@ -92,6 +95,7 @@ afterEach(() => {
   cleanup();
   terminals.length = 0;
   fit.count = 0;
+  fit.measurable = true;
   handle = null;
   vi.useRealTimers();
 });
@@ -174,8 +178,9 @@ describe("useXtermSession", () => {
     expect(session.resize).toHaveBeenCalledWith(24, 100);
   });
 
-  it("sends no size while hidden and sends the real one once shown", () => {
+  it("sends no size while the box cannot be measured and sends the real one once shown", () => {
     vi.useFakeTimers();
+    fit.measurable = false;
     const { session } = fakeSession();
     const client = { connect: () => session };
     const host = (hidden: boolean) => (
@@ -186,6 +191,7 @@ describe("useXtermSession", () => {
     const view = render(host(true));
     const sentWhileHidden = session.resize.mock.calls.length;
     terminals[0].cols = 200;
+    fit.measurable = true;
 
     view.rerender(host(false));
     vi.advanceTimersByTime(60);

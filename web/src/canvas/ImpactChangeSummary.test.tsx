@@ -1,10 +1,10 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { fireEvent, render, screen } from "@testing-library/react";
-import { ImpactChangeSummary } from "./ImpactChangeSummary";
+import { compareLabelOf, ImpactChangeSummary, outsideSummaryOf } from "./ImpactChangeSummary";
 import { impactChangesSidecarStore, setChangesSnapshot } from "../state/useSidecar";
 import { inspectorStore } from "./inspectorStore";
 import * as availability from "../llm-settings/useGroupAvailability";
-import type { ImpactChanges } from "../state/types";
+import type { ImpactChanges, PrWorkspace } from "../state/types";
 
 vi.mock("../llm-settings/useGroupAvailability", () => ({
   useGroupAvailability: vi.fn(),
@@ -145,5 +145,32 @@ describe("ImpactChangeSummary", () => {
     fireEvent.click(screen.getByTestId("impact-change-rereview"));
 
     expect(rereview).not.toHaveBeenCalled();
+  });
+});
+
+describe("impact strip helpers", () => {
+  it("labels a PR workspace against its base and anything else against HEAD", () => {
+    const pr = { id: "pr-76", number: 76, base_ref: "main" } as PrWorkspace;
+
+    expect(compareLabelOf("pr-76", [pr])).toBe("PR #76 vs main");
+    expect(compareLabelOf("main", [pr])).toBe("WORKING TREE vs HEAD");
+  });
+
+  it("folds outside files of one folder into a count and names a lone file", () => {
+    const file = (path: string) => ({ path, status: "modified" as const });
+
+    const line = outsideSummaryOf([file("docs/architecture/a.md"), file("docs/architecture/b.md"), file("web/package.json")]);
+
+    expect(line).toBe("docs/architecture (2) · package.json");
+  });
+
+  it("lists a file attributed through several cards once in the review card", () => {
+    const path = "src/a.py";
+    const block = { block: "a", node_id: "n-a", name: "a", path: null, status: "added" as const, change_count: 2, before: "", after: "", explanation: "", pr_comments: [], files: [{ path, status: "added" as const }, { path, status: "added" as const }] };
+    setChangesSnapshot(changes({ blocks: [block] }));
+
+    render(<ImpactChangeSummary review={review} />);
+
+    expect(screen.getAllByTestId("impact-change-summary-file")).toHaveLength(1);
   });
 });

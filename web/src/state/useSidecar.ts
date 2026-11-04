@@ -55,13 +55,14 @@ export function hasOwnChangeContent(change: ImpactBlockChange): boolean {
   );
 }
 
-/** Folds `changes.ghosts` into the by-node map (via `ghostAsChange`) and publishes -- the one write
- * point every "changes" producer (the sync hook below, and tests) goes through. */
+/** Every per-box record of a snapshot: its blocks plus its ghosts folded in via `ghostAsChange`. */
+export function changeRecordsOf(changes: ImpactChanges): ImpactBlockChange[] {
+  return [...changes.blocks, ...changes.ghosts.map(ghostAsChange)];
+}
+
+/** Publishes a snapshot's records into the by-node map -- the one write point for every "changes" producer. */
 export function setChangesSnapshot(changes: ImpactChanges): void {
-  impactChangesSidecarStore.setSnapshot(changes, [
-    ...changes.blocks,
-    ...changes.ghosts.map(ghostAsChange),
-  ]);
+  impactChangesSidecarStore.setSnapshot(changes, changeRecordsOf(changes));
 }
 
 export function useImpactChange(nodeId: string): ImpactBlockChange | undefined {

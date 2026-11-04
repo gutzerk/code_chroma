@@ -18,6 +18,7 @@ export function useReflowOwnLayouts(engineClient: EngineClient, doc: CanvasDoc, 
     // Write only the elements whose persisted geometry disagrees with their layer's self-contained layout.
     const ops = [];
     for (const { profile, ids } of byLayer.values()) {
+      if (profile.needsReflow && !profile.needsReflow(doc, ids)) continue;
       const { positions, sizes } = profile.layout(doc, ids);
       for (const id of ids) {
         const p = positions[id];

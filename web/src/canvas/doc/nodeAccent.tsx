@@ -62,7 +62,9 @@ export function ImpactStatusChip({ element, count }: { element: CanvasElement; c
   const countText = count && count > 0 ? ` · ${count}` : "";
   return (
     <span className={`node-meta-chip node-meta-chip--impact-${status}`} data-testid="impact-status-chip">
-      {IMPACT_STATUS_MARK[status] ?? ""} {IMPACT_STATUS_LABELS[status]}{countText}
+      <span className="impact-chip-mark">{IMPACT_STATUS_MARK[status] ?? ""} </span>
+      {IMPACT_STATUS_LABELS[status]}
+      {countText && <span className="impact-chip-count">{countText}</span>}
     </span>
   );
 }

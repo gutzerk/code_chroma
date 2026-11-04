@@ -4,6 +4,7 @@ import type { MeasuredBoxSize } from "../useMeasuredSizes";
 import type { UnionBounds } from "./boundingBox";
 import type { EdgeVisual } from "./edgeKinds";
 import type { Route } from "./routeStep";
+import { IMPACT_PROFILE } from "./impactProfile";
 import { SEQUENCE_PROFILE } from "./sequenceProfile";
 import { WALKTHROUGH_PROFILE } from "./walkthroughProfile";
 
@@ -28,7 +29,7 @@ export interface DiagramProfile {
   /** A control this type adds to its frame header, before the shared ones. */
   HeaderAction?: ComponentType<{ layer: string; members: CanvasElement[] }>;
   /** The arrowhead variant for an edge leaving this type's boxes; undefined keeps the default for `visual`. */
-  edgeMarker?: (visual: EdgeVisual) => string | undefined;
+  edgeMarker?: (visual: EdgeVisual, edge: Pick<CanvasEdge, "hero">) => string | undefined;
   /** The text drawn on an edge leaving this type's boxes. */
   edgeLabel?: (edge: Pick<CanvasEdge, "label" | "kind">) => string;
   /** True skips the lane bands `meta.lane` would draw (a `Board` layer never gets them). */
@@ -43,12 +44,14 @@ export interface DiagramProfile {
   viewStore?: { subscribe: (listener: () => void) => () => void; getVersion: () => number };
   /** Deterministic layout for this type's new boxes; others go through ELK. */
   layout?: (doc: CanvasDoc, ids: readonly string[]) => { positions: Record<string, CanvasPosition>; sizes: Record<string, CanvasSize> };
+  /** Whether the on-load reflow re-applies `layout`; absent means always (a locked board). */
+  needsReflow?: (doc: CanvasDoc, ids: readonly string[]) => boolean;
 }
 
 /** The plain diagram: every shared behaviour on, no overlay, ELK layout. */
 export const DEFAULT_PROFILE: DiagramProfile = { id: "default", matches: () => true };
 
-const PROFILES: readonly DiagramProfile[] = [SEQUENCE_PROFILE, WALKTHROUGH_PROFILE];
+const PROFILES: readonly DiagramProfile[] = [SEQUENCE_PROFILE, WALKTHROUGH_PROFILE, IMPACT_PROFILE];
 
 /** Every non-default profile, first match wins. */
 export function diagramProfiles(): readonly DiagramProfile[] {

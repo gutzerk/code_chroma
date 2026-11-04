@@ -144,8 +144,7 @@ export function CanvasNodeBox({ element, onMeasure, fitNameSize: sharedFitNameSi
   // convention but one level deeper (each story is its own small card). Both predicates are
   // epicsLayout.ts's own, so a card kind is named in one place.
   const isSpecsCard = isSpecs(element);
-  // A permanently-empty store unless an Impact layer is present and Diff mode is on (see
-  // useC1DiffSync) — a cheap, harmless subscription the rest of the time.
+  // A permanently-empty store unless an Impact layer is present (RootCanvas loads the review for it) — a cheap, harmless subscription the rest of the time.
   const { isImpact, change: impactChange } = useNodeOverlays(element);
   const impactBox = useImpactBoxState(element, impactChange, isImpact);
 
@@ -330,6 +329,8 @@ export function CanvasNodeBox({ element, onMeasure, fitNameSize: sharedFitNameSi
     impactChange ? `block-change--${impactChange.status}` : "",
     impactBox.kind ? `impact-box impact-box--${impactBox.kind}` : "",
     impactBox.biggest ? "impact-box--biggest" : "",
+    // Every Impact box wears the board card anatomy; one with no change is the quiet context card.
+    element.render === "impact" ? `impact-card${impactBox.kind ? "" : " impact-box--context"}` : "",
     accent.className ?? "",
     blockRole ? `block-role block-role--${blockRole}` : "",
     // An epics-layer box (epic title, or a Summary/Acceptance/Спеки content card) carries a shared

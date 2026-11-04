@@ -98,6 +98,8 @@ export function useXtermSession(
   const refitTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const selectionCopyTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const lastSizeRef = useRef<{ rows: number; cols: number } | null>(null);
+  const hiddenRef = useRef(hidden);
+  hiddenRef.current = hidden;
 
   // Reflow the grid to the container, then forward the new size to the PTY — but only when cols/rows
   // actually changed, so a settled resize is one clean SIGWINCH rather than a redundant reprint.
@@ -105,7 +107,7 @@ export function useXtermSession(
     const term = termRef.current;
     const fitAddon = fitAddonRef.current;
     const session = sessionRef.current;
-    if (!term || !fitAddon || !session) return;
+    if (!term || !fitAddon || !session || hiddenRef.current) return;
     fitAddon.fit();
     if (term.rows === 0 || term.cols === 0) return;
     const last = lastSizeRef.current;
@@ -204,8 +206,12 @@ export function useXtermSession(
         if (selection && userSelecting) copySelection(selection);
       }, SELECTION_COPY_DEBOUNCE_MS);
     });
-    lastSizeRef.current = { rows: term.rows, cols: term.cols };
-    session.resize(term.rows, term.cols);
+    // A hidden box has no size (xterm's 80x24 default would shrink the PTY); the first refit once shown sends the real one.
+    if (hiddenRef.current) lastSizeRef.current = null;
+    else {
+      lastSizeRef.current = { rows: term.rows, cols: term.cols };
+      session.resize(term.rows, term.cols);
+    }
 
     const resizeObserver = new ResizeObserver(() => scheduleRefit());
     resizeObserver.observe(container);

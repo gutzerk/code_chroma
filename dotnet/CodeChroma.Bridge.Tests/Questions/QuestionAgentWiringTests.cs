@@ -79,7 +79,7 @@ public sealed class QuestionAgentWiringTests : IDisposable
         var launch = _agents.Resolve("claude", agentId: "agent-1", bridgeUrl: BridgeUrl)!;
 
         var settings = JsonNode.Parse(launch.Argv[launch.Argv.ToList().IndexOf("--settings") + 1])!;
-        Assert.Contains("mcp__codechroma__ask_user", settings["permissions"]!["allow"]!.AsArray().Select(name => (string?)name));
+        Assert.Contains("mcp__codechroma", settings["permissions"]!["allow"]!.AsArray().Select(name => (string?)name));
     }
 
     [Fact]

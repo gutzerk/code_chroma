@@ -57,7 +57,7 @@ def test_real_pty_receives_session_tracking_after_runtime_resolution(tmp_path, u
 def test_generated_hook_records_session_changes_from_an_unrelated_worktree(tmp_path, source):
     file = ownership.file_for(tmp_path, str(uuid4()))
     session_id = str(uuid4())
-    hook = json.loads(ownership.hook_settings())["hooks"]["SessionStart"][0]["hooks"][0]
+    hook = ownership.hook_document()["hooks"]["SessionStart"][0]["hooks"][0]
     command = (
         ["powershell.exe", "-NoProfile", "-NonInteractive", "-Command", hook["command"]]
         if os.name == "nt" else ["/bin/sh", "-c", hook["command"]]

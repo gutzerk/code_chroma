@@ -252,8 +252,8 @@ branch through an agent attached to it (`_guard_shared_worktree`, keyed off `Age
   screen only (the history too once the process has exited); the first-resize `Resync` sends the
   history once. 🔴 `useXtermSession` sends no size until `FitAddon.proposeDimensions()` can measure
   its box (a hidden or not-yet-laid-out box would leave xterm's 80x24 default, shrinking the PTY so
-  a background agent prints at 80 columns); the first measurable refit sends the real size. Hide a
-  host with `display:none`: a laid-out 0px box measures FitAddon's 2x1 minimum. Rows claude itself
+  a background agent prints at 80 columns); the first measurable refit sends the real size. A laid-out 0px
+  box counts as unmeasurable too: it measures FitAddon's 2x1 floor. Rows claude itself
   printed while the PTY was narrow stay narrow: claude's classic renderer never reprints them.
   🔴 Entirely separate from `skill_agent`'s registry: if the two touched, regenerating a C1 diagram would kill the user's sessions. `atexit` + the lifespan
   kill leave no orphans. `agent_run_env(agent_id)` injects `CODECHROMA_WORKSPACE_ID=<agent id>` (and `CODECHROMA_BRIDGE_URL` when the bridge's URL is known, `questions.launch.identity_env`; C#: `BridgeAddress.ExportIdentity`) into

@@ -15,8 +15,8 @@ URL_ENV = "CODECHROMA_BRIDGE_URL"
 TOKEN_ENV = "CODECHROMA_QUESTION_TOKEN"
 WORKSPACE_ENV = "CODECHROMA_WORKSPACE_ID"
 SERVER_NAME = "codechroma"
-# The server's tools as claude names them, pre-approved in `--settings` so no worktree asks.
-CLAUDE_TOOL_NAMES = (f"mcp__{SERVER_NAME}__ask_user", f"mcp__{SERVER_NAME}__draw_option_diagram")
+# Claude's rule for every tool of this server, pre-approved in `--settings` so no worktree asks.
+CLAUDE_PERMISSION = f"mcp__{SERVER_NAME}"
 _LOOPBACK = "127.0.0.1"
 MCP_TIMEOUT_MS = 60_000
 

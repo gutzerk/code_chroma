@@ -3909,11 +3909,11 @@ button[data-copy-state="idle"][aria-label]:hover:not(:disabled) {
   cursor: pointer;
 }
 
-/* --bg-raised-2, not --surface-2 (= --bg-raised): that barely differs from the panel's --bg-panel. */
+/* --surface-3, not --surface-2 (= --bg-raised): that barely differs from the panel's --bg-panel. */
 .terminal-panel-toolbar button:hover,
 .terminal-panel-tabs button[aria-selected="true"] {
-  background: var(--bg-raised-2);
-  color: var(--text-soft);
+  background: var(--surface-3);
+  color: var(--text-1);
 }
 
 /* ── C1 code inspector ────────────────────────────────────────────────────────────────────────

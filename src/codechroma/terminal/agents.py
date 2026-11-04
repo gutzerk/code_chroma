@@ -20,11 +20,11 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from codechroma.assistant import DEFAULT_CLI, load_assistant_settings
-from codechroma.bridge.agents.session_ownership import FILE_ENV, INITIAL_ID_ENV, hook_settings
+from codechroma.bridge.agents.session_ownership import FILE_ENV, INITIAL_ID_ENV, hook_document
 from codechroma.bridge.resources import resource_path
 from codechroma.config import settings
 from codechroma.llm.cli_adapters import CLI_ADAPTERS
-from codechroma.questions.launch import CLAUDE_TOOL_NAMES, McpEndpoint
+from codechroma.questions.launch import CLAUDE_PERMISSION, McpEndpoint
 
 CLASSIC_RENDERER_ENV = "CLAUDE_CODE_DISABLE_ALTERNATE_SCREEN"
 
@@ -148,9 +148,9 @@ def _settings_args(is_claude: bool, file: Path | None, has_mcp: bool) -> list[st
     """`--settings`: the session hook when tracked, the MCP tools pre-approved when registered."""
     if not is_claude or (file is None and not has_mcp):
         return []
-    document = json.loads(hook_settings()) if file is not None else {"hooks": {}}
+    document = hook_document() if file is not None else {"hooks": {}}
     if has_mcp:
-        document["permissions"] = {"allow": list(CLAUDE_TOOL_NAMES)}
+        document["permissions"] = {"allow": [CLAUDE_PERMISSION]}
     return ["--settings", json.dumps(document)]
 
 

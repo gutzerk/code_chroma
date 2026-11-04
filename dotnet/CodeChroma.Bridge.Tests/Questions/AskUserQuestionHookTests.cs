@@ -95,11 +95,11 @@ public sealed class AskUserQuestionHookTests : IDisposable
     }
 
     [Fact]
-    public void Settings_with_the_mcp_server_pre_approve_only_its_tools()
+    public void Settings_with_the_mcp_server_pre_approve_only_that_server()
     {
         var allow = JsonNode.Parse(AgentSessionOwnership.HookSettings(askUserQuestion: true))!["permissions"]!["allow"]!;
 
-        Assert.Equal(["mcp__codechroma__ask_user", "mcp__codechroma__draw_option_diagram"], allow.AsArray().Select(name => (string?)name));
+        Assert.Equal(["mcp__codechroma"], allow.AsArray().Select(name => (string?)name));
     }
 
     [Fact]

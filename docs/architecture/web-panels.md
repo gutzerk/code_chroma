@@ -32,8 +32,11 @@ to revive if it comes back, it would be rebuilt from scratch.
   - An explicit `fontFamily` (xterm's default is `courier-new`, which has none of those glyphs) and
     `lineHeight: 1` — anything larger breaks box borders into dashes.
   - `WebglAddon` with an `onContextLoss` dispose so a lost context degrades to the DOM renderer
-    rather than a blank panel, plus a `matchMedia("(resolution: Ndppx)")` listener that clears the
-    texture atlas when the window moves between a Retina and an external display.
+    rather than a blank panel and redraws every row. `repaint()` clears the texture atlas and
+    redraws all rows; it runs when the window moves between a Retina and an external display
+    (`matchMedia("(resolution: Ndppx)")`), when a hidden terminal is shown again (agent switch),
+    and on `document.fonts` `loadingdone`. A stale atlas shows as blank cells in place of glyphs,
+    and a resize alone does not fix it.
   - **No `convertEol`** — a raw PTY already emits `\r\n`, and converting bare `\n` fights the TUI's
     own cursor model.
   - The debounced, size-deduped `refit`, the 0x0 guard for a hidden host box, and `onBinary`.

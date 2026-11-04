@@ -9,6 +9,20 @@ export function containerPathOf(nodeId: string): string | null {
   return prefix ? nodeId.slice(prefix.length) : null;
 }
 
+const SYMBOL_SEPARATORS = ["::function::", "::class::", "::method::", "::functions"];
+
+/** The file a symbol or container node id lives in (`F::function::x`, `service::F::functions`), or null. */
+export function filePartOf(nodeId: string): string | null {
+  const id = nodeId.startsWith("service::") ? nodeId.slice("service::".length) : nodeId;
+  const at = SYMBOL_SEPARATORS.map((sep) => id.indexOf(sep)).filter((i) => i > 0);
+  return at.length > 0 ? id.slice(0, Math.min(...at)) : null;
+}
+
+/** The repo path a graph node id stands for (`dir::P`, `component::F`, `F::function::x`), or null. */
+export function pathOfNodeId(nodeId: string): string | null {
+  return containerPathOf(nodeId) ?? filePartOf(nodeId);
+}
+
 /** The shared decode step both copy-text helpers below use: strip a folder/file id's path prefix,
  * or fall back to `label` when `nodeId` is absent (a synthesized node, e.g. a C1 Person/System box),
  * carries no recognized prefix (a symbol id like `function::get_db`, or the `root` sentinel), or

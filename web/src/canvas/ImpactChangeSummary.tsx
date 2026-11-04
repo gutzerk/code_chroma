@@ -7,7 +7,8 @@ import { inspectorStore } from "./inspectorStore";
 import { PrCommentCard } from "./PrCommentCard";
 import { SkillOutputFeed } from "./SkillOutputFeed";
 import { PanelDragGrip, usePanelDragResize } from "./usePanelDragResize";
-import { BOARD_GAP, CARD_WIDTH, ImpactBoard, useImpactBounds } from "./ImpactBoard";
+import { BOARD_GAP, CARD_WIDTH, ImpactBoard, impactBoundsOf } from "./ImpactBoard";
+import { useCanvasDoc } from "./doc/canvasDocStore";
 import { useActiveWorkspace } from "../agents/agentStore";
 import { usePrWorkspaces } from "../pr/prStore";
 
@@ -95,7 +96,9 @@ export function outsideSummaryOf(files: readonly ImpactChangedFile[]): string {
   for (const file of files) {
     const parts = file.path.split("/");
     const dir = parts.slice(Math.max(0, parts.length - 3), -1).join("/");
-    byDir.set(dir, [...(byDir.get(dir) ?? []), parts[parts.length - 1]]);
+    const names = byDir.get(dir);
+    if (names) names.push(parts[parts.length - 1]);
+    else byDir.set(dir, [parts[parts.length - 1]]);
   }
   return [...byDir]
     .map(([dir, names]) => (names.length === 1 ? names[0] : `${dir || "(root)"} (${names.length})`))
@@ -220,7 +223,8 @@ export function ImpactChangeSummary({
   const providerAvailable = useGroupAvailability("diagrams");
   const blockCount = changes.blocks.length;
   const blocksWithFiles = changes.blocks.filter((block) => block.files.length > 0);
-  const bounds = useImpactBounds();
+  // The saved bounds, not the live ones: only the floating card reads them, and a drag-frame subscription would re-render this whole card.
+  const bounds = impactBoundsOf(useCanvasDoc());
   const showBoard = !review.loading && changes.changed_file_count > 0;
   // Beside the board the card sits in the legend column; before the board shows it floats left of the diagram.
   const cardStyle: CSSProperties = !showBoard && bounds ? { position: "absolute", left: bounds.left - CARD_WIDTH - BOARD_GAP, top: bounds.top } : {};

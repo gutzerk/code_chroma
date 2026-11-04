@@ -1,8 +1,7 @@
 import type { CanvasDoc, CanvasElement, CanvasPosition, CanvasSize } from "../../state/types";
 import { stringMeta } from "./elementMeta";
-import { DEFAULT_ELEMENT_SIZE } from "./elementRect";
-import type { UnionBounds } from "./boundingBox";
-import { containerPathOf } from "../strategies/nodeCopyText";
+import { unionBoundsOf, type UnionBounds } from "./boundingBox";
+import { pathOfNodeId } from "../strategies/nodeCopyText";
 
 /** The Impact board's card and folder geometry (design board "ImpactGlance"). */
 export const IMPACT_CARD = { w: 260, h: 96 } as const;
@@ -36,7 +35,7 @@ export function impactPathOf(element: CanvasElement): { path: string; isDir: boo
   const isDir = nodeId.startsWith("dir::");
   const raw =
     authored ||
-    (nodeId.startsWith("module::") ? nodeId.split("::")[1] : (containerPathOf(nodeId) ?? nodeId.split("::")[0]));
+    (nodeId.startsWith("module::") ? nodeId.split("::")[1] : (pathOfNodeId(nodeId) ?? nodeId.split("::")[0]));
   return raw ? { path: raw.replace(/^\.?\/+|\/+$/g, ""), isDir } : null;
 }
 
@@ -59,7 +58,7 @@ function commonPrefix(lists: string[][]): string[] {
 }
 
 export interface ImpactFolder {
-  /** Stable bucket key; also the tint seed via its top-level segment. */
+  /** Stable bucket key. */
   key: string;
   label: string;
   /** The folder's top-level segment, which picks its tint. */
@@ -137,20 +136,19 @@ export function impactBoardElements(doc: CanvasDoc, ids: readonly string[]): Can
   return impactBoxesOf(Object.values(doc.elements).filter((element) => layers.has(element.layer)));
 }
 
+const NO_SIZES = new Map<string, never>();
+
 /** Top-left of the folder area: the current board's own corner, or below the rest of the canvas on a fresh draw. */
 function anchorOf(doc: CanvasDoc, boxes: readonly CanvasElement[]): CanvasPosition {
-  const placed = boxes.filter(isLaidOut);
-  if (placed.length > 0) {
-    const left = Math.min(...placed.map((box) => box.position.x - (box.size?.w ?? DEFAULT_ELEMENT_SIZE.w) / 2));
-    const top = Math.min(...placed.map((box) => box.position.y - (box.size?.h ?? DEFAULT_ELEMENT_SIZE.h) / 2));
-    return { x: left - FOLDER_PAD.side, y: top - FOLDER_PAD.top };
-  }
+  const placed = unionBoundsOf(boxes.filter(isLaidOut), NO_SIZES);
+  if (placed) return { x: placed.left - FOLDER_PAD.side, y: placed.top - FOLDER_PAD.top };
   const ids = new Set(boxes.map((box) => box.id));
-  const others = Object.values(doc.elements).filter((element) => !ids.has(element.id) && element.render !== "group");
-  if (others.length === 0) return { x: 0, y: 0 };
-  const bottom = Math.max(...others.map((element) => element.position.y + (element.size?.h ?? DEFAULT_ELEMENT_SIZE.h) / 2));
-  const left = Math.min(...others.map((element) => element.position.x - (element.size?.w ?? DEFAULT_ELEMENT_SIZE.w) / 2));
-  return { x: left, y: bottom + FRESH_MARGIN + BOARD_BAR.height + BOARD_BAR.gap * 2 };
+  const others = unionBoundsOf(
+    Object.values(doc.elements).filter((element) => !ids.has(element.id) && element.render !== "group"),
+    NO_SIZES,
+  );
+  if (!others) return { x: 0, y: 0 };
+  return { x: others.left, y: others.bottom + FRESH_MARGIN + BOARD_BAR.height + BOARD_BAR.gap * 2 };
 }
 
 /** Deterministic Impact board: folders of 260x96 cards, folders packed into columns in flow order. */

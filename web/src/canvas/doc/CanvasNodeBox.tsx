@@ -352,9 +352,6 @@ export function CanvasNodeBox({ element, onMeasure, fitNameSize: sharedFitNameSi
     .filter(Boolean)
     .join(" ");
 
-  // Impact count for the meta-row chip (`useNodeOverlays` also powers `NodeChangeBadge` above) --
-  // the box's own attributed change count, echoed as `· N` to mirror the form's `~ MODIFY · 17`.
-  const impactCount = impactChange?.change_count ?? 0;
   // 022: the file path is always visible on a code-backed box (the resolver stamps `meta.path`).
   const isEpicsLayer = isEpicsLayerName(element.layer);
   const sourcePath = isEpicsLayer ? undefined : stringMeta(element, "path");
@@ -435,7 +432,7 @@ export function CanvasNodeBox({ element, onMeasure, fitNameSize: sharedFitNameSi
               row's chips and the description would sit side by side as more row items instead of
               stacking. */}
           <div className={style.titleWrapClass}>
-            <NodeMetaRow element={element} count={impactCount} changed={Boolean(impactChange)} />
+            <NodeMetaRow element={element} changed={Boolean(impactChange)} />
             <div className={style.titleRowClass}>
               {accent.icon}
               <span className={`${style.nameClass} canvas-node-fit-name`} title={element.label} data-testid="canvas-node-box-name">

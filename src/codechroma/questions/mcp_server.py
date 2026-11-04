@@ -88,6 +88,7 @@ class QuestionMcp:
         self._workspace_for = workspace_for
         self._secret = secrets.token_bytes(32)
         self._server = MCPServer(SERVER_NAME, instructions=_INSTRUCTIONS)
+        # Claude pre-approves every tool here (CLAUDE_PERMISSION): never add one that edits files.
         self._server.tool(name="ask_user")(self._ask_user_tool)
         self._server.tool(name="ask_user_result")(self._ask_user_result_tool)
         self._server.tool(name="draw_option_diagram", description=_DRAW_DESCRIPTION)(

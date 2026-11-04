@@ -3911,6 +3911,7 @@ button[data-copy-state="idle"][aria-label]:hover:not(:disabled) {
 
 /* --surface-3, not --surface-2 (= --bg-raised): that barely differs from the panel's --bg-panel. */
 .terminal-panel-toolbar button:hover,
+.terminal-panel-toolbar button:focus-visible,
 .terminal-panel-tabs button[aria-selected="true"] {
   background: var(--surface-3);
   color: var(--text-1);

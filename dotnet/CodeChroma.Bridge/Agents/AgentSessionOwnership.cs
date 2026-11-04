@@ -23,7 +23,8 @@ public static class AgentSessionOwnership
     {
         var hooks = Hooks(sessionTracking, askUserQuestion);
         if (hooks is null && !askUserQuestion) return null;
-        var settings = new JsonObject { ["hooks"] = hooks ?? new JsonObject() };
+        var settings = new JsonObject();
+        if (hooks is not null) settings["hooks"] = hooks;
         if (askUserQuestion)
             settings["permissions"] = new JsonObject { ["allow"] = new JsonArray(Questions.McpEndpoint.ClaudePermission) };
         return settings.ToJsonString();

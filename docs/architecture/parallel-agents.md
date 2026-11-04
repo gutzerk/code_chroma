@@ -595,7 +595,7 @@ file and reused while its length and write time are unchanged, since the route i
 `Edit`/`Write`/`MultiEdit`/`NotebookEdit` and `runs` counts `Bash` tool calls (deduped by tool-use id) until the next
 prompt. Both `/prompts` and `/usage` serve any agent with `AgentRecord.HasClaudeSession`: a `claude` window, or an
 `agent` window the bridge launched as the real claude (only those get a `SessionTrackingId`; `RecordSessionLaunch`
-drops it when the window is relaunched under another CLI). Any other agent, or one with no session yet, gets an empty
+drops it, with the claude `SessionId`, when the window is relaunched under another CLI, so a resume never hands that CLI a claude session). Any other agent, or one with no session yet, gets an empty
 list (and null usage).
 
 The web side lives in `web/src/agents/prompts/`:

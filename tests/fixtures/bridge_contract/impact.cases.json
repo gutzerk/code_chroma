@@ -79,8 +79,9 @@
             {"path": "$.blocks", "count": 1},
             {"path": "$.blocks[0].block", "equals": "utils"},
             {"path": "$.blocks[0].status", "equals": "modified"},
-            {"path": "$.blocks[0].change_count", "equals": 2},
+            {"path": "$.blocks[0].change_count", "equals": 1},
             {"path": "$.blocks[0].path", "equals": "shared/text_utils.py"},
+            {"path": "$.blocks[0].files", "count": 1},
             {"path": "$.blocks[0].files[0].path", "equals": "shared/text_utils.py"},
             {"path": "$.blocks[0].files[0].additions", "type": "number"},
             {"path": "$.blocks[0].files[0].deletions", "type": "number"},
@@ -108,6 +109,26 @@
           "expect": {"status": 200, "checks": [
             {"path": "$.fingerprint", "type": "string"},
             {"path": "$.impact_changes_path", "type": "string"}
+          ]}
+        }
+      ]
+    },
+    {
+      "id": "a_file_with_several_changed_symbols_is_listed_once_on_its_box",
+      "requires": ["real-engine"],
+      "steps": [
+        {"fs": "write", "path": ".codechroma/diagrams/impact/impact.json", "text": "{\"nodes\": [{\"id\": \"users\", \"name\": \"Users\", \"node_id\": \"component::users/service.py\"}]}"},
+        {"fs": "replace", "path": "users/service.py", "find": "return user_id", "with": "return user_id.upper()"},
+        {"fs": "replace", "path": "users/service.py", "find": "return list(service._users.keys())", "with": "return sorted(service._users)"},
+        {
+          "http": {"method": "GET", "path": "/repos/main/impact-changes"},
+          "expect": {"status": 200, "checks": [
+            {"path": "$.blocks", "count": 1},
+            {"path": "$.blocks[0].files", "count": 1},
+            {"path": "$.blocks[0].files[0].path", "equals": "users/service.py"},
+            {"path": "$.blocks[0].files[0].status", "equals": "modified"},
+            {"path": "$.blocks[0].change_count", "equals": 1},
+            {"path": "$.blocks[0].status", "equals": "modified"}
           ]}
         }
       ]

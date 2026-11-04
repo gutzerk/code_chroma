@@ -195,6 +195,7 @@ public sealed class QuestionMcp(Func<string, Workspace> workspaceFor, int maxRej
         return result;
     }
 
+    // Claude windows pre-approve every tool here (McpEndpoint.ClaudePermission): never add one that edits files or runs commands.
     private static JsonArray Tools()
     {
         var option = Obj(

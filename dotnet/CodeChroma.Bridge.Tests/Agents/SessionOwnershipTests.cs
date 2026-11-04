@@ -131,7 +131,9 @@ public sealed class SessionOwnershipTests
 
         manager.RecordSessionLaunch(record.Id, null, null);
 
-        Assert.False(new AgentManager(repo.Root).Get(record.Id).HasClaudeSession);
+        var reloaded = new AgentManager(repo.Root).Get(record.Id);
+        Assert.False(reloaded.HasClaudeSession);
+        Assert.Null(reloaded.SessionId);
     }
 
     [Fact]

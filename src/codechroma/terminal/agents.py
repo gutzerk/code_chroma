@@ -148,7 +148,7 @@ def _settings_args(is_claude: bool, file: Path | None, has_mcp: bool) -> list[st
     """`--settings`: the session hook when tracked, the MCP tools pre-approved when registered."""
     if not is_claude or (file is None and not has_mcp):
         return []
-    document = hook_document() if file is not None else {"hooks": {}}
+    document = hook_document() if file is not None else {}
     if has_mcp:
         document["permissions"] = {"allow": [CLAUDE_PERMISSION]}
     return ["--settings", json.dumps(document)]

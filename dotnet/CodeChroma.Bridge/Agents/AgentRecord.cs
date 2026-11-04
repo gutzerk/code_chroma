@@ -20,6 +20,9 @@ public sealed class AgentRecord
     public required string CreatedAt { get; set; }
     public string? SessionId { get; set; }
     public string? SessionTrackingId { get; set; }
+
+    /// <summary>Whether a claude transcript backs this agent: a claude window, or an `agent` window the bridge launched as the real claude (only those get a session tracking id).</summary>
+    public bool HasClaudeSession => Kind == DefaultKind || SessionTrackingId is not null;
     public string? PrUrl { get; set; }
     public int? Pid { get; set; }
     public JsonObject Window { get; set; } = DefaultWindow();

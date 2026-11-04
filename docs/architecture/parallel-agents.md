@@ -246,10 +246,14 @@ branch through an agent attached to it (`_guard_shared_worktree`, keyed off `Age
   current screen, not history above the fold. C# `Terminal/ScreenTap.cs` also keeps the parsed rows
   that a line feed or a shrink scrolls off the top (`HistoryLimit` = xterm's 5000, stored as styled
   runs, none on the alt screen or from `CSI S`, cleared by `ESC[3J` / `ESC c`) and `Render()` replays
-  them as plain lines first, rewrapped to the current width, so a reattached window can scroll the
-  whole dialog — still parsed cells, never raw bytes. `Attach()` sends the screen only (the history
-  too once the process has exited); the first-resize `Resync` sends the history once, at the
-  window's real width. 🔴 Entirely separate from `skill_agent`'s registry: if
+  them as plain lines first, each row whole (no breaks at the current width): xterm's autowrap
+  soft-wraps a row wider than the window and re-wraps it on every later resize, so history replayed
+  into a narrow window widens with it — still parsed cells, never raw bytes. `Attach()` sends the
+  screen only (the history too once the process has exited); the first-resize `Resync` sends the
+  history once. 🔴 `useXtermSession` sends no size while its box is `hidden` (xterm's unmeasured 80x24
+  default would shrink the PTY, so a background agent would print at 80 columns, and trigger the
+  `Resync` at that width); the first refit after it is shown sends the real size. Rows claude itself
+  printed while the PTY was narrow stay narrow: claude's classic renderer never reprints them. 🔴 Entirely separate from `skill_agent`'s registry: if
   the two touched, regenerating a C1 diagram would kill the user's sessions. `atexit` + the lifespan
   kill leave no orphans. `agent_run_env(agent_id)` injects `CODECHROMA_WORKSPACE_ID=<agent id>` (and `CODECHROMA_BRIDGE_URL` when the bridge's URL is known, `questions.launch.identity_env`; C#: `BridgeAddress.ExportIdentity`) into
   the PTY env (both `routes/agents.py`'s `start` and `autostart.py` pass it via

@@ -174,6 +174,26 @@ describe("useXtermSession", () => {
     expect(session.resize).toHaveBeenCalledWith(24, 100);
   });
 
+  it("sends no size while hidden and sends the real one once shown", () => {
+    vi.useFakeTimers();
+    const { session } = fakeSession();
+    const client = { connect: () => session };
+    const host = (hidden: boolean) => (
+      <TerminalClientProvider client={client}>
+        <Host options={{ agent: "shell", closedNotice: "[closed]", hidden }} />
+      </TerminalClientProvider>
+    );
+    const view = render(host(true));
+    const sentWhileHidden = session.resize.mock.calls.length;
+    terminals[0].cols = 200;
+
+    view.rerender(host(false));
+    vi.advanceTimersByTime(60);
+
+    expect(sentWhileHidden).toBe(0);
+    expect(session.resize).toHaveBeenCalledWith(24, 200);
+  });
+
   it("ignores a refit while the host measures 0x0", () => {
     vi.useFakeTimers();
     const { session } = fakeSession();

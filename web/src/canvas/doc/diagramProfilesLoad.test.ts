@@ -4,6 +4,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { describe, expect, it } from "vitest";
 import { diagramProfiles } from "./diagramProfiles";
+import { IMPACT_PROFILE } from "./impactProfile";
 import { SEQUENCE_PROFILE } from "./sequenceProfile";
 
 const SRC = resolve(__dirname, "../..");
@@ -42,10 +43,10 @@ describe("diagram profile load order", () => {
     expect(overlay).toBeDefined();
   });
 
-  it("lists both profiles when a profile loads first", () => {
+  it("lists every profile when a profile loads first", () => {
     const profiles = diagramProfiles();
 
-    expect(profiles).toEqual([SEQUENCE_PROFILE, WALKTHROUGH_PROFILE]);
+    expect(profiles).toEqual([SEQUENCE_PROFILE, WALKTHROUGH_PROFILE, IMPACT_PROFILE]);
   });
 
   it("is on no runtime import cycle, whichever profile loads first", () => {

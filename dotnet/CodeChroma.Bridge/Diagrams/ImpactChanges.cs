@@ -115,13 +115,24 @@ public static class ImpactChanges
         var unassigned = new List<JsonObject>();
         foreach (var card in result["cards"]!.AsArray().OfType<JsonObject>())
         {
-            var entry = new JsonObject { ["path"] = card["file"]!.DeepClone(), ["status"] = card["status"]!.DeepClone() };
-            if (OwningBlock(Json.Str(card["node_id"])!, byNodeId, ws.Engine) is { } block) block.Files.Add(entry);
-            else unassigned.Add(entry);
+            var (path, status) = (Json.Str(card["file"])!, Json.Str(card["status"])!);
+            if (OwningBlock(Json.Str(card["node_id"])!, byNodeId, ws.Engine) is { } block) AddFile(block.Files, path, status);
+            else AddFile(unassigned, path, status);
         }
         foreach (var item in result["unassigned"]!.AsArray().OfType<JsonObject>())
-            unassigned.Add(new JsonObject { ["path"] = item["path"]!.DeepClone(), ["status"] = item["status"]!.DeepClone() });
+            AddFile(unassigned, Json.Str(item["path"])!, Json.Str(item["status"])!);
         return unassigned;
+    }
+
+    /// <summary>One entry per path: a file with several changed symbols (one card each) is listed once, its statuses folded by the StatusFor rule.</summary>
+    private static void AddFile(List<JsonObject> files, string path, string status)
+    {
+        if (files.FirstOrDefault(f => Json.Str(f["path"]) == path) is not { } existing)
+        {
+            files.Add(new JsonObject { ["path"] = path, ["status"] = status });
+            return;
+        }
+        if (Json.Str(existing["status"]) != status) existing["status"] = Modified;
     }
 
     private static List<JsonObject> ResolveCommentSymbols(IGraphEngine engine, JsonArray comments)

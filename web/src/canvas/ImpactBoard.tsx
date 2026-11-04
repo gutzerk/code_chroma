@@ -1,10 +1,14 @@
-import type { ReactNode } from "react";
+import { useMemo, useSyncExternalStore, type ReactNode } from "react";
 import type { CanvasDoc, ImpactChanges } from "../state/types";
 import { useCanvasDoc } from "./doc/canvasDocStore";
+import { dragOffsetStore, type LiveDragOffset } from "./doc/dragOffsetStore";
+import { unionBoundsOf, type UnionBounds } from "./doc/boundingBox";
+import { offsetDraggedElements } from "./doc/displayPipeline";
 import { elementRect } from "./doc/elementRect";
 import { PADDING } from "./doc/DiagramFrame";
 import { aliasesOf } from "./doc/impactEdgeStatus";
 import { mergedPillRect, useMergedPills } from "./doc/impactBoxState";
+import { BOARD_BAR, IMPACT_LAYER, impactFrameBounds } from "./doc/impactBoardLayout";
 
 export interface BoardBounds {
   left: number;
@@ -15,38 +19,56 @@ export interface BoardBounds {
 
 export const BOARD_GAP = 24;
 export const CARD_WIDTH = 448;
-const MIN_BAR_WIDTH = 480;
+/** The legend column's width beside the board (design: 348). */
+export const SIDE_WIDTH = 348;
 
-const boundsCache = new WeakMap<CanvasDoc["elements"], BoardBounds | null>();
+const boundsCache = new WeakMap<CanvasDoc["elements"], UnionBounds | null>();
 
-/** The union rect of the Impact layer's elements in canvas coordinates, or null when it has none. */
-export function impactBoundsOf(doc: CanvasDoc): BoardBounds | null {
-  if (boundsCache.has(doc.elements)) return boundsCache.get(doc.elements) ?? null;
-  let left = Infinity;
-  let top = Infinity;
-  let right = -Infinity;
-  let bottom = -Infinity;
-  for (const element of Object.values(doc.elements)) {
-    if (element.layer !== "impact") continue;
-    const rect = elementRect(element);
-    left = Math.min(left, rect.left);
-    top = Math.min(top, rect.top);
-    right = Math.max(right, rect.left + rect.width);
-    bottom = Math.max(bottom, rect.top + rect.height);
-  }
-  if (left === Infinity) {
-    boundsCache.set(doc.elements, null);
-    return null;
-  }
-  // The union of the members grown by the diagram frame's own padding, so the bars clear its border and title.
-  const width = Math.max(right - left + 2 * PADDING.side, MIN_BAR_WIDTH);
-  const bounds = { left: left - PADDING.side, top: top - PADDING.top, width, height: bottom - top + PADDING.top + PADDING.bottom };
-  boundsCache.set(doc.elements, bounds);
-  return bounds;
+const NO_SIZES = new Map();
+
+function unionOf(elements: CanvasDoc["elements"]): UnionBounds | null {
+  return unionBoundsOf(Object.values(elements).filter((element) => element.layer === IMPACT_LAYER), NO_SIZES);
 }
 
-export function useImpactBounds(): BoardBounds | null {
-  return impactBoundsOf(useCanvasDoc());
+/** The union rect of the Impact layer's elements in canvas coordinates, or null when it has none. */
+export function impactBoundsOf(doc: CanvasDoc): UnionBounds | null {
+  if (!boundsCache.has(doc.elements)) boundsCache.set(doc.elements, unionOf(doc.elements));
+  return boundsCache.get(doc.elements) ?? null;
+}
+
+let lastLive: { doc: CanvasDoc; offsets: Record<string, LiveDragOffset>; bounds: UnionBounds | null } | null = null;
+
+/** The bounds shifted by an in-flight drag, so the chrome follows the frame instead of jumping on drop; stable per input. */
+export function liveImpactBounds(doc: CanvasDoc, offsets: Record<string, LiveDragOffset>): UnionBounds | null {
+  const dragging = Object.keys(offsets).some((id) => doc.elements[id]?.layer === IMPACT_LAYER);
+  if (!dragging) return impactBoundsOf(doc);
+  if (lastLive?.doc !== doc || lastLive.offsets !== offsets) {
+    lastLive = { doc, offsets, bounds: unionOf(offsetDraggedElements(doc.elements, { dragOffsets: offsets })) };
+  }
+  return lastLive.bounds;
+}
+
+export interface BoardGeometry {
+  header: BoardBounds;
+  outside: { left: number; top: number; width: number };
+  side: { left: number; top: number };
+}
+
+/** Where the summary bar, outside strip and legend column sit around the folders, from IMPACT_PROFILE's own frame. */
+export function impactBoardGeometry(union: UnionBounds): BoardGeometry {
+  const frame = impactFrameBounds(union);
+  const width = frame.right - frame.left;
+  return {
+    header: { left: frame.left, top: frame.top, width, height: BOARD_BAR.height },
+    outside: { left: frame.left, top: frame.bottom - BOARD_BAR.outside, width },
+    side: { left: frame.right + PADDING.side + BOARD_GAP, top: frame.top },
+  };
+}
+
+/** Re-renders only when the board's bounds change, not on every drag frame of an unrelated element. */
+export function useImpactBounds(): UnionBounds | null {
+  const doc = useCanvasDoc();
+  return useSyncExternalStore(dragOffsetStore.subscribe, () => liveImpactBounds(doc, dragOffsetStore.getAll()));
 }
 
 type Segment = [number, number, number, number];
@@ -67,26 +89,30 @@ function trimmedSegment(a: BoardBounds, b: BoardBounds): Segment {
 /** Links the change removed that the diagram draws no arrow for: a dashed rose line between the two boxes. */
 function RemovedLinks({ changes, doc }: { changes: ImpactChanges; doc: CanvasDoc }) {
   const merged = useMergedPills(doc);
-  const rectOf = (element: CanvasDoc["elements"][string]) => {
-    const group = merged.get(element.id);
-    const leader = group ? doc.elements[group.leader] : undefined;
-    return leader ? mergedPillRect(leader) : elementRect(element);
-  };
-  const lines: { key: string; seg: Segment; label: string }[] = [];
-  const findElement = (nodeId: string | null | undefined, name: string) => {
-    const wanted = [nodeId, name].filter(Boolean);
-    return Object.values(doc.elements).find(
-      (element) => element.layer === "impact" && aliasesOf(doc, element.id).some((id) => wanted.includes(id)),
-    );
-  };
-  for (const rel of changes.relationships) {
-    if (rel.status !== "removed") continue;
-    const from = findElement(rel.from_node_id, rel.from);
-    const to = findElement(rel.to_node_id, rel.to);
-    if (!from || !to || from.id === to.id) continue;
-    if (Object.values(doc.edges).some((edge) => edge.from === from.id && edge.to === to.id)) continue;
-    lines.push({ key: `${from.id}>${to.id}`, seg: trimmedSegment(rectOf(from), rectOf(to)), label: rel.label });
-  }
+  const lines = useMemo(() => {
+    const rectOf = (element: CanvasDoc["elements"][string]) => {
+      const group = merged.get(element.id);
+      const leader = group ? doc.elements[group.leader] : undefined;
+      return leader ? mergedPillRect(leader) : elementRect(element);
+    };
+    const out: { key: string; seg: Segment; label: string }[] = [];
+    const byAlias = new Map<string, CanvasDoc["elements"][string]>();
+    for (const element of Object.values(doc.elements)) {
+      if (element.layer !== IMPACT_LAYER) continue;
+      for (const id of aliasesOf(doc, element.id)) if (!byAlias.has(id)) byAlias.set(id, element);
+    }
+    const drawn = new Set(Object.values(doc.edges).map((edge) => `${edge.from}>${edge.to}`));
+    const findElement = (nodeId: string | null | undefined, name: string) =>
+      (nodeId ? byAlias.get(nodeId) : undefined) ?? byAlias.get(name);
+    for (const rel of changes.relationships) {
+      if (rel.status !== "removed") continue;
+      const from = findElement(rel.from_node_id, rel.from);
+      const to = findElement(rel.to_node_id, rel.to);
+      if (!from || !to || from.id === to.id || drawn.has(`${from.id}>${to.id}`)) continue;
+      out.push({ key: `${from.id}>${to.id}`, seg: trimmedSegment(rectOf(from), rectOf(to)), label: rel.label });
+    }
+    return out;
+  }, [changes.relationships, doc, merged]);
   if (lines.length === 0) return null;
   return (
     <svg className="impact-removed-links" width="1" height="1" aria-hidden="true" data-testid="impact-removed-links">
@@ -102,49 +128,57 @@ function RemovedLinks({ changes, doc }: { changes: ImpactChanges; doc: CanvasDoc
   );
 }
 
-/** The board's chrome around the diagram: a wide header bar above it, the outside strip below, the legend beside. */
+/** The board's chrome around the folders: the summary bar above, the outside strip below, legend and review beside. */
 export function ImpactBoard({
   changes,
   header,
   outside,
   legend,
+  review,
 }: {
   changes: ImpactChanges;
   header: ReactNode;
   outside: ReactNode;
   legend: ReactNode;
+  review?: ReactNode;
 }) {
   const doc = useCanvasDoc();
-  const bounds = impactBoundsOf(doc);
+  const bounds = useImpactBounds();
   if (!bounds) {
     return (
       <div className="impact-board impact-board--flow" data-testid="impact-board">
         {header}
         {outside}
         {legend}
+        {review}
       </div>
     );
   }
+  const geometry = impactBoardGeometry(bounds);
   return (
     <>
       <div
-        className="impact-board-anchor impact-board-anchor--top"
+        className="impact-board-anchor"
         data-testid="impact-board"
-        style={{ left: bounds.left, top: bounds.top, width: bounds.width }}
+        style={geometry.header}
       >
         {header}
       </div>
-      <div
-        className="impact-board-anchor impact-board-anchor--bottom"
-        style={{ left: bounds.left, top: bounds.top + bounds.height, width: bounds.width }}
-      >
-        {outside}
-      </div>
+      {outside && (
+        <div
+          className="impact-board-anchor"
+          style={geometry.outside}
+        >
+          {outside}
+        </div>
+      )}
       <div
         className="impact-board-anchor impact-board-anchor--side"
-        style={{ left: bounds.left + bounds.width + BOARD_GAP, top: bounds.top }}
+        data-testid="impact-board-side"
+        style={{ left: geometry.side.left, top: geometry.side.top, width: SIDE_WIDTH }}
       >
         {legend}
+        {review}
       </div>
       <RemovedLinks changes={changes} doc={doc} />
     </>

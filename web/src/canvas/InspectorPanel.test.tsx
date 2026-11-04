@@ -5,6 +5,8 @@ import { inspectorStore } from "./inspectorStore";
 import { diffOverlayStore } from "../state/diffOverlayStore";
 import { hierarchyChangesStore } from "../state/hierarchyChangesStore";
 import { liveStore } from "../state/liveStore";
+import { impactChangesSidecarStore, setChangesSnapshot } from "../state/useSidecar";
+import { EMPTY_IMPACT_CHANGES } from "../state/types";
 import { EngineClientProvider } from "../engine-client/EngineClientContext";
 import { EPICS_STUB, EPIC_BRIEF_STUB, IMPACT_CHANGES_STUB, PATTERNS_STUB, diagramStub } from "../engine-client/stubEngineClient";
 import type { EngineClient } from "../engine-client/EngineClient";
@@ -133,6 +135,7 @@ afterEach(() => {
   diffOverlayStore.reset();
   hierarchyChangesStore.reset();
   liveStore.reset();
+  impactChangesSidecarStore.reset();
 });
 
 describe("InspectorPanel", () => {
@@ -406,5 +409,31 @@ describe("InspectorPanel", () => {
     const row = screen.getByText("slugify").closest("[data-testid='inspector-row']");
     expect(row).toHaveClass("inspector-row--modified");
     expect(row).toHaveAttribute("data-change-status", "modified");
+  });
+
+  it("shows the changes of every box under a folder box that has none of its own", async () => {
+    const builderBox = {
+      block: BUILDER_FILE.node_id,
+      node_id: BUILDER_FILE.node_id,
+      name: "builder.py",
+      path: "src/graph/builder.py",
+      status: "modified" as const,
+      files: [{ path: "src/graph/builder.py", status: "modified" as const }],
+      change_count: 1,
+      before: "",
+      after: "Builds one node per directory.",
+      explanation: "",
+      pr_comments: [],
+    };
+    act(() => {
+      setChangesSnapshot({ ...EMPTY_IMPACT_CHANGES, blocks: [builderBox], changed_file_count: 1 });
+      inspectorStore.open(GRAPH_DIR.node_id, "graph");
+    });
+
+    renderPanel();
+
+    await waitFor(() => expect(screen.getByTestId("inspector-change-review")).toBeInTheDocument());
+    expect(screen.getByTestId("inspector-change-review-files")).toHaveTextContent("src/graph/builder.py");
+    expect(screen.getByTestId("inspector-change-review-nested")).toHaveTextContent("Builds one node per directory.");
   });
 });

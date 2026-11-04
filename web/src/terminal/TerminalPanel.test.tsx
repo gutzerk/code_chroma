@@ -39,6 +39,7 @@ vi.mock("@xterm/xterm", () => {
     open(): void {}
 
     focus(): void {}
+    refresh(): void {}
 
     write(data: string): void {
       this.written.push(data);

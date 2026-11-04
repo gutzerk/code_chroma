@@ -193,6 +193,44 @@
   --route-nav-bg: #24262b;
   --route-nav-border: #3a3e45;
 
+  /* Impact board -- the "Impact · Change at a glance" mockup's values (dark-only, like the other boards). */
+  --impact-text: var(--route-text);
+  --impact-text-soft: var(--route-text-soft);
+  --impact-text-note: var(--seq-label);
+  --impact-text-muted: var(--route-text-muted);
+  --impact-text-faint: #7c8188;
+  --impact-ink: var(--route-ground); /* text on a status chip */
+  --impact-add: var(--role-ok);
+  --impact-add-border: var(--route-row-active-border);
+  --impact-add-bg: #1e2622;
+  --impact-modify: #f2b36b;
+  --impact-modify-border: #7a5a2a;
+  --impact-modify-bg: var(--route-nav-bg);
+  --impact-biggest-bg: #2a2419;
+  --impact-delete: var(--role-fail);
+  --impact-delete-border: var(--route-fail-border);
+  --impact-delete-hatch: #241a1d;
+  --impact-delete-name: #c9a3aa;
+  --impact-panel-bg: var(--route-panel-bg);
+  --impact-panel-border: var(--route-panel-border);
+  --impact-pill-bg: #1f2023;
+  --impact-pill-border: var(--route-nav-border);
+  --impact-edge: var(--route-text-muted);
+  --impact-hero-glow: rgba(94, 224, 160, 0.18);
+  --impact-hero-chip-bg: var(--route-lit-bg);
+  --impact-edge-chip-bg: #1f201d;
+  --impact-edge-chip-border: var(--route-frame-border);
+  --impact-link: var(--route-link);
+  --impact-folder-0-border: #2e3a48; /* cyan area */
+  --impact-folder-0-bg: rgba(34, 211, 238, 0.02);
+  --impact-folder-0-text: #8fd9e4;
+  --impact-folder-1-border: #3a4a42; /* green area */
+  --impact-folder-1-bg: rgba(52, 211, 153, 0.02);
+  --impact-folder-1-text: #8ee6bf;
+  --impact-folder-2-border: var(--seq-lane-ai-border); /* purple area */
+  --impact-folder-2-bg: rgba(167, 139, 250, 0.03);
+  --impact-folder-2-text: #c9b8ff;
+
   /* Sequence board -- the "A4 · Glance + expand in place" mockup's values the --route-* set lacks. */
   --seq-lane-border: #2e2f2b;
   --seq-lane-bg: rgba(255, 255, 255, 0.025);
@@ -8090,85 +8128,7 @@ button[data-copy-state="idle"][aria-label]:hover:not(:disabled) {
 .canvas-focus-panel__dir { flex: 1 1 0; height: 40px; border-radius: 8px; border: 1px solid #3A3E45; background: #24262B; color: #ECEDEE; font-size: 13px; cursor: pointer; }
 .canvas-focus-panel__dir--on { border-color: #3F7A5E; background: #18261F; color: #5EE0A0; }
 
-/* ---- 022 board impact: the "ImpactGlance" design board (chips, size bar, hatch, hero edge, pills, strip, legend) ---- */
-.node-meta-chip--impact-new, .node-meta-chip--impact-modified, .node-meta-chip--impact-deleted,
-.impact-chip {
-  display: inline-flex; padding: 0 5px; border: 0; border-radius: 3px;
-  font-family: var(--font-mono); font-size: 9.5px; font-weight: 700; letter-spacing: 0; color: #1B1B19;
-}
-.node-meta-chip--impact-new, .impact-chip--add { background: #5EE0A0; }
-.node-meta-chip--impact-modified, .impact-chip--modify { background: #F2B36B; }
-.node-meta-chip--impact-deleted, .impact-chip--delete { background: #FB7185; }
-
-[data-canvas-element].impact-box.impact-box--modify { border: 1.5px solid #7A5A2A; background: #24262B; border-radius: 10px; }
-[data-canvas-element].impact-box.impact-box--add { border: 1.5px solid #3F7A5E; background: #1E2622; border-radius: 10px; }
-[data-canvas-element].impact-box.impact-box--delete {
-  border: 1.5px dashed #8E3A4A; border-radius: 10px;
-  background: repeating-linear-gradient(135deg, #241A1D 0 8px, #1B1B19 8px 16px);
-}
-[data-canvas-element].impact-box.impact-box--delete .diagram-node-box-name,
-[data-canvas-element].impact-box.impact-box--delete .block-name { text-decoration: line-through; color: #C9A3AA; }
-[data-canvas-element].impact-box.impact-box--biggest { border: 2px solid #F2B36B; background: #2A2419; }
-
-.canvas-node-box-glance { flex-wrap: wrap; }
-.impact-size {
-  display: flex; flex-basis: 100%; align-items: center; gap: 8px;
-  font-family: var(--font-mono); font-size: 10.5px;
-}
-.impact-size-bar { display: flex; width: 60px; height: 6px; border-radius: 3px; overflow: hidden; background: #33363C; }
-.impact-size-add { background: #5EE0A0; }
-.impact-size-del { background: #FB7185; }
-.impact-size-plus { color: #5EE0A0; }
-.impact-size-minus { color: #FB7185; }
-.impact-size-test { color: #8D939B; }
-.impact-box--delete .impact-size-bar { background: #FB7185; }
-
-.impact-pill {
-  box-sizing: border-box; height: 34px; border-radius: 17px; border: 1px solid #33363C; background: #1F2023;
-  color: #7C8188; font: inherit; font-size: 12px; cursor: pointer; padding: 0 12px; text-align: center;
-}
-.impact-pill:hover { color: #C9CDD2; border-color: #4A4D52; }
-.impact-pill-label { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-
-.c1-relationship-path--hero {
-  stroke: #5EE0A0; stroke-width: 3.5; filter: drop-shadow(0 0 6px rgba(94, 224, 160, 0.45));
-}
-.c1-relationship-label--hero { fill: #5EE0A0; font-family: var(--font-mono); font-weight: 600; }
-.c1-relationship-path--removed-link { stroke: #FB7185; stroke-width: 1.75; stroke-dasharray: 6 4; opacity: 1; }
-
-.impact-strip {
-  display: flex; flex-wrap: wrap; align-items: center; gap: 0.4rem 0.75rem; margin-top: 0.5rem;
-  padding: 0.5rem 0.6rem; border: 1px solid #33363C; border-radius: 12px; background: #202226;
-}
-.impact-strip-label { flex-basis: 100%; font-family: var(--font-mono); font-size: 10px; letter-spacing: 0.1em; color: #8D939B; }
-.impact-strip-title { flex: 1 1 100%; min-width: 0; font-size: 0.9rem; font-weight: 600; color: #ECEDEE; }
-.impact-strip-pills { display: flex; flex-wrap: wrap; gap: 6px; font-family: var(--font-mono); font-size: 11px; }
-.impact-pill-count { border: 1px solid; border-radius: 999px; padding: 2px 8px; }
-.impact-pill-count--modified { color: #F2B36B; border-color: #7A5A2A; }
-.impact-pill-count--added { color: #5EE0A0; border-color: #3F7A5E; }
-.impact-pill-count--deleted { color: #FB7185; border-color: #8E3A4A; }
-.impact-pill-count--tests { color: #A3A8AE; border-color: #3A3E45; }
-
-.impact-outside {
-  display: flex; flex-direction: column; gap: 0.25rem; margin-top: 0.5rem;
-  padding: 0.4rem 0.6rem; border: 1px dashed #3A3E45; border-radius: 10px; color: #8D939B; font-size: 0.78rem;
-}
-.impact-outside-head { display: flex; align-items: center; gap: 0.6rem; }
-.impact-outside-label { font-family: var(--font-mono); font-size: 10.5px; letter-spacing: 0.08em; }
-.impact-outside-toggle { margin-left: auto; border: 0; background: none; color: #7FB8FF; font: inherit; cursor: pointer; }
-
-.impact-legend {
-  display: flex; flex-direction: column; gap: 0.45rem; margin-top: 0.5rem;
-  padding: 0.6rem 0.75rem; border: 1px solid #33363C; border-radius: 12px; background: #202226;
-  font-size: 0.75rem; color: #C9CDD2;
-}
-.impact-legend-title { font-family: var(--font-mono); font-size: 11px; font-weight: 700; letter-spacing: 0.1em; color: #8D939B; }
-.impact-legend-row { display: flex; align-items: center; gap: 8px; }
-.impact-legend-bar { width: 40px; }
-.impact-legend-line { width: 30px; height: 0; border-top: 3.5px solid #5EE0A0; }
-.impact-legend-line--removed { border-top: 1.75px dashed #FB7185; }
-.impact-legend-pill { width: 36px; height: 14px; border-radius: 7px; border: 1px solid #3A3E45; background: #1F2023; }
-.impact-legend-thick { width: 36px; height: 14px; border-radius: 4px; border: 2px solid #F2B36B; }
+/* The Impact board ("ImpactGlance") lives in the "Impact board" section at the end of this file. */
 /* Block anatomy gaps: members chip, hero card, zoom levels (100% full / 60% title+SRC+members / 30% title only) */
 .canvas-node-members { align-self: flex-start; margin-top: 0.3rem; padding: 1px 8px; font: inherit; font-family: var(--font-mono); font-size: 0.68rem; color: inherit; background: transparent; border: 1px solid var(--control-border); border-radius: var(--radius-md); cursor: pointer; opacity: 0.85; }
 .canvas-node-members:hover { opacity: 1; }
@@ -8185,26 +8145,6 @@ button[data-copy-state="idle"][aria-label]:hover:not(:disabled) {
 .connector-label-chip--board { fill: #1F201D; stroke: #3A3B37; }
 .connector-label-text--board { font-family: var(--font-mono); font-size: 10.5px; }
 
-/* Impact board: wide header bar above the diagram, outside strip below, legend beside; size row survives mid zoom */
-.impact-board-anchor { position: absolute; z-index: 40; box-sizing: border-box; }
-.impact-board-anchor--top { transform: translateY(calc(-100% - 20px)); }
-.impact-board-anchor--bottom { margin-top: 20px; }
-.impact-board-anchor--side { width: 240px; }
-.impact-board-anchor .impact-strip, .impact-board-anchor .impact-outside, .impact-board-anchor .impact-legend { margin-top: 0; }
-.impact-board-anchor--top .impact-strip { flex-wrap: nowrap; padding: 0.7rem 1rem; gap: 1rem; }
-.impact-board-anchor--top .impact-strip-label { flex: 0 0 auto; }
-.impact-board-anchor--top .impact-strip-title { flex: 1 1 auto; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.impact-board-anchor--top .impact-strip-pills { flex: 0 0 auto; flex-wrap: nowrap; }
-.impact-board--flow { position: absolute; left: 1rem; top: 14rem; width: 28rem; z-index: 40; }
-.impact-removed-links { position: absolute; left: 0; top: 0; overflow: visible; pointer-events: none; z-index: 5; }
-.impact-removed-link-line { stroke: #FB7185; stroke-width: 1.75; stroke-dasharray: 6 4; }
-.impact-removed-link-label { fill: #FB7185; font-family: var(--font-mono); font-size: 11px; text-anchor: middle; }
-[data-zoom="mid"] .canvas-node-box-glance:has(.impact-size) { display: flex; }
-[data-zoom="mid"] .canvas-node-box-glance:has(.impact-size) > :not(.impact-size) { display: none; }
-.impact-size--removed { color: #FB7185; font-family: var(--font-mono); }
-.impact-size-scope { color: #8D939B; font-size: 10px; }
-.impact-pill--merged { height: 44px; border-radius: 12px; display: flex; flex-direction: column; justify-content: center; gap: 2px; }
-.impact-pill-files { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-family: var(--font-mono); font-size: 10.5px; color: #8D939B; }
 /* stylelint-enable declaration-property-value-disallowed-list */
 /* 026 route step: kind colour on the left rule, the "N calls" chip and the expanded children list. */
 .route-step { border-left: 4px solid var(--route-kind, #94a3b8); }
@@ -8403,3 +8343,194 @@ button[data-copy-state="idle"][aria-label]:hover:not(:disabled) {
 .seq-badge--legend { --seq-tone: var(--route-text); }
 .seq-legend-divider { width: 1px; height: 18px; background: var(--route-frame-border); }
 .seq-legend-swatch { width: 16px; height: 11px; box-sizing: border-box; border-radius: var(--radius-xs); border: 1.5px solid var(--seq-tone-border); background: var(--seq-tone-bg); }
+
+/* ---- Impact board: the "Impact · Change at a glance" design board (IMPACT_PROFILE, ImpactBoard, ImpactFolderFrames). ---- */
+/* Board ground and title: eyebrow + 26px title instead of the dashed frame. */
+.canvas-diagram-frame.canvas-diagram-frame-impact-board {
+  border: 1px solid var(--route-frame-border);
+  border-radius: var(--radius-btn);
+  background-color: var(--route-ground);
+  background-image: radial-gradient(var(--route-grid-dot) 1px, transparent 1px);
+  background-size: 24px 24px;
+  color: var(--impact-text);
+  font-family: var(--font-board);
+}
+.canvas-diagram-frame-impact-board .canvas-diagram-frame-label {
+  top: 20px; left: 30px; padding: 0; background: transparent;
+  font-family: var(--font-board); font-size: 26px; font-weight: 700; letter-spacing: -0.01em; color: var(--impact-text);
+}
+.canvas-diagram-frame-impact-board .canvas-diagram-frame-label::before {
+  content: "IMPACT REVIEW"; display: block; margin-bottom: 4px;
+  font-family: var(--font-mono); font-size: 12px; font-weight: 400; letter-spacing: 0.1em; color: var(--impact-add);
+}
+.canvas-diagram-frame-impact-board .canvas-diagram-frame-meta { display: none; }
+
+/* Folder areas: thin tinted border, near-transparent tint, mono path label with a link. */
+.impact-folder {
+  z-index: 0; box-sizing: border-box; pointer-events: none;
+  border: 1px solid var(--impact-folder-border); border-radius: var(--radius-btn); background: var(--impact-folder-bg);
+}
+.impact-folder--tint-0 { --impact-folder-border: var(--impact-folder-0-border); --impact-folder-bg: var(--impact-folder-0-bg); --impact-folder-text: var(--impact-folder-0-text); }
+.impact-folder--tint-1 { --impact-folder-border: var(--impact-folder-1-border); --impact-folder-bg: var(--impact-folder-1-bg); --impact-folder-text: var(--impact-folder-1-text); }
+.impact-folder--tint-2 { --impact-folder-border: var(--impact-folder-2-border); --impact-folder-bg: var(--impact-folder-2-bg); --impact-folder-text: var(--impact-folder-2-text); }
+.impact-folder-label {
+  position: absolute; top: 8px; left: 16px; max-width: calc(100% - 32px); overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  font-family: var(--font-mono); font-size: 12px; font-weight: 600; color: var(--impact-folder-text);
+}
+.impact-folder-open { pointer-events: auto; margin-left: 6px; padding: 0 2px; border: 0; background: transparent; color: var(--impact-link); font: inherit; cursor: pointer; }
+.impact-folder-open:hover { color: var(--route-link); text-decoration: underline; }
+
+/* Cards: 260 wide, radius 10, padding 10/12; chip + mono name on one row, a one-line note, the size bar at the bottom. */
+[data-canvas-element].impact-card.impact-card {
+  padding: 10px 12px; border: 1.5px solid var(--impact-pill-border); border-radius: var(--radius-xl);
+  background: var(--impact-pill-bg); color: var(--impact-text); font-family: var(--font-board); box-shadow: none;
+}
+[data-canvas-element].impact-card.impact-box--modify { border-color: var(--impact-modify-border); background: var(--impact-modify-bg); }
+[data-canvas-element].impact-card.impact-box--add { border-color: var(--impact-add-border); background: var(--impact-add-bg); }
+[data-canvas-element].impact-card.impact-box--delete {
+  border-style: dashed; border-color: var(--impact-delete-border);
+  background: repeating-linear-gradient(135deg, var(--impact-delete-hatch) 0 8px, var(--route-ground) 8px 16px);
+}
+[data-canvas-element].impact-card.impact-box--biggest { border: 2px solid var(--impact-modify); background: var(--impact-biggest-bg); }
+.impact-card > .diagram-node-box-row.diagram-node-box-row { flex: 1; display: flex; align-items: stretch; min-height: 0; border-left: 0; padding-left: 0; opacity: 1; }
+.impact-card .diagram-node-box-header.diagram-node-box-header { flex: 1; display: flex; align-items: stretch; padding: 0; }
+.impact-card .diagram-node-box-title-wrap {
+  display: grid; grid-template-columns: auto minmax(0, 1fr); grid-template-rows: auto auto 1fr; align-items: center;
+  flex: 1; min-width: 0; row-gap: 4px;
+}
+.impact-card .canvas-node-meta-row { grid-column: 1; grid-row: 1; display: flex; padding: 0; margin: 0; gap: 0; }
+.impact-card .canvas-node-meta-row > :not(.node-meta-chip--impact-new):not(.node-meta-chip--impact-modified):not(.node-meta-chip--impact-deleted) { display: none; }
+.impact-card .diagram-node-box-title-row.diagram-node-box-title-row { grid-column: 2; grid-row: 1; min-width: 0; margin: 0; }
+[data-canvas-element].impact-card .diagram-node-box-name {
+  display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  font-family: var(--font-mono); font-size: 12px; font-weight: 600; line-height: 16px; color: var(--impact-text);
+}
+[data-canvas-element].impact-card.impact-box--delete .diagram-node-box-name { text-decoration: line-through; color: var(--impact-delete-name); }
+.impact-card.impact-card [data-testid="canvas-node-box-description"] {
+  grid-column: 1 / -1; grid-row: 2; margin: 0; padding: 0; border: 0;
+  font-family: var(--font-board); font-size: 12px; line-height: 16px; color: var(--impact-text-note);
+  display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 1; line-clamp: 1; overflow: hidden;
+}
+.impact-card.impact-box--biggest [data-testid="canvas-node-box-description"] { color: var(--impact-text-soft); }
+.impact-card .canvas-node-box-glance { grid-column: 1 / -1; grid-row: 3; align-self: end; margin: 0; flex-wrap: nowrap; }
+.impact-card .canvas-node-box-glance-line,
+.impact-card .canvas-node-box-glance-callers,
+.impact-card .node-change-badge,
+.impact-card .canvas-node-members,
+.impact-card .canvas-node-box-foot,
+.impact-card .canvas-node-top-band { display: none; }
+/* A context card (no change) keeps a quiet grey chip so it reads as "unchanged", not as a missing status. */
+.impact-card.impact-box--context .canvas-node-meta-row::before {
+  content: "CONTEXT"; display: inline-flex; margin-right: 8px; padding: 0 5px; border-radius: var(--radius-xs);
+  font-family: var(--font-mono); font-size: 9.5px; font-weight: 700; color: var(--impact-ink); background: var(--impact-text-faint);
+}
+.impact-card.impact-box--context .diagram-node-box-name { color: var(--impact-text-soft); }
+/* Copy and SRC only on hover, so the card stays as quiet as the mockup. */
+.impact-card .canvas-node-box-buttons.canvas-node-box-buttons { opacity: 0; }
+.impact-card:hover .canvas-node-box-buttons.canvas-node-box-buttons,
+.impact-card:focus-within .canvas-node-box-buttons.canvas-node-box-buttons { opacity: 1; }
+.impact-card .canvas-node-box-src.canvas-node-box-src { border-radius: var(--radius-full); color: var(--impact-text-muted); border-color: var(--impact-panel-border); background: var(--impact-pill-bg); }
+
+/* Status chips (meta row and legend): 9.5px mono 700 on dark text. */
+.node-meta-chip--impact-new, .node-meta-chip--impact-modified, .node-meta-chip--impact-deleted,
+.impact-chip {
+  display: inline-flex; align-items: center; margin-right: 8px; padding: 0 5px; border: 0; border-radius: var(--radius-xs);
+  font-family: var(--font-mono); font-size: 9.5px; font-weight: 700; line-height: 15px; letter-spacing: 0; color: var(--impact-ink);
+}
+.impact-legend .impact-chip { margin-right: 0; }
+.node-meta-chip--impact-new, .impact-chip--add { background: var(--impact-add); }
+.node-meta-chip--impact-modified, .impact-chip--modify { background: var(--impact-modify); }
+.node-meta-chip--impact-deleted, .impact-chip--delete { background: var(--impact-delete); }
+
+/* The +/- size bar (60x6, green/red split) with its counts. */
+.impact-size { display: flex; flex-basis: 100%; align-items: center; gap: 8px; font-family: var(--font-mono); font-size: 10.5px; line-height: 14px; }
+.impact-size-bar { display: flex; flex: 0 0 auto; width: 60px; height: 6px; border-radius: var(--radius-xs); overflow: hidden; background: var(--impact-panel-border); }
+.impact-size-add { background: var(--impact-add); }
+.impact-size-del { background: var(--impact-delete); }
+.impact-size-plus { color: var(--impact-add); }
+.impact-size-minus { color: var(--impact-delete); }
+.impact-size-test, .impact-size-scope { color: var(--impact-text-muted); }
+.impact-size-scope { font-size: 10px; }
+.impact-box--delete .impact-size-bar { background: var(--impact-delete); }
+.impact-size--removed { color: var(--impact-delete); font-family: var(--font-mono); }
+[data-zoom="mid"] .canvas-node-box-glance:has(.impact-size) { display: flex; }
+[data-zoom="mid"] .canvas-node-box-glance:has(.impact-size) > :not(.impact-size) { display: none; }
+
+/* Collapsed boxes: a quiet pill ("name · unchanged >"), or one "N more modified >" pill with a mono sub-list. */
+.impact-pill {
+  z-index: 1; box-sizing: border-box; height: 34px; padding: 0 16px; border: 1px solid var(--impact-panel-border); border-radius: var(--radius-full);
+  background: var(--impact-pill-bg); color: var(--impact-text-faint); font-family: var(--font-board); font-size: 12px; text-align: center; cursor: pointer;
+}
+.impact-pill:hover { color: var(--impact-text-soft); border-color: var(--impact-pill-border); }
+.impact-pill-label { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.impact-pill--merged {
+  height: 64px; display: flex; flex-direction: column; justify-content: center; align-items: flex-start; gap: 3px;
+  border-color: var(--impact-pill-border); text-align: left;
+}
+.impact-pill--merged .impact-pill-label { font-size: 12.5px; color: var(--impact-text-soft); }
+.impact-pill-files { display: block; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-family: var(--font-mono); font-size: 10.5px; color: var(--impact-text-faint); }
+
+/* Edges on the board: neutral 1.75px grey with heads; the hero 3.5px green with a 12px glow and a star badge. */
+.canvas-edge[data-layer="impact"] .c1-relationship-path.c1-relationship-path { stroke: var(--impact-edge); stroke-width: 1.75; stroke-dasharray: none; }
+.canvas-edge[data-layer="impact"] .c1-relationship-label { fill: var(--impact-text-soft); font-family: var(--font-mono); font-size: 10.5px; font-weight: 400; }
+.canvas-edge[data-layer="impact"] .connector-label-chip.connector-label-chip { fill: var(--impact-edge-chip-bg); stroke: var(--impact-edge-chip-border); }
+.canvas-edge[data-layer="impact"] [data-hero] > .c1-relationship-casing { stroke: var(--impact-hero-glow); stroke-width: 12; stroke-linejoin: round; opacity: 1; }
+.canvas-edge[data-layer="impact"] .c1-relationship-path.c1-relationship-path--hero { stroke: var(--impact-add); stroke-width: 3.5; stroke-linejoin: round; filter: none; }
+.canvas-edge[data-layer="impact"] [data-hero] .c1-relationship-label { fill: var(--impact-add); font-size: 11px; font-weight: 600; }
+.canvas-edge[data-layer="impact"] [data-hero] .connector-label-chip.connector-label-chip { fill: var(--impact-hero-chip-bg); stroke: var(--impact-add-border); }
+.canvas-edge .c1-relationship-path.c1-relationship-path--removed-link,
+.c1-relationship-path--removed-link { stroke: var(--impact-delete); stroke-width: 1.75; stroke-dasharray: 6 4; opacity: 1; }
+.canvas-arrowhead--impact { fill: var(--impact-edge); }
+.impact-removed-links { position: absolute; left: 0; top: 0; overflow: visible; pointer-events: none; z-index: 5; }
+.impact-removed-link-line { stroke: var(--impact-delete); stroke-width: 1.75; stroke-dasharray: 6 4; }
+.impact-removed-link-label { fill: var(--impact-delete); font-family: var(--font-mono); font-size: 10.5px; text-anchor: middle; }
+
+/* Chrome anchored around the folders (ImpactBoard): the summary bar, the outside strip and the legend column. */
+.impact-board-anchor { position: absolute; z-index: 40; box-sizing: border-box; font-family: var(--font-board); color: var(--impact-text); }
+.impact-board-anchor--side { display: flex; flex-direction: column; gap: 16px; }
+.impact-board--flow { position: absolute; left: 1rem; top: 14rem; width: 28rem; z-index: 40; display: flex; flex-direction: column; gap: 0.5rem; }
+.impact-strip {
+  box-sizing: border-box; display: flex; align-items: center; gap: 18px; height: 100%; min-height: 64px; padding: 0 20px;
+  border: 1px solid var(--impact-panel-border); border-radius: var(--radius-2xl); background: var(--impact-panel-bg);
+}
+.impact-strip-head { display: flex; flex-direction: column; gap: 2px; flex: 1 1 auto; min-width: 0; }
+.impact-strip-label { font-family: var(--font-mono); font-size: 10px; letter-spacing: 0.1em; color: var(--impact-text-muted); }
+.impact-strip-title { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 16px; font-weight: 600; color: var(--impact-text); }
+.impact-strip-pills { display: flex; flex: 0 0 auto; gap: 8px; margin-left: auto; font-family: var(--font-mono); font-size: 12px; }
+.impact-pill-count { border: 1px solid; border-radius: var(--radius-full); padding: 3px 10px; white-space: nowrap; }
+.impact-pill-count--modified { color: var(--impact-modify); border-color: var(--impact-modify-border); }
+.impact-pill-count--added { color: var(--impact-add); border-color: var(--impact-add-border); }
+.impact-pill-count--deleted { color: var(--impact-delete); border-color: var(--impact-delete-border); }
+.impact-pill-count--tests { color: var(--impact-text-note); border-color: var(--impact-pill-border); }
+
+.impact-outside {
+  box-sizing: border-box; display: flex; flex-direction: column; gap: 4px; padding: 0 16px;
+  border: 1px dashed var(--impact-pill-border); border-radius: var(--radius-xl); background: var(--route-ground);
+  font-size: 12.5px; color: var(--impact-text-muted);
+}
+.impact-outside-head { display: flex; align-items: center; gap: 12px; min-height: 38px; }
+.impact-outside-label { flex: 0 0 auto; font-family: var(--font-mono); font-size: 10.5px; letter-spacing: 0.08em; }
+.impact-outside-count { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.impact-outside-toggle { flex: 0 0 auto; margin-left: auto; padding: 0; border: 0; background: none; color: var(--impact-link); font: inherit; cursor: pointer; }
+.impact-outside .impact-change-summary-file:last-child { margin-bottom: 10px; }
+
+.impact-legend {
+  box-sizing: border-box; display: flex; flex-direction: column; gap: 12px; padding: 20px;
+  border: 1px solid var(--impact-panel-border); border-radius: var(--radius-btn); background: var(--impact-panel-bg);
+  font-size: 12.5px; color: var(--impact-text-soft);
+}
+.impact-legend-title { font-family: var(--font-mono); font-size: 11px; font-weight: 700; letter-spacing: 0.1em; color: var(--impact-text-muted); }
+.impact-legend-row { display: flex; align-items: center; gap: 8px; }
+.impact-legend-bar { width: 40px; }
+.impact-legend-line { flex: 0 0 auto; width: 30px; height: 0; border-top: 3.5px solid var(--impact-add); }
+.impact-legend-line--removed { border-top: 1.75px dashed var(--impact-delete); }
+.impact-legend-pill { flex: 0 0 auto; width: 36px; height: 14px; border-radius: var(--radius-7); border: 1px solid var(--impact-pill-border); background: var(--impact-pill-bg); }
+.impact-legend-thick { flex: 0 0 auto; width: 36px; height: 14px; border-radius: var(--radius-sm); border: 2px solid var(--impact-modify); box-sizing: border-box; }
+
+/* The change review card sits under the legend in the board's own panel look. */
+.impact-board-anchor--side .impact-change-summary {
+  position: relative; left: auto; top: auto; width: auto; max-height: 420px; overflow: auto; padding: 16px 20px;
+  border: 1px solid var(--impact-panel-border); border-radius: var(--radius-btn); background: var(--impact-panel-bg);
+  font-size: 12px; color: var(--impact-text-soft);
+}
+.impact-board-anchor--side .impact-change-summary-title { font-family: var(--font-mono); font-size: 11px; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase; color: var(--impact-text-muted); }

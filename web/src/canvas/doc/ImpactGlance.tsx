@@ -60,7 +60,7 @@ export function ImpactGlance({
               <span className="impact-size-minus">{`−${size.del}`}</span>
             </>
           )}
-          {labels.test && <span className="impact-size-test">{labels.test}</span>}
+          {labels.test && <span className="impact-size-test">{labels.main ? `· ${labels.test}` : labels.test}</span>}
         </span>
       )}
       {callers > 0 && (

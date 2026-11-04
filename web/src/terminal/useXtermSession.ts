@@ -97,6 +97,8 @@ export function useXtermSession(
   const termRef = useRef<Terminal | null>(null);
   const fitAddonRef = useRef<FitAddon | null>(null);
   const webglRef = useRef<WebglAddon | null>(null);
+  const hiddenRef = useRef(hidden);
+  hiddenRef.current = hidden;
   const sessionRef = useRef<TerminalSession | null>(null);
   const refitTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const selectionCopyTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -117,6 +119,15 @@ export function useXtermSession(
     if (last && last.rows === term.rows && last.cols === term.cols) return;
     lastSizeRef.current = { rows: term.rows, cols: term.cols };
     session.resize(term.rows, term.cols);
+  }, []);
+
+  // Re-rasterize every glyph and redraw the screen: a stale WebGL atlas drops glyphs (blank cells) and no resize fixes it.
+  // A hidden terminal skips it; the un-hide effect repaints it then.
+  const repaint = useCallback(() => {
+    const term = termRef.current;
+    if (!term || hiddenRef.current) return;
+    webglRef.current?.clearTextureAtlas();
+    term.refresh(0, term.rows - 1);
   }, []);
 
   // Debounce it: during a drag the ResizeObserver fires on every pointermove (~60-120x/sec).
@@ -169,6 +180,7 @@ export function useXtermSession(
         webgl?.dispose();
         webgl = null;
         webglRef.current = null;
+        repaint();
       });
       term.loadAddon(webgl);
     } catch {
@@ -219,7 +231,7 @@ export function useXtermSession(
     // only a DPR listener catches it; the atlas is rasterized at the old ratio until it is cleared.
     let dprQuery: MediaQueryList | null = null;
     const onDprChange = () => {
-      webglRef.current?.clearTextureAtlas();
+      repaint();
       scheduleRefit();
       watchDpr();
     };
@@ -229,12 +241,15 @@ export function useXtermSession(
       dprQuery.addEventListener("change", onDprChange);
     };
     if (typeof window.matchMedia === "function") watchDpr();
+    // A font that lands after open() leaves the atlas holding fallback-font glyph metrics.
+    document.fonts?.addEventListener("loadingdone", repaint);
     const detachConsumer = onTerminalRef.current?.(term, container);
 
     return () => {
       disposed = true;
       detachConsumer?.();
       dprQuery?.removeEventListener("change", onDprChange);
+      document.fonts?.removeEventListener("loadingdone", repaint);
       resizeObserver.disconnect();
       container.removeEventListener("pointerdown", markSelecting);
       window.removeEventListener("pointerup", unmarkSelecting);
@@ -247,14 +262,15 @@ export function useXtermSession(
       webglRef.current = null;
       sessionRef.current = null;
     };
-  }, [containerRef, terminalClient, agent, workspace, enabled, closedNotice, refit, scheduleRefit]);
+  }, [containerRef, terminalClient, agent, workspace, enabled, closedNotice, refit, scheduleRefit, repaint]);
 
   // On reopen the box goes 0 -> real size; refit to it and focus so the shell is usable immediately.
   useEffect(() => {
     if (hidden || !enabled) return;
+    repaint();
     scheduleRefit();
     termRef.current?.focus();
-  }, [hidden, enabled, scheduleRefit]);
+  }, [hidden, enabled, scheduleRefit, repaint]);
 
   return { scheduleRefit, focus };
 }

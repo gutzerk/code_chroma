@@ -95,6 +95,22 @@ public sealed class AskUserQuestionHookTests : IDisposable
     }
 
     [Fact]
+    public void Settings_with_the_mcp_server_pre_approve_only_that_server()
+    {
+        var allow = JsonNode.Parse(AgentSessionOwnership.HookSettings(askUserQuestion: true))!["permissions"]!["allow"]!;
+
+        Assert.Equal(["mcp__codechroma"], allow.AsArray().Select(name => (string?)name));
+    }
+
+    [Fact]
+    public void Settings_without_the_mcp_server_grant_no_permissions()
+    {
+        var settings = JsonNode.Parse(AgentSessionOwnership.HookSettings())!;
+
+        Assert.Null(settings["permissions"]);
+    }
+
+    [Fact]
     public void Hook_settings_omit_the_question_hook_by_default()
     {
         var hooks = JsonNode.Parse(AgentSessionOwnership.HookSettings())!["hooks"]!;

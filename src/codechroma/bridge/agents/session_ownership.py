@@ -33,7 +33,7 @@ def file_for(root: Path, tracking_id: str) -> Path:
     return root / ".codechroma" / "agent-sessions" / f"{normalized}.json"
 
 
-def hook_settings() -> str:
+def hook_document() -> dict:
     """Use an absolute script path so the helper works from any agent worktree."""
     argv = [sys.executable, str(Path(__file__).resolve())]
     hook = {"type": "command", "timeout": 5}
@@ -42,7 +42,7 @@ def hook_settings() -> str:
         hook["command"] = "& " + " ".join("'" + arg.replace("'", "''") + "'" for arg in argv)
     else:
         hook["command"] = shlex.join(argv)
-    return json.dumps({"hooks": {"SessionStart": [{"hooks": [hook]}]}})
+    return {"hooks": {"SessionStart": [{"hooks": [hook]}]}}
 
 
 def record(input_stream: TextIO, file: str | None) -> None:

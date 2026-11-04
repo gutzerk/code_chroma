@@ -48,24 +48,31 @@ export function TerminalPanel({ hidden = false, onHeightChange }: {
         {...handleProps}
       />
       <div className="terminal-panel-toolbar">
-        <div className="terminal-panel-tabs" role="tablist" aria-label="Terminals">
-          {tabs.map((tab) => (
-            <button
-              key={tab.id}
-              id={`terminal-tab-${tab.id}`}
-              type="button"
-              role="tab"
-              aria-selected={tab.id === activeTab}
-              aria-controls={`terminal-session-${tab.id}`}
-              onClick={() => terminalPanelStore.selectTerminal(tab.id)}
-            >
-              {tab.title}
-            </button>
-          ))}
+        <div className="terminal-panel-tab-strip">
+          <div className="terminal-panel-tabs" role="tablist" aria-label="Terminals">
+            {tabs.map((tab) => (
+              <button
+                key={tab.id}
+                id={`terminal-tab-${tab.id}`}
+                type="button"
+                role="tab"
+                aria-selected={tab.id === activeTab}
+                aria-controls={`terminal-session-${tab.id}`}
+                onClick={() => terminalPanelStore.selectTerminal(tab.id)}
+              >
+                {tab.title}
+              </button>
+            ))}
+          </div>
+          <button
+            type="button"
+            aria-label="New terminal"
+            title="New terminal"
+            onClick={terminalPanelStore.addTerminal}
+          >
+            +
+          </button>
         </div>
-        <button type="button" aria-label="New terminal" title="New terminal" onClick={terminalPanelStore.addTerminal}>
-          +
-        </button>
         <button
           type="button"
           aria-label="Close terminal"

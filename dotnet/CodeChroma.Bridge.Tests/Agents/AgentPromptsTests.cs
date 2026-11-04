@@ -80,6 +80,7 @@ public sealed class AgentPromptsTests : IDisposable
     [Theory]
     [InlineData("claude", null)]
     [InlineData("codex", "s1")]
+    [InlineData("agent", "s1")]
     public void No_session_or_a_non_claude_agent_has_an_empty_list(string kind, string? session)
     {
         var record = Agent(kind, User("u1", "hi"));
@@ -87,6 +88,17 @@ public sealed class AgentPromptsTests : IDisposable
         var payload = AgentPrompts.Read(record, () => session, _root);
 
         Assert.Empty(payload["prompts"]!.AsArray());
+    }
+
+    [Fact]
+    public void An_agent_window_launched_as_claude_lists_its_prompts()
+    {
+        var record = Agent("agent", User("u1", "hi"));
+        record.SessionTrackingId = Guid.NewGuid().ToString();
+
+        var payload = AgentPrompts.Read(record, () => "s1", _root);
+
+        Assert.Equal("hi", payload["prompts"]![0]!["text"]!.GetValue<string>());
     }
 
     [Fact]

@@ -28,6 +28,7 @@ vi.mock("@xterm/xterm", () => {
     attachCustomKeyEventHandler(): void {}
     open(): void {}
     focus(): void {}
+    refresh(): void {}
     write(): void {}
     onData(): void {}
     onBinary(): void {}

@@ -48,24 +48,31 @@ export function TerminalPanel({ hidden = false, onHeightChange }: {
         {...handleProps}
       />
       <div className="terminal-panel-toolbar">
-        <div className="terminal-panel-tabs" role="tablist" aria-label="Terminals">
-          {tabs.map((tab) => (
-            <button
-              key={tab.id}
-              id={`terminal-tab-${tab.id}`}
-              type="button"
-              role="tab"
-              aria-selected={tab.id === activeTab}
-              aria-controls={`terminal-session-${tab.id}`}
-              onClick={() => terminalPanelStore.selectTerminal(tab.id)}
-            >
-              {tab.title}
-            </button>
-          ))}
+        <div className="terminal-panel-tab-strip">
+          <div className="terminal-panel-tabs" role="tablist" aria-label="Terminals">
+            {tabs.map((tab) => (
+              <button
+                key={tab.id}
+                id={`terminal-tab-${tab.id}`}
+                type="button"
+                role="tab"
+                aria-selected={tab.id === activeTab}
+                aria-controls={`terminal-session-${tab.id}`}
+                onClick={() => terminalPanelStore.selectTerminal(tab.id)}
+              >
+                {tab.title}
+              </button>
+            ))}
+          </div>
+          <button
+            type="button"
+            aria-label="New terminal"
+            title="New terminal"
+            onClick={terminalPanelStore.addTerminal}
+          >
+            +
+          </button>
         </div>
-        <button type="button" aria-label="New terminal" title="New terminal" onClick={terminalPanelStore.addTerminal}>
-          +
-        </button>
         <button
           type="button"
           aria-label="Close terminal"
@@ -84,13 +91,26 @@ export function TerminalPanel({ hidden = false, onHeightChange }: {
         </button>
       </div>
       {tabs.map((tab) => (
-        <TerminalTabSession key={tab.id} id={tab.id} hidden={hidden || tab.id !== activeTab} size={size} />
+        <TerminalTabSession
+          key={tab.id}
+          id={tab.id}
+          hidden={hidden || tab.id !== activeTab}
+          size={size}
+        />
       ))}
     </div>
   );
 }
 
-function TerminalTabSession({ id, hidden, size }: { id: number; hidden: boolean; size: Size | null }) {
+function TerminalTabSession({
+  id,
+  hidden,
+  size,
+}: {
+  id: number;
+  hidden: boolean;
+  size: Size | null;
+}) {
   const agent = useSelectedAgent();
   const containerRef = useRef<HTMLDivElement | null>(null);
   const { scheduleRefit } = useXtermSession(containerRef, {

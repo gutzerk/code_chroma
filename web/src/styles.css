@@ -3883,9 +3883,17 @@ button[data-copy-state="idle"][aria-label]:hover:not(:disabled) {
   border-bottom: 1px solid var(--border-subtle);
 }
 
-.terminal-panel-tabs {
+/* The open tabs with the New terminal button right after them; Close and Hide stay on the right. */
+.terminal-panel-tab-strip {
   display: flex;
   flex: 1;
+  align-items: center;
+  min-width: 0;
+  gap: 4px;
+}
+
+.terminal-panel-tabs {
+  display: flex;
   min-width: 0;
   overflow-x: auto;
   gap: 4px;
@@ -3896,14 +3904,16 @@ button[data-copy-state="idle"][aria-label]:hover:not(:disabled) {
   border: 0;
   border-radius: var(--radius-sm);
   background: transparent;
-  color: var(--text-1);
+  color: var(--text-mid);
   padding: 5px 8px;
   cursor: pointer;
 }
 
+/* --bg-raised-2, not --surface-2: the panel is --bg-panel, which --bg-raised barely differs from. */
 .terminal-panel-toolbar button:hover,
 .terminal-panel-tabs button[aria-selected="true"] {
-  background: var(--surface-2);
+  background: var(--bg-raised-2);
+  color: var(--text-soft);
 }
 
 /* ── C1 code inspector ────────────────────────────────────────────────────────────────────────

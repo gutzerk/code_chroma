@@ -5,10 +5,11 @@ namespace CodeChroma.Bridge.Agents;
 /// <summary>The full-screen usage strip's numbers for one agent's claude session, read from its transcript.</summary>
 public static class AgentUsage
 {
-    /// <summary>Null for an agent with no claude session, one with no session yet, or a session with no billed reply.</summary>
-    public static JsonObject? Read(AgentRecord record, string? sessionId, string? projectsRoot = null)
+    /// <summary>Null for an agent with no claude session, one with no session yet, or a session with no billed reply; `sessionOf` runs only when a claude session backs the agent.</summary>
+    public static JsonObject? Read(AgentRecord record, Func<string?> sessionOf, string? projectsRoot = null)
     {
-        if (!record.HasClaudeSession || string.IsNullOrEmpty(sessionId)) return null;
+        var sessionId = record.HasClaudeSession ? sessionOf() : null;
+        if (string.IsNullOrEmpty(sessionId)) return null;
         return Transcripts.ReadSession(sessionId, record.Worktree, projectsRoot) is { } session ? Payload(session.Last, session.Totals) : null;
     }
 

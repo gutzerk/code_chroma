@@ -91,26 +91,13 @@ export function TerminalPanel({ hidden = false, onHeightChange }: {
         </button>
       </div>
       {tabs.map((tab) => (
-        <TerminalTabSession
-          key={tab.id}
-          id={tab.id}
-          hidden={hidden || tab.id !== activeTab}
-          size={size}
-        />
+        <TerminalTabSession key={tab.id} id={tab.id} hidden={hidden || tab.id !== activeTab} size={size} />
       ))}
     </div>
   );
 }
 
-function TerminalTabSession({
-  id,
-  hidden,
-  size,
-}: {
-  id: number;
-  hidden: boolean;
-  size: Size | null;
-}) {
+function TerminalTabSession({ id, hidden, size }: { id: number; hidden: boolean; size: Size | null }) {
   const agent = useSelectedAgent();
   const containerRef = useRef<HTMLDivElement | null>(null);
   const { scheduleRefit } = useXtermSession(containerRef, {

@@ -65,7 +65,7 @@ export interface XtermSessionOptions {
   workspace?: string;
   /** False keeps the terminal torn down — a stopped agent has nothing to attach to. */
   enabled?: boolean;
-  /** A hidden host box measures 0x0; skip refits while it does. */
+  /** A hidden host box cannot be measured, so no size is sent while it is; showing it refits and focuses. */
   hidden?: boolean;
   /** Written into the terminal when the socket drops, so a detach is visible rather than silent. */
   closedNotice: string;
@@ -98,8 +98,6 @@ export function useXtermSession(
   const refitTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const selectionCopyTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const lastSizeRef = useRef<{ rows: number; cols: number } | null>(null);
-  const hiddenRef = useRef(hidden);
-  hiddenRef.current = hidden;
 
   // Reflow the grid to the container, then forward the new size to the PTY — but only when cols/rows
   // actually changed, so a settled resize is one clean SIGWINCH rather than a redundant reprint.
@@ -107,7 +105,10 @@ export function useXtermSession(
     const term = termRef.current;
     const fitAddon = fitAddonRef.current;
     const session = sessionRef.current;
-    if (!term || !fitAddon || !session || hiddenRef.current) return;
+    if (!term || !fitAddon || !session) return;
+    // An unmeasurable box (hidden, not laid out) would leave xterm's 80x24 default, which would shrink the PTY.
+    const measured = fitAddon.proposeDimensions();
+    if (!measured || !(measured.cols > 0) || !(measured.rows > 0)) return;
     fitAddon.fit();
     if (term.rows === 0 || term.cols === 0) return;
     const last = lastSizeRef.current;
@@ -206,12 +207,8 @@ export function useXtermSession(
         if (selection && userSelecting) copySelection(selection);
       }, SELECTION_COPY_DEBOUNCE_MS);
     });
-    // A hidden box has no size (xterm's 80x24 default would shrink the PTY); the first refit once shown sends the real one.
-    if (hiddenRef.current) lastSizeRef.current = null;
-    else {
-      lastSizeRef.current = { rows: term.rows, cols: term.cols };
-      session.resize(term.rows, term.cols);
-    }
+    lastSizeRef.current = null;
+    refit();
 
     const resizeObserver = new ResizeObserver(() => scheduleRefit());
     resizeObserver.observe(container);
@@ -248,7 +245,7 @@ export function useXtermSession(
       webglRef.current = null;
       sessionRef.current = null;
     };
-  }, [containerRef, terminalClient, agent, workspace, enabled, closedNotice, scheduleRefit]);
+  }, [containerRef, terminalClient, agent, workspace, enabled, closedNotice, refit, scheduleRefit]);
 
   // On reopen the box goes 0 -> real size; refit to it and focus so the shell is usable immediately.
   useEffect(() => {

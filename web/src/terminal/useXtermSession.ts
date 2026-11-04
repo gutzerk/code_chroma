@@ -10,6 +10,9 @@ import type { TerminalSession } from "./TerminalClient";
 
 const REFIT_DEBOUNCE_MS = 60;
 const SELECTION_COPY_DEBOUNCE_MS = 150;
+// FitAddon never proposes less than 2x1, so that size means a 0px box, not a real one.
+const MIN_COLS = 2;
+const MIN_ROWS = 1;
 
 let clipboardTail: Promise<unknown> | null = null;
 
@@ -106,9 +109,9 @@ export function useXtermSession(
     const fitAddon = fitAddonRef.current;
     const session = sessionRef.current;
     if (!term || !fitAddon || !session) return;
-    // An unmeasurable box would leave xterm's 80x24 default and shrink the PTY; hide hosts with display:none, since a laid-out 0px box measures FitAddon's 2x1 minimum.
+    // An unmeasurable box (hidden: NaN; laid out at 0px: FitAddon's 2x1 floor) would shrink the PTY, so skip it.
     const measured = fitAddon.proposeDimensions();
-    if (!measured || !(measured.cols > 0) || !(measured.rows > 0)) return;
+    if (!measured || !(measured.cols > MIN_COLS) || !(measured.rows > MIN_ROWS)) return;
     fitAddon.fit();
     const last = lastSizeRef.current;
     if (last && last.rows === term.rows && last.cols === term.cols) return;

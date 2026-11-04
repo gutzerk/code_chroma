@@ -9,8 +9,8 @@ public sealed record McpEndpoint(string WorkspaceId, string BaseUrl, string Toke
     public const string TokenEnv = "CODECHROMA_QUESTION_TOKEN";
     public const string ServerName = "codechroma";
 
-    /// <summary>The server's tools as claude names them, pre-approved in `--settings` so each worktree does not ask again.</summary>
-    public static readonly string[] ClaudeToolNames = [$"mcp__{ServerName}__ask_user", $"mcp__{ServerName}__draw_option_diagram"];
+    /// <summary>Claude's permission rule for every tool of this server, pre-approved in `--settings` so no worktree asks.</summary>
+    public const string ClaudePermission = $"mcp__{ServerName}";
 
     public string McpUrl => BaseUrl.TrimEnd('/') + "/mcp/";
 

@@ -108,7 +108,7 @@ describe("finding prompt echoes in the terminal buffer", () => {
   it.each([
     ["a bash-mode command", ["! git status"], "!git status"],
     ["a multi-line prompt with a blank line", ["> Fix it", "", "  then add a test", "", "● Ok."], "Fix it\n\nthen add a test"],
-    ["an echo with hook output under it", ["❯ а что мы еще раз тут делаем?h", "  ⎿  1 skill available", "", "● Мы меняем способ"], "а что мы еще раз тут делаем?h"],
+    ["an echo with hook output under it", ["❯ а что мы еще раз тут делаем?", "  ⎿  1 skill available", "", "● Мы меняем способ"], "а что мы еще раз тут делаем?"],
   ])("matches %s", (_name, rows, text) => {
     expect(findPromptLines(rows, [{ text }])).toEqual([0]);
   });

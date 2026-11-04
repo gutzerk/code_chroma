@@ -29,7 +29,7 @@ describe("liveImpactBounds", () => {
 
     const live = liveImpactBounds(doc, { a: { x: 40, y: 20 }, b: { x: 40, y: 20 } });
 
-    expect(live).toEqual({ ...saved, left: saved.left + 40, top: saved.top + 20 });
+    expect(live).toEqual({ left: saved.left + 40, top: saved.top + 20, right: saved.right + 40, bottom: saved.bottom + 20 });
   });
 
   it("ignores a drag of an element outside the impact layer", () => {

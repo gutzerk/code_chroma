@@ -155,13 +155,11 @@ describe("NodeTopBand", () => {
 // The ADD/MODIFY/DELETE labeled chip, driven by Impact's authored meta.status (type-impact.md).
 describe("ImpactStatusChip", () => {
   it.each([
-    ["ADD for a new-status impact box", { status: "new" }, undefined, "ADD"],
-    // Form (data/Форма для задачи): a mark prefixes the status, not the bare label.
-    ["MODIFY for a modified-status impact box", { status: "modified" }, undefined, "~ MODIFY"],
-    ["the real change count as '· N' when supplied", { status: "modified" }, 17, "~ MODIFY · 17"],
-    ["DELETE for a deleted-status impact box", { status: "deleted" }, undefined, "− DELETE"],
-  ])("renders %s", (_name, meta, count, text) => {
-    render(<ImpactStatusChip element={element("impact", meta)} count={count} />);
+    ["ADD for a new-status impact box", { status: "new" }, "ADD"],
+    ["MODIFY for a modified-status impact box", { status: "modified" }, "MODIFY"],
+    ["DELETE for a deleted-status impact box", { status: "deleted" }, "DELETE"],
+  ])("renders %s", (_name, meta, text) => {
+    render(<ImpactStatusChip element={element("impact", meta)} />);
 
     expect(screen.getByTestId("impact-status-chip")).toHaveTextContent(text);
   });

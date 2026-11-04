@@ -8441,7 +8441,6 @@ button[data-copy-state="idle"][aria-label]:hover:not(:disabled) {
 .node-meta-chip--impact-new, .impact-chip--add { background: var(--impact-add); }
 .node-meta-chip--impact-modified, .impact-chip--modify { background: var(--impact-modify); }
 .node-meta-chip--impact-deleted, .impact-chip--delete { background: var(--impact-delete); }
-.impact-card .impact-chip-mark, .impact-card .impact-chip-count { display: none; }
 
 /* The +/- size bar (60x6, green/red split) with its counts. */
 .impact-size { display: flex; flex-basis: 100%; align-items: center; gap: 8px; font-family: var(--font-mono); font-size: 10.5px; line-height: 14px; }

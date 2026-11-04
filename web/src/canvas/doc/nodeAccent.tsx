@@ -45,26 +45,18 @@ export function NodeTopBand({ element }: { element: CanvasElement }) {
 
 const IMPACT_STATUS_LABELS: Record<string, string> = { new: "ADD", modified: "MODIFY", deleted: "DELETE" };
 
-/** The glyph prefixing the impact chip, mirroring the diff overlay's marks (`+ ~ −`). */
-const IMPACT_STATUS_MARK: Record<string, string> = { new: "+", modified: "~", deleted: "−" };
-
 /** Impact's authored `meta.status` (type-impact.md) as an explicit text chip in the box's meta row
  * (`NodeMetaRow` below) -- a prototype comparing color-only vs text-labeled treatments showed the
  * role needs to read as text, not color alone. `"context"` (an unchanged box) intentionally gets no
  * chip. Gated on `BLOCK_RULES[element.render].statusChip === "impact"` so a future type that reuses
- * `meta.status` for something else never picks this chip up by accident. `count` (the box's real
- * attributed change count, from
- * `useNodeOverlays`) is appended as `· N` to mirror the nodemap form's `~ MODIFY · 17`. */
-export function ImpactStatusChip({ element, count }: { element: CanvasElement; count?: number }) {
+ * `meta.status` for something else never picks this chip up by accident. */
+export function ImpactStatusChip({ element }: { element: CanvasElement }) {
   if (BLOCK_RULES[element.render].statusChip !== "impact") return null;
   const status = stringMeta(element, "status");
   if (!status || !(status in IMPACT_STATUS_LABELS)) return null;
-  const countText = count && count > 0 ? ` · ${count}` : "";
   return (
     <span className={`node-meta-chip node-meta-chip--impact-${status}`} data-testid="impact-status-chip">
-      <span className="impact-chip-mark">{IMPACT_STATUS_MARK[status] ?? ""} </span>
       {IMPACT_STATUS_LABELS[status]}
-      {countText && <span className="impact-chip-count">{countText}</span>}
     </span>
   );
 }
@@ -105,9 +97,8 @@ export function NoCodeChip({ element }: { element: CanvasElement }) {
 
 /** The box's inline meta row -- impact status then no-code reason, both plain in-flow chips below
  * the title instead of the old floating top-right pill / left-edge strip. Renders nothing when the
- * box carries neither. `change` passes the box's real attributed change count (from `useNodeOverlays`,
- * same source as `NodeChangeBadge`) so the impact chip can echo it as `· N`. */
-export function NodeMetaRow({ element, count, changed = false }: { element: CanvasElement; count?: number; changed?: boolean }) {
+ * box carries neither. `changed` marks a box with a real attributed change (from `useNodeOverlays`). */
+export function NodeMetaRow({ element, changed = false }: { element: CanvasElement; changed?: boolean }) {
   const status = stringMeta(element, "status");
   const hasStatus =
     BLOCK_RULES[element.render].statusChip === "impact" &&
@@ -129,7 +120,7 @@ export function NodeMetaRow({ element, count, changed = false }: { element: Canv
           {kind}
         </span>
       )}
-      <ImpactStatusChip element={element} count={count} />
+      <ImpactStatusChip element={element} />
       <NoCodeChip element={element} />
     </div>
   );

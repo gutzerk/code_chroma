@@ -1,25 +1,11 @@
 import { changeRecordsOf } from "../state/useSidecar";
-import { containerPathOf } from "./strategies/nodeCopyText";
+import { containerPathOf, pathOfNodeId } from "./strategies/nodeCopyText";
 import type { ImpactBlockChange, ImpactChangedFile, ImpactChangeStatus, ImpactChanges } from "../state/types";
 
 /** What the inspector shows for one Impact box: its (rolled-up) change and the reviewed boxes inside it. */
 export interface ImpactRollup {
   change: ImpactBlockChange;
   nested: ImpactBlockChange[];
-}
-
-const SYMBOL_SEPARATORS = ["::function::", "::class::", "::method::", "::functions"];
-
-/** The file a symbol or container node id lives in (`F::function::x`, `service::F::functions`), or null. */
-export function filePartOf(nodeId: string): string | null {
-  const id = nodeId.startsWith("service::") ? nodeId.slice("service::".length) : nodeId;
-  const at = SYMBOL_SEPARATORS.map((sep) => id.indexOf(sep)).filter((i) => i > 0);
-  return at.length > 0 ? id.slice(0, Math.min(...at)) : null;
-}
-
-/** The repo path a graph node id stands for (`dir::P`, `component::F`, `F::function::x`), or null. */
-export function pathOfNodeId(nodeId: string): string | null {
-  return containerPathOf(nodeId) ?? filePartOf(nodeId);
 }
 
 function isUnder(path: string | null | undefined, scope: string): boolean {

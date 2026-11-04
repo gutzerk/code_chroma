@@ -22,25 +22,24 @@ export const CARD_WIDTH = 448;
 /** The legend column's width beside the board (design: 348). */
 export const SIDE_WIDTH = 348;
 
-const boundsCache = new WeakMap<CanvasDoc["elements"], BoardBounds | null>();
+const boundsCache = new WeakMap<CanvasDoc["elements"], UnionBounds | null>();
 
 const NO_SIZES = new Map();
 
-function unionOf(elements: CanvasDoc["elements"]): BoardBounds | null {
-  const union = unionBoundsOf(Object.values(elements).filter((element) => element.layer === IMPACT_LAYER), NO_SIZES);
-  return union && { left: union.left, top: union.top, width: union.right - union.left, height: union.bottom - union.top };
+function unionOf(elements: CanvasDoc["elements"]): UnionBounds | null {
+  return unionBoundsOf(Object.values(elements).filter((element) => element.layer === IMPACT_LAYER), NO_SIZES);
 }
 
 /** The union rect of the Impact layer's elements in canvas coordinates, or null when it has none. */
-export function impactBoundsOf(doc: CanvasDoc): BoardBounds | null {
+export function impactBoundsOf(doc: CanvasDoc): UnionBounds | null {
   if (!boundsCache.has(doc.elements)) boundsCache.set(doc.elements, unionOf(doc.elements));
   return boundsCache.get(doc.elements) ?? null;
 }
 
-let lastLive: { doc: CanvasDoc; offsets: Record<string, LiveDragOffset>; bounds: BoardBounds | null } | null = null;
+let lastLive: { doc: CanvasDoc; offsets: Record<string, LiveDragOffset>; bounds: UnionBounds | null } | null = null;
 
 /** The bounds shifted by an in-flight drag, so the chrome follows the frame instead of jumping on drop; stable per input. */
-export function liveImpactBounds(doc: CanvasDoc, offsets: Record<string, LiveDragOffset>): BoardBounds | null {
+export function liveImpactBounds(doc: CanvasDoc, offsets: Record<string, LiveDragOffset>): UnionBounds | null {
   const dragging = Object.keys(offsets).some((id) => doc.elements[id]?.layer === IMPACT_LAYER);
   if (!dragging) return impactBoundsOf(doc);
   if (lastLive?.doc !== doc || lastLive.offsets !== offsets) {
@@ -51,24 +50,23 @@ export function liveImpactBounds(doc: CanvasDoc, offsets: Record<string, LiveDra
 
 export interface BoardGeometry {
   header: BoardBounds;
-  outside: BoardBounds;
+  outside: { left: number; top: number; width: number };
   side: { left: number; top: number };
 }
 
 /** Where the summary bar, outside strip and legend column sit around the folders, from IMPACT_PROFILE's own frame. */
-export function impactBoardGeometry(union: BoardBounds): BoardGeometry {
-  const base: UnionBounds = { left: union.left, top: union.top, right: union.left + union.width, bottom: union.top + union.height };
-  const frame = impactFrameBounds(base);
+export function impactBoardGeometry(union: UnionBounds): BoardGeometry {
+  const frame = impactFrameBounds(union);
   const width = frame.right - frame.left;
   return {
     header: { left: frame.left, top: frame.top, width, height: BOARD_BAR.height },
-    outside: { left: frame.left, top: frame.bottom - BOARD_BAR.outside, width, height: BOARD_BAR.outside },
+    outside: { left: frame.left, top: frame.bottom - BOARD_BAR.outside, width },
     side: { left: frame.right + PADDING.side + BOARD_GAP, top: frame.top },
   };
 }
 
 /** Re-renders only when the board's bounds change, not on every drag frame of an unrelated element. */
-export function useImpactBounds(): BoardBounds | null {
+export function useImpactBounds(): UnionBounds | null {
   const doc = useCanvasDoc();
   return useSyncExternalStore(dragOffsetStore.subscribe, () => liveImpactBounds(doc, dragOffsetStore.getAll()));
 }
@@ -169,7 +167,7 @@ export function ImpactBoard({
       {outside && (
         <div
           className="impact-board-anchor"
-          style={{ left: geometry.outside.left, top: geometry.outside.top, width: geometry.outside.width }}
+          style={geometry.outside}
         >
           {outside}
         </div>

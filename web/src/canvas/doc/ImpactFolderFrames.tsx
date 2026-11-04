@@ -1,4 +1,3 @@
-import { useMemo } from "react";
 import type { CanvasElement } from "../../state/types";
 import type { MeasuredBoxSize } from "../useMeasuredSizes";
 import { useCanvasFocus } from "../CanvasFocusContext";
@@ -20,8 +19,9 @@ export function ImpactFolderFrames({
   sizes: ReadonlyMap<string, MeasuredBoxSize>;
 }) {
   const focusNode = useCanvasFocus();
-  const boxes = useMemo(() => impactBoxesOf(members), [members]);
-  const folders = useMemo(() => impactFoldersOf(boxes), [boxes]);
+  // No memo: CanvasDocView hands over a fresh `members` array every render, so one would never hit.
+  const boxes = impactBoxesOf(members);
+  const folders = impactFoldersOf(boxes);
   const areas = [...new Set(folders.map((folder) => folder.area))];
   const byId = new Map(boxes.map((box) => [box.id, box] as const));
   return (

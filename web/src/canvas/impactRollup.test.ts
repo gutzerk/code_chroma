@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { pathOfNodeId, rollupImpactChange } from "./impactRollup";
+import { rollupImpactChange } from "./impactRollup";
+import { pathOfNodeId } from "./strategies/nodeCopyText";
 import { EMPTY_IMPACT_CHANGES, type ImpactBlockChange, type ImpactChanges } from "../state/types";
 
 function block(overrides: Partial<ImpactBlockChange>): ImpactBlockChange {

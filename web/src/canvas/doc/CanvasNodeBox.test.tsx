@@ -616,10 +616,10 @@ describe("CanvasNodeBox — no-code box (meta.no_code_reason)", () => {
 
 // type-impact.md: the ADD/MODIFY/DELETE chip driven by an Impact box's authored meta.status.
 describe("CanvasNodeBox — Impact status chip (meta.status)", () => {
-  it("shows a mark plus the status role (form: '~ MODIFY'), not the bare label", () => {
+  it("shows the status role as a word chip", () => {
     renderBox(element({ id: "e1", render: "impact", meta: { status: "modified" } }));
 
-    expect(screen.getByTestId("impact-status-chip")).toHaveTextContent("~ MODIFY");
+    expect(screen.getByTestId("impact-status-chip")).toHaveTextContent(/^MODIFY$/);
   });
 
   it("shows no chip when meta.status is absent", () => {

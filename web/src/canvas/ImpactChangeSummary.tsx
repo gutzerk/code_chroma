@@ -8,7 +8,6 @@ import { PrCommentCard } from "./PrCommentCard";
 import { SkillOutputFeed } from "./SkillOutputFeed";
 import { PanelDragGrip, usePanelDragResize } from "./usePanelDragResize";
 import { BOARD_GAP, CARD_WIDTH, ImpactBoard, useImpactBounds } from "./ImpactBoard";
-import { uniqueByPath } from "./impactRollup";
 import { useActiveWorkspace } from "../agents/agentStore";
 import { usePrWorkspaces } from "../pr/prStore";
 
@@ -287,7 +286,7 @@ export function ImpactChangeSummary({
                 {blocksWithFiles.map((block) => (
                   <div key={block.node_id} className="impact-change-summary-file-group">
                     <span className="impact-change-summary-file-group-label">{block.name}</span>
-                    {uniqueByPath(block.files).map((file) => (
+                    {block.files.map((file) => (
                       <FileRow key={file.path} file={file} />
                     ))}
                   </div>

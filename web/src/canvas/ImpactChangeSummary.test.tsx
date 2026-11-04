@@ -3,8 +3,9 @@ import { fireEvent, render, screen } from "@testing-library/react";
 import { compareLabelOf, ImpactChangeSummary, outsideSummaryOf } from "./ImpactChangeSummary";
 import { impactChangesSidecarStore, setChangesSnapshot } from "../state/useSidecar";
 import { inspectorStore } from "./inspectorStore";
+import { canvasDocStore } from "./doc/canvasDocStore";
 import * as availability from "../llm-settings/useGroupAvailability";
-import type { ImpactChanges, PrWorkspace } from "../state/types";
+import type { CanvasElement, ImpactChanges, PrWorkspace } from "../state/types";
 
 vi.mock("../llm-settings/useGroupAvailability", () => ({
   useGroupAvailability: vi.fn(),
@@ -42,6 +43,7 @@ const review = { state: "idle" as const, rereview: () => {}, stop: () => {}, loa
 afterEach(() => {
   impactChangesSidecarStore.reset();
   inspectorStore.reset();
+  canvasDocStore.reset();
   useGroupAvailability.mockReturnValue(true);
 });
 
@@ -164,13 +166,15 @@ describe("impact strip helpers", () => {
     expect(line).toBe("docs/architecture (2) · package.json");
   });
 
-  it("lists a file attributed through several cards once in the review card", () => {
-    const path = "src/a.py";
-    const block = { block: "a", node_id: "n-a", name: "a", path: null, status: "added" as const, change_count: 2, before: "", after: "", explanation: "", pr_comments: [], files: [{ path, status: "added" as const }, { path, status: "added" as const }] };
-    setChangesSnapshot(changes({ blocks: [block] }));
+  it("puts the review card in the board's side column beside the legend", () => {
+    const element: CanvasElement = { id: "a", render: "impact", layer: "impact", label: "a", description: "", node_id: null, position: { x: 100, y: 100 }, size: { w: 260, h: 96 }, group_id: null, meta: {}, created_by: "ai" };
+    canvasDocStore.setDoc({ ...canvasDocStore.getDoc(), elements: { a: element } });
+    setChangesSnapshot(changes());
 
     render(<ImpactChangeSummary review={review} />);
 
-    expect(screen.getAllByTestId("impact-change-summary-file")).toHaveLength(1);
+    const side = screen.getByTestId("impact-board-side");
+    expect(side).toHaveClass("impact-board-anchor--side");
+    expect(side).toContainElement(screen.getByTestId("impact-change-summary"));
   });
 });

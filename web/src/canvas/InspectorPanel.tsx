@@ -14,7 +14,7 @@ import { DiffView } from "./DiffView";
 import { PanelCloseButton } from "./PanelCloseButton";
 import { InspectorChangeReview } from "./InspectorChangeReview";
 import { filePartOf, rollupImpactChange } from "./impactRollup";
-import { canvasDocStore } from "./doc/canvasDocStore";
+import { useCanvasDoc } from "./doc/canvasDocStore";
 import { inspectorStore, useInspectorClient, useInspectorStack, type InspectorEntry } from "./inspectorStore";
 import { InspectorWorkItem } from "./epics/InspectorWorkItem";
 import { EpicBlockContent } from "./doc/EpicBlockPanel";
@@ -199,10 +199,9 @@ function InspectorLevel({ entryId, sourceId }: { entryId: string; sourceId?: str
   const { node, error, retry } = useInspectorNode(entryId);
   const changes = useImpactChanges();
   // The review is keyed by the box's own id (recipe_key), which a collapsed box doesn't share with its node_id.
-  const recipeKey = useMemo(() => {
-    const element = sourceId ? canvasDocStore.getDoc().elements[sourceId] : undefined;
-    return element ? recipeChromeKey(element) || undefined : undefined;
-  }, [sourceId]);
+  const elements = useCanvasDoc().elements;
+  const element = sourceId ? elements[sourceId] : undefined;
+  const recipeKey = useMemo(() => (element ? recipeChromeKey(element) || undefined : undefined), [element]);
   const rollup = useMemo(() => rollupImpactChange(changes, entryId, recipeKey), [changes, entryId, recipeKey]);
   const diff = useDiff(entryId);
   const engineClient = useEngineClient();

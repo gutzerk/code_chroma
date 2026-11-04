@@ -5,7 +5,7 @@ import type { CanvasDoc, CanvasElement, ImpactBlockChange, ImpactChanges } from 
 import { canvasDocStore } from "./canvasDocStore";
 import { stringMeta } from "./elementMeta";
 import { DEFAULT_ELEMENT_SIZE } from "./elementRect";
-import { impactFoldersOf } from "./impactBoardLayout";
+import { impactBoxesOf, impactFoldersOf } from "./impactBoardLayout";
 import { boxKindOf, collapseKindOf, summarizeImpact, type CollapseKind, type ImpactBoxKind } from "./impactGlanceLogic";
 
 /** Boxes the user opened out of their pill, by element id. */
@@ -78,9 +78,9 @@ export function mergedPillsOf(doc: CanvasDoc, changes: ImpactChanges): Map<strin
     const byBlock = new Map(changes.blocks.map((block) => [block.block, block] as const));
     const heroEnds = heroEndsOf(doc);
     const buckets = new Map<string, CanvasElement[]>();
-    // An authored group wins; otherwise a box merges with the other minor boxes of its board folder.
+    // An authored group wins; otherwise a box merges with the other minor boxes of its board folder (the same folders the frames draw).
     const folderOf = new Map(
-      impactFoldersOf(Object.values(doc.elements).filter((element) => element.layer === "impact")).flatMap((folder) =>
+      impactFoldersOf(impactBoxesOf(Object.values(doc.elements).filter((element) => element.layer === "impact"))).flatMap((folder) =>
         folder.ids.map((id) => [id, folder.key] as const),
       ),
     );

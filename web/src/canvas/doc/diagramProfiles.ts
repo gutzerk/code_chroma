@@ -44,8 +44,8 @@ export interface DiagramProfile {
   viewStore?: { subscribe: (listener: () => void) => () => void; getVersion: () => number };
   /** Deterministic layout for this type's new boxes; others go through ELK. */
   layout?: (doc: CanvasDoc, ids: readonly string[]) => { positions: Record<string, CanvasPosition>; sizes: Record<string, CanvasSize> };
-  /** Whether the on-load reflow re-applies `layout`; absent means always (a locked board). */
-  needsReflow?: (doc: CanvasDoc, ids: readonly string[]) => boolean;
+  /** The ids the on-load reflow may move to `layout`'s place; absent means all of `ids` (a locked board). */
+  reflowIds?: (doc: CanvasDoc, ids: readonly string[]) => readonly string[];
 }
 
 /** The plain diagram: every shared behaviour on, no overlay, ELK layout. */

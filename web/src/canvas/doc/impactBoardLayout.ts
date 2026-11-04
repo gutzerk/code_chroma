@@ -121,14 +121,20 @@ function flowRanks(ids: readonly string[], doc: CanvasDoc): Map<string, number> 
   return rank;
 }
 
+/** A fresh box sits at the origin with no size; a sized box at (0, 0) is still placed. */
 function isLaidOut(element: CanvasElement): boolean {
-  return element.position.x !== 0 || element.position.y !== 0;
+  return element.size != null || element.position.x !== 0 || element.position.y !== 0;
 }
 
-/** The layer's boxes the board arranges (every Impact box; notes and groups keep their own place). */
+/** The boxes the board arranges and folds into folders: Impact cards only, notes and groups keep their own place. */
+export function impactBoxesOf(elements: readonly CanvasElement[]): CanvasElement[] {
+  return elements.filter((element) => element.render === "impact");
+}
+
+/** The board boxes on the layers of `ids`. */
 export function impactBoardElements(doc: CanvasDoc, ids: readonly string[]): CanvasElement[] {
   const layers = new Set(ids.map((id) => doc.elements[id]?.layer).filter(Boolean));
-  return Object.values(doc.elements).filter((element) => layers.has(element.layer) && element.render === "impact");
+  return impactBoxesOf(Object.values(doc.elements).filter((element) => layers.has(element.layer)));
 }
 
 /** Top-left of the folder area: the current board's own corner, or below the rest of the canvas on a fresh draw. */
@@ -180,7 +186,9 @@ export function layoutImpactBoard(
   return { positions, sizes };
 }
 
-/** True while any Impact box still has its pre-board size, so the board re-spreads once and never fights a drag. */
-export function impactBoardNeedsReflow(doc: CanvasDoc, ids: readonly string[]): boolean {
-  return impactBoardElements(doc, ids).some((box) => box.size?.w !== IMPACT_CARD.w || box.size?.h !== IMPACT_CARD.h);
+/** The Impact boxes that still have a pre-board size: only these re-spread, so a card the user dragged keeps its place. */
+export function impactBoardReflowIds(doc: CanvasDoc, ids: readonly string[]): string[] {
+  return impactBoardElements(doc, ids)
+    .filter((box) => box.size?.w !== IMPACT_CARD.w || box.size?.h !== IMPACT_CARD.h)
+    .map((box) => box.id);
 }

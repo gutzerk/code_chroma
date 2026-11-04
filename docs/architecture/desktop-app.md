@@ -15,7 +15,7 @@ The Python engine/bridge (`src/codechroma/`) remains the reference implementatio
 ```bash
 dotnet run --project dotnet/CodeChroma.Shell.App -- --repo /path/to/repo   # run the shell; omit --repo for the launcher
 dotnet test dotnet/CodeChroma.Shell.sln                                    # shell logic + updater tests (no display needed)
-# CI: the `dotnet-shell` job in ci.yml runs that suite on every PR
+# CI: the `dotnet-shell` job in ci.yml runs that suite on Linux/Windows/macOS for PRs touching dotnet/, skills/, src/codechroma/ or tests/fixtures/, and on every main push; a test hung for 3 min fails with its name (--blame-hang-timeout)
 dotnet publish dotnet/CodeChroma.Shell.App -r <rid> --self-contained -p:BundleCSharpBridge=true -o publish   # app + bundled bridge + web/dist
 pwsh distribution/velopack/pack.ps1 -Version X.Y.Z -PublishDir publish -OutDir out   # Windows: Setup + update zip + .sha256
 sh distribution/velopack/pack.sh osx-arm64 X.Y.Z publish out                       # macOS / Linux packages

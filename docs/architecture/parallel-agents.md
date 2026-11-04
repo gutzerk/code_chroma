@@ -588,13 +588,15 @@ output tags such as `<local-command-stdout>`/`<bash-stdout>` are skipped; `<comm
 `<bash-input>` as `!cmd`, and any other text starting with `<` is kept as typed). The parse is cached per transcript
 file and reused while its length and write time are unchanged, since the route is polled. `edits` counts
 `Edit`/`Write`/`MultiEdit`/`NotebookEdit` and `runs` counts `Bash` tool calls (deduped by tool-use id) until the next
-prompt. A non-claude agent or one with no session gets an empty list.
+prompt. Both `/prompts` and `/usage` serve any agent with `AgentRecord.HasClaudeSession`: a `claude` window, or an
+`agent` window the bridge launched as the real claude (only those get a `SessionTrackingId`). Any other agent, or one
+with no session yet, gets an empty list (and null usage).
 
 The web side lives in `web/src/agents/prompts/`:
 
 | File | Role |
 |---|---|
-| `promptNav.ts` | Pure logic: `toPrompts` + `replySummary` ("1 edit, 1 run" / "answer"), `clampIndex`, `activeIndexAt` (last prompt at or above the viewport top + 3 rows), `filterPrompts`, `findPromptLines` (each prompt's echo row: a row starting with `>`/`❯`/`›`/`!` plus its indented rows, compared whole with the prompt, whitespace removed, first 60 chars; matched newest first so a repeated prompt keeps its own echo after old rows leave the 5000-line scrollback; null when not found) |
+| `promptNav.ts` | Pure logic: `toPrompts` + `replySummary` ("1 edit, 1 run" / "answer"), `clampIndex`, `activeIndexAt` (last prompt at or above the viewport top + 3 rows), `filterPrompts`, `findPromptLines` (each prompt's echo row: a row starting with `>`/`❯`/`›`/`!` plus its indented rows up to a `⎿` row of hook/tool output, compared whole with the prompt, whitespace removed, first 60 chars; matched newest first so a repeated prompt keeps its own echo after old rows leave the 5000-line scrollback; null when not found) |
 | `promptNavStore.ts` | Per-agent state kept across agent switches: prompts, buffer lines, `current`, aria-live text, find requests. `go` scrolls the attached viewport and ignores its own scroll events for `JUMP_LOCK_MS` (250 ms). `ActivityPanel` calls `retain` with the live agent ids so a deleted agent's state is dropped |
 | `xtermPromptViewport.ts` | Attached through `useXtermSession`'s `onTerminal`: re-scans the buffer 200 ms after output or resize (skipped while the terminal is hidden; `AgentTerminal` calls `rescanPrompts` when it is shown again), follows the viewport (rAF-throttled), scrolls a prompt one row below the top, and highlights the current echo with an xterm decoration |
 | `usePromptList.ts` | Loads the selected agent's prompts; polls every 3 s while it runs and the page is visible |

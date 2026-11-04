@@ -100,6 +100,17 @@ public sealed class AgentUsageTests : IDisposable
         Assert.Null(usage);
     }
 
+    [Fact]
+    public void An_agent_window_launched_as_claude_has_usage()
+    {
+        var record = Agent("agent", Reply("m1", "claude-opus-5-5", 1, 1, 1, 1));
+        record.SessionTrackingId = Guid.NewGuid().ToString();
+
+        var usage = AgentUsage.Read(record, "s1", _root);
+
+        Assert.NotNull(usage);
+    }
+
     [Theory]
     [InlineData("claude-opus-5-5", 4.0)]
     [InlineData("claude-opus-5-5[1m]", 4.0)]

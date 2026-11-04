@@ -4,7 +4,7 @@ import type { MeasuredBoxSize } from "../useMeasuredSizes";
 import { useCanvasFocus } from "../CanvasFocusContext";
 import { inspectorStore } from "../inspectorStore";
 import { unionBoundsOf } from "./boundingBox";
-import { FOLDER_PAD, impactFoldersOf } from "./impactBoardLayout";
+import { FOLDER_PAD, impactBoxesOf, impactFoldersOf } from "./impactBoardLayout";
 import { SoftAreaFrame } from "./SoftAreaFrame";
 
 const TINTS = 3;
@@ -20,14 +20,14 @@ export function ImpactFolderFrames({
   sizes: ReadonlyMap<string, MeasuredBoxSize>;
 }) {
   const focusNode = useCanvasFocus();
-  const boxes = useMemo(() => members.filter((member) => member.render === "impact"), [members]);
+  const boxes = useMemo(() => impactBoxesOf(members), [members]);
   const folders = useMemo(() => impactFoldersOf(boxes), [boxes]);
   const areas = [...new Set(folders.map((folder) => folder.area))];
   const byId = new Map(boxes.map((box) => [box.id, box] as const));
   return (
     <>
       {folders.map((folder) => {
-        const bounds = unionBoundsOf(folder.ids.map((id) => byId.get(id)!).filter(Boolean), sizes);
+        const bounds = unionBoundsOf(folder.ids.flatMap((id) => byId.get(id) ?? []), sizes);
         if (!bounds) return null;
         const tint = areas.indexOf(folder.area) % TINTS;
         const sourceId = folder.label === "other" || folder.label === "(repo root)" ? null : `dir::${folder.label}`;

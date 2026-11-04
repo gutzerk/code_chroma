@@ -13,7 +13,7 @@ import {
 import { EMPTY_CANVAS_DOC, EMPTY_IMPACT_CHANGES, type CanvasDoc, type CanvasElement, type ImpactBlockChange, type ImpactChanges } from "../../state/types";
 import { mergedPillsOf } from "./impactBoxState";
 import { isRemovedLink } from "./impactEdgeStatus";
-import { IMPACT_CARD, impactBoardNeedsReflow, impactFoldersOf, impactPathOf, layoutImpactBoard } from "./impactBoardLayout";
+import { IMPACT_CARD, impactBoardReflowIds, impactFoldersOf, impactPathOf, layoutImpactBoard } from "./impactBoardLayout";
 
 const block = (id: string, status: ImpactBlockChange["status"], files: ImpactBlockChange["files"]): ImpactBlockChange => ({
   block: id, node_id: `n-${id}`, name: id, path: null, status, files,
@@ -159,12 +159,16 @@ describe("impact board folders and layout", () => {
     expect(positions.b.y).toBeGreaterThan(positions.a.y + IMPACT_CARD.h);
   });
 
-  it("re-spreads only a board whose boxes are not card-sized yet", () => {
-    const fresh = docOf([fileBox("a", "component::src/a.py")]);
-    const laid = docOf([{ ...fileBox("a", "component::src/a.py"), size: { w: IMPACT_CARD.w, h: IMPACT_CARD.h } }]);
+  it("re-spreads only the boxes that are not card-sized yet", () => {
+    const card = { w: IMPACT_CARD.w, h: IMPACT_CARD.h };
+    const doc = docOf([
+      { ...fileBox("dragged", "component::src/a.py", 900, 900), size: card },
+      fileBox("fresh", "component::src/b.py"),
+    ]);
 
-    expect(impactBoardNeedsReflow(fresh, ["a"])).toBe(true);
-    expect(impactBoardNeedsReflow(laid, ["a"])).toBe(false);
+    const ids = impactBoardReflowIds(doc, ["dragged", "fresh"]);
+
+    expect(ids).toEqual(["fresh"]);
   });
 
   it("reads a box path from meta.path first, then from its node id", () => {

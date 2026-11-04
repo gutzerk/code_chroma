@@ -175,7 +175,8 @@ export function ImpactBoard({
         </div>
       )}
       <div
-        className="impact-board-anchor"
+        className="impact-board-anchor impact-board-anchor--side"
+        data-testid="impact-board-side"
         style={{ left: geometry.side.left, top: geometry.side.top, width: SIDE_WIDTH }}
       >
         {legend}

@@ -200,12 +200,13 @@ describe("useXtermSession", () => {
     expect(session.resize).toHaveBeenCalledWith(24, 200);
   });
 
-  it("ignores a refit while the host measures 0x0", () => {
+  it("ignores a refit while the host cannot be measured", () => {
     vi.useFakeTimers();
     const { session } = fakeSession();
     mount(() => session);
     session.resize.mockClear();
-    terminals[0].rows = 0;
+    terminals[0].rows = 30;
+    fit.measurable = false;
 
     handle?.scheduleRefit();
     vi.advanceTimersByTime(60);

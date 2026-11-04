@@ -250,11 +250,12 @@ branch through an agent attached to it (`_guard_shared_worktree`, keyed off `Age
   soft-wraps a row wider than the window and re-wraps it on every later resize, so history replayed
   into a narrow window widens with it — still parsed cells, never raw bytes. `Attach()` sends the
   screen only (the history too once the process has exited); the first-resize `Resync` sends the
-  history once. 🔴 `useXtermSession` sends no size until `FitAddon.proposeDimensions()` can measure its box
-  (a hidden or not-yet-laid-out box would leave xterm's 80x24 default, shrinking the PTY so a
-  background agent prints at 80 columns); the first measurable refit sends the real size. Rows claude itself
-  printed while the PTY was narrow stay narrow: claude's classic renderer never reprints them. 🔴 Entirely separate from `skill_agent`'s registry: if
-  the two touched, regenerating a C1 diagram would kill the user's sessions. `atexit` + the lifespan
+  history once. 🔴 `useXtermSession` sends no size until `FitAddon.proposeDimensions()` can measure
+  its box (a hidden or not-yet-laid-out box would leave xterm's 80x24 default, shrinking the PTY so
+  a background agent prints at 80 columns); the first measurable refit sends the real size. Hide a
+  host with `display:none`: a laid-out 0px box measures FitAddon's 2x1 minimum. Rows claude itself
+  printed while the PTY was narrow stay narrow: claude's classic renderer never reprints them.
+  🔴 Entirely separate from `skill_agent`'s registry: if the two touched, regenerating a C1 diagram would kill the user's sessions. `atexit` + the lifespan
   kill leave no orphans. `agent_run_env(agent_id)` injects `CODECHROMA_WORKSPACE_ID=<agent id>` (and `CODECHROMA_BRIDGE_URL` when the bridge's URL is known, `questions.launch.identity_env`; C#: `BridgeAddress.ExportIdentity`) into
   the PTY env (both `routes/agents.py`'s `start` and `autostart.py` pass it via
   `AgentSessionRegistry.start(..., env=...)` → `PtySession(env=...)`). Without it the diagram skills
@@ -593,8 +594,9 @@ output tags such as `<local-command-stdout>`/`<bash-stdout>` are skipped; `<comm
 file and reused while its length and write time are unchanged, since the route is polled. `edits` counts
 `Edit`/`Write`/`MultiEdit`/`NotebookEdit` and `runs` counts `Bash` tool calls (deduped by tool-use id) until the next
 prompt. Both `/prompts` and `/usage` serve any agent with `AgentRecord.HasClaudeSession`: a `claude` window, or an
-`agent` window the bridge launched as the real claude (only those get a `SessionTrackingId`). Any other agent, or one
-with no session yet, gets an empty list (and null usage).
+`agent` window the bridge launched as the real claude (only those get a `SessionTrackingId`; `RecordSessionLaunch`
+drops it when the window is relaunched under another CLI). Any other agent, or one with no session yet, gets an empty
+list (and null usage).
 
 The web side lives in `web/src/agents/prompts/`:
 

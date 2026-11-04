@@ -106,11 +106,10 @@ export function useXtermSession(
     const fitAddon = fitAddonRef.current;
     const session = sessionRef.current;
     if (!term || !fitAddon || !session) return;
-    // An unmeasurable box (hidden, not laid out) would leave xterm's 80x24 default, which would shrink the PTY.
+    // An unmeasurable box would leave xterm's 80x24 default and shrink the PTY; hide hosts with display:none, since a laid-out 0px box measures FitAddon's 2x1 minimum.
     const measured = fitAddon.proposeDimensions();
     if (!measured || !(measured.cols > 0) || !(measured.rows > 0)) return;
     fitAddon.fit();
-    if (term.rows === 0 || term.cols === 0) return;
     const last = lastSizeRef.current;
     if (last && last.rows === term.rows && last.cols === term.cols) return;
     lastSizeRef.current = { rows: term.rows, cols: term.cols };

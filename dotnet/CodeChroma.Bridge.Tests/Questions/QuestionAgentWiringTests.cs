@@ -74,6 +74,15 @@ public sealed class QuestionAgentWiringTests : IDisposable
     }
 
     [Fact]
+    public void A_window_with_the_mcp_server_pre_approves_its_tools_so_no_worktree_asks()
+    {
+        var launch = _agents.Resolve("claude", agentId: "agent-1", bridgeUrl: BridgeUrl)!;
+
+        var settings = JsonNode.Parse(launch.Argv[launch.Argv.ToList().IndexOf("--settings") + 1])!;
+        Assert.Contains("mcp__codechroma__ask_user", settings["permissions"]!["allow"]!.AsArray().Select(name => (string?)name));
+    }
+
+    [Fact]
     public void The_argv_is_unchanged_without_an_agent_id_or_a_bridge_url()
     {
         var noId = _agents.Resolve("claude", bridgeUrl: BridgeUrl)!;

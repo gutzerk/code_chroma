@@ -9,6 +9,9 @@ public sealed record McpEndpoint(string WorkspaceId, string BaseUrl, string Toke
     public const string TokenEnv = "CODECHROMA_QUESTION_TOKEN";
     public const string ServerName = "codechroma";
 
+    /// <summary>The server's tools as claude names them, pre-approved in `--settings` so each worktree does not ask again.</summary>
+    public static readonly string[] ClaudeToolNames = [$"mcp__{ServerName}__ask_user", $"mcp__{ServerName}__draw_option_diagram"];
+
     public string McpUrl => BaseUrl.TrimEnd('/') + "/mcp/";
 
     /// <summary>Env for the agent process (read by skills and the AskUserQuestion hook).</summary>

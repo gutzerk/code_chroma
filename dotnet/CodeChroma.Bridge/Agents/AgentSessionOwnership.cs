@@ -18,8 +18,19 @@ public static class AgentSessionOwnership
     public static string HookSettings(bool sessionTracking = true, bool askUserQuestion = false) =>
         TryHookSettings(sessionTracking, askUserQuestion) ?? new JsonObject { ["hooks"] = new JsonObject() }.ToJsonString();
 
-    /// <summary>The `--settings` document, or null when no bridge executable can be resolved to run the hooks.</summary>
+    /// <summary>The `--settings` document: the hooks plus, with `askUserQuestion` (the MCP server is registered), its tools pre-approved; null when it would hold nothing.</summary>
     public static string? TryHookSettings(bool sessionTracking = true, bool askUserQuestion = false)
+    {
+        var hooks = Hooks(sessionTracking, askUserQuestion);
+        if (hooks is null && !askUserQuestion) return null;
+        var settings = new JsonObject { ["hooks"] = hooks ?? new JsonObject() };
+        if (askUserQuestion)
+            settings["permissions"] = new JsonObject { ["allow"] = new JsonArray(Questions.McpEndpoint.ClaudeToolNames.Select(name => (JsonNode?)name).ToArray()) };
+        return settings.ToJsonString();
+    }
+
+    /// <summary>The hook commands, or null when no bridge executable can be resolved to run them.</summary>
+    private static JsonObject? Hooks(bool sessionTracking, bool askUserQuestion)
     {
         // Use the native apphost when published and dotnet + our assembly during development/tests.
         var assembly = typeof(AgentSessionOwnership).Assembly.Location;
@@ -45,7 +56,7 @@ public static class AgentSessionOwnership
                 ["matcher"] = Questions.AskUserQuestionHook.ToolMatcher,
                 ["hooks"] = new JsonArray(Hook(Questions.AskUserQuestionHook.Command, 15)),
             });
-        return new JsonObject { ["hooks"] = hooks }.ToJsonString();
+        return hooks;
     }
 
     private static string Quote(string path) => "'" + path.Replace('\\', '/').Replace("'", OperatingSystem.IsWindows() ? "''" : "'\"'\"'") + "'";

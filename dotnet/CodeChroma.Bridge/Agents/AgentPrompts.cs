@@ -17,10 +17,10 @@ public static partial class AgentPrompts
     /// <summary>Each transcript's last parse, reused while the file's length and write time are unchanged (the route is polled).</summary>
     private static readonly ConcurrentDictionary<string, (long Length, DateTime Written, IReadOnlyList<AgentPrompt> Prompts)> Parsed = new();
 
-    /// <summary>The route payload: `{"prompts": [...]}`, empty for a non-claude agent or one with no session yet; `sessionOf` runs only for a claude agent.</summary>
+    /// <summary>The route payload: `{"prompts": [...]}`, empty for an agent with no claude session or none yet; `sessionOf` runs only when a claude session backs the agent.</summary>
     public static JsonObject Read(AgentRecord record, Func<string?> sessionOf, string? projectsRoot = null)
     {
-        var sessionId = record.Kind == AgentRecord.DefaultKind ? sessionOf() : null;
+        var sessionId = record.HasClaudeSession ? sessionOf() : null;
         var prompts = string.IsNullOrEmpty(sessionId) ? [] : ReadSession(sessionId, record.Worktree, projectsRoot);
         return new JsonObject { ["prompts"] = new JsonArray(prompts.Select(Payload).ToArray<JsonNode?>()) };
     }

@@ -43,7 +43,7 @@ public sealed class AgentUsageTests : IDisposable
             Reply("m3", "claude-haiku-5-5", 1_000, 9_000, 0, 500, sidechain: true),
             Reply("m4", "<synthetic>", 0, 0, 0, 0));
 
-        var usage = AgentUsage.Read(record, "s1", _root)!;
+        var usage = AgentUsage.Read(record, () => "s1", _root)!;
 
         Assert.Equal(120_000, usage["contextTokens"]!.GetValue<long>());
         Assert.Equal(ModelSpecs.DefaultContextWindow, usage["contextWindow"]!.GetValue<long>());
@@ -61,7 +61,7 @@ public sealed class AgentUsageTests : IDisposable
             Reply("m1", "claude-opus-5-5", 10, 1_000, 0, 5),
             Reply("m1", "claude-opus-5-5", 10, 1_000, 0, 900));
 
-        var usage = AgentUsage.Read(record, "s1", _root)!;
+        var usage = AgentUsage.Read(record, () => "s1", _root)!;
 
         Assert.Equal(900, usage["outputTokens"]!.GetValue<long>());
     }
@@ -71,7 +71,7 @@ public sealed class AgentUsageTests : IDisposable
     {
         var record = Agent("claude", Reply("m1", "claude-opus-5-5", 10, 300_000, 0, 50));
 
-        var usage = AgentUsage.Read(record, "s1", _root)!;
+        var usage = AgentUsage.Read(record, () => "s1", _root)!;
 
         Assert.Equal(ModelSpecs.LongContextWindow, usage["contextWindow"]!.GetValue<long>());
     }
@@ -81,7 +81,7 @@ public sealed class AgentUsageTests : IDisposable
     {
         var record = Agent("claude", Reply("m1", "claude-unknown-9", 1_000, 3_000, 0, 50));
 
-        var usage = AgentUsage.Read(record, "s1", _root)!;
+        var usage = AgentUsage.Read(record, () => "s1", _root)!;
 
         Assert.Null(usage["costUsd"]);
         Assert.Equal(4_000, usage["inputTokens"]!.GetValue<long>());
@@ -95,9 +95,20 @@ public sealed class AgentUsageTests : IDisposable
     {
         var record = Agent(kind, Reply("m1", "claude-opus-5-5", 1, 1, 1, 1));
 
-        var usage = AgentUsage.Read(record, session, _root);
+        var usage = AgentUsage.Read(record, () => session, _root);
 
         Assert.Null(usage);
+    }
+
+    [Fact]
+    public void An_agent_window_launched_as_claude_has_usage()
+    {
+        var record = Agent("agent", Reply("m1", "claude-opus-5-5", 1, 1, 1, 1));
+        record.SessionTrackingId = Guid.NewGuid().ToString();
+
+        var usage = AgentUsage.Read(record, () => "s1", _root);
+
+        Assert.NotNull(usage);
     }
 
     [Theory]

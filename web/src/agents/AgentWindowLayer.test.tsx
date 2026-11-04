@@ -43,6 +43,9 @@ vi.mock("@xterm/xterm", () => {
 vi.mock("@xterm/addon-fit", () => {
   class FitAddon {
     fit(): void {}
+    proposeDimensions(): { rows: number; cols: number } {
+      return { rows: 24, cols: 80 };
+    }
   }
   return { FitAddon };
 });

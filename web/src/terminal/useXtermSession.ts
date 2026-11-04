@@ -10,6 +10,9 @@ import type { TerminalSession } from "./TerminalClient";
 
 const REFIT_DEBOUNCE_MS = 60;
 const SELECTION_COPY_DEBOUNCE_MS = 150;
+// FitAddon never proposes less than 2x1, so that size means a 0px box, not a real one.
+const MIN_COLS = 2;
+const MIN_ROWS = 1;
 
 let clipboardTail: Promise<unknown> | null = null;
 
@@ -65,7 +68,7 @@ export interface XtermSessionOptions {
   workspace?: string;
   /** False keeps the terminal torn down — a stopped agent has nothing to attach to. */
   enabled?: boolean;
-  /** A hidden host box measures 0x0; skip refits while it does. */
+  /** A hidden host box cannot be measured, so no size is sent while it is; showing it refits and focuses. */
   hidden?: boolean;
   /** Written into the terminal when the socket drops, so a detach is visible rather than silent. */
   closedNotice: string;
@@ -106,8 +109,10 @@ export function useXtermSession(
     const fitAddon = fitAddonRef.current;
     const session = sessionRef.current;
     if (!term || !fitAddon || !session) return;
+    // An unmeasurable box (hidden: NaN; laid out at 0px: FitAddon's 2x1 floor) would shrink the PTY, so skip it.
+    const measured = fitAddon.proposeDimensions();
+    if (!measured || !(measured.cols > MIN_COLS) || !(measured.rows > MIN_ROWS)) return;
     fitAddon.fit();
-    if (term.rows === 0 || term.cols === 0) return;
     const last = lastSizeRef.current;
     if (last && last.rows === term.rows && last.cols === term.cols) return;
     lastSizeRef.current = { rows: term.rows, cols: term.cols };
@@ -204,8 +209,8 @@ export function useXtermSession(
         if (selection && userSelecting) copySelection(selection);
       }, SELECTION_COPY_DEBOUNCE_MS);
     });
-    lastSizeRef.current = { rows: term.rows, cols: term.cols };
-    session.resize(term.rows, term.cols);
+    lastSizeRef.current = null;
+    refit();
 
     const resizeObserver = new ResizeObserver(() => scheduleRefit());
     resizeObserver.observe(container);
@@ -242,7 +247,7 @@ export function useXtermSession(
       webglRef.current = null;
       sessionRef.current = null;
     };
-  }, [containerRef, terminalClient, agent, workspace, enabled, closedNotice, scheduleRefit]);
+  }, [containerRef, terminalClient, agent, workspace, enabled, closedNotice, refit, scheduleRefit]);
 
   // On reopen the box goes 0 -> real size; refit to it and focus so the shell is usable immediately.
   useEffect(() => {

@@ -77,6 +77,9 @@ vi.mock("@xterm/addon-fit", () => {
     fit(): void {
       fitCalls.count += 1;
     }
+    proposeDimensions(): { rows: number; cols: number } {
+      return { rows: 24, cols: 80 };
+    }
   }
   return { FitAddon };
 });

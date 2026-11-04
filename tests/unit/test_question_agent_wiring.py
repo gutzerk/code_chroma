@@ -46,9 +46,9 @@ def test_mcp_config_is_written_to_a_private_per_process_dir():
 def test_claude_argv_registers_an_http_mcp_config_with_bearer_header_before_the_plugin_dir():
     argv, env = agent_cli("claude", mcp=ENDPOINT)
 
-    server = json.loads(Path(argv[2]).read_text(encoding="utf-8"))["mcpServers"]["codechroma"]
-    assert argv[1] == "--mcp-config"
-    assert argv[3] == "--plugin-dir"
+    mcp = argv.index("--mcp-config")
+    server = json.loads(Path(argv[mcp + 1]).read_text(encoding="utf-8"))["mcpServers"]["codechroma"]
+    assert argv[mcp + 2] == "--plugin-dir"
     assert env == {
         "CODECHROMA_BRIDGE_URL": "http://127.0.0.1:8123",
         "CODECHROMA_QUESTION_TOKEN": "agent-1.sig",
@@ -58,6 +58,13 @@ def test_claude_argv_registers_an_http_mcp_config_with_bearer_header_before_the_
     assert server["url"] == "http://127.0.0.1:8123/mcp/"
     assert server["headers"] == {"Authorization": "Bearer agent-1.sig"}
     assert server["timeout"] == 60_000
+
+
+def test_a_window_with_the_mcp_server_pre_approves_its_tools_so_no_worktree_asks():
+    argv, _ = agent_cli("claude", mcp=ENDPOINT)
+
+    settings = json.loads(argv[argv.index("--settings") + 1])
+    assert settings == {"permissions": {"allow": ["mcp__codechroma"]}}
 
 
 def test_claude_argv_is_unchanged_without_an_endpoint():

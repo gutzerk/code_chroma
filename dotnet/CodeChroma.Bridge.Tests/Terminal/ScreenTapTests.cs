@@ -162,6 +162,18 @@ public class ScreenTapTests
         Assert.Equal(["x", "y"], replica.Tail(2));
     }
 
+    [Fact]
+    public void A_wide_history_row_goes_out_unbroken_so_the_window_can_rewrap_it()
+    {
+        var source = Tap(rows: 2, cols: 10);
+        source.Feed("0123456789\r\nx\r\ny");
+        source.Resize(2, 5);
+
+        var rendered = source.Render();
+
+        Assert.Contains("0123456789", rendered);
+    }
+
     [Theory]
     [InlineData(Esc + "[3J")]
     [InlineData(Esc + "c")]

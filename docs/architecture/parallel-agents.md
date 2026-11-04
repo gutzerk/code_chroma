@@ -246,11 +246,16 @@ branch through an agent attached to it (`_guard_shared_worktree`, keyed off `Age
   current screen, not history above the fold. C# `Terminal/ScreenTap.cs` also keeps the parsed rows
   that a line feed or a shrink scrolls off the top (`HistoryLimit` = xterm's 5000, stored as styled
   runs, none on the alt screen or from `CSI S`, cleared by `ESC[3J` / `ESC c`) and `Render()` replays
-  them as plain lines first, rewrapped to the current width, so a reattached window can scroll the
-  whole dialog — still parsed cells, never raw bytes. `Attach()` sends the screen only (the history
-  too once the process has exited); the first-resize `Resync` sends the history once, at the
-  window's real width. 🔴 Entirely separate from `skill_agent`'s registry: if
-  the two touched, regenerating a C1 diagram would kill the user's sessions. `atexit` + the lifespan
+  them as plain lines first, each row whole (no breaks at the current width): xterm's autowrap
+  soft-wraps a row wider than the window and re-wraps it on every later resize, so history replayed
+  into a narrow window widens with it — still parsed cells, never raw bytes. `Attach()` sends the
+  screen only (the history too once the process has exited); the first-resize `Resync` sends the
+  history once. 🔴 `useXtermSession` sends no size until `FitAddon.proposeDimensions()` can measure
+  its box (a hidden or not-yet-laid-out box would leave xterm's 80x24 default, shrinking the PTY so
+  a background agent prints at 80 columns); the first measurable refit sends the real size. A laid-out 0px
+  box counts as unmeasurable too: it measures FitAddon's 2x1 floor. Rows claude itself
+  printed while the PTY was narrow stay narrow: claude's classic renderer never reprints them.
+  🔴 Entirely separate from `skill_agent`'s registry: if the two touched, regenerating a C1 diagram would kill the user's sessions. `atexit` + the lifespan
   kill leave no orphans. `agent_run_env(agent_id)` injects `CODECHROMA_WORKSPACE_ID=<agent id>` (and `CODECHROMA_BRIDGE_URL` when the bridge's URL is known, `questions.launch.identity_env`; C#: `BridgeAddress.ExportIdentity`) into
   the PTY env (both `routes/agents.py`'s `start` and `autostart.py` pass it via
   `AgentSessionRegistry.start(..., env=...)` → `PtySession(env=...)`). Without it the diagram skills
@@ -588,13 +593,16 @@ output tags such as `<local-command-stdout>`/`<bash-stdout>` are skipped; `<comm
 `<bash-input>` as `!cmd`, and any other text starting with `<` is kept as typed). The parse is cached per transcript
 file and reused while its length and write time are unchanged, since the route is polled. `edits` counts
 `Edit`/`Write`/`MultiEdit`/`NotebookEdit` and `runs` counts `Bash` tool calls (deduped by tool-use id) until the next
-prompt. A non-claude agent or one with no session gets an empty list.
+prompt. Both `/prompts` and `/usage` serve any agent with `AgentRecord.HasClaudeSession`: a `claude` window, or an
+`agent` window the bridge launched as the real claude (only those get a `SessionTrackingId`; `RecordSessionLaunch`
+drops it, with the claude `SessionId`, when the window is relaunched under another CLI, so a resume never hands that CLI a claude session). Any other agent, or one with no session yet, gets an empty
+list (and null usage).
 
 The web side lives in `web/src/agents/prompts/`:
 
 | File | Role |
 |---|---|
-| `promptNav.ts` | Pure logic: `toPrompts` + `replySummary` ("1 edit, 1 run" / "answer"), `clampIndex`, `activeIndexAt` (last prompt at or above the viewport top + 3 rows), `filterPrompts`, `findPromptLines` (each prompt's echo row: a row starting with `>`/`❯`/`›`/`!` plus its indented rows, compared whole with the prompt, whitespace removed, first 60 chars; matched newest first so a repeated prompt keeps its own echo after old rows leave the 5000-line scrollback; null when not found) |
+| `promptNav.ts` | Pure logic: `toPrompts` + `replySummary` ("1 edit, 1 run" / "answer"), `clampIndex`, `activeIndexAt` (last prompt at or above the viewport top + 3 rows), `filterPrompts`, `findPromptLines` (each prompt's echo row: a row starting with `>`/`❯`/`›`/`!` plus its indented rows up to a `⎿` row of hook/tool output, compared whole with the prompt, whitespace removed, first 60 chars; matched newest first so a repeated prompt keeps its own echo after old rows leave the 5000-line scrollback; null when not found) |
 | `promptNavStore.ts` | Per-agent state kept across agent switches: prompts, buffer lines, `current`, aria-live text, find requests. `go` scrolls the attached viewport and ignores its own scroll events for `JUMP_LOCK_MS` (250 ms). `ActivityPanel` calls `retain` with the live agent ids so a deleted agent's state is dropped |
 | `xtermPromptViewport.ts` | Attached through `useXtermSession`'s `onTerminal`: re-scans the buffer 200 ms after output or resize (skipped while the terminal is hidden; `AgentTerminal` calls `rescanPrompts` when it is shown again), follows the viewport (rAF-throttled), scrolls a prompt one row below the top, and highlights the current echo with an xterm decoration |
 | `usePromptList.ts` | Loads the selected agent's prompts; polls every 3 s while it runs and the page is visible |

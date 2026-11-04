@@ -5,10 +5,14 @@ import { TerminalClientProvider } from "./TerminalClientContext";
 import type { TerminalClient, TerminalSession } from "./TerminalClient";
 import { useXtermSession, type XtermSessionOptions } from "./useXtermSession";
 
-const { terminals, fit } = vi.hoisted(() => ({
-  terminals: [] as { rows: number; cols: number; written: string[]; disposed: boolean }[],
-  fit: { count: 0 },
-}));
+const { terminals, fit, MEASURED } = vi.hoisted(() => {
+  const MEASURED = { rows: 24, cols: 80 };
+  return {
+    MEASURED,
+    terminals: [] as { rows: number; cols: number; written: string[]; disposed: boolean }[],
+    fit: { count: 0, proposed: MEASURED as { rows: number; cols: number } | undefined },
+  };
+});
 
 vi.mock("@xterm/xterm", () => {
   class Terminal {
@@ -43,6 +47,9 @@ vi.mock("@xterm/addon-fit", () => ({
   FitAddon: class {
     fit(): void {
       fit.count += 1;
+    }
+    proposeDimensions(): { rows: number; cols: number } | undefined {
+      return fit.proposed;
     }
   },
 }));
@@ -92,6 +99,7 @@ afterEach(() => {
   cleanup();
   terminals.length = 0;
   fit.count = 0;
+  fit.proposed = MEASURED;
   handle = null;
   vi.useRealTimers();
 });
@@ -174,12 +182,38 @@ describe("useXtermSession", () => {
     expect(session.resize).toHaveBeenCalledWith(24, 100);
   });
 
-  it("ignores a refit while the host measures 0x0", () => {
+  it("sends no size while the box cannot be measured and sends the real one once shown", () => {
+    vi.useFakeTimers();
+    fit.proposed = undefined;
+    const { session } = fakeSession();
+    const client = { connect: () => session };
+    const host = (hidden: boolean) => (
+      <TerminalClientProvider client={client}>
+        <Host options={{ agent: "shell", closedNotice: "[closed]", hidden }} />
+      </TerminalClientProvider>
+    );
+    const view = render(host(true));
+    const sentWhileHidden = session.resize.mock.calls.length;
+    terminals[0].cols = 200;
+    fit.proposed = MEASURED;
+
+    view.rerender(host(false));
+    vi.advanceTimersByTime(60);
+
+    expect(sentWhileHidden).toBe(0);
+    expect(session.resize).toHaveBeenCalledWith(24, 200);
+  });
+
+  it.each([
+    ["is hidden", undefined],
+    ["is laid out at 0px", { rows: 1, cols: 2 }],
+  ])("ignores a refit while the host %s", (_name, proposed) => {
     vi.useFakeTimers();
     const { session } = fakeSession();
     mount(() => session);
     session.resize.mockClear();
-    terminals[0].rows = 0;
+    terminals[0].rows = 30;
+    fit.proposed = proposed;
 
     handle?.scheduleRefit();
     vi.advanceTimersByTime(60);

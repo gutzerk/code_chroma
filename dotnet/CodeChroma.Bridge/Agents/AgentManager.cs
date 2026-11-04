@@ -377,16 +377,26 @@ public sealed partial class AgentManager
     }
 
     /// <summary>Persists metadata from the actual PTY returned by Start, including an existing idempotent start.</summary>
-    public void RecordSessionLaunch(string agentId, AgentSession session)
+    public void RecordSessionLaunch(string agentId, AgentSession session) => RecordSessionLaunch(agentId, session.SessionTrackingFile, session.InitialSessionId);
+
+    /// <summary>Links the agent to a tracked claude launch; an `agent` window launched under another CLI drops its old link and session id, so it neither reports claude prompts nor resumes a claude session under that CLI.</summary>
+    public void RecordSessionLaunch(string agentId, string? trackingFile, string? initialSessionId)
     {
-        if (session.SessionTrackingFile is null) return;
         lock (_lock)
         {
             var record = Get(agentId);
-            var trackingId = Path.GetFileNameWithoutExtension(session.SessionTrackingFile);
+            if (trackingFile is null)
+            {
+                if (record.Kind == AgentRecord.DefaultKind || record.SessionTrackingId is null) return;
+                record.SessionTrackingId = null;
+                record.SessionId = null;
+                Save();
+                return;
+            }
+            var trackingId = Path.GetFileNameWithoutExtension(trackingFile);
             if (record.SessionTrackingId == trackingId) return;
             record.SessionTrackingId = trackingId;
-            record.SessionId = session.InitialSessionId;
+            record.SessionId = initialSessionId;
             Save();
         }
     }

@@ -60,16 +60,22 @@ const ECHO_START = /^[\s│|]*[>❯›!]\s?/;
 /** Characters of a prompt compared with its echo, whitespace removed (wraps and line breaks differ). */
 const MATCH_CHARS = 60;
 const MAX_ECHO_ROWS = 12;
+/** A row the TUI hangs under an echo (hook or tool output, `⎿ 1 skill available`), which ends the echo. */
+const ATTACHED_ROW = /^\s*⎿/;
+
+function continuesEcho(row: string): boolean {
+  return row.trim() === "" || (/^\s/.test(row) && !ATTACHED_ROW.test(row));
+}
 
 function compact(text: string): string {
   return text.replace(/\s+/g, "");
 }
 
-/** End (exclusive) of the echo starting at `start`: its glyph row, then indented or blank rows, trailing blanks dropped. */
+/** End (exclusive) of the echo starting at `start`: its glyph row, then indented or blank rows up to a `⎿` row, trailing blanks dropped. */
 function echoEnd(bufferLines: readonly string[], start: number, max = MAX_ECHO_ROWS): number {
   let end = start + 1;
   let last = end;
-  while (end < bufferLines.length && end - start < max && (bufferLines[end].trim() === "" || /^\s/.test(bufferLines[end]))) {
+  while (end < bufferLines.length && end - start < max && continuesEcho(bufferLines[end])) {
     end++;
     if (bufferLines[end - 1].trim() !== "") last = end;
   }

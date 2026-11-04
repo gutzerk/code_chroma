@@ -122,6 +122,35 @@ public sealed class SessionOwnershipTests
     }
 
     [Fact]
+    public void An_agent_window_relaunched_under_another_cli_drops_its_claude_session()
+    {
+        using var repo = new GitSandbox();
+        var (manager, tab) = AgentsInTab(repo);
+        var record = manager.Create("owner", kind: "agent", workspace: tab.Id);
+        manager.RecordSessionLaunch(record.Id, AgentSessionOwnership.FileFor(repo.Root, Guid.NewGuid().ToString()), Guid.NewGuid().ToString());
+
+        manager.RecordSessionLaunch(record.Id, null, null);
+
+        var reloaded = new AgentManager(repo.Root).Get(record.Id);
+        Assert.False(reloaded.HasClaudeSession);
+        Assert.Null(reloaded.SessionId);
+    }
+
+    [Fact]
+    public void A_claude_window_launched_without_tracking_keeps_its_session()
+    {
+        using var repo = new GitSandbox();
+        var (manager, tab) = AgentsInTab(repo);
+        var record = manager.Create("owner", workspace: tab.Id);
+        var trackingId = Guid.NewGuid().ToString();
+        manager.RecordSessionLaunch(record.Id, AgentSessionOwnership.FileFor(repo.Root, trackingId), Guid.NewGuid().ToString());
+
+        manager.RecordSessionLaunch(record.Id, null, null);
+
+        Assert.Equal(trackingId, new AgentManager(repo.Root).Get(record.Id).SessionTrackingId);
+    }
+
+    [Fact]
     public void Clear_and_resume_events_update_only_the_process_owned_file_and_survive_reload()
     {
         using var repo = new GitSandbox();

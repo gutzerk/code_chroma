@@ -136,7 +136,7 @@ public sealed class ScreenTap
             var output = new StringBuilder(Esc + "[?25l" + Esc + "[H" + Esc + "[2J" + Esc + "[3J" + Esc + "[m");
             // History goes out as plain lines so xterm scrolls it into its own scrollback; on the alt screen there is none.
             if (withHistory && !_altScreen)
-                foreach (var row in _history) AppendHistoryRow(output, row, Cols);
+                foreach (var row in _history) AppendHistoryRow(output, row);
             for (var y = 0; y < Rows; y++)
             {
                 AppendCells(output, Trimmed(_buffer[y])).Append(Esc + "[m");
@@ -171,25 +171,10 @@ public sealed class ScreenTap
         return output;
     }
 
-    /// <summary>One history row as lines of at most `width` cells, so a row from a wider screen rewraps to the current one.</summary>
-    private static void AppendHistoryRow(StringBuilder output, Run[] row, int width)
+    /// <summary>One history row as a single line: a row wider than the screen is soft-wrapped by the terminal's autowrap, so xterm re-wraps it on every later resize instead of keeping hard breaks at today's width.</summary>
+    private static void AppendHistoryRow(StringBuilder output, Run[] row)
     {
-        var column = 0;
-        foreach (var run in row)
-        {
-            var sgr = CharSgr(run.Style);
-            output.Append(sgr);
-            for (var at = 0; at < run.Text.Length; at++)
-            {
-                var continuesGlyph = at > 0 && char.IsLowSurrogate(run.Text[at]) && char.IsHighSurrogate(run.Text[at - 1]);
-                if (!continuesGlyph && column++ == width)
-                {
-                    output.Append(Esc + "[m\r\n").Append(sgr);
-                    column = 1;
-                }
-                output.Append(run.Text[at]);
-            }
-        }
+        foreach (var run in row) output.Append(CharSgr(run.Style)).Append(run.Text);
         output.Append(Esc + "[m\r\n");
     }
 

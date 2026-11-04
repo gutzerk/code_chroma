@@ -14,16 +14,17 @@ never consults the providers store.
 
 from __future__ import annotations
 
+import json
 import os
 from dataclasses import dataclass
 from pathlib import Path
 
 from codechroma.assistant import DEFAULT_CLI, load_assistant_settings
-from codechroma.bridge.agents.session_ownership import FILE_ENV, INITIAL_ID_ENV, hook_settings
+from codechroma.bridge.agents.session_ownership import FILE_ENV, INITIAL_ID_ENV, hook_document
 from codechroma.bridge.resources import resource_path
 from codechroma.config import settings
 from codechroma.llm.cli_adapters import CLI_ADAPTERS
-from codechroma.questions.launch import McpEndpoint
+from codechroma.questions.launch import CLAUDE_PERMISSION, McpEndpoint
 
 CLASSIC_RENDERER_ENV = "CLAUDE_CODE_DISABLE_ALTERNATE_SCREEN"
 
@@ -93,7 +94,7 @@ def agent_launch(
         return AgentLaunch([
             resolution.binary,
             *_model_args(resolution),
-            *_tracking_args(is_claude, session_tracking_file),
+            *_settings_args(is_claude, session_tracking_file, bool(mcp_args)),
             *_instruction_args(is_claude),
             *mcp_args,
             *_codechroma_plugin_args(is_claude),
@@ -114,7 +115,7 @@ def agent_launch(
         mcp_args, mcp_env = _mcp_registration("claude" if is_claude else None, mcp, workdir)
         return AgentLaunch([
             binary,
-            *_tracking_args(is_claude, session_tracking_file),
+            *_settings_args(is_claude, session_tracking_file, bool(mcp_args)),
             *_instruction_args(is_claude),
             *mcp_args,
             *_codechroma_plugin_args(is_claude),
@@ -143,8 +144,14 @@ def _model_args(resolution) -> list[str]:
     return ["--model", resolution.model] if resolution.model else []
 
 
-def _tracking_args(is_claude: bool, file: Path | None) -> list[str]:
-    return ["--settings", hook_settings()] if is_claude and file is not None else []
+def _settings_args(is_claude: bool, file: Path | None, has_mcp: bool) -> list[str]:
+    """`--settings`: the session hook when tracked, the MCP tools pre-approved when registered."""
+    if not is_claude or (file is None and not has_mcp):
+        return []
+    document = hook_document() if file is not None else {}
+    if has_mcp:
+        document["permissions"] = {"allow": [CLAUDE_PERMISSION]}
+    return ["--settings", json.dumps(document)]
 
 
 def _renderer_env(is_claude: bool) -> dict[str, str]:

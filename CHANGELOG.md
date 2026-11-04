@@ -1,5 +1,28 @@
 # Changelog
 
+## [1.14.0](https://github.com/gutzerk/code_chroma/compare/v1.13.0...v1.14.0) (2026-11-04)
+
+
+### Features
+
+* **impact:** restyle the Impact board to the change-at-a-glance design ([1aca9f1](https://github.com/gutzerk/code_chroma/commit/1aca9f1684c45ead75a0d5e322ec765ab17291b2))
+
+
+### Bug Fixes
+
+* **agents:** clear the claude session id on a CLI switch and tidy the MCP settings ([30227f3](https://github.com/gutzerk/code_chroma/commit/30227f300a700ea6fce563d5eecab93b08c5dc27))
+* **agents:** drop the claude session link when an agent window relaunches under another CLI ([cc0dea7](https://github.com/gutzerk/code_chroma/commit/cc0dea7c8f8694d35a730922922d1b65003644c4))
+* **agents:** keep replayed terminal history reflowable and never size a hidden terminal ([6bc0bf1](https://github.com/gutzerk/code_chroma/commit/6bc0bf10cf3cd3a811bfd3ce128bb75f07ddfb42))
+* **agents:** prompt history in agent windows, reflowable terminal history, terminal toolbar ([bd8d934](https://github.com/gutzerk/code_chroma/commit/bd8d934fcf8abea58d454ad8e383ca4bd9e34019))
+* **agents:** show prompt history for agent windows and match echoes with hook output ([7f9106d](https://github.com/gutzerk/code_chroma/commit/7f9106d7bdd1e3c91929f797b4c15c5ec44fc83f))
+* **canvas:** make the rendered Markdown preview scroll ([0416840](https://github.com/gutzerk/code_chroma/commit/0416840bfa3fc99fb22389abfd126d59bf7656e5))
+* **impact:** keep the review card in the side column and dragged cards in place ([735c9c4](https://github.com/gutzerk/code_chroma/commit/735c9c4c0e23d17cf4af9997a54bab249aa157b7))
+* **impact:** list each changed file once per block ([6e4de34](https://github.com/gutzerk/code_chroma/commit/6e4de34e6ef56212d1d08e64bd6f8f717f639376))
+* **questions:** allow every codechroma MCP tool and treat a 0px terminal as unmeasured ([d17e874](https://github.com/gutzerk/code_chroma/commit/d17e874025af01592141b8e5107e76c473cd0469))
+* **questions:** pre-approve the codechroma MCP tools so agent windows stop asking ([82473a5](https://github.com/gutzerk/code_chroma/commit/82473a593c26cceefeb9c637178f796c04eeae09))
+* **terminal:** put New terminal next to the tabs and make toolbar hover visible ([4c5787d](https://github.com/gutzerk/code_chroma/commit/4c5787d1e355ba3e507368e7429570979bca8219))
+* **terminal:** redraw a stale WebGL glyph atlas so agent windows stop dropping characters ([c71f5ce](https://github.com/gutzerk/code_chroma/commit/c71f5ce6714896d1e37ec4127b19acacff5e47ae))
+
 ## [1.13.0](https://github.com/gutzerk/code_chroma/compare/v1.12.0...v1.13.0) (2026-11-03)
 
 

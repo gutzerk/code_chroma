@@ -3,6 +3,12 @@ import type { HierarchyNodeRef } from "../../state/types";
 /** Both id dialects: the real bridge emits `dir::`/`component::`, the fixture mock `folder::`/`file::`. */
 const PATH_PREFIXES = ["dir::", "component::", "folder::", "file::"];
 
+/** The repo path a folder/file node id stands for, or null for a symbol or synthesized id. */
+export function containerPathOf(nodeId: string): string | null {
+  const prefix = PATH_PREFIXES.find((candidate) => nodeId.startsWith(candidate));
+  return prefix ? nodeId.slice(prefix.length) : null;
+}
+
 /** The shared decode step both copy-text helpers below use: strip a folder/file id's path prefix,
  * or fall back to `label` when `nodeId` is absent (a synthesized node, e.g. a C1 Person/System box),
  * carries no recognized prefix (a symbol id like `function::get_db`, or the `root` sentinel), or
@@ -12,11 +18,8 @@ const PATH_PREFIXES = ["dir::", "component::", "folder::", "file::"];
  * one-segment folder name carries no more information than the label already does, and for a block
  * named something else entirely it actively misleads whoever pastes it as AI context. */
 export function elementCopyText(nodeId: string | null, label: string): string {
-  if (!nodeId) return label;
-  const prefix = PATH_PREFIXES.find((candidate) => nodeId.startsWith(candidate));
-  if (!prefix) return label;
-  const path = nodeId.slice(prefix.length);
-  return path.includes("/") ? path : label;
+  const path = nodeId ? containerPathOf(nodeId) : null;
+  return path?.includes("/") ? path : label;
 }
 
 /** What a node's copy button puts on the clipboard: the repo-relative path for a folder or file

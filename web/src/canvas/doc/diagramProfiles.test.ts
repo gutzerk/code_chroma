@@ -75,7 +75,7 @@ describe("WALKTHROUGH_PROFILE edges", () => {
     ["spawn", "route"],
     ["data", undefined],
   ] as const)("gives a %s arrow the %s head", (visual, marker) => {
-    const result = WALKTHROUGH_PROFILE.edgeMarker?.(visual);
+    const result = WALKTHROUGH_PROFILE.edgeMarker?.(visual, {});
 
     expect(result).toBe(marker);
   });

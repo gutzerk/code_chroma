@@ -1,13 +1,16 @@
 import { useState, type CSSProperties } from "react";
 import { summarizeImpact, firstSentence } from "./doc/impactGlanceLogic";
 import { guardedClick, providerGate, useGroupAvailability } from "../llm-settings/useGroupAvailability";
-import type { ImpactChangedFile, ImpactChanges, DiagramGenerationStatus, PrReviewComment } from "../state/types";
+import type { ImpactChangedFile, ImpactChanges, DiagramGenerationStatus, PrReviewComment, PrWorkspace } from "../state/types";
 import { useImpactChanges } from "../state/useSidecar";
 import { inspectorStore } from "./inspectorStore";
 import { PrCommentCard } from "./PrCommentCard";
 import { SkillOutputFeed } from "./SkillOutputFeed";
 import { PanelDragGrip, usePanelDragResize } from "./usePanelDragResize";
 import { BOARD_GAP, CARD_WIDTH, ImpactBoard, useImpactBounds } from "./ImpactBoard";
+import { uniqueByPath } from "./impactRollup";
+import { useActiveWorkspace } from "../agents/agentStore";
+import { usePrWorkspaces } from "../pr/prStore";
 
 export interface ImpactChangeSummaryProps {
   /** The review job's state plus its re-run trigger, from useImpactChangesSidecar in RootCanvas. */
@@ -55,15 +58,26 @@ const PILLS = [
   { key: "tests", label: "tests" },
 ] as const;
 
+/** What the board compares: the PR against its base in a PR workspace, else the working tree against HEAD. */
+export function compareLabelOf(activeWorkspace: string, prs: readonly PrWorkspace[]): string {
+  const pr = prs.find((candidate) => candidate.id === activeWorkspace);
+  return pr ? `PR #${pr.number} vs ${pr.base_ref || "base"}` : "WORKING TREE vs HEAD";
+}
+
 /** The board's header strip: what is compared, the one-line change title and the four count pills. */
 function ImpactStrip({ changes }: { changes: ImpactChanges }) {
   const summary = summarizeImpact(changes);
-  const title = firstSentence(changes.summary) || `${changes.changed_file_count} changed files`;
+  const compare = compareLabelOf(useActiveWorkspace(), usePrWorkspaces());
+  const boxes = changes.blocks.length;
+  const fallback = `${changes.changed_file_count} changed file${changes.changed_file_count === 1 ? "" : "s"} across ${boxes} box${boxes === 1 ? "" : "es"}`;
+  const title = firstSentence(changes.summary) || fallback;
   return (
     <div className="impact-strip" data-testid="impact-strip">
-      <span className="impact-strip-label">WORKING TREE vs HEAD</span>
-      <span className="impact-strip-title" title={changes.summary || undefined}>
-        {title}
+      <span className="impact-strip-head">
+        <span className="impact-strip-label">{compare}</span>
+        <span className="impact-strip-title" title={changes.summary || undefined}>
+          {title}
+        </span>
       </span>
       <span className="impact-strip-pills">
         {PILLS.map(({ key, label }) => (
@@ -74,6 +88,19 @@ function ImpactStrip({ changes }: { changes: ImpactChanges }) {
       </span>
     </div>
   );
+}
+
+/** The outside files as one line: a folder's files folded into "dir (n)", a lone file by its name. */
+export function outsideSummaryOf(files: readonly ImpactChangedFile[]): string {
+  const byDir = new Map<string, string[]>();
+  for (const file of files) {
+    const parts = file.path.split("/");
+    const dir = parts.slice(Math.max(0, parts.length - 3), -1).join("/");
+    byDir.set(dir, [...(byDir.get(dir) ?? []), parts[parts.length - 1]]);
+  }
+  return [...byDir]
+    .map(([dir, names]) => (names.length === 1 ? names[0] : `${dir || "(root)"} (${names.length})`))
+    .join(" · ");
 }
 
 const LEGEND = [
@@ -123,11 +150,14 @@ function ImpactLegend() {
 /** Changed files no box on the diagram covers, as the board's dashed "outside this slice" strip. */
 function OutsideSlice({ files }: { files: ImpactChangedFile[] }) {
   const [open, setOpen] = useState(false);
+  const line = outsideSummaryOf(files);
   return (
     <div className="impact-outside" data-testid="impact-change-summary-unassigned">
       <div className="impact-outside-head">
         <span className="impact-outside-label">OUTSIDE THIS SLICE</span>
-        <span className="impact-outside-count">{files.length} file{files.length === 1 ? "" : "s"}</span>
+        <span className="impact-outside-count" title={line}>
+          {line}
+        </span>
         <button
           type="button"
           className="impact-outside-toggle"
@@ -161,7 +191,7 @@ function FileRow({ file }: { file: ImpactChangedFile }) {
   );
 }
 
-/** The change review's header card, floating over the canvas while both Impact and Diff are on.
+/** The change review card, shown with the Impact board whenever the Impact diagram is on the canvas.
  *
  * Carries the one thing no individual block can: the change set as a whole — the agent's paragraph,
  * a diff-stat-style file list grouped by the block it landed on, and the changed files that live
@@ -192,118 +222,119 @@ export function ImpactChangeSummary({
   const blockCount = changes.blocks.length;
   const blocksWithFiles = changes.blocks.filter((block) => block.files.length > 0);
   const bounds = useImpactBounds();
-  const cardStyle: CSSProperties = bounds ? { left: bounds.left - CARD_WIDTH - BOARD_GAP, top: bounds.top } : {};
   const showBoard = !review.loading && changes.changed_file_count > 0;
+  // Beside the board the card sits in the legend column; before the board shows it floats left of the diagram.
+  const cardStyle: CSSProperties = !showBoard && bounds ? { position: "absolute", left: bounds.left - CARD_WIDTH - BOARD_GAP, top: bounds.top } : {};
 
-  return (
-    <>
-    {showBoard && (
-      <ImpactBoard
-        changes={changes}
-        header={<ImpactStrip changes={changes} />}
-        outside={changes.unassigned.length > 0 ? <OutsideSlice files={changes.unassigned} /> : null}
-        legend={<ImpactLegend />}
-      />
-    )}
+  const card = (
     <div
-      ref={panelRef}
-      className={`impact-change-summary${changes.stale ? " impact-change-summary--stale" : ""}${
-        isDragging ? " impact-change-summary--dragging" : ""
-      }`}
-      data-testid="impact-change-summary"
-      data-state={isWriting ? "generating" : review.state}
-      data-stale={changes.stale}
-      style={{ ...style, ...cardStyle }}
-    >
-      <div className="impact-change-summary-header" {...dragHandleProps}>
-        <PanelDragGrip />
-        <span className="impact-change-summary-title">Change review</span>
-        <span className="impact-change-summary-counts" data-testid="impact-change-summary-counts">
-          {blockCount} block{blockCount === 1 ? "" : "s"} · {changes.changed_file_count} file
-          {changes.changed_file_count === 1 ? "" : "s"}
-        </span>
-        {canGenerate && (
-          <button
-            type="button"
-            className="impact-change-summary-rereview"
-            data-testid="impact-change-rereview"
-            aria-disabled={isWriting || !providerAvailable}
-            title={providerGate(providerAvailable).title}
-            onClick={guardedClick(isWriting || !providerAvailable, review.rereview)}
-          >
-            {isWriting ? "Reviewing…" : "Re-review"}
-          </button>
+        ref={panelRef}
+        className={`impact-change-summary${changes.stale ? " impact-change-summary--stale" : ""}${
+          isDragging ? " impact-change-summary--dragging" : ""
+        }`}
+        data-testid="impact-change-summary"
+        data-state={isWriting ? "generating" : review.state}
+        data-stale={changes.stale}
+        style={{ ...style, ...cardStyle }}
+      >
+        <div className="impact-change-summary-header" {...dragHandleProps}>
+          <PanelDragGrip />
+          <span className="impact-change-summary-title">Change review</span>
+          <span className="impact-change-summary-counts" data-testid="impact-change-summary-counts">
+            {blockCount} block{blockCount === 1 ? "" : "s"} · {changes.changed_file_count} file
+            {changes.changed_file_count === 1 ? "" : "s"}
+          </span>
+          {canGenerate && (
+            <button
+              type="button"
+              className="impact-change-summary-rereview"
+              data-testid="impact-change-rereview"
+              aria-disabled={isWriting || !providerAvailable}
+              title={providerGate(providerAvailable).title}
+              onClick={guardedClick(isWriting || !providerAvailable, review.rereview)}
+            >
+              {isWriting ? "Reviewing…" : "Re-review"}
+            </button>
+          )}
+        </div>
+
+        {review.loading ? (
+          <p className="impact-change-summary-text" data-testid="impact-change-summary-loading">
+            Loading changes… (a fresh workspace re-parses its changed files first)
+          </p>
+        ) : changes.changed_file_count === 0 ? (
+          <p className="impact-change-summary-text" data-testid="impact-change-summary-empty">
+            Nothing changed vs the last commit.
+          </p>
+        ) : (
+          <>
+            {changes.summary && <p className="impact-change-summary-text">{changes.summary}</p>}
+            {!changes.has_review && !isWriting && (
+              <p className="impact-change-summary-note" data-testid="impact-change-summary-unreviewed">
+                {canGenerate
+                  ? "Blocks are marked from git. Ask your AI assistant to explain them (the codechroma-review-diagram skill), or press Re-review."
+                  : "Blocks are marked from git."}
+              </p>
+            )}
+            {changes.stale && (
+              <p className="impact-change-summary-note" data-testid="impact-change-summary-stale">
+                This review covers an earlier version of the diff
+                {isWriting ? " — writing an updated one…" : "."}
+              </p>
+            )}
+            {blocksWithFiles.length > 0 && (
+              <div className="impact-change-summary-files" data-testid="impact-change-summary-files">
+                {blocksWithFiles.map((block) => (
+                  <div key={block.node_id} className="impact-change-summary-file-group">
+                    <span className="impact-change-summary-file-group-label">{block.name}</span>
+                    {uniqueByPath(block.files).map((file) => (
+                      <FileRow key={file.path} file={file} />
+                    ))}
+                  </div>
+                ))}
+              </div>
+            )}
+          </>
+        )}
+
+        {changes.general_pr_comments.length > 0 && (
+          <div className="impact-change-summary-comments" data-testid="impact-change-summary-comments">
+            <span className="impact-change-summary-file-group-label">PR comments</span>
+            {changes.general_pr_comments.map((comment) => (
+              <CommentRow key={`${comment.author}-${comment.created_at}`} comment={comment} />
+            ))}
+          </div>
+        )}
+
+        {isWriting && (
+          <>
+            <button
+              type="button"
+              className="impact-change-summary-stop"
+              data-testid="impact-change-review-stop"
+              onClick={review.stop}
+            >
+              Stop review
+            </button>
+            <SkillOutputFeed lines={outputLines} testId="impact-review-output" />
+          </>
+        )}
+
+        {review.state === "error" && review.error && (
+          <p className="impact-change-summary-error" data-testid="impact-change-summary-error">
+            {review.error}
+          </p>
         )}
       </div>
-
-      {review.loading ? (
-        <p className="impact-change-summary-text" data-testid="impact-change-summary-loading">
-          Loading changes… (a fresh workspace re-parses its changed files first)
-        </p>
-      ) : changes.changed_file_count === 0 ? (
-        <p className="impact-change-summary-text" data-testid="impact-change-summary-empty">
-          Nothing changed vs the last commit.
-        </p>
-      ) : (
-        <>
-          {changes.summary && <p className="impact-change-summary-text">{changes.summary}</p>}
-          {!changes.has_review && !isWriting && (
-            <p className="impact-change-summary-note" data-testid="impact-change-summary-unreviewed">
-              {canGenerate
-                ? "Blocks are marked from git. Ask your AI assistant to explain them (the codechroma-review-diagram skill), or press Re-review."
-                : "Blocks are marked from git."}
-            </p>
-          )}
-          {changes.stale && (
-            <p className="impact-change-summary-note" data-testid="impact-change-summary-stale">
-              This review covers an earlier version of the diff
-              {isWriting ? " — writing an updated one…" : "."}
-            </p>
-          )}
-          {blocksWithFiles.length > 0 && (
-            <div className="impact-change-summary-files" data-testid="impact-change-summary-files">
-              {blocksWithFiles.map((block) => (
-                <div key={block.node_id} className="impact-change-summary-file-group">
-                  <span className="impact-change-summary-file-group-label">{block.name}</span>
-                  {block.files.map((file) => (
-                    <FileRow key={file.path} file={file} />
-                  ))}
-                </div>
-              ))}
-            </div>
-          )}
-        </>
-      )}
-
-      {changes.general_pr_comments.length > 0 && (
-        <div className="impact-change-summary-comments" data-testid="impact-change-summary-comments">
-          <span className="impact-change-summary-file-group-label">PR comments</span>
-          {changes.general_pr_comments.map((comment) => (
-            <CommentRow key={`${comment.author}-${comment.created_at}`} comment={comment} />
-          ))}
-        </div>
-      )}
-
-      {isWriting && (
-        <>
-          <button
-            type="button"
-            className="impact-change-summary-stop"
-            data-testid="impact-change-review-stop"
-            onClick={review.stop}
-          >
-            Stop review
-          </button>
-          <SkillOutputFeed lines={outputLines} testId="impact-review-output" />
-        </>
-      )}
-
-      {review.state === "error" && review.error && (
-        <p className="impact-change-summary-error" data-testid="impact-change-summary-error">
-          {review.error}
-        </p>
-      )}
-    </div>
-    </>
+  );
+  if (!showBoard) return card;
+  return (
+    <ImpactBoard
+      changes={changes}
+      header={<ImpactStrip changes={changes} />}
+      outside={changes.unassigned.length > 0 ? <OutsideSlice files={changes.unassigned} /> : null}
+      legend={<ImpactLegend />}
+      review={card}
+    />
   );
 }

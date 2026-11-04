@@ -13,6 +13,7 @@ import {
 import { EMPTY_CANVAS_DOC, EMPTY_IMPACT_CHANGES, type CanvasDoc, type CanvasElement, type ImpactBlockChange, type ImpactChanges } from "../../state/types";
 import { mergedPillsOf } from "./impactBoxState";
 import { isRemovedLink } from "./impactEdgeStatus";
+import { IMPACT_CARD, impactBoardReflowIds, impactFoldersOf, impactPathOf, layoutImpactBoard } from "./impactBoardLayout";
 
 const block = (id: string, status: ImpactBlockChange["status"], files: ImpactBlockChange["files"]): ImpactBlockChange => ({
   block: id, node_id: `n-${id}`, name: id, path: null, status, files,
@@ -120,5 +121,61 @@ describe("impact board merging and removed links", () => {
 
     expect(isRemovedLink(EMPTY_IMPACT_CHANGES, doc, "a", "b")).toBe(true);
     expect(isRemovedLink(EMPTY_IMPACT_CHANGES, doc, "b", "a")).toBe(false);
+  });
+});
+
+const fileBox = (id: string, nodeId: string, x = 0, y = 0): CanvasElement => ({
+  ...el(id, y, null), node_id: nodeId, position: { x, y }, meta: { recipe_key: id, status: "new" },
+});
+
+describe("impact board folders and layout", () => {
+  it("buckets boxes by top-level area and folds lone boxes of one area together", () => {
+    const boxes = [
+      fileBox("a", "component::src/dags/x/a.py"),
+      fileBox("b", "component::src/dags/api/b.yaml"),
+      fileBox("c", "component::src/registry/c.yaml"),
+      fileBox("d", "component::src/contracts/d.py"),
+      fileBox("e", "dir::tests/dags"),
+      fileBox("f", "component::docs/f.md"),
+    ];
+
+    const folders = impactFoldersOf(boxes).map((folder) => [folder.label, folder.ids.sort()]);
+
+    expect(folders).toEqual(
+      expect.arrayContaining([["src/dags", ["a", "b"]], ["src", ["c", "d"]], ["tests/dags", ["e"]], ["docs", ["f"]]]),
+    );
+  });
+
+  it("lays every Impact box out as a 260x96 card and keeps a placed board's corner", () => {
+    const card = { w: IMPACT_CARD.w, h: IMPACT_CARD.h };
+    const doc = docOf([{ ...fileBox("a", "component::src/a.py", 500, 300), size: card }, { ...fileBox("b", "component::src/b.py", 900, 700), size: card }], {
+      e: { id: "e", from: "a", to: "b", label: "", kind: "uses", layer: "impact" },
+    });
+
+    const { positions, sizes } = layoutImpactBoard(doc, ["a", "b"]);
+
+    expect(sizes.a).toEqual({ w: IMPACT_CARD.w, h: IMPACT_CARD.h });
+    expect(positions.a).toEqual({ x: 500, y: 300 });
+    expect(positions.b.y).toBeGreaterThan(positions.a.y + IMPACT_CARD.h);
+  });
+
+  it("re-spreads only the boxes that are not card-sized yet", () => {
+    const card = { w: IMPACT_CARD.w, h: IMPACT_CARD.h };
+    const doc = docOf([
+      { ...fileBox("dragged", "component::src/a.py", 900, 900), size: card },
+      fileBox("fresh", "component::src/b.py"),
+    ]);
+
+    const ids = impactBoardReflowIds(doc, ["dragged", "fresh"]);
+
+    expect(ids).toEqual(["fresh"]);
+  });
+
+  it("reads a box path from meta.path first, then from its node id", () => {
+    const authored = { ...fileBox("a", "component::src/a.py"), meta: { path: "./web/src/b.ts" } };
+
+    expect(impactPathOf(authored)).toEqual({ path: "web/src/b.ts", isDir: false });
+    expect(impactPathOf(fileBox("b", "src/x.py::function::run"))).toEqual({ path: "src/x.py", isDir: false });
+    expect(impactPathOf(fileBox("c", "dir::tests/dags"))).toEqual({ path: "tests/dags", isDir: true });
   });
 });

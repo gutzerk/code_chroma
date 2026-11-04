@@ -23,7 +23,10 @@ const CANVAS_ARROW_MARKERS = [
   { id: `${CANVAS_ARROW_MARKER_ID}-error`, className: "custom-arrowhead canvas-arrowhead--error" },
 ];
 // The B2 route head is the board's 6-unit triangle (scaled by the 2.75px stroke), smaller than the default 10.
-const ROUTE_ARROW_MARKERS = [{ id: `${CANVAS_ARROW_MARKER_ID}-route`, className: "custom-arrowhead canvas-arrowhead--route" }];
+const PROFILE_ARROW_MARKERS = [
+  { id: `${CANVAS_ARROW_MARKER_ID}-route`, className: "custom-arrowhead canvas-arrowhead--route" },
+  { id: `${CANVAS_ARROW_MARKER_ID}-impact`, className: "custom-arrowhead canvas-arrowhead--impact" },
+];
 
 /** Bundles carry no arrowhead (the marker id is deliberately undefined); a profile may swap the head (a walkthrough's green route head). */
 const markerFor = (visual: EdgeVisual, variant: string | undefined): string =>
@@ -81,7 +84,7 @@ export function CanvasEdges({ doc, sizes, onOpenOrigin }: CanvasEdgesProps) {
   return (
     <>
       <ArrowMarkerDefs markers={CANVAS_ARROW_MARKERS} />
-      <ArrowMarkerDefs markers={ROUTE_ARROW_MARKERS} size={6} />
+      <ArrowMarkerDefs markers={PROFILE_ARROW_MARKERS} size={6} />
       {edges.map((edge) => {
         const visual: EdgeVisual = bundleSet.has(bundleKeyOf(edge)) ? "bundle" : edgeVisual(edge.kind, edge.transport);
         const source = doc.elements[edge.from];
@@ -102,7 +105,7 @@ export function CanvasEdges({ doc, sizes, onOpenOrigin }: CanvasEdgesProps) {
           transport={edge.transport}
           labelX={edge.labelX}
           labelY={edge.labelY}
-          markerId={markerFor(visual, profile.edgeMarker?.(visual))}
+          markerId={markerFor(visual, profile.edgeMarker?.(visual, edge))}
           fromNodeId={edge.from}
           toNodeId={edge.to}
           variantSuffix={` --custom --ek-${visual}`}

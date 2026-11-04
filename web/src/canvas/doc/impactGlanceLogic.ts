@@ -152,11 +152,11 @@ export function collapseKindOf(args: {
   return summary.minor.has(change.block) && change.block !== summary.biggest ? "minor" : null;
 }
 
-/** The "+N −M" and "· test +A −B" figures as display strings. */
+/** The "+N −M" and "test +A −B" figures as display strings. */
 export function sizeLabels(size: ChangeSize): { main: string | null; test: string | null } {
   return {
     main: size.known ? `+${size.add} −${size.del}` : null,
-    test: size.testKnown ? `· test +${size.testAdd} −${size.testDel}` : null,
+    test: size.testKnown ? `test +${size.testAdd} −${size.testDel}` : null,
   };
 }
 

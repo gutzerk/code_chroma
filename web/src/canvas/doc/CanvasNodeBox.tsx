@@ -144,8 +144,7 @@ export function CanvasNodeBox({ element, onMeasure, fitNameSize: sharedFitNameSi
   // convention but one level deeper (each story is its own small card). Both predicates are
   // epicsLayout.ts's own, so a card kind is named in one place.
   const isSpecsCard = isSpecs(element);
-  // A permanently-empty store unless an Impact layer is present and Diff mode is on (see
-  // useC1DiffSync) — a cheap, harmless subscription the rest of the time.
+  // A permanently-empty store unless an Impact layer is present (RootCanvas loads the review for it) — a cheap, harmless subscription the rest of the time.
   const { isImpact, change: impactChange } = useNodeOverlays(element);
   const impactBox = useImpactBoxState(element, impactChange, isImpact);
 
@@ -330,6 +329,8 @@ export function CanvasNodeBox({ element, onMeasure, fitNameSize: sharedFitNameSi
     impactChange ? `block-change--${impactChange.status}` : "",
     impactBox.kind ? `impact-box impact-box--${impactBox.kind}` : "",
     impactBox.biggest ? "impact-box--biggest" : "",
+    // Every Impact box wears the board card anatomy; one with no change is the quiet context card.
+    element.render === "impact" ? `impact-card${impactBox.kind ? "" : " impact-box--context"}` : "",
     accent.className ?? "",
     blockRole ? `block-role block-role--${blockRole}` : "",
     // An epics-layer box (epic title, or a Summary/Acceptance/Спеки content card) carries a shared
@@ -351,9 +352,6 @@ export function CanvasNodeBox({ element, onMeasure, fitNameSize: sharedFitNameSi
     .filter(Boolean)
     .join(" ");
 
-  // Impact count for the meta-row chip (`useNodeOverlays` also powers `NodeChangeBadge` above) --
-  // the box's own attributed change count, echoed as `· N` to mirror the form's `~ MODIFY · 17`.
-  const impactCount = impactChange?.change_count ?? 0;
   // 022: the file path is always visible on a code-backed box (the resolver stamps `meta.path`).
   const isEpicsLayer = isEpicsLayerName(element.layer);
   const sourcePath = isEpicsLayer ? undefined : stringMeta(element, "path");
@@ -434,7 +432,7 @@ export function CanvasNodeBox({ element, onMeasure, fitNameSize: sharedFitNameSi
               row's chips and the description would sit side by side as more row items instead of
               stacking. */}
           <div className={style.titleWrapClass}>
-            <NodeMetaRow element={element} count={impactCount} changed={Boolean(impactChange)} />
+            <NodeMetaRow element={element} changed={Boolean(impactChange)} />
             <div className={style.titleRowClass}>
               {accent.icon}
               <span className={`${style.nameClass} canvas-node-fit-name`} title={element.label} data-testid="canvas-node-box-name">

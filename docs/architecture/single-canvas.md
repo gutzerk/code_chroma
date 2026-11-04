@@ -842,8 +842,9 @@ Two load-bearing details:
 - **It must not "turn Diff on".** `DiffOverlayStore.write(entries, setActive)` is the single writer:
   the global Diff toggle calls `write(entries, true)` (raises `isActiveState`) while the impact
   path calls `write(entries)` — it writes the diff map + deleted snapshot + emits, but never sets
-  `isActiveState`. Setting `isActive` would raise `DeletedDiffOverlay`/`ChangeConnectionsOverlay`/
-  `ImpactChangeSummary` chrome the user didn't ask for. Impact's own deleted blocks stay on the
+  `isActiveState`. Setting `isActive` would raise `DeletedDiffOverlay`/`ChangeConnectionsOverlay`
+  chrome the user didn't ask for (the Impact board itself, `ImpactChangeSummary`, now shows whenever
+  the Impact layer is on the canvas). Impact's own deleted blocks stay on the
   review/ghost path — the deleted snapshot is populated but `DeletedDiffOverlay` is gated on
   `isActive`, so it stays hidden. A single emit after both writes means a subscriber observing
   `isActive` sees a real transition rather than a no-op intermediate.

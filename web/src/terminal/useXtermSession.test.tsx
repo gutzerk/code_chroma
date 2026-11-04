@@ -5,11 +5,18 @@ import { TerminalClientProvider } from "./TerminalClientContext";
 import type { TerminalClient, TerminalSession } from "./TerminalClient";
 import { useXtermSession, type XtermSessionOptions } from "./useXtermSession";
 
-const { terminals, fit, MEASURED } = vi.hoisted(() => {
+const { terminals, fit, MEASURED, atlas } = vi.hoisted(() => {
   const MEASURED = { rows: 24, cols: 80 };
   return {
     MEASURED,
-    terminals: [] as { rows: number; cols: number; written: string[]; disposed: boolean }[],
+    atlas: { cleared: 0 },
+    terminals: [] as {
+      rows: number;
+      cols: number;
+      written: string[];
+      refreshed: [number, number][];
+      disposed: boolean;
+    }[],
     fit: { count: 0, proposed: MEASURED as { rows: number; cols: number } | undefined },
   };
 });
@@ -19,6 +26,7 @@ vi.mock("@xterm/xterm", () => {
     rows = 24;
     cols = 80;
     written: string[] = [];
+    refreshed: [number, number][] = [];
     disposed = false;
     unicode = { activeVersion: "6" };
     constructor() {
@@ -30,6 +38,9 @@ vi.mock("@xterm/xterm", () => {
     focus(): void {}
     write(data: string): void {
       this.written.push(data);
+    }
+    refresh(start: number, end: number): void {
+      this.refreshed.push([start, end]);
     }
     onData(): void {}
     onBinary(): void {}
@@ -57,7 +68,9 @@ vi.mock("@xterm/addon-unicode11", () => ({ Unicode11Addon: class {} }));
 vi.mock("@xterm/addon-webgl", () => ({
   WebglAddon: class {
     onContextLoss(): void {}
-    clearTextureAtlas(): void {}
+    clearTextureAtlas(): void {
+      atlas.cleared += 1;
+    }
     dispose(): void {}
   },
 }));
@@ -100,11 +113,32 @@ afterEach(() => {
   terminals.length = 0;
   fit.count = 0;
   fit.proposed = MEASURED;
+  atlas.cleared = 0;
   handle = null;
   vi.useRealTimers();
 });
 
 describe("useXtermSession", () => {
+  it("clears the glyph atlas and redraws every row when the terminal is shown again", () => {
+    const { session } = fakeSession();
+    const client = { connect: () => session };
+    const view = render(
+      <TerminalClientProvider client={client}>
+        <Host options={{ agent: "shell", closedNotice: "[closed]", hidden: true }} />
+      </TerminalClientProvider>,
+    );
+    atlas.cleared = 0;
+
+    view.rerender(
+      <TerminalClientProvider client={client}>
+        <Host options={{ agent: "shell", closedNotice: "[closed]", hidden: false }} />
+      </TerminalClientProvider>,
+    );
+
+    expect(atlas.cleared).toBe(1);
+    expect(terminals[0].refreshed).toContainEqual([0, 23]);
+  });
+
   it("connects with the agent and workspace and sends the initial size", () => {
     const { session } = fakeSession();
     const connect = vi.fn().mockReturnValue(session);

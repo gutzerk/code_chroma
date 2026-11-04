@@ -1,9 +1,17 @@
 import type { ImpactBlockChange } from "../state/types";
 import { inspectorStore } from "./inspectorStore";
 import { PrCommentCard } from "./PrCommentCard";
+import { beforeAfterLine } from "./doc/impactGlanceLogic";
 
 export interface InspectorChangeReviewProps {
   change: ImpactBlockChange;
+  /** Reviewed boxes inside this one (a folder box's rollup), each shown as its own note. */
+  nested?: ImpactBlockChange[];
+}
+
+/** One line of review prose for a nested box: the board's before → after line, else its explanation. */
+function nestedNote(change: ImpactBlockChange): string {
+  return beforeAfterLine(change) ?? change.explanation;
 }
 
 const STATUS_LABEL: Record<string, string> = {
@@ -27,8 +35,11 @@ function pushFileInInspector(path: string): void {
  * Prose is empty until the codechroma-review-diagram skill has written a review, so a box can legitimately
  * render with just a status and a file list.
  */
-export function InspectorChangeReview({ change }: InspectorChangeReviewProps) {
-  const hasProse = Boolean(change.before || change.after || change.explanation);
+export function InspectorChangeReview({ change, nested = [] }: InspectorChangeReviewProps) {
+  const notes = nested
+    .map((inner) => ({ inner, text: nestedNote(inner) }))
+    .filter((note) => note.text);
+  const hasProse = Boolean(change.before || change.after || change.explanation) || notes.length > 0;
 
   return (
     <div
@@ -63,6 +74,16 @@ export function InspectorChangeReview({ change }: InspectorChangeReviewProps) {
               <p className="impact-change-section-text">{change.explanation}</p>
             </div>
           )}
+          {notes.map(({ inner, text }) => (
+            <div
+              key={inner.block}
+              className="impact-change-section impact-change-section--why"
+              data-testid="inspector-change-review-nested"
+            >
+              <span className="impact-change-section-label">{inner.name}</span>
+              <p className="impact-change-section-text">{text}</p>
+            </div>
+          ))}
         </>
       ) : (
         <p className="impact-change-unreviewed" data-testid="inspector-change-review-unreviewed">

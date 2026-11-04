@@ -237,15 +237,20 @@ def _attribute_cards(
     )
     unassigned: list[dict] = []
     for card in result["cards"]:
-        entry = {"path": card["file"], "status": card["status"]}
         block = _owning_block(card["node_id"], by_node_id, engine)
-        if block is None:
-            unassigned.append(entry)
-        else:
-            block.files.append(entry)
+        _add_file(unassigned if block is None else block.files, card["file"], card["status"])
     for item in result["unassigned"]:
-        unassigned.append({"path": item["path"], "status": item["status"]})
+        _add_file(unassigned, item["path"], item["status"])
     return unassigned
+
+
+def _add_file(files: list[dict], path: str, status: str) -> None:
+    """One entry per path: several changed symbols of one file fold by the `_status_for` rule."""
+    existing = next((entry for entry in files if entry["path"] == path), None)
+    if existing is None:
+        files.append({"path": path, "status": status})
+    elif existing["status"] != status:
+        existing["status"] = _MODIFIED
 
 
 def _resolve_comment_symbols(

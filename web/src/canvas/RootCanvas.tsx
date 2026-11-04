@@ -149,7 +149,8 @@ export function RootCanvas() {
   // on the impact layer's presence, like useImpactChangesSidecar's review fetch below — with no
   // impact layer there's nothing to annotate, so the deterministic diff/status GETs stay idle.
   useImpactDiffSync(engineClient, hasImpactLayer);
-  const impactReview = useImpactChangesSidecar(engineClient, isDiffActive, !isReadOnly);
+  // The review feeds the Impact board itself, so it loads whenever the Impact diagram is on the canvas, not only in Diff mode.
+  const impactReview = useImpactChangesSidecar(engineClient, isDiffActive || hasImpactLayer, !isReadOnly);
   const impactReviewOutput = useSkillOutput(engineClient, "impact-changes", impactReview.state);
   const traceState = useTraceState();
   const isTraceActive = traceState.isActive;
@@ -534,7 +535,7 @@ export function RootCanvas() {
                 {/* Inside .canvas-content on purpose (unlike SidecarSummaryCard below, which is
                     deliberately screen-fixed chrome): a big PR's change list
                     should pan and zoom with the diagram it's annotating, same as any block. */}
-                {isDiffActive && hasImpactLayer && (
+                {hasImpactLayer && (
                   <ImpactChangeSummary
                     review={impactReview}
                     outputLines={impactReviewOutput}

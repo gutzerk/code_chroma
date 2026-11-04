@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { EngineClientProvider, useEngineClient } from "../engine-client/EngineClientContext";
 import { EpicsDiagramClient } from "../engine-client/epicsDiagramClient";
 import { NodeKindIcon } from "../icons/NodeKindIcon";
-import { useImpactChange } from "../state/useSidecar";
+import { recipeChromeKey, useImpactChanges } from "../state/useSidecar";
 import { useDiff } from "../state/diffOverlayStore";
 import { useHierarchyChangeStatus } from "../state/hierarchyChangesStore";
 import { useLiveVersion } from "../state/liveStore";
@@ -13,6 +13,9 @@ import { CodeView } from "./CodeView";
 import { DiffView } from "./DiffView";
 import { PanelCloseButton } from "./PanelCloseButton";
 import { InspectorChangeReview } from "./InspectorChangeReview";
+import { rollupImpactChange } from "./impactRollup";
+import { filePartOf } from "./strategies/nodeCopyText";
+import { useCanvasDoc } from "./doc/canvasDocStore";
 import { inspectorStore, useInspectorClient, useInspectorStack, type InspectorEntry } from "./inspectorStore";
 import { InspectorWorkItem } from "./epics/InspectorWorkItem";
 import { EpicBlockContent } from "./doc/EpicBlockPanel";
@@ -141,7 +144,7 @@ function InspectorLevelFor({
   if (current.workItemId) {
     return <InspectorWorkItem key={current.workItemId} itemId={current.workItemId} client={epicsClient} />;
   }
-  return <InspectorLevel entryId={current.id} />;
+  return <InspectorLevel entryId={current.id} sourceId={current.sourceId} />;
 }
 
 /** A tab per node in a group; the active tab's code renders beneath. Tab state is local and resets
@@ -193,9 +196,14 @@ function InspectorTabLabel({ id }: { id: string }) {
 
 /** Resolves one drill level's node, its Impact change review if it has one, and either its source or
  * its children. */
-function InspectorLevel({ entryId }: { entryId: string }) {
+function InspectorLevel({ entryId, sourceId }: { entryId: string; sourceId?: string }) {
   const { node, error, retry } = useInspectorNode(entryId);
-  const change = useImpactChange(entryId);
+  const changes = useImpactChanges();
+  // The review is keyed by the box's own id (recipe_key), which a collapsed box doesn't share with its node_id.
+  const elements = useCanvasDoc().elements;
+  const element = sourceId ? elements[sourceId] : undefined;
+  const recipeKey = useMemo(() => (element ? recipeChromeKey(element) || undefined : undefined), [element]);
+  const rollup = useMemo(() => rollupImpactChange(changes, entryId, recipeKey), [changes, entryId, recipeKey]);
   const diff = useDiff(entryId);
   const engineClient = useEngineClient();
   // No onAccepted callback: unlike an inline code view there is nothing to close — accepting clears
@@ -234,7 +242,7 @@ function InspectorLevel({ entryId }: { entryId: string }) {
 
   return (
     <>
-      {change && <InspectorChangeReview change={change} />}
+      {rollup && <InspectorChangeReview change={rollup.change} nested={rollup.nested} />}
       {hasCode && hasChildren && (
         <div className="inspector-level-actions">
           <button
@@ -308,14 +316,8 @@ export function InspectorNote({ children, testId }: { children: ReactNode; testI
  * always-on color reach every nesting level, not just the leaves the pull-down diff happened to
  * name. */
 function componentOf(nodeId: string): string | undefined {
-  let file = nodeId;
-  if (file.startsWith("service::")) file = file.slice("service::".length);
-  const sepFunc = file.indexOf("::function::");
-  const sepClass = file.indexOf("::class::");
-  const sepCtr = file.indexOf("::functions");
-  const at = [sepFunc, sepClass, sepCtr].filter((i) => i !== -1).reduce((a, b) => Math.min(a, b), Number.POSITIVE_INFINITY);
-  if (at === Number.POSITIVE_INFINITY) return undefined;
-  return `component::${file.slice(0, at)}`;
+  const file = filePartOf(nodeId);
+  return file === null ? undefined : `component::${file}`;
 }
 
 /** One child row: drilling in is the only interaction — code, if the child has any, is the next

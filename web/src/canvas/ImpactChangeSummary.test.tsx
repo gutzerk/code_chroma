@@ -1,10 +1,11 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { fireEvent, render, screen } from "@testing-library/react";
-import { ImpactChangeSummary } from "./ImpactChangeSummary";
+import { compareLabelOf, ImpactChangeSummary, outsideSummaryOf } from "./ImpactChangeSummary";
 import { impactChangesSidecarStore, setChangesSnapshot } from "../state/useSidecar";
 import { inspectorStore } from "./inspectorStore";
+import { canvasDocStore } from "./doc/canvasDocStore";
 import * as availability from "../llm-settings/useGroupAvailability";
-import type { ImpactChanges } from "../state/types";
+import type { CanvasElement, ImpactChanges, PrWorkspace } from "../state/types";
 
 vi.mock("../llm-settings/useGroupAvailability", () => ({
   useGroupAvailability: vi.fn(),
@@ -42,6 +43,7 @@ const review = { state: "idle" as const, rereview: () => {}, stop: () => {}, loa
 afterEach(() => {
   impactChangesSidecarStore.reset();
   inspectorStore.reset();
+  canvasDocStore.reset();
   useGroupAvailability.mockReturnValue(true);
 });
 
@@ -145,5 +147,34 @@ describe("ImpactChangeSummary", () => {
     fireEvent.click(screen.getByTestId("impact-change-rereview"));
 
     expect(rereview).not.toHaveBeenCalled();
+  });
+});
+
+describe("impact strip helpers", () => {
+  it("labels a PR workspace against its base and anything else against HEAD", () => {
+    const pr = { id: "pr-76", number: 76, base_ref: "main" } as PrWorkspace;
+
+    expect(compareLabelOf("pr-76", [pr])).toBe("PR #76 vs main");
+    expect(compareLabelOf("main", [pr])).toBe("WORKING TREE vs HEAD");
+  });
+
+  it("folds outside files of one folder into a count and names a lone file", () => {
+    const file = (path: string) => ({ path, status: "modified" as const });
+
+    const line = outsideSummaryOf([file("docs/architecture/a.md"), file("docs/architecture/b.md"), file("web/package.json")]);
+
+    expect(line).toBe("docs/architecture (2) · package.json");
+  });
+
+  it("puts the review card in the board's side column beside the legend", () => {
+    const element: CanvasElement = { id: "a", render: "impact", layer: "impact", label: "a", description: "", node_id: null, position: { x: 100, y: 100 }, size: { w: 260, h: 96 }, group_id: null, meta: {}, created_by: "ai" };
+    canvasDocStore.setDoc({ ...canvasDocStore.getDoc(), elements: { a: element } });
+    setChangesSnapshot(changes());
+
+    render(<ImpactChangeSummary review={review} />);
+
+    const side = screen.getByTestId("impact-board-side");
+    expect(side).toHaveClass("impact-board-anchor--side");
+    expect(side).toContainElement(screen.getByTestId("impact-change-summary"));
   });
 });

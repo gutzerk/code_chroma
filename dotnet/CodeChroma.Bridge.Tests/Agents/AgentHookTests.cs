@@ -48,6 +48,16 @@ public sealed class AgentHookTests : IDisposable
     }
 
     [Fact]
+    public void Only_the_fields_the_bridge_reads_are_posted_never_the_tool_response()
+    {
+        const string stdin = """{"hook_event_name":"PostToolUse","session_id":"s","tool_name":"Read","tool_input":{"file_path":"a.cs","limit":5},"tool_response":{"content":"whole file"}}""";
+
+        Run(stdin, """{"ok":true}""");
+
+        Assert.Equal("""{"hook_event_name":"PostToolUse","tool_name":"Read","tool_input":{"file_path":"a.cs"}}""", _posts.Single().Body);
+    }
+
+    [Fact]
     public void Without_the_token_env_nothing_is_posted()
     {
         Environment.SetEnvironmentVariable(McpEndpoint.TokenEnv, null);

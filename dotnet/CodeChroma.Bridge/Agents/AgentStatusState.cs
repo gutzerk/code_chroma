@@ -1,42 +1,53 @@
 using System.Security.Cryptography;
 using System.Text.Json.Nodes;
+using CodeChroma.Bridge.Skills;
 using CodeChroma.Bridge.Stores;
 
 namespace CodeChroma.Bridge.Agents;
 
+/// <summary>Every status an agent card reports: idle/working/blocked/done while it runs, stopped or error once gone.</summary>
+public static class AgentStatus
+{
+    public const string Stopped = "stopped";
+    public const string Idle = "idle";
+    public const string Working = "working";
+    public const string Blocked = "blocked";
+    public const string Done = "done";
+    public const string Error = "error";
+}
+
 /// <summary>What a working agent is doing: the tool from PreToolUse, its short argument and when the turn began.</summary>
 public sealed record AgentActivity(string? Tool, string? Target, DateTimeOffset TurnStartedAt)
 {
-    public JsonObject ToJson() => new() { ["tool"] = Tool, ["target"] = Target, ["turn_started_at"] = AgentStatusState.Iso(TurnStartedAt) };
+    public JsonObject ToJson() => new() { ["tool"] = Tool, ["target"] = Target, ["turn_started_at"] = Json.Iso(TurnStartedAt) };
 }
 
 /// <summary>A PermissionRequest hook waiting for the canvas to allow or deny it.</summary>
 public sealed record PendingPermission(string RequestId, string Tool, string Summary, DateTimeOffset At)
 {
-    public JsonObject ToJson() => new() { ["request_id"] = RequestId, ["tool"] = Tool, ["summary"] = Summary, ["at"] = AgentStatusState.Iso(At) };
+    public JsonObject ToJson() => new() { ["request_id"] = RequestId, ["tool"] = Tool, ["summary"] = Summary, ["at"] = Json.Iso(At) };
 }
 
 /// <summary>Why an agent is in the error state: a non-zero exit or a failed start.</summary>
 public sealed record AgentError(string Message, DateTimeOffset At)
 {
-    public JsonObject ToJson() => new() { ["message"] = Message, ["at"] = AgentStatusState.Iso(At) };
+    public JsonObject ToJson() => new() { ["message"] = Message, ["at"] = Json.Iso(At) };
 }
 
-/// <summary>A copy of the live status fields, taken under the state's lock.</summary>
-public sealed record AgentStatusSnapshot(string Status, DateTimeOffset Since, AgentActivity? Activity, PendingPermission? Pending);
+/// <summary>A copy of the live status fields, taken under the state's lock; Error is set only for the error status.</summary>
+public sealed record AgentStatusSnapshot(string Status, DateTimeOffset Since, AgentActivity? Activity, PendingPermission? Pending, AgentError? Error = null);
 
 /// <summary>What one hook report did: whether the payload changed, and for PermissionRequest the decision to wait on.</summary>
 public sealed record HookOutcome(bool Changed, string? RequestId = null, Task<string?>? Decision = null);
 
 /// <summary>One live session's status: screen verdicts until the first hook report, then hooks own working/idle and the screen may only raise blocked.</summary>
-public sealed class AgentStatusState(Func<DateTimeOffset>? clock = null)
+public sealed class AgentStatusState(TimeProvider? time = null)
 {
-    public const string Done = "done";
     public const int TargetLimit = 120;
 
     private readonly object _gate = new();
-    private readonly Func<DateTimeOffset> _clock = clock ?? (() => DateTimeOffset.UtcNow);
-    private string _live = StatusDetector.Idle;
+    private readonly TimeProvider _time = time ?? TimeProvider.System;
+    private string _live = AgentStatus.Idle;
     private bool _unread;
     private bool _hooked;
     private bool _screenBlocker;
@@ -61,7 +72,7 @@ public sealed class AgentStatusState(Func<DateTimeOffset>? clock = null)
     {
         lock (_gate)
         {
-            _since ??= _clock();
+            _since ??= _time.GetUtcNow();
             return new AgentStatusSnapshot(Effective(), _since.Value, _activity, _pending);
         }
     }
@@ -76,14 +87,14 @@ public sealed class AgentStatusState(Func<DateTimeOffset>? clock = null)
             {
                 if (verdict is not null && verdict != _live) SetLive(verdict, unreadOnIdle: true);
             }
-            else if (visibleBlocker && !_screenBlocker && _live != StatusDetector.Blocked)
+            else if (visibleBlocker && !_screenBlocker && _live != AgentStatus.Blocked)
             {
-                _live = StatusDetector.Blocked;
+                _live = AgentStatus.Blocked;
             }
-            else if (!visibleBlocker && _screenBlocker && _live == StatusDetector.Blocked)
+            else if (!visibleBlocker && _screenBlocker && _live == AgentStatus.Blocked)
             {
-                _live = StatusDetector.Working;
-                _activity ??= new AgentActivity(null, null, _clock());
+                _live = AgentStatus.Working;
+                _activity ??= new AgentActivity(null, null, _time.GetUtcNow());
                 ClearPending();
             }
             _screenBlocker = visibleBlocker;
@@ -99,27 +110,27 @@ public sealed class AgentStatusState(Func<DateTimeOffset>? clock = null)
         lock (_gate)
         {
             var before = Fingerprint();
-            var now = _clock();
+            var now = _time.GetUtcNow();
             switch (name)
             {
                 case "UserPromptSubmit":
                     ClearPending();
                     _activity = new AgentActivity(null, null, now);
-                    SetLive(StatusDetector.Working);
+                    SetLive(AgentStatus.Working);
                     break;
                 case "PreToolUse":
                     ClearPending();
                     _activity = new AgentActivity(tool, Target(body["tool_input"]), _activity?.TurnStartedAt ?? now);
-                    SetLive(StatusDetector.Working);
+                    SetLive(AgentStatus.Working);
                     break;
                 case "PostToolUse":
                     ClearPending();
                     _activity ??= new AgentActivity(null, null, now);
-                    SetLive(StatusDetector.Working);
+                    SetLive(AgentStatus.Working);
                     break;
                 case "Notification":
                     var kind = Json.Str(body["notification_type"]) ?? "";
-                    if (kind == "permission_prompt" || kind.StartsWith("elicitation", StringComparison.Ordinal)) SetLive(StatusDetector.Blocked);
+                    if (kind == "permission_prompt" || kind.StartsWith("elicitation", StringComparison.Ordinal)) SetLive(AgentStatus.Blocked);
                     break;
                 case "PermissionRequest":
                     ClearPending();
@@ -128,11 +139,11 @@ public sealed class AgentStatusState(Func<DateTimeOffset>? clock = null)
                     _pending = new PendingPermission("p_" + Convert.ToHexString(RandomNumberGenerator.GetBytes(3)).ToLowerInvariant(), label,
                         target is null ? label : $"{label}({target})", now);
                     _waiter = new TaskCompletionSource<string?>(TaskCreationOptions.RunContinuationsAsynchronously);
-                    SetLive(StatusDetector.Blocked);
+                    SetLive(AgentStatus.Blocked);
                     break;
                 case "Stop":
                     ClearPending();
-                    SetLive(StatusDetector.Idle);
+                    SetLive(AgentStatus.Idle);
                     _unread = true;
                     break;
                 default:
@@ -186,33 +197,30 @@ public sealed class AgentStatusState(Func<DateTimeOffset>? clock = null)
         {
             ClearPending();
             _activity = null;
-            _since = _clock();
+            _since = _time.GetUtcNow();
         }
     }
+
+    /// <summary>The tool_input keys a target is read from, in order; the agent-hook forwards only these.</summary>
+    public static readonly string[] TargetKeys = ["file_path", "command", "pattern", "url"];
 
     /// <summary>The short argument a tool call is about: file_path, command, pattern or url, single-line and at most 120 chars.</summary>
     public static string? Target(JsonNode? input)
     {
         if (input is not JsonObject args) return null;
-        foreach (var key in new[] { "file_path", "command", "pattern", "url" })
-        {
-            if (Json.Str(args[key]) is not { Length: > 0 } raw) continue;
-            var line = string.Join(' ', raw.Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries));
-            return line.Length <= TargetLimit ? line : line[..(TargetLimit - 1)] + "…";
-        }
+        foreach (var key in TargetKeys)
+            if (Json.Str(args[key]) is { Length: > 0 } raw) return SkillOutput.Flatten(raw, TargetLimit);
         return null;
     }
 
-    public static string Iso(DateTimeOffset moment) => moment.UtcDateTime.ToString("yyyy-MM-dd'T'HH:mm:ss'Z'", System.Globalization.CultureInfo.InvariantCulture);
-
-    private string Effective() => _live == StatusDetector.Idle && _unread ? Done : _live;
+    private string Effective() => _live == AgentStatus.Idle && _unread ? AgentStatus.Done : _live;
 
     private void SetLive(string status, bool unreadOnIdle = false)
     {
-        if (unreadOnIdle && _live == StatusDetector.Working && status == StatusDetector.Idle) _unread = true;
-        if (status == StatusDetector.Working) _unread = false;
-        if (status == StatusDetector.Working && !_hooked) _activity ??= new AgentActivity(null, null, _clock());
-        if (status == StatusDetector.Idle) _activity = null;
+        if (unreadOnIdle && _live == AgentStatus.Working && status == AgentStatus.Idle) _unread = true;
+        if (status == AgentStatus.Working) _unread = false;
+        if (status == AgentStatus.Working && !_hooked) _activity ??= new AgentActivity(null, null, _time.GetUtcNow());
+        if (status == AgentStatus.Idle) _activity = null;
         _live = status;
     }
 
@@ -227,7 +235,7 @@ public sealed class AgentStatusState(Func<DateTimeOffset>? clock = null)
 
     private bool Commit((string Status, AgentActivity? Activity, PendingPermission? Pending) before)
     {
-        if (before.Status != Effective() || _since is null) _since = _clock();
+        if (before.Status != Effective() || _since is null) _since = _time.GetUtcNow();
         return before.Status != Effective() || before.Activity != _activity || before.Pending != _pending;
     }
 }

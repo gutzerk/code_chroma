@@ -28,9 +28,18 @@ else:
 logger = logging.getLogger(__name__)
 
 
+def utc_now() -> datetime:
+    return datetime.now(UTC)
+
+
+def iso(moment: datetime) -> str:
+    """Second-precision ISO-8601 UTC with a trailing Z, the format of every stored timestamp."""
+    return moment.astimezone(UTC).strftime("%Y-%m-%dT%H:%M:%SZ")
+
+
 def utc_now_iso() -> str:
     """UTC now as second-precision ISO-8601 with a trailing Z."""
-    return datetime.now(UTC).isoformat(timespec="seconds").replace("+00:00", "Z")
+    return iso(utc_now())
 
 
 def load_module_from_path(name: str, path: Path) -> ModuleType:

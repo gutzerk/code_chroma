@@ -11,9 +11,13 @@ import secrets
 import threading
 from concurrent.futures import Future
 from dataclasses import dataclass
-from datetime import UTC, datetime
+from datetime import datetime
 from typing import Any
 
+from codechroma.bridge.skill_output import flatten
+from codechroma.io import iso, utc_now
+
+# Every status an agent card reports: idle/working/blocked/done live, stopped or error once gone.
 STATUS_IDLE = "idle"
 STATUS_WORKING = "working"
 STATUS_BLOCKED = "blocked"
@@ -21,16 +25,8 @@ STATUS_DONE = "done"
 STATUS_STOPPED = "stopped"
 STATUS_ERROR = "error"
 TARGET_LIMIT = 120
+# The tool_input keys a target is read from, in order; agent_hook.TARGET_KEYS forwards the same.
 TARGET_KEYS = ("file_path", "command", "pattern", "url")
-
-
-def iso(moment: datetime) -> str:
-    """Second-precision ISO UTC, the wire format of every status timestamp."""
-    return moment.astimezone(UTC).strftime("%Y-%m-%dT%H:%M:%SZ")
-
-
-def utc_now() -> datetime:
-    return datetime.now(UTC)
 
 
 @dataclass(frozen=True)
@@ -75,12 +71,24 @@ class AgentError:
 
 @dataclass(frozen=True)
 class StatusSnapshot:
-    """A copy of the live status fields taken under the state's lock."""
+    """A copy of the live status fields taken under the state's lock; error only for `error`."""
 
     status: str
     since: datetime
     activity: AgentActivity | None
     pending: PendingPermission | None
+    error: AgentError | None = None
+
+    def to_json(self) -> dict:
+        """The five status fields every agent payload and `agent-status` event carry."""
+        working = self.status == STATUS_WORKING and self.activity is not None
+        return {
+            "status": self.status,
+            "status_since": iso(self.since),
+            "activity": self.activity.to_json() if working and self.activity else None,
+            "pending_permission": self.pending.to_json() if self.pending is not None else None,
+            "error": self.error.to_json() if self.error is not None else None,
+        }
 
 
 @dataclass(frozen=True)
@@ -99,8 +107,7 @@ def hook_target(tool_input: Any) -> str | None:
     for key in TARGET_KEYS:
         raw = tool_input.get(key)
         if isinstance(raw, str) and raw:
-            line = " ".join(raw.split())
-            return line if len(line) <= TARGET_LIMIT else line[: TARGET_LIMIT - 1] + "…"
+            return flatten(raw, TARGET_LIMIT)
     return None
 
 

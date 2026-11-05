@@ -13,11 +13,12 @@ import logging
 from pathlib import Path
 from uuid import uuid4
 
-from codechroma.bridge.agents.live_status import AgentError, utc_now
+from codechroma.bridge.agents.live_status import AgentError
 from codechroma.bridge.agents.manager import AgentRecord
 from codechroma.bridge.agents.session_ownership import file_for
 from codechroma.bridge.agents.sessions import AgentStartError, agent_run_env
 from codechroma.bridge.services import BridgeServices
+from codechroma.io import utc_now
 from codechroma.terminal.agents import agent_launch, resolved_cli_for
 
 logger = logging.getLogger("uvicorn.error")

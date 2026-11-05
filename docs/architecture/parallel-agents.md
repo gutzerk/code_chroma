@@ -44,7 +44,8 @@ A Python-only change does not fix the production desktop runtime.
 
 Claude Code hooks are the main status source; the screen detector fills in until the first hook
 report and for CLIs without hooks. Wire statuses are only `stopped`, `idle`, `working`, `blocked`,
-`done` and `error` (`running`/`exited` are no longer sent).
+`done` and `error` (`running`/`exited` are no longer sent or stored). They live in one place: C#
+`AgentStatus` (`Agents/AgentStatusState.cs`), Python the `STATUS_*` constants of `live_status.py`.
 
 - Every Claude launch with a bridge URL and agent id passes `--settings` with the status hooks, bare
   diagram windows included (`AgentSessionOwnership.TryHookSettings(..., statusHooks)`; Python
@@ -53,8 +54,12 @@ report and for CLIs without hooks. Wire statuses are only `stopped`, `idle`, `wo
   without the MCP server. Events: `UserPromptSubmit`, `PreToolUse` (`*`, after the AskUserQuestion
   entry), `PostToolUse` (`*`), `Stop`, `Notification`, `PermissionRequest` (`*`).
 - The hook command is the bridge binary's `agent-hook` subcommand (`Agents/AgentHook.cs`, dispatched
-  in `Program.cs`); Python runs the stdlib-only `bridge/agents/agent_hook.py`. It POSTs stdin to
-  `POST /agents/{id}/hook` with the bearer token and exits 0 silently on any error.
+  in `Program.cs`); Python runs the stdlib-only `bridge/agents/agent_hook.py`. It POSTs a slimmed
+  report (`AgentHook.Slim` / `slim`: `hook_event_name`, `tool_name`, `notification_type` and only
+  the `file_path`/`command`/`pattern`/`url` keys of `tool_input`, never `tool_response`) to
+  `POST /agents/{id}/hook` with the bearer token and exits 0 silently on any error. The env wiring is
+  read by `Http/HookEnv.cs`, shared with the AskUserQuestion hook; the route checks the token with
+  `QuestionMcp.Authorizes` (Python `QuestionMcp.authorizes`), as `/questions/ask` does.
 - Mapping (`Agents/AgentStatusState.cs`, Python `bridge/agents/live_status.py`):
 
   | Hook | Status | Also |
@@ -76,13 +81,18 @@ report and for CLIs without hooks. Wire statuses are only `stopped`, `idle`, `wo
   which prints `{"hookSpecificOutput":{"hookEventName":"PermissionRequest","decision":{"behavior":...}}}`.
   On timeout the bridge drops `pending_permission` (the status stays `blocked`) and the hook prints
   nothing, so the terminal dialog takes over.
-- `error {message, at}` is runtime-only (`ToPayload`, never `ToJson`): a non-zero exit not caused by
-  Stop, a failed start or auto-start (CLI not found, missing worktree, unknown kind). A successful
-  start or `POST /agents/{id}/dismiss-error` clears it; exit code 0 reads as `stopped`.
+- `error {message, at}` is runtime-only (`ToPayload`, never `ToJson`): a failed start or auto-start
+  (`AgentRecord.StartError` / `start_error`: CLI not found, missing worktree, unknown kind) wins,
+  else a session's non-zero exit not caused by Stop (carried on its `Snapshot().Error`). A successful
+  start clears the start error; `POST /agents/{id}/dismiss-error` clears both; exit code 0 reads as
+  `stopped`.
 - Exit is broadcast at once: `AgentSessionRegistry.Exited` (Python `on_exit`) fires from the PTY
   exit callback for the still-registered session. The poller broadcasts only real payload changes.
 - Every payload and `agent-status` event carries `status`, `status_since` (ISO UTC, seconds),
-  `activity` (only while working), `pending_permission` and `error` (only while error).
+  `activity` (only while working), `pending_permission` and `error` (only while error), built by
+  `AgentRoutes.StatusJson(session, record)` (Python `routes/agents.status_json`); a payload is
+  `ToPayload()` overlaid with it. The record keeps only the last reported status and its
+  `StatusSince`, so a stopped agent keeps its stopped-since time.
 - Tests: `Agents/AgentStatusStateTests.cs`, `Agents/AgentHookTests.cs`,
   `Agents/AgentLifecycleStatusTests.cs`, `tests/unit/test_agent_live_status.py`, contract cases in
   `tests/fixtures/bridge_contract/agents.cases.json` (the `token` step mints an agent's bearer token).
@@ -412,7 +422,12 @@ branch through an agent attached to it (`_guard_shared_worktree`, keyed off `Age
   (`osc_title`, `osc_progress`, `whole_recent`, `bottom_non_empty_lines(N)`, `prompt_box_body`,
   `after_last_horizontal_rule`, `last_non_empty_above_prompt_box`, the Codex `›` prompt-marker
   regions, ...) and nested `contains`/`regex`/`line_regex`/`all`/`any`/`not` gates. The
-  highest-priority matching rule wins, file order breaks ties. The screen is the whole **rendered**
+  highest-priority matching rule wins, file order breaks ties (rules are sorted once at parse time
+  and evaluation stops at the first match; each region's text, lower-cased text and lines are sliced
+  once per screen). `visible_working` is accepted for herdr compatibility but unused. The poller
+  re-runs the rules only when `ScreenTap.Generation` (bumped by every feed/resize), the title, the
+  progress or the foreground process changed; the cached verdict still goes through
+  `StatusDetector.Settle` each poll, so the time-based gates keep running. The screen is the whole **rendered**
   screen (`tail_lines = 200`, `terminal/screen_tap.py` / `ScreenTap.cs`), so a dialog is read by
   its structure (prompt box between two `─` rules, footer after the last rule) rather than by a
   phrase anywhere in the tail: "Esc to cancel" quoted in scrollback no longer reads as blocked.

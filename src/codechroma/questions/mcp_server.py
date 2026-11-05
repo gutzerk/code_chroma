@@ -7,7 +7,7 @@ import hashlib
 import hmac
 import secrets
 import uuid
-from collections.abc import AsyncIterator, Callable
+from collections.abc import AsyncIterator, Callable, Mapping
 from contextlib import asynccontextmanager
 from typing import Any
 
@@ -112,6 +112,13 @@ class QuestionMcp:
         if base_url is None:
             return None
         return McpEndpoint(workspace_id, base_url, self.token_for(workspace_id))
+
+    def authorizes(self, headers: Mapping[str, str], workspace_id: str) -> bool:
+        """Whether the `Authorization` header carries exactly this workspace's token."""
+        try:
+            return self.workspace_id_for(bearer_token(headers)) == workspace_id
+        except QuestionAuthError:
+            return False
 
     def workspace_id_for(self, token: str | None) -> str:
         """The workspace id a token names; raises QuestionAuthError if malformed or forged."""

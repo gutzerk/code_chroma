@@ -80,7 +80,7 @@ public sealed class AgentRuntime(
         foreach (var record in agents.List())
         {
             record.Pid = null;
-            record.Status = AgentRecord.StatusStopped;
+            record.Status = AgentStatus.Stopped;
             record.ExitCode = null;
         }
         agents.Save();
@@ -125,7 +125,7 @@ public sealed class AgentRuntime(
             Fail(record, error.Message);
             return;
         }
-        record.Error = null;
+        record.StartError = null;
         agents.MarkStarted(record.Id, session.Pid, TerminalAgents.ResolvedCliFor(record.Kind, launch.Argv));
         agents.RecordSessionLaunch(record.Id, session);
     }
@@ -133,7 +133,7 @@ public sealed class AgentRuntime(
     /// <summary>Marks a failed auto-start as the agent's error and tells any open canvas.</summary>
     private void Fail(AgentRecord record, string message)
     {
-        record.Error = new AgentError(message, DateTimeOffset.UtcNow);
+        record.StartError = new AgentError(message, DateTimeOffset.UtcNow);
         _ = BroadcastAgent(record.Id);
     }
 

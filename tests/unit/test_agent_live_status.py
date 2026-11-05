@@ -222,7 +222,8 @@ def test_an_exit_is_reported_at_once_and_only_a_non_zero_one_is_an_error(code, s
             if exited:
                 break
             await asyncio.sleep(0.025)
-        return exited, session.status, session.error and session.error.message
+        error = session.snapshot().error
+        return exited, session.status, error and error.message
 
     exited, reported, message = asyncio.run(run())
 
@@ -256,6 +257,19 @@ def test_the_hook_posts_the_report_to_the_agents_route_with_its_token(monkeypatc
         "http://127.0.0.1:9/agents/agent1/hook", "agent1.sig", stdin,
         agent_hook.POST_TIMEOUT_SECONDS,
     )]
+
+
+def test_the_hook_posts_only_what_the_bridge_reads_never_the_tool_response(monkeypatch):
+    stdin = json.dumps({
+        "hook_event_name": "PostToolUse", "session_id": "s", "tool_name": "Read",
+        "tool_input": {"file_path": "a.cs", "limit": 5}, "tool_response": {"content": "file"},
+    })
+
+    _, _, posts = _run_hook(monkeypatch, stdin, '{"ok":true}')
+
+    assert posts[0][2] == (
+        '{"hook_event_name":"PostToolUse","tool_name":"Read","tool_input":{"file_path":"a.cs"}}'
+    )
 
 
 @pytest.mark.parametrize("decision", ["allow", "deny"])
